@@ -10,7 +10,7 @@ export const { stateLayout, stateLayoutDerived } = createLayout({
 	},
 	mainSizesMap: {
 		desktop: MASTER.landscape,
-		landscape: MASTER.landscape,
+		landscape: MASTER.phone, // phone held sideways gets its own wide master (see layoutSpec.ts)
 		tablet: MASTER.portrait,
 		portrait: MASTER.portrait,
 	},

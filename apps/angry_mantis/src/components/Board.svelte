@@ -47,6 +47,7 @@
 			driftEvents: () => driftEvents,
 			atRest: () => context.stateGame.board.every((reel) => reel.reelState.motion === 'stopped'),
 			boardLayout: () => context.stateGameDerived.boardLayout(),
+			gameType: () => context.stateGame.gameType,
 		};
 	}
 

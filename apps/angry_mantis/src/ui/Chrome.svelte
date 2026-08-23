@@ -11,6 +11,7 @@
 	import ChromeStyles from './ChromeStyles.svelte';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
+	import ChromePhone from './ChromePhone.svelte';
 	import BonusBuyModal from './BonusBuyModal.svelte';
 	import DenomModal from './DenomModal.svelte';
 	import GameInfoModal from './GameInfoModal.svelte';
@@ -51,6 +52,8 @@
 	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />
+		{:else if kind === 'phone'}
+			<ChromePhone {controls} />
 		{:else}
 			<ChromePortrait {controls} />
 		{/if}
@@ -58,10 +61,10 @@
 </div>
 
 <div class="am-ui layer modals">
-	<BonusBuyModal {controls} {master} {scale} {left} {top} compact={kind === 'portrait'} />
-	<DenomModal {controls} {master} {scale} {left} {top} compact={kind === 'portrait'} />
-	<GameInfoModal {controls} {master} {scale} {left} {top} compact={kind === 'portrait'} />
-	<NoticeModal {controls} {master} {scale} {left} {top} compact={kind === 'portrait'} />
+	<BonusBuyModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
+	<DenomModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
+	<GameInfoModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
+	<NoticeModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 </div>
 
 <style>
