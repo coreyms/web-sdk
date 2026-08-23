@@ -28,7 +28,6 @@
 	import Transition from './Transition.svelte';
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
-	import AnteLock from './AnteLock.svelte';
 	import RetriggerBanner from './RetriggerBanner.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
 	import SessionSummary from './SessionSummary.svelte';
@@ -92,7 +91,6 @@
 			<Anticipations />
 		</MainContainer>
 
-		<AnteLock />
 		<PoolHud />
 		<!-- characters draw over the board (Pixi order) but stay under the HTML chrome buttons -->
 		<MainContainer>

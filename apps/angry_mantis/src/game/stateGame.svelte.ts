@@ -32,17 +32,23 @@ const onSymbolLand = ({ rawSymbol }: { rawSymbol: RawSymbol }) => {
 	}
 };
 
+// ante hold: once the forced reel-1 scatter has dropped in, it stays through later ante spins.
+// Live check: pre-spin fall-out happens before the book's anteLock event arrives, so the hold must be
+// derived, not event-driven — ante mode active AND the scatter is already on screen. Shared by the reel
+// (skip its motion) and ReelSymbol (draw it above the symbols cascading behind it).
+export const isAnteLockedSymbol = (reelIndex: number, symbolIndexOfBoard: number): boolean =>
+	reelIndex === 0 &&
+	symbolIndexOfBoard === 3 &&
+	stateBet.activeBetModeKey.toUpperCase() === 'ANTE' &&
+	stateGame.antePrevLocked;
+
 const board = _.range(BOARD_DIMENSIONS.x).map((reelIndex) => {
 	const reel = createReelForCascading({
 		reelIndex,
 		symbolHeight: SYMBOL_SIZE,
 		initialSymbols: INITIAL_BOARD[reelIndex],
 		initialSymbolState: INITIAL_SYMBOL_STATE,
-		// ante hold: once the forced reel-1 scatter has dropped in, it stays through later ante spins
-		// live check: pre-spin fall-out happens before the book's anteLock event arrives, so the hold
-		// must be derived, not event-driven — ante mode active AND the scatter is already on screen
-		getLockedRows: () =>
-			reelIndex === 0 && stateBet.activeBetModeKey.toUpperCase() === 'ANTE' && stateGame.antePrevLocked ? [3] : [],
+		getLockedRows: (): number[] => (isAnteLockedSymbol(reelIndex, 3) ? [3] : []),
 		onReelStopping: () => {
 			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop', forcePlay: !stateBet.isTurbo });
 		},

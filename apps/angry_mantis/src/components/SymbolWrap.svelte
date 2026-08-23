@@ -10,6 +10,7 @@
 		debug?: boolean;
 		x: number;
 		y: number;
+		zIndex?: number;
 		animating: boolean;
 		children: Snippet;
 	};
@@ -25,7 +26,7 @@
 </script>
 
 {#if props.debug || (show && inFrame)}
-	<Container x={props.x} y={props.y}>
+	<Container x={props.x} y={props.y} zIndex={props.zIndex ?? 0}>
 		{@render props.children()}
 	</Container>
 {/if}

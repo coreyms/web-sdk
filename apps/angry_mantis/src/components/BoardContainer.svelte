@@ -22,6 +22,7 @@
 	pivot={context.stateGameDerived.boardLayout().pivot}
 	scale={context.stateGameDerived.boardLayout().scale}
 	interactiveChildren={false}
+	sortableChildren={true}
 >
 	{@render props.children()}
 </Container>

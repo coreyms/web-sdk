@@ -89,8 +89,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateBet.winBookEventAmount = bookEvent.amount;
 	},
 	anteLock: async (bookEvent: BookEventOfType<'anteLock'>) => {
+		// presentation-free: the locked scatter simply stays on the board (see getLockedRows);
+		// bookEvent.scatterPosition is implied by the lock row
+		void bookEvent;
 		stateGame.anteLocked = true;
-		await eventEmitter.broadcastAsync({ type: 'anteLockShow', position: bookEvent.scatterPosition });
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 		await animateSymbols({ positions: bookEvent.positions });
