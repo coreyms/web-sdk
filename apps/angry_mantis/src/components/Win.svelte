@@ -13,7 +13,6 @@
 	import { Container } from 'pixi-svelte';
 	import { FadeContainer, WinCountUpProvider } from 'components-pixi';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 	import { CanvasSizeRectangle, MainContainer } from 'components-layout';
 	import { OnMount } from 'components-shared';
 	import { Tween } from 'svelte/motion';
@@ -21,6 +20,7 @@
 
 	import PressToContinue from './PressToContinue.svelte';
 	import GameText from './GameText.svelte';
+	import CountUpText from './CountUpText.svelte';
 	import { getContext } from '../game/context';
 	import { stateBetDerived } from 'state-shared';
 
@@ -74,11 +74,11 @@
 					{#if isBigWin}
 						<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
 							<GameText text={TITLES[winLevelData.alias] ?? 'BIG WIN'} preset="gold" size={110} y={-70} />
-							<GameText text={bookEventAmountToCurrencyString(countUpAmount)} preset="silver" size={72} y={40} maxWidth={760} />
+							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="silver" size={72} y={40} maxWidth={760} />
 						</Container>
 					{:else}
 						<Container x={layout.x} y={layout.y} scale={pop.current * layout.scale}>
-							<GameText text={bookEventAmountToCurrencyString(countUpAmount)} preset="gold" size={96} maxWidth={520} />
+							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={96} maxWidth={520} />
 						</Container>
 					{/if}
 				</MainContainer>

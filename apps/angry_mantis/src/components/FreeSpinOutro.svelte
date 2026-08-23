@@ -11,7 +11,6 @@
 	// End-of-feature total win (text-based; replaces the Mining Mayhem fsOutro Spine + sprites).
 	import { Container } from 'pixi-svelte';
 	import { FadeContainer, WinCountUpProvider } from 'components-pixi';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 	import { waitForResolve } from 'utils-shared/wait';
 	import { CanvasSizeRectangle, MainContainer } from 'components-layout';
 	import { OnMount } from 'components-shared';
@@ -23,6 +22,7 @@
 	import { BONUS_MODE_LABEL } from '../game/constants';
 	import PressToContinue from './PressToContinue.svelte';
 	import GameText from './GameText.svelte';
+	import CountUpText from './CountUpText.svelte';
 
 	const context = getContext();
 
@@ -62,7 +62,7 @@
 					<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
 						<GameText text={title} preset="gold" size={64} y={-110} maxWidth={760} />
 						<GameText text="TOTAL WIN" preset="silver" size={28} y={-30} extra={{ letterSpacing: 6 }} />
-						<GameText text={bookEventAmountToCurrencyString(countUpAmount)} preset="gold" size={96} y={50} maxWidth={760} />
+						<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={96} y={50} maxWidth={760} />
 					</Container>
 				</MainContainer>
 				<PressToContinue showText onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
