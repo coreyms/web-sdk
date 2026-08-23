@@ -1,0 +1,150 @@
+{
+	"sprite": {
+		"bgm_base_intro": [
+			0,
+			15052
+		],
+		"bgm_base": [
+			16052,
+			61461,
+			true
+		],
+		"bgm_free": [
+			78513,
+			92136,
+			true
+		],
+		"bgm_super": [
+			171649,
+			91950,
+			true
+		],
+		"bgm_feast": [
+			264600,
+			60805,
+			true
+		],
+		"bgm_maxwin": [
+			326405,
+			20556,
+			true
+		],
+		"sfx_reel_spin": [
+			347961,
+			2262,
+			true
+		],
+		"sfx_reel_stop": [
+			351222,
+			260
+		],
+		"sfx_scatter_land_1": [
+			352482,
+			801
+		],
+		"sfx_scatter_land_2": [
+			354284,
+			799
+		],
+		"sfx_scatter_land_3": [
+			356083,
+			597
+		],
+		"sfx_scatter_land_4": [
+			357680,
+			604
+		],
+		"sfx_scatter_land_5": [
+			359284,
+			599
+		],
+		"sfx_leaf_land": [
+			360883,
+			1001
+		],
+		"sfx_marty_strike": [
+			362884,
+			596
+		],
+		"sfx_marty_eat": [
+			364480,
+			1000
+		],
+		"sfx_ui_button": [
+			366480,
+			187
+		],
+		"sfx_ui_spin": [
+			367667,
+			187
+		],
+		"sfx_ui_bonus": [
+			368853,
+			187
+		]
+	},
+	"config": {
+		"bgm_base_intro": {
+			"volume": 0.6
+		},
+		"bgm_base": {
+			"volume": 0.6
+		},
+		"bgm_free": {
+			"volume": 0.6
+		},
+		"bgm_super": {
+			"volume": 0.6
+		},
+		"bgm_feast": {
+			"volume": 0.6
+		},
+		"bgm_maxwin": {
+			"volume": 0.6
+		},
+		"sfx_reel_spin": {
+			"volume": 1.0
+		},
+		"sfx_reel_stop": {
+			"volume": 1.0
+		},
+		"sfx_scatter_land_1": {
+			"volume": 1.0
+		},
+		"sfx_scatter_land_2": {
+			"volume": 1.0
+		},
+		"sfx_scatter_land_3": {
+			"volume": 1.0
+		},
+		"sfx_scatter_land_4": {
+			"volume": 1.0
+		},
+		"sfx_scatter_land_5": {
+			"volume": 1.0
+		},
+		"sfx_leaf_land": {
+			"volume": 1.0
+		},
+		"sfx_marty_strike": {
+			"volume": 1.0
+		},
+		"sfx_marty_eat": {
+			"volume": 1.0
+		},
+		"sfx_ui_button": {
+			"volume": 1.0
+		},
+		"sfx_ui_spin": {
+			"volume": 1.0
+		},
+		"sfx_ui_bonus": {
+			"volume": 1.0
+		}
+	},
+	"src": [
+		"./assets/audio/sounds.ogg",
+		"./assets/audio/sounds.m4a",
+		"./assets/audio/sounds.mp3"
+	]
+}

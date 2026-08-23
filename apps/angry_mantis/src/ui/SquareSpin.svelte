@@ -1,0 +1,89 @@
+<script lang="ts">
+	// Spin / Stop / Autoplay-countdown button. While autoplay runs it never shows a stop icon:
+	// it shows the live count with ACTIVE underneath, and tapping cancels the sequence.
+	import Icon from './Icon.svelte';
+	import type { Controls } from './controls.svelte';
+
+	type Props = { size?: number; controls: Controls };
+	const { size = 92, controls }: Props = $props();
+
+	const autoActive = $derived(controls.autoRunning());
+	const showStop = $derived(controls.showStop());
+	const countText = $derived(controls.autoCountText());
+	const countFont = $derived(countText.length > 3 ? 0.28 : countText === '∞' ? 0.55 : 0.32);
+	const background = $derived(
+		showStop ? 'rgba(120, 30, 45, .85)' : autoActive ? 'rgba(60, 90, 20, .85)' : 'rgba(10, 14, 10, .6)',
+	);
+	const ring = $derived(autoActive ? '#9CD92F' : '#fff');
+	const freegame = $derived(controls.freeSpin() !== null);
+	const fs = $derived(controls.freeSpin());
+</script>
+
+<button
+	class="slot-btn spin"
+	disabled={controls.spinDisabled()}
+	onclick={controls.spin}
+	aria-label={showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin'}
+	style:width="{size}px"
+	style:height="{size}px"
+	style:background
+	style:box-shadow="inset 0 0 0 4px {ring}, inset 0 1px 0 rgba(255,255,255,.3), 0 0 0 1px rgba(0,0,0,.5), 0 14px 28px rgba(0,0,0,.55)"
+>
+	{#if freegame && fs}
+		<div class="count">
+			<span class="active fs-label" style:font-size="{Math.max(8, size * 0.1)}px">Free spin</span>
+			<span class="slot-num num" style:font-size="{size * 0.3}px">{fs.current}<span class="of">/{fs.total}</span></span>
+		</div>
+	{:else if showStop}
+		<Icon name="stop" s={size * 0.4} />
+	{:else if autoActive}
+		<div class="count">
+			<span class="slot-num num" style:font-size="{size * countFont}px">{countText}</span>
+			<span class="active" style:font-size="{Math.max(9, size * 0.115)}px">Active</span>
+		</div>
+	{:else}
+		<Icon name="play" s={size * 0.44} />
+	{/if}
+</button>
+
+<style>
+	.spin {
+		border-radius: 18px;
+		color: #fff;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: transform 0.08s ease, background 0.2s ease;
+	}
+	.spin:active:not(:disabled) {
+		transform: translateY(1px);
+	}
+	.count {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		line-height: 1;
+		gap: 2px;
+	}
+	.num {
+		font-weight: 800;
+		color: #fff;
+		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+		letter-spacing: -0.5px;
+	}
+	.of {
+		font-size: 0.6em;
+		opacity: 0.75;
+	}
+	.fs-label {
+		color: #ffdc4a;
+	}
+	.active {
+		font-weight: 900;
+		letter-spacing: 1.4px;
+		color: #dff39a;
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+		text-transform: uppercase;
+	}
+</style>

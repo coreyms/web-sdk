@@ -42,6 +42,9 @@ type ReelCreateOptions<TRawSymbol extends object, TSymbolState extends string> =
 	symbolHeight: number;
 	onReelStopping: () => void;
 	onSymbolLand: (args: { rawSymbol: TRawSymbol }) => void;
+	// board rows that must not move during a spin (e.g. a sticky ante scatter); caller guarantees
+	// the incoming board keeps the same symbol at those rows
+	getLockedRows?: () => number[];
 };
 
 export type SpinningReelCreateOptions<

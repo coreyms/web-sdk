@@ -59,6 +59,8 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 
 	// interruptible
 	const interruptible = createInterruptible();
+	// `rush()` cuts the anticipation (noStop) wait short without changing stop-button semantics.
+	const rushable = createInterruptible();
 
 	// reactive states
 	const reelState = $state({
@@ -93,8 +95,16 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		await fallOut();
 	};
 
+	// Rows (board indexes) that stay put through fallOut/hanging/fallIn — e.g. a sticky ante scatter.
+	// The caller must guarantee the target board carries the same symbol at a locked row.
+	const isLocked = (reelSymbol: ReelSymbol) =>
+		(reelOptions.getLockedRows?.() ?? []).includes(reelSymbol.symbolIndexOfBoard);
+
 	const moveAllSymbolsWith = async (moveSymbol: (reelSymbol: ReelSymbol) => Promise<void>) => {
-		await Promise.all(reelState.symbols.map(moveSymbol));
+		await Promise.all(reelState.symbols.map(async (reelSymbol) => {
+			if (isLocked(reelSymbol)) return;
+			await moveSymbol(reelSymbol);
+		}));
 	};
 
 	const fallOut = async () => {
@@ -136,7 +146,8 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		// Q: When to skip the waitToStartFallingIn?
 		// A: When stop button is clicked(isTurbo) and is noStop is false
 		if (noStop) {
-			await waitToStartFallingIn();
+			await rushable.add(waitToStartFallingIn);
+			rushable.clear();
 		} else if (stateBet.isTurbo) {
 			// skip
 		} else {
@@ -234,6 +245,11 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		interruptible.interrupt();
 	};
 
+	const rush = () => {
+		interruptible.interrupt();
+		rushable.interrupt();
+	};
+
 	const readyToSpinEffect = () => {
 		$effect(() => {
 			if (reelState.motion === 'hanging') {
@@ -255,6 +271,7 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		prepareToSpin,
 		spin,
 		stop,
+		rush,
 		setSymbolsWithRawSymbols,
 		readyToSpinEffect,
 	};

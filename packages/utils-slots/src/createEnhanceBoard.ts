@@ -14,6 +14,7 @@ export function createEnhanceBoard() {
 				reel.setSymbolsWithRawSymbols(rawSymbols);
 			});
 		const stop = () => board.forEach((reel) => reel.stop());
+		const rush = () => board.forEach((reel) => reel.rush());
 		const readyToSpinEffect = () => {
 			board.forEach((reel) => reel.readyToSpinEffect());
 		};
@@ -24,6 +25,7 @@ export function createEnhanceBoard() {
 			spin,
 			settle,
 			stop,
+			rush,
 			readyToSpinEffect,
 		};
 	}
