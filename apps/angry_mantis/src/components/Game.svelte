@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	// registers renderer.prepare (PrepareSystem) — used to pre-upload textures during the loading screen
+	import 'pixi.js/prepare';
+	import { onMount, tick } from 'svelte';
 
 	import { EnablePixiExtension } from 'components-pixi';
 	import { EnableHotkey } from 'components-shared';
@@ -47,6 +49,18 @@
 		}
 	});
 
+	// GPU warm-up at loading-screen dismissal: pre-upload every mounted texture (symbol/character
+	// atlases, frame, background) so the first win/eat/feature doesn't hitch on lazy upload, and keep
+	// textures resident ~30 min (default texture GC evicts after ~60s idle — mid-session eviction means
+	// a visible re-upload hitch the next time a rare sprite state appears).
+	const warmGpu = async () => {
+		const app = context.stateApp.pixiApplication;
+		if (!app) return;
+		app.renderer.textureGC.maxIdle = 60 * 60 * 30; // frames: ~30 min at 60fps
+		await tick(); // main scene mounts in the same flush that hides the loading screen
+		await app.renderer.prepare.upload(app.stage);
+	};
+
 </script>
 
 <App>
@@ -58,7 +72,12 @@
 	<Background />
 
 	{#if context.stateLayout.showLoadingScreen}
-		<LoadingScreen onloaded={() => (context.stateLayout.showLoadingScreen = false)} />
+		<LoadingScreen
+			onloaded={() => {
+				context.stateLayout.showLoadingScreen = false;
+				warmGpu();
+			}}
+		/>
 	{:else}
 		<ResumeBet />
 		<!-- Sound mounts after the first user interaction (loading screen click) per browser autoplay rules -->
