@@ -33,6 +33,7 @@
 	import SessionSummary from './SessionSummary.svelte';
 	import ReplayOverlay from './ReplayOverlay.svelte';
 	import Chrome from '../ui/Chrome.svelte';
+	import TextWarmup from './TextWarmup.svelte';
 
 	const context = getContext();
 
@@ -79,6 +80,8 @@
 		/>
 	{:else}
 		<ResumeBet />
+		<!-- keeps fixed presentation strings' text textures resident (see TextWarmup) -->
+		<TextWarmup />
 		<!-- Sound mounts after the first user interaction (loading screen click) per browser autoplay rules -->
 		<Sound />
 

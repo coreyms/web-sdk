@@ -47,6 +47,10 @@
 	let measured = $state({ width: 0, height: 0 });
 	const scale = $derived(maxWidth && measured.width > maxWidth ? maxWidth / measured.width : 1);
 	const style = $derived(gameTextStyle(preset, size, extra));
+	// Big decorative text rasterizes to a power-of-two canvas and uploads it on first render — traced at
+	// 100–150ms per title on a 4×-throttled phone at the renderer's 1.5× resolution. Large sizes render at
+	// resolution 1 (≈55% fewer pixels); the softening is invisible at these font sizes on device.
+	const resolution = $derived(size >= 56 ? 1 : undefined);
 </script>
 
-<Text text={`${text}`} {style} {x} {y} {anchor} {alpha} {scale} onresize={(s) => (measured = s)} />
+<Text text={`${text}`} {style} {x} {y} {anchor} {alpha} {scale} {resolution} onresize={(s) => (measured = s)} />
