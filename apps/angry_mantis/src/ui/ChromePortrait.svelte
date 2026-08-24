@@ -48,7 +48,7 @@
 <style>
 	.top {
 		position: absolute;
-		top: 30px;
+		top: 68px;
 		left: 12px;
 		right: 12px;
 		display: flex;
@@ -87,8 +87,8 @@
 	.bar {
 		position: absolute;
 		bottom: 16px;
-		left: 12px;
-		right: 12px;
+		left: 4px;
+		right: 4px;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;

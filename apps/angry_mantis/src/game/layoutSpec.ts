@@ -22,7 +22,7 @@ export const FRAME: Record<
 	{ x: number; y: number; width: number; height: number; inset: number; cell: number; gap: number; image: string; margin: number }
 > = {
 	landscape: { x: 320, y: 50, width: 640, height: 520.4, inset: 23, cell: 115.6, gap: 4, image: 'frameDesktop', margin: 6 },
-	portrait: { x: 12, y: 120, width: 388, height: 317.6, inset: 20, cell: 66.4, gap: 4, image: 'frameMobile', margin: 6 },
+	portrait: { x: 12, y: 158, width: 388, height: 317.6, inset: 20, cell: 66.4, gap: 4, image: 'frameMobile', margin: 6 },
 	// Uniform 1.25× of the landscape frame (same PNG, rendered at 2x, so the upscale stays crisp) centred
 	// in the 1480-wide master: board fills the height, side columns (340 each) hold the controls.
 	phone: { x: 340, y: 36, width: 800, height: 650.5, inset: 28.75, cell: 144.5, gap: 5, image: 'frameDesktop', margin: 7.5 },
@@ -31,7 +31,7 @@ export const FRAME: Record<
 // Static Marty illustration (base game). Centre + square size, in master units.
 export const MARTY: Record<LayoutKind, { x: number; y: number; size: number }> = {
 	landscape: { x: 1060, y: 490, size: 480 },
-	portrait: { x: 262, y: 590, size: 340 },
+	portrait: { x: 285, y: 590, size: 340 },
 	phone: { x: 1210, y: 480, size: 300 }, // right column, tucked against the board edge, behind the control rail
 };
 
@@ -75,8 +75,8 @@ export const HUD: Record<
 		pressToContinue: { y: 612, width: 620, height: 104 },
 	},
 	portrait: {
-		fsCounter: { x: 12, y: 446, scale: 0.7 },
-		pool: { x: 206, y: 114, cols: 8, cell: 40 }, // one row overlapping the frame's top edge
+		fsCounter: { x: 12, y: 484, scale: 0.7 },
+		pool: { x: 206, y: 152, cols: 8, cell: 40 }, // one row overlapping the frame's top edge
 		mantis: { marky: { x: 80, y: 600 }, marty: { x: 330, y: 600 }, size: 100 },
 		pressToContinue: { y: 572, width: 260, height: 44 },
 	},

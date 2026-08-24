@@ -30,18 +30,21 @@
 	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="right" maxWidth={255} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} overhead={controls.anteActive() ? 'ANTE MODE' : null} />
 </div>
 
+<!-- grouped like portrait: [Bonus · Coin/Menu] bottom-left, [Auto/Turbo · Spin] bottom-right -->
 <div class="cluster-left">
-	{#if !replay}<BonusButton size={84} {controls} />{/if}
+	{#if !replay}<BonusButton size={116} {controls} />{/if}
 	<div class="col">
-		{#if !replay}<CoinButton size={46} {controls} />{/if}
-		<MenuButton size={46} {controls} compact />
+		{#if !replay}<CoinButton size={52} {controls} />{/if}
+		<MenuButton size={52} {controls} compact />
 	</div>
 </div>
 
-<div class="rail">
-	{#if !replay}<AutoplayButton size={52} {controls} compact />{/if}
+<div class="cluster-right">
+	<div class="col">
+		{#if !replay}<AutoplayButton size={52} {controls} compact />{/if}
+		<TurboButton size={52} {controls} />
+	</div>
 	{#if !replay}<SquareSpin size={116} {controls} />{/if}
-	<TurboButton size={52} {controls} />
 </div>
 
 <style>
@@ -92,16 +95,13 @@
 		pointer-events: none;
 		z-index: 2;
 	}
-	/* Right-edge thumb rail: auto / spin / turbo, vertically centred. */
-	.rail {
+	.cluster-right {
 		position: absolute;
-		right: 26px;
-		top: 50%;
-		transform: translateY(-50%);
+		bottom: 16px;
+		right: 24px;
 		display: flex;
-		flex-direction: column;
 		align-items: center;
-		gap: 18px;
+		gap: 10px;
 		pointer-events: none;
 		z-index: 2;
 	}
