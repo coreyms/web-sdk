@@ -31,7 +31,7 @@ export const FRAME: Record<
 // Static Marty illustration (base game). Centre + square size, in master units.
 export const MARTY: Record<LayoutKind, { x: number; y: number; size: number }> = {
 	landscape: { x: 1060, y: 490, size: 480 },
-	portrait: { x: 285, y: 590, size: 340 },
+	portrait: { x: 340, y: 590, size: 340 }, // right of centre; the canvas is full-screen so he may overhang the master
 	phone: { x: 1210, y: 480, size: 300 }, // right column, tucked against the board edge, behind the control rail
 };
 

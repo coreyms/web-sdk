@@ -25,6 +25,11 @@
 	const scale = $derived(Math.min((innerWidth.current ?? 1) / master.width, (innerHeight.current ?? 1) / master.height));
 	const left = $derived(((innerWidth.current ?? 1) - master.width * scale) / 2);
 	const top = $derived(((innerHeight.current ?? 1) - master.height * scale) / 2);
+	// Portrait: phones inside casino wrappers are often WIDER than the 412×760 master, which then sits
+	// letterboxed with side margins the chrome couldn't reach. The portrait chrome only uses edge-relative
+	// or centred x positions, so let its fit frame span the real viewport width (vertical stays master-based).
+	const fitWidth = $derived(kind === 'portrait' ? Math.max(master.width, (innerWidth.current ?? 1) / scale) : master.width);
+	const fitLeft = $derived(kind === 'portrait' ? ((innerWidth.current ?? 1) - fitWidth * scale) / 2 : left);
 
 	let show = $state(true);
 	const FADE = 350;
@@ -49,7 +54,7 @@
 <OnHotkey hotkey="Space" disabled={controls.spinDisabled() || controls.isReplay() || context.stateLayout.showLoadingScreen} onpress={controls.spin} />
 
 <div class="am-ui layer" class:hidden={!show || context.stateLayout.showLoadingScreen}>
-	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
+	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})">
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />
 		{:else if kind === 'phone'}
