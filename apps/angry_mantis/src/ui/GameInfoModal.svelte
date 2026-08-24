@@ -31,14 +31,14 @@
 	];
 
 	const SYMBOL_META: Record<string, { name: string; color: string; kind: 'premium' | 'mid' | 'low' }> = {
-		H1: { name: 'Gold Mantis', color: '#ffdc4a', kind: 'premium' },
-		M1: { name: 'Marky (Red)', color: '#C53C24', kind: 'mid' },
-		M2: { name: 'Marty (Green)', color: '#9CD92F', kind: 'mid' },
-		M3: { name: 'Blue Beetle', color: '#5AB6FF', kind: 'mid' },
-		L1: { name: 'Ace', color: '#fff', kind: 'low' },
-		L2: { name: 'King', color: '#fff', kind: 'low' },
-		L3: { name: 'Queen', color: '#fff', kind: 'low' },
-		L4: { name: 'Jack', color: '#fff', kind: 'low' },
+		H1: { name: 'Marty', color: '#ffdc4a', kind: 'premium' },
+		M1: { name: 'Beetle', color: '#C53C24', kind: 'mid' },
+		M2: { name: 'Spider', color: '#9CD92F', kind: 'mid' },
+		M3: { name: 'Scorpion', color: '#5AB6FF', kind: 'mid' },
+		L1: { name: 'Fly', color: '#fff', kind: 'low' },
+		L2: { name: 'Caterpillar', color: '#fff', kind: 'low' },
+		L3: { name: 'Lightning Bug', color: '#fff', kind: 'low' },
+		L4: { name: 'Moth', color: '#fff', kind: 'low' },
 	};
 	const paying = [...config.eatOrder].reverse();
 	const pays = (sym: string) => {
