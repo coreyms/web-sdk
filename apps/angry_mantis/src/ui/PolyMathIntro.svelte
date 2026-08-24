@@ -62,14 +62,22 @@
 {/if}
 
 <style>
+	/* Background lives on the full-viewport layer, not the letterboxed stage, so every aspect is covered. */
 	.pm-intro {
 		position: fixed;
 		inset: 0;
 		z-index: 998;
-		background: #0b0c10;
+		background: radial-gradient(120% 90% at 50% 42%, #171a22 0%, #0b0c10 62%, #07080b 100%);
 		overflow: hidden;
 		font-family: 'Outfit', system-ui, sans-serif;
 		color: #f4f6fb;
+	}
+	.pm-intro::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px);
+		pointer-events: none;
 	}
 	.stage {
 		position: absolute;
@@ -80,17 +88,9 @@
 	.intro {
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(120% 90% at 50% 42%, #171a22 0%, #0b0c10 62%, #07080b 100%);
 		display: grid;
 		place-items: center;
 		overflow: hidden;
-	}
-	.intro::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px);
-		pointer-events: none;
 	}
 	.lock {
 		display: flex;
