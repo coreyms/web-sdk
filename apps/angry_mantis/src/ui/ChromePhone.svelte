@@ -23,10 +23,11 @@
 <img class="logo" src="/assets/ui/logo-landscape.webp" alt="Angry Mantis" draggable="false" />
 <div class="tagline"><span>WIN UP TO 20,000×</span></div>
 
+<!-- anchored to the reel frame edges, same as desktop; maxWidth auto-shrinks trillion-scale balances -->
 <div class="stats">
-	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" />
-	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} />
-	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} overhead={controls.anteActive() ? 'ANTE MODE' : null} />
+	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={255} />
+	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} maxWidth={255} />
+	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="right" maxWidth={255} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} overhead={controls.anteActive() ? 'ANTE MODE' : null} />
 </div>
 
 <div class="cluster-left">
@@ -72,12 +73,12 @@
 	.stats {
 		position: absolute;
 		bottom: 6px;
-		left: 340px;
-		width: 800px;
-		display: flex;
-		justify-content: center;
-		align-items: flex-end;
-		gap: 70px;
+		left: 340px; /* FRAME.phone.x */
+		width: 800px; /* FRAME.phone.width */
+		display: grid;
+		grid-template-columns: 1fr 1fr 1fr;
+		justify-items: stretch;
+		align-items: end;
 		pointer-events: none;
 		z-index: 3;
 	}

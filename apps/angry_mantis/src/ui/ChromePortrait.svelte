@@ -21,11 +21,11 @@
 <div class="top"><img src="/assets/ui/logo-wide.webp" alt="Angry Mantis" draggable="false" /></div>
 
 <div class="stats">
-	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" />
-	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="right" onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} overhead={controls.anteActive() ? 'ANTE MODE' : null} />
+	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />
+	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="right" maxWidth={180} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} overhead={controls.anteActive() ? 'ANTE MODE' : null} />
 </div>
 <div class="win">
-	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} align="center" />
+	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} align="center" maxWidth={240} />
 </div>
 
 <div class="bar">

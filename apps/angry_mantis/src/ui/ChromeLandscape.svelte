@@ -22,10 +22,12 @@
 <img class="logo" src="/assets/ui/logo-landscape.webp" alt="Angry Mantis" draggable="false" />
 <div class="tagline"><span>WIN UP TO 20,000×</span></div>
 
+<!-- anchored to the reel frame: BALANCE at the board's left edge, WIN dead-centre under the board,
+     SPIN at the right edge. maxWidth auto-shrinks huge values (stake.us GC balances hit trillions). -->
 <div class="trio">
-	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" />
-	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} size="lg" />
-	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" size="lg" onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} overhead={controls.anteActive() ? 'ANTE MODE' : null} />
+	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />
+	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} size="lg" maxWidth={205} />
+	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={205} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} overhead={controls.anteActive() ? 'ANTE MODE' : null} />
 </div>
 
 <div class="bar">
@@ -73,13 +75,13 @@
 	.trio {
 		position: absolute;
 		bottom: 18px;
-		left: 0;
-		right: 0;
+		left: 320px; /* FRAME.landscape.x */
+		width: 640px; /* FRAME.landscape.width */
 		height: 92px;
-		display: flex;
-		justify-content: center;
-		align-items: flex-end;
-		gap: 80px;
+		display: grid;
+		grid-template-columns: 1fr 1fr 1fr;
+		justify-items: stretch;
+		align-items: end;
 		padding-bottom: 4px;
 		pointer-events: none;
 		z-index: 3;
