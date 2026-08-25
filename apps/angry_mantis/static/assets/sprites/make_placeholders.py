@@ -16,7 +16,7 @@ SMALL = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 
 
 # symbol -> (placeholder label, colour, real art file or None)
 SYMBOLS = {
-    "H1": ("Marty Head", (46, 204, 113), None),
+    "H1": ("Marty Head", (46, 204, 113), "h1-mantis.webp"),
     "M1": ("Beetle", (230, 126, 34), "m1-beetle.webp"),
     "M2": ("Spider", (52, 152, 219), "m2-spider.webp"),
     "M3": ("Scorpion", (155, 89, 182), "m3-scorpion.webp"),
