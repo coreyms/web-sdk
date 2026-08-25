@@ -25,7 +25,7 @@ SYMBOLS = {
     "L3": ("Lightning Bug", (241, 196, 15), "l3-lightning-bug.webp"),
     "L4": ("Moth", (149, 165, 166), "l4-moth.webp"),
     "W": ("WILD", (212, 175, 55), "wild.webp"),
-    "S": ("MARKY", (192, 57, 43), None),
+    "S": ("MARKY", (192, 57, 43), "scatter-marky.webp"),
     "GL": ("Glowing Leaf", (120, 255, 120), "strike-leaf.webp"),
 }
 
