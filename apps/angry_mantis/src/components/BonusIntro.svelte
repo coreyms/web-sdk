@@ -57,7 +57,7 @@
 					y={-40}
 					width={220}
 					height={220}
-					key="{name}_idle.png"
+					key="{name}Headshot"
 				/>
 			{/each}
 			<GameText

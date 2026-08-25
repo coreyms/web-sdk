@@ -5,6 +5,8 @@ export default {
 	"audio/sounds.m4a": "05b40b29",
 	"audio/sounds.mp3": "c94f6382",
 	"audio/sounds.ogg": "82bd4ca3",
+	"characters/marky-headshot.webp": "73fcb8c3",
+	"characters/marty-headshot.webp": "e59d84de",
 	"fonts/ui/Outfit-Variable.woff2": "623d408f",
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
 	"sprites/amCharacters/amCharacters.json": "4a0a368e",

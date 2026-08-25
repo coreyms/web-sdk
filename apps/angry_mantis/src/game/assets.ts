@@ -18,6 +18,10 @@ export default {
 	frameMobile: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-mobile.png', import.meta.url).href), preload: true },
 	martyArt: { type: 'sprite', src: stamp(new URL('../../assets/ui/marty.png', import.meta.url).href), preload: true },
 	markyArt: { type: 'sprite', src: stamp(new URL('../../assets/ui/marky.png', import.meta.url).href), preload: true },
+	// bonus-intro headshots (real character art; the in-game corner mantises stay on amCharacters
+	// placeholder frames until the Spine rig lands)
+	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: true },
+	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: true },
 	amSymbols: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/sprites/amSymbols/amSymbols.json', import.meta.url).href),
