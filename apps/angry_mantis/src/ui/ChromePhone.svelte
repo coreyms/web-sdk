@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { stamp } from '../game/assets';
 	// Phone-landscape master (1480×740): board centred and near full height, logo + free-spin HUD in the
 	// left column, vertical control rail on the right edge (thumb zone), stats strip under the board.
 	// Buttons are authored larger than desktop so they stay ≥44 CSS px after the master is scaled down.
@@ -20,7 +21,7 @@
 <ClockStrip side="left" clock text="ANGRY MANTIS" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<img class="logo" src="/assets/ui/logo-landscape.webp" alt="Angry Mantis" draggable="false" />
+<img class="logo" src={stamp('/assets/ui/logo-landscape.webp')} alt="Angry Mantis" draggable="false" />
 <div class="tagline"><span>WIN UP TO 20,000×</span></div>
 
 <!-- anchored to the reel frame edges, same as desktop; maxWidth auto-shrinks trillion-scale balances -->

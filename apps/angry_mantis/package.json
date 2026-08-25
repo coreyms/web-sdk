@@ -7,8 +7,8 @@
 		"format": "prettier --write --ignore-path=../../.prettierignore .",
 		"lint": "eslint \"src\"",
 		"storybook": "PUBLIC_CHROMATIC=true storybook dev -p 6007 public",
-		"dev": "vite dev --host --port 3007",
-		"build": "vite build",
+		"dev": "node scripts/stamp-assets.mjs && vite dev --host --port 3007",
+		"build": "node scripts/stamp-assets.mjs && vite build",
 		"preview": "vite preview"
 	},
 	"type": "module",

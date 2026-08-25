@@ -1,3 +1,4 @@
+import { stamp } from '../game/assets';
 // Card art/tones for the bonus-buy modal (from the design's BONUS_OPTIONS). Cost multipliers come from
 // betModeMeta / config so the modal can never disagree with the math.
 import config from '../game/config';
@@ -16,7 +17,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'ANTE',
 		label: 'ANTE',
-		image: '/assets/ui/label-ante.webp',
+		image: stamp('/assets/ui/label-ante.webp'),
 		description: 'MARKY LOCKED ON REEL 1 EVERY SPIN',
 		cta: 'ACTIVATE',
 		toggle: true,
@@ -25,7 +26,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'BONUS',
 		label: 'BONUS',
-		image: '/assets/ui/label-bonus.webp',
+		image: stamp('/assets/ui/label-bonus.webp'),
 		description: `${config.freeSpins.free} FREE SPINS, MARTY EATS SYMBOLS`,
 		cta: 'PLAY',
 		toggle: false,
@@ -34,7 +35,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'SUPER',
 		label: 'SUPER',
-		image: '/assets/ui/label-super.webp',
+		image: stamp('/assets/ui/label-super.webp'),
 		description: `${config.freeSpins.super} SPINS, MARKY FEEDS HARDER`,
 		cta: 'PLAY',
 		toggle: false,
@@ -43,7 +44,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'FEAST',
 		label: 'FEAST',
-		image: '/assets/ui/label-feast.webp',
+		image: stamp('/assets/ui/label-feast.webp'),
 		description: 'MARTY & MARKY, MAXIMUM HUNGER',
 		cta: 'PLAY',
 		toggle: false,

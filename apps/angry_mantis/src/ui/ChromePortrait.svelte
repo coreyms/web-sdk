@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { stamp } from '../game/assets';
 	// Portrait master (412×760): wide logo on top, BALANCE/SPIN above the controls, WIN on the button baseline.
 	import type { Controls } from './controls.svelte';
 	import ClockStrip from './ClockStrip.svelte';
@@ -18,7 +19,7 @@
 <ClockStrip side="left" clock text="ANGRY MANTIS" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<div class="top"><img src="/assets/ui/logo-wide.webp" alt="Angry Mantis" draggable="false" /></div>
+<div class="top"><img src={stamp('/assets/ui/logo-wide.webp')} alt="Angry Mantis" draggable="false" /></div>
 
 <div class="stats">
 	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />

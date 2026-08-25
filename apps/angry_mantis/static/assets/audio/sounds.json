@@ -103,48 +103,48 @@
 			"volume": 0.6
 		},
 		"sfx_reel_spin": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_reel_stop": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_scatter_land_1": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_scatter_land_2": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_scatter_land_3": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_scatter_land_4": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_scatter_land_5": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_leaf_land": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_marty_strike": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_marty_eat": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_ui_button": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_ui_spin": {
-			"volume": 1.0
+			"volume": 1
 		},
 		"sfx_ui_bonus": {
-			"volume": 1.0
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg",
-		"./assets/audio/sounds.m4a",
-		"./assets/audio/sounds.mp3"
+		"./assets/audio/sounds.ogg?v=82bd4ca3",
+		"./assets/audio/sounds.m4a?v=05b40b29",
+		"./assets/audio/sounds.mp3?v=c94f6382"
 	]
 }

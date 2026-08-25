@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { stamp } from '../game/assets';
 	// Desktop / landscape master (1280×720): logo + tagline left, stats trio centred on the button
 	// baseline, [Bonus · Coin/Menu] left and [Auto/Turbo · Spin] right.
 	import type { Controls } from './controls.svelte';
@@ -19,7 +20,7 @@
 <ClockStrip side="left" clock text="ANGRY MANTIS" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<img class="logo" src="/assets/ui/logo-landscape.webp" alt="Angry Mantis" draggable="false" />
+<img class="logo" src={stamp('/assets/ui/logo-landscape.webp')} alt="Angry Mantis" draggable="false" />
 <div class="tagline"><span>WIN UP TO 20,000×</span></div>
 
 <!-- anchored to the reel frame: BALANCE at the board's left edge, WIN dead-centre under the board,

@@ -1,22 +1,13 @@
 <!-- Global design-system styles for the HTML chrome (from the design's system.jsx). -->
 <!-- Fonts are bundled (static/assets/fonts/ui) — Stake Engine forbids external CDNs. -->
 
+<script lang="ts">
+	// fonts live in fontFaces.ts so their URLs carry the ?v= cache-buster stamp
+	import './fontFaces';
+</script>
+
 <style lang="scss">
 	:global {
-		@font-face {
-			font-family: 'Outfit';
-			font-style: normal;
-			font-weight: 100 900;
-			font-display: swap;
-			src: url('/assets/fonts/ui/Outfit-Variable.woff2') format('woff2');
-		}
-		@font-face {
-			font-family: 'Sora';
-			font-style: normal;
-			font-weight: 100 800;
-			font-display: swap;
-			src: url('/assets/fonts/ui/Sora-Variable.woff2') format('woff2');
-		}
 		:root {
 			--ui-font: 'Outfit', system-ui, sans-serif;
 			--ui-font-num: 'Sora', system-ui, sans-serif;

@@ -26,7 +26,9 @@
 			multiView: false,
 			antialias: true,
 			clearBeforeRender: true,
-			preference: 'webgpu',
+			// Pixi 8.8.1's WebGPU batcher assumes 32 samplers without requesting requiredLimits — devices that
+			// grant the spec-default 16 (maxSampledTexturesPerShaderStage) render a black canvas. WebGL until >=8.15.
+			preference: 'webgl',
 			powerPreference: 'high-performance',
 			resolution: devicePixelRatio.current,
 			resizeTo: window,
