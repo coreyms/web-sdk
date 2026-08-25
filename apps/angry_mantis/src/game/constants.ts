@@ -6,13 +6,16 @@ export const SYMBOL_SIZE = 110;
 export const REEL_PADDING = 0.5;
 export const CELL_FILL = 0.966;
 
-// initial board: 5 reels x (4 rows + top/bottom padding)
+// Landing board shown between CONTINUE and the first spin: a deliberate, mirror-symmetric showcase
+// of every symbol (5 reels x 4 rows + top/bottom padding; visible rows are indices 1-4).
+// Rules: every paying symbol + W + S appears (GL is feature-only, excluded); no symbol occupies
+// 3 consecutive reels, so nothing reads as a win. Specials (S, M3, H1) hold the center column.
 export const INITIAL_BOARD: RawSymbol[][] = [
-	['L1', 'H1', 'L4', 'M2', 'L3', 'L2'],
-	['M3', 'L2', 'M1', 'L4', 'L1', 'H1'],
-	['L4', 'M2', 'L3', 'L1', 'M3', 'L2'],
-	['L2', 'L1', 'M3', 'L3', 'M1', 'L4'],
-	['M1', 'L3', 'L2', 'M2', 'L4', 'L1'],
+	['L2', 'H1', 'M1', 'L1', 'L3', 'L4'],
+	['L1', 'M2', 'L4', 'W', 'L2', 'L3'],
+	['L4', 'L3', 'S', 'M3', 'H1', 'L1'],
+	['L1', 'M2', 'L4', 'W', 'L2', 'L3'],
+	['L2', 'H1', 'M1', 'L1', 'L3', 'L4'],
 ].map((reel) => reel.map((name) => ({ name: name as SymbolName })));
 
 export const BOARD_DIMENSIONS = { x: config.numReels, y: config.numRows[0] };
