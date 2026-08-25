@@ -1,4 +1,3 @@
-import WebFont from 'webfontloader';
 
 import type { PixiPoint, Sizes } from './types';
 
@@ -58,26 +57,18 @@ export function detectWebGL() {
 	return -1;
 }
 
-export const preloadFont = () =>
-	new Promise<void>((resolve) => {
-		try {
-			WebFont.load({
-				typekit: {
-					id: 'aba0ebl',
-				},
-				active: () => {
-					resolve();
-				},
-				inactive: () => {
-					console.error('Web font load inactive');
-					resolve();
-				},
-			});
-		} catch (error) {
-			console.error(error);
-			resolve();
+// Stake Engine forbids external CDNs, so the stock Typekit/webfontloader preload is replaced with a
+// wait on the document's own @font-face fonts (the app injects + kicks off loading of its bundled
+// fonts at module scope — see the game's ui/fontFaces.ts — before this runs in onMount).
+export const preloadFont = async () => {
+	try {
+		if (typeof document !== 'undefined' && document.fonts) {
+			await document.fonts.ready;
 		}
-	});
+	} catch (error) {
+		console.error(error);
+	}
+};
 
 export function propsSyncEffect<TProps extends object, TTarget>({
 	props,

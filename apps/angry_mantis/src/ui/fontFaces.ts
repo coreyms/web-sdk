@@ -18,4 +18,9 @@ if (typeof document !== 'undefined' && !document.getElementById('am-fonts')) {
 	el.id = 'am-fonts';
 	el.textContent = fontCss;
 	document.head.appendChild(el);
+	// kick off the fetches now: canvas text does NOT trigger @font-face loading on its own, and
+	// pixi-svelte's preloadFont awaits document.fonts.ready before Pixi init — these make that wait
+	// actually cover the bundled fonts, so Pixi text never rasterizes with a fallback font.
+	document.fonts?.load('700 16px Outfit');
+	document.fonts?.load('700 16px Sora');
 }
