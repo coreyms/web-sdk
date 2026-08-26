@@ -79,8 +79,8 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'MANTIS FEAST',
-			description: `${config.freeSpins.feast} Free Spins with Marty AND Marky. Two opening bites, both mantises strike, minimum 300x payout.`,
-			dialog: `Buy ${config.freeSpins.feast} Mantis Feast spins. Both mantises feed. Guaranteed at least 300x the bet.`,
+			description: `${config.freeSpins.feast} Free Spins with Marty AND Marky. Two opening bites, both mantises strike.`,
+			dialog: `Buy ${config.freeSpins.feast} Mantis Feast spins. Both mantises feed.`,
 			button: 'BUY',
 			betAmountLabel: 'MANTIS FEAST',
 			tickerIdle: '',

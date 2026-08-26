@@ -48,7 +48,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'FEAST',
-		detail: 'Both mantises bite at the start and strike together — eat all eight symbols for the 20,000× max win; pays at least 300×.',
+		detail: 'Both mantises bite at the start and strike together — eat all eight symbols for the 20,000× max win.',
 		label: 'FEAST',
 		image: stamp('/assets/ui/label-feast.webp'),
 		description: 'MARTY & MARKY, MAXIMUM HUNGER',

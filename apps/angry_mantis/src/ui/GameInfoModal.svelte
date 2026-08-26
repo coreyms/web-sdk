@@ -64,7 +64,7 @@
 		{ id: 'ante', label: 'Ante', accent: '#e8b04a', cost: `${config.betModes.ante.cost}×`, enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per stake.', mech: 'Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.' },
 		{ id: 'bonus', label: 'Free Spins', accent: '#9CD92F', cost: `${config.betModes.bonus.cost}×`, enter: 'Land 3 Marky scatters, or buy directly.', spins: `${config.freeSpins.free} Free Spins.`, mech: 'Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.' },
 		{ id: 'super', label: 'Super Free Spins', accent: '#C53C24', cost: `${config.betModes.super.cost}×`, enter: 'Land 4 Marky scatters, or buy directly.', spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
-		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${config.betModes.feast.cost.toLocaleString()}×`, enter: 'Land 5 Marky scatters, or buy directly.', spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, both mantises strike, and the session pays at least 300× the bet.' },
+		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${config.betModes.feast.cost.toLocaleString()}×`, enter: 'Land 5 Marky scatters, or buy directly.', spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
 	];
 
 	let active = $state('paytable');
