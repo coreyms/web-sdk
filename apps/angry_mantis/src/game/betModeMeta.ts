@@ -43,7 +43,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'FREE SPINS',
-			description: `${config.freeSpins.free} Free Spins with Marty. Marty eats the lowest-paying symbol to start, and every Glowing Leaf is another bite.`,
+			description: `${config.freeSpins.free} Free Spins with Marty. Marty eats the lowest-paying symbol to start, and every Dinner Leaf is another bite.`,
 			dialog: `Buy ${config.freeSpins.free} Free Spins hosted by Marty.`,
 			button: 'BUY',
 			betAmountLabel: 'FREE SPINS',
@@ -61,7 +61,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'SUPER FREE SPINS',
-			description: `${config.freeSpins.super} Free Spins with Marky. More Glowing Leaves, more bites, faster escalation.`,
+			description: `${config.freeSpins.super} Free Spins with Marky. More Dinner Leaves, more bites, faster escalation.`,
 			dialog: `Buy ${config.freeSpins.super} Super Free Spins hosted by Marky.`,
 			button: 'BUY',
 			betAmountLabel: 'SUPER FREE SPINS',

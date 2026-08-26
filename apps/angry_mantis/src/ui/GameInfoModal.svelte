@@ -9,6 +9,7 @@
 	import ModalShell from './ModalShell.svelte';
 	import Icon from './Icon.svelte';
 	import config from '../game/config';
+	import { stamp } from '../game/assets';
 	import { DISCLAIMER, RULES_SECTIONS } from '../game/gameInfoText';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
@@ -41,6 +42,8 @@
 		L4: { name: 'Moth', color: '#fff', kind: 'low' },
 	};
 	const paying = [...config.eatOrder].reverse();
+	// real symbol art thumbnails (static/assets/tiles/, emitted by make_placeholders.py)
+	const tileSrc = (code: string) => stamp(`/assets/tiles/${code.toLowerCase()}.webp`);
 	const pays = (sym: string) => {
 		const table = config.symbols[sym as keyof typeof config.symbols].paytable as readonly Record<string, number>[] | null;
 		const map: Record<string, number> = {};
@@ -51,16 +54,16 @@
 	const payText = (mult: number) => (social ? `${mult}×` : numberToCurrencyString(mult * stateBet.betAmount));
 
 	const SPECIALS = [
-		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: 'Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Glowing Leaves.' },
+		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: 'Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.' },
 		{ glyph: 'S', name: 'Marky Scatter', color: '#ff5a2c', note: `3 / 4 / 5 anywhere trigger Free Spins / Super Free Spins / Mantis Feast. In free spins each scatter adds +1 spin (up to +${config.freeSpins.maxRetrigger} per session); once the cap is reached scatters stop appearing.` },
-		{ glyph: 'GL', name: 'Glowing Leaf', color: '#9CD92F', note: 'Free spins only. Each Glowing Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten.' },
+		{ glyph: 'GL', name: 'Dinner Leaf', color: '#9CD92F', note: 'Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.' },
 	];
 
 	const MODES = [
 		{ id: 'base', label: 'Base Game', accent: '#fff', cost: '1×', enter: 'Default play.', spins: 'One spin per stake.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
 		{ id: 'ante', label: 'Ante', accent: '#e8b04a', cost: `${config.betModes.ante.cost}×`, enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per stake.', mech: 'Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.' },
-		{ id: 'bonus', label: 'Free Spins', accent: '#9CD92F', cost: `${config.betModes.bonus.cost}×`, enter: 'Land 3 Marky scatters, or buy directly.', spins: `${config.freeSpins.free} Free Spins.`, mech: 'Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Glowing Leaf that lands is another strike.' },
-		{ id: 'super', label: 'Super Free Spins', accent: '#C53C24', cost: `${config.betModes.super.cost}×`, enter: 'Land 4 Marky scatters, or buy directly.', spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Glowing Leaves, so symbols are eaten faster and wins escalate sooner.' },
+		{ id: 'bonus', label: 'Free Spins', accent: '#9CD92F', cost: `${config.betModes.bonus.cost}×`, enter: 'Land 3 Marky scatters, or buy directly.', spins: `${config.freeSpins.free} Free Spins.`, mech: 'Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.' },
+		{ id: 'super', label: 'Super Free Spins', accent: '#C53C24', cost: `${config.betModes.super.cost}×`, enter: 'Land 4 Marky scatters, or buy directly.', spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
 		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${config.betModes.feast.cost.toLocaleString()}×`, enter: 'Land 5 Marky scatters, or buy directly.', spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, both mantises strike, and the session pays at least 300× the bet.' },
 	];
 
@@ -115,7 +118,7 @@
 					{#each paying as sym (sym)}
 						{@const meta = SYMBOL_META[sym]}
 						<div class="row">
-							<div class="glyph" style:color={meta.color} style:background="radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.4) 0%, transparent 50%), linear-gradient(180deg, {meta.color}33, {meta.color}11)" style:box-shadow="inset 0 0 0 1.5px {meta.color}77, 0 0 18px {meta.color}33" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px">{sym}</div>
+							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:box-shadow="0 0 18px {meta.color}33" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={meta.kind === 'low' ? 'rgba(255,255,255,.8)' : meta.color}>{meta.name}</div>
 								<div class="row-kind">{meta.kind === 'premium' ? 'Premium' : meta.kind === 'mid' ? 'Mid' : 'Low'}</div>
@@ -133,7 +136,7 @@
 				<div class="pay-grid" style:grid-template-columns="1fr">
 					{#each SPECIALS as s (s.glyph)}
 						<div class="row top">
-							<div class="glyph" style:color={s.color} style:background="radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.4) 0%, transparent 50%), linear-gradient(180deg, {s.color}33, {s.color}11)" style:box-shadow="inset 0 0 0 1.5px {s.color}77, 0 0 18px {s.color}33" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px">{s.glyph}</div>
+							<img class="tile" src={tileSrc(s.glyph)} alt={s.name} style:box-shadow="0 0 18px {s.color}33" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={s.color}>{s.name}</div>
 								<div class="note">{s.note}</div>
@@ -184,10 +187,30 @@
 				<ul>
 					<li>When a session starts the host takes an opening bite (Mantis Feast: both mantises bite).</li>
 					<li>Each bite <strong>eats the lowest-paying symbol</strong> still on the menu, removing it from the reels for the rest of the session.</li>
-					<li>Each <strong style="color:#9CD92F">Glowing Leaf</strong> that lands triggers <strong>one additional strike</strong>.</li>
+					<li>Each <strong style="color:#9CD92F">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve — when several leaves land on one spin, each shows its own course, in serving order.</li>
 					<li>Fewer symbols on the reels means the remaining symbols land more often, so wins escalate as the session goes on.</li>
 					<li>If all eight paying symbols are eaten, the round pays the {config.maxWin.toLocaleString()}× max win immediately and the session ends.</li>
 				</ul>
+				<div class="subhead">The menu — eaten in this order</div>
+				<div class="menu-strip">
+					{#each config.eatOrder as sym, i (sym)}
+						<div class="menu-item">
+							<img class="tile" src={tileSrc(sym)} alt={SYMBOL_META[sym].name} />
+							<div class="menu-num">{i + 1}</div>
+						</div>
+						{#if i < config.eatOrder.length - 1}<div class="menu-arrow">→</div>{/if}
+					{/each}
+				</div>
+				<div class="row">
+					<div class="leaf-stack">
+						<img src={tileSrc('GL')} alt="Dinner Leaf" />
+						<img src={stamp('/assets/tiles/l4_insect.webp')} alt="Moth riding the leaf" />
+					</div>
+					<div class="row-main">
+						<div class="row-name" style:color="#9CD92F">Serving example</div>
+						<div class="note">A Dinner Leaf lands carrying the Moth — the lowest symbol still on the menu — and the host strikes to eat it, leaving an empty plate on the reels.</div>
+					</div>
+				</div>
 			</section>
 
 			<section bind:this={sectionEls.maxwin}>
@@ -374,15 +397,51 @@
 	.row.top {
 		align-items: flex-start;
 	}
-	.glyph {
+	.tile {
 		border-radius: 10px;
 		flex-shrink: 0;
+		display: block;
+	}
+	.menu-strip {
 		display: flex;
 		align-items: center;
-		justify-content: center;
-		font-weight: 900;
-		font-size: 16px;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+		gap: 6px;
+		flex-wrap: wrap;
+		margin-top: 4px;
+	}
+	.menu-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+	}
+	.menu-item .tile {
+		width: 40px;
+		height: 40px;
+		border-radius: 8px;
+	}
+	.menu-num {
+		font-size: 9px;
+		font-weight: 800;
+		color: rgba(238, 240, 246, 0.45);
+	}
+	.menu-arrow {
+		color: rgba(238, 240, 246, 0.35);
+		font-weight: 800;
+		margin-bottom: 12px;
+	}
+	.leaf-stack {
+		position: relative;
+		width: 44px;
+		height: 44px;
+		flex-shrink: 0;
+	}
+	.leaf-stack img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		border-radius: 10px;
 	}
 	.row-main {
 		flex: 1;

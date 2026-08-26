@@ -17,6 +17,7 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
+	import { nextSymbolToEat } from '../game/stateGame.svelte';
 	import GameText from './GameText.svelte';
 	import { TIMINGS, SYMBOL_SIZE, CELL_FILL } from '../game/constants';
 	import { getSymbolX, getSymbolY } from '../game/utils';
@@ -34,6 +35,11 @@
 	// eaten symbol: flies from the board centre to the striker's mouth (offsets are relative to the mantis)
 	const fly = new Tween({ x: 0, y: 0, s: 1 }, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicIn });
 	const mouthOffset = (isMarty: boolean, size: number) => ({ x: isMarty ? -size * 0.35 : size * 0.35, y: -size * 0.25 });
+	// opening auto-bites have no board leaf, so a dinner leaf drops to the board centre carrying the
+	// meal; the strike launches from it and the leaf fades away once the insect is taken
+	let autoLeaf = $state<PayingSymbolName | null>(null);
+	const leafDrop = new Tween(0, { duration: Math.round(TIMINGS.strike * 0.6), easing: cubicIn });
+	const leafFade = new Tween(1, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicOut });
 
 	context.eventEmitter.subscribeOnMount({
 		mantisShow: ({ host: h }) => {
@@ -41,8 +47,19 @@
 			show = true;
 		},
 		mantisHide: () => (show = false),
-		mantisStrike: async ({ striker }) => {
+		mantisStrike: async ({ striker, position }) => {
 			show = true;
+			if (!position) {
+				// auto bite: bring the meal in on a dinner leaf before the lunge, same read as a board leaf
+				const symbol = nextSymbolToEat();
+				if (symbol) {
+					const layout = context.stateGameDerived.boardLayout();
+					autoLeaf = symbol;
+					leafFade.set(1, { duration: 0 });
+					leafDrop.set(-(layout.height * layout.scale) / 2 - 140, { duration: 0 });
+					await leafDrop.set(0);
+				}
+			}
 			striking = striker;
 			const lunge = striker === 'marty' ? lungeMarty : lungeMarky;
 			await lunge.set(striker === 'marty' ? -140 : 140);
@@ -56,8 +73,8 @@
 			const me = isMarty ? hud.marty : hud.marky;
 			eating = { striker, symbol };
 			if (symbol) {
-				// start at the glowing leaf's cell (board-local -> master via the board transform);
-				// opening bites have no leaf, so they launch from the board centre as before
+				// start at the dinner leaf's cell (board-local -> master via the board transform);
+				// opening bites launch from the board centre, where their own leaf just dropped in
 				const start = from
 					? {
 							x: layout.x + (getSymbolX(from.reel) - layout.width / 2) * layout.scale,
@@ -66,6 +83,7 @@
 					: { x: layout.x, y: layout.y };
 				// initial scale matches the on-leaf overlay size so the pickup is seamless
 				fly.set({ x: start.x - me.x, y: start.y - me.y, s: (SYMBOL_SIZE * CELL_FILL) / 90 }, { duration: 0 });
+				if (autoLeaf) leafFade.set(0); // the leaf empties as the insect lifts off
 				await fly.set({ ...mouthOffset(isMarty, hud.size), s: 0.55 });
 				chomp = true;
 				await waitForTimeout(TIMINGS.eat * 0.5);
@@ -74,6 +92,7 @@
 				await waitForTimeout(TIMINGS.eat);
 			}
 			eating = null;
+			autoLeaf = null;
 		},
 	});
 
@@ -112,5 +131,16 @@
 				{/if}
 			</Container>
 		{/each}
+		{#if autoLeaf}
+			{@const layout = context.stateGameDerived.boardLayout()}
+			<!-- auto-bite dinner leaf: drops to the board centre with the insect riding it; the insect
+			     hides once the eat flight takes over (which starts at this exact spot and size) -->
+			<Container x={layout.x} y={layout.y + leafDrop.current} alpha={leafFade.current}>
+				<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="GL.png" />
+				{#if !eating}
+					<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{autoLeaf}_insect.png" />
+				{/if}
+			</Container>
+		{/if}
 	</MainContainer>
 {/if}

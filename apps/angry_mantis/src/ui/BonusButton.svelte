@@ -7,13 +7,16 @@
 	type Props = { size?: number; controls: Controls };
 	const { size = 92, controls }: Props = $props();
 	const ante = $derived(controls.anteActive());
+	// armed buy mode mirrors the ante affordance: amber head + "<MODE> ON", tap to switch off
+	const armedKey = $derived(controls.armedBuy());
+	const onLabel = $derived(ante ? 'ANTE ON' : armedKey ? `${armedKey} ON` : null);
 	const icon = $derived(Math.round(size * 0.7));
 </script>
 
-<ChunkyBtn {size} color={ante ? '#e8b04a' : '#9CD92F'} active disabled={controls.bonusDisabled()} onclick={controls.bonusPress} ariaLabel={ante ? 'Disable Ante' : 'Buy bonus'}>
+<ChunkyBtn {size} color={onLabel ? '#e8b04a' : '#9CD92F'} active disabled={controls.bonusDisabled()} onclick={controls.bonusPress} ariaLabel={ante ? 'Disable Ante' : armedKey ? `Cancel ${armedKey}` : 'Buy bonus'}>
 	<img src={stamp('/assets/ui/mantis-head.png')} alt="" style:width="{icon}px" style:height="{icon}px" draggable="false" />
-	{#if ante}
-		<span class="ante" style:font-size="{size > 80 ? 12 : 10}px" style:top="{size > 80 ? 6 : 5}px">ANTE ON</span>
+	{#if onLabel}
+		<span class="ante" style:font-size="{size > 80 ? 12 : 10}px" style:top="{size > 80 ? 6 : 5}px">{onLabel}</span>
 	{/if}
 </ChunkyBtn>
 

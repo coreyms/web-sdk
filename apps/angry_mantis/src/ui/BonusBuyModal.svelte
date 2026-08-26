@@ -117,7 +117,8 @@
 				<div class="c-title">ARE YOU SURE?</div>
 				<div class="c-body">
 					Clicking OKAY will deduct <span class="slot-num c-price">{numberToCurrencyString(confirmTarget.price)}</span> from your balance and start
-					<span style:color={opt.tone.accent} style:font-weight="800">{opt.label}</span>
+					<span style:color={opt.tone.accent} style:font-weight="800">{opt.label}</span>.
+					It stays loaded on the Spin button — every press plays it again at the same price until you switch it off.
 				</div>
 				<label class="c-check">
 					<input type="checkbox" bind:checked={dontAsk} style:accent-color={opt.tone.accent} />

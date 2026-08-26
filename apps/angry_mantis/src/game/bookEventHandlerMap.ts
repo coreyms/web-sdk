@@ -44,6 +44,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	reveal: async (bookEvent: BookEventOfType<'reveal'>, { bookEvents }: BookEventContext) => {
 		stateGame.consumedLeaves = []; // fresh board, fresh leaves
 		stateGame.pendingStrikePos = null;
+		// Dinner-leaf strike order for this board: math strikes leaves reel-major (reel asc, then row asc
+		// — board.py scan feeding leaf_strikes), so the k-th leaf eats the k-th symbol of upcomingEats().
+		// bookEvent.board rows are PADDED (visible = 1..len-2); store rows in symbolIndexOfBoard space.
+		stateGame.leafOrder = bookEvent.board.flatMap((reel, reelIndex) =>
+			reel
+				.map((symbol, row) => ({ name: symbol.name, row }))
+				.filter(({ name, row }) => row > 0 && row < reel.length - 1 && name === 'GL')
+				.map(({ row }) => ({ reel: reelIndex, row: row - 1 })),
+		);
 		const isBonusGame = checkIsMultipleRevealEvents({ bookEvents });
 		if (isBonusGame) {
 			eventEmitter.broadcast({ type: 'stopButtonEnable' });
@@ -150,24 +159,28 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	eat: async (bookEvent: BookEventOfType<'eat'>) => {
 		if (bookEvent.symbolEaten) {
+			// consume the leaf AND the pool entry BEFORE the flight starts, so the on-leaf insect
+			// vanishes the instant the flying insect appears (updating only one would double the bug
+			// on this leaf — or shift the next leaf's preview — for the duration of the flight)
+			const from = stateGame.pendingStrikePos;
+			if (from) {
+				stateGame.consumedLeaves = [...stateGame.consumedLeaves, from];
+				stateGame.pendingStrikePos = null;
+			}
+			stateGame.symbolPool = [...bookEvent.remainingPool];
 			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_eat' });
 			await eventEmitter.broadcastAsync({
 				type: 'mantisEat',
 				striker: bookEvent.striker,
 				symbol: bookEvent.symbolEaten,
-				from: stateGame.pendingStrikePos,
+				from,
 			});
 			eventEmitter.broadcast({ type: 'boardMarkEaten', symbol: bookEvent.symbolEaten });
-			if (stateGame.pendingStrikePos) {
-				// this leaf's insect is eaten — hide its overlay for the rest of the board
-				stateGame.consumedLeaves = [...stateGame.consumedLeaves, stateGame.pendingStrikePos];
-				stateGame.pendingStrikePos = null;
-			}
 		} else {
 			// cosmetic strike: pool already empty
 			await eventEmitter.broadcastAsync({ type: 'mantisEat', striker: bookEvent.striker, symbol: null });
+			stateGame.symbolPool = [...bookEvent.remainingPool];
 		}
-		stateGame.symbolPool = [...bookEvent.remainingPool];
 	},
 	removeSymbolFromPool: async (bookEvent: BookEventOfType<'removeSymbolFromPool'>) => {
 		stateGame.symbolPool = [...bookEvent.remainingPool];

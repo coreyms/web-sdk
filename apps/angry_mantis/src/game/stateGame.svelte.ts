@@ -40,6 +40,10 @@ const onSymbolLand = ({ rawSymbol }: { rawSymbol: RawSymbol }) => {
 export const nextSymbolToEat = (): PayingSymbolName | undefined =>
 	config.eatOrder.find((sym) => stateGame.symbolPool.includes(sym));
 
+/** symbols still in the pool, in the order they will be eaten (lowest pay first) */
+export const upcomingEats = (): PayingSymbolName[] =>
+	config.eatOrder.filter((sym) => stateGame.symbolPool.includes(sym));
+
 export const isAnteLockedSymbol = (reelIndex: number, symbolIndexOfBoard: number): boolean =>
 	reelIndex === 0 &&
 	symbolIndexOfBoard === 3 &&
@@ -76,10 +80,12 @@ export const stateGame = $state({
 	bonusMode: 'free' as BonusMode,
 	bonusHost: 'marty' as BonusHost,
 	symbolPool: [...config.eatOrder] as PayingSymbolName[],
-	// glowing-leaf strike bookkeeping: where the pending strike's leaf sits, and which leaves this
-	// board have already had their insect eaten (so their overlay hides). Cleared on each reveal.
+	// dinner-leaf strike bookkeeping: where the pending strike's leaf sits, which leaves this board
+	// have already had their insect eaten (so their overlay hides), and every leaf position of the
+	// current board in the order the math strikes them (reel-major). All reset on each reveal.
 	pendingStrikePos: null as Position | null,
 	consumedLeaves: [] as Position[],
+	leafOrder: [] as Position[],
 	eatenSymbols: [] as PayingSymbolName[],
 	strikeCount: 0,
 	turboLevel: 0 as 0 | 1 | 2, // 0 off · 1 turbo · 2 instant (see controls.turboPress)

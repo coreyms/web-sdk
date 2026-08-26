@@ -17,7 +17,7 @@ export const RULES_SECTIONS = [
 		paragraphs: [
 			`3 Marky scatters award ${config.freeSpins.free} Free Spins hosted by Marty. 4 scatters award ${config.freeSpins.super} Super Free Spins hosted by Marky. 5 scatters award ${config.freeSpins.feast} Mantis Feast spins with both mantises.`,
 			'When a session starts the host takes an opening bite (Mantis Feast: both mantises bite). Each bite eats the lowest-paying symbol still on the menu; that symbol is removed from the reels for the rest of the session, so the remaining symbols land more often and wins escalate.',
-			'Every Glowing Leaf that lands during free spins is another Mantis Strike. If all eight paying symbols are eaten, the round pays the 20,000x max win immediately and the session ends.',
+			'Every Dinner Leaf that lands during free spins is another Mantis Strike. If all eight paying symbols are eaten, the round pays the 20,000x max win immediately and the session ends.',
 			`Each Marky scatter in free spins awards +1 extra spin, up to +${config.freeSpins.maxRetrigger} per session. Once the maximum extra spins have been awarded, Marky scatters stop appearing for the rest of the session.`,
 			'Mantis Feast sessions pay a minimum of 300x the bet.',
 		],

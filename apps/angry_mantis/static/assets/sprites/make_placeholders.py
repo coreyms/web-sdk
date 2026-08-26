@@ -110,4 +110,15 @@ chars = {
     "lock.png": tile("ANTE", "locked S", (212, 175, 55)),
 }
 sheet("amCharacters", chars)
+
+# Game Info thumbnails: per-symbol webp for the HTML rules modal, served from static/assets/tiles/.
+# <key>.webp = the tile; <key>_insect.webp = the insect cutout (paying symbols only).
+THUMB = 128
+thumb_dir = os.path.abspath(os.path.join(HERE, "..", "tiles"))
+os.makedirs(thumb_dir, exist_ok=True)
+for sym in SYMBOLS:
+    frames[f"{sym}.png"].resize((THUMB, THUMB), Image.LANCZOS).save(os.path.join(thumb_dir, f"{sym.lower()}.webp"), "WEBP", quality=88)
+    insect = frames.get(f"{sym}_insect.png")
+    if insect is not None:
+        insect.resize((THUMB, THUMB), Image.LANCZOS).save(os.path.join(thumb_dir, f"{sym.lower()}_insect.webp"), "WEBP", quality=88)
 print(f"ok — real art for {real}; placeholders for {[s for s in SYMBOLS if s not in real]}; missing insect cutouts: {missing_insects}  (art dir: {ART})")

@@ -28,7 +28,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'BONUS',
-		detail: 'Every Glowing Leaf is a Mantis Strike: Marty eats the lowest-paying symbol left and it leaves the reels, so wins escalate.',
+		detail: 'Every Dinner Leaf is a Mantis Strike: Marty eats the lowest-paying symbol left and it leaves the reels, so wins escalate.',
 		label: 'BONUS',
 		image: stamp('/assets/ui/label-bonus.webp'),
 		description: `${config.freeSpins.free} FREE SPINS, MARTY EATS SYMBOLS`,
