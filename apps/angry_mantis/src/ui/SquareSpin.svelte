@@ -15,13 +15,14 @@
 		showStop ? 'rgba(120, 30, 45, .85)' : autoActive ? 'rgba(60, 90, 20, .85)' : 'rgba(10, 14, 10, .6)',
 	);
 	// armed buy mode: the selected feature is loaded on this button until cancelled — make that
-	// unmistakable: feature name + the price each press will wager
+	// unmistakable: short feature name + the (K/M/B/T-abbreviated) price each press will wager
 	const armed = $derived(controls.armedBuy() !== null);
 	const armedLabel = $derived(controls.armedLabel());
-	const armedFont = $derived((controls.betText() ?? '').length > 8 ? 0.17 : 0.2);
-	const ring = $derived(autoActive ? '#9CD92F' : armed ? '#ffdc4a' : '#fff');
+	const armedFont = $derived((controls.playCostText() ?? '').length > 7 ? 0.19 : 0.23);
 	const freegame = $derived(controls.freeSpin() !== null);
 	const fs = $derived(controls.freeSpin());
+	// during free games the button keeps its classic white ring — gold marks an armed idle button only
+	const ring = $derived(freegame ? '#fff' : autoActive ? '#9CD92F' : armed ? '#ffdc4a' : '#fff');
 </script>
 
 <button
@@ -48,9 +49,9 @@
 		</div>
 	{:else if armed}
 		<div class="count">
-			<Icon name="play" s={size * 0.26} />
-			<span class="armed-label" style:font-size="{Math.max(8, size * 0.095)}px">{armedLabel}</span>
-			<span class="slot-num num" style:font-size="{size * armedFont}px">{controls.betText()}</span>
+			<Icon name="play" s={size * 0.24} />
+			<span class="armed-label" style:font-size="{Math.max(9, size * 0.115)}px">{armedLabel}</span>
+			<span class="slot-num num" style:font-size="{size * armedFont}px">{controls.playCostText()}</span>
 		</div>
 	{:else}
 		<Icon name="play" s={size * 0.44} />

@@ -27,17 +27,21 @@ export const createControls = () => {
 	const anteActive = () => stateBetDerived.activeBetMode()?.type === 'activate';
 	// armed buy mode: a selected feature (BONUS/SUPER/FEAST) that stays loaded on the spin button
 	const armedBuy = () => (stateBetDerived.activeBetMode()?.type === 'buy' ? stateBet.activeBetModeKey : null);
-	const armedLabel = () => (armedBuy() ? (stateBetDerived.activeBetMode()?.text?.betAmountLabel ?? armedBuy()) : null);
+	/** short mode name for the spin button face: BONUS / SUPER / FEAST */
+	const armedLabel = () => armedBuy();
 	const cancelArmed = () => {
 		stateBet.activeBetModeKey = 'BASE';
 	};
-	/** small chip above the SPIN readout: ante, or the armed feature + the base bet it multiplies */
-	const spinOverhead = () =>
-		anteActive()
-			? 'ANTE MODE'
-			: armedBuy()
-				? `${armedLabel()} · BET ${numberToCurrencyString(stateBet.betAmount)}`
-				: null;
+	/** mode plaque centred under the reel frame: active mode + the true cost of one spin press */
+	const modeChip = (): { label: string; cost: string } | null => {
+		if (anteActive()) return { label: 'ANTE MODE', cost: abbrevCurrency(betCostFull(), 100_000) };
+		const key = armedBuy();
+		if (key) {
+			const label = stateBetDerived.activeBetMode()?.text?.betAmountLabel ?? key;
+			return { label, cost: abbrevCurrency(betCostFull(), 100_000) };
+		}
+		return null;
+	};
 	const autoRunning = () => stateBetDerived.hasAutoBetCounter();
 	const autoCount = () => stateBet.autoSpinsCounter;
 	const autoCountText = () => (stateBet.autoSpinsCounter === Infinity ? INFINITY_MARK : `${stateBet.autoSpinsCounter}`);
@@ -46,6 +50,22 @@ export const createControls = () => {
 	// bet — wrong price on the button and no affordability gate. This covers all modes.
 	const betCostFull = () => stateBet.betAmount * (stateBetDerived.activeBetMode()?.costMultiplier ?? 1);
 	const canAfford = () => betCostFull() > 0 && betCostFull() <= stateBet.balanceAmount;
+	// K/M/B/T abbreviation: button faces have hard width budgets and stake.us GC amounts reach
+	// trillions — a price must never spill its button. Full precision lives in the bet picker.
+	const abbrevCurrency = (amount: number, threshold = 10_000): string => {
+		if (amount < threshold) return numberToCurrencyString(amount);
+		const symbol = (numberToCurrencyString(amount).match(/^[^\d.,-]*/) ?? [''])[0];
+		for (const [div, suffix] of [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']] as const) {
+			if (amount >= div) {
+				const v = amount / div;
+				const text = v >= 100 ? `${Math.round(v)}` : `${v.toFixed(1)}`.replace(/\.0$/, '');
+				return `${symbol}${text}${suffix}`;
+			}
+		}
+		return numberToCurrencyString(amount);
+	};
+	/** abbreviated full price of one press, for the spin button face */
+	const playCostText = () => abbrevCurrency(betCostFull());
 
 	const sound = (type: 'soundPressGeneral' | 'soundPressBet') => context.eventEmitter.broadcast({ type });
 
@@ -85,7 +105,7 @@ export const createControls = () => {
 		stateBet.autoSpinsSingleWinLimitAmount = Infinity;
 		stateUi.autoSpinsLossLimitText = INFINITY_MARK;
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
-		if (stateBetDerived.activeBetMode()?.type === 'buy') stateBet.activeBetModeKey = 'BASE';
+		// an armed buy mode stays armed: autoplay repeats the loaded feature (full redesign pending)
 		autoOpen = false;
 		sound('soundPressGeneral');
 		context.eventEmitter.broadcast({ type: 'autoBet' });
@@ -117,10 +137,11 @@ export const createControls = () => {
 		stateModal.modal = null;
 	};
 	const buyMode = (mode: string) => {
+		// arm only: the feature loads onto the spin button and stays there until cancelled.
+		// Nothing is charged and nothing plays until the player presses Spin.
 		stateBet.activeBetModeKey = mode;
 		stateModal.modal = null;
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_ui_bonus' });
-		context.eventEmitter.broadcast({ type: 'bet' });
 	};
 
 	// ── bet amount ───────────────────────────────────────────────────────
@@ -165,7 +186,9 @@ export const createControls = () => {
 	// ── readouts ─────────────────────────────────────────────────────────
 	const balanceText = () => numberToCurrencyString(stateBet.balanceAmount);
 	const winText = () => bookEventAmountToCurrencyString(stateBet.winBookEventAmount);
-	const betText = () => numberToCurrencyString(betCostFull());
+	// SPIN readout keeps the base spin amount (ante's 2× included, SDK behaviour); the full price of
+	// an armed feature lives on the spin button + the mode plaque, never here
+	const betText = () => numberToCurrencyString(stateBetDerived.betCost());
 	const hasWin = () => stateBet.winBookEventAmount > 0;
 	const freeSpin = () =>
 		context.stateGame.gameType === 'freegame' && context.stateGame.totalFs > 0
@@ -175,7 +198,7 @@ export const createControls = () => {
 	return {
 		get autoOpen() { return autoOpen; },
 		set autoOpen(v: boolean) { autoOpen = v; },
-		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, spinOverhead, autoRunning, autoCount, autoCountText, canAfford,
+		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, modeChip, playCostText, autoRunning, autoCount, autoCountText, canAfford,
 		spinDisabled, showStop, spin,
 		autoDisabled, autoPress, autoStart,
 		turboPress, turboLevel,

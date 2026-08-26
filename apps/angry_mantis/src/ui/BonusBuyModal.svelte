@@ -116,9 +116,9 @@
 			<div class="confirm" onclick={(e) => e.stopPropagation()} role="presentation" style:border="2px solid {opt.tone.accent}" style:box-shadow="0 30px 80px rgba(0,0,0,.8), 0 0 40px {opt.tone.accent}44">
 				<div class="c-title">ARE YOU SURE?</div>
 				<div class="c-body">
-					Clicking OKAY will deduct <span class="slot-num c-price">{numberToCurrencyString(confirmTarget.price)}</span> from your balance and start
-					<span style:color={opt.tone.accent} style:font-weight="800">{opt.label}</span>.
-					It stays loaded on the Spin button — every press plays it again at the same price until you switch it off.
+					Clicking OKAY loads <span style:color={opt.tone.accent} style:font-weight="800">{opt.label}</span>
+					onto the Spin button at <span class="slot-num c-price">{numberToCurrencyString(confirmTarget.price)}</span> per play.
+					Nothing is charged until you press Spin — it stays loaded until you switch it off.
 				</div>
 				<label class="c-check">
 					<input type="checkbox" bind:checked={dontAsk} style:accent-color={opt.tone.accent} />

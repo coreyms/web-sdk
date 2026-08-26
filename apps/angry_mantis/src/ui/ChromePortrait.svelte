@@ -23,7 +23,7 @@
 
 <div class="stats">
 	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />
-	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="right" maxWidth={180} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} overhead={controls.spinOverhead()} />
+	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="right" maxWidth={180} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
 </div>
 <div class="win">
 	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} align="center" maxWidth={240} />
