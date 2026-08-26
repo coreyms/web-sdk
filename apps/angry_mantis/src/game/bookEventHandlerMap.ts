@@ -42,6 +42,8 @@ const animateSymbols = async ({ positions }: { positions: Position[] }) => {
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	reveal: async (bookEvent: BookEventOfType<'reveal'>, { bookEvents }: BookEventContext) => {
+		stateGame.consumedLeaves = []; // fresh board, fresh leaves
+		stateGame.pendingStrikePos = null;
 		const isBonusGame = checkIsMultipleRevealEvents({ bookEvents });
 		if (isBonusGame) {
 			eventEmitter.broadcast({ type: 'stopButtonEnable' });
@@ -133,6 +135,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	strike: async (bookEvent: BookEventOfType<'strike'>) => {
 		stateGame.strikeCount = bookEvent.strikeIndex + 1;
+		stateGame.pendingStrikePos = bookEvent.position ?? null; // leaf cell the eat flight starts from
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike' });
 		await eventEmitter.broadcastAsync({
 			type: 'mantisStrike',
@@ -148,8 +151,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 				type: 'mantisEat',
 				striker: bookEvent.striker,
 				symbol: bookEvent.symbolEaten,
+				from: stateGame.pendingStrikePos,
 			});
 			eventEmitter.broadcast({ type: 'boardMarkEaten', symbol: bookEvent.symbolEaten });
+			if (stateGame.pendingStrikePos) {
+				// this leaf's insect is eaten — hide its overlay for the rest of the board
+				stateGame.consumedLeaves = [...stateGame.consumedLeaves, stateGame.pendingStrikePos];
+				stateGame.pendingStrikePos = null;
+			}
 		} else {
 			// cosmetic strike: pool already empty
 			await eventEmitter.broadcastAsync({ type: 'mantisEat', striker: bookEvent.striker, symbol: null });

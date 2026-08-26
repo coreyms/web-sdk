@@ -5,7 +5,7 @@
 		| { type: 'mantisShow'; host: BonusHost }
 		| { type: 'mantisHide' }
 		| { type: 'mantisStrike'; striker: Striker; trigger: 'auto' | 'glowingLeaf'; position?: Position }
-		| { type: 'mantisEat'; striker: Striker; symbol: PayingSymbolName | null };
+		| { type: 'mantisEat'; striker: Striker; symbol: PayingSymbolName | null; from?: Position | null };
 </script>
 
 <script lang="ts">
@@ -18,7 +18,8 @@
 
 	import { getContext } from '../game/context';
 	import GameText from './GameText.svelte';
-	import { TIMINGS } from '../game/constants';
+	import { TIMINGS, SYMBOL_SIZE, CELL_FILL } from '../game/constants';
+	import { getSymbolX, getSymbolY } from '../game/utils';
 	import { HUD, layoutKind } from '../game/layoutSpec';
 
 	const context = getContext();
@@ -48,14 +49,23 @@
 			await lunge.set(0);
 			striking = null;
 		},
-		mantisEat: async ({ striker, symbol }) => {
+		mantisEat: async ({ striker, symbol, from }) => {
 			const hud = HUD[layoutKind(context.stateLayoutDerived.layoutType())].mantis;
 			const layout = context.stateGameDerived.boardLayout();
 			const isMarty = striker === 'marty';
 			const me = isMarty ? hud.marty : hud.marky;
 			eating = { striker, symbol };
 			if (symbol) {
-				fly.set({ x: layout.x - me.x, y: layout.y - me.y, s: 1.3 }, { duration: 0 });
+				// start at the glowing leaf's cell (board-local -> master via the board transform);
+				// opening bites have no leaf, so they launch from the board centre as before
+				const start = from
+					? {
+							x: layout.x + (getSymbolX(from.reel) - layout.width / 2) * layout.scale,
+							y: layout.y + (getSymbolY(from.row) - layout.height / 2) * layout.scale,
+						}
+					: { x: layout.x, y: layout.y };
+				// initial scale matches the on-leaf overlay size so the pickup is seamless
+				fly.set({ x: start.x - me.x, y: start.y - me.y, s: (SYMBOL_SIZE * CELL_FILL) / 90 }, { duration: 0 });
 				await fly.set({ ...mouthOffset(isMarty, hud.size), s: 0.55 });
 				chomp = true;
 				await waitForTimeout(TIMINGS.eat * 0.5);

@@ -81,6 +81,7 @@ def sheet(name, frames):
 
 frames = {}
 real = []
+missing_insects = []
 for sym, (sub, color, file) in SYMBOLS.items():
     im = art(file) if file else None
     if im is not None:
@@ -91,7 +92,11 @@ for sym, (sub, color, file) in SYMBOLS.items():
         frames[f"{sym}_eaten.png"] = blank if blank is not None else eaten_from_art(im)
         if sym not in ("W", "S", "GL"):  # flight sprite for the eat animation: bug only, no plate
             insect = art(f"{base}-insect.webp") if base else None
-            frames[f"{sym}_insect.png"] = insect if insect is not None else im
+            # missing cutout -> fully transparent frame (bare leaf, invisible flight) rather than the
+            # full tile riding the leaf; delivering <base>-insect.webp self-heals on next build
+            frames[f"{sym}_insect.png"] = insect if insect is not None else Image.new("RGBA", (S, S), (0, 0, 0, 0))
+            if insect is None:
+                missing_insects.append(sym)
     else:
         frames[f"{sym}.png"] = tile(sym, sub, color, glow=(sym == "GL"))
         frames[f"{sym}_eaten.png"] = tile(sym, "EATEN", tuple(c // 3 for c in color))
@@ -105,4 +110,4 @@ chars = {
     "lock.png": tile("ANTE", "locked S", (212, 175, 55)),
 }
 sheet("amCharacters", chars)
-print(f"ok — real art for {real}; placeholders for {[s for s in SYMBOLS if s not in real]}  (art dir: {ART})")
+print(f"ok — real art for {real}; placeholders for {[s for s in SYMBOLS if s not in real]}; missing insect cutouts: {missing_insects}  (art dir: {ART})")

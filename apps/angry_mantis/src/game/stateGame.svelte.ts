@@ -4,7 +4,7 @@ import { stateBet } from 'state-shared';
 import { createEnhanceBoard, createReelForCascading } from 'utils-slots';
 import { createGetWinLevelDataByWinLevelAlias } from 'utils-shared/winLevel';
 
-import type { GameType, RawSymbol, BonusMode, BonusHost, PayingSymbolName } from './types';
+import type { GameType, RawSymbol, BonusMode, BonusHost, PayingSymbolName, Position } from './types';
 import { stateLayoutDerived } from './stateLayout';
 import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
@@ -36,6 +36,10 @@ const onSymbolLand = ({ rawSymbol }: { rawSymbol: RawSymbol }) => {
 // Live check: pre-spin fall-out happens before the book's anteLock event arrives, so the hold must be
 // derived, not event-driven — ante mode active AND the scatter is already on screen. Shared by the reel
 // (skip its motion) and ReelSymbol (draw it above the symbols cascading behind it).
+/** the species the NEXT strike will eat: lowest-paying symbol still in the pool */
+export const nextSymbolToEat = (): PayingSymbolName | undefined =>
+	config.eatOrder.find((sym) => stateGame.symbolPool.includes(sym));
+
 export const isAnteLockedSymbol = (reelIndex: number, symbolIndexOfBoard: number): boolean =>
 	reelIndex === 0 &&
 	symbolIndexOfBoard === 3 &&
@@ -72,6 +76,10 @@ export const stateGame = $state({
 	bonusMode: 'free' as BonusMode,
 	bonusHost: 'marty' as BonusHost,
 	symbolPool: [...config.eatOrder] as PayingSymbolName[],
+	// glowing-leaf strike bookkeeping: where the pending strike's leaf sits, and which leaves this
+	// board have already had their insect eaten (so their overlay hides). Cleared on each reveal.
+	pendingStrikePos: null as Position | null,
+	consumedLeaves: [] as Position[],
 	eatenSymbols: [] as PayingSymbolName[],
 	strikeCount: 0,
 	turboLevel: 0 as 0 | 1 | 2, // 0 off · 1 turbo · 2 instant (see controls.turboPress)
