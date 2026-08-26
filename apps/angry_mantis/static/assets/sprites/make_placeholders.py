@@ -86,8 +86,12 @@ for sym, (sub, color, file) in SYMBOLS.items():
     if im is not None:
         real.append(sym)
         frames[f"{sym}.png"] = im
-        blank = art(file.replace("-", "-blank-").split("-blank-")[0] + "-blank.webp") if file else None
+        base = file.replace("-", "-blank-").split("-blank-")[0] if file else None
+        blank = art(f"{base}-blank.webp") if base else None
         frames[f"{sym}_eaten.png"] = blank if blank is not None else eaten_from_art(im)
+        if sym not in ("W", "S", "GL"):  # flight sprite for the eat animation: bug only, no plate
+            insect = art(f"{base}-insect.webp") if base else None
+            frames[f"{sym}_insect.png"] = insect if insect is not None else im
     else:
         frames[f"{sym}.png"] = tile(sym, sub, color, glow=(sym == "GL"))
         frames[f"{sym}_eaten.png"] = tile(sym, "EATEN", tuple(c // 3 for c in color))

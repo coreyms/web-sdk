@@ -117,7 +117,8 @@ const winSprite = (name: SymbolName): SymbolInfo => staticSprite(name, CELL_FILL
 const eatenSprite = (name: SymbolName): SymbolInfo => ({
 	type: 'sprite',
 	assetKey: `${name}_eaten.png`,
-	sizeRatios: { width: CELL_FILL * 0.94, height: CELL_FILL * 0.94 },
+	// same plate as the live tile minus the bug — must render at identical size or the swap pops
+	sizeRatios: { width: CELL_FILL, height: CELL_FILL },
 });
 
 const symbolStates = (name: SymbolName, size?: number) => ({

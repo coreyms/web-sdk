@@ -92,7 +92,7 @@
 				{#if eating?.striker === name}
 					{#if eating.symbol}
 						{#if !chomp}
-							<Sprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} key="{eating.symbol}.png" />
+							<Sprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} key="{eating.symbol}_insect.png" />
 						{:else}
 							<GameText y={-hud.size * 0.7} text="CHOMP!" preset="gold" size={36} />
 						{/if}
