@@ -2,9 +2,16 @@
 
 Real art is picked up from <repo>/assets/images/tile/<file>.webp when present (any source size; it is
 resampled to S×S), otherwise a labelled placeholder tile is drawn. Eaten variants of real art are derived
-(desaturated + darkened) until dedicated eaten art exists. Keep the frame names — the game references them."""
+(desaturated + darkened) until dedicated eaten art exists. Keep the frame names — the game references them.
+
+Preferred art scheme (2026-08-26) for the eight paying insects: TWO files per symbol —
+  <p>-plate.webp   the empty plate            (p = l1..l4, m1..m3, h1)
+  <p>-insect.webp  the insect cutout, positioned at its on-plate spot in a transparent S×S canvas
+The tile is composited here (plate + contact shadow + insect), so the eat animation's pickup is
+pixel-perfect by construction and the shadow correctly vanishes with the insect. The older three-file
+scheme (combined tile + -blank + -insect) still works wherever no -plate file exists."""
 import json, os
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, *[".."] * 6))
@@ -56,6 +63,15 @@ def art(fname):
     return im
 
 
+def contact_shadow(insect, offset=6, blur=7, strength=0.45):
+    """Soft drop shadow from the insect's own silhouette — baked into the composed tile only,
+    so it lifts away with the insect during the eat flight."""
+    shadow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    a = insect.getchannel("A").point(lambda p: int(p * strength))
+    shadow.paste((10, 8, 4, 255), (0, offset), a)
+    return shadow.filter(ImageFilter.GaussianBlur(blur))
+
+
 def eaten_from_art(im):
     # desaturate + darken; alpha preserved
     gray = ImageEnhance.Color(im.convert("RGB")).enhance(0)
@@ -83,7 +99,20 @@ def sheet(name, frames):
 frames = {}
 real = []
 missing_insects = []
+composited = []
 for sym, (sub, color, file) in SYMBOLS.items():
+    prefix = sym.lower()
+    plate = art(f"{prefix}-plate.webp") if sym not in ("W", "S", "GL") else None
+    insect = art(f"{prefix}-insect.webp") if sym not in ("W", "S", "GL") else None
+    if plate is not None and insect is not None:
+        # two-file scheme: tile = plate + contact shadow + insect (registration-perfect pickup)
+        tile_im = Image.alpha_composite(Image.alpha_composite(plate, contact_shadow(insect)), insect)
+        real.append(sym)
+        composited.append(sym)
+        frames[f"{sym}.png"] = tile_im
+        frames[f"{sym}_eaten.png"] = plate
+        frames[f"{sym}_insect.png"] = insect
+        continue
     im = art(file) if file else None
     if im is not None:
         real.append(sym)
@@ -92,7 +121,6 @@ for sym, (sub, color, file) in SYMBOLS.items():
         blank = art(f"{base}-blank.webp") if base else None
         frames[f"{sym}_eaten.png"] = blank if blank is not None else eaten_from_art(im)
         if sym not in ("W", "S", "GL"):  # flight sprite for the eat animation: bug only, no plate
-            insect = art(f"{base}-insect.webp") if base else None
             # missing cutout -> fully transparent frame (bare leaf, invisible flight) rather than the
             # full tile riding the leaf; delivering <base>-insect.webp self-heals on next build
             frames[f"{sym}_insect.png"] = insect if insect is not None else Image.new("RGBA", (S, S), (0, 0, 0, 0))
@@ -122,4 +150,4 @@ for sym in SYMBOLS:
     insect = frames.get(f"{sym}_insect.png")
     if insect is not None:
         insect.resize((THUMB, THUMB), Image.LANCZOS).save(os.path.join(thumb_dir, f"{sym.lower()}_insect.webp"), "WEBP", quality=88)
-print(f"ok — real art for {real}; placeholders for {[s for s in SYMBOLS if s not in real]}; missing insect cutouts: {missing_insects}  (art dir: {ART})")
+print(f"ok — real art for {real}; composited (plate+insect) {composited}; placeholders for {[s for s in SYMBOLS if s not in real]}; missing insect cutouts: {missing_insects}  (art dir: {ART})")
