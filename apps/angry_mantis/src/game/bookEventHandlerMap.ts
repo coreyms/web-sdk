@@ -135,7 +135,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	strike: async (bookEvent: BookEventOfType<'strike'>) => {
 		stateGame.strikeCount = bookEvent.strikeIndex + 1;
-		stateGame.pendingStrikePos = bookEvent.position ?? null; // leaf cell the eat flight starts from
+		// leaf cell the eat flight starts from. Math emits PADDED-array rows (game_events._row = row+1);
+		// normalize to symbolIndexOfBoard space (visible rows 0-3) used by ReelSymbol overlays and getSymbolY.
+		stateGame.pendingStrikePos = bookEvent.position
+			? { reel: bookEvent.position.reel, row: bookEvent.position.row - 1 }
+			: null;
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike' });
 		await eventEmitter.broadcastAsync({
 			type: 'mantisStrike',
