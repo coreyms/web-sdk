@@ -32,12 +32,19 @@
 			totalFs = emitterEvent.totalFs;
 			show = true;
 			// auto-advance after a short hold; a tap (PressToContinue) skips it
-			await Promise.race([waitForResolve((resolve) => (oncomplete = resolve)), waitForTimeout(2800)]);
+			await Promise.race([waitForResolve((resolve) => (oncomplete = resolve)), waitForTimeout(3800)]);
 		},
 		bonusIntroHide: () => (show = false),
 	});
 
 	const hosts = $derived(host === 'both' ? ['marky', 'marty'] : [host]); // Marky always left, Marty right
+
+	// one-sentence "how it works" per mode (also warmed in TextWarmup — keep in sync)
+	const MODE_DETAIL: Record<BonusMode, string> = {
+		free: 'EVERY GLOWING LEAF IS A STRIKE — MARTY EATS THE LOWEST SYMBOL LEFT AND IT LEAVES THE REELS',
+		super: 'MARKY STRIKES MORE OFTEN — EVERY LEAF EATS THE LOWEST SYMBOL LEFT, ESCALATING WINS',
+		feast: 'BOTH MANTISES STRIKE — EAT ALL 8 SYMBOLS FOR THE 20,000\u00d7 MAX WIN \u00b7 PAYS AT LEAST 300\u00d7',
+	};
 </script>
 
 <FadeContainer {show}>
@@ -68,6 +75,7 @@
 				y={215}
 				text={mode === 'feast' ? 'MARTY + MARKY STRIKE TOGETHER' : mode === 'super' ? 'MARKY IS HUNGRY' : 'MARTY IS HUNGRY'}
 			 preset="silver" size={30} />
+			<GameText y={262} text={MODE_DETAIL[mode]} preset="silver" size={19} maxWidth={700} />
 		</Container>
 	</MainContainer>
 	<PressToContinue onpress={() => oncomplete()} />

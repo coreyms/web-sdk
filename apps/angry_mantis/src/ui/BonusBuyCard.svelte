@@ -13,8 +13,8 @@
 	const canAfford = $derived(opt.toggle ? stateBet.balanceAmount >= price : stateBet.balanceAmount >= price);
 	const sz = $derived(
 		compact
-			? { headerH: 105, overlap: 52, descFs: 12, descPad: '58px 16px 14px', costFs: 15, costPad: '8px 0', ctaH: 44, ctaFs: 14 }
-			: { headerH: 135, overlap: 68, descFs: 13, descPad: '76px 18px 14px', costFs: 16, costPad: '9px 0', ctaH: 48, ctaFs: 15 },
+			? { headerH: 105, overlap: 52, descFs: 12, detailFs: 11, detailMinH: 62, descPad: '58px 16px 14px', costFs: 15, costPad: '8px 0', ctaH: 44, ctaFs: 14 }
+			: { headerH: 135, overlap: 68, descFs: 13, detailFs: 12, detailMinH: 66, descPad: '76px 18px 14px', costFs: 16, costPad: '9px 0', ctaH: 48, ctaFs: 15 },
 	);
 	const bodyBg = $derived(
 		opt.tone.dual
@@ -47,6 +47,7 @@
 			: `0 12px 28px rgba(0,0,0,.55), inset 0 0 30px ${opt.tone.accent}10`}
 	>
 		<div class="desc" style:font-size="{sz.descFs}px">{opt.description}</div>
+		<div class="detail" style:font-size="{sz.detailFs}px" style:min-height="{sz.detailMinH}px">{opt.detail}</div>
 		<div class="slot-num cost" style:padding={sz.costPad} style:font-size="{sz.costFs}px" style:color={opt.tone.dual ? '#fff' : opt.tone.accent} style:border="1px solid {opt.tone.accent}33">{costText}</div>
 		<button
 			class="slot-btn cta"
@@ -93,13 +94,19 @@
 		position: relative;
 	}
 	.desc {
-		min-height: 60px;
+		min-height: 36px;
 		font-weight: 800;
 		letter-spacing: 1.2px;
 		line-height: 1.35;
 		color: #fff;
 		text-align: center;
 		text-transform: uppercase;
+		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+	}
+	.detail {
+		color: rgba(255, 255, 255, 0.78);
+		line-height: 1.45;
+		text-align: center;
 		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
 	}
 	.cost {

@@ -8,6 +8,8 @@ export type BonusCardSpec = {
 	label: string;
 	image: string;
 	description: string;
+	/** one-sentence "how it works" line (sentence case, shown under the tagline) */
+	detail: string;
 	cta: string;
 	toggle: boolean;
 	tone: { tab: string; body: string; accent: string; accent2?: string; dual?: boolean };
@@ -16,6 +18,7 @@ export type BonusCardSpec = {
 export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'ANTE',
+		detail: 'Costs 2× the bet — with Marky locked on reel 1, only two more scatters are needed to trigger a feature.',
 		label: 'ANTE',
 		image: stamp('/assets/ui/label-ante.webp'),
 		description: 'MARKY LOCKED ON REEL 1 EVERY SPIN',
@@ -25,6 +28,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'BONUS',
+		detail: 'Every Glowing Leaf is a Mantis Strike: Marty eats the lowest-paying symbol left and it leaves the reels, so wins escalate.',
 		label: 'BONUS',
 		image: stamp('/assets/ui/label-bonus.webp'),
 		description: `${config.freeSpins.free} FREE SPINS, MARTY EATS SYMBOLS`,
@@ -34,6 +38,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'SUPER',
+		detail: 'Two extra spins on leaf-richer reels — Marky strikes more often, clearing the menu faster.',
 		label: 'SUPER',
 		image: stamp('/assets/ui/label-super.webp'),
 		description: `${config.freeSpins.super} SPINS, MARKY FEEDS HARDER`,
@@ -43,6 +48,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'FEAST',
+		detail: 'Both mantises bite at the start and strike together — eat all eight symbols for the 20,000× max win; pays at least 300×.',
 		label: 'FEAST',
 		image: stamp('/assets/ui/label-feast.webp'),
 		description: 'MARTY & MARKY, MAXIMUM HUNGER',

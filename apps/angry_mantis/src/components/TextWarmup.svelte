@@ -20,6 +20,9 @@
 		{ text: 'MARTY IS HUNGRY', preset: 'silver', size: 30 },
 		{ text: 'MARKY IS HUNGRY', preset: 'silver', size: 30 },
 		{ text: 'MARTY + MARKY STRIKE TOGETHER', preset: 'silver', size: 30 },
+		{ text: 'EVERY GLOWING LEAF IS A STRIKE — MARTY EATS THE LOWEST SYMBOL LEFT AND IT LEAVES THE REELS', preset: 'silver', size: 19 },
+		{ text: 'MARKY STRIKES MORE OFTEN — EVERY LEAF EATS THE LOWEST SYMBOL LEFT, ESCALATING WINS', preset: 'silver', size: 19 },
+		{ text: 'BOTH MANTISES STRIKE — EAT ALL 8 SYMBOLS FOR THE 20,000\u00d7 MAX WIN \u00b7 PAYS AT LEAST 300\u00d7', preset: 'silver', size: 19 },
 		// FreeSpinOutro + SessionSummary
 		...modes.map((m) => ({ text: `${m} COMPLETE`, preset: 'gold' as const, size: 64 })),
 		...modes.map((m) => ({ text: `${m} COMPLETE`, preset: 'gold' as const, size: 56 })),
