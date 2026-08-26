@@ -71,6 +71,9 @@
 		const dx = e.clientX - swipeX;
 		if (dx < -40) go(slide + 1, true);
 		else if (dx > 40) go(slide - 1, true);
+		// a plain tap on the card (no swipe) means "continue" — the carousel viewport sits above the
+		// full-screen press target, so PRESS ANYWHERE must fall through here too
+		else if (Math.abs(dx) < 8) press();
 		swipeX = null;
 	};
 
