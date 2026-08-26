@@ -21,8 +21,10 @@
 	const armedFont = $derived((controls.playCostText() ?? '').length > 7 ? 0.19 : 0.23);
 	const freegame = $derived(controls.freeSpin() !== null);
 	const fs = $derived(controls.freeSpin());
-	// during free games the button keeps its classic white ring — gold marks an armed idle button only
-	const ring = $derived(freegame ? '#fff' : autoActive ? '#9CD92F' : armed ? '#ffdc4a' : '#fff');
+	// a parked autoplay loadout: green ring, spins + per-spin price; pressing starts the run
+	const loaded = $derived(controls.autoLoadout());
+	// during free games the button keeps its classic white ring — colour marks an idle button only
+	const ring = $derived(freegame ? '#fff' : autoActive || loaded ? '#9CD92F' : armed ? '#ffdc4a' : '#fff');
 </script>
 
 <button
@@ -46,6 +48,12 @@
 		<div class="count">
 			<span class="slot-num num" style:font-size="{size * countFont}px">{countText}</span>
 			<span class="active" style:font-size="{Math.max(9, size * 0.115)}px">Active</span>
+		</div>
+	{:else if loaded}
+		<div class="count">
+			<span class="auto-loaded" style:font-size="{Math.max(9, size * 0.105)}px">AUTO {loaded.count === Infinity ? '∞' : loaded.count}</span>
+			{#if armed}<span class="armed-label" style:font-size="{Math.max(8, size * 0.095)}px">{armedLabel}</span>{/if}
+			<span class="slot-num num" style:font-size="{size * (armed ? 0.17 : armedFont)}px">{controls.playCostText()}</span>
 		</div>
 	{:else if armed}
 		<div class="count">
@@ -95,6 +103,14 @@
 		font-weight: 900;
 		letter-spacing: 1.2px;
 		color: #ffdc4a;
+		text-transform: uppercase;
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+		white-space: nowrap;
+	}
+	.auto-loaded {
+		font-weight: 900;
+		letter-spacing: 1.2px;
+		color: #9cd92f;
 		text-transform: uppercase;
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 		white-space: nowrap;

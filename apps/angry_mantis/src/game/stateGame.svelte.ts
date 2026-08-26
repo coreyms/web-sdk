@@ -44,6 +44,14 @@ export const nextSymbolToEat = (): PayingSymbolName | undefined =>
 export const upcomingEats = (): PayingSymbolName[] =>
 	config.eatOrder.filter((sym) => stateGame.symbolPool.includes(sym));
 
+/** a configured autoplay run waiting on the spin button (built in AutoplayModal, consumed on start) */
+export type AutoLoadout = {
+	count: number; // Infinity allowed
+	lossMult: number | null; // × one spin's play amount; null = no loss stop
+	winMult: number | null; // × one spin's play amount; null = no single-win stop
+	stopFree: boolean; // end the run when a feature triggers naturally (base/ante only)
+};
+
 export const isAnteLockedSymbol = (reelIndex: number, symbolIndexOfBoard: number): boolean =>
 	reelIndex === 0 &&
 	symbolIndexOfBoard === 3 &&
@@ -89,6 +97,10 @@ export const stateGame = $state({
 	eatenSymbols: [] as PayingSymbolName[],
 	strikeCount: 0,
 	turboLevel: 0 as 0 | 1 | 2, // 0 off · 1 turbo · 2 instant (see controls.turboPress)
+	// autoplay loadout on the spin button (pressing Spin starts it); stop-on-free-games flag of the
+	// RUNNING autoplay (checked by the freeSpinTrigger book event handler)
+	autoLoadout: null as AutoLoadout | null,
+	autoStopOnFreeGames: false,
 	antePrevLocked: false, // previous spin ended with the ante scatter on screen
 	spinsPlayed: 0,
 	totalFs: 0,

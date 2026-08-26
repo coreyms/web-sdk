@@ -106,6 +106,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.anteLocked = true;
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
+		// autoplay "stop on free games": the feature still plays out in full, but the run ends with
+		// this round instead of rolling into more auto spins
+		if (stateGame.autoStopOnFreeGames && stateBet.autoSpinsCounter > 0) {
+			stateBet.autoSpinsCounter = 0;
+		}
 		await animateSymbols({ positions: bookEvent.positions });
 		stateGame.totalFs = bookEvent.totalFs;
 		// the bonusStart event that follows plays the mode-specific intro

@@ -4,12 +4,12 @@ import { stateBet, stateBetDerived, stateConfig, stateModal, stateUi, INFINITY_M
 import { numberToCurrencyString, bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 import { getContext } from '../game/context';
+import type { AutoLoadout } from '../game/stateGame.svelte';
 
 export const createControls = () => {
 	const context = getContext();
 
 	let stopDisabled = $state(false);
-	let autoOpen = $state(false);
 
 	context.eventEmitter.subscribeOnMount({
 		stopButtonClick: () => {
@@ -31,6 +31,7 @@ export const createControls = () => {
 	const armedLabel = () => armedBuy();
 	const cancelArmed = () => {
 		stateBet.activeBetModeKey = 'BASE';
+		context.stateGame.autoLoadout = null; // one gesture, clean slate: mode AND autoplay unload
 	};
 	/** mode plaque centred under the reel frame: active mode + the true cost of one spin press */
 	const modeChip = (): { label: string; cost: string } | null => {
@@ -76,6 +77,11 @@ export const createControls = () => {
 		sound('soundPressBet');
 		if (isIdle()) {
 			if (!canAfford()) return;
+			// a loaded autoplay run: the Spin press is what starts it
+			if (context.stateGame.autoLoadout) {
+				startLoadout();
+				return;
+			}
 			// an armed buy mode (BONUS/SUPER/FEAST) stays loaded on this button: every press buys and
 			// plays that feature again until the player switches it off (bonus button / cancelArmed)
 			context.eventEmitter.broadcast({ type: 'bet' });
@@ -89,7 +95,8 @@ export const createControls = () => {
 		if (!stopDisabled) context.eventEmitter.broadcast({ type: 'stopButtonClick' });
 	};
 
-	// ── autoplay ─────────────────────────────────────────────────────────
+	// ── autoplay (loadout flow: configure → LOAD to the spin button → Spin starts the run) ──
+	const autoLoadout = () => context.stateGame.autoLoadout;
 	const autoDisabled = () => stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAfford();
 	const autoPress = () => {
 		sound('soundPressGeneral');
@@ -97,17 +104,33 @@ export const createControls = () => {
 			stateBet.autoSpinsCounter = 0;
 			return;
 		}
-		autoOpen = !autoOpen;
+		stateModal.modal = { name: 'autoSpin' }; // SDK modal-name union; our AutoplayModal owns it
 	};
-	const autoStart = (count: number) => {
-		stateBet.autoSpinsCounter = count;
-		stateBet.autoSpinsLossLimitAmount = Infinity;
-		stateBet.autoSpinsSingleWinLimitAmount = Infinity;
+	/** park a configured run on the spin button; nothing plays until Spin is pressed */
+	const loadAutoplay = (loadout: AutoLoadout) => {
+		context.stateGame.autoLoadout = loadout;
+		stateModal.modal = null;
+		sound('soundPressGeneral');
+	};
+	const clearAutoplay = () => {
+		context.stateGame.autoLoadout = null;
+	};
+	const startLoadout = () => {
+		const loadout = context.stateGame.autoLoadout;
+		if (!loadout) return;
+		const perSpin = betCostFull();
+		stateBet.autoSpinsCounter = loadout.count;
+		// loss stop = cumulative net loss since the run began (SDK tracks balance delta); win stop =
+		// one spin's win. Both as multiples of a single spin's play amount; null = off.
+		stateBet.autoSpinsLossLimitAmount = loadout.lossMult ? loadout.lossMult * perSpin : Infinity;
+		stateBet.autoSpinsSingleWinLimitAmount = loadout.winMult ? loadout.winMult * perSpin : Infinity;
+		// the SDK text fields carry a narrow preset union used only by its own (unmounted) UI — the
+		// real limits are the amount fields above
 		stateUi.autoSpinsLossLimitText = INFINITY_MARK;
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
-		// an armed buy mode stays armed: autoplay repeats the loaded feature (full redesign pending)
-		autoOpen = false;
-		sound('soundPressGeneral');
+		// only meaningful outside an armed feature (there, every spin already IS the feature)
+		context.stateGame.autoStopOnFreeGames = loadout.stopFree && !armedBuy();
+		context.stateGame.autoLoadout = null; // consumed: one load = one run
 		context.eventEmitter.broadcast({ type: 'autoBet' });
 	};
 
@@ -127,7 +150,8 @@ export const createControls = () => {
 	const bonusPress = () => {
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_ui_bonus' });
 		// same gesture as switching Ante off: while a mode is active/armed the head button disarms it
-		if (anteActive() || armedBuy()) stateBet.activeBetModeKey = 'BASE';
+		// (and unloads any waiting autoplay run with it)
+		if (anteActive() || armedBuy()) cancelArmed();
 		else stateModal.modal = { name: 'buyBonus' };
 	};
 	const activateMode = (mode: string) => {
@@ -196,11 +220,10 @@ export const createControls = () => {
 			: null;
 
 	return {
-		get autoOpen() { return autoOpen; },
-		set autoOpen(v: boolean) { autoOpen = v; },
 		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, modeChip, playCostText, autoRunning, autoCount, autoCountText, canAfford,
+		playCost: betCostFull, abbrev: abbrevCurrency,
 		spinDisabled, showStop, spin,
-		autoDisabled, autoPress, autoStart,
+		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,
 		turboPress, turboLevel,
 		bonusDisabled, bonusPress, activateMode, buyMode,
 		betOptions, betDisabled, openDenom, setBet, canStepBet, stepBet,

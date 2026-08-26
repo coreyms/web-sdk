@@ -14,6 +14,7 @@
 	import ChromePortrait from './ChromePortrait.svelte';
 	import ChromePhone from './ChromePhone.svelte';
 	import BonusBuyModal from './BonusBuyModal.svelte';
+	import AutoplayModal from './AutoplayModal.svelte';
 	import DenomModal from './DenomModal.svelte';
 	import GameInfoModal from './GameInfoModal.svelte';
 	import NoticeModal from './NoticeModal.svelte';
@@ -71,6 +72,7 @@
 
 <div class="am-ui layer modals">
 	<BonusBuyModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
+	<AutoplayModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<DenomModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<GameInfoModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<NoticeModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
