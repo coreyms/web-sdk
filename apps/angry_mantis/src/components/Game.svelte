@@ -33,11 +33,16 @@
 	import SessionSummary from './SessionSummary.svelte';
 	import ReplayOverlay from './ReplayOverlay.svelte';
 	import Chrome from '../ui/Chrome.svelte';
+	import LandingScreen from '../ui/LandingScreen.svelte';
 	import TextWarmup from './TextWarmup.svelte';
 
 	const context = getContext();
 
 	stateMeta.betModeMeta = betModeMeta;
+
+	// landing flow: the HTML LandingScreen collects the press, then the Pixi LoadingScreen plays
+	// the fade transition and calls onloaded
+	let landingPressed = $state(false);
 
 	onMount(() => {
 		context.stateLayout.showLoadingScreen = true;
@@ -73,6 +78,7 @@
 
 	{#if context.stateLayout.showLoadingScreen}
 		<LoadingScreen
+			play={landingPressed}
 			onloaded={() => {
 				context.stateLayout.showLoadingScreen = false;
 				warmGpu();
@@ -113,6 +119,9 @@
 
 <!-- HTML chrome (design "Graffiti Grunge"): control bar, bonus buy, bet picker, game info -->
 <Chrome />
+{#if context.stateLayout.showLoadingScreen}
+	<LandingScreen onpress={() => (landingPressed = true)} />
+{/if}
 <ReplayOverlay />
 
 <style lang="scss">
