@@ -36,10 +36,10 @@
 		M1: { name: 'Beetle', color: '#C53C24', kind: 'mid' },
 		M2: { name: 'Spider', color: '#9CD92F', kind: 'mid' },
 		M3: { name: 'Scorpion', color: '#5AB6FF', kind: 'mid' },
-		L1: { name: 'Fly', color: '#fff', kind: 'low' },
-		L2: { name: 'Caterpillar', color: '#fff', kind: 'low' },
-		L3: { name: 'Lightning Bug', color: '#fff', kind: 'low' },
-		L4: { name: 'Moth', color: '#fff', kind: 'low' },
+		L1: { name: 'Lightning Bug', color: '#fff', kind: 'low' },
+		L2: { name: 'Fly', color: '#fff', kind: 'low' },
+		L3: { name: 'Moth', color: '#fff', kind: 'low' },
+		L4: { name: 'Caterpillar', color: '#fff', kind: 'low' },
 	};
 	const paying = [...config.eatOrder].reverse();
 	// real symbol art thumbnails (static/assets/tiles/, emitted by make_placeholders.py)
@@ -204,11 +204,11 @@
 				<div class="row">
 					<div class="leaf-stack">
 						<img src={tileSrc('GL')} alt="Dinner Leaf" />
-						<img src={stamp('/assets/tiles/l4_insect.webp')} alt="Moth riding the leaf" />
+						<img src={stamp('/assets/tiles/l4_insect.webp')} alt="Caterpillar riding the leaf" />
 					</div>
 					<div class="row-main">
 						<div class="row-name" style:color="#9CD92F">Serving example</div>
-						<div class="note">A Dinner Leaf lands carrying the Moth — the lowest symbol still on the menu — and the host strikes to eat it, leaving an empty plate on the reels.</div>
+						<div class="note">A Dinner Leaf lands carrying the Caterpillar — the lowest symbol still on the menu — and the host strikes to eat it, leaving an empty plate on the reels.</div>
 					</div>
 				</div>
 			</section>
