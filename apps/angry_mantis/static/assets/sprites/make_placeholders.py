@@ -15,6 +15,8 @@ FONT = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", r
 SMALL = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", round(S * 0.13))
 
 # symbol -> (placeholder label, colour, real art file or None)
+# eaten state: <base>-blank.webp (the empty plate — the insect is gone) when it exists,
+# else derived desaturate/darken. W/S/GL are never eaten; their eaten frames are unused.
 SYMBOLS = {
     "H1": ("Marty Head", (46, 204, 113), "h1-mantis.webp"),
     "M1": ("Beetle", (230, 126, 34), "m1-beetle.webp"),
@@ -84,7 +86,8 @@ for sym, (sub, color, file) in SYMBOLS.items():
     if im is not None:
         real.append(sym)
         frames[f"{sym}.png"] = im
-        frames[f"{sym}_eaten.png"] = eaten_from_art(im)
+        blank = art(file.replace("-", "-blank-").split("-blank-")[0] + "-blank.webp") if file else None
+        frames[f"{sym}_eaten.png"] = blank if blank is not None else eaten_from_art(im)
     else:
         frames[f"{sym}.png"] = tile(sym, sub, color, glow=(sym == "GL"))
         frames[f"{sym}_eaten.png"] = tile(sym, "EATEN", tuple(c // 3 for c in color))
