@@ -63,7 +63,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 		stateGame.gameType = bookEvent.gameType;
 		eventEmitter.broadcast({ type: 'soundLoop', name: 'sfx_reel_spin' });
-		await stateGameDerived.enhancedBoard.spin({ revealEvent: bookEvent });
+		// No scatter anticipation in free games — a single scatter already retriggers there,
+		// so the pulse + extended reel hold is noise; the tease only runs in the base game.
+		const revealEvent =
+			bookEvent.gameType === 'freegame'
+				? { ...bookEvent, anticipation: [] }
+				: bookEvent;
+		await stateGameDerived.enhancedBoard.spin({ revealEvent });
 		eventEmitter.broadcast({ type: 'soundStop', name: 'sfx_reel_spin' });
 		eventEmitter.broadcast({ type: 'boardCheckGrid' });
 		eventEmitter.broadcast({ type: 'soundScatterCounterClear' });
