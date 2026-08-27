@@ -49,7 +49,7 @@
 <style>
 	.top {
 		position: absolute;
-		top: 68px;
+		top: 56px; /* just below the clock strip; frees a little height for the expanded board */
 		left: 12px;
 		right: 12px;
 		display: flex;

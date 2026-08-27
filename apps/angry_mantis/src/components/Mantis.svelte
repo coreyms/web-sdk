@@ -21,9 +21,17 @@
 	import GameText from './GameText.svelte';
 	import { TIMINGS, SYMBOL_SIZE, CELL_FILL } from '../game/constants';
 	import { getSymbolX, getSymbolY } from '../game/utils';
-	import { HUD, layoutKind } from '../game/layoutSpec';
+	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
 
 	const context = getContext();
+
+	// Bonus mantises match the base-game Marty exactly (Corey 2026-08-26): marty stands in the SAME
+	// spot/size as the MartyArt illustration he replaces; marky mirrors him across the master centre.
+	const mantisPlace = () => {
+		const kind = layoutKind(context.stateLayoutDerived.layoutType());
+		const m = MARTY[kind];
+		return { marty: { x: m.x, y: m.y }, marky: { x: MASTER[kind].width - m.x, y: m.y }, size: m.size };
+	};
 
 	let show = $state(false);
 	let host = $state<BonusHost>('marty');
@@ -34,7 +42,11 @@
 	const lungeMarky = new Tween(0, { duration: TIMINGS.strike / 2, easing: cubicOut });
 	// eaten symbol: flies from the board centre to the striker's mouth (offsets are relative to the mantis)
 	const fly = new Tween({ x: 0, y: 0, s: 1 }, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicIn });
-	const mouthOffset = (isMarty: boolean, size: number) => ({ x: isMarty ? -size * 0.35 : size * 0.35, y: -size * 0.25 });
+	// Full-body placeholder art until the Spine rigs land: martyArt faces LEFT (stands on the right),
+	// markyArt faces RIGHT (stands on the left) — both look toward the board. Sized in units of the
+	// base-game Marty square; marky's canvas is 3:2 landscape so he keeps the same body height.
+	const BODY = { marty: { w: 1, h: 1 }, marky: { w: 1.5, h: 1 } };
+	const mouthOffset = (isMarty: boolean, size: number) => ({ x: isMarty ? -size * 0.15 : size * 0.22, y: isMarty ? -size * 0.3 : -size * 0.23 });
 	// opening auto-bites have no board leaf, so a dinner leaf drops to the board centre carrying the
 	// meal; the strike launches from it and the leaf fades away once the insect is taken
 	let autoLeaf = $state<PayingSymbolName | null>(null);
@@ -67,10 +79,10 @@
 			striking = null;
 		},
 		mantisEat: async ({ striker, symbol, from }) => {
-			const hud = HUD[layoutKind(context.stateLayoutDerived.layoutType())].mantis;
+			const place = mantisPlace();
 			const layout = context.stateGameDerived.boardLayout();
 			const isMarty = striker === 'marty';
-			const me = isMarty ? hud.marty : hud.marky;
+			const me = isMarty ? place.marty : place.marky;
 			eating = { striker, symbol };
 			if (symbol) {
 				// start at the dinner leaf's cell (board-local -> master via the board transform);
@@ -84,7 +96,7 @@
 				// initial scale matches the on-leaf overlay size so the pickup is seamless
 				fly.set({ x: start.x - me.x, y: start.y - me.y, s: (SYMBOL_SIZE * CELL_FILL) / 90 }, { duration: 0 });
 				if (autoLeaf) leafFade.set(0); // the leaf empties as the insect lifts off
-				await fly.set({ ...mouthOffset(isMarty, hud.size), s: 0.55 });
+				await fly.set({ ...mouthOffset(isMarty, place.size), s: 0.55 });
 				chomp = true;
 				await waitForTimeout(TIMINGS.eat * 0.5);
 				chomp = false;
@@ -105,25 +117,24 @@
 
 {#if show}
 	<MainContainer>
-		{@const hud = HUD[layoutKind(context.stateLayoutDerived.layoutType())].mantis}
-		{@const leftX = hud.marky.x}
-		{@const rightX = hud.marty.x}
+		{@const place = mantisPlace()}
 		{#each visible as name (name)}
 			{@const isMarty = name === 'marty'}
 			{@const lunge = isMarty ? lungeMarty.current : lungeMarky.current}
-			<Container x={(isMarty ? rightX : leftX) + lunge} y={isMarty ? hud.marty.y : hud.marky.y}>
+			{@const me = isMarty ? place.marty : place.marky}
+			<Container x={me.x + lunge} y={me.y}>
 				<Sprite
 					anchor={0.5}
-					width={hud.size}
-					height={hud.size}
-					key={striking === name ? `${name}_strike.png` : `${name}_idle.png`}
+					width={place.size * BODY[name].w}
+					height={place.size * BODY[name].h}
+					key={isMarty ? 'martyArt' : 'markyArt'}
 				/>
 				{#if eating?.striker === name}
 					{#if eating.symbol}
 						{#if !chomp}
 							<Sprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} key="{eating.symbol}_insect.png" />
 						{:else}
-							<GameText y={-hud.size * 0.7} text="CHOMP!" preset="gold" size={36} />
+							<GameText y={-place.size * 0.55} text="CHOMP!" preset="gold" size={36} />
 						{/if}
 					{:else}
 						<GameText y={-140} text="..."  preset="silver" size={36} />

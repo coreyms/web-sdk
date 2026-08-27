@@ -9,7 +9,6 @@
 	import { MASTER, layoutKind } from '../game/layoutSpec';
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
-	import ModeChip from './ModeChip.svelte';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
 	import ChromePhone from './ChromePhone.svelte';
@@ -64,9 +63,6 @@
 		{:else}
 			<ChromePortrait {controls} />
 		{/if}
-		<!-- active game-mode plaque, centred under the reel frame in every layout. The portrait fit
-		     frame can be wider than the master, so re-centre onto the real board position. -->
-		<ModeChip {controls} {kind} offsetX={kind === 'portrait' ? (fitWidth - master.width) / 2 : 0} />
 	</div>
 </div>
 

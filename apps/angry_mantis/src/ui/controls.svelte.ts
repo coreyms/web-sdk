@@ -4,6 +4,7 @@ import { stateBet, stateBetDerived, stateConfig, stateModal, stateUi, INFINITY_M
 import { numberToCurrencyString, bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 import { getContext } from '../game/context';
+import { betCostFull, abbrevCurrency } from '../game/modeChipData';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 
 export const createControls = () => {
@@ -33,38 +34,10 @@ export const createControls = () => {
 		stateBet.activeBetModeKey = 'BASE';
 		context.stateGame.autoLoadout = null; // one gesture, clean slate: mode AND autoplay unload
 	};
-	/** mode plaque centred under the reel frame: active mode + the true cost of one spin press */
-	const modeChip = (): { label: string; cost: string } | null => {
-		if (anteActive()) return { label: 'ANTE MODE', cost: abbrevCurrency(betCostFull(), 100_000) };
-		const key = armedBuy();
-		if (key) {
-			const label = stateBetDerived.activeBetMode()?.text?.betAmountLabel ?? key;
-			return { label, cost: abbrevCurrency(betCostFull(), 100_000) };
-		}
-		return null;
-	};
 	const autoRunning = () => stateBetDerived.hasAutoBetCounter();
 	const autoCount = () => stateBet.autoSpinsCounter;
 	const autoCountText = () => (stateBet.autoSpinsCounter === Infinity ? INFINITY_MARK : `${stateBet.autoSpinsCounter}`);
-	// full price of the next press: bet × mode multiplier. The SDK's betCost() applies the multiplier
-	// only to 'activate' modes (buys are charged server-side), so an armed buy would read as the base
-	// bet — wrong price on the button and no affordability gate. This covers all modes.
-	const betCostFull = () => stateBet.betAmount * (stateBetDerived.activeBetMode()?.costMultiplier ?? 1);
 	const canAfford = () => betCostFull() > 0 && betCostFull() <= stateBet.balanceAmount;
-	// K/M/B/T abbreviation: button faces have hard width budgets and stake.us GC amounts reach
-	// trillions — a price must never spill its button. Full precision lives in the bet picker.
-	const abbrevCurrency = (amount: number, threshold = 10_000): string => {
-		if (amount < threshold) return numberToCurrencyString(amount);
-		const symbol = (numberToCurrencyString(amount).match(/^[^\d.,-]*/) ?? [''])[0];
-		for (const [div, suffix] of [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']] as const) {
-			if (amount >= div) {
-				const v = amount / div;
-				const text = v >= 100 ? `${Math.round(v)}` : `${v.toFixed(1)}`.replace(/\.0$/, '');
-				return `${symbol}${text}${suffix}`;
-			}
-		}
-		return numberToCurrencyString(amount);
-	};
 	/** abbreviated full price of one press, for the spin button face */
 	const playCostText = () => abbrevCurrency(betCostFull());
 
@@ -220,7 +193,7 @@ export const createControls = () => {
 			: null;
 
 	return {
-		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, modeChip, playCostText, autoRunning, autoCount, autoCountText, canAfford,
+		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, playCostText, autoRunning, autoCount, autoCountText, canAfford,
 		playCost: betCostFull, abbrev: abbrevCurrency,
 		spinDisabled, showStop, spin,
 		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,

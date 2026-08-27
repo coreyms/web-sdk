@@ -30,7 +30,7 @@
 		{@const hud = HUD[layoutKind(context.stateLayoutDerived.layoutType())].pool}
 		{@const rows = Math.ceil(config.eatOrder.length / hud.cols)}
 		<Container x={hud.x} y={hud.y}>
-			<GameText anchor={{ x: 0.5, y: 1 }} y={-(rows * hud.cell) / 2 - 4} text="ON THE MENU" preset="gold" size={Math.round(hud.cell * (hud.cols > 4 ? 0.36 : 0.45))} />
+			<GameText anchor={{ x: 0.5, y: 1 }} y={-(rows * hud.cell) / 2 + 3} text="ON THE MENU" preset="gold" size={Math.round(hud.cell * (hud.cols > 4 ? 0.36 : 0.45))} />
 			{#each config.eatOrder as symbol, i (symbol)}
 				{@const eaten = !context.stateGame.symbolPool.includes(symbol)}
 				<Sprite

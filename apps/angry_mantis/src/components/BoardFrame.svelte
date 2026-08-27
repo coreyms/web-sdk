@@ -9,10 +9,13 @@
 	import { Sprite } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
-	import { FRAME, layoutKind } from '../game/layoutSpec';
+	import { frameFor, layoutKind } from '../game/layoutSpec';
 
 	const context = getContext();
-	const frame = $derived(FRAME[layoutKind(context.stateLayoutDerived.layoutType())]);
+	const vw = $derived(
+		context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale,
+	);
+	const frame = $derived(frameFor(layoutKind(context.stateLayoutDerived.layoutType()), vw));
 </script>
 
 <Sprite

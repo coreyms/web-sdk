@@ -4,6 +4,7 @@
 	// one spin's play amount; "stop on free games" only exists outside armed feature modes.
 	import { stateModal } from 'state-shared';
 
+	import { modeChipData } from '../game/modeChipData';
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import Icon from './Icon.svelte';
@@ -27,7 +28,7 @@
 
 	const armed = $derived(controls.armedBuy() !== null);
 	const perSpin = $derived(controls.playCost());
-	const pill = $derived(controls.modeChip() ?? { label: 'BASE GAME', cost: controls.abbrev(perSpin, 100_000) });
+	const pill = $derived(modeChipData() ?? { label: 'BASE GAME', cost: controls.abbrev(perSpin, 100_000) });
 	const countText = (c: number) => (c === Infinity ? '∞' : `${c}`);
 	const totalText = $derived(count === Infinity ? '∞' : controls.abbrev(count * perSpin));
 

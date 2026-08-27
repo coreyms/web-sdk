@@ -28,6 +28,7 @@
 	import Transition from './Transition.svelte';
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
+	import ModePlaque from './ModePlaque.svelte';
 	import RetriggerBanner from './RetriggerBanner.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
 	import SessionSummary from './SessionSummary.svelte';
@@ -101,6 +102,8 @@
 		</MainContainer>
 
 		<PoolHud />
+		<!-- mode plaque BEFORE the characters: the mantises stand in front of it -->
+		<ModePlaque />
 		<!-- characters draw over the board (Pixi order) but stay under the HTML chrome buttons -->
 		<MainContainer>
 			<MartyArt />

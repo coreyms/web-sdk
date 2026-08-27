@@ -118,7 +118,9 @@ const resetSession = () => {
 // Board placement in master units (see layoutSpec.ts). width/height are the UNSCALED Pixi board sizes
 // (children of BoardContainer live in that space); `scale` maps them onto the design's reel frame.
 const boardLayout = () => {
-	const placement = boardPlacement(layoutKind(stateLayoutDerived.layoutType()));
+	// viewport width in master units: lets the portrait frame expand into the letterbox side space
+	const vw = stateLayoutDerived.canvasSizes().width / stateLayoutDerived.mainLayout().scale;
+	const placement = boardPlacement(layoutKind(stateLayoutDerived.layoutType()), vw);
 	return {
 		x: placement.x,
 		y: placement.y,

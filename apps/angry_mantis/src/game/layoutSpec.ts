@@ -31,8 +31,33 @@ export const FRAME: Record<
 // Static Marty illustration (base game). Centre + square size, in master units.
 export const MARTY: Record<LayoutKind, { x: number; y: number; size: number }> = {
 	landscape: { x: 1060, y: 490, size: 480 },
-	portrait: { x: 340, y: 590, size: 340 }, // right of centre; the canvas is full-screen so he may overhang the master
+	// Low so only head/arms show above the screen bottom edge; antennae just overlap the (expanded)
+	// frame's bottom border. Same x and size as before — Corey's spec: move him down only.
+	portrait: { x: 340, y: 685, size: 340 },
 	phone: { x: 1210, y: 480, size: 300 }, // right column, tucked against the board edge, behind the control rail
+};
+
+// Portrait phones are usually WIDER than the 412×760 master (the fit is by height), which used to
+// letterbox the reel frame with dead side space. frameFor() grows the portrait frame uniformly —
+// every dimension ×k, so the frame PNG's baked cell-well grid keeps registering with the cells —
+// to span almost the full real viewport width. Other layouts pass through unchanged.
+export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
+	const base = FRAME[kind];
+	if (kind !== 'portrait' || !viewportMasterWidth) return base;
+	const SIDE = 7; // master px kept clear on each side of the frame
+	const MAX_K = 1.36; // height budget: the frame bottom must stay clear of the stats block (tablets)
+	const k = Math.min(Math.max((viewportMasterWidth - SIDE * 2) / base.width, 1), MAX_K);
+	if (k <= 1) return base;
+	return {
+		...base,
+		x: MASTER.portrait.width / 2 - (base.width * k) / 2,
+		width: base.width * k,
+		height: base.height * k,
+		inset: base.inset * k,
+		cell: base.cell * k,
+		gap: base.gap * k,
+		margin: base.margin * k,
+	};
 };
 
 // desktop → the 1280×720 landscape master; phone-sideways ('landscape' layoutType) → the wide phone master.
@@ -42,8 +67,8 @@ export const layoutKind = (layoutType: 'desktop' | 'landscape' | 'portrait' | 't
 };
 
 // Where the Pixi board (5 × SYMBOL_SIZE by 4 × SYMBOL_SIZE, unscaled) sits for a given master.
-export const boardPlacement = (kind: LayoutKind) => {
-	const f = FRAME[kind];
+export const boardPlacement = (kind: LayoutKind, viewportMasterWidth?: number) => {
+	const f = frameFor(kind, viewportMasterWidth);
 	const pitch = f.cell + f.gap;
 	const innerWidth = 5 * f.cell + 4 * f.gap;
 	const innerHeight = 4 * f.cell + 3 * f.gap;
@@ -64,26 +89,22 @@ export const HUD: Record<
 	{
 		fsCounter: { x: number; y: number; scale: number };
 		pool: { x: number; y: number; cols: number; cell: number };
-		mantis: { marky: { x: number; y: number }; marty: { x: number; y: number }; size: number };
 		pressToContinue: { y: number; width: number; height: number };
 	}
 > = {
 	landscape: {
 		fsCounter: { x: 50, y: 250, scale: 1 },
 		pool: { x: 1076, y: 150, cols: 4, cell: 52 }, // top-right, clear of Marty
-		mantis: { marky: { x: 160, y: 450 }, marty: { x: 1060, y: 470 }, size: 150 }, // Marky left column, Marty right of the board
 		pressToContinue: { y: 612, width: 620, height: 104 },
 	},
 	portrait: {
-		fsCounter: { x: 12, y: 484, scale: 0.7 },
+		fsCounter: { x: 12, y: 578, scale: 0.7 }, // below the EXPANDED frame bottom (see frameFor)
 		pool: { x: 206, y: 152, cols: 8, cell: 40 }, // one row overlapping the frame's top edge
-		mantis: { marky: { x: 80, y: 600 }, marty: { x: 330, y: 600 }, size: 100 },
 		pressToContinue: { y: 572, width: 260, height: 44 },
 	},
 	phone: {
 		fsCounter: { x: 60, y: 190, scale: 1 }, // left column, under the logo/tagline
 		pool: { x: 170, y: 420, cols: 4, cell: 52 }, // left column, between fs counter and the stats
-		mantis: { marky: { x: 245, y: 600 }, marty: { x: 1210, y: 620 }, size: 140 },
 		pressToContinue: { y: 566, width: 620, height: 100 },
 	},
 };
