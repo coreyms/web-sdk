@@ -105,6 +105,12 @@ export const TIMINGS = {
 // wins/pokes don't loop the identical take.
 export const RIG = {
 	idle: 'idle',
+	// idle variety (2026-08-29 export): the primary idle dominates; Idle 2 appears on some
+	// returns-to-idle and occasional mid-idle rotations so long waits don't read as a statue
+	idles: ['idle', 'Idle 2'],
+	idlePrimaryWeight: 0.7,
+	anticipation: 'Anticipation',
+	walk: { forward: 'Walking', backward: 'Walking Backwards' },
 	reactions: {
 		angry: ['Angry 1', 'Angry 2', 'Angry 3'],
 		celebrate: ['Celebrating 1', 'Celebrating 2', 'Celebrating 3'],

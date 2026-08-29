@@ -17,6 +17,7 @@
 	import { MARTY, layoutKind } from '../game/layoutSpec';
 	import { RIG } from '../game/constants';
 	import type { Rig } from '../bonerutter';
+	import { playClip, playIdle, currentClip, isIdling } from '../game/mantisRig';
 	import BoneRig from './BoneRig.svelte';
 
 	const context = getContext();
@@ -30,14 +31,23 @@
 		if (busy || !show || !rig) return;
 		busy = true;
 		const pool = RIG.reactions[kind];
-		rig.play(pool[Math.floor(Math.random() * pool.length)], {
+		playClip(rig, pool[Math.floor(Math.random() * pool.length)], {
 			loop: false,
 			onComplete: () => {
 				busy = false;
-				rig?.play(RIG.idle);
+				if (rig) playIdle(rig);
 			},
 		});
 	};
+
+	// scatter anticipation: while a reel is teasing, Marty leans in (Anticipation loop) instead of
+	// idling; hands back to an idle the moment the tease resolves. Never interrupts a reaction.
+	const anticipating = $derived(context.stateGame.board.some((reel) => reel.reelState.anticipating));
+	$effect(() => {
+		if (!rig || busy || !show) return;
+		if (anticipating && isIdling(rig)) playClip(rig, RIG.anticipation, { loop: true });
+		else if (!anticipating && currentClip(rig) === RIG.anticipation) playIdle(rig);
+	});
 
 	context.eventEmitter.subscribeOnMount({ martyReact: ({ kind }) => react(kind) });
 	const poke = () => {

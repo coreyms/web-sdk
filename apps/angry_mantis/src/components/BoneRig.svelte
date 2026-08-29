@@ -10,8 +10,7 @@
 
 	import { getContext } from '../game/context';
 	import type { Rig } from '../bonerutter';
-	import { createMantisRig, measureIdlePose } from '../game/mantisRig';
-	import { RIG } from '../game/constants';
+	import { createMantisRig, measureIdlePose, playIdle, isIdling } from '../game/mantisRig';
 
 	type Props = {
 		size: number;
@@ -30,6 +29,7 @@
 	onMount(() => {
 		let dead = false;
 		let tick: (() => void) | null = null;
+		let rotate: ReturnType<typeof setInterval> | undefined;
 		createMantisRig().then((r) => {
 			if (dead) {
 				r.destroy();
@@ -40,17 +40,23 @@
 			r.view.pivot.set(b.x + b.width / 2, b.y + b.height / 2);
 			if (skin) r.setSkin(skin);
 			wrapper.addChild(r.view);
-			r.play(RIG.idle, { startFrame: Math.random() * 48 }); // desync multiple mantises
+			playIdle(r); // weighted idle pick + random start frame desyncs multiple mantises
 			const ticker = context.stateApp.pixiApplication?.ticker;
 			if (ticker) {
 				tick = () => r.update(ticker.deltaMS / 1000);
 				ticker.add(tick);
 			}
+			// idle variety: occasionally re-roll the idle clip, but only while actually idling —
+			// a strike, reaction, or walk in progress is never interrupted
+			rotate = setInterval(() => {
+				if (isIdling(r)) playIdle(r);
+			}, 14000 + Math.random() * 8000);
 			rig = r;
 		});
 		return () => {
 			dead = true;
 			if (tick) context.stateApp.pixiApplication?.ticker.remove(tick);
+			clearInterval(rotate);
 			rig = null;
 		};
 	});

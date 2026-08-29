@@ -28,7 +28,7 @@
 	import { getSymbolX, getSymbolY } from '../game/utils';
 	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
 	import type { Rig } from '../bonerutter';
-	import { rigPointInHost } from '../game/mantisRig';
+	import { rigPointInHost, playClip, playIdle, currentClip, isIdling } from '../game/mantisRig';
 	import BoneRig from './BoneRig.svelte';
 
 	const context = getContext();
@@ -72,6 +72,41 @@
 	// a striking/eating mantis must not be interrupted by a reaction (the strike clip owns the arc)
 	const busy: Record<Striker, boolean> = $state({ marty: false, marky: false });
 
+	// walk entrances/exits (2026-08-29 export): each mantis walks in from its own screen edge on
+	// mantisShow (art faces its standing direction, so Walking reads as forward for both — Marky is
+	// mirrored) and backs out with Walking Backwards on mantisHide. Strikes await walkDone so an
+	// opening auto-bite can never fire at a mantis that is still crossing the floor.
+	const WALK_MS = 1200;
+	const walkOff = { marty: new Tween(0), marky: new Tween(0) };
+	const walkDone: Record<Striker, Promise<void>> = { marty: Promise.resolve(), marky: Promise.resolve() };
+	const offscreenDist = (name: Striker) => {
+		const kind = layoutKind(context.stateLayoutDerived.layoutType());
+		const m = MARTY[kind];
+		const d = MASTER[kind].width - m.x + m.size;
+		return name === 'marty' ? d : -d;
+	};
+	const walkIn = () => {
+		const targets = host === 'both' ? (['marty', 'marky'] as Striker[]) : [host];
+		targets.forEach((name, i) => {
+			walkDone[name] = (async () => {
+				busy[name] = true;
+				walkOff[name].set(offscreenDist(name), { duration: 0 });
+				for (let t = 0; t < 30 && !rigOf(name); t++) await waitForTimeout(100); // rig loads async
+				const rig = rigOf(name);
+				if (!rig) {
+					walkOff[name].set(0, { duration: 0 });
+					busy[name] = false;
+					return;
+				}
+				if (i) await waitForTimeout(180); // the pair never moves in lockstep
+				playClip(rig, RIG.walk.forward, { loop: true });
+				await walkOff[name].set(0, { duration: WALK_MS });
+				playIdle(rig);
+				busy[name] = false;
+			})();
+		});
+	};
+
 	// finishing-touches item 2: hosts react to spin outcomes. Feast desync rule (Corey): when both
 	// react to the same beat they pull DIFFERENT clips from the pool, staggered so they never move
 	// in lockstep.
@@ -84,8 +119,17 @@
 		const first = Math.floor(Math.random() * pool.length);
 		targets.forEach((name, i) => {
 			const clip = pool[(first + i) % pool.length]; // distinct clips when both react
-			const start = () =>
-				!busy[name] && rigOf(name)?.play(clip, { loop: false, onComplete: () => rigOf(name)?.play(RIG.idle) });
+			const start = () => {
+				const rig = rigOf(name);
+				if (busy[name] || !rig) return;
+				playClip(rig, clip, {
+					loop: false,
+					onComplete: () => {
+						const r = rigOf(name);
+						if (r) playIdle(r);
+					},
+				});
+			};
 			if (i === 0) start();
 			else setTimeout(start, 120 + Math.random() * 120);
 		});
@@ -94,12 +138,36 @@
 	context.eventEmitter.subscribeOnMount({
 		mantisShow: ({ host: h }) => {
 			host = h;
-			show = true;
+			if (!show) {
+				show = true;
+				walkIn();
+			}
 		},
-		mantisHide: () => (show = false),
+		mantisHide: async () => {
+			const walkers = visible.filter((name) => rigOf(name));
+			if (walkers.length === 0) {
+				show = false;
+				return;
+			}
+			await Promise.all(
+				walkers.map(async (name, i) => {
+					await walkDone[name];
+					const rig = rigOf(name);
+					if (!rig) return;
+					busy[name] = true;
+					if (i) await waitForTimeout(180);
+					playClip(rig, RIG.walk.backward, { loop: true });
+					await walkOff[name].set(offscreenDist(name), { duration: WALK_MS });
+					busy[name] = false;
+				}),
+			);
+			show = false;
+			(['marty', 'marky'] as Striker[]).forEach((n) => walkOff[n].set(0, { duration: 0 }));
+		},
 		mantisReact: ({ kind }) => react(kind),
 		mantisStrike: async ({ striker, position }) => {
 			show = true;
+			await walkDone[striker]; // never strike mid-entrance
 			busy[striker] = true;
 			if (!position) {
 				spotlight = true;
@@ -118,10 +186,13 @@
 			const rig = rigOf(striker);
 			if (rig) {
 				const speed = (RIG.strike.hitFrame / RIG.strike.fps) * 1000 / TIMINGS.strike;
-				rig.play(RIG.strike[striker], {
+				playClip(rig, RIG.strike[striker], {
 					loop: false,
 					speed,
-					onComplete: () => rigOf(striker)?.play(RIG.idle),
+					onComplete: () => {
+						const r = rigOf(striker);
+						if (r) playIdle(r);
+					},
 				});
 			}
 			await waitForTimeout(TIMINGS.strike);
@@ -199,6 +270,17 @@
 		if (host === 'both') return ['marty', 'marky'] as Striker[];
 		return [host] as Striker[];
 	});
+
+	// retrigger tease: hosts lean in while a reel anticipates, back to idle when it resolves
+	$effect(() => {
+		const anticipating = context.stateGame.board.some((reel) => reel.reelState.anticipating);
+		for (const name of visible) {
+			const rig = rigOf(name);
+			if (!rig || busy[name]) continue;
+			if (anticipating && isIdling(rig)) playClip(rig, RIG.anticipation, { loop: true });
+			else if (!anticipating && currentClip(rig) === RIG.anticipation) playIdle(rig);
+		}
+	});
 </script>
 
 {#if show}
@@ -210,7 +292,7 @@
 		{#each visible as name (name)}
 			{@const isMarty = name === 'marty'}
 			{@const me = isMarty ? place.marty : place.marky}
-			<Container x={me.x} y={me.y}>
+			<Container x={me.x + walkOff[name].current} y={me.y}>
 				{#if isMarty}
 					<BoneRig bind:rig={martyRig} size={place.size} />
 				{:else}

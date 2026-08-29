@@ -11,7 +11,7 @@ export default {
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
 	"rig/mantis-set.atlas.json": "484c5be7",
 	"rig/mantis-set.atlas.png": "8e82bfb4",
-	"rig/mantis-set.bonerig.json": "ca68d9fe",
+	"rig/mantis-set.bonerig.json": "a54e0489",
 	"sprites/amCharacters/amCharacters.json": "4a0a368e",
 	"sprites/amCharacters/amCharacters.png": "c9771899",
 	"sprites/amSymbols/amSymbols.json": "ca9966ac",
