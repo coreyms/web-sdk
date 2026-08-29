@@ -35,7 +35,6 @@
 		{ text: '+3 FREE SPINS', preset: 'gold', size: 64 },
 		{ text: 'EXTRA SPINS MAXED', preset: 'silver', size: 44 },
 		// Mantis choreography + max win
-		{ text: 'CHOMP!', preset: 'gold', size: 36 },
 		{ text: '...', preset: 'silver', size: 36 },
 		{ text: 'MAX WIN!', preset: 'gold', size: 96 },
 		{ text: 'EVERYTHING IS EATEN...', preset: 'gold', size: 56 },

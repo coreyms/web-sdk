@@ -9,7 +9,10 @@
 </script>
 
 <script lang="ts">
-	// Placeholder character renderer. Real game: MantisRig.svelte (Spine, marty/marky skins) per spec §16.
+	// Bonus-session mantises on the BoneRutter rig: Marty (default art, stands right, faces left)
+	// and Marky ('Marky' skin, stands left, mirrored to face right). One Strike clip carries the
+	// whole strike-and-eat performance — wind-up, claw impact at RIG.strike.hitFrame, then
+	// recovery/chomp playing out underneath the insect's flight to the mouth (see constants.ts).
 	import { MainContainer } from 'components-layout';
 	import { Sprite, Container } from 'pixi-svelte';
 	import { Tween } from 'svelte/motion';
@@ -19,14 +22,17 @@
 	import { getContext } from '../game/context';
 	import { nextSymbolToEat } from '../game/stateGame.svelte';
 	import GameText from './GameText.svelte';
-	import { TIMINGS, SYMBOL_SIZE, CELL_FILL } from '../game/constants';
+	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG } from '../game/constants';
 	import { getSymbolX, getSymbolY } from '../game/utils';
 	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
+	import type { Rig } from '../bonerutter';
+	import { rigPointInHost } from '../game/mantisRig';
+	import BoneRig from './BoneRig.svelte';
 
 	const context = getContext();
 
 	// Bonus mantises match the base-game Marty exactly (Corey 2026-08-26): marty stands in the SAME
-	// spot/size as the MartyArt illustration he replaces; marky mirrors him across the master centre.
+	// spot/size as the base-game Marty; marky mirrors him across the master centre.
 	const mantisPlace = () => {
 		const kind = layoutKind(context.stateLayoutDerived.layoutType());
 		const m = MARTY[kind];
@@ -35,23 +41,22 @@
 
 	let show = $state(false);
 	let host = $state<BonusHost>('marty');
-	let striking = $state<Striker | null>(null);
 	let eating = $state<{ striker: Striker; symbol: PayingSymbolName | null } | null>(null);
 	let chomp = $state(false);
-	const lungeMarty = new Tween(0, { duration: TIMINGS.strike / 2, easing: cubicOut });
-	const lungeMarky = new Tween(0, { duration: TIMINGS.strike / 2, easing: cubicOut });
-	// eaten symbol: flies from the board centre to the striker's mouth (offsets are relative to the mantis)
+	let martyRig = $state<Rig | null>(null);
+	let markyRig = $state<Rig | null>(null);
+	// eaten symbol: flies from the leaf cell to the striker's mouth (offsets are relative to the mantis)
 	const fly = new Tween({ x: 0, y: 0, s: 1 }, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicIn });
-	// Full-body placeholder art until the Spine rigs land: martyArt faces LEFT (stands on the right),
-	// markyArt faces RIGHT (stands on the left) — both look toward the board. Sized in units of the
-	// base-game Marty square; marky's canvas is 3:2 landscape so he keeps the same body height.
-	const BODY = { marty: { w: 1, h: 1 }, marky: { w: 1.5, h: 1 } };
+	// fallback mouth position (fractions of the placeholder body) for the frame-perfect-race case
+	// where a strike lands before the rig finishes loading
 	const mouthOffset = (isMarty: boolean, size: number) => ({ x: isMarty ? -size * 0.15 : size * 0.22, y: isMarty ? -size * 0.3 : -size * 0.23 });
 	// opening auto-bites have no board leaf, so a dinner leaf drops to the board centre carrying the
 	// meal; the strike launches from it and the leaf fades away once the insect is taken
 	let autoLeaf = $state<PayingSymbolName | null>(null);
 	const leafDrop = new Tween(0, { duration: Math.round(TIMINGS.strike * 0.6), easing: cubicIn });
 	const leafFade = new Tween(1, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicOut });
+
+	const rigOf = (striker: Striker) => (striker === 'marty' ? martyRig : markyRig);
 
 	context.eventEmitter.subscribeOnMount({
 		mantisShow: ({ host: h }) => {
@@ -72,11 +77,18 @@
 					await leafDrop.set(0);
 				}
 			}
-			striking = striker;
-			const lunge = striker === 'marty' ? lungeMarty : lungeMarky;
-			await lunge.set(striker === 'marty' ? -140 : 140);
-			await lunge.set(0);
-			striking = null;
+			// speed maps the claw impact onto TIMINGS.strike; the 2s recovery/chomp tail keeps
+			// playing under the eat phase and hands back to idle on its own
+			const rig = rigOf(striker);
+			if (rig) {
+				const speed = (RIG.strike.hitFrame / RIG.strike.fps) * 1000 / TIMINGS.strike;
+				rig.play(RIG.strike[striker], {
+					loop: false,
+					speed,
+					onComplete: () => rigOf(striker)?.play(RIG.idle),
+				});
+			}
+			await waitForTimeout(TIMINGS.strike);
 		},
 		mantisEat: async ({ striker, symbol, from }) => {
 			const place = mantisPlace();
@@ -93,11 +105,13 @@
 							y: layout.y + (getSymbolY(from.row) - layout.height / 2) * layout.scale,
 						}
 					: { x: layout.x, y: layout.y };
+				const rig = rigOf(striker);
+				const mouth = (rig && rigPointInHost(rig, 'Normal Mouth', !isMarty)) ?? mouthOffset(isMarty, place.size);
 				// initial scale matches the on-leaf overlay size so the pickup is seamless
 				fly.set({ x: start.x - me.x, y: start.y - me.y, s: (SYMBOL_SIZE * CELL_FILL) / 90 }, { duration: 0 });
 				if (autoLeaf) leafFade.set(0); // the leaf empties as the insect lifts off
-				await fly.set({ ...mouthOffset(isMarty, place.size), s: 0.55 });
-				chomp = true;
+				await fly.set({ ...mouth, s: 0.55 });
+				chomp = true; // insect vanishes into the mouth; the strike clip's chomp tail sells it
 				await waitForTimeout(TIMINGS.eat * 0.5);
 				chomp = false;
 			} else {
@@ -120,21 +134,17 @@
 		{@const place = mantisPlace()}
 		{#each visible as name (name)}
 			{@const isMarty = name === 'marty'}
-			{@const lunge = isMarty ? lungeMarty.current : lungeMarky.current}
 			{@const me = isMarty ? place.marty : place.marky}
-			<Container x={me.x + lunge} y={me.y}>
-				<Sprite
-					anchor={0.5}
-					width={place.size * BODY[name].w}
-					height={place.size * BODY[name].h}
-					key={isMarty ? 'martyArt' : 'markyArt'}
-				/>
+			<Container x={me.x} y={me.y}>
+				{#if isMarty}
+					<BoneRig bind:rig={martyRig} size={place.size} />
+				{:else}
+					<BoneRig bind:rig={markyRig} size={place.size} mirror skin="Marky" />
+				{/if}
 				{#if eating?.striker === name}
 					{#if eating.symbol}
 						{#if !chomp}
 							<Sprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} key="{eating.symbol}_insect.png" />
-						{:else}
-							<GameText y={-place.size * 0.55} text="CHOMP!" preset="gold" size={36} />
 						{/if}
 					{:else}
 						<GameText y={-140} text="..."  preset="silver" size={36} />

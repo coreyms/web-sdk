@@ -1,50 +1,42 @@
 <script lang="ts" module>
-	export type MartyReaction = 'angry' | 'celebrate' | 'poke';
+	import type { RigReaction } from '../game/constants';
+
+	export type MartyReaction = RigReaction;
 	export type EmitterEventMartyArt = { type: 'martyReact'; kind: MartyReaction };
 </script>
 
 <script lang="ts">
-	// Static Marty illustration (base game), bottom-right behind the controls, with placeholder
-	// reactions standing in for the Spine rig's angry-* / celebrating-* / poke animations (spec §16).
-	// Hidden while the bonus-session mantises (Mantis.svelte) are on stage.
-	import { Sprite, Container } from 'pixi-svelte';
+	// Base-game Marty, bottom-right behind the controls — the BoneRutter rig (idle loop + reaction
+	// clips) replacing the static illustration + tween wiggles. Hidden while the bonus-session
+	// mantises (Mantis.svelte) are on stage.
+	import * as PIXI from 'pixi.js';
+	import { Container } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
-	import { Tween } from 'svelte/motion';
-	import { cubicOut, backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
 	import { MARTY, layoutKind } from '../game/layoutSpec';
+	import { RIG } from '../game/constants';
+	import type { Rig } from '../bonerutter';
+	import BoneRig from './BoneRig.svelte';
 
 	const context = getContext();
 	const place = $derived(MARTY[layoutKind(context.stateLayoutDerived.layoutType())]);
 	const show = $derived(context.stateGame.gameType === 'basegame');
 
-	const rot = new Tween(0, { duration: 90 });
-	const scale = new Tween(1, { duration: 160, easing: cubicOut });
-	const hop = new Tween(0, { duration: 220, easing: backOut });
+	let rig = $state<Rig | null>(null);
 	let busy = false;
 
-	const react = async (kind: MartyReaction) => {
-		if (busy || !show) return;
+	const react = (kind: MartyReaction) => {
+		if (busy || !show || !rig) return;
 		busy = true;
-		if (kind === 'angry') {
-			// head-shake: quick alternating tilt
-			for (const r of [-0.08, 0.08, -0.06, 0.06, 0]) await rot.set(r);
-		} else if (kind === 'celebrate') {
-			for (let i = 0; i < 2; i++) {
-				await hop.set(-26);
-				await hop.set(0, { easing: cubicOut });
-			}
-			await scale.set(1.06);
-			await scale.set(1);
-		} else if (kind === 'poke') {
-			await scale.set(0.95, { duration: 70 });
-			await rot.set(-0.05);
-			await rot.set(0.03);
-			await rot.set(0);
-			await scale.set(1, { duration: 140, easing: backOut });
-		}
-		busy = false;
+		const pool = RIG.reactions[kind];
+		rig.play(pool[Math.floor(Math.random() * pool.length)], {
+			loop: false,
+			onComplete: () => {
+				busy = false;
+				rig?.play(RIG.idle);
+			},
+		});
 	};
 
 	context.eventEmitter.subscribeOnMount({ martyReact: ({ kind }) => react(kind) });
@@ -52,10 +44,20 @@
 		if (!context.stateXstateDerived.isIdle()) return;
 		react('poke');
 	};
+	// the rig is a loose cloud of sprites — a fixed square hit area (the old sprite's footprint)
+	// keeps the poke target predictable and >= 44px
+	const hitArea = $derived(new PIXI.Rectangle(-place.size / 2, -place.size / 2, place.size, place.size));
 </script>
 
 <FadeContainer {show} duration={400}>
-	<Container x={place.x} y={place.y + hop.current} rotation={rot.current} scale={scale.current}>
-		<Sprite key="martyArt" anchor={0.5} width={place.size} height={place.size} eventMode={context.stateXstateDerived.isIdle() ? 'static' : 'none'} cursor="pointer" onpointerup={poke} />
+	<Container
+		x={place.x}
+		y={place.y}
+		{hitArea}
+		eventMode={context.stateXstateDerived.isIdle() ? 'static' : 'none'}
+		cursor="pointer"
+		onpointerup={poke}
+	>
+		<BoneRig bind:rig size={place.size} />
 	</Container>
 </FadeContainer>

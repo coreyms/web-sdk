@@ -9,6 +9,9 @@ export default {
 	"characters/marty-headshot.webp": "e59d84de",
 	"fonts/ui/Outfit-Variable.woff2": "623d408f",
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
+	"rig/mantis-set.atlas.json": "484c5be7",
+	"rig/mantis-set.atlas.png": "8e82bfb4",
+	"rig/mantis-set.bonerig.json": "ca68d9fe",
 	"sprites/amCharacters/amCharacters.json": "4a0a368e",
 	"sprites/amCharacters/amCharacters.png": "c9771899",
 	"sprites/amSymbols/amSymbols.json": "ca9966ac",
@@ -51,6 +54,6 @@ export default {
 	"ui/logo-landscape.webp": "ae494b11",
 	"ui/logo-wide.webp": "9446f5f8",
 	"ui/mantis-head.png": "af90f6bd",
-	"ui/marky.png": "cca7a534",
+	"ui/marky.webp": "fc9a0720",
 	"ui/marty.png": "f4da6399"
 } as const;

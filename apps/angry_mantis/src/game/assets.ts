@@ -16,8 +16,6 @@ export default {
 	bgJungle: { type: 'sprite', src: stamp(new URL('../../assets/ui/bg-jungle.webp', import.meta.url).href), preload: true },
 	frameDesktop: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-desktop.png', import.meta.url).href), preload: true },
 	frameMobile: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-mobile.png', import.meta.url).href), preload: true },
-	martyArt: { type: 'sprite', src: stamp(new URL('../../assets/ui/marty.png', import.meta.url).href), preload: true },
-	markyArt: { type: 'sprite', src: stamp(new URL('../../assets/ui/marky.webp', import.meta.url).href), preload: true },
 	// bonus-intro headshots (real character art; the in-game corner mantises stay on amCharacters
 	// placeholder frames until the Spine rig lands)
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: true },
@@ -30,6 +28,13 @@ export default {
 	amCharacters: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/sprites/amCharacters/amCharacters.json', import.meta.url).href),
+		preload: true,
+	},
+	// BoneRutter character atlas: registered here so the loading screen gates on the 760KB page
+	// (no character pop-in); mantisRig.ts re-loads the same stamped URL and gets Pixi's cached sheet.
+	mantisAtlas: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/rig/mantis-set.atlas.json', import.meta.url).href),
 		preload: true,
 	},
 	sound: {

@@ -100,6 +100,27 @@ export const TIMINGS = {
 	retrigger: 800,
 };
 
+// BoneRutter character rig (static/assets/rig/mantis-set.*): clip names as authored in the export,
+// grouped for the game's needs. Reactions are pools — a random member plays each time so repeated
+// wins/pokes don't loop the identical take.
+export const RIG = {
+	idle: 'idle',
+	reactions: {
+		angry: ['Angry 1', 'Angry 2', 'Angry 3'],
+		celebrate: ['Celebrating 1', 'Celebrating 2', 'Celebrating 3'],
+		astonished: ['Astonished 1', 'Astonished 2', 'Astonished 3'],
+		poke: ['Poke', 'Poke 2', 'Poke 3'],
+	},
+	// One Strike clip covers the whole strike-AND-eat performance: wind-up, claw impact (~frame 18
+	// of 66 — arms at peak extension, mouth opens at 19), then recovery/chomp. `speed` is chosen so
+	// the impact lands exactly at TIMINGS.strike (18 frames / 24fps / 1.154 = 650ms); the tail then
+	// plays out underneath the insect's flight to the mouth. If Corey re-times the clip in
+	// BoneRutter, retune hitFrame (and speed follows) — or better, replace this whole block with
+	// event markers (strike/chomp) once the export carries them; Rig.on('event') is already wired.
+	strike: { marty: 'Strike', marky: 'Marky-Strike', hitFrame: 18, fps: 24 },
+} as const;
+export type RigReaction = keyof typeof RIG.reactions;
+
 export type SymbolInfo = {
 	type: 'sprite';
 	assetKey: string;

@@ -21,8 +21,12 @@ const strip = (ref) => ref.split('?')[0];
 // meta.image request (copySearchParams), so the PNG is fetched as <name>.png?v=<stamp of the JSON>.
 // Embedding the PNG's own hash as a custom meta field makes the JSON's bytes — and therefore both
 // URLs — change whenever the PNG changes, even if the frame coordinates didn't.
-for (const name of ['amSymbols', 'amCharacters']) {
-	const jsonPath = join(ASSETS, 'sprites', name, `${name}.json`);
+for (const rel of [
+	'sprites/amSymbols/amSymbols.json',
+	'sprites/amCharacters/amCharacters.json',
+	'rig/mantis-set.atlas.json', // BoneRutter character atlas — same TexturePacker JSON-hash shape
+]) {
+	const jsonPath = join(ASSETS, rel);
 	const meta = JSON.parse(readFileSync(jsonPath, 'utf8'));
 	const png = strip(meta.meta.image);
 	meta.meta.image = png; // plain — the stamp arrives via copySearchParams from the JSON URL
