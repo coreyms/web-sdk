@@ -10,7 +10,7 @@
 <script lang="ts">
 	// End-of-feature total win (text-based; replaces the Mining Mayhem fsOutro Spine + sprites).
 	import { Container } from 'pixi-svelte';
-	import { FadeContainer, WinCountUpProvider } from 'components-pixi';
+	import { FadeContainer } from 'components-pixi';
 	import { waitForResolve } from 'utils-shared/wait';
 	import { CanvasSizeRectangle, MainContainer } from 'components-layout';
 	import { OnMount } from 'components-shared';
@@ -23,6 +23,9 @@
 	import PressToContinue from './PressToContinue.svelte';
 	import GameText from './GameText.svelte';
 	import CountUpText from './CountUpText.svelte';
+	import StagedWinTitle from './StagedWinTitle.svelte';
+	import StagedCountUpProvider from './StagedCountUpProvider.svelte';
+	import { WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
 
 	const context = getContext();
 
@@ -54,19 +57,23 @@
 <FadeContainer {show}>
 	{#if winLevelData}
 		{@const duration = Math.max(1200, winLevelData.presentDuration / stateBetDerived.timeScale())}
-		<WinCountUpProvider {amount} {duration} oncomplete={() => {}}>
+		<StagedCountUpProvider {amount} {duration} stages={WIN_TIER_STAGES_END_FEATURE}>
 			{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
 				<OnMount onmount={() => startCountUp()} />
 				<CanvasSizeRectangle backgroundColor={0x000000} backgroundAlpha={0.6} />
 				<MainContainer>
 					<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
 						<GameText text={title} preset="gold" size={64} y={-110} maxWidth={760} />
-						<GameText text="TOTAL WIN" preset="silver" size={28} y={-30} extra={{ letterSpacing: 6 }} />
+						{#if winLevelData?.type === 'big'}
+							<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={40} y={-30} />
+						{:else}
+							<GameText text="TOTAL WIN" preset="silver" size={28} y={-30} extra={{ letterSpacing: 6 }} />
+						{/if}
 						<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={96} y={50} maxWidth={760} />
 					</Container>
 				</MainContainer>
 				<PressToContinue showText onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
 			{/snippet}
-		</WinCountUpProvider>
+		</StagedCountUpProvider>
 	{/if}
 </FadeContainer>

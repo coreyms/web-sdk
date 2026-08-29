@@ -86,6 +86,9 @@ export const stateGame = $state({
 	scatterCounter: 0,
 	// Mantis session state (driven purely by book events; never computed locally)
 	bonusMode: 'free' as BonusMode,
+	// combo currently being presented by winInfo (positions in symbols[] index space, i.e. padded
+	// rows like boardWithAnimateSymbols); non-members dim so the undimmed set reads as the win
+	winFocus: null as Position[] | null,
 	bonusHost: 'marty' as BonusHost,
 	symbolPool: [...config.eatOrder] as PayingSymbolName[],
 	// dinner-leaf strike bookkeeping: where the pending strike's leaf sits, which leaves this board

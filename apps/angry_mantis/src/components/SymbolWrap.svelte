@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
+	import { Tween } from 'svelte/motion';
 	import { Container } from 'pixi-svelte';
 	import { getContextBoard } from 'components-shared';
 
@@ -12,10 +13,21 @@
 		y: number;
 		zIndex?: number;
 		animating: boolean;
+		dim?: boolean;
+		lift?: boolean;
 		children: Snippet;
 	};
 
 	const props: Props = $props();
+	const dimAlpha = new Tween(1, { duration: 180 });
+	$effect(() => {
+		dimAlpha.set(props.dim ? 0.35 : 1);
+	});
+	// hero lift: the leaf a strike is targeting grows off the board so the meal reads every spin
+	const liftScale = new Tween(1, { duration: 220 });
+	$effect(() => {
+		liftScale.set(props.lift ? 1.3 : 1);
+	});
 	const boardContext = getContextBoard();
 	const show = $derived(
 		(boardContext.animate && props.animating) || (!boardContext.animate && !props.animating),
@@ -26,7 +38,7 @@
 </script>
 
 {#if props.debug || (show && inFrame)}
-	<Container x={props.x} y={props.y} zIndex={props.zIndex ?? 0}>
+	<Container x={props.x} y={props.y} zIndex={props.lift ? 20 : (props.zIndex ?? 0)} alpha={dimAlpha.current} scale={liftScale.current}>
 		{@render props.children()}
 	</Container>
 {/if}

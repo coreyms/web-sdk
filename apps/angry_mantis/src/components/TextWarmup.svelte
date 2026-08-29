@@ -29,6 +29,8 @@
 		{ text: 'TOTAL WIN', preset: 'silver', size: 28, extra: { letterSpacing: 6 } },
 		// Win tiers
 		...['BIG WIN', 'SUPER WIN', 'MEGA WIN', 'EPIC WIN', 'MAX WIN'].map((t) => ({ text: t, preset: 'gold' as const, size: 110 })),
+		// free-spin-outro staged tier titles (StagedWinTitle at size 40)
+		...['BIG WIN', 'SUPER WIN', 'MEGA WIN', 'EPIC WIN', 'MAX WIN'].map((t) => ({ text: t, preset: 'gold' as const, size: 40 })),
 		// RetriggerBanner
 		{ text: '+1 FREE SPIN', preset: 'gold', size: 64 },
 		{ text: '+2 FREE SPINS', preset: 'gold', size: 64 },

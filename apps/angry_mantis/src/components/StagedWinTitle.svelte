@@ -9,18 +9,18 @@
 	import { bookEventAmountToBetAmountMultiplier } from 'utils-shared/amount';
 
 	import GameText from './GameText.svelte';
-	import { WIN_TIER_STAGES } from '../game/winLevelMap';
+	import { WIN_TIER_STAGES, type WinTierStage } from '../game/winLevelMap';
 
-	type Props = { amount: number; finalAlias: string; size?: number; y?: number };
-	const { amount, finalAlias, size = 110, y = 0 }: Props = $props();
+	type Props = { amount: number; finalAlias: string; stages?: readonly WinTierStage[]; size?: number; y?: number };
+	const { amount, finalAlias, stages = WIN_TIER_STAGES, size = 110, y = 0 }: Props = $props();
 
 	const pop = new Tween(1, { duration: 380, easing: backOut });
 
-	const capIndex = $derived(Math.max(0, WIN_TIER_STAGES.findIndex((s) => s.alias === finalAlias)));
+	const capIndex = $derived(Math.max(0, stages.findIndex((s) => s.alias === finalAlias)));
 	const stageIndex = $derived.by(() => {
 		const xBet = bookEventAmountToBetAmountMultiplier(amount);
 		let i = 0;
-		while (i < capIndex && xBet >= WIN_TIER_STAGES[i + 1].xBet) i++;
+		while (i < capIndex && xBet >= stages[i + 1].xBet) i++;
 		return i;
 	});
 
@@ -35,5 +35,5 @@
 </script>
 
 <Container {y} scale={pop.current}>
-	<GameText text={WIN_TIER_STAGES[stageIndex].title} preset="gold" {size} />
+	<GameText text={stages[stageIndex].title} preset="gold" {size} />
 </Container>

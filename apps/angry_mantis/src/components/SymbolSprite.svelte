@@ -18,12 +18,13 @@
 
 	const props: Props = $props();
 
-	// Placeholder "win" animation: a quick scale pulse, then report completion.
+	// "win" animation: a SLIGHT grow (the board-level dim on non-winners does the highlighting —
+	// Corey 2026-08-29: big grows read badly), then report completion.
 	const pulse = new Tween(1, { duration: TIMINGS.symbolWin / 2, easing: cubicOut });
 
 	const runState = async (state?: SymbolState) => {
 		if (state === 'win') {
-			await pulse.set(1.18);
+			await pulse.set(1.06);
 			await pulse.set(1);
 			props.oncomplete?.();
 		} else {

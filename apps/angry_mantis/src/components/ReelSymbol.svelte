@@ -17,6 +17,22 @@
 		getSymbolInfo({ rawSymbol: props.reelSymbol.rawSymbol, state: props.reelSymbol.symbolState }),
 	);
 
+	// strike-targeted leaf grows while the strike winds up (pendingStrikePos is board-space,
+	// set at the strike event and cleared when the eat flight picks the insect up)
+	const lift = $derived(
+		stateGame.pendingStrikePos !== null &&
+			stateGame.pendingStrikePos.reel === props.reelIndex &&
+			stateGame.pendingStrikePos.row === props.reelSymbol.symbolIndexOfBoard,
+	);
+
+	// winFocus rows are in symbols[] index space (padding included): symbolIndexOfBoard = row - 1
+	const dim = $derived(
+		stateGame.winFocus !== null &&
+			!stateGame.winFocus.some(
+				(p) => p.reel === props.reelIndex && p.row - 1 === props.reelSymbol.symbolIndexOfBoard,
+			),
+	);
+
 	// dinner leaf carries the insect ITS strike will eat (cascades in with it). Leaves are struck in
 	// reel-major order, so the k-th unstruck leaf of this board shows the k-th symbol still in the eat
 	// order — two leaves never preview the same meal. Hidden again once this leaf's strike has fed
@@ -39,6 +55,8 @@
 	y={props.reelSymbol.symbolY.current}
 	zIndex={isAnteLockedSymbol(props.reelIndex, props.reelSymbol.symbolIndexOfBoard) ? 10 : 0}
 	animating={props.reelSymbol.symbolState === 'win'}
+	{dim}
+	{lift}
 >
 	<Symbol
 		state={props.reelSymbol.symbolState}

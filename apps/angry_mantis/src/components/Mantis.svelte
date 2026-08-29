@@ -1,11 +1,13 @@
 <script lang="ts" module>
 	import type { Striker, BonusHost, PayingSymbolName, Position } from '../game/types';
+	import type { RigReaction } from '../game/constants';
 
 	export type EmitterEventMantis =
 		| { type: 'mantisShow'; host: BonusHost }
 		| { type: 'mantisHide' }
 		| { type: 'mantisStrike'; striker: Striker; trigger: 'auto' | 'glowingLeaf'; position?: Position }
-		| { type: 'mantisEat'; striker: Striker; symbol: PayingSymbolName | null; from?: Position | null };
+		| { type: 'mantisEat'; striker: Striker; symbol: PayingSymbolName | null; from?: Position | null }
+		| { type: 'mantisReact'; kind: RigReaction };
 </script>
 
 <script lang="ts">
@@ -13,8 +15,8 @@
 	// and Marky ('Marky' skin, stands left, mirrored to face right). One Strike clip carries the
 	// whole strike-and-eat performance — wind-up, claw impact at RIG.strike.hitFrame, then
 	// recovery/chomp playing out underneath the insect's flight to the mouth (see constants.ts).
-	import { MainContainer } from 'components-layout';
-	import { Sprite, Container } from 'pixi-svelte';
+	import { CanvasSizeRectangle, MainContainer } from 'components-layout';
+	import { Sprite, Container, Circle } from 'pixi-svelte';
 	import { Tween } from 'svelte/motion';
 	import { cubicOut, cubicIn } from 'svelte/easing';
 	import { waitForTimeout } from 'utils-shared/wait';
@@ -55,8 +57,39 @@
 	let autoLeaf = $state<PayingSymbolName | null>(null);
 	const leafDrop = new Tween(0, { duration: Math.round(TIMINGS.strike * 0.6), easing: cubicIn });
 	const leafFade = new Tween(1, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicOut });
+	// bonus-intro spotlight: everything but the mantises + dinner leaf dims during the opening
+	// auto-bites, so the plate ceremony reads as "this is what the bonus does" (player feedback:
+	// the leaf got lost against the background). HTML UI sits above the canvas, untouched.
+	const LEAF_HERO = 1.5; // the intro dinner leaf is oversized for the same reason
+	let spotlight = $state(false);
+	const spot = new Tween(0, { duration: 350 });
+	$effect(() => {
+		spot.set(spotlight ? 0.55 : 0);
+	});
 
 	const rigOf = (striker: Striker) => (striker === 'marty' ? martyRig : markyRig);
+
+	// a striking/eating mantis must not be interrupted by a reaction (the strike clip owns the arc)
+	const busy: Record<Striker, boolean> = $state({ marty: false, marky: false });
+
+	// finishing-touches item 2: hosts react to spin outcomes. Feast desync rule (Corey): when both
+	// react to the same beat they pull DIFFERENT clips from the pool, staggered so they never move
+	// in lockstep.
+	const react = (kind: RigReaction) => {
+		const pool = RIG.reactions[kind];
+		const targets = (host === 'both' ? (['marty', 'marky'] as Striker[]) : [host]).filter(
+			(name) => !busy[name] && rigOf(name),
+		);
+		if (targets.length === 0) return;
+		const first = Math.floor(Math.random() * pool.length);
+		targets.forEach((name, i) => {
+			const clip = pool[(first + i) % pool.length]; // distinct clips when both react
+			const start = () =>
+				!busy[name] && rigOf(name)?.play(clip, { loop: false, onComplete: () => rigOf(name)?.play(RIG.idle) });
+			if (i === 0) start();
+			else setTimeout(start, 120 + Math.random() * 120);
+		});
+	};
 
 	context.eventEmitter.subscribeOnMount({
 		mantisShow: ({ host: h }) => {
@@ -64,9 +97,12 @@
 			show = true;
 		},
 		mantisHide: () => (show = false),
+		mantisReact: ({ kind }) => react(kind),
 		mantisStrike: async ({ striker, position }) => {
 			show = true;
+			busy[striker] = true;
 			if (!position) {
+				spotlight = true;
 				// auto bite: bring the meal in on a dinner leaf before the lunge, same read as a board leaf
 				const symbol = nextSymbolToEat();
 				if (symbol) {
@@ -105,13 +141,47 @@
 							y: layout.y + (getSymbolY(from.row) - layout.height / 2) * layout.scale,
 						}
 					: { x: layout.x, y: layout.y };
+				const startRel = { x: start.x - me.x, y: start.y - me.y };
+				const pickup = ((SYMBOL_SIZE * CELL_FILL) / 90) * (autoLeaf ? LEAF_HERO : 1);
 				const rig = rigOf(striker);
-				const mouth = (rig && rigPointInHost(rig, 'Normal Mouth', !isMarty)) ?? mouthOffset(isMarty, place.size);
-				// initial scale matches the on-leaf overlay size so the pickup is seamless
-				fly.set({ x: start.x - me.x, y: start.y - me.y, s: (SYMBOL_SIZE * CELL_FILL) / 90 }, { duration: 0 });
+				fly.set({ ...startRel, s: pickup }, { duration: 0 });
 				if (autoLeaf) leafFade.set(0); // the leaf empties as the insect lifts off
-				await fly.set({ ...mouth, s: 0.55 });
-				chomp = true; // insect vanishes into the mouth; the strike clip's chomp tail sells it
+
+				// claw-catch (finishing-touches): this fires right at the strike clip's impact frame
+				// (mantisStrike maps the claw hit onto the end of TIMINGS.strike), so the insect snaps
+				// to whichever claw is nearer the meal, rides it through the recovery arc, then
+				// vanishes into the chomp. Frame constants become rig `grab`/`mouth` event markers
+				// once Corey's next export carries them.
+				const mirror = !isMarty;
+				const claw = (() => {
+					if (!rig) return null;
+					const pts = (['Right Claw', 'Left Claw'] as const).map((name) => ({ name, p: rigPointInHost(rig, name, mirror) }));
+					const near = pts
+						.filter((c): c is { name: (typeof pts)[number]['name']; p: { x: number; y: number } } => c.p !== null)
+						.sort((a, b) => Math.hypot(a.p.x - startRel.x, a.p.y - startRel.y) - Math.hypot(b.p.x - startRel.x, b.p.y - startRel.y));
+					return near[0] ?? null;
+				})();
+				if (rig && claw) {
+					await fly.set({ ...claw.p, s: pickup * 0.85 }, { duration: 130, easing: cubicIn });
+					// carry: pin to the claw per frame while the recovery pulls it in
+					const ticker = context.stateApp.pixiApplication?.ticker;
+					const carryMs = TIMINGS.eat * 0.45;
+					const t0 = performance.now();
+					const tick = () => {
+						const pt = rigPointInHost(rig, claw.name, mirror);
+						if (!pt) return;
+						const k = Math.min(1, (performance.now() - t0) / carryMs);
+						fly.set({ ...pt, s: pickup * 0.85 + (0.55 - pickup * 0.85) * k }, { duration: 0 });
+					};
+					ticker?.add(tick);
+					await waitForTimeout(carryMs);
+					ticker?.remove(tick);
+				} else {
+					// rig not ready (frame-perfect race): the old direct mouth flight
+					const mouth = mouthOffset(isMarty, place.size);
+					await fly.set({ ...mouth, s: 0.55 });
+				}
+				chomp = true; // insect vanishes; the strike clip's chomp tail sells the swallow
 				await waitForTimeout(TIMINGS.eat * 0.5);
 				chomp = false;
 			} else {
@@ -119,6 +189,8 @@
 			}
 			eating = null;
 			autoLeaf = null;
+			spotlight = false;
+			busy[striker] = false;
 		},
 	});
 
@@ -130,6 +202,9 @@
 </script>
 
 {#if show}
+	{#if spot.current > 0}
+		<CanvasSizeRectangle backgroundColor={0x000000} backgroundAlpha={spot.current} />
+	{/if}
 	<MainContainer>
 		{@const place = mantisPlace()}
 		{#each visible as name (name)}
@@ -156,7 +231,9 @@
 			{@const layout = context.stateGameDerived.boardLayout()}
 			<!-- auto-bite dinner leaf: drops to the board centre with the insect riding it; the insect
 			     hides once the eat flight takes over (which starts at this exact spot and size) -->
-			<Container x={layout.x} y={layout.y + leafDrop.current} alpha={leafFade.current}>
+			<Container x={layout.x} y={layout.y + leafDrop.current} alpha={leafFade.current} scale={LEAF_HERO}>
+				<!-- grounding shadow (flattened circle, not a filter) separates the plate from the dim -->
+				<Circle x={0} y={SYMBOL_SIZE * CELL_FILL * 0.42} diameter={SYMBOL_SIZE * CELL_FILL} backgroundColor={0x000000} backgroundAlpha={0.35} anchor={0.5} scale={{ x: 1, y: 0.32 }} />
 				<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="GL.png" />
 				{#if !eating}
 					<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{autoLeaf}_insect.png" />

@@ -35,6 +35,9 @@ const modeMusic = () => {
 	return 'bgm_free' as const;
 };
 
+// per-free-spin outcome tracking for mantis reactions (reveal resets, setWin marks)
+let freeSpinHadWin = false;
+
 const animateSymbols = async ({ positions }: { positions: Position[] }) => {
 	eventEmitter.broadcast({ type: 'boardShow' });
 	await eventEmitter.broadcastAsync({ type: 'boardWithAnimateSymbols', symbolPositions: positions });
@@ -42,6 +45,7 @@ const animateSymbols = async ({ positions }: { positions: Position[] }) => {
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	reveal: async (bookEvent: BookEventOfType<'reveal'>, { bookEvents }: BookEventContext) => {
+		freeSpinHadWin = false;
 		stateGame.consumedLeaves = []; // fresh board, fresh leaves
 		stateGame.pendingStrikePos = null;
 		// Dinner-leaf strike order for this board: math strikes leaves reel-major (reel asc, then row asc
@@ -95,9 +99,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 	},
 	winInfo: async (bookEvent: BookEventOfType<'winInfo'>) => {
+		// per-combo presentation: focus (dims everyone else) -> slight pulse -> static amount pop,
+		// one combo at a time; the total's count-up follows in setWin
 		await sequence(bookEvent.wins, async (win) => {
+			stateGame.winFocus = win.positions;
 			await animateSymbols({ positions: win.positions });
+			await eventEmitter.broadcastAsync({ type: 'comboWinShow', amount: win.win });
 		});
+		stateGame.winFocus = null;
 	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
 		stateBet.winBookEventAmount = bookEvent.amount;
@@ -148,6 +157,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'drawerFold' });
 	},
 	updateFreeSpin: async (bookEvent: BookEventOfType<'updateFreeSpin'>) => {
+		if (!freeSpinHadWin && Math.random() < 1 / 3) {
+			eventEmitter.broadcast({ type: 'mantisReact', kind: 'angry' });
+		}
 		stateGame.spinsPlayed = bookEvent.amount;
 		stateGame.totalFs = bookEvent.total;
 		eventEmitter.broadcast({ type: 'freeSpinCounterShow' });
@@ -199,6 +211,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await eventEmitter.broadcastAsync({ type: 'poolRemove', symbol: bookEvent.symbol });
 	},
 	retriggerSpins: async (bookEvent: BookEventOfType<'retriggerSpins'>) => {
+		eventEmitter.broadcast({ type: 'mantisReact', kind: 'astonished' });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_leaf_land' });
 		await animateSymbols({ positions: bookEvent.positions });
 		stateGame.totalFs = bookEvent.newTotalFs;
@@ -246,6 +259,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	setWin: async (bookEvent: BookEventOfType<'setWin'>) => {
 		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];
 
+		if (stateGame.gameType === 'freegame' && bookEvent.amount > 0) {
+			freeSpinHadWin = true;
+			// hosts celebrate medium+ spins (plays under the win presentation)
+			if (winLevelData.type !== 'small') eventEmitter.broadcast({ type: 'mantisReact', kind: 'celebrate' });
+		}
 		eventEmitter.broadcast({ type: 'winShow' });
 		winLevelSoundsPlay({ winLevelData });
 		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount: bookEvent.amount, winLevelData });

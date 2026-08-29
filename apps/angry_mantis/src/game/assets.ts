@@ -13,7 +13,12 @@ export const stamp = (href: string): string => {
 export default {
 	logoLandscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-landscape.webp', import.meta.url).href), preload: true },
 	logoWide: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-wide.webp', import.meta.url).href), preload: true },
-	bgJungle: { type: 'sprite', src: stamp(new URL('../../assets/ui/bg-jungle.webp', import.meta.url).href), preload: true },
+	// per-mode cafeteria backdrops (finishing-touches item 6): base/ante/regular bonus share one,
+	// super and feast get their own. All preloaded so bonus entry never pops (tunable to lazy if
+	// the loading screen suffers on cell connections).
+	bgCafeteriaBase: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-base-bonus.webp', import.meta.url).href), preload: true },
+	bgCafeteriaSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super.webp', import.meta.url).href), preload: true },
+	bgCafeteriaFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast.webp', import.meta.url).href), preload: true },
 	frameDesktop: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-desktop.png', import.meta.url).href), preload: true },
 	frameMobile: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-mobile.png', import.meta.url).href), preload: true },
 	// bonus-intro headshots (real character art; the in-game corner mantises stay on amCharacters

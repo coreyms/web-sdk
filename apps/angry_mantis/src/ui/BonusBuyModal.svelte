@@ -66,6 +66,19 @@
 		else dragX = 0;
 	};
 	const current = $derived(BONUS_CARDS[idx]);
+	// peek carousel (finishing-touches item 4): all cards live on one track, active card left-aligned
+	// with ~20% of the next card visible so players can SEE there are more modes (interview feedback:
+	// some never discovered them). translate clamps so the last card right-aligns and peeks backwards.
+	let viewportW = $state(0);
+	const cellW = $derived(viewportW * 0.76);
+	const CELL_GAP = 10;
+	const trackX = $derived.by(() => {
+		const step = cellW + CELL_GAP;
+		const total = BONUS_CARDS.length * step - CELL_GAP;
+		const raw = -idx * step;
+		const min = Math.min(0, viewportW - total - 8);
+		return Math.max(min, Math.min(0, raw)) + dragX;
+	});
 	$effect(() => {
 		if (!open) {
 			confirmTarget = null;
@@ -75,18 +88,28 @@
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top}>
-	<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} style:top="{compact ? 14 : 22}px" style:right="{compact ? 14 : 24}px" style:width="{compact ? 38 : 46}px" style:height="{compact ? 38 : 46}px" aria-label="Close">
-		<Icon name="close" s={compact ? 16 : 20} />
-	</button>
+	{#if !compact}
+		<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} style:top="22px" style:right="24px" style:width="46px" style:height="46px" aria-label="Close">
+			<Icon name="close" s={20} />
+		</button>
+	{/if}
 
 	<div class="center">
 		{#if compact}
 			<div class="mobile" onclick={(e) => e.stopPropagation()} role="presentation">
-				<BetAdjuster {controls} compact />
+				<div class="x-row">
+					<button class="slot-btn x-red" onclick={(e) => (e.stopPropagation(), close())} aria-label="Close">
+						<Icon name="close" s={18} />
+					</button>
+				</div>
 				<div class="carousel">
-					<div class="viewport" onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointerleave={onUp} onpointercancel={onUp}>
-						<div class="slide" style:transform="translateX({dragX}px)" style:transition={dragging ? 'none' : 'transform .25s ease'}>
-							<BonusBuyCard opt={current} compact {onbuy} />
+					<div class="viewport" bind:clientWidth={viewportW} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointerleave={onUp} onpointercancel={onUp}>
+						<div class="track" style:transform="translateX({trackX}px)" style:transition={dragging ? 'none' : 'transform .25s ease'} style:gap="{CELL_GAP}px">
+							{#each BONUS_CARDS as opt, i (opt.mode)}
+								<div class="cell" class:off={i !== idx} style:width="{cellW}px" onclick={() => i !== idx && go(i - idx)} role="presentation">
+									<BonusBuyCard {opt} compact {onbuy} />
+								</div>
+							{/each}
 						</div>
 						<button class="slot-btn arrow left" disabled={!canPrev} onclick={() => go(-1)} style:background={canPrev ? `linear-gradient(180deg, ${current.tone.accent}, ${current.tone.accent}aa)` : 'rgba(255,255,255,.06)'} style:box-shadow={canPrev ? `inset 0 1px 0 rgba(255,255,255,.4), 0 0 16px ${current.tone.accent}99` : 'inset 0 0 0 1px rgba(255,255,255,.1)'} style:color={canPrev ? '#0a0410' : 'rgba(255,255,255,.25)'} aria-label="Previous"><Icon name="chevronLeft" s={14} /></button>
 						<button class="slot-btn arrow right" disabled={!canNext} onclick={() => go(1)} style:background={canNext ? `linear-gradient(180deg, ${current.tone.accent}, ${current.tone.accent}aa)` : 'rgba(255,255,255,.06)'} style:box-shadow={canNext ? `inset 0 1px 0 rgba(255,255,255,.4), 0 0 16px ${current.tone.accent}99` : 'inset 0 0 0 1px rgba(255,255,255,.1)'} style:color={canNext ? '#0a0410' : 'rgba(255,255,255,.25)'} aria-label="Next"><Icon name="chevronRight" s={14} /></button>
@@ -97,6 +120,7 @@
 						{/each}
 					</div>
 				</div>
+				<BetAdjuster {controls} compact />
 			</div>
 		{:else}
 			<div class="desktop" onclick={(e) => e.stopPropagation()} role="presentation">
@@ -190,8 +214,37 @@
 		width: 100%;
 		overflow: hidden;
 		position: relative;
-		padding: 4px 36px;
+		padding: 4px 0 4px 8px;
 		touch-action: pan-y;
+	}
+	.track {
+		display: flex;
+		align-items: stretch;
+		will-change: transform;
+	}
+	.cell {
+		flex: 0 0 auto;
+		transition: opacity 0.25s ease;
+	}
+	.cell.off {
+		opacity: 0.55;
+	}
+	.x-row {
+		width: 100%;
+		display: flex;
+		justify-content: flex-end;
+		padding-right: 4px;
+	}
+	.x-red {
+		width: 44px;
+		height: 44px;
+		border-radius: 10px;
+		background: linear-gradient(180deg, #e5484d 0%, #a3161c 100%);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 3px 0 #6d0d12, 0 6px 12px rgba(0, 0, 0, 0.5);
+		color: #fff;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 	.arrow {
 		position: absolute;

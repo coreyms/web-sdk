@@ -23,6 +23,7 @@
 	import Board from './Board.svelte';
 	import Anticipations from './Anticipations.svelte';
 	import Win from './Win.svelte';
+	import ComboWin from './ComboWin.svelte';
 	import BonusIntro from './BonusIntro.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
 	import Transition from './Transition.svelte';
@@ -110,6 +111,7 @@
 		</MainContainer>
 		<Mantis />
 
+		<ComboWin />
 		<Win />
 		<RetriggerBanner />
 		<BonusIntro />

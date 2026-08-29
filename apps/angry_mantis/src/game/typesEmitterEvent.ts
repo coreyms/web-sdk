@@ -4,6 +4,7 @@ import type { EmitterEventBonusIntro } from '../components/BonusIntro.svelte';
 import type { EmitterEventFreeSpinCounter } from '../components/FreeSpinCounter.svelte';
 import type { EmitterEventFreeSpinOutro } from '../components/FreeSpinOutro.svelte';
 import type { EmitterEventWin } from '../components/Win.svelte';
+import type { EmitterEventComboWin } from '../components/ComboWin.svelte';
 import type { EmitterEventSound } from '../components/Sound.svelte';
 import type { EmitterEventTransition } from '../components/Transition.svelte';
 import type { EmitterEventMantis } from '../components/Mantis.svelte';
@@ -18,6 +19,7 @@ export type EmitterEventGame =
 	| EmitterEventBoard
 	| EmitterEventBoardFrame
 	| EmitterEventWin
+	| EmitterEventComboWin
 	| EmitterEventBonusIntro
 	| EmitterEventFreeSpinCounter
 	| EmitterEventFreeSpinOutro
