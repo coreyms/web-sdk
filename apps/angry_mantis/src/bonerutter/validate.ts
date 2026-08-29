@@ -127,10 +127,11 @@ function validateClip(clip: Clip, parts: RigPart[]): string[] {
 
     if (ch.prop === 'rot' && ch.values.length > 1) {
       // 3. Angles unwrapped: no consecutive step over 180° (catches wrap bugs).
-      // vendor patch (angry_mantis): upstream bars steps >90°, but the mantis Strike clip's claw
-      // whip legitimately moves 130-148° in one frame (impact frame 16->17). A real wrap artifact
-      // (a value stored wrapped across the ±180° seam) shows as a near-360° jump, so 180° still
-      // catches the bug class without vetoing honest fast motion. Reported upstream 2026-08-29.
+      // vendor patch (angry_mantis): upstream barred steps >90°, but the mantis Strike clip's claw
+      // whip legitimately moves 130-148° in one frame (impact frame 16->17). Below 180° the runtime's
+      // lerp and the shortest arc agree, so a stored value is unambiguous; a real wrap artifact lands
+      // near 360°. FIXED UPSTREAM 2026-08-29 (coreyms/bonerutter eeb1c5f, branch
+      // phase-1-rigging-and-export) with the same 180° bar — drop this patch on the next re-vendor.
       for (let i = 1; i < ch.values.length; i++) {
         if (Math.abs(ch.values[i] - ch.values[i - 1]) > 180) {
           problems.push(`${chWhere}: step of ${Math.abs(ch.values[i] - ch.values[i - 1]).toFixed(1)}° between samples ${i - 1} and ${i} — angles must be unwrapped`);

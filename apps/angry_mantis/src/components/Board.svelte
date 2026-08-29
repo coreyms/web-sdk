@@ -48,6 +48,9 @@
 			atRest: () => context.stateGame.board.every((reel) => reel.reelState.motion === 'stopped'),
 			boardLayout: () => context.stateGameDerived.boardLayout(),
 			gameType: () => context.stateGame.gameType,
+			// test harnesses / manual QA: fire any emitter event (e.g. winShow + winUpdate to
+			// preview the staged big-win count-up without replaying a whole book)
+			emit: (event: any) => context.eventEmitter.broadcast(event),
 		};
 	}
 
