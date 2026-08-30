@@ -20,15 +20,16 @@
 	const context = getContext();
 
 	let amount = $state<number | null>(null);
-	const pop = new Tween(0, { duration: 260, easing: backOut });
+	// near-instant in, quick out (Corey 2026-08-29: "snappy and fast")
+	const pop = new Tween(0, { duration: 110, easing: backOut });
 
 	context.eventEmitter.subscribeOnMount({
 		comboWinShow: async (emitterEvent) => {
 			amount = emitterEvent.amount;
 			pop.set(0, { duration: 0 });
 			pop.set(1);
-			await waitForTimeout(700 / stateBetDerived.timeScale());
-			await pop.set(0, { duration: 140 });
+			await waitForTimeout(320 / stateBetDerived.timeScale());
+			await pop.set(0, { duration: 90 });
 			amount = null;
 		},
 	});
@@ -39,7 +40,8 @@
 {#if amount !== null}
 	<MainContainer>
 		<Container x={layout.x} y={layout.y} scale={pop.current * layout.scale}>
-			<GameText text={bookEventAmountToCurrencyString(amount)} preset="gold" size={64} maxWidth={480} />
+			<!-- white, not gold: per-combo amounts read distinct from the gold tier/total text -->
+			<GameText text={bookEventAmountToCurrencyString(amount)} preset="silver" size={64} maxWidth={480} />
 		</Container>
 	</MainContainer>
 {/if}

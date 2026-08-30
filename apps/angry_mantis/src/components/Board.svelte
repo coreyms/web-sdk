@@ -23,14 +23,10 @@
 	import BoardMask from './BoardMask.svelte';
 	import BoardBase from './BoardBase.svelte';
 	import { checkBoardGrid } from '../game/boardGrid';
-	import { BOARD_SIZES } from '../game/constants';
-	import { Rectangle } from 'pixi-svelte';
-	import { FadeContainer } from 'components-pixi';
 
 	const context = getContext();
 
 	let show = $state(true);
-	const hasWinners = $derived(context.stateGame.board.some((reel) => reel.reelState.symbols.some((s) => s.symbolState === 'win')));
 
 	// Drift guard: after every settle the lattice must be exact; snap + report otherwise.
 	const guardGrid = () => {
@@ -106,10 +102,9 @@
 
 	<BoardContext animate={true}>
 		<BoardContainer>
-			<!-- dims the non-winning tiles while winners animate above it -->
-			<FadeContainer show={hasWinners} duration={180}>
-				<Rectangle width={BOARD_SIZES.width} height={BOARD_SIZES.height} backgroundColor={0x000000} alpha={0.5} />
-			</FadeContainer>
+			<!-- non-winner dimming happens per-symbol (SymbolWrap dim via stateGame.winFocus): a
+			     board-sized dim rect here put a hard lighting seam across winners that grow past
+			     the frame edge (Corey 2026-08-29) -->
 			<BoardBase />
 		</BoardContainer>
 	</BoardContext>

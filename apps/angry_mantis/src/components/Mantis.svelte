@@ -72,10 +72,11 @@
 	// a striking/eating mantis must not be interrupted by a reaction (the strike clip owns the arc)
 	const busy: Record<Striker, boolean> = $state({ marty: false, marky: false });
 
-	// walk entrances/exits (2026-08-29 export): each mantis walks in from its own screen edge on
-	// mantisShow (art faces its standing direction, so Walking reads as forward for both — Marky is
-	// mirrored) and backs out with Walking Backwards on mantisHide. Strikes await walkDone so an
-	// opening auto-bite can never fire at a mantis that is still crossing the floor.
+	// walk entrances/exits (2026-08-29 export): only MARKY walks — Marty is already standing in
+	// this exact slot from the base game (MartyArt hands off in place; Corey 2026-08-29: "he's
+	// already there"), so walking him in would mean he vanishes and re-enters. Marky enters from
+	// the left edge with Walking (he's mirrored, so it reads forward) and backs out with Walking
+	// Backwards. Strikes await walkDone so an opening auto-bite can never fire mid-entrance.
 	const WALK_MS = 1200;
 	const walkOff = { marty: new Tween(0), marky: new Tween(0) };
 	const walkDone: Record<Striker, Promise<void>> = { marty: Promise.resolve(), marky: Promise.resolve() };
@@ -86,7 +87,9 @@
 		return name === 'marty' ? d : -d;
 	};
 	const walkIn = () => {
-		const targets = host === 'both' ? (['marty', 'marky'] as Striker[]) : [host];
+		const targets = (host === 'both' ? (['marty', 'marky'] as Striker[]) : [host]).filter(
+			(name) => name === 'marky',
+		);
 		targets.forEach((name, i) => {
 			walkDone[name] = (async () => {
 				busy[name] = true;
@@ -144,7 +147,7 @@
 			}
 		},
 		mantisHide: async () => {
-			const walkers = visible.filter((name) => rigOf(name));
+			const walkers = visible.filter((name) => name === 'marky' && rigOf(name));
 			if (walkers.length === 0) {
 				show = false;
 				return;

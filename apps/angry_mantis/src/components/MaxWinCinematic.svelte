@@ -53,17 +53,19 @@
 		{@const w = context.stateLayoutDerived.mainLayout().width}
 		{@const h = context.stateLayoutDerived.mainLayout().height}
 		<Container x={w * 0.5} y={h * 0.42} scale={Math.min(1, w / 800)}>
-			<Sprite anchor={0.5} x={-w * 0.35 * (1 - walk.current) - 200} y={0} width={240} height={240} key="marty_strike.png" />
-			<Sprite anchor={0.5} x={w * 0.35 * (1 - walk.current) + 200} y={0} width={240} height={240} key="marky_strike.png" />
+			<!-- same character headshots as the feast BonusIntro (Marky left, Marty right), sliding
+			     in from their edges; text stacks BELOW them so nothing collides (Corey 2026-08-29) -->
 			<GameText
-				y={-230}
+				y={-250}
 				text={roar ? 'MAX WIN!' : 'EVERYTHING IS EATEN...'}
 			 preset="gold" size={roar ? 96 : 56} />
+			<Sprite anchor={0.5} x={-130 - w * 0.35 * (1 - walk.current)} y={-60} width={220} height={220} key="markyHeadshot" />
+			<Sprite anchor={0.5} x={130 + w * 0.35 * (1 - walk.current)} y={-60} width={220} height={220} key="martyHeadshot" />
 			{#if !roar}
-				<GameText y={0} text={`${cellsEaten} / ${BOARD_DIMENSIONS.x * BOARD_DIMENSIONS.y}`}  preset="silver" size={48} />
+				<GameText y={120} text={`${cellsEaten} / ${BOARD_DIMENSIONS.x * BOARD_DIMENSIONS.y}`}  preset="silver" size={48} />
 			{:else}
-				<GameText y={0} text={bookEventAmountToCurrencyString(payout)}  preset="gold" size={80} />
-				<GameText y={90} text="20000X"  preset="silver" size={40} />
+				<GameText y={130} text={bookEventAmountToCurrencyString(payout)}  preset="gold" size={80} />
+				<GameText y={215} text="20000X"  preset="silver" size={40} />
 			{/if}
 		</Container>
 	</MainContainer>

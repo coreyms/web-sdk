@@ -89,7 +89,7 @@ export const zIndexes = {
 
 // Animation timings (ms) for the placeholder choreography. Tune when real Spine rigs land.
 export const TIMINGS = {
-	symbolWin: 700,
+	symbolWin: 350, // was 700 — Corey 2026-08-29: highlight must feel snappy
 	strike: 650,
 	eat: 800,
 	anteLock: 300,

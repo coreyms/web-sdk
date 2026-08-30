@@ -136,6 +136,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.bonusHost = bookEvent.host;
 		stateGame.totalFs = bookEvent.totalFs;
 
+		// super is Marky's stage: base Marty walks off in full view before the wipe
+		if (bookEvent.mode === 'super') await eventEmitter.broadcastAsync({ type: 'martyWalkOut' });
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		await eventEmitter.broadcastAsync({ type: 'transition' });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_ui_bonus' });
