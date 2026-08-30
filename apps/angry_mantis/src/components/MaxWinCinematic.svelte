@@ -55,10 +55,11 @@
 		<Container x={w * 0.5} y={h * 0.42} scale={Math.min(1, w / 800)}>
 			<!-- same character headshots as the feast BonusIntro (Marky left, Marty right), sliding
 			     in from their edges; text stacks BELOW them so nothing collides (Corey 2026-08-29) -->
-			<GameText
-				y={-250}
-				text={roar ? 'MAX WIN!' : 'EVERYTHING IS EATEN...'}
-			 preset="gold" size={roar ? 96 : 56} />
+			{#if roar}
+				<Sprite key="textMaxWinBang" anchor={0.5} y={-250} scale={0.68} />
+			{:else}
+				<Sprite key="textTheyAteEverything" anchor={0.5} y={-250} scale={0.5} />
+			{/if}
 			<Sprite anchor={0.5} x={-130 - w * 0.35 * (1 - walk.current)} y={-60} width={220} height={220} key="markyHeadshot" />
 			<Sprite anchor={0.5} x={130 + w * 0.35 * (1 - walk.current)} y={-60} width={220} height={220} key="martyHeadshot" />
 			{#if !roar}

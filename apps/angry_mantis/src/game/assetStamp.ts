@@ -58,5 +58,18 @@ export default {
 	"ui/logo-wide.webp": "9446f5f8",
 	"ui/mantis-head.png": "af90f6bd",
 	"ui/marky.webp": "fc9a0720",
-	"ui/marty.png": "f4da6399"
+	"ui/marty.png": "f4da6399",
+	"ui/text/big-win.webp": "d0e76b5f",
+	"ui/text/digit-1.webp": "68c1128e",
+	"ui/text/digit-2.webp": "c2491686",
+	"ui/text/digit-3.webp": "b62a826f",
+	"ui/text/epic-win.webp": "c9ddc897",
+	"ui/text/free-game.webp": "afa83c56",
+	"ui/text/free-games.webp": "81b1a84e",
+	"ui/text/max-win-bang.webp": "645efc84",
+	"ui/text/max-win.webp": "7454c3f5",
+	"ui/text/mega-win.webp": "4af332b2",
+	"ui/text/plus.webp": "1eb28f99",
+	"ui/text/super-win.webp": "e2e17908",
+	"ui/text/they-ate-everything.webp": "b557ca4a"
 } as const;

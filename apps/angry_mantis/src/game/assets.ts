@@ -21,6 +21,22 @@ export default {
 	bgCafeteriaFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast.webp', import.meta.url).href), preload: true },
 	frameDesktop: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-desktop.png', import.meta.url).href), preload: true },
 	frameMobile: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-mobile.png', import.meta.url).href), preload: true },
+	// hand-made gold text art (assets/images/branding -> static/assets/ui/text): tier titles,
+	// max-win lines, retrigger digits/words. Replaces canvas-rasterized GameText at the biggest
+	// presentation moments (cheaper too: resident textures, no per-string raster+upload).
+	textBigWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/big-win.webp', import.meta.url).href), preload: true },
+	textSuperWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/super-win.webp', import.meta.url).href), preload: true },
+	textMegaWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/mega-win.webp', import.meta.url).href), preload: true },
+	textEpicWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/epic-win.webp', import.meta.url).href), preload: true },
+	textMaxWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win.webp', import.meta.url).href), preload: true },
+	textMaxWinBang: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win-bang.webp', import.meta.url).href), preload: true },
+	textTheyAteEverything: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/they-ate-everything.webp', import.meta.url).href), preload: true },
+	textFreeGame: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-game.webp', import.meta.url).href), preload: true },
+	textFreeGames: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-games.webp', import.meta.url).href), preload: true },
+	textDigit1: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/digit-1.webp', import.meta.url).href), preload: true },
+	textDigit2: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/digit-2.webp', import.meta.url).href), preload: true },
+	textDigit3: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/digit-3.webp', import.meta.url).href), preload: true },
+	textPlus: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/plus.webp', import.meta.url).href), preload: true },
 	// bonus-intro headshots (real character art; the in-game corner mantises stay on amCharacters
 	// placeholder frames until the Spine rig lands)
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: true },

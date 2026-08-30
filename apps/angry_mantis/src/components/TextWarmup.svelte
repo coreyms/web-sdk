@@ -27,19 +27,10 @@
 		...modes.map((m) => ({ text: `${m} COMPLETE`, preset: 'gold' as const, size: 64 })),
 		...modes.map((m) => ({ text: `${m} COMPLETE`, preset: 'gold' as const, size: 56 })),
 		{ text: 'TOTAL WIN', preset: 'silver', size: 28, extra: { letterSpacing: 6 } },
-		// Win tiers
-		...['BIG WIN', 'SUPER WIN', 'MEGA WIN', 'EPIC WIN', 'MAX WIN'].map((t) => ({ text: t, preset: 'gold' as const, size: 110 })),
-		// free-spin-outro staged tier titles (StagedWinTitle at size 40)
-		...['BIG WIN', 'SUPER WIN', 'MEGA WIN', 'EPIC WIN', 'MAX WIN'].map((t) => ({ text: t, preset: 'gold' as const, size: 40 })),
 		// RetriggerBanner
-		{ text: '+1 FREE SPIN', preset: 'gold', size: 64 },
-		{ text: '+2 FREE SPINS', preset: 'gold', size: 64 },
-		{ text: '+3 FREE SPINS', preset: 'gold', size: 64 },
 		{ text: 'EXTRA SPINS MAXED', preset: 'silver', size: 44 },
 		// Mantis choreography + max win
 		{ text: '...', preset: 'silver', size: 36 },
-		{ text: 'MAX WIN!', preset: 'gold', size: 96 },
-		{ text: 'EVERYTHING IS EATEN...', preset: 'gold', size: 56 },
 		{ text: '20000X', preset: 'silver', size: 40 },
 	];
 </script>

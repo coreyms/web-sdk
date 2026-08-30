@@ -98,23 +98,23 @@ export const winLevelMap = {
 // upgrades the title live as the climbing amount crosses each bar, capped at the book's final
 // winLevel so the top tier is never revealed early. Titles match TextWarmup exactly (cache hits).
 export const WIN_TIER_STAGES = [
-	{ alias: 'big', title: 'BIG WIN', xBet: 15 },
-	{ alias: 'superwin', title: 'SUPER WIN', xBet: 30 },
-	{ alias: 'mega', title: 'MEGA WIN', xBet: 50 },
-	{ alias: 'epic', title: 'EPIC WIN', xBet: 100 },
-	{ alias: 'max', title: 'MAX WIN', xBet: 20000 },
+	{ alias: 'big', title: 'BIG WIN', assetKey: 'textBigWin', xBet: 15 },
+	{ alias: 'superwin', title: 'SUPER WIN', assetKey: 'textSuperWin', xBet: 30 },
+	{ alias: 'mega', title: 'MEGA WIN', assetKey: 'textMegaWin', xBet: 50 },
+	{ alias: 'epic', title: 'EPIC WIN', assetKey: 'textEpicWin', xBet: 100 },
+	{ alias: 'max', title: 'MAX WIN', assetKey: 'textMaxWin', xBet: 20000 },
 ] as const;
 
 // Same idea for end-of-feature totals: mirrors the math "endFeature" table (freeSpinEnd winLevel).
 export const WIN_TIER_STAGES_END_FEATURE = [
-	{ alias: 'big', title: 'BIG WIN', xBet: 50 },
-	{ alias: 'superwin', title: 'SUPER WIN', xBet: 100 },
-	{ alias: 'mega', title: 'MEGA WIN', xBet: 500 },
-	{ alias: 'epic', title: 'EPIC WIN', xBet: 2000 },
-	{ alias: 'max', title: 'MAX WIN', xBet: 20000 },
+	{ alias: 'big', title: 'BIG WIN', assetKey: 'textBigWin', xBet: 50 },
+	{ alias: 'superwin', title: 'SUPER WIN', assetKey: 'textSuperWin', xBet: 100 },
+	{ alias: 'mega', title: 'MEGA WIN', assetKey: 'textMegaWin', xBet: 500 },
+	{ alias: 'epic', title: 'EPIC WIN', assetKey: 'textEpicWin', xBet: 2000 },
+	{ alias: 'max', title: 'MAX WIN', assetKey: 'textMaxWin', xBet: 20000 },
 ] as const;
 
-export type WinTierStage = { alias: string; title: string; xBet: number };
+export type WinTierStage = { alias: string; title: string; assetKey: string; xBet: number };
 
 export type WinLevelMap = typeof winLevelMap;
 export type WinLevel = keyof typeof winLevelMap;

@@ -97,7 +97,7 @@ export const TIMINGS = {
 	maxWinWalkOn: 800,
 	maxWinPerCell: 90,
 	maxWinRoar: 1500,
-	retrigger: 800,
+	retrigger: 1300, // gold-art banner needs a readable beat (was 800 as plain text)
 };
 
 // BoneRutter character rig (static/assets/rig/mantis-set.*): clip names as authored in the export,
