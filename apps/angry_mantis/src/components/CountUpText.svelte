@@ -23,6 +23,10 @@
 
 	const INTERVAL = 66; // ~15Hz text updates; the underlying tween still animates at full frame rate
 	let display = $state(0);
+	// glyph rendering has no per-update cost, so it tracks the tween at full frame rate;
+	// the throttled `display` only feeds the rasterized text fallback
+	const artText = $derived(bookEventAmountToCurrencyString(amount));
+	const artPath = $derived(artAmountSupports(artText));
 	const displayText = $derived(bookEventAmountToCurrencyString(display));
 	let last = 0;
 	let trailing: ReturnType<typeof setTimeout> | undefined;
@@ -44,9 +48,9 @@
 	});
 </script>
 
-{#if artAmountSupports(displayText)}
-	<!-- stencil glyph sprites: zero raster/upload cost, so no styling downgrade while counting -->
-	<ArtAmount text={displayText} height={size} {x} {y} {maxWidth} />
+{#if artPath}
+	<!-- stencil glyph sprites: zero raster/upload cost — updates every frame, no throttle -->
+	<ArtAmount text={artText} height={size} {x} {y} {maxWidth} />
 {:else}
 	<!-- session currency outside the glyph set: the original styled-text path -->
 	<GameText

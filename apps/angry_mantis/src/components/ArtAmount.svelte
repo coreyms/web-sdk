@@ -18,9 +18,11 @@
 
 <script lang="ts">
 	// Amounts drawn from Corey's prison-stencil glyph atlas: batched sprites off one resident
-	// texture, so changing the value costs a few transforms — no canvas raster, no texture upload
-	// (the thing CountUpText's 15Hz throttle existed to survive). Digits bottom-align on a shared
-	// baseline; the comma hangs below it like real numerals; GC/SC/R$ use the pre-kerned pairs.
+	// texture, so changing the value costs a few transforms — no canvas raster, no texture upload.
+	// TABULAR figures: every digit sits centred in an identical fixed-width cell, so a counting
+	// value never reflows — only the glyph inside each cell changes. This (plus per-frame value
+	// updates in CountUpText) is how slot count-ups read smooth. Currency symbols and letters
+	// normalise to digit height (the sheet draws some taller); commas hang below the baseline.
 	import { Sprite } from 'pixi-svelte';
 
 	import { NUMERAL_DIGIT_H } from '../game/numeralGlyphs';
@@ -28,47 +30,54 @@
 	type Props = { text: string; height?: number; x?: number; y?: number; maxWidth?: number; alpha?: number };
 	const { text, height = 72, x = 0, y = 0, maxWidth, alpha = 1 }: Props = $props();
 
-	const GAP = 0.06; // inter-glyph gap, fraction of digit height
-	const SPACE = 0.35;
+	const GAP = 0.05; // inter-cell gap, fraction of digit height
+	const SPACE = 0.32;
 	const COMMA_HANG = 21 / NUMERAL_DIGIT_H;
+	const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+	const DIGIT_CELL = Math.max(...DIGITS.map((d) => NUMERAL_GLYPHS[d].w));
+	const SEP_CELL = Math.max(NUMERAL_GLYPHS.comma.w, NUMERAL_GLYPHS.period.w);
 
 	const layout = $derived.by(() => {
 		const s = height / NUMERAL_DIGIT_H;
-		const glyphs: { key: string; w: number; h: number; hang: boolean }[] = [];
+		type G = { key: string; cellW: number; w: number; h: number; hang: boolean };
+		const glyphs: G[] = [];
+		const push = (name: string) => {
+			const g = NUMERAL_GLYPHS[name];
+			const isDigit = DIGITS.includes(name);
+			const isSep = name === 'comma' || name === 'period';
+			const norm = isDigit || isSep ? 1 : NUMERAL_DIGIT_H / g.h;
+			const w = g.w * s * norm;
+			const cellW = isDigit ? DIGIT_CELL * s : isSep ? SEP_CELL * s : w;
+			glyphs.push({ key: name, cellW, w, h: g.h * s * norm, hang: name === 'comma' });
+		};
 		let i = 0;
 		while (i < text.length) {
 			const pair = PAIRS[text.slice(i, i + 2)];
 			const ch = text[i];
 			if (pair) {
-				const g = NUMERAL_GLYPHS[pair];
-				glyphs.push({ key: pair, w: g.w * s, h: g.h * s, hang: false });
+				push(pair);
 				i += 2;
 				continue;
 			}
-			if (ch === ' ' || ch === ' ') {
-				glyphs.push({ key: '', w: height * SPACE, h: 0, hang: false });
-			} else {
-				const name = CHAR_TO_GLYPH[ch];
-				const g = name ? NUMERAL_GLYPHS[name] : undefined;
-				if (g) glyphs.push({ key: name, w: g.w * s, h: g.h * s, hang: name === 'comma' });
-			}
+			if (ch === ' ' || ch === ' ') glyphs.push({ key: '', cellW: height * SPACE, w: 0, h: 0, hang: false });
+			else if (CHAR_TO_GLYPH[ch]) push(CHAR_TO_GLYPH[ch]);
 			i += 1;
 		}
 		const gap = height * GAP;
-		let total = glyphs.reduce((sum, g) => sum + g.w, 0) + gap * Math.max(0, glyphs.length - 1);
+		let total = glyphs.reduce((sum, g) => sum + g.cellW, 0) + gap * Math.max(0, glyphs.length - 1);
 		const fit = maxWidth && total > maxWidth ? maxWidth / total : 1;
 		total *= fit;
 		let cx = -total / 2;
-		const placed = glyphs.map((g) => {
+		return glyphs.map((g) => {
+			const cellW = g.cellW * fit;
 			const w = g.w * fit;
 			const h = g.h * fit;
 			// baseline at height/2 below centre: glyph bottoms sit there; commas hang past it
-			const gy = height / 2 - h + (g.hang ? COMMA_HANG * height : 0) * fit;
-			const p = { key: g.key, x: cx, y: gy, w, h };
-			cx += w + gap * fit;
+			const gy = height / 2 - h + (g.hang ? COMMA_HANG * height * fit : 0);
+			const p = { key: g.key, x: cx + (cellW - w) / 2, y: gy, w, h };
+			cx += cellW + gap * fit;
 			return p;
 		});
-		return placed;
 	});
 </script>
 
