@@ -16,6 +16,7 @@
 
 	import { getContext } from '../game/context';
 	import GameText from './GameText.svelte';
+	import ArtAmount, { artAmountSupports } from './ArtAmount.svelte';
 
 	const context = getContext();
 
@@ -40,8 +41,13 @@
 {#if amount !== null}
 	<MainContainer>
 		<Container x={layout.x} y={layout.y} scale={pop.current * layout.scale}>
-			<!-- white, not gold: per-combo amounts read distinct from the gold tier/total text -->
-			<GameText text={bookEventAmountToCurrencyString(amount)} preset="silver" size={64} maxWidth={480} />
+			{@const comboText = bookEventAmountToCurrencyString(amount)}
+			<!-- stencil white, not gold: per-combo amounts read distinct from the gold tier/total text -->
+			{#if artAmountSupports(comboText)}
+				<ArtAmount text={comboText} height={64} maxWidth={480} />
+			{:else}
+				<GameText text={comboText} preset="silver" size={64} maxWidth={480} />
+			{/if}
 		</Container>
 	</MainContainer>
 {/if}

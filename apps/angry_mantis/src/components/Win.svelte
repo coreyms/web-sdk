@@ -73,8 +73,8 @@
 				<MainContainer>
 					{#if isBigWin}
 						<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-							<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData.alias} size={110} y={-70} />
-							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="silver" size={72} y={40} maxWidth={760} />
+							<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData.alias} size={110} y={-85} />
+							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="silver" size={72} y={62} maxWidth={760} />
 						</Container>
 					{:else}
 						<Container x={layout.x} y={layout.y} scale={pop.current * layout.scale}>

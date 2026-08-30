@@ -25,6 +25,7 @@ for (const rel of [
 	'sprites/amSymbols/amSymbols.json',
 	'sprites/amCharacters/amCharacters.json',
 	'rig/mantis-set.atlas.json', // BoneRutter character atlas — same TexturePacker JSON-hash shape
+	'ui/numerals/numerals.json', // prison-stencil amount glyphs (generated from branding/prison-numbers.webp)
 ]) {
 	const jsonPath = join(ASSETS, rel);
 	const meta = JSON.parse(readFileSync(jsonPath, 'utf8'));

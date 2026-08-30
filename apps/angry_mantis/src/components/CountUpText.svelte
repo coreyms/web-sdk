@@ -8,6 +8,7 @@
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import GameText, { type GameTextPreset } from './GameText.svelte';
+	import ArtAmount, { artAmountSupports } from './ArtAmount.svelte';
 
 	type Props = {
 		amount: number;
@@ -22,6 +23,7 @@
 
 	const INTERVAL = 66; // ~15Hz text updates; the underlying tween still animates at full frame rate
 	let display = $state(0);
+	const displayText = $derived(bookEventAmountToCurrencyString(display));
 	let last = 0;
 	let trailing: ReturnType<typeof setTimeout> | undefined;
 
@@ -42,12 +44,18 @@
 	});
 </script>
 
-<GameText
-	text={bookEventAmountToCurrencyString(display)}
-	{preset}
-	{size}
-	{x}
-	{y}
-	{maxWidth}
-	extra={settled ? {} : { dropShadow: { color: 0x000000, alpha: 0.6, blur: 0, distance: size * 0.07, angle: Math.PI / 2 } }}
-/>
+{#if artAmountSupports(displayText)}
+	<!-- stencil glyph sprites: zero raster/upload cost, so no styling downgrade while counting -->
+	<ArtAmount text={displayText} height={size} {x} {y} {maxWidth} />
+{:else}
+	<!-- session currency outside the glyph set: the original styled-text path -->
+	<GameText
+		text={displayText}
+		{preset}
+		{size}
+		{x}
+		{y}
+		{maxWidth}
+		extra={settled ? {} : { dropShadow: { color: 0x000000, alpha: 0.6, blur: 0, distance: size * 0.07, angle: Math.PI / 2 } }}
+	/>
+{/if}

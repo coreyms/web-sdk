@@ -37,6 +37,13 @@ export default {
 	textDigit2: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/digit-2.webp', import.meta.url).href), preload: true },
 	textDigit3: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/digit-3.webp', import.meta.url).href), preload: true },
 	textPlus: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/plus.webp', import.meta.url).href), preload: true },
+	// prison-stencil numerals: every amount glyph (digits, separators, currency symbols, GC/SC/R$)
+	// in one atlas — amounts render as batched sprites with ZERO per-frame rasterization
+	numeralsAtlas: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/ui/numerals/numerals.json', import.meta.url).href),
+		preload: true,
+	},
 	// bonus-intro headshots (real character art; the in-game corner mantises stay on amCharacters
 	// placeholder frames until the Spine rig lands)
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: true },
