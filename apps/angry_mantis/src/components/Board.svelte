@@ -67,7 +67,19 @@
 				symbolPositions.map(async (position) => {
 					const reelSymbol = context.stateGame.board[position.reel].reelState.symbols[position.row];
 					reelSymbol.symbolState = 'win';
-					await waitForResolve((resolve) => (reelSymbol.oncomplete = resolve));
+					// CHAIN the resolver, never clobber it: winInfo pulses per combo un-awaited, and
+					// ways combos share symbols — a plain `oncomplete = resolve` dropped the earlier
+					// combo's resolver, leaving its waitForResolve/broadcastAsync chain pending
+					// forever (per-combo keepalive leak). One pulse completion settles every waiter;
+					// the chain resets itself so it can't regrow spin over spin.
+					await waitForResolve((resolve) => {
+						const prev = reelSymbol.oncomplete;
+						reelSymbol.oncomplete = () => {
+							reelSymbol.oncomplete = () => {};
+							prev();
+							resolve();
+						};
+					});
 					reelSymbol.symbolState = 'postWinStatic';
 				});
 

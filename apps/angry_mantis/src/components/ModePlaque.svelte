@@ -3,12 +3,12 @@
 	// spin press. Rendered in Pixi so it sits BEHIND the mantises (Corey 2026-08-26) — Marty's
 	// antennae pass in front of it. Landscape keeps it just under the frame (no character there).
 	import { MainContainer } from 'components-layout';
-	import { Container, Rectangle } from 'pixi-svelte';
+	import { Container, Rectangle, Text } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
 	import { frameFor, layoutKind, FRAME_ART } from '../game/layoutSpec';
 	import { modeChipData } from '../game/modeChipData';
-	import GameText from './GameText.svelte';
+	import { gameTextStyle } from './GameText.svelte';
 
 	const context = getContext();
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
@@ -33,8 +33,16 @@
 	const size = $derived(kind === 'phone' ? 18 : kind === 'landscape' ? 15 : Math.max(9, Math.round(faceH * 0.85) - 6));
 	// fallback must be a real string: a PIXI.Text born from whitespace-only never renders later updates
 	const text = $derived(chip ? `${chip.label}  ·  ${chip.cost} / SPIN` : 'MODE');
-	// pill sized from an average glyph width — the display font has no monospace metrics to query
-	const w = $derived(text.length * size * 0.62 + (kind === 'portrait' ? 24 : 40));
+	const style = $derived(gameTextStyle('gold', size, { letterSpacing: kind === 'portrait' ? 0.8 : 1.6 }));
+	// Pill sized from the MEASURED text width — the per-glyph estimate undershot the display font and
+	// long labels spilled past the pill edge (Corey screenshot 2026-08-31: 'SUPER FREE SPINS · $300.00
+	// / SPIN'). Text (via gameTextStyle, same raster GameText produces) reports its real size through
+	// onresize; the tag records WHICH string was measured so a text change never reuses a stale width.
+	// Until the fresh measurement lands (first frame after mount/rebuild) the old estimate stands in,
+	// so the pill never renders collapsed.
+	let measured = $state({ tag: '', width: 0 });
+	const textW = $derived(measured.tag === text && measured.width > 0 ? measured.width : text.length * size * 0.62);
+	const w = $derived(textW + (kind === 'portrait' ? 24 : 40));
 	const h = $derived(size + (kind === 'portrait' ? 6 : 16));
 </script>
 
@@ -55,9 +63,10 @@
 			borderColor={0xe8b04a}
 		/>
 		<!-- keyed: a PIXI.Text updated while its container is invisible keeps its old glyphs, so
-		     rebuild the node when the label changes (rare — only on arm/cancel/bet change) -->
+		     rebuild the node when the label changes (rare — only on arm/cancel/bet change); the
+		     fresh node's onresize re-reports the measurement the pill width derives from -->
 		{#key text}
-			<GameText {text} preset="gold" size={size} extra={{ letterSpacing: kind === 'portrait' ? 0.8 : 1.6 }} />
+			<Text {text} {style} anchor={0.5} onresize={(s) => (measured = { tag: text, width: s.width })} />
 		{/key}
 	</Container>
 </MainContainer>

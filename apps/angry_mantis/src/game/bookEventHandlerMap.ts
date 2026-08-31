@@ -187,8 +187,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: 0, total: bookEvent.totalFs });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
-		await eventEmitter.broadcastAsync({ type: 'drawerButtonShow' });
-		eventEmitter.broadcast({ type: 'drawerFold' });
 	},
 	updateFreeSpin: async (bookEvent: BookEventOfType<'updateFreeSpin'>) => {
 		if (!freeSpinHadWin && Math.random() < 1 / 3) {
@@ -267,17 +265,16 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	bonusEnd: async (bookEvent: BookEventOfType<'bonusEnd'>) => {
 		eventEmitter.broadcast({ type: 'mantisHide' });
-		// door down over the freegame board: the session summary and the outro that follows
-		// (freeSpinEnd) both present on the closed door; freeSpinEnd rolls it back up
+		// door down over the freegame board — no presentation and no press gate here: the recap is
+		// stashed for freeSpinEnd, whose outro presents recap + total win on the closed door in ONE
+		// screen (Corey 2026-08-31, replacing the separate SessionSummary); freeSpinEnd rolls it back up
 		await eventEmitter.broadcastAsync({ type: 'doorClose' });
-		await eventEmitter.broadcastAsync({
-			type: 'sessionSummaryShow',
+		stateGame.sessionRecap = {
 			mode: bookEvent.mode,
-			totalSessionWin: bookEvent.totalSessionWin,
 			spinsPlayed: bookEvent.spinsPlayed,
 			symbolsEaten: bookEvent.symbolsEaten,
 			eatenList: bookEvent.eatenList,
-		});
+		};
 	},
 	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>) => {
 		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];
@@ -285,16 +282,16 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		stateGame.gameType = 'basegame';
 		eventEmitter.broadcast({ type: 'boardFrameGlowHide' });
+		// counter off BEFORE the outro presents: the door wrap-up owns the screen, and the portrait
+		// press prompt's band (layoutSpec) overlaps the counter's slot
+		eventEmitter.broadcast({ type: 'freeSpinCounterHide' });
 		eventEmitter.broadcast({ type: 'freeSpinOutroShow' });
 		winLevelSoundsPlay({ winLevelData });
 		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: bookEvent.amount, winLevelData });
 		winLevelSoundsStop();
 		eventEmitter.broadcast({ type: 'freeSpinOutroHide' });
-		eventEmitter.broadcast({ type: 'freeSpinCounterHide' });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
-		await eventEmitter.broadcastAsync({ type: 'drawerUnfold' });
-		eventEmitter.broadcast({ type: 'drawerButtonHide' });
 	},
 	setWin: async (bookEvent: BookEventOfType<'setWin'>) => {
 		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];

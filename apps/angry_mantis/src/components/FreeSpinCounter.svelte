@@ -34,12 +34,18 @@
 	});
 </script>
 
-<FadeContainer {show}>
+<!-- persistent: claims its Game.svelte slot at game start (z-order trap — a lazy mount at
+     freeSpinCounterShow time would join the stage LAST, above the win presentations) -->
+<FadeContainer persistent {show}>
 	<MainContainer>
 		<Container x={slot.x} y={slot.y} scale={slot.scale}>
 			<Rectangle width={W} height={H} borderRadius={14} backgroundColor={0x000000} alpha={0.55} borderWidth={2} borderColor={0xffdc4a} />
 			<GameText text="FREE SPIN" preset="gold" size={16} x={W / 2} y={18} extra={{ letterSpacing: 3 }} />
-			<GameText text={`${current} / ${total}`} preset="silver" size={28} x={W / 2} y={48} />
+			<!-- keyed: the trigger's first counterUpdate lands before the fade-in frame, and a
+			     PIXI.Text updated while its container is invisible keeps its old glyphs -->
+			{#key `${current}/${total}`}
+				<GameText text={`${current} / ${total}`} preset="silver" size={28} x={W / 2} y={48} />
+			{/key}
 		</Container>
 	</MainContainer>
 </FadeContainer>

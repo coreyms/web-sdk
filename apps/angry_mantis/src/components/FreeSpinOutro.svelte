@@ -8,7 +8,10 @@
 </script>
 
 <script lang="ts">
-	// End-of-feature total win (text-based; replaces the Mining Mayhem fsOutro Spine + sprites).
+	// End-of-feature wrap-up on the closed steel door — ONE screen, one press gate (Corey
+	// 2026-08-31, replacing the separate SessionSummary): the session recap stashed by bonusEnd
+	// (mode header, spins/symbols line, eaten trays) stacked over the tier title + total-win
+	// count-up. Text-based (replaces the Mining Mayhem fsOutro Spine + sprites).
 	import { Container, Sprite } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
@@ -21,8 +24,10 @@
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { stateBetDerived } from 'state-shared';
 	import { BONUS_MODE_HEADER } from '../game/constants';
+	import { frameFor, layoutKind } from '../game/layoutSpec';
 	import PressToContinue from './PressToContinue.svelte';
 	import GameText from './GameText.svelte';
+	import ArtAmount from './ArtAmount.svelte';
 	import CountUpText from './CountUpText.svelte';
 	import StagedWinTitle from './StagedWinTitle.svelte';
 	import StagedCountUpProvider from './StagedCountUpProvider.svelte';
@@ -58,16 +63,33 @@
 
 	// AUTOPLAY BONUSES: a running autoplay presses on for the player 1s AFTER the count-up has
 	// settled (startCountUp resolves once countUpCompleted is set, finishCountUp interrupts
-	// included) — the total-win count is never cut short
+	// included) — the total-win count is never cut short. This is the ONLY wrap-up gate now.
 	const autoContinueAfterCountUp = async () => {
 		if (!autoBonusesRunning()) return;
 		const press = oncomplete; // pin to this outro's gate — a late timer must not press a future one
 		await waitForTimeout(1000);
-		press();
+		// re-checked at FIRE time (BonusIntro precedent): stopping autoplay during the window
+		// (autoSpinsCounter -> 0) must restore the hard press-gate, not press through it
+		if (autoBonusesRunning()) press();
 	};
 
-	const master = $derived(context.stateLayoutDerived.mainLayout());
-	const textScale = $derived(Math.min(1, master.width / 800));
+	// Everything fits INSIDE the door's window (BonusIntro pattern): content is authored in a
+	// 620×500 design space centered on the window, then uniformly scaled to fit. Only the PRESS
+	// ANYWHERE prompt lives outside, below the counter (HUD pressToContinue slot).
+	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
+	const vw = $derived(
+		context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale,
+	);
+	const f = $derived(frameFor(kind, vw));
+	const win = $derived({
+		x: f.x + f.inset,
+		y: f.y + f.inset,
+		w: f.width - f.inset * 2,
+		h: f.height - f.inset * 2,
+	});
+	const fit = $derived(Math.min(win.w / 620, win.h / 500, 1.15));
+	// stashed by the bonusEnd handler right before this freeSpinEnd presentation
+	const recap = $derived(context.stateGame.sessionRecap);
 </script>
 
 <!-- persistent: the container claims its Game.svelte template slot at game start and keeps it —
@@ -88,20 +110,31 @@
 			<StagedCountUpProvider {amount} {duration} stages={WIN_TIER_STAGES_END_FEATURE}>
 				{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
 					<OnMount onmount={() => startCountUp().then(autoContinueAfterCountUp)} />
-					<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30) -->
+					<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30).
+					     All glyphs here are atlas sprites (ArtAmount/StagedWinTitle/trays) except the
+					     warmed static 'TOTAL WIN' GameText — nothing rasterizes per frame, and the
+					     {#key presentId} remount keeps no PIXI.Text updating while invisible. -->
 					<MainContainer>
-						<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
+						<Container x={win.x + win.w / 2} y={win.y + win.h / 2} scale={pop.current * fit}>
 							<!-- Corey's COMPLETE stamp will overlay this header when it lands -->
-							<Sprite key={BONUS_MODE_HEADER[context.stateGame.bonusMode] ?? 'labelBonus'} anchor={0.5} y={-160} scale={0.62} />
-							{#if winLevelData?.type === 'big'}
-								<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={52} y={-55} />
-							{:else}
-								<GameText text="TOTAL WIN" preset="silver" size={28} y={-55} extra={{ letterSpacing: 6 }} />
+							<Sprite key={BONUS_MODE_HEADER[recap?.mode ?? context.stateGame.bonusMode] ?? 'labelBonus'} anchor={0.5} y={-195} scale={0.5} />
+							{#if recap}
+								<ArtAmount y={-104} text={`${recap.spinsPlayed} SPIN${recap.spinsPlayed === 1 ? '' : 'S'} - ${recap.symbolsEaten} SYMBOL${recap.symbolsEaten === 1 ? '' : 'S'} EATEN`} height={24} maxWidth={580} />
+								{#each recap.eatenList as symbol, i (symbol)}
+									<Sprite anchor={0.5} x={(i - (recap.eatenList.length - 1) / 2) * 72} y={-50} width={64} height={64} key="{symbol}_eaten.png" />
+								{/each}
 							{/if}
-							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={72} y={45} maxWidth={720} />
+							{#if winLevelData?.type === 'big'}
+								<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={46} y={40} />
+							{:else}
+								<GameText text="TOTAL WIN" preset="silver" size={28} y={40} extra={{ letterSpacing: 6 }} />
+							{/if}
+							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={58} y={148} maxWidth={560} />
 						</Container>
 					</MainContainer>
-					<PressToContinue showText onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
+					<!-- active={show}: winLevelData outlives the fade-out (cleared on settle), so the press
+					     gate must follow visibility or Space stays disabled through the door-open -->
+					<PressToContinue showText active={show} onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
 				{/snippet}
 			</StagedCountUpProvider>
 		{/if}

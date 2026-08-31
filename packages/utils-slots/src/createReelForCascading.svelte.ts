@@ -59,7 +59,7 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 
 	// interruptible
 	const interruptible = createInterruptible();
-	// `rush()` cuts the anticipation (noStop) wait short without changing stop-button semantics.
+	// `rush()` (the stop press) cuts the anticipation (noStop) hold short; `stop()` alone keeps it.
 	const rushable = createInterruptible();
 
 	// reactive states
@@ -80,6 +80,10 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 	let onSpinFinishing: () => void = () => {};
 	let noStop = false;
 	let paddingSize = 0;
+	// Latches a rush() (stop press) that lands BEFORE this reel reaches its anticipation hold:
+	// rushable.interrupt() only cuts a wait already in progress, so a press during fall-out was
+	// dropped and the held reel still played its full anticipated delay. Reset per prepareToSpin.
+	let rushRequested = false;
 
 	const delaySpinByReelIndex = async () => {
 		await waitForTimeout(reelState.spinOptions().reelFallOutDelay * reelOptions.reelIndex);
@@ -146,8 +150,12 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		// Q: When to skip the waitToStartFallingIn?
 		// A: When stop button is clicked(isTurbo) and is noStop is false
 		if (noStop) {
-			await rushable.add(waitToStartFallingIn);
-			rushable.clear();
+			// a stop press that already happened (rushRequested) skips the anticipation hold
+			// entirely; one that lands mid-hold interrupts it via rushable
+			if (!rushRequested) {
+				await rushable.add(waitToStartFallingIn);
+				rushable.clear();
+			}
 		} else if (stateBet.isTurbo) {
 			// skip
 		} else {
@@ -229,6 +237,7 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 	}) => {
 		reelState.spinType = prepareToSpinOptions.spinType;
 
+		rushRequested = false; // each reveal gets a fresh chance to hold its anticipation
 		noStop = prepareToSpinOptions.noStop;
 		targetSymbols = prepareToSpinOptions.symbols;
 		onSpinFinishing = prepareToSpinOptions.onSpinFinishing;
@@ -267,6 +276,7 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 	};
 
 	const rush = () => {
+		rushRequested = true;
 		interruptible.interrupt();
 		rushable.interrupt();
 	};

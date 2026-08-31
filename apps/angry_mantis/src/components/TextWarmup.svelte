@@ -1,29 +1,24 @@
 <script lang="ts">
 	// Pre-warms Pixi's text-texture cache. CanvasTextSystem keys textures by text + style + resolution and
 	// ref-counts them, so a permanently mounted instance of each FIXED presentation string keeps its texture
-	// resident; when BonusIntro / FreeSpinOutro / Win / RetriggerBanner later mount the same string with the
+	// resident; when BonusIntro / FreeSpinOutro / Win later mount the same string with the
 	// same GameText preset+size, they hit the cache instead of rasterizing + uploading a big POT canvas
 	// mid-play (the 100–150ms hitches traced at bonus intro and feature exit). Rendered far off-screen so the
 	// quads exist (culling is off) but never show. Keep entries in sync with the components' presets/sizes.
+	// (Mode headers and win tiers are atlas sprite art now — only styled GameText needs warming here.)
 	import { Container } from 'pixi-svelte';
 	import { MainContainer } from 'components-layout';
 
 	import GameText from './GameText.svelte';
-	import { BONUS_MODE_LABEL } from '../game/constants';
 
-	const modes = Object.values(BONUS_MODE_LABEL);
 	const entries: { text: string; preset: 'gold' | 'silver'; size: number; extra?: Record<string, unknown> }[] = [
 		// BonusIntro
-		...modes.map((m) => ({ text: m, preset: 'gold' as const, size: 72 })),
 		{ text: '8 FREE SPINS', preset: 'gold', size: 40 },
 		{ text: '10 FREE SPINS', preset: 'gold', size: 40 },
 		// (the wrapped rules paragraphs render at size 17 — texture small enough that a cold
 		//  raster doesn't hitch, so they're not warmed here)
-		// FreeSpinOutro + SessionSummary
-		...modes.map((m) => ({ text: `${m} COMPLETE`, preset: 'gold' as const, size: 64 })),
-		...modes.map((m) => ({ text: `${m} COMPLETE`, preset: 'gold' as const, size: 56 })),
+		// FreeSpinOutro (merged wrap-up)
 		{ text: 'TOTAL WIN', preset: 'silver', size: 28, extra: { letterSpacing: 6 } },
-		// RetriggerBanner
 		// Mantis choreography + max win
 		{ text: '...', preset: 'silver', size: 36 },
 	];

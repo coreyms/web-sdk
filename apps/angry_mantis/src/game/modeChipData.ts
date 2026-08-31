@@ -12,16 +12,20 @@ export const betCostFull = () => stateBet.betAmount * (stateBetDerived.activeBet
 // K/M/B/T abbreviation: button faces have hard width budgets and stake.us GC amounts reach
 // trillions — a price must never spill its button. Full precision lives in the bet picker.
 export const abbrevCurrency = (amount: number, threshold = 10_000): string => {
-	if (amount < threshold) return numberToCurrencyString(amount);
-	const symbol = (numberToCurrencyString(amount).match(/^[^\d.,-]*/) ?? [''])[0];
-	for (const [div, suffix] of [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']] as const) {
+	const full = numberToCurrencyString(amount);
+	if (amount < threshold) return full;
+	// keep BOTH locale currency markers: "€1.2K" prefixes in some locales, "1.2K €" / "1.2K zł"
+	// suffixes in others — the old prefix-only match silently dropped suffix markers
+	const pre = (full.match(/^[^\d.,-]*/) ?? [''])[0];
+	const post = (full.match(/[^\d.,-]*$/) ?? [''])[0];
+	for (const [div, mag] of [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']] as const) {
 		if (amount >= div) {
 			const v = amount / div;
 			const text = v >= 100 ? `${Math.round(v)}` : `${v.toFixed(1)}`.replace(/\.0$/, '');
-			return `${symbol}${text}${suffix}`;
+			return `${pre}${text}${mag}${post}`;
 		}
 	}
-	return numberToCurrencyString(amount);
+	return full;
 };
 
 /** mode plaque on the reel frame: active mode + the true cost of one spin press (null in base game) */

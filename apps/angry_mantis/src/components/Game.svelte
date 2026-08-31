@@ -31,9 +31,7 @@
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
 	import ModePlaque from './ModePlaque.svelte';
-	import RetriggerBanner from './RetriggerBanner.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
-	import SessionSummary from './SessionSummary.svelte';
 	import ReplayOverlay from './ReplayOverlay.svelte';
 	import Chrome from '../ui/Chrome.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
@@ -128,6 +126,11 @@
 		<DoorSteel />
 
 		<PoolHud />
+		<!-- FreeSpinCounter (Pixi FREE SPIN n/total pill) is deliberately NOT mounted: the HTML
+		     chrome's spin button already shows FREE SPIN n/total during free games — mounting both
+		     duplicated the display (live-checked 2026-08-31, and the two disagree by one: pill
+		     counts spins landed, button counts the spin in progress). Component + emitter channels
+		     kept for Corey's call on which display wins. -->
 		<!-- mode plaque BEFORE the characters: the mantises stand in front of it -->
 		<ModePlaque />
 		<!-- characters draw over the board (Pixi order) but stay under the HTML chrome buttons -->
@@ -138,9 +141,7 @@
 
 		<ComboWin />
 		<Win />
-		<RetriggerBanner />
 		<BonusIntro />
-		<SessionSummary />
 		<MaxWinCinematic />
 		<FreeSpinOutro />
 		<Transition />

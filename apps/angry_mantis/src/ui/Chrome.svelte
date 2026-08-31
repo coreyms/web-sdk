@@ -54,10 +54,12 @@
 <ChromeStyles />
 <EnableSpaceHold />
 <!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–2000×
-     purchase behind the dialog, and with a parked autoplay loadout it starts the whole run. -->
+     purchase behind the dialog, and with a parked autoplay loadout it starts the whole run.
+     pressGates: while a press-to-continue presentation is up, Space belongs to it alone — otherwise
+     the same press also hit controls.spin → stopButtonClick, force-enabling turbo. -->
 <OnHotkey
 	hotkey="Space"
-	disabled={controls.spinDisabled() || controls.isReplay() || context.stateLayout.showLoadingScreen || stateModal.modal != null}
+	disabled={controls.spinDisabled() || controls.isReplay() || context.stateLayout.showLoadingScreen || stateModal.modal != null || context.stateGame.pressGates > 0}
 	onpress={controls.spin}
 />
 

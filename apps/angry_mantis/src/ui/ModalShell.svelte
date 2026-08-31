@@ -1,3 +1,12 @@
+<script lang="ts" module>
+	// Escape must only close the TOPMOST shell: stacked modals (e.g. the buy modal + its ARE YOU
+	// SURE confirm) each register a keydown listener, and the same Escape keydown reaches both in
+	// the one dispatch — without this stack, one press closed the whole pile. Cleanup pops in a
+	// Svelte flush AFTER the dispatch, so every handler of that keydown still sees the confirm on
+	// top and only it acts.
+	const escStack: symbol[] = [];
+</script>
+
 <script lang="ts">
 	// Full-viewport blurred backdrop + a design-master-sized content frame (scaled), so modals
 	// are authored in master units like the rest of the chrome. Click outside content = close.
@@ -19,11 +28,17 @@
 
 	$effect(() => {
 		if (!open) return;
+		const token = Symbol('modal');
+		escStack.push(token);
 		const h = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') onclose();
+			if (e.key === 'Escape' && escStack[escStack.length - 1] === token) onclose();
 		};
 		document.addEventListener('keydown', h);
-		return () => document.removeEventListener('keydown', h);
+		return () => {
+			const i = escStack.indexOf(token);
+			if (i !== -1) escStack.splice(i, 1);
+			document.removeEventListener('keydown', h);
+		};
 	});
 </script>
 

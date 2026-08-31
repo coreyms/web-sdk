@@ -116,10 +116,22 @@ export const stateGame = $state({
 	autoLoadout: null as AutoLoadout | null,
 	autoStopOnFreeGames: false,
 	autoPlayBonuses: false,
+	// count of ACTIVE press-to-continue gates (see PressToContinue.svelte): while > 0, Chrome's
+	// Space→spin/stop hotkey is disabled so a continue press can't leak into stopButtonClick
+	pressGates: 0,
 	antePrevLocked: false, // previous spin ended with the ante scatter on screen
 	spinsPlayed: 0,
 	totalFs: 0,
 	anteLocked: false,
+	// bonus wrap-up recap, stashed by the bonusEnd book event (no presentation of its own) and
+	// rendered by the freeSpinEnd outro on the closed door — ONE merged wrap-up screen
+	// (Corey 2026-08-31, replacing the separate SessionSummary)
+	sessionRecap: null as null | {
+		mode: BonusMode;
+		spinsPlayed: number;
+		symbolsEaten: number;
+		eatenList: PayingSymbolName[];
+	},
 });
 
 const resetSession = () => {

@@ -40,22 +40,27 @@
 	// 0 = hidden above the window, 1 = fully closed. Rendered as a y offset inside the mask.
 	const drop = new Tween(0, { duration: 0 });
 	// NOTE: the container stays MOUNTED even while hidden — the presentation layers
-	// (BonusIntro/SessionSummary/FreeSpinOutro/Win) are always-mounted FadeContainers, so Pixi
+	// (BonusIntro/FreeSpinOutro/Win) are always-mounted FadeContainers, so Pixi
 	// z-order is fixed by Game.svelte template order. Mounting the door lazily put it above
-	// the summary text. Visibility toggles instead.
+	// the wrap-up text. Visibility toggles instead.
 	let engaged = $state(false);
 
 	context.eventEmitter.subscribeOnMount({
 		doorClose: async () => {
 			engaged = true;
 			drop.set(0, { duration: 0 });
+			// sfx is cut to the travel: its slam sits 450 ms in, so it fires WITH the drop, not after
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_door_close' });
 			// heavy roll-down: accelerates like a released shutter, lands with a hard stop
 			await drop.set(1, { duration: 450, easing: cubicIn });
 		},
 		doorOpen: async () => {
+			// latch click at 0 ms, roll fading over the 550 ms rise
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_door_open' });
 			await drop.set(0, { duration: 550, easing: cubicOut });
 			engaged = false;
 		},
+		// snap has no travel (resume / instant state set) — stays silent
 		doorSnap: ({ closed }) => {
 			drop.set(closed ? 1 : 0, { duration: 0 });
 			engaged = closed;

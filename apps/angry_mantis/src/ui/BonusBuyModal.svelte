@@ -19,7 +19,19 @@
 
 	let confirmTarget = $state<{ opt: BonusCardSpec; price: number } | null>(null);
 	let dontAsk = $state(false);
-	const skipConfirm = $state<Record<string, boolean>>({});
+	// "don't show this again" persists per mode across reloads; localStorage can throw
+	// (private mode / blocked site data), so every touch is wrapped and falls back to
+	// session-only behaviour
+	const SKIP_CONFIRM_KEY = 'angryMantis.skipBuyConfirm';
+	const loadSkipConfirm = (): Record<string, boolean> => {
+		try {
+			const parsed = JSON.parse(localStorage.getItem(SKIP_CONFIRM_KEY) ?? '{}');
+			return parsed && typeof parsed === 'object' ? parsed : {};
+		} catch {
+			return {};
+		}
+	};
+	const skipConfirm = $state<Record<string, boolean>>(loadSkipConfirm());
 
 	const onbuy = (opt: BonusCardSpec, price: number) => {
 		controls.sound('soundPressGeneral');
@@ -35,7 +47,14 @@
 	};
 	const confirmYes = () => {
 		if (!confirmTarget) return;
-		if (dontAsk) skipConfirm[confirmTarget.opt.mode] = true;
+		if (dontAsk) {
+			skipConfirm[confirmTarget.opt.mode] = true;
+			try {
+				localStorage.setItem(SKIP_CONFIRM_KEY, JSON.stringify($state.snapshot(skipConfirm)));
+			} catch {
+				/* best effort — the in-session skip still applies */
+			}
+		}
 		const mode = confirmTarget.opt.mode;
 		confirmTarget = null;
 		controls.buyMode(mode);

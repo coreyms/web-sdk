@@ -131,6 +131,15 @@
 							</div>
 						</div>
 					{/each}
+					<!-- Wild sits in the paytable grid per convention: its own tile, no pay values —
+					     it has no paytable of its own, only the substitution rule as its caption -->
+					<div class="row">
+						<img class="tile" src={tileSrc('W')} alt="Wild" style:box-shadow="0 0 18px #ffdc4a33" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
+						<div class="row-main">
+							<div class="row-name" style:color="#ffdc4a">Wild</div>
+							<div class="row-kind">Substitutes for all menu symbols</div>
+						</div>
+					</div>
 				</div>
 				<div class="divider"></div>
 				<div class="subhead">Special Symbols</div>

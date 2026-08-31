@@ -10,9 +10,7 @@ import type { EmitterEventSound } from '../components/Sound.svelte';
 import type { EmitterEventTransition } from '../components/Transition.svelte';
 import type { EmitterEventMantis } from '../components/Mantis.svelte';
 import type { EmitterEventPoolHud } from '../components/PoolHud.svelte';
-import type { EmitterEventRetrigger } from '../components/RetriggerBanner.svelte';
 import type { EmitterEventMaxWinCinematic } from '../components/MaxWinCinematic.svelte';
-import type { EmitterEventSessionSummary } from '../components/SessionSummary.svelte';
 import type { EmitterEventReplay } from '../components/ReplayOverlay.svelte';
 import type { EmitterEventMartyArt } from '../components/MartyArt.svelte';
 
@@ -29,8 +27,6 @@ export type EmitterEventGame =
 	| EmitterEventTransition
 	| EmitterEventMantis
 	| EmitterEventPoolHud
-	| EmitterEventRetrigger
 	| EmitterEventMaxWinCinematic
-	| EmitterEventSessionSummary
 	| EmitterEventReplay
 	| EmitterEventMartyArt;

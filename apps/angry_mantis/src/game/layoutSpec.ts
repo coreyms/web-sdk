@@ -105,16 +105,29 @@ export const HUD: Record<
 	landscape: {
 		fsCounter: { x: 50, y: 250, scale: 1 },
 		pool: { x: 1100, y: 150, cols: 4, cell: 52 }, // top-right, clear of Marty and the frame art's right edge (~984)
-		pressToContinue: { y: 668, width: 620, height: 80 }, // below the counter (frame art bottom ~605), above the balance row (~655)
+		// PressToContinue renders the text spanning [y − 0.92h, y − 0.5h] (glyphs 0.42h tall, baseline
+		// at y − 0.5h). 670/56 → span 618.5..642, centred (~630) in the free band between the frame
+		// art's bottom rail (window bottom 547.4 + 120×0.4816 sy ≈ 605) and the BALANCE/WIN/SPIN
+		// text top (trio box bottom 702, pad 4, ~43px content → ~655).
+		pressToContinue: { y: 670, width: 620, height: 56 },
 	},
 	portrait: {
 		fsCounter: { x: 12, y: 578, scale: 0.7 }, // below the EXPANDED frame bottom (see frameFor)
 		pool: { x: 206, y: 152, cols: 8, cell: 40 }, // one row overlapping the frame's top edge
-		pressToContinue: { y: 572, width: 260, height: 44 },
+		// 590/48 → text span 545.8..566, centred (~556) between the unexpanded frame art bottom
+		// (455.6 window bottom + 120×0.2818 sy ≈ 489) and the BALANCE/SPIN stats content top
+		// (row bottom 656, ~33px content → ~623) — clear of the spin/bet cluster (bar 666..744)
+		// and, with the fs counter hidden before the outro presents, of its 578..628 slot too.
+		// On EXPANDED tablet frames (frameFor k→1.36, art bottom →~609) the prompt rides the
+		// door/rail band instead — no interactive collision, phones (k=1) are the design target.
+		pressToContinue: { y: 590, width: 260, height: 48 },
 	},
 	phone: {
 		fsCounter: { x: 60, y: 190, scale: 1 }, // left column, under the logo/tagline
 		pool: { x: 170, y: 420, cols: 4, cell: 52 }, // left column, between fs counter and the stats
-		pressToContinue: { y: 640, width: 620, height: 100 }, // low door band, clear of intro detail text
+		// frame art bottom ≈ 730 of 740 — no free band below the rail, so the prompt stays on the
+		// door's lower band: 640/100 → text span 548..590, below the outro content (≤ ~532) and
+		// clear of the plaque (~690..724) and stats (~691..734).
+		pressToContinue: { y: 640, width: 620, height: 100 },
 	},
 };

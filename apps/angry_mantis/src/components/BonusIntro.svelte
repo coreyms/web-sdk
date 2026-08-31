@@ -34,9 +34,18 @@
 			totalFs = emitterEvent.totalFs;
 			show = true;
 			// gated on player input (Corey 2026-08-30) — the door holds until they press. A running
-			// autoplay with AUTOPLAY BONUSES on presses for them ~1s after the door is ready.
+			// autoplay with AUTOPLAY BONUSES on presses for them ~1s after the door is ready — but
+			// re-checked at FIRE time: stopping autoplay during the window (autoSpinsCounter -> 0)
+			// must restore the hard press-gate, not press through it. autoPress pins THIS door's
+			// resolver, so a late timer can never press a future door (resolving twice is a no-op).
 			const pressed = waitForResolve((resolve) => (oncomplete = resolve));
-			await (autoBonusesRunning() ? Promise.race([pressed, waitForTimeout(1000)]) : pressed);
+			if (autoBonusesRunning()) {
+				const autoPress = oncomplete;
+				void waitForTimeout(1000).then(() => {
+					if (autoBonusesRunning()) autoPress();
+				});
+			}
+			await pressed;
 		},
 		bonusIntroHide: () => (show = false),
 	});
@@ -115,5 +124,7 @@
 			{/key}
 		</Container>
 	</MainContainer>
-	<PressToContinue showText onpress={() => oncomplete()} />
+	<!-- active={show}: this PressToContinue is ALWAYS mounted (persistent FadeContainer), so the
+	     press-gate registration must follow visibility, not mount -->
+	<PressToContinue showText active={show} onpress={() => oncomplete()} />
 </FadeContainer>

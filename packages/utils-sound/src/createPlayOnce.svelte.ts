@@ -20,12 +20,18 @@ export function createPlayOnce<TSoundName extends string>(options: {
 
 		options.initSoundVolume(sound.soundName);
 
-		options.howl.on('end', (soundIdOnEnd) => {
-			if (soundIdOnEnd === soundId) {
+		// once + soundId, NOT on: `on('end', …)` piled one permanent listener onto the shared Howl
+		// per play (never removed — thousands over a session, every one run on every sfx end).
+		// Howler's id-scoped `once` fires only for this play id and removes itself; a sound stopped
+		// early instead of ending is cleaned up by createPlayer.stop's matching off('end', id).
+		options.howl.once(
+			'end',
+			() => {
 				options.howl.stop(soundId);
 				delete options.getSoundMap()[sound.soundName];
-			}
-		});
+			},
+			soundId,
+		);
 	};
 
 	const soundPlayMap = {

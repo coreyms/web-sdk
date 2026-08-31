@@ -31,11 +31,15 @@
 
 	let counter = 0;
 
+	// Progress counts COMPLETED Assets.load calls across BOTH phases (pre + post): the old
+	// handler only counted the post phase, so a game marking every asset `preload: true`
+	// (angry_mantis does) sat at 0% through the whole real load and jumped straight to done.
 	const onProgress = (value: number) => {
-		if (preLoaded && value === 1) {
+		const total = preAssetNameList.length + assetNameList.length;
+		if (value === 1 && total > 0) {
 			counter = counter + 1;
-			const ratio = counter / assetNameList.length;
-			context.stateApp.loadingProgress = ratio * 100;
+			const ratio = counter / total;
+			context.stateApp.loadingProgress = Math.min(100, ratio * 100);
 		}
 	};
 

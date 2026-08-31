@@ -53,6 +53,10 @@ function createPlayer<TSoundName extends string, TPlay extends Function>(playerO
 		const existingSound = soundMap[stopOptions.name];
 		if (existingSound) {
 			playerOptions.howl.stop(existingSound.soundId);
+			// stopping never fires 'end', so drop the once-player's pending id-scoped end listener
+			// (createPlayOnce) — play ids are unique, so it could otherwise never fire or clean up.
+			// No-op for ids with no listener (music/loop players register none).
+			playerOptions.howl.off('end', undefined, existingSound.soundId);
 			delete soundMap[existingSound.soundName];
 		}
 	};
