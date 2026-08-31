@@ -1,5 +1,6 @@
 <script lang="ts">
 	// Bonus-buy modal: bet adjuster + 4 cards (desktop grid / mobile swipe carousel) + confirm dialog.
+	import { innerWidth } from 'svelte/reactivity/window';
 	import { stateModal } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
@@ -66,19 +67,19 @@
 		else dragX = 0;
 	};
 	const current = $derived(BONUS_CARDS[idx]);
-	// peek carousel (finishing-touches item 4): all cards live on one track, active card left-aligned
-	// with ~20% of the next card visible so players can SEE there are more modes (interview feedback:
-	// some never discovered them). translate clamps so the last card right-aligns and peeks backwards.
+	// peek carousel (finishing-touches item 4): all cards live on one track with neighbours peeking so
+	// players can SEE there are more modes (interview feedback: some never discovered them).
+	// The modal frame is master-sized and scaled, so anything clipped inside it dies at the FitFrame
+	// edge — a hard cut visibly INSIDE the phone screen. Instead the viewport spans the full PHYSICAL
+	// screen width expressed in master units (the screen centre coincides with the frame centre, so
+	// centring the viewport in the frame lands it exactly on the screen); its overflow:hidden then
+	// clips neighbours at the TRUE screen edge. Cards stay sized in master (chrome) units.
+	const fullW = $derived((innerWidth.current ?? master.width * scale) / scale);
 	let viewportW = $state(0);
 	const cellW = $derived(viewportW * 0.76);
 	const CELL_GAP = 10;
-	const trackX = $derived.by(() => {
-		const step = cellW + CELL_GAP;
-		const total = BONUS_CARDS.length * step - CELL_GAP;
-		const raw = -idx * step;
-		const min = Math.min(0, viewportW - total - 8);
-		return Math.max(min, Math.min(0, raw)) + dragX;
-	});
+	// active card centred on the physical screen; prev/next peek toward the real screen edges
+	const trackX = $derived((viewportW - cellW) / 2 - idx * (cellW + CELL_GAP) + dragX);
 	$effect(() => {
 		if (!open) {
 			confirmTarget = null;
@@ -103,7 +104,7 @@
 					</button>
 				</div>
 				<div class="carousel">
-					<div class="viewport" bind:clientWidth={viewportW} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointerleave={onUp} onpointercancel={onUp}>
+					<div class="viewport" style:width="{fullW}px" bind:clientWidth={viewportW} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointerleave={onUp} onpointercancel={onUp}>
 						<div class="track" style:transform="translateX({trackX}px)" style:transition={dragging ? 'none' : 'transform .25s ease'} style:gap="{CELL_GAP}px">
 							{#each BONUS_CARDS as opt, i (opt.mode)}
 								<div class="cell" class:off={i !== idx} style:width="{cellW}px" onclick={() => i !== idx && go(i - idx)} role="presentation">
@@ -133,10 +134,15 @@
 			</div>
 		{/if}
 	</div>
+</ModalShell>
 
-	{#if confirmTarget}
-		{@const opt = confirmTarget.opt}
-		<div class="confirm-bg" onclick={(e) => (e.stopPropagation(), (confirmTarget = null))} role="presentation">
+<!-- Confirm dialog rides its OWN ModalShell: the dim backdrop must cover the full physical viewport
+     (position:fixed outside the scaled frame), not just the master rect — a backdrop inside the
+     frame leaves bright uncovered strips at the real screen edges. -->
+{#if confirmTarget}
+	{@const opt = confirmTarget.opt}
+	<ModalShell open={true} onclose={() => (confirmTarget = null)} {master} {scale} {left} {top} dim="rgba(0,0,0,0.55)" zIndex={3}>
+		<div class="confirm-center">
 			<div class="confirm" onclick={(e) => e.stopPropagation()} role="presentation" style:border="2px solid {opt.tone.accent}" style:box-shadow="0 30px 80px rgba(0,0,0,.8), 0 0 40px {opt.tone.accent}44">
 				<div class="c-title">ARE YOU SURE?</div>
 				<div class="c-body">
@@ -154,8 +160,8 @@
 				</div>
 			</div>
 		</div>
-	{/if}
-</ModalShell>
+	</ModalShell>
+{/if}
 
 <style>
 	.x {
@@ -211,10 +217,11 @@
 		align-items: center;
 	}
 	.viewport {
-		width: 100%;
+		/* width set inline to the full physical screen width (master units); .carousel's
+		   align-items:center centres the overflowing box exactly onto the screen */
 		overflow: hidden;
 		position: relative;
-		padding: 4px 0 4px 8px;
+		padding: 4px 0;
 		touch-action: pan-y;
 	}
 	.track {
@@ -280,18 +287,16 @@
 	.dot.on {
 		width: 22px;
 	}
-	.confirm-bg {
+	.confirm-center {
 		position: absolute;
 		inset: 0;
-		z-index: 300;
-		background: rgba(0, 0, 0, 0.55);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		animation: slot-count 0.2s ease both;
-		pointer-events: auto;
+		pointer-events: none;
 	}
 	.confirm {
+		pointer-events: auto;
 		width: min(420px, 86%);
 		background: linear-gradient(180deg, #1d0e2a 0%, #0a0414 100%);
 		border-radius: 14px;

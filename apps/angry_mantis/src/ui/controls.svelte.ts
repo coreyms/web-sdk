@@ -1,5 +1,7 @@
 // Control-bar behaviour shared by the landscape/portrait chrome. Mirrors what the SDK's Pixi
 // buttons (components-ui-pixi) do, so the xstate machine and RGS flow are untouched — only the skin changed.
+import { Tween } from 'svelte/motion';
+import { cubicOut } from 'svelte/easing';
 import { stateBet, stateBetDerived, stateConfig, stateModal, stateUi, INFINITY_MARK } from 'state-shared';
 import { numberToCurrencyString, bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
@@ -182,7 +184,16 @@ export const createControls = () => {
 
 	// ── readouts ─────────────────────────────────────────────────────────
 	const balanceText = () => numberToCurrencyString(stateBet.balanceAmount);
-	const winText = () => bookEventAmountToCurrencyString(stateBet.winBookEventAmount);
+	// WIN counts UP toward the live book value (winInfo applies the spin total as the combos
+	// reveal, and this tween chases it — Mother Clucker timing); a reset to a smaller value
+	// (new spin) snaps instead of counting backwards
+	const winTween = new Tween(stateBet.winBookEventAmount, { duration: 550, easing: cubicOut });
+	$effect(() => {
+		const target = stateBet.winBookEventAmount;
+		if (target < winTween.current) winTween.set(target, { duration: 0 });
+		else winTween.set(target);
+	});
+	const winText = () => bookEventAmountToCurrencyString(Math.round(winTween.current));
 	// SPIN readout keeps the base spin amount (ante's 2× included, SDK behaviour); the full price of
 	// an armed feature lives on the spin button + the mode plaque, never here
 	const betText = () => numberToCurrencyString(stateBetDerived.betCost());

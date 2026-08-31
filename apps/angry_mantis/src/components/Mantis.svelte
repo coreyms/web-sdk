@@ -287,9 +287,16 @@
 </script>
 
 {#if show}
-	{#if spot.current > 0}
-		<CanvasSizeRectangle backgroundColor={0x000000} backgroundAlpha={spot.current} />
-	{/if}
+	<!-- NOTE: the spotlight dim stays MOUNTED (alpha/visible-toggled, DoorSteel precedent) — a
+	     lazily-mounted node joins the stage as the LAST child, i.e. ABOVE the MainContainer below
+	     and therefore above the rigs/leaf/eat flight it must sit UNDER. Mounted together with the
+	     MainContainer, template order holds: dim below the mantises, above everything mounted at
+	     game start (board, frame, background). -->
+	<CanvasSizeRectangle
+		backgroundColor={0x000000}
+		backgroundAlpha={spot.current}
+		visible={spot.current > 0}
+	/>
 	<MainContainer>
 		{@const place = mantisPlace()}
 		{#each visible as name (name)}

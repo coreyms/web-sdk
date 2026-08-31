@@ -83,26 +83,24 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			stateGame.anteLocked = false;
 		} else {
 			stateGame.antePrevLocked = false;
-			// free spins: scatters that land while the +3 retrigger cap is reached award nothing — say so
-			const scatters = bookEvent.board.reduce(
-				(n, reel) => n + reel.filter((sym, row) => row > 0 && row < reel.length - 1 && sym.name === 'S').length,
-				0,
-			);
-			if (scatters > 0) {
-				const upcoming = bookEvents.slice(bookEvents.indexOf(bookEvent) + 1);
-				const nextReveal = upcoming.findIndex((e) => e.type === 'reveal');
-				const scope = nextReveal === -1 ? upcoming : upcoming.slice(0, nextReveal);
-				if (!scope.some((e) => e.type === 'retriggerSpins')) {
-					eventEmitter.broadcast({ type: 'retriggerShow', added: 0, newTotalFs: stateGame.totalFs });
-				}
-			}
+			// NOTE: no "spins maxed" fallback here anymore. The math now guarantees every landed
+			// free-game scatter awards +1 (never more than 3 delivered per session) — the ONLY
+			// reveal that carries scatters without a retriggerSpins event is a max-win-cinematic
+			// spin, where the 20,000x presentation owns the screen and a banner would be wrong.
 		}
 	},
-	winInfo: async (bookEvent: BookEventOfType<'winInfo'>) => {
+	winInfo: async (bookEvent: BookEventOfType<'winInfo'>, { bookEvents }: BookEventContext) => {
 		// Overlapping presentation (Mother Clucker study, Corey 2026-08-30): combos light ~220ms
 		// apart and ADDITIVELY — earlier combos stay focused, every amount floats concurrently on
 		// its own cluster (ComboWin floaters outlive this handler). Nothing presents serially:
 		// three combos are fully on screen in ~0.6s instead of ~2.3s.
+		// The HUD WIN counter starts counting WITH the first combo, not after: apply this spin's
+		// upcoming setTotalWin now — same value, just concurrent with the reveal.
+		const idx = bookEvents.indexOf(bookEvent);
+		const upcomingTotal = bookEvents
+			.slice(idx + 1)
+			.find((e): e is BookEventOfType<'setTotalWin'> => e.type === 'setTotalWin');
+		if (upcomingTotal) stateBet.winBookEventAmount = upcomingTotal.amount;
 		const lit: Position[] = [];
 		for (const [i, win] of bookEvent.wins.entries()) {
 			lit.push(...win.positions);

@@ -72,17 +72,19 @@
 </script>
 
 <Container y={y + shake.current.y} x={shake.current.x}>
-	{#if outgoing}
-		<Sprite
-			key={outgoing}
-			anchor={0.5}
-			x={out.current.x}
-			y={out.current.y}
-			rotation={out.current.rot}
-			alpha={out.current.alpha}
-			scale={artScale}
-		/>
-	{/if}
+	<!-- outgoing stays MOUNTED (visible-toggled): an {#if} would add it to the stage the moment a
+	     slam starts — i.e. AFTER the incoming sprite below — putting the OLD title on top of the
+	     new slam (conditional-mount z-order trap; DoorSteel/Mantis precedent) -->
+	<Sprite
+		key={outgoing ?? stages[shownIndex].assetKey}
+		visible={outgoing !== null}
+		anchor={0.5}
+		x={out.current.x}
+		y={out.current.y}
+		rotation={out.current.rot}
+		alpha={out.current.alpha}
+		scale={artScale}
+	/>
 	<Sprite
 		key={stages[shownIndex].assetKey}
 		anchor={0.5}
