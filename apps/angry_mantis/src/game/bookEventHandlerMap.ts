@@ -73,6 +73,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			bookEvent.gameType === 'freegame'
 				? { ...bookEvent, anticipation: [] }
 				: bookEvent;
+		if (bookEvent.gameType === 'freegame') {
+			// the ante hold must NOT survive into a free-game reveal: clearing it only after the
+			// spin left the base scatter's cell locked through the first free board's cascade
+			// (code-review 2026-08-31)
+			stateGame.antePrevLocked = false;
+		}
 		await stateGameDerived.enhancedBoard.spin({ revealEvent });
 		eventEmitter.broadcast({ type: 'soundStop', name: 'sfx_reel_spin' });
 		eventEmitter.broadcast({ type: 'boardCheckGrid' });
@@ -81,13 +87,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// the hold survives only across consecutive ante spins
 			stateGame.antePrevLocked = stateGame.anteLocked;
 			stateGame.anteLocked = false;
-		} else {
-			stateGame.antePrevLocked = false;
-			// NOTE: no "spins maxed" fallback here anymore. The math now guarantees every landed
-			// free-game scatter awards +1 (never more than 3 delivered per session) — the ONLY
-			// reveal that carries scatters without a retriggerSpins event is a max-win-cinematic
-			// spin, where the 20,000x presentation owns the screen and a banner would be wrong.
 		}
+		// NOTE: no "spins maxed" fallback anymore. The math guarantees every landed free-game
+		// scatter awards +1 (never more than 3 delivered per session); the only reveals that
+		// carry scatters without a retriggerSpins event are session-terminating spins — a
+		// max-win cinematic OR a ways-win wincap (which can itself be followed by a cinematic
+		// with no second wincap) — where the 20,000x presentation owns the screen.
 	},
 	winInfo: async (bookEvent: BookEventOfType<'winInfo'>, { bookEvents }: BookEventContext) => {
 		// Overlapping presentation (Mother Clucker study, Corey 2026-08-30): combos light ~220ms
@@ -160,7 +165,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'bonusIntroHide' });
 		eventEmitter.broadcast({ type: 'boardFrameGlowShow' });
 		eventEmitter.broadcast({ type: 'freeSpinCounterShow' });
-		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: undefined, total: bookEvent.totalFs });
+		// current: 0, not undefined — undefined means "keep previous", which showed the LAST
+		// session's spins-played on a second bonus until the first updateFreeSpin arrived
+		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: 0, total: bookEvent.totalFs });
 		eventEmitter.broadcast({ type: 'mantisShow', host: bookEvent.host });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });

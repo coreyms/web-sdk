@@ -173,7 +173,11 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 				delay,
 			});
 			reelSymbol.symbolState = 'land' as TSymbolState;
-			reelOptions.onSymbolLand({ rawSymbol: reelSymbol.rawSymbol });
+			reelOptions.onSymbolLand({
+				rawSymbol: reelSymbol.rawSymbol,
+				// padding rows land at symbolIndexOfBoard -1 and reelLengthInBoard
+				visible: reelSymbol.symbolIndexOfBoard >= 0 && reelSymbol.symbolIndexOfBoard < reelLengthInBoard,
+			});
 			if (reelSymbol.symbolIndexOfBoard === reelLengthInBoard - 1) {
 				onSpinFinishing();
 			}

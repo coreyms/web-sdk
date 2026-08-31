@@ -22,7 +22,10 @@ import {
 	SCATTER_LAND_SOUND_MAP,
 } from './constants';
 
-const onSymbolLand = ({ rawSymbol }: { rawSymbol: RawSymbol }) => {
+const onSymbolLand = ({ rawSymbol, visible }: { rawSymbol: RawSymbol; visible?: boolean }) => {
+	// hidden padding rows (0/5) land too — a scatter or leaf there must not play the
+	// counter sting / leaf sound the player can't see (code-review 2026-08-31)
+	if (visible === false) return;
 	if (rawSymbol.name === 'S') {
 		eventEmitter.broadcast({ type: 'soundScatterCounterIncrease' });
 		eventEmitter.broadcast({ type: 'soundOnce', name: SCATTER_LAND_SOUND_MAP[scatterLandIndex()] });
