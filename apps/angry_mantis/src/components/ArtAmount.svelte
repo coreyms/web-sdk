@@ -58,8 +58,20 @@
 	import { NUMERAL_DIGIT_H } from '../game/numeralGlyphs';
 	import GameText from './GameText.svelte';
 
-	type Props = { text: string; height?: number; x?: number; y?: number; maxWidth?: number; alpha?: number };
-	const { text, height = 72, x = 0, y = 0, maxWidth, alpha = 1 }: Props = $props();
+	type Props = {
+		text: string;
+		/** count-up anchor: the FINAL string of the count. Its width defines the centred box and
+		 *  the maxWidth fit, and `text` right-aligns inside it — so a growing value ticks in place
+		 *  like an odometer (new digits appear on the left) instead of re-centring on every added
+		 *  digit or comma. Omit for static amounts. */
+		reserve?: string;
+		height?: number;
+		x?: number;
+		y?: number;
+		maxWidth?: number;
+		alpha?: number;
+	};
+	const { text, reserve, height = 72, x = 0, y = 0, maxWidth, alpha = 1 }: Props = $props();
 
 	const GAP = 0.05; // inter-cell gap, fraction of digit height
 	const SPACE = 0.32;
@@ -69,28 +81,37 @@
 	const SEP_CELL = Math.max(NUMERAL_GLYPHS.comma.w, NUMERAL_GLYPHS.period.w);
 
 	const tokens = $derived(tokenize(text));
+	const reserveTokens = $derived(reserve === undefined ? null : tokenize(reserve));
 	const layout = $derived.by(() => {
 		if (!tokens) return [];
 		const s = height / NUMERAL_DIGIT_H;
 		type G = { key: string; cellW: number; w: number; h: number; va: string };
-		const glyphs: G[] = [];
-		for (const name of tokens) {
-			if (name === null) {
-				glyphs.push({ key: '', cellW: height * SPACE, w: 0, h: 0, va: 'base' });
-				continue;
+		const cellsFor = (toks: (string | null)[]) => {
+			const glyphs: G[] = [];
+			for (const name of toks) {
+				if (name === null) {
+					glyphs.push({ key: '', cellW: height * SPACE, w: 0, h: 0, va: 'base' });
+					continue;
+				}
+				const g = NUMERAL_GLYPHS[name]; // metrics are pre-normalized display units
+				const isDigit = DIGITS.includes(name);
+				const isSep = name === 'comma' || name === 'period';
+				const w = g.w * s;
+				const cellW = isDigit ? DIGIT_CELL * s : isSep ? SEP_CELL * s : w;
+				glyphs.push({ key: name, cellW, w, h: g.h * s, va: g.va });
 			}
-			const g = NUMERAL_GLYPHS[name]; // metrics are pre-normalized display units
-			const isDigit = DIGITS.includes(name);
-			const isSep = name === 'comma' || name === 'period';
-			const w = g.w * s;
-			const cellW = isDigit ? DIGIT_CELL * s : isSep ? SEP_CELL * s : w;
-			glyphs.push({ key: name, cellW, w, h: g.h * s, va: g.va });
-		}
+			return glyphs;
+		};
 		const gap = height * GAP;
-		let total = glyphs.reduce((sum, g) => sum + g.cellW, 0) + gap * Math.max(0, glyphs.length - 1);
-		const fit = maxWidth && total > maxWidth ? maxWidth / total : 1;
-		total *= fit;
-		let cx = -total / 2;
+		const rowW = (glyphs: G[]) =>
+			glyphs.reduce((sum, g) => sum + g.cellW, 0) + gap * Math.max(0, glyphs.length - 1);
+		const glyphs = cellsFor(tokens);
+		const total = rowW(glyphs);
+		// the reserved (final) string defines the box, so the fit scale and centring are decided
+		// ONCE for the whole count; the live string right-aligns inside it (odometer growth)
+		const reserved = reserveTokens ? Math.max(rowW(cellsFor(reserveTokens)), total) : total;
+		const fit = maxWidth && reserved > maxWidth ? maxWidth / reserved : 1;
+		let cx = (reserved / 2 - total) * fit;
 		return glyphs.map((g) => {
 			const cellW = g.cellW * fit;
 			const w = g.w * fit;

@@ -94,12 +94,12 @@
 						{#if isBigWin}
 							<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
 								<StagedWinTitle amount={countUpAmount} {finalAlias} size={88} y={-80} />
-								<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="silver" size={72} y={68} maxWidth={760} />
+								<CountUpText amount={countUpAmount} target={amount} settled={countUpCompleted} preset="silver" size={72} y={68} maxWidth={760} />
 							</Container>
 						{:else}
 							<!-- same anchor + size as the big-win amount so every win pop reads consistent -->
 							<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-								<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={72} maxWidth={520} />
+								<CountUpText amount={countUpAmount} target={amount} settled={countUpCompleted} preset="gold" size={72} maxWidth={520} />
 							</Container>
 						{/if}
 					</MainContainer>

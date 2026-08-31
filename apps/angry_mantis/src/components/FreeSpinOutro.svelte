@@ -129,7 +129,7 @@
 							{:else}
 								<GameText text="TOTAL WIN" preset="silver" size={28} y={40} extra={{ letterSpacing: 6 }} />
 							{/if}
-							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={58} y={148} maxWidth={560} />
+							<CountUpText amount={countUpAmount} target={amount} settled={countUpCompleted} preset="gold" size={58} y={148} maxWidth={560} />
 						</Container>
 					</MainContainer>
 					<!-- active={show}: winLevelData outlives the fade-out (cleared on settle), so the press

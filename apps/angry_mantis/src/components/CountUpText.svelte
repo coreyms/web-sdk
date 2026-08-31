@@ -12,6 +12,10 @@
 
 	type Props = {
 		amount: number;
+		/** the count-up's FINAL book amount. Pins fraction digits (a tween passing through
+		 *  30,711,111.1111 must not flash 4 decimals on a win that ends whole) and reserves the
+		 *  final string's layout width so digits tick in place instead of re-centring per frame. */
+		target?: number;
 		settled?: boolean;
 		preset?: GameTextPreset;
 		size?: number;
@@ -19,15 +23,19 @@
 		y?: number;
 		maxWidth?: number;
 	};
-	const { amount, settled = false, preset = 'gold', size = 72, x = 0, y = 0, maxWidth }: Props = $props();
+	const { amount, target, settled = false, preset = 'gold', size = 72, x = 0, y = 0, maxWidth }: Props = $props();
 
 	const INTERVAL = 66; // ~15Hz text updates; the underlying tween still animates at full frame rate
 	let display = $state(0);
+	const pinOpts = $derived(target === undefined ? undefined : { fractionDigitsOfBookAmount: target });
 	// glyph rendering has no per-update cost, so it tracks the tween at full frame rate;
 	// the throttled `display` only feeds the rasterized text fallback
-	const artText = $derived(bookEventAmountToCurrencyString(amount));
-	const artPath = $derived(artAmountSupports(artText));
-	const displayText = $derived(bookEventAmountToCurrencyString(display));
+	const artText = $derived(bookEventAmountToCurrencyString(amount, pinOpts));
+	const targetText = $derived(target === undefined ? undefined : bookEventAmountToCurrencyString(target));
+	// path choice keys off the TARGET string where one exists: it uses the same glyph set as every
+	// pinned frame, and a per-frame guard could flap between art and rasterized text mid-count
+	const artPath = $derived(artAmountSupports(targetText ?? artText));
+	const displayText = $derived(bookEventAmountToCurrencyString(display, pinOpts));
 	let last = 0;
 	let trailing: ReturnType<typeof setTimeout> | undefined;
 
@@ -50,7 +58,7 @@
 
 {#if artPath}
 	<!-- stencil glyph sprites: zero raster/upload cost — updates every frame, no throttle -->
-	<ArtAmount text={artText} height={size} {x} {y} {maxWidth} />
+	<ArtAmount text={artText} reserve={targetText} height={size} {x} {y} {maxWidth} />
 {:else}
 	<!-- session currency outside the glyph set: the original styled-text path -->
 	<GameText

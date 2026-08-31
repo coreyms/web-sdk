@@ -51,11 +51,19 @@ export const bookEventAmountToNormalisedAmount = (bookEventAmount: number) => {
 
 export const numberToFloat = (value: number) => Number.parseFloat(`${value}`);
 
-export const numberToCurrencyString = (value: number) => {
-	const maximumFractionDigits = maximumFractionDigitsFor(value);
+export const numberToCurrencyString = (value: number, opts?: { fractionDigitsOf?: number }) => {
+	// Count-ups format a fresh intermediate value every frame, and deciding precision per frame
+	// makes the decimal tail flicker: a tween passing through 30,711,111.1111 renders 4 decimals
+	// on a GC win that ends whole, and the string length jumps every frame (live-caught
+	// 2026-08-31). `fractionDigitsOf` pins the decision to the count-up TARGET — every frame
+	// shows exactly the digits the final amount will show, so sub-cent digits appear only when
+	// the actual win carries sub-cent precision, and the length stays constant mid-count.
+	const pin = opts?.fractionDigitsOf;
+	const basis = pin ?? value;
 	// a whole GC amount shows no decimals at all; a fractional one still shows its digits
-	const minimumFractionDigits =
-		WHOLE_UNIT_CURRENCIES.has(stateBet.currency) && subCentUnits(value) % 10_000 === 0 ? 0 : 2;
+	const wholeCoin = WHOLE_UNIT_CURRENCIES.has(stateBet.currency) && subCentUnits(basis) % 10_000 === 0;
+	const maximumFractionDigits = pin !== undefined && wholeCoin ? 0 : maximumFractionDigitsFor(basis);
+	const minimumFractionDigits = wholeCoin ? 0 : pin !== undefined ? maximumFractionDigits : 2;
 
 	if (stateBet.currency in NO_LOCALISATION_CURRENCY_MAP) {
 		// XGC/XSC are not ISO codes — Intl's 'currency' style throws on them, so the number is
@@ -75,7 +83,14 @@ export const numberToCurrencyString = (value: number) => {
 	});
 };
 
-export const bookEventAmountToCurrencyString = (bookEventAmount: number) => {
+export const bookEventAmountToCurrencyString = (
+	bookEventAmount: number,
+	opts?: { fractionDigitsOfBookAmount?: number },
+) => {
 	const normalisedAmount = bookEventAmountToNormalisedAmount(bookEventAmount);
-	return numberToCurrencyString(normalisedAmount);
+	const pin = opts?.fractionDigitsOfBookAmount;
+	return numberToCurrencyString(
+		normalisedAmount,
+		pin === undefined ? undefined : { fractionDigitsOf: bookEventAmountToNormalisedAmount(pin) },
+	);
 };
