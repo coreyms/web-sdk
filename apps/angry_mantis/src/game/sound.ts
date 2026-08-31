@@ -13,6 +13,8 @@ export type SoundEffectName =
 	| 'sfx_scatter_land_4'
 	| 'sfx_scatter_land_5'
 	| 'sfx_leaf_land'
+	| 'sfx_door_close'
+	| 'sfx_door_open'
 	| 'sfx_marty_strike'
 	| 'sfx_marty_eat'
 	| 'sfx_ui_button'

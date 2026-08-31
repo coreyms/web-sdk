@@ -62,24 +62,32 @@
 			360883,
 			1001
 		],
-		"sfx_marty_strike": [
+		"sfx_door_close": [
 			362884,
+			951
+		],
+		"sfx_door_open": [
+			364835,
+			851
+		],
+		"sfx_marty_strike": [
+			366685,
 			596
 		],
 		"sfx_marty_eat": [
-			364480,
+			368281,
 			1000
 		],
 		"sfx_ui_button": [
-			366480,
+			370281,
 			187
 		],
 		"sfx_ui_spin": [
-			367667,
+			371468,
 			187
 		],
 		"sfx_ui_bonus": [
-			368853,
+			372654,
 			187
 		]
 	},
@@ -126,6 +134,12 @@
 		"sfx_leaf_land": {
 			"volume": 1
 		},
+		"sfx_door_close": {
+			"volume": 1
+		},
+		"sfx_door_open": {
+			"volume": 1
+		},
 		"sfx_marty_strike": {
 			"volume": 1
 		},
@@ -143,8 +157,8 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=82bd4ca3",
-		"./assets/audio/sounds.m4a?v=05b40b29",
-		"./assets/audio/sounds.mp3?v=c94f6382"
+		"./assets/audio/sounds.ogg?v=0414bcf5",
+		"./assets/audio/sounds.m4a?v=dda4c29c",
+		"./assets/audio/sounds.mp3?v=ae803904"
 	]
 }
