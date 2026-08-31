@@ -1,6 +1,7 @@
 import { setup, assign } from 'xstate';
 
 import { context, type Context } from './machineContext';
+import { surfaceBetError } from './surfaceBetError';
 import type { PrimaryMachines } from './types';
 
 export const createIntermediateMachineResumeBet = (actors: {
@@ -49,6 +50,15 @@ export const createIntermediateMachineResumeBet = (actors: {
 								target: 'ending',
 							},
 						],
+						// A throw during resumed book playback must not error the invoked actor
+						// and stop the root game actor mid-'resumeBet' — surface it and finalise
+						// like 'resumeGame' does.
+						onError: [
+							{
+								actions: ({ event }) => surfaceBetError(event.error),
+								target: 'end',
+							},
+						],
 					},
 				},
 				ending: {
@@ -61,6 +71,12 @@ export const createIntermediateMachineResumeBet = (actors: {
 						}),
 						onDone: [
 							{
+								target: 'end',
+							},
+						],
+						onError: [
+							{
+								actions: ({ event }) => surfaceBetError(event.error),
 								target: 'end',
 							},
 						],

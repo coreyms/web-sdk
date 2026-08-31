@@ -14,7 +14,7 @@
 
 	import { getContext } from '../game/context';
 	import GameText from './GameText.svelte';
-	import ArtAmount from './ArtAmount.svelte';
+	import ArtAmount, { artAmountSupports } from './ArtAmount.svelte';
 	import { TIMINGS, BOARD_DIMENSIONS } from '../game/constants';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -25,6 +25,7 @@
 	let roar = $state(false);
 	let oncomplete = $state(() => {});
 	const walk = new Tween(0, { duration: TIMINGS.maxWinWalkOn, easing: cubicOut });
+	const payoutText = $derived(bookEventAmountToCurrencyString(payout));
 
 	context.eventEmitter.subscribeOnMount({
 		maxWinCinematicPlay: async (emitterEvent) => {
@@ -66,7 +67,13 @@
 			{#if !roar}
 				<ArtAmount y={120} text={`${cellsEaten} / ${BOARD_DIMENSIONS.x * BOARD_DIMENSIONS.y}`} height={48} />
 			{:else}
-				<ArtAmount y={130} text={bookEventAmountToCurrencyString(payout)} height={80} maxWidth={700} />
+				{#if artAmountSupports(payoutText)}
+					<ArtAmount y={130} text={payoutText} height={80} maxWidth={700} />
+				{:else}
+					<!-- locale currency outside the stencil glyph set (e.g. zł/₫/₩): styled text, raised
+					     height/2 because ArtAmount's y is its baseline while GameText anchors its centre -->
+					<GameText y={90} text={payoutText} size={80} maxWidth={700} />
+				{/if}
 				<ArtAmount y={215} text="20000x" height={40} />
 			{/if}
 		</Container>

@@ -106,4 +106,26 @@
 		flex-direction: column;
 		gap: 6px;
 	}
+	/* TAP TARGETS: at the worst documented fit (390px-wide phone → scale 412/390 ≈ 0.946) the 36px
+	   Coin/Menu/Auto/Turbo buttons render ~34 CSS px, under the ≥44 CSS px rule. A transparent
+	   ::after (buttons are position:relative via .slot-btn) grows each hit box to ≥47 master px
+	   ≈ 44.5 CSS px without moving a pixel visually. The outer vertical edge takes the slack (-8px),
+	   the shared edge only half the 6px column gap; the ±8px sides exactly fill the 8px cluster gap
+	   to the big Bonus/Spin button, so no hit box is contested. */
+	.col :global(.slot-btn.chunky)::after {
+		content: '';
+		position: absolute;
+		top: -3px;
+		bottom: -3px;
+		left: -8px;
+		right: -8px;
+	}
+	.col > :global(.slot-btn.chunky:first-child)::after,
+	.col > :global(:first-child .slot-btn.chunky)::after {
+		top: -8px;
+	}
+	.col > :global(.slot-btn.chunky:last-child)::after,
+	.col > :global(:last-child .slot-btn.chunky)::after {
+		bottom: -8px;
+	}
 </style>

@@ -1,20 +1,40 @@
 <script lang="ts">
+	import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
+
 	import { soc } from '../game/social';
 	import type { Controls } from './controls.svelte';
 
 	type Props = { controls: Controls; compact?: boolean };
 	const { controls, compact = false }: Props = $props();
 	const btn = $derived(compact ? 38 : 46);
+
+	// Never step onto an option state-shared's correctBetAmount would clamp: it caps any pick at
+	// balance ÷ costMultiplier ('activate' modes only, mirroring its betCostMultiplier), so an
+	// unaffordable option becomes an off-menu amount the next spin posts and the RGS rejects into a
+	// reload-only error. DenomModal greys the same options out.
+	const affordable = (v: number) => {
+		const mode = stateBetDerived.activeBetMode();
+		const mult = mode?.type === 'activate' ? (mode.costMultiplier ?? 1) : 1;
+		return v <= stateBet.balanceAmount / mult;
+	};
+	const stepTarget = (dir: 1 | -1) => {
+		const options = [...stateConfig.betAmountOptions].sort((a, b) => (a - b) * dir);
+		return options.find((o) => (dir > 0 ? o > stateBet.betAmount : o < stateBet.betAmount) && affordable(o));
+	};
+	const step = (dir: 1 | -1) => {
+		const next = stepTarget(dir);
+		if (next !== undefined) controls.setBet(next);
+	};
 </script>
 
 <div class="adj" style:padding={compact ? '8px 14px' : '10px 18px'}>
-	<button class="slot-btn arrow" disabled={!controls.canStepBet(-1)} onclick={() => controls.stepBet(-1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Decrease bet', 'Decrease play amount')}>−</button>
+	<button class="slot-btn arrow" disabled={stepTarget(-1) === undefined} onclick={() => step(-1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Decrease bet', 'Decrease play amount')}>−</button>
 	<button class="slot-btn mid" onclick={() => (controls.sound('soundPressGeneral'), (controls.openDenom()))} style:min-width="{compact ? 120 : 150}px">
 		{#if controls.anteActive()}<span class="ante" style:font-size="{compact ? 9 : 10}px">ANTE MODE</span>{/if}
 		<span class="lbl" style:font-size="{compact ? 10 : 11}px">SPIN</span>
 		<span class="slot-num val" style:font-size="{compact ? 18 : 22}px">{controls.betText()}</span>
 	</button>
-	<button class="slot-btn arrow" disabled={!controls.canStepBet(1)} onclick={() => controls.stepBet(1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Increase bet', 'Increase play amount')}>+</button>
+	<button class="slot-btn arrow" disabled={stepTarget(1) === undefined} onclick={() => step(1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Increase bet', 'Increase play amount')}>+</button>
 </div>
 
 <style>

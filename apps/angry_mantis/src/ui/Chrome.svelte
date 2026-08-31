@@ -3,6 +3,7 @@
 	// the Pixi MainContainer does, so HTML and canvas coordinates line up. Fades on uiHide / uiShow.
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { EnableSpaceHold, OnHotkey } from 'components-shared';
+	import { stateModal } from 'state-shared';
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
@@ -52,7 +53,13 @@
 
 <ChromeStyles />
 <EnableSpaceHold />
-<OnHotkey hotkey="Space" disabled={controls.spinDisabled() || controls.isReplay() || context.stateLayout.showLoadingScreen} onpress={controls.spin} />
+<!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–2000×
+     purchase behind the dialog, and with a parked autoplay loadout it starts the whole run. -->
+<OnHotkey
+	hotkey="Space"
+	disabled={controls.spinDisabled() || controls.isReplay() || context.stateLayout.showLoadingScreen || stateModal.modal != null}
+	onpress={controls.spin}
+/>
 
 <div class="am-ui layer" class:hidden={!show || context.stateLayout.showLoadingScreen}>
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})">

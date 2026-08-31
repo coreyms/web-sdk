@@ -156,6 +156,16 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 
 		reelState.motion = 'fallingIn';
 
+		// The reel "finishes" when its bottom visible row lands — the first visible landing of
+		// the fall-in (smaller delay = lower row). A locked row (e.g. the ante hold) never runs
+		// its move callback, so fall back to the bottom-most visible row that still moves: it is
+		// the first visible row to land, the equivalent moment. With every visible row locked,
+		// nothing visible moves — finish immediately.
+		const lockedRows = reelOptions.getLockedRows?.() ?? [];
+		let finishingRow = reelLengthInBoard - 1;
+		while (finishingRow >= 0 && lockedRows.includes(finishingRow)) finishingRow -= 1;
+		if (finishingRow < 0) onSpinFinishing();
+
 		await moveAllSymbolsWith(async (reelSymbol) => {
 			const oldSymbolY = reelSymbol.symbolY.current;
 			const newSymbolY = getSymbolY(reelSymbol.symbolIndexOfBoard);
@@ -178,7 +188,7 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 				// padding rows land at symbolIndexOfBoard -1 and reelLengthInBoard
 				visible: reelSymbol.symbolIndexOfBoard >= 0 && reelSymbol.symbolIndexOfBoard < reelLengthInBoard,
 			});
-			if (reelSymbol.symbolIndexOfBoard === reelLengthInBoard - 1) {
+			if (reelSymbol.symbolIndexOfBoard === finishingRow) {
 				onSpinFinishing();
 			}
 			await reelSymbol.symbolY.set(newSymbolY, {
@@ -242,6 +252,13 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		reelState.motion = 'stopped';
 		if (value) {
 			updateSymbols(value);
+		} else {
+			// No-board settle (e.g. a failed bet after preSpin's fallOut): put the current
+			// symbols back at their rest positions without touching their rawSymbols.
+			reelState.symbols.forEach((reelSymbol) => {
+				reelSymbol.symbolState = 'static' as TSymbolState;
+				reelSymbol.symbolY.set(getSymbolY(reelSymbol.symbolIndexOfBoard), { duration: 0 });
+			});
 		}
 	};
 

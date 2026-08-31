@@ -30,9 +30,14 @@
 
 	const context = getContext();
 
-	let show = $state(true);
+	let show = $state(false);
 	let amount = $state(0);
 	let winLevelData = $state<WinLevelData>();
+	// one presentation per count-up: the {#key} below rebuilds the provider/OnMount subtree even
+	// when the previous fade-out hasn't cleared winLevelData yet (the persistent FadeContainer no
+	// longer unmounts it for us) — a remount-armed count-up would otherwise never start and the
+	// awaited freeSpinOutroCountUp would never resolve on the second bonus
+	let presentId = $state(0);
 	let oncomplete = $state(() => {});
 	const pop = new Tween(0.6, { duration: 420, easing: backOut });
 
@@ -46,6 +51,7 @@
 		freeSpinOutroCountUp: async (emitterEvent) => {
 			amount = emitterEvent.amount;
 			winLevelData = emitterEvent.winLevelData;
+			presentId += 1;
 			await waitForResolve((resolve) => (oncomplete = resolve));
 		},
 	});
@@ -64,27 +70,40 @@
 	const textScale = $derived(Math.min(1, master.width / 800));
 </script>
 
-<FadeContainer {show}>
-	{#if winLevelData}
-		{@const duration = Math.max(1200, winLevelData.presentDuration / stateBetDerived.timeScale())}
-		<StagedCountUpProvider {amount} {duration} stages={WIN_TIER_STAGES_END_FEATURE}>
-			{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
-				<OnMount onmount={() => startCountUp().then(autoContinueAfterCountUp)} />
-				<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30) -->
-				<MainContainer>
-					<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-						<!-- Corey's COMPLETE stamp will overlay this header when it lands -->
-						<Sprite key={BONUS_MODE_HEADER[context.stateGame.bonusMode] ?? 'labelBonus'} anchor={0.5} y={-160} scale={0.62} />
-						{#if winLevelData?.type === 'big'}
-							<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={52} y={-55} />
-						{:else}
-							<GameText text="TOTAL WIN" preset="silver" size={28} y={-55} extra={{ letterSpacing: 6 }} />
-						{/if}
-						<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={72} y={45} maxWidth={720} />
-					</Container>
-				</MainContainer>
-				<PressToContinue showText onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
-			{/snippet}
-		</StagedCountUpProvider>
-	{/if}
+<!-- persistent: the container claims its Game.svelte template slot at game start and keeps it —
+     a lazy (re)mount joins the stage LAST, above layers that must cover it (z-order trap) -->
+<FadeContainer
+	persistent
+	{show}
+	oncomplete={() => {
+		// drop the presentation only once the fade-OUT settles (a superseded fade's promise never
+		// resolves, and the guard re-checks, so a show overlap can't wipe the incoming one);
+		// while empty, the subtree's press rect and hotkey are gone too
+		if (!show) winLevelData = undefined;
+	}}
+>
+	{#key presentId}
+		{#if winLevelData}
+			{@const duration = Math.max(1200, winLevelData.presentDuration / stateBetDerived.timeScale())}
+			<StagedCountUpProvider {amount} {duration} stages={WIN_TIER_STAGES_END_FEATURE}>
+				{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
+					<OnMount onmount={() => startCountUp().then(autoContinueAfterCountUp)} />
+					<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30) -->
+					<MainContainer>
+						<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
+							<!-- Corey's COMPLETE stamp will overlay this header when it lands -->
+							<Sprite key={BONUS_MODE_HEADER[context.stateGame.bonusMode] ?? 'labelBonus'} anchor={0.5} y={-160} scale={0.62} />
+							{#if winLevelData?.type === 'big'}
+								<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={52} y={-55} />
+							{:else}
+								<GameText text="TOTAL WIN" preset="silver" size={28} y={-55} extra={{ letterSpacing: 6 }} />
+							{/if}
+							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={72} y={45} maxWidth={720} />
+						</Container>
+					</MainContainer>
+					<PressToContinue showText onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
+				{/snippet}
+			</StagedCountUpProvider>
+		{/if}
+	{/key}
 </FadeContainer>

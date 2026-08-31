@@ -107,8 +107,11 @@
 					<div class="viewport" style:width="{fullW}px" bind:clientWidth={viewportW} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointerleave={onUp} onpointercancel={onUp}>
 						<div class="track" style:transform="translateX({trackX}px)" style:transition={dragging ? 'none' : 'transform .25s ease'} style:gap="{CELL_GAP}px">
 							{#each BONUS_CARDS as opt, i (opt.mode)}
+								<!-- peeked neighbours are pointer-inert (CSS below) so their full-width CTA can't be
+								     tapped through the dimmed sliver — a tap there hits the cell and only recenters.
+								     The onbuy guard is belt-and-braces for the same accidental arm/buy. -->
 								<div class="cell" class:off={i !== idx} style:width="{cellW}px" onclick={() => i !== idx && go(i - idx)} role="presentation">
-									<BonusBuyCard {opt} compact {onbuy} />
+									<BonusBuyCard {opt} compact onbuy={(o, p) => (i === idx ? onbuy(o, p) : go(i - idx))} />
 								</div>
 							{/each}
 						</div>
@@ -235,6 +238,12 @@
 	}
 	.cell.off {
 		opacity: 0.55;
+	}
+	/* dimmed by opacity only, so without this the neighbour's CTA still receives taps; inert content
+	   lets the tap fall through to the cell's own recenter handler (specificity beats ChromeStyles'
+	   global `.slot-btn { pointer-events: auto }`) */
+	.cell.off :global(*) {
+		pointer-events: none;
 	}
 	.x-row {
 		width: 100%;

@@ -58,7 +58,7 @@
 		{preset}
 		{size}
 		{x}
-		{y}
+		y={y - size / 2}
 		{maxWidth}
 		extra={settled ? {} : { dropShadow: { color: 0x000000, alpha: 0.6, blur: 0, distance: size * 0.07, angle: Math.PI / 2 } }}
 	/>

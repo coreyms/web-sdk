@@ -3,6 +3,7 @@ import { setup, fromPromise, assign } from 'xstate';
 import { stateBet, stateBetDerived } from 'state-shared';
 
 import { context, type Context } from './machineContext';
+import { surfaceBetError } from './surfaceBetError';
 import type { PrimaryMachines } from './types';
 
 const checkSpaceHold = fromPromise(async () => {
@@ -73,6 +74,16 @@ export const createIntermediateMachineBet = ({
 								target: 'ending',
 							},
 						],
+						// A throw during book playback must not error the invoked actor and stop
+						// the root game actor mid-'bet' — surface it and finalise like 'fetching'
+						// does. Skips endGame on purpose: an unfinished round resumes from the
+						// server after a reload.
+						onError: [
+							{
+								actions: ({ event }) => surfaceBetError(event.error),
+								target: 'end',
+							},
+						],
 					},
 				},
 				ending: {
@@ -86,6 +97,12 @@ export const createIntermediateMachineBet = ({
 						onDone: [
 							{
 								target: 'checkSpaceHold',
+							},
+						],
+						onError: [
+							{
+								actions: ({ event }) => surfaceBetError(event.error),
+								target: 'end',
 							},
 						],
 					},

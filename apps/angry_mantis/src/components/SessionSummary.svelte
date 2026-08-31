@@ -42,7 +42,11 @@
 	});
 </script>
 
-<FadeContainer {show}>
+<!-- persistent: the container claims its Game.svelte template slot at game start and keeps it —
+     a lazy (re)mount joins the stage LAST, above layers that must cover it (z-order trap).
+     FadeContainer sets visible=false at alpha 0, so the idle summary neither renders nor eats
+     presses; content has no mount-armed logic, it re-renders from `data`. -->
+<FadeContainer persistent {show}>
 	<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30) -->
 	{#if data}
 		<MainContainer>

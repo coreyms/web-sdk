@@ -6,6 +6,7 @@ import { waitForTimeout } from 'utils-shared/wait';
 
 import config from './config';
 import { eventEmitter } from './eventEmitter';
+import type { MusicName } from './sound';
 import { playBookEvent } from './utils';
 import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
@@ -19,11 +20,11 @@ const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) =>
 		eventEmitter.broadcast({ type: 'soundDuck', level: 0.35 });
 	}
 	if (winLevelData?.sound?.sfx) eventEmitter.broadcast({ type: 'soundOnce', name: winLevelData.sound.sfx });
-	if (winLevelData?.sound?.bgm) eventEmitter.broadcast({ type: 'soundMusic', name: winLevelData.sound.bgm });
+	if (winLevelData?.sound?.bgm) musicPlay(winLevelData.sound.bgm);
 };
 
 const winLevelSoundsStop = () => {
-	eventEmitter.broadcast({ type: 'soundMusic', name: modeMusic() });
+	musicPlay(modeMusic());
 	eventEmitter.broadcast({ type: 'soundDuck', level: 1 });
 	eventEmitter.broadcastAsync({ type: 'uiShow' });
 };
@@ -33,6 +34,15 @@ const modeMusic = () => {
 	if (stateGame.bonusMode === 'feast') return 'bgm_feast' as const;
 	if (stateGame.bonusMode === 'super') return 'bgm_super' as const;
 	return 'bgm_free' as const;
+};
+
+// Every music-loop start in this file funnels through here: the 15s bgm_base_intro boot stinger
+// rides the ONCE player (Sound.svelte onMount), which soundMusic's pause-all-music can't touch —
+// starting a loop under it doubles the music (a base win inside the first ~15s, an early bonus
+// buy, a snapshot resume). soundStop is a no-op once the stinger has ended.
+const musicPlay = (name: MusicName) => {
+	eventEmitter.broadcast({ type: 'soundStop', name: 'bgm_base_intro' });
+	eventEmitter.broadcast({ type: 'soundMusic', name });
 };
 
 // per-free-spin outcome tracking for mantis reactions (reveal resets, setWin marks)
@@ -153,22 +163,28 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the steel door IS the transition: it rolls down over the base board, the intro plays
 		// on top of it, and the board swaps to the freegame reels behind it
 		await eventEmitter.broadcastAsync({ type: 'doorClose' });
+		// gameType flips HERE, before the music pick — modeMusic() reads it, so flipping it only
+		// after the intro started every bonus on bgm_base, and only a WINNING free spin's
+		// winLevelSoundsStop ever corrected it (zero-win bonuses and snapshot resumes never did).
+		// mantisShow rides the same flush: MartyArt vanishes the instant gameType leaves
+		// 'basegame', so the bonus rigs must claim his slot in the same frame (feast/free keep
+		// "he just keeps standing"; super's Marty already walked out above).
+		stateGame.gameType = 'freegame';
+		eventEmitter.broadcast({ type: 'mantisShow', host: bookEvent.host });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_ui_bonus' });
-		eventEmitter.broadcast({ type: 'soundMusic', name: modeMusic() });
+		musicPlay(modeMusic());
 		await eventEmitter.broadcastAsync({
 			type: 'bonusIntroShow',
 			mode: bookEvent.mode,
 			host: bookEvent.host,
 			totalFs: bookEvent.totalFs,
 		});
-		stateGame.gameType = 'freegame';
 		eventEmitter.broadcast({ type: 'bonusIntroHide' });
 		eventEmitter.broadcast({ type: 'boardFrameGlowShow' });
 		eventEmitter.broadcast({ type: 'freeSpinCounterShow' });
 		// current: 0, not undefined — undefined means "keep previous", which showed the LAST
 		// session's spins-played on a second bonus until the first updateFreeSpin arrived
 		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: 0, total: bookEvent.totalFs });
-		eventEmitter.broadcast({ type: 'mantisShow', host: bookEvent.host });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 		await eventEmitter.broadcastAsync({ type: 'drawerButtonShow' });
@@ -245,7 +261,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	maxWinCinematic: async (bookEvent: BookEventOfType<'maxWinCinematic'>) => {
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
-		eventEmitter.broadcast({ type: 'soundMusic', name: 'bgm_maxwin' });
+		musicPlay('bgm_maxwin');
 		await eventEmitter.broadcastAsync({ type: 'maxWinCinematicPlay', payout: bookEvent.payout });
 		stateBet.winBookEventAmount = bookEvent.payout;
 	},

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Bet-amount picker: grid of the RGS bet options, sized for large social-currency values.
-	import { stateBet, stateModal } from 'state-shared';
+	import { stateBet, stateBetDerived, stateModal } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import type { Controls } from './controls.svelte';
@@ -12,7 +12,18 @@
 
 	const open = $derived(stateModal.modal?.name === 'betAmountMenu');
 	const close = () => (stateModal.modal = null);
+	// state-shared's correctBetAmount clamps any pick to balance ÷ costMultiplier ('activate' modes
+	// only, mirroring its betCostMultiplier) — an unaffordable option would silently land on an
+	// off-menu amount that the next spin posts and the RGS rejects into a reload-only error. Grey
+	// those options out instead of letting the clamp corrupt the bet level. BetAdjuster's stepper
+	// applies the same guard.
+	const clampMultiplier = $derived.by(() => {
+		const mode = stateBetDerived.activeBetMode();
+		return mode?.type === 'activate' ? (mode.costMultiplier ?? 1) : 1;
+	});
+	const affordable = (v: number) => v <= stateBet.balanceAmount / clampMultiplier;
 	const select = (v: number) => {
+		if (!affordable(v)) return;
 		controls.setBet(v);
 		close();
 	};
@@ -29,7 +40,8 @@
 			<div class="grid" style:grid-template-columns="repeat({cols}, minmax(0, 1fr))" style:gap="{compact ? 6 : 10}px" style:max-height="{compact ? 0.6 * master.height : 0.64 * master.height}px">
 				{#each controls.betOptions() as v (v)}
 					{@const selected = v === stateBet.betAmount}
-					<button class="slot-btn opt" class:selected onclick={() => select(v)} style:height="{compact ? 52 : 62}px">
+					{@const ok = affordable(v)}
+					<button class="slot-btn opt" class:selected disabled={!ok} onclick={() => select(v)} style:height="{compact ? 52 : 62}px">
 						<span class="slot-num" style:font-size="{compact ? 14 : 18}px">{numberToCurrencyString(v)}</span>
 					</button>
 				{/each}
@@ -93,6 +105,14 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	.opt:disabled {
+		background: rgba(255, 255, 255, 0.03);
+		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+	}
+	.opt:disabled span {
+		color: rgba(255, 255, 255, 0.3);
+		text-shadow: none;
 	}
 	.opt.selected {
 		background: linear-gradient(180deg, rgba(62, 224, 126, 0.18), rgba(20, 40, 28, 0.55));

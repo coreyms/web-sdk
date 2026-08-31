@@ -27,8 +27,11 @@
 	});
 </script>
 
+<!-- visible tracks alpha so a persistent (always-mounted) container neither renders nor
+     hit-tests while faded out — at alpha 0 Pixi still hit-tests, so an invisible full-screen
+     press rect inside would swallow input without this -->
 {#if alpha.current > 0 || persistent}
-	<Container {...restProps} alpha={alpha.current}>
+	<Container {...restProps} alpha={alpha.current} visible={alpha.current > 0}>
 		{@render children()}
 	</Container>
 {/if}

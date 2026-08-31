@@ -2,7 +2,9 @@
 	import { stamp } from '../game/assets';
 	// Phone-landscape master (1480×740): board centred and near full height, logo + free-spin HUD in the
 	// left column, vertical control rail on the right edge (thumb zone), stats strip under the board.
-	// Buttons are authored larger than desktop so they stay ≥44 CSS px after the master is scaled down.
+	// The master scales HARD on real phones (844×390 → scale ≈0.527), so the 52px rail buttons render
+	// ~27 CSS px — the ≥44 CSS px touch-target rule is met by the transparent ::after hit extensions
+	// below, not by the visual size.
 	import type { Controls } from './controls.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import TrioStat from './TrioStat.svelte';
@@ -110,5 +112,34 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+	/* TAP TARGETS: at the worst documented fit (844×390 → scale 0.527) the 52px Coin/Menu/Auto/Turbo
+	   buttons render ~27 CSS px. A transparent ::after (buttons are position:relative via .slot-btn)
+	   grows each hit box to 84 master px ≈ 44.3 CSS px without moving a pixel visually. Vertical:
+	   the outer edge takes the slack (-28px), the shared edge only half the 8px column gap, so the
+	   stacked pair never steal each other's taps. Horizontal: the open side gets -22px, the side
+	   facing the big Bonus/Spin button only the 10px cluster gap (Spin is later in the DOM and would
+	   win any contested overlap). */
+	.col :global(.slot-btn.chunky)::after {
+		content: '';
+		position: absolute;
+		top: -4px;
+		bottom: -4px;
+	}
+	.cluster-left .col :global(.slot-btn.chunky)::after {
+		left: -10px;
+		right: -22px;
+	}
+	.cluster-right .col :global(.slot-btn.chunky)::after {
+		left: -22px;
+		right: -10px;
+	}
+	.col > :global(.slot-btn.chunky:first-child)::after,
+	.col > :global(:first-child .slot-btn.chunky)::after {
+		top: -28px;
+	}
+	.col > :global(.slot-btn.chunky:last-child)::after,
+	.col > :global(:last-child .slot-btn.chunky)::after {
+		bottom: -28px;
 	}
 </style>

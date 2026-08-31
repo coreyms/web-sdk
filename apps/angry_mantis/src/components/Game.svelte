@@ -49,12 +49,33 @@
 
 	onMount(() => {
 		context.stateLayout.showLoadingScreen = true;
-		// Retina/5K canvases at full DPR are the biggest GPU cost; 1.5× is visually indistinguishable for this art.
+	});
+
+	// Retina/5K canvases at full DPR are the biggest GPU cost; 1.5× is visually indistinguishable
+	// for this art. stateApp.pixiApplication is assigned BEFORE Application.init() resolves
+	// (pixi-svelte InitialiseApplication.svelte) and a class instance isn't deeply reactive, so
+	// this effect wakes on the assignment and then polls a frame at a time until the renderer
+	// exists (init installs app.resize in the same tick), then clamps. Idempotent per app; later
+	// ResizePlugin resizes call renderer.resize(w, h) with no resolution arg, so 1.5 sticks.
+	$effect(() => {
 		const app = context.stateApp.pixiApplication;
-		if (app && app.renderer.resolution > 1.5) {
-			app.renderer.resolution = 1.5;
-			app.resize();
-		}
+		if (!app) return;
+		let cancelled = false;
+		const clamp = () => {
+			if (cancelled) return;
+			if (!app.renderer) {
+				requestAnimationFrame(clamp);
+				return;
+			}
+			if (app.renderer.resolution > 1.5) {
+				app.renderer.resolution = 1.5;
+				app.resize();
+			}
+		};
+		clamp();
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	// GPU warm-up at loading-screen dismissal: pre-upload every mounted texture (symbol/character

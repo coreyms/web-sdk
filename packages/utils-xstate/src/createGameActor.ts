@@ -1,4 +1,4 @@
-import { setup, createActor } from 'xstate';
+import { setup, createActor, type ErrorActorEvent } from 'xstate';
 // import { inspect } from '@xstate/inspect';
 
 import type { IntermediateMachines } from './types';
@@ -34,11 +34,20 @@ const stateIdle = {
 	},
 };
 
+// Catch-all: an error escalating out of an intermediate machine must return the root
+// actor to idle (so the next bet is accepted) instead of stopping the whole actor.
+// The intermediate machines surface their own errors before this can fire.
+const logEscalatedError = ({ event }: { event: ErrorActorEvent }) => console.error(event.error);
+
 const stateResumeBet = {
 	invoke: {
 		id: 'resumeBet',
 		src: 'resumeBet' as const,
 		onDone: 'idle',
+		onError: {
+			actions: logEscalatedError,
+			target: 'idle',
+		},
 	},
 };
 
@@ -47,6 +56,10 @@ const stateBet = {
 		id: 'bet',
 		src: 'bet' as const,
 		onDone: 'idle',
+		onError: {
+			actions: logEscalatedError,
+			target: 'idle',
+		},
 	},
 };
 
@@ -55,6 +68,10 @@ const stateAutoBet = {
 		id: 'autoBet',
 		src: 'autoBet' as const,
 		onDone: 'idle',
+		onError: {
+			actions: logEscalatedError,
+			target: 'idle',
+		},
 	},
 };
 

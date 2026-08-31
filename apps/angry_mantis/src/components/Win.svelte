@@ -30,6 +30,11 @@
 	let show = $state(false);
 	let amount = $state(0);
 	let winLevelData = $state<WinLevelData>();
+	// one presentation per winUpdate: the {#key} below rebuilds the provider/OnMount subtree even
+	// when the previous fade-out hasn't cleared winLevelData yet (the persistent FadeContainer no
+	// longer unmounts it for us) — a remount-armed count-up would otherwise never start and the
+	// awaited winUpdate would never resolve (turbo/backgrounded autoplay stalled forever)
+	let presentId = $state(0);
 	let oncomplete = $state(() => {});
 	const pop = new Tween(0.6, { duration: 420, easing: backOut });
 
@@ -39,6 +44,7 @@
 		winUpdate: async (emitterEvent) => {
 			amount = emitterEvent.amount;
 			winLevelData = emitterEvent.winLevelData;
+			presentId += 1;
 			pop.set(0.6, { duration: 0 });
 			pop.set(1);
 			await waitForResolve((resolve) => (oncomplete = resolve));
@@ -50,42 +56,56 @@
 	const textScale = $derived(Math.min(1, master.width / 800));
 </script>
 
-<FadeContainer {show}>
-	{#if winLevelData}
-		{@const isBigWin = winLevelData.type === 'big'}
-		{@const finalAlias = winLevelData.alias}
-		{@const duration = winLevelData.presentDuration / stateBetDerived.timeScale()}
-		<StagedCountUpProvider {amount} {duration}>
-			{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
-				{#if isBigWin}
-					<CanvasSizeRectangle backgroundColor={0x000000} backgroundAlpha={0.6} />
-				{/if}
-
-				<OnMount
-					onmount={async () => {
-						await startCountUp();
-						await waitForTimeout(isBigWin ? 1400 : 300);
-						oncomplete();
-					}}
-				/>
-				<!-- tap while the amount is counting = jump to the final amount -->
-				<PressToContinue onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
-
-				<MainContainer>
+<!-- persistent: the container claims its Game.svelte template slot at game start and keeps it —
+     a lazy (re)mount joins the stage LAST, above layers that must cover it (z-order trap) -->
+<FadeContainer
+	persistent
+	{show}
+	oncomplete={() => {
+		// drop the presentation only once the fade-OUT settles (a superseded fade's promise never
+		// resolves, and the guard re-checks, so a winShow overlap can't wipe the incoming one);
+		// while empty, the subtree's press rect and hotkey are gone too
+		if (!show) winLevelData = undefined;
+	}}
+>
+	{#key presentId}
+		{#if winLevelData}
+			{@const isBigWin = winLevelData.type === 'big'}
+			{@const finalAlias = winLevelData.alias}
+			{@const duration = winLevelData.presentDuration / stateBetDerived.timeScale()}
+			<StagedCountUpProvider {amount} {duration}>
+				{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
 					{#if isBigWin}
-						<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-							<StagedWinTitle amount={countUpAmount} {finalAlias} size={88} y={-80} />
-							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="silver" size={72} y={68} maxWidth={760} />
-						</Container>
-					{:else}
-						<!-- same anchor + size as the big-win amount so every win pop reads consistent -->
-						<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={72} maxWidth={520} />
-						</Container>
+						<CanvasSizeRectangle backgroundColor={0x000000} backgroundAlpha={0.6} />
 					{/if}
-				</MainContainer>
 
-			{/snippet}
-		</StagedCountUpProvider>
-	{/if}
+					<OnMount
+						onmount={async () => {
+							const done = oncomplete; // pin to THIS presentation — a stale chain must not resolve a future one
+							await startCountUp();
+							await waitForTimeout(isBigWin ? 1400 : 300);
+							done();
+						}}
+					/>
+					<!-- tap while the amount is counting = jump to the final amount -->
+					<PressToContinue onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
+
+					<MainContainer>
+						{#if isBigWin}
+							<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
+								<StagedWinTitle amount={countUpAmount} {finalAlias} size={88} y={-80} />
+								<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="silver" size={72} y={68} maxWidth={760} />
+							</Container>
+						{:else}
+							<!-- same anchor + size as the big-win amount so every win pop reads consistent -->
+							<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
+								<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={72} maxWidth={520} />
+							</Container>
+						{/if}
+					</MainContainer>
+
+				{/snippet}
+			</StagedCountUpProvider>
+		{/if}
+	{/key}
 </FadeContainer>

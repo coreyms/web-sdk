@@ -338,6 +338,9 @@ export function createReelForSpinning<TRawSymbol extends object, TSymbolState ex
 	};
 
 	const setSymbolsWithReelSymbols = (reelSymbols?: ReelSymbol[]) => {
+		// A settle ends any pre-spin still looping (e.g. a bet that failed after preSpin) —
+		// spin() normally clears this, but a failed bet never reaches spin().
+		isPreSpinning = false;
 		reelState.motion = 'stopped';
 		placeY(defaultY);
 		if (reelSymbols) {
@@ -354,6 +357,13 @@ export function createReelForSpinning<TRawSymbol extends object, TSymbolState ex
 	};
 
 	const stop = () => {
+		interruptible.interrupt();
+	};
+
+	// `rush()` mirrors stop(): the spinning reel has no separate anticipation (noStop) wait to
+	// cut short (compare createReelForCascading's rushable), so rushing interrupts the same
+	// slide the stop button does.
+	const rush = () => {
 		interruptible.interrupt();
 	};
 
@@ -378,6 +388,7 @@ export function createReelForSpinning<TRawSymbol extends object, TSymbolState ex
 		prepareToSpin,
 		spin,
 		stop,
+		rush,
 		setSymbolsWithRawSymbols,
 		readyToSpinEffect,
 	};

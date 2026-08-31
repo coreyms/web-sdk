@@ -6,6 +6,7 @@
 
 <script lang="ts">
 	import { MainContainer } from 'components-layout';
+	import { FadeContainer } from 'components-pixi';
 	import { Sprite, Container } from 'pixi-svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
 
@@ -18,14 +19,31 @@
 	const context = getContext();
 	const CELL = 62;
 
+	// Always-mounted (persistent FadeContainer): a `{#if gameType === 'freegame'}` mount joined
+	// the stage LAST — above the presentation layers that follow PoolHud in Game.svelte
+	// (conditional-mount z-order trap) — and blinked out at freeSpinEnd's gameType flip while the
+	// summary/outro were still presenting on the closed door. Show tracks the freegame flip
+	// (mid-intro, behind the closed door — the same moment it used to mount); hide waits for the
+	// door roll-up that returns to the base game, so the pool rides under the summary + outro.
+	let shown = $state(false);
+
+	$effect(() => {
+		if (context.stateGame.gameType === 'freegame') shown = true;
+	});
+
 	context.eventEmitter.subscribeOnMount({
 		poolRemove: async () => {
 			await waitForTimeout(TIMINGS.eat / 2);
 		},
+		// bonusStart's doorOpen reveals the free board (gameType already 'freegame' — stays up);
+		// freeSpinEnd's doorOpen reveals the base board — the pool fades as the door rises
+		doorOpen: () => {
+			if (context.stateGame.gameType !== 'freegame') shown = false;
+		},
 	});
 </script>
 
-{#if context.stateGame.gameType === 'freegame'}
+<FadeContainer persistent show={shown}>
 	<MainContainer>
 		{@const hud = HUD[layoutKind(context.stateLayoutDerived.layoutType())].pool}
 		{@const rows = Math.ceil(config.eatOrder.length / hud.cols)}
@@ -45,4 +63,4 @@
 			{/each}
 		</Container>
 	</MainContainer>
-{/if}
+</FadeContainer>

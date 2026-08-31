@@ -147,7 +147,7 @@
 			}
 		},
 		mantisHide: async () => {
-			const walkers = visible.filter((name) => name === 'marky' && rigOf(name));
+			const walkers = activeHosts.filter((name) => name === 'marky' && rigOf(name));
 			if (walkers.length === 0) {
 				show = false;
 				return;
@@ -268,7 +268,8 @@
 		},
 	});
 
-	const visible = $derived.by(() => {
+	// hosts on stage ('visible' would shadow the Pixi visible prop passed below)
+	const activeHosts = $derived.by(() => {
 		if (!show) return [] as Striker[];
 		if (host === 'both') return ['marty', 'marky'] as Striker[];
 		return [host] as Striker[];
@@ -277,7 +278,7 @@
 	// retrigger tease: hosts lean in while a reel anticipates, back to idle when it resolves
 	$effect(() => {
 		const anticipating = context.stateGame.board.some((reel) => reel.reelState.anticipating);
-		for (const name of visible) {
+		for (const name of activeHosts) {
 			const rig = rigOf(name);
 			if (!rig || busy[name]) continue;
 			if (anticipating && isIdling(rig)) playClip(rig, RIG.anticipation, { loop: true });
@@ -286,51 +287,51 @@
 	});
 </script>
 
-{#if show}
-	<!-- NOTE: the spotlight dim stays MOUNTED (alpha/visible-toggled, DoorSteel precedent) — a
-	     lazily-mounted node joins the stage as the LAST child, i.e. ABOVE the MainContainer below
-	     and therefore above the rigs/leaf/eat flight it must sit UNDER. Mounted together with the
-	     MainContainer, template order holds: dim below the mantises, above everything mounted at
-	     game start (board, frame, background). -->
-	<CanvasSizeRectangle
-		backgroundColor={0x000000}
-		backgroundAlpha={spot.current}
-		visible={spot.current > 0}
-	/>
-	<MainContainer>
-		{@const place = mantisPlace()}
-		{#each visible as name (name)}
-			{@const isMarty = name === 'marty'}
-			{@const me = isMarty ? place.marty : place.marky}
-			<Container x={me.x + walkOff[name].current} y={me.y}>
-				{#if isMarty}
-					<BoneRig bind:rig={martyRig} size={place.size} />
-				{:else}
-					<BoneRig bind:rig={markyRig} size={place.size} mirror skin="Marky" />
-				{/if}
-				{#if eating?.striker === name}
-					{#if eating.symbol}
-						{#if !chomp}
-							<Sprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} key="{eating.symbol}_insect.png" />
-						{/if}
-					{:else}
-						<GameText y={-140} text="..."  preset="silver" size={36} />
+<!-- NOTE: the WHOLE layer stays ALWAYS-mounted (visible-toggled, DoorSteel precedent) — a
+     lazily-mounted node joins the stage as the LAST child, so a `{#if show}` around this put the
+     rigs ABOVE ComboWin and the presentation stack on every bonus, and the spotlight dim above
+     the rigs it must sit UNDER. Mounted at game start, Game.svelte template order holds: dim
+     below the mantises, mantises below the floaters/presentations, above board/frame/plaque.
+     The rigs stay lazy — BoneRig mounts only while hosts are on stage (activeHosts), and inner
+     mount order is local to this container, so it cannot leak into stage stacking. -->
+<CanvasSizeRectangle
+	backgroundColor={0x000000}
+	backgroundAlpha={spot.current}
+	visible={show && spot.current > 0}
+/>
+<MainContainer visible={show}>
+	{@const place = mantisPlace()}
+	{#each activeHosts as name (name)}
+		{@const isMarty = name === 'marty'}
+		{@const me = isMarty ? place.marty : place.marky}
+		<Container x={me.x + walkOff[name].current} y={me.y}>
+			{#if isMarty}
+				<BoneRig bind:rig={martyRig} size={place.size} />
+			{:else}
+				<BoneRig bind:rig={markyRig} size={place.size} mirror skin="Marky" />
+			{/if}
+			{#if eating?.striker === name}
+				{#if eating.symbol}
+					{#if !chomp}
+						<Sprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} key="{eating.symbol}_insect.png" />
 					{/if}
+				{:else}
+					<GameText y={-140} text="..."  preset="silver" size={36} />
 				{/if}
-			</Container>
-		{/each}
-		{#if autoLeaf}
-			{@const layout = context.stateGameDerived.boardLayout()}
-			<!-- auto-bite dinner leaf: drops to the board centre with the insect riding it; the insect
-			     hides once the eat flight takes over (which starts at this exact spot and size) -->
-			<Container x={layout.x} y={layout.y + leafDrop.current} alpha={leafFade.current} scale={LEAF_HERO}>
-				<!-- grounding shadow (flattened circle, not a filter) separates the plate from the dim -->
-				<Circle x={0} y={SYMBOL_SIZE * CELL_FILL * 0.42} diameter={SYMBOL_SIZE * CELL_FILL} backgroundColor={0x000000} backgroundAlpha={0.35} anchor={0.5} scale={{ x: 1, y: 0.32 }} />
-				<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="GL.png" />
-				{#if !eating}
-					<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{autoLeaf}_insect.png" />
-				{/if}
-			</Container>
-		{/if}
-	</MainContainer>
-{/if}
+			{/if}
+		</Container>
+	{/each}
+	{#if autoLeaf}
+		{@const layout = context.stateGameDerived.boardLayout()}
+		<!-- auto-bite dinner leaf: drops to the board centre with the insect riding it; the insect
+		     hides once the eat flight takes over (which starts at this exact spot and size) -->
+		<Container x={layout.x} y={layout.y + leafDrop.current} alpha={leafFade.current} scale={LEAF_HERO}>
+			<!-- grounding shadow (flattened circle, not a filter) separates the plate from the dim -->
+			<Circle x={0} y={SYMBOL_SIZE * CELL_FILL * 0.42} diameter={SYMBOL_SIZE * CELL_FILL} backgroundColor={0x000000} backgroundAlpha={0.35} anchor={0.5} scale={{ x: 1, y: 0.32 }} />
+			<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="GL.png" />
+			{#if !eating}
+				<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{autoLeaf}_insect.png" />
+			{/if}
+		</Container>
+	{/if}
+</MainContainer>

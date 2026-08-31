@@ -79,7 +79,11 @@
 	const fit = $derived(Math.min(win.w / 620, win.h / 500, 1.15));
 </script>
 
-<FadeContainer {show}>
+<!-- persistent: the container claims its Game.svelte template slot at game start and keeps it —
+     a lazy (re)mount joins the stage LAST, above layers that must cover it (z-order trap).
+     FadeContainer sets visible=false at alpha 0, so the idle intro neither renders nor eats
+     presses; content has no mount-armed logic, it re-renders from mode/host/totalFs. -->
+<FadeContainer persistent {show}>
 	<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30) -->
 	<MainContainer>
 		<Container x={win.x + win.w / 2} y={win.y + win.h / 2} scale={fit}>
@@ -94,15 +98,21 @@
 					key="{name}Headshot"
 				/>
 			{/each}
-			<GameText y={32} text={`${totalFs} FREE SPINS`} preset="gold" size={40} />
-			<GameText
-				y={64}
-				anchor={{ x: 0.5, y: 0 }}
-				text={MODE_DESC[mode].join('\n\n')}
-				preset="silver"
-				size={17}
-				extra={{ wordWrap: true, wordWrapWidth: 540, lineHeight: 22, align: 'center' }}
-			/>
+			<!-- keyed: a PIXI.Text updated while its container is invisible keeps its old glyphs
+			     (ModePlaque precedent) — the persistent mount means these update pre-show -->
+			{#key totalFs}
+				<GameText y={32} text={`${totalFs} FREE SPINS`} preset="gold" size={40} />
+			{/key}
+			{#key mode}
+				<GameText
+					y={64}
+					anchor={{ x: 0.5, y: 0 }}
+					text={MODE_DESC[mode].join('\n\n')}
+					preset="silver"
+					size={17}
+					extra={{ wordWrap: true, wordWrapWidth: 540, lineHeight: 22, align: 'center' }}
+				/>
+			{/key}
 		</Container>
 	</MainContainer>
 	<PressToContinue showText onpress={() => oncomplete()} />

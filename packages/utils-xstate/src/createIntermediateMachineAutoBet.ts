@@ -3,6 +3,7 @@ import { stateBet, stateBetDerived, stateModal } from 'state-shared';
 import { bookEventAmountToNormalisedAmount } from 'utils-shared/amount';
 
 import { context, type Context } from './machineContext';
+import { surfaceBetError } from './surfaceBetError';
 import type { IntermediateMachineBet } from './types';
 
 let oldbalanceAmount = 0;
@@ -14,7 +15,12 @@ const init = fromPromise(async () => {
 });
 
 const checkInsufficientFunds = fromPromise(async () => {
-	if (stateBetDerived.isBetCostAvailable()) return 'continue';
+	// stateBetDerived.isBetCostAvailable() multiplies only 'activate' modes, so an armed
+	// 'buy' mode (e.g. 100x) would be affordability-checked at 1x and the unaffordable
+	// spin would reach the RGS and fail. Check the true cost of the next spin instead:
+	// bet amount × the active mode's costMultiplier.
+	const betCost = stateBet.betAmount * (stateBetDerived.activeBetMode()?.costMultiplier ?? 1);
+	if (betCost > 0 && betCost <= stateBet.balanceAmount) return 'continue';
 
 	stateBet.autoSpinsCounter = 0;
 	stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientFunds' };
@@ -123,6 +129,13 @@ export const createIntermediateMachineAutoBet = ({ bet }: { bet: IntermediateMac
 						id: 'bet',
 						src: 'bet',
 						onDone: 'updateAutoSpinsCounter',
+						// The bet machine surfaces its own playback errors and finalises (onDone),
+						// so this only fires if the bet machine itself errors — end the auto bet
+						// instead of erroring the invoked actor and stopping the root game actor.
+						onError: {
+							actions: ({ event }) => surfaceBetError(event.error),
+							target: 'end',
+						},
 					},
 				},
 				updateAutoSpinsCounter: {
@@ -130,6 +143,7 @@ export const createIntermediateMachineAutoBet = ({ bet }: { bet: IntermediateMac
 						id: 'updateAutoSpinsCounter',
 						src: 'updateAutoSpinsCounter',
 						onDone: 'checkInsufficientFunds',
+						onError: 'end',
 					},
 				},
 				end: {
