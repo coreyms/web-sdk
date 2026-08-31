@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { soc } from '../game/social';
 	// Design-styled replacement for the SDK's ModalError + ModalAutoSpinMessage (same stateModal names).
 	import { stateModal } from 'state-shared';
 
@@ -9,7 +10,7 @@
 	const { master, scale, left, top, compact = false }: Props = $props();
 
 	const MESSAGES: Record<string, { title: string; body: string }> = {
-		insufficientFunds: { title: 'AUTOPLAY STOPPED', body: 'Your balance is too low for the next spin at this bet.' },
+		insufficientFunds: { title: 'AUTOPLAY STOPPED', body: soc('Your balance is too low for the next spin at this bet.', 'Your balance is too low for the next spin at this play amount.') },
 		lossLimitReached: { title: 'AUTOPLAY STOPPED', body: 'Your loss limit for this autoplay session was reached.' },
 		singleWinLimitReached: { title: 'AUTOPLAY STOPPED', body: 'A single win reached your autoplay win limit.' },
 	};

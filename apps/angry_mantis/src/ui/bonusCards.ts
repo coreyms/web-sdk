@@ -2,6 +2,7 @@ import { stamp } from '../game/assets';
 // Card art/tones for the bonus-buy modal (from the design's BONUS_OPTIONS). Cost multipliers come from
 // betModeMeta / config so the modal can never disagree with the math.
 import config from '../game/config';
+import { soc } from '../game/social';
 
 export type BonusCardSpec = {
 	mode: 'ANTE' | 'BONUS' | 'SUPER' | 'FEAST';
@@ -18,7 +19,10 @@ export type BonusCardSpec = {
 export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'ANTE',
-		detail: 'Costs 2× the bet — with Marky locked on reel 1, only two more scatters are needed to trigger a feature.',
+		detail: soc(
+			'Costs 2× the bet — with Marky locked on reel 1, only two more scatters are needed to trigger a feature.',
+			'Doubles the play amount — with Marky locked on reel 1, only two more scatters are needed to trigger a feature.',
+		),
 		label: 'ANTE',
 		image: stamp('/assets/ui/label-ante.webp'),
 		description: 'MARKY LOCKED ON REEL 1 EVERY SPIN',
@@ -28,7 +32,10 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'BONUS',
-		detail: 'Every Dinner Leaf is a Mantis Strike: Marty eats the lowest-paying symbol left and it leaves the reels, so wins escalate.',
+		detail: soc(
+			'Every Dinner Leaf is a Mantis Strike: Marty eats the lowest-paying symbol left and it leaves the reels, so wins escalate.',
+			'Every Dinner Leaf is a Mantis Strike: Marty eats the lowest-value symbol left and it leaves the reels, so wins escalate.',
+		),
 		label: 'BONUS',
 		image: stamp('/assets/ui/label-bonus.webp'),
 		description: `${config.freeSpins.free} FREE SPINS, MARTY EATS SYMBOLS`,

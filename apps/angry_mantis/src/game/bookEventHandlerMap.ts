@@ -1,8 +1,8 @@
 import _ from 'lodash';
 
 import { recordBookEvent, checkIsMultipleRevealEvents, type BookEventHandlerMap } from 'utils-book';
-import { stateBet } from 'state-shared';
-import { sequence } from 'utils-shared/sequence';
+import { stateBet, stateBetDerived } from 'state-shared';
+import { waitForTimeout } from 'utils-shared/wait';
 
 import config from './config';
 import { eventEmitter } from './eventEmitter';
@@ -99,13 +99,21 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 	},
 	winInfo: async (bookEvent: BookEventOfType<'winInfo'>) => {
-		// per-combo presentation: focus (dims everyone else) -> slight pulse -> static amount pop,
-		// one combo at a time; the total's count-up follows in setWin
-		await sequence(bookEvent.wins, async (win) => {
-			stateGame.winFocus = win.positions;
-			await animateSymbols({ positions: win.positions });
-			await eventEmitter.broadcastAsync({ type: 'comboWinShow', amount: win.win });
-		});
+		// Overlapping presentation (Mother Clucker study, Corey 2026-08-30): combos light ~220ms
+		// apart and ADDITIVELY — earlier combos stay focused, every amount floats concurrently on
+		// its own cluster (ComboWin floaters outlive this handler). Nothing presents serially:
+		// three combos are fully on screen in ~0.6s instead of ~2.3s.
+		const lit: Position[] = [];
+		for (const [i, win] of bookEvent.wins.entries()) {
+			lit.push(...win.positions);
+			stateGame.winFocus = [...lit];
+			void animateSymbols({ positions: win.positions }); // pulse runs underneath, un-awaited
+			eventEmitter.broadcast({ type: 'comboWinShow', amount: win.win, positions: win.positions });
+			if (i < bookEvent.wins.length - 1) await waitForTimeout(220 / stateBetDerived.timeScale());
+		}
+		// short hold so the last combo's flash registers before the strike/eat choreography starts;
+		// the floaters keep riding over whatever comes next
+		await waitForTimeout(400 / stateBetDerived.timeScale());
 		stateGame.winFocus = null;
 	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
@@ -136,10 +144,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.bonusHost = bookEvent.host;
 		stateGame.totalFs = bookEvent.totalFs;
 
-		// super is Marky's stage: base Marty walks off in full view before the wipe
+		// super is Marky's stage: base Marty walks off in full view before the door drops
 		if (bookEvent.mode === 'super') await eventEmitter.broadcastAsync({ type: 'martyWalkOut' });
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
-		await eventEmitter.broadcastAsync({ type: 'transition' });
+		// the steel door IS the transition: it rolls down over the base board, the intro plays
+		// on top of it, and the board swaps to the freegame reels behind it
+		await eventEmitter.broadcastAsync({ type: 'doorClose' });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_ui_bonus' });
 		eventEmitter.broadcast({ type: 'soundMusic', name: modeMusic() });
 		await eventEmitter.broadcastAsync({
@@ -154,6 +164,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'freeSpinCounterShow' });
 		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: undefined, total: bookEvent.totalFs });
 		eventEmitter.broadcast({ type: 'mantisShow', host: bookEvent.host });
+		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 		await eventEmitter.broadcastAsync({ type: 'drawerButtonShow' });
 		eventEmitter.broadcast({ type: 'drawerFold' });
@@ -213,16 +224,19 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await eventEmitter.broadcastAsync({ type: 'poolRemove', symbol: bookEvent.symbol });
 	},
 	retriggerSpins: async (bookEvent: BookEventOfType<'retriggerSpins'>) => {
+		// Each awarded scatter pops its own '+1 SPIN' floater straight off the symbol — same
+		// style/size/speed as the combo-win amounts (Corey 2026-08-30, replacing the banner).
 		eventEmitter.broadcast({ type: 'mantisReact', kind: 'astonished' });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_leaf_land' });
-		await animateSymbols({ positions: bookEvent.positions });
+		void animateSymbols({ positions: bookEvent.positions }); // pulse runs underneath, un-awaited
+		const awarded = bookEvent.positions.slice(0, bookEvent.added);
+		for (const [i, pos] of awarded.entries()) {
+			eventEmitter.broadcast({ type: 'comboWinShow', text: '+1 SPIN', positions: [pos] });
+			if (i < awarded.length - 1) await waitForTimeout(220 / stateBetDerived.timeScale());
+		}
 		stateGame.totalFs = bookEvent.newTotalFs;
 		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: undefined, total: bookEvent.newTotalFs });
-		await eventEmitter.broadcastAsync({
-			type: 'retriggerShow',
-			added: bookEvent.added,
-			newTotalFs: bookEvent.newTotalFs,
-		});
+		await waitForTimeout(400 / stateBetDerived.timeScale());
 	},
 	maxWinCinematic: async (bookEvent: BookEventOfType<'maxWinCinematic'>) => {
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
@@ -232,6 +246,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	bonusEnd: async (bookEvent: BookEventOfType<'bonusEnd'>) => {
 		eventEmitter.broadcast({ type: 'mantisHide' });
+		// door down over the freegame board: the session summary and the outro that follows
+		// (freeSpinEnd) both present on the closed door; freeSpinEnd rolls it back up
+		await eventEmitter.broadcastAsync({ type: 'doorClose' });
 		await eventEmitter.broadcastAsync({
 			type: 'sessionSummaryShow',
 			mode: bookEvent.mode,
@@ -253,7 +270,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		winLevelSoundsStop();
 		eventEmitter.broadcast({ type: 'freeSpinOutroHide' });
 		eventEmitter.broadcast({ type: 'freeSpinCounterHide' });
-		await eventEmitter.broadcastAsync({ type: 'transition' });
+		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 		await eventEmitter.broadcastAsync({ type: 'drawerUnfold' });
 		eventEmitter.broadcast({ type: 'drawerButtonHide' });

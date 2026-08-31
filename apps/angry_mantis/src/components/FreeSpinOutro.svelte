@@ -9,17 +9,17 @@
 
 <script lang="ts">
 	// End-of-feature total win (text-based; replaces the Mining Mayhem fsOutro Spine + sprites).
-	import { Container } from 'pixi-svelte';
+	import { Container, Sprite } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
 	import { waitForResolve } from 'utils-shared/wait';
-	import { CanvasSizeRectangle, MainContainer } from 'components-layout';
+	import { MainContainer } from 'components-layout';
 	import { OnMount } from 'components-shared';
 	import { Tween } from 'svelte/motion';
 	import { backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
 	import { stateBetDerived } from 'state-shared';
-	import { BONUS_MODE_LABEL } from '../game/constants';
+	import { BONUS_MODE_HEADER } from '../game/constants';
 	import PressToContinue from './PressToContinue.svelte';
 	import GameText from './GameText.svelte';
 	import CountUpText from './CountUpText.svelte';
@@ -51,7 +51,6 @@
 
 	const master = $derived(context.stateLayoutDerived.mainLayout());
 	const textScale = $derived(Math.min(1, master.width / 800));
-	const title = $derived(`${BONUS_MODE_LABEL[context.stateGame.bonusMode] ?? 'FREE SPINS'} COMPLETE`);
 </script>
 
 <FadeContainer {show}>
@@ -60,16 +59,17 @@
 		<StagedCountUpProvider {amount} {duration} stages={WIN_TIER_STAGES_END_FEATURE}>
 			{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
 				<OnMount onmount={() => startCountUp()} />
-				<CanvasSizeRectangle backgroundColor={0x000000} backgroundAlpha={0.6} />
+				<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30) -->
 				<MainContainer>
 					<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-						<GameText text={title} preset="gold" size={64} y={-110} maxWidth={760} />
+						<!-- Corey's COMPLETE stamp will overlay this header when it lands -->
+						<Sprite key={BONUS_MODE_HEADER[context.stateGame.bonusMode] ?? 'labelBonus'} anchor={0.5} y={-160} scale={0.62} />
 						{#if winLevelData?.type === 'big'}
-							<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={40} y={-30} />
+							<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={52} y={-55} />
 						{:else}
-							<GameText text="TOTAL WIN" preset="silver" size={28} y={-30} extra={{ letterSpacing: 6 }} />
+							<GameText text="TOTAL WIN" preset="silver" size={28} y={-55} extra={{ letterSpacing: 6 }} />
 						{/if}
-						<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={96} y={50} maxWidth={760} />
+						<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={72} y={45} maxWidth={720} />
 					</Container>
 				</MainContainer>
 				<PressToContinue showText onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />

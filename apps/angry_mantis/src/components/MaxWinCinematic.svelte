@@ -14,6 +14,7 @@
 
 	import { getContext } from '../game/context';
 	import GameText from './GameText.svelte';
+	import ArtAmount from './ArtAmount.svelte';
 	import { TIMINGS, BOARD_DIMENSIONS } from '../game/constants';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -63,10 +64,10 @@
 			<Sprite anchor={0.5} x={-130 - w * 0.35 * (1 - walk.current)} y={-60} width={220} height={220} key="markyHeadshot" />
 			<Sprite anchor={0.5} x={130 + w * 0.35 * (1 - walk.current)} y={-60} width={220} height={220} key="martyHeadshot" />
 			{#if !roar}
-				<GameText y={120} text={`${cellsEaten} / ${BOARD_DIMENSIONS.x * BOARD_DIMENSIONS.y}`}  preset="silver" size={48} />
+				<ArtAmount y={120} text={`${cellsEaten} / ${BOARD_DIMENSIONS.x * BOARD_DIMENSIONS.y}`} height={48} />
 			{:else}
-				<GameText y={130} text={bookEventAmountToCurrencyString(payout)}  preset="gold" size={80} />
-				<GameText y={215} text="20000X"  preset="silver" size={40} />
+				<ArtAmount y={130} text={bookEventAmountToCurrencyString(payout)} height={80} maxWidth={700} />
+				<ArtAmount y={215} text="20000x" height={40} />
 			{/if}
 		</Container>
 	</MainContainer>

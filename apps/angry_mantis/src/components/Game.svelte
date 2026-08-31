@@ -19,6 +19,7 @@
 	import Background from './Background.svelte';
 	import LoadingScreen from './LoadingScreen.svelte';
 	import BoardFrame from './BoardFrame.svelte';
+	import DoorSteel from './DoorSteel.svelte';
 	import MartyArt from './MartyArt.svelte';
 	import Board from './Board.svelte';
 	import Anticipations from './Anticipations.svelte';
@@ -101,6 +102,9 @@
 			<Board />
 			<Anticipations />
 		</MainContainer>
+
+		<!-- steel roll-down door: covers the frame window during transitions (doorClose/doorOpen) -->
+		<DoorSteel />
 
 		<PoolHud />
 		<!-- mode plaque BEFORE the characters: the mantises stand in front of it -->

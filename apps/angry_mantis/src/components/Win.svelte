@@ -53,6 +53,7 @@
 <FadeContainer {show}>
 	{#if winLevelData}
 		{@const isBigWin = winLevelData.type === 'big'}
+		{@const finalAlias = winLevelData.alias}
 		{@const duration = winLevelData.presentDuration / stateBetDerived.timeScale()}
 		<StagedCountUpProvider {amount} {duration}>
 			{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
@@ -73,12 +74,13 @@
 				<MainContainer>
 					{#if isBigWin}
 						<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-							<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData.alias} size={88} y={-80} />
+							<StagedWinTitle amount={countUpAmount} {finalAlias} size={88} y={-80} />
 							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="silver" size={72} y={68} maxWidth={760} />
 						</Container>
 					{:else}
-						<Container x={layout.x} y={layout.y} scale={pop.current * layout.scale}>
-							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={96} maxWidth={520} />
+						<!-- same anchor + size as the big-win amount so every win pop reads consistent -->
+						<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
+							<CountUpText amount={countUpAmount} settled={countUpCompleted} preset="gold" size={72} maxWidth={520} />
 						</Container>
 					{/if}
 				</MainContainer>

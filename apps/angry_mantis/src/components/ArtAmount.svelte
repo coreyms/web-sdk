@@ -6,7 +6,9 @@
 		'5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
 		'.': 'period', ',': 'comma',
 		$: 'dollar', '€': 'euro', '£': 'pound', '¥': 'yen', '₹': 'rupee',
-		G: 'G', C: 'C', S: 'S', R: 'R',
+		'+': 'plusStencil', '!': 'bang', x: 'multx',
+		'/': 'slash', '-': 'dash', '–': 'dash', '·': 'middot',
+		...Object.fromEntries([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c) => [c, c])),
 	};
 	const PAIRS: Record<string, string> = { GC: 'GC', SC: 'SC', R$: 'RS' };
 
@@ -39,16 +41,15 @@
 
 	const layout = $derived.by(() => {
 		const s = height / NUMERAL_DIGIT_H;
-		type G = { key: string; cellW: number; w: number; h: number; hang: boolean };
+		type G = { key: string; cellW: number; w: number; h: number; va: string };
 		const glyphs: G[] = [];
 		const push = (name: string) => {
-			const g = NUMERAL_GLYPHS[name];
+			const g = NUMERAL_GLYPHS[name]; // metrics are pre-normalized display units
 			const isDigit = DIGITS.includes(name);
 			const isSep = name === 'comma' || name === 'period';
-			const norm = isDigit || isSep ? 1 : NUMERAL_DIGIT_H / g.h;
-			const w = g.w * s * norm;
+			const w = g.w * s;
 			const cellW = isDigit ? DIGIT_CELL * s : isSep ? SEP_CELL * s : w;
-			glyphs.push({ key: name, cellW, w, h: g.h * s * norm, hang: name === 'comma' });
+			glyphs.push({ key: name, cellW, w, h: g.h * s, va: g.va });
 		};
 		let i = 0;
 		while (i < text.length) {
@@ -59,7 +60,7 @@
 				i += 2;
 				continue;
 			}
-			if (ch === ' ' || ch === ' ') glyphs.push({ key: '', cellW: height * SPACE, w: 0, h: 0, hang: false });
+			if (ch === ' ' || ch === ' ') glyphs.push({ key: '', cellW: height * SPACE, w: 0, h: 0, va: 'base' });
 			else if (CHAR_TO_GLYPH[ch]) push(CHAR_TO_GLYPH[ch]);
 			i += 1;
 		}
@@ -72,8 +73,10 @@
 			const cellW = g.cellW * fit;
 			const w = g.w * fit;
 			const h = g.h * fit;
-			// baseline at height/2 below centre: glyph bottoms sit there; commas hang past it
-			const gy = height / 2 - h + (g.hang ? COMMA_HANG * height * fit : 0);
+			// baseline at height/2 below centre; commas hang past it; '+' centres on the cap band
+			let gy = height / 2 - h;
+			if (g.va === 'hang') gy += COMMA_HANG * height * fit;
+			else if (g.va === 'mid') gy -= (height * fit - h) / 2;
 			const p = { key: g.key, x: cx + (cellW - w) / 2, y: gy, w, h };
 			cx += cellW + gap * fit;
 			return p;

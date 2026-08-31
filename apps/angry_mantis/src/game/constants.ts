@@ -179,6 +179,13 @@ export const SCATTER_LAND_SOUND_MAP = {
 	5: 'sfx_scatter_land_5',
 } as const;
 
+// gold header art per bonus mode (label-*.webp — same pieces as the buy cards)
+export const BONUS_MODE_HEADER = {
+	free: 'labelBonus',
+	super: 'labelSuper',
+	feast: 'labelFeast',
+} as const;
+
 export const BONUS_MODE_LABEL = {
 	free: 'FREE SPINS',
 	super: 'SUPER FREE SPINS',

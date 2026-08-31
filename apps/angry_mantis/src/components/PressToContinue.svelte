@@ -6,7 +6,7 @@
 
 	import { getContext } from '../game/context';
 	import { HUD, layoutKind } from '../game/layoutSpec';
-	import GameText from './GameText.svelte';
+	import ArtAmount from './ArtAmount.svelte';
 
 	type Props = { onpress: () => void; showText?: boolean };
 	const props: Props = $props();
@@ -28,10 +28,9 @@
 
 {#if props.showText}
 <MainContainer>
-	<GameText
+	<ArtAmount
 		text="PRESS ANYWHERE TO CONTINUE"
-		preset="silver"
-		size={slot.height * 0.42}
+		height={slot.height * 0.42}
 		x={context.stateLayoutDerived.mainLayout().width * 0.5}
 		y={slot.y - slot.height * 0.5}
 		alpha={blink.current}

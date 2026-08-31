@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { soc } from '../game/social';
 	import type { Controls } from './controls.svelte';
 
 	type Props = { controls: Controls; compact?: boolean };
@@ -7,13 +8,13 @@
 </script>
 
 <div class="adj" style:padding={compact ? '8px 14px' : '10px 18px'}>
-	<button class="slot-btn arrow" disabled={!controls.canStepBet(-1)} onclick={() => controls.stepBet(-1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label="Decrease bet">−</button>
+	<button class="slot-btn arrow" disabled={!controls.canStepBet(-1)} onclick={() => controls.stepBet(-1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Decrease bet', 'Decrease play amount')}>−</button>
 	<button class="slot-btn mid" onclick={() => (controls.sound('soundPressGeneral'), (controls.openDenom()))} style:min-width="{compact ? 120 : 150}px">
 		{#if controls.anteActive()}<span class="ante" style:font-size="{compact ? 9 : 10}px">ANTE MODE</span>{/if}
 		<span class="lbl" style:font-size="{compact ? 10 : 11}px">SPIN</span>
 		<span class="slot-num val" style:font-size="{compact ? 18 : 22}px">{controls.betText()}</span>
 	</button>
-	<button class="slot-btn arrow" disabled={!controls.canStepBet(1)} onclick={() => controls.stepBet(1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label="Increase bet">+</button>
+	<button class="slot-btn arrow" disabled={!controls.canStepBet(1)} onclick={() => controls.stepBet(1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Increase bet', 'Increase play amount')}>+</button>
 </div>
 
 <style>

@@ -19,14 +19,24 @@ export const MASTER: Record<LayoutKind, { width: number; height: number }> = {
 // transparent margin on every side for the outer ring.
 export const FRAME: Record<
 	LayoutKind,
-	{ x: number; y: number; width: number; height: number; inset: number; cell: number; gap: number; image: string; margin: number }
+	{ x: number; y: number; width: number; height: number; inset: number; cell: number; gap: number; margin: number }
 > = {
-	landscape: { x: 320, y: 50, width: 640, height: 520.4, inset: 23, cell: 115.6, gap: 4, image: 'frameDesktop', margin: 6 },
-	portrait: { x: 12, y: 158, width: 388, height: 317.6, inset: 20, cell: 66.4, gap: 4, image: 'frameMobile', margin: 6 },
-	// Uniform 1.25× of the landscape frame (same PNG, rendered at 2x, so the upscale stays crisp) centred
-	// in the 1480-wide master: board fills the height, side columns (340 each) hold the controls.
-	phone: { x: 340, y: 36, width: 800, height: 650.5, inset: 28.75, cell: 144.5, gap: 5, image: 'frameDesktop', margin: 7.5 },
+	landscape: { x: 320, y: 50, width: 640, height: 520.4, inset: 23, cell: 115.6, gap: 4, margin: 6 },
+	portrait: { x: 12, y: 158, width: 388, height: 317.6, inset: 20, cell: 66.4, gap: 4, margin: 6 },
+	// Uniform 1.25× of the landscape frame centred in the 1480-wide master: board fills the
+	// height, side columns (340 each) hold the controls.
+	phone: { x: 340, y: 36, width: 800, height: 650.5, inset: 28.75, cell: 144.5, gap: 5, margin: 7.5 },
 };
+
+// Cafeteria frame art (static/assets/ui/board-frame-cafeteria.webp): canvas 1415×1217 with a
+// transparent interior window at (98,112) 1220×985. BoardFrame anchors the window to the cell
+// area (frame rect inset by `inset`), so the art stretches <1% to absorb 1.2386 vs 1.25.
+// One export serves every LayoutKind — the window resolution (1220×985) exceeds both the
+// desktop @2x (1188×949) and portrait @3x (1044×833) targets from assets.csv rows 129/130.
+export const FRAME_ART = { w: 1415, h: 1217, winX: 98, winY: 112, winW: 1220, winH: 985 };
+// Steel roll-down door art (door-steel.webp), pre-cropped to the opaque door. Wider AND taller
+// than the frame window at any layout, so scaled-to-window-width it always covers fully.
+export const DOOR_ART = { w: 1246, h: 1028 };
 
 // Static Marty illustration (base game). Centre + square size, in master units.
 export const MARTY: Record<LayoutKind, { x: number; y: number; size: number }> = {
@@ -94,8 +104,8 @@ export const HUD: Record<
 > = {
 	landscape: {
 		fsCounter: { x: 50, y: 250, scale: 1 },
-		pool: { x: 1076, y: 150, cols: 4, cell: 52 }, // top-right, clear of Marty
-		pressToContinue: { y: 612, width: 620, height: 104 },
+		pool: { x: 1100, y: 150, cols: 4, cell: 52 }, // top-right, clear of Marty and the frame art's right edge (~984)
+		pressToContinue: { y: 668, width: 620, height: 80 }, // below the counter (frame art bottom ~605), above the balance row (~655)
 	},
 	portrait: {
 		fsCounter: { x: 12, y: 578, scale: 0.7 }, // below the EXPANDED frame bottom (see frameFor)
@@ -105,6 +115,6 @@ export const HUD: Record<
 	phone: {
 		fsCounter: { x: 60, y: 190, scale: 1 }, // left column, under the logo/tagline
 		pool: { x: 170, y: 420, cols: 4, cell: 52 }, // left column, between fs counter and the stats
-		pressToContinue: { y: 566, width: 620, height: 100 },
+		pressToContinue: { y: 640, width: 620, height: 100 }, // low door band, clear of intro detail text
 	},
 };

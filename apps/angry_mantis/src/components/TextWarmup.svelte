@@ -15,23 +15,17 @@
 	const entries: { text: string; preset: 'gold' | 'silver'; size: number; extra?: Record<string, unknown> }[] = [
 		// BonusIntro
 		...modes.map((m) => ({ text: m, preset: 'gold' as const, size: 72 })),
-		{ text: '8 FREE SPINS', preset: 'gold', size: 56 },
-		{ text: '10 FREE SPINS', preset: 'gold', size: 56 },
-		{ text: 'MARTY IS HUNGRY', preset: 'silver', size: 30 },
-		{ text: 'MARKY IS HUNGRY', preset: 'silver', size: 30 },
-		{ text: 'MARTY + MARKY STRIKE TOGETHER', preset: 'silver', size: 30 },
-		{ text: 'EVERY DINNER LEAF IS A STRIKE — MARTY EATS THE LOWEST SYMBOL LEFT AND IT LEAVES THE REELS', preset: 'silver', size: 19 },
-		{ text: 'MARKY STRIKES MORE OFTEN — EVERY LEAF EATS THE LOWEST SYMBOL LEFT, ESCALATING WINS', preset: 'silver', size: 19 },
-		{ text: 'BOTH MANTISES STRIKE — EAT ALL 8 SYMBOLS FOR THE 20,000\u00d7 MAX WIN', preset: 'silver', size: 19 },
+		{ text: '8 FREE SPINS', preset: 'gold', size: 40 },
+		{ text: '10 FREE SPINS', preset: 'gold', size: 40 },
+		// (the wrapped rules paragraphs render at size 17 — texture small enough that a cold
+		//  raster doesn't hitch, so they're not warmed here)
 		// FreeSpinOutro + SessionSummary
 		...modes.map((m) => ({ text: `${m} COMPLETE`, preset: 'gold' as const, size: 64 })),
 		...modes.map((m) => ({ text: `${m} COMPLETE`, preset: 'gold' as const, size: 56 })),
 		{ text: 'TOTAL WIN', preset: 'silver', size: 28, extra: { letterSpacing: 6 } },
 		// RetriggerBanner
-		{ text: 'EXTRA SPINS MAXED', preset: 'silver', size: 44 },
 		// Mantis choreography + max win
 		{ text: '...', preset: 'silver', size: 36 },
-		{ text: '20000X', preset: 'silver', size: 40 },
 	];
 </script>
 

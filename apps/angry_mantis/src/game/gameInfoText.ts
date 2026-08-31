@@ -1,4 +1,5 @@
 import config from './config';
+import { soc } from './social';
 
 // Verbatim Stake Engine template (docs: approval-guidelines/general-disclaimer).
 export const DISCLAIMER =
@@ -8,29 +9,47 @@ export const RULES_SECTIONS = [
 	{
 		title: 'HOW TO PLAY',
 		paragraphs: [
-			'Choose a bet and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row — 1,024 ways to win. Only the highest win per symbol is paid.',
-			'Base game wins are capped at 250x the bet per spin. The total payout of any round is capped at 20,000x the bet.',
+			soc(
+				'Choose a bet and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row — 1,024 ways to win. Only the highest win per symbol is paid.',
+				'Choose a play amount and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row — 1,024 ways to win. Only the highest win per symbol counts.',
+			),
+			soc(
+				'Base game wins are capped at 250x the bet per spin. The total payout of any round is capped at 20,000x the bet.',
+				'Base game wins are capped at 250x the play amount per spin. The total win of any round is capped at 20,000x the play amount.',
+			),
 		],
 	},
 	{
 		title: 'FREE SPINS',
 		paragraphs: [
 			`3 Marky scatters award ${config.freeSpins.free} Free Spins hosted by Marty. 4 scatters award ${config.freeSpins.super} Super Free Spins hosted by Marky. 5 scatters award ${config.freeSpins.feast} Mantis Feast spins with both mantises.`,
-			'When a session starts the host takes an opening bite (Mantis Feast: both mantises bite). Each bite eats the lowest-paying symbol still on the menu; that symbol is removed from the reels for the rest of the session, so the remaining symbols land more often and wins escalate.',
-			'Every Dinner Leaf that lands during free spins is another Mantis Strike. If all eight paying symbols are eaten, the round pays the 20,000x max win immediately and the session ends.',
+			soc(
+				'When a session starts the host takes an opening bite (Mantis Feast: both mantises bite). Each bite eats the lowest-paying symbol still on the menu; that symbol is removed from the reels for the rest of the session, so the remaining symbols land more often and wins escalate.',
+				'When a session starts the host takes an opening bite (Mantis Feast: both mantises bite). Each bite eats the lowest-value symbol still on the menu; that symbol is removed from the reels for the rest of the session, so the remaining symbols land more often and wins escalate.',
+			),
+			soc(
+				'Every Dinner Leaf that lands during free spins is another Mantis Strike. If all eight paying symbols are eaten, the round pays the 20,000x max win immediately and the session ends.',
+				'Every Dinner Leaf that lands during free spins is another Mantis Strike. If all eight menu symbols are eaten, the round wins the 20,000x max win immediately and the session ends.',
+			),
 			`Each Marky scatter in free spins awards +1 extra spin, up to +${config.freeSpins.maxRetrigger} per session. Once the maximum extra spins have been awarded, Marky scatters stop appearing for the rest of the session.`,
 		],
 	},
 	{
-		title: 'ANTE BET',
+		title: soc('ANTE BET', 'ANTE MODE'),
 		paragraphs: [
-			'Ante Bet costs 2x the bet. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature.',
+			soc(
+				'Ante Bet costs 2x the bet. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature.',
+				'Ante Mode doubles the play amount. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature.',
+			),
 		],
 	},
 	{
-		title: 'BONUS BUY',
+		title: soc('BONUS BUY', 'FEATURE MODES'),
 		paragraphs: [
-			`Free Spins can be bought for ${config.betModes.bonus.cost}x the bet, Super Free Spins for ${config.betModes.super.cost}x and Mantis Feast for ${config.betModes.feast.cost.toLocaleString()}x. Bought features play exactly like naturally triggered ones.`,
+			soc(
+				`Free Spins can be bought for ${config.betModes.bonus.cost}x the bet, Super Free Spins for ${config.betModes.super.cost}x and Mantis Feast for ${config.betModes.feast.cost.toLocaleString()}x. Bought features play exactly like naturally triggered ones.`,
+				`Free Spins can be played directly for ${config.betModes.bonus.cost}x the play amount, Super Free Spins for ${config.betModes.super.cost}x and Mantis Feast for ${config.betModes.feast.cost.toLocaleString()}x. Instantly triggered features play exactly like naturally triggered ones.`,
+			),
 		],
 	},
 	{

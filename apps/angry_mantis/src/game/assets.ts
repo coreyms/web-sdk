@@ -19,8 +19,8 @@ export default {
 	bgCafeteriaBase: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-base-bonus.webp', import.meta.url).href), preload: true },
 	bgCafeteriaSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super.webp', import.meta.url).href), preload: true },
 	bgCafeteriaFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast.webp', import.meta.url).href), preload: true },
-	frameDesktop: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-desktop.png', import.meta.url).href), preload: true },
-	frameMobile: { type: 'sprite', src: stamp(new URL('../../assets/ui/frame-mobile.png', import.meta.url).href), preload: true },
+	frameCafeteria: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-cafeteria.webp', import.meta.url).href), preload: true },
+	doorSteel: { type: 'sprite', src: stamp(new URL('../../assets/ui/door-steel.webp', import.meta.url).href), preload: true },
 	// hand-made gold text art (assets/images/branding -> static/assets/ui/text): tier titles,
 	// max-win lines, retrigger digits/words. Replaces canvas-rasterized GameText at the biggest
 	// presentation moments (cheaper too: resident textures, no per-string raster+upload).
@@ -31,12 +31,11 @@ export default {
 	textMaxWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win.webp', import.meta.url).href), preload: true },
 	textMaxWinBang: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win-bang.webp', import.meta.url).href), preload: true },
 	textTheyAteEverything: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/they-ate-everything.webp', import.meta.url).href), preload: true },
-	textFreeGame: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-game.webp', import.meta.url).href), preload: true },
-	textFreeGames: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-games.webp', import.meta.url).href), preload: true },
-	textDigit1: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/digit-1.webp', import.meta.url).href), preload: true },
-	textDigit2: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/digit-2.webp', import.meta.url).href), preload: true },
-	textDigit3: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/digit-3.webp', import.meta.url).href), preload: true },
-	textPlus: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/plus.webp', import.meta.url).href), preload: true },
+	// gold mode headers (same art the bonus-buy cards use) — intro/outro/summary titles reuse them;
+	// Corey's COMPLETE stamp will overlay these on the end screens when it lands
+	labelBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-bonus.webp', import.meta.url).href), preload: true },
+	labelSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-super.webp', import.meta.url).href), preload: true },
+	labelFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-feast.webp', import.meta.url).href), preload: true },
 	// prison-stencil numerals: every amount glyph (digits, separators, currency symbols, GC/SC/R$)
 	// in one atlas — amounts render as batched sprites with ZERO per-frame rasterization
 	numeralsAtlas: {

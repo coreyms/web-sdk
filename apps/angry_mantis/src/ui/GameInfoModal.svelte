@@ -9,6 +9,7 @@
 	import ModalShell from './ModalShell.svelte';
 	import Icon from './Icon.svelte';
 	import config from '../game/config';
+	import { soc } from '../game/social';
 	import { stamp } from '../game/assets';
 	import { DISCLAIMER, RULES_SECTIONS } from '../game/gameInfoText';
 
@@ -21,7 +22,7 @@
 	const SECTIONS = [
 		{ id: 'paytable', label: 'Paytable' },
 		{ id: 'ways', label: 'Ways' },
-		{ id: 'modes', label: 'Bet Modes' },
+		{ id: 'modes', label: 'Game Modes' },
 		{ id: 'feast', label: 'Feast Disclosure' },
 		{ id: 'eating', label: 'Eating Mechanic' },
 		{ id: 'maxwin', label: 'Max Win' },
@@ -54,17 +55,17 @@
 	const payText = (mult: number) => (social ? `${mult}×` : numberToCurrencyString(mult * stateBet.betAmount));
 
 	const SPECIALS = [
-		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: 'Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.' },
+		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.') },
 		{ glyph: 'S', name: 'Marky Scatter', color: '#ff5a2c', note: `3 / 4 / 5 anywhere trigger Free Spins / Super Free Spins / Mantis Feast. In free spins each scatter adds +1 spin (up to +${config.freeSpins.maxRetrigger} per session); once the cap is reached scatters stop appearing.` },
-		{ glyph: 'GL', name: 'Dinner Leaf', color: '#9CD92F', note: 'Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.' },
+		{ glyph: 'GL', name: 'Dinner Leaf', color: '#9CD92F', note: soc('Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.', 'Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-value symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.') },
 	];
 
 	const MODES = [
-		{ id: 'base', label: 'Base Game', accent: '#fff', cost: '1×', enter: 'Default play.', spins: 'One spin per stake.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
-		{ id: 'ante', label: 'Ante', accent: '#e8b04a', cost: `${config.betModes.ante.cost}×`, enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per stake.', mech: 'Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.' },
-		{ id: 'bonus', label: 'Free Spins', accent: '#9CD92F', cost: `${config.betModes.bonus.cost}×`, enter: 'Land 3 Marky scatters, or buy directly.', spins: `${config.freeSpins.free} Free Spins.`, mech: 'Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.' },
-		{ id: 'super', label: 'Super Free Spins', accent: '#C53C24', cost: `${config.betModes.super.cost}×`, enter: 'Land 4 Marky scatters, or buy directly.', spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
-		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${config.betModes.feast.cost.toLocaleString()}×`, enter: 'Land 5 Marky scatters, or buy directly.', spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
+		{ id: 'base', label: 'Base Game', accent: '#fff', cost: '1×', enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
+		{ id: 'ante', label: 'Ante', accent: '#e8b04a', cost: `${config.betModes.ante.cost}×`, enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per play.', mech: soc('Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.', 'Doubles the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with an instantly triggered feature.') },
+		{ id: 'bonus', label: 'Free Spins', accent: '#9CD92F', cost: `${config.betModes.bonus.cost}×`, enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
+		{ id: 'super', label: 'Super Free Spins', accent: '#C53C24', cost: `${config.betModes.super.cost}×`, enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
+		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${config.betModes.feast.cost.toLocaleString()}×`, enter: soc('Land 5 Marky scatters, or buy directly.', 'Land 5 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
 	];
 
 	let active = $state('paytable');
@@ -113,7 +114,7 @@
 		<div class="content" bind:this={contentEl} onscroll={onScroll} style:padding="{pad}px" style:gap="{compact ? 18 : 28}px" style:font-size="{bodySize}px">
 			<section bind:this={sectionEls.paytable}>
 				<h2>Paytable</h2>
-				<p>Pays per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins pay left to right on adjacent reels starting from reel 1. Only the highest win per symbol is paid. Base game wins are capped at 250× the bet per spin.</p>
+				<p>{soc('Pays per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins pay left to right on adjacent reels starting from reel 1.', 'Wins per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins form left to right on adjacent reels starting from reel 1.')} {soc('Only the highest win per symbol is paid. Base game wins are capped at 250× the bet per spin.', 'Only the highest win per symbol counts. Base game wins are capped at 250× the play amount per spin.')}</p>
 				<div class="pay-grid" style:grid-template-columns={compact ? '1fr' : 'repeat(2, minmax(0,1fr))'}>
 					{#each paying as sym (sym)}
 						{@const meta = SYMBOL_META[sym]}
@@ -149,12 +150,12 @@
 			<section bind:this={sectionEls.ways}>
 				<h2>Ways Structure</h2>
 				<p><strong>1,024 ways.</strong> 5 reels × 4 rows. Wins evaluate left to right from reel 1 on any row. Matching symbol counts on each consecutive reel multiply together; different symbols' wins add up within a spin.</p>
-				<p>Example: 3 matching symbols on reel 1, 2 on reel 2 and 4 on reel 3 = 3 × 2 × 4 = 24 ways paying the 3-of-a-kind prize.</p>
+				<p>{soc('Example: 3 matching symbols on reel 1, 2 on reel 2 and 4 on reel 3 = 3 × 2 × 4 = 24 ways paying the 3-of-a-kind prize.', 'Example: 3 matching symbols on reel 1, 2 on reel 2 and 4 on reel 3 = 3 × 2 × 4 = 24 ways winning the 3-of-a-kind prize.')}</p>
 			</section>
 
 			<section bind:this={sectionEls.modes}>
-				<h2>All Bet Modes</h2>
-				<p>Five modes. Base and Ante are bet-by-bet; the features are entered by Marky scatters or a direct bonus buy.</p>
+				<h2>All Game Modes</h2>
+				<p>{soc('Five modes. Base and Ante are bet-by-bet; the features are entered by Marky scatters or a direct bonus buy.', 'Five modes. Base and Ante run spin by spin; the features are entered by Marky scatters or triggered instantly from the feature menu.')}</p>
 				<div class="modes">
 					{#each MODES as m (m.id)}
 						<div class="mode" style:box-shadow="inset 0 0 0 1px {m.accent}33, inset 0 1px 0 rgba(255,255,255,.05)">
@@ -175,8 +176,8 @@
 			<section bind:this={sectionEls.feast}>
 				<h2>Mantis Feast Disclosure</h2>
 				<div class="callout" style:border-color="#ffdc4a55" style:box-shadow="inset 0 1px 0 rgba(255,255,255,.05), 0 0 22px #ffdc4a22">
-					<p><strong>Minimum guaranteed return:</strong> every Mantis Feast session pays at least <span class="slot-num mono">300× bet</span>. This floor is paid out of the {config.betModes.feast.cost.toLocaleString()}× purchase price.</p>
-					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 50</span> Mantis Feast sessions reaches the {config.maxWin.toLocaleString()}× max win cap. Other sessions land between the 300× floor and the cap, with the payout distribution skewed toward the floor.</p>
+					<p><strong>Minimum guaranteed return:</strong> every Mantis Feast session {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc('300× bet', '300× play amount')}</span>. {soc('This floor is paid out of the', 'This floor comes out of the')} {config.betModes.feast.cost.toLocaleString()}× {soc('purchase price', 'play amount')}.</p>
+					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 50</span> Mantis Feast sessions reaches the {config.maxWin.toLocaleString()}× max win cap. Other sessions land between the 300× floor and the cap, with the {soc('payout', 'win')} distribution skewed toward the floor.</p>
 					<p class="dim">These figures are disclosed openly per Stake Engine approval requirements.</p>
 				</div>
 			</section>
@@ -186,10 +187,10 @@
 				<p>During Free Spins, Super Free Spins and Mantis Feast, <strong>Marty</strong> (green mantis) and/or <strong>Marky</strong> (red mantis) strike the reels.</p>
 				<ul>
 					<li>When a session starts the host takes an opening bite (Mantis Feast: both mantises bite).</li>
-					<li>Each bite <strong>eats the lowest-paying symbol</strong> still on the menu, removing it from the reels for the rest of the session.</li>
+					<li>Each bite <strong>{soc('eats the lowest-paying symbol', 'eats the lowest-value symbol')}</strong> still on the menu, removing it from the reels for the rest of the session.</li>
 					<li>Each <strong style="color:#9CD92F">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve — when several leaves land on one spin, each shows its own course, in serving order.</li>
 					<li>Fewer symbols on the reels means the remaining symbols land more often, so wins escalate as the session goes on.</li>
-					<li>If all eight paying symbols are eaten, the round pays the {config.maxWin.toLocaleString()}× max win immediately and the session ends.</li>
+					<li>{soc(`If all eight paying symbols are eaten, the round pays the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`, `If all eight menu symbols are eaten, the round wins the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`)}</li>
 				</ul>
 				<div class="subhead">The menu — eaten in this order</div>
 				<div class="menu-strip">
@@ -216,8 +217,8 @@
 			<section bind:this={sectionEls.maxwin}>
 				<h2>Max Win</h2>
 				<div class="callout" style:border-color="#ff5a2c55" style:box-shadow="inset 0 1px 0 rgba(255,255,255,.05), 0 0 22px #ff5a2c22">
-					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{compact ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">bet — hard cap</span></div>
-					<p>The total payout of any round is capped at {config.maxWin.toLocaleString()}× the bet. Once the cap is reached the round ends immediately and the cap is paid.</p>
+					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{compact ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet — hard cap', 'play amount — hard cap')}</span></div>
+					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. Once the cap is reached the round ends immediately and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. Once the cap is reached the round ends immediately and the cap is won.`)}</p>
 				</div>
 			</section>
 
@@ -231,7 +232,7 @@
 						</div>
 					{/each}
 				</div>
-				<p>Every bet mode has a theoretical return to player of <span class="slot-num mono">{(config.rtp * 100).toFixed(2)}%</span>, calculated over many millions of simulated plays.</p>
+				<p>Every game mode has a theoretical return to player of <span class="slot-num mono">{(config.rtp * 100).toFixed(2)}%</span>, calculated over many millions of simulated plays.</p>
 				<p class="dim">RTP describes long-run behaviour across all players. Individual sessions may return significantly above or below this figure.</p>
 			</section>
 

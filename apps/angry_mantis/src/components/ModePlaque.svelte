@@ -6,7 +6,7 @@
 	import { Container, Rectangle } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
-	import { frameFor, layoutKind } from '../game/layoutSpec';
+	import { frameFor, layoutKind, FRAME_ART } from '../game/layoutSpec';
 	import { modeChipData } from '../game/modeChipData';
 	import GameText from './GameText.svelte';
 
@@ -23,15 +23,20 @@
 	// pill sized from an average glyph width — the display font has no monospace metrics to query
 	const w = $derived(text.length * size * 0.62 + 40);
 	const h = $derived(size + 16);
-	// fully below the frame — never over a board tile; the mantises draw in front of it
-	const y = $derived(f.y + f.height + (kind === 'landscape' ? 8 : 4));
+	// Badge centered on the FRONT FACE of the counter's bottom rail (Corey 2026-08-30) — in the
+	// art, the rail reads top face (y ~1121-1142) / highlight seam / front face (y 1149-1208).
+	// Anchor to the front-face band's center, measured from the window bottom, on every layout.
+	const FACE_CENTER_BELOW_WINDOW = (1149 + 1208) / 2 - (FRAME_ART.winY + FRAME_ART.winH); // art px
+	const railSy = $derived((f.height - 2 * f.inset) / FRAME_ART.winH);
+	const railTop = $derived(f.y + f.height - f.inset);
+	const centerY = $derived(railTop + FACE_CENTER_BELOW_WINDOW * railSy);
 </script>
 
 <!-- ALWAYS mounted (visibility-toggled): an {#if} would add the Pixi nodes to the stage the moment
      a mode is armed — i.e. AFTER the characters — putting the plaque in front of Marty. Mounting at
      boot pins its stage position: over the board frame, under the mantises. -->
 <MainContainer>
-	<Container visible={!!chip} x={f.x + f.width / 2} y={y + h / 2}>
+	<Container visible={!!chip} x={f.x + f.width / 2} y={centerY}>
 		<Rectangle
 			x={-w / 2}
 			y={-h / 2}

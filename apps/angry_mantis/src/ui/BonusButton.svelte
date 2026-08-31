@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { soc } from '../game/social';
 	import { stamp } from '../game/assets';
 	// Mantis-head bonus-buy button. Green = open the bonus modal; amber "ANTE ON" = tap to switch Ante off.
 	import ChunkyBtn from './ChunkyBtn.svelte';
@@ -13,7 +14,7 @@
 	const icon = $derived(Math.round(size * 0.7));
 </script>
 
-<ChunkyBtn {size} color={onLabel ? '#e8b04a' : '#9CD92F'} active disabled={controls.bonusDisabled()} onclick={controls.bonusPress} ariaLabel={ante ? 'Disable Ante' : armedKey ? `Cancel ${armedKey}` : 'Buy bonus'}>
+<ChunkyBtn {size} color={onLabel ? '#e8b04a' : '#9CD92F'} active disabled={controls.bonusDisabled()} onclick={controls.bonusPress} ariaLabel={ante ? 'Disable Ante' : armedKey ? `Cancel ${armedKey}` : soc('Buy bonus', 'Get bonus')}>
 	<img src={stamp('/assets/ui/mantis-head.png')} alt="" style:width="{icon}px" style:height="{icon}px" draggable="false" />
 	{#if onLabel}
 		<span class="ante" style:font-size="{size > 80 ? 12 : 10}px" style:top="{size > 80 ? 6 : 5}px">{onLabel}</span>

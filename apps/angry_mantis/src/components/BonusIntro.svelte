@@ -7,14 +7,15 @@
 </script>
 
 <script lang="ts">
-	import { CanvasSizeRectangle, MainContainer } from 'components-layout';
+	import { MainContainer } from 'components-layout';
 	import { FadeContainer } from 'components-pixi';
-	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
+	import { waitForResolve } from 'utils-shared/wait';
 	import { Sprite, Container } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
 	import GameText from './GameText.svelte';
-	import { BONUS_MODE_LABEL } from '../game/constants';
+	import { BONUS_MODE_HEADER } from '../game/constants';
+	import { frameFor, layoutKind } from '../game/layoutSpec';
 	import PressToContinue from './PressToContinue.svelte';
 
 	const context = getContext();
@@ -31,52 +32,75 @@
 			host = emitterEvent.host;
 			totalFs = emitterEvent.totalFs;
 			show = true;
-			// auto-advance after a short hold; a tap (PressToContinue) skips it
-			await Promise.race([waitForResolve((resolve) => (oncomplete = resolve)), waitForTimeout(3800)]);
+			// gated on player input (Corey 2026-08-30) — the door holds until they press
+			await waitForResolve((resolve) => (oncomplete = resolve));
 		},
 		bonusIntroHide: () => (show = false),
 	});
 
 	const hosts = $derived(host === 'both' ? ['marky', 'marty'] : [host]); // Marky always left, Marty right
 
-	// one-sentence "how it works" per mode (also warmed in TextWarmup — keep in sync)
-	const MODE_DETAIL: Record<BonusMode, string> = {
-		free: 'EVERY DINNER LEAF IS A STRIKE — MARTY EATS THE LOWEST SYMBOL LEFT AND IT LEAVES THE REELS',
-		super: 'MARKY STRIKES MORE OFTEN — EVERY LEAF EATS THE LOWEST SYMBOL LEFT, ESCALATING WINS',
-		feast: 'BOTH MANTISES STRIKE — EAT ALL 8 SYMBOLS FOR THE 20,000\u00d7 MAX WIN',
+	// Expanded rules copy (Corey 2026-08-30). Paragraphs word-wrap inside the door; text
+	// treatment is provisional until Corey's finalized styles.
+	const MODE_DESC: Record<BonusMode, string[]> = {
+		free: [
+			'Symbols served on the Green Strike leaf will be eaten by Marty. Lowest Symbols are always eaten first.',
+			'After a symbol has been eaten it will no longer appear for remaining bonus games.',
+		],
+		super: [
+			'Symbols served on the Green Strike leaf will be eaten by Marky. Lowest Symbols are always eaten first.',
+			'After a symbol has been eaten it will no longer appear for remaining bonus games.',
+			'In the Super Bonus, Marky has a higher chance of eating symbols.',
+		],
+		feast: [
+			'Symbols served on the Green Strike leaf will be eaten by Marty or Marky. Lowest Symbols are always eaten first.',
+			'After a symbol has been eaten it will no longer appear for remaining bonus games.',
+			'In the EPIC Feast Mode, both Mantises automatically eat a symbol at the start of the bonus.',
+		],
 	};
+
+	// Everything (header art, headshots, title, rules) fits INSIDE the door's window: content is
+	// authored in a 620×500 design space centered on the window, then uniformly scaled to fit.
+	// Only the PRESS ANYWHERE prompt lives outside, below the counter (HUD pressToContinue slot).
+	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
+	const vw = $derived(
+		context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale,
+	);
+	const f = $derived(frameFor(kind, vw));
+	const win = $derived({
+		x: f.x + f.inset,
+		y: f.y + f.inset,
+		w: f.width - f.inset * 2,
+		h: f.height - f.inset * 2,
+	});
+	const fit = $derived(Math.min(win.w / 620, win.h / 500, 1.15));
 </script>
 
 <FadeContainer {show}>
-	<CanvasSizeRectangle backgroundColor={0x000000} backgroundAlpha={0.7} />
+	<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30) -->
 	<MainContainer>
-		{@const w = context.stateLayoutDerived.mainLayout().width}
-		{@const h = context.stateLayoutDerived.mainLayout().height}
-		<Container x={w * 0.5} y={h * 0.42} scale={Math.min(1, w / 800)}>
-			<GameText
-				y={-220}
-				text={BONUS_MODE_LABEL[mode]}
-			 preset="gold" size={72} />
+		<Container x={win.x + win.w / 2} y={win.y + win.h / 2} scale={fit}>
+			<Sprite key={BONUS_MODE_HEADER[mode]} anchor={0.5} y={-195} scale={0.5} />
 			{#each hosts as name, i (name)}
 				<Sprite
 					anchor={0.5}
-					x={(i - (hosts.length - 1) / 2) * 260}
-					y={-40}
-					width={220}
-					height={220}
+					x={(i - (hosts.length - 1) / 2) * 175}
+					y={-68}
+					width={142}
+					height={142}
 					key="{name}Headshot"
 				/>
 			{/each}
+			<GameText y={32} text={`${totalFs} FREE SPINS`} preset="gold" size={40} />
 			<GameText
-				y={150}
-				text={`${totalFs} FREE SPINS`}
-			 preset="gold" size={56} />
-			<GameText
-				y={215}
-				text={mode === 'feast' ? 'MARTY + MARKY STRIKE TOGETHER' : mode === 'super' ? 'MARKY IS HUNGRY' : 'MARTY IS HUNGRY'}
-			 preset="silver" size={30} />
-			<GameText y={262} text={MODE_DETAIL[mode]} preset="silver" size={19} maxWidth={700} />
+				y={64}
+				anchor={{ x: 0.5, y: 0 }}
+				text={MODE_DESC[mode].join('\n\n')}
+				preset="silver"
+				size={17}
+				extra={{ wordWrap: true, wordWrapWidth: 540, lineHeight: 22, align: 'center' }}
+			/>
 		</Container>
 	</MainContainer>
-	<PressToContinue onpress={() => oncomplete()} />
+	<PressToContinue showText onpress={() => oncomplete()} />
 </FadeContainer>
