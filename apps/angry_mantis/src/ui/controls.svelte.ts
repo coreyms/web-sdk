@@ -105,6 +105,8 @@ export const createControls = () => {
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
 		// only meaningful outside an armed feature (there, every spin already IS the feature)
 		context.stateGame.autoStopOnFreeGames = loadout.stopFree && !armedBuy();
+		// door screens self-continue only while the run is live (autoBonusesRunning checks the counter)
+		context.stateGame.autoPlayBonuses = loadout.autoBonuses;
 		context.stateGame.autoLoadout = null; // consumed: one load = one run
 		context.eventEmitter.broadcast({ type: 'autoBet' });
 	};

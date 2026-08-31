@@ -313,8 +313,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			stateGame.symbolPool = [...lastEatEvent.remainingPool];
 			stateGame.eatenSymbols = config.eatOrder.filter((s) => !lastEatEvent.remainingPool.includes(s));
 		}
-		if (lastRetriggerEvent) stateGame.totalFs = lastRetriggerEvent.newTotalFs;
+		// order matters: updateFreeSpin is emitted BEFORE the spin's retriggerSpins in the book,
+		// so replay it first — the retrigger's newTotalFs must win or a disconnect on a
+		// retrigger spin resumes with the stale pre-retrigger total (code-review 2026-08-31)
 		if (lastUpdateFreeSpinEvent) playBookEvent(lastUpdateFreeSpinEvent, { bookEvents });
+		if (lastRetriggerEvent) stateGame.totalFs = lastRetriggerEvent.newTotalFs;
 		if (lastSetTotalWinEvent) playBookEvent(lastSetTotalWinEvent, { bookEvents });
 	},
 };

@@ -24,16 +24,19 @@
 	let count = $state(25);
 	let lossMult = $state<number | null>(null);
 	let winMult = $state<number | null>(null);
-	let stopFree = $state(true);
+	let stopFree = $state(false);
+	let autoBonuses = $state(false);
 
 	const armed = $derived(controls.armedBuy() !== null);
+	// effective stop-on-free-games (armed buy modes force it off); autoplay bonuses only exists while this is off
+	const stopFreeOn = $derived(!armed && stopFree);
 	const perSpin = $derived(controls.playCost());
 	const pill = $derived(modeChipData() ?? { label: 'BASE GAME', cost: controls.abbrev(perSpin, 100_000) });
 	const countText = (c: number) => (c === Infinity ? '∞' : `${c}`);
 	const totalText = $derived(count === Infinity ? '∞' : controls.abbrev(count * perSpin));
 
 	const load = () => {
-		controls.loadAutoplay({ count, lossMult, winMult, stopFree: armed ? false : stopFree });
+		controls.loadAutoplay({ count, lossMult, winMult, stopFree: stopFreeOn, autoBonuses: stopFreeOn ? false : autoBonuses });
 	};
 	// reopening while a loadout waits: allow clearing it
 	const hasLoadout = $derived(controls.autoLoadout() !== null);
@@ -92,13 +95,22 @@
 				</div>
 			</div>
 
-			<button class="slot-btn toggle" class:on={!armed && stopFree} disabled={armed} onclick={() => (stopFree = !stopFree)}>
-				<span class="t-text">
-					<span class="t-main" style:font-size="{compact ? 12 : 13.5}px">Stop on Free Games</span>
-					<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable — every spin already plays the loaded feature' : 'Autoplay ends when a feature triggers naturally (it still plays out)'}</span>
-				</span>
-				<span class="knob"></span>
-			</button>
+			<div class="toggles">
+				<button class="slot-btn toggle" class:on={stopFreeOn} disabled={armed} onclick={() => { stopFree = !stopFree; if (stopFree) autoBonuses = false; }}>
+					<span class="t-text">
+						<span class="t-main" style:font-size="{compact ? 12 : 13.5}px">Stop on Free Games</span>
+						<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable — every spin already plays the loaded feature' : 'Autoplay ends when a feature triggers naturally (it still plays out)'}</span>
+					</span>
+					<span class="knob"></span>
+				</button>
+				<button class="slot-btn toggle" class:on={autoBonuses && !stopFreeOn} disabled={stopFreeOn} onclick={() => (autoBonuses = !autoBonuses)}>
+					<span class="t-text">
+						<span class="t-main" style:font-size="{compact ? 12 : 13.5}px">Autoplay Bonuses</span>
+						<span class="t-sub" class:warn={stopFreeOn}>{stopFreeOn ? 'Unavailable — turn off Stop on Free Games first' : 'Bonus screens continue on their own while autoplay runs'}</span>
+					</span>
+					<span class="knob"></span>
+				</button>
+			</div>
 
 			<button class="slot-btn go" onclick={load} style:font-size="{compact ? 13 : 15}px">
 				LOAD {countText(count)} AUTO SPINS{#if count !== Infinity}&nbsp;—&nbsp;<span class="slot-num">{totalText}</span>{/if}
@@ -215,6 +227,7 @@
 	.total .k { font-weight: 900; letter-spacing: 2px; color: #e8b04a; }
 	.total .v { font-weight: 800; color: #fff; }
 	.total .v small { font-size: 11px; color: rgba(238, 240, 230, 0.4); font-weight: 400; margin-left: 8px; }
+	.toggles { display: flex; gap: 7px; }
 	.toggle {
 		display: flex;
 		align-items: center;
@@ -226,7 +239,9 @@
 		box-shadow: inset 0 0 0 1.5px rgba(238, 240, 230, 0.12);
 		color: #fff;
 		text-align: left;
-		width: 100%;
+		flex: 1 1 0;
+		min-width: 0;
+		min-height: 44px;
 	}
 	.toggle.on { box-shadow: inset 0 0 0 1.5px #9cd92f; }
 	.toggle:disabled { opacity: 0.5; }

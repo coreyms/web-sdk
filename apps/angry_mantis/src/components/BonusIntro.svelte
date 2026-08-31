@@ -9,10 +9,11 @@
 <script lang="ts">
 	import { MainContainer } from 'components-layout';
 	import { FadeContainer } from 'components-pixi';
-	import { waitForResolve } from 'utils-shared/wait';
+	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { Sprite, Container } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
+	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import GameText from './GameText.svelte';
 	import { BONUS_MODE_HEADER } from '../game/constants';
 	import { frameFor, layoutKind } from '../game/layoutSpec';
@@ -32,8 +33,10 @@
 			host = emitterEvent.host;
 			totalFs = emitterEvent.totalFs;
 			show = true;
-			// gated on player input (Corey 2026-08-30) — the door holds until they press
-			await waitForResolve((resolve) => (oncomplete = resolve));
+			// gated on player input (Corey 2026-08-30) — the door holds until they press. A running
+			// autoplay with AUTOPLAY BONUSES on presses for them ~1s after the door is ready.
+			const pressed = waitForResolve((resolve) => (oncomplete = resolve));
+			await (autoBonusesRunning() ? Promise.race([pressed, waitForTimeout(1000)]) : pressed);
 		},
 		bonusIntroHide: () => (show = false),
 	});

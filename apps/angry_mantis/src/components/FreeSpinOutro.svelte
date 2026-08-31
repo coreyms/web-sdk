@@ -11,13 +11,14 @@
 	// End-of-feature total win (text-based; replaces the Mining Mayhem fsOutro Spine + sprites).
 	import { Container, Sprite } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
-	import { waitForResolve } from 'utils-shared/wait';
+	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { MainContainer } from 'components-layout';
 	import { OnMount } from 'components-shared';
 	import { Tween } from 'svelte/motion';
 	import { backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
+	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { stateBetDerived } from 'state-shared';
 	import { BONUS_MODE_HEADER } from '../game/constants';
 	import PressToContinue from './PressToContinue.svelte';
@@ -49,6 +50,16 @@
 		},
 	});
 
+	// AUTOPLAY BONUSES: a running autoplay presses on for the player 1s AFTER the count-up has
+	// settled (startCountUp resolves once countUpCompleted is set, finishCountUp interrupts
+	// included) — the total-win count is never cut short
+	const autoContinueAfterCountUp = async () => {
+		if (!autoBonusesRunning()) return;
+		const press = oncomplete; // pin to this outro's gate — a late timer must not press a future one
+		await waitForTimeout(1000);
+		press();
+	};
+
 	const master = $derived(context.stateLayoutDerived.mainLayout());
 	const textScale = $derived(Math.min(1, master.width / 800));
 </script>
@@ -58,7 +69,7 @@
 		{@const duration = Math.max(1200, winLevelData.presentDuration / stateBetDerived.timeScale())}
 		<StagedCountUpProvider {amount} {duration} stages={WIN_TIER_STAGES_END_FEATURE}>
 			{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
-				<OnMount onmount={() => startCountUp()} />
+				<OnMount onmount={() => startCountUp().then(autoContinueAfterCountUp)} />
 				<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30) -->
 				<MainContainer>
 					<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>

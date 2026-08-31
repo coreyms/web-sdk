@@ -50,7 +50,14 @@ export type AutoLoadout = {
 	lossMult: number | null; // × one spin's play amount; null = no loss stop
 	winMult: number | null; // × one spin's play amount; null = no single-win stop
 	stopFree: boolean; // end the run when a feature triggers naturally (base/ante only)
+	autoBonuses: boolean; // auto-continue the press-gated bonus door screens (only offered while stopFree is off)
 };
+
+/** the RUNNING autoplay wants the press-gated bonus door screens to continue on their own.
+ * Live check on every gate: the counter only decrements AFTER the whole bet (feature included)
+ * plays out, so it is still >0 through the doors of an auto spin — and already 0 if the player
+ * pressed stop, which restores the hard press-gate. */
+export const autoBonusesRunning = (): boolean => stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0;
 
 export const isAnteLockedSymbol = (reelIndex: number, symbolIndexOfBoard: number): boolean =>
 	reelIndex === 0 &&
@@ -100,10 +107,12 @@ export const stateGame = $state({
 	eatenSymbols: [] as PayingSymbolName[],
 	strikeCount: 0,
 	turboLevel: 0 as 0 | 1 | 2, // 0 off · 1 turbo · 2 instant (see controls.turboPress)
-	// autoplay loadout on the spin button (pressing Spin starts it); stop-on-free-games flag of the
-	// RUNNING autoplay (checked by the freeSpinTrigger book event handler)
+	// autoplay loadout on the spin button (pressing Spin starts it); flags of the RUNNING autoplay:
+	// stop-on-free-games (checked by the freeSpinTrigger book event handler) and autoplay-bonuses
+	// (door screens self-continue — see autoBonusesRunning above)
 	autoLoadout: null as AutoLoadout | null,
 	autoStopOnFreeGames: false,
+	autoPlayBonuses: false,
 	antePrevLocked: false, // previous spin ended with the ante scatter on screen
 	spinsPlayed: 0,
 	totalFs: 0,
