@@ -125,7 +125,9 @@ export const createControls = () => {
 	// ── bonus / ante ─────────────────────────────────────────────────────
 	const bonusDisabled = () => !isIdle();
 	const bonusPress = () => {
-		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_ui_bonus' });
+		// Corey 2026-09-01: the Bonus Buy head button speaks with the spin button's voice — the
+		// dedicated bonus-buy click is gone. Every other button in the chrome shares soundPressGeneral.
+		sound('soundPressBet');
 		// same gesture as switching Ante off: while a mode is active/armed the head button disarms it
 		// (and unloads any waiting autoplay run with it)
 		if (anteActive() || armedBuy()) cancelArmed();
@@ -142,7 +144,7 @@ export const createControls = () => {
 		// Nothing is charged and nothing plays until the player presses Spin.
 		stateBet.activeBetModeKey = mode;
 		stateModal.modal = null;
-		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_ui_bonus' });
+		sound('soundPressGeneral'); // a modal button like any other: the shared UI click
 	};
 
 	// ── bet amount ───────────────────────────────────────────────────────

@@ -49,13 +49,16 @@
 		doorClose: async () => {
 			engaged = true;
 			drop.set(0, { duration: 0 });
-			// sfx is cut to the travel: its slam sits 450 ms in, so it fires WITH the drop, not after
+			// sfx is cut to the travel: the sprite clip's slam sits 450 ms in, so it fires WITH the drop,
+			// not after. Corey's recording is a 1.95 s roll whose slam onset is 1592 ms in; the audiosprite
+			// trims 1142 ms off its head (build_audiosprite.py trim_start) to land the slam on the hard
+			// stop below. Re-measure and retune that trim if the source is ever re-recorded.
 			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_door_close' });
 			// heavy roll-down: accelerates like a released shutter, lands with a hard stop
 			await drop.set(1, { duration: 450, easing: cubicIn });
 		},
 		doorOpen: async () => {
-			// latch click at 0 ms, roll fading over the 550 ms rise
+			// latch click 61 ms in (measured), roll fading over the 550 ms rise — inside tolerance, untrimmed
 			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_door_open' });
 			await drop.set(0, { duration: 550, easing: cubicOut });
 			engaged = false;

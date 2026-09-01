@@ -127,6 +127,17 @@ export const RIG = {
 } as const;
 export type RigReaction = keyof typeof RIG.reactions;
 
+// Voice clip that plays WITH a reaction animation. Keyed by reaction so every broadcaster
+// (mantisReact / martyReact / the poke hit area) gets the audio for free — the sound is emitted
+// from inside each rig component's react(), AFTER its on-stage/busy guards, so a beat that
+// broadcasts to both the base-game rig and the bonus rigs still only ever sounds once.
+// 'astonished' is intentionally absent: marty-astonished.ogg has not been delivered yet.
+export const REACTION_SOUND_MAP: Partial<Record<RigReaction, 'sfx_marty_angry' | 'sfx_marty_happy' | 'sfx_marty_poke'>> = {
+	angry: 'sfx_marty_angry',
+	celebrate: 'sfx_marty_happy',
+	poke: 'sfx_marty_poke',
+};
+
 export type SymbolInfo = {
 	type: 'sprite';
 	assetKey: string;

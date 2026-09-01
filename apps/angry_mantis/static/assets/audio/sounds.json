@@ -1,100 +1,114 @@
 {
 	"sprite": {
-		"bgm_base_intro": [
-			0,
-			15052
-		],
 		"bgm_base": [
-			16052,
-			61461,
+			0,
+			61111,
 			true
 		],
 		"bgm_free": [
-			78513,
+			62111,
 			92136,
 			true
 		],
 		"bgm_super": [
-			171649,
+			155247,
 			91950,
 			true
 		],
 		"bgm_feast": [
-			264600,
+			248197,
 			60805,
 			true
 		],
 		"bgm_maxwin": [
-			326405,
-			20556,
+			310003,
+			21946,
 			true
 		],
 		"sfx_reel_spin": [
-			347961,
+			332949,
 			2262,
 			true
 		],
 		"sfx_reel_stop": [
-			351222,
+			336210,
 			260
 		],
 		"sfx_scatter_land_1": [
-			352482,
-			801
+			337470,
+			470
 		],
 		"sfx_scatter_land_2": [
-			354284,
-			799
+			338940,
+			470
 		],
 		"sfx_scatter_land_3": [
-			356083,
-			597
+			340410,
+			470
 		],
 		"sfx_scatter_land_4": [
-			357680,
-			604
+			341879,
+			470
 		],
 		"sfx_scatter_land_5": [
-			359284,
-			599
+			343349,
+			470
 		],
 		"sfx_leaf_land": [
-			360883,
-			1001
+			344819,
+			219
 		],
 		"sfx_door_close": [
-			362884,
-			951
+			346037,
+			810
 		],
 		"sfx_door_open": [
-			364835,
-			851
+			347847,
+			1808
 		],
 		"sfx_marty_strike": [
-			366685,
+			350655,
 			596
 		],
 		"sfx_marty_eat": [
-			368281,
+			352251,
 			1000
 		],
+		"sfx_marty_angry": [
+			354251,
+			1000
+		],
+		"sfx_marty_happy": [
+			356251,
+			600
+		],
+		"sfx_marty_poke": [
+			357851,
+			1200
+		],
+		"sfx_win_big": [
+			360051,
+			1000
+		],
+		"sfx_money_counter": [
+			362051,
+			781,
+			true
+		],
 		"sfx_ui_button": [
-			370281,
+			363832,
 			187
 		],
 		"sfx_ui_spin": [
-			371468,
+			365018,
 			187
 		],
 		"sfx_ui_bonus": [
-			372654,
+			366205,
 			187
 		]
 	},
 	"config": {
-		"bgm_base_intro": {
-			"volume": 0.6
-		},
 		"bgm_base": {
 			"volume": 0.6
 		},
@@ -146,6 +160,21 @@
 		"sfx_marty_eat": {
 			"volume": 1
 		},
+		"sfx_marty_angry": {
+			"volume": 1
+		},
+		"sfx_marty_happy": {
+			"volume": 1
+		},
+		"sfx_marty_poke": {
+			"volume": 1
+		},
+		"sfx_win_big": {
+			"volume": 1
+		},
+		"sfx_money_counter": {
+			"volume": 1
+		},
 		"sfx_ui_button": {
 			"volume": 1
 		},
@@ -157,8 +186,8 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=0414bcf5",
-		"./assets/audio/sounds.m4a?v=dda4c29c",
-		"./assets/audio/sounds.mp3?v=ae803904"
+		"./assets/audio/sounds.ogg?v=163bb8b7",
+		"./assets/audio/sounds.m4a?v=ba3c0381",
+		"./assets/audio/sounds.mp3?v=30c6b83e"
 	]
 }

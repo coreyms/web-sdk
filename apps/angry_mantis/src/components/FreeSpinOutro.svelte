@@ -35,6 +35,9 @@
 
 	const context = getContext();
 
+	const countSound = (type: 'soundLoop' | 'soundStop') =>
+		context.eventEmitter.broadcast({ type, name: 'sfx_money_counter' });
+
 	let show = $state(false);
 	let amount = $state(0);
 	let winLevelData = $state<WinLevelData>();
@@ -109,7 +112,18 @@
 			{@const duration = Math.max(1200, winLevelData.presentDuration / stateBetDerived.timeScale())}
 			<StagedCountUpProvider {amount} {duration} stages={WIN_TIER_STAGES_END_FEATURE}>
 				{#snippet children({ countUpAmount, startCountUp, finishCountUp, countUpCompleted })}
-					<OnMount onmount={() => startCountUp().then(autoContinueAfterCountUp)} />
+					<!-- same rule as Win.svelte: the money-counter loop rides big-tier wrap-ups only, and
+					     stops the moment the count settles or a press skips it -->
+					<OnMount
+						onmount={() => {
+							const big = winLevelData?.type === 'big';
+							if (big) countSound('soundLoop');
+							return startCountUp().then(() => {
+								if (big) countSound('soundStop');
+								autoContinueAfterCountUp();
+							});
+						}}
+					/>
 					<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30).
 					     All glyphs here are atlas sprites (ArtAmount/StagedWinTitle/trays) except the
 					     warmed static 'TOTAL WIN' GameText — nothing rasterizes per frame, and the

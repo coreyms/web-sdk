@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import { sound, BASE_INTRO_DURATION, type MusicName, type SoundEffectName, type SoundName } from '../game/sound';
+	import { sound, type MusicName, type SoundEffectName, type SoundName } from '../game/sound';
 
 	export type EmitterEventSound =
 		| { type: 'soundMusic'; name: MusicName }
@@ -14,8 +14,6 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
-
-	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
 	import { stateSound, stateSoundDerived, stateBetDerived } from 'state-shared';
@@ -65,15 +63,14 @@
 		} catch {}
 	});
 
-	// Base intro stinger once, then the base loop. A bonus in progress (resume) goes straight to its loop.
-	onMount(async () => {
+	// base-loop.ogg is self-contained (Corey 2026-09-01) — it just loops from the start, no intro
+	// stinger to sequence behind. A bonus in progress (resume) goes straight to its own loop.
+	onMount(() => {
 		if (context.stateGame.gameType === 'freegame') {
 			const mode = context.stateGame.bonusMode;
 			sound.players.music.play({ name: mode === 'feast' ? 'bgm_feast' : mode === 'super' ? 'bgm_super' : 'bgm_free' });
 			return;
 		}
-		sound.players.once.play({ name: 'bgm_base_intro' });
-		await waitForTimeout(BASE_INTRO_DURATION);
-		if (context.stateGame.gameType === 'basegame') sound.players.music.play({ name: 'bgm_base' });
+		sound.players.music.play({ name: 'bgm_base' });
 	});
 </script>

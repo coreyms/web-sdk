@@ -24,6 +24,10 @@ const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) =>
 };
 
 const winLevelSoundsStop = () => {
+	// backstop only — Win/FreeSpinOutro stop this the instant their count settles or is skipped.
+	// This catches a presentation torn down before its count-up ever resolved (stop is a no-op
+	// when the loop isn't running).
+	eventEmitter.broadcast({ type: 'soundStop', name: 'sfx_money_counter' });
 	musicPlay(modeMusic());
 	eventEmitter.broadcast({ type: 'soundDuck', level: 1 });
 	eventEmitter.broadcastAsync({ type: 'uiShow' });
@@ -36,12 +40,10 @@ const modeMusic = () => {
 	return 'bgm_free' as const;
 };
 
-// Every music-loop start in this file funnels through here: the 15s bgm_base_intro boot stinger
-// rides the ONCE player (Sound.svelte onMount), which soundMusic's pause-all-music can't touch —
-// starting a loop under it doubles the music (a base win inside the first ~15s, an early bonus
-// buy, a snapshot resume). soundStop is a no-op once the stinger has ended.
+// Every music-loop start in this file funnels through here. (It used to also stop the separate 15s
+// bgm_base_intro boot stinger, which rode the once-player where soundMusic's pause-all-music could
+// not reach it; base-loop.ogg is self-contained since 2026-09-01, so there is nothing to stop.)
 const musicPlay = (name: MusicName) => {
-	eventEmitter.broadcast({ type: 'soundStop', name: 'bgm_base_intro' });
 	eventEmitter.broadcast({ type: 'soundMusic', name });
 };
 
@@ -259,6 +261,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	maxWinCinematic: async (bookEvent: BookEventOfType<'maxWinCinematic'>) => {
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
+		// the max-win moment is scored solely by bgm_maxwin, which carries Corey's 21.9 s max-win track
+		// (2026-09-01: it replaced both the old max-win music and the separate sfx stinger layer)
 		musicPlay('bgm_maxwin');
 		await eventEmitter.broadcastAsync({ type: 'maxWinCinematicPlay', payout: bookEvent.payout });
 		stateBet.winBookEventAmount = bookEvent.payout;

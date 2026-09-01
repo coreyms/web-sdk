@@ -19,7 +19,7 @@
 
 	import { getContext } from '../game/context';
 	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
-	import { RIG } from '../game/constants';
+	import { RIG, REACTION_SOUND_MAP } from '../game/constants';
 	import type { Rig } from '../bonerutter';
 	import { playClip, playIdle, currentClip, isIdling } from '../game/mantisRig';
 	import BoneRig from './BoneRig.svelte';
@@ -75,6 +75,10 @@
 	const react = (kind: MartyReaction) => {
 		if (busy || !rendered || !rig) return;
 		busy = true;
+		// voice rides the animation, and only once it is certain to play (guards above): a big win in
+		// a bonus broadcasts martyReact AND mantisReact, but this Marty is unrendered there
+		const voice = REACTION_SOUND_MAP[kind];
+		if (voice) context.eventEmitter.broadcast({ type: 'soundOnce', name: voice });
 		const pool = RIG.reactions[kind];
 		playClip(rig, pool[Math.floor(Math.random() * pool.length)], {
 			loop: false,

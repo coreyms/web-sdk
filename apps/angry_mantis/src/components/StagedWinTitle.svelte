@@ -11,6 +11,16 @@
 	import { bookEventAmountToBetAmountMultiplier } from 'utils-shared/amount';
 
 	import { WIN_TIER_STAGES, type WinTierStage } from '../game/winLevelMap';
+	import { getContext } from '../game/context';
+
+	const context = getContext();
+	// Every tier title that lands gets the slam stinger — the first entrance included. This component
+	// only ever mounts inside a big-tier presentation (Win.svelte's isBigWin branch and
+	// FreeSpinOutro's), so it needs no win-level guard of its own.
+	// forcePlay: the clip runs 1 s but consecutive tiers can land closer than that, and the once-player
+	// silently drops a re-play of a still-ringing sound — without it the fast upgrades go mute.
+	const slamSound = () =>
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_win_big', forcePlay: true });
 
 	type Props = { amount: number; finalAlias: string; stages?: readonly WinTierStage[]; size?: number; y?: number };
 	const { amount, finalAlias, stages = WIN_TIER_STAGES, size = 110, y = 0 }: Props = $props();
@@ -64,8 +74,10 @@
 		const next = stageIndex;
 		if (lastIndex === -1) {
 			shownIndex = next; // first render: no slam, the parent pops the whole block in
+			slamSound(); // ...but it is still a title landing, so it gets the stinger
 		} else if (next !== lastIndex) {
 			slamTo(next);
+			slamSound();
 		}
 		lastIndex = next;
 	});

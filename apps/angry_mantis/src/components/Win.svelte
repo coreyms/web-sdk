@@ -38,6 +38,12 @@
 	let oncomplete = $state(() => {});
 	const pop = new Tween(0.6, { duration: 420, easing: backOut });
 
+	// money-counter is a rhythmic ~0.78 s tick bed, so it runs as a loop for as long as the amount is
+	// climbing (see the OnMount below). bookEventHandlerMap's winLevelSoundsStop also stops it as a
+	// backstop, in case a presentation is superseded before its count-up ever resolves.
+	const countSound = (type: 'soundLoop' | 'soundStop') =>
+		context.eventEmitter.broadcast({ type, name: 'sfx_money_counter' });
+
 	context.eventEmitter.subscribeOnMount({
 		winShow: () => (show = true),
 		winHide: () => (show = false),
@@ -82,7 +88,12 @@
 					<OnMount
 						onmount={async () => {
 							const done = oncomplete; // pin to THIS presentation — a stale chain must not resolve a future one
+							// the ticking money loop belongs to the big-win staging only — a small win's short
+							// count stays dry. startCountUp() resolves on a natural settle AND on a press-to-skip
+							// (finishCountUp interrupts it), so this one stop covers both exits.
+							if (isBigWin) countSound('soundLoop');
 							await startCountUp();
+							if (isBigWin) countSound('soundStop');
 							await waitForTimeout(isBigWin ? 1400 : 300);
 							done();
 						}}

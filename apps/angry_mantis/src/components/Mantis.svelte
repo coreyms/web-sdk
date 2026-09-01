@@ -24,7 +24,7 @@
 	import { getContext } from '../game/context';
 	import { nextSymbolToEat } from '../game/stateGame.svelte';
 	import GameText from './GameText.svelte';
-	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG } from '../game/constants';
+	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, REACTION_SOUND_MAP } from '../game/constants';
 	import { getSymbolX, getSymbolY } from '../game/utils';
 	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
 	import type { Rig } from '../bonerutter';
@@ -119,6 +119,9 @@
 			(name) => !busy[name] && rigOf(name),
 		);
 		if (targets.length === 0) return;
+		// one voice for the beat, not one per rig — both hosts reacting is still a single sound
+		const voice = REACTION_SOUND_MAP[kind];
+		if (voice) context.eventEmitter.broadcast({ type: 'soundOnce', name: voice });
 		const first = Math.floor(Math.random() * pool.length);
 		targets.forEach((name, i) => {
 			const clip = pool[(first + i) % pool.length]; // distinct clips when both react
