@@ -206,7 +206,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.pendingStrikePos = bookEvent.position
 			? { reel: bookEvent.position.reel, row: bookEvent.position.row - 1 }
 			: null;
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike' });
+		// sfx_marty_strike is NOT fired here: the sting belongs to the arms' lunge, which happens
+		// TIMINGS.strike into the animation, so Mantis.svelte's mantisStrike owns its timing.
 		await eventEmitter.broadcastAsync({
 			type: 'mantisStrike',
 			striker: bookEvent.striker,
@@ -225,7 +226,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 				stateGame.pendingStrikePos = null;
 			}
 			stateGame.symbolPool = [...bookEvent.remainingPool];
-			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_eat' });
+			// sfx_marty_eat is fired by mantisEat at the pluck, right behind the strike impact
 			await eventEmitter.broadcastAsync({
 				type: 'mantisEat',
 				striker: bookEvent.striker,

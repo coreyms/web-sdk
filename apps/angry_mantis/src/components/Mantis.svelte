@@ -24,7 +24,7 @@
 	import { getContext } from '../game/context';
 	import { nextSymbolToEat } from '../game/stateGame.svelte';
 	import GameText from './GameText.svelte';
-	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, REACTION_SOUND_MAP } from '../game/constants';
+	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, REACTION_SOUND_MAP, SFX_TRANSIENT } from '../game/constants';
 	import { getSymbolX, getSymbolY } from '../game/utils';
 	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
 	import type { Rig } from '../bonerutter';
@@ -201,7 +201,15 @@
 					},
 				});
 			}
-			await waitForTimeout(TIMINGS.strike);
+			// The strike voice belongs to the LUNGE, not to the book event: it used to be broadcast in
+			// bookEventHandlerMap the instant the strike event arrived, i.e. at the start of the wind-up
+			// (and, on an auto bite, before the dinner leaf had even finished dropping), which read as
+			// the sting happening while the insect was still on its plate. Fire it late enough that its
+			// impact transient lands on the claw hit at TIMINGS.strike — the arms are travelling forward
+			// through this window. Total wait is unchanged, so the eat beat still follows immediately.
+			await waitForTimeout(TIMINGS.strike - SFX_TRANSIENT.martyStrike);
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike' });
+			await waitForTimeout(SFX_TRANSIENT.martyStrike);
 		},
 		mantisEat: async ({ striker, symbol, from }) => {
 			const place = mantisPlace();
@@ -223,6 +231,12 @@
 				const rig = rigOf(striker);
 				fly.set({ ...startRel, s: pickup }, { duration: 0 });
 				if (autoLeaf) leafFade.set(0); // the leaf empties as the insect lifts off
+				// ...and the eat voice goes with the pluck, chained straight behind the strike impact
+				// that just landed (it was broadcast from bookEventHandlerMap before). Only a real meal
+				// sounds: a cosmetic strike reaches mantisEat with symbol null and stays silent, exactly
+				// as it did before. Plain soundOnce, so Feast's two hosts plucking together share one
+				// voice instead of doubling — same guard philosophy as the reaction sounds.
+				context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_eat' });
 
 				// claw-catch (finishing-touches): this fires right at the strike clip's impact frame
 				// (mantisStrike maps the claw hit onto the end of TIMINGS.strike), so the insect snaps

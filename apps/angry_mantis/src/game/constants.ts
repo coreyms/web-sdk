@@ -100,6 +100,13 @@ export const TIMINGS = {
 	retrigger: 1300, // gold-art banner needs a readable beat (was 800 as plain text)
 };
 
+// Where the AUDIBLE transient sits inside an sfx clip (measured from the sources 2026-09-01).
+// A clip is fired this many ms EARLY so its attack lands on the visual beat it scores, instead of
+// on the moment the book event happened. marty-strike.ogg: ~67ms of lead-in, impact peaks at 102ms.
+export const SFX_TRANSIENT = {
+	martyStrike: 102,
+};
+
 // BoneRutter character rig (static/assets/rig/mantis-set.*): clip names as authored in the export,
 // grouped for the game's needs. Reactions are pools — a random member plays each time so repeated
 // wins/pokes don't loop the identical take.
