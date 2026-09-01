@@ -160,10 +160,19 @@ const boardLayout = () => {
 
 const boardRaw = () => board.map((reel) => reel.reelState.symbols.map((reelSymbol) => reelSymbol.rawSymbol));
 
+/** The ante hold keeps its scatter on reel 1 across spins, and a locked row never runs its move
+ * callback (createReelForCascading's moveAllSymbolsWith), so the held scatter fires no land event.
+ * That is right for the sound — it must not re-sting on every ante spin — but it is still ON the
+ * board, so it has to count toward the escalation: with it held, the next NEW scatter that lands
+ * beside it is the second scatter on screen and plays _2, not _1 (Corey 2026-09-01). Derived live,
+ * never event-driven — the same rule getLockedRows follows. */
+const heldScatterCount = (): number => (isAnteLockedSymbol(0, 3) ? 1 : 0);
+
 const scatterLandIndex = () => {
-	if (stateGame.scatterCounter > 5) return 5;
-	if (stateGame.scatterCounter < 1) return 1;
-	return stateGame.scatterCounter as 1 | 2 | 3 | 4 | 5;
+	const count = stateGame.scatterCounter + heldScatterCount();
+	if (count > 5) return 5;
+	if (count < 1) return 1;
+	return count as 1 | 2 | 3 | 4 | 5;
 };
 
 const { enhanceBoard } = createEnhanceBoard();
