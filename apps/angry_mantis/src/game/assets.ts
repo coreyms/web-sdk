@@ -31,14 +31,10 @@ export default {
 	textMaxWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win.webp', import.meta.url).href), preload: true },
 	textMaxWinBang: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win-bang.webp', import.meta.url).href), preload: true },
 	textTheyAteEverything: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/they-ate-everything.webp', import.meta.url).href), preload: true },
-	// gold mode headers (same art the bonus-buy cards use) — intro/outro/summary titles reuse them;
-	// Corey's COMPLETE stamp will overlay these on the end screens when it lands
-	labelBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-bonus.webp', import.meta.url).href), preload: true },
-	labelSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-super.webp', import.meta.url).href), preload: true },
-	labelFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-feast.webp', import.meta.url).href), preload: true },
-	// bonus-intro stencil headers (branding/{feast,bonus,super}-header.webp): one image per mode
-	// carrying BOTH lines of the header. Preloaded — the door opens on them, so a cold fetch
-	// would show an empty window for a frame.
+	// bonus stencil headers (branding/{feast,bonus,super}-header.webp): one image per mode carrying
+	// BOTH lines of the header; the intro AND the wrap-up head with them (the label-*.webp pieces
+	// now live only on the HTML bonus-buy cards, ui/bonusCards.ts). Preloaded — the door opens on
+	// them, so a cold fetch would show an empty window for a frame.
 	headerFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-feast.webp', import.meta.url).href), preload: true },
 	headerBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-bonus.webp', import.meta.url).href), preload: true },
 	headerSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-super.webp', import.meta.url).href), preload: true },

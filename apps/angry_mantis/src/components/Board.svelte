@@ -47,6 +47,9 @@
 			// test harnesses / manual QA: fire any emitter event (e.g. winShow + winUpdate to
 			// preview the staged big-win count-up without replaying a whole book)
 			emit: (event: any) => context.eventEmitter.broadcast(event),
+			// stage the wrap-up recap (normally stashed by bonusEnd) so FreeSpinOutro can be
+			// previewed via emit(freeSpinOutroShow / freeSpinOutroCountUp) without a whole bonus
+			setRecap: (recap: any) => (context.stateGame.sessionRecap = recap),
 		};
 	}
 

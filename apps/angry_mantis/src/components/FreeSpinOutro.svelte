@@ -23,7 +23,7 @@
 	import { getContext } from '../game/context';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { stateBetDerived } from 'state-shared';
-	import { BONUS_MODE_HEADER } from '../game/constants';
+	import { BONUS_INTRO_HEADER, BONUS_INTRO_HEADER_ASPECT } from '../game/constants';
 	import { frameFor, layoutKind } from '../game/layoutSpec';
 	import PressToContinue from './PressToContinue.svelte';
 	import GameText from './GameText.svelte';
@@ -91,6 +91,15 @@
 		h: f.height - f.inset * 2,
 	});
 	const fit = $derived(Math.min(win.w / 620, win.h / 500, 1.15));
+	// The mode header is the intro's stencil art (BONUS / SUPER / FEAST + tagline), sized to the
+	// same weight it carries on the intro: it owns the top ~28% of the design space, contained by
+	// width, and the recap line + trays sit tight under it (Corey 2026-09-02).
+	const HEADER_W = 420;
+	const HEADER_H = HEADER_W / BONUS_INTRO_HEADER_ASPECT; // ~138
+	const HEADER_Y = -250 + 4 + HEADER_H / 2;
+	// the stack (header … total) spans about -246..178 of the ±250 design space; this offset
+	// centers it on the door instead of leaving all the air under the amount
+	const GROUP_DY = 32;
 	// stashed by the bonusEnd handler right before this freeSpinEnd presentation
 	const recap = $derived(context.stateGame.sessionRecap);
 </script>
@@ -129,13 +138,13 @@
 					     warmed static 'TOTAL WIN' GameText — nothing rasterizes per frame, and the
 					     {#key presentId} remount keeps no PIXI.Text updating while invisible. -->
 					<MainContainer>
-						<Container x={win.x + win.w / 2} y={win.y + win.h / 2} scale={pop.current * fit}>
+						<Container x={win.x + win.w / 2} y={win.y + win.h / 2 + GROUP_DY * fit} scale={pop.current * fit}>
 							<!-- Corey's COMPLETE stamp will overlay this header when it lands -->
-							<Sprite key={BONUS_MODE_HEADER[recap?.mode ?? context.stateGame.bonusMode] ?? 'labelBonus'} anchor={0.5} y={-195} scale={0.5} />
+							<Sprite key={BONUS_INTRO_HEADER[recap?.mode ?? context.stateGame.bonusMode] ?? 'headerBonus'} anchor={0.5} y={HEADER_Y} width={HEADER_W} height={HEADER_H} />
 							{#if recap}
-								<ArtAmount y={-104} text={`${recap.spinsPlayed} SPIN${recap.spinsPlayed === 1 ? '' : 'S'} - ${recap.symbolsEaten} SYMBOL${recap.symbolsEaten === 1 ? '' : 'S'} EATEN`} height={24} maxWidth={580} />
+								<ArtAmount y={-94} text={`${recap.spinsPlayed} SPIN${recap.spinsPlayed === 1 ? '' : 'S'} - ${recap.symbolsEaten} SYMBOL${recap.symbolsEaten === 1 ? '' : 'S'} EATEN`} height={24} maxWidth={580} />
 								{#each recap.eatenList as symbol, i (symbol)}
-									<Sprite anchor={0.5} x={(i - (recap.eatenList.length - 1) / 2) * 72} y={-50} width={64} height={64} key="{symbol}_eaten.png" />
+									<Sprite anchor={0.5} x={(i - (recap.eatenList.length - 1) / 2) * 72} y={-40} width={64} height={64} key="{symbol}_eaten.png" />
 								{/each}
 							{/if}
 							{#if winLevelData?.type === 'big'}

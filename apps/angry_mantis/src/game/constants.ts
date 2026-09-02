@@ -202,13 +202,6 @@ export const SCATTER_LAND_SOUND_MAP = {
 	5: 'sfx_scatter_land_5',
 } as const;
 
-// gold header art per bonus mode (label-*.webp — same pieces as the buy cards)
-export const BONUS_MODE_HEADER = {
-	free: 'labelBonus',
-	super: 'labelSuper',
-	feast: 'labelFeast',
-} as const;
-
 export const BONUS_MODE_LABEL = {
 	free: 'FREE SPINS',
 	super: 'SUPER FREE SPINS',
@@ -218,6 +211,8 @@ export const BONUS_MODE_LABEL = {
 // ---- Bonus-intro art (Corey's colour-graded branding exports) ----
 // Stencil headers: one image carries BOTH lines ("FEAST" + "ALL-YOU-CAN-EAT BONUS"). All three are
 // cropped from a common box, so they share an aspect and land on the same baseline in every mode.
+// The wrap-up (FreeSpinOutro) heads with the same art, so intro and outro read as one feature
+// (Corey 2026-09-02, replacing the label-*.webp buy-card pieces there).
 export const BONUS_INTRO_HEADER = {
 	free: 'headerBonus', // BONUS * MARTY'S SPECIAL
 	super: 'headerSuper', // SUPER * MARKY'S SPECIAL
