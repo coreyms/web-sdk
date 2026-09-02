@@ -26,7 +26,25 @@ export type SoundEffectName =
 	| 'sfx_money_counter'
 	| 'sfx_ui_button'
 	| 'sfx_ui_spin'
-	| 'sfx_ui_bonus';
+	| 'sfx_ui_bonus'
+	| 'sfx_wild_land'
+	| 'sfx_ui_minor'
+	| 'sfx_ui_sub'
+	| 'sfx_marty_strike_2'
+	| 'sfx_marty_strike_3'
+	| 'sfx_marky_strike'
+	| 'sfx_marty_eat_2'
+	| 'sfx_marty_eat_3'
+	| 'sfx_marky_eat'
+	| 'sfx_marty_angry_2'
+	| 'sfx_marty_angry_3'
+	| 'sfx_marty_happy_2'
+	| 'sfx_marty_happy_3'
+	| 'sfx_marty_poke_2'
+	| 'sfx_marty_poke_3'
+	| 'sfx_marty_astonished'
+	| 'sfx_marty_astonished_2'
+	| 'sfx_marty_astonished_3';
 
 export type SoundName = MusicName | SoundEffectName;
 

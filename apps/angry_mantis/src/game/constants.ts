@@ -149,16 +149,31 @@ export const RIG_SKIN_EXCLUDE: Record<'marty' | 'marky', readonly string[]> = {
 export const reactionPoolFor = (kind: RigReaction, name: 'marty' | 'marky'): readonly string[] =>
 	RIG.reactions[kind].filter((clip) => !RIG_SKIN_EXCLUDE[name].includes(clip));
 
-// Voice clip that plays WITH a reaction animation. Keyed by reaction so every broadcaster
-// (mantisReact / martyReact / the poke hit area) gets the audio for free — the sound is emitted
-// from inside each rig component's react(), AFTER its on-stage/busy guards, so a beat that
-// broadcasts to both the base-game rig and the bonus rigs still only ever sounds once.
-// 'astonished' is intentionally absent: marty-astonished.ogg has not been delivered yet.
-export const REACTION_SOUND_MAP: Partial<Record<RigReaction, 'sfx_marty_angry' | 'sfx_marty_happy' | 'sfx_marty_poke'>> = {
-	angry: 'sfx_marty_angry',
-	celebrate: 'sfx_marty_happy',
-	poke: 'sfx_marty_poke',
-};
+// Voice clips that play WITH a reaction animation — three takes each (Corey 2026-09-02), picked at
+// random so a repeated reaction never plays the identical clip. Keyed by reaction so every
+// broadcaster (mantisReact / martyReact / the poke hit area) gets the audio for free — the sound
+// is emitted from inside each rig component's react(), AFTER its on-stage/busy guards, so a beat
+// that broadcasts to both the base-game rig and the bonus rigs still only ever sounds once.
+// Marky has no reaction voice of his own yet: both skins speak with Marty's takes.
+export const REACTION_SOUND_POOLS = {
+	angry: ['sfx_marty_angry', 'sfx_marty_angry_2', 'sfx_marty_angry_3'],
+	celebrate: ['sfx_marty_happy', 'sfx_marty_happy_2', 'sfx_marty_happy_3'],
+	poke: ['sfx_marty_poke', 'sfx_marty_poke_2', 'sfx_marty_poke_3'],
+	astonished: ['sfx_marty_astonished', 'sfx_marty_astonished_2', 'sfx_marty_astonished_3'],
+} as const satisfies Record<RigReaction, readonly string[]>;
+const pick = <T,>(pool: readonly T[]) => pool[Math.floor(Math.random() * pool.length)];
+export const reactionVoice = (kind: RigReaction) => pick(REACTION_SOUND_POOLS[kind]);
+// per-striker strike + eat voices: Marty randomises over his three takes, Marky has one of each
+export const STRIKE_VOICES = {
+	marty: ['sfx_marty_strike', 'sfx_marty_strike_2', 'sfx_marty_strike_3'],
+	marky: ['sfx_marky_strike'],
+} as const;
+export const EAT_VOICES = {
+	marty: ['sfx_marty_eat', 'sfx_marty_eat_2', 'sfx_marty_eat_3'],
+	marky: ['sfx_marky_eat'],
+} as const;
+export const strikeVoice = (striker: 'marty' | 'marky') => pick(STRIKE_VOICES[striker]);
+export const eatVoice = (striker: 'marty' | 'marky') => pick(EAT_VOICES[striker]);
 
 export type SymbolInfo = {
 	type: 'sprite';

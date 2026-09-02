@@ -43,7 +43,8 @@ export const createControls = () => {
 	/** abbreviated full price of one press, for the spin button face */
 	const playCostText = () => abbrevCurrency(betCostFull());
 
-	const sound = (type: 'soundPressGeneral' | 'soundPressBet') => context.eventEmitter.broadcast({ type });
+	const sound = (type: 'soundPressGeneral' | 'soundPressBet' | 'soundPressMinor' | 'soundPressSub' | 'soundPressBonus') =>
+		context.eventEmitter.broadcast({ type });
 
 	// ── spin / stop ──────────────────────────────────────────────────────
 	const spinDisabled = () => (isIdle() ? !canAfford() : stopDisabled && !autoRunning());
@@ -74,7 +75,7 @@ export const createControls = () => {
 	const autoLoadout = () => context.stateGame.autoLoadout;
 	const autoDisabled = () => stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAfford();
 	const autoPress = () => {
-		sound('soundPressGeneral');
+		sound('soundPressMinor');
 		if (autoRunning()) {
 			stateBet.autoSpinsCounter = 0;
 			return;
@@ -85,7 +86,7 @@ export const createControls = () => {
 	const loadAutoplay = (loadout: AutoLoadout) => {
 		context.stateGame.autoLoadout = loadout;
 		stateModal.modal = null;
-		sound('soundPressGeneral');
+		sound('soundPressMinor'); // the autoplay card's ACTIVATE (LOAD) — minor click, like the bonus ACTIVATEs
 	};
 	const clearAutoplay = () => {
 		context.stateGame.autoLoadout = null;
@@ -116,7 +117,7 @@ export const createControls = () => {
 	// reel spin options for SPIN_OPTIONS_INSTANT (stateGame.svelte.ts).
 	const turboLevel = () => context.stateGame.turboLevel;
 	const turboPress = () => {
-		sound('soundPressGeneral');
+		sound('soundPressMinor');
 		const next = ((context.stateGame.turboLevel + 1) % 3) as 0 | 1 | 2;
 		context.stateGame.turboLevel = next;
 		stateBetDerived.updateIsTurbo(next > 0, { persistent: true });
@@ -125,9 +126,9 @@ export const createControls = () => {
 	// ── bonus / ante ─────────────────────────────────────────────────────
 	const bonusDisabled = () => !isIdle();
 	const bonusPress = () => {
-		// Corey 2026-09-01: the Bonus Buy head button speaks with the spin button's voice — the
-		// dedicated bonus-buy click is gone. Every other button in the chrome shares soundPressGeneral.
-		sound('soundPressBet');
+		// Corey 2026-09-02: the bonus head button has its own voice again (ui-bonus.ogg, remixed);
+		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
+		sound('soundPressBonus');
 		// same gesture as switching Ante off: while a mode is active/armed the head button disarms it
 		// (and unloads any waiting autoplay run with it)
 		if (anteActive() || armedBuy()) cancelArmed();
@@ -152,11 +153,12 @@ export const createControls = () => {
 	const betDisabled = () => !isIdle();
 	const openDenom = () => {
 		if (betDisabled()) return;
-		sound('soundPressGeneral');
+		sound('soundPressMinor');
 		stateModal.modal = { name: 'betAmountMenu' };
 	};
-	const setBet = (value: number) => {
-		sound('soundPressGeneral');
+	// silent: a caller that already voiced the press (the autoplay card's stepper uses the sub click)
+	const setBet = (value: number, opts?: { silent?: boolean }) => {
+		if (!opts?.silent) sound('soundPressGeneral');
 		stateBetDerived.setBetAmount(value);
 	};
 	const betIndex = () => betOptions().indexOf(stateBet.betAmount);
@@ -178,10 +180,11 @@ export const createControls = () => {
 
 	// ── menu ─────────────────────────────────────────────────────────────
 	const menuPress = () => {
-		sound('soundPressGeneral');
+		sound('soundPressMinor');
 		stateUi.menuOpen = !stateUi.menuOpen;
 	};
 	const openGameInfo = () => {
+		sound('soundPressMinor'); // the rules button shares the menu's minor click
 		stateUi.menuOpen = false;
 		stateModal.modal = { name: 'gameRules' };
 	};

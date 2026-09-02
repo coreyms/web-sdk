@@ -49,7 +49,7 @@
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={3}>
-	<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} style:top="{compact ? 14 : 22}px" style:right="{compact ? 14 : 26}px" style:width="{compact ? 40 : 44}px" style:height="{compact ? 40 : 44}px" aria-label="Close">
+	<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), controls.sound('soundPressSub'), close())} style:top="{compact ? 14 : 22}px" style:right="{compact ? 14 : 26}px" style:width="{compact ? 40 : 44}px" style:height="{compact ? 40 : 44}px" aria-label="Close">
 		<Icon name="close" s={compact ? 16 : 20} />
 	</button>
 	<div class="center" style:gap="{compact ? 10 : 14}px">
@@ -67,7 +67,7 @@
 				{#each compact ? COUNT_ROWS : [COUNT_ROWS.flat()] as row, r (r)}
 					<div class="chips" class:four={compact} class:eight={!compact}>
 						{#each row as c (c)}
-							<button class="slot-btn chip" class:on={count === c} onclick={() => (count = c)}>
+							<button class="slot-btn chip" class:on={count === c} onclick={() => (controls.sound('soundPressSub'), (count = c))}>
 								<span class="slot-num big">{countText(c)}</span>
 								<span class="slot-num sub">{c === Infinity ? 'until stopped' : controls.abbrev(c * perSpin)}</span>
 							</button>
@@ -84,7 +84,7 @@
 				<div class="sec-label"><h3>Stop on loss</h3><span class="hint">{compact ? 'net loss since start' : 'run stops if net loss since the start reaches this'}</span></div>
 				<div class="chips six">
 					{#each LIMITS as m (m)}
-						<button class="slot-btn chip" class:on={lossMult === m} class:off-red={lossMult === m && m === null} onclick={() => (lossMult = m)}>
+						<button class="slot-btn chip" class:on={lossMult === m} class:off-red={lossMult === m && m === null} onclick={() => (controls.sound('soundPressSub'), (lossMult = m))}>
 							<span class="slot-num big small">{m === null ? 'OFF' : `${m}×`}</span>
 							<span class="slot-num sub">{m === null ? 'no loss stop' : controls.abbrev(m * perSpin)}</span>
 						</button>
@@ -96,7 +96,7 @@
 				<div class="sec-label"><h3>Stop on single win</h3><span class="hint">{compact ? 'one spin wins this much' : 'run stops if one spin wins this much'}</span></div>
 				<div class="chips six">
 					{#each LIMITS as m (m)}
-						<button class="slot-btn chip" class:on={winMult === m} onclick={() => (winMult = m)}>
+						<button class="slot-btn chip" class:on={winMult === m} onclick={() => (controls.sound('soundPressSub'), (winMult = m))}>
 							<span class="slot-num big small">{m === null ? 'OFF' : `${m}×`}</span>
 							<span class="slot-num sub">{m === null ? 'no win stop' : controls.abbrev(m * perSpin)}</span>
 						</button>
@@ -105,14 +105,14 @@
 			</div>
 
 			<div class="toggles">
-				<button class="slot-btn toggle" class:on={stopFreeOn} disabled={armed} onclick={() => { stopFree = !stopFree; if (stopFree) autoBonuses = false; }}>
+				<button class="slot-btn toggle" class:on={stopFreeOn} disabled={armed} onclick={() => { controls.sound('soundPressSub'); stopFree = !stopFree; if (stopFree) autoBonuses = false; }}>
 					<span class="t-text">
 						<span class="t-main">Stop on Free Games</span>
 						<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable — every spin already plays the loaded feature' : compact ? 'Ends when a feature triggers (it still plays out)' : 'Autoplay ends when a feature triggers naturally (it still plays out)'}</span>
 					</span>
 					<span class="knob"></span>
 				</button>
-				<button class="slot-btn toggle" class:on={autoBonuses && !stopFreeOn} disabled={stopFreeOn} onclick={() => (autoBonuses = !autoBonuses)}>
+				<button class="slot-btn toggle" class:on={autoBonuses && !stopFreeOn} disabled={stopFreeOn} onclick={() => (controls.sound('soundPressSub'), (autoBonuses = !autoBonuses))}>
 					<span class="t-text">
 						<span class="t-main">Autoplay Bonuses</span>
 						<span class="t-sub" class:warn={stopFreeOn}>{stopFreeOn ? 'Unavailable — turn off Stop on Free Games first' : compact ? 'Bonus screens continue on their own' : 'Bonus screens continue on their own while autoplay runs'}</span>
@@ -128,11 +128,11 @@
 			</button>
 			<div class="cap">{compact ? 'Loads to the Spin button. Press Spin to start; press again to stop.' : 'Loads to the Spin button. Pressing Spin starts the run; pressing it again stops.'}</div>
 			{#if hasLoadout}
-				<button class="slot-btn unload" onclick={() => { controls.clearAutoplay(); close(); }}>UNLOAD CURRENT AUTO SPINS</button>
+				<button class="slot-btn unload" onclick={() => { controls.sound('soundPressSub'); controls.clearAutoplay(); close(); }}>UNLOAD CURRENT AUTO SPINS</button>
 			{/if}
 		</div>
 		<div class="stepper" onclick={(e) => e.stopPropagation()} role="presentation">
-			<BetAdjuster {controls} {compact} />
+			<BetAdjuster {controls} {compact} pressSound="soundPressSub" />
 		</div>
 	</div>
 </ModalShell>

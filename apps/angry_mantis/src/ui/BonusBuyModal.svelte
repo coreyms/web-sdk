@@ -36,7 +36,7 @@
 	const skipConfirm = $state<Record<string, boolean>>(loadSkipConfirm());
 
 	const onbuy = (opt: BonusCardSpec, price: number) => {
-		controls.sound('soundPressGeneral');
+		controls.sound('soundPressMinor'); // every ticket's ACTIVATE (Corey 2026-09-02)
 		if (opt.toggle) {
 			controls.activateMode(opt.mode);
 			return;

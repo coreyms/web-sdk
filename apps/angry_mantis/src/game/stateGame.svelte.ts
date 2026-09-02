@@ -33,6 +33,11 @@ const onSymbolLand = ({ rawSymbol, visible }: { rawSymbol: RawSymbol; visible?: 
 	if (rawSymbol.name === 'GL') {
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_leaf_land' });
 	}
+	// forcePlay: two wilds settling a reel apart must both sparkle (the once-player otherwise
+	// drops a name that is still sounding)
+	if (rawSymbol.name === 'W') {
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_wild_land', forcePlay: true });
+	}
 };
 
 // ante hold: once the forced reel-1 scatter has dropped in, it stays through later ante spins.

@@ -24,7 +24,7 @@
 	import { getContext } from '../game/context';
 	import { nextSymbolToEat } from '../game/stateGame.svelte';
 	import GameText from './GameText.svelte';
-	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, REACTION_SOUND_MAP, SFX_TRANSIENT, reactionPoolFor } from '../game/constants';
+	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, SFX_TRANSIENT, reactionPoolFor, reactionVoice, strikeVoice, eatVoice } from '../game/constants';
 	import { getSymbolX, getSymbolY } from '../game/utils';
 	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
 	import type { Rig } from '../bonerutter';
@@ -125,8 +125,7 @@
 		);
 		if (targets.length === 0) return;
 		// one voice for the beat, not one per rig — both hosts reacting is still a single sound
-		const voice = REACTION_SOUND_MAP[kind];
-		if (voice) context.eventEmitter.broadcast({ type: 'soundOnce', name: voice });
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: reactionVoice(kind) });
 		let taken: string | null = null;
 		targets.forEach((name, i) => {
 			// each skin picks from ITS OWN pool (RIG_SKIN_EXCLUDE), avoiding the clip the other host
@@ -220,7 +219,7 @@
 			// impact transient lands on the claw hit at TIMINGS.strike — the arms are travelling forward
 			// through this window. Total wait is unchanged, so the eat beat still follows immediately.
 			await waitForTimeout(TIMINGS.strike - SFX_TRANSIENT.martyStrike);
-			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike' });
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: strikeVoice(striker) });
 			await waitForTimeout(SFX_TRANSIENT.martyStrike);
 		},
 		mantisEat: async ({ striker, symbol, from }) => {
@@ -248,7 +247,7 @@
 				// sounds: a cosmetic strike reaches mantisEat with symbol null and stays silent, exactly
 				// as it did before. Plain soundOnce, so Feast's two hosts plucking together share one
 				// voice instead of doubling — same guard philosophy as the reaction sounds.
-				context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_eat' });
+				context.eventEmitter.broadcast({ type: 'soundOnce', name: eatVoice(striker) });
 
 				// claw-catch (finishing-touches): this fires right at the strike clip's impact frame
 				// (mantisStrike maps the claw hit onto the end of TIMINGS.strike), so the insect snaps

@@ -108,6 +108,9 @@
 		if (!ready || pressed) return;
 		pressed = true;
 		clearInterval(rotateTimer);
+		// the continue press has a voice of its own (the minor click, Corey 2026-09-02); the sprite
+		// is guaranteed loaded here — it is one of the things this screen waited for
+		sound.players.once.play({ name: 'sfx_ui_minor' });
 		props.onpress();
 	};
 </script>

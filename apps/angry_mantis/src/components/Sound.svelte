@@ -3,6 +3,12 @@
 
 	export type EmitterEventSound =
 		| { type: 'soundMusic'; name: MusicName }
+		// UI voices (Corey 2026-09-02): minor click = turbo / autoplay / denomination / menu / the
+		// ACTIVATE-LOAD buttons / the landing continue; sub = every other button inside the autoplay
+		// card; bonus = the bonus head button. Everything else keeps the general click.
+		| { type: 'soundPressMinor' }
+		| { type: 'soundPressSub' }
+		| { type: 'soundPressBonus' }
 		| { type: 'soundOnce'; name: SoundEffectName; forcePlay?: boolean }
 		| { type: 'soundLoop'; name: SoundEffectName }
 		| { type: 'soundStop'; name: SoundName }
@@ -25,6 +31,9 @@
 		soundBetMode: () => {},
 		soundPressGeneral: () => sound.players.once.play({ name: 'sfx_ui_button' }),
 		soundPressBet: () => sound.players.once.play({ name: 'sfx_ui_spin' }),
+		soundPressMinor: () => sound.players.once.play({ name: 'sfx_ui_minor' }),
+		soundPressSub: () => sound.players.once.play({ name: 'sfx_ui_sub' }),
+		soundPressBonus: () => sound.players.once.play({ name: 'sfx_ui_bonus' }),
 		// scatterCounter
 		soundScatterCounterIncrease: () => (context.stateGame.scatterCounter = context.stateGame.scatterCounter + 1), // prettier-ignore
 		soundScatterCounterClear: () => (context.stateGame.scatterCounter = 0),
