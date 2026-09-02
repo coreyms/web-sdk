@@ -219,6 +219,14 @@ export const SYMBOL_INFO_MAP: Record<SymbolName, Record<SymbolState, SymbolInfo>
 	GL: symbolStates('GL', 1.0),
 };
 
+// Feature-trigger fanfare by the scatter count that triggered it (Corey's bonus-trigger-*.ogg,
+// 2026-09-02). Fired at freeSpinTrigger — the moment the scatters pulse — before the door drops.
+export const BONUS_TRIGGER_SOUND_MAP: Record<3 | 4 | 5, 'sfx_bonus_trigger_free' | 'sfx_bonus_trigger_super' | 'sfx_bonus_trigger_feast'> = {
+	3: 'sfx_bonus_trigger_free',
+	4: 'sfx_bonus_trigger_super',
+	5: 'sfx_bonus_trigger_feast',
+};
+
 export const SCATTER_LAND_SOUND_MAP = {
 	1: 'sfx_scatter_land_1',
 	2: 'sfx_scatter_land_2',

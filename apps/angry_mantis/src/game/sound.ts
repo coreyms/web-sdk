@@ -44,7 +44,10 @@ export type SoundEffectName =
 	| 'sfx_marty_poke_3'
 	| 'sfx_marty_astonished'
 	| 'sfx_marty_astonished_2'
-	| 'sfx_marty_astonished_3';
+	| 'sfx_marty_astonished_3'
+	| 'sfx_bonus_trigger_free'
+	| 'sfx_bonus_trigger_super'
+	| 'sfx_bonus_trigger_feast';
 
 export type SoundName = MusicName | SoundEffectName;
 

@@ -153,6 +153,18 @@
 		"sfx_marty_astonished_3": [
 			62581,
 			872
+		],
+		"sfx_bonus_trigger_free": [
+			64453,
+			1199
+		],
+		"sfx_bonus_trigger_super": [
+			66652,
+			1335
+		],
+		"sfx_bonus_trigger_feast": [
+			68987,
+			1523
 		]
 	},
 	"config": {
@@ -269,11 +281,20 @@
 		},
 		"sfx_marty_astonished_3": {
 			"volume": 1
+		},
+		"sfx_bonus_trigger_free": {
+			"volume": 1
+		},
+		"sfx_bonus_trigger_super": {
+			"volume": 1
+		},
+		"sfx_bonus_trigger_feast": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=e77bed57",
-		"./assets/audio/sounds.m4a?v=a20d3020",
-		"./assets/audio/sounds.mp3?v=abe14ae1"
+		"./assets/audio/sounds.ogg?v=4354bef3",
+		"./assets/audio/sounds.m4a?v=f4bc046a",
+		"./assets/audio/sounds.mp3?v=b5969e6a"
 	]
 }

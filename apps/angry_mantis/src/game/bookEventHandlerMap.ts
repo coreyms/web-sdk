@@ -12,6 +12,7 @@ import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { Position } from './types';
+import { BONUS_TRIGGER_SOUND_MAP } from './constants';
 
 const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) => {
 	if (winLevelData?.alias === 'max') eventEmitter.broadcastAsync({ type: 'uiHide' });
@@ -149,6 +150,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (stateGame.autoStopOnFreeGames && stateBet.autoSpinsCounter > 0) {
 			stateBet.autoSpinsCounter = 0;
 		}
+		// the fanfare belongs to THIS beat — the scatters pulsing — not to the door that follows
+		const scatters = Math.max(3, Math.min(5, bookEvent.positions.length)) as 3 | 4 | 5;
+		eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND_MAP[scatters] });
 		await animateSymbols({ positions: bookEvent.positions });
 		stateGame.totalFs = bookEvent.totalFs;
 		// the bonusStart event that follows plays the mode-specific intro
@@ -173,7 +177,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// "he just keeps standing"; super's Marty already walked out above).
 		stateGame.gameType = 'freegame';
 		eventEmitter.broadcast({ type: 'mantisShow', host: bookEvent.host });
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_ui_bonus' });
+		// (the trigger fanfare already played at freeSpinTrigger; ui-bonus is the head button's click now)
 		musicPlay(modeMusic());
 		await eventEmitter.broadcastAsync({
 			type: 'bonusIntroShow',
