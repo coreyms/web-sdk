@@ -117,8 +117,12 @@ const format = (
 	const currency = stateBet.currency;
 	const meta = metaFor(currency);
 	const number = stateI18n.i18n.number(numberToFloat(value), digits);
-	if (meta.after) return `${number} ${meta.symbol}`;
-	return SPACED_PREFIX.has(currency) ? `${meta.symbol} ${number}` : `${meta.symbol}${number}`;
+	// a right-to-left symbol (EGP's ج.م) pulls the digits into its own run and renders AFTER the
+	// number in a left-to-right page; a left-to-right mark after it pins "ج.م10.00" the way the
+	// Stake table shows it
+	const symbol = /[\u0590-\u08FF]/.test(meta.symbol) ? `${meta.symbol}\u200E` : meta.symbol;
+	if (meta.after) return `${number} ${symbol}`;
+	return SPACED_PREFIX.has(currency) ? `${symbol} ${number}` : `${symbol}${number}`;
 };
 
 export const numberToCurrencyString = (
