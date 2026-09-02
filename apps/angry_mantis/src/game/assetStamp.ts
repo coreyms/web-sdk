@@ -59,7 +59,6 @@ export default {
 	"ui/logo-landscape.webp": "ae494b11",
 	"ui/logo-wide.webp": "9446f5f8",
 	"ui/mantis-head.png": "af90f6bd",
-	"ui/marky.webp": "fc9a0720",
 	"ui/marty.png": "f4da6399",
 	"ui/numerals/glyphs.json": "f7f4dba2",
 	"ui/numerals/numerals.json": "909671f9",
