@@ -28,9 +28,9 @@
 				? `linear-gradient(135deg, ${opt.tone.accent} 0%, ${opt.tone.accent2} 100%)`
 				: `linear-gradient(180deg, ${opt.tone.accent} 0%, ${opt.tone.accent}cc 100%)`,
 	);
-	const costText = $derived(
-		opt.toggle ? `+${numberToCurrencyString(price - stateBet.betAmount)} / SPIN` : numberToCurrencyString(price),
-	);
+	// every card shows what a play costs, ante included: its full per-spin price (2x the bet),
+	// not the "+$1.00 / SPIN" surcharge form (Corey 2026-09-02) — the card copy already says 2x
+	const costText = $derived(numberToCurrencyString(price));
 </script>
 
 <div class="card">
