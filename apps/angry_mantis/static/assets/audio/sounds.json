@@ -88,23 +88,23 @@
 		],
 		"sfx_win_big": [
 			360051,
-			1000
+			137
 		],
 		"sfx_money_counter": [
-			362051,
+			361188,
 			781,
 			true
 		],
 		"sfx_ui_button": [
-			363832,
+			362969,
 			187
 		],
 		"sfx_ui_spin": [
-			365018,
+			364156,
 			187
 		],
 		"sfx_ui_bonus": [
-			366205,
+			365342,
 			187
 		]
 	},
@@ -186,8 +186,8 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=163bb8b7",
-		"./assets/audio/sounds.m4a?v=ba3c0381",
-		"./assets/audio/sounds.mp3?v=30c6b83e"
+		"./assets/audio/sounds.ogg?v=deb2dc98",
+		"./assets/audio/sounds.m4a?v=d8282392",
+		"./assets/audio/sounds.mp3?v=20885866"
 	]
 }
