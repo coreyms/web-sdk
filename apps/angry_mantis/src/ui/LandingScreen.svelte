@@ -120,7 +120,7 @@
 		<div class="col" style:padding="{SZ.pad}px">
 			<div class="logo">
 				<img src={logoSrc} alt="Angry Mantis" width={SZ.logoW} draggable="false" />
-				<span class="tag" style:font-size="{SZ.tag}px">WIN UP TO 20,000×</span>
+				<img class="tag" src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" style:width="{SZ.tag * 12}px" draggable="false" />
 			</div>
 
 			{#if carousel}
@@ -235,10 +235,9 @@
 		filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.7));
 	}
 	.tag {
-		font-weight: 900;
-		letter-spacing: 3px;
-		color: #e8b04a;
-		text-shadow: 0 2px 3px rgba(0, 0, 0, 0.7);
+		/* Corey's art in place of the old text; width tracks the tag font size it replaced (~12x) */
+		height: auto;
+		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
 	}
 	/* fixed grid rows keep image / header / description on the same lines across cards */
 	.cards {

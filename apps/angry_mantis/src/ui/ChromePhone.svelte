@@ -24,7 +24,8 @@
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
 <img class="logo" src={stamp('/assets/ui/logo-landscape.webp')} alt="Angry Mantis" draggable="false" />
-<div class="tagline"><span>WIN UP TO 20,000×</span></div>
+<!-- Corey's "WIN UP TO 20,000x" art (colour-graded to the logo), sized to the text it replaced -->
+<div class="tagline"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /></div>
 
 <!-- anchored to the reel frame edges, same as desktop; maxWidth auto-shrinks trillion-scale balances -->
 <div class="stats">
@@ -68,12 +69,10 @@
 		text-align: center;
 		pointer-events: none;
 	}
-	.tagline span {
-		font-size: 14px;
-		font-weight: 900;
-		color: #ffdc4a;
-		letter-spacing: 2.5px;
-		text-shadow: 0 2px 3px rgba(0, 0, 0, 0.7);
+	.tagline img {
+		width: 176px; /* the old 14px text measured 176 master px wide */
+		height: auto;
+		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
 	}
 	/* Stats strip in the band between the frame bottom (686.5) and the master edge (740). */
 	.stats {

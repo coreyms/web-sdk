@@ -23,6 +23,8 @@ export default {
 	doorSteel: { type: 'sprite', src: stamp(new URL('../../assets/ui/door-steel.webp', import.meta.url).href), preload: true },
 	// reflectivity mask for the frame's inner steel lips (Corey's paint-over of the frame art, same
 	// 1415x1217 canvas): white = chrome that mirrors the reels, alpha = strength. FrameReflections.
+	// "ON THE MENU" header art for the pool HUD (colour-graded to the logo like the tagline)
+	textOnTheMenu: { type: 'sprite', src: stamp(new URL('../../assets/ui/onthemenu.webp', import.meta.url).href), preload: true },
 	frameReflectMask: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-reflect.png', import.meta.url).href), preload: true },
 	// hand-made gold text art (assets/images/overlays -> static/assets/ui/text): tier titles,
 	// max-win lines, retrigger digits/words. Replaces canvas-rasterized GameText at the biggest
