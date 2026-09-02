@@ -65,7 +65,7 @@ export default {
 	"ui/cafeteria-background-base-bonus.webp": "06b5c8d4",
 	"ui/cafeteria-background-feast.webp": "9b9bdb69",
 	"ui/cafeteria-background-super.webp": "e240c948",
-	"ui/door-steel.webp": "eeb13b03",
+	"ui/door-steel.webp": "b47482d0",
 	"ui/frame-desktop.png": "70055e47",
 	"ui/frame-mobile.png": "69528728",
 	"ui/gold-alphabet/glyphs.json": "c2f1eee6",
