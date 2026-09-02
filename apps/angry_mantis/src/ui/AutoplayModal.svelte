@@ -1,12 +1,18 @@
 <script lang="ts">
-	// Autoplay Loadout (design approved 2026-08-26): configure a run, preview its TRUE total, then
-	// LOAD it onto the spin button — pressing Spin is what starts it. Loss/win stops are multiples of
-	// one spin's play amount; "stop on free games" only exists outside armed feature modes.
+	// Autoplay Loadout (design approved 2026-08-26; Meal Ticket skin from Corey's Claude Design
+	// "Autoplay 2a", 2026-09-02): configure a run, preview its TRUE total, then LOAD it onto the spin
+	// button — pressing Spin is what starts it. Loss/win stops are multiples of one spin's play
+	// amount; "stop on free games" only exists outside armed feature modes. The skin is the same
+	// cream card stock as the Chow Line so bonus-buy and autoplay read as one system: green = go,
+	// red = loss stop, yellow only on the mode pill. Fonts stay the chrome's own (Outfit labels,
+	// Sora numbers) — Corey wants the autoplay faces unchanged, not the design's display fonts.
+	// The bet stepper sits under the card, as it does on the bonus-buy screen (Corey 2026-09-02).
 	import { stateModal } from 'state-shared';
 
 	import { modeChipData } from '../game/modeChipData';
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
+	import BetAdjuster from './BetAdjuster.svelte';
 	import Icon from './Icon.svelte';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
@@ -43,40 +49,43 @@
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={3}>
-	<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} style:top="{compact ? 14 : 22}px" style:right="{compact ? 14 : 24}px" style:width="{compact ? 38 : 46}px" style:height="{compact ? 38 : 46}px" aria-label="Close">
+	<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} style:top="{compact ? 14 : 22}px" style:right="{compact ? 14 : 26}px" style:width="{compact ? 40 : 44}px" style:height="{compact ? 40 : 44}px" aria-label="Close">
 		<Icon name="close" s={compact ? 16 : 20} />
 	</button>
-	<div class="center">
-		<div class="panel" onclick={(e) => e.stopPropagation()} role="presentation" style:padding={compact ? '18px 14px' : '24px 26px'} style:gap="{compact ? 12 : 15}px" style:max-height="{0.92 * master.height}px">
+	<div class="center" style:gap="{compact ? 10 : 14}px">
+		<div class="panel" class:compact onclick={(e) => e.stopPropagation()} role="presentation" style:max-height="{master.height - (compact ? 118 : 130)}px">
+			<div class="grain"></div>
 			<div class="head">
-				<div class="title" style:font-size="{compact ? 16 : 20}px">AUTOPLAY</div>
-				<div class="pill" style:font-size="{compact ? 10.5 : 12}px"><b>{pill.label}</b><span class="dot">·</span><span class="slot-num cost">{pill.cost}</span><span class="per">/ SPIN</span></div>
+				<div class="title">AUTOPLAY</div>
+				<div class="pill"><b>{compact ? pill.label.replace(' GAME', '') : pill.label}</b><span class="dot">·</span><span class="slot-num cost">{pill.cost}</span><span class="per">/ SPIN</span></div>
 			</div>
 
 			<div class="sec">
-				<div class="sec-label"><h3 style:font-size="{compact ? 10 : 11}px">Number of spins</h3><span class="hint">selecting only previews — nothing starts</span></div>
-				{#each COUNT_ROWS as row, r (r)}
-					<div class="chips">
+				<div class="sec-label"><h3>Number of spins</h3><span class="hint">{compact ? 'selecting only previews' : 'selecting only previews — nothing starts'}</span></div>
+				<!-- landscape's 720-tall master has no room for two count rows under the rest of the card,
+				     so the eight counts run as one row there; compact keeps the design's 4×2 -->
+				{#each compact ? COUNT_ROWS : [COUNT_ROWS.flat()] as row, r (r)}
+					<div class="chips" class:four={compact} class:eight={!compact}>
 						{#each row as c (c)}
-							<button class="slot-btn chip gold" class:on={count === c} onclick={() => (count = c)} style:padding="{compact ? '6px 4px 5px' : '8px 6px 6px'}">
-								<span class="slot-num big" style:font-size="{compact ? 14 : 16}px">{countText(c)}</span>
+							<button class="slot-btn chip" class:on={count === c} onclick={() => (count = c)}>
+								<span class="slot-num big">{countText(c)}</span>
 								<span class="slot-num sub">{c === Infinity ? 'until stopped' : controls.abbrev(c * perSpin)}</span>
 							</button>
 						{/each}
 					</div>
 				{/each}
 				<div class="total">
-					<span class="k" style:font-size="{compact ? 10 : 11}px">TOTAL PLAY AMOUNT</span>
-					<span class="slot-num v" style:font-size="{compact ? 17 : 21}px">{totalText}{#if count !== Infinity}<small>{count} × {controls.abbrev(perSpin)}</small>{/if}</span>
+					<span class="k">{compact ? 'TOTAL PLAY' : 'TOTAL PLAY AMOUNT'}</span>
+					<span class="v-wrap"><span class="slot-num v">{totalText}</span><span class="slot-num math">{count === Infinity ? 'until stopped' : `${count} × ${controls.abbrev(perSpin)}`}</span></span>
 				</div>
 			</div>
 
 			<div class="sec">
-				<div class="sec-label"><h3 style:font-size="{compact ? 10 : 11}px">Stop on loss</h3><span class="hint">run stops if net loss since the start reaches this</span></div>
-				<div class="chips">
+				<div class="sec-label"><h3>Stop on loss</h3><span class="hint">{compact ? 'net loss since start' : 'run stops if net loss since the start reaches this'}</span></div>
+				<div class="chips six">
 					{#each LIMITS as m (m)}
-						<button class="slot-btn chip ember" class:on={lossMult === m} onclick={() => (lossMult = m)} style:padding="{compact ? '6px 4px 5px' : '8px 6px 6px'}">
-							<span class="slot-num big" style:font-size="{compact ? 13 : 15}px">{m === null ? 'OFF' : `${m}×`}</span>
+						<button class="slot-btn chip" class:on={lossMult === m} class:off-red={lossMult === m && m === null} onclick={() => (lossMult = m)}>
+							<span class="slot-num big small">{m === null ? 'OFF' : `${m}×`}</span>
 							<span class="slot-num sub">{m === null ? 'no loss stop' : controls.abbrev(m * perSpin)}</span>
 						</button>
 					{/each}
@@ -84,11 +93,11 @@
 			</div>
 
 			<div class="sec">
-				<div class="sec-label"><h3 style:font-size="{compact ? 10 : 11}px">Stop on single win</h3><span class="hint">run stops if one spin wins this much</span></div>
-				<div class="chips">
+				<div class="sec-label"><h3>Stop on single win</h3><span class="hint">{compact ? 'one spin wins this much' : 'run stops if one spin wins this much'}</span></div>
+				<div class="chips six">
 					{#each LIMITS as m (m)}
-						<button class="slot-btn chip leaf" class:on={winMult === m} onclick={() => (winMult = m)} style:padding="{compact ? '6px 4px 5px' : '8px 6px 6px'}">
-							<span class="slot-num big" style:font-size="{compact ? 13 : 15}px">{m === null ? 'OFF' : `${m}×`}</span>
+						<button class="slot-btn chip" class:on={winMult === m} onclick={() => (winMult = m)}>
+							<span class="slot-num big small">{m === null ? 'OFF' : `${m}×`}</span>
 							<span class="slot-num sub">{m === null ? 'no win stop' : controls.abbrev(m * perSpin)}</span>
 						</button>
 					{/each}
@@ -98,27 +107,32 @@
 			<div class="toggles">
 				<button class="slot-btn toggle" class:on={stopFreeOn} disabled={armed} onclick={() => { stopFree = !stopFree; if (stopFree) autoBonuses = false; }}>
 					<span class="t-text">
-						<span class="t-main" style:font-size="{compact ? 12 : 13.5}px">Stop on Free Games</span>
-						<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable — every spin already plays the loaded feature' : 'Autoplay ends when a feature triggers naturally (it still plays out)'}</span>
+						<span class="t-main">Stop on Free Games</span>
+						<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable — every spin already plays the loaded feature' : compact ? 'Ends when a feature triggers (it still plays out)' : 'Autoplay ends when a feature triggers naturally (it still plays out)'}</span>
 					</span>
 					<span class="knob"></span>
 				</button>
 				<button class="slot-btn toggle" class:on={autoBonuses && !stopFreeOn} disabled={stopFreeOn} onclick={() => (autoBonuses = !autoBonuses)}>
 					<span class="t-text">
-						<span class="t-main" style:font-size="{compact ? 12 : 13.5}px">Autoplay Bonuses</span>
-						<span class="t-sub" class:warn={stopFreeOn}>{stopFreeOn ? 'Unavailable — turn off Stop on Free Games first' : 'Bonus screens continue on their own while autoplay runs'}</span>
+						<span class="t-main">Autoplay Bonuses</span>
+						<span class="t-sub" class:warn={stopFreeOn}>{stopFreeOn ? 'Unavailable — turn off Stop on Free Games first' : compact ? 'Bonus screens continue on their own' : 'Bonus screens continue on their own while autoplay runs'}</span>
 					</span>
 					<span class="knob"></span>
 				</button>
 			</div>
 
-			<button class="slot-btn go" onclick={load} style:font-size="{compact ? 13 : 15}px">
+			<div class="tear"></div>
+
+			<button class="slot-btn go" onclick={load}>
 				LOAD {countText(count)} AUTO SPINS{#if count !== Infinity}&nbsp;—&nbsp;<span class="slot-num">{totalText}</span>{/if}
 			</button>
-			<div class="cap">Loads to the Spin button. Pressing Spin starts the run; pressing it again stops.</div>
+			<div class="cap">{compact ? 'Loads to the Spin button. Press Spin to start; press again to stop.' : 'Loads to the Spin button. Pressing Spin starts the run; pressing it again stops.'}</div>
 			{#if hasLoadout}
 				<button class="slot-btn unload" onclick={() => { controls.clearAutoplay(); close(); }}>UNLOAD CURRENT AUTO SPINS</button>
 			{/if}
+		</div>
+		<div class="stepper" onclick={(e) => e.stopPropagation()} role="presentation">
+			<BetAdjuster {controls} {compact} />
 		</div>
 	</div>
 </ModalShell>
@@ -126,9 +140,9 @@
 <style>
 	.x {
 		position: absolute;
-		border-radius: 8px;
-		background: rgba(0, 0, 0, 0.4);
-		box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+		border-radius: 10px;
+		background: rgba(0, 0, 0, 0.55);
+		border: 2px solid rgba(255, 255, 255, 0.25);
 		color: #fff;
 		display: flex;
 		align-items: center;
@@ -139,20 +153,50 @@
 		position: absolute;
 		inset: 0;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		pointer-events: none;
 	}
-	.panel {
-		width: min(660px, 96%);
+	.stepper {
 		pointer-events: auto;
+	}
+
+	/* ── the paper card ── */
+	.panel {
+		--ink: #1b1204;
+		--body: #2a241a;
+		--muted: #6b6250;
+		--faint: #8a8069;
+		--rule: #a99c7d;
+		--green: #4e7d15;
+		--green-bg: #a6e457;
+		--green-glow: rgba(143, 209, 63, 0.35);
+		--red: #b8371e;
+		--red-bg: #ff8a70;
+		--red-glow: rgba(239, 90, 60, 0.3);
+		width: min(720px, 96%);
+		pointer-events: auto;
+		position: relative;
 		display: flex;
 		flex-direction: column;
+		gap: 10px;
+		padding: 18px 26px 16px;
 		overflow-y: auto;
-		background: linear-gradient(180deg, #171106 0%, #0c1207 100%);
-		border: 1px solid rgba(232, 176, 74, 0.28);
+		color: var(--body);
+		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
 		border-radius: 18px;
-		box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+		box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
+	}
+	.grain {
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+		pointer-events: none;
+	}
+	.panel > :not(.grain) {
+		position: relative;
 	}
 	.head {
 		display: flex;
@@ -162,116 +206,366 @@
 		flex-wrap: wrap;
 	}
 	.title {
+		font-size: 24px;
 		font-weight: 900;
-		letter-spacing: 2.5px;
-		color: #fff;
-		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+		letter-spacing: 5px;
+		color: var(--ink);
+		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 	.pill {
 		display: inline-flex;
 		align-items: baseline;
-		gap: 6px;
+		gap: 8px;
 		border-radius: 999px;
-		padding: 4px 13px;
-		background: rgba(10, 6, 2, 0.7);
-		box-shadow: inset 0 0 0 1px rgba(232, 176, 74, 0.55);
-		color: #e8b04a;
-		font-weight: 900;
-		letter-spacing: 1.4px;
+		padding: 8px 18px;
+		background: var(--body);
+		color: #ebe3cf;
+		font-size: 13px;
+		font-weight: 800;
+		letter-spacing: 2.5px;
 		white-space: nowrap;
 	}
-	.pill .dot { opacity: 0.6; }
-	.pill .cost { color: #fff; font-weight: 700; }
-	.pill .per { font-size: 0.75em; opacity: 0.7; }
-	.sec { display: flex; flex-direction: column; gap: 7px; }
-	.sec-label { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+	.pill b {
+		color: #f2c14e;
+		font-weight: 800;
+	}
+	.pill .dot {
+		opacity: 0.5;
+	}
+	.pill .cost {
+		font-size: 15px;
+		color: #fff;
+		font-weight: 800;
+	}
+	.pill .per {
+		font-size: 10px;
+		font-weight: 700;
+		opacity: 0.6;
+	}
+	.sec {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.sec-label {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
 	.sec-label h3 {
 		margin: 0;
-		font-weight: 900;
-		letter-spacing: 2px;
-		color: rgba(238, 240, 230, 0.55);
+		font-size: 12px;
+		font-weight: 800;
+		letter-spacing: 3px;
+		color: var(--muted);
 		text-transform: uppercase;
 	}
-	.hint { font-size: 10.5px; color: rgba(238, 240, 230, 0.35); }
-	.chips { display: flex; gap: 7px; }
+	.hint {
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--faint);
+	}
+	.chips {
+		display: grid;
+		gap: 10px;
+	}
+	.chips.four {
+		grid-template-columns: repeat(4, 1fr);
+	}
+	.chips.six {
+		grid-template-columns: repeat(6, 1fr);
+	}
+	.chips.eight {
+		grid-template-columns: repeat(8, 1fr);
+	}
+	.chips.eight .chip .sub {
+		font-size: 10px; /* "until stopped" clips at 11px in an eighth of the card */
+	}
 	.chip {
-		flex: 1 1 0;
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 1px;
-		border-radius: 11px;
-		background: rgba(255, 255, 255, 0.035);
-		box-shadow: inset 0 0 0 1.5px rgba(238, 240, 230, 0.12);
-		color: #fff;
+		padding: 8px 4px 6px;
+		border-radius: 12px;
+		background: rgba(0, 0, 0, 0.06);
+		border: 2px solid rgba(0, 0, 0, 0.14);
+		color: var(--ink);
 	}
-	.chip .big { font-weight: 800; }
-	.chip .sub { font-size: 9.5px; color: rgba(238, 240, 230, 0.35); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-	.chip.gold.on { box-shadow: inset 0 0 0 1.5px #ffdc4a, 0 0 16px rgba(255, 220, 74, 0.15); background: linear-gradient(180deg, rgba(255, 220, 74, 0.16), rgba(255, 220, 74, 0.05)); }
-	.chip.gold.on .sub { color: #e8b04a; }
-	.chip.ember.on { box-shadow: inset 0 0 0 1.5px #c53c24, 0 0 16px rgba(197, 60, 36, 0.18); background: linear-gradient(180deg, rgba(197, 60, 36, 0.2), rgba(197, 60, 36, 0.06)); }
-	.chip.ember.on .sub { color: #e08a70; }
-	.chip.leaf.on { box-shadow: inset 0 0 0 1.5px #9cd92f, 0 0 16px rgba(156, 217, 47, 0.16); background: linear-gradient(180deg, rgba(156, 217, 47, 0.16), rgba(156, 217, 47, 0.05)); }
-	.chip.leaf.on .sub { color: #b9e567; }
+	.chip .big {
+		font-size: 20px;
+		font-weight: 800;
+		line-height: 1.1;
+	}
+	.chip .big.small {
+		font-size: 17px;
+	}
+	.chip .sub {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--faint);
+		white-space: nowrap;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.chip.on {
+		background: var(--green-bg);
+		border-color: var(--green);
+		box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06), 0 0 18px var(--green-glow);
+	}
+	.chip.on .sub {
+		color: #2f5309;
+	}
+	/* loss stop OFF reads as the red side of the scale */
+	.chip.on.off-red {
+		background: var(--red-bg);
+		border-color: var(--red);
+		box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06), 0 0 18px var(--red-glow);
+	}
+	.chip.on.off-red .sub {
+		color: var(--red);
+	}
 	.total {
 		display: flex;
 		justify-content: space-between;
+		align-items: center;
+		gap: 12px;
+		border: 3px dashed var(--rule);
+		border-radius: 12px;
+		padding: 8px 20px;
+	}
+	.total .k {
+		font-size: 14px;
+		font-weight: 800;
+		letter-spacing: 3px;
+		color: var(--muted);
+	}
+	.v-wrap {
+		display: flex;
 		align-items: baseline;
 		gap: 12px;
-		border: 1px dashed rgba(232, 176, 74, 0.4);
-		border-radius: 11px;
-		padding: 7px 14px;
-		background: rgba(232, 176, 74, 0.05);
 	}
-	.total .k { font-weight: 900; letter-spacing: 2px; color: #e8b04a; }
-	.total .v { font-weight: 800; color: #fff; }
-	.total .v small { font-size: 11px; color: rgba(238, 240, 230, 0.4); font-weight: 400; margin-left: 8px; }
-	.toggles { display: flex; gap: 7px; }
+	.total .v {
+		font-size: 26px;
+		font-weight: 800;
+		color: var(--ink);
+	}
+	.total .math {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--faint);
+	}
+	.toggles {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 10px;
+	}
 	.toggle {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
-		border-radius: 11px;
-		padding: 9px 13px;
-		background: rgba(255, 255, 255, 0.03);
-		box-shadow: inset 0 0 0 1.5px rgba(238, 240, 230, 0.12);
-		color: #fff;
+		gap: 14px;
+		padding: 10px 14px;
+		border-radius: 12px;
+		background: rgba(0, 0, 0, 0.06);
+		border: 2px solid rgba(0, 0, 0, 0.12);
+		color: var(--ink);
 		text-align: left;
-		flex: 1 1 0;
 		min-width: 0;
 		min-height: 44px;
 	}
-	.toggle.on { box-shadow: inset 0 0 0 1.5px #9cd92f; }
-	.toggle:disabled { opacity: 0.5; }
-	.t-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-	.t-main { font-weight: 700; letter-spacing: 0.6px; }
-	.t-sub { font-size: 10.5px; color: rgba(238, 240, 230, 0.4); }
-	.t-sub.warn { color: #e08a70; }
-	.knob { flex: 0 0 auto; width: 40px; height: 22px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); position: relative; }
-	.knob::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left 0.15s; }
-	.toggle.on .knob { background: #9cd92f; }
-	.toggle.on .knob::after { left: 21px; }
-	.go {
-		border-radius: 13px;
-		padding: 13px 16px;
-		font-weight: 900;
-		letter-spacing: 1.5px;
-		color: #14100a;
-		background: linear-gradient(180deg, #ffdc4a 0%, #dfb02c 100%);
-		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 3px 0 #6b4c00, 0 8px 20px rgba(0, 0, 0, 0.5);
+	.toggle:disabled {
+		opacity: 0.55;
 	}
-	.cap { text-align: center; font-size: 10.5px; color: rgba(238, 240, 230, 0.35); margin-top: -6px; }
+	.t-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+	.t-main {
+		font-size: 14px;
+		font-weight: 800;
+	}
+	.t-sub {
+		font-size: 11px;
+		font-weight: 500;
+		line-height: 1.35;
+		color: var(--muted);
+		text-wrap: pretty;
+	}
+	.t-sub.warn {
+		color: var(--red);
+	}
+	.knob {
+		flex: 0 0 auto;
+		width: 52px;
+		height: 28px;
+		border-radius: 999px;
+		background: var(--rule);
+		position: relative;
+		box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+	}
+	.knob::after {
+		content: '';
+		position: absolute;
+		top: 4px;
+		left: 4px;
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background: #fff;
+		box-shadow: 0 2px 3px rgba(0, 0, 0, 0.4);
+		transition: left 0.15s;
+	}
+	.toggle.on .knob {
+		background: #6fb52a;
+	}
+	.toggle.on .knob::after {
+		left: 28px;
+	}
+	.tear {
+		height: 0;
+		border-top: 3px dashed var(--rule);
+		margin: 0 -14px;
+	}
+	.go {
+		border-radius: 12px;
+		padding: 14px 16px;
+		font-size: 15px;
+		font-weight: 900;
+		letter-spacing: 3px;
+		color: var(--ink);
+		background: linear-gradient(180deg, #9be04a, #6fb52a);
+		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+	}
+	.cap {
+		text-align: center;
+		font-size: 11.5px;
+		font-weight: 500;
+		color: var(--faint);
+		margin-top: -4px;
+	}
 	.unload {
 		align-self: center;
 		border-radius: 9px;
-		padding: 7px 14px;
+		padding: 8px 16px;
 		font-size: 11px;
 		font-weight: 800;
 		letter-spacing: 1.5px;
-		color: rgba(255, 255, 255, 0.75);
-		background: rgba(255, 255, 255, 0.05);
-		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+		color: #ebe3cf;
+		background: var(--body);
+		box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+	}
+
+	/* ── compact (phone sideways / portrait) ── */
+	.compact {
+		gap: 9px;
+		padding: 14px 14px 12px;
+		border-radius: 14px;
+	}
+	.compact .title {
+		font-size: 18px;
+		letter-spacing: 2px;
+	}
+	.compact .pill {
+		gap: 5px;
+		padding: 6px 10px;
+		font-size: 9px;
+		letter-spacing: 1px;
+	}
+	.compact .pill .cost {
+		font-size: 12px;
+	}
+	.compact .pill .per {
+		font-size: 8px;
+	}
+	.compact .sec {
+		gap: 6px;
+	}
+	.compact .sec-label h3 {
+		font-size: 10px;
+		letter-spacing: 2.5px;
+	}
+	.compact .hint {
+		font-size: 9.5px;
+	}
+	.compact .chips.four {
+		gap: 7px;
+	}
+	.compact .chips.six {
+		gap: 5px;
+	}
+	.compact .chip {
+		padding: 7px 3px 5px;
+		border-radius: 9px;
+	}
+	.compact .chip .big {
+		font-size: 16px;
+	}
+	.compact .chip .big.small {
+		font-size: 13px;
+	}
+	.compact .chip .sub {
+		font-size: 9px;
+	}
+	.compact .total {
+		border-width: 2px;
+		border-radius: 9px;
+		padding: 6px 12px;
+	}
+	.compact .total .k {
+		font-size: 10px;
+		letter-spacing: 2px;
+	}
+	.compact .total .v {
+		font-size: 19px;
+	}
+	.compact .total .math {
+		font-size: 10px;
+	}
+	.compact .toggles {
+		grid-template-columns: 1fr;
+		gap: 7px;
+	}
+	.compact .toggle {
+		padding: 8px 12px;
+		border-radius: 9px;
+		min-height: 40px;
+	}
+	.compact .t-main {
+		font-size: 12.5px;
+	}
+	.compact .t-sub {
+		font-size: 10px;
+	}
+	.compact .knob {
+		width: 46px;
+		height: 26px;
+	}
+	.compact .knob::after {
+		top: 3px;
+		left: 3px;
+	}
+	.compact .toggle.on .knob::after {
+		left: 23px;
+	}
+	.compact .tear {
+		border-top-width: 2px;
+		margin: 0 -6px;
+	}
+	.compact .go {
+		padding: 12px 12px;
+		font-size: 13px;
+		letter-spacing: 2px;
+		border-radius: 10px;
+		box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+	}
+	.compact .cap {
+		font-size: 9.5px;
 	}
 </style>
