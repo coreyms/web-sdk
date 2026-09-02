@@ -139,6 +139,16 @@ export const RIG = {
 } as const;
 export type RigReaction = keyof typeof RIG.reactions;
 
+// Clips a skin must never play. 'Astonished 3' has Marty's GREEN jaw-drop baked into the clip, so
+// on the Marky skin it flashes the wrong colour (Corey 2026-09-02) — Marky draws from the other
+// two takes instead, and a pool that filters to nothing simply doesn't fire.
+export const RIG_SKIN_EXCLUDE: Record<'marty' | 'marky', readonly string[]> = {
+	marty: [],
+	marky: ['Astonished 3'],
+};
+export const reactionPoolFor = (kind: RigReaction, name: 'marty' | 'marky'): readonly string[] =>
+	RIG.reactions[kind].filter((clip) => !RIG_SKIN_EXCLUDE[name].includes(clip));
+
 // Voice clip that plays WITH a reaction animation. Keyed by reaction so every broadcaster
 // (mantisReact / martyReact / the poke hit area) gets the audio for free — the sound is emitted
 // from inside each rig component's react(), AFTER its on-stage/busy guards, so a beat that

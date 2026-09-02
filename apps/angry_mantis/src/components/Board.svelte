@@ -38,7 +38,9 @@
 	};
 	let driftEvents = 0;
 	if (typeof window !== 'undefined') {
-		(window as any).__angryMantis = {
+		// merged, not assigned: other components (Mantis.svelte's rigClips) extend the same object
+		// and mount order is not guaranteed
+		Object.assign(((window as any).__angryMantis ??= {}), {
 			boardDrift: () => checkBoardGrid(context.stateGame.board),
 			driftEvents: () => driftEvents,
 			atRest: () => context.stateGame.board.every((reel) => reel.reelState.motion === 'stopped'),
@@ -50,7 +52,7 @@
 			// stage the wrap-up recap (normally stashed by bonusEnd) so FreeSpinOutro can be
 			// previewed via emit(freeSpinOutroShow / freeSpinOutroCountUp) without a whole bonus
 			setRecap: (recap: any) => (context.stateGame.sessionRecap = recap),
-		};
+		});
 	}
 
 	context.eventEmitter.subscribeOnMount({

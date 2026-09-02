@@ -24,7 +24,7 @@
 	import { getContext } from '../game/context';
 	import { nextSymbolToEat } from '../game/stateGame.svelte';
 	import GameText from './GameText.svelte';
-	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, REACTION_SOUND_MAP, SFX_TRANSIENT } from '../game/constants';
+	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, REACTION_SOUND_MAP, SFX_TRANSIENT, reactionPoolFor } from '../game/constants';
 	import { getSymbolX, getSymbolY } from '../game/utils';
 	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
 	import type { Rig } from '../bonerutter';
@@ -68,6 +68,12 @@
 	});
 
 	const rigOf = (striker: Striker) => (striker === 'marty' ? martyRig : markyRig);
+	// test hook (house rules: extend __angryMantis, never a new global): which clip each host is on
+	if (typeof window !== 'undefined') {
+		Object.assign(((window as any).__angryMantis ??= {}), {
+			rigClips: () => ({ marty: martyRig ? currentClip(martyRig) : null, marky: markyRig ? currentClip(markyRig) : null }),
+		});
+	}
 
 	// a striking/eating mantis must not be interrupted by a reaction (the strike clip owns the arc)
 	const busy: Record<Striker, boolean> = $state({ marty: false, marky: false });
@@ -114,7 +120,6 @@
 	// react to the same beat they pull DIFFERENT clips from the pool, staggered so they never move
 	// in lockstep.
 	const react = (kind: RigReaction) => {
-		const pool = RIG.reactions[kind];
 		const targets = (host === 'both' ? (['marty', 'marky'] as Striker[]) : [host]).filter(
 			(name) => !busy[name] && rigOf(name),
 		);
@@ -122,9 +127,16 @@
 		// one voice for the beat, not one per rig — both hosts reacting is still a single sound
 		const voice = REACTION_SOUND_MAP[kind];
 		if (voice) context.eventEmitter.broadcast({ type: 'soundOnce', name: voice });
-		const first = Math.floor(Math.random() * pool.length);
+		let taken: string | null = null;
 		targets.forEach((name, i) => {
-			const clip = pool[(first + i) % pool.length]; // distinct clips when both react
+			// each skin picks from ITS OWN pool (RIG_SKIN_EXCLUDE), avoiding the clip the other host
+			// just took so both reacting still never move in lockstep
+			const own = reactionPoolFor(kind, name);
+			const choices = own.filter((c) => c !== taken);
+			const from = choices.length ? choices : own;
+			const clip = from[Math.floor(Math.random() * from.length)];
+			if (!clip) return; // nothing this skin may play for the beat: stay idle
+			taken = clip;
 			const start = () => {
 				const rig = rigOf(name);
 				if (busy[name] || !rig) return;
