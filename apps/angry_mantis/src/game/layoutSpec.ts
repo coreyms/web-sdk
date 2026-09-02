@@ -44,7 +44,11 @@ export const MARTY: Record<LayoutKind, { x: number; y: number; size: number }> =
 	// Low so only head/arms show above the screen bottom edge; antennae just overlap the (expanded)
 	// frame's bottom border. Same x and size as before — Corey's spec: move him down only.
 	portrait: { x: 340, y: 685, size: 340 },
-	phone: { x: 1210, y: 480, size: 300 }, // right column, tucked against the board edge, behind the control rail
+	// Same composition as landscape, transposed onto the phone master's 340-wide right column
+	// (frame edge 1140 → x = 1140 + 100 × 340/320): the mantis stands at desktop scale, overlapping
+	// the frame edge and running behind the spin cluster exactly as he does on desktop, instead of
+	// a 300 px figure tucked in the corner (Corey 2026-09-02). Marky mirrors to the left column.
+	phone: { x: 1246, y: 480, size: 460 },
 };
 
 // Portrait phones are usually WIDER than the 412×760 master (the fit is by height), which used to
@@ -181,17 +185,21 @@ export const HUD: Record<
 	},
 	portrait: {
 		pool: { x: 206, y: 152, cols: 8, cell: 40 }, // one row overlapping the frame's top edge
-		// 590/48 → text span 545.8..566, centred (~556) between the unexpanded frame art bottom
-		// (455.6 window bottom + 120×0.2818 sy ≈ 489) and the BALANCE/SPIN stats content top
-		// (row bottom 656, ~33px content → ~623) — clear of the spin/bet cluster (bar 666..744).
-		// On EXPANDED tablet frames (frameFor k→1.36, art bottom →~609) the prompt rides the
-		// door/rail band instead — no interactive collision, phones (k=1) are the design target.
-		pressToContinue: { y: 590, width: 260, height: 48 },
+		// Bottom of the page (Corey 2026-09-02). The old 590 slot assumed phones render the
+		// unexpanded frame, but real phones are WIDER than the 412 master, so frameFor() grows the
+		// frame (k→1.36, art bottom ≈ 609) and the prompt landed on the bottom rail — straight
+		// through the ModePlaque (seen on an iPhone). The HTML chrome is hidden (uiHide) for every
+		// press-gated presentation, so the stats/spin band at the foot of the master (656..744) is
+		// empty then: 745/48 → text spans 700.8..721, under the mantis heads, on the floor.
+		pressToContinue: { y: 745, width: 260, height: 48 },
 		// front face, same as landscape; the portrait stats block starts at ~656, far below the rail
 		modePlaque: { railArtY: (1149 + 1208) / 2 },
 	},
 	phone: {
-		pool: { x: 170, y: 420, cols: 4, cell: 52 }, // left column, above the stats
+		// top-right, like landscape: centred in the right column (1140..1480), above the mantis's
+		// head and clear of the spin cluster (x ≥ 1276, y ≥ 600). It used to sit in the left column
+		// at y 420, where the bigger Marky now stands (Corey 2026-09-02).
+		pool: { x: 1310, y: 150, cols: 4, cell: 56 },
 		// The prompt rides the frame's TOP rail on this kind. Phone is the only layout with no free
 		// band anywhere below the board: the frame art runs to ≈730 of 740, its bottom rail's front
 		// face is taken by the ModePlaque (~690..724) and the stats sit at ~691..734 — so the old
