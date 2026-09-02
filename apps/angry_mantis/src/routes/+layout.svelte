@@ -6,6 +6,7 @@
 	import ChromeStyles from '../ui/ChromeStyles.svelte';
 	import Game from '../components/Game.svelte';
 	import { setContext } from '../game/context';
+	import { startSoundPreload } from '../game/sound';
 
 	import messagesMap from '../i18n/messagesMap';
 
@@ -18,6 +19,11 @@
 	const loaderUrlStakeEngine = new URL('../../stake-engine-loader.gif', import.meta.url).href;
 
 	setContext();
+
+	// Start the audiosprite download here, at the very top of the app, so it overlaps the Pixi image
+	// preload and the RGS auth round-trip instead of queueing behind them. The landing screen gates
+	// PRESS ANYWHERE on it finishing (ui/LandingScreen.svelte).
+	startSoundPreload();
 </script>
 
 <GlobalStyle>

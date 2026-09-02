@@ -48,11 +48,29 @@ export function createPlayMusic<TSoundName extends string>(options: {
 		},
 	};
 
+	// Music is the one sound that still matters when it's late: unlike sfx it has no moment to miss,
+	// it's just "what should be playing right now". So instead of letting Howler queue every call
+	// made before the sprite decoded (which fires them ALL at once on load — several tracks at
+	// once), we remember only the LAST requested track and start it cleanly from the load event.
+	let pendingName: TSoundName | null = null;
+
 	const play = (playOptions: PlayOptions<TSoundName>) => {
+		if (options.howl.state() !== 'loaded') {
+			pendingName = playOptions.name;
+			return;
+		}
 		const existingSound = options.getSoundMap()[playOptions.name];
 		const sound = existingSound ?? options.newSound(playOptions.name);
 		soundPlayMap[sound.soundState](sound);
 	};
+
+	if (options.howl.state() !== 'loaded') {
+		options.howl.once('load', () => {
+			const name = pendingName;
+			pendingName = null;
+			if (name) play({ name });
+		});
+	}
 
 	return {
 		play,

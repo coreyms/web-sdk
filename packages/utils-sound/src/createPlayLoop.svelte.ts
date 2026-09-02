@@ -30,6 +30,9 @@ export function createPlayLoop<TSoundName extends string>(options: {
 	};
 
 	const play = (playOptions: PlayOptions<TSoundName>) => {
+		// Drop, never queue — see createPlayOnce. A loop whose start was missed (reel spin sfx) is
+		// meaningless by the time the sprite lands, and stop() would already have been dropped too.
+		if (options.howl.state() !== 'loaded') return;
 		const existingSound = options.getSoundMap()[playOptions.name];
 		const sound = existingSound ?? options.newSound(playOptions.name);
 		soundPlayMap[sound.soundState](sound);

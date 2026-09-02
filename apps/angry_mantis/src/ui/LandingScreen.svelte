@@ -9,6 +9,7 @@
 	import { getContext } from '../game/context';
 	import { MASTER, layoutKind } from '../game/layoutSpec';
 	import { stamp } from '../game/assets';
+	import { sound } from '../game/sound';
 	import { LANDING_CARDS } from './landingCards';
 
 	type Props = { onpress: () => void };
@@ -33,8 +34,24 @@
 	const left = $derived(((innerWidth.current ?? 1) - master.width * scale) / 2);
 	const top = $derived(((innerHeight.current ?? 1) - master.height * scale) / 2);
 
-	const progress = $derived(Math.round(context.stateApp.loadingProgress));
-	const ready = $derived(context.stateApp.loaded && fontsReady);
+	// The audiosprite is roughly a third of the payload and downloads in parallel with the images
+	// (game/sound.ts), so the bar blends both — otherwise it parks at 100% for however long the
+	// audio still needs. Weights are a fixed approximation of the byte split; the label switches to
+	// LOADING AUDIO once the images are done so a long audio tail doesn't look like a hang.
+	const IMAGE_WEIGHT = 0.7;
+	const AUDIO_WEIGHT = 0.3;
+	const audioReady = $derived(sound.isReady);
+	// stateApp.loaded is the truth about the image phase; the Pixi progress counter under it is
+	// unreliable (it reported ~0 for the whole load in a Slow 3G run, so the bar would have topped
+	// out at 30% and jumped straight to PRESS). Treating "loaded" as 100% is simply true and makes
+	// the readout land on 100 exactly when the gate opens, without touching the counter itself.
+	const imageProgress = $derived(context.stateApp.loaded ? 100 : context.stateApp.loadingProgress);
+	const progress = $derived(
+		Math.round(Math.min(100, imageProgress * IMAGE_WEIGHT + sound.progress * 100 * AUDIO_WEIGHT)),
+	);
+	const loadingLabel = $derived(context.stateApp.loaded && !audioReady ? 'LOADING AUDIO' : 'LOADING');
+	// audio joins images + fonts in the gate: PRESS ANYWHERE must not appear over a silent game
+	const ready = $derived(context.stateApp.loaded && fontsReady && audioReady);
 
 	// per-kind sizing (master units). Phone-sideways is authored large so touch targets stay ≥44 CSS px.
 	const SZ = $derived(
@@ -144,7 +161,7 @@
 					<div class="bar" style:width="{SZ.barW}px" style:height="{SZ.barH}px">
 						<div class="fill" style:width="{Math.max(4, progress)}%"></div>
 					</div>
-					<div class="pct" style:font-size="{Math.max(10, SZ.tag * 0.8)}px">LOADING · {progress}%</div>
+					<div class="pct" style:font-size="{Math.max(10, SZ.tag * 0.8)}px">{loadingLabel} · {progress}%</div>
 				{:else}
 					<div class="pressText" style:font-size="{SZ.press}px">PRESS ANYWHERE TO CONTINUE</div>
 				{/if}

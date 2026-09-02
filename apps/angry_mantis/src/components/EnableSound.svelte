@@ -1,22 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	import type { LoadedAudio } from 'pixi-svelte';
+	import { sound, startSoundPreload } from '../game/sound';
 
-	import { getContext } from '../game/context';
-	import { sound, type SoundName } from '../game/sound';
-
-	const context = getContext();
-
+	// The audiosprite fetch is kicked at app start (routes/+layout.svelte) so it runs in parallel
+	// with the image preload rather than after it — this component no longer constructs the Howl,
+	// it just guarantees the kick happened and owns teardown. startSoundPreload is idempotent.
 	onMount(() => {
-		const loadedAudio = $state.snapshot(
-			context.stateApp.loadedAssets['sound'],
-		) as LoadedAudio<SoundName>;
-		const { destroy } = sound.load(loadedAudio);
+		startSoundPreload();
 
 		return () => {
 			// Equivalent to onDestroy(); Leave this comment for searching.
-			destroy();
+			sound.destroy();
 		};
 	});
 

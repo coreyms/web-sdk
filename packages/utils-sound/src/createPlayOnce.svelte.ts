@@ -43,6 +43,10 @@ export function createPlayOnce<TSoundName extends string>(options: {
 	};
 
 	const play = (playOptions: PlayOptions<TSoundName> & { forcePlay?: boolean }) => {
+		// Drop, never queue. Howler buffers play() calls made before the sprite decodes and fires
+		// them all in the same millisecond on 'load' — on a slow link that meant a spin's worth of
+		// stale sfx exploding minutes later. A one-shot that missed its moment is just gone.
+		if (options.howl.state() !== 'loaded') return;
 		const existingSound = options.getSoundMap()[playOptions.name];
 		const sound = existingSound ?? options.newSound(playOptions.name);
 		soundPlayMap[sound.soundState](sound, { forcePlay: playOptions.forcePlay });
