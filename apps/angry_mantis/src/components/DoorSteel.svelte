@@ -12,7 +12,7 @@
 	// The uniform mid-band doubles as a staging surface for transition text later.
 	import { Tween } from 'svelte/motion';
 	import { cubicIn, cubicOut } from 'svelte/easing';
-	import { Container, Sprite, Rectangle, Graphics } from 'pixi-svelte';
+	import { Container, Sprite, Rectangle } from 'pixi-svelte';
 	import { MainContainer } from 'components-layout';
 
 	import { getContext } from '../game/context';
@@ -93,14 +93,7 @@
 			height={doorH}
 			y={win.h + BLEED - doorH + (drop.current - 1) * (win.h + BLEED)}
 		/>
-		<!-- soft shadow under the moving bottom rail sells the depth while rolling -->
-		{#if drop.current > 0 && drop.current < 1}
-			<Graphics
-				draw={(g) =>
-					g
-						.rect(-BLEED, drop.current * (win.h + BLEED), doorW, 10)
-						.fill({ color: 0x000000, alpha: 0.35 })}
-			/>
-		{/if}
+		<!-- no shadow under the moving rail: the door reads as a window shade, flat against the
+		     reels while it travels (Corey 2026-09-02) -->
 	</Container>
 </MainContainer>

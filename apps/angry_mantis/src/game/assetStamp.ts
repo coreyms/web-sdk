@@ -64,6 +64,7 @@ export default {
 	"tiles/w.webp": "e526f8e5",
 	"ui/bg-jungle.webp": "10b5fdc0",
 	"ui/board-frame-cafeteria.webp": "cd803926",
+	"ui/board-frame-reflect.png": "d4772bda",
 	"ui/cafeteria-background-base-bonus.webp": "06b5c8d4",
 	"ui/cafeteria-background-feast.webp": "9b9bdb69",
 	"ui/cafeteria-background-super.webp": "e240c948",

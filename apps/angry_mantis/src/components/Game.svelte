@@ -19,6 +19,8 @@
 	import Background from './Background.svelte';
 	import LoadingScreen from './LoadingScreen.svelte';
 	import BoardFrame from './BoardFrame.svelte';
+	import FrameReflections from './FrameReflections.svelte';
+	import ReflectSource from './ReflectSource.svelte';
 	import DoorSteel from './DoorSteel.svelte';
 	import MartyArt from './MartyArt.svelte';
 	import Board from './Board.svelte';
@@ -145,9 +147,14 @@
 
 		<MainContainer>
 			<BoardFrame />
+			<!-- reel reflections on the frame's steel lips: masked to the lips, so it never overlaps
+			     the window; sits under the reels/door in z-order by template position -->
+			<FrameReflections />
 		</MainContainer>
 
 		<MainContainer>
+			<!-- tags THIS container as what FrameReflections mirrors (reels + anticipations) -->
+			<ReflectSource />
 			<Board />
 			<Anticipations />
 		</MainContainer>
