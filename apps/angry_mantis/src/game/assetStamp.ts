@@ -63,11 +63,11 @@ export default {
 	"ui/numerals/glyphs.json": "f7f4dba2",
 	"ui/numerals/numerals.json": "909671f9",
 	"ui/numerals/numerals.webp": "d35cca8e",
-	"ui/text/big-win.webp": "d0e76b5f",
-	"ui/text/epic-win.webp": "c9ddc897",
-	"ui/text/max-win-bang.webp": "645efc84",
-	"ui/text/max-win.webp": "7454c3f5",
-	"ui/text/mega-win.webp": "4af332b2",
-	"ui/text/super-win.webp": "e2e17908",
+	"ui/text/big-win.webp": "a69b6ca8",
+	"ui/text/epic-win.webp": "d9cac434",
+	"ui/text/max-win-bang.webp": "3d944c1b",
+	"ui/text/max-win.webp": "a662c99c",
+	"ui/text/mega-win.webp": "a472a6c5",
+	"ui/text/super-win.webp": "4ee0f497",
 	"ui/text/they-ate-everything.webp": "b557ca4a"
 } as const;
