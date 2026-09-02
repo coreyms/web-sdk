@@ -17,6 +17,13 @@
 	// every card shows what a play costs, ante included (its 2x price, not a "+" surcharge)
 	const costText = $derived(numberToCurrencyString(price));
 	const pips = $derived([1, 2, 3, 4].map((i) => (i <= opt.hunger ? HUNGER_LEAF : 'rgba(0,0,0,.12)')));
+	// The price is one line at a fixed display size, and "GC 2,000,000,000" (Gold Coins at a
+	// 1,000,000 bet) is wider than the stub — it ran off the phone-sideways ticket (Corey
+	// 2026-09-02). Measure the glyph run against the stub's content box and scale it down only
+	// when it would overflow; every currency and bet level then fits without touching the layout.
+	let stubW = $state(0);
+	let priceW = $state(0);
+	const priceFit = $derived(stubW > 0 && priceW > 0 ? Math.min(1, stubW / priceW) : 1);
 	const ctaBg = $derived(
 		canAfford ? `linear-gradient(180deg, ${opt.accent}, ${opt.accentDark})` : 'linear-gradient(180deg, #8f8977, #6b6659)',
 	);
@@ -48,7 +55,9 @@
 		<div class="stub">
 			<div class="grain"></div>
 			<div class="tear"></div>
-			<div class="price">{costText}</div>
+			<div class="price-row" bind:clientWidth={stubW}>
+				<span class="price" bind:clientWidth={priceW} style:transform="scale({priceFit})">{costText}</span>
+			</div>
 			<button class="slot-btn cta" disabled={!canAfford} onclick={() => onbuy(opt, price)} style:background={ctaBg}>{opt.cta}</button>
 		</div>
 	</div>
@@ -196,12 +205,22 @@
 		top: -1.5px;
 		border-top: 3px dashed #a99c7d;
 	}
+	/* flex centring, not text-align: an inline block WIDER than the row is left-aligned by
+	   text-align, so the shrink pivoted right of centre and the tail still ran off the stub.
+	   Flex centres an overflowing item on the row's midpoint, and the scale pivots there too. */
+	.price-row {
+		display: flex;
+		justify-content: center;
+		position: relative;
+		line-height: 1;
+	}
 	.price {
-		text-align: center;
+		display: block;
+		flex: none;
 		font: 400 32px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
 		color: var(--ink);
-		position: relative;
 		white-space: nowrap;
+		transform-origin: 50% 50%;
 	}
 	.cta {
 		position: relative;
