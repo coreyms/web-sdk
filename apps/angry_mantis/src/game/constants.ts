@@ -229,9 +229,10 @@ export const FREE_SPINS_ART = {
 // Mugshot height-chart plates (Corey's art, 2026-09-01). Each plate bakes in its INMATE label and
 // foot marks, and the two are MIRRORED — 01 runs its chart numbers down the left edge, 02 down the
 // right — so the head is nudged toward the plate's clear side. The pair is laid out at a common
-// HEIGHT with each plate keeping its own aspect, so the strokes never scale non-uniformly.
+// HEIGHT with each plate keeping its own aspect, so the strokes never scale non-uniformly. Both
+// plates share one 400×267 canvas since Corey's 2026-09-02 re-export, so they draw the same size.
 export const INMATE_PLATE = {
-	marky: { key: 'inmateChalk1', aspect: 400 / 307, headShift: 0.07 }, // INMATE 01, labels left
+	marky: { key: 'inmateChalk1', aspect: 400 / 267, headShift: 0.07 }, // INMATE 01, labels left
 	marty: { key: 'inmateChalk2', aspect: 400 / 267, headShift: -0.07 }, // INMATE 02, labels right
 } as const;
 

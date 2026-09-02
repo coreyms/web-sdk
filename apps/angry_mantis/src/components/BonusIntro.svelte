@@ -151,8 +151,8 @@
 			rect: add(contain(box(B.header.x, B.header.y, B.header.w, B.header.h), BONUS_INTRO_HEADER_ASPECT)),
 		};
 
-		// 2. INMATE plates — IDENTICAL boxes, each plate contained + centred inside its own. Their
-		// source aspects differ, so 02 draws wider than 01 within the same slot; the slots match.
+		// 2. INMATE plates — IDENTICAL boxes, each plate contained + centred inside its own (the two
+		// exports share an aspect now, so they also draw the same size).
 		const xs = hosts.length === 1 ? [B.plates.soloX] : (B.plates.x as readonly number[]);
 		const mugs = hosts.map((name, i) => {
 			const slot = box(xs[i], B.plates.y, B.plates.w, B.plates.h);
