@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { type Snippet } from 'svelte';
 	import { GlobalStyle } from 'components-ui-html';
-	import { Authenticate, LoaderStakeEngine, LoadI18n } from 'components-shared';
+	import { Authenticate, LoadI18n } from 'components-shared';
 	import PolyMathIntro from '../ui/PolyMathIntro.svelte';
 	import ChromeStyles from '../ui/ChromeStyles.svelte';
 	import Game from '../components/Game.svelte';
@@ -14,9 +14,9 @@
 
 	const props: Props = $props();
 
-	let showIntro = $state(false);
-
-	const loaderUrlStakeEngine = new URL('../../stake-engine-loader.gif', import.meta.url).href;
+	// The PolyMath intro is the only loader: the sample kit's "Powered By Stake Engine" GIF used to
+	// play first, and the submission PreChecks forbid shipping it (approval review 2026-09-02).
+	let showIntro = $state(true);
 
 	setContext();
 
@@ -35,9 +35,7 @@
 </GlobalStyle>
 
 <ChromeStyles />
-<LoaderStakeEngine src={loaderUrlStakeEngine} oncomplete={() => (showIntro = true)} />
-
-<!-- PolyMath Games intro: after the Stake Engine loader, over the game's loading screen -->
+<!-- PolyMath Games intro, over the game's loading screen -->
 {#if showIntro}
 	<PolyMathIntro accent="#9CD92F" oncomplete={() => (showIntro = false)} />
 {/if}

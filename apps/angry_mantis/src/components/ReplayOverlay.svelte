@@ -9,6 +9,7 @@
 	import { zIndex } from 'constants-shared/zIndex';
 
 	import { getContext } from '../game/context';
+	import { soc } from '../game/social';
 
 	const context = getContext();
 
@@ -38,7 +39,7 @@
 			<div class="title">ROUND REPLAY</div>
 			{#if replayBet}
 				<div class="meta">
-					{replayBet.mode ?? ''} · payout {((replayBet.payoutMultiplier ?? 0) as number).toLocaleString()}x
+					{replayBet.mode ?? ''} · {soc('payout', 'win')} {((replayBet.payoutMultiplier ?? 0) as number).toLocaleString()}x
 				</div>
 			{/if}
 			<button type="button" onclick={play}>{phase === 'ready' ? 'PLAY' : 'PLAY AGAIN'}</button>

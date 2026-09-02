@@ -29,6 +29,8 @@ const lang = () =>
 const sessionID = () => getUrlSearchParam('sessionID') || '';
 const rgsUrl = () => getUrlSearchParam('rgs_url') || '';
 const social = () => getUrlSearchParam('social') === 'true';
+// operator currency for replay links (play sessions take it from the authenticate balance)
+const currency = () => getUrlSearchParam('currency') || '';
 
 // params for replay
 const replay = () => getUrlSearchParam('replay') === 'true';
@@ -44,6 +46,7 @@ export const stateUrlDerived = {
 	sessionID,
 	rgsUrl,
 	social,
+	currency,
 	// states for replay
 	replay,
 	amount,
