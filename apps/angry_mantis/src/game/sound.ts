@@ -1,8 +1,9 @@
-import { createSound, supportsAudioFormat } from 'utils-sound';
+import { createSound, supportsAudioFormat, type MusicManifest } from 'utils-sound';
 
 import assets from './assets';
 
-// Names match tools/build_audiosprite.py (static/assets/audio/sounds.json).
+// Names match tools/build_audiosprite.py. MusicName lives in music.json (one streamed file per
+// track); every SoundEffectName lives in the sounds.json audiosprite.
 export type MusicName = 'bgm_base' | 'bgm_free' | 'bgm_super' | 'bgm_feast' | 'bgm_maxwin';
 
 export type SoundEffectName =
@@ -44,6 +45,9 @@ const sound = createSound<SoundName>();
 type SoundManifest = {
 	src: string[];
 	sprite: Record<string, [number, number] | [number, number, boolean]>;
+	// sounds.json only carries the sfx now (the music moved to music.json), but LoadedAudio is
+	// keyed by the full SoundName union — the players already fall back to volume 1 for a name with
+	// no config entry, so the missing bgm_* keys are harmless.
 	config: Record<SoundName, { volume: number }>;
 };
 
@@ -77,17 +81,51 @@ const fetchWithProgress = async (url: string) => {
 		if (done) break;
 		chunks.push(value);
 		received += value.length;
-		if (total) sound.reportDownloadProgress(received / total);
+		if (total) sound.reportDownloadProgress(received / total, total);
 	}
 	sound.reportDownloadProgress(1);
 	const type = response.headers.get('content-type') ?? 'application/octet-stream';
 	return URL.createObjectURL(new Blob(chunks as BlobPart[], { type }));
 };
 
+// ── music ──────────────────────────────────────────────────────────────────────────────────────
+// The five music loops used to sit inside the audiosprite, which meant all 328 s of them were
+// decoded into one resident AudioBuffer (~130 MB) so that one of them could play. They are now
+// separate files streamed through media elements (utils-sound/createMusic.svelte.ts): no decode,
+// no AudioBuffer, and only the track being played is even downloaded.
+//
+// The manifest is tiny, so it is fetched alongside the sprite at the same early point and handed
+// straight to the player, which immediately starts buffering the gate track (bgm_base) — that is
+// the second half of what the landing screen waits on. The other four buffer in the background a
+// few seconds after music first plays.
+const loadMusicManifest = async () => {
+	const response = await fetch(assets.music.src);
+	if (!response.ok) throw new Error(`music.json ${response.status}`);
+	sound.loadMusic((await response.json()) as MusicManifest<MusicName>);
+};
+
 /** Idempotent — call it as early as possible; extra calls are free. */
 export const startSoundPreload = () => {
 	if (preloadStarted || typeof window === 'undefined') return;
 	preloadStarted = true;
+
+	// kicked in parallel with the sprite: two independent downloads, one gate. expectMusic() is
+	// synchronous and must come first — the sfx sprite is small enough to finish before music.json
+	// lands, and the gate would otherwise open on a game with no music player yet.
+	sound.expectMusic();
+	void (async () => {
+		let lastError: unknown;
+		for (let attempt = 0; attempt <= RETRIES; attempt += 1) {
+			try {
+				await loadMusicManifest();
+				return;
+			} catch (error) {
+				lastError = error;
+				await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+			}
+		}
+		sound.markMusicUnavailable(lastError);
+	})();
 
 	void (async () => {
 		let lastError: unknown;

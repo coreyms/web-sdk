@@ -73,7 +73,10 @@
 
 <MainContainer>
 	<Container x={win.x} y={win.y} visible={engaged}>
-		<Rectangle isMask x={-BLEED} width={doorW} height={win.h + BLEED} />
+		<!-- bleeds ABOVE the window too: the frame's top inner edge is as soft as the sides, and a
+		     mask cut at win.y left a sliver of the top symbol row visible over the closed door
+		     (Corey, 2026-09-02). The door art is taller than the window, so it covers the bleed. -->
+		<Rectangle isMask x={-BLEED} y={-BLEED} width={doorW} height={win.h + BLEED * 2} />
 		<!-- opaque backing riding with the door: the art has faintly translucent slat grooves
 		     that would leak the reels through as bright slivers -->
 		<Rectangle

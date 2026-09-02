@@ -90,4 +90,12 @@ export default {
 		src: stamp(new URL('../../assets/audio/sounds.json', import.meta.url).href),
 		preload: true,
 	},
+	// music manifest (tools/build_audiosprite.py). The tracks themselves are NOT in the sprite —
+	// they stream one file at a time, so only this small JSON is fetched up front; its per-track
+	// src[] entries carry their own ?v= stamps from scripts/stamp-assets.mjs.
+	music: {
+		type: 'audio',
+		src: stamp(new URL('../../assets/audio/music.json', import.meta.url).href),
+		preload: true,
+	},
 } as const;

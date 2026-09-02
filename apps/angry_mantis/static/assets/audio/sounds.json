@@ -1,129 +1,89 @@
 {
 	"sprite": {
-		"bgm_base": [
-			0,
-			61111,
-			true
-		],
-		"bgm_free": [
-			62111,
-			92136,
-			true
-		],
-		"bgm_super": [
-			155247,
-			91950,
-			true
-		],
-		"bgm_feast": [
-			248197,
-			60805,
-			true
-		],
-		"bgm_maxwin": [
-			310003,
-			21946,
-			true
-		],
 		"sfx_reel_spin": [
-			332949,
+			0,
 			2262,
 			true
 		],
 		"sfx_reel_stop": [
-			336210,
+			3262,
 			260
 		],
 		"sfx_scatter_land_1": [
-			337470,
+			4522,
 			470
 		],
 		"sfx_scatter_land_2": [
-			338940,
+			5991,
 			470
 		],
 		"sfx_scatter_land_3": [
-			340410,
+			7461,
 			470
 		],
 		"sfx_scatter_land_4": [
-			341879,
+			8931,
 			470
 		],
 		"sfx_scatter_land_5": [
-			343349,
+			10400,
 			470
 		],
 		"sfx_leaf_land": [
-			344819,
+			11870,
 			219
 		],
 		"sfx_door_close": [
-			346037,
+			13089,
 			810
 		],
 		"sfx_door_open": [
-			347847,
+			14899,
 			1808
 		],
 		"sfx_marty_strike": [
-			350655,
+			17706,
 			596
 		],
 		"sfx_marty_eat": [
-			352251,
+			19302,
 			1000
 		],
 		"sfx_marty_angry": [
-			354251,
+			21302,
 			1000
 		],
 		"sfx_marty_happy": [
-			356251,
+			23302,
 			600
 		],
 		"sfx_marty_poke": [
-			357851,
+			24902,
 			1200
 		],
 		"sfx_win_big": [
-			360051,
+			27102,
 			137
 		],
 		"sfx_money_counter": [
-			361188,
+			28240,
 			781,
 			true
 		],
 		"sfx_ui_button": [
-			362969,
+			30020,
 			187
 		],
 		"sfx_ui_spin": [
-			364156,
+			31207,
 			187
 		],
 		"sfx_ui_bonus": [
-			365342,
+			32394,
 			187
 		]
 	},
 	"config": {
-		"bgm_base": {
-			"volume": 0.6
-		},
-		"bgm_free": {
-			"volume": 0.6
-		},
-		"bgm_super": {
-			"volume": 0.6
-		},
-		"bgm_feast": {
-			"volume": 0.6
-		},
-		"bgm_maxwin": {
-			"volume": 0.6
-		},
 		"sfx_reel_spin": {
 			"volume": 1
 		},
@@ -186,8 +146,8 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.m4a?v=63b5d75a",
-		"./assets/audio/sounds.ogg?v=9520284c",
-		"./assets/audio/sounds.mp3?v=461ec7b7"
+		"./assets/audio/sounds.ogg?v=78a18926",
+		"./assets/audio/sounds.m4a?v=9c9456c2",
+		"./assets/audio/sounds.mp3?v=bfb70b96"
 	]
 }

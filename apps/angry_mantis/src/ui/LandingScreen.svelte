@@ -41,15 +41,20 @@
 	const IMAGE_WEIGHT = 0.7;
 	const AUDIO_WEIGHT = 0.3;
 	const audioReady = $derived(sound.isReady);
-	// stateApp.loaded is the truth about the image phase; the Pixi progress counter under it is
-	// unreliable (it reported ~0 for the whole load in a Slow 3G run, so the bar would have topped
-	// out at 30% and jumped straight to PRESS). Treating "loaded" as 100% is simply true and makes
-	// the readout land on 100 exactly when the gate opens, without touching the counter itself.
+	// stateApp.loadingProgress now ticks once per settled asset promise (pixi-svelte AssetsLoader),
+	// so it moves continuously through the image phase; `loaded` still pins the readout to exactly
+	// 100 at the moment the phase closes, so rounding can never leave it at 99.
 	const imageProgress = $derived(context.stateApp.loaded ? 100 : context.stateApp.loadingProgress);
 	const progress = $derived(
 		Math.round(Math.min(100, imageProgress * IMAGE_WEIGHT + sound.progress * 100 * AUDIO_WEIGHT)),
 	);
 	const loadingLabel = $derived(context.stateApp.loaded && !audioReady ? 'LOADING AUDIO' : 'LOADING');
+	// An asset that exhausted its retries stops the load dead (AssetsLoader leaves `loaded` false and
+	// lists the keys): entering with missing money glyphs / headshots / mode labels is worse than
+	// asking for a tap. Audio is deliberately NOT in here — a dead audiosprite lets the player in
+	// silently by design (sound.isReady goes true on error), which is why the gate below still hangs
+	// off `ready` alone.
+	const assetsFailed = $derived(context.stateApp.failedAssets.length > 0);
 	// audio joins images + fonts in the gate: PRESS ANYWHERE must not appear over a silent game
 	const ready = $derived(context.stateApp.loaded && fontsReady && audioReady);
 
@@ -95,6 +100,11 @@
 	};
 
 	const press = () => {
+		// same tap target serves both states: while assets are missing it retries instead of entering
+		if (assetsFailed) {
+			context.stateApp.retryFailedAssets?.();
+			return;
+		}
 		if (!ready || pressed) return;
 		pressed = true;
 		clearInterval(rotateTimer);
@@ -104,7 +114,7 @@
 
 <div class="landing" class:pressed>
 	<!-- full-screen continue target; the carousel controls sit above it -->
-	<button class="press-target" aria-label="Continue" disabled={!ready || pressed} onclick={press}></button>
+	<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>
 
 	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
 		<div class="col" style:padding="{SZ.pad}px">
@@ -157,7 +167,10 @@
 			{/if}
 
 			<div class="gate">
-				{#if !ready}
+				{#if assetsFailed}
+					<!-- same stencil style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
+					<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM — TAP TO RETRY</div>
+				{:else if !ready}
 					<div class="bar" style:width="{SZ.barW}px" style:height="{SZ.barH}px">
 						<div class="fill" style:width="{Math.max(4, progress)}%"></div>
 					</div>

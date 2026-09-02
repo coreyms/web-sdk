@@ -60,6 +60,7 @@
 		const app = context.stateApp.pixiApplication;
 		if (!app) return;
 		let cancelled = false;
+		let framesWaited = 0;
 		const clamp = () => {
 			if (cancelled) return;
 			if (!app.renderer) {
@@ -70,6 +71,34 @@
 				app.renderer.resolution = 1.5;
 				app.resize();
 			}
+			// Renderable GC OFF (Pixi 8.8.1 bug, reproduced 2026-09-02). CanvasTextPipe's
+			// _destroyRenderableById does `decreaseReferenceCount(this._gpuText[uid].currentKey)`
+			// with no null guard, and it is the same method that sets `_gpuText[uid] = null`.
+			// RenderableGCSystem.run() evicts any renderable whose _lastUsed is older than
+			// maxUnusedTime (default 60s) — and a MOUNTED BUT UNRENDERED PIXI.Text never refreshes
+			// _lastUsed, so hidden FadeContainer text and TextWarmup's off-screen nodes are prime
+			// candidates. Actively drawn text self-heals (the next frame re-inits the entry), but an
+			// unrendered one stays null until something destroys it: a Svelte unmount, or
+			// CanvasTextPipe.destroy()'s loop over every _gpuText key. That throws
+			// "Cannot read properties of null (reading 'currentKey')" out of root.svelte and takes
+			// the whole HTML chrome down with it (zero buttons left in the DOM) on long-idle pages.
+			// We destroy our own renderables explicitly, so this safety net only costs us crashes.
+			// Disabling cancels all three of the system's schedulers (see its `enabled` setter).
+			// Recheck when Pixi ships the null guard; pairs with the ~30 min textureGC.maxIdle below.
+			// Ordering trap (live-caught): app.renderer is readable a few frames BEFORE
+			// RenderableGCSystem.init() runs, and init sets enabled=true — while the `enabled`
+			// setter early-returns when the value already matches, so a disable issued against the
+			// uninitialised system is a SILENT no-op that init then overwrites. So poll until the
+			// system has armed its scheduler, and only then cancel it. The frame budget keeps this
+			// from spinning for the life of the page if a future Pixi ships it off by default.
+			if (!app.renderer.renderableGC.enabled) {
+				if (framesWaited++ < 600) requestAnimationFrame(clamp);
+				return;
+			}
+			// Verify via `renderer.scheduler._tasks` (the GC's three entries are spliced out), NOT
+			// via `renderableGC.enabled` — Pixi's disable branch cancels the schedulers but never
+			// clears `_handler`, and the getter is `!!this._handler`, so it keeps reporting true.
+			app.renderer.renderableGC.enabled = false;
 		};
 		clamp();
 		return () => {
@@ -127,11 +156,6 @@
 		<DoorSteel />
 
 		<PoolHud />
-		<!-- FreeSpinCounter (Pixi FREE SPIN n/total pill) is deliberately NOT mounted: the HTML
-		     chrome's spin button already shows FREE SPIN n/total during free games — mounting both
-		     duplicated the display (live-checked 2026-08-31, and the two disagree by one: pill
-		     counts spins landed, button counts the spin in progress). Component + emitter channels
-		     kept for Corey's call on which display wins. -->
 		<!-- mode plaque BEFORE the characters: the mantises stand in front of it -->
 		<ModePlaque />
 		<!-- characters draw over the board (Pixi order) but stay under the HTML chrome buttons -->

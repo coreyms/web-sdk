@@ -6,7 +6,7 @@
 	import { Container, Rectangle, Text } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
-	import { frameFor, layoutKind, FRAME_ART } from '../game/layoutSpec';
+	import { frameFor, layoutKind, FRAME_ART, HUD } from '../game/layoutSpec';
 	import { modeChipData } from '../game/modeChipData';
 	import { gameTextStyle } from './GameText.svelte';
 
@@ -17,14 +17,17 @@
 	);
 	const f = $derived(frameFor(kind, vw));
 	const chip = $derived(modeChipData());
-	// Badge centered on the FRONT FACE of the counter's bottom rail (Corey 2026-08-30) — in the
-	// art, the rail reads top face (y ~1121-1142) / highlight seam / front face (y 1149-1208).
-	// Anchor to the front-face band's center, measured from the window bottom, on every layout.
-	const FACE_CENTER_BELOW_WINDOW = (1149 + 1208) / 2 - (FRAME_ART.winY + FRAME_ART.winH); // art px
+	// Badge centered on the counter's bottom rail (Corey 2026-08-30) — in the art, the rail reads
+	// top face (y ~1121-1142) / highlight seam / front face (y 1149-1208). WHICH band it rides is
+	// per-LayoutKind (HUD[kind].modePlaque.railArtY): landscape and portrait keep the front face;
+	// phone-sideways sits higher because its HTML stats strip owns the front face. The anchor is an
+	// art-space y so portrait's frameFor()-expanded frame keeps it on the rail.
+	const railArtY = $derived(HUD[kind].modePlaque.railArtY);
+	const CENTER_BELOW_WINDOW = $derived(railArtY - (FRAME_ART.winY + FRAME_ART.winH)); // art px
 	const FACE_H_ART = 1208 - 1149; // front-face band height in art px
 	const railSy = $derived((f.height - 2 * f.inset) / FRAME_ART.winH);
 	const railTop = $derived(f.y + f.height - f.inset);
-	const centerY = $derived(railTop + FACE_CENTER_BELOW_WINDOW * railSy);
+	const centerY = $derived(railTop + CENTER_BELOW_WINDOW * railSy);
 	const faceH = $derived(FACE_H_ART * railSy); // front face in master px (~28.4 landscape, ~35.5 phone, ~17 portrait)
 	// Landscape (15+16=31) and phone (18+16=34) keep their proven fixed pills — phone's face (~35.5)
 	// still contains its pill. Portrait's face is only ~17 master px, so the pill derives from the

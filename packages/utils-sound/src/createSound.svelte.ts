@@ -1,9 +1,10 @@
-import { Howler, type Howl } from 'howler';
+import { Howler, Howl } from 'howler';
 
 import { type LoadedAudio } from 'pixi-svelte';
 import { stateSoundDerived } from 'state-shared';
 
 import { createPlayer, type Player } from './createPlayer.svelte';
+import { createMusicPlayer, type MusicManifest, type MusicPlayer } from './createMusic.svelte';
 import { createPlayMusic } from './createPlayMusic.svelte';
 import { createPlayLoop } from './createPlayLoop.svelte';
 import { createPlayOnce } from './createPlayOnce.svelte';
@@ -38,6 +39,67 @@ function createSound<TSoundName extends string>() {
 	let downloadRatio = $state(0);
 	let playersReady = $state(false);
 	let destroySound: (() => void) | undefined;
+
+	// ── streamed music (see createMusic.svelte.ts) ────────────────────────────────────────────
+	// Music is NOT part of the sprite any more: the sprite is decoded whole into an AudioBuffer, so
+	// keeping five loops in it cost ~130 MB of resident RAM to play one of them. loadMusic() hands
+	// the music bus to a player that streams one media element per track; when it is used, it
+	// REPLACES players.music, and stop/fade/rate/volume below route to it by name.
+	let musicPlayer: MusicPlayer<TSoundName> | undefined;
+	let musicPlayerReady = $state(false);
+	// the loading screen may not open the door until the gate track can start (or we gave up on it)
+	let musicGateActive = $state(false);
+	let musicGateSettled = $state(false);
+	let musicGateRatio = $state(0);
+	let musicGateBytes = $state(0);
+	let spriteBytes = $state(0);
+	// Music requested before the player exists. The sfx players deliberately DROP early plays (a
+	// one-shot that missed its moment is gone), but music has no moment to miss — it is just "what
+	// should be playing now" — so we remember the last request and start it when the player lands.
+	// This is the same contract createPlayMusic had while the sprite was still decoding.
+	let pendingMusicName: TSoundName | undefined;
+
+	/** Called synchronously by the app before it fetches music.json, so the readiness gate below
+	 *  knows to wait for music that has not been declared yet. Without it there is a live race: the
+	 *  sfx sprite is small and can finish first, isReady would go true with no music player built,
+	 *  and the boot-time musicPlay would land on the silent stand-in and never be heard. */
+	const expectMusic = () => (musicGateActive = true);
+
+	/** The manifest could not be fetched — open the door and run without music. */
+	const markMusicUnavailable = (error?: unknown) => {
+		console.error('[sound] music manifest unavailable; continuing without music', error);
+		musicGateSettled = true;
+	};
+
+	const loadMusic = (manifest: MusicManifest<TSoundName>) => {
+		if (musicPlayer) return;
+		musicGateActive = true;
+		// Howler suspends the AudioContext after 30 s with no WEB AUDIO sound playing. That used to
+		// be a fine proxy for "nothing is playing" because the music lived in the sprite; now that
+		// music streams through media elements, html5 playback does not count and the context gets
+		// suspended under a perfectly audible loop. enableEffect() below watches ctx.state and would
+		// then mute EVERYTHING — caught live: idle on the base game for 30 s and the music died.
+		Howler.autoSuspend = false;
+		musicPlayer = createMusicPlayer<TSoundName>(manifest, {
+			onGateProgress: (ratio) => (musicGateRatio = ratio),
+			onGateSettled: (result) => {
+				if (result !== 'loaded') {
+					// never hang the door on music — the track starts when it starts
+					console.warn(`[sound] music gate settled as "${result}"; opening without it`);
+				}
+				musicGateRatio = 1;
+				musicGateSettled = true;
+			},
+		});
+		musicGateBytes = musicPlayer.gateBytes;
+		musicPlayerReady = true;
+		musicPlayer.volume(stateSoundDerived.volumeMusic());
+		if (pendingMusicName) {
+			musicPlayer.play({ name: pendingMusicName });
+			pendingMusicName = undefined;
+		}
+		return musicPlayer;
+	};
 
 	const load = (
 		loadedAudioValue: LoadedAudio<TSoundName>,
@@ -82,6 +144,7 @@ function createSound<TSoundName extends string>() {
 		document.addEventListener('visibilitychange', onVisibilityStateChange);
 
 		const destroy = () => {
+			musicPlayer?.unload();
 			Howler.ctx.removeEventListener('statechange', onAudioContextChange);
 			document.removeEventListener('visibilitychange', onVisibilityStateChange);
 
@@ -101,11 +164,19 @@ function createSound<TSoundName extends string>() {
 
 	// Progress of the caller's own fetch of the sprite (0..1). Howler exposes no download progress,
 	// so whoever fetches the bytes reports them here and the loading screen can show a moving bar.
-	const reportDownloadProgress = (ratio: number) => {
+	// `totalBytes` (Content-Length) lets progress below weight the sprite against the music gate
+	// track by their real sizes instead of a guessed split.
+	const reportDownloadProgress = (ratio: number, totalBytes?: number) => {
+		if (totalBytes) spriteBytes = totalBytes;
 		if (loadStatus === 'loaded' || loadStatus === 'error') return;
 		if (loadStatus === 'idle') loadStatus = 'loading';
 		downloadRatio = Math.max(0, Math.min(1, ratio));
 	};
+
+	// The two things the door waits on. The sprite must be fully decoded (it is Web Audio, it is
+	// all-or-nothing); the music gate track only has to be startable, and is allowed to give up.
+	const spriteDone = () => loadStatus === 'loaded' || loadStatus === 'error';
+	const musicDone = () => !musicGateActive || musicGateSettled;
 
 	// Called when the caller's fetch/retries are exhausted — the Howl was never constructed.
 	const markLoadFailed = (error?: unknown) => {
@@ -137,6 +208,7 @@ function createSound<TSoundName extends string>() {
 	};
 
 	const stop = (stopOptions: StopOptions<TSoundName>) => {
+		musicPlayer?.stop(stopOptions);
 		if (players) {
 			players.music.stop(stopOptions);
 			players.loop.stop(stopOptions);
@@ -145,6 +217,7 @@ function createSound<TSoundName extends string>() {
 	};
 
 	const fade = async (fadeOptions: FadeOptions<TSoundName>) => {
+		await musicPlayer?.fade(fadeOptions);
 		if (players) {
 			const getPromises = () => [
 				players.music.fade(fadeOptions),
@@ -157,6 +230,7 @@ function createSound<TSoundName extends string>() {
 	};
 
 	const rate = (rateOptions: RateOptions<TSoundName>) => {
+		musicPlayer?.rate(rateOptions);
 		if (players) {
 			players.music.rate(rateOptions);
 			players.loop.rate(rateOptions);
@@ -191,6 +265,10 @@ function createSound<TSoundName extends string>() {
 	// the assignment) subscribes them to it, so the mixer levels land on the players the moment they
 	// exist. Without this, playerVolume silently stayed at its 1 default.
 	const volumeMusicEffect = () => {
+		if (musicPlayerReady && musicPlayer) {
+			musicPlayer.volume(stateSoundDerived.volumeMusic());
+			return;
+		}
 		if (playersReady && players) {
 			players.music.volume(stateSoundDerived.volumeMusic());
 		}
@@ -224,6 +302,9 @@ function createSound<TSoundName extends string>() {
 
 	return {
 		load,
+		loadMusic,
+		expectMusic,
+		markMusicUnavailable,
 		stop,
 		fade,
 		rate,
@@ -233,18 +314,42 @@ function createSound<TSoundName extends string>() {
 		markLoadFailed,
 		destroy,
 		get players() {
-			return players ?? silentPlayers;
+			const base = players ?? silentPlayers;
+			// music was declared but its player has not been built yet — bank the request
+			if (musicGateActive && !musicPlayerReady) {
+				return {
+					...base,
+					music: {
+						...silentPlayers.music,
+						play: (playOptions: { name: TSoundName }) =>
+							(pendingMusicName = playOptions.name),
+					} as unknown as Player<TSoundName, PlayMusic>,
+				};
+			}
+			// musicPlayerReady is read (not just musicPlayer) so $derived/$effect consumers
+			// re-run when the music player lands asynchronously
+			return musicPlayerReady && musicPlayer
+				? { ...base, music: musicPlayer as unknown as Player<TSoundName, PlayMusic> }
+				: base;
 		},
 		get loadStatus() {
 			return loadStatus;
 		},
-		/** Safe to let the player in: the sprite is decoded, or it failed and we run silent. */
+		/** Safe to let the player in: the sfx sprite is decoded (or failed and we run silent) AND
+		 *  the base music track has buffered enough to start (or we gave up waiting for it). */
 		get isReady() {
-			return loadStatus === 'loaded' || loadStatus === 'error';
+			return spriteDone() && musicDone();
 		},
-		/** 0..1 for a loading bar. Sits at 1 while Howler decodes the downloaded bytes. */
+		/** 0..1 for a loading bar, weighted by the real byte sizes of the two downloads: the sfx
+		 *  sprite (Content-Length of our own fetch) and the gate music track (its size from
+		 *  music.json, filled by the element's buffered ranges). Sits at 1 while Howler decodes. */
 		get progress() {
-			return loadStatus === 'loaded' || loadStatus === 'error' ? 1 : downloadRatio;
+			const sprite = spriteDone() ? 1 : downloadRatio;
+			const music = musicDone() ? 1 : musicGateRatio;
+			if (!musicGateActive) return sprite;
+			const total = spriteBytes + musicGateBytes;
+			if (!total) return (sprite + music) / 2;
+			return (sprite * spriteBytes + music * musicGateBytes) / total;
 		},
 	};
 }

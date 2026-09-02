@@ -1,0 +1,80 @@
+{
+	"gate": "bgm_base",
+	"tracks": {
+		"bgm_base": {
+			"src": [
+				"./assets/audio/music/bgm_base.ogg?v=ac21e9e8",
+				"./assets/audio/music/bgm_base.m4a?v=c06f6d0f",
+				"./assets/audio/music/bgm_base.mp3?v=5130652a"
+			],
+			"bytes": [
+				775767,
+				747043,
+				734190
+			],
+			"loop": true,
+			"duration": 61.111,
+			"volume": 0.6
+		},
+		"bgm_free": {
+			"src": [
+				"./assets/audio/music/bgm_free.ogg?v=b8593905",
+				"./assets/audio/music/bgm_free.m4a?v=340cd0b9",
+				"./assets/audio/music/bgm_free.mp3?v=964c63a6"
+			],
+			"bytes": [
+				1155270,
+				1130276,
+				1106591
+			],
+			"loop": true,
+			"duration": 92.136,
+			"volume": 0.6
+		},
+		"bgm_super": {
+			"src": [
+				"./assets/audio/music/bgm_super.ogg?v=3d2d0c8b",
+				"./assets/audio/music/bgm_super.m4a?v=9cf0a6be",
+				"./assets/audio/music/bgm_super.mp3?v=c06648e2"
+			],
+			"bytes": [
+				1131293,
+				1128266,
+				1104084
+			],
+			"loop": true,
+			"duration": 91.95,
+			"volume": 0.6
+		},
+		"bgm_feast": {
+			"src": [
+				"./assets/audio/music/bgm_feast.ogg?v=035a8a60",
+				"./assets/audio/music/bgm_feast.m4a?v=9760406c",
+				"./assets/audio/music/bgm_feast.mp3?v=ea14d9a5"
+			],
+			"bytes": [
+				735673,
+				746221,
+				730428
+			],
+			"loop": true,
+			"duration": 60.805,
+			"volume": 0.6
+		},
+		"bgm_maxwin": {
+			"src": [
+				"./assets/audio/music/bgm_maxwin.ogg?v=f9e2a612",
+				"./assets/audio/music/bgm_maxwin.m4a?v=c8079c9c",
+				"./assets/audio/music/bgm_maxwin.mp3?v=934ed278"
+			],
+			"bytes": [
+				274458,
+				270223,
+				264299
+			],
+			"loop": true,
+			"duration": 21.946,
+			"volume": 0.6
+		}
+	}
+}

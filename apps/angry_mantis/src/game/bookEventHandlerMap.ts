@@ -183,10 +183,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		});
 		eventEmitter.broadcast({ type: 'bonusIntroHide' });
 		eventEmitter.broadcast({ type: 'boardFrameGlowShow' });
-		eventEmitter.broadcast({ type: 'freeSpinCounterShow' });
-		// current: 0, not undefined — undefined means "keep previous", which showed the LAST
-		// session's spins-played on a second bonus until the first updateFreeSpin arrived
-		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: 0, total: bookEvent.totalFs });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 	},
@@ -196,8 +192,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 		stateGame.spinsPlayed = bookEvent.amount;
 		stateGame.totalFs = bookEvent.total;
-		eventEmitter.broadcast({ type: 'freeSpinCounterShow' });
-		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: bookEvent.amount, total: bookEvent.total });
+		// the FREE SPIN n/total readout is the HTML chrome's spin button (controls.freeSpin()),
+		// derived from stateGame.spinsPlayed/totalFs — nothing to broadcast
 	},
 	strike: async (bookEvent: BookEventOfType<'strike'>) => {
 		stateGame.strikeCount = bookEvent.strikeIndex + 1;
@@ -257,7 +253,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			if (i < awarded.length - 1) await waitForTimeout(220 / stateBetDerived.timeScale());
 		}
 		stateGame.totalFs = bookEvent.newTotalFs;
-		eventEmitter.broadcast({ type: 'freeSpinCounterUpdate', current: undefined, total: bookEvent.newTotalFs });
 		await waitForTimeout(400 / stateBetDerived.timeScale());
 	},
 	maxWinCinematic: async (bookEvent: BookEventOfType<'maxWinCinematic'>) => {
@@ -292,18 +287,30 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			eatenList: bookEvent.eatenList,
 		};
 	},
-	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>) => {
+	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>, { bookEvents }: BookEventContext) => {
 		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];
+		// TOTAL WIN on the wrap-up is the ROUND total, not the free-spins subtotal. The book's
+		// freeSpinEnd.amount covers only the free games — a base-game trigger win sits outside it
+		// (books_base #17: trigger 20 + free spins 1320 → freeSpinEnd.amount 1320, finalWin 1340),
+		// and the HUD WIN (running setTotalWin) is on screen at the same time showing 1340. So the
+		// count-up target is the book's own finalWin when it has one, else the running total the
+		// HUD is already displaying. The wincap path stays consistent by construction: maxWinCinematic
+		// has already pinned winBookEventAmount to the book payout, which is what finalWin carries.
+		const idx = bookEvents.indexOf(bookEvent);
+		const finalWinEvent = bookEvents
+			.slice(idx + 1)
+			.find((e): e is BookEventOfType<'finalWin'> => e.type === 'finalWin');
+		const roundTotal = Math.max(
+			bookEvent.amount,
+			finalWinEvent?.amount ?? stateBet.winBookEventAmount,
+		);
 
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		stateGame.gameType = 'basegame';
 		eventEmitter.broadcast({ type: 'boardFrameGlowHide' });
-		// counter off BEFORE the outro presents: the door wrap-up owns the screen, and the portrait
-		// press prompt's band (layoutSpec) overlaps the counter's slot
-		eventEmitter.broadcast({ type: 'freeSpinCounterHide' });
 		eventEmitter.broadcast({ type: 'freeSpinOutroShow' });
 		winLevelSoundsPlay({ winLevelData });
-		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: bookEvent.amount, winLevelData });
+		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: roundTotal, winLevelData });
 		winLevelSoundsStop();
 		eventEmitter.broadcast({ type: 'freeSpinOutroHide' });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });

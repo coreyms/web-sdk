@@ -36,14 +36,25 @@ for (const rel of [
 	writeFileSync(jsonPath, JSON.stringify(meta, null, 1) + '\n');
 }
 
-// 1b. audiosprite: src[] entries -> "./assets/audio/sounds.<ext>?v=<hash of that file>"
+// 1b. audio: every src[] entry -> "<path>?v=<hash of that file>". Two manifests now — the sfx
+// audiosprite (sounds.json, one src[]) and the streamed music tracks (music.json, one src[] per
+// track). Both are fetched by src/game/sound.ts and handed to Howler, and the per-file stamp is
+// what stops an immutable-cached music loop from surviving a re-encode.
+const stampSrc = (ref) => {
+	const clean = strip(ref); // "./assets/audio/music/bgm_base.ogg"
+	const rel = clean.replace(/^\.?\/?assets\//, ''); // "audio/music/bgm_base.ogg"
+	return `${clean}?v=${h8(join(ASSETS, rel))}`;
+};
 {
 	const jsonPath = join(ASSETS, 'audio', 'sounds.json');
 	const manifest = JSON.parse(readFileSync(jsonPath, 'utf8'));
-	manifest.src = manifest.src.map((ref) => {
-		const clean = strip(ref);
-		return `${clean}?v=${h8(join(ASSETS, 'audio', clean.split('/').pop()))}`;
-	});
+	manifest.src = manifest.src.map(stampSrc);
+	writeFileSync(jsonPath, JSON.stringify(manifest, null, '\t') + '\n');
+}
+{
+	const jsonPath = join(ASSETS, 'audio', 'music.json');
+	const manifest = JSON.parse(readFileSync(jsonPath, 'utf8'));
+	for (const track of Object.values(manifest.tracks)) track.src = track.src.map(stampSrc);
 	writeFileSync(jsonPath, JSON.stringify(manifest, null, '\t') + '\n');
 }
 

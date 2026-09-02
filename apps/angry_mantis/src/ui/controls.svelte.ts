@@ -187,7 +187,11 @@ export const createControls = () => {
 	};
 
 	// ── readouts ─────────────────────────────────────────────────────────
-	const balanceText = () => numberToCurrencyString(stateBet.balanceAmount);
+	// BALANCE is a wallet readout, not a win: it never shows the sub-cent tail that
+	// numberToCurrencyString extends to for WIN amounts (play at the $0.01 denomination left it
+	// reading "$10,069.789" — Corey 2026-09-02). Capped at the currency's own minor units, so
+	// USD/SC/GC land on 2 (a whole GC balance still prints whole) and JPY still shows 0.
+	const balanceText = () => numberToCurrencyString(stateBet.balanceAmount, { maximumFractionDigits: 2 });
 	// WIN counts UP toward the live book value (winInfo applies the spin total as the combos
 	// reveal, and this tween chases it — Mother Clucker timing); a reset to a smaller value
 	// (new spin) snaps instead of counting backwards

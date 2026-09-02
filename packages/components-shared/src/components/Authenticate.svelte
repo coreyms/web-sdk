@@ -66,6 +66,25 @@
 				stateConfig.betMenuOptions = stateConfig.betAmountOptions.filter((_, index) =>
 					MOST_USED_BET_INDEXES.includes(index),
 				);
+
+				// Boot bet MUST come from the ladder the RGS just declared. stateBet.betAmount
+				// otherwise keeps its hard-coded 1, which a USD session masks ($1.00 is a real
+				// level) but a GC session does not: minBet is GC 100, so the game armed "SPIN GC 1"
+				// and a real RGS would reject the /wallet/play. Pick defaultBetLevel when the ladder
+				// actually contains it, else the smallest level >= minBet — never a value outside
+				// betLevels. Compared in raw API units so no float division can miss an exact match.
+				// A resumed round overrides this below (its wagered amount wins).
+				const rawLevels = [...(authenticateData.config?.betLevels ?? [])].sort((a, b) => a - b);
+				const rawDefault = authenticateData.config?.defaultBetLevel;
+				const rawMin = authenticateData.config?.minBet ?? 0;
+				const bootBetRaw =
+					(rawDefault !== undefined && rawLevels.includes(rawDefault) ? rawDefault : undefined) ??
+					rawLevels.find((level) => level >= rawMin) ??
+					rawLevels[0];
+				if (bootBetRaw !== undefined) {
+					stateBet.betAmount = bootBetRaw / API_AMOUNT_MULTIPLIER;
+					stateBet.wageredBetAmount = bootBetRaw / API_AMOUNT_MULTIPLIER;
+				}
 			}
 
 			// round

@@ -51,7 +51,47 @@ export const bookEventAmountToNormalisedAmount = (bookEventAmount: number) => {
 
 export const numberToFloat = (value: number) => Number.parseFloat(`${value}`);
 
-export const numberToCurrencyString = (value: number, opts?: { fractionDigitsOf?: number }) => {
+// A currency's own minor-unit width, per Intl: USD/EUR/BRL 2, JPY 0, KWD 3. XGC/XSC are not ISO
+// codes (Intl throws on them) and are treated as 2-decimal like SC's $1 peg. Cached: constructing
+// a NumberFormat is not cheap and `maximumFractionDigits` callers hit this on every readout.
+const minorUnitCache = new Map<string, number>();
+const currencyMinorUnits = (currency: string) => {
+	const cached = minorUnitCache.get(currency);
+	if (cached !== undefined) return cached;
+	let digits = 2;
+	try {
+		digits =
+			new Intl.NumberFormat('en-US', { style: 'currency', currency }).resolvedOptions()
+				.maximumFractionDigits ?? 2;
+	} catch {
+		digits = 2; // non-ISO marker currency (XGC/XSC)
+	}
+	minorUnitCache.set(currency, digits);
+	return digits;
+};
+
+const format = (
+	value: number,
+	digits: { minimumFractionDigits: number; maximumFractionDigits: number },
+) => {
+	if (stateBet.currency in NO_LOCALISATION_CURRENCY_MAP) {
+		// XGC/XSC are not ISO codes — Intl's 'currency' style throws on them, so the number is
+		// formatted on its own (grouping/separators still localised) and the marker prefixed.
+		return `${NO_LOCALISATION_CURRENCY_MAP[stateBet.currency]} ${stateI18n.i18n.number(numberToFloat(value), digits)}`;
+	}
+
+	return stateI18n.i18n.number(value, {
+		...digits,
+		style: 'currency',
+		currency: stateBet.currency,
+		// numberingSystem: 'latn',
+	});
+};
+
+export const numberToCurrencyString = (
+	value: number,
+	opts?: { fractionDigitsOf?: number; maximumFractionDigits?: number },
+) => {
 	// Count-ups format a fresh intermediate value every frame, and deciding precision per frame
 	// makes the decimal tail flicker: a tween passing through 30,711,111.1111 renders 4 decimals
 	// on a GC win that ends whole, and the string length jumps every frame (live-caught
@@ -62,25 +102,22 @@ export const numberToCurrencyString = (value: number, opts?: { fractionDigitsOf?
 	const basis = pin ?? value;
 	// a whole GC amount shows no decimals at all; a fractional one still shows its digits
 	const wholeCoin = WHOLE_UNIT_CURRENCIES.has(stateBet.currency) && subCentUnits(basis) % 10_000 === 0;
+
+	// `maximumFractionDigits` opts out of the sub-cent scheme above and pins the readout to the
+	// currency's own minor units, capped at the given width. The BALANCE uses it: sub-cent digits
+	// are meaningful on a WIN (a 0.25× win on a $0.01 bet really is $0.0025) but a wallet reading
+	// "$10,069.789" after play at the $0.01 denomination is just noise (Corey 2026-09-02). Capped
+	// at the currency's own width so JPY still shows 0 decimals rather than a forced 2.
+	const cap = opts?.maximumFractionDigits;
+	if (cap !== undefined) {
+		const digits = Math.min(currencyMinorUnits(stateBet.currency), cap);
+		return format(value, { minimumFractionDigits: wholeCoin ? 0 : digits, maximumFractionDigits: digits });
+	}
+
 	const maximumFractionDigits = pin !== undefined && wholeCoin ? 0 : maximumFractionDigitsFor(basis);
 	const minimumFractionDigits = wholeCoin ? 0 : pin !== undefined ? maximumFractionDigits : 2;
 
-	if (stateBet.currency in NO_LOCALISATION_CURRENCY_MAP) {
-		// XGC/XSC are not ISO codes — Intl's 'currency' style throws on them, so the number is
-		// formatted on its own (grouping/separators still localised) and the marker prefixed.
-		return `${NO_LOCALISATION_CURRENCY_MAP[stateBet.currency]} ${stateI18n.i18n.number(numberToFloat(value), {
-			minimumFractionDigits,
-			maximumFractionDigits,
-		})}`;
-	}
-
-	return stateI18n.i18n.number(value, {
-		minimumFractionDigits,
-		maximumFractionDigits,
-		style: 'currency',
-		currency: stateBet.currency,
-		// numberingSystem: 'latn',
-	});
+	return format(value, { minimumFractionDigits, maximumFractionDigits });
 };
 
 export const bookEventAmountToCurrencyString = (
