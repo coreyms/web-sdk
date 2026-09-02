@@ -97,6 +97,11 @@ export const TIMINGS = {
 	maxWinWalkOn: 800,
 	maxWinPerCell: 90,
 	maxWinRoar: 1500,
+	// All-wild top-up beat (AllWildTopUp.svelte): the board of wilds that presents the book's
+	// wincap top-up before the cinematic. All three are scaled by stateBetDerived.timeScale().
+	maxWinTopUpHold: 900, // multiplier readable before the running total starts climbing
+	maxWinTopUpCount: 1000, // covers the HUD win tween (550ms, controls.svelte.ts) plus a beat
+	maxWinTopUpOutro: 350, // settle before the cinematic takes the screen
 	retrigger: 1300, // gold-art banner needs a readable beat (was 800 as plain text)
 };
 

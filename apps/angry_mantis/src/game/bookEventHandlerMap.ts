@@ -261,6 +261,17 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await waitForTimeout(400 / stateBetDerived.timeScale());
 	},
 	maxWinCinematic: async (bookEvent: BookEventOfType<'maxWinCinematic'>) => {
+		// All-wild top-up beat (Corey 2026-09-01) — presentation ONLY, see AllWildTopUp.svelte.
+		// The math ends the session the moment the pool empties, topping the round up to the cap in
+		// one go; this event fires BEFORE the book's wincap/setTotalWin, so winBookEventAmount still
+		// holds the pre-top-up running total and the gap to `payout` IS the book's top-up. A board of
+		// wilds drops, that gap is read out as a bet multiplier, and the total then climbs to
+		// `payout` — the same number the book itself writes two events later. Guarded on topUp > 0 so
+		// any path that already applied the total (or a zero-gap book) goes straight to the cinematic.
+		const topUp = bookEvent.payout - stateBet.winBookEventAmount;
+		if (topUp > 0) {
+			await eventEmitter.broadcastAsync({ type: 'allWildTopUpPlay', topUp, total: bookEvent.payout });
+		}
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		// the max-win moment is scored solely by bgm_maxwin, which carries Corey's 21.9 s max-win track
 		// (2026-09-01: it replaced both the old max-win music and the separate sfx stinger layer)

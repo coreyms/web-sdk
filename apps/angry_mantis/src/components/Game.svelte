@@ -31,6 +31,7 @@
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
 	import ModePlaque from './ModePlaque.svelte';
+	import AllWildTopUp from './AllWildTopUp.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
 	import ReplayOverlay from './ReplayOverlay.svelte';
 	import Chrome from '../ui/Chrome.svelte';
@@ -142,6 +143,9 @@
 		<ComboWin />
 		<Win />
 		<BonusIntro />
+		<!-- the all-wild top-up board reads UNDER the cinematic that follows it (both always-mounted,
+		     so template order is their z-order) -->
+		<AllWildTopUp />
 		<MaxWinCinematic />
 		<FreeSpinOutro />
 		<Transition />
