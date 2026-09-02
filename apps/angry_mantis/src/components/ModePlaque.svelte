@@ -45,6 +45,11 @@
 	// so the pill never renders collapsed.
 	let measured = $state({ tag: '', width: 0 });
 	const textW = $derived(measured.tag === text && measured.width > 0 ? measured.width : text.length * size * 0.62);
+	// The pill only shows once the CURRENT label has reported a real size: Corey saw an empty
+	// pill left on the rail after disarming a feast (2026-09-02, not reproducible) — a background
+	// that outlived its glyphs. Gating the backing on the label's own measurement means a Text
+	// that never rasterised, or a stale one, leaves no pill at all rather than an empty one.
+	const labelReady = $derived(!!chip && measured.tag === text && measured.width > 0);
 	const w = $derived(textW + (kind === 'portrait' ? 24 : 40));
 	const h = $derived(size + (kind === 'portrait' ? 6 : 16));
 </script>
@@ -53,22 +58,23 @@
      a mode is armed — i.e. AFTER the characters — putting the plaque in front of Marty. Mounting at
      boot pins its stage position: over the board frame, under the mantises. -->
 <MainContainer>
-	<Container visible={!!chip} x={f.x + f.width / 2} y={centerY}>
-		<Rectangle
-			x={-w / 2}
-			y={-h / 2}
-			width={w}
-			height={h}
-			borderRadius={h / 2}
-			backgroundColor={0x0a0602}
-			alpha={0.85}
-			borderWidth={1.5}
-			borderColor={0xe8b04a}
-		/>
-		<!-- keyed: a PIXI.Text updated while its container is invisible keeps its old glyphs, so
-		     rebuild the node when the label changes (rare — only on arm/cancel/bet change); the
-		     fresh node's onresize re-reports the measurement the pill width derives from -->
+	<Container visible={labelReady} x={f.x + f.width / 2} y={centerY}>
+		<!-- keyed TOGETHER: a PIXI.Text updated while its container is invisible keeps its old
+		     glyphs, so the node is rebuilt when the label changes (rare — arm/cancel/bet change),
+		     and the backing rebuilds with it so the two can never be out of step; the fresh Text's
+		     onresize re-reports the measurement the pill width derives from -->
 		{#key text}
+			<Rectangle
+				x={-w / 2}
+				y={-h / 2}
+				width={w}
+				height={h}
+				borderRadius={h / 2}
+				backgroundColor={0x0a0602}
+				alpha={0.85}
+				borderWidth={1.5}
+				borderColor={0xe8b04a}
+			/>
 			<Text {text} {style} anchor={0.5} onresize={(s) => (measured = { tag: text, width: s.width })} />
 		{/key}
 	</Container>
