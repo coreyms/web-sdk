@@ -76,7 +76,7 @@
 </div>
 
 <div class="am-ui layer modals">
-	<BonusBuyModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
+	<BonusBuyModal {controls} {master} {scale} {left} {top} compact={kind === 'portrait'} />
 	<AutoplayModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<DenomModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<GameInfoModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />

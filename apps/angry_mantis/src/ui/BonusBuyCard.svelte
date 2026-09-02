@@ -1,8 +1,11 @@
 <script lang="ts">
+	// One meal ticket (Corey's Claude Design "Meal Tickets 1a", 2026-09-02): paper card with the art
+	// breaking out of the top, a dashed name plate in the mode's accent, the pitch, the hunger meter,
+	// then a perforated tear to the price stub + CTA. `compact` = the portrait 2×2 grid sizing.
 	import { stateBet } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
-	import type { BonusCardSpec } from './bonusCards';
+	import { HUNGER_LEAF, type BonusCardSpec } from './bonusCards';
 	import { betModeMeta } from '../game/betModeMeta';
 
 	type Props = { opt: BonusCardSpec; compact?: boolean; onbuy: (opt: BonusCardSpec, price: number) => void };
@@ -10,117 +13,282 @@
 
 	const multiplier = $derived(betModeMeta[opt.mode].costMultiplier);
 	const price = $derived(stateBet.betAmount * multiplier);
-	const canAfford = $derived(opt.toggle ? stateBet.balanceAmount >= price : stateBet.balanceAmount >= price);
-	const sz = $derived(
-		compact
-			? { headerH: 105, overlap: 52, descFs: 12, detailFs: 11, detailMinH: 62, descPad: '58px 16px 14px', costFs: 15, costPad: '8px 0', ctaH: 44, ctaFs: 14 }
-			: { headerH: 135, overlap: 68, descFs: 13, detailFs: 12, detailMinH: 66, descPad: '76px 18px 14px', costFs: 16, costPad: '9px 0', ctaH: 48, ctaFs: 15 },
-	);
-	const bodyBg = $derived(
-		opt.tone.dual
-			? 'linear-gradient(135deg, #19050b 0%, #100808 50%, #06170d 100%)'
-			: `linear-gradient(180deg, ${opt.tone.body} 0%, #060309 100%)`,
-	);
-	const ctaBg = $derived(
-		!canAfford
-			? 'linear-gradient(180deg, #2a2a2a, #161616)'
-			: opt.tone.dual
-				? `linear-gradient(135deg, ${opt.tone.accent} 0%, ${opt.tone.accent2} 100%)`
-				: `linear-gradient(180deg, ${opt.tone.accent} 0%, ${opt.tone.accent}cc 100%)`,
-	);
-	// every card shows what a play costs, ante included: its full per-spin price (2x the bet),
-	// not the "+$1.00 / SPIN" surcharge form (Corey 2026-09-02) — the card copy already says 2x
+	const canAfford = $derived(stateBet.balanceAmount >= price);
+	// every card shows what a play costs, ante included (its 2x price, not a "+" surcharge)
 	const costText = $derived(numberToCurrencyString(price));
+	const pips = $derived([1, 2, 3, 4].map((i) => (i <= opt.hunger ? HUNGER_LEAF : 'rgba(0,0,0,.12)')));
+	const ctaBg = $derived(
+		canAfford ? `linear-gradient(180deg, ${opt.accent}, ${opt.accentDark})` : 'linear-gradient(180deg, #8f8977, #6b6659)',
+	);
 </script>
 
-<div class="card">
-	<div class="header" style:height="{sz.headerH}px" style:margin-bottom="-{sz.overlap}px">
-		<img src={opt.image} alt={opt.label} draggable="false" />
+<div class="ticket" class:compact style:transform={compact ? 'none' : `rotate(${opt.tilt}deg)`}>
+	<!-- art slot: sits above the paper, bottom-aligned, breaks out of the top edge -->
+	<div class="art" style:filter={opt.artShadow}>
+		{#if opt.artB}
+			<img class="art-b" src={opt.artB} alt="" draggable="false" />
+		{/if}
+		<img class="art-a" src={opt.art} alt="" draggable="false" style:transform="translateX({compact ? opt.shift * 0.55 : opt.shift}px)" />
 	</div>
-	<div
-		class="body"
-		style:background={bodyBg}
-		style:border="1.5px solid {opt.tone.accent}55"
-		style:padding={sz.descPad}
-		style:box-shadow={opt.tone.dual
-			? `0 12px 28px rgba(0,0,0,.55), inset 0 0 30px ${opt.tone.accent}10, inset 0 0 30px ${opt.tone.accent2}10`
-			: `0 12px 28px rgba(0,0,0,.55), inset 0 0 30px ${opt.tone.accent}10`}
-	>
-		<div class="desc" style:font-size="{sz.descFs}px">{opt.description}</div>
-		<div class="detail" style:font-size="{sz.detailFs}px" style:min-height="{sz.detailMinH}px">{opt.detail}</div>
-		<div class="slot-num cost" style:padding={sz.costPad} style:font-size="{sz.costFs}px" style:color={opt.tone.dual ? '#fff' : opt.tone.accent} style:border="1px solid {opt.tone.accent}33">{costText}</div>
-		<button
-			class="slot-btn cta"
-			disabled={!canAfford}
-			onclick={() => onbuy(opt, price)}
-			style:height="{sz.ctaH}px"
-			style:font-size="{sz.ctaFs}px"
-			style:background={ctaBg}
-			style:box-shadow={canAfford ? `inset 0 1px 0 rgba(255,255,255,.4), 0 3px 0 ${opt.tone.body}, 0 6px 12px rgba(0,0,0,.5)` : 'inset 0 0 0 1px rgba(255,255,255,.05)'}
-			style:color={canAfford ? '#0a0410' : 'rgba(255,255,255,.35)'}
-		>{opt.cta}</button>
+	<div class="paper">
+		<div class="upper">
+			<div class="grain"></div>
+			<div class="spacer"></div>
+			<div class="plate" style:background={opt.accent}>{opt.label}</div>
+			<div class="pitch">{opt.pitch}</div>
+			<div class="hunger">
+				{#if !compact}<span class="hunger-lbl">HUNGER</span>{/if}
+				<span class="pips">
+					{#each pips as fill, i (i)}
+						<span class="pip" style:background={fill}></span>
+					{/each}
+				</span>
+			</div>
+		</div>
+		<div class="stub">
+			<div class="grain"></div>
+			<div class="tear"></div>
+			<div class="price">{costText}</div>
+			<button class="slot-btn cta" disabled={!canAfford} onclick={() => onbuy(opt, price)} style:background={ctaBg}>{opt.cta}</button>
+		</div>
 	</div>
 </div>
 
 <style>
-	.card {
+	.ticket {
+		--r: 14px;
+		--ink: #1b1204;
+		position: relative;
+		width: 262px;
+		padding-top: 72px;
+		flex: none;
 		display: flex;
 		flex-direction: column;
-		align-items: stretch;
-		flex: 1;
-		min-width: 0;
-		position: relative;
 	}
-	.header {
-		position: relative;
+	.art {
+		position: absolute;
+		left: 50%;
+		top: 0;
+		width: 210px;
+		height: 150px;
+		transform: translateX(-50%);
 		z-index: 2;
 		display: flex;
-		align-items: center;
+		align-items: flex-end;
 		justify-content: center;
 		pointer-events: none;
 	}
-	.header img {
+	.art-a {
+		position: relative;
+		max-width: 100%;
 		max-height: 100%;
-		max-width: 95%;
 		object-fit: contain;
-		filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.75));
+		border-radius: var(--r);
 	}
-	.body {
-		border-radius: 14px;
+	.art-b {
+		position: absolute;
+		left: 8px;
+		bottom: -6px;
+		width: 120px;
+		height: 120px;
+		object-fit: contain;
+		transform: rotate(-8deg);
+	}
+	/* the paper is two halves so the perforation can punch REAL holes (a mask on each half); the
+	   drop shadow rides the wrapper's filter, so it follows the notches instead of filling them */
+	.paper {
+		flex: 1;
 		display: flex;
 		flex-direction: column;
-		align-items: stretch;
+		filter: drop-shadow(0 20px 20px rgba(0, 0, 0, 0.6));
+	}
+	.upper,
+	.stub {
+		position: relative;
+		box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.08);
+	}
+	.upper {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
+		border-radius: var(--r) var(--r) 0 0;
+		-webkit-mask-image: radial-gradient(circle at -3px 100%, transparent 11px, #000 12px), radial-gradient(circle at calc(100% + 3px) 100%, transparent 11px, #000 12px);
+		mask-image: radial-gradient(circle at -3px 100%, transparent 11px, #000 12px), radial-gradient(circle at calc(100% + 3px) 100%, transparent 11px, #000 12px);
+		-webkit-mask-composite: source-in;
+		mask-composite: intersect;
+	}
+	.stub {
+		display: flex;
+		flex-direction: column;
 		gap: 10px;
+		padding: 16px 18px 18px;
+		background: #d3c9ae;
+		border-radius: 0 0 var(--r) var(--r);
+		-webkit-mask-image: radial-gradient(circle at -3px 0, transparent 11px, #000 12px), radial-gradient(circle at calc(100% + 3px) 0, transparent 11px, #000 12px);
+		mask-image: radial-gradient(circle at -3px 0, transparent 11px, #000 12px), radial-gradient(circle at calc(100% + 3px) 0, transparent 11px, #000 12px);
+		-webkit-mask-composite: source-in;
+		mask-composite: intersect;
+	}
+	.grain {
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+		pointer-events: none;
+	}
+	.spacer {
+		height: 82px;
+	}
+	.plate {
+		margin: 0 -4px;
+		color: var(--ink);
+		text-align: center;
+		font: 400 38px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
+		letter-spacing: 2px;
+		padding: 12px 0 10px;
+		text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35);
+		border-top: 3px dashed rgba(0, 0, 0, 0.25);
+		border-bottom: 3px dashed rgba(0, 0, 0, 0.25);
 		position: relative;
 	}
-	.desc {
-		min-height: 36px;
-		font-weight: 800;
-		letter-spacing: 1.2px;
+	.pitch {
+		flex: 1;
+		padding: 14px 20px 12px;
+		text-align: center;
+		color: #2a241a;
+		font-size: 13.5px;
+		font-weight: 600;
 		line-height: 1.35;
-		color: #fff;
-		text-align: center;
-		text-transform: uppercase;
-		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+		letter-spacing: 0.2px;
+		text-wrap: pretty;
+		position: relative;
 	}
-	.detail {
-		color: rgba(255, 255, 255, 0.78);
-		line-height: 1.45;
-		text-align: center;
-		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+	.hunger {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		padding: 0 0 14px;
+		position: relative;
 	}
-	.cost {
+	.hunger-lbl {
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 3px;
+		color: #6b6250;
+	}
+	.pips {
+		display: flex;
+		gap: 5px;
+	}
+	.pip {
+		width: 14px;
+		height: 14px;
+		border-radius: 0 100% 0 100%;
+		transform: rotate(-20deg);
+		box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.35);
+	}
+	.tear {
+		position: absolute;
+		left: 10px;
+		right: 10px;
+		top: -1.5px;
+		border-top: 3px dashed #a99c7d;
+	}
+	.price {
 		text-align: center;
-		background: rgba(0, 0, 0, 0.5);
-		border-radius: 8px;
-		font-weight: 700;
-		letter-spacing: 0.5px;
-		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+		font: 400 32px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
+		color: var(--ink);
+		position: relative;
 		white-space: nowrap;
 	}
 	.cta {
+		position: relative;
+		color: var(--ink);
+		text-align: center;
+		font: 400 24px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
+		letter-spacing: 3px;
+		padding: 14px 0;
 		border-radius: 10px;
-		font-weight: 900;
+		box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+	}
+	.cta:disabled {
+		color: rgba(27, 18, 4, 0.5);
+		box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+	}
+
+	/* ── portrait 2×2 grid ── */
+	.compact {
+		--r: 12px;
+		width: auto;
+		padding-top: 40px;
+	}
+	.compact .art {
+		width: 130px;
+		height: 84px;
+	}
+	.compact .art-a {
+		border-radius: 10px;
+	}
+	.compact .art-b {
+		left: 4px;
+		bottom: -4px;
+		width: 68px;
+		height: 68px;
+	}
+	.compact .paper {
+		filter: drop-shadow(0 12px 13px rgba(0, 0, 0, 0.6));
+	}
+	.compact .upper,
+	.compact .stub {
+		-webkit-mask-image: none;
+		mask-image: none;
+	}
+	.compact .spacer {
+		height: 46px;
+	}
+	.compact .plate {
+		margin: 0;
+		font-size: 24px;
+		letter-spacing: 1px;
+		padding: 8px 0 7px;
+		border-width: 2px;
+	}
+	.compact .pitch {
+		padding: 8px 10px 6px;
+		font-size: 10.5px;
+		line-height: 1.3;
+	}
+	.compact .hunger {
+		padding: 0 0 8px;
+	}
+	.compact .pips {
+		gap: 4px;
+	}
+	.compact .pip {
+		width: 10px;
+		height: 10px;
+		box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+	}
+	.compact .stub {
+		gap: 6px;
+		padding: 8px 10px 10px;
+	}
+	.compact .tear {
+		left: 6px;
+		right: 6px;
+		top: -1px;
+		border-top-width: 2px;
+	}
+	.compact .price {
+		font-size: 20px;
+	}
+	.compact .cta {
+		font-size: 16px;
 		letter-spacing: 2px;
+		padding: 12px 0;
+		border-radius: 8px;
+		box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
 	}
 </style>
