@@ -12,11 +12,9 @@
 	import GameText from './GameText.svelte';
 
 	const entries: { text: string; preset: 'gold' | 'silver'; size: number; extra?: Record<string, unknown> }[] = [
-		// BonusIntro
-		{ text: '8 FREE SPINS', preset: 'gold', size: 40 },
-		{ text: '10 FREE SPINS', preset: 'gold', size: 40 },
-		// (the wrapped rules paragraphs render at size 17 — texture small enough that a cold
-		//  raster doesn't hitch, so they're not warmed here)
+		// BonusIntro contributes NOTHING here any more (2026-09-01): the bonus board is Corey's
+		// header/free-spin art plus glyph sprites off the numerals + gold-alphabet atlases, so
+		// there is no styled text on that screen to keep resident.
 		// FreeSpinOutro (merged wrap-up)
 		{ text: 'TOTAL WIN', preset: 'silver', size: 28, extra: { letterSpacing: 6 } },
 		// Mantis choreography + max win

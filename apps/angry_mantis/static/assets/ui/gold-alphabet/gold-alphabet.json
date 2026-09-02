@@ -1,0 +1,595 @@
+{
+ "frames": {
+  "gold_A.png": {
+   "frame": {
+    "x": 337,
+    "y": 2,
+    "w": 99,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 99,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 99,
+    "h": 110
+   }
+  },
+  "gold_B.png": {
+   "frame": {
+    "x": 124,
+    "y": 345,
+    "w": 74,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 74,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 74,
+    "h": 109
+   }
+  },
+  "gold_C.png": {
+   "frame": {
+    "x": 2,
+    "y": 121,
+    "w": 76,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 76,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 76,
+    "h": 110
+   }
+  },
+  "gold_D.png": {
+   "frame": {
+    "x": 200,
+    "y": 345,
+    "w": 77,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 77,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 77,
+    "h": 109
+   }
+  },
+  "gold_E.png": {
+   "frame": {
+    "x": 80,
+    "y": 121,
+    "w": 67,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 67,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 67,
+    "h": 110
+   }
+  },
+  "gold_F.png": {
+   "frame": {
+    "x": 279,
+    "y": 345,
+    "w": 69,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 69,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 69,
+    "h": 109
+   }
+  },
+  "gold_G.png": {
+   "frame": {
+    "x": 350,
+    "y": 345,
+    "w": 77,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 77,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 77,
+    "h": 109
+   }
+  },
+  "gold_H.png": {
+   "frame": {
+    "x": 149,
+    "y": 121,
+    "w": 80,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 80,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 80,
+    "h": 110
+   }
+  },
+  "gold_I.png": {
+   "frame": {
+    "x": 429,
+    "y": 345,
+    "w": 38,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 38,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 38,
+    "h": 109
+   }
+  },
+  "gold_J.png": {
+   "frame": {
+    "x": 85,
+    "y": 2,
+    "w": 72,
+    "h": 111
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 72,
+    "h": 111
+   },
+   "sourceSize": {
+    "w": 72,
+    "h": 111
+   }
+  },
+  "gold_K.png": {
+   "frame": {
+    "x": 159,
+    "y": 2,
+    "w": 80,
+    "h": 111
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 80,
+    "h": 111
+   },
+   "sourceSize": {
+    "w": 80,
+    "h": 111
+   }
+  },
+  "gold_L.png": {
+   "frame": {
+    "x": 231,
+    "y": 121,
+    "w": 67,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 67,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 67,
+    "h": 110
+   }
+  },
+  "gold_M.png": {
+   "frame": {
+    "x": 300,
+    "y": 121,
+    "w": 94,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 94,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 94,
+    "h": 110
+   }
+  },
+  "gold_N.png": {
+   "frame": {
+    "x": 2,
+    "y": 457,
+    "w": 80,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 80,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 80,
+    "h": 109
+   }
+  },
+  "gold_O.png": {
+   "frame": {
+    "x": 396,
+    "y": 121,
+    "w": 75,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 110
+   }
+  },
+  "gold_P.png": {
+   "frame": {
+    "x": 84,
+    "y": 457,
+    "w": 76,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 76,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 76,
+    "h": 109
+   }
+  },
+  "gold_Q.png": {
+   "frame": {
+    "x": 2,
+    "y": 2,
+    "w": 81,
+    "h": 117
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 117
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 117
+   }
+  },
+  "gold_R.png": {
+   "frame": {
+    "x": 2,
+    "y": 233,
+    "w": 84,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 84,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 84,
+    "h": 110
+   }
+  },
+  "gold_S.png": {
+   "frame": {
+    "x": 162,
+    "y": 457,
+    "w": 76,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 76,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 76,
+    "h": 109
+   }
+  },
+  "gold_T.png": {
+   "frame": {
+    "x": 240,
+    "y": 457,
+    "w": 77,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 77,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 77,
+    "h": 109
+   }
+  },
+  "gold_U.png": {
+   "frame": {
+    "x": 319,
+    "y": 457,
+    "w": 79,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 79,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 79,
+    "h": 109
+   }
+  },
+  "gold_V.png": {
+   "frame": {
+    "x": 400,
+    "y": 457,
+    "w": 83,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 83,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 83,
+    "h": 109
+   }
+  },
+  "gold_W.png": {
+   "frame": {
+    "x": 2,
+    "y": 568,
+    "w": 118,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 109
+   }
+  },
+  "gold_X.png": {
+   "frame": {
+    "x": 241,
+    "y": 2,
+    "w": 94,
+    "h": 111
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 94,
+    "h": 111
+   },
+   "sourceSize": {
+    "w": 94,
+    "h": 111
+   }
+  },
+  "gold_Y.png": {
+   "frame": {
+    "x": 88,
+    "y": 233,
+    "w": 87,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 87,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 87,
+    "h": 110
+   }
+  },
+  "gold_Z.png": {
+   "frame": {
+    "x": 122,
+    "y": 568,
+    "w": 80,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 80,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 80,
+    "h": 109
+   }
+  },
+  "gold_box1.png": {
+   "frame": {
+    "x": 177,
+    "y": 233,
+    "w": 118,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 110
+   }
+  },
+  "gold_box2.png": {
+   "frame": {
+    "x": 297,
+    "y": 233,
+    "w": 124,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 124,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 124,
+    "h": 110
+   }
+  },
+  "gold_box3.png": {
+   "frame": {
+    "x": 2,
+    "y": 345,
+    "w": 120,
+    "h": 110
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 120,
+    "h": 110
+   },
+   "sourceSize": {
+    "w": 120,
+    "h": 110
+   }
+  }
+ },
+ "meta": {
+  "app": "angry-mantis-glyph-slicer",
+  "image": "gold-alphabet.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 512,
+   "h": 679
+  },
+  "scale": "1",
+  "pngHash": "343b3950"
+ }
+}

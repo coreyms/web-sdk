@@ -1,4 +1,4 @@
-import type { RawSymbol, SymbolState, SymbolName } from './types';
+import type { RawSymbol, SymbolState, SymbolName, BonusMode } from './types';
 import config from './config';
 
 export const SYMBOL_SIZE = 110;
@@ -214,3 +214,107 @@ export const BONUS_MODE_LABEL = {
 	super: 'SUPER FREE SPINS',
 	feast: 'MANTIS FEAST',
 } as const;
+
+// ---- Bonus-intro art (Corey's colour-graded branding exports) ----
+// Stencil headers: one image carries BOTH lines ("FEAST" + "ALL-YOU-CAN-EAT BONUS"). All three are
+// cropped from a common box, so they share an aspect and land on the same baseline in every mode.
+export const BONUS_INTRO_HEADER = {
+	free: 'headerBonus', // BONUS * MARTY'S SPECIAL
+	super: 'headerSuper', // SUPER * MARKY'S SPECIAL
+	feast: 'headerFeast', // FEAST * ALL-YOU-CAN-EAT BONUS
+} as const;
+export const BONUS_INTRO_HEADER_ASPECT = 880 / 290;
+// Big numeral + speed lines + "* FREE SPINS *" strip. Keyed on the ACTUAL spin count from the
+// bonusStart event, not the mode, so the picture can never disagree with the counter.
+export const FREE_SPINS_ART = {
+	8: { key: 'freeSpins8', aspect: 620 / 375 },
+	10: { key: 'freeSpins10', aspect: 620 / 300 },
+} as const;
+
+// Mugshot height-chart plates (Corey's art, 2026-09-01). Each plate bakes in its INMATE label and
+// foot marks, and the two are MIRRORED — 01 runs its chart numbers down the left edge, 02 down the
+// right — so the head is nudged toward the plate's clear side. The pair is laid out at a common
+// HEIGHT with each plate keeping its own aspect, so the strokes never scale non-uniformly.
+export const INMATE_PLATE = {
+	marky: { key: 'inmateChalk1', aspect: 400 / 307, headShift: 0.07 }, // INMATE 01, labels left
+	marty: { key: 'inmateChalk2', aspect: 400 / 267, headShift: -0.07 }, // INMATE 02, labels right
+} as const;
+
+// Head geometry on a mugshot plate, as fractions of the PLATE HEIGHT. Shared with BonusIntro so the
+// composition measures the same box MugshotPanel draws: the head hangs OVERHANG below the plate's
+// bottom rule, and forgetting that in the measurement mis-centres the whole screen (caught 2026-09-01,
+// it pushed the rules band 15px out the bottom of the door).
+export const MUGSHOT_HEAD = { size: 1.0, overhang: 0.25 } as const;
+
+// Tint for the GREEN STRIKE emphasis in the rules copy (the white stencil sheet takes tint).
+export const STRIKE_GREEN = 0x8fd14f;
+
+export type RuleCopyDensity = 'full' | 'medium' | 'short';
+
+/** One rule column/row: a boxed gold numeral, a gold stencil title, white stencil body copy.
+ *  `leafIcon` inlines the REAL Glowing Leaf symbol texture into the flow. */
+export type RuleCopy = { title: string; body: string; leafIcon?: boolean };
+
+// EVERY line here is checked against math-sdk/games/angry_mantis:
+//  1 EAT     — game_executables.leaf_strikes(): one strike per Glowing Leaf (GL) on the board;
+//              perform_strike pops symbol_pool[0], and game_config.EAT_ORDER is ascending
+//              5-of-a-kind pay (L4 L3 L2 L1 M3 M2 M1 H1), so the lowest symbol always goes first.
+//  2 REMOVE  — game_calculations.get_filtered_reel_id(): eaten symbols are substituted out of the
+//              reelstrips for the rest of the session ("removed symbols simply never appear again").
+//  3         — game_executables.auto_strikes(): `range(2 if bonus_mode == "feast" else 1)`, with
+//              next_striker() alternating marty/marky ONLY in feast. So feast opens with two bites,
+//              one per mantis; super opens with one from Marky; bonus opens with one from Marty.
+//              Every mode really does have an opening bite — no invented mechanic, no mode where
+//              this rule has to be swapped out for the retrigger rule.
+const RULE_3: Record<BonusMode, Record<RuleCopyDensity, RuleCopy>> = {
+	free: {
+		full: { title: 'HEAD START', body: 'MARTY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
+		medium: { title: 'HEAD START', body: 'MARTY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
+		short: { title: 'HEAD START', body: 'MARTY EATS ONE SYMBOL BEFORE SPIN 1.' },
+	},
+	super: {
+		full: { title: 'HEAD START', body: 'MARKY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
+		medium: { title: 'HEAD START', body: 'MARKY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
+		short: { title: 'HEAD START', body: 'MARKY EATS ONE SYMBOL BEFORE SPIN 1.' },
+	},
+	feast: {
+		full: { title: 'EPIC FEAST', body: 'BOTH MANTISES EAT ONE SYMBOL EACH BEFORE THE FIRST SPIN.' },
+		medium: { title: 'EPIC FEAST', body: 'BOTH MANTISES EAT ONE SYMBOL EACH BEFORE THE FIRST SPIN.' },
+		// 'EACH MANTIS EATS ONE' is the same fact as 'both mantises eat one each' (auto_strikes
+		// runs twice in feast, alternating marty/marky) in 6 fewer characters — that trim is what
+		// funds the >=3.2%-of-H body cap in the three-column band.
+		short: { title: 'EPIC FEAST', body: 'EACH EATS ONE SYMBOL BEFORE SPIN 1.' },
+	},
+};
+
+// "GREEN STRIKE" is tinted green wherever it appears (it names the Glowing Leaf tile). The copy is
+// uppercase and apostrophe-free because both stencil sheets are caps-only with no apostrophe glyph.
+const RULE_1: Record<RuleCopyDensity, RuleCopy> = {
+	full: {
+		title: 'EAT',
+		body: 'SYMBOLS ON THE GREEN STRIKE LEAF ARE EATEN. LOWEST SYMBOLS FIRST.',
+		leafIcon: true,
+	},
+	medium: {
+		title: 'EAT',
+		body: 'GREEN STRIKE LEAF SYMBOLS ARE EATEN. LOWEST SYMBOLS FIRST.',
+		leafIcon: true,
+	},
+	short: {
+		title: 'EAT',
+		body: 'GREEN STRIKE LEAF SYMBOLS ARE EATEN. LOWEST FIRST.',
+		leafIcon: true,
+	},
+};
+
+const RULE_2: Record<RuleCopyDensity, RuleCopy> = {
+	full: { title: 'REMOVE', body: 'EATEN SYMBOLS DISAPPEAR FOR THE REST OF THE BONUS.' },
+	medium: { title: 'REMOVE', body: 'EATEN SYMBOLS ARE GONE FOR THE REST OF THE BONUS.' },
+	short: { title: 'REMOVE', body: 'EATEN SYMBOLS NEVER RETURN.' },
+};
+
+export const rulesFor = (mode: BonusMode, density: RuleCopyDensity): RuleCopy[] => [
+	RULE_1[density],
+	RULE_2[density],
+	RULE_3[mode][density],
+];

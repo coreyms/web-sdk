@@ -92,6 +92,136 @@ export const boardPlacement = (kind: LayoutKind, viewportMasterWidth?: number) =
 	};
 };
 
+// Bonus-intro composition (BonusIntro.svelte). EVERY number below is a PERCENTAGE of the door
+// window (W x H) — that is how Corey specced the concept render, and keeping the table in those
+// units is what makes "does it match the render" checkable rather than a matter of taste. The
+// composition is authored in a design box of the window's aspect and uniformly scaled onto the
+// window, so a percentage here is literally that percentage of the door opening on screen.
+//
+// CONTAINMENT (Corey's primary acceptance test): everything on this screen stays INSIDE the door
+// window on every layout. Only the ModePlaque and the PRESS ANYWHERE prompt live outside, in their
+// HUD slots below the frame. Because every LayoutKind's frame is a uniform scale of the same art,
+// the window aspect is ~1.252 everywhere (594x474.4 landscape, 742.5x593 phone, 348x277.6
+// portrait), so one design aspect serves all three and `fit` uses the full window in both axes.
+//
+// Landscape/phone follow the render exactly: header, two mugshot plates, the big count art, then
+// THREE EQUAL RULE COLUMNS with hairline dividers. Portrait's window is only ~330 CSS px wide, so
+// three columns of body copy would fall under ~8px caps; it alone drops to three stacked centred
+// rows and gives the freed height back to the copy (Corey 2026-09-01: "keep 3 columns if legible
+// else 3 stacked centred rows - only in portrait").
+export type BonusIntroSpec = {
+	design: { w: number; h: number };
+	/** header art width, % of W (height follows the art's aspect); top edge, % of H */
+	header: { w: number; top: number };
+	/** mugshot band: top and plate height as % of H, gap between plates as % of W */
+	mugs: { top: number; h: number; gap: number };
+	/** Free-spin count art. The band is DERIVED, not tabled: it starts one `gap` (% of H) below the
+	 *  bottom of the head ink — the head hangs MUGSHOT_HEAD.overhang past its plate, and hard-coding
+	 *  a top here is what let the "10" collide with Marky's antennae — and runs to the rules band,
+	 *  so the art always fills every pixel left between the two. */
+	spins: { gap: number };
+	rules: {
+		/** band top and height, % of H; total width, % of W */
+		top: number;
+		h: number;
+		w: number;
+		/** 'columns' -> three equal columns with dividers. 'rows' -> three stacked centred rows. */
+		layout: 'columns' | 'rows';
+		/** gap between columns / rows, % of W / % of H */
+		gap: number;
+		/** boxed numeral height and gold title cap height, % of H */
+		badge: number;
+		titleCap: number;
+		/** columns only: the Glowing Leaf tile beside column 1's copy, height as % of H */
+		leaf: number;
+		/** body copy cap height, % of H, and its line advance as a multiple of the cap */
+		bodyCap: number;
+		lead: number;
+		copy: 'full' | 'medium' | 'short';
+	};
+};
+
+export const BONUS_INTRO: Record<LayoutKind, BonusIntroSpec> = {
+	// Bands are contiguous from 1.5% to 99% of H, so the door reads FULL rather than sparse.
+	landscape: {
+		design: { w: 620, h: 495 },
+		header: { w: 50, top: 1.5 },
+		mugs: { top: 24.15, h: 22, gap: 5 },
+		spins: { gap: 1 },
+		// titleCap is 4.4% rather than the render's ~5.5%: every rule title is 10 characters
+		// ("EPIC FEAST" / "HEAD START") and at 5.5% the badge+title line no longer fits its
+		// column, wrapping the title in half. The solver in BonusIntro shrinks it further only
+		// if a title still would not fit, and uses ONE cap for all three so they stay a set.
+		rules: {
+			top: 77,
+			h: 22,
+			w: 99,
+			layout: 'columns',
+			gap: 0.8,
+			badge: 5.6,
+			titleCap: 4.4,
+			bodyCap: 3.2,
+			lead: 1.3,
+			leaf: 9,
+			copy: 'short',
+		},
+	},
+	// Phone-sideways keeps the render's three columns. Its design box is WIDER (780 x 495, aspect
+	// 1.58) than the others' because this is the one layout that reserves a band for the press
+	// prompt: fitting a 1.252 box into the remaining 742.5 x 473 window would have left ~150 master
+	// px of door width unused and squeezed the rule columns to ~7.5 CSS px caps. Matching the box to
+	// the USABLE window instead widens each column by ~30%, so the copy wraps to three lines and the
+	// caps go back up to portrait's ~9.7 CSS px. Percentages still read as percentages of the door
+	// window; only `header.w` is re-tuned (48 instead of 60), because a % of a wider W would
+	// otherwise make the header taller than its band.
+	// header is 40% W, not landscape's 50%: this design box maps its WIDTH to the full door
+	// (742.5 master) but its HEIGHT only to the window minus the reserved prompt band, so a
+	// 55%-W header would eat 28.6% of the usable height and starve the count art.
+	phone: {
+		design: { w: 780, h: 495 },
+		header: { w: 40, top: 1.5 },
+		mugs: { top: 24.3, h: 22, gap: 4 },
+		spins: { gap: 1 },
+		rules: {
+			top: 77,
+			h: 22,
+			w: 99,
+			layout: 'columns',
+			gap: 1,
+			badge: 5.6,
+			titleCap: 4.4,
+			bodyCap: 3.2,
+			lead: 1.3,
+			leaf: 9,
+			copy: 'short',
+		},
+	},
+	// Portrait: the art bands shrink a little to buy the rules the height that three stacked rows
+	// need at a cap that still reads on a ~330 CSS px wide door.
+	portrait: {
+		design: { w: 620, h: 495 },
+		header: { w: 48, top: 1.5 },
+		mugs: { top: 23.3, h: 18.5, gap: 5 },
+		spins: { gap: 1 },
+		// The rules band gets 36.7% of H — the freed header/plate/count height — because three
+		// stacked rows at a 4.1% cap need it; any less and the group self-scales down, which is
+		// what was quietly shrinking portrait's copy to 3.7%.
+		rules: {
+			top: 62.3,
+			h: 36.7,
+			w: 96,
+			layout: 'rows',
+			gap: 1.6,
+			badge: 6.6,
+			titleCap: 4.1,
+			bodyCap: 4.1,
+			lead: 1.34,
+			leaf: 0,
+			copy: 'short',
+		},
+	},
+};
+
 // Free-spin HUD slots (master units). Landscape uses the empty column under the logo; portrait uses
 // the band between the frame and the stats (the static Marty art is hidden during free spins).
 export const HUD: Record<

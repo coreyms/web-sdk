@@ -36,6 +36,27 @@ export default {
 	labelBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-bonus.webp', import.meta.url).href), preload: true },
 	labelSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-super.webp', import.meta.url).href), preload: true },
 	labelFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/label-feast.webp', import.meta.url).href), preload: true },
+	// bonus-intro stencil headers (branding/{feast,bonus,super}-header.webp): one image per mode
+	// carrying BOTH lines of the header. Preloaded — the door opens on them, so a cold fetch
+	// would show an empty window for a frame.
+	headerFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-feast.webp', import.meta.url).href), preload: true },
+	headerBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-bonus.webp', import.meta.url).href), preload: true },
+	headerSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-super.webp', import.meta.url).href), preload: true },
+	// big numeral + speed lines + "* FREE SPINS *" strip, one per awarded count (8 = bonus, 10 = super/feast)
+	freeSpins10: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-spins-10.webp', import.meta.url).href), preload: true },
+	freeSpins8: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-spins-8.webp', import.meta.url).href), preload: true },
+	// mugshot height-chart backings (branding/inmate-{1,2}-chalk.webp) — Corey's art, label and
+	// foot marks baked in; INMATE 01 is Marky (chart labels left), INMATE 02 is Marty (labels right)
+	inmateChalk1: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-1-chalk.webp', import.meta.url).href), preload: true },
+	inmateChalk2: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-2-chalk.webp', import.meta.url).href), preload: true },
+	// gold bonus-board stencil alphabet (A-Z + boxed 1/2/3), sliced from branding/bonus-board-alphabet.webp
+	// by tools/build_glyph_atlas.py — the rule titles and number badges draw from it as batched
+	// sprites, so the intro's headings never rasterize text (see game/stencilLayout.ts).
+	goldAlphabet: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/ui/gold-alphabet/gold-alphabet.json', import.meta.url).href),
+		preload: true,
+	},
 	// prison-stencil numerals: every amount glyph (digits, separators, currency symbols, GC/SC/R$)
 	// in one atlas — amounts render as batched sprites with ZERO per-frame rasterization
 	numeralsAtlas: {
