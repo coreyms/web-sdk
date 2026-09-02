@@ -21,7 +21,7 @@ export default {
 	bgCafeteriaFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast.webp', import.meta.url).href), preload: true },
 	frameCafeteria: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-cafeteria.webp', import.meta.url).href), preload: true },
 	doorSteel: { type: 'sprite', src: stamp(new URL('../../assets/ui/door-steel.webp', import.meta.url).href), preload: true },
-	// hand-made gold text art (assets/images/branding -> static/assets/ui/text): tier titles,
+	// hand-made gold text art (assets/images/overlays -> static/assets/ui/text): tier titles,
 	// max-win lines, retrigger digits/words. Replaces canvas-rasterized GameText at the biggest
 	// presentation moments (cheaper too: resident textures, no per-string raster+upload).
 	textBigWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/big-win.webp', import.meta.url).href), preload: true },
@@ -45,7 +45,7 @@ export default {
 	// foot marks baked in; INMATE 01 is Marky (chart labels left), INMATE 02 is Marty (labels right)
 	inmateChalk1: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-1-chalk.webp', import.meta.url).href), preload: true },
 	inmateChalk2: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-2-chalk.webp', import.meta.url).href), preload: true },
-	// gold bonus-board stencil alphabet (A-Z + boxed 1/2/3), sliced from branding/bonus-board-alphabet.webp
+	// gold bonus-board stencil alphabet (A-Z + boxed 1/2/3), sliced from assets/images/ui/bonus-board-alphabet.webp
 	// by tools/build_glyph_atlas.py — the rule titles and number badges draw from it as batched
 	// sprites, so the intro's headings never rasterize text (see game/stencilLayout.ts).
 	goldAlphabet: {
