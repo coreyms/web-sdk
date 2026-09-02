@@ -12,7 +12,7 @@ export default {
 		ante: { cost: 2.0, feature: true, buyBonus: false, rtp: 0.96, max_win: 20000 },
 		bonus: { cost: 100.0, feature: false, buyBonus: true, rtp: 0.96, max_win: 20000 },
 		super: { cost: 300.0, feature: false, buyBonus: true, rtp: 0.96, max_win: 20000 },
-		feast: { cost: 2000.0, feature: false, buyBonus: true, rtp: 0.96, max_win: 20000 },
+		feast: { cost: 1000.0, feature: false, buyBonus: true, rtp: 0.96, max_win: 20000 }, // 2000 -> 1000 (Corey 2026-09-02)
 	},
 	symbols: {
 		H1: { paytable: [{ '5': 10 }, { '4': 2.5 }, { '3': 0.8 }] },
