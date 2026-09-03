@@ -11,7 +11,7 @@
 
 
 	import { getContext } from '../game/context';
-	import { betModeMeta } from '../game/betModeMeta';
+	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import EnableSound from './EnableSound.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import ResumeBet from './ResumeBet.svelte';
@@ -41,6 +41,9 @@
 
 	const context = getContext();
 
+	// WHY: authenticate has resolved by the time this mounts, so fold the RGS-declared cost
+	// multipliers into the table before anything reads a price from it.
+	applyRgsBetModes();
 	stateMeta.betModeMeta = betModeMeta;
 
 	// landing flow: the HTML LandingScreen collects the press, then the Pixi LoadingScreen plays

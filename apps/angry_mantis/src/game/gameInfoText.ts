@@ -1,4 +1,5 @@
 import config from './config';
+import { modeCost } from './betModeMeta';
 import { soc } from './social';
 
 // Verbatim Stake Engine template (docs: approval-guidelines/general-disclaimer).
@@ -11,7 +12,9 @@ const MODE_RTP_LINE = Object.entries(config.betModes)
 	.map(([key, m]) => `${MODE_NAMES[key] ?? key.toUpperCase()} ${pct(m.rtp)}`)
 	.join(', ');
 
-export const RULES_SECTIONS = [
+// A function, not a constant: this module is evaluated at boot, but the buy prices below come from
+// the authenticate response, which has only landed by the time the info modal is opened.
+export const rulesSections = () => [
 	{
 		title: 'HOW TO PLAY',
 		paragraphs: [
@@ -47,7 +50,7 @@ export const RULES_SECTIONS = [
 		title: soc('ANTE BET', 'ANTE MODE'),
 		paragraphs: [
 			soc(
-				'Ante Bet costs 2x the bet. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature.',
+				`Ante Bet costs ${modeCost('ANTE')}x the bet. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature.`,
 				'Ante Mode doubles the play amount. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature.',
 			),
 		],
@@ -56,8 +59,8 @@ export const RULES_SECTIONS = [
 		title: soc('BONUS BUY', 'FEATURE MODES'),
 		paragraphs: [
 			soc(
-				`Free Spins can be bought for ${config.betModes.bonus.cost}x the bet, Super Free Spins for ${config.betModes.super.cost}x and Mantis Feast for ${config.betModes.feast.cost.toLocaleString()}x. Bought features play exactly like naturally triggered ones.`,
-				`Free Spins can be played directly for ${config.betModes.bonus.cost}x the play amount, Super Free Spins for ${config.betModes.super.cost}x and Mantis Feast for ${config.betModes.feast.cost.toLocaleString()}x. Instantly triggered features play exactly like naturally triggered ones.`,
+				`Free Spins can be bought for ${modeCost('BONUS')}x the bet, Super Free Spins for ${modeCost('SUPER')}x and Mantis Feast for ${modeCost('FEAST').toLocaleString()}x. Bought features play exactly like naturally triggered ones.`,
+				`Free Spins can be played directly for ${modeCost('BONUS')}x the play amount, Super Free Spins for ${modeCost('SUPER')}x and Mantis Feast for ${modeCost('FEAST').toLocaleString()}x. Instantly triggered features play exactly like naturally triggered ones.`,
 			),
 		],
 	},

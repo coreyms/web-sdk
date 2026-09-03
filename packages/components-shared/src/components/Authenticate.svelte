@@ -67,6 +67,35 @@
 					MOST_USED_BET_INDEXES.includes(index),
 				);
 
+				// WHY: cost multipliers are a betting parameter the RGS owns, and the submission
+				// checklist requires the game to use the authenticate response's values rather than a
+				// build-time copy — a math re-publish that reprices a buy (FEAST 2000x -> 1000x,
+				// 2026-09-02) must never leave the UI quoting a price /wallet/play does not charge.
+				// Three shapes are tolerated: the documented map { BASE: { costMultiplier } }, an
+				// array of those same objects, and a plain array of mode names (what our mock RGS
+				// sends) which carries no cost at all — modes with no cost in the response keep no
+				// entry here, so the game falls back to its local math config for them.
+				const toPositive = (value: unknown) =>
+					typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+				const rawBetModes = authenticateData.config?.betModes as unknown;
+				const rawEntries: [unknown, unknown][] = Array.isArray(rawBetModes)
+					? rawBetModes.map((entry) =>
+							typeof entry === 'string' ? [entry, {}] : [(entry as { mode?: unknown })?.mode, entry],
+						)
+					: Object.entries((rawBetModes ?? {}) as Record<string, unknown>);
+				const parsedBetModes: Record<string, { costMultiplier?: number; maxWin?: number }> = {};
+				for (const [rawKey, rawValue] of rawEntries) {
+					if (typeof rawKey !== 'string' || !rawKey) continue;
+					const value = (rawValue ?? {}) as Record<string, unknown>;
+					const costMultiplier = toPositive(value.costMultiplier) ?? toPositive(value.cost);
+					const maxWin = toPositive(value.maxWin) ?? toPositive(value.max_win);
+					const parsed: { costMultiplier?: number; maxWin?: number } = {};
+					if (costMultiplier !== undefined) parsed.costMultiplier = costMultiplier;
+					if (maxWin !== undefined) parsed.maxWin = maxWin;
+					parsedBetModes[rawKey.toUpperCase()] = parsed;
+				}
+				stateConfig.betModes = parsedBetModes;
+
 				// Boot bet MUST come from the ladder the RGS just declared. stateBet.betAmount
 				// otherwise keeps its hard-coded 1, which a USD session masks ($1.00 is a real
 				// level) but a GC session does not: minBet is GC 100, so the game armed "SPIN GC 1"

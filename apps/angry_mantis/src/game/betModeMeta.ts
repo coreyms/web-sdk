@@ -1,6 +1,34 @@
-import type { BetModeMeta } from 'state-shared';
+import { stateConfig, type BetModeMeta } from 'state-shared';
 import config from './config';
 import { soc } from './social';
+
+// WHY: the RGS owns the betting parameters — Stake's submission checklist requires the game to use
+// the cost multipliers from the authenticate response, not this build's copy of the math config, so
+// a math re-publish that reprices a buy can never leave the UI quoting a price /wallet/play won't
+// charge. config.betModes is the fallback only (our mock RGS lists mode names with no cost).
+const LOCAL_COST: Record<string, number> = Object.fromEntries(
+	Object.entries(config.betModes).map(([key, mode]) => [key.toUpperCase(), mode.cost]),
+);
+
+/** Cost multiplier for a mode: the authenticate value when the RGS declared one, else the local math config. */
+export const modeCost = (mode: string): number => {
+	const key = mode.toUpperCase();
+	return stateConfig.betModes[key]?.costMultiplier ?? LOCAL_COST[key] ?? 1;
+};
+
+/**
+ * Re-reads the authenticate values into the shared table. This module is evaluated at boot — before
+ * Authenticate resolves — so the literal below is seeded from the local config; Game.svelte (which
+ * only mounts once authenticate has returned) calls this to overwrite it in place, keeping the one
+ * table every consumer already holds a reference to as the single source of truth.
+ */
+export const applyRgsBetModes = () => {
+	for (const [key, meta] of Object.entries(betModeMeta)) {
+		meta.costMultiplier = modeCost(key);
+		const maxWin = stateConfig.betModes[key]?.maxWin;
+		if (maxWin !== undefined) meta.maxWin = maxWin;
+	}
+};
 
 // Feeds the shared bonus-buy modal / ante toggle. Keys must match the RGS mode names (math-sdk bet mode names).
 const placeholderAssets = { icon: '', volatility: '', button: '', dialogImage: '', dialogVolatility: '' };
@@ -8,7 +36,7 @@ const placeholderAssets = { icon: '', volatility: '', button: '', dialogImage: '
 export const betModeMeta: BetModeMeta = {
 	BASE: {
 		mode: 'BASE',
-		costMultiplier: config.betModes.base.cost,
+		costMultiplier: modeCost('BASE'),
 		type: 'default',
 		parent: '',
 		children: '',
@@ -18,7 +46,7 @@ export const betModeMeta: BetModeMeta = {
 	},
 	ANTE: {
 		mode: 'ANTE',
-		costMultiplier: config.betModes.ante.cost,
+		costMultiplier: modeCost('ANTE'),
 		type: 'activate',
 		parent: '',
 		children: '',
@@ -39,7 +67,7 @@ export const betModeMeta: BetModeMeta = {
 	},
 	BONUS: {
 		mode: 'BONUS',
-		costMultiplier: config.betModes.bonus.cost,
+		costMultiplier: modeCost('BONUS'),
 		type: 'buy',
 		parent: '',
 		children: '',
@@ -60,7 +88,7 @@ export const betModeMeta: BetModeMeta = {
 	},
 	SUPER: {
 		mode: 'SUPER',
-		costMultiplier: config.betModes.super.cost,
+		costMultiplier: modeCost('SUPER'),
 		type: 'buy',
 		parent: '',
 		children: '',
@@ -78,7 +106,7 @@ export const betModeMeta: BetModeMeta = {
 	},
 	FEAST: {
 		mode: 'FEAST',
-		costMultiplier: config.betModes.feast.cost,
+		costMultiplier: modeCost('FEAST'),
 		type: 'buy',
 		parent: '',
 		children: '',

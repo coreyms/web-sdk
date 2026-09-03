@@ -12,7 +12,8 @@
 	import config from '../game/config';
 	import { soc } from '../game/social';
 	import { stamp } from '../game/assets';
-	import { DISCLAIMER, RULES_SECTIONS } from '../game/gameInfoText';
+	import { DISCLAIMER, rulesSections } from '../game/gameInfoText';
+	import { modeCost } from '../game/betModeMeta';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { master, scale, left, top, compact = false }: Props = $props();
@@ -56,6 +57,8 @@
 	const social = $derived(stateUrlDerived.social());
 	const payText = (mult: number) => (social ? `${mult}×` : numberToCurrencyString(mult * stateBet.betAmount));
 
+	const RULES_SECTIONS = rulesSections();
+
 	const SPECIALS = [
 		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.') },
 		{ glyph: 'S', name: 'Marky Scatter', color: '#ff5a2c', note: `3 / 4 / 5 anywhere trigger Free Spins / Super Free Spins / Mantis Feast. In free spins each scatter adds +1 spin (up to +${config.freeSpins.maxRetrigger} per session); once the cap is reached scatters stop appearing.` },
@@ -69,11 +72,11 @@
 		return Number.isInteger(x) ? x.toLocaleString() : x.toFixed(1).replace(/\.0$/, '');
 	};
 	const MODES = [
-		{ id: 'base', label: 'Base Game', accent: '#fff', cost: '1×', costNum: 1, enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
-		{ id: 'ante', label: 'Ante', accent: '#e8b04a', cost: `${config.betModes.ante.cost}×`, costNum: config.betModes.ante.cost, enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per play.', mech: soc('Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.', 'Doubles the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with an instantly triggered feature.') },
-		{ id: 'bonus', label: 'Free Spins', accent: '#9CD92F', cost: `${config.betModes.bonus.cost}×`, costNum: config.betModes.bonus.cost, enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
-		{ id: 'super', label: 'Super Free Spins', accent: '#C53C24', cost: `${config.betModes.super.cost}×`, costNum: config.betModes.super.cost, enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
-		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${config.betModes.feast.cost.toLocaleString()}×`, costNum: config.betModes.feast.cost, enter: soc('Land 5 Marky scatters, or buy directly.', 'Land 5 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
+		{ id: 'base', label: 'Base Game', accent: '#fff', cost: `${modeCost('BASE')}×`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
+		{ id: 'ante', label: 'Ante', accent: '#e8b04a', cost: `${modeCost('ANTE')}×`, costNum: modeCost('ANTE'), enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per play.', mech: soc('Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.', 'Doubles the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with an instantly triggered feature.') },
+		{ id: 'bonus', label: 'Free Spins', accent: '#9CD92F', cost: `${modeCost('BONUS')}×`, costNum: modeCost('BONUS'), enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
+		{ id: 'super', label: 'Super Free Spins', accent: '#C53C24', cost: `${modeCost('SUPER')}×`, costNum: modeCost('SUPER'), enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
+		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${modeCost('FEAST').toLocaleString()}×`, costNum: modeCost('FEAST'), enter: soc('Land 5 Marky scatters, or buy directly.', 'Land 5 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
 	];
 
 	// UI guide (submission checklist "User interaction guide is included in the game information"):
@@ -231,8 +234,8 @@
 			<section bind:this={sectionEls.feast}>
 				<h2>Mantis Feast Disclosure</h2>
 				<div class="callout" style:border-color="#ffdc4a55" style:box-shadow="inset 0 1px 0 rgba(255,255,255,.05), 0 0 22px #ffdc4a22">
-					<p><strong>Minimum guaranteed return:</strong> every Mantis Feast session {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc('300× bet', '300× play amount')}</span> — {(300 / config.betModes.feast.cost).toFixed(1)}× {soc('the Feast price', 'the Feast play amount')}. {soc('This floor is paid out of the', 'This floor comes out of the')} {config.betModes.feast.cost.toLocaleString()}× {soc('purchase price', 'play amount')}.</p>
-					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 150</span> Mantis Feast sessions reaches the {config.maxWin.toLocaleString()}× max win cap ({capPerPrice(config.betModes.feast.cost)}× {soc('the Feast price', 'the Feast play amount')}). Other sessions land between the 300× floor and the cap, with the {soc('payout', 'win')} distribution skewed toward the floor.</p>
+					<p><strong>Minimum guaranteed return:</strong> every Mantis Feast session {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc('300× bet', '300× play amount')}</span> — {(300 / modeCost('FEAST')).toFixed(1)}× {soc('the Feast price', 'the Feast play amount')}. {soc('This floor is paid out of the', 'This floor comes out of the')} {modeCost('FEAST').toLocaleString()}× {soc('purchase price', 'play amount')}.</p>
+					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 150</span> Mantis Feast sessions reaches the {config.maxWin.toLocaleString()}× max win cap ({capPerPrice(modeCost('FEAST'))}× {soc('the Feast price', 'the Feast play amount')}). Other sessions land between the 300× floor and the cap, with the {soc('payout', 'win')} distribution skewed toward the floor.</p>
 					<p class="dim">These figures are disclosed openly per Stake Engine approval requirements.</p>
 				</div>
 			</section>
