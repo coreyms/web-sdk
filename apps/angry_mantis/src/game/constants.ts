@@ -322,17 +322,14 @@ const RULE_1: Record<RuleCopyDensity, RuleCopy> = {
 	full: {
 		title: 'EAT',
 		body: 'SYMBOLS ON THE GREEN STRIKE LEAF ARE EATEN. LOWEST SYMBOLS FIRST.',
-		leafIcon: true,
 	},
 	medium: {
 		title: 'EAT',
 		body: 'GREEN STRIKE LEAF SYMBOLS ARE EATEN. LOWEST SYMBOLS FIRST.',
-		leafIcon: true,
 	},
 	short: {
 		title: 'EAT',
 		body: 'GREEN STRIKE LEAF SYMBOLS ARE EATEN. LOWEST FIRST.',
-		leafIcon: true,
 	},
 };
 
