@@ -250,7 +250,7 @@
 		margin: 18px -4px 0;
 		color: #1b1204;
 		text-align: center;
-		font: 400 34px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
+		font: 400 34px/1 'Black Ops One', 'Outfit', system-ui, sans-serif;
 		letter-spacing: 3px;
 		padding: 12px 0 10px;
 		text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35);
@@ -284,7 +284,7 @@
 	.s-ok {
 		position: relative;
 		text-align: center;
-		font: 400 22px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
+		font: 400 22px/1 'Black Ops One', 'Outfit', system-ui, sans-serif;
 		letter-spacing: 3px;
 		padding: 14px 0;
 		border-radius: 10px;

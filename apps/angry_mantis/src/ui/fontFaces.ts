@@ -7,7 +7,6 @@ const fontCss = [
 	['Outfit', '100 900', stamp('/assets/fonts/ui/Outfit-Variable.woff2')],
 	['Sora', '100 800', stamp('/assets/fonts/ui/Sora-Variable.woff2')],
 	// bonus-buy "meal ticket" display faces (OFL, bundled — no external hosts)
-	['Lilita One', '400', stamp('/assets/fonts/ui/LilitaOne-Regular.woff2')],
 	['Black Ops One', '400', stamp('/assets/fonts/ui/BlackOpsOne-Regular.woff2')],
 ]
 	.map(
@@ -26,6 +25,5 @@ if (typeof document !== 'undefined' && !document.getElementById('am-fonts')) {
 	// actually cover the bundled fonts, so Pixi text never rasterizes with a fallback font.
 	document.fonts?.load('700 16px Outfit');
 	document.fonts?.load('700 16px Sora');
-	document.fonts?.load("16px 'Lilita One'");
 	document.fonts?.load("16px 'Black Ops One'");
 }

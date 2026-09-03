@@ -19,7 +19,6 @@ export default {
 	"characters/marky-headshot.webp": "73fcb8c3",
 	"characters/marty-headshot.webp": "e59d84de",
 	"fonts/ui/BlackOpsOne-Regular.woff2": "2d54da7d",
-	"fonts/ui/LilitaOne-Regular.woff2": "218119db",
 	"fonts/ui/Outfit-Variable.woff2": "623d408f",
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
 	"rig/mantis-set.atlas.json": "bee90f06",

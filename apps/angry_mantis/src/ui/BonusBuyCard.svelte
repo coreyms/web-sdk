@@ -153,7 +153,7 @@
 		margin: 0 -4px;
 		color: var(--ink);
 		text-align: center;
-		font: 400 38px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
+		font: 400 38px/1 'Black Ops One', 'Outfit', system-ui, sans-serif;
 		letter-spacing: 2px;
 		padding: 12px 0 10px;
 		text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35);
@@ -217,7 +217,7 @@
 	.price {
 		display: block;
 		flex: none;
-		font: 400 32px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
+		font: 400 32px/1 'Black Ops One', 'Outfit', system-ui, sans-serif;
 		color: var(--ink);
 		white-space: nowrap;
 		transform-origin: 50% 50%;
@@ -226,7 +226,7 @@
 		position: relative;
 		color: var(--ink);
 		text-align: center;
-		font: 400 24px/1 'Lilita One', 'Outfit', system-ui, sans-serif;
+		font: 400 24px/1 'Black Ops One', 'Outfit', system-ui, sans-serif;
 		letter-spacing: 3px;
 		padding: 14px 0;
 		border-radius: 10px;

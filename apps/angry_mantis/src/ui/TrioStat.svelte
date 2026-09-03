@@ -11,11 +11,12 @@
 		onclick?: () => void;
 		disabled?: boolean;
 	};
+	import StencilAmount from './StencilAmount.svelte';
 	const { label, value, accent = '#ffdc4a', align = 'center', size = 'md', overhead = null, maxWidth, onclick, disabled = false }: Props = $props();
-	const sz = $derived(size === 'lg' ? { lbl: 13, val: 26 } : size === 'sm' ? { lbl: 10, val: 16 } : { lbl: 11, val: 18 });
-	// stake.us Gold Coin balances reach hundreds of trillions — shrink the value font to fit maxWidth
-	// rather than overflowing the neighbouring stats (~0.58em average glyph width for this weight).
-	const fitVal = $derived(maxWidth ? Math.min(sz.val, maxWidth / (0.58 * Math.max(1, value.length))) : sz.val);
+	// `val` is the stencil digit height (StencilAmount): the old Sora sizes were 26/18/16 px font-size,
+	// whose cap height is ~0.72em — the stencil glyph IS its cap height, so 19/13/12 keep the same
+	// visual weight. maxWidth still shrinks trillion-coin GC balances to fit (StencilAmount's fit).
+	const sz = $derived(size === 'lg' ? { lbl: 13, val: 19 } : size === 'sm' ? { lbl: 10, val: 12 } : { lbl: 11, val: 14 });
 	const interactive = $derived(!!onclick && !disabled);
 </script>
 
@@ -34,7 +35,7 @@
 		<span class="overhead" style:font-size="{sz.lbl - 3}px">{overhead}</span>
 	{/if}
 	<span class="label" style:font-size="{sz.lbl}px" style:color={accent}>{label}</span>
-	<span class="slot-num value" style:font-size="{fitVal}px">{value}</span>
+	<span class="value"><StencilAmount text={value} height={sz.val} {maxWidth} {align} /></span>
 </button>
 
 <style>
@@ -65,10 +66,9 @@
 		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
 	}
 	.value {
-		font-weight: 700;
-		color: #fff;
-		text-shadow: 0 2px 3px rgba(0, 0, 0, 0.7);
-		margin-top: 2px;
+		display: block;
+		width: 100%;
+		margin-top: 3px;
 		white-space: nowrap;
 	}
 </style>

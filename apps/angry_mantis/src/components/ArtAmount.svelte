@@ -1,42 +1,7 @@
 <script lang="ts" module>
 	import { NUMERAL_GLYPHS } from '../game/numeralGlyphs';
 
-	const CHAR_TO_GLYPH: Record<string, string> = {
-		'0': '0', '1': '1', '2': '2', '3': '3', '4': '4',
-		'5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
-		'.': 'period', ',': 'comma',
-		$: 'dollar', '€': 'euro', '£': 'pound', '¥': 'yen', '￥': 'yen', '₹': 'rupee',
-		'+': 'plusStencil', '!': 'bang', x: 'multx',
-		'/': 'slash', '-': 'dash', '–': 'dash', '·': 'middot',
-		...Object.fromEntries([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c) => [c, c])),
-	};
-	const PAIRS: Record<string, string> = { GC: 'GC', SC: 'SC', R$: 'RS' };
-	// Layout-only spaces: regular, NBSP, and the narrow/thin spaces Intl emits as group
-	// separators (fr formats '1 234,56 €' with U+202F NARROW NO-BREAK SPACE).
-	const SPACES = new Set([' ', '\u00a0', '\u202f', '\u2009']);
-
-	/** One tokenizer feeds both the public guard and the layout, so they agree EXACTLY:
-	 *  a text that passes artAmountSupports renders every character, and a text with any
-	 *  unsupported character yields null — never a partial render with glyphs dropped.
-	 *  Tokens are glyph names; null entries are layout-only space cells. */
-	const tokenize = (text: string): (string | null)[] | null => {
-		const tokens: (string | null)[] = [];
-		let i = 0;
-		while (i < text.length) {
-			const pair = PAIRS[text.slice(i, i + 2)];
-			if (pair) {
-				tokens.push(pair);
-				i += 2;
-				continue;
-			}
-			const ch = text[i];
-			if (SPACES.has(ch)) tokens.push(null);
-			else if (ch in CHAR_TO_GLYPH) tokens.push(CHAR_TO_GLYPH[ch]);
-			else return null;
-			i += 1;
-		}
-		return tokens;
-	};
+	import { tokenizeNumerals as tokenize } from '../game/numeralTokens';
 
 	/** Can every character of this formatted amount be drawn from the glyph atlas?
 	 *  (Spaces are layout-only.) Callers whose text changes per frame must use this guard
