@@ -299,12 +299,12 @@ const RULE_3: Record<BonusMode, Record<RuleCopyDensity, RuleCopy>> = {
 	free: {
 		full: { title: 'HEAD START', body: 'MARTY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
 		medium: { title: 'HEAD START', body: 'MARTY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
-		short: { title: 'HEAD START', body: 'MARTY EATS ONE SYMBOL BEFORE SPIN 1.' },
+		short: { title: 'HEAD START', body: 'MARTY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
 	},
 	super: {
 		full: { title: 'HEAD START', body: 'MARKY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
 		medium: { title: 'HEAD START', body: 'MARKY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
-		short: { title: 'HEAD START', body: 'MARKY EATS ONE SYMBOL BEFORE SPIN 1.' },
+		short: { title: 'HEAD START', body: 'MARKY EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
 	},
 	feast: {
 		full: { title: 'EPIC FEAST', body: 'BOTH MANTISES EAT ONE SYMBOL EACH BEFORE THE FIRST SPIN.' },
@@ -312,7 +312,7 @@ const RULE_3: Record<BonusMode, Record<RuleCopyDensity, RuleCopy>> = {
 		// 'EACH MANTIS EATS ONE' is the same fact as 'both mantises eat one each' (auto_strikes
 		// runs twice in feast, alternating marty/marky) in 6 fewer characters — that trim is what
 		// funds the >=3.2%-of-H body cap in the three-column band.
-		short: { title: 'EPIC FEAST', body: 'EACH EATS ONE SYMBOL BEFORE SPIN 1.' },
+		short: { title: 'EPIC FEAST', body: 'EACH EATS ONE SYMBOL BEFORE THE FIRST SPIN.' },
 	},
 };
 

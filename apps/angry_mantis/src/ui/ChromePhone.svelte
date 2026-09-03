@@ -71,7 +71,7 @@
 	}
 	.tagline {
 		position: absolute;
-		top: 148px;
+		top: 176px; /* logo is 240 wide → 124 tall from top 42 (bottom 166); the old 148 overlapped MANTIS on an iPhone (Corey 2026-09-02) */
 		left: 50px;
 		width: 240px;
 		text-align: center;
@@ -82,10 +82,10 @@
 		height: auto;
 		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
 	}
-	/* Stats stack: left column under the tagline (tagline art ends ≈ 190). */
+	/* Stats stack: left column under the tagline (tagline art 176 wide → 22 tall from 176, ends ≈ 198). */
 	.stats {
 		position: absolute;
-		top: 206px;
+		top: 214px;
 		left: 50px;
 		width: 240px;
 		display: flex;
