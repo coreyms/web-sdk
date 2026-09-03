@@ -10,10 +10,12 @@ const checkSpaceHold = fromPromise(async () => {
 	if (stateBet.isSpaceHold) {
 		if (stateBetDerived.activeBetMode()?.type === 'buy') {
 			stateBet.activeBetModeKey = 'BASE';
-			return;
 		}
-
-		return;
+		// Stake checklist: "insufficient balance bets do not send a play request". Single press and
+		// autoplay are gated by the UI, but this hold-repeat path re-entered 'fetching' unchecked, so
+		// a held space bar sent one more /wallet/play than the balance could cover (checked AFTER the
+		// buy→BASE reset above, against the price the next play would actually carry).
+		if (stateBetDerived.isBetCostAvailable()) return;
 	}
 	throw Error('end bet');
 });
