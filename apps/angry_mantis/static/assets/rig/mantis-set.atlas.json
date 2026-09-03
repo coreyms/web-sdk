@@ -1364,13 +1364,13 @@
  "meta": {
   "app": "bonerutter",
   "version": "1.0",
-  "image": "mantis-set.atlas.png",
+  "image": "mantis-set.atlas.webp",
   "format": "RGBA8888",
   "size": {
    "w": 1017,
    "h": 1761
   },
   "scale": "1",
-  "pngHash": "8e82bfb4"
+  "pngHash": "99dead79"
  }
 }

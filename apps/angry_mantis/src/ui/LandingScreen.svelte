@@ -44,11 +44,12 @@
 	// stateApp.loadingProgress now ticks once per settled asset promise (pixi-svelte AssetsLoader),
 	// so it moves continuously through the image phase; `loaded` still pins the readout to exactly
 	// 100 at the moment the phase closes, so rounding can never leave it at 99.
-	const imageProgress = $derived(context.stateApp.loaded ? 100 : context.stateApp.loadingProgress);
+	// the gate is the PRELOAD phase (game/assets.ts): the deferred keys keep downloading behind the game
+	const imageProgress = $derived(context.stateApp.preLoaded ? 100 : context.stateApp.loadingProgress);
 	const progress = $derived(
 		Math.round(Math.min(100, imageProgress * IMAGE_WEIGHT + sound.progress * 100 * AUDIO_WEIGHT)),
 	);
-	const loadingLabel = $derived(context.stateApp.loaded && !audioReady ? 'LOADING AUDIO' : 'LOADING');
+	const loadingLabel = $derived(context.stateApp.preLoaded && !audioReady ? 'LOADING AUDIO' : 'LOADING');
 	// An asset that exhausted its retries stops the load dead (AssetsLoader leaves `loaded` false and
 	// lists the keys): entering with missing money glyphs / headshots / mode labels is worse than
 	// asking for a tap. Audio is deliberately NOT in here — a dead audiosprite lets the player in
@@ -56,7 +57,7 @@
 	// off `ready` alone.
 	const assetsFailed = $derived(context.stateApp.failedAssets.length > 0);
 	// audio joins images + fonts in the gate: PRESS ANYWHERE must not appear over a silent game
-	const ready = $derived(context.stateApp.loaded && fontsReady && audioReady);
+	const ready = $derived(context.stateApp.preLoaded && fontsReady && audioReady);
 
 	// per-kind sizing (master units). Phone-sideways is authored large so touch targets stay ≥44 CSS px.
 	const SZ = $derived(

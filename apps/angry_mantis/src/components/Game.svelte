@@ -12,6 +12,7 @@
 
 	import { getContext } from '../game/context';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
+	import { markAssetsLoaded } from '../game/assetGate';
 	import EnableSound from './EnableSound.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import ResumeBet from './ResumeBet.svelte';
@@ -52,6 +53,12 @@
 
 	onMount(() => {
 		context.stateLayout.showLoadingScreen = true;
+	});
+
+	// the deferred asset phase (game/assets.ts) finishes behind the landing screen; release the
+	// consumers waiting on game/assetGate.ts the moment it does
+	$effect(() => {
+		if (context.stateApp.loaded) markAssetsLoaded();
 	});
 
 	// Retina/5K canvases at full DPR are the biggest GPU cost; 1.5× is visually indistinguishable

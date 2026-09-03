@@ -722,13 +722,13 @@
   }
  },
  "meta": {
-  "image": "amSymbols.png",
+  "image": "amSymbols.webp",
   "format": "RGBA8888",
   "size": {
    "w": 1024,
    "h": 2048
   },
   "scale": "1",
-  "pngHash": "a81110dd"
+  "pngHash": "f60bde47"
  }
 }

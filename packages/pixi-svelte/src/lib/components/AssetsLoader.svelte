@@ -37,11 +37,14 @@
 	// its entire load (measured: a full 3-minute Slow-3G run) and then jumped straight to done.
 	// Counting settled promises is monotonic and honest; `loadedKeys` is a Set so a retried asset is
 	// only ever counted once.
+	// Progress is the PRELOAD phase only: that is what a loading screen waits on. The deferred phase
+	// runs behind the game (a game with nothing deferred sees the same 0..100 as before).
 	const loadedKeys = new Set<string>();
 	const reportProgress = () => {
-		const total = preAssetNameList.length + assetNameList.length;
+		const total = preAssetNameList.length;
 		if (total <= 0) return;
-		context.stateApp.loadingProgress = Math.min(100, (loadedKeys.size / total) * 100);
+		const preDone = preAssetNameList.filter((key) => loadedKeys.has(key)).length;
+		context.stateApp.loadingProgress = Math.min(100, (preDone / total) * 100);
 	};
 
 	// ── retry / failure ────────────────────────────────────────────────────────────────────────────
@@ -125,6 +128,7 @@
 					}
 				}
 				preLoaded = true;
+				context.stateApp.preLoaded = true;
 			}
 
 			if (!context.stateApp.loaded) {

@@ -13,6 +13,7 @@ import { stateGame, stateGameDerived } from './stateGame.svelte';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { Position } from './types';
 import { BONUS_TRIGGER_SOUND_MAP } from './constants';
+import { awaitDeferredAssets } from './assetGate';
 
 const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) => {
 	if (winLevelData?.alias === 'max') eventEmitter.broadcastAsync({ type: 'uiHide' });
@@ -158,6 +159,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the bonusStart event that follows plays the mode-specific intro
 	},
 	bonusStart: async (bookEvent: BookEventOfType<'bonusStart'>) => {
+		// the door, headers, headshots, chalk plates, gold alphabet and the super/feast backdrops are
+		// deferred assets (game/assets.ts): make sure they are in before anything below draws them
+		await awaitDeferredAssets();
 		stateGameDerived.resetSession();
 		stateGame.bonusMode = bookEvent.mode;
 		stateGame.bonusHost = bookEvent.host;
@@ -328,6 +332,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// hosts celebrate medium+ spins (plays under the win presentation)
 			if (winLevelData.type !== 'small') eventEmitter.broadcast({ type: 'mantisReact', kind: 'celebrate' });
 		}
+		// the tier titles (textBigWin…) are deferred assets — only a big+ win waits for them
+		if (winLevelData.type === 'big') await awaitDeferredAssets();
 		eventEmitter.broadcast({ type: 'winShow' });
 		winLevelSoundsPlay({ winLevelData });
 		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount: bookEvent.amount, winLevelData });

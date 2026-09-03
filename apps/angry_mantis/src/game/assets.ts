@@ -10,17 +10,22 @@ export const stamp = (href: string): string => {
 	return v ? `${href}?v=${v}` : href;
 };
 
+// TWO LOAD PHASES (pixi-svelte AssetsLoader). `preload: true` gates the landing screen: everything the
+// base game draws in its first seconds. `preload: false` keeps downloading behind the game and is
+// only needed once a bonus starts or a big win lands — bonusStart / setWin / the resume path await
+// game/assetGate.ts before they draw any of it, so a slow connection never shows a hole. Before this
+// split every key was gated: 9.7 MB (≈49 s on Fast 3G) before PRESS ANYWHERE (Stake review 2026-09-02).
 export default {
 	logoLandscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-landscape.webp', import.meta.url).href), preload: true },
 	logoWide: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-wide.webp', import.meta.url).href), preload: true },
 	// per-mode cafeteria backdrops (finishing-touches item 6): base/ante/regular bonus share one,
-	// super and feast get their own. All preloaded so bonus entry never pops (tunable to lazy if
-	// the loading screen suffers on cell connections).
+	// super and feast get their own. Only the base scene gates the landing; the other two ride the
+	// deferred phase (bonusStart awaits it, so bonus entry still never pops).
 	bgCafeteriaBase: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-base-bonus.webp', import.meta.url).href), preload: true },
-	bgCafeteriaSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super.webp', import.meta.url).href), preload: true },
-	bgCafeteriaFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast.webp', import.meta.url).href), preload: true },
+	bgCafeteriaSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super.webp', import.meta.url).href), preload: false },
+	bgCafeteriaFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast.webp', import.meta.url).href), preload: false },
 	frameCafeteria: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-cafeteria.webp', import.meta.url).href), preload: true },
-	doorSteel: { type: 'sprite', src: stamp(new URL('../../assets/ui/door-steel.webp', import.meta.url).href), preload: true },
+	doorSteel: { type: 'sprite', src: stamp(new URL('../../assets/ui/door-steel.webp', import.meta.url).href), preload: false },
 	// reflectivity mask for the frame's inner steel lips (Corey's paint-over of the frame art, same
 	// 1415x1217 canvas): white = chrome that mirrors the reels, alpha = strength. FrameReflections.
 	// "ON THE MENU" header art for the pool HUD (colour-graded to the logo like the tagline)
@@ -29,34 +34,34 @@ export default {
 	// hand-made gold text art (assets/images/overlays -> static/assets/ui/text): tier titles,
 	// max-win lines, retrigger digits/words. Replaces canvas-rasterized GameText at the biggest
 	// presentation moments (cheaper too: resident textures, no per-string raster+upload).
-	textBigWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/big-win.webp', import.meta.url).href), preload: true },
-	textSuperWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/super-win.webp', import.meta.url).href), preload: true },
-	textMegaWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/mega-win.webp', import.meta.url).href), preload: true },
-	textEpicWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/epic-win.webp', import.meta.url).href), preload: true },
-	textMaxWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win.webp', import.meta.url).href), preload: true },
-	textMaxWinBang: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win-bang.webp', import.meta.url).href), preload: true },
-	textTheyAteEverything: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/they-ate-everything.webp', import.meta.url).href), preload: true },
+	textBigWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/big-win.webp', import.meta.url).href), preload: false },
+	textSuperWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/super-win.webp', import.meta.url).href), preload: false },
+	textMegaWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/mega-win.webp', import.meta.url).href), preload: false },
+	textEpicWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/epic-win.webp', import.meta.url).href), preload: false },
+	textMaxWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win.webp', import.meta.url).href), preload: false },
+	textMaxWinBang: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win-bang.webp', import.meta.url).href), preload: false },
+	textTheyAteEverything: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/they-ate-everything.webp', import.meta.url).href), preload: false },
 	// bonus stencil headers (branding/{feast,bonus,super}-header.webp): one image per mode carrying
 	// BOTH lines of the header; the intro AND the wrap-up head with them (the label-*.webp pieces
 	// now live only on the HTML bonus-buy cards, ui/bonusCards.ts). Preloaded — the door opens on
 	// them, so a cold fetch would show an empty window for a frame.
-	headerFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-feast.webp', import.meta.url).href), preload: true },
-	headerBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-bonus.webp', import.meta.url).href), preload: true },
-	headerSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-super.webp', import.meta.url).href), preload: true },
+	headerFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-feast.webp', import.meta.url).href), preload: false },
+	headerBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-bonus.webp', import.meta.url).href), preload: false },
+	headerSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-super.webp', import.meta.url).href), preload: false },
 	// big numeral + speed lines + "* FREE SPINS *" strip, one per awarded count (8 = bonus, 10 = super/feast)
-	freeSpins10: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-spins-10.webp', import.meta.url).href), preload: true },
-	freeSpins8: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-spins-8.webp', import.meta.url).href), preload: true },
+	freeSpins10: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-spins-10.webp', import.meta.url).href), preload: false },
+	freeSpins8: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-spins-8.webp', import.meta.url).href), preload: false },
 	// mugshot height-chart backings (branding/inmate-{1,2}-chalk.webp) — Corey's art, label and
 	// foot marks baked in; INMATE 01 is Marky (chart labels left), INMATE 02 is Marty (labels right)
-	inmateChalk1: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-1-chalk.webp', import.meta.url).href), preload: true },
-	inmateChalk2: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-2-chalk.webp', import.meta.url).href), preload: true },
+	inmateChalk1: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-1-chalk.webp', import.meta.url).href), preload: false },
+	inmateChalk2: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-2-chalk.webp', import.meta.url).href), preload: false },
 	// gold bonus-board stencil alphabet (A-Z + boxed 1/2/3), sliced from assets/images/ui/bonus-board-alphabet.webp
 	// by tools/build_glyph_atlas.py — the rule titles and number badges draw from it as batched
 	// sprites, so the intro's headings never rasterize text (see game/stencilLayout.ts).
 	goldAlphabet: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/ui/gold-alphabet/gold-alphabet.json', import.meta.url).href),
-		preload: true,
+		preload: false,
 	},
 	// prison-stencil numerals: every amount glyph (digits, separators, currency symbols, GC/SC/R$)
 	// in one atlas — amounts render as batched sprites with ZERO per-frame rasterization
@@ -67,8 +72,8 @@ export default {
 	},
 	// bonus-intro headshots (real character art; the in-game corner mantises stay on amCharacters
 	// placeholder frames until the Spine rig lands)
-	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: true },
-	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: true },
+	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
+	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: false },
 	amSymbols: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/sprites/amSymbols/amSymbols.json', import.meta.url).href),

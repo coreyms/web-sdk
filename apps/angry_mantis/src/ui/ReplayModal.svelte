@@ -23,6 +23,7 @@
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import { replayState } from './replayState.svelte';
+	import { awaitDeferredAssets } from '../game/assetGate';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { controls, master, scale, left, top, compact = false }: Props = $props();
@@ -54,12 +55,14 @@
 	const totalWin = $derived(base * multiplier);
 	const xText = (n: number) => `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}x`;
 
-	const start = () => {
+	const start = async () => {
 		if (!replayBet) return;
 		controls.sound('soundPressMinor');
 		stateBet.betToResume = { ...replayBet, active: true, event: '0' };
 		if (replayBet.mode) stateBet.activeBetModeKey = replayBet.mode;
 		replayState.phase = 'playing';
+		// a replayed bonus draws the deferred assets (game/assets.ts) from its first event
+		await awaitDeferredAssets();
 		context.eventEmitter.broadcast({ type: 'resumeBet' });
 	};
 	replayState.start = start;
