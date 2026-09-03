@@ -69,6 +69,8 @@
 	.top img {
 		width: 330px;
 		height: auto;
+		margin: -8px 0;
+		filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
 	}
 	/* logo-wide is 900×157 → 330×57.6 from top 56 (bottom ≈ 114); the tagline sits in the 114..150
 	   band above the frame's top rail, at the same width ratio to the logo as landscape (0.73) */
@@ -84,8 +86,6 @@
 		width: 220px;
 		height: auto;
 		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
-		margin: -8px 0;
-		filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
 	}
 	.stats {
 		position: absolute;
