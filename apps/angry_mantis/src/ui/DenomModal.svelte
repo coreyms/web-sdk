@@ -1,13 +1,15 @@
 <script lang="ts">
-	// Bet-amount picker: grid of the RGS bet options, sized for large social-currency values.
-	// The ladder is 32 levels ($0.01 … $100, ×10,000 on a GC account), so every option has to be
-	// reachable without scrolling on desktop AND on a phone in either orientation.
+	// Bet-amount picker, on the same cream "Meal Ticket" paper card as the Chow Line / Autoplay /
+	// Replay modals: a PRICE LIST of tear-off price tags. The ladder is 32 levels ($0.01 … $100,
+	// ×10,000 on a GC account), so every option has to be reachable without scrolling on desktop AND
+	// on a phone in either orientation.
 	import { stateBet, stateBetDerived, stateModal } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
 	import { abbrevCurrency } from '../game/modeChipData';
+	import { soc } from '../game/social';
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import Icon from './Icon.svelte';
@@ -39,18 +41,29 @@
 	// h × the layout's worst scale — phone-sideways scales hardest (667×375 → 0.451, so 100px ≈ 45 CSS
 	// px), portrait ≈0.878 (56px ≈ 49 CSS px). Both stay over the 44px house minimum. maxH is a
 	// fraction of the master height, chosen so the full ladder fits without scrolling in every layout.
-	const GRID: Record<LayoutKind, { cols: number; h: number; font: number; gap: number; maxH: number }> = {
-		landscape: { cols: 6, h: 62, font: 18, gap: 10, maxH: 0.64 },
-		phone: { cols: 8, h: 100, font: 28, gap: 10, maxH: 0.66 },
-		portrait: { cols: 4, h: 56, font: 14, gap: 6, maxH: 0.66 },
+	// `cardW` caps the paper card: landscape 740 keeps it inside the reel frame instead of spanning
+	// the whole master, phone matches the frame's 800; portrait (null) is full width minus the margin.
+	const GRID: Record<LayoutKind, { cols: number; h: number; font: number; gap: number; maxH: number; cardW: number | null }> = {
+		landscape: { cols: 8, h: 52, font: 17, gap: 6, maxH: 0.64, cardW: 740 },
+		// phone: 1180 is the narrowest card that still renders the widest price ("$100.00", or an
+		// abbreviated GC amount) at ~28 master px — 8 columns inside the 800 frame width left the
+		// long labels shrunk to ~16 master px, which is ~8 CSS px on a 844×390 phone.
+		phone: { cols: 8, h: 100, font: 28, gap: 6, maxH: 0.66, cardW: 1180 },
+		portrait: { cols: 4, h: 56, font: 14, gap: 6, maxH: 0.66, cardW: null },
 	};
 	const context = getContext();
 	const g = $derived(GRID[layoutKind(context.stateLayoutDerived.layoutType())]);
 
-	// Usable width inside one option, in master units: panel minus its padding, the grid's scrollbar
-	// gutter and the column gaps, split by the columns, minus the button's own side padding.
-	const panelWidth = $derived(compact ? master.width : Math.min(master.width, 980));
-	const cellWidth = $derived((panelWidth - (compact ? 28 : 56) - 4 - g.gap * (g.cols - 1)) / g.cols - 16);
+	// Card + paper geometry, mirroring the CSS below so the label fit measures the REAL usable width
+	// inside one price tag: card width minus the panel padding, the dashed block (border + padding),
+	// the grid's scrollbar gutter and the column gaps, split by the columns, minus the tag's own
+	// border and side padding.
+	const CARD_PAD = 14; // .panel horizontal padding
+	const GUTTER = 4; // .grid padding-right (scrollbar gutter)
+	const TAG = 4 + 2; // .opt padding-inline + border, per side
+	const cardWidth = $derived(g.cardW === null ? master.width - 20 : Math.min(master.width, g.cardW));
+	const block = $derived((compact ? 2 : 3) + 6); // .block border + padding, per side
+	const cellWidth = $derived((cardWidth - 2 * CARD_PAD - 2 * block - GUTTER - g.gap * (g.cols - 1)) / g.cols - 2 * TAG);
 	const CHAR_W = 0.58; // estimate fallback when canvas is unavailable (SSR/test)
 	// A denomination must never spill or ellipsis its button, and a GC ladder tops out at
 	// "GC 1,000,000" against a ~75px portrait cell. Exact label wherever it fits; otherwise the same
@@ -58,12 +71,17 @@
 	// font still shrinks to fit whatever comes back — no ellipsis on a number the player must read.
 	// Width comes from a REAL canvas measure of the .opt span face (Sora 800 + 0.5px tracking): the
 	// per-glyph estimate ran ~4% narrow and CSS-ellipsized "GC 1,000,000" (live-caught 2026-08-31).
+	// Digits are normalised to '0' first: the span renders with .slot-num's font-variant-numeric:
+	// tabular-nums (every digit on the widest advance) but canvas measureText has no way to ask for
+	// that face, so a proportional "1" measured ~9px narrow per glyph and every price containing a 1
+	// ellipsized on the phone grid (live-caught 2026-09-03). '0' is a safe upper bound on the
+	// tabular advance, so the fit stays conservative.
 	let measurer: CanvasRenderingContext2D | null = null;
 	const textW = (text: string, font: number) => {
 		measurer ??= typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
 		if (!measurer) return text.length * CHAR_W * font;
 		measurer.font = `800 ${font}px Sora, ui-sans-serif, sans-serif`;
-		return measurer.measureText(text).width + 0.5 * text.length; // + letter-spacing
+		return measurer.measureText(text.replace(/\d/g, '0')).width + 0.5 * text.length; // + letter-spacing
 	};
 	const label = (v: number) => {
 		const full = numberToCurrencyString(v);
@@ -76,58 +94,121 @@
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={3}>
-	<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} style:top="{compact ? 14 : 22}px" style:right="{compact ? 14 : 24}px" style:width="{compact ? 38 : 46}px" style:height="{compact ? 38 : 46}px" aria-label="Close">
-		<Icon name="close" s={compact ? 16 : 20} />
-	</button>
-	<div class="center">
-		<div class="panel" onclick={(e) => e.stopPropagation()} role="presentation" style:padding={compact ? '24px 14px' : '32px 28px'} style:max-width={compact ? '100%' : '980px'}>
-			<div class="title" style:font-size="{compact ? 12 : 13}px" style:margin-bottom="{compact ? 14 : 20}px">SELECT SPIN DENOMINATION</div>
-			<div class="grid" style:grid-template-columns="repeat({g.cols}, minmax(0, 1fr))" style:gap="{g.gap}px" style:max-height="{g.maxH * master.height}px">
-				{#each controls.betOptions() as v (v)}
-					{@const selected = v === stateBet.betAmount}
-					{@const ok = affordable(v)}
-					{@const text = label(v)}
-					<button class="slot-btn opt" class:selected disabled={!ok} onclick={() => select(v)} style:height="{g.h}px">
-						<span class="slot-num" style:font-size="{labelFont(text)}px">{text}</span>
-					</button>
-				{/each}
+	<div class="center" style:padding={compact ? '10px' : '0'}>
+		<div class="panel" class:compact onclick={(e) => e.stopPropagation()} role="presentation" style:width="{cardWidth}px">
+			<div class="grain"></div>
+			<div class="head">
+				<div class="title">PRICE LIST</div>
+				<div class="pill">{soc('PER SPIN', 'PER PLAY')}</div>
+				<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} aria-label="Close">
+					<Icon name="close" s={compact ? 14 : 16} />
+				</button>
 			</div>
+
+			<div class="block">
+				<div class="grid" style:grid-template-columns="repeat({g.cols}, minmax(0, 1fr))" style:gap="{g.gap}px" style:max-height="{g.maxH * master.height}px">
+					{#each controls.betOptions() as v (v)}
+						{@const selected = v === stateBet.betAmount}
+						{@const ok = affordable(v)}
+						{@const text = label(v)}
+						<button class="slot-btn opt" class:selected disabled={!ok} onclick={() => select(v)} style:height="{g.h}px">
+							<span class="slot-num" style:font-size="{labelFont(text)}px">{text}</span>
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="cap">{soc('Amount per spin. Feature prices are multiples of this.', 'Amount per play. Feature prices are multiples of this.')}</div>
 		</div>
 	</div>
 </ModalShell>
 
 <style>
-	.x {
-		position: absolute;
-		border-radius: 8px;
-		background: rgba(0, 0, 0, 0.4);
-		box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7);
-		color: #fff;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 2;
-	}
 	.center {
 		position: absolute;
 		inset: 0;
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		pointer-events: none;
 	}
+
+	/* ── the paper card (same stock as ReplayModal / AutoplayModal / BonusBuyModal) ── */
 	.panel {
-		width: 100%;
+		--ink: #1b1204;
+		--body: #2a241a;
+		--muted: #6b6250;
+		--faint: #8a8069;
+		--rule: #a99c7d;
+		--green: #4e7d15;
+		max-width: 100%;
 		pointer-events: auto;
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding: 16px 14px 14px;
+		color: var(--body);
+		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
+		border-radius: 18px;
+		box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
+	}
+	.grain {
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+		pointer-events: none;
+	}
+	.panel > :not(.grain) {
+		position: relative;
+	}
+	.head {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 0 4px;
 	}
 	.title {
+		flex: 1;
+		font-size: 22px;
 		font-weight: 900;
-		letter-spacing: 3px;
-		color: rgba(255, 255, 255, 0.65);
-		text-align: center;
-		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+		letter-spacing: 4px;
+		color: var(--ink);
+		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
+	.pill {
+		border-radius: 999px;
+		padding: 6px 14px;
+		background: var(--body);
+		color: #f2c14e;
+		font-size: 11px;
+		font-weight: 800;
+		letter-spacing: 2px;
+		white-space: nowrap;
+	}
+	.x {
+		flex: none;
+		width: 34px;
+		height: 34px;
+		border-radius: 10px;
+		background: rgba(0, 0, 0, 0.05);
+		box-shadow: inset 0 0 0 2px var(--rule);
+		color: var(--body);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.x:hover {
+		background: rgba(0, 0, 0, 0.12);
+	}
+	.block {
+		border: 3px dashed var(--rule);
+		border-radius: 12px;
+		padding: 6px;
+	}
+
+	/* ── the price tags ── */
 	.grid {
 		display: grid;
 		overflow-y: auto;
@@ -135,37 +216,86 @@
 	}
 	.opt {
 		min-width: 0;
-		padding: 0 8px;
-		border-radius: 12px;
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.45));
-		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 0 rgba(0, 0, 0, 0.35);
+		padding: 0 4px;
+		border: 2px solid var(--rule);
+		border-radius: 8px;
+		background: linear-gradient(180deg, #f6f0dd, #e6dcc2);
+		box-shadow: 0 2px 0 rgba(0, 0, 0, 0.16);
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		transition: transform 0.1s ease, box-shadow 0.1s ease;
 	}
 	.opt span {
 		font-weight: 800;
 		letter-spacing: 0.5px;
-		color: #fff;
-		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+		color: var(--ink);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
+	.opt:hover:not(:disabled) {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+	}
+	.opt:active:not(:disabled) {
+		transform: translateY(1px);
+		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.16);
+	}
 	.opt:disabled {
-		background: rgba(255, 255, 255, 0.03);
-		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+		opacity: 0.45;
+		cursor: not-allowed;
+		background: rgba(0, 0, 0, 0.03);
+		box-shadow: none;
 	}
 	.opt:disabled span {
-		color: rgba(255, 255, 255, 0.3);
-		text-shadow: none;
+		text-decoration: line-through;
+		color: var(--muted);
 	}
 	.opt.selected {
-		background: linear-gradient(180deg, rgba(62, 224, 126, 0.18), rgba(20, 40, 28, 0.55));
-		box-shadow: inset 0 0 0 1.5px rgba(62, 224, 126, 0.7), 0 0 18px rgba(62, 224, 126, 0.25);
+		border-color: var(--green);
+		background: linear-gradient(180deg, #9be04a, #6fb52a);
+		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+	}
+	.opt.selected:hover {
+		box-shadow: 0 7px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 	}
 	.opt.selected span {
-		color: #3ee07e;
-		text-shadow: 0 0 8px rgba(62, 224, 126, 0.7), 0 2px 0 rgba(0, 0, 0, 0.6);
+		color: var(--ink);
+		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+	}
+	.cap {
+		text-align: center;
+		font-size: 11.5px;
+		font-weight: 500;
+		color: var(--faint);
+	}
+
+	/* ── compact (phone sideways / portrait) ── */
+	.compact {
+		gap: 9px;
+		padding: 12px 14px 10px;
+		border-radius: 14px;
+	}
+	.compact .title {
+		font-size: 17px;
+		letter-spacing: 2px;
+	}
+	.compact .pill {
+		padding: 5px 10px;
+		font-size: 9px;
+		letter-spacing: 1px;
+	}
+	.compact .x {
+		width: 28px;
+		height: 28px;
+		border-radius: 8px;
+	}
+	.compact .block {
+		border-width: 2px;
+		border-radius: 9px;
+	}
+	.compact .cap {
+		font-size: 10px;
 	}
 </style>
