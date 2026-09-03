@@ -65,7 +65,7 @@
 />
 
 <div class="am-ui layer" class:hidden={!show || context.stateLayout.showLoadingScreen}>
-	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})">
+	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale}>
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />
 		{:else if kind === 'phone'}

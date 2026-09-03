@@ -215,7 +215,9 @@ export const HUD: Record<
 		// of the pill — measured 2026-09-02, the plaque rendered at 689.2..724.7 with "WIN / $0.00"
 		// drawn straight through it. Sitting the pill on the rail's TOP face instead centres it in
 		// the free band between the reel window (657.75) and the stats (701.6): 661.9..697.4, ~4
-		// master px clear at both ends. Keep this ≥ ~1130 and ≤ ~1137 if the stats strip moves.
+		// master px clear at both ends. (The stats strip left the band on 2026-09-02 — it now stacks in
+		// the left column, clear of the iOS home indicator — so the front face is free again if the
+		// pill ever wants to match the other kinds; the top face still reads fine, left as is.)
 		modePlaque: { railArtY: 1133.5 },
 	},
 };

@@ -1,7 +1,15 @@
 <script lang="ts">
 	import { stamp } from '../game/assets';
-	// Phone-landscape master (1480×740): board centred and near full height, logo + free-spin HUD in the
-	// left column, vertical control rail on the right edge (thumb zone), stats strip under the board.
+	// Phone-landscape master (1480×740): board centred and near full height, logo + tagline + the
+	// BALANCE/WIN/SPIN stack in the left column, button clusters in the bottom corners of both side
+	// columns. Nothing chrome-side sits in the bottom ~40 master px: the master's bottom edge IS the
+	// phone's bottom edge (fit by height), and iOS draws the home indicator over the last ~21 CSS px
+	// (≈40 master px at scale 0.527). The stats used to sit 3 CSS px from the edge, under the bar
+	// (Stake review 2026-09-02). The band under the board is too shallow to lift them (frame art to
+	// ≈730, ModePlaque on the rail), so they moved to the left column — empty in the base game; in a
+	// bonus Marky stands there and the stack rides over his antennae, same character-behind-HUD
+	// composition as the spin cluster over Marty. env(safe-area-inset-bottom) is added on top wherever
+	// the host exposes it (Stake's wrapper decides; it reads 0 in plain Safari without viewport-fit=cover).
 	// The master scales HARD on real phones (844×390 → scale ≈0.527), so the 52px rail buttons render
 	// ~27 CSS px — the ≥44 CSS px touch-target rule is met by the transparent ::after hit extensions
 	// below, not by the visual size.
@@ -27,11 +35,11 @@
 <!-- Corey's "WIN UP TO 20,000x" art (colour-graded to the logo), sized to the text it replaced -->
 <div class="tagline"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /></div>
 
-<!-- anchored to the reel frame edges, same as desktop; maxWidth auto-shrinks trillion-scale balances -->
+<!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
 <div class="stats">
-	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={255} />
-	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} maxWidth={255} />
-	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="right" maxWidth={255} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
+	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={240} />
+	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} align="left" maxWidth={240} />
+	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="left" maxWidth={240} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
 </div>
 
 <!-- grouped like portrait: [Bonus · Coin/Menu] bottom-left, [Auto/Turbo · Spin] bottom-right -->
@@ -74,22 +82,24 @@
 		height: auto;
 		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
 	}
-	/* Stats strip in the band between the frame bottom (686.5) and the master edge (740). */
+	/* Stats stack: left column under the tagline (tagline art ends ≈ 190). */
 	.stats {
 		position: absolute;
-		bottom: 6px;
-		left: 340px; /* FRAME.phone.x */
-		width: 800px; /* FRAME.phone.width */
-		display: grid;
-		grid-template-columns: 1fr 1fr 1fr;
-		justify-items: stretch;
-		align-items: end;
+		top: 206px;
+		left: 50px;
+		width: 240px;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
 		pointer-events: none;
 		z-index: 3;
 	}
+	/* Clusters clear the home-indicator zone by a fixed 60 master px (≈32 CSS px at scale 0.527), plus
+	   the host's safe-area inset (in CSS px, so divided back into master units by the fit scale). */
 	.cluster-left {
 		position: absolute;
-		bottom: 16px;
+		bottom: calc(60px + env(safe-area-inset-bottom, 0px) / var(--fit-scale, 1));
 		left: 28px;
 		display: flex;
 		align-items: center;
@@ -99,7 +109,7 @@
 	}
 	.cluster-right {
 		position: absolute;
-		bottom: 16px;
+		bottom: calc(60px + env(safe-area-inset-bottom, 0px) / var(--fit-scale, 1));
 		right: 24px;
 		display: flex;
 		align-items: center;
