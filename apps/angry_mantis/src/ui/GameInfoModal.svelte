@@ -246,6 +246,7 @@
 					<li>Each <strong style="color:#9CD92F">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve — when several leaves land on one spin, each shows its own course, in serving order.</li>
 					<li>Fewer symbols on the reels means the remaining symbols land more often, so wins escalate as the session goes on.</li>
 					<li>{soc(`If all eight paying symbols are eaten, the round pays the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`, `If all eight menu symbols are eaten, the round wins the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`)}</li>
+					<li>{soc(`The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the bet. Either way the round ends and the cap is paid.`, `The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the play amount. Either way the round ends and the cap is won.`)}</li>
 				</ul>
 				<div class="subhead">The menu — eaten in this order</div>
 				<div class="menu-strip">
@@ -273,7 +274,7 @@
 				<h2>Max Win</h2>
 				<div class="callout" style:border-color="#ff5a2c55" style:box-shadow="inset 0 1px 0 rgba(255,255,255,.05), 0 0 22px #ff5a2c22">
 					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{compact ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet — hard cap', 'play amount — hard cap')}</span></div>
-					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. Once the cap is reached the round ends immediately and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. Once the cap is reached the round ends immediately and the cap is won.`)}</p>
+					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is won.`)}</p>
 				</div>
 			</section>
 
