@@ -22,7 +22,7 @@
 <div class="top"><img src={stamp('/assets/ui/logo-wide.webp')} alt="Angry Mantis" draggable="false" /></div>
 
 <div class="stats">
-	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />
+	{#if replay}<div></div>{:else}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />{/if}
 	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="right" maxWidth={180} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
 </div>
 <div class="win">

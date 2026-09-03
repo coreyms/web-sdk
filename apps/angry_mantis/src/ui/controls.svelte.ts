@@ -207,7 +207,10 @@ export const createControls = () => {
 	const winText = () => bookEventAmountToCurrencyString(Math.round(winTween.current));
 	// SPIN readout keeps the base spin amount (ante's 2× included, SDK behaviour); the full price of
 	// an armed feature lives on the spin button + the mode plaque, never here
-	const betText = () => numberToCurrencyString(stateBetDerived.betCost());
+	// Replay: the round's mode is armed (Authenticate/ReplayModal set activeBetModeKey) but betCost()
+	// only scales 'activate' modes, so a replayed buy showed the base amount while the plaque showed
+	// the mode price. betCostFull covers every mode (Stake review 2026-09-02).
+	const betText = () => numberToCurrencyString(isReplay() ? betCostFull() : stateBetDerived.betCost());
 	const hasWin = () => stateBet.winBookEventAmount > 0;
 	const freeSpin = () =>
 		context.stateGame.gameType === 'freegame' && context.stateGame.totalFs > 0

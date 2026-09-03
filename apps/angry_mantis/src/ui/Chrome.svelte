@@ -64,7 +64,9 @@
 	onpress={controls.spin}
 />
 
-<div class="am-ui layer" class:hidden={!show || context.stateLayout.showLoadingScreen}>
+<!-- The HUD fades out under every modal (Corey 2026-09-02): the paper modals carry their own SPIN/price
+     readout, so the dimmed HUD behind them showed the same amount twice; modals live in their own layer. -->
+<div class="am-ui layer" class:hidden={!show || context.stateLayout.showLoadingScreen || stateModal.modal != null}>
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale}>
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />

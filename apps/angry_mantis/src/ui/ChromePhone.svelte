@@ -37,7 +37,7 @@
 
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
 <div class="stats">
-	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={240} />
+	{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={240} />{/if}
 	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} align="left" maxWidth={240} />
 	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" align="left" maxWidth={240} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
 </div>

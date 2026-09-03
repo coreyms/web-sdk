@@ -27,7 +27,7 @@
 <!-- anchored to the reel frame: BALANCE at the board's left edge, WIN dead-centre under the board,
      SPIN at the right edge. maxWidth auto-shrinks huge values (stake.us GC balances hit trillions). -->
 <div class="trio">
-	<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />
+	{#if replay}<div></div>{:else}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />{/if}
 	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} size="lg" maxWidth={205} />
 	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={205} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
 </div>
