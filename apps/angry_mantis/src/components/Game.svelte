@@ -35,8 +35,7 @@
 	import ModePlaque from './ModePlaque.svelte';
 	import AllWildTopUp from './AllWildTopUp.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
-	import ReplayOverlay from './ReplayOverlay.svelte';
-	import Chrome from '../ui/Chrome.svelte';
+		import Chrome from '../ui/Chrome.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
 	import TextWarmup from './TextWarmup.svelte';
 
@@ -188,7 +187,6 @@
 {#if context.stateLayout.showLoadingScreen}
 	<LandingScreen onpress={() => (landingPressed = true)} />
 {/if}
-<ReplayOverlay />
 
 <style lang="scss">
 	:global(html) {

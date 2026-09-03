@@ -2,6 +2,7 @@
 	// Game Info: sticky tab strip + scroll-spied sections. Stake Engine requires full feature
 	// disclosure here — paytable, modes, Feast floor/max-win odds, max win, RTP, volatility, and the
 	// verbatim rules disclaimer (gameInfoText.ts). All numbers come from config / the math run.
+	import type { ComponentProps } from 'svelte';
 	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
@@ -21,6 +22,7 @@
 
 	const SECTIONS = [
 		{ id: 'paytable', label: 'Paytable' },
+		{ id: 'guide', label: 'UI Guide' },
 		{ id: 'ways', label: 'Ways' },
 		{ id: 'modes', label: 'Game Modes' },
 		{ id: 'feast', label: 'Feast Disclosure' },
@@ -74,14 +76,34 @@
 		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${config.betModes.feast.cost.toLocaleString()}×`, costNum: config.betModes.feast.cost, enter: soc('Land 5 Marky scatters, or buy directly.', 'Land 5 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
 	];
 
+	// UI guide (submission checklist "User interaction guide is included in the game information"):
+	// one control per row — the same icon the chrome draws, the name, what a press does
+	type IconName = ComponentProps<typeof Icon>['name'];
+	type GuideRow = { icon: IconName | null; art?: string; color: string; name: string; text: string };
+	const GUIDE: GuideRow[] = [
+		{ icon: 'play', color: '#fff', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
+		{ icon: 'turbo', color: '#ffdc4a', name: 'Turbo', text: 'Cycles Off → Turbo → Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. Turbo is remembered between sessions.' },
+		{ icon: 'auto', color: '#9CD92F', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, a stop-on-loss limit and a stop-on-single-win limit. LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. The button turns red while a run is active.' },
+		{ icon: null, art: '/assets/ui/mantis-head.png', color: '#9CD92F', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or Mantis Feast directly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or Mantis Feast instantly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.') },
+		{ icon: 'coins', color: '#ffdc4a', name: soc('Bet Amount', 'Play Amount'), text: soc('Opens the bet picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.', 'Opens the play amount picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.') },
+		{ icon: 'menu', color: '#fff', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
+		{ icon: 'info', color: '#5AB6FF', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The plaque on the reel frame names the active mode and its play amount.') },
+		{ icon: 'chevronRight', color: '#fff', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
+		{ icon: 'stop', color: '#ff5a8a', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
+	];
+
 	let active = $state('paytable');
 	let contentEl: HTMLDivElement | undefined = $state();
 	let navEl: HTMLDivElement | undefined = $state();
 	const sectionEls: Record<string, HTMLElement> = {};
 
+	// section offsets are measured against the scrolling content box, not the panel — the
+	// panel is the offsetParent, so a raw offsetTop carries the head + tab strip and every jump
+	// overshot the section heading by that much (caught on the UI Guide tab, 2026-09-02)
+	const topOf = (el: HTMLElement) => el.offsetTop - (contentEl?.offsetTop ?? 0);
 	const jump = (id: string) => {
 		const el = sectionEls[id];
-		if (el && contentEl) contentEl.scrollTo({ top: el.offsetTop - 12, behavior: 'smooth' });
+		if (el && contentEl) contentEl.scrollTo({ top: topOf(el) - 12, behavior: 'smooth' });
 		active = id;
 	};
 	const onScroll = () => {
@@ -90,7 +112,7 @@
 		let current = SECTIONS[0].id;
 		for (const s of SECTIONS) {
 			const el = sectionEls[s.id];
-			if (el && el.offsetTop <= y + 60) current = s.id;
+			if (el && topOf(el) <= y + 60) current = s.id;
 		}
 		active = current;
 	};
@@ -156,6 +178,24 @@
 							<div class="row-main">
 								<div class="row-name" style:color={s.color}>{s.name}</div>
 								<div class="note">{s.note}</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</section>
+
+			<section bind:this={sectionEls.guide}>
+				<h2>User Interface Guide</h2>
+				<p>{soc('Every control on the screen, what it does, and how the readouts are calculated. Controls are the same on desktop and phone; on portrait phones they sit under the reels.', 'Every control on the screen, what it does, and how the readouts are calculated. Controls are the same on desktop and phone; on portrait phones they sit under the reels.')}</p>
+				<div class="guide">
+					{#each GUIDE as g (g.name)}
+						<div class="guide-row">
+							<div class="guide-icon" style:color={g.color} style:width="{compact ? 40 : 48}px" style:height="{compact ? 40 : 48}px">
+								{#if g.art}<img src={stamp(g.art)} alt="" style:width="{compact ? 30 : 36}px" draggable="false" />{:else if g.icon}<Icon name={g.icon} s={compact ? 18 : 22} />{/if}
+							</div>
+							<div class="guide-text">
+								<div class="guide-name" style:font-size="{compact ? 13 : 15}px">{g.name}</div>
+								<div class="v">{g.text}</div>
 							</div>
 						</div>
 					{/each}
@@ -532,6 +572,41 @@
 	.mode-meta b {
 		color: #fff;
 		font-weight: 700;
+	}
+	.guide {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.guide-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 14px;
+		padding: 10px 14px;
+		border-radius: 12px;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.35) 100%);
+		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+	}
+	.guide-icon {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 12px;
+		background: rgba(10, 14, 10, 0.6);
+		box-shadow: inset 0 0 0 3px currentColor, inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.5);
+	}
+	.guide-text {
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+	.guide-name {
+		font-weight: 900;
+		letter-spacing: 1.5px;
+		color: #fff;
+		text-transform: uppercase;
 	}
 	.kv-grid {
 		display: grid;

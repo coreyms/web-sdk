@@ -3,10 +3,14 @@
 	// it shows the live count with ACTIVE underneath, and tapping cancels the sequence.
 	import Icon from './Icon.svelte';
 	import type { Controls } from './controls.svelte';
+	import { replayState } from './replayState.svelte';
 
 	type Props = { size?: number; controls: Controls };
 	const { size = 92, controls }: Props = $props();
 
+	// replay: the button is a static REPLAY banner while the round plays and re-arms afterwards
+	const replay = $derived(controls.isReplay());
+	const replayAgain = $derived(replay && replayState.phase === 'done');
 	const autoActive = $derived(controls.autoRunning());
 	const showStop = $derived(controls.showStop());
 	const countText = $derived(controls.autoCountText());
@@ -29,15 +33,17 @@
 
 <button
 	class="slot-btn spin"
-	disabled={controls.spinDisabled()}
-	onclick={controls.spin}
-	aria-label={showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin'}
+	disabled={replay ? !replayAgain : controls.spinDisabled()}
+	onclick={replay ? () => replayState.start?.() : controls.spin}
+	aria-label={replay ? 'Replay' : showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin'}
 	style:width="{size}px"
 	style:height="{size}px"
 	style:background
 	style:box-shadow="inset 0 0 0 4px {ring}, inset 0 1px 0 rgba(255,255,255,.3), 0 0 0 1px rgba(0,0,0,.5), 0 14px 28px rgba(0,0,0,.55)"
 >
-	{#if freegame && fs}
+	{#if replay}
+		<span class="replay-label" style:font-size="{Math.max(10, size * 0.19)}px">REPLAY</span>
+	{:else if freegame && fs}
 		<div class="count">
 			<span class="active fs-label" style:font-size="{Math.max(8, size * 0.1)}px">Free spin</span>
 			<span class="slot-num num" style:font-size="{size * 0.3}px">{fs.current}<span class="of">/{fs.total}</span></span>
@@ -114,6 +120,12 @@
 		text-transform: uppercase;
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 		white-space: nowrap;
+	}
+	.replay-label {
+		font-weight: 900;
+		letter-spacing: 2px;
+		color: #fff;
+		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
 	}
 	.active {
 		font-weight: 900;

@@ -42,7 +42,7 @@
 			{#if !replay}<AutoplayButton size={36} {controls} compact />{/if}
 			<TurboButton size={36} {controls} />
 		</div>
-		{#if !replay}<SquareSpin size={78} {controls} />{/if}
+		<SquareSpin size={78} {controls} />
 	</div>
 </div>
 

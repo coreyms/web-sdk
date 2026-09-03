@@ -11,7 +11,7 @@ import type { EmitterEventMantis } from '../components/Mantis.svelte';
 import type { EmitterEventPoolHud } from '../components/PoolHud.svelte';
 import type { EmitterEventAllWildTopUp } from '../components/AllWildTopUp.svelte';
 import type { EmitterEventMaxWinCinematic } from '../components/MaxWinCinematic.svelte';
-import type { EmitterEventReplay } from '../components/ReplayOverlay.svelte';
+import type { EmitterEventReplay } from '../ui/ReplayModal.svelte';
 import type { EmitterEventMartyArt } from '../components/MartyArt.svelte';
 
 export type EmitterEventGame =

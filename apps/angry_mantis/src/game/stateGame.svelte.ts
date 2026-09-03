@@ -65,7 +65,12 @@ export type AutoLoadout = {
  * Live check on every gate: the counter only decrements AFTER the whole bet (feature included)
  * plays out, so it is still >0 through the doors of an auto spin — and already 0 if the player
  * pressed stop, which restores the hard press-gate. */
-export const autoBonusesRunning = (): boolean => stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0;
+export const autoBonusesRunning = (): boolean => isReplayPlayback() || (stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0);
+
+/** a shared-round replay is a recording: its door screens continue on their own instead of
+ * waiting for a press (Stake's own replay window plays the round through unattended). */
+const isReplayPlayback = (): boolean =>
+	typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('replay') === 'true';
 
 export const isAnteLockedSymbol = (reelIndex: number, symbolIndexOfBoard: number): boolean =>
 	reelIndex === 0 &&

@@ -16,6 +16,7 @@
 	import BonusBuyModal from './BonusBuyModal.svelte';
 	import AutoplayModal from './AutoplayModal.svelte';
 	import DenomModal from './DenomModal.svelte';
+	import ReplayModal from './ReplayModal.svelte';
 	import GameInfoModal from './GameInfoModal.svelte';
 	import NoticeModal from './NoticeModal.svelte';
 
@@ -81,6 +82,7 @@
 	<DenomModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<GameInfoModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<NoticeModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
+	<ReplayModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 </div>
 
 <style>
