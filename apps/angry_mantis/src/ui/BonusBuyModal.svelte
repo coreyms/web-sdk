@@ -89,7 +89,7 @@
 					<div class="s-plate" style:background={opt.accent}>{opt.label}</div>
 					<div class="s-msg">
 						ACTIVATE loads {opt.label} onto the Spin button at <span class="s-price">{numberToCurrencyString(confirmTarget.price)}</span> per play.
-						Nothing is charged until you press Spin — it stays loaded until you switch it off.
+						It only applies when you press Spin, and stays loaded until you switch it off.
 					</div>
 				</div>
 				<div class="s-stub">
