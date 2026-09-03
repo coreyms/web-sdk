@@ -19,21 +19,10 @@
 	const open = $derived(stateModal.modal?.name === 'buyBonus');
 	const close = () => (stateModal.modal = null);
 
+	// The confirm slip shows on EVERY buy: the old "don't show this again" checkbox (persisted in
+	// localStorage) let a player permanently defeat the price confirmation on a 100×–2000× purchase
+	// (Stake review 2026-09-02; removed on Corey's call).
 	let confirmTarget = $state<{ opt: BonusCardSpec; price: number } | null>(null);
-	let dontAsk = $state(false);
-	// "don't show this again" persists per mode across reloads; localStorage can throw
-	// (private mode / blocked site data), so every touch is wrapped and falls back to
-	// session-only behaviour
-	const SKIP_CONFIRM_KEY = 'angryMantis.skipBuyConfirm';
-	const loadSkipConfirm = (): Record<string, boolean> => {
-		try {
-			const parsed = JSON.parse(localStorage.getItem(SKIP_CONFIRM_KEY) ?? '{}');
-			return parsed && typeof parsed === 'object' ? parsed : {};
-		} catch {
-			return {};
-		}
-	};
-	const skipConfirm = $state<Record<string, boolean>>(loadSkipConfirm());
 
 	const onbuy = (opt: BonusCardSpec, price: number) => {
 		controls.sound('soundPressMinor'); // every ticket's ACTIVATE (Corey 2026-09-02)
@@ -41,22 +30,10 @@
 			controls.activateMode(opt.mode);
 			return;
 		}
-		if (skipConfirm[opt.mode]) controls.buyMode(opt.mode);
-		else {
-			dontAsk = false;
-			confirmTarget = { opt, price };
-		}
+		confirmTarget = { opt, price };
 	};
 	const confirmYes = () => {
 		if (!confirmTarget) return;
-		if (dontAsk) {
-			skipConfirm[confirmTarget.opt.mode] = true;
-			try {
-				localStorage.setItem(SKIP_CONFIRM_KEY, JSON.stringify($state.snapshot(skipConfirm)));
-			} catch {
-				/* best effort — the in-session skip still applies */
-			}
-		}
 		const mode = confirmTarget.opt.mode;
 		confirmTarget = null;
 		controls.buyMode(mode);
@@ -114,11 +91,6 @@
 						ACTIVATE loads {opt.label} onto the Spin button at <span class="s-price">{numberToCurrencyString(confirmTarget.price)}</span> per play.
 						Nothing is charged until you press Spin — it stays loaded until you switch it off.
 					</div>
-					<label class="s-skip">
-						<input type="checkbox" bind:checked={dontAsk} />
-						<span class="s-box" style:background={dontAsk ? '#1b1204' : 'transparent'}></span>
-						DON'T SHOW THIS AGAIN
-					</label>
 				</div>
 				<div class="s-stub">
 					<div class="grain"></div>
@@ -301,32 +273,6 @@
 		font-weight: 800;
 		color: #1b1204;
 	}
-	.s-skip {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 10px;
-		padding: 6px 0 14px;
-		cursor: pointer;
-		font-size: 11px;
-		font-weight: 800;
-		letter-spacing: 2.5px;
-		color: #6b6250;
-		position: relative;
-	}
-	.s-skip input {
-		position: absolute;
-		opacity: 0;
-		width: 0;
-		height: 0;
-	}
-	.s-box {
-		width: 20px;
-		height: 20px;
-		border-radius: 5px;
-		border: 2px solid #6b6250;
-		box-sizing: border-box;
-	}
 	.s-tear {
 		position: absolute;
 		left: 12px;
@@ -372,17 +318,6 @@
 	.slip.compact .s-msg {
 		padding: 16px 20px 6px;
 		font-size: 13px;
-	}
-	.slip.compact .s-skip {
-		gap: 8px;
-		padding: 6px 0 12px;
-		font-size: 10px;
-		letter-spacing: 2px;
-	}
-	.slip.compact .s-box {
-		width: 18px;
-		height: 18px;
-		border-radius: 4px;
 	}
 	.slip.compact .s-tear {
 		left: 10px;
