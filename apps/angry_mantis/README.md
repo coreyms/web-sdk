@@ -44,7 +44,7 @@ symbols; the jungle background is `bg-jungle.webp`. `src/ui/controls.svelte.ts` 
 - `src/game/gameInfoText.ts` — rules + the verbatim Stake disclaimer shown in `components/GameInfo.svelte`
 - `src/components/` — `BonusIntro`, `Mantis` (placeholder for the Spine `MantisRig`), `PoolHud`, `AnteLock`, `RetriggerBanner`,
   `MaxWinCinematic`, `SessionSummary`, `ReplayOverlay`
-- `static/assets/sprites/make_placeholders.py` — regenerates the placeholder symbol/character sheets (run with the math-sdk venv)
+- `tools/make_placeholders.py` — regenerates the placeholder symbol/character sheets (run with the math-sdk venv)
 
 ## Swapping in real art
 Symbol states are looked up in `SYMBOL_INFO_MAP` (`src/game/constants.ts`); replace individual entries with `spine` entries as the rigs land

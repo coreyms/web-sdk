@@ -13,8 +13,9 @@ scheme (combined tile + -blank + -insect) still works wherever no -plate file ex
 import json, os
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.abspath(os.path.join(HERE, *[".."] * 6))
+HERE = os.path.dirname(os.path.abspath(__file__))  # apps/angry_mantis/tools (moved out of static/ 2026-09-02 so it no longer ships to the CDN)
+REPO = os.path.abspath(os.path.join(HERE, *[".."] * 4))
+SPRITES = os.path.abspath(os.path.join(HERE, "..", "static", "assets", "sprites"))
 ART = os.environ.get("AM_TILE_ART", os.path.join(REPO, "assets", "images", "tile"))
 S = 256  # source tile size (design spec: 256×256, corner radius 9% = 23px)
 RADIUS = round(S * 0.09)
@@ -90,7 +91,7 @@ def sheet(name, frames):
         atlas.paste(im, (x, y))
         meta["frames"][fname] = {"frame": {"x": x, "y": y, "w": S, "h": S}, "rotated": False, "trimmed": False,
                                  "spriteSourceSize": {"x": 0, "y": 0, "w": S, "h": S}, "sourceSize": {"w": S, "h": S}, "pivot": {"x": 0.5, "y": 0.5}}
-    out = os.path.join(HERE, name)
+    out = os.path.join(SPRITES, name)
     os.makedirs(out, exist_ok=True)
     atlas.save(os.path.join(out, f"{name}.png"))
     json.dump(meta, open(os.path.join(out, f"{name}.json"), "w"), indent=1)
@@ -143,7 +144,7 @@ sheet("amCharacters", chars)
 # Game Info thumbnails: per-symbol webp for the HTML rules modal, served from static/assets/tiles/.
 # <key>.webp = the tile; <key>_insect.webp = the insect cutout (paying symbols only).
 THUMB = 128
-thumb_dir = os.path.abspath(os.path.join(HERE, "..", "tiles"))
+thumb_dir = os.path.abspath(os.path.join(SPRITES, "..", "tiles"))
 os.makedirs(thumb_dir, exist_ok=True)
 for sym in SYMBOLS:
     frames[f"{sym}.png"].resize((THUMB, THUMB), Image.LANCZOS).save(os.path.join(thumb_dir, f"{sym.lower()}.webp"), "WEBP", quality=88)

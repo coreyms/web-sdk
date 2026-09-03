@@ -4,13 +4,11 @@
 		"bgm_base": {
 			"src": [
 				"./assets/audio/music/bgm_base.ogg?v=cab7566b",
-				"./assets/audio/music/bgm_base.m4a?v=c06f6d0f",
-				"./assets/audio/music/bgm_base.mp3?v=5130652a"
+				"./assets/audio/music/bgm_base.m4a?v=c06f6d0f"
 			],
 			"bytes": [
 				775767,
-				747043,
-				734190
+				747043
 			],
 			"loop": true,
 			"duration": 61.111,
@@ -19,13 +17,11 @@
 		"bgm_free": {
 			"src": [
 				"./assets/audio/music/bgm_free.ogg?v=c000d889",
-				"./assets/audio/music/bgm_free.m4a?v=340cd0b9",
-				"./assets/audio/music/bgm_free.mp3?v=964c63a6"
+				"./assets/audio/music/bgm_free.m4a?v=340cd0b9"
 			],
 			"bytes": [
 				1155270,
-				1130276,
-				1106591
+				1130276
 			],
 			"loop": true,
 			"duration": 92.136,
@@ -34,13 +30,11 @@
 		"bgm_super": {
 			"src": [
 				"./assets/audio/music/bgm_super.ogg?v=1a2fb621",
-				"./assets/audio/music/bgm_super.m4a?v=9cf0a6be",
-				"./assets/audio/music/bgm_super.mp3?v=c06648e2"
+				"./assets/audio/music/bgm_super.m4a?v=9cf0a6be"
 			],
 			"bytes": [
 				1131293,
-				1128266,
-				1104084
+				1128266
 			],
 			"loop": true,
 			"duration": 91.95,
@@ -49,13 +43,11 @@
 		"bgm_feast": {
 			"src": [
 				"./assets/audio/music/bgm_feast.ogg?v=0fcab3bd",
-				"./assets/audio/music/bgm_feast.m4a?v=9760406c",
-				"./assets/audio/music/bgm_feast.mp3?v=ea14d9a5"
+				"./assets/audio/music/bgm_feast.m4a?v=9760406c"
 			],
 			"bytes": [
 				735673,
-				746221,
-				730428
+				746221
 			],
 			"loop": true,
 			"duration": 60.805,
@@ -64,13 +56,11 @@
 		"bgm_maxwin": {
 			"src": [
 				"./assets/audio/music/bgm_maxwin.ogg?v=0c67d4ee",
-				"./assets/audio/music/bgm_maxwin.m4a?v=c8079c9c",
-				"./assets/audio/music/bgm_maxwin.mp3?v=934ed278"
+				"./assets/audio/music/bgm_maxwin.m4a?v=c8079c9c"
 			],
 			"bytes": [
 				274458,
-				270223,
-				264299
+				270223
 			],
 			"loop": true,
 			"duration": 21.946,
