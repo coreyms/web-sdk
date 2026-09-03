@@ -3,7 +3,9 @@ import { fromPromise } from 'xstate';
 import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet, stateUrlDerived, stateModal } from 'state-shared';
 import { requestBet, requestEndRound } from 'rgs-requests';
+import { waitForTimeout } from 'utils-shared/wait';
 
+import { surfaceBetError } from './surfaceBetError';
 import type { BaseBet } from './types';
 
 const handleRequestBet = async ({ onError }: { onError: () => void }) => {
@@ -39,30 +41,50 @@ const handleRequestBet = async ({ onError }: { onError: () => void }) => {
 	}
 };
 
+// End-round is what settles the wallet: the balance it returns is the authoritative post-round
+// figure, so a dropped call leaves the HUD showing a stale balance for the rest of the session.
+// Network blips and RGS 5xx are usually transient, so retry with a short backoff before giving up.
+const END_ROUND_RETRY_DELAYS_MS = [500, 1000, 2000]; // waited BEFORE each retry: 3 retries after the first attempt
+
 const handleRequestEndRound = async () => {
 	if(stateUrlDerived.replay()) return;
 
-	try {
-		const data = await requestEndRound({
-			sessionID: stateUrlDerived.sessionID(),
-			rgsUrl: stateUrlDerived.rgsUrl(),
-		});
+	let lastError: unknown;
 
-		if (data?.error) {
-			throw data;
-		}
+	for (let attempt = 0; attempt <= END_ROUND_RETRY_DELAYS_MS.length; attempt++) {
+		// the fetcher hands the JSON body through even on a non-200, so an RGS error object
+		// ({ error: 'ERR_GEN', message }) arrives as data, not as a rejection — both are retried
+		try {
+			const data = await requestEndRound({
+				sessionID: stateUrlDerived.sessionID(),
+				rgsUrl: stateUrlDerived.rgsUrl(),
+			});
 
-		if (data?.balance?.amount !== undefined) {
-			return data;
-		} else {
-			throw {
-				error: 'Empty amount in data.balance',
-				message: JSON.stringify({ data }),
-			};
+			if (data?.error) {
+				throw data;
+			}
+
+			if (data?.balance?.amount !== undefined) {
+				return data;
+			} else {
+				throw {
+					error: 'Empty amount in data.balance',
+					message: JSON.stringify({ data }),
+				};
+			}
+		} catch (error) {
+			lastError = error;
+			const delay = END_ROUND_RETRY_DELAYS_MS[attempt];
+			if (delay !== undefined) await waitForTimeout(delay);
 		}
-	} catch (error) {
-		console.error(error);
 	}
+
+	// Out of retries: the round could not be closed and the balance never arrived. Surface it the
+	// way every other RGS failure is surfaced (error modal + auto-spin stop) instead of a silent
+	// console line — the player would otherwise keep playing against a wallet reading that is wrong.
+	// Not rethrown: the round has already been presented, and failing the state machine here would
+	// wedge the game on top of the notice card.
+	surfaceBetError(lastError);
 };
 
 const handleUpdateBalance = ({ balanceAmountFromApi }: { balanceAmountFromApi: number }) => {

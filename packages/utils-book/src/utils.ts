@@ -15,10 +15,17 @@ export function recordBookEvent<TBookEvent extends BaseBookEvent>({
 	}
 
 	try {
+		// Fire-and-forget: end-event is a progress marker the RGS uses to resume an interrupted
+		// round, so playback must never wait on it. The promise is deliberately not awaited, which
+		// means the try/catch below only covers a synchronous throw — without a .catch() a failed
+		// request surfaces as an unhandled rejection. A warning is the right level: the round's
+		// money is settled by end-round, not by this call.
 		requestEndEvent({
 			eventIndex: bookEvent.index,
 			rgsUrl: stateUrlDerived.rgsUrl(),
 			sessionID: stateUrlDerived.sessionID(),
+		}).catch((error) => {
+			console.warn('end-event request failed:', { index: bookEvent.index, type: bookEvent.type }, error);
 		});
 	} catch (error) {
 		console.error(error);

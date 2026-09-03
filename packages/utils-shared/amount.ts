@@ -8,7 +8,8 @@ import { stateBet } from 'state-shared';
 // it trails the number. Intl's own 'currency' style is NOT used any more — it disagrees with this
 // table (it renders "US$" under a zh locale, "1,00 $" under de, and throws on XGC/XSC), and the
 // social coins need a marker Intl has never heard of. Number grouping/decimal separators still
-// come from the active locale via stateI18n.
+// come from the active locale via stateI18n — which components-shared/LoadI18n pins to 'en' for a
+// social (stake.us) session, so social amounts always read en-US no matter what ?lang= asks for.
 type Meta = { symbol: string; decimals: number; after?: boolean };
 const META: Record<string, Meta> = {
 	USD: { symbol: '$', decimals: 2 },
