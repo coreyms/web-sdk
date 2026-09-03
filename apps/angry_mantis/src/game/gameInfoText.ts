@@ -5,6 +5,12 @@ import { soc } from './social';
 export const DISCLAIMER =
 	'Malfunction voids all wins and plays. A consistent internet connection is required. In the event of a disconnection, reload the game to finish any uncompleted rounds. The expected return is calculated over many plays. The game display is not representative of any physical device and is for illustrative purposes only. Winnings are settled according to the amount received from the Remote Game Server and not from events within the web browser. TM and © 2026 Stake Engine.';
 
+const MODE_NAMES: Record<string, string> = { base: 'Base Game', ante: 'Ante', bonus: 'Free Spins', super: 'Super Free Spins', feast: 'Mantis Feast' };
+const pct = (x: number) => `${(x * 100).toFixed(2)}%`;
+const MODE_RTP_LINE = Object.entries(config.betModes)
+	.map(([key, m]) => `${MODE_NAMES[key] ?? key.toUpperCase()} ${pct(m.rtp)}`)
+	.join(', ');
+
 export const RULES_SECTIONS = [
 	{
 		title: 'HOW TO PLAY',
@@ -17,6 +23,9 @@ export const RULES_SECTIONS = [
 				'Base game wins are capped at 250x the bet per spin. The total payout of any round is capped at 20,000x the bet.',
 				'Base game wins are capped at 250x the play amount per spin. The total win of any round is capped at 20,000x the play amount.',
 			),
+			// Stake requires the per-mode RTP inside HOW TO PLAY itself (creators' Discord, Corey 2026-09-02),
+			// not only in the GAME MODES / RTP sections
+			`Return to player (RTP) by game mode: ${MODE_RTP_LINE}. Max win in every mode: ${config.maxWin.toLocaleString()}x.`,
 		],
 	},
 	{
