@@ -4,7 +4,21 @@
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
 		
-		<meta name="viewport" content="width=device-width" />
+		<!-- Stake checklist: main frame must not scroll, double-tap/pinch zoom disabled on mobile -->
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+		<style>
+			/* iOS ignores user-scalable=no; touch-action: manipulation is what actually kills double-tap zoom
+			   there. pixi-svelte sets touch-action:auto inline on the canvas, hence the !important. */
+			html,
+			body {
+				touch-action: manipulation;
+				overscroll-behavior: none;
+			}
+			canvas {
+				display: block; /* inline canvas leaves a 4px baseline gap that makes the page scrollable */
+				touch-action: manipulation !important;
+			}
+		</style>
 		%sveltekit.head%
 	</head>
 	<body style="margin: 0; padding: 0; overflow: hidden; background-color: black">
