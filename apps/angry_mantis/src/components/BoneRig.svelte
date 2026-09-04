@@ -17,8 +17,50 @@
 		mirror?: boolean;
 		skin?: string | null;
 		rig?: Rig | null;
+		/** soft ground shadow under the feet, tracking the rig every frame (default on) */
+		groundShadow?: boolean;
 	};
-	let { size, mirror = false, skin = null, rig = $bindable(null) }: Props = $props();
+	let { size, mirror = false, skin = null, rig = $bindable(null), groundShadow = true }: Props = $props();
+
+	// ── ground shadow ─────────────────────────────────────────────────────────────────────────────
+	// One tinted sprite (static/assets/ui/ground-shadow.webp, a soft ellipse) under the rig, placed
+	// from the four foot bones each tick: centred on the feet spread, as wide as the stance, sitting
+	// on the ground line measured from the idle pose. Feet stay planted through an idle bob, so the
+	// shadow holds still while the body breathes; a stride slides it with the stance foot; when the
+	// lowest foot leaves the rest ground line (a hop, a rearing reaction) the shadow shrinks and
+	// fades — the off-the-ground cue. No allocation, no filter: a few multiplies in the existing tick.
+	const FEET = ['Right Foot', 'Foot', 'Left Front Foot', 'Left Back Foot'];
+	const SHADOW_ALPHA = 0.5;
+	let shadow: PIXI.Sprite | null = null;
+	let groundRest = 0; // lowest foot y in view-local (unscaled) units at idle frame 0
+	const feetOf = (r: Rig) => {
+		let minX = Infinity, maxX = -Infinity, lowest = -Infinity, n = 0;
+		for (const name of FEET) {
+			const p = r.part(name);
+			if (!p) continue;
+			n++;
+			minX = Math.min(minX, p.position.x);
+			maxX = Math.max(maxX, p.position.x);
+			lowest = Math.max(lowest, p.position.y);
+		}
+		return n ? { minX, maxX, lowest } : null;
+	};
+	const placeShadow = (r: Rig) => {
+		if (!shadow) return;
+		const f = feetOf(r);
+		if (!f) return;
+		const v = r.view;
+		const s = v.scale.x;
+		const cx = ((f.minX + f.maxX) / 2 - v.pivot.x) * s;
+		const groundY = (groundRest - v.pivot.y) * s + size * 0.05; // toe length below the ankle bone
+		// lift: how far the lowest foot has risen off the rest ground line, in body sizes
+		const lift = Math.min(1, Math.max(0, (groundRest - f.lowest) * s / (size * 0.35)));
+		const w = (f.maxX - f.minX) * s + size * 0.42;
+		shadow.position.set(cx, groundY);
+		shadow.width = w * (1 - 0.45 * lift);
+		shadow.height = w * 0.28 * (1 - 0.45 * lift);
+		shadow.alpha = SHADOW_ALPHA * (1 - 0.75 * lift);
+	};
 
 	const context = getContext();
 	const wrapper = new PIXI.Container();
@@ -35,15 +77,28 @@
 				r.destroy();
 				return;
 			}
-			const b = measureIdlePose(r);
+			const b = measureIdlePose(r); // leaves the rig on idle frame 0: the rest pose for the ground line
 			maxDim = Math.max(b.width, b.height);
 			r.view.pivot.set(b.x + b.width / 2, b.y + b.height / 2);
+			const restFeet = feetOf(r);
+			const tex = context.stateApp.loadedAssets?.groundShadow as PIXI.Texture | undefined;
+			if (groundShadow && restFeet && tex) {
+				groundRest = restFeet.lowest;
+				shadow = new PIXI.Sprite(tex);
+				shadow.anchor.set(0.5);
+				shadow.tint = 0x000000;
+				shadow.alpha = SHADOW_ALPHA;
+				wrapper.addChildAt(shadow, 0); // under the rig view
+			}
 			if (skin) r.setSkin(skin);
 			wrapper.addChild(r.view);
 			playIdle(r); // weighted idle pick + random start frame desyncs multiple mantises
 			const ticker = context.stateApp.pixiApplication?.ticker;
 			if (ticker) {
-				tick = () => r.update(ticker.deltaMS / 1000);
+				tick = () => {
+					r.update(ticker.deltaMS / 1000);
+					placeShadow(r);
+				};
 				ticker.add(tick);
 			}
 			// idle variety: occasionally re-roll the idle clip, but only while actually idling —
@@ -63,7 +118,10 @@
 
 	$effect(() => {
 		const s = size / maxDim;
-		if (rig) rig.view.scale.set(s);
+		if (rig) {
+			rig.view.scale.set(s);
+			placeShadow(rig);
+		}
 		wrapper.scale.x = mirror ? -1 : 1;
 	});
 </script>

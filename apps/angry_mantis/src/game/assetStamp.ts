@@ -57,6 +57,7 @@ export default {
 	"ui/gold-alphabet/glyphs.json": "0f98a9da",
 	"ui/gold-alphabet/gold-alphabet.json": "24611705",
 	"ui/gold-alphabet/gold-alphabet.webp": "b631e89c",
+	"ui/ground-shadow.webp": "2eb04694",
 	"ui/inmate-1-chalk.webp": "aa36cd0a",
 	"ui/inmate-2-chalk.webp": "a5e47ce7",
 	"ui/logo-landscape.webp": "ae494b11",

@@ -72,6 +72,8 @@ export default {
 	},
 	// bonus-intro headshots (real character art; the in-game corner mantises stay on amCharacters
 	// placeholder frames until the Spine rig lands)
+	// soft ellipse under each mantis's feet (BoneRig ground shadow); tiny, so it rides the preload
+	groundShadow: { type: 'sprite', src: stamp(new URL('../../assets/ui/ground-shadow.webp', import.meta.url).href), preload: true },
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
 	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: false },
 	amSymbols: {
