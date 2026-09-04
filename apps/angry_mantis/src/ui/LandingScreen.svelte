@@ -134,11 +134,13 @@
 							{#each LANDING_CARDS as card (card.title)}
 								<div class="slide">
 									<div class="card tall">
+										<div class="course" style:font-size="{Math.round(SZ.body * 0.72)}px">{card.course}</div>
 										<div class="imgzone" style:height="{SZ.imgBig + 8}px">
 											{#each card.images as src (src)}
 												<img {src} alt="" width={card.images.length > 1 ? SZ.imgMini : SZ.imgBig} height={card.images.length > 1 ? SZ.imgMini : SZ.imgBig} draggable="false" />
 											{/each}
 										</div>
+										<div class="tear"></div>
 										<h3 style:font-size="{SZ.title}px">{card.title}</h3>
 										<p style:font-size="{SZ.body}px">{card.body}</p>
 									</div>
@@ -158,11 +160,13 @@
 				<div class="cards">
 					{#each LANDING_CARDS as card (card.title)}
 						<div class="card" style:width="{SZ.cardW}px">
+							<div class="course" style:font-size="{Math.round(SZ.body * 0.72)}px">{card.course}</div>
 							<div class="imgzone" style:height="{SZ.imgBig + 8}px">
 								{#each card.images as src (src)}
 									<img {src} alt="" width={card.images.length > 1 ? SZ.imgMini : SZ.imgBig} height={card.images.length > 1 ? SZ.imgMini : SZ.imgBig} draggable="false" />
 								{/each}
 							</div>
+							<div class="tear"></div>
 							<h3 style:font-size="{SZ.title}px">{card.title}</h3>
 							<p style:font-size="{SZ.body}px">{card.body}</p>
 						</div>
@@ -243,24 +247,48 @@
 		height: auto;
 		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
 	}
-	/* fixed grid rows keep image / header / description on the same lines across cards */
+	/* the feature tour on meal-ticket stock — same cream, grain, tokens and dashed blocks as the
+	   Autoplay / Bonus Buy / Replay / Price List / Game Info tickets. Fixed grid rows keep image,
+	   header and description on the same lines across the four cards. */
 	.cards {
 		display: flex;
 		gap: 14px;
 		justify-content: center;
 	}
 	.card {
-		background: linear-gradient(180deg, rgba(10, 15, 8, 0.78), rgba(5, 9, 4, 0.86));
-		border: 1px solid rgba(238, 240, 230, 0.1);
-		border-radius: 16px;
-		padding: 16px 14px;
+		--ink: #1b1204;
+		--body: #2a241a;
+		--muted: #6b6250;
+		--rule: #a99c7d;
+		position: relative;
+		color: var(--body);
+		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
+		border-radius: 14px;
+		box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
+		padding: 12px 14px 14px;
 		display: grid;
-		grid-template-rows: auto auto 1fr;
+		grid-template-rows: auto auto auto auto 1fr;
 		align-items: start;
 		justify-items: center;
 		gap: 8px;
 		text-align: center;
 		overflow: hidden;
+	}
+	.card::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+		pointer-events: none;
+	}
+	.card > * {
+		position: relative;
+	}
+	.course {
+		font-weight: 800;
+		letter-spacing: 3px;
+		color: var(--muted);
 	}
 	.imgzone {
 		display: flex;
@@ -268,21 +296,32 @@
 		justify-content: center;
 		gap: 4px;
 		max-width: 100%;
+		padding: 4px 8px;
+		border: 2px dashed var(--rule);
+		border-radius: 12px;
+		box-sizing: content-box;
 	}
 	.imgzone img {
 		border-radius: 10px;
-		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+		box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+	}
+	.tear {
+		width: calc(100% + 28px);
+		height: 0;
+		border-top: 3px dashed var(--rule);
+		margin: 2px -14px 0;
 	}
 	.card h3 {
 		margin: 0;
 		font-weight: 900;
-		letter-spacing: 1.6px;
-		color: #ffdc4a;
+		letter-spacing: 2.5px;
+		color: var(--ink);
+		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 		align-self: center;
 	}
 	.card p {
 		margin: 0;
-		color: rgba(238, 240, 230, 0.72);
+		color: var(--body);
 		line-height: 1.5;
 	}
 	.carousel {
