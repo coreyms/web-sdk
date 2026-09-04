@@ -87,7 +87,7 @@
 	let slide = $state(0);
 	// auto page turn every AUTO_MS; a manual turn (swipe, arrow, dot) means the player is reading,
 	// so the clock holds for READ_MS before the auto turn resumes (Corey 2026-09-04)
-	const AUTO_MS = 4000;
+	const AUTO_MS = 6000;
 	const READ_MS = 12000;
 	let rotateTimer: ReturnType<typeof setTimeout> | undefined;
 	const startRotate = (delay = AUTO_MS) => {
