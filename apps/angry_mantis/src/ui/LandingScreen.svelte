@@ -63,10 +63,10 @@
 	// per-kind sizing (master units). Phone-sideways is authored large so touch targets stay ≥44 CSS px.
 	const SZ = $derived(
 		kind === 'phone'
-			? { logoW: 380, tag: 22, cardW: 660, imgBig: 150, imgMini: 138, title: 26, body: 19, arrow: 132, dot: 14, barW: 520, barH: 14, press: 30, pad: 26 }
+			? { logoW: 380, tag: 22, cardW: 660, imgBig: 118, imgMini: 118, title: 24, body: 17, arrow: 132, dot: 14, barW: 520, barH: 14, press: 30, pad: 26 }
 			: kind === 'portrait'
 				? { logoW: 250, tag: 13, cardW: 330, imgBig: 96, imgMini: 68, title: 15, body: 13, arrow: 74, dot: 8, barW: 280, barH: 10, press: 17, pad: 16 }
-				: { logoW: 300, tag: 14, cardW: 272, imgBig: 84, imgMini: 54, title: 13, body: 12, arrow: 0, dot: 0, barW: 420, barH: 10, press: 18, pad: 16 },
+				: { logoW: 300, tag: 14, cardW: 206, imgBig: 84, imgMini: 44, title: 13, body: 12, arrow: 0, dot: 0, barW: 420, barH: 10, press: 18, pad: 16 },
 	);
 	const carousel = $derived(kind !== 'landscape');
 	// arrows are a mouse affordance: a touch device turns pages by swiping (Corey 2026-09-04), so
@@ -162,15 +162,15 @@
 									class:turn-in={turning?.page === i && turning.dir === 'in'}
 									onanimationend={turned}
 								>
-									<div class="card tall">
+									<div class="card tall" class:cover={card.cover}>
 										<div class="course" style:font-size="{Math.round(SZ.body * 0.72)}px">{card.course}</div>
-										<div class="imgzone" style:height="{SZ.imgBig + 8}px">
+										<div class="imgzone" class:emblem={card.cover} style:height="{SZ.imgBig + 8}px">
 											{#each card.images as src (src)}
 												<img {src} alt="" width={card.images.length > 1 ? SZ.imgMini : SZ.imgBig} height={card.images.length > 1 ? SZ.imgMini : SZ.imgBig} draggable="false" />
 											{/each}
 										</div>
 										<div class="tear"></div>
-										<h3 style:font-size="{SZ.title}px">{card.title}</h3>
+										<h3 class:cover-title={card.cover} style:font-size="{card.cover ? Math.round(SZ.title * 1.45) : SZ.title}px">{card.title}</h3>
 										<p style:font-size="{SZ.body}px">{card.body}</p>
 									</div>
 								</div>
@@ -190,15 +190,15 @@
 			{:else}
 				<div class="cards">
 					{#each LANDING_CARDS as card (card.title)}
-						<div class="card" style:width="{SZ.cardW}px">
+						<div class="card" class:cover={card.cover} style:width="{SZ.cardW}px">
 							<div class="course" style:font-size="{Math.round(SZ.body * 0.72)}px">{card.course}</div>
-							<div class="imgzone" style:height="{SZ.imgBig + 8}px">
+							<div class="imgzone" class:emblem={card.cover} style:height="{SZ.imgBig + 8}px">
 								{#each card.images as src (src)}
 									<img {src} alt="" width={card.images.length > 1 ? SZ.imgMini : SZ.imgBig} height={card.images.length > 1 ? SZ.imgMini : SZ.imgBig} draggable="false" />
 								{/each}
 							</div>
 							<div class="tear"></div>
-							<h3 style:font-size="{SZ.title}px">{card.title}</h3>
+							<h3 class:cover-title={card.cover} style:font-size="{card.cover ? Math.round(SZ.title * 1.45) : SZ.title}px">{card.title}</h3>
 							<p style:font-size="{SZ.body}px">{card.body}</p>
 						</div>
 					{/each}
@@ -316,6 +316,26 @@
 	.card > * {
 		position: relative;
 	}
+	/* the cover: a double rule inside the stock, the emblem loose (no dashed block), Black Ops title */
+	.card.cover {
+		box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(0, 0, 0, 0.08), inset 0 0 0 7px #ebe3cf, inset 0 0 0 9px var(--rule), inset 0 0 0 11px #ebe3cf, inset 0 0 0 12px var(--rule);
+	}
+	.imgzone.emblem {
+		border: 0;
+		padding: 0;
+	}
+	.imgzone.emblem img {
+		box-shadow: none;
+		border-radius: 0;
+		filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+	}
+	.card h3.cover-title {
+		font-family: 'Black Ops One', var(--ui-font);
+		font-weight: 400;
+		letter-spacing: 2px;
+		line-height: 1.05;
+		text-wrap: balance;
+	}
 	.course {
 		font-weight: 800;
 		letter-spacing: 3px;
@@ -360,7 +380,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 10px;
+		gap: 12px;
 		pointer-events: auto;
 	}
 	.viewport {
@@ -389,10 +409,10 @@
 		z-index: 3;
 	}
 	.slide.turn-out {
-		animation: page-out 0.6s cubic-bezier(0.45, 0, 0.3, 1) both;
+		animation: page-out 1.1s cubic-bezier(0.4, 0, 0.25, 1) both;
 	}
 	.slide.turn-in {
-		animation: page-in 0.6s cubic-bezier(0.45, 0, 0.3, 1) both;
+		animation: page-in 1.1s cubic-bezier(0.4, 0, 0.25, 1) both;
 	}
 	@keyframes page-out {
 		from {
@@ -447,6 +467,9 @@
 	.dots {
 		display: flex;
 		gap: 8px;
+		position: relative;
+		z-index: 4; /* never under a page: the book's tallest page sets the height, the dots sit below it */
+		margin-top: 18px;
 	}
 	.dot {
 		border: 2px solid rgba(235, 227, 207, 0.55);

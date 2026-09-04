@@ -6,13 +6,24 @@ import { soc } from '../game/social';
 // NOTE: no guaranteed-floor (300×) figure here by explicit decision.
 // Player-visible copy: gambling vocabulary (paying/pays/…) goes through soc(), exactly like
 // gameInfoText.ts — stake.us social sessions must never see it.
-export type LandingCard = { course: string; title: string; body: string; images: string[] };
+export type LandingCard = { course: string; title: string; body: string; images: string[]; cover?: boolean };
 
 const tile = (name: string) => stamp(`/assets/tiles/${name}.webp`);
 
 // Four courses on a meal ticket: each card sells one hook in one breath (Corey 2026-09-04:
 // "marketing material"). No floor figure, no odds, nothing a reviewer could read as a promise.
 export const LANDING_CARDS: LandingCard[] = [
+	{
+		// the menu cover (Corey 2026-09-04): title + the one-paragraph pitch, no mechanics
+		course: 'MENU',
+		title: 'MANTIS CAFETERIA FEAST',
+		body: soc(
+			'Marty and Marky run the meanest cafeteria in Block B, and the menu is eight kinds of bug. Land Markys to open the free games, where every course eaten makes the rest hit harder — all the way up to a 20,000× max win.',
+			'Marty and Marky run the meanest cafeteria in Block B, and the menu is eight kinds of bug. Land Markys to open the free games, where every course eaten makes the rest hit harder — all the way up to a 20,000× max win.',
+		),
+		images: [stamp('/assets/ui/mantis-head.png')],
+		cover: true,
+	},
 	{
 		course: 'FIRST COURSE',
 		title: 'STRIKE. EAT. REPEAT.',
