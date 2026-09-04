@@ -36,14 +36,14 @@
 	];
 
 	const SYMBOL_META: Record<string, { name: string; color: string; kind: 'premium' | 'mid' | 'low' }> = {
-		H1: { name: 'Marty', color: '#ffdc4a', kind: 'premium' },
-		M1: { name: 'Beetle', color: '#C53C24', kind: 'mid' },
-		M2: { name: 'Spider', color: '#9CD92F', kind: 'mid' },
-		M3: { name: 'Scorpion', color: '#5AB6FF', kind: 'mid' },
-		L1: { name: 'Lightning Bug', color: '#fff', kind: 'low' },
-		L2: { name: 'Fly', color: '#fff', kind: 'low' },
-		L3: { name: 'Moth', color: '#fff', kind: 'low' },
-		L4: { name: 'Caterpillar', color: '#fff', kind: 'low' },
+		H1: { name: 'Marty', color: '#b07a12', kind: 'premium' },
+		M1: { name: 'Beetle', color: '#b8371e', kind: 'mid' },
+		M2: { name: 'Spider', color: '#4e7d15', kind: 'mid' },
+		M3: { name: 'Scorpion', color: '#2b6fb3', kind: 'mid' },
+		L1: { name: 'Lightning Bug', color: '#2a241a', kind: 'low' },
+		L2: { name: 'Fly', color: '#2a241a', kind: 'low' },
+		L3: { name: 'Moth', color: '#2a241a', kind: 'low' },
+		L4: { name: 'Caterpillar', color: '#2a241a', kind: 'low' },
 	};
 	const paying = [...config.eatOrder].reverse();
 	// real symbol art thumbnails (static/assets/tiles/, emitted by make_placeholders.py)
@@ -60,9 +60,9 @@
 	const RULES_SECTIONS = rulesSections();
 
 	const SPECIALS = [
-		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.') },
-		{ glyph: 'S', name: 'Marky Scatter', color: '#ff5a2c', note: `3 / 4 / 5 anywhere trigger Free Spins / Super Free Spins / Mantis Feast. In free spins each scatter adds +1 spin (up to +${config.freeSpins.maxRetrigger} per session); once the cap is reached scatters stop appearing.` },
-		{ glyph: 'GL', name: 'Dinner Leaf', color: '#9CD92F', note: soc('Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.', 'Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-value symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.') },
+		{ glyph: 'W', name: 'Wild', color: '#b07a12', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.') },
+		{ glyph: 'S', name: 'Marky Scatter', color: '#c4501e', note: `3 / 4 / 5 anywhere trigger Free Spins / Super Free Spins / Mantis Feast. In free spins each scatter adds +1 spin (up to +${config.freeSpins.maxRetrigger} per session); once the cap is reached scatters stop appearing.` },
+		{ glyph: 'GL', name: 'Dinner Leaf', color: '#4e7d15', note: soc('Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.', 'Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-value symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.') },
 	];
 
 	// the cap is a base-bet multiple in every mode; a mode's ceiling against its own price is what a
@@ -72,11 +72,11 @@
 		return Number.isInteger(x) ? x.toLocaleString() : x.toFixed(1).replace(/\.0$/, '');
 	};
 	const MODES = [
-		{ id: 'base', label: 'Base Game', accent: '#fff', cost: `${modeCost('BASE')}×`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
-		{ id: 'ante', label: 'Ante', accent: '#e8b04a', cost: `${modeCost('ANTE')}×`, costNum: modeCost('ANTE'), enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per play.', mech: soc('Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.', 'Doubles the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with an instantly triggered feature.') },
-		{ id: 'bonus', label: 'Free Spins', accent: '#9CD92F', cost: `${modeCost('BONUS')}×`, costNum: modeCost('BONUS'), enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
-		{ id: 'super', label: 'Super Free Spins', accent: '#C53C24', cost: `${modeCost('SUPER')}×`, costNum: modeCost('SUPER'), enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
-		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: `${modeCost('FEAST').toLocaleString()}×`, costNum: modeCost('FEAST'), enter: soc('Land 5 Marky scatters, or buy directly.', 'Land 5 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
+		{ id: 'base', label: 'Base Game', accent: '#2a241a', cost: `${modeCost('BASE')}×`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
+		{ id: 'ante', label: 'Ante', accent: '#b07a12', cost: `${modeCost('ANTE')}×`, costNum: modeCost('ANTE'), enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per play.', mech: soc('Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.', 'Doubles the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with an instantly triggered feature.') },
+		{ id: 'bonus', label: 'Free Spins', accent: '#4e7d15', cost: `${modeCost('BONUS')}×`, costNum: modeCost('BONUS'), enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
+		{ id: 'super', label: 'Super Free Spins', accent: '#b8371e', cost: `${modeCost('SUPER')}×`, costNum: modeCost('SUPER'), enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
+		{ id: 'feast', label: 'Mantis Feast', accent: '#b07a12', cost: `${modeCost('FEAST').toLocaleString()}×`, costNum: modeCost('FEAST'), enter: soc('Land 5 Marky scatters, or buy directly.', 'Land 5 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
 	];
 
 	// UI guide (submission checklist "User interaction guide is included in the game information"):
@@ -84,15 +84,15 @@
 	type IconName = ComponentProps<typeof Icon>['name'];
 	type GuideRow = { icon: IconName | null; art?: string; color: string; name: string; text: string };
 	const GUIDE: GuideRow[] = [
-		{ icon: 'play', color: '#fff', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
-		{ icon: 'turbo', color: '#ffdc4a', name: 'Turbo', text: 'Cycles Off → Turbo → Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. Turbo is remembered between sessions.' },
-		{ icon: 'auto', color: '#9CD92F', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, a stop-on-loss limit and a stop-on-single-win limit. LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. The button turns red while a run is active.' },
-		{ icon: null, art: '/assets/ui/mantis-head.png', color: '#9CD92F', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or Mantis Feast directly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or Mantis Feast instantly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.') },
-		{ icon: 'coins', color: '#ffdc4a', name: soc('Bet Amount', 'Play Amount'), text: soc('Opens the bet picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.', 'Opens the play amount picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.') },
-		{ icon: 'menu', color: '#fff', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
-		{ icon: 'info', color: '#5AB6FF', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The plaque on the reel frame names the active mode and its play amount.') },
-		{ icon: 'chevronRight', color: '#fff', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
-		{ icon: 'stop', color: '#ff5a8a', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
+		{ icon: 'play', color: '#2a241a', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
+		{ icon: 'turbo', color: '#b07a12', name: 'Turbo', text: 'Cycles Off → Turbo → Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. Turbo is remembered between sessions.' },
+		{ icon: 'auto', color: '#4e7d15', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, a stop-on-loss limit and a stop-on-single-win limit. LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. The button turns red while a run is active.' },
+		{ icon: null, art: '/assets/ui/mantis-head.png', color: '#4e7d15', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or Mantis Feast directly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or Mantis Feast instantly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.') },
+		{ icon: 'coins', color: '#b07a12', name: soc('Bet Amount', 'Play Amount'), text: soc('Opens the bet picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.', 'Opens the play amount picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.') },
+		{ icon: 'menu', color: '#2a241a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
+		{ icon: 'info', color: '#2b6fb3', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The plaque on the reel frame names the active mode and its play amount.') },
+		{ icon: 'chevronRight', color: '#2a241a', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
+		{ icon: 'stop', color: '#b8371e', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
 	];
 
 	let active = $state('paytable');
@@ -150,9 +150,9 @@
 					{#each paying as sym (sym)}
 						{@const meta = SYMBOL_META[sym]}
 						<div class="row">
-							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:box-shadow="0 0 18px {meta.color}33" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
+							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
 							<div class="row-main">
-								<div class="row-name" style:color={meta.kind === 'low' ? 'rgba(255,255,255,.8)' : meta.color}>{meta.name}</div>
+								<div class="row-name" style:color={meta.color}>{meta.name}</div>
 								<div class="row-kind">{meta.kind === 'premium' ? 'Premium' : meta.kind === 'mid' ? 'Mid' : 'Low'}</div>
 							</div>
 							<div class="pays">
@@ -165,19 +165,19 @@
 					<!-- Wild sits in the paytable grid per convention: its own tile, no pay values —
 					     it has no paytable of its own, only the substitution rule as its caption -->
 					<div class="row">
-						<img class="tile" src={tileSrc('W')} alt="Wild" style:box-shadow="0 0 18px #ffdc4a33" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
+						<img class="tile" src={tileSrc('W')} alt="Wild" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
 						<div class="row-main">
-							<div class="row-name" style:color="#ffdc4a">Wild</div>
+							<div class="row-name" style:color="#b07a12">Wild</div>
 							<div class="row-kind">Substitutes for all menu symbols</div>
 						</div>
 					</div>
 				</div>
-				<div class="divider"></div>
+				<div class="tear"></div>
 				<div class="subhead">Special Symbols</div>
 				<div class="pay-grid" style:grid-template-columns="1fr">
 					{#each SPECIALS as s (s.glyph)}
 						<div class="row top">
-							<img class="tile" src={tileSrc(s.glyph)} alt={s.name} style:box-shadow="0 0 18px {s.color}33" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
+							<img class="tile" src={tileSrc(s.glyph)} alt={s.name} style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={s.color}>{s.name}</div>
 								<div class="note">{s.note}</div>
@@ -216,7 +216,7 @@
 				<p>{soc('Five modes. Base and Ante are bet-by-bet; the features are entered by Marky scatters or a direct bonus buy.', 'Five modes. Base and Ante run spin by spin; the features are entered by Marky scatters or triggered instantly from the feature menu.')}</p>
 				<div class="modes">
 					{#each MODES as m (m.id)}
-						<div class="mode" style:box-shadow="inset 0 0 0 1px {m.accent}33, inset 0 1px 0 rgba(255,255,255,.05)">
+						<div class="mode" style:border-color="{m.accent}66">
 							<div class="mode-head">
 								<div class="mode-name" style:color={m.accent} style:font-size="{compact ? 14 : 16}px">{m.label}</div>
 								<div class="mode-meta"><span>{soc('COST', 'PLAY AMOUNT')} <b class="slot-num" style:color={m.accent}>{m.cost}</b></span><span>RTP <b class="slot-num">{(config.rtp * 100).toFixed(2)}%</b></span><span>MAX WIN <b class="slot-num">{config.maxWin.toLocaleString()}× {soc('bet', 'play amount')}</b>{#if m.costNum !== 1}<span class="dim">&nbsp;= {capPerPrice(m.costNum)}× {soc('the mode price', 'the play amount for this mode')}</span>{/if}</span></div>
@@ -233,7 +233,7 @@
 
 			<section bind:this={sectionEls.feast}>
 				<h2>Mantis Feast Disclosure</h2>
-				<div class="callout" style:border-color="#ffdc4a55" style:box-shadow="inset 0 1px 0 rgba(255,255,255,.05), 0 0 22px #ffdc4a22">
+				<div class="callout gold">
 					<p><strong>Minimum guaranteed return:</strong> every Mantis Feast session {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc('300× bet', '300× play amount')}</span> — {(300 / modeCost('FEAST')).toFixed(1)}× {soc('the Feast price', 'the Feast play amount')}. {soc('This floor is paid out of the', 'This floor comes out of the')} {modeCost('FEAST').toLocaleString()}× {soc('purchase price', 'play amount')}.</p>
 					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 150</span> Mantis Feast sessions reaches the {config.maxWin.toLocaleString()}× max win cap ({capPerPrice(modeCost('FEAST'))}× {soc('the Feast price', 'the Feast play amount')}). Other sessions land between the 300× floor and the cap, with the {soc('payout', 'win')} distribution skewed toward the floor.</p>
 					<p class="dim">These figures are disclosed openly per Stake Engine approval requirements.</p>
@@ -246,7 +246,7 @@
 				<ul>
 					<li>When a session starts the host takes an opening bite (Mantis Feast: both mantises bite).</li>
 					<li>Each bite <strong>{soc('eats the lowest-paying symbol', 'eats the lowest-value symbol')}</strong> still on the menu, removing it from the reels for the rest of the session.</li>
-					<li>Each <strong style="color:#9CD92F">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve — when several leaves land on one spin, each shows its own course, in serving order.</li>
+					<li>Each <strong style="color:#4e7d15">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve — when several leaves land on one spin, each shows its own course, in serving order.</li>
 					<li>Fewer symbols on the reels means the remaining symbols land more often, so wins escalate as the session goes on.</li>
 					<li>{soc(`If all eight paying symbols are eaten, the round pays the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`, `If all eight menu symbols are eaten, the round wins the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`)}</li>
 					<li>{soc(`The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the bet. Either way the round ends and the cap is paid.`, `The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the play amount. Either way the round ends and the cap is won.`)}</li>
@@ -267,7 +267,7 @@
 						<img src={stamp('/assets/tiles/l4_insect.webp')} alt="Caterpillar riding the leaf" />
 					</div>
 					<div class="row-main">
-						<div class="row-name" style:color="#9CD92F">Serving example</div>
+						<div class="row-name" style:color="#4e7d15">Serving example</div>
 						<div class="note">A Dinner Leaf lands carrying the Caterpillar — the lowest symbol still on the menu — and the host strikes to eat it, leaving an empty plate on the reels.</div>
 					</div>
 				</div>
@@ -275,7 +275,7 @@
 
 			<section bind:this={sectionEls.maxwin}>
 				<h2>Max Win</h2>
-				<div class="callout" style:border-color="#ff5a2c55" style:box-shadow="inset 0 1px 0 rgba(255,255,255,.05), 0 0 22px #ff5a2c22">
+				<div class="callout red">
 					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{compact ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet — hard cap', 'play amount — hard cap')}</span></div>
 					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is won.`)}</p>
 				</div>
@@ -285,7 +285,7 @@
 				<h2>Return to Player (RTP)</h2>
 				<div class="rtp-grid" style:grid-template-columns={compact ? '1fr 1fr' : 'repeat(5, 1fr)'}>
 					{#each MODES as m (m.id)}
-						<div class="rtp-cell" style:box-shadow="inset 0 0 0 1px {m.accent}33">
+						<div class="rtp-cell" style:border-color="{m.accent}66">
 							<div class="rtp-k" style:color={m.accent}>{m.label.split(' ')[0]}</div>
 							<div class="slot-num rtp-v" style:font-size="{compact ? 18 : 22}px">{(config.rtp * 100).toFixed(2)}%</div>
 						</div>
@@ -324,63 +324,95 @@
 </ModalShell>
 
 <style>
+	/* ── the paper card (same stock + tokens as AutoplayModal / BonusBuyModal / ReplayModal) ── */
 	.panel {
+		--ink: #1b1204;
+		--body: #2a241a;
+		--muted: #6b6250;
+		--faint: #8a8069;
+		--rule: #a99c7d;
+		--green: #4e7d15;
+		--green-bg: rgba(166, 228, 87, 0.28);
+		--gold: #b07a12;
+		--gold-bg: rgba(242, 193, 78, 0.22);
+		--red: #b8371e;
+		--red-bg: rgba(255, 138, 112, 0.22);
 		position: absolute;
 		inset: 0;
 		display: flex;
 		flex-direction: column;
-		background: linear-gradient(180deg, rgba(28, 18, 40, 0.88) 0%, rgba(10, 6, 18, 0.92) 100%);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+		color: var(--body);
+		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
+		box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
 		overflow: hidden;
 		pointer-events: auto;
+	}
+	/* paper grain — a pseudo element, so the scrolling content never has to carry it */
+	.panel::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+		pointer-events: none;
+		z-index: 0;
+	}
+	.panel > * {
+		position: relative;
+		z-index: 1;
 	}
 	.head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%);
 	}
 	.h-title {
 		font-weight: 900;
-		letter-spacing: 2.5px;
-		color: #fff;
-		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+		letter-spacing: 5px;
+		color: var(--ink);
+		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 	.x {
-		border-radius: 8px;
-		background: rgba(0, 0, 0, 0.4);
-		box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7);
-		color: #fff;
+		border-radius: 10px;
+		background: var(--body);
+		color: #ebe3cf;
+		box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
+	.x:active {
+		transform: translateY(2px);
+		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+	}
+	/* tab strip: a dashed tear line above and below, like the ticket's perforations */
 	.tabs {
 		display: flex;
-		gap: 4px;
+		gap: 6px;
 		overflow-x: auto;
 		overflow-y: hidden;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-		background: rgba(0, 0, 0, 0.25);
-		scrollbar-width: thin;
+		border-top: 3px dashed var(--rule);
+		border-bottom: 3px dashed var(--rule);
+		scrollbar-width: none;
+	}
+	.tabs::-webkit-scrollbar {
+		display: none;
 	}
 	.tab {
 		flex: 0 0 auto;
-		border-radius: 8px;
-		background: transparent;
-		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-		color: rgba(255, 255, 255, 0.65);
+		border-radius: 999px;
+		background: rgba(0, 0, 0, 0.06);
+		border: 2px solid rgba(0, 0, 0, 0.14);
+		color: var(--muted);
 		font-weight: 800;
-		letter-spacing: 1.2px;
+		letter-spacing: 1.5px;
 		text-transform: uppercase;
 		white-space: nowrap;
 	}
 	.tab.on {
-		background: linear-gradient(180deg, rgba(255, 220, 74, 0.22) 0%, rgba(255, 170, 60, 0.1) 100%);
-		box-shadow: inset 0 0 0 1px rgba(255, 220, 74, 0.55), inset 0 -2px 0 rgba(255, 220, 74, 0.35);
-		color: #ffdc4a;
+		background: var(--body);
+		border-color: var(--body);
+		color: #f2c14e;
 	}
 	.content {
 		flex: 1;
@@ -389,8 +421,10 @@
 		display: flex;
 		flex-direction: column;
 		line-height: 1.6;
-		color: rgba(238, 240, 246, 0.85);
+		color: var(--body);
 		overscroll-behavior: contain;
+		scrollbar-width: thin;
+		scrollbar-color: var(--rule) transparent;
 	}
 	section {
 		display: flex;
@@ -401,24 +435,24 @@
 		margin: 0;
 		font-size: 18px;
 		font-weight: 900;
-		letter-spacing: 2px;
-		color: #ffdc4a;
+		letter-spacing: 3px;
+		color: var(--ink);
 		text-transform: uppercase;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 	p {
 		margin: 0;
 	}
 	strong {
-		color: #fff;
+		color: var(--ink);
 		font-weight: 800;
 	}
 	.mono {
-		color: #fff;
+		color: var(--ink);
 		font-weight: 700;
 	}
 	.dim {
-		color: rgba(238, 240, 246, 0.6);
+		color: var(--faint);
 	}
 	ul {
 		margin: 4px 0 0 18px;
@@ -429,15 +463,15 @@
 	}
 	.subhead {
 		font-size: 12px;
-		letter-spacing: 2px;
+		letter-spacing: 3px;
 		font-weight: 800;
-		color: rgba(238, 240, 246, 0.55);
+		color: var(--muted);
 		text-transform: uppercase;
 		margin-top: 6px;
 	}
-	.divider {
-		height: 1px;
-		background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+	.tear {
+		height: 0;
+		border-top: 3px dashed var(--rule);
 		margin: 8px 0;
 	}
 	.pay-grid {
@@ -445,14 +479,15 @@
 		gap: 8px;
 		margin-top: 8px;
 	}
+	/* rows / cards: the dashed .block of the other tickets, at list scale */
 	.row {
 		display: flex;
 		align-items: center;
 		gap: 12px;
 		padding: 10px 12px;
-		border-radius: 10px;
-		background: rgba(255, 255, 255, 0.03);
-		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+		border-radius: 12px;
+		border: 2px dashed var(--rule);
+		background: rgba(255, 255, 255, 0.12);
 	}
 	.row.top {
 		align-items: flex-start;
@@ -461,6 +496,7 @@
 		border-radius: 10px;
 		flex-shrink: 0;
 		display: block;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 	}
 	.menu-strip {
 		display: flex;
@@ -483,10 +519,10 @@
 	.menu-num {
 		font-size: 9px;
 		font-weight: 800;
-		color: rgba(238, 240, 246, 0.45);
+		color: var(--muted);
 	}
 	.menu-arrow {
-		color: rgba(238, 240, 246, 0.35);
+		color: var(--faint);
 		font-weight: 800;
 		margin-bottom: 12px;
 	}
@@ -510,17 +546,17 @@
 	.row-name {
 		font-size: 12px;
 		font-weight: 800;
-		letter-spacing: 1px;
+		letter-spacing: 1.5px;
 		text-transform: uppercase;
 	}
 	.row-kind {
 		font-size: 10px;
-		color: rgba(238, 240, 246, 0.45);
+		color: var(--muted);
 		letter-spacing: 0.5px;
 		margin-top: 2px;
 	}
 	.note {
-		color: rgba(238, 240, 246, 0.7);
+		color: var(--body);
 	}
 	.pays {
 		display: flex;
@@ -532,12 +568,14 @@
 	}
 	.pay-k {
 		font-size: 9px;
-		color: rgba(238, 240, 246, 0.4);
+		font-weight: 800;
+		letter-spacing: 1px;
+		color: var(--muted);
 	}
 	.pay-v {
 		font-size: 13px;
-		color: #fff;
-		font-weight: 700;
+		color: var(--ink);
+		font-weight: 800;
 		white-space: nowrap;
 	}
 	.modes {
@@ -548,7 +586,8 @@
 	.mode {
 		padding: 14px;
 		border-radius: 12px;
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.4) 100%);
+		border: 2px solid var(--rule);
+		background: rgba(255, 255, 255, 0.12);
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
@@ -562,20 +601,22 @@
 	}
 	.mode-name {
 		font-weight: 900;
-		letter-spacing: 1.5px;
+		letter-spacing: 2px;
 		text-transform: uppercase;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 	}
 	.mode-meta {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px 12px;
 		font-size: 12px;
-		color: rgba(238, 240, 246, 0.55);
+		font-weight: 700;
+		letter-spacing: 1px;
+		color: var(--muted);
 	}
 	.mode-meta b {
-		color: #fff;
-		font-weight: 700;
+		color: var(--ink);
+		font-weight: 800;
+		letter-spacing: 0;
 	}
 	.guide {
 		display: flex;
@@ -588,8 +629,8 @@
 		gap: 14px;
 		padding: 10px 14px;
 		border-radius: 12px;
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.35) 100%);
-		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+		border: 2px dashed var(--rule);
+		background: rgba(255, 255, 255, 0.12);
 	}
 	.guide-icon {
 		flex: 0 0 auto;
@@ -597,8 +638,8 @@
 		align-items: center;
 		justify-content: center;
 		border-radius: 12px;
-		background: rgba(10, 14, 10, 0.6);
-		box-shadow: inset 0 0 0 3px currentColor, inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.5);
+		background: rgba(0, 0, 0, 0.06);
+		box-shadow: inset 0 0 0 3px currentColor;
 	}
 	.guide-text {
 		min-width: 0;
@@ -608,8 +649,8 @@
 	}
 	.guide-name {
 		font-weight: 900;
-		letter-spacing: 1.5px;
-		color: #fff;
+		letter-spacing: 2px;
+		color: var(--ink);
 		text-transform: uppercase;
 	}
 	.kv-grid {
@@ -620,12 +661,12 @@
 	.k {
 		font-size: 10px;
 		font-weight: 800;
-		letter-spacing: 1.5px;
-		color: rgba(238, 240, 246, 0.45);
+		letter-spacing: 2px;
+		color: var(--muted);
 		text-transform: uppercase;
 	}
 	.v {
-		color: rgba(238, 240, 246, 0.85);
+		color: var(--body);
 		margin-top: 2px;
 	}
 	.kv {
@@ -634,22 +675,29 @@
 		gap: 12px;
 		padding: 10px 14px;
 		border-radius: 10px;
-		background: rgba(255, 255, 255, 0.04);
-		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-		color: #fff;
+		border: 2px dashed var(--rule);
+		color: var(--ink);
+		font-weight: 700;
 	}
 	.callout {
 		padding: 14px;
 		border-radius: 12px;
-		background: rgba(0, 0, 0, 0.3);
-		border: 1px solid transparent;
+		border: 3px solid var(--rule);
+		background: rgba(0, 0, 0, 0.04);
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
+	.callout.gold {
+		border-color: var(--gold);
+		background: var(--gold-bg);
+	}
+	.callout.red {
+		border-color: var(--red);
+		background: var(--red-bg);
+	}
 	.callout.muted {
-		background: rgba(255, 255, 255, 0.04);
-		border-color: rgba(255, 255, 255, 0.08);
+		border-style: dashed;
 	}
 	.maxwin-line {
 		display: flex;
@@ -659,7 +707,7 @@
 	}
 	.maxwin {
 		font-weight: 800;
-		color: #fff;
+		color: var(--red);
 	}
 	.rtp-grid {
 		display: grid;
@@ -668,7 +716,8 @@
 	.rtp-cell {
 		padding: 10px 12px;
 		border-radius: 10px;
-		background: rgba(255, 255, 255, 0.03);
+		border: 2px solid var(--rule);
+		background: rgba(255, 255, 255, 0.12);
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
@@ -676,13 +725,13 @@
 	}
 	.rtp-k {
 		font-size: 10px;
-		letter-spacing: 1.5px;
+		letter-spacing: 2px;
 		font-weight: 800;
 		text-transform: uppercase;
 	}
 	.rtp-v {
-		font-weight: 700;
-		color: #fff;
+		font-weight: 800;
+		color: var(--ink);
 	}
 	.vol {
 		display: flex;
@@ -692,7 +741,8 @@
 	}
 	.vol-label {
 		font-weight: 800;
-		color: #ff5a2c;
+		letter-spacing: 2px;
+		color: var(--red);
 	}
 	.meter {
 		display: flex;
@@ -702,10 +752,9 @@
 		width: 22px;
 		height: 8px;
 		border-radius: 2px;
-		background: rgba(255, 255, 255, 0.1);
+		background: rgba(0, 0, 0, 0.1);
 	}
 	.seg.on {
-		background: #ff5a2c;
-		box-shadow: 0 0 8px rgba(255, 90, 44, 0.55);
+		background: var(--red);
 	}
 </style>

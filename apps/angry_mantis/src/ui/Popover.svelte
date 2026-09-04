@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Frosted popover anchored above a control; closes on outside pointerdown.
+	// Paper-ticket popover anchored above a control (same stock as the meal-ticket modals); closes on outside pointerdown.
 	import type { Snippet } from 'svelte';
 
 	type Props = { open: boolean; onclose: () => void; side?: 'left' | 'right'; offset?: number; width?: number | string; children: Snippet };
@@ -33,13 +33,24 @@
 <style>
 	.popover {
 		position: absolute;
-		padding: 14px;
-		background: rgba(12, 8, 18, 0.95);
-		border: 1px solid rgba(255, 255, 255, 0.12);
+		padding: 12px;
+		color: #2a241a;
+		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
 		border-radius: 14px;
-		box-shadow: 0 24px 56px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+		box-shadow: 0 24px 56px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
 		z-index: 50;
 		pointer-events: auto;
 		animation: slot-count 0.18s ease both;
+	}
+	.popover::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+		pointer-events: none;
+	}
+	.popover > :global(*) {
+		position: relative;
 	}
 </style>
