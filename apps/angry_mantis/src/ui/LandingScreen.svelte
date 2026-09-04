@@ -63,10 +63,10 @@
 	// per-kind sizing (master units). Phone-sideways is authored large so touch targets stay ≥44 CSS px.
 	const SZ = $derived(
 		kind === 'phone'
-			? { logoW: 380, tag: 22, cardW: 660, imgBig: 118, imgMini: 118, title: 24, body: 17, arrow: 132, dot: 14, barW: 520, barH: 14, press: 30, pad: 26 }
+			? { logoW: 380, tag: 22, cardW: 660, cardH: 0, imgBig: 118, imgMini: 118, title: 24, body: 17, arrow: 132, dot: 14, barW: 520, barH: 14, press: 30, pad: 26 }
 			: kind === 'portrait'
-				? { logoW: 250, tag: 13, cardW: 330, imgBig: 96, imgMini: 68, title: 15, body: 13, arrow: 74, dot: 8, barW: 280, barH: 10, press: 17, pad: 16 }
-				: { logoW: 300, tag: 14, cardW: 206, imgBig: 84, imgMini: 44, title: 13, body: 12, arrow: 0, dot: 0, barW: 420, barH: 10, press: 18, pad: 16 },
+				? { logoW: 250, tag: 13, cardW: 284, cardH: 470, imgBig: 104, imgMini: 60, title: 16, body: 13, arrow: 74, dot: 8, barW: 280, barH: 10, press: 17, pad: 16 }
+				: { logoW: 300, tag: 14, cardW: 206, cardH: 0, imgBig: 84, imgMini: 44, title: 13, body: 12, arrow: 0, dot: 0, barW: 420, barH: 10, press: 18, pad: 16 },
 	);
 	const carousel = $derived(kind !== 'landscape');
 	// arrows are a mouse affordance: a touch device turns pages by swiping (Corey 2026-09-04), so
@@ -162,7 +162,7 @@
 									class:turn-in={turning?.page === i && turning.dir === 'in'}
 									onanimationend={turned}
 								>
-									<div class="card tall" class:cover={card.cover}>
+									<div class="card tall" class:cover={card.cover} style:min-height={SZ.cardH ? `${SZ.cardH}px` : undefined}>
 										<div class="course" style:font-size="{Math.round(SZ.body * 0.72)}px">{card.course}</div>
 										<div class="imgzone" class:emblem={card.cover} style:height="{SZ.imgBig + 8}px">
 											{#each card.images as src (src)}
@@ -172,6 +172,10 @@
 										<div class="tear"></div>
 										<h3 class:cover-title={card.cover} style:font-size="{card.cover ? Math.round(SZ.title * 1.45) : SZ.title}px">{card.title}</h3>
 										<p style:font-size="{SZ.body}px">{card.body}</p>
+										{#if SZ.cardH}
+											<!-- a tall menu page closes with a footer line, like the printed article -->
+											<div class="foot" style:font-size="{Math.round(SZ.body * 0.7)}px"><span class="foot-rule"></span>BLOCK B CAFETERIA · {i + 1} OF {LANDING_CARDS.length}<span class="foot-rule"></span></div>
+										{/if}
 									</div>
 								</div>
 							{/each}
@@ -432,6 +436,26 @@
 	}
 	.card.tall {
 		min-height: 100%;
+		box-sizing: border-box;
+		align-content: start;
+		grid-template-rows: auto auto auto auto 1fr auto;
+	}
+	.foot {
+		align-self: end;
+		justify-self: stretch;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-weight: 800;
+		letter-spacing: 2px;
+		color: var(--muted);
+		white-space: nowrap;
+		padding-top: 8px;
+	}
+	.foot-rule {
+		flex: 1;
+		height: 0;
+		border-top: 2px dashed var(--rule);
 	}
 	/* carousel controls on the ticket's dark stamp: ink disc, paper ring, cream chevron */
 	.arrow {
