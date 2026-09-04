@@ -11,7 +11,7 @@ The tile is composited here (plate + contact shadow + insect), so the eat animat
 pixel-perfect by construction and the shadow correctly vanishes with the insect. The older three-file
 scheme (combined tile + -blank + -insect) still works wherever no -plate file exists."""
 import json, os
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))  # apps/angry_mantis/tools (moved out of static/ 2026-09-02 so it no longer ships to the CDN)
 REPO = os.path.abspath(os.path.join(HERE, *[".."] * 4))
@@ -64,13 +64,17 @@ def art(fname):
     return im
 
 
-def contact_shadow(insect, offset=6, blur=7, strength=0.45):
-    """Soft drop shadow from the insect's own silhouette — baked into the composed tile only,
-    so it lifts away with the insect during the eat flight."""
+def contact_shadow(insect, plate, offset=(0, 22), blur=8, strength=0.8):
+    """Cast shadow from the insect's own silhouette, straight down like the painted tray shadows
+    (Corey 2026-09-04), clipped to the plate so a bug never shadows outside its own tray. Baked into
+    the composed tile only, so it lifts away with the insect during the eat flight."""
     shadow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     a = insect.getchannel("A").point(lambda p: int(p * strength))
-    shadow.paste((10, 8, 4, 255), (0, offset), a)
-    return shadow.filter(ImageFilter.GaussianBlur(blur))
+    shadow.paste((12, 8, 3, 255), offset, a)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(blur))
+    clipped = ImageChops.multiply(shadow.getchannel("A"), plate.getchannel("A"))
+    shadow.putalpha(clipped)
+    return shadow
 
 
 def eaten_from_art(im):
@@ -109,7 +113,7 @@ for sym, (sub, color, file) in SYMBOLS.items():
     insect = art(f"{prefix}-insect.webp") if sym not in ("W", "S", "GL") else None
     if plate is not None and insect is not None:
         # two-file scheme: tile = plate + contact shadow + insect (registration-perfect pickup)
-        tile_im = Image.alpha_composite(Image.alpha_composite(plate, contact_shadow(insect)), insect)
+        tile_im = Image.alpha_composite(Image.alpha_composite(plate, contact_shadow(insect, plate)), insect)
         real.append(sym)
         composited.append(sym)
         frames[f"{sym}.png"] = tile_im
