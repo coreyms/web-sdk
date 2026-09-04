@@ -11,6 +11,7 @@
 	import { stamp } from '../game/assets';
 	import { sound } from '../game/sound';
 	import { LANDING_CARDS } from './landingCards';
+	import Icon from './Icon.svelte';
 
 	type Props = { onpress: () => void };
 	const props: Props = $props();
@@ -62,9 +63,9 @@
 	// per-kind sizing (master units). Phone-sideways is authored large so touch targets stay ≥44 CSS px.
 	const SZ = $derived(
 		kind === 'phone'
-			? { logoW: 380, tag: 22, cardW: 660, imgBig: 150, imgMini: 72, title: 26, body: 19, arrow: 84, dot: 14, barW: 520, barH: 14, press: 30, pad: 26 }
+			? { logoW: 380, tag: 22, cardW: 660, imgBig: 150, imgMini: 72, title: 26, body: 19, arrow: 104, dot: 14, barW: 520, barH: 14, press: 30, pad: 26 }
 			: kind === 'portrait'
-				? { logoW: 250, tag: 13, cardW: 330, imgBig: 96, imgMini: 44, title: 15, body: 13, arrow: 46, dot: 8, barW: 280, barH: 10, press: 17, pad: 16 }
+				? { logoW: 250, tag: 13, cardW: 330, imgBig: 96, imgMini: 44, title: 15, body: 13, arrow: 60, dot: 8, barW: 280, barH: 10, press: 17, pad: 16 }
 				: { logoW: 300, tag: 14, cardW: 272, imgBig: 84, imgMini: 40, title: 13, body: 12, arrow: 0, dot: 0, barW: 420, barH: 10, press: 18, pad: 16 },
 	);
 	const carousel = $derived(kind !== 'landscape');
@@ -148,8 +149,8 @@
 							{/each}
 						</div>
 					</div>
-					<button class="arrow left" style:width="{SZ.arrow}px" style:height="{SZ.arrow}px" onclick={() => go(slide - 1, true)} aria-label="Previous">‹</button>
-					<button class="arrow right" style:width="{SZ.arrow}px" style:height="{SZ.arrow}px" onclick={() => go(slide + 1, true)} aria-label="Next">›</button>
+					<button class="arrow left" style:width="{SZ.arrow}px" style:height="{SZ.arrow}px" onclick={() => go(slide - 1, true)} aria-label="Previous"><span class="flip"><Icon name="chevronRight" s={Math.round(SZ.arrow * 0.46)} /></span></button>
+					<button class="arrow right" style:width="{SZ.arrow}px" style:height="{SZ.arrow}px" onclick={() => go(slide + 1, true)} aria-label="Next"><Icon name="chevronRight" s={Math.round(SZ.arrow * 0.46)} /></button>
 					<div class="dots">
 						{#each LANDING_CARDS as card, i (card.title)}
 							<button class="dot" class:on={i === slide} style:height="{SZ.dot}px" style:width="{i === slide ? SZ.dot * 2.6 : SZ.dot}px" onclick={() => go(i, true)} aria-label={card.title}></button>
@@ -356,11 +357,7 @@
 		cursor: pointer;
 		background: #2a241a;
 		color: #ebe3cf;
-		font-family: var(--ui-font);
-		font-size: 1.9em;
-		font-weight: 900;
-		line-height: 1;
-		padding: 0 0 0.12em;
+		padding: 0;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -373,6 +370,10 @@
 	}
 	.arrow.left {
 		left: 0;
+	}
+	.arrow .flip {
+		display: inline-flex;
+		transform: scaleX(-1);
 	}
 	.arrow.right {
 		right: 0;
