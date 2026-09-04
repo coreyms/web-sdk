@@ -11,12 +11,13 @@
 </script>
 
 <script lang="ts">
-	// Amounts drawn from Corey's prison-stencil glyph atlas: batched sprites off one resident
-	// texture, so changing the value costs a few transforms — no canvas raster, no texture upload.
+	// Amounts drawn from the prison-stencil glyph atlas (tools/build_stencil_atlas.py): batched sprites
+	// off one resident texture, so changing the value costs a few transforms — no canvas raster, no
+	// texture upload.
 	// TABULAR figures: every digit sits centred in an identical fixed-width cell, so a counting
 	// value never reflows — only the glyph inside each cell changes. This (plus per-frame value
-	// updates in CountUpText) is how slot count-ups read smooth. Currency symbols and letters
-	// normalise to digit height (the sheet draws some taller); commas hang below the baseline.
+	// updates in CountUpText) is how slot count-ups read smooth. Every glyph carries `d`, its
+	// frame bottom below the digit baseline (comma and descenders hang, the dash floats).
 	// VERTICAL ANCHOR: prop `y` is the BASELINE — full-height glyphs span [y - height, y].
 	import { Sprite } from 'pixi-svelte';
 
@@ -40,7 +41,6 @@
 
 	const GAP = 0.05; // inter-cell gap, fraction of digit height
 	const SPACE = 0.32;
-	const COMMA_HANG = 21 / NUMERAL_DIGIT_H;
 	const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 	const DIGIT_CELL = Math.max(...DIGITS.map((d) => NUMERAL_GLYPHS[d].w));
 	const SEP_CELL = Math.max(NUMERAL_GLYPHS.comma.w, NUMERAL_GLYPHS.period.w);
@@ -50,12 +50,12 @@
 	const layout = $derived.by(() => {
 		if (!tokens) return [];
 		const s = height / NUMERAL_DIGIT_H;
-		type G = { key: string; cellW: number; w: number; h: number; va: string };
+		type G = { key: string; cellW: number; w: number; h: number; d: number };
 		const cellsFor = (toks: (string | null)[]) => {
 			const glyphs: G[] = [];
 			for (const name of toks) {
 				if (name === null) {
-					glyphs.push({ key: '', cellW: height * SPACE, w: 0, h: 0, va: 'base' });
+					glyphs.push({ key: '', cellW: height * SPACE, w: 0, h: 0, d: 0 });
 					continue;
 				}
 				const g = NUMERAL_GLYPHS[name]; // metrics are pre-normalized display units
@@ -63,7 +63,7 @@
 				const isSep = name === 'comma' || name === 'period';
 				const w = g.w * s;
 				const cellW = isDigit ? DIGIT_CELL * s : isSep ? SEP_CELL * s : w;
-				glyphs.push({ key: name, cellW, w, h: g.h * s, va: g.va });
+				glyphs.push({ key: name, cellW, w, h: g.h * s, d: g.d * s });
 			}
 			return glyphs;
 		};
@@ -81,10 +81,8 @@
 			const cellW = g.cellW * fit;
 			const w = g.w * fit;
 			const h = g.h * fit;
-			// baseline at height/2 below centre; commas hang past it; '+' centres on the cap band
-			let gy = height / 2 - h;
-			if (g.va === 'hang') gy += COMMA_HANG * height * fit;
-			else if (g.va === 'mid') gy -= (height * fit - h) / 2;
+			// baseline at height/2 below centre; the frame bottom sits `d` below it
+			const gy = height / 2 - h + g.d * fit;
 			const p = { key: g.key, x: cx + (cellW - w) / 2, y: gy, w, h };
 			cx += cellW + gap * fit;
 			return p;
@@ -99,7 +97,7 @@
 		{/if}
 	{/each}
 {:else}
-	<!-- Safety net for unguarded callers (locale currency outside the stencil set, e.g. zł/₫/₩):
+	<!-- Safety net for unguarded callers (a character outside the stencil set, e.g. an operator code in another script):
 	     the WHOLE string as styled text — never a partial art render with glyphs dropped.
 	     The art path's baseline sits at prop y (optical centre y - height/2); GameText anchors
 	     its centre, so shift up by height/2 so both paths land on the same optical centre.

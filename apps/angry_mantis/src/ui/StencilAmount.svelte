@@ -29,7 +29,6 @@
 	};
 	const GAP = 0.05;
 	const SPACE = 0.32;
-	const COMMA_HANG = 21 / NUMERAL_DIGIT_H;
 	const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 	const DIGIT_CELL = Math.max(...DIGITS.map((d) => NUMERAL_GLYPHS[d].w));
 	const SEP_CELL = Math.max(NUMERAL_GLYPHS.comma.w, NUMERAL_GLYPHS.period.w);
@@ -43,12 +42,12 @@
 		const s = height / NUMERAL_DIGIT_H;
 		const gap = height * GAP;
 		const cells = tokens.map((name) => {
-			if (name === null) return { key: '', cellW: height * SPACE, w: 0, h: 0, va: 'base' };
+			if (name === null) return { key: '', cellW: height * SPACE, w: 0, h: 0, d: 0 };
 			const g = NUMERAL_GLYPHS[name];
 			const isDigit = DIGITS.includes(name);
 			const isSep = name === 'comma' || name === 'period';
 			const w = g.w * s;
-			return { key: name, cellW: isDigit ? DIGIT_CELL * s : isSep ? SEP_CELL * s : w, w, h: g.h * s, va: g.va };
+			return { key: name, cellW: isDigit ? DIGIT_CELL * s : isSep ? SEP_CELL * s : w, w, h: g.h * s, d: g.d * s };
 		});
 		const total = cells.reduce((sum, c) => sum + c.cellW, 0) + gap * Math.max(0, cells.length - 1);
 		const fit = maxWidth && total > maxWidth ? maxWidth / total : 1;
@@ -57,9 +56,7 @@
 			const cellW = c.cellW * fit;
 			const w = c.w * fit;
 			const h = c.h * fit;
-			let y = height * fit - h; // baseline at the row's bottom
-			if (c.va === 'hang') y += COMMA_HANG * height * fit;
-			else if (c.va === 'mid') y -= (height * fit - h) / 2;
+			const y = height * fit - h + c.d * fit; // baseline at the row's bottom; frame bottom `d` below it
 			const f = c.key ? frameOf(c.key) : null;
 			const out = { key: c.key, x: cx + (cellW - w) / 2, y, w, h, f };
 			cx += cellW + gap * fit;

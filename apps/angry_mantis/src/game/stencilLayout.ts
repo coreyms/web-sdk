@@ -1,7 +1,7 @@
 // Word-wrapping layout for Corey's stencil glyph atlases — the prose counterpart to ArtAmount.
 //
 // ArtAmount lays out AMOUNTS: one line, tabular cells, so a counting value never reflows. Body
-// copy needs the opposite: proportional advances, word wrap, mixed faces (white prison-letters
+// copy needs the opposite: proportional advances, word wrap, mixed faces (the white stencil atlas
 // for copy, the gold bonus-board alphabet for titles), per-run tinting, and inline symbol art.
 // Both draw batched sprites off resident atlas pages, so NOTHING here rasterizes text (house
 // rule 1) — the bonus-intro screen adds zero PIXI.Text.
@@ -11,6 +11,7 @@
 // anything is drawn (the "never spill" guarantee) instead of discovering the overflow on screen.
 
 import { NUMERAL_GLYPHS, NUMERAL_DIGIT_H } from './numeralGlyphs';
+import { numeralGlyphName } from './numeralTokens';
 import { GOLD_GLYPHS, GOLD_CAP_H } from './goldGlyphs';
 
 export type StencilFace = 'white' | 'gold';
@@ -40,22 +41,9 @@ export type StencilBlock = {
 	complete: boolean;
 };
 
-// Copy is set in CAPS (both sheets are uppercase). Anything not listed has no glyph — keep
-// apostrophes and colons OUT of body copy; `complete` reports the omission if one slips in.
-const WHITE_CHARS: Record<string, string> = {
-	...Object.fromEntries([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].map((c) => [c, c])),
-	'.': 'period',
-	',': 'comma',
-	'!': 'bang',
-	'-': 'dash',
-	'–': 'dash',
-	'/': 'slash',
-	'·': 'middot',
-	'+': 'plusStencil',
-	$: 'dollar',
-	x: 'multx',
-};
-
+// The white face is the generated stencil atlas: A-Z a-z 0-9, punctuation and currency marks
+// (game/numeralTokens.ts is the single source of what it can draw). `complete` reports a character
+// with no glyph in either atlas.
 const SPACES = new Set([' ', '\u00a0', '\u202f', '\u2009', '\n']);
 
 const TRACKING = 0.06; // inter-glyph gap, fraction of cap height
@@ -71,15 +59,12 @@ const glyphFor = (ch: string, face: StencilFace): { key: string; m: Metric } | n
 		// or punctuation falls back to the white sheet rather than dropping the character.
 		if (g) return { key: `gold_${ch}.png`, m: { w: g.w, h: g.h, d: g.d } };
 	}
-	const name = WHITE_CHARS[ch];
+	const name = numeralGlyphName(ch);
 	if (!name) return null;
 	const n = NUMERAL_GLYPHS[name];
 	if (!n) return null;
-	// The white sheet's `va` enum predates this module: 'hang' glyphs (comma) sit below the
-	// baseline by their whole height minus the cap; 'mid' glyphs centre on the cap band.
-	const d = n.va === 'hang' ? n.h * 0.24 : 0;
-	const raise = n.va === 'mid' ? (NUMERAL_DIGIT_H - n.h) / 2 : 0;
-	return { key: `num_${name}.png`, m: { w: n.w, h: n.h, d: d - raise } };
+	// `d` is the frame bottom below the digit baseline (negative for floating glyphs like the dash)
+	return { key: `num_${name}.png`, m: { w: n.w, h: n.h, d: n.d } };
 };
 
 /** Boxed rule-number badge from the gold sheet ('1' | '2' | '3'). */
