@@ -89,6 +89,15 @@
 				shadow.tint = 0x000000;
 				shadow.alpha = SHADOW_ALPHA;
 				wrapper.addChildAt(shadow, 0); // under the rig view
+				// test hook (house rules: extend __angryMantis, never a new global): A/B the shadow cost
+				if (typeof window !== 'undefined') {
+					const am = ((window as any).__angryMantis ??= {});
+					const set = am.setGroundShadow as ((on: boolean) => void) | undefined;
+					am.setGroundShadow = (on: boolean) => {
+						set?.(on);
+						if (shadow) shadow.visible = on;
+					};
+				}
 			}
 			if (skin) r.setSkin(skin);
 			wrapper.addChild(r.view);
