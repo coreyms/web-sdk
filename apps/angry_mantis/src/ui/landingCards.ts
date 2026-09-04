@@ -18,8 +18,8 @@ export const LANDING_CARDS: LandingCard[] = [
 		course: 'MENU',
 		title: 'MANTIS CAFETERIA FEAST',
 		body: soc(
-			'Marty and Marky run the meanest cafeteria in Block B, and the menu is eight kinds of bug. Land Markys to open the free games, where every course eaten makes the rest hit harder — all the way up to a 20,000× max win.',
-			'Marty and Marky run the meanest cafeteria in Block B, and the menu is eight kinds of bug. Land Markys to open the free games, where every course eaten makes the rest hit harder — all the way up to a 20,000× max win.',
+			'Marty and Marky run the meanest cafeteria in Block B, and the menu is eight kinds of bug. Land Markys to open the free games, where every course eaten makes the rest hit harder, all the way up to a 20,000× max win.',
+			'Marty and Marky run the meanest cafeteria in Block B, and the menu is eight kinds of bug. Land Markys to open the free games, where every course eaten makes the rest hit harder, all the way up to a 20,000× max win.',
 		),
 		images: [stamp('/assets/ui/mantis-head.png')],
 		cover: true,

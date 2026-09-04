@@ -85,16 +85,21 @@
 
 	// ── self-rotating carousel ──
 	let slide = $state(0);
-	let rotateTimer: ReturnType<typeof setInterval> | undefined;
-	const startRotate = () => {
-		clearInterval(rotateTimer);
-		rotateTimer = setInterval(() => {
-			slide = (slide + 1) % LANDING_CARDS.length;
-		}, 4000);
+	// auto page turn every AUTO_MS; a manual turn (swipe, arrow, dot) means the player is reading,
+	// so the clock holds for READ_MS before the auto turn resumes (Corey 2026-09-04)
+	const AUTO_MS = 6000;
+	const READ_MS = 12000;
+	let rotateTimer: ReturnType<typeof setTimeout> | undefined;
+	const startRotate = (delay = AUTO_MS) => {
+		clearTimeout(rotateTimer);
+		rotateTimer = setTimeout(() => {
+			go(slide + 1);
+			startRotate();
+		}, delay);
 	};
 	onMount(() => {
 		startRotate();
-		return () => clearInterval(rotateTimer);
+		return () => clearTimeout(rotateTimer);
 	});
 	// page turn (Corey 2026-09-04: it's a menu, so pages turn instead of sliding). Forward: the
 	// current page swings out on its left edge (spine) and the next page is already underneath.
@@ -107,7 +112,7 @@
 		const forward = i > slide || (slide === n - 1 && next === 0 && i >= n);
 		turning = forward ? { page: slide, dir: 'out' } : { page: next, dir: 'in' };
 		slide = next;
-		if (manual) startRotate();
+		if (manual) startRotate(READ_MS);
 	};
 	const turned = () => (turning = null);
 	let swipeX: number | null = null;
@@ -131,7 +136,7 @@
 		}
 		if (!ready || pressed) return;
 		pressed = true;
-		clearInterval(rotateTimer);
+		clearTimeout(rotateTimer);
 		// the continue press has a voice of its own (the minor click, Corey 2026-09-02); the sprite
 		// is guaranteed loaded here — it is one of the things this screen waited for
 		sound.players.once.play({ name: 'sfx_ui_minor' });
