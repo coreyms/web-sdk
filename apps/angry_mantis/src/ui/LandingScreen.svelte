@@ -84,10 +84,20 @@
 		startRotate();
 		return () => clearInterval(rotateTimer);
 	});
+	// page turn (Corey 2026-09-04: it's a menu, so pages turn instead of sliding). Forward: the
+	// current page swings out on its left edge (spine) and the next page is already underneath.
+	// Back: the previous page swings back in on top. One CSS 3D rotation, no filters.
+	let turning = $state<{ page: number; dir: 'out' | 'in' } | null>(null);
 	const go = (i: number, manual = false) => {
-		slide = ((i % LANDING_CARDS.length) + LANDING_CARDS.length) % LANDING_CARDS.length;
+		const n = LANDING_CARDS.length;
+		const next = ((i % n) + n) % n;
+		if (next === slide) return;
+		const forward = i > slide || (slide === n - 1 && next === 0 && i >= n);
+		turning = forward ? { page: slide, dir: 'out' } : { page: next, dir: 'in' };
+		slide = next;
 		if (manual) startRotate();
 	};
+	const turned = () => (turning = null);
 	let swipeX: number | null = null;
 	const onPointerDown = (e: PointerEvent) => (swipeX = e.clientX);
 	const onPointerUp = (e: PointerEvent) => {
@@ -131,9 +141,15 @@
 			{#if carousel}
 				<div class="carousel" style:width="{Math.min(master.width - 12, SZ.cardW + SZ.arrow * 2 + 24)}px">
 					<div class="viewport" style:width="{SZ.cardW}px" onpointerdown={onPointerDown} onpointerup={onPointerUp}>
-						<div class="track" style:transform="translateX(-{slide * 100}%)">
-							{#each LANDING_CARDS as card (card.title)}
-								<div class="slide">
+						<div class="book">
+							{#each LANDING_CARDS as card, i (card.title)}
+								<div
+									class="slide"
+									class:current={i === slide}
+									class:turn-out={turning?.page === i && turning.dir === 'out'}
+									class:turn-in={turning?.page === i && turning.dir === 'in'}
+									onanimationend={turned}
+								>
 									<div class="card tall">
 										<div class="course" style:font-size="{Math.round(SZ.body * 0.72)}px">{card.course}</div>
 										<div class="imgzone" style:height="{SZ.imgBig + 8}px">
@@ -334,15 +350,51 @@
 		pointer-events: auto;
 	}
 	.viewport {
-		overflow: hidden;
 		touch-action: pan-y;
+		perspective: 1400px;
 	}
-	.track {
-		display: flex;
-		transition: transform 0.3s ease;
+	/* every page in the same grid cell: the book is as tall as its tallest page */
+	.book {
+		display: grid;
+		transform-style: preserve-3d;
 	}
 	.slide {
-		flex: 0 0 100%;
+		grid-area: 1 / 1;
+		visibility: hidden;
+		transform-origin: left center;
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;
+	}
+	.slide.current {
+		visibility: visible;
+		z-index: 2;
+	}
+	.slide.turn-out,
+	.slide.turn-in {
+		visibility: visible;
+		z-index: 3;
+	}
+	.slide.turn-out {
+		animation: page-out 0.6s cubic-bezier(0.45, 0, 0.3, 1) both;
+	}
+	.slide.turn-in {
+		animation: page-in 0.6s cubic-bezier(0.45, 0, 0.3, 1) both;
+	}
+	@keyframes page-out {
+		from {
+			transform: rotateY(0deg);
+		}
+		to {
+			transform: rotateY(-180deg);
+		}
+	}
+	@keyframes page-in {
+		from {
+			transform: rotateY(-180deg);
+		}
+		to {
+			transform: rotateY(0deg);
+		}
 	}
 	.card.tall {
 		min-height: 100%;
@@ -443,8 +495,9 @@
 		.pressText {
 			animation: none;
 		}
-		.track {
-			transition: none;
+		.slide.turn-out,
+		.slide.turn-in {
+			animation-duration: 0.01s;
 		}
 	}
 </style>
