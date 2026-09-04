@@ -16,15 +16,15 @@ export const LANDING_CARDS: LandingCard[] = [
 	{
 		course: 'FIRST COURSE',
 		title: 'STRIKE. EAT. REPEAT.',
-		body: 'Every Dinner Leaf serves up the next insect on the menu. Marty strikes, the plate clears, and that symbol is off the reels for the rest of the feast.',
+		body: 'In the free games, every Dinner Leaf serves up the next insect on the menu. Marty strikes, the plate clears, and that symbol is off the reels for the rest of the feast.',
 		images: [tile('gl')],
 	},
 	{
 		course: 'SECOND COURSE',
 		title: 'CLEAR THE MENU',
 		body: soc(
-			'Eight courses, eaten lowest-paying first. Every symbol off the menu makes the rest land harder — the longer the feast runs, the bigger it pays.',
-			'Eight courses, eaten lowest-value first. Every symbol off the menu makes the rest land harder — the longer the feast runs, the bigger it wins.',
+			'Free games eat the menu lowest-paying first, one course at a time. Every symbol gone makes the rest land harder — the longer the feast runs, the bigger it pays.',
+			'Free games eat the menu lowest-value first, one course at a time. Every symbol gone makes the rest land harder — the longer the feast runs, the bigger it wins.',
 		),
 		images: [tile('l4'), tile('m2'), tile('m1'), tile('h1')],
 	},

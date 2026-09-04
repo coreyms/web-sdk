@@ -346,22 +346,30 @@
 	.card.tall {
 		min-height: 100%;
 	}
+	/* carousel controls on the ticket's dark stamp: ink disc, paper ring, cream chevron */
 	.arrow {
 		position: absolute;
 		top: 42%;
 		transform: translateY(-50%);
-		border: none;
+		border: 3px solid #ebe3cf;
 		border-radius: 999px;
 		cursor: pointer;
-		background: linear-gradient(180deg, #ffdc4a, #dfb02c);
-		color: #14100a;
-		font-size: 1.2em;
+		background: #2a241a;
+		color: #ebe3cf;
+		font-family: var(--ui-font);
+		font-size: 1.9em;
 		font-weight: 900;
+		line-height: 1;
+		padding: 0 0 0.12em;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 3px 0 #6b4c00, 0 6px 12px rgba(0, 0, 0, 0.5);
+		box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 8px 18px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 		z-index: 3;
+	}
+	.arrow:active {
+		transform: translateY(calc(-50% + 2px));
+		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45), 0 4px 10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 	}
 	.arrow.left {
 		left: 0;
@@ -374,15 +382,17 @@
 		gap: 8px;
 	}
 	.dot {
-		border: none;
+		border: 2px solid rgba(235, 227, 207, 0.55);
 		border-radius: 999px;
 		padding: 0;
-		background: rgba(255, 255, 255, 0.25);
+		background: transparent;
 		cursor: pointer;
 		transition: all 0.2s ease;
+		box-sizing: border-box;
 	}
 	.dot.on {
-		background: #ffdc4a;
+		background: #ebe3cf;
+		border-color: #ebe3cf;
 	}
 	.gate {
 		display: flex;
