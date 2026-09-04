@@ -69,6 +69,18 @@
 				: { logoW: 300, tag: 14, cardW: 272, imgBig: 84, imgMini: 54, title: 13, body: 12, arrow: 0, dot: 0, barW: 420, barH: 10, press: 18, pad: 16 },
 	);
 	const carousel = $derived(kind !== 'landscape');
+	// arrows are a mouse affordance: a touch device turns pages by swiping (Corey 2026-09-04), so
+	// the discs only render for a fine pointer (a desktop browser sized into the phone/portrait masters)
+	let coarse = $state(false);
+	onMount(() => {
+		const mq = window.matchMedia('(pointer: coarse)');
+		coarse = mq.matches;
+		const h = (e: MediaQueryListEvent) => (coarse = e.matches);
+		mq.addEventListener('change', h);
+		return () => mq.removeEventListener('change', h);
+	});
+	const arrows = $derived(carousel && !coarse);
+	const arrowW = $derived(arrows ? SZ.arrow : 0);
 	const logoSrc = $derived(kind === 'portrait' ? stamp('/assets/ui/logo-wide.webp') : stamp('/assets/ui/logo-landscape.webp'));
 
 	// ── self-rotating carousel ──
@@ -139,7 +151,7 @@
 			</div>
 
 			{#if carousel}
-				<div class="carousel" style:width="{Math.min(master.width - 12, SZ.cardW + SZ.arrow * 2 + 24)}px">
+				<div class="carousel" style:width="{Math.min(master.width - 12, SZ.cardW + arrowW * 2 + 24)}px">
 					<div class="viewport" style:width="{SZ.cardW}px" onpointerdown={onPointerDown} onpointerup={onPointerUp}>
 						<div class="book">
 							{#each LANDING_CARDS as card, i (card.title)}
@@ -165,8 +177,10 @@
 							{/each}
 						</div>
 					</div>
+					{#if arrows}
 					<button class="arrow left" style:width="{SZ.arrow}px" style:height="{SZ.arrow}px" onclick={() => go(slide - 1, true)} aria-label="Previous"><span class="flip"><Icon name="chevronRight" s={Math.round(SZ.arrow * 0.46)} /></span></button>
 					<button class="arrow right" style:width="{SZ.arrow}px" style:height="{SZ.arrow}px" onclick={() => go(slide + 1, true)} aria-label="Next"><Icon name="chevronRight" s={Math.round(SZ.arrow * 0.46)} /></button>
+					{/if}
 					<div class="dots">
 						{#each LANDING_CARDS as card, i (card.title)}
 							<button class="dot" class:on={i === slide} style:height="{SZ.dot}px" style:width="{i === slide ? SZ.dot * 2.6 : SZ.dot}px" onclick={() => go(i, true)} aria-label={card.title}></button>
