@@ -6,7 +6,7 @@ import { soc } from './social';
 export const DISCLAIMER =
 	'Malfunction voids all wins and plays. A consistent internet connection is required. In the event of a disconnection, reload the game to finish any uncompleted rounds. The expected return is calculated over many plays. The game display is not representative of any physical device and is for illustrative purposes only. Winnings are settled according to the amount received from the Remote Game Server and not from events within the web browser. TM and © 2026 Stake Engine.';
 
-const MODE_NAMES: Record<string, string> = { base: 'Base Game', ante: 'Ante', bonus: 'Free Spins', super: 'Super Free Spins', mystery: 'Mystery Buy' };
+const MODE_NAMES: Record<string, string> = { base: 'Base Game', ante: 'Ante', bonus: 'Free Spins', super: 'Super Free Spins', mystery: 'Mystery Spin' };
 const pct = (x: number) => `${(x * 100).toFixed(2)}%`;
 const MODE_RTP_LINE = Object.entries(config.betModes)
 	.map(([key, m]) => `${MODE_NAMES[key] ?? key.toUpperCase()} ${pct(m.rtp)}`)
@@ -60,7 +60,7 @@ export const rulesSections = () => [
 		title: soc('BONUS BUY', 'FEATURE MODES'),
 		paragraphs: [
 			soc(
-				`Free Spins can be bought for ${modeCost('BONUS')}x the bet and Super Free Spins for ${modeCost('SUPER')}x. The Mystery Buy costs ${modeCost('MYSTERY')}x the bet and plays one spin: ${config.mystery.nothing * 100}% of Mystery Buys award nothing, ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.feast * 100}% award Mantis Feast. A Mystery Feast always pays at least ${config.feastMinWin}x the bet. Bought features play exactly like naturally triggered ones.`,
+				`Free Spins can be bought for ${modeCost('BONUS')}x the bet and Super Free Spins for ${modeCost('SUPER')}x. The Mystery Spin costs ${modeCost('MYSTERY')}x the bet and plays one spin: ${config.mystery.nothing * 100}% of Mystery Spins award nothing, ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.feast * 100}% award Mantis Feast. A Mystery Feast always pays at least ${config.feastMinWin}x the bet. Bought features play exactly like naturally triggered ones.`,
 				`Free Spins can be played directly for ${modeCost('BONUS')}x the play amount and Super Free Spins for ${modeCost('SUPER')}x. The Mystery spin costs ${modeCost('MYSTERY')}x the play amount and plays one spin: ${config.mystery.nothing * 100}% of Mystery spins award nothing, ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.feast * 100}% award Mantis Feast. A Mystery Feast always wins at least ${config.feastMinWin}x the play amount. Instantly triggered features play exactly like naturally triggered ones.`,
 			),
 		],

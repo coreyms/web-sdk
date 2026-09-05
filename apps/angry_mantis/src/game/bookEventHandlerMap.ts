@@ -243,6 +243,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			await eventEmitter.broadcastAsync({ type: 'mantisEat', striker: bookEvent.striker, symbol: null });
 			stateGame.symbolPool = [...bookEvent.remainingPool];
 		}
+		// ON THE MENU stops glowing once this spin's last struck leaf has been eaten
+		if (stateGame.consumedLeaves.length >= stateGame.leafOrder.length) eventEmitter.broadcast({ type: 'menuGlow', on: false });
 	},
 	removeSymbolFromPool: async (bookEvent: BookEventOfType<'removeSymbolFromPool'>) => {
 		stateGame.symbolPool = [...bookEvent.remainingPool];
@@ -283,7 +285,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateBet.winBookEventAmount = bookEvent.payout;
 	},
 	bonusEnd: async (bookEvent: BookEventOfType<'bonusEnd'>) => {
-		eventEmitter.broadcast({ type: 'mantisHide' });
+		eventEmitter.broadcast({ type: 'menuGlow', on: false });
+		// only Marky walks off (super empties the stage); Marty stays put until freeSpinEnd hands
+		// his slot back to MartyArt (Corey 2026-09-05: he must never vanish behind the door drop)
+		eventEmitter.broadcast({ type: 'mantisWalkOut' });
 		// door down over the freegame board — no presentation and no press gate here: the recap is
 		// stashed for freeSpinEnd, whose outro presents recap + total win on the closed door in ONE
 		// screen (Corey 2026-08-31, replacing the separate SessionSummary); freeSpinEnd rolls it back up
@@ -314,7 +319,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		);
 
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
+		// gameType flip + mantisHide in ONE flush: MartyArt re-renders in the slot the rig Marty
+		// leaves, same frame, so free/feast read as "he just kept standing" (super's MartyArt
+		// walks him back in itself)
 		stateGame.gameType = 'basegame';
+		eventEmitter.broadcast({ type: 'mantisHide' });
 		eventEmitter.broadcast({ type: 'boardFrameGlowHide' });
 		eventEmitter.broadcast({ type: 'freeSpinOutroShow' });
 		winLevelSoundsPlay({ winLevelData });
@@ -332,7 +341,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// hosts celebrate medium+ spins (plays under the win presentation)
 			if (winLevelData.type !== 'small') eventEmitter.broadcast({ type: 'mantisReact', kind: 'celebrate' });
 		}
-		// the tier titles (textBigWin…) are deferred assets — only a big+ win waits for them
+		// the branded glyph atlas (tier titles) is a deferred asset — only a big+ win waits for it
 		if (winLevelData.type === 'big') await awaitDeferredAssets();
 		eventEmitter.broadcast({ type: 'winShow' });
 		winLevelSoundsPlay({ winLevelData });
@@ -341,7 +350,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
-		// Mystery Buy that served nothing (half of them, by the published split): the book is one
+		// Mystery Spin that served nothing (half of them, by the published split): the book is one
 		// zero-win base reveal. Name the miss so the buy never looks like it silently failed;
 		// Marty is always sore about it. No end-round is sent for a zero-win round (Stake rule).
 		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && stateBet.activeBetModeKey.toUpperCase() === 'MYSTERY') {

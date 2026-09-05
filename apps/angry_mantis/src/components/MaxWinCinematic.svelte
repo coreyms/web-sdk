@@ -15,6 +15,7 @@
 	import { getContext } from '../game/context';
 	import GameText from './GameText.svelte';
 	import ArtAmount, { artAmountSupports } from './ArtAmount.svelte';
+	import BrandedTitle from './BrandedTitle.svelte';
 	import { TIMINGS, BOARD_DIMENSIONS } from '../game/constants';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -57,10 +58,12 @@
 		<Container x={w * 0.5} y={h * 0.42} scale={Math.min(1, w / 800)}>
 			<!-- same character headshots as the feast BonusIntro (Marky left, Marty right), sliding
 			     in from their edges; text stacks BELOW them so nothing collides (Corey 2026-08-29) -->
+			<!-- titles sit in the band between the screen top (container y = -0.42h ≈ -302) and the
+			     headshots' top edge (-170): MAX WIN! is one line, THEY ATE EVERYTHING two -->
 			{#if roar}
-				<Sprite key="textMaxWinBang" anchor={0.5} y={-250} scale={0.68} />
+				<BrandedTitle lines={['MAX WIN!']} height={88} y={-236} tier={4} phase="enter" glint />
 			{:else}
-				<Sprite key="textTheyAteEverything" anchor={0.5} y={-250} scale={0.5} />
+				<BrandedTitle lines={['THEY ATE', 'EVERYTHING']} height={48} maxWidth={520} y={-236} tier={2} phase="enter" />
 			{/if}
 			<Sprite anchor={0.5} x={-130 - w * 0.35 * (1 - walk.current)} y={-60} width={220} height={220} key="markyHeadshot" />
 			<Sprite anchor={0.5} x={130 + w * 0.35 * (1 - walk.current)} y={-60} width={220} height={220} key="martyHeadshot" />

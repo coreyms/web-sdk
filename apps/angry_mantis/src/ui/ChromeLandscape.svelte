@@ -4,6 +4,8 @@
 	// baseline, [Bonus · Coin/Menu] left and [Auto/Turbo · Spin] right.
 	import type { Controls } from './controls.svelte';
 	import ClockStrip from './ClockStrip.svelte';
+	import Shine from './Shine.svelte';
+
 	import TrioStat from './TrioStat.svelte';
 	import BonusButton from './BonusButton.svelte';
 	import CoinButton from './CoinButton.svelte';
@@ -20,9 +22,10 @@
 <ClockStrip side="left" clock text="ANGRY MANTIS" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<img class="logo" src={stamp('/assets/ui/logo-landscape.webp')} alt="Angry Mantis" draggable="false" />
-<!-- Corey's "WIN UP TO 20,000x" art (colour-graded to the logo), sized to the text it replaced -->
-<div class="tagline"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /></div>
+<!-- logo + tagline each carry a Shine: a subtle glint every 5 s while idle, a full one on spin, in sync -->
+<div class="logo"><img src={stamp('/assets/ui/logo-landscape.webp')} alt="Angry Mantis" draggable="false" /><Shine src={stamp('/assets/ui/logo-landscape.webp')} /></div>
+<!-- "WIN UP TO 20,000x" set from Corey's branded glyphs (tools/build_branded_glyphs.py), sized to the text it replaced -->
+<div class="tagline"><span class="tag"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /><Shine src={stamp('/assets/ui/20000x.webp')} /></span></div>
 
 <!-- anchored to the reel frame: BALANCE at the board's left edge, WIN dead-centre under the board,
      SPIN at the right edge. maxWidth auto-shrinks huge values (stake.us GC balances hit trillions). -->
@@ -55,9 +58,13 @@
 		top: 90px;
 		left: 48px;
 		width: 225px;
-		height: auto;
 		pointer-events: none;
 		filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
+	}
+	.logo img {
+		display: block;
+		width: 100%;
+		height: auto;
 	}
 	.tagline {
 		position: absolute;
@@ -67,10 +74,16 @@
 		text-align: center;
 		pointer-events: none;
 	}
-	.tagline img {
+	.tagline .tag {
+		position: relative;
+		display: inline-block;
 		width: 176px; /* the old 14px text measured 176 master px wide */
-		height: auto;
 		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+	}
+	.tagline img {
+		display: block;
+		width: 100%;
+		height: auto;
 	}
 	.trio {
 		position: absolute;

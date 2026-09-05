@@ -8,6 +8,7 @@
 	import { Rectangle, Sprite } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
+	import { BACKGROUND_WASH } from '../game/constants';
 
 	const context = getContext();
 	const IMAGE_RATIO = 1920 / 1080;
@@ -52,10 +53,11 @@
 	{/if}
 {/each}
 
-<!-- dark wash so board/chrome contrast holds on the busier cafeteria art; a touch darker in free spins -->
+<!-- dark wash so board/chrome contrast holds on the busier cafeteria art; a touch darker in free
+     spins (levels in BACKGROUND_WASH) -->
 <Rectangle
 	{...context.stateLayoutDerived.canvasSizes()}
 	backgroundColor={0x060c06}
-	alpha={freegame ? 0.6 : 0.5}
+	alpha={freegame ? BACKGROUND_WASH.freegame : BACKGROUND_WASH.base}
 	zIndex={-1}
 />

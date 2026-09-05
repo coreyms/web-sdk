@@ -4,6 +4,7 @@
 
 	export type EmitterEventMantis =
 		| { type: 'mantisShow'; host: BonusHost }
+		| { type: 'mantisWalkOut' }
 		| { type: 'mantisHide' }
 		| { type: 'mantisStrike'; striker: Striker; trigger: 'auto' | 'glowingLeaf'; position?: Position }
 		| { type: 'mantisEat'; striker: Striker; symbol: PayingSymbolName | null; from?: Position | null }
@@ -160,10 +161,14 @@
 				walkIn();
 			}
 		},
-		mantisHide: async () => {
+		// bonus end (Corey 2026-09-05): only MARKY leaves. Marty keeps standing through the door
+		// drop and the outro; MartyArt takes his slot back at mantisHide, which freeSpinEnd fires
+		// in the same flush as gameType -> 'basegame' so he never blinks out. Super (Marky solo)
+		// empties the stage here; MartyArt walks Marty back in on its own.
+		mantisWalkOut: async () => {
 			const walkers = activeHosts.filter((name) => name === 'marky' && rigOf(name));
 			if (walkers.length === 0) {
-				show = false;
+				if (host === 'marky') show = false;
 				return;
 			}
 			await Promise.all(
@@ -178,7 +183,14 @@
 					busy[name] = false;
 				}),
 			);
+			if (host === 'marky') show = false;
+			else host = 'marty';
+			walkOff.marky.set(0, { duration: 0 });
+		},
+		// instant: the rig layer leaves in the same frame MartyArt returns (no walk, no fade)
+		mantisHide: () => {
 			show = false;
+			host = 'marty';
 			(['marty', 'marky'] as Striker[]).forEach((n) => walkOff[n].set(0, { duration: 0 }));
 		},
 		mantisReact: ({ kind }) => react(kind),

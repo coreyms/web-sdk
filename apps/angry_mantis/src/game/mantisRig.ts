@@ -54,12 +54,58 @@ export const playClip = (rig: Rig, name: string, opts?: Parameters<Rig['play']>[
 
 export const currentClip = (rig: Rig) => lastClip.get(rig);
 
-/** Weighted pick from the idle pool, random start frame so multiple rigs never sync up. */
+const IDLE_NAMES: readonly string[] = [...RIG.idles.map((i) => i.name), RIG.bored];
+// consecutive primary-idle picks since this rig's last variant (a fresh rig counts as "settled")
+const primaryRun = new WeakMap<Rig, number>();
+
+/**
+ * Weighted pick from the idle pool, random start frame so multiple rigs never sync up. One pick in
+ * RIG.boredChance plays the bored clip once instead, then rolls the pool again on completion.
+ * Variants (Idle 2 / idle 3 / bored) are only eligible once the primary idle has played
+ * RIG.idlesBetweenVariants times in a row, so no two variants ever meet.
+ */
 export const playIdle = (rig: Rig) => {
-	const name = Math.random() < RIG.idlePrimaryWeight ? RIG.idles[0] : RIG.idles[1];
+	const run = primaryRun.get(rig) ?? RIG.idlesBetweenVariants;
+	const primary = RIG.idles[0].name;
+	let name = primary;
+	if (run >= RIG.idlesBetweenVariants) {
+		if (Math.random() < RIG.boredChance) {
+			primaryRun.set(rig, 0);
+			playClip(rig, RIG.bored, { loop: false, onComplete: () => playIdle(rig) });
+			return;
+		}
+		let roll = Math.random() * RIG.idles.reduce((acc, i) => acc + i.weight, 0);
+		for (const idle of RIG.idles) {
+			roll -= idle.weight;
+			name = idle.name;
+			if (roll <= 0) break;
+		}
+	}
+	primaryRun.set(rig, name === primary ? run + 1 : 0);
 	playClip(rig, name, { loop: true, startFrame: Math.floor(Math.random() * 48) });
 };
 
-/** True while the rig is looping one of the idle clips (safe to swap or overlay). */
-export const isIdling = (rig: Rig) =>
-	rig.isPlaying && (RIG.idles as readonly string[]).includes(currentClip(rig) ?? '');
+/**
+ * Play the bored clip once, `loops` idle loops (~2 s each) from now: the beat Corey wants a few
+ * loops after the landing screen's press, every time the game is loaded. Waits for the rig to
+ * actually be idling (a strike/reaction/walk is never cut; the loading screen may still be up),
+ * gives up after 30 s of never idling, and counts as a variant for the two-primary-idles rule.
+ */
+const boredTimers = new WeakMap<Rig, ReturnType<typeof setTimeout>>();
+export const scheduleBored = (rig: Rig, loops = 3) => {
+	const prev = boredTimers.get(rig);
+	if (prev) clearTimeout(prev);
+	const deadline = performance.now() + loops * 2000 + 30000;
+	const attempt = () => {
+		if (!isIdling(rig) || currentClip(rig) === RIG.bored) {
+			if (performance.now() < deadline) boredTimers.set(rig, setTimeout(attempt, 500));
+			return;
+		}
+		primaryRun.set(rig, 0);
+		playClip(rig, RIG.bored, { loop: false, onComplete: () => playIdle(rig) });
+	};
+	boredTimers.set(rig, setTimeout(attempt, loops * 2000 + Math.random() * 1000));
+};
+
+/** True while the rig is in an idle clip, bored included (safe to swap or overlay). */
+export const isIdling = (rig: Rig) => rig.isPlaying && IDLE_NAMES.includes(currentClip(rig) ?? '');

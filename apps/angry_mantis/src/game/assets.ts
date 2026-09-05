@@ -28,19 +28,7 @@ export default {
 	doorSteel: { type: 'sprite', src: stamp(new URL('../../assets/ui/door-steel.webp', import.meta.url).href), preload: false },
 	// reflectivity mask for the frame's inner steel lips (Corey's paint-over of the frame art, same
 	// 1415x1217 canvas): white = chrome that mirrors the reels, alpha = strength. FrameReflections.
-	// "ON THE MENU" header art for the pool HUD (colour-graded to the logo like the tagline)
-	textOnTheMenu: { type: 'sprite', src: stamp(new URL('../../assets/ui/onthemenu.webp', import.meta.url).href), preload: true },
 	frameReflectMask: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-reflect.png', import.meta.url).href), preload: true },
-	// hand-made gold text art (assets/images/overlays -> static/assets/ui/text): tier titles,
-	// max-win lines, retrigger digits/words. Replaces canvas-rasterized GameText at the biggest
-	// presentation moments (cheaper too: resident textures, no per-string raster+upload).
-	textBigWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/big-win.webp', import.meta.url).href), preload: false },
-	textSuperWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/super-win.webp', import.meta.url).href), preload: false },
-	textMegaWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/mega-win.webp', import.meta.url).href), preload: false },
-	textEpicWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/epic-win.webp', import.meta.url).href), preload: false },
-	textMaxWin: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win.webp', import.meta.url).href), preload: false },
-	textMaxWinBang: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/max-win-bang.webp', import.meta.url).href), preload: false },
-	textTheyAteEverything: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/they-ate-everything.webp', import.meta.url).href), preload: false },
 	// bonus stencil headers (branding/{feast,bonus,super}-header.webp): one image per mode carrying
 	// BOTH lines of the header; the intro AND the wrap-up head with them (the label-*.webp pieces
 	// now live only on the HTML bonus-buy cards, ui/bonusCards.ts). Preloaded — the door opens on
@@ -58,6 +46,15 @@ export default {
 	// gold bonus-board stencil alphabet (A-Z + boxed 1/2/3), sliced from assets/images/ui/bonus-board-alphabet.webp
 	// by tools/build_glyph_atlas.py — the rule titles and number badges draw from it as batched
 	// sprites, so the intro's headings never rasterize text (see game/stencilLayout.ts).
+	// Corey's branded (rusty-metal) title alphabet, sliced by tools/build_branded_glyphs.py: the
+	// win-tier titles, ON THE MENU and THEY ATE EVERYTHING are set from it letter by letter
+	// (components/BrandedTitle.svelte) so they can move per glyph. Every frame has a `_halo`
+	// twin (pre-blurred) for the menu glow.
+	brandedGlyphs: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/ui/branded-glyphs/branded-glyphs.json', import.meta.url).href),
+		preload: false,
+	},
 	goldAlphabet: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/ui/gold-alphabet/gold-alphabet.json', import.meta.url).href),

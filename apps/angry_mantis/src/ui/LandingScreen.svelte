@@ -12,6 +12,7 @@
 	import { sound } from '../game/sound';
 	import { LANDING_CARDS } from './landingCards';
 	import Icon from './Icon.svelte';
+	import Shine from './Shine.svelte';
 
 	type Props = { onpress: () => void };
 	const props: Props = $props();
@@ -151,8 +152,8 @@
 	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
 		<div class="col" style:padding="{SZ.pad}px">
 			<div class="logo">
-				<img src={logoSrc} alt="Angry Mantis" width={SZ.logoW} draggable="false" />
-				<img class="tag" src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" style:width="{SZ.tag * 12}px" draggable="false" />
+				<span class="shine-host" style:width="{SZ.logoW}px"><img src={logoSrc} alt="Angry Mantis" width={SZ.logoW} draggable="false" /><Shine src={logoSrc} /></span>
+				<span class="shine-host tag" style:width="{SZ.tag * 12}px"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /><Shine src={stamp('/assets/ui/20000x.webp')} /></span>
 			</div>
 
 			{#if carousel}
@@ -278,13 +279,18 @@
 		align-items: center;
 		gap: 8px;
 	}
-	.logo img {
-		height: auto;
+	.shine-host {
+		position: relative;
+		display: block;
 		filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.7));
 	}
-	.tag {
-		/* Corey's art in place of the old text; width tracks the tag font size it replaced (~12x) */
+	.shine-host img {
+		display: block;
+		width: 100%;
 		height: auto;
+	}
+	.tag {
+		/* branded-glyph tagline in place of the old text; width tracks the tag font size it replaced (~12x) */
 		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
 	}
 	/* the feature tour on meal-ticket stock — same cream, grain, tokens and dashed blocks as the

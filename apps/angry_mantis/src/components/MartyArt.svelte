@@ -21,7 +21,7 @@
 	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
 	import { RIG, reactionVoice } from '../game/constants';
 	import type { Rig } from '../bonerutter';
-	import { playClip, playIdle, currentClip, isIdling } from '../game/mantisRig';
+	import { playClip, playIdle, currentClip, isIdling, scheduleBored } from '../game/mantisRig';
 	import BoneRig from './BoneRig.svelte';
 
 	const context = getContext();
@@ -43,6 +43,16 @@
 		const kind = layoutKind(context.stateLayoutDerived.layoutType());
 		return MASTER[kind].width - MARTY[kind].x + MARTY[kind].size;
 	};
+	// game load (Corey 2026-09-05): this component mounts once per page load, right after the
+	// landing press clears the loading screen — a few idle loops in, Marty plays the bored clip
+	// once. Mount-scoped on purpose: returning from free games re-renders, it does not re-mount.
+	let boredOnLoad = false;
+	$effect(() => {
+		if (rig && !boredOnLoad) {
+			boredOnLoad = true;
+			scheduleBored(rig, 3);
+		}
+	});
 	$effect(() => {
 		if (!onStage && rendered) {
 			// free/feast: Mantis marty is already standing in this spot — instant handoff.

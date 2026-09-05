@@ -3,28 +3,28 @@
 </script>
 
 <script lang="ts">
-	// The Mystery Buy's empty result (2026-09-05 reshape). Half of all Mystery Buys award nothing:
+	// The Mystery Spin's empty result (2026-09-05 reshape). Half of all Mystery Spins award nothing:
 	// the book is one plain base reveal with no scatter trigger and finalWin 0. The reels have
 	// already shown the miss; this beat just names it so the player is never left wondering whether
 	// the buy registered. No amount, no counter, no round-end call (a zero-win round never sends
-	// end-round). Atlas glyphs only (ArtAmount), nothing rasterizes; press (or autoplay) dismisses.
+	// end-round). Atlas glyphs only (ArtAmount), nothing rasterizes. Timed beat, no press gate
+	// (Corey 2026-09-05): it holds TIMINGS.mysteryTray (turbo-scaled) and clears itself.
 	import { Container, Graphics } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
 	import { MainContainer } from 'components-layout';
-	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
+	import { waitForTimeout } from 'utils-shared/wait';
+	import { stateBetDerived } from 'state-shared';
 	import { Tween } from 'svelte/motion';
 	import { backOut } from 'svelte/easing';
 
+	import { TIMINGS } from '../game/constants';
 	import { getContext } from '../game/context';
-	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { frameFor, layoutKind } from '../game/layoutSpec';
 	import ArtAmount from './ArtAmount.svelte';
-	import PressToContinue from './PressToContinue.svelte';
 
 	const context = getContext();
 
 	let show = $state(false);
-	let oncomplete = $state(() => {});
 	const pop = new Tween(0.7, { duration: 380, easing: backOut });
 
 	context.eventEmitter.subscribeOnMount({
@@ -32,16 +32,7 @@
 			show = true;
 			pop.set(0.7, { duration: 0 });
 			void pop.set(1);
-			const pressed = waitForResolve((resolve) => (oncomplete = resolve));
-			// same rule as the bonus intro: a running autoplay with AUTOPLAY BONUSES on presses for
-			// the player ~1.2s in, re-checked at fire time so stopping autoplay restores the gate
-			if (autoBonusesRunning()) {
-				const autoPress = oncomplete;
-				void waitForTimeout(1200).then(() => {
-					if (autoBonusesRunning()) autoPress();
-				});
-			}
-			await pressed;
+			await waitForTimeout(TIMINGS.mysteryTray / stateBetDerived.timeScale());
 		},
 		mysteryTrayHide: () => (show = false),
 	});
@@ -69,6 +60,5 @@
 				<ArtAmount y={36} text="NOTHING ON THE MENU THIS TIME" height={22} maxWidth={560} />
 			</Container>
 		</MainContainer>
-		<PressToContinue showText active={show} onpress={() => oncomplete()} />
 	{/if}
 </FadeContainer>

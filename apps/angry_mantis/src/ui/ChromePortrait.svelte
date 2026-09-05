@@ -3,6 +3,7 @@
 	import { getContext } from '../game/context';
 	// Portrait master (412×760): wide logo on top, BALANCE/SPIN above the controls, WIN on the button baseline.
 	import type { Controls } from './controls.svelte';
+	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import TrioStat from './TrioStat.svelte';
 	import BonusButton from './BonusButton.svelte';
@@ -23,11 +24,11 @@
 <ClockStrip side="left" clock text="ANGRY MANTIS" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<div class="top"><img src={stamp('/assets/ui/logo-wide.webp')} alt="Angry Mantis" draggable="false" /></div>
+<div class="top"><span class="logo"><img src={stamp('/assets/ui/logo-wide.webp')} alt="Angry Mantis" draggable="false" /><Shine src={stamp('/assets/ui/logo-wide.webp')} /></span></div>
 <!-- the WIN UP TO 20,000x tagline the other two layouts carry under the logo (Corey 2026-09-03);
      hidden during free games, where the ON THE MENU pool tray sits in that band -->
 {#if !freegame}
-	<div class="tagline"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /></div>
+	<div class="tagline"><span class="tag"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /><Shine src={stamp('/assets/ui/20000x.webp')} /></span></div>
 {/if}
 
 <div class="stats">
@@ -66,11 +67,17 @@
 		align-items: center;
 		pointer-events: none;
 	}
-	.top img {
+	.top .logo {
+		position: relative;
+		display: inline-block;
 		width: 330px;
-		height: auto;
 		margin: -8px 0;
 		filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
+	}
+	.top img {
+		display: block;
+		width: 100%;
+		height: auto;
 	}
 	/* logo-wide is 900×157 → 330×57.6 from top 56 (bottom ≈ 114); the tagline sits in the 114..150
 	   band above the frame's top rail, at the same width ratio to the logo as landscape (0.73) */
@@ -82,10 +89,16 @@
 		text-align: center;
 		pointer-events: none;
 	}
-	.tagline img {
+	.tagline .tag {
+		position: relative;
+		display: inline-block;
 		width: 220px;
-		height: auto;
 		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+	}
+	.tagline img {
+		display: block;
+		width: 100%;
+		height: auto;
 	}
 	.stats {
 		position: absolute;

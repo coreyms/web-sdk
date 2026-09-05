@@ -113,11 +113,14 @@ export const betModeMeta: BetModeMeta = {
 		maxWin: config.maxWin,
 		assets: placeholderAssets,
 		text: {
-			title: 'MYSTERY BUY',
-			description: `One spin. ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.feast * 100}% Mantis Feast, ${config.mystery.nothing * 100}% nothing at all. A Mystery Feast always pays at least ${config.feastMinWin}x the bet.`,
+			title: 'MYSTERY SPIN',
+			description: soc(
+				`One spin. ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.feast * 100}% Mantis Feast, ${config.mystery.nothing * 100}% nothing at all. A Mystery Feast always pays at least ${config.feastMinWin}x the bet.`,
+				`One spin. ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.feast * 100}% Mantis Feast, ${config.mystery.nothing * 100}% nothing at all. A Mystery Feast always wins at least ${config.feastMinWin}x the play amount.`,
+			),
 			dialog: soc('Buy a Mystery spin: 40% Super Free Spins, 10% Mantis Feast, 50% nothing.', 'Play a Mystery spin: 40% Super Free Spins, 10% Mantis Feast, 50% nothing.'),
 			button: soc('BUY', 'PLAY'),
-			betAmountLabel: 'MYSTERY BUY',
+			betAmountLabel: 'MYSTERY SPIN',
 			tickerIdle: '',
 			tickerSpin: '',
 		},

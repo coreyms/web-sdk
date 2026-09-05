@@ -103,6 +103,31 @@ export const TIMINGS = {
 	maxWinTopUpCount: 1000, // covers the HUD win tween (550ms, controls.svelte.ts) plus a beat
 	maxWinTopUpOutro: 350, // settle before the cinematic takes the screen
 	retrigger: 1300, // gold-art banner needs a readable beat (was 800 as plain text)
+	mysteryTray: 1500, // EMPTY TRAY beat: timed, no press gate (Corey 2026-09-05); scaled by timeScale()
+	highLandSquash: 180, // high-symbol landing beat (Corey 2026-09-05, picked from the comparison artifact)
+	highLandGlint: 320,
+};
+
+// Dark wash over the cafeteria backdrops (Background.svelte) so the board and chrome read on
+// top: alpha of a near-black rectangle. Corey picked 30% for the base game from the wash slider
+// artifact (2026-09-05, was 50%); free games stay ten points darker.
+export const BACKGROUND_WASH = { base: 0.3, freegame: 0.4 };
+
+// High-symbol landing beat (H1/M1/M2/M3, ReelSymbol.svelte): once the tile's landing bounce has
+// settled, the cell squashes (wide × short, easing back) while a soft white strip sweeps the
+// tray. The strip is a texture fill clipped by ONE rounded square shared by every tray (measured
+// from the plate art: full width, ~0.96 tall, corners ~0.265 of the width, centre 1.3% above the
+// tile centre) and the insect cutout is drawn on top, so the glint lights the tray only.
+export const HIGH_LAND = {
+	symbols: ['H1', 'M1', 'M2', 'M3'],
+	squashX: 0.048, // "louder" beat strength from the artifact: 1.6 × (3% / 5%)
+	squashY: 0.08,
+	glintAlpha: 0.5, // "medium" glint from the comparison artifact
+	glintWidth: 0.46, // bright core as a fraction of the tile
+	glintAngle: (18 * Math.PI) / 180,
+	trayHeight: 0.96,
+	trayRadius: 0.265,
+	trayCenterY: -0.013,
 };
 
 // Where the AUDIBLE transient sits inside an sfx clip (measured from the sources 2026-09-01).
@@ -117,10 +142,20 @@ export const SFX_TRANSIENT = {
 // wins/pokes don't loop the identical take.
 export const RIG = {
 	idle: 'idle',
-	// idle variety (2026-08-29 export): the primary idle dominates; Idle 2 appears on some
-	// returns-to-idle and occasional mid-idle rotations so long waits don't read as a statue
-	idles: ['idle', 'Idle 2'],
-	idlePrimaryWeight: 0.7,
+	// idle variety (2026-09-05 export): the primary idle dominates, Idle 2 is the regular
+	// alternate, and idle 3 turns up about a quarter as often (Corey). Every return-to-idle and
+	// mid-idle rotation rolls this pool; the bored clip is rolled separately (boredChance per
+	// pick) and plays once before the pool is rolled again. RULE (Corey 2026-09-05): after ANY
+	// variant (Idle 2 / idle 3 / bored) the next idlesBetweenVariants picks are forced to the
+	// primary idle, so variants never repeat or run back to back.
+	idles: [
+		{ name: 'idle', weight: 0.7 },
+		{ name: 'Idle 2', weight: 0.22 },
+		{ name: 'idle 3', weight: 0.08 },
+	],
+	idlesBetweenVariants: 2,
+	bored: 'bored',
+	boredChance: 1 / 50,
 	anticipation: 'Anticipation',
 	walk: { forward: 'Walking', backward: 'Walking Backwards' },
 	reactions: {

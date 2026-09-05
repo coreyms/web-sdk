@@ -31,7 +31,7 @@ export default {
 	// Eating order (lowest 5-of-a-kind payout first) — must match EAT_ORDER in game_config.py
 	eatOrder: ['L4', 'L3', 'L2', 'L1', 'M3', 'M2', 'M1', 'H1'],
 	freeSpins: { free: 8, super: 10, feast: 10, maxRetrigger: 3 },
-	// Mystery Buy split (exact in the published table) and the Feast floor (FEAST_MIN_WIN, x bet)
+	// Mystery Spin split (exact in the published table) and the Feast floor (FEAST_MIN_WIN, x bet)
 	mystery: { nothing: 0.5, super: 0.4, feast: 0.1 },
 	feastMinWin: 400,
 	paddingReels: {

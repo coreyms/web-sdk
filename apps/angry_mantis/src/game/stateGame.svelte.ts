@@ -32,6 +32,7 @@ const onSymbolLand = ({ rawSymbol, visible }: { rawSymbol: RawSymbol; visible?: 
 	}
 	if (rawSymbol.name === 'GL') {
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_leaf_land' });
+		eventEmitter.broadcast({ type: 'menuGlow', on: true }); // ON THE MENU lights up until the eat
 	}
 	// forcePlay: two wilds settling a reel apart must both sparkle (the once-player otherwise
 	// drops a name that is still sounding)
