@@ -6,7 +6,7 @@ import { stamp } from '../game/assets';
 import config from '../game/config';
 
 export type BonusCardSpec = {
-	mode: 'ANTE' | 'BONUS' | 'SUPER' | 'FEAST';
+	mode: 'ANTE' | 'BONUS' | 'SUPER' | 'MYSTERY';
 	/** name-plate copy — literal so it reads instantly */
 	label: string;
 	/** one-line pitch under the plate */
@@ -18,7 +18,7 @@ export type BonusCardSpec = {
 	accentDark: string;
 	/** art in the slot above the ticket (breaks out of the top) */
 	art: string;
-	/** second head tucked behind the first (feast) */
+	/** second head tucked behind the first (mystery: Super or Feast, both mantises in play) */
 	artB?: string;
 	/** px the main art shifts right to make room for artB */
 	shift: number;
@@ -76,9 +76,9 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 		artShadow: HEAD_SHADOW,
 	},
 	{
-		mode: 'FEAST',
-		label: 'FEAST',
-		pitch: `${config.freeSpins.feast} free spins. Marty and Marky feast together, two symbols eaten at start. Eat eight symbols for Max Win.`,
+		mode: 'MYSTERY',
+		label: 'MYSTERY',
+		pitch: `One spin: ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.feast * 100}% Mantis Feast (never under ${config.feastMinWin}x), ${config.mystery.nothing * 100}% empty tray.`,
 		cta: 'ACTIVATE',
 		toggle: false,
 		accent: '#f2c14e',

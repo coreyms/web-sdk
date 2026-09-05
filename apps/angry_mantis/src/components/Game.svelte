@@ -30,6 +30,7 @@
 	import ComboWin from './ComboWin.svelte';
 	import BonusIntro from './BonusIntro.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
+	import MysteryTray from './MysteryTray.svelte';
 	import Transition from './Transition.svelte';
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
@@ -188,6 +189,7 @@
 		<AllWildTopUp />
 		<MaxWinCinematic />
 		<FreeSpinOutro />
+		<MysteryTray />
 		<Transition />
 	{/if}
 </App>

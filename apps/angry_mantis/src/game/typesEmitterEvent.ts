@@ -13,6 +13,7 @@ import type { EmitterEventAllWildTopUp } from '../components/AllWildTopUp.svelte
 import type { EmitterEventMaxWinCinematic } from '../components/MaxWinCinematic.svelte';
 import type { EmitterEventReplay } from '../ui/ReplayModal.svelte';
 import type { EmitterEventMartyArt } from '../components/MartyArt.svelte';
+import type { EmitterEventMysteryTray } from '../components/MysteryTray.svelte';
 
 export type EmitterEventGame =
 	| EmitterEventBoard
@@ -29,4 +30,5 @@ export type EmitterEventGame =
 	| EmitterEventAllWildTopUp
 	| EmitterEventMaxWinCinematic
 	| EmitterEventReplay
-	| EmitterEventMartyArt;
+	| EmitterEventMartyArt
+	| EmitterEventMysteryTray;

@@ -9,10 +9,11 @@ export default {
 	maxWin: 20000,
 	betModes: {
 		base: { cost: 1.0, feature: true, buyBonus: false, rtp: 0.96, max_win: 20000 },
-		ante: { cost: 2.0, feature: true, buyBonus: false, rtp: 0.96, max_win: 20000 },
+		ante: { cost: 3.0, feature: true, buyBonus: false, rtp: 0.96, max_win: 20000 }, // 2 -> 3 (2026-09-05 reshape)
 		bonus: { cost: 100.0, feature: false, buyBonus: true, rtp: 0.96, max_win: 20000 },
 		super: { cost: 300.0, feature: false, buyBonus: true, rtp: 0.96, max_win: 20000 },
-		feast: { cost: 1000.0, feature: false, buyBonus: true, rtp: 0.96, max_win: 20000 }, // 2000 -> 1000 (Corey 2026-09-02)
+		// replaces the Feast buy (2026-09-05): 50% nothing / 40% Super Free Spins / 10% Mantis Feast
+		mystery: { cost: 300.0, feature: false, buyBonus: true, rtp: 0.96, max_win: 20000 },
 	},
 	symbols: {
 		H1: { paytable: [{ '5': 10 }, { '4': 2.5 }, { '3': 0.8 }] },
@@ -30,6 +31,9 @@ export default {
 	// Eating order (lowest 5-of-a-kind payout first) — must match EAT_ORDER in game_config.py
 	eatOrder: ['L4', 'L3', 'L2', 'L1', 'M3', 'M2', 'M1', 'H1'],
 	freeSpins: { free: 8, super: 10, feast: 10, maxRetrigger: 3 },
+	// Mystery Buy split (exact in the published table) and the Feast floor (FEAST_MIN_WIN, x bet)
+	mystery: { nothing: 0.5, super: 0.4, feast: 0.1 },
+	feastMinWin: 400,
 	paddingReels: {
 		basegame: '',
 		freegame: '',

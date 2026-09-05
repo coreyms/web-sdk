@@ -26,7 +26,7 @@
 		{ id: 'guide', label: 'UI Guide' },
 		{ id: 'ways', label: 'Ways' },
 		{ id: 'modes', label: 'Game Modes' },
-		{ id: 'feast', label: 'Feast Disclosure' },
+		{ id: 'mystery', label: 'Mystery Disclosure' },
 		{ id: 'eating', label: 'Eating Mechanic' },
 		{ id: 'maxwin', label: 'Max Win' },
 		{ id: 'rtp', label: 'RTP' },
@@ -73,10 +73,11 @@
 	};
 	const MODES = [
 		{ id: 'base', label: 'Base Game', accent: '#2a241a', cost: `${modeCost('BASE')}×`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
-		{ id: 'ante', label: 'Ante', accent: '#b07a12', cost: `${modeCost('ANTE')}×`, costNum: modeCost('ANTE'), enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per play.', mech: soc('Doubles the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with a direct bonus buy.', 'Doubles the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature. Cannot be combined with an instantly triggered feature.') },
+		{ id: 'ante', label: 'Ante', accent: '#b07a12', cost: `${modeCost('ANTE')}×`, costNum: modeCost('ANTE'), enter: 'Activate from the bonus menu; stays on until switched off.', spins: 'One spin per play.', mech: soc('Triples the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature; features land about four times as often as in the base game. Cannot be combined with a direct bonus buy.', 'Triples the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature; features land about four times as often as in the base game. Cannot be combined with an instantly triggered feature.') },
 		{ id: 'bonus', label: 'Free Spins', accent: '#4e7d15', cost: `${modeCost('BONUS')}×`, costNum: modeCost('BONUS'), enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
 		{ id: 'super', label: 'Super Free Spins', accent: '#b8371e', cost: `${modeCost('SUPER')}×`, costNum: modeCost('SUPER'), enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
-		{ id: 'feast', label: 'Mantis Feast', accent: '#b07a12', cost: `${modeCost('FEAST').toLocaleString()}×`, costNum: modeCost('FEAST'), enter: soc('Land 5 Marky scatters, or buy directly.', 'Land 5 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: 'Marty AND Marky feed: two opening bites, and both mantises strike.' },
+		{ id: 'feast', label: 'Mantis Feast', accent: '#b07a12', cost: soc('Not sold directly', 'Not offered directly'), costNum: 0, enter: soc('Land 5 Marky scatters, or win it inside a Mystery Buy.', 'Land 5 Marky scatters, or win it inside a Mystery spin.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: soc(`Marty AND Marky feed: two opening bites, and both mantises strike. Every Mantis Feast session pays at least ${config.feastMinWin}× the bet.`, `Marty AND Marky feed: two opening bites, and both mantises strike. Every Mantis Feast session wins at least ${config.feastMinWin}× the play amount.`) },
+		{ id: 'mystery', label: 'Mystery Buy', accent: '#2b6fb3', cost: `${modeCost('MYSTERY')}×`, costNum: modeCost('MYSTERY'), enter: soc('Buy from the bonus menu.', 'Trigger from the feature menu.'), spins: 'One spin, then whatever it serves.', mech: `The reels spin once. ${config.mystery.nothing * 100}% of Mystery Buys land nothing, ${config.mystery.super * 100}% land 4 Marky scatters for Super Free Spins and ${config.mystery.feast * 100}% land 5 for the Mantis Feast. The split is fixed in the published math and does not change with the bet.` },
 	];
 
 	// UI guide (submission checklist "User interaction guide is included in the game information"):
@@ -87,7 +88,7 @@
 		{ icon: 'play', color: '#2a241a', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
 		{ icon: 'turbo', color: '#b07a12', name: 'Turbo', text: 'Cycles Off → Turbo → Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. Turbo is remembered between sessions.' },
 		{ icon: 'auto', color: '#4e7d15', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, a stop-on-loss limit and a stop-on-single-win limit. LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. The button turns red while a run is active.' },
-		{ icon: null, art: '/assets/ui/mantis-head.png', color: '#4e7d15', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or Mantis Feast directly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or Mantis Feast instantly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.') },
+		{ icon: null, art: '/assets/ui/mantis-head.png', color: '#4e7d15', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or a Mystery Buy directly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or a Mystery spin instantly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.') },
 		{ icon: 'coins', color: '#b07a12', name: soc('Bet Amount', 'Play Amount'), text: soc('Opens the bet picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.', 'Opens the play amount picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.') },
 		{ icon: 'menu', color: '#2a241a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
 		{ icon: 'info', color: '#2b6fb3', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The plaque on the reel frame names the active mode and its play amount.') },
@@ -213,7 +214,7 @@
 
 			<section bind:this={sectionEls.modes}>
 				<h2>All Game Modes</h2>
-				<p>{soc('Five modes. Base and Ante are bet-by-bet; the features are entered by Marky scatters or a direct bonus buy.', 'Five modes. Base and Ante run spin by spin; the features are entered by Marky scatters or triggered instantly from the feature menu.')}</p>
+				<p>{soc('Six modes. Base and Ante are bet-by-bet; the features are entered by Marky scatters, a direct bonus buy, or the Mystery Buy.', 'Six modes. Base and Ante run spin by spin; the features are entered by Marky scatters, triggered instantly from the feature menu, or served by a Mystery spin.')}</p>
 				<div class="modes">
 					{#each MODES as m (m.id)}
 						<div class="mode" style:border-color="{m.accent}66">
@@ -231,11 +232,12 @@
 				</div>
 			</section>
 
-			<section bind:this={sectionEls.feast}>
-				<h2>Mantis Feast Disclosure</h2>
+			<section bind:this={sectionEls.mystery}>
+				<h2>Mystery Buy Disclosure</h2>
 				<div class="callout gold">
-					<p><strong>Minimum guaranteed return:</strong> every Mantis Feast session {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc('300× bet', '300× play amount')}</span> — {(300 / modeCost('FEAST')).toFixed(1)}× {soc('the Feast price', 'the Feast play amount')}. {soc('This floor is paid out of the', 'This floor comes out of the')} {modeCost('FEAST').toLocaleString()}× {soc('purchase price', 'play amount')}.</p>
-					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 150</span> Mantis Feast sessions reaches the {config.maxWin.toLocaleString()}× max win cap ({capPerPrice(modeCost('FEAST'))}× {soc('the Feast price', 'the Feast play amount')}). Other sessions land between the 300× floor and the cap, with the {soc('payout', 'win')} distribution skewed toward the floor.</p>
+					<p><strong>What a Mystery Buy serves:</strong> exactly <span class="slot-num mono">{config.mystery.nothing * 100}%</span> nothing (the round {soc('pays', 'wins')} 0), <span class="slot-num mono">{config.mystery.super * 100}%</span> Super Free Spins and <span class="slot-num mono">{config.mystery.feast * 100}%</span> Mantis Feast, for {modeCost('MYSTERY')}× {soc('the bet', 'the play amount')}. These shares are fixed in the published math.</p>
+					<p><strong>Feast floor:</strong> every Mantis Feast session, whether {soc('bought through a Mystery Buy', 'served by a Mystery spin')} or triggered by 5 Marky scatters, {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc(`${config.feastMinWin}× bet`, `${config.feastMinWin}× play amount`)}</span> — {(config.feastMinWin / modeCost('MYSTERY')).toFixed(2)}× the Mystery price, so a Mystery Feast is always a net {soc('profit', 'gain')} on that spin. Super Free Spins have no floor.</p>
+					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 200</span> Mystery Feast sessions and <span class="slot-num mono">1 in 150</span> scatter-triggered Feast sessions reach the {config.maxWin.toLocaleString()}× max win cap ({capPerPrice(modeCost('MYSTERY'))}× the Mystery price). Other Feast sessions land between the {config.feastMinWin}× floor and the cap, with the {soc('payout', 'win')} distribution skewed toward the floor.</p>
 					<p class="dim">These figures are disclosed openly per Stake Engine approval requirements.</p>
 				</div>
 			</section>

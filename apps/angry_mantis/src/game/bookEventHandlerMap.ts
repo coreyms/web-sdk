@@ -341,6 +341,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
+		// Mystery Buy that served nothing (half of them, by the published split): the book is one
+		// zero-win base reveal. Name the miss so the buy never looks like it silently failed;
+		// Marty is always sore about it. No end-round is sent for a zero-win round (Stake rule).
+		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && stateBet.activeBetModeKey.toUpperCase() === 'MYSTERY') {
+			eventEmitter.broadcast({ type: 'martyReact', kind: 'angry' });
+			await eventEmitter.broadcastAsync({ type: 'mysteryTrayShow' });
+			eventEmitter.broadcast({ type: 'mysteryTrayHide' });
+			return;
+		}
 		// spec: ~1/15 losing base spins get an angry reaction from Marty
 		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && Math.random() < 1 / 15) {
 			eventEmitter.broadcast({ type: 'martyReact', kind: 'angry' });

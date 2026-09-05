@@ -28,9 +28,9 @@ export const createControls = () => {
 	const isIdle = () => context.stateXstateDerived.isIdle();
 	const isReplay = () => stateUi.config.mode === 'replay';
 	const anteActive = () => stateBetDerived.activeBetMode()?.type === 'activate';
-	// armed buy mode: a selected feature (BONUS/SUPER/FEAST) that stays loaded on the spin button
+	// armed buy mode: a selected feature (BONUS/SUPER/MYSTERY) that stays loaded on the spin button
 	const armedBuy = () => (stateBetDerived.activeBetMode()?.type === 'buy' ? stateBet.activeBetModeKey : null);
-	/** short mode name for the spin button face: BONUS / SUPER / FEAST */
+	/** short mode name for the spin button face: BONUS / SUPER / MYSTERY */
 	const armedLabel = () => armedBuy();
 	const cancelArmed = () => {
 		stateBet.activeBetModeKey = 'BASE';
@@ -58,7 +58,7 @@ export const createControls = () => {
 				startLoadout();
 				return;
 			}
-			// an armed buy mode (BONUS/SUPER/FEAST) stays loaded on this button: every press buys and
+			// an armed buy mode (BONUS/SUPER/MYSTERY) stays loaded on this button: every press buys and
 			// plays that feature again until the player switches it off (bonus button / cancelArmed)
 			context.eventEmitter.broadcast({ type: 'bet' });
 			return;
