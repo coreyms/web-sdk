@@ -80,6 +80,12 @@
 			const b = measureIdlePose(r); // leaves the rig on idle frame 0: the rest pose for the ground line
 			maxDim = Math.max(b.width, b.height);
 			r.view.pivot.set(b.x + b.width / 2, b.y + b.height / 2);
+			// test hook (house rules: extend __angryMantis): the idle-pose box in rig units, so
+			// layoutSpec's MARTY_TOP (antenna tip above the origin, in body sizes) can be re-measured
+			// after a rig re-export: top = (height / max(width, height)) / 2
+			if (import.meta.env.DEV && typeof window !== 'undefined') {
+				((window as any).__angryMantis ??= {}).rigIdleBounds = { width: b.width, height: b.height };
+			}
 			const restFeet = feetOf(r);
 			const tex = context.stateApp.loadedAssets?.groundShadow as PIXI.Texture | undefined;
 			if (groundShadow && restFeet && tex) {
@@ -90,7 +96,7 @@
 				shadow.alpha = SHADOW_ALPHA;
 				wrapper.addChildAt(shadow, 0); // under the rig view
 				// test hook (house rules: extend __angryMantis, never a new global): A/B the shadow cost
-				if (typeof window !== 'undefined') {
+				if (import.meta.env.DEV && typeof window !== 'undefined') {
 					const am = ((window as any).__angryMantis ??= {});
 					const set = am.setGroundShadow as ((on: boolean) => void) | undefined;
 					am.setGroundShadow = (on: boolean) => {

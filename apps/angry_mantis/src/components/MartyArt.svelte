@@ -18,14 +18,16 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
+	import { MARTY, MASTER, layoutKind, martyFor } from '../game/layoutSpec';
 	import { RIG, reactionVoice } from '../game/constants';
 	import type { Rig } from '../bonerutter';
 	import { playClip, playIdle, currentClip, isIdling, scheduleBored } from '../game/mantisRig';
 	import BoneRig from './BoneRig.svelte';
 
 	const context = getContext();
-	const place = $derived(MARTY[layoutKind(context.stateLayoutDerived.layoutType())]);
+	// viewport width in master units: portrait's frame grows with it, and Marty's y follows the frame
+	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale);
+	const place = $derived(martyFor(layoutKind(context.stateLayoutDerived.layoutType()), vw));
 
 	let rig = $state<Rig | null>(null);
 	let busy = false;

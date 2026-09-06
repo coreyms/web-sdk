@@ -15,9 +15,11 @@
 	const showStop = $derived(controls.showStop());
 	const countText = $derived(controls.autoCountText());
 	const countFont = $derived(countText.length > 3 ? 0.28 : countText === '∞' ? 0.55 : 0.32);
-	const background = $derived(
-		showStop ? 'rgba(120, 30, 45, .85)' : autoActive ? 'rgba(60, 90, 20, .85)' : 'rgba(10, 14, 10, .6)',
-	);
+	// Corey's 2026-09-06 spec: a near-black flat square with a thin white outline in EVERY state —
+	// no tinted fills, no coloured rings (the state reads from the face: stop glyph, count, price)
+	const background = 'rgba(20, 18, 16, .85)';
+	const ring = $derived(Math.max(2, size * 0.03));
+	const radius = $derived(Math.round(Math.min(size * 0.22, 8 + size * 0.07)));
 	// armed buy mode: the selected feature is loaded on this button until cancelled — make that
 	// unmistakable: short feature name + the (K/M/B/T-abbreviated) price each press will wager
 	const armed = $derived(controls.armedBuy() !== null);
@@ -25,10 +27,9 @@
 	const armedFont = $derived((controls.playCostText() ?? '').length > 7 ? 0.19 : 0.23);
 	const freegame = $derived(controls.freeSpin() !== null);
 	const fs = $derived(controls.freeSpin());
-	// a parked autoplay loadout: green ring, spins + per-spin price; pressing starts the run
+	// a parked autoplay loadout: spins + per-spin price on the face; pressing starts the run
 	const loaded = $derived(controls.autoLoadout());
-	// during free games the button keeps its classic white ring — colour marks an idle button only
-	const ring = $derived(freegame ? '#fff' : autoActive || loaded ? '#9CD92F' : armed ? '#ffdc4a' : '#fff');
+	const ringColor = '#fff';
 </script>
 
 <button
@@ -39,7 +40,8 @@
 	style:width="{size}px"
 	style:height="{size}px"
 	style:background
-	style:box-shadow="inset 0 0 0 4px {ring}, inset 0 1px 0 rgba(255,255,255,.3), 0 0 0 1px rgba(0,0,0,.5), 0 14px 28px rgba(0,0,0,.55)"
+	style:border-radius="{radius}px"
+	style:box-shadow="inset 0 0 0 {ring}px {ringColor}, 0 4px 12px rgba(0,0,0,.45)"
 >
 	{#if replay}
 		<span class="replay-label" style:font-size="{Math.max(10, size * 0.19)}px">REPLAY</span>
@@ -74,7 +76,6 @@
 
 <style>
 	.spin {
-		border-radius: 18px;
 		color: #fff;
 		display: flex;
 		align-items: center;

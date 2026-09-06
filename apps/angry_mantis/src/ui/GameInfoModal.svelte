@@ -22,7 +22,7 @@
 	const close = () => (stateModal.modal = null);
 
 	const SECTIONS = [
-		{ id: 'paytable', label: 'Paytable' },
+		{ id: 'paytable', label: soc('Paytable', 'Symbols') },
 		{ id: 'guide', label: 'UI Guide' },
 		{ id: 'ways', label: 'Ways' },
 		{ id: 'modes', label: 'Game Modes' },
@@ -66,7 +66,7 @@
 	];
 
 	// the cap is a base-bet multiple in every mode; a mode's ceiling against its own price is what a
-	// player (and a reviewer) needs to see — 20,000x of a 1,000x Feast is 20x the price
+	// player (and a reviewer) needs to see — 20,000x of a 300x Mystery Spin is 66.7x the price
 	const capPerPrice = (cost: number) => {
 		const x = config.maxWin / cost;
 		return Number.isInteger(x) ? x.toLocaleString() : x.toFixed(1).replace(/\.0$/, '');
@@ -86,10 +86,10 @@
 	type GuideRow = { icon: IconName | null; art?: string; color: string; name: string; text: string };
 	const GUIDE: GuideRow[] = [
 		{ icon: 'play', color: '#2a241a', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
-		{ icon: 'turbo', color: '#b07a12', name: 'Turbo', text: 'Cycles Off → Turbo → Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. Turbo is remembered between sessions.' },
-		{ icon: 'auto', color: '#4e7d15', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, a stop-on-loss limit and a stop-on-single-win limit. LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. The button turns red while a run is active.' },
-		{ icon: null, art: '/assets/ui/mantis-head.png', color: '#4e7d15', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or a Mystery Spin directly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or a Mystery spin instantly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.') },
-		{ icon: 'coins', color: '#b07a12', name: soc('Bet Amount', 'Play Amount'), text: soc('Opens the bet picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.', 'Opens the play amount picker. The SPIN readout does the same when tapped. The Ante and feature tickets also carry a − / + stepper for the base amount.') },
+		{ icon: 'turbo', color: '#b07a12', name: 'Turbo', text: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. The turbo setting and the sound settings are remembered on this device.' },
+		{ icon: 'auto', color: '#4e7d15', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, a stop-on-loss limit and a stop-on-single-win limit. LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. While a run is active the Spin button shows the spins left and this button shows an X.' },
+		{ icon: 'polymath', color: '#4e7d15', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or a Mystery Spin directly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or a Mystery spin instantly. A loaded feature is shown on the Spin button and on this button as "<MODE> ON"; tap the button again to cancel it.') },
+		{ icon: 'coins', color: '#b07a12', name: soc('Bet Amount', 'Play Amount'), text: soc('The − and + buttons beside the SPIN readout step through the bet menu; tapping the SPIN readout opens the full bet picker. The Ante and feature tickets carry the same stepper for the base amount.', 'The − and + buttons beside the SPIN readout step through the play amount menu; tapping the SPIN readout opens the full picker. The Ante and feature tickets carry the same stepper for the base amount.') },
 		{ icon: 'menu', color: '#2a241a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
 		{ icon: 'info', color: '#2b6fb3', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The plaque on the reel frame names the active mode and its play amount.') },
 		{ icon: 'chevronRight', color: '#2a241a', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
@@ -145,8 +145,8 @@
 
 		<div class="content" bind:this={contentEl} onscroll={onScroll} style:padding="{pad}px" style:gap="{compact ? 18 : 28}px" style:font-size="{bodySize}px">
 			<section bind:this={sectionEls.paytable}>
-				<h2>Paytable</h2>
-				<p>{soc('Pays per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins pay left to right on adjacent reels starting from reel 1.', 'Wins per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins form left to right on adjacent reels starting from reel 1.')} {soc('Only the highest win per symbol is paid. Base game wins are capped at 250× the bet per spin.', 'Only the highest win per symbol counts. Base game wins are capped at 250× the play amount per spin.')}</p>
+				<h2>{soc('Paytable', 'Symbols')}</h2>
+				<p>{soc('Pays per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins pay left to right on adjacent reels starting from reel 1.', 'Wins per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins form left to right on adjacent reels starting from reel 1.')} {soc('Only the highest win per symbol is paid. Base game wins are capped at 250× the bet per spin.', 'Only the highest win per symbol counts. A single base game spin never wins more than 250× the play amount.')}</p>
 				<div class="pay-grid" style:grid-template-columns={compact ? '1fr' : 'repeat(2, minmax(0,1fr))'}>
 					{#each paying as sym (sym)}
 						{@const meta = SYMBOL_META[sym]}
@@ -158,7 +158,7 @@
 							</div>
 							<div class="pays">
 								{#each pays(sym) as p, i}
-									<div class="pay"><div class="pay-k">{3 + i}×</div><div class="slot-num pay-v">{payText(p)}</div></div>
+									<div class="pay"><div class="pay-k">{3 + i} of a kind</div><div class="slot-num pay-v">{payText(p)}</div></div>
 								{/each}
 							</div>
 						</div>
@@ -220,7 +220,7 @@
 						<div class="mode" style:border-color="{m.accent}66">
 							<div class="mode-head">
 								<div class="mode-name" style:color={m.accent} style:font-size="{compact ? 14 : 16}px">{m.label}</div>
-								<div class="mode-meta"><span>{soc('COST', 'PLAY AMOUNT')} <b class="slot-num" style:color={m.accent}>{m.cost}</b></span><span>RTP <b class="slot-num">{(config.rtp * 100).toFixed(2)}%</b></span><span>MAX WIN <b class="slot-num">{config.maxWin.toLocaleString()}× {soc('bet', 'play amount')}</b>{#if m.costNum !== 1}<span class="dim">&nbsp;= {capPerPrice(m.costNum)}× {soc('the mode price', 'the play amount for this mode')}</span>{/if}</span></div>
+								<div class="mode-meta"><span>{soc('COST', 'PLAY AMOUNT')} <b class="slot-num" style:color={m.accent}>{m.cost}</b></span><span>RTP <b class="slot-num">{(config.rtp * 100).toFixed(2)}%</b></span><span>MAX WIN <b class="slot-num">{config.maxWin.toLocaleString()}× {soc('bet', 'play amount')}</b>{#if m.costNum > 1}<span class="dim">&nbsp;= {capPerPrice(m.costNum)}× {soc('the mode price', 'the play amount for this mode')}</span>{/if}</span></div>
 							</div>
 							<div class="kv-grid" style:grid-template-columns={compact ? '1fr' : '1fr 1fr'}>
 								<div><div class="k">Enter</div><div class="v">{m.enter}</div></div>
@@ -236,8 +236,8 @@
 				<h2>Mystery Spin Disclosure</h2>
 				<div class="callout gold">
 					<p><strong>What a Mystery Spin serves:</strong> exactly <span class="slot-num mono">{config.mystery.nothing * 100}%</span> nothing (the round {soc('pays', 'wins')} 0), <span class="slot-num mono">{config.mystery.super * 100}%</span> Super Free Spins and <span class="slot-num mono">{config.mystery.feast * 100}%</span> Mantis Feast, for {modeCost('MYSTERY')}× {soc('the bet', 'the play amount')}. These shares are fixed in the published math.</p>
-					<p><strong>Feast floor:</strong> every Mantis Feast session, whether {soc('bought as a Mystery Spin', 'served by a Mystery spin')} or triggered by 5 Marky scatters, {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc(`${config.feastMinWin}× bet`, `${config.feastMinWin}× play amount`)}</span> — {(config.feastMinWin / modeCost('MYSTERY')).toFixed(2)}× the Mystery price, so a Mystery Feast is always a net {soc('profit', 'gain')} on that spin. Super Free Spins have no floor.</p>
-					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 200</span> Mystery Feast sessions and <span class="slot-num mono">1 in 150</span> scatter-triggered Feast sessions reach the {config.maxWin.toLocaleString()}× max win cap ({capPerPrice(modeCost('MYSTERY'))}× the Mystery price). Other Feast sessions land between the {config.feastMinWin}× floor and the cap, with the {soc('payout', 'win')} distribution skewed toward the floor.</p>
+					<p><strong>Feast floor:</strong> every Mantis Feast session, whether {soc('bought as a Mystery Spin', 'served by a Mystery spin')} or triggered by 5 Marky scatters, {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc(`${config.feastMinWin}× bet`, `${config.feastMinWin}× play amount`)}</span>, {(config.feastMinWin / modeCost('MYSTERY')).toFixed(2)}× the Mystery price, so a Mystery Feast is always a net {soc('profit', 'gain')} on that spin. Super Free Spins have no floor.</p>
+					<p><strong>Max win probability:</strong> approximately <span class="slot-num mono">1 in 200</span> Mystery Feast sessions and between <span class="slot-num mono">1 in 100</span> (base game) and <span class="slot-num mono">1 in 120</span> (Ante) scatter-triggered Feast sessions reach the {config.maxWin.toLocaleString()}× max win cap ({capPerPrice(modeCost('MYSTERY'))}× the Mystery price). Other Feast sessions land between the {config.feastMinWin}× floor and the cap, with the {soc('payout', 'win')} distribution skewed toward the floor. Counting the Super Free Spins it can serve as well, about <span class="slot-num mono">1 in 1,510</span> Mystery Spins reach the cap overall.</p>
 					<p class="dim">These figures are fixed in the published math and disclosed here in full.</p>
 				</div>
 			</section>
@@ -248,19 +248,19 @@
 				<ul>
 					<li>When a session starts the host takes an opening bite (Mantis Feast: both mantises bite).</li>
 					<li>Each bite <strong>{soc('eats the lowest-paying symbol', 'eats the lowest-value symbol')}</strong> still on the menu, removing it from the reels for the rest of the session.</li>
-					<li>Each <strong style="color:#4e7d15">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve — when several leaves land on one spin, each shows its own course, in serving order.</li>
+					<li>Each <strong style="color:#4e7d15">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve. When several leaves land on one spin, each shows its own course, in serving order.</li>
 					<li>Fewer symbols on the reels means the remaining symbols land more often, so wins escalate as the session goes on.</li>
 					<li>{soc(`If all eight paying symbols are eaten, the round pays the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`, `If all eight menu symbols are eaten, the round wins the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`)}</li>
 					<li>{soc(`The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the bet. Either way the round ends and the cap is paid.`, `The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the play amount. Either way the round ends and the cap is won.`)}</li>
 				</ul>
-				<div class="subhead">The menu — eaten in this order</div>
+				<div class="subhead">The menu, eaten in this order</div>
 				<div class="menu-strip">
 					{#each config.eatOrder as sym, i (sym)}
 						<div class="menu-item">
 							<img class="tile" src={tileSrc(sym)} alt={SYMBOL_META[sym].name} />
 							<div class="menu-num">{i + 1}</div>
 						</div>
-						{#if i < config.eatOrder.length - 1}<div class="menu-arrow">→</div>{/if}
+						{#if i < config.eatOrder.length - 1}<div class="menu-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg></div>{/if}
 					{/each}
 				</div>
 				<div class="row">
@@ -270,7 +270,7 @@
 					</div>
 					<div class="row-main">
 						<div class="row-name" style:color="#4e7d15">Serving example</div>
-						<div class="note">A Dinner Leaf lands carrying the Caterpillar — the lowest symbol still on the menu — and the host strikes to eat it, leaving an empty plate on the reels.</div>
+						<div class="note">A Dinner Leaf lands carrying the Caterpillar, the lowest symbol still on the menu, and the host strikes to eat it, leaving an empty plate on the reels.</div>
 					</div>
 				</div>
 			</section>
@@ -278,7 +278,7 @@
 			<section bind:this={sectionEls.maxwin}>
 				<h2>Max Win</h2>
 				<div class="callout red">
-					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{compact ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet — hard cap', 'play amount — hard cap')}</span></div>
+					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{compact ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet (hard cap)', 'play amount (hard cap)')}</span></div>
 					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is won.`)}</p>
 				</div>
 			</section>
@@ -286,14 +286,14 @@
 			<section bind:this={sectionEls.rtp}>
 				<h2>Return to Player (RTP)</h2>
 				<div class="rtp-grid" style:grid-template-columns={compact ? '1fr 1fr' : 'repeat(5, 1fr)'}>
-					{#each MODES as m (m.id)}
+					{#each MODES.filter((m) => m.costNum > 0) as m (m.id)}
 						<div class="rtp-cell" style:border-color="{m.accent}66">
-							<div class="rtp-k" style:color={m.accent}>{m.label.split(' ')[0]}</div>
+							<div class="rtp-k" style:color={m.accent}>{m.label}</div>
 							<div class="slot-num rtp-v" style:font-size="{compact ? 18 : 22}px">{(config.rtp * 100).toFixed(2)}%</div>
 						</div>
 					{/each}
 				</div>
-				<p>Every game mode has a theoretical return to player of <span class="slot-num mono">{(config.rtp * 100).toFixed(2)}%</span>, calculated over many millions of simulated plays.</p>
+				<p>Every game mode has a theoretical return to player of <span class="slot-num mono">{(config.rtp * 100).toFixed(2)}%</span>, calculated over hundreds of thousands of simulated rounds per mode.</p>
 				<p class="dim">RTP describes long-run behaviour across all players. Individual sessions may return significantly above or below this figure.</p>
 			</section>
 
@@ -315,7 +315,7 @@
 			<section bind:this={sectionEls.version}>
 				<h2>Version</h2>
 				<div class="kv-grid" style:grid-template-columns={compact ? '1fr' : '1fr 1fr'}>
-					{#each [['Game version', '0.1.0'], ['Math version', '2026.08.23'], ['Provider', 'Polymath Games'], ['Replay mode', 'Supported']] as [k, v]}
+					{#each [['Game version', __APP_VERSION__], ['Math version', config.mathVersion], ['Provider', 'Polymath Games'], ['Replay mode', 'Supported']] as [k, v]}
 						<div class="kv"><span class="dim">{k}</span><span class="slot-num">{v}</span></div>
 					{/each}
 				</div>

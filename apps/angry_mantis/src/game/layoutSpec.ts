@@ -38,11 +38,13 @@ export const FRAME_ART = { w: 1415, h: 1217, winX: 98, winY: 112, winW: 1220, wi
 // than the frame window at any layout, so scaled-to-window-width it always covers fully.
 export const DOOR_ART = { w: 1246, h: 1028 };
 
-// Static Marty illustration (base game). Centre + square size, in master units.
+// Marty's stage slot (base game AND the bonus mantises, which stand in the same spot). Centre +
+// square size, in master units. Portrait's y is NOT read from here: martyFor() derives it from the
+// frame art's bottom edge so his antennae touch the counter on every phone (frameFor() grows the
+// portrait frame with the viewport, so no fixed y can do that) — Corey 2026-09-06.
 export const MARTY: Record<LayoutKind, { x: number; y: number; size: number }> = {
 	landscape: { x: 1060, y: 490, size: 480 },
-	// Low so only head/arms show above the screen bottom edge; antennae just overlap the (expanded)
-	// frame's bottom border. Same x and size as before — Corey's spec: move him down only.
+	// y is the k=1 value for reference only; see martyFor()
 	portrait: { x: 340, y: 685, size: 340 },
 	// Same composition as landscape, transposed onto the phone master's 340-wide right column
 	// (frame edge 1140 → x = 1140 + 100 × 340/320): the mantis stands at desktop scale, overlapping
@@ -72,6 +74,37 @@ export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 		gap: base.gap * k,
 		margin: base.margin * k,
 	};
+};
+
+// The cafeteria frame ART's rectangle in master units (BoardFrame anchors the art's transparent
+// window to the cell area, so the art overhangs the FRAME rect by its rails). The chrome keys the
+// BALANCE / WIN / SPIN row to these edges, and Marty's portrait y to `bottom` (Corey 2026-09-06).
+export const frameArtRect = (kind: LayoutKind, viewportMasterWidth?: number) => {
+	const f = frameFor(kind, viewportMasterWidth);
+	const winX = f.x + f.inset;
+	const winY = f.y + f.inset;
+	const sx = (f.width - f.inset * 2) / FRAME_ART.winW;
+	const sy = (f.height - f.inset * 2) / FRAME_ART.winH;
+	const x = winX - FRAME_ART.winX * sx;
+	const y = winY - FRAME_ART.winY * sy;
+	const width = FRAME_ART.w * sx;
+	const height = FRAME_ART.h * sy;
+	return { x, y, width, height, right: x + width, bottom: y + height };
+};
+
+// Antenna tip above the rig's origin, in body sizes. The origin is the idle-pose box centre and
+// `size` its larger side (window.__angryMantis.rigIdleBounds in DEV: a 1254² square), but the box
+// is padded — the tips actually sit ~40 master px below its top at size 480 (measured on the
+// desktop render 2026-09-06: tips at y≈289 for a box top of 250). Re-measure after a rig re-export.
+export const MARTY_TOP = 0.42;
+
+// Where Marty stands for a given master. Portrait: antennae touching the frame's bottom counter,
+// x and size from MARTY; other kinds pass MARTY through.
+export const martyFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
+	const m = MARTY[kind];
+	if (kind !== 'portrait') return m;
+	const OVERLAP = 3; // a hair into the rail so the tips read as touching, not floating
+	return { x: m.x, size: m.size, y: frameArtRect(kind, viewportMasterWidth).bottom + m.size * MARTY_TOP - OVERLAP };
 };
 
 // desktop → the 1280×720 landscape master; phone-sideways ('landscape' layoutType) → the wide phone master.
@@ -184,7 +217,7 @@ export const HUD: Record<
 		modePlaque: { railArtY: (1149 + 1208) / 2 },
 	},
 	portrait: {
-		pool: { x: 206, y: 152, cols: 8, cell: 40 }, // one row overlapping the frame's top edge
+		pool: { x: 206, y: 150, cols: 8, cell: 48 }, // one row overlapping the frame's top edge (48: Corey 2026-09-05, "bigger")
 		// Bottom of the page (Corey 2026-09-02). The old 590 slot assumed phones render the
 		// unexpanded frame, but real phones are WIDER than the 412 master, so frameFor() grows the
 		// frame (k→1.36, art bottom ≈ 609) and the prompt landed on the bottom rail — straight

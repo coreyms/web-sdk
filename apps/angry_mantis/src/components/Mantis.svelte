@@ -27,7 +27,7 @@
 	import GameText from './GameText.svelte';
 	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, SFX_TRANSIENT, reactionPoolFor, reactionVoice, strikeVoice, eatVoice } from '../game/constants';
 	import { getSymbolX, getSymbolY } from '../game/utils';
-	import { MARTY, MASTER, layoutKind } from '../game/layoutSpec';
+	import { MARTY, MASTER, layoutKind, martyFor } from '../game/layoutSpec';
 	import type { Rig } from '../bonerutter';
 	import { rigPointInHost, playClip, playIdle, currentClip, isIdling } from '../game/mantisRig';
 	import BoneRig from './BoneRig.svelte';
@@ -38,7 +38,8 @@
 	// spot/size as the base-game Marty; marky mirrors him across the master centre.
 	const mantisPlace = () => {
 		const kind = layoutKind(context.stateLayoutDerived.layoutType());
-		const m = MARTY[kind];
+		const vw = context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale;
+		const m = martyFor(kind, vw); // portrait y tracks the frame bottom, like MartyArt
 		return { marty: { x: m.x, y: m.y }, marky: { x: MASTER[kind].width - m.x, y: m.y }, size: m.size };
 	};
 
@@ -70,7 +71,7 @@
 
 	const rigOf = (striker: Striker) => (striker === 'marty' ? martyRig : markyRig);
 	// test hook (house rules: extend __angryMantis, never a new global): which clip each host is on
-	if (typeof window !== 'undefined') {
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		Object.assign(((window as any).__angryMantis ??= {}), {
 			rigClips: () => ({ marty: martyRig ? currentClip(martyRig) : null, marky: markyRig ? currentClip(markyRig) : null }),
 		});

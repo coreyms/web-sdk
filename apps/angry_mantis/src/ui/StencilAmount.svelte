@@ -7,8 +7,8 @@
 	// renderer, so the two never disagree about a string. Unsupported currencies fall back to the
 	// whole string in the number font, exactly like ArtAmount's GameText fallback.
 	import type * as PIXI from 'pixi.js';
-	import { NUMERAL_GLYPHS, NUMERAL_DIGIT_H } from '../game/numeralGlyphs';
 	import { tokenizeNumerals } from '../game/numeralTokens';
+	import { NUMERAL_GAP, numeralCells, numeralRowWidth } from '../game/numeralMeasure';
 	import { stamp } from '../game/assets';
 	import { getContext } from '../game/context';
 
@@ -27,29 +27,16 @@
 		const { x, y, width, height } = tex.frame;
 		return { x, y, w: width, h: height, sw: tex.source.width, sh: tex.source.height };
 	};
-	const GAP = 0.05;
-	const SPACE = 0.32;
-	const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-	const DIGIT_CELL = Math.max(...DIGITS.map((d) => NUMERAL_GLYPHS[d].w));
-	const SEP_CELL = Math.max(NUMERAL_GLYPHS.comma.w, NUMERAL_GLYPHS.period.w);
-
 	// the sheet is preloaded, but a stat can mount before loadedAssets is populated in a story or a
 	// resume edge: treat "no frames yet" like an unsupported string and fall back to text
 	const tokens = $derived(tokenizeNumerals(text));
 	const ready = $derived(!!tokens && tokens.every((t) => t === null || frameOf(t) !== null));
 	const layout = $derived.by(() => {
 		if (!tokens || !ready) return { glyphs: [], width: 0, rowH: 0 };
-		const s = height / NUMERAL_DIGIT_H;
-		const gap = height * GAP;
-		const cells = tokens.map((name) => {
-			if (name === null) return { key: '', cellW: height * SPACE, w: 0, h: 0, d: 0 };
-			const g = NUMERAL_GLYPHS[name];
-			const isDigit = DIGITS.includes(name);
-			const isSep = name === 'comma' || name === 'period';
-			const w = g.w * s;
-			return { key: name, cellW: isDigit ? DIGIT_CELL * s : isSep ? SEP_CELL * s : w, w, h: g.h * s, d: g.d * s };
-		});
-		const total = cells.reduce((sum, c) => sum + c.cellW, 0) + gap * Math.max(0, cells.length - 1);
+		// cell metrics live in game/numeralMeasure.ts so the HUD can pre-size slots with the same math
+		const gap = height * NUMERAL_GAP;
+		const cells = numeralCells(tokens, height);
+		const total = numeralRowWidth(cells, height);
 		const fit = maxWidth && total > maxWidth ? maxWidth / total : 1;
 		let cx = 0;
 		const glyphs = cells.map((c) => {

@@ -33,6 +33,11 @@
 	// or centred x positions, so let its fit frame span the real viewport width (vertical stays master-based).
 	const fitWidth = $derived(kind === 'portrait' ? Math.max(master.width, (innerWidth.current ?? 1) / scale) : master.width);
 	const fitLeft = $derived(kind === 'portrait' ? ((innerWidth.current ?? 1) - fitWidth * scale) / 2 : left);
+	// Portrait, the other axis: a phone TALLER than the master (390×844 fits by width, leaving ~66
+	// master px of letterbox above and below) used to strand the HUD mid-screen. The Pixi scene stays
+	// centred (the frame, the tray, Marty all keep their master y), only the chrome's bottom-anchored
+	// HUD reaches down through this extra to the real viewport edge (Corey 2026-09-06).
+	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : 0);
 
 	let show = $state(true);
 	const FADE = 350;
@@ -53,21 +58,21 @@
 </script>
 
 <ChromeStyles />
-<EnableSpaceHold />
-<!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–2000×
+{#if !controls.isReplay() && !controls.jurisdiction().disabledSpacebar && stateModal.modal == null}<EnableSpaceHold />{/if}
+<!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–300×
      purchase behind the dialog, and with a parked autoplay loadout it starts the whole run.
      pressGates: while a press-to-continue presentation is up, Space belongs to it alone — otherwise
      the same press also hit controls.spin → stopButtonClick, force-enabling turbo. -->
 <OnHotkey
 	hotkey="Space"
-	disabled={controls.spinDisabled() || controls.isReplay() || context.stateLayout.showLoadingScreen || stateModal.modal != null || context.stateGame.pressGates > 0}
+	disabled={controls.spinDisabled() || controls.isReplay() || controls.jurisdiction().disabledSpacebar || context.stateLayout.showLoadingScreen || stateModal.modal != null || context.stateGame.pressGates > 0}
 	onpress={controls.spin}
 />
 
 <!-- The HUD fades out under every modal (Corey 2026-09-02): the paper modals carry their own SPIN/price
      readout, so the dimmed HUD behind them showed the same amount twice; modals live in their own layer. -->
 <div class="am-ui layer" class:hidden={!show || context.stateLayout.showLoadingScreen || stateModal.modal != null}>
-	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale}>
+	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px">
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />
 		{:else if kind === 'phone'}

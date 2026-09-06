@@ -5,18 +5,22 @@
 		value: string;
 		accent?: string;
 		align?: 'left' | 'center' | 'right';
-		size?: 'sm' | 'md' | 'lg';
+		size?: 'sm' | 'md' | 'lg' | 'xl';
 		overhead?: string | null;
 		maxWidth?: number;
+		/** reserve a fixed slot (master px) so neighbours never move as the value changes */
+		minWidth?: number;
 		onclick?: () => void;
 		disabled?: boolean;
 	};
 	import StencilAmount from './StencilAmount.svelte';
-	const { label, value, accent = '#ffdc4a', align = 'center', size = 'md', overhead = null, maxWidth, onclick, disabled = false }: Props = $props();
+	const { label, value, accent = '#ffdc4a', align = 'center', size = 'md', overhead = null, maxWidth, minWidth, onclick, disabled = false }: Props = $props();
 	// `val` is the stencil digit height (StencilAmount): the old Sora sizes were 26/18/16 px font-size,
 	// whose cap height is ~0.72em — the stencil glyph IS its cap height, so 19/13/12 keep the same
 	// visual weight. maxWidth still shrinks trillion-coin GC balances to fit (StencilAmount's fit).
-	const sz = $derived(size === 'lg' ? { lbl: 13, val: 19 } : size === 'sm' ? { lbl: 10, val: 12 } : { lbl: 11, val: 14 });
+	// 'xl' is the phone-landscape SPIN readout (Corey's 2026-09-06 layout: the play amount reads
+	// larger than BALANCE / WIN in that column)
+	const sz = $derived(size === 'xl' ? { lbl: 13, val: 26 } : size === 'lg' ? { lbl: 13, val: 19 } : size === 'sm' ? { lbl: 10, val: 12 } : { lbl: 11, val: 14 });
 	const interactive = $derived(!!onclick && !disabled);
 </script>
 
@@ -30,6 +34,7 @@
 	style:text-align={align}
 	style:pointer-events={interactive ? 'auto' : 'none'}
 	style:cursor={interactive ? 'pointer' : 'default'}
+	style:min-width={minWidth ? `${minWidth}px` : null}
 >
 	{#if overhead}
 		<span class="overhead" style:font-size="{sz.lbl - 3}px">{overhead}</span>
