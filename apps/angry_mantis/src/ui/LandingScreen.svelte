@@ -218,7 +218,7 @@
 			<div class="gate">
 				{#if assetsFailed}
 					<!-- same stencil style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
-					<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM — TAP TO RETRY</div>
+					<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM · TAP TO RETRY</div>
 				{:else if !ready}
 					<div class="bar" style:width="{SZ.barW}px" style:height="{SZ.barH}px">
 						<div class="fill" style:width="{Math.max(4, progress)}%"></div>

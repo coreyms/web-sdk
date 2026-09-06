@@ -1,3 +1,4 @@
+import { rgsErrorCode } from 'utils-shared/rgsErrorCode';
 import { stateBet, stateModal } from 'state-shared';
 
 /**
@@ -7,7 +8,7 @@ import { stateBet, stateModal } from 'state-shared';
  * machine (and the root game actor returns to idle) instead of wedging it silently.
  */
 export const surfaceBetError = (error: unknown) => {
-	console.error(error);
+	console.error('[rgs] play failed:', rgsErrorCode(error)); // the code only: the payload can be a whole book
 	stateBet.autoSpinsCounter = 0;
 	stateModal.modal = { name: 'error', error };
 };

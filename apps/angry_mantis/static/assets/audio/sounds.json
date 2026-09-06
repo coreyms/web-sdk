@@ -294,7 +294,6 @@
 	},
 	"src": [
 		"./assets/audio/sounds.ogg?v=4354bef3",
-		"./assets/audio/sounds.m4a?v=f4bc046a",
-		"./assets/audio/sounds.mp3?v=b5969e6a"
+		"./assets/audio/sounds.m4a?v=f4bc046a"
 	]
 }

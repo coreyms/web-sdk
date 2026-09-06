@@ -19,12 +19,12 @@ export const rulesSections = () => [
 		title: 'HOW TO PLAY',
 		paragraphs: [
 			soc(
-				'Choose a bet and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row — 1,024 ways to win. Only the highest win per symbol is paid.',
-				'Choose a play amount and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row — 1,024 ways to win. Only the highest win per symbol counts.',
+				'Choose a bet and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row: 1,024 ways to win. Only the highest win per symbol is paid.',
+				'Choose a play amount and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row: 1,024 ways to win. Only the highest win per symbol counts.',
 			),
 			soc(
-				'Base game wins are capped at 250x the bet per spin. The total payout of any round is capped at 20,000x the bet.',
-				'Base game wins are capped at 250x the play amount per spin. The total win of any round is capped at 20,000x the play amount.',
+				'A single base game spin never pays more than 250x the bet. The total payout of any round is capped at 20,000x the bet.',
+				'A single base game spin never wins more than 250x the play amount. The total win of any round is capped at 20,000x the play amount.',
 			),
 			// Stake requires the per-mode RTP inside HOW TO PLAY itself (creators' Discord, Corey 2026-09-02),
 			// not only in the GAME MODES / RTP sections
@@ -43,7 +43,7 @@ export const rulesSections = () => [
 				'Every Dinner Leaf that lands during free spins is another Mantis Strike. If all eight paying symbols are eaten, the round pays the 20,000x max win immediately and the session ends. The cap is also reached whenever wins in a session add up to 20,000x the bet; either way the round ends and the cap is paid.',
 				'Every Dinner Leaf that lands during free spins is another Mantis Strike. If all eight menu symbols are eaten, the round wins the 20,000x max win immediately and the session ends. The cap is also reached whenever wins in a session add up to 20,000x the play amount; either way the round ends and the cap is won.',
 			),
-			`Each Marky scatter in free spins awards +1 extra spin, up to +${config.freeSpins.maxRetrigger} per session. Once the maximum extra spins have been awarded, Marky scatters stop appearing for the rest of the session.`,
+			`Each Marky scatter in free spins awards +1 extra spin, up to +${config.freeSpins.maxRetrigger} per session. Once the maximum extra spins have been awarded, Marky scatters stop appearing for the rest of the session. A spin that reaches the 20,000x cap ends the round at once and awards no extra spin.`,
 			soc(`Every Mantis Feast session pays at least ${config.feastMinWin}x the bet.`, `Every Mantis Feast session wins at least ${config.feastMinWin}x the play amount.`),
 		],
 	},
@@ -52,7 +52,7 @@ export const rulesSections = () => [
 		paragraphs: [
 			soc(
 				`Ante Bet costs ${modeCost('ANTE')}x the bet. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature. Features land about four times as often as in the base game.`,
-				`Ante Mode costs ${modeCost('ANTE')}x the play amount. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature. Features land about four times as often as in the base game.`,
+				`Ante Mode is played for ${modeCost('ANTE')}x the play amount. A Marky scatter is locked onto reel 1 for every spin, so only two more scatters are needed to trigger a feature. Features land about four times as often as in the base game.`,
 			),
 		],
 	},
@@ -60,8 +60,8 @@ export const rulesSections = () => [
 		title: soc('BONUS BUY', 'FEATURE MODES'),
 		paragraphs: [
 			soc(
-				`Free Spins can be bought for ${modeCost('BONUS')}x the bet and Super Free Spins for ${modeCost('SUPER')}x. The Mystery Spin costs ${modeCost('MYSTERY')}x the bet and plays one spin: ${config.mystery.nothing * 100}% of Mystery Spins award nothing, ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.feast * 100}% award Mantis Feast. A Mystery Feast always pays at least ${config.feastMinWin}x the bet. Bought features play exactly like naturally triggered ones.`,
-				`Free Spins can be played directly for ${modeCost('BONUS')}x the play amount and Super Free Spins for ${modeCost('SUPER')}x. The Mystery spin costs ${modeCost('MYSTERY')}x the play amount and plays one spin: ${config.mystery.nothing * 100}% of Mystery spins award nothing, ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.feast * 100}% award Mantis Feast. A Mystery Feast always wins at least ${config.feastMinWin}x the play amount. Instantly triggered features play exactly like naturally triggered ones.`,
+				`Free Spins can be bought for ${modeCost('BONUS')}x the bet and Super Free Spins for ${modeCost('SUPER')}x. The Mystery Spin costs ${modeCost('MYSTERY')}x the bet and plays one spin: ${config.mystery.nothing * 100}% of Mystery Spins award nothing, ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.feast * 100}% award Mantis Feast. A Mystery Feast always pays at least ${config.feastMinWin}x the bet. Bought features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per session differ between a bought feature and a natural one, and every mode returns 96.00% of what is bet in it.`,
+				`Free Spins can be played directly for ${modeCost('BONUS')}x the play amount and Super Free Spins for ${modeCost('SUPER')}x. The Mystery spin is played for ${modeCost('MYSTERY')}x the play amount and plays one spin: ${config.mystery.nothing * 100}% of Mystery spins award nothing, ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.feast * 100}% award Mantis Feast. A Mystery Feast always wins at least ${config.feastMinWin}x the play amount. Instantly triggered features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per session differ between an instantly triggered feature and a natural one, and every mode returns 96.00% of what is played in it.`,
 			),
 		],
 	},

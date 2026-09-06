@@ -136,7 +136,7 @@ export class Rig {
         const [w, h] = p.deform.size;
         const n = mx * my;
         if (DEV && n > 100) {
-          console.warn(`bonerutter: "${p.name}" mesh ${n} verts > 100: breaks the sprite batch`);
+          if (DEV) console.warn(`bonerutter: "${p.name}" mesh ${n} verts > 100: breaks the sprite batch`);
         }
         const positions = new Float32Array(n * 2);
         const uvs = new Float32Array(n * 2);

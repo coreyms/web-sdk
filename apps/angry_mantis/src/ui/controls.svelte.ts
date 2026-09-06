@@ -17,7 +17,9 @@ export const createControls = () => {
 	context.eventEmitter.subscribeOnMount({
 		stopButtonClick: () => {
 			stopDisabled = true;
-			stateBetDerived.updateIsTurbo(true, { persistent: false });
+			// a slam-stop finishes the reels fast; under an operator's disabledTurbo the reels keep
+			// their normal speed (the stop still lands, the turbo flag never flips)
+			if (!jurisdiction().disabledTurbo) stateBetDerived.updateIsTurbo(true, { persistent: false });
 		},
 		stopButtonEnable: () => {
 			stopDisabled = false;
@@ -47,12 +49,18 @@ export const createControls = () => {
 		context.eventEmitter.broadcast({ type });
 
 	// ── spin / stop ──────────────────────────────────────────────────────
-	const spinDisabled = () => (isIdle() ? !canAfford() : stopDisabled && !autoRunning());
-	const showStop = () => !isIdle() && !autoRunning();
+	// Idle + unaffordable stays PRESSABLE: the press opens the balance notice (submission checklist:
+	// tell the player, send no play request). A disabled button could never reach that card.
+	const spinDisabled = () => (isIdle() ? betCostFull() <= 0 : (stopDisabled && !autoRunning()) || jurisdiction().disabledSlamstop);
+	const showStop = () => !isIdle() && !autoRunning() && !jurisdiction().disabledSlamstop;
 	const spin = () => {
+		if (isIdle() && !canAfford()) {
+			sound('soundPressMinor');
+			stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientBalance' };
+			return;
+		}
 		sound('soundPressBet');
 		if (isIdle()) {
-			if (!canAfford()) return;
 			// a loaded autoplay run: the Spin press is what starts it
 			if (context.stateGame.autoLoadout) {
 				startLoadout();
@@ -68,6 +76,7 @@ export const createControls = () => {
 			context.eventEmitter.broadcast({ type: 'stopButtonClick' });
 			return;
 		}
+		if (jurisdiction().disabledSlamstop) return; // operator flag: reels always run their full spin
 		if (!stopDisabled) context.eventEmitter.broadcast({ type: 'stopButtonClick' });
 	};
 
@@ -75,6 +84,7 @@ export const createControls = () => {
 	const autoLoadout = () => context.stateGame.autoLoadout;
 	const autoDisabled = () => stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAfford();
 	const autoPress = () => {
+		if (jurisdiction().disabledAutoplay) return;
 		sound('soundPressMinor');
 		if (autoRunning()) {
 			stateBet.autoSpinsCounter = 0;
@@ -116,15 +126,33 @@ export const createControls = () => {
 	// Cycles off → turbo → instant. Levels 1 and 2 both set the SDK turbo flag; level 2 also swaps the
 	// reel spin options for SPIN_OPTIONS_INSTANT (stateGame.svelte.ts).
 	const turboLevel = () => context.stateGame.turboLevel;
+	// level 2 (instant) is the "super turbo" an operator can forbid on its own
+	const maxTurboLevel = () => (jurisdiction().disabledTurbo ? 0 : jurisdiction().disabledSuperTurbo ? 1 : 2);
 	const turboPress = () => {
+		if (jurisdiction().disabledTurbo) return;
 		sound('soundPressMinor');
-		const next = ((context.stateGame.turboLevel + 1) % 3) as 0 | 1 | 2;
+		const next = ((context.stateGame.turboLevel + 1) % (maxTurboLevel() + 1)) as 0 | 1 | 2;
 		context.stateGame.turboLevel = next;
 		stateBetDerived.updateIsTurbo(next > 0, { persistent: true });
 	};
+	// the level is remembered between sessions (stateGame.svelte.ts): a saved level the operator
+	// forbids is clamped the moment the jurisdiction block lands
+	$effect(() => {
+		if (context.stateGame.turboLevel > maxTurboLevel()) {
+			context.stateGame.turboLevel = maxTurboLevel() as 0 | 1 | 2;
+			stateBetDerived.updateIsTurbo(context.stateGame.turboLevel > 0, { persistent: true });
+		}
+	});
 
 	// ── bonus / ante ─────────────────────────────────────────────────────
-	const bonusDisabled = () => !isIdle();
+	// operator jurisdiction flags from authenticate (stateConfig.jurisdiction): a disabled feature is
+	// hidden by the chrome AND refused here, so nothing can reach it via a hotkey or a stale button.
+	// Consumed: disabledBuyFeature, disabledAutoplay, disabledTurbo, disabledSuperTurbo,
+	// disabledSlamstop, disabledSpacebar, socialCasino (Game.svelte), minimumRoundDuration
+	// (utils-xstate), displayRTP / displayNetPosition / displaySessionTimer (MenuButton.svelte).
+	// disabledFullscreen: the game has no fullscreen control of its own, so there is nothing to hide.
+	const jurisdiction = () => stateConfig.jurisdiction;
+	const bonusDisabled = () => !isIdle() || jurisdiction().disabledBuyFeature;
 	const bonusPress = () => {
 		// Corey 2026-09-02: the bonus head button has its own voice again (ui-bonus.ogg, remixed);
 		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
@@ -161,22 +189,6 @@ export const createControls = () => {
 		if (!opts?.silent) sound('soundPressGeneral');
 		stateBetDerived.setBetAmount(value);
 	};
-	const betIndex = () => betOptions().indexOf(stateBet.betAmount);
-	const canStepBet = (dir: 1 | -1) => {
-		const options = betOptions();
-		if (!options.length) return false;
-		const i = betIndex();
-		if (i < 0) return true;
-		return dir > 0 ? i < options.length - 1 : i > 0;
-	};
-	const stepBet = (dir: 1 | -1) => {
-		const options = [...betOptions()].sort((a, b) => a - b);
-		const next =
-			dir > 0
-				? options.find((o) => o > stateBet.betAmount)
-				: [...options].reverse().find((o) => o < stateBet.betAmount);
-		if (next !== undefined) setBet(next);
-	};
 
 	// ── menu ─────────────────────────────────────────────────────────────
 	const menuPress = () => {
@@ -205,12 +217,10 @@ export const createControls = () => {
 		else winTween.set(target);
 	});
 	const winText = () => bookEventAmountToCurrencyString(Math.round(winTween.current));
-	// SPIN readout keeps the base spin amount (ante's 2× included, SDK behaviour); the full price of
-	// an armed feature lives on the spin button + the mode plaque, never here
-	// Replay: the round's mode is armed (Authenticate/ReplayModal set activeBetModeKey) but betCost()
-	// only scales 'activate' modes, so a replayed buy showed the base amount while the plaque showed
-	// the mode price. betCostFull covers every mode (Stake review 2026-09-02).
-	const betText = () => numberToCurrencyString(isReplay() ? betCostFull() : stateBetDerived.betCost());
+	// SPIN readout = the full price of the next press, whatever is armed: with a 300× feature loaded
+	// the SDK's betCost() still reported the base amount here while the button charged 300× (Stake
+	// review 2026-09-05). betCostFull covers every mode, replay included.
+	const betText = () => numberToCurrencyString(betCostFull());
 	const hasWin = () => stateBet.winBookEventAmount > 0;
 	const freeSpin = () =>
 		context.stateGame.gameType === 'freegame' && context.stateGame.totalFs > 0
@@ -223,8 +233,8 @@ export const createControls = () => {
 		spinDisabled, showStop, spin,
 		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,
 		turboPress, turboLevel,
-		bonusDisabled, bonusPress, activateMode, buyMode,
-		betOptions, betDisabled, openDenom, setBet, canStepBet, stepBet,
+		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,
+		betOptions, betDisabled, openDenom, setBet,
 		menuPress, openGameInfo,
 		balanceText, winText, betText, hasWin, freeSpin,
 		sound,

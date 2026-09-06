@@ -1,7 +1,7 @@
 import _ from 'lodash';
 
 import { recordBookEvent, checkIsMultipleRevealEvents, type BookEventHandlerMap } from 'utils-book';
-import { stateBet, stateBetDerived } from 'state-shared';
+import { stateBet, stateBetDerived, stateUrlDerived } from 'state-shared';
 import { waitForTimeout } from 'utils-shared/wait';
 
 import config from './config';
@@ -195,7 +195,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 	},
 	updateFreeSpin: async (bookEvent: BookEventOfType<'updateFreeSpin'>) => {
-		if (!freeSpinHadWin && Math.random() < 1 / 3) {
+		if (!freeSpinHadWin && !stateUrlDerived.replay() && Math.random() < 1 / 3) {
 			eventEmitter.broadcast({ type: 'mantisReact', kind: 'angry' });
 		}
 		stateGame.spinsPlayed = bookEvent.amount;
@@ -355,12 +355,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// Marty is always sore about it. No end-round is sent for a zero-win round (Stake rule).
 		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && stateBet.activeBetModeKey.toUpperCase() === 'MYSTERY') {
 			eventEmitter.broadcast({ type: 'martyReact', kind: 'angry' });
-			await eventEmitter.broadcastAsync({ type: 'mysteryTrayShow' });
-			eventEmitter.broadcast({ type: 'mysteryTrayHide' });
 			return;
 		}
 		// spec: ~1/15 losing base spins get an angry reaction from Marty
-		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && Math.random() < 1 / 15) {
+		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && !stateUrlDerived.replay() && Math.random() < 1 / 15) {
 			eventEmitter.broadcast({ type: 'martyReact', kind: 'angry' });
 		}
 		// Do nothing

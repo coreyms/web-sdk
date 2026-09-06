@@ -23,7 +23,6 @@ const strip = (ref) => ref.split('?')[0];
 // URLs — change whenever the PNG changes, even if the frame coordinates didn't.
 for (const rel of [
 	'sprites/amSymbols/amSymbols.json',
-	'sprites/amCharacters/amCharacters.json',
 	'rig/mantis-set.atlas.json', // BoneRutter character atlas — same TexturePacker JSON-hash shape
 	'ui/numerals/numerals.json', // prison-stencil amount glyphs (generated from branding/prison-numbers.webp)
 	'ui/gold-alphabet/gold-alphabet.json', // gold bonus-board glyphs (tools/build_glyph_atlas.py)

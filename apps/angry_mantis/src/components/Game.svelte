@@ -7,10 +7,12 @@
 	import { EnableHotkey } from 'components-shared';
 	import { MainContainer } from 'components-layout';
 	import { App } from 'pixi-svelte';
-	import { stateMeta } from 'state-shared';
+	import { stateMeta, stateUrlDerived } from 'state-shared';
 
 
 	import { getContext } from '../game/context';
+	import { IS_SOCIAL } from '../game/social';
+	import { stateConfig } from 'state-shared';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
 	import EnableSound from './EnableSound.svelte';
@@ -30,7 +32,6 @@
 	import ComboWin from './ComboWin.svelte';
 	import BonusIntro from './BonusIntro.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
-	import MysteryTray from './MysteryTray.svelte';
 	import Transition from './Transition.svelte';
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
@@ -50,7 +51,24 @@
 
 	// landing flow: the HTML LandingScreen collects the press, then the Pixi LoadingScreen plays
 	// the fade transition and calls onloaded
-	let landingPressed = $state(false);
+	// replay: no landing screen to press — the loading bar runs straight into the replay card
+	let landingPressed = $state(stateUrlDerived.replay());
+
+	// stake.us safety net: the URL param is the documented switch (game/social.ts), but if the
+	// operator's authenticate declares a social casino without it, reload once with it set so the
+	// module-scope string tables are built in social mode (they cannot switch after import)
+	// while that reload is pending nothing of the chrome is painted, so the standard-vocabulary
+	// landing screen never shows on a social operator
+	const redirecting = $derived(stateConfig.jurisdiction.socialCasino && !IS_SOCIAL);
+	$effect(() => {
+		if (stateConfig.jurisdiction.socialCasino && !IS_SOCIAL && typeof window !== 'undefined') {
+			const url = new URL(window.location.href);
+			if (url.searchParams.get('social') !== 'true') {
+				url.searchParams.set('social', 'true');
+				window.location.replace(url.toString());
+			}
+		}
+	});
 
 	onMount(() => {
 		context.stateLayout.showLoadingScreen = true;
@@ -189,15 +207,16 @@
 		<AllWildTopUp />
 		<MaxWinCinematic />
 		<FreeSpinOutro />
-		<MysteryTray />
 		<Transition />
 	{/if}
 </App>
 
 <!-- HTML chrome (design "Graffiti Grunge"): control bar, bonus buy, bet picker, game info -->
-<Chrome />
-{#if context.stateLayout.showLoadingScreen}
-	<LandingScreen onpress={() => (landingPressed = true)} />
+{#if !redirecting}
+	<Chrome />
+	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
+		<LandingScreen onpress={() => (landingPressed = true)} />
+	{/if}
 {/if}
 
 <style lang="scss">

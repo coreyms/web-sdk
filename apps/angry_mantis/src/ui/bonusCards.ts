@@ -36,7 +36,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'ANTE',
 		label: 'ANTE',
-		pitch: 'Marky locked on reel 1 every spin — only two more scatters needed to trigger a feature.',
+		pitch: 'Marky locked on reel 1 every spin, so only two more scatters are needed to trigger a feature.',
 		cta: 'ACTIVATE',
 		toggle: true,
 		accent: '#f2c14e',
@@ -50,7 +50,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'BONUS',
 		label: 'BONUS',
-		pitch: `${config.freeSpins.free} free spins. Every Dinner Leaf is a Mantis Strike — Marty eats the lowest symbol and it never returns.`,
+		pitch: `${config.freeSpins.free} free spins. Every Dinner Leaf is a Mantis Strike: Marty eats the lowest symbol and it never returns.`,
 		cta: 'ACTIVATE',
 		toggle: false,
 		accent: '#9bd62b',
@@ -64,7 +64,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'SUPER',
 		label: 'SUPER',
-		pitch: `${config.freeSpins.super} spins on leaf-richer reels — Marky strikes more often, clearing the menu faster.`,
+		pitch: `${config.freeSpins.super} spins on leaf-richer reels, so Marky strikes more often and clears the menu faster.`,
 		cta: 'ACTIVATE',
 		toggle: false,
 		accent: '#f0552e',

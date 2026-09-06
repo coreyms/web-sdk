@@ -67,7 +67,7 @@ const primaryRun = new WeakMap<Rig, number>();
 export const playIdle = (rig: Rig) => {
 	const run = primaryRun.get(rig) ?? RIG.idlesBetweenVariants;
 	const primary = RIG.idles[0].name;
-	let name = primary;
+	let name: (typeof RIG.idles)[number]['name'] = primary;
 	if (run >= RIG.idlesBetweenVariants) {
 		if (Math.random() < RIG.boredChance) {
 			primaryRun.set(rig, 0);

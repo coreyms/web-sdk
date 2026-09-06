@@ -14,9 +14,10 @@
 	//             ripple, plus a pre-blurred halo frame; a flash-off when the glow is cut
 	// `tier` (0-4) scales every amplitude — BIG is gentle, MAX is barely contained. Everything here
 	// is a container transform or a second sprite with blendMode 'add': no filters, no text raster.
-	import { Container, Sprite } from 'pixi-svelte';
+	import { Container, Sprite, BaseSprite } from 'pixi-svelte';
 
 	import { BR_GLYPHS, BR_CAP_H, BR_SET, BR_HALO_PAD } from '../game/brandedGlyphs';
+	import { shadowTexture } from '../game/shadowTexture';
 
 	type Props = {
 		lines: string[];
@@ -31,6 +32,7 @@
 		enterDelay?: number;
 		glint?: boolean;
 		glow?: boolean;
+		backdrop?: boolean; // soft dark blob behind the letters so they separate from busy art
 		onsettled?: () => void;
 		onexited?: () => void;
 	};
@@ -47,6 +49,7 @@
 		enterDelay = 0,
 		glint = false,
 		glow = false,
+		backdrop = false,
 		onsettled,
 		onexited,
 	}: Props = $props();
@@ -340,6 +343,10 @@
 </script>
 
 <Container x={x + shake.x} y={y + shake.y}>
+	{#if backdrop && layout.count}
+		<!-- the shared radial blob stretched well past the block: a blurred shadow, no filter -->
+		<BaseSprite texture={shadowTexture()} anchor={0.5} width={layout.w * 1.6 + 120} height={layout.h * 2.6 + 40} alpha={0.7} />
+	{/if}
 	{#each layout.cells as cell (cell.i)}
 		{@const g = st[cell.i]}
 		{#if g}

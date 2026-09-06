@@ -57,7 +57,7 @@
 		<Container x={hud.x} y={hud.y}>
 			<!-- ON THE MENU set from the branded glyphs (width capped at the 7.2 em the old art took);
 			     it glows from a dinner-leaf landing until the mantis finishes eating -->
-			{@const size = Math.round(hud.cell * (hud.cols > 4 ? 0.36 : 0.45))}
+			{@const size = Math.round(hud.cell * (hud.cols > 4 ? 0.44 : 0.45))}
 			<BrandedTitle lines={['ON THE MENU']} height={size * 0.95} maxWidth={size * 7.2} y={-(rows * hud.cell) / 2 + 3 - size * 0.62} glow={menuGlow} />
 			{#each config.eatOrder as symbol, i (symbol)}
 				{@const eaten = !context.stateGame.symbolPool.includes(symbol)}

@@ -20,6 +20,8 @@
 
 	import PressToContinue from './PressToContinue.svelte';
 	import StagedWinTitle from './StagedWinTitle.svelte';
+	import { bookEventAmountToBetAmountMultiplier } from 'utils-shared/amount';
+	import { WIN_TIER_STAGES, scaleStages } from '../game/winLevelMap';
 	import StagedCountUpProvider from './StagedCountUpProvider.svelte';
 	import CountUpText from './CountUpText.svelte';
 	import { getContext } from '../game/context';
@@ -76,7 +78,7 @@
 >
 	{#key presentId}
 		{#if winLevelData}
-			{@const isBigWin = winLevelData.type === 'big'}
+			{@const isBigWin = winLevelData.type === 'big' && bookEventAmountToBetAmountMultiplier(amount) >= scaleStages(WIN_TIER_STAGES, stateBetDerived.activeBetMode()?.costMultiplier ?? 1)[0].xBet}
 			{@const finalAlias = winLevelData.alias}
 			{@const duration = winLevelData.presentDuration / stateBetDerived.timeScale()}
 			<StagedCountUpProvider {amount} {duration}>

@@ -196,7 +196,7 @@ export function solve(
           // Unknown prop: skip, never throw (§4.4) — warn once per prop name.
           if (!warnedProps.has(ch.prop)) {
             warnedProps.add(ch.prop);
-            console.warn(`bonerutter: unknown channel prop "${ch.prop}" skipped`);
+            if (import.meta.env.DEV) console.warn(`bonerutter: unknown channel prop "${ch.prop}" skipped`);
           }
       }
     }

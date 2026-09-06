@@ -20,7 +20,7 @@
 	const close = () => (stateModal.modal = null);
 
 	// The confirm slip shows on EVERY buy: the old "don't show this again" checkbox (persisted in
-	// localStorage) let a player permanently defeat the price confirmation on a 100×–2000× purchase
+	// localStorage) let a player permanently defeat the price confirmation on a 100×–300× purchase
 	// (Stake review 2026-09-02; removed on Corey's call).
 	let confirmTarget = $state<{ opt: BonusCardSpec; price: number } | null>(null);
 
@@ -65,7 +65,7 @@
 			<Icon name="close" s={20} />
 		</button>
 		<div class="desktop" onclick={(e) => e.stopPropagation()} role="presentation">
-			<div class="title"><span class="rule l"></span>CHOW LINE — PICK YOUR PLATE<span class="rule r"></span></div>
+			<div class="title"><span class="rule l"></span>CHOW LINE · PICK YOUR PLATE<span class="rule r"></span></div>
 			<div class="row">
 				{#each BONUS_CARDS as opt (opt.mode)}
 					<BonusBuyCard {opt} {onbuy} />

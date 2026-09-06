@@ -30,33 +30,33 @@ const META: Record<string, Meta> = {
 	TRY: { symbol: '₺', decimals: 2 },
 	CLP: { symbol: 'CLP', decimals: 0, after: true },
 	ARS: { symbol: 'ARS', decimals: 2, after: true },
-	PEN: { symbol: 'S/', decimals: 2, after: true },
+	PEN: { symbol: 'S/', decimals: 2 }, // Stake table: S/10.00
 	NGN: { symbol: '₦', decimals: 2 },
 	SAR: { symbol: 'SAR', decimals: 2, after: true },
-	ILS: { symbol: '₪', decimals: 2 },
+	ILS: { symbol: 'ILS', decimals: 2, after: true }, // Stake table: 10.00 ILS
 	AED: { symbol: 'AED', decimals: 2, after: true },
 	TWD: { symbol: 'NT$', decimals: 2 },
-	NOK: { symbol: 'kr', decimals: 2, after: true },
-	KWD: { symbol: 'KD', decimals: 3 },
-	JOD: { symbol: 'JD', decimals: 3 },
+	NOK: { symbol: 'kr', decimals: 2 }, // Stake table: kr10.00
+	KWD: { symbol: 'KD', decimals: 2 }, // Stake table: KD10.00
+	JOD: { symbol: 'JD', decimals: 2 }, // Stake table: JD10.00
 	CRC: { symbol: '₡', decimals: 2 },
 	TND: { symbol: 'TND', decimals: 3, after: true },
 	SGD: { symbol: 'SG$', decimals: 2 },
 	MYR: { symbol: 'RM', decimals: 2 },
 	OMR: { symbol: 'OMR', decimals: 3, after: true },
 	QAR: { symbol: 'QAR', decimals: 2, after: true },
-	BHD: { symbol: 'BD', decimals: 3 },
+	BHD: { symbol: 'BD', decimals: 2 }, // Stake table: BD10.00
 	PKR: { symbol: '₨', decimals: 2 },
 	EGP: { symbol: 'ج.م', decimals: 2 },
 	NZD: { symbol: 'NZ$', decimals: 2 },
 	BOB: { symbol: 'Bs', decimals: 2 },
 	GHS: { symbol: 'GH₵', decimals: 2 },
 	KES: { symbol: 'KSh', decimals: 2 },
-	MAD: { symbol: 'MAD', decimals: 2, after: true },
+	MAD: { symbol: 'MAD', decimals: 2 }, // Stake table: MAD10.00
 	BAM: { symbol: 'KM', decimals: 2 },
-	ISK: { symbol: 'kr', decimals: 0, after: true },
+	ISK: { symbol: 'kr', decimals: 2 }, // Stake table: kr10.00
 	TZS: { symbol: 'TSh', decimals: 2 },
-	UGX: { symbol: 'USh', decimals: 0 },
+	UGX: { symbol: 'USh', decimals: 2 }, // Stake table: USh10.00
 	XOF: { symbol: 'CFA', decimals: 0, after: true },
 	// Stake social coins. Gold Coins are a whole-number coin (a padded ".00" is noise on every GC
 	// amount); Sweeps Cash tracks $1 and keeps its cents. Marker first with a space — the stencil

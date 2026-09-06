@@ -19,9 +19,12 @@
 		}
 		.am-ui * {
 			box-sizing: border-box;
+					/* every chrome surface, not just buttons: iOS double-tap zoom on a modal card or a readout */
+			touch-action: manipulation;
 		}
 		.am-ui {
 			box-sizing: border-box;
+			touch-action: manipulation; /* the root too: a double-tap on bare chrome ground must not zoom */
 			font-family: var(--ui-font);
 			color: var(--ui-text);
 			-webkit-font-smoothing: antialiased;
@@ -51,7 +54,7 @@
 			opacity: 0.55;
 		}
 		.slot-btn:focus-visible {
-			outline: 2px solid #ffa07a;
+			outline: 2px solid var(--ui-amber);
 			outline-offset: 3px;
 		}
 		@keyframes slot-count {

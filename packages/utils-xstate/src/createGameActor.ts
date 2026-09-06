@@ -1,3 +1,4 @@
+import { rgsErrorCode } from 'utils-shared/rgsErrorCode';
 import { setup, createActor, type ErrorActorEvent } from 'xstate';
 // import { inspect } from '@xstate/inspect';
 
@@ -37,7 +38,7 @@ const stateIdle = {
 // Catch-all: an error escalating out of an intermediate machine must return the root
 // actor to idle (so the next bet is accepted) instead of stopping the whole actor.
 // The intermediate machines surface their own errors before this can fire.
-const logEscalatedError = ({ event }: { event: ErrorActorEvent }) => console.error(event.error);
+const logEscalatedError = ({ event }: { event: ErrorActorEvent }) => console.error('[game] round failed:', rgsErrorCode(event.error));
 
 const stateResumeBet = {
 	invoke: {

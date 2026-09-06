@@ -1,5 +1,7 @@
 // Mirrors math-sdk/games/angry_mantis/game_config.py. Keep in sync.
 export default {
+	// the published math set this build is approved against (library/publish_files, 2026-09-05 reshape)
+	mathVersion: '2026.09.06',
 	providerName: 'polymath_games',
 	gameName: 'Angry Mantis',
 	gameID: 'angry_mantis',

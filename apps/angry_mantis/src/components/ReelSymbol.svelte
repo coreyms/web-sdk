@@ -94,13 +94,20 @@
 	// origin, scales it to glintWidth of the tile, tilts it, and slides it from beyond the left
 	// edge to beyond the right (verified on the live stage 2026-09-05; the default 'local' space
 	// first fits the texture to the shape's bounds and the sweep never lands where expected)
+	// Two contexts, alternated per frame: a clear()+redraw on ONE context leaves the texture
+	// fill's UVs at the first build in the live scene (verified 2026-09-05: the strip never moved
+	// on-screen while an extract of the node alone showed it sweeping); swapping the context
+	// forces the batch to rebuild. Pixi's `context` setter does NOT destroy the previous context,
+	// so allocating a new one per frame leaked ~20 contexts (and their GPU batches) per landing
+	// (chaos soak heap +23 MB, review 2026-09-05) — hence the pair, destroyed with the component.
+	const glintCtx = [new PIXI.GraphicsContext(), new PIXI.GraphicsContext()];
+	let glintFlip = 0;
+	$effect(() => () => glintCtx.forEach((c) => c.destroy()));
 	const drawGlint = (g: PIXI.Graphics) => {
 		if (!beat) return;
-		// fresh context per frame: a clear()+redraw on the same context leaves the texture fill's
-		// UVs at the first build in the live scene (verified 2026-09-05; the strip never moved
-		// on-screen while an extract of the node alone showed it sweeping). Replacing the context
-		// forces the batch to rebuild. The Graphics destroys the context it owned.
-		g.context = new PIXI.GraphicsContext();
+		glintFlip ^= 1;
+		g.context = glintCtx[glintFlip];
+		g.clear();
 		const p = beat.gl;
 		const h = tileSize * HIGH_LAND.trayHeight;
 		const r = tileSize * HIGH_LAND.trayRadius;

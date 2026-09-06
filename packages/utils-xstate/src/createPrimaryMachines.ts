@@ -1,7 +1,8 @@
+import { rgsErrorCode } from 'utils-shared/rgsErrorCode';
 import { fromPromise } from 'xstate';
 
 import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
-import { stateBet, stateUrlDerived, stateModal } from 'state-shared';
+import { stateBet, stateUrlDerived, stateModal, stateConfig } from 'state-shared';
 import { requestBet, requestEndRound } from 'rgs-requests';
 import { waitForTimeout } from 'utils-shared/wait';
 
@@ -29,14 +30,14 @@ const handleRequestBet = async ({ onError }: { onError: () => void }) => {
 		} else {
 			throw {
 				error: 'Empty state in data.round',
-				message: JSON.stringify({ data }),
+				message: 'The play response carried no round state.', // never echo the payload (front-end-communication: no game information logged)
 			};
 		}
 	} catch (error) {
 		onError();
 		stateBet.autoSpinsCounter = 0;
 		stateModal.modal = { name: 'error', error };
-		console.error(error);
+		console.error('[rgs] play failed:', rgsErrorCode(error));
 		throw error;
 	}
 };
@@ -111,6 +112,14 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 	} = options;
 
 	let balanceAmountFromApiHolder: null | number = null;
+	// jurisdiction.minimumRoundDuration (ms): a round may not complete faster than the operator's
+	// floor. Measured from the play request; the wait lands after the presentation, before end-round.
+	let roundStartedAt = 0;
+	const holdMinimumRoundDuration = async () => {
+		const min = Number(stateConfig.jurisdiction?.minimumRoundDuration) || 0;
+		const left = roundStartedAt + min - Date.now();
+		if (min > 0 && left > 0) await waitForTimeout(left);
+	};
 
 	const BET_TYPE_METHODS_MAP = {
 		noWin: {
@@ -162,6 +171,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 	const newGame = fromPromise(async () => {
 		await onNewGameStart();
 
+		roundStartedAt = Date.now();
 		const data = await handleRequestBet({ onError: onNewGameError });
 
 		if (data) {
@@ -205,6 +215,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 	// playGame
 	const playGame = fromPromise<void, { bet: TBet | null }>(async ({ input }) => {
 		if (input.bet) await onPlayGame(input.bet); // context.bet is hydrated from newGame
+		await holdMinimumRoundDuration();
 	});
 
 	// endGame

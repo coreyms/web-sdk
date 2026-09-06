@@ -16,7 +16,7 @@ export const rgsFetcher = {
 			endpoint: `https://${options.rgsUrl}${options.url}`,
 		});
 
-		if (response.status !== 200) console.error('error', response);
+		if (response.status !== 200) console.error('[rgs] request failed:', response.status);
 		const data = await response.json();
 		return data as TResponse;
 	},
@@ -29,7 +29,7 @@ export const rgsFetcher = {
 			endpoint: `https://${options.rgsUrl}${options.url}`,
 		});
 
-		if (response.status !== 200) console.error('error', response);
+		if (response.status !== 200) console.error('[rgs] request failed:', response.status);
 		const data = await response.json();
 		return data as TResponse;
 	},

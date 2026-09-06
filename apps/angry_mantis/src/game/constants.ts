@@ -103,7 +103,6 @@ export const TIMINGS = {
 	maxWinTopUpCount: 1000, // covers the HUD win tween (550ms, controls.svelte.ts) plus a beat
 	maxWinTopUpOutro: 350, // settle before the cinematic takes the screen
 	retrigger: 1300, // gold-art banner needs a readable beat (was 800 as plain text)
-	mysteryTray: 1500, // EMPTY TRAY beat: timed, no press gate (Corey 2026-09-05); scaled by timeScale()
 	highLandSquash: 180, // high-symbol landing beat (Corey 2026-09-05, picked from the comparison artifact)
 	highLandGlint: 320,
 };

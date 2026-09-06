@@ -49,7 +49,8 @@
 	const meta = $derived(betModeMeta[modeKey]);
 	const modeLabel = $derived(meta?.type === 'default' || !meta ? 'BASE GAME' : meta.text.title);
 	const base = $derived(stateBet.betAmount);
-	const costMultiplier = $derived(meta?.costMultiplier ?? 1);
+	// the replay response is the authority on what the round cost; the local table is only a fallback
+	const costMultiplier = $derived(Number((replayBet as { costMultiplier?: number } | null)?.costMultiplier) || meta?.costMultiplier || 1);
 	const totalPlay = $derived(base * costMultiplier);
 	const multiplier = $derived(Number((replayBet as { payoutMultiplier?: number } | null)?.payoutMultiplier ?? 0));
 	const totalWin = $derived(base * multiplier);
@@ -96,7 +97,7 @@
 
 			<div class="tear"></div>
 			<button class="slot-btn go" disabled={!replayBet} onclick={start}>START REPLAY</button>
-			<div class="cap">{soc('Watching only — nothing is wagered. Speed, sound and game info still work.', 'Watching only — no play amount is used. Speed, sound and game info still work.')}</div>
+			<div class="cap">{soc('Watching only. Nothing is wagered. Speed, sound and game info still work.', 'Watching only. No play amount is used. Speed, sound and game info still work.')}</div>
 		</div>
 	</div>
 </ModalShell>

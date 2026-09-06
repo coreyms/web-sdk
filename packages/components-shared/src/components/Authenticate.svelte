@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { rgsErrorCode } from 'utils-shared/rgsErrorCode';
 	import { onMount, type Snippet } from 'svelte';
 
 	import { requestAuthenticate, requestReplay } from 'rgs-requests';
@@ -31,6 +32,8 @@
 				// },
 				stateBet.currency = authenticateData.balance.currency;
 				stateBet.balanceAmount = authenticateData.balance.amount / API_AMOUNT_MULTIPLIER;
+				stateBet.sessionStartBalanceAmount = stateBet.balanceAmount;
+				stateBet.sessionStartedAt = Date.now();
 			}
 
 			// config
@@ -59,10 +62,15 @@
 				// 			"minimumRoundDuration": 0
 				// 	}
 				// }
-				stateConfig.jurisdiction = authenticateData?.config?.jurisdiction;
-				stateConfig.betAmountOptions = (authenticateData.config?.betLevels || []).map(
-					(level) => level / API_AMOUNT_MULTIPLIER,
-				);
+				// merged over the defaults, never replaced: a response without the block (or with a
+				// partial one) must not blank every flag the chrome dereferences
+				stateConfig.jurisdiction = { ...stateConfig.jurisdiction, ...(authenticateData?.config?.jurisdiction ?? {}) };
+				// the bet ladder is the RGS's to declare; a response that omits it keeps the default
+				// ladder rather than leaving the game with no bet to place
+				const betLevels = authenticateData.config?.betLevels;
+				if (Array.isArray(betLevels) && betLevels.length > 0) {
+					stateConfig.betAmountOptions = betLevels.map((level) => level / API_AMOUNT_MULTIPLIER);
+				}
 				stateConfig.betMenuOptions = stateConfig.betAmountOptions.filter((_, index) =>
 					MOST_USED_BET_INDEXES.includes(index),
 				);
@@ -149,7 +157,7 @@
 				};
 			}
 		} catch (error) {
-			console.error(error);
+			console.error('[rgs] authenticate failed:', rgsErrorCode(error));
 			stateModal.modal = { name: 'error', error };
 		}
 	};
@@ -185,7 +193,7 @@
 				};
 			}
 		} catch (error) {
-			console.error(error);
+			console.error('[rgs] authenticate failed:', rgsErrorCode(error));
 			stateModal.modal = { name: 'error', error };
 		}
 	};

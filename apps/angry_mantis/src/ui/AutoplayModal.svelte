@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { soc } from '../game/social';
 	// Autoplay Loadout (design approved 2026-08-26; Meal Ticket skin from Corey's Claude Design
 	// "Autoplay 2a", 2026-09-02): configure a run, preview its TRUE total, then LOAD it onto the spin
 	// button — pressing Spin is what starts it. Loss/win stops are multiples of one spin's play
@@ -61,7 +62,7 @@
 			</div>
 
 			<div class="sec">
-				<div class="sec-label"><h3>Number of spins</h3><span class="hint">{compact ? 'selecting only previews' : 'selecting only previews — nothing starts'}</span></div>
+				<div class="sec-label"><h3>Number of spins</h3><span class="hint">{compact ? 'selecting only previews' : 'selecting only previews, nothing starts'}</span></div>
 				<!-- landscape's 720-tall master has no room for two count rows under the rest of the card,
 				     so the eight counts run as one row there; compact keeps the design's 4×2 -->
 				{#each compact ? COUNT_ROWS : [COUNT_ROWS.flat()] as row, r (r)}
@@ -75,7 +76,7 @@
 					</div>
 				{/each}
 				<div class="total">
-					<span class="k">{compact ? 'TOTAL PLAY' : 'TOTAL PLAY AMOUNT'}</span>
+					<span class="k">{compact ? soc('TOTAL BET', 'TOTAL PLAY') : soc('TOTAL BET AMOUNT', 'TOTAL PLAY AMOUNT')}</span>
 					<span class="v-wrap"><span class="slot-num v">{totalText}</span><span class="slot-num math">{count === Infinity ? 'until stopped' : `${count} × ${controls.abbrev(perSpin)}`}</span></span>
 				</div>
 			</div>
@@ -108,14 +109,14 @@
 				<button class="slot-btn toggle" class:on={stopFreeOn} disabled={armed} onclick={() => { controls.sound('soundPressSub'); stopFree = !stopFree; if (stopFree) autoBonuses = false; }}>
 					<span class="t-text">
 						<span class="t-main">Stop on Free Games</span>
-						<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable — every spin already plays the loaded feature' : compact ? 'Ends when a feature triggers (it still plays out)' : 'Autoplay ends when a feature triggers naturally (it still plays out)'}</span>
+						<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable: every spin already plays the loaded feature' : compact ? 'Ends when a feature triggers (it still plays out)' : 'Autoplay ends when a feature triggers naturally (it still plays out)'}</span>
 					</span>
 					<span class="knob"></span>
 				</button>
 				<button class="slot-btn toggle" class:on={autoBonuses && !stopFreeOn} disabled={stopFreeOn} onclick={() => (controls.sound('soundPressSub'), (autoBonuses = !autoBonuses))}>
 					<span class="t-text">
 						<span class="t-main">Autoplay Bonuses</span>
-						<span class="t-sub" class:warn={stopFreeOn}>{stopFreeOn ? 'Unavailable — turn off Stop on Free Games first' : compact ? 'Bonus screens continue on their own' : 'Bonus screens continue on their own while autoplay runs'}</span>
+						<span class="t-sub" class:warn={stopFreeOn}>{stopFreeOn ? 'Unavailable: turn off Stop on Free Games first' : compact ? 'Bonus screens continue on their own' : 'Bonus screens continue on their own while autoplay runs'}</span>
 					</span>
 					<span class="knob"></span>
 				</button>
@@ -124,7 +125,7 @@
 			<div class="tear"></div>
 
 			<button class="slot-btn go" onclick={load}>
-				LOAD {countText(count)} AUTO SPINS{#if count !== Infinity}&nbsp;—&nbsp;<span class="slot-num">{totalText}</span>{/if}
+				LOAD {countText(count)} AUTO SPINS{#if count !== Infinity}&nbsp;·&nbsp;<span class="slot-num">{totalText}</span>{/if}
 			</button>
 			<div class="cap">{compact ? 'Loads to the Spin button. Press Spin to start; press again to stop.' : 'Loads to the Spin button. Pressing Spin starts the run; pressing it again stops.'}</div>
 			{#if hasLoadout}

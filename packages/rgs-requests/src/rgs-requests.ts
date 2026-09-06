@@ -35,6 +35,19 @@ export const requestEndRound = async (options: {
 	return data;
 };
 
+/** /wallet/balance — re-read the wallet after a failed play, so the readout never sits on a pre-error value. */
+export const requestBalance = async (options: { sessionID: string; rgsUrl: string }) => {
+	const data = await rgsFetcher.post({
+		rgsUrl: options.rgsUrl,
+		url: '/wallet/balance',
+		variables: {
+			sessionID: options.sessionID,
+		},
+	});
+
+	return data;
+};
+
 export const requestEndEvent = async (options: {
 	sessionID: string;
 	eventIndex: number;

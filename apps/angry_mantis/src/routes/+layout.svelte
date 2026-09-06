@@ -16,7 +16,8 @@
 
 	// The PolyMath intro is the only loader: the sample kit's "Powered By Stake Engine" GIF used to
 	// play first, and the submission PreChecks forbid shipping it (approval review 2026-09-02).
-	let showIntro = $state(true);
+	// a replay link is a recording: the round card is the first thing it shows
+	let showIntro = $state(typeof window === 'undefined' || new URLSearchParams(window.location.search).get('replay') !== 'true');
 
 	setContext();
 

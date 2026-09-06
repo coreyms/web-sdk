@@ -1,6 +1,10 @@
 <script lang="ts">
 	// Menu popover: Game Info + Music/SFX sliders (tap the icon to mute). Bound to the SDK sound state.
-	import { stateSound, stateUi } from 'state-shared';
+	import { stateSound, stateUi, stateBet, stateConfig } from 'state-shared';
+	import { numberToCurrencyString } from 'utils-shared/amount';
+
+	import config from '../game/config';
+	import { soc } from '../game/social';
 
 	import ChunkyBtn from './ChunkyBtn.svelte';
 	import Icon from './Icon.svelte';
@@ -29,6 +33,28 @@
 
 	const rowH = $derived(compact ? 44 : 52);
 	const iconBox = $derived(compact ? 36 : 42);
+
+	// operator readouts (authenticate jurisdiction flags): shown only where the operator asks.
+	// Net position = balance now minus the balance the session opened with; the timer counts from
+	// authenticate. Both live in stateBet (set in Authenticate.svelte).
+	const j = $derived(stateConfig.jurisdiction);
+	const showSession = $derived(j.displayRTP || j.displayNetPosition || j.displaySessionTimer);
+	let now = $state(Date.now());
+	$effect(() => {
+		if (!j.displaySessionTimer || !stateUi.menuOpen) return;
+		const id = setInterval(() => (now = Date.now()), 1000);
+		return () => clearInterval(id);
+	});
+	const net = $derived(stateBet.balanceAmount - stateBet.sessionStartBalanceAmount);
+	const netText = $derived(`${net < 0 ? '−' : net > 0 ? '+' : ''}${numberToCurrencyString(Math.abs(net), { maximumFractionDigits: 2 })}`);
+	const elapsedText = $derived.by(() => {
+		const s = Math.max(0, Math.floor((now - (stateBet.sessionStartedAt || now)) / 1000));
+		const hh = Math.floor(s / 3600);
+		const mm = Math.floor((s % 3600) / 60);
+		const ss = s % 60;
+		const two = (n: number) => String(n).padStart(2, '0');
+		return hh > 0 ? `${hh}:${two(mm)}:${two(ss)}` : `${two(mm)}:${two(ss)}`;
+	});
 </script>
 
 <div class="wrap">
@@ -55,6 +81,20 @@
 				</button>
 				<input type="range" min="0" max="100" bind:value={stateSound.volumeValueSoundEffect} class="vol-slider" style:--fill="{stateSound.volumeValueSoundEffect}%" class:off={stateSound.volumeValueSoundEffect === 0} aria-label="Sound effects volume" />
 			</div>
+
+			{#if showSession}
+				<div class="session">
+					{#if j.displayRTP}
+						<div class="srow"><span class="sk">RTP</span><span class="slot-num sv">{(config.rtp * 100).toFixed(2)}%</span></div>
+					{/if}
+					{#if j.displayNetPosition}
+						<div class="srow"><span class="sk">{soc('NET POSITION', 'NET RESULT')}</span><span class="slot-num sv" class:neg={net < 0} class:pos={net > 0}>{netText}</span></div>
+					{/if}
+					{#if j.displaySessionTimer}
+						<div class="srow"><span class="sk">SESSION</span><span class="slot-num sv">{elapsedText}</span></div>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	</Popover>
 </div>
@@ -124,6 +164,41 @@
 	}
 	.sound-row input {
 		flex: 1;
+	}
+	/* operator readouts: a ruled block under the sliders, same dashed stock as the sound rows */
+	.session {
+		display: flex;
+		flex-direction: column;
+		padding: 4px 12px;
+		border-radius: 10px;
+		border: 2px dashed var(--rule);
+	}
+	.srow {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 12px;
+		padding: 6px 0;
+	}
+	.srow + .srow {
+		border-top: 1px solid rgba(0, 0, 0, 0.1);
+	}
+	.sk {
+		font-size: 11px;
+		font-weight: 800;
+		letter-spacing: 2px;
+		color: var(--muted);
+	}
+	.sv {
+		font-size: 14px;
+		font-weight: 800;
+		color: var(--ink);
+	}
+	.sv.neg {
+		color: #b8371e;
+	}
+	.sv.pos {
+		color: var(--green);
 	}
 	/* paper slider: scoped rules outrank the global .vol-slider (ChromeStyles) */
 	.vol-slider {

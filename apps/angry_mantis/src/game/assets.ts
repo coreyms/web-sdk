@@ -16,8 +16,6 @@ export const stamp = (href: string): string => {
 // game/assetGate.ts before they draw any of it, so a slow connection never shows a hole. Before this
 // split every key was gated: 9.7 MB (≈49 s on Fast 3G) before PRESS ANYWHERE (Stake review 2026-09-02).
 export default {
-	logoLandscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-landscape.webp', import.meta.url).href), preload: true },
-	logoWide: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-wide.webp', import.meta.url).href), preload: true },
 	// per-mode cafeteria backdrops (finishing-touches item 6): base/ante/regular bonus share one,
 	// super and feast get their own. Only the base scene gates the landing; the other two ride the
 	// deferred phase (bonusStart awaits it, so bonus entry still never pops).
@@ -67,8 +65,7 @@ export default {
 		src: stamp(new URL('../../assets/ui/numerals/numerals.json', import.meta.url).href),
 		preload: true,
 	},
-	// bonus-intro headshots (real character art; the in-game corner mantises stay on amCharacters
-	// placeholder frames until the Spine rig lands)
+	// bonus-intro headshots (real character art)
 	// soft ellipse under each mantis's feet (BoneRig ground shadow); tiny, so it rides the preload
 	groundShadow: { type: 'sprite', src: stamp(new URL('../../assets/ui/ground-shadow.webp', import.meta.url).href), preload: true },
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
@@ -76,11 +73,6 @@ export default {
 	amSymbols: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/sprites/amSymbols/amSymbols.json', import.meta.url).href),
-		preload: true,
-	},
-	amCharacters: {
-		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/amCharacters/amCharacters.json', import.meta.url).href),
 		preload: true,
 	},
 	// BoneRutter character atlas: registered here so the loading screen gates on the 760KB page

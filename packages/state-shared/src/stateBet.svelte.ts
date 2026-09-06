@@ -19,6 +19,10 @@ export const stateBet = $state({
 	autoSpinsSingleWinLimitAmount: Infinity,
 	isSpaceHold: false,
 	isTurbo: false,
+	/** balance the session opened with (authenticate) — displayNetPosition shows balance minus this */
+	sessionStartBalanceAmount: 0,
+	/** Date.now() at authenticate — displaySessionTimer counts from here */
+	sessionStartedAt: 0,
 });
 
 const correctBetAmount = (value: number) => {

@@ -10,8 +10,7 @@ export function recordBookEvent<TBookEvent extends BaseBookEvent>({
 	bookEvent: TBookEvent;
 }) {
 	if (PUBLIC_CHROMATIC || stateUrlDerived.replay()) {
-		console.log('mock request end-event:', { index: bookEvent.index, type: bookEvent.type });
-		return;
+		return; // replay / visual tests: no session, nothing to record (and nothing logged)
 	}
 
 	try {
@@ -24,11 +23,11 @@ export function recordBookEvent<TBookEvent extends BaseBookEvent>({
 			eventIndex: bookEvent.index,
 			rgsUrl: stateUrlDerived.rgsUrl(),
 			sessionID: stateUrlDerived.sessionID(),
-		}).catch((error) => {
-			console.warn('end-event request failed:', { index: bookEvent.index, type: bookEvent.type }, error);
+		}).catch(() => {
+			console.warn('end-event request failed'); // no event index/type/payload in a production console
 		});
 	} catch (error) {
-		console.error(error);
+		console.error('[book] playback failed'); // the error carries the book
 	}
 }
 

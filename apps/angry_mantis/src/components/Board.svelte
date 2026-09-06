@@ -14,6 +14,7 @@
 </script>
 
 <script lang="ts">
+	import { stateConfig } from 'state-shared';
 	import { waitForResolve } from 'utils-shared/wait';
 	import { BoardContext } from 'components-shared';
 	import { OnPressFullScreen } from 'components-layout';
@@ -33,11 +34,15 @@
 		const report = checkBoardGrid(context.stateGame.board, { snap: true });
 		if (report.offenders.length) {
 			driftEvents += 1;
-			console.error('[angry_mantis] symbol drift corrected', report);
+			// the lattice report names board symbols: dev-only, nothing about the round reaches a
+			// production console (front-end communication: no game information logged)
+			if (import.meta.env.DEV) console.warn('[angry_mantis] symbol drift corrected', report);
 		}
 	};
 	let driftEvents = 0;
-	if (typeof window !== 'undefined') {
+	// DEV ONLY: the Playwright gates (tools/*_test.js) run against the dev server; a production
+	// bundle must not carry an emitter injector on window (Stake review 2026-09-05)
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		// merged, not assigned: other components (Mantis.svelte's rigClips) extend the same object
 		// and mount order is not guaranteed
 		Object.assign(((window as any).__angryMantis ??= {}), {
@@ -52,6 +57,8 @@
 			// stage the wrap-up recap (normally stashed by bonusEnd) so FreeSpinOutro can be
 			// previewed via emit(freeSpinOutroShow / freeSpinOutroCountUp) without a whole bonus
 			setRecap: (recap: any) => (context.stateGame.sessionRecap = recap),
+			// QA for operator flags the mock RGS never sends (disabledTurbo, displayRTP, ...)
+			setJurisdiction: (patch: Record<string, unknown>) => Object.assign(stateConfig.jurisdiction, patch),
 		});
 	}
 
@@ -106,8 +113,9 @@
 </script>
 
 {#if show}
-	{#if !context.stateXstateDerived.isIdle() && !context.stateGame.board.every((reel) => reel.reelState.motion === 'stopped')}
-		<!-- tap/click anywhere while the reels are moving = same as the stop button -->
+	{#if !stateConfig.jurisdiction.disabledSlamstop && !context.stateXstateDerived.isIdle() && !context.stateGame.board.every((reel) => reel.reelState.motion === 'stopped')}
+		<!-- tap/click anywhere while the reels are moving = same as the stop button (an operator's
+		     disabledSlamstop removes this along with the stop button) -->
 		<OnPressFullScreen onpress={() => context.eventEmitter.broadcast({ type: 'stopButtonClick' })} />
 	{/if}
 	<BoardContext animate={false}>

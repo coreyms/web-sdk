@@ -4,6 +4,8 @@
 import { stateBet, stateBetDerived } from 'state-shared';
 import { numberToCurrencyString } from 'utils-shared/amount';
 
+import { soc } from './social';
+
 // full price of the next press: bet × mode multiplier. The SDK's betCost() applies the multiplier
 // only to 'activate' modes (buys are charged server-side), so an armed buy would read as the base
 // bet — wrong price on the button and no affordability gate. This covers all modes.
@@ -31,7 +33,7 @@ export const abbrevCurrency = (amount: number, threshold = 10_000): string => {
 /** mode plaque on the reel frame: active mode + the true cost of one spin press (null in base game) */
 export const modeChipData = (): { label: string; cost: string } | null => {
 	const mode = stateBetDerived.activeBetMode();
-	if (mode?.type === 'activate') return { label: 'ANTE MODE', cost: abbrevCurrency(betCostFull(), 100_000) };
+	if (mode?.type === 'activate') return { label: soc('ANTE BET', 'ANTE MODE'), cost: abbrevCurrency(betCostFull(), 100_000) };
 	if (mode?.type === 'buy') {
 		const label = mode.text?.betAmountLabel ?? stateBet.activeBetModeKey;
 		return { label, cost: abbrevCurrency(betCostFull(), 100_000) };

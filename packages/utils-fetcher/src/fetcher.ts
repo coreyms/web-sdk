@@ -8,6 +8,8 @@ export const fetcher = (options: {
 
 	return (options.fetch ?? fetch)(endpoint, {
 		method,
+		// a hung connection must surface as an error the game can show, not a spin stuck on STOP
+		signal: AbortSignal.timeout(30_000),
 		headers: {
 			'Content-Type': 'application/json',
 		},
