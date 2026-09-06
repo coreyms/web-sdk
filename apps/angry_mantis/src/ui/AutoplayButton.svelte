@@ -13,6 +13,6 @@
 	const loaded = $derived(controls.autoLoadout() !== null);
 </script>
 
-<ChunkyBtn glass {size} color={running ? '#fff' : loaded ? '#9CD92F' : '#fff'} active={running || loaded} disabled={controls.autoDisabled()} onclick={controls.autoPress} ariaLabel="Autoplay">
+<ChunkyBtn glass {size} color={running ? '#ff5a8a' : loaded ? '#9CD92F' : '#fff'} active={running || loaded} disabled={controls.autoDisabled()} onclick={controls.autoPress} ariaLabel="Autoplay">
 	{#if running}<Icon name="close" s={size * 0.5} />{:else}<Icon name="auto" s={size * 0.42} />{/if}
 </ChunkyBtn>
