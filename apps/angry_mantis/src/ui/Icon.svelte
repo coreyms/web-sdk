@@ -30,9 +30,10 @@
 {:else if name === 'coins'}
 	<svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.4" opacity=".95" /><path d="M5 6.5v3.2c0 1.3 3.1 2.4 7 2.4s7-1.1 7-2.4V6.5" /><path d="M5 11.5v3.2c0 1.3 3.1 2.4 7 2.4s7-1.1 7-2.4v-3.2" opacity=".75" /><path d="M5 16.5v3.2c0 1.3 3.1 2.4 7 2.4s7-1.1 7-2.4v-3.2" opacity=".55" /></svg>
 {:else if name === 'polymath'}
-	<!-- the PolyMath Games mark, same geometry as PolyMathIntro.svelte: thick struts, ring nodes at the
-	     vertices (hollow, the surface shows through), solid hub -->
-	<svg width={s} height={s} viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M50 17.6L14 80H86zM50 17.6V59.2M14 80L50 59.2M86 80L50 59.2" /><circle cx="50" cy="17.6" r="8" /><circle cx="14" cy="80" r="8" /><circle cx="86" cy="80" r="8" /><circle cx="50" cy="59.2" r="9.5" fill="currentColor" /></svg>
+	<!-- the PolyMath Games mark, geometry from Corey's "Feature Button Final" design (viewBox -112 -126 224 200,
+	     stroke 17): struts + ring nodes in currentColor, the node holes in --pm-hole (the tile behind), the
+	     hub solid in --pm-core (brand green) -->
+	<svg width={s} height={s * (200 / 224)} viewBox="-112 -126 224 200" aria-hidden="true" style="overflow:visible;display:block"><g fill="none" stroke="currentColor" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"><path d="M0 -100 L-85 47 L85 47 Z" /><path d="M0 -100 L0 -2 M-85 47 L0 -2 M85 47 L0 -2" /></g><g stroke-width="17"><circle cx="0" cy="-100" r="16" fill="var(--pm-hole, #15161c)" stroke="currentColor" /><circle cx="-85" cy="47" r="16" fill="var(--pm-hole, #15161c)" stroke="currentColor" /><circle cx="85" cy="47" r="16" fill="var(--pm-hole, #15161c)" stroke="currentColor" /><circle cx="0" cy="-2" r="16" fill="var(--pm-core, #9CD92F)" stroke="var(--pm-core, #9CD92F)" /></g></svg>
 {:else if name === 'chevronLeft'}
 	<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
 {:else if name === 'chevronRight'}
