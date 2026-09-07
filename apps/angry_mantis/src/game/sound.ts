@@ -60,9 +60,9 @@ const sound = createSound<SoundName>();
 // audio were still in flight (minutes of silent gameplay on a slow link).
 //
 // So we own the fetch: kicked at app start (see routes/+layout.svelte) in parallel with the image
-// preload, streamed so we get real byte progress for the loading bar, then handed to Howler as an
-// object URL. Constructing/decoding a Howl before a user gesture is fine — only playback needs the
-// gesture, and Howler's own unlock handler covers that.
+// preload, streamed so we get real byte progress for the loading bar, then handed to Howler by its
+// real URL (the bytes are in the HTTP cache by then). Constructing/decoding a Howl before a user
+// gesture is fine — only playback needs the gesture, and Howler's own unlock handler covers that.
 type SoundManifest = {
 	src: string[];
 	sprite: Record<string, [number, number] | [number, number, boolean]>;
@@ -87,26 +87,30 @@ const pickSource = (srcList: string[]) => {
 	return undefined;
 };
 
-const fetchWithProgress = async (url: string) => {
+// Howler gets the sprite's REAL URL, never an object URL. engine.io serves the game under a
+// Content Security Policy with no `blob:` source (2026-09-07): Howler's Web Audio XHR to a blob URL
+// is refused (connect-src), Howler then silently retries the same blob through an HTML5 media
+// element, which is refused too (media-src) and surfaces as MediaError code 4 — every effect
+// silent while the music, streamed from real URLs, plays fine. The browser only logs the CSP
+// refusals itself, so the game's console showed just "audiosprite failed to load 4". Same-origin
+// URLs are allowed everywhere the game can be embedded; this fetch exists for the loading bar and
+// to warm the HTTP cache so Howler's own request is (normally) served locally.
+const prefetchWithProgress = async (url: string) => {
 	const response = await fetch(url);
 	if (!response.ok) throw new Error(`audiosprite ${response.status} ${response.statusText}`);
-	// no streaming body (very old browsers): fall back to letting Howler fetch the URL itself
-	if (!response.body) return url;
+	// no streaming body (very old browsers): the loading bar just waits for Howler
+	if (!response.body) return;
 
 	const total = Number(response.headers.get('content-length')) || 0;
 	const reader = response.body.getReader();
-	const chunks: Uint8Array[] = [];
 	let received = 0;
 	for (;;) {
 		const { done, value } = await reader.read();
 		if (done) break;
-		chunks.push(value);
 		received += value.length;
 		if (total) sound.reportDownloadProgress(received / total, total);
 	}
 	sound.reportDownloadProgress(1);
-	const type = response.headers.get('content-type') ?? 'application/octet-stream';
-	return URL.createObjectURL(new Blob(chunks as BlobPart[], { type }));
 };
 
 // ── music ──────────────────────────────────────────────────────────────────────────────────────
@@ -157,9 +161,9 @@ export const startSoundPreload = () => {
 				const manifest = (await manifestResponse.json()) as SoundManifest;
 				const picked = pickSource(manifest.src);
 				if (!picked) throw new Error('no supported audio format in sounds.json src[]');
-				const src = await fetchWithProgress(picked.url);
+				await prefetchWithProgress(picked.url);
 				sound.load(
-					{ src: [src], sprite: manifest.sprite, config: manifest.config },
+					{ src: [picked.url], sprite: manifest.sprite, config: manifest.config },
 					{ format: [picked.ext] },
 				);
 				return;

@@ -43,7 +43,7 @@ export const DOOR_ART = { w: 1246, h: 1028 };
 // frame art's bottom edge so his antennae touch the counter on every phone (frameFor() grows the
 // portrait frame with the viewport, so no fixed y can do that) — Corey 2026-09-06.
 export const MARTY: Record<LayoutKind, { x: number; y: number; size: number }> = {
-	landscape: { x: 1060, y: 490, size: 480 },
+	landscape: { x: 1060, y: 507, size: 480 }, // +17 (Corey 2026-09-07): upper front foot tucks under the counter
 	// y is the k=1 value for reference only; see martyFor()
 	portrait: { x: 340, y: 685, size: 340 },
 	// Same composition as landscape, transposed onto the phone master's 340-wide right column

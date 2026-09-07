@@ -38,6 +38,8 @@ function createSound<TSoundName extends string>() {
 	let loadStatus = $state<AudioLoadStatus>('idle');
 	let downloadRatio = $state(0);
 	let playersReady = $state(false);
+	// bumped when the sfx players are rebuilt (HTML5 fallback below) so the mixer effects re-apply
+	let playersVersion = $state(0);
 	let destroySound: (() => void) | undefined;
 
 	// ── streamed music (see createMusic.svelte.ts) ────────────────────────────────────────────
@@ -109,44 +111,92 @@ function createSound<TSoundName extends string>() {
 		loadedAudio = loadedAudioValue;
 		loadStatus = 'loading';
 
-		const howl = new Howl({
-			src: loadedAudio.src,
-			sprite: loadedAudio.sprite,
-			volume: 1,
-			// the caller may hand us an object URL it fetched itself (for byte progress), which has
-			// no extension for Howler to sniff — it needs the format spelled out then
-			...(loadOptions?.format ? { format: loadOptions.format } : {}),
+		// the caller may spell the format out (a URL Howler could not sniff an extension from)
+		const format = loadOptions?.format ? { format: loadOptions.format } : {};
+		const buildHowl = (html5: boolean) =>
+			new Howl({ src: loadedAudio.src, sprite: loadedAudio.sprite, volume: 1, html5, ...format });
+		const buildPlayers = (h: Howl) => ({
+			music: createPlayer<TSoundName, PlayMusic>({ loadedAudio, loop: true, howl: h, createPlay: createPlayMusic<TSoundName> }), // prettier-ignore
+			loop: createPlayer<TSoundName, PlayLoop>({ loadedAudio, loop: true, howl: h, createPlay: createPlayLoop<TSoundName> }), // prettier-ignore
+			once: createPlayer<TSoundName, PlayOnce>({ loadedAudio, loop: false, howl: h, createPlay: createPlayOnce<TSoundName> }), //  prettier-ignore
 		});
+
+		let howl = buildHowl(false);
+		// No AudioContext at all (Howler could not construct one): Howler silently plays everything
+		// through HTML5 audio, so give the sprite the same media-element headroom. Checked only now:
+		// Howler creates the context lazily inside the first `new Howl`, and `usingWebAudio` is an
+		// optimistic `true` until then.
+		if (!Howler.usingWebAudio) {
+			console.warn('[sound] Web Audio unavailable in this frame; effects play through HTML5 audio');
+			Howler.html5PoolSize = Math.max(Howler.html5PoolSize, 24);
+		}
 
 		howl.once('load', () => {
 			downloadRatio = 1;
 			loadStatus = 'loaded';
 		});
 		howl.once('loaderror', (_id: number, error: unknown) => {
-			// never hang the gate on a broken sprite — let the player in silently
-			console.error('[sound] audiosprite failed to load; continuing without audio', error);
+			// never hang the gate on a broken sprite — let the player in silently. Howler reports a
+			// string from its Web Audio loader and a MediaError code (1-4) from an HTML5 element;
+			// the extra fields say which path it took (the browser logs CSP refusals on its own).
+			console.error('[sound] audiosprite failed to load; continuing without audio', error, {
+				usingWebAudio: Howler.usingWebAudio,
+				audioContext: Howler.ctx ? Howler.ctx.state : 'none',
+				src: loadedAudio.src,
+			});
 			loadStatus = 'error';
 		});
 
 		// players
-		players = {
-			music: createPlayer<TSoundName, PlayMusic>({ loadedAudio, loop: true, howl, createPlay: createPlayMusic<TSoundName> }), // prettier-ignore
-			loop: createPlayer<TSoundName, PlayLoop>({ loadedAudio, loop: true, howl, createPlay: createPlayLoop<TSoundName> }), // prettier-ignore
-			once: createPlayer<TSoundName, PlayOnce>({ loadedAudio, loop: false, howl, createPlay: createPlayOnce<TSoundName> }), //  prettier-ignore
-		};
+		players = buildPlayers(howl);
 		playersReady = true;
+
+		// ── Web Audio watchdog ─────────────────────────────────────────────────────────────────
+		// engine.io (and so Stake) embeds the game in a cross-origin iframe with no autoplay
+		// permission (allow="screen-wake-lock *"). There the AudioContext stayed 'suspended' through
+		// every click: Howler's own unlock never got it running, so each Web Audio effect was silent
+		// while the music, which streams through media elements, played fine (2026-09-07). Two layers:
+		//  1. every pointerdown / keydown / touchend in the frame is a user activation — ask the
+		//     context to resume ourselves instead of relying on Howler's listeners;
+		//  2. if it is still suspended shortly after a gesture, rebuild the sprite Howl on HTML5
+		//     audio: the path the music already proves works in that frame. Never flips back.
+		const RESUME_GRACE_MS = 1500;
+		let effectsOnHtml5 = false;
+		const fallBackToHtml5 = () => {
+			if (effectsOnHtml5) return;
+			effectsOnHtml5 = true;
+			console.warn('[sound] AudioContext still suspended after a user gesture; playing effects through HTML5 audio instead');
+			// one media element per overlapping effect; the music player already holds its own
+			Howler.html5PoolSize = Math.max(Howler.html5PoolSize, 24);
+			const previous = howl;
+			howl = buildHowl(true);
+			players = buildPlayers(howl);
+			previous.unload();
+			playersVersion += 1;
+		};
+		const onGesture = () => {
+			const ctx = Howler.ctx;
+			if (effectsOnHtml5 || !ctx || ctx.state === 'running') return;
+			void ctx.resume().catch(() => {});
+			window.setTimeout(() => {
+				if (!effectsOnHtml5 && Howler.ctx && Howler.ctx.state === 'suspended') fallBackToHtml5();
+			}, RESUME_GRACE_MS);
+		};
+		const GESTURES = ['pointerdown', 'keydown', 'touchend'] as const;
+		GESTURES.forEach((type) => document.addEventListener(type, onGesture, true));
 
 		// audioContextState and visibilityState
 		const onAudioContextChange = () => (audioContextState = Howler.ctx.state);
 		const onVisibilityStateChange = () => (visibilityState = document.visibilityState);
 
-		Howler.ctx.addEventListener('statechange', onAudioContextChange);
+		Howler.ctx?.addEventListener('statechange', onAudioContextChange);
 		document.addEventListener('visibilitychange', onVisibilityStateChange);
 
 		const destroy = () => {
 			musicPlayer?.unload();
-			Howler.ctx.removeEventListener('statechange', onAudioContextChange);
+			Howler.ctx?.removeEventListener('statechange', onAudioContextChange);
 			document.removeEventListener('visibilitychange', onVisibilityStateChange);
+			GESTURES.forEach((type) => document.removeEventListener(type, onGesture, true));
 
 			if (players) {
 				players.music.howl.unload();
@@ -269,18 +319,21 @@ function createSound<TSoundName extends string>() {
 			musicPlayer.volume(stateSoundDerived.volumeMusic());
 			return;
 		}
+		void playersVersion;
 		if (playersReady && players) {
 			players.music.volume(stateSoundDerived.volumeMusic());
 		}
 	};
 
 	const volumeLoopEffect = () => {
+		void playersVersion;
 		if (playersReady && players) {
 			players.loop.volume(stateSoundDerived.volumeSoundEffect());
 		}
 	};
 
 	const volumeOnceEffect = () => {
+		void playersVersion;
 		if (playersReady && players) {
 			players.once.volume(stateSoundDerived.volumeSoundEffect());
 		}

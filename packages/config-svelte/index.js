@@ -2,13 +2,14 @@ import adapter from '@sveltejs/adapter-static';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
-export default () => ({
+/** @param {{ adapter?: Parameters<typeof adapter>[0] }} [options] adapter options pass through (e.g. a static fallback page) */
+export default (options = {}) => ({
 	// Consult https://kit.svelte.dev/docs/integrations#preprocessors
 	// for more information about preprocessors
 	preprocess: vitePreprocess(),
 	kit: {
 		// See https://kit.svelte.dev/docs/adapters for more information about adapters.
-		adapter: adapter(),
+		adapter: adapter(options.adapter),
 		output: {
 			bundleStrategy: 'inline',
 		},
