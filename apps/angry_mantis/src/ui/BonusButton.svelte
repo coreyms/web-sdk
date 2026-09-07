@@ -12,7 +12,8 @@
 	const ante = $derived(controls.anteActive());
 	// armed buy mode mirrors the ante affordance: amber head + "<MODE> ON", tap to switch off
 	const armedKey = $derived(controls.armedBuy());
-	const onLabel = $derived(ante ? 'ANTE ON' : armedKey ? `${armedKey} ON` : null);
+	// just the mode name (Corey 2026-09-06): "MYSTERY ON" clipped on the 78px portrait button
+	const onLabel = $derived(ante ? 'ANTE' : armedKey ? armedKey : null);
 	const icon = $derived(Math.round(size * 0.66));
 </script>
 
@@ -30,7 +31,7 @@
 		right: 0;
 		font-family: var(--ui-font);
 		font-weight: 900;
-		letter-spacing: 1.5px;
+		letter-spacing: 1.2px;
 		color: #1a0c00;
 		text-align: center;
 		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
