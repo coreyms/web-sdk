@@ -4,7 +4,7 @@ import { soc } from './social';
 
 // Verbatim Stake Engine template (docs: approval-guidelines/general-disclaimer).
 export const DISCLAIMER =
-	'Malfunction voids all wins and plays. A consistent internet connection is required. In the event of a disconnection, reload the game to finish any uncompleted rounds. The expected return is calculated over many plays. The game display is not representative of any physical device and is for illustrative purposes only. Winnings are settled according to the amount received from the Remote Game Server and not from events within the web browser. TM and © 2026 Stake Engine.';
+	'Malfunction voids all wins and plays. A consistent internet connection is required. In the event of a disconnection, reload the game to finish any uncompleted rounds. The expected return is calculated over many plays. The game display is not representative of any physical device and is for illustrative purposes only. Winnings are settled according to the amount received from the Remote Game Server and not from events within the web browser. TM and © 2026 Engine.';
 
 const MODE_NAMES: Record<string, string> = { base: 'Base Game', ante: 'Ante', bonus: 'Free Spins', super: 'Super Free Spins', mystery: 'Mystery Spin' };
 const pct = (x: number) => `${(x * 100).toFixed(2)}%`;
