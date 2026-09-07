@@ -4,10 +4,16 @@ import stamps from './assetStamp';
 // serves static assets with Cache-Control: immutable — without the stamp, browsers that cached an
 // old file will never revalidate it, even across deploys. Refs inside the JSONs (atlas meta.image,
 // audiosprite src[]) are stamped by the same script.
+// Root-absolute `/assets/...` inputs come back PAGE-RELATIVE (`assets/...`): on Stake's CDN the game
+// is served at https://<team>.cdn.stake-engine.com/<game>/<version>/index.html, so a leading slash
+// resolves against the CDN root and 404s (every HTML <img>, the numeral sheet and the @font-face
+// URLs went missing on the first engine.io publish, 2026-09-07). The Pixi loaders never hit this
+// because they build their URLs from import.meta.url.
 export const stamp = (href: string): string => {
 	const rel = href.split('/assets/').pop() ?? '';
 	const v = (stamps as Record<string, string>)[rel];
-	return v ? `${href}?v=${v}` : href;
+	const base = href.startsWith('/assets/') ? href.slice(1) : href;
+	return v ? `${base}?v=${v}` : base;
 };
 
 // TWO LOAD PHASES (pixi-svelte AssetsLoader). `preload: true` gates the landing screen: everything the
