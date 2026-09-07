@@ -68,6 +68,10 @@ export default {
 	// bonus-intro headshots (real character art)
 	// soft ellipse under each mantis's feet (BoneRig ground shadow); tiny, so it rides the preload
 	groundShadow: { type: 'sprite', src: stamp(new URL('../../assets/ui/ground-shadow.webp', import.meta.url).href), preload: true },
+	// ambient background layer (game/ambientSpec.ts): the exhaust fan's blade ring + static hub cap.
+	// Gated with the base backdrop — the housing is empty in the art, so the fan must be there at first paint.
+	fanBlades: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/fan-blades.webp', import.meta.url).href), preload: true },
+	fanHub: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/fan-hub.webp', import.meta.url).href), preload: true },
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
 	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: false },
 	amSymbols: {

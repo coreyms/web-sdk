@@ -9,6 +9,8 @@
 
 	import { getContext } from '../game/context';
 	import { BACKGROUND_WASH } from '../game/constants';
+	import { BACKDROP, FAN } from '../game/ambientSpec';
+	import AmbientFan from './AmbientFan.svelte';
 
 	const context = getContext();
 	const IMAGE_RATIO = 1920 / 1080;
@@ -21,6 +23,7 @@
 			? { width, height: width / IMAGE_RATIO }
 			: { width: height * IMAGE_RATIO, height };
 	});
+	const backdropScale = $derived(cover.width / BACKDROP.w); // backdrop px → canvas px
 	const freegame = $derived(context.stateGame.gameType === 'freegame');
 	const active = $derived.by(() => {
 		if (!freegame) return 'bgCafeteriaBase';
@@ -52,6 +55,17 @@
 		/>
 	{/if}
 {/each}
+
+<!-- ambient layer, between the base backdrop and the wash: authored in backdrop px (ambientSpec.ts),
+     mapped through the same cover fit as the backdrop sprite. Only the base scene has the fan housing. -->
+<AmbientFan
+	x={context.stateLayoutDerived.canvasSizes().width / 2 + (FAN.hub.x - BACKDROP.w / 2) * backdropScale}
+	y={context.stateLayoutDerived.canvasSizes().height / 2 + (FAN.hub.y - BACKDROP.h / 2) * backdropScale}
+	scale={backdropScale}
+	alpha={alphas[0].current}
+	visible={alphas[0].current > 0}
+	zIndex={-1.5}
+/>
 
 <!-- dark wash so board/chrome contrast holds on the busier cafeteria art; a touch darker in free
      spins (levels in BACKGROUND_WASH) -->
