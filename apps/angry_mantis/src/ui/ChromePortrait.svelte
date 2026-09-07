@@ -41,8 +41,8 @@
 	<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={180} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
 </div>
 
-<!-- WIN is centred between the two BIG buttons (bonus right edge 102 .. spin left edge W−170), not
-     between the clusters: its centre is W/2 − 34, i.e. 50% of this bar (24..W−4) minus 44 -->
+<!-- WIN is centred between the two BIG buttons (bonus right edge 82 .. spin left edge W−170), not
+     between the clusters: its centre is W/2 − 44, i.e. 50% of this bar (4..W−4) minus 44 -->
 <div class="bar">
 	<div class="cluster">
 		{#if !replay && !controls.jurisdiction().disabledBuyFeature}<BonusButton size={78} {controls} />{/if}
@@ -112,7 +112,7 @@
 	.stats {
 		position: absolute;
 		bottom: calc(100px - var(--vp-extra-bottom, 0px) + env(safe-area-inset-bottom, 0px) / var(--fit-scale, 1));
-		left: 24px;
+		left: 8px; /* mirrors the right inset — the left cluster used to sit 24 in (Corey 2026-09-06: uneven) */
 		right: 8px;
 		display: flex;
 		justify-content: space-between;
@@ -122,7 +122,7 @@
 	.bar {
 		position: absolute;
 		bottom: calc(16px - var(--vp-extra-bottom, 0px) + env(safe-area-inset-bottom, 0px) / var(--fit-scale, 1));
-		left: 24px;
+		left: 4px;
 		right: 4px;
 		display: flex;
 		align-items: flex-end;
