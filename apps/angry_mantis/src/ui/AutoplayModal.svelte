@@ -8,6 +8,10 @@
 	// red = loss stop, yellow only on the mode pill. Fonts stay the chrome's own (Outfit labels,
 	// Sora numbers) — Corey wants the autoplay faces unchanged, not the design's display fonts.
 	// The bet stepper sits under the card, as it does on the bonus-buy screen (Corey 2026-09-02).
+	// ADVANCED (Corey 2026-09-05/06): the card opens on the spin count, the true total and LOAD; the
+	// loss stop, single-win stop and the two toggles live behind an ADVANCED row. A limit set there
+	// stays in force when the row is folded, so the row itself summarises what is set, and the card
+	// opens unfolded whenever something non-default is set — a stop is never hidden.
 	import { stateModal } from 'state-shared';
 
 	import { modeChipData } from '../game/modeChipData';
@@ -37,6 +41,20 @@
 	const armed = $derived(controls.armedBuy() !== null);
 	// effective stop-on-free-games (armed buy modes force it off); autoplay bonuses only exists while this is off
 	const stopFreeOn = $derived(!armed && stopFree);
+	let advanced = $state(false);
+	const anySet = $derived(lossMult !== null || winMult !== null || stopFree || autoBonuses);
+	$effect(() => {
+		if (open && anySet) advanced = true;
+	});
+	const advSummary = $derived.by(() => {
+		const parts: string[] = [];
+		if (lossMult !== null) parts.push(`loss stop ${lossMult}×`);
+		if (winMult !== null) parts.push(`win stop ${winMult}×`);
+		if (stopFreeOn) parts.push('stops on free games');
+		else if (autoBonuses) parts.push('bonuses autoplay');
+		return parts.length ? parts.join(' · ') : 'stops off · bonuses wait for a press';
+	});
+
 	const perSpin = $derived(controls.playCost());
 	const pill = $derived(modeChipData() ?? { label: 'BASE GAME', cost: controls.abbrev(perSpin, 100_000) });
 	const countText = (c: number) => (c === Infinity ? '∞' : `${c}`);
@@ -81,6 +99,15 @@
 				</div>
 			</div>
 
+			<button class="slot-btn toggle adv" class:on={advanced} onclick={() => { controls.sound('soundPressSub'); advanced = !advanced; }} aria-expanded={advanced}>
+				<span class="t-text">
+					<span class="t-main">Advanced</span>
+					<span class="t-sub">{advanced ? 'Loss and win stops, free game and bonus behaviour' : advSummary}</span>
+				</span>
+				<span class="chev" class:up={advanced}><Icon name="chevronRight" s={16} /></span>
+			</button>
+
+			{#if advanced}
 			<div class="sec">
 				<div class="sec-label"><h3>Stop on loss</h3><span class="hint">{compact ? 'net loss since start' : 'run stops if net loss since the start reaches this'}</span></div>
 				<div class="chips six">
@@ -121,6 +148,7 @@
 					<span class="knob"></span>
 				</button>
 			</div>
+			{/if}
 
 			<div class="tear"></div>
 
@@ -378,6 +406,22 @@
 		text-align: left;
 		min-width: 0;
 		min-height: 44px;
+	}
+	.toggle.adv {
+		background: rgba(0, 0, 0, 0.04);
+		border-style: dashed;
+	}
+	.toggle.adv.on {
+		border-style: solid;
+	}
+	.chev {
+		display: inline-flex;
+		color: var(--muted);
+		transform: rotate(90deg);
+		transition: transform 0.2s ease;
+	}
+	.chev.up {
+		transform: rotate(-90deg);
 	}
 	.toggle:disabled {
 		opacity: 0.55;
