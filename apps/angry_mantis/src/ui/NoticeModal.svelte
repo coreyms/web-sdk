@@ -38,6 +38,22 @@
 		ERR_UE: { title: 'SERVER ERROR', body: 'Something went wrong on the game server. Reload the game to continue. Any unfinished round resumes from the server.', reload: true },
 		ERR_GE: { title: 'SERVER ERROR', body: 'Something went wrong on the game server. Reload the game to continue. Any unfinished round resumes from the server.', reload: true },
 	};
+	// Failures that never reached the RGS at all (or came back unreadable). The fetcher rejects with a
+	// TypeError when the host is unreachable, a TimeoutError from AbortSignal.timeout after 30 s, and a
+	// SyntaxError when the reply is not JSON (a wrong host answering with HTML). None carry an ERR_ code,
+	// so without this they all fell through to the bare "Unknown error" line.
+	const TRANSPORT: Record<string, { title: string; body: string; detail: string; reload: boolean }> = {
+		unreachable: { title: "CAN'T REACH THE GAME SERVER", body: 'The game server did not answer. Check your connection and reload the game. Any unfinished round resumes from the server.', detail: 'NO CONNECTION', reload: true },
+		timeout: { title: 'CONNECTION TIMED OUT', body: 'The game server took too long to answer. Check your connection and reload the game. Any unfinished round resumes from the server.', detail: 'TIMED OUT', reload: true },
+		badReply: { title: 'UNEXPECTED REPLY', body: 'The game server sent something the game could not read. Reload the game to continue. Any unfinished round resumes from the server.', detail: 'BAD RESPONSE', reload: true },
+	};
+	const transportKind = (e: any): string | null => {
+		if (!e || typeof e !== 'object') return null;
+		if (e.name === 'TimeoutError' || e.name === 'AbortError') return 'timeout';
+		if (e instanceof TypeError) return 'unreachable';
+		if (e instanceof SyntaxError) return 'badReply';
+		return null;
+	};
 	const rgsCode = (e: any): string | null => {
 		if (!e) return null;
 		const direct = [e.error, e.error?.statusCode, e.error?.code, e.statusCode, e.code].find((c) => typeof c === 'string' && c.startsWith('ERR_'));
@@ -53,15 +69,24 @@
 	const errorText = $derived.by(() => {
 		if (!isError) return '';
 		const e = (modal as { error?: any }).error;
-		if (!e) return 'Unknown error';
+		if (!e) return 'NO DETAILS';
+		const t = transportKind(e);
+		if (t) return TRANSPORT[t].detail;
 		// only the code reaches the player; the payload stays out of the DOM (it can carry a whole book)
 		const code = rgsCode(e);
 		if (code) return code;
 		if (typeof e?.error === 'string') return e.error;
-		return 'Unknown error';
+		if (e instanceof Error && e.name) return e.name.replace(/Error$/, '').toUpperCase() || 'ERROR';
+		return 'NO DETAILS';
 	});
 	const notice = $derived(isNotice ? MESSAGES[(modal as { message: string }).message] : null);
-	const known = $derived(isError ? RGS_ERRORS[rgsCode((modal as { error?: unknown }).error) ?? ''] ?? null : null);
+	const known = $derived.by(() => {
+		if (!isError) return null;
+		const e = (modal as { error?: unknown }).error;
+		const t = transportKind(e);
+		if (t) return TRANSPORT[t];
+		return RGS_ERRORS[rgsCode(e) ?? ''] ?? null;
+	});
 	// a recoverable RGS error (balance, limits) closes in place; everything else reloads
 	const needsReload = $derived(isError && (known ? known.reload : true));
 	const close = () => {
