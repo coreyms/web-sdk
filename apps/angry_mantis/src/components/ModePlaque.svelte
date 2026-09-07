@@ -57,7 +57,9 @@
 		     glyphs, so the node is rebuilt when the label changes (rare — arm/cancel/bet change),
 		     and the backing rebuilds with it so the two can never be out of step; the fresh Text's
 		     onresize re-reports the measurement the pill width derives from -->
-		<Rectangle x={-w / 2} y={-h / 2} width={w} height={h} borderRadius={h / 2} backgroundColor={0x0a0602} alpha={0.85} />
+		<!-- the thin amber border is back (Corey 2026-09-06): the 09-05 cleanup dropped it with the
+		     gradient text, but the stencil glyphs alone left the pill reading as a plain dark bar -->
+		<Rectangle x={-w / 2} y={-h / 2} width={w} height={h} borderRadius={h / 2} backgroundColor={0x0a0602} alpha={0.85} borderWidth={1.5} borderColor={0xe8b04a} />
 		{#if labelReady}
 			<StencilText {block} x={0} y={-cap / 2} tint={0xf2c14e} />
 		{/if}

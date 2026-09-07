@@ -251,6 +251,8 @@ export const HUD: Record<
 		// master px clear at both ends. (The stats strip left the band on 2026-09-02 — it now stacks in
 		// the left column, clear of the iOS home indicator — so the front face is free again if the
 		// pill ever wants to match the other kinds; the top face still reads fine, left as is.)
-		modePlaque: { railArtY: 1133.5 },
+		// front face like the other kinds (Corey 2026-09-06): the stats strip left this band on
+		// 2026-09-02, so the pill no longer has to dodge it — the top-face perch read as misaligned
+		modePlaque: { railArtY: (1149 + 1208) / 2 },
 	},
 };
