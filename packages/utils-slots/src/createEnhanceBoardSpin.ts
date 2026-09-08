@@ -16,6 +16,8 @@ export function createEnhanceBoardSpin<TReel extends Reel<any, any>>({
 		type: 'reveal';
 		board: TRawSymbol[][];
 		anticipation: number[];
+		// optional per-reel scale (0..1) of the anticipation hold; missing = 1 (the full hold)
+		anticipationHold?: number[];
 		paddingPositions?: number[];
 	};
 
@@ -56,6 +58,8 @@ export function createEnhanceBoardSpin<TReel extends Reel<any, any>>({
 			const symbols = revealEvent.board[reelIndex] as TRawSymbol[];
 			const paddingReel = paddingBoard?.[reelIndex];
 			const paddingPosition = revealEvent?.paddingPositions?.[reelIndex];
+			// before prepareToSpin: the anticipated padding (and so every later reel's wait) reads it
+			reel.reelState.holdScale = isAnticipated ? (revealEvent.anticipationHold?.[reelIndex] ?? 1) : 1;
 
 			const paddingSize = reel.prepareToSpin({
 				noStop,

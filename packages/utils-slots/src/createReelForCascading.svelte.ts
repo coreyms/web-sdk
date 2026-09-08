@@ -74,12 +74,22 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		// performance.now() of reel 1's fall-in start after a pre-spin: this reel's stagger counts
 		// from there, not from its own start (0 = unanchored, count from own start)
 		staggerFrom: 0,
+		// anticipation hold: holdScale (set per reveal by createEnhanceBoardSpin, 1 = the full
+		// anticipated padding) shrinks this reel's hold AND its padding contribution together, so
+		// later reels' waits stay aligned; holdStart/holdMs are stamped when the hold begins so the
+		// tease visual can pace itself over the hold (0 = not holding yet)
+		holdScale: 1,
+		holdStart: 0,
+		holdMs: 0,
 		readyToSpin: () => {},
 		spinOptions: () => ({}) as CascadingReelSpinOptions,
 	});
 	const basePaddingSize = () => reelLength * reelState.spinOptions().reelPaddingMultiplierNormal;
-	const anticipatedPaddingSize = () =>
-		reelLength * reelState.spinOptions().reelPaddingMultiplierAnticipated;
+	const anticipatedPaddingSize = () => {
+		const { reelPaddingMultiplierNormal: normal, reelPaddingMultiplierAnticipated: anticipated } =
+			reelState.spinOptions();
+		return reelLength * (normal + (anticipated - normal) * reelState.holdScale);
+	};
 
 	// internal states
 	let targetSymbols = reelOptions.initialSymbols;
@@ -173,6 +183,8 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		const waitToStartFallingIn = async () => {
 			await waitForTimeout(Math.max(0, anchored + totalWait - hold - performance.now()));
 			if (hold > 0 && !rushRequested) {
+				reelState.holdStart = performance.now();
+				reelState.holdMs = hold;
 				reelState.anticipating = true;
 				await waitForTimeout(hold);
 			}
@@ -276,6 +288,8 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		reelState.spinType = prepareToSpinOptions.spinType;
 
 		rushRequested = false; // each reveal gets a fresh chance to hold its anticipation
+		reelState.holdStart = 0;
+		reelState.holdMs = 0;
 		noStop = prepareToSpinOptions.noStop;
 		targetSymbols = prepareToSpinOptions.symbols;
 		onSpinFinishing = prepareToSpinOptions.onSpinFinishing;

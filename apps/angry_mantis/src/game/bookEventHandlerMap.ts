@@ -12,7 +12,7 @@ import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { Position } from './types';
-import { BONUS_TRIGGER_SOUND_MAP } from './constants';
+import { BONUS_TRIGGER_SOUND_MAP, ANTICIPATION } from './constants';
 import { awaitDeferredAssets } from './assetGate';
 
 const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) => {
@@ -74,6 +74,27 @@ const anticipationAfterTwoScatters = (board: BookEventOfType<'reveal'>['board'])
 	return anticipation;
 };
 
+// Per-reel hold scale for an anticipation array (any mode): the first teased reel holds the full
+// time, each further teased reel holds holdDecay× the previous one, and a scatter landing on the
+// reel before resets the run to the full hold (the count moved: reward it). Never below the
+// holdFloorMs share of the full hold, which is where a hold stops reading as a tease at all.
+// Only visible rows count as scatters (row 0 and the last row are the padding rows).
+const anticipationHoldScales = (
+	board: BookEventOfType<'reveal'>['board'],
+	anticipation: number[],
+): number[] => {
+	const floor = Math.min(1, ANTICIPATION.holdFloorMs / ANTICIPATION.holdMs);
+	let k = -1;
+	return board.map((reel, reelIndex) => {
+		if (!(anticipation[reelIndex] > 0)) return 1;
+		const prev = board[reelIndex - 1];
+		const prevHasScatter =
+			!!prev && prev.some((symbol, row) => row > 0 && row < prev.length - 1 && symbol.name === 'S');
+		k = k === -1 || prevHasScatter ? 0 : k + 1;
+		return Math.max(ANTICIPATION.holdDecay ** k, floor);
+	});
+};
+
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	reveal: async (bookEvent: BookEventOfType<'reveal'>, { bookEvents }: BookEventContext) => {
 		freeSpinHadWin = false;
@@ -107,12 +128,17 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		//    teases and the tease never stops once it has started (each reel then holds the full
 		//    anticipation time, createReelForCascading). Read off the revealed board only — the
 		//    outcome is the RGS's, this is presentation.
-		const revealEvent =
+		const anticipation =
 			bookEvent.gameType === 'freegame'
-				? { ...bookEvent, anticipation: [] }
+				? []
 				: stateBet.activeBetModeKey.toUpperCase() === 'MYSTERY'
-					? bookEvent
-					: { ...bookEvent, anticipation: anticipationAfterTwoScatters(bookEvent.board) };
+					? bookEvent.anticipation
+					: anticipationAfterTwoScatters(bookEvent.board);
+		const revealEvent = {
+			...bookEvent,
+			anticipation,
+			anticipationHold: anticipationHoldScales(bookEvent.board, anticipation),
+		};
 		if (bookEvent.gameType === 'freegame') {
 			// the ante hold must NOT survive into a free-game reveal: clearing it only after the
 			// spin left the base scatter's cell locked through the first free board's cascade

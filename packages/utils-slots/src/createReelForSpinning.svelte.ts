@@ -72,6 +72,9 @@ export function createReelForSpinning<TRawSymbol extends object, TSymbolState ex
 		spinType: 'normal' as SpinType,
 		anticipating: false,
 		staggerFrom: 0, // unused here; keeps the Reel union shape with the cascading reel
+		holdScale: 1,
+		holdStart: 0,
+		holdMs: 0,
 		readyToSpin: () => {},
 		spinOptions: () => ({}) as SpinningReelSpinOptions,
 	});

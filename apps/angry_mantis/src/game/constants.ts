@@ -58,12 +58,13 @@ export const INITIAL_SYMBOL_STATE: SymbolState = 'static';
 //
 // Scatter anticipation hold: an anticipated reel's fall-in waits reelFallInDelay × (padding/6 − 1),
 // with padding accumulating left to right (createReelForCascading). reelPaddingMultiplierAnticipated
-// 6.36 = 1.25 (the normal stagger) + 5.11, so each teased reel adds 88 × 5.11 ≈ 450 ms on top of
-// its stagger at normal speed, 205 ms in turbo (reelFallInDelay 40) and 112 ms instant (22): the
-// artifact's "hold per reel 450, decay 1.0" (every teased reel holds the full time, never shrinks).
+// 10.34 = 1.25 (the normal stagger) + 9.09, so a teased reel adds 88 × 9.09 = 800 ms on top of its
+// stagger at normal speed, 364 ms in turbo (reelFallInDelay 40) and 200 ms instant (22), scaled
+// per reel by reelState.holdScale (ANTICIPATION.holdDecay: 0.8× per further teased reel, reset by
+// a new scatter): the artifact's "hold per reel 800, decay 0.80".
 const SPIN_OPTIONS_SHARED = {
 	reelPaddingMultiplierNormal: 1.25,
-	reelPaddingMultiplierAnticipated: 6.36,
+	reelPaddingMultiplierAnticipated: 10.34, // (10.34 − 1.25) × reelFallInDelay = the full hold: 800 ms normal / 364 turbo / 200 instant
 	reelFallOutDelay: 60,
 	fallInEasing: quadIn,
 	fallOutEasing: quadIn,
@@ -124,15 +125,31 @@ export const GRAVITY_DROP = {
 };
 
 // Scatter anticipation (Anticipation.svelte). From the reel after the second landed scatter, every
-// reel still to come "rains" loose symbols through its empty column under a gold rim for its hold,
-// keeps raining behind its real symbols as they fall and fades out as they land (Corey 2026-09-08).
+// reel still to come teases for its hold: a prison-yard searchlight swings through the empty
+// column over a faint rain of loose symbols, while a warm light spill grows in from the column
+// edges as the hold runs out; everything fades as the real symbols drop. Corey's picks from the
+// reel-motion artifact (2026-09-08): searchlight + rain behind + light spill, hold 800 ms with
+// 0.8× decay per further teased reel, rain 2.0×, strength 0.75 (0.5 turbo, 0.3 instant), no
+// urgency ramp. Lengths are in tiles (SYMBOL_SIZE) or board heights; times are style time (the
+// beam swings faster under turbo, like the hold shrinks).
 export const ANTICIPATION = {
-	rainSpeed: 2.5, // px/ms down the column (2.5 master px/ms ≈ 1.9 × 1.2 of the artifact's 100 px cells)
-	rainAlpha: 0.4,
+	holdMs: 800, // the full hold at normal speed — must match reelPaddingMultiplierAnticipated above
+	holdDecay: 0.8, // each further teased reel holds this × the previous (a new scatter resets it)
+	holdFloorMs: 300, // never shorter than this share of the full hold
+	strength: [0.75, 0.5, 0.3], // beam + spill alpha multiplier by turbo level
+	rainSpeed: 4.18, // master px/ms down the column (1.9 × 2.0 of the artifact's 100 px cells × 1.1)
+	rainAlpha: 0.2, // half the artifact's rain: it sits behind the beam
 	rainStretch: 1.12, // ghosts are drawn slightly taller: cheap motion blur
 	rainGhostOffset: 12, // px between the three ghost copies of each loose symbol
-	rimColor: 0xe2a71f,
-	rimPulseMs: 560, // full sine period of the rim's glow
+	beamOriginY: -0.55, // beam pivot above the column, in column heights
+	beamLength: 1.9, // in column heights
+	beamHalfWidth: 0.24, // half-width at the far end, as a share of the length
+	beamSwing: 0.13, // radians either side of straight down
+	beamPeriodMs: 840, // one full swing there and back, style time
+	spillWidth: 0.1, // edge glow width at the start of the hold, in tiles
+	spillGrow: 0.42, // extra width by the end of the hold, in tiles
+	spillAlpha: 0.12, // edge glow alpha at the start of the hold (× strength)
+	spillAlphaGrow: 0.4, // extra alpha by the end of the hold
 };
 
 export const MOTION_BLUR_VELOCITY = 31;
