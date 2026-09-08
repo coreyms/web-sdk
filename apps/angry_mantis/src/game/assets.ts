@@ -74,6 +74,10 @@ export default {
 	// bonus-intro headshots (real character art)
 	// soft ellipse under each mantis's feet (BoneRig ground shadow); tiny, so it rides the preload
 	groundShadow: { type: 'sprite', src: stamp(new URL('../../assets/ui/ground-shadow.webp', import.meta.url).href), preload: true },
+	// gravity-drop landing dust: Corey's dust_poof sheet, six 512×192 frames stacked top to bottom
+	// (a 12 px empty stub under the last one); sliced into frame textures by game/dustTexture.ts.
+	// Every landing plays it from the first spin, so it rides the preload.
+	dustPoof: { type: 'sprite', src: stamp(new URL('../../assets/ui/dust-poof.webp', import.meta.url).href), preload: true },
 	// ambient background layer (game/ambientSpec.ts): the exhaust fan's blade ring + static hub cap.
 	// Gated with the base backdrop — the housing is empty in the art, so the fan must be there at first paint.
 	fanBlades: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/fan-blades.webp', import.meta.url).href), preload: true },

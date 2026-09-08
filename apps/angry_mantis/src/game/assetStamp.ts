@@ -55,6 +55,7 @@ export default {
 	"ui/cafeteria-background-feast.webp": "29c95526",
 	"ui/cafeteria-background-super.webp": "bfefa96d",
 	"ui/door-steel.webp": "b47482d0",
+	"ui/dust-poof.webp": "46ce030d",
 	"ui/gold-alphabet/glyphs.json": "0f98a9da",
 	"ui/gold-alphabet/gold-alphabet.json": "24611705",
 	"ui/gold-alphabet/gold-alphabet.webp": "b631e89c",

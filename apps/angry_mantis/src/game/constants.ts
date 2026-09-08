@@ -107,16 +107,20 @@ export const SPIN_OPTIONS_INSTANT = {
 
 // Landing beat of the gravity drop (every visible cell, ReelSymbol.svelte): on contact the tile
 // squashes wide-and-short by `squash` over squashMs, then overshoots the other way by
-// squash × settleRatio over settleMs, while a dust puff spreads from its bottom edge for dustMs.
+// squash × settleRatio over settleMs, while the dust sheet (game/dustTexture.ts) plays its six
+// frames over dustMs on the tile's bottom edge, fading through the last third. Dust numbers are
+// Corey's picks from the reel-motion artifact (2026-09-08).
 // Durations are divided by stateBetDerived.timeScale() (turbo 2.2, instant 4).
 export const GRAVITY_DROP = {
 	squash: 0.2,
 	squashMs: 90,
 	settleRatio: 0.35,
 	settleMs: 150,
-	dustMs: 260,
-	dustAlpha: 0.45,
-	dustSpread: 0.3, // lobe centre offset from the tile centre, in tiles
+	dustMs: 320,
+	dustAlpha: 0.55,
+	dustWidth: 1.35, // frame width in tiles
+	dustY: 0, // dust mass offset from the tile's bottom edge, in tiles (positive = down)
+	dustFadeFrom: 0.66, // fraction of dustMs after which the puff fades to zero
 };
 
 // Scatter anticipation (Anticipation.svelte). From the reel after the second landed scatter, every

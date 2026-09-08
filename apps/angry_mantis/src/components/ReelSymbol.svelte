@@ -8,7 +8,8 @@
 	import { getSymbolInfo, getSymbolX } from '../game/utils';
 	import { SYMBOL_SIZE, CELL_FILL, BOARD_DIMENSIONS, HIGH_LAND, GRAVITY_DROP, TIMINGS } from '../game/constants';
 	import { glintTexture, GLINT_TEX_W, GLINT_CORE } from '../game/glintTexture';
-	import { dustTexture } from '../game/dustTexture';
+	import { dustFrames, DUST_SHEET } from '../game/dustTexture';
+	import { getContext } from '../game/context';
 	import { isAnteLockedSymbol, upcomingEats, stateGame, type ReelSymbol } from '../game/stateGame.svelte';
 
 	type Props = {
@@ -17,6 +18,7 @@
 	};
 
 	const props: Props = $props();
+	const context = getContext();
 	const symbolInfo = $derived(
 		getSymbolInfo({ rawSymbol: props.reelSymbol.rawSymbol, state: props.reelSymbol.symbolState }),
 	);
@@ -110,17 +112,22 @@
 		const h = beat.sq < 1 ? 1 - easeOut(beat.sq) : 0;
 		return { x: (1 + g) * (1 + HIGH_LAND.squashX * h), y: (1 - g) * (1 - HIGH_LAND.squashY * h) };
 	});
-	// dust: two lobes spreading out from the bottom edge (demo numbers, scaled from 100 px cells)
+	// dust: one frame of Corey's sheet per sixth of dustMs, bottom-centre on the tile's lower edge
+	// (the frame's own transparent margin hangs below it), fading through the last third
 	const dust = $derived.by(() => {
 		if (!beat || beat.dust >= 1) return null;
+		const frames = dustFrames(context.stateApp.loadedAssets?.dustPoof as PIXI.Texture | undefined);
+		if (!frames.length) return null;
 		const age = beat.dust;
-		const k = tileSize / 100;
+		const w = tileSize * GRAVITY_DROP.dustWidth;
+		const h = (w * DUST_SHEET.frameH) / DUST_SHEET.frameW;
+		const fade = age < GRAVITY_DROP.dustFadeFrom ? 1 : (1 - age) / (1 - GRAVITY_DROP.dustFadeFrom);
 		return {
-			dx: tileSize * GRAVITY_DROP.dustSpread * (0.4 + age),
-			y: tileSize / 2 - 4 * k,
-			w: (36 + age * 44) * k,
-			h: (12 + age * 8) * k,
-			alpha: (1 - age) * GRAVITY_DROP.dustAlpha,
+			texture: frames[Math.min(frames.length - 1, Math.floor(age * frames.length))],
+			w,
+			h,
+			y: tileSize / 2 + h * (1 - DUST_SHEET.contentBottom) + tileSize * GRAVITY_DROP.dustY,
+			alpha: fade * GRAVITY_DROP.dustAlpha,
 		};
 	});
 	const showGlint = $derived(beat !== null && beat.gl < 1);
@@ -187,9 +194,8 @@
 		{/if}
 	</Container>
 	{#if dust}
-		<!-- landing dust, outside the squash container so it spreads while the tile compresses -->
-		<BaseSprite texture={dustTexture()} anchor={0.5} x={-dust.dx} y={dust.y} width={dust.w} height={dust.h} alpha={dust.alpha} />
-		<BaseSprite texture={dustTexture()} anchor={0.5} x={dust.dx} y={dust.y} width={dust.w} height={dust.h} alpha={dust.alpha} />
+		<!-- landing dust, outside the squash container so it blooms while the tile compresses -->
+		<BaseSprite texture={dust.texture} anchor={{ x: 0.5, y: 1 }} y={dust.y} width={dust.w} height={dust.h} alpha={dust.alpha} />
 	{/if}
 	{#if insectOnLeaf}
 		<Sprite anchor={0.5} key="{insectOnLeaf}_insect.png" width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} />
