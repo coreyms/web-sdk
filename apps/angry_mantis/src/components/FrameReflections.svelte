@@ -40,6 +40,12 @@
 	const SQUASH_X = 0.4; // side lips
 	const RES = 0.3; // capture resolution vs master — the blur
 	const IDLE_REFRESH_MS = 400;
+	// keep capturing at full rate this long after the last reel stops: the landing beat (dust
+	// 320 ms from the top row's contact, then the high-symbol tray glint ~240 ms later) plays
+	// AFTER a reel reports 'stopped', and on a losing spin the state machine is idle by then —
+	// the 400 ms idle cadence either missed the beat or froze half a puff on the steel
+	// (Corey 2026-09-08)
+	const SETTLE_TAIL_MS = 1100;
 
 	// logical size = the window in master units, so the mirrored sprites use unit scale
 	const rt = PIXI.RenderTexture.create({ width: 600, height: 480, resolution: RES });
@@ -59,14 +65,15 @@
 		const app = context.stateApp.pixiApplication;
 		if (!app) return;
 		let last = 0;
+		let lastMoving = 0;
 		const transform = new PIXI.Matrix();
 		const tick = () => {
 			const src = getReflectSource();
 			if (!visible || !src || !app.renderer || context.stateLayout.showLoadingScreen) return;
-			const busy =
-				!context.stateXstateDerived.isIdle() ||
-				context.stateGame.board.some((reel) => reel.reelState.motion !== 'stopped');
 			const now = performance.now();
+			const moving = context.stateGame.board.some((reel) => reel.reelState.motion !== 'stopped');
+			if (moving) lastMoving = now;
+			const busy = !context.stateXstateDerived.isIdle() || moving || now - lastMoving < SETTLE_TAIL_MS;
 			if (!busy && now - last < IDLE_REFRESH_MS) return;
 			last = now;
 			// children of the source are authored in master units; map the window's top-left onto
