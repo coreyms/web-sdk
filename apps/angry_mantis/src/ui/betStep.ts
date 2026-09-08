@@ -6,7 +6,7 @@
 import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
 import { numberToCurrencyString } from 'utils-shared/amount';
 
-import { measureNumerals } from '../game/numeralMeasure';
+import { fontPxForCap, measureUiText } from './uiMeasure';
 
 export const affordableBet = (v: number) => {
 	const mode = stateBetDerived.activeBetMode();
@@ -21,17 +21,17 @@ export const betStepTarget = (dir: 1 | -1) => {
 };
 
 // The SPIN readout's slot: wide enough for the WIDEST price the current mode can show, measured
-// in the stencil atlas at the readout's digit height (Corey 2026-09-06). Sized from the bet menu
-// (finite, known from authenticate) × the active mode's multiplier, so the −/+ buttons hold still
-// across bet steps and only re-seat when a mode is armed. Text-fallback currencies (no atlas
-// glyphs) estimate from length. `cap` keeps a trillion-scale GC menu from pushing the stepper into
-// the neighbouring readout — StencilAmount's fit shrinks the amount instead.
+// in the chrome's number face at the readout's digit height (Corey 2026-09-06). Sized from the bet
+// menu (finite, known from authenticate) × the active mode's multiplier, so the −/+ buttons hold
+// still across bet steps and only re-seat when a mode is armed. Before the font is ready the
+// width is estimated from length. `cap` keeps a trillion-scale GC menu from pushing the stepper
+// into the neighbouring readout — TrioStat's fit shrinks the amount instead.
 export const betSlotWidth = (height: number, cap: number) => {
 	const mult = stateBetDerived.activeBetMode()?.costMultiplier ?? 1;
 	let widest = 0;
 	for (const o of stateConfig.betAmountOptions) {
 		const text = numberToCurrencyString(o * mult);
-		widest = Math.max(widest, measureNumerals(text, height) ?? text.length * height * 0.62);
+		widest = Math.max(widest, measureUiText(text, fontPxForCap(height)) ?? text.length * height * 0.62);
 	}
 	return Math.min(cap, Math.ceil(widest));
 };

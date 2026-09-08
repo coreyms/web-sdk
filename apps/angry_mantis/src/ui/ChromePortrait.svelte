@@ -49,7 +49,7 @@
 		<MenuButton size={36} {controls} compact />
 	</div>
 	<div class="win">
-		<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} size="sm" align="center" maxWidth={120} />
+		<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="sm" align="center" maxWidth={120} />
 	</div>
 	<div class="cluster">
 		<SquareSpin size={78} {controls} />

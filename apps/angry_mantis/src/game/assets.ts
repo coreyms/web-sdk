@@ -29,6 +29,10 @@ export default {
 	bgCafeteriaSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super.webp', import.meta.url).href), preload: false },
 	bgCafeteriaFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast.webp', import.meta.url).href), preload: false },
 	frameCafeteria: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-cafeteria.webp', import.meta.url).href), preload: true },
+	// board backdrop behind the symbols (Corey's dimpled steel tray plates, 1220×985 = the frame
+	// window at the frame art's scale, one plate per cell on the 5×4 pitch): shows in the seams, in
+	// the drop, in emptied cells and under the scatter tease. Board.svelte, zIndex −2.
+	boardBackdrop: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-backdrop.webp', import.meta.url).href), preload: true },
 	doorSteel: { type: 'sprite', src: stamp(new URL('../../assets/ui/door-steel.webp', import.meta.url).href), preload: false },
 	// reflectivity mask for the frame's inner steel lips (Corey's paint-over of the frame art, same
 	// 1415x1217 canvas): white = chrome that mirrors the reels, alpha = strength. FrameReflections.

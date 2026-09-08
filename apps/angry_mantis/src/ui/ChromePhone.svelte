@@ -44,7 +44,7 @@
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
 <div class="stats">
 	{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />{/if}
-	<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} size="lg" align="left" maxWidth={240} />
+	<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />
 	{#if !freegame}
 		<div class="spin-row">
 			{#if !replay}<div class="minus"><StepButton dir={-1} size={32} {controls} /></div>{/if}

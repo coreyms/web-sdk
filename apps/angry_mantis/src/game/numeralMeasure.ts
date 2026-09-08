@@ -1,5 +1,5 @@
 // Width arithmetic for the prison-stencil numeral atlas, shared by the HTML renderer
-// (ui/StencilAmount.svelte) and anything that must know how wide an amount WILL be before it
+// (and anything that must know how wide an amount WILL be before it
 // renders — the HUD's SPIN slot is sized from the widest bet option (Corey 2026-09-06: the −/+
 // steppers must never move when the bet changes, and the gap must fit the biggest amount the
 // currency can show). Pure glyph metrics, no DOM measurement, so both agree exactly.

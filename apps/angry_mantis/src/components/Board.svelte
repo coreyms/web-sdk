@@ -18,6 +18,7 @@
 	import { waitForResolve } from 'utils-shared/wait';
 	import { BoardContext } from 'components-shared';
 	import { OnPressFullScreen } from 'components-layout';
+	import { Sprite } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
 	import BoardContainer from './BoardContainer.svelte';
@@ -124,8 +125,11 @@
 	<BoardContext animate={false}>
 		<BoardContainer>
 			<BoardMask />
-			<!-- scatter anticipation rain + rim: board space, masked to the window, rain under the
-			     symbols (zIndex -1) and rim over them (30) — moved in from Game.svelte 2026-09-08 -->
+			<!-- tray-plate backdrop: exactly the window, under everything in board space (the frame's
+			     cell wells still sit under it for the margin outside the window) -->
+			<Sprite key="boardBackdrop" zIndex={-2} width={context.stateGameDerived.boardLayout().width} height={context.stateGameDerived.boardLayout().height} />
+			<!-- scatter anticipation: board space, masked to the window, rain + beam under the
+			     symbols (zIndex -1) and the light spill over them (30) — moved in from Game.svelte 2026-09-08 -->
 			<Anticipations />
 			<BoardBase />
 		</BoardContainer>

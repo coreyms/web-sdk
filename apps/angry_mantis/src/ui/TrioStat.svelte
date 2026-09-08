@@ -13,15 +13,22 @@
 		onclick?: () => void;
 		disabled?: boolean;
 	};
-	import StencilAmount from './StencilAmount.svelte';
+	import { fontPxForCap, measureUiText } from './uiMeasure';
 	const { label, value, accent = '#ffdc4a', align = 'center', size = 'md', overhead = null, maxWidth, minWidth, onclick, disabled = false }: Props = $props();
-	// `val` is the stencil digit height (StencilAmount): the old Sora sizes were 26/18/16 px font-size,
-	// whose cap height is ~0.72em — the stencil glyph IS its cap height, so 19/13/12 keep the same
-	// visual weight. maxWidth still shrinks trillion-coin GC balances to fit (StencilAmount's fit).
+	// `val` is the amount's digit (cap) height in master px, the same numbers the stencil glyphs
+	// used; the amount is set in the chrome's number face (Sora, white — Corey 2026-09-08: the
+	// stencil digits were hard to read, and the HUD's own face is what the play button and the
+	// modals already use). maxWidth still shrinks trillion-coin GC balances to fit.
 	// 'xl' is the phone-landscape SPIN readout (Corey's 2026-09-06 layout: the play amount reads
 	// larger than BALANCE / WIN in that column)
 	const sz = $derived(size === 'xl' ? { lbl: 13, val: 26 } : size === 'lg' ? { lbl: 13, val: 19 } : size === 'sm' ? { lbl: 10, val: 12 } : { lbl: 11, val: 14 });
 	const interactive = $derived(!!onclick && !disabled);
+	const fontPx = $derived.by(() => {
+		const px = fontPxForCap(sz.val);
+		if (!maxWidth) return px;
+		const w = measureUiText(value, px) ?? value.length * px * 0.62;
+		return w > maxWidth ? (px * maxWidth) / w : px;
+	});
 </script>
 
 <button
@@ -40,7 +47,7 @@
 		<span class="overhead" style:font-size="{sz.lbl - 3}px">{overhead}</span>
 	{/if}
 	<span class="label" style:font-size="{sz.lbl}px" style:color={accent}>{label}</span>
-	<span class="value"><StencilAmount text={value} height={sz.val} {maxWidth} {align} /></span>
+	<span class="value slot-num" style:font-size="{fontPx}px">{value}</span>
 </button>
 
 <style>
@@ -75,5 +82,9 @@
 		width: 100%;
 		margin-top: 3px;
 		white-space: nowrap;
+		font-weight: 700;
+		color: #fff;
+		line-height: 1;
+		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
 	}
 </style>

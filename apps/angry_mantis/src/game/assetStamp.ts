@@ -47,6 +47,7 @@ export default {
 	"ui/20000x.webp": "8ebb5df1",
 	"ui/ambient/fan-blades.webp": "1dbc01e2",
 	"ui/ambient/fan-hub.webp": "91c5c846",
+	"ui/board-backdrop.webp": "0807de71",
 	"ui/board-frame-cafeteria.webp": "cd803926",
 	"ui/board-frame-reflect.png": "d4772bda",
 	"ui/branded-glyphs/branded-glyphs.json": "20ccba5e",

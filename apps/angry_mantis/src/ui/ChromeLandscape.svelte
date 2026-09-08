@@ -24,7 +24,7 @@
 	const replay = $derived(controls.isReplay());
 	const art = frameArtRect('landscape'); // 295.3 .. 984.2
 	// SPIN slot: the widest price the current mode can show at the 'lg' digit height (19), plus air;
-	// capped so a trillion-scale menu never pushes the − into the WIN column (StencilAmount shrinks)
+	// capped so a trillion-scale menu never pushes the − into the WIN column (TrioStat shrinks)
 	const slot = $derived(betSlotWidth(19, 205) + 6);
 </script>
 
@@ -42,7 +42,7 @@
 		{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />{/if}
 	</div>
 	<div class="cell centre">
-		<TrioStat label="WIN" value={controls.winText()} accent={controls.hasWin() ? '#fff' : 'rgba(255,255,255,.45)'} size="lg" maxWidth={205} />
+		<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" maxWidth={205} />
 	</div>
 	<div class="cell right">
 		{#if !replay}<StepButton dir={-1} size={28} {controls} />{/if}
