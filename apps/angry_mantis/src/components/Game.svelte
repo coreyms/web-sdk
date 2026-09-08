@@ -27,7 +27,6 @@
 	import DoorSteel from './DoorSteel.svelte';
 	import MartyArt from './MartyArt.svelte';
 	import Board from './Board.svelte';
-	import Anticipations from './Anticipations.svelte';
 	import Win from './Win.svelte';
 	import ComboWin from './ComboWin.svelte';
 	import BonusIntro from './BonusIntro.svelte';
@@ -181,10 +180,10 @@
 		</MainContainer>
 
 		<MainContainer>
-			<!-- tags THIS container as what FrameReflections mirrors (reels + anticipations) -->
+			<!-- tags THIS container as what FrameReflections mirrors (reels + anticipations, the
+			     latter now inside Board's masked container) -->
 			<ReflectSource />
 			<Board />
-			<Anticipations />
 		</MainContainer>
 
 		<!-- steel roll-down door: covers the frame window during transitions (doorClose/doorOpen) -->

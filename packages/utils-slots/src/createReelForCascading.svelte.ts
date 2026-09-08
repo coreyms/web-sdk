@@ -24,12 +24,15 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 
 		const initY = getSymbolY(symbolIndexOfBoard);
 		const symbolY = new Tween(initY);
+		// tilt while falling out (gravity drop); always exactly 0 at rest and during the fall-in
+		const symbolRot = new Tween(0);
 		const oncomplete = () => {};
 
 		const reelSymbol = $state({
 			rawSymbol,
 			symbolIndexOfBoard,
 			symbolY,
+			symbolRot,
 			symbolState,
 			oncomplete,
 		});
@@ -68,6 +71,9 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 		motion: 'stopped' as CascadingReelMotion,
 		spinType: 'normal' as SpinType,
 		anticipating: false,
+		// performance.now() of reel 1's fall-in start after a pre-spin: this reel's stagger counts
+		// from there, not from its own start (0 = unanchored, count from own start)
+		staggerFrom: 0,
 		readyToSpin: () => {},
 		spinOptions: () => ({}) as CascadingReelSpinOptions,
 	});
@@ -125,7 +131,15 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 
 			await waitForTimeout(delay);
 			reelSymbol.symbolState = 'spin' as TSymbolState;
-			await reelSymbol.symbolY.set(newSymbolY, { duration });
+			const opts = reelState.spinOptions();
+			const tip = opts.tipRadians ?? 0;
+			if (tip) {
+				// tip off the shelf: alternate the direction per cell so a column never tilts as one slab.
+				// Not awaited — it runs alongside the slide and is zeroed again in hanging().
+				const sign = (reelOptions.reelIndex + reelSymbol.symbolIndexOfBoard) % 2 ? 1 : -1;
+				void reelSymbol.symbolRot.set(sign * tip, { duration, easing: opts.fallOutEasing });
+			}
+			await reelSymbol.symbolY.set(newSymbolY, { duration, easing: opts.fallOutEasing });
 		});
 
 		reelState.motion = 'hanging';
@@ -138,14 +152,31 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 			const newSymbolY = getSymbolY(reelSymbol.symbolIndexOfBoard - reelLength + 0.5);
 			const duration = 0;
 
+			void reelSymbol.symbolRot.set(0, { duration });
 			await reelSymbol.symbolY.set(newSymbolY, { duration });
 		});
 	};
 
 	const fallIn = async () => {
 		const fallInDelayMultiplier = paddingSize / reelLength - 1;
-		const waitToStartFallingIn = async () =>
-			await waitForTimeout(reelState.spinOptions().reelFallInDelay * fallInDelayMultiplier);
+		const totalWait = reelState.spinOptions().reelFallInDelay * fallInDelayMultiplier;
+		// An anticipated reel's wait is its normal stagger plus the anticipation hold. It arms its
+		// own tease (reelState.anticipating) when the hold begins — i.e. at the moment it would
+		// otherwise have started dropping — so the whole hold is visible, instead of only the part
+		// after the previous reel has finished landing (createEnhanceBoardSpin also sets the flag
+		// then; the two agree when the previous reel lands first).
+		const hold =
+			reelState.spinType === 'anticipated'
+				? (reelState.spinOptions().reelFallInDelay * (anticipatedPaddingSize() - basePaddingSize())) / reelLength
+				: 0;
+		const anchored = reelState.staggerFrom > 0 ? reelState.staggerFrom : performance.now();
+		const waitToStartFallingIn = async () => {
+			await waitForTimeout(Math.max(0, anchored + totalWait - hold - performance.now()));
+			if (hold > 0 && !rushRequested) {
+				reelState.anticipating = true;
+				await waitForTimeout(hold);
+			}
+		};
 
 		// Q: When to skip the waitToStartFallingIn?
 		// A: When stop button is clicked(isTurbo) and is noStop is false
@@ -189,6 +220,7 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 			await reelSymbol.symbolY.set(newSymbolY - bounceDistance, {
 				duration: landDuration,
 				delay,
+				easing: reelState.spinOptions().fallInEasing,
 			});
 			reelSymbol.symbolState = 'land' as TSymbolState;
 			reelOptions.onSymbolLand({
@@ -199,10 +231,16 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 			if (reelSymbol.symbolIndexOfBoard === finishingRow) {
 				onSpinFinishing();
 			}
-			await reelSymbol.symbolY.set(newSymbolY, {
-				duration: bounceDuration,
-				easing: backOut,
-			});
+			// no bounce configured (gravity drop: the tile squashes in place instead): the first leg
+			// already ended on the rest position, so land exactly there with no second tween
+			if (bounceDistance > 0) {
+				await reelSymbol.symbolY.set(newSymbolY, {
+					duration: bounceDuration,
+					easing: backOut,
+				});
+			} else {
+				await reelSymbol.symbolY.set(newSymbolY, { duration: 0 });
+			}
 		});
 
 		reelState.motion = 'stopped';
@@ -266,6 +304,7 @@ export function createReelForCascading<TRawSymbol extends object, TSymbolState e
 			// symbols back at their rest positions without touching their rawSymbols.
 			reelState.symbols.forEach((reelSymbol) => {
 				reelSymbol.symbolState = 'static' as TSymbolState;
+				reelSymbol.symbolRot.set(0, { duration: 0 });
 				reelSymbol.symbolY.set(getSymbolY(reelSymbol.symbolIndexOfBoard), { duration: 0 });
 			});
 		}

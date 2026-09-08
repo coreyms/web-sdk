@@ -57,6 +57,23 @@ const animateSymbols = async ({ positions }: { positions: Position[] }) => {
 	await eventEmitter.broadcastAsync({ type: 'boardWithAnimateSymbols', symbolPositions: positions });
 };
 
+// Anticipation array for a base/ante reveal: 0 for reels that drop normally, then 1, 2, 3… from
+// the reel after the one on which the running count of visible scatters reaches two (two Markys
+// on one reel count as two). Only visible rows count (row 0 and the last row are the padding
+// rows). Fewer than two scatters on the board: no tease at all.
+const anticipationAfterTwoScatters = (board: BookEventOfType<'reveal'>['board']): number[] => {
+	const anticipation = board.map(() => 0);
+	let count = 0;
+	let from = -1;
+	board.forEach((reel, reelIndex) => {
+		count += reel.filter((symbol, row) => row > 0 && row < reel.length - 1 && symbol.name === 'S').length;
+		if (count >= 2 && from === -1) from = reelIndex + 1;
+	});
+	if (from === -1) return anticipation;
+	for (let reelIndex = from; reelIndex < board.length; reelIndex += 1) anticipation[reelIndex] = reelIndex - from + 1;
+	return anticipation;
+};
+
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	reveal: async (bookEvent: BookEventOfType<'reveal'>, { bookEvents }: BookEventContext) => {
 		freeSpinHadWin = false;
@@ -81,12 +98,21 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 		stateGame.gameType = bookEvent.gameType;
 		eventEmitter.broadcast({ type: 'soundLoop', name: 'sfx_reel_spin' });
-		// No scatter anticipation in free games — a single scatter already retriggers there,
-		// so the pulse + extended reel hold is noise; the tease only runs in the base game.
+		// Scatter anticipation (Corey 2026-09-08, replaces the "after the third scatter" rule):
+		//  - free games: none — a single scatter already retriggers there, the tease is noise;
+		//  - Mystery: the book's array, verbatim. Its rule is the math's (game_calculations.py):
+		//    reels 3 and 4 always tease, reel 5 only when both landed a scatter, because that is
+		//    the only state where reel 5 still decides anything;
+		//  - base / ante: from the reel after the second visible scatter, EVERY remaining reel
+		//    teases and the tease never stops once it has started (each reel then holds the full
+		//    anticipation time, createReelForCascading). Read off the revealed board only — the
+		//    outcome is the RGS's, this is presentation.
 		const revealEvent =
 			bookEvent.gameType === 'freegame'
 				? { ...bookEvent, anticipation: [] }
-				: bookEvent;
+				: stateBet.activeBetModeKey.toUpperCase() === 'MYSTERY'
+					? bookEvent
+					: { ...bookEvent, anticipation: anticipationAfterTwoScatters(bookEvent.board) };
 		if (bookEvent.gameType === 'freegame') {
 			// the ante hold must NOT survive into a free-game reveal: clearing it only after the
 			// spin left the base scatter's cell locked through the first free board's cascade

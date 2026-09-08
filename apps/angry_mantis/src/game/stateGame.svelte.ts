@@ -92,8 +92,11 @@ const board = _.range(BOARD_DIMENSIONS.x).map((reelIndex) => {
 		onSymbolLand,
 	});
 
+	// By turbo level, not by spinType: a reel at/after the first anticipated one is never 'fast'
+	// (createEnhanceBoardSpin), and it used to fall back to the DEFAULT timings even in turbo, so
+	// a teased spin lost its turbo entirely. The hold and the drop now scale with the level too.
 	reel.reelState.spinOptions = () =>
-		reel.reelState.spinType === 'fast' ? (stateGame.turboLevel === 2 ? SPIN_OPTIONS_INSTANT : SPIN_OPTIONS_FAST) : SPIN_OPTIONS_DEFAULT;
+		stateGame.turboLevel === 2 ? SPIN_OPTIONS_INSTANT : stateGame.turboLevel === 1 ? SPIN_OPTIONS_FAST : SPIN_OPTIONS_DEFAULT;
 
 	return reel;
 });

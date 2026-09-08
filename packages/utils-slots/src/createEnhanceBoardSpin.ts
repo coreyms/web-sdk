@@ -26,15 +26,13 @@ export function createEnhanceBoardSpin<TReel extends Reel<any, any>>({
 		revealEvent: RevealEvent;
 		paddingBoard?: TRawSymbol[][];
 	}) {
-		if (stateSlots.isPreSpinning) {
-			await Promise.all(
-				board.map(async (reel) => {
-					await waitForResolve((resolve) => (reel.reelState.readyToSpin = resolve));
-				}),
-			);
-		}
-
+		// After a pre-spin (reels emptied on the bet press) each reel starts its own fall-in as
+		// soon as IT is empty, instead of waiting for all five: the reel stagger is anchored to the
+		// moment reel 1 is ready (reelState.staggerFrom, see fallIn), so later reels still land
+		// their 110 ms apart while the whole drop starts a fall-out's worth earlier.
+		const wasPreSpinning = stateSlots.isPreSpinning;
 		stateSlots.isPreSpinning = false;
+		const ready = (reel: TReel) => waitForResolve((resolve) => (reel.reelState.readyToSpin = resolve));
 
 		const globalSpinType = stateBet.isTurbo ? 'fast' : 'normal';
 		const globalHasAnticipation = revealEvent.anticipation.some(Boolean);
@@ -79,8 +77,15 @@ export function createEnhanceBoardSpin<TReel extends Reel<any, any>>({
 			return paddingSize;
 		}, 0);
 
+		let anchor = 0;
+		if (wasPreSpinning) {
+			await ready(board[0]);
+			anchor = performance.now();
+		}
 		await Promise.all(
-			board.map(async (reel) => {
+			board.map(async (reel, reelIndex) => {
+				if (wasPreSpinning && reelIndex > 0) await ready(reel);
+				reel.reelState.staggerFrom = anchor;
 				await reel.spin();
 			}),
 		);

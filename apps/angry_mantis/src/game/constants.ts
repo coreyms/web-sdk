@@ -1,3 +1,5 @@
+import { quadIn } from 'svelte/easing';
+
 import type { RawSymbol, SymbolState, SymbolName, BonusMode } from './types';
 import config from './config';
 
@@ -40,45 +42,93 @@ export const PORTRAIT_MAIN_SIZES = { width: PORTRAIT_HEIGHT * PORTRAIT_RATIO, he
 
 export const INITIAL_SYMBOL_STATE: SymbolState = 'static';
 
+// Gravity drop (Corey 2026-09-08, picked from the reel-motion artifact over the shipped drop,
+// reel scroll, serve slam and steel shutter). Old tiles tip off the shelf and accelerate out; new
+// ones accelerate in from above, land bottom row first with NO y-bounce, squash on contact and kick
+// up dust (ReelSymbol.svelte + GRAVITY_DROP below). Speeds are px/ms over the reel's fixed travel:
+// fall-out 660 px (6 cells), fall-in 605 px (5.5 cells), so 2.6 ≈ 255 ms out and 2.0 ≈ 300 ms in.
+// Turbo (level 1) runs everything 2.2× faster, instant (level 2) 4×, the rates of the artifact.
+//
+// Spin length. The artifact's normal spin is ~1.6 s press-to-rest; the game has to fit an RGS
+// round trip inside that, so the fall-out is the short phase (reel stagger 60 ms, ~255 ms drop)
+// and the fall-in starts per reel as soon as THAT reel is empty and the reveal is in — anchored
+// to reel 1's start so the 110 ms reel stagger holds (createEnhanceBoardSpin + fallIn's
+// staggerFrom) instead of waiting for all five reels to empty first (2026-09-08, Corey: the game
+// read considerably slower than the artifact).
+//
+// Scatter anticipation hold: an anticipated reel's fall-in waits reelFallInDelay × (padding/6 − 1),
+// with padding accumulating left to right (createReelForCascading). reelPaddingMultiplierAnticipated
+// 6.36 = 1.25 (the normal stagger) + 5.11, so each teased reel adds 88 × 5.11 ≈ 450 ms on top of
+// its stagger at normal speed, 205 ms in turbo (reelFallInDelay 40) and 112 ms instant (22): the
+// artifact's "hold per reel 450, decay 1.0" (every teased reel holds the full time, never shrinks).
 const SPIN_OPTIONS_SHARED = {
-	reelFallInDelay: 80,
 	reelPaddingMultiplierNormal: 1.25,
-	reelPaddingMultiplierAnticipated: 14.5, // was 18 — ~20% shorter anticipation hold
-	reelFallOutDelay: 145,
+	reelPaddingMultiplierAnticipated: 6.36,
+	reelFallOutDelay: 60,
+	fallInEasing: quadIn,
+	fallOutEasing: quadIn,
+	symbolFallInBounceSpeed: 0.15, // unused while the bounce size is 0, kept for the option shape
+	symbolFallInBounceSizeMulti: 0,
 };
 
 export const SPIN_OPTIONS_DEFAULT = {
 	...SPIN_OPTIONS_SHARED,
-	symbolFallInSpeed: 3.5,
-	symbolFallInInterval: 30,
-	symbolFallInBounceSpeed: 0.15,
-	symbolFallInBounceSizeMulti: 0.5,
-	symbolFallOutSpeed: 3.5,
-	symbolFallOutInterval: 20,
+	reelFallInDelay: 88, // 110 ms between reels (× 1.25)
+	symbolFallInSpeed: 2.0,
+	symbolFallInInterval: 70, // bottom row lands first, each row above 70 ms later
+	symbolFallOutSpeed: 2.6,
+	symbolFallOutInterval: 25,
+	tipRadians: 0.45,
 };
 
-// Turbo (level 1): noticeably quicker than base, still reads as a spin.
+// Turbo (level 1): 2.2× the artifact's normal rate.
 export const SPIN_OPTIONS_FAST = {
 	...SPIN_OPTIONS_SHARED,
 	reelFallInDelay: 40,
-	symbolFallInSpeed: 5,
-	symbolFallInInterval: 10,
-	symbolFallInBounceSpeed: 0.22,
-	symbolFallInBounceSizeMulti: 0.35,
-	symbolFallOutSpeed: 5,
-	symbolFallOutInterval: 8,
+	reelFallOutDelay: 27,
+	symbolFallInSpeed: 4.4,
+	symbolFallInInterval: 32,
+	symbolFallOutSpeed: 5.7,
+	symbolFallOutInterval: 11,
+	tipRadians: 0.45,
 };
 
-// Instant (turbo level 2): reels drop in with no stagger or bounce.
-// Instant (level 2): a step quicker than turbo (this was the old turbo).
+// Instant (turbo level 2): 4×; rows drop together, tiles barely tip.
 export const SPIN_OPTIONS_INSTANT = {
 	...SPIN_OPTIONS_SHARED,
-	symbolFallInSpeed: 7,
+	reelFallInDelay: 22,
+	reelFallOutDelay: 0,
+	symbolFallInSpeed: 8,
 	symbolFallInInterval: 0,
-	symbolFallInBounceSpeed: 0.3,
-	symbolFallInBounceSizeMulti: 0.25,
-	symbolFallOutSpeed: 7,
+	symbolFallOutSpeed: 10,
 	symbolFallOutInterval: 0,
+	tipRadians: 0.2,
+};
+
+// Landing beat of the gravity drop (every visible cell, ReelSymbol.svelte): on contact the tile
+// squashes wide-and-short by `squash` over squashMs, then overshoots the other way by
+// squash × settleRatio over settleMs, while a dust puff spreads from its bottom edge for dustMs.
+// Durations are divided by stateBetDerived.timeScale() (turbo 2.2, instant 4).
+export const GRAVITY_DROP = {
+	squash: 0.2,
+	squashMs: 90,
+	settleRatio: 0.35,
+	settleMs: 150,
+	dustMs: 260,
+	dustAlpha: 0.45,
+	dustSpread: 0.3, // lobe centre offset from the tile centre, in tiles
+};
+
+// Scatter anticipation (Anticipation.svelte). From the reel after the second landed scatter, every
+// reel still to come "rains" loose symbols through its empty column under a gold rim for its hold,
+// keeps raining behind its real symbols as they fall and fades out as they land (Corey 2026-09-08).
+export const ANTICIPATION = {
+	rainSpeed: 2.5, // px/ms down the column (2.5 master px/ms ≈ 1.9 × 1.2 of the artifact's 100 px cells)
+	rainAlpha: 0.4,
+	rainStretch: 1.12, // ghosts are drawn slightly taller: cheap motion blur
+	rainGhostOffset: 12, // px between the three ghost copies of each loose symbol
+	rimColor: 0xe2a71f,
+	rimPulseMs: 560, // full sine period of the rim's glow
 };
 
 export const MOTION_BLUR_VELOCITY = 31;

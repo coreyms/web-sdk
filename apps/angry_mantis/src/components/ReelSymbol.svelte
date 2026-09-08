@@ -1,13 +1,14 @@
 <script lang="ts">
 	import * as PIXI from 'pixi.js';
-	import { Container, Graphics, Sprite } from 'pixi-svelte';
+	import { BaseSprite, Container, Graphics, Sprite } from 'pixi-svelte';
 	import { stateBetDerived } from 'state-shared';
 
 	import Symbol from './Symbol.svelte';
 	import SymbolWrap from './SymbolWrap.svelte';
 	import { getSymbolInfo, getSymbolX } from '../game/utils';
-	import { SYMBOL_SIZE, CELL_FILL, BOARD_DIMENSIONS, HIGH_LAND, TIMINGS } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, BOARD_DIMENSIONS, HIGH_LAND, GRAVITY_DROP, TIMINGS } from '../game/constants';
 	import { glintTexture, GLINT_TEX_W, GLINT_CORE } from '../game/glintTexture';
+	import { dustTexture } from '../game/dustTexture';
 	import { isAnteLockedSymbol, upcomingEats, stateGame, type ReelSymbol } from '../game/stateGame.svelte';
 
 	type Props = {
@@ -51,44 +52,78 @@
 		return index === -1 ? null : (upcomingEats()[index] ?? null);
 	});
 
-	// High-symbol landing beat (see HIGH_LAND in constants). Kicked from the 'land' → 'static'
-	// hand-off below, which fires exactly once per landing, at first contact; the beat itself
-	// waits out the landing bounce (same maths as createReelForCascading) so it plays on a tile
-	// at rest. Progress is driven by rAF into one $state so the squash container and the glint
-	// Graphics redraw together; nothing here touches the symbol's position, so the drift gate
-	// still sees the cell exactly where the reel put it.
+	// Landing beat, kicked from the 'land' → 'static' hand-off below, which fires exactly once per
+	// landing, at first contact. Every visible cell gets the gravity-drop beat (GRAVITY_DROP): a
+	// wide-and-short squash on contact, a smaller overshoot the other way, and a dust puff from the
+	// tile's bottom edge. High symbols then add their tray thump + glint (HIGH_LAND) once the
+	// gravity settle is over. Progress is driven by rAF into one $state so the squash container,
+	// the dust sprites and the glint Graphics redraw together; nothing here touches the symbol's
+	// position, so the drift gate still sees the cell exactly where the reel put it.
 	const tileSize = SYMBOL_SIZE * CELL_FILL;
-	let beat = $state<{ sq: number; gl: number } | null>(null);
+	let beat = $state<{ gs: number; dust: number; sq: number; gl: number } | null>(null);
 	let beatRaf = 0;
 	const startLandBeat = () => {
 		const row = props.reelSymbol.symbolIndexOfBoard;
-		if (!HIGH_LAND.symbols.includes(props.reelSymbol.rawSymbol.name) || row < 0 || row >= BOARD_DIMENSIONS.y) return;
+		if (row < 0 || row >= BOARD_DIMENSIONS.y) return;
+		const high = HIGH_LAND.symbols.includes(props.reelSymbol.rawSymbol.name);
 		const opts = stateGame.board[props.reelIndex].reelState.spinOptions();
 		const settleMs = (SYMBOL_SIZE * opts.symbolFallInBounceSizeMulti) / opts.symbolFallInBounceSpeed;
 		const ts = stateBetDerived.timeScale();
+		const gsMs = (GRAVITY_DROP.squashMs + GRAVITY_DROP.settleMs) / ts;
+		const dustMs = GRAVITY_DROP.dustMs / ts;
 		const sqMs = TIMINGS.highLandSquash / ts;
 		const glMs = TIMINGS.highLandGlint / ts;
+		const highMs = high ? gsMs + Math.max(sqMs, glMs) : 0;
 		const t0 = performance.now() + settleMs;
 		cancelAnimationFrame(beatRaf);
 		const step = (now: number) => {
 			const t = now - t0;
-			if (t >= Math.max(sqMs, glMs)) {
+			if (t >= Math.max(gsMs, dustMs, highMs)) {
 				beat = null;
 				beatRaf = 0;
 				return;
 			}
-			if (t >= 0) beat = { sq: Math.min(1, t / sqMs), gl: Math.min(1, t / glMs) };
+			if (t >= 0) {
+				const th = t - gsMs;
+				beat = {
+					gs: Math.min(1, t / gsMs),
+					dust: Math.min(1, t / dustMs),
+					sq: high && th >= 0 ? Math.min(1, th / sqMs) : 1,
+					gl: high && th >= 0 ? Math.min(1, th / glMs) : 1,
+				};
+			}
 			beatRaf = requestAnimationFrame(step);
 		};
 		beatRaf = requestAnimationFrame(step);
 	};
 	$effect(() => () => cancelAnimationFrame(beatRaf));
 	const easeOut = (p: number) => 1 - (1 - p) ** 3;
-	const squash = $derived(
-		beat
-			? { x: 1 + HIGH_LAND.squashX * (1 - easeOut(beat.sq)), y: 1 - HIGH_LAND.squashY * (1 - easeOut(beat.sq)) }
-			: { x: 1, y: 1 },
-	);
+	// gravity squash: sin bump of `squash` over the first squashMs, then a smaller inverse bump
+	const gravitySquash = (gs: number) => {
+		const split = GRAVITY_DROP.squashMs / (GRAVITY_DROP.squashMs + GRAVITY_DROP.settleMs);
+		if (gs < split) return Math.sin(Math.PI * (gs / split)) * GRAVITY_DROP.squash;
+		return -Math.sin(Math.PI * ((gs - split) / (1 - split))) * GRAVITY_DROP.squash * GRAVITY_DROP.settleRatio;
+	};
+	const squash = $derived.by(() => {
+		if (!beat) return { x: 1, y: 1 };
+		const g = beat.gs < 1 ? gravitySquash(beat.gs) : 0;
+		const h = beat.sq < 1 ? 1 - easeOut(beat.sq) : 0;
+		return { x: (1 + g) * (1 + HIGH_LAND.squashX * h), y: (1 - g) * (1 - HIGH_LAND.squashY * h) };
+	});
+	// dust: two lobes spreading out from the bottom edge (demo numbers, scaled from 100 px cells)
+	const dust = $derived.by(() => {
+		if (!beat || beat.dust >= 1) return null;
+		const age = beat.dust;
+		const k = tileSize / 100;
+		return {
+			dx: tileSize * GRAVITY_DROP.dustSpread * (0.4 + age),
+			y: tileSize / 2 - 4 * k,
+			w: (36 + age * 44) * k,
+			h: (12 + age * 8) * k,
+			alpha: (1 - age) * GRAVITY_DROP.dustAlpha,
+		};
+	});
+	const showGlint = $derived(beat !== null && beat.gl < 1);
 	// the tray silhouette, filled with the shared gradient strip. 'global' texture space: the
 	// fill matrix maps TEXELS to local pixels, so it centres the strip's bright core on the
 	// origin, scales it to glintWidth of the tile, tilts it, and slides it from beyond the left
@@ -104,7 +139,7 @@
 	let glintFlip = 0;
 	$effect(() => () => glintCtx.forEach((c) => c.destroy()));
 	const drawGlint = (g: PIXI.Graphics) => {
-		if (!beat) return;
+		if (!beat || beat.gl >= 1) return;
 		glintFlip ^= 1;
 		g.context = glintCtx[glintFlip];
 		g.clear();
@@ -133,7 +168,7 @@
 	{dim}
 	{lift}
 >
-	<Container scale={squash}>
+	<Container scale={squash} rotation={props.reelSymbol.symbolRot.current}>
 		<Symbol
 			state={props.reelSymbol.symbolState}
 			rawSymbol={props.reelSymbol.rawSymbol}
@@ -145,12 +180,17 @@
 				}
 			}}
 		/>
-		{#if beat}
+		{#if showGlint}
 			<!-- glint clipped to the tray shape, then the bug redrawn over it so the light never crosses it -->
 			<Graphics draw={drawGlint} />
 			<Sprite anchor={0.5} key="{props.reelSymbol.rawSymbol.name}_insect.png" width={tileSize} height={tileSize} />
 		{/if}
 	</Container>
+	{#if dust}
+		<!-- landing dust, outside the squash container so it spreads while the tile compresses -->
+		<BaseSprite texture={dustTexture()} anchor={0.5} x={-dust.dx} y={dust.y} width={dust.w} height={dust.h} alpha={dust.alpha} />
+		<BaseSprite texture={dustTexture()} anchor={0.5} x={dust.dx} y={dust.y} width={dust.w} height={dust.h} alpha={dust.alpha} />
+	{/if}
 	{#if insectOnLeaf}
 		<Sprite anchor={0.5} key="{insectOnLeaf}_insect.png" width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} />
 	{/if}

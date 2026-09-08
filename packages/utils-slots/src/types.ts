@@ -27,6 +27,12 @@ export type CascadingReelSpinOptions = {
 	symbolFallInBounceSizeMulti: number;
 	symbolFallOutSpeed: number;
 	symbolFallOutInterval: number;
+	// gravity drop (optional; omitted = the original linear slide with no tilt)
+	// easing of the fall-in leg and the fall-out leg (e.g. quadIn so tiles accelerate like they weigh something)
+	fallInEasing?: (t: number) => number;
+	fallOutEasing?: (t: number) => number;
+	// radians a tile tips while falling out, sign alternating per cell; reset to 0 before it drops back in
+	tipRadians?: number;
 	// reel
 	reelFallInDelay: number;
 	// extra padding

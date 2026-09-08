@@ -22,6 +22,7 @@
 	import { getContext } from '../game/context';
 	import BoardContainer from './BoardContainer.svelte';
 	import BoardMask from './BoardMask.svelte';
+	import Anticipations from './Anticipations.svelte';
 	import BoardBase from './BoardBase.svelte';
 	import { checkBoardGrid } from '../game/boardGrid';
 
@@ -51,6 +52,8 @@
 			atRest: () => context.stateGame.board.every((reel) => reel.reelState.motion === 'stopped'),
 			boardLayout: () => context.stateGameDerived.boardLayout(),
 			gameType: () => context.stateGame.gameType,
+			// per-reel motion + anticipation flags, for timing the scatter tease from a harness
+			reelStates: () => context.stateGame.board.map((reel) => `${reel.reelState.motion}${reel.reelState.anticipating ? '*' : ''}`),
 			// test harnesses / manual QA: fire any emitter event (e.g. winShow + winUpdate to
 			// preview the staged big-win count-up without replaying a whole book)
 			emit: (event: any) => context.eventEmitter.broadcast(event),
@@ -121,6 +124,9 @@
 	<BoardContext animate={false}>
 		<BoardContainer>
 			<BoardMask />
+			<!-- scatter anticipation rain + rim: board space, masked to the window, rain under the
+			     symbols (zIndex -1) and rim over them (30) — moved in from Game.svelte 2026-09-08 -->
+			<Anticipations />
 			<BoardBase />
 		</BoardContainer>
 	</BoardContext>
