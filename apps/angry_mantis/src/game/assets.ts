@@ -86,6 +86,16 @@ export default {
 	// Gated with the base backdrop — the housing is empty in the art, so the fan must be there at first paint.
 	fanBlades: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/fan-blades.webp', import.meta.url).href), preload: true },
 	fanHub: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/fan-hub.webp', import.meta.url).href), preload: true },
+	// sky behind the window panes (the room art is cut to alpha there) + the bonus cloud atlases
+	// (tools/build_clouds.py). The base sky is on screen from the first paint; the others and the
+	// clouds are bonus-only and ride the deferred phase (bonusStart awaits it).
+	skyBase: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/sky-base.webp', import.meta.url).href), preload: true },
+	skySuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/sky-super.webp', import.meta.url).href), preload: false },
+	skyFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/sky-feast.webp', import.meta.url).href), preload: false },
+	cloudsSuper: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/clouds-super.json', import.meta.url).href), preload: false },
+	cloudsFeast: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/clouds-feast.json', import.meta.url).href), preload: false },
+	// day-sky birds (base scene, small): rides the preload with the base sky
+	birds: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/birds.json', import.meta.url).href), preload: true },
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
 	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: false },
 	amSymbols: {

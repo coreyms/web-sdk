@@ -54,6 +54,9 @@
 		props.symbolInfo;
 		runState(props.state);
 	});
+	// an eaten tray is DARKENED, not faded: at 0.45 alpha the board backdrop's plate showed through
+	// the plate art (Corey 2026-09-08); a multiply tint dims the tray's own detail and hides nothing
+	const EATEN_TINT = 0x707070;
 </script>
 
 <Sprite
@@ -63,5 +66,5 @@
 	key={props.symbolInfo.assetKey}
 	width={SYMBOL_SIZE * props.symbolInfo.sizeRatios.width * pulse.current}
 	height={SYMBOL_SIZE * props.symbolInfo.sizeRatios.height * pulse.current}
-	alpha={props.state === 'eaten' ? 0.45 : 1}
+	tint={props.state === 'eaten' ? EATEN_TINT : 0xffffff}
 />

@@ -1,0 +1,352 @@
+{
+ "frames": {
+  "cloud_feast_0.png": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 571,
+    "h": 176
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 571,
+    "h": 176
+   },
+   "sourceSize": {
+    "w": 571,
+    "h": 176
+   }
+  },
+  "cloud_feast_1.png": {
+   "frame": {
+    "x": 0,
+    "y": 178,
+    "w": 611,
+    "h": 170
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 611,
+    "h": 170
+   },
+   "sourceSize": {
+    "w": 611,
+    "h": 170
+   }
+  },
+  "cloud_feast_2.png": {
+   "frame": {
+    "x": 0,
+    "y": 350,
+    "w": 505,
+    "h": 142
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 505,
+    "h": 142
+   },
+   "sourceSize": {
+    "w": 505,
+    "h": 142
+   }
+  },
+  "cloud_feast_3.png": {
+   "frame": {
+    "x": 0,
+    "y": 494,
+    "w": 651,
+    "h": 138
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 651,
+    "h": 138
+   },
+   "sourceSize": {
+    "w": 651,
+    "h": 138
+   }
+  },
+  "cloud_feast_4.png": {
+   "frame": {
+    "x": 0,
+    "y": 634,
+    "w": 572,
+    "h": 138
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 572,
+    "h": 138
+   },
+   "sourceSize": {
+    "w": 572,
+    "h": 138
+   }
+  },
+  "cloud_feast_5.png": {
+   "frame": {
+    "x": 0,
+    "y": 774,
+    "w": 556,
+    "h": 125
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 556,
+    "h": 125
+   },
+   "sourceSize": {
+    "w": 556,
+    "h": 125
+   }
+  },
+  "cloud_feast_6.png": {
+   "frame": {
+    "x": 558,
+    "y": 774,
+    "w": 453,
+    "h": 125
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 453,
+    "h": 125
+   },
+   "sourceSize": {
+    "w": 453,
+    "h": 125
+   }
+  },
+  "cloud_feast_7.png": {
+   "frame": {
+    "x": 0,
+    "y": 901,
+    "w": 382,
+    "h": 120
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 382,
+    "h": 120
+   },
+   "sourceSize": {
+    "w": 382,
+    "h": 120
+   }
+  },
+  "cloud_feast_8.png": {
+   "frame": {
+    "x": 384,
+    "y": 901,
+    "w": 353,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 353,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 353,
+    "h": 114
+   }
+  },
+  "cloud_feast_9.png": {
+   "frame": {
+    "x": 0,
+    "y": 1023,
+    "w": 481,
+    "h": 111
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 481,
+    "h": 111
+   },
+   "sourceSize": {
+    "w": 481,
+    "h": 111
+   }
+  },
+  "cloud_feast_10.png": {
+   "frame": {
+    "x": 483,
+    "y": 1023,
+    "w": 403,
+    "h": 109
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 403,
+    "h": 109
+   },
+   "sourceSize": {
+    "w": 403,
+    "h": 109
+   }
+  },
+  "cloud_feast_11.png": {
+   "frame": {
+    "x": 0,
+    "y": 1136,
+    "w": 437,
+    "h": 100
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 437,
+    "h": 100
+   },
+   "sourceSize": {
+    "w": 437,
+    "h": 100
+   }
+  },
+  "cloud_feast_12.png": {
+   "frame": {
+    "x": 439,
+    "y": 1136,
+    "w": 300,
+    "h": 88
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 300,
+    "h": 88
+   },
+   "sourceSize": {
+    "w": 300,
+    "h": 88
+   }
+  },
+  "cloud_feast_13.png": {
+   "frame": {
+    "x": 741,
+    "y": 1136,
+    "w": 282,
+    "h": 87
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 282,
+    "h": 87
+   },
+   "sourceSize": {
+    "w": 282,
+    "h": 87
+   }
+  },
+  "cloud_feast_14.png": {
+   "frame": {
+    "x": 0,
+    "y": 1238,
+    "w": 416,
+    "h": 78
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 416,
+    "h": 78
+   },
+   "sourceSize": {
+    "w": 416,
+    "h": 78
+   }
+  },
+  "cloud_feast_15.png": {
+   "frame": {
+    "x": 418,
+    "y": 1238,
+    "w": 370,
+    "h": 77
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 370,
+    "h": 77
+   },
+   "sourceSize": {
+    "w": 370,
+    "h": 77
+   }
+  },
+  "cloud_feast_16.png": {
+   "frame": {
+    "x": 0,
+    "y": 1318,
+    "w": 299,
+    "h": 74
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 299,
+    "h": 74
+   },
+   "sourceSize": {
+    "w": 299,
+    "h": 74
+   }
+  }
+ },
+ "meta": {
+  "image": "clouds-feast.webp",
+  "size": {
+   "w": 1024,
+   "h": 1392
+  },
+  "scale": "1"
+ }
+}

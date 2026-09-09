@@ -63,6 +63,12 @@
 			setRecap: (recap: any) => (context.stateGame.sessionRecap = recap),
 			// QA for operator flags the mock RGS never sends (disabledTurbo, displayRTP, ...)
 			setJurisdiction: (patch: Record<string, unknown>) => Object.assign(stateConfig.jurisdiction, patch),
+			assetKeys: () => Object.keys(context.stateApp.loadedAssets ?? {}),
+			// QA for the per-scene backdrop / sky / clouds without playing a bonus
+			setScene: (gameType: 'basegame' | 'freegame', bonusMode: string | null) => {
+				context.stateGame.gameType = gameType;
+				(context.stateGame as any).bonusMode = bonusMode;
+			},
 		});
 	}
 

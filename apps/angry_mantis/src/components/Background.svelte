@@ -11,6 +11,7 @@
 	import { BACKGROUND_WASH } from '../game/constants';
 	import { BACKDROP, FAN } from '../game/ambientSpec';
 	import AmbientFan from './AmbientFan.svelte';
+	import AmbientSky from './AmbientSky.svelte';
 
 	const context = getContext();
 	const IMAGE_RATIO = 1920 / 1080;
@@ -40,6 +41,16 @@
 </script>
 
 <Rectangle {...context.stateLayoutDerived.canvasSizes()} backgroundColor={0x06120a} zIndex={-3} />
+
+<!-- sky + bonus clouds, UNDER the rooms: the room art's panes are cut to alpha, so this layer shows
+     only through the glass. Same crossfade alphas as the rooms, same cover fit. -->
+<AmbientSky
+	x={context.stateLayoutDerived.canvasSizes().width / 2 - (BACKDROP.w / 2) * backdropScale}
+	y={context.stateLayoutDerived.canvasSizes().height / 2 - (BACKDROP.h / 2) * backdropScale}
+	scale={backdropScale}
+	alphas={alphas.map((a) => a.current)}
+	zIndex={-2.5}
+/>
 
 {#each LAYERS as key, i (key)}
 	{#if alphas[i].current > 0}
