@@ -1,10 +1,10 @@
 <script lang="ts">
-	// Menu popover: Game Info + Music/SFX sliders (tap the icon to mute). Bound to the SDK sound state.
+	// Menu popover on black glass (2026-09-09): Game Info + Music/SFX sliders (tap the icon to mute).
+	// Bound to the SDK sound state. Three rows, an operator footer only where the jurisdiction asks.
 	import { stateSound, stateUi, stateBet, stateConfig } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import config from '../game/config';
-	import { soc } from '../game/social';
 
 	import ChunkyBtn from './ChunkyBtn.svelte';
 	import Icon from './Icon.svelte';
@@ -61,11 +61,11 @@
 	<ChunkyBtn glass {size} color="#fff" onclick={controls.menuPress} ariaLabel="Menu">
 		<Icon name="menu" s={size * 0.42} />
 	</ChunkyBtn>
-	<Popover open={stateUi.menuOpen} onclose={() => (stateUi.menuOpen = false)} side="left" offset={size + 14} width={compact ? 260 : 304}>
+	<Popover open={stateUi.menuOpen} onclose={() => (stateUi.menuOpen = false)} side="left" offset={size + 14} width={compact ? 260 : 304} tail={Math.round(size / 2) - 7}>
 		<div class="rows">
 			<button class="slot-btn info-row" style:height="{rowH}px" onclick={controls.openGameInfo}>
-				<span class="ibox" style:width="{iconBox}px" style:height="{iconBox}px"><Icon name="info" s={iconBox * 0.62} /></span>
-				<span class="info-label" style:font-size="{compact ? 14 : 16}px">GAME INFO</span>
+				<span class="ibox gold" style:width="{iconBox}px" style:height="{iconBox}px"><Icon name="info" s={iconBox * 0.55} /></span>
+				<span class="info-label" style:font-size="{compact ? 14 : 15}px">GAME INFO</span>
 			</button>
 
 			<div class="sound-row" style:height="{rowH}px">
@@ -85,13 +85,13 @@
 			{#if showSession}
 				<div class="session">
 					{#if j.displayRTP}
-						<div class="srow"><span class="sk">RTP</span><span class="slot-num sv">{(config.rtp * 100).toFixed(2)}%</span></div>
+						<span class="srow"><span class="sk">RTP</span><span class="slot-num sv">{(config.rtp * 100).toFixed(2)}%</span></span>
 					{/if}
 					{#if j.displayNetPosition}
-						<div class="srow"><span class="sk">{soc('NET POSITION', 'NET RESULT')}</span><span class="slot-num sv" class:neg={net < 0} class:pos={net > 0}>{netText}</span></div>
+						<span class="srow"><span class="sk">NET</span><span class="slot-num sv" class:neg={net < 0} class:pos={net > 0}>{netText}</span></span>
 					{/if}
 					{#if j.displaySessionTimer}
-						<div class="srow"><span class="sk">SESSION</span><span class="slot-num sv">{elapsedText}</span></div>
+						<span class="srow"><span class="sk">TIME</span><span class="slot-num sv">{elapsedText}</span></span>
 					{/if}
 				</div>
 			{/if}
@@ -100,127 +100,101 @@
 </div>
 
 <style>
-	/* paper-ticket popover (Popover.svelte carries the stock); tokens as the other tickets */
+	/* black glass popover (Popover.svelte carries the surface); tokens from ChromeStyles */
 	.wrap {
-		--ink: #1b1204;
-		--body: #2a241a;
-		--muted: #6b6250;
-		--rule: #a99c7d;
-		--green: #4e7d15;
 		position: relative;
 		display: inline-block;
 	}
 	.rows {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 6px;
 	}
-	/* GAME INFO: the dark stamp, like the tickets' pill */
+	/* GAME INFO: the one tappable row, on a well, with the one gold icon box on the panel */
 	.info-row {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 0 14px;
+		padding: 0 6px 0 4px;
 		border-radius: 10px;
-		background: var(--body);
-		box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-		color: #ebe3cf;
+		background: var(--ui-glass-well);
+		color: var(--ui-ink);
 		text-align: left;
 	}
+	.info-row:hover {
+		background: var(--ui-glass-well-2);
+	}
 	.info-row:active {
-		transform: translateY(2px);
-		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+		transform: translateY(1px);
 	}
 	.ibox {
-		border-radius: 8px;
+		border-radius: 10px;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		color: #f2c14e;
+		background: var(--ui-glass-well);
+		color: var(--ui-ink);
+		flex: 0 0 auto;
+	}
+	.ibox.gold {
+		background: var(--ui-gold);
+		color: var(--ui-gold-ink);
 	}
 	.info-label {
-		font-weight: 900;
-		letter-spacing: 2.5px;
+		font-weight: 800;
+		letter-spacing: 2px;
 	}
 	.sound-row {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 0 12px 0 6px;
-		border-radius: 10px;
-		border: 2px dashed var(--rule);
+		padding: 0 6px 0 4px;
 	}
 	.ibtn {
-		border-radius: 8px;
+		border-radius: 10px;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		background: transparent;
-		color: var(--ink);
+		background: var(--ui-glass-well);
+		color: var(--ui-ink);
+		flex: 0 0 auto;
 	}
 	.ibtn.muted {
-		color: var(--muted);
-		opacity: 0.6;
+		color: var(--ui-ink-3);
 	}
 	.sound-row input {
 		flex: 1;
+		min-width: 0;
 	}
-	/* operator readouts: a ruled block under the sliders, same dashed stock as the sound rows */
+	/* operator readouts: a hairline-topped footer strip, faint labels, Sora values */
 	.session {
 		display: flex;
-		flex-direction: column;
-		padding: 4px 12px;
-		border-radius: 10px;
-		border: 2px dashed var(--rule);
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 4px 12px;
+		padding: 8px 8px 2px;
+		border-top: 1px solid var(--ui-rule);
 	}
 	.srow {
-		display: flex;
-		justify-content: space-between;
+		display: inline-flex;
 		align-items: baseline;
-		gap: 12px;
-		padding: 6px 0;
-	}
-	.srow + .srow {
-		border-top: 1px solid rgba(0, 0, 0, 0.1);
+		gap: 6px;
 	}
 	.sk {
 		font-size: 11px;
 		font-weight: 800;
-		letter-spacing: 2px;
-		color: var(--muted);
+		letter-spacing: 1.5px;
+		color: var(--ui-ink-3);
 	}
 	.sv {
-		font-size: 14px;
-		font-weight: 800;
-		color: var(--ink);
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--ui-ink-2);
 	}
 	.sv.neg {
-		color: #b8371e;
+		color: #ff8a70;
 	}
 	.sv.pos {
-		color: var(--green);
-	}
-	/* paper slider: scoped rules outrank the global .vol-slider (ChromeStyles) */
-	.vol-slider {
-		height: 6px;
-		border-radius: 3px;
-		background: linear-gradient(90deg, var(--green) var(--fill, 0%), rgba(0, 0, 0, 0.14) var(--fill, 0%));
-	}
-	.vol-slider.off {
-		background: rgba(0, 0, 0, 0.14);
-	}
-	.vol-slider::-webkit-slider-thumb {
-		width: 18px;
-		height: 18px;
-		background: var(--body);
-		box-shadow: inset 0 0 0 3px #ebe3cf, 0 1px 3px rgba(0, 0, 0, 0.5);
-	}
-	.vol-slider::-moz-range-thumb {
-		width: 18px;
-		height: 18px;
-		border: 0;
-		border-radius: 50%;
-		background: var(--body);
-		box-shadow: inset 0 0 0 3px #ebe3cf, 0 1px 3px rgba(0, 0, 0, 0.5);
+		color: var(--ui-green);
 	}
 </style>

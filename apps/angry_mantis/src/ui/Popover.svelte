@@ -1,9 +1,11 @@
 <script lang="ts">
-	// Paper-ticket popover anchored above a control (same stock as the meal-ticket modals); closes on outside pointerdown.
+	// Black-glass popover anchored above a control (the am-glass recipe from ChromeStyles), with a
+	// small tail pointing down at the control; closes on outside pointerdown. Was the paper ticket
+	// until the "Black Glass Panels" pass (2026-09-09).
 	import type { Snippet } from 'svelte';
 
-	type Props = { open: boolean; onclose: () => void; side?: 'left' | 'right'; offset?: number; width?: number | string; children: Snippet };
-	const { open, onclose, side = 'left', offset = 56, width = 'auto', children }: Props = $props();
+	type Props = { open: boolean; onclose: () => void; side?: 'left' | 'right'; offset?: number; width?: number | string; tail?: number; children: Snippet };
+	const { open, onclose, side = 'left', offset = 56, width = 'auto', tail = 14, children }: Props = $props();
 
 	let el: HTMLDivElement | undefined = $state();
 
@@ -20,37 +22,35 @@
 {#if open}
 	<div
 		bind:this={el}
-		class="popover"
+		class="popover am-glass"
 		style:bottom="{offset}px"
 		style:left={side === 'left' ? '0' : 'auto'}
 		style:right={side === 'right' ? '0' : 'auto'}
 		style:width={typeof width === 'number' ? `${width}px` : width}
 	>
 		{@render children()}
+		<span class="tail" style:left={side === 'left' ? `${tail}px` : 'auto'} style:right={side === 'right' ? `${tail}px` : 'auto'}></span>
 	</div>
 {/if}
 
 <style>
 	.popover {
 		position: absolute;
-		padding: 12px;
-		color: #2a241a;
-		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
-		border-radius: 14px;
-		box-shadow: 0 24px 56px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
+		padding: 10px;
 		z-index: 50;
 		pointer-events: auto;
 		animation: slot-count 0.18s ease both;
 	}
-	.popover::before {
-		content: '';
+	/* the tail: a rotated square sharing the glass and its edge, tucked under the panel's bottom edge */
+	.tail {
 		position: absolute;
-		inset: 0;
-		border-radius: inherit;
-		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+		bottom: -8px;
+		width: 14px;
+		height: 14px;
+		background: var(--ui-glass);
+		border-right: 1px solid var(--ui-glass-edge);
+		border-bottom: 1px solid var(--ui-glass-edge);
+		transform: rotate(45deg);
 		pointer-events: none;
-	}
-	.popover > :global(*) {
-		position: relative;
 	}
 </style>

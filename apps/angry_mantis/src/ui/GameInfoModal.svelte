@@ -36,14 +36,14 @@
 	];
 
 	const SYMBOL_META: Record<string, { name: string; color: string; kind: 'premium' | 'mid' | 'low' }> = {
-		H1: { name: 'Marty', color: '#b07a12', kind: 'premium' },
-		M1: { name: 'Beetle', color: '#b8371e', kind: 'mid' },
-		M2: { name: 'Spider', color: '#4e7d15', kind: 'mid' },
-		M3: { name: 'Scorpion', color: '#2b6fb3', kind: 'mid' },
-		L1: { name: 'Lightning Bug', color: '#2a241a', kind: 'low' },
-		L2: { name: 'Fly', color: '#2a241a', kind: 'low' },
-		L3: { name: 'Moth', color: '#2a241a', kind: 'low' },
-		L4: { name: 'Caterpillar', color: '#2a241a', kind: 'low' },
+		H1: { name: 'Marty', color: '#ffdc4a', kind: 'premium' },
+		M1: { name: 'Beetle', color: '#ff8a70', kind: 'mid' },
+		M2: { name: 'Spider', color: '#9cd92f', kind: 'mid' },
+		M3: { name: 'Scorpion', color: '#7fb6ff', kind: 'mid' },
+		L1: { name: 'Lightning Bug', color: '#eef0f6', kind: 'low' },
+		L2: { name: 'Fly', color: '#eef0f6', kind: 'low' },
+		L3: { name: 'Moth', color: '#eef0f6', kind: 'low' },
+		L4: { name: 'Caterpillar', color: '#eef0f6', kind: 'low' },
 	};
 	const paying = [...config.eatOrder].reverse();
 	// real symbol art thumbnails (static/assets/tiles/, emitted by make_placeholders.py)
@@ -60,9 +60,9 @@
 	const RULES_SECTIONS = rulesSections();
 
 	const SPECIALS = [
-		{ glyph: 'W', name: 'Wild', color: '#b07a12', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.') },
-		{ glyph: 'S', name: 'Marky Scatter', color: '#c4501e', note: `3 / 4 / 5 anywhere trigger Free Spins / Super Free Spins / Mantis Feast. In free spins each scatter adds +1 spin (up to +${config.freeSpins.maxRetrigger} per session); once the cap is reached scatters stop appearing.` },
-		{ glyph: 'GL', name: 'Dinner Leaf', color: '#4e7d15', note: soc('Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.', 'Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-value symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.') },
+		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.') },
+		{ glyph: 'S', name: 'Marky Scatter', color: '#ff8a70', note: `3 / 4 / 5 anywhere trigger Free Spins / Super Free Spins / Mantis Feast. In free spins each scatter adds +1 spin (up to +${config.freeSpins.maxRetrigger} per session); once the cap is reached scatters stop appearing.` },
+		{ glyph: 'GL', name: 'Dinner Leaf', color: '#9cd92f', note: soc('Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.', 'Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-value symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.') },
 	];
 
 	// the cap is a base-bet multiple in every mode; a mode's ceiling against its own price is what a
@@ -72,12 +72,12 @@
 		return Number.isInteger(x) ? x.toLocaleString() : x.toFixed(1).replace(/\.0$/, '');
 	};
 	const MODES = [
-		{ id: 'base', label: 'Base Game', accent: '#2a241a', cost: `${modeCost('BASE')}×`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
-		{ id: 'ante', label: 'Ante', accent: '#b07a12', cost: `${modeCost('ANTE')}×`, costNum: modeCost('ANTE'), enter: soc('Switch on from the Bonus Buy menu; stays on until switched off.', 'Switch on from the Feature Menu; stays on until switched off.'), spins: 'One spin per play.', mech: soc('Triples the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature; features land about four times as often as in the base game. Cannot be combined with a direct bonus buy.', 'Triples the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature; features land about four times as often as in the base game. Cannot be combined with an instantly triggered feature.') },
-		{ id: 'bonus', label: 'Free Spins', accent: '#4e7d15', cost: `${modeCost('BONUS')}×`, costNum: modeCost('BONUS'), enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
-		{ id: 'super', label: 'Super Free Spins', accent: '#b8371e', cost: `${modeCost('SUPER')}×`, costNum: modeCost('SUPER'), enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
-		{ id: 'feast', label: 'Mantis Feast', accent: '#b07a12', cost: 'Not offered directly', costNum: 0, enter: soc('Land 5 Marky scatters, or win it inside a Mystery Spin.', 'Land 5 Marky scatters, or win it inside a Mystery spin.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: soc(`Marty AND Marky feed: two opening bites, and both mantises strike. Every Mantis Feast session pays at least ${config.feastMinWin}× the bet.`, `Marty AND Marky feed: two opening bites, and both mantises strike. Every Mantis Feast session wins at least ${config.feastMinWin}× the play amount.`) },
-		{ id: 'mystery', label: 'Mystery Spin', accent: '#2b6fb3', cost: `${modeCost('MYSTERY')}×`, costNum: modeCost('MYSTERY'), enter: soc('Buy from the bonus menu.', 'Trigger from the feature menu.'), spins: 'One spin, then whatever it serves.', mech: `The reels spin once. ${config.mystery.nothing * 100}% of Mystery Spins land nothing, ${config.mystery.super * 100}% land 4 Marky scatters for Super Free Spins and ${config.mystery.feast * 100}% land 5 for the Mantis Feast. The split is fixed in the published math.` },
+		{ id: 'base', label: 'Base Game', accent: '#eef0f6', cost: `${modeCost('BASE')}×`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
+		{ id: 'ante', label: 'Ante', accent: '#ffdc4a', cost: `${modeCost('ANTE')}×`, costNum: modeCost('ANTE'), enter: soc('Switch on from the Bonus Buy menu; stays on until switched off.', 'Switch on from the Feature Menu; stays on until switched off.'), spins: 'One spin per play.', mech: soc('Triples the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature; features land about four times as often as in the base game. Cannot be combined with a direct bonus buy.', 'Triples the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature; features land about four times as often as in the base game. Cannot be combined with an instantly triggered feature.') },
+		{ id: 'bonus', label: 'Free Spins', accent: '#9cd92f', cost: `${modeCost('BONUS')}×`, costNum: modeCost('BONUS'), enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
+		{ id: 'super', label: 'Super Free Spins', accent: '#ff8a70', cost: `${modeCost('SUPER')}×`, costNum: modeCost('SUPER'), enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
+		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: 'Not offered directly', costNum: 0, enter: soc('Land 5 Marky scatters, or win it inside a Mystery Spin.', 'Land 5 Marky scatters, or win it inside a Mystery spin.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: soc(`Marty AND Marky feed: two opening bites, and both mantises strike. Every Mantis Feast session pays at least ${config.feastMinWin}× the bet.`, `Marty AND Marky feed: two opening bites, and both mantises strike. Every Mantis Feast session wins at least ${config.feastMinWin}× the play amount.`) },
+		{ id: 'mystery', label: 'Mystery Spin', accent: '#7fb6ff', cost: `${modeCost('MYSTERY')}×`, costNum: modeCost('MYSTERY'), enter: soc('Buy from the bonus menu.', 'Trigger from the feature menu.'), spins: 'One spin, then whatever it serves.', mech: `The reels spin once. ${config.mystery.nothing * 100}% of Mystery Spins land nothing, ${config.mystery.super * 100}% land 4 Marky scatters for Super Free Spins and ${config.mystery.feast * 100}% land 5 for the Mantis Feast. The split is fixed in the published math.` },
 	];
 
 	// UI guide (submission checklist "User interaction guide is included in the game information"):
@@ -85,14 +85,14 @@
 	type IconName = ComponentProps<typeof Icon>['name'];
 	type GuideRow = { icon: IconName | null; art?: string; color: string; name: string; text: string };
 	const GUIDE: GuideRow[] = [
-		{ icon: 'play', color: '#2a241a', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
-		{ icon: 'turbo', color: '#b07a12', name: 'Turbo', text: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. The turbo setting and the sound settings are remembered on this device.' },
-		{ icon: 'auto', color: '#4e7d15', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, plus an ADVANCED fold with a stop-on-loss limit, a stop-on-single-win limit, Stop on Free Games (autoplay ends when a feature triggers; the feature still plays out) and Autoplay Bonuses (feature screens continue on their own). LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. While a run is active the Spin button turns green with the spins left and this button turns red with an X.' },
-		{ icon: 'polymath', color: '#4e7d15', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or a Mystery Spin directly. A loaded feature is shown on the Spin button and on this button by name (ANTE, BONUS, SUPER or MYSTERY); tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or a Mystery spin instantly. A loaded feature is shown on the Spin button and on this button by name (ANTE, BONUS, SUPER or MYSTERY); tap the button again to cancel it.') },
-		{ icon: 'menu', color: '#2a241a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
-		{ icon: 'info', color: '#2b6fb3', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The − and + beside it step through the bet menu, and tapping the readout opens the full bet picker. The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The − and + beside it step through the play amount menu, and tapping the readout opens the full picker. The plaque on the reel frame names the active mode and its play amount.') },
-		{ icon: 'chevronRight', color: '#2a241a', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
-		{ icon: 'stop', color: '#b8371e', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
+		{ icon: 'play', color: '#ffdc4a', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
+		{ icon: 'turbo', color: '#ffdc4a', name: 'Turbo', text: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. The turbo setting and the sound settings are remembered on this device.' },
+		{ icon: 'auto', color: '#ffdc4a', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, plus an ADVANCED fold with a stop-on-loss limit, a stop-on-single-win limit, Stop on Free Games (autoplay ends when a feature triggers; the feature still plays out) and Autoplay Bonuses (feature screens continue on their own). LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. While a run is active the Spin button turns green with the spins left and this button turns red with an X.' },
+		{ icon: 'polymath', color: '#ffdc4a', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or a Mystery Spin directly. A loaded feature is shown on the Spin button and on this button by name (ANTE, BONUS, SUPER or MYSTERY); tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or a Mystery spin instantly. A loaded feature is shown on the Spin button and on this button by name (ANTE, BONUS, SUPER or MYSTERY); tap the button again to cancel it.') },
+		{ icon: 'menu', color: '#ffdc4a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
+		{ icon: 'info', color: '#ffdc4a', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The − and + beside it step through the bet menu, and tapping the readout opens the full bet picker. The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The − and + beside it step through the play amount menu, and tapping the readout opens the full picker. The plaque on the reel frame names the active mode and its play amount.') },
+		{ icon: 'chevronRight', color: '#ffdc4a', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
+		{ icon: 'stop', color: '#ffdc4a', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
 	];
 
 	let active = $state('paytable');
@@ -126,23 +126,24 @@
 	});
 
 	const pad = $derived(compact ? 14 : 28);
-	const bodySize = $derived(compact ? 12 : 14);
+	const bodySize = $derived(compact ? 12.5 : 13.5);
 </script>
 
-<ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(8,4,16,0.62)" blur={14} zIndex={5}>
-	<div class="panel" onclick={(e) => e.stopPropagation()} role="presentation" style:margin="{compact ? 14 : 24}px" style:border-radius="{compact ? 12 : 18}px">
-		<div class="head" style:padding="{compact ? 12 : 18}px {pad}px">
-			<div class="h-title" style:font-size="{compact ? 18 : 28}px">GAME INFO</div>
-			<button class="slot-btn x" onclick={close} style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" aria-label="Close"><Icon name="close" s={compact ? 16 : 20} /></button>
+<ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.72)" zIndex={5}>
+	<!-- full screen: no margin, no radius — the glass IS the page (Black Glass Panels, 2026-09-09) -->
+	<div class="panel" onclick={(e) => e.stopPropagation()} role="presentation">
+		<div class="head" style:padding="{compact ? 12 : 14}px {pad}px">
+			<div class="h-title" style:font-size="{compact ? 17 : 22}px">GAME INFO</div>
+			<button class="slot-btn x" onclick={close} style:width="{compact ? 40 : 38}px" style:height="{compact ? 40 : 38}px" aria-label="Close"><Icon name="close" s={compact ? 16 : 18} /></button>
 		</div>
 
-		<div class="tabs" bind:this={navEl} style:padding="8px {pad}px">
+		<div class="tabs" bind:this={navEl} style:padding="4px {pad - 8}px">
 			{#each SECTIONS as s (s.id)}
-				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={compact ? '6px 10px' : '8px 14px'} style:font-size="{compact ? 11 : 13}px">{s.label}</button>
+				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={compact ? '9px 9px 8px' : '10px 12px 9px'} style:font-size="{compact ? 10.5 : 11}px">{s.label}</button>
 			{/each}
 		</div>
 
-		<div class="content" bind:this={contentEl} onscroll={onScroll} style:padding="{pad}px" style:gap="{compact ? 18 : 28}px" style:font-size="{bodySize}px">
+		<div class="content" bind:this={contentEl} onscroll={onScroll} style:padding="{compact ? 16 : 22}px {pad}px 40px" style:gap="{compact ? 22 : 30}px" style:font-size="{bodySize}px">
 			<section bind:this={sectionEls.paytable}>
 				<h2>{soc('Paytable', 'Symbols')}</h2>
 				<p>{soc('Pays per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins pay left to right on adjacent reels starting from reel 1.', 'Wins per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins form left to right on adjacent reels starting from reel 1.')} {soc('Only the highest win per symbol is paid. Base game wins are capped at 250× the bet per spin.', 'Only the highest win per symbol counts. A single base game spin never wins more than 250× the play amount.')}</p>
@@ -167,7 +168,7 @@
 					<div class="row">
 						<img class="tile" src={tileSrc('W')} alt="Wild" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
 						<div class="row-main">
-							<div class="row-name" style:color="#b07a12">Wild</div>
+							<div class="row-name" style:color="#ffdc4a">Wild</div>
 							<div class="row-kind">Substitutes for all menu symbols</div>
 						</div>
 					</div>
@@ -216,7 +217,7 @@
 				<p>{soc('Six modes. Base and Ante are bet-by-bet; the features are entered by Marky scatters, a direct bonus buy, or the Mystery Spin.', 'Six modes. Base and Ante run spin by spin; the features are entered by Marky scatters, triggered instantly from the feature menu, or served by a Mystery spin.')}</p>
 				<div class="modes">
 					{#each MODES as m (m.id)}
-						<div class="mode" style:border-color="{m.accent}66">
+						<div class="mode" style:border-left-color={m.accent}>
 							<div class="mode-head">
 								<div class="mode-name" style:color={m.accent} style:font-size="{compact ? 14 : 16}px">{m.label}</div>
 								<div class="mode-meta"><span>{soc('COST', 'PLAY AMOUNT')} <b class="slot-num" style:color={m.accent}>{m.cost}</b></span><span>RTP <b class="slot-num">{(config.rtp * 100).toFixed(2)}%</b></span><span>MAX WIN <b class="slot-num">{config.maxWin.toLocaleString()}× {soc('bet', 'play amount')}</b>{#if m.costNum > 1}<span class="dim">&nbsp;= {capPerPrice(m.costNum)}× {soc('the mode price', 'the play amount for this mode')}</span>{/if}</span></div>
@@ -247,7 +248,7 @@
 				<ul>
 					<li>When a session starts the host takes an opening bite (Mantis Feast: both mantises bite).</li>
 					<li>Each bite <strong>{soc('eats the lowest-paying symbol', 'eats the lowest-value symbol')}</strong> still on the menu, removing it from the reels for the rest of the session.</li>
-					<li>Each <strong style="color:#4e7d15">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve. When several leaves land on one spin, each shows its own course, in serving order.</li>
+					<li>Each <strong style="color:#9cd92f">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve. When several leaves land on one spin, each shows its own course, in serving order.</li>
 					<li>Fewer symbols on the reels means the remaining symbols land more often, so wins escalate as the session goes on.</li>
 					<li>{soc(`If all eight paying symbols are eaten, the round pays the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`, `If all eight menu symbols are eaten, the round wins the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`)}</li>
 					<li>{soc(`The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the bet. Either way the round ends and the cap is paid.`, `The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the play amount. Either way the round ends and the cap is won.`)}</li>
@@ -268,7 +269,7 @@
 						<img src={stamp('/assets/tiles/l4_insect.webp')} alt="Caterpillar riding the leaf" />
 					</div>
 					<div class="row-main">
-						<div class="row-name" style:color="#4e7d15">Serving example</div>
+						<div class="row-name" style:color="#9cd92f">Serving example</div>
 						<div class="note">A Dinner Leaf lands carrying the Caterpillar, the lowest symbol still on the menu, and the host strikes to eat it, leaving an empty plate on the reels.</div>
 					</div>
 				</div>
@@ -286,7 +287,7 @@
 				<h2>Return to Player (RTP)</h2>
 				<div class="rtp-grid" style:grid-template-columns={compact ? '1fr 1fr' : 'repeat(5, 1fr)'}>
 					{#each MODES.filter((m) => m.costNum > 0) as m (m.id)}
-						<div class="rtp-cell" style:border-color="{m.accent}66">
+						<div class="rtp-cell">
 							<div class="rtp-k" style:color={m.accent}>{m.label}</div>
 							<div class="slot-num rtp-v" style:font-size="{compact ? 18 : 22}px">{(config.rtp * 100).toFixed(2)}%</div>
 						</div>
@@ -325,75 +326,57 @@
 </ModalShell>
 
 <style>
-	/* ── the paper card (same stock + tokens as AutoplayModal / BonusBuyModal / ReplayModal) ── */
+	/* ── black glass, full screen (surface tokens from ChromeStyles; the paper tokens are gone) ── */
 	.panel {
-		--ink: #1b1204;
-		--body: #2a241a;
-		--muted: #6b6250;
-		--faint: #8a8069;
-		--rule: #a99c7d;
-		--green: #4e7d15;
-		--green-bg: rgba(166, 228, 87, 0.28);
-		--gold: #b07a12;
-		--gold-bg: rgba(242, 193, 78, 0.22);
-		--red: #b8371e;
-		--red-bg: rgba(255, 138, 112, 0.22);
+		--ink: var(--ui-ink);
+		--body: var(--ui-ink-2);
+		--muted: var(--ui-ink-2);
+		--faint: var(--ui-ink-3);
+		--rule: var(--ui-rule);
+		--rule-2: var(--ui-rule-2);
+		--well: var(--ui-glass-well);
+		--green: #9cd92f;
+		--gold: #ffdc4a;
+		--red: #ff8a70;
 		position: absolute;
 		inset: 0;
 		display: flex;
 		flex-direction: column;
 		color: var(--body);
-		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
-		box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
+		background: var(--ui-glass);
+		box-shadow: inset 0 1px 0 var(--ui-glass-hi);
 		overflow: hidden;
 		pointer-events: auto;
-	}
-	/* paper grain — a pseudo element, so the scrolling content never has to carry it */
-	.panel::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		border-radius: inherit;
-		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
-		pointer-events: none;
-		z-index: 0;
-	}
-	.panel > * {
-		position: relative;
-		z-index: 1;
 	}
 	.head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		border-bottom: 1px solid var(--rule);
 	}
 	.h-title {
 		font-weight: 900;
 		letter-spacing: 5px;
 		color: var(--ink);
-		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 	.x {
-		border-radius: 10px;
-		background: var(--body);
-		color: #ebe3cf;
-		box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+		border-radius: 9px;
+		background: var(--well);
+		color: var(--ink);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
-	.x:active {
-		transform: translateY(2px);
-		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+	.x:hover {
+		background: var(--ui-glass-well-2);
 	}
-	/* tab strip: a dashed tear line above and below, like the ticket's perforations */
+	/* tab strip: underlined text, gold on the active one — eleven fit in one row on desktop, scroll on portrait */
 	.tabs {
 		display: flex;
-		gap: 6px;
+		gap: 2px;
 		overflow-x: auto;
 		overflow-y: hidden;
-		border-top: 3px dashed var(--rule);
-		border-bottom: 3px dashed var(--rule);
+		border-bottom: 1px solid var(--rule);
 		scrollbar-width: none;
 	}
 	.tabs::-webkit-scrollbar {
@@ -401,19 +384,17 @@
 	}
 	.tab {
 		flex: 0 0 auto;
-		border-radius: 999px;
-		background: rgba(0, 0, 0, 0.06);
-		border: 2px solid rgba(0, 0, 0, 0.14);
-		color: var(--muted);
+		background: transparent;
+		border-bottom: 2px solid transparent;
+		color: var(--body);
 		font-weight: 800;
-		letter-spacing: 1.5px;
+		letter-spacing: 1.8px;
 		text-transform: uppercase;
 		white-space: nowrap;
 	}
 	.tab.on {
-		background: var(--body);
-		border-color: var(--body);
-		color: #f2c14e;
+		color: var(--gold);
+		border-bottom-color: var(--gold);
 	}
 	.content {
 		flex: 1;
@@ -421,32 +402,36 @@
 		overflow-y: auto;
 		display: flex;
 		flex-direction: column;
-		line-height: 1.6;
+		align-items: stretch;
+		line-height: 1.55;
 		color: var(--body);
 		overscroll-behavior: contain;
 		scrollbar-width: thin;
-		scrollbar-color: var(--rule) transparent;
+		scrollbar-color: var(--rule-2) transparent;
 	}
+	/* the reading column: capped and centred on wide masters */
 	section {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+		width: 100%;
+		max-width: 880px;
+		margin: 0 auto;
 	}
 	h2 {
 		margin: 0;
-		font-size: 18px;
+		font-size: 13px;
 		font-weight: 900;
 		letter-spacing: 3px;
-		color: var(--ink);
+		color: var(--gold);
 		text-transform: uppercase;
-		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 	p {
 		margin: 0;
 	}
 	strong {
 		color: var(--ink);
-		font-weight: 800;
+		font-weight: 700;
 	}
 	.mono {
 		color: var(--ink);
@@ -463,41 +448,39 @@
 		gap: 6px;
 	}
 	.subhead {
-		font-size: 12px;
-		letter-spacing: 3px;
+		font-size: 11px;
+		letter-spacing: 2px;
 		font-weight: 800;
-		color: var(--muted);
+		color: var(--ink);
 		text-transform: uppercase;
 		margin-top: 6px;
 	}
 	.tear {
 		height: 0;
-		border-top: 3px dashed var(--rule);
+		border-top: 1px solid var(--rule);
 		margin: 8px 0;
 	}
 	.pay-grid {
 		display: grid;
 		gap: 8px;
-		margin-top: 8px;
+		margin-top: 4px;
 	}
-	/* rows / cards: the dashed .block of the other tickets, at list scale */
+	/* rows / cards: hairline boxes on the glass */
 	.row {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 10px 12px;
-		border-radius: 12px;
-		border: 2px dashed var(--rule);
-		background: rgba(255, 255, 255, 0.12);
+		padding: 8px 10px;
+		border-radius: 10px;
+		border: 1px solid var(--rule);
 	}
 	.row.top {
 		align-items: flex-start;
 	}
 	.tile {
-		border-radius: 10px;
+		border-radius: 9px;
 		flex-shrink: 0;
 		display: block;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 	}
 	.menu-strip {
 		display: flex;
@@ -520,7 +503,7 @@
 	.menu-num {
 		font-size: 9px;
 		font-weight: 800;
-		color: var(--muted);
+		color: var(--faint);
 	}
 	.menu-arrow {
 		color: var(--faint);
@@ -545,19 +528,22 @@
 		min-width: 0;
 	}
 	.row-name {
-		font-size: 12px;
+		font-size: 12.5px;
 		font-weight: 800;
 		letter-spacing: 1.5px;
 		text-transform: uppercase;
 	}
 	.row-kind {
-		font-size: 10px;
-		color: var(--muted);
-		letter-spacing: 0.5px;
+		font-size: 10.5px;
+		color: var(--faint);
+		letter-spacing: 1px;
+		text-transform: uppercase;
 		margin-top: 2px;
 	}
 	.note {
 		color: var(--body);
+		font-size: 12px;
+		line-height: 1.45;
 	}
 	.pays {
 		display: flex;
@@ -570,32 +556,34 @@
 	.pay-k {
 		font-size: 9px;
 		font-weight: 800;
-		letter-spacing: 1px;
-		color: var(--muted);
+		letter-spacing: 0.5px;
+		color: var(--faint);
+		text-transform: uppercase;
 	}
 	.pay-v {
 		font-size: 13px;
 		color: var(--ink);
-		font-weight: 800;
+		font-weight: 700;
 		white-space: nowrap;
 	}
+	/* mode cards: the per-mode colour is a 3px left rail and the name only */
 	.modes {
 		display: grid;
-		gap: 10px;
-		margin-top: 8px;
+		gap: 8px;
+		margin-top: 4px;
 	}
 	.mode {
-		padding: 14px;
-		border-radius: 12px;
-		border: 2px solid var(--rule);
-		background: rgba(255, 255, 255, 0.12);
+		padding: 10px 12px;
+		border-radius: 10px;
+		border: 1px solid var(--rule);
+		border-left: 3px solid var(--ink);
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 6px;
 	}
 	.mode-head {
 		display: flex;
-		align-items: center;
+		align-items: baseline;
 		justify-content: space-between;
 		gap: 8px;
 		flex-wrap: wrap;
@@ -608,15 +596,16 @@
 	.mode-meta {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 4px 12px;
-		font-size: 12px;
+		gap: 4px 14px;
+		font-size: 10px;
 		font-weight: 700;
-		letter-spacing: 1px;
-		color: var(--muted);
+		letter-spacing: 1.4px;
+		color: var(--faint);
+		text-transform: uppercase;
 	}
 	.mode-meta b {
 		color: var(--ink);
-		font-weight: 800;
+		font-weight: 600;
 		letter-spacing: 0;
 	}
 	.guide {
@@ -627,20 +616,18 @@
 	.guide-row {
 		display: flex;
 		align-items: flex-start;
-		gap: 14px;
-		padding: 10px 14px;
-		border-radius: 12px;
-		border: 2px dashed var(--rule);
-		background: rgba(255, 255, 255, 0.12);
+		gap: 12px;
+		padding: 8px 10px;
+		border-radius: 10px;
+		border: 1px solid var(--rule);
 	}
 	.guide-icon {
 		flex: 0 0 auto;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-radius: 12px;
-		background: rgba(0, 0, 0, 0.06);
-		box-shadow: inset 0 0 0 3px currentColor;
+		border-radius: 9px;
+		background: var(--well);
 	}
 	.guide-text {
 		min-width: 0;
@@ -649,21 +636,22 @@
 		gap: 3px;
 	}
 	.guide-name {
-		font-weight: 900;
-		letter-spacing: 2px;
+		font-weight: 800;
+		letter-spacing: 1.5px;
 		color: var(--ink);
 		text-transform: uppercase;
+		margin-top: 3px;
 	}
 	.kv-grid {
 		display: grid;
 		gap: 8px;
-		font-size: 12px;
+		font-size: 12.5px;
 	}
 	.k {
 		font-size: 10px;
 		font-weight: 800;
-		letter-spacing: 2px;
-		color: var(--muted);
+		letter-spacing: 1.6px;
+		color: var(--faint);
 		text-transform: uppercase;
 	}
 	.v {
@@ -674,28 +662,26 @@
 		display: flex;
 		justify-content: space-between;
 		gap: 12px;
-		padding: 10px 14px;
-		border-radius: 10px;
-		border: 2px dashed var(--rule);
+		padding: 6px 0;
+		border-bottom: 1px solid var(--rule);
 		color: var(--ink);
-		font-weight: 700;
+		font-weight: 600;
 	}
 	.callout {
-		padding: 14px;
+		padding: 14px 16px;
 		border-radius: 12px;
-		border: 3px solid var(--rule);
-		background: rgba(0, 0, 0, 0.04);
+		border: 1px solid var(--rule-2);
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
 	.callout.gold {
-		border-color: var(--gold);
-		background: var(--gold-bg);
+		border-color: rgba(255, 220, 74, 0.45);
+		background: rgba(255, 220, 74, 0.06);
 	}
 	.callout.red {
-		border-color: var(--red);
-		background: var(--red-bg);
+		border-color: rgba(197, 60, 36, 0.55);
+		background: rgba(197, 60, 36, 0.1);
 	}
 	.callout.muted {
 		border-style: dashed;
@@ -707,8 +693,8 @@
 		flex-wrap: wrap;
 	}
 	.maxwin {
-		font-weight: 800;
-		color: var(--red);
+		font-weight: 700;
+		color: var(--ink);
 	}
 	.rtp-grid {
 		display: grid;
@@ -717,45 +703,45 @@
 	.rtp-cell {
 		padding: 10px 12px;
 		border-radius: 10px;
-		border: 2px solid var(--rule);
-		background: rgba(255, 255, 255, 0.12);
+		border: 1px solid var(--rule);
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 		min-width: 0;
+		text-align: center;
 	}
 	.rtp-k {
 		font-size: 10px;
-		letter-spacing: 2px;
+		letter-spacing: 1.4px;
 		font-weight: 800;
 		text-transform: uppercase;
 	}
 	.rtp-v {
-		font-weight: 800;
+		font-weight: 700;
 		color: var(--ink);
 	}
 	.vol {
 		display: flex;
 		align-items: center;
-		gap: 12px;
+		gap: 14px;
 		margin-bottom: 8px;
 	}
 	.vol-label {
-		font-weight: 800;
+		font-weight: 700;
 		letter-spacing: 2px;
-		color: var(--red);
+		color: var(--ui-red);
 	}
 	.meter {
 		display: flex;
-		gap: 3px;
+		gap: 4px;
 	}
 	.seg {
-		width: 22px;
-		height: 8px;
-		border-radius: 2px;
-		background: rgba(0, 0, 0, 0.1);
+		width: 30px;
+		height: 10px;
+		border-radius: 3px;
+		background: rgba(255, 255, 255, 0.1);
 	}
 	.seg.on {
-		background: var(--red);
+		background: var(--ui-red);
 	}
 </style>
