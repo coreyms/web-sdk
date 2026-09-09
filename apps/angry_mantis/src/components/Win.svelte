@@ -90,12 +90,14 @@
 					<OnMount
 						onmount={async () => {
 							const done = oncomplete; // pin to THIS presentation — a stale chain must not resolve a future one
-							// the ticking money loop belongs to the big-win staging only — a small win's short
-							// count stays dry. startCountUp() resolves on a natural settle AND on a press-to-skip
-							// (finishCountUp interrupts it), so this one stop covers both exits.
-							if (isBigWin) countSound('soundLoop');
+							// the ticking money loop runs under every count-up that actually counts (Corey
+							// 2026-09-08: regular wins were dry); a zero-duration pop has nothing to tick over.
+							// startCountUp() resolves on a natural settle AND on a press-to-skip (finishCountUp
+							// interrupts it), so this one stop covers both exits.
+							const ticks = duration > 0;
+							if (ticks) countSound('soundLoop');
 							await startCountUp();
-							if (isBigWin) countSound('soundStop');
+							if (ticks) countSound('soundStop');
 							await waitForTimeout(isBigWin ? 1400 : 300);
 							done();
 						}}
