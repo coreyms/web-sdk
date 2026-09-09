@@ -1,0 +1,176 @@
+{
+ "frames": {
+  "fly_0.png": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 80
+   }
+  },
+  "fly_1.png": {
+   "frame": {
+    "x": 75,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 80
+   }
+  },
+  "fly_2.png": {
+   "frame": {
+    "x": 150,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 80
+   }
+  },
+  "fly_3.png": {
+   "frame": {
+    "x": 225,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 80
+   }
+  },
+  "fly_4.png": {
+   "frame": {
+    "x": 300,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 80
+   }
+  },
+  "fly_5.png": {
+   "frame": {
+    "x": 375,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 80
+   }
+  },
+  "fly_6.png": {
+   "frame": {
+    "x": 450,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 80
+   }
+  },
+  "fly_7.png": {
+   "frame": {
+    "x": 525,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 75,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 75,
+    "h": 80
+   }
+  }
+ },
+ "meta": {
+  "image": "fly.webp",
+  "size": {
+   "w": 600,
+   "h": 80
+  },
+  "scale": "1",
+  "anchor": {
+   "x": 39,
+   "y": 40
+  }
+ }
+}

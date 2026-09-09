@@ -96,6 +96,10 @@ export default {
 	cloudsFeast: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/clouds-feast.json', import.meta.url).href), preload: false },
 	// day-sky birds (base scene, small): rides the preload with the base sky
 	birds: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/birds.json', import.meta.url).href), preload: true },
+	// floor cockroaches (base scene): eight walk frames, 20 KB
+	roach: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/roach.json', import.meta.url).href), preload: true },
+	// the housefly (base scene): eight wing-beat frames
+	fly: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/fly.json', import.meta.url).href), preload: true },
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
 	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: false },
 	amSymbols: {

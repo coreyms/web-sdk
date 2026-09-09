@@ -12,6 +12,8 @@
 	import { BACKDROP, FAN } from '../game/ambientSpec';
 	import AmbientFan from './AmbientFan.svelte';
 	import AmbientSky from './AmbientSky.svelte';
+	import AmbientRoaches from './AmbientRoaches.svelte';
+	import AmbientFly from './AmbientFly.svelte';
 
 	const context = getContext();
 	const IMAGE_RATIO = 1920 / 1080;
@@ -76,6 +78,28 @@
 	alpha={alphas[0].current}
 	visible={alphas[0].current > 0}
 	zIndex={-1.5}
+/>
+
+<!-- floor cockroaches, base scene only: over the room, under the wash (backdrop px like the fan) -->
+<AmbientRoaches
+	x={context.stateLayoutDerived.canvasSizes().width / 2 - (BACKDROP.w / 2) * backdropScale}
+	y={context.stateLayoutDerived.canvasSizes().height / 2 - (BACKDROP.h / 2) * backdropScale}
+	scale={backdropScale}
+	alpha={alphas[0].current}
+	visible={alphas[0].current > 0}
+	zIndex={-1.4}
+/>
+
+<!-- the housefly: in the air it draws over the room (zFront); inside the window it drops between
+     the sky and the room (zBehind) so only the glass shows it -->
+<AmbientFly
+	x={context.stateLayoutDerived.canvasSizes().width / 2 - (BACKDROP.w / 2) * backdropScale}
+	y={context.stateLayoutDerived.canvasSizes().height / 2 - (BACKDROP.h / 2) * backdropScale}
+	scale={backdropScale}
+	alpha={alphas[0].current}
+	visible={alphas[0].current > 0}
+	zFront={-1.3}
+	zBehind={-2.2}
 />
 
 <!-- dark wash so board/chrome contrast holds on the busier cafeteria art; a touch darker in free

@@ -1,0 +1,176 @@
+{
+ "frames": {
+  "roach_0.png": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "sourceSize": {
+    "w": 91,
+    "h": 62
+   }
+  },
+  "roach_1.png": {
+   "frame": {
+    "x": 91,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "sourceSize": {
+    "w": 91,
+    "h": 62
+   }
+  },
+  "roach_2.png": {
+   "frame": {
+    "x": 182,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "sourceSize": {
+    "w": 91,
+    "h": 62
+   }
+  },
+  "roach_3.png": {
+   "frame": {
+    "x": 273,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "sourceSize": {
+    "w": 91,
+    "h": 62
+   }
+  },
+  "roach_4.png": {
+   "frame": {
+    "x": 364,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "sourceSize": {
+    "w": 91,
+    "h": 62
+   }
+  },
+  "roach_5.png": {
+   "frame": {
+    "x": 455,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "sourceSize": {
+    "w": 91,
+    "h": 62
+   }
+  },
+  "roach_6.png": {
+   "frame": {
+    "x": 546,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "sourceSize": {
+    "w": 91,
+    "h": 62
+   }
+  },
+  "roach_7.png": {
+   "frame": {
+    "x": 637,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 91,
+    "h": 62
+   },
+   "sourceSize": {
+    "w": 91,
+    "h": 62
+   }
+  }
+ },
+ "meta": {
+  "image": "roach.webp",
+  "size": {
+   "w": 728,
+   "h": 62
+  },
+  "scale": "1",
+  "anchor": {
+   "x": 35,
+   "y": 45
+  }
+ }
+}
