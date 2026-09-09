@@ -23,6 +23,7 @@
 	import LoadingScreen from './LoadingScreen.svelte';
 	import BoardFrame from './BoardFrame.svelte';
 	import FrameReflections from './FrameReflections.svelte';
+	import FrameShadow from './FrameShadow.svelte';
 	import ReflectSource from './ReflectSource.svelte';
 	import DoorSteel from './DoorSteel.svelte';
 	import MartyArt from './MartyArt.svelte';
@@ -174,6 +175,8 @@
 
 		<MainContainer>
 			<BoardFrame />
+			<!-- the mantises' shadows on the frame posts (game/mantisShadow registry) -->
+			<FrameShadow />
 			<!-- reel reflections on the frame's steel lips: masked to the lips, so it never overlaps
 			     the window; sits under the reels/door in z-order by template position -->
 			<FrameReflections />
