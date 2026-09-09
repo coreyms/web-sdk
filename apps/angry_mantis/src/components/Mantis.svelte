@@ -110,7 +110,7 @@
 					return;
 				}
 				if (i) await waitForTimeout(180); // the pair never moves in lockstep
-				playClip(rig, RIG.walk.forward, { loop: true });
+				playClip(rig, RIG.walk.forward, { loop: true, speed: RIG.walkSpeed });
 				await walkOff[name].set(0, { duration: WALK_MS });
 				playIdle(rig);
 				busy[name] = false;
@@ -179,7 +179,7 @@
 					if (!rig) return;
 					busy[name] = true;
 					if (i) await waitForTimeout(180);
-					playClip(rig, RIG.walk.backward, { loop: true });
+					playClip(rig, RIG.walk.backward, { loop: true, speed: RIG.walkSpeed });
 					await walkOff[name].set(offscreenDist(name), { duration: WALK_MS });
 					busy[name] = false;
 				}),

@@ -39,7 +39,32 @@
 	const WALK_MS = 1200;
 	const onStage = $derived(context.stateGame.gameType === 'basegame');
 	let rendered = $state(true);
-	let walkedOutForSuper = false;
+	// SUPER round trip (Corey 2026-09-08 bug: he walked off, then walked straight back on and
+	// vanished under the door drop). martyWalkOut runs while gameType is STILL 'basegame', so
+	// the on-stage effect re-rendered him at once. Now the walk-out parks him 'away' until the
+	// bonus has actually run (gameType seen as 'freegame'), and the walk back in waits for the
+	// base game's door to rise (doorOpen with gameType 'basegame'), so it is seen.
+	let superPhase: 'home' | 'out' | 'away' | 'returning' = 'home';
+	const walkBackIn = async () => {
+		superPhase = 'returning';
+		rendered = true;
+		walkOff.set(offscreenDist(), { duration: 0 });
+		for (let t = 0; t < 30 && !rig; t++) await waitForTimeout(100);
+		if (!rig) {
+			walkOff.set(0, { duration: 0 });
+			superPhase = 'home';
+			return;
+		}
+		busy = true;
+		playClip(rig, RIG.walk.forward, { loop: true, speed: RIG.walkSpeed });
+		await walkOff.set(0, { duration: WALK_MS });
+		if (rig) playIdle(rig);
+		busy = false;
+		superPhase = 'home';
+	};
+	$effect(() => {
+		if (context.stateGame.gameType === 'freegame' && superPhase === 'out') superPhase = 'away';
+	});
 	const walkOff = new Tween(0);
 	const offscreenDist = () => {
 		const kind = layoutKind(context.stateLayoutDerived.layoutType());
@@ -61,27 +86,12 @@
 			// (The SUPER walk-out already ran via martyWalkOut before the transition; this is
 			// only a fallback if it couldn't.)
 			rendered = false;
-		} else if (onStage && !rendered) {
+		} else if (onStage && !rendered && superPhase === 'home') {
+			// free/feast hand-off: the rig Marty leaves and this one re-renders in place, same frame
 			rendered = true;
-			if (walkedOutForSuper) {
-				walkedOutForSuper = false;
-				(async () => {
-					walkOff.set(offscreenDist(), { duration: 0 });
-					for (let t = 0; t < 30 && !rig; t++) await waitForTimeout(100);
-					if (!rig) {
-						walkOff.set(0, { duration: 0 });
-						return;
-					}
-					busy = true;
-					playClip(rig, RIG.walk.forward, { loop: true });
-					await walkOff.set(0, { duration: WALK_MS });
-					if (rig) playIdle(rig);
-					busy = false;
-				})();
-			} else {
-				walkOff.set(0, { duration: 0 });
-			}
+			walkOff.set(0, { duration: 0 });
 		}
+		// 'out' / 'away' / 'returning': stay off stage; doorOpen brings him back
 	});
 
 	const react = (kind: MartyReaction) => {
@@ -114,18 +124,26 @@
 		// super is Marky's solo show: Marty visibly walks off BEFORE the transition wipes the
 		// screen (bonusStart awaits this), and walks back on when the base game returns
 		martyWalkOut: async () => {
-			walkedOutForSuper = true;
+			superPhase = 'out';
 			if (!rendered || !rig) {
 				rendered = false;
 				return;
 			}
 			busy = true;
-			playClip(rig, RIG.walk.backward, { loop: true });
+			playClip(rig, RIG.walk.backward, { loop: true, speed: RIG.walkSpeed });
 			await walkOff.set(offscreenDist(), { duration: WALK_MS });
 			rendered = false;
 			busy = false;
 		},
+		// the base game's door rising after a SUPER bonus: walk him back on, in view
+		doorOpen: () => {
+			if (context.stateGame.gameType === 'basegame' && (superPhase === 'away' || superPhase === 'out')) void walkBackIn();
+		},
 	});
+	// test hook (house rules: extend __angryMantis): the SUPER round-trip phase, for the walk gate
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		((window as any).__angryMantis ??= {}).marty = { phase: () => superPhase, rendered: () => rendered, off: () => walkOff.current };
+	}
 	const poke = () => {
 		if (!context.stateXstateDerived.isIdle()) return;
 		react('poke');

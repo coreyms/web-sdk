@@ -14,6 +14,7 @@
 	import AmbientSky from './AmbientSky.svelte';
 	import AmbientRoaches from './AmbientRoaches.svelte';
 	import AmbientFly from './AmbientFly.svelte';
+	import AmbientLights from './AmbientLights.svelte';
 
 	const context = getContext();
 	const IMAGE_RATIO = 1920 / 1080;
@@ -80,13 +81,23 @@
 	zIndex={-1.5}
 />
 
-<!-- floor cockroaches, base scene only: over the room, under the wash (backdrop px like the fan) -->
-<AmbientRoaches
+<!-- lamp flicker: "off" patches over the lit room, under the fan (the hanging lamp's patch covers
+     the fan housing) -->
+<AmbientLights
 	x={context.stateLayoutDerived.canvasSizes().width / 2 - (BACKDROP.w / 2) * backdropScale}
 	y={context.stateLayoutDerived.canvasSizes().height / 2 - (BACKDROP.h / 2) * backdropScale}
 	scale={backdropScale}
 	alpha={alphas[0].current}
 	visible={alphas[0].current > 0}
+	zIndex={-1.9}
+/>
+
+<!-- floor cockroaches in EVERY scene (Corey 2026-09-08: they stay through bonus / super / feast —
+     the three rooms share the floor): over the room, under the wash (backdrop px like the fan) -->
+<AmbientRoaches
+	x={context.stateLayoutDerived.canvasSizes().width / 2 - (BACKDROP.w / 2) * backdropScale}
+	y={context.stateLayoutDerived.canvasSizes().height / 2 - (BACKDROP.h / 2) * backdropScale}
+	scale={backdropScale}
 	zIndex={-1.4}
 />
 

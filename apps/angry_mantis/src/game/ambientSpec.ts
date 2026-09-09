@@ -117,3 +117,25 @@ export const FLY = {
 	cell: { w: 75, h: 80 },
 	anchor: { x: 39, y: 40 },
 };
+
+// Lamp flicker, base scene only (AmbientLights.svelte; Corey 2026-09-08). Each lamp has an "off"
+// patch lifted from Corey's lights-off render by tools/build_clouds.py (light-off-<name>.webp at
+// the offset below, in backdrop px); the patch sits over the lit room and its alpha IS the lamp's
+// darkness, so a flicker is an alpha sequence. Rare random events: every everyS[0..1] s one lamp
+// (weighted) blinks blinks[0..1] times at blinkMs[0..1] each, and with outageChance stays off
+// for outageS[0..1] s before settling back on. Corey's values from the Cafeteria Lamps artifact.
+export const LIGHTS = {
+	lamps: {
+		hanging: { x: 716, y: 0, weight: 1.5 },
+		sconce: { x: 0, y: 256, weight: 1.5 },
+		counter: { x: 1509, y: 379, weight: 1.5 },
+	} as Record<string, { x: number; y: number; weight: number }>,
+	everyS: [4, 20],
+	blinks: [2.9, 8.2],
+	blinkMs: [40, 136],
+	outageChance: 0.6,
+	outageS: [0.8, 3.1],
+	dim: 0.55, // the half-blink a lamp gives after an outage before settling
+	fadeMs: 197, // alpha ramp per blink edge: a lamp does not switch in one frame
+	strength: 1, // how dark "off" is (the patch's full alpha = 1)
+};

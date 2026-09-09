@@ -100,6 +100,10 @@ export default {
 	roach: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/roach.json', import.meta.url).href), preload: true },
 	// the housefly (base scene): eight wing-beat frames
 	fly: { type: 'sprites', src: stamp(new URL('../../assets/ui/ambient/fly.json', import.meta.url).href), preload: true },
+	// lamp "off" patches for the flicker (tools/build_clouds.py from background-lights-off.webp)
+	lightOffHanging: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/light-off-hanging.webp', import.meta.url).href), preload: true },
+	lightOffSconce: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/light-off-sconce.webp', import.meta.url).href), preload: true },
+	lightOffCounter: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/light-off-counter.webp', import.meta.url).href), preload: true },
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
 	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: false },
 	amSymbols: {

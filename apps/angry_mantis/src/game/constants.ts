@@ -227,7 +227,12 @@ export const RIG = {
 	bored: 'bored',
 	boredChance: 1 / 50,
 	anticipation: 'Anticipation',
-	walk: { forward: 'Walking', backward: 'Walking Backwards' },
+	// the rig's clip labels are the wrong way round (Corey 2026-09-08): 'Walking Backwards' is the
+	// forward stride, 'Walking' the backward one — mapped here so game code reads by intent
+	walk: { forward: 'Walking Backwards', backward: 'Walking' },
+	// clip speed while a mantis crosses the stage: the cycle is authored slower than the walk-on /
+	// walk-off translation (WALK_MS over ~650 master px) — Corey 2026-09-08
+	walkSpeed: 2,
 	reactions: {
 		angry: ['Angry 1', 'Angry 2', 'Angry 3'],
 		celebrate: ['Celebrating 1', 'Celebrating 2', 'Celebrating 3'],
