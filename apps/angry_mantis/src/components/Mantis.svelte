@@ -28,7 +28,8 @@
 	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, SFX_TRANSIENT, reactionPoolFor, reactionVoice, strikeVoice, eatVoice } from '../game/constants';
 	import { bellPose } from '../game/bell';
 	import { BELL_GLOW, bellGlowPose, bellHaloTexture, bellRaysTexture, bellRingTexture } from '../game/bellGlow';
-	import { MARTY, MASTER, layoutKind, martyFor } from '../game/layoutSpec';
+	import { MARTY, MASTER, layoutKind, martyFor, poolIconFor } from '../game/layoutSpec';
+	import config from '../game/config';
 	import type { Rig } from '../bonerutter';
 	import { rigPointInHost, playClip, playIdle, currentClip, isIdling } from '../game/mantisRig';
 	import BoneRig from './BoneRig.svelte';
@@ -57,8 +58,8 @@
 	const mouthOffset = (isMarty: boolean, size: number) => ({ x: isMarty ? -size * 0.15 : size * 0.22, y: isMarty ? -size * 0.3 : -size * 0.23 });
 	// Every course is served at the board centre (Corey 2026-09-10): once the bell has rung — in its
 	// cell for a board strike, or on the hero bell that drops in first for an opening bite — the
-	// tray with the meal drops to the centre, the strike launches at it and the tray fades away
-	// as the insect is taken. game/bell.ts has the frame sequence.
+	// tray with the meal GROWS OUT of its ON THE MENU icon (PoolHud) to the board centre, the strike
+	// launches at it and the tray fades away as the insect is taken. game/bell.ts has the frames.
 	let heroBell = $state(false);
 	let bellRing = $state<number | null>(null);
 	let bellRaf = 0;
@@ -66,7 +67,8 @@
 	const dropMs = Math.round(TIMINGS.strike * 0.6);
 	const bellDrop = new Tween(0, { duration: dropMs, easing: cubicIn });
 	const bellFade = new Tween(1, { duration: dropMs, easing: cubicOut });
-	const trayDrop = new Tween(0, { duration: dropMs, easing: cubicIn });
+	// x/y in master units, s = the tray container's scale (icon size -> TRAY_HERO)
+	const trayMove = new Tween({ x: 0, y: 0, s: 1 }, { duration: dropMs, easing: cubicOut });
 	const trayFade = new Tween(1, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicOut });
 	// bonus-intro spotlight: everything but the mantises + bell + tray dims during the opening
 	// auto-bites, so the plate ceremony reads as "this is what the bonus does" (player feedback:
@@ -275,9 +277,13 @@
 			if (symbol) {
 				heroTray = symbol;
 				trayFade.set(1, { duration: 0 });
-				trayDrop.set(aboveBoard(), { duration: 0 });
+				// from the symbol's icon on the ON THE MENU tray, at the icon's size, to the board centre
+				const layout = context.stateGameDerived.boardLayout();
+				const kind = layoutKind(context.stateLayoutDerived.layoutType());
+				const icon = poolIconFor(kind, config.eatOrder.indexOf(symbol), config.eatOrder.length);
+				trayMove.set({ x: icon.x, y: icon.y, s: icon.size / (SYMBOL_SIZE * CELL_FILL) }, { duration: 0 });
 				if (heroBell) bellFade.set(0);
-				await trayDrop.set(0);
+				await trayMove.set({ x: layout.x, y: layout.y, s: TRAY_HERO });
 			}
 			// speed maps the claw impact onto TIMINGS.strike; the 2s recovery/chomp tail keeps
 			// playing under the eat phase and hands back to idle on its own
@@ -445,10 +451,10 @@
 		</Container>
 	{/if}
 	{#if heroTray}
-		{@const layout = context.stateGameDerived.boardLayout()}
-		<!-- the course: plate + insect drop to the board centre; the insect hides once the eat
-		     flight takes over (which starts at this exact spot and size), the plate fades after it -->
-		<Container x={layout.x} y={layout.y + trayDrop.current} alpha={trayFade.current} scale={TRAY_HERO}>
+		<!-- the course: plate + insect grow out of the ON THE MENU icon to the board centre; the insect
+		     hides once the eat flight takes over (which starts at this exact spot and size), the plate
+		     fades after it -->
+		<Container x={trayMove.current.x} y={trayMove.current.y} alpha={trayFade.current} scale={trayMove.current.s}>
 			<!-- grounding shadow (flattened circle, not a filter) separates the plate from the dim -->
 			<Circle x={0} y={SYMBOL_SIZE * CELL_FILL * 0.42} diameter={SYMBOL_SIZE * CELL_FILL} backgroundColor={0x000000} backgroundAlpha={0.35} anchor={0.5} scale={{ x: 1, y: 0.32 }} />
 			<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{heroTray}_eaten.png" />

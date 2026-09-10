@@ -231,3 +231,15 @@ export const HUD: Record<
 		modePlaque: { railArtY: (1149 + 1208) / 2 },
 	},
 };
+
+/** centre + drawn size (master units) of one symbol's icon on the ON THE MENU tray (PoolHud's grid):
+ *  the course tray grows out of it to the board centre when a bell rings (Mantis.svelte, Corey 2026-09-10) */
+export const poolIconFor = (kind: LayoutKind, index: number, count: number) => {
+	const hud = HUD[kind].pool;
+	const rows = Math.ceil(count / hud.cols);
+	return {
+		x: hud.x + ((index % hud.cols) - (hud.cols - 1) / 2) * hud.cell,
+		y: hud.y + (Math.floor(index / hud.cols) - (rows - 1) / 2) * hud.cell,
+		size: hud.cell - 8,
+	};
+};
