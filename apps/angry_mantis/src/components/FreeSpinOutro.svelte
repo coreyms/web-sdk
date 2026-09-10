@@ -28,9 +28,8 @@
 	import PressToContinue from './PressToContinue.svelte';
 	import GameText from './GameText.svelte';
 	import ArtAmount from './ArtAmount.svelte';
-	import CountUpText from './CountUpText.svelte';
-	import StagedWinTitle from './StagedWinTitle.svelte';
-	import BrandedTitle from './BrandedTitle.svelte';
+	import StingerPlate from './StingerPlate.svelte';
+	import { stingerPlateFor } from '../game/stinger';
 	import StagedCountUpProvider from './StagedCountUpProvider.svelte';
 	import { WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
 
@@ -98,9 +97,14 @@
 	const HEADER_W = 420;
 	const HEADER_H = HEADER_W / BONUS_INTRO_HEADER_ASPECT; // ~138
 	const HEADER_Y = -250 + 4 + HEADER_H / 2;
-	// the stack (header … total) spans about -246..178 of the ±250 design space; this offset
-	// centers it on the door instead of leaving all the air under the amount
-	const GROUP_DY = 32;
+	// the stack (header … plate) spans -246..+185 of the ±250 design space, sitting high so the
+	// plate's bottom clears the door's bottom rail with room to spare (Corey 2026-09-09)
+	const GROUP_DY = 0;
+	const TRAY_Y = -46;
+	// the stinger plate under the trays: 540 of the 620 design width (~190 tall), centred at +90
+	// so it runs -5..+185 — under the tray row (bottom -14) and well above the rail
+	const PLATE_W = 540;
+	const PLATE_Y = 90;
 	// stashed by the bonusEnd handler right before this freeSpinEnd presentation
 	const recap = $derived(context.stateGame.sessionRecap);
 </script>
@@ -127,6 +131,8 @@
 					<OnMount
 						onmount={() => {
 							const big = winLevelData?.type === 'big';
+							// the tier plate's slam stinger, once (it used to ride the branded title's mount)
+							if (big) context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_win_big', forcePlay: true });
 							if (big) countSound('soundLoop');
 							return startCountUp().then(() => {
 								if (big) countSound('soundStop');
@@ -135,7 +141,7 @@
 						}}
 					/>
 					<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30).
-					     All glyphs here are atlas sprites (ArtAmount/StagedWinTitle/trays) except the
+					     All glyphs here are atlas sprites (ArtAmount/StingerPlate/trays) except the
 					     TOTAL WIN is branded glyph sprites too — nothing rasterizes per frame, and the
 					     {#key presentId} remount keeps no PIXI.Text updating while invisible. -->
 					<MainContainer>
@@ -145,17 +151,14 @@
 							{#if recap}
 								<ArtAmount y={-94} text={`${recap.spinsPlayed} SPIN${recap.spinsPlayed === 1 ? '' : 'S'} - ${recap.symbolsEaten} SYMBOL${recap.symbolsEaten === 1 ? '' : 'S'} EATEN`} height={24} maxWidth={580} />
 								{#each recap.eatenList as symbol, i (symbol)}
-									<Sprite anchor={0.5} x={(i - (recap.eatenList.length - 1) / 2) * 72} y={-40} width={64} height={64} key="{symbol}_eaten.png" />
+									<Sprite anchor={0.5} x={(i - (recap.eatenList.length - 1) / 2) * 72} y={TRAY_Y} width={64} height={64} key="{symbol}_eaten.png" />
 								{/each}
 							{/if}
-							<!-- winLevelData arrives already gated: freeSpinEnd hands over a medium level when
-							     the round total is under what the round cost (Corey 2026-09-09) -->
-							{#if winLevelData?.type === 'big'}
-								<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={46} y={40} />
-							{:else}
-								<BrandedTitle lines={['TOTAL WIN']} height={30} y={40} backdrop />
-							{/if}
-							<CountUpText amount={countUpAmount} target={amount} settled={countUpCompleted} preset="gold" size={58} y={148} maxWidth={560} />
+							<!-- The FINAL tier's stinger plate, no hand-offs, with the count on it; the plain plate
+							     when the total is not a big win. winLevelData arrives already gated: freeSpinEnd
+							     hands over a medium level when the round total is under what the round cost
+							     (Corey 2026-09-09). It rides the door with everything else in this group. -->
+							<StingerPlate plate={stingerPlateFor(winLevelData?.type === 'big' ? winLevelData.alias : undefined)} width={PLATE_W} y={PLATE_Y} amount={countUpAmount} target={amount} settled={countUpCompleted} />
 						</Container>
 					</MainContainer>
 					<!-- active={show}: winLevelData outlives the fade-out (cleared on settle), so the press

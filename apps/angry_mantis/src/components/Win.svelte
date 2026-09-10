@@ -21,8 +21,9 @@
 	import PressToContinue from './PressToContinue.svelte';
 	import WinStinger from './WinStinger.svelte';
 	import StagedCountUpProvider from './StagedCountUpProvider.svelte';
-	import { STINGER_MOTION } from '../game/stinger';
-	import CountUpText from './CountUpText.svelte';
+	import { STINGER_MOTION, STINGER_SMALL_BOX } from '../game/stinger';
+	import StingerPlate from './StingerPlate.svelte';
+	import { STINGER_SMALL, layoutKind } from '../game/layoutSpec';
 	import { getContext } from '../game/context';
 	import { stateBetDerived } from 'state-shared';
 
@@ -38,6 +39,8 @@
 	let presentId = $state(0);
 	let oncomplete = $state(() => {});
 	let onleft = $state(() => {});
+	// a press once the count has settled: cuts the hold short (to a brief beat), never past the exit
+	let skipHold = $state(() => {});
 	// big+ only: flips true after the hold so the plate plays its drop-out before the fade
 	let leaving = $state(false);
 	const pop = new Tween(0.6, { duration: 420, easing: backOut });
@@ -64,7 +67,8 @@
 
 	const layout = $derived(context.stateGameDerived.boardLayout());
 	const master = $derived(context.stateLayoutDerived.mainLayout());
-	const textScale = $derived(Math.min(1, master.width / 800));
+	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
+	const small = $derived(STINGER_SMALL[kind]);
 </script>
 
 <!-- persistent: the container claims its Game.svelte template slot at game start and keeps it —
@@ -106,7 +110,12 @@
 							if (ticks) countSound('soundLoop');
 							await startCountUp();
 							if (ticks) countSound('soundStop');
-							await waitForTimeout(isBigWin ? 1400 : 300);
+							// hold on the settled amount; a press shortens it to a brief beat but the plate's
+							// exit still plays and the round only continues after it (Corey 2026-09-09: skip
+							// to the last card and amount, pause a moment, then carry on)
+							const skipped = waitForResolve((resolve) => (skipHold = resolve));
+							const beat = isBigWin ? 600 : 150;
+							await Promise.race([waitForTimeout(isBigWin ? 1400 : 300), skipped.then(() => waitForTimeout(beat))]);
 							if (isBigWin) {
 								// drop the plate off the bottom; the fade-out follows (backstop: never wedge on it)
 								const left = waitForResolve((resolve) => (onleft = resolve));
@@ -116,16 +125,17 @@
 							done();
 						}}
 					/>
-					<!-- tap while the amount is counting = jump to the final amount -->
-					<PressToContinue onpress={() => (countUpCompleted ? oncomplete() : finishCountUp())} />
+					<!-- tap while counting = jump to the final plate and amount; tap after = shorten the hold -->
+					<PressToContinue onpress={() => (countUpCompleted ? skipHold() : finishCountUp())} />
 
 					<MainContainer>
 						{#if isBigWin}
 							<WinStinger amount={countUpAmount} target={amount} {finalAlias} settled={countUpCompleted} {leaving} onleft={() => onleft()} />
 						{:else}
-							<!-- same anchor + size as the big-win amount so every win pop reads consistent -->
-							<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-								<CountUpText amount={countUpAmount} target={amount} settled={countUpCompleted} preset="gold" size={72} maxWidth={520} />
+							<!-- the plain plate backs every regular win, smaller than the tier plates, popping in
+							     as one piece with the cream amount centred on it (Corey 2026-09-09) -->
+							<Container x={master.width * 0.5} y={master.height * small.cy} scale={pop.current}>
+								<StingerPlate plate="normal" width={master.width * small.w} box={STINGER_SMALL_BOX[kind]} amount={countUpAmount} target={amount} settled={countUpCompleted} />
 							</Container>
 						{/if}
 					</MainContainer>

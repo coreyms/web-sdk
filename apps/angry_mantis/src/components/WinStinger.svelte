@@ -9,12 +9,14 @@
 	//          the plate so it lands already in place.
 	//   exit   the plate drops off the bottom, rotating, and the amount fades with it.
 	// Pure transforms on resident sprites: nothing rasterizes, nothing filters (house rule 1/2).
-	import { Container, Sprite } from 'pixi-svelte';
+	import { BaseSprite, Container, Sprite } from 'pixi-svelte';
+
+	import { PLATE_SHADOW, plateShadowTexture } from '../game/shadowTexture';
 	import { bookEventAmountToBetAmountMultiplier } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
 	import { STINGER as STINGER_LAYOUT, layoutKind } from '../game/layoutSpec';
-	import { STINGER_AMOUNT, STINGER_BOX, STINGER_MOTION, STINGER_PLATE, STINGER_TIERS, type StingerTier } from '../game/stinger';
+	import { STINGER_AMOUNT, STINGER_BOX, STINGER_MOTION, STINGER_PLATE, STINGER_SHADOW_ALPHA, STINGER_TIERS, type StingerTier } from '../game/stinger';
 	import { WIN_TIER_STAGES } from '../game/winLevelMap';
 	import CountUpText from './CountUpText.svelte';
 	import { screenKick } from '../game/screenKick';
@@ -105,8 +107,15 @@
 		}
 		lastIndex = next;
 	});
+	// ONE exit per presentation. This used to read `anim` too, so the moment the exit finished
+	// (anim -> null) the effect re-ran and dropped the plate again, forever — visible whenever a
+	// press released the game before the fade cleared the old presentation (Corey 2026-09-09:
+	// "the same card kept dropping with a zero dollar amount, even into the next spin").
+	let exited = $state(false);
 	$effect(() => {
-		if (leaving && anim?.kind !== 'exit') start('exit', STINGER_MOTION.exit);
+		if (!leaving || exited) return;
+		exited = true;
+		start('exit', STINGER_MOTION.exit);
 	});
 
 	// ---- per-frame transforms (master px) ----
@@ -115,6 +124,9 @@
 	const groupY = $derived(master.height * L.cy);
 	// enter: from above the screen; exit: off the bottom with a tilt
 	const drop = $derived.by(() => {
+		// once the exit has played the plate STAYS gone (it used to snap back to rest until the
+		// fade-out caught up)
+		if (!anim && exited) return { y: master.height * 2, rot: 0, alpha: 0 };
 		if (!anim) return { y: 0, rot: 0, alpha: 1 };
 		if (anim.kind === 'enter') {
 			const e = easeOutBack(p);
@@ -157,9 +169,12 @@
 </script>
 
 <Container x={master.width * 0.5} y={groupY + drop.y} rotation={drop.rot} alpha={drop.alpha}>
+	<!-- each plate carries its own soft halo (Corey 2026-09-09), riding its shove offset -->
 	{#if outTier !== null}
+		<BaseSprite texture={plateShadowTexture()} anchor={0.5} x={shoveOut} width={plateW * PLATE_SHADOW.scaleX} height={plateH(outTier) * PLATE_SHADOW.scaleY} alpha={STINGER_SHADOW_ALPHA} />
 		<Sprite key={STINGER_PLATE[outTier].key} anchor={0.5} x={shoveOut} width={plateW} height={plateH(outTier)} />
 	{/if}
+	<BaseSprite texture={plateShadowTexture()} anchor={0.5} x={shoveIn} width={plateW * PLATE_SHADOW.scaleX} height={plateH(shownTier) * PLATE_SHADOW.scaleY} alpha={STINGER_SHADOW_ALPHA} />
 	<Sprite key={STINGER_PLATE[shownTier].key} anchor={0.5} x={shoveIn} width={plateW} height={plateH(shownTier)} />
 	<!-- CountUpText's y is the digit BASELINE; centre the digit box on the panel -->
 	<CountUpText

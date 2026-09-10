@@ -98,6 +98,8 @@ export default {
 	lightOffCounter: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/light-off-counter.webp', import.meta.url).href), preload: true },
 	// big-win STINGER plates (branding/stinger-{tier}.png, alpha-cropped): the tier sign the count-up
 	// sits on (components/WinStinger.svelte, game/stinger.ts). Deferred like the other big-win art.
+	// the plain plate backs EVERY regular win pop from the first spin, so it lands with the game
+	stingerNormal: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/normal.webp', import.meta.url).href), preload: true },
 	stingerBig: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/big.webp', import.meta.url).href), preload: false },
 	stingerSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/super.webp', import.meta.url).href), preload: false },
 	stingerMega: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/mega.webp', import.meta.url).href), preload: false },

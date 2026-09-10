@@ -20,8 +20,16 @@
 	import config from '../game/config';
 	import { TIMINGS } from '../game/constants';
 	import { HUD, layoutKind } from '../game/layoutSpec';
+	import { armMipmaps } from '../game/mipmaps';
 
 	const context = getContext();
+	// Mipmaps for every sheet drawn well under its source size (game/mipmaps.ts MIPMAP_KEYS): the
+	// trays here are a 6x minification of the 256 px tiles, ON THE MENU a 9x one of the branded
+	// letters, and they read as grain without them. Armed from this always-mounted component so
+	// it re-runs as loadedAssets grows (the deferred art arrives later); each source is armed once.
+	$effect(() => {
+		armMipmaps(context.stateApp.loadedAssets as Record<string, unknown> | undefined);
+	});
 	const CELL = 62;
 
 	// Always-mounted (persistent FadeContainer): a `{#if gameType === 'freegame'}` mount joined

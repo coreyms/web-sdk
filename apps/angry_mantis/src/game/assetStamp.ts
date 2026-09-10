@@ -89,6 +89,7 @@ export default {
 	"ui/stingers/epic.webp": "b9bb0d09",
 	"ui/stingers/max.webp": "50b9315f",
 	"ui/stingers/mega.webp": "9f631851",
+	"ui/stingers/normal.webp": "fefe1c7a",
 	"ui/stingers/super.webp": "11612591",
 	"ui/text/free-spins-10.webp": "4158a243",
 	"ui/text/free-spins-8.webp": "4e79bb8f",

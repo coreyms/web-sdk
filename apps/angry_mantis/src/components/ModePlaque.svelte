@@ -3,6 +3,7 @@
 	// spin press. Rendered in Pixi so it sits BEHIND the mantises (Corey 2026-08-26) — Marty's
 	// antennae pass in front of it. Landscape keeps it just under the frame (no character there).
 	import { MainContainer } from 'components-layout';
+	import { untrack } from 'svelte';
 	import { Container, Rectangle, Text } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
@@ -52,6 +53,20 @@
 		dropShadow: { alpha: 0.7, blur: 0, distance: SHADOW, angle: Math.PI / 2, color: 0x000000 },
 	});
 	let textW = $state(0);
+	// A FRESH Text node every time the plaque comes back (arm after a cancel), and the pill waits
+	// for that node's own measurement: a rebuilt-on-text-change node alone still let the pill show
+	// with a blank label once (Corey 2026-09-09, cancel then re-arm; not reliably reproducible —
+	// a canvas-text texture that had gone stale while the plaque sat invisible). Rebuilding on
+	// every show rasterizes anew, and zeroing textW first means an empty pill can never precede
+	// its label. `untrack`: the effect reads chip/text, and `gen += 1` would otherwise subscribe
+	// it to what it writes (house rule: Svelte trap 1).
+	let gen = $state(0);
+	let wantedLabel = false;
+	$effect(() => {
+		const want = !!chip && text.length > 0;
+		if (want && !wantedLabel) untrack(() => { textW = 0; gen += 1; });
+		wantedLabel = want;
+	});
 	// no pill without a label: an empty backing on the rail is worse than nothing
 	const labelReady = $derived(!!chip && text.length > 0 && textW > 0);
 	// tight pill (Corey 2026-09-08): about half a cap of air beside the label, a hair above and below
@@ -75,7 +90,7 @@
 		<!-- the thin border is back (Corey 2026-09-06): without it the pill reads as a plain dark bar;
 		     it is the HUD buttons' gold so the chrome has one accent (Corey 2026-09-08) -->
 		<Rectangle x={-w / 2} y={-h / 2} width={w} height={h} borderRadius={h / 2} backgroundColor={0x0a0602} alpha={0.85} borderWidth={1.5} borderColor={0xffdc4a} />
-		{#key text}
+		{#key `${text}|${gen}`}
 			<Text {text} {style} anchor={0.5} x={0} y={fontSize * 0.09} onresize={({ width }) => (textW = width)} />
 		{/key}
 	</Container>

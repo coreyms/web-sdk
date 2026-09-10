@@ -176,6 +176,13 @@ export const STINGER: Record<LayoutKind, { w: number; cy: number }> = {
 	phone: { w: 0.54, cy: 0.45 },
 	portrait: { w: 0.92, cy: 0.4 },
 };
+// the plain plate behind a regular win pop, sized on the "Regular Win Plate" tuning page
+// (Corey's readout, 2026-09-09); its digit box is STINGER_SMALL_BOX in game/stinger.ts
+export const STINGER_SMALL: Record<LayoutKind, { w: number; cy: number }> = {
+	landscape: { w: 0.355, cy: 0.445 },
+	phone: { w: 0.355, cy: 0.455 },
+	portrait: { w: 0.575, cy: 0.43 },
+};
 
 // HUD slots (master units) for the Pixi-side overlays: the eaten-symbol pool tray and the
 // PRESS ANYWHERE prompt. (The FREE SPIN n/total readout is owned by the HTML chrome's spin
