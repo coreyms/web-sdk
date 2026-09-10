@@ -1,7 +1,8 @@
 <script lang="ts">
 	// The big-win presentation: Corey's tier STINGER plates (game/stinger.ts) with the count-up in
 	// the plate's blank panel. Motion picked in the "Win Stingers" preview (2026-09-09):
-	//   enter  the BIG plate drops in from above and settles with a kick, then the count starts
+	//   enter  the BIG plate drops in from above and settles with a SCREEN kick (the whole canvas
+	//          jolts, game/screenKick.ts), then the count starts
 	//   shove  every tier upgrade is a chow-line shove — the next plate slides in from the right and
 	//          pushes the old one out the left, with a lighter kick as it hits home. The number
 	//          stays put unless the incoming plate's box sits elsewhere (MAX), then it rides in with
@@ -16,6 +17,7 @@
 	import { STINGER_AMOUNT, STINGER_BOX, STINGER_MOTION, STINGER_PLATE, STINGER_TIERS, type StingerTier } from '../game/stinger';
 	import { WIN_TIER_STAGES } from '../game/winLevelMap';
 	import CountUpText from './CountUpText.svelte';
+	import { screenKick } from '../game/screenKick';
 
 	type Props = {
 		/** the counting book amount */
@@ -53,9 +55,6 @@
 	let outgoing = $state<number | null>(null);
 	let anim = $state<Anim | null>(null);
 	let p = $state(1); // progress of `anim`, 0..1
-	let kickAt = 0;
-	let kickAmp = 0;
-	let kick = $state({ x: 0, y: 0 });
 	let raf = 0;
 	let now = $state(performance.now());
 
@@ -65,10 +64,8 @@
 	const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 	const slam = () => context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_win_big', forcePlay: true });
-	const startKick = (amp: number) => {
-		kickAmp = amp;
-		kickAt = performance.now();
-	};
+	// the whole canvas jolts — amplitude in master px, scaled to canvas px
+	const startKick = (amp: number) => screenKick(context.stateApp.pixiApplication, amp * master.scale);
 	const start = (kind: Anim['kind'], dur: number) => {
 		anim = { kind, t0: performance.now(), dur };
 		p = 0;
@@ -87,13 +84,6 @@
 				if (done === 'exit') onleft?.();
 			} else live = true;
 		}
-		const kt = t - kickAt;
-		if (kickAmp > 0 && kt < STINGER_MOTION.kick) {
-			const q = kt / STINGER_MOTION.kick;
-			const a = kickAmp * (1 - q);
-			kick = { x: a * Math.sin(q * Math.PI * 3), y: -a * Math.sin(q * Math.PI * 2.4) };
-			live = true;
-		} else if (kick.x !== 0 || kick.y !== 0) kick = { x: 0, y: 0 };
 		raf = live ? requestAnimationFrame(step) : 0;
 	};
 	$effect(() => () => cancelAnimationFrame(raf));
@@ -166,7 +156,7 @@
 	});
 </script>
 
-<Container x={master.width * 0.5 + kick.x} y={groupY + drop.y + kick.y} rotation={drop.rot} alpha={drop.alpha}>
+<Container x={master.width * 0.5} y={groupY + drop.y} rotation={drop.rot} alpha={drop.alpha}>
 	{#if outTier !== null}
 		<Sprite key={STINGER_PLATE[outTier].key} anchor={0.5} x={shoveOut} width={plateW} height={plateH(outTier)} />
 	{/if}

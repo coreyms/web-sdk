@@ -45,7 +45,6 @@ export const STINGER_MOTION = {
 	shove: 420, // chow-line shove: next plate slides in from the right...
 	shoveLag: 40, // ...and the old one is pushed out the left a beat later
 	exit: 480, // final drop off the bottom
-	kick: 220, // container kick on a landing
-	kickEnter: 6, // master px
-	kickShove: 3,
+	kickEnter: 6, // screen kick on the BIG landing, master px (game/screenKick.ts, 220 ms)
+	kickShove: 3, // lighter kick as a shoved plate hits home
 } as const;
