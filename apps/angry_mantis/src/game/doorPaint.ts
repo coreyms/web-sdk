@@ -19,7 +19,7 @@ export const DOOR_PAINT = {
 	// and the wrap-up (Super sits higher on the wrap-up)
 	header: {
 		free: { w: 0.9, introY: 0.2, outroY: 0.2 },
-		super: { w: 0.97, introY: 0.23, outroY: 0.185 },
+		super: { w: 0.97, introY: 0.23, outroY: 0.23 }, // same height on both doors (Corey 2026-09-10 evening)
 		feast: { w: 1.0, introY: 0.22, outroY: 0.22 },
 	} satisfies Record<BonusMode, { w: number; introY: number; outroY: number }>,
 	// a star in each header bracket, the left one turning anticlockwise and the right clockwise
@@ -45,8 +45,13 @@ export const DOOR_PAINT = {
 	outro: {
 		trays: { size: 0.15, gap: 0.105, y: 0.83 },
 		plate: { w: 0.99, y: 0.605 },
-		amountInPlate: { h: 0.36, dy: 0.12, dx: 0.12 }, // h × plate height; dy × plate height; dx × plate width
-		amountOnDoor: { h: 0.075, y: 0.6 }, // h × door width
+		// h × plate height; dy × plate height; dx × plate width; maxW × plate width — a long string
+		// (GC 819,300.00) shrinks to fit the plate's clear panel instead of spilling off the door,
+		// the same cap the mid-feature stinger applies (STINGER_BOX.big w 50% × fillW .96)
+		amountInPlate: { h: 0.36, dy: 0.12, dx: 0.12, maxW: 0.48 },
+		// bare steel under big win: h × door width, maxW × door width; bigger than the first pass —
+		// it was hard to read on a phone (Corey 2026-09-10)
+		amountOnDoor: { h: 0.1, y: 0.6, maxW: 0.9 },
 		amountColor: 0xffffff,
 		amountShadow: 0x000000,
 		shadowOffset: { dx: 0.054, dy: 0.059 }, // × digit height (StingerPlate's run)

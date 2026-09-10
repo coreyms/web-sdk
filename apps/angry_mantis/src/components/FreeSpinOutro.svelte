@@ -109,9 +109,9 @@
 		if (doorPaintState.plate) {
 			const plateW = o.plate.w * door.w;
 			const plateH = plateW / STINGER_PLATE.big.aspect;
-			return { x: door.x + door.w / 2 + o.amountInPlate.dx * plateW, y: door.y + o.plate.y * door.h + o.amountInPlate.dy * plateH, h: o.amountInPlate.h * plateH, maxW: plateW * 0.55 };
+			return { x: door.x + door.w / 2 + o.amountInPlate.dx * plateW, y: door.y + o.plate.y * door.h + o.amountInPlate.dy * plateH, h: o.amountInPlate.h * plateH, maxW: o.amountInPlate.maxW * plateW };
 		}
-		return { x: door.x + door.w / 2, y: door.y + o.amountOnDoor.y * door.h, h: o.amountOnDoor.h * door.w, maxW: door.w * 0.9 };
+		return { x: door.x + door.w / 2, y: door.y + o.amountOnDoor.y * door.h, h: o.amountOnDoor.h * door.w, maxW: o.amountOnDoor.maxW * door.w };
 	});
 </script>
 

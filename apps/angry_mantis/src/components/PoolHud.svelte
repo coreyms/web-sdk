@@ -68,7 +68,7 @@
 			{@const size = Math.round(hud.cell * (hud.cols > 4 ? 0.44 : 0.45))}
 			<BrandedTitle lines={['ON THE MENU']} height={size * 0.95} maxWidth={size * 7.2} y={-(rows * hud.cell) / 2 + 3 - size * 0.62} glow={menuGlow} />
 			{#each config.eatOrder as symbol, i (symbol)}
-				{@const eaten = !context.stateGame.symbolPool.includes(symbol)}
+				{@const eaten = !context.stateGame.symbolPool.includes(symbol) || context.stateGame.servingSymbol === symbol}
 				<Sprite
 					anchor={0.5}
 					x={((i % hud.cols) - (hud.cols - 1) / 2) * hud.cell}

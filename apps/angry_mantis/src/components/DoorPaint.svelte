@@ -168,13 +168,17 @@
 		let cx = 0.5;
 		let cy = o.amountOnDoor.y;
 		let h = o.amountOnDoor.h;
+		let maxWidth = o.amountOnDoor.maxW;
 		if (plate) {
 			const plateH = o.plate.w / STINGER_PLATE.big.aspect;
 			cx = 0.5 + o.amountInPlate.dx * o.plate.w;
 			cy = o.plate.y + (o.amountInPlate.dy * plateH) / DOOR_ASPECT;
 			h = o.amountInPlate.h * plateH;
+			maxWidth = o.amountInPlate.maxW * o.plate.w;
 		}
-		const glyphs = text ? layoutNumerals(text, h, { reserve: reserve || undefined }) : null;
+		// maxWidth shrinks the whole row (glyphs and height together) once the reserved final string
+		// would overrun it — the fit is decided once per count, so the digits never jump
+		const glyphs = text ? layoutNumerals(text, h, { reserve: reserve || undefined, maxWidth }) : null;
 		const inked = glyphs?.filter((g) => g.key) ?? [];
 		if (!glyphs || inked.length > MAX_PAINTED_GLYPHS) {
 			U.uGlyphCount = 0; // FreeSpinOutro shows the sprite count-up instead (paintedAmountSupported)

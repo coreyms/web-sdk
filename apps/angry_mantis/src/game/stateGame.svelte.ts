@@ -121,6 +121,10 @@ export const stateGame = $state({
 	// Service Bell strike bookkeeping: where the pending strike's bell sits (it rings there), which
 	// bells on this board have already been answered, and every bell position of the current board
 	// in the order the math strikes them (reel-major). All reset on each reveal.
+	// the course being served right now (its tray is growing out of the ON THE MENU icon, or is on
+	// its way into the mantis): PoolHud dims that icon from the first frame of the growth, not from
+	// the eat event that follows (Corey 2026-09-10)
+	servingSymbol: null as PayingSymbolName | null,
 	pendingStrikePos: null as Position | null,
 	consumedLeaves: [] as Position[],
 	leafOrder: [] as Position[],

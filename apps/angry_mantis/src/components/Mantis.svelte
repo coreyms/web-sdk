@@ -276,6 +276,7 @@
 			const symbol = nextSymbolToEat();
 			if (symbol) {
 				heroTray = symbol;
+				context.stateGame.servingSymbol = symbol; // the menu icon dims as the tray leaves it
 				trayFade.set(1, { duration: 0 });
 				// from the symbol's icon on the ON THE MENU tray, at the icon's size, to the board centre
 				const layout = context.stateGameDerived.boardLayout();
@@ -373,6 +374,7 @@
 			}
 			eating = null;
 			heroTray = null;
+			context.stateGame.servingSymbol = null; // the eat event has marked the pool by now
 			heroBell = false;
 			spotlight = false;
 			busy[striker] = false;
