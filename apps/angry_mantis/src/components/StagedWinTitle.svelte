@@ -10,7 +10,7 @@
 	import { bookEventAmountToBetAmountMultiplier } from 'utils-shared/amount';
 
 	import BrandedTitle, { type BrandedEntrance } from './BrandedTitle.svelte';
-	import { WIN_TIER_STAGES, scaleStages, type WinTierStage } from '../game/winLevelMap';
+	import { WIN_TIER_STAGES, type WinTierStage } from '../game/winLevelMap';
 	import { stateBetDerived } from 'state-shared';
 	import { getContext } from '../game/context';
 
@@ -24,9 +24,8 @@
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_win_big', forcePlay: true });
 
 	type Props = { amount: number; finalAlias: string; stages?: readonly WinTierStage[]; size?: number; y?: number };
-	const { amount, finalAlias, stages: rawStages = WIN_TIER_STAGES, size = 110, y = 0 }: Props = $props();
-	// bars relative to the price of the round (a buy's tiers scale with its cost)
-	const stages = $derived(scaleStages(rawStages, stateBetDerived.activeBetMode()?.costMultiplier ?? 1));
+	// bars in base-bet multiples, the math's own tables (Corey 2026-09-09) — never scaled by cost
+	const { amount, finalAlias, stages = WIN_TIER_STAGES, size = 110, y = 0 }: Props = $props();
 
 	// `size` was the old text font size; the gold art it drove stood ~1.05× that in cap height
 	const capHeight = $derived(size * 1.05);

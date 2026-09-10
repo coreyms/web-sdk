@@ -32,8 +32,7 @@
 	import StagedWinTitle from './StagedWinTitle.svelte';
 	import BrandedTitle from './BrandedTitle.svelte';
 	import StagedCountUpProvider from './StagedCountUpProvider.svelte';
-	import { WIN_TIER_STAGES_END_FEATURE, scaleStages } from '../game/winLevelMap';
-	import { bookEventAmountToBetAmountMultiplier } from 'utils-shared/amount';
+	import { WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
 
 	const context = getContext();
 
@@ -149,7 +148,9 @@
 									<Sprite anchor={0.5} x={(i - (recap.eatenList.length - 1) / 2) * 72} y={-40} width={64} height={64} key="{symbol}_eaten.png" />
 								{/each}
 							{/if}
-							{#if winLevelData?.type === 'big' && bookEventAmountToBetAmountMultiplier(amount) >= scaleStages(WIN_TIER_STAGES_END_FEATURE, stateBetDerived.activeBetMode()?.costMultiplier ?? 1)[0].xBet}
+							<!-- winLevelData arrives already gated: freeSpinEnd hands over a medium level when
+							     the round total is under what the round cost (Corey 2026-09-09) -->
+							{#if winLevelData?.type === 'big'}
 								<StagedWinTitle amount={countUpAmount} finalAlias={winLevelData?.alias ?? 'big'} stages={WIN_TIER_STAGES_END_FEATURE} size={46} y={40} />
 							{:else}
 								<BrandedTitle lines={['TOTAL WIN']} height={30} y={40} backdrop />

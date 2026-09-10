@@ -12,9 +12,8 @@
 	import GameText from './GameText.svelte';
 
 	const entries: { text: string; preset: 'gold' | 'silver'; size: number; extra?: Record<string, unknown> }[] = [
-		// BonusIntro contributes NOTHING here any more (2026-09-01): the bonus board is Corey's
-		// header/free-spin art plus glyph sprites off the numerals + gold-alphabet atlases, so
-		// there is no styled text on that screen to keep resident.
+		// BonusIntro contributes NOTHING here (2026-09-01): the bonus board is Corey's header,
+		// mugshot and free-spin art only, so there is no styled text on that screen to keep resident.
 		// FreeSpinOutro (merged wrap-up)
 		{ text: 'TOTAL WIN', preset: 'silver', size: 28, extra: { letterSpacing: 6 } },
 		// Mantis choreography + max win

@@ -62,12 +62,18 @@
 	// the dust sprites and the glint Graphics redraw together; nothing here touches the symbol's
 	// position, so the drift gate still sees the cell exactly where the reel put it.
 	const tileSize = SYMBOL_SIZE * CELL_FILL;
-	let beat = $state<{ gs: number; dust: number; sq: number; gl: number } | null>(null);
+	// `name` is the symbol that LANDED: BoardBase's symbol list is unkeyed, so on the next spin this
+	// component is reused for whatever tile fills the cell, and a beat still running would otherwise
+	// glint with the new name (a W/GL there asked for W_insect.png — no such frame, console error
+	// on every fast free spin that followed a high-symbol landing; found 2026-09-09).
+	let beat = $state<{ name: string; gs: number; dust: number; sq: number; gl: number } | null>(null);
 	let beatRaf = 0;
 	const startLandBeat = () => {
 		const row = props.reelSymbol.symbolIndexOfBoard;
 		if (row < 0 || row >= BOARD_DIMENSIONS.y) return;
-		const high = HIGH_LAND.symbols.includes(props.reelSymbol.rawSymbol.name);
+		const name = props.reelSymbol.rawSymbol.name;
+		const high = HIGH_LAND.symbols.includes(name);
+		if (high) devCount('highLandings');
 		const opts = stateGame.board[props.reelIndex].reelState.spinOptions();
 		const settleMs = (SYMBOL_SIZE * opts.symbolFallInBounceSizeMulti) / opts.symbolFallInBounceSpeed;
 		const ts = stateBetDerived.timeScale();
@@ -88,6 +94,7 @@
 			if (t >= 0) {
 				const th = t - gsMs;
 				beat = {
+					name,
 					gs: Math.min(1, t / gsMs),
 					dust: Math.min(1, t / dustMs),
 					sq: high && th >= 0 ? Math.min(1, th / sqMs) : 1,
@@ -99,6 +106,15 @@
 		beatRaf = requestAnimationFrame(step);
 	};
 	$effect(() => () => cancelAnimationFrame(beatRaf));
+	// a new symbol object in this cell (the next spin's board) ends any beat the old one left running
+	$effect(() => {
+		void props.reelSymbol;
+		return () => {
+			cancelAnimationFrame(beatRaf);
+			beatRaf = 0;
+			beat = null;
+		};
+	});
 	const easeOut = (p: number) => 1 - (1 - p) ** 3;
 	// gravity squash: sin bump of `squash` over the first squashMs, then a smaller inverse bump
 	const gravitySquash = (gs: number) => {
@@ -131,6 +147,14 @@
 		};
 	});
 	const showGlint = $derived(beat !== null && beat.gl < 1);
+	// DEV: __angryMantis.landBeat counts high-symbol landings vs glint frames actually drawn, so a
+	// harness can prove the beat still fires (screenshots cannot catch a 320 ms sweep headless)
+	const devCount = (key: 'highLandings' | 'glintFrames') => {
+		if (!import.meta.env.DEV || typeof window === 'undefined') return;
+		const am = ((window as any).__angryMantis ??= {});
+		am.landBeat ??= { highLandings: 0, glintFrames: 0 };
+		am.landBeat[key] += 1;
+	};
 	// the tray silhouette, filled with the shared gradient strip. 'global' texture space: the
 	// fill matrix maps TEXELS to local pixels, so it centres the strip's bright core on the
 	// origin, scales it to glintWidth of the tile, tilts it, and slides it from beyond the left
@@ -146,6 +170,7 @@
 	let glintFlip = 0;
 	$effect(() => () => glintCtx.forEach((c) => c.destroy()));
 	const drawGlint = (g: PIXI.Graphics) => {
+		devCount('glintFrames');
 		if (!beat || beat.gl >= 1) return;
 		glintFlip ^= 1;
 		g.context = glintCtx[glintFlip];
@@ -190,7 +215,7 @@
 		{#if showGlint}
 			<!-- glint clipped to the tray shape, then the bug redrawn over it so the light never crosses it -->
 			<Graphics draw={drawGlint} />
-			<Sprite anchor={0.5} key="{props.reelSymbol.rawSymbol.name}_insect.png" width={tileSize} height={tileSize} />
+			<Sprite anchor={0.5} key="{beat?.name}_insect.png" width={tileSize} height={tileSize} />
 		{/if}
 	</Container>
 	{#if dust}

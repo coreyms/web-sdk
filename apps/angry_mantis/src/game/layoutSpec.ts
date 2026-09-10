@@ -137,10 +137,11 @@ export const boardPlacement = (kind: LayoutKind, viewportMasterWidth?: number) =
 // ONE table serves all three LayoutKinds. Every LayoutKind's frame is a uniform scale of the same
 // art, so the window aspect is ~1.252 everywhere (594x474.4 landscape, 742.5x593 phone,
 // 348x277.6 portrait) — a fraction of the window means the same thing on all three. The ONLY
-// per-kind difference is that portrait stacks the rules band into three rows (see RULES_LAYOUT).
+// window aspect is ~1.252 everywhere, so one table serves every kind with no per-kind branch.
 //
-// Vertical budget, top to bottom, summing to 99% with no dead space:
-//   1% air | header 24% | 0.5% | plates 22% | 0.5% | count art 30% | 1% | rules 20%
+// Vertical budget, top to bottom (the 1/2/3 rules band that closed the door came off 2026-09-09,
+// and its 20% went to the three art pieces, every box scaled by the same 1.22):
+//   3% air | header 29% | 1% | plates 27% | 1% | count art 36% | 3% air
 // The count art may kiss the bottom of the head ink by ~1% of H — that is intended, it is what
 // puts the "10" close to the faces in the render.
 //
@@ -150,45 +151,31 @@ export type IntroBox = { x: number; y: number; w: number; h: number };
 
 export const BONUS_INTRO = {
 	/** full-width box; the header art contains into it (aspect ~3.03 -> ~58% W) */
-	header: { x: 0, y: 0.01, w: 1, h: 0.24 } as IntroBox,
+	header: { x: 0, y: 0.03, w: 1, h: 0.29 } as IntroBox,
 	// Both chalk plates contain into IDENTICAL boxes and centre inside them. Their source aspects
 	// differ (1.303 vs 1.498), so INMATE 02 draws wider than 01 within the same slot — that is the
 	// art, not a layout bug; what matters is that the two slots are the same size and aligned.
-	plates: { y: 0.255, h: 0.22, w: 0.32, x: [0.16, 0.52], soloX: 0.34 },
+	plates: { y: 0.33, h: 0.27, w: 0.32, x: [0.16, 0.52], soloX: 0.34 },
 	// Head: 1.05x the plate BOX height, centred horizontally on the plate box, with its vertical
 	// centre at 55% down the box — the render's heads sit on the plate and barely overhang it.
 	head: { scale: 1.05, centerAt: 0.55 },
-	/** full-width box; the count art contains into it (aspect ~2.07 -> ~50% W strip) */
-	spins: { x: 0, y: 0.48, w: 1, h: 0.3 } as IntroBox,
-	rules: {
-		x: 0.05,
-		y: 0.79,
-		w: 0.9,
-		h: 0.2,
-		/** THREE EQUAL columns of 30% W; dividers land on exact window fractions, not on content */
-		dividers: [0.35, 0.65],
-		titleCap: 0.045,
-		bodyCap: 0.03,
-		badge: 0.055,
-		/** Glowing Leaf tile at the LEFT EDGE of column 1, column 1's body beside it */
-		leaf: 0.1,
-		lead: 1.25,
-	},
+	/** full-width box; the count art contains into it (aspect ~2.07 -> ~60% W strip) */
+	spins: { x: 0, y: 0.61, w: 1, h: 0.36 } as IntroBox,
 } as const;
-
-// ALL THREE kinds run the same three equal columns (Corey 2026-09-02 — he wants the render's
-// column layout on high-res phones too). Portrait's window is only ~330 CSS px wide, so its body
-// copy shrinks to fit three lines per column; the 'rows' variant is kept for the table's shape but
-// is no longer selected by any layout.
-export const RULES_LAYOUT: Record<LayoutKind, 'columns' | 'rows'> = {
-	landscape: 'columns',
-	phone: 'columns',
-	portrait: 'columns',
-};
 
 // The design space the boxes are resolved into. Its aspect matches the window on every kind, so
 // `fit` uses the full window in both axes and a fraction maps to that fraction of the door.
 export const INTRO_DESIGN = { w: 620, h: 495 };
+
+// Big-win STINGER plate (components/WinStinger.svelte): width as a fraction of the master width,
+// centre as a fraction of the master height. Desktop 62% / centre 45% and portrait 92% / 40% are
+// the preview's numbers (Corey 2026-09-09); phone-sideways gets the desktop treatment scaled to
+// its wider master so the plate covers the same share of the reel window.
+export const STINGER: Record<LayoutKind, { w: number; cy: number }> = {
+	landscape: { w: 0.62, cy: 0.45 },
+	phone: { w: 0.54, cy: 0.45 },
+	portrait: { w: 0.92, cy: 0.4 },
+};
 
 // HUD slots (master units) for the Pixi-side overlays: the eaten-symbol pool tray and the
 // PRESS ANYWHERE prompt. (The FREE SPIN n/total readout is owned by the HTML chrome's spin

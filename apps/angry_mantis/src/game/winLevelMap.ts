@@ -116,14 +116,9 @@ export const WIN_TIER_STAGES_END_FEATURE = [
 
 export type WinTierStage = { alias: string; title: string; xBet: number };
 
-/**
- * Tier bars relative to what the round COST (Corey 2026-09-05): on a 300x Mystery or Super buy a
- * 50x-the-bet total is a loss, not a BIG WIN. Every bar scales by the active mode's cost
- * multiplier, so the base game (cost 1) is unchanged and on a buy EPIC means at least 4× the
- * price; the max-win bar is the hard cap and never moves.
- */
-export const scaleStages = (stages: readonly WinTierStage[], costMultiplier: number): WinTierStage[] =>
-	stages.map((s) => (s.alias === 'max' ? { ...s } : { ...s, xBet: s.xBet * Math.max(1, costMultiplier) }));
+// Tier bars are the math's own tables in base-bet multiples and never scale with the round's
+// cost (Corey 2026-09-09). The one cost-aware rule is the wrap-up gate in bookEventHandlerMap
+// freeSpinEnd: a feature whose total is under its price is held to a medium level.
 
 export type WinLevelMap = typeof winLevelMap;
 export type WinLevel = keyof typeof winLevelMap;

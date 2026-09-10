@@ -8,8 +8,8 @@
 </script>
 
 <script lang="ts">
-	// Text-based win presentation (temporary, replaces the Mining Mayhem big-win Spine + coin shower).
-	// Small/medium: the amount pops over the board. Big+: dimmed screen, tier title, count-up, press to continue.
+	// Win presentation. Small/medium: the amount pops over the board. Big+: dimmed screen and Corey's
+	// tier STINGER plate (WinStinger) carrying the count-up, press to continue.
 	import { Container } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
@@ -19,10 +19,9 @@
 	import { backOut } from 'svelte/easing';
 
 	import PressToContinue from './PressToContinue.svelte';
-	import StagedWinTitle from './StagedWinTitle.svelte';
-	import { bookEventAmountToBetAmountMultiplier } from 'utils-shared/amount';
-	import { WIN_TIER_STAGES, scaleStages } from '../game/winLevelMap';
+	import WinStinger from './WinStinger.svelte';
 	import StagedCountUpProvider from './StagedCountUpProvider.svelte';
+	import { STINGER_MOTION } from '../game/stinger';
 	import CountUpText from './CountUpText.svelte';
 	import { getContext } from '../game/context';
 	import { stateBetDerived } from 'state-shared';
@@ -38,6 +37,9 @@
 	// awaited winUpdate would never resolve (turbo/backgrounded autoplay stalled forever)
 	let presentId = $state(0);
 	let oncomplete = $state(() => {});
+	let onleft = $state(() => {});
+	// big+ only: flips true after the hold so the plate plays its drop-out before the fade
+	let leaving = $state(false);
 	const pop = new Tween(0.6, { duration: 420, easing: backOut });
 
 	// money-counter is a rhythmic ~0.78 s tick bed, so it runs as a loop for as long as the amount is
@@ -52,6 +54,7 @@
 		winUpdate: async (emitterEvent) => {
 			amount = emitterEvent.amount;
 			winLevelData = emitterEvent.winLevelData;
+			leaving = false;
 			presentId += 1;
 			pop.set(0.6, { duration: 0 });
 			pop.set(1);
@@ -78,7 +81,10 @@
 >
 	{#key presentId}
 		{#if winLevelData}
-			{@const isBigWin = winLevelData.type === 'big' && bookEventAmountToBetAmountMultiplier(amount) >= scaleStages(WIN_TIER_STAGES, stateBetDerived.activeBetMode()?.costMultiplier ?? 1)[0].xBet}
+			<!-- the book's own tier, in base-bet multiples, whatever the round cost (Corey 2026-09-09:
+			     the same as every other Stake game mid-feature; the wrap-up is where a buy that did
+			     not pay for itself is held back — see bookEventHandlerMap freeSpinEnd) -->
+			{@const isBigWin = winLevelData.type === 'big'}
 			{@const finalAlias = winLevelData.alias}
 			{@const duration = winLevelData.presentDuration / stateBetDerived.timeScale()}
 			<StagedCountUpProvider {amount} {duration}>
@@ -95,10 +101,18 @@
 							// startCountUp() resolves on a natural settle AND on a press-to-skip (finishCountUp
 							// interrupts it), so this one stop covers both exits.
 							const ticks = duration > 0;
+							// big+: the plate drops in first, the count starts as it settles
+							if (isBigWin) await waitForTimeout(STINGER_MOTION.enter);
 							if (ticks) countSound('soundLoop');
 							await startCountUp();
 							if (ticks) countSound('soundStop');
 							await waitForTimeout(isBigWin ? 1400 : 300);
+							if (isBigWin) {
+								// drop the plate off the bottom; the fade-out follows (backstop: never wedge on it)
+								const left = waitForResolve((resolve) => (onleft = resolve));
+								leaving = true;
+								await Promise.race([left, waitForTimeout(STINGER_MOTION.exit + 200)]);
+							}
 							done();
 						}}
 					/>
@@ -107,10 +121,7 @@
 
 					<MainContainer>
 						{#if isBigWin}
-							<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>
-								<StagedWinTitle amount={countUpAmount} {finalAlias} size={88} y={-80} />
-								<CountUpText amount={countUpAmount} target={amount} settled={countUpCompleted} preset="silver" size={72} y={68} maxWidth={760} />
-							</Container>
+							<WinStinger amount={countUpAmount} target={amount} {finalAlias} settled={countUpCompleted} {leaving} onleft={() => onleft()} />
 						{:else}
 							<!-- same anchor + size as the big-win amount so every win pop reads consistent -->
 							<Container x={master.width * 0.5} y={master.height * 0.45} scale={pop.current * textScale}>

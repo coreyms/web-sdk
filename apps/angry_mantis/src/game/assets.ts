@@ -51,9 +51,6 @@ export default {
 	// foot marks baked in; INMATE 01 is Marky (chart labels left), INMATE 02 is Marty (labels right)
 	inmateChalk1: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-1-chalk.webp', import.meta.url).href), preload: false },
 	inmateChalk2: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-2-chalk.webp', import.meta.url).href), preload: false },
-	// gold bonus-board stencil alphabet (A-Z + boxed 1/2/3), sliced from assets/images/ui/bonus-board-alphabet.webp
-	// by tools/build_glyph_atlas.py — the rule titles and number badges draw from it as batched
-	// sprites, so the intro's headings never rasterize text (see game/stencilLayout.ts).
 	// Corey's branded (rusty-metal) title alphabet, sliced by tools/build_branded_glyphs.py: the
 	// win-tier titles, ON THE MENU and THEY ATE EVERYTHING are set from it letter by letter
 	// (components/BrandedTitle.svelte) so they can move per glyph. Every frame has a `_halo`
@@ -61,11 +58,6 @@ export default {
 	brandedGlyphs: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/ui/branded-glyphs/branded-glyphs.json', import.meta.url).href),
-		preload: false,
-	},
-	goldAlphabet: {
-		type: 'sprites',
-		src: stamp(new URL('../../assets/ui/gold-alphabet/gold-alphabet.json', import.meta.url).href),
 		preload: false,
 	},
 	// prison-stencil numerals: every amount glyph (digits, separators, currency symbols, GC/SC/R$)
@@ -104,6 +96,13 @@ export default {
 	lightOffHanging: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/light-off-hanging.webp', import.meta.url).href), preload: true },
 	lightOffSconce: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/light-off-sconce.webp', import.meta.url).href), preload: true },
 	lightOffCounter: { type: 'sprite', src: stamp(new URL('../../assets/ui/ambient/light-off-counter.webp', import.meta.url).href), preload: true },
+	// big-win STINGER plates (branding/stinger-{tier}.png, alpha-cropped): the tier sign the count-up
+	// sits on (components/WinStinger.svelte, game/stinger.ts). Deferred like the other big-win art.
+	stingerBig: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/big.webp', import.meta.url).href), preload: false },
+	stingerSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/super.webp', import.meta.url).href), preload: false },
+	stingerMega: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/mega.webp', import.meta.url).href), preload: false },
+	stingerEpic: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/epic.webp', import.meta.url).href), preload: false },
+	stingerMax: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/max.webp', import.meta.url).href), preload: false },
 	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
 	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: false },
 	amSymbols: {

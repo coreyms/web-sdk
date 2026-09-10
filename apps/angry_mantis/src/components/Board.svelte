@@ -53,6 +53,9 @@
 			atRest: () => context.stateGame.board.every((reel) => reel.reelState.motion === 'stopped'),
 			boardLayout: () => context.stateGameDerived.boardLayout(),
 			gameType: () => context.stateGame.gameType,
+			// >0 while a PressToContinue gate is up (bonus intro / wrap-up / big win) — lets a harness press
+			// through the gated screens without blind clicking
+			pressGates: () => context.stateGame.pressGates,
 			// per-reel motion + anticipation flags, for timing the scatter tease from a harness
 			reelStates: () => context.stateGame.board.map((reel) => `${reel.reelState.motion}${reel.reelState.anticipating ? '*' : ''}`),
 			// test harnesses / manual QA: fire any emitter event (e.g. winShow + winUpdate to

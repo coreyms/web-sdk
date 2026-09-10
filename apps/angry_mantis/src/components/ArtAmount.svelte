@@ -36,8 +36,12 @@
 		y?: number;
 		maxWidth?: number;
 		alpha?: number;
+		/** multiply tint on the white sheet (the stencil takes tint cleanly: cream, dark, rust) */
+		tint?: number;
+		/** a second, tinted run drawn FIRST and offset (fractions of `height`) — a hard drop shadow */
+		shadow?: { dx: number; dy: number; tint: number };
 	};
-	const { text, reserve, height = 72, x = 0, y = 0, maxWidth, alpha = 1 }: Props = $props();
+	const { text, reserve, height = 72, x = 0, y = 0, maxWidth, alpha = 1, tint = 0xffffff, shadow }: Props = $props();
 
 	const GAP = 0.05; // inter-cell gap, fraction of digit height
 	const SPACE = 0.32;
@@ -91,9 +95,16 @@
 </script>
 
 {#if tokens}
+	{#if shadow}
+		{#each layout as g, i (i)}
+			{#if g.key}
+				<Sprite key="num_{g.key}.png" x={x + g.x + shadow.dx * height} y={y - height / 2 + g.y + shadow.dy * height} width={g.w} height={g.h} {alpha} tint={shadow.tint} />
+			{/if}
+		{/each}
+	{/if}
 	{#each layout as g, i (i)}
 		{#if g.key}
-			<Sprite key="num_{g.key}.png" x={x + g.x} y={y - height / 2 + g.y} width={g.w} height={g.h} {alpha} />
+			<Sprite key="num_{g.key}.png" x={x + g.x} y={y - height / 2 + g.y} width={g.w} height={g.h} {alpha} {tint} />
 		{/if}
 	{/each}
 {:else}

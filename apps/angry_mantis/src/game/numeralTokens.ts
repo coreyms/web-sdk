@@ -1,5 +1,5 @@
-// One tokenizer for every renderer of the prison-stencil glyph atlas (components/ArtAmount.svelte and
-// game/stencilLayout.ts in Pixi, the HUD used to in HTML), so they agree EXACTLY on what the
+// One tokenizer for every renderer of the prison-stencil glyph atlas (components/ArtAmount.svelte in
+// Pixi; the HUD used to in HTML, and the intro rules copy did until 2026-09-09), so they agree EXACTLY on what the
 // atlas can draw: a text that tokenizes renders every character; a text with any unsupported character
 // yields null and the caller falls back to styled text for the WHOLE string — never a partial render
 // with glyphs dropped. The atlas is generated from Black Ops One by tools/build_stencil_atlas.py and

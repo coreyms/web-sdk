@@ -3,6 +3,7 @@ import _ from 'lodash';
 import { recordBookEvent, checkIsMultipleRevealEvents, type BookEventHandlerMap } from 'utils-book';
 import { stateBet, stateBetDerived, stateUrlDerived } from 'state-shared';
 import { waitForTimeout } from 'utils-shared/wait';
+import { bookEventAmountToBetAmountMultiplier } from 'utils-shared/amount';
 
 import config from './config';
 import { eventEmitter } from './eventEmitter';
@@ -353,7 +354,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		};
 	},
 	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>, { bookEvents }: BookEventContext) => {
-		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];
 		// TOTAL WIN on the wrap-up is the ROUND total, not the free-spins subtotal. The book's
 		// freeSpinEnd.amount covers only the free games — a base-game trigger win sits outside it
 		// (books_base #17: trigger 20 + free spins 1320 → freeSpinEnd.amount 1320, finalWin 1340),
@@ -369,6 +369,16 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			bookEvent.amount,
 			finalWinEvent?.amount ?? stateBet.winBookEventAmount,
 		);
+		// The wrap-up shows the book's tier (base-bet multiples, the "endFeature" table) EXCEPT
+		// when the round paid back less than it cost: a 300x Mystery Spin that returns 250x is a
+		// loss, and a BIG WIN slam on a loss reads as mockery. Held to a medium level then — the
+		// TOTAL WIN title, the plain count and no fanfare (Corey 2026-09-09; this replaced the
+		// 2026-09-05 rule that scaled every bar by the cost, which put BIG WIN at 15,000x on a
+		// Mystery Spin and MEGA/EPIC past the max win). Mid-feature spins are never gated.
+		const bookLevel = winLevelMap[bookEvent.winLevel as WinLevel];
+		const cost = stateBetDerived.activeBetMode()?.costMultiplier ?? 1;
+		const paidBack = bookEventAmountToBetAmountMultiplier(roundTotal) >= cost;
+		const winLevelData: WinLevelData = bookLevel.type === 'big' && !paidBack ? winLevelMap[5] : bookLevel;
 
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		// gameType flip + mantisHide in ONE flush: MartyArt re-renders in the slot the rig Marty

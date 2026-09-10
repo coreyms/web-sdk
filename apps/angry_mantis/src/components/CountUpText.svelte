@@ -22,8 +22,11 @@
 		x?: number;
 		y?: number;
 		maxWidth?: number;
+		/** art path only: stencil tint + optional hard shadow run (see ArtAmount) */
+		tint?: number;
+		shadow?: { dx: number; dy: number; tint: number };
 	};
-	const { amount, target, settled = false, preset = 'gold', size = 72, x = 0, y = 0, maxWidth }: Props = $props();
+	const { amount, target, settled = false, preset = 'gold', size = 72, x = 0, y = 0, maxWidth, tint, shadow }: Props = $props();
 
 	const INTERVAL = 66; // ~15Hz text updates; the underlying tween still animates at full frame rate
 	let display = $state(0);
@@ -58,7 +61,7 @@
 
 {#if artPath}
 	<!-- stencil glyph sprites: zero raster/upload cost — updates every frame, no throttle -->
-	<ArtAmount text={artText} reserve={targetText} height={size} {x} {y} {maxWidth} />
+	<ArtAmount text={artText} reserve={targetText} height={size} {x} {y} {maxWidth} {tint} {shadow} />
 {:else}
 	<!-- session currency outside the glyph set: the original styled-text path -->
 	<GameText
