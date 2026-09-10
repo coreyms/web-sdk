@@ -10,7 +10,8 @@
 	import { glintTexture, GLINT_TEX_W, GLINT_CORE } from '../game/glintTexture';
 	import { dustFrames, DUST_SHEET } from '../game/dustTexture';
 	import { getContext } from '../game/context';
-	import { isAnteLockedSymbol, upcomingEats, stateGame, type ReelSymbol } from '../game/stateGame.svelte';
+	import { isAnteLockedSymbol, stateGame, type ReelSymbol } from '../game/stateGame.svelte';
+	import { bellPose } from '../game/bell';
 
 	type Props = {
 		reelIndex: number;
@@ -23,13 +24,38 @@
 		getSymbolInfo({ rawSymbol: props.reelSymbol.rawSymbol, state: props.reelSymbol.symbolState }),
 	);
 
-	// strike-targeted leaf grows while the strike winds up (pendingStrikePos is board-space,
-	// set at the strike event and cleared when the eat flight picks the insect up)
-	const lift = $derived(
-		stateGame.pendingStrikePos !== null &&
+	// Service Bell ring: the bell a strike is answering rings IN PLACE while Mantis.svelte brings
+	// the tray in (pendingStrikePos is board-space, set at the strike event and cleared at the eat).
+	// Frames play once over TIMINGS.ring, unscaled — Mantis waits the same raw span (game/bell.ts).
+	const ringing = $derived(
+		props.reelSymbol.rawSymbol.name === 'GL' &&
+			stateGame.pendingStrikePos !== null &&
 			stateGame.pendingStrikePos.reel === props.reelIndex &&
 			stateGame.pendingStrikePos.row === props.reelSymbol.symbolIndexOfBoard,
 	);
+	let ring = $state<number | null>(null);
+	let ringRaf = 0;
+	$effect(() => {
+		if (!ringing) return;
+		const t0 = performance.now();
+		cancelAnimationFrame(ringRaf);
+		const step = (now: number) => {
+			const p = (now - t0) / TIMINGS.ring;
+			if (p >= 1) {
+				ring = null;
+				ringRaf = 0;
+				return;
+			}
+			ring = p;
+			ringRaf = requestAnimationFrame(step);
+		};
+		ringRaf = requestAnimationFrame(step);
+		return () => {
+			cancelAnimationFrame(ringRaf);
+			ringRaf = 0;
+			ring = null;
+		};
+	});
 
 	// winFocus rows are in symbols[] index space (padding included): symbolIndexOfBoard = row - 1
 	const dim = $derived(
@@ -38,21 +64,6 @@
 				(p) => p.reel === props.reelIndex && p.row - 1 === props.reelSymbol.symbolIndexOfBoard,
 			),
 	);
-
-	// dinner leaf carries the insect ITS strike will eat (cascades in with it). Leaves are struck in
-	// reel-major order, so the k-th unstruck leaf of this board shows the k-th symbol still in the eat
-	// order — two leaves never preview the same meal. Hidden again once this leaf's strike has fed
-	// the mantis (the struck cell goes back to a bare leaf).
-	const insectOnLeaf = $derived.by(() => {
-		if (props.reelSymbol.rawSymbol.name !== 'GL' || stateGame.gameType === 'basegame') return null;
-		const unstruck = stateGame.leafOrder.filter(
-			(pos) => !stateGame.consumedLeaves.some((c) => c.reel === pos.reel && c.row === pos.row),
-		);
-		const index = unstruck.findIndex(
-			(pos) => pos.reel === props.reelIndex && pos.row === props.reelSymbol.symbolIndexOfBoard,
-		);
-		return index === -1 ? null : (upcomingEats()[index] ?? null);
-	});
 
 	// Landing beat, kicked from the 'land' → 'static' hand-off below, which fires exactly once per
 	// landing, at first contact. Every visible cell gets the gravity-drop beat (GRAVITY_DROP): a
@@ -198,31 +209,37 @@
 	zIndex={isAnteLockedSymbol(props.reelIndex, props.reelSymbol.symbolIndexOfBoard) ? 10 : 0}
 	animating={props.reelSymbol.symbolState === 'win'}
 	{dim}
-	{lift}
 >
 	<Container scale={squash} rotation={props.reelSymbol.symbolRot.current}>
-		<Symbol
-			state={props.reelSymbol.symbolState}
-			rawSymbol={props.reelSymbol.rawSymbol}
-			oncomplete={() => {
-				if (props.reelSymbol.symbolState === 'win') props.reelSymbol.oncomplete();
-				if (props.reelSymbol.symbolState === 'land') {
-					props.reelSymbol.symbolState = 'static';
-					startLandBeat();
-				}
-			}}
-		/>
+		<!-- the resting tile hides while the bell rings: the press frames squash and rock, and the
+		     still frame 1 underneath showed around their edges (Corey 2026-09-10) -->
+		<Container visible={ring === null}>
+			<Symbol
+				state={props.reelSymbol.symbolState}
+				rawSymbol={props.reelSymbol.rawSymbol}
+				oncomplete={() => {
+					if (props.reelSymbol.symbolState === 'win') props.reelSymbol.oncomplete();
+					if (props.reelSymbol.symbolState === 'land') {
+						props.reelSymbol.symbolState = 'static';
+						startLandBeat();
+					}
+				}}
+			/>
+		</Container>
 		{#if showGlint}
 			<!-- glint clipped to the tray shape, then the bug redrawn over it so the light never crosses it -->
 			<Graphics draw={drawGlint} />
 			<Sprite anchor={0.5} key="{beat?.name}_insect.png" width={tileSize} height={tileSize} />
 		{/if}
+		{#if ring !== null}
+			{@const pose = bellPose(ring, TIMINGS.ring)}
+			<!-- Service Bell press frames over the resting tile (same size, fully covers it), squashing
+			     and rocking on the bell's base -->
+			<Sprite anchor={{ x: 0.5, y: 1 }} y={tileSize / 2} key={pose.key} width={tileSize * pose.scaleX} height={tileSize * pose.scaleY} rotation={pose.rotation} />
+		{/if}
 	</Container>
 	{#if dust}
 		<!-- landing dust, outside the squash container so it blooms while the tile compresses -->
 		<BaseSprite texture={dust.texture} anchor={{ x: 0.5, y: 1 }} y={dust.y} width={dust.w} height={dust.h} alpha={dust.alpha} />
-	{/if}
-	{#if insectOnLeaf}
-		<Sprite anchor={0.5} key="{insectOnLeaf}_insect.png" width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} />
 	{/if}
 </SymbolWrap>

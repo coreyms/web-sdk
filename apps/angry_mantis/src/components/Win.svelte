@@ -52,8 +52,8 @@
 		context.eventEmitter.broadcast({ type, name: 'sfx_money_counter' });
 
 	context.eventEmitter.subscribeOnMount({
-		winShow: () => (show = true),
-		winHide: () => (show = false),
+		winShow: () => (show = context.stateGame.winShowing = true),
+		winHide: () => (show = context.stateGame.winShowing = false),
 		winUpdate: async (emitterEvent) => {
 			amount = emitterEvent.amount;
 			winLevelData = emitterEvent.winLevelData;

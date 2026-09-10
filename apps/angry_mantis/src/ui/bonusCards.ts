@@ -32,7 +32,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'BONUS',
 		label: 'BONUS',
-		pitch: `${config.freeSpins.free} free spins. Every Dinner Leaf is a Mantis Strike: Marty eats the lowest symbol and it never returns.`,
+		pitch: `${config.freeSpins.free} free spins. Every Service Bell rings for a Mantis Strike: Marty eats the lowest symbol and it never returns.`,
 		cta: 'ACTIVATE',
 		toggle: false,
 		accent: '#9cd92f',
@@ -41,7 +41,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'SUPER',
 		label: 'SUPER',
-		pitch: `${config.freeSpins.super} spins on leaf-richer reels, so Marky strikes more often and clears the menu faster.`,
+		pitch: `${config.freeSpins.super} spins on bell-richer reels, so Marky strikes more often and clears the menu faster.`,
 		cta: 'ACTIVATE',
 		toggle: false,
 		accent: '#ff8a70',

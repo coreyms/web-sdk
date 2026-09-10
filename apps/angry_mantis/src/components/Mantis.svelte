@@ -17,7 +17,7 @@
 	// whole strike-and-eat performance — wind-up, claw impact at RIG.strike.hitFrame, then
 	// recovery/chomp playing out underneath the insect's flight to the mouth (see constants.ts).
 	import { CanvasSizeRectangle, MainContainer } from 'components-layout';
-	import { Sprite, Container, Circle } from 'pixi-svelte';
+	import { Sprite, BaseSprite, Container, Circle } from 'pixi-svelte';
 	import { Tween } from 'svelte/motion';
 	import { cubicOut, cubicIn } from 'svelte/easing';
 	import { waitForTimeout } from 'utils-shared/wait';
@@ -26,7 +26,8 @@
 	import { nextSymbolToEat } from '../game/stateGame.svelte';
 	import GameText from './GameText.svelte';
 	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, SFX_TRANSIENT, reactionPoolFor, reactionVoice, strikeVoice, eatVoice } from '../game/constants';
-	import { getSymbolX, getSymbolY } from '../game/utils';
+	import { bellPose } from '../game/bell';
+	import { BELL_GLOW, bellGlowPose, bellHaloTexture, bellRaysTexture, bellRingTexture } from '../game/bellGlow';
 	import { MARTY, MASTER, layoutKind, martyFor } from '../game/layoutSpec';
 	import type { Rig } from '../bonerutter';
 	import { rigPointInHost, playClip, playIdle, currentClip, isIdling } from '../game/mantisRig';
@@ -49,20 +50,73 @@
 	let chomp = $state(false);
 	let martyRig = $state<Rig | null>(null);
 	let markyRig = $state<Rig | null>(null);
-	// eaten symbol: flies from the leaf cell to the striker's mouth (offsets are relative to the mantis)
+	// eaten symbol: flies from the centre tray to the striker's mouth (offsets are relative to the mantis)
 	const fly = new Tween({ x: 0, y: 0, s: 1 }, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicIn });
 	// fallback mouth position (fractions of the placeholder body) for the frame-perfect-race case
 	// where a strike lands before the rig finishes loading
 	const mouthOffset = (isMarty: boolean, size: number) => ({ x: isMarty ? -size * 0.15 : size * 0.22, y: isMarty ? -size * 0.3 : -size * 0.23 });
-	// opening auto-bites have no board leaf, so a dinner leaf drops to the board centre carrying the
-	// meal; the strike launches from it and the leaf fades away once the insect is taken
-	let autoLeaf = $state<PayingSymbolName | null>(null);
-	const leafDrop = new Tween(0, { duration: Math.round(TIMINGS.strike * 0.6), easing: cubicIn });
-	const leafFade = new Tween(1, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicOut });
-	// bonus-intro spotlight: everything but the mantises + dinner leaf dims during the opening
+	// Every course is served at the board centre (Corey 2026-09-10): once the bell has rung — in its
+	// cell for a board strike, or on the hero bell that drops in first for an opening bite — the
+	// tray with the meal drops to the centre, the strike launches at it and the tray fades away
+	// as the insect is taken. game/bell.ts has the frame sequence.
+	let heroBell = $state(false);
+	let bellRing = $state<number | null>(null);
+	let bellRaf = 0;
+	let heroTray = $state<PayingSymbolName | null>(null);
+	const dropMs = Math.round(TIMINGS.strike * 0.6);
+	const bellDrop = new Tween(0, { duration: dropMs, easing: cubicIn });
+	const bellFade = new Tween(1, { duration: dropMs, easing: cubicOut });
+	const trayDrop = new Tween(0, { duration: dropMs, easing: cubicIn });
+	const trayFade = new Tween(1, { duration: Math.round(TIMINGS.eat * 0.6), easing: cubicOut });
+	// bonus-intro spotlight: everything but the mantises + bell + tray dims during the opening
 	// auto-bites, so the plate ceremony reads as "this is what the bonus does" (player feedback:
-	// the leaf got lost against the background). HTML UI sits above the canvas, untouched.
-	const LEAF_HERO = 1.5; // the intro dinner leaf is oversized for the same reason
+	// the meal got lost against the background). HTML UI sits above the canvas, untouched.
+	const TRAY_HERO = 1.5; // the centre bell and tray are oversized for the same reason
+	const aboveBoard = () => {
+		const layout = context.stateGameDerived.boardLayout();
+		return -(layout.height * layout.scale) / 2 - 140;
+	};
+	// hero bell press: frames over TIMINGS.ring (raw ms, same span ReelSymbol plays a board bell)
+	const ringHeroBell = () =>
+		new Promise<void>((resolve) => {
+			const t0 = performance.now();
+			cancelAnimationFrame(bellRaf);
+			const step = (now: number) => {
+				const p = (now - t0) / TIMINGS.ring;
+				if (p >= 1) {
+					bellRing = null;
+					bellRaf = 0;
+					resolve();
+					return;
+				}
+				bellRing = p;
+				bellRaf = requestAnimationFrame(step);
+			};
+			bellRaf = requestAnimationFrame(step);
+		});
+	$effect(() => () => cancelAnimationFrame(bellRaf));
+	// glow under the hero bell (game/bellGlow.ts): the app ticker advances one clock while the
+	// bell is up; `dingAt` marks the ring for the ripple. Alpha/rotation only — nothing re-rasters.
+	let glowT = $state(0);
+	let dingAt: number | null = null;
+	let glowDing = $state<number | null>(null);
+	$effect(() => {
+		if (!heroBell) return;
+		const ticker = context.stateApp.pixiApplication?.ticker;
+		const t0 = performance.now();
+		dingAt = null;
+		const tick = () => {
+			const now = performance.now();
+			glowT = now - t0;
+			glowDing = dingAt === null ? null : now - dingAt;
+		};
+		ticker?.add(tick);
+		return () => {
+			ticker?.remove(tick);
+			glowT = 0;
+			glowDing = null;
+		};
+	});
 	let spotlight = $state(false);
 	const spot = new Tween(0, { duration: 350 });
 	$effect(() => {
@@ -201,15 +255,29 @@
 			busy[striker] = true;
 			if (!position) {
 				spotlight = true;
-				// auto bite: bring the meal in on a dinner leaf before the lunge, same read as a board leaf
-				const symbol = nextSymbolToEat();
-				if (symbol) {
-					const layout = context.stateGameDerived.boardLayout();
-					autoLeaf = symbol;
-					leafFade.set(1, { duration: 0 });
-					leafDrop.set(-(layout.height * layout.scale) / 2 - 140, { duration: 0 });
-					await leafDrop.set(0);
-				}
+				// opening bite: no bell on the board, so a hero bell drops to the centre and rings there
+				heroBell = true;
+				bellFade.set(1, { duration: 0 });
+				bellDrop.set(aboveBoard(), { duration: 0 });
+				await bellDrop.set(0);
+				await waitForTimeout(TIMINGS.bellSettle); // let the bell land and sit before the ding
+				context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_service_bell' });
+				dingAt = performance.now(); // the glow's ripple rides the ding
+				await ringHeroBell();
+			} else {
+				// board bell: ReelSymbol plays the press in its cell off pendingStrikePos; the ding is ours
+				context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_service_bell' });
+				await waitForTimeout(TIMINGS.ring);
+			}
+			// order up: the tray with the next course drops to the board centre (the hero bell, if
+			// any, fades under it); the strike launches at the tray
+			const symbol = nextSymbolToEat();
+			if (symbol) {
+				heroTray = symbol;
+				trayFade.set(1, { duration: 0 });
+				trayDrop.set(aboveBoard(), { duration: 0 });
+				if (heroBell) bellFade.set(0);
+				await trayDrop.set(0);
 			}
 			// speed maps the claw impact onto TIMINGS.strike; the 2s recovery/chomp tail keeps
 			// playing under the eat phase and hands back to idle on its own
@@ -227,7 +295,7 @@
 			}
 			// The strike voice belongs to the LUNGE, not to the book event: it used to be broadcast in
 			// bookEventHandlerMap the instant the strike event arrived, i.e. at the start of the wind-up
-			// (and, on an auto bite, before the dinner leaf had even finished dropping), which read as
+			// (and, on an auto bite, before the tray had even finished dropping), which read as
 			// the sting happening while the insect was still on its plate. Fire it late enough that its
 			// impact transient lands on the claw hit at TIMINGS.strike — the arms are travelling forward
 			// through this window. Total wait is unchanged, so the eat beat still follows immediately.
@@ -242,19 +310,14 @@
 			const me = isMarty ? place.marty : place.marky;
 			eating = { striker, symbol };
 			if (symbol) {
-				// start at the dinner leaf's cell (board-local -> master via the board transform);
-				// opening bites launch from the board centre, where their own leaf just dropped in
-				const start = from
-					? {
-							x: layout.x + (getSymbolX(from.reel) - layout.width / 2) * layout.scale,
-							y: layout.y + (getSymbolY(from.row) - layout.height / 2) * layout.scale,
-						}
-					: { x: layout.x, y: layout.y };
-				const startRel = { x: start.x - me.x, y: start.y - me.y };
-				const pickup = ((SYMBOL_SIZE * CELL_FILL) / 90) * (autoLeaf ? LEAF_HERO : 1);
+				// the flight starts on the tray at the board centre, where mantisStrike just served it
+				// (`from`, the bell's cell, only matters to the board-side bookkeeping now)
+				void from;
+				const startRel = { x: layout.x - me.x, y: layout.y - me.y };
+				const pickup = ((SYMBOL_SIZE * CELL_FILL) / 90) * TRAY_HERO;
 				const rig = rigOf(striker);
 				fly.set({ ...startRel, s: pickup }, { duration: 0 });
-				if (autoLeaf) leafFade.set(0); // the leaf empties as the insect lifts off
+				trayFade.set(0); // the tray empties as the insect lifts off
 				// ...and the eat voice goes with the pluck, chained straight behind the strike impact
 				// that just landed (it was broadcast from bookEventHandlerMap before). Only a real meal
 				// sounds: a cosmetic strike reaches mantisEat with symbol null and stays silent, exactly
@@ -303,7 +366,8 @@
 				await waitForTimeout(TIMINGS.eat);
 			}
 			eating = null;
-			autoLeaf = null;
+			heroTray = null;
+			heroBell = false;
 			spotlight = false;
 			busy[striker] = false;
 		},
@@ -362,16 +426,34 @@
 			{/if}
 		</Container>
 	{/each}
-	{#if autoLeaf}
+	{#if heroBell}
 		{@const layout = context.stateGameDerived.boardLayout()}
-		<!-- auto-bite dinner leaf: drops to the board centre with the insect riding it; the insect
-		     hides once the eat flight takes over (which starts at this exact spot and size) -->
-		<Container x={layout.x} y={layout.y + leafDrop.current} alpha={leafFade.current} scale={LEAF_HERO}>
+		<!-- opening-bite hero bell: drops to the board centre, rings (press frames), fades under the tray -->
+		{@const glow = bellGlowPose(glowT, glowDing)}
+		{@const bellW = SYMBOL_SIZE * CELL_FILL}
+		<Container x={layout.x} y={layout.y + bellDrop.current} alpha={bellFade.current} scale={TRAY_HERO}>
+			<!-- glow (bellGlow.ts): halo breathing under a slowly turning ray wheel, plus the ding
+			     ripple; all additive, tinted white textures -->
+			<BaseSprite texture={bellRaysTexture()} anchor={0.5} width={bellW * BELL_GLOW.size} height={bellW * BELL_GLOW.size} rotation={glow.raysRotation} tint={BELL_GLOW.color} alpha={glow.raysAlpha} blendMode="add" />
+			<BaseSprite texture={bellHaloTexture()} anchor={0.5} width={bellW * BELL_GLOW.size * BELL_GLOW.haloScale} height={bellW * BELL_GLOW.size * BELL_GLOW.haloScale} tint={BELL_GLOW.color} alpha={glow.haloAlpha} blendMode="add" />
+			{#if glow.ring}
+				<BaseSprite texture={bellRingTexture()} anchor={0.5} width={bellW * glow.ring.size} height={bellW * glow.ring.size} tint={BELL_GLOW.color} alpha={glow.ring.alpha} blendMode="add" />
+			{/if}
+			<Circle x={0} y={SYMBOL_SIZE * CELL_FILL * 0.42} diameter={SYMBOL_SIZE * CELL_FILL} backgroundColor={0x000000} backgroundAlpha={0.35} anchor={0.5} scale={{ x: 1, y: 0.32 }} />
+			{@const pose = bellPose(bellRing ?? 0, TIMINGS.ring)}
+			<Sprite anchor={{ x: 0.5, y: 1 }} y={(SYMBOL_SIZE * CELL_FILL) / 2} width={SYMBOL_SIZE * CELL_FILL * pose.scaleX} height={SYMBOL_SIZE * CELL_FILL * pose.scaleY} rotation={pose.rotation} key={pose.key} />
+		</Container>
+	{/if}
+	{#if heroTray}
+		{@const layout = context.stateGameDerived.boardLayout()}
+		<!-- the course: plate + insect drop to the board centre; the insect hides once the eat
+		     flight takes over (which starts at this exact spot and size), the plate fades after it -->
+		<Container x={layout.x} y={layout.y + trayDrop.current} alpha={trayFade.current} scale={TRAY_HERO}>
 			<!-- grounding shadow (flattened circle, not a filter) separates the plate from the dim -->
 			<Circle x={0} y={SYMBOL_SIZE * CELL_FILL * 0.42} diameter={SYMBOL_SIZE * CELL_FILL} backgroundColor={0x000000} backgroundAlpha={0.35} anchor={0.5} scale={{ x: 1, y: 0.32 }} />
-			<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="GL.png" />
+			<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{heroTray}_eaten.png" />
 			{#if !eating}
-				<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{autoLeaf}_insect.png" />
+				<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{heroTray}_insect.png" />
 			{/if}
 		</Container>
 	{/if}

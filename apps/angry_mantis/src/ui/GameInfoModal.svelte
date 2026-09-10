@@ -60,9 +60,9 @@
 	const RULES_SECTIONS = rulesSections();
 
 	const SPECIALS = [
-		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Dinner Leaves.') },
+		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Service Bells.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Service Bells.') },
 		{ glyph: 'S', name: 'Marky Scatter', color: '#ff8a70', note: `3 / 4 / 5 anywhere trigger Free Spins / Super Free Spins / Mantis Feast. In free spins each scatter adds +1 spin (up to +${config.freeSpins.maxRetrigger} per session); once the cap is reached scatters stop appearing.` },
-		{ glyph: 'GL', name: 'Dinner Leaf', color: '#9cd92f', note: soc('Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-paying symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.', 'Free spins only. Each Dinner Leaf that lands is a Mantis Strike: the lowest-value symbol still on the menu is eaten. The leaf cascades in carrying the insect it is about to serve.') },
+		{ glyph: 'GL', name: 'Service Bell', color: '#e0b860', note: soc('Free spins only. Each Service Bell that lands rings for a Mantis Strike: the lowest-paying symbol still on the menu is served up and eaten.', 'Free spins only. Each Service Bell that lands rings for a Mantis Strike: the lowest-value symbol still on the menu is served up and eaten.') },
 	];
 
 	// the cap is a base-bet multiple in every mode; a mode's ceiling against its own price is what a
@@ -74,8 +74,8 @@
 	const MODES = [
 		{ id: 'base', label: 'Base Game', accent: '#eef0f6', cost: `${modeCost('BASE')}×`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: 'Standard 1,024 ways evaluation. 3, 4 or 5 Marky scatters trigger Free Spins, Super Free Spins or Mantis Feast.' },
 		{ id: 'ante', label: 'Ante', accent: '#ffdc4a', cost: `${modeCost('ANTE')}×`, costNum: modeCost('ANTE'), enter: soc('Switch on from the Bonus Buy menu; stays on until switched off.', 'Switch on from the Feature Menu; stays on until switched off.'), spins: 'One spin per play.', mech: soc('Triples the cost of each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature; features land about four times as often as in the base game. Cannot be combined with a direct bonus buy.', 'Triples the play amount for each spin. A Marky scatter is locked onto reel 1 every spin, so only two more are needed for a feature; features land about four times as often as in the base game. Cannot be combined with an instantly triggered feature.') },
-		{ id: 'bonus', label: 'Free Spins', accent: '#9cd92f', cost: `${modeCost('BONUS')}×`, costNum: modeCost('BONUS'), enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Dinner Leaf that lands is another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Dinner Leaf that lands is another strike.') },
-		{ id: 'super', label: 'Super Free Spins', accent: '#ff8a70', cost: `${modeCost('SUPER')}×`, costNum: modeCost('SUPER'), enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Dinner Leaves, so symbols are eaten faster and wins escalate sooner.' },
+		{ id: 'bonus', label: 'Free Spins', accent: '#9cd92f', cost: `${modeCost('BONUS')}×`, costNum: modeCost('BONUS'), enter: soc('Land 3 Marky scatters, or buy directly.', 'Land 3 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.free} Free Spins.`, mech: soc('Marty hosts. An opening bite eats the lowest-paying symbol for the rest of the session; every Service Bell that lands rings for another strike.', 'Marty hosts. An opening bite eats the lowest-value symbol for the rest of the session; every Service Bell that lands rings for another strike.') },
+		{ id: 'super', label: 'Super Free Spins', accent: '#ff8a70', cost: `${modeCost('SUPER')}×`, costNum: modeCost('SUPER'), enter: soc('Land 4 Marky scatters, or buy directly.', 'Land 4 Marky scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} Free Spins.`, mech: 'Marky hosts on reels with more Service Bells, so symbols are eaten faster and wins escalate sooner.' },
 		{ id: 'feast', label: 'Mantis Feast', accent: '#ffdc4a', cost: 'Not offered directly', costNum: 0, enter: soc('Land 5 Marky scatters, or win it inside a Mystery Spin.', 'Land 5 Marky scatters, or win it inside a Mystery spin.'), spins: `${config.freeSpins.feast} Free Spins.`, mech: soc(`Marty AND Marky feed: two opening bites, and both mantises strike. Every Mantis Feast session pays at least ${config.feastMinWin}× the bet.`, `Marty AND Marky feed: two opening bites, and both mantises strike. Every Mantis Feast session wins at least ${config.feastMinWin}× the play amount.`) },
 		{ id: 'mystery', label: 'Mystery Spin', accent: '#7fb6ff', cost: `${modeCost('MYSTERY')}×`, costNum: modeCost('MYSTERY'), enter: soc('Buy from the bonus menu.', 'Trigger from the feature menu.'), spins: 'One spin, then whatever it serves.', mech: `The reels spin once. ${config.mystery.nothing * 100}% of Mystery Spins land nothing, ${config.mystery.super * 100}% land 4 Marky scatters for Super Free Spins and ${config.mystery.feast * 100}% land 5 for the Mantis Feast. The split is fixed in the published math.` },
 	];
@@ -248,7 +248,7 @@
 				<ul>
 					<li>When a session starts the host takes an opening bite (Mantis Feast: both mantises bite).</li>
 					<li>Each bite <strong>{soc('eats the lowest-paying symbol', 'eats the lowest-value symbol')}</strong> still on the menu, removing it from the reels for the rest of the session.</li>
-					<li>Each <strong style="color:#9cd92f">Dinner Leaf</strong> that lands triggers <strong>one additional strike</strong>. Every leaf cascades in carrying the insect it will serve. When several leaves land on one spin, each shows its own course, in serving order.</li>
+					<li>Each <strong style="color:#e0b860">Service Bell</strong> that lands rings for <strong>one additional strike</strong>. When several bells land on one spin, they ring one after another, each serving the next course.</li>
 					<li>Fewer symbols on the reels means the remaining symbols land more often, so wins escalate as the session goes on.</li>
 					<li>{soc(`If all eight paying symbols are eaten, the round pays the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`, `If all eight menu symbols are eaten, the round wins the ${config.maxWin.toLocaleString()}× max win immediately and the session ends.`)}</li>
 					<li>{soc(`The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the bet. Either way the round ends and the cap is paid.`, `The cap is also reached whenever wins in a session add up to ${config.maxWin.toLocaleString()}× the play amount. Either way the round ends and the cap is won.`)}</li>
@@ -265,12 +265,12 @@
 				</div>
 				<div class="row">
 					<div class="leaf-stack">
-						<img src={tileSrc('GL')} alt="Dinner Leaf" />
-						<img src={stamp('/assets/tiles/l4_insect.webp')} alt="Caterpillar riding the leaf" />
+						<img src={tileSrc('GL')} alt="Service Bell" />
+						<img src={tileSrc('L4')} alt="Caterpillar on its tray" />
 					</div>
 					<div class="row-main">
-						<div class="row-name" style:color="#9cd92f">Serving example</div>
-						<div class="note">A Dinner Leaf lands carrying the Caterpillar, the lowest symbol still on the menu, and the host strikes to eat it, leaving an empty plate on the reels.</div>
+						<div class="row-name" style:color="#e0b860">Serving example</div>
+						<div class="note">A Service Bell lands and rings. The Caterpillar, the lowest symbol still on the menu, is served up and the host strikes to eat it. Its plate stays empty on the reels for the rest of the session.</div>
 					</div>
 				</div>
 			</section>

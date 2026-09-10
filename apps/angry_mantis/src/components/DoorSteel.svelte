@@ -16,26 +16,19 @@
 	import { MainContainer } from 'components-layout';
 
 	import { getContext } from '../game/context';
-	import { frameFor, layoutKind, DOOR_ART } from '../game/layoutSpec';
+	import { doorRect, layoutKind, DOOR_BLEED as BLEED } from '../game/layoutSpec';
+	import DoorPaint from './DoorPaint.svelte';
 
 	const context = getContext();
 	const vw = $derived(
 		context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale,
 	);
-	const frame = $derived(frameFor(layoutKind(context.stateLayoutDerived.layoutType()), vw));
-	const win = $derived({
-		x: frame.x + frame.inset,
-		y: frame.y + frame.inset,
-		w: frame.width - frame.inset * 2,
-		h: frame.height - frame.inset * 2,
-	});
-	// The frame art's inner window edge is anti-aliased/soft, so a door cut exactly at the
-	// window rect leaves a ~2px sliver of symbols visible along the sides. Bleed the door
-	// (and its mask) under the frame edge so the slats read as sliding in a channel.
-	const BLEED = 6;
-	const doorW = $derived(win.w + BLEED * 2);
-	// door scaled to its bled width; taller than the window by design
-	const doorH = $derived((DOOR_ART.h / DOOR_ART.w) * doorW);
+	// window + closed-door rects are shared with the painted layers and the wrap-up (layoutSpec.doorRect):
+	// the door bleeds BLEED under the frame edge and is taller than the window by design
+	const rects = $derived(doorRect(layoutKind(context.stateLayoutDerived.layoutType()), vw));
+	const win = $derived(rects.win);
+	const doorW = $derived(rects.door.w);
+	const doorH = $derived(rects.door.h);
 
 	// 0 = hidden above the window, 1 = fully closed. Rendered as a y offset inside the mask.
 	const drop = new Tween(0, { duration: 0 });
@@ -93,6 +86,9 @@
 			height={doorH}
 			y={win.h + BLEED - doorH + (drop.current - 1) * (win.h + BLEED)}
 		/>
+		<!-- the painted-on layers (intro header/count/strokes, wrap-up header/plate/amount) ride the
+		     door at exactly its rect, so they roll, clip and hide with it -->
+		<DoorPaint x={-BLEED} y={win.h + BLEED - doorH + (drop.current - 1) * (win.h + BLEED)} w={doorW} h={doorH} />
 		<!-- no shadow under the moving rail: the door reads as a window shade, flat against the
 		     reels while it travels (Corey 2026-09-02) -->
 	</Container>

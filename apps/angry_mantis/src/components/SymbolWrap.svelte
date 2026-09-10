@@ -14,7 +14,6 @@
 		zIndex?: number;
 		animating: boolean;
 		dim?: boolean;
-		lift?: boolean;
 		children: Snippet;
 	};
 
@@ -22,11 +21,6 @@
 	const dimAlpha = new Tween(1, { duration: 180 });
 	$effect(() => {
 		dimAlpha.set(props.dim ? 0.35 : 1);
-	});
-	// hero lift: the leaf a strike is targeting grows off the board so the meal reads every spin
-	const liftScale = new Tween(1, { duration: 220 });
-	$effect(() => {
-		liftScale.set(props.lift ? 1.3 : 1);
 	});
 	const boardContext = getContextBoard();
 	const show = $derived(
@@ -38,7 +32,7 @@
 </script>
 
 {#if props.debug || (show && inFrame)}
-	<Container x={props.x} y={props.y} zIndex={props.lift ? 20 : (props.zIndex ?? 0)} alpha={dimAlpha.current} scale={liftScale.current}>
+	<Container x={props.x} y={props.y} zIndex={props.zIndex ?? 0} alpha={dimAlpha.current}>
 		{@render props.children()}
 	</Container>
 {/if}

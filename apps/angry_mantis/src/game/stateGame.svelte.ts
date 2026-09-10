@@ -23,14 +23,15 @@ import {
 } from './constants';
 
 const onSymbolLand = ({ rawSymbol, visible }: { rawSymbol: RawSymbol; visible?: boolean }) => {
-	// hidden padding rows (0/5) land too — a scatter or leaf there must not play the
-	// counter sting / leaf sound the player can't see (code-review 2026-08-31)
+	// hidden padding rows (0/5) land too — a scatter or bell there must not play the
+	// counter sting / landing sound the player can't see (code-review 2026-08-31)
 	if (visible === false) return;
 	if (rawSymbol.name === 'S') {
 		eventEmitter.broadcast({ type: 'soundScatterCounterIncrease' });
 		eventEmitter.broadcast({ type: 'soundOnce', name: SCATTER_LAND_SOUND_MAP[scatterLandIndex()] });
 	}
 	if (rawSymbol.name === 'GL') {
+		// Service Bell landing: the ding itself belongs to the ring at strike time (Mantis.svelte)
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_leaf_land' });
 		eventEmitter.broadcast({ type: 'menuGlow', on: true }); // ON THE MENU lights up until the eat
 	}
@@ -115,9 +116,11 @@ export const stateGame = $state({
 	winFocus: null as Position[] | null,
 	bonusHost: 'marty' as BonusHost,
 	symbolPool: [...config.eatOrder] as PayingSymbolName[],
-	// dinner-leaf strike bookkeeping: where the pending strike's leaf sits, which leaves this board
-	// have already had their insect eaten (so their overlay hides), and every leaf position of the
-	// current board in the order the math strikes them (reel-major). All reset on each reveal.
+	// mirrors Win.svelte's `show` (DEV soak hook only; nothing gameplay-side reads it)
+	winShowing: false,
+	// Service Bell strike bookkeeping: where the pending strike's bell sits (it rings there), which
+	// bells on this board have already been answered, and every bell position of the current board
+	// in the order the math strikes them (reel-major). All reset on each reveal.
 	pendingStrikePos: null as Position | null,
 	consumedLeaves: [] as Position[],
 	leafOrder: [] as Position[],

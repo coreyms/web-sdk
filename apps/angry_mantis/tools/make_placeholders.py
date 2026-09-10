@@ -25,6 +25,7 @@ SMALL = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 
 # symbol -> (placeholder label, colour, real art file or None)
 # eaten state: <base>-blank.webp (the empty plate — the insect is gone) when it exists,
 # else derived desaturate/darken. W/S/GL are never eaten; their eaten frames are unused.
+# GL = the Service Bell (was the Glowing Leaf until 2026-09-10; the symbol id is the math contract).
 SYMBOLS = {
     "H1": ("Marty Head", (46, 204, 113), "h1-mantis.webp"),
     "M1": ("Beetle", (230, 126, 34), "m1-beetle.webp"),
@@ -37,8 +38,59 @@ SYMBOLS = {
     "L4": ("Caterpillar", (22, 160, 133), "l4-caterpillar.webp"),
     "W": ("WILD", (212, 175, 55), "wild.webp"),
     "S": ("MARKY", (192, 57, 43), "scatter-marky.webp"),
-    "GL": ("Glowing Leaf", (120, 255, 120), "strike-leaf.webp"),
+    # Service Bell (2026-09-10, replaced the Glowing Leaf): frame 1 is the resting tile; the four
+    # pressed frames below are appended to the sheet as GL_ring_2..5 for the "order up" ring
+    "GL": ("Service Bell", (200, 170, 90), "service-bell-1.webp"),
 }
+BELL_RING_FRAMES = [f"service-bell-{i}.webp" for i in range(2, 6)]
+# Glow baked BEHIND every bell frame on the board tile (Corey 2026-09-10, "rays + ripple" pick at
+# 77%): a soft halo plus a 14-ray sunburst, same hue as the runtime glow under the hero bell —
+# keep BELL_GLOW_HEX in sync with BELL_GLOW.color in src/game/bellGlow.ts.
+BELL_GLOW_HEX = (0xC4, 0xBC, 0x00)
+BELL_GLOW_PCT = 0.77
+
+
+def bell_glow():
+    """halo + ray wheel at 1.15x the tile, clipped by the tile canvas, alpha scaled by BELL_GLOW_PCT."""
+    from PIL import ImageChops
+    big = int(S * 1.15)
+    glow = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    # halo: radial falloff 0.9 -> 0.45 at 35% -> 0
+    r = big / 2
+    halo = Image.new("L", (big, big), 0)
+    px = halo.load()
+    for y in range(big):
+        for x in range(big):
+            d = ((x - r) ** 2 + (y - r) ** 2) ** 0.5 / r
+            if d >= 1:
+                continue
+            a = 0.9 - (0.9 - 0.45) * (d / 0.35) if d < 0.35 else 0.45 * (1 - (d - 0.35) / 0.65)
+            px[x, y] = int(255 * a * 0.8)
+    # rays: 14 wedges, linear falloff to the rim
+    rays = Image.new("L", (big, big), 0)
+    rd = ImageDraw.Draw(rays)
+    import math
+    for i in range(14):
+        ang = i * 2 * math.pi / 14
+        for k in range(12, 0, -1):  # concentric wedge slices approximate the gradient
+            f = k / 12
+            a = int(255 * 0.55 * (1 - f) * 0.5)
+            L = r * f
+            hw = 22 * (big / 512) * f
+            tip = (r + math.cos(ang) * L, r + math.sin(ang) * L)
+            nx, ny = -math.sin(ang) * hw, math.cos(ang) * hw
+            rd.polygon([(r, r), (tip[0] + nx, tip[1] + ny), (tip[0] - nx, tip[1] - ny)], fill=max(a, rays.getpixel((int(tip[0]), int(tip[1]))) if 0 <= tip[0] < big and 0 <= tip[1] < big else a))
+    alpha = ImageChops.add(halo, rays)
+    alpha = alpha.point(lambda p: int(p * BELL_GLOW_PCT))
+    glow.paste(BELL_GLOW_HEX + (255,), (0, 0, big, big), alpha)
+    off = (S - big) // 2
+    out = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    out.alpha_composite(glow, (off, off), (0, 0, big, big)) if off >= 0 else out.alpha_composite(glow.crop((-off, -off, -off + S, -off + S)))
+    return out
+
+
+def with_bell_glow(frame):
+    return Image.alpha_composite(bell_glow(), frame)
 
 
 def tile(label, sub, color, glow=False):
@@ -136,6 +188,13 @@ for sym, (sub, color, file) in SYMBOLS.items():
     else:
         frames[f"{sym}.png"] = tile(sym, sub, color, glow=(sym == "GL"))
         frames[f"{sym}_eaten.png"] = tile(sym, "EATEN", tuple(c // 3 for c in color))
+# ring frames of the Service Bell (see game/bell.ts): GL_ring_2..5 = press depths, played 1-5 once
+for i, fname in enumerate(BELL_RING_FRAMES, start=2):
+    im = art(fname)
+    frames[f"GL_ring_{i}"+".png"] = im if im is not None else tile("GL", f"ring {i}", (200, 170, 90))
+# the glow sits behind every bell frame so the ring never pops it on/off
+for key in ["GL.png"] + [f"GL_ring_{i}.png" for i in range(2, 6)]:
+    frames[key] = with_bell_glow(frames[key])
 sheet("amSymbols", frames)
 
 chars = {

@@ -13,8 +13,9 @@ import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { Position } from './types';
-import { BONUS_TRIGGER_SOUND_MAP, ANTICIPATION } from './constants';
+import { BONUS_TRIGGER_SOUND_MAP, ANTICIPATION, TIMINGS } from './constants';
 import { awaitDeferredAssets } from './assetGate';
+import { doorPaintClear, doorPaintIntro, doorPaintOutro } from './doorPaint.svelte';
 
 const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) => {
 	if (winLevelData?.alias === 'max') eventEmitter.broadcastAsync({ type: 'uiHide' });
@@ -101,8 +102,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		freeSpinHadWin = false;
 		stateGame.consumedLeaves = []; // fresh board, fresh leaves
 		stateGame.pendingStrikePos = null;
-		// Dinner-leaf strike order for this board: math strikes leaves reel-major (reel asc, then row asc
-		// — board.py scan feeding leaf_strikes), so the k-th leaf eats the k-th symbol of upcomingEats().
+		// Service Bell strike order for this board: math strikes bells reel-major (reel asc, then row asc
+		// — board.py scan feeding leaf_strikes), so the k-th bell serves the k-th symbol of upcomingEats().
 		// bookEvent.board rows are PADDED (visible = 1..len-2); store rows in symbolIndexOfBoard space.
 		stateGame.leafOrder = bookEvent.board.flatMap((reel, reelIndex) =>
 			reel
@@ -212,7 +213,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the bonusStart event that follows plays the mode-specific intro
 	},
 	bonusStart: async (bookEvent: BookEventOfType<'bonusStart'>) => {
-		// the door, headers, headshots, chalk plates, gold alphabet and the super/feast backdrops are
+		// the door, its paint textures, the headshots and the super/feast backdrops are
 		// deferred assets (game/assets.ts): make sure they are in before anything below draws them
 		await awaitDeferredAssets();
 		stateGameDerived.resetSession();
@@ -223,8 +224,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// super is Marky's stage: base Marty walks off in full view before the door drops
 		if (bookEvent.mode === 'super') await eventEmitter.broadcastAsync({ type: 'martyWalkOut' });
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
-		// the steel door IS the transition: it rolls down over the base board, the intro plays
+		// the steel door IS the transition: it rolls down over the base board with the intro's
+		// header, count and strokes already PAINTED on it (game/doorPaint.ts), the mugshots fade in
 		// on top of it, and the board swaps to the freegame reels behind it
+		doorPaintIntro(bookEvent.mode, bookEvent.totalFs);
 		await eventEmitter.broadcastAsync({ type: 'doorClose' });
 		// gameType flips HERE, before the music pick — modeMusic() reads it, so flipping it only
 		// after the intro started every bonus on bgm_base, and only a WINNING free spin's
@@ -245,6 +248,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'bonusIntroHide' });
 		eventEmitter.broadcast({ type: 'boardFrameGlowShow' });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
+		doorPaintClear();
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 	},
 	updateFreeSpin: async (bookEvent: BookEventOfType<'updateFreeSpin'>) => {
@@ -258,7 +262,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	strike: async (bookEvent: BookEventOfType<'strike'>) => {
 		stateGame.strikeCount = bookEvent.strikeIndex + 1;
-		// leaf cell the eat flight starts from. Math emits PADDED-array rows (game_events._row = row+1);
+		// setWin hides the win plate the instant its hold ends, but the plate still fades for
+		// 400 ms over the board centre — exactly where the first bell rings and the tray drops in,
+		// so the press was lost under it (Corey 2026-09-10, regular and turbo). Let it clear first;
+		// only the spin's first strike can follow a win, later ones follow an eat.
+		if (freeSpinHadWin && bookEvent.position && stateGame.consumedLeaves.length === 0) {
+			await waitForTimeout(TIMINGS.winClear);
+		}
+		// the bell cell that rings for this strike. Math emits PADDED-array rows (game_events._row = row+1);
 		// normalize to symbolIndexOfBoard space (visible rows 0-3) used by ReelSymbol overlays and getSymbolY.
 		stateGame.pendingStrikePos = bookEvent.position
 			? { reel: bookEvent.position.reel, row: bookEvent.position.row - 1 }
@@ -274,9 +285,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	eat: async (bookEvent: BookEventOfType<'eat'>) => {
 		if (bookEvent.symbolEaten) {
-			// consume the leaf AND the pool entry BEFORE the flight starts, so the on-leaf insect
-			// vanishes the instant the flying insect appears (updating only one would double the bug
-			// on this leaf — or shift the next leaf's preview — for the duration of the flight)
+			// answer the bell AND consume the pool entry BEFORE the flight starts (the hero tray's
+			// insect hides the instant the flying insect appears; see Mantis.svelte)
 			const from = stateGame.pendingStrikePos;
 			if (from) {
 				stateGame.consumedLeaves = [...stateGame.consumedLeaves, from];
@@ -296,7 +306,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			await eventEmitter.broadcastAsync({ type: 'mantisEat', striker: bookEvent.striker, symbol: null });
 			stateGame.symbolPool = [...bookEvent.remainingPool];
 		}
-		// ON THE MENU stops glowing once this spin's last struck leaf has been eaten
+		// ON THE MENU stops glowing once this spin's last bell has been answered
 		if (stateGame.consumedLeaves.length >= stateGame.leafOrder.length) eventEmitter.broadcast({ type: 'menuGlow', on: false });
 	},
 	removeSymbolFromPool: async (bookEvent: BookEventOfType<'removeSymbolFromPool'>) => {
@@ -344,7 +354,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'mantisWalkOut' });
 		// door down over the freegame board — no presentation and no press gate here: the recap is
 		// stashed for freeSpinEnd, whose outro presents recap + total win on the closed door in ONE
-		// screen (Corey 2026-08-31, replacing the separate SessionSummary); freeSpinEnd rolls it back up
+		// screen (Corey 2026-08-31, replacing the separate SessionSummary); freeSpinEnd rolls it back up.
+		// The wrap-up's header is painted on the door before it drops; the plate + amount join at the count-up.
+		doorPaintOutro(bookEvent.mode);
 		await eventEmitter.broadcastAsync({ type: 'doorClose' });
 		stateGame.sessionRecap = {
 			mode: bookEvent.mode,
@@ -393,6 +405,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		winLevelSoundsStop();
 		eventEmitter.broadcast({ type: 'freeSpinOutroHide' });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
+		doorPaintClear();
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 	},
 	setWin: async (bookEvent: BookEventOfType<'setWin'>) => {

@@ -161,6 +161,9 @@ export const zIndexes = {
 // Animation timings (ms) for the placeholder choreography. Tune when real Spine rigs land.
 export const TIMINGS = {
 	symbolWin: 350, // was 700 — Corey 2026-08-29: highlight must feel snappy
+	winClear: 500, // win plate fade-out (FadeContainer default 400 ms, unscaled) + a beat before a bell rings under it
+	bellSettle: 500, // opening bite: the hero bell sits at the board centre this long before it rings (Corey 2026-09-10)
+	ring: 480, // Service Bell press (game/bell.ts): 9 slots of ~53 ms — frames 1-5 once, then rest; ding on the downstroke
 	strike: 650,
 	eat: 800,
 	anteLock: 300,
@@ -351,37 +354,8 @@ export const BONUS_MODE_LABEL = {
 	feast: 'MANTIS FEAST',
 } as const;
 
-// ---- Bonus-intro art (Corey's colour-graded branding exports) ----
-// Stencil headers: one image carries BOTH lines ("FEAST" + "ALL-YOU-CAN-EAT BONUS"). All three are
-// cropped from a common box, so they share an aspect and land on the same baseline in every mode.
-// The wrap-up (FreeSpinOutro) heads with the same art, so intro and outro read as one feature
-// (Corey 2026-09-02, replacing the label-*.webp buy-card pieces there).
-export const BONUS_INTRO_HEADER = {
-	free: 'headerBonus', // BONUS * MARTY'S SPECIAL
-	super: 'headerSuper', // SUPER * MARKY'S SPECIAL
-	feast: 'headerFeast', // FEAST * ALL-YOU-CAN-EAT BONUS
-} as const;
-export const BONUS_INTRO_HEADER_ASPECT = 880 / 290;
-// Big numeral + speed lines + "* FREE SPINS *" strip. Keyed on the ACTUAL spin count from the
-// bonusStart event, not the mode, so the picture can never disagree with the counter.
-export const FREE_SPINS_ART = {
-	8: { key: 'freeSpins8', aspect: 620 / 375 },
-	10: { key: 'freeSpins10', aspect: 620 / 300 },
-} as const;
+// ---- Bonus-intro art ----
+// The mode header and the free-spin count are PAINTED on the steel door (game/doorPaint.ts).
 
-// Mugshot height-chart plates (Corey's art, 2026-09-01). Each plate bakes in its INMATE label and
-// foot marks, and the two are MIRRORED — 01 runs its chart numbers down the left edge, 02 down the
-// right — so the head is nudged toward the plate's clear side. The pair is laid out at a common
-// HEIGHT with each plate keeping its own aspect, so the strokes never scale non-uniformly. Both
-// plates share one 400×267 canvas since Corey's 2026-09-02 re-export, so they draw the same size.
-export const INMATE_PLATE = {
-	marky: { key: 'inmateChalk1', aspect: 400 / 267, headShift: 0.07 }, // INMATE 01, labels left
-	marty: { key: 'inmateChalk2', aspect: 400 / 267, headShift: -0.07 }, // INMATE 02, labels right
-} as const;
 
-// Head geometry on a mugshot plate, as fractions of the PLATE HEIGHT. Shared with BonusIntro so the
-// composition measures the same box MugshotPanel draws: the head hangs OVERHANG below the plate's
-// bottom rule, and forgetting that in the measurement mis-centres the whole screen (caught 2026-09-01,
-// it pushed the rules band 15px out the bottom of the door).
-export const MUGSHOT_HEAD = { size: 1.0, overhang: 0.25 } as const;
 

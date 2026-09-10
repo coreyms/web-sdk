@@ -56,6 +56,8 @@
 			// >0 while a PressToContinue gate is up (bonus intro / wrap-up / big win) — lets a harness press
 			// through the gated screens without blind clicking
 			pressGates: () => context.stateGame.pressGates,
+			// the win presentation's visibility (Win.svelte show), for soaks that check it never lingers
+			winShowing: () => context.stateGame.winShowing,
 			// the stage root offset, for proving a screen kick fired (game/screenKick.ts)
 			stagePos: () => { const st = context.stateApp.pixiApplication?.stage; return st ? [st.x, st.y] : null; },
 			// per-reel motion + anticipation flags, for timing the scatter tease from a harness

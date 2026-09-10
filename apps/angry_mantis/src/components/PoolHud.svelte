@@ -3,8 +3,8 @@
 
 	export type EmitterEventPoolHud =
 		| { type: 'poolRemove'; symbol: PayingSymbolName }
-		// ON THE MENU glow: on when a dinner leaf lands, off once the mantis has eaten the last
-		// struck leaf of the spin (Corey 2026-09-05)
+		// ON THE MENU glow: on when a Service Bell lands, off once the mantis has eaten the last
+		// course of the spin (Corey 2026-09-05)
 		| { type: 'menuGlow'; on: boolean };
 </script>
 
@@ -64,7 +64,7 @@
 		{@const rows = Math.ceil(config.eatOrder.length / hud.cols)}
 		<Container x={hud.x} y={hud.y}>
 			<!-- ON THE MENU set from the branded glyphs (width capped at the 7.2 em the old art took);
-			     it glows from a dinner-leaf landing until the mantis finishes eating -->
+			     it glows from a Service Bell landing until the mantis finishes eating -->
 			{@const size = Math.round(hud.cell * (hud.cols > 4 ? 0.44 : 0.45))}
 			<BrandedTitle lines={['ON THE MENU']} height={size * 0.95} maxWidth={size * 7.2} y={-(rows * hud.cell) / 2 + 3 - size * 0.62} glow={menuGlow} />
 			{#each config.eatOrder as symbol, i (symbol)}

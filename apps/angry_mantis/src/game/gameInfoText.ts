@@ -40,8 +40,8 @@ export const rulesSections = () => [
 				'When a session starts the host takes an opening bite (Mantis Feast: both mantises bite). Each bite eats the lowest-value symbol still on the menu; that symbol is removed from the reels for the rest of the session, so the remaining symbols land more often and wins escalate.',
 			),
 			soc(
-				'Every Dinner Leaf that lands during free spins is another Mantis Strike. If all eight paying symbols are eaten, the round pays the 20,000x max win immediately and the session ends. The cap is also reached whenever wins in a session add up to 20,000x the bet; either way the round ends and the cap is paid.',
-				'Every Dinner Leaf that lands during free spins is another Mantis Strike. If all eight menu symbols are eaten, the round wins the 20,000x max win immediately and the session ends. The cap is also reached whenever wins in a session add up to 20,000x the play amount; either way the round ends and the cap is won.',
+				'Every Service Bell that lands during free spins rings for another Mantis Strike. If all eight paying symbols are eaten, the round pays the 20,000x max win immediately and the session ends. The cap is also reached whenever wins in a session add up to 20,000x the bet; either way the round ends and the cap is paid.',
+				'Every Service Bell that lands during free spins rings for another Mantis Strike. If all eight menu symbols are eaten, the round wins the 20,000x max win immediately and the session ends. The cap is also reached whenever wins in a session add up to 20,000x the play amount; either way the round ends and the cap is won.',
 			),
 			`Each Marky scatter in free spins awards +1 extra spin, up to +${config.freeSpins.maxRetrigger} per session. Once the maximum extra spins have been awarded, Marky scatters stop appearing for the rest of the session. A spin that reaches the 20,000x cap ends the round at once and awards no extra spin.`,
 			soc(`Every Mantis Feast session pays at least ${config.feastMinWin}x the bet.`, `Every Mantis Feast session wins at least ${config.feastMinWin}x the play amount.`),

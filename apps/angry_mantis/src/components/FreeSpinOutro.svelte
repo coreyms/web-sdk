@@ -9,27 +9,31 @@
 
 <script lang="ts">
 	// End-of-feature wrap-up on the closed steel door — ONE screen, one press gate (Corey
-	// 2026-08-31, replacing the separate SessionSummary): the session recap stashed by bonusEnd
-	// (mode header, spins/symbols line, eaten trays) stacked over the tier title + total-win
-	// count-up. Text-based (replaces the Mining Mayhem fsOutro Spine + sprites).
-	import { Container, Sprite } from 'pixi-svelte';
+	// 2026-08-31, replacing the separate SessionSummary). Since 2026-09-10 the door itself carries
+	// the presentation: the mode header, the BIG WIN plate (big-tier totals only) and the amount are
+	// PAINTED into the steel by DoorPaint.svelte (game/doorPaint.ts) and roll down with it. This
+	// component only lays the eaten trays over the door, drives the count-up into the paint state,
+	// and holds the press gate. The recap line ("N SPINS - M SYMBOLS EATEN") came off (Corey).
+	import { Sprite } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { MainContainer } from 'components-layout';
 	import { OnMount } from 'components-shared';
 	import { Tween } from 'svelte/motion';
 	import { backOut } from 'svelte/easing';
+	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { stateBetDerived } from 'state-shared';
-	import { BONUS_INTRO_HEADER, BONUS_INTRO_HEADER_ASPECT } from '../game/constants';
-	import { frameFor, layoutKind } from '../game/layoutSpec';
+	import { doorRect, layoutKind } from '../game/layoutSpec';
+	import { DOOR_PAINT, paintedAmountSupported } from '../game/doorPaint';
+	import { doorPaintState } from '../game/doorPaint.svelte';
+	import { tokenizeNumerals } from '../game/numeralTokens';
+	import { STINGER_PLATE } from '../game/stinger';
 	import PressToContinue from './PressToContinue.svelte';
-	import GameText from './GameText.svelte';
-	import ArtAmount from './ArtAmount.svelte';
-	import StingerPlate from './StingerPlate.svelte';
-	import { stingerPlateFor } from '../game/stinger';
+	import CountUpText from './CountUpText.svelte';
+	import PaintedAmountFeed from './PaintedAmountFeed.svelte';
 	import StagedCountUpProvider from './StagedCountUpProvider.svelte';
 	import { WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
 
@@ -59,6 +63,10 @@
 		freeSpinOutroCountUp: async (emitterEvent) => {
 			amount = emitterEvent.amount;
 			winLevelData = emitterEvent.winLevelData;
+			// the plate is painted for big-tier totals only; under that the amount sits on bare steel
+			// (Corey 2026-09-10). winLevelData arrives already gated by freeSpinEnd (a buy that did not
+			// pay for itself is held to a medium level).
+			doorPaintState.plate = emitterEvent.winLevelData.type === 'big';
 			presentId += 1;
 			await waitForResolve((resolve) => (oncomplete = resolve));
 		},
@@ -76,38 +84,37 @@
 		if (autoBonusesRunning()) press();
 	};
 
-	// Everything fits INSIDE the door's window (BonusIntro pattern): content is authored in a
-	// 620×500 design space centered on the window, then uniformly scaled to fit. Only the PRESS
-	// ANYWHERE prompt lives outside, below the counter (HUD pressToContinue slot).
+	// the closed door's rect (layoutSpec.doorRect) — the trays are placed in fractions of it, the
+	// same units the painted layers use, so they land where the artifact put them
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const vw = $derived(
 		context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale,
 	);
-	const f = $derived(frameFor(kind, vw));
-	const win = $derived({
-		x: f.x + f.inset,
-		y: f.y + f.inset,
-		w: f.width - f.inset * 2,
-		h: f.height - f.inset * 2,
+	const door = $derived(doorRect(kind, vw).door);
+	const trays = $derived({
+		cx: door.x + door.w / 2,
+		cy: door.y + DOOR_PAINT.outro.trays.y * door.h,
+		size: DOOR_PAINT.outro.trays.size * door.w,
+		gap: DOOR_PAINT.outro.trays.gap * door.w,
 	});
-	const fit = $derived(Math.min(win.w / 620, win.h / 500, 1.15));
-	// The mode header is the intro's stencil art (BONUS / SUPER / FEAST + tagline), sized to the
-	// same weight it carries on the intro: it owns the top ~28% of the design space, contained by
-	// width, and the recap line + trays sit tight under it (Corey 2026-09-02).
-	const HEADER_W = 420;
-	const HEADER_H = HEADER_W / BONUS_INTRO_HEADER_ASPECT; // ~138
-	const HEADER_Y = -250 + 4 + HEADER_H / 2;
-	// the stack (header … plate) spans -246..+185 of the ±250 design space, sitting high so the
-	// plate's bottom clears the door's bottom rail with room to spare (Corey 2026-09-09)
-	const GROUP_DY = 0;
-	const TRAY_Y = -46;
-	// the stinger plate under the trays: 540 of the 620 design width (~190 tall), centred at +90
-	// so it runs -5..+185 — under the tray row (bottom -14) and well above the rail
-	const PLATE_W = 540;
-	const PLATE_Y = 90;
 	// stashed by the bonusEnd handler right before this freeSpinEnd presentation
 	const recap = $derived(context.stateGame.sessionRecap);
+
+	// ---- the amount: painted when the atlas can draw it, else the sprite count-up over the door ----
+	const targetText = $derived(bookEventAmountToCurrencyString(amount));
+	const painted = $derived(paintedAmountSupported(targetText, tokenizeNumerals));
+	// fallback box (master units): the same spot the paint would use
+	const fallback = $derived.by(() => {
+		const o = DOOR_PAINT.outro;
+		if (doorPaintState.plate) {
+			const plateW = o.plate.w * door.w;
+			const plateH = plateW / STINGER_PLATE.big.aspect;
+			return { x: door.x + door.w / 2 + o.amountInPlate.dx * plateW, y: door.y + o.plate.y * door.h + o.amountInPlate.dy * plateH, h: o.amountInPlate.h * plateH, maxW: plateW * 0.55 };
+		}
+		return { x: door.x + door.w / 2, y: door.y + o.amountOnDoor.y * door.h, h: o.amountOnDoor.h * door.w, maxW: door.w * 0.9 };
+	});
 </script>
+
 
 <!-- persistent: the container claims its Game.svelte template slot at game start and keeps it —
      a lazy (re)mount joins the stage LAST, above layers that must cover it (z-order trap) -->
@@ -131,8 +138,8 @@
 					<OnMount
 						onmount={() => {
 							const big = winLevelData?.type === 'big';
-							// the tier plate's slam stinger, once (it used to ride the branded title's mount)
-							if (big) context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_win_big', forcePlay: true });
+							// no slam stinger on the wrap-up (Corey 2026-09-10): the plate is painted on the door
+							// that just rolled down, so the sting belongs to mid-feature big wins only
 							if (big) countSound('soundLoop');
 							return startCountUp().then(() => {
 								if (big) countSound('soundStop');
@@ -140,26 +147,21 @@
 							});
 						}}
 					/>
-					<!-- no dim backdrop: the closed steel door IS the backdrop (Corey 2026-08-30).
-					     All glyphs here are atlas sprites (ArtAmount/StingerPlate/trays) except the
-					     TOTAL WIN is branded glyph sprites too — nothing rasterizes per frame, and the
-					     {#key presentId} remount keeps no PIXI.Text updating while invisible. -->
+					<!-- the counting value goes INTO the paint (DoorPaint rewrites the glyph boxes — a few
+					     uniforms, no raster) -->
+					<PaintedAmountFeed value={countUpAmount} target={amount} enabled={painted} />
 					<MainContainer>
-						<Container x={win.x + win.w / 2} y={win.y + win.h / 2 + GROUP_DY * fit} scale={pop.current * fit}>
-							<!-- Corey's COMPLETE stamp will overlay this header when it lands -->
-							<Sprite key={BONUS_INTRO_HEADER[recap?.mode ?? context.stateGame.bonusMode] ?? 'headerBonus'} anchor={0.5} y={HEADER_Y} width={HEADER_W} height={HEADER_H} />
-							{#if recap}
-								<ArtAmount y={-94} text={`${recap.spinsPlayed} SPIN${recap.spinsPlayed === 1 ? '' : 'S'} - ${recap.symbolsEaten} SYMBOL${recap.symbolsEaten === 1 ? '' : 'S'} EATEN`} height={24} maxWidth={580} />
-								{#each recap.eatenList as symbol, i (symbol)}
-									<Sprite anchor={0.5} x={(i - (recap.eatenList.length - 1) / 2) * 72} y={TRAY_Y} width={64} height={64} key="{symbol}_eaten.png" />
-								{/each}
-							{/if}
-							<!-- The FINAL tier's stinger plate, no hand-offs, with the count on it; the plain plate
-							     when the total is not a big win. winLevelData arrives already gated: freeSpinEnd
-							     hands over a medium level when the round total is under what the round cost
-							     (Corey 2026-09-09). It rides the door with everything else in this group. -->
-							<StingerPlate plate={stingerPlateFor(winLevelData?.type === 'big' ? winLevelData.alias : undefined)} width={PLATE_W} y={PLATE_Y} amount={countUpAmount} target={amount} settled={countUpCompleted} />
-						</Container>
+						<!-- eaten trays: real plates over the door, not paint (Corey 2026-09-10) -->
+						{#if recap}
+							{#each recap.eatenList as symbol, i (symbol)}
+								<Sprite anchor={0.5} x={trays.cx + (i - (recap.eatenList.length - 1) / 2) * trays.gap} y={trays.cy} width={trays.size * pop.current} height={trays.size * pop.current} key="{symbol}_eaten.png" />
+							{/each}
+						{/if}
+						{#if !painted}
+							<!-- a currency the stencil atlas cannot paint (or too long for the shader's slots):
+							     the sprite/styled count-up sits on the door in the paint's spot instead -->
+							<CountUpText amount={countUpAmount} target={amount} settled={countUpCompleted} size={fallback.h} x={fallback.x} y={fallback.y + fallback.h / 2} maxWidth={fallback.maxW} tint={DOOR_PAINT.outro.amountColor} shadow={{ dx: DOOR_PAINT.outro.shadowOffset.dx, dy: DOOR_PAINT.outro.shadowOffset.dy, tint: DOOR_PAINT.outro.amountShadow }} />
+						{/if}
 					</MainContainer>
 					<!-- active={show}: winLevelData outlives the fade-out (cleared on settle), so the press
 					     gate must follow visibility or Space stays disabled through the door-open -->

@@ -37,20 +37,17 @@ export default {
 	// reflectivity mask for the frame's inner steel lips (Corey's paint-over of the frame art, same
 	// 1415x1217 canvas): white = chrome that mirrors the reels, alpha = strength. FrameReflections.
 	frameReflectMask: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-reflect.png', import.meta.url).href), preload: true },
-	// bonus stencil headers (branding/{feast,bonus,super}-header.webp): one image per mode carrying
-	// BOTH lines of the header; the intro AND the wrap-up head with them (the label-*.webp pieces
-	// now live only on the HTML bonus-buy cards, ui/bonusCards.ts). Preloaded — the door opens on
-	// them, so a cold fetch would show an empty window for a frame.
-	headerFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-feast.webp', import.meta.url).href), preload: false },
-	headerBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-bonus.webp', import.meta.url).href), preload: false },
-	headerSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/header-super.webp', import.meta.url).href), preload: false },
-	// big numeral + speed lines + "* FREE SPINS *" strip, one per awarded count (8 = bonus, 10 = super/feast)
-	freeSpins10: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-spins-10.webp', import.meta.url).href), preload: false },
-	freeSpins8: { type: 'sprite', src: stamp(new URL('../../assets/ui/text/free-spins-8.webp', import.meta.url).href), preload: false },
-	// mugshot height-chart backings (branding/inmate-{1,2}-chalk.webp) — Corey's art, label and
-	// foot marks baked in; INMATE 01 is Marky (chart labels left), INMATE 02 is Marty (labels right)
-	inmateChalk1: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-1-chalk.webp', import.meta.url).href), preload: false },
-	inmateChalk2: { type: 'sprite', src: stamp(new URL('../../assets/ui/inmate-2-chalk.webp', import.meta.url).href), preload: false },
+	// PAINTED door layers (game/doorPaint.ts, DoorPaint.svelte): white-on-alpha stencils the shader
+	// paints INTO the steel door — the mode headers, the free-spin counts, one brush stroke and one
+	// star — plus the door's groove map (tools/build_groove_map.py). Deferred: only a bonus draws them.
+	doorGroove: { type: 'sprite', src: stamp(new URL('../../assets/ui/paint/door-groove.webp', import.meta.url).href), preload: false },
+	paintHeaderBonus: { type: 'sprite', src: stamp(new URL('../../assets/ui/paint/header-bonus.webp', import.meta.url).href), preload: false },
+	paintHeaderSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/paint/header-super.webp', import.meta.url).href), preload: false },
+	paintHeaderFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/paint/header-feast.webp', import.meta.url).href), preload: false },
+	paintSpins8: { type: 'sprite', src: stamp(new URL('../../assets/ui/paint/free-spins-8.webp', import.meta.url).href), preload: false },
+	paintSpins10: { type: 'sprite', src: stamp(new URL('../../assets/ui/paint/free-spins-10.webp', import.meta.url).href), preload: false },
+	paintRay: { type: 'sprite', src: stamp(new URL('../../assets/ui/paint/ray.webp', import.meta.url).href), preload: false },
+	paintStar: { type: 'sprite', src: stamp(new URL('../../assets/ui/paint/star.webp', import.meta.url).href), preload: false },
 	// Corey's branded (rusty-metal) title alphabet, sliced by tools/build_branded_glyphs.py: the
 	// win-tier titles, ON THE MENU and THEY ATE EVERYTHING are set from it letter by letter
 	// (components/BrandedTitle.svelte) so they can move per glyph. Every frame has a `_halo`
@@ -67,7 +64,7 @@ export default {
 		src: stamp(new URL('../../assets/ui/numerals/numerals.json', import.meta.url).href),
 		preload: true,
 	},
-	// bonus-intro headshots (real character art)
+	// character headshots (the max-win cinematic; the bonus intro stopped using them 2026-09-10)
 	// soft ellipse under each mantis's feet (BoneRig ground shadow); tiny, so it rides the preload
 	groundShadow: { type: 'sprite', src: stamp(new URL('../../assets/ui/ground-shadow.webp', import.meta.url).href), preload: true },
 	// gravity-drop landing dust: Corey's dust_poof sheet, six 512×192 frames stacked top to bottom

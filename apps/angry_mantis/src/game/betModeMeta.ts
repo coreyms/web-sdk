@@ -76,8 +76,8 @@ export const betModeMeta: BetModeMeta = {
 		text: {
 			title: 'FREE SPINS',
 			description: soc(
-				`${config.freeSpins.free} Free Spins with Marty. Marty eats the lowest-paying symbol to start, and every Dinner Leaf is another bite.`,
-				`${config.freeSpins.free} Free Spins with Marty. Marty eats the lowest-value symbol to start, and every Dinner Leaf is another bite.`,
+				`${config.freeSpins.free} Free Spins with Marty. Marty eats the lowest-paying symbol to start, and every Service Bell rings for another bite.`,
+				`${config.freeSpins.free} Free Spins with Marty. Marty eats the lowest-value symbol to start, and every Service Bell rings for another bite.`,
 			),
 			dialog: soc(`Buy ${config.freeSpins.free} Free Spins hosted by Marty.`, `Play ${config.freeSpins.free} Free Spins hosted by Marty.`),
 			button: soc('BUY', 'PLAY'),
@@ -96,7 +96,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'SUPER FREE SPINS',
-			description: `${config.freeSpins.super} Free Spins with Marky. More Dinner Leaves, more bites, faster escalation.`,
+			description: `${config.freeSpins.super} Free Spins with Marky. More Service Bells, more bites, faster escalation.`,
 			dialog: soc(`Buy ${config.freeSpins.super} Super Free Spins hosted by Marky.`, `Play ${config.freeSpins.super} Super Free Spins hosted by Marky.`),
 			button: soc('BUY', 'PLAY'),
 			betAmountLabel: 'SUPER FREE SPINS',

@@ -719,6 +719,102 @@
     "x": 0.5,
     "y": 0.5
    }
+  },
+  "GL_ring_2.png": {
+   "frame": {
+    "x": 512,
+    "y": 1792,
+    "w": 256,
+    "h": 256
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256
+   },
+   "sourceSize": {
+    "w": 256,
+    "h": 256
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "GL_ring_3.png": {
+   "frame": {
+    "x": 768,
+    "y": 1792,
+    "w": 256,
+    "h": 256
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256
+   },
+   "sourceSize": {
+    "w": 256,
+    "h": 256
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "GL_ring_4.png": {
+   "frame": {
+    "x": 0,
+    "y": 2048,
+    "w": 256,
+    "h": 256
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256
+   },
+   "sourceSize": {
+    "w": 256,
+    "h": 256
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "GL_ring_5.png": {
+   "frame": {
+    "x": 256,
+    "y": 2048,
+    "w": 256,
+    "h": 256
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256
+   },
+   "sourceSize": {
+    "w": 256,
+    "h": 256
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   }
   }
  },
  "meta": {
@@ -726,9 +822,9 @@
   "format": "RGBA8888",
   "size": {
    "w": 1024,
-   "h": 2048
+   "h": 2304
   },
   "scale": "1",
-  "pngHash": "e702cf86"
+  "pngHash": "33362b94"
  }
 }

@@ -37,6 +37,22 @@ export const FRAME_ART = { w: 1415, h: 1217, winX: 98, winY: 112, winW: 1220, wi
 // Steel roll-down door art (door-steel.webp), pre-cropped to the opaque door. Wider AND taller
 // than the frame window at any layout, so scaled-to-window-width it always covers fully.
 export const DOOR_ART = { w: 1246, h: 1028 };
+// The frame art's inner window edge is anti-aliased/soft, so a door cut exactly at the window
+// rect leaves a ~2px sliver of symbols visible along the sides. The door (and its mask) bleed
+// under the frame edge so the slats read as sliding in a channel (DoorSteel.svelte).
+export const DOOR_BLEED = 6;
+/** the frame's interior window + the CLOSED door's rect (master units, top-left origin). Every
+ *  painted door layer (game/doorPaint.ts) is placed in fractions of `door`, and the wrap-up's
+ *  trays sit on it too, so intro, outro and DoorSteel all measure the same rectangle. */
+export const doorRect = (kind: LayoutKind, viewportMasterWidth?: number) => {
+	const f = frameFor(kind, viewportMasterWidth);
+	const win = { x: f.x + f.inset, y: f.y + f.inset, w: f.width - f.inset * 2, h: f.height - f.inset * 2 };
+	const w = win.w + DOOR_BLEED * 2;
+	const h = (DOOR_ART.h / DOOR_ART.w) * w;
+	// closed = bottom rail flush with the window bottom (plus the bleed); the art is taller than the
+	// window, so its top hides under the frame's header bar
+	return { win, door: { x: win.x - DOOR_BLEED, y: win.y + win.h + DOOR_BLEED - h, w, h } };
+};
 
 // Marty's stage slot (base game AND the bonus mantises, which stand in the same spot). Centre +
 // square size, in master units. Portrait's y is NOT read from here: martyFor() derives it from the
@@ -129,43 +145,8 @@ export const boardPlacement = (kind: LayoutKind, viewportMasterWidth?: number) =
 	};
 };
 
-// Bonus-intro composition (BonusIntro.svelte) — a PLAIN BOX TABLE measured off Corey's concept
-// render. Every element gets a box expressed as FRACTIONS OF THE DOOR-WINDOW RECT (x, y, w, h),
-// and its art is fit INSIDE that box (contain, centered). No derived bands, no gap allowances, no
-// overhang reservations: those quietly ate ~10% of the door and shrank the artwork.
-//
-// ONE table serves all three LayoutKinds. Every LayoutKind's frame is a uniform scale of the same
-// art, so the window aspect is ~1.252 everywhere (594x474.4 landscape, 742.5x593 phone,
-// 348x277.6 portrait) — a fraction of the window means the same thing on all three. The ONLY
-// window aspect is ~1.252 everywhere, so one table serves every kind with no per-kind branch.
-//
-// Vertical budget, top to bottom (the 1/2/3 rules band that closed the door came off 2026-09-09,
-// and its 20% went to the three art pieces, every box scaled by the same 1.22):
-//   3% air | header 29% | 1% | plates 27% | 1% | count art 36% | 3% air
-// The count art may kiss the bottom of the head ink by ~1% of H — that is intended, it is what
-// puts the "10" close to the faces in the render.
-//
-// The plaque and the PRESS ANYWHERE prompt live OUTSIDE the door in their HUD slots; no layout
-// reserves a band for them inside the window.
-export type IntroBox = { x: number; y: number; w: number; h: number };
-
-export const BONUS_INTRO = {
-	/** full-width box; the header art contains into it (aspect ~3.03 -> ~58% W) */
-	header: { x: 0, y: 0.03, w: 1, h: 0.29 } as IntroBox,
-	// Both chalk plates contain into IDENTICAL boxes and centre inside them. Their source aspects
-	// differ (1.303 vs 1.498), so INMATE 02 draws wider than 01 within the same slot — that is the
-	// art, not a layout bug; what matters is that the two slots are the same size and aligned.
-	plates: { y: 0.33, h: 0.27, w: 0.32, x: [0.16, 0.52], soloX: 0.34 },
-	// Head: 1.05x the plate BOX height, centred horizontally on the plate box, with its vertical
-	// centre at 55% down the box — the render's heads sit on the plate and barely overhang it.
-	head: { scale: 1.05, centerAt: 0.55 },
-	/** full-width box; the count art contains into it (aspect ~2.07 -> ~60% W strip) */
-	spins: { x: 0, y: 0.61, w: 1, h: 0.36 } as IntroBox,
-} as const;
-
-// The design space the boxes are resolved into. Its aspect matches the window on every kind, so
-// `fit` uses the full window in both axes and a fraction maps to that fraction of the door.
-export const INTRO_DESIGN = { w: 620, h: 495 };
+// (the bonus intro's box table lived here until 2026-09-10: everything on the intro door is painted
+// now — game/doorPaint.ts — and placed in fractions of doorRect().door)
 
 // Big-win STINGER plate (components/WinStinger.svelte): width as a fraction of the master width,
 // centre as a fraction of the master height. Desktop 62% / centre 45% and portrait 92% / 40% are

@@ -31,8 +31,9 @@
 	const x = getSymbolX(props.reel.reelIndex); // column centre
 	const GHOSTS = [-1, 0, 1];
 
-	// paying symbols, wild and leaf; never a scatter — the rain must not fake the count
-	const POOL = ['L1', 'L2', 'L3', 'L4', 'M1', 'M2', 'M3', 'H1', 'W', 'GL'];
+	// paying symbols and wild; never a scatter (the rain must not fake the count) and never the
+	// Service Bell — the rain only plays in base/ante/mystery, where a bell can't land (Corey 2026-09-10)
+	const POOL = ['L1', 'L2', 'L3', 'L4', 'M1', 'M2', 'M3', 'H1', 'W'];
 	const roll = () => POOL[Math.floor(Math.random() * POOL.length)];
 	const assetKey = (name: string) => getSymbolInfo({ rawSymbol: { name } as RawSymbol, state: 'static' }).assetKey;
 
