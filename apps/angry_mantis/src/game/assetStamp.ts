@@ -23,8 +23,6 @@ export default {
 	"rig/mantis-set.atlas.json": "9d454228",
 	"rig/mantis-set.atlas.webp": "49f22dcf",
 	"rig/mantis-set.bonerig.json": "52f72eb1",
-	"sprites/amCharacters/amCharacters.json": "5a7be311",
-	"sprites/amCharacters/amCharacters.webp": "3c259115",
 	"sprites/amSymbols/amSymbols.json": "cf0bd4bf",
 	"sprites/amSymbols/amSymbols.webp": "33362b94",
 	"tiles/gl.webp": "a905a8f9",

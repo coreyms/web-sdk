@@ -197,14 +197,8 @@ for key in ["GL.png"] + [f"GL_ring_{i}.png" for i in range(2, 6)]:
     frames[key] = with_bell_glow(frames[key])
 sheet("amSymbols", frames)
 
-chars = {
-    "marty_idle.png": tile("MARTY", "idle", (46, 204, 113)),
-    "marty_strike.png": tile("MARTY", "STRIKE!", (30, 150, 80)),
-    "marky_idle.png": tile("MARKY", "idle", (192, 57, 43)),
-    "marky_strike.png": tile("MARKY", "STRIKE!", (140, 30, 20)),
-    "lock.png": tile("ANTE", "locked S", (212, 175, 55)),
-}
-sheet("amCharacters", chars)
+# (the placeholder character sheet — amCharacters — is no longer built: the mantises are BoneRutter rigs
+#  and nothing references it; its stale stamps kept drifting assetStamp.ts on staging, 2026-09-10)
 
 # Game Info thumbnails: per-symbol webp for the HTML rules modal, served from static/assets/tiles/.
 # <key>.webp = the tile; <key>_insect.webp = the insect cutout (paying symbols only).
