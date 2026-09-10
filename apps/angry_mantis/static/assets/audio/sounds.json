@@ -301,7 +301,6 @@
 	},
 	"src": [
 		"./assets/audio/sounds.ogg?v=5c356f18",
-		"./assets/audio/sounds.m4a?v=f419047d",
-		"./assets/audio/sounds.mp3?v=873241b1"
+		"./assets/audio/sounds.m4a?v=f419047d"
 	]
 }
