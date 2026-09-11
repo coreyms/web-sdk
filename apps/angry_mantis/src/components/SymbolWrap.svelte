@@ -18,9 +18,17 @@
 	};
 
 	const props: Props = $props();
-	const dimAlpha = new Tween(1, { duration: 180 });
+	// non-focus tiles are DARKENED, never faded: at 0.35 alpha the board backdrop's plate showed
+	// through every dimmed tray (Corey 2026-09-11, the same rule the eaten trays follow —
+	// SymbolSprite's EATEN_TINT). One tweened brightness, applied as a multiply tint on the
+	// wrapper so the tile and everything drawn over it darken together.
+	const dimLevel = new Tween(1, { duration: 180 });
 	$effect(() => {
-		dimAlpha.set(props.dim ? 0.35 : 1);
+		dimLevel.set(props.dim ? 0.35 : 1);
+	});
+	const dimTint = $derived.by(() => {
+		const v = Math.round(255 * dimLevel.current);
+		return (v << 16) | (v << 8) | v;
 	});
 	const boardContext = getContextBoard();
 	const show = $derived(
@@ -32,7 +40,7 @@
 </script>
 
 {#if props.debug || (show && inFrame)}
-	<Container x={props.x} y={props.y} zIndex={props.zIndex ?? 0} alpha={dimAlpha.current}>
+	<Container x={props.x} y={props.y} zIndex={props.zIndex ?? 0} tint={dimTint}>
 		{@render props.children()}
 	</Container>
 {/if}

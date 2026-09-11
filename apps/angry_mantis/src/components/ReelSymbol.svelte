@@ -12,6 +12,7 @@
 	import { getContext } from '../game/context';
 	import { isAnteLockedSymbol, stateGame, stateGameDerived, type ReelSymbol } from '../game/stateGame.svelte';
 	import { bellPose } from '../game/bell';
+	import { BELL_GLOW, bellGlowPose, bellHaloTexture, bellRaysTexture } from '../game/bellGlow';
 
 	type Props = {
 		reelIndex: number;
@@ -56,6 +57,28 @@
 			ring = null;
 		};
 	});
+
+	// Service Bell tile glow: the hero's halo + ray wheel (bellGlow.ts) live under a resting bell
+	// tile, additive, breathing and slowly turning. One rAF per bell on the board.
+	const isBellTile = $derived(props.reelSymbol.rawSymbol.name === 'GL' && props.reelSymbol.symbolIndexOfBoard >= 0 && props.reelSymbol.symbolIndexOfBoard < BOARD_DIMENSIONS.y);
+	let glowT = $state(0);
+	let glowRaf = 0;
+	$effect(() => {
+		if (!isBellTile) {
+			cancelAnimationFrame(glowRaf);
+			glowRaf = 0;
+			glowT = 0;
+			return;
+		}
+		const t0 = performance.now() - Math.random() * 3000; // bells on one board don't breathe in lockstep
+		const step = (now: number) => {
+			glowT = now - t0;
+			glowRaf = requestAnimationFrame(step);
+		};
+		glowRaf = requestAnimationFrame(step);
+		return () => cancelAnimationFrame(glowRaf);
+	});
+	const tileGlow = $derived(bellGlowPose(glowT, null));
 
 	// winFocus rows are in symbols[] index space (padding included): symbolIndexOfBoard = row - 1
 	// a lit scatter never dims — a triggering spin can carry line wins whose focus dim would
@@ -367,6 +390,12 @@
 	<!-- the scatter's shadow: its own card shape tinted black rides the strip down in its cell and
 	     darkens as the slap closes in (SCATTER_LAND.well*) -->
 	<Sprite anchor={0.5} key="S.png" tint={0x000000} width={tileSize} height={tileSize} alpha={wellAlpha} visible={hiddenForSlap} />
+	{#if isBellTile}
+		{@const gw = tileSize * BELL_GLOW.tile.size}
+		<!-- bell glow under the tile (bellGlow.ts tile): rides the cell, over the neighbours it spills onto -->
+		<BaseSprite texture={bellRaysTexture()} anchor={0.5} width={gw} height={gw} rotation={tileGlow.raysRotation} tint={BELL_GLOW.color} alpha={tileGlow.raysAlpha * BELL_GLOW.tile.strength} blendMode="add" />
+		<BaseSprite texture={bellHaloTexture()} anchor={0.5} width={gw * BELL_GLOW.haloScale} height={gw * BELL_GLOW.haloScale} tint={BELL_GLOW.color} alpha={tileGlow.haloAlpha * BELL_GLOW.tile.strength} blendMode="add" />
+	{/if}
 	<Container scale={squash} rotation={props.reelSymbol.symbolRot.current}>
 		<!-- the resting tile hides while the bell rings: the press frames squash and rock, and the
 		     still frame 1 underneath showed around their edges (Corey 2026-09-10) -->

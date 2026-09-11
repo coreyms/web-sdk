@@ -43,7 +43,17 @@ export const DOOR_PAINT = {
 	// wrap-up: eaten trays (sprites over the door, FreeSpinOutro), the BIG WIN plate painted in
 	// its own colours with the amount inside it, or — under big win — no plate, amount on the door
 	outro: {
-		trays: { size: 0.15, gap: 0.105, y: 0.83 },
+		// the eaten trays stand on the counter (the frame's bottom rail) under the plate, lined up
+		// like someone set them down against the door (Corey 2026-09-11): each casts a shadow onto
+		// the door behind it, thrown down-left left of centre and down-right right of it (lit from
+		// above the middle), and mirrors down the rail's front face like the reels do on the lips.
+		trays: {
+			size: 0.15, // × door width
+			gap: 0.105,
+			railSit: 30, // frame-art px below the window bottom where the trays' bottom edge rests (rail top face 1121-1142, seam to 1149; window bottom 1097)
+			shadow: { dx: 0.16, dy: 0.1, alpha: 0.7, scale: 1.05 }, // dx × size × (offset from the row's centre, -1..1); dy × size; door only
+			reflect: { squash: 0.25, alpha: 0.6, tint: 0x9fd2ff }, // FrameReflections' steel-blue additive sheen, clipped to the band under the trays
+		},
 		plate: { w: 0.99, y: 0.605 },
 		// h × plate height; dy × plate height; dx × plate width; maxW × plate width — a long string
 		// (GC 819,300.00) shrinks to fit the plate's clear panel instead of spilling off the door,
@@ -121,10 +131,25 @@ vec3 door; float ratio; float grad; float chip;
 vec4 box(sampler2D t, vec2 uv) {
 	return (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) ? texture(t, uv) : vec4(0.0);
 }
+// Lossy WebP leaves an alpha floor of a few /255 across a texture's transparent area, and the
+// numeral frames carry a baked drop shadow at low alpha over most of their box: painted at face
+// value, both read as a faint lighter rectangle around every glyph on a large monitor (Corey
+// 2026-09-11). Anything under 3% is not paint.
+float paintAlpha(float a) {
+	return clamp((a - 0.03) / 0.97, 0.0, 1.0);
+}
+// a numeral texel is INK only where it is white: the outline and shadow in the frame are dark
+float inkAlpha(vec4 s) {
+	return s.a * smoothstep(0.35, 0.75, s.r);
+}
 vec3 paintOver(vec3 under, vec3 base, float a) {
+	a = paintAlpha(a);
 	vec3 shade = vec3(pow(max(ratio, 0.001), uMetal.z));
 	float floorK = 1.0 - uMetal.w * clamp(1.0 - ratio, 0.0, 1.0);
-	vec3 paint = base * shade * floorK + vec3(uLip * max(grad, 0.0));
+	// the steel-lip highlight belongs on SOLID paint: at a layer's anti-aliased edge (the plate's
+	// ragged top over a slat ridge) it was added at full strength and mixed in by the fringe's
+	// alpha, a grey hairline floating above the plate (Corey 2026-09-11)
+	vec3 paint = base * shade * floorK + vec3(uLip * max(grad, 0.0) * smoothstep(0.2, 0.8, a));
 	paint = mix(paint, paint * (0.6 + 0.8 * door), 0.25); // the door's own hue bleeds through a touch
 	return mix(under, paint, a * chip * uMetal.x);
 }
@@ -153,7 +178,9 @@ void main() {
 	if (uCountBox.z > 0.0) {
 		vec2 d = (vUV - uCountBox.xy) * uAspect;
 		vec4 c = box(uCount, vec2(d.x / uCountBox.z + 0.5, d.y / uCountBox.w + 0.5));
-		col = paintOver(col, uCountRGB > 0.5 ? c.rgb : uCream, c.a);
+		// the plate's texels are premultiplied on upload: un-premultiply so its edge pixels keep
+		// their own colour instead of darkening toward black
+		col = paintOver(col, uCountRGB > 0.5 ? c.rgb / max(c.a, 0.001) : uCream, c.a);
 	}
 	// 3. six strokes
 	if (uRayDims.x > 0.0) {
@@ -177,7 +204,7 @@ void main() {
 		vec2 p = vUV - uShadowOff;
 		if (p.x > b.x && p.x < b.z && p.y > b.y && p.y < b.w) {
 			vec4 s = texture(uNumerals, vec2(mix(q.x, q.z, (p.x - b.x) / (b.z - b.x)), mix(q.y, q.w, (p.y - b.y) / (b.w - b.y))));
-			col = paintOver(col, uShadowColor, s.a * s.r);
+			col = paintOver(col, uShadowColor, inkAlpha(s));
 		}
 	}
 	for (int i = 0; i < 16; i++) {
@@ -187,7 +214,7 @@ void main() {
 		vec2 p = vUV;
 		if (p.x > b.x && p.x < b.z && p.y > b.y && p.y < b.w) {
 			vec4 s = texture(uNumerals, vec2(mix(q.x, q.z, (p.x - b.x) / (b.z - b.x)), mix(q.y, q.w, (p.y - b.y) / (b.w - b.y))));
-			col = paintOver(col, uAmtColor, s.a * s.r);
+			col = paintOver(col, uAmtColor, inkAlpha(s));
 		}
 	}
 	finalColor = vec4(col, 1.0);

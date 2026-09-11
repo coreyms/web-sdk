@@ -16,6 +16,11 @@ export const BELL_GLOW = {
 	haloScale: 0.7, // the halo under the rays is smaller than the wheel
 	fadeInMs: 390, // rides the bell's drop (Mantis dropMs)
 	ripple: { size: 2.0, ms: 950 }, // ring expands 0.6 → size bell widths and fades over ms, once per ding
+	// the bell TILE on the board (ReelSymbol): the same live halo + ray wheel under it, smaller and
+	// softer than the hero's so it lights the neighbours without swallowing them. The static bake
+	// in the sheet (make_placeholders) is clipped to the cell and reads as nothing next to the hero
+	// (Corey 2026-09-11).
+	tile: { size: 1.7, strength: 0.7 },
 } as const;
 
 const TEX = 512;

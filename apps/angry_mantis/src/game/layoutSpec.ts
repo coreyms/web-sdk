@@ -34,6 +34,10 @@ export const FRAME: Record<
 // One export serves every LayoutKind — the window resolution (1220×985) exceeds both the
 // desktop @2x (1188×949) and portrait @3x (1044×833) targets from assets.csv rows 129/130.
 export const FRAME_ART = { w: 1415, h: 1217, winX: 98, winY: 112, winW: 1220, winH: 985 };
+// the frame's bottom rail ("the counter"), in FRAME ART pixels: top face, highlight seam, front
+// face. The window bottom is winY + winH = 1097; the wrap-up's trays stand on the top face and
+// mirror down the front face (FreeSpinOutro), ModePlaque centres on the front face.
+export const RAIL_ART = { topFace: [1121, 1142], frontFace: [1149, 1208] } as const;
 // Steel roll-down door art (door-steel.webp), pre-cropped to the opaque door. Wider AND taller
 // than the frame window at any layout, so scaled-to-window-width it always covers fully.
 export const DOOR_ART = { w: 1246, h: 1028 };

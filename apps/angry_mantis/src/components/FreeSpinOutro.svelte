@@ -14,7 +14,7 @@
 	// PAINTED into the steel by DoorPaint.svelte (game/doorPaint.ts) and roll down with it. This
 	// component only lays the eaten trays over the door, drives the count-up into the paint state,
 	// and holds the press gate. The recap line ("N SPINS - M SYMBOLS EATEN") came off (Corey).
-	import { Sprite } from 'pixi-svelte';
+	import { Container, Rectangle, Sprite } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { MainContainer } from 'components-layout';
@@ -26,7 +26,7 @@
 	import { getContext } from '../game/context';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { stateBetDerived } from 'state-shared';
-	import { doorRect, layoutKind } from '../game/layoutSpec';
+	import { doorRect, layoutKind, FRAME_ART, RAIL_ART } from '../game/layoutSpec';
 	import { DOOR_PAINT, paintedAmountSupported } from '../game/doorPaint';
 	import { doorPaintState } from '../game/doorPaint.svelte';
 	import { tokenizeNumerals } from '../game/numeralTokens';
@@ -90,13 +90,23 @@
 	const vw = $derived(
 		context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale,
 	);
-	const door = $derived(doorRect(kind, vw).door);
-	const trays = $derived({
-		cx: door.x + door.w / 2,
-		cy: door.y + DOOR_PAINT.outro.trays.y * door.h,
-		size: DOOR_PAINT.outro.trays.size * door.w,
-		gap: DOOR_PAINT.outro.trays.gap * door.w,
+	const rects = $derived(doorRect(kind, vw));
+	const door = $derived(rects.door);
+	// the counter: the trays' bottom edge sits on the rail's top face, in frame-art px mapped
+	// through the window's vertical scale (portrait grows the frame, so never a master constant)
+	const railSy = $derived(rects.win.h / FRAME_ART.winH);
+	const trays = $derived.by(() => {
+		const t = DOOR_PAINT.outro.trays;
+		const size = t.size * door.w;
+		const bottom = rects.win.y + rects.win.h + t.railSit * railSy;
+		return { cx: door.x + door.w / 2, cy: bottom - size / 2, bottom, size, gap: t.gap * door.w };
 	});
+	// the reflections live on the bright band right under the trays only: the rest of the rail's
+	// top face and its highlight seam, never the front face below (that is the mode pill's, and a
+	// mirror down there read as a smear behind it — Corey 2026-09-11). Frame-art px → master.
+	const railSeam = $derived(rects.win.y + rects.win.h + (RAIL_ART.frontFace[0] - FRAME_ART.winY - FRAME_ART.winH) * railSy);
+	const trayX = (i: number, n: number) => trays.cx + (i - (n - 1) / 2) * trays.gap;
+	const trayU = (i: number, n: number) => (n > 1 ? (i - (n - 1) / 2) / ((n - 1) / 2) : 0); // -1..1 across the row
 	// stashed by the bonusEnd handler right before this freeSpinEnd presentation
 	const recap = $derived(context.stateGame.sessionRecap);
 
@@ -151,11 +161,35 @@
 					     uniforms, no raster) -->
 					<PaintedAmountFeed value={countUpAmount} target={amount} enabled={painted} />
 					<MainContainer>
-						<!-- eaten trays: real plates over the door, not paint (Corey 2026-09-10) -->
+						<!-- eaten trays: real plates standing on the counter under the plate (Corey 2026-09-10/11) -->
 						{#if recap}
+							{@const n = recap.eatenList.length}
+							{@const t = DOOR_PAINT.outro.trays}
+							{@const s = trays.size * pop.current}
+							<!-- 1. shadows on the door behind them: black plates thrown down-left / down-right, clipped
+							     to the door so nothing falls on the counter -->
+							<Container>
+								<Rectangle isMask x={door.x} y={door.y} width={door.w} height={rects.win.y + rects.win.h - door.y} />
+								{#each recap.eatenList as symbol, i (symbol)}
+									<Sprite anchor={0.5} x={trayX(i, n) + trayU(i, n) * t.shadow.dx * s} y={trays.cy + t.shadow.dy * s} width={s * t.shadow.scale} height={s * t.shadow.scale} tint={0x000000} alpha={t.shadow.alpha} key="{symbol}_eaten.png" />
+								{/each}
+							</Container>
+							<!-- 2. the trays, bottom edge on the rail's top face -->
 							{#each recap.eatenList as symbol, i (symbol)}
-								<Sprite anchor={0.5} x={trays.cx + (i - (recap.eatenList.length - 1) / 2) * trays.gap} y={trays.cy} width={trays.size * pop.current} height={trays.size * pop.current} key="{symbol}_eaten.png" />
+								<Sprite anchor={0.5} x={trayX(i, n)} y={trays.cy} width={s} height={s} key="{symbol}_eaten.png" />
 							{/each}
+							<!-- 3. reflections down the rail's front face: mirrored, squashed, steel-blue additive,
+							     clipped to the rail's top face + seam under the trays -->
+							<Container>
+								<Rectangle isMask x={door.x} y={trays.bottom} width={door.w} height={Math.max(1, railSeam - trays.bottom)} />
+								{#each recap.eatenList as symbol, i (symbol)}
+									<!-- the mirror lives on a wrapper: Pixi's width/height setters keep the sprite's own
+									     scale sign, so a negative scale on the sized sprite would flip every pop tick -->
+									<Container x={trayX(i, n)} y={trays.bottom} scale={{ x: 1, y: -t.reflect.squash }}>
+										<Sprite anchor={{ x: 0.5, y: 1 }} width={s} height={s} tint={t.reflect.tint} alpha={t.reflect.alpha} blendMode="add" key="{symbol}_eaten.png" />
+									</Container>
+								{/each}
+							</Container>
 						{/if}
 						{#if !painted}
 							<!-- a currency the stencil atlas cannot paint (or too long for the shader's slots):

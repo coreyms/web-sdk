@@ -16,7 +16,7 @@
 
 	import { getContext } from '../game/context';
 	import { STINGER as STINGER_LAYOUT, layoutKind } from '../game/layoutSpec';
-	import { STINGER_AMOUNT, STINGER_BOX, STINGER_MOTION, STINGER_PLATE, STINGER_SHADOW_ALPHA, STINGER_TIERS, type StingerTier } from '../game/stinger';
+	import { STINGER_AMOUNT, STINGER_BOX, STINGER_MOTION, STINGER_PLATE, STINGER_SHADOW_ALPHA, STINGER_SOUND, STINGER_TIERS, type StingerTier } from '../game/stinger';
 	import { WIN_TIER_STAGES } from '../game/winLevelMap';
 	import CountUpText from './CountUpText.svelte';
 	import { screenKick } from '../game/screenKick';
@@ -65,7 +65,8 @@
 	const easeInCubic = (t: number) => t * t * t;
 	const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-	const slam = () => context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_win_big', forcePlay: true });
+	// each tier's plate lands with its own clink (STINGER_SOUND)
+	const slam = (tier: number) => context.eventEmitter.broadcast({ type: 'soundOnce', name: STINGER_SOUND[STINGER_TIERS[tier]], forcePlay: true });
 	// the whole canvas jolts — amplitude in master px, scaled to canvas px
 	const startKick = (amp: number) => screenKick(context.stateApp.pixiApplication, amp * master.scale);
 	const start = (kind: Anim['kind'], dur: number) => {
@@ -97,13 +98,13 @@
 		if (lastIndex === -1) {
 			shown = next;
 			start('enter', STINGER_MOTION.enter);
-			slam();
+			slam(next);
 		} else if (next !== lastIndex) {
 			outgoing = shown;
 			shown = next;
 			start('shove', STINGER_MOTION.shove);
 			setTimeout(() => startKick(STINGER_MOTION.kickShove), STINGER_MOTION.shove * 0.78);
-			slam();
+			slam(next);
 		}
 		lastIndex = next;
 	});

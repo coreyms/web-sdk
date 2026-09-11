@@ -61,6 +61,15 @@ export const STINGER_AMOUNT = {
 /** soft halo behind every plate (game/shadowTexture.ts plateShadowTexture) */
 export const STINGER_SHADOW_ALPHA = 0.6;
 
+// one tin-metal clink per tier, fired as that tier's plate lands (Corey's win-*.ogg, 2026-09-11)
+export const STINGER_SOUND = {
+	big: 'sfx_win_big',
+	superwin: 'sfx_win_super',
+	mega: 'sfx_win_mega',
+	epic: 'sfx_win_epic',
+	max: 'sfx_win_max',
+} as const satisfies Record<StingerTier, string>;
+
 export const STINGER_MOTION = {
 	enter: 420, // plate drops in from above, overshoots, settles
 	shove: 420, // chow-line shove: next plate slides in from the right...

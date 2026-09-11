@@ -67,107 +67,123 @@
 		],
 		"sfx_win_big": [
 			28620,
-			137
+			356
+		],
+		"sfx_win_super": [
+			29976,
+			356
+		],
+		"sfx_win_mega": [
+			31332,
+			356
+		],
+		"sfx_win_epic": [
+			32688,
+			356
+		],
+		"sfx_win_max": [
+			34043,
+			356
 		],
 		"sfx_money_counter": [
-			29758,
+			35399,
 			781,
 			true
 		],
 		"sfx_ui_button": [
-			31538,
+			37180,
 			187
 		],
 		"sfx_ui_spin": [
-			32725,
+			38366,
 			187
 		],
 		"sfx_ui_bonus": [
-			33911,
+			39553,
 			2000
 		],
 		"sfx_wild_land": [
-			36911,
+			42553,
 			87
 		],
 		"sfx_ui_minor": [
-			37999,
+			43640,
 			595
 		],
 		"sfx_ui_sub": [
-			39594,
+			45235,
 			98
 		],
 		"sfx_marty_strike_2": [
-			40692,
+			46333,
 			601
 		],
 		"sfx_marty_strike_3": [
-			42293,
+			47934,
 			596
 		],
 		"sfx_marky_strike": [
-			43889,
+			49530,
 			599
 		],
 		"sfx_marty_eat_2": [
-			45488,
+			51130,
 			1111
 		],
 		"sfx_marty_eat_3": [
-			47600,
+			53241,
 			999
 		],
 		"sfx_marky_eat": [
-			49598,
+			55240,
 			1003
 		],
 		"sfx_marty_angry_2": [
-			51602,
+			57243,
 			1200
 		],
 		"sfx_marty_angry_3": [
-			53802,
+			59443,
 			1033
 		],
 		"sfx_marty_happy_2": [
-			55835,
+			61477,
 			601
 		],
 		"sfx_marty_happy_3": [
-			57437,
+			63078,
 			430
 		],
 		"sfx_marty_poke_2": [
-			58867,
+			64508,
 			321
 		],
 		"sfx_marty_poke_3": [
-			60188,
+			65829,
 			497
 		],
 		"sfx_marty_astonished": [
-			61685,
+			67327,
 			451
 		],
 		"sfx_marty_astonished_2": [
-			63136,
+			68777,
 			557
 		],
 		"sfx_marty_astonished_3": [
-			64693,
+			70334,
 			872
 		],
 		"sfx_bonus_trigger_free": [
-			66564,
+			72206,
 			1199
 		],
 		"sfx_bonus_trigger_super": [
-			68763,
+			74405,
 			1335
 		],
 		"sfx_bonus_trigger_feast": [
-			71099,
+			76740,
 			1523
 		]
 	},
@@ -221,6 +237,18 @@
 			"volume": 1
 		},
 		"sfx_win_big": {
+			"volume": 1
+		},
+		"sfx_win_super": {
+			"volume": 1
+		},
+		"sfx_win_mega": {
+			"volume": 1
+		},
+		"sfx_win_epic": {
+			"volume": 1
+		},
+		"sfx_win_max": {
 			"volume": 1
 		},
 		"sfx_money_counter": {
@@ -300,7 +328,7 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=5c356f18",
-		"./assets/audio/sounds.m4a?v=f419047d"
+		"./assets/audio/sounds.ogg?v=a8e8a155",
+		"./assets/audio/sounds.m4a?v=78fccc9c"
 	]
 }
