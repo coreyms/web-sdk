@@ -21,7 +21,8 @@ const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) =>
 	if (winLevelData?.alias === 'max') eventEmitter.broadcastAsync({ type: 'uiHide' });
 	if (winLevelData?.type === 'big') {
 		eventEmitter.broadcast({ type: 'martyReact', kind: 'celebrate' });
-		eventEmitter.broadcast({ type: 'soundDuck', level: 0.35 });
+		// a whisper of a duck: noticeable only if you listen for it (Corey 2026-09-11, was 0.35)
+		eventEmitter.broadcast({ type: 'soundDuck', level: 0.85 });
 	}
 	if (winLevelData?.sound?.sfx) eventEmitter.broadcast({ type: 'soundOnce', name: winLevelData.sound.sfx });
 	if (winLevelData?.sound?.bgm) musicPlay(winLevelData.sound.bgm);

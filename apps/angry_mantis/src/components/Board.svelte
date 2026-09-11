@@ -27,6 +27,8 @@
 	import BoardBase from './BoardBase.svelte';
 	import ScatterBulb from './ScatterBulb.svelte';
 	import { checkBoardGrid } from '../game/boardGrid';
+	import { doorPaintOutro, doorPaintState } from '../game/doorPaint.svelte';
+	import { DOOR_PAINT } from '../game/doorPaint';
 
 	const context = getContext();
 
@@ -69,6 +71,27 @@
 			// stage the wrap-up recap (normally stashed by bonusEnd) so FreeSpinOutro can be
 			// previewed via emit(freeSpinOutroShow / freeSpinOutroCountUp) without a whole bonus
 			setRecap: (recap: any) => (context.stateGame.sessionRecap = recap),
+			// stage the whole wrap-up screen on the closed door without playing a bonus (door paint
+			// probes: mode, book amount, tier alias, eaten list)
+			// live placement of the wrap-up's painted plate (fraction of the door height; the amount
+			// follows it): tweak in the browser, then bake the value into DOOR_PAINT.outro.plate.y
+			plateY: (y: number) => {
+				(DOOR_PAINT.outro.plate as { y: number }).y = y;
+				const on = doorPaintState.plate;
+				doorPaintState.plate = !on;
+				doorPaintState.plate = on;
+				return y;
+			},
+			paintHide: (layer: null | 'header' | 'stars' | 'count' | 'amount') => (doorPaintState.debugHide = layer),
+			stageOutro: (mode: 'free' | 'super' | 'feast' = 'super', amount = 375800, alias = 'big', eaten: string[] = ['L4', 'L3', 'L2', 'L1', 'M3', 'M2']) => {
+				doorPaintOutro(mode);
+				context.stateGame.bonusMode = mode;
+				context.stateGame.sessionRecap = { mode, spinsPlayed: 10, symbolsEaten: eaten.length, eatenList: eaten as any };
+				context.eventEmitter.broadcast({ type: 'uiHide' });
+				context.eventEmitter.broadcast({ type: 'doorSnap', closed: true });
+				context.eventEmitter.broadcast({ type: 'freeSpinOutroShow' });
+				context.eventEmitter.broadcast({ type: 'freeSpinOutroCountUp', amount, winLevelData: context.stateGameDerived.getWinLevelDataByWinLevelAlias(alias as any)! });
+			},
 			// QA for operator flags the mock RGS never sends (disabledTurbo, displayRTP, ...)
 			setJurisdiction: (patch: Record<string, unknown>) => Object.assign(stateConfig.jurisdiction, patch),
 			assetKeys: () => Object.keys(context.stateApp.loadedAssets ?? {}),

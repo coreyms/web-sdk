@@ -151,6 +151,12 @@
 			}
 			U.uRayDims.set([0, 0, 0]);
 		}
+		// DEV bisect: blank one layer
+		if (import.meta.env.DEV && st.debugHide) {
+			if (st.debugHide === 'header') U.uHeaderBox.set([0, 0, 0, 0]);
+			if (st.debugHide === 'stars') U.uStarSize = 0;
+			if (st.debugHide === 'count') U.uCountBox.set([0, 0, 0, 0]);
+		}
 		shader()?.update();
 	});
 	const shader = () => mesh?.shader?.resources.paint as PIXI.UniformGroup | undefined;
@@ -192,7 +198,7 @@
 			U.uGlyphUV.set([uv.x0, uv.y0, uv.x2, uv.y2], i * 4);
 			U.uGlyphBox.set([cx + g.x, cy + g.y / DOOR_ASPECT, cx + g.x + g.w, cy + (g.y + g.h) / DOOR_ASPECT], i * 4);
 		});
-		U.uGlyphCount = inked.length;
+		U.uGlyphCount = import.meta.env.DEV && st.debugHide === 'amount' ? 0 : inked.length;
 		U.uShadowOff.set([o.shadowOffset.dx * h, (o.shadowOffset.dy * h) / DOOR_ASPECT]);
 		shader()?.update();
 	});

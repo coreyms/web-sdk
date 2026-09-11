@@ -16,6 +16,8 @@ export type DoorPaintState = {
 	amountText: string;
 	/** outro: the count-up's final string (the odometer reserve) */
 	amountReserve: string;
+	/** DEV probes: blank one painted layer (Board.svelte's __angryMantis.paintHide) */
+	debugHide: null | 'header' | 'stars' | 'count' | 'amount';
 };
 
 export const doorPaintState: DoorPaintState = $state({
@@ -25,6 +27,7 @@ export const doorPaintState: DoorPaintState = $state({
 	plate: false,
 	amountText: '',
 	amountReserve: '',
+	debugHide: null,
 });
 
 export const doorPaintIntro = (mode: BonusMode, spins: number) => {

@@ -14,7 +14,8 @@
 	// PAINTED into the steel by DoorPaint.svelte (game/doorPaint.ts) and roll down with it. This
 	// component only lays the eaten trays over the door, drives the count-up into the paint state,
 	// and holds the press gate. The recap line ("N SPINS - M SYMBOLS EATEN") came off (Corey).
-	import { Container, Rectangle, Sprite } from 'pixi-svelte';
+	import * as PIXI from 'pixi.js';
+	import { Container, Graphics, Rectangle, Sprite } from 'pixi-svelte';
 	import { FadeContainer } from 'components-pixi';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { MainContainer } from 'components-layout';
@@ -99,14 +100,34 @@
 		const t = DOOR_PAINT.outro.trays;
 		const size = t.size * door.w;
 		const bottom = rects.win.y + rects.win.h + t.railSit * railSy;
-		return { cx: door.x + door.w / 2, cy: bottom - size / 2, bottom, size, gap: t.gap * door.w };
+		// the sprite is centred; its art ends artBottom of the way down, and THAT edge stands on the rail
+		return { cx: door.x + door.w / 2, cy: bottom - size * t.artBottom + size / 2, bottom, size, gap: t.gap * door.w };
 	});
 	// the reflections live on the bright band right under the trays only: the rest of the rail's
 	// top face and its highlight seam, never the front face below (that is the mode pill's, and a
 	// mirror down there read as a smear behind it — Corey 2026-09-11). Frame-art px → master.
 	const railSeam = $derived(rects.win.y + rects.win.h + (RAIL_ART.frontFace[0] - FRAME_ART.winY - FRAME_ART.winH) * railSy);
 	const trayX = (i: number, n: number) => trays.cx + (i - (n - 1) / 2) * trays.gap;
-	const trayU = (i: number, n: number) => (n > 1 ? (i - (n - 1) / 2) / ((n - 1) / 2) : 0); // -1..1 across the row
+	// the leaning tray's shadow: a wedge from its top corners (touching the door, no shadow) to a
+	// wider, darker foot, as `bands` stacked quads with rising alpha — drawn once per size, no
+	// gradient texture. Local space: the tray's centre, size s.
+	const drawLeanShadow = (g: PIXI.Graphics, s: number) => {
+		const t = DOOR_PAINT.outro.trays;
+		const top = -s / 2 + s * t.shadow.artTop;
+		const bottom = -s / 2 + s * t.artBottom;
+		const half = (s * t.shadow.artWidth) / 2;
+		const n = t.shadow.bands;
+		for (let k = 0; k < n; k++) {
+			const q0 = k / n;
+			const q1 = (k + 1) / n;
+			const y0 = top + (bottom - top) * q0;
+			const y1 = top + (bottom - top) * q1;
+			const w0 = half + s * t.shadow.flare * q0;
+			const w1 = half + s * t.shadow.flare * q1;
+			const a = t.shadow.alpha * ((q0 + q1) / 2) ** 1.3;
+			g.poly([-w0, y0, w0, y0, w1, y1, -w1, y1]).fill({ color: 0x000000, alpha: a });
+		}
+	};
 	// stashed by the bonusEnd handler right before this freeSpinEnd presentation
 	const recap = $derived(context.stateGame.sessionRecap);
 
@@ -166,12 +187,12 @@
 							{@const n = recap.eatenList.length}
 							{@const t = DOOR_PAINT.outro.trays}
 							{@const s = trays.size * pop.current}
-							<!-- 1. shadows on the door behind them: black plates thrown down-left / down-right, clipped
-							     to the door so nothing falls on the counter -->
+							<!-- 1. shadows on the door behind them: a wedge per leaning tray, clipped to the door so
+							     nothing falls on the counter -->
 							<Container>
 								<Rectangle isMask x={door.x} y={door.y} width={door.w} height={rects.win.y + rects.win.h - door.y} />
 								{#each recap.eatenList as symbol, i (symbol)}
-									<Sprite anchor={0.5} x={trayX(i, n) + trayU(i, n) * t.shadow.dx * s} y={trays.cy + t.shadow.dy * s} width={s * t.shadow.scale} height={s * t.shadow.scale} tint={0x000000} alpha={t.shadow.alpha} key="{symbol}_eaten.png" />
+									<Graphics x={trayX(i, n)} y={trays.cy} draw={(g) => drawLeanShadow(g, s)} />
 								{/each}
 							</Container>
 							<!-- 2. the trays, bottom edge on the rail's top face -->
@@ -186,7 +207,8 @@
 									<!-- the mirror lives on a wrapper: Pixi's width/height setters keep the sprite's own
 									     scale sign, so a negative scale on the sized sprite would flip every pop tick -->
 									<Container x={trayX(i, n)} y={trays.bottom} scale={{ x: 1, y: -t.reflect.squash }}>
-										<Sprite anchor={{ x: 0.5, y: 1 }} width={s} height={s} tint={t.reflect.tint} alpha={t.reflect.alpha} blendMode="add" key="{symbol}_eaten.png" />
+										<!-- anchored on the art's bottom pixel, not the frame's, so the mirror touches the tray -->
+										<Sprite anchor={{ x: 0.5, y: t.artBottom }} width={s} height={s} tint={t.reflect.tint} alpha={t.reflect.alpha} blendMode="add" key="{symbol}_eaten.png" />
 									</Container>
 								{/each}
 							</Container>

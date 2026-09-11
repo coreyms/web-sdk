@@ -43,18 +43,19 @@ export const DOOR_PAINT = {
 	// wrap-up: eaten trays (sprites over the door, FreeSpinOutro), the BIG WIN plate painted in
 	// its own colours with the amount inside it, or — under big win — no plate, amount on the door
 	outro: {
-		// the eaten trays stand on the counter (the frame's bottom rail) under the plate, lined up
-		// like someone set them down against the door (Corey 2026-09-11): each casts a shadow onto
-		// the door behind it, thrown down-left left of centre and down-right right of it (lit from
-		// above the middle), and mirrors down the rail's front face like the reels do on the lips.
+		// the eaten trays LEAN on the door with their feet on the counter (the frame's bottom rail),
+		// lined up like someone set them down (Corey 2026-09-11): each casts a wedge of shadow onto
+		// the door behind it — nothing where its top corners touch the door, flaring outward and
+		// darkening down to its foot — and mirrors onto the band of rail under it.
 		trays: {
 			size: 0.15, // × door width
 			gap: 0.105,
 			railSit: 30, // frame-art px below the window bottom where the trays' bottom edge rests (rail top face 1121-1142, seam to 1149; window bottom 1097)
-			shadow: { dx: 0.16, dy: 0.1, alpha: 0.7, scale: 1.05 }, // dx × size × (offset from the row's centre, -1..1); dy × size; door only
+			artBottom: 0.962, // the tray art's bottom pixel as a fraction of its frame (measured 0.957-0.973 across the eaten frames): the tray STANDS on this edge and the reflection starts from it
+			shadow: { flare: 0.14, alpha: 0.75, bands: 12, artWidth: 0.96, artTop: 0.04 }, // flare × size each side at the foot; alpha at the foot (0 at the top); bands = the ramp's slices; the tray art's width and top inset as fractions of its frame
 			reflect: { squash: 0.25, alpha: 0.6, tint: 0x9fd2ff }, // FrameReflections' steel-blue additive sheen, clipped to the band under the trays
 		},
-		plate: { w: 0.99, y: 0.605 },
+		plate: { w: 0.99, y: 0.62 }, // 8 px lower than the first pass, placed live with Corey (2026-09-11)
 		// h × plate height; dy × plate height; dx × plate width; maxW × plate width — a long string
 		// (GC 819,300.00) shrinks to fit the plate's clear panel instead of spilling off the door,
 		// the same cap the mid-feature stinger applies (STINGER_BOX.big w 50% × fillW .96)
@@ -128,8 +129,14 @@ uniform vec2 uShadowOff;
 
 vec3 door; float ratio; float grad; float chip;
 
+// A layer never samples its texture's outermost rows/columns: on a minified draw the GPU's
+// filtering blends those with the transparent margin (and, on the mipmapped plate, with whatever
+// colour the encoder left under alpha 0), which painted a bright hairline along the plate's top
+// edge on Corey's monitor (2026-09-11) while the headless renderer showed nothing. Every painted
+// texture keeps an empty margin wider than this inset.
+const float EDGE = 0.004;
 vec4 box(sampler2D t, vec2 uv) {
-	return (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) ? texture(t, uv) : vec4(0.0);
+	return (uv.x > EDGE && uv.x < 1.0 - EDGE && uv.y > EDGE && uv.y < 1.0 - EDGE) ? texture(t, uv) : vec4(0.0);
 }
 // Lossy WebP leaves an alpha floor of a few /255 across a texture's transparent area, and the
 // numeral frames carry a baked drop shadow at low alpha over most of their box: painted at face
@@ -146,10 +153,11 @@ vec3 paintOver(vec3 under, vec3 base, float a) {
 	a = paintAlpha(a);
 	vec3 shade = vec3(pow(max(ratio, 0.001), uMetal.z));
 	float floorK = 1.0 - uMetal.w * clamp(1.0 - ratio, 0.0, 1.0);
-	// the steel-lip highlight belongs on SOLID paint: at a layer's anti-aliased edge (the plate's
-	// ragged top over a slat ridge) it was added at full strength and mixed in by the fringe's
-	// alpha, a grey hairline floating above the plate (Corey 2026-09-11)
-	vec3 paint = base * shade * floorK + vec3(uLip * max(grad, 0.0) * smoothstep(0.2, 0.8, a));
+	// the steel-lip highlight belongs on SOLID paint only: at a layer's anti-aliased edge (the
+	// header band's soft bottom over the slat seam beneath it) it was added — white, unscaled by
+	// the base — and mixed in by the fringe's alpha, so that one seam glowed as a hairline between
+	// the header and the plate (Corey 2026-09-11, on a large monitor). Fringes get no lip at all.
+	vec3 paint = base * shade * floorK + vec3(uLip * max(grad, 0.0) * smoothstep(0.65, 0.95, a));
 	paint = mix(paint, paint * (0.6 + 0.8 * door), 0.25); // the door's own hue bleeds through a touch
 	return mix(under, paint, a * chip * uMetal.x);
 }
@@ -177,10 +185,16 @@ void main() {
 	// 2. the count (cream) or the plate (its own colours)
 	if (uCountBox.z > 0.0) {
 		vec2 d = (vUV - uCountBox.xy) * uAspect;
-		vec4 c = box(uCount, vec2(d.x / uCountBox.z + 0.5, d.y / uCountBox.w + 0.5));
-		// the plate's texels are premultiplied on upload: un-premultiply so its edge pixels keep
-		// their own colour instead of darkening toward black
-		col = paintOver(col, uCountRGB > 0.5 ? c.rgb / max(c.a, 0.001) : uCream, c.a);
+		vec2 cuv = vec2(d.x / uCountBox.z + 0.5, d.y / uCountBox.w + 0.5);
+		vec4 c = box(uCount, cuv);
+		// the plate (uCountRGB): its art carries a light bevel highlight along its top and bottom
+		// rims (rows 8-14 of 651 at the top), which the groove treatment flattened into a bright
+		// hairline along the rust wherever a rim met a slat seam (Corey 2026-09-11, on a large
+		// monitor). Ease the plate in over its top and bottom 3% so the rims melt into the rust;
+		// the ragged edges keep their shape.
+		float plateIn = uCountRGB > 0.5 ? smoothstep(EDGE, EDGE + 0.03, cuv.y) * smoothstep(EDGE, EDGE + 0.03, 1.0 - cuv.y) : 1.0;
+		// premultiplied on upload: un-premultiply (floored, so faint edge texels are not amplified)
+		col = paintOver(col, uCountRGB > 0.5 ? c.rgb / max(c.a, 0.25) : uCream, c.a * plateIn);
 	}
 	// 3. six strokes
 	if (uRayDims.x > 0.0) {
