@@ -1,9 +1,10 @@
 <script lang="ts">
-	// Post-intro landing screen (HTML overlay over the Pixi cafeteria Background): logo, gold loading
-	// bar, then PRESS ANYWHERE TO CONTINUE. Nothing else — the feature-tour menu cards were pulled
-	// (Corey 2026-09-08) so the live scene (lamps, roaches, fly, birds, fan) is what the player sees
-	// while the assets land. Pressing hands off to the Pixi transition via onpress
-	// (see components/LoadingScreen.svelte).
+	// Post-intro landing screen (HTML overlay over the Pixi cafeteria Background): Corey's three
+	// primer cards (game/introCards.ts) and the logo on the live scene — placed clear of the windows
+	// band and the fan so the ambient layers stay in view — with the gold loading bar, then PRESS
+	// ANYWHERE TO CONTINUE, along the bottom. Desktop/phone lay the cards in a row; portrait deals
+	// them as a fan whose front card rotates on its own (a tap is the continue press).
+	// Pressing hands off to the Pixi transition via onpress (see components/LoadingScreen.svelte).
 	import { onMount } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 
@@ -11,6 +12,7 @@
 	import { MASTER, layoutKind } from '../game/layoutSpec';
 	import { stamp } from '../game/assets';
 	import { sound } from '../game/sound';
+	import { INTRO_CARDS, INTRO_CARD_ASPECT, INTRO_LAYOUT, INTRO_LOGO, INTRO_LOGO_SHINE_MS } from '../game/introCards';
 	import Shine from './Shine.svelte';
 
 	type Props = { onpress: () => void };
@@ -60,15 +62,44 @@
 	// audio joins images + fonts in the gate: PRESS ANYWHERE must not appear over a silent game
 	const ready = $derived(context.stateApp.preLoaded && fontsReady && audioReady);
 
-	// per-kind sizing (master units)
+	// per-kind sizing of the gate (master units)
 	const SZ = $derived(
 		kind === 'phone'
-			? { logoW: 380, tag: 22, barW: 520, barH: 14, press: 30, pad: 26 }
+			? { tag: 22, barW: 520, barH: 14, press: 30, pad: 26 }
 			: kind === 'portrait'
-				? { logoW: 250, tag: 13, barW: 280, barH: 10, press: 17, pad: 16 }
-				: { logoW: 300, tag: 14, barW: 420, barH: 10, press: 18, pad: 16 },
+				? { tag: 13, barW: 280, barH: 10, press: 17, pad: 16 }
+				: { tag: 14, barW: 420, barH: 10, press: 18, pad: 16 },
 	);
-	const logoSrc = $derived(kind === 'portrait' ? stamp('/assets/ui/logo-wide.webp') : stamp('/assets/ui/logo-landscape.webp'));
+	const logoSrc = $derived(stamp('/assets/ui/logo-wide.webp'));
+	const logo = $derived(INTRO_LOGO[kind]);
+	const layout = $derived(INTRO_LAYOUT[kind]);
+
+	// ---- the cards: master-px rects + tilt per card, from the layout table ----
+	let front = $state(0); // fan: which card is in front
+	$effect(() => {
+		if (layout.style !== 'fan') return;
+		const id = setInterval(() => (front = (front + 1) % INTRO_CARDS.length), layout.cycleMs);
+		return () => clearInterval(id);
+	});
+	const cards = $derived.by(() => {
+		const H = layout.cardH;
+		const W = H * INTRO_CARD_ASPECT;
+		const cx = master.width / 2;
+		if (layout.style === 'row') {
+			return INTRO_CARDS.map((name, i) => {
+				const k = i - 1;
+				return { name, x: cx + k * (W + layout.gap), y: layout.cy, w: W, h: H, rot: k * layout.tiltDeg, z: 1, alpha: 1 };
+			});
+		}
+		// fan: the front card upright and raised, the others tilted out, a step smaller and dimmed
+		const spread = W * 0.42;
+		return INTRO_CARDS.map((name, i) => {
+			const k = (i - front + 3) % 3;
+			const slot = k === 0 ? 0 : k === 1 ? 1 : -1;
+			const s = k ? 0.92 : 1;
+			return { name, x: cx + slot * spread, y: layout.cy - (k ? -18 : 18), w: W * s, h: H * s, rot: slot * layout.tiltDeg * 1.6, z: k === 0 ? 3 : 1, alpha: k ? layout.backOpacity : 1 };
+		});
+	});
 
 	const press = () => {
 		// same tap target serves both states: while assets are missing it retries instead of entering
@@ -90,25 +121,37 @@
 	<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>
 
 	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
-		<div class="col" style:padding="{SZ.pad}px">
-			<div class="logo">
-				<span class="shine-host" style:width="{SZ.logoW}px"><img src={logoSrc} alt="Angry Mantis" width={SZ.logoW} draggable="false" /><Shine src={logoSrc} /></span>
-				<span class="shine-host tag" style:width="{SZ.tag * 12}px"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /><Shine src={stamp('/assets/ui/20000x.webp')} /></span>
-			</div>
+		<!-- the primer cards: HTML images in master px (the browser resamples the 800×1200 sources;
+		     no card draws above ~330 CSS px wide, so one size serves every layout) -->
+		{#each cards as c (c.name)}
+			<img
+				class="card"
+				src={stamp(`/assets/ui/intro/${c.name}.webp`)}
+				alt=""
+				draggable="false"
+				style:width="{c.w}px"
+				style:height="{c.h}px"
+				style:transform="translate({c.x - c.w / 2}px, {c.y - c.h / 2}px) rotate({c.rot}deg)"
+				style:z-index={c.z}
+				style:opacity={c.alpha}
+			/>
+		{/each}
+		<span class="shine-host logo" style:width="{logo.w}px" style:left="{logo.cx - logo.w / 2}px" style:top="{logo.cy}px">
+			<img src={logoSrc} alt="Angry Mantis" width={logo.w} draggable="false" /><Shine src={logoSrc} idleMs={INTRO_LOGO_SHINE_MS} />
+		</span>
 
-			<div class="gate">
-				{#if assetsFailed}
-					<!-- same stencil style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
-					<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM · TAP TO RETRY</div>
-				{:else if !ready}
-					<div class="bar" style:width="{SZ.barW}px" style:height="{SZ.barH}px">
-						<div class="fill" style:width="{Math.max(4, progress)}%"></div>
-					</div>
-					<div class="pct" style:font-size="{Math.max(10, SZ.tag * 0.8)}px">{loadingLabel} · {progress}%</div>
-				{:else}
-					<div class="pressText" style:font-size="{SZ.press}px">PRESS ANYWHERE TO CONTINUE</div>
-				{/if}
-			</div>
+		<div class="gate" style:padding="{SZ.pad}px">
+			{#if assetsFailed}
+				<!-- same stencil style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
+				<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM · TAP TO RETRY</div>
+			{:else if !ready}
+				<div class="bar" style:width="{SZ.barW}px" style:height="{SZ.barH}px">
+					<div class="fill" style:width="{Math.max(4, progress)}%"></div>
+				</div>
+				<div class="pct" style:font-size="{Math.max(10, SZ.tag * 0.8)}px">{loadingLabel} · {progress}%</div>
+			{:else}
+				<div class="pressText" style:font-size="{SZ.press}px">PRESS ANYWHERE TO CONTINUE</div>
+			{/if}
 		</div>
 	</div>
 </div>
@@ -146,19 +189,15 @@
 		pointer-events: none;
 		z-index: 2;
 	}
-	.col {
+	.card {
 		position: absolute;
-		inset: 0;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: space-between;
-	}
-	.logo {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 8px;
+		left: 0;
+		top: 0;
+		transform-origin: 50% 50%;
+		transition:
+			transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1),
+			opacity 0.4s ease;
+		will-change: transform;
 	}
 	.shine-host {
 		position: relative;
@@ -170,17 +209,24 @@
 		width: 100%;
 		height: auto;
 	}
-	.tag {
-		/* branded-glyph tagline in place of the old text; width tracks the tag font size it replaced (~12x) */
-		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+	/* the logo is centre-anchored on its slot: `top` is the centre y, the transform lifts it half its height */
+	.logo {
+		position: absolute;
+		transform: translateY(-50%);
+		z-index: 4;
 	}
 	.gate {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 8px;
 		min-height: 56px;
 		justify-content: flex-end;
+		z-index: 5;
 	}
 	.bar {
 		border-radius: 6px;
@@ -221,6 +267,9 @@
 	@media (prefers-reduced-motion: reduce) {
 		.pressText {
 			animation: none;
+		}
+		.card {
+			transition: none;
 		}
 	}
 </style>
