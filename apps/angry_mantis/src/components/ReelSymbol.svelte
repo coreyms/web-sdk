@@ -6,11 +6,11 @@
 	import Symbol from './Symbol.svelte';
 	import SymbolWrap from './SymbolWrap.svelte';
 	import { getSymbolInfo, getSymbolX } from '../game/utils';
-	import { SYMBOL_SIZE, CELL_FILL, BOARD_DIMENSIONS, HIGH_LAND, GRAVITY_DROP, TIMINGS } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, BOARD_DIMENSIONS, HIGH_LAND, GRAVITY_DROP, SCATTER_LAND, TIMINGS } from '../game/constants';
 	import { glintTexture, GLINT_TEX_W, GLINT_CORE } from '../game/glintTexture';
 	import { dustFrames, DUST_SHEET } from '../game/dustTexture';
 	import { getContext } from '../game/context';
-	import { isAnteLockedSymbol, stateGame, type ReelSymbol } from '../game/stateGame.svelte';
+	import { isAnteLockedSymbol, stateGame, stateGameDerived, type ReelSymbol } from '../game/stateGame.svelte';
 	import { bellPose } from '../game/bell';
 
 	type Props = {
@@ -58,12 +58,42 @@
 	});
 
 	// winFocus rows are in symbols[] index space (padding included): symbolIndexOfBoard = row - 1
+	// a lit scatter never dims — a triggering spin can carry line wins whose focus dim would
+	// otherwise grey the set between the wrap-up sweep and the trigger's grow
+	const litScatter = $derived(stateGame.scatterSet !== null && props.reelSymbol.rawSymbol.name === 'S');
 	const dim = $derived(
-		stateGame.winFocus !== null &&
+		(stateGame.winFocus !== null &&
+			!litScatter &&
 			!stateGame.winFocus.some(
 				(p) => p.reel === props.reelIndex && p.row - 1 === props.reelSymbol.symbolIndexOfBoard,
-			),
+			)) ||
+			// lights down (SCATTER_LAND): from the third scatter until the trigger's grow, every
+			// non-scatter tile sits at the win-focus dim so the scatters are the only lit things
+			(stateGame.scatterSet !== null && props.reelSymbol.rawSymbol.name !== 'S'),
 	);
+
+	// Scatter arrival (SCATTER_LAND): the strip lands with this cell EMPTY — the reel's own tile
+	// hides while ScatterDrop.svelte slaps the card down above the frame — and the scatter's real
+	// landing beat starts on the frame the drop is done (scatterDropDone → scatterContact).
+	const isVisibleRow = $derived(props.reelSymbol.symbolIndexOfBoard >= 0 && props.reelSymbol.symbolIndexOfBoard < BOARD_DIMENSIONS.y);
+	const presenting = $derived(
+		stateGame.scatterDrops.some((p) => p.reel === props.reelIndex && p.row === props.reelSymbol.symbolIndexOfBoard),
+	);
+	// the reel's scatter tile is never seen in the strip: hidden from the fall-in through the slap
+	// (it rode the strip down, vanished at contact and slapped back in — Corey 2026-09-11). The
+	// ante-held scatter is exempt: its reel's other rows fall while it stays put.
+	const hiddenForSlap = $derived(
+		props.reelSymbol.rawSymbol.name === 'S' &&
+			isVisibleRow &&
+			!isAnteLockedSymbol(props.reelIndex, props.reelSymbol.symbolIndexOfBoard) &&
+			(presenting || stateGame.board[props.reelIndex].reelState.motion === 'fallingIn'),
+	);
+	let wasPresenting = false;
+	$effect(() => {
+		const now = presenting;
+		if (wasPresenting && !now && props.reelSymbol.rawSymbol.name === 'S') startLandBeat(true);
+		wasPresenting = now;
+	});
 
 	// Landing beat, kicked from the 'land' → 'static' hand-off below, which fires exactly once per
 	// landing, at first contact. Every visible cell gets the gravity-drop beat (GRAVITY_DROP): a
@@ -77,27 +107,30 @@
 	// component is reused for whatever tile fills the cell, and a beat still running would otherwise
 	// glint with the new name (a W/GL there asked for W_insect.png — no such frame, console error
 	// on every fast free spin that followed a high-symbol landing; found 2026-09-09).
-	let beat = $state<{ name: string; gs: number; dust: number; sq: number; gl: number } | null>(null);
+	let beat = $state<{ name: string; gs: number; dust: number; sq: number; gl: number; sc: boolean; fl: number } | null>(null);
 	let beatRaf = 0;
-	const startLandBeat = () => {
+	// scatter = the card has just been slapped down (no settle wait: the drop IS the contact;
+	// heavier slam, white card flash, wider dust — SCATTER_LAND)
+	const startLandBeat = (scatter = false) => {
 		const row = props.reelSymbol.symbolIndexOfBoard;
 		if (row < 0 || row >= BOARD_DIMENSIONS.y) return;
 		const name = props.reelSymbol.rawSymbol.name;
 		const high = HIGH_LAND.symbols.includes(name);
 		if (high) devCount('highLandings');
 		const opts = stateGame.board[props.reelIndex].reelState.spinOptions();
-		const settleMs = (SYMBOL_SIZE * opts.symbolFallInBounceSizeMulti) / opts.symbolFallInBounceSpeed;
+		const settleMs = scatter ? 0 : (SYMBOL_SIZE * opts.symbolFallInBounceSizeMulti) / opts.symbolFallInBounceSpeed;
 		const ts = stateBetDerived.timeScale();
 		const gsMs = (GRAVITY_DROP.squashMs + GRAVITY_DROP.settleMs) / ts;
 		const dustMs = GRAVITY_DROP.dustMs / ts;
 		const sqMs = TIMINGS.highLandSquash / ts;
 		const glMs = TIMINGS.highLandGlint / ts;
+		const flMs = scatter ? TIMINGS.scatterFlash / ts : 0;
 		const highMs = high ? gsMs + Math.max(sqMs, glMs) : 0;
 		const t0 = performance.now() + settleMs;
 		cancelAnimationFrame(beatRaf);
 		const step = (now: number) => {
 			const t = now - t0;
-			if (t >= Math.max(gsMs, dustMs, highMs)) {
+			if (t >= Math.max(gsMs, dustMs, highMs, flMs)) {
 				beat = null;
 				beatRaf = 0;
 				return;
@@ -110,6 +143,8 @@
 					dust: Math.min(1, t / dustMs),
 					sq: high && th >= 0 ? Math.min(1, th / sqMs) : 1,
 					gl: high && th >= 0 ? Math.min(1, th / glMs) : 1,
+					sc: scatter,
+					fl: scatter ? Math.min(1, t / flMs) : 1,
 				};
 			}
 			beatRaf = requestAnimationFrame(step);
@@ -134,10 +169,14 @@
 		return -Math.sin(Math.PI * ((gs - split) / (1 - split))) * GRAVITY_DROP.squash * GRAVITY_DROP.settleRatio;
 	};
 	const squash = $derived.by(() => {
-		if (!beat) return { x: 1, y: 1 };
+		const lift = fx.lift * grow;
+		if (!beat) return { x: lift, y: lift };
 		const g = beat.gs < 1 ? gravitySquash(beat.gs) : 0;
 		const h = beat.sq < 1 ? 1 - easeOut(beat.sq) : 0;
-		return { x: (1 + g) * (1 + HIGH_LAND.squashX * h), y: (1 - g) * (1 - HIGH_LAND.squashY * h) };
+		// the scatter slam rides the gravity bump: same curve, SCATTER_LAND.squash* on top
+		const gx = beat.sc ? g * (1 + SCATTER_LAND.squashX / GRAVITY_DROP.squash) : g;
+		const gy = beat.sc ? g * (1 + SCATTER_LAND.squashY / GRAVITY_DROP.squash) : g;
+		return { x: (1 + gx) * (1 + HIGH_LAND.squashX * h) * lift, y: (1 - gy) * (1 - HIGH_LAND.squashY * h) * lift };
 	});
 	// dust: one frame of Corey's sheet per sixth of dustMs, bottom-centre on the tile's lower edge
 	// (the frame's own transparent margin hangs below it), fading through the last third
@@ -146,7 +185,7 @@
 		const frames = dustFrames(context.stateApp.loadedAssets?.dustPoof as PIXI.Texture | undefined);
 		if (!frames.length) return null;
 		const age = beat.dust;
-		const w = tileSize * GRAVITY_DROP.dustWidth;
+		const w = tileSize * (beat.sc ? SCATTER_LAND.dustWidth : GRAVITY_DROP.dustWidth);
 		const h = (w * DUST_SHEET.frameH) / DUST_SHEET.frameW;
 		const fade = age < GRAVITY_DROP.dustFadeFrom ? 1 : (1 - age) / (1 - GRAVITY_DROP.dustFadeFrom);
 		return {
@@ -158,6 +197,121 @@
 		};
 	});
 	const showGlint = $derived(beat !== null && beat.gl < 1);
+
+	// ---- the lit set (SCATTER_LAND, 3rd scatter and up) ----
+	// One rAF per member cell while stateGame.scatterSet is up: the hot rim (breathing from the
+	// first hit until the sweep reaches this card), the lift + warm wash on a card that landed as a
+	// 3rd+, the card flash on every hit, the link flash that puts the card out, and the accent.
+	// All of it is alpha/scale on always-mounted nodes; nothing is redrawn per frame.
+	let fx = $state({ rim: 0, lit: 0, flash: 0, lift: 1 });
+	let fxRaf = 0;
+	let rimFrom = 0; // when this card joined the set (its own first hit)
+	const member = $derived.by(() => {
+		const set = stateGame.scatterSet;
+		if (!set) return null;
+		const i = set.order.findIndex((p) => p.reel === props.reelIndex && p.row === props.reelSymbol.symbolIndexOfBoard);
+		return i < 0 ? null : { i, lift: set.order[i].lift, set };
+	});
+	$effect(() => {
+		const m = member;
+		cancelAnimationFrame(fxRaf);
+		fxRaf = 0;
+		if (!m || props.reelSymbol.rawSymbol.name !== 'S') {
+			fx = { rim: 0, lit: 0, flash: 0, lift: 1 };
+			rimFrom = 0;
+			return;
+		}
+		const ts = stateBetDerived.timeScale();
+		const flashMs = TIMINGS.scatterFlash / ts;
+		const sweepFlashMs = SCATTER_LAND.sweepFlashMs / ts;
+		const step = (now: number) => {
+			const set = m.set;
+			if (!rimFrom) rimFrom = set.hitAt;
+			const off = set.sweepAt === null ? Infinity : set.sweepAt + (m.i * SCATTER_LAND.sweepStaggerMs) / ts;
+			const breath = Math.sin((now - rimFrom) / (SCATTER_LAND.rimPeriodMs / ts));
+			const out = now >= off;
+			const ramp = Math.min(1, (now - rimFrom) / (SCATTER_LAND.rimRampMs / ts));
+			const rim = out ? 0 : ramp * (0.55 + 0.35 * breath);
+			let lift = 1;
+			let lit = 0;
+			if (m.lift && !out) {
+				const q = Math.min(1, Math.max(0, (now - rimFrom - SCATTER_LAND.holdDelayMs / ts) / (SCATTER_LAND.holdMs / ts)));
+				lift = 1 + (SCATTER_LAND.holdScale - 1) * easeOut(q);
+				lit = SCATTER_LAND.litAlpha + 0.08 * breath;
+			}
+			let flash = 0;
+			const hit = (now - set.hitAt) / flashMs;
+			if (hit >= 0 && hit < 1) flash = SCATTER_LAND.flashAlpha * (1 - hit);
+			const link = (now - off) / sweepFlashMs;
+			if (link >= 0 && link < 1) flash = Math.max(flash, 0.6 * (1 - link));
+			const accent = set.accentAt === null ? -1 : (now - set.accentAt) / sweepFlashMs;
+			if (accent >= 0 && accent < 1) flash = Math.max(flash, SCATTER_LAND.flashAlpha * (1 - accent));
+			fx = { rim, lit, flash, lift };
+			// everything is out and the accent has faded: nothing left to animate until the set clears
+			if (out && accent >= 1) {
+				fxRaf = 0;
+				return;
+			}
+			fxRaf = requestAnimationFrame(step);
+		};
+		fxRaf = requestAnimationFrame(step);
+		return () => cancelAnimationFrame(fxRaf);
+	});
+	// the trigger's grow (SCATTER_LAND.grow*): up to growScale over growMs, then a slow breath
+	// around it until the door has closed (stateGame.scatterGrowAt is cleared with the set)
+	let grow = $state(1);
+	let growRaf = 0;
+	$effect(() => {
+		const at = stateGame.scatterGrowAt;
+		cancelAnimationFrame(growRaf);
+		growRaf = 0;
+		if (!at || props.reelSymbol.rawSymbol.name !== 'S' || !isVisibleRow) {
+			grow = 1;
+			return;
+		}
+		const ts = stateBetDerived.timeScale();
+		const upMs = SCATTER_LAND.growMs / ts;
+		const step = (now: number) => {
+			const t = now - at;
+			const up = easeOut(Math.min(1, Math.max(0, t / upMs)));
+			const breath = t > upMs ? Math.sin(((t - upMs) / 1000) * 2 * Math.PI * SCATTER_LAND.breathHz) : 0;
+			grow = 1 + (SCATTER_LAND.growScale - 1) * up + SCATTER_LAND.breathAmp * breath;
+			growRaf = requestAnimationFrame(step);
+		};
+		growRaf = requestAnimationFrame(step);
+		return () => cancelAnimationFrame(growRaf);
+	});
+	// the card flash: the landing beat's own (beat.fl) or the set's (hits, link, accent)
+	const flashAlpha = $derived(Math.max(beat && beat.sc && beat.fl < 1 ? SCATTER_LAND.flashAlpha * (1 - beat.fl) : 0, fx.flash));
+	const cardRadius = tileSize * 0.06;
+	// the well darkens from wellAlphaFrom to wellAlphaTo across the slap (the presenting window)
+	let wellAlpha = $state(SCATTER_LAND.wellAlphaFrom);
+	let wellRaf = 0;
+	$effect(() => {
+		cancelAnimationFrame(wellRaf);
+		wellRaf = 0;
+		if (!presenting) {
+			wellAlpha = SCATTER_LAND.wellAlphaFrom;
+			return;
+		}
+		const t0 = performance.now();
+		const total = (SCATTER_LAND.slapDelayMs + SCATTER_LAND.slapMs) / stateBetDerived.timeScale();
+		const step = (now: number) => {
+			const q = Math.min(1, (now - t0) / total);
+			wellAlpha = SCATTER_LAND.wellAlphaFrom + (SCATTER_LAND.wellAlphaTo - SCATTER_LAND.wellAlphaFrom) * q * q;
+			if (q < 1) wellRaf = requestAnimationFrame(step);
+		};
+		wellRaf = requestAnimationFrame(step);
+		return () => cancelAnimationFrame(wellRaf);
+	});
+	const drawFlash = (g: PIXI.Graphics) => g.roundRect(-tileSize / 2, -tileSize / 2, tileSize, tileSize, cardRadius).fill({ color: 0xfff8e6 });
+	const drawLit = (g: PIXI.Graphics) => g.roundRect(-tileSize / 2, -tileSize / 2, tileSize, tileSize, cardRadius).fill({ color: SCATTER_LAND.litColor });
+	// three concentric strokes stand in for a glow (no filters): wide + faint, mid, hot core
+	const drawRim = (g: PIXI.Graphics) => {
+		for (const [w, a] of [[14, 0.12], [8, 0.25], [3, 0.9]] as const) {
+			g.roundRect(-tileSize / 2, -tileSize / 2, tileSize, tileSize, cardRadius).stroke({ width: w, color: SCATTER_LAND.rimColor, alpha: a });
+		}
+	};
 	// DEV: __angryMantis.landBeat counts high-symbol landings vs glint frames actually drawn, so a
 	// harness can prove the beat still fires (screenshots cannot catch a 320 ms sweep headless)
 	const devCount = (key: 'highLandings' | 'glintFrames') => {
@@ -210,18 +364,25 @@
 	animating={props.reelSymbol.symbolState === 'win'}
 	{dim}
 >
+	<!-- the scatter's shadow: its own card shape tinted black rides the strip down in its cell and
+	     darkens as the slap closes in (SCATTER_LAND.well*) -->
+	<Sprite anchor={0.5} key="S.png" tint={0x000000} width={tileSize} height={tileSize} alpha={wellAlpha} visible={hiddenForSlap} />
 	<Container scale={squash} rotation={props.reelSymbol.symbolRot.current}>
 		<!-- the resting tile hides while the bell rings: the press frames squash and rock, and the
 		     still frame 1 underneath showed around their edges (Corey 2026-09-10) -->
-		<Container visible={ring === null}>
+		<Container visible={ring === null && !hiddenForSlap}>
 			<Symbol
 				state={props.reelSymbol.symbolState}
 				rawSymbol={props.reelSymbol.rawSymbol}
+				holdGrow={props.reelSymbol.rawSymbol.name === 'S' && stateGame.scatterGrowHold}
 				oncomplete={() => {
 					if (props.reelSymbol.symbolState === 'win') props.reelSymbol.oncomplete();
 					if (props.reelSymbol.symbolState === 'land') {
 						props.reelSymbol.symbolState = 'static';
-						startLandBeat();
+						// a visible scatter's landing is its slap (ScatterDrop), not the strip contact
+						if (props.reelSymbol.rawSymbol.name === 'S' && isVisibleRow) {
+							stateGameDerived.scatterDropStart({ reel: props.reelIndex, row: props.reelSymbol.symbolIndexOfBoard });
+						} else startLandBeat();
 					}
 				}}
 			/>
@@ -231,6 +392,11 @@
 			<Graphics draw={drawGlint} />
 			<Sprite anchor={0.5} key="{beat?.name}_insect.png" width={tileSize} height={tileSize} />
 		{/if}
+		<!-- scatter card light (SCATTER_LAND): warm wash while lifted, white flash, additive hot rim;
+		     always mounted, alpha-driven, drawn once -->
+		<Graphics draw={drawLit} alpha={fx.lit} visible={fx.lit > 0} />
+		<Graphics draw={drawFlash} alpha={flashAlpha} visible={flashAlpha > 0} />
+		<Graphics draw={drawRim} alpha={fx.rim} visible={fx.rim > 0} blendMode="add" />
 		{#if ring !== null}
 			{@const pose = bellPose(ring, TIMINGS.ring)}
 			<!-- Service Bell press frames over the resting tile (same size, fully covers it), squashing

@@ -28,6 +28,7 @@
 	import DoorSteel from './DoorSteel.svelte';
 	import MartyArt from './MartyArt.svelte';
 	import Board from './Board.svelte';
+	import ScatterDrop from './ScatterDrop.svelte';
 	import Win from './Win.svelte';
 	import ComboWin from './ComboWin.svelte';
 	import BonusIntro from './BonusIntro.svelte';
@@ -188,6 +189,8 @@
 			<ReflectSource />
 			<Board />
 		</MainContainer>
+		<!-- scatter cards slapped down over the frame (SCATTER_LAND): above the board, under the door -->
+		<ScatterDrop />
 
 		<!-- steel roll-down door: covers the frame window during transitions (doorClose/doorOpen) -->
 		<DoorSteel />

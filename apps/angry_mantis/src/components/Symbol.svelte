@@ -10,10 +10,11 @@
 		rawSymbol: RawSymbol;
 		oncomplete?: () => void;
 		loop?: boolean;
+		holdGrow?: boolean;
 	};
 
 	const props: Props = $props();
 	const symbolInfo = $derived(getSymbolInfo({ rawSymbol: props.rawSymbol, state: props.state }));
 </script>
 
-<SymbolSprite {symbolInfo} x={props.x} y={props.y} state={props.state} oncomplete={props.oncomplete} />
+<SymbolSprite {symbolInfo} x={props.x} y={props.y} state={props.state} oncomplete={props.oncomplete} holdGrow={props.holdGrow} />

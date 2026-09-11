@@ -179,6 +179,7 @@ export const TIMINGS = {
 	retrigger: 1300, // gold-art banner needs a readable beat (was 800 as plain text)
 	highLandSquash: 180, // high-symbol landing beat (Corey 2026-09-05, picked from the comparison artifact)
 	highLandGlint: 320,
+	scatterFlash: 160, // scatter landing: the white card flash on contact (SCATTER_LAND)
 };
 
 // Dark wash over the cafeteria backdrops (Background.svelte) so the board and chrome read on
@@ -202,6 +203,69 @@ export const HIGH_LAND = {
 	trayRadius: 0.265,
 	trayCenterY: -0.013,
 };
+
+// Scatter landing beat (Corey 2026-09-11, picked from the scatter-landing artifact). A Marky
+// scatter never lands as part of the reel strip: the strip refills with its cell EMPTY, settles,
+// and the card is then SLAPPED down from the front (ScatterDrop.svelte, a layer above the frame:
+// 1.6× → 1.0 on a quad-in, fading in over the first 60 ms, its contact shadow closing under it).
+// On contact the cell runs the gravity beat with a heavier slam, a white card flash, wider dust,
+// the count's landing sound and a screen kick that climbs with the scatter count. From the THIRD
+// scatter of a base-game spin, every scatter on the board joins a lit set: a board-window
+// flashbulb, every card flashes and takes a breathing hot rim, the new card lifts, and every
+// other tile dims (the win-focus dim). The set stays lit while the remaining reels finish — a
+// fourth or fifth joins it with its own hit — and once the last reel is down the wrap-up sweep
+// runs left to right putting out each card's rim and lift; as it leaves the last card every
+// scatter flashes together and the trigger's grow follows straight on it, HELD until the bonus
+// door has closed over the board. The ante-held scatter fires no land event, so it gets no beat
+// after its first landing and never re-sounds (the same rule the sound always followed).
+// All durations are divided by stateBetDerived.timeScale() (turbo 2.2, instant 4).
+export const SCATTER_LAND = {
+	// the well: the scatter's own SHADOW (its texture tinted black, so the exact card shape) rides
+	// down in its cell with the strip at wellAlphaFrom and darkens to wellAlphaTo over the slap,
+	// as if the card were closing in on it (Corey 2026-09-11: "40% black in the scatter's exact
+	// shape, darker as the scatter is about to drop"). The flying card's contact shadow
+	// (ScatterDrop) is the same silhouette, so the two merge on the frame it lands.
+	wellAlphaFrom: 0.4,
+	wellAlphaTo: 0.85,
+	dropShadowAlpha: 0.35, // under the flying card, fading in with it
+	dropShadowGrow: 0.2, // at the top of the slap the shadow is this much wider than the FLYING card
+	dropShadowDrop: 0.35, // and thrown this many tiles below it (a high card casts a displaced shadow)
+	slapDelayMs: 120, // after the strip settles, before the card comes down
+	slapMs: 200, // 1.6× → 1.0, quadIn
+	slapFrom: 1.6,
+	slapFadeMs: 60,
+	squashX: 0.18, // slam on top of GRAVITY_DROP.squash (wide)
+	squashY: 0.26, // and short
+	flashAlpha: 0.8, // white card flash on contact, over TIMINGS.scatterFlash
+	dustWidth: 2.0, // vs GRAVITY_DROP.dustWidth 1.35
+	kick: [2, 4, 6, 9, 12], // master px by scatter count 1..5 (game/screenKick.ts)
+	// the lit set (3rd scatter and up, base game only)
+	bulbAlpha: 0.45, // board-window flashbulb
+	bulbMs: 110,
+	dimMs: 180, // lights down on every non-scatter tile (SymbolWrap's 0.35 dim)
+	rimRampMs: 80, // hot rim fade-in; then breathes 0.55 ± 0.35 on a ~140 ms sine
+	rimPeriodMs: 140,
+	rimColor: 0xffdc8c,
+	holdScale: 1.1, // the new card lifts to this (120 ms in, after a 120 ms beat)
+	holdDelayMs: 120,
+	holdMs: 120,
+	litAlpha: 0.22, // warm wash on a lifted card while it holds (± 0.08 on the rim's sine)
+	litColor: 0xff7850,
+	// the wrap-up, once every reel is down
+	sweepDelayMs: 320, // a breath after the last reel lands
+	sweepStaggerMs: 60, // left to right, per card
+	sweepFlashMs: 180, // the link flash that puts each card out
+	accentDelayMs: 60, // after the sweep reaches the last card: every scatter flashes together
+	growDelayMs: 80, // and the trigger's grow follows (freeSpinTrigger → animateSymbols)
+	// the grow lives on the cell's container (ReelSymbol), not the sprite: SymbolWrap remounts the
+	// sprite when a tile leaves its 'win' layer, which snapped a sprite-held grow back to 1
+	// (Corey 2026-09-11, seen in slow motion). Up to growScale, then a slow breath around it at
+	// the bell halo's rate until the door has closed over the board.
+	growScale: 1.06,
+	growMs: 175, // TIMINGS.symbolWin / 2, the old pulse's rise
+	breathAmp: 0.02, // ± around growScale
+	breathHz: 0.9, // BELL_GLOW.pulseHz
+} as const;
 
 // Where the AUDIBLE transient sits inside an sfx clip (measured from the sources 2026-09-01).
 // A clip is fired this many ms EARLY so its attack lands on the visual beat it scores, instead of
@@ -328,7 +392,7 @@ export const SYMBOL_INFO_MAP: Record<SymbolName, Record<SymbolState, SymbolInfo>
 	L3: symbolStates('L3'),
 	L4: symbolStates('L4'),
 	W: symbolStates('W', 1.0),
-	S: symbolStates('S', 1.0),
+	S: symbolStates('S'), // tray size (was 1.0: the square card read 3.5% bigger than the trays, Corey 2026-09-11)
 	GL: symbolStates('GL', 1.0),
 };
 

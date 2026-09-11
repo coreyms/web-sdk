@@ -15,6 +15,9 @@
 		symbolInfo: SymbolInfo;
 		state?: SymbolState;
 		oncomplete?: () => void;
+		// the trigger's grow (SCATTER_LAND): the cell's container grows and breathes instead
+		// (ReelSymbol), so this sprite skips its own pulse and just reports the beat done
+		holdGrow?: boolean;
 	};
 
 	const props: Props = $props();
@@ -32,6 +35,12 @@
 	const runState = async (state?: SymbolState) => {
 		const id = ++runId;
 		if (state === 'win') {
+			if (props.holdGrow) {
+				await waitForTimeout(TIMINGS.symbolWin);
+				if (id !== runId) return;
+				props.oncomplete?.();
+				return;
+			}
 			pulse.set(1.06);
 			await waitForTimeout(TIMINGS.symbolWin / 2);
 			if (id !== runId) return;

@@ -25,6 +25,7 @@
 	import BoardMask from './BoardMask.svelte';
 	import Anticipations from './Anticipations.svelte';
 	import BoardBase from './BoardBase.svelte';
+	import ScatterBulb from './ScatterBulb.svelte';
 	import { checkBoardGrid } from '../game/boardGrid';
 
 	const context = getContext();
@@ -85,6 +86,7 @@
 			context.stateGameDerived.enhancedBoard.rush();
 		},
 		boardSettle: ({ board }) => {
+			context.stateGameDerived.clearScatterFx();
 			context.stateGameDerived.enhancedBoard.settle(board);
 			guardGrid();
 		},
@@ -145,6 +147,8 @@
 			     symbols (zIndex -1) and the light spill over them (30) — moved in from Game.svelte 2026-09-08 -->
 			<Anticipations />
 			<BoardBase />
+			<!-- the mugshot flashbulb on a 3rd+ scatter (SCATTER_LAND): the whole window, over everything here -->
+			<ScatterBulb />
 		</BoardContainer>
 	</BoardContext>
 

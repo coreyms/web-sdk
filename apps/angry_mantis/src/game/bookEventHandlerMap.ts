@@ -147,7 +147,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// (code-review 2026-08-31)
 			stateGame.antePrevLocked = false;
 		}
+		// nothing scatter-side outlives the previous round (SCATTER_LAND: drops, the lit set, the held grow)
+		stateGameDerived.clearScatterFx();
 		await stateGameDerived.enhancedBoard.spin({ revealEvent });
+		// a scatter's landing is its slap, which outlives the strip: the board is not complete
+		// until every card has hit (the lit set's wrap-up itself runs at freeSpinTrigger)
+		await stateGameDerived.scatterDropsSettled();
+		stateGameDerived.scatterTrace('revealDone');
 		eventEmitter.broadcast({ type: 'soundStop', name: 'sfx_reel_spin' });
 		eventEmitter.broadcast({ type: 'boardCheckGrid' });
 		eventEmitter.broadcast({ type: 'soundScatterCounterClear' });
@@ -174,6 +180,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			.slice(idx + 1)
 			.find((e): e is BookEventOfType<'setTotalWin'> => e.type === 'setTotalWin');
 		if (upcomingTotal) stateBet.winBookEventAmount = upcomingTotal.amount;
+		stateGameDerived.scatterTrace('winInfo', { wins: bookEvent.wins.length });
 		const lit: Position[] = [];
 		for (const [i, win] of bookEvent.wins.entries()) {
 			lit.push(...win.positions);
@@ -205,9 +212,21 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (stateGame.autoStopOnFreeGames && stateBet.autoSpinsCounter > 0) {
 			stateBet.autoSpinsCounter = 0;
 		}
+		// the lit set's wrap-up (SCATTER_LAND): a breath, the left-to-right sweep that puts each
+		// card out, the all-together accent — and the grow below lands straight on it
+		await stateGameDerived.scatterWrapUp();
 		// the fanfare belongs to THIS beat — the scatters pulsing — not to the door that follows
 		const scatters = Math.max(3, Math.min(5, bookEvent.positions.length)) as 3 | 4 | 5;
 		eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND_MAP[scatters] });
+		// the grow: the lights come back up with it (the lit set ends here — its rims are already
+		// out after the wrap-up sweep) and the scatters STAY grown until the door has closed
+		stateGame.scatterSet = null;
+		stateGame.scatterGrowHold = true;
+		stateGame.scatterGrowAt = performance.now();
+		if (import.meta.env.DEV && typeof window !== 'undefined') {
+			const am = ((window as any).__angryMantis ??= {});
+			(am.scatterTrace ??= []).push({ t: Math.round(performance.now()), event: 'grow' });
+		}
 		await animateSymbols({ positions: bookEvent.positions });
 		stateGame.totalFs = bookEvent.totalFs;
 		// the bonusStart event that follows plays the mode-specific intro
@@ -229,6 +248,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// on top of it, and the board swaps to the freegame reels behind it
 		doorPaintIntro(bookEvent.mode, bookEvent.totalFs);
 		await eventEmitter.broadcastAsync({ type: 'doorClose' });
+		// the grown scatters are behind the closed door now: release them (unseen)
+		stateGameDerived.clearScatterFx();
 		// gameType flips HERE, before the music pick — modeMusic() reads it, so flipping it only
 		// after the intro started every bonus on bgm_base, and only a WINNING free spin's
 		// winLevelSoundsStop ever corrected it (zero-win bonuses and snapshot resumes never did).
