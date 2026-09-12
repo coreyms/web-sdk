@@ -28,6 +28,7 @@
 	import { TIMINGS, SYMBOL_SIZE, CELL_FILL, RIG, SFX_TRANSIENT, reactionPoolFor, reactionVoice, strikeVoice, eatVoice } from '../game/constants';
 	import { bellPose } from '../game/bell';
 	import { BELL_GLOW, bellGlowPose, bellHaloTexture, bellRaysTexture, bellRingTexture } from '../game/bellGlow';
+	import { eatFreezeTexture, heroPoseTexture, playHeroEatPose, stopHeroPose } from '../game/symbolPoses.svelte';
 	import { MARTY, MASTER, layoutKind, martyFor, poolIconFor } from '../game/layoutSpec';
 	import config from '../game/config';
 	import type { Rig } from '../bonerutter';
@@ -285,6 +286,10 @@
 				trayMove.set({ x: icon.x, y: icon.y, s: icon.size / (SYMBOL_SIZE * CELL_FILL) }, { duration: 0 });
 				if (heroBell) bellFade.set(0);
 				await trayMove.set({ x: layout.x, y: layout.y, s: TRAY_HERO });
+				// front and centre: NOW the course cowers (only the hero tray plays the eat clip, the
+				// board tiles do not) — it reaches its freeze frame well before the claw lands
+				// TIMINGS.strike from here
+				playHeroEatPose(symbol);
 			}
 			// speed maps the claw impact onto TIMINGS.strike; the 2s recovery/chomp tail keeps
 			// playing under the eat phase and hands back to idle on its own
@@ -375,6 +380,7 @@
 			eating = null;
 			heroTray = null;
 			context.stateGame.servingSymbol = null; // the eat event has marked the pool by now
+			stopHeroPose();
 			heroBell = false;
 			spotlight = false;
 			busy[striker] = false;
@@ -426,7 +432,15 @@
 			{#if eating?.striker === name}
 				{#if eating.symbol}
 					{#if !chomp}
-						<Sprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} key="{eating.symbol}_insect.png" />
+						{@const frozen = eatFreezeTexture(eating.symbol)}
+						<!-- an insect with an eat pose (SYMBOL_POSES) is carried off on the FROZEN LAST FRAME
+						     of that clip — the fly leaves with its eyes covered, not in its idle pose. The
+						     frame is fitted to the same tile space as the still, so nothing shifts. -->
+						{#if frozen}
+							<BaseSprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} texture={frozen} />
+						{:else}
+							<Sprite anchor={0.5} x={fly.current.x} y={fly.current.y} width={90 * fly.current.s} height={90 * fly.current.s} key="{eating.symbol}_insect.png" />
+						{/if}
 					{/if}
 				{:else}
 					<GameText y={-140} text="..."  preset="silver" size={36} />
@@ -461,7 +475,15 @@
 			<Circle x={0} y={SYMBOL_SIZE * CELL_FILL * 0.42} diameter={SYMBOL_SIZE * CELL_FILL} backgroundColor={0x000000} backgroundAlpha={0.35} anchor={0.5} scale={{ x: 1, y: 0.32 }} />
 			<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{heroTray}_eaten.png" />
 			{#if !eating}
-				<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{heroTray}_insect.png" />
+				{@const frozen = heroPoseTexture(heroTray)}
+				<!-- the served course plays the eat clip once it is front and centre and holds its freeze
+				     frame, the same frame the pluck carries away, so the tray-to-flight hand-off is the
+				     identical drawing -->
+				{#if frozen}
+					<BaseSprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} texture={frozen} />
+				{:else}
+					<Sprite anchor={0.5} width={SYMBOL_SIZE * CELL_FILL} height={SYMBOL_SIZE * CELL_FILL} key="{heroTray}_insect.png" />
+				{/if}
 			{/if}
 		</Container>
 	{/if}

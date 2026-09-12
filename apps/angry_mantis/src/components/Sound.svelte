@@ -22,7 +22,7 @@
 	import { onMount } from 'svelte';
 
 	import { getContext } from '../game/context';
-	import { stateSound, stateSoundDerived, stateBetDerived } from 'state-shared';
+	import { stateSound, stateSoundDerived } from 'state-shared';
 
 	const context = getContext();
 
@@ -54,9 +54,11 @@
 			if (typeof saved.music === 'number') stateSound.volumeValueMusic = saved.music;
 			if (typeof saved.sfx === 'number') stateSound.volumeValueSoundEffect = saved.sfx;
 			if (typeof saved.master === 'number') stateSound.volumeValueMaster = saved.master;
+			// the saved level is the BASE level; a resumed bonus keeps its normal speed (the live level
+			// follows only outside a bonus — bonusStart zeroes it either way, whichever runs first)
 			if ([0, 1, 2].includes(saved.turbo)) {
-				context.stateGame.turboLevel = saved.turbo;
-				stateBetDerived.updateIsTurbo(saved.turbo > 0, { persistent: true });
+				context.stateGame.baseTurboLevel = saved.turbo;
+				if (context.stateGame.gameType !== 'freegame') context.stateGameDerived.setTurboLevel(saved.turbo);
 			}
 		} catch {}
 	});
@@ -65,7 +67,7 @@
 			music: stateSound.volumeValueMusic,
 			sfx: stateSound.volumeValueSoundEffect,
 			master: stateSound.volumeValueMaster,
-			turbo: context.stateGame.turboLevel,
+			turbo: context.stateGame.baseTurboLevel,
 		};
 		try {
 			localStorage.setItem(STORE, JSON.stringify(data));

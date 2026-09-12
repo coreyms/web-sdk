@@ -5,7 +5,7 @@ import { createEnhanceBoard, createReelForCascading } from 'utils-slots';
 import { createGetWinLevelDataByWinLevelAlias } from 'utils-shared/winLevel';
 import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 
-import type { GameType, RawSymbol, BonusMode, BonusHost, PayingSymbolName, Position } from './types';
+import type { GameType, RawSymbol, BonusMode, BonusHost, PayingSymbolName, Position, Scene } from './types';
 import { stateLayoutDerived } from './stateLayout';
 import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
@@ -133,6 +133,11 @@ export const stateGame = $state({
 	eatenSymbols: [] as PayingSymbolName[],
 	strikeCount: 0,
 	turboLevel: 0 as 0 | 1 | 2, // 0 off · 1 turbo · 2 instant (see controls.turboPress)
+	// the level the player chose for base / ante / mystery play. Turbo is remembered PER WORLD:
+	// every bonus starts at normal speed (bonusStart), a turbo press during the bonus only lasts
+	// that bonus, and freeSpinEnd hands the base level back (Corey 2026-09-12). This is the level
+	// that persists between sessions (Sound.svelte), never the live one.
+	baseTurboLevel: 0 as 0 | 1 | 2,
 	// autoplay loadout on the spin button (pressing Spin starts it); flags of the RUNNING autoplay:
 	// stop-on-free-games (checked by the freeSpinTrigger book event handler) and autoplay-bonuses
 	// (door screens self-continue — see autoBonusesRunning above)
@@ -157,6 +162,11 @@ export const stateGame = $state({
 	scatterGrowHold: false, // the trigger's win grow stays up until the door has closed
 	scatterGrowAt: 0, // when that grow started (performance.now), 0 = none; ReelSymbol breathes on it
 	antePrevLocked: false, // previous spin ended with the ante scatter on screen
+	// which cafeteria room is on the backdrop (Background.svelte). Set by the handlers at the
+	// lights cut (LIGHTS_CUT), NOT derived from gameType: the room must change while the lamps
+	// are out, and the base game's regular free spins share the base room.
+	scene: 'base' as Scene,
+	lightsDark: false, // the lamps are out (between lights-out and the first restrike pop)
 	spinsPlayed: 0,
 	totalFs: 0,
 	anteLocked: false,
@@ -170,6 +180,13 @@ export const stateGame = $state({
 		eatenList: PayingSymbolName[];
 	},
 });
+
+/** the ONE way to change the live turbo level: keeps the SDK's isTurbo flag (timeScale, the
+ *  reel options) in step with the level the button and the reels read */
+const setTurboLevel = (level: 0 | 1 | 2) => {
+	stateGame.turboLevel = level;
+	stateBetDerived.updateIsTurbo(level > 0, { persistent: true });
+};
 
 const resetSession = () => {
 	stateGame.symbolPool = [...config.eatOrder];
@@ -328,4 +345,5 @@ export const stateGameDerived = {
 	enhancedBoard,
 	getWinLevelDataByWinLevelAlias,
 	resetSession,
+	setTurboLevel,
 };

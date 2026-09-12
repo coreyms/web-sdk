@@ -56,6 +56,8 @@
 			atRest: () => context.stateGame.board.every((reel) => reel.reelState.motion === 'stopped'),
 			boardLayout: () => context.stateGameDerived.boardLayout(),
 			gameType: () => context.stateGame.gameType,
+			// live turbo level vs the remembered base-game level (bonuses always start at 0)
+			turbo: () => ({ level: context.stateGame.turboLevel, base: context.stateGame.baseTurboLevel }),
 			// >0 while a PressToContinue gate is up (bonus intro / wrap-up / big win) — lets a harness press
 			// through the gated screens without blind clicking
 			pressGates: () => context.stateGame.pressGates,

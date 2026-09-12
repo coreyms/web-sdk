@@ -13,6 +13,8 @@
 	import { isAnteLockedSymbol, stateGame, stateGameDerived, type ReelSymbol } from '../game/stateGame.svelte';
 	import { bellPose } from '../game/bell';
 	import { BELL_GLOW, bellGlowPose, bellHaloTexture, bellRaysTexture } from '../game/bellGlow';
+	import SymbolPose from './SymbolPose.svelte';
+	import { playPose, poseKey, poseRuns } from '../game/symbolPoses.svelte';
 
 	type Props = {
 		reelIndex: number;
@@ -140,6 +142,9 @@
 		const name = props.reelSymbol.rawSymbol.name;
 		const high = HIGH_LAND.symbols.includes(name);
 		if (high) devCount('highLandings');
+		// per-insect landing pose (SYMBOL_POSES): a short burst of the symbol's land clip on the same
+		// beat as the squash. No-ops for an insect without a sheet, or before the sheet is in.
+		playPose(props.reelIndex, row, name, 'land');
 		const opts = stateGame.board[props.reelIndex].reelState.spinOptions();
 		const settleMs = scatter ? 0 : (SYMBOL_SIZE * opts.symbolFallInBounceSizeMulti) / opts.symbolFallInBounceSpeed;
 		const ts = stateBetDerived.timeScale();
@@ -219,7 +224,12 @@
 			alpha: fade * GRAVITY_DROP.dustAlpha,
 		};
 	});
-	const showGlint = $derived(beat !== null && beat.gl < 1);
+	// a pose running in this cell (SYMBOL_POSES): SymbolPose draws plate + shadow + the moving
+	// insect, so the baked tile hides and the tray glint sits this landing out (its overlay is the
+	// STILL cutout, which would freeze over a bug that is moving). Only high symbols glint, and
+	// none of them has a pose sheet yet.
+	const posing = $derived(Boolean(poseRuns[poseKey(props.reelIndex, props.reelSymbol.symbolIndexOfBoard)]));
+	const showGlint = $derived(beat !== null && beat.gl < 1 && !posing);
 
 	// ---- the lit set (SCATTER_LAND, 3rd scatter and up) ----
 	// One rAF per member cell while stateGame.scatterSet is up: the hot rim (breathing from the
@@ -399,7 +409,7 @@
 	<Container scale={squash} rotation={props.reelSymbol.symbolRot.current}>
 		<!-- the resting tile hides while the bell rings: the press frames squash and rock, and the
 		     still frame 1 underneath showed around their edges (Corey 2026-09-10) -->
-		<Container visible={ring === null && !hiddenForSlap}>
+		<Container visible={ring === null && !hiddenForSlap && !posing}>
 			<Symbol
 				state={props.reelSymbol.symbolState}
 				rawSymbol={props.reelSymbol.rawSymbol}
@@ -416,6 +426,15 @@
 				}}
 			/>
 		</Container>
+		<!-- per-insect pose layer (SYMBOL_POSES): ALWAYS mounted and invisible until a pose runs, so
+		     it can never re-stack over the overlays below it. Sized off the same symbolInfo the
+		     baked tile uses, so it grows with the win state and rides the squash/lift/rotation. -->
+		<SymbolPose
+			reelIndex={props.reelIndex}
+			reelSymbol={props.reelSymbol}
+			width={SYMBOL_SIZE * symbolInfo.sizeRatios.width}
+			height={SYMBOL_SIZE * symbolInfo.sizeRatios.height}
+		/>
 		{#if showGlint}
 			<!-- glint clipped to the tray shape, then the bug redrawn over it so the light never crosses it -->
 			<Graphics draw={drawGlint} />

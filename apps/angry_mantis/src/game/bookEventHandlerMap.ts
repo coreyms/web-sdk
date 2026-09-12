@@ -12,8 +12,8 @@ import { playBookEvent } from './utils';
 import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
-import type { Position } from './types';
-import { BONUS_TRIGGER_SOUND_MAP, ANTICIPATION, TIMINGS } from './constants';
+import type { Position, BonusMode, Scene } from './types';
+import { BONUS_TRIGGER_SOUND_MAP, ANTICIPATION, TIMINGS, LIGHTS_CUT } from './constants';
 import { awaitDeferredAssets } from './assetGate';
 import { doorPaintClear, doorPaintIntro, doorPaintOutro } from './doorPaint.svelte';
 
@@ -51,6 +51,9 @@ const modeMusic = () => {
 const musicPlay = (name: MusicName) => {
 	eventEmitter.broadcast({ type: 'soundMusic', name });
 };
+
+// the cafeteria room a bonus mode plays in (Background.svelte); regular free spins share base
+const sceneOf = (mode: BonusMode): Scene => (mode === 'super' || mode === 'feast' ? mode : 'base');
 
 // per-free-spin outcome tracking for mantis reactions (reveal resets, setWin marks)
 let freeSpinHadWin = false;
@@ -237,6 +240,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// deferred assets (game/assets.ts): make sure they are in before anything below draws them
 		await awaitDeferredAssets();
 		stateGameDerived.resetSession();
+		// every bonus starts at normal speed, whatever the base game was running at; the base level
+		// waits in stateGame.baseTurboLevel for freeSpinEnd (press-to-hurry still works: the
+		// non-persistent turbo the harness/stop press uses is never locked out by level 0)
+		stateGameDerived.setTurboLevel(0);
 		stateGame.bonusMode = bookEvent.mode;
 		stateGame.bonusHost = bookEvent.host;
 		stateGame.totalFs = bookEvent.totalFs;
@@ -251,16 +258,35 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await eventEmitter.broadcastAsync({ type: 'doorClose' });
 		// the grown scatters are behind the closed door now: release them (unseen)
 		stateGameDerived.clearScatterFx();
+		// SUPER / FEAST: the cafeteria lamps go out on the closed door, the world changes in the dim
+		// room, and the new room's tubes restrike (LIGHTS_CUT, game/lightsCut.svelte.ts). The base
+		// music dies with the lamps; the mode track starts on the first restrike pop.
+		const cut = LIGHTS_CUT.modes.includes(bookEvent.mode);
+		if (cut) {
+			eventEmitter.broadcast({ type: 'soundDuck', level: 0 });
+			await eventEmitter.broadcastAsync({ type: 'lightsOut' });
+		}
 		// gameType flips HERE, before the music pick — modeMusic() reads it, so flipping it only
 		// after the intro started every bonus on bgm_base, and only a WINNING free spin's
 		// winLevelSoundsStop ever corrected it (zero-win bonuses and snapshot resumes never did).
 		// mantisShow rides the same flush: MartyArt vanishes the instant gameType leaves
 		// 'basegame', so the bonus rigs must claim his slot in the same frame (feast/free keep
-		// "he just keeps standing"; super's Marty already walked out above).
+		// "he just keeps standing"; super's Marty already walked out above). The room swaps in
+		// the same flush too — under the cover when there is a cut.
 		stateGame.gameType = 'freegame';
+		stateGame.scene = sceneOf(bookEvent.mode);
 		eventEmitter.broadcast({ type: 'mantisShow', host: bookEvent.host });
 		// (the trigger fanfare already played at freeSpinTrigger; ui-bonus is the head button's click now)
-		musicPlay(modeMusic());
+		if (cut) {
+			// the world changes in the dark (room + sky crossfade in lockstep), then the tubes hit:
+			// the mode track comes up with the first pop, not before it
+			await eventEmitter.broadcastAsync({ type: 'lightsSwitch' });
+			musicPlay(modeMusic());
+			eventEmitter.broadcast({ type: 'soundDuck', level: 1 });
+			await eventEmitter.broadcastAsync({ type: 'lightsOn' });
+		} else {
+			musicPlay(modeMusic());
+		}
 		await eventEmitter.broadcastAsync({
 			type: 'bonusIntroShow',
 			mode: bookEvent.mode,
@@ -415,12 +441,27 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const winLevelData: WinLevelData = bookLevel.type === 'big' && !paidBack ? winLevelMap[5] : bookLevel;
 
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
+		// SUPER / FEAST: the feast is over — the mirror of the entry. Lamps out on the closed door,
+		// the world changes back in the dim room, the cafeteria's tubes restrike, and only then does
+		// the wrap-up read on the door in the lit base room (LIGHTS_CUT).
+		const cut = stateGame.scene !== 'base';
+		if (cut) {
+			eventEmitter.broadcast({ type: 'soundDuck', level: 0 });
+			await eventEmitter.broadcastAsync({ type: 'lightsOut' });
+		}
 		// gameType flip + mantisHide in ONE flush: MartyArt re-renders in the slot the rig Marty
 		// leaves, same frame, so free/feast read as "he just kept standing" (super's MartyArt
-		// walks him back in itself)
+		// walks him back in itself); the room swaps in the same flush, under the cover
 		stateGame.gameType = 'basegame';
+		stateGame.scene = 'base';
 		eventEmitter.broadcast({ type: 'mantisHide' });
 		eventEmitter.broadcast({ type: 'boardFrameGlowHide' });
+		if (cut) {
+			await eventEmitter.broadcastAsync({ type: 'lightsSwitch' });
+			musicPlay(modeMusic()); // base track, on the first pop of the cafeteria's tubes
+			eventEmitter.broadcast({ type: 'soundDuck', level: 1 });
+			await eventEmitter.broadcastAsync({ type: 'lightsOn' });
+		}
 		eventEmitter.broadcast({ type: 'freeSpinOutroShow' });
 		winLevelSoundsPlay({ winLevelData });
 		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: roundTotal, winLevelData });
@@ -428,6 +469,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'freeSpinOutroHide' });
 		await eventEmitter.broadcastAsync({ type: 'doorOpen' });
 		doorPaintClear();
+		// the base game gets its own speed back with its HUD: whatever the player chose before the
+		// bonus (a turbo press DURING the bonus is forgotten here)
+		stateGameDerived.setTurboLevel(stateGame.baseTurboLevel);
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 	},
 	setWin: async (bookEvent: BookEventOfType<'setWin'>) => {

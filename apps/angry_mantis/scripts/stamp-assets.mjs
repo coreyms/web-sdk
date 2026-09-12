@@ -21,8 +21,16 @@ const strip = (ref) => ref.split('?')[0];
 // meta.image request (copySearchParams), so the PNG is fetched as <name>.png?v=<stamp of the JSON>.
 // Embedding the PNG's own hash as a custom meta field makes the JSON's bytes — and therefore both
 // URLs — change whenever the PNG changes, even if the frame coordinates didn't.
+// per-insect pose sheets (sprites/poses-<p>.json, tools/make_placeholders.py) are discovered, not
+// listed: Corey adds one insect at a time and each new sheet must stamp itself without a code edit
+const poseAtlases = readdirSync(join(ASSETS, 'sprites'))
+	.filter((name) => /^poses-.+\.json$/.test(name))
+	.sort()
+	.map((name) => `sprites/${name}`);
+
 for (const rel of [
 	'sprites/amSymbols/amSymbols.json',
+	...poseAtlases,
 	'rig/mantis-set.atlas.json', // BoneRutter character atlas — same TexturePacker JSON-hash shape
 	'ui/numerals/numerals.json', // prison-stencil amount glyphs (generated from branding/prison-numbers.webp)
 ]) {

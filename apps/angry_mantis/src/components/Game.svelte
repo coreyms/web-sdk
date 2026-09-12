@@ -34,6 +34,7 @@
 	import BonusIntro from './BonusIntro.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
 	import Transition from './Transition.svelte';
+	import LightsCut from './LightsCut.svelte';
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
 	import ModePlaque from './ModePlaque.svelte';
@@ -213,6 +214,8 @@
 		<MaxWinCinematic />
 		<FreeSpinOutro />
 		<Transition />
+		<!-- the lamps-out/lamps-on sequencer (LIGHTS_CUT): event wiring only, it draws nothing -->
+		<LightsCut />
 	{/if}
 </App>
 

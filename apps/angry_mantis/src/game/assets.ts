@@ -28,6 +28,16 @@ export default {
 	bgCafeteriaBase: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-base-bonus.webp', import.meta.url).href), preload: true },
 	bgCafeteriaSuper: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super.webp', import.meta.url).href), preload: false },
 	bgCafeteriaFeast: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast.webp', import.meta.url).href), preload: false },
+	// the same rooms with the LAMPS OFF (tools/build_lights_off.py, which aligns the second render
+	// to the lit one and copies its pane alpha across). The "lamps out, lamps on" mode transition
+	// (game/lightsCut.svelte.ts) crossfades between a room and its off render, so the off renders
+	// are bonus-only and deferred like the rooms they belong to.
+	// super and feast are Corey's to render (2026-09-11): until the files land, the two lines below
+	// stay out and the transition falls back to holding the base room in the dark (the game reads
+	// the ASSET MAP for this — no flag to flip, just add the line back when the file arrives).
+	//   bgCafeteriaSuperOff: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super-off.webp', import.meta.url).href), preload: false },
+	//   bgCafeteriaFeastOff: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast-off.webp', import.meta.url).href), preload: false },
+	bgCafeteriaBaseOff: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-base-off.webp', import.meta.url).href), preload: false },
 	frameCafeteria: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-cafeteria.webp', import.meta.url).href), preload: true },
 	// board backdrop behind the symbols (Corey's dimpled steel tray plates, 1220×985 = the frame
 	// window at the frame art's scale, one plate per cell on the 5×4 pitch): shows in the seams, in
@@ -108,6 +118,31 @@ export default {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/sprites/amSymbols/amSymbols.json', import.meta.url).href),
 		preload: true,
+	},
+	// PER-INSECT POSE SHEETS (SYMBOL_POSES in constants.ts, tools/make_placeholders.py). One atlas
+	// per insect that has one — the fly is the first; the others are Corey's to export, and until a
+	// sheet lands its key simply stays out of this map and that insect never animates (the runtime
+	// reads the ASSET MAP for this, there is no flag to flip). DEFERRED: the baked tile is what the
+	// board draws until the sheet is in, so a pose is only ever a bonus on top of a loaded game.
+	posesL2: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/sprites/poses-l2.json', import.meta.url).href),
+		preload: false,
+	},
+	posesM1: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/sprites/poses-m1.json', import.meta.url).href),
+		preload: false,
+	},
+	posesM2: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/sprites/poses-m2.json', import.meta.url).href),
+		preload: false,
+	},
+	posesM3: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/sprites/poses-m3.json', import.meta.url).href),
+		preload: false,
 	},
 	// BoneRutter character atlas: registered here so the loading screen gates on the 760KB page
 	// (no character pop-in); mantisRig.ts re-loads the same stamped URL and gets Pixi's cached sheet.

@@ -204,6 +204,90 @@ export const HIGH_LAND = {
 	trayCenterY: -0.013,
 };
 
+// ---- Per-insect symbol poses (Corey 2026-09-11, fly first) ----
+// Each insect may ship ONE pose atlas built by tools/make_placeholders.py from Corey's BoneRutter
+// export (<p>-poses.png/.json in assets/images/tile → static/assets/sprites/poses-<p>.{webp,json},
+// registered in game/assets.ts as a deferred `sprites` key). Every frame is fitted to the still
+// cutout's place on the tray by the builder, so plate + contact shadow + a moving insect compose
+// EXACTLY the baked tile on frame 0 — components/SymbolPose.svelte swaps the insect texture per
+// frame over `<SYM>_eaten.png` (the plate) and `<SYM>_shadow.png` (the shadow, which stays put).
+//
+// Poses are OPTIONAL everywhere: a symbol with no entry here, an entry whose pose is null, or an
+// atlas that has not finished downloading simply never animates — the baked tile shows instead
+// (game/symbolPoses.svelte.ts returns null and the layer stays invisible).
+//
+// Beats, and how each clip is played:
+//   land    the tile's landing beat (ReelSymbol's 'land' → 'static' hand-off) — a SHORT burst:
+//           `landLoops` passes of the clip
+//   ambient a resting board's idle twitch — a LONGER burst: a random count from `ambientLoops`
+//   win     loops for as long as the cell is in the 'win' state (TIMINGS.symbolWin, and while the
+//           scatter-trigger hold keeps it there). The sprite's own 1.06 pulse is hidden underneath,
+//           so a symbol WITH a win pose animates instead of pulsing; symbols without keep the pulse.
+//   eat     played ONCE and FROZEN on eatFreezeFrame (else its last frame) by the course served
+//           front and centre ONLY (Mantis.svelte's hero tray, symbolPoses HERO_REEL) — the board
+//           tiles of that species do not cower (Corey 2026-09-11). It starts when the tray's drop
+//           lands, TIMINGS.strike (650 ms) before the claw, so a clip that freezes within ~15
+//           frames is held before contact, and Mantis.svelte's pickup sprite carries that SAME
+//           frozen frame off to the mouth.
+// land and win playback is divided by stateBetDerived.timeScale() so it compresses with the rest of
+// the spin; ambient and eat run at the authored fps (an idle board and the strike window are both
+// real time — TIMINGS.strike is unscaled).
+//
+// Ambient cadence: on a RESTING board (all reels stopped, no spin, no win presentation, no strike
+// in flight, no door/intro/outro, any game mode), each insect TYPE present on the board animates
+// ONE randomly chosen visible tile, then waits a random ambientGapMs before that type goes again.
+// Types are staggered on first arm (ambientStaggerMs apart) so the board never moves all at once,
+// and a type never has two tiles animating at the same time.
+export const SYMBOL_POSES = {
+	fps: 24, // authored frame rate of every sheet (meta.fps); per-symbol overrides below
+	landLoops: 4, // passes of the land clip on contact (Corey 2026-09-11: two were not enough); per-symbol override below
+	ambientLoops: [5, 5], // passes of the ambient clip per idle-board burst (Corey 2026-09-11: five); per-symbol override below
+	ambientGapMs: [8000, 15000],
+	ambientStaggerMs: 2600,
+	symbols: {
+		L2: {
+			sheet: 'posesL2',
+			poses: { land: 'wing_twitch', ambient: 'wing_twitch', win: 'idle', eat: 'scared' },
+			fps: 24,
+			// the eat clip plays up to THIS frame and freezes there (the mantis carries that frame off).
+			// Corey's scared clip rears the forelegs over the eyes across frames 4-7 and settles back
+			// to rest by 10, so freezing on the last frame carried the fly off looking calm; 6 is the
+			// eyes-covered peak. Omit to freeze on the clip's last frame.
+			eatFreezeFrame: 6,
+		},
+		M1: {
+			// the beetle (Corey 2026-09-11): a 24-frame settle instead of a 6-frame twitch, so it
+			// gets ONE pass per beat where the fly gets four / five; its scared clip tucks in
+			// progressively and is at its smallest on the last frame, so no freeze override
+			sheet: 'posesM1',
+			poses: { land: 'legs_and_head_adjusting', ambient: 'legs_and_head_adjusting', win: 'idle', eat: 'scared' },
+			fps: 24,
+			landLoops: 1,
+			ambientLoops: [1, 1],
+		},
+		M2: {
+			// the spider (Corey 2026-09-11): an 18-frame legs settle; scared draws the legs in over
+			// six frames and is tightest on the last, so no freeze override
+			sheet: 'posesM2',
+			poses: { land: 'legs_adjusting', ambient: 'legs_adjusting', win: 'idle', eat: 'scared' },
+			fps: 24,
+			landLoops: 1,
+			ambientLoops: [1, 2],
+		},
+		M3: {
+			// the scorpion (Corey 2026-09-11): an 18-frame claw pinch; its scared clip rears up and
+			// peaks at frame 12 before settling back by 17, so the freeze sits on the peak
+			sheet: 'posesM3',
+			poses: { land: 'claws_pinching', ambient: 'claws_pinching', win: 'idle', eat: 'scared' },
+			fps: 24,
+			landLoops: 1,
+			ambientLoops: [1, 2],
+			eatFreezeFrame: 12,
+		},
+	} as Record<string, { sheet: string; poses: { land: string | null; ambient: string | null; win: string | null; eat: string | null }; fps: number; eatFreezeFrame?: number; landLoops?: number; ambientLoops?: [number, number] }>,
+} as const;
+export type PoseBeat = 'land' | 'ambient' | 'win' | 'eat';
+
 // Scatter landing beat (Corey 2026-09-11, picked from the scatter-landing artifact). A Marky
 // scatter never lands as part of the reel strip: the strip refills with its cell EMPTY, settles,
 // and the card is then SLAPPED down from the front (ScatterDrop.svelte, a layer above the frame:
@@ -402,6 +486,48 @@ export const BONUS_TRIGGER_SOUND_MAP: Record<3 | 4 | 5, 'sfx_bonus_trigger_free'
 	3: 'sfx_bonus_trigger_free',
 	4: 'sfx_bonus_trigger_super',
 	5: 'sfx_bonus_trigger_feast',
+};
+
+// ---- Lights cut: "lamps out, lamps on" (mode transition, Corey 2026-09-11) ----
+// Entering or leaving the SUPER / FEAST rooms the cafeteria LAMPS go out, the world changes in the
+// dim room, and the new room's tubes restrike. Nothing blacks the canvas out (the first cut did and
+// read as a glitch): every step is a crossfade between two renders of the SAME cafeteria, one lit
+// and one with the lamps off, so the door, the board and the rigs stay on screen throughout.
+// The invariant that makes it read: THE SKY AND THE ROOM ALWAYS CARRY THE SAME ALPHA. Each room
+// render's window bars are lit to match its own sky, so a sky that leads or lags the room shows
+// rims that do not belong to the glass. Lamps-out and restrike happen between two renders that
+// SHARE a sky, so the sky never moves there; the world change happens in the dark as one
+// synchronized room+sky crossfade between the two lamps-off renders.
+//   1 doorClose (already painted with the intro)   4 hold
+//   2 lamps out: lit -> off, wash deepens          5 restrike: the new room's tubes stutter in
+//   3 hold, then the world switch: off -> off        over its off render, sky dead still
+//     with the sky in lockstep                     6 bonusIntroShow as before
+// Leaving mirrors it. Regular free spins share the base room and keep the door-only transition.
+// The sequencer is game/lightsCut.svelte.ts (LightsCut.svelte only wires the events to it) and the
+// layers are Background.svelte. All durations are divided by stateBetDerived.timeScale().
+export const LIGHTS_CUT = {
+	modes: ['super', 'feast'] as BonusMode[],
+	offMs: 120, // lamps out: the lit room fades off its own lamps-off render
+	holdOutMs: 250, // beat in the dim room before the world changes
+	switchMs: 250, // dark-to-dark room + sky crossfade (the world change)
+	holdSwitchMs: 200, // beat in the new dim room before its tubes try
+	// fluorescent restrike before the tubes hold: [lit level 0..1, ms] steps, played on the LIT
+	// layer over the off render. A cafeteria tube never comes on clean: a bright pop, dark, a dim
+	// try, dark, a longer flash, a sag.
+	restrike: [
+		[0.7, 50],
+		[0, 80],
+		[0.35, 40],
+		[0, 130],
+		[0.85, 60],
+		[0.5, 50],
+	] as [number, number][],
+	onMs: 220, // final warm-up from the last step to full brightness
+	// extra wash alpha (over BACKGROUND_WASH) while the lamps are out, so the whole scene reads
+	// darker and not just the backdrop; it follows the lamps, deepening and lifting with them.
+	washExtra: 0.15,
+	// SFX hooks (Corey's side): a breaker thunk at the cut and a tube tick-buzz at the restrike.
+	// Wired in LightsCut.svelte once sfx_lights_off / sfx_lights_on exist in the audiosprite.
 };
 
 export const SCATTER_LAND_SOUND_MAP = {

@@ -9,8 +9,35 @@ Preferred art scheme (2026-08-26) for the eight paying insects: TWO files per sy
   <p>-insect.webp  the insect cutout, positioned at its on-plate spot in a transparent S×S canvas
 The tile is composited here (plate + contact shadow + insect), so the eat animation's pickup is
 pixel-perfect by construction and the shadow correctly vanishes with the insect. The older three-file
-scheme (combined tile + -blank + -insect) still works wherever no -plate file exists."""
-import json, os
+scheme (combined tile + -blank + -insect) still works wherever no -plate file exists.
+
+POSE SHEETS (2026-09-11) — per-insect symbol animation. Corey exports one sheet per insect from
+BoneRutter and drops the pair next to the two tile files:
+  <p>-poses.png    a TexturePacker-style atlas of 256x256 untrimmed frames
+  <p>-poses.json   {frames:{<name>.png:{frame:{x,y,w,h},...}}, animations:{<clip>:[frame names]},
+                    meta:{fps}}
+Poses are OPTIONAL, per insect and per clip: an insect with no sheet, or a sheet missing a clip,
+simply never animates that beat (game/symbolPoses.ts falls back to the still tile). The fly ships
+idle / wing_twitch / scared; other insects may ship two clips or none.
+
+The rig's frames fill the 256 canvas edge to edge, which is NOT where the insect sits on its tray,
+so the builder computes ONE per-symbol FIT from the art itself and applies it to every frame:
+uniform scale from the LARGER dimension of the still `<p>-insect.webp` alpha bbox over the larger
+dimension of idle frame 0's alpha bbox (POSE_ALPHA_T threshold, upscaled by at most POSE_MAX_UPSCALE), then an offset that
+puts the two bbox centres on top of each other. The fitted idle frame 0 then REPLACES the still
+cutout everywhere the game draws it (the composed tile, <SYM>_insect.png, the eat-flight pickup), so
+the still, its contact shadow, the pickup and the animation are registration-perfect by
+construction. `<p>-insect.webp` stays on disk untouched — it is the fit reference, not an output.
+
+Outputs per insect with a sheet:
+  static/assets/sprites/poses-<p>.webp/.json   every fitted frame, named <SYM>_<clip>_<nnnn>,
+                                               animations block preserved (assets.ts key posesL2,
+                                               type 'sprites', preload:false)
+  <SYM>_shadow.png in amSymbols                the contact shadow ALONE, tile space, so an
+                                               animating cell can draw plate + shadow + moving
+                                               insect with the shadow staying put
+"""
+import json, math, os
 from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))  # apps/angry_mantis/tools (moved out of static/ 2026-09-02 so it no longer ships to the CDN)
@@ -137,6 +164,103 @@ def eaten_from_art(im):
     return out
 
 
+# ---- pose sheets (see the module docstring) -------------------------------------------------
+POSE_ALPHA_T = 16  # alpha below this is stray antialias, not silhouette — ignored by the bbox
+POSE_MAX_UPSCALE = 1.15  # fit may enlarge frames up to this much to match the still
+POSE_QUALITY = 85  # lossy RGB, lossless alpha (exact=True): the wings are ~40% semi-transparent
+POSE_COLS = 8      # 8 x 256 = 2048 wide; rows grow downward, capped at 4096 either way
+POSE_DIR = SPRITES
+
+
+def alpha_bbox(im, t=POSE_ALPHA_T):
+    return im.getchannel("A").point(lambda p: 255 if p > t else 0).getbbox()
+
+
+def _premul(im):
+    import numpy as np
+    a = np.asarray(im, dtype=np.float32)
+    a[..., :3] *= a[..., 3:4] / 255.0
+    return Image.fromarray(np.rint(a).astype("uint8"), "RGBA")
+
+
+def _unpremul(im):
+    import numpy as np
+    a = np.asarray(im, dtype=np.float32)
+    al = a[..., 3:4]
+    a[..., :3] = np.where(al > 0, np.clip(a[..., :3] * 255.0 / np.maximum(al, 1e-6), 0, 255), 0)
+    return Image.fromarray(np.rint(a).astype("uint8"), "RGBA")
+
+
+def fit_frame(frame, scale_px, offset):
+    """Lanczos-resample a 256² pose frame by the symbol's fit and paste it back into tile space.
+    Premultiplied so the transparent black around the silhouette cannot bleed into the wings."""
+    small = _unpremul(_premul(frame).resize((scale_px, scale_px), Image.LANCZOS))
+    out = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    out.alpha_composite(small, offset)
+    return out
+
+
+def load_poses(prefix, insect):
+    """(frames {name: fitted Image}, animations, fps, fit) for <prefix>-poses.*, or None."""
+    png, meta_path = os.path.join(ART, f"{prefix}-poses.png"), os.path.join(ART, f"{prefix}-poses.json")
+    if not (os.path.exists(png) and os.path.exists(meta_path) and insect is not None):
+        return None
+    meta = json.load(open(meta_path))
+    sheet_im = Image.open(png).convert("RGBA")
+    anims = meta.get("animations") or {}
+    order = list(anims) or [None]
+    base_clip = "idle" if "idle" in anims else order[0]
+    if base_clip is None:
+        return None
+    cut = lambda name: (lambda f: sheet_im.crop((f["x"], f["y"], f["x"] + f["w"], f["y"] + f["h"])))(meta["frames"][name]["frame"])
+    ref = cut(anims[base_clip][0])
+    sb, tb = alpha_bbox(ref), alpha_bbox(insect)
+    # uniform scale off the LARGER dimension of each bbox. A mild upscale is allowed (the beetle's
+    # frames are drawn ~6% smaller than its still and the on-screen tile is smaller than 256 px
+    # anyway, so nothing is lost); anything past POSE_MAX_UPSCALE means the sheet was authored at a
+    # different framing and stays at 1.0 rather than going soft
+    raw = max(tb[2] - tb[0], tb[3] - tb[1]) / max(sb[2] - sb[0], sb[3] - sb[1])
+    scale = raw if raw <= POSE_MAX_UPSCALE else 1.0
+    scale_px = max(1, round(S * scale))
+    eff = scale_px / S  # the scale actually applied once the frame size is an integer
+    offset = (
+        round((tb[0] + tb[2]) / 2 - eff * (sb[0] + sb[2]) / 2),
+        round((tb[1] + tb[3]) / 2 - eff * (sb[1] + sb[3]) / 2),
+    )
+    frames = {name: fit_frame(cut(name), scale_px, offset) for name in meta["frames"]}
+    fit = {"scale": round(eff, 6), "offset": offset, "src_bbox": sb, "dst_bbox": tb, "frame_px": scale_px}
+    return frames, anims, int(meta.get("meta", {}).get("fps") or 24), fit
+
+
+def pose_sheet(sym, prefix, frames, anims, fps, fit):
+    """Pack the fitted frames into static/assets/sprites/poses-<prefix>.{webp,json}."""
+    names = [n for n in frames]
+    key = lambda n: f"{sym}_{n[:-4] if n.endswith('.png') else n}"
+    cols = min(POSE_COLS, max(1, len(names)))
+    rows = math.ceil(len(names) / cols)
+    if cols * S > 4096 or rows * S > 4096:
+        raise SystemExit(f"poses-{prefix}: {len(names)} frames exceed the 4096² texture budget — split by animation")
+    atlas = Image.new("RGBA", (cols * S, rows * S), (0, 0, 0, 0))
+    out = {"frames": {}, "animations": {c: [key(n) for n in fs] for c, fs in anims.items()},
+           "meta": {"image": f"poses-{prefix}.webp", "format": "RGBA8888",
+                    "size": {"w": cols * S, "h": rows * S}, "scale": "1", "fps": fps, "fit": fit}}
+    for i, name in enumerate(names):
+        x, y = (i % cols) * S, (i // cols) * S
+        atlas.paste(frames[name], (x, y))
+        out["frames"][key(name)] = {"frame": {"x": x, "y": y, "w": S, "h": S}, "rotated": False, "trimmed": False,
+                                    "spriteSourceSize": {"x": 0, "y": 0, "w": S, "h": S}, "sourceSize": {"w": S, "h": S},
+                                    "pivot": {"x": 0.5, "y": 0.5}}
+    os.makedirs(POSE_DIR, exist_ok=True)
+    path = os.path.join(POSE_DIR, f"poses-{prefix}.webp")
+    atlas.save(path, "WEBP", quality=POSE_QUALITY, method=6, exact=True)
+    json.dump(out, open(os.path.join(POSE_DIR, f"poses-{prefix}.json"), "w"), indent=1)
+    # alpha must survive the encode byte for byte (the wings are mostly 65-75% alpha)
+    back = Image.open(path).convert("RGBA")
+    diff = ImageChops.difference(atlas.getchannel("A"), back.getchannel("A")).getextrema()[1]
+    return {"frames": len(names), "size": (cols * S, rows * S), "kb": round(os.path.getsize(path) / 1024, 1),
+            "alpha_max_diff": diff}
+
+
 def sheet(name, frames):
     cols = 4
     rows = (len(frames) + cols - 1) // cols
@@ -159,18 +283,31 @@ frames = {}
 real = []
 missing_insects = []
 composited = []
+pose_report = {}
 for sym, (sub, color, file) in SYMBOLS.items():
     prefix = sym.lower()
     plate = art(f"{prefix}-plate.webp") if sym not in ("W", "S", "GL") else None
     insect = art(f"{prefix}-insect.webp") if sym not in ("W", "S", "GL") else None
     if plate is not None and insect is not None:
+        # pose sheet (optional): its fitted idle frame 0 BECOMES the still cutout, so the tile, the
+        # shadow, the pickup and every pose frame share one registration
+        poses = load_poses(prefix, insect)
+        if poses is not None:
+            pose_frames, anims, fps, fit = poses
+            base = "idle" if "idle" in anims else next(iter(anims))
+            insect = pose_frames[anims[base][0]]
+            pose_report[sym] = {"fit": fit, **pose_sheet(sym, prefix, pose_frames, anims, fps, fit)}
         # two-file scheme: tile = plate + contact shadow + insect (registration-perfect pickup)
-        tile_im = Image.alpha_composite(Image.alpha_composite(plate, contact_shadow(insect, plate)), insect)
+        shadow = contact_shadow(insect, plate)
+        tile_im = Image.alpha_composite(Image.alpha_composite(plate, shadow), insect)
         real.append(sym)
         composited.append(sym)
         frames[f"{sym}.png"] = tile_im
         frames[f"{sym}_eaten.png"] = plate
         frames[f"{sym}_insect.png"] = insect
+        # the contact shadow ALONE: an animating cell draws plate + shadow + moving insect, so the
+        # shadow stays put under a bug that is twitching its wings (game/symbolPoses.ts)
+        frames[f"{sym}_shadow.png"] = shadow
         continue
     im = art(file) if file else None
     if im is not None:
@@ -211,3 +348,11 @@ for sym in SYMBOLS:
     if insect is not None:
         insect.resize((THUMB, THUMB), Image.LANCZOS).save(os.path.join(thumb_dir, f"{sym.lower()}_insect.webp"), "WEBP", quality=88)
 print(f"ok — real art for {real}; composited (plate+insect) {composited}; placeholders for {[s for s in SYMBOLS if s not in real]}; missing insect cutouts: {missing_insects}  (art dir: {ART})")
+for sym, rep in pose_report.items():
+    f = rep["fit"]
+    print(f"  poses {sym}: fit scale {f['scale']} offset {tuple(f['offset'])} "
+          f"(src bbox {f['src_bbox']} -> still bbox {f['dst_bbox']}, frame {f['frame_px']}px); "
+          f"{rep['frames']} frames, atlas {rep['size'][0]}x{rep['size'][1]} {rep['kb']} KB, "
+          f"alpha max diff {rep['alpha_max_diff']}")
+if not pose_report:
+    print("  poses: none (drop <p>-poses.png + <p>-poses.json next to the tile art)")

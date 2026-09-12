@@ -132,16 +132,15 @@ export const createControls = () => {
 		if (jurisdiction().disabledTurbo) return;
 		sound('soundPressMinor');
 		const next = ((context.stateGame.turboLevel + 1) % (maxTurboLevel() + 1)) as 0 | 1 | 2;
-		context.stateGame.turboLevel = next;
-		stateBetDerived.updateIsTurbo(next > 0, { persistent: true });
+		context.stateGameDerived.setTurboLevel(next);
+		// a press during a bonus lasts that bonus only; the base level is what comes back at the end
+		if (context.stateGame.gameType !== 'freegame') context.stateGame.baseTurboLevel = next;
 	};
-	// the level is remembered between sessions (stateGame.svelte.ts): a saved level the operator
-	// forbids is clamped the moment the jurisdiction block lands
+	// the base level is remembered between sessions (stateGame.svelte.ts): a saved level the
+	// operator forbids is clamped the moment the jurisdiction block lands
 	$effect(() => {
-		if (context.stateGame.turboLevel > maxTurboLevel()) {
-			context.stateGame.turboLevel = maxTurboLevel() as 0 | 1 | 2;
-			stateBetDerived.updateIsTurbo(context.stateGame.turboLevel > 0, { persistent: true });
-		}
+		if (context.stateGame.turboLevel > maxTurboLevel()) context.stateGameDerived.setTurboLevel(maxTurboLevel() as 0 | 1 | 2);
+		if (context.stateGame.baseTurboLevel > maxTurboLevel()) context.stateGame.baseTurboLevel = maxTurboLevel() as 0 | 1 | 2;
 	});
 
 	// ── bonus / ante ─────────────────────────────────────────────────────

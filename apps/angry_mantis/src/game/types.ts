@@ -12,6 +12,8 @@ export type RawSymbol = {
 export type BetMode = keyof typeof config.betModes;
 export type GameType = keyof typeof config.paddingReels;
 export type BonusMode = 'free' | 'super' | 'feast';
+/** which cafeteria room the backdrop shows; base/ante/regular free spins share 'base' */
+export type Scene = 'base' | 'super' | 'feast';
 export type BonusHost = 'marty' | 'marky' | 'both';
 export type Striker = 'marty' | 'marky';
 

@@ -25,13 +25,18 @@
 		scale: number;
 		/** crossfade alpha per scene, in SKY key order (base, super, feast) */
 		alphas: number[];
+		/** index of the scene the game is switching TO: its sky draws over the one being left, so a
+		 *  world change is one alpha rising over an opaque sky instead of two complementary fades
+		 *  (which would show the black behind them at the half-way point) */
+		top?: number;
 		zIndex?: number;
 	};
-	const { x, y, scale, alphas, zIndex = 0 }: Props = $props();
+	const { x, y, scale, alphas, top = 0, zIndex = 0 }: Props = $props();
 	const context = getContext();
 
 	const MODES = Object.keys(SKY) as Mode[];
 	const root = new PIXI.Container();
+	root.sortableChildren = true; // the incoming scene's sky is lifted over the outgoing one
 	getContextParent().addToParent(root); // unmount cleanup destroys the subtree
 	const scenes = MODES.map(() => {
 		const c = new PIXI.Container();
@@ -198,6 +203,7 @@
 		MODES.forEach((_, i) => {
 			scenes[i].alpha = alphas[i] ?? 0;
 			scenes[i].visible = (alphas[i] ?? 0) > 0;
+			scenes[i].zIndex = i === top ? 1 : 0;
 		});
 	});
 </script>
