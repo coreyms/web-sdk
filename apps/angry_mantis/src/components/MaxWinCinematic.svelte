@@ -74,7 +74,8 @@
 
 	const payoutText = $derived(bookEventAmountToCurrencyString(amountShown));
 	// the wincap in base-bet multiples, straight off the book payout (never a hard-coded 20000x)
-	const multiplierText = $derived(`${Math.round(bookEventAmountToBetAmountMultiplier(payout))}x`);
+	// 20,000x, not 20000x — every other surface prints the separator (the stencil atlas has a comma)
+	const multiplierText = $derived(`${Math.round(bookEventAmountToBetAmountMultiplier(payout)).toLocaleString('en-US')}x`);
 
 	/** wait until `ms` after the track started (returns at once if that moment has passed) */
 	const waitUntil = async (ms: number) => {

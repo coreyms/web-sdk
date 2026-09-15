@@ -1,6 +1,7 @@
 <script lang="ts">
 	// registers renderer.prepare (PrepareSystem) — used to pre-upload textures during the loading screen
 	import 'pixi.js/prepare';
+	import * as PIXI from 'pixi.js';
 	import { onMount, tick } from 'svelte';
 
 	import { EnablePixiExtension } from 'components-pixi';
@@ -169,7 +170,19 @@
 		if (!app) return;
 		app.renderer.textureGC.maxIdle = 60 * 60 * 30; // frames: ~30 min at 60fps
 		await tick(); // main scene mounts in the same flush that hides the loading screen
-		await app.renderer.prepare.upload(app.stage);
+		// Upload the scene's TEXTURES only, never the stage itself: prepare.upload(stage) also queues
+		// every Graphics context, drained a few per frame, and a context replaced meanwhile (the
+		// landing-beat glint alternates two, ReelSymbol) is iterated after it was destroyed —
+		// "instructions is not iterable", an uncaught error in the ticker on every resumed round
+		// (chaos gate phases C/D, 2026-09-15). Textures are what the first-render hitch was about.
+		const textures = new Set<PIXI.Texture>();
+		const walk = (node: PIXI.Container) => {
+			const t = (node as PIXI.Sprite).texture;
+			if (t instanceof PIXI.Texture && !t.destroyed && t.source) textures.add(t);
+			for (const child of node.children) walk(child);
+		};
+		walk(app.stage);
+		await app.renderer.prepare.upload([...textures]);
 	};
 
 </script>

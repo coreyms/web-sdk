@@ -35,6 +35,9 @@
 
 <style>
 	.popover {
+		/* opaque, unlike the sheets: no ModalShell dim sits behind a popover, so at .88 the reel
+		   frame read straight through it with a hard edge (approval review 2026-09-15) */
+		--ui-glass: #0f0f13;
 		position: absolute;
 		padding: 10px;
 		z-index: 50;

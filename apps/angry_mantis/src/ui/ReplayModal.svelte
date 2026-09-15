@@ -71,10 +71,9 @@
 
 <ModalShell {open} onclose={() => {}} {master} {scale} {left} {top} dim="rgba(0,0,0,0.55)" blur={6} zIndex={4}>
 	<div class="center" style:padding={compact ? '16px' : '0'}>
-		<div class="panel" class:compact onclick={(e) => e.stopPropagation()} role="presentation">
-			<div class="grain"></div>
+		<div class="panel am-glass" class:compact onclick={(e) => e.stopPropagation()} role="presentation">
 			<div class="head">
-				<div class="title">ROUND REPLAY</div>
+				<div class="title am-stencil">ROUND REPLAY</div>
 				<div class="pill">SHARED ROUND</div>
 			</div>
 
@@ -112,14 +111,15 @@
 		pointer-events: none;
 	}
 
-	/* ── the paper card (same stock as AutoplayModal / BonusBuyModal) ── */
+	/* ── black glass (the same surface as the Chow Line / Autoplay / Game Info; the paper card
+	      went with the approval review 2026-09-15) ── */
 	.panel {
-		--ink: #1b1204;
-		--body: #2a241a;
-		--muted: #6b6250;
-		--faint: #8a8069;
-		--rule: #a99c7d;
-		--green: #4e7d15;
+		--ink: var(--ui-ink);
+		--body: var(--ui-ink-2);
+		--muted: var(--ui-ink-2);
+		--faint: var(--ui-ink-3);
+		--rule: var(--ui-rule-2);
+		--green: var(--ui-green);
 		width: min(460px, 100%);
 		pointer-events: auto;
 		position: relative;
@@ -128,19 +128,7 @@
 		gap: 12px;
 		padding: 18px 24px 16px;
 		color: var(--body);
-		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
 		border-radius: 18px;
-		box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
-	}
-	.grain {
-		position: absolute;
-		inset: 0;
-		border-radius: inherit;
-		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
-		pointer-events: none;
-	}
-	.panel > :not(.grain) {
-		position: relative;
 	}
 	.head {
 		display: flex;
@@ -150,16 +138,12 @@
 	}
 	.title {
 		font-size: 22px;
-		font-weight: 900;
-		letter-spacing: 4px;
-		color: var(--ink);
-		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 	.pill {
 		border-radius: 999px;
 		padding: 6px 14px;
-		background: var(--body);
-		color: #f2c14e;
+		background: var(--ui-gold);
+		color: var(--ui-gold-ink);
 		font-size: 11px;
 		font-weight: 800;
 		letter-spacing: 2px;
@@ -168,7 +152,8 @@
 	.block {
 		display: flex;
 		flex-direction: column;
-		border: 3px dashed var(--rule);
+		background: var(--ui-glass-well);
+		border: 1px solid var(--ui-rule);
 		border-radius: 12px;
 		padding: 4px 16px;
 	}
@@ -183,7 +168,7 @@
 		padding: 7px 0;
 	}
 	.block:not(.one) .row + .row {
-		border-top: 1px solid rgba(0, 0, 0, 0.1);
+		border-top: 1px solid var(--ui-rule);
 	}
 	.k {
 		font-size: 12px;
@@ -209,13 +194,12 @@
 		color: var(--green);
 	}
 	.win {
-		border-style: solid;
 		border-color: var(--green);
-		background: rgba(166, 228, 87, 0.28);
+		background: rgba(156, 217, 47, 0.14);
 	}
 	.win.zero {
-		border-color: var(--rule);
-		background: rgba(0, 0, 0, 0.04);
+		border-color: var(--ui-rule);
+		background: var(--ui-glass-well);
 	}
 	.win.zero .v.big {
 		color: var(--muted);
@@ -228,7 +212,7 @@
 	}
 	.tear {
 		height: 0;
-		border-top: 3px dashed var(--rule);
+		border-top: 1px solid var(--ui-rule);
 		margin: 0 -12px;
 	}
 	.go {
@@ -237,7 +221,7 @@
 		font-size: 15px;
 		font-weight: 900;
 		letter-spacing: 3px;
-		color: var(--ink);
+		color: var(--ui-gold-ink);
 		background: linear-gradient(180deg, #9be04a, #6fb52a);
 		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 	}
@@ -270,7 +254,6 @@
 		letter-spacing: 1px;
 	}
 	.compact .block {
-		border-width: 2px;
 		border-radius: 9px;
 		padding: 2px 12px;
 	}

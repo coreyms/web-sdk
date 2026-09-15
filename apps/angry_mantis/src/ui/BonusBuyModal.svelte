@@ -56,7 +56,7 @@
 	<div class="center" style:gap="{compact ? 10 : 14}px">
 		<div class="panel am-glass" class:compact onclick={(e) => e.stopPropagation()} role="presentation">
 			<div class="head">
-				<span class="title">CHOW LINE</span>
+				<span class="title am-stencil">CHOW LINE</span>
 				<button class="slot-btn x" onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
 			</div>
 			<div class="cards">

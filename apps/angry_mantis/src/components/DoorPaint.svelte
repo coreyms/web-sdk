@@ -26,7 +26,9 @@
 	const textureFor = (key: string): PIXI.Texture | undefined => {
 		const fromAssets = context.stateApp.loadedAssets?.[key];
 		if (fromAssets instanceof PIXI.Texture) return fromAssets;
-		const cached = PIXI.Assets.cache.get(key);
+		// `has` first: a bare `get` on a key still in the deferred phase logs a Pixi cache warning
+		// on every early build attempt (a replay mounts before those atlases land)
+		const cached = PIXI.Assets.cache.has(key) ? PIXI.Assets.cache.get(key) : undefined;
 		return cached instanceof PIXI.Texture ? cached : undefined;
 	};
 

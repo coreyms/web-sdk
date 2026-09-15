@@ -76,7 +76,7 @@
 	<div class="center" style:gap="{compact ? 10 : 14}px">
 		<div class="panel am-glass" class:compact class:portrait onclick={(e) => e.stopPropagation()} role="presentation" style:max-height="{master.height - (portrait ? 96 : 100)}px">
 			<div class="head">
-				<div class="title">AUTOPLAY</div>
+				<div class="title am-stencil">AUTOPLAY</div>
 				<div class="pill"><span class="mode">{shortMode(pill.label)}</span><span class="dot">·</span><span class="slot-num cost">{pill.cost}</span><span class="per">/ SPIN</span></div>
 				<button class="slot-btn x" onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
 			</div>

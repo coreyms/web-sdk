@@ -21,7 +21,11 @@
 	);
 </script>
 
-{#if texture === PIXI.Texture.EMPTY || debug}
+<!-- a key that is still in the deferred load phase resolves itself when that phase lands (the
+     texture is derived from loadedAssets), so only a miss AFTER the whole manifest is in is a bug
+     worth a console error — a replay mounts its scene while the deferred atlases are still on the
+     wire and used to log ten of these at boot (2026-09-15) -->
+{#if (texture === PIXI.Texture.EMPTY && context.stateApp.loaded) || debug}
 	{console.error(`Sprite: key "${key}" is not found in the loadedAssets`)}
 	{console.log('loadedAssets', $state.snapshot(context.stateApp).loadedAssets)}
 {/if}

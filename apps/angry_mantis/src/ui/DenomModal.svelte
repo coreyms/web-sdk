@@ -95,10 +95,9 @@
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={3}>
 	<div class="center" style:padding={compact ? '10px' : '0'}>
-		<div class="panel" class:compact onclick={(e) => e.stopPropagation()} role="presentation" style:width="{cardWidth}px">
-			<div class="grain"></div>
+		<div class="panel am-glass" class:compact onclick={(e) => e.stopPropagation()} role="presentation" style:width="{cardWidth}px">
 			<div class="head">
-				<div class="title">PRICE LIST</div>
+				<div class="title am-stencil">PRICE LIST</div>
 				<div class="pill">{soc('PER SPIN', 'PER PLAY')}</div>
 				<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} aria-label="Close">
 					<Icon name="close" s={compact ? 14 : 16} />
@@ -133,14 +132,15 @@
 		pointer-events: none;
 	}
 
-	/* ── the paper card (same stock as ReplayModal / AutoplayModal / BonusBuyModal) ── */
+	/* ── black glass (the same surface as the Chow Line / Autoplay; the paper card went with the
+	      approval review 2026-09-15) ── */
 	.panel {
-		--ink: #1b1204;
-		--body: #2a241a;
-		--muted: #6b6250;
-		--faint: #8a8069;
-		--rule: #a99c7d;
-		--green: #4e7d15;
+		--ink: var(--ui-ink);
+		--body: var(--ui-ink-2);
+		--muted: var(--ui-ink-2);
+		--faint: var(--ui-ink-3);
+		--rule: var(--ui-rule-2);
+		--green: var(--ui-green);
 		max-width: 100%;
 		pointer-events: auto;
 		position: relative;
@@ -149,19 +149,7 @@
 		gap: 12px;
 		padding: 16px 14px 14px;
 		color: var(--body);
-		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
 		border-radius: 18px;
-		box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
-	}
-	.grain {
-		position: absolute;
-		inset: 0;
-		border-radius: inherit;
-		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
-		pointer-events: none;
-	}
-	.panel > :not(.grain) {
-		position: relative;
 	}
 	.head {
 		display: flex;
@@ -172,16 +160,12 @@
 	.title {
 		flex: 1;
 		font-size: 22px;
-		font-weight: 900;
-		letter-spacing: 4px;
-		color: var(--ink);
-		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 	.pill {
 		border-radius: 999px;
 		padding: 6px 14px;
-		background: var(--body);
-		color: #f2c14e;
+		background: var(--ui-gold);
+		color: var(--ui-gold-ink);
 		font-size: 11px;
 		font-weight: 800;
 		letter-spacing: 2px;
@@ -192,18 +176,18 @@
 		width: 34px;
 		height: 34px;
 		border-radius: 10px;
-		background: rgba(0, 0, 0, 0.05);
-		box-shadow: inset 0 0 0 2px var(--rule);
-		color: var(--body);
+		background: var(--ui-glass-well);
+		color: var(--ink);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
 	.x:hover {
-		background: rgba(0, 0, 0, 0.12);
+		background: var(--ui-glass-well-2);
 	}
 	.block {
-		border: 3px dashed var(--rule);
+		background: var(--ui-glass-well);
+		border: 1px solid var(--ui-rule);
 		border-radius: 12px;
 		padding: 6px;
 	}
@@ -217,10 +201,10 @@
 	.opt {
 		min-width: 0;
 		padding: 0 4px;
-		border: 2px solid var(--rule);
+		border: 1px solid var(--ui-rule-2);
 		border-radius: 8px;
-		background: linear-gradient(180deg, #f6f0dd, #e6dcc2);
-		box-shadow: 0 2px 0 rgba(0, 0, 0, 0.16);
+		background: var(--ui-glass-well-2);
+		box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -236,16 +220,16 @@
 	}
 	.opt:hover:not(:disabled) {
 		transform: translateY(-2px);
-		box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+		box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
 	}
 	.opt:active:not(:disabled) {
 		transform: translateY(1px);
-		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.16);
+		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 	}
 	.opt:disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
-		background: rgba(0, 0, 0, 0.03);
+		background: transparent;
 		box-shadow: none;
 	}
 	.opt:disabled span {
@@ -261,7 +245,7 @@
 		box-shadow: 0 7px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 	}
 	.opt.selected span {
-		color: var(--ink);
+		color: var(--ui-gold-ink);
 		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 	}
 	.cap {
@@ -292,7 +276,6 @@
 		border-radius: 8px;
 	}
 	.compact .block {
-		border-width: 2px;
 		border-radius: 9px;
 	}
 	.compact .cap {

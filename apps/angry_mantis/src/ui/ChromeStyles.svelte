@@ -32,6 +32,17 @@
 			--ui-rule-2: rgba(255, 255, 255, 0.16);
 			--ui-gold-ink: #1b1204;
 		}
+		/* the ONE theme cue every modal shares (approval review 2026-09-15: the three modal
+		   families carried nothing from the game): headings set in the stencil face the numerals
+		   atlas, the 20,000x plate and the stinger plates already use — Black Ops One, gold, on
+		   the glass. Bundled font (fontFaces.ts). */
+		.am-stencil {
+			font-family: 'Black Ops One', var(--ui-font);
+			font-weight: 400;
+			letter-spacing: 0.12em;
+			color: var(--ui-gold);
+			text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+		}
 		.am-glass {
 			background: var(--ui-glass);
 			border: 1px solid var(--ui-glass-edge);

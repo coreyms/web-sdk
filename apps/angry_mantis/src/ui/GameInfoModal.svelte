@@ -133,7 +133,7 @@
 	<!-- full screen: no margin, no radius — the glass IS the page (Black Glass Panels, 2026-09-09) -->
 	<div class="panel" onclick={(e) => e.stopPropagation()} role="presentation">
 		<div class="head" style:padding="{compact ? 12 : 14}px {pad}px">
-			<div class="h-title" style:font-size="{compact ? 17 : 22}px">GAME INFO</div>
+			<div class="h-title am-stencil" style:font-size="{compact ? 17 : 22}px">GAME INFO</div>
 			<button class="slot-btn x" onclick={close} style:width="{compact ? 40 : 38}px" style:height="{compact ? 40 : 38}px" aria-label="Close"><Icon name="close" s={compact ? 16 : 18} /></button>
 		</div>
 
@@ -151,9 +151,9 @@
 					{#each paying as sym (sym)}
 						{@const meta = SYMBOL_META[sym]}
 						<div class="row">
-							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
+							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:width="{compact ? 48 : 64}px" style:height="{compact ? 48 : 64}px" />
 							<div class="row-main">
-								<div class="row-name" style:color={meta.color}>{meta.name}</div>
+								<div class="row-name" style:color={meta.color} style:font-size="{compact ? 12.5 : 14}px">{meta.name}</div>
 								<div class="row-kind">{meta.kind === 'premium' ? 'Premium' : meta.kind === 'mid' ? 'Mid' : 'Low'}</div>
 							</div>
 							<div class="pays">
@@ -166,7 +166,7 @@
 					<!-- Wild sits in the paytable grid per convention: its own tile, no pay values —
 					     it has no paytable of its own, only the substitution rule as its caption -->
 					<div class="row">
-						<img class="tile" src={tileSrc('W')} alt="Wild" style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
+						<img class="tile" src={tileSrc('W')} alt="Wild" style:width="{compact ? 48 : 64}px" style:height="{compact ? 48 : 64}px" />
 						<div class="row-main">
 							<div class="row-name" style:color="#ffdc4a">Wild</div>
 							<div class="row-kind">Substitutes for all menu symbols</div>
@@ -178,7 +178,7 @@
 				<div class="pay-grid" style:grid-template-columns="1fr">
 					{#each SPECIALS as s (s.glyph)}
 						<div class="row top">
-							<img class="tile" src={tileSrc(s.glyph)} alt={s.name} style:width="{compact ? 36 : 44}px" style:height="{compact ? 36 : 44}px" />
+							<img class="tile" src={tileSrc(s.glyph)} alt={s.name} style:width="{compact ? 48 : 64}px" style:height="{compact ? 48 : 64}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={s.color}>{s.name}</div>
 								<div class="note">{s.note}</div>
@@ -466,11 +466,13 @@
 		margin-top: 4px;
 	}
 	/* rows / cards: hairline boxes on the glass */
+	/* cells sized up 2026-09-15 (Corey): 64px tiles, larger names and pays — the 44px thumbnails
+	   read as coloured squares in the approval review */
 	.row {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 8px 10px;
+		gap: 14px;
+		padding: 10px 12px;
 		border-radius: 10px;
 		border: 1px solid var(--rule);
 	}
@@ -528,13 +530,13 @@
 		min-width: 0;
 	}
 	.row-name {
-		font-size: 12.5px;
+		font-size: 14px;
 		font-weight: 800;
 		letter-spacing: 1.5px;
 		text-transform: uppercase;
 	}
 	.row-kind {
-		font-size: 10.5px;
+		font-size: 11.5px;
 		color: var(--faint);
 		letter-spacing: 1px;
 		text-transform: uppercase;
@@ -547,21 +549,21 @@
 	}
 	.pays {
 		display: flex;
-		gap: 10px;
+		gap: 14px;
 	}
 	.pay {
 		text-align: right;
-		min-width: 36px;
+		min-width: 44px;
 	}
 	.pay-k {
-		font-size: 9px;
+		font-size: 10px;
 		font-weight: 800;
 		letter-spacing: 0.5px;
 		color: var(--faint);
 		text-transform: uppercase;
 	}
 	.pay-v {
-		font-size: 13px;
+		font-size: 16px;
 		color: var(--ink);
 		font-weight: 700;
 		white-space: nowrap;

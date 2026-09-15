@@ -98,10 +98,9 @@
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={9}>
 	<div class="center">
-		<div class="card" class:halt={needsReload} onclick={(e) => e.stopPropagation()} role="presentation" style:width={compact ? '88%' : '440px'}>
-			<div class="grain"></div>
+		<div class="card am-glass" class:halt={needsReload} onclick={(e) => e.stopPropagation()} role="presentation" style:width={compact ? '88%' : '440px'}>
 			<div class="stamp">{needsReload ? 'NOTICE' : 'SLIP'}</div>
-			<div class="title">{isError ? (known?.title ?? 'SOMETHING WENT WRONG') : notice?.title}</div>
+			<div class="title am-stencil">{isError ? (known?.title ?? 'SOMETHING WENT WRONG') : notice?.title}</div>
 			<div class="body">{isError ? (known?.body ?? 'Reload the game to continue. Any unfinished round resumes from the server.') : notice?.body}</div>
 			{#if isError}
 				<div class="slot-num detail">{errorText}</div>
@@ -120,42 +119,30 @@
 		justify-content: center;
 		pointer-events: none;
 	}
-	/* the same paper slip as the replay / autoplay / feature tickets (ReplayModal.svelte tokens) */
+	/* black glass, like every other sheet (the paper slip went with the approval review 2026-09-15) */
 	.card {
-		--ink: #1b1204;
-		--body: #2a241a;
-		--muted: #6b6250;
-		--faint: #8a8069;
-		--rule: #a99c7d;
-		--rust: #b8371e;
+		--ink: var(--ui-ink);
+		--body: var(--ui-ink-2);
+		--muted: var(--ui-ink-2);
+		--faint: var(--ui-ink-3);
+		--rule: var(--ui-rule-2);
+		--rust: #c53c24;
 		pointer-events: auto;
 		position: relative;
 		color: var(--body);
-		background: linear-gradient(180deg, #ebe3cf, #d9cfb4);
 		border-radius: 18px;
 		padding: 22px 24px 18px;
-		box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7), inset 0 0 0 2px rgba(0, 0, 0, 0.08);
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 		text-align: center;
 	}
-	.grain {
-		position: absolute;
-		inset: 0;
-		border-radius: inherit;
-		background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
-		pointer-events: none;
-	}
-	.card > :not(.grain) {
-		position: relative;
-	}
 	.stamp {
 		align-self: center;
 		border-radius: 999px;
 		padding: 5px 14px;
-		background: var(--body);
-		color: #f2c14e;
+		background: var(--ui-gold);
+		color: var(--ui-gold-ink);
 		font-size: 11px;
 		font-weight: 800;
 		letter-spacing: 2px;
@@ -165,11 +152,7 @@
 		color: #f6ead3;
 	}
 	.title {
-		font-weight: 900;
 		font-size: 20px;
-		letter-spacing: 3px;
-		color: var(--ink);
-		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 	.body {
 		font-size: 13.5px;
@@ -180,7 +163,8 @@
 	.detail {
 		font-size: 11px;
 		color: var(--muted);
-		border: 2px dashed var(--rule);
+		background: var(--ui-glass-well);
+		border: 1px solid var(--ui-rule);
 		border-radius: 10px;
 		padding: 8px 10px;
 		max-height: 80px;

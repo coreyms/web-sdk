@@ -1,4 +1,13 @@
+import { loadTextures } from 'pixi.js';
 import stamps, { fileBytes } from './assetStamp';
+
+// Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
+// waits for that worker's first message with no error path. Behind a CSP whose worker-src has no
+// blob: (engine.io serves games under a blob-less policy, see the 2026-09-07 audio finding) the
+// probe never answers and the preload sits at ~40% forever (reproduced 2026-09-15 with the
+// production build behind such a policy). Main-thread fetch + createImageBitmap costs nothing
+// measurable here — decoding is async either way — so the worker is simply off.
+if (loadTextures.config) loadTextures.config.preferWorkers = false;
 
 // Every /assets/* URL carries ?v=<content hash> (see scripts/stamp-assets.mjs) because production
 // serves static assets with Cache-Control: immutable — without the stamp, browsers that cached an
