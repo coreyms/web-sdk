@@ -32,16 +32,16 @@
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
 <!-- logo + tagline each carry a Shine: a subtle glint every 5 s while idle, a full one on spin, in sync -->
-<div class="logo"><img src={stamp('/assets/ui/logo-landscape.webp')} alt="Angry Mantis" draggable="false" /><Shine src={stamp('/assets/ui/logo-landscape.webp')} /></div>
+<div class="logo keep"><img src={stamp('/assets/ui/logo-landscape.webp')} alt="Angry Mantis" draggable="false" /><Shine src={stamp('/assets/ui/logo-landscape.webp')} /></div>
 <!-- "WIN UP TO 20,000x" set from Corey's branded glyphs (tools/build_branded_glyphs.py), sized to the text it replaced -->
 <div class="tagline"><span class="tag"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /><Shine src={stamp('/assets/ui/20000x.webp')} /></span></div>
 
 <!-- readout row on the frame art's edges; maxWidth auto-shrinks huge values (stake.us GC balances hit trillions) -->
-<div class="trio" style:left="{art.x}px" style:width="{art.width}px">
+<div class="trio hud-group" style:left="{art.x}px" style:width="{art.width}px">
 	<div class="cell left">
 		{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />{/if}
 	</div>
-	<div class="cell centre">
+	<div class="cell centre keep">
 		<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" maxWidth={205} />
 	</div>
 	<div class="cell right">

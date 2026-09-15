@@ -8,7 +8,7 @@
 		| { type: 'mantisHide' }
 		| { type: 'mantisStrike'; striker: Striker; trigger: 'auto' | 'glowingLeaf'; position?: Position }
 		| { type: 'mantisEat'; striker: Striker; symbol: PayingSymbolName | null; from?: Position | null }
-		| { type: 'mantisReact'; kind: RigReaction };
+		| { type: 'mantisReact'; kind: RigReaction; chain?: boolean }; // chain: two different clips back to back
 </script>
 
 <script lang="ts">
@@ -178,7 +178,17 @@
 	// finishing-touches item 2: hosts react to spin outcomes. Feast desync rule (Corey): when both
 	// react to the same beat they pull DIFFERENT clips from the pool, staggered so they never move
 	// in lockstep.
-	const react = (kind: RigReaction) => {
+	// per-host memory of the last reaction clip (CELEBRATE, Corey 2026-09-15): with three takes per
+	// reaction the same clip twice running was common; a host never repeats its previous pick
+	const lastReaction: Record<Striker, string | null> = { marty: null, marky: null };
+	/** pick a clip for `name` from its own pool, avoiding every clip in `avoid` while it can */
+	const pickReaction = (kind: RigReaction, name: Striker, avoid: (string | null)[]) => {
+		const own = reactionPoolFor(kind, name);
+		const choices = own.filter((c) => !avoid.includes(c));
+		const from = choices.length ? choices : own;
+		return from[Math.floor(Math.random() * from.length)];
+	};
+	const react = (kind: RigReaction, chain = false) => {
 		const targets = (host === 'both' ? (['marty', 'marky'] as Striker[]) : [host]).filter(
 			(name) => !busy[name] && rigOf(name),
 		);
@@ -188,21 +198,28 @@
 		let taken: string | null = null;
 		targets.forEach((name, i) => {
 			// each skin picks from ITS OWN pool (RIG_SKIN_EXCLUDE), avoiding the clip the other host
-			// just took so both reacting still never move in lockstep
-			const own = reactionPoolFor(kind, name);
-			const choices = own.filter((c) => c !== taken);
-			const from = choices.length ? choices : own;
-			const clip = from[Math.floor(Math.random() * from.length)];
+			// just took (never in lockstep) and the clip this host played last time (never a repeat)
+			const clip = pickReaction(kind, name, [taken, lastReaction[name]]);
 			if (!clip) return; // nothing this skin may play for the beat: stay idle
 			taken = clip;
+			lastReaction[name] = clip;
+			// a chained beat (the top win stages) follows the clip with a DIFFERENT one before idling
+			const second = chain ? pickReaction(kind, name, [clip]) : null;
+			if (second && second !== clip) lastReaction[name] = second;
 			const start = () => {
 				const rig = rigOf(name);
 				if (busy[name] || !rig) return;
+				const settle = () => {
+					const r = rigOf(name);
+					if (r) playIdle(r);
+				};
 				playClip(rig, clip, {
 					loop: false,
 					onComplete: () => {
 						const r = rigOf(name);
-						if (r) playIdle(r);
+						if (!r) return;
+						if (second && second !== clip && !busy[name]) playClip(r, second, { loop: false, onComplete: settle });
+						else settle();
 					},
 				});
 			};
@@ -251,7 +268,7 @@
 			host = 'marty';
 			(['marty', 'marky'] as Striker[]).forEach((n) => walkOff[n].set(0, { duration: 0 }));
 		},
-		mantisReact: ({ kind }) => react(kind),
+		mantisReact: ({ kind, chain }) => react(kind, chain),
 		mantisStrike: async ({ striker, position }) => {
 			show = true;
 			await walkDone[striker]; // never strike mid-entrance

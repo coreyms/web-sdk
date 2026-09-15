@@ -35,10 +35,10 @@ export const LIT_KEY: Record<Scene, string> = {
 	feast: 'bgCafeteriaFeast',
 };
 
-// The lamps-off renders. base is delivered; super and feast are Corey's to render (2026-09-11), so
-// their keys are simply NOT in game/assets.ts yet and offKeyOf() returns undefined for them. The
-// drop-in is: build the render with tools/build_lights_off.py and add the one line to assets.ts —
-// nothing here or in Background.svelte changes.
+// The lamps-off renders (tools/build_lights_off.py). base = the day room with the lamps out; super
+// and feast = the NIGHT room (one shared source, aligned per scene). A scene whose key is missing
+// from game/assets.ts falls back to the base room in the dark (offKeyOf() -> undefined), so a
+// render can be pulled by deleting its assets.ts line alone.
 const OFF_KEY: Record<Scene, string> = {
 	base: 'bgCafeteriaBaseOff',
 	super: 'bgCafeteriaSuperOff',

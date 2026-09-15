@@ -255,6 +255,62 @@ export const SYMBOL_POSES = {
 			// eyes-covered peak. Omit to freeze on the clip's last frame.
 			eatFreezeFrame: 6,
 		},
+		L1: {
+			// the lightning bug (Corey 2026-09-12): its land/ambient clip is the lantern PULSE —
+			// full_glow steps dark → half → full → half over 36 frames (1.5 s), so it gets ONE
+			// pass per beat and the whole pulse reads end to end; its scared clip is the panic
+			// flash, brightest on frame 3, and the pose eases all the way back to rest by 31, so
+			// the freeze sits on the flash
+			sheet: 'posesL1',
+			poses: { land: 'full_glow', ambient: 'full_glow', win: 'idle', eat: 'scared' },
+			fps: 24,
+			landLoops: 1,
+			ambientLoops: [1, 1],
+			eatFreezeFrame: 3,
+		},
+		L3: {
+			// the moth (Corey 2026-09-12): its land/ambient clip is wing_adjust — the wings ease
+			// open and resettle over 36 frames (1.5 s), so it gets ONE pass per beat and the whole
+			// adjust reads end to end; its scared clip is the EYESPOT FLARE — the wings snap wide
+			// open by frame 5, HOLD the display through 15 (widest span on 11) and then ease all
+			// the way back to rest by 31, so the freeze sits mid-flare
+			sheet: 'posesL3',
+			poses: { land: 'wing_adjust', ambient: 'wing_adjust', win: 'idle', eat: 'scared' },
+			fps: 24,
+			landLoops: 1,
+			ambientLoops: [1, 1],
+			eatFreezeFrame: 11,
+		},
+		L4: {
+			// the caterpillar (Corey 2026-09-12): its land/ambient clip is the SMILE — the grin
+			// spreads and eases back over 52 frames (2.2 s), so it gets ONE pass per beat and the
+			// whole smile reads end to end; its scared clip pops the eyes wide on frame 5 and HOLDS
+			// that stare flat through 22 before the eyes squeeze shut into an open-mouthed wail it
+			// ENDS on (31) — it never settles back to rest, so the freeze sits mid-stare rather
+			// than on the last frame, which would carry the caterpillar off with its eyes closed
+			sheet: 'posesL4',
+			poses: { land: 'smile', ambient: 'smile', win: 'idle', eat: 'scared' },
+			fps: 24,
+			landLoops: 1,
+			ambientLoops: [1, 1],
+			eatFreezeFrame: 11,
+		},
+		H1: {
+			// the mantis, Marty himself (Corey 2026-09-15): he is asleep on his plate, so his
+			// land/ambient clip is sleeping_movements — a 60-frame (2.5 s) breath-and-shuffle that
+			// never wakes him, so it gets ONE pass per beat and the whole drift reads end to end;
+			// win is the 48-frame idle. His scared clip is the WAKE-UP: the eyes snap open on
+			// frame 5, the forelegs thrust out to full reach by 8 and HOLD wide through 12 before
+			// folding back in, and by 19 the eyes have squinted shut again — freezing on the last
+			// frame would carry Marty off asleep, so the freeze sits on 9, the widest reach with
+			// the eye at its most open
+			sheet: 'posesH1',
+			poses: { land: 'sleeping_movements', ambient: 'sleeping_movements', win: 'idle', eat: 'scared' },
+			fps: 24,
+			landLoops: 1,
+			ambientLoops: [1, 1],
+			eatFreezeFrame: 9,
+		},
 		M1: {
 			// the beetle (Corey 2026-09-11): a 24-frame settle instead of a 6-frame twitch, so it
 			// gets ONE pass per beat where the fly gets four / five; its scared clip tucks in
@@ -409,6 +465,20 @@ export const RIG_SKIN_EXCLUDE: Record<'marty' | 'marky', readonly string[]> = {
 };
 export const reactionPoolFor = (kind: RigReaction, name: 'marty' | 'marky'): readonly string[] =>
 	RIG.reactions[kind].filter((clip) => !RIG_SKIN_EXCLUDE[name].includes(clip));
+
+// Host celebrations in free games (Corey 2026-09-15). The old rule fired a celebration on EVERY
+// nice+ win, with certainty, from a pool of three clips — in a bonus that is most spins, and the
+// same clip back to back was common. Now: a chance per win stage (alias in winLevelMap.ts; a stage
+// not listed never celebrates), big and above are certain, the top stages CHAIN two different
+// clips so the biggest moments read longer, and after any celebration the low stages sit out for a
+// couple of spins. Per-host clip memory lives in Mantis.svelte (never the clip that host played
+// last time). Rolled in bookEventHandlerMap's setWin; the DEV trace is __angryMantis.celebrateTrace.
+export const CELEBRATE = {
+	chance: { nice: 0.25, substantial: 0.5, big: 1, superwin: 1, mega: 1, epic: 1, max: 1 } as Record<string, number>,
+	chain: ['mega', 'epic', 'max'], // stages that play two different clips back to back
+	cooldownSpins: 2, // spins after a celebration during which nice/substantial rolls are skipped
+	cooldownExempt: ['big', 'superwin', 'mega', 'epic', 'max'], // stages that ignore the cooldown
+};
 
 // Voice clips that play WITH a reaction animation — three takes each (Corey 2026-09-02), picked at
 // random so a repeated reaction never plays the identical clip. Keyed by reaction so every

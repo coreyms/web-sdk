@@ -29,7 +29,7 @@
 <ClockStrip side="left" clock text="ANGRY MANTIS" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<div class="top"><span class="logo"><img src={stamp('/assets/ui/logo-wide.webp')} alt="Angry Mantis" draggable="false" /><Shine src={stamp('/assets/ui/logo-wide.webp')} /></span></div>
+<div class="top keep"><span class="logo"><img src={stamp('/assets/ui/logo-wide.webp')} alt="Angry Mantis" draggable="false" /><Shine src={stamp('/assets/ui/logo-wide.webp')} /></span></div>
 <!-- the WIN UP TO 20,000x tagline the other two layouts carry under the logo (Corey 2026-09-03);
      hidden during free games, where the ON THE MENU pool tray sits in that band -->
 {#if !freegame}
@@ -43,12 +43,12 @@
 
 <!-- WIN is centred between the two BIG buttons (bonus right edge 82 .. spin left edge W−170), not
      between the clusters: its centre is W/2 − 44, i.e. 50% of this bar (4..W−4) minus 44 -->
-<div class="bar">
+<div class="bar hud-group">
 	<div class="cluster">
 		{#if !replay && !controls.jurisdiction().disabledBuyFeature}<BonusButton size={78} {controls} />{/if}
 		<MenuButton size={36} {controls} compact />
 	</div>
-	<div class="win">
+	<div class="win keep">
 		<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="sm" align="center" maxWidth={120} />
 	</div>
 	<div class="cluster">

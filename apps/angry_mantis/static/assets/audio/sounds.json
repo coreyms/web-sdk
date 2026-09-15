@@ -222,19 +222,19 @@
 			"volume": 1
 		},
 		"sfx_marty_strike": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_eat": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_angry": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_happy": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_poke": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_win_big": {
 			"volume": 1
@@ -273,49 +273,49 @@
 			"volume": 1
 		},
 		"sfx_marty_strike_2": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_strike_3": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marky_strike": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_eat_2": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_eat_3": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marky_eat": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_angry_2": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_angry_3": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_happy_2": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_happy_3": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_poke_2": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_poke_3": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_astonished": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_astonished_2": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_marty_astonished_3": {
-			"volume": 1
+			"volume": 0.5
 		},
 		"sfx_bonus_trigger_free": {
 			"volume": 1

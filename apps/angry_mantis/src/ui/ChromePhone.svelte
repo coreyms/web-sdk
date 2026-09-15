@@ -42,9 +42,9 @@
 <div class="tagline"><span class="tag"><img src={stamp('/assets/ui/20000x.webp')} alt="Win up to 20,000×" draggable="false" /><Shine src={stamp('/assets/ui/20000x.webp')} /></span></div>
 
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
-<div class="stats">
+<div class="stats hud-group">
 	{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />{/if}
-	<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />
+	<div class="keep" style="display: contents"><TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} /></div>
 	{#if !freegame}
 		<div class="spin-row">
 			{#if !replay}<div class="minus"><StepButton dir={-1} size={32} {controls} /></div>{/if}

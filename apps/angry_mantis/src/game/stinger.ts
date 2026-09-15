@@ -20,11 +20,12 @@ export const stingerPlateFor = (alias: string | undefined): StingerPlateName =>
 
 /** asset key + source aspect (width / height of the cropped plate) */
 export const STINGER_PLATE: Record<StingerPlateName, { key: string; aspect: number }> = {
-	normal: { key: 'stingerNormal', aspect: 1872 / 644 },
-	big: { key: 'stingerBig', aspect: 1855 / 651 },
-	superwin: { key: 'stingerSuper', aspect: 1887 / 647 },
+	// cropped sizes printed by tools/build_stingers.py (rerun it when a plate source changes)
+	normal: { key: 'stingerNormal', aspect: 1896 / 636 },
+	big: { key: 'stingerBig', aspect: 1855 / 652 },
+	superwin: { key: 'stingerSuper', aspect: 1888 / 647 },
 	mega: { key: 'stingerMega', aspect: 1876 / 632 },
-	epic: { key: 'stingerEpic', aspect: 1902 / 677 },
+	epic: { key: 'stingerEpic', aspect: 1903 / 678 },
 	max: { key: 'stingerMax', aspect: 1835 / 658 },
 };
 

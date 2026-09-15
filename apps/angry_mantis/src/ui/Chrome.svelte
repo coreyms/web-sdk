@@ -70,8 +70,12 @@
 />
 
 <!-- The HUD fades out under every modal (Corey 2026-09-02): the paper modals carry their own SPIN/price
-     readout, so the dimmed HUD behind them showed the same amount twice; modals live in their own layer. -->
-<div class="am-ui layer" class:hidden={!show || context.stateLayout.showLoadingScreen || stateModal.modal != null}>
+     readout, so the dimmed HUD behind them showed the same amount twice; modals live in their own layer.
+     uiHide (bonus intro, the wrap-up, max win) fades the HUD too, but NOT the elements marked `keep`:
+     the landscape and portrait logos and every layout's WIN readout stay up through every presentation
+     (Corey 2026-09-15; the wrap-up total is then readable off the HUD as well as the plate). The phone
+     logo shares its column with the prompt, so it still goes with the HUD there. -->
+<div class="am-ui layer" class:hidden={context.stateLayout.showLoadingScreen || stateModal.modal != null} class:hud-off={!show}>
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px">
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />
@@ -104,8 +108,21 @@
 	.layer.hidden {
 		opacity: 0;
 	}
-	.layer.hidden :global(*) {
+	.layer.hidden :global(*),
+	.layer.hud-off :global(*) {
 		pointer-events: none !important;
+	}
+	/* uiHide: every top-level chrome element fades except the ones marked keep (the logo, the WIN
+	   readout). A hud-group container is not faded itself; its children are, keep honoured, so a
+	   kept element can sit inside a row (the WIN cell in the landscape trio, Corey 2026-09-15: the
+	   wrap-up amount gets a second place to read it). */
+	.fit > :global(*),
+	:global(.hud-group > *) {
+		transition: opacity 0.35s ease;
+	}
+	.layer.hud-off .fit > :global(:not(.keep):not(.hud-group)),
+	.layer.hud-off :global(.hud-group > :not(.keep)) {
+		opacity: 0;
 	}
 	.modals {
 		z-index: 60;

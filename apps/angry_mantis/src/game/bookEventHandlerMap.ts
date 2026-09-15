@@ -13,7 +13,7 @@ import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { Position, BonusMode, Scene } from './types';
-import { BONUS_TRIGGER_SOUND_MAP, ANTICIPATION, TIMINGS, LIGHTS_CUT } from './constants';
+import { BONUS_TRIGGER_SOUND_MAP, ANTICIPATION, TIMINGS, LIGHTS_CUT, CELEBRATE } from './constants';
 import { awaitDeferredAssets } from './assetGate';
 import { doorPaintClear, doorPaintIntro, doorPaintOutro } from './doorPaint.svelte';
 
@@ -57,6 +57,22 @@ const sceneOf = (mode: BonusMode): Scene => (mode === 'super' || mode === 'feast
 
 // per-free-spin outcome tracking for mantis reactions (reveal resets, setWin marks)
 let freeSpinHadWin = false;
+// celebration cooldown (CELEBRATE): the free-spin index of the last celebration, reset per bonus
+let lastCelebrateSpin = -Infinity;
+/** roll the hosts' celebration for a free-spin win: 0 = stay idle, 1 = one clip, 2 = chain two */
+const celebrateRoll = (alias: string): 0 | 1 | 2 => {
+	const chance = CELEBRATE.chance[alias] ?? 0;
+	const spin = stateGame.spinsPlayed;
+	const cooling = spin - lastCelebrateSpin <= CELEBRATE.cooldownSpins && !CELEBRATE.cooldownExempt.includes(alias);
+	const rolled = Math.random();
+	const clips: 0 | 1 | 2 = chance <= 0 || cooling || rolled >= chance ? 0 : CELEBRATE.chain.includes(alias) ? 2 : 1;
+	if (clips > 0) lastCelebrateSpin = spin;
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		const am = ((window as unknown as { __angryMantis?: Record<string, unknown> }).__angryMantis ??= {});
+		((am.celebrateTrace ??= []) as unknown[]).push({ spin, alias, chance, cooling, rolled: Math.round(rolled * 100) / 100, clips });
+	}
+	return clips;
+};
 
 const animateSymbols = async ({ positions }: { positions: Position[] }) => {
 	eventEmitter.broadcast({ type: 'boardShow' });
@@ -240,6 +256,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// deferred assets (game/assets.ts): make sure they are in before anything below draws them
 		await awaitDeferredAssets();
 		stateGameDerived.resetSession();
+		lastCelebrateSpin = -Infinity; // fresh bonus, fresh celebration cooldown (CELEBRATE)
 		// every bonus starts at normal speed, whatever the base game was running at; the base level
 		// waits in stateGame.baseTurboLevel for freeSpinEnd (press-to-hurry still works: the
 		// non-persistent turbo the harness/stop press uses is never locked out by level 0)
@@ -479,8 +496,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 		if (stateGame.gameType === 'freegame' && bookEvent.amount > 0) {
 			freeSpinHadWin = true;
-			// hosts celebrate medium+ spins (plays under the win presentation)
-			if (winLevelData.type !== 'small') eventEmitter.broadcast({ type: 'mantisReact', kind: 'celebrate' });
+			// hosts celebrate by win stage (CELEBRATE in constants.ts; plays under the win presentation)
+			const clips = celebrateRoll(winLevelData.alias);
+			if (clips > 0) eventEmitter.broadcast({ type: 'mantisReact', kind: 'celebrate', chain: clips === 2 });
 		}
 		// the branded glyph atlas (tier titles) is a deferred asset — only a big+ win waits for it
 		if (winLevelData.type === 'big') await awaitDeferredAssets();

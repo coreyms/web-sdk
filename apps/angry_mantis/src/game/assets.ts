@@ -32,11 +32,12 @@ export default {
 	// to the lit one and copies its pane alpha across). The "lamps out, lamps on" mode transition
 	// (game/lightsCut.svelte.ts) crossfades between a room and its off render, so the off renders
 	// are bonus-only and deferred like the rooms they belong to.
-	// super and feast are Corey's to render (2026-09-11): until the files land, the two lines below
-	// stay out and the transition falls back to holding the base room in the dark (the game reads
-	// the ASSET MAP for this — no flag to flip, just add the line back when the file arrives).
-	//   bgCafeteriaSuperOff: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super-off.webp', import.meta.url).href), preload: false },
-	//   bgCafeteriaFeastOff: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast-off.webp', import.meta.url).href), preload: false },
+	// super and feast share ONE off source: the NIGHT lamps-off render (Corey 2026-09-15), built
+	// once per scene so each carries its own lit render's alignment and pane alpha. Both bonus rooms
+	// go dark into the night room; the world switch then crossfades night -> day lamps-off and the
+	// cafeteria's tubes restrike into daylight (the mirror plays on entry).
+	bgCafeteriaSuperOff: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-super-off.webp', import.meta.url).href), preload: false },
+	bgCafeteriaFeastOff: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-feast-off.webp', import.meta.url).href), preload: false },
 	bgCafeteriaBaseOff: { type: 'sprite', src: stamp(new URL('../../assets/ui/cafeteria-background-base-off.webp', import.meta.url).href), preload: false },
 	frameCafeteria: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-cafeteria.webp', import.meta.url).href), preload: true },
 	// board backdrop behind the symbols (Corey's dimpled steel tray plates, 1220×985 = the frame
@@ -124,9 +125,29 @@ export default {
 	// sheet lands its key simply stays out of this map and that insect never animates (the runtime
 	// reads the ASSET MAP for this, there is no flag to flip). DEFERRED: the baked tile is what the
 	// board draws until the sheet is in, so a pose is only ever a bonus on top of a loaded game.
+	posesH1: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/sprites/poses-h1.json', import.meta.url).href),
+		preload: false,
+	},
+	posesL1: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/sprites/poses-l1.json', import.meta.url).href),
+		preload: false,
+	},
 	posesL2: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/sprites/poses-l2.json', import.meta.url).href),
+		preload: false,
+	},
+	posesL3: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/sprites/poses-l3.json', import.meta.url).href),
+		preload: false,
+	},
+	posesL4: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/sprites/poses-l4.json', import.meta.url).href),
 		preload: false,
 	},
 	posesM1: {

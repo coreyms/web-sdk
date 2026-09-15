@@ -166,9 +166,19 @@ def eaten_from_art(im):
 
 # ---- pose sheets (see the module docstring) -------------------------------------------------
 POSE_ALPHA_T = 16  # alpha below this is stray antialias, not silhouette — ignored by the bbox
-POSE_MAX_UPSCALE = 1.15  # fit may enlarge frames up to this much to match the still
+POSE_MAX_UPSCALE = 1.4   # fit may enlarge frames up to this much to match the still. 1.15 covered the
+                         # first six sheets (max 1.13, the moth); the caterpillar is drawn compact in
+                         # its frames (175 px tall vs a 235 px still) and needs 1.35 — a cell on screen
+                         # is smaller than the 175 px source, so the upscale never shows
+POSE_UPSCALE_CAP: dict[str, float] = {}  # per-sheet override of POSE_MAX_UPSCALE (none needed: the 2026-09-15
+                                          # mantis re-export fills its cells like the other sheets)
+POSE_NUDGE = {"l4": (-6, 0)}  # art direction, in tile pixels (256 space), applied AFTER the bbox-centre
+                              # fit: the fit rule centres the silhouette and Corey wanted the caterpillar
+                              # left of centre on the tray (2026-09-12)
 POSE_QUALITY = 85  # lossy RGB, lossless alpha (exact=True): the wings are ~40% semi-transparent
-POSE_COLS = 8      # 8 x 256 = 2048 wide; rows grow downward, capped at 4096 either way
+POSE_COLS = 8      # 8 x 256 = 2048 wide; rows grow downward. Past 128 frames the sheet goes
+                   # 16 wide instead (the true 4096² cap is 256 frames); the narrow layout is kept
+                   # for the sheets already shipped so their atlases stay byte-identical
 POSE_DIR = SPRITES
 
 
@@ -220,15 +230,19 @@ def load_poses(prefix, insect):
     # anyway, so nothing is lost); anything past POSE_MAX_UPSCALE means the sheet was authored at a
     # different framing and stays at 1.0 rather than going soft
     raw = max(tb[2] - tb[0], tb[3] - tb[1]) / max(sb[2] - sb[0], sb[3] - sb[1])
-    scale = raw if raw <= POSE_MAX_UPSCALE else 1.0
+    cap = POSE_UPSCALE_CAP.get(prefix, POSE_MAX_UPSCALE)
+    scale = raw if raw <= cap else 1.0
     scale_px = max(1, round(S * scale))
     eff = scale_px / S  # the scale actually applied once the frame size is an integer
+    nudge = POSE_NUDGE.get(prefix, (0, 0))
     offset = (
-        round((tb[0] + tb[2]) / 2 - eff * (sb[0] + sb[2]) / 2),
-        round((tb[1] + tb[3]) / 2 - eff * (sb[1] + sb[3]) / 2),
+        round((tb[0] + tb[2]) / 2 - eff * (sb[0] + sb[2]) / 2) + nudge[0],
+        round((tb[1] + tb[3]) / 2 - eff * (sb[1] + sb[3]) / 2) + nudge[1],
     )
     frames = {name: fit_frame(cut(name), scale_px, offset) for name in meta["frames"]}
     fit = {"scale": round(eff, 6), "offset": offset, "src_bbox": sb, "dst_bbox": tb, "frame_px": scale_px}
+    if any(nudge):  # only the nudged sheets carry it, so the un-nudged JSONs stay byte-identical
+        fit["nudge"] = nudge
     return frames, anims, int(meta.get("meta", {}).get("fps") or 24), fit
 
 
@@ -236,7 +250,7 @@ def pose_sheet(sym, prefix, frames, anims, fps, fit):
     """Pack the fitted frames into static/assets/sprites/poses-<prefix>.{webp,json}."""
     names = [n for n in frames]
     key = lambda n: f"{sym}_{n[:-4] if n.endswith('.png') else n}"
-    cols = min(POSE_COLS, max(1, len(names)))
+    cols = min(POSE_COLS if len(names) <= POSE_COLS * 16 else 16, max(1, len(names)))
     rows = math.ceil(len(names) / cols)
     if cols * S > 4096 or rows * S > 4096:
         raise SystemExit(f"poses-{prefix}: {len(names)} frames exceed the 4096² texture budget — split by animation")
