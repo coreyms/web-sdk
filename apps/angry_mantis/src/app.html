@@ -270,7 +270,7 @@
 							<div class="pct" id="am-pct">LOADING · 0%</div>
 						</div>
 					</div>
-					<div class="legal">Play responsibly · 18+</div>
+					<div class="legal">Play responsibly</div>
 				</div>
 			</div>
 		</div>
@@ -347,17 +347,33 @@
 				var gone = false;
 				var MIN_MS = 1200; /* never cut the 880 ms draw-in short; a warm cache fades at 1.2 s */
 
-				var painted = 0;
+				/* SMOOTHING (Corey 2026-09-15): the reports are bursty — the bundle streams per chunk,
+				   the landing images per chunk, but a Pixi asset only reports when it has fully landed,
+				   so one big atlas is a 10-20 s silence on a slow link. Between reports the bar keeps
+				   moving at the download's own measured pace (points per ms since the splash appeared),
+				   never more than `lead` points past the last real report, never past the share, never
+				   backwards. Every real report is caught up to at once. */
+				var painted = 0, target = 0, lead = 6, lastReportAt = 0;
 				function paint() {
 					var total = bundle.total + assets.total + preload.total;
 					var loaded = bundle.loaded + assets.loaded + preload.loaded;
 					var p = total > 0 ? Math.min(1, loaded / total) : 0;
-					p = Math.round(Math.max(p * share * 100, creep));
+					target = Math.max(p * share * 100, creep);
+					lastReportAt = Date.now();
+					draw();
+				}
+				function draw() {
+					var cap = share * 100;
+					var elapsed = Date.now() - t0;
+					var rate = elapsed > 0 ? target / elapsed : 0; /* points per ms so far */
+					var predicted = target + Math.min(lead, rate * (Date.now() - lastReportAt));
+					var p = Math.round(Math.min(cap, Math.max(target, predicted)));
 					if (p < painted) p = painted; /* never backwards */
 					painted = p;
 					fill.style.width = Math.max(4, p) + '%';
 					pct.textContent = 'LOADING · ' + p + '%';
 				}
+				var drawTimer = setInterval(function () { if (gone) return clearInterval(drawTimer); draw(); }, 200);
 
 				var api = {
 					setBundle: function (l, t) { bundle.loaded = l; bundle.total = t; paint(); },

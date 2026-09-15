@@ -1,6 +1,7 @@
 import { createSound, supportsAudioFormat, type MusicManifest } from 'utils-sound';
 
 import assets from './assets';
+import { fileBytes } from './assetStamp';
 
 // Names match tools/build_audiosprite.py. MusicName lives in music.json (one streamed file per
 // track); every SoundEffectName lives in the sounds.json audiosprite.
@@ -166,6 +167,11 @@ export const startSoundPreload = () => {
 				const manifest = (await manifestResponse.json()) as SoundManifest;
 				const picked = pickSource(manifest.src);
 				if (!picked) throw new Error('no supported audio format in sounds.json src[]');
+				// weight the sprite by its real size from the first moment: before the first chunk the
+				// progress blend had 0 bytes for it and read 100% off the music gate alone (2026-09-15)
+				const rel = /\/assets\/([^?#]+)/.exec(picked.url)?.[1];
+				const expected = rel ? (fileBytes as Record<string, number>)[rel] : undefined;
+				if (expected) sound.reportDownloadProgress(0, expected);
 				await prefetchWithProgress(picked.url);
 				sound.load(
 					{ src: [picked.url], sprite: manifest.sprite, config: manifest.config },

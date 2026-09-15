@@ -16,7 +16,7 @@
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
 	import { boot, reportPreload } from '../game/boot.svelte';
-	import { startSoundPreload } from '../game/sound';
+	import { sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import ResumeBet from './ResumeBet.svelte';
@@ -85,6 +85,18 @@
 		// ...and the audio is the last leg, on the landing screen's own bar (routes/+layout.svelte)
 		if (context.stateApp.preLoaded) startSoundPreload();
 	});
+	// The deferred Pixi phase (pose atlases, bonus rooms, ~9 MB) must not share a slow link with
+	// that audio: measured on Slow 4G, the 432 KB sfx sprite took 90 s behind it (2026-09-15). Hold
+	// the deferred phase until the audio is ready, with a cap so a dead audio never blocks the game.
+	context.stateApp.beforeDeferred = () =>
+		new Promise<void>((resolve) => {
+			const t0 = performance.now();
+			const tick = () => {
+				if (sound.isReady || performance.now() - t0 > 30000) resolve();
+				else setTimeout(tick, 250);
+			};
+			tick();
+		});
 
 	// the deferred asset phase (game/assets.ts) finishes behind the landing screen; release the
 	// consumers waiting on game/assetGate.ts the moment it does

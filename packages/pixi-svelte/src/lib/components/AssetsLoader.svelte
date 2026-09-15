@@ -39,11 +39,16 @@
 	// only ever counted once.
 	// Progress is the PRELOAD phase only: that is what a loading screen waits on. The deferred phase
 	// runs behind the game (a game with nothing deferred sees the same 0..100 as before).
+	// Weighted by each asset's `bytes` when the app supplies them (falls back to one file = one
+	// unit): a plain count settles the many small files in the first seconds and then sits still
+	// while the few big atlases download — the bar read 60% for 5 s and then nothing for 40 s on
+	// Slow 4G (2026-09-15). Bytes make the ticks land where the time goes.
 	const loadedKeys = new Set<string>();
+	const weightOf = (key: string) => Math.max(1, context.stateApp.assets?.[key]?.bytes ?? 1);
 	const reportProgress = () => {
-		const total = preAssetNameList.length;
+		const total = preAssetNameList.reduce((n, key) => n + weightOf(key), 0);
 		if (total <= 0) return;
-		const preDone = preAssetNameList.filter((key) => loadedKeys.has(key)).length;
+		const preDone = preAssetNameList.filter((key) => loadedKeys.has(key)).reduce((n, key) => n + weightOf(key), 0);
 		context.stateApp.loadingProgress = Math.min(100, (preDone / total) * 100);
 	};
 
@@ -132,6 +137,15 @@
 			}
 
 			if (!context.stateApp.loaded) {
+				// the app may hold the deferred phase (stateApp.beforeDeferred): on a slow link these
+				// megabytes otherwise share the pipe with whatever its loading screen still waits on
+				if (postPending === undefined) {
+					try {
+						await context.stateApp.beforeDeferred?.();
+					} catch {
+						/* a hook that throws never blocks the load */
+					}
+				}
 				if (postPending === undefined) postPending = assetNameList;
 				if (postPending.length > 0) {
 					const { loaded, failed } = await loadAssets(postPending);

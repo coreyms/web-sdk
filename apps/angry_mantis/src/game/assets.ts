@@ -1,4 +1,4 @@
-import stamps from './assetStamp';
+import stamps, { fileBytes } from './assetStamp';
 
 // Every /assets/* URL carries ?v=<content hash> (see scripts/stamp-assets.mjs) because production
 // serves static assets with Cache-Control: immutable — without the stamp, browsers that cached an
@@ -21,7 +21,7 @@ export const stamp = (href: string): string => {
 // only needed once a bonus starts or a big win lands — bonusStart / setWin / the resume path await
 // game/assetGate.ts before they draw any of it, so a slow connection never shows a hole. Before this
 // split every key was gated: 9.7 MB (≈49 s on Fast 3G) before PRESS ANYWHERE (Stake review 2026-09-02).
-export default {
+const assets = {
 	// per-mode cafeteria backdrops (finishing-touches item 6): base/ante/regular bonus share one,
 	// super and feast get their own. Only the base scene gates the landing; the other two ride the
 	// deferred phase (bonusStart awaits it, so bonus entry still never pops).
@@ -183,3 +183,19 @@ export default {
 		preload: true,
 	},
 } as const;
+
+// Every asset carries its download size (scripts/stamp-assets.mjs fileBytes; an atlas json
+// includes its image) so pixi-svelte's AssetsLoader can weight the preload's progress by bytes
+// rather than by file count — the shell splash's green bar (game/boot.svelte.ts reportPreload)
+// then moves with the download instead of stalling on the big atlases.
+const bytesFor = (src: unknown): number | undefined => {
+	if (typeof src !== 'string') return undefined;
+	const m = /\/assets\/([^?#]+)/.exec(src);
+	return m ? (fileBytes as Record<string, number>)[m[1]] : undefined;
+};
+for (const entry of Object.values(assets) as { src: unknown; bytes?: number }[]) {
+	const bytes = bytesFor(entry.src);
+	if (bytes) entry.bytes = bytes;
+}
+
+export default assets;

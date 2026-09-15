@@ -24,6 +24,11 @@
 	const { controls, master, scale, left, top, compact = false }: Props = $props();
 	// compact covers phone-sideways (1480×740) and portrait (412×760); only portrait is narrow
 	const portrait = $derived(master.width < master.height);
+	// the armed-mode pill reads "MYSTERY · $300.00 / SPIN", not "MYSTERY SPIN · $300.00 / SPIN":
+	// the mode word alone, since "/ SPIN" already says the rest and the long labels clipped the
+	// pill on phones (Corey 2026-09-15)
+	const shortMode = (label: string) =>
+		label === 'FREE SPINS' ? 'BONUS' : label.replace(/ (FREE SPINS|SPINS?|BET|MODE|GAME)$/, '');
 
 	const open = $derived(stateModal.modal?.name === 'autoSpin');
 	const close = () => (stateModal.modal = null);
@@ -72,7 +77,7 @@
 		<div class="panel am-glass" class:compact class:portrait onclick={(e) => e.stopPropagation()} role="presentation" style:max-height="{master.height - (portrait ? 96 : 100)}px">
 			<div class="head">
 				<div class="title">AUTOPLAY</div>
-				<div class="pill"><span class="mode">{portrait ? pill.label.replace(' GAME', '') : pill.label}</span><span class="dot">·</span><span class="slot-num cost">{pill.cost}</span><span class="per">/ SPIN</span></div>
+				<div class="pill"><span class="mode">{shortMode(pill.label)}</span><span class="dot">·</span><span class="slot-num cost">{pill.cost}</span><span class="per">/ SPIN</span></div>
 				<button class="slot-btn x" onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
 			</div>
 

@@ -28,6 +28,10 @@ export function createApp({ assets }: { assets: Assets }) {
 		failedAssets: [] as string[],
 		// Set by AssetsLoader while it is mounted: re-runs only the failed keys.
 		retryFailedAssets: undefined as (() => void) | undefined,
+		// Optional: awaited by AssetsLoader between the preload and the deferred phase, so an app
+		// can keep the deferred megabytes off the wire while something it gates on (its audio) is
+		// still downloading on a slow link. Resolve promptly; never reject.
+		beforeDeferred: undefined as (() => Promise<void>) | undefined,
 		pixiApplication: undefined as PIXI.Application | undefined,
 	});
 

@@ -31,7 +31,9 @@ export type RawAsset = RawSpine | RawSprite | RawSprites | RawSpriteSheet | RawA
 export type RawType = 'spine' | 'sprite' | 'sprites' | 'spriteSheet' | 'font' | 'audio';
 
 export type SpineSrc = { skeleton: string; atlas: string; scale?: number };
-export type Asset = { type: RawType; src: string | SpineSrc; preload?: boolean };
+/** `bytes` (optional): the asset's download size, so AssetsLoader can weight progress by bytes
+ *  instead of counting files (a count sits still while one big atlas downloads). */
+export type Asset = { type: RawType; src: string | SpineSrc; preload?: boolean; bytes?: number };
 export type Assets = PIXI.Dict<Asset>;
 
 export type ParticleSpawnOption =
