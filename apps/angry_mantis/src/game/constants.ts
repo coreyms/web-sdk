@@ -171,11 +171,9 @@ export const TIMINGS = {
 	// The max-win screen's own timeline is MAX_WIN below — anchored to Corey's 21.9 s bgm_maxwin
 	// track and deliberately NOT time-scaled: turbo must never outrun the music. The walk-on /
 	// per-cell / roar timings of the old placeholder cinematic went with the 2026-09-15 rebuild.
-	// The three below only feed AllWildTopUp.svelte, which is UNMOUNTED (its "19999.9x" top-up beat
-	// came off the max-win path) but kept on disk in case Corey wants it back.
-	maxWinTopUpHold: 900, // multiplier readable before the running total starts climbing
-	maxWinTopUpCount: 1000, // covers the HUD win tween (550ms, controls.svelte.ts) plus a beat
-	maxWinTopUpOutro: 350, // settle before the cinematic takes the screen
+	// The soap board (AllWildTopUp.svelte): the all-wild board that opens the max-win moment, held
+	// this long before the count-up ladder drops in over it. Scaled by stateBetDerived.timeScale().
+	maxWinSoapHold: 900,
 	retrigger: 1300, // gold-art banner needs a readable beat (was 800 as plain text)
 	highLandSquash: 180, // high-symbol landing beat (Corey 2026-09-05, picked from the comparison artifact)
 	highLandGlint: 320,

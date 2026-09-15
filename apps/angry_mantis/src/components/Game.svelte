@@ -39,6 +39,7 @@
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
 	import ModePlaque from './ModePlaque.svelte';
+	import AllWildTopUp from './AllWildTopUp.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
 		import Chrome from '../ui/Chrome.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
@@ -214,9 +215,8 @@
 		<ComboWin />
 		<Win />
 		<BonusIntro />
-		<!-- AllWildTopUp.svelte is UNMOUNTED (Corey 2026-09-15): the "19999.9x" top-up beat came off
-		     the max-win path, and nothing else emits allWildTopUpPlay. The file is kept on disk in
-		     case the beat is wanted back. -->
+		<!-- the soap board (all wilds) that opens the max-win moment; logic only, draws nothing -->
+		<AllWildTopUp />
 		<MaxWinCinematic />
 		<FreeSpinOutro />
 		<Transition />
