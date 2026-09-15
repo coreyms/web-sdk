@@ -204,7 +204,7 @@
 			/* the bar: LandingScreen's gold bar (ui/LandingScreen.svelte .bar/.fill/.pct) in the logo's
 			   green — same track, same radius/height, the gradient built from #9CD92F by the exact
 			   light->dark ratios the gold one uses (#ffdc4a -> #dfb02c). It only appears once there is
-			   something to say: a warm cache never flashes a 0% bar (see am-splash.js reveal logic). */
+			   the first paint (Corey 2026-09-15: it must be there from the start, 0% and all). */
 			#am-splash .barwrap {
 				display: flex;
 				flex-direction: column;
@@ -265,7 +265,7 @@
 							<div class="rule"></div>
 							<div class="sub">Games</div>
 						</div>
-						<div class="barwrap" id="am-barwrap">
+						<div class="barwrap on" id="am-barwrap">
 							<div class="bar"><div class="fill" id="am-fill"></div></div>
 							<div class="pct" id="am-pct">LOADING · 0%</div>
 						</div>
@@ -336,7 +336,7 @@
 
 				var bundle = { loaded: 0, total: 0 };
 				var assets = { loaded: 0, total: 0 };
-				var shown = false, gone = false;
+				var gone = false;
 				var MIN_MS = 1200; /* never cut the 880 ms draw-in short; a warm cache fades at 1.2 s */
 
 				function paint() {
@@ -345,11 +345,6 @@
 					var p = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
 					fill.style.width = Math.max(4, p) + '%';
 					pct.textContent = 'LOADING · ' + p + '%';
-					/* warm cache: the bar is never revealed at all if we are already nearly done */
-					if (!shown && (Date.now() - t0 > 400) && p < 92) {
-						shown = true;
-						barwrap.classList.add('on');
-					}
 				}
 
 				var api = {
