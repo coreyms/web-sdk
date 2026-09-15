@@ -80,7 +80,7 @@
 			plateY: (y: number) => {
 				(DOOR_PAINT.outro.plate as { y: number }).y = y;
 				const on = doorPaintState.plate;
-				doorPaintState.plate = !on;
+				doorPaintState.plate = on ? null : 'big';
 				doorPaintState.plate = on;
 				return y;
 			},

@@ -8,7 +8,9 @@ export type EmitterEventUi =
 	| { type: 'stopButtonClick' }
 	| { type: 'stopButtonEnable' }
 	| { type: 'uiShow' }
-	| { type: 'uiHide' }
+	// `deep`: also fade the chrome elements a game marks as always-kept (Angry Mantis's logo and
+	// WIN readout). Opt-in per broadcast — every other uiHide keeps them. Cleared by uiShow.
+	| { type: 'uiHide'; deep?: boolean }
 	| { type: 'drawerUnfold' }
 	| { type: 'drawerFold' }
 	| { type: 'drawerButtonShow' }

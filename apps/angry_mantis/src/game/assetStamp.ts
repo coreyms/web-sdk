@@ -15,8 +15,6 @@ export default {
 	"audio/sounds.json": "23baf534",
 	"audio/sounds.m4a": "78fccc9c",
 	"audio/sounds.ogg": "a8e8a155",
-	"characters/marky-headshot.webp": "32afa7c8",
-	"characters/marty-headshot.webp": "e59d84de",
 	"fonts/ui/BlackOpsOne-Regular.woff2": "2d54da7d",
 	"fonts/ui/Outfit-Variable.woff2": "623d408f",
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
@@ -83,7 +81,7 @@ export default {
 	"ui/ambient/sky-super.webp": "4508911a",
 	"ui/board-backdrop.webp": "0807de71",
 	"ui/board-frame-cafeteria.webp": "cd803926",
-	"ui/board-frame-reflect.png": "d4772bda",
+	"ui/board-frame-reflect.webp": "3f151480",
 	"ui/branded-glyphs/branded-glyphs.json": "20ccba5e",
 	"ui/branded-glyphs/branded-glyphs.webp": "80eed223",
 	"ui/cafeteria-background-base-bonus.webp": "64d762a5",
@@ -100,7 +98,6 @@ export default {
 	"ui/intro/card-3.webp": "b37ff1d5",
 	"ui/logo-landscape.webp": "86193778",
 	"ui/logo-wide.webp": "6f2e3e97",
-	"ui/mantis-head.png": "af90f6bd",
 	"ui/numerals/glyphs.json": "8604c09b",
 	"ui/numerals/numerals.json": "fc18e992",
 	"ui/numerals/numerals.webp": "69dff050",
@@ -112,11 +109,20 @@ export default {
 	"ui/paint/header-super.webp": "0d7e40e2",
 	"ui/paint/ray.webp": "9385fb9a",
 	"ui/paint/star.webp": "b859da47",
-	"ui/scatter-marky.webp": "3011c6bd",
 	"ui/stingers/big.webp": "dcedbbd8",
 	"ui/stingers/epic.webp": "aaf3400e",
 	"ui/stingers/max.webp": "f319f06e",
 	"ui/stingers/mega.webp": "cb8f3ffd",
 	"ui/stingers/normal.webp": "b6175bc2",
 	"ui/stingers/super.webp": "7497fb25"
+} as const;
+
+// Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the green bar by them).
+export const landingSizes = {
+	"ui/intro/card-1.webp": 317742,
+	"ui/intro/card-2.webp": 423938,
+	"ui/intro/card-3.webp": 296050,
+	"ui/logo-wide.webp": 113648,
+	"fonts/ui/Outfit-Variable.woff2": 13704,
+	"fonts/ui/Sora-Variable.woff2": 14980
 } as const;

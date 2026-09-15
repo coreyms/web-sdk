@@ -2,7 +2,10 @@
 	import { sound, type MusicName, type SoundEffectName, type SoundName } from '../game/sound';
 
 	export type EmitterEventSound =
-		| { type: 'soundMusic'; name: MusicName }
+		// `loop`: overrides the manifest's loop flag for this start. bgm_maxwin is authored as a
+		// loop in music.json but the max-win screen plays it ONCE and gates its press on the end
+		// (utils-sound createMusic: a looping media element never fires 'ended').
+		| { type: 'soundMusic'; name: MusicName; loop?: boolean }
 		// UI voices (Corey 2026-09-02): minor click = turbo / autoplay / denomination / menu / the
 		// ACTIVATE-LOAD buttons / the landing continue; sub = every other button inside the autoplay
 		// card; bonus = the bonus head button. Everything else keeps the general click.
@@ -38,7 +41,7 @@
 		soundScatterCounterIncrease: () => (context.stateGame.scatterCounter = context.stateGame.scatterCounter + 1), // prettier-ignore
 		soundScatterCounterClear: () => (context.stateGame.scatterCounter = 0),
 		// game
-		soundMusic: ({ name }) => sound.players.music.play({ name }),
+		soundMusic: ({ name, loop }) => sound.players.music.play({ name, loop }),
 		soundLoop: ({ name }) => sound.players.loop.play({ name }),
 		soundOnce: ({ name, forcePlay }) => sound.players.once.play({ name, forcePlay }),
 		soundStop: ({ name }) => sound.stop({ name }),

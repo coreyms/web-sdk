@@ -168,11 +168,11 @@ export const TIMINGS = {
 	eat: 800,
 	anteLock: 300,
 	bonusIntro: 1800,
-	maxWinWalkOn: 800,
-	maxWinPerCell: 90,
-	maxWinRoar: 1500,
-	// All-wild top-up beat (AllWildTopUp.svelte): the board of wilds that presents the book's
-	// wincap top-up before the cinematic. All three are scaled by stateBetDerived.timeScale().
+	// The max-win screen's own timeline is MAX_WIN below — anchored to Corey's 21.9 s bgm_maxwin
+	// track and deliberately NOT time-scaled: turbo must never outrun the music. The walk-on /
+	// per-cell / roar timings of the old placeholder cinematic went with the 2026-09-15 rebuild.
+	// The three below only feed AllWildTopUp.svelte, which is UNMOUNTED (its "19999.9x" top-up beat
+	// came off the max-win path) but kept on disk in case Corey wants it back.
 	maxWinTopUpHold: 900, // multiplier readable before the running total starts climbing
 	maxWinTopUpCount: 1000, // covers the HUD win tween (550ms, controls.svelte.ts) plus a beat
 	maxWinTopUpOutro: 350, // settle before the cinematic takes the screen
@@ -185,6 +185,93 @@ export const TIMINGS = {
 // Dark wash over the cafeteria backdrops (Background.svelte) so the board and chrome read on
 // top: alpha of a near-black rectangle. Corey picked 30% for the base game from the wash slider
 // artifact (2026-09-05, was 50%); free games stay ten points darker.
+// ---- The max-win screen (Corey 2026-09-15) ----
+// One 21.9 s beat scored by bgm_maxwin, which is NOT a loop here: the press gate stays shut until
+// the track has actually ended. Measured track shape — quiet 0-0.75 s, full from ~1.75 s to ~16 s,
+// a 5 s fade to silence, ended at 21.946 s (music.json `duration`) — so every stage below is an
+// offset in ms from the instant the MAX plate lands, which is also the instant the track starts.
+// NOTHING here is divided by timeScale(): turbo must never outrun the music.
+export const MAX_WIN = {
+	/** ms from the MAX plate landing (= track start) to the deep dim + THEY ATE EVERYTHING */
+	dimAt: 4000,
+	/** ms from track start to the MAX WIN slam (the track is fully up by then) */
+	slamAt: 7000,
+	/** bgm_maxwin's length (music.json). Only the FALLBACK timer uses it — a real `ended` from the
+	 *  media element always wins. A muted/blocked audio context must not park the round. */
+	trackMs: 21946,
+	/** added to trackMs for the fallback gate: the signal gets a grace period first */
+	gatePad: 500,
+	/** after the gate arms, the screen also auto-advances (a press just gets there sooner) */
+	autoAdvanceMs: 3000,
+	/** the amount's climb under the MAX WIN slam, for the rare path where the HUD was not already
+	 *  on the book's payout (normally the ladder has taken it there and this is a no-op) */
+	amountCountMs: 900,
+	/** fraction of the count-up at which the MAX plate is shoved in (WinStinger). Not a number the
+	 *  player reads — the amount itself is always the book's — just where in the climb the last
+	 *  plate lands, leaving a beat of ticking on it before the count settles. */
+	plateAtProgress: 0.8,
+	/** how long the MAX plate holds after the count settles, before it drops off the bottom and
+	 *  the screen takes over (the normal big-win hold is 1400) */
+	plateHold: 900,
+	/** the dim behind the titles (the win presentation's own dim is 0.6) */
+	dimAlpha: 0.88,
+	dimFadeMs: 700,
+	/** THEY ATE EVERYTHING recedes when MAX WIN slams: scale + the y it moves to */
+	recedeMs: 520,
+	/** Title / amount slots per LayoutKind, from that kind's master (layoutSpec MASTER):
+	 *  heights are branded-glyph CAP heights in master px, widths are shrink-to-fit caps, and
+	 *  every `*Y` is a fraction of the master HEIGHT. `tae*` = THEY ATE EVERYTHING (two lines),
+	 *  `taeSmall*` is where it sits once MAX WIN has slammed on top of it. */
+	layout: {
+		landscape: {
+			taeHeight: 104, taeWidth: 1180, taeY: 0.44,
+			taeSmallScale: 0.52, taeSmallY: 0.155,
+			maxHeight: 132, maxWidth: 1120, maxY: 0.45,
+			amountHeight: 82, amountWidth: 820, amountY: 0.7,
+			multHeight: 40, multWidth: 300, multY: 0.83,
+		},
+		phone: {
+			taeHeight: 108, taeWidth: 1360, taeY: 0.44,
+			taeSmallScale: 0.52, taeSmallY: 0.15,
+			maxHeight: 138, maxWidth: 1280, maxY: 0.45,
+			amountHeight: 84, amountWidth: 900, amountY: 0.71,
+			multHeight: 42, multWidth: 320, multY: 0.84,
+		},
+		portrait: {
+			taeHeight: 58, taeWidth: 372, taeY: 0.4,
+			taeSmallScale: 0.55, taeSmallY: 0.14,
+			maxHeight: 74, maxWidth: 364, maxY: 0.42,
+			amountHeight: 50, amountWidth: 356, amountY: 0.63,
+			multHeight: 26, multWidth: 200, multY: 0.73,
+		},
+	},
+	/** The tray rain (components/TrayRain.svelte): empty plates from the amSymbols atlas tumbling
+	 *  down the dimmed screen behind the titles. One pooled, always-mounted container, every
+	 *  sprite created up front and moved by ONE app-ticker callback — no per-frame allocation. */
+	rain: {
+		/** the eight empty paying-symbol plates (`<SYM>_eaten.png` in amSymbols) */
+		plates: ['L1', 'L2', 'L3', 'L4', 'M1', 'M2', 'M3', 'H1'],
+		/** pool size per LayoutKind — portrait gets fewer (Corey: a phone must stay readable) */
+		count: { landscape: 46, phone: 52, portrait: 24 },
+		/** drawn plate width as a fraction of the master width */
+		size: [0.055, 0.12],
+		/** fall speed in master px per second */
+		speed: [210, 520],
+		/** rotation in radians per second */
+		spin: [-1.7, 1.7],
+		alpha: [0.25, 0.62], // under the titles: they have to stay the loudest thing on screen
+		/** ms from track start: sparse at the dim, a downpour under the MAX slam, thinning with
+		 *  the track's own 5 s fade so the screen is empty when the music ends */
+		sparseAt: 4000,
+		downpourAt: 7000,
+		holdUntil: 16000,
+		emptyAt: 21946,
+		/** active share of the pool at those four marks */
+		sparseShare: 0.22,
+		fullShare: 1,
+	},
+} as const;
+
 export const BACKGROUND_WASH = { base: 0.3, freegame: 0.4 };
 
 // High-symbol landing beat (H1/M1/M2/M3, ReelSymbol.svelte): once the tile's landing bounce has

@@ -10,7 +10,7 @@
 <script lang="ts">
 	// End-of-feature wrap-up on the closed steel door — ONE screen, one press gate (Corey
 	// 2026-08-31, replacing the separate SessionSummary). Since 2026-09-10 the door itself carries
-	// the presentation: the mode header, the BIG WIN plate (big-tier totals only) and the amount are
+	// the presentation: the mode header, the final tier's stinger plate (big-tier totals only) and the amount are
 	// PAINTED into the steel by DoorPaint.svelte (game/doorPaint.ts) and roll down with it. This
 	// component only lays the eaten trays over the door, drives the count-up into the paint state,
 	// and holds the press gate. The recap line ("N SPINS - M SYMBOLS EATEN") came off (Corey).
@@ -28,10 +28,10 @@
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { stateBetDerived } from 'state-shared';
 	import { doorRect, layoutKind, FRAME_ART, RAIL_ART } from '../game/layoutSpec';
-	import { DOOR_PAINT, paintedAmountSupported } from '../game/doorPaint';
+	import { DOOR_PAINT, outroPlateAmount, paintedAmountSupported } from '../game/doorPaint';
 	import { doorPaintState } from '../game/doorPaint.svelte';
 	import { tokenizeNumerals } from '../game/numeralTokens';
-	import { STINGER_PLATE } from '../game/stinger';
+	import { STINGER_PLATE, stingerPlateFor } from '../game/stinger';
 	import PressToContinue from './PressToContinue.svelte';
 	import CountUpText from './CountUpText.svelte';
 	import PaintedAmountFeed from './PaintedAmountFeed.svelte';
@@ -64,10 +64,11 @@
 		freeSpinOutroCountUp: async (emitterEvent) => {
 			amount = emitterEvent.amount;
 			winLevelData = emitterEvent.winLevelData;
-			// the plate is painted for big-tier totals only; under that the amount sits on bare steel
-			// (Corey 2026-09-10). winLevelData arrives already gated by freeSpinEnd (a buy that did not
-			// pay for itself is held to a medium level).
-			doorPaintState.plate = emitterEvent.winLevelData.type === 'big';
+			// the FINAL TIER's own plate is painted for big-tier totals only; under that there is no
+			// plate and the amount sits on bare steel (Corey 2026-09-10). winLevelData arrives already
+			// gated by freeSpinEnd (a buy that did not pay for itself is held to a medium level).
+			doorPaintState.plate =
+				emitterEvent.winLevelData.type === 'big' ? stingerPlateFor(emitterEvent.winLevelData.alias) : null;
 			presentId += 1;
 			await waitForResolve((resolve) => (oncomplete = resolve));
 		},
@@ -137,10 +138,12 @@
 	// fallback box (master units): the same spot the paint would use
 	const fallback = $derived.by(() => {
 		const o = DOOR_PAINT.outro;
-		if (doorPaintState.plate) {
+		const plate = doorPaintState.plate;
+		if (plate) {
 			const plateW = o.plate.w * door.w;
-			const plateH = plateW / STINGER_PLATE.big.aspect;
-			return { x: door.x + door.w / 2 + o.amountInPlate.dx * plateW, y: door.y + o.plate.y * door.h + o.amountInPlate.dy * plateH, h: o.amountInPlate.h * plateH, maxW: o.amountInPlate.maxW * plateW };
+			const plateH = plateW / STINGER_PLATE[plate].aspect;
+			const a = outroPlateAmount(plate);
+			return { x: door.x + door.w / 2 + a.dx * plateW, y: door.y + o.plate.y * door.h + a.dy * plateH, h: a.h * plateH, maxW: a.maxW * plateW };
 		}
 		return { x: door.x + door.w / 2, y: door.y + o.amountOnDoor.y * door.h, h: o.amountOnDoor.h * door.w, maxW: o.amountOnDoor.maxW * door.w };
 	});

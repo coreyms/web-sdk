@@ -9,6 +9,7 @@
 // Every position is a FRACTION OF THE DOOR IMAGE: x of its width, y of its height (top-left
 // origin), sizes of its width. Those are the artifact's readout units verbatim, so a re-tune is a
 // number change here. The door rect itself comes from layoutSpec.doorRect().
+import { STINGER_BOX, STINGER_PLATE, type StingerPlateName } from './stinger';
 import type { BonusMode } from './types';
 
 export const DOOR_PAINT = {
@@ -40,8 +41,9 @@ export const DOOR_PAINT = {
 		feast: { layout: 'up', y: 0.685, fanDeg: 17, dist: 0.275 },
 	} satisfies Record<BonusMode, { layout: 'sym' | 'up'; y: number; fanDeg: number; dist: number }>,
 	rayMotion: { strokeLen: 0.13, push: 0.001, pushHz: 1.7, stagger: 0.6, sideOffset: 0, stretch: 0.05 },
-	// wrap-up: eaten trays (sprites over the door, FreeSpinOutro), the BIG WIN plate painted in
-	// its own colours with the amount inside it, or — under big win — no plate, amount on the door
+	// wrap-up: eaten trays (sprites over the door, FreeSpinOutro), the FINAL TIER's stinger plate
+	// painted in its own colours with the amount inside it, or — under big win — no plate, amount
+	// on the door
 	outro: {
 		// the eaten trays LEAN on the door with their feet on the counter (the frame's bottom rail),
 		// lined up like someone set them down (Corey 2026-09-11): each casts a wedge of shadow onto
@@ -58,7 +60,9 @@ export const DOOR_PAINT = {
 		plate: { w: 0.99, y: 0.62 }, // 8 px lower than the first pass, placed live with Corey (2026-09-11)
 		// h × plate height; dy × plate height; dx × plate width; maxW × plate width — a long string
 		// (GC 819,300.00) shrinks to fit the plate's clear panel instead of spilling off the door,
-		// the same cap the mid-feature stinger applies (STINGER_BOX.big w 50% × fillW .96)
+		// the same cap the mid-feature stinger applies (STINGER_BOX.big w 50% × fillW .96).
+		// These are Corey's live placement ON THE BIG PLATE; outroPlateAmount() carries them to any
+		// other tier through the shift/scale between that tier's STINGER_BOX panel and BIG's.
 		amountInPlate: { h: 0.36, dy: 0.12, dx: 0.12, maxW: 0.48 },
 		// bare steel under big win: h × door width, maxW × door width; bigger than the first pass —
 		// it was hard to read on a phone (Corey 2026-09-10)
@@ -73,6 +77,27 @@ export const DOOR_PAINT = {
 export const DOOR_ASPECT = 1028 / 1246;
 
 export const MAX_PAINTED_GLYPHS = 16;
+
+/** The wrap-up amount's placement inside ONE tier's plate, in that plate's own units
+ *  (dx × plate width, dy × plate height from the plate's centre; h × plate height; maxW × plate
+ *  width). DOOR_PAINT.outro.amountInPlate was tuned live on the BIG plate, so the panels that
+ *  share BIG's STINGER_BOX (superwin / mega / epic) come out byte-identical; MAX's panel sits
+ *  further right and is narrower, so its amount shifts and its cap shrinks with it. */
+export const outroPlateAmount = (plate: StingerPlateName) => {
+	const a = DOOR_PAINT.outro.amountInPlate;
+	const b = STINGER_BOX[plate];
+	const ref = STINGER_BOX.big;
+	return {
+		dx: a.dx + (b.x + b.w / 2 - (ref.x + ref.w / 2)) / 100,
+		dy: a.dy + (b.y + b.h / 2 - (ref.y + ref.h / 2)) / 100,
+		h: a.h * (b.h / ref.h),
+		maxW: a.maxW * (b.w / ref.w),
+	};
+};
+
+/** the painted plate's height, in door-WIDTH units (DOOR_PAINT.outro.plate.w is × door width) */
+export const outroPlateHeight = (plate: StingerPlateName) =>
+	DOOR_PAINT.outro.plate.w / STINGER_PLATE[plate].aspect;
 
 // ---- shader ----------------------------------------------------------------------------------
 // GLSL for Pixi 8's GL renderer (it prepends the version / WebGL1 defines itself). Coordinates are

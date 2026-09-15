@@ -60,6 +60,8 @@ export type MusicPlayerOptions = {
 	onGateProgress?: (ratio: number) => void;
 	/** told once the gate track can start — or gave up (see watchdog constants) */
 	onGateSettled?: (result: 'loaded' | 'error' | 'timeout') => void;
+	/** a NON-LOOPING track's media element reached its end (see play({ loop: false })) */
+	onTrackEnded?: (name: string) => void;
 };
 
 /** Hard ceiling on how long the loading screen may wait for the gate track. iOS Safari refuses to
@@ -79,6 +81,10 @@ type Entry = {
 	howl: Howl;
 	/** resolved once Howler has picked a source it can decode */
 	bytes: number;
+	/** per-start override of track.loop (play({ loop })); undefined = use the manifest's value */
+	loopOverride?: boolean;
+	/** guards one 'ended' listener per media node */
+	endedNode?: HTMLAudioElement;
 };
 
 const absolute = (ref: string) =>
@@ -133,10 +139,21 @@ export function createMusicPlayer<TSoundName extends string>(
 		return entry;
 	};
 
-	/** Hand the loop back to the browser rather than to Howler's stop()/play() re-trigger. */
+	/** Hand the loop back to the browser rather than to Howler's stop()/play() re-trigger.
+	 *  A `loop: false` start (play({ loop: false })) also wires the element's own `ended` event —
+	 *  a looping element never fires it, so this is the only place it can be armed. The listener
+	 *  is attached per NODE (a deferred start can be served by a different one) and guarded so a
+	 *  re-assert never stacks two of them. */
 	const applyElementLoop = (entry: Entry) => {
 		const node = nodeOf(entry.howl);
-		if (node) node.loop = entry.track.loop;
+		if (!node) return;
+		node.loop = entry.loopOverride ?? entry.track.loop;
+		if (node.loop || entry.endedNode === node) return;
+		entry.endedNode = node;
+		node.addEventListener('ended', () => {
+			if (requested !== (entry.name as TSoundName)) return;
+			options.onTrackEnded?.(entry.name);
+		});
 	};
 
 	/**
@@ -178,7 +195,7 @@ export function createMusicPlayer<TSoundName extends string>(
 		}, BACKGROUND_PRELOAD_DELAY_MS);
 	};
 
-	const play = (playOptions: { name: TSoundName }) => {
+	const play = (playOptions: { name: TSoundName; loop?: boolean }) => {
 		const name = playOptions.name;
 		if (!isMusic(name)) return;
 		if (requested === name && entries.get(name)?.howl.playing()) return;
@@ -189,6 +206,7 @@ export function createMusicPlayer<TSoundName extends string>(
 
 		const entry = ensure(name);
 		if (!entry) return;
+		entry.loopOverride = playOptions.loop;
 		// Unconditional: a track that has not buffered yet must never block the caller (the door
 		// transition asks for the bonus loop the moment the door shuts). Howler holds the request
 		// until the stream is ready and startNow's `play` listener does the rest. This is also the

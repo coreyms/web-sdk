@@ -16,6 +16,7 @@ import type { Position, BonusMode, Scene } from './types';
 import { BONUS_TRIGGER_SOUND_MAP, ANTICIPATION, TIMINGS, LIGHTS_CUT, CELEBRATE } from './constants';
 import { awaitDeferredAssets } from './assetGate';
 import { doorPaintClear, doorPaintIntro, doorPaintOutro } from './doorPaint.svelte';
+import { maxWinState } from './maxWin.svelte';
 
 const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) => {
 	if (winLevelData?.alias === 'max') eventEmitter.broadcastAsync({ type: 'uiHide' });
@@ -28,14 +29,20 @@ const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) =>
 	if (winLevelData?.sound?.bgm) musicPlay(winLevelData.sound.bgm);
 };
 
-const winLevelSoundsStop = () => {
+// `keepMusic` / `keepUi`: the MAX-WIN sequence (see setWin). bgm_maxwin is already playing over
+// the MAX plate and the HUD is already hidden for the screen that follows — restoring the mode
+// loop here would stamp bgm_free/super/feast over the max track between the plate and the
+// cinematic, and a uiShow would flash the chrome back for one beat before uiHide takes it again.
+const winLevelSoundsStop = ({ keepMusic = false, keepUi = false } = {}) => {
 	// backstop only — Win/FreeSpinOutro stop this the instant their count settles or is skipped.
 	// This catches a presentation torn down before its count-up ever resolved (stop is a no-op
 	// when the loop isn't running).
 	eventEmitter.broadcast({ type: 'soundStop', name: 'sfx_money_counter' });
-	musicPlay(modeMusic());
-	eventEmitter.broadcast({ type: 'soundDuck', level: 1 });
-	eventEmitter.broadcastAsync({ type: 'uiShow' });
+	if (!keepMusic) {
+		musicPlay(modeMusic());
+		eventEmitter.broadcast({ type: 'soundDuck', level: 1 });
+	}
+	if (!keepUi) eventEmitter.broadcastAsync({ type: 'uiShow' });
 };
 
 const modeMusic = () => {
@@ -215,6 +222,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.winFocus = null;
 	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
+		// Max-win sequence: this spin's own setTotalWin still carries the PRE-cap running total (the
+		// book tops up two events later), so applying it would drop the HUD WIN from the payout the
+		// ladder just counted to back down to a few x for the seconds before the deep hide. The
+		// book's own wincap/setTotalWin puts the final number back either way — never go backwards
+		// while the max-win track is running (measured on the probe, 2026-09-15).
+		if (maxWinState.startedAt !== 0 && bookEvent.amount < stateBet.winBookEventAmount) return;
 		stateBet.winBookEventAmount = bookEvent.amount;
 	},
 	wincap: async (bookEvent: BookEventOfType<'wincap'>) => {
@@ -394,21 +407,32 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await waitForTimeout(400 / stateBetDerived.timeScale());
 	},
 	maxWinCinematic: async (bookEvent: BookEventOfType<'maxWinCinematic'>) => {
-		// All-wild top-up beat (Corey 2026-09-01) — presentation ONLY, see AllWildTopUp.svelte.
-		// The math ends the session the moment the pool empties, topping the round up to the cap in
-		// one go; this event fires BEFORE the book's wincap/setTotalWin, so winBookEventAmount still
-		// holds the pre-top-up running total and the gap to `payout` IS the book's top-up. A board of
-		// wilds drops, that gap is read out as a bet multiplier, and the total then climbs to
-		// `payout` — the same number the book itself writes two events later. Guarded on topUp > 0 so
-		// any path that already applied the total (or a zero-gap book) goes straight to the cinematic.
-		const topUp = bookEvent.payout - stateBet.winBookEventAmount;
-		if (topUp > 0) {
-			await eventEmitter.broadcastAsync({ type: 'allWildTopUpPlay', topUp, total: bookEvent.payout });
+		// The 2026-09-15 rebuild moved the whole moment onto ONE clock (game/maxWin.svelte.ts): the
+		// spin's own count-up ladder already ran to this payout and the MAX plate's landing started
+		// both the clock and bgm_maxwin (Win.svelte -> WinStinger `onmaxplate`), so there is no
+		// music start and no uiHide here — the cinematic's own deep hide lands at MAX_WIN.dimAt.
+		// The all-wild "19999.9x" top-up beat that used to play first is gone (AllWildTopUp.svelte
+		// is unmounted); the ladder carries the whole climb now.
+		//
+		// About half the wincap books have NO setWin on the capping spin (the cap comes from the eat's
+		// top-up, not a ways win — 478 of 1000 base books, 2026-09-15), so nothing has run the ladder
+		// yet when this event arrives. Run it from here then: the same winShow / winUpdate the setWin
+		// path uses, from the running total to the book's payout, MAX plate at the top, which starts
+		// the clock and the track exactly as the setWin path does. (The component keeps a last-resort
+		// net for a plate that never lands — a resumed book — which starts the clock itself.)
+		if (maxWinState.startedAt === 0) {
+			const winLevelData = winLevelMap[10];
+			// the HUD WIN readout climbs with the plate (kept on screen until the deep dim), as it
+			// does on the setWin path
+			stateBet.winBookEventAmount = bookEvent.payout;
+			await awaitDeferredAssets();
+			eventEmitter.broadcast({ type: 'winShow' });
+			winLevelSoundsPlay({ winLevelData });
+			await eventEmitter.broadcastAsync({ type: 'winUpdate', amount: bookEvent.payout, winLevelData, maxSequence: true });
+			winLevelSoundsStop({ keepMusic: true, keepUi: true });
+			eventEmitter.broadcast({ type: 'winHide' });
 		}
-		await eventEmitter.broadcastAsync({ type: 'uiHide' });
-		// the max-win moment is scored solely by bgm_maxwin, which carries Corey's 21.9 s max-win track
-		// (2026-09-01: it replaced both the old max-win music and the separate sfx stinger layer)
-		musicPlay('bgm_maxwin');
+		if (maxWinState.startedAt === 0) await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		await eventEmitter.broadcastAsync({ type: 'maxWinCinematicPlay', payout: bookEvent.payout });
 		stateBet.winBookEventAmount = bookEvent.payout;
 	},
@@ -455,7 +479,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const bookLevel = winLevelMap[bookEvent.winLevel as WinLevel];
 		const cost = stateBetDerived.activeBetMode()?.costMultiplier ?? 1;
 		const paidBack = bookEventAmountToBetAmountMultiplier(roundTotal) >= cost;
-		const winLevelData: WinLevelData = bookLevel.type === 'big' && !paidBack ? winLevelMap[5] : bookLevel;
+		// A capped round presents the MAX tier whatever the book's endFeature level says: about half
+		// the wincap books carry winLevel 9 (EPIC) because freeSpinEnd.amount excludes the base-game
+		// trigger win and the free-spin subtotal lands just under the 20,000x bar (found 2026-09-15).
+		// The cap is the book's own `wincap` event — read, not computed — and the wrap-up must not
+		// paint EPIC WIN under a MAX WIN round.
+		const capped = bookEvents.some((e) => e.type === 'wincap');
+		const winLevelData: WinLevelData = capped ? winLevelMap[10] : bookLevel.type === 'big' && !paidBack ? winLevelMap[5] : bookLevel;
 
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		// SUPER / FEAST: the feast is over — the mirror of the entry. Lamps out on the closed door,
@@ -491,8 +521,34 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGameDerived.setTurboLevel(stateGame.baseTurboLevel);
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 	},
-	setWin: async (bookEvent: BookEventOfType<'setWin'>) => {
-		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];
+	setWin: async (bookEvent: BookEventOfType<'setWin'>, { bookEvents }: BookEventContext) => {
+		// THE MAX-WIN LADDER (Corey 2026-09-15). A wincap book's tail is
+		//   setWin (this spin's own tier, e.g. EPIC) -> setTotalWin -> [strike/eat] ->
+		//   maxWinCinematic { payout } -> wincap -> setTotalWin -> bonusEnd -> freeSpinEnd -> finalWin
+		// so capping this presentation at the spin's tier means the count stops short and the MAX
+		// plate is never seen. When a maxWinCinematic follows in THIS book, the presentation runs to
+		// the book's own payout instead and the ladder's last tier — MAX — slams in at the top.
+		// Every number still comes from the book: `payout` is the maxWinCinematic event's, which is
+		// the same amount its wincap/setTotalWin write two events later. Nothing is computed here.
+		// Scoped to THIS spin: a wincap book holds the whole round, so a plain "is there a
+		// maxWinCinematic later" search also matches the base-game trigger spin's setWin and every
+		// earlier free spin's — which ran the max ladder (and started the track) at the trigger
+		// (caught by the Playwright probe 2026-09-15). So walk forward only until the next reveal or
+		// setWin: the cinematic has to belong to this spin's own tail.
+		const idx = bookEvents.indexOf(bookEvent);
+		let maxWinEvent: BookEventOfType<'maxWinCinematic'> | undefined;
+		for (const event of bookEvents.slice(idx + 1)) {
+			if (event.type === 'reveal' || event.type === 'setWin') break;
+			if (event.type === 'maxWinCinematic') {
+				maxWinEvent = event;
+				break;
+			}
+		}
+		const winLevelData = maxWinEvent ? winLevelMap[10] : winLevelMap[bookEvent.winLevel as WinLevel];
+		const amount = maxWinEvent ? maxWinEvent.payout : bookEvent.amount;
+		// the HUD WIN readout climbs with the plate (it is one of the `keep` elements, so it is
+		// still on screen until the cinematic's deep hide)
+		if (maxWinEvent) stateBet.winBookEventAmount = maxWinEvent.payout;
 
 		if (stateGame.gameType === 'freegame' && bookEvent.amount > 0) {
 			freeSpinHadWin = true;
@@ -504,8 +560,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (winLevelData.type === 'big') await awaitDeferredAssets();
 		eventEmitter.broadcast({ type: 'winShow' });
 		winLevelSoundsPlay({ winLevelData });
-		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount: bookEvent.amount, winLevelData });
-		winLevelSoundsStop();
+		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount, winLevelData, maxSequence: Boolean(maxWinEvent) });
+		// max path: bgm_maxwin is already running over the plate and the HUD is already down for the
+		// screen that follows — neither may be undone between the plate and the cinematic
+		winLevelSoundsStop({ keepMusic: Boolean(maxWinEvent), keepUi: Boolean(maxWinEvent) });
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {

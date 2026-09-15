@@ -175,6 +175,10 @@
 	}
 	.slip {
 		pointer-events: auto;
+		/* SOLID, not glass: the slip sits over the chow line's own cards, and the glass tint let their
+		   copy bleed through the confirmation text (Corey 2026-09-15). The panel behind stays glass. */
+		background: #16181d;
+		box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
 		width: 400px;
 		max-width: 100%;
 		box-sizing: border-box;

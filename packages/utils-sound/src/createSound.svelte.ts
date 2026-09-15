@@ -83,6 +83,9 @@ function createSound<TSoundName extends string>() {
 		// then mute EVERYTHING — caught live: idle on the base game for 30 s and the music died.
 		Howler.autoSuspend = false;
 		musicPlayer = createMusicPlayer<TSoundName>(manifest, {
+			onTrackEnded: (name) => {
+				for (const listener of musicEndListeners) listener(name as TSoundName);
+			},
 			onGateProgress: (ratio) => (musicGateRatio = ratio),
 			onGateSettled: (result) => {
 				if (result !== 'loaded') {
@@ -257,6 +260,15 @@ function createSound<TSoundName extends string>() {
 		once: silentPlayer<PlayOnce>(),
 	};
 
+	// A non-looping music track (play({ loop: false })) has reached its end. Registered before the
+	// music player exists — the set is the durable side, the player only fans into it.
+	const musicEndListeners = new Set<(name: TSoundName) => void>();
+	/** Subscribe to "a one-shot music track finished"; returns the unsubscribe. */
+	const onMusicEnded = (listener: (name: TSoundName) => void) => {
+		musicEndListeners.add(listener);
+		return () => musicEndListeners.delete(listener);
+	};
+
 	const stop = (stopOptions: StopOptions<TSoundName>) => {
 		musicPlayer?.stop(stopOptions);
 		if (players) {
@@ -356,6 +368,7 @@ function createSound<TSoundName extends string>() {
 	return {
 		load,
 		loadMusic,
+		onMusicEnded,
 		expectMusic,
 		markMusicUnavailable,
 		stop,

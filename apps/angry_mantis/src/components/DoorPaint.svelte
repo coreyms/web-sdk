@@ -11,7 +11,7 @@
 
 	import { getContext } from '../game/context';
 	import { doorPaintState } from '../game/doorPaint.svelte';
-	import { DOOR_ASPECT, DOOR_PAINT, DOOR_PAINT_FRAGMENT, DOOR_PAINT_VERTEX, MAX_PAINTED_GLYPHS } from '../game/doorPaint';
+	import { DOOR_ASPECT, DOOR_PAINT, DOOR_PAINT_FRAGMENT, DOOR_PAINT_VERTEX, MAX_PAINTED_GLYPHS, outroPlateAmount, outroPlateHeight } from '../game/doorPaint';
 	import { layoutNumerals } from '../game/numeralLayout';
 	import { STINGER_PLATE } from '../game/stinger';
 
@@ -142,9 +142,11 @@
 			U.uGlyphCount = 0;
 		} else {
 			if (plate) {
-				bindTexture('uCount', STINGER_PLATE.big.key);
+				// the FINAL TIER's plate (doorPaintState.plate), not always BIG — each plate has its
+				// own art and aspect, so the box follows the one being painted
+				bindTexture('uCount', STINGER_PLATE[plate].key);
 				const p = DOOR_PAINT.outro.plate;
-				U.uCountBox.set([0.5, p.y, p.w, p.w / STINGER_PLATE.big.aspect]);
+				U.uCountBox.set([0.5, p.y, p.w, outroPlateHeight(plate)]);
 				U.uCountRGB = 1;
 			} else {
 				U.uCountBox.set([0, 0, 0, 0]);
@@ -176,11 +178,14 @@
 		let h = o.amountOnDoor.h;
 		let maxWidth = o.amountOnDoor.maxW;
 		if (plate) {
-			const plateH = o.plate.w / STINGER_PLATE.big.aspect;
-			cx = 0.5 + o.amountInPlate.dx * o.plate.w;
-			cy = o.plate.y + (o.amountInPlate.dy * plateH) / DOOR_ASPECT;
-			h = o.amountInPlate.h * plateH;
-			maxWidth = o.amountInPlate.maxW * o.plate.w;
+			// the amount sits in THIS plate's blank panel: outroPlateAmount carries Corey's live
+			// placement on BIG across to the tier being painted (MAX's panel is right-shifted)
+			const plateH = outroPlateHeight(plate);
+			const a = outroPlateAmount(plate);
+			cx = 0.5 + a.dx * o.plate.w;
+			cy = o.plate.y + (a.dy * plateH) / DOOR_ASPECT;
+			h = a.h * plateH;
+			maxWidth = a.maxW * o.plate.w;
 		}
 		// maxWidth shrinks the whole row (glyphs and height together) once the reserved final string
 		// would overrun it — the fit is decided once per count, so the digits never jump

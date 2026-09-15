@@ -9,6 +9,7 @@
 	//          the plate so it lands already in place.
 	//   exit   the plate drops off the bottom, rotating, and the amount fades with it.
 	// Pure transforms on resident sprites: nothing rasterizes, nothing filters (house rule 1/2).
+	import { untrack } from 'svelte';
 	import { BaseSprite, Container, Sprite } from 'pixi-svelte';
 
 	import { PLATE_SHADOW, plateShadowTexture } from '../game/shadowTexture';
@@ -32,8 +33,16 @@
 		/** flip true to play the exit; `onleft` fires when the plate is gone */
 		leaving?: boolean;
 		onleft?: () => void;
+		/** MAX-WIN SEQUENCE ONLY (bookEventHandlerMap setWin, when the book's next beat is a
+		 *  maxWinCinematic): the share of the climb at which the last plate — MAX — is shoved in,
+		 *  instead of waiting for the amount to cross its 20,000x bar at the very last tick. It
+		 *  moves no number: the count is still the book's payout, this only leaves a beat of
+		 *  ticking ON the MAX plate before it settles. */
+		maxAtProgress?: number;
+		/** fired once, as the MAX plate lands: the max-win track starts on this instant */
+		onmaxplate?: () => void;
 	};
-	const { amount, target, finalAlias, settled = false, leaving = false, onleft }: Props = $props();
+	const { amount, target, finalAlias, settled = false, leaving = false, onleft, maxAtProgress, onmaxplate }: Props = $props();
 
 	const context = getContext();
 	const master = $derived(context.stateLayoutDerived.mainLayout());
@@ -48,6 +57,8 @@
 		const xBet = bookEventAmountToBetAmountMultiplier(amount);
 		let i = 0;
 		while (i < capIndex && xBet >= WIN_TIER_STAGES[i + 1].xBet) i++;
+		// max-win sequence: the top plate lands on the climb's own progress, not on its bar
+		if (maxAtProgress !== undefined && target > 0 && amount / target >= maxAtProgress) i = capIndex;
 		return i;
 	});
 
@@ -105,6 +116,10 @@
 			start('shove', STINGER_MOTION.shove);
 			setTimeout(() => startKick(STINGER_MOTION.kickShove), STINGER_MOTION.shove * 0.78);
 			slam(next);
+		}
+		// the MAX plate's clink still plays (slam above); the max-win track starts on the same beat
+		if (next !== lastIndex && next === STINGER_TIERS.length - 1 && STINGER_TIERS[next] === 'max') {
+			untrack(() => onmaxplate?.());
 		}
 		lastIndex = next;
 	});

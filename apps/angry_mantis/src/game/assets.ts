@@ -47,7 +47,7 @@ export default {
 	doorSteel: { type: 'sprite', src: stamp(new URL('../../assets/ui/door-steel.webp', import.meta.url).href), preload: false },
 	// reflectivity mask for the frame's inner steel lips (Corey's paint-over of the frame art, same
 	// 1415x1217 canvas): white = chrome that mirrors the reels, alpha = strength. FrameReflections.
-	frameReflectMask: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-reflect.png', import.meta.url).href), preload: true },
+	frameReflectMask: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-reflect.webp', import.meta.url).href), preload: true },
 	// PAINTED door layers (game/doorPaint.ts, DoorPaint.svelte): white-on-alpha stencils the shader
 	// paints INTO the steel door — the mode headers, the free-spin counts, one brush stroke and one
 	// star — plus the door's groove map (tools/build_groove_map.py). Deferred: only a bonus draws them.
@@ -75,7 +75,6 @@ export default {
 		src: stamp(new URL('../../assets/ui/numerals/numerals.json', import.meta.url).href),
 		preload: true,
 	},
-	// character headshots (the max-win cinematic; the bonus intro stopped using them 2026-09-10)
 	// soft ellipse under each mantis's feet (BoneRig ground shadow); tiny, so it rides the preload
 	groundShadow: { type: 'sprite', src: stamp(new URL('../../assets/ui/ground-shadow.webp', import.meta.url).href), preload: true },
 	// gravity-drop landing dust: Corey's dust_poof sheet, six 512×192 frames stacked top to bottom
@@ -113,8 +112,6 @@ export default {
 	stingerMega: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/mega.webp', import.meta.url).href), preload: false },
 	stingerEpic: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/epic.webp', import.meta.url).href), preload: false },
 	stingerMax: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/max.webp', import.meta.url).href), preload: false },
-	martyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marty-headshot.webp', import.meta.url).href), preload: false },
-	markyHeadshot: { type: 'sprite', src: stamp(new URL('../../assets/characters/marky-headshot.webp', import.meta.url).href), preload: false },
 	amSymbols: {
 		type: 'sprites',
 		src: stamp(new URL('../../assets/sprites/amSymbols/amSymbols.json', import.meta.url).href),

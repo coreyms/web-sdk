@@ -5,10 +5,11 @@
 	// ANYWHERE TO CONTINUE, along the bottom. Desktop/phone lay the cards in a row; portrait deals
 	// them as a fan whose front card rotates on its own (a tap is the continue press).
 	// Pressing hands off to the Pixi transition via onpress (see components/LoadingScreen.svelte).
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 
 	import { getContext } from '../game/context';
+	import { boot, releaseSplash } from '../game/boot.svelte';
 	import { MASTER, layoutKind } from '../game/layoutSpec';
 	import { stamp } from '../game/assets';
 	import { sound } from '../game/sound';
@@ -23,12 +24,23 @@
 	let fontsReady = $state(false);
 	let pressed = $state(false);
 	onMount(async () => {
+		// THE HANDOFF (2026-09-15): this screen is what the shell splash (src/app.html) fades to, so
+		// it must be mounted and painted before the splash goes. game/boot.svelte.ts has already
+		// fetched and decoded the cards, the logo and these two faces by the time we get here — the
+		// fade reveals a finished picture, not three empty card slots.
+		boot.landingMounted = true;
 		try {
 			await Promise.all([document.fonts.load('900 40px Outfit'), document.fonts.load('700 40px Sora')]);
 		} catch {
 			/* fall through — fonts.ready best effort */
 		}
 		fontsReady = true;
+	});
+
+	// ...and only once the assets are actually in: this screen mounts as soon as Authenticate
+	// resolves, which on a fast link is long before the cards have landed.
+	$effect(() => {
+		if (boot.landingReady) releaseSplash();
 	});
 
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
@@ -49,9 +61,19 @@
 	// 100 at the moment the phase closes, so rounding can never leave it at 99.
 	// the gate is the PRELOAD phase (game/assets.ts): the deferred keys keep downloading behind the game
 	const imageProgress = $derived(context.stateApp.preLoaded ? 100 : context.stateApp.loadingProgress);
-	const progress = $derived(
+	const rawProgress = $derived(
 		Math.round(Math.min(100, imageProgress * IMAGE_WEIGHT + sound.progress * 100 * AUDIO_WEIGHT)),
 	);
+	// high-water mark: the audio share restarts as the sprite hands off to the music player, and a
+	// bar that slips back reads as a hang (seen 60% -> 49% on the throttled probe, 2026-09-15)
+	let highWater = $state(0);
+	$effect(() => {
+		const p = rawProgress;
+		untrack(() => {
+			if (p > highWater) highWater = p;
+		});
+	});
+	const progress = $derived(Math.max(rawProgress, highWater));
 	const loadingLabel = $derived(context.stateApp.preLoaded && !audioReady ? 'LOADING AUDIO' : 'LOADING');
 	// An asset that exhausted its retries stops the load dead (AssetsLoader leaves `loaded` false and
 	// lists the keys): entering with missing money glyphs / headshots / mode labels is worse than

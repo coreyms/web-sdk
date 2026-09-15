@@ -4,7 +4,17 @@
 	export type EmitterEventWin =
 		| { type: 'winShow' }
 		| { type: 'winHide' }
-		| { type: 'winUpdate'; amount: number; winLevelData: WinLevelData };
+		| {
+				type: 'winUpdate';
+				amount: number;
+				winLevelData: WinLevelData;
+				/** the book's next beat is a maxWinCinematic (bookEventHandlerMap setWin): the ladder
+				 *  runs all the way to MAX instead of stopping at this spin's own tier, the MAX plate
+				 *  starts the max-win track as it lands, and the hold after the settle is short
+				 *  because the max-win screen takes over from here. `amount` is already the book's
+				 *  maxWinCinematic.payout in that case. */
+				maxSequence?: boolean;
+		  };
 </script>
 
 <script lang="ts">
@@ -25,12 +35,15 @@
 	import StingerPlate from './StingerPlate.svelte';
 	import { STINGER_SMALL, layoutKind } from '../game/layoutSpec';
 	import { getContext } from '../game/context';
+	import { MAX_WIN } from '../game/constants';
+	import { maxWinBegin } from '../game/maxWin.svelte';
 	import { stateBetDerived } from 'state-shared';
 
 	const context = getContext();
 
 	let show = $state(false);
 	let amount = $state(0);
+	let maxSequence = $state(false);
 	let winLevelData = $state<WinLevelData>();
 	// one presentation per winUpdate: the {#key} below rebuilds the provider/OnMount subtree even
 	// when the previous fade-out hasn't cleared winLevelData yet (the persistent FadeContainer no
@@ -56,6 +69,7 @@
 		winHide: () => (show = context.stateGame.winShowing = false),
 		winUpdate: async (emitterEvent) => {
 			amount = emitterEvent.amount;
+			maxSequence = emitterEvent.maxSequence ?? false;
 			winLevelData = emitterEvent.winLevelData;
 			leaving = false;
 			presentId += 1;
@@ -115,7 +129,10 @@
 							// to the last card and amount, pause a moment, then carry on)
 							const skipped = waitForResolve((resolve) => (skipHold = resolve));
 							const beat = isBigWin ? 600 : 150;
-							await Promise.race([waitForTimeout(isBigWin ? 1400 : 300), skipped.then(() => waitForTimeout(beat))]);
+							// max-win sequence: a short hold only — the track is already running and
+							// MaxWinCinematic's dim is due MAX_WIN.dimAt after the MAX plate landed
+							const hold = maxSequence ? MAX_WIN.plateHold : isBigWin ? 1400 : 300;
+							await Promise.race([waitForTimeout(hold), skipped.then(() => waitForTimeout(beat))]);
 							if (isBigWin) {
 								// drop the plate off the bottom; the fade-out follows (backstop: never wedge on it)
 								const left = waitForResolve((resolve) => (onleft = resolve));
@@ -130,7 +147,16 @@
 
 					<MainContainer>
 						{#if isBigWin}
-							<WinStinger amount={countUpAmount} target={amount} {finalAlias} settled={countUpCompleted} {leaving} onleft={() => onleft()} />
+							<WinStinger
+							amount={countUpAmount}
+							target={amount}
+							{finalAlias}
+							settled={countUpCompleted}
+							{leaving}
+							onleft={() => onleft()}
+							maxAtProgress={maxSequence ? MAX_WIN.plateAtProgress : undefined}
+							onmaxplate={maxSequence ? () => maxWinBegin(amount) : undefined}
+						/>
 						{:else}
 							<!-- the plain plate backs every regular win, smaller than the tier plates, popping in
 							     as one piece with the cream amount centred on it (Corey 2026-09-09) -->

@@ -27,7 +27,7 @@ export const MIPMAP_KEYS = [
 	'num_0.png', // stencil numerals: recap line (8x), score pops, max-win counters
 	'Right Bicep-4.png', // mantis rig atlas: half size on phones
 	'stingerNormal', 'stingerBig', 'stingerSuper', 'stingerMega', 'stingerEpic', 'stingerMax', // plates, ~2.4-3.3x
-	'martyHeadshot', 'markyHeadshot', // 512 px, max-win cinematic
+	// (the 512 px marty/marky headshots left with the rebuilt max-win cinematic, 2026-09-15)
 ] as const;
 
 /** arm every MIPMAP_KEYS source that has loaded so far; safe to call repeatedly */

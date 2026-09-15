@@ -40,17 +40,26 @@
 	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : 0);
 
 	let show = $state(true);
+	// the max-win screen's DEEP hide: fades even the `keep` elements (logo, WIN readout). Set
+	// outside the `if (show)` guard below — the max flow hides the HUD at the win plate and only
+	// deepens it later, so a deep uiHide must land even when the chrome is already faded.
+	let deep = $state(false);
 	const FADE = 350;
 	context.eventEmitter.subscribeOnMount({
 		uiShow: async () => {
+			deep = false;
 			if (!show) {
 				show = true;
 				await waitForTimeout(FADE);
 			}
 		},
-		uiHide: async () => {
+		uiHide: async (emitterEvent) => {
+			const wasDeep = deep;
+			deep = emitterEvent.deep ?? false;
 			if (show) {
 				show = false;
+				await waitForTimeout(FADE);
+			} else if (deep !== wasDeep) {
 				await waitForTimeout(FADE);
 			}
 		},
@@ -75,7 +84,7 @@
      the landscape and portrait logos and every layout's WIN readout stay up through every presentation
      (Corey 2026-09-15; the wrap-up total is then readable off the HUD as well as the plate). The phone
      logo shares its column with the prompt, so it still goes with the HUD there. -->
-<div class="am-ui layer" class:hidden={context.stateLayout.showLoadingScreen || stateModal.modal != null} class:hud-off={!show}>
+<div class="am-ui layer" class:hidden={context.stateLayout.showLoadingScreen || stateModal.modal != null} class:hud-off={!show} class:hud-deep={!show && deep}>
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px">
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />
@@ -122,6 +131,12 @@
 	}
 	.layer.hud-off .fit > :global(:not(.keep):not(.hud-group)),
 	.layer.hud-off :global(.hud-group > :not(.keep)) {
+		opacity: 0;
+	}
+	/* uiHide({ deep: true }) — the max-win screen only: even the kept logo and WIN readout go, so
+	   the dimmed canvas carries THEY ATE EVERYTHING / MAX WIN alone (Corey 2026-09-15). */
+	.layer.hud-deep .fit > :global(*),
+	.layer.hud-deep :global(.hud-group > *) {
 		opacity: 0;
 	}
 	.modals {

@@ -15,6 +15,7 @@
 	import { stateConfig } from 'state-shared';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
+	import { boot } from '../game/boot.svelte';
 	import EnableSound from './EnableSound.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import ResumeBet from './ResumeBet.svelte';
@@ -38,7 +39,6 @@
 	import Mantis from './Mantis.svelte';
 	import PoolHud from './PoolHud.svelte';
 	import ModePlaque from './ModePlaque.svelte';
-	import AllWildTopUp from './AllWildTopUp.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
 		import Chrome from '../ui/Chrome.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
@@ -152,6 +152,12 @@
 
 </script>
 
+<!-- LANDING FIRST: <App> is what starts pixi-svelte's AssetsLoader, i.e. the several-MB Pixi
+     preload. Holding it unmounted until game/boot.svelte.ts has the landing screen's own fonts,
+     logo and primer cards is the whole gate — nothing else in here needs to know about it. Note
+     AssetsLoader only renders its children once the preload phase is done, so the live Background
+     was never visible during loading anyway: this changes when the download starts, not the look. -->
+{#if boot.landingReady}
 <App>
 	<EnableSound />
 	<EnableHotkey />
@@ -208,9 +214,9 @@
 		<ComboWin />
 		<Win />
 		<BonusIntro />
-		<!-- the all-wild top-up board reads UNDER the cinematic that follows it (both always-mounted,
-		     so template order is their z-order) -->
-		<AllWildTopUp />
+		<!-- AllWildTopUp.svelte is UNMOUNTED (Corey 2026-09-15): the "19999.9x" top-up beat came off
+		     the max-win path, and nothing else emits allWildTopUpPlay. The file is kept on disk in
+		     case the beat is wanted back. -->
 		<MaxWinCinematic />
 		<FreeSpinOutro />
 		<Transition />
@@ -218,6 +224,7 @@
 		<LightsCut />
 	{/if}
 </App>
+{/if}
 
 <!-- HTML chrome (design "Graffiti Grunge"): control bar, bonus buy, bet picker, game info -->
 {#if !redirecting}
