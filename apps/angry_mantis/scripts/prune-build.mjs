@@ -68,10 +68,14 @@ export const pruneBuild = (build) => {
 	// total (seen on the first throttled run, 2026-09-15). scripts/stamp-assets.mjs already measured
 	// those files; read its output rather than keeping a second copy of the list here.
 	let assetBytes = 0;
+	let preloadBytes = 0;
+	let audioBytes = 0;
 	try {
 		const stampTs = readFileSync(join(build, '..', 'src', 'game', 'assetStamp.ts'), 'utf8');
 		const sizes = /export const landingSizes = (\{[\s\S]*?\n\}) as const;/.exec(stampTs);
 		if (sizes) assetBytes = Object.values(JSON.parse(sizes[1])).reduce((a, b) => a + b, 0);
+		const phases = /export const bootSizes = (\{[^}]*\}) as const;/.exec(stampTs);
+		if (phases) ({ preload: preloadBytes, audio: audioBytes } = JSON.parse(phases[1]));
 	} catch {
 		/* the bar just weights the bundle alone */
 	}
@@ -87,7 +91,7 @@ export const pruneBuild = (build) => {
 		return;
 	}
 	const bootTag =
-		`<script>window.__AM_BOOT=${JSON.stringify({ js, css, jsBytes, cssBytes, assetBytes, kitVar })};</script>\n\t\t`;
+		`<script>window.__AM_BOOT=${JSON.stringify({ js, css, jsBytes, cssBytes, assetBytes, preloadBytes, audioBytes, kitVar })};</script>\n\t\t`;
 	html = html.slice(0, insertAt) + bootTag + html.slice(insertAt);
 
 	// root-absolute leftovers from app.html's %sveltekit.assets% (favicon, and anything else)

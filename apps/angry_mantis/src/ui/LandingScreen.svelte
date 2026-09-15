@@ -9,7 +9,7 @@
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 
 	import { getContext } from '../game/context';
-	import { boot, releaseSplash } from '../game/boot.svelte';
+	import { boot, releaseSplash, splashShare } from '../game/boot.svelte';
 	import { MASTER, layoutKind } from '../game/layoutSpec';
 	import { stamp } from '../game/assets';
 	import { sound } from '../game/sound';
@@ -39,8 +39,15 @@
 
 	// ...and only once the assets are actually in: this screen mounts as soon as Authenticate
 	// resolves, which on a fast link is long before the cards have landed.
+	// ...and once the Pixi preload is in: the scene (the room this screen sits in) renders only
+	// then (pixi-svelte AssetsLoader) — a landing over a black canvas is what Corey saw on
+	// 2026-09-15. A failed preload releases too (the assetsFailed notice below takes over).
 	$effect(() => {
-		if (boot.landingReady) releaseSplash();
+		if (!boot.landingReady) return;
+		if (!(context.stateApp.preLoaded || assetsFailed)) return;
+		// a beat so Pixi has painted the room before the crossfade starts
+		const id = setTimeout(releaseSplash, 350);
+		return () => clearTimeout(id);
 	});
 
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
@@ -53,8 +60,13 @@
 	// (game/sound.ts), so the bar blends both — otherwise it parks at 100% for however long the
 	// audio still needs. Weights are a fixed approximation of the byte split; the label switches to
 	// LOADING AUDIO once the images are done so a long audio tail doesn't look like a hang.
-	const IMAGE_WEIGHT = 0.7;
-	const AUDIO_WEIGHT = 0.3;
+	// ONE loading scale across both screens (Corey 2026-09-15): the shell splash's green bar
+	// stopped at `start` (its share of everything: bundle + landing images + the Pixi preload,
+	// game/boot.svelte.ts splashShare) and this bar carries on from there with the one thing still
+	// in flight — the audio (sfx sprite + base loop, byte progress from game/sound.ts).
+	const start = Math.round(splashShare() * 100);
+	const IMAGE_WEIGHT = 0;
+	const AUDIO_WEIGHT = 1;
 	const audioReady = $derived(sound.isReady);
 	// stateApp.loadingProgress now ticks once per settled asset promise (pixi-svelte AssetsLoader),
 	// so it moves continuously through the image phase; `loaded` still pins the readout to exactly
@@ -62,7 +74,7 @@
 	// the gate is the PRELOAD phase (game/assets.ts): the deferred keys keep downloading behind the game
 	const imageProgress = $derived(context.stateApp.preLoaded ? 100 : context.stateApp.loadingProgress);
 	const rawProgress = $derived(
-		Math.round(Math.min(100, imageProgress * IMAGE_WEIGHT + sound.progress * 100 * AUDIO_WEIGHT)),
+		Math.round(Math.min(100, start + (100 - start) * (imageProgress * IMAGE_WEIGHT + sound.progress * 100 * AUDIO_WEIGHT) / 100)),
 	);
 	// high-water mark: the audio share restarts as the sprite hands off to the music player, and a
 	// bar that slips back reads as a hang (seen 60% -> 49% on the throttled probe, 2026-09-15)

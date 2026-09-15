@@ -336,13 +336,25 @@
 
 				var bundle = { loaded: 0, total: 0 };
 				var assets = { loaded: 0, total: 0 };
+				var preload = { loaded: 0, total: 0 }; /* the Pixi preload (game/boot.svelte.ts reportPreload) */
+				/* ONE loading scale across both screens (Corey 2026-09-15): this bar climbs only to
+				   `share` — the bundle + landing assets + Pixi preload's portion of everything the
+				   landing screen waits on — and ui/LandingScreen.svelte's bar starts from the same number. Set from
+				   __AM_BOOT's phase totals in production, or by game/boot.svelte.ts (setShare) in dev,
+				   where the bundle phase is vite's and unmeasured. */
+				var share = 1;
+				var creep = 0; /* dev only: the bar must still move while vite serves its module graph */
 				var gone = false;
 				var MIN_MS = 1200; /* never cut the 880 ms draw-in short; a warm cache fades at 1.2 s */
 
+				var painted = 0;
 				function paint() {
-					var total = bundle.total + assets.total;
-					var loaded = bundle.loaded + assets.loaded;
-					var p = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+					var total = bundle.total + assets.total + preload.total;
+					var loaded = bundle.loaded + assets.loaded + preload.loaded;
+					var p = total > 0 ? Math.min(1, loaded / total) : 0;
+					p = Math.round(Math.max(p * share * 100, creep));
+					if (p < painted) p = painted; /* never backwards */
+					painted = p;
 					fill.style.width = Math.max(4, p) + '%';
 					pct.textContent = 'LOADING · ' + p + '%';
 				}
@@ -350,6 +362,9 @@
 				var api = {
 					setBundle: function (l, t) { bundle.loaded = l; bundle.total = t; paint(); },
 					setAssets: function (l, t) { assets.loaded = l; assets.total = t; paint(); },
+					setPreload: function (l, t) { preload.loaded = l; preload.total = t; paint(); },
+					setShare: function (s) { share = Math.max(0.01, Math.min(1, s)); paint(); },
+					getShare: function () { return share; },
 					hideNow: function () { gone = true; if (el.parentNode) el.parentNode.removeChild(el); },
 					done: function () {
 						if (gone) return;
@@ -381,11 +396,24 @@
 				   no blob: source. If either rewrite does not match, we fall back to a plain dynamic
 				   import of the same URL (correct, just a second download). */
 				var boot = window.__AM_BOOT;
-				if (!boot) return; /* vite dev */
+				if (!boot) {
+					/* vite dev: the bundle phase is invisible to us, so the bar creeps toward 60 % of the
+					   splash's share over ~5 s until game/boot.svelte.ts reports real bytes */
+					var c0 = Date.now();
+					var creepTimer = setInterval(function () {
+						if (gone) return clearInterval(creepTimer);
+						creep = Math.min(share * 60, ((Date.now() - c0) / 5000) * share * 60);
+						paint();
+					}, 120);
+					return;
+				}
 				bundle.total = boot.jsBytes || 0;
-				/* seed the landing-asset half of the denominator now: the bar must never reach 99 %
-				   on the bundle alone and then snap back when game/boot.svelte.ts reports its total */
+				/* seed the landing-asset half of the denominator now: the bar must never reach the
+				   share on the bundle alone and then snap back when game/boot.svelte.ts reports its total */
 				assets.total = boot.assetBytes || 0;
+				preload.total = boot.preloadBytes || 0;
+				var everything = bundle.total + assets.total + preload.total + (boot.audioBytes || 0);
+				if (everything > 0) share = (bundle.total + assets.total + preload.total) / everything;
 				paint();
 
 				var jsUrl = new URL(boot.js, document.baseURI).href;

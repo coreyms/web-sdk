@@ -126,3 +126,7 @@ export const landingSizes = {
 	"fonts/ui/Outfit-Variable.woff2": 13704,
 	"fonts/ui/Sora-Variable.woff2": 14980
 } as const;
+
+// Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
+// scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
+export const bootSizes = {"landing":1180062,"preload":3520021,"audio":1208030} as const;

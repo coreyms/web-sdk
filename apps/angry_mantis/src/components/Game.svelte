@@ -15,7 +15,8 @@
 	import { stateConfig } from 'state-shared';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
-	import { boot } from '../game/boot.svelte';
+	import { boot, reportPreload } from '../game/boot.svelte';
+	import { startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import ResumeBet from './ResumeBet.svelte';
@@ -75,6 +76,14 @@
 
 	onMount(() => {
 		context.stateLayout.showLoadingScreen = true;
+	});
+
+	// the Pixi preload is the last leg of the shell splash's green bar (game/boot.svelte.ts
+	// splashShare): forward its progress there as it ticks
+	$effect(() => {
+		reportPreload(context.stateApp.preLoaded ? 100 : context.stateApp.loadingProgress);
+		// ...and the audio is the last leg, on the landing screen's own bar (routes/+layout.svelte)
+		if (context.stateApp.preLoaded) startSoundPreload();
 	});
 
 	// the deferred asset phase (game/assets.ts) finishes behind the landing screen; release the

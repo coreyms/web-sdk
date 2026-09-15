@@ -16,13 +16,16 @@
 // Then the handoff: LandingScreen mounts, calls releaseSplash(), the splash fades over 450 ms and
 // the YELLOW bar takes over reporting the Pixi preload + audio exactly as before.
 import { stamp } from './assets';
-import { landingSizes } from './assetStamp';
+import { landingSizes, bootSizes } from './assetStamp';
 
 declare global {
 	interface Window {
 		__amSplash?: {
 			setBundle(loaded: number, total: number): void;
 			setAssets(loaded: number, total: number): void;
+			setPreload(loaded: number, total: number): void;
+			setShare(share: number): void;
+			getShare(): number;
 			done(): void;
 			hideNow(): void;
 		};
@@ -36,6 +39,23 @@ const IMAGES = [
 	'ui/intro/card-3.webp',
 	'ui/logo-wide.webp',
 ] as const;
+/** the splash bar's share of ONE loading scale across both screens: bundle + landing assets +
+ *  the Pixi preload, over everything the landing screen waits on. The Pixi scene (the room the
+ *  landing sits in) only renders once its whole preload phase is in (pixi-svelte AssetsLoader), so
+ *  the splash has to cover it — Corey 2026-09-15: no landing over a black canvas. Production knows
+ *  the bundle size (window.__AM_BOOT); dev does not, so its share leaves the bundle out.
+ *  ui/LandingScreen.svelte starts its bar from this and carries the audio to 100. */
+export const splashShare = (): number => {
+	const b = (typeof window !== 'undefined' && (window as unknown as { __AM_BOOT?: { jsBytes?: number } }).__AM_BOOT) || undefined;
+	const js = b?.jsBytes ?? 0;
+	const everything = js + bootSizes.landing + bootSizes.preload + bootSizes.audio;
+	return everything > 0 ? (js + bootSizes.landing + bootSizes.preload) / everything : 0;
+};
+
+/** the Pixi preload's progress (stateApp.loadingProgress, 0-100), forwarded to the splash bar as
+ *  bytes of its baked total (components/Game.svelte) */
+export const reportPreload = (progress: number) =>
+	window.__amSplash?.setPreload(Math.round((bootSizes.preload * Math.min(100, Math.max(0, progress))) / 100), bootSizes.preload);
 // ui/logo-landscape.webp is deliberately NOT here: the landscape chrome carries it, and the chrome
 // is behind a full-screen LandingScreen until the player presses — by then the deferred phase has it.
 const FONTS = [
@@ -64,6 +84,8 @@ export const startLandingPreload = () => {
 		return;
 	}
 
+	window.__amSplash?.setShare(splashShare());
+	window.__amSplash?.setPreload(0, bootSizes.preload);
 	const total =
 		IMAGES.reduce((n, path) => n + sizeOf(path), 0) + FONTS.reduce((n, f) => n + sizeOf(f.path), 0);
 	const done = new Map<string, number>();
@@ -133,7 +155,7 @@ export const startLandingPreload = () => {
 	};
 
 	void (async () => {
-		await Promise.all([...IMAGES.map(fetchImage), ...FONTS.map(loadFont)]);
+		await Promise.all([...IMAGES.map((p) => fetchImage(p)), ...FONTS.map(loadFont)]);
 		window.__amSplash?.setAssets(total, total);
 		boot.landingReady = true;
 	})();

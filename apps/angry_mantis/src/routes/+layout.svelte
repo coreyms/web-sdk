@@ -5,7 +5,6 @@
 	import ChromeStyles from '../ui/ChromeStyles.svelte';
 	import Game from '../components/Game.svelte';
 	import { setContext } from '../game/context';
-	import { startSoundPreload } from '../game/sound';
 	import { boot, startLandingPreload, releaseSplash } from '../game/boot.svelte';
 
 	import messagesMap from '../i18n/messagesMap';
@@ -27,12 +26,10 @@
 	// keeps running in parallel: it is latency-bound, not bandwidth-bound.
 	startLandingPreload();
 
-	// The audiosprite is ~a third of the landing payload and used to start at the very top of the
-	// app, competing with the primer cards for a slow connection's bandwidth. It now starts at the
-	// handoff and the landing screen's yellow bar still gates PRESS ANYWHERE on it (ui/LandingScreen).
-	$effect(() => {
-		if (boot.landingReady) startSoundPreload();
-	});
+	// The audio (sfx sprite + base loop) used to start at the very top of the app, competing with
+	// everything else for a slow connection's bandwidth. It now starts once the Pixi preload is in
+	// (components/Game.svelte), so it is the one thing the landing screen's yellow bar carries from
+	// the splash's share to 100 (ui/LandingScreen.svelte) — ONE loading scale, Corey 2026-09-15.
 
 	// Backstop for the splash handoff. Normally LandingScreen releases it the moment it is mounted
 	// with the assets in (ui/LandingScreen.svelte); if it never mounts — a social-casino reload, a
