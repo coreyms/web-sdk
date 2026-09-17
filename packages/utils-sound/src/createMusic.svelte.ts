@@ -1,4 +1,5 @@
 import { Howl } from 'howler';
+import { elementGain, gainOf, isAppleTouch } from './elementGain';
 
 /**
  * Streamed music player — one HTML5 <audio> stream per track, created lazily.
@@ -105,6 +106,7 @@ export function createMusicPlayer<TSoundName extends string>(
 	options: MusicPlayerOptions = {},
 ) {
 	const entries = new Map<TSoundName, Entry>();
+	const ELEMENT_GAIN = isAppleTouch();
 	/** mixer level for the music bus (stateSound music volume x the soundDuck multiplier) */
 	let playerVolume = 1;
 	/** per-track multiplier owned by fade() — mirrors createPlayer's soundVolume */
@@ -129,6 +131,14 @@ export function createMusicPlayer<TSoundName extends string>(
 		const level = levelFor(name);
 		entry.howl.volume(level);
 		entry.howl.mute(level === 0);
+		// Apple touch devices: the level lives on a GainNode in front of the element, because the
+		// element's volume is ignored there (elementGain.ts). Attaches on the first call that finds
+		// a playing node and a running context; until then the mute above is all iOS honours.
+		if (ELEMENT_GAIN) {
+			const node = nodeOf(entry.howl);
+			const gain = node ? elementGain(node) : undefined;
+			if (gain) gain.gain.value = level;
+		}
 	};
 
 	const ensure = (name: TSoundName): Entry | undefined => {
@@ -327,6 +337,12 @@ export function createMusicPlayer<TSoundName extends string>(
 		/** the Howl of the track currently requested, for probes/tests; undefined before first play */
 		get howl(): Howl | undefined {
 			return requested ? entries.get(requested)?.howl : undefined;
+		},
+		/** staging diagnostics (?audiodiag=1): how the playing track's level is applied */
+		get levelPath(): 'gain' | 'element' | 'none' {
+			const howl = requested ? entries.get(requested)?.howl : undefined;
+			if (!howl) return 'none';
+			return gainOf(nodeOf(howl)) ? 'gain' : 'element';
 		},
 	};
 }

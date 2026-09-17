@@ -1,4 +1,5 @@
 import { Howler, Howl } from 'howler';
+import { elementGain, gainOf, isAppleTouch } from './elementGain';
 
 import { type LoadedAudio } from 'pixi-svelte';
 import { stateSoundDerived } from 'state-shared';
@@ -25,6 +26,9 @@ function createSound<TSoundName extends string>() {
 
 	let loadedAudio: LoadedAudio<TSoundName>;
 	let audioContextState = $state<AudioContext['state']>('running');
+	/** which path the effects sprite plays through right now (staging diagnostics) */
+	let effectsPath: 'webaudio' | 'html5' = 'webaudio';
+	let spriteFormat = '';
 	let visibilityState = $state<DocumentVisibilityState>('visible');
 	let players: {
 		music: Player<TSoundName, PlayMusic>;
@@ -137,6 +141,7 @@ function createSound<TSoundName extends string>() {
 		howl.once('load', () => {
 			downloadRatio = 1;
 			loadStatus = 'loaded';
+			spriteFormat = (howl as unknown as { _format?: string[] })._format?.[0] ?? '';
 		});
 		howl.once('loaderror', (_id: number, error: unknown) => {
 			// never hang the gate on a broken sprite — let the player in silently. Howler reports a
@@ -168,11 +173,36 @@ function createSound<TSoundName extends string>() {
 		const fallBackToHtml5 = () => {
 			if (effectsOnHtml5) return;
 			effectsOnHtml5 = true;
+			effectsPath = 'html5';
 			console.warn('[sound] AudioContext still suspended after a user gesture; playing effects through HTML5 audio instead');
 			// one media element per overlapping effect; the music player already holds its own
 			Howler.html5PoolSize = Math.max(Howler.html5PoolSize, 24);
 			const previous = howl;
 			howl = buildHowl(true);
+			// Apple touch devices ignore element volume (elementGain.ts): every pool element that
+			// starts a sound gets a GainNode carrying that sound's Howler level, and the level is
+			// re-applied to every attached element whenever the Howl's volume is set
+			if (isAppleTouch()) {
+				type Sound = { _node?: HTMLMediaElement; _volume?: number };
+				const h = howl as unknown as { _sounds?: Sound[]; _soundById?: (id: number) => Sound | null };
+				const sync = () => {
+					for (const s of h._sounds ?? []) {
+						const gain = gainOf(s._node);
+						if (gain) gain.gain.value = s._volume ?? 1;
+					}
+				};
+				howl.on('play', (id: number) => {
+					const s = h._soundById?.(id);
+					const gain = s?._node ? elementGain(s._node) : undefined;
+					if (gain) gain.gain.value = s?._volume ?? 1;
+				});
+				const originalVolume = howl.volume.bind(howl);
+				(howl as unknown as { volume: (...args: unknown[]) => unknown }).volume = (...args: unknown[]) => {
+					const result = (originalVolume as (...a: unknown[]) => unknown)(...args);
+					sync();
+					return result;
+				};
+			}
 			players = buildPlayers(howl);
 			previous.unload();
 			playersVersion += 1;
@@ -365,7 +395,12 @@ function createSound<TSoundName extends string>() {
 		});
 	};
 
+	/** staging diagnostics (?audiodiag=1 in the menu): one line saying how audio is routed */
+	const diag = () =>
+		`effects ${effectsPath}${spriteFormat ? ' .' + spriteFormat : ''} · ctx ${Howler.ctx ? Howler.ctx.state : 'none'}${Howler.usingWebAudio ? '' : ' (no web audio)'} · music ${musicPlayer ? musicPlayer.levelPath : 'none'}`;
+
 	return {
+		diag,
 		load,
 		loadMusic,
 		onMusicEnded,

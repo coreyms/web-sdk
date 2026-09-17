@@ -5,6 +5,7 @@
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import config from '../game/config';
+	import { sound } from '../game/sound';
 
 	import ChunkyBtn from './ChunkyBtn.svelte';
 	import Icon from './Icon.svelte';
@@ -23,6 +24,8 @@
 			stateSound.volumeValueMusic = 0;
 		}
 	};
+	// staging diagnostics for the iOS audio work (2026-09-17): ?audiodiag=1 adds one readout line
+	const audioDiag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('audiodiag');
 	const toggleSfx = () => {
 		if (stateSound.volumeValueSoundEffect === 0) stateSound.volumeValueSoundEffect = lastSfx || 75;
 		else {
@@ -82,6 +85,9 @@
 				<input type="range" min="0" max="100" bind:value={stateSound.volumeValueSoundEffect} class="vol-slider" style:--fill="{stateSound.volumeValueSoundEffect}%" class:off={stateSound.volumeValueSoundEffect === 0} aria-label="Sound effects volume" />
 			</div>
 
+			{#if audioDiag}
+				<div class="session"><span class="srow"><span class="sk">AUDIO</span><span class="sv">{now ? sound.diag() : ''}</span></span></div>
+			{/if}
 			{#if showSession}
 				<div class="session">
 					{#if j.displayRTP}
