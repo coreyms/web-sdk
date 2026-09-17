@@ -120,6 +120,17 @@ export function createMusicPlayer<TSoundName extends string>(
 	const levelFor = (name: TSoundName) =>
 		playerVolume * (soundVolume.get(name) ?? 1) * (trackOf(name)?.volume ?? 1);
 
+	/** the mixer level onto the Howl. `volume()` alone is not enough on iOS: music streams through
+	 *  html5 media elements and Safari (and Chrome, which is WebKit there) ignores
+	 *  HTMLMediaElement.volume outright, so a level of 0 left the music playing at full volume —
+	 *  the menu's music mute and slider were no-ops on iPhone (Corey, 2026-09-17). `muted` IS
+	 *  honoured, so a zero level mutes the element and any other level unmutes it. */
+	const setLevel = (entry: { howl: Howl }, name: TSoundName) => {
+		const level = levelFor(name);
+		entry.howl.volume(level);
+		entry.howl.mute(level === 0);
+	};
+
 	const ensure = (name: TSoundName): Entry | undefined => {
 		const existing = entries.get(name);
 		if (existing) return existing;
@@ -133,6 +144,7 @@ export function createMusicPlayer<TSoundName extends string>(
 			loop: false, // deliberate: we set element.loop ourselves, see the header comment
 			preload: true,
 			volume: levelFor(name),
+			mute: levelFor(name) === 0, // iOS: see setLevel
 		});
 		const entry: Entry = { name, track, howl, bytes: chosenBytes(howl, track, urls) };
 		entries.set(name, entry);
@@ -172,14 +184,14 @@ export function createMusicPlayer<TSoundName extends string>(
 	 */
 	const startNow = (entry: Entry) => {
 		const name = entry.name as TSoundName;
-		entry.howl.volume(levelFor(name));
+		setLevel(entry, name);
 		entry.howl.once('play', () => {
 			if (requested !== name) {
 				entry.howl.stop();
 				return;
 			}
 			applyElementLoop(entry);
-			entry.howl.volume(levelFor(name));
+			setLevel(entry, name);
 		});
 		entry.howl.play();
 		applyElementLoop(entry); // already-buffered case: the node exists and starts immediately
@@ -240,7 +252,7 @@ export function createMusicPlayer<TSoundName extends string>(
 
 	const volume = (value: number) => {
 		playerVolume = value;
-		for (const [name, entry] of entries) entry.howl.volume(levelFor(name));
+		for (const [name, entry] of entries) setLevel(entry, name);
 	};
 
 	const unload = () => {

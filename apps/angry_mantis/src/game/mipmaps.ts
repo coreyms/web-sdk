@@ -22,7 +22,11 @@ export const ensureMipmaps = (loadedAssets: Record<string, unknown> | undefined,
  *  key per sheet reaches the shared source; single sprites go by their asset key. Backgrounds,
  *  the door, the frame, the board tiles and the ambient sheets draw near native and stay out. */
 export const MIPMAP_KEYS = [
-	'L1.png', // symbol sheet: ON THE MENU trays (6x), wrap-up eaten row
+	// symbol sheet: ON THE MENU trays (6x), wrap-up eaten row. Frame name, not a file, so it reaches
+	// whichever sheet the device tier loaded — on the phone tier (half-res sheet, 2026-09-17 crash)
+	// the trays are still a ~3x minification and still need the chain. The pose sheets are NOT here
+	// and must stay out: they draw at ~1:1 in the cell, so a chain would only cost memory.
+	'L1.png',
 	'br_Q.png', // branded glyphs: ON THE MENU title (9x), small tier lines
 	'num_0.png', // stencil numerals: recap line (8x), score pops, max-win counters
 	'Right Bicep-4.png', // mantis rig atlas: half size on phones

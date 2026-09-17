@@ -134,6 +134,7 @@
 			}
 			@keyframes am-draw { to { stroke-dashoffset: 0; } }
 			#am-splash .node {
+				r: var(--node); /* the attribute cannot carry var(): WebKit logged an error per node */
 				opacity: 0;
 				transform-box: fill-box;
 				transform-origin: center;
@@ -255,10 +256,10 @@
 							<path class="edge" d="M50 17.6 L50 59.2" pathLength="1" style="animation-delay:165ms" />
 							<path class="edge" d="M14 80 L50 59.2" pathLength="1" style="animation-delay:205ms" />
 							<path class="edge" d="M86 80 L50 59.2" pathLength="1" style="animation-delay:245ms" />
-							<circle class="node" cx="50" cy="17.6" r="var(--node)" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:300ms" />
-							<circle class="node" cx="14" cy="80" r="var(--node)" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:340ms" />
-							<circle class="node" cx="86" cy="80" r="var(--node)" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:380ms" />
-							<circle class="node" cx="50" cy="59.2" r="var(--node)" fill="#9CD92F" stroke="#9CD92F" style="animation-delay:430ms" />
+							<circle class="node" cx="50" cy="17.6" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:300ms" />
+							<circle class="node" cx="14" cy="80" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:340ms" />
+							<circle class="node" cx="86" cy="80" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:380ms" />
+							<circle class="node" cx="50" cy="59.2" r="7.5" fill="#9CD92F" stroke="#9CD92F" style="animation-delay:430ms" />
 						</svg>
 						<div class="lockup">
 							<div class="wm">Poly<em>Math</em></div>
@@ -306,7 +307,7 @@
 					st.setProperty('--ty', (h - o.h * s) / 2 + 'px');
 					st.setProperty('--mark', o.mark + 'px');
 					st.setProperty('--stroke', o.stroke);
-					st.setProperty('--node', o.node);
+					st.setProperty('--node', o.node + 'px');
 					st.setProperty('--gap-mark', o.gapMark + 'px');
 					st.setProperty('--gap-wm', o.gapWm + 'px');
 					st.setProperty('--wm-size', o.wmSize + 'px');

@@ -30,6 +30,7 @@ const poseAtlases = readdirSync(join(ASSETS, 'sprites'))
 
 for (const rel of [
 	'sprites/amSymbols/amSymbols.json',
+	'sprites/amSymbols/amSymbols-half.json', // phone tier (tools/build_phone_sheets.py, 2026-09-17 crash)
 	...poseAtlases,
 	'rig/mantis-set.atlas.json', // BoneRutter character atlas — same TexturePacker JSON-hash shape
 	'ui/numerals/numerals.json', // prison-stencil amount glyphs (generated from branding/prison-numbers.webp)

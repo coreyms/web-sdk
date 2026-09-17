@@ -85,13 +85,28 @@ let preloadStarted = false;
 /** First entry of the manifest's src[] this browser can actually decode (see build_audiosprite.py
  *  for the ordering — smallest supported format first). Resolved against the document like Howler
  *  would, since the manifest's paths are document-relative. */
-const pickSource = (srcList: string[]) => {
-	for (const ref of srcList) {
-		const ext = (ref.split('?')[0].split('.').pop() ?? '').toLowerCase();
-		if (ext && supportsAudioFormat(ext)) return { url: new URL(ref, document.baseURI).href, ext };
-	}
-	return undefined;
-};
+const extOf = (ref: string) => (ref.split('?')[0].split('.').pop() ?? '').toLowerCase();
+
+/** iPhone / iPad (every browser there is WebKit, Chrome included). Safari 17+ answers "maybe" to
+ *  Vorbis, and its media elements do play the .ogg music, but the Web Audio decoder is CoreAudio
+ *  only: decodeAudioData on the .ogg sprite fails, loaderror fires, and every effect is silent
+ *  while the music plays — Corey's iPhone, Safari and Chrome, 2026-09-17. AAC is native there, so
+ *  Apple touch devices take the .m4a of everything first; the retry below is the safety net. */
+const PREFERS_AAC =
+	typeof navigator !== 'undefined' &&
+	(/iP(hone|ad|od)/.test(navigator.platform) ||
+		/iP(hone|ad|od)/.test(navigator.userAgent) ||
+		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+const AAC_EXTS = ['m4a', 'mp4', 'aac'];
+const orderSources = (srcList: string[]) =>
+	PREFERS_AAC ? [...srcList].sort((a, b) => Number(AAC_EXTS.includes(extOf(b))) - Number(AAC_EXTS.includes(extOf(a)))) : srcList;
+
+/** every playable source, best first */
+const pickSources = (srcList: string[]) =>
+	orderSources(srcList)
+		.map((ref) => ({ ref, ext: extOf(ref) }))
+		.filter(({ ext }) => ext && supportsAudioFormat(ext))
+		.map(({ ref, ext }) => ({ url: new URL(ref, document.baseURI).href, ext }));
 
 // Howler gets the sprite's REAL URL, never an object URL. engine.io serves the game under a
 // Content Security Policy with no `blob:` source (2026-09-07): Howler's Web Audio XHR to a blob URL
@@ -132,7 +147,18 @@ const prefetchWithProgress = async (url: string) => {
 const loadMusicManifest = async () => {
 	const response = await fetch(assets.music.src);
 	if (!response.ok) throw new Error(`music.json ${response.status}`);
-	sound.loadMusic((await response.json()) as MusicManifest<MusicName>);
+	const manifest = (await response.json()) as MusicManifest<MusicName>;
+	// Apple touch devices: AAC first for the streamed tracks too (see PREFERS_AAC); `bytes` rides
+	// along with its source so the gate progress still weights the right file
+	if (PREFERS_AAC) {
+		for (const track of Object.values(manifest.tracks ?? manifest) as Array<{ src?: string[]; bytes?: number[] }>) {
+			if (!Array.isArray(track?.src)) continue;
+			const order = orderSources(track.src).map((ref) => track.src!.indexOf(ref));
+			if (Array.isArray(track.bytes) && track.bytes.length === track.src.length) track.bytes = order.map((i) => track.bytes![i]);
+			track.src = order.map((i) => track.src![i]);
+		}
+	}
+	sound.loadMusic(manifest);
 };
 
 /** Idempotent — call it as early as possible; extra calls are free. */
@@ -165,7 +191,8 @@ export const startSoundPreload = () => {
 				const manifestResponse = await fetch(assets.sound.src);
 				if (!manifestResponse.ok) throw new Error(`sounds.json ${manifestResponse.status}`);
 				const manifest = (await manifestResponse.json()) as SoundManifest;
-				const picked = pickSource(manifest.src);
+				const candidates = pickSources(manifest.src);
+				const picked = candidates[0];
 				if (!picked) throw new Error('no supported audio format in sounds.json src[]');
 				// weight the sprite by its real size from the first moment: before the first chunk the
 				// progress blend had 0 bytes for it and read 100% off the music gate alone (2026-09-15)
@@ -177,6 +204,16 @@ export const startSoundPreload = () => {
 					{ src: [picked.url], sprite: manifest.sprite, config: manifest.config },
 					{ format: [picked.ext] },
 				);
+				// a browser that CLAIMS a format and then cannot decode it (see PREFERS_AAC) fails the
+				// sprite with loaderror; try the next playable source before giving up on effects
+				void (async () => {
+					for (const next of candidates.slice(1)) {
+						while (sound.loadStatus === 'loading' || sound.loadStatus === 'idle') await new Promise((r) => setTimeout(r, 250));
+						if (sound.loadStatus !== 'error') return;
+						console.warn(`[sound] sprite .${extOf(next.url)} retry after a decode failure`);
+						sound.load({ src: [next.url], sprite: manifest.sprite, config: manifest.config }, { format: [next.ext] });
+					}
+				})();
 				return;
 			} catch (error) {
 				lastError = error;

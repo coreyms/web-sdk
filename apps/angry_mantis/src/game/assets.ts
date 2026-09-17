@@ -1,5 +1,6 @@
 import { loadTextures } from 'pixi.js';
 import stamps, { fileBytes } from './assetStamp';
+import { PHONE_TIER } from './deviceTier';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
 // waits for that worker's first message with no error path. Behind a CSP whose worker-src has no
@@ -24,6 +25,13 @@ export const stamp = (href: string): string => {
 	const base = href.startsWith('/assets/') ? href.slice(1) : href;
 	return v ? `${base}?v=${v}` : base;
 };
+
+// PHONE ASSET TIER (2026-09-17 phone crash, see game/deviceTier.ts): the symbol atlas and the eight
+// pose sheets ship a half-resolution twin (tools/build_phone_sheets.py) — 198 MB of decoded RGBA
+// down to 50 MB — and a phone cell draws at ~95-124 physical px, under the 128 px half cell. BOTH
+// candidates must be written as literal `new URL(..., import.meta.url)` calls: Vite rewrites those
+// at build time and cannot follow a computed path, so the choice happens on the two finished hrefs.
+const tiered = (full: string, half: string): string => (PHONE_TIER ? half : full);
 
 // TWO LOAD PHASES (pixi-svelte AssetsLoader). `preload: true` gates the landing screen: everything the
 // base game draws in its first seconds. `preload: false` keeps downloading behind the game and is
@@ -123,7 +131,10 @@ const assets = {
 	stingerMax: { type: 'sprite', src: stamp(new URL('../../assets/ui/stingers/max.webp', import.meta.url).href), preload: false },
 	amSymbols: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/amSymbols/amSymbols.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/amSymbols/amSymbols.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/amSymbols/amSymbols-half.json', import.meta.url).href),
+		),
 		preload: true,
 	},
 	// PER-INSECT POSE SHEETS (SYMBOL_POSES in constants.ts, tools/make_placeholders.py). One atlas
@@ -133,42 +144,66 @@ const assets = {
 	// board draws until the sheet is in, so a pose is only ever a bonus on top of a loaded game.
 	posesH1: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/poses-h1.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/poses-h1.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/poses-h1-half.json', import.meta.url).href),
+		),
 		preload: false,
 	},
 	posesL1: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/poses-l1.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/poses-l1.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/poses-l1-half.json', import.meta.url).href),
+		),
 		preload: false,
 	},
 	posesL2: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/poses-l2.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/poses-l2.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/poses-l2-half.json', import.meta.url).href),
+		),
 		preload: false,
 	},
 	posesL3: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/poses-l3.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/poses-l3.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/poses-l3-half.json', import.meta.url).href),
+		),
 		preload: false,
 	},
 	posesL4: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/poses-l4.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/poses-l4.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/poses-l4-half.json', import.meta.url).href),
+		),
 		preload: false,
 	},
 	posesM1: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/poses-m1.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/poses-m1.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/poses-m1-half.json', import.meta.url).href),
+		),
 		preload: false,
 	},
 	posesM2: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/poses-m2.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/poses-m2.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/poses-m2-half.json', import.meta.url).href),
+		),
 		preload: false,
 	},
 	posesM3: {
 		type: 'sprites',
-		src: stamp(new URL('../../assets/sprites/poses-m3.json', import.meta.url).href),
+		src: tiered(
+			stamp(new URL('../../assets/sprites/poses-m3.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/poses-m3-half.json', import.meta.url).href),
+		),
 		preload: false,
 	},
 	// BoneRutter character atlas: registered here so the loading screen gates on the 760KB page
