@@ -127,11 +127,14 @@
 	   wrap-up amount gets a second place to read it). */
 	.fit > :global(*),
 	:global(.hud-group > *) {
-		transition: opacity 0.35s ease;
+		/* the 0.3 s delay is the RETURN only (below, the hide runs at once): a kept readout that
+		   slid to centre while the HUD was away moves back before its row-mates reappear */
+		transition: opacity 0.35s ease 0.3s;
 	}
 	.layer.hud-off .fit > :global(:not(.keep):not(.hud-group)),
 	.layer.hud-off :global(.hud-group > :not(.keep)) {
 		opacity: 0;
+		transition-delay: 0s;
 	}
 	/* uiHide({ deep: true }) — the max-win screen only: even the kept logo and WIN readout go, so
 	   the dimmed canvas carries THEY ATE EVERYTHING / MAX WIN alone (Corey 2026-09-15). */

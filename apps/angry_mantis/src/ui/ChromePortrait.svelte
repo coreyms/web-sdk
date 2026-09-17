@@ -137,6 +137,13 @@
 		transform: translateX(-50%);
 		display: flex;
 		justify-content: center;
+		transition: left 0.3s ease;
+	}
+	/* alone on the bonus intro / wrap-up (uiHide keeps it): its row-mate offset reads as parked
+	   off-centre once the buttons are gone, so it slides to the true centre and back as the HUD
+	   returns (Corey 2026-09-17; the HUD's fade-in waits for the slide, Chrome.svelte) */
+	:global(.layer.hud-off) .win {
+		left: 50%;
 	}
 	.cluster {
 		display: flex;
