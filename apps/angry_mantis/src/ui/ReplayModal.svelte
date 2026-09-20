@@ -239,14 +239,28 @@
 		}
 		.block:not(.one) {
 			display: grid;
-			grid-template-columns: 1fr 1fr;
-			column-gap: 14px;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			column-gap: 12px;
 		}
 		.block:not(.one) .row + .row {
 			border-top: 0;
 		}
 		.block:not(.one) .row:nth-child(n + 3) {
 			border-top: 1px solid var(--ui-rule);
+		}
+		/* two-up rows share the width: the value never breaks ("300 / x" grew the card past the
+		   window and put the sticky button over TOTAL WIN, Corey 2026-09-20) and the key gives up
+		   tracking instead */
+		.block:not(.one) .row {
+			min-width: 0;
+		}
+		.block:not(.one) .k {
+			letter-spacing: 1.5px;
+			font-size: clamp(8px, 2.3vmin, 11px);
+		}
+		.v {
+			white-space: nowrap;
+			overflow-wrap: normal;
 		}
 		.cap {
 			line-height: 1.25;
