@@ -10,11 +10,16 @@
 	// = a chosen limit, red = OFF. Fonts stay the chrome's own (Outfit labels, Sora numbers).
 	// Portrait (412 wide, 760 tall): the expanded sheet must fit above the bet stepper with NO scroll,
 	// so the limits run six to a row, the wrap-prone hints / toggle blurbs / footer line go, and the
-	// mode chip shortens to BASE · $1.00 / SPIN so the head stays one row.
+	// mode chip shortens to BASE · $1.00 / SPIN so the head stays one row (a bought feature's chip
+	// reads "$100.00 TOTAL" instead: the price is for the whole round, not for each free spin).
 	// The bet stepper sits under the sheet, as it does on the bonus-buy screen (Corey 2026-09-02).
+	import { untrack } from 'svelte';
+	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateModal } from 'state-shared';
+	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import { modeChipData } from '../game/modeChipData';
+	import { fitFont } from '../game/textFit';
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import BetAdjuster from './BetAdjuster.svelte';
@@ -24,6 +29,12 @@
 	const { controls, master, scale, left, top, compact = false }: Props = $props();
 	// compact covers phone-sideways (1480×740) and portrait (412×760); only portrait is narrow
 	const portrait = $derived(master.width < master.height);
+	// ModalShell's frame is the VIEWPORT now (Stake review FIX 5), so the sheet sizes itself against
+	// real CSS px: `tiny` is Stake's Popout S band (400×225), where the sheet scrolls and the
+	// secondary lines step aside so the numbers stay legible.
+	const vw = $derived(innerWidth.current ?? 1280);
+	const vh = $derived(innerHeight.current ?? 720);
+	const tiny = $derived(vh < 300 || vw < 360);
 	// the armed-mode pill reads "MYSTERY · $300.00 / SPIN", not "MYSTERY SPIN · $300.00 / SPIN":
 	// the mode word alone, since "/ SPIN" already says the rest and the long labels clipped the
 	// pill on phones (Corey 2026-09-15)
@@ -61,9 +72,51 @@
 	});
 
 	const perSpin = $derived(controls.playCost());
-	const pill = $derived(modeChipData() ?? { label: 'BASE GAME', cost: controls.abbrev(perSpin, 100_000) });
+	const pill = $derived(modeChipData() ?? { label: 'BASE GAME', cost: numberToCurrencyString(perSpin), unit: soc('/ SPIN', '/ PLAY') });
 	const countText = (c: number) => (c === Infinity ? '∞' : `${c}`);
-	const totalText = $derived(count === Infinity ? '∞' : controls.abbrev(count * perSpin));
+	// Every amount on this sheet is the FULL currency string — Stake's review (2026-09-20) bars
+	// K/M abbreviation on any bet-level readout. The long ones are fitted, not abbreviated:
+	// the grand total shrinks to a floor (it is the number the player is deciding on, so it never
+	// disappears), and the per-count sub-line under a chip drops when it cannot be fitted — that
+	// same number is one tap away on the chip's own total row.
+	const totalText = $derived(count === Infinity ? '∞' : numberToCurrencyString(count * perSpin));
+	const perSpinText = $derived(numberToCurrencyString(perSpin));
+	// chip cell width, mirroring the CSS: panel width − padding − 3 gaps, over 4 columns, less the
+	// chip's own side padding
+	const panelW = $derived(Math.min(portrait ? 380 : 420, vw * 0.94));
+	const chipW = $derived((panelW - 2 * (portrait ? 16 : 18) - 3 * 8) / 4 - 8);
+	// 9.5 px is the hide threshold: a per-count total either reads or it steps aside — it is
+	// never shrunk into illegibility and never ellipsised.
+	const subFont = (text: string) => fitFont({ text, nominal: 10, box: chipW, minScale: 0.95, weight: 600, letterSpacing: 0 });
+	// the total row: label + value share the row, so the value gets a little over half of it
+	const totalBox = $derived(panelW - 2 * (portrait ? 16 : 18) - 24 - 12);
+	const totalFont = $derived(fitFont({ text: totalText, nominal: 20, box: totalBox * 0.58, floor: 12 }) ?? 12);
+	// HEAD: the mode pill carries a price, so it is never clipped — and the AUTOPLAY title is never
+	// truncated either (review 2026-09-20). When the two cannot share the row the pill drops to its
+	// own line under the title. A canvas estimate of the three boxes ran ~23 px pessimistic and
+	// stacked the head on a Popout S that had room for it, so the widths come from the REAL
+	// elements: `scrollWidth` on the two nowrap boxes is their CONTENT width in either state, and
+	// the head is full-bleed in either state, so the measurement cannot oscillate with the class it
+	// decides. The effect only WRITES its two state cells (house rule: never read-modify-write
+	// shared state in an effect), and re-runs on the inputs that can change the content.
+	let headEl: HTMLDivElement | undefined = $state();
+	let titleEl: HTMLDivElement | undefined = $state();
+	let pillEl: HTMLDivElement | undefined = $state();
+	let xEl: HTMLButtonElement | undefined = $state();
+	let headW = $state(0);
+	let headNeedW = $state(0);
+	const HEAD_GAP = 10;
+	$effect(() => {
+		// deps: anything that changes the head's content or the sheet's width
+		void [pill.label, pill.cost, pill.unit, panelW, tiny, portrait, open];
+		const h = headEl, t = titleEl, pi = pillEl, x = xEl;
+		if (!h || !t || !pi || !x) return;
+		untrack(() => {
+			headW = h.clientWidth;
+			headNeedW = t.scrollWidth + pi.scrollWidth + x.offsetWidth + 2 * HEAD_GAP;
+		});
+	});
+	const headFits = $derived(headW === 0 || headNeedW <= headW);
 
 	const load = () => {
 		controls.loadAutoplay({ count, lossMult, winMult, stopFree: stopFreeOn, autoBonuses: stopFreeOn ? false : autoBonuses });
@@ -74,20 +127,22 @@
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.55)" zIndex={3}>
 	<div class="center" style:gap="{compact ? 10 : 14}px">
-		<div class="panel am-glass" class:compact class:portrait onclick={(e) => e.stopPropagation()} role="presentation" style:max-height="{master.height - (portrait ? 96 : 100)}px">
-			<div class="head">
-				<div class="title am-stencil">AUTOPLAY</div>
-				<div class="pill"><span class="mode">{shortMode(pill.label)}</span><span class="dot">·</span><span class="slot-num cost">{pill.cost}</span><span class="per">/ SPIN</span></div>
-				<button class="slot-btn x" onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
+		<div class="panel am-glass" class:compact class:portrait class:tiny onclick={(e) => e.stopPropagation()} role="presentation">
+			<div class="head" class:stacked={!headFits} bind:this={headEl}>
+				<div class="title am-stencil" bind:this={titleEl}>AUTOPLAY</div>
+				<div class="pill" bind:this={pillEl}><span class="mode">{shortMode(pill.label)}</span><span class="dot">·</span><span class="slot-num cost">{pill.cost}</span><span class="per">{pill.unit}</span></div>
+				<button class="slot-btn x" bind:this={xEl} onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
 			</div>
 
 			<div class="sec">
 				<div class="sec-label"><h3>Number of spins</h3><span class="hint">selecting only previews, nothing starts</span></div>
 				<div class="chips four">
 					{#each COUNTS as c (c)}
+						{@const sub = c === Infinity ? 'until stopped' : numberToCurrencyString(c * perSpin)}
+						{@const sf = subFont(sub)}
 						<button class="slot-btn chip" class:on={count === c} onclick={() => (controls.sound('soundPressSub'), (count = c))}>
 							<span class="slot-num big">{countText(c)}</span>
-							<span class="slot-num sub">{c === Infinity ? 'until stopped' : controls.abbrev(c * perSpin)}</span>
+							{#if sf !== null}<span class="slot-num sub" style:font-size="{sf}px">{sub}</span>{/if}
 						</button>
 					{/each}
 				</div>
@@ -95,7 +150,7 @@
 
 			<div class="total">
 				<span class="k">{soc('TOTAL BET AMOUNT', 'TOTAL PLAY AMOUNT')}</span>
-				<span class="v-wrap"><span class="slot-num v">{totalText}</span><span class="slot-num math">{count === Infinity ? 'until stopped' : `${count} × ${controls.abbrev(perSpin)}`}</span></span>
+				<span class="v-wrap"><span class="slot-num v" style:font-size="{totalFont}px">{totalText}</span><span class="slot-num math">{count === Infinity ? 'until stopped' : `${count} × ${perSpinText}`}</span></span>
 			</div>
 
 			<div class="fold" class:open={advanced}>
@@ -170,6 +225,8 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+		padding: 6px;
+		box-sizing: border-box;
 		pointer-events: none;
 	}
 	.stepper {
@@ -177,9 +234,12 @@
 	}
 
 	/* ── the glass sheet (surface from .am-glass) ── */
+	/* viewport-sized (FIX 5): the sheet fills what the window gives it and scrolls inside itself
+	   rather than shrinking with a master transform */
 	.panel {
 		width: 420px;
-		max-width: 96%;
+		max-width: 94vw;
+		max-height: 86vh;
 		box-sizing: border-box;
 		pointer-events: auto;
 		position: relative;
@@ -206,12 +266,32 @@
 	.head > * {
 		min-width: 0;
 	}
+	/* Neither the title nor the price pill may be truncated (Stake review 2026-09-20): when they
+	   cannot share the row the head restacks, title + close on top and the pill on its own line. */
 	.title {
+		flex: 0 0 auto;
 		font-size: 18px;
 		font-weight: 900;
 		letter-spacing: 3.5px;
 		color: var(--ui-ink);
 		white-space: nowrap;
+	}
+	.head.stacked {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		grid-template-areas: 'title x' 'pill pill';
+		justify-items: start;
+		align-items: center;
+		row-gap: 8px;
+	}
+	.head.stacked .title {
+		grid-area: title;
+	}
+	.head.stacked .pill {
+		grid-area: pill;
+	}
+	.head.stacked .x {
+		grid-area: x;
 	}
 	.pill {
 		display: inline-flex;
@@ -221,12 +301,11 @@
 		padding: 7px 10px;
 		border: 1px solid var(--ui-rule-2);
 		color: var(--ui-ink-2);
+		flex: 0 0 auto;
 		font-size: 10.5px;
 		font-weight: 700;
 		letter-spacing: 1.6px;
 		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 	.pill .dot {
 		opacity: 0.5;
@@ -306,13 +385,12 @@
 		font-weight: 700;
 		line-height: 1;
 	}
+	/* no ellipsis: the per-count total is an amount, so it is fitted or dropped, never truncated */
 	.chip .sub {
 		font-size: 10px;
 		color: var(--ui-ink-3);
 		white-space: nowrap;
 		max-width: 100%;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 	.chip.on {
 		background: var(--ui-gold);
@@ -346,6 +424,7 @@
 	}
 	.total {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: baseline;
 		gap: 12px;
@@ -360,8 +439,12 @@
 		color: var(--ui-ink-2);
 		white-space: nowrap;
 	}
+	/* the "25 x GC 1,000,000" derivation wraps under the total rather than being clipped: it is
+	   an amount, and an amount is never truncated (Stake review 2026-09-20) */
 	.v-wrap {
 		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
 		align-items: baseline;
 		gap: 8px;
 		white-space: nowrap;
@@ -529,6 +612,36 @@
 	/* ── compact (phone sideways): the 740-tall master has room, only the gaps tighten ── */
 	.compact {
 		gap: 10px;
+	}
+
+	/* ── tiny (Stake Popout S, 400x225): the sheet has to be a reading surface in 225 px of
+	      height. Gaps close up, the explanatory lines step aside, the sheet scrolls. Type sizes
+	      stay where they are — the numbers are the point. ── */
+	.tiny {
+		gap: 7px;
+		padding: 10px 12px 12px;
+		/* the bet stepper shares the window under the sheet, so the sheet takes two thirds of it */
+		max-height: 68vh;
+	}
+	.tiny .hint,
+	.tiny .cap,
+	.tiny .t-sub:not(.warn) {
+		display: none;
+	}
+	.tiny .title {
+		font-size: 15px;
+		letter-spacing: 2px;
+	}
+	.tiny .chip {
+		padding: 6px 3px 5px;
+	}
+	.tiny .go {
+		padding: 11px;
+		font-size: 13px;
+	}
+	.tiny .x {
+		width: 28px;
+		height: 28px;
 	}
 
 	/* ── portrait: the expanded sheet fits above the stepper with no scroll ── */

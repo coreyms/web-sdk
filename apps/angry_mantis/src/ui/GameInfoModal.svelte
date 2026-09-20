@@ -3,6 +3,7 @@
 	// disclosure here — paytable, modes, Feast floor/max-win odds, max win, RTP, volatility, and the
 	// verbatim rules disclaimer (gameInfoText.ts). All numbers come from config / the math run.
 	import type { ComponentProps } from 'svelte';
+	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
@@ -17,6 +18,17 @@
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { master, scale, left, top, compact = false }: Props = $props();
+	// `compact` is the LAYOUT KIND (any non-landscape chrome). That was the wrong gate for type
+	// size (Stake review 2026-09-20, FIX 6): Stake's Popout S is a 400x225 iframe that resolves to
+	// the phone kind, so it took the phone's compact sizes — and, before FIX 5, saw them scaled by
+	// 0.27 on top. The shell is the viewport now, so gate on the REAL window instead: `narrow` is
+	// what the reading column can afford, `short` is a viewport with no vertical room. Minimum
+	// sizes below are CSS px and never drop under 10.
+	const vw = $derived(innerWidth.current ?? 1280);
+	const vh = $derived(innerHeight.current ?? 720);
+	const narrow = $derived(vw < 720);
+	const short = $derived(vh < 340);
+	const dense = $derived(narrow || short);
 
 	const open = $derived(stateModal.modal?.name === 'gameRules' || stateModal.modal?.name === 'payTable');
 	const close = () => (stateModal.modal = null);
@@ -125,35 +137,39 @@
 		tab?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
 	});
 
-	const pad = $derived(compact ? 14 : 28);
-	const bodySize = $derived(compact ? 12.5 : 13.5);
+	const pad = $derived(short ? 10 : dense ? 14 : 28);
+	// body copy never goes under 12 CSS px, tabs never under 10, tiles never under 40
+	const bodySize = $derived(dense ? 12.5 : 13.5);
+	const tabSize = $derived(short ? 10 : dense ? 10.5 : 11);
+	const tileSize = $derived(short ? 40 : dense ? 48 : 64);
+	const iconBox = $derived(short ? 34 : dense ? 40 : 48);
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.72)" zIndex={5}>
 	<!-- full screen: no margin, no radius — the glass IS the page (Black Glass Panels, 2026-09-09) -->
 	<div class="panel" onclick={(e) => e.stopPropagation()} role="presentation">
-		<div class="head" style:padding="{compact ? 12 : 14}px {pad}px">
-			<div class="h-title am-stencil" style:font-size="{compact ? 17 : 22}px">GAME INFO</div>
-			<button class="slot-btn x" onclick={close} style:width="{compact ? 40 : 38}px" style:height="{compact ? 40 : 38}px" aria-label="Close"><Icon name="close" s={compact ? 16 : 18} /></button>
+		<div class="head" style:padding="{short ? 8 : dense ? 12 : 14}px {pad}px">
+			<div class="h-title am-stencil" style:font-size="{short ? 14 : dense ? 17 : 22}px">GAME INFO</div>
+			<button class="slot-btn x" onclick={close} style:width="{short ? 30 : 40}px" style:height="{short ? 30 : 40}px" aria-label="Close"><Icon name="close" s={short ? 14 : dense ? 16 : 18} /></button>
 		</div>
 
 		<div class="tabs" bind:this={navEl} style:padding="4px {pad - 8}px">
 			{#each SECTIONS as s (s.id)}
-				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={compact ? '9px 9px 8px' : '10px 12px 9px'} style:font-size="{compact ? 10.5 : 11}px">{s.label}</button>
+				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={short ? '7px 8px 6px' : dense ? '9px 9px 8px' : '10px 12px 9px'} style:font-size="{tabSize}px">{s.label}</button>
 			{/each}
 		</div>
 
-		<div class="content" bind:this={contentEl} onscroll={onScroll} style:padding="{compact ? 16 : 22}px {pad}px 40px" style:gap="{compact ? 22 : 30}px" style:font-size="{bodySize}px">
+		<div class="content" bind:this={contentEl} onscroll={onScroll} style:padding="{short ? 12 : dense ? 16 : 22}px {pad}px 40px" style:gap="{short ? 16 : dense ? 22 : 30}px" style:font-size="{bodySize}px">
 			<section bind:this={sectionEls.paytable}>
 				<h2>{soc('Paytable', 'Symbols')}</h2>
 				<p>{soc('Pays per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins pay left to right on adjacent reels starting from reel 1.', 'Wins per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins form left to right on adjacent reels starting from reel 1.')} {soc('Only the highest win per symbol is paid. Base game wins are capped at 250× the bet per spin.', 'Only the highest win per symbol counts. A single base game spin never wins more than 250× the play amount.')}</p>
-				<div class="pay-grid" style:grid-template-columns={compact ? '1fr' : 'repeat(2, minmax(0,1fr))'}>
+				<div class="pay-grid" style:grid-template-columns={narrow ? '1fr' : 'repeat(2, minmax(0,1fr))'}>
 					{#each paying as sym (sym)}
 						{@const meta = SYMBOL_META[sym]}
 						<div class="row">
-							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:width="{compact ? 48 : 64}px" style:height="{compact ? 48 : 64}px" />
+							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:width="{tileSize}px" style:height="{tileSize}px" />
 							<div class="row-main">
-								<div class="row-name" style:color={meta.color} style:font-size="{compact ? 12.5 : 14}px">{meta.name}</div>
+								<div class="row-name" style:color={meta.color} style:font-size="{dense ? 12.5 : 14}px">{meta.name}</div>
 								<div class="row-kind">{meta.kind === 'premium' ? 'Premium' : meta.kind === 'mid' ? 'Mid' : 'Low'}</div>
 							</div>
 							<div class="pays">
@@ -166,7 +182,7 @@
 					<!-- Wild sits in the paytable grid per convention: its own tile, no pay values —
 					     it has no paytable of its own, only the substitution rule as its caption -->
 					<div class="row">
-						<img class="tile" src={tileSrc('W')} alt="Wild" style:width="{compact ? 48 : 64}px" style:height="{compact ? 48 : 64}px" />
+						<img class="tile" src={tileSrc('W')} alt="Wild" style:width="{tileSize}px" style:height="{tileSize}px" />
 						<div class="row-main">
 							<div class="row-name" style:color="#ffdc4a">Wild</div>
 							<div class="row-kind">Substitutes for all menu symbols</div>
@@ -178,7 +194,7 @@
 				<div class="pay-grid" style:grid-template-columns="1fr">
 					{#each SPECIALS as s (s.glyph)}
 						<div class="row top">
-							<img class="tile" src={tileSrc(s.glyph)} alt={s.name} style:width="{compact ? 48 : 64}px" style:height="{compact ? 48 : 64}px" />
+							<img class="tile" src={tileSrc(s.glyph)} alt={s.name} style:width="{tileSize}px" style:height="{tileSize}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={s.color}>{s.name}</div>
 								<div class="note">{s.note}</div>
@@ -194,11 +210,11 @@
 				<div class="guide">
 					{#each GUIDE as g (g.name)}
 						<div class="guide-row">
-							<div class="guide-icon" style:color={g.color} style:width="{compact ? 40 : 48}px" style:height="{compact ? 40 : 48}px">
-								{#if g.art}<img src={stamp(g.art)} alt="" style:width="{compact ? 30 : 36}px" draggable="false" />{:else if g.icon}<Icon name={g.icon} s={compact ? 18 : 22} />{/if}
+							<div class="guide-icon" style:color={g.color} style:width="{iconBox}px" style:height="{iconBox}px">
+								{#if g.art}<img src={stamp(g.art)} alt="" style:width="{iconBox * 0.75}px" draggable="false" />{:else if g.icon}<Icon name={g.icon} s={iconBox * 0.46} />{/if}
 							</div>
 							<div class="guide-text">
-								<div class="guide-name" style:font-size="{compact ? 13 : 15}px">{g.name}</div>
+								<div class="guide-name" style:font-size="{dense ? 13 : 15}px">{g.name}</div>
 								<div class="v">{g.text}</div>
 							</div>
 						</div>
@@ -219,10 +235,10 @@
 					{#each MODES as m (m.id)}
 						<div class="mode" style:border-left-color={m.accent}>
 							<div class="mode-head">
-								<div class="mode-name" style:color={m.accent} style:font-size="{compact ? 14 : 16}px">{m.label}</div>
+								<div class="mode-name" style:color={m.accent} style:font-size="{dense ? 14 : 16}px">{m.label}</div>
 								<div class="mode-meta"><span>{soc('COST', 'PLAY AMOUNT')} <b class="slot-num" style:color={m.accent}>{m.cost}</b></span><span>RTP <b class="slot-num">{(config.rtp * 100).toFixed(2)}%</b></span><span>MAX WIN <b class="slot-num">{config.maxWin.toLocaleString()}× {soc('bet', 'play amount')}</b>{#if m.costNum > 1}<span class="dim">&nbsp;= {capPerPrice(m.costNum)}× {soc('the mode price', 'the play amount for this mode')}</span>{/if}</span></div>
 							</div>
-							<div class="kv-grid" style:grid-template-columns={compact ? '1fr' : '1fr 1fr'}>
+							<div class="kv-grid" style:grid-template-columns={narrow ? '1fr' : '1fr 1fr'}>
 								<div><div class="k">Enter</div><div class="v">{m.enter}</div></div>
 								<div><div class="k">Spins</div><div class="v">{m.spins}</div></div>
 							</div>
@@ -278,18 +294,18 @@
 			<section bind:this={sectionEls.maxwin}>
 				<h2>Max Win</h2>
 				<div class="callout red">
-					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{compact ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet (hard cap)', 'play amount (hard cap)')}</span></div>
+					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{short ? 20 : dense ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet (hard cap)', 'play amount (hard cap)')}</span></div>
 					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is won.`)}</p>
 				</div>
 			</section>
 
 			<section bind:this={sectionEls.rtp}>
 				<h2>Return to Player (RTP)</h2>
-				<div class="rtp-grid" style:grid-template-columns={compact ? '1fr 1fr' : 'repeat(5, 1fr)'}>
+				<div class="rtp-grid" style:grid-template-columns={narrow ? '1fr 1fr' : 'repeat(5, 1fr)'}>
 					{#each MODES.filter((m) => m.costNum > 0) as m (m.id)}
 						<div class="rtp-cell">
 							<div class="rtp-k" style:color={m.accent}>{m.label}</div>
-							<div class="slot-num rtp-v" style:font-size="{compact ? 18 : 22}px">{(config.rtp * 100).toFixed(2)}%</div>
+							<div class="slot-num rtp-v" style:font-size="{dense ? 18 : 22}px">{(config.rtp * 100).toFixed(2)}%</div>
 						</div>
 					{/each}
 				</div>
@@ -299,7 +315,7 @@
 
 			<section bind:this={sectionEls.volatility}>
 				<h2>Volatility</h2>
-				<div class="vol"><span class="slot-num vol-label" style:font-size="{compact ? 16 : 20}px">EXTREME</span><div class="meter">{#each [1, 2, 3, 4, 5] as i}<div class="seg on"></div>{/each}</div></div>
+				<div class="vol"><span class="slot-num vol-label" style:font-size="{dense ? 16 : 20}px">EXTREME</span><div class="meter">{#each [1, 2, 3, 4, 5] as i}<div class="seg on"></div>{/each}</div></div>
 				<p>Wins are infrequent but can be very large. Most spins return nothing; the free spin sessions carry the long-run RTP, with the Mantis Feast, reached only by 5 Marky scatters or through a Mystery Spin, at the top of the range.</p>
 			</section>
 
@@ -314,7 +330,7 @@
 
 			<section bind:this={sectionEls.version}>
 				<h2>Version</h2>
-				<div class="kv-grid" style:grid-template-columns={compact ? '1fr' : '1fr 1fr'}>
+				<div class="kv-grid" style:grid-template-columns={narrow ? '1fr' : '1fr 1fr'}>
 					{#each [['Game version', __APP_VERSION__], ['Math version', config.mathVersion], ['Provider', 'Polymath Games'], ['Replay mode', 'Supported']] as [k, v]}
 						<div class="kv"><span class="dim">{k}</span><span class="slot-num">{v}</span></div>
 					{/each}
@@ -374,6 +390,7 @@
 	.tabs {
 		display: flex;
 		gap: 2px;
+		flex: 0 0 auto;
 		overflow-x: auto;
 		overflow-y: hidden;
 		border-bottom: 1px solid var(--rule);
@@ -448,7 +465,7 @@
 		gap: 6px;
 	}
 	.subhead {
-		font-size: 11px;
+		font-size: 11.5px;
 		letter-spacing: 2px;
 		font-weight: 800;
 		color: var(--ink);
@@ -503,7 +520,7 @@
 		border-radius: 8px;
 	}
 	.menu-num {
-		font-size: 9px;
+		font-size: 10px;
 		font-weight: 800;
 		color: var(--faint);
 	}
@@ -542,6 +559,7 @@
 		text-transform: uppercase;
 		margin-top: 2px;
 	}
+	/* floors (Stake review FIX 6): no line in Game Info renders under 10 CSS px at any size */
 	.note {
 		color: var(--body);
 		font-size: 12px;
@@ -556,7 +574,7 @@
 		min-width: 44px;
 	}
 	.pay-k {
-		font-size: 10px;
+		font-size: 10.5px;
 		font-weight: 800;
 		letter-spacing: 0.5px;
 		color: var(--faint);
@@ -599,7 +617,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px 14px;
-		font-size: 10px;
+		font-size: 10.5px;
 		font-weight: 700;
 		letter-spacing: 1.4px;
 		color: var(--faint);
@@ -650,7 +668,7 @@
 		font-size: 12.5px;
 	}
 	.k {
-		font-size: 10px;
+		font-size: 10.5px;
 		font-weight: 800;
 		letter-spacing: 1.6px;
 		color: var(--faint);
@@ -713,7 +731,7 @@
 		text-align: center;
 	}
 	.rtp-k {
-		font-size: 10px;
+		font-size: 10.5px;
 		letter-spacing: 1.4px;
 		font-weight: 800;
 		text-transform: uppercase;

@@ -8,6 +8,9 @@
 	type Props = { controls: Controls; compact?: boolean; pressSound?: 'soundPressGeneral' | 'soundPressSub' };
 	const { controls, compact = false, pressSound = 'soundPressGeneral' }: Props = $props();
 	const btn = $derived(compact ? 38 : 46);
+	// Same label rule as the HUD readout (controls.betLabel): a bought feature names the mode, everything
+	// else reads SPIN / PLAY. Ante is announced by this component's own tag above the number.
+	const label = $derived(controls.betLabel());
 
 	// stepping rules (affordability clamp) live in betStep.ts, shared with the HUD's inline −/+
 	const stepTarget = betStepTarget;
@@ -23,7 +26,7 @@
 	<button class="slot-btn arrow" disabled={stepTarget(-1) === undefined} onclick={() => step(-1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Decrease bet', 'Decrease play amount')}>−</button>
 	<button class="slot-btn mid" onclick={() => controls.openDenom()} style:min-width="{compact ? 120 : 150}px">
 		{#if controls.anteActive()}<span class="ante" style:font-size="{compact ? 9 : 10}px">{soc('ANTE BET', 'ANTE MODE')}</span>{/if}
-		<span class="lbl" style:font-size="{compact ? 10 : 11}px">SPIN</span>
+		<span class="lbl" style:font-size="{compact ? 10 : 11}px">{label}</span>
 		<span class="slot-num val" style:font-size="{compact ? 18 : 22}px">{controls.betText()}</span>
 	</button>
 	<button class="slot-btn arrow" disabled={stepTarget(1) === undefined} onclick={() => step(1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Increase bet', 'Increase play amount')}>+</button>

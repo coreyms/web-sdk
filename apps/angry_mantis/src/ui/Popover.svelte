@@ -20,27 +20,44 @@
 </script>
 
 {#if open}
+	<!-- two boxes on purpose: the counter-scale lives on the outer one, the entrance animation on
+	     the inner one. slot-count animates `transform` with fill mode `both`, so a scale on the
+	     same element is wiped the moment the animation lands. -->
 	<div
-		bind:this={el}
-		class="popover am-glass"
+		class="pop-scale"
 		style:bottom="{offset}px"
 		style:left={side === 'left' ? '0' : 'auto'}
 		style:right={side === 'right' ? '0' : 'auto'}
-		style:width={typeof width === 'number' ? `${width}px` : width}
+		style:transform-origin={side === 'left' ? 'bottom left' : 'bottom right'}
 	>
-		{@render children()}
-		<span class="tail" style:left={side === 'left' ? `${tail}px` : 'auto'} style:right={side === 'right' ? `${tail}px` : 'auto'}></span>
+		<div bind:this={el} class="popover am-glass" style:width={typeof width === 'number' ? `${width}px` : width}>
+			{@render children()}
+			<span class="tail" style:left={side === 'left' ? `${tail}px` : 'auto'} style:right={side === 'right' ? `${tail}px` : 'auto'}></span>
+		</div>
 	</div>
 {/if}
 
 <style>
+	/* COUNTER-SCALE (Stake review 2026-09-20, FIX 5). Unlike the modal sheets this panel is
+	   anchored to a control inside the chrome's .fit frame, so it cannot leave the master — it has
+	   to line up with the button it points at. Instead it undoes the frame's own fit scale, up to
+	   3x, so its CSS size is true (or near it) at every viewport: 15 px type and 44 px rows stay
+	   15 px and 44 px on a real phone, and in Stake's 400x225 popout (fit scale 0.27) the 3x cap
+	   still lands the panel at ~0.8 of true size instead of 0.27. --fit-scale is published by
+	   Chrome.svelte's .fit; on desktop it is ~1 and this is a no-op. transform-origin is set inline
+	   to the anchored corner so the panel grows away from the edge it is pinned to. */
+	.pop-scale {
+		position: absolute;
+		z-index: 50;
+		pointer-events: auto;
+		transform: scale(min(calc(1 / var(--fit-scale, 1)), 3));
+	}
 	.popover {
 		/* opaque, unlike the sheets: no ModalShell dim sits behind a popover, so at .88 the reel
 		   frame read straight through it with a hard edge (approval review 2026-09-15) */
 		--ui-glass: #0f0f13;
-		position: absolute;
+		position: relative;
 		padding: 10px;
-		z-index: 50;
 		pointer-events: auto;
 		animation: slot-count 0.18s ease both;
 	}

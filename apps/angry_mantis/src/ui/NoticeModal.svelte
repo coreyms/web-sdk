@@ -98,7 +98,7 @@
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={9}>
 	<div class="center">
-		<div class="card am-glass" class:halt={needsReload} onclick={(e) => e.stopPropagation()} role="presentation" style:width={compact ? '88%' : '440px'}>
+		<div class="card am-glass" class:halt={needsReload} onclick={(e) => e.stopPropagation()} role="presentation">
 			<div class="stamp">{needsReload ? 'NOTICE' : 'SLIP'}</div>
 			<div class="title am-stencil">{isError ? (known?.title ?? 'SOMETHING WENT WRONG') : notice?.title}</div>
 			<div class="body">{isError ? (known?.body ?? 'Reload the game to continue. Any unfinished round resumes from the server.') : notice?.body}</div>
@@ -117,10 +117,18 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		padding: clamp(4px, 2vmin, 16px);
+		box-sizing: border-box;
 		pointer-events: none;
 	}
 	/* black glass, like every other sheet (the paper slip went with the approval review 2026-09-15) */
+	/* Sized against the VIEWPORT (Stake review FIX 5): the shell no longer scales the card, so a
+	   400x225 popout gets a real card with real type instead of a 120 px thumbnail of one. */
 	.card {
+		width: min(440px, 94vw);
+		max-height: 94vh;
+		overflow-y: auto;
+		box-sizing: border-box;
 		--ink: var(--ui-ink);
 		--body: var(--ui-ink-2);
 		--muted: var(--ui-ink-2);
@@ -131,10 +139,10 @@
 		position: relative;
 		color: var(--body);
 		border-radius: 18px;
-		padding: 22px 24px 18px;
+		padding: clamp(12px, 3.2vmin, 22px) clamp(12px, 3.4vmin, 24px) clamp(10px, 2.6vmin, 18px);
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: clamp(6px, 1.8vmin, 12px);
 		text-align: center;
 	}
 	.stamp {
@@ -143,7 +151,7 @@
 		padding: 5px 14px;
 		background: var(--ui-gold);
 		color: var(--ui-gold-ink);
-		font-size: 11px;
+		font-size: clamp(9px, 2.3vmin, 11px);
 		font-weight: 800;
 		letter-spacing: 2px;
 	}
@@ -152,30 +160,31 @@
 		color: #f6ead3;
 	}
 	.title {
-		font-size: 20px;
+		font-size: clamp(13px, 4vmin, 20px);
 	}
 	.body {
-		font-size: 13.5px;
+		font-size: clamp(11px, 3vmin, 13.5px);
 		letter-spacing: 0.3px;
 		line-height: 1.5;
 		color: var(--body);
 	}
 	.detail {
-		font-size: 11px;
+		font-size: clamp(9px, 2.4vmin, 11px);
 		color: var(--muted);
 		background: var(--ui-glass-well);
 		border: 1px solid var(--ui-rule);
 		border-radius: 10px;
 		padding: 8px 10px;
-		max-height: 80px;
+		max-height: min(80px, 26vh);
 		overflow: auto;
 		word-break: break-word;
 	}
 	.ok {
-		height: 46px;
+		/* >=30 CSS px in a 225-tall popout, a full 44 px touch target on any real phone */
+		height: max(30px, min(46px, 14vmin));
 		border-radius: 12px;
 		font-weight: 900;
-		font-size: 14px;
+		font-size: clamp(11px, 3vmin, 14px);
 		letter-spacing: 3px;
 		color: var(--ink);
 		background: linear-gradient(180deg, #9be04a, #6fb52a);

@@ -184,6 +184,13 @@
 			});
 
 			if (data) {
+				// The replay URL's `event` is the ROUND identifier, not an index into the round's
+				// own book events: it is the last path segment of /bet/replay/{game}/{version}/
+				// {mode}/{event}, and the response is that whole round. `betToResume.event` means
+				// something different — it is the index the game RESUMES from, and a shared replay
+				// always plays the round from its first event. Feeding the round id in here made
+				// convertTorResumableBet (game/utils.ts) drop every event before that index, i.e.
+				// the whole round (checked 2026-09-20).
 				// @ts-ignore
 				stateBet.betToResume = {
 					...data,

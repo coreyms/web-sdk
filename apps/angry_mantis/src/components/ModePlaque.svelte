@@ -9,7 +9,7 @@
 	import { getContext } from '../game/context';
 	import { frameFor, layoutKind, FRAME_ART, HUD } from '../game/layoutSpec';
 	import { modeChipData } from '../game/modeChipData';
-	import { UI_NUM_FONT } from '../ui/uiMeasure';
+	import { UI_NUM_FONT, measureUiText } from '../ui/uiMeasure';
 
 	const context = getContext();
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
@@ -35,14 +35,28 @@
 	// face (~85% of it) with tighter padding to sit INSIDE the front face; text size is floored at
 	// 9 master px for readability (the floored 15px pill still fits the ~17px band).
 	const size = $derived(kind === 'phone' ? 18 : kind === 'landscape' ? 15 : Math.max(9, Math.round(faceH * 0.85) - 6));
-	const text = $derived(chip ? `${chip.label}  ·  ${chip.cost} / SPIN` : '');
+	// `chip.unit` is TOTAL for a bought feature (one price for the whole round) and "/ SPIN" for
+	// Ante (a genuine per-spin price) — see modeChipData (Stake review 2026-09-20).
+	const text = $derived(chip ? `${chip.label}  ·  ${chip.cost} ${chip.unit}` : '');
 	// Set in the HTML chrome's number face (Sora, white, weight 800), the same face the HUD amounts
 	// and the play button use (Corey 2026-09-08: the stencil glyphs read poorly; the HUD's own face
 	// is the standard). One PIXI.Text that changes only on arm / cancel / bet change — never per
 	// frame (house rule 1). The border is the buttons' gold (#ffdc4a), not the old amber.
 	// Sized to read like the old stencil label (cap 0.82 × size): Sora at 0.95 × size, weight 600
 	// (Corey 2026-09-08: the first cut at 1.14 × size / 800 was too big and too bold on the rail).
-	const fontSize = $derived(size * 0.95);
+	// The price is the FULL currency string now (Stake review 2026-09-20 bars K/M abbreviation on
+	// every bet-level readout), and the pill derives its width from the label — so a GC ladder's
+	// "GC 1,000,000" would have grown the pill past the reel frame. Fit instead: measure the whole
+	// label in the plaque's own face and scale the type down until the pill fits 92% of the frame,
+	// with a 9 master px readability floor. One measurement per label change, never per frame.
+	const PILL_AIR = $derived(kind === 'portrait' ? 14 : 22);
+	const fontSize = $derived.by(() => {
+		const nominal = size * 0.95;
+		const box = f.width * 0.92 - PILL_AIR;
+		const w = measureUiText(text, nominal, 600);
+		if (!w || w <= box) return nominal;
+		return Math.max(9, nominal * (box / w));
+	});
 	const SHADOW = 1.5; // drop-shadow distance, px
 	const style = $derived({
 		fontFamily: UI_NUM_FONT,
@@ -70,7 +84,7 @@
 	// no pill without a label: an empty backing on the rail is worse than nothing
 	const labelReady = $derived(!!chip && text.length > 0 && textW > 0);
 	// tight pill (Corey 2026-09-08): about half a cap of air beside the label, a hair above and below
-	const w = $derived(textW + (kind === 'portrait' ? 14 : 22));
+	const w = $derived(textW + PILL_AIR);
 	const h = $derived(size + (kind === 'portrait' ? 4 : 9));
 	// anchor 0.5 centres the text's BOX (ascender line to descender + shadow), and Sora's box hangs
 	// further below the caps than above them, so the caps ride high: push the text down so the caps,

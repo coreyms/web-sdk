@@ -4,6 +4,8 @@
 	import Icon from './Icon.svelte';
 	import type { Controls } from './controls.svelte';
 	import { replayState } from './replayState.svelte';
+	import { SPIN_PRICE_FIT } from '../game/constants';
+	import { fitFont } from '../game/textFit';
 
 	type Props = { size?: number; controls: Controls };
 	const { size = 92, controls }: Props = $props();
@@ -24,14 +26,36 @@
 	const ring = $derived(Math.max(2, size * 0.03));
 	const radius = $derived(Math.round(Math.min(size * 0.22, 8 + size * 0.07)));
 	// armed buy mode: the selected feature is loaded on this button until cancelled — make that
-	// unmistakable: short feature name + the (K/M/B/T-abbreviated) price each press will wager
+	// unmistakable: short feature name + the price each press will wager
 	const armed = $derived(controls.armedBuy() !== null);
 	const armedLabel = $derived(controls.armedLabel());
-	const armedFont = $derived((controls.playCostText() ?? '').length > 7 ? 0.19 : 0.23);
+	// The free-spin counter outranks the REPLAY banner WHILE the replayed round is playing (Stake
+	// review 2026-09-20: the counter has to be visible during a replay too). Between replays the
+	// button is the banner again, because that is what re-arms the playback.
+	const showFreeSpins = $derived(!replay || replayState.phase === 'playing');
 	const freegame = $derived(controls.freeSpin() !== null);
 	const fs = $derived(controls.freeSpin());
 	// a parked autoplay loadout: green outline, spins + per-spin price; pressing starts the run
 	const loaded = $derived(controls.autoLoadout());
+	// PRICE FIT (Stake review 2026-09-20, FIX 4): the price is the FULL currency string, never
+	// K/M-abbreviated, and the button must never overflow. Measure it once per string/size change
+	// (game/textFit.ts — a metrics call, not a render) and shrink to the SPIN_PRICE_FIT floor;
+	// below the floor the line is dropped and the button shows only the mode word. The HUD's
+	// SPIN / TOTAL readout always prints the full amount, so nothing becomes unreadable.
+	const priceText = $derived(controls.playCostText() ?? '');
+	const priceNominal = $derived(
+		size * (loaded ? (armed ? SPIN_PRICE_FIT.nominalLoadedArmed : SPIN_PRICE_FIT.nominalLoaded) : SPIN_PRICE_FIT.nominal),
+	);
+	const priceFont = $derived(
+		fitFont({
+			text: priceText,
+			nominal: priceNominal,
+			box: size * SPIN_PRICE_FIT.boxFrac,
+			minScale: SPIN_PRICE_FIT.minScale,
+			weight: SPIN_PRICE_FIT.weight,
+			letterSpacing: SPIN_PRICE_FIT.letterSpacing,
+		}),
+	);
 	// during free games the button keeps its white outline — colour marks an idle button only
 	const ringColor = $derived(freegame ? '#fff' : autoActive || loaded ? '#9CD92F' : armed ? '#ffdc4a' : '#fff');
 </script>
@@ -47,13 +71,13 @@
 	style:border-radius="{radius}px"
 	style:box-shadow="inset 0 0 0 {ring}px {ringColor}, 0 4px 12px rgba(0,0,0,.45)"
 >
-	{#if replay}
-		<span class="replay-label" style:font-size="{Math.max(10, size * 0.19)}px">REPLAY</span>
-	{:else if freegame && fs}
+	{#if freegame && fs && showFreeSpins}
 		<div class="count">
 			<span class="active fs-label" style:font-size="{Math.max(8, size * 0.1)}px">Free spin</span>
 			<span class="slot-num num" style:font-size="{size * 0.3}px">{fs.current}<span class="of">/{fs.total}</span></span>
 		</div>
+	{:else if replay}
+		<span class="replay-label" style:font-size="{Math.max(10, size * 0.19)}px">REPLAY</span>
 	{:else if showStop}
 		<Icon name="stop" s={size * 0.4} />
 	{:else if autoActive}
@@ -65,13 +89,13 @@
 		<div class="count">
 			<span class="auto-loaded" style:font-size="{Math.max(9, size * 0.105)}px">AUTO {loaded.count === Infinity ? '∞' : loaded.count}</span>
 			{#if armed}<span class="armed-label" style:font-size="{Math.max(8, size * 0.095)}px">{armedLabel}</span>{/if}
-			<span class="slot-num num" style:font-size="{size * (armed ? 0.17 : armedFont)}px">{controls.playCostText()}</span>
+			{#if priceFont !== null}<span class="slot-num num" style:font-size="{priceFont}px">{priceText}</span>{/if}
 		</div>
 	{:else if armed}
 		<div class="count">
 			<Icon name="play" s={size * 0.24} />
 			<span class="armed-label" style:font-size="{Math.max(9, size * 0.115)}px">{armedLabel}</span>
-			<span class="slot-num num" style:font-size="{size * armedFont}px">{controls.playCostText()}</span>
+			{#if priceFont !== null}<span class="slot-num num" style:font-size="{priceFont}px">{priceText}</span>{/if}
 		</div>
 	{:else}
 		<Icon name="play" s={size * 0.44} />

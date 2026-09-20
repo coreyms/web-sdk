@@ -1,7 +1,7 @@
 <script lang="ts">
 	// One Chow Line card on black glass (Corey's pick, 2026-09-09): a well with a hairline, the name
-	// pill in the mode colour, the pitch, a four-segment volatility bar, the price in Sora with PER
-	// SPIN under it, and one button in the mode colour. `active` = this mode is already armed (Ante
+	// pill in the mode colour, the pitch, a four-segment volatility bar, the price in Sora with what
+	// it covers under it (TOTAL for a feature round, PER SPIN for Ante), and one button in the mode colour. `active` = this mode is already armed (Ante
 	// on, or a feature loaded): the card carries an ON tag, a ring in its colour, and the button
 	// turns into the way off. `compact` = the portrait 2×2 grid sizing.
 	import { stateBet } from 'state-shared';
@@ -9,6 +9,7 @@
 
 	import type { BonusCardSpec } from './bonusCards';
 	import { betModeMeta } from '../game/betModeMeta';
+	import { soc } from '../game/social';
 
 	type Props = { opt: BonusCardSpec; compact?: boolean; active?: boolean; onbuy: (opt: BonusCardSpec, price: number) => void; onoff: (opt: BonusCardSpec) => void };
 	const { opt, compact = false, active = false, onbuy, onoff }: Props = $props();
@@ -18,6 +19,10 @@
 	const canAfford = $derived(stateBet.balanceAmount >= price);
 	// every card shows what a play costs, ante included (its 3x price, not a "+" surcharge)
 	const costText = $derived(numberToCurrencyString(price));
+	// What the price covers. A feature card's price buys ONE feature round outright, so it reads
+	// TOTAL: "PER SPIN" under a 100x price read as 100x charged for every free spin (Stake review
+	// 2026-09-20). Ante really is a per-spin price and keeps the per-spin wording.
+	const perLabel = $derived(opt.toggle ? soc('PER SPIN', 'PER PLAY') : 'TOTAL');
 	// The price is one line at a fixed display size, and "GC 2,000,000,000" (Gold Coins at a
 	// 1,000,000 bet) is wider than the card — it ran off the phone-sideways ticket (Corey
 	// 2026-09-02). Measure the glyph run against the card's content box and scale it down only
@@ -42,7 +47,7 @@
 	<div class="price-row" bind:clientWidth={rowW}>
 		<span class="slot-num price" bind:clientWidth={priceW} style:transform="scale({priceFit})">{costText}</span>
 	</div>
-	<span class="per">PER SPIN</span>
+	<span class="per">{perLabel}</span>
 	{#if active}
 		<button class="slot-btn cta off" onclick={() => onoff(opt)}>{opt.toggle ? 'SWITCH OFF' : 'UNLOAD'}</button>
 	{:else}
@@ -72,7 +77,7 @@
 		position: absolute;
 		top: 10px;
 		right: 10px;
-		font-size: 9px;
+		font-size: 10px;
 		font-weight: 800;
 		letter-spacing: 1.5px;
 		padding: 5px 7px;
@@ -103,7 +108,7 @@
 		gap: 8px;
 	}
 	.volm-lbl {
-		font-size: 9px;
+		font-size: 10px;
 		font-weight: 800;
 		letter-spacing: 1.8px;
 		color: var(--ui-ink-3);
@@ -141,7 +146,7 @@
 		transform-origin: 50% 50%;
 	}
 	.per {
-		font-size: 9.5px;
+		font-size: 10px;
 		font-weight: 700;
 		letter-spacing: 1.5px;
 		color: var(--ui-ink-3);

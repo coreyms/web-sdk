@@ -6,7 +6,8 @@ import { stateBet, stateBetDerived, stateConfig, stateModal, stateUi, INFINITY_M
 import { numberToCurrencyString, bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 import { getContext } from '../game/context';
-import { betCostFull, abbrevCurrency } from '../game/modeChipData';
+import { betCostFull } from '../game/modeChipData';
+import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 
 export const createControls = () => {
@@ -30,7 +31,7 @@ export const createControls = () => {
 	const isIdle = () => context.stateXstateDerived.isIdle();
 	const isReplay = () => stateUi.config.mode === 'replay';
 	const anteActive = () => stateBetDerived.activeBetMode()?.type === 'activate';
-	// armed buy mode: a selected feature (BONUS/SUPER/MYSTERY) that stays loaded on the spin button
+	// armed buy mode: a selected feature (BONUS/SUPER/MYSTERY) loaded on the spin button for ONE round
 	const armedBuy = () => (stateBetDerived.activeBetMode()?.type === 'buy' ? stateBet.activeBetModeKey : null);
 	/** short mode name for the spin button face: BONUS / SUPER / MYSTERY */
 	const armedLabel = () => armedBuy();
@@ -42,8 +43,10 @@ export const createControls = () => {
 	const autoCount = () => stateBet.autoSpinsCounter;
 	const autoCountText = () => (stateBet.autoSpinsCounter === Infinity ? INFINITY_MARK : `${stateBet.autoSpinsCounter}`);
 	const canAfford = () => betCostFull() > 0 && betCostFull() <= stateBet.balanceAmount;
-	/** abbreviated full price of one press, for the spin button face */
-	const playCostText = () => abbrevCurrency(betCostFull());
+	// Full price of one press for the spin-button face — the FULL currency string, never
+	// abbreviated (Stake review 2026-09-20). The button measures it and shrinks or drops the line
+	// if it will not fit (SquareSpin.svelte + game/textFit.ts).
+	const playCostText = () => numberToCurrencyString(betCostFull());
 
 	const sound = (type: 'soundPressGeneral' | 'soundPressBet' | 'soundPressMinor' | 'soundPressSub' | 'soundPressBonus') =>
 		context.eventEmitter.broadcast({ type });
@@ -66,8 +69,8 @@ export const createControls = () => {
 				startLoadout();
 				return;
 			}
-			// an armed buy mode (BONUS/SUPER/MYSTERY) stays loaded on this button: every press buys and
-			// plays that feature again until the player switches it off (bonus button / cancelArmed)
+			// an armed buy mode (BONUS/SUPER/MYSTERY) plays ONE feature round: bookEventHandlerMap's
+			// finalWin drops it back to BASE when the round ends (Stake review 2026-09-20)
 			context.eventEmitter.broadcast({ type: 'bet' });
 			return;
 		}
@@ -104,6 +107,10 @@ export const createControls = () => {
 	const startLoadout = () => {
 		const loadout = context.stateGame.autoLoadout;
 		if (!loadout) return;
+		// An autoplay run never plays a bought feature: the run would re-buy at the feature price on
+		// every press with no per-round confirmation (Stake review 2026-09-20). Drop the armed buy
+		// before the run starts, exactly as the SDK's own AutoSpinsStartButton does. Ante persists.
+		if (armedBuy()) stateBet.activeBetModeKey = 'BASE';
 		const perSpin = betCostFull();
 		stateBet.autoSpinsCounter = loadout.count;
 		// loss stop = cumulative net loss since the run began (SDK tracks balance delta); win stop =
@@ -114,8 +121,8 @@ export const createControls = () => {
 		// real limits are the amount fields above
 		stateUi.autoSpinsLossLimitText = INFINITY_MARK;
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
-		// only meaningful outside an armed feature (there, every spin already IS the feature)
-		context.stateGame.autoStopOnFreeGames = loadout.stopFree && !armedBuy();
+		// the run is always base/ante now (any armed buy was dropped above), so the player's choice stands
+		context.stateGame.autoStopOnFreeGames = loadout.stopFree;
 		// door screens self-continue only while the run is live (autoBonusesRunning checks the counter)
 		context.stateGame.autoPlayBonuses = loadout.autoBonuses;
 		context.stateGame.autoLoadout = null; // consumed: one load = one run
@@ -168,8 +175,9 @@ export const createControls = () => {
 		stateModal.modal = null;
 	};
 	const buyMode = (mode: string) => {
-		// arm only: the feature loads onto the spin button and stays there until cancelled.
-		// Nothing is charged and nothing plays until the player presses Spin.
+		// arm only: the feature loads onto the spin button for ONE round. Nothing is charged and
+		// nothing plays until the player presses Spin, and the round's finalWin returns the game to
+		// the base game, so the next feature round is a fresh selection + confirmation.
 		stateBet.activeBetModeKey = mode;
 		stateModal.modal = null;
 		sound('soundPressGeneral'); // a modal button like any other: the shared UI click
@@ -220,6 +228,11 @@ export const createControls = () => {
 	// the SDK's betCost() still reported the base amount here while the button charged 300× (Stake
 	// review 2026-09-05). betCostFull covers every mode, replay included.
 	const betText = () => numberToCurrencyString(betCostFull());
+	// The label over that readout. "$100.00 / SPIN" read as a 100x charge PER FREE SPIN (Stake review
+	// 2026-09-20), so while a BOUGHT feature is armed or playing the label names the mode instead of
+	// the unit: BONUS / SUPER / MYSTERY (the mode key is the short name the Chow Line cards use). Base
+	// play, a natural feature and Ante keep SPIN / PLAY (Corey 2026-09-20): their price is per spin.
+	const betLabel = () => armedBuy() ?? soc('SPIN', 'PLAY');
 	const hasWin = () => stateBet.winBookEventAmount > 0;
 	const freeSpin = () =>
 		context.stateGame.gameType === 'freegame' && context.stateGame.totalFs > 0
@@ -228,14 +241,14 @@ export const createControls = () => {
 
 	return {
 		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, playCostText, autoRunning, autoCount, autoCountText, canAfford,
-		playCost: betCostFull, abbrev: abbrevCurrency,
+		playCost: betCostFull,
 		spinDisabled, showStop, spin,
 		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,
 		turboPress, turboLevel,
 		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,
 		betOptions, betDisabled, openDenom, setBet,
 		menuPress, openGameInfo,
-		balanceText, winText, betText, hasWin, freeSpin,
+		balanceText, winText, betText, betLabel, hasWin, freeSpin,
 		sound,
 	};
 };

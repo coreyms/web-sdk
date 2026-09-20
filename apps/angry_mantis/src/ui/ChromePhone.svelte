@@ -48,7 +48,7 @@
 	{#if !freegame}
 		<div class="spin-row">
 			{#if !replay}<div class="minus"><StepButton dir={-1} size={32} {controls} /></div>{/if}
-			<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" size="xl" align="left" maxWidth={200} minWidth={slot} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
+			<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="xl" align="left" maxWidth={200} minWidth={slot} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
 			{#if !replay}<StepButton dir={1} size={32} {controls} />{/if}
 		</div>
 	{/if}

@@ -47,7 +47,7 @@
 	<div class="cell right">
 		{#if !replay}<StepButton dir={-1} size={28} {controls} />{/if}
 		<div class="spin-slot" style:margin-left={replay ? '0' : '18px'}>
-			<TrioStat label="SPIN" value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={205} minWidth={slot} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
+			<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={205} minWidth={slot} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
 		</div>
 		{#if !replay}<StepButton dir={1} size={28} {controls} />{/if}
 	</div>

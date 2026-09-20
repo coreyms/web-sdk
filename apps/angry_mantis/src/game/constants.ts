@@ -154,6 +154,11 @@ export const ANTICIPATION = {
 
 export const MOTION_BLUR_VELOCITY = 31;
 
+// Stake approval rule (2026-09-20 review): "require explicit player confirmation before activating
+// any bet mode with a cost multiplier greater than 2x". Any mode whose costMultiplier exceeds this
+// goes through the Chow Line confirm slip before it is armed — buys and the 3x Ante alike.
+export const CONFIRM_COST_MULTIPLIER = 2;
+
 export const zIndexes = {
 	background: { backdrop: -3, normal: -2, feature: -1 },
 };
@@ -704,3 +709,23 @@ export const BONUS_MODE_LABEL = {
 
 
 
+
+// ---- Spin-button price fit (Stake review 2026-09-20, FIX 4) ----
+// The price on the spin button is the FULL currency string — no K/M abbreviation anywhere a bet
+// level is shown. It must also never overflow the button, so the face MEASURES the string
+// (game/textFit.ts) and shrinks it; below the floor the price line is dropped entirely and the
+// button shows only the mode word. Nothing is lost: the HUD SPIN / TOTAL readout always prints the
+// full amount, so the player can still read the exact price of the next press.
+export const SPIN_PRICE_FIT = {
+	/** share of the button's width the price line may occupy (the ring + a hair of air) */
+	boxFrac: 0.86,
+	/** nominal font size, as a fraction of the button size, for each stacked face */
+	nominal: 0.23,
+	nominalLoaded: 0.19,
+	nominalLoadedArmed: 0.17,
+	/** below this fraction of nominal the price is dropped rather than shrunk further */
+	minScale: 0.7,
+	/** the .num face: weight 800, letter-spacing -0.5px */
+	weight: 800,
+	letterSpacing: -0.5,
+} as const;

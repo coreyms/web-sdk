@@ -541,10 +541,17 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
+		// finalWin is the LAST event of every book, a Mystery that served nothing included, so this is
+		// where a bought round ends. Stake review 2026-09-20: a bought feature must not re-arm itself —
+		// the game always returns to the base game and the player selects the feature again (and
+		// confirms the price again) to play another. Ante is type 'activate' and deliberately persists.
+		const boughtMode = stateBetDerived.activeBetMode()?.type === 'buy';
+		const wasMystery = stateBet.activeBetModeKey.toUpperCase() === 'MYSTERY';
+		if (boughtMode) stateBet.activeBetModeKey = 'BASE';
 		// Mystery Spin that served nothing (half of them, by the published split): the book is one
 		// zero-win base reveal. Name the miss so the buy never looks like it silently failed;
 		// Marty is always sore about it. No end-round is sent for a zero-win round (Stake rule).
-		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && stateBet.activeBetModeKey.toUpperCase() === 'MYSTERY') {
+		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && wasMystery) {
 			eventEmitter.broadcast({ type: 'martyReact', kind: 'angry' });
 			return;
 		}
@@ -552,7 +559,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (bookEvent.amount === 0 && stateGame.gameType === 'basegame' && !stateUrlDerived.replay() && Math.random() < 1 / 15) {
 			eventEmitter.broadcast({ type: 'martyReact', kind: 'angry' });
 		}
-		// Do nothing
 	},
 	// frontend-only: resume an active bonus from the last snapshot-worthy events
 	createBonusSnapshot: async (bookEvent: BookEventOfType<'createBonusSnapshot'>) => {

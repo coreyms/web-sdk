@@ -9,6 +9,9 @@
 
 	import type { Controls } from './controls.svelte';
 	import { BONUS_CARDS, type BonusCardSpec } from './bonusCards';
+	import { betModeMeta } from '../game/betModeMeta';
+	import { CONFIRM_COST_MULTIPLIER } from '../game/constants';
+	import { soc } from '../game/social';
 	import ModalShell from './ModalShell.svelte';
 	import BetAdjuster from './BetAdjuster.svelte';
 	import BonusBuyCard from './BonusBuyCard.svelte';
@@ -25,13 +28,17 @@
 	// (Stake review 2026-09-02; removed on Corey's call).
 	let confirmTarget = $state<{ opt: BonusCardSpec; price: number } | null>(null);
 
+	// Stake rule (review 2026-09-20): every mode whose cost multiplier is greater than
+	// CONFIRM_COST_MULTIPLIER needs an explicit confirmation before it is activated. That is the
+	// gate now, not the card's toggle flag: Ante costs 3x and used to arm on a single tap.
 	const onbuy = (opt: BonusCardSpec, price: number) => {
 		controls.sound('soundPressMinor'); // every card's ACTIVATE (Corey 2026-09-02)
-		if (opt.toggle) {
-			controls.activateMode(opt.mode);
+		if (betModeMeta[opt.mode].costMultiplier > CONFIRM_COST_MULTIPLIER) {
+			confirmTarget = { opt, price };
 			return;
 		}
-		confirmTarget = { opt, price };
+		if (opt.toggle) controls.activateMode(opt.mode);
+		else controls.buyMode(opt.mode);
 	};
 	// the armed card's SWITCH OFF / UNLOAD: the same disarm as the HUD's feature button
 	const onoff = () => {
@@ -42,9 +49,11 @@
 	const isActive = (opt: BonusCardSpec) => (opt.toggle ? controls.anteActive() : controls.armedBuy() === opt.mode);
 	const confirmYes = () => {
 		if (!confirmTarget) return;
-		const mode = confirmTarget.opt.mode;
+		const { mode, toggle } = confirmTarget.opt;
 		confirmTarget = null;
-		controls.buyMode(mode);
+		// a toggle (Ante) stays on until switched off; a buy loads one feature round onto Spin
+		if (toggle) controls.activateMode(mode);
+		else controls.buyMode(mode);
 	};
 
 	$effect(() => {
@@ -81,8 +90,14 @@
 			<div class="slip am-glass" class:compact onclick={(e) => e.stopPropagation()} role="presentation" style:--m={opt.accent}>
 				<span class="s-pill">{opt.label}</span>
 				<p class="s-msg">
-					ACTIVATE loads {opt.label} onto the Spin button at <span class="slot-num s-price">{numberToCurrencyString(confirmTarget.price)}</span> per play.
-					It only applies when you press Spin, and stays loaded until you switch it off.
+					{#if opt.toggle}
+						{betModeMeta[opt.mode].text.dialog}
+						{soc('The bet becomes', 'The play amount becomes')}
+						<span class="slot-num s-price">{numberToCurrencyString(confirmTarget.price)}</span> per spin.
+					{:else}
+						ACTIVATE loads {opt.label} onto the Spin button for <span class="slot-num s-price">{numberToCurrencyString(confirmTarget.price)}</span> in total.
+						Nothing happens until you press Spin, and that one press plays one feature round.
+					{/if}
 				</p>
 				<div class="s-btns">
 					<button class="slot-btn s-cancel" onclick={() => (confirmTarget = null)}>CANCEL</button>
@@ -101,6 +116,8 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+		padding: 6px;
+		box-sizing: border-box;
 		pointer-events: none;
 	}
 	.stepper {
@@ -108,15 +125,23 @@
 	}
 
 	/* ── the glass panel (surface from .am-glass) ── */
+	/* viewport-sized (Stake review FIX 5): ModalShell's frame is the window now, so the panel
+	   sizes and scrolls against real CSS px instead of riding the chrome's fit scale */
 	.panel {
 		width: 1100px;
-		max-width: 96%;
+		max-width: 94vw;
+		max-height: 74vh;
+		overflow-y: auto;
+		scrollbar-width: none;
 		box-sizing: border-box;
 		pointer-events: auto;
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 		padding: 14px 18px 18px;
+	}
+	.panel::-webkit-scrollbar {
+		display: none;
 	}
 	.head {
 		display: flex;
@@ -142,9 +167,11 @@
 	.x:hover {
 		background: var(--ui-glass-well-2);
 	}
+	/* four in a row where there is room; the row folds to two (and then one) as the window
+	   narrows, so a 400 px popout gets readable cards instead of four 85 px slivers */
 	.cards {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 		gap: 12px;
 		align-items: stretch;
 	}
@@ -174,13 +201,14 @@
 		pointer-events: none;
 	}
 	.slip {
+		max-height: 92vh;
+		overflow-y: auto;
 		pointer-events: auto;
 		/* SOLID, not glass: the slip sits over the chow line's own cards, and the glass tint let their
 		   copy bleed through the confirmation text (Corey 2026-09-15). The panel behind stays glass. */
 		background: #16181d;
 		box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
-		width: 400px;
-		max-width: 100%;
+		width: min(400px, 94vw);
 		box-sizing: border-box;
 		padding: 18px 18px 16px;
 		display: flex;

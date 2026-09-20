@@ -59,6 +59,10 @@
 	const start = async () => {
 		if (!replayBet) return;
 		controls.sound('soundPressMinor');
+		// event '0' = play the round from its first book event. The replay URL's `event` param is
+		// the ROUND identifier (the last path segment of /bet/replay/...), NOT an index into this
+		// round's events — feeding it in here would make convertTorResumableBet (game/utils.ts)
+		// drop every event before it, i.e. the whole round (checked 2026-09-20).
 		stateBet.betToResume = { ...replayBet, active: true, event: '0' };
 		if (replayBet.mode) stateBet.activeBetModeKey = replayBet.mode;
 		replayState.phase = 'playing';
@@ -70,7 +74,7 @@
 </script>
 
 <ModalShell {open} onclose={() => {}} {master} {scale} {left} {top} dim="rgba(0,0,0,0.55)" blur={6} zIndex={4}>
-	<div class="center" style:padding={compact ? '16px' : '0'}>
+	<div class="center">
 		<div class="panel am-glass" class:compact onclick={(e) => e.stopPropagation()} role="presentation">
 			<div class="head">
 				<div class="title am-stencil">ROUND REPLAY</div>
@@ -108,6 +112,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		padding: clamp(4px, 2vmin, 16px);
+		box-sizing: border-box;
 		pointer-events: none;
 	}
 
@@ -120,15 +126,25 @@
 		--faint: var(--ui-ink-3);
 		--rule: var(--ui-rule-2);
 		--green: var(--ui-green);
-		width: min(460px, 100%);
+		/* Sized against the VIEWPORT (Stake review FIX 5): in a 400x225 popout the shell used to
+		   scale this card to 103 CSS px wide with sub-3 px labels. Now the card fills the window
+		   and every line has a real minimum size; it scrolls if the window is shorter than it. */
+		width: min(460px, 94vw);
+		max-height: 94vh;
+		overflow-y: auto;
+		scrollbar-width: none;
+		box-sizing: border-box;
 		pointer-events: auto;
 		position: relative;
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-		padding: 18px 24px 16px;
+		gap: clamp(4px, 1.8vmin, 12px);
+		padding: clamp(8px, 2.6vmin, 18px) clamp(12px, 3.2vmin, 24px) clamp(7px, 2.4vmin, 16px);
 		color: var(--body);
 		border-radius: 18px;
+	}
+	.panel::-webkit-scrollbar {
+		display: none;
 	}
 	.head {
 		display: flex;
@@ -137,14 +153,14 @@
 		gap: 10px;
 	}
 	.title {
-		font-size: 22px;
+		font-size: clamp(14px, 4.4vmin, 22px);
 	}
 	.pill {
 		border-radius: 999px;
 		padding: 6px 14px;
 		background: var(--ui-gold);
 		color: var(--ui-gold-ink);
-		font-size: 11px;
+		font-size: clamp(9px, 2.3vmin, 11px);
 		font-weight: 800;
 		letter-spacing: 2px;
 		white-space: nowrap;
@@ -155,30 +171,30 @@
 		background: var(--ui-glass-well);
 		border: 1px solid var(--ui-rule);
 		border-radius: 12px;
-		padding: 4px 16px;
+		padding: clamp(2px, 0.8vmin, 4px) clamp(8px, 2.4vmin, 16px);
 	}
 	.block.one {
-		padding: 8px 16px;
+		padding: clamp(3px, 1.4vmin, 8px) clamp(8px, 2.4vmin, 16px);
 	}
 	.row {
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
-		gap: 16px;
-		padding: 7px 0;
+		gap: clamp(6px, 2vmin, 16px);
+		padding: clamp(2px, 1.3vmin, 7px) 0;
 	}
 	.block:not(.one) .row + .row {
 		border-top: 1px solid var(--ui-rule);
 	}
 	.k {
-		font-size: 12px;
+		font-size: clamp(9px, 2.5vmin, 12px);
 		font-weight: 800;
 		letter-spacing: 3px;
 		color: var(--muted);
 		white-space: nowrap;
 	}
 	.v {
-		font-size: 17px;
+		font-size: clamp(12px, 3.4vmin, 17px);
 		font-weight: 800;
 		color: var(--ink);
 		text-align: right;
@@ -187,10 +203,10 @@
 	}
 	.v.mode {
 		letter-spacing: 2px;
-		font-size: 15px;
+		font-size: clamp(11px, 3vmin, 15px);
 	}
 	.v.big {
-		font-size: 26px;
+		font-size: clamp(16px, 5vmin, 26px);
 		color: var(--green);
 	}
 	.win {
@@ -215,10 +231,37 @@
 		border-top: 1px solid var(--ui-rule);
 		margin: 0 -12px;
 	}
+	/* Stake's Popout S is 400x225: the card only clears that window if the four play rows run two
+	   to a line and the hairline goes. Everything stays on screen, nothing shrinks below 9 px. */
+	@media (max-height: 260px) {
+		.tear {
+			display: none;
+		}
+		.block:not(.one) {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			column-gap: 14px;
+		}
+		.block:not(.one) .row + .row {
+			border-top: 0;
+		}
+		.block:not(.one) .row:nth-child(n + 3) {
+			border-top: 1px solid var(--ui-rule);
+		}
+		.cap {
+			line-height: 1.25;
+		}
+	}
+	/* sticky: in a 225 px popout the card is taller than the window and scrolls, and START REPLAY
+	   is the one control on it — it must never be below the fold (Stake review FIX 5) */
 	.go {
+		position: sticky;
+		bottom: 0;
 		border-radius: 12px;
-		padding: 14px 16px;
-		font-size: 15px;
+		padding: clamp(8px, 2.4vmin, 14px) 16px;
+		/* >=30 CSS px in a 225-tall popout, a full 44 px touch target on any real phone */
+		min-height: max(28px, min(44px, 14vmin));
+		font-size: clamp(11px, 3vmin, 15px);
 		font-weight: 900;
 		letter-spacing: 3px;
 		color: var(--ui-gold-ink);
@@ -231,57 +274,15 @@
 	}
 	.cap {
 		text-align: center;
-		font-size: 11.5px;
+		font-size: clamp(9px, 2.4vmin, 11.5px);
 		font-weight: 500;
 		color: var(--faint);
 		margin-top: -4px;
 	}
 
-	/* ── compact (phone sideways / portrait) ── */
+	/* ── compact (phone sideways / portrait): the clamps above already carry the type sizes, so
+	      only the card's own width is narrowed here ── */
 	.compact {
-		gap: 9px;
-		padding: 14px 16px 12px;
-		border-radius: 14px;
-		width: min(380px, 100%);
-	}
-	.compact .title {
-		font-size: 17px;
-		letter-spacing: 2px;
-	}
-	.compact .pill {
-		padding: 5px 10px;
-		font-size: 9px;
-		letter-spacing: 1px;
-	}
-	.compact .block {
-		border-radius: 9px;
-		padding: 2px 12px;
-	}
-	.compact .block.one {
-		padding: 5px 12px;
-	}
-	.compact .row {
-		padding: 5px 0;
-	}
-	.compact .k {
-		font-size: 10px;
-		letter-spacing: 2px;
-	}
-	.compact .v {
-		font-size: 14px;
-	}
-	.compact .v.mode {
-		font-size: 12px;
-	}
-	.compact .v.big {
-		font-size: 20px;
-	}
-	.compact .go {
-		padding: 11px 14px;
-		font-size: 13px;
-		letter-spacing: 2px;
-	}
-	.compact .cap {
-		font-size: 10px;
+		width: min(380px, 94vw);
 	}
 </style>
