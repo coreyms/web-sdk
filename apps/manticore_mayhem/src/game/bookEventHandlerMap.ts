@@ -18,8 +18,10 @@ import {
 	removeCells,
 	applyTiles,
 	dropFill,
-	injectWilds,
+	stingCharge,
+	stingStrike,
 	flashCells,
+	waitStyle,
 	resetTiles,
 	settleBoard,
 	boardInvariant,
@@ -29,6 +31,7 @@ import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEv
 import {
 	TIMINGS,
 	FEATURE_FX,
+	STING,
 	BONUS_TRIGGER_SOUND_MAP,
 	BONUS_MODE_LABEL,
 	SCATTER_LAND_SOUND_MAP,
@@ -72,16 +75,22 @@ const winLevelSoundsStop = ({ keepMusic = false, keepUi = false } = {}) => {
 	if (!keepUi) eventEmitter.broadcastAsync({ type: 'uiShow' });
 };
 
-/** the scatter landing beat: the cards flash left to right with Angry Mantis's own ladder of
+/** ONE scatter landing: it joins the running count (so 4 / 5 / 6 reads correctly before
+ *  bonusStart, whether the scatter fell in or was stung in) and plays Angry Mantis's own ladder of
  *  scatter sounds, which carry over to Manticore UNCHANGED (Corey 2026-09-22). */
+const scatterLand = (cell: number, id: number) => {
+	stateGame.scatterCells = [...stateGame.scatterCells, cell];
+	const n = Math.min(5, stateGame.scatterCells.length) as 1 | 2 | 3 | 4 | 5;
+	eventEmitter.broadcast({ type: 'soundOnce', name: SCATTER_LAND_SOUND_MAP[n] });
+	eventEmitter.broadcast({ type: 'soundScatterCounterIncrease' });
+	void flashCells([cell], STING.scatterColor, TIMINGS.scatterFlashMs, id);
+};
+
+/** the reveal's own scatters, left to right */
 const scatterBeat = async (cells: number[], id: number) => {
 	if (!cells.length) return;
-	const order = [...cells].sort((a, b) => a - b);
-	for (let i = 0; i < order.length; i += 1) {
-		const n = Math.min(5, i + 1) as 1 | 2 | 3 | 4 | 5;
-		eventEmitter.broadcast({ type: 'soundOnce', name: SCATTER_LAND_SOUND_MAP[n] });
-		eventEmitter.broadcast({ type: 'soundScatterCounterIncrease' });
-		void flashCells([order[i]], 0xffe08a, TIMINGS.scatterFlashMs, id);
+	for (const cell of [...cells].sort((a, b) => a - b)) {
+		scatterLand(cell, id);
 		await waitForTimeout(TIMINGS.scatterStaggerMs);
 	}
 };
@@ -137,11 +146,17 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			stateGame.spinsPlayed = Math.max(0, stateGame.fs - 1);
 		}
 
-		const id = await revealBoard(bookEvent.board);
+		// THE BOOK'S ANTICIPATION ARRAY IS HONOURED IN MYSTERY ONLY (RULE_PASS_2 section D): the
+		// Mystery spin-in always lands 3 War Standards in columns 0-2 and teases columns 3-7, and
+		// the book writes that tease itself. Every other mode ignores the field, exactly as before.
+		const isMystery = bookEvents.some((e) => e.type === 'mystery');
+		const anticipation = isMystery && bookEvent.gameType === 'basegame' ? bookEvent.anticipation : undefined;
+
+		const id = await revealBoard(bookEvent.board, { anticipation });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop', forcePlay: true });
 
-		stateGame.scatterCells = scattersOf(bookEvent.board);
-		await scatterBeat(stateGame.scatterCells, id);
+		stateGame.scatterCells = [];
+		await scatterBeat(scattersOf(bookEvent.board), id);
 	},
 
 	// ---- cascade: one step of wins, removal, tiles, refill ---------------------------------------
@@ -175,12 +190,49 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		settleBoard();
 	},
 
-	// ---- sting: the tail injects wilds in place --------------------------------------------------
-	sting: async (bookEvent: BookEventOfType<'sting'>) => {
+	// ---- sting: the tail strikes cells in place ---------------------------------------------------
+	// Four kinds, one playback each (RULE_PASS_2 section F). `cells -> symbol` is applied exactly as
+	// written: the shape is never re-derived from `center`, which is presentation only.
+	sting: async (bookEvent: BookEventOfType<'sting'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
+		const { kind, center, cells } = bookEvent;
+		const beat = (phase: 'charge' | 'wait' | 'strike') =>
+			eventEmitter.broadcast({ type: 'stingBeat', phase, kind, center, cells });
+
+		if (kind === 'scatter') {
+			// the board is already at rest: hold the disappointment / anticipation beat, then the
+			// same tail hit, and the cell becomes a War Standard with the STANDARD scatter landing
+			// SFX and the scatter beat. One event per scatter, played in the book's order.
+			beat('wait');
+			await waitStyle(STING.scatterHoldMs);
+			beat('strike');
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike', forcePlay: true });
+			await stingStrike(cells, bookEvent.symbol, { ms: STING.scatterHitMs, popScale: STING.popScale, color: STING.scatterColor }, id);
+			scatterLand(cells[0], id);
+			settleBoard();
+			return;
+		}
+
+		if (kind === 'big' || kind === 'super') {
+			// always the LAST sting of the spin: a charge-up beat with the rest of the board dimmed
+			// away, then the whole plus / block turns wild together with a bigger hit
+			beat('charge');
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_angry', forcePlay: true });
+			await stingCharge(cells, kind === 'super' ? STING.superChargeMs : STING.chargeMs, id);
+			beat('strike');
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_wild_land', forcePlay: true });
+			await stingStrike(cells, bookEvent.symbol, { ms: STING.bigHitMs, popScale: STING.bigPopScale, color: STING.wildColor }, id);
+			settleBoard();
+			return;
+		}
+
+		// normal: a fast tail hit on the one cell. Several fire back to back with a short gap.
+		beat('strike');
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_wild_land', forcePlay: true });
-		eventEmitter.broadcast({ type: 'featureBeat', beat: bookEvent.super ? 'superSting' : 'sting', rows: [] });
-		await injectWilds(bookEvent.cells, id);
+		await stingStrike(cells, bookEvent.symbol, { ms: STING.normalMs, popScale: STING.popScale, color: STING.wildColor }, id);
+		settleBoard();
+		const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+		if (next?.type === 'sting') await waitStyle(STING.gapMs);
 	},
 
 	// ---- roar: every low is blown off the board --------------------------------------------------
@@ -228,27 +280,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		};
 	},
 
-	// ---- the Mystery buy -------------------------------------------------------------------------
+	// ---- the Mystery spin -------------------------------------------------------------------------
+	// RULE PASS 2 (section D): a Mystery is a REAL SPIN now. The `mystery` event is still the first
+	// event of the book, but it is a marker, not a resolution: the reveal that follows always lands
+	// three War Standards in columns 0-2 and teases 3-7, the tail may sting two more in for a Super
+	// or three for an Epic, and a `nothing` Mystery plays on as a base spin whose clusters pay.
+	// The old instant path — the NO FEATURE plaque, the "THE MYSTERY OPENS" spoiler plaque, and the
+	// early return that assumed the book carried no board — is gone with it.
 	mystery: async (bookEvent: BookEventOfType<'mystery'>) => {
-		if (bookEvent.outcome === 'nothing') {
-			// "The nothing outcome must be instant and honest, not a decoy round" (spec C). The book
-			// draws no board at all, so neither do we.
-			await eventEmitter.broadcastAsync({
-				type: 'modePlaqueShow',
-				title: 'NO FEATURE',
-				sub: 'THE MYSTERY PAYS NOTHING THIS TIME',
-				gated: false,
-				holdMs: TIMINGS.mysteryNothingMs,
-			});
-			return;
-		}
-		await eventEmitter.broadcastAsync({
-			type: 'modePlaqueShow',
-			title: bookEvent.outcome === 'epic' ? 'EPIC FREE SPINS' : 'SUPER FREE SPINS',
-			sub: 'THE MYSTERY OPENS',
-			gated: false,
-			holdMs: TIMINGS.mysteryNothingMs,
-		});
+		stateGame.mysteryOutcome = bookEvent.outcome;
 	},
 
 	// ---- core SDK events -------------------------------------------------------------------------

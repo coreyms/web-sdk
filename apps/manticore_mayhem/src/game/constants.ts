@@ -46,17 +46,22 @@ export const PORTRAIT_BACKGROUND_RATIO = 1242 / 2208;
 // Everything is authored at normal speed and divided by stateBetDerived.timeScale() (turbo 2.2,
 // instant 4) at playback, so turbo compresses the whole choreography uniformly.
 export const DROP = {
-	/** how far above its landing row a new tile starts, in cells */
-	from: 2.2,
-	/** ms for one cell of travel — a tile falling further takes proportionally longer */
-	msPerCell: 78,
-	/** the shortest a drop may take whatever the distance */
-	minMs: 150,
-	/** the longest, so a full-board reveal still lands promptly */
-	maxMs: 420,
+	/**
+	 * Every tile that enters the board starts ABOVE it (Corey 2026-09-23: "full drop in, they
+	 * currently half drop in"). A column's incoming symbols are stacked in order above row 0 with
+	 * this much clearance from the top edge, so the board mask hides them until they fall in.
+	 */
+	clearance: 0.6,
+	/**
+	 * One gravity for the whole column: a fall of D cells takes gravityMs * sqrt(D), which is what
+	 * constant acceleration gives. Two tiles that start together under the same acceleration keep
+	 * their gap until the lower one lands, so a stacked column can never overtake or overlap itself
+	 * whatever mix of distances it has (the old per-cell linear timing could). 9 cells = 450 ms.
+	 */
+	gravityMs: 150,
 	/** ms between columns of a full reveal (left to right) */
 	columnStaggerMs: 26,
-	/** ms between rows within a column (the bottom row lands first) */
+	/** ms between rows within a column on a full reveal (the bottom row lands first) */
 	rowStaggerMs: 22,
 	easing: quadIn,
 };
@@ -107,14 +112,79 @@ export const FEATURE_FX = {
 	swipeFlashMs: 220,
 	swipeFlashAlpha: 0.55,
 	swipeColor: 0x2eb0a8,
-	/** sting: each injected wild pops in */
-	stingStaggerMs: 55,
-	stingPopMs: 220,
 	/** roar: the lows blow off the board */
 	roarStaggerMs: 16,
 	roarFlashMs: 260,
 	roarColor: 0xd64a2a,
 };
+
+// ---- The sting (RULE_PASS_2 section F) ----------------------------------------------------------
+// Four kinds, one presentation each, all driven by the book's `kind`:
+//   normal  a fast tail hit on the one cell; several fire back to back with `gapMs` between them
+//   big     a charge-up beat (the rest of the board dims, the shape pulses), then the whole plus
+//   super   the same beat, the 3x3 block, a longer charge and a heavier hit
+//   scatter the board is already at rest: hold the disappointment beat, then the same tail hit,
+//           the cell becomes S and the STANDARD scatter landing SFX + beat play
+// Every number here is style time and is divided by stateBetDerived.timeScale() at playback.
+// The visuals are components/Sting.svelte, which is kind-driven so a Spine rig can replace the
+// placeholder strike without touching this file or the handler.
+export const STING = {
+	/** a normal hit: wind-up to the flash, the symbol flips at `hitAt` of it */
+	normalMs: 260,
+	/** between two stings of the same spin */
+	gapMs: 150,
+	/** big / super: the charge-up before the shape turns */
+	chargeMs: 520,
+	superChargeMs: 680,
+	/** big / super: the shape turning wild together */
+	bigHitMs: 420,
+	/** scatter: the disappointment / anticipation beat on the resting board */
+	scatterHoldMs: 700,
+	/** scatter: the tail hit itself */
+	scatterHitMs: 320,
+	/** where in a hit the symbol actually changes (share of the hit) */
+	hitAt: 0.42,
+	/** peak scale of a struck cell, by weight */
+	popScale: 1.5,
+	bigPopScale: 1.7,
+	/** the charge pulse on the shape: amplitude and how many beats fit in the charge */
+	chargePulse: 0.12,
+	chargeBeats: 3,
+	/** everything outside a big / super shape dims to this while the tail charges */
+	dimAlpha: 0.32,
+	/** flash strength on a struck cell */
+	flashAlpha: 0.85,
+	wildColor: 0xffd76a,
+	scatterColor: 0xffe08a,
+} as const;
+
+// ---- Scatter tease on a Mystery reveal (RULE_PASS_2 section D) -----------------------------------
+// Angry Mantis's Anticipation.svelte, adapted from five spinning reels to an 8x8 drop: an
+// anticipated COLUMN holds above the board before it falls, falls slower when it does, and shows
+// the searchlight / rain / edge-spill tease while it waits. The array comes from the book and is
+// used VERBATIM in Mystery only ([0,0,0,1,1,1,1,1] there); every other mode ignores it.
+export const ANTICIPATION = {
+	holdMs: 700, // the first teased column's hold at normal speed
+	holdDecay: 0.82, // each further teased column holds this much of the previous one
+	holdFloorMs: 300,
+	fallSlow: 1.7, // a teased column falls this much slower than a normal one
+	fadeMs: 260, // the tease cross-fades out over the column's fall
+	strength: [0.75, 0.5, 0.3], // beam + spill alpha multiplier by turbo level
+	rainSpeed: 0.55, // cells/ms down the column
+	rainAlpha: 0.2,
+	rainStretch: 1.12,
+	rainGhosts: 1, // ghost copies per loose symbol, either side (cheap motion blur; house rule: no filters)
+	rainGhostOffset: 0.1, // cells between the ghosts
+	beamOriginY: -0.55, // beam pivot above the column, in column heights
+	beamLength: 1.9,
+	beamHalfWidth: 0.24,
+	beamSwing: 0.13, // radians either side of straight down
+	beamPeriodMs: 840,
+	spillWidth: 0.1, // edge glow width at the start of the hold, in cells
+	spillGrow: 0.42,
+	spillAlpha: 0.12,
+	spillAlphaGrow: 0.4,
+} as const;
 
 export const TIMINGS = {
 	/** a scatter landing beat, per scatter in landing order */
@@ -126,8 +196,6 @@ export const TIMINGS = {
 	plaqueInMs: 320,
 	plaqueHoldMs: 1400,
 	plaqueOutMs: 300,
-	/** the Mystery `nothing` resolution: shown, then gone. No decoy round (EVENT_SCHEMA.md). */
-	mysteryNothingMs: 1300,
 	/** the spin win readout's fade */
 	winClearMs: 320,
 };

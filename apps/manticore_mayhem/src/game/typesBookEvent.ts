@@ -63,13 +63,25 @@ type BookEventSwipe = {
 	fill: Fill;
 };
 
-/** the tail injects wilds. The old symbol is replaced in place: there is no refill. */
+/** the tail stings cells in place. The old symbol is replaced where it stands: there is no refill.
+ *  RULE PASS 2 (2026-09-23): a spin fires 0..5 stings, one event each, played in book order.
+ *    normal  1 cell        -> W
+ *    big     a plus of 5   -> W   (at most one per spin, always the LAST sting, always wins)
+ *    super   a 3x3 of 9    -> W   (same, Super / Epic only)
+ *    scatter 1 cell        -> S   (a natural trigger presented as a sting, and the Mystery)
+ *  The frontend applies exactly `cells` -> `symbol` and picks the animation from `kind`. It NEVER
+ *  re-derives the shape from `center`, and the old `super: boolean` field is gone. */
+export type StingKind = 'normal' | 'big' | 'super' | 'scatter';
 type BookEventSting = {
 	index: number;
 	type: 'sting';
+	kind: StingKind;
+	/** the shape's centre cell — presentation only (where the rig aims) */
+	center: CellIndex;
+	/** every cell the shape covers, centre first then reading order (1, 5 or 9) */
 	cells: CellIndex[];
-	/** false = Sting (3-5 wilds), true = Super Sting (6-10, Super/Epic only) */
-	super: boolean;
+	/** what those cells become */
+	symbol: 'W' | 'S';
 };
 
 /** every low leaves the board and it refills; multiplier tiles under them are untouched */

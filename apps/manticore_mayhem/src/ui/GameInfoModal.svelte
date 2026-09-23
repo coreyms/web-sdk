@@ -256,7 +256,7 @@
 				<h2>Mystery Disclosure</h2>
 				<div class="callout gold">
 					<p><strong>What a Mystery awards:</strong> exactly <span class="slot-num mono">{config.mystery.nothing * 100}%</span> nothing (the round {soc('pays', 'wins')} 0), <span class="slot-num mono">{config.mystery.super * 100}%</span> Super Free Spins and <span class="slot-num mono">{config.mystery.epic * 100}%</span> Epic Free Spins, for {modeCost('MYSTERY')}× {soc('the bet', 'the play amount')}. It NEVER awards a regular Free Spins round. These shares are fixed in the published math.</p>
-					<p><strong>Nothing is instant:</strong> a Mystery that awards nothing resolves straight away. No board is drawn and no spin is played out, because the result was already decided.</p>
+					<p><strong>A Mystery is a real spin:</strong> three War Standards always land in the first three columns and the rest of the board is played out. A Mystery that awards no feature still plays its spin, and any clusters on it {soc('pay', 'win')} normally.</p>
 					<p><strong>Epic floor:</strong> an Epic Free Spins round reached through a Mystery {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc(`${config.mysteryEpicMinWin}× bet`, `${config.mysteryEpicMinWin}× play amount`)}</span>, {(config.mysteryEpicMinWin / modeCost('MYSTERY')).toFixed(2)}× the Mystery price. An Epic entered any other way {soc('pays at least', 'wins at least')} <span class="slot-num mono">{config.epicMinWin}×</span>. Super Free Spins have no floor.</p>
 					<p class="dim">DRAFT: these figures come from the published math. The wording of this section has not been reviewed yet.</p>
 				</div>

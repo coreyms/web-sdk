@@ -1,7 +1,8 @@
 import { stateBet, stateBetDerived } from 'state-shared';
+import { waitForTimeout } from 'utils-shared/wait';
 import { createGetWinLevelDataByWinLevelAlias } from 'utils-shared/winLevel';
 
-import type { GameType, BonusMode, SymbolName, SymbolState, CellIndex } from './types';
+import type { GameType, BonusMode, MysteryOutcome, SymbolName, SymbolState, CellIndex } from './types';
 import type { Fill, TileEntry } from './typesBookEvent';
 import { stateLayoutDerived } from './stateLayout';
 import { boardPlacement, layoutKind } from './layoutSpec';
@@ -17,6 +18,8 @@ import {
 	CLUSTER,
 	TILE,
 	FEATURE_FX,
+	STING,
+	ANTICIPATION,
 	cellOf,
 	reelOf,
 	rowOf,
@@ -94,8 +97,15 @@ export const stateGame = $state({
 	spinsPlayed: 0,
 	/** the running total of the spin being presented (cascade.spinWin), in book cents of bet */
 	spinWin: 0,
-	/** scatter cells of the current reveal, for the landing beat */
+	/** scatters on the board this spin, in landing order — the reveal's, then every scatter the
+	 *  tail stings in (RULE_PASS_2 section C/D), so the counter reads 4/5/6 before bonusStart */
 	scatterCells: [] as CellIndex[],
+	/** per-column scatter tease during a Mystery reveal (components/Anticipation.svelte).
+	 *  `q` is the share of the column's hold that has run, `fade` the cross-fade over its fall. */
+	anticipation: Array.from({ length: GRID }, () => ({ on: false, q: 0, fade: 1 })),
+	/** the Mystery outcome of the round being played, null outside a Mystery book. Presentation
+	 *  never branches on it (the spin plays itself out); it is a DEV / probe read only. */
+	mysteryOutcome: null as MysteryOutcome | null,
 	/** scatters counted so far this spin (components/Sound.svelte's counter events) */
 	scatterCounter: 0,
 	/** true while a spin's choreography is in flight (probe hook: atRest) */
@@ -137,6 +147,10 @@ const isReplayPlayback = (): boolean =>
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const ts = () => Math.max(0.2, stateBetDerived.timeScale());
 
+/** a pause in STYLE time: authored at normal speed, divided by the turbo scale like every
+ *  other duration here, so a handler never has to reach for timeScale itself */
+export const waitStyle = (ms: number) => waitForTimeout(Math.max(1, ms / ts()));
+
 /** run id: a new spin invalidates whatever is still in the air (never await an aborted tween) */
 let runId = 0;
 export const newRun = () => ++runId;
@@ -171,8 +185,11 @@ const raf = (ms: number, step: (t: number, elapsed: number) => void): Promise<vo
 // proxies, did. Resolve every job against the LIVE array each time and the class of bug is gone.
 type DropJob = { cellId: number; fromY: number; toY: number; delay: number; dur: number };
 
-const dropDuration = (distance: number) =>
-	Math.min(DROP.maxMs, Math.max(DROP.minMs, Math.abs(distance) * DROP.msPerCell));
+/** constant-acceleration fall time (see DROP.gravityMs) */
+const dropDuration = (distance: number) => DROP.gravityMs * Math.sqrt(Math.max(0, distance));
+
+/** where the i-th of `count` incoming tiles (top-down) waits above the board before it falls */
+const stackedAbove = (i: number, count: number) => i - count - DROP.clearance;
 
 /** the landing beat: squashed on contact, easing back, then a small counter-overshoot */
 const landScale = (u: number): [number, number] => {
@@ -193,12 +210,13 @@ const liveById = () => new Map(stateGame.cells.map((c) => [c.id, c]));
 /** animate a batch of falling cells, landing beat included. The FINAL positions are applied
  *  whether or not the run was superseded: a cancelled animation must never leave the board
  *  half-way between two grids. */
-const runDrops = async (jobs: DropJob[], id: number) => {
+const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => void) => {
 	if (!jobs.length) return;
 	const total = jobs.reduce((n, j) => Math.max(n, j.delay + j.dur), 0) + LAND_MS;
 	const map = liveById();
 	await raf(total, (_t, now) => {
 		if (!alive(id)) return;
+		onFrame?.(now);
 		for (const j of jobs) {
 			const cell = map.get(j.cellId);
 			if (!cell) continue;
@@ -262,6 +280,17 @@ export const settleBoard = () => {
 	}
 	for (const tile of stateGame.tiles) tile.scale = 1;
 	stateGame.readouts = [];
+	clearAnticipation();
+};
+
+/** the Mystery tease never outlives the drop that armed it */
+export const clearAnticipation = () => {
+	for (const a of stateGame.anticipation) {
+		if (!a.on && a.q === 0) continue;
+		a.on = false;
+		a.q = 0;
+		a.fade = 1;
+	}
 };
 
 /** The at-rest invariant, as a report rather than an exception (probe hook __manticore.invariant).
@@ -290,14 +319,48 @@ export const boardInvariant = () => {
 };
 
 /** a whole new board falls in (reveal). Bottom row lands first, columns ripple left to right. */
-export const revealBoard = async (board: SymbolName[][], { animate = true } = {}) => {
+/**
+ * A whole new board falls in (reveal). Bottom row lands first, columns ripple left to right.
+ *
+ * `anticipation` is the BOOK's per-column array and is passed only where the book's own tease is
+ * honoured (Mystery — RULE_PASS_2 section D); every other mode calls this without it. A teased
+ * column waits above the board for its hold before it drops and then falls `fallSlow` times
+ * slower, and the columns behind it wait with it, so the tease reads left to right exactly like
+ * Angry Mantis's reels. The visuals are components/Anticipation.svelte, driven by
+ * stateGame.anticipation, which this function is the only writer of.
+ */
+export const revealBoard = async (
+	board: SymbolName[][],
+	{ animate = true, anticipation }: { animate?: boolean; anticipation?: number[] } = {},
+) => {
 	const id = newRun();
 	stateGame.readouts = [];
+	clearAnticipation();
+
+	// per-column hold (0 = no tease) and the delay every later column inherits from it
+	const holdMs = Array.from({ length: GRID }, () => 0);
+	const holdStart = Array.from({ length: GRID }, () => 0);
+	let carried = 0;
+	if (animate && anticipation?.length) {
+		let scale = 1;
+		for (let reel = 0; reel < GRID; reel += 1) {
+			holdStart[reel] = reel * DROP.columnStaggerMs + carried;
+			if (!anticipation[reel]) continue;
+			holdMs[reel] = Math.max(ANTICIPATION.holdFloorMs, ANTICIPATION.holdMs * scale);
+			scale *= ANTICIPATION.holdDecay;
+			carried += holdMs[reel];
+		}
+	}
+	const teased = holdMs.some((ms) => ms > 0);
+
 	const cells: Cell[] = [];
 	const plan: DropJob[] = [];
 	board.forEach((column, reel) => {
+		const wait = holdStart[reel] + holdMs[reel] - reel * DROP.columnStaggerMs;
+		const slow = holdMs[reel] > 0 ? ANTICIPATION.fallSlow : 1;
 		column.forEach((name, row) => {
-			const fromY = row - DROP.from - (GRID - 1 - row) * 0.35;
+			// the whole column waits stacked above the board and pours in, bottom row first
+			const fromY = stackedAbove(row, GRID);
 			const cell = makeCell(name, reel, row, animate ? fromY : row);
 			cells.push(cell);
 			if (animate) {
@@ -305,17 +368,45 @@ export const revealBoard = async (board: SymbolName[][], { animate = true } = {}
 					cellId: cell.id,
 					fromY,
 					toY: row,
-					delay: reel * DROP.columnStaggerMs + (GRID - 1 - row) * DROP.rowStaggerMs,
-					dur: dropDuration(row - fromY),
+					delay: reel * DROP.columnStaggerMs + wait + (GRID - 1 - row) * DROP.rowStaggerMs,
+					dur: dropDuration(row - fromY) * slow,
 				});
 			}
 		});
 	});
 	// assign FIRST, animate second: the jobs address the proxies this assignment creates
 	stateGame.cells = cells;
-	if (animate) await runDrops(plan, id);
+	if (animate) {
+		await runDrops(plan, id, teased ? (now) => tickAnticipation(now, holdStart, holdMs) : undefined);
+	}
 	settleBoard();
 	return id;
+};
+
+/** one frame of the column tease, in the drop's own style-time clock */
+const tickAnticipation = (now: number, holdStart: number[], holdMs: number[]) => {
+	for (let reel = 0; reel < GRID; reel += 1) {
+		const ms = holdMs[reel];
+		if (!ms) continue;
+		const a = stateGame.anticipation[reel];
+		const start = holdStart[reel];
+		const end = start + ms;
+		if (now < start) {
+			if (a.on) a.on = false;
+			continue;
+		}
+		if (now <= end) {
+			a.on = true;
+			a.q = (now - start) / ms;
+			a.fade = 1;
+			continue;
+		}
+		// the real symbols are on their way down: cross-fade the tease out over their fall
+		const fade = 1 - (now - end) / ANTICIPATION.fadeMs;
+		a.q = 1;
+		a.fade = Math.max(0, fade);
+		a.on = fade > 0;
+	}
 };
 
 /** highlight one cluster and dim everything else; resolves when the hold is over */
@@ -431,7 +522,9 @@ export const dropFill = async (fill: Fill, id: number) => {
 		const topRow = GRID - total;
 		incoming.forEach((name, i) => {
 			const row = topRow + i;
-			const fromY = row - DROP.from - (incoming.length - 1 - i) * 0.9;
+			// the new symbols wait stacked above the board, in column order, and fall in behind the
+			// survivors: same start time, same gravity, so the stack never overtakes what is below
+			const fromY = stackedAbove(i, incoming.length);
 			const cell = makeCell(name, reel, row, fromY);
 			added.push(cell);
 			plan.push({ cellId: cell.id, fromY, toY: row, delay: reel * DROP.columnStaggerMs, dur: dropDuration(row - fromY) });
@@ -450,31 +543,82 @@ export const dropFill = async (fill: Fill, id: number) => {
 	settleBoard();
 };
 
-/** the tail's wilds replace what is there — no refill (EVENT_SCHEMA.md `sting`) */
-export const injectWilds = async (cells: CellIndex[], id: number) => {
-	const order = [...cells].sort((a, b) => a - b);
-	const targetIds: number[] = [];
-	for (const index of order) {
-		const cell = stateGame.cells.find((c) => cellOf(c.reel, c.row) === index);
-		if (!cell) continue;
-		cell.name = 'W';
-		targetIds.push(cell.id);
-	}
-	if (!targetIds.length) return;
-	const total = (targetIds.length - 1) * FEATURE_FX.stingStaggerMs + FEATURE_FX.stingPopMs;
-	await raf(total, (_t, now) => {
+// ---- the sting (RULE_PASS_2 section B/F) ---------------------------------------------------------
+// The tail replaces what is on the cells in place: no refill, no drop. The board engine owns the
+// CELLS (flash, pop, dim, symbol swap); components/Sting.svelte owns the strike art on top of them
+// and is kind-driven, so a Spine rig can replace the placeholder without either of them changing.
+//
+// `cells -> symbol` is applied EXACTLY as the book wrote it. The shape is never re-derived from
+// `center`, and a cell the book did not list is never touched.
+
+const cellIdsAt = (cells: CellIndex[]) => {
+	const wanted = new Set(cells);
+	const ids: number[] = [];
+	for (const c of stateGame.cells) if (c.state !== 'removing' && wanted.has(cellOf(c.reel, c.row))) ids.push(c.id);
+	return ids;
+};
+
+/** the charge-up before a big / super sting: the board dims away and the shape pulses */
+export const stingCharge = async (cells: CellIndex[], ms: number, id: number) => {
+	const targets = new Set(cellIdsAt(cells));
+	if (!targets.size) return;
+	await raf(ms, (t) => {
 		if (!alive(id)) return;
+		const pulse = 1 + STING.chargePulse * Math.sin(Math.PI * STING.chargeBeats * 2 * t) * t;
 		const map = liveById();
-		targetIds.forEach((cellId, i) => {
-			const cell = map.get(cellId);
-			if (!cell) return;
-			const p = clamp01((now - i * FEATURE_FX.stingStaggerMs) / FEATURE_FX.stingPopMs);
-			const s = p === 0 ? 0.2 : 0.2 + 0.8 * TILE.popEasing(p);
-			cell.scaleX = s;
-			cell.scaleY = s;
-		});
+		for (const c of map.values()) {
+			if (targets.has(c.id)) {
+				c.scaleX = pulse;
+				c.scaleY = pulse;
+				c.flashColor = STING.wildColor;
+				c.flash = 0.35 * t;
+			} else {
+				c.alpha = 1 - (1 - STING.dimAlpha) * t;
+			}
+		}
 	});
-	settleBoard();
+};
+
+/**
+ * The hit itself: the listed cells flash and swell, flip to `symbol` at STING.hitAt of the beat,
+ * then settle. One cell for a normal or scatter sting, the whole plus / block at once for a big
+ * or super one (RULE_PASS_2 section F: "the plus / block turns wild TOGETHER").
+ */
+export const stingStrike = async (
+	cells: CellIndex[],
+	symbol: SymbolName,
+	{ ms, popScale, color }: { ms: number; popScale: number; color: number },
+	id: number,
+) => {
+	const targetIds = cellIdsAt(cells);
+	if (!targetIds.length) return;
+	const targets = new Set(targetIds);
+	let flipped = false;
+	const flip = () => {
+		if (flipped) return;
+		flipped = true;
+		const map = liveById();
+		for (const cellId of targetIds) {
+			const cell = map.get(cellId);
+			if (cell) cell.name = symbol;
+		}
+	};
+	for (const c of stateGame.cells) if (targets.has(c.id)) c.flashColor = color;
+	await raf(ms, (t) => {
+		if (!alive(id)) return;
+		if (t >= STING.hitAt) flip();
+		const k = Math.sin(Math.PI * clamp01(t));
+		const scale = 1 + (popScale - 1) * k;
+		const map = liveById();
+		for (const cellId of targetIds) {
+			const cell = map.get(cellId);
+			if (!cell) continue;
+			cell.scaleX = scale;
+			cell.scaleY = scale;
+			cell.flash = STING.flashAlpha * k;
+		}
+	});
+	flip(); // a superseded run may skip the animation, never the book's symbol change
 };
 
 /** flash a set of cells in a feature colour (swipe band / roar lows) before they leave.
@@ -517,6 +661,8 @@ export const resetSession = () => {
 	stateGame.tileCap = 64;
 	stateGame.scatterCells = [];
 	stateGame.readouts = [];
+	stateGame.mysteryOutcome = null;
+	clearAnticipation();
 	resetTiles();
 };
 

@@ -1,11 +1,17 @@
 <script lang="ts" module>
-	export type FeatureBeat = 'swipe' | 'sting' | 'superSting' | 'roar';
+	import type { StingKind } from '../game/typesBookEvent';
+
+	export type FeatureBeat = 'swipe' | 'roar';
 
 	export type EmitterEventBoard =
 		| { type: 'boardShow' }
 		| { type: 'boardHide' }
 		/** a manticore set piece is playing; milestone 1 uses it for the board-side flash only */
-		| { type: 'featureBeat'; beat: FeatureBeat; rows: number[] };
+		| { type: 'featureBeat'; beat: FeatureBeat; rows: number[] }
+		/** one beat of a sting, for the rig slot (components/Sting.svelte). `phase` is the beat
+		 *  itself — `wait` the scatter sting's disappointment hold, `charge` the big / super
+		 *  wind-up, `strike` the hit — and `kind` is the book's, never re-derived. */
+		| { type: 'stingBeat'; phase: 'charge' | 'wait' | 'strike'; kind: StingKind; center: number; cells: number[] };
 </script>
 
 <script lang="ts">
@@ -17,8 +23,12 @@
 
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, CELL_FILL, GRID, TILE, reelOf, rowOf } from '../game/constants';
+	import { playBookEvents } from '../game/utils';
+	import type { BookEvent } from '../game/typesBookEvent';
 	import BoardContainer from './BoardContainer.svelte';
 	import ArtAmount from './ArtAmount.svelte';
+	import Anticipation from './Anticipation.svelte';
+	import Sting from './Sting.svelte';
 
 	const context = getContext();
 	const stateGame = context.stateGame;
@@ -29,6 +39,7 @@
 		boardShow: () => (show = true),
 		boardHide: () => (show = false),
 		featureBeat: () => {},
+		stingBeat: () => {},
 	});
 
 	/** blend white towards a flash colour by `k` — cheaper than a filter and batches with the rest */
@@ -77,6 +88,26 @@
 			/** the round's win as the frontend has it, in book units (100 = 1x bet) */
 			winAmount: () => stateBet.winBookEventAmount,
 			assetKeys: () => Object.keys(context.stateApp.loadedAssets ?? {}),
+			/** scatters counted this spin, the stung-in ones included */
+			scatters: () => [...stateGame.scatterCells],
+			/** the per-column Mystery tease, as the board engine has it */
+			anticipation: () => stateGame.anticipation.map((a) => ({ on: a.on, q: Number(a.q.toFixed(2)) })),
+			/** the Mystery outcome of the round being played, null outside a Mystery book */
+			mysteryOutcome: () => stateGame.mysteryOutcome,
+			/** PLAY A SYNTHETIC BOOK: run an array of book events through the same handler map the
+			 *  RGS's own books go through (game/utils.ts playBookEvents), so a sequence the mock RGS
+			 *  cannot serve yet can still be rehearsed end to end. Resolves when the last event has
+			 *  finished and the board is back at rest. */
+			playEvents: async (bookEvents: BookEvent[]) => {
+				stateGame.busy = true;
+				try {
+					await playBookEvents(bookEvents);
+				} finally {
+					context.stateGameDerived.settleBoard();
+					stateGame.busy = false;
+				}
+				return context.stateGameDerived.boardInvariant();
+			},
 		});
 	}
 	const size = SYMBOL_SIZE * CELL_FILL;
@@ -117,6 +148,10 @@
 				/>
 			{/if}
 		{/each}
+
+		<!-- the Mystery column tease and the sting rig slot: both always mounted, both board-space -->
+		<Anticipation />
+		<Sting />
 
 		<!-- the pay-times-sum readout of the cluster being presented -->
 		{#each stateGame.readouts as readout (readout.id)}
