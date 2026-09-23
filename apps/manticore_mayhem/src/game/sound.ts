@@ -1,0 +1,227 @@
+import { createSound, supportsAudioFormat, type MusicManifest } from 'utils-sound';
+
+import assets from './assets';
+import { fileBytes } from './assetStamp';
+
+// Names match tools/build_audiosprite.py. MusicName lives in music.json (one streamed file per
+// track); every SoundEffectName lives in the sounds.json audiosprite.
+export type MusicName = 'bgm_base' | 'bgm_free' | 'bgm_super' | 'bgm_feast' | 'bgm_maxwin';
+
+export type SoundEffectName =
+	| 'sfx_reel_spin'
+	| 'sfx_reel_stop'
+	| 'sfx_scatter_land_1'
+	| 'sfx_scatter_land_2'
+	| 'sfx_scatter_land_3'
+	| 'sfx_scatter_land_4'
+	| 'sfx_scatter_land_5'
+	| 'sfx_leaf_land'
+	| 'sfx_service_bell'
+	| 'sfx_door_close'
+	| 'sfx_door_open'
+	| 'sfx_marty_strike'
+	| 'sfx_marty_eat'
+	| 'sfx_marty_angry'
+	| 'sfx_marty_happy'
+	| 'sfx_marty_poke'
+	| 'sfx_win_big'
+	| 'sfx_win_super'
+	| 'sfx_win_mega'
+	| 'sfx_win_epic'
+	| 'sfx_win_max'
+	| 'sfx_money_counter'
+	| 'sfx_ui_button'
+	| 'sfx_ui_spin'
+	| 'sfx_ui_bonus'
+	| 'sfx_wild_land'
+	| 'sfx_ui_minor'
+	| 'sfx_ui_sub'
+	| 'sfx_marty_strike_2'
+	| 'sfx_marty_strike_3'
+	| 'sfx_marky_strike'
+	| 'sfx_marty_eat_2'
+	| 'sfx_marty_eat_3'
+	| 'sfx_marky_eat'
+	| 'sfx_marty_angry_2'
+	| 'sfx_marty_angry_3'
+	| 'sfx_marty_happy_2'
+	| 'sfx_marty_happy_3'
+	| 'sfx_marty_poke_2'
+	| 'sfx_marty_poke_3'
+	| 'sfx_marty_astonished'
+	| 'sfx_marty_astonished_2'
+	| 'sfx_marty_astonished_3'
+	| 'sfx_bonus_trigger_free'
+	| 'sfx_bonus_trigger_super'
+	| 'sfx_bonus_trigger_feast';
+
+export type SoundName = MusicName | SoundEffectName;
+
+const sound = createSound<SoundName>();
+
+// ── audiosprite preload ────────────────────────────────────────────────────────────────────────
+// The sprite is the single biggest file the game ships. It used to be constructed by EnableSound,
+// a child of pixi-svelte's AssetsLoader, so the download only STARTED once every image had already
+// finished — and nothing gated on it, so the landing screen said PRESS ANYWHERE while megabytes of
+// audio were still in flight (minutes of silent gameplay on a slow link).
+//
+// So we own the fetch: kicked at app start (see routes/+layout.svelte) in parallel with the image
+// preload, streamed so we get real byte progress for the loading bar, then handed to Howler by its
+// real URL (the bytes are in the HTTP cache by then). Constructing/decoding a Howl before a user
+// gesture is fine — only playback needs the gesture, and Howler's own unlock handler covers that.
+type SoundManifest = {
+	src: string[];
+	sprite: Record<string, [number, number] | [number, number, boolean]>;
+	// sounds.json only carries the sfx now (the music moved to music.json), but LoadedAudio is
+	// keyed by the full SoundName union — the players already fall back to volume 1 for a name with
+	// no config entry, so the missing bgm_* keys are harmless.
+	config: Record<SoundName, { volume: number }>;
+};
+
+const RETRIES = 2; // 3 attempts total, then the player goes in silently
+
+let preloadStarted = false;
+
+/** First entry of the manifest's src[] this browser can actually decode (see build_audiosprite.py
+ *  for the ordering — smallest supported format first). Resolved against the document like Howler
+ *  would, since the manifest's paths are document-relative. */
+const extOf = (ref: string) => (ref.split('?')[0].split('.').pop() ?? '').toLowerCase();
+
+/** iPhone / iPad (every browser there is WebKit, Chrome included). Safari 17+ answers "maybe" to
+ *  Vorbis, and its media elements do play the .ogg music, but the Web Audio decoder is CoreAudio
+ *  only: decodeAudioData on the .ogg sprite fails, loaderror fires, and every effect is silent
+ *  while the music plays — Corey's iPhone, Safari and Chrome, 2026-09-17. AAC is native there, so
+ *  Apple touch devices take the .m4a of everything first; the retry below is the safety net. */
+const PREFERS_AAC =
+	typeof navigator !== 'undefined' &&
+	(/iP(hone|ad|od)/.test(navigator.platform) ||
+		/iP(hone|ad|od)/.test(navigator.userAgent) ||
+		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+const AAC_EXTS = ['m4a', 'mp4', 'aac'];
+const orderSources = (srcList: string[]) =>
+	PREFERS_AAC ? [...srcList].sort((a, b) => Number(AAC_EXTS.includes(extOf(b))) - Number(AAC_EXTS.includes(extOf(a)))) : srcList;
+
+/** every playable source, best first */
+const pickSources = (srcList: string[]) =>
+	orderSources(srcList)
+		.map((ref) => ({ ref, ext: extOf(ref) }))
+		.filter(({ ext }) => ext && supportsAudioFormat(ext))
+		.map(({ ref, ext }) => ({ url: new URL(ref, document.baseURI).href, ext }));
+
+// Howler gets the sprite's REAL URL, never an object URL. engine.io serves the game under a
+// Content Security Policy with no `blob:` source (2026-09-07): Howler's Web Audio XHR to a blob URL
+// is refused (connect-src), Howler then silently retries the same blob through an HTML5 media
+// element, which is refused too (media-src) and surfaces as MediaError code 4 — every effect
+// silent while the music, streamed from real URLs, plays fine. The browser only logs the CSP
+// refusals itself, so the game's console showed just "audiosprite failed to load 4". Same-origin
+// URLs are allowed everywhere the game can be embedded; this fetch exists for the loading bar and
+// to warm the HTTP cache so Howler's own request is (normally) served locally.
+const prefetchWithProgress = async (url: string) => {
+	const response = await fetch(url);
+	if (!response.ok) throw new Error(`audiosprite ${response.status} ${response.statusText}`);
+	// no streaming body (very old browsers): the loading bar just waits for Howler
+	if (!response.body) return;
+
+	const total = Number(response.headers.get('content-length')) || 0;
+	const reader = response.body.getReader();
+	let received = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		received += value.length;
+		if (total) sound.reportDownloadProgress(received / total, total);
+	}
+	sound.reportDownloadProgress(1);
+};
+
+// ── music ──────────────────────────────────────────────────────────────────────────────────────
+// The five music loops used to sit inside the audiosprite, which meant all 328 s of them were
+// decoded into one resident AudioBuffer (~130 MB) so that one of them could play. They are now
+// separate files streamed through media elements (utils-sound/createMusic.svelte.ts): no decode,
+// no AudioBuffer, and only the track being played is even downloaded.
+//
+// The manifest is tiny, so it is fetched alongside the sprite at the same early point and handed
+// straight to the player, which immediately starts buffering the gate track (bgm_base) — that is
+// the second half of what the landing screen waits on. The other four buffer in the background a
+// few seconds after music first plays.
+const loadMusicManifest = async () => {
+	const response = await fetch(assets.music.src);
+	if (!response.ok) throw new Error(`music.json ${response.status}`);
+	const manifest = (await response.json()) as MusicManifest<MusicName>;
+	// Apple touch devices: AAC first for the streamed tracks too (see PREFERS_AAC); `bytes` rides
+	// along with its source so the gate progress still weights the right file
+	if (PREFERS_AAC) {
+		for (const track of Object.values(manifest.tracks ?? manifest) as Array<{ src?: string[]; bytes?: number[] }>) {
+			if (!Array.isArray(track?.src)) continue;
+			const order = orderSources(track.src).map((ref) => track.src!.indexOf(ref));
+			if (Array.isArray(track.bytes) && track.bytes.length === track.src.length) track.bytes = order.map((i) => track.bytes![i]);
+			track.src = order.map((i) => track.src![i]);
+		}
+	}
+	sound.loadMusic(manifest);
+};
+
+/** Idempotent — call it as early as possible; extra calls are free. */
+export const startSoundPreload = () => {
+	if (preloadStarted || typeof window === 'undefined') return;
+	preloadStarted = true;
+
+	// kicked in parallel with the sprite: two independent downloads, one gate. expectMusic() is
+	// synchronous and must come first — the sfx sprite is small enough to finish before music.json
+	// lands, and the gate would otherwise open on a game with no music player yet.
+	sound.expectMusic();
+	void (async () => {
+		let lastError: unknown;
+		for (let attempt = 0; attempt <= RETRIES; attempt += 1) {
+			try {
+				await loadMusicManifest();
+				return;
+			} catch (error) {
+				lastError = error;
+				await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+			}
+		}
+		sound.markMusicUnavailable(lastError);
+	})();
+
+	void (async () => {
+		let lastError: unknown;
+		for (let attempt = 0; attempt <= RETRIES; attempt += 1) {
+			try {
+				const manifestResponse = await fetch(assets.sound.src);
+				if (!manifestResponse.ok) throw new Error(`sounds.json ${manifestResponse.status}`);
+				const manifest = (await manifestResponse.json()) as SoundManifest;
+				const candidates = pickSources(manifest.src);
+				const picked = candidates[0];
+				if (!picked) throw new Error('no supported audio format in sounds.json src[]');
+				// weight the sprite by its real size from the first moment: before the first chunk the
+				// progress blend had 0 bytes for it and read 100% off the music gate alone (2026-09-15)
+				const rel = /\/assets\/([^?#]+)/.exec(picked.url)?.[1];
+				const expected = rel ? (fileBytes as Record<string, number>)[rel] : undefined;
+				if (expected) sound.reportDownloadProgress(0, expected);
+				await prefetchWithProgress(picked.url);
+				sound.load(
+					{ src: [picked.url], sprite: manifest.sprite, config: manifest.config },
+					{ format: [picked.ext] },
+				);
+				// a browser that CLAIMS a format and then cannot decode it (see PREFERS_AAC) fails the
+				// sprite with loaderror; try the next playable source before giving up on effects
+				void (async () => {
+					for (const next of candidates.slice(1)) {
+						while (sound.loadStatus === 'loading' || sound.loadStatus === 'idle') await new Promise((r) => setTimeout(r, 250));
+						if (sound.loadStatus !== 'error') return;
+						console.warn(`[sound] sprite .${extOf(next.url)} retry after a decode failure`);
+						sound.load({ src: [next.url], sprite: manifest.sprite, config: manifest.config }, { format: [next.ext] });
+					}
+				})();
+				return;
+			} catch (error) {
+				lastError = error;
+				await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+			}
+		}
+		sound.markLoadFailed(lastError);
+	})();
+};
+
+export { sound };

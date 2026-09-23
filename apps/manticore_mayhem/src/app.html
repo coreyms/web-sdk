@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+		
+		<!-- Stake checklist: main frame must not scroll, double-tap/pinch zoom disabled on mobile -->
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+		<style>
+			/* iOS ignores user-scalable=no; touch-action: manipulation is what actually kills double-tap zoom
+			   there. pixi-svelte sets touch-action:auto inline on the canvas, hence the !important. */
+			html,
+			body {
+				touch-action: manipulation;
+				overscroll-behavior: none;
+			}
+			canvas {
+				display: block; /* inline canvas leaves a 4px baseline gap that makes the page scrollable */
+				touch-action: manipulation !important;
+			}
+
+			/* ────────────────────────────────────────────────────────────────────────────────────────
+			   PolyMath splash — STATIC, IN THE SHELL (2026-09-15).
+			   This used to be src/ui/PolyMathIntro.svelte, i.e. a Svelte component inside the bundle:
+			   on Slow 4G nothing painted for 43 s because the whole app had to download and execute
+			   first. It is now plain HTML + CSS in the shell, so it paints as soon as this <style>
+			   arrives — the markup and every keyframe below are a 1:1 transcription of that component
+			   (six edges, node pops, lockup rise, glow, scanline, radial ground, legal line, and both
+			   the landscape and portrait sizing tables, which the fit script below applies).
+			   The two fonts are inlined as SUBSETS (glyphs actually used) so the wordmark is instant:
+			     python -m fontTools.subset static/assets/fonts/ui/Sora-Variable.woff2 \
+			       --text="PolyMath" --flavor=woff2 --layout-features='' --no-hinting --desubroutinize
+			     python -m fontTools.subset static/assets/fonts/ui/Outfit-Variable.woff2 \
+			       --text="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789·+%. " ...same flags
+			   (the Outfit set is UPPERCASE: .sub and .legal are text-transform: uppercase, and a
+			    subset built from the source strings dropped half of what is actually drawn.)
+			   (both shipped faces are single static instances despite the "-Variable" name — Sora 800,
+			   Outfit 900 — so a subset renders identically at every declared weight.) The families are
+			   deliberately NAMED APART from the real 'Outfit'/'Sora' that ui/fontFaces.ts injects, so
+			   the full faces landing later can never re-flow the splash.
+			   Re-tune = edit here; there is no component any more.
+			   ──────────────────────────────────────────────────────────────────────────────────────── */
+			@font-face {
+				font-family: 'AMSoraSplash';
+				font-style: normal;
+				font-weight: 100 900;
+				font-display: block;
+				src: url(data:font/woff2;base64,d09GMgABAAAAAAQMAA8AAAAAB1gAAAO0AAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbIBwqBmA/U1RBVCoAbBEICoRkg3sBNgIkAyQLFAAEIAWDQAcgG9YFCJ4Fucm8SszkIhfTC6NW4uF5u77OfVWtegM5wtLKxlH/NdBYKNwQjKav36/tP3HH1NK57UO9HQ0SQ7ZKFo20DPlz1IcqXAFgAHjBu+fnr6n3yO/bibX4iVSty78NLIpwfGDLpKLzs6X4cDbTvJ8ew1GqmsupnySWVVACwwBJKDSFQGUaE2rHnScXgaOEgQAOL+BB47yJzjwOM6ChweYynV7MwiS106HAHt5LHK0+tmWEQfnp8Rp4sZet4uP1P1O+q0E8gzQhfY9Z6EJoCoxDYRraJafEkIIkIBrFLICEAuPQp99hOBQYQ4Iu2cssv5iULLQ1kOwbvKfd7VY3ucE1riiYoEIMNBK0wBgg43X8DygBIUlCuONHjMizh42vTxg1flyuDT8sHzG8rGqHVoeXod9D3S6rOp2qUpOHPnkmVj/9cTU8bhz3aKfd68Xqfj/n1UsertqdzobxQFPEWDoYtVetem0e9soTM3Mtp2e2eCUTh0hVsfrt9ptSrlWRy+PaPePEbYquP3lC5+ChL/qxuvd51f60Y1X3s+O6HVpdZFlVX8sOCgx94JGpU6uj82H5iHykfm61+/fpulXjrl3V+P7Febdf+dBtQzON/zr56MutdyPzkrnD515uc7T3bdufT5yje2rO3Kcmz3F1yv6lU/Yuw7Wy+r1burebLNonVhy00YvG7kbtV4y+8bzt6DvHjIPW67pPmJp5+vOQ+Wg2XejUbLulgP7vn8/bH77byTn86KMVmz9vt+B3vy9i/ODu07+/d+DYsXzF9JQn3K7ZcskpM1OnteGRXMUmRblOzeapPX2xYPR6yQn63rKKadsSj+ciF6soW++2CKONw0+vqDlp5X3fdftd+eCVN6y78cP5Jzsnb+z0w40rJ/5vXu3m3dTnz7lizKGlR6/cZ+QOm04HLDMAEEj8M/H7Y0Zu+U+zKH6DH8pTLsH2xsSek9e/XyvKZ1GXZNe3r6mNGVDEPAWNZlirOMlS8aPd073LfzqULl1p+9iRID1sTjyrTNsBgZYTse2HXVUsJGr6+eiibOF2IhSmuUXJCC+jwnI//SWLaqb4I+umxThKMCyW+hQNY2JLA7JythTERcUgi3q16rSxWEwgbC9gfYGfxayCrISwoFLrQ3g3xkHR9VStQzlF7WrUiIpjGxFQLSgrrUaxuFBlM2hMIDKYgcrG4yGbMLqlX1ZKyLywKCLFr6BetdrdvA7TZkwb0lFDVwXLuKAoPrTPgvZlWNFfrBWVpDNig2s5AA==) format('woff2');
+			}
+			@font-face {
+				font-family: 'AMOutfitSplash';
+				font-style: normal;
+				font-weight: 100 900;
+				font-display: block;
+				src: url(data:font/woff2;base64,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) format('woff2');
+			}
+
+			#am-splash {
+				position: fixed;
+				inset: 0;
+				z-index: 2147483000;
+				background: radial-gradient(120% 90% at 50% 42%, #171a22 0%, #0b0c10 62%, #07080b 100%);
+				overflow: hidden;
+				font-family: 'AMOutfitSplash', system-ui, sans-serif;
+				color: #f4f6fb;
+				--accent: #9cd92f;
+				opacity: 1;
+			}
+			#am-splash.am-out {
+				opacity: 0;
+				transition: opacity 450ms linear;
+				pointer-events: none;
+			}
+			#am-splash::after {
+				content: '';
+				position: absolute;
+				inset: 0;
+				background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px);
+				pointer-events: none;
+			}
+			#am-splash .stage {
+				position: absolute;
+				left: 0;
+				top: 0;
+				transform-origin: top left;
+				width: var(--w);
+				height: var(--h);
+				transform: translate(var(--tx), var(--ty)) scale(var(--s));
+			}
+			#am-splash .intro {
+				position: absolute;
+				inset: 0;
+				display: grid;
+				place-items: center;
+				overflow: hidden;
+			}
+			#am-splash .lock {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				position: relative;
+				z-index: 2;
+				gap: var(--gap-mark);
+			}
+			#am-splash .glow {
+				position: absolute;
+				border-radius: 50%;
+				background: radial-gradient(circle, color-mix(in oklab, var(--accent) 22%, transparent), transparent 68%);
+				width: var(--glow-d);
+				height: var(--glow-d);
+				top: var(--glow-t);
+				opacity: 0;
+				animation: am-glow 520ms ease-out 240ms forwards;
+			}
+			@keyframes am-glow {
+				0% { opacity: 0; transform: scale(0.7); }
+				40% { opacity: 1; }
+				100% { opacity: 0.55; transform: scale(1); }
+			}
+			#am-splash .mark {
+				overflow: visible;
+				display: block;
+				width: var(--mark);
+				height: var(--mark);
+			}
+			#am-splash .edge {
+				fill: none;
+				stroke: #f4f6fb;
+				stroke-linecap: round;
+				stroke-width: var(--stroke);
+				stroke-dasharray: 1;
+				stroke-dashoffset: 1;
+				animation: am-draw 260ms cubic-bezier(0.5, 0, 0.25, 1) forwards;
+			}
+			@keyframes am-draw { to { stroke-dashoffset: 0; } }
+			#am-splash .node {
+				r: var(--node); /* the attribute cannot carry var(): WebKit logged an error per node */
+				opacity: 0;
+				transform-box: fill-box;
+				transform-origin: center;
+				stroke-width: var(--stroke);
+				animation: am-pop 200ms cubic-bezier(0.2, 1.5, 0.4, 1) forwards;
+			}
+			@keyframes am-pop {
+				0% { opacity: 0; transform: scale(0.2); }
+				60% { opacity: 1; transform: scale(1.18); }
+				100% { opacity: 1; transform: scale(1); }
+			}
+			#am-splash .lockup {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: var(--gap-wm);
+			}
+			#am-splash .wm {
+				font-family: 'AMSoraSplash', system-ui, sans-serif;
+				font-weight: 600;
+				letter-spacing: -0.02em;
+				line-height: 1;
+				font-size: var(--wm-size);
+				opacity: 0;
+				transform: translateY(9px);
+				animation: am-rise 300ms cubic-bezier(0.2, 0.7, 0.2, 1) 490ms forwards;
+			}
+			#am-splash .wm em {
+				font-style: normal;
+				font-weight: 400;
+				color: rgba(244, 246, 251, 0.62);
+			}
+			#am-splash .rule {
+				height: 1px;
+				width: var(--rule-w);
+				background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--accent) 62%, transparent), transparent);
+				transform: scaleX(0);
+				animation: am-rule 300ms cubic-bezier(0.2, 0.7, 0.2, 1) 560ms forwards;
+			}
+			@keyframes am-rule { to { transform: scaleX(1); } }
+			#am-splash .sub {
+				font-weight: 500;
+				color: var(--accent);
+				text-transform: uppercase;
+				line-height: 1;
+				font-size: var(--sub-size);
+				opacity: 0;
+				animation: am-sub 320ms cubic-bezier(0.2, 0.7, 0.2, 1) 580ms forwards;
+			}
+			@keyframes am-rise { to { opacity: 1; transform: translateY(0); } }
+			@keyframes am-sub {
+				0% { opacity: 0; letter-spacing: 0.02em; transform: translateY(6px); }
+				100% { opacity: 0.95; letter-spacing: var(--sub-ls); transform: translateY(0); }
+			}
+			#am-splash .legal {
+				position: absolute;
+				left: 0;
+				right: 0;
+				bottom: var(--legal-b);
+				text-align: center;
+				font-size: var(--legal-fs);
+				letter-spacing: 0.16em;
+				text-transform: uppercase;
+				color: rgba(244, 246, 251, 0.26);
+				opacity: 0;
+				animation: am-rise 300ms ease-out 660ms forwards;
+			}
+			/* the bar: LandingScreen's gold bar (ui/LandingScreen.svelte .bar/.fill/.pct) in the logo's
+			   green — same track, same radius/height, the gradient built from #9CD92F by the exact
+			   light->dark ratios the gold one uses (#ffdc4a -> #dfb02c). It only appears once there is
+			   the first paint (Corey 2026-09-15: it must be there from the start, 0% and all). */
+			#am-splash .barwrap {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: 8px;
+				margin-top: var(--bar-top);
+				opacity: 0;
+				transition: opacity 220ms ease;
+			}
+			#am-splash .barwrap.on { opacity: 1; }
+			#am-splash .bar {
+				width: var(--bar-w);
+				height: var(--bar-h);
+				border-radius: 6px;
+				background: rgba(0, 0, 0, 0.55);
+				box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+				overflow: hidden;
+			}
+			#am-splash .fill {
+				height: 100%;
+				width: 4%;
+				border-radius: 6px;
+				background: linear-gradient(90deg, #89ae1c, #9cd92f);
+				box-shadow: 0 0 12px rgba(156, 217, 47, 0.5);
+				transition: width 0.15s linear;
+			}
+			#am-splash .pct {
+				font-weight: 700;
+				letter-spacing: 1.5px;
+				color: rgba(238, 240, 230, 0.5);
+				font-variant-numeric: tabular-nums;
+				font-size: var(--pct-fs);
+			}
+		</style>
+		%sveltekit.head%
+	</head>
+	<body style="margin: 0; padding: 0; overflow: hidden; background-color: black">
+		<!-- painted before the bundle exists; ui/LandingScreen.svelte takes over at the handoff -->
+		<div id="am-splash" role="presentation">
+			<div class="stage">
+				<div class="intro">
+					<div class="lock">
+						<div class="glow"></div>
+						<svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
+							<path class="edge" d="M50 17.6 L14 80" pathLength="1" style="animation-delay:0ms" />
+							<path class="edge" d="M14 80 L86 80" pathLength="1" style="animation-delay:50ms" />
+							<path class="edge" d="M86 80 L50 17.6" pathLength="1" style="animation-delay:100ms" />
+							<path class="edge" d="M50 17.6 L50 59.2" pathLength="1" style="animation-delay:165ms" />
+							<path class="edge" d="M14 80 L50 59.2" pathLength="1" style="animation-delay:205ms" />
+							<path class="edge" d="M86 80 L50 59.2" pathLength="1" style="animation-delay:245ms" />
+							<circle class="node" cx="50" cy="17.6" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:300ms" />
+							<circle class="node" cx="14" cy="80" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:340ms" />
+							<circle class="node" cx="86" cy="80" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:380ms" />
+							<circle class="node" cx="50" cy="59.2" r="7.5" fill="#9CD92F" stroke="#9CD92F" style="animation-delay:430ms" />
+						</svg>
+						<div class="lockup">
+							<div class="wm">Poly<em>Math</em></div>
+							<div class="rule"></div>
+							<div class="sub">Games</div>
+						</div>
+						<div class="barwrap on" id="am-barwrap">
+							<div class="bar"><div class="fill" id="am-fill"></div></div>
+							<div class="pct" id="am-pct">LOADING · 0%</div>
+						</div>
+					</div>
+					<div class="legal">Play responsibly</div>
+				</div>
+			</div>
+		</div>
+		<script>
+			/* ── splash fit + progress API + bundle bootstrap ───────────────────────────────────────
+			   window.__amSplash is the only handle the app has on the splash:
+			     setBundle(loaded, total)  bytes of the JS bundle (this file's own bootstrap)
+			     setAssets(loaded, total)  bytes of the landing assets (src/game/boot.svelte.ts)
+			     done()                    fade out over 450 ms and remove
+			     hideNow()                 remove instantly (?replay=true)
+			   __AM_BOOT is written into build/index.html by scripts/prune-build.mjs; in `vite dev`
+			   it is absent and the whole bundle phase is skipped (vite injects its own module). */
+			(function () {
+				var el = document.getElementById('am-splash');
+				var stage = el.querySelector('.stage');
+				var fill = document.getElementById('am-fill');
+				var pct = document.getElementById('am-pct');
+				var barwrap = document.getElementById('am-barwrap');
+				var t0 = Date.now();
+
+				/* the two sizing tables from PolyMathIntro.svelte, verbatim, plus the bar row */
+				var L = { w: 1280, h: 720, mark: 132, stroke: 5, node: 7.5, gapMark: 16, gapWm: 14, wmSize: 56, subSize: 15, subLs: '.52em', ruleW: 180, legalFs: 11, legalB: 40, barW: 420, barH: 10, barTop: 26, pctFs: 11.2 };
+				var P = { w: 412, h: 760, mark: 104, stroke: 5.5, node: 8, gapMark: 12, gapWm: 11, wmSize: 40, subSize: 12, subLs: '.46em', ruleW: 132, legalFs: 10, legalB: 34, barW: 280, barH: 10, barTop: 20, pctFs: 10.4 };
+				function fit() {
+					var w = window.innerWidth || 1, h = window.innerHeight || 1;
+					var o = w / h < 0.8 ? P : L;
+					var s = Math.min(w / o.w, h / o.h);
+					var st = el.style;
+					st.setProperty('--w', o.w + 'px');
+					st.setProperty('--h', o.h + 'px');
+					st.setProperty('--s', s);
+					st.setProperty('--tx', (w - o.w * s) / 2 + 'px');
+					st.setProperty('--ty', (h - o.h * s) / 2 + 'px');
+					st.setProperty('--mark', o.mark + 'px');
+					st.setProperty('--stroke', o.stroke);
+					st.setProperty('--node', o.node + 'px');
+					st.setProperty('--gap-mark', o.gapMark + 'px');
+					st.setProperty('--gap-wm', o.gapWm + 'px');
+					st.setProperty('--wm-size', o.wmSize + 'px');
+					st.setProperty('--sub-size', o.subSize + 'px');
+					st.setProperty('--sub-ls', o.subLs);
+					st.setProperty('--rule-w', o.ruleW + 'px');
+					st.setProperty('--legal-fs', o.legalFs + 'px');
+					st.setProperty('--legal-b', o.legalB + 'px');
+					st.setProperty('--glow-d', o.mark * 2.1 + 'px');
+					st.setProperty('--glow-t', -o.mark * 0.55 + 'px');
+					st.setProperty('--bar-w', o.barW + 'px');
+					st.setProperty('--bar-h', o.barH + 'px');
+					st.setProperty('--bar-top', o.barTop + 'px');
+					st.setProperty('--pct-fs', o.pctFs + 'px');
+				}
+				fit();
+				addEventListener('resize', fit);
+				addEventListener('orientationchange', fit);
+				/* SVG `r` does not take a CSS var, so the node radius is applied as an attribute */
+				var nodes = el.querySelectorAll('.node');
+				function fitNodes() {
+					var o = (window.innerWidth || 1) / (window.innerHeight || 1) < 0.8 ? P : L;
+					for (var i = 0; i < nodes.length; i++) nodes[i].setAttribute('r', o.node);
+				}
+				fitNodes();
+				addEventListener('resize', fitNodes);
+
+				var bundle = { loaded: 0, total: 0 };
+				var assets = { loaded: 0, total: 0 };
+				var preload = { loaded: 0, total: 0 }; /* the Pixi preload (game/boot.svelte.ts reportPreload) */
+				/* ONE loading scale across both screens (Corey 2026-09-15): this bar climbs only to
+				   `share` — the bundle + landing assets + Pixi preload's portion of everything the
+				   landing screen waits on — and ui/LandingScreen.svelte's bar starts from the same number. Set from
+				   __AM_BOOT's phase totals in production, or by game/boot.svelte.ts (setShare) in dev,
+				   where the bundle phase is vite's and unmeasured. */
+				var share = 1;
+				var creep = 0; /* dev only: the bar must still move while vite serves its module graph */
+				var gone = false;
+				var MIN_MS = 1200; /* never cut the 880 ms draw-in short; a warm cache fades at 1.2 s */
+
+				/* SMOOTHING (Corey 2026-09-15): the reports are bursty — the bundle streams per chunk,
+				   the landing images per chunk, but a Pixi asset only reports when it has fully landed,
+				   so one big atlas is a 10-20 s silence on a slow link. Between reports the bar keeps
+				   moving at the download's own measured pace (points per ms since the splash appeared),
+				   never more than `lead` points past the last real report, never past the share, never
+				   backwards. Every real report is caught up to at once. */
+				var painted = 0, target = 0, lead = 6, lastReportAt = 0;
+				function paint() {
+					var total = bundle.total + assets.total + preload.total;
+					var loaded = bundle.loaded + assets.loaded + preload.loaded;
+					var p = total > 0 ? Math.min(1, loaded / total) : 0;
+					target = Math.max(p * share * 100, creep);
+					lastReportAt = Date.now();
+					draw();
+				}
+				function draw() {
+					var cap = share * 100;
+					var elapsed = Date.now() - t0;
+					var rate = elapsed > 0 ? target / elapsed : 0; /* points per ms so far */
+					var predicted = target + Math.min(lead, rate * (Date.now() - lastReportAt));
+					var p = Math.round(Math.min(cap, Math.max(target, predicted)));
+					if (p < painted) p = painted; /* never backwards */
+					painted = p;
+					fill.style.width = Math.max(4, p) + '%';
+					pct.textContent = 'LOADING · ' + p + '%';
+				}
+				var drawTimer = setInterval(function () { if (gone) return clearInterval(drawTimer); draw(); }, 200);
+
+				var api = {
+					setBundle: function (l, t) { bundle.loaded = l; bundle.total = t; paint(); },
+					setAssets: function (l, t) { assets.loaded = l; assets.total = t; paint(); },
+					setPreload: function (l, t) { preload.loaded = l; preload.total = t; paint(); },
+					setShare: function (s) { share = Math.max(0.01, Math.min(1, s)); paint(); },
+					getShare: function () { return share; },
+					hideNow: function () { gone = true; if (el.parentNode) el.parentNode.removeChild(el); },
+					done: function () {
+						if (gone) return;
+						gone = true;
+						setTimeout(function () {
+							el.classList.add('am-out');
+							setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 520);
+						}, Math.max(0, MIN_MS - (Date.now() - t0)));
+					}
+				};
+				window.__amSplash = api;
+
+				/* a replay link is a recording: the round card is the first thing it shows */
+				try {
+					if (new URLSearchParams(location.search).get('replay') === 'true') api.hideNow();
+				} catch (e) {}
+
+				/* ── bundle phase ──────────────────────────────────────────────────────────────────
+				   Production only. The kit emits ONE external module (bundleStrategy 'single'); we
+				   stream it with fetch so the bar can report real bytes, then execute the text in an
+				   inline <script type="module">. Two rewrites are needed for that to be equivalent to
+				   letting the browser import the file:
+				     - import.meta.url inside the bundle is the base for every `new URL('../../assets/
+				       …')` in game/assets.ts. Inline, that would be the DOCUMENT url (two levels too
+				       shallow), so every occurrence is repointed at the bundle's own URL.
+				     - the trailing `export{X as start}` is unreachable from an inline module, so the
+				       local name is lifted onto globalThis and called here.
+				   A blob: URL would be the obvious alternative and is NOT usable: engine.io's CSP has
+				   no blob: source. If either rewrite does not match, we fall back to a plain dynamic
+				   import of the same URL (correct, just a second download). */
+				var boot = window.__AM_BOOT;
+				if (!boot) {
+					/* vite dev: the bundle phase is invisible to us, so the bar creeps toward 60 % of the
+					   splash's share over ~5 s until game/boot.svelte.ts reports real bytes */
+					var c0 = Date.now();
+					var creepTimer = setInterval(function () {
+						if (gone) return clearInterval(creepTimer);
+						creep = Math.min(share * 60, ((Date.now() - c0) / 5000) * share * 60);
+						paint();
+					}, 120);
+					return;
+				}
+				bundle.total = boot.jsBytes || 0;
+				/* seed the landing-asset half of the denominator now: the bar must never reach the
+				   share on the bundle alone and then snap back when game/boot.svelte.ts reports its total */
+				assets.total = boot.assetBytes || 0;
+				preload.total = boot.preloadBytes || 0;
+				var everything = bundle.total + assets.total + preload.total + (boot.audioBytes || 0);
+				if (everything > 0) share = (bundle.total + assets.total + preload.total) / everything;
+				paint();
+
+				var jsUrl = new URL(boot.js, document.baseURI).href;
+				/* the kit's own inline starter set this global before importing; $app/paths reads it
+				   at module-evaluation time, so it has to exist before the bundle runs, not after */
+				globalThis[boot.kitVar] = { base: new URL('.', location).pathname.slice(0, -1) };
+
+				function startApp(start) {
+					start(document.getElementById('am-mount'));
+				}
+				function plainImport() {
+					import(/* @vite-ignore */ jsUrl).then(function (app) { startApp(app.start); });
+				}
+
+				/* The stylesheet is fetched and injected as an inline <style>, not left as a <link> in
+				   <head>. Two reasons:
+				     - a render-blocking <link rel=stylesheet> would hold the splash's first paint
+				       hostage to a 52 KB file;
+				     - url() inside a CSS custom property resolves against the STYLESHEET's URL in
+				       Chrome, not the document's. ui/Shine.svelte passes the logo/tagline image in as
+				       a custom property, so from /_app/immutable/assets/bundle.css those became
+				       /_app/immutable/assets/assets/ui/logo-wide.webp — three 404s and no glint
+				       (caught on the first production probe, 2026-09-15). Inline, the base is the
+				       document again, exactly as under bundleStrategy 'inline'. */
+				var cssReady = boot.css
+					? fetch(new URL(boot.css, document.baseURI).href, { credentials: 'same-origin' })
+							.then(function (r) { return r.text(); })
+							.then(function (css) {
+								var style = document.createElement('style');
+								style.textContent = css;
+								document.head.appendChild(style);
+							})
+							.catch(function (e) { console.error('[am-splash] stylesheet failed', e); })
+					: Promise.resolve();
+
+				fetch(jsUrl, { credentials: 'same-origin' })
+					.then(function (res) {
+						if (!res.ok) throw new Error('bundle ' + res.status);
+						var len = Number(res.headers.get('content-length') || 0);
+						/* compressed transfer hides the length: fall back to the size the build baked in */
+						if (len > 0) bundle.total = len;
+						if (!res.body) return res.text();
+						var reader = res.body.getReader();
+						var chunks = [], got = 0;
+						return (function pump() {
+							return reader.read().then(function (r) {
+								if (r.done) return new TextDecoder().decode(concat(chunks, got));
+								chunks.push(r.value);
+								got += r.value.length;
+								bundle.loaded = Math.min(got, bundle.total || got);
+								paint();
+								return pump();
+							});
+						})();
+					})
+					.then(function (text) {
+						return cssReady.then(function () { return text; });
+					})
+					.then(function (text) {
+						bundle.loaded = bundle.total;
+						paint();
+						var m = /export\s*\{([^{}]*)\}\s*;?\s*$/.exec(text);
+						var local = null;
+						if (m) {
+							var aliased = /([$\w]+)\s+as\s+start\s*(?:,|$)/.exec(m[1]);
+							if (aliased) local = aliased[1];
+							else if (/(?:^|,)\s*start\s*(?:,|$)/.test(m[1])) local = 'start';
+						}
+						if (!local) { plainImport(); return; }
+						var body = text.slice(0, m.index).replace(/import\.meta\.url/g, 'globalThis.__AM_BUNDLE_URL__');
+						globalThis.__AM_BUNDLE_URL__ = jsUrl;
+						globalThis.__AM_ON_BUNDLE__ = function (start) { startApp(start); };
+						var s = document.createElement('script');
+						s.type = 'module';
+						s.textContent = body + '\n;globalThis.__AM_ON_BUNDLE__(' + local + ');\n';
+						document.head.appendChild(s);
+					})
+					.catch(function (err) {
+						console.error('[am-splash] bundle fetch failed, falling back to import()', err);
+						plainImport();
+					});
+
+				function concat(chunks, total) {
+					var out = new Uint8Array(total), at = 0;
+					for (var i = 0; i < chunks.length; i++) { out.set(chunks[i], at); at += chunks[i].length; }
+					return out;
+				}
+			})();
+		</script>
+		<div id="am-mount">%sveltekit.body%</div>
+	</body>
+</html>
