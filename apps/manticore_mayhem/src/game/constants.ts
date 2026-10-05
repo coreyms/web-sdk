@@ -200,6 +200,25 @@ export const TIMINGS = {
 	winClearMs: 320,
 };
 
+/** the SKIP TO RESULT plate (components/SkipButton.svelte); placement is layoutSpec HUD.skipButton */
+export const SKIP_BUTTON = {
+	inMs: 220,
+	outMs: 120,
+	/** the drawn plate's height inside the (taller) hit area, and its inset from the slot's sides */
+	plateHeight: 40,
+	plateInset: 0,
+	radius: 7,
+	plateColor: 0x0d0e12,
+	plateAlpha: 0.82,
+	edgeColor: 0x9fd9d4,
+	edgeAlpha: 0.32,
+	highlightAlpha: 0.14,
+	textTint: 0x9fd9d4,
+	/** glyph height as a share of the plate height */
+	textShare: 0.4,
+	pressedAlpha: 0.6,
+} as const;
+
 export const MOTION_BLUR_VELOCITY = 31;
 
 // Stake approval rule: explicit player confirmation before activating any bet mode costing more

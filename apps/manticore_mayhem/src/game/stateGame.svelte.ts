@@ -122,6 +122,12 @@ export const stateGame = $state({
 	pressGates: 0,
 	/** mirrors Win.svelte's visibility (DEV soak hook only) */
 	winShowing: false,
+	/** SKIP TO RESULT is pressed: every remaining event before bonusEnd still runs through its own
+	 *  handler and applies its structural change, only the waits collapse (waitStyle / raf resolve at
+	 *  once, the presentation components short-circuit). Set ONLY by stateGameDerived.requestSkip,
+	 *  cleared ONLY by stateGameDerived.finishSkip (the bonusEnd and wincap handlers). Not persisted:
+	 *  a reload mid-skip resumes the round at normal speed. */
+	skipping: false,
 	/** wrap-up recap stashed by bonusEnd and rendered by freeSpinEnd */
 	sessionRecap: null as null | { mode: BonusMode; spinsPlayed: number; totalSessionWin: number },
 });
@@ -149,7 +155,7 @@ const ts = () => Math.max(0.2, stateBetDerived.timeScale());
 
 /** a pause in STYLE time: authored at normal speed, divided by the turbo scale like every
  *  other duration here, so a handler never has to reach for timeScale itself */
-export const waitStyle = (ms: number) => waitForTimeout(Math.max(1, ms / ts()));
+export const waitStyle = (ms: number) => (stateGame.skipping ? Promise.resolve() : waitForTimeout(Math.max(1, ms / ts())));
 
 /** run id: a new spin invalidates whatever is still in the air (never await an aborted tween) */
 let runId = 0;
@@ -160,14 +166,17 @@ const alive = (id: number) => id === runId;
 const raf = (ms: number, step: (t: number, elapsed: number) => void): Promise<void> => {
 	const scaled = Math.max(1, ms / ts());
 	return new Promise((resolve) => {
-		if (typeof requestAnimationFrame !== 'function') {
+		// SKIP TO RESULT: the pass lands on its last frame at once. Every caller's step() writes the
+		// final state at t = 1, so the structural result is identical to the full animation's.
+		if (stateGame.skipping || typeof requestAnimationFrame !== 'function') {
 			step(1, ms);
 			resolve();
 			return;
 		}
 		const t0 = performance.now();
 		const tick = () => {
-			const t = clamp01((performance.now() - t0) / scaled);
+			// a skip pressed mid-beat ends the beat on its next frame, at its final state
+			const t = stateGame.skipping ? 1 : clamp01((performance.now() - t0) / scaled);
 			step(t, t * ms);
 			if (t < 1) requestAnimationFrame(tick);
 			else resolve();
@@ -676,6 +685,29 @@ const setTurboLevel = (level: 0 | 1 | 2) => {
 	stateBetDerived.updateIsTurbo(level > 0, { persistent: true });
 };
 
+// ---- SKIP TO RESULT ------------------------------------------------------------------------------
+// The ONE way to start a skip (the SkipButton and the DEV hook) and the ONE way to end one (the
+// bonusEnd and wincap handlers). There is no separate fast path: the same handlers apply the same
+// state, only the waits collapse while `skipping` is true.
+
+/** is the feature still playing its spins? bonusEnd writes the recap (and bonusStart clears it), and
+ *  gameType stays 'freegame' until freeSpinEnd a beat later: a press in that gap must not take, or
+ *  `skipping` would be set with no bonusEnd left to clear it (caught by the skip probe). */
+export const featureSpinsLive = () => stateGame.gameType === 'freegame' && stateGame.sessionRecap === null;
+
+/** press SKIP TO RESULT: only while a feature's spins are live, and a second press is a no-op.
+ *  Returns whether it took. */
+const requestSkip = (): boolean => {
+	if (!featureSpinsLive() || stateGame.skipping) return false;
+	stateGame.skipping = true;
+	return true;
+};
+
+/** the skip is over: the outro (or the max-win presentation) plays at normal speed from here */
+const finishSkip = () => {
+	stateGame.skipping = false;
+};
+
 // Board placement in master units (layoutSpec.ts). width/height are the UNSCALED Pixi board sizes.
 const boardLayout = () => {
 	const vw = stateLayoutDerived.canvasSizes().width / stateLayoutDerived.mainLayout().scale;
@@ -714,6 +746,8 @@ export const stateGameDerived = {
 	getWinLevelDataByWinLevelAlias,
 	resetSession,
 	setTurboLevel,
+	requestSkip,
+	finishSkip,
 	revealBoard,
 	setBoardFromSymbols,
 	settleBoard,

@@ -87,6 +87,13 @@
 	let raf = 0;
 	const start = () => {
 		cancelAnimationFrame(raf);
+		// SKIP TO RESULT: the board engine applies the symbol change; the strike art has nothing to show
+		if (context.stateGame.skipping) {
+			live = false;
+			t = 1;
+			draw();
+			return;
+		}
 		const ms = Math.max(1, durationOf(phase, kind) / Math.max(0.2, stateBetDerived.timeScale()));
 		const t0 = performance.now();
 		live = true;

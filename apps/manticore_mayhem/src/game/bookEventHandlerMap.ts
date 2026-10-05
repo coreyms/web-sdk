@@ -263,6 +263,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.totalFs = bookEvent.totalFs;
 		stateGame.fs = 0;
 		stateGame.spinsPlayed = 0;
+		// a new session has no recap yet (bonusEnd writes it; requestSkip / SkipButton read it as
+		// "the spins are over")
+		stateGame.sessionRecap = null;
 		// every feature starts at normal speed; the base level comes back at freeSpinEnd
 		stateGameDerived.setTurboLevel(0);
 
@@ -280,6 +283,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	bonusEnd: async (bookEvent: BookEventOfType<'bonusEnd'>) => {
+		// SKIP TO RESULT ends HERE, before anything else: the wrap-up that follows (freeSpinEnd) plays
+		// at normal speed exactly as it does unskipped, and its total is the book's own amount
+		stateGameDerived.finishSkip();
 		stateGame.sessionRecap = {
 			mode: bookEvent.bonus,
 			spinsPlayed: bookEvent.spinsPlayed,
@@ -315,6 +321,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	wincap: async (bookEvent: BookEventOfType<'wincap'>) => {
+		// a skip never swallows the max win: clear it FIRST so the cap presentation and its sting play
+		// in full. Whatever follows (normally bonusEnd straight away, otherwise the remaining spins)
+		// runs at normal speed, and the player may press skip again if spins remain.
+		stateGameDerived.finishSkip();
 		stateBet.winBookEventAmount = bookEvent.amount;
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_win_max' });
 	},

@@ -42,8 +42,15 @@
 		soundScatterCounterClear: () => (context.stateGame.scatterCounter = 0),
 		// game
 		soundMusic: ({ name, loop }) => sound.players.music.play({ name, loop }),
-		soundLoop: ({ name }) => sound.players.loop.play({ name }),
-		soundOnce: ({ name, forcePlay }) => sound.players.once.play({ name, forcePlay }),
+		// SKIP TO RESULT: the music carries on, the per-spin effects (cluster lands, bells, stings,
+		// scatters) do not. The handlers still broadcast them; this is the one place they are dropped,
+		// and bonusEnd / wincap clear `skipping` before anything the player must hear.
+		soundLoop: ({ name }) => {
+			if (!context.stateGame.skipping) sound.players.loop.play({ name });
+		},
+		soundOnce: ({ name, forcePlay }) => {
+			if (!context.stateGame.skipping) sound.players.once.play({ name, forcePlay });
+		},
 		soundStop: ({ name }) => sound.stop({ name }),
 		soundFade: async ({ name, duration, from, to }) => await sound.fade({ name, duration, from, to }), // prettier-ignore
 		soundDuck: ({ level }) => sound.players?.music?.volume(stateSoundDerived.volumeMusic() * level),

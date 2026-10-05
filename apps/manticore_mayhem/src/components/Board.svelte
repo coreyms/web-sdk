@@ -105,6 +105,8 @@
 			stings: () => stingLog.slice(),
 			/** the Mystery outcome of the round being played, null outside a Mystery book */
 			mysteryOutcome: () => stateGame.mysteryOutcome,
+			/** press SKIP TO RESULT (stateGameDerived.requestSkip): true if the press took */
+			skip: () => context.stateGameDerived.requestSkip(),
 			/** the Pixi application (perf probe: texture / renderer counters) */
 			pixi: () => context.stateApp.pixiApplication,
 			/** the last emitter events with their performance.now() stamps, newest last (perf probe
@@ -124,6 +126,12 @@
 				}
 				return context.stateGameDerived.boardInvariant();
 			},
+		});
+		// a live getter (not a function like the rest): `__manticore.skipping` reads the flag itself
+		Object.defineProperty((window as any).__manticore, 'skipping', {
+			get: () => stateGame.skipping,
+			configurable: true,
+			enumerable: true,
 		});
 	}
 </script>

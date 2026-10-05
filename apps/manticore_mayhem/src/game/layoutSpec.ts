@@ -114,12 +114,16 @@ export const boardPlacement = (kind: LayoutKind, viewportMasterWidth?: number) =
 //  · pressToContinue — the PRESS ANYWHERE prompt
 //  · modePlaque      — the plain mode plaque over the board centre (feature start/end)
 //  · spinWin         — the running spin total shown while a spin cascades
+//  · skipButton      — the SKIP TO RESULT plate (components/SkipButton.svelte), up during the spins of
+//                      a feature. x/y is the HIT AREA's top-left; the plate is drawn inside it. The
+//                      height is the touch target (>= 47 master px in every layout).
 export const HUD: Record<
 	LayoutKind,
 	{
 		pressToContinue: { y: number; width: number; height: number };
 		modePlaque: { y: number; height: number; width: number };
 		spinWin: { y: number; height: number; width: number };
+		skipButton: { x: number; y: number; width: number; height: number };
 	}
 > = {
 	// THE MODE PLAQUE OVERLAYS THE BOARD CENTRE in every layout. There is no free band tall enough
@@ -131,11 +135,20 @@ export const HUD: Record<
 		pressToContinue: { y: 700, width: 620, height: 48 },
 		modePlaque: { y: 323, height: 34, width: 500 },
 		spinWin: { y: 640, height: 28, width: 400 },
+		// top right of the page: the band above the manticore (which stands at y 380, size 430, so
+		// its head reaches ~165) and clear of the board (right edge 890) and the clock strip
+		skipButton: { x: 1010, y: 34, width: 230, height: 48 },
 	},
 	portrait: {
 		pressToContinue: { y: 700, width: 300, height: 44 },
 		modePlaque: { y: 360, height: 28, width: 356 },
 		spinWin: { y: 614, height: 26, width: 340 },
+		// the tagline band under the logo (logo bottom ~114, frame art top 163): the chrome hides the
+		// tagline for the whole free game, and the frame's wide-phone growth (frameFor, up to x1.12)
+		// moves its BOTTOM edge, not its top, so this band is free in every portrait fit. The band
+		// between the board and the spin-win readout is not: at k 1.12 the board bottom (583) runs
+		// into the readout's top (588).
+		skipButton: { x: 96, y: 115, width: 220, height: 48 },
 	},
 	phone: {
 		// phone has no free band under the board (the board runs to 680 of 740 and the strip below it
@@ -145,5 +158,12 @@ export const HUD: Record<
 		pressToContinue: { y: 26, width: 600, height: 44 },
 		modePlaque: { y: 364, height: 34, width: 560 },
 		spinWin: { y: 718, height: 24, width: 420 },
+		// centre top, the same empty band the PRESS ANYWHERE prompt rides in; the two are never up
+		// at once (the prompt only while the game waits for a press, the skip only while it spins).
+		// The band is only 32 master px tall (the frame's top rail starts at 32), so the 48 hit area
+		// starts at the master's top edge and its 40 plate (4..44) laps the rail but never the cells
+		// (first row at 48). The clock strip's texts sit in the side columns, the centre is clear.
+		// top right like landscape (Corey 2026-10-05): under the clock strip, above the manticore band
+		skipButton: { x: 1230, y: 40, width: 230, height: 48 },
 	},
 };

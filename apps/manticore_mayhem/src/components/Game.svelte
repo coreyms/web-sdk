@@ -24,6 +24,7 @@
 	import LoadingScreen from './LoadingScreen.svelte';
 	import Board from './Board.svelte';
 	import SpinWin from './SpinWin.svelte';
+	import SkipButton from './SkipButton.svelte';
 	import ModePlaque from './ModePlaque.svelte';
 	import Win from './Win.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
@@ -164,6 +165,7 @@
 			<!-- ALWAYS MOUNTED, visibility-toggled (house rule: the conditional-mount z-order trap).
 			     Order here is the z-order: readouts, then the plaque, then the presentations. -->
 			<SpinWin />
+			<SkipButton />
 			<ModePlaque />
 			<Win />
 			<FreeSpinOutro />

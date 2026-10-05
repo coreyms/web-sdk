@@ -128,6 +128,7 @@ export const rulesSections = () => [
 			`${SCATTERS} trigger the features. 4 award ${config.freeSpins.bonus} Free Spins, 5 award ${config.freeSpins.super} Super Free Spins and 6 or more award ${config.freeSpins.epic} Epic Free Spins. They can land on the first board or drop in during cascades.`,
 			`Only one ${SCATTER} can sit in a column at a time. In Super Ante, 4 ${SCATTERS} award Super Free Spins instead of Free Spins.`,
 			`There are no retriggers. ${SCATTERS} do not land during a feature.`,
+			'During a feature, Skip to Result ends the presentation and shows the final total. The outcome is unchanged.',
 			`The tiles lit by the triggering spin carry into the feature and persist for every spin of the round. In Super Free Spins and Epic Free Spins the ladder runs to ${CAP_HIGH}x from the first free spin.`,
 			soc(
 				`EPIC FLOOR: an Epic Free Spins round triggered by ${SCATTERS} or bought directly always pays at least ${config.epicMinWin}x the bet from its free spins. A Mystery Epic has its own floor (see MYSTERY).`,

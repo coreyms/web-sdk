@@ -27,8 +27,10 @@
 
 	context.eventEmitter.subscribeOnMount({
 		spinWinShow: ({ amount: value }) => {
-			void alpha.set(1);
-			void amount.set(value);
+			// while a skip runs the readout snaps to the book's running total instead of chasing it
+			const snap = context.stateGame.skipping ? { duration: 0 } : undefined;
+			void alpha.set(1, snap);
+			void amount.set(value, snap);
 		},
 		spinWinHide: () => {
 			void alpha.set(0, { duration: TIMINGS.winClearMs });
