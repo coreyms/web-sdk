@@ -22,41 +22,50 @@
 	import { stateBet } from 'state-shared';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, GRID, TILE, reelOf, rowOf } from '../game/constants';
+	import { SYMBOL_SIZE, GRID } from '../game/constants';
 	import { playBookEvents } from '../game/utils';
 	import type { BookEvent } from '../game/typesBookEvent';
 	import BoardContainer from './BoardContainer.svelte';
 	import ArtAmount from './ArtAmount.svelte';
 	import Anticipation from './Anticipation.svelte';
 	import Sting from './Sting.svelte';
+	import BoardCells from './BoardCells.svelte';
 
 	const context = getContext();
 	const stateGame = context.stateGame;
 
 	let show = $state(true);
 
+	// DEV probe log of every sting beat this page has played (bounded); plain JS, never rendered
+	const stingLog: { phase: string; kind: StingKind; center: number; at: number }[] = [];
+
 	context.eventEmitter.subscribeOnMount({
 		boardShow: () => (show = true),
 		boardHide: () => (show = false),
 		featureBeat: () => {},
-		stingBeat: () => {},
+		stingBeat: ({ phase, kind, center }) => {
+			if (!import.meta.env.DEV) return;
+			stingLog.push({ phase, kind, center, at: performance.now() });
+			if (stingLog.length > 400) stingLog.splice(0, stingLog.length - 400);
+		},
 	});
-
-	/** blend white towards a flash colour by `k` — cheaper than a filter and batches with the rest */
-	const lerpTint = (color: number, k: number) => {
-		if (k <= 0) return 0xffffff;
-		const r = Math.round(255 + (((color >> 16) & 0xff) - 255) * k);
-		const g = Math.round(255 + (((color >> 8) & 0xff) - 255) * k);
-		const b = Math.round(255 + ((color & 0xff) - 255) * k);
-		return (r << 16) | (g << 8) | b;
-	};
 
 	const layout = $derived(context.stateGameDerived.boardLayout());
 
 	// DEV ONLY: the Playwright gates read the game through this, never through Pixi canvas text.
 	// Merged, not assigned — game/deviceTier.ts writes assetTier onto the same object and mount
 	// order is not guaranteed. A production bundle must not carry a hook on window.
+	const beatLog: { t: number; type: string; detail?: string }[] = [];
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		// record every broadcast (type + a short detail) so a frame-time probe can say which beat a
+		// hitch landed in; bounded ring, DEV only
+		const broadcast = context.eventEmitter.broadcast;
+		context.eventEmitter.broadcast = ((event: any) => {
+			const detail = event?.name ?? event?.phase ?? event?.beat ?? undefined;
+			beatLog.push({ t: performance.now(), type: event?.type, detail: detail ? String(detail) : undefined });
+			if (beatLog.length > 200) beatLog.splice(0, 100);
+			return broadcast(event);
+		}) as typeof broadcast;
 		Object.assign(((window as any).__manticore ??= {}), {
 			/** the round's choreography has finished and the board is standing still */
 			atRest: () => !stateGame.busy && !stateGame.readouts.length,
@@ -92,8 +101,15 @@
 			scatters: () => [...stateGame.scatterCells],
 			/** the per-column Mystery tease, as the board engine has it */
 			anticipation: () => stateGame.anticipation.map((a) => ({ on: a.on, q: Number(a.q.toFixed(2)) })),
+			/** every sting beat played on this page, oldest first: { phase, kind, center, at } */
+			stings: () => stingLog.slice(),
 			/** the Mystery outcome of the round being played, null outside a Mystery book */
 			mysteryOutcome: () => stateGame.mysteryOutcome,
+			/** the Pixi application (perf probe: texture / renderer counters) */
+			pixi: () => context.stateApp.pixiApplication,
+			/** the last emitter events with their performance.now() stamps, newest last (perf probe
+			 *  phase attribution: a hitch is tagged with the beat that was playing) */
+			beats: (n = 8) => beatLog.slice(-n),
 			/** PLAY A SYNTHETIC BOOK: run an array of book events through the same handler map the
 			 *  RGS's own books go through (game/utils.ts playBookEvents), so a sequence the mock RGS
 			 *  cannot serve yet can still be rehearsed end to end. Resolves when the last event has
@@ -110,8 +126,6 @@
 			},
 		});
 	}
-	const size = SYMBOL_SIZE * CELL_FILL;
-	const tileSize = SYMBOL_SIZE * TILE.size;
 </script>
 
 {#if show}
@@ -120,34 +134,9 @@
 		<Rectangle isMask width={layout.width} height={layout.height} />
 		<Sprite key="boardBackdrop" zIndex={-2} width={layout.width} height={layout.height} />
 
-		{#each stateGame.cells as cell (cell.id)}
-			<Sprite
-				key="{cell.name}.png"
-				x={(cell.reel + 0.5) * SYMBOL_SIZE}
-				y={(cell.y + 0.5) * SYMBOL_SIZE}
-				anchor={0.5}
-				width={size * cell.scaleX}
-				height={size * cell.scaleY}
-				alpha={cell.alpha}
-				tint={lerpTint(cell.flashColor, cell.flash)}
-				zIndex={cell.state === 'win' ? 10 : cell.state === 'removing' ? 8 : 0}
-			/>
-		{/each}
-
-		<!-- multiplier tiles: they belong to the CELL, not to the symbol, so they never move -->
-		{#each stateGame.tiles as tile, index (index)}
-			{#if tile.value}
-				<Sprite
-					key="x{tile.value}.png"
-					x={(reelOf(index) + 0.5 + TILE.offset.x) * SYMBOL_SIZE}
-					y={(rowOf(index) + 0.5 + TILE.offset.y) * SYMBOL_SIZE}
-					anchor={0.5}
-					width={tileSize * tile.scale}
-					height={tileSize * tile.scale}
-					zIndex={20}
-				/>
-			{/if}
-		{/each}
+		<!-- the 64 tiles and the multiplier badges: raw pooled Pixi sprites synced from the ticker
+		     (BoardCells.svelte says why they are not one pixi-svelte <Sprite> each any more) -->
+		<BoardCells />
 
 		<!-- the Mystery column tease and the sting rig slot: both always mounted, both board-space -->
 		<Anticipation />

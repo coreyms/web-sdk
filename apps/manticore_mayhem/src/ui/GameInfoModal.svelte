@@ -4,7 +4,7 @@
 	// volatility, and the verbatim rules disclaimer (gameInfoText.ts). Every NUMBER comes from
 	// config.ts, which mirrors game_config.py, and from the RGS's own prices.
 	//
-	// MILESTONE 1: the numbers are the published math's, the WORDING is DRAFT (see gameInfoText.ts)
+	// The numbers are the published math's; the wording is final (rules copy in gameInfoText.ts)
 	// and has not been through Corey or a Stake review.
 	import type { ComponentProps } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
@@ -73,7 +73,7 @@
 	const RULES_SECTIONS = rulesSections();
 
 	const SPECIALS = [
-		{ glyph: 'W', name: config.symbols.W.name, color: '#e2b648', note: soc('Substitutes for every paying symbol and has no pay of its own. The manticore\u2019s sting turns several cells wild before a board is evaluated.', 'Substitutes for every paying symbol and has no value of its own. The manticore\u2019s sting turns several cells wild before a board is evaluated.') },
+		{ glyph: 'W', name: config.symbols.W.name, color: '#e2b648', note: soc('Substitutes for every paying symbol and has no pay of its own. The manticore\u2019s sting turns cells wild before a board is evaluated.', 'Substitutes for every winning symbol and has no value of its own. The manticore\u2019s sting turns cells wild before a board is evaluated.') },
 		{ glyph: 'S', name: config.symbols.S.name, color: '#b02c2c', note: `4 / 5 / 6 anywhere award ${config.freeSpins.bonus} Free Spins / ${config.freeSpins.super} Super Free Spins / ${config.freeSpins.epic} Epic Free Spins. In Super Ante, 4 upgrade to a Super. No standards land during a feature and there are no retriggers.` },
 	];
 
@@ -84,13 +84,13 @@
 		return Number.isInteger(x) ? x.toLocaleString() : x.toFixed(1).replace(/\.0$/, '');
 	};
 	const MODES = [
-		{ id: 'base', label: 'Base Game', accent: '#eef0f6', cost: `${modeCost('BASE')}\u00d7`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: `Clusters of ${config.minCluster}+ touching symbols pay and cascade. Multiplier tiles reset every spin. 4, 5 or 6 War Standards award Free Spins, Super Free Spins or Epic Free Spins.` },
+		{ id: 'base', label: 'Base Game', accent: '#eef0f6', cost: `${modeCost('BASE')}\u00d7`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: soc(`Clusters of ${config.minCluster}+ touching symbols pay and cascade. Multiplier tiles reset every spin. 4, 5 or 6 or more War Standards award Free Spins, Super Free Spins or Epic Free Spins.`, `Clusters of ${config.minCluster}+ touching symbols win and cascade. Multiplier tiles reset every spin. 4, 5 or 6 or more War Standards award Free Spins, Super Free Spins or Epic Free Spins.`) },
 		{ id: 'ante', label: 'Ante', accent: '#e0b64a', cost: `${modeCost('ANTE')}\u00d7`, costNum: modeCost('ANTE'), enter: soc('Switch on from the feature menu; stays on until switched off.', 'Switch on from the feature menu; stays on until switched off.'), spins: 'One spin per play.', mech: 'Free Spins and Super Free Spins land about five times as often as in the base game. Multiplier tiles still reset every spin.' },
 		{ id: 'super_ante', label: 'Super Ante', accent: '#e08a3c', cost: `${modeCost('SUPER_ANTE')}\u00d7`, costNum: modeCost('SUPER_ANTE'), enter: 'Switch on from the feature menu; stays on until switched off.', spins: 'One spin per play.', mech: 'Regular Free Spins cannot trigger at all: only Super and Epic, and 4 War Standards upgrade to a Super.' },
 		{ id: 'bonus', label: 'Free Spins', accent: '#2eb0a8', cost: `${modeCost('BONUS')}\u00d7`, costNum: modeCost('BONUS'), enter: soc('Land 4 War Standards, or buy directly.', 'Land 4 War Standards, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.bonus} free spins.`, mech: `Multiplier tiles PERSIST for the whole round and double up to ${config.tileCap.bonus}\u00d7.` },
 		{ id: 'super', label: 'Super Free Spins', accent: '#7fb6ff', cost: `${modeCost('SUPER')}\u00d7`, costNum: modeCost('SUPER'), enter: soc('Land 5 War Standards, or buy directly.', 'Land 5 War Standards, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} free spins.`, mech: `Tiles persist and run to the ${config.tileCap.super}\u00d7 ladder. The roar clears the low symbols and a Super Sting is possible.` },
 		{ id: 'epic', label: 'Epic Free Spins', accent: '#ff6a4a', cost: `${modeCost('EPIC')}\u00d7`, costNum: modeCost('EPIC'), enter: soc('Land 6 War Standards, or buy directly.', 'Land 6 War Standards, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.epic} free spins.`, mech: soc(`Tiles persist on the ${config.tileCap.epic}\u00d7 ladder, Super Stings are common, and every round pays at least ${config.epicMinWin}\u00d7 the bet.`, `Tiles persist on the ${config.tileCap.epic}\u00d7 ladder, Super Stings are common, and every round wins at least ${config.epicMinWin}\u00d7 the play amount.`) },
-		{ id: 'mystery', label: 'Mystery', accent: '#b07fe0', cost: `${modeCost('MYSTERY')}\u00d7`, costNum: modeCost('MYSTERY'), enter: soc('Buy from the feature menu.', 'Trigger from the feature menu.'), spins: 'Whatever it awards, or nothing.', mech: `${config.mystery.nothing * 100}% award nothing at all, ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.epic * 100}% award Epic Free Spins. Never a regular Free Spins round. The split is fixed in the published math.` },
+		{ id: 'mystery', label: 'Mystery', accent: '#b07fe0', cost: `${modeCost('MYSTERY')}\u00d7`, costNum: modeCost('MYSTERY'), enter: soc('Buy from the feature menu.', 'Trigger from the feature menu.'), spins: 'One Mystery spin, then whatever it awards.', mech: soc(`${config.mystery.nothing * 100}% award no feature (the Mystery spin still pays its clusters), ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.epic * 100}% award Epic Free Spins. Never a regular Free Spins round. The split is fixed in the published math.`, `${config.mystery.nothing * 100}% award no feature (the Mystery spin still wins its clusters), ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.epic * 100}% award Epic Free Spins. Never a regular Free Spins round. The split is fixed in the published math.`) },
 	];
 
 	// UI guide (submission checklist "User interaction guide is included in the game information"):
@@ -188,7 +188,7 @@
 						<img class="tile" src={tileSrc('W')} alt="Wild" style:width="{tileSize}px" style:height="{tileSize}px" />
 						<div class="row-main">
 							<div class="row-name" style:color="#ffdc4a">Wild</div>
-							<div class="row-kind">Substitutes for every paying symbol</div>
+							<div class="row-kind">{soc('Substitutes for every paying symbol', 'Substitutes for every winning symbol')}</div>
 						</div>
 					</div>
 				</div>
@@ -227,14 +227,14 @@
 
 			<section bind:this={sectionEls.clusters}>
 				<h2>Clusters and Cascades</h2>
-				<p><strong>8 × 8 grid, cluster pays.</strong> {config.minCluster} or more matching symbols touching each other left, right, up or down form one cluster. Position on the grid does not matter and there are no paylines.</p>
+				<p><strong>8 × 8 grid, {soc('cluster pays', 'cluster wins')}.</strong> {config.minCluster} or more matching symbols touching each other left, right, up or down form one cluster. Position on the grid does not matter and there are no paylines.</p>
 				<p>{soc('Every winning cluster is removed, the symbols above it fall down and new symbols drop in from the top. The board keeps paying and refilling until a spin has no clusters left.', 'Every winning cluster is removed, the symbols above it fall down and new symbols drop in from the top. The board keeps winning and refilling until a spin has no clusters left.')}</p>
 				<p>{soc(`The larger the cluster, the higher the band it pays from: ${config.paytableBands.map((b) => b.label).join(', ')}.`, `The larger the cluster, the higher the band it wins from: ${config.paytableBands.map((b) => b.label).join(', ')}.`)}</p>
 			</section>
 
 			<section bind:this={sectionEls.modes}>
 				<h2>All Game Modes</h2>
-				<p>{soc('Six modes. Base and Ante are bet-by-bet; the features are entered by Marky scatters, a direct bonus buy, or the Mystery Spin.', 'Six modes. Base and Ante run spin by spin; the features are entered by Marky scatters, triggered instantly from the feature menu, or served by a Mystery spin.')}</p>
+				<p>{soc('Seven modes. Base, Ante and Super Ante are bet-by-bet; the features are entered by War Standards, a direct bonus buy, or a Mystery.', 'Seven modes. Base, Ante and Super Ante run spin by spin; the features are entered by War Standards, triggered instantly from the feature menu, or served by a Mystery.')}</p>
 				<div class="modes">
 					{#each MODES as m (m.id)}
 						<div class="mode" style:border-left-color={m.accent}>
@@ -255,10 +255,10 @@
 			<section bind:this={sectionEls.mystery}>
 				<h2>Mystery Disclosure</h2>
 				<div class="callout gold">
-					<p><strong>What a Mystery awards:</strong> exactly <span class="slot-num mono">{config.mystery.nothing * 100}%</span> nothing (the round {soc('pays', 'wins')} 0), <span class="slot-num mono">{config.mystery.super * 100}%</span> Super Free Spins and <span class="slot-num mono">{config.mystery.epic * 100}%</span> Epic Free Spins, for {modeCost('MYSTERY')}× {soc('the bet', 'the play amount')}. It NEVER awards a regular Free Spins round. These shares are fixed in the published math.</p>
+					<p><strong>What a Mystery awards:</strong> exactly <span class="slot-num mono">{config.mystery.nothing * 100}%</span> no feature (the Mystery spin itself still plays and can {soc('pay', 'win')} clusters), <span class="slot-num mono">{config.mystery.super * 100}%</span> Super Free Spins and <span class="slot-num mono">{config.mystery.epic * 100}%</span> Epic Free Spins, for {modeCost('MYSTERY')}× {soc('the bet', 'the play amount')}. It NEVER awards a regular Free Spins round. These shares are fixed in the published math.</p>
 					<p><strong>A Mystery is a real spin:</strong> three War Standards always land in the first three columns and the rest of the board is played out. A Mystery that awards no feature still plays its spin, and any clusters on it {soc('pay', 'win')} normally.</p>
 					<p><strong>Epic floor:</strong> an Epic Free Spins round reached through a Mystery {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc(`${config.mysteryEpicMinWin}× bet`, `${config.mysteryEpicMinWin}× play amount`)}</span>, {(config.mysteryEpicMinWin / modeCost('MYSTERY')).toFixed(2)}× the Mystery price. An Epic entered any other way {soc('pays at least', 'wins at least')} <span class="slot-num mono">{config.epicMinWin}×</span>. Super Free Spins have no floor.</p>
-					<p class="dim">DRAFT: these figures come from the published math. The wording of this section has not been reviewed yet.</p>
+					
 				</div>
 			</section>
 
@@ -281,18 +281,18 @@
 				</ul>
 				<div class="subhead">The manticore</div>
 				<ul>
-					<li><strong>Swipe.</strong> When a spin runs out of clusters the paw may clear rows {config.swipeRows.join(', ')} and double the multiplier tiles in them before the board refills. Play carries on from the new board.</li>
-					<li><strong>Sting.</strong> The tail turns several cells wild before the board is evaluated. A <strong>Super Sting</strong> turns more cells wild and happens only in Super Free Spins and Epic Free Spins.</li>
+					<li><strong>Swipe.</strong> When a spin runs out of clusters the paw may clear rows {config.swipeRows.map((r) => r + 1).join(', ')} (counted from the top), at most twice per spin. Every cell in those rows steps up its multiplier tile: a cold cell lights to 2×, a lit cell doubles. War Standards in those rows stay. The board refills and play carries on.</li>
+					<li><strong>Sting.</strong> Before a board is evaluated the tail may strike up to five times. A normal sting turns one cell wild. A <strong>Big Sting</strong> turns a plus of five cells wild and a <strong>Super Sting</strong> a block of nine; at most one of those per spin, always the last strike, and it always completes a winning cluster. Base, Ante and Super Ante see normal stings only; Free Spins add the Big Sting; Super and Epic Free Spins add the Super Sting. Stings never land on a War Standard. On some naturally triggered features the Manticore also stings the missing War Standards onto a resting board; the result of that spin was already decided.</li>
 					<li><strong>Roar.</strong> Every low symbol is blown off the board and replaced. Multiplier tiles under them are not affected. Super Free Spins and Epic Free Spins only.</li>
 				</ul>
-				<p class="dim">DRAFT: the wording of this section has not been reviewed yet.</p>
+				
 			</section>
 
 			<section bind:this={sectionEls.maxwin}>
 				<h2>Max Win</h2>
 				<div class="callout red">
 					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{short ? 20 : dense ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet (hard cap)', 'play amount (hard cap)')}</span></div>
-					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. The cap is reached either by eating all eight symbols or by wins adding up to it. Once reached, the round ends immediately and the cap is won.`)}</p>
+					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. The cap is reached when the wins of a round add up to it. Once reached, the round ends immediately, any remaining free spins are not played, and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. The cap is reached when the wins of a round add up to it. Once reached, the round ends immediately, any remaining free spins are not played, and the cap is won.`)}</p>
 				</div>
 			</section>
 
@@ -306,14 +306,14 @@
 						</div>
 					{/each}
 				</div>
-				<p>Every game mode has a theoretical return to player of <span class="slot-num mono">{(config.rtp * 100).toFixed(2)}%</span>, calculated over hundreds of thousands of simulated rounds per mode.</p>
+				<p>Every game mode has a theoretical return to player of <span class="slot-num mono">{(config.rtp * 100).toFixed(2)}%</span>, calculated over 100,000 simulated rounds per mode.</p>
 				<p class="dim">RTP describes long-run behaviour across all players. Individual sessions may return significantly above or below this figure.</p>
 			</section>
 
 			<section bind:this={sectionEls.volatility}>
 				<h2>Volatility</h2>
 				<div class="vol"><span class="slot-num vol-label" style:font-size="{dense ? 16 : 20}px">EXTREME</span><div class="meter">{#each [1, 2, 3, 4, 5] as i}<div class="seg on"></div>{/each}</div></div>
-				<p>Wins are infrequent but can be very large. Most spins return nothing; the free spin sessions carry the long-run RTP, with the Mantis Feast, reached only by 5 Marky scatters or through a Mystery Spin, at the top of the range.</p>
+				<p>Wins are infrequent but can be very large. Most spins return nothing; the free spin rounds carry the long-run RTP, with Epic Free Spins, reached by 6 or more War Standards, bought directly, or served by a Mystery, at the top of the range.</p>
 			</section>
 
 			<section bind:this={sectionEls.rules}>

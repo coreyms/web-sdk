@@ -63,7 +63,10 @@
 		},
 		modePlaqueHide: async () => {
 			dismiss();
-			await alpha.set(0, { duration: TIMINGS.plaqueOutMs });
+			// finalWin hides the plaque on EVERY round: skip the no-op fade when it is already down.
+			// Each svelte/motion Tween.set() keeps the task it replaced alive (Svelte 5.20), so the
+			// unconditional set leaked one task chain link per spin (phone perf pass, 2026-09-23).
+			if (alpha.target !== 0 || alpha.current !== 0) await alpha.set(0, { duration: TIMINGS.plaqueOutMs });
 			context.stateGame.plaque = null;
 		},
 	});

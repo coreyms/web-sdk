@@ -13,7 +13,8 @@
 	// The AMOUNT is always the book's; only the tier word is derived, and only for presentation.
 	import { Rectangle } from 'pixi-svelte';
 	import { MainContainer } from 'components-layout';
-	import { Tween } from 'svelte/motion';
+	// SteadyTween, not svelte/motion's Tween: that one leaks a task per set() (game/tween.svelte.ts)
+	import { SteadyTween as Tween } from '../game/tween.svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 
@@ -66,7 +67,8 @@
 		winHide: async () => {
 			dismiss();
 			await dim.set(0, { duration: 240 });
-			show = false;
+			// a superseded SteadyTween set() resolves early: only hide if nothing re-showed meanwhile
+			if (dim.target === 0) show = false;
 		},
 	});
 </script>

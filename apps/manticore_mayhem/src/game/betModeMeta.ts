@@ -76,7 +76,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: soc('SUPER ANTE BET', 'SUPER ANTE MODE'),
-			description: 'No regular Free Spins at all: only Super and Epic, at about the rate Ante reaches Free Spins and Super.',
+			description: 'No regular Free Spins at all: only Super and Epic, about one and a half times as often as Ante reaches Free Spins and Super.',
 			dialog: soc(
 				'Ten times the bet. Regular Free Spins cannot trigger: only Super Free Spins and Epic Free Spins, and four standards upgrade to a Super. Stays active until you turn it off.',
 				'Ten times the play amount. Regular Free Spins cannot trigger: only Super Free Spins and Epic Free Spins, and four standards upgrade to a Super. Stays active until you turn it off.',
@@ -155,12 +155,12 @@ export const betModeMeta: BetModeMeta = {
 		text: {
 			title: 'MYSTERY',
 			description: soc(
-				`${config.mystery.nothing * 100}% nothing at all, ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins. A Mystery Epic always pays at least ${config.mysteryEpicMinWin}x the bet.`,
-				`${config.mystery.nothing * 100}% nothing at all, ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins. A Mystery Epic always wins at least ${config.mysteryEpicMinWin}x the play amount.`,
+				`${config.mystery.nothing * 100}% no feature (the spin itself can still win), ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins. A Mystery Epic always pays at least ${config.mysteryEpicMinWin}x the bet.`,
+				`${config.mystery.nothing * 100}% no feature (the spin itself can still win), ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins. A Mystery Epic always wins at least ${config.mysteryEpicMinWin}x the play amount.`,
 			),
 			dialog: soc(
-				`Buy a Mystery: ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins, ${config.mystery.nothing * 100}% nothing. Never a regular Free Spins round.`,
-				`Play a Mystery: ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins, ${config.mystery.nothing * 100}% nothing. Never a regular Free Spins round.`,
+				`Buy a Mystery: ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins, ${config.mystery.nothing * 100}% no feature. Never a regular Free Spins round.`,
+				`Play a Mystery: ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins, ${config.mystery.nothing * 100}% no feature. Never a regular Free Spins round.`,
 			),
 			button: soc('BUY', 'PLAY'),
 			betAmountLabel: 'MYSTERY',

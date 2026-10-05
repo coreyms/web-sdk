@@ -431,6 +431,10 @@ export const presentCluster = async (cells: CellIndex[], readout: string, id: nu
 		scale: 0.8,
 	};
 	stateGame.readouts = [read];
+	// animate the PROXY, never `read` itself (see DropJob): the readout's alpha / scale were written
+	// to the raw object, so the board drew the readout at its mount values (alpha 0) and it never
+	// showed (found by the phone perf pass, 2026-09-23)
+	const shown = stateGame.readouts[0];
 
 	await raf(CLUSTER.winRiseMs, (t) => {
 		if (!alive(id)) return;
@@ -443,8 +447,8 @@ export const presentCluster = async (cells: CellIndex[], readout: string, id: nu
 				c.alpha = 1 - (1 - CLUSTER.dimAlpha) * t;
 			}
 		}
-		read.alpha = t;
-		read.scale = 0.8 + 0.2 * e;
+		shown.alpha = t;
+		shown.scale = 0.8 + 0.2 * e;
 	});
 	if (!alive(id)) return;
 	await raf(CLUSTER.holdMs, () => {});

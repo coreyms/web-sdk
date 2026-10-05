@@ -121,6 +121,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			recordBookEvent({ bookEvent });
 		}
 		if (bookEvent.gameType === 'basegame') stateGameDerived.resetSession();
+		// The Mystery marker is event 0 of its book, and a RESUMED round replays only from its last
+		// recorded reveal (utils.ts convertTorResumableBet), so the marker is not in `bookEvents`
+		// then. The round's own bet mode says it just as well: Authenticate / ResumeBet restore it
+		// from round.mode, and a bought Mystery keeps it until finalWin.
+		const mysteryEvent = bookEvents.find((e) => e.type === 'mystery') as BookEventOfType<'mystery'> | undefined;
+		const isMystery = !!mysteryEvent || stateBet.activeBetModeKey === 'MYSTERY';
+		// resetSession cleared the outcome the `mystery` handler had just written (DEV / probe read)
+		if (mysteryEvent) stateGame.mysteryOutcome = mysteryEvent.outcome;
 
 		stateGame.gameType = bookEvent.gameType;
 		stateGame.spinWin = 0;
@@ -149,7 +157,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// THE BOOK'S ANTICIPATION ARRAY IS HONOURED IN MYSTERY ONLY (RULE_PASS_2 section D): the
 		// Mystery spin-in always lands 3 War Standards in columns 0-2 and teases columns 3-7, and
 		// the book writes that tease itself. Every other mode ignores the field, exactly as before.
-		const isMystery = bookEvents.some((e) => e.type === 'mystery');
 		const anticipation = isMystery && bookEvent.gameType === 'basegame' ? bookEvent.anticipation : undefined;
 
 		const id = await revealBoard(bookEvent.board, { anticipation });

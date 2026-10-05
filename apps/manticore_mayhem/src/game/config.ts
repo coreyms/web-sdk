@@ -3,7 +3,7 @@
 // rules copy and the fallback cost multipliers (the RGS's authenticate values always win).
 export default {
 	// the published math set this build is approved against (library/publish_files)
-	mathVersion: '2026.09.20',
+	mathVersion: '2026.09.23',
 	providerName: 'polymath_games',
 	gameName: 'Manticore Mayhem',
 	gameID: 'manticore_mayhem',

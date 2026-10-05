@@ -6,7 +6,8 @@
 	// The running total of the spin being cascaded (cascade.spinWin). It is NOT the round total —
 	// the HUD's WIN readout owns that — so it sits under the board and clears on the next reveal.
 	import { MainContainer } from 'components-layout';
-	import { Tween } from 'svelte/motion';
+	// SteadyTween, not svelte/motion's Tween: that one leaks a task per set() (game/tween.svelte.ts)
+	import { SteadyTween as Tween } from '../game/tween.svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
