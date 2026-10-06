@@ -1,0 +1,67 @@
+{
+ "cell": 110,
+ "cellFill": 0.94,
+ "note": "size = larger side of the silhouette as a share of the cell; dx/dy in % of a cell; rot in degrees (Corey, Manticore Symbol Fit artifact, 2026-10-05)",
+ "symbols": {
+  "H1": {
+   "size": 80,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  },
+  "M1": {
+   "size": 88,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  },
+  "M2": {
+   "size": 88,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  },
+  "M3": {
+   "size": 88,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  },
+  "L1": {
+   "size": 74,
+   "dx": -2,
+   "dy": 3,
+   "rot": -1
+  },
+  "L2": {
+   "size": 88,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  },
+  "L3": {
+   "size": 67,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  },
+  "L4": {
+   "size": 78,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  },
+  "W": {
+   "size": 87,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  },
+  "S": {
+   "size": 88,
+   "dx": 0,
+   "dy": 0,
+   "rot": 0
+  }
+ }
+}

@@ -18,7 +18,6 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { stateBetDerived } from 'state-shared';
 
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, STING, reelOf, rowOf } from '../game/constants';
@@ -94,7 +93,7 @@
 			draw();
 			return;
 		}
-		const ms = Math.max(1, durationOf(phase, kind) / Math.max(0.2, stateBetDerived.timeScale()));
+		const ms = Math.max(1, durationOf(phase, kind) / Math.max(0.2, context.stateGameDerived.timeScale()));
 		const t0 = performance.now();
 		live = true;
 		t = 0;

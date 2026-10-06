@@ -3,7 +3,7 @@
 // rules copy and the fallback cost multipliers (the RGS's authenticate values always win).
 export default {
 	// the published math set this build is approved against (library/publish_files)
-	mathVersion: '2026.09.23',
+	mathVersion: '2026.10.06', // swipe band roams (math-sdk 82d7496)
 	providerName: 'polymath_games',
 	gameName: 'Manticore Mayhem',
 	gameID: 'manticore_mayhem',
@@ -52,7 +52,11 @@ export default {
 	tileSeed: 2,
 	// scatter counts that open each tier in the base game
 	scatterTriggers: { 4: 'bonus', 5: 'super', 6: 'epic' },
-	swipeRows: [3, 4, 5],
+	// SWIPE band (SWIPE_BAND_ROWS / SWIPE_BAND_STARTS, 2026-10-06): each swipe clears 3 contiguous
+	// rows whose top row (0-based) is drawn uniformly from these starts, in every mode. The
+	// actual rows ride on the `swipe` event; nothing here fixes them.
+	swipeBandRows: 3,
+	swipeBandStarts: [0, 1, 2, 3, 4, 5],
 	// Mystery split, Corey's 50 / 40 / 10 (MYSTERY_SPLIT)
 	mystery: { nothing: 0.5, super: 0.4, epic: 0.1 },
 	epicMinWin: 200,

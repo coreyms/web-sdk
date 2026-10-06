@@ -281,7 +281,7 @@
 				</ul>
 				<div class="subhead">The manticore</div>
 				<ul>
-					<li><strong>Swipe.</strong> When a spin runs out of clusters the paw may clear rows {config.swipeRows.map((r) => r + 1).join(', ')} (counted from the top), at most twice per spin. Every cell in those rows steps up its multiplier tile: a cold cell lights to 2×, a lit cell doubles. War Standards in those rows stay. The board refills and play carries on.</li>
+					<li><strong>Swipe.</strong> When a spin runs out of clusters the paw may clear {config.swipeBandRows} adjacent rows anywhere on the board (any of the {config.swipeBandStarts.length} possible bands, equally likely), at most twice per spin. Every cell in those rows steps up its multiplier tile: a cold cell lights to 2×, a lit cell doubles. War Standards in those rows stay. The board refills and play carries on.</li>
 					<li><strong>Sting.</strong> Before a board is evaluated the tail may strike up to five times. A normal sting turns one cell wild. A <strong>Big Sting</strong> turns a plus of five cells wild and a <strong>Super Sting</strong> a block of nine; at most one of those per spin, always the last strike, and it always completes a winning cluster. Base, Ante and Super Ante see normal stings only; Free Spins add the Big Sting; Super and Epic Free Spins add the Super Sting. Stings never land on a War Standard. On some naturally triggered features the Manticore also stings the missing War Standards onto a resting board; the result of that spin was already decided.</li>
 					<li><strong>Roar.</strong> Every low symbol is blown off the board and replaced. Multiplier tiles under them are not affected. Super Free Spins and Epic Free Spins only.</li>
 				</ul>

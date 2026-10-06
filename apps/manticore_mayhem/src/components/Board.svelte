@@ -20,10 +20,12 @@
 	// draws; it decides nothing.
 	import { Sprite, Rectangle } from 'pixi-svelte';
 	import { stateBet } from 'state-shared';
+	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, GRID } from '../game/constants';
+	import { SYMBOL_SIZE, GRID, CLUSTER, READOUT } from '../game/constants';
 	import { playBookEvents } from '../game/utils';
+	import { sparkleStats, motionLog } from '../game/sparkles';
 	import type { BookEvent } from '../game/typesBookEvent';
 	import BoardContainer from './BoardContainer.svelte';
 	import ArtAmount from './ArtAmount.svelte';
@@ -107,6 +109,10 @@
 			mysteryOutcome: () => stateGame.mysteryOutcome,
 			/** press SKIP TO RESULT (stateGameDerived.requestSkip): true if the press took */
 			skip: () => context.stateGameDerived.requestSkip(),
+			/** the ONE way to set the live turbo level (0 / 1 / 2), for the motion probe's timeScale runs */
+			setTurbo: (level: 0 | 1 | 2) => context.stateGameDerived.setTurboLevel(level),
+			/** a book amount as the readouts print it, so a probe can compare canvas text it cannot read */
+			fmt: (amount: number) => bookEventAmountToCurrencyString(Math.round(amount)),
 			/** the Pixi application (perf probe: texture / renderer counters) */
 			pixi: () => context.stateApp.pixiApplication,
 			/** the last emitter events with their performance.now() stamps, newest last (perf probe
@@ -133,6 +139,27 @@
 			configurable: true,
 			enumerable: true,
 		});
+		// MOTION PASS 1 probe: the live counts (sparkle pool in use / bound / peak, frames over budget
+		// since boot, the last cascade's removal bookkeeping, every readout up right now with its mode
+		// and text, every cell's alpha / glow / state)
+		Object.defineProperty((window as any).__manticore, 'motion', {
+			get: () => ({
+				sparkles: { ...sparkleStats },
+				frames: motionLog.frames,
+				framesOver50: motionLog.framesOver50,
+				framesOver33: motionLog.framesOver33,
+				worstMs: Math.round(motionLog.worstMs),
+				glow: { inUse: motionLog.glowInUse, peak: motionLog.glowPeak },
+				lastCascade: motionLog.lastCascade,
+				cascadeIndex: motionLog.cascadeIndex,
+				steps: motionLog.steps.slice(),
+				readouts: stateGame.readouts.map((r) => ({ id: r.id, mode: r.mode, text: r.text, amount: r.amount, mult: r.mult, alpha: Number(r.alpha.toFixed(2)), scale: Number(r.scale.toFixed(3)), gap: Number((r.multX - r.amountX).toFixed(1)) })),
+				cells: stateGame.cells.map((c) => ({ i: c.reel * 8 + c.row, a: Number(c.alpha.toFixed(2)), g: Number(c.glow.toFixed(2)), s: c.state, sx: Number(c.scaleX.toFixed(3)), y: Number(c.y.toFixed(3)) })),
+				spinWin: stateGame.spinWin,
+			}),
+			configurable: true,
+			enumerable: true,
+		});
 	}
 </script>
 
@@ -150,15 +177,37 @@
 		<Anticipation />
 		<Sting />
 
-		<!-- the pay-times-sum readout of the cluster being presented -->
+		<!-- the cluster readouts (several at once in sequence mode): the raw "amount  xmult" pair that
+		     slams together, then the merged amount that punches and counts up in place. All three
+		     rows of a readout stay mounted while it is up; the mode picks which are visible. -->
 		{#each stateGame.readouts as readout (readout.id)}
 			<ArtAmount
+				text={readout.amount}
+				height={SYMBOL_SIZE * CLUSTER.readoutHeight}
+				x={readout.amountX}
+				y={readout.y}
+				alpha={readout.mode === 'raw' ? readout.alpha : 0}
+				tint={READOUT.amountTint}
+				shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
+			/>
+			<ArtAmount
+				text={readout.mult}
+				height={SYMBOL_SIZE * CLUSTER.readoutHeight}
+				x={readout.multX}
+				y={readout.y}
+				alpha={readout.mode === 'raw' ? readout.alpha : 0}
+				tint={READOUT.multTint}
+				shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
+			/>
+			<ArtAmount
 				text={readout.text}
-				height={SYMBOL_SIZE * 0.42 * readout.scale}
+				height={SYMBOL_SIZE * CLUSTER.readoutHeight}
 				x={readout.x}
 				y={readout.y}
 				maxWidth={SYMBOL_SIZE * (GRID - 0.5)}
-				alpha={readout.alpha}
+				alpha={readout.mode === 'merged' ? readout.alpha : 0}
+				scale={readout.scale}
+				tint={READOUT.amountTint}
 				shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
 			/>
 		{/each}

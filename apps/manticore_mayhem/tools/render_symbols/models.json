@@ -1,0 +1,83 @@
+[
+ {
+  "code": "M3",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/M3_royal-chalice/model/royal_chalice.glb",
+  "azimuth": 0,
+  "elevation": 8,
+  "roll": 0,
+  "fill": 0.91,
+  "note": "static tile comes from M3_royal-chalice/animation/M3_static_wine.png (copy into out/render/M3.png, then --no-render): the wine material does not survive glTF export"
+ },
+ {
+  "code": "L2",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/L2_bull-skull/animation/L2_with_rings.glb",
+  "azimuth": 0,
+  "elevation": 35,
+  "roll": 0,
+  "fill": 0.91
+ },
+ {
+  "code": "W",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/W_lion-sun-medallion/model/wild.glb",
+  "azimuth": 0,
+  "elevation": 6,
+  "roll": 0,
+  "fill": 0.95
+ },
+ {
+  "code": "L1",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/L1_iron-shackle/model/shackles.glb",
+  "azimuth": 330,
+  "elevation": 40,
+  "roll": 0,
+  "fill": 0.97
+ },
+ {
+  "code": "L3",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/L3_ancient-key/model/key.glb",
+  "azimuth": 200,
+  "elevation": 20,
+  "roll": 215,
+  "fill": 0.97
+ },
+ {
+  "code": "M1",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/M1_persian-helmet/model/helmet.glb",
+  "azimuth": 330,
+  "elevation": 10,
+  "roll": 0,
+  "fill": 1.14
+ },
+ {
+  "code": "M2",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/M2_persian-dagger/model/dagger.glb",
+  "azimuth": 0,
+  "elevation": 15,
+  "roll": -15,
+  "fill": 0.97
+ },
+ {
+  "code": "H1",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/H1_ancient-crown/model/crown.glb",
+  "azimuth": 0,
+  "elevation": 5,
+  "roll": 0,
+  "fill": 0.95
+ },
+ {
+  "code": "L4",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/L4_royal-seal/model/seal.glb",
+  "azimuth": 0,
+  "elevation": 4,
+  "roll": 0,
+  "fill": 0.95
+ },
+ {
+  "code": "S",
+  "glb": "/Users/corey/Desktop/Manticore Mayhem/images/symbols/S_war-standard/animation/S_textured.glb",
+  "azimuth": 350,
+  "elevation": 8,
+  "roll": 0,
+  "fill": 0.9
+ }
+]

@@ -47,8 +47,9 @@ const SCATTERS = `${SCATTER}s`;
 const WILD = config.symbols.W.name;
 const LOW_NAMES = list(config.lowSymbols.map((k) => config.symbols[k].name));
 const BANDS = list(config.paytableBands.map((b) => b.label));
-// rows in the math are 0-7 top-down; players count from 1
-const SWIPE_ROWS = list(config.swipeRows.map((r) => String(r + 1)));
+// the paw clears a band of adjacent rows; which rows is drawn per swipe (2026-10-06)
+const SWIPE_BAND = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' }[config.swipeBandRows] ?? String(config.swipeBandRows);
+const SWIPE_BANDS = config.swipeBandStarts.length;
 const CAP_LOW = config.tileCap.bonus;
 const CAP_HIGH = config.tileCap.super;
 
@@ -110,7 +111,7 @@ export const rulesSections = () => [
 		modalSection: 'tiles',
 		title: 'THE MANTICORE',
 		paragraphs: [
-			`SWIPE: when a spin runs out of clusters, the Manticore's paw may clear rows ${SWIPE_ROWS} (counted from the top), up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit, in every mode. ${SCATTERS} are never cleared. The board refills and play carries on.`,
+			`SWIPE: when a spin runs out of clusters, the Manticore's paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Any of the ${SWIPE_BANDS} possible bands is equally likely, in every mode. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on.`,
 			`STING: before the board is evaluated, the Manticore's tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A NORMAL STING turns one cell wild. A BIG STING turns a cross of five cells wild. A SUPER STING turns a 3x3 block of nine cells wild.`,
 			`A spin has at most one big or super sting, and it is always the last sting of that spin. A big or super sting always completes at least one winning cluster. A normal sting has no such guarantee. No sting ever lands on a ${SCATTER}.`,
 			'Normal stings can land in every spin except the Mystery spin. Big stings land only in Free Spins, Super Free Spins and Epic Free Spins. Super stings land only in Super Free Spins and Epic Free Spins.',

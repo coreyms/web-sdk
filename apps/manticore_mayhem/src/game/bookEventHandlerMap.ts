@@ -3,7 +3,6 @@ import _ from 'lodash';
 import { recordBookEvent, checkIsMultipleRevealEvents, type BookEventHandlerMap } from 'utils-book';
 import { stateBet, stateBetDerived } from 'state-shared';
 import { waitForTimeout } from 'utils-shared/wait';
-import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 import { eventEmitter } from './eventEmitter';
 import type { MusicName } from './sound';
@@ -14,7 +13,7 @@ import {
 	stateGame,
 	stateGameDerived,
 	revealBoard,
-	presentCluster,
+	presentWinSet,
 	removeCells,
 	applyTiles,
 	dropFill,
@@ -27,7 +26,9 @@ import {
 	boardInvariant,
 	newRun,
 } from './stateGame.svelte';
+import { motionLog } from './sparkles';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
+import type { CellIndex } from './types';
 import {
 	TIMINGS,
 	FEATURE_FX,
@@ -105,11 +106,16 @@ const scattersOf = (board: BookEventOfType<'reveal'>['board']): number[] => {
 	return cells;
 };
 
-/** the cluster readout: the band pay, the tile sum under it, and what the two make */
-const clusterReadout = (win: BookEventOfType<'cascade'>['wins'][number]) => {
-	const total = bookEventAmountToCurrencyString(win.w);
-	if (!win.m) return total;
-	return `${bookEventAmountToCurrencyString(win.p)} × ${win.m} = ${total}`;
+/** THE AURA LOOK-AHEAD (presentation only): the winners of the cascade that follows `bookEvent`
+ *  glow as they land in this event's drop. The book is fully known, so the next event is simply read.
+ *  Anything but a cascade next (a sting changes the board first) means no aura on landing; the win
+ *  set then plays its standalone aura. */
+const nextCascadeWinners = (bookEvent: BookEvent, bookEvents: BookEvent[]): Set<CellIndex> => {
+	const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+	const out = new Set<CellIndex>();
+	if (next?.type !== 'cascade') return out;
+	for (const w of next.wins) for (const c of w.c) out.add(c);
+	return out;
 };
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
@@ -159,7 +165,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the book writes that tease itself. Every other mode ignores the field, exactly as before.
 		const anticipation = isMystery && bookEvent.gameType === 'basegame' ? bookEvent.anticipation : undefined;
 
-		const id = await revealBoard(bookEvent.board, { anticipation });
+		const id = await revealBoard(bookEvent.board, { anticipation, aura: nextCascadeWinners(bookEvent, bookEvents) });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop', forcePlay: true });
 
 		stateGame.scatterCells = [];
@@ -167,33 +173,65 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	// ---- cascade: one step of wins, removal, tiles, refill ---------------------------------------
-	cascade: async (bookEvent: BookEventOfType<'cascade'>) => {
+	// MOTION PASS 1: the clusters present in sequence with overlap (stateGame.presentWinSet), each
+	// removing ITS OWN cells (win.c) after its readout. The book's `removed` is ONE list after all the
+	// wins, so its order carries no per-cluster meaning: the client plays win.c per cluster, then
+	// removes whatever `removed` still lists, and the SET of cells gone before `tiles` / `fill` must
+	// equal `removed` exactly (asserted in DEV and by tools/manticore/motion_probe.js). The amounts
+	// shown are the book's: win.p (base), win.m (tile sum) and win.w (the cluster's total).
+	cascade: async (bookEvent: BookEventOfType<'cascade'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
-		for (const win of bookEvent.wins) {
-			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_leaf_land', forcePlay: true });
-			await presentCluster(win.c, clusterReadout(win), id);
+		// the running spin total: the previous step's spinWin plus each cluster's win as its count-up
+		// lands, then SNAPPED to the book's cascade.spinWin at the end of the step (never derived past it)
+		let running = stateGame.spinWin;
+		const ours = await presentWinSet(
+			bookEvent.wins.map((w) => ({ cells: w.c, base: w.p, mult: w.m, total: w.w, symbol: w.s })),
+			id,
+			{
+				onClusterStart: () => eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_leaf_land', forcePlay: true }),
+				onCountDone: (_i, total) => {
+					running += total;
+					eventEmitter.broadcast({ type: 'spinWinStep', amount: running });
+					if (import.meta.env.DEV) {
+						motionLog.steps.push({ amount: running, at: performance.now(), cascade: motionLog.cascadeIndex });
+						if (motionLog.steps.length > 400) motionLog.steps.splice(0, 200);
+					}
+				},
+			},
+		);
+		const oursSet = new Set(ours);
+		const book = new Set(bookEvent.removed);
+		const rest = bookEvent.removed.filter((c) => !oursSet.has(c));
+		const extra = ours.filter((c) => !book.has(c));
+		if (import.meta.env.DEV) {
+			motionLog.lastCascade = { ours: ours.length, book: bookEvent.removed.length, rest: rest.length, extra };
+			if (extra.length) console.warn('[manticore] win set removed cells the book did not list', extra);
 		}
+		if (rest.length) await removeCells(rest, id);
 		// Playback order is fixed by the schema: show the wins, remove `removed`, set `tiles`,
 		// drop `fill`. The client never has to reconstruct an intermediate board.
-		await removeCells(bookEvent.removed, id);
 		if (bookEvent.tiles.length) eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_service_bell', forcePlay: true });
 		await applyTiles(bookEvent.tiles, id);
-		await dropFill(bookEvent.fill, id);
+		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 
 		settleBoard();
 		stateGame.spinWin = bookEvent.spinWin;
+		if (import.meta.env.DEV) motionLog.cascadeIndex += 1;
 		eventEmitter.broadcast({ type: 'spinWinShow', amount: bookEvent.spinWin });
+		// the last cascade of the spin: the spin total's final presentation (SPIN_TOTAL), after the refill
+		const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+		if (next?.type !== 'cascade') await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin });
 	},
 
 	// ---- swipe: the paw clears the middle band ---------------------------------------------------
-	swipe: async (bookEvent: BookEventOfType<'swipe'>) => {
+	swipe: async (bookEvent: BookEventOfType<'swipe'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'swipe', rows: bookEvent.rows });
 		await flashCells(bookEvent.removed, FEATURE_FX.swipeColor, FEATURE_FX.swipeFlashMs, id);
 		await removeCells(bookEvent.removed, id);
 		await applyTiles(bookEvent.tiles, id);
-		await dropFill(bookEvent.fill, id);
+		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 		settleBoard();
 	},
 
@@ -243,14 +281,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	// ---- roar: every low is blown off the board --------------------------------------------------
-	roar: async (bookEvent: BookEventOfType<'roar'>) => {
+	roar: async (bookEvent: BookEventOfType<'roar'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_angry', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
 		await flashCells(bookEvent.removed, FEATURE_FX.roarColor, FEATURE_FX.roarFlashMs, id);
 		await removeCells(bookEvent.removed, id);
 		// the multiplier tiles under the removed lows are untouched (EVENT_SCHEMA.md)
-		await dropFill(bookEvent.fill, id);
+		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 		settleBoard();
 	},
 

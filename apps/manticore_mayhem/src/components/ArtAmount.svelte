@@ -45,8 +45,11 @@
 		tint?: number;
 		/** a second, tinted run drawn FIRST and offset (fractions of `height`) — a hard drop shadow */
 		shadow?: { dx: number; dy: number; tint: number };
+		/** a uniform scale about the row's optical centre (a punch or a bump): a transform on the
+		 *  row's container, so it costs no relayout and no texture work while it animates */
+		scale?: number;
 	};
-	const { text, reserve, height = 72, x = 0, y = 0, maxWidth, alpha = 1, tint = 0xffffff, shadow }: Props = $props();
+	const { text, reserve, height = 72, x = 0, y = 0, maxWidth, alpha = 1, tint = 0xffffff, shadow, scale = 1 }: Props = $props();
 
 	const context = getContext();
 	const tokens = $derived(tokenize(text));
@@ -99,6 +102,9 @@
 	});
 	$effect(() => {
 		root.alpha = alpha;
+	});
+	$effect(() => {
+		root.scale.set(scale);
 	});
 
 	onMount(() => () => {

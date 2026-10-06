@@ -1,4 +1,4 @@
-import { quadIn, quadOut, backOut } from 'svelte/easing';
+import { quadIn, quadOut, quartIn, backIn, backOut } from 'svelte/easing';
 
 import type { SymbolName } from './types';
 import config from './config';
@@ -43,53 +43,146 @@ export const PORTRAIT_BACKGROUND_RATIO = 1242 / 2208;
 // The Angry Mantis gravity feel, mapped onto a tumble drop: tiles accelerate in from above with
 // quadIn, land bottom row first with no y-bounce, and squash on contact. There is no reel spin and
 // no anticipation here — an 8x8 cascade board never "spins".
-// Everything is authored at normal speed and divided by stateBetDerived.timeScale() (turbo 2.2,
-// instant 4) at playback, so turbo compresses the whole choreography uniformly.
+// Everything is authored at normal speed and divided by timeScale() (TURBO_SCALE: turbo 2.2, instant 4)
+// at playback, so turbo compresses the whole choreography uniformly.
+
+/** style-time divisor by turbo level (0 normal, 1 turbo, 2 instant). Corey 2026-10-06: "2.2 feels right for
+ *  turbo 1 and instant feels like turbo 2". Manticore-local: the shared stateBet.timeScale() is a 1 / 2 switch
+ *  and Angry Mantis (frozen) keeps using it. */
+export const TURBO_SCALE = [1, 2.2, 4] as const;
+// MOTION PASS 1 (Corey 2026-10-05, Manticore Motion Playground preset "Corey 2026-10-05", "final with
+// the placeholder shapes; may change with real symbols"). Every number below is the playground's.
 export const DROP = {
 	/**
 	 * Every tile that enters the board starts ABOVE it (Corey 2026-09-23: "full drop in, they
 	 * currently half drop in"). A column's incoming symbols are stacked in order above row 0 with
 	 * this much clearance from the top edge, so the board mask hides them until they fall in.
 	 */
-	clearance: 0.6,
+	clearance: 2.9,
 	/**
 	 * One gravity for the whole column: a fall of D cells takes gravityMs * sqrt(D), which is what
 	 * constant acceleration gives. Two tiles that start together under the same acceleration keep
 	 * their gap until the lower one lands, so a stacked column can never overtake or overlap itself
-	 * whatever mix of distances it has (the old per-cell linear timing could). 9 cells = 450 ms.
+	 * whatever mix of distances it has (the old per-cell linear timing could). 8 cells = 525 ms.
 	 */
-	gravityMs: 150,
+	gravityMs: 185.6,
 	/** ms between columns of a full reveal (left to right) */
-	columnStaggerMs: 26,
+	columnStaggerMs: 67,
 	/** ms between rows within a column on a full reveal (the bottom row lands first) */
-	rowStaggerMs: 22,
-	easing: quadIn,
+	rowStaggerMs: 36,
+	easing: quartIn,
 };
 
-/** landing beat: squash wide-and-short on contact, then settle back through a small overshoot */
+/** landing beat: squash wide-and-short on contact (about the tile's BOTTOM edge), settle back through
+ *  a small overshoot, and a hop back up (bounce) that runs alongside the squash */
 export const GRAVITY_DROP = {
-	squash: 0.18,
-	squashMs: 90,
-	settleRatio: 0.32,
-	settleMs: 150,
+	squash: 0.25,
+	squashMs: 85,
+	settleRatio: 0.11,
+	settleMs: 95,
+	/** the tile lifts this many cells over bounceMs (sine), from contact */
+	bounceCells: 0.08,
+	bounceMs: 145,
 };
 
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {
+	/** several clusters on one landing present one after another ('sequence'); 'together' is the
+	 *  playground's other mode and is not implemented here */
+	clusterMode: 'sequence' as const,
+	/** sequence mode: cluster i+1 starts at max(cluster i start, cluster i removal end + this).
+	 *  Negative overlaps: the next cluster starts before the previous one has finished leaving. */
+	clusterGapMs: -1610,
 	/** the winners grow to this while the readout is up */
-	winScale: 1.1,
-	winRiseMs: 120,
+	winScale: 1.13,
+	winRiseMs: 90,
 	winEasing: backOut,
-	/** how long a cluster's readout is held before the tiles leave */
-	holdMs: 620,
-	/** non-winners dim to this while a cluster is presented */
-	dimAlpha: 0.38,
-	dimMs: 140,
+	/** how long a cluster's readout is held (after the count-up) before the tiles leave */
+	holdMs: 800,
+	/** non-winners dim to this while the win set is presented (ONCE per win set, not per cluster) */
+	dimAlpha: 0.5,
+	dimMs: 35,
+	/** the winners of the next cascade glow for this long as they land (presentation only) */
+	auraMs: 230,
 	/** the removal pop: grow a hair, then shrink away to nothing */
-	removeMs: 190,
-	removeEasing: quadOut,
+	removeStyle: 'shrink' as const,
+	removeMs: 135,
+	removeEasing: quadIn,
 	/** the readout's height as a share of one cell */
 	readoutHeight: 0.42,
+};
+
+/** the cluster readout: "base  xmult" sit apart, slam together, punch, count up in place, then
+ *  CLUSTER.holdMs. The numbers shown are the book's (win.p, win.m, win.w); a win with no tile
+ *  (m = 0) skips the raw / slam phases and counts 0 -> w. */
+export const READOUT = {
+	rawMs: 200,
+	/** how far apart the amount and the multiplier sit before the slam, in cells */
+	rawGapCells: 0.4,
+	slamMs: 225,
+	slamEasing: backIn,
+	/** the merged amount pops to this on impact */
+	slamScale: 1.2,
+	slamPunchMs: 400,
+	countMs: 420,
+	countEasing: quadOut,
+	/** the raw parts' colours: the amount, the multiplier */
+	amountTint: 0xf2b63c,
+	multTint: 0x5fd3c8,
+};
+
+/** sparkle burst on each cleared cell (components/BoardCells.svelte). A new random pattern every
+ *  burst; the refill does NOT wait for the sparkles. */
+export const SPARKLE = {
+	lifeMs: 900,
+	/** particles per cell; the low device tier caps it at `countPhone` */
+	count: 40,
+	countPhone: 40,
+	spreadCells: 0.55,
+	/** dot radius in board px at the start of its life, before the per-dot 0.6..1.4 roll */
+	sizePx: 2.5,
+	gravity: 0.5,
+	shape: 'dot' as const,
+	/** 'tile': tinted the cleared symbol's colour (SYMBOL_COLORS) */
+	color: 'tile' as const,
+	/** cells burst in order of distance from the cluster centre, this far apart */
+	staggerMs: 21,
+	/** a white flash on the cell well at the burst, over the first 30% of the life */
+	cellFlashAlpha: 0.5,
+	/** the particle pool is sized once at mount for this many cells bursting at once (a burst lasts
+	 *  lifeMs, bursts are staggerMs apart, so lifeMs / staggerMs cells can be in flight) */
+	maxCells: 43,
+};
+
+/** the spin total (components/SpinWin.svelte): a running bump as each cluster's count-up finishes,
+ *  then the final presentation after the last refill. finalRiseMs 0 / finalCountMs 0 = it just sits. */
+export const SPIN_TOTAL = {
+	bumpScale: 1.2,
+	bumpMs: 140,
+	finalDelayMs: 150,
+	finalRiseMs: 0,
+	finalScale: 1,
+	finalEasing: backOut,
+	finalCountMs: 0,
+	finalHoldMs: 280,
+};
+
+/** the aura's colour (the playground's landing glow) */
+export const AURA_COLOR = 0x7cff8a;
+
+/** each symbol's tile colour, for the 'tile' sparkle colour (the placeholder plate hues from
+ *  apps/manticore_mayhem/tools/make_placeholders.py SYMBOLS; retune when the real art lands) */
+export const SYMBOL_COLORS: Record<string, number> = {
+	L1: 0x8a929a,
+	L2: 0xc4bcaa,
+	L3: 0x6c8a7a,
+	L4: 0x2eb0a8,
+	M1: 0x7692b0,
+	M2: 0x967884,
+	M3: 0xc49e4a,
+	H1: 0xe2b648,
+	W: 0xd4af37,
+	S: 0xd04040,
 };
 
 /** a multiplier tile lighting up or doubling in place */

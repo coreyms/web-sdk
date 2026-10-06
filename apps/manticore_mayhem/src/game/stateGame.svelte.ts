@@ -1,29 +1,35 @@
 import { stateBet, stateBetDerived } from 'state-shared';
 import { waitForTimeout } from 'utils-shared/wait';
 import { createGetWinLevelDataByWinLevelAlias } from 'utils-shared/winLevel';
+import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 import type { GameType, BonusMode, MysteryOutcome, SymbolName, SymbolState, CellIndex } from './types';
 import type { Fill, TileEntry } from './typesBookEvent';
 import { stateLayoutDerived } from './stateLayout';
 import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
+import { layoutNumerals } from './numeralLayout';
+import { spawnSparkles } from './sparkles';
 import {
 	GRID,
 	CELL_COUNT,
+	CELL_FILL,
 	SYMBOL_SIZE,
 	BOARD_SIZES,
 	INITIAL_BOARD,
 	DROP,
 	GRAVITY_DROP,
 	CLUSTER,
+	READOUT,
+	SPARKLE,
+	SYMBOL_COLORS,
 	TILE,
 	FEATURE_FX,
 	STING,
 	ANTICIPATION,
 	cellOf,
 	reelOf,
-	rowOf,
-} from './constants';
+	rowOf, TURBO_SCALE } from './constants';
 
 // ================================================================================================
 // THE BOARD ENGINE
@@ -34,7 +40,7 @@ import {
 // frontend never decides what lands, what pays or what a tile becomes.
 //
 // One rAF loop runs a batch of per-cell "jobs" (delay, duration, from, to) so a full 8x8 reveal is
-// ONE animation, not 64 promises. Every duration is divided by stateBetDerived.timeScale() at
+// ONE animation, not 64 promises. Every duration is divided by timeScale() (TURBO_SCALE by turbo level) at
 // playback, so turbo compresses the whole choreography uniformly; every number is in constants.ts.
 // ================================================================================================
 
@@ -54,11 +60,27 @@ export type Cell = {
 	/** additive flash tint strength 0..1 (swipe / roar / scatter beats) */
 	flash: number;
 	flashColor: number;
+	/** the landing aura 0..1: a winner of the next cascade glows as it lands (CLUSTER.auraMs) */
+	glow: number;
 	state: SymbolState;
 };
 
 export type Tile = { value: number; scale: number };
-export type Readout = { id: number; x: number; y: number; text: string; alpha: number; scale: number };
+/** one cluster's pay readout over the board. `raw`: the amount and the multiplier sit apart at
+ *  amountX / multX (board px) and slam together; `merged`: one amount `text` at `scale`. */
+export type Readout = {
+	id: number;
+	x: number;
+	y: number;
+	alpha: number;
+	mode: 'raw' | 'merged';
+	amount: string;
+	mult: string;
+	amountX: number;
+	multX: number;
+	text: string;
+	scale: number;
+};
 
 let nextId = 1;
 const makeCell = (name: SymbolName, reel: number, row: number, y = row): Cell => ({
@@ -72,6 +94,7 @@ const makeCell = (name: SymbolName, reel: number, row: number, y = row): Cell =>
 	alpha: 1,
 	flash: 0,
 	flashColor: 0xffffff,
+	glow: 0,
 	state: 'static',
 });
 
@@ -151,7 +174,9 @@ const isReplayPlayback = (): boolean =>
 // ---- motion primitives --------------------------------------------------------------------------
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const ts = () => Math.max(0.2, stateBetDerived.timeScale());
+/** the ONE style-time divisor: by Manticore's turbo level (TURBO_SCALE), not the shared 1 / 2 switch */
+export const timeScale = () => TURBO_SCALE[stateGame.turboLevel] ?? 1;
+const ts = () => Math.max(0.2, timeScale());
 
 /** a pause in STYLE time: authored at normal speed, divided by the turbo scale like every
  *  other duration here, so a handler never has to reach for timeScale itself */
@@ -192,7 +217,9 @@ const raf = (ms: number, step: (t: number, elapsed: number) => void): Promise<vo
 // refill tiles were created, pushed into the array and then animated through their raw objects, so
 // they never moved off their start y while the survivors, which came back out of the array as
 // proxies, did. Resolve every job against the LIVE array each time and the class of bug is gone.
-type DropJob = { cellId: number; fromY: number; toY: number; delay: number; dur: number };
+type DropJob = { cellId: number; fromY: number; toY: number; delay: number; dur: number; aura?: boolean };
+/** a winner of the next cascade that does not move in this drop: it glows from `t0` (style ms) */
+type AuraJob = { cellId: number; t0: number };
 
 /** constant-acceleration fall time (see DROP.gravityMs) */
 const dropDuration = (distance: number) => DROP.gravityMs * Math.sqrt(Math.max(0, distance));
@@ -200,28 +227,56 @@ const dropDuration = (distance: number) => DROP.gravityMs * Math.sqrt(Math.max(0
 /** where the i-th of `count` incoming tiles (top-down) waits above the board before it falls */
 const stackedAbove = (i: number, count: number) => i - count - DROP.clearance;
 
-/** the landing beat: squashed on contact, easing back, then a small counter-overshoot */
-const landScale = (u: number): [number, number] => {
-	if (u < GRAVITY_DROP.squashMs) {
-		const k = 1 - u / GRAVITY_DROP.squashMs;
-		return [1 + GRAVITY_DROP.squash * k, 1 - GRAVITY_DROP.squash * k];
+/**
+ * The landing beat at `u` ms after contact: [scaleX, scaleY, dy]. Squash wide-and-short on contact
+ * (sine over squashMs), then the counter-overshoot (sine over settleMs), and the bounce (sine over
+ * bounceMs) alongside. The squash scales about the tile's BOTTOM edge, so `dy` (row units) is the
+ * centre shift that keeps the bottom edge on the floor, less the bounce lift. Matches the
+ * playground's `squash` / `settle` / `bounce` tracks sample for sample.
+ */
+const landPose = (u: number): [number, number, number] => {
+	let sx = 1;
+	let sy = 1;
+	if (GRAVITY_DROP.squash > 0 && GRAVITY_DROP.squashMs > 0) {
+		if (u < GRAVITY_DROP.squashMs) {
+			const k = Math.sin(Math.PI * (u / GRAVITY_DROP.squashMs)) * GRAVITY_DROP.squash;
+			sx *= 1 + k;
+			sy *= 1 - k;
+		} else if (GRAVITY_DROP.settleMs > 0 && GRAVITY_DROP.settleRatio > 0) {
+			const k =
+				Math.sin(Math.PI * clamp01((u - GRAVITY_DROP.squashMs) / GRAVITY_DROP.settleMs)) *
+				GRAVITY_DROP.squash *
+				GRAVITY_DROP.settleRatio;
+			sx *= 1 - k;
+			sy *= 1 + k;
+		}
 	}
-	const k = clamp01((u - GRAVITY_DROP.squashMs) / GRAVITY_DROP.settleMs);
-	const o = GRAVITY_DROP.squash * GRAVITY_DROP.settleRatio * Math.sin(Math.PI * k);
-	return [1 - o, 1 + o];
+	let dy = ((1 - sy) * CELL_FILL) / 2;
+	if (GRAVITY_DROP.bounceCells > 0 && GRAVITY_DROP.bounceMs > 0) {
+		dy -= Math.sin(Math.PI * clamp01(u / GRAVITY_DROP.bounceMs)) * GRAVITY_DROP.bounceCells;
+	}
+	return [sx, sy, dy];
 };
 
-const LAND_MS = GRAVITY_DROP.squashMs + GRAVITY_DROP.settleMs;
+/** how long a landed tile keeps moving after contact: squash + settle, or the bounce if longer */
+const LAND_MS = Math.max(GRAVITY_DROP.squashMs + GRAVITY_DROP.settleMs, GRAVITY_DROP.bounceMs);
 
 /** live proxies, keyed by id — rebuilt from stateGame.cells so writes are always reactive */
 const liveById = () => new Map(stateGame.cells.map((c) => [c.id, c]));
 
-/** animate a batch of falling cells, landing beat included. The FINAL positions are applied
- *  whether or not the run was superseded: a cancelled animation must never leave the board
+/** the cells the LAST drop glowed (cellIndex): presentWinSet plays a standalone aura for any winner
+ *  the drop did not reach (one that was stung in place, say). Presentation only. */
+const lastAura = new Set<CellIndex>();
+
+/** animate a batch of falling cells, landing beat and aura included. The FINAL positions are
+ *  applied whether or not the run was superseded: a cancelled animation must never leave the board
  *  half-way between two grids. */
-const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => void) => {
-	if (!jobs.length) return;
-	const total = jobs.reduce((n, j) => Math.max(n, j.delay + j.dur), 0) + LAND_MS;
+const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => void, auras: AuraJob[] = []) => {
+	if (!jobs.length && !auras.length) return;
+	const auraMs = CLUSTER.auraMs;
+	let total = jobs.reduce((n, j) => Math.max(n, j.delay + j.dur), 0) + LAND_MS;
+	for (const j of jobs) if (j.aura) total = Math.max(total, j.delay + j.dur + auraMs);
+	for (const a of auras) total = Math.max(total, a.t0 + auraMs);
 	const map = liveById();
 	await raf(total, (_t, now) => {
 		if (!alive(id)) return;
@@ -230,21 +285,39 @@ const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => 
 			const cell = map.get(j.cellId);
 			if (!cell) continue;
 			const p = clamp01((now - j.delay) / j.dur);
-			cell.y = j.fromY + (j.toY - j.fromY) * DROP.easing(p);
+			const y = j.fromY + (j.toY - j.fromY) * DROP.easing(p);
 			if (p >= 1) {
-				const [sx, sy] = landScale(now - j.delay - j.dur);
+				const u = now - j.delay - j.dur;
+				const [sx, sy, dy] = landPose(u);
 				cell.scaleX = sx;
 				cell.scaleY = sy;
+				cell.y = y + dy;
+				if (j.aura && auraMs > 0) cell.glow = Math.sin(Math.PI * clamp01(u / auraMs));
+			} else {
+				cell.y = y;
 			}
+		}
+		for (const a of auras) {
+			const cell = map.get(a.cellId);
+			if (cell && now >= a.t0) cell.glow = Math.sin(Math.PI * clamp01((now - a.t0) / auraMs));
 		}
 	});
 	const after = liveById();
+	lastAura.clear();
 	for (const j of jobs) {
 		const cell = after.get(j.cellId);
 		if (!cell) continue;
 		cell.y = j.toY;
 		cell.scaleX = 1;
 		cell.scaleY = 1;
+		cell.glow = 0;
+		if (j.aura) lastAura.add(cellOf(cell.reel, cell.row));
+	}
+	for (const a of auras) {
+		const cell = after.get(a.cellId);
+		if (!cell) continue;
+		cell.glow = 0;
+		lastAura.add(cellOf(cell.reel, cell.row));
 	}
 };
 
@@ -285,6 +358,7 @@ export const settleBoard = () => {
 		cell.scaleY = 1;
 		cell.alpha = 1;
 		cell.flash = 0;
+		cell.glow = 0;
 		cell.state = 'static';
 	}
 	for (const tile of stateGame.tiles) tile.scale = 1;
@@ -318,6 +392,7 @@ export const boardInvariant = () => {
 		if (Math.abs(c.scaleX - 1) > 0.01 || Math.abs(c.scaleY - 1) > 0.01) problems.push(`cell ${index} scaled ${c.scaleX.toFixed(2)}x${c.scaleY.toFixed(2)}`);
 		if (Math.abs(c.alpha - 1) > 0.01) problems.push(`cell ${index} alpha ${c.alpha.toFixed(2)}`);
 		if (c.flash > 0.01) problems.push(`cell ${index} still flashing ${c.flash.toFixed(2)}`);
+		if (c.glow > 0.01) problems.push(`cell ${index} still glowing ${c.glow.toFixed(2)}`);
 		if (c.state !== 'static') problems.push(`cell ${index} in state ${c.state}`);
 	}
 	for (const [index, count] of seen) if (count > 1) problems.push(`cell ${index} holds ${count} sprites`);
@@ -337,10 +412,14 @@ export const boardInvariant = () => {
  * slower, and the columns behind it wait with it, so the tease reads left to right exactly like
  * Angry Mantis's reels. The visuals are components/Anticipation.svelte, driven by
  * stateGame.anticipation, which this function is the only writer of.
+ *
+ * `aura` is the set of cells (cellIndex) that win in the cascade that FOLLOWS this reveal: those
+ * tiles glow for CLUSTER.auraMs as they land. Presentation only; the handler reads it ahead from
+ * the book, which is fully known.
  */
 export const revealBoard = async (
 	board: SymbolName[][],
-	{ animate = true, anticipation }: { animate?: boolean; anticipation?: number[] } = {},
+	{ animate = true, anticipation, aura }: { animate?: boolean; anticipation?: number[]; aura?: Set<CellIndex> } = {},
 ) => {
 	const id = newRun();
 	stateGame.readouts = [];
@@ -379,12 +458,14 @@ export const revealBoard = async (
 					toY: row,
 					delay: reel * DROP.columnStaggerMs + wait + (GRID - 1 - row) * DROP.rowStaggerMs,
 					dur: dropDuration(row - fromY) * slow,
+					aura: aura?.has(cellOf(reel, row)) ?? false,
 				});
 			}
 		});
 	});
 	// assign FIRST, animate second: the jobs address the proxies this assignment creates
 	stateGame.cells = cells;
+	lastAura.clear();
 	if (animate) {
 		await runDrops(plan, id, teased ? (now) => tickAnticipation(now, holdStart, holdMs) : undefined);
 	}
@@ -418,49 +499,305 @@ const tickAnticipation = (now: number, holdStart: number[], holdMs: number[]) =>
 	}
 };
 
-/** highlight one cluster and dim everything else; resolves when the hold is over */
-export const presentCluster = async (cells: CellIndex[], readout: string, id: number) => {
-	const inCluster = new Set(cells);
-	const memberIds: number[] = [];
-	for (const c of stateGame.cells) {
-		const isMember = inCluster.has(cellOf(c.reel, c.row));
-		c.state = isMember ? 'win' : 'dim';
-		if (isMember) memberIds.push(c.id);
-	}
-	const members = stateGame.cells.filter((c) => memberIds.includes(c.id));
-	// the readout sits on the cluster's centroid, clamped inside the board
-	const cx = members.reduce((n, c) => n + c.reel + 0.5, 0) / Math.max(1, members.length);
-	const cy = members.reduce((n, c) => n + c.row + 0.5, 0) / Math.max(1, members.length);
-	const read: Readout = {
-		id: nextId++,
-		x: Math.min(GRID - 1.4, Math.max(1.4, cx)) * SYMBOL_SIZE,
-		y: Math.min(GRID - 0.6, Math.max(0.6, cy)) * SYMBOL_SIZE,
-		text: readout,
-		alpha: 0,
-		scale: 0.8,
-	};
-	stateGame.readouts = [read];
-	// animate the PROXY, never `read` itself (see DropJob): the readout's alpha / scale were written
-	// to the raw object, so the board drew the readout at its mount values (alpha 0) and it never
-	// showed (found by the phone perf pass, 2026-09-23)
-	const shown = stateGame.readouts[0];
+// ---- the win set (MOTION PASS 1) ------------------------------------------------------------------
+// Every cluster of one cascade step, presented in SEQUENCE with overlap, from ONE compiled schedule in
+// style ms sampled by ONE rAF pass — the playground's model (motion-playground.html compileWinSet /
+// presentCluster / removeCluster / sample), so the two agree sample for sample:
+//   cluster i+1 starts at max(cluster i start, cluster i removal end + CLUSTER.clusterGapMs)
+//   dim ONCE at the first cluster's start (every winner of every cluster excluded), un-dim ONCE after
+//     the last cluster's removal (re-dimming per cluster flashed the board)
+//   per cluster: [standalone aura] -> rise -> raw -> slam -> punch + count -> hold -> removal + sparkle
+//   removal end = last cell's removeMs (+ staggerMs per cell, cells ordered by distance from the
+//     cluster centre); the refill starts at the LAST removal end; the sparkles outlive it
+// The cells a cluster removes are its OWN (win.c); a cell two clusters share (a wild) goes with the
+// first. The handler removes whatever else the book's `removed` lists afterwards, and asserts the set.
 
-	await raf(CLUSTER.winRiseMs, (t) => {
-		if (!alive(id)) return;
-		const e = CLUSTER.winEasing(t);
-		for (const c of stateGame.cells) {
-			if (c.state === 'win') {
-				c.scaleX = 1 + (CLUSTER.winScale - 1) * e;
-				c.scaleY = c.scaleX;
-			} else if (c.state === 'dim') {
-				c.alpha = 1 - (1 - CLUSTER.dimAlpha) * t;
+/** one cluster as the handler hands it over: the book's cells and the book's three numbers */
+export type WinSpec = { cells: CellIndex[]; base: number; mult: number; total: number; symbol: SymbolName };
+export type WinSetHooks = {
+	/** a cluster's readout has begun (its SFX) */
+	onClusterStart?: (index: number) => void;
+	/** a cluster's count-up has landed on `total` (the spin total bumps here) */
+	onCountDone?: (index: number, total: number) => void;
+};
+
+const fmtAmount = (n: number) => bookEventAmountToCurrencyString(Math.round(n));
+const READOUT_H = SYMBOL_SIZE * CLUSTER.readoutHeight;
+/** the drawn width of a stencil string at the readout height, for the raw layout */
+const textWidth = (text: string, height: number) => {
+	const glyphs = layoutNumerals(text, height);
+	if (!glyphs?.length) return 0;
+	let lo = Infinity;
+	let hi = -Infinity;
+	for (const g of glyphs) {
+		lo = Math.min(lo, g.x);
+		hi = Math.max(hi, g.x + g.w);
+	}
+	return hi - lo;
+};
+/** the shrink removal: grow a hair, then shrink to nothing (the playground's 'shrink' style) */
+const shrinkScale = (u: number) => (u < 0.25 ? 1 + 0.12 * (u / 0.25) : 1.12 * (1 - CLUSTER.removeEasing((u - 0.25) / 0.75)));
+
+type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean };
+type Cluster = {
+	members: Member[];
+	/** the cluster's start (before its standalone aura) and the readout's start (after it) */
+	tc: number;
+	t: number;
+	aura: number;
+	rise: number;
+	raw: number;
+	slam: number;
+	count: number;
+	hold: number;
+	tCountDone: number;
+	tReadoutDone: number;
+	tRemEnd: number;
+	spec: WinSpec;
+	readout: Readout;
+	wa: number;
+	wb: number;
+	started: boolean;
+	counted: boolean;
+};
+
+/**
+ * Present every cluster of a cascade step and remove their cells. Resolves at the last removal end
+ * (the refill starts then). Returns the cells removed (cellIndex), for the handler's assertion
+ * against the book's `removed`. The DELETION is unconditional: a superseded run skips the motion,
+ * never the structural change.
+ */
+export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHooks = {}): Promise<CellIndex[]> => {
+	if (!wins.length) return [];
+	const at = new Map<CellIndex, Cell>();
+	for (const c of stateGame.cells) if (c.state !== 'removing') at.set(cellOf(c.reel, c.row), c);
+	const allWinners = new Set<CellIndex>();
+	for (const w of wins) for (const index of w.cells) allWinners.add(index);
+	const claimed = new Set<CellIndex>();
+
+	// ---- compile ----
+	const gap0 = READOUT.rawGapCells * SYMBOL_SIZE;
+	let tc = 0;
+	let tRem = 0;
+	const clusters: Cluster[] = wins.map((spec, i) => {
+		const cx = spec.cells.reduce((n, index) => n + reelOf(index) + 0.5, 0) / Math.max(1, spec.cells.length);
+		const cy = spec.cells.reduce((n, index) => n + rowOf(index) + 0.5, 0) / Math.max(1, spec.cells.length);
+		const members: Member[] = [];
+		for (const index of spec.cells) {
+			const cell = at.get(index);
+			if (!cell || claimed.has(index)) continue; // a shared cell leaves with the first cluster
+			claimed.add(index);
+			members.push({ cell, index, removeT0: 0, spawned: false });
+		}
+		// cells leave in order of distance from the cluster centre
+		members.sort((a, b) => Math.hypot(rowOf(a.index) + 0.5 - cy, reelOf(a.index) + 0.5 - cx) - Math.hypot(rowOf(b.index) + 0.5 - cy, reelOf(b.index) + 0.5 - cx));
+		// a winner the preceding drop did not glow gets the standalone aura (the whole cluster, together)
+		const aura = CLUSTER.auraMs > 0 && members.some((m) => !lastAura.has(m.index)) ? CLUSTER.auraMs : 0;
+		const t = tc + aura;
+		const rise = Math.max(CLUSTER.winRiseMs, i === 0 ? CLUSTER.dimMs : 0, 1);
+		const raw = spec.mult ? READOUT.rawMs : 0;
+		const slam = raw > 0 ? READOUT.slamMs : 0;
+		const count = READOUT.countMs;
+		const hold = CLUSTER.holdMs;
+		const tCountDone = t + rise + raw + slam + count;
+		const tReadoutDone = tCountDone + hold;
+		let tRemEnd = tReadoutDone;
+		members.forEach((m, k) => {
+			m.removeT0 = tReadoutDone + k * SPARKLE.staggerMs;
+			tRemEnd = Math.max(tRemEnd, m.removeT0 + Math.max(CLUSTER.removeMs, 1));
+		});
+		tRem = Math.max(tRem, tRemEnd);
+		const start = tc;
+		tc = Math.max(tc, tRemEnd + (i < wins.length - 1 ? CLUSTER.clusterGapMs : 0));
+		const amount = fmtAmount(spec.base);
+		const mult = `×${spec.mult}`;
+		const readout: Readout = {
+			id: nextId++,
+			x: Math.min(GRID - 1.4, Math.max(1.4, cx)) * SYMBOL_SIZE,
+			y: Math.min(GRID - 0.6, Math.max(0.6, cy)) * SYMBOL_SIZE,
+			alpha: 0,
+			mode: raw > 0 ? 'raw' : 'merged',
+			amount,
+			mult,
+			amountX: 0,
+			multX: 0,
+			text: fmtAmount(raw > 0 ? spec.base : 0),
+			scale: 1,
+		};
+		return {
+			members,
+			tc: start,
+			t,
+			aura,
+			rise,
+			raw,
+			slam,
+			count,
+			hold,
+			tCountDone,
+			tReadoutDone,
+			tRemEnd,
+			spec,
+			readout,
+			wa: textWidth(amount, READOUT_H),
+			wb: textWidth(mult, READOUT_H),
+			started: false,
+			counted: false,
+		};
+	});
+	const dimT0 = clusters[0].t;
+	const dimmed: Cell[] = [];
+	for (const c of stateGame.cells) if (!allWinners.has(cellOf(c.reel, c.row)) && c.state !== 'removing') dimmed.push(c);
+	for (const cl of clusters) for (const m of cl.members) m.cell.state = 'win';
+	for (const c of dimmed) c.state = 'dim';
+	const lifeReal = SPARKLE.lifeMs / ts();
+
+	// ---- sample ----
+	const live = new Map<number, Readout>(); // readout id -> its live proxy in stateGame.readouts
+	const sample = (now: number) => {
+		// the dim, once, for the whole set
+		const dk = clamp01((now - dimT0) / Math.max(CLUSTER.dimMs, 1));
+		if (now >= dimT0) for (const c of dimmed) c.alpha = 1 - (1 - CLUSTER.dimAlpha) * dk;
+
+		let listChanged = false;
+		for (let i = 0; i < clusters.length; i += 1) {
+			const cl = clusters[i];
+			if (now >= cl.t && !cl.started) {
+				cl.started = true;
+				hooks.onClusterStart?.(i);
+			}
+			if (now >= cl.tCountDone && !cl.counted) {
+				cl.counted = true;
+				hooks.onCountDone?.(i, cl.spec.total);
+			}
+			for (const m of cl.members) {
+				const c = m.cell;
+				if (cl.aura > 0 && now >= cl.tc && now < cl.t) c.glow = Math.sin(Math.PI * clamp01((now - cl.tc) / cl.aura));
+				else if (c.glow !== 0) c.glow = 0;
+				if (now < cl.t) continue;
+				if (now < m.removeT0) {
+					const s = 1 + (CLUSTER.winScale - 1) * CLUSTER.winEasing(clamp01((now - cl.t) / Math.max(CLUSTER.winRiseMs, 1)));
+					c.scaleX = s;
+					c.scaleY = s;
+					continue;
+				}
+				// leaving: shrink from the held win scale; sparkle at the first frame of it
+				if (!m.spawned) {
+					m.spawned = true;
+					if (!stateGame.skipping) spawnSparkles(c.reel, c.row, SYMBOL_COLORS[c.name] ?? 0xffffff, lifeReal);
+				}
+				c.state = 'removing';
+				const u = clamp01((now - m.removeT0) / Math.max(CLUSTER.removeMs, 1));
+				const s = u >= 1 ? 0 : CLUSTER.winScale * shrinkScale(u);
+				c.scaleX = s;
+				c.scaleY = s;
+			}
+			// the readout, up from the cluster's start to the end of its hold
+			const up = now >= cl.t && now < cl.tReadoutDone;
+			const shown = live.get(cl.readout.id);
+			if (!up) {
+				if (shown) {
+					live.delete(cl.readout.id);
+					listChanged = true;
+				}
+				continue;
+			}
+			if (!shown) {
+				live.set(cl.readout.id, cl.readout);
+				listChanged = true;
 			}
 		}
-		shown.alpha = t;
-		shown.scale = 0.8 + 0.2 * e;
+		if (listChanged) {
+			// animate the PROXIES, never the raw objects (see DropJob): rebuild the live map from the
+			// array the assignment creates
+			stateGame.readouts = [...live.values()];
+			live.clear();
+			for (const r of stateGame.readouts) live.set(r.id, r);
+		}
+		for (const cl of clusters) {
+			const r = live.get(cl.readout.id);
+			if (!r) continue;
+			const el = now - cl.t;
+			const appear = clamp01(el / Math.max(cl.rise, 1));
+			const tSlam = cl.rise + cl.raw;
+			const tCount = tSlam + cl.slam;
+			const tHold = tCount + cl.count;
+			r.alpha = appear;
+			if (cl.raw > 0 && el < tCount) {
+				// two parts: the gap closes over the slam (backIn winds up, then crosses a hair)
+				let gap = gap0;
+				if (el >= tSlam) gap = gap0 * (1 - Math.max(0, Math.min(1.2, READOUT.slamEasing(clamp01((el - tSlam) / Math.max(cl.slam, 1))))));
+				const half = (cl.wa + cl.wb) / 2 + gap / 2;
+				r.mode = 'raw';
+				r.amountX = r.x - half + cl.wa / 2;
+				r.multX = r.x + half - cl.wb / 2;
+				continue;
+			}
+			let val = cl.spec.total;
+			if (cl.count > 0 && el < tHold) {
+				const k = READOUT.countEasing(clamp01((el - tCount) / cl.count));
+				val = cl.raw > 0 ? cl.spec.base + (cl.spec.total - cl.spec.base) * k : cl.spec.total * k;
+			}
+			let scale = 1;
+			if (cl.raw > 0 && READOUT.slamPunchMs > 0 && el < tCount + READOUT.slamPunchMs) {
+				scale = 1 + (READOUT.slamScale - 1) * Math.sin(Math.PI * clamp01((el - tCount) / READOUT.slamPunchMs));
+			}
+			r.mode = 'merged';
+			const text = fmtAmount(val);
+			if (r.text !== text) r.text = text;
+			r.scale = scale;
+		}
+	};
+
+	await raf(tRem, (_t, now) => {
+		if (!alive(id)) return;
+		sample(now);
 	});
-	if (!alive(id)) return;
-	await raf(CLUSTER.holdMs, () => {});
+
+	// ---- the structural result, whether or not the run was superseded ----
+	const removed: CellIndex[] = [];
+	const goingIds = new Set<number>();
+	for (const cl of clusters) {
+		for (const m of cl.members) {
+			removed.push(m.index);
+			goingIds.add(m.cell.id);
+		}
+		// a skip (or a superseded run) may have jumped the hooks: fire what is still owed, in order
+		if (!cl.started) {
+			cl.started = true;
+			hooks.onClusterStart?.(clusters.indexOf(cl));
+		}
+		if (!cl.counted) {
+			cl.counted = true;
+			hooks.onCountDone?.(clusters.indexOf(cl), cl.spec.total);
+		}
+	}
+	stateGame.cells = stateGame.cells.filter((c) => !goingIds.has(c.id));
+	stateGame.readouts = [];
+	lastAura.clear();
+	const dimmedIds = new Set(dimmed.map((c) => c.id));
+	for (const c of stateGame.cells) {
+		c.state = 'static';
+		c.scaleX = 1;
+		c.scaleY = 1;
+		c.glow = 0;
+		if (!dimmedIds.has(c.id)) c.alpha = 1;
+	}
+	// un-dim ONCE, alongside the refill (never awaited: the refill starts at the removal end).
+	// settleBoard at the end of the fill lands every alpha on 1 whatever happened here.
+	if (stateGame.skipping || !alive(id)) {
+		for (const c of stateGame.cells) c.alpha = 1;
+	} else {
+		void raf(CLUSTER.dimMs, (t) => {
+			if (!alive(id)) return;
+			const map = liveById();
+			for (const idm of dimmedIds) {
+				const c = map.get(idm);
+				if (c) c.alpha = CLUSTER.dimAlpha + (1 - CLUSTER.dimAlpha) * t;
+			}
+		});
+	}
+	return removed;
 };
 
 /** the cluster leaves the board: a pop, then nothing. The DELETION is unconditional — a superseded
@@ -521,10 +858,14 @@ export const applyTiles = async (entries: TileEntry[], id: number) => {
 	}
 };
 
-/** survivors fall into the gaps and `fill` drops in from above, per column, top-down */
-export const dropFill = async (fill: Fill, id: number) => {
+/** survivors fall into the gaps and `fill` drops in from above, per column, top-down. `aura` is the
+ *  next cascade's winners (cellIndex, on the FILLED board): the ones that move glow as they land, the
+ *  ones already in place glow when the last moving winner lands, so the cluster lights up whole. */
+export const dropFill = async (fill: Fill, id: number, aura?: Set<CellIndex>) => {
 	const plan: DropJob[] = [];
 	const added: Cell[] = [];
+	const still: Cell[] = []; // winners that do not move in this drop
+	let lastWinnerLanding = -1;
 	for (let reel = 0; reel < GRID; reel += 1) {
 		const survivors = columnCells(reel);
 		const incoming = fill[reel] ?? [];
@@ -540,19 +881,31 @@ export const dropFill = async (fill: Fill, id: number) => {
 			const fromY = stackedAbove(i, incoming.length);
 			const cell = makeCell(name, reel, row, fromY);
 			added.push(cell);
-			plan.push({ cellId: cell.id, fromY, toY: row, delay: reel * DROP.columnStaggerMs, dur: dropDuration(row - fromY) });
+			const job: DropJob = { cellId: cell.id, fromY, toY: row, delay: reel * DROP.columnStaggerMs, dur: dropDuration(row - fromY), aura: aura?.has(cellOf(reel, row)) ?? false };
+			if (job.aura) lastWinnerLanding = Math.max(lastWinnerLanding, job.delay + job.dur);
+			plan.push(job);
 		});
 		survivors.forEach((cell, i) => {
 			const row = topRow + incoming.length + i;
-			if (row === cell.row) return;
+			const wins = aura?.has(cellOf(reel, row)) ?? false;
+			if (row === cell.row) {
+				if (wins) still.push(cell);
+				return;
+			}
 			const fromY = cell.y;
 			cell.row = row;
-			plan.push({ cellId: cell.id, fromY, toY: row, delay: reel * DROP.columnStaggerMs, dur: dropDuration(row - fromY) });
+			const job: DropJob = { cellId: cell.id, fromY, toY: row, delay: reel * DROP.columnStaggerMs, dur: dropDuration(row - fromY), aura: wins };
+			if (job.aura) lastWinnerLanding = Math.max(lastWinnerLanding, job.delay + job.dur);
+			plan.push(job);
 		});
 	}
+	// a still winner joins the aura when the last moving winner lands; if none moved (a win that
+	// was already standing, e.g. after a sting) presentWinSet plays the standalone aura instead
+	const auras: AuraJob[] = lastWinnerLanding >= 0 ? still.map((cell) => ({ cellId: cell.id, t0: lastWinnerLanding })) : [];
 	// assign FIRST, animate second (see DropJob): the new cells only become reactive here
 	stateGame.cells = [...stateGame.cells, ...added];
-	await runDrops(plan, id);
+	lastAura.clear();
+	await runDrops(plan, id, undefined, auras);
 	settleBoard();
 };
 
@@ -740,6 +1093,7 @@ const tilesRaw = (): Record<number, number> => {
 export const { getWinLevelDataByWinLevelAlias } = createGetWinLevelDataByWinLevelAlias({ winLevelMap });
 
 export const stateGameDerived = {
+	timeScale,
 	boardLayout,
 	boardRaw,
 	tilesRaw,

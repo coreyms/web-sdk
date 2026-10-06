@@ -22,7 +22,6 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { stateBetDerived } from 'state-shared';
 
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, CELL_FILL, GRID, ANTICIPATION } from '../game/constants';
@@ -122,7 +121,7 @@
 			running = true;
 			last = now; // the clock only runs while the tease shows: no jump on the first frame
 		}
-		const ts = Math.max(0.2, stateBetDerived.timeScale());
+		const ts = Math.max(0.2, context.stateGameDerived.timeScale());
 		dist += (now - last) * ts * ANTICIPATION.rainSpeed * (SYMBOL_SIZE / 110);
 		styleMs += (now - last) * ts;
 		last = now;
