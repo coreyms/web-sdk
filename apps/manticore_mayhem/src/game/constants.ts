@@ -12,6 +12,15 @@ export const FEATURE_MENU_NAME = 'BAZAAR';
 export const GRID = 8; // 8 reels x 8 rows (config.numReels / numRows)
 export const SYMBOL_SIZE = 110; // one cell in board units; layoutSpec scales the whole board
 export const CELL_FILL = 0.94; // drawn tile size as a share of the cell pitch
+/** THE SYMBOLS FIT INSIDE THE LATTICE CELLS (Corey 2026-10-06 21:32): the drawn tile (CELL_FILL) and the
+ *  multiplier badge (size AND offset) are scaled by this so the opaque symbol art and the badge disc clear
+ *  every bar edge and rivet of the v4f lattice by 1 master px (landscape, portrait) / 1.5 screen px (phone).
+ *  Solved per cell over all 64 cells and every static tile by tools/build_board_layers.py (prints it, and
+ *  BOARD_ART.symbolFit records it): 0.81, bound by portrait's bottom-right cell (the wide l2 against the
+ *  side bar, where the 4 degree tilt narrows the lattice). Rows 0 and 7 are checked against their inner bar
+ *  and the side bars only: the lattice is 3.2 % wider than tall, so those rows overhang the top / bottom
+ *  outer bars (inside the rails) by a few px at any sensible scale. */
+export const SYMBOL_FIT = 0.81;
 export const CELL_COUNT = GRID * GRID;
 
 export const BOARD_SIZES = { width: SYMBOL_SIZE * GRID, height: SYMBOL_SIZE * GRID };
@@ -210,6 +219,12 @@ export const SYMBOL_COLORS: Record<string, number> = {
 	S: 0xd04040,
 };
 
+/** The frame art's on-screen level (Corey 2026-10-06 21:32: "TOO BRIGHT", it glowed against the courtyard).
+ *  A sprite / mesh TINT on the frame and the chains (components/BoardFrame.svelte), not a filter: free, and
+ *  it keeps the art's own contrast. The proper fix is a darker re-render of the board layers (the
+ *  render_layers_tilt.py exposure) once Corey picks the level; then these go back to 0xffffff. */
+export const FRAME_ART = { tint: 0xb4b4b4, chainTint: 0xb4b4b4 };
+
 /** a multiplier tile lighting up or doubling in place */
 export const TILE = {
 	/** the pop a tile makes when it is seeded or doubled */
@@ -313,6 +328,36 @@ export const ROAR_FX = {
 	kickPx: 6,
 	refillDelayMs: 0,
 };
+
+// ---- The board's chains (LOCKED Corey 2026-10-06 21:01 in the playground) ------------------------
+// The chain ends ride the kicked frame (the leaned top link stays joined to link 00) and only the middle
+// lags. components/BoardFrame.svelte draws each run as a vertex strip, s = 0 at the top pivot .. 1 at the
+// bottom anchor:
+//   k       the kick's scalar (boardKick is (0.6 k, k)), in PLAYGROUND px so the feel is the same at every
+//           layout's scale
+//   lag     a first-order filter on k, time constant lagMs
+//   spring  d'' = w^2 (gain lagged k - d) - 2 zeta w d', w = 2 pi settleHz; zeta = damping while |k| >
+//           0.05 px, else min(damping, 3 / (w settleAfterMs / 1000)) so the chain keeps swinging after the
+//           board has stopped and dies to ~5 % over settleAfterMs. Fixed 2 ms steps.
+//   point   anchor(s) + kick + (D - kick) bow(s), D = (0.6 d, vertical d),
+//           bow(s) = sin(pi s) (1 - s) + bottomAllowance s
+// Times are style time, divided by stateGameDerived.timeScale() at runtime.
+export const CHAIN_BOW = {
+	endsFollowFrame: true,
+	gain: 10,
+	lagMs: 54,
+	settleHz: 14.5,
+	damping: 0.55,
+	settleAfterMs: 650,
+	bottomAllowance: 0.1,
+	vertical: 0.4,
+	segments: 10,
+};
+
+/** the flat backing behind the cell wells and the tiles, under the board kick: covers the frame's
+ *  inner opening (the cell area plus the inset). A texture replaces the colour when Corey has the
+ *  asset (BoardFrame.svelte draws it). */
+export const BOARD_BACKING = { color: 0x000000 };
 
 // ---- The sting (RULE_PASS_2 section F) ----------------------------------------------------------
 // Four kinds, one presentation each, all driven by the book's `kind`:

@@ -23,6 +23,7 @@
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
+	import { layoutKind } from '../game/layoutSpec';
 	import { SYMBOL_SIZE, GRID, CLUSTER, READOUT } from '../game/constants';
 	import { playBookEvents } from '../game/utils';
 	import { sparkleStats, motionLog } from '../game/sparkles';
@@ -55,6 +56,10 @@
 	});
 
 	const layout = $derived(context.stateGameDerived.boardLayout());
+	/** this layout's frame art is loaded (BoardFrame.svelte draws it): the backdrop steps aside */
+	const frameArtIn = $derived(
+		!!(context.stateApp.loadedAssets as Record<string, unknown> | undefined)?.[`boardFrame_${layoutKind(context.stateLayoutDerived.layoutType())}`],
+	);
 
 	// DEV ONLY: the Playwright gates read the game through this, never through Pixi canvas text.
 	// Merged, not assigned — game/deviceTier.ts writes assetTier onto the same object and mount
@@ -184,7 +189,10 @@
 	<BoardContainer>
 		<!-- the board window: a tile falling in from above is clipped until it enters the grid -->
 		<Rectangle isMask width={layout.width} height={layout.height} />
-		<Sprite key="boardBackdrop" zIndex={-2} width={layout.width} height={layout.height} />
+		<!-- the old cell wells: the PRE-LOAD FALLBACK only. Once this layout's frame art is in, its steel
+		     lattice (BoardFrame.svelte, under this container, over the black backing) is the cell grid
+		     and this must not paint over it -->
+		<Sprite key="boardBackdrop" label="boardBackdrop" zIndex={-2} width={layout.width} height={layout.height} visible={!frameArtIn} />
 
 		<!-- the 64 tiles and the multiplier badges: raw pooled Pixi sprites synced from the ticker
 		     (BoardCells.svelte says why they are not one pixi-svelte <Sprite> each any more) -->

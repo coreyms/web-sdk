@@ -26,7 +26,7 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { HUD, layoutKind, boardCenterX } from '../game/layoutSpec';
+	import { HUD, layoutKind, boardCenterX, spinWinY } from '../game/layoutSpec';
 	import { TIMINGS, SPIN_TOTAL } from '../game/constants';
 	import ArtAmount from './ArtAmount.svelte';
 
@@ -35,6 +35,7 @@
 	const master = $derived(context.stateLayoutDerived.mainLayout());
 	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / master.scale);
 	const cx = $derived(boardCenterX(layoutKind(context.stateLayoutDerived.layoutType()), vw));
+	const sy = $derived(spinWinY(layoutKind(context.stateLayoutDerived.layoutType()), vw));
 
 	const alpha = new Tween(0, { duration: 180, easing: cubicOut });
 	const amount = new Tween(0, { duration: 0 });
@@ -92,6 +93,6 @@
 
 <MainContainer>
 	{#if alpha.current > 0 && !context.stateGame.plaque}
-		<ArtAmount text={text} height={slot.height} x={cx} y={slot.y} maxWidth={slot.width} alpha={alpha.current} {scale} tint={0xe0b64a} />
+		<ArtAmount text={text} height={slot.height} x={cx} y={sy} maxWidth={slot.width} alpha={alpha.current} {scale} tint={0xe0b64a} />
 	{/if}
 </MainContainer>

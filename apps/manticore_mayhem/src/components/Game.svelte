@@ -23,6 +23,7 @@
 	import Background from './Background.svelte';
 	import LoadingScreen from './LoadingScreen.svelte';
 	import Board from './Board.svelte';
+	import BoardFrame from './BoardFrame.svelte';
 	import SpinWin from './SpinWin.svelte';
 	import SkipButton from './SkipButton.svelte';
 	import ModePlaque from './ModePlaque.svelte';
@@ -159,6 +160,8 @@
 			<Sound />
 
 			<MainContainer>
+				<!-- the frame + backing (under the board, kicked with it) and the chains (beside it) -->
+				<BoardFrame />
 				<Board />
 			</MainContainer>
 

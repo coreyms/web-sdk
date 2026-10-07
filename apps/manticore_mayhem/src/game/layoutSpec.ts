@@ -7,6 +7,7 @@
 // column clear on the RIGHT for the manticore (spec F: right of the board in landscape and
 // phone-sideways, mirrored from the render so it faces the board; portrait hides it).
 import { SYMBOL_SIZE, GRID } from './constants';
+import { BOARD_ART } from './boardArtSpec';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -23,15 +24,21 @@ export const FRAME: Record<
 	LayoutKind,
 	{ x: number; y: number; width: number; height: number; inset: number; cell: number; gap: number; margin: number }
 > = {
-	// 549 of cells + 2x14.5 inset = 578 square. x is set so the frame ART rect starts at 300, which
-	// is where the HTML chrome keys the BALANCE / WIN / SPIN row from (ui/ChromeLandscape.svelte):
-	// any further left and BALANCE collides with the bottom-left button cluster. Right edge 890
-	// leaves 900..1280 clear for the manticore.
-	landscape: { x: 306, y: 34, width: 578, height: 578, inset: 14.5, cell: 66, gap: 3, margin: 6 },
-	// 344 of cells + 2x11 = 366 square, centred; frameFor() grows it on wide phones.
-	portrait: { x: 23, y: 168, width: 366, height: 366, inset: 11, cell: 40.5, gap: 3, margin: 5 },
+	// DERIVED FROM THE FRAME ART (Corey 2026-10-06, tools/build_board_layers.py prints these as
+	// frameRects): the whole art, finials to plinth with both posts and chains, spans x 300..900 from
+	// y 38 (bottom 587.2, clear of the BALANCE / WIN / SPIN row). 300 is where the chrome keys that row
+	// from (any further left and BALANCE meets the bottom-left buttons); 900.. stays clear for the
+	// manticore. The cells are the art's lattice at that scale: 402.63 of cell area + 2 x 10.634 inset.
+	landscape: { x: 388.323, y: 98.166, width: 423.898, height: 423.898, inset: 10.634, cell: 48.404, gap: 2.2, margin: 4.4 },
+	// CHAIN-FIT (Corey 2026-10-06 21:32: portrait was too small): each chain's centreline 10 master px
+	// inside the screen edge (x 10 and 402), the posts and finials overhang off screen (art x -17.9 ..
+	// 429.5); vertically the dead band between the tagline (150) and the BALANCE / BET row (688) is split
+	// 1 : 1.3 above / below the art (art y 205.85 .. 615.4). 300.24 of cell area + 2 x 9.6, cells 35.2
+	// (pitch 37.86). frameFor() grows it on wide portrait viewports the same way (PORTRAIT_FIT).
+	portrait: { x: 46.277, y: 249.043, width: 319.447, height: 319.447, inset: 9.601, cell: 35.246, gap: 2.611, margin: 4.364 },
 	// 632.5 of cells + 2x16 = 664.5 square, centred on the master so the chrome's 340-wide side
-	// columns stay clear; the manticore stands in the right one.
+	// columns stay clear; the manticore stands in the right one. Approved as is (Corey 2026-10-06):
+	// here the art is registered TO these cells, so it overhangs the master top and bottom.
 	phone: { x: 407.75, y: 32, width: 664.5, height: 664.5, inset: 16, cell: 76, gap: 3.5, margin: 7 },
 };
 
@@ -44,19 +51,29 @@ export const MANTICORE: Record<LayoutKind, { x: number; y: number; size: number;
 	portrait: { x: 206, y: 96, size: 220, faceLeft: true, hidden: true },
 };
 
-// Portrait phones are usually WIDER than the 412x760 master (the fit is by height), which would
-// letterbox the board with dead side space. frameFor() grows the portrait frame uniformly — every
-// dimension x k — to span almost the full real viewport width. Other layouts pass through.
+/** the portrait chain-fit (tools/build_board_layers.py CHAIN_FIT, keep the two in step): the chain
+ *  centrelines `chainInset` inside the viewport edges, the dead band between the tagline (`bandTop`) and
+ *  the BALANCE / BET row's top (`hudTop`, measured in the running game, pinned to the real viewport
+ *  bottom) split 1 : `gapRatio` above / below the art, growth capped at `maxK` (height budget). */
+export const PORTRAIT_FIT = { chainInset: 10, bandTop: 150, hudTop: 688, gapRatio: 1.3, maxK: 1.12 };
+
+// Portrait viewports WIDER than the 412x760 master (tablets, foldables: the fit is by height) would
+// leave dead side space. frameFor() grows the portrait frame uniformly, every dimension x k about the
+// master's centre line, until the chains sit chainInset inside the real viewport edges again (cap maxK),
+// and re-places it vertically by the same 1 : gapRatio split. Other layouts pass through.
 export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const base = FRAME[kind];
 	if (kind !== 'portrait' || !viewportMasterWidth) return base;
-	const SIDE = 7; // master px kept clear on each side of the frame
-	const MAX_K = 1.12; // height budget: the board's bottom edge must stay clear of the spin-win readout
-	const k = Math.min(Math.max((viewportMasterWidth - SIDE * 2) / base.width, 1), MAX_K);
+	const P = PORTRAIT_FIT;
+	const k = Math.min(Math.max((viewportMasterWidth - P.chainInset * 2) / chainSpanOf(base), 1), P.maxK);
 	if (k <= 1) return base;
+	const art = artRectOf(base);
+	const top = P.bandTop + Math.max(P.hudTop - P.bandTop - art.height * k, 0) / (1 + P.gapRatio);
+	const cx = MASTER.portrait.width / 2;
 	return {
 		...base,
-		x: MASTER.portrait.width / 2 - (base.width * k) / 2,
+		x: cx + (base.x - cx) * k,
+		y: top + (base.y - art.y) * k,
 		width: base.width * k,
 		height: base.height * k,
 		inset: base.inset * k,
@@ -66,17 +83,48 @@ export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	};
 };
 
-/** The board frame's outer rectangle in master units. The HTML chrome keys the BALANCE / WIN / SPIN
- *  row to these edges (ui/ChromeLandscape.svelte). With no frame ART yet this is the frame rect
- *  itself plus its margin, so the readouts still line up with the board's visible edges. */
-export const frameArtRect = (kind: LayoutKind, viewportMasterWidth?: number) => {
-	const f = frameFor(kind, viewportMasterWidth);
-	const x = f.x - f.margin;
-	const y = f.y - f.margin;
-	const width = f.width + f.margin * 2;
-	const height = f.height + f.margin * 2;
-	return { x, y, width, height, right: x + width, bottom: y + height };
+type FrameRect = (typeof FRAME)[LayoutKind];
+
+/** THE ART REGISTRATION for a frame rect: the lattice's mid-height width (BOARD_ART.lattice, render px)
+ *  spans the cell area (width - 2 inset) and its centre line is centred on it. m = master px per render
+ *  px; map() takes a render px to master units. components/BoardFrame.svelte draws through this. */
+export const registrationOf = (f: FrameRect) => {
+	const L = BOARD_ART.lattice;
+	const size = f.width - 2 * f.inset;
+	const m = size / (L.x1 - L.x0);
+	const cellX = f.x + f.inset;
+	const cellY = f.y + f.inset;
+	const latH = (L.y1 - L.y0) * m;
+	const oy = cellY + (size - latH) / 2;
+	return {
+		m,
+		cell: { x: cellX, y: cellY, size },
+		lattice: { x: cellX, y: oy, width: size, height: latH },
+		mismatch: size - latH,
+		map: (u: number, v: number) => ({ x: cellX + (u - L.x0) * m, y: oy + (v - L.y0) * m }),
+	};
 };
+
+/** the distance between the two chain centrelines (mean of each run's top pivot and bottom anchor) */
+const chainSpanOf = (f: FrameRect) => {
+	const r = registrationOf(f);
+	const a = BOARD_ART.anchors;
+	const mid = (s: 'L' | 'R') => r.map((a[s].top[0] + a[s].bottom[0]) / 2, 0).x;
+	return mid('R') - mid('L');
+};
+
+/** the frame ART's rectangle (frame + chains alpha bbox) in master units for a frame rect */
+const artRectOf = (f: FrameRect) => {
+	const r = registrationOf(f);
+	const [u0, v0, u1, v1] = BOARD_ART.art;
+	const a = r.map(u0, v0);
+	const b = r.map(u1, v1);
+	return { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y, right: b.x, bottom: b.y };
+};
+
+/** The board frame ART's rectangle in master units (finials to plinth, posts and chains included). The
+ *  HTML chrome keys the BALANCE / WIN / SPIN row to its edges (ui/ChromeLandscape.svelte). */
+export const frameArtRect = (kind: LayoutKind, viewportMasterWidth?: number) => artRectOf(frameFor(kind, viewportMasterWidth));
 
 /** the board's horizontal centre in master units. The landscape board is deliberately LEFT of the
  *  master centre (the manticore has the right column), so anything that belongs to the board —
@@ -84,6 +132,19 @@ export const frameArtRect = (kind: LayoutKind, viewportMasterWidth?: number) => 
 export const boardCenterX = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const f = frameFor(kind, viewportMasterWidth);
 	return f.x + f.width / 2;
+};
+
+/** the cell area's vertical centre (the mode plaque overlays it) */
+export const boardCenterY = (kind: LayoutKind, viewportMasterWidth?: number) => {
+	const f = frameFor(kind, viewportMasterWidth);
+	return f.y + f.height / 2;
+};
+
+/** the spin-win readout's centre y. Portrait: the middle of the band between the frame art's bottom and
+ *  the BALANCE / BET row (the art moves with frameFor's growth); the others use their HUD slot. */
+export const spinWinY = (kind: LayoutKind, viewportMasterWidth?: number) => {
+	if (kind !== 'portrait') return HUD[kind].spinWin.y;
+	return (frameArtRect(kind, viewportMasterWidth).bottom + PORTRAIT_FIT.hudTop) / 2;
 };
 
 /** where the manticore stands for a given master (portrait derives nothing yet — see MANTICORE) */
@@ -133,7 +194,8 @@ export const HUD: Record<
 	landscape: {
 		// the free band between the board's bottom edge (618) and the BALANCE / WIN / SPIN row (~655)
 		pressToContinue: { y: 700, width: 620, height: 48 },
-		modePlaque: { y: 323, height: 34, width: 500 },
+		// the cell area's centre (108.8 + 402.63 / 2) and 0.94 of its width
+		modePlaque: { y: 310, height: 34, width: 380 },
 		spinWin: { y: 640, height: 28, width: 400 },
 		// top right of the page: the band above the manticore (which stands at y 380, size 430, so
 		// its head reaches ~165) and clear of the board (right edge 890) and the clock strip
@@ -141,13 +203,14 @@ export const HUD: Record<
 	},
 	portrait: {
 		pressToContinue: { y: 700, width: 300, height: 44 },
-		modePlaque: { y: 360, height: 28, width: 356 },
-		spinWin: { y: 614, height: 26, width: 340 },
-		// the tagline band under the logo (logo bottom ~114, frame art top 163): the chrome hides the
-		// tagline for the whole free game, and the frame's wide-phone growth (frameFor, up to x1.12)
-		// moves its BOTTOM edge, not its top, so this band is free in every portrait fit. The band
-		// between the board and the spin-win readout is not: at k 1.12 the board bottom (583) runs
-		// into the readout's top (588).
+		// the cell area's centre at k 1 (258.64 + 300.24 / 2); ModePlaque uses boardCenterY (follows the growth)
+		modePlaque: { y: 408.8, height: 28, width: 260 },
+		// y at k 1: midway between the art bottom (615.4) and the BALANCE / BET row (688); SpinWin uses
+		// spinWinY (follows the growth: at k 1.12 the art bottom is 643.2, the readout centre 665.6)
+		spinWin: { y: 651.7, height: 26, width: 340 },
+		// the tagline band under the logo (logo bottom ~114, frame art top 205.85 at k 1, 184.5 at the
+		// 1.12 cap): the chrome hides the tagline for the whole free game, so this band is free in every
+		// portrait fit.
 		skipButton: { x: 96, y: 115, width: 220, height: 48 },
 	},
 	phone: {

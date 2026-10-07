@@ -21,7 +21,7 @@
 
 	import { getContext } from '../game/context';
 	import { TIMINGS } from '../game/constants';
-	import { HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX } from '../game/layoutSpec';
+	import { HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX, boardCenterY } from '../game/layoutSpec';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import ArtAmount from './ArtAmount.svelte';
@@ -33,6 +33,8 @@
 	// the plaque belongs to the BOARD, which is left of the master centre in landscape
 	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / master.scale);
 	const cx = $derived(boardCenterX(kindOf(context.stateLayoutDerived.layoutType()), vw));
+	// portrait follows frameFor's growth (the cell area's centre); the others keep their HUD slot
+	const py = $derived(kindOf(context.stateLayoutDerived.layoutType()) === 'portrait' ? boardCenterY('portrait', vw) : slot.y);
 
 	let title = $state('');
 	let sub = $state('');
@@ -76,14 +78,14 @@
 	{#if alpha.current > 0}
 		<Rectangle
 			x={cx - slot.width / 2}
-			y={slot.y - slot.height * 1.5}
+			y={py - slot.height * 1.5}
 			width={slot.width}
 			height={slot.height * 2.2}
 			backgroundColor={0x0d0e12}
 			alpha={alpha.current * 0.82}
 		/>
-		<ArtAmount text={title} height={slot.height * 0.62} x={cx} y={slot.y - slot.height * 0.22} maxWidth={slot.width * 0.92} alpha={alpha.current} />
-		<ArtAmount text={sub} height={slot.height * 0.34} x={cx} y={slot.y + slot.height * 0.52} maxWidth={slot.width * 0.92} alpha={alpha.current * 0.85} tint={0x9fd9d4} />
+		<ArtAmount text={title} height={slot.height * 0.62} x={cx} y={py - slot.height * 0.22} maxWidth={slot.width * 0.92} alpha={alpha.current} />
+		<ArtAmount text={sub} height={slot.height * 0.34} x={cx} y={py + slot.height * 0.52} maxWidth={slot.width * 0.92} alpha={alpha.current * 0.85} tint={0x9fd9d4} />
 	{/if}
 </MainContainer>
 

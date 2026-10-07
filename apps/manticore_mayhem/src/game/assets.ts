@@ -24,6 +24,20 @@ export const stamp = (href: string): string => {
 // at build time and cannot follow a computed path.
 const tiered = (full: string, half: string): string => (PHONE_TIER ? half : full);
 
+// THE LAYOUT AT BOOT, for the per-layout board art and backgrounds: the same breakpoints as
+// utils-layout createLayout (ratio >= 1.3 wide: short side <= 480 is the phone master, else
+// landscape; anything narrower is portrait). Only the boot layout's copy gates the landing screen;
+// the other two ride the deferred phase, so a rotation before they land shows the flat fallback
+// for a moment and never a wrong-scale texture (components/BoardFrame.svelte, Background.svelte).
+const bootLayout = ((): 'landscape' | 'phone' | 'portrait' => {
+	if (typeof window === 'undefined') return 'landscape';
+	const w = window.innerWidth || 1;
+	const h = window.innerHeight || 1;
+	if (w / h >= 1.3) return Math.min(w, h) <= 480 ? 'phone' : 'landscape';
+	return 'portrait';
+})();
+const atBoot = (kind: 'landscape' | 'phone' | 'portrait') => bootLayout === kind;
+
 // TWO LOAD PHASES (pixi-svelte AssetsLoader). `preload: true` gates the landing screen: everything
 // the base game draws in its first seconds. `preload: false` keeps downloading behind the game.
 //
@@ -192,6 +206,29 @@ const assets = {
 	// the 8x8 grid of cell wells behind the tiles: shows in the seams, in the drop and in every
 	// emptied cell during a cascade
 	boardBackdrop: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-backdrop.webp', import.meta.url).href), preload: true },
+	// THE BOARD FRAME and its two chain runs (tools/build_board_layers.py from the board_v4e renders;
+	// registration in game/boardArt.ts), one scale per layout: the boot layout's preloads
+	boardFrame_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
+	boardFrame_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-phone.webp', import.meta.url).href), preload: atBoot('phone') },
+	boardFrame_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
+	boardChains_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chains-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
+	boardChains_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chains-phone.webp', import.meta.url).href), preload: atBoot('phone') },
+	boardChains_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chains-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
+	// THE SCENE BACKGROUND (temporary: the citadel courtyard for every mode until the per-mode scenes
+	// land). Angry Mantis's split: the base scene preloads, the feature scenes are deferred; here the
+	// base scene of the boot layout only.
+	bg_base_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
+	bg_base_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-phone.webp', import.meta.url).href), preload: atBoot('phone') },
+	bg_base_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
+	bg_bonus_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/bonus-landscape.webp', import.meta.url).href), preload: false },
+	bg_bonus_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/bonus-phone.webp', import.meta.url).href), preload: false },
+	bg_bonus_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/bonus-portrait.webp', import.meta.url).href), preload: false },
+	bg_super_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/super-landscape.webp', import.meta.url).href), preload: false },
+	bg_super_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/super-phone.webp', import.meta.url).href), preload: false },
+	bg_super_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/super-portrait.webp', import.meta.url).href), preload: false },
+	bg_epic_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/epic-landscape.webp', import.meta.url).href), preload: false },
+	bg_epic_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/epic-phone.webp', import.meta.url).href), preload: false },
+	bg_epic_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/epic-portrait.webp', import.meta.url).href), preload: false },
 	// stencil numerals: every amount glyph in one atlas, so amounts render as batched sprites with
 	// ZERO per-frame rasterization (components/ArtAmount.svelte)
 	numeralsAtlas: {

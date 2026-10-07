@@ -41,7 +41,7 @@
 	import { quadOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, CELL_COUNT, TILE, SPARKLE, AURA_COLOR, SHEET_FPS, reelOf, rowOf, symbolAnim } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, TILE, SPARKLE, AURA_COLOR, SHEET_FPS, reelOf, rowOf, symbolAnim } from '../game/constants';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { dotTexture, glowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
@@ -50,8 +50,9 @@
 	const context = getContext();
 	const stateGame = context.stateGame;
 
-	const SIZE = SYMBOL_SIZE * CELL_FILL;
-	const BADGE = SYMBOL_SIZE * TILE.size;
+	// SYMBOL_FIT: the symbols and the badges sit inside the lattice's clear openings (constants.ts)
+	const SIZE = SYMBOL_SIZE * CELL_FILL * SYMBOL_FIT;
+	const BADGE = SYMBOL_SIZE * TILE.size * SYMBOL_FIT;
 	const GLOW_SIZE = SIZE * 1.45;
 
 	const cellLayer = new PIXI.Container({ zIndex: 0, sortableChildren: true });
@@ -332,7 +333,7 @@
 	const badges: Badge[] = Array.from({ length: CELL_COUNT }, (_, index) => {
 		const s = new PIXI.Sprite(PIXI.Texture.EMPTY);
 		s.anchor.set(0.5);
-		s.position.set((reelOf(index) + 0.5 + TILE.offset.x) * SYMBOL_SIZE, (rowOf(index) + 0.5 + TILE.offset.y) * SYMBOL_SIZE);
+		s.position.set((reelOf(index) + 0.5 + TILE.offset.x * SYMBOL_FIT) * SYMBOL_SIZE, (rowOf(index) + 0.5 + TILE.offset.y * SYMBOL_FIT) * SYMBOL_SIZE);
 		s.visible = false;
 		badgeLayer.addChild(s);
 		return { s, value: 0, scale: NaN };
@@ -576,8 +577,13 @@
 								id: c.id, name: c.name, reel: c.reel, row: c.row, y: c.y, sx: c.scaleX, sy: c.scaleY, landAt: c.landAt, state: c.state,
 								mode: sl ? ['static', 'drop', 'idle'][sl.mode] : 'none', frame: sl?.frame ?? -1, clock: sl?.clock ?? 0,
 								texW: sl?.tex?.orig.width ?? 0, texLabel: sl?.tex?.label ?? null,
+								/** the drawn tile sprite's screen rect (frame_probe: the art inside the lattice openings) */
+								bounds: sl ? (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(sl.s.getBounds()) : null,
 							};
 						}),
+						/** the multiplier badges on screen, screen rects */
+						badges: badges.flatMap((b, i) => (b.s.visible && b.s.alpha > 0 ? [{ i, ...(({ x, y, width, height }) => ({ x, y, w: width, h: height }))(b.s.getBounds()) }] : [])),
+						fit: SYMBOL_FIT,
 					};
 				},
 				configurable: true,

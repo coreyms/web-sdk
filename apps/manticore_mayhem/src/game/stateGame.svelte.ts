@@ -15,6 +15,7 @@ import {
 	GRID,
 	CELL_COUNT,
 	CELL_FILL,
+	SYMBOL_FIT,
 	SYMBOL_SIZE,
 	BOARD_SIZES,
 	INITIAL_BOARD,
@@ -269,7 +270,7 @@ const landPose = (u: number, squash: number = GRAVITY_DROP.squash): [number, num
 			sy *= 1 + k;
 		}
 	}
-	let dy = ((1 - sy) * CELL_FILL) / 2;
+	let dy = ((1 - sy) * CELL_FILL * SYMBOL_FIT) / 2; // the drawn tile's bottom stays planted
 	if (GRAVITY_DROP.bounceCells > 0 && GRAVITY_DROP.bounceMs > 0) {
 		dy -= Math.sin(Math.PI * clamp01(u / GRAVITY_DROP.bounceMs)) * GRAVITY_DROP.bounceCells;
 	}

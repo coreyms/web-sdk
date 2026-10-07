@@ -19,8 +19,8 @@
 	//             mask: upright on the bottom band, flipped about the tear's line on the top band. The
 	//             copy is ONE RenderTexture of the board rendered ONCE at the swipe's start (allocated
 	//             once, at the first swipe, and reused)
-	//      core   the board backdrop texture through the core as a mask (the cut shows the bare board,
-	//             never the symbols), then black at tearCoreAlpha
+	//      core   black at tearCoreAlpha and nothing else: the tear layer sits over the tiles, so the cut
+	//             darkens them; the backing and the frame's lattice under the board read through it
 	//    The geometry is rebuilt only while a tear is still sweeping (the first ~125 ms); after that
 	//    only the layer's alpha moves (the shared fade).
 	// 2. THE ROAR'S CELL FLASHES (wellLayer, z -0.5: on the cell well, UNDER the tiles, like the
@@ -58,7 +58,6 @@
 	const bandFillG = new PIXI.Graphics();
 	const botMask = new PIXI.Graphics();
 	const topMasks = Array.from({ length: MAX_TEARS }, () => new PIXI.Graphics());
-	const coreMask = new PIXI.Graphics();
 	const coreFillG = new PIXI.Graphics();
 	// the board copy: the RenderTexture is made at the first swipe (never per frame, never per swipe)
 	let rt: PIXI.RenderTexture | null = null;
@@ -72,9 +71,7 @@
 		s.mask = m;
 		return s;
 	});
-	const bare = new PIXI.Sprite(PIXI.Texture.EMPTY);
-	bare.mask = coreMask;
-	tearLayer.addChild(glowG, bandFillG, botRefl, ...topRefl, bare, coreFillG, botMask, ...topMasks, coreMask);
+	tearLayer.addChild(glowG, bandFillG, botRefl, ...topRefl, coreFillG, botMask, ...topMasks);
 
 	/** one tear's outlines, sampled at FINE + 1 evenly spaced x across the board (board px) */
 	type Tear = { y0: number; t0: number; topOut: Float64Array; coreTop: Float64Array; coreBot: Float64Array; botOut: Float64Array };
@@ -193,7 +190,6 @@
 		glowG.clear();
 		bandFillG.clear();
 		botMask.clear();
-		coreMask.clear();
 		coreFillG.clear();
 		for (let i = 0; i < MAX_TEARS; i += 1) {
 			const m = topMasks[i];
@@ -217,7 +213,6 @@
 			bandFillG.poly(polyOf(tr.coreBot, tr.botOut, xc)).fill({ color: SWIPE_FX.tearEdgeColor });
 			m.poly(polyOf(tr.topOut, tr.coreTop, xc)).fill(0xffffff);
 			botMask.poly(polyOf(tr.coreBot, tr.botOut, xc)).fill(0xffffff);
-			coreMask.poly(polyOf(tr.coreTop, tr.coreBot, xc)).fill(0xffffff);
 			coreFillG.poly(polyOf(tr.coreTop, tr.coreBot, xc)).fill({ color: 0x000000, alpha: SWIPE_FX.tearCoreAlpha });
 			topRefl[i].visible = SWIPE_FX.tearReflect > 0;
 			// flipped about the tear's line: board y maps to 2 y0 - y
@@ -274,9 +269,6 @@
 				build(swipeFx.rows);
 				reveals.fill(-1);
 				complete = false;
-				const bd = (context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined)?.boardBackdrop;
-				if (bd && bare.texture !== bd) bare.texture = bd;
-				bare.setSize(W, H);
 				const c0 = performance.now();
 				captureFor(app.renderer as PIXI.Renderer);
 				swipeStats.captureMs = Math.max(swipeStats.captureMs, performance.now() - c0);
