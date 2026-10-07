@@ -66,11 +66,11 @@ BARS_Z = [0.618, 0.475, 0.31, 0.145, -0.018, -0.18, -0.342, -0.502, -0.64]
 # WHERE THE ART GOES per layout (Corey 2026-10-06). phone: approved as it was, the lattice on the old
 # 632.5 cell area. landscape / portrait: the whole frame art (finials to plinth, posts and chains) fitted to
 # the space, and the FRAME rect (cells, inset) DERIVED from the lattice at that scale:
-#   landscape  x 300 .. 900 (left: the BALANCE / WIN / SPIN row keys from the art's left edge and must clear
-#              the bottom-left buttons; right: the manticore column), top ART_TOP
+#   landscape  x 340 .. 940, centred on the 1280 master (Corey 2026-10-07; was 300 .. 900). The BALANCE / WIN /
+#              SPIN row keys from the art's edges; the art reaches 40 px into the manticore column. top ART_TOP
 #   portrait   the 412 master less SIDE 7 a side, top under the logo's tagline band (114 .. 150)
 PHONE_CELL = {'x': 423.75, 'y': 48.0, 'size': 632.5}
-ART_FIT = {'landscape': {'x0': 300.0, 'x1': 900.0, 'top': 38.0}}
+ART_FIT = {'landscape': {'x0': 340.0, 'x1': 940.0, 'top': 38.0}}
 # portrait: the chain centrelines (mean of each run's top pivot and bottom anchor, render px) at x0 / x1 of the 412
 # master; the art then sits in the band band_top .. hud_top (tagline band bottom 150, the BALANCE / BET row's
 # content top 688, measured in the running game at 360 / 390 / 430 wide) with the dead space split above : below =

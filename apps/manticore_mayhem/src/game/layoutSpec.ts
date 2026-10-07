@@ -25,11 +25,13 @@ export const FRAME: Record<
 	{ x: number; y: number; width: number; height: number; inset: number; cell: number; gap: number; margin: number }
 > = {
 	// DERIVED FROM THE FRAME ART (Corey 2026-10-06, tools/build_board_layers.py prints these as
-	// frameRects): the whole art, finials to plinth with both posts and chains, spans x 300..900 from
-	// y 38 (bottom 587.2, clear of the BALANCE / WIN / SPIN row). 300 is where the chrome keys that row
-	// from (any further left and BALANCE meets the bottom-left buttons); 900.. stays clear for the
-	// manticore. The cells are the art's lattice at that scale: 402.63 of cell area + 2 x 10.634 inset.
-	landscape: { x: 388.323, y: 98.166, width: 423.898, height: 423.898, inset: 10.634, cell: 48.404, gap: 2.2, margin: 4.4 },
+	// frameRects): the whole art, finials to plinth with both posts and chains, spans x 340..940 from
+	// y 38 (bottom 587.2, clear of the BALANCE / WIN / SPIN row), CENTRED on the 1280 master (Corey
+	// 2026-10-07: it was 300..900, 300 left / 380 right). The chrome keys that row from the art's edges,
+	// so the row moves with it (more room from the bottom-left buttons); the art reaches 40 px into the
+	// manticore column (MANTICORE.landscape, not drawn yet: accepted). The cells are the art's lattice
+	// at that scale: 402.63 of cell area + 2 x 10.634 inset.
+	landscape: { x: 428.323, y: 98.166, width: 423.898, height: 423.898, inset: 10.634, cell: 48.404, gap: 2.2, margin: 4.4 },
 	// CHAIN-FIT (Corey 2026-10-06 21:32: portrait was too small): each chain's centreline 10 master px
 	// inside the screen edge (x 10 and 402), the posts and finials overhang off screen (art x -17.9 ..
 	// 429.5); vertically the dead band between the tagline (150) and the BALANCE / BET row (688) is split
@@ -198,7 +200,7 @@ export const HUD: Record<
 		modePlaque: { y: 310, height: 34, width: 380 },
 		spinWin: { y: 640, height: 28, width: 400 },
 		// top right of the page: the band above the manticore (which stands at y 380, size 430, so
-		// its head reaches ~165) and clear of the board (right edge 890) and the clock strip
+		// its head reaches ~165) and clear of the board art (right edge 940, skip plate from 1010) and the clock strip
 		skipButton: { x: 1010, y: 34, width: 230, height: 48 },
 	},
 	portrait: {

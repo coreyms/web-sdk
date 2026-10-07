@@ -653,7 +653,7 @@ export const BOARD_ART = {
 	},
 	"frameRects": {
 		"landscape": {
-			"x": 388.323,
+			"x": 428.323,
 			"y": 98.166,
 			"width": 423.898,
 			"height": 423.898,

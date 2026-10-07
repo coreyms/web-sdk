@@ -45,6 +45,7 @@
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { dotTexture, glowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
+	import { enableMipmaps, mipLevels } from '../game/mipmaps';
 	import type { Cell } from '../game/stateGame.svelte';
 
 	const context = getContext();
@@ -64,6 +65,7 @@
 	parent.addToParent(badgeLayer);
 
 	const assets = () => context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
+	const rendererOf = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
 
 	/** blend white towards a flash colour by `k` — cheaper than a filter and batches with the rest */
 	const lerpTint = (color: number, k: number) => {
@@ -98,6 +100,10 @@
 		const drop = framesOf(tex, `${code}-drop`);
 		const idle = anim.idle ? framesOf(tex, `${code}-idle`) : [];
 		const sheet: Sheet = { drop, idle: idle.length > 1 ? idle : null, from: Math.min(anim.dropFrom, drop.length - 1) };
+		// MIPMAPS (game/mipmaps.ts): once per sheet source, here, before any sprite draws a frame of it
+		// and before the warm-up queue uploads it, so the chain is built with that one upload
+		enableMipmaps(drop[0]?.source, rendererOf());
+		if (sheet.idle) enableMipmaps(sheet.idle[0].source, rendererOf());
 		sheets.set(name, sheet);
 		return sheet;
 	};
@@ -176,6 +182,12 @@
 		if (tex !== staticFor) {
 			staticFor = tex;
 			staticOf = new Map();
+			// MIPMAPS for the symbol atlas (statics, x2..x128 badges, cell well: one source), before the
+			// board's first draw of it; a no-op for a source already done
+			enableMipmaps(tex?.['L1.png']?.source, rendererOf());
+			// and the numerals atlas (the readouts draw it at ~0.42 of a cell): flagged here so its first
+			// upload, whenever the first amount draws, already carries the chain (ArtAmount does the same)
+			enableMipmaps(tex?.['num_0.png']?.source, rendererOf());
 		}
 		let t = staticOf.get(name);
 		if (t === undefined) {
@@ -563,13 +575,21 @@
 							loaded.map((n) => {
 								const sh = sheets.get(n)!;
 								const src = sh.drop[0].source;
-								return [n, { drop: sh.drop.length, idle: sh.idle?.length ?? 0, from: sh.from, squash: symbolAnim(n).squash, sheetPx: src.pixelWidth, resolution: src.resolution }];
+								return [n, { drop: sh.drop.length, idle: sh.idle?.length ?? 0, from: sh.from, squash: symbolAnim(n).squash, sheetPx: src.pixelWidth, resolution: src.resolution, mips: mipLevels(src), idleMips: sh.idle ? mipLevels(sh.idle[0].source) : 0 }];
 							}),
 						),
 						/** the renderer's last tick time and style rate: the clip clocks are as of this instant */
 						tick: now,
 						rate,
 						gpuTextures: renderer?.texture?.managedTextures?.length ?? null,
+						/** mip levels per symbol texture source (1 = no chain): the atlas and every drop / idle sheet */
+						mips: (() => {
+							const per = loaded.flatMap((n) => {
+								const sh = sheets.get(n)!;
+								return [mipLevels(sh.drop[0].source), ...(sh.idle ? [mipLevels(sh.idle[0].source)] : [])];
+							});
+							return { atlas: mipLevels(tex?.['L1.png']?.source), numerals: mipLevels(tex?.['num_0.png']?.source), sheets: per.length, sheetsMipped: per.filter((m) => m > 1).length, minLevels: per.length ? Math.min(...per) : 0, webgl: renderer?.context?.webGLVersion ?? null };
+						})(),
 						assetKeys: tex ? Object.keys(tex).length : 0,
 						cells: stateGame.cells.map((c) => {
 							const sl = live.get(c.id);

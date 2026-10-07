@@ -27,6 +27,7 @@
 
 	import { getContext } from '../game/context';
 	import { layoutNumerals } from '../game/numeralLayout';
+	import { enableMipmaps } from '../game/mipmaps';
 	import GameText from './GameText.svelte';
 
 	type Props = {
@@ -75,6 +76,9 @@
 	$effect(() => {
 		const glyphs = tokens ? (layoutNumerals(text, height, { reserve, maxWidth }) ?? []) : [];
 		const atlas = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
+		// MIPMAPS (game/mipmaps.ts): the glyphs are 206 px tall and draw at ~15..65 px (the board
+		// readouts ~0.42 of a cell), so the atlas gets a mip chain, once, before its first upload
+		enableMipmaps(atlas?.['num_0.png']?.source, context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined);
 		const sh = shadow;
 		const draw = (row: PIXI.Container, dx: number, dy: number, colour: number, on: boolean) => {
 			const sprites = place(row, on ? glyphs.length : 0);

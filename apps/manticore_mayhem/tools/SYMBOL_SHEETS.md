@@ -98,6 +98,49 @@ frame 0 is the identity frame; its NOTES say play from 1.
 - DEV: `window.__manticore.sheets` (loaded, per-symbol counts, per-cell mode / frame / clock). Probe:
   `tools/manticore/sheet_probe.js` in the parent repo.
 
+## Mipmaps (2026-10-07)
+
+The 256 px cells draw at ~38.5 CSS px on the desktop landscape board (38.5 device px at DPR 1, ~58 at the
+renderer's 1.5 DPR cap), ~35 in portrait, ~76 on the phone master (128 px `-half` cells). Pixi v8 leaves
+`TextureSource.autoGenerateMipmaps` false, so linear sampling skipped 4 to 7 texels per screen pixel and the
+symbols looked grainy. `game/mipmaps.ts` `enableMipmaps(source, renderer)` sets, ONCE per source (WeakSet),
+`scaleMode = 'linear'` (min / mag / mipmap filter: trilinear), `autoGenerateMipmaps = true` and the full
+`mipLevelCount`; Pixi 8.8.1's GL texture system then runs `gl.generateMipmap` right after the level-0
+upload and never again (these sources never change). A source already on the GPU is re-uploaded once with
+its chain (`source.update()` + `style.update()`).
+
+Where it is called, always before the first draw / upload of that source:
+- `components/BoardCells.svelte` `sheetFor()`: each drop and idle sheet source, when the sheet is first
+  parsed (before the warm-up queue uploads it and before any cell draws a frame of it).
+- `BoardCells` `staticTexture()`: the `mmSymbols` atlas (statics, x2..x128 badges, cell well: one source) and
+  the numerals atlas, the first tick the loaded assets are seen.
+- `components/ArtAmount.svelte`: the numerals atlas again (no-op once done). The glyphs are 206 px tall
+  and draw at ~15 to 65 px (the board readouts are 0.42 of a cell), so they downscale as hard as the symbols.
+
+Not mipmapped: the board frame, chains, backdrop and backgrounds (built per layout, drawn near 1:1), the
+FX dot / glow textures. WebGL1 cannot mipmap the non-power-of-two sheets: there the NPOT sources are left
+alone and DEV logs `[manticore] WebGL1: NPOT symbol sheets are not mipmapped` once. The renderer is WebGL2
+(`preference: 'webgl'`, Pixi picks 2 where available).
+
+DEV: `window.__manticore.sheets.mips` = `{ atlas, numerals, sheets, sheetsMipped, minLevels, webgl }` (levels,
+1 = no chain); per symbol `mips` / `idleMips`. The GPU texture count is unchanged (30 at rest, flat across
+rounds: sheet_probe).
+
+Measured (tools/manticore/grain_probe.js + grain_compare.py, `tools/manticore/shots/grain-compare.png`, 2 x 2
+cells L2 / M3 / W / L3, mean abs Laplacian of luma, lower = less speckle; whole board in brackets):
+
+| shot | before | after |
+|------|-------:|------:|
+| landscape DPR 1 | 62.4 (48.1) | 25.1 (22.5) |
+| landscape DPR 2 (canvas at the 1.5 cap) | 19.5 (15.7) | 10.1 (8.8) |
+
+Decoded texture memory (w x h x 4, x 4/3 with a chain), the symbol atlas + every loaded sheet + numerals:
+
+| tier | before | after |
+|------|-------:|------:|
+| full (desktop) | 195.8 MB | 261.1 MB |
+| phone (`-half`) | 58.7 MB | 78.2 MB |
+
 ## Verify (2026-10-06)
 
 Diff = premultiplied RGBA, mean abs (0..255) and pixels with any channel over 8, at 256 px (65,536 px).
@@ -149,7 +192,7 @@ symbol cells equal the handoff tiles exactly (0.0 / 0, both tiers).
 | s-drop | 1,971,806 | 325,277 |
 | s-idle | 2,515,002 | 429,504 |
 | **sheets total** | **15,858,668 (15.9 MB, all lossless)** | **4,426,920 (4.4 MB)** |
-| decoded RGBA (GPU) | 178 MB | 44 MB |
+| decoded RGBA (GPU) | 178 MB (237 MB with mipmaps) | 44 MB (59 MB with mipmaps) |
 | mmSymbols atlas | 602,654 (was 104,400) | 202,645 (was 67,043) |
 | paytable tiles (10) | 146 KB at 128 px | |
 
