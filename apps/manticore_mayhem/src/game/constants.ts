@@ -14,12 +14,14 @@ export const SYMBOL_SIZE = 110; // one cell in board units; layoutSpec scales th
 export const CELL_FILL = 0.94; // drawn tile size as a share of the cell pitch
 /** THE SYMBOLS FIT INSIDE THE LATTICE CELLS (Corey 2026-10-06 21:32): the drawn tile (CELL_FILL) and the
  *  multiplier badge (size AND offset) are scaled by this so the opaque symbol art and the badge disc clear
- *  every bar edge and rivet of the v4f lattice by 1 master px (landscape, portrait) / 1.5 screen px (phone).
- *  Solved per cell over all 64 cells and every static tile by tools/build_board_layers.py (prints it, and
- *  BOARD_ART.symbolFit records it): 0.81, bound by portrait's bottom-right cell (the wide l2 against the
- *  side bar, where the 4 degree tilt narrows the lattice). Rows 0 and 7 are checked against their inner bar
- *  and the side bars only: the lattice is 3.2 % wider than tall, so those rows overhang the top / bottom
- *  outer bars (inside the rails) by a few px at any sensible scale. */
+ *  every bar edge and rivet of the lattice (board_v4h since 2026-10-07 11:35; still 0.81) by 1 master px
+ *  (landscape, portrait) / 1.5 screen px (phone). Solved per cell over all 64 cells and every static tile by
+ *  tools/build_board_layers.py (prints it, and BOARD_ART.symbolFit records it): 0.81, bound by the bottom-right
+ *  cell (the wide l2 against the side bar, where the 4 degree tilt narrows the lattice). v4h: the opening is
+ *  SQUARE, so rows 0 and 7 are held to the top / bottom outer bars like every other bar (BOARD_ART.holdRows; no
+ *  overhang, clearance beyond the margin landscape 1.14, portrait 0.10, phone 0.32 master px) and every
+ *  crossing counts as a rivet (v4i: the real top and bottom bars' rivets; the top rail's bar clips are gone). Up to v4g the lattice was
+ *  wider than tall and those two rows hung over the top / bottom outer bars by a few px. */
 export const SYMBOL_FIT = 0.81;
 export const CELL_COUNT = GRID * GRID;
 

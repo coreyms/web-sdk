@@ -1,10 +1,11 @@
-// THE BOARD ART REGISTRATION: where the frame render (board_v4e, 2048 x 1863) and its chains land in
+// THE BOARD ART REGISTRATION: where the frame render (board_v4h, 2048 x 1935; 1863 up to v4g) and its chains land in
 // master units for a layout. The lattice's outer bar axes (BOARD_ART.lattice, render px) enclose the
 // 8x8 cell area, so one uniform scale maps that rectangle onto the layout's cell area (FRAME minus its
 // inset). The render is tilted (v4e, 4 degrees down through a mild perspective lens), so the width is
-// measured at the lattice's MID-HEIGHT; the lattice is about 3 percent wider than tall while the cell
-// area is square, so the scale fits the WIDTH and the art is centred vertically: `mismatch` is the
-// cell-area height the lattice does NOT cover (split evenly above and below). The math itself lives in
+// measured at the lattice's MID-HEIGHT; up to v4g the lattice was 3 to 5 percent wider than tall while the
+// cell area is square, so the scale fits the WIDTH and the art is centred vertically: `mismatch` is the
+// cell-area height the lattice does NOT cover (split evenly above and below). v4h's opening is square in the
+// model (the tilt leaves 3.2 render px, about 1 master px at landscape). The math itself lives in
 // layoutSpec.registrationOf, which frameArtRect shares.
 //
 // Everything here is plain arithmetic on layoutSpec.frameFor(), so the portrait growth (frameFor's k)

@@ -2,8 +2,9 @@
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_board_layers.py [--no-frame] [--no-bg]
 
-Sources (read only, never written), TAG = board_v4f (TILT_DEG 4) or board_v4d (TILT_DEG 0):
-  ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_frame.png    2048 x 1863 RGBA: frame + 9x9 lattice + top links
+Sources (read only, never written), TAG = board_v4i (TILT_DEG 4) or board_v4d (TILT_DEG 0):
+  ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_frame.png    2048 x 1935 RGBA (v4h; 1863 up to v4g): frame + 9x9
+                                                                    lattice + top links
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_neutral_frame.png   the same with the NEUTRAL steel grid (v4f)
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_chains.png   same canvas: the 16 run links per side only
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_camera.json  camera; v4e also carries the projected
@@ -46,16 +47,27 @@ DESK = os.path.expanduser('~/Desktop/Manticore Mayhem/images')
 # orthographic v4d set; 4 = v4e, rendered by model/scripts/render_layers_tilt.py (camera 4 degrees above,
 # 7 units out, lens 124.9 mm). The registration is measured at the lattice's MID-HEIGHT width.
 TILT_DEG = 4
-RENDERS = {0: 'board_v4d', 4: 'board_v4f'}
+# v4g (Corey 2026-10-07): the inner rails trimmed off the frame, the lattice grown to the posts and the lower rail
+# v4h (Corey 2026-10-07 11:35): the top raised 0.0692 so the opening is SQUARE (1.3684 x 1.3684), the lattice uniform in
+# both directions (pitch W / 8), 17 chain links a side; the render canvas grew 72 px at the top (2048 x 1935)
+# v4i (Corey 12:25): the top rail's bar clips removed, a REAL top outer bar with rivets at every crossing and corner
+RENDERS = {0: 'board_v4d', 4: 'board_v4i'}
 TAG = RENDERS[TILT_DEG]
-# the grid steel (Corey 2026-10-06 21:33: B read teal over black): 'neutral' = textures_v4f/neutral, 'blue' = B
+# --tag <render tag> overrides it (dry runs of a variant, e.g. board_v4g_uz with --no-frame --no-bg)
+import sys as _sys
+if '--tag' in _sys.argv:
+    TAG = _sys.argv[_sys.argv.index('--tag') + 1]
+_D = os.path.join(DESK, 'board/drafts')
+_pick = lambda *names: next((os.path.join(_D, n) for n in names if os.path.exists(os.path.join(_D, n))), os.path.join(_D, names[-1]))
+# the grid steel (Corey 2026-10-06 21:33: B read teal over black): 'neutral' = textures_v4f/neutral, 'blue' = B.
+# v4f: <TAG>_frame.png was B and <TAG>_neutral_frame.png neutral; v4g: <TAG>_frame.png is neutral, B is <TAG>_blue_frame.png
 DEFAULT_GRID = 'neutral'
-GRID_SRC = {'blue': os.path.join(DESK, f'board/drafts/{TAG}_frame.png'), 'neutral': os.path.join(DESK, f'board/drafts/{TAG}_neutral_frame.png')}
-SRC_FRAME = GRID_SRC[DEFAULT_GRID] if os.path.exists(GRID_SRC['neutral']) else GRID_SRC['blue']
-SRC_CHAINS = os.path.join(DESK, f'board/drafts/{TAG}_chains.png')
-SRC_CAMERA = os.path.join(DESK, f'board/drafts/{TAG}_camera.json')
+GRID_SRC = {'blue': _pick(f'{TAG}_blue_frame.png', f'{TAG}_frame.png'), 'neutral': _pick(f'{TAG}_neutral_frame.png', f'{TAG}_frame.png')}
+SRC_FRAME = GRID_SRC[DEFAULT_GRID]
+SRC_CHAINS = _pick(f'{TAG}_chains.png', 'board_v4i_chains.png')
+SRC_CAMERA = os.path.join(_D, f'{TAG}_camera.json')
 FLAT_CAMERA = os.path.join(DESK, 'board/drafts/board_v4d_camera.json')
-PREV_CAMERA = os.path.join(DESK, 'board/drafts/board_v4e_camera.json')  # the pre-respace lattice, for the before line
+PREV_CAMERA = os.path.join(DESK, 'board/drafts/board_v4h_camera.json')  # the previous lattice, for the before line
 SRC_BG = os.path.join(DESK, 'submission/final/tile-bg.jpg')
 
 # lattice bar axes, world units: the v4 numbers (board_v4_NOTES.md, "Grid material finding") for the flat
@@ -146,6 +158,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-frame', action='store_true')
     ap.add_argument('--no-bg', action='store_true')
+    ap.add_argument('--tag')
     args = ap.parse_args()
 
     cam = json.load(open(SRC_CAMERA))
@@ -180,9 +193,26 @@ def main():
     rbar_px, rriv_px = L.get('bar_radius_px', 14.2), L.get('rivet_radius_px', 28.7)
     prev = None
     if os.path.exists(PREV_CAMERA) and PREV_CAMERA != SRC_CAMERA:
-        pc = json.load(open(PREV_CAMERA))['lattice']['crossings_px']
-        prev = ([p[0] for p in pc[4]], [row[4][1] for row in pc])
+        pcj = json.load(open(PREV_CAMERA))
+        pc = pcj['lattice']['crossings_px']
+        dv = cam.get('extra_top_px', 0) - pcj.get('extra_top_px', 0)   # v4h's canvas grew at the top: same pixel grid + dv
+        prev = ([p[0] for p in pc[4]], [row[4][1] + dv for row in pc])
     tiles_art = tile_art_masks()
+
+    # which crossings carry a rivet: v4f only the 7 x 7 inner ones (its outer bars were virtual, inside the rails);
+    # v4g's outer bars are real (side and bottom, copied with their rivets, plus the two bottom corners), only the
+    # top line is still virtual (inside the top rail). The SIDE bars' rivets (rows 1..7) bind the column 0 / 7 cells
+    # like any inner rivet; the bottom bar's rivets (and the corners) belong with the bottom outer bar that row 7 is
+    # already allowed to hang over (rails=False below), so they count only in the rows 0 / 7 overhang report
+    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i'))
+    rivet_at = (lambda r, c: 0 < r < 8) if outer_rivets else (lambda r, c: 0 < r < 8 and 0 < c < 8)
+    # v4h: the opening is SQUARE, so rows 0 / 7 no longer hang over the top / bottom outer bars: they are held to them
+    # like every other bar (HOLD_ROWS: rails=True in the solve), and every crossing counts as a rivet: the bottom bar's
+    # real rivets and the top line's (v4h: the copper bar clips under the top rail, a rivet as their stand-in; v4i: the
+    # real top bar's rivets, the clips are gone)
+    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i'))
+    if HOLD_ROWS:
+        rivet_at = lambda r, c: True
 
     # ---- the per-layout registration and the derived FRAME --------------------------------------------
     layouts, frames, checks = {}, {}, {}
@@ -260,16 +290,16 @@ def main():
                 cells.append({'tile': (gx(c) + gap / 2 + (pitch - gap) / 2, gy(r) + gap / 2 + (pitch - gap) / 2),
                               'x0': max(pts[0][0], pts[2][0]) + rb, 'x1': min(pts[1][0], pts[3][0]) - rb,
                               'y0': max(pts[0][1], pts[1][1]) + rb, 'y1': min(pts[2][1], pts[3][1]) - rb,
-                              'rivets': [p for p, (i, j) in zip(pts, ((0, 0), (0, 1), (1, 0), (1, 1))) if 0 < r + i < 8 and 0 < c + j < 8]})
+                              'rivets': [p for p, (i, j) in zip(pts, ((0, 0), (0, 1), (1, 0), (1, 1))) if rivet_at(r + i, c + j)]})
         checks[kind] = {'cells': cells, 'pitch': pitch, 'gap': gap, 'rb': rb, 'rr': rr, 'worst_bar': worst, 'opening': min(min(c['x1'] - c['x0'], c['y1'] - c['y0']) for c in cells)}
 
     # ---- SYMBOL_FIT: the largest symbol scale (0.01 steps) whose art and badge clear every bar / rivet ----------
     def clear(kind, fit, rows=range(8), why=None, rails=False):
         """the smallest clearance (master px, beyond the margin) of any symbol art / badge to a bar edge or rivet.
-        rails=False skips the TOP rail edge for row 0 and the BOTTOM one for row 7: the lattice is 3.2 % wider than
-        tall and the 8 square tile rows are registered to its width, so those two rows always hang half the
-        difference (~6 master px at landscape) over the outer bars, which sit inside the rails; no symbol scale
-        short of ~0.57 avoids that, it is reported separately (rail_overhang)."""
+        rails=False skips the TOP outer bar edge for row 0 and the BOTTOM one for row 7: the lattice is wider than
+        tall (v4f 3.2 %, v4g 5.3 %) and the 8 square tile rows are registered to its width, so those two rows
+        always hang over the top / bottom outer bars (the top one inside the top rail, the bottom one on the lower
+        rail since v4g); no sensible symbol scale avoids that, it is reported separately (rail_overhang)."""
         ck = checks[kind]
         p, mg = ck['pitch'], FIT_MARGIN[kind]
         side = p * CELL_FILL * fit
@@ -309,21 +339,21 @@ def main():
         return worst - mg
 
     symbol_fit = 1.0
-    while symbol_fit > 0.5 and min(clear(k, symbol_fit) for k in checks) < 0:
+    while symbol_fit > 0.5 and min(clear(k, symbol_fit, rails=HOLD_ROWS) for k in checks) < 0:
         symbol_fit = round(symbol_fit - 0.01, 2)
     print(f'SYMBOL_FIT {symbol_fit:.2f} (art = static tiles alpha > 128 + the badge disc; margins {FIT_MARGIN})')
     rail_overhang = {}
     for k in checks:
         why = []
-        clear(k, symbol_fit + 0.01, range(8), why)
+        clear(k, symbol_fit + 0.01, range(8), why, rails=HOLD_ROWS)
         # rows 0 / 7 against the top / bottom outer bar edge (inside the rails) at the shipped fit
         rail_overhang[k] = round(-min(clear(k, symbol_fit, [0], rails=True), clear(k, symbol_fit, [7], rails=True)), 2)
-        print(f'  {k}: the next step (fit {symbol_fit + 0.01:.2f}) would fail at row/col/art/what/clearance {why}; rows 0 / 7 hang over the top / bottom outer bar edge by up to {rail_overhang[k]:.2f} master px beyond the margin (inherent, see clear())')
+        print(f'  {k}: the next step (fit {symbol_fit + 0.01:.2f}) would fail at row/col/art/what/clearance {why}; rows 0 / 7 vs the top / bottom outer bar edge: overhang {max(rail_overhang[k], 0):.2f} master px beyond the margin (clearance {max(-rail_overhang[k], 0):.2f}){" (held: square opening)" if HOLD_ROWS else " (inherent, see clear())"}')
     for k, ck in checks.items():
         p = ck['pitch']
         print(f'  {k}: pitch {p:.2f}, bar r {ck["rb"]:.2f}, rivet r {ck["rr"]:.2f}, narrowest clear opening {ck["opening"]:.2f} master px; '
               f'symbol sprite {p * CELL_FILL:.2f} -> {p * CELL_FILL * symbol_fit:.2f}, badge {BADGE["size"] * p:.2f} -> {BADGE["size"] * p * symbol_fit:.2f}; '
-              f'clearance left {clear(k, symbol_fit) + FIT_MARGIN[k]:.2f} (margin {FIT_MARGIN[k]:.2f}); at fit 1.00: {clear(k, 1.0) + FIT_MARGIN[k]:.2f}')
+              f'clearance left {clear(k, symbol_fit, rails=HOLD_ROWS) + FIT_MARGIN[k]:.2f} (margin {FIT_MARGIN[k]:.2f}); at fit 1.00: {clear(k, 1.0, rails=HOLD_ROWS) + FIT_MARGIN[k]:.2f}')
 
     frame_spec, chain_spec, sizes = {}, {}, {}
     if not args.no_frame:
@@ -401,6 +431,10 @@ def main():
             # outer bars included (index 0 and 8); radii at the board centre
             'bars': {'x': [round(v, 3) for v in bars_u], 'y': [round(v, 3) for v in bars_v], 'barRadius': rbar_px, 'rivetRadius': rriv_px},
             'symbolFit': symbol_fit,
+            # v4g: the side and bottom outer bars are real and carry rivets (every crossing but the top line)
+            'outerRivets': outer_rivets,
+            # v4h: square opening, rows 0 / 7 held to the top / bottom outer bars and every crossing a rivet (probe + fit)
+            'holdRows': HOLD_ROWS,
             # all 81 projected bar crossings (rows top to bottom), for the probe's per-cell openings
             'crossings': [[[round(v, 2) for v in p] for p in row] for row in cross],
             # each static tile's opaque art box (alpha > 128) as fractions of its sprite, -0.5..0.5
@@ -411,7 +445,7 @@ def main():
         with open(SPEC_TS, 'w') as f:
             f.write(
                 f'// GENERATED by tools/build_board_layers.py from {TAG}_camera.json: do not edit by hand, rerun the\n'
-                '// tool when the board renders change. Every number is in RENDER pixels of the 2048 x 1863 board render\n'
+                f'// tool when the board renders change. Every number is in RENDER pixels of the {cam["resolution"][0]} x {cam["resolution"][1]} board render\n'
                 '// (top-left origin) unless it says tex: texture pixels of the exported webp. lattice = the mid-height width\n'
                 '// and the centre line of the outer bars; art = the frame + chains alpha bbox; frameRects = the FRAME\n'
                 '// entries this registration derives (copied into layoutSpec.ts). game/layoutSpec.ts registers it.\n'

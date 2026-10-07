@@ -26,21 +26,25 @@ export const FRAME: Record<
 > = {
 	// DERIVED FROM THE FRAME ART (Corey 2026-10-06, tools/build_board_layers.py prints these as
 	// frameRects): the whole art, finials to plinth with both posts and chains, spans x 340..940 from
-	// y 38 (bottom 587.2, clear of the BALANCE / WIN / SPIN row), CENTRED on the 1280 master (Corey
+	// y 38 (bottom 609.24, clear of the BALANCE / WIN / SPIN row), CENTRED on the 1280 master (Corey
 	// 2026-10-07: it was 300..900, 300 left / 380 right). The chrome keys that row from the art's edges,
 	// so the row moves with it (more room from the bottom-left buttons); the art reaches 40 px into the
 	// manticore column (MANTICORE.landscape, not drawn yet: accepted). The cells are the art's lattice
-	// at that scale: 402.63 of cell area + 2 x 10.634 inset.
-	landscape: { x: 428.323, y: 98.166, width: 423.898, height: 423.898, inset: 10.634, cell: 48.404, gap: 2.2, margin: 4.4 },
+	// at that scale: 425.18 of cell area + 2 x 11.23 inset (board_v4h / v4i, 2026-10-07: the top raised so the
+	// opening is SQUARE and the lattice uniform both ways; the art is taller, bottom 609.24, was 587.2 with
+	// v4g's 425.03 and 402.63 with v4f).
+	landscape: { x: 416.451, y: 103.76, width: 447.641, height: 447.641, inset: 11.23, cell: 51.115, gap: 2.323, margin: 4.647 },
 	// CHAIN-FIT (Corey 2026-10-06 21:32: portrait was too small): each chain's centreline 10 master px
 	// inside the screen edge (x 10 and 402), the posts and finials overhang off screen (art x -17.9 ..
 	// 429.5); vertically the dead band between the tagline (150) and the BALANCE / BET row (688) is split
-	// 1 : 1.3 above / below the art (art y 205.85 .. 615.4). 300.24 of cell area + 2 x 9.6, cells 35.2
-	// (pitch 37.86). frameFor() grows it on wide portrait viewports the same way (PORTRAIT_FIT).
-	portrait: { x: 46.277, y: 249.043, width: 319.447, height: 319.447, inset: 9.601, cell: 35.246, gap: 2.611, margin: 4.364 },
+	// 1 : 1.3 above / below the art (art y 198.77 .. 624.6, board_v4h: the taller square-opening art; was
+	// 205.85 .. 615.4 with v4g). 316.95 of cell area + 2 x 10.135, cells 37.2 (pitch 39.96, as v4g; 300.24 /
+	// 37.86 with v4f). frameFor() grows it on wide portrait viewports the same way (PORTRAIT_FIT).
+	portrait: { x: 37.389, y: 246.027, width: 337.222, height: 337.222, inset: 10.135, cell: 37.207, gap: 2.756, margin: 4.607 },
 	// 632.5 of cells + 2x16 = 664.5 square, centred on the master so the chrome's 340-wide side
 	// columns stay clear; the manticore stands in the right one. Approved as is (Corey 2026-10-06):
-	// here the art is registered TO these cells, so it overhangs the master top and bottom.
+	// here the art is registered TO these cells, so it overhangs the master top and bottom (board_v4h: art y
+	// -66.53 .. 783.24 of the 740 master, 66.5 over the top and 43.2 under the bottom).
 	phone: { x: 407.75, y: 32, width: 664.5, height: 664.5, inset: 16, cell: 76, gap: 3.5, margin: 7 },
 };
 
@@ -196,8 +200,8 @@ export const HUD: Record<
 	landscape: {
 		// the free band between the board's bottom edge (618) and the BALANCE / WIN / SPIN row (~655)
 		pressToContinue: { y: 700, width: 620, height: 48 },
-		// the cell area's centre (108.8 + 402.63 / 2) and 0.94 of its width
-		modePlaque: { y: 310, height: 34, width: 380 },
+		// the cell area's centre (114.99 + 425.18 / 2, board_v4h) and ~0.9 of its width
+		modePlaque: { y: 327.6, height: 34, width: 380 },
 		spinWin: { y: 640, height: 28, width: 400 },
 		// top right of the page: the band above the manticore (which stands at y 380, size 430, so
 		// its head reaches ~165) and clear of the board art (right edge 940, skip plate from 1010) and the clock strip
@@ -205,14 +209,13 @@ export const HUD: Record<
 	},
 	portrait: {
 		pressToContinue: { y: 700, width: 300, height: 44 },
-		// the cell area's centre at k 1 (258.64 + 300.24 / 2); ModePlaque uses boardCenterY (follows the growth)
-		modePlaque: { y: 408.8, height: 28, width: 260 },
-		// y at k 1: midway between the art bottom (615.4) and the BALANCE / BET row (688); SpinWin uses
-		// spinWinY (follows the growth: at k 1.12 the art bottom is 643.2, the readout centre 665.6)
-		spinWin: { y: 651.7, height: 26, width: 340 },
-		// the tagline band under the logo (logo bottom ~114, frame art top 205.85 at k 1, 184.5 at the
-		// 1.12 cap): the chrome hides the tagline for the whole free game, so this band is free in every
-		// portrait fit.
+		// the cell area's centre at k 1 (256.16 + 316.95 / 2, board_v4h); ModePlaque uses boardCenterY (follows the growth)
+		modePlaque: { y: 414.6, height: 28, width: 260 },
+		// y at k 1: midway between the art bottom (624.6, board_v4h) and the BALANCE / BET row (688); SpinWin uses
+		// spinWinY (follows the growth)
+		spinWin: { y: 656.3, height: 26, width: 340 },
+		// the tagline band under the logo (logo bottom ~114, frame art top 198.77 at k 1, board_v4h): the chrome
+		// hides the tagline for the whole free game, so this band is free in every portrait fit.
 		skipButton: { x: 96, y: 115, width: 220, height: 48 },
 	},
 	phone: {

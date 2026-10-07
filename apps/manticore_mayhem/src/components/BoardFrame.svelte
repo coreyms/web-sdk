@@ -310,6 +310,9 @@
 						rivetRadiusScreen: BOARD_ART.bars.rivetRadius * (fs.tex[0] / fs.size[0]) * frameSprite.worldTransform.a,
 						tileGapsScreen: boardNode ? { x: Array.from({ length: 9 }, (_, c) => g(boardNode, c * SYMBOL_SIZE, 0).x), y: Array.from({ length: 9 }, (_, r) => g(boardNode, 0, r * SYMBOL_SIZE).y) } : null,
 						symbolArt: BOARD_ART.symbolArt,
+						outerRivets: BOARD_ART.outerRivets,
+						/** v4h: square opening, rows 0 / 7 held to the top / bottom outer bars, every crossing a rivet */
+						holdRows: BOARD_ART.holdRows,
 						/** mid-height lattice width (x0..x1) and its centre line (y0..y1), screen px */
 						latticeScreen: { x0: lat0.x, y0: lat0.y, x1: lat1.x, y1: lat1.y },
 						/** the outer bar crossings TL, TR, BL, BR in screen px (the tilt makes the top a hair wider) */
