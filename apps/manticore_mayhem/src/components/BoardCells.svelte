@@ -17,10 +17,13 @@
 	// belongs to the CELL (cellIndex), never to the symbol, and is drawn UNDER the symbols. One plate per
 	// cell, built the first frame that cell has a value and kept: one Graphics drawn ONCE in white (the fill
 	// and the border; the colour, the count-over's colour lerp and the dim are its tint, so it is never
-	// redrawn), a soft glow (the shared aura texture, tinted) and two rows of numerals-atlas glyphs (the old
-	// and the new value for the count-over), each a white face over a slightly larger copy tinted the plate
-	// colour (the playground's white fill with a coloured stroke). Rows re-layout only when their text
-	// changes. No text, no texture, no filter.
+	// redrawn), a soft glow (the shared aura texture, tinted) and two rows of plate-atlas glyphs (the old
+	// and the new value for the count-over), each a white face over a slightly larger copy of every glyph
+	// tinted the plate colour (the playground's white fill with a coloured stroke). The glyphs are Barlow
+	// Condensed 700 (game/plateGlyphs.ts, the playground's face), set like canvas fillText: advances +
+	// kerning, centred on the advance box, the 'middle' line on the plate centre, font size
+	// MULT_PLATE.numberSizeCells of a cell. Rows re-layout only when their text changes. No text, no
+	// texture, no filter.
 	//
 	// THE DIM RULE (Corey 2026-10-07 10:18): every dim (Cell.dim) is a DARKENING, the sprite tint
 	// multiplied toward black, never alpha, and the plate under a dimmed symbol darkens by the same factor.
@@ -54,7 +57,7 @@
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, reelOf, rowOf, symbolAnim } from '../game/constants';
 	import { BOARD_ART } from '../game/boardArtSpec';
-	import { layoutNumerals } from '../game/numeralLayout';
+	import { PLATE_GLYPHS, PLATE_GLYPH_PREFIX, PLATE_GLYPH_MIDDLE, PLATE_KERN } from '../game/plateGlyphs';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { dotTexture, glowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
@@ -212,6 +215,8 @@
 			// and the numerals atlas (the readouts draw it at ~0.42 of a cell): flagged here so its first
 			// upload, whenever the first amount draws, already carries the chain (ArtAmount does the same)
 			enableMipmaps(tex?.['num_0.png']?.source, rendererOf());
+			// and the plate glyphs (160 px em drawn at ~0.48 of a cell)
+			enableMipmaps(tex?.[`${PLATE_GLYPH_PREFIX}0.png`]?.source, rendererOf());
 		}
 		let t = staticOf.get(name);
 		if (t === undefined) {
@@ -385,15 +390,64 @@
 	const PLATE = SYMBOL_SIZE * (OPENING - 2 * MULT_PLATE.insetCells);
 	const PLATE_R = MULT_PLATE.cornerPx * PLAYGROUND_PX;
 	const PLATE_W = MULT_PLATE.borderPx * PLAYGROUND_PX;
-	const NUM_H = SYMBOL_SIZE * MULT_PLATE.numberSizeCells;
-	const NUM_MAX_W = PLATE - 2 * PLATE_W - SYMBOL_SIZE * 0.08;
-	/** the coloured copy under the white face reaches this far past the glyphs (board px) */
-	const OUTLINE = NUM_H * 0.07;
+	/** the number's font size (canvas px of the playground: the em, not the digit height) */
+	const NUM_EM = SYMBOL_SIZE * MULT_PLATE.numberSizeCells;
+	/** the coloured copy under the white face reaches this far past each glyph (board px). The
+	 *  playground strokes 0.06 em centred on the outline; the copy shows only the outer part, so it is
+	 *  drawn a little wider than that stroke's outer half to keep the coloured rim readable */
+	const OUTLINE = NUM_EM * 0.05;
+	/** the widest the number's ink (outline included) may run: inside the plate's border. Wider than
+	 *  this (x256 at 0.48) the TRACKING closes up, never the height */
+	const NUM_MAX_W = PLATE - 2 * PLATE_W - 2 * OUTLINE;
+	const PLATE_KEY_0 = `${PLATE_GLYPH_PREFIX}0.png`;
+	type PlateGlyphRect = { key: string; x: number; y: number; w: number; h: number };
+	/** canvas fillText's layout of `text` at NUM_EM with textAlign centre and textBaseline middle, as
+	 *  rects about (0, 0); null when a character is not in the atlas */
+	const layoutPlate = (text: string): { glyphs: PlateGlyphRect[]; track: number } | null => {
+		const gs: (typeof PLATE_GLYPHS)[string][] = [];
+		for (const ch of text) {
+			const g = PLATE_GLYPHS[ch];
+			if (!g) return null;
+			gs.push(g);
+		}
+		if (!gs.length) return null;
+		const lay = (track: number) => {
+			let pen = 0;
+			let prev = '';
+			const out: PlateGlyphRect[] = [];
+			let i = 0;
+			for (const ch of text) {
+				const g = gs[i];
+				if (i > 0) pen += (PLATE_KERN[prev + ch] ?? 0) * NUM_EM + track;
+				out.push({ key: `${PLATE_GLYPH_PREFIX}${g.key}.png`, x: pen + g.x * NUM_EM, y: g.y * NUM_EM, w: g.w * NUM_EM, h: g.h * NUM_EM });
+				pen += g.adv * NUM_EM;
+				prev = ch;
+				i += 1;
+			}
+			// centred on the advance box, baseline PLATE_GLYPH_MIDDLE em below the middle line
+			const dx = -pen / 2;
+			const dy = PLATE_GLYPH_MIDDLE * NUM_EM;
+			for (const r of out) {
+				r.x += dx;
+				r.y += dy;
+			}
+			return out;
+		};
+		const inkW = (rs: PlateGlyphRect[]) => rs[rs.length - 1].x + rs[rs.length - 1].w - rs[0].x;
+		let glyphs = lay(0);
+		let track = 0;
+		const over = inkW(glyphs) - NUM_MAX_W;
+		if (over > 0 && glyphs.length > 1) {
+			track = -over / (glyphs.length - 1);
+			glyphs = lay(track);
+		}
+		return { glyphs, track };
+	};
 	const GLOW = MULT_PLATE.numberGlowPx * PLAYGROUND_PX;
 	const covered = new Uint8Array(CELL_COUNT);
 	const coverDim = new Float32Array(CELL_COUNT);
 
-	type Row = { c: PIXI.Container; out: PIXI.Container; face: PIXI.Container; text: string; w: number; h: number; scale: number; alpha: number; tint: number; ftint: number };
+	type Row = { c: PIXI.Container; out: PIXI.Container; face: PIXI.Container; text: string; w: number; h: number; track: number; scale: number; alpha: number; tint: number; ftint: number };
 	type Plate = { root: PIXI.Container; g: PIXI.Graphics; glow: PIXI.Sprite; old: Row; cur: Row; value: number; from: number; tint: number; glowTint: number; numAlpha: number; shown: boolean };
 	const plates: (Plate | null)[] = Array(CELL_COUNT).fill(null);
 	const glyphPool: PIXI.Sprite[] = [];
@@ -402,7 +456,7 @@
 		const out = new PIXI.Container();
 		const face = new PIXI.Container();
 		c.addChild(out, face);
-		return { c, out, face, text: '', w: 0, h: 0, scale: NaN, alpha: NaN, tint: -1, ftint: -1 };
+		return { c, out, face, text: '', w: 0, h: 0, track: 0, scale: NaN, alpha: NaN, tint: -1, ftint: -1 };
 	};
 	const plateAt = (index: number): Plate => {
 		let p = plates[index];
@@ -427,22 +481,24 @@
 	/** lay a row's glyphs out for `text` (only when it changes): the white face and the coloured copy */
 	const setRow = (r: Row, text: string, tex: Record<string, PIXI.Texture> | undefined) => {
 		if (r.text === text) return true;
-		const glyphs = layoutNumerals(text, NUM_H, { maxWidth: NUM_MAX_W });
-		if (!glyphs || !tex?.['num_0.png']) return false;
-		const fill = (layer: PIXI.Container) => {
+		const laid = layoutPlate(text);
+		if (!laid || !tex?.[PLATE_KEY_0]) return false;
+		const glyphs = laid.glyphs;
+		const fill = (layer: PIXI.Container, grow: number) => {
 			while (layer.children.length < glyphs.length) layer.addChild(glyphPool.pop() ?? new PIXI.Sprite(PIXI.Texture.EMPTY));
 			while (layer.children.length > glyphs.length) glyphPool.push(layer.removeChildAt(layer.children.length - 1) as PIXI.Sprite);
 			layer.children.forEach((child, i) => {
 				const s = child as PIXI.Sprite;
 				const gl = glyphs[i];
-				s.texture = tex[`num_${gl.key}.png`] ?? PIXI.Texture.EMPTY;
-				s.position.set(gl.x, gl.y);
-				s.setSize(gl.w, gl.h);
-				s.visible = !!gl.key;
+				s.texture = tex[gl.key] ?? PIXI.Texture.EMPTY;
+				s.position.set(gl.x - grow, gl.y - grow);
+				s.setSize(gl.w + 2 * grow, gl.h + 2 * grow);
+				s.visible = true;
 			});
 		};
-		fill(r.out);
-		fill(r.face);
+		// the coloured copy: every glyph grown by OUTLINE on each side about its own centre
+		fill(r.out, OUTLINE);
+		fill(r.face, 0);
 		let x0 = Infinity;
 		let x1 = -Infinity;
 		let y0 = Infinity;
@@ -455,12 +511,7 @@
 		}
 		r.w = x1 - x0;
 		r.h = y1 - y0;
-		// centre the glyph block on the plate centre, and grow the coloured copy by OUTLINE on every side
-		const cx = (x0 + x1) / 2;
-		const cy = (y0 + y1) / 2;
-		r.face.pivot.set(cx, cy);
-		r.out.pivot.set(cx, cy);
-		r.out.scale.set(1 + (2 * OUTLINE) / Math.max(r.w, 1), 1 + (2 * OUTLINE) / Math.max(r.h, 1));
+		r.track = laid.track;
 		r.text = text;
 		return true;
 	};
@@ -768,7 +819,7 @@
 								const sh = sheets.get(n)!;
 								return [mipLevels(sh.drop[0].source), ...(sh.idle ? [mipLevels(sh.idle[0].source)] : [])];
 							});
-							return { atlas: mipLevels(tex?.['L1.png']?.source), numerals: mipLevels(tex?.['num_0.png']?.source), sheets: per.length, sheetsMipped: per.filter((m) => m > 1).length, minLevels: per.length ? Math.min(...per) : 0, webgl: renderer?.context?.webGLVersion ?? null };
+							return { atlas: mipLevels(tex?.['L1.png']?.source), numerals: mipLevels(tex?.['num_0.png']?.source), plateNumerals: mipLevels(tex?.[PLATE_KEY_0]?.source), sheets: per.length, sheetsMipped: per.filter((m) => m > 1).length, minLevels: per.length ? Math.min(...per) : 0, webgl: renderer?.context?.webGLVersion ?? null };
 						})(),
 						assetKeys: tex ? Object.keys(tex).length : 0,
 						cells: stateGame.cells.map((c) => {
@@ -796,7 +847,7 @@
 				plates: () =>
 					plates.flatMap((p, i) =>
 						p && p.shown
-							? [{ i, tint: p.g.tint, glowTint: p.glow.tint, glowAlpha: p.glow.alpha, covered: !!covered[i], coverDim: coverDim[i], cur: { text: p.cur.text, scale: p.cur.c.visible ? p.cur.scale : 0, alpha: p.cur.alpha, tint: p.cur.tint, face: p.cur.ftint }, old: { text: p.old.text, scale: p.old.c.visible ? p.old.scale : 0 }, bounds: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(p.g.getBounds()) }]
+							? [{ i, tint: p.g.tint, glowTint: p.glow.tint, glowAlpha: p.glow.alpha, covered: !!covered[i], coverDim: coverDim[i], cur: { text: p.cur.text, scale: p.cur.c.visible ? p.cur.scale : 0, alpha: p.cur.alpha, tint: p.cur.tint, face: p.cur.ftint, inkW: p.cur.w, inkH: p.cur.h, track: p.cur.track, maxW: NUM_MAX_W, em: NUM_EM }, old: { text: p.old.text, scale: p.old.c.visible ? p.old.scale : 0 }, bounds: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(p.g.getBounds()) }]
 							: [],
 					),
 				cellTints: () => stateGame.cells.flatMap((c) => {

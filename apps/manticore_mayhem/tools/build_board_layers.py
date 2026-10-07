@@ -2,7 +2,7 @@
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_board_layers.py [--no-frame] [--no-bg]
 
-Sources (read only, never written), TAG = board_v4i (TILT_DEG 4) or board_v4d (TILT_DEG 0):
+Sources (read only, never written), TAG = board_v4k (TILT_DEG 4) or board_v4d (TILT_DEG 0):
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_frame.png    2048 x 1935 RGBA (v4h; 1863 up to v4g): frame + 9x9
                                                                     lattice + top links
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_neutral_frame.png   the same with the NEUTRAL steel grid (v4f)
@@ -56,7 +56,11 @@ TILT_DEG = 4
 # v4h (Corey 2026-10-07 11:35): the top raised 0.0692 so the opening is SQUARE (1.3684 x 1.3684), the lattice uniform in
 # both directions (pitch W / 8), 17 chain links a side; the render canvas grew 72 px at the top (2048 x 1935)
 # v4i (Corey 12:25): the top rail's bar clips removed, a REAL top outer bar with rivets at every crossing and corner
-RENDERS = {0: 'board_v4d', 4: 'board_v4i'}
+# v4j (2026-10-07): a steel hawse block at each end of each chain run (model/scripts/chain_housing.py): under the post's
+# top ledge and on the plinth over the shackle; the leaned top links are gone from the render
+# v4k (2026-10-07): the housings in the frame's copper (ledge mode, shallower, more chamfer); the lattice rebuilt thin
+# (bar radius 0.45 of the v4 bar, was 0.7) with NO rivets (model/scripts/thin_lattice.py)
+RENDERS = {0: 'board_v4d', 4: 'board_v4k'}
 TAG = RENDERS[TILT_DEG]
 # --tag <render tag> overrides it (dry runs of a variant, e.g. board_v4g_uz with --no-frame --no-bg)
 import sys as _sys
@@ -72,7 +76,7 @@ SRC_FRAME = GRID_SRC[DEFAULT_GRID]
 SRC_CHAINS = _pick(f'{TAG}_chains.png', 'board_v4i_chains.png')
 SRC_CAMERA = os.path.join(_D, f'{TAG}_camera.json')
 FLAT_CAMERA = os.path.join(DESK, 'board/drafts/board_v4d_camera.json')
-PREV_CAMERA = os.path.join(DESK, 'board/drafts/board_v4h_camera.json')  # the previous lattice, for the before line
+PREV_CAMERA = os.path.join(DESK, 'board/drafts/board_v4j_camera.json')  # the previous lattice, for the before line
 SRC_BG = os.path.join(DESK, 'submission/final/tile-bg.jpg')
 
 # lattice bar axes, world units: the v4 numbers (board_v4_NOTES.md, "Grid material finding") for the flat
@@ -158,7 +162,13 @@ def crop_box(bbox, size):
 # CHAIN_PERIOD render px (autocorrelation of the run, 125.75 measured; the brief said ~126); the strip is
 # clipped at the bracket's underside (CHAIN_CLIP top) and at the plinth's shackle (bottom).
 LEANED_BOX = {'L': (120, 240, 240, 350), 'R': (2048 - 240, 240, 2048 - 120, 350)}
-CHAIN_CLIP = (304.0, 1352.0)
+# v4j: the strip runs from the TOP HOUSING's lip (its lowest row across the chain column, 420.4) to the BOTTOM
+# HOUSING's front lip (its highest row, 1248.1), both from drafts/board_v4j_housing.json (chain_clip). The strip is
+# drawn OVER the frame, so the cut sits exactly on each housing's silhouette (at most ~0.3 render px over the lip),
+# where the chain goes behind the housing: never against the sky. v4i (no housings): (304.0, 1352.0).
+# The v4j render has no leaned links (HOUSED: erase_leaned_links is skipped, it would eat the housing's pixels).
+HOUSED = TAG.startswith(('board_v4j', 'board_v4k'))
+CHAIN_CLIP = tuple(json.load(open(os.path.join(_D, f'{TAG}_housing.json')))['chain_clip']) if HOUSED else (304.0, 1352.0)
 CHAIN_PHASE_SEARCH = (700, 830)  # the tile is cut from the middle of the run (perspective is mildest there)
 CHAIN_HALF_W = 53.5  # render px either side of the centreline (the old crop was 107 wide)
 
@@ -356,15 +366,19 @@ def main():
     # top line is still virtual (inside the top rail). The SIDE bars' rivets (rows 1..7) bind the column 0 / 7 cells
     # like any inner rivet; the bottom bar's rivets (and the corners) belong with the bottom outer bar that row 7 is
     # already allowed to hang over (rails=False below), so they count only in the rows 0 / 7 overhang report
-    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i'))
+    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i', 'board_v4j', 'board_v4k'))
     rivet_at = (lambda r, c: 0 < r < 8) if outer_rivets else (lambda r, c: 0 < r < 8 and 0 < c < 8)
     # v4h: the opening is SQUARE, so rows 0 / 7 no longer hang over the top / bottom outer bars: they are held to them
     # like every other bar (HOLD_ROWS: rails=True in the solve), and every crossing counts as a rivet: the bottom bar's
     # real rivets and the top line's (v4h: the copper bar clips under the top rail, a rivet as their stand-in; v4i: the
     # real top bar's rivets, the clips are gone)
-    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i'))
+    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i', 'board_v4j', 'board_v4k'))
     if HOLD_ROWS:
         rivet_at = lambda r, c: True
+    # v4k: the lattice has NO rivets (the crossing is the two bars, already in the opening's bar-radius inset)
+    RIVETLESS = TAG.startswith('board_v4k')
+    if RIVETLESS:
+        rivet_at = lambda r, c: False
 
     # ---- the per-layout registration and the derived FRAME --------------------------------------------
     layouts, frames, checks = {}, {}, {}
@@ -509,10 +523,13 @@ def main():
 
     frame_spec, chain_spec, sizes = {}, {}, {}
     if not args.no_frame:
-        frame = erase_leaned_links(Image.open(SRC_FRAME).convert('RGBA'))
+        unlean = (lambda im: im) if HOUSED else erase_leaned_links
+        if HOUSED:
+            print('  leaned links: none in the housed render, erase skipped')
+        frame = unlean(Image.open(SRC_FRAME).convert('RGBA'))
         # the other grid steel, same crop and scale, under its suffix (a file swap switches the default)
         other = 'blue' if DEFAULT_GRID == 'neutral' else 'neutral'
-        frame_other = erase_leaned_links(Image.open(GRID_SRC[other]).convert('RGBA')) if os.path.exists(GRID_SRC[other]) and GRID_SRC[other] != SRC_FRAME else None
+        frame_other = unlean(Image.open(GRID_SRC[other]).convert('RGBA')) if os.path.exists(GRID_SRC[other]) and GRID_SRC[other] != SRC_FRAME else None
         chains = Image.open(SRC_CHAINS).convert('RGBA')
         runs, period, phase = chain_runs(chains, cam)
         print(f'chain loop: two-link period {period} render px, tile phase y {phase}, strip clip {CHAIN_CLIP}')
@@ -560,6 +577,16 @@ def main():
     if not args.no_frame:
         ch = cam['chains']
         anchors = {s: {'top': ch[s]['top_pivot_px'], 'bottom': ch[s]['bottom_anchor_px']} for s in ('L', 'R')}
+        if HOUSED:
+            # v4j: the chain is held by the housings, so the strip's hinges (the bow's s = 0 and s = 1, the rows that ride
+            # the frame) are where the run leaves the top housing and enters the bottom one: the points of the SAME
+            # pivot -> anchor line (the tile's de-slant) at the clip rows. Left at the old pivot / anchor, the clip
+            # rows would fall inside the run (s 0.10 / 0.87) and swing out from under the housings on a kick.
+            def on_run(sd, y):
+                (tx, ty), (bx, by) = ch[sd]['top_pivot_px'], ch[sd]['bottom_anchor_px']
+                return [round(tx + (bx - tx) * (y - ty) / (by - ty), 3), y]
+            anchors = {sd: {'top': on_run(sd, CHAIN_CLIP[0]), 'bottom': on_run(sd, CHAIN_CLIP[1])} for sd in ('L', 'R')}
+            print('  anchors at the housings:', json.dumps(anchors))
         spec = {
             'source': TAG,
             'tiltDeg': TILT_DEG,
@@ -580,6 +607,8 @@ def main():
             'outerRivets': outer_rivets,
             # v4h: square opening, rows 0 / 7 held to the top / bottom outer bars and every crossing a rivet (probe + fit)
             'holdRows': HOLD_ROWS,
+            # v4k: no lattice rivets (rivetRadius is the bar radius, so a rivet check at a crossing is a no-op)
+            'latticeRivets': not RIVETLESS,
             # all 81 projected bar crossings (rows top to bottom), for the probe's per-cell openings
             'crossings': [[[round(v, 2) for v in p] for p in row] for row in cross],
             # each static tile's opaque art box (alpha > 128) as fractions of its sprite, -0.5..0.5

@@ -5,7 +5,7 @@ import { fileBytes } from './assetStamp';
 
 // Names match tools/build_audiosprite.py. MusicName lives in music.json (one streamed file per
 // track); every SoundEffectName lives in the sounds.json audiosprite.
-export type MusicName = 'bgm_base' | 'bgm_free' | 'bgm_super' | 'bgm_feast' | 'bgm_maxwin';
+export type MusicName = 'bgm_base' | 'bgm_bonus' | 'bgm_super' | 'bgm_epic' | 'bgm_maxwin';
 
 export type SoundEffectName =
 	| 'sfx_reel_spin'

@@ -35,6 +35,7 @@ for (const rel of [
 	'sprites/mmSymbols/mmSymbols-half.json', // phone asset tier (game/deviceTier.ts)
 	...symbolSheets,
 	'ui/numerals/numerals.json', // stencil amount glyphs
+	'ui/numerals/plate-numerals.json', // the multiplier plates' Barlow Condensed glyphs
 ]) {
 	const jsonPath = join(ASSETS, rel);
 	const meta = JSON.parse(readFileSync(jsonPath, 'utf8'));
@@ -72,7 +73,8 @@ const fileBytes = {}; // path -> bytes; an atlas manifest counts its image too (
 const walk = (dir) => {
 	for (const entry of readdirSync(dir).sort()) {
 		const full = join(dir, entry);
-		if (statSync(full).isDirectory()) walk(full);
+		// mmSymbols-trial holds DEV-only style trials (?symbols=): never stamped, never shipped
+		if (statSync(full).isDirectory()) { if (entry !== 'mmSymbols-trial') walk(full); }
 		else if (!/^\.|\.py$/.test(entry)) {
 			const rel = relative(ASSETS, full);
 			stamps[rel] = h8(full);

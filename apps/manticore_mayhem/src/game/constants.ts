@@ -22,7 +22,9 @@ export const CELL_FILL = 0.94; // drawn tile size as a share of the cell pitch
  *  overhang, clearance beyond the margin landscape 1.14, portrait 0.10, phone 0.32 master px) and every
  *  crossing counts as a rivet (v4i: the real top and bottom bars' rivets; the top rail's bar clips are gone). Up to v4g the lattice was
  *  wider than tall and those two rows hung over the top / bottom outer bars by a few px. */
-export const SYMBOL_FIT = 0.81;
+// v4k (2026-10-07): bars thinned to 0.64 of v4j and the lattice rivets dropped; the solver reaches 0.86 in every
+// layout (landscape 0.90), still bound by the l2 in the bottom-right cell under the tilt.
+export const SYMBOL_FIT = 0.86;
 export const CELL_COUNT = GRID * GRID;
 
 export const BOARD_SIZES = { width: SYMBOL_SIZE * GRID, height: SYMBOL_SIZE * GRID };
@@ -241,15 +243,17 @@ export const FRAME_ART = { tint: 0xb4b4b4, chainTint: 0xb4b4b4 };
 // (x PLAYGROUND_PX at draw time); ms are style time.
 export const MULT_PLATE = {
 	style: 'plate' as const,
-	colors: { 2: 0xe32400, 4: 0xea4d00, 8: 0xf07500, 16: 0xf79e00, 32: 0xfec700, 64: 0xffe37f, 128: 0xffffff } as Record<number, number>,
+	colors: { 2: 0xe32400, 4: 0xea4d00, 8: 0xf07500, 16: 0xf79e00, 32: 0xfec700, 64: 0xffe37f, 128: 0xfff1bf, 256: 0xffffff } as Record<number, number>,
 	fillAlpha: 0.46,
 	borderAlpha: 0.82,
 	borderPx: 2.5,
 	/** inside the cell's clear lattice opening (see BoardCells: the playground's cell well is the opening here) */
 	insetCells: 0.01,
 	cornerPx: 8,
-	/** the number's digit height as a share of a cell (shrunk to fit the plate when it is wider) */
-	numberSizeCells: 0.46,
+	/** the number's FONT SIZE (Barlow Condensed 700, the playground's canvas px) as a share of a cell:
+	 *  0.48 per Corey 2026-10-07 (the locked spec said 0.46). Never shrunk: a value wider than the plate
+	 *  closes its tracking instead (BoardCells layoutPlate) */
+	numberSizeCells: 0.48,
 	numberAnchor: 'centre' as const,
 	numberAlphaUnderSymbol: 0.56,
 	numberGlowPx: 12,
@@ -261,8 +265,9 @@ export const MULT_PLATE = {
 	changeMs: 600,
 	changeDelayMs: 100,
 };
-/** the plate colour for a value: the log2 ramp's nearest step, clamped to x2..x128 */
-export const plateColor = (v: number) => MULT_PLATE.colors[Math.max(2, Math.min(128, 1 << Math.round(Math.log2(Math.max(2, v)))))] ?? MULT_PLATE.colors[2];
+/** the plate colour for a value: the log2 ramp's nearest step, clamped to x2..x256. Corey 2026-10-07: x128 is
+ *  pale gold and white is kept for x256 (the math's ladder caps at 128 today, so white is headroom). */
+export const plateColor = (v: number) => MULT_PLATE.colors[Math.max(2, Math.min(256, 1 << Math.round(Math.log2(Math.max(2, v)))))] ?? MULT_PLATE.colors[2];
 
 /** the manticore's set pieces share these. The swipe and the roar have their own blocks below. */
 export const FEATURE_FX = {

@@ -1072,7 +1072,7 @@ type PlateJob = { cell: CellIndex; to: number | null; t0: number; rate: number; 
 const plateJobs: PlateJob[] = [];
 let plateRaf = 0;
 /** DEV probe log (plate_probe / tease_probe): every plate change, when it started and ended (performance.now()) */
-export const plateLog: { cell: CellIndex; from: number; to: number; queued: number; start: number; end: number; rate: number }[] = [];
+export const plateLog: { cell: CellIndex; from: number; to: number; queued: number; start: number; end: number; rate: number; delay: number }[] = [];
 
 const finishPlate = (j: PlateJob) => {
 	const tile = stateGame.tiles[j.cell];
@@ -1096,7 +1096,7 @@ const startPlate = (j: PlateJob, tile: Tile) => {
 		tile.value = j.to!;
 	}
 	if (import.meta.env.DEV) {
-		plateLog.push({ cell: j.cell, from: j.change ? tile.from : tile.value, to: tile.value, queued: j.t0, start: performance.now(), end: 0, rate: j.rate });
+		plateLog.push({ cell: j.cell, from: j.change ? tile.from : tile.value, to: tile.value, queued: j.t0, start: performance.now(), end: 0, rate: j.rate, delay: j.delay });
 		if (plateLog.length > 600) plateLog.splice(0, 300);
 	}
 };

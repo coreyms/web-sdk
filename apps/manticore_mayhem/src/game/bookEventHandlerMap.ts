@@ -64,12 +64,12 @@ import {
 
 const musicPlay = (name: MusicName) => eventEmitter.broadcast({ type: 'soundMusic', name });
 
-/** the music loop a mode plays. Angry Mantis's tracks are the placeholder set (Corey 2026-09-22). */
+/** the music loop a mode plays. Tracks come from tools/build_audiosprite.py --game manticore_mayhem; a mode without its own source yet ships an Angry Mantis placeholder (see the builder's MM_MUSIC). */
 const modeMusic = (): MusicName => {
 	if (stateGame.gameType !== 'freegame') return 'bgm_base';
-	if (stateGame.bonusMode === 'epic') return 'bgm_feast';
+	if (stateGame.bonusMode === 'epic') return 'bgm_epic';
 	if (stateGame.bonusMode === 'super') return 'bgm_super';
-	return 'bgm_free';
+	return 'bgm_bonus';
 };
 
 const winLevelSoundsPlay = ({ winLevelData }: { winLevelData: WinLevelData }) => {
@@ -186,6 +186,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.scatterCells = [];
 		if (bookEvent.gameType === 'basegame') triggerSfxPlayed = false;
 		const rec = fxRecord('reveal', { turbo: stateGame.turboLevel, mystery: isMystery });
+		// Corey's reel_spin (2026-10-07): a 1.88 s one-shot as the columns pour in (the Angry Mantis
+		// spin LOOP is replaced in the Manticore sprite by tools/build_audiosprite.py MM_SFX_OVERRIDES)
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_spin', forcePlay: true });
 		const id = await revealBoard(bookEvent.board, {
 			anticipation,
 			tease: !isMystery,

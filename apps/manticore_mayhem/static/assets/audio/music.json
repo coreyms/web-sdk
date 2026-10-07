@@ -3,67 +3,67 @@
 	"tracks": {
 		"bgm_base": {
 			"src": [
-				"./assets/audio/music/bgm_base.ogg?v=cab7566b",
-				"./assets/audio/music/bgm_base.m4a?v=c06f6d0f"
+				"./assets/audio/music/bgm_base.ogg?v=75cd413a",
+				"./assets/audio/music/bgm_base.m4a?v=5d195445"
 			],
 			"bytes": [
-				775767,
-				747043
+				1524614,
+				1468736
 			],
 			"loop": true,
-			"duration": 61.111,
+			"duration": 120,
 			"volume": 0.6
 		},
-		"bgm_free": {
+		"bgm_bonus": {
 			"src": [
-				"./assets/audio/music/bgm_free.ogg?v=c000d889",
-				"./assets/audio/music/bgm_free.m4a?v=340cd0b9"
+				"./assets/audio/music/bgm_bonus.ogg?v=fc1e7de0",
+				"./assets/audio/music/bgm_bonus.m4a?v=5ddecb67"
 			],
 			"bytes": [
-				1155270,
-				1130276
+				1449323,
+				1465629
 			],
 			"loop": true,
-			"duration": 92.136,
+			"duration": 120,
 			"volume": 0.6
 		},
 		"bgm_super": {
 			"src": [
-				"./assets/audio/music/bgm_super.ogg?v=1a2fb621",
-				"./assets/audio/music/bgm_super.m4a?v=9cf0a6be"
+				"./assets/audio/music/bgm_super.ogg?v=113269c1",
+				"./assets/audio/music/bgm_super.m4a?v=5f9a83b0"
 			],
 			"bytes": [
-				1131293,
-				1128266
+				1435956,
+				1467070
 			],
 			"loop": true,
-			"duration": 91.95,
+			"duration": 120,
 			"volume": 0.6
 		},
-		"bgm_feast": {
+		"bgm_epic": {
 			"src": [
-				"./assets/audio/music/bgm_feast.ogg?v=0fcab3bd",
-				"./assets/audio/music/bgm_feast.m4a?v=9760406c"
+				"./assets/audio/music/bgm_super.ogg?v=113269c1",
+				"./assets/audio/music/bgm_super.m4a?v=5f9a83b0"
 			],
 			"bytes": [
-				735673,
-				746221
+				1435956,
+				1467070
 			],
 			"loop": true,
-			"duration": 60.805,
+			"duration": 120,
 			"volume": 0.6
 		},
 		"bgm_maxwin": {
 			"src": [
-				"./assets/audio/music/bgm_maxwin.ogg?v=0c67d4ee",
-				"./assets/audio/music/bgm_maxwin.m4a?v=c8079c9c"
+				"./assets/audio/music/bgm_maxwin.ogg?v=bb053e2e",
+				"./assets/audio/music/bgm_maxwin.m4a?v=59d7e760"
 			],
 			"bytes": [
-				274458,
-				270223
+				362836,
+				368014
 			],
 			"loop": true,
-			"duration": 21.946,
+			"duration": 30,
 			"volume": 0.6
 		}
 	}

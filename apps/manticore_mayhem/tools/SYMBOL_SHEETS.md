@@ -11,6 +11,13 @@ node scripts/stamp-assets.mjs                                                   
 Flags: `--only H1,L4` (one or more symbols), `--no-sheets`, `--no-atlas`, `--no-tiles`, `--verify` (numbers into
 `tools/render_symbols/out/_sheets_verify.json`, contact sheet `tools/render_symbols/out/_sheets_contact.png`).
 
+Style trial (experiment, 2026-10-07): `--style outline|outline-pop|outline-pop-rim [--out-dir <dir>]` post-processes
+every frame and atlas tile in the 256 px cell space after the fit (presets `STYLES` in the packer: outline, drop
+shadow, saturation / contrast / luminance S-curve, up-left rim). Output goes to `static/assets/sprites/mmSymbols-trial/
+<style>/` with the shipped names; the -half twins are the styled 256 cell LANCZOS to 128; tiles, the shipped set and
+`sheet_fit.json` are not touched. DEV only: `?symbols=<style>` (or A / B / C, or localStorage `mm.symbols`) makes
+`game/assets.ts` load that set, unstamped. Evidence: `tools/manticore/symstyle_probe.js` + `symstyle_compare.py`.
+
 `tools/make_placeholders.py` no longer calls its `build_atlas()` / `build_tiles()` (they would write the placeholder
 plates over the real atlas and paytable tiles). The packer imports its `mult_overlay()` and `cell_well()` only.
 

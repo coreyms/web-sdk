@@ -2,6 +2,7 @@
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/pack_symbol_sheets.py [--only H1,L4] [--no-sheets]
                                                                                            [--no-atlas] [--no-tiles] [--full-only] [--verify]
+                                                                                           [--style outline|outline-pop|outline-pop-rim --out-dir <dir>]
 
 Sources (read only, never written):
   ~/Desktop/Manticore Mayhem/handoff/assets/tiles/<code>.webp          the ten approved 256 px static tiles
@@ -25,6 +26,13 @@ goes through the SAME crop box, rotation, scale and offset (derived once from th
 frames), so the frame that matches the rest pose lands on the static tile pixel for pixel and motion outside
 the rest silhouette is kept (up to the 256 cell edge). Downscale is one LANCZOS resample straight from 512.
 Frame file names vary per folder; Finder duplicates ("0001 2.png") are skipped.
+
+--style <name> (EXPERIMENT, 2026-10-07): post-process every frame and atlas tile in the 256 px cell space after the
+fit, before packing (presets in STYLES). The -half twins are then the styled 256 cell LANCZOS to 128 (not one resample
+from 512), so the outline scales with the art. Writes to --out-dir (default static/assets/sprites/mmSymbols-trial/
+<style>/) with the shipped file names; the shipped mmSymbols/ set, sheet_fit.json and the paytable tiles are not
+touched (tiles are skipped). Without --style the run writes the SHIPPED set in SHIP_STYLE (outline-pop since
+2026-10-07); the paytable tiles stay unstyled.
 """
 import json
 import math
@@ -34,11 +42,13 @@ import sys
 
 import numpy as np
 from PIL import Image, ImageOps
+from scipy import ndimage
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 STATIC = os.path.join(APP, "static", "assets")
 SPRITES = os.path.join(STATIC, "sprites", "mmSymbols")
+SPRITES_IN = SPRITES  # the shipped atlas JSONs give the layout
 TILES_OUT = os.path.join(STATIC, "tiles")
 RS = os.path.join(HERE, "render_symbols")
 WORK = os.path.expanduser("~/Desktop/Manticore Mayhem")
@@ -64,6 +74,117 @@ FRAME_RE = re.compile(r"^(?:[A-Za-z0-9]+_(?:drop|idle)_)?\d{3,4}\.png$")
 
 def arg(k, d=None):
     return sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
+
+
+# ---- style stage (experiment) -------------------------------------------------------------------
+# Every number of the trial looks lives here. Units are 256 px cell pixels; colours 0..255 sRGB.
+#   outline: alpha-dilated silhouette (anti-aliased disc of `radius`), `color` at `alpha`, under the art
+#   shadow:  the dilated silhouette moved by `offset` (down-right), gaussian `blur`, black at `alpha`, under it all
+#   pop:     on the art only (before the outline): saturation x`sat`, contrast x`contrast` about `pivot`, then an
+#            S-curve on luminance (power `gamma` either side of `pivot`, mixed in by `strength`), applied as a
+#            luminance shift so hues hold
+#   rim:     a light rim INSIDE the silhouette on its up-left edge: the art's alpha minus itself moved `width` px
+#            toward the lower right, softened by `blur`, `color` at `alpha` over the art (alpha unchanged)
+OUTLINE = {"radius": 2.5, "color": (0x1A, 0x12, 0x0C), "alpha": 0.9, "floor": 0.04}
+SHADOW = {"offset": (1.0, 1.0), "blur": 0.8, "alpha": 0.5}
+POP = {"sat": 1.3, "contrast": 1.15, "pivot": 0.42, "gamma": 1.4, "strength": 0.5}
+RIM = {"width": 1.0, "dir": (-1.0, -1.0), "blur": 0.5, "color": (0xFF, 0xF4, 0xE0), "alpha": 0.6}
+STYLES = {
+    "outline": {"outline": OUTLINE, "shadow": SHADOW},
+    "outline-pop": {"outline": OUTLINE, "shadow": SHADOW, "pop": POP},
+    "outline-pop-rim": {"outline": OUTLINE, "shadow": SHADOW, "pop": POP, "rim": RIM},
+}
+# SHIPPED STYLE (Corey 2026-10-07, "ship B for now"): outline-pop is what a plain run writes into mmSymbols/.
+# An explicit --style <name> is a TRIAL build into mmSymbols-trial/<name>/ and never touches the shipped set;
+# --style none there gives the unstyled sheets for comparison.
+SHIP_STYLE = "outline-pop"
+STYLES["none"] = {}
+STYLE_ARG = arg("--style")
+if STYLE_ARG and STYLE_ARG not in STYLES:
+    raise SystemExit(f"--style must be one of {', '.join(STYLES)}")
+TRIAL = STYLE_ARG is not None
+STYLE_NAME = STYLE_ARG or SHIP_STYLE
+STYLE = STYLES[STYLE_NAME]
+LUMA = np.array([0.2126, 0.7152, 0.0722])
+
+
+def _dilate(a, r):
+    """anti-aliased dilation of alpha a (0..1) by a disc of radius r px (coverage weight per offset)"""
+    n = int(math.ceil(r + 0.5))
+    p = np.pad(a, n)
+    out = np.zeros_like(a)
+    H, W = a.shape
+    for dy in range(-n, n + 1):
+        for dx in range(-n, n + 1):
+            w = min(1.0, max(0.0, r + 0.5 - math.hypot(dx, dy)))
+            if w > 0:
+                np.maximum(out, p[n + dy:n + dy + H, n + dx:n + dx + W] * w, out=out)
+    return out
+
+
+def _shift(a, dx, dy):
+    """move a by (dx, dy) px (bilinear, transparent fill)"""
+    return ndimage.shift(a, (dy, dx), order=1, mode="constant", cval=0.0)
+
+
+def _pop(rgb, cfg):
+    l0 = (rgb @ LUMA)[..., None]
+    rgb = l0 + (rgb - l0) * cfg["sat"]
+    rgb = cfg["pivot"] + (rgb - cfg["pivot"]) * cfg["contrast"]
+    rgb = np.clip(rgb, 0, 1)
+    l = rgb @ LUMA
+    pv, g = cfg["pivot"], cfg["gamma"]
+    lo = pv * np.power(np.clip(l / pv, 0, 1), g)
+    hi = 1 - (1 - pv) * np.power(np.clip((1 - l) / (1 - pv), 0, 1), g)
+    s = np.where(l < pv, lo, hi)
+    l2 = l + (s - l) * cfg["strength"]
+    return np.clip(rgb + (l2 - l)[..., None], 0, 1)
+
+
+def stylize(im, cfg=None):
+    """one 256 px RGBA cell -> the styled cell (premultiplied compositing, clean alpha)"""
+    cfg = cfg or STYLE
+    if not cfg:
+        return im
+    a8 = np.asarray(im.convert("RGBA")).astype(np.float64) / 255.0
+    rgb, a = a8[..., :3].copy(), a8[..., 3]
+    if "pop" in cfg:
+        rgb = np.where(a[..., None] > 0, _pop(rgb, cfg["pop"]), rgb)
+    if "rim" in cfg:
+        rc = cfg["rim"]
+        ux, uy = rc["dir"]
+        k = rc["width"] / math.hypot(ux, uy)
+        edge = np.clip(a - _shift(a, -ux * k, -uy * k), 0, 1)  # art whose up-left neighbour is empty
+        edge = ndimage.gaussian_filter(edge, rc["blur"]) * a  # soft, and only inside the silhouette
+        t = (edge * rc["alpha"])[..., None]
+        rgb = rgb * (1 - t) + np.array(rc["color"]) / 255.0 * t
+    # the art, premultiplied
+    pm_rgb, out_a = rgb * a[..., None], a.copy()
+    if "outline" in cfg:
+        oc = cfg["outline"]
+        base = np.clip((a - oc["floor"]) / (1 - oc["floor"]), 0, 1)  # ignore near-empty fringe noise
+        sil = _dilate(base, oc["radius"])
+        under_rgb = np.zeros_like(pm_rgb)
+        under_a = np.zeros_like(a)
+        if "shadow" in cfg:
+            sc = cfg["shadow"]
+            sh = ndimage.gaussian_filter(_shift(sil, *sc["offset"]), sc["blur"]) * sc["alpha"]
+            under_a = sh  # black, premultiplied rgb stays 0
+        ol_a = sil * oc["alpha"]
+        ol_rgb = np.array(oc["color"]) / 255.0 * ol_a[..., None]
+        # outline over shadow, then the art over both (Porter-Duff over, premultiplied)
+        under_rgb = ol_rgb + under_rgb * (1 - ol_a[..., None])
+        under_a = ol_a + under_a * (1 - ol_a)
+        pm_rgb = pm_rgb + under_rgb * (1 - a[..., None])
+        out_a = a + under_a * (1 - a)
+    out_a = np.clip(out_a, 0, 1)
+    rgb_out = np.where(out_a[..., None] > 1e-6, pm_rgb / np.maximum(out_a[..., None], 1e-6), 0)  # unpremultiply; empty px rgb 0
+    o = np.dstack([np.clip(rgb_out, 0, 1), out_a])
+    return Image.fromarray(np.round(o * 255).astype(np.uint8), "RGBA")
+
+
+def half_of(styled256):
+    return styled256.resize((HALF, HALF), Image.LANCZOS)
 
 
 def symbol_dir(code):
@@ -142,7 +263,8 @@ def load_geometry(only):
             geo[code] = derive_fit(code, fit)
         elif code not in geo:
             raise SystemExit(f"{code}: no out/render/{code}.png and no cached fit in sheet_fit.json")
-    json.dump(geo, open(cache, "w"), indent=1)
+    if not TRIAL:  # a trial build never rewrites the tracked fit cache
+        json.dump(geo, open(cache, "w"), indent=1)
     return geo
 
 
@@ -200,6 +322,8 @@ def pack(name, frames, px, clip, meta_extra):
     meta = {"image": name + ".webp", "format": "RGBA8888", "size": {"w": sheet.width, "h": sheet.height},
             "scale": "1" if px == CELL else "0.5", "fps": FPS, "encoding": enc}
     meta.update(meta_extra)
+    if STYLE:
+        meta["style"] = {"name": STYLE_NAME, **STYLE}
     doc = {"frames": out, "animations": {clip: [f for f, _ in frames]}, "meta": meta}
     json.dump(doc, open(os.path.join(SPRITES, name + ".json"), "w"), indent=1)
     pages.append(sheet.size)
@@ -225,9 +349,10 @@ def build_sheets(geo, only):
                 src = Image.open(fp)
                 assert src.size[0] == src.size[1], fp
                 fname = f"{code.lower()}-{clip}-{i:03d}"
-                full.append((fname, process(src, g, CELL)))
+                cell = stylize(process(src, g, CELL))
+                full.append((fname, cell))
                 if HALF_TIER:
-                    half.append((fname, process(src, g, HALF)))
+                    half.append((fname, half_of(cell) if STYLE else process(src, g, HALF)))
             fit_meta = {"fit": {"source": f"{os.path.basename(sdir)}/animation/{folder}", "sourcePx": 512,
                                 "box512": [round(v, 3) for v in source_box(g, 512)], "angle": g["angle"],
                                 "fitJson": g["fit"]}}
@@ -248,7 +373,7 @@ def build_atlas():
     sys.path.insert(0, HERE)
     import make_placeholders as mp
     full = Image.new("RGBA", (1024, 1280), (0, 0, 0, 0))
-    doc = json.load(open(os.path.join(SPRITES, "mmSymbols.json")))
+    doc = json.load(open(os.path.join(SPRITES_IN, "mmSymbols.json")))
     for m in mp.MULTS:
         r = doc["frames"][f"x{m}.png"]["frame"]
         full.paste(mp.mult_overlay(m), (r["x"], r["y"]))
@@ -256,16 +381,21 @@ def build_atlas():
     full.paste(mp.cell_well(), (r["x"], r["y"]))
     for suffix, px in (("", CELL), ("-half", HALF)):
         jp = os.path.join(SPRITES, f"mmSymbols{suffix}.json")
-        doc = json.load(open(jp))
+        doc = json.load(open(os.path.join(SPRITES_IN, f"mmSymbols{suffix}.json")))
         sheet = full if px == CELL else full.resize((full.width // 2, full.height // 2), Image.LANCZOS)
         assert sheet.size == (doc["meta"]["size"]["w"], doc["meta"]["size"]["h"])
         for code in CODES:
             fr = doc["frames"][f"{code}.png"]["frame"]
             assert fr["w"] == px and fr["h"] == px, (code, fr)
             tile = Image.open(os.path.join(HANDOFF_TILES, code.lower() + ".webp")).convert("RGBA")
+            tile = stylize(tile)
             if px != CELL:
                 tile = tile.resize((px, px), Image.LANCZOS)
             sheet.paste(tile, (fr["x"], fr["y"]))  # replace the cell outright (no compositing on the plate)
+        if STYLE:
+            doc["meta"]["image"] = f"mmSymbols{suffix}.webp"
+            doc["meta"].pop("pngHash", None)
+            doc["meta"]["style"] = {"name": STYLE_NAME, **STYLE}
         doc["meta"]["encoding"] = save_webp(sheet, os.path.join(SPRITES, f"mmSymbols{suffix}.webp"), lossless_only=True)
         json.dump(doc, open(jp, "w"), indent=1)
         print(f"mmSymbols{suffix}: {sheet.size} {doc['meta']['encoding']}")
@@ -419,8 +549,13 @@ def main():
     only = arg("--only")
     only = only.split(",") if only else None
     geo = load_geometry(only)
+    global SPRITES
+    if TRIAL:
+        SPRITES = os.path.abspath(arg("--out-dir") or os.path.join(STATIC, "sprites", "mmSymbols-trial", STYLE_NAME))
+        assert os.path.realpath(SPRITES) != os.path.realpath(SPRITES_IN), "a style build never writes the shipped set"
+        print(f"style {STYLE_NAME} -> {SPRITES}")
     os.makedirs(SPRITES, exist_ok=True)
-    if "--no-tiles" not in sys.argv:
+    if "--no-tiles" not in sys.argv and not TRIAL:
         build_tiles()
     if "--no-atlas" not in sys.argv:
         build_atlas()

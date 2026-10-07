@@ -90,7 +90,7 @@
 			const mode = context.stateGame.bonusMode;
 			// Angry Mantis's loops are Manticore's placeholder music (Corey 2026-09-22): the Feast track
 			// stands in for Epic until Corey's own set lands.
-			sound.players.music.play({ name: mode === 'epic' ? 'bgm_feast' : mode === 'super' ? 'bgm_super' : 'bgm_free' });
+			sound.players.music.play({ name: mode === 'epic' ? 'bgm_epic' : mode === 'super' ? 'bgm_super' : 'bgm_bonus' });
 			return;
 		}
 		sound.players.music.play({ name: 'bgm_base' });

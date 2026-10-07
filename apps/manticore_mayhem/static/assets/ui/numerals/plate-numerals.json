@@ -1,0 +1,256 @@
+{
+ "frames": {
+  "plate_0.png": {
+   "frame": {
+    "x": 8,
+    "y": 8,
+    "w": 64,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 115
+   }
+  },
+  "plate_1.png": {
+   "frame": {
+    "x": 8,
+    "y": 131,
+    "w": 39,
+    "h": 113
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 39,
+    "h": 113
+   },
+   "sourceSize": {
+    "w": 39,
+    "h": 113
+   }
+  },
+  "plate_2.png": {
+   "frame": {
+    "x": 292,
+    "y": 8,
+    "w": 65,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 65,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 65,
+    "h": 114
+   }
+  },
+  "plate_3.png": {
+   "frame": {
+    "x": 365,
+    "y": 8,
+    "w": 62,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 62,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 62,
+    "h": 114
+   }
+  },
+  "plate_4.png": {
+   "frame": {
+    "x": 55,
+    "y": 131,
+    "w": 74,
+    "h": 113
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 74,
+    "h": 113
+   },
+   "sourceSize": {
+    "w": 74,
+    "h": 113
+   }
+  },
+  "plate_5.png": {
+   "frame": {
+    "x": 435,
+    "y": 8,
+    "w": 63,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 63,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 63,
+    "h": 114
+   }
+  },
+  "plate_6.png": {
+   "frame": {
+    "x": 80,
+    "y": 8,
+    "w": 63,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 63,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 63,
+    "h": 115
+   }
+  },
+  "plate_7.png": {
+   "frame": {
+    "x": 137,
+    "y": 131,
+    "w": 62,
+    "h": 113
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 62,
+    "h": 113
+   },
+   "sourceSize": {
+    "w": 62,
+    "h": 113
+   }
+  },
+  "plate_8.png": {
+   "frame": {
+    "x": 151,
+    "y": 8,
+    "w": 62,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 62,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 62,
+    "h": 115
+   }
+  },
+  "plate_9.png": {
+   "frame": {
+    "x": 221,
+    "y": 8,
+    "w": 63,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 63,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 63,
+    "h": 115
+   }
+  },
+  "plate_multx.png": {
+   "frame": {
+    "x": 281,
+    "y": 131,
+    "w": 56,
+    "h": 56
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 56,
+    "h": 56
+   },
+   "sourceSize": {
+    "w": 56,
+    "h": 56
+   }
+  },
+  "plate_x.png": {
+   "frame": {
+    "x": 207,
+    "y": 131,
+    "w": 66,
+    "h": 83
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 66,
+    "h": 83
+   },
+   "sourceSize": {
+    "w": 66,
+    "h": 83
+   }
+  }
+ },
+ "meta": {
+  "app": "build_stencil_atlas.py plain",
+  "font": "BarlowCondensed-Bold.ttf",
+  "image": "plate-numerals.png",
+  "format": "RGBA8888",
+  "size": {
+   "w": 512,
+   "h": 256
+  },
+  "scale": "1",
+  "pngHash": "568b8e40"
+ }
+}

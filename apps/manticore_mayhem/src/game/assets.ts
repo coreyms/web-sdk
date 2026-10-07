@@ -237,6 +237,14 @@ const assets = {
 		src: stamp(new URL('../../assets/ui/numerals/numerals.json', import.meta.url).href),
 		preload: true,
 	},
+	// the multiplier plates' numbers (components/BoardCells.svelte): Barlow Condensed 700, plain white
+	// glyphs (the plate tints them), 0-9 x and the multiplication sign, one 512 x 256 sheet with mipmaps
+	// (tools/build_stencil_atlas.py --font, metrics in game/plateGlyphs.ts)
+	plateNumeralsAtlas: {
+		type: 'sprites',
+		src: stamp(new URL('../../assets/ui/numerals/plate-numerals.json', import.meta.url).href),
+		preload: true,
+	},
 	sound: {
 		type: 'audio',
 		src: stamp(new URL('../../assets/audio/sounds.json', import.meta.url).href),
@@ -260,6 +268,27 @@ const bytesFor = (src: unknown): number | undefined => {
 for (const entry of Object.values(assets) as { src: unknown; bytes?: number }[]) {
 	const bytes = bytesFor(entry.src);
 	if (bytes) entry.bytes = bytes;
+}
+
+// DEV ONLY, SYMBOL STYLE TRIAL (2026-10-07): `?symbols=<style>` (or localStorage `mm.symbols`) points the
+// static atlas and every drop / idle sheet at static/assets/sprites/mmSymbols-trial/<style>/ (built by
+// tools/pack_symbol_sheets.py --style; same file names). A/B/C alias outline / outline-pop / outline-pop-rim.
+// The trial files have no assetStamp key, so their URLs go out bare (no ?v=); nothing here runs in a build.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+	const alias: Record<string, string> = { A: 'outline', B: 'outline-pop', C: 'outline-pop-rim' };
+	let pick: string | null = null;
+	try {
+		pick = new URLSearchParams(window.location.search).get('symbols') ?? window.localStorage.getItem('mm.symbols');
+	} catch {}
+	const style = pick ? (alias[pick] ?? pick) : null;
+	if (style && /^[a-z-]+$/.test(style) && style !== 'current') {
+		for (const entry of Object.values(assets) as { src: unknown; bytes?: number }[]) {
+			if (typeof entry.src !== 'string' || !entry.src.includes('/sprites/mmSymbols/')) continue;
+			entry.src = entry.src.replace('/sprites/mmSymbols/', `/sprites/mmSymbols-trial/${style}/`).replace(/\?v=[^&#]*/, '');
+			delete entry.bytes;
+		}
+		console.info(`[manticore] DEV symbol style trial: ${style}`);
+	}
 }
 
 export default assets;
