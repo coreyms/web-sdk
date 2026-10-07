@@ -1,4 +1,5 @@
 """Build the Manticore Mayhem PLACEHOLDER art (run with math-sdk/env/bin/python).
+The real symbol art (mmSymbols atlas, symbol tiles/<code>.webp) now comes from tools/pack_symbol_sheets.py.
 
 Milestone 1 ships no production art: every tile is a flat coloured plate carrying the symbol's
 CODE ID and its TIER word, so a board read at phone size still sorts tier first and symbol second
@@ -254,8 +255,8 @@ def build_cards():
 
 
 if __name__ == "__main__":
-    build_atlas()
-    build_tiles()
+    # build_atlas() and build_tiles() are NOT called: they would overwrite the real symbol atlas and
+    # paytable tiles (tools/pack_symbol_sheets.py). mult_overlay() and cell_well() stay importable.
     build_backdrop()
     build_logo()
     build_tagline()

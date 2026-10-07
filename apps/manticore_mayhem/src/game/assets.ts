@@ -27,12 +27,11 @@ const tiered = (full: string, half: string): string => (PHONE_TIER ? half : full
 // TWO LOAD PHASES (pixi-svelte AssetsLoader). `preload: true` gates the landing screen: everything
 // the base game draws in its first seconds. `preload: false` keeps downloading behind the game.
 //
-// Milestone 1 ships placeholder art only (apps/manticore_mayhem/tools/make_placeholders.py), so the
-// whole manifest is small enough to preload; the deferred phase exists and is wired
-// (game/assetGate.ts) ready for the real backdrops, frame art and manticore sheets.
+// The static symbol atlas, the backdrop, numerals and audio manifests preload; the symbol drop and
+// idle sheets (4.4 MB phone tier, 13.6 MB full) ride the deferred phase (game/assetGate.ts).
 const assets = {
-	// flat coloured plates carrying the symbol id + tier, the wild, the scatter, the x2..x128
-	// multiplier overlays and one empty cell well
+	// the ten static symbol tiles (the approved handoff art, lossless), the x2..x128 multiplier
+	// overlays and one empty cell well (tools/pack_symbol_sheets.py rebuilds it)
 	mmSymbols: {
 		type: 'sprites',
 		src: tiered(
@@ -40,6 +39,155 @@ const assets = {
 			stamp(new URL('../../assets/sprites/mmSymbols/mmSymbols-half.json', import.meta.url).href),
 		),
 		preload: true,
+	},
+	// THE SYMBOL SHEETS (tools/pack_symbol_sheets.py, tools/SYMBOL_SHEETS.md): per symbol a drop
+	// sheet (plays from the landing contact) and an idle loop, 256 px cells with a 128 px phone twin.
+	// DEFERRED: they never gate the landing screen. Until they are in, every cell shows its static
+	// atlas frame (components/BoardCells.svelte). L2's idle is a single still and L3 has none, so
+	// neither is loaded (constants SYMBOL_ANIM). Frame names <code>-drop-000 / <code>-idle-000.
+	mmDrop_l1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l1-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l1-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_l1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l1-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l1-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_l2: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l2-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l2-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_l3: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l3-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l3-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_l4: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l4-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l4-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_l4: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l4-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l4-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_m1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/m1-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/m1-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_m1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/m1-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/m1-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_m2: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/m2-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/m2-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_m2: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/m2-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/m2-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_m3: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/m3-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/m3-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_m3: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/m3-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/m3-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_h1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/h1-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/h1-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_h1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/h1-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/h1-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_w: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/w-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/w-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_w: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/w-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/w-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmDrop_s: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/s-drop.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/s-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_s: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/s-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/s-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
 	},
 	// the 8x8 grid of cell wells behind the tiles: shows in the seams, in the drop and in every
 	// emptied cell during a cascade

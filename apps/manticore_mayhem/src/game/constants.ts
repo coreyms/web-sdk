@@ -85,6 +85,31 @@ export const GRAVITY_DROP = {
 	bounceMs: 145,
 };
 
+/** per-symbol landing animation (tools/SYMBOL_SHEETS.md, sheets from tools/pack_symbol_sheets.py).
+ *  squash: GRAVITY_DROP's sprite squash for this symbol (L4 bakes its own stamp squash into its drop
+ *  frames, so the sprite must not squash it again). dropFrom: the first drop frame the game plays
+ *  (S frames 0..5 show the fall inside the frame and the game already moves the sprite; L3 frame 0 is
+ *  only the identity check). idle: whether a moving idle loop exists; without one the cell rests on
+ *  its last drop frame (L3 has none, L2's is a single still). The frame COUNT always comes from the
+ *  loaded sheet, never from here. */
+export type SymbolAnim = { squash: number; dropFrom: number; idle: boolean };
+export const SYMBOL_ANIM_DEFAULT: SymbolAnim = { squash: GRAVITY_DROP.squash, dropFrom: 0, idle: true };
+export const SYMBOL_ANIM: Partial<Record<string, Partial<SymbolAnim>>> = {
+	L4: { squash: 0 },
+	S: { dropFrom: 6 },
+	L3: { dropFrom: 1, idle: false },
+	L2: { idle: false },
+};
+const symbolAnimCache = new Map<string, SymbolAnim>();
+/** cached per name: safe to call every frame (no allocation after the first call) */
+export const symbolAnim = (name: string): SymbolAnim => {
+	let a = symbolAnimCache.get(name);
+	if (!a) symbolAnimCache.set(name, (a = { ...SYMBOL_ANIM_DEFAULT, ...SYMBOL_ANIM[name] }));
+	return a;
+};
+/** the sheets' frame rate, in STYLE time (divided by timeScale like every other duration) */
+export const SHEET_FPS = 30;
+
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {
 	/** several clusters on one landing present one after another ('sequence'); 'together' is the
@@ -92,7 +117,7 @@ export const CLUSTER = {
 	clusterMode: 'sequence' as const,
 	/** sequence mode: cluster i+1 starts at max(cluster i start, cluster i removal end + this).
 	 *  Negative overlaps: the next cluster starts before the previous one has finished leaving. */
-	clusterGapMs: -1610,
+	clusterGapMs: -1800,
 	/** the winners grow to this while the readout is up */
 	winScale: 1.13,
 	winRiseMs: 90,
@@ -199,16 +224,94 @@ export const TILE = {
 	offset: { x: 0.26, y: -0.26 },
 };
 
-/** the manticore's three set pieces. Milestone 1 has no character, so these are board-only beats. */
+/** the manticore's set pieces share these. The swipe and the roar have their own blocks below. */
 export const FEATURE_FX = {
-	/** swipe: the three cleared rows flash before they go */
-	swipeFlashMs: 220,
+	/** flashCells' default strength (a feature colour flash on a set of cells) */
 	swipeFlashAlpha: 0.55,
-	swipeColor: 0x2eb0a8,
-	/** roar: the lows blow off the board */
-	roarStaggerMs: 16,
-	roarFlashMs: 260,
-	roarColor: 0xd64a2a,
+};
+
+/** The playground draws on a 66.5 px cell ((560 - 28) / 8); every px value Corey tuned there is in
+ *  those px. The board is SYMBOL_SIZE units a cell, so a playground px is this many board units
+ *  (landscape's on-screen cell is 66 master px, so on a desktop the two read the same size). */
+export const PLAYGROUND_PX = SYMBOL_SIZE / 66.5;
+
+// ---- The claw swipe (MOTION_SPEC "Claw swipe", LOCKED Corey 2026-10-06 10:02 + the slant mapping) ----
+// Tears rake right to left across the swiped band, hold, then fade while the band's symbols leave;
+// the refill drops after max(exitMs, tearFadeMs). Drawn by components/ClawSwipe.svelte (raw Pixi,
+// polygons only, no filters); the cells' exit is the board engine's (stateGame.swipeBand).
+// Every px is playground px (x PLAYGROUND_PX at draw time); every ms is style time.
+export const SWIPE_FX = {
+	tearCount: 4,
+	/** 'rows': the slant comes from the event's rows (top band slantTopDeg, bottom band slantBottomDeg);
+	 *  'fixed': tearSlantDeg */
+	slantMode: 'rows' as 'rows' | 'fixed',
+	slantTopDeg: -6,
+	slantBottomDeg: 3,
+	tearSlantDeg: -3,
+	/** random y jitter along each tear's centreline (26 segments) */
+	tearJitterPx: 5,
+	/** the core's thickness */
+	tearThickPx: 9.5,
+	/** the hot bands' width outside the core, before the spikes */
+	tearEdgePx: 6.5,
+	tearEdgeColor: 0x000000,
+	/** the glow under the bands (the playground's shadowBlur, here a stack of soft strokes) */
+	tearGlowColor: 0xff2600,
+	tearGlowAlpha: 1,
+	tearGlowPx: 10,
+	/** torn-paper spikes on the bands' outer side (78 segments, alternating 1.0 / 0.25) */
+	tearEdgeJitterPx: 9.5,
+	/** the bands show the board captured at the swipe's start at this alpha (flipped on the top band) */
+	tearReflect: 0.8,
+	/** the core cuts through the symbols to the bare board, then black at this alpha over it */
+	tearCoreAlpha: 0.7,
+	/** each tear is revealed right to left over this (quadOut) */
+	tearSweepMs: 110,
+	/** between tears, top to bottom */
+	tearStaggerMs: 5,
+	tearHoldMs: 370,
+	tearFadeMs: 380,
+	/** how the swiped symbols leave, starting with the tears' fade */
+	exit: 'fade' as const,
+	exitMs: 260,
+	/** slideLeft only (not chosen) */
+	slideCells: 1.3,
+	/** the board kick on the last tear: (0.6k, k), k = kickPx (1 - u) sin(6 pi u) */
+	kickPx: 5,
+	kickMs: 180,
+	/** after the symbols have gone, before the refill */
+	refillDelayMs: 0,
+};
+
+// ---- The roar (MOTION_SPEC "Roar", Corey 2026-10-06 17:44, kick sync after) ----------------------
+// shakeLoose: every low rattles harder and harder, then drops off; bottom rows leave first. Nothing
+// is drawn for the wave (waveMs only spreads the leave times). The multiplier tiles under the lows
+// are untouched (EVENT_SCHEMA). Cells: stateGame.roarBlow; the cell flash: ClawSwipe.svelte's well layer.
+export const ROAR_FX = {
+	style: 'shakeLoose' as const,
+	from: 'right' as const,
+	/** the shout before anything moves; the roar SFX lands at its start */
+	windupMs: 350,
+	/** leave time = windupMs + rattleMs + waveMs * (1 - (row + 0.5) / 8) */
+	waveMs: 600,
+	rattleMs: 800,
+	/** the rattle grows as u^1.5 to this, x sin / y cos at 1.3x (0.6 of it), twist rattleRotDeg */
+	rattleAmpPx: 2.5,
+	rattleHz: 10,
+	rattleRotDeg: 0.5,
+	/** each low falls exitDistCells (quadIn) over exitMs with 0.3 x exitSpinDeg, fading over the last 40% */
+	exitMs: 450,
+	exitDistCells: 1.3,
+	exitSpinDeg: 20,
+	/** the cell flashes this colour as its low leaves (fading over the first 120 ms of a 240 ms beat) */
+	flashAlpha: 0.4,
+	flashColor: 0xd64a2a,
+	flashMs: 240,
+	/** 'withRattle': the board kicks (0.6k, k), k = kickPx u^1.5 sin(2 pi rattleHz t), over the whole
+	 *  rattle window (first rattle start to last rattle end) */
+	kickSync: 'withRattle' as const,
+	kickPx: 6,
+	refillDelayMs: 0,
 };
 
 // ---- The sting (RULE_PASS_2 section F) ----------------------------------------------------------
@@ -221,34 +324,52 @@ export const FEATURE_FX = {
 // Every number here is style time and is divided by stateBetDerived.timeScale() at playback.
 // The visuals are components/Sting.svelte, which is kind-driven so a Spine rig can replace the
 // placeholder strike without touching this file or the handler.
+// LOCKED Corey 2026-10-06 10:36 (MOTION_SPEC "Sting"); the scatter beat is unchanged.
 export const STING = {
-	/** a normal hit: wind-up to the flash, the symbol flips at `hitAt` of it */
-	normalMs: 260,
+	/** a normal hit: the tail streak winds up, the symbol flips at `hitAt` of it */
+	normalMs: 430,
 	/** between two stings of the same spin */
 	gapMs: 150,
 	/** big / super: the charge-up before the shape turns */
-	chargeMs: 520,
-	superChargeMs: 680,
+	chargeMs: 300,
+	superChargeMs: 990,
 	/** big / super: the shape turning wild together */
-	bigHitMs: 420,
+	bigHitMs: 540,
 	/** scatter: the disappointment / anticipation beat on the resting board */
 	scatterHoldMs: 700,
 	/** scatter: the tail hit itself */
 	scatterHitMs: 320,
 	/** where in a hit the symbol actually changes (share of the hit) */
-	hitAt: 0.42,
-	/** peak scale of a struck cell, by weight */
+	hitAt: 0.72,
+	/** peak scale of a struck cell (sin over the whole hit), by weight */
 	popScale: 1.5,
-	bigPopScale: 1.7,
-	/** the charge pulse on the shape: amplitude and how many beats fit in the charge */
-	chargePulse: 0.12,
+	bigPopScale: 1.45,
+	/** the charge pulse on the shape: amplitude (0 = the cells do not pulse) and beats in the charge */
+	chargePulse: 0,
 	chargeBeats: 3,
-	/** everything outside a big / super shape dims to this while the tail charges */
+	/** everything outside a big / super shape dims to this over dimMs, back over undimMs after the hit */
 	dimAlpha: 0.32,
-	/** flash strength on a struck cell */
-	flashAlpha: 0.85,
+	dimMs: 200,
+	undimMs: 400,
+	/** the white flash on a struck cell at the hit, fading over 120 ms */
+	flashAlpha: 0.25,
+	/** normal: one ring per cell, 0.22 -> ringScale / 2 cells over ringMs (quadOut, fades) */
+	ringMs: 180,
+	ringScale: 1.2,
+	/** big / super: bigRings rings from the shape centre, bigRingGapMs apart, each 0.2 -> reach cells
+	 *  over bigRingMs, reach = bigRingReach x (plus 1.5, 3x3 1.5 sqrt 2), width bigRingPx shrinking 60% */
+	bigRingMs: 200,
+	bigRingReach: 0.6,
+	bigRingPx: 16,
+	bigRings: 2,
+	bigRingGapMs: 30,
+	/** normal: the tail streak from off the top-right corner into the cell during the wind-up */
+	streak: true,
+	streakPx: 6,
 	wildColor: 0xffd76a,
 	scatterColor: 0xffe08a,
+	/** the scatter sting's own beat (kept from before the lock): its flash tint strength */
+	scatterFlashAlpha: 0.85,
 } as const;
 
 // ---- Scatter tease on a Mystery reveal (RULE_PASS_2 section D) -----------------------------------

@@ -10,6 +10,7 @@ import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
+import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, fxStamp, type FxRecord } from './featureFx';
 import {
 	GRID,
 	CELL_COUNT,
@@ -26,10 +27,16 @@ import {
 	TILE,
 	FEATURE_FX,
 	STING,
+	SWIPE_FX,
+	ROAR_FX,
+	PLAYGROUND_PX,
 	ANTICIPATION,
 	cellOf,
 	reelOf,
-	rowOf, TURBO_SCALE } from './constants';
+	rowOf,
+	TURBO_SCALE,
+	symbolAnim,
+} from './constants';
 
 // ================================================================================================
 // THE BOARD ENGINE
@@ -54,6 +61,10 @@ export type Cell = {
 	row: number;
 	/** the drawn row-space y; fractional (and negative) while a tile is in the air */
 	y: number;
+	/** drawn x offset in cells from the cell's column centre (the roar's rattle), 0 at rest */
+	dx: number;
+	/** drawn rotation in radians about the tile's centre (the roar's rattle and fall), 0 at rest */
+	rot: number;
 	scaleX: number;
 	scaleY: number;
 	alpha: number;
@@ -62,6 +73,9 @@ export type Cell = {
 	flashColor: number;
 	/** the landing aura 0..1: a winner of the next cascade glows as it lands (CLUSTER.auraMs) */
 	glow: number;
+	/** performance.now() of this cell's last landing contact (0 = never landed): BoardCells starts
+	 *  the symbol's drop sheet from it. Written once per landing, never per frame. */
+	landAt: number;
 	state: SymbolState;
 };
 
@@ -89,12 +103,15 @@ const makeCell = (name: SymbolName, reel: number, row: number, y = row): Cell =>
 	reel,
 	row,
 	y,
+	dx: 0,
+	rot: 0,
 	scaleX: 1,
 	scaleY: 1,
 	alpha: 1,
 	flash: 0,
 	flashColor: 0xffffff,
 	glow: 0,
+	landAt: 0,
 	state: 'static',
 });
 
@@ -234,18 +251,19 @@ const stackedAbove = (i: number, count: number) => i - count - DROP.clearance;
  * centre shift that keeps the bottom edge on the floor, less the bounce lift. Matches the
  * playground's `squash` / `settle` / `bounce` tracks sample for sample.
  */
-const landPose = (u: number): [number, number, number] => {
+const landPose = (u: number, squash: number = GRAVITY_DROP.squash): [number, number, number] => {
 	let sx = 1;
 	let sy = 1;
-	if (GRAVITY_DROP.squash > 0 && GRAVITY_DROP.squashMs > 0) {
+	// squash: per symbol (constants SYMBOL_ANIM; L4 bakes its own into its drop frames, so 0)
+	if (squash > 0 && GRAVITY_DROP.squashMs > 0) {
 		if (u < GRAVITY_DROP.squashMs) {
-			const k = Math.sin(Math.PI * (u / GRAVITY_DROP.squashMs)) * GRAVITY_DROP.squash;
+			const k = Math.sin(Math.PI * (u / GRAVITY_DROP.squashMs)) * squash;
 			sx *= 1 + k;
 			sy *= 1 - k;
 		} else if (GRAVITY_DROP.settleMs > 0 && GRAVITY_DROP.settleRatio > 0) {
 			const k =
 				Math.sin(Math.PI * clamp01((u - GRAVITY_DROP.squashMs) / GRAVITY_DROP.settleMs)) *
-				GRAVITY_DROP.squash *
+				squash *
 				GRAVITY_DROP.settleRatio;
 			sx *= 1 - k;
 			sy *= 1 + k;
@@ -278,6 +296,7 @@ const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => 
 	for (const j of jobs) if (j.aura) total = Math.max(total, j.delay + j.dur + auraMs);
 	for (const a of auras) total = Math.max(total, a.t0 + auraMs);
 	const map = liveById();
+	const landed = new Set<number>(); // job cell ids whose contact has been stamped
 	await raf(total, (_t, now) => {
 		if (!alive(id)) return;
 		onFrame?.(now);
@@ -288,7 +307,13 @@ const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => 
 			const y = j.fromY + (j.toY - j.fromY) * DROP.easing(p);
 			if (p >= 1) {
 				const u = now - j.delay - j.dur;
-				const [sx, sy, dy] = landPose(u);
+				if (!landed.has(j.cellId)) {
+					// the contact happened u style ms before this frame: stamp it in real time so the
+					// drop sheet starts on the landing frame whatever the frame rate
+					landed.add(j.cellId);
+					cell.landAt = performance.now() - u / ts();
+				}
+				const [sx, sy, dy] = landPose(u, symbolAnim(cell.name).squash);
 				cell.scaleX = sx;
 				cell.scaleY = sy;
 				cell.y = y + dy;
@@ -354,6 +379,8 @@ export const settleBoard = () => {
 	// 3. every cell at rest: on its row, full size, full opacity, no tint
 	for (const cell of stateGame.cells) {
 		cell.y = cell.row;
+		cell.dx = 0;
+		cell.rot = 0;
 		cell.scaleX = 1;
 		cell.scaleY = 1;
 		cell.alpha = 1;
@@ -362,6 +389,8 @@ export const settleBoard = () => {
 		cell.state = 'static';
 	}
 	for (const tile of stateGame.tiles) tile.scale = 1;
+	boardKick.x = 0;
+	boardKick.y = 0;
 	stateGame.readouts = [];
 	clearAnticipation();
 };
@@ -389,6 +418,7 @@ export const boardInvariant = () => {
 		const index = cellOf(c.reel, c.row);
 		seen.set(index, (seen.get(index) ?? 0) + 1);
 		if (Math.abs(c.y - c.row) > 0.01) problems.push(`cell ${index} parked at y ${c.y.toFixed(3)}, row ${c.row}`);
+		if (Math.abs(c.dx) > 0.01 || Math.abs(c.rot) > 0.001) problems.push(`cell ${index} offset dx ${c.dx.toFixed(3)} rot ${c.rot.toFixed(3)}`);
 		if (Math.abs(c.scaleX - 1) > 0.01 || Math.abs(c.scaleY - 1) > 0.01) problems.push(`cell ${index} scaled ${c.scaleX.toFixed(2)}x${c.scaleY.toFixed(2)}`);
 		if (Math.abs(c.alpha - 1) > 0.01) problems.push(`cell ${index} alpha ${c.alpha.toFixed(2)}`);
 		if (c.flash > 0.01) problems.push(`cell ${index} still flashing ${c.flash.toFixed(2)}`);
@@ -424,6 +454,7 @@ export const revealBoard = async (
 	const id = newRun();
 	stateGame.readouts = [];
 	clearAnticipation();
+	clearStingFx();
 
 	// per-column hold (0 = no tease) and the delay every later column inherits from it
 	const holdMs = Array.from({ length: GRID }, () => 0);
@@ -924,52 +955,61 @@ const cellIdsAt = (cells: CellIndex[]) => {
 	return ids;
 };
 
-/** the charge-up before a big / super sting: the board dims away and the shape pulses */
-export const stingCharge = async (cells: CellIndex[], ms: number, id: number) => {
-	const targets = new Set(cellIdsAt(cells));
-	if (!targets.size) return;
-	await raf(ms, (t) => {
-		if (!alive(id)) return;
-		const pulse = 1 + STING.chargePulse * Math.sin(Math.PI * STING.chargeBeats * 2 * t) * t;
-		const map = liveById();
-		for (const c of map.values()) {
-			if (targets.has(c.id)) {
-				c.scaleX = pulse;
-				c.scaleY = pulse;
-				c.flashColor = STING.wildColor;
-				c.flash = 0.35 * t;
-			} else {
-				c.alpha = 1 - (1 - STING.dimAlpha) * t;
-			}
-		}
-	});
+type StingKindName = 'normal' | 'big' | 'super' | 'scatter';
+
+/** turn the listed cells into `symbol` (the book's change, applied exactly as written) */
+const flipCells = (targetIds: number[], symbol: SymbolName) => {
+	const map = liveById();
+	for (const cellId of targetIds) {
+		const cell = map.get(cellId);
+		if (cell) cell.name = symbol;
+	}
 };
 
 /**
- * The hit itself: the listed cells flash and swell, flip to `symbol` at STING.hitAt of the beat,
- * then settle. One cell for a normal or scatter sting, the whole plus / block at once for a big
- * or super one (RULE_PASS_2 section F: "the plus / block turns wild TOGETHER").
+ * One tail hit on its cells (a normal sting's one cell, or the scatter sting's): the cell pops
+ * (popScale, sine over the whole beat) and flips to `symbol` at STING.hitAt of it. The overlays
+ * (the tail streak during the wind-up, the white flash, the per-cell ring) are Sting.svelte's, from
+ * the stingFx entry stamped here. The scatter sting keeps its own beat: the old flash tint, no streak.
+ * Resolves at the end of the beat; the ring tail runs on into the gap on its own.
  */
-export const stingStrike = async (
+export const stingHit = async (
 	cells: CellIndex[],
 	symbol: SymbolName,
-	{ ms, popScale, color }: { ms: number; popScale: number; color: number },
+	{ ms, popScale, kind }: { ms: number; popScale: number; kind: StingKindName },
 	id: number,
+	rec?: FxRecord,
 ) => {
 	const targetIds = cellIdsAt(cells);
 	if (!targetIds.length) return;
-	const targets = new Set(targetIds);
+	const scatter = kind === 'scatter';
+	if (!stateGame.skipping) {
+		const t0 = performance.now();
+		const rate = ts();
+		for (const cell of cells) {
+			stingFx.strikes.push({
+				cell,
+				t0,
+				rate,
+				dur: ms,
+				hitAt: STING.hitAt,
+				streak: kind === 'normal' && STING.streak,
+				ringMs: kind === 'normal' ? STING.ringMs : 0,
+				kind,
+			});
+		}
+	}
 	let flipped = false;
 	const flip = () => {
 		if (flipped) return;
 		flipped = true;
-		const map = liveById();
-		for (const cellId of targetIds) {
-			const cell = map.get(cellId);
-			if (cell) cell.name = symbol;
-		}
+		if (rec) fxStamp(rec, 'hit');
+		flipCells(targetIds, symbol);
 	};
-	for (const c of stateGame.cells) if (targets.has(c.id)) c.flashColor = color;
+	if (scatter) {
+		const targets = new Set(targetIds);
+		for (const c of stateGame.cells) if (targets.has(c.id)) c.flashColor = STING.scatterColor;
+	}
 	await raf(ms, (t) => {
 		if (!alive(id)) return;
 		if (t >= STING.hitAt) flip();
@@ -981,10 +1021,277 @@ export const stingStrike = async (
 			if (!cell) continue;
 			cell.scaleX = scale;
 			cell.scaleY = scale;
-			cell.flash = STING.flashAlpha * k;
+			if (scatter) cell.flash = STING.scatterFlashAlpha * k;
 		}
 	});
 	flip(); // a superseded run may skip the animation, never the book's symbol change
+	if (rec) fxStamp(rec, 'end');
+};
+
+/**
+ * A big / super sting, one compiled beat in style ms (the playground's compileSting finisher):
+ *   0 .. charge            the board outside the shape dims to dimAlpha over dimMs; the centre
+ *                          telegraph breathes (Sting.svelte); chargePulse 0 = the cells do not pulse
+ *   charge .. charge+hit   every shape cell pops (bigPopScale, sine) and flips TOGETHER at hitAt;
+ *                          bigRings rings ripple from the centre, bigRingGapMs apart (Sting.svelte)
+ *   .. + undimMs           the board comes back up
+ * `onStrike` fires when the charge ends (the strike beat + SFX). Resolves at the end of the undim.
+ */
+export const stingBig = async (
+	cells: CellIndex[],
+	center: CellIndex,
+	symbol: SymbolName,
+	kind: 'big' | 'super',
+	id: number,
+	{ onStrike, rec }: { onStrike?: () => void; rec?: FxRecord } = {},
+) => {
+	const targetIds = cellIdsAt(cells);
+	const charge = Math.max(0, kind === 'super' ? STING.superChargeMs : STING.chargeMs);
+	const hit = Math.max(1, STING.bigHitMs);
+	const total = charge + hit + (charge > 0 ? STING.undimMs : 0);
+	const targets = new Set(targetIds);
+	if (!stateGame.skipping) {
+		const t0 = performance.now();
+		const rate = ts();
+		if (charge > 0) stingFx.charge = { centre: center, t0, rate, dur: charge, kind };
+		const hitT0 = t0 + charge / rate;
+		for (const cell of cells) stingFx.strikes.push({ cell, t0: hitT0, rate, dur: hit, hitAt: STING.hitAt, streak: false, ringMs: 0, kind });
+		const reach = (kind === 'super' ? 1.5 * Math.SQRT2 : 1.5) * STING.bigRingReach;
+		if (STING.bigRingMs > 0) {
+			for (let k = 0; k < Math.max(1, Math.round(STING.bigRings)); k += 1) {
+				stingFx.rings.push({ centre: center, t0: t0 + (charge + STING.hitAt * hit + k * STING.bigRingGapMs) / rate, rate, dur: STING.bigRingMs, reach, px: STING.bigRingPx });
+			}
+		}
+	}
+	let struck = false;
+	let flipped = false;
+	const strike = () => {
+		if (struck) return;
+		struck = true;
+		if (rec) fxStamp(rec, 'strike');
+		onStrike?.();
+	};
+	const flip = () => {
+		if (flipped) return;
+		flipped = true;
+		if (rec) fxStamp(rec, 'hit');
+		flipCells(targetIds, symbol);
+	};
+	await raf(total, (_t, el) => {
+		if (!alive(id)) return;
+		const dimIn = clamp01(el / Math.max(STING.dimMs, 1));
+		const undim = el > charge + hit ? clamp01((el - charge - hit) / Math.max(STING.undimMs, 1)) : 0;
+		const dim = charge > 0 ? 1 - (1 - STING.dimAlpha) * dimIn * (1 - undim) : 1;
+		let scale = 1;
+		if (el < charge) {
+			scale = 1 + STING.chargePulse * Math.max(0, Math.sin((el / charge) * Math.PI * STING.chargeBeats));
+		} else {
+			strike();
+			const u = (el - charge) / hit;
+			if (u < 1) scale = 1 + (STING.bigPopScale - 1) * Math.sin(Math.PI * u);
+			if (u >= STING.hitAt) flip();
+		}
+		if (el >= charge + hit && rec) fxStamp(rec, 'undim');
+		const map = liveById();
+		for (const c of map.values()) {
+			if (targets.has(c.id)) {
+				c.scaleX = scale;
+				c.scaleY = scale;
+			} else {
+				c.alpha = dim;
+			}
+		}
+	});
+	strike();
+	flip();
+	if (rec) fxStamp(rec, 'end');
+	if (!alive(id) || stateGame.skipping) stingFx.charge = null;
+};
+
+/** the scatter sting's disappointment / anticipation beat on the resting board: the centre telegraph
+ *  pulses (Sting.svelte) for scatterHoldMs. Its own beat, unchanged by the lock. */
+export const stingScatterWait = async (center: CellIndex) => {
+	if (!stateGame.skipping) stingFx.charge = { centre: center, t0: performance.now(), rate: ts(), dur: STING.scatterHoldMs, kind: 'scatter' };
+	await waitStyle(STING.scatterHoldMs);
+	stingFx.charge = null;
+};
+
+// ---- the claw swipe (MOTION_SPEC "Claw swipe", the playground's compileSwipe) ---------------------
+
+/** the swipe's schedule in style ms: when the last tear is fully out, when the symbols start to
+ *  leave (and the tears fade), when the kick starts, and when the refill may start */
+export const swipeSchedule = () => {
+	const n = Math.max(1, Math.round(SWIPE_FX.tearCount));
+	const lastReveal = (n - 1) * SWIPE_FX.tearStaggerMs + SWIPE_FX.tearSweepMs;
+	const tExit = lastReveal + SWIPE_FX.tearHoldMs;
+	const exitMs = Math.max(SWIPE_FX.exitMs, 1);
+	return {
+		n,
+		lastReveal,
+		tExit,
+		exitMs,
+		kickT0: lastReveal - SWIPE_FX.tearSweepMs * 0.3,
+		tRefill: tExit + Math.max(exitMs, SWIPE_FX.tearFadeMs) + SWIPE_FX.refillDelayMs,
+	};
+};
+
+/**
+ * The claw swipe over `rows` (the book's): the tears (ClawSwipe.svelte, from swipeFx) rake right to
+ * left, hold, and fade while the `removed` symbols leave by SWIPE_FX.exit; the board kicks on the
+ * last tear. `onExit` fires when the symbols start to leave (the handler pops the swipe's tiles
+ * then). Resolves when the refill may start; the cells are gone by then, whatever happened.
+ */
+export const swipeBand = async (removed: CellIndex[], rows: number[], id: number, { onExit, rec }: { onExit?: () => void; rec?: FxRecord } = {}) => {
+	const S = swipeSchedule();
+	const doomed = new Set(removed);
+	const goingIds: number[] = [];
+	for (const c of stateGame.cells) if (c.state !== 'removing' && doomed.has(cellOf(c.reel, c.row))) goingIds.push(c.id);
+	swipeFx.serial += 1;
+	swipeFx.rows = rows.slice().sort((a, b) => a - b);
+	swipeFx.el = 0;
+	swipeFx.alpha = 1;
+	swipeFx.active = !stateGame.skipping;
+	let exited = false;
+	const exit = () => {
+		if (exited) return;
+		exited = true;
+		if (rec) fxStamp(rec, 'exit');
+		const going = new Set(goingIds);
+		for (const c of stateGame.cells) if (going.has(c.id)) c.state = 'removing';
+		onExit?.();
+	};
+	const kickK = SWIPE_FX.kickPx * PLAYGROUND_PX;
+	await raf(S.tRefill, (_t, el) => {
+		if (!alive(id)) return;
+		swipeFx.el = el;
+		swipeFx.alpha = el > S.tExit ? 1 - clamp01((el - S.tExit) / Math.max(SWIPE_FX.tearFadeMs, 1)) : 1;
+		if (el >= S.lastReveal && rec) fxStamp(rec, 'revealed');
+		// the kick: (0.6k, k), k = kickPx (1 - u) sin(6 pi u)
+		const ku = (el - S.kickT0) / Math.max(SWIPE_FX.kickMs, 1);
+		const k = SWIPE_FX.kickPx > 0 && ku >= 0 && ku < 1 ? kickK * (1 - ku) * Math.sin(ku * Math.PI * 6) : 0;
+		boardKick.x = 0.6 * k;
+		boardKick.y = k;
+		if (el < S.tExit) return;
+		exit();
+		const u = clamp01((el - S.tExit) / S.exitMs);
+		const map = liveById();
+		for (const cellId of goingIds) {
+			const c = map.get(cellId);
+			if (!c) continue;
+			if (SWIPE_FX.exit === 'fade') c.alpha = 1 - u;
+			else if (SWIPE_FX.exit === 'slideLeft') {
+				c.dx = -SWIPE_FX.slideCells * u * u;
+				c.alpha = 1 - u;
+			} else {
+				const v = 1 - u * u;
+				c.scaleX = v;
+				c.scaleY = v;
+			}
+		}
+	});
+	exit();
+	swipeFx.active = false;
+	swipeFx.alpha = 0;
+	boardKick.x = 0;
+	boardKick.y = 0;
+	const going = new Set(goingIds);
+	stateGame.cells = stateGame.cells.filter((c) => !going.has(c.id));
+	if (rec) fxStamp(rec, 'end');
+};
+
+// ---- the roar (MOTION_SPEC "Roar", the playground's compileRoar, style shakeLoose) ----------------
+
+/** a removed low's leave time in style ms: bottom rows first */
+export const roarLeaveMs = (row: number) => ROAR_FX.windupMs + ROAR_FX.rattleMs + ROAR_FX.waveMs * (1 - (row + 0.5) / GRID);
+
+/**
+ * The roar: every removed low rattles from the end of the wind-up, growing as u^1.5, until its leave
+ * time; then it falls ROAR_FX.exitDistCells (quadIn) with a little spin and fades, and its cell
+ * flashes. The board kicks with the rattle over the whole rattle window. Multiplier tiles are never
+ * touched. Resolves when the last low is gone (+ refillDelayMs); the cells are removed by then.
+ */
+export const roarBlow = async (removed: CellIndex[], id: number, rec?: FxRecord) => {
+	const R = ROAR_FX;
+	const doomed = new Set(removed);
+	type Low = { id: number; index: number; row: number; leave: number; ph: number; ph2: number; spin: number };
+	const lows: Low[] = [];
+	for (const c of stateGame.cells) {
+		if (c.state === 'removing') continue;
+		const index = cellOf(c.reel, c.row);
+		if (!doomed.has(index)) continue;
+		// the playground's per-tile seeds (row r, column c): the rattle's two phases, the spin's sign
+		const rnd = seededRnd(31 + c.row * GRID + c.reel);
+		const ph = rnd() * 6.28;
+		const ph2 = rnd() * 6.28;
+		const spin = ((R.exitSpinDeg * Math.PI) / 180) * ((c.row + c.reel) % 2 ? 1 : -1);
+		lows.push({ id: c.id, index, row: c.row, leave: roarLeaveMs(c.row), ph, ph2, spin });
+	}
+	const tStart = R.windupMs;
+	const rattleHi = lows.reduce((n, l) => Math.max(n, l.leave), tStart);
+	const firstLeave = lows.reduce((n, l) => Math.min(n, l.leave), Infinity);
+	const lastGone = lows.reduce((n, l) => Math.max(n, l.leave + Math.max(R.exitMs, 1)), tStart);
+	const total = lastGone + R.refillDelayMs;
+	const amp = R.rattleAmpPx / 66.5; // cells: the playground's px over its cell
+	const rotAmp = (R.rattleRotDeg * Math.PI) / 180;
+	const w0 = (R.rattleHz * Math.PI * 2) / 1000;
+	const kickK = R.kickPx * PLAYGROUND_PX;
+	const flashHalf = R.flashMs * 0.5;
+	roarFx.flash.fill(0);
+	roarFx.active = !stateGame.skipping;
+	await raf(total, (_t, el) => {
+		if (!alive(id)) return;
+		if (el >= tStart && rec) fxStamp(rec, 'rattle');
+		if (el >= firstLeave && rec) fxStamp(rec, 'firstLeave');
+		const map = liveById();
+		for (const l of lows) {
+			const c = map.get(l.id);
+			if (!c) continue;
+			const since = el - l.leave;
+			roarFx.flash[l.index] = R.flashAlpha > 0 && since >= 0 && since < flashHalf ? R.flashAlpha * (1 - since / flashHalf) : 0;
+			if (el < tStart) continue;
+			if (since < 0) {
+				const u = (el - tStart) / Math.max(l.leave - tStart, 1);
+				const g = Math.pow(u, 1.5) * amp;
+				const w = (el - tStart) * w0;
+				c.dx = Math.sin(w + l.ph) * g;
+				c.y = l.row + Math.cos(w * 1.3 + l.ph2) * g * 0.6;
+				c.rot = Math.sin(w * 0.9 + l.ph) * rotAmp * Math.pow(u, 1.5);
+				continue;
+			}
+			c.state = 'removing';
+			const u = clamp01(since / Math.max(R.exitMs, 1));
+			c.dx = 0;
+			c.y = l.row + R.exitDistCells * u * u;
+			c.rot = l.spin * 0.3 * u;
+			c.alpha = u >= 1 ? 0 : u > 0.6 ? 1 - (u - 0.6) / 0.4 : 1;
+		}
+		// the kick rides the rattle: same Hz, growing with it, from the first rattle to the last leave
+		const ku = (el - tStart) / Math.max(rattleHi - tStart, 1);
+		const k = R.kickPx > 0 && ku >= 0 && ku < 1 ? kickK * Math.pow(ku, 1.5) * Math.sin((el - tStart) * w0) : 0;
+		boardKick.x = 0.6 * k;
+		boardKick.y = k;
+		if (el >= lastGone && rec) fxStamp(rec, 'lastGone');
+	});
+	roarFx.active = false;
+	roarFx.flash.fill(0);
+	boardKick.x = 0;
+	boardKick.y = 0;
+	const going = new Set(lows.map((l) => l.id));
+	stateGame.cells = stateGame.cells.filter((c) => !going.has(c.id));
+	if (rec) {
+		fxStamp(rec, 'lastGone');
+		fxStamp(rec, 'end');
+		rec.info = { ...(rec.info ?? {}), firstLeave, lastGone, rattleHi, lows: lows.length };
+	}
+};
+
+/** the playground's LCG (game/sparkles.ts `seeded` is the same sequence) */
+const seededRnd = (seed: number) => {
+	let x = (seed * 9301 + 49297) % 233280;
+	return () => {
+		x = (x * 9301 + 49297) % 233280;
+		return x / 233280;
+	};
 };
 
 /** flash a set of cells in a feature colour (swipe band / roar lows) before they leave.

@@ -22,10 +22,18 @@ const strip = (ref) => ref.split('?')[0];
 // Embedding the PNG's own hash as a custom meta field makes the JSON's bytes — and therefore both
 // URLs — change whenever the PNG changes, even if the frame coordinates didn't.
 // per-insect pose sheets (sprites/poses-<p>.json, tools/make_placeholders.py) are discovered, not
-// listed: Corey adds one insect at a time and each new sheet must stamp itself without a code edit
+// listed: Corey adds one insect at a time and each new sheet must stamp itself without a code edit.
+// The per-symbol drop and idle sheets (sprites/mmSymbols/<code>-drop|idle[-half].json,
+// tools/pack_symbol_sheets.py) are discovered the same way.
+const symbolSheets = readdirSync(join(ASSETS, 'sprites', 'mmSymbols'))
+	.filter((name) => /^[a-z0-9]+-(drop|idle)(-half)?\.json$/.test(name))
+	.sort()
+	.map((name) => `sprites/mmSymbols/${name}`);
+
 for (const rel of [
 	'sprites/mmSymbols/mmSymbols.json',
 	'sprites/mmSymbols/mmSymbols-half.json', // phone asset tier (game/deviceTier.ts)
+	...symbolSheets,
 	'ui/numerals/numerals.json', // stencil amount glyphs
 ]) {
 	const jsonPath = join(ASSETS, rel);

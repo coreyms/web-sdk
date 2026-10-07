@@ -1,125 +1,240 @@
 <script lang="ts">
-	// THE STING RIG SLOT (RULE_PASS_2 section F).
+	// THE STING OVERLAYS (RULE_PASS_2 section F, STING locked Corey 2026-10-06 10:36).
 	//
-	// One component, kind-driven: everything the player sees of a sting that is not the board cells
-	// themselves is drawn here, from the `stingBeat` event the handler broadcasts. The art is a
-	// PLACEHOLDER — a telegraph pulse at the centre while the tail charges and an impact ring on
-	// every struck cell — so that dropping a Spine rig in later is a change to THIS FILE ONLY: the
-	// handler, the constants and the board engine already speak in kinds and phases.
+	// Everything the player sees of a sting that is not the board cells themselves: the board engine
+	// (stateGame.stingHit / stingBig) owns the cells (pop, flip, dim) and stamps one stingFx entry per
+	// overlay (game/featureFx.ts); this layer draws them on the app ticker in the playground's maths
+	// (motion-playground.html draw(), the sting overlays):
+	//   normal   the tail streak from off the top-right corner into the cell during the wind-up
+	//            (quadIn along the line, trailing 35%), the white flash at the hit fading over 120 ms,
+	//            one ring 0.22 -> ringScale / 2 cells over ringMs (quadOut, fades)
+	//   big      the centre telegraph breathing through the charge, the white flash on every cell at
+	//   super    the hit, NO per-cell rings; bigRings rings from the centre, bigRingGapMs apart, each
+	//            0.2 -> reach cells over bigRingMs, width bigRingPx shrinking 60%
+	//   scatter  its own beat, unchanged: the telegraph pulse through the wait, the impact ring
+	// A Spine rig can still replace this file alone: the handler and the engine speak in kinds.
 	//
-	// House rules it obeys: always mounted (never an {#if} inside the sorted board container — the
-	// conditional-mount z-order trap), no filters, no per-frame geometry (every node is drawn once
-	// at a fixed size and only its transform and alpha change per frame), and every duration comes
-	// from STING in constants.ts divided by the turbo time scale.
-	//
-	// PHONE PASS (2026-09-23): the rings are raw Pixi Graphics, each built ONCE (white stroke, the
-	// kind's colour applied as a tint) and moved by the beat's own rAF step. The pixi-svelte <Circle>
-	// version pushed every frame of `t` through Svelte state into ten props-sync effects.
+	// House rules: always mounted at one z in the sorted board container (the conditional-mount trap),
+	// no filters, no textures at all. Every node is pooled and built at mount; the flashes are drawn
+	// once (only transform + alpha move), the streaks and rings are a single stroked segment / circle
+	// redrawn into their own Graphics while they are live (geometry, never a texture). The canvas
+	// glow the playground gives the streak and the big rings (shadowBlur) is a wider, fainter stroke
+	// under the line.
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
+	import { quadIn, quadOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, STING, reelOf, rowOf } from '../game/constants';
-	import type { StingKind } from '../game/typesBookEvent';
+	import { SYMBOL_SIZE, GRID, STING, PLAYGROUND_PX, reelOf, rowOf } from '../game/constants';
+	import { stingFx, clearStingFx } from '../game/featureFx';
 
 	const context = getContext();
+	const CELL = SYMBOL_SIZE;
+	const K = PLAYGROUND_PX;
+	const FLASH_SIZE = CELL - 4 * K;
+	/** the playground's streak origin: 1.5 cells right of the board, 1.2 cells above it */
+	const ORIGIN_X = CELL * GRID + CELL * 1.5;
+	const ORIGIN_Y = -CELL * 1.2;
+	const FLASH_MS = 120;
 
-	/** the most cells one sting can cover (a super's 3x3) — the ring pool never grows */
-	const MAX_CELLS = 9;
-	const RING = SYMBOL_SIZE; // drawn once at this size; the beat only scales it
+	// pool sizes: a super's nine flashes at once, a normal's ring tail overlapping the next wind-up
+	const FLASH_POOL = 12;
+	const STREAK_POOL = 4;
+	const RING_POOL = 6;
+	const SHAPE_RING_POOL = 4;
 
-	type Phase = 'charge' | 'wait' | 'strike';
-	let kind: StingKind = 'normal';
-	let phase: Phase = 'strike';
-	let centre = 0;
-	let cells: number[] = [];
-	let t = 0; // 0..1 through the current phase
-	let live = false;
-
-	// always in the tree, always at the same z in the sorted board container: only alpha moves
 	const root = new PIXI.Container({ zIndex: 15 });
 	getContextParent().addToParent(root);
-	const ring = (width: number) => {
-		const g = new PIXI.Graphics().circle(0, 0, RING * 0.5).stroke({ color: 0xffffff, width });
-		g.alpha = 0;
+	const graphics = (n: number) =>
+		Array.from({ length: n }, () => {
+			const g = new PIXI.Graphics();
+			g.visible = false;
+			root.addChild(g);
+			return g;
+		});
+	const telegraph = graphics(1)[0];
+	const streaks = graphics(STREAK_POOL);
+	const rings = graphics(RING_POOL);
+	const shapeRings = graphics(SHAPE_RING_POOL);
+	const flashes = Array.from({ length: FLASH_POOL }, () => {
+		const g = new PIXI.Graphics().roundRect(-FLASH_SIZE / 2, -FLASH_SIZE / 2, FLASH_SIZE, FLASH_SIZE, 6 * K).fill(0xffffff);
+		g.visible = false;
 		root.addChild(g);
 		return g;
-	};
-	const telegraph = ring(4);
-	const rings = Array.from({ length: MAX_CELLS }, () => ring(6));
+	});
 
-	const durationOf = (p: Phase, k: StingKind) => {
-		if (p === 'wait') return STING.scatterHoldMs;
-		if (p === 'charge') return k === 'super' ? STING.superChargeMs : STING.chargeMs;
-		if (k === 'scatter') return STING.scatterHitMs;
-		return k === 'normal' ? STING.normalMs : STING.bigHitMs;
-	};
+	const cx = (cell: number) => (reelOf(cell) + 0.5) * CELL;
+	const cy = (cell: number) => (rowOf(cell) + 0.5) * CELL;
 
-	const x = (cell: number) => (reelOf(cell) + 0.5) * SYMBOL_SIZE;
-	const y = (cell: number) => (rowOf(cell) + 0.5) * SYMBOL_SIZE;
+	/** DEV probe counters: overlays drawn this frame and the most at once */
+	const stats = { flashes: 0, streaks: 0, rings: 0, shapeRings: 0, telegraph: 0, dropped: 0 };
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		Object.assign(((window as any).__manticore ??= {}), { stingOverlays: () => ({ ...stats }) });
+	}
 
-	/** one frame of the beat: the same curves the <Circle> props used to carry */
-	const draw = () => {
-		const colour = kind === 'scatter' ? STING.scatterColor : STING.wildColor;
-		// the impact ring: snaps out of the cell and fades, one per struck cell, all at once for a
-		// big / super (the shape turns together)
-		const ringScale = 0.45 + 1.15 * t;
-		const ringAlpha = live && phase === 'strike' ? 1 - t : 0;
-		// the telegraph at the centre: a pulse while the tail charges (big / super) or while the
-		// disappointment beat runs (scatter)
-		const pulse = Math.abs(Math.sin(Math.PI * (phase === 'wait' ? 2 : STING.chargeBeats) * t));
-		telegraph.alpha = live && phase !== 'strike' ? 0.15 + 0.45 * pulse * (0.4 + 0.6 * t) : 0;
-		telegraph.scale.set(phase === 'wait' ? 1.1 + 0.25 * pulse : 1.6 - 0.9 * t + 0.15 * pulse);
-		telegraph.position.set(x(centre), y(centre));
-		telegraph.tint = colour;
-		for (let i = 0; i < MAX_CELLS; i += 1) {
-			const g = rings[i];
-			const cell = cells[i] ?? centre;
-			g.position.set(x(cell), y(cell));
-			g.scale.set(ringScale);
-			g.alpha = i < cells.length ? ringAlpha : 0;
-			g.tint = colour;
-		}
+	let shown = false;
+	const hideAll = () => {
+		telegraph.visible = false;
+		for (const g of streaks) g.visible = false;
+		for (const g of rings) g.visible = false;
+		for (const g of shapeRings) g.visible = false;
+		for (const g of flashes) g.visible = false;
+		shown = false;
 	};
 
-	let raf = 0;
-	const start = () => {
-		cancelAnimationFrame(raf);
-		// SKIP TO RESULT: the board engine applies the symbol change; the strike art has nothing to show
+	const tick = () => {
 		if (context.stateGame.skipping) {
-			live = false;
-			t = 1;
-			draw();
+			// SKIP TO RESULT: the engine applies the symbol change; the overlays have nothing to show
+			clearStingFx();
+			if (shown) hideAll();
 			return;
 		}
-		const ms = Math.max(1, durationOf(phase, kind) / Math.max(0.2, context.stateGameDerived.timeScale()));
-		const t0 = performance.now();
-		live = true;
-		t = 0;
-		draw();
-		const step = () => {
-			t = Math.min(1, (performance.now() - t0) / ms);
-			if (t < 1) raf = requestAnimationFrame(step);
-			else live = phase !== 'strike'; // a strike ends on its own; a charge holds until the hit
-			draw();
-		};
-		raf = requestAnimationFrame(step);
+		const ch = stingFx.charge;
+		if (!ch && !stingFx.strikes.length && !stingFx.rings.length) {
+			if (shown) hideAll();
+			return;
+		}
+		shown = true;
+		const now = performance.now();
+		let nf = 0;
+		let ns = 0;
+		let nr = 0;
+		let nsr = 0;
+
+		// ---- the centre telegraph ----
+		telegraph.visible = false;
+		if (ch) {
+			const el = (now - ch.t0) * ch.rate;
+			if (el >= ch.dur) stingFx.charge = null;
+			else if (el >= 0) {
+				const u = el / ch.dur;
+				telegraph.clear();
+				if (ch.kind === 'scatter') {
+					// the scatter wait's pulse, as it was before the lock
+					const pulse = Math.abs(Math.sin(Math.PI * 2 * u));
+					const s = 1.1 + 0.25 * pulse;
+					telegraph.circle(cx(ch.centre), cy(ch.centre), CELL * 0.5 * s).stroke({ color: STING.scatterColor, width: 4 * s });
+					telegraph.alpha = 0.15 + 0.45 * pulse * (0.4 + 0.6 * u);
+				} else {
+					const pulse = Math.max(0, Math.sin(u * Math.PI * STING.chargeBeats));
+					telegraph.circle(cx(ch.centre), cy(ch.centre), CELL * (0.3 + 0.25 * pulse)).stroke({ color: STING.wildColor, width: 3 * K });
+					telegraph.alpha = 0.25 + 0.6 * pulse;
+				}
+				telegraph.visible = true;
+				stats.telegraph = 1;
+			}
+		}
+
+		// ---- the struck cells ----
+		for (let i = stingFx.strikes.length - 1; i >= 0; i -= 1) {
+			const st = stingFx.strikes[i];
+			const el = (now - st.t0) * st.rate;
+			const hitT = st.hitAt * st.dur;
+			const end = st.kind === 'scatter' ? st.dur : Math.max(st.dur, hitT + Math.max(FLASH_MS, st.ringMs));
+			if (el >= end) {
+				stingFx.strikes.splice(i, 1);
+				continue;
+			}
+			if (el < 0) continue; // a big / super's hit, still charging
+			const u = el / st.dur;
+			const x = cx(st.cell);
+			const y = cy(st.cell);
+			if (st.kind === 'scatter') {
+				// the scatter's impact ring, as it was before the lock
+				if (nr >= RING_POOL) { stats.dropped += 1; continue; }
+				const g = rings[nr++];
+				const s = 0.45 + 1.15 * u;
+				g.clear().circle(x, y, CELL * 0.5 * s).stroke({ color: STING.scatterColor, width: 6 * s });
+				g.alpha = 1 - u;
+				g.visible = true;
+				continue;
+			}
+			if (st.streak && u < st.hitAt) {
+				if (ns >= STREAK_POOL) stats.dropped += 1;
+				else {
+					const g = streaks[ns++];
+					const a = quadIn(u / st.hitAt);
+					const b = Math.max(0, a - 0.35);
+					const x0 = ORIGIN_X + (x - ORIGIN_X) * b;
+					const y0 = ORIGIN_Y + (y - ORIGIN_Y) * b;
+					const x1 = ORIGIN_X + (x - ORIGIN_X) * a;
+					const y1 = ORIGIN_Y + (y - ORIGIN_Y) * a;
+					const w = STING.streakPx * K;
+					g.clear()
+						.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: STING.wildColor, width: w + 12 * K, alpha: 0.22, cap: 'round' })
+						.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: STING.wildColor, width: w + 5 * K, alpha: 0.45, cap: 'round' })
+						.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: STING.wildColor, width: w, cap: 'round' });
+					g.alpha = 1;
+					g.visible = true;
+				}
+			}
+			const since = el - hitT;
+			if (since < 0) continue;
+			if (STING.flashAlpha > 0 && since < FLASH_MS) {
+				if (nf >= FLASH_POOL) stats.dropped += 1;
+				else {
+					const g = flashes[nf++];
+					g.position.set(x, y);
+					g.alpha = STING.flashAlpha * (1 - since / FLASH_MS);
+					g.visible = true;
+				}
+			}
+			if (st.ringMs > 0 && since < st.ringMs) {
+				if (nr >= RING_POOL) stats.dropped += 1;
+				else {
+					const g = rings[nr++];
+					const v = since / st.ringMs;
+					g.clear().circle(x, y, CELL * (0.22 + (STING.ringScale / 2 - 0.22) * quadOut(v))).stroke({ color: 0xffffff, width: (4 * (1 - v) + 1) * K });
+					g.alpha = 1 - v;
+					g.visible = true;
+				}
+			}
+		}
+
+		// ---- the big / super ripple rings ----
+		for (let i = stingFx.rings.length - 1; i >= 0; i -= 1) {
+			const r = stingFx.rings[i];
+			const el = (now - r.t0) * r.rate;
+			if (el >= r.dur) {
+				stingFx.rings.splice(i, 1);
+				continue;
+			}
+			if (el < 0) continue;
+			if (nsr >= SHAPE_RING_POOL) {
+				stats.dropped += 1;
+				continue;
+			}
+			const u = el / r.dur;
+			const g = shapeRings[nsr++];
+			const rad = CELL * (0.2 + (r.reach - 0.2) * quadOut(u));
+			const w = (r.px * (1 - 0.6 * u) + 1) * K;
+			const x = cx(r.centre);
+			const y = cy(r.centre);
+			g.clear()
+				.circle(x, y, rad).stroke({ color: STING.wildColor, width: w + 10 * K, alpha: 0.3 })
+				.circle(x, y, rad).stroke({ color: 0xffffff, width: w });
+			g.alpha = 1 - u;
+			g.visible = true;
+		}
+
+		for (let i = nf; i < FLASH_POOL; i += 1) flashes[i].visible = false;
+		for (let i = ns; i < STREAK_POOL; i += 1) streaks[i].visible = false;
+		for (let i = nr; i < RING_POOL; i += 1) rings[i].visible = false;
+		for (let i = nsr; i < SHAPE_RING_POOL; i += 1) shapeRings[i].visible = false;
+		stats.flashes = Math.max(stats.flashes, nf);
+		stats.streaks = Math.max(stats.streaks, ns);
+		stats.rings = Math.max(stats.rings, nr);
+		stats.shapeRings = Math.max(stats.shapeRings, nsr);
 	};
 
-	context.eventEmitter.subscribeOnMount({
-		stingBeat: (event) => {
-			kind = event.kind;
-			phase = event.phase;
-			centre = event.center;
-			cells = event.cells;
-			start();
-		},
-	});
-	onMount(() => () => {
-		cancelAnimationFrame(raf);
-		// the parent's unmount destroys root without its children
-		telegraph.destroy();
-		for (const g of rings) g.destroy();
+	onMount(() => {
+		const ticker = context.stateApp.pixiApplication?.ticker;
+		ticker?.add(tick);
+		return () => {
+			ticker?.remove(tick);
+			// the parent's unmount destroys root without its children
+			root.destroy({ children: true });
+		};
 	});
 </script>

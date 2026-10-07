@@ -17,8 +17,11 @@ import {
 	removeCells,
 	applyTiles,
 	dropFill,
-	stingCharge,
-	stingStrike,
+	stingHit,
+	stingBig,
+	stingScatterWait,
+	swipeBand,
+	roarBlow,
 	flashCells,
 	waitStyle,
 	resetTiles,
@@ -27,11 +30,11 @@ import {
 	newRun,
 } from './stateGame.svelte';
 import { motionLog } from './sparkles';
+import { fxRecord, fxStamp } from './featureFx';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { CellIndex } from './types';
 import {
 	TIMINGS,
-	FEATURE_FX,
 	STING,
 	BONUS_TRIGGER_SOUND_MAP,
 	BONUS_MODE_LABEL,
@@ -223,24 +226,32 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (next?.type !== 'cascade') await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin });
 	},
 
-	// ---- swipe: the paw clears the middle band ---------------------------------------------------
+	// ---- swipe: the paw clears a band of three rows (the book's `rows`) ---------------------------
+	// SWIPE_FX: the tears rake the band right to left, hold, then fade while the band's symbols leave
+	// (scatters survive the paw: they are not in `removed`); the swipe's tiles pop as the symbols
+	// start to leave, and the refill drops once they are gone.
 	swipe: async (bookEvent: BookEventOfType<'swipe'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
+		const rec = fxRecord('swipe', { rows: bookEvent.rows, removed: bookEvent.removed.length, turbo: stateGame.turboLevel, skipping: stateGame.skipping });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'swipe', rows: bookEvent.rows });
-		await flashCells(bookEvent.removed, FEATURE_FX.swipeColor, FEATURE_FX.swipeFlashMs, id);
-		await removeCells(bookEvent.removed, id);
-		await applyTiles(bookEvent.tiles, id);
+		let tiles: Promise<void> = Promise.resolve();
+		await swipeBand(bookEvent.removed, bookEvent.rows, id, { rec, onExit: () => (tiles = applyTiles(bookEvent.tiles, id)) });
+		await tiles;
+		fxStamp(rec, 'refill');
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 		settleBoard();
+		fxStamp(rec, 'settled');
 	},
 
 	// ---- sting: the tail strikes cells in place ---------------------------------------------------
-	// Four kinds, one playback each (RULE_PASS_2 section F). `cells -> symbol` is applied exactly as
-	// written: the shape is never re-derived from `center`, which is presentation only.
+	// Four kinds, one playback each (RULE_PASS_2 section F, STING locked 2026-10-06). `cells -> symbol`
+	// is applied exactly as written: the shape is never re-derived from `center`, which is
+	// presentation only (where the telegraph and the ripple rings sit).
 	sting: async (bookEvent: BookEventOfType<'sting'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
 		const { kind, center, cells } = bookEvent;
+		const rec = fxRecord('sting', { kind, cells: cells.length, turbo: stateGame.turboLevel, skipping: stateGame.skipping });
 		const beat = (phase: 'charge' | 'wait' | 'strike') =>
 			eventEmitter.broadcast({ type: 'stingBeat', phase, kind, center, cells });
 
@@ -249,47 +260,58 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// same tail hit, and the cell becomes a War Standard with the STANDARD scatter landing
 			// SFX and the scatter beat. One event per scatter, played in the book's order.
 			beat('wait');
-			await waitStyle(STING.scatterHoldMs);
+			await stingScatterWait(center);
 			beat('strike');
+			fxStamp(rec, 'strike');
 			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike', forcePlay: true });
-			await stingStrike(cells, bookEvent.symbol, { ms: STING.scatterHitMs, popScale: STING.popScale, color: STING.scatterColor }, id);
+			await stingHit(cells, bookEvent.symbol, { ms: STING.scatterHitMs, popScale: STING.popScale, kind }, id, rec);
 			scatterLand(cells[0], id);
 			settleBoard();
 			return;
 		}
 
 		if (kind === 'big' || kind === 'super') {
-			// always the LAST sting of the spin: a charge-up beat with the rest of the board dimmed
-			// away, then the whole plus / block turns wild together with a bigger hit
+			// always the LAST sting of the spin: the board dims, the telegraph breathes at the centre,
+			// then the whole plus / block turns wild together and the rings ripple out
 			beat('charge');
 			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_angry', forcePlay: true });
-			await stingCharge(cells, kind === 'super' ? STING.superChargeMs : STING.chargeMs, id);
-			beat('strike');
-			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_wild_land', forcePlay: true });
-			await stingStrike(cells, bookEvent.symbol, { ms: STING.bigHitMs, popScale: STING.bigPopScale, color: STING.wildColor }, id);
+			await stingBig(cells, center, bookEvent.symbol, kind, id, {
+				rec,
+				onStrike: () => {
+					beat('strike');
+					eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_wild_land', forcePlay: true });
+				},
+			});
 			settleBoard();
 			return;
 		}
 
-		// normal: a fast tail hit on the one cell. Several fire back to back with a short gap.
+		// normal: the tail streak, the hit on the one cell. Several fire back to back with a short gap.
 		beat('strike');
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_wild_land', forcePlay: true });
-		await stingStrike(cells, bookEvent.symbol, { ms: STING.normalMs, popScale: STING.popScale, color: STING.wildColor }, id);
+		await stingHit(cells, bookEvent.symbol, { ms: STING.normalMs, popScale: STING.popScale, kind }, id, rec);
 		settleBoard();
 		const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
-		if (next?.type === 'sting') await waitStyle(STING.gapMs);
+		if (next?.type === 'sting') {
+			await waitStyle(STING.gapMs);
+			fxStamp(rec, 'gap');
+		}
 	},
 
 	// ---- roar: every low is blown off the board --------------------------------------------------
+	// ROAR_FX (shakeLoose): the roar SFX on the wind-up, every low rattles harder and harder, then
+	// they drop off bottom rows first with the board kicking in step; refill after the last is gone.
 	roar: async (bookEvent: BookEventOfType<'roar'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
+		const rec = fxRecord('roar', { removed: bookEvent.removed.slice(), turbo: stateGame.turboLevel, skipping: stateGame.skipping });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_angry', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
-		await flashCells(bookEvent.removed, FEATURE_FX.roarColor, FEATURE_FX.roarFlashMs, id);
-		await removeCells(bookEvent.removed, id);
+		await roarBlow(bookEvent.removed, id, rec);
+		fxStamp(rec, 'refill');
 		// the multiplier tiles under the removed lows are untouched (EVENT_SCHEMA.md)
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 		settleBoard();
+		fxStamp(rec, 'settled');
 	},
 
 	// ---- feature entry ---------------------------------------------------------------------------

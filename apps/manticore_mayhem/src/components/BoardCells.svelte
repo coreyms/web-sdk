@@ -21,6 +21,17 @@
 	//     (a fresh seeded pattern per burst; dead dots are zeroed, never removed)
 	//   · the CELL FLASH: 64 fixed white additive squares, one per cellIndex, that flash at a burst
 	//
+	// SYMBOL SHEETS (tools/SYMBOL_SHEETS.md): once the deferred drop / idle sheets are in, a cell
+	// plays its symbol's drop sheet from the landing contact (Cell.landAt, stamped by the engine) at
+	// SHEET_FPS in STYLE time (x timeScale), then loops its idle sheet; a cell at rest shows an idle
+	// frame (idle 0 = the drop's last frame), so the static-to-animation cut never shimmers. A cell
+	// that leaves its place for any other reason (a fall, the roar's rattle, the swipe's exit, a
+	// removal) shows the static atlas frame until it lands again; a scale-only beat in place (a win
+	// pulse, a sting pop) freezes on its current frame and the clip resumes after. A cell entering
+	// idle without a landing starts at a per-position phase (idleOffset). Before the sheets
+	// load every cell shows the static atlas frame. Only the pooled sprite's texture is switched
+	// between already-parsed sheet frames: no texture is ever created here.
+	//
 	// Z-order is unchanged in effect: this layer sits at the cells' old z (0) in Board's sorted
 	// container, with the old per-cell ladder inside it (aura -1, static 0, removing 8, win 10); the
 	// flashes (11) and sparkles (12) sit over the tiles, under the sting (15) and the badges (20).
@@ -30,7 +41,7 @@
 	import { quadOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, CELL_COUNT, TILE, SPARKLE, AURA_COLOR, reelOf, rowOf } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, CELL_COUNT, TILE, SPARKLE, AURA_COLOR, SHEET_FPS, reelOf, rowOf, symbolAnim } from '../game/constants';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { dotTexture, glowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
@@ -62,9 +73,71 @@
 		return (r << 16) | (g << 8) | b;
 	};
 
+	// ---- the symbol sheets: per symbol name, the parsed drop / idle frames, built ONCE per name the
+	// first frame that symbol's drop sheet is in (frame count from the sheet itself, never assumed) --
+	type Sheet = { drop: PIXI.Texture[]; idle: PIXI.Texture[] | null; from: number };
+	const sheets = new Map<string, Sheet | null>();
+	const FRAME_MS = 1000 / SHEET_FPS;
+	const pad3 = (i: number) => (i < 10 ? '00' : i < 100 ? '0' : '') + i;
+	const framesOf = (tex: Record<string, PIXI.Texture>, prefix: string): PIXI.Texture[] => {
+		const out: PIXI.Texture[] = [];
+		for (let i = 0; ; i += 1) {
+			const t = tex[`${prefix}-${pad3(i)}`];
+			if (!t) return out;
+			out.push(t);
+		}
+	};
+	const sheetFor = (name: string, tex: Record<string, PIXI.Texture> | undefined): Sheet | null => {
+		const hit = sheets.get(name);
+		if (hit) return hit;
+		if (!tex) return null;
+		const code = name.toLowerCase();
+		if (!tex[`${code}-drop-000`]) return null; // not in yet (the deferred phase lands all at once)
+		const anim = symbolAnim(name);
+		const drop = framesOf(tex, `${code}-drop`);
+		const idle = anim.idle ? framesOf(tex, `${code}-idle`) : [];
+		const sheet: Sheet = { drop, idle: idle.length > 1 ? idle : null, from: Math.min(anim.dropFrom, drop.length - 1) };
+		sheets.set(name, sheet);
+		return sheet;
+	};
+	// GPU warm-up: each sheet's source is uploaded the first time a frame of it is drawn, and a 2048 px
+	// upload mid-cascade is a hitch. Once the sheets are parsed, upload every source up front, ONE per
+	// tick (no textures are created: these are the sources the sheets already own).
+	const SYMBOLS = ['L1', 'L2', 'L3', 'L4', 'M1', 'M2', 'M3', 'H1', 'W', 'S'];
+	let uploadQueue: PIXI.TextureSource[] | null = null;
+	let uploaded = 0;
+	const warmSheets = (tex: Record<string, PIXI.Texture> | undefined) => {
+		if (uploadQueue === null) {
+			if (!SYMBOLS.every((n) => sheetFor(n, tex))) return;
+			const set = new Set<PIXI.TextureSource>();
+			for (const n of SYMBOLS) {
+				const sh = sheets.get(n)!;
+				set.add(sh.drop[0].source);
+				if (sh.idle) set.add(sh.idle[0].source);
+			}
+			uploadQueue = [...set];
+		}
+		if (!uploadQueue.length) return;
+		const src = uploadQueue.pop()!;
+		const sys = (context.stateApp.pixiApplication?.renderer as any)?.texture;
+		try {
+			sys?.initSource?.(src);
+			uploaded += 1;
+		} catch {
+			/* a renderer without initSource uploads on first draw instead */
+		}
+	};
+	const MODE_STATIC = 0;
+	const MODE_DROP = 1;
+	const MODE_IDLE = 2;
+
 	// what a sprite was last given, so an unchanged field is never re-assigned (a Pixi transform
 	// setter marks the render group dirty even when the value is the same)
-	type Slot = { s: PIXI.Sprite; g: PIXI.Sprite; gen: number; name: string; tex: PIXI.Texture | null; y: number; sx: number; sy: number; a: number; tint: number; z: number; glow: number };
+	type Slot = {
+		s: PIXI.Sprite; g: PIXI.Sprite; gen: number; name: string; tex: PIXI.Texture | null; y: number; sx: number; sy: number; a: number; tint: number; z: number; glow: number; rot: number;
+		/** sheet playback: mode, style ms into the clip, the last Cell.landAt seen, still in the landing beat, the frame shown */
+		mode: number; clock: number; landAt: number; landing: boolean; frame: number;
+	};
 	const slot = (): Slot => {
 		const s = new PIXI.Sprite(PIXI.Texture.EMPTY);
 		s.anchor.set(0.5);
@@ -79,7 +152,7 @@
 		g.zIndex = -1;
 		g.visible = false;
 		cellLayer.addChild(g);
-		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0 };
+		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, rot: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1 };
 	};
 	const live = new Map<number, Slot>(); // cell id -> its sprite
 	const free: Slot[] = [];
@@ -89,6 +162,93 @@
 
 	let gen = 0;
 	let glowing = 0;
+	/** set once a tick by sync(): real ms since the last tick and the style rate */
+	let now = 0;
+	let dtStyle = 0;
+	let rate = 1;
+
+	/** which texture a cell shows this tick (static atlas frame, or a sheet frame), advancing its clip */
+	// the static atlas frame per symbol name, cached per loadedAssets object (no string built per frame)
+	let staticOf = new Map<string, PIXI.Texture | null>();
+	let staticFor: Record<string, PIXI.Texture> | undefined;
+	const staticTexture = (name: string, tex: Record<string, PIXI.Texture> | undefined): PIXI.Texture | null => {
+		if (tex !== staticFor) {
+			staticFor = tex;
+			staticOf = new Map();
+		}
+		let t = staticOf.get(name);
+		if (t === undefined) {
+			t = tex?.[`${name}.png`] ?? null;
+			if (t) staticOf.set(name, t);
+		}
+		return t;
+	};
+	/** a cell's idle phase when it enters idle without a landing: deterministic per board position,
+	 *  57 distinct phases over the 64 cells (no two neighbours alike), no allocation */
+	const idleOffset = (reel: number, row: number) => ((reel * 29 + row * 47) % 60) * FRAME_MS;
+	const pickTexture = (c: Cell, sl: Slot, tex: Record<string, PIXI.Texture> | undefined): PIXI.Texture | null => {
+		const fallback = staticTexture(c.name, tex);
+		const sheet = sheetFor(c.name, tex);
+		if (!sheet) {
+			sl.mode = MODE_STATIC;
+			sl.frame = -1;
+			sl.landAt = c.landAt; // a landing before the sheets arrived is never replayed late
+			return fallback;
+		}
+		let fresh = false;
+		if (c.landAt !== sl.landAt) {
+			// a new landing contact: the drop sheet starts on the contact frame
+			sl.landAt = c.landAt;
+			if (c.landAt > 0) {
+				sl.mode = MODE_DROP;
+				sl.clock = Math.max(0, (now - c.landAt) * rate);
+				sl.landing = true;
+				fresh = true;
+			}
+		}
+		const placed = Math.abs(c.y - c.row) < 1e-4;
+		const unscaled = Math.abs(c.scaleX - 1) < 1e-4 && Math.abs(c.scaleY - 1) < 1e-4;
+		if (sl.landing && placed && unscaled) sl.landing = false; // the engine has put it down exactly
+		// a cell that LEAVES its place (a fall, a removal, the rattle, the swipe's exit) shows the static
+		// atlas frame until it lands again. In the landing beat the squash / bounce is the drop's own,
+		// so only a NEW fall counts there.
+		const moving = c.dx !== 0 || c.rot !== 0 || c.state === 'removing' || (sl.landing ? c.y < c.row - 0.25 : !placed);
+		if (moving) {
+			sl.landing = false;
+			sl.mode = MODE_STATIC;
+			sl.frame = -1;
+			return fallback;
+		}
+		// scale-only motion in place (a win pulse, a sting pop): FREEZE on the frame it was on, the clip
+		// clock resumes when the scale is back to 1
+		const frozen = !sl.landing && !unscaled;
+		if (sl.mode === MODE_STATIC) {
+			// entering idle without a landing (the first board, a new symbol from the sting's flip, back
+			// from the rattle): a per-cell phase so the board never breathes in unison
+			sl.mode = MODE_IDLE;
+			sl.clock = idleOffset(c.reel, c.row);
+		} else if (!fresh && !frozen) {
+			sl.clock += dtStyle;
+		}
+		if (sl.mode === MODE_DROP) {
+			const span = (sheet.drop.length - sheet.from) * FRAME_MS;
+			if (sl.clock < span) {
+				sl.frame = sheet.from + Math.floor(sl.clock / FRAME_MS);
+				return sheet.drop[sl.frame];
+			}
+			sl.mode = MODE_IDLE;
+			sl.clock -= span;
+		}
+		// idle: loop the idle sheet, or rest on the drop's last frame when there is none
+		if (!sheet.idle) {
+			sl.frame = sheet.drop.length - 1;
+			return sheet.drop[sl.frame];
+		}
+		const n = sheet.idle.length;
+		sl.frame = Math.floor(sl.clock / FRAME_MS) % n;
+		return sheet.idle[sl.frame];
+	};
+
 	const syncCell = (c: Cell, tex: Record<string, PIXI.Texture> | undefined) => {
 		let sl = live.get(c.id);
 		if (!sl) {
@@ -99,6 +259,13 @@
 			sl.tint = -1;
 			sl.z = -1;
 			sl.glow = 0;
+			sl.rot = 0;
+			sl.s.rotation = 0;
+			sl.mode = MODE_STATIC;
+			sl.clock = 0;
+			sl.landAt = c.landAt;
+			sl.landing = false;
+			sl.frame = -1;
 			sl.s.x = (c.reel + 0.5) * SYMBOL_SIZE;
 			sl.g.x = sl.s.x;
 			sl.s.visible = true;
@@ -106,16 +273,21 @@
 		}
 		sl.gen = gen;
 		const s = sl.s;
-		if (sl.name !== c.name || !sl.tex) {
-			const t = tex?.[`${c.name}.png`] ?? null;
-			if (t !== sl.tex) {
-				s.texture = t ?? PIXI.Texture.EMPTY;
-				sl.tex = t;
-				sl.sx = sl.sy = NaN; // width/height are derived from the texture's size: reapply
-			}
+		if (sl.name !== c.name) {
+			// a new symbol (the sting's flip): its own clip, from rest
+			if (sl.name && sl.mode !== MODE_STATIC) sl.mode = MODE_STATIC;
 			sl.name = c.name;
 		}
-		const x = (c.reel + 0.5) * SYMBOL_SIZE;
+		const t = pickTexture(c, sl, tex);
+		if (t !== sl.tex) {
+			// sheet frames and atlas frames share one cell size per tier, so a frame switch keeps the
+			// sprite's size; only a change of texture SIZE (or the first texture) re-applies it
+			if (!sl.tex || !t || t.orig.width !== sl.tex.orig.width) sl.sx = sl.sy = NaN;
+			s.texture = t ?? PIXI.Texture.EMPTY;
+			sl.tex = t;
+		}
+		// dx / rot: the roar's rattle and fall (0 at rest)
+		const x = (c.reel + 0.5 + c.dx) * SYMBOL_SIZE;
 		if (s.x !== x) {
 			s.x = x;
 			sl.g.x = x;
@@ -129,6 +301,10 @@
 			sl.sx = c.scaleX;
 			sl.sy = c.scaleY;
 			s.setSize(SIZE * c.scaleX, SIZE * c.scaleY);
+		}
+		if (c.rot !== sl.rot) {
+			sl.rot = c.rot;
+			s.rotation = c.rot;
 		}
 		if (c.alpha !== sl.a) {
 			sl.a = c.alpha;
@@ -312,7 +488,9 @@
 
 	let lastFrame = 0;
 	const sync = () => {
-		const now = performance.now();
+		now = performance.now();
+		rate = Math.max(0.2, context.stateGameDerived.timeScale());
+		dtStyle = lastFrame ? Math.min(now - lastFrame, 1000) * rate : 0;
 		if (lastFrame) {
 			const d = now - lastFrame;
 			motionLog.frames += 1;
@@ -358,6 +536,7 @@
 			}
 		}
 		tickSparkles(now);
+		if (uploadQueue === null || uploadQueue.length) warmSheets(tex);
 	};
 
 	sync();
@@ -366,6 +545,45 @@
 		// drawn is the frame the board engine just wrote
 		const ticker = context.stateApp.pixiApplication?.ticker;
 		ticker?.add(sync, undefined, PIXI.UPDATE_PRIORITY.HIGH);
+		if (import.meta.env.DEV) {
+			// SHEETS probe (tools/manticore/sheet_probe.js): which symbols' sheets are parsed, and per
+			// live cell its clip mode, frame index within that clip, clip clock and texture size
+			const renderer = context.stateApp.pixiApplication?.renderer as any;
+			Object.defineProperty(((window as any).__manticore ??= {}), 'sheets', {
+				get: () => {
+					const tex = assets();
+					const loaded = SYMBOLS.filter((n) => sheetFor(n, tex));
+					return {
+						loaded: loaded.length === SYMBOLS.length,
+						/** sheet sources pre-uploaded to the GPU / still queued */
+						uploaded,
+						uploadPending: uploadQueue?.length ?? null,
+						symbols: Object.fromEntries(
+							loaded.map((n) => {
+								const sh = sheets.get(n)!;
+								const src = sh.drop[0].source;
+								return [n, { drop: sh.drop.length, idle: sh.idle?.length ?? 0, from: sh.from, squash: symbolAnim(n).squash, sheetPx: src.pixelWidth, resolution: src.resolution }];
+							}),
+						),
+						/** the renderer's last tick time and style rate: the clip clocks are as of this instant */
+						tick: now,
+						rate,
+						gpuTextures: renderer?.texture?.managedTextures?.length ?? null,
+						assetKeys: tex ? Object.keys(tex).length : 0,
+						cells: stateGame.cells.map((c) => {
+							const sl = live.get(c.id);
+							return {
+								id: c.id, name: c.name, reel: c.reel, row: c.row, y: c.y, sx: c.scaleX, sy: c.scaleY, landAt: c.landAt, state: c.state,
+								mode: sl ? ['static', 'drop', 'idle'][sl.mode] : 'none', frame: sl?.frame ?? -1, clock: sl?.clock ?? 0,
+								texW: sl?.tex?.orig.width ?? 0, texLabel: sl?.tex?.label ?? null,
+							};
+						}),
+					};
+				},
+				configurable: true,
+				enumerable: true,
+			});
+		}
 		return () => {
 			ticker?.remove(sync);
 			// the parent's unmount destroys the layers; the pooled sprites and particles go with them

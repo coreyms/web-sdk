@@ -31,6 +31,8 @@
 	import ArtAmount from './ArtAmount.svelte';
 	import Anticipation from './Anticipation.svelte';
 	import Sting from './Sting.svelte';
+	import ClawSwipe from './ClawSwipe.svelte';
+	import { fxLog, boardKick, swipeFx } from '../game/featureFx';
 	import BoardCells from './BoardCells.svelte';
 
 	const context = getContext();
@@ -133,6 +135,21 @@
 				return context.stateGameDerived.boardInvariant();
 			},
 		});
+		// FEATURE FX probe (tools/manticore/fx_probe.js): every swipe / sting / roar's phase stamps
+		// (performance.now()), the live kick offset and swipe state
+		Object.defineProperty((window as any).__manticore, 'fx', {
+			get: () => ({
+				records: fxLog.records.map((r) => ({ kind: r.kind, at: { ...r.at }, info: r.info })),
+				kick: { x: boardKick.x, y: boardKick.y },
+				swipe: { active: swipeFx.active, el: swipeFx.el, alpha: swipeFx.alpha, rows: swipeFx.rows.slice() },
+			}),
+			configurable: true,
+			enumerable: true,
+		});
+		Object.assign((window as any).__manticore, {
+			/** end a skip a synthetic book started (playEvents has no bonusEnd to clear it) */
+			endSkip: () => context.stateGameDerived.finishSkip(),
+		});
 		// a live getter (not a function like the rest): `__manticore.skipping` reads the flag itself
 		Object.defineProperty((window as any).__manticore, 'skipping', {
 			get: () => stateGame.skipping,
@@ -176,6 +193,8 @@
 		<!-- the Mystery column tease and the sting rig slot: both always mounted, both board-space -->
 		<Anticipation />
 		<Sting />
+		<!-- the claw swipe's tears (z 21), the roar's cell flashes (z -0.5) and the board kick -->
+		<ClawSwipe />
 
 		<!-- the cluster readouts (several at once in sequence mode): the raw "amount  xmult" pair that
 		     slams together, then the merged amount that punches and counts up in place. All three
