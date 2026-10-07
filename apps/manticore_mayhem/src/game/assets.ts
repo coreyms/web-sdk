@@ -206,14 +206,15 @@ const assets = {
 	// the 8x8 grid of cell wells behind the tiles: shows in the seams, in the drop and in every
 	// emptied cell during a cascade
 	boardBackdrop: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-backdrop.webp', import.meta.url).href), preload: true },
-	// THE BOARD FRAME and its two chain runs (tools/build_board_layers.py from the board_v4e renders;
-	// registration in game/boardArt.ts), one scale per layout: the boot layout's preloads
+	// THE BOARD FRAME and its chain loop tiles (tools/build_board_layers.py from the board_v4i renders;
+	// registration in game/boardArt.ts), one scale per layout: the boot layout's preloads. boardChains_* is
+	// the seamless two-link tile pair (L, R) the strips repeat (CHAIN_BOW haul, 2026-10-07)
 	boardFrame_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
 	boardFrame_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-phone.webp', import.meta.url).href), preload: atBoot('phone') },
 	boardFrame_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
-	boardChains_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chains-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
-	boardChains_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chains-phone.webp', import.meta.url).href), preload: atBoot('phone') },
-	boardChains_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chains-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
+	boardChains_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
+	boardChains_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-phone.webp', import.meta.url).href), preload: atBoot('phone') },
+	boardChains_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
 	// THE SCENE BACKGROUND (temporary: the citadel courtyard for every mode until the per-mode scenes
 	// land). Angry Mantis's split: the base scene preloads, the feature scenes are deferred; here the
 	// base scene of the boot layout only.

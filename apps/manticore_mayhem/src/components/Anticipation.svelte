@@ -9,6 +9,11 @@
 	// stateGame.anticipation and decides nothing — which columns tease comes from the BOOK's array,
 	// and only in Mystery.
 	//
+	// THE DERIVED TEASE (ANTICIPATION_TEASE, every other mode, Corey 2026-10-06 18:52) reuses this same
+	// tree with its own numbers: the beam (beamAlpha, tinted beamColor, swinging beamSwing over
+	// beamPeriodMs on the column's own clock), the rain (rainAlpha, positioned by the engine: its own speed
+	// through the hold, then locked to the incoming stack, fading over the fall), and NO edge spill.
+	//
 	// House rules: mounted INSIDE Board's masked container (the tease never leaves the board), all
 	// eight columns always built with `visible` toggled (the conditional-mount z-order trap), the
 	// beam and spill are baked textures built once (game/beamTexture.ts) on additive sprites — no
@@ -24,7 +29,7 @@
 	import { getContextParent } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, GRID, ANTICIPATION } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, GRID, ANTICIPATION, ANTICIPATION_TEASE } from '../game/constants';
 	import { beamTexture, spillTexture } from '../game/beamTexture';
 
 	const context = getContext();
@@ -42,6 +47,9 @@
 	const LOOP = N * SYMBOL_SIZE;
 	const beamLen = COLUMN_H * ANTICIPATION.beamLength;
 	const beamW = 2 * ANTICIPATION.beamHalfWidth * beamLen;
+	// the derived tease's beam is the playground's: 2 x 0.48 of a cell wide at its far end (hw = 0.24 x cell x 2),
+	// so it reads as a searchlight sweeping through the column rather than a wash filling it
+	const teaseBeamW = 2 * 0.48 * SYMBOL_SIZE;
 
 	const assets = () => context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 
@@ -65,6 +73,11 @@
 		left: PIXI.Sprite;
 		right: PIXI.Sprite;
 		names: string[]; // what each loose row currently shows
+		/** the derived tease: this column's own roll per loose row (its rain runs on its own clock) */
+		own: string[];
+		ownCycle: number[];
+		/** the beam is sized for the derived tease (else for the Mystery's) */
+		teaseBeam: boolean;
 	};
 	const columns: Column[] = Array.from({ length: GRID }, (_, reel) => {
 		const c = new PIXI.Container({ x: reel * SYMBOL_SIZE, visible: false });
@@ -97,7 +110,7 @@
 		spill.addChild(left, right);
 		c.addChild(rain, light, spill);
 		root.addChild(c);
-		return { c, rain, loose, light, beam, spill, left, right, names: Array(N).fill('') };
+		return { c, rain, loose, light, beam, spill, left, right, names: Array(N).fill(''), own: Array.from({ length: N }, roll), ownCycle: Array(N).fill(0), teaseBeam: false };
 	});
 
 	let dist = 0; // board px the rain has travelled, in style time
@@ -140,6 +153,16 @@
 			const col = columns[reel];
 			col.c.visible = a.on;
 			if (!a.on) continue;
+			if (a.tease) {
+				teaseColumn(col, a, tex);
+				continue;
+			}
+			if (col.beam.tint !== 0xffffff) col.beam.tint = 0xffffff;
+			if (col.teaseBeam) {
+				col.teaseBeam = false;
+				col.beam.setSize(beamW, beamLen);
+			}
+			col.spill.visible = true;
 			col.rain.alpha = ANTICIPATION.rainAlpha * a.fade;
 			for (let k = 0; k < N; k += 1) {
 				// column-local y of loose symbol k: enters above the window, leaves below it
@@ -165,6 +188,42 @@
 			col.right.setSize(spillW, COLUMN_H);
 			col.right.x = SYMBOL_SIZE - spillW;
 		}
+	};
+
+	/** one column of the derived tease: everything comes from the engine's numbers (a.el, a.rain, a.fade,
+	 *  a.rainFade), so the column draws exactly the frame the drop is on */
+	const teaseColumn = (col: Column, a: { el: number; rain: number; fade: number; rainFade: number }, tex: Record<string, PIXI.Texture> | undefined) => {
+		const T = ANTICIPATION_TEASE;
+		col.spill.visible = T.spillAlpha > 0;
+		col.rain.alpha = T.rainAlpha * a.rainFade;
+		const shift = a.rain * SYMBOL_SIZE;
+		for (let k = 0; k < N; k += 1) {
+			const cycle = Math.floor((k * SYMBOL_SIZE + shift) / LOOP);
+			if (cycle !== col.ownCycle[k]) {
+				col.ownCycle[k] = cycle;
+				col.own[k] = roll();
+			}
+			const y = ((k * SYMBOL_SIZE + shift) % LOOP) - SYMBOL_SIZE / 2;
+			const swap = col.names[k] !== col.own[k];
+			const t = swap ? tex?.[`${col.own[k]}.png`] : undefined;
+			if (swap && t) col.names[k] = col.own[k];
+			const row = col.loose[k];
+			for (let g = 0; g < GHOSTS.length; g += 1) {
+				const s = row[g];
+				if (t) {
+					s.texture = t;
+					s.setSize(tile, tile * T.rainStretch);
+				}
+				s.y = y + GHOSTS[g] * T.rainGhostOffset * SYMBOL_SIZE;
+			}
+		}
+		col.light.alpha = T.beamAlpha * a.fade;
+		if (col.beam.tint !== T.beamColor) col.beam.tint = T.beamColor;
+		if (!col.teaseBeam) {
+			col.teaseBeam = true;
+			col.beam.setSize(teaseBeamW, beamLen);
+		}
+		col.beam.rotation = Math.sin((a.el / T.beamPeriodMs) * Math.PI * 2) * T.beamSwing;
 	};
 
 	onMount(() => {

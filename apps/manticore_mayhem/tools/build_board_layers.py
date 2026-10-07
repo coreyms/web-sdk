@@ -15,7 +15,12 @@ Outputs (static/assets):
   ui/board-frame-<layout>.webp        the frame cropped to its alpha bbox plus MARGIN, scaled per layout, with the
                                       DEFAULT_GRID steel (v4f: neutral); the other grid as board-frame-<layout>-blue.webp
                                       (candidate B), so switching back is a file swap
-  ui/board-chains-<layout>.webp       the two chain runs side by side (L then R), same scale as the frame
+  ui/board-chain-tile-<layout>.webp   THE HAUL (Corey 2026-10-07 13:25): a SEAMLESS two-link tile per run, L and R side by
+                                      side with a transparent gutter, power-of-two (the strip mesh repeats it vertically,
+                                      texture wrap 'repeat'), cut from the chain render at a between-links phase and
+                                      de-slanted onto the run's centreline; the tool prints the seam check (the tile's first
+                                      row against the row one period later). The leaned top links are ERASED from the frame
+                                      export (the loop enters the cap straight): erase_leaned_links().
   backgrounds/<mode>-<layout>.webp    mode = base / bonus / super / epic (one image for now), cover crops
   src/game/boardArtSpec.ts            GENERATED: lattice, art bbox, corners, crop origins, texture scales and
                                       the FRAME rects this registration derives (copy them into layoutSpec.ts)
@@ -145,6 +150,153 @@ def tile_art_masks():
 def crop_box(bbox, size):
     x0, y0, x1, y1 = bbox
     return (max(0, x0 - MARGIN), max(0, y0 - MARGIN), min(size[0], x1 + MARGIN), min(size[1], y1 + MARGIN))
+
+
+# THE CHAIN LOOP (Corey 2026-10-07 13:25): the leaned top link of each run (FRAME layer, over transparent
+# background, left of the post's bracket) is erased, and the run becomes a repeating two-link tile.
+# Measured on board_v4i: the leaned links lie in these render-px boxes; the run's two-link period is
+# CHAIN_PERIOD render px (autocorrelation of the run, 125.75 measured; the brief said ~126); the strip is
+# clipped at the bracket's underside (CHAIN_CLIP top) and at the plinth's shackle (bottom).
+LEANED_BOX = {'L': (120, 240, 240, 350), 'R': (2048 - 240, 240, 2048 - 120, 350)}
+CHAIN_CLIP = (304.0, 1352.0)
+CHAIN_PHASE_SEARCH = (700, 830)  # the tile is cut from the middle of the run (perspective is mildest there)
+CHAIN_HALF_W = 53.5  # render px either side of the centreline (the old crop was 107 wide)
+
+
+def hue_of(a):
+    import numpy as np
+    r, g, b = a[..., 0].astype(float), a[..., 1].astype(float), a[..., 2].astype(float)
+    mx = np.maximum(np.maximum(r, g), b)
+    mn = np.minimum(np.minimum(r, g), b)
+    d = np.maximum(mx - mn, 1e-3)
+    return np.where(mx == r, ((g - b) / d) % 6, np.where(mx == g, (b - r) / d + 2, (r - g) / d + 4)) / 6
+
+
+def erase_leaned_links(img):
+    """Erase the two leaned top chain links from a frame render (RGBA, in place copy returned). In each
+    LEANED_BOX the chain is the largest connected blob of chain-hued pixels (hue > 0.074; the copper is
+    0.054..0.08 with its median at 0.062); that blob, dilated 2 px, is cleared except where it is solid
+    copper (the bracket the link hooks into). Prints how many pixels went per side."""
+    import numpy as np
+    a = np.array(img.convert('RGBA'))
+    for side, (x0, y0, x1, y1) in LEANED_BOX.items():
+        box = a[y0:y1, x0:x1]
+        h = hue_of(box)
+        cand = (h > 0.074) & (box[..., 3] > 10)
+        # largest 4-connected component
+        seen = np.zeros(cand.shape, bool)
+        best = []
+        H, W = cand.shape
+        for sy in range(H):
+            for sx in range(W):
+                if not cand[sy, sx] or seen[sy, sx]:
+                    continue
+                stack, comp = [(sy, sx)], []
+                seen[sy, sx] = True
+                while stack:
+                    y, x = stack.pop()
+                    comp.append((y, x))
+                    for ny, nx in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                        if 0 <= ny < H and 0 <= nx < W and cand[ny, nx] and not seen[ny, nx]:
+                            seen[ny, nx] = True
+                            stack.append((ny, nx))
+                if len(comp) > len(best):
+                    best = comp
+        m = np.zeros(cand.shape, bool)
+        for y, x in best:
+            m[y, x] = True
+        for _ in range(2):
+            m = m | np.roll(m, 1, 0) | np.roll(m, -1, 0) | np.roll(m, 1, 1) | np.roll(m, -1, 1)
+        copper = (h < 0.072) & (box[..., 3] > 200)
+        kill = m & ~copper
+        box[kill] = 0
+        # whatever is left in the box and no longer joined to the post (the link's stray rim pixels) goes too
+        body = np.zeros(cand.shape, bool)
+        opaque = box[..., 3] > 10
+        edge = W - 1 if side == 'L' else 0
+        stack = [(y, edge) for y in range(H) if opaque[y, edge]]
+        for y, x in stack:
+            body[y, x] = True
+        while stack:
+            y, x = stack.pop()
+            for ny, nx in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                if 0 <= ny < H and 0 <= nx < W and opaque[ny, nx] and not body[ny, nx]:
+                    body[ny, nx] = True
+                    stack.append((ny, nx))
+        stray = opaque & ~body
+        box[stray] = 0
+        print(f'  leaned link {side}: blob {len(best)} px, erased {int(kill.sum())} px + {int(stray.sum())} stray in {LEANED_BOX[side]}')
+    return Image.fromarray(a)
+
+
+def chain_runs(chains, cam):
+    """Each run de-slanted onto its centreline (the pivot -> anchor line), as float RGBA rows [y, x, 4] over
+    the whole render height, CHAIN_HALF_W either side, plus the two-link period and the tile phase."""
+    import numpy as np
+    c = np.array(chains.convert('RGBA')).astype(float)
+    out = {}
+    for side in ('L', 'R'):
+        (tx, ty), (bx, by) = cam['chains'][side]['top_pivot_px'], cam['chains'][side]['bottom_anchor_px']
+        W = int(round(2 * CHAIN_HALF_W))
+        rows = np.zeros((c.shape[0], W, 4))
+        for y in range(c.shape[0]):
+            cx = tx + (bx - tx) * (y - ty) / (by - ty)
+            xs = np.arange(W) + cx - CHAIN_HALF_W
+            i = np.clip(np.floor(xs).astype(int), 0, c.shape[1] - 2)
+            f = (xs - i)[:, None]
+            rows[y] = c[y, i] * (1 - f) + c[y, i + 1] * f
+        out[side] = rows
+    # the period: autocorrelation of alpha x luma down the middle of the L run
+    sig = out['L'][..., 3] * out['L'][..., :3].mean(-1) / 255
+    seg = sig[500:1100]
+    best = None
+    for p in np.arange(110, 140, 0.05):
+        ys = np.arange(500, 1100) + p
+        i = np.floor(ys).astype(int)
+        f = (ys - i)[:, None]
+        d = np.abs(sig[i] * (1 - f) + sig[i + 1] * f - seg).mean()
+        if best is None or d < best[0]:
+            best = (d, float(p))
+    period = round(best[1], 2)
+    # the phase: the row in the search window where the least of the chain is (between two face-on links,
+    # only the edge-on link's middle crosses), both runs together
+    lo, hi = CHAIN_PHASE_SEARCH
+    cover = [(out['L'][y, :, 3].sum() + out['R'][y, :, 3].sum(), y) for y in range(lo, hi)]
+    phase = float(min(cover)[1])
+    return out, period, phase
+
+
+def chain_tile_sheet(runs, period, phase, scale):
+    """L and R two-link tiles side by side (a 4 px transparent gutter), each the de-slanted run from `phase`
+    over one `period`, resampled to the layout's texture scale; the sheet is power-of-two on both sides so the
+    wrap works on every WebGL. Returns (sheet, parts, seam) where seam is each run's mean |RGBA| difference
+    between the tile's first row and the row one period later (0 = seamless)."""
+    import numpy as np
+    parts, ims, seam = {}, [], {}
+    tw = math.ceil(2 * CHAIN_HALF_W * scale)
+    th_n = math.ceil(period * scale)
+    pot = lambda n: 1 << max(0, math.ceil(math.log2(max(n, 1))))
+    TW, TH = pot(2 * tw + 8), pot(th_n)
+    x = 2
+    for side in ('L', 'R'):
+        rows = runs[side]
+        y0 = int(math.floor(phase))
+        span = rows[y0:y0 + int(math.ceil(period)) + 2]
+        strip = Image.fromarray(np.clip(span + 0.5, 0, 255).astype('uint8'), 'RGBA')
+        tile = strip.resize((tw, TH), Image.LANCZOS, box=(0, phase - y0, strip.size[0], phase - y0 + period))
+        ims.append((x, tile))
+        parts[side] = {'texX': x, 'texW': tw}
+        # the seam: row `phase` against row `phase + period`, at render resolution
+        def row_at(yy):
+            i = int(math.floor(yy))
+            f = yy - i
+            return rows[i] * (1 - f) + rows[i + 1] * f
+        seam[side] = round(float(np.abs(row_at(phase) - row_at(phase + period)).mean()), 3)
+        x += tw + 4
+    sheet = Image.new('RGBA', (TW, TH), (0, 0, 0, 0))
+    for px, im in ims:
+        sheet.paste(im, (px, 0))
+    return sheet, parts, seam
 
 
 def save_webp(im, rel):
@@ -357,11 +509,13 @@ def main():
 
     frame_spec, chain_spec, sizes = {}, {}, {}
     if not args.no_frame:
-        frame = Image.open(SRC_FRAME).convert('RGBA')
+        frame = erase_leaned_links(Image.open(SRC_FRAME).convert('RGBA'))
         # the other grid steel, same crop and scale, under its suffix (a file swap switches the default)
         other = 'blue' if DEFAULT_GRID == 'neutral' else 'neutral'
-        frame_other = Image.open(GRID_SRC[other]).convert('RGBA') if os.path.exists(GRID_SRC[other]) and GRID_SRC[other] != SRC_FRAME else None
+        frame_other = erase_leaned_links(Image.open(GRID_SRC[other]).convert('RGBA')) if os.path.exists(GRID_SRC[other]) and GRID_SRC[other] != SRC_FRAME else None
         chains = Image.open(SRC_CHAINS).convert('RGBA')
+        runs, period, phase = chain_runs(chains, cam)
+        print(f'chain loop: two-link period {period} render px, tile phase y {phase}, strip clip {CHAIN_CLIP}')
         fbox = crop_box(frame.split()[-1].getbbox(), frame.size)
         half = chains.size[0] // 2
         cboxes = {}
@@ -378,22 +532,13 @@ def main():
             if frame_other is not None:
                 sizes[f'ui/board-frame-{kind}-{other}.webp'] = save_webp(frame_other.crop(fbox).resize((tw, th), Image.LANCZOS), f'ui/board-frame-{kind}-{other}.webp')
             frame_spec[kind] = {'crop': [fbox[0], fbox[1]], 'size': [cw, chh], 'tex': [tw, th]}
-            # chains: L then R side by side, both at the same scale, a 2 px transparent gutter between
-            parts, x = {}, 0
-            ims = []
-            for s in ('L', 'R'):
-                b = cboxes[s]
-                bw, bh = b[2] - b[0], b[3] - b[1]
-                pw, ph = math.ceil(bw * scale), math.ceil(bh * scale)
-                ims.append((x, chains.crop(b).resize((pw, ph), Image.LANCZOS)))
-                parts[s] = {'crop': [b[0], b[1]], 'size': [bw, bh], 'texX': x, 'tex': [pw, ph]}
-                x += pw + 2
-            sheet = Image.new('RGBA', (x - 2, max(im.size[1] for _, im in ims)), (0, 0, 0, 0))
-            for px, im in ims:
-                sheet.paste(im, (px, 0))
-            sizes[f'ui/board-chains-{kind}.webp'] = save_webp(sheet, f'ui/board-chains-{kind}.webp')
-            chain_spec[kind] = {'tex': list(sheet.size), **parts}
-            print(f'{kind}: master/px {m:.5f}  frame tex {tw}x{th} ({tex.size[0] / cw:.4f}/px)  chains {sheet.size}')
+            # THE CHAIN LOOP: the seamless two-link tiles, L then R, power-of-two (the strip repeats it)
+            sheet, parts, seam = chain_tile_sheet(runs, period, phase, scale)
+            path = os.path.join(ASSETS, f'ui/board-chain-tile-{kind}.webp')
+            sheet.save(path, 'WEBP', lossless=True, method=6)
+            sizes[f'ui/board-chain-tile-{kind}.webp'] = os.path.getsize(path)
+            chain_spec[kind] = {'tex': list(sheet.size), 'periodPx': period, 'phasePx': phase, 'halfWidthPx': CHAIN_HALF_W, 'clip': list(CHAIN_CLIP), **parts}
+            print(f'{kind}: master/px {m:.5f}  frame tex {tw}x{th} ({tex.size[0] / cw:.4f}/px)  chain tile {sheet.size} (seam |d| L {seam["L"]} R {seam["R"]} of 255)')
 
     if not args.no_bg:
         bg = Image.open(SRC_BG).convert('RGB')

@@ -35,6 +35,7 @@
 	import ClawSwipe from './ClawSwipe.svelte';
 	import { fxLog, boardKick, swipeFx } from '../game/featureFx';
 	import BoardCells from './BoardCells.svelte';
+	import { revealTease, plateLog } from '../game/stateGame.svelte';
 
 	const context = getContext();
 	const stateGame = context.stateGame;
@@ -92,7 +93,7 @@
 			 *  position, no orphans, no leftovers mid-animation. { ok, count, problems[] } */
 			invariant: () => context.stateGameDerived.boardInvariant(),
 			/** every sprite, for diagnosing a broken board */
-			cells: () => stateGame.cells.map((c) => ({ id: c.id, name: c.name, reel: c.reel, row: c.row, y: Number(c.y.toFixed(3)), a: Number(c.alpha.toFixed(2)), s: c.state })),
+			cells: () => stateGame.cells.map((c) => ({ id: c.id, name: c.name, reel: c.reel, row: c.row, y: Number(c.y.toFixed(3)), a: Number(c.alpha.toFixed(2)), d: Number(c.dim.toFixed(3)), sx: Number(c.scaleX.toFixed(3)), g: Number(c.glow.toFixed(2)), s: c.state })),
 			/** > 0 while a press-to-continue gate is up, so a harness can press through */
 			pressGates: () => stateGame.pressGates,
 			fs: () => ({ current: stateGame.fs, total: stateGame.totalFs }),
@@ -108,8 +109,15 @@
 			assetKeys: () => Object.keys(context.stateApp.loadedAssets ?? {}),
 			/** scatters counted this spin, the stung-in ones included */
 			scatters: () => [...stateGame.scatterCells],
-			/** the per-column Mystery tease, as the board engine has it */
-			anticipation: () => stateGame.anticipation.map((a) => ({ on: a.on, q: Number(a.q.toFixed(2)) })),
+			/** the per-column tease (the Mystery's or the derived one), as the board engine has it */
+			anticipation: () => stateGame.anticipation.map((a) => ({ on: a.on, q: Number(a.q.toFixed(2)), tease: a.tease, fade: Number(a.fade.toFixed(3)), rainFade: Number(a.rainFade.toFixed(3)), rain: Number(a.rain.toFixed(3)), el: Math.round(a.el) })),
+			/** the last reveal's derived scatter tease (ANTICIPATION_TEASE): plan in style ms, the drop's real-time origin and rate */
+			tease: () => JSON.parse(JSON.stringify(revealTease)),
+			/** the derived tease a board would get (presentation only, read off the board) */
+			planTease: (board: any) => context.stateGameDerived.planTease(board),
+			/** the plates' live state (value, the count-over's from / progress, the pop) and every plate change played */
+			platesState: () => context.stateGameDerived.platesRaw(),
+			plateLog: () => plateLog.slice(),
 			/** every sting beat played on this page, oldest first: { phase, kind, center, at } */
 			stings: () => stingLog.slice(),
 			/** the Mystery outcome of the round being played, null outside a Mystery book */
@@ -176,7 +184,7 @@
 				cascadeIndex: motionLog.cascadeIndex,
 				steps: motionLog.steps.slice(),
 				readouts: stateGame.readouts.map((r) => ({ id: r.id, mode: r.mode, text: r.text, amount: r.amount, mult: r.mult, alpha: Number(r.alpha.toFixed(2)), scale: Number(r.scale.toFixed(3)), gap: Number((r.multX - r.amountX).toFixed(1)) })),
-				cells: stateGame.cells.map((c) => ({ i: c.reel * 8 + c.row, a: Number(c.alpha.toFixed(2)), g: Number(c.glow.toFixed(2)), s: c.state, sx: Number(c.scaleX.toFixed(3)), y: Number(c.y.toFixed(3)) })),
+				cells: stateGame.cells.map((c) => ({ i: c.reel * 8 + c.row, a: Number(c.alpha.toFixed(2)), d: Number(c.dim.toFixed(3)), g: Number(c.glow.toFixed(2)), s: c.state, sx: Number(c.scaleX.toFixed(3)), y: Number(c.y.toFixed(3)) })),
 				spinWin: stateGame.spinWin,
 			}),
 			configurable: true,

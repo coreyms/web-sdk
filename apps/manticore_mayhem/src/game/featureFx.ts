@@ -56,8 +56,9 @@ export type StingStrikeFx = {
 };
 /** the centre telegraph of a big / super charge (or the scatter sting's wait) */
 export type StingChargeFx = { centre: number; t0: number; rate: number; dur: number; kind: 'big' | 'super' | 'scatter' };
-/** one ripple ring from a big / super shape's centre */
-export type StingRingFx = { centre: number; t0: number; rate: number; dur: number; reach: number; px: number };
+/** one ripple ring from a big / super shape's centre, or a scatter's landing ring (`color` set: drawn in
+ *  that colour with its soft glow, from `from` cells to `reach`) */
+export type StingRingFx = { centre: number; t0: number; rate: number; dur: number; reach: number; px: number; color?: number; from?: number };
 
 export const stingFx = {
 	strikes: [] as StingStrikeFx[],
@@ -72,6 +73,19 @@ export const clearStingFx = () => {
 	stingFx.charge = null;
 };
 
+// ---- the chain haul (CHAIN_BOW.haul*) -------------------------------------------------------------
+
+/** every spin press, as performance.now() and the style rate at that moment: components/BoardFrame.svelte
+ *  turns each into one haul (haulDelayMs, then haulLinks over haulMs) and keeps the accumulated offset.
+ *  Written by game/actor.ts onNewGameStart (a manual press, the space bar or an autoplay spin). */
+export const chainFx = {
+	presses: [] as { t0: number; rate: number }[],
+};
+export const chainHaulPress = (rate: number) => {
+	chainFx.presses.push({ t0: performance.now(), rate });
+	if (chainFx.presses.length > 32) chainFx.presses.splice(0, 16);
+};
+
 // ---- DEV probe log (tools/manticore/fx_probe.js reads it through __manticore.fx) ---------------
 
 /** one feature's phase stamps in performance.now() ms, keyed by phase name, plus what it was told */
@@ -84,7 +98,7 @@ export const fxRecord = (kind: string, info?: Record<string, unknown>): FxRecord
 	const rec: FxRecord = { kind, at: { start: performance.now() }, info };
 	if (import.meta.env.DEV) {
 		fxLog.records.push(rec);
-		if (fxLog.records.length > 200) fxLog.records.splice(0, 100);
+		if (fxLog.records.length > 1000) fxLog.records.splice(0, 500);
 	}
 	return rec;
 };

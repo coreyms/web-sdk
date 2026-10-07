@@ -19,6 +19,15 @@
 	//    drives an under-damped spring that keeps swinging after the board stops (constants.ts says
 	//    how), and each row sits at anchor + kick + (D - kick) bow(s) (game/boardArt.ts chainBow).
 	//
+	// THE HAUL (CHAIN_BOW.haul*, LOCKED Corey 2026-10-07 13:25): the chains are a continuous loop into the cap
+	// and the plinth. Each strip repeats a SEAMLESS two-link tile (BOARD_ART.chains[layout]: L and R side by
+	// side in one power-of-two texture, wrap 'repeat'), so the strip's v runs (render y - phase) / period and
+	// a haul only moves the uvs: every spin press (game/actor.ts -> featureFx.chainFx), after haulDelayMs,
+	// scrolls the texture DOWN by haulLinks links (half a tile each) over haulMs with haulEasing; the offset
+	// accumulates modulo the tile. The bow (the vertices) is independent of it. The leaned top link is gone
+	// from the frame art (tools/build_board_layers.py erase_leaned_links): the loop runs straight up to the
+	// bracket's underside (clip[0]) and down to the plinth's shackle (clip[1]), where the strip is cut.
+	//
 	// Registration: game/boardArt.ts maps the lattice's outer bar rectangle onto the layout's cell
 	// area (re-derived from frameFor() on every layout change, so the portrait growth and a flip
 	// re-register). House rules: no filters, no texture per frame (the strips rewrite 48 floats in
@@ -32,7 +41,7 @@
 	import { BOARD_ART } from '../game/boardArtSpec';
 	import { boardRegistration, chainBow } from '../game/boardArt';
 	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, FRAME_ART, PLAYGROUND_PX, SYMBOL_SIZE } from '../game/constants';
-	import { boardKick } from '../game/featureFx';
+	import { boardKick, chainFx } from '../game/featureFx';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -57,7 +66,9 @@
 		const a = r * 2;
 		indices.set([a, a + 1, a + 2, a + 1, a + 3, a + 2], r * 6);
 	}
-	type Strip = { mesh: PIXI.MeshSimple; rest: Float32Array; s: Float32Array; bow: Float32Array };
+	/** rest: vertices at rest (master); s / bow per row; v: each row's tile coordinate before the haul (render y
+	 *  less the tile phase, in periods); u0 / u1 the run's tile columns in the sheet */
+	type Strip = { mesh: PIXI.MeshSimple; rest: Float32Array; s: Float32Array; bow: Float32Array; v: Float32Array; u0: number; u1: number };
 	const strips = {} as Record<Side, Strip>;
 	for (const side of SIDES) {
 		const mesh = new PIXI.MeshSimple({
@@ -70,7 +81,7 @@
 		mesh.visible = false;
 		mesh.tint = FRAME_ART.chainTint;
 		chains.addChild(mesh);
-		strips[side] = { mesh, rest: new Float32Array(ROWS * 2 * 2), s: new Float32Array(ROWS), bow: new Float32Array(ROWS) };
+		strips[side] = { mesh, rest: new Float32Array(ROWS * 2 * 2), s: new Float32Array(ROWS), bow: new Float32Array(ROWS), v: new Float32Array(ROWS), u0: 0, u1: 1 };
 	}
 
 	parent.addToParent(under);
@@ -92,37 +103,84 @@
 	let pg = 1;
 	let chainsReady = false;
 
-	/** lay the chain strips out for a layout: rest vertices in master units and the uvs */
+	/** lay the chain strips out for a layout: rest vertices in master units along each run's centreline
+	 *  (the pivot -> anchor line, so the tile, de-slanted by the tool, follows the tilted run), from the
+	 *  bracket's underside to the plinth, and each row's tile coordinate (the uvs are written by setUvs) */
 	const layoutStrips = (k: LayoutKind, map: (u: number, v: number) => { x: number; y: number }, tex: PIXI.Texture) => {
 		const spec = BOARD_ART.chains[k];
-		const [TW, TH] = spec.tex;
+		const [TW] = spec.tex;
+		const [clipTop, clipBottom] = spec.clip;
+		// the tile repeats: wrap, not clamp (the sheet is power-of-two for WebGL 1)
+		if (tex.source.addressMode !== 'repeat') tex.source.addressMode = 'repeat';
 		for (const side of SIDES) {
 			const part = spec[side];
 			const anchor = BOARD_ART.anchors[side];
-			const top = anchor.top[1];
-			const run = anchor.bottom[1] - top;
-			const [cx, cy] = part.crop;
-			const [bw, bh] = part.size;
+			const [tx, top] = anchor.top;
+			const [bx, bottom] = anchor.bottom;
+			const run = bottom - top;
 			const st = strips[side];
-			const uvs = st.mesh.geometry.getBuffer('aUV').data as Float32Array;
 			for (let r = 0; r < ROWS; r += 1) {
-				// source y of the row: the texture's top, then the pivot rows, then the texture's bottom
-				const v = r === 0 ? cy : r === ROWS - 1 ? cy + bh : Math.max(cy, top + (run * (r - 1)) / CHAIN_BOW.segments);
+				// render y of the row: the clip top, the pivot rows, the clip bottom
+				const v = r === 0 ? clipTop : r === ROWS - 1 ? clipBottom : Math.min(clipBottom, Math.max(clipTop, top + (run * (r - 1)) / CHAIN_BOW.segments));
 				const s = (v - top) / run;
 				st.s[r] = s;
 				st.bow[r] = chainBow(s, CHAIN_BOW.bottomAllowance);
-				const p0 = map(cx, v);
-				const p1 = map(cx + bw, v);
+				const cx = tx + ((bx - tx) * (v - top)) / run;
+				const p0 = map(cx - spec.halfWidthPx, v);
+				const p1 = map(cx + spec.halfWidthPx, v);
 				st.rest.set([p0.x, p0.y, p1.x, p1.y], r * 4);
-				const tv = ((v - cy) / bh) * (part.tex[1] / TH);
-				uvs.set([part.texX / TW, tv, (part.texX + part.tex[0]) / TW, tv], r * 4);
+				st.v[r] = (v - spec.phasePx) / spec.periodPx;
 			}
+			st.u0 = part.texX / TW;
+			st.u1 = (part.texX + part.texW) / TW;
 			st.mesh.texture = tex;
-			st.mesh.geometry.getBuffer('aUV').update();
 			(st.mesh.vertices as Float32Array).set(st.rest);
 			st.mesh.geometry.getBuffer('aPosition').update();
 			st.mesh.visible = true;
 		}
+		setUvs();
+	};
+	/** the haul offset in LINKS (accumulated, modulo one tile = 2 links) and the presses still hauling */
+	const haul = { base: 0, offset: 0, live: [] as { t0: number; rate: number }[], seen: 0, last: NaN };
+	/** the uvs for the current haul offset: v - offset / 2 (one link is half the two-link tile), so the chain
+	 *  moves DOWN the screen as the offset grows */
+	const setUvs = () => {
+		const shift = haul.offset / 2;
+		for (const side of SIDES) {
+			const st = strips[side];
+			const uvs = st.mesh.geometry.getBuffer('aUV').data as Float32Array;
+			for (let r = 0; r < ROWS; r += 1) {
+				const tv = st.v[r] - shift;
+				const o = r * 4;
+				uvs[o] = st.u0;
+				uvs[o + 1] = tv;
+				uvs[o + 2] = st.u1;
+				uvs[o + 3] = tv;
+			}
+			st.mesh.geometry.getBuffer('aUV').update();
+		}
+		haul.last = haul.offset;
+	};
+	const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+	/** the haul at `now`: each press runs haulDelayMs, then haulLinks over haulMs with haulEasing, in style
+	 *  time at the rate it was pressed at; a finished press folds into the base (modulo the tile) */
+	const tickHaul = (now: number) => {
+		const presses = chainFx.presses;
+		if (haul.seen > presses.length) haul.seen = presses.length; // the bus trimmed its head
+		while (haul.seen < presses.length) haul.live.push(presses[haul.seen++]);
+		let moving = 0;
+		for (let i = haul.live.length - 1; i >= 0; i -= 1) {
+			const p = haul.live[i];
+			const u = clamp01(((now - p.t0) * p.rate - CHAIN_BOW.haulDelayMs) / Math.max(CHAIN_BOW.haulMs, 1));
+			if (u >= 1) {
+				haul.base = (haul.base + CHAIN_BOW.haulLinks) % 2;
+				haul.live.splice(i, 1);
+				continue;
+			}
+			moving += CHAIN_BOW.haulLinks * CHAIN_BOW.haulEasing(u);
+		}
+		haul.offset = haul.base + moving;
+		return haul.offset !== haul.last;
 	};
 
 	$effect(() => {
@@ -184,6 +242,7 @@
 			dirty = true;
 		}
 		if (!chainsReady) return;
+		if (tickHaul(performance.now())) setUvs();
 		// the kick's scalar: boardKick is (0.6 k, k); fall back to x / 0.6 for a purely sideways kick
 		const kpx = boardKick.y / PLAYGROUND_PX;
 		const kxpx = boardKick.x / PLAYGROUND_PX / 0.6;
@@ -330,9 +389,21 @@
 						board: boardNode ? { x: (W / 2 - boardNode.pivot.x) * boardNode.scale.x, y: (H / 2 - boardNode.pivot.y) * boardNode.scale.y } : null,
 						source: { x: boardKick.x * scale, y: boardKick.y * scale },
 					},
-					/** the spring, master px: low-passed kick, displacement, velocity per style ms */
 					/** the spring in playground px (k, lagged k, d, d' per s); pg = master px per playground px */
 					bow: { ...bow, atRest, pg },
+					/** THE HAUL: the offset in links (base = finished presses modulo the 2-link tile), the presses
+					 *  still hauling, the tile, and each strip's first-row v (uv) as the GPU has it */
+					haul: {
+						offset: haul.offset,
+						base: haul.base,
+						live: haul.live.length,
+						pressAt: chainFx.presses.map((p) => p.t0),
+						now: performance.now(),
+						tile: { tex: BOARD_ART.chains[k].tex, periodPx: BOARD_ART.chains[k].periodPx, phasePx: BOARD_ART.chains[k].phasePx, clip: BOARD_ART.chains[k].clip },
+						addressMode: strips.L.mesh.texture?.source?.addressMode ?? null,
+						uv0: SIDES.map((side) => Number((strips[side].mesh.geometry.getBuffer('aUV').data as Float32Array)[1].toFixed(4))),
+						constants: { links: CHAIN_BOW.haulLinks, delayMs: CHAIN_BOW.haulDelayMs, ms: CHAIN_BOW.haulMs, on: CHAIN_BOW.haulOnSpin },
+					},
 					chains: chainOut,
 					zOrder: parent.parent.children.map((c) => (c === under ? 'frame+backing' : c === chains ? 'chains' : c === boardNode ? 'board' : c.label || 'other') + '@' + c.zIndex),
 				};

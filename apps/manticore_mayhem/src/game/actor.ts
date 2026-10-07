@@ -11,6 +11,8 @@ import { stateXstateDerived } from './stateXstate';
 import { playBet, convertTorResumableBet } from './utils';
 import { stateGameDerived } from './stateGame.svelte';
 import { eventEmitter } from './eventEmitter';
+import { chainHaulPress } from './featureFx';
+import { CHAIN_BOW } from './constants';
 
 const refreshBalance = async () => {
 	if (stateUrlDerived.replay()) return;
@@ -37,6 +39,9 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	onNewGameStart: async () => {
 		// There is no pre-spin here: a cascade board has no reel to empty before the book arrives.
 		// The reveal's own drop is the whole "spin" (game/stateGame.svelte.ts revealBoard).
+		// THE CHAIN HAUL (CHAIN_BOW.haulOnSpin): every spin press hauls the board's chain loop one link down
+		// (components/BoardFrame.svelte draws it), a press, the space bar and an autoplay spin alike
+		if (CHAIN_BOW.haulOnSpin) chainHaulPress(Math.max(0.2, stateGameDerived.timeScale()));
 		if ((stateBet.isTurbo && stateXstateDerived.isAutoBetting()) || stateBet.isSpaceHold) return;
 		stateBet.winBookEventAmount = 0;
 	},

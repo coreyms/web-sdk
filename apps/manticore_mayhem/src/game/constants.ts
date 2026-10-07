@@ -144,6 +144,9 @@ export const CLUSTER = {
 	removeStyle: 'shrink' as const,
 	removeMs: 135,
 	removeEasing: quadIn,
+	/** after the last removal, before the refill drops (MULT_PLATE, Corey 2026-10-07 13:25: was 0), so a
+	 *  plate's count-over (changeDelayMs + changeMs) plays before the refill lands on it */
+	refillDelayMs: 400,
 	/** the readout's height as a share of one cell */
 	readoutHeight: 0.42,
 };
@@ -227,19 +230,39 @@ export const SYMBOL_COLORS: Record<string, number> = {
  *  render_layers_tilt.py exposure) once Corey picks the level; then these go back to 0xffffff. */
 export const FRAME_ART = { tint: 0xb4b4b4, chainTint: 0xb4b4b4 };
 
-/** a multiplier tile lighting up or doubling in place */
-export const TILE = {
-	/** the pop a tile makes when it is seeded or doubled */
-	popScale: 1.35,
-	popMs: 200,
-	popEasing: backOut,
-	/** The badge's size as a share of a cell. It sits INSIDE the tile's top-right corner and must
-	 *  never cover the symbol's letter (Corey 2026-09-22): at 0.40 of a cell, offset to
-	 *  CELL_FILL/2 - size/2 - a hair, it clips the corner and nothing else. */
-	size: 0.4,
-	/** where the disc sits in its cell, in cell fractions from the centre (top-right) */
-	offset: { x: 0.26, y: -0.26 },
+// ---- The multiplier plates (MOTION_SPEC "Dim rule ... and multiplier plates", LOCKED Corey 2026-10-07 13:25) ----
+// A multiplier is a property of the CELL, drawn as a plate UNDER the symbol (the old top-right badge is
+// retired): a translucent rounded fill and a bright border in one colour per value, and a large "x<value>"
+// from the numerals atlas with a soft glow, at numberAlphaUnderSymbol while a symbol covers it and 1 when it
+// is exposed. On a clear: the reveal pop (revealPopScale over revealPopMs) and, changeDelayMs after the
+// symbol has left, the value COUNTS over (the old number shrinks away over the first 45 % with quadIn, the
+// new one grows in with backOut) over changeMs while the plate colour lerps old -> new (quadOut).
+// Drawn by components/BoardCells.svelte; the timing is stateGame's (plateChange). px are playground px
+// (x PLAYGROUND_PX at draw time); ms are style time.
+export const MULT_PLATE = {
+	style: 'plate' as const,
+	colors: { 2: 0xe32400, 4: 0xea4d00, 8: 0xf07500, 16: 0xf79e00, 32: 0xfec700, 64: 0xffe37f, 128: 0xffffff } as Record<number, number>,
+	fillAlpha: 0.46,
+	borderAlpha: 0.82,
+	borderPx: 2.5,
+	/** inside the cell's clear lattice opening (see BoardCells: the playground's cell well is the opening here) */
+	insetCells: 0.01,
+	cornerPx: 8,
+	/** the number's digit height as a share of a cell (shrunk to fit the plate when it is wider) */
+	numberSizeCells: 0.46,
+	numberAnchor: 'centre' as const,
+	numberAlphaUnderSymbol: 0.56,
+	numberGlowPx: 12,
+	symbolAlphaOnPlate: 1,
+	symbolScaleOnPlate: 1,
+	revealPopScale: 1.3,
+	revealPopMs: 60,
+	changeStyle: 'count' as const,
+	changeMs: 600,
+	changeDelayMs: 100,
 };
+/** the plate colour for a value: the log2 ramp's nearest step, clamped to x2..x128 */
+export const plateColor = (v: number) => MULT_PLATE.colors[Math.max(2, Math.min(128, 1 << Math.round(Math.log2(Math.max(2, v)))))] ?? MULT_PLATE.colors[2];
 
 /** the manticore's set pieces share these. The swipe and the roar have their own blocks below. */
 export const FEATURE_FX = {
@@ -354,6 +377,15 @@ export const CHAIN_BOW = {
 	bottomAllowance: 0.1,
 	vertical: 0.4,
 	segments: 10,
+	// THE HAUL (LOCKED Corey 2026-10-07 13:25): the chains are a continuous loop into the cap and the plinth.
+	// Each run is a seamless two-link tile repeating along the strip (tools/build_board_layers.py); on every
+	// spin press, after haulDelayMs, the texture scrolls DOWN by haulLinks link pitches over haulMs with
+	// haulEasing (accumulating, modulo the tile). The bow displacement above is independent of it.
+	haulOnSpin: true,
+	haulLinks: 1,
+	haulDelayMs: 80,
+	haulMs: 1280,
+	haulEasing: backOut,
 };
 
 /** the flat backing behind the cell wells and the tiles, under the board kick: covers the frame's
@@ -366,12 +398,12 @@ export const BOARD_BACKING = { color: 0x000000 };
 //   normal  a fast tail hit on the one cell; several fire back to back with `gapMs` between them
 //   big     a charge-up beat (the rest of the board dims, the shape pulses), then the whole plus
 //   super   the same beat, the 3x3 block, a longer charge and a heavier hit
-//   scatter the board is already at rest: hold the disappointment beat, then the same tail hit,
-//           the cell becomes S and the STANDARD scatter landing SFX + beat play
-// Every number here is style time and is divided by stateBetDerived.timeScale() at playback.
+//   scatter the board is already at rest: SCATTER_STING below (hold, the normal tail hit per scatter,
+//           the anticipation ladder, the trigger pulse)
+// Every number here is style time and is divided by stateGameDerived.timeScale() at playback.
 // The visuals are components/Sting.svelte, which is kind-driven so a Spine rig can replace the
 // placeholder strike without touching this file or the handler.
-// LOCKED Corey 2026-10-06 10:36 (MOTION_SPEC "Sting"); the scatter beat is unchanged.
+// LOCKED Corey 2026-10-06 10:36 (MOTION_SPEC "Sting"); the scatter beat moved to SCATTER_STING (18:29).
 export const STING = {
 	/** a normal hit: the tail streak winds up, the symbol flips at `hitAt` of it */
 	normalMs: 430,
@@ -382,10 +414,6 @@ export const STING = {
 	superChargeMs: 990,
 	/** big / super: the shape turning wild together */
 	bigHitMs: 540,
-	/** scatter: the disappointment / anticipation beat on the resting board */
-	scatterHoldMs: 700,
-	/** scatter: the tail hit itself */
-	scatterHitMs: 320,
 	/** where in a hit the symbol actually changes (share of the hit) */
 	hitAt: 0.72,
 	/** peak scale of a struck cell (sin over the whole hit), by weight */
@@ -415,9 +443,72 @@ export const STING = {
 	streakPx: 6,
 	wildColor: 0xffd76a,
 	scatterColor: 0xffe08a,
-	/** the scatter sting's own beat (kept from before the lock): its flash tint strength */
-	scatterFlashAlpha: 0.85,
 } as const;
+
+// ---- The scatter sting (MOTION_SPEC "Scatter sting", LOCKED Corey 2026-10-06 18:29) ---------------
+// The reveal lands one (or more) scatter short. On the scatter-kind stings the resting board holds holdMs
+// with everything but the scatters darkened to holdDimAlpha (the dim rule: a darkening, never alpha; the
+// envelope is sin(pi u)^0.5 over each hold, the playground's), the scatters' glow breathing at holdPulseHz
+// (holdPulse 0: they do not scale). Each missing scatter is stung in with the normal streak / hitAt / pop
+// over hitMs, the cell becoming S with the STANDARD scatter landing ring + glow over landMs (reach
+// landRingScale / 2 cells) and the house scatter SFX. THE LADDER: after the k-th stung scatter lands the
+// board holds (same dim) waitMs[k]; beyond the list it climbs by max(0, w[2] - w[1]); the LAST one waits
+// the NEXT rung (lastWaitsOneMore). Then every scatter pulses together over triggerMs at triggerScale with
+// the house bonus-confirm SFX. How many stings come is the book's; the beat is presentation only.
+export const SCATTER_STING = {
+	holdMs: 1410,
+	holdPulse: 0,
+	holdPulseHz: 2.1,
+	holdDimAlpha: 0.75,
+	hitMs: 240,
+	waitMs: [710, 1410, 0],
+	lastWaitsOneMore: true,
+	landMs: 420,
+	landRingScale: 1.6,
+	triggerMs: 800,
+	triggerScale: 1.2,
+	scatterColor: 0xffe08a,
+};
+/** the ladder's k-th rung (0-based): waitMs[k], then climbing by max(0, w[2] - w[1]) per step */
+export const scatterRung = (k: number) => {
+	const w = SCATTER_STING.waitMs;
+	return k < w.length ? w[k] : w[w.length - 1] + (k - (w.length - 1)) * Math.max(0, w[w.length - 1] - w[w.length - 2]);
+};
+/** the wait after the k-th of n stung scatters (0-based); the last waits the next rung */
+export const scatterWait = (k: number, n: number) => (k < n - 1 ? scatterRung(k) : SCATTER_STING.lastWaitsOneMore ? scatterRung(k + 1) : scatterRung(k));
+
+// ---- The scatter tease in EVERY mode (MOTION_SPEC "Scatter tease", LOCKED Corey 2026-10-06 18:52) ----
+// A PolyMath Games standard. Derived in the frontend from the reveal's board (which columns carry a
+// scatter, in landing order by column), never from the book's anticipation array (that stays Mystery's,
+// ANTICIPATION below, untouched). Once the THIRD scatter is REVEALED (its centre crosses the board's top
+// edge during its fall, solved on the drop easing), every column behind it holds above the board (holdMs x
+// holdDecay^i, floored at holdFloorMs, chained from that moment), falls fallSlow slower, and shows the beam
+// and the rain from components/Anticipation.svelte (NO edge spill). The rain locks to the incoming stack
+// once the column launches and lasts until it lands; the beam fades over fadeMs from the launch. The landed
+// scatters breathe (landedPulse at landedPulseHz) until the drop ends. Hit (a 4th scatter on the board):
+// SCATTER_STING's trigger pulse. Miss: a missHoldMs rest. The frontend only reads the board it was given.
+export const ANTICIPATION_TEASE = {
+	triggerAfter: 3,
+	holdMs: 700,
+	holdDecay: 0.82,
+	holdFloorMs: 300,
+	fallSlow: 1.7,
+	fadeMs: 260,
+	beamAlpha: 0.75,
+	beamColor: 0xffe08a,
+	beamSwing: 0.13,
+	beamPeriodMs: 840,
+	spillAlpha: 0,
+	spillWidth: 0.2,
+	rainAlpha: 0.2,
+	rainSpeedCellsPerS: 5.5,
+	rainStretch: 1.12,
+	rainGhosts: 1,
+	rainGhostOffset: 0.1,
+	landedPulse: 0.05,
+	landedPulseHz: 1.5,
+	missHoldMs: 500,
+};
 
 // ---- Scatter tease on a Mystery reveal (RULE_PASS_2 section D) -----------------------------------
 // Angry Mantis's Anticipation.svelte, adapted from five spinning reels to an 8x8 drop: an

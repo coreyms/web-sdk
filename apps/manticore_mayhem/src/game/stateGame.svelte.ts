@@ -25,9 +25,12 @@ import {
 	READOUT,
 	SPARKLE,
 	SYMBOL_COLORS,
-	TILE,
+	AURA_COLOR,
+	MULT_PLATE,
 	FEATURE_FX,
 	STING,
+	SCATTER_STING,
+	ANTICIPATION_TEASE,
 	SWIPE_FX,
 	ROAR_FX,
 	PLAYGROUND_PX,
@@ -69,18 +72,26 @@ export type Cell = {
 	scaleX: number;
 	scaleY: number;
 	alpha: number;
+	/** THE DIM RULE (Corey 2026-10-07 10:18): every dim is a DARKENING of the symbol (and of the plate under
+	 *  it), never an alpha change: BoardCells multiplies the sprite tint by this. 1 = undimmed. */
+	dim: number;
 	/** additive flash tint strength 0..1 (swipe / roar / scatter beats) */
 	flash: number;
 	flashColor: number;
 	/** the landing aura 0..1: a winner of the next cascade glows as it lands (CLUSTER.auraMs) */
 	glow: number;
+	/** the aura's tint: AURA_COLOR for a winner, the scatter colour for the scatter beats */
+	glowColor: number;
 	/** performance.now() of this cell's last landing contact (0 = never landed): BoardCells starts
 	 *  the symbol's drop sheet from it. Written once per landing, never per frame. */
 	landAt: number;
 	state: SymbolState;
 };
 
-export type Tile = { value: number; scale: number };
+/** one cell's multiplier (MULT_PLATE). `value` is the book's; `from` the value it is counting over from,
+ *  `chg` the count-over's progress (1 = at rest) and `pop` the reveal pop's (1 = at rest). Only the plate
+ *  job runner (plateReveal) moves chg / pop; BoardCells draws them. */
+export type Tile = { value: number; scale: number; from: number; chg: number; pop: number };
 /** one cluster's pay readout over the board. `raw`: the amount and the multiplier sit apart at
  *  amountX / multX (board px) and slam together; `merged`: one amount `text` at `scale`. */
 export type Readout = {
@@ -109,9 +120,11 @@ const makeCell = (name: SymbolName, reel: number, row: number, y = row): Cell =>
 	scaleX: 1,
 	scaleY: 1,
 	alpha: 1,
+	dim: 1,
 	flash: 0,
 	flashColor: 0xffffff,
 	glow: 0,
+	glowColor: AURA_COLOR,
 	landAt: 0,
 	state: 'static',
 });
@@ -119,7 +132,7 @@ const makeCell = (name: SymbolName, reel: number, row: number, y = row): Cell =>
 const initialCells = (): Cell[] =>
 	INITIAL_BOARD.flatMap((column, reel) => column.map((name, row) => makeCell(name, reel, row)));
 
-const emptyTiles = (): Tile[] => Array.from({ length: CELL_COUNT }, () => ({ value: 0, scale: 1 }));
+const emptyTiles = (): Tile[] => Array.from({ length: CELL_COUNT }, () => ({ value: 0, scale: 1, from: 0, chg: 1, pop: 1 }));
 
 export const stateGame = $state({
 	cells: initialCells(),
@@ -141,9 +154,12 @@ export const stateGame = $state({
 	/** scatters on the board this spin, in landing order — the reveal's, then every scatter the
 	 *  tail stings in (RULE_PASS_2 section C/D), so the counter reads 4/5/6 before bonusStart */
 	scatterCells: [] as CellIndex[],
-	/** per-column scatter tease during a Mystery reveal (components/Anticipation.svelte).
-	 *  `q` is the share of the column's hold that has run, `fade` the cross-fade over its fall. */
-	anticipation: Array.from({ length: GRID }, () => ({ on: false, q: 0, fade: 1 })),
+	/** per-column scatter tease (components/Anticipation.svelte): the book's Mystery tease, or the derived
+	 *  tease of every other mode (`tease` true, ANTICIPATION_TEASE). `q` is the share of the column's hold
+	 *  that has run, `fade` the beam's cross-fade over its fall; the derived tease also carries the rain's
+	 *  own fade (over the fall), its offset in cells (locked to the incoming stack after the launch) and
+	 *  the style ms since the column began to show (the beam swings on it). */
+	anticipation: Array.from({ length: GRID }, () => ({ on: false, q: 0, fade: 1, tease: false, rainFade: 1, rain: 0, el: 0 })),
 	/** the Mystery outcome of the round being played, null outside a Mystery book. Presentation
 	 *  never branches on it (the spin plays itself out); it is a DEV / probe read only. */
 	mysteryOutcome: null as MysteryOutcome | null,
@@ -203,6 +219,8 @@ export const waitStyle = (ms: number) => (stateGame.skipping ? Promise.resolve()
 /** run id: a new spin invalidates whatever is still in the air (never await an aborted tween) */
 let runId = 0;
 export const newRun = () => ++runId;
+/** the run in flight (a beat fired from inside a drop, e.g. a scatter landing, tags itself with it) */
+export const currentRun = () => runId;
 const alive = (id: number) => id === runId;
 
 /** one rAF pass over `ms` of STYLE time, already divided by the turbo scale */
@@ -290,7 +308,13 @@ const lastAura = new Set<CellIndex>();
 /** animate a batch of falling cells, landing beat and aura included. The FINAL positions are
  *  applied whether or not the run was superseded: a cancelled animation must never leave the board
  *  half-way between two grids. */
-const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => void, auras: AuraJob[] = []) => {
+const runDrops = async (
+	jobs: DropJob[],
+	id: number,
+	onFrame?: (now: number) => void,
+	auras: AuraJob[] = [],
+	onLand?: (cell: Cell) => void,
+) => {
 	if (!jobs.length && !auras.length) return;
 	const auraMs = CLUSTER.auraMs;
 	let total = jobs.reduce((n, j) => Math.max(n, j.delay + j.dur), 0) + LAND_MS;
@@ -300,7 +324,6 @@ const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => 
 	const landed = new Set<number>(); // job cell ids whose contact has been stamped
 	await raf(total, (_t, now) => {
 		if (!alive(id)) return;
-		onFrame?.(now);
 		for (const j of jobs) {
 			const cell = map.get(j.cellId);
 			if (!cell) continue;
@@ -313,6 +336,7 @@ const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => 
 					// drop sheet starts on the landing frame whatever the frame rate
 					landed.add(j.cellId);
 					cell.landAt = performance.now() - u / ts();
+					onLand?.(cell);
 				}
 				const [sx, sy, dy] = landPose(u, symbolAnim(cell.name).squash);
 				cell.scaleX = sx;
@@ -327,6 +351,8 @@ const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => 
 			const cell = map.get(a.cellId);
 			if (cell && now >= a.t0) cell.glow = Math.sin(Math.PI * clamp01((now - a.t0) / auraMs));
 		}
+		// after the jobs: a frame hook (the teases) may scale a landed cell on top of its landing pose
+		onFrame?.(now);
 	});
 	const after = liveById();
 	lastAura.clear();
@@ -337,6 +363,7 @@ const runDrops = async (jobs: DropJob[], id: number, onFrame?: (now: number) => 
 		cell.scaleX = 1;
 		cell.scaleY = 1;
 		cell.glow = 0;
+		cell.glowColor = AURA_COLOR;
 		if (j.aura) lastAura.add(cellOf(cell.reel, cell.row));
 	}
 	for (const a of auras) {
@@ -385,10 +412,13 @@ export const settleBoard = () => {
 		cell.scaleX = 1;
 		cell.scaleY = 1;
 		cell.alpha = 1;
+		cell.dim = 1;
 		cell.flash = 0;
 		cell.glow = 0;
+		cell.glowColor = AURA_COLOR;
 		cell.state = 'static';
 	}
+	// the plates' count-over / pop are the plate runner's (plateReveal): it finishes them on its own
 	for (const tile of stateGame.tiles) tile.scale = 1;
 	boardKick.x = 0;
 	boardKick.y = 0;
@@ -399,10 +429,14 @@ export const settleBoard = () => {
 /** the Mystery tease never outlives the drop that armed it */
 export const clearAnticipation = () => {
 	for (const a of stateGame.anticipation) {
-		if (!a.on && a.q === 0) continue;
+		if (!a.on && a.q === 0 && !a.tease) continue;
 		a.on = false;
 		a.q = 0;
 		a.fade = 1;
+		a.tease = false;
+		a.rainFade = 1;
+		a.rain = 0;
+		a.el = 0;
 	}
 };
 
@@ -422,6 +456,7 @@ export const boardInvariant = () => {
 		if (Math.abs(c.dx) > 0.01 || Math.abs(c.rot) > 0.001) problems.push(`cell ${index} offset dx ${c.dx.toFixed(3)} rot ${c.rot.toFixed(3)}`);
 		if (Math.abs(c.scaleX - 1) > 0.01 || Math.abs(c.scaleY - 1) > 0.01) problems.push(`cell ${index} scaled ${c.scaleX.toFixed(2)}x${c.scaleY.toFixed(2)}`);
 		if (Math.abs(c.alpha - 1) > 0.01) problems.push(`cell ${index} alpha ${c.alpha.toFixed(2)}`);
+		if (Math.abs(c.dim - 1) > 0.01) problems.push(`cell ${index} dimmed ${c.dim.toFixed(2)}`);
 		if (c.flash > 0.01) problems.push(`cell ${index} still flashing ${c.flash.toFixed(2)}`);
 		if (c.glow > 0.01) problems.push(`cell ${index} still glowing ${c.glow.toFixed(2)}`);
 		if (c.state !== 'static') problems.push(`cell ${index} in state ${c.state}`);
@@ -433,33 +468,44 @@ export const boardInvariant = () => {
 	return { ok: problems.length === 0, count: stateGame.cells.length, problems: problems.slice(0, 40) };
 };
 
-/** a whole new board falls in (reveal). Bottom row lands first, columns ripple left to right. */
 /**
  * A whole new board falls in (reveal). Bottom row lands first, columns ripple left to right.
  *
- * `anticipation` is the BOOK's per-column array and is passed only where the book's own tease is
- * honoured (Mystery — RULE_PASS_2 section D); every other mode calls this without it. A teased
- * column waits above the board for its hold before it drops and then falls `fallSlow` times
- * slower, and the columns behind it wait with it, so the tease reads left to right exactly like
- * Angry Mantis's reels. The visuals are components/Anticipation.svelte, driven by
- * stateGame.anticipation, which this function is the only writer of.
+ * Two teases, never both:
+ *  - `anticipation` is the BOOK's per-column array and is passed only where the book's own tease is
+ *    honoured (Mystery, RULE_PASS_2 section D). A teased column waits above the board for its hold before
+ *    it drops and then falls `fallSlow` times slower, and the columns behind it wait with it, so the tease
+ *    reads left to right exactly like Angry Mantis's reels. Unchanged.
+ *  - `tease` (every other mode) is the DERIVED scatter tease (ANTICIPATION_TEASE, planTease below): read
+ *    off this board, never off the book's array, and it changes nothing but timing and light.
+ * The visuals are components/Anticipation.svelte, driven by stateGame.anticipation, which this function
+ * is the only writer of.
  *
- * `aura` is the set of cells (cellIndex) that win in the cascade that FOLLOWS this reveal: those
- * tiles glow for CLUSTER.auraMs as they land. Presentation only; the handler reads it ahead from
- * the book, which is fully known.
+ * `aura` is the set of cells (cellIndex) that win in the cascade that FOLLOWS this reveal: those tiles
+ * glow for CLUSTER.auraMs as they land. `onScatterLand` fires at each scatter's landing contact, in
+ * landing order (the house scatter beat). Presentation only; the handler reads it ahead from the book,
+ * which is fully known.
  */
 export const revealBoard = async (
 	board: SymbolName[][],
-	{ animate = true, anticipation, aura }: { animate?: boolean; anticipation?: number[]; aura?: Set<CellIndex> } = {},
+	{
+		animate = true,
+		anticipation,
+		tease = false,
+		aura,
+		onScatterLand,
+	}: { animate?: boolean; anticipation?: number[]; tease?: boolean; aura?: Set<CellIndex>; onScatterLand?: (cell: CellIndex) => void } = {},
 ) => {
 	const id = newRun();
 	stateGame.readouts = [];
 	clearAnticipation();
 	clearStingFx();
 
-	// per-column hold (0 = no tease) and the delay every later column inherits from it
+	// THE MYSTERY TEASE: per-column hold (0 = no tease) and the delay every later column inherits from it
 	const holdMs = Array.from({ length: GRID }, () => 0);
-	const holdStart = Array.from({ length: GRID }, () => 0);
+	// each column's own start: the left-to-right ripple (DROP.columnStaggerMs). Up to 2026-10-07 this was 0
+	// outside a Mystery tease, so `wait` below went negative and every column of a normal reveal fell at once
+	const holdStart = Array.from({ length: GRID }, (_, reel) => reel * DROP.columnStaggerMs);
 	let carried = 0;
 	if (animate && anticipation?.length) {
 		let scale = 1;
@@ -472,23 +518,33 @@ export const revealBoard = async (
 		}
 	}
 	const teased = holdMs.some((ms) => ms > 0);
+	// THE DERIVED TEASE (never alongside the book's)
+	const plan = animate && tease && !teased ? planTease(board) : null;
+	revealTease.teased = !!plan;
+	revealTease.hit = !!plan && plan.hit;
+	revealTease.scatters = plan ? plan.scatters.slice() : [];
+	revealTease.plan = plan;
+	const teaseOf = new Map<number, TeaseColumn>();
+	for (const col of plan?.columns ?? []) teaseOf.set(col.reel, col);
 
 	const cells: Cell[] = [];
-	const plan: DropJob[] = [];
+	const plan2: DropJob[] = [];
 	board.forEach((column, reel) => {
 		const wait = holdStart[reel] + holdMs[reel] - reel * DROP.columnStaggerMs;
-		const slow = holdMs[reel] > 0 ? ANTICIPATION.fallSlow : 1;
+		const tc = teaseOf.get(reel);
+		const slow = holdMs[reel] > 0 ? ANTICIPATION.fallSlow : tc ? ANTICIPATION_TEASE.fallSlow : 1;
+		const start = tc ? tc.launch : reel * DROP.columnStaggerMs + wait;
 		column.forEach((name, row) => {
 			// the whole column waits stacked above the board and pours in, bottom row first
 			const fromY = stackedAbove(row, GRID);
 			const cell = makeCell(name, reel, row, animate ? fromY : row);
 			cells.push(cell);
 			if (animate) {
-				plan.push({
+				plan2.push({
 					cellId: cell.id,
 					fromY,
 					toY: row,
-					delay: reel * DROP.columnStaggerMs + wait + (GRID - 1 - row) * DROP.rowStaggerMs,
+					delay: start + (GRID - 1 - row) * DROP.rowStaggerMs,
 					dur: dropDuration(row - fromY) * slow,
 					aura: aura?.has(cellOf(reel, row)) ?? false,
 				});
@@ -498,14 +554,141 @@ export const revealBoard = async (
 	// assign FIRST, animate second: the jobs address the proxies this assignment creates
 	stateGame.cells = cells;
 	lastAura.clear();
+	const landScatter = onScatterLand ? (c: Cell) => c.name === 'S' && onScatterLand(cellOf(c.reel, c.row)) : undefined;
 	if (animate) {
-		await runDrops(plan, id, teased ? (now) => tickAnticipation(now, holdStart, holdMs) : undefined);
+		let onFrame: ((now: number) => void) | undefined;
+		if (teased) onFrame = (now) => tickAnticipation(now, holdStart, holdMs);
+		else if (plan) {
+			// the breathing scatters: from the moment the third is revealed, each once its own landing beat is over
+			const breathe = new Map<number, number>(); // cell id -> style ms its landing beat ends
+			const at = new Set(plan.breathe);
+			for (const j of plan2) {
+				const c = cells.find((x) => x.id === j.cellId)!;
+				if (at.has(cellOf(c.reel, c.row))) breathe.set(j.cellId, j.delay + j.dur + LAND_MS);
+			}
+			let map: Map<number, Cell> | null = null;
+			revealTease.origin = 0;
+			onFrame = (now) => {
+				// the drop's clock in real time (probe hook): style ms `now` happened at origin + now / rate
+				if (!revealTease.origin) {
+					revealTease.rate = ts();
+					revealTease.origin = performance.now() - now / revealTease.rate;
+				}
+				tickTease(now, plan);
+				if (now < plan.tThird || ANTICIPATION_TEASE.landedPulse <= 0) return;
+				map ??= liveById();
+				const w = Math.max(0, Math.sin(((now - plan.tThird) / 1000) * ANTICIPATION_TEASE.landedPulseHz * Math.PI * 2));
+				for (const [cellId, landEnd] of breathe) {
+					const c = map.get(cellId);
+					if (!c || now < landEnd) continue;
+					const v = 1 + ANTICIPATION_TEASE.landedPulse * w;
+					c.scaleX = v;
+					c.scaleY = v;
+					c.glow = 0.4 * w;
+					c.glowColor = SCATTER_STING.scatterColor;
+				}
+			};
+		}
+		await runDrops(plan2, id, onFrame, [], landScatter);
+	} else if (landScatter) {
+		// no drop: the scatters "land" in landing order (by column, bottom row first)
+		for (const c of [...cells].sort((a, b) => a.reel - b.reel || b.row - a.row)) landScatter(c);
 	}
 	settleBoard();
 	return id;
 };
 
-/** one frame of the column tease, in the drop's own style-time clock */
+// ---- the derived scatter tease (ANTICIPATION_TEASE, the playground's compileTease) ---------------
+
+type TeaseColumn = { reel: number; i: number; show: number; launch: number; fall: number; fromY: number; toY: number };
+export type TeasePlan = {
+	/** style ms the third scatter is revealed (its centre crosses the board's top edge) */
+	tThird: number;
+	/** the held columns behind it, left to right */
+	columns: TeaseColumn[];
+	/** every scatter on the board, landing order (by column, bottom row first) */
+	scatters: CellIndex[];
+	/** the scatters that breathe while the tease runs (the first triggerAfter) */
+	breathe: CellIndex[];
+	/** a scatter beyond the third is on the board: the trigger pulse plays, else the miss rest */
+	hit: boolean;
+};
+/** the last reveal's derived tease, for the handler's hit / miss beat (and the probes) */
+export const revealTease = { teased: false, hit: false, scatters: [] as CellIndex[], plan: null as TeasePlan | null, origin: 0, rate: 1 };
+
+/** the hold of the i-th teased column, style ms */
+export const teaseHoldMs = (i: number) => Math.max(ANTICIPATION_TEASE.holdFloorMs, ANTICIPATION_TEASE.holdMs * Math.pow(ANTICIPATION_TEASE.holdDecay, i));
+
+/** the drop progress at which a tile falling fromY -> toY shows its centre at the board's top edge
+ *  (y = -0.5 rows), solved on DROP.easing by bisection like the playground */
+const revealedAt = (fromY: number, toY: number) => {
+	const target = (-0.5 - fromY) / (toY - fromY);
+	let lo = 0;
+	let hi = 1;
+	for (let k = 0; k < 40; k += 1) {
+		const mid = (lo + hi) / 2;
+		if (DROP.easing(mid) < target) lo = mid;
+		else hi = mid;
+	}
+	return hi;
+};
+
+/**
+ * The derived tease, read off the board the book gave us (and nothing else): the scatters in landing
+ * order; once the THIRD is revealed every column behind it holds, the i-th for teaseHoldMs(i) chained from
+ * that moment (the playground's compileTease: launch = max(own start, chain), chain += hold), and falls
+ * fallSlow slower. Null when the board has fewer than triggerAfter scatters or nothing behind the third.
+ */
+export const planTease = (board: SymbolName[][]): TeasePlan | null => {
+	const T = ANTICIPATION_TEASE;
+	const scatters: { reel: number; row: number }[] = [];
+	board.forEach((column, reel) => column.forEach((name, row) => name === 'S' && scatters.push({ reel, row })));
+	scatters.sort((a, b) => a.reel - b.reel || b.row - a.row);
+	if (scatters.length < T.triggerAfter) return null;
+	const third = scatters[T.triggerAfter - 1];
+	if (third.reel >= GRID - 1) return null;
+	const fromY = stackedAbove(third.row, GRID);
+	const launch3 = third.reel * DROP.columnStaggerMs + (GRID - 1 - third.row) * DROP.rowStaggerMs;
+	const tThird = launch3 + dropDuration(third.row - fromY) * revealedAt(fromY, third.row);
+	const columns: TeaseColumn[] = [];
+	let chain = tThird;
+	const bottomFrom = stackedAbove(GRID - 1, GRID);
+	for (let reel = third.reel + 1, i = 0; reel < GRID; reel += 1, i += 1) {
+		chain += teaseHoldMs(i);
+		const own = reel * DROP.columnStaggerMs;
+		columns.push({ reel, i, show: Math.max(tThird, own), launch: Math.max(own, chain), fall: dropDuration(GRID - 1 - bottomFrom) * T.fallSlow, fromY: bottomFrom, toY: GRID - 1 });
+	}
+	const cells = scatters.map((s) => cellOf(s.reel, s.row));
+	return { tThird, columns, scatters: cells, breathe: cells.slice(0, T.triggerAfter), hit: scatters.length > T.triggerAfter };
+};
+
+/** one frame of the derived tease, in the drop's own style-time clock (the playground's tease track:
+ *  shown from max(tThird, the column's own start) to launch + max(fadeMs, the fall)) */
+const tickTease = (now: number, plan: TeasePlan) => {
+	const T = ANTICIPATION_TEASE;
+	for (const col of plan.columns) {
+		const a = stateGame.anticipation[col.reel];
+		const end = col.launch + Math.max(T.fadeMs, col.fall);
+		if (now < col.show || now >= end) {
+			if (a.on) a.on = false;
+			continue;
+		}
+		const hold = Math.max(col.launch - col.show, 1);
+		const el = now - col.show;
+		const after = now - col.launch;
+		a.tease = true;
+		a.on = true;
+		a.q = Math.min(1, el / hold);
+		a.el = el;
+		a.fade = after > 0 ? Math.max(0, 1 - after / Math.max(T.fadeMs, 1)) : 1;
+		a.rainFade = after > 0 ? Math.max(0, 1 - after / Math.max(col.fall, 1)) : 1;
+		// the rain runs at its own speed through the hold, then rides the incoming stack's bottom tile
+		const lock = after > 0 ? (col.toY - col.fromY) * DROP.easing(clamp01(after / col.fall)) : 0;
+		a.rain = (Math.min(el, Math.max(col.launch - col.show, 0)) / 1000) * T.rainSpeedCellsPerS + lock;
+	}
+};
+
+/** one frame of the Mystery column tease, in the drop's own style-time clock */
 const tickAnticipation = (now: number, holdStart: number[], holdMs: number[]) => {
 	for (let reel = 0; reel < GRID; reel += 1) {
 		const ms = holdMs[reel];
@@ -551,6 +734,8 @@ export type WinSetHooks = {
 	onClusterStart?: (index: number) => void;
 	/** a cluster's count-up has landed on `total` (the spin total bumps here) */
 	onCountDone?: (index: number, total: number) => void;
+	/** a removed cell's symbol has left (its removal is over): its plate is exposed (the plate beat) */
+	onCleared?: (cell: CellIndex) => void;
 };
 
 const fmtAmount = (n: number) => bookEventAmountToCurrencyString(Math.round(n));
@@ -570,7 +755,7 @@ const textWidth = (text: string, height: number) => {
 /** the shrink removal: grow a hair, then shrink to nothing (the playground's 'shrink' style) */
 const shrinkScale = (u: number) => (u < 0.25 ? 1 + 0.12 * (u / 0.25) : 1.12 * (1 - CLUSTER.removeEasing((u - 0.25) / 0.75)));
 
-type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean };
+type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean; cleared: boolean };
 type Cluster = {
 	members: Member[];
 	/** the cluster's start (before its standalone aura) and the readout's start (after it) */
@@ -619,7 +804,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			const cell = at.get(index);
 			if (!cell || claimed.has(index)) continue; // a shared cell leaves with the first cluster
 			claimed.add(index);
-			members.push({ cell, index, removeT0: 0, spawned: false });
+			members.push({ cell, index, removeT0: 0, spawned: false, cleared: false });
 		}
 		// cells leave in order of distance from the cluster centre
 		members.sort((a, b) => Math.hypot(rowOf(a.index) + 0.5 - cy, reelOf(a.index) + 0.5 - cx) - Math.hypot(rowOf(b.index) + 0.5 - cy, reelOf(b.index) + 0.5 - cx));
@@ -687,9 +872,9 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	// ---- sample ----
 	const live = new Map<number, Readout>(); // readout id -> its live proxy in stateGame.readouts
 	const sample = (now: number) => {
-		// the dim, once, for the whole set
+		// the dim, once, for the whole set: a darkening (the dim rule), never alpha
 		const dk = clamp01((now - dimT0) / Math.max(CLUSTER.dimMs, 1));
-		if (now >= dimT0) for (const c of dimmed) c.alpha = 1 - (1 - CLUSTER.dimAlpha) * dk;
+		if (now >= dimT0) for (const c of dimmed) c.dim = 1 - (1 - CLUSTER.dimAlpha) * dk;
 
 		let listChanged = false;
 		for (let i = 0; i < clusters.length; i += 1) {
@@ -723,6 +908,10 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 				const s = u >= 1 ? 0 : CLUSTER.winScale * shrinkScale(u);
 				c.scaleX = s;
 				c.scaleY = s;
+				if (u >= 1 && !m.cleared) {
+					m.cleared = true;
+					hooks.onCleared?.(m.index);
+				}
 			}
 			// the readout, up from the cluster's start to the end of its hold
 			const up = now >= cl.t && now < cl.tReadoutDone;
@@ -793,6 +982,10 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		for (const m of cl.members) {
 			removed.push(m.index);
 			goingIds.add(m.cell.id);
+			if (!m.cleared) {
+				m.cleared = true;
+				hooks.onCleared?.(m.index);
+			}
 		}
 		// a skip (or a superseded run) may have jumped the hooks: fire what is still owed, in order
 		if (!cl.started) {
@@ -813,28 +1006,29 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		c.scaleX = 1;
 		c.scaleY = 1;
 		c.glow = 0;
-		if (!dimmedIds.has(c.id)) c.alpha = 1;
+		c.alpha = 1;
+		if (!dimmedIds.has(c.id)) c.dim = 1;
 	}
 	// un-dim ONCE, alongside the refill (never awaited: the refill starts at the removal end).
-	// settleBoard at the end of the fill lands every alpha on 1 whatever happened here.
+	// settleBoard at the end of the fill lands every dim on 1 whatever happened here.
 	if (stateGame.skipping || !alive(id)) {
-		for (const c of stateGame.cells) c.alpha = 1;
+		for (const c of stateGame.cells) c.dim = 1;
 	} else {
 		void raf(CLUSTER.dimMs, (t) => {
 			if (!alive(id)) return;
 			const map = liveById();
 			for (const idm of dimmedIds) {
 				const c = map.get(idm);
-				if (c) c.alpha = CLUSTER.dimAlpha + (1 - CLUSTER.dimAlpha) * t;
+				if (c) c.dim = CLUSTER.dimAlpha + (1 - CLUSTER.dimAlpha) * t;
 			}
 		});
 	}
 	return removed;
 };
 
-/** the cluster leaves the board: a pop, then nothing. The DELETION is unconditional — a superseded
- *  run may skip the animation, never the structural change. */
-export const removeCells = async (cells: CellIndex[], id: number) => {
+/** the cluster leaves the board: a pop, then nothing. The DELETION is unconditional: a superseded
+ *  run may skip the animation, never the structural change. `onCleared` fires per cell once it is gone. */
+export const removeCells = async (cells: CellIndex[], id: number, onCleared?: (cell: CellIndex) => void) => {
 	const doomed = new Set(cells);
 	const goingIds: number[] = [];
 	for (const c of stateGame.cells) {
@@ -864,30 +1058,112 @@ export const removeCells = async (cells: CellIndex[], id: number) => {
 		c.scaleY = 1;
 	}
 	stateGame.readouts = [];
+	if (onCleared) for (const index of cells) onCleared(index);
 };
 
-/** apply the book's tile diff — the client NEVER re-derives which cells step up */
-export const applyTiles = async (entries: TileEntry[], id: number) => {
-	if (!entries.length) return;
-	for (const [cell, value] of entries) {
-		const tile = stateGame.tiles[cell];
-		if (tile) {
-			tile.value = value;
-			tile.scale = TILE.popScale;
+// ---- the multiplier plates (MULT_PLATE) ------------------------------------------------------------
+// The VALUES are the book's, applied exactly as written (cascade.tiles / swipe.tiles, never re-derived);
+// only WHEN a value shows is presentation: a plate is exposed when its symbol has left (presentWinSet's
+// onCleared, removeCells', the swipe's exit) and changeDelayMs later it pops (revealPopScale over
+// revealPopMs) and, if the book gave the cell a new value, counts over to it over changeMs. One rAF pump
+// runs every plate in flight in style time (divided by the turbo scale captured when it was queued); a
+// skip lands every plate on its final state at once (the skip rule: chg = pop = 1, value = the book's).
+type PlateJob = { cell: CellIndex; to: number | null; t0: number; rate: number; delay: number; started: boolean; change: boolean };
+const plateJobs: PlateJob[] = [];
+let plateRaf = 0;
+/** DEV probe log (plate_probe / tease_probe): every plate change, when it started and ended (performance.now()) */
+export const plateLog: { cell: CellIndex; from: number; to: number; queued: number; start: number; end: number; rate: number }[] = [];
+
+const finishPlate = (j: PlateJob) => {
+	const tile = stateGame.tiles[j.cell];
+	if (!tile) return;
+	if (!j.started) startPlate(j, tile);
+	tile.chg = 1;
+	tile.pop = 1;
+	if (import.meta.env.DEV) {
+		for (let k = plateLog.length - 1; k >= 0; k -= 1) {
+			if (plateLog[k].cell !== j.cell || plateLog[k].end !== 0) continue;
+			plateLog[k].end = performance.now();
+			break;
 		}
 	}
-	await raf(TILE.popMs, (t) => {
-		if (!alive(id)) return;
-		const e = TILE.popEasing(t);
-		for (const [cell] of entries) {
-			const tile = stateGame.tiles[cell];
-			if (tile) tile.scale = TILE.popScale + (1 - TILE.popScale) * e;
-		}
-	});
-	for (const [cell] of entries) {
-		const tile = stateGame.tiles[cell];
-		if (tile) tile.scale = 1;
+};
+const startPlate = (j: PlateJob, tile: Tile) => {
+	j.started = true;
+	j.change = j.to !== null && j.to !== tile.value;
+	if (j.change) {
+		tile.from = tile.value;
+		tile.value = j.to!;
 	}
+	if (import.meta.env.DEV) {
+		plateLog.push({ cell: j.cell, from: j.change ? tile.from : tile.value, to: tile.value, queued: j.t0, start: performance.now(), end: 0, rate: j.rate });
+		if (plateLog.length > 600) plateLog.splice(0, 300);
+	}
+};
+const pumpPlates = () => {
+	plateRaf = 0;
+	const now = performance.now();
+	for (let i = plateJobs.length - 1; i >= 0; i -= 1) {
+		const j = plateJobs[i];
+		const tile = stateGame.tiles[j.cell];
+		const el = (now - j.t0) * j.rate - j.delay;
+		if (!tile || stateGame.skipping) {
+			finishPlate(j);
+			plateJobs.splice(i, 1);
+			continue;
+		}
+		if (el < 0) continue;
+		if (!j.started) startPlate(j, tile);
+		const chg = j.change ? clamp01(el / Math.max(MULT_PLATE.changeMs, 1)) : 1;
+		const pop = tile.value > 0 ? clamp01(el / Math.max(MULT_PLATE.revealPopMs, 1)) : 1;
+		if (tile.chg !== chg) tile.chg = chg;
+		if (tile.pop !== pop) tile.pop = pop;
+		if (chg >= 1 && pop >= 1) {
+			finishPlate(j);
+			plateJobs.splice(i, 1);
+		}
+	}
+	if (plateJobs.length) plateRaf = requestAnimationFrame(pumpPlates);
+};
+
+/** a cell's plate is exposed: after `delayMs` (style) it pops and, when `to` is a new value, counts over
+ *  to it. A cell with no value now and none coming has nothing to show. */
+export const plateReveal = (cell: CellIndex, to: number | null, delayMs: number = MULT_PLATE.changeDelayMs) => {
+	const tile = stateGame.tiles[cell];
+	if (!tile) return;
+	const have = plateJobs.find((j) => j.cell === cell);
+	if (have) {
+		// already queued (the win set's onCleared, then the handler's applyTiles with the same entry)
+		if (to !== null && have.to !== to) {
+			if (have.started) tile.value = to;
+			else have.to = to;
+		}
+		return;
+	}
+	if (to !== null && tile.value === to) return; // this entry has already played
+	if (!tile.value && !to) return;
+	const j: PlateJob = { cell, to, t0: performance.now(), rate: ts(), delay: delayMs, started: false, change: false };
+	if (stateGame.skipping || typeof requestAnimationFrame !== 'function') {
+		finishPlate(j);
+		return;
+	}
+	plateJobs.push(j);
+	if (!plateRaf) plateRaf = requestAnimationFrame(pumpPlates);
+};
+
+/** land every plate in flight on its final state now (a new round, a reset) */
+const flushPlates = () => {
+	for (const j of plateJobs) finishPlate(j);
+	plateJobs.length = 0;
+	if (plateRaf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(plateRaf);
+	plateRaf = 0;
+};
+
+/** apply the book's tile diff: the client NEVER re-derives which cells step up. Each entry plays its
+ *  plate beat (plateReveal) unless it already has (the win set exposes most of them as their symbols
+ *  leave); resolves at once, the beat runs on its own. */
+export const applyTiles = async (entries: TileEntry[], _id: number, delayMs: number = MULT_PLATE.changeDelayMs) => {
+	for (const [cell, value] of entries) plateReveal(cell, value, delayMs);
 };
 
 /** survivors fall into the gaps and `fill` drops in from above, per column, top-down. `aura` is the
@@ -968,22 +1244,22 @@ const flipCells = (targetIds: number[], symbol: SymbolName) => {
 };
 
 /**
- * One tail hit on its cells (a normal sting's one cell, or the scatter sting's): the cell pops
- * (popScale, sine over the whole beat) and flips to `symbol` at STING.hitAt of it. The overlays
- * (the tail streak during the wind-up, the white flash, the per-cell ring) are Sting.svelte's, from
- * the stingFx entry stamped here. The scatter sting keeps its own beat: the old flash tint, no streak.
- * Resolves at the end of the beat; the ring tail runs on into the gap on its own.
+ * One tail hit on its cells (a normal sting's one cell, or a scatter sting's): the cell pops (popScale,
+ * sine over the whole beat) and flips to `symbol` at STING.hitAt of it. The overlays (the tail streak
+ * during the wind-up, the white flash, the per-cell ring) are Sting.svelte's, from the stingFx entry
+ * stamped here. A scatter sting (SCATTER_STING) draws the same streak and flash with no white ring:
+ * `onHit` (the flip) is where its house scatter landing beat starts. Resolves at the end of the beat; the
+ * ring tail runs on into the gap on its own.
  */
 export const stingHit = async (
 	cells: CellIndex[],
 	symbol: SymbolName,
-	{ ms, popScale, kind }: { ms: number; popScale: number; kind: StingKindName },
+	{ ms, popScale, kind, onHit }: { ms: number; popScale: number; kind: StingKindName; onHit?: () => void },
 	id: number,
 	rec?: FxRecord,
 ) => {
 	const targetIds = cellIdsAt(cells);
 	if (!targetIds.length) return;
-	const scatter = kind === 'scatter';
 	if (!stateGame.skipping) {
 		const t0 = performance.now();
 		const rate = ts();
@@ -994,7 +1270,7 @@ export const stingHit = async (
 				rate,
 				dur: ms,
 				hitAt: STING.hitAt,
-				streak: kind === 'normal' && STING.streak,
+				streak: (kind === 'normal' || kind === 'scatter') && STING.streak,
 				ringMs: kind === 'normal' ? STING.ringMs : 0,
 				kind,
 			});
@@ -1006,11 +1282,8 @@ export const stingHit = async (
 		flipped = true;
 		if (rec) fxStamp(rec, 'hit');
 		flipCells(targetIds, symbol);
+		onHit?.();
 	};
-	if (scatter) {
-		const targets = new Set(targetIds);
-		for (const c of stateGame.cells) if (targets.has(c.id)) c.flashColor = STING.scatterColor;
-	}
 	await raf(ms, (t) => {
 		if (!alive(id)) return;
 		if (t >= STING.hitAt) flip();
@@ -1022,7 +1295,6 @@ export const stingHit = async (
 			if (!cell) continue;
 			cell.scaleX = scale;
 			cell.scaleY = scale;
-			if (scatter) cell.flash = STING.scatterFlashAlpha * k;
 		}
 	});
 	flip(); // a superseded run may skip the animation, never the book's symbol change
@@ -1031,8 +1303,9 @@ export const stingHit = async (
 
 /**
  * A big / super sting, one compiled beat in style ms (the playground's compileSting finisher):
- *   0 .. charge            the board outside the shape dims to dimAlpha over dimMs; the centre
- *                          telegraph breathes (Sting.svelte); chargePulse 0 = the cells do not pulse
+ *   0 .. charge            the board outside the shape darkens to dimAlpha over dimMs (the dim rule);
+ *                          the centre telegraph breathes (Sting.svelte); chargePulse 0 = the cells do
+ *                          not pulse
  *   charge .. charge+hit   every shape cell pops (bigPopScale, sine) and flips TOGETHER at hitAt;
  *                          bigRings rings ripple from the centre, bigRingGapMs apart (Sting.svelte)
  *   .. + undimMs           the board comes back up
@@ -1099,7 +1372,7 @@ export const stingBig = async (
 				c.scaleX = scale;
 				c.scaleY = scale;
 			} else {
-				c.alpha = dim;
+				c.dim = dim;
 			}
 		}
 	});
@@ -1109,12 +1382,83 @@ export const stingBig = async (
 	if (!alive(id) || stateGame.skipping) stingFx.charge = null;
 };
 
-/** the scatter sting's disappointment / anticipation beat on the resting board: the centre telegraph
- *  pulses (Sting.svelte) for scatterHoldMs. Its own beat, unchanged by the lock. */
-export const stingScatterWait = async (center: CellIndex) => {
-	if (!stateGame.skipping) stingFx.charge = { centre: center, t0: performance.now(), rate: ts(), dur: STING.scatterHoldMs, kind: 'scatter' };
-	await waitStyle(STING.scatterHoldMs);
-	stingFx.charge = null;
+// ---- the scatter beats (SCATTER_STING, and the derived tease's hit / miss) ------------------------
+
+/** the scatters on the board right now, as live cell ids (by cellIndex) */
+const scatterIdsAt = (cells: CellIndex[]) => cellIdsAt(cells).filter((cellId) => stateGame.cells.some((c) => c.id === cellId && c.name === 'S'));
+
+/**
+ * A hold on the resting board (the playground's scatHold track): over `ms` every cell but `keep` darkens
+ * toward `dimTo` on the envelope sin(pi u)^0.5 (in and out within the hold), and the kept scatters' glow
+ * breathes 0.4 max(0, sin(2 pi hz t)) in the scatter colour while they scale by 1 + pulse x the same
+ * wave. dimTo 1 = no darkening. The skip rule: t = 1 writes everything back to rest.
+ */
+export const scatterHold = async (keep: CellIndex[], ms: number, { dimTo = 1, pulse = 0, hz = 1 }: { dimTo?: number; pulse?: number; hz?: number }, id: number, rec?: FxRecord, phase?: string) => {
+	if (ms <= 0) return;
+	const keepIds = new Set(scatterIdsAt(keep));
+	if (rec && phase) fxStamp(rec, phase);
+	await raf(ms, (t, el) => {
+		if (!alive(id)) return;
+		const map = liveById();
+		const e = t >= 1 ? 0 : Math.pow(Math.sin(Math.PI * t), 0.5);
+		const w = t >= 1 ? 0 : Math.max(0, Math.sin((el / 1000) * hz * Math.PI * 2));
+		for (const c of map.values()) {
+			if (keepIds.has(c.id)) {
+				const v = 1 + pulse * w;
+				c.scaleX = v;
+				c.scaleY = v;
+				c.glow = 0.4 * w;
+				c.glowColor = SCATTER_STING.scatterColor;
+			} else if (dimTo < 1) c.dim = 1 - (1 - dimTo) * e;
+		}
+	});
+	const map = liveById();
+	for (const c of map.values()) {
+		if (keepIds.has(c.id)) {
+			c.scaleX = 1;
+			c.scaleY = 1;
+			c.glow = 0;
+			c.glowColor = AURA_COLOR;
+		} else c.dim = 1;
+	}
+};
+
+/** the scatter landing ring + glow (SCATTER_STING.landMs, reach landRingScale / 2 cells): the STANDARD
+ *  landing beat, on every scatter that lands or is stung in (Sting.svelte draws it) */
+export const scatterRing = (cell: CellIndex) => {
+	if (stateGame.skipping || SCATTER_STING.landMs <= 0) return;
+	stingFx.rings.push({ centre: cell, t0: performance.now(), rate: ts(), dur: SCATTER_STING.landMs, reach: SCATTER_STING.landRingScale / 2, px: 5, color: SCATTER_STING.scatterColor, from: 0.2 });
+};
+
+/** the trigger pulse: every scatter pulses together over triggerMs to triggerScale (sine over the first
+ *  60 %), glowing 1 -> 0 in the scatter colour. `onStart` is the house bonus-confirm SFX. */
+export const scatterTrigger = async (cells: CellIndex[], id: number, rec?: FxRecord, onStart?: () => void) => {
+	const ids = new Set(scatterIdsAt(cells));
+	if (rec) fxStamp(rec, 'trigger');
+	onStart?.();
+	await raf(SCATTER_STING.triggerMs, (t) => {
+		if (!alive(id)) return;
+		const map = liveById();
+		const v = t >= 1 ? 1 : 1 + (SCATTER_STING.triggerScale - 1) * Math.sin(Math.PI * Math.min(t / 0.6, 1));
+		for (const cellId of ids) {
+			const c = map.get(cellId);
+			if (!c) continue;
+			c.scaleX = v;
+			c.scaleY = v;
+			c.glow = t >= 1 ? 0 : 1 - t;
+			c.glowColor = SCATTER_STING.scatterColor;
+		}
+	});
+	const map = liveById();
+	for (const cellId of ids) {
+		const c = map.get(cellId);
+		if (!c) continue;
+		c.scaleX = 1;
+		c.scaleY = 1;
+		c.glow = 0;
+		c.glowColor = AURA_COLOR;
+	}
+	if (rec) fxStamp(rec, 'triggerEnd');
 };
 
 // ---- the claw swipe (MOTION_SPEC "Claw swipe", the playground's compileSwipe) ---------------------
@@ -1317,8 +1661,12 @@ export const flashCells = async (cells: CellIndex[], color: number, ms: number, 
 };
 
 export const resetTiles = () => {
+	plateJobs.length = 0;
+	if (plateRaf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(plateRaf);
+	plateRaf = 0;
 	stateGame.tiles = emptyTiles();
 };
+export { flushPlates };
 
 export const setBoardFromSymbols = (board: SymbolName[][]) => {
 	stateGame.cells = board.flatMap((column, reel) => column.map((name, row) => makeCell(name, reel, row)));
@@ -1390,6 +1738,10 @@ const boardRaw = (): SymbolName[][] => {
 	return out;
 };
 
+/** the plates as BoardCells draws them (probe hook): value, the count-over's from / progress, the pop */
+const platesRaw = () =>
+	stateGame.tiles.flatMap((t, i) => (t.value || t.chg < 1 ? [{ i, value: t.value, from: t.from, chg: Number(t.chg.toFixed(3)), pop: Number(t.pop.toFixed(3)) }] : []));
+
 const tilesRaw = (): Record<number, number> => {
 	const out: Record<number, number> = {};
 	stateGame.tiles.forEach((t, i) => {
@@ -1405,6 +1757,8 @@ export const stateGameDerived = {
 	boardLayout,
 	boardRaw,
 	tilesRaw,
+	platesRaw,
+	planTease,
 	getWinLevelDataByWinLevelAlias,
 	resetSession,
 	setTurboLevel,

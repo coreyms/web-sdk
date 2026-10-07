@@ -11,7 +11,8 @@
 	//   big      the centre telegraph breathing through the charge, the white flash on every cell at
 	//   super    the hit, NO per-cell rings; bigRings rings from the centre, bigRingGapMs apart, each
 	//            0.2 -> reach cells over bigRingMs, width bigRingPx shrinking 60%
-	//   scatter  its own beat, unchanged: the telegraph pulse through the wait, the impact ring
+	//   scatter  SCATTER_STING: the normal streak and flash (no white ring); the scatter's STANDARD landing
+	//            ring (a coloured ring with its glow, stateGame.scatterRing) rides the ripple-ring pool
 	// A Spine rig can still replace this file alone: the handler and the engine speak in kinds.
 	//
 	// House rules: always mounted at one z in the sorted board container (the conditional-mount trap),
@@ -42,7 +43,8 @@
 	const FLASH_POOL = 12;
 	const STREAK_POOL = 4;
 	const RING_POOL = 6;
-	const SHAPE_RING_POOL = 4;
+	// big / super ripples (2) and the scatter landing rings (up to six scatters landing close together)
+	const SHAPE_RING_POOL = 8;
 
 	const root = new PIXI.Container({ zIndex: 15 });
 	getContextParent().addToParent(root);
@@ -110,17 +112,9 @@
 			else if (el >= 0) {
 				const u = el / ch.dur;
 				telegraph.clear();
-				if (ch.kind === 'scatter') {
-					// the scatter wait's pulse, as it was before the lock
-					const pulse = Math.abs(Math.sin(Math.PI * 2 * u));
-					const s = 1.1 + 0.25 * pulse;
-					telegraph.circle(cx(ch.centre), cy(ch.centre), CELL * 0.5 * s).stroke({ color: STING.scatterColor, width: 4 * s });
-					telegraph.alpha = 0.15 + 0.45 * pulse * (0.4 + 0.6 * u);
-				} else {
-					const pulse = Math.max(0, Math.sin(u * Math.PI * STING.chargeBeats));
-					telegraph.circle(cx(ch.centre), cy(ch.centre), CELL * (0.3 + 0.25 * pulse)).stroke({ color: STING.wildColor, width: 3 * K });
-					telegraph.alpha = 0.25 + 0.6 * pulse;
-				}
+				const pulse = Math.max(0, Math.sin(u * Math.PI * STING.chargeBeats));
+				telegraph.circle(cx(ch.centre), cy(ch.centre), CELL * (0.3 + 0.25 * pulse)).stroke({ color: STING.wildColor, width: 3 * K });
+				telegraph.alpha = 0.25 + 0.6 * pulse;
 				telegraph.visible = true;
 				stats.telegraph = 1;
 			}
@@ -131,7 +125,7 @@
 			const st = stingFx.strikes[i];
 			const el = (now - st.t0) * st.rate;
 			const hitT = st.hitAt * st.dur;
-			const end = st.kind === 'scatter' ? st.dur : Math.max(st.dur, hitT + Math.max(FLASH_MS, st.ringMs));
+			const end = Math.max(st.dur, hitT + Math.max(FLASH_MS, st.ringMs));
 			if (el >= end) {
 				stingFx.strikes.splice(i, 1);
 				continue;
@@ -140,16 +134,6 @@
 			const u = el / st.dur;
 			const x = cx(st.cell);
 			const y = cy(st.cell);
-			if (st.kind === 'scatter') {
-				// the scatter's impact ring, as it was before the lock
-				if (nr >= RING_POOL) { stats.dropped += 1; continue; }
-				const g = rings[nr++];
-				const s = 0.45 + 1.15 * u;
-				g.clear().circle(x, y, CELL * 0.5 * s).stroke({ color: STING.scatterColor, width: 6 * s });
-				g.alpha = 1 - u;
-				g.visible = true;
-				continue;
-			}
 			if (st.streak && u < st.hitAt) {
 				if (ns >= STREAK_POOL) stats.dropped += 1;
 				else {
@@ -207,13 +191,16 @@
 			}
 			const u = el / r.dur;
 			const g = shapeRings[nsr++];
-			const rad = CELL * (0.2 + (r.reach - 0.2) * quadOut(u));
+			const r0 = r.from ?? 0.2;
+			const rad = CELL * (r0 + (r.reach - r0) * quadOut(u));
 			const w = (r.px * (1 - 0.6 * u) + 1) * K;
 			const x = cx(r.centre);
 			const y = cy(r.centre);
+			// the playground's shapeRing: the ring in its colour (white for a wild shape) over its soft glow
+			// (canvas shadowBlur 10, here a wider faint stroke)
 			g.clear()
-				.circle(x, y, rad).stroke({ color: STING.wildColor, width: w + 10 * K, alpha: 0.3 })
-				.circle(x, y, rad).stroke({ color: 0xffffff, width: w });
+				.circle(x, y, rad).stroke({ color: r.color ?? STING.wildColor, width: w + 10 * K, alpha: 0.3 })
+				.circle(x, y, rad).stroke({ color: r.color ?? 0xffffff, width: w });
 			g.alpha = 1 - u;
 			g.visible = true;
 		}

@@ -2,7 +2,6 @@ import _ from 'lodash';
 
 import { recordBookEvent, checkIsMultipleRevealEvents, type BookEventHandlerMap } from 'utils-book';
 import { stateBet, stateBetDerived } from 'state-shared';
-import { waitForTimeout } from 'utils-shared/wait';
 
 import { eventEmitter } from './eventEmitter';
 import type { MusicName } from './sound';
@@ -19,7 +18,6 @@ import {
 	dropFill,
 	stingHit,
 	stingBig,
-	stingScatterWait,
 	swipeBand,
 	roarBlow,
 	flashCells,
@@ -28,6 +26,12 @@ import {
 	settleBoard,
 	boardInvariant,
 	newRun,
+	currentRun,
+	revealTease,
+	scatterHold,
+	scatterRing,
+	scatterTrigger,
+	plateReveal,
 } from './stateGame.svelte';
 import { motionLog } from './sparkles';
 import { fxRecord, fxStamp } from './featureFx';
@@ -36,10 +40,15 @@ import type { CellIndex } from './types';
 import {
 	TIMINGS,
 	STING,
+	CLUSTER,
+	MULT_PLATE,
+	SWIPE_FX,
+	SCATTER_STING,
+	ANTICIPATION_TEASE,
+	scatterWait,
 	BONUS_TRIGGER_SOUND_MAP,
 	BONUS_MODE_LABEL,
 	SCATTER_LAND_SOUND_MAP,
-	cellOf,
 } from './constants';
 
 // ================================================================================================
@@ -87,26 +96,30 @@ const scatterLand = (cell: number, id: number) => {
 	const n = Math.min(5, stateGame.scatterCells.length) as 1 | 2 | 3 | 4 | 5;
 	eventEmitter.broadcast({ type: 'soundOnce', name: SCATTER_LAND_SOUND_MAP[n] });
 	eventEmitter.broadcast({ type: 'soundScatterCounterIncrease' });
+	// the STANDARD scatter landing beat: the ring + its glow (SCATTER_STING.landMs) and the tint flash
+	scatterRing(cell);
 	void flashCells([cell], STING.scatterColor, TIMINGS.scatterFlashMs, id);
 };
 
-/** the reveal's own scatters, left to right */
-const scatterBeat = async (cells: number[], id: number) => {
-	if (!cells.length) return;
-	for (const cell of [...cells].sort((a, b) => a - b)) {
-		scatterLand(cell, id);
-		await waitForTimeout(TIMINGS.scatterStaggerMs);
-	}
+/** the house bonus-confirm SFX, played ONCE per round: at the scatter trigger pulse (a tease hit, the end
+ *  of a scatter sting run) when the book goes on to a bonusStart, else at bonusStart itself */
+let triggerSfxPlayed = false;
+const playTriggerSfx = (from: BookEvent, bookEvents: BookEvent[]) => {
+	const start = bookEvents.slice(bookEvents.indexOf(from) + 1).find((e) => e.type === 'bonusStart') as BookEventOfType<'bonusStart'> | undefined;
+	if (!start || triggerSfxPlayed) return;
+	triggerSfxPlayed = true;
+	eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND_MAP[start.bonus] });
 };
 
-const scattersOf = (board: BookEventOfType<'reveal'>['board']): number[] => {
-	const cells: number[] = [];
-	board.forEach((column, reel) =>
-		column.forEach((name, row) => {
-			if (name === 'S') cells.push(cellOf(reel, row));
-		}),
-	);
-	return cells;
+/** this scatter sting's place in its run (the book's scatter stings after the last reveal): k of n */
+const scatterRunOf = (bookEvent: BookEvent, bookEvents: BookEvent[]) => {
+	const at = bookEvents.indexOf(bookEvent);
+	let from = at;
+	while (from > 0 && bookEvents[from - 1].type !== 'reveal') from -= 1;
+	let to = at;
+	while (to + 1 < bookEvents.length && bookEvents[to + 1].type !== 'reveal') to += 1;
+	const run = bookEvents.slice(from, to + 1).filter((e) => e.type === 'sting' && e.kind === 'scatter');
+	return { k: Math.max(0, run.indexOf(bookEvent)), n: Math.max(1, run.length) };
 };
 
 /** THE AURA LOOK-AHEAD (presentation only): the winners of the cascade that follows `bookEvent`
@@ -165,14 +178,34 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 		// THE BOOK'S ANTICIPATION ARRAY IS HONOURED IN MYSTERY ONLY (RULE_PASS_2 section D): the
 		// Mystery spin-in always lands 3 War Standards in columns 0-2 and teases columns 3-7, and
-		// the book writes that tease itself. Every other mode ignores the field, exactly as before.
+		// the book writes that tease itself. Every other mode ignores the field and plays the DERIVED
+		// tease instead (ANTICIPATION_TEASE: read off this board, presentation only).
 		const anticipation = isMystery && bookEvent.gameType === 'basegame' ? bookEvent.anticipation : undefined;
 
-		const id = await revealBoard(bookEvent.board, { anticipation, aura: nextCascadeWinners(bookEvent, bookEvents) });
+		// each scatter's house landing beat plays at its own landing contact, in landing order
+		stateGame.scatterCells = [];
+		if (bookEvent.gameType === 'basegame') triggerSfxPlayed = false;
+		const rec = fxRecord('reveal', { turbo: stateGame.turboLevel, mystery: isMystery });
+		const id = await revealBoard(bookEvent.board, {
+			anticipation,
+			tease: !isMystery,
+			aura: nextCascadeWinners(bookEvent, bookEvents),
+			onScatterLand: (cell) => scatterLand(cell, currentRun()),
+		});
+		fxStamp(rec, 'landed');
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop', forcePlay: true });
 
-		stateGame.scatterCells = [];
-		await scatterBeat(scattersOf(bookEvent.board), id);
+		// the derived tease's outcome: a hit plays the trigger pulse (and the house bonus-confirm SFX), a
+		// miss rests. A scatter sting run straight after is its own rest (SCATTER_STING.holdMs), so a miss
+		// that the stings will complete does not rest twice.
+		if (revealTease.teased) {
+			rec.info = { ...(rec.info ?? {}), tease: { hit: revealTease.hit, scatters: revealTease.scatters.slice() } };
+			const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+			if (revealTease.hit) await scatterTrigger(stateGame.scatterCells, id, rec, () => playTriggerSfx(bookEvent, bookEvents));
+			else if (!(next?.type === 'sting' && next.kind === 'scatter')) await scatterHold(stateGame.scatterCells, ANTICIPATION_TEASE.missHoldMs, { pulse: 0, hz: 1 }, id, rec, 'miss');
+			settleBoard();
+		}
+		fxStamp(rec, 'end');
 	},
 
 	// ---- cascade: one step of wins, removal, tiles, refill ---------------------------------------
@@ -187,6 +220,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the running spin total: the previous step's spinWin plus each cluster's win as its count-up
 		// lands, then SNAPPED to the book's cascade.spinWin at the end of the step (never derived past it)
 		let running = stateGame.spinWin;
+		// THE PLATES: each removed cell's plate plays its beat changeDelayMs after its symbol has left,
+		// counting over to the book's new value where `tiles` lists one (MULT_PLATE)
+		const tileMap = new Map(bookEvent.tiles);
+		const onCleared = (cell: CellIndex) => plateReveal(cell, tileMap.get(cell) ?? null);
 		const ours = await presentWinSet(
 			bookEvent.wins.map((w) => ({ cells: w.c, base: w.p, mult: w.m, total: w.w, symbol: w.s })),
 			id,
@@ -200,6 +237,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 						if (motionLog.steps.length > 400) motionLog.steps.splice(0, 200);
 					}
 				},
+				onCleared,
 			},
 		);
 		const oursSet = new Set(ours);
@@ -210,11 +248,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			motionLog.lastCascade = { ours: ours.length, book: bookEvent.removed.length, rest: rest.length, extra };
 			if (extra.length) console.warn('[manticore] win set removed cells the book did not list', extra);
 		}
-		if (rest.length) await removeCells(rest, id);
+		if (rest.length) await removeCells(rest, id, onCleared);
 		// Playback order is fixed by the schema: show the wins, remove `removed`, set `tiles`,
 		// drop `fill`. The client never has to reconstruct an intermediate board.
 		if (bookEvent.tiles.length) eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_service_bell', forcePlay: true });
 		await applyTiles(bookEvent.tiles, id);
+		// CLUSTER.refillDelayMs: the plates' count-over plays before the refill lands on them
+		await waitStyle(CLUSTER.refillDelayMs);
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 
 		settleBoard();
@@ -235,9 +275,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const rec = fxRecord('swipe', { rows: bookEvent.rows, removed: bookEvent.removed.length, turbo: stateGame.turboLevel, skipping: stateGame.skipping });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'swipe', rows: bookEvent.rows });
-		let tiles: Promise<void> = Promise.resolve();
-		await swipeBand(bookEvent.removed, bookEvent.rows, id, { rec, onExit: () => (tiles = applyTiles(bookEvent.tiles, id)) });
-		await tiles;
+		// the plates in the band play their beat once the symbols have faded (exitMs) + changeDelayMs
+		const tileMap = new Map(bookEvent.tiles);
+		const plates = () => {
+			for (const cell of bookEvent.removed) plateReveal(cell, tileMap.get(cell) ?? null, SWIPE_FX.exitMs + MULT_PLATE.changeDelayMs);
+		};
+		await swipeBand(bookEvent.removed, bookEvent.rows, id, { rec, onExit: plates });
+		await applyTiles(bookEvent.tiles, id, SWIPE_FX.exitMs + MULT_PLATE.changeDelayMs);
 		fxStamp(rec, 'refill');
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 		settleBoard();
@@ -256,17 +300,29 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			eventEmitter.broadcast({ type: 'stingBeat', phase, kind, center, cells });
 
 		if (kind === 'scatter') {
-			// the board is already at rest: hold the disappointment / anticipation beat, then the
-			// same tail hit, and the cell becomes a War Standard with the STANDARD scatter landing
-			// SFX and the scatter beat. One event per scatter, played in the book's order.
-			beat('wait');
-			await stingScatterWait(center);
+			// SCATTER_STING (locked 2026-10-06 18:29). One event per scatter, in the book's order; how many
+			// is the book's, the beat is presentation only. The first holds the resting board (everything but
+			// the scatters darkened); each is the normal tail hit, the cell becoming a War Standard with the
+			// STANDARD landing ring and the house scatter SFX at the flip; then the ladder's wait (the last
+			// waits the next rung), and after the last every scatter pulses together (bonus-confirm SFX).
+			const { k, n } = scatterRunOf(bookEvent, bookEvents);
+			rec.info = { ...(rec.info ?? {}), k, n };
+			const dim = { dimTo: SCATTER_STING.holdDimAlpha, pulse: SCATTER_STING.holdPulse, hz: SCATTER_STING.holdPulseHz };
+			if (k === 0) {
+				beat('wait');
+				await scatterHold(stateGame.scatterCells, SCATTER_STING.holdMs, dim, id, rec, 'hold');
+			}
 			beat('strike');
 			fxStamp(rec, 'strike');
 			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike', forcePlay: true });
-			await stingHit(cells, bookEvent.symbol, { ms: STING.scatterHitMs, popScale: STING.popScale, kind }, id, rec);
-			scatterLand(cells[0], id);
+			await stingHit(cells, bookEvent.symbol, { ms: SCATTER_STING.hitMs, popScale: STING.popScale, kind, onHit: () => scatterLand(cells[0], id) }, id, rec);
 			settleBoard();
+			const wait = scatterWait(k, n);
+			if (wait > 0) await scatterHold(stateGame.scatterCells, wait, dim, id, rec, 'wait');
+			fxStamp(rec, 'waited');
+			if (k === n - 1) await scatterTrigger(stateGame.scatterCells, id, rec, () => playTriggerSfx(bookEvent, bookEvents));
+			settleBoard();
+			fxStamp(rec, 'end');
 			return;
 		}
 
@@ -316,8 +372,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 	// ---- feature entry ---------------------------------------------------------------------------
 	bonusStart: async (bookEvent: BookEventOfType<'bonusStart'>) => {
-		// the feature-entry confirmation sound carries over from Angry Mantis unchanged
-		eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND_MAP[bookEvent.bonus] });
+		// the feature-entry confirmation sound carries over from Angry Mantis unchanged; a scatter trigger
+		// pulse this round has already played it (playTriggerSfx), so it is never heard twice
+		if (!triggerSfxPlayed) eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND_MAP[bookEvent.bonus] });
+		triggerSfxPlayed = false;
 		stateGame.bonusMode = bookEvent.bonus;
 		stateGame.tileCap = bookEvent.tileCap;
 		stateGame.totalFs = bookEvent.totalFs;

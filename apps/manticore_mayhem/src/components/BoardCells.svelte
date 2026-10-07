@@ -11,8 +11,19 @@
 	// frame outside any reactive context and writes only the Pixi fields that actually changed.
 	//
 	// Sprites are POOLED: a cell id takes a sprite from the free list the first frame it appears and
-	// gives it back the first frame it is gone, so a refill never allocates. The badges are 64 fixed
-	// sprites, one per cellIndex (a badge belongs to the CELL, not to the symbol, so it never moves).
+	// gives it back the first frame it is gone, so a refill never allocates.
+	//
+	// THE MULTIPLIER PLATES (MULT_PLATE, Corey 2026-10-07 13:25; the top-right badge is retired): a plate
+	// belongs to the CELL (cellIndex), never to the symbol, and is drawn UNDER the symbols. One plate per
+	// cell, built the first frame that cell has a value and kept: one Graphics drawn ONCE in white (the fill
+	// and the border; the colour, the count-over's colour lerp and the dim are its tint, so it is never
+	// redrawn), a soft glow (the shared aura texture, tinted) and two rows of numerals-atlas glyphs (the old
+	// and the new value for the count-over), each a white face over a slightly larger copy tinted the plate
+	// colour (the playground's white fill with a coloured stroke). Rows re-layout only when their text
+	// changes. No text, no texture, no filter.
+	//
+	// THE DIM RULE (Corey 2026-10-07 10:18): every dim (Cell.dim) is a DARKENING, the sprite tint
+	// multiplied toward black, never alpha, and the plate under a dimmed symbol darkens by the same factor.
 	//
 	// MOTION PASS 1 adds three more pooled layers, all sized ONCE at mount, never allocated per frame:
 	//   · the AURA: an additive halo sprite behind every pooled tile (one per slot), alpha = Cell.glow
@@ -38,10 +49,12 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { quadOut } from 'svelte/easing';
+	import { quadOut, quadIn, backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, TILE, SPARKLE, AURA_COLOR, SHEET_FPS, reelOf, rowOf, symbolAnim } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, reelOf, rowOf, symbolAnim } from '../game/constants';
+	import { BOARD_ART } from '../game/boardArtSpec';
+	import { layoutNumerals } from '../game/numeralLayout';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { dotTexture, glowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
@@ -51,18 +64,18 @@
 	const context = getContext();
 	const stateGame = context.stateGame;
 
-	// SYMBOL_FIT: the symbols and the badges sit inside the lattice's clear openings (constants.ts)
+	// SYMBOL_FIT: the symbols sit inside the lattice's clear openings (constants.ts)
 	const SIZE = SYMBOL_SIZE * CELL_FILL * SYMBOL_FIT;
-	const BADGE = SYMBOL_SIZE * TILE.size * SYMBOL_FIT;
 	const GLOW_SIZE = SIZE * 1.45;
 
+	// the plates: under the Mystery tease (-1) and the tiles (0), over the old cell-well backdrop (-2)
+	const plateLayer = new PIXI.Container({ zIndex: -1.5 });
 	const cellLayer = new PIXI.Container({ zIndex: 0, sortableChildren: true });
 	const flashLayer = new PIXI.Container({ zIndex: 11, visible: false });
-	const badgeLayer = new PIXI.Container({ zIndex: 20 });
 	const parent = getContextParent();
+	parent.addToParent(plateLayer);
 	parent.addToParent(cellLayer);
 	parent.addToParent(flashLayer);
-	parent.addToParent(badgeLayer);
 
 	const assets = () => context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 	const rendererOf = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
@@ -74,6 +87,17 @@
 		const g = Math.round(255 + (((color >> 8) & 0xff) - 255) * k);
 		const b = Math.round(255 + ((color & 0xff) - 255) * k);
 		return (r << 16) | (g << 8) | b;
+	};
+	/** THE DIM RULE: a tint multiplied toward black by `dim` (1 = unchanged) */
+	const darken = (color: number, dim: number) => {
+		if (dim >= 1) return color;
+		const d = dim <= 0 ? 0 : dim;
+		return (Math.round(((color >> 16) & 0xff) * d) << 16) | (Math.round(((color >> 8) & 0xff) * d) << 8) | Math.round((color & 0xff) * d);
+	};
+	/** a colour between two, per channel */
+	const mixColor = (a: number, b: number, t: number) => {
+		const ch = (sh: number) => Math.round(((a >> sh) & 0xff) + (((b >> sh) & 0xff) - ((a >> sh) & 0xff)) * t);
+		return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 	};
 
 	// ---- the symbol sheets: per symbol name, the parsed drop / idle frames, built ONCE per name the
@@ -141,7 +165,7 @@
 	// what a sprite was last given, so an unchanged field is never re-assigned (a Pixi transform
 	// setter marks the render group dirty even when the value is the same)
 	type Slot = {
-		s: PIXI.Sprite; g: PIXI.Sprite; gen: number; name: string; tex: PIXI.Texture | null; y: number; sx: number; sy: number; a: number; tint: number; z: number; glow: number; rot: number;
+		s: PIXI.Sprite; g: PIXI.Sprite; gen: number; name: string; tex: PIXI.Texture | null; y: number; sx: number; sy: number; a: number; tint: number; z: number; glow: number; gc: number; rot: number;
 		/** sheet playback: mode, style ms into the clip, the last Cell.landAt seen, still in the landing beat, the frame shown */
 		mode: number; clock: number; landAt: number; landing: boolean; frame: number;
 	};
@@ -159,7 +183,7 @@
 		g.zIndex = -1;
 		g.visible = false;
 		cellLayer.addChild(g);
-		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, rot: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1 };
+		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1 };
 	};
 	const live = new Map<number, Slot>(); // cell id -> its sprite
 	const free: Slot[] = [];
@@ -323,7 +347,7 @@
 			sl.a = c.alpha;
 			s.alpha = c.alpha;
 		}
-		const tint = lerpTint(c.flashColor, c.flash);
+		const tint = darken(lerpTint(c.flashColor, c.flash), c.dim);
 		if (tint !== sl.tint) {
 			sl.tint = tint;
 			s.tint = tint;
@@ -338,18 +362,191 @@
 			sl.g.visible = c.glow > 0;
 			if (c.glow > 0) sl.g.alpha = c.glow;
 		}
+		if (c.glowColor !== sl.gc) {
+			sl.gc = c.glowColor;
+			sl.g.tint = c.glowColor;
+		}
 		if (c.glow > 0) glowing += 1;
+		// the plate this cell stands on: covered while the symbol sits on it (the playground's rule: within
+		// half a row, still opaque), darkened with it
+		if (c.alpha > 0.5 && c.scaleX > 0.05) {
+			const row = Math.round(c.y);
+			if (row >= 0 && row < 8 && Math.abs(c.y - row) < 0.5) {
+				const k = c.reel * 8 + row;
+				coverDim[k] = Math.min(coverDim[k], c.dim);
+				covered[k] = 1;
+			}
+		}
 	};
 
-	type Badge = { s: PIXI.Sprite; value: number; scale: number };
-	const badges: Badge[] = Array.from({ length: CELL_COUNT }, (_, index) => {
-		const s = new PIXI.Sprite(PIXI.Texture.EMPTY);
-		s.anchor.set(0.5);
-		s.position.set((reelOf(index) + 0.5 + TILE.offset.x * SYMBOL_FIT) * SYMBOL_SIZE, (rowOf(index) + 0.5 + TILE.offset.y * SYMBOL_FIT) * SYMBOL_SIZE);
-		s.visible = false;
-		badgeLayer.addChild(s);
-		return { s, value: 0, scale: NaN };
-	});
+	// ---- the multiplier plates ---------------------------------------------------------------------
+	// the playground's cell well is the lattice's clear opening here: one pitch less the bar's width
+	const OPENING = 1 - (2 * BOARD_ART.bars.barRadius) / ((BOARD_ART.lattice.x1 - BOARD_ART.lattice.x0) / 8);
+	const PLATE = SYMBOL_SIZE * (OPENING - 2 * MULT_PLATE.insetCells);
+	const PLATE_R = MULT_PLATE.cornerPx * PLAYGROUND_PX;
+	const PLATE_W = MULT_PLATE.borderPx * PLAYGROUND_PX;
+	const NUM_H = SYMBOL_SIZE * MULT_PLATE.numberSizeCells;
+	const NUM_MAX_W = PLATE - 2 * PLATE_W - SYMBOL_SIZE * 0.08;
+	/** the coloured copy under the white face reaches this far past the glyphs (board px) */
+	const OUTLINE = NUM_H * 0.07;
+	const GLOW = MULT_PLATE.numberGlowPx * PLAYGROUND_PX;
+	const covered = new Uint8Array(CELL_COUNT);
+	const coverDim = new Float32Array(CELL_COUNT);
+
+	type Row = { c: PIXI.Container; out: PIXI.Container; face: PIXI.Container; text: string; w: number; h: number; scale: number; alpha: number; tint: number; ftint: number };
+	type Plate = { root: PIXI.Container; g: PIXI.Graphics; glow: PIXI.Sprite; old: Row; cur: Row; value: number; from: number; tint: number; glowTint: number; numAlpha: number; shown: boolean };
+	const plates: (Plate | null)[] = Array(CELL_COUNT).fill(null);
+	const glyphPool: PIXI.Sprite[] = [];
+	const row = (): Row => {
+		const c = new PIXI.Container();
+		const out = new PIXI.Container();
+		const face = new PIXI.Container();
+		c.addChild(out, face);
+		return { c, out, face, text: '', w: 0, h: 0, scale: NaN, alpha: NaN, tint: -1, ftint: -1 };
+	};
+	const plateAt = (index: number): Plate => {
+		let p = plates[index];
+		if (p) return p;
+		const root = new PIXI.Container({ x: (reelOf(index) + 0.5) * SYMBOL_SIZE, y: (rowOf(index) + 0.5) * SYMBOL_SIZE });
+		// drawn ONCE, white: the colour is the tint
+		const g = new PIXI.Graphics()
+			.roundRect(-PLATE / 2, -PLATE / 2, PLATE, PLATE, PLATE_R)
+			.fill({ color: 0xffffff, alpha: MULT_PLATE.fillAlpha })
+			.roundRect(-PLATE / 2 + PLATE_W / 2, -PLATE / 2 + PLATE_W / 2, PLATE - PLATE_W, PLATE - PLATE_W, Math.max(0, PLATE_R - PLATE_W / 2))
+			.stroke({ color: 0xffffff, width: PLATE_W, alpha: MULT_PLATE.borderAlpha });
+		const glow = new PIXI.Sprite(glowTexture());
+		glow.anchor.set(0.5);
+		const old = row();
+		const cur = row();
+		root.addChild(g, glow, old.c, cur.c);
+		plateLayer.addChild(root);
+		p = { root, g, glow, old, cur, value: -1, from: -1, tint: -1, glowTint: -1, numAlpha: NaN, shown: true };
+		plates[index] = p;
+		return p;
+	};
+	/** lay a row's glyphs out for `text` (only when it changes): the white face and the coloured copy */
+	const setRow = (r: Row, text: string, tex: Record<string, PIXI.Texture> | undefined) => {
+		if (r.text === text) return true;
+		const glyphs = layoutNumerals(text, NUM_H, { maxWidth: NUM_MAX_W });
+		if (!glyphs || !tex?.['num_0.png']) return false;
+		const fill = (layer: PIXI.Container) => {
+			while (layer.children.length < glyphs.length) layer.addChild(glyphPool.pop() ?? new PIXI.Sprite(PIXI.Texture.EMPTY));
+			while (layer.children.length > glyphs.length) glyphPool.push(layer.removeChildAt(layer.children.length - 1) as PIXI.Sprite);
+			layer.children.forEach((child, i) => {
+				const s = child as PIXI.Sprite;
+				const gl = glyphs[i];
+				s.texture = tex[`num_${gl.key}.png`] ?? PIXI.Texture.EMPTY;
+				s.position.set(gl.x, gl.y);
+				s.setSize(gl.w, gl.h);
+				s.visible = !!gl.key;
+			});
+		};
+		fill(r.out);
+		fill(r.face);
+		let x0 = Infinity;
+		let x1 = -Infinity;
+		let y0 = Infinity;
+		let y1 = -Infinity;
+		for (const gl of glyphs) {
+			x0 = Math.min(x0, gl.x);
+			x1 = Math.max(x1, gl.x + gl.w);
+			y0 = Math.min(y0, gl.y);
+			y1 = Math.max(y1, gl.y + gl.h);
+		}
+		r.w = x1 - x0;
+		r.h = y1 - y0;
+		// centre the glyph block on the plate centre, and grow the coloured copy by OUTLINE on every side
+		const cx = (x0 + x1) / 2;
+		const cy = (y0 + y1) / 2;
+		r.face.pivot.set(cx, cy);
+		r.out.pivot.set(cx, cy);
+		r.out.scale.set(1 + (2 * OUTLINE) / Math.max(r.w, 1), 1 + (2 * OUTLINE) / Math.max(r.h, 1));
+		r.text = text;
+		return true;
+	};
+	const showRow = (r: Row, scale: number, alpha: number, color: number, dim: number) => {
+		const on = alpha > 0.001 && scale > 0.001;
+		if (r.c.visible !== on) r.c.visible = on;
+		if (!on) return;
+		if (scale !== r.scale) {
+			r.scale = scale;
+			r.c.scale.set(scale);
+		}
+		if (alpha !== r.alpha) {
+			r.alpha = alpha;
+			r.c.alpha = alpha;
+		}
+		const t = darken(color, dim);
+		if (t !== r.tint) {
+			r.tint = t;
+			for (const s of r.out.children) (s as PIXI.Sprite).tint = t;
+		}
+		const ft = darken(0xffffff, dim);
+		if (ft !== r.ftint) {
+			r.ftint = ft;
+			for (const s of r.face.children) (s as PIXI.Sprite).tint = ft;
+		}
+	};
+	const syncPlates = (tex: Record<string, PIXI.Texture> | undefined) => {
+		const tiles = stateGame.tiles;
+		for (let i = 0; i < CELL_COUNT; i += 1) {
+			const tile = tiles[i];
+			const value = tile?.value ?? 0;
+			let p = plates[i];
+			if (!value) {
+				if (p && p.shown) {
+					p.shown = false;
+					p.root.visible = false;
+				}
+				continue;
+			}
+			p ??= plateAt(i);
+			if (!p.shown) {
+				p.shown = true;
+				p.root.visible = true;
+			}
+			const chg = tile.chg;
+			const from = chg < 1 ? tile.from : 0;
+			if (!setRow(p.cur, `x${value}`, tex)) continue; // the atlas is not in yet: next frame
+			if (from && !setRow(p.old, `x${from}`, tex)) continue;
+			const dim = covered[i] ? coverDim[i] : 1;
+			// the colour lerps old -> new over the count (quadOut); the reveal pop scales the number
+			const col = from ? mixColor(plateColor(from), plateColor(value), quadOut(chg)) : plateColor(value);
+			const tint = darken(col, dim);
+			if (tint !== p.tint) {
+				p.tint = tint;
+				p.g.tint = tint;
+			}
+			const pop = tile.pop < 1 ? 1 + (MULT_PLATE.revealPopScale - 1) * Math.sin(Math.PI * tile.pop) : 1;
+			const numA = covered[i] ? MULT_PLATE.numberAlphaUnderSymbol : 1;
+			// COUNT: the old number shrinks away over the first 45 % (quadIn), the new one grows in (backOut)
+			let oldScale = 0;
+			let curScale = pop;
+			if (chg < 1) {
+				if (chg < 0.45 && from) {
+					oldScale = (1 - quadIn(chg / 0.45)) * pop;
+					curScale = 0;
+				} else curScale = Math.max(0.01, backOut(Math.max(0, (chg - 0.45) / 0.55))) * pop;
+			}
+			showRow(p.old, oldScale, oldScale > 0 ? numA * Math.min(1, oldScale / pop) : 0, col, dim);
+			showRow(p.cur, curScale, numA, col, dim);
+			// the glow hugs whichever number is showing
+			const shown = oldScale > 0 ? p.old : p.cur;
+			const gs = oldScale > 0 ? oldScale : curScale;
+			p.glow.visible = MULT_PLATE.numberGlowPx > 0 && gs > 0.01;
+			if (p.glow.visible) {
+				p.glow.setSize((shown.w + 2 * GLOW) * gs, (shown.h + 2 * GLOW) * gs);
+				if (tint !== p.glowTint) {
+					p.glowTint = tint;
+					p.glow.tint = tint;
+				}
+				if (numA !== p.numAlpha) {
+					p.numAlpha = numA;
+					p.glow.alpha = 0.8 * numA;
+				}
+			}
+		}
+	};
 
 	// ---- the cell flash: one fixed white square per cellIndex, lit by a burst's first 30% ----------
 	const flashes: PIXI.Sprite[] = Array.from({ length: CELL_COUNT }, (_, index) => {
@@ -514,6 +711,8 @@
 		lastFrame = now;
 		gen += 1;
 		glowing = 0;
+		covered.fill(0);
+		coverDim.fill(1);
 		const tex = assets();
 		// plain reads outside any effect: no dependency tracking, no flush
 		const cells = stateGame.cells;
@@ -528,26 +727,7 @@
 		}
 		motionLog.glowInUse = glowing;
 		if (glowing > motionLog.glowPeak) motionLog.glowPeak = glowing;
-		const tiles = stateGame.tiles;
-		for (let i = 0; i < CELL_COUNT; i += 1) {
-			const tile = tiles[i];
-			const b = badges[i];
-			const value = tile?.value ?? 0;
-			if (value !== b.value) {
-				const t = value ? tex?.[`x${value}.png`] : undefined;
-				if (value && !t) continue; // texture not in yet: try again next frame
-				b.value = value;
-				b.s.visible = value > 0;
-				if (t) b.s.texture = t;
-				b.scale = NaN;
-			}
-			if (!value) continue;
-			const scale = tile.scale;
-			if (scale !== b.scale) {
-				b.scale = scale;
-				b.s.setSize(BADGE * scale, BADGE * scale);
-			}
-		}
+		syncPlates(tex);
 		tickSparkles(now);
 		if (uploadQueue === null || uploadQueue.length) warmSheets(tex);
 	};
@@ -601,13 +781,29 @@
 								bounds: sl ? (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(sl.s.getBounds()) : null,
 							};
 						}),
-						/** the multiplier badges on screen, screen rects */
-						badges: badges.flatMap((b, i) => (b.s.visible && b.s.alpha > 0 ? [{ i, ...(({ x, y, width, height }) => ({ x, y, w: width, h: height }))(b.s.getBounds()) }] : [])),
+						/** the old multiplier badges are retired (the plates replace them): always empty */
+						badges: [] as { i: number; x: number; y: number; w: number; h: number }[],
 						fit: SYMBOL_FIT,
 					};
 				},
 				configurable: true,
 				enumerable: true,
+			});
+			// PLATES + DIM probe (tools/manticore/plate_probe.js): each plate as drawn (value, the rows'
+			// texts / scales / alphas, the plate and number tints, covered or not) and every live tile
+			// sprite's tint and alpha (the dim rule: a dim is a tint, never alpha)
+			Object.assign((window as any).__manticore, {
+				plates: () =>
+					plates.flatMap((p, i) =>
+						p && p.shown
+							? [{ i, tint: p.g.tint, glowTint: p.glow.tint, glowAlpha: p.glow.alpha, covered: !!covered[i], coverDim: coverDim[i], cur: { text: p.cur.text, scale: p.cur.c.visible ? p.cur.scale : 0, alpha: p.cur.alpha, tint: p.cur.tint, face: p.cur.ftint }, old: { text: p.old.text, scale: p.old.c.visible ? p.old.scale : 0 }, bounds: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(p.g.getBounds()) }]
+							: [],
+					),
+				cellTints: () => stateGame.cells.flatMap((c) => {
+					const sl = live.get(c.id);
+					return sl ? [{ i: c.reel * 8 + c.row, name: c.name, dim: c.dim, tint: sl.s.tint, alpha: sl.s.alpha, state: c.state }] : [];
+				}),
+				plateObjects: () => ({ plates: plates.filter(Boolean).length, glyphPool: glyphPool.length }),
 			});
 		}
 		return () => {
@@ -621,7 +817,8 @@
 				sl.s.destroy();
 				sl.g.destroy();
 			}
-			for (const b of badges) b.s.destroy();
+			for (const p of plates) p?.root.destroy({ children: true });
+			for (const s of glyphPool) s.destroy();
 			for (const f of flashes) f.destroy();
 			sparkLayer.destroy();
 		};
