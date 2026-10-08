@@ -187,7 +187,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (bookEvent.gameType === 'basegame') triggerSfxPlayed = false;
 		const rec = fxRecord('reveal', { turbo: stateGame.turboLevel, mystery: isMystery });
 		// Corey's reel_spin (2026-10-07): a 1.88 s one-shot as the columns pour in (the Angry Mantis
-		// spin LOOP is replaced in the Manticore sprite by tools/build_audiosprite.py MM_SFX_OVERRIDES)
+		// spin LOOP is replaced in the Manticore sprite by tools/build_audiosprite.py MM_EVENTS)
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_spin', forcePlay: true });
 		const id = await revealBoard(bookEvent.board, {
 			anticipation,
@@ -197,6 +197,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		});
 		fxStamp(rec, 'landed');
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop', forcePlay: true });
+		if (isMystery && bookEvent.gameType === 'basegame') eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_mystery_decision', forcePlay: true });
 
 		// the derived tease's outcome: a hit plays the trigger pulse (and the house bonus-confirm SFX), a
 		// miss rests. A scatter sting run straight after is its own rest (SCATTER_STING.holdMs), so a miss
@@ -231,7 +232,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			bookEvent.wins.map((w) => ({ cells: w.c, base: w.p, mult: w.m, total: w.w, symbol: w.s })),
 			id,
 			{
-				onClusterStart: () => eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_leaf_land', forcePlay: true }),
+				onClusterStart: () => eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cluster_remove', forcePlay: true }),
 				onCountDone: (_i, total) => {
 					running += total;
 					eventEmitter.broadcast({ type: 'spinWinStep', amount: running });
@@ -254,10 +255,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (rest.length) await removeCells(rest, id, onCleared);
 		// Playback order is fixed by the schema: show the wins, remove `removed`, set `tiles`,
 		// drop `fill`. The client never has to reconstruct an intermediate board.
-		if (bookEvent.tiles.length) eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_service_bell', forcePlay: true });
+		if (bookEvent.tiles.length) eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_tile_double', forcePlay: true });
 		await applyTiles(bookEvent.tiles, id);
 		// CLUSTER.refillDelayMs: the plates' count-over plays before the refill lands on them
 		await waitStyle(CLUSTER.refillDelayMs);
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cascade', forcePlay: true });
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 
 		settleBoard();
@@ -276,7 +278,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	swipe: async (bookEvent: BookEventOfType<'swipe'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
 		const rec = fxRecord('swipe', { rows: bookEvent.rows, removed: bookEvent.removed.length, turbo: stateGame.turboLevel, skipping: stateGame.skipping });
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike', forcePlay: true });
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_swipe', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'swipe', rows: bookEvent.rows });
 		// the plates in the band play their beat once the symbols have faded (exitMs) + changeDelayMs
 		const tileMap = new Map(bookEvent.tiles);
@@ -317,7 +319,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			}
 			beat('strike');
 			fxStamp(rec, 'strike');
-			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_strike', forcePlay: true });
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_sting', forcePlay: true });
 			await stingHit(cells, bookEvent.symbol, { ms: SCATTER_STING.hitMs, popScale: STING.popScale, kind, onHit: () => scatterLand(cells[0], id) }, id, rec);
 			settleBoard();
 			const wait = scatterWait(k, n);
@@ -333,12 +335,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// always the LAST sting of the spin: the board dims, the telegraph breathes at the centre,
 			// then the whole plus / block turns wild together and the rings ripple out
 			beat('charge');
-			eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_angry', forcePlay: true });
+			eventEmitter.broadcast({ type: 'soundOnce', name: kind === 'super' ? 'sfx_sting_super_charge' : 'sfx_sting_big_charge', forcePlay: true });
 			await stingBig(cells, center, bookEvent.symbol, kind, id, {
 				rec,
 				onStrike: () => {
 					beat('strike');
-					eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_wild_land', forcePlay: true });
+					eventEmitter.broadcast({ type: 'soundOnce', name: kind === 'super' ? 'sfx_sting_super_hit' : 'sfx_sting_big_hit', forcePlay: true });
 				},
 			});
 			settleBoard();
@@ -347,7 +349,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 		// normal: the tail streak, the hit on the one cell. Several fire back to back with a short gap.
 		beat('strike');
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_wild_land', forcePlay: true });
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_sting_hit', forcePlay: true });
 		await stingHit(cells, bookEvent.symbol, { ms: STING.normalMs, popScale: STING.popScale, kind }, id, rec);
 		settleBoard();
 		const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
@@ -363,7 +365,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	roar: async (bookEvent: BookEventOfType<'roar'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
 		const rec = fxRecord('roar', { removed: bookEvent.removed.slice(), turbo: stateGame.turboLevel, skipping: stateGame.skipping });
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_marty_angry', forcePlay: true });
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
 		await roarBlow(bookEvent.removed, id, rec);
 		fxStamp(rec, 'refill');
@@ -423,6 +425,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	// early return that assumed the book carried no board — is gone with it.
 	mystery: async (bookEvent: BookEventOfType<'mystery'>) => {
 		stateGame.mysteryOutcome = bookEvent.outcome;
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_mystery_tease', forcePlay: true });
 	},
 
 	// ---- core SDK events -------------------------------------------------------------------------
