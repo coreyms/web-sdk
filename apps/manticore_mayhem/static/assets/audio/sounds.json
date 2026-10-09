@@ -62,71 +62,71 @@
 		],
 		"sfx_cluster_remove": [
 			26612,
-			219
+			183
 		],
 		"sfx_tile_double": [
-			27831,
-			1111
+			970,
+			50
 		],
 		"sfx_cascade": [
 			970,
 			50
 		],
 		"sfx_money_counter": [
-			29942,
+			27795,
 			781,
 			true
 		],
 		"sfx_swipe": [
-			31723,
-			596
+			29576,
+			1022
 		],
 		"sfx_roar": [
-			33319,
-			727
+			31599,
+			3134
 		],
 		"sfx_sting_hit": [
-			35046,
-			87
+			35732,
+			778
 		],
 		"sfx_sting_big_charge": [
-			33319,
-			727
+			37510,
+			1002
 		],
 		"sfx_sting_big_hit": [
-			35046,
-			87
+			39513,
+			640
 		],
 		"sfx_sting_super_charge": [
-			33319,
-			727
+			41153,
+			2003
 		],
 		"sfx_sting_super_hit": [
-			35046,
-			87
+			44155,
+			1037
 		],
 		"sfx_scatter_sting": [
-			31723,
+			46192,
 			596
 		],
 		"sfx_win_big": [
-			36133,
+			47788,
 			356
 		],
 		"sfx_win_super": [
-			37489,
+			49144,
 			356
 		],
 		"sfx_win_mega": [
-			38845,
+			50500,
 			356
 		],
 		"sfx_win_epic": [
-			40201,
+			51855,
 			356
 		],
 		"sfx_win_max": [
-			41556,
+			53211,
 			356
 		],
 		"sfx_mystery_tease": [
@@ -197,22 +197,22 @@
 			"volume": 1
 		},
 		"sfx_swipe": {
-			"volume": 0.5
+			"volume": 1
 		},
 		"sfx_roar": {
-			"volume": 0.5
+			"volume": 1
 		},
 		"sfx_sting_hit": {
 			"volume": 1
 		},
 		"sfx_sting_big_charge": {
-			"volume": 0.5
+			"volume": 1
 		},
 		"sfx_sting_big_hit": {
 			"volume": 1
 		},
 		"sfx_sting_super_charge": {
-			"volume": 0.5
+			"volume": 1
 		},
 		"sfx_sting_super_hit": {
 			"volume": 1
@@ -243,7 +243,7 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=31921d8a",
-		"./assets/audio/sounds.m4a?v=3c1eba9c"
+		"./assets/audio/sounds.ogg?v=fe967d3c",
+		"./assets/audio/sounds.m4a?v=b167d0b4"
 	]
 }

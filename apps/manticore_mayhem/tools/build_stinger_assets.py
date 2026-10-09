@@ -3,6 +3,7 @@
 baked titles and the forged glyph atlas, plus the motion tracks and the overlay recipes as runtime data.
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_stinger_assets.py [--src DIR] [--reference FILE]
+                                                   [--out-dir DIR] [--no-grade] [--tiers full,half[,mid]]
 
 Sources (read only, never written), under --src (default ~/Desktop/Manticore Mayhem/images/ui):
   model/layered/stinger_layered.json + 15 PNGs at 2x     layers in z order, mesh topology, idle_all, the two flares, tier_gain
@@ -34,6 +35,22 @@ highlights and the known hog (14 tall slices, 1.05 megapixels at 1x, 3 to 17 % f
 smaller (cap 50 / 32 / 36): each ships at the tier scale of its DRAWN size. The glyph atlas ships at the tier scale of
 the largest use (the 64 px amount). Lids and embers are tiny and ship at 2x on both tiers (an ember is never drawn above
 its native size), the vein wash and the slab mask (soft shapes) at 0.5x.
+
+GRADE (GRADE below, Corey 2026-10-09: "reds washed out, border dull and faded, blacks need to be darker"; candidate D of
+drafts/stinger_grade_review). The source cut-outs have no black (the darkest 1 % of the art sat at 18 % grey). A fixed
+colour operation at build time, nothing at runtime: levels, an S-curve, saturation / highlight gain by hue range (the reds
+of the wings and manes, the bronze of the frame), a soft highlight shoulder (nothing clips), then a mild local contrast and
+an unsharp mask whose radii are in SHIP px, so every tier gets the same look on screen. It is applied to the 15 plaque
+cut-outs after they are resampled, and (colour only, no sharpening: they are small patches cut from the lion faces and must
+meet the face they cover) to the eye LID sprites of the fx atlas. Never to the additive overlays (glow, veins, barbs, eye
+glows, flare, embers, star, glint) or the text. Atlas sizes, frame rects and stinger.json do not depend on it.
+--no-grade builds the ungraded art (the output before 2026-10-09).
+
+--tiers: which texture sets are written (default full,half: what the game loads). "mid" is a TEST tier for phones, 5/4
+texture px per ship px (the frame is 1182 px, about 1:1 on a 3x phone in portrait IF the renderer's DPR cap were lifted;
+at today's 1.5 cap it shows nothing the half tier does not). It is written as stinger-<atlas>-mid.*, is not built by
+default and no game code loads it. stinger.json is the same whichever tiers are written.
+--out-dir: write somewhere other than static/assets/ui/stinger (a trial build).
 """
 from __future__ import annotations
 
@@ -49,6 +66,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from scipy.ndimage import gaussian_filter
 
 HERE = Path(__file__).resolve().parent
 APP = HERE.parent
@@ -59,7 +77,48 @@ SRC_DEFAULT = Path.home() / "Desktop" / "Manticore Mayhem" / "images" / "ui"
 TIERS = {
     "": {"plaque": Fraction(3, 2), "fx": Fraction(3, 2), "glint": Fraction(1), "text": Fraction(3, 2)},
     "-half": {"plaque": Fraction(1), "fx": Fraction(1), "glint": Fraction(3, 4), "text": Fraction(1)},
+    # TEST ONLY (--tiers ...,mid): not built by default, not loaded by the game
+    "-mid": {"plaque": Fraction(5, 4), "fx": Fraction(5, 4), "glint": Fraction(3, 4), "text": Fraction(5, 4)},
 }
+TIER_FLAGS = {"full": "", "half": "-half", "mid": "-mid"}
+TIER_LABELS = {"": "FULL tier", "-half": "PHONE tier", "-mid": "MID tier (test, not loaded by the game)"}
+DEFAULT_TIERS = "full,half"
+# The trim boxes (and so the sprite rects in stinger.json, which every tier shares) are the PHONE tier's: it is built
+# last. The mid tier is cut on the phone tier's boxes (TRIM_LIKE), so its textures sit exactly on those rects.
+BUILD_ORDER = ["-mid", "", "-half"]
+TRIM_LIKE = {"-mid": "-half"}
+
+# THE PLAQUE GRADE (candidate D, approved 2026-10-09; drafts/stinger_grade_review/grade_params.json). sRGB-encoded values
+# 0..1, hue in degrees. See grade() / grade_layer() for what each number does. --no-grade skips it.
+GRADE = {
+    # levels: x = (x - black_point) / (white_point - black_point), per channel
+    "black_point": 0.12,
+    "white_point": 1.0,
+    # tone: luminance through an S-curve (power `contrast` on each side of `pivot`), then ** gamma; RGB keeps its ratios
+    "pivot": 0.36,
+    "contrast": 1.22,
+    "gamma": 0.93,
+    "saturation": 1.05,
+    # by hue range: a smooth window (centre +/- half_width, feathered) times min(1, saturation / min_sat).
+    # highlight_gain / highlight_tint grow with how far the luminance is above lift_from (to the power lift_power)
+    "hue_ranges": [
+        {"name": "reds (wings, manes)", "centre_deg": 3, "half_width_deg": 11, "feather_deg": 9, "min_sat": 0.2,
+         "saturation": 1.45, "highlight_gain": 1.08, "lift_from": 0.2, "lift_power": 1.0},
+        {"name": "bronze / gold (frame)", "centre_deg": 29, "half_width_deg": 10, "feather_deg": 8, "min_sat": 0.2,
+         "saturation": 1.22, "highlight_gain": 1.22, "lift_from": 0.32, "lift_power": 1.4, "highlight_tint": [1.05, 1.0, 0.84]},
+    ],
+    # the shoulder: luminance above the knee rolls off to the ceiling, then any single channel does (toward the luminance)
+    "shoulder_knee": 0.80,
+    "shoulder_ceiling": 0.97,
+    "channel_knee": 0.90,
+    "channel_ceiling": 0.975,
+    # SHARPENING, after the resample, luminance only, alpha aware. Radii are in SHIP px and are multiplied by the tier's
+    # texture px per ship px, so the half, mid and full textures carry the same sharpening on screen. `limit` caps the
+    # detail that is added back, `threshold` leaves flat areas (and webp noise) alone.
+    "clarity": {"radius_ship_px": 7.0, "amount": 0.22, "limit": 0.2},
+    "unsharp": {"radius_ship_px": 0.7, "amount": 0.5, "threshold": 0.006, "limit": 0.15},
+}
+GRADE_SHARPEN_KEYS = ("clarity", "unsharp")  # the eye lids take the colour grade without these
 FIXED = {"glow": Fraction(1, 2), "slab_dark": Fraction(1, 2), "eye": Fraction(2), "ember": Fraction(2)}
 MIPS = {"plaque": True, "fx": True, "glint": False, "titles": True, "glyphs": True}
 LOSSLESS = {"fx", "glint"}  # white + alpha: lossless is the small encoding
@@ -99,11 +158,18 @@ def pad_to(a: np.ndarray, q: int) -> np.ndarray:
     return o
 
 
-def scaled(a: np.ndarray, src_scale: int, scale: Fraction, trim: bool):
+def whole(v) -> int:
+    """a texture size: exact where the tier's reduction gives whole pixels (the shipped tiers), else the nearest pixel"""
+    return int(v) if Fraction(v).denominator == 1 else round(float(v))
+
+
+def scaled(a: np.ndarray, src_scale: int, scale: Fraction, trim: bool, like: Fraction | None = None):
     """A source image at src_scale px per ship px -> (image at `scale`, [x, y, w, h] in ship px relative to the
-    source's top left). The crop is aligned so the result has whole pixels and the rect is exact."""
+    source's top left). The crop is aligned so the result has whole pixels and the rect is exact.
+    `like`: cut on the box another scale would use (the mid tier on the phone tier's), so both sit on one rect; the
+    result is then the nearest whole size (under half a texel of stretch)."""
     f = scale / src_scale
-    q = f.denominator
+    q = ((like if like is not None else scale) / src_scale).denominator
     h, w = a.shape[:2]
     x0 = y0 = 0
     if trim:
@@ -113,7 +179,7 @@ def scaled(a: np.ndarray, src_scale: int, scale: Fraction, trim: bool):
             a = a[y0 : int(ys.max()) + 1, x0 : int(xs.max()) + 1]
     a = pad_to(a, q)
     hh, ww = a.shape[:2]
-    out = resample(a, int(ww * f), int(hh * f))
+    out = resample(a, whole(ww * f), whole(hh * f))
     return out, [x0 / src_scale, y0 / src_scale, ww / src_scale, hh / src_scale]
 
 
@@ -170,6 +236,85 @@ def pack(items: list[tuple[str, np.ndarray]]):
     return sheet, frames
 
 
+# ---- the grade ---------------------------------------------------------------------------------------
+LUM = np.array([0.299, 0.587, 0.114], np.float32)
+
+
+def _hue_sat(rgb: np.ndarray):
+    mx, mn = rgb.max(-1), rgb.min(-1)
+    d = mx - mn
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    dd = np.maximum(d, 1e-6)
+    h = np.where(mx == r, ((g - b) / dd) % 6, np.where(mx == g, (b - r) / dd + 2, (r - g) / dd + 4)) * 60
+    return np.where(d > 1e-6, h, 0), np.where(mx > 1e-6, d / np.maximum(mx, 1e-6), 0)
+
+
+def _hue_window(h, centre, half, feather):
+    d = np.abs((h - centre + 180) % 360 - 180)
+    t = np.clip((half + feather - d) / max(feather, 1e-6), 0, 1)
+    return t**2 * (3 - 2 * t)
+
+
+def _shoulder(x: np.ndarray, P: dict) -> np.ndarray:
+    k, c = P["shoulder_knee"], P["shoulder_ceiling"]
+    L = x @ LUM
+    L2 = np.where(L > k, k + (c - k) * (1 - np.exp(-np.maximum(L - k, 0) / (c - k))), L)
+    x = x * (L2 / np.maximum(L, 1e-5))[..., None]
+    ck, cc = P["channel_knee"], P["channel_ceiling"]
+    mx = x.max(-1)
+    mx2 = np.where(mx > ck, ck + (cc - ck) * (1 - np.exp(-np.maximum(mx - ck, 0) / (cc - ck))), mx)
+    t = np.clip(np.where(mx > ck, (mx2 - L2) / np.maximum(mx - L2, 1e-5), 1.0), 0, 1)
+    return np.clip(L2[..., None] + (x - L2[..., None]) * t[..., None], 0, 1)
+
+
+def grade(rgb: np.ndarray, P: dict) -> np.ndarray:
+    """the colour part of the grade: straight RGB float (h, w, 3) -> the same, per pixel (no neighbourhood)"""
+    x = np.clip((rgb.astype(np.float32) - P["black_point"]) / (P["white_point"] - P["black_point"]), 0, None)
+    L = x @ LUM
+    Lc = np.clip(L, 0, 1)
+    p, n = P["pivot"], P["contrast"]
+    L2 = np.where(Lc < p, p * (Lc / p) ** n, 1 - (1 - p) * ((1 - Lc) / (1 - p)) ** n) ** P["gamma"]
+    x = x * (L2 / np.maximum(L, 1e-5))[..., None]
+    h, s = _hue_sat(np.clip(x, 0, 1))
+    sat = np.full(L.shape, P["saturation"], np.float32)
+    gain = np.ones(L.shape, np.float32)
+    tint = np.zeros(x.shape, np.float32)
+    for R in P["hue_ranges"]:
+        w = _hue_window(h, R["centre_deg"], R["half_width_deg"], R["feather_deg"]) * np.clip(s / R["min_sat"], 0, 1)
+        sat = sat * (1 + (R["saturation"] - 1) * w)
+        hi = np.clip((L2 - R["lift_from"]) / (1 - R["lift_from"]), 0, 1) ** R["lift_power"]
+        gain = gain * (1 + (R["highlight_gain"] - 1) * w * hi)
+        if "highlight_tint" in R:
+            tint += (np.array(R["highlight_tint"], np.float32) - 1)[None, None, :] * (w * hi)[..., None]
+    L3 = x @ LUM
+    x = L3[..., None] + (x - L3[..., None]) * sat[..., None]
+    return _shoulder(np.clip(x, 0, None) * gain[..., None] * (1 + tint), P)
+
+
+def grade_layer(a: np.ndarray, P: dict | None, tier_scale: float, sharpen: bool = True) -> np.ndarray:
+    """straight RGBA float at `tier_scale` texture px per ship px -> graded straight RGBA float. Alpha is untouched.
+    `sharpen`: also the local contrast and the unsharp mask (radii in ship px x tier_scale)."""
+    if not P:
+        return a
+    al = a[..., 3:4]
+    rgb = np.where(al > 1e-5, grade(a[..., :3], P), 0)
+    for key in GRADE_SHARPEN_KEYS if sharpen else ():
+        U = P.get(key)
+        if not U or not U["amount"]:
+            continue
+        r = U["radius_ship_px"] * tier_scale
+        # alpha aware: blur the premultiplied colour and the alpha, divide (no halo from the transparent surround)
+        bl = gaussian_filter(np.concatenate([rgb * al, al], -1), sigma=(r, r, 0), mode="nearest")
+        d = rgb - np.where(bl[..., 3:4] > 1e-4, bl[..., :3] / np.maximum(bl[..., 3:4], 1e-4), 0)
+        th = U.get("threshold", 0.0)
+        if th > 0:
+            d = np.sign(d) * np.maximum(np.abs(d) - th, 0)
+        d = np.clip(d, -U["limit"], U["limit"])
+        rgb = _shoulder(np.clip(rgb + U["amount"] * (d @ LUM)[..., None], 0, None), P)  # luminance detail only
+        rgb = np.where(al > 1e-5, rgb, 0)
+    return np.concatenate([np.clip(rgb, 0, 1), al], -1).astype(np.float32)
+
+
 BUDGET: list[tuple[str, int, int, bool, int, list[tuple[str, int]]]] = []
 
 
@@ -191,10 +336,19 @@ def write_atlas(group: str, suffix: str, items: list[tuple[str, np.ndarray]]):
 
 # ---- the build --------------------------------------------------------------------------------------
 def main() -> None:
+    global OUT
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", type=Path, default=SRC_DEFAULT, help="the images/ui folder of the Manticore working folder")
     ap.add_argument("--reference", type=Path, help="also write the python compositor's vertices for a few frames (tools/manticore/stinger_motion_check.mjs)")
+    ap.add_argument("--out-dir", type=Path, default=OUT, help="where the atlases, stinger.json and stinger-motion.bin are written (default: static/assets/ui/stinger)")
+    ap.add_argument("--no-grade", action="store_true", help="skip the plaque grade (GRADE): the ungraded art, as built before 2026-10-09")
+    ap.add_argument("--tiers", default=DEFAULT_TIERS, help=f"comma list of {', '.join(TIER_FLAGS)} (default {DEFAULT_TIERS}; mid is a test tier the game does not load)")
     args = ap.parse_args()
+    OUT = args.out_dir
+    P = None if args.no_grade else GRADE
+    want = [w.strip() for w in args.tiers.split(",") if w.strip()]
+    assert want and all(w in TIER_FLAGS for w in want), f"--tiers: a comma list of {list(TIER_FLAGS)}"
+    write_tiers = {TIER_FLAGS[w] for w in want}
     S: Path = args.src
     M, D, TA = S / "model", S / "drafts", S / "drafts" / "text_assets"
     OUT.mkdir(parents=True, exist_ok=True)
@@ -275,11 +429,13 @@ def main() -> None:
     (OUT / "stinger-motion.bin").write_bytes(np.concatenate(blob).tobytes())
 
     # ---- overlay sources at 4x ---------------------------------------------------------------------
-    def fx_items(t):
+    def fx_items(t, like=None):
         items = []
 
-        def add(name, path, scale, origin, trim=True, anchored=False):
-            img, box = scaled(load(path), 4, scale, trim)
+        def add(name, path, scale, origin, trim=True, anchored=False, art=False):
+            img, box = scaled(load(path), 4, scale, trim, like["fx"] if like and scale is t["fx"] else None)
+            if art:  # painted art (the lids), not a white + alpha overlay: the plaque's colour grade, unsharpened
+                img = grade_layer(img, P, float(scale), sharpen=False)
             items.append((f"stg_{name}", img))
             rect(name, box, 0 if anchored else origin[0], 0 if anchored else origin[1])
             if anchored:  # the rect is relative to the anchor
@@ -301,7 +457,7 @@ def main() -> None:
         es = D / "stinger_eyes_v2_review" / "sprites" / "4x"
         for eye, e in eyes["eyes"].items():
             for fr, f in e["sprites"]["lid_frames"].items():
-                add(f[:-4], es / f, FIXED["eye"], e["sprites"]["lid_top_left_px_1x"], trim=False)
+                add(f[:-4], es / f, FIXED["eye"], e["sprites"]["lid_top_left_px_1x"], trim=False, art=True)
             for fr, f in e["sprites"]["glow_additive_frames"].items():
                 add(f[:-4], es / f, FIXED["eye"], e["sprites"]["glow_top_left_px_1x"], trim=False)
         fs = D / "stinger_final_fx_review" / "sprites" / "4x"
@@ -316,11 +472,11 @@ def main() -> None:
         add("star", gs / st["file"], t["fx"], [st["size_px_1x"][0] / 2, st["size_px_1x"][1] / 2], trim=False, anchored=True)
         return items
 
-    def glint_items(t):
+    def glint_items(t, like=None):
         items = []
         gs = D / "stinger_glint_review" / "sprites" / "4x"
         for sl in glint["sprites"]["slices"]:
-            img, box = scaled(load(gs / sl["file"]), 4, t["glint"], True)
+            img, box = scaled(load(gs / sl["file"]), 4, t["glint"], True, like["glint"] if like else None)
             items.append((f"stg_{sl['file'][:-4]}", img))
             rect(sl["file"][:-4], box, *sl["top_left_px_1x"])
         return items
@@ -353,24 +509,31 @@ def main() -> None:
                 assert (g.shape[1], g.shape[0]) == (T["glow"]["w"], T["glow"]["h"]), name
                 titles.append((f"stg_title_{name}_glow", resample(g, max(1, round(g.shape[1] * f / 2)), max(1, round(g.shape[0] * f / 2)))))  # a soft halo: half scale
         f = t["text"] * GLYPH_FULL / text["text"]["em"]
-        assert f.denominator in (1, 2, 3, 6), f
+        assert f.denominator in (1, 2, 3, 6) or t is TIERS["-mid"], f  # whole pixels on the shipped tiers
         for ch, g in text["text"]["glyphs"].items():
             if not g.get("frame"):
                 continue
             fr = gframes[g["frame"]]["frame"]
             cell = pad_to(gsheet[fr["y"] : fr["y"] + fr["h"], fr["x"] : fr["x"] + fr["w"]], 6)
-            gl.append((glyphs[ch][5], resample(cell, int(cell.shape[1] * f), int(cell.shape[0] * f))))
+            gl.append((glyphs[ch][5], resample(cell, whole(cell.shape[1] * f), whole(cell.shape[0] * f))))
         return titles, gl
 
-    for suffix, t in TIERS.items():
+    for suffix in BUILD_ORDER:
+        t = TIERS[suffix]
+        like = TIERS[TRIM_LIKE[suffix]] if suffix in TRIM_LIKE else None
+        if suffix not in write_tiers:
+            if suffix == BUILD_ORDER[-1]:  # the sprite rects of stinger.json are this tier's, written or not
+                fx_items(t), glint_items(t)
+            continue
         items = []
         for L in lay["layers"]:
             src = pad_to(plaque_src[L["name"]], 4)
             f = t["plaque"] / 2
-            items.append((f"stg_{L['name']}", resample(src, int(src.shape[1] * f), int(src.shape[0] * f))))
+            img = resample(src, whole(src.shape[1] * f), whole(src.shape[0] * f))
+            items.append((f"stg_{L['name']}", grade_layer(img, P, float(t["plaque"]))))
         write_atlas("plaque", suffix, items)
-        write_atlas("fx", suffix, fx_items(t))
-        write_atlas("glint", suffix, glint_items(t))
+        write_atlas("fx", suffix, fx_items(t, like))
+        write_atlas("glint", suffix, glint_items(t, like))
         titles, gl = text_items(t)
         write_atlas("titles", suffix, titles)
         write_atlas("glyphs", suffix, gl)
@@ -469,11 +632,14 @@ def main() -> None:
     # ---- the budget table ----------------------------------------------------------------------------
     print("art box (bind pose, ship px):", data["art"])
     print(f"motion: {off} int16 = {off * 2 / 1024:.0f} KB, stinger.json {(OUT / 'stinger.json').stat().st_size / 1024:.0f} KB")
-    for suffix, label in (("", "FULL tier"), ("-half", "PHONE tier")):
+    print("grade:", "OFF (--no-grade)" if P is None else "GRADE (plaque cut-outs; eye lids without the sharpening)", "| out:", OUT)
+    for suffix, label in TIER_LABELS.items():
+        if suffix not in write_tiers:
+            continue
         print(f"\n{label}: texture, size, megapixels, MB as RGBA8 (with its mip chain), file")
         tot = totm = totf = 0
         for name, w, h, mips, size, parts in BUDGET:
-            if name.endswith("-half") != bool(suffix):
+            if (name[name.rindex("-") :] if name.count("-") == 2 else "") != suffix:
                 continue
             mb = w * h * 4 / 1048576
             mbm = mb * (4 / 3 if mips else 1)

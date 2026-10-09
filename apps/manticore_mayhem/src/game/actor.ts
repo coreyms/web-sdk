@@ -37,8 +37,11 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		if (lastRevealEvent) stateGameDerived.setBoardFromSymbols(lastRevealEvent.board);
 	},
 	onNewGameStart: async () => {
-		// There is no pre-spin here: a cascade board has no reel to empty before the book arrives.
-		// The reveal's own drop is the whole "spin" (game/stateGame.svelte.ts revealBoard).
+		// THE BOARD EXIT (BOARD_EXIT, Corey 2026-10-09): the press sets the previous board falling off the
+		// bottom of the opening before the book arrives, like the Angry Mantis pre-spin. Pictures only: the
+		// board is still the last book's until the reveal replaces it (game/stateGame.svelte.ts revealBoard,
+		// whose own drop is the rest of the "spin"), and a failed play puts it back (onNewGameError).
+		stateGameDerived.startBoardExit('press');
 		// THE CHAIN HAUL (CHAIN_BOW.haulOnSpin): every spin press hauls the board's chain loop one link down
 		// (components/BoardFrame.svelte draws it), a press, the space bar and an autoplay spin alike
 		if (CHAIN_BOW.haulOnSpin) chainHaulPress(Math.max(0.2, stateGameDerived.timeScale()));
@@ -48,6 +51,7 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	// a failed play leaves the wallet readout on its pre-error value until the next successful
 	// round; re-read it from the RGS so the player sees the truth straight away (review 2026-09-06)
 	onNewGameError: () => {
+		stateGameDerived.cancelBoardExit();
 		void refreshBalance();
 	},
 	onPlayGame: async (bet) => {

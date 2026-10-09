@@ -62,7 +62,8 @@
 	import { dotTexture, glowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
-	import type { Cell } from '../game/stateGame.svelte';
+	import { boardExit, plateGhosts, type Cell } from '../game/stateGame.svelte';
+	import { BOARD_EXIT } from '../game/constants';
 
 	const context = getContext();
 	const stateGame = context.stateGame;
@@ -190,9 +191,9 @@
 	};
 	const live = new Map<number, Slot>(); // cell id -> its sprite
 	const free: Slot[] = [];
-	// the steady state is 64 on the board plus a refill's worth in the air: pre-warm so the first
-	// cascade does not allocate either
-	for (let i = 0; i < CELL_COUNT + 16; i += 1) free.push(slot());
+	// the steady state is 64 on the board plus a refill's worth in the air, and through a reveal the
+	// previous board's 64 falling off as well (BOARD_EXIT): pre-warm so neither allocates
+	for (let i = 0; i < 2 * CELL_COUNT + 16; i += 1) free.push(slot());
 
 	let gen = 0;
 	let glowing = 0;
@@ -448,7 +449,7 @@
 	const coverDim = new Float32Array(CELL_COUNT);
 
 	type Row = { c: PIXI.Container; out: PIXI.Container; face: PIXI.Container; text: string; w: number; h: number; track: number; scale: number; alpha: number; tint: number; ftint: number };
-	type Plate = { root: PIXI.Container; g: PIXI.Graphics; glow: PIXI.Sprite; old: Row; cur: Row; value: number; from: number; tint: number; glowTint: number; numAlpha: number; shown: boolean };
+	type Plate = { root: PIXI.Container; g: PIXI.Graphics; glow: PIXI.Sprite; old: Row; cur: Row; value: number; from: number; tint: number; glowTint: number; numAlpha: number; shown: boolean; ghost: boolean };
 	const plates: (Plate | null)[] = Array(CELL_COUNT).fill(null);
 	const glyphPool: PIXI.Sprite[] = [];
 	const row = (): Row => {
@@ -474,7 +475,7 @@
 		const cur = row();
 		root.addChild(g, glow, old.c, cur.c);
 		plateLayer.addChild(root);
-		p = { root, g, glow, old, cur, value: -1, from: -1, tint: -1, glowTint: -1, numAlpha: NaN, shown: true };
+		p = { root, g, glow, old, cur, value: -1, from: -1, tint: -1, glowTint: -1, numAlpha: NaN, shown: true, ghost: false };
 		plates[index] = p;
 		return p;
 	};
@@ -513,6 +514,10 @@
 		r.h = y1 - y0;
 		r.track = laid.track;
 		r.text = text;
+		// glyph sprites come out of a pool shared by the faces and the coloured copies, so one added
+		// here still wears its last owner's tint: showRow must re-tint the whole row
+		r.tint = -1;
+		r.ftint = -1;
 		return true;
 	};
 	const showRow = (r: Row, scale: number, alpha: number, color: number, dim: number) => {
@@ -545,16 +550,32 @@
 			const value = tile?.value ?? 0;
 			let p = plates[i];
 			if (!value) {
-				if (p && p.shown) {
+				// a plate a reset just cleared (BOARD_EXIT.plateOutMs): the picture shrinks away, the value
+				// is already gone. `shown` stays the book's truth (false); `ghost` is only the picture.
+				const gh = plateGhosts[i];
+				const u = gh && p ? ((now - gh.t0) * gh.rate) / Math.max(BOARD_EXIT.plateOutMs, 1) : 1;
+				if (p && u < 1) {
 					p.shown = false;
-					p.root.visible = false;
+					p.ghost = true;
+					p.root.visible = true;
+					p.root.scale.set(1 - quadIn(Math.max(0, u)));
+				} else {
+					if (gh) plateGhosts[i] = null;
+					if (p && (p.shown || p.ghost)) {
+						p.shown = false;
+						p.ghost = false;
+						p.root.visible = false;
+						p.root.scale.set(1);
+					}
 				}
 				continue;
 			}
 			p ??= plateAt(i);
-			if (!p.shown) {
+			if (!p.shown || p.ghost) {
 				p.shown = true;
+				p.ghost = false;
 				p.root.visible = true;
+				p.root.scale.set(1);
 			}
 			const chg = tile.chg;
 			const from = chg < 1 ? tile.from : 0;
@@ -768,6 +789,11 @@
 		// plain reads outside any effect: no dependency tracking, no flush
 		const cells = stateGame.cells;
 		for (let i = 0; i < cells.length; i += 1) syncCell(cells[i], tex);
+		// THE BOARD EXIT: the previous board's tiles still falling off (plain objects the engine moves; same
+		// pooled sprites, same mask). Their ids are the ones they had on the board, so a tile keeps its sprite
+		// through the hand-over.
+		const leaving = boardExit.leaving;
+		for (let i = 0; i < leaving.length; i += 1) syncCell(leaving[i], tex);
 		for (const [id, sl] of live) {
 			if (sl.gen === gen) continue;
 			sl.s.visible = false;
@@ -847,7 +873,7 @@
 				plates: () =>
 					plates.flatMap((p, i) =>
 						p && p.shown
-							? [{ i, tint: p.g.tint, glowTint: p.glow.tint, glowAlpha: p.glow.alpha, covered: !!covered[i], coverDim: coverDim[i], cur: { text: p.cur.text, scale: p.cur.c.visible ? p.cur.scale : 0, alpha: p.cur.alpha, tint: p.cur.tint, face: p.cur.ftint, inkW: p.cur.w, inkH: p.cur.h, track: p.cur.track, maxW: NUM_MAX_W, em: NUM_EM }, old: { text: p.old.text, scale: p.old.c.visible ? p.old.scale : 0 }, bounds: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(p.g.getBounds()) }]
+							? [{ i, scale: p.root.scale.x, tint: p.g.tint, glowTint: p.glow.tint, glowAlpha: p.glow.alpha, covered: !!covered[i], coverDim: coverDim[i], cur: { text: p.cur.text, scale: p.cur.c.visible ? p.cur.scale : 0, alpha: p.cur.alpha, tint: p.cur.tint, face: p.cur.ftint, /* every glyph sprite's OWN tint (boardfix_probe: a pooled sprite must not keep its last owner's) */ faces: (p.cur.face.children as PIXI.Sprite[]).filter((s) => s.visible).map((s) => s.tint as number), outs: (p.cur.out.children as PIXI.Sprite[]).filter((s) => s.visible).map((s) => s.tint as number), inkW: p.cur.w, inkH: p.cur.h, track: p.cur.track, maxW: NUM_MAX_W, em: NUM_EM }, old: { text: p.old.text, scale: p.old.c.visible ? p.old.scale : 0 }, bounds: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(p.g.getBounds()) }]
 							: [],
 					),
 				cellTints: () => stateGame.cells.flatMap((c) => {
@@ -855,6 +881,8 @@
 					return sl ? [{ i: c.reel * 8 + c.row, name: c.name, dim: c.dim, tint: sl.s.tint, alpha: sl.s.alpha, state: c.state }] : [];
 				}),
 				plateObjects: () => ({ plates: plates.filter(Boolean).length, glyphPool: glyphPool.length }),
+				/** plates a reset cleared that are still shrinking away (BOARD_EXIT.plateOutMs): cell and drawn scale */
+				plateGhosts: () => plates.flatMap((p, i) => (p && p.ghost ? [{ i, scale: p.root.scale.x }] : [])),
 			});
 		}
 		return () => {

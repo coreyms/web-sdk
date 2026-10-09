@@ -11,6 +11,8 @@ import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
 import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, fxStamp, type FxRecord } from './featureFx';
+import { placeLabels } from './labelPlacement';
+import { forgedSupports, forgedWidth } from './clusterLabel';
 import {
 	GRID,
 	CELL_COUNT,
@@ -21,8 +23,11 @@ import {
 	INITIAL_BOARD,
 	DROP,
 	GRAVITY_DROP,
+	BOARD_EXIT,
 	CLUSTER,
 	READOUT,
+	CLUSTER_LABEL,
+	LABEL_PLACE,
 	SPARKLE,
 	SYMBOL_COLORS,
 	AURA_COLOR,
@@ -106,6 +111,11 @@ export type Readout = {
 	multX: number;
 	text: string;
 	scale: number;
+	/** set from the plaque's forged glyph atlas (components/ClusterLabels.svelte) rather than the stencil
+	 *  fallback (Board.svelte's ArtAmount rows); decided once per win set, when it is compiled */
+	forged: boolean;
+	/** the size the placement rule gave this win set's labels (LABEL_PLACE.scales; 1 = full size) */
+	size: number;
 };
 
 let nextId = 1;
@@ -468,6 +478,179 @@ export const boardInvariant = () => {
 	return { ok: problems.length === 0, count: stateGame.cells.length, problems: problems.slice(0, 40) };
 };
 
+// ---- the board exit (BOARD_EXIT) -------------------------------------------------------------------
+// The previous board FALLS OFF the bottom of the opening (Corey 2026-10-09; the Angry Mantis fall-out).
+// Presentation only: no book event is involved and nothing structural changes here.
+//
+//   · startBoardExit() sets the board's own cells falling (y past the bottom edge, a tip). On a spin press
+//     (game/actor.ts) that is all that happens: the cells STAY in stateGame.cells, so the board is still the
+//     last book's board until the next reveal replaces it, and a failed play just puts them back
+//     (cancelBoardExit).
+//   · revealBoard hands the tiles still in the air over to `boardExit.leaving` (PLAIN objects, never in
+//     stateGame.cells and never reactive: BoardCells reads the list once a frame and draws them with the
+//     same pooled sprites, inside the same mask), starts the exit itself when no press did (a free spin, a
+//     resume, a synthetic book), and then drops the new board as it always has.
+//   · SKIP TO RESULT: no exit at all (the board is simply replaced, as before).
+// The fall is in style time at the rate captured when it started, like every other beat.
+type ExitJob = { cell: Cell; row: number; delay: number; sign: number };
+type ExitRun = {
+	token: number;
+	jobs: ExitJob[];
+	/** performance.now() of the start and the style rate captured then */
+	t0: number;
+	rate: number;
+	/** style ms: the whole exit, and per column the moment its last tile has gone */
+	total: number;
+	colClear: number[];
+	/** style ms each of the old board's scatters has gone, ascending */
+	scatterGone: number[];
+	handed: boolean;
+	done: boolean;
+};
+export const boardExit = {
+	/** the previous board's tiles still falling after a reveal replaced the board */
+	leaving: [] as Cell[],
+	/** DEV / probe: `enabled` false plays the old instant swap (the A / B of the added time) */
+	enabled: true,
+	/** DEV probe log (tools/manticore/boardfix_probe.js), bounded */
+	log: [] as { from: 'press' | 'reveal'; at: number; rate: number; turbo: number; cells: number; totalMs: number; handedAt: number; holdMs: number; endAt: number; gameType: string }[],
+};
+let exitRun: ExitRun | null = null;
+let exitToken = 0;
+const EXIT_DISTANCE = GRID + BOARD_EXIT.extraCells;
+
+/** the previous board starts to fall off. A no-op while one is already falling, under SKIP TO RESULT, or
+ *  with nothing on the board. */
+export const startBoardExit = (from: 'press' | 'reveal' = 'press') => {
+	if (!boardExit.enabled || BOARD_EXIT.fallMs <= 0 || stateGame.skipping || typeof requestAnimationFrame !== 'function') return;
+	if (exitRun && !exitRun.done && !exitRun.handed) return;
+	const jobs: ExitJob[] = [];
+	const colClear = Array.from({ length: GRID }, () => 0);
+	const scatterGone: number[] = [];
+	let total = 0;
+	// the cells out of the LIVE array are the proxies (see DropJob): writes to them reach the sprites
+	for (const cell of stateGame.cells) {
+		if (cell.state === 'removing') continue;
+		const delay = cell.reel * BOARD_EXIT.columnStaggerMs + (GRID - 1 - cell.row) * BOARD_EXIT.rowStaggerMs;
+		jobs.push({ cell, row: cell.row, delay, sign: (cell.reel + cell.row) % 2 ? 1 : -1 });
+		const end = delay + BOARD_EXIT.fallMs;
+		colClear[cell.reel] = Math.max(colClear[cell.reel] ?? 0, end);
+		if (cell.name === 'S') scatterGone.push(end);
+		total = Math.max(total, end);
+	}
+	if (!jobs.length) return;
+	scatterGone.sort((a, b) => a - b);
+	const run: ExitRun = { token: ++exitToken, jobs, t0: performance.now(), rate: ts(), total, colClear, scatterGone, handed: false, done: false };
+	exitRun = run;
+	if (import.meta.env.DEV) {
+		boardExit.log.push({ from, at: run.t0, rate: run.rate, turbo: stateGame.turboLevel, cells: jobs.length, totalMs: total, handedAt: 0, holdMs: 0, endAt: 0, gameType: stateGame.gameType });
+		if (boardExit.log.length > 60) boardExit.log.splice(0, 30);
+	}
+	const log = import.meta.env.DEV ? boardExit.log[boardExit.log.length - 1] : null;
+	const tick = () => {
+		if (run.token !== exitToken) return; // cancelled: whoever cancelled has put the board right
+		const now = stateGame.skipping ? run.total : (performance.now() - run.t0) * run.rate;
+		for (const j of run.jobs) {
+			const e = BOARD_EXIT.easing(clamp01((now - j.delay) / BOARD_EXIT.fallMs));
+			j.cell.y = j.row + EXIT_DISTANCE * e;
+			j.cell.rot = j.sign * BOARD_EXIT.tipRadians * e;
+		}
+		if (now < run.total) {
+			requestAnimationFrame(tick);
+			return;
+		}
+		run.done = true;
+		if (log) log.endAt = performance.now();
+		// handed over: the tiles were only ever pictures, and they are off the board now. Not handed over
+		// (the book has not arrived yet): they wait below the opening, still the board, until the reveal
+		if (run.handed) boardExit.leaving = [];
+	};
+	requestAnimationFrame(tick);
+};
+
+/** a spin that never got its book (a failed play): the board comes back as it was */
+export const cancelBoardExit = () => {
+	const live = exitRun && !exitRun.handed;
+	exitToken += 1;
+	exitRun = null;
+	boardExit.leaving = [];
+	if (live) settleBoard();
+};
+
+/** the reveal takes the board over: whatever is still falling becomes a picture in `boardExit.leaving` */
+const handBoardExit = (animate: boolean) => {
+	if (!animate || stateGame.skipping || !boardExit.enabled) {
+		exitToken += 1;
+		exitRun = null;
+		boardExit.leaving = [];
+		return;
+	}
+	if (!exitRun || exitRun.handed) startBoardExit('reveal');
+	const run = exitRun;
+	if (!run || run.handed) {
+		boardExit.leaving = [];
+		return;
+	}
+	run.handed = true;
+	if (import.meta.env.DEV) {
+		const log = boardExit.log[boardExit.log.length - 1];
+		if (log) log.handedAt = performance.now();
+	}
+	if (run.done) {
+		boardExit.leaving = [];
+		return;
+	}
+	// plain copies: the proxies die with the array the reveal is about to replace
+	for (const j of run.jobs) j.cell = { ...j.cell };
+	boardExit.leaving = run.jobs.map((j) => j.cell);
+};
+
+/** the visible part of a drawn tile reaches this far from its centre, in cells */
+const TILE_HALF = (CELL_FILL * SYMBOL_FIT) / 2;
+
+/**
+ * How long (style ms) the new board's drop must be held so the exit and the entrance never show together
+ * what they must not:
+ *   · a column's first incoming tile never shows before that column's last old tile has gone;
+ *   · in FREE SPINS the old and the new board together never show more than BOARD_EXIT.maxScattersVisible
+ *     scatters (the k-th new scatter may only show once enough old ones have left).
+ * Read off the two boards and the two schedules, nothing else; a tease only delays the entrance further. With
+ * the shipped numbers the first rule needs 0 ms; the second holds a free spin only when the two boards
+ * carry more than three scatters between them.
+ */
+const exitGate = (board: SymbolName[][]): number => {
+	const run = exitRun;
+	if (!run || run.done || !run.handed) return 0;
+	const elapsed = (performance.now() - run.t0) * run.rate;
+	// when a tile falling fromY -> toY first shows under the opening's top edge
+	const showsAt = (reel: number, row: number) => {
+		const fromY = stackedAbove(row, GRID);
+		const target = (-0.5 - TILE_HALF - fromY) / (row - fromY);
+		let lo = 0;
+		let hi = 1;
+		for (let k = 0; k < 30; k += 1) {
+			const mid = (lo + hi) / 2;
+			if (DROP.easing(mid) < target) lo = mid;
+			else hi = mid;
+		}
+		return reel * DROP.columnStaggerMs + (GRID - 1 - row) * DROP.rowStaggerMs + dropDuration(row - fromY) * lo;
+	};
+	let hold = 0;
+	for (let reel = 0; reel < GRID; reel += 1) hold = Math.max(hold, (run.colClear[reel] ?? 0) - elapsed - showsAt(reel, GRID - 1));
+	if (stateGame.gameType === 'freegame' && run.scatterGone.length) {
+		const shows: number[] = [];
+		board.forEach((column, reel) => column.forEach((name, row) => name === 'S' && shows.push(showsAt(reel, row))));
+		shows.sort((a, b) => a - b);
+		const old = run.scatterGone.length;
+		for (let k = 1; k <= shows.length; k += 1) {
+			// with k new scatters showing, at most (max - k) old ones may still be on screen
+			const mustBeGone = Math.min(old, old - (BOARD_EXIT.maxScattersVisible - k));
+			if (mustBeGone >= 1) hold = Math.max(hold, run.scatterGone[mustBeGone - 1] - elapsed - shows[k - 1]);
+		}
+	}
+	return Math.max(0, hold);
+};
+
 /**
  * A whole new board falls in (reveal). Bottom row lands first, columns ripple left to right.
  *
@@ -551,11 +734,20 @@ export const revealBoard = async (
 			}
 		});
 	});
+	// THE BOARD EXIT (BOARD_EXIT): the old board's tiles fall on as pictures while this one drops in
+	handBoardExit(animate);
 	// assign FIRST, animate second: the jobs address the proxies this assignment creates
 	stateGame.cells = cells;
 	lastAura.clear();
 	const landScatter = onScatterLand ? (c: Cell) => c.name === 'S' && onScatterLand(cellOf(c.reel, c.row)) : undefined;
 	if (animate) {
+		// held only by what the exit still needs (0 ms with the shipped numbers; see exitGate). The new
+		// tiles wait stacked above the opening, where the mask hides them.
+		const hold = exitGate(board);
+		if (hold > 0) {
+			if (import.meta.env.DEV && boardExit.log.length) boardExit.log[boardExit.log.length - 1].holdMs = hold;
+			await waitStyle(hold);
+		}
 		let onFrame: ((now: number) => void) | undefined;
 		if (teased) onFrame = (now) => tickAnticipation(now, holdStart, holdMs);
 		else if (plan) {
@@ -739,6 +931,8 @@ export type WinSetHooks = {
 };
 
 const fmtAmount = (n: number) => bookEventAmountToCurrencyString(Math.round(n));
+/** DEV probe: the last win set's label decision (font, size, collisions left, the placed boxes in cells) */
+export const labelLog = { last: null as null | { forged: boolean; size: number; collisions: number; waves: number; labels: { x: number; y: number; w: number; h: number; anchorX: number; anchorY: number }[] } };
 const READOUT_H = SYMBOL_SIZE * CLUSTER.readoutHeight;
 /** the drawn width of a stencil string at the readout height, for the raw layout */
 const textWidth = (text: string, height: number) => {
@@ -792,13 +986,44 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	for (const w of wins) for (const index of w.cells) allWinners.add(index);
 	const claimed = new Set<CellIndex>();
 
+	// ---- the labels: which font, how big, where (CLUSTER_LABEL, LABEL_PLACE) ----
+	// One decision for the whole win set: the plaque's forged glyphs when the atlas is in and can set every
+	// string of every cluster, else the stencil readout. The numbers are the book's either way.
+	const texts = wins.map((w) => ({ amount: fmtAmount(w.base), mult: `×${w.mult}`, total: fmtAmount(w.total), raw: !!w.mult }));
+	const forged = texts.every((t) => forgedSupports(t.amount + t.mult + t.total));
+	const labelH = forged ? SYMBOL_SIZE * CLUSTER_LABEL.capCells : READOUT_H;
+	const measure = (text: string, tabular = false) => (forged ? forgedWidth(text, labelH, tabular) : textWidth(text, READOUT_H));
+	const rawGap = READOUT.rawGapCells * SYMBOL_SIZE;
+	const widths = texts.map((t) => ({ wa: measure(t.amount), wb: measure(t.mult), wm: measure(t.total, true) }));
+	// each label's box is its WIDEST moment (the raw pair apart, or the merged total at its punch), so two
+	// labels that are clear of each other here are clear on every frame
+	const placement = placeLabels(
+		wins.map((w, i) => {
+			const punch = texts[i].raw ? READOUT.slamScale : 1;
+			const wide = Math.max(texts[i].raw ? widths[i].wa + rawGap + widths[i].wb : 0, widths[i].wm * punch);
+			return {
+				cells: w.cells,
+				w: Math.min(GRID - 0.5, wide / SYMBOL_SIZE) + 2 * LABEL_PLACE.padXCells,
+				// the forged glyphs hang a little under the baseline (the comma, a currency mark's tail)
+				h: ((labelH * (forged ? 1.2 : 1)) / SYMBOL_SIZE) * punch + 2 * LABEL_PLACE.padYCells,
+			};
+		}),
+		{ grid: GRID, gap: LABEL_PLACE.gapCells, edge: LABEL_PLACE.edgeCells, passes: LABEL_PLACE.passes, scales: LABEL_PLACE.scales },
+	);
+	const size = placement.scale;
+	labelLog.last = import.meta.env.DEV ? { forged, size, collisions: placement.collisions.length, waves: Math.max(0, ...placement.wave), labels: placement.labels.map((l) => ({ ...l })) } : null;
+
 	// ---- compile ----
-	const gap0 = READOUT.rawGapCells * SYMBOL_SIZE;
+	const gap0 = rawGap * size;
 	let tc = 0;
 	let tRem = 0;
+	let lastCountDone = 0;
+	/** per cluster, when its readout has left (LABEL_PLACE rule 5: a label that still collides waits for it) */
+	const readoutDone: number[] = [];
 	const clusters: Cluster[] = wins.map((spec, i) => {
 		const cx = spec.cells.reduce((n, index) => n + reelOf(index) + 0.5, 0) / Math.max(1, spec.cells.length);
 		const cy = spec.cells.reduce((n, index) => n + rowOf(index) + 0.5, 0) / Math.max(1, spec.cells.length);
+		for (const j of placement.after[i]) tc = Math.max(tc, readoutDone[j] ?? 0);
 		const members: Member[] = [];
 		for (const index of spec.cells) {
 			const cell = at.get(index);
@@ -810,13 +1035,24 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		members.sort((a, b) => Math.hypot(rowOf(a.index) + 0.5 - cy, reelOf(a.index) + 0.5 - cx) - Math.hypot(rowOf(b.index) + 0.5 - cy, reelOf(b.index) + 0.5 - cx));
 		// a winner the preceding drop did not glow gets the standalone aura (the whole cluster, together)
 		const aura = CLUSTER.auraMs > 0 && members.some((m) => !lastAura.has(m.index)) ? CLUSTER.auraMs : 0;
-		const t = tc + aura;
+		let t = tc + aura;
 		const rise = Math.max(CLUSTER.winRiseMs, i === 0 ? CLUSTER.dimMs : 0, 1);
 		const raw = spec.mult ? READOUT.rawMs : 0;
 		const slam = raw > 0 ? READOUT.slamMs : 0;
 		const count = READOUT.countMs;
 		const hold = CLUSTER.holdMs;
+		// counts land in BOOK ORDER: a win with no tile multiplier has no raw / slam beat, so started the
+		// usual stagger after a multiplied one its count would land first and the spin total would step
+		// out of order. It starts late enough to land CLUSTER.countOrderMs after the one before.
+		if (i > 0) {
+			const late = lastCountDone + CLUSTER.countOrderMs - (t + rise + raw + slam + count);
+			if (late > 0) {
+				tc += late;
+				t += late;
+			}
+		}
 		const tCountDone = t + rise + raw + slam + count;
+		lastCountDone = tCountDone;
 		const tReadoutDone = tCountDone + hold;
 		let tRemEnd = tReadoutDone;
 		members.forEach((m, k) => {
@@ -824,14 +1060,23 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			tRemEnd = Math.max(tRemEnd, m.removeT0 + Math.max(CLUSTER.removeMs, 1));
 		});
 		tRem = Math.max(tRem, tRemEnd);
+		readoutDone[i] = tReadoutDone;
 		const start = tc;
-		tc = Math.max(tc, tRemEnd + (i < wins.length - 1 ? CLUSTER.clusterGapMs : 0));
-		const amount = fmtAmount(spec.base);
-		const mult = `×${spec.mult}`;
+		// the gap is measured from the removal end, and a win with no tile multiplier has no raw / slam beat,
+		// so it ends rawMs + slamMs sooner: without making that up here its removal end + the (negative) gap
+		// falls before its own start and every cluster of the set starts together (Corey 2026-10-09, the
+		// first free spin, where no tile has a multiplier yet)
+		const noMultMakeup = raw > 0 ? 0 : READOUT.rawMs + READOUT.slamMs;
+		tc = Math.max(tc, tRemEnd + (i < wins.length - 1 ? CLUSTER.clusterGapMs + noMultMakeup : 0));
+		const amount = texts[i].amount;
+		const mult = texts[i].mult;
 		const readout: Readout = {
 			id: nextId++,
-			x: Math.min(GRID - 1.4, Math.max(1.4, cx)) * SYMBOL_SIZE,
-			y: Math.min(GRID - 0.6, Math.max(0.6, cy)) * SYMBOL_SIZE,
+			// the label's CENTRE, from the placement rule (game/labelPlacement.ts)
+			x: placement.labels[i].x * SYMBOL_SIZE,
+			y: placement.labels[i].y * SYMBOL_SIZE,
+			forged,
+			size,
 			alpha: 0,
 			mode: raw > 0 ? 'raw' : 'merged',
 			amount,
@@ -856,8 +1101,8 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			tRemEnd,
 			spec,
 			readout,
-			wa: textWidth(amount, READOUT_H),
-			wb: textWidth(mult, READOUT_H),
+			wa: widths[i].wa * size,
+			wb: widths[i].wb * size,
 			started: false,
 			counted: false,
 		};
@@ -1660,15 +1905,30 @@ export const flashCells = async (cells: CellIndex[], color: number, ms: number, 
 	for (const c of stateGame.cells) if (members.has(c.id)) c.flash = 0;
 };
 
+/** the plates a reset cleared, still shrinking away (BOARD_EXIT.plateOutMs): cellIndex -> when it began and
+ *  the style rate then, null when none. PLAIN (BoardCells reads it once a frame); the VALUES are gone from
+ *  stateGame.tiles at once, as the book says, this is only the picture leaving. A cell the reveal gives a
+ *  value straight back (a feature's carried grid) never shows it: BoardCells draws the live value. */
+export const plateGhosts: ({ t0: number; rate: number } | null)[] = Array.from({ length: CELL_COUNT }, () => null);
+
 export const resetTiles = () => {
 	plateJobs.length = 0;
 	if (plateRaf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(plateRaf);
 	plateRaf = 0;
+	const animate = boardExit.enabled && BOARD_EXIT.plateOutMs > 0 && !stateGame.skipping && typeof performance !== 'undefined';
+	for (let i = 0; i < CELL_COUNT; i += 1) {
+		if (!animate) plateGhosts[i] = null;
+		else if (stateGame.tiles[i]?.value) plateGhosts[i] = { t0: performance.now(), rate: ts() };
+	}
 	stateGame.tiles = emptyTiles();
 };
 export { flushPlates };
 
 export const setBoardFromSymbols = (board: SymbolName[][]) => {
+	// a snapped board never has a previous one falling off it
+	exitToken += 1;
+	exitRun = null;
+	boardExit.leaving = [];
 	stateGame.cells = board.flatMap((column, reel) => column.map((name, row) => makeCell(name, reel, row)));
 	settleBoard();
 };
@@ -1765,6 +2025,8 @@ export const stateGameDerived = {
 	requestSkip,
 	finishSkip,
 	revealBoard,
+	startBoardExit,
+	cancelBoardExit,
 	setBoardFromSymbols,
 	settleBoard,
 	boardInvariant,

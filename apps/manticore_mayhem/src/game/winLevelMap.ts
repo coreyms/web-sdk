@@ -5,8 +5,13 @@ export const winLevelMap = {
 	1: { level: 1, alias: 'zero', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	2: { level: 2, alias: 'standard', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	3: { level: 3, alias: 'small', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
-	4: { level: 4, alias: 'nice', type: 'medium', text: 'NICE WIN', presentDuration: 1.2 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
-	5: { level: 5, alias: 'substantial', type: 'medium', text: 'BIG WIN', presentDuration: 1.8 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
+	// LEVELS 4 AND 5 (4x to 15x) HAVE NO WIN SCREEN AND NO WORD (Corey 2026-10-09: "no Nice win level"): the board's
+	// own run up (cluster labels, the SPIN readout, the HUD win) is all a win under Big gets. Level 5 read
+	// 'BIG WIN' on a plain screen with no plaque until then, which is what "Big wins are not showing the
+	// stinger" was. Their presentDuration is still what the WRAP UP counts over when a feature ends at
+	// that level (components/FreeSpinOutro.svelte); nothing else reads it.
+	4: { level: 4, alias: 'nice', type: 'medium', text: null, presentDuration: 1.2 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
+	5: { level: 5, alias: 'substantial', type: 'medium', text: null, presentDuration: 1.8 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	6: { level: 6, alias: 'big', type: 'big', text: 'BIG WIN', presentDuration: 3 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	7: { level: 7, alias: 'superwin', type: 'big', text: 'SUPER WIN', presentDuration: 4 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	8: { level: 8, alias: 'mega', type: 'big', text: 'MEGA WIN', presentDuration: 5 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },

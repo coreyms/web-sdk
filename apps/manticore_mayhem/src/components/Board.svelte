@@ -25,6 +25,7 @@
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
 	import { SYMBOL_SIZE, GRID, CLUSTER, READOUT } from '../game/constants';
+	import ClusterLabels from './ClusterLabels.svelte';
 	import { playBookEvents } from '../game/utils';
 	import { sparkleStats, motionLog } from '../game/sparkles';
 	import type { BookEvent } from '../game/typesBookEvent';
@@ -35,7 +36,8 @@
 	import ClawSwipe from './ClawSwipe.svelte';
 	import { fxLog, boardKick, swipeFx } from '../game/featureFx';
 	import BoardCells from './BoardCells.svelte';
-	import { revealTease, plateLog } from '../game/stateGame.svelte';
+	import { revealTease, plateLog, boardExit } from '../game/stateGame.svelte';
+	import { BOARD_EXIT, DROP } from '../game/constants';
 
 	const context = getContext();
 	const stateGame = context.stateGame;
@@ -159,7 +161,24 @@
 			configurable: true,
 			enumerable: true,
 		});
+		// BOARD EXIT probe (tools/manticore/boardfix_probe.js): every exit played (who started it, when, the
+		// style rate, when the reveal took the board over, any hold it asked of the new drop, when it ended),
+		// the tiles falling right now (the board's own before the reveal, `leaving` after) and the constants
+		Object.defineProperty((window as any).__manticore, 'exit', {
+			get: () => ({
+				enabled: boardExit.enabled,
+				log: boardExit.log.map((l) => ({ ...l })),
+				leaving: boardExit.leaving.map((c) => ({ id: c.id, name: c.name, reel: c.reel, row: c.row, y: c.y, rot: c.rot })),
+				/** cells of the live board that are off their row (falling before the book arrived) */
+				falling: stateGame.cells.filter((c) => Math.abs(c.y - c.row) > 1e-3).map((c) => ({ id: c.id, name: c.name, reel: c.reel, row: c.row, y: c.y, rot: c.rot })),
+				constants: { columnStaggerMs: BOARD_EXIT.columnStaggerMs, rowStaggerMs: BOARD_EXIT.rowStaggerMs, fallMs: BOARD_EXIT.fallMs, extraCells: BOARD_EXIT.extraCells, tipRadians: BOARD_EXIT.tipRadians, plateOutMs: BOARD_EXIT.plateOutMs, maxScattersVisible: BOARD_EXIT.maxScattersVisible, dropColumnStaggerMs: DROP.columnStaggerMs },
+			}),
+			configurable: true,
+			enumerable: true,
+		});
 		Object.assign((window as any).__manticore, {
+			/** the A / B of the exit's cost: false plays the old instant swap */
+			setExit: (on: boolean) => (boardExit.enabled = !!on),
 			/** end a skip a synthetic book started (playEvents has no bonusEnd to clear it) */
 			endSkip: () => context.stateGameDerived.finishSkip(),
 		});
@@ -212,39 +231,49 @@
 		<!-- the claw swipe's tears (z 21), the roar's cell flashes (z -0.5) and the board kick -->
 		<ClawSwipe />
 
-		<!-- the cluster readouts (several at once in sequence mode): the raw "amount  xmult" pair that
-		     slams together, then the merged amount that punches and counts up in place. All three
-		     rows of a readout stay mounted while it is up; the mode picks which are visible. -->
+		<!-- THE CLUSTER LABELS in the plaque's forged font (CLUSTER_LABEL): always mounted, one pooled layer;
+		     it draws every readout the engine marked `forged` -->
+		<ClusterLabels />
+
+		<!-- the STENCIL FALLBACK of the cluster readouts, for a win set the engine did not mark `forged` (the
+		     deferred glyph atlas is not in yet, or a currency mark it lacks): the raw "amount  xmult" pair
+		     that slams together, then the merged amount that punches and counts up in place. readout.y is the
+		     label's CENTRE (game/labelPlacement.ts) and ArtAmount's y is its baseline, hence the half height;
+		     readout.size is the placement rule's shrink. -->
 		{#each stateGame.readouts as readout (readout.id)}
-			<ArtAmount
-				text={readout.amount}
-				height={SYMBOL_SIZE * CLUSTER.readoutHeight}
-				x={readout.amountX}
-				y={readout.y}
-				alpha={readout.mode === 'raw' ? readout.alpha : 0}
-				tint={READOUT.amountTint}
-				shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
-			/>
-			<ArtAmount
-				text={readout.mult}
-				height={SYMBOL_SIZE * CLUSTER.readoutHeight}
-				x={readout.multX}
-				y={readout.y}
-				alpha={readout.mode === 'raw' ? readout.alpha : 0}
-				tint={READOUT.multTint}
-				shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
-			/>
-			<ArtAmount
-				text={readout.text}
-				height={SYMBOL_SIZE * CLUSTER.readoutHeight}
-				x={readout.x}
-				y={readout.y}
-				maxWidth={SYMBOL_SIZE * (GRID - 0.5)}
-				alpha={readout.mode === 'merged' ? readout.alpha : 0}
-				scale={readout.scale}
-				tint={READOUT.amountTint}
-				shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
-			/>
+			{#if !readout.forged}
+				<ArtAmount
+					text={readout.amount}
+					height={SYMBOL_SIZE * CLUSTER.readoutHeight}
+					x={readout.amountX}
+					y={readout.y + (SYMBOL_SIZE * CLUSTER.readoutHeight) / 2}
+					alpha={readout.mode === 'raw' ? readout.alpha : 0}
+					scale={readout.size}
+					tint={READOUT.amountTint}
+					shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
+				/>
+				<ArtAmount
+					text={readout.mult}
+					height={SYMBOL_SIZE * CLUSTER.readoutHeight}
+					x={readout.multX}
+					y={readout.y + (SYMBOL_SIZE * CLUSTER.readoutHeight) / 2}
+					alpha={readout.mode === 'raw' ? readout.alpha : 0}
+					scale={readout.size}
+					tint={READOUT.multTint}
+					shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
+				/>
+				<ArtAmount
+					text={readout.text}
+					height={SYMBOL_SIZE * CLUSTER.readoutHeight}
+					x={readout.x}
+					y={readout.y + (SYMBOL_SIZE * CLUSTER.readoutHeight) / 2}
+					maxWidth={SYMBOL_SIZE * (GRID - 0.5)}
+					alpha={readout.mode === 'merged' ? readout.alpha : 0}
+					scale={readout.scale * readout.size}
+					tint={READOUT.amountTint}
+					shadow={{ dx: 0.05, dy: 0.06, tint: 0x0a0b0d }}
+				/>
+			{/if}
 		{/each}
 	</BoardContainer>
 {/if}

@@ -3,7 +3,8 @@
 
 	export type EmitterEventFreeSpinOutro =
 		| { type: 'freeSpinOutroShow' }
-		| { type: 'freeSpinOutroCountUp'; amount: number; winLevelData: WinLevelData }
+		/** `capped`: the book's `wincap` came this round, so this is the MAX WIN wrap up (never read off the amount) */
+		| { type: 'freeSpinOutroCountUp'; amount: number; winLevelData: WinLevelData; capped?: boolean }
 		| { type: 'freeSpinOutroHide' };
 </script>
 
@@ -13,6 +14,11 @@
 	// as Angry Mantis paces its wrap-up: the end-feature ladder, never under 1.2 s), the line "in N <mode>"
 	// fades in, then the press gate. Veins and embers sit at the tier the book's own level names. The plain
 	// screen below stays as the fallback for art that never arrived.
+	// A MAX WIN ROUND (the event's `capped`, set from the book's `wincap`; Corey 2026-10-09): the same screen,
+	// titled with the win ladder's words instead of TOTAL WIN: BIG WIN slams in and the amount counts to the
+	// book's capped amount on the house Max pacing (winLevelMap level 10, 7 s over the base ladder's bars), the
+	// title and the look stepping up through Super / Mega / Epic to MAX WIN with each tier's clip; then the
+	// same line and the same gate.
 	import { Rectangle } from 'pixi-svelte';
 	import { MainContainer } from 'components-layout';
 	import { Tween } from 'svelte/motion';
@@ -23,7 +29,7 @@
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { BONUS_MODE_LABEL, STINGER_PLAQUE } from '../game/constants';
 	import { awaitDeferredAssets } from '../game/assetGate';
-	import { WIN_TIER_SOUND, WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
+	import { WIN_TIER_SOUND, WIN_TIER_STAGES_END_FEATURE, winLevelMap } from '../game/winLevelMap';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import CountUpText from './CountUpText.svelte';
 	import ArtAmount from './ArtAmount.svelte';
@@ -39,6 +45,8 @@
 	// the plaque is carrying this wrap-up (nothing of the plain screen is drawn), and its amount is still counting
 	let viaPlaque = $state(false);
 	let counting = $state(false);
+	// the plain fallback's title word
+	let maxWin = $state(false);
 	const titleCase = (s: string) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 	const dim = new Tween(0, { duration: 280, easing: cubicOut });
 	const counted = new Tween(0, { duration: 1200, easing: cubicOut });
@@ -58,7 +66,10 @@
 			show = true;
 			await dim.set(0.68);
 		},
-		freeSpinOutroCountUp: async ({ amount, winLevelData }) => {
+		freeSpinOutroCountUp: async ({ amount, winLevelData, capped }) => {
+			maxWin = !!capped;
+			// a capped round is the Max tier by the book's own event, whatever level the event carries
+			if (capped) winLevelData = winLevelMap[10];
 			const big = winLevelData.type === 'big';
 			const tier = big ? Math.max(0, WIN_TIER_STAGES_END_FEATURE.findIndex((s) => s.alias === winLevelData.alias)) : 0;
 			const session = context.stateGame.sessionRecap;
@@ -73,6 +84,7 @@
 					durationMs: Math.max(STINGER_PLAQUE.wrapMinCountMs, winLevelData.presentDuration / context.stateGameDerived.timeScale()),
 					ladder: 'endFeature',
 					sound: big,
+					maxWin: !!capped,
 				});
 				counting = false;
 				await flow.lineIn();
@@ -113,7 +125,7 @@
 			maxWidth={master.width * 0.8}
 			tint={0x9fd9d4}
 		/>
-		<ArtAmount text="TOTAL WIN" height={master.height * 0.045} x={master.width / 2} y={master.height * 0.44} maxWidth={master.width * 0.6} alpha={0.8} />
+		<ArtAmount text={maxWin ? 'MAX WIN' : 'TOTAL WIN'} height={master.height * 0.045} x={master.width / 2} y={master.height * 0.44} maxWidth={master.width * 0.6} alpha={0.8} />
 		<CountUpText amount={counted.current} {target} settled={counted.current === target} size={master.height * 0.11} x={master.width / 2} y={master.height * 0.58} maxWidth={master.width * 0.84} />
 		{#if recap}
 			<ArtAmount text="{recap.spinsPlayed} SPINS PLAYED" height={master.height * 0.035} x={master.width / 2} y={master.height * 0.68} maxWidth={master.width * 0.6} alpha={0.7} />

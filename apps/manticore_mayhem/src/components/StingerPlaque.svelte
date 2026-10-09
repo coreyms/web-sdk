@@ -30,7 +30,9 @@
 		/** the wrap up: TOTAL WIN, the count, then the line. `tier` = the veins / embers level from the start;
 		 *  `sound` = play that tier's clip on the impact. Resolves when the count has landed; lineIn() then
 		 *  resolves once the line under it has faded in. */
-		wrap: (o: { amount: number; tier: number; mode: StingerMode; line: string; durationMs: number; ladder: 'win' | 'endFeature'; sound: boolean }) => Promise<void>;
+		/** `maxWin` (a capped round): the title is the win ladder's instead (BIG WIN stepping up to MAX WIN at each
+		 *  bar of the base ladder, each tier's clip on its landing, never past `tier`), the way the win screen counts. */
+		wrap: (o: { amount: number; tier: number; mode: StingerMode; line: string; durationMs: number; ladder: 'win' | 'endFeature'; sound: boolean; maxWin?: boolean }) => Promise<void>;
 		lineIn: () => Promise<void>;
 		/** a press while an amount counts: land on the final amount and tier, with one tier beat */
 		skip: () => void;
@@ -340,8 +342,14 @@
 			const rows = text.copy.intro[mode] ?? [];
 			return title.startsWith(`${totalFs} `) && rows.some((row) => row.includes(` ${tileCap}x`));
 		},
-		wrap: async ({ amount, tier, mode, line, durationMs, ladder, sound }) => {
+		wrap: async ({ amount, tier, mode, line, durationMs, ladder, sound, maxWin }) => {
 			if (!view.ready) return;
+			if (maxWin) {
+				// Big opens the ladder and its clip plays on the impact, as on the win screen
+				begin({ screen: 'wrap', tier: 'big', mode, line, ladderTitle: true }, 0);
+				await counting({ amount, durationMs, bars: barsOf(WIN_TIER_STAGES), cap: Math.max(0, Math.min(STINGER_TIERS.length - 1, tier)), shown: 0, beats: true });
+				return;
+			}
 			begin({ screen: 'wrap', tier: tierName(tier), mode, line }, sound ? Math.max(0, Math.min(WIN_TIER_SOUND.length - 1, tier)) : -1);
 			// the count is paced over the ladder's bars like any other; the tier itself is fixed for the screen
 			await counting({ amount, durationMs, bars: barsOf(ladder === 'endFeature' ? WIN_TIER_STAGES_END_FEATURE : WIN_TIER_STAGES), cap: tier, shown: tier, beats: false });

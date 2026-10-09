@@ -92,6 +92,9 @@ export type StingerShow = {
 	mode?: StingerMode;
 	/** the wrap up's line, already worded (default: "in <the mode's free spins>") */
 	line?: string;
+	/** the wrap up of a MAX WIN round: its title is the win ladder's word for the tier (win_big .. win_max, swapped
+	 *  at every tier up exactly as on the win screen) instead of TOTAL WIN; the amount and the line stay the wrap up's */
+	ladderTitle?: boolean;
 };
 
 const LIDS = ['quarter', 'half', 'three_quarter', 'closed'] as const;
@@ -390,6 +393,7 @@ export class StingerView {
 		const C = this.json.text.copy;
 		const ph = L.panel[3];
 		this.screen = o.screen;
+		this.ladderTitle = o.screen === 'wrap' && !!o.ladderTitle;
 		this.mode = o.mode ?? 'bonus';
 		const rowsOff = () => this.rows.forEach((r) => (r.view.visible = false));
 		if (o.screen === 'win') {
@@ -413,7 +417,8 @@ export class StingerView {
 				this.report(r);
 			});
 		} else {
-			this.title.set(C.wrap.title, L.wrap.title_cap, L.wrap.max_width);
+			if (this.ladderTitle) this.setWinTitle();
+			else this.title.set(C.wrap.title, L.wrap.title_cap, L.wrap.max_width);
 			this.title.view.y = ph * L.wrap.title_cy;
 			this.amountPx = L.wrap.amount_px;
 			this.amountMax = L.wrap.max_width;
@@ -429,8 +434,12 @@ export class StingerView {
 		}
 	}
 
+	/** true on a wrap up that wears the win ladder's titles (a MAX WIN round) */
+	private ladderTitle = false;
+
 	private setWinTitle(): void {
-		const L = this.json.text.layout.win;
+		// on the wrap up the ladder's word sits where TOTAL WIN does, at the wrap up's own cap height and width
+		const L = this.ladderTitle ? this.json.text.layout.wrap : this.json.text.layout.win;
 		this.title.set(`win_${STINGER_TIERS[this.tier]}`, L.title_cap, L.max_width);
 	}
 
@@ -583,7 +592,7 @@ export class StingerView {
 		this.eye.flare(t + T.eyeFlareDelayMs / 1000);
 		this.embers.setTier(this.tier, t);
 		this.glint.tierUp(this.tier, t, T.glintTierHoldMs / 1000);
-		if (this.screen !== 'win') return;
+		if (this.screen !== 'win' && !this.ladderTitle) return;
 		// the title swap: the title on screen becomes the outgoing one from wherever its own punch has got to,
 		// and the other title object comes in as the new tier's
 		const d = this.drawn;

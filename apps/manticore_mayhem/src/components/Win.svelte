@@ -13,8 +13,14 @@
 	//     in, counts the amount with the house pacing and steps its title up through the tiers the amount
 	//     crosses, never past the book's own level. A press while it counts lands on the final amount and
 	//     tier; then the press-to-continue gate, as before (no gate while auto bonuses run).
-	//   ANYTHING SMALLER: the plain dim, tier word and count-up below, unchanged. It is also what a Big Win
-	//     falls back to if the plaque's art never arrived.
+	//   ANYTHING SMALLER GETS NO WIN SCREEN AT ALL (Corey 2026-10-09: "no Nice win level"): setTotalWin never
+	//     asks for one, so everything here is a Big Win or above.
+	//   THE PLAIN SCREEN below (dim, tier word, count up) is ONLY the fallback for a Big Win whose plaque art
+	//     never arrived. That fallback is counted and, in DEV, warned about (`__manticore.winScreen()`, read by
+	//     tools/manticore/stinger_flow_probe.js): a Big Win without its plaque is a bug to find, not a state to
+	//     pass silently. While the win waits for the deferred art only the dim is up (never a plain "0.00").
+	//   A FREE SPIN's own Big Win and a base game Max Win come through the same events
+	//     (game/bookEventHandlerMap.ts setTotalWin / wincap); nothing here tells them apart.
 	// This component still owns the events, the gate and stateGame.winShowing in both cases.
 	// The AMOUNT is always the book's; only the tier word is derived, and only for presentation.
 	import { Rectangle } from 'pixi-svelte';
@@ -23,6 +29,7 @@
 	import { SteadyTween as Tween } from '../game/tween.svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
+	import { onMount } from 'svelte';
 
 	import { getContext } from '../game/context';
 	import { awaitDeferredAssets } from '../game/assetGate';
@@ -45,6 +52,10 @@
 	// the plaque is carrying this win (nothing of the plain screen is drawn), and its amount is still counting
 	let viaPlaque = $state(false);
 	let counting = $state(false);
+	// the plain screen's title and count are being drawn (false while a Big Win still waits for the plaque's art)
+	let plain = $state(false);
+	// Big Wins that had to fall back to the plain screen, and why (DEV probes; must stay empty)
+	const fallbacks: { amount: number; alias: string; why: string }[] = [];
 	let presentation = 0; // a winHide that finishes after the next winShow must not hide it
 	const dim = new Tween(0, { duration: 260, easing: cubicOut });
 	const counted = new Tween(0, { duration: 900, easing: cubicOut });
@@ -62,15 +73,15 @@
 	context.eventEmitter.subscribeOnMount({
 		winShow: () => {
 			presentation += 1;
+			plain = false;
 			show = true;
 			void dim.set(0.55);
 		},
 		winUpdate: async ({ amount, winLevelData }) => {
-			const big = winLevelData.type === 'big';
 			const tier = Math.max(0, WIN_TIER_STAGES.findIndex((s) => s.alias === winLevelData.alias));
-			// the plaque's atlases are deferred assets: only a Big Win and above waits for them
-			if (big) await awaitDeferredAssets();
-			const flow = big ? stingerPlaque.flow : null;
+			// the plaque's atlases are deferred assets
+			await awaitDeferredAssets();
+			const flow = stingerPlaque.flow;
 			if (flow?.ready()) {
 				viaPlaque = true;
 				void dim.set(0, { duration: 0 }); // the plaque brings its own scene dim
@@ -86,14 +97,18 @@
 				}
 				return;
 			}
-			// the plain screen has no tier landings: a Big Win shown here plays its own tier's clip once
-			if (big) context.eventEmitter.broadcast({ type: 'soundOnce', name: WIN_TIER_SOUND[tier] });
+			// THE FALLBACK. The plain screen has no tier landings: the win's own tier clip plays once
+			const why = !flow ? 'the plaque is not mounted' : 'the plaque art or its motion data is not in (deferred assets timed out or failed)';
+			fallbacks.push({ amount, alias: winLevelData.alias, why });
+			if (import.meta.env.DEV) console.warn(`[manticore] a ${winLevelData.alias} win fell back to the plain screen: ${why}`);
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: WIN_TIER_SOUND[tier] });
+			plain = true;
 			title = winLevelData.text ?? '';
 			target = amount;
 			counted.set(0, { duration: 0 });
 			await counted.set(amount, { duration: Math.max(600, winLevelData.presentDuration) });
-			// a big win holds on a press; anything smaller just breathes and goes
-			if (winLevelData.type === 'big' && !autoBonusesRunning()) {
+			// the press gate, as on the plaque (a short hold while auto bonuses run)
+			if (!autoBonusesRunning()) {
 				gated = true;
 				await waitForResolve((resolve) => (resolveGate = resolve));
 				gated = false;
@@ -118,15 +133,24 @@
 			if (dim.target === 0) show = false;
 		},
 	});
+
+	// DEV hook: which screen carried the win, the plain title, and every Big Win that missed its plaque
+	onMount(() => {
+		if (!import.meta.env.DEV || typeof window === 'undefined') return;
+		Object.assign(((window as any).__manticore ??= {}), {
+			winScreen: () => ({ show, viaPlaque, plain, title: plain ? title : '', gated, counting, fallbacks: fallbacks.slice() }),
+		});
+		return () => delete (window as any).__manticore?.winScreen;
+	});
 </script>
 
 {#if show && !viaPlaque}
 	<MainContainer>
 		<Rectangle width={master.width} height={master.height} backgroundColor={0x05060a} alpha={dim.current} />
-		{#if title}
+		{#if plain && title}
 			<ArtAmount text={title} height={master.height * 0.09} x={master.width / 2} y={master.height * 0.44} maxWidth={master.width * 0.8} tint={0xe0b64a} />
 		{/if}
-		<CountUpText amount={counted.current} {target} settled={counted.current === target} size={master.height * 0.1} x={master.width / 2} y={master.height * 0.58} maxWidth={master.width * 0.8} />
+		{#if plain}<CountUpText amount={counted.current} {target} settled={counted.current === target} size={master.height * 0.1} x={master.width / 2} y={master.height * 0.58} maxWidth={master.width * 0.8} />{/if}
 	</MainContainer>
 {/if}
 

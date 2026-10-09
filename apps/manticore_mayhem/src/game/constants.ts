@@ -98,6 +98,37 @@ export const GRAVITY_DROP = {
 	bounceMs: 145,
 };
 
+/** THE BOARD EXIT (Corey 2026-10-09, played on an iPhone: "there is no symbol drop out animation ... the
+ *  symbols need to fall off the board"). The previous board falls off the BOTTOM of the opening the way
+ *  Angry Mantis's reels empty (its SPIN_OPTIONS fall-out: 60 ms between reels, 25 ms between rows with the
+ *  bottom row first, every tile the same ~255 ms quadIn fall, tipping 0.45 rad, alternate cells opposite
+ *  ways). Style time like everything else here (divided by TURBO_SCALE), so turbo 1 = 27 / 11 / 116 ms and
+ *  turbo 2 = 15 / 6 / 64 ms. It starts on the spin press (game/actor.ts, before the book arrives, like the
+ *  Angry Mantis pre-spin) or, where there is no press (a free spin, a resume, a synthetic book), at the
+ *  reveal; the new board's own drop is not delayed for it: a column's incoming stack waits DROP.clearance
+ *  above the opening and only shows 440 ms after its start, 10 ms after that column's last old tile has
+ *  gone (175 + 255), so the two never share a column. stateGame.exitGate() checks exactly that and holds the
+ *  drop only by what is missing (0 with these numbers). */
+export const BOARD_EXIT = {
+	/** ms between columns, left to right (Angry Mantis reelFallOutDelay) */
+	columnStaggerMs: 60,
+	/** ms between rows of a column, the bottom row first (Angry Mantis symbolFallOutInterval) */
+	rowStaggerMs: 25,
+	/** every tile's fall, whatever its row (Angry Mantis: reel length / symbolFallOutSpeed) */
+	fallMs: 255,
+	/** how far it falls, in cells: its own board height plus this, so a tipped tile's corner is out too */
+	extraCells: 0.25,
+	easing: quadIn,
+	/** the tile tips this far over its fall, alternate cells opposite ways (Angry Mantis tipRadians) */
+	tipRadians: 0.45,
+	/** a base spin's multiplier plates (the reveal clears them: the book's rule) shrink away over this
+	 *  instead of blinking out under the falling symbols; a feature's carried plates never move */
+	plateOutMs: 135,
+	/** FREE SPINS never show more than this many scatters at once (a math invariant the pictures must keep):
+	 *  the new board's drop is held until enough of the old board's scatters have left (stateGame.exitGate) */
+	maxScattersVisible: 3,
+};
+
 /** per-symbol landing animation (tools/SYMBOL_SHEETS.md, sheets from tools/pack_symbol_sheets.py).
  *  squash: GRAVITY_DROP's sprite squash for this symbol (L4 bakes its own stamp squash into its drop
  *  frames, so the sprite must not squash it again). dropFrom: the first drop frame the game plays
@@ -131,6 +162,9 @@ export const CLUSTER = {
 	/** sequence mode: cluster i+1 starts at max(cluster i start, cluster i removal end + this).
 	 *  Negative overlaps: the next cluster starts before the previous one has finished leaving. */
 	clusterGapMs: -1800,
+	/** a cluster's count never lands sooner than this after the one before it (book order: an unmultiplied
+	 *  win's readout is rawMs + slamMs shorter than a multiplied one's) */
+	countOrderMs: 150,
 	/** the winners grow to this while the readout is up */
 	winScale: 1.13,
 	winRiseMs: 90,
@@ -167,9 +201,55 @@ export const READOUT = {
 	slamPunchMs: 400,
 	countMs: 420,
 	countEasing: quadOut,
-	/** the raw parts' colours: the amount, the multiplier */
+	/** the raw parts' colours: the amount, the multiplier (the STENCIL fallback, drawn only until the forged
+	 *  glyph atlas is in: see CLUSTER_LABEL) */
 	amountTint: 0xf2b63c,
 	multTint: 0x5fd3c8,
+};
+
+/** THE CLUSTER LABELS IN THE PLAQUE'S FORGED FONT (Corey 2026-10-09). The per-cluster readout is set from the
+ *  win plaque's glyph atlas (Rakkas "forged", tools/build_plaque_text.py; game/stinger/text.ts lays it out,
+ *  components/ClusterLabels.svelte draws it as pooled sprites): the amount in the atlas's own cream (tint
+ *  white, as on the plaque), the multiplier tinted the title's teal. Sprite tints only. The atlas is a
+ *  DEFERRED asset: until it and stinger.json are in (or for a currency mark it lacks) the old stencil
+ *  readout draws instead (Board.svelte). */
+export const CLUSTER_LABEL = {
+	/** the cap height as a share of one cell (the stencil readout's digit height is CLUSTER.readoutHeight) */
+	capCells: 0.4,
+	amountTint: 0xffffff,
+	/** the teal of the word MAYHEM in the title (tools/make_placeholders.py TURQUOISE = 46, 176, 168; the
+	 *  same value as SYMBOL_COLORS.L4) */
+	teal: 0x2eb0a8,
+	/** the multiplier's sprite tint. A tint MULTIPLIES the glyph's cream face (0xeadec2 at its upper
+	 *  quartile, sampled from stinger-glyphs.webp), so the plain teal would draw darker and greener than the
+	 *  title's; this is `teal` divided by that face, so the lit part of the drawn number is `teal` */
+	multTint: 0x32cadd,
+	/** a hard drop shadow under every glyph (the stencil readout's): offset as shares of the cap height */
+	shadow: { dx: 0.06, dy: 0.08, tint: 0x0a0b0d, alpha: 0.85 },
+	/** a dark rim round every glyph (four copies this far off the face, in cells) so a number reads over a
+	 *  bright symbol; 0 = none */
+	rimCells: 0.018,
+};
+
+/** WHERE THE CLUSTER LABELS SIT (game/labelPlacement.ts, a pure function; self check
+ *  tools/manticore/label_place_check.mjs). Corey 2026-10-09: "when multiple clusters are near each other
+ *  ... the numbers end up overlapping so we can't see the individual amounts". Each label starts on its
+ *  cluster's visual centre (the centroid, snapped onto a cell of the cluster when it falls in a hole),
+ *  overlapping labels are pushed apart along the axis of least overlap and kept inside the opening, and a
+ *  set that still cannot fit shrinks step by step to `minScale`; whatever still collides then is staggered
+ *  in time (the later cluster's readout waits for the earlier one's to leave). */
+export const LABEL_PLACE = {
+	/** clear space kept between two labels, and between a label and the opening's edge, in cells */
+	gapCells: 0.08,
+	edgeCells: 0.06,
+	/** relaxation passes per size */
+	passes: 24,
+	/** the sizes tried, largest first; the last is the floor (portrait phone: 0.8 x 0.4 of a ~46 CSS px cell
+	 *  is a 15 px cap height, still a readable number) */
+	scales: [1, 0.92, 0.86, 0.8],
+	/** a label's box is its widest moment: the raw "amount  xmult" pair, or the merged total at its punch */
+	padXCells: 0.06,
+	padYCells: 0.05,
 };
 
 /** sparkle burst on each cleared cell (components/BoardCells.svelte). A new random pattern every
@@ -415,8 +495,10 @@ export const STING = {
 	/** between two stings of the same spin */
 	gapMs: 150,
 	/** big / super: the charge-up before the shape turns */
-	chargeMs: 300,
-	superChargeMs: 990,
+	// 2026-10-09 (Corey): retimed to his charge sounds (sting_big_charge 1.00 s builds to its end;
+	// sting_super_charge 2.00 s peaks at about 1.8 s). Were 300 / 990.
+	chargeMs: 1000,
+	superChargeMs: 1800,
 	/** big / super: the shape turning wild together */
 	bigHitMs: 540,
 	/** where in a hit the symbol actually changes (share of the hit) */

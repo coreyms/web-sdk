@@ -1,5 +1,7 @@
 import _ from 'lodash';
 
+import { waitForTimeout } from 'utils-shared/wait';
+
 import { recordBookEvent, checkIsMultipleRevealEvents, type BookEventHandlerMap } from 'utils-book';
 import { stateBet, stateBetDerived } from 'state-shared';
 
@@ -49,6 +51,7 @@ import {
 	BONUS_TRIGGER_SOUND_MAP,
 	BONUS_MODE_LABEL,
 	SCATTER_LAND_SOUND_MAP,
+	STINGER_PLAQUE,
 } from './constants';
 
 // ================================================================================================
@@ -132,6 +135,93 @@ const nextCascadeWinners = (bookEvent: BookEvent, bookEvents: BookEvent[]): Set<
 	if (next?.type !== 'cascade') return out;
 	for (const w of next.wins) for (const c of w.c) out.add(c);
 	return out;
+};
+
+// ---- THE MAX WIN CUT (Corey 2026-10-09; presentation only) ----------------------------------------
+// The book writes `wincap` straight after the cascade step that takes the ROUND total to the cap, and that
+// step still lists every cluster of its board (each clamped at the cap). The player must not watch clusters
+// clear and count past the cap: the step is presented up to the cluster at which the round total (all book
+// numbers: the last setTotalWin, this spin's earlier cascade.spinWin, each win.w) reaches the cap amount,
+// then the round goes straight to its Max Win screen and the rest of the step (the unshown clusters' removal,
+// the tiles, the refill) is applied WITHOUT motion under that screen's plaque, so the board ends on exactly
+// the book's board. Nothing here changes an amount: the plaque counts to the book's own capped amount.
+//   IN A FEATURE (every max win book known): the Max Win screen IS the wrap up (freeSpinEnd), titled MAX WIN
+//     instead of TOTAL WIN; `wincap` itself presents nothing and the capping spin gets no win screen of its own.
+//   IN THE BASE GAME (no wrap up exists; no such book is known): the win plaque at `wincap`, as a safety net.
+/** the book said `wincap` this round: the capping spin's setTotalWin presents nothing, the wrap up is the MAX WIN one */
+let capShown = false;
+/** the rest of the capped cascade step, owed to the board (run under the Max Win screen's entrance; finalWin
+ *  lands it if nothing else did) */
+let capTail: (() => Promise<void>) | null = null;
+/** land what the capped step still owes the board, with no motion */
+const landCapTail = async () => {
+	const tail = capTail;
+	capTail = null;
+	if (!tail) return;
+	await quietly(tail);
+	if (import.meta.env.DEV) capLog.tailAt = performance.now();
+};
+/** DEV: what the last cut did (tools/manticore/skip_probe.js) */
+const capLog: { clusters: number; shown: number; spinStepMax: number; spinWin: number; tailAt: number; via: '' | 'wrap' | 'win' } = { clusters: 0, shown: 0, spinStepMax: 0, spinWin: 0, tailAt: 0, via: '' };
+/** DEV: every win screen a setTotalWin / wincap asked for (the probes read which spins got one) */
+const winAsks: { from: 'setTotalWin' | 'wincap'; gameType: string; amount: number; total: number; alias: string }[] = [];
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+	Object.assign(((window as any).__manticore ??= {}), { capLog: () => ({ ...capLog, capShown }), winAsks: () => winAsks.slice() });
+}
+
+/** how many of this cascade's clusters to present when `wincap` is the next event (null = no cap here) */
+const capCut = (bookEvent: BookEventOfType<'cascade'>, bookEvents: BookEvent[]): number | null => {
+	const at = bookEvents.indexOf(bookEvent);
+	const cap = bookEvents[at + 1];
+	if (cap?.type !== 'wincap') return null;
+	// the round total before this step: the last setTotalWin (a resumed round keeps it in its snapshot)
+	// plus what this spin's earlier steps made (the previous cascade.spinWin since the reveal)
+	let running = 0;
+	let inSpin = true;
+	for (let i = at - 1; i >= 0; i -= 1) {
+		const e = bookEvents[i];
+		if (e.type === 'cascade' && inSpin) {
+			running += e.spinWin;
+			inSpin = false;
+		} else if (e.type === 'reveal') {
+			inSpin = false;
+		} else if (e.type === 'setTotalWin') {
+			running += e.amount;
+			break;
+		} else if (e.type === 'createBonusSnapshot') {
+			const last = _.findLast(e.bookEvents, (x) => x.type === 'setTotalWin') as BookEventOfType<'setTotalWin'> | undefined;
+			running += last?.amount ?? 0;
+			break;
+		}
+	}
+	for (let k = 0; k < bookEvent.wins.length; k += 1) {
+		running += bookEvent.wins[k].w;
+		if (running >= cap.amount) return k + 1;
+	}
+	return bookEvent.wins.length;
+};
+
+/** apply board changes with no motion at all: the SKIP TO RESULT rule (every wait collapses, every step
+ *  writes its final state), held only for the microtasks these calls take */
+const quietly = async (fn: () => Promise<void>) => {
+	const was = stateGame.skipping;
+	stateGame.skipping = true;
+	try {
+		await fn();
+	} finally {
+		stateGame.skipping = was;
+	}
+};
+
+/** a FREE SPIN's own win: the book's running spin total after the spin's last cascade (cascade.spinWin).
+ *  setTotalWin.amount is the ROUND total there, so it is not the number for a per spin win screen. */
+const spinOwnWin = (bookEvent: BookEvent, bookEvents: BookEvent[]): number => {
+	for (let i = bookEvents.indexOf(bookEvent) - 1; i >= 0; i -= 1) {
+		const e = bookEvents[i];
+		if (e.type === 'cascade') return e.spinWin;
+		if (e.type === 'reveal' || e.type === 'setTotalWin') break;
+	}
+	return 0;
 };
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
@@ -228,13 +318,18 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// counting over to the book's new value where `tiles` lists one (MULT_PLATE)
 		const tileMap = new Map(bookEvent.tiles);
 		const onCleared = (cell: CellIndex) => plateReveal(cell, tileMap.get(cell) ?? null);
+		// THE MAX WIN CUT (see capCut): only the clusters up to the one that reaches the cap are presented
+		const cut = capCut(bookEvent, bookEvents);
 		const ours = await presentWinSet(
-			bookEvent.wins.map((w) => ({ cells: w.c, base: w.p, mult: w.m, total: w.w, symbol: w.s })),
+			(cut === null ? bookEvent.wins : bookEvent.wins.slice(0, cut)).map((w) => ({ cells: w.c, base: w.p, mult: w.m, total: w.w, symbol: w.s })),
 			id,
 			{
 				onClusterStart: () => eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cluster_remove', forcePlay: true }),
 				onCountDone: (_i, total) => {
 					running += total;
+					// the capped step: the book clamps each cluster and the step's spinWin separately, so the running
+					// sum is never shown past the book's own spin total
+					if (cut !== null) running = Math.min(running, bookEvent.spinWin);
 					eventEmitter.broadcast({ type: 'spinWinStep', amount: running });
 					if (import.meta.env.DEV) {
 						motionLog.steps.push({ amount: running, at: performance.now(), cascade: motionLog.cascadeIndex });
@@ -251,6 +346,23 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (import.meta.env.DEV) {
 			motionLog.lastCascade = { ours: ours.length, book: bookEvent.removed.length, rest: rest.length, extra };
 			if (extra.length) console.warn('[manticore] win set removed cells the book did not list', extra);
+		}
+		if (cut !== null) {
+			// the cap is reached: no more clears, no tiles beat, no refill motion, no spin total presentation.
+			// The rest of the step is owed to the board and lands without motion under the Max Win screen.
+			capTail = async () => {
+				if (rest.length) await removeCells(rest, id, onCleared);
+				await applyTiles(bookEvent.tiles, id);
+				await dropFill(bookEvent.fill, id);
+				settleBoard();
+			};
+			stateGame.spinWin = bookEvent.spinWin;
+			eventEmitter.broadcast({ type: 'spinWinShow', amount: bookEvent.spinWin });
+			if (import.meta.env.DEV) {
+				motionLog.cascadeIndex += 1;
+				Object.assign(capLog, { clusters: bookEvent.wins.length, shown: cut, spinStepMax: running, spinWin: bookEvent.spinWin, tailAt: 0, via: '' });
+			}
+			return;
 		}
 		if (rest.length) await removeCells(rest, id, onCleared);
 		// Playback order is fixed by the schema: show the wins, remove `removed`, set `tiles`,
@@ -431,28 +543,62 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	// ---- core SDK events -------------------------------------------------------------------------
-	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
+	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>, { bookEvents }: BookEventContext) => {
 		stateBet.winBookEventAmount = bookEvent.amount;
-		// Presentation only. The book carries no winLevel for a base-game spin (there is no
-		// `setWin` in this schema), so the TIER WORD is derived from the amount the book already
-		// gave us — the number on screen is always the book's, never ours.
-		if (stateGame.gameType !== 'basegame' || bookEvent.amount <= 0) return;
-		const winLevelData = getWinLevelDataByBookEventAmount({ bookEventAmount: bookEvent.amount });
-		if (!winLevelData || winLevelData.presentDuration <= 0) return;
+		// the round reached the cap (the book's `wincap`): the Max Win screen is the round's one presentation
+		// (the wrap up in a feature), so the capping spin gets no win screen of its own
+		if (capShown || bookEvent.amount <= 0) return;
+		// Presentation only. The book carries no winLevel for a spin (there is no `setWin` in this
+		// schema), so the TIER WORD is derived from the amount the book already gave us — the number on
+		// screen is always the book's, never ours.
+		//   BASE GAME: the amount is setTotalWin's (the round total is the spin's).
+		//   A FREE SPIN (Corey 2026-10-09): setTotalWin is the ROUND total there, so the spin's OWN win is read
+		//   from the book's cascade.spinWin, and a SKIP TO RESULT plays none of them. The wrap up at the end of
+		//   the feature is unchanged.
+		//   ONLY BIG AND ABOVE (15x) GETS A WIN SCREEN, everywhere (Corey 2026-10-09: "no Nice win level"): a
+		//   smaller win is the board's own run up and nothing more.
+		const free = stateGame.gameType !== 'basegame';
+		if (free && stateGame.skipping) return;
+		const amount = free ? spinOwnWin(bookEvent, bookEvents) : bookEvent.amount;
+		if (amount <= 0) return;
+		const winLevelData = getWinLevelDataByBookEventAmount({ bookEventAmount: amount });
+		if (!winLevelData || winLevelData.type !== 'big') return;
+		if (import.meta.env.DEV) winAsks.push({ from: 'setTotalWin', gameType: stateGame.gameType, amount, total: bookEvent.amount, alias: winLevelData.alias });
 		eventEmitter.broadcast({ type: 'winShow' });
 		winLevelSoundsPlay({ winLevelData });
-		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount: bookEvent.amount, winLevelData });
+		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount, winLevelData });
 		winLevelSoundsStop();
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
 
-	wincap: async (bookEvent: BookEventOfType<'wincap'>) => {
-		// a skip never swallows the max win: clear it FIRST so the cap presentation and its sting play
-		// in full. Whatever follows (normally bonusEnd straight away, otherwise the remaining spins)
-		// runs at normal speed, and the player may press skip again if spins remain.
+	wincap: async (bookEvent: BookEventOfType<'wincap'>, { bookEvents }: BookEventContext) => {
+		// a skip never swallows the max win: clear it FIRST so the cap presentation plays in full.
 		stateGameDerived.finishSkip();
 		stateBet.winBookEventAmount = bookEvent.amount;
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_win_max' });
+		capShown = true;
+		eventEmitter.broadcast({ type: 'spinWinHide' });
+		// IN A FEATURE (Corey 2026-10-09: "Max win should go directly to the wrap up screen, and we should show
+		// Max Win instead of Total Win"): nothing is presented here. The book goes on to setTotalWin, bonusEnd
+		// and freeSpinEnd, whose wrap up is the MAX WIN one; what the cut step still owes the board lands under
+		// that plaque's entrance (freeSpinEnd).
+		if (bookEvents.slice(bookEvents.indexOf(bookEvent) + 1).some((e) => e.type === 'freeSpinEnd')) return;
+		// THE BASE GAME SAFETY NET (no wrap up exists there; no such book is known): the count up to the cap on
+		// the win plaque (the book's wincap.amount, the Max tier, the house 7 s pacing; each tier's clip plays
+		// as it lands, sfx_win_max last), the owed board changes landing under its slam.
+		const winLevelData = winLevelMap[10];
+		if (import.meta.env.DEV) {
+			winAsks.push({ from: 'wincap', gameType: stateGame.gameType, amount: bookEvent.amount, total: bookEvent.amount, alias: winLevelData.alias });
+			capLog.via = 'win';
+		}
+		eventEmitter.broadcast({ type: 'winShow' });
+		winLevelSoundsPlay({ winLevelData });
+		const shown = eventEmitter.broadcastAsync({ type: 'winUpdate', amount: bookEvent.amount, winLevelData });
+		// under the plaque's slam (its scene dim is in by then), never before it
+		if (capTail) await waitForTimeout(STINGER_PLAQUE.enterMs);
+		await landCapTail();
+		await shown;
+		winLevelSoundsStop();
+		eventEmitter.broadcast({ type: 'winHide' });
 	},
 
 	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>) => {
@@ -460,9 +606,20 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		stateGame.gameType = 'basegame';
 		eventEmitter.broadcast({ type: 'spinWinHide' });
+		// A CAPPED ROUND (the book's `wincap` came before this): the wrap up is the MAX WIN screen. Same plaque,
+		// same line and gate, titled with the win ladder's words instead of TOTAL WIN and counting the book's
+		// amount through Big / Super / Mega / Epic to Max on the house 7 s pacing (components/FreeSpinOutro.svelte).
+		// What the cut cascade step still owes the board lands with no motion under the plaque's entrance.
+		const capped = capShown;
 		winLevelSoundsPlay({ winLevelData });
 		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroShow' });
-		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: bookEvent.amount, winLevelData });
+		const counted = eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: bookEvent.amount, winLevelData, capped });
+		if (capped) {
+			if (import.meta.env.DEV) capLog.via = 'wrap';
+			if (capTail) await waitForTimeout(STINGER_PLAQUE.enterMs);
+			await landCapTail();
+		}
+		await counted;
 		winLevelSoundsStop({ keepUi: true });
 		eventEmitter.broadcast({ type: 'freeSpinOutroHide' });
 		await eventEmitter.broadcastAsync({ type: 'transition' });
@@ -481,6 +638,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// itself — the game returns to the base game and the player selects and confirms the price
 		// again to play another. The two Ante modes are type 'activate' and deliberately persist.
 		if (stateBetDerived.activeBetMode()?.type === 'buy') stateBet.activeBetModeKey = 'BASE';
+		// the round's Max Win bookkeeping ends with the round (a cut step nothing landed is landed here, so the
+		// board is the book's whatever path the round took)
+		await landCapTail();
+		capShown = false;
 		// belt and braces: a round that paid nothing emits no setTotalWin at all (EVENT_SCHEMA.md),
 		// so the HUD's amount has to land on the book's own final number either way
 		stateBet.winBookEventAmount = bookEvent.amount;

@@ -3,15 +3,15 @@
 	"tracks": {
 		"bgm_base": {
 			"src": [
-				"./assets/audio/music/bgm_base.ogg?v=75cd413a",
-				"./assets/audio/music/bgm_base.m4a?v=5d195445"
+				"./assets/audio/music/bgm_base.ogg?v=ea2c9ef2",
+				"./assets/audio/music/bgm_base.m4a?v=211b6694"
 			],
 			"bytes": [
-				1524614,
-				1468736
+				766237,
+				732087
 			],
 			"loop": true,
-			"duration": 120,
+			"duration": 60,
 			"volume": 0.6
 		},
 		"bgm_bonus": {
