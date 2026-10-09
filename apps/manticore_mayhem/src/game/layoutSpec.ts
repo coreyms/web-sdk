@@ -119,6 +119,30 @@ const chainSpanOf = (f: FrameRect) => {
 	return mid('R') - mid('L');
 };
 
+/** THE CLEAR SPAN BETWEEN THE CHAINS in master units: the left chain strip's inner edge to the right one's
+ *  (centreline +/- BOARD_ART.chains halfWidthPx). The win plaque's art runs exactly this wide on the desktop
+ *  master (game/stinger/layout.ts), so it follows the board art and never covers a chain. */
+export const chainClearSpan = (kind: LayoutKind, viewportMasterWidth?: number) => {
+	const f = frameFor(kind, viewportMasterWidth);
+	return chainSpanOf(f) - 2 * BOARD_ART.chains[kind].halfWidthPx * registrationOf(f).m;
+};
+
+/** THE PHONE HUD'S SIDE COLUMNS (phone held sideways): the HTML chrome keeps its logo, the BALANCE / WIN /
+ *  SPIN stack and the button clusters inside a column this wide at each end of the 1480 master (FRAME.phone:
+ *  "centred on the master so the chrome's 340-wide side columns stay clear"; ui/ChromePhone.svelte's widest
+ *  pieces, the logo and the menu / autoplay buttons, end about 310 from the edge). */
+export const PHONE_SIDE_COLUMN = 340;
+
+/** THE SPAN CLEAR OF THE HTML HUD's side columns, in master units, or null where the HUD has no side columns
+ *  over the board's band (desktop: the HUD is a row under the board; portrait: rows above and below). The win
+ *  plaque's art stays inside it on a phone held sideways (game/stinger/layout.ts). */
+export const hudClearSpan = (kind: LayoutKind): { x0: number; x1: number; width: number } | null => {
+	if (kind !== 'phone') return null;
+	const x0 = PHONE_SIDE_COLUMN;
+	const x1 = MASTER.phone.width - PHONE_SIDE_COLUMN;
+	return { x0, x1, width: x1 - x0 };
+};
+
 /** the frame ART's rectangle (frame + chains alpha bbox) in master units for a frame rect */
 const artRectOf = (f: FrameRect) => {
 	const r = registrationOf(f);

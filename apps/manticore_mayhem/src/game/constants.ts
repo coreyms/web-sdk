@@ -557,6 +557,97 @@ export const TIMINGS = {
 	winClearMs: 320,
 };
 
+// ---- The animated win plaque ("stinger", components/StingerPlaque.svelte, game/stinger/) ---------
+// The plaque's art, motion tracks and overlay recipes are data (static/assets/ui/stinger/stinger.json,
+// tools/build_stinger_assets.py); what is here is the choreography AROUND them. Every number runs in REAL
+// time at every turbo level, the way Angry Mantis's stinger does (its STINGER_MOTION is never scaled): the
+// entrance, the text beats, the exit, the idle loop, the flares and every pulse. Turbo shortens the COUNT
+// only (winLevelMap presentDuration / timeScale(), split by game/stinger/count.ts).
+export const STINGER_PLAQUE = {
+	/** the entrance: the plaque slams in from above (accelerating, like the tiles), scale settling to 1, fading in */
+	enterMs: 250,
+	enterDropPx: 60, // ship px of the 946 x 532 plaque frame
+	enterScale: 1.12,
+	enterFadeShare: 0.6, // the fade in is done after this share of the drop
+	/** the impact kicks the board (featureFx.boardKick, the swipe's own formula: (0.6k, k), k = kickPx (1 - u)
+	 *  sin(6 pi u), playground px); a tier up kicks lighter, as Angry Mantis's shove does */
+	kickPx: 4,
+	kickTierPx: 2,
+	kickMs: 180,
+	/** the touch down: a short squash about the panel centre, then back */
+	squashMs: 100,
+	squash: 0.015,
+	/** the exit: a lift with a fade */
+	exitMs: 200,
+	exitLiftPx: 60,
+	/** land_flare frame 2 is the impact (stinger_eye_flare_fx.json timing): the flare starts this many frames before it */
+	landFlareLeadFrames: 2,
+	/** the overlap rule: the old flare delta blends out over this while the new one starts from zero */
+	flareBlendMs: 100,
+	/** the beats after the impact / a tier up (stinger_eye_flare_fx.json "timing") */
+	eyeFlareDelayMs: 33,
+	glintLandDelayMs: 300,
+	glintTierHoldMs: 700,
+	/** a tier step eases the veins (base, peak, tint, glow, period) over this */
+	veinStepMs: 400,
+	/** barb charge one shot: min(1, peak + chargeLift) decaying over chargeMs */
+	chargeMs: 500,
+	chargeLift: 0.25,
+	// ---- THE TEXT (stage 2; the approved timing mocks, drafts/stinger_timing_review). T0 = the impact --------
+	/** the title punches in at T0 + titleDelayMs: scale titlePunchFrom to 1 with a back out overshoot, alpha over titleFadeMs */
+	titleDelayMs: 80,
+	titlePunchMs: 160,
+	titlePunchFrom: 1.35,
+	titleFadeMs: 100,
+	/** an Epic / Max title's halo fades in behind it */
+	titleGlowMs: 200,
+	/** the amount appears at T0 + amountDelayMs and the count starts there */
+	amountDelayMs: 150,
+	amountFadeMs: 80,
+	/** a tier up at T (the count runs on): the old title scales to tierOldScale and fades over tierOldOutMs; the new
+	 *  one starts at T + tierTitleDelayMs, scale tierTitleFrom to 1 over titlePunchMs, alpha over tierTitleFadeMs;
+	 *  the amount pulses once to tierPulse (up over tierPulseUpMs, back over the rest of tierPulseMs) */
+	tierTitleDelayMs: 33,
+	tierTitleFrom: 1.4,
+	tierTitleFadeMs: 60,
+	tierOldOutMs: 60,
+	tierOldScale: 1.15,
+	tierPulseMs: 250,
+	tierPulseUpMs: 120,
+	tierPulse: 1.12,
+	/** the count's end: the amount pulses to endPulse (half up, half back) and brightens (an additive copy at
+	 *  endBrighten, gone after endBrightenMs); one glint sweep glintEndDelayMs later (glintTierHoldMs when the last
+	 *  tier landed on the same frame) */
+	endPulseMs: 260,
+	endPulse: 1.15,
+	endBrighten: 0.6,
+	endBrightenMs: 120,
+	glintEndDelayMs: 100,
+	/** a digit is added: the centred row starts offset so the digits already there do not jump, and eases back (cubic out) */
+	amountSlideMs: 180,
+	/** the intro's rows: each fades in and rises rowRisePx (ship px), the first at T0 + rowsDelayMs, rowStaggerMs apart */
+	rowsDelayMs: 200,
+	rowStaggerMs: 90,
+	rowFadeMs: 200,
+	rowRisePx: 10,
+	/** the wrap up's line fades in once the end pulse is over */
+	lineFadeMs: 200,
+	/** the exit: the text is gone after textExitMs while the plaque lifts for exitMs */
+	textExitMs: 150,
+	/** the wrap up never counts faster than this (Angry Mantis: Math.max(1200, presentDuration / timeScale)) */
+	wrapMinCountMs: 1200,
+	/** holds once the screen has settled, when no press is asked for (auto bonuses / replay): the win's is what
+	 *  the plain screen used, the wrap up's is Angry Mantis's (it presses on a second after the count) */
+	winAutoHoldMs: 400,
+	wrapAutoHoldMs: 1000,
+	/** the veins / embers level of each feature's intro (STINGER_TIERS) */
+	introTier: { bonus: 'super', super: 'mega', epic: 'epic' },
+	/** eye glow pulse: additive strength low..high of the glow sprite, one cycle per period, a third of a cycle between heads */
+	eyePulse: { low: 0.1, high: 0.32, periodMs: 3500 },
+	/** blinks, one head at a time: the gap to a head's next blink, the chance of a double and its second start */
+	blink: { gapMinMs: 2400, gapMaxMs: 6200, doubleChance: 0.2, doubleGapMs: 300, afterFlareMs: 850 },
+} as const;
+
 /** the SKIP TO RESULT plate (components/SkipButton.svelte); placement is layoutSpec HUD.skipButton */
 export const SKIP_BUTTON = {
 	inMs: 220,

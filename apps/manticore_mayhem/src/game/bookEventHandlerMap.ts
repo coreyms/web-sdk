@@ -401,6 +401,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			title: BONUS_MODE_LABEL[bookEvent.bonus],
 			sub: `${bookEvent.totalFs} SPINS · TILES UP TO ${bookEvent.tileCap}x`,
 			gated: true,
+			// the animated plaque's intro screen for this mode (components/ModePlaque.svelte)
+			intro: { mode: bookEvent.bonus, totalFs: bookEvent.totalFs, tileCap: bookEvent.tileCap },
 		});
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 	},

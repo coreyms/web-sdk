@@ -145,7 +145,29 @@ export default {
 	"ui/numerals/numerals.json": "fc18e992",
 	"ui/numerals/numerals.webp": "69dff050",
 	"ui/numerals/plate-numerals.json": "3c24cb77",
-	"ui/numerals/plate-numerals.png": "568b8e40"
+	"ui/numerals/plate-numerals.png": "568b8e40",
+	"ui/stinger/stinger-fx-half.json": "5bc8cf4c",
+	"ui/stinger/stinger-fx-half.webp": "8341cd13",
+	"ui/stinger/stinger-fx.json": "224e6cfc",
+	"ui/stinger/stinger-fx.webp": "2907d09a",
+	"ui/stinger/stinger-glint-half.json": "90800b60",
+	"ui/stinger/stinger-glint-half.webp": "3fcab9ad",
+	"ui/stinger/stinger-glint.json": "0f3706d0",
+	"ui/stinger/stinger-glint.webp": "f8df68f1",
+	"ui/stinger/stinger-glyphs-half.json": "c1daf857",
+	"ui/stinger/stinger-glyphs-half.webp": "ab80cb57",
+	"ui/stinger/stinger-glyphs.json": "6cd27002",
+	"ui/stinger/stinger-glyphs.webp": "eb6b9550",
+	"ui/stinger/stinger-motion.bin": "1b51325f",
+	"ui/stinger/stinger-plaque-half.json": "0da738f9",
+	"ui/stinger/stinger-plaque-half.webp": "368545ff",
+	"ui/stinger/stinger-plaque.json": "260209dc",
+	"ui/stinger/stinger-plaque.webp": "e330fb96",
+	"ui/stinger/stinger-titles-half.json": "7ec12745",
+	"ui/stinger/stinger-titles-half.webp": "d24589c8",
+	"ui/stinger/stinger-titles.json": "12b37819",
+	"ui/stinger/stinger-titles.webp": "73bc3abe",
+	"ui/stinger/stinger.json": "cf4eedce"
 } as const;
 
 // Byte size of every file under static/assets (an atlas json includes its image): game/assets.ts
@@ -295,7 +317,29 @@ export const fileBytes = {
 	"ui/numerals/numerals.json": 648282,
 	"ui/numerals/numerals.webp": 617694,
 	"ui/numerals/plate-numerals.json": 17677,
-	"ui/numerals/plate-numerals.png": 14195
+	"ui/numerals/plate-numerals.png": 14195,
+	"ui/stinger/stinger-fx-half.json": 133291,
+	"ui/stinger/stinger-fx-half.webp": 119434,
+	"ui/stinger/stinger-fx.json": 217025,
+	"ui/stinger/stinger-fx.webp": 203128,
+	"ui/stinger/stinger-glint-half.json": 46572,
+	"ui/stinger/stinger-glint-half.webp": 42572,
+	"ui/stinger/stinger-glint.json": 71028,
+	"ui/stinger/stinger-glint.webp": 67028,
+	"ui/stinger/stinger-glyphs-half.json": 163513,
+	"ui/stinger/stinger-glyphs-half.webp": 138832,
+	"ui/stinger/stinger-glyphs.json": 257585,
+	"ui/stinger/stinger-glyphs.webp": 232852,
+	"ui/stinger/stinger-motion.bin": 223096,
+	"ui/stinger/stinger-plaque-half.json": 150840,
+	"ui/stinger/stinger-plaque-half.webp": 146564,
+	"ui/stinger/stinger-plaque.json": 297590,
+	"ui/stinger/stinger-plaque.webp": 293286,
+	"ui/stinger/stinger-titles-half.json": 166489,
+	"ui/stinger/stinger-titles-half.webp": 162962,
+	"ui/stinger/stinger-titles.json": 278039,
+	"ui/stinger/stinger-titles.webp": 274498,
+	"ui/stinger/stinger.json": 77044
 } as const;
 
 // Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the green bar by them).

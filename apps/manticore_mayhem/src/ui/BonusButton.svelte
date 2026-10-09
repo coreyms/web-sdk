@@ -51,7 +51,7 @@
 
 <style>
 	.fb {
-		--pm-core: #9cd92f;
+		--pm-core: #e32400; /* theme accent: Manticore red (Angry Mantis green is #9cd92f) */
 		background: rgba(11, 12, 16, 0.72);
 		color: #f4f6fb; /* the mark */
 		display: flex;

@@ -7,12 +7,18 @@ export const winLevelMap = {
 	3: { level: 3, alias: 'small', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	4: { level: 4, alias: 'nice', type: 'medium', text: 'NICE WIN', presentDuration: 1.2 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	5: { level: 5, alias: 'substantial', type: 'medium', text: 'BIG WIN', presentDuration: 1.8 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
-	6: { level: 6, alias: 'big', type: 'big', text: 'BIG WIN', presentDuration: 2.6 * SECOND, sound: { sfx: 'sfx_win_big', bgm: undefined }, animation: undefined },
-	7: { level: 7, alias: 'superwin', type: 'big', text: 'SUPER WIN', presentDuration: 3.4 * SECOND, sound: { sfx: 'sfx_win_super', bgm: undefined }, animation: undefined },
-	8: { level: 8, alias: 'mega', type: 'big', text: 'MEGA WIN', presentDuration: 4.2 * SECOND, sound: { sfx: 'sfx_win_mega', bgm: undefined }, animation: undefined },
-	9: { level: 9, alias: 'epic', type: 'big', text: 'EPIC WIN', presentDuration: 5 * SECOND, sound: { sfx: 'sfx_win_epic', bgm: undefined }, animation: undefined },
-	10: { level: 10, alias: 'max', type: 'big', text: 'MAX WIN', presentDuration: 6 * SECOND, sound: { sfx: 'sfx_win_max', bgm: undefined }, animation: undefined },
+	6: { level: 6, alias: 'big', type: 'big', text: 'BIG WIN', presentDuration: 3 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
+	7: { level: 7, alias: 'superwin', type: 'big', text: 'SUPER WIN', presentDuration: 4 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
+	8: { level: 8, alias: 'mega', type: 'big', text: 'MEGA WIN', presentDuration: 5 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
+	9: { level: 9, alias: 'epic', type: 'big', text: 'EPIC WIN', presentDuration: 6 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
+	10: { level: 10, alias: 'max', type: 'big', text: 'MAX WIN', presentDuration: 7 * SECOND, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 } as const;
+
+// LEVELS 6 TO 10 (Corey 2026-10-08, the house count-up pacing, as Angry Mantis ships it): the count runs
+// 3 / 4 / 5 / 6 / 7 s by FINAL tier (game/stinger/count.ts splits it over the bars crossed), and the tier
+// clips are not played from here any more: each tier's sfx_win_* plays as that tier lands on the plaque
+// (WIN_TIER_SOUND, components/StingerPlaque.svelte), the way Angry Mantis plays its plate clinks.
+export const WIN_TIER_SOUND = ['sfx_win_big', 'sfx_win_super', 'sfx_win_mega', 'sfx_win_epic', 'sfx_win_max'] as const;
 
 export type WinLevelMap = typeof winLevelMap;
 export type WinLevel = keyof WinLevelMap;

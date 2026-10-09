@@ -1,4 +1,6 @@
 <script lang="ts" module>
+	import type { StingerMode } from '../game/stinger/types';
+
 	export type EmitterEventModePlaque =
 		| {
 				type: 'modePlaqueShow';
@@ -7,13 +9,19 @@
 				/** true = wait for a press (feature entry); false = hold for holdMs and go */
 				gated: boolean;
 				holdMs?: number;
+				/** a FEATURE ENTRY: the animated plaque's intro screen for this mode carries it (the book's own
+				 *  spin count and tile cap are checked against the plaque's baked copy first) */
+				intro?: { mode: StingerMode; totalFs: number; tileCap: number };
 		  }
 		| { type: 'modePlaqueHide' };
 </script>
 
 <script lang="ts">
-	// The plain mode plaque. Milestone 1 has no cinematics and no character, so a feature starts and
-	// ends on one readable plate under the board: the mode, its spin count and its tile ladder.
+	// The mode plaque. A FEATURE ENTRY (event.intro) is the animated win plaque's intro screen
+	// (components/StingerPlaque.svelte): the title punches in and the mode's three rows rise in, then the same
+	// gate as before (a press, or the hold while auto bonuses run). The plain plate below stays for anything
+	// else, and for a feature entry whose book numbers the plaque's baked copy does not say (or whose art
+	// never arrived): the mode, its spin count and its tile ladder on one readable plate over the board.
 	import { Rectangle } from 'pixi-svelte';
 	import { MainContainer } from 'components-layout';
 	import { Tween } from 'svelte/motion';
@@ -24,6 +32,8 @@
 	import { HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX, boardCenterY } from '../game/layoutSpec';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
+	import { awaitDeferredAssets } from '../game/assetGate';
+	import { stingerPlaque } from './StingerPlaque.svelte';
 	import ArtAmount from './ArtAmount.svelte';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -54,6 +64,21 @@
 			sub = event.sub;
 			gated = event.gated;
 			context.stateGame.plaque = { title: event.title, sub: event.sub };
+			if (event.intro && event.gated) {
+				await awaitDeferredAssets();
+				const flow = stingerPlaque.flow;
+				const says = !!flow?.ready() && flow.introMatches(event.intro.mode, event.intro.totalFs, event.intro.tileCap);
+				if (flow && says) {
+					await flow.intro({ mode: event.intro.mode });
+					if (!autoBonusesRunning()) await waitForResolve((resolve) => (resolveGate = resolve));
+					else await waitForTimeout(event.holdMs ?? TIMINGS.plaqueHoldMs);
+					resolveGate = null;
+					await flow.hide();
+					context.stateGame.plaque = null;
+					return;
+				}
+				if (import.meta.env.DEV && flow?.ready()) console.warn('[manticore] the plaque intro copy does not match the book: plain plate shown', event.intro);
+			}
 			await alpha.set(1);
 			if (event.gated && !autoBonusesRunning()) {
 				await waitForResolve((resolve) => (resolveGate = resolve));

@@ -1,0 +1,294 @@
+{
+ "frames": {
+  "stg_glint_00": {
+   "frame": {
+    "x": 389,
+    "y": 303,
+    "w": 30,
+    "h": 42
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 30,
+    "h": 42
+   },
+   "sourceSize": {
+    "w": 30,
+    "h": 42
+   }
+  },
+  "stg_glint_01": {
+   "frame": {
+    "x": 1121,
+    "y": 216,
+    "w": 96,
+    "h": 189
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 96,
+    "h": 189
+   },
+   "sourceSize": {
+    "w": 96,
+    "h": 189
+   }
+  },
+  "stg_glint_02": {
+   "frame": {
+    "x": 446,
+    "y": 300,
+    "w": 171,
+    "h": 252
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 171,
+    "h": 252
+   },
+   "sourceSize": {
+    "w": 171,
+    "h": 252
+   }
+  },
+  "stg_glint_03": {
+   "frame": {
+    "x": 897,
+    "y": 4,
+    "w": 213,
+    "h": 279
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 213,
+    "h": 279
+   },
+   "sourceSize": {
+    "w": 213,
+    "h": 279
+   }
+  },
+  "stg_glint_04": {
+   "frame": {
+    "x": 446,
+    "y": 4,
+    "w": 219,
+    "h": 288
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 219,
+    "h": 288
+   },
+   "sourceSize": {
+    "w": 219,
+    "h": 288
+   }
+  },
+  "stg_glint_05": {
+   "frame": {
+    "x": 673,
+    "y": 294,
+    "w": 207,
+    "h": 261
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 207,
+    "h": 261
+   },
+   "sourceSize": {
+    "w": 207,
+    "h": 261
+   }
+  },
+  "stg_glint_06": {
+   "frame": {
+    "x": 673,
+    "y": 4,
+    "w": 216,
+    "h": 282
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 216,
+    "h": 282
+   },
+   "sourceSize": {
+    "w": 216,
+    "h": 282
+   }
+  },
+  "stg_glint_07": {
+   "frame": {
+    "x": 4,
+    "y": 4,
+    "w": 225,
+    "h": 294
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 225,
+    "h": 294
+   },
+   "sourceSize": {
+    "w": 225,
+    "h": 294
+   }
+  },
+  "stg_glint_08": {
+   "frame": {
+    "x": 237,
+    "y": 4,
+    "w": 201,
+    "h": 291
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 201,
+    "h": 291
+   },
+   "sourceSize": {
+    "w": 201,
+    "h": 291
+   }
+  },
+  "stg_glint_09": {
+   "frame": {
+    "x": 897,
+    "y": 291,
+    "w": 216,
+    "h": 273
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 216,
+    "h": 273
+   },
+   "sourceSize": {
+    "w": 216,
+    "h": 273
+   }
+  },
+  "stg_glint_10": {
+   "frame": {
+    "x": 4,
+    "y": 306,
+    "w": 192,
+    "h": 222
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 192,
+    "h": 222
+   },
+   "sourceSize": {
+    "w": 192,
+    "h": 222
+   }
+  },
+  "stg_glint_11": {
+   "frame": {
+    "x": 237,
+    "y": 303,
+    "w": 144,
+    "h": 237
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 144,
+    "h": 237
+   },
+   "sourceSize": {
+    "w": 144,
+    "h": 237
+   }
+  },
+  "stg_glint_12": {
+   "frame": {
+    "x": 1121,
+    "y": 4,
+    "w": 105,
+    "h": 204
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 105,
+    "h": 204
+   },
+   "sourceSize": {
+    "w": 105,
+    "h": 204
+   }
+  },
+  "stg_glint_13": {
+   "frame": {
+    "x": 625,
+    "y": 300,
+    "w": 33,
+    "h": 51
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 33,
+    "h": 51
+   },
+   "sourceSize": {
+    "w": 33,
+    "h": 51
+   }
+  }
+ },
+ "meta": {
+  "image": "stinger-glint-half.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 1248,
+   "h": 568
+  },
+  "scale": "1",
+  "pngHash": "3fcab9ad"
+ }
+}

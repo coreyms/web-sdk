@@ -9,6 +9,7 @@
 	import { createInterruptible } from 'utils-shared/interruptible';
 	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 	import { WIN_TIER_STAGES, type WinTierStage } from '../game/winLevelMap';
+	import { stagedSegments } from '../game/stinger/count';
 
 	type Props = {
 		amount: number;
@@ -32,15 +33,13 @@
 	let countUpCompleted = $state(false);
 	let generation = 0; // finishCountUp abandons the running segment loop; a stale loop must not resume
 
-	const segments = () => {
-		// upgrade bars actually crossed by this amount (skip the entry bar — the first title shows from 0)
-		const bars = stages
-			.slice(1)
-			.map((s) => s.xBet * BOOK_AMOUNT_MULTIPLIER)
-			.filter((bar) => bar < amount);
-		const pre = Math.min(duration * 0.15, 900);
-		return [...bars.map((to) => ({ to, duration: pre })), { to: amount, duration: Math.max(duration - bars.length * pre, duration * 0.4) }];
-	};
+	// the pacing itself is game/stinger/count.ts (the win plaque's ticker runs the same function)
+	const segments = () =>
+		stagedSegments(
+			amount,
+			duration,
+			stages.slice(1).map((s) => s.xBet * BOOK_AMOUNT_MULTIPLIER),
+		);
 
 	const countUp = async () => {
 		const mine = ++generation;

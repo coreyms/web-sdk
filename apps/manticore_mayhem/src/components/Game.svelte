@@ -27,6 +27,7 @@
 	import SpinWin from './SpinWin.svelte';
 	import SkipButton from './SkipButton.svelte';
 	import ModePlaque from './ModePlaque.svelte';
+	import StingerPlaque from './StingerPlaque.svelte';
 	import Win from './Win.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
 	import Transition from './Transition.svelte';
@@ -170,6 +171,9 @@
 			<SpinWin />
 			<SkipButton />
 			<ModePlaque />
+			<!-- the animated win plaque: the Big Win and above screen, the feature intro and the wrap up
+			     (driven by Win / ModePlaque / FreeSpinOutro through StingerPlaque.svelte's `stingerPlaque.flow`) -->
+			<StingerPlaque />
 			<Win />
 			<FreeSpinOutro />
 			<Transition />

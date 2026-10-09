@@ -1,0 +1,314 @@
+{
+ "frames": {
+  "stg_wing_C_L_back": {
+   "frame": {
+    "x": 562,
+    "y": 484,
+    "w": 104,
+    "h": 78
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 104,
+    "h": 78
+   },
+   "sourceSize": {
+    "w": 104,
+    "h": 78
+   }
+  },
+  "stg_wing_C_R_back": {
+   "frame": {
+    "x": 786,
+    "y": 484,
+    "w": 100,
+    "h": 78
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 100,
+    "h": 78
+   },
+   "sourceSize": {
+    "w": 100,
+    "h": 78
+   }
+  },
+  "stg_body": {
+   "frame": {
+    "x": 4,
+    "y": 4,
+    "w": 868,
+    "h": 472
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 868,
+    "h": 472
+   },
+   "sourceSize": {
+    "w": 868,
+    "h": 472
+   }
+  },
+  "stg_tail_L": {
+   "frame": {
+    "x": 112,
+    "y": 484,
+    "w": 104,
+    "h": 160
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 104,
+    "h": 160
+   },
+   "sourceSize": {
+    "w": 104,
+    "h": 160
+   }
+  },
+  "stg_tail_R": {
+   "frame": {
+    "x": 4,
+    "y": 484,
+    "w": 100,
+    "h": 166
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 100,
+    "h": 166
+   },
+   "sourceSize": {
+    "w": 100,
+    "h": 166
+   }
+  },
+  "stg_front_tail_L": {
+   "frame": {
+    "x": 798,
+    "y": 570,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  },
+  "stg_front_tail_R": {
+   "frame": {
+    "x": 494,
+    "y": 484,
+    "w": 60,
+    "h": 80
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 60,
+    "h": 80
+   },
+   "sourceSize": {
+    "w": 60,
+    "h": 80
+   }
+  },
+  "stg_wing_C_L": {
+   "frame": {
+    "x": 674,
+    "y": 484,
+    "w": 104,
+    "h": 78
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 104,
+    "h": 78
+   },
+   "sourceSize": {
+    "w": 104,
+    "h": 78
+   }
+  },
+  "stg_wing_C_R": {
+   "frame": {
+    "x": 562,
+    "y": 570,
+    "w": 100,
+    "h": 78
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 100,
+    "h": 78
+   },
+   "sourceSize": {
+    "w": 100,
+    "h": 78
+   }
+  },
+  "stg_wing_L": {
+   "frame": {
+    "x": 224,
+    "y": 484,
+    "w": 130,
+    "h": 136
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 130,
+    "h": 136
+   },
+   "sourceSize": {
+    "w": 130,
+    "h": 136
+   }
+  },
+  "stg_wing_R": {
+   "frame": {
+    "x": 362,
+    "y": 484,
+    "w": 124,
+    "h": 134
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 124,
+    "h": 134
+   },
+   "sourceSize": {
+    "w": 124,
+    "h": 134
+   }
+  },
+  "stg_front_wing_C_L": {
+   "frame": {
+    "x": 702,
+    "y": 570,
+    "w": 26,
+    "h": 72
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 26,
+    "h": 72
+   },
+   "sourceSize": {
+    "w": 26,
+    "h": 72
+   }
+  },
+  "stg_front_wing_C_R": {
+   "frame": {
+    "x": 670,
+    "y": 570,
+    "w": 24,
+    "h": 74
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 74
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 74
+   }
+  },
+  "stg_front_wing_L": {
+   "frame": {
+    "x": 736,
+    "y": 570,
+    "w": 24,
+    "h": 70
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 70
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 70
+   }
+  },
+  "stg_front_wing_R": {
+   "frame": {
+    "x": 768,
+    "y": 570,
+    "w": 22,
+    "h": 66
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 22,
+    "h": 66
+   },
+   "sourceSize": {
+    "w": 22,
+    "h": 66
+   }
+  }
+ },
+ "meta": {
+  "image": "stinger-plaque-half.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 896,
+   "h": 654
+  },
+  "scale": "1",
+  "pngHash": "368545ff"
+ }
+}

@@ -245,6 +245,49 @@ const assets = {
 		src: stamp(new URL('../../assets/ui/numerals/plate-numerals.json', import.meta.url).href),
 		preload: true,
 	},
+	// THE ANIMATED WIN PLAQUE (components/StingerPlaque.svelte, tools/build_stinger_assets.py): the 15 layered
+	// cut-outs, the overlay sprites, the 14 glint slices, the baked titles and the forged glyphs, each with a
+	// phone tier twin. DEFERRED: a big win or a feature intro is never in the game's first seconds.
+	stingerPlaque: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/ui/stinger/stinger-plaque.json', import.meta.url).href),
+			stamp(new URL('../../assets/ui/stinger/stinger-plaque-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	stingerFx: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/ui/stinger/stinger-fx.json', import.meta.url).href),
+			stamp(new URL('../../assets/ui/stinger/stinger-fx-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	stingerGlint: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/ui/stinger/stinger-glint.json', import.meta.url).href),
+			stamp(new URL('../../assets/ui/stinger/stinger-glint-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	stingerTitles: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/ui/stinger/stinger-titles.json', import.meta.url).href),
+			stamp(new URL('../../assets/ui/stinger/stinger-titles-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	stingerGlyphs: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/ui/stinger/stinger-glyphs.json', import.meta.url).href),
+			stamp(new URL('../../assets/ui/stinger/stinger-glyphs-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
 	sound: {
 		type: 'audio',
 		src: stamp(new URL('../../assets/audio/sounds.json', import.meta.url).href),
@@ -257,6 +300,12 @@ const assets = {
 		preload: true,
 	},
 } as const;
+
+// the win plaque's runtime data (game/stinger/data.ts fetches both itself: recipes + int16 vertex tracks)
+export const STINGER_DATA_URLS = {
+	json: stamp(new URL('../../assets/ui/stinger/stinger.json', import.meta.url).href),
+	bin: stamp(new URL('../../assets/ui/stinger/stinger-motion.bin', import.meta.url).href),
+};
 
 // Every asset carries its download size (scripts/stamp-assets.mjs fileBytes) so pixi-svelte's
 // AssetsLoader can weight the preload's progress by bytes rather than by file count.

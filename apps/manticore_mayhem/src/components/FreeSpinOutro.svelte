@@ -8,17 +8,23 @@
 </script>
 
 <script lang="ts">
-	// The feature wrap-up: how many spins were played and what the whole session paid. Plain, like
-	// the mode plaque — the cinematic version is a later milestone.
+	// The feature wrap-up: what the whole session paid and how many spins it took. It is the animated win
+	// plaque's wrap screen (components/StingerPlaque.svelte): TOTAL WIN punches in, the amount counts (paced
+	// as Angry Mantis paces its wrap-up: the end-feature ladder, never under 1.2 s), the line "in N <mode>"
+	// fades in, then the press gate. Veins and embers sit at the tier the book's own level names. The plain
+	// screen below stays as the fallback for art that never arrived.
 	import { Rectangle } from 'pixi-svelte';
 	import { MainContainer } from 'components-layout';
 	import { Tween } from 'svelte/motion';
 	import { cubicOut } from 'svelte/easing';
-	import { waitForResolve } from 'utils-shared/wait';
+	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
-	import { BONUS_MODE_LABEL } from '../game/constants';
+	import { BONUS_MODE_LABEL, STINGER_PLAQUE } from '../game/constants';
+	import { awaitDeferredAssets } from '../game/assetGate';
+	import { WIN_TIER_SOUND, WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
+	import { stingerPlaque } from './StingerPlaque.svelte';
 	import CountUpText from './CountUpText.svelte';
 	import ArtAmount from './ArtAmount.svelte';
 	import PressToContinue from './PressToContinue.svelte';
@@ -30,6 +36,10 @@
 	let show = $state(false);
 	let target = $state(0);
 	let resolveGate: (() => void) | null = $state(null);
+	// the plaque is carrying this wrap-up (nothing of the plain screen is drawn), and its amount is still counting
+	let viaPlaque = $state(false);
+	let counting = $state(false);
+	const titleCase = (s: string) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 	const dim = new Tween(0, { duration: 280, easing: cubicOut });
 	const counted = new Tween(0, { duration: 1200, easing: cubicOut });
 
@@ -41,10 +51,38 @@
 
 	context.eventEmitter.subscribeOnMount({
 		freeSpinOutroShow: async () => {
+			await awaitDeferredAssets();
+			// the line needs the session's recap (bonusEnd wrote it just before this)
+			viaPlaque = !!context.stateGame.sessionRecap && !!stingerPlaque.flow?.ready();
+			if (viaPlaque) return;
 			show = true;
 			await dim.set(0.68);
 		},
 		freeSpinOutroCountUp: async ({ amount, winLevelData }) => {
+			const big = winLevelData.type === 'big';
+			const tier = big ? Math.max(0, WIN_TIER_STAGES_END_FEATURE.findIndex((s) => s.alias === winLevelData.alias)) : 0;
+			const session = context.stateGame.sessionRecap;
+			const flow = stingerPlaque.flow;
+			if (viaPlaque && flow && session) {
+				counting = true;
+				await flow.wrap({
+					amount,
+					tier,
+					mode: session.mode,
+					line: `in ${session.spinsPlayed} ${titleCase(BONUS_MODE_LABEL[session.mode])}`,
+					durationMs: Math.max(STINGER_PLAQUE.wrapMinCountMs, winLevelData.presentDuration / context.stateGameDerived.timeScale()),
+					ladder: 'endFeature',
+					sound: big,
+				});
+				counting = false;
+				await flow.lineIn();
+				// auto bonuses press on a moment after the count (Angry Mantis); re-checked when the hold ends, so
+				// stopping autoplay during it brings the press gate back
+				if (autoBonusesRunning()) await waitForTimeout(STINGER_PLAQUE.wrapAutoHoldMs);
+				if (!autoBonusesRunning()) await waitForResolve((resolve) => (resolveGate = resolve));
+				return;
+			}
+			if (big) context.eventEmitter.broadcast({ type: 'soundOnce', name: WIN_TIER_SOUND[tier] });
 			target = amount;
 			counted.set(0, { duration: 0 });
 			await counted.set(amount, { duration: Math.max(900, winLevelData.presentDuration) });
@@ -52,6 +90,12 @@
 		},
 		freeSpinOutroHide: async () => {
 			dismiss();
+			if (viaPlaque) {
+				counting = false;
+				await stingerPlaque.flow?.hide();
+				viaPlaque = false;
+				return;
+			}
 			await dim.set(0, { duration: 260 });
 			show = false;
 		},
@@ -77,6 +121,7 @@
 	</MainContainer>
 {/if}
 
-{#if resolveGate}
-	<PressToContinue showText onpress={dismiss} />
+<!-- a press while the plaque counts lands the amount; once it has landed, the press continues -->
+{#if counting || resolveGate}
+	<PressToContinue showText={!!resolveGate} onpress={() => (counting ? stingerPlaque.flow?.skip() : dismiss())} />
 {/if}

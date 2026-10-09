@@ -63,7 +63,7 @@
 				overflow: hidden;
 				font-family: 'AMOutfitSplash', system-ui, sans-serif;
 				color: #f4f6fb;
-				--accent: #9cd92f;
+				--accent: #e32400; /* the game's theme accent: Manticore red (the x2 plate red). Angry Mantis is #9cd92f */
 				opacity: 1;
 			}
 			#am-splash.am-out {
@@ -203,7 +203,7 @@
 				animation: am-rise 300ms ease-out 660ms forwards;
 			}
 			/* the bar: LandingScreen's gold bar (ui/LandingScreen.svelte .bar/.fill/.pct) in the logo's
-			   green — same track, same radius/height, the gradient built from #9CD92F by the exact
+			   theme accent (Manticore red #E32400; the house default is green #9CD92F) — same track, same radius/height, the gradient built from it by the exact
 			   light->dark ratios the gold one uses (#ffdc4a -> #dfb02c). It only appears once there is
 			   the first paint (Corey 2026-09-15: it must be there from the start, 0% and all). */
 			#am-splash .barwrap {
@@ -228,7 +228,7 @@
 				height: 100%;
 				width: 4%;
 				border-radius: 6px;
-				background: linear-gradient(90deg, #89ae1c, #9cd92f);
+				background: linear-gradient(90deg, #c81d00, #e32400);
 				box-shadow: 0 0 12px rgba(156, 217, 47, 0.5);
 				transition: width 0.15s linear;
 			}
@@ -259,7 +259,7 @@
 							<circle class="node" cx="50" cy="17.6" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:300ms" />
 							<circle class="node" cx="14" cy="80" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:340ms" />
 							<circle class="node" cx="86" cy="80" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:380ms" />
-							<circle class="node" cx="50" cy="59.2" r="7.5" fill="#9CD92F" stroke="#9CD92F" style="animation-delay:430ms" />
+							<circle class="node" cx="50" cy="59.2" r="7.5" fill="#E32400" stroke="#E32400" style="animation-delay:430ms" />
 						</svg>
 						<div class="lockup">
 							<div class="wm">Poly<em>Math</em></div>
