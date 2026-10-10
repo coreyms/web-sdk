@@ -26,7 +26,7 @@
 // here is simply left to that batch, which has the retries and the failure screen.
 import * as PIXI from 'pixi.js';
 
-import assets, { DEFERRED_ORDER, LOGO_DATA_URLS, PLAQUE_ATLAS_KEYS, SCENE_DAY_KEYS, SCENE_LATE, SCENE_NIGHT_KEYS, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
+import assets, { DEFERRED_ORDER, LOGO_DATA_URLS, PLACEHOLDER_LATE, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
 import { markPlaqueAssetsReady } from './assetGate';
 import { loadLogoData } from './logo/data';
 import { loadStingerData } from './stinger/data';
@@ -157,10 +157,11 @@ const watchUnreachable = (app: AppState) => {
 	check();
 };
 
-// ---- the courtyard scene for a game that booted in PORTRAIT (game/assets.ts SCENE_LATE) --------------------
-// Portrait draws the placeholder and requests none of the scene's files. The first time the layout is landscape
-// or phone sideways, components/Background.svelte calls this: the day set (published together: the scene builds
-// from all four), then the night set. Once; a file that fails leaves the placeholder standing.
+// ---- the OTHER layout's courtyard scene (game/assets.ts SCENE_LATE) ------------------------------------------
+// The game registers only the scene of the layout it booted in (16:9 for landscape and phone sideways, 9:16 for
+// portrait) and requests none of the other's files. The first time the layout becomes one of the other scene's,
+// components/Background.svelte calls this: the day set (published together: the scene builds from all of it),
+// then the night set. Once; a file that fails leaves the placeholder crop standing.
 let sceneLate: Promise<void> | null = null;
 export const loadSceneLate = (app: AppState): Promise<void> => {
 	const group = async (name: string, keys: readonly string[]) => {
@@ -170,9 +171,21 @@ export const loadSceneLate = (app: AppState): Promise<void> => {
 		if (!log.failed) app.loadedAssets = Object.assign({ ...app.loadedAssets }, ...(done as Textures[]));
 		log.end = performance.now();
 	};
-	if (!Object.keys(SCENE_LATE).length) return Promise.resolve();
-	sceneLate ??= group('sceneDay', SCENE_DAY_KEYS).then(() => group('sceneNight', SCENE_NIGHT_KEYS)).catch(() => {});
+	const late = SCENE_KEYS[SCENE_AT_BOOT === 'landscape' ? 'portrait' : 'landscape'];
+	sceneLate ??= group('sceneDay', late.day).then(() => group('sceneNight', late.night)).catch(() => {});
 	return sceneLate;
+};
+
+/** the placeholder crop of a layout the game did not boot in (game/assets.ts PLACEHOLDER_LATE): the fallback that
+ *  stands in while that layout's scene is on its way. Once per layout; a failure leaves the flat sky colour. */
+const placeholderLate: Record<string, Promise<void>> = {};
+export const loadPlaceholderLate = (app: AppState, kind: string): Promise<void> => {
+	const key = `bg_base_${kind}`;
+	if (!PLACEHOLDER_LATE[key]) return Promise.resolve();
+	placeholderLate[key] ??= loadOne(key, PLACEHOLDER_LATE[key]).then((textures) => {
+		if (textures) app.loadedAssets = { ...app.loadedAssets, ...textures };
+	});
+	return placeholderLate[key];
 };
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {

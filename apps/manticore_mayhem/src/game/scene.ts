@@ -1,5 +1,7 @@
-// THE COURTYARD SCENE: raw Pixi in one container, in px of the scene's own frame (game/sceneSpec.ts, 2560 x 1440;
-// components/Background.svelte cover-fits it to the canvas). Back to front, the scene agent's own order:
+// THE COURTYARD SCENE: raw Pixi in one container, in px of the scene's own frame (game/sceneSpec.ts;
+// components/Background.svelte cover-fits it to the canvas). There are TWO scenes, one SceneView each: 'landscape'
+// (2560 x 1440, the landscape and phone sideways layouts) and 'portrait' (1440 x 2560: backdrop, foreground and fire
+// pass only, it has no moving pieces). Back to front, the scene agent's own order:
 //   backdrop day, night     the painting, opaque
 //   foreground day, night   the 3D courtyard with alpha, no fire light, no moving chains
 //   fire                    the braziers' light alone, on black, ADDITIVE. One pass for every mode: its level, the
@@ -22,16 +24,17 @@ import * as PIXI from 'pixi.js';
 
 import { PLAYGROUND_PX, SCENE } from './constants';
 import { boardKick } from './featureFx';
-import { SCENE_SPEC } from './sceneSpec';
+import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from './sceneSpec';
 
 export type SceneFamily = keyof typeof SCENE.modes;
 export type SceneTier = keyof typeof SCENE_SPEC.tiers;
+/** 'landscape' is the 16:9 scene of the landscape and phone sideways layouts, 'portrait' the 9:16 one */
+export type SceneLayout = keyof typeof SCENE.fire;
 type Textures = Record<string, PIXI.Texture | undefined>;
 type Terms = readonly (readonly number[])[];
 
 const SIDES = ['L', 'R'] as const;
 const SETS = ['day', 'night'] as const;
-const FW = SCENE_SPEC.frame[0];
 const TAU = Math.PI * 2;
 
 // the values a mode sets, in one array so a change of mode is one loop
@@ -137,6 +140,10 @@ const strip = (box: readonly number[], ys: number[]): Strip => {
 export class SceneView {
 	readonly root = new PIXI.Container();
 	readonly tier: SceneTier;
+	readonly layout: SceneLayout;
+	/** the frame's width, and the asset keys' prefix (scene_* / scenep_*) */
+	private readonly fw: number;
+	private readonly prefix: string;
 	dayReady = false;
 	nightReady = false;
 
@@ -144,7 +151,11 @@ export class SceneView {
 	private readonly fore = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
 	private readonly fire = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	private readonly sets = SETS.map(() => new PIXI.Container());
+	/** the moving pieces (landscape only): every use is behind `hasChains` */
+	private readonly hasChains: boolean;
 	private readonly chains: Record<'L' | 'R', Chain>;
+	/** the GPU copies were let go while the other layout is showing (release); they upload again when drawn */
+	released = false;
 
 	private readonly cur = new Float64Array(VALUES);
 	private readonly from = new Float64Array(VALUES);
@@ -168,17 +179,27 @@ export class SceneView {
 	slowSteps = 0;
 	fades = 0;
 
-	constructor(tier: SceneTier) {
+	constructor(layout: SceneLayout, tier: SceneTier) {
+		this.layout = layout;
 		this.tier = tier;
+		this.hasChains = layout === 'landscape';
+		this.fw = (layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).frame[0];
+		this.prefix = layout === 'landscape' ? 'scene' : 'scenep';
 		const root = this.root;
-		root.label = 'scene';
+		root.label = layout === 'landscape' ? 'scene' : 'scene-portrait';
 		root.visible = false;
 		root.eventMode = 'none';
 		root.interactiveChildren = false;
 		this.fire.blendMode = 'add';
-		root.addChild(this.backdrop[0], this.backdrop[1], this.fore[0], this.fore[1], this.fire, this.sets[0], this.sets[1]);
+		root.addChild(this.backdrop[0], this.backdrop[1], this.fore[0], this.fore[1], this.fire);
 		for (const s of [...this.backdrop, ...this.fore, this.fire, ...this.sets]) s.visible = false;
+		this.setValues(this.cur, 'base', SCENE.dim.base, false);
+		// portrait: no knockers, no chains
+		this.chains = this.hasChains ? this.buildChains(tier) : (null as unknown as Record<'L' | 'R', Chain>);
+		if (this.hasChains) root.addChild(this.sets[0], this.sets[1]);
+	}
 
+	private buildChains(tier: SceneTier): Record<'L' | 'R', Chain> {
 		const boxes = SCENE_SPEC.tiers[tier].boxes;
 		const H = SCENE.chain.hang;
 		const S = SCENE.chain.swag;
@@ -242,22 +263,22 @@ export class SceneView {
 				periodMs,
 			};
 		}
-		this.chains = chains;
 		// each set's pieces in the scene agent's order (swag, ring, hanging chain), left then right
 		SETS.forEach((_, i) => {
 			for (const piece of SCENE_SPEC.order) {
 				for (const side of SIDES) this.sets[i].addChild(piece === 'ring' ? chains[side].ring[i] : chains[side][piece].meshes[i]);
 			}
 		});
-		this.setValues(this.cur, 'base', SCENE.dim.base, false);
+		return chains;
 	}
 
 	/** the day files are in (called once): backdrop, foreground, fire pass and the atlas's day frames */
 	setDay(tex: Textures): boolean {
 		if (this.dayReady) return true;
-		if (!this.setLayers(0, tex) || !tex.scene_fire) return false;
-		this.fire.texture = tex.scene_fire;
-		this.fire.scale.set(FW / tex.scene_fire.width);
+		const fire = tex[`${this.prefix}_fire`];
+		if (!this.setLayers(0, tex) || !fire) return false;
+		this.fire.texture = fire;
+		this.fire.scale.set(this.fw / fire.width);
 		this.dayReady = true;
 		this.fire.visible = true;
 		this.apply();
@@ -275,13 +296,14 @@ export class SceneView {
 
 	private setLayers(i: number, tex: Textures): boolean {
 		const set = SETS[i];
-		const backdrop = tex[`scene_backdrop_${set}`];
-		const fore = tex[`scene_fore_${set}`];
-		if (!backdrop || !fore || !tex[`scene_ring_L_${set}`]) return false;
+		const backdrop = tex[`${this.prefix}_backdrop_${set}`];
+		const fore = tex[`${this.prefix}_fore_${set}`];
+		if (!backdrop || !fore || (this.hasChains && !tex[`scene_ring_L_${set}`])) return false;
 		this.backdrop[i].texture = backdrop;
-		this.backdrop[i].scale.set(FW / backdrop.width);
+		this.backdrop[i].scale.set(this.fw / backdrop.width);
 		this.fore[i].texture = fore;
-		this.fore[i].scale.set(FW / fore.width);
+		this.fore[i].scale.set(this.fw / fore.width);
+		if (!this.hasChains) return true;
 		const boxes = SCENE_SPEC.tiers[this.tier].boxes;
 		for (const side of SIDES) {
 			const c = this.chains[side];
@@ -297,8 +319,18 @@ export class SceneView {
 	/** every texture source the scene draws from, for the one upload when its files land */
 	sources(): PIXI.TextureSource[] {
 		const out = new Set<PIXI.TextureSource>();
-		for (const s of [...this.backdrop, ...this.fore, this.fire, ...this.chains.L.ring]) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
+		for (const s of [...this.backdrop, ...this.fore, this.fire, ...(this.hasChains ? this.chains.L.ring : [])]) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
 		return [...out];
+	}
+
+	/** let the GPU copies go while the other layout's scene is showing (the decoded images stay, so nothing is
+	 *  downloaded or decoded again): Pixi uploads a source again the next time it is drawn. Returns how many. */
+	release(): number {
+		if (this.released) return 0;
+		const list = this.sources();
+		for (const source of list) source.unload();
+		this.released = list.length > 0;
+		return list.length;
 	}
 
 	/** cover fit: the frame's top-left corner on the canvas and canvas px per frame px */
@@ -310,7 +342,7 @@ export class SceneView {
 	private setValues(out: Float64Array, family: SceneFamily, dim: number, show: boolean): void {
 		const m = SCENE.modes[family];
 		out[NIGHT] = m.night;
-		out[FIRE] = m.fire;
+		out[FIRE] = SCENE.fire[this.layout][family];
 		out[LO] = m.flicker[0];
 		out[HI] = m.flicker[1];
 		for (let i = 0; i < 3; i += 1) {
@@ -409,7 +441,7 @@ export class SceneView {
 		const C = SCENE.chain;
 		const ky = boardKick.y / PLAYGROUND_PX;
 		const kx = boardKick.x / PLAYGROUND_PX / 0.6;
-		const k = Math.abs(Math.abs(ky) >= Math.abs(kx) ? ky : kx);
+		const k = this.hasChains ? Math.abs(Math.abs(ky) >= Math.abs(kx) ? ky : kx) : 0;
 		let chainsDirty = false;
 		if (k > 0 || this.moving) {
 			this.acc += Math.min(dtMs, 100);
@@ -451,12 +483,12 @@ export class SceneView {
 			this.clock = now;
 			this.slowSteps += 1;
 			this.flick = flickerAt(now);
-			for (let i = 0; i < 2; i += 1) {
+			for (let i = 0; i < 2 && this.hasChains; i += 1) {
 				const c = this.chains[SIDES[i]];
 				c.idle = idleAt('hang', SIDES[i], now);
 				c.bIdle = idleAt('swag', SIDES[i], now);
 			}
-			chainsDirty = true;
+			chainsDirty = this.hasChains;
 			if (!look) this.applyFire();
 		}
 		if (look) this.apply();
@@ -576,7 +608,7 @@ export class SceneView {
 		};
 		return {
 			tier: this.tier,
-			source: SCENE_SPEC.source,
+			source: (this.layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).source,
 			ready: { day: this.dayReady, night: this.nightReady },
 			family: this.family,
 			/** what is drawn: 'day' / 'night', or 'fade' while one covers the other */
@@ -591,12 +623,14 @@ export class SceneView {
 			tints: { backdrop: this.backdrop[set].tint, fore: this.fore[set].tint, chains: this.sets[set].tint, foreTint: [c[FORE_TINT], c[FORE_TINT + 1], c[FORE_TINT + 2]] },
 			clock: this.clock,
 			kick: { e: this.e, moving: this.moving },
-			chains: { L: chain('L'), R: chain('R') },
+			layout: this.layout,
+			released: this.released,
+			chains: this.hasChains ? { L: chain('L'), R: chain('R') } : null,
 			/** the root's children, bottom to top, with what each draws */
 			order: this.root.children.map((ch) => `${ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`}${ch.visible ? '' : ' (off)'}`),
-			chainOrder: this.sets[0].children.map((ch) => (ch instanceof PIXI.MeshSimple ? (SIDES.some((s) => this.chains[s].hang.meshes.includes(ch)) ? 'hang' : 'swag') : 'ring')),
+			chainOrder: !this.hasChains ? [] : this.sets[0].children.map((ch) => (ch instanceof PIXI.MeshSimple ? (SIDES.some((s) => this.chains[s].hang.meshes.includes(ch)) ? 'hang' : 'swag') : 'ring')),
 			counters: { vertexWrites: this.vertexWrites, slowSteps: this.slowSteps, fades: this.fades },
-			textures: { backdrop: [this.backdrop[0].texture.width, this.backdrop[0].texture.height], fire: [this.fire.texture.width, this.fire.texture.height], atlas: [this.chains.L.ring[0].texture.source.pixelWidth, this.chains.L.ring[0].texture.source.pixelHeight] },
+			textures: { backdrop: [this.backdrop[0].texture.width, this.backdrop[0].texture.height], fire: [this.fire.texture.width, this.fire.texture.height], atlas: this.hasChains ? [this.chains.L.ring[0].texture.source.pixelWidth, this.chains.L.ring[0].texture.source.pixelHeight] : null },
 		};
 	}
 }

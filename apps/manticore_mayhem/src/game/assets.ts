@@ -58,8 +58,10 @@ const bootLayout = ((): 'landscape' | 'phone' | 'portrait' => {
 	return 'portrait';
 })();
 const atBoot = (kind: 'landscape' | 'phone' | 'portrait') => bootLayout === kind;
-/** the courtyard scene is the background of the landscape and phone sideways layouts (portrait keeps the placeholder) */
+/** which of the two courtyard scenes the boot layout draws: the 16:9 one (landscape and phone sideways) or the 9:16
+ *  one (portrait). Only that one gates the landing screen; the other is not registered at all (SCENE_LATE). */
 const sceneAtBoot = bootLayout !== 'portrait';
+const portraitSceneAtBoot = !sceneAtBoot;
 
 // TWO LOAD PHASES (pixi-svelte AssetsLoader). `preload: true` gates the landing screen: everything
 // the base game draws in its first seconds. `preload: false` keeps downloading behind the game.
@@ -238,10 +240,11 @@ const assets = {
 	boardChains_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
 	boardChains_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-phone.webp', import.meta.url).href), preload: atBoot('phone') },
 	boardChains_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
-	// THE PLACEHOLDER BACKGROUND (the citadel courtyard painting for every mode). PORTRAIT still draws it; the
-	// landscape and phone sideways layouts draw the courtyard scene below and only fall back to it while the scene's
-	// files are on their way (a game that booted in portrait and was turned: SCENE_LATE). Angry Mantis's split: the
-	// base scene preloads, the feature scenes are deferred; here the base scene of the boot layout only.
+	// THE PLACEHOLDER BACKGROUND (the citadel courtyard painting for every mode). Every layout now draws a courtyard
+	// scene (below) and only falls back to this while that scene's files are on their way or if they failed: a game
+	// that was turned loads the other layout's scene then (SCENE_LATE). So NONE of these entries stays registered
+	// (see "by boot layout" below): the boot layout never draws its crop, and the other layouts' crops are fetched
+	// with their scene, at the turn (PLACEHOLDER_LATE), not on every session that never turns.
 	bg_base_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
 	bg_base_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-phone.webp', import.meta.url).href), preload: atBoot('phone') },
 	bg_base_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
@@ -264,13 +267,22 @@ const assets = {
 	// 1600 wide phone tier twin. The DAY set (backdrop, foreground, the fire pass and the chains' one atlas, which
 	// holds the night chains too: 75 KB) is what the first screen draws, so it preloads when the game boots in one of
 	// those layouts; the NIGHT backdrop and foreground (Super and Epic) ride the deferred phase, after the plaque
-	// (DEFERRED_ORDER). A game that boots in PORTRAIT registers none of it (SCENE_LATE below).
+	// (DEFERRED_ORDER). A game that boots in PORTRAIT registers none of it (SCENE_LATE below): it has its own scene.
 	scene_backdrop_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/backdrop-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/backdrop-day-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
 	scene_fore_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fore-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fore-day-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
 	scene_fire: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fire.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fire-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
 	sceneChains: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/chains.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/chains-phone.json', import.meta.url).href)), preload: sceneAtBoot },
 	scene_backdrop_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/backdrop-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/backdrop-night-phone.webp', import.meta.url).href)), preload: false },
 	scene_fore_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fore-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fore-night-phone.webp', import.meta.url).href)), preload: false },
+	// THE PORTRAIT COURTYARD SCENE (the same components and tool, --portrait): its own 9:16 frame, 1440 x 2560 with a
+	// 900 x 1600 phone tier twin. Backdrop, foreground and fire pass; no atlas (nothing moves in portrait). The day set
+	// preloads when the game boots in PORTRAIT and the night set rides the deferred phase; booted in another layout,
+	// none of it is registered (SCENE_LATE).
+	scenep_backdrop_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-day-phone.webp', import.meta.url).href)), preload: portraitSceneAtBoot },
+	scenep_fore_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-fore-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-fore-day-phone.webp', import.meta.url).href)), preload: portraitSceneAtBoot },
+	scenep_fire: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-fire.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-fire-phone.webp', import.meta.url).href)), preload: portraitSceneAtBoot },
+	scenep_backdrop_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-night-phone.webp', import.meta.url).href)), preload: false },
+	scenep_fore_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-fore-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-fore-night-phone.webp', import.meta.url).href)), preload: false },
 	// THE CLUSTER LABELS' GLYPHS (components/ClusterLabels.svelte, game/clusterLabel.ts; built by
 	// tools/build_plaque_text.py --labels): the forged Rakkas face baked at five cap heights in canvas
 	// pixels, one small atlas each (60 to 180 KB), so a label is drawn at about 1:1 on any screen. ONE is
@@ -421,28 +433,37 @@ const phoneOnlyScreen = (): boolean => {
 	const short = Math.min(window.screen?.width ?? Infinity, window.screen?.height ?? Infinity);
 	return short <= LANDSCAPE_MASTER_MIN_SHORT_SIDE && bootLayout !== 'landscape';
 };
-// THE SCENE AND THE PLACEHOLDER, BY BOOT LAYOUT (2026-10-10). Before the unreachable art is taken out below:
-//   booted in landscape or phone sideways   the scene is the background from the first frame, so the placeholder's
-//                                           landscape and phone crops are never drawn: not registered (the files
-//                                           stay on disk). The portrait crop still rides the deferred phase.
-//   booted in portrait                      exactly what loaded before the scene existed: the scene's six entries
-//                                           are not registered, so a portrait session requests none of them. They
-//                                           wait in SCENE_LATE; if the layout ever becomes landscape or phone
-//                                           sideways, game/deferredLoad.ts loadSceneLate fetches the day set, then
-//                                           the night set, and the placeholder crop of that layout stands in until
-//                                           the scene fades in over it.
-export const SCENE_DAY_KEYS = ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains'] as const;
-export const SCENE_NIGHT_KEYS = ['scene_backdrop_night', 'scene_fore_night'] as const;
+// THE SCENES AND THE PLACEHOLDER, BY BOOT LAYOUT (2026-10-10). Before the unreachable art is taken out below:
+//   booted in landscape or phone sideways   the 16:9 scene is the background from the first frame, and NONE of the
+//                                           portrait scene's files is registered.
+//   booted in portrait                      the mirror: the 9:16 scene from the first frame, none of the 16:9
+//                                           scene's files registered.
+// The scene that is not registered waits in SCENE_LATE. The first time the layout becomes one of its own,
+// game/deferredLoad.ts loadSceneLate fetches its day set, then its night set.
+// THE PLACEHOLDER'S CROPS are registered in NO boot (2026-10-10; until then the other layouts' crops rode the
+// deferred phase, so a desktop that never turns still fetched base-portrait.webp). The boot layout's crop is never
+// drawn. The other layouts' crops wait in PLACEHOLDER_LATE (the base key per layout: the feature keys were aliases of
+// the same file); loadPlaceholderLate fetches the one for the layout the game was turned to, beside that layout's
+// scene, and it stands in until the scene fades in over it, or for good if the scene's files fail.
+export const SCENE_KEYS = {
+	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains'], night: ['scene_backdrop_night', 'scene_fore_night'] },
+	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire'], night: ['scenep_backdrop_night', 'scenep_fore_night'] },
+} as const;
+/** the scene the boot layout draws, and the one that waits */
+export const SCENE_AT_BOOT: keyof typeof SCENE_KEYS = sceneAtBoot ? 'landscape' : 'portrait';
 export const SCENE_LATE: Record<string, { type: string; src: string }> = {};
+export const PLACEHOLDER_LATE: Record<string, { type: string; src: string }> = {};
 {
 	const table = assets as unknown as Record<string, { type: string; src: string }>;
-	if (sceneAtBoot) {
-		for (const key of Object.keys(table)) if (/^bg_[a-z]+_(landscape|phone)$/.test(key)) delete table[key];
-	} else {
-		for (const key of [...SCENE_DAY_KEYS, ...SCENE_NIGHT_KEYS]) {
-			SCENE_LATE[key] = table[key];
-			delete table[key];
-		}
+	for (const key of Object.keys(table)) {
+		if (!/^bg_[a-z]+_(landscape|phone|portrait)$/.test(key)) continue;
+		if (key.startsWith('bg_base_') && key !== `bg_base_${bootLayout}`) PLACEHOLDER_LATE[key] = table[key];
+		delete table[key];
+	}
+	const late = SCENE_KEYS[sceneAtBoot ? 'portrait' : 'landscape'];
+	for (const key of [...late.day, ...late.night]) {
+		SCENE_LATE[key] = table[key];
+		delete table[key];
 	}
 }
 
@@ -459,9 +480,10 @@ if (phoneOnlyScreen()) {
 // as it lands; pixi-svelte's AssetsLoader then finishes with whatever is left: the other layouts' art).
 //   plaque  the win plaque's five atlases: a Big Win or a feature intro can come on the first spin, and
 //           used to wait behind every symbol sheet
-//   night   the courtyard scene's night backdrop and foreground (Super and Epic; 0.87 MB, 0.45 MB on the phone tier):
+//   night   the boot layout's courtyard scene's night backdrop and foreground (Super and Epic; landscape 0.87 MB,
+//           0.45 MB on the phone tier; portrait 0.34 MB, 0.16 MB):
 //           a Super or Epic feature can be bought on the first spin, and until these are in it plays over the day
-//           scene (components/Background.svelte). No keys when the game booted in portrait.
+//           scene (components/Background.svelte).
 //   logo    the canvas logo's atlas, with its tracks (desktop tier only, 0.35 MB). Normally in before this
 //           phase starts (deferredLoad.ts loadLogoEarly); here it is the fallback, after the plaque
 //   labels  the cluster label caps that were not preloaded (the one this screen needs already is; these
@@ -474,7 +496,7 @@ const deferredKeys = (prefix: string) =>
 		.map(([key]) => key);
 export const DEFERRED_ORDER: { name: 'plaque' | 'night' | 'logo' | 'labels' | 'drop' | 'idle'; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
-	{ name: 'night', keys: SCENE_NIGHT_KEYS.filter((key) => key in assets) },
+	{ name: 'night', keys: [...SCENE_KEYS[SCENE_AT_BOOT].night] },
 	{ name: 'logo', keys: deferredKeys('logoAtlas') },
 	{ name: 'labels', keys: deferredKeys('labelGlyphs') },
 	{ name: 'drop', keys: deferredKeys('mmDrop_') },

@@ -854,13 +854,14 @@ export const zIndexes = {
 export const BACKGROUND_WASH = { base: 0.3, freegame: 0.4 };
 
 // ---- The courtyard scene (components/Background.svelte, game/scene.ts; assets by tools/build_scene_assets.py) ----
-// The LANDSCAPE and PHONE SIDEWAYS background (Corey 2026-10-10): painted backdrop, 3D foreground, the braziers'
-// fire light as one additive pass, and the knocker rings and chains as moving pieces. Portrait keeps the placeholder.
+// The background in every layout (Corey 2026-10-10): painted backdrop, 3D foreground, the braziers' fire light as one
+// additive pass, and in LANDSCAPE and PHONE SIDEWAYS the knocker rings and chains as moving pieces. PORTRAIT has its
+// own 9:16 scene (floor, backdrop, fire pass) with the same modes, flicker, crossfade and dim, and no moving pieces.
 // Every px below is a px of the scene's 2560 x 1440 frame (game/sceneSpec.ts); every ms is REAL time at every turbo
 // level (it is scenery, like the logo), and the idle never pauses (Corey 2026-10-10: it keeps running through spins
 // and win screens).
 //   modes     the game's four background keys (Background.svelte `family`). night: 0 the day scene, 1 the night
-//             scene. fire: the pass's level. fireTint / foreTint: the EPIC red (the foreground and the chains take
+//             scene. The pass's level is in `fire`, per layout. fireTint / foreTint: the EPIC red (the foreground and the chains take
 //             foreTint; the painted backdrop is never tinted). flicker: the band the level pulses in, as multiples
 //             of the level; EPIC only pulses DOWN from 100% (the gold burns out above it).
 //   dim       the old wash as a TINT on every layer (dims are tints, never alpha overlays): 1 - BACKGROUND_WASH.
@@ -886,10 +887,16 @@ export const BACKGROUND_WASH = { base: 0.3, freegame: 0.4 };
 //                    lower links is NOT drawn (a flat sprite cannot turn; a width change read as rubber).
 export const SCENE = {
 	modes: {
-		base: { night: 0, fire: 0.5, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
-		bonus: { night: 0, fire: 0.5, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
-		super: { night: 1, fire: 0.7, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
-		epic: { night: 1, fire: 1, fireTint: [1, 0.7, 0.5], foreTint: [1, 0.86, 0.86], flicker: [0.8, 1] },
+		base: { night: 0, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		bonus: { night: 0, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		super: { night: 1, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		epic: { night: 1, fireTint: [1, 0.7, 0.5], foreTint: [1, 0.86, 0.86], flicker: [0.8, 1] },
+	},
+	/** the fire pass's level per mode, PER LAYOUT so portrait can be tuned without touching landscape ('landscape' is
+	 *  also phone sideways). Both are the approved 50 / 50 / 70 / 100 today. */
+	fire: {
+		landscape: { base: 0.5, bonus: 0.5, super: 0.7, epic: 1 },
+		portrait: { base: 0.5, bonus: 0.5, super: 0.7, epic: 1 },
 	},
 	// the scene keeps the base wash as its dim; in a feature it stays at the level the lit stills were approved at (0.69)
 	dim: { base: 1 - BACKGROUND_WASH.base, freegame: 0.69 },
