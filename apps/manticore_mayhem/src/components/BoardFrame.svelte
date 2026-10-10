@@ -28,6 +28,12 @@
 	// from the frame art (tools/build_board_layers.py erase_leaned_links): the loop runs straight up to the
 	// bracket's underside (clip[0]) and down to the plinth's shackle (clip[1]), where the strip is cut.
 	//
+	// THE GUSTS (CHAIN_GUST, Corey 2026-10-10): the air of a drop-in (the win plaque's slam, a count-up passing a tier,
+	// the logo's entrance) leans the runs away from where it landed. A second scalar spring (`gust`) beside the kick's,
+	// with the same CHAIN_BOW constants and step so the chain's own weight reads the same, but in REAL time (it is air)
+	// and driven by the sum of the gusts' half-sine pulses (game/featureFx.ts gustFx, read through a cursor like the
+	// haul's presses). It moves the vertices only, sideways and opposite on the two runs, never the frame or the ends.
+	//
 	// Registration: game/boardArt.ts maps the lattice's outer bar rectangle onto the layout's cell
 	// area (re-derived from frameFor() on every layout change, so the portrait growth and a flip
 	// re-register). House rules: no filters, no texture per frame (the strips rewrite 48 floats in
@@ -40,8 +46,8 @@
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
 	import { BOARD_ART } from '../game/boardArtSpec';
 	import { boardRegistration, chainBow } from '../game/boardArt';
-	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, FRAME_ART, PLAYGROUND_PX, SYMBOL_SIZE } from '../game/constants';
-	import { boardKick, chainFx } from '../game/featureFx';
+	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, CHAIN_GUST, FRAME_ART, PLAYGROUND_PX, SYMBOL_SIZE } from '../game/constants';
+	import { boardKick, chainFx, gustFx, gustPulse, gustStart, type ChainGust } from '../game/featureFx';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -97,6 +103,8 @@
 		return { frame: assets?.[`boardFrame_${kind}`], chains: assets?.[`boardChains_${kind}`] };
 	});
 
+	/** each run's top pivot in master units (the gust's direction is taken from it when a gust starts) */
+	const anchorTop = { L: new PIXI.Point(), R: new PIXI.Point() };
 	/** plain copies the ticker reads (no reactive reads in the frame) */
 	let scale = 1;
 	/** master px per playground px for this layout (the chain spring runs in playground px) */
@@ -189,6 +197,10 @@
 		const t = textures;
 		scale = boardScale;
 		pg = boardScale * PLAYGROUND_PX;
+		for (const side of SIDES) {
+			const a = r.map(BOARD_ART.anchors[side].top[0], BOARD_ART.anchors[side].top[1]);
+			anchorTop[side].set(a.x, a.y);
+		}
 		// the backing: the frame's inner opening (cell area plus the inset)
 		backing.clear().rect(r.opening.x, r.opening.y, r.opening.width, r.opening.height).fill(BOARD_BACKING.color);
 		// the frame: its crop origin in render px through the registration, texture px -> master
@@ -232,6 +244,53 @@
 	let uky = NaN;
 	let dirty = true;
 	let atRest = true;
+
+	/** THE GUST SPRING, the same model as `bow` in REAL time: k = the live gusts' pulses (playground px). dirL / dirR:
+	 *  each run's lean (-1 left, +1 right), taken when a gust starts; `at` the clock the pulses were last read at,
+	 *  `startAt` when the latest gust started here, `upTo` that gust's own start (DEV hook + probe) */
+	const gust = { k: 0, kl: 0, d: 0, v: 0, acc: 0, dirL: -1, dirR: 1, at: 0, startAt: -1, upTo: -Infinity, seen: 0 };
+	const gustLive: ChainGust[] = [];
+	let gustAtRest = true;
+	/** a run's sideways travel per px of the gust spring: the kick's own travel per px of `bow` (D = (0.6 d, vertical d)) */
+	const GUST_TRAVEL = Math.hypot(0.6, CHAIN_BOW.vertical);
+	const gp = new PIXI.Point();
+	/** each run leans away from the landing: from the board's centre (null), or from a canvas x (the logo) */
+	const aim = (sourceX: number | null) => {
+		if (sourceX === null) {
+			gust.dirL = -1;
+			gust.dirR = 1;
+			return;
+		}
+		gust.dirL = chains.toGlobal(anchorTop.L, gp).x >= sourceX ? 1 : -1;
+		gust.dirR = chains.toGlobal(anchorTop.R, gp).x >= sourceX ? 1 : -1;
+	};
+	/** the gusts at `now`: new ones from the bus, finished ones dropped (nothing allocated) */
+	const tickGust = (now: number) => {
+		const list = gustFx.gusts;
+		const fresh = Math.min(gustFx.count - gust.seen, list.length);
+		for (let i = list.length - fresh; i < list.length; i += 1) gustLive.push(list[i]);
+		gust.seen = gustFx.count;
+		let k = 0;
+		for (let i = gustLive.length - 1; i >= 0; i -= 1) {
+			const g = gustLive[i];
+			const start = gustStart(g, 0);
+			if (now < start) continue;
+			if (now >= start + CHAIN_GUST.ms) {
+				gustLive[i] = gustLive[gustLive.length - 1];
+				gustLive.length -= 1;
+				continue;
+			}
+			if (start > gust.upTo) {
+				gust.upTo = start;
+				gust.startAt = now;
+				aim(g.sourceX);
+			}
+			k += gustPulse(g, 0, CHAIN_GUST.unitPx.board, now);
+		}
+		gust.k = k;
+		gust.at = now;
+	};
+
 	const tick = (ticker: PIXI.Ticker) => {
 		const kx = boardKick.x * scale;
 		const ky = boardKick.y * scale;
@@ -267,22 +326,47 @@
 			if (atRest) bow.k = bow.kl = bow.d = bow.v = bow.acc = 0;
 			dirty = true;
 		}
+		// the gusts: the same spring in real time (never turbo-scaled), driven by the pulses
+		const now = performance.now();
+		if (gustLive.length || gustFx.count !== gust.seen) tickGust(now);
+		if (gust.k !== 0 || !gustAtRest) {
+			gust.acc += Math.min(ticker.deltaMS, 100);
+			const w = 2 * Math.PI * CHAIN_BOW.settleHz;
+			const pushing = Math.abs(gust.k) > 0.05;
+			const zeta = pushing ? CHAIN_BOW.damping : Math.min(CHAIN_BOW.damping, 3 / ((w * CHAIN_BOW.settleAfterMs) / 1000));
+			const a = 1 - Math.exp(-STEP_MS / Math.max(CHAIN_BOW.lagMs, 1));
+			const h = STEP_MS / 1000;
+			while (gust.acc >= STEP_MS) {
+				gust.acc -= STEP_MS;
+				gust.kl += (gust.k - gust.kl) * a;
+				gust.v += (w * w * (CHAIN_BOW.gain * gust.kl - gust.d) - 2 * zeta * w * gust.v) * h;
+				gust.d += gust.v * h;
+			}
+			const amp = Math.hypot(gust.d, gust.v / w);
+			// never snapped while a pulse runs (a weak gust's first frames are under the kick's 0.05 px threshold)
+			gustAtRest = gust.k === 0 && Math.abs(gust.kl) < 0.01 && amp < REST_AMP;
+			if (gustAtRest) gust.k = gust.kl = gust.d = gust.v = gust.acc = 0;
+			dirty = true;
+		}
 		if (!dirty) return;
 		dirty = false;
 		// point(s) = anchor(s) + kick + (D - kick) bow(s), D = (0.6 d, vertical d), all master px. With
 		// endsFollowFrame the anchors ride the kick; otherwise they stay put and only D bends the run.
+		// The gust adds (dir GUST_TRAVEL g, CHAIN_GUST.vertical g) to D: the ends never move for it.
 		const follow = CHAIN_BOW.endsFollowFrame ? 1 : 0;
 		const Dx = 0.6 * bow.d * pg;
-		const Dy = CHAIN_BOW.vertical * bow.d * pg;
+		const Dy = CHAIN_BOW.vertical * bow.d * pg + CHAIN_GUST.vertical * gust.d * pg;
+		const Gx = GUST_TRAVEL * gust.d * pg;
 		const ex = kx * follow;
 		const ey = ky * follow;
 		for (const side of SIDES) {
 			const st = strips[side];
 			const v = st.mesh.vertices as Float32Array;
+			const Sx = Dx + (side === 'L' ? gust.dirL : gust.dirR) * Gx;
 			for (let r = 0; r < ROWS; r += 1) {
 				const b = st.bow[r];
 				const o = r * 4;
-				const ox = ex + (Dx - ex) * b;
+				const ox = ex + (Sx - ex) * b;
 				const oy = ey + (Dy - ey) * b;
 				v[o] = st.rest[o] + ox;
 				v[o + 1] = st.rest[o + 1] + oy;
@@ -391,6 +475,10 @@
 					},
 					/** the spring in playground px (k, lagged k, d, d' per s); pg = master px per playground px */
 					bow: { ...bow, atRest, pg },
+					/** THE GUST SPRING (CHAIN_GUST), playground px like `bow`: k the pulses' sum, kl lagged, d, d' per s; dirL /
+					 *  dirR each run's lean; `live` gusts held here (running or still to start); `travel` the run's sideways
+					 *  master px per playground px of d per pg */
+					gust: { k: gust.k, kl: gust.kl, d: gust.d, v: gust.v, atRest: gustAtRest, dirL: gust.dirL, dirR: gust.dirR, at: gust.at, startAt: gust.startAt, live: gustLive.length, travel: GUST_TRAVEL },
 					/** THE HAUL: the offset in links (base = finished presses modulo the 2-link tile), the presses
 					 *  still hauling, the tile, and each strip's first-row v (uv) as the GPU has it */
 					haul: {
@@ -406,6 +494,40 @@
 					},
 					chains: chainOut,
 					zOrder: parent.parent.children.map((c) => (c === under ? 'frame+backing' : c === chains ? 'chains' : c === boardNode ? 'board' : c.label || 'other') + '@' + c.zIndex),
+				};
+			},
+			configurable: true,
+			enumerable: true,
+		});
+		// the per-frame read of tools/manticore/chain_gust_probe.js: `frame` above computes the whole registration, far
+		// too much to read every frame; this is only the springs, the kick as each layer has it and each run's widest row
+		Object.defineProperty((window as any).__manticore, 'frameGust', {
+			get: () => {
+				const masterToScreen = parent.parent.worldTransform.a;
+				const boardNode = parent.parent.children.find((c) => c !== under && c !== chains && c.mask) as PIXI.Container | undefined;
+				const row = (side: Side) => {
+					const st = strips[side];
+					let m = 0;
+					for (let r = 1; r < ROWS; r += 1) if (st.bow[r] > st.bow[m]) m = r;
+					const v = st.mesh.vertices as Float32Array;
+					return { r: m, b: st.bow[m], dx: (v[m * 4] - st.rest[m * 4]) * masterToScreen, dy: (v[m * 4 + 1] - st.rest[m * 4 + 1]) * masterToScreen, top: (v[4] - st.rest[4]) * masterToScreen, bottom: (v[(ROWS - 1) * 4] - st.rest[(ROWS - 1) * 4]) * masterToScreen };
+				};
+				return {
+					t: performance.now(),
+					ready: chainsReady,
+					pg,
+					masterToScreen,
+					bow: { k: bow.k, kl: bow.kl, d: bow.d, atRest },
+					gust: { k: gust.k, kl: gust.kl, d: gust.d, atRest: gustAtRest, dirL: gust.dirL, dirR: gust.dirR, at: gust.at, startAt: gust.startAt, live: gustLive.length, travel: GUST_TRAVEL },
+					kick: {
+						source: { x: boardKick.x * scale, y: boardKick.y * scale },
+						frame: { x: under.position.x, y: under.position.y },
+						board: boardNode ? { x: (BOARD_SIZES.width / 2 - boardNode.pivot.x) * boardNode.scale.x, y: (BOARD_SIZES.height / 2 - boardNode.pivot.y) * boardNode.scale.y } : null,
+					},
+					/** the haul (uvs only): offset in links, the last press, each run's first-row v */
+					haul: { offset: haul.offset, base: haul.base, live: haul.live.length, pressAt: chainFx.presses.length ? chainFx.presses[chainFx.presses.length - 1].t0 : null, uv0: (strips.L.mesh.geometry.getBuffer('aUV').data as Float32Array)[1] },
+					L: row('L'),
+					R: row('R'),
 				};
 			},
 			configurable: true,

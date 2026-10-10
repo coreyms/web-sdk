@@ -26,7 +26,8 @@
 
 	import { getContext } from '../game/context';
 	import { LOGO_DATA_URLS } from '../game/assets';
-	import { LOGO, RENDER_RESOLUTION_CAP } from '../game/constants';
+	import { CHAIN_GUST, LOGO, RENDER_RESOLUTION_CAP } from '../game/constants';
+	import { chainGust } from '../game/featureFx';
 	import { layoutKind } from '../game/layoutSpec';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { loadLogoData, logoDataNow, type LogoData } from '../game/logo/data';
@@ -49,6 +50,16 @@
 	/** true only through the first pass of the effects below: a logo built in it plays the entrance */
 	let firstPass = true;
 	let mips = 1;
+	/** the art box's centre in canvas px (the placement effect): where the entrance's gust comes from */
+	let centreX = 0;
+
+	/** the entrance's gust (CHAIN_GUST.logo): the air of the letters setting down at landFrame reaches the chains a
+	 *  beat later, each leaning away from the logo (fromLogo) or from the centre. Never while skipping. */
+	const entranceGust = () => {
+		if (sg.skipping || !data) return;
+		const lead = LOGO.entranceDelayMs + (CHAIN_GUST.logo.landFrame * 1000) / data.json.fps;
+		chainGust('logo', Math.max(0.2, context.stateGameDerived.timeScale()), CHAIN_GUST.logo.fromLogo ? centreX : null, lead);
+	};
 
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const active = $derived(built && enabled && kind === 'landscape');
@@ -106,7 +117,9 @@
 	$effect(() => {
 		if (!built || !data) return;
 		const master = context.stateLayoutDerived.mainLayout();
-		const p = logoFramePlacement(data.json.art, logoArtRect('landscape'));
+		const rect = logoArtRect('landscape');
+		const p = logoFramePlacement(data.json.art, rect);
+		centreX = master.x + (rect.x + rect.width / 2 - master.width / 2) * master.scale;
 		// master -> canvas: MainContainer centres the master on the canvas at master.scale
 		view.place(master.x + (p.x - master.width / 2) * master.scale, master.y + (p.y - master.height / 2) * master.scale, p.scale * master.scale);
 	});
@@ -120,8 +133,10 @@
 			logoState.canvas = on;
 			if (on && !wasActive) {
 				view.show(visible, true);
-				if (firstPass && visible) view.startEntrance(performance.now());
-				else view.takeOver();
+				if (firstPass && visible) {
+					view.startEntrance(performance.now());
+					entranceGust();
+				} else view.takeOver();
 			} else if (!on) view.show(false, true);
 			else view.show(visible);
 			wasActive = on;
@@ -189,6 +204,7 @@
 					/** play the entrance again (the review recording) */
 					entrance: () => {
 						view.startEntrance(performance.now());
+						entranceGust();
 						start();
 					},
 					/** false = the chrome's still draws the logo again (the A / B of the cost and of the placement) */

@@ -174,7 +174,7 @@ export const SCENE_SPEC = {
 } as const;
 
 export const SCENE_SPEC_PORTRAIT = {
-	"source": "portrait_r2",
+	"source": "portrait_r3",
 	"frame": [
 		1440,
 		2560

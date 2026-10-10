@@ -260,6 +260,8 @@
 										),
 						};
 					},
+					/** the landscape scene's gust and chain springs, light enough to read every frame (chain_gust_probe.js) */
+					gust: () => ({ t: performance.now(), on: which === 'landscape' && sceneOn && enabled, ...views.landscape.gustSample() }),
 					/** the constants and the pure curves, so the probe never repeats a number */
 					constants: () => JSON.parse(JSON.stringify(SCENE)),
 					spec: (layout: SceneLayout = 'landscape') => JSON.parse(JSON.stringify(layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT)),

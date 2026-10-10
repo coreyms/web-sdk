@@ -480,6 +480,38 @@ export const CHAIN_BOW = {
 	haulEasing: backOut,
 };
 
+// ---- The chain gusts (Corey 2026-10-10: "a timed reaction like the wind from the drop ins is pushing them") ----
+// A drop-in (the win plaque's slam, the logo's entrance, a count-up passing a tier) displaces air that reaches the
+// chains a beat later: the board's own chains (components/BoardFrame.svelte) and the courtyard's (game/scene.ts)
+// lean away from where it landed, smoothly, then swing back and settle. Never a board shake: the kick path is
+// untouched and the gust adds to it. The pulse is one half sine of `ms`, REAL time at every turbo level (it is
+// air); the delays are divided by the turbo scale when `delaysFollowTurbo` so they stay in step with the beats.
+// `strength` is a FRACTION OF ONE CLAW SWIPE KICK's chain travel (SWIPE_FX.kickPx 5): `unitPx` is the pulse
+// amplitude, in playground px, that moves each system as far as that kick does, measured by
+// tools/manticore/chain_gust_probe.js KICKREF (a rattle and a pulse of the same px do not move a chain the
+// same distance, so the two systems calibrate separately). Tune strengths and delays; leave unitPx to the probe.
+// The board's runs take the gust sideways at the kick's own travel per px of the spring (hypot(0.6, CHAIN_BOW
+// .vertical)), plus `vertical` x the spring downwards, so a strength reads as the same share of a kick's travel.
+// Direction: away from the landing. `sourceX` null (the plaque and the tier, centred on the board): left chains
+// lean left, right chains right. The logo lands high in the left column: with logo.fromLogo each chain leans
+// away from the logo's centre (the courtyard's left chain left, the rest right); false = the centre rule.
+export const CHAIN_GUST = {
+	enabled: true,
+	ms: 260,
+	/** measured 2026-10-10 by chain_gust_probe.js KICKREF (desktop: a strength 1 gust moves each system as far as one kick) */
+	unitPx: { board: 1.07, scene: 1.74 },
+	/** the courtyard chains are farther away: they lean this much after the board's own */
+	sceneLagMs: 90,
+	vertical: 0,
+	delaysFollowTurbo: true,
+	/** no gust is ever stronger than a kick, whatever the values below say */
+	maxStrength: 1,
+	plaque: { strength: 0.5, delayMs: 70 },
+	/** landFrame: the entrance frame (30 fps, from LOGO.entranceDelayMs) where the letters set down */
+	logo: { strength: 0.33, delayMs: 70, landFrame: 8, fromLogo: true },
+	tier: { strength: 0.17, delayMs: 50 },
+} as const;
+
 /** the flat backing behind the cell wells and the tiles, under the board kick: covers the frame's
  *  inner opening (the cell area plus the inset). A texture replaces the colour when Corey has the
  *  asset (BoardFrame.svelte draws it). */

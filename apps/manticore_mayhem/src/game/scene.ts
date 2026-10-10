@@ -18,12 +18,15 @@
 //   the idle           wind on the chains' free ends, at most every idleIntervalMs, never paused
 //   a board kick       read from featureFx.boardKick every tick (the scalar the board's own chains bow on); while a
 //                      chain is still moving from one, the strips are rewritten every frame
+//   a gust             (CHAIN_GUST) the air of a drop-in: featureFx.gustFx's half-sine pulses, sceneLagMs after the
+//                      board's own chains lean, lagged like the kick and SIGNED per side (each chain leans away from
+//                      the landing), added to the kick's drive on the hanging chains and the swags
 // House rules: no filters, no texture is created or uploaded after the files land, dims and tints are sprite
 // tints, and a tick allocates nothing: the strips rewrite the vertex arrays their meshes already own.
 import * as PIXI from 'pixi.js';
 
-import { PLAYGROUND_PX, SCENE } from './constants';
-import { boardKick } from './featureFx';
+import { CHAIN_GUST, PLAYGROUND_PX, SCENE } from './constants';
+import { boardKick, gustFx, gustPulse, gustStart, type ChainGust } from './featureFx';
 import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from './sceneSpec';
 
 export type SceneFamily = keyof typeof SCENE.modes;
@@ -169,6 +172,20 @@ export class SceneView {
 	private e = 0;
 	private acc = 0;
 	private moving = false;
+	/** THE GUSTS (CHAIN_GUST): the pulses' sum this frame (playground px) and its lagged copy; each side's lean (-1
+	 *  left, +1 right), taken when a gust starts; the bus cursor and the gusts held (running or still to start); the
+	 *  clock the pulses were last read at, when the latest gust started here and that gust's own start */
+	private gustRaw = 0;
+	private g = 0;
+	private dirL = -1;
+	private dirR = 1;
+	private gustSeen = 0;
+	private readonly gustLive: ChainGust[] = [];
+	private gustAt = 0;
+	private gustStartAt = -1;
+	private gustUpTo = -Infinity;
+	private readonly pivotPts = { L: new PIXI.Point(), R: new PIXI.Point() };
+	private readonly gp = new PIXI.Point();
 	private lastSlowAt = -1e9;
 	private flick = 0;
 	private clock = 0;
@@ -196,6 +213,7 @@ export class SceneView {
 		this.setValues(this.cur, 'base', SCENE.dim.base, false);
 		// portrait: no knockers, no chains
 		this.chains = this.hasChains ? this.buildChains(tier) : (null as unknown as Record<'L' | 'R', Chain>);
+		if (this.hasChains) for (const side of SIDES) this.pivotPts[side].set(SCENE_SPEC.points[side].pivot[0], SCENE_SPEC.points[side].pivot[1]);
 		if (this.hasChains) root.addChild(this.sets[0], this.sets[1]);
 	}
 
@@ -442,8 +460,10 @@ export class SceneView {
 		const ky = boardKick.y / PLAYGROUND_PX;
 		const kx = boardKick.x / PLAYGROUND_PX / 0.6;
 		const k = this.hasChains ? Math.abs(Math.abs(ky) >= Math.abs(kx) ? ky : kx) : 0;
+		// the gusts: pending ones wait (nothing moves until one starts), a running one drives
+		const gk = this.hasChains && (this.gustLive.length || gustFx.count !== this.gustSeen) ? this.tickGust(now) : 0;
 		let chainsDirty = false;
-		if (k > 0 || this.moving) {
+		if (k > 0 || gk > 0 || this.moving) {
 			this.acc += Math.min(dtMs, 100);
 			const h = C.stepMs / 1000;
 			const aKick = 1 - Math.exp(-C.stepMs / Math.max(C.kickLagMs, 1));
@@ -452,22 +472,25 @@ export class SceneView {
 			while (this.acc >= C.stepMs) {
 				this.acc -= C.stepMs;
 				this.e += (k - this.e) * aKick;
+				this.g += (gk - this.g) * aKick;
 				for (let i = 0; i < 2; i += 1) {
 					const c = this.chains[SIDES[i]];
-					c.v += (-c.w * c.w * c.x - 2 * c.zeta * c.w * c.v + c.gain * c.w * this.e * Math.max(0, 1 - Math.abs(c.x) / c.max)) * h;
+					// the kick shoves both chains the same way; the gust leans each away from the landing
+					const drive = this.e + (i === 0 ? this.dirL : this.dirR) * this.g;
+					c.v += (-c.w * c.w * c.x - 2 * c.zeta * c.w * c.v + c.gain * c.w * drive * Math.max(0, 1 - Math.abs(c.x) / c.max)) * h;
 					c.x += c.v * h;
 					c.xl += (c.x - c.xl) * aLag;
-					c.bv += (-ws * ws * c.b - 2 * C.swag.damping * ws * c.bv + c.bGain * ws * this.e * Math.max(0, 1 - Math.abs(c.b) / c.bMax)) * h;
+					c.bv += (-ws * ws * c.b - 2 * C.swag.damping * ws * c.bv + c.bGain * ws * drive * Math.max(0, 1 - Math.abs(c.b) / c.bMax)) * h;
 					c.b += c.bv * h;
 				}
 			}
-			let live = k > 0 || this.e > 0.01;
+			let live = k > 0 || gk > 0 || this.e > 0.01 || Math.abs(this.g) > 0.01;
 			for (let i = 0; i < 2 && !live; i += 1) {
 				const c = this.chains[SIDES[i]];
 				live = Math.hypot(c.x, c.v / c.w) > C.restPx || Math.abs(c.xl - c.x) > C.restPx || Math.hypot(c.b, c.bv / ws) > C.restPx;
 			}
 			if (!live) {
-				this.e = this.acc = 0;
+				this.e = this.g = this.acc = 0;
 				for (let i = 0; i < 2; i += 1) {
 					const c = this.chains[SIDES[i]];
 					c.x = c.v = c.xl = c.b = c.bv = 0;
@@ -493,6 +516,55 @@ export class SceneView {
 		}
 		if (look) this.apply();
 		if (chainsDirty) this.writeChains();
+	}
+
+	/** the gusts at `now` (the ticker's clock): new ones from the bus, finished ones dropped, the direction taken when
+	 *  one starts. Returns the pulses' sum, playground px. Nothing allocated (the held list only grows to its peak). */
+	private tickGust(now: number): number {
+		const list = gustFx.gusts;
+		const fresh = Math.min(gustFx.count - this.gustSeen, list.length);
+		for (let i = list.length - fresh; i < list.length; i += 1) this.gustLive.push(list[i]);
+		this.gustSeen = gustFx.count;
+		const lag = CHAIN_GUST.sceneLagMs;
+		const live = this.gustLive;
+		let p = 0;
+		for (let i = live.length - 1; i >= 0; i -= 1) {
+			const g = live[i];
+			const start = gustStart(g, lag);
+			if (now < start) continue;
+			if (now >= start + CHAIN_GUST.ms) {
+				live[i] = live[live.length - 1];
+				live.length -= 1;
+				continue;
+			}
+			if (start > this.gustUpTo) {
+				this.gustUpTo = start;
+				this.gustStartAt = now;
+				this.aim(g.sourceX);
+			}
+			p += gustPulse(g, lag, CHAIN_GUST.unitPx.scene, now);
+		}
+		this.gustRaw = p;
+		this.gustAt = now;
+		return p;
+	}
+
+	/** each chain leans away from the landing: from the screen's centre line (null: left left, right right), or from
+	 *  a canvas x (the logo), by where its knocker's mouth is on the canvas now */
+	private aim(sourceX: number | null): void {
+		if (sourceX === null) {
+			this.dirL = -1;
+			this.dirR = 1;
+			return;
+		}
+		this.dirL = this.root.toGlobal(this.pivotPts.L, this.gp).x >= sourceX ? 1 : -1;
+		this.dirR = this.root.toGlobal(this.pivotPts.R, this.gp).x >= sourceX ? 1 : -1;
+	}
+
+	/** DEV / probe: the per-frame read of tools/manticore/chain_gust_probe.js (state() is too much for every frame) */
+	gustSample() {
+		const side = (s: 'L' | 'R') => (this.hasChains ? { x: this.chains[s].x, b: this.chains[s].b } : { x: 0, b: 0 });
+		return { at: this.gustAt, pulse: this.gustRaw, g: this.g, dirL: this.dirL, dirR: this.dirR, startAt: this.gustStartAt, live: this.gustLive.length, e: this.e, moving: this.moving, L: side('L'), R: side('R') };
 	}
 
 	/** turn the rings and rewrite the strips of whichever set is drawn */
@@ -623,6 +695,8 @@ export class SceneView {
 			tints: { backdrop: this.backdrop[set].tint, fore: this.fore[set].tint, chains: this.sets[set].tint, foreTint: [c[FORE_TINT], c[FORE_TINT + 1], c[FORE_TINT + 2]] },
 			clock: this.clock,
 			kick: { e: this.e, moving: this.moving },
+			/** THE GUSTS: the lagged pulse (playground px), each side's lean, the gusts held that have not started yet */
+			gust: { g: this.g, pulse: this.gustRaw, dirL: this.dirL, dirR: this.dirR, pending: this.gustLive.filter((x) => this.gustAt < gustStart(x, CHAIN_GUST.sceneLagMs)).length, live: this.gustLive.length, startAt: this.gustStartAt, at: this.gustAt },
 			layout: this.layout,
 			released: this.released,
 			chains: this.hasChains ? { L: chain('L'), R: chain('R') } : null,

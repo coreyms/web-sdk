@@ -9,7 +9,7 @@
 // engine's beat (a normal sting's ring runs into the gap after it), so the engine stamps each one
 // with performance.now() and the style rate, and Sting.svelte runs them to their end on its own.
 
-import { CELL_COUNT } from './constants';
+import { CELL_COUNT, CHAIN_GUST } from './constants';
 import { STAGING_TOOLS, perfMark } from './staging';
 
 /** THE KICK HOOK. The board's current screen-kick offset in BOARD px (board space, before the
@@ -85,6 +85,38 @@ export const chainFx = {
 export const chainHaulPress = (rate: number) => {
 	chainFx.presses.push({ t0: performance.now(), rate });
 	if (chainFx.presses.length > 32) chainFx.presses.splice(0, 16);
+};
+
+// ---- the chain gusts (CHAIN_GUST): the air a drop-in displaces reaching the chains ----------------
+
+export type ChainGustKind = 'plaque' | 'logo' | 'tier';
+/** one gust: performance.now() of the landing (`t0`, later than the push when the landing is still to come), the
+ *  turbo scale at the push, its strength (a share of one kick) and the landing's centre in CANVAS px (null = the
+ *  board's centre: left chains lean left, right chains right) */
+export type ChainGust = { kind: ChainGustKind; t0: number; rate: number; strength: number; sourceX: number | null };
+/** pending and running gusts. components/BoardFrame.svelte and game/scene.ts each keep their own cursor on
+ *  `count` (every gust ever pushed), so a trimmed head never hides a new gust; neither one ever splices this list.
+ *  `on`: the DEV A / B switch (__manticore.gust.enable), true in production. */
+export const gustFx = { gusts: [] as ChainGust[], count: 0, on: true };
+/** push one. Callers guard stateGame.skipping themselves (featureFx must not import stateGame). `leadMs`: the
+ *  landing is this many real ms after now (the logo's letters set down partway into its entrance). */
+export const chainGust = (kind: ChainGustKind, rate: number, sourceX: number | null = null, leadMs = 0) => {
+	const g = CHAIN_GUST[kind];
+	if (!CHAIN_GUST.enabled || !gustFx.on || g.strength <= 0) return;
+	const gust: ChainGust = { kind, t0: performance.now() + Math.max(0, leadMs), rate: Math.max(0.2, rate), strength: Math.min(g.strength, CHAIN_GUST.maxStrength), sourceX };
+	gustFx.gusts.push(gust);
+	gustFx.count += 1;
+	if (gustFx.gusts.length > 32) gustFx.gusts.splice(0, 16);
+	// so __manticore.fx.records carries every gust (tools/manticore/chain_gust_probe.js)
+	if (import.meta.env.DEV) fxRecord('gust', { ...gust, leadMs });
+};
+/** where a gust's pulse starts for a consumer that lags it by `lagMs` more (the courtyard: sceneLagMs) */
+export const gustStart = (g: ChainGust, lagMs: number) => g.t0 + (CHAIN_GUST[g.kind].delayMs + lagMs) / (CHAIN_GUST.delaysFollowTurbo ? g.rate : 1);
+/** the gust's push at `now`, playground px: strength x unit x sin(pi u) over CHAIN_GUST.ms of REAL time, 0 outside.
+ *  One-sided and smooth, so the chain leans rather than rattles. */
+export const gustPulse = (g: ChainGust, lagMs: number, unitPx: number, now: number) => {
+	const u = (now - gustStart(g, lagMs)) / Math.max(CHAIN_GUST.ms, 1);
+	return u >= 0 && u < 1 ? g.strength * unitPx * Math.sin(Math.PI * u) : 0;
 };
 
 // ---- DEV probe log (tools/manticore/fx_probe.js reads it through __manticore.fx) ---------------

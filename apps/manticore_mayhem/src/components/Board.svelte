@@ -34,10 +34,10 @@
 	import Anticipation from './Anticipation.svelte';
 	import Sting from './Sting.svelte';
 	import ClawSwipe from './ClawSwipe.svelte';
-	import { fxLog, boardKick, swipeFx } from '../game/featureFx';
+	import { fxLog, boardKick, swipeFx, gustFx, chainGust, type ChainGustKind } from '../game/featureFx';
 	import BoardCells from './BoardCells.svelte';
 	import { revealTease, plateLog, boardExit } from '../game/stateGame.svelte';
-	import { BOARD_EXIT, DROP } from '../game/constants';
+	import { BOARD_EXIT, CHAIN_GUST, DROP } from '../game/constants';
 
 	const context = getContext();
 	const stateGame = context.stateGame;
@@ -160,6 +160,18 @@
 			}),
 			configurable: true,
 			enumerable: true,
+		});
+		// CHAIN GUSTS probe (tools/manticore/chain_gust_probe.js): every gust on the bus, the constants, the A / B
+		// switch (false = no gust is pushed; the kick and everything else unchanged) and a gust pushed by hand (the
+		// calibration against a kick, with nothing else moving)
+		Object.assign((window as any).__manticore, {
+			gust: {
+				log: () => gustFx.gusts.map((g) => ({ ...g })),
+				count: () => gustFx.count,
+				constants: () => JSON.parse(JSON.stringify(CHAIN_GUST)),
+				enable: (on: boolean) => (gustFx.on = !!on),
+				push: (kind: ChainGustKind, sourceX: number | null = null) => chainGust(kind, Math.max(0.2, context.stateGameDerived.timeScale()), sourceX),
+			},
 		});
 		// BOARD EXIT probe (tools/manticore/boardfix_probe.js): every exit played (who started it, when, the
 		// style rate, when the reveal took the board over, any hold it asked of the new drop, when it ended),

@@ -79,7 +79,7 @@
 
 	import { STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP } from '../game/constants';
 	import { PHONE_TIER } from '../game/deviceTier';
-	import { boardKick } from '../game/featureFx';
+	import { boardKick, chainGust } from '../game/featureFx';
 	import { layoutKind } from '../game/layoutSpec';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { WIN_TIER_SOUND, WIN_TIER_STAGES, WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
@@ -242,6 +242,8 @@
 			view.tierUp(STINGER_TIERS[index], !ended);
 			tierSound(index);
 			kick(STINGER_PLAQUE.kickTierPx);
+			// the chains lean from the tier's punch a beat later (CHAIN_GUST.tier), never while skipping
+			if (!context.stateGame.skipping) chainGust('tier', Math.max(0.2, context.stateGameDerived.timeScale()));
 			log({ type: 'tier', tier: STINGER_TIERS[index], el, amount, skipped: c.skipped });
 		}
 		view.setAmountText(format(amount, c.target), c.fit);
@@ -257,6 +259,8 @@
 		view.advance(ticker.deltaMS);
 		if (view.landed) {
 			kick(STINGER_PLAQUE.kickPx);
+			// the air of the slam reaches the chains a beat later (CHAIN_GUST.plaque), never while skipping
+			if (!context.stateGame.skipping) chainGust('plaque', Math.max(0.2, context.stateGameDerived.timeScale()));
 			if (landSound >= 0) tierSound(landSound);
 			landSound = -1;
 			log({ type: 'impact', tier: STINGER_TIERS[view.tier] });
