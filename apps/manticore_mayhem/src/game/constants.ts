@@ -846,11 +846,99 @@ export const MOTION_BLUR_VELOCITY = 31;
 export const CONFIRM_COST_MULTIPLIER = 2;
 
 export const zIndexes = {
-	background: { backdrop: -3, normal: -2, feature: -1 },
+	// scene: the courtyard scene (SCENE below) draws OVER the placeholder and its wash, which it replaces
+	background: { backdrop: -3, normal: -2, feature: -1, scene: -0.5 },
 };
 
 /** dark wash over the backdrop so the board and the chrome read on top of it */
 export const BACKGROUND_WASH = { base: 0.3, freegame: 0.4 };
+
+// ---- The courtyard scene (components/Background.svelte, game/scene.ts; assets by tools/build_scene_assets.py) ----
+// The LANDSCAPE and PHONE SIDEWAYS background (Corey 2026-10-10): painted backdrop, 3D foreground, the braziers'
+// fire light as one additive pass, and the knocker rings and chains as moving pieces. Portrait keeps the placeholder.
+// Every px below is a px of the scene's 2560 x 1440 frame (game/sceneSpec.ts); every ms is REAL time at every turbo
+// level (it is scenery, like the logo), and the idle never pauses (Corey 2026-10-10: it keeps running through spins
+// and win screens).
+//   modes     the game's four background keys (Background.svelte `family`). night: 0 the day scene, 1 the night
+//             scene. fire: the pass's level. fireTint / foreTint: the EPIC red (the foreground and the chains take
+//             foreTint; the painted backdrop is never tinted). flicker: the band the level pulses in, as multiples
+//             of the level; EPIC only pulses DOWN from 100% (the gold burns out above it).
+//   dim       the old wash as a TINT on every layer (dims are tints, never alpha overlays): 1 - BACKGROUND_WASH.
+//   flicker   level x (lo + (hi - lo) (1 + n(t)) / 2), n = sum of weight sin(2 pi hz t + phase): three slow terms
+//             whose rates share no period, weights summing to 1, so n stays in -1 .. 1 and never visibly loops.
+//   chains    game/scene.ts has the model. Both react to the board's kick (featureFx.boardKick, the scalar the
+//             board's own chains use, components/BoardFrame.svelte): its size, lagged by kickLagMs, shoves each
+//             chain, x'' = -w^2 x - 2 zeta w x' + gain w e (1 - |x| / max), so a short kick moves it gain x (the
+//             kick's px x seconds) whatever its period, and a long one cannot push it past max.
+//             hang   pinned at the TOP only: a pendulum. x is the free end's sideways travel; a link at s (0 the
+//                    knocker's mouth, 1 the free end) moves x s^shape, the lower links trailing by lagMs. The
+//                    period is periodMsPerRootPx x sqrt(its length), so the two sides differ when their lengths do,
+//                    times the side's own `period`. Lightly damped: it is still swinging when the swag has stopped.
+//                    The ring turns about the mouth so its bottom stays on the chain's top link.
+//                    side.hold: the share of the free end's travel taken away over the last holdFrom..1 of the
+//                    chain. LEFT (knocker_r2): its end RESTS on the column's base moulding, so it is held there
+//                    (hold), shoved less (gain) and damped harder; the right one hangs free.
+//             swag   pinned at BOTH ends (the ring's hook, which it follows, and the bowl rim; anything showing
+//                    again under the rim stays still): a slack chain. b is its middle's travel along `dir`, shaped
+//                    sin(pi s). Slower and larger than the board's taut chains, moderately damped: two swings.
+//             idle   wind on the free ends: per side its own three slow terms ([period ms, weight, phase]) and
+//                    size, so the sides are never in step. Written at most every idleIntervalMs. The twist of the
+//                    lower links is NOT drawn (a flat sprite cannot turn; a width change read as rubber).
+export const SCENE = {
+	modes: {
+		base: { night: 0, fire: 0.5, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		bonus: { night: 0, fire: 0.5, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		super: { night: 1, fire: 0.7, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		epic: { night: 1, fire: 1, fireTint: [1, 0.7, 0.5], foreTint: [1, 0.86, 0.86], flicker: [0.8, 1] },
+	},
+	// the scene keeps the base wash as its dim; in a feature it stays at the level the lit stills were approved at (0.69)
+	dim: { base: 1 - BACKGROUND_WASH.base, freegame: 0.69 },
+	/** a change of mode (day to night and back, the levels, the tints, the dim), and the scene's first appearance over
+	 *  the placeholder when its files land after the layout is already showing */
+	crossfadeMs: 600,
+	flicker: {
+		terms: [
+			[0.83, 0.5, 0],
+			[2.17, 0.3, 1.3],
+			[5.3, 0.2, 4.1],
+		],
+	},
+	/** the flicker and the idle are written at most this often (30 a second) */
+	idleIntervalMs: 33,
+	chain: {
+		kickLagMs: 54,
+		/** fixed integration step, and the travel under which a chain with no kick on it is put back at rest */
+		stepMs: 4,
+		restPx: 0.04,
+		hang: {
+			segments: 12,
+			periodMsPerRootPx: 103,
+			shape: 1.6,
+			lagMs: 140,
+			holdFrom: 0.72,
+			L: { period: 1, damping: 0.24, gain: 14, max: 9, hold: 0.8 },
+			R: { period: 1.04, damping: 0.085, gain: 36, max: 20, hold: 0 },
+		},
+		swag: {
+			segments: 10,
+			periodMs: 1250,
+			damping: 0.3,
+			dir: [0.92, 0.38],
+			L: { gain: 14, max: 8 },
+			R: { gain: 22, max: 13 },
+		},
+		idle: {
+			hang: {
+				L: { px: 0.9, terms: [[7300, 0.5, 0.4], [4100, 0.3, 2.9], [2700, 0.2, 5.1]] },
+				R: { px: 2.6, terms: [[8900, 0.5, 3.3], [5300, 0.3, 0.7], [3100, 0.2, 2.2]] },
+			},
+			swag: {
+				L: { px: 0.35, terms: [[9700, 0.6, 1.9], [6100, 0.4, 4.4]] },
+				R: { px: 0.7, terms: [[11300, 0.6, 0.2], [6700, 0.4, 3.6]] },
+			},
+		},
+	},
+} as const;
 
 // ---- Symbol art ---------------------------------------------------------------------------------
 export type SymbolInfo = { type: 'sprite'; assetKey: string; sizeRatios: { width: number; height: number } };

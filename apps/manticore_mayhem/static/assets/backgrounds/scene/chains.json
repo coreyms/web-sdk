@@ -1,0 +1,254 @@
+{
+ "frames": {
+  "scene_hang_L_day": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 52,
+    "h": 486
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 52,
+    "h": 486
+   },
+   "sourceSize": {
+    "w": 52,
+    "h": 486
+   }
+  },
+  "scene_hang_L_night": {
+   "frame": {
+    "x": 54,
+    "y": 0,
+    "w": 52,
+    "h": 486
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 52,
+    "h": 486
+   },
+   "sourceSize": {
+    "w": 52,
+    "h": 486
+   }
+  },
+  "scene_hang_R_day": {
+   "frame": {
+    "x": 0,
+    "y": 488,
+    "w": 51,
+    "h": 376
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 51,
+    "h": 376
+   },
+   "sourceSize": {
+    "w": 51,
+    "h": 376
+   }
+  },
+  "scene_hang_R_night": {
+   "frame": {
+    "x": 53,
+    "y": 488,
+    "w": 51,
+    "h": 376
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 51,
+    "h": 376
+   },
+   "sourceSize": {
+    "w": 51,
+    "h": 376
+   }
+  },
+  "scene_ring_L_day": {
+   "frame": {
+    "x": 156,
+    "y": 930,
+    "w": 76,
+    "h": 107
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 76,
+    "h": 107
+   },
+   "sourceSize": {
+    "w": 76,
+    "h": 107
+   }
+  },
+  "scene_ring_L_night": {
+   "frame": {
+    "x": 234,
+    "y": 930,
+    "w": 76,
+    "h": 107
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 76,
+    "h": 107
+   },
+   "sourceSize": {
+    "w": 76,
+    "h": 107
+   }
+  },
+  "scene_ring_R_day": {
+   "frame": {
+    "x": 0,
+    "y": 866,
+    "w": 76,
+    "h": 108
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 76,
+    "h": 108
+   },
+   "sourceSize": {
+    "w": 76,
+    "h": 108
+   }
+  },
+  "scene_ring_R_night": {
+   "frame": {
+    "x": 78,
+    "y": 930,
+    "w": 76,
+    "h": 108
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 76,
+    "h": 108
+   },
+   "sourceSize": {
+    "w": 76,
+    "h": 108
+   }
+  },
+  "scene_swag_L_day": {
+   "frame": {
+    "x": 108,
+    "y": 0,
+    "w": 178,
+    "h": 471
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 178,
+    "h": 471
+   },
+   "sourceSize": {
+    "w": 178,
+    "h": 471
+   }
+  },
+  "scene_swag_L_night": {
+   "frame": {
+    "x": 288,
+    "y": 0,
+    "w": 178,
+    "h": 471
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 178,
+    "h": 471
+   },
+   "sourceSize": {
+    "w": 178,
+    "h": 471
+   }
+  },
+  "scene_swag_R_day": {
+   "frame": {
+    "x": 108,
+    "y": 473,
+    "w": 176,
+    "h": 455
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 176,
+    "h": 455
+   },
+   "sourceSize": {
+    "w": 176,
+    "h": 455
+   }
+  },
+  "scene_swag_R_night": {
+   "frame": {
+    "x": 286,
+    "y": 473,
+    "w": 176,
+    "h": 455
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 176,
+    "h": 455
+   },
+   "sourceSize": {
+    "w": 176,
+    "h": 455
+   }
+  }
+ },
+ "meta": {
+  "image": "chains.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 468,
+   "h": 1040
+  },
+  "scale": "1",
+  "pngHash": "dce95d02"
+ }
+}

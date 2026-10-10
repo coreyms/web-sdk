@@ -13,6 +13,8 @@
 // into stateApp.loadedAssets the moment its own files are in:
 //   plaque  the five stinger atlases (all or nothing) + stinger.json + the motion tracks
 //                                               -> assetGate.markPlaqueAssetsReady()
+//   night   the courtyard scene's night backdrop and foreground
+//                                               -> components/Background.svelte crossfades a waiting Super / Epic
 //   logo    the canvas logo's atlas + its tracks (desktop tier only; no keys on the phone tier)
 //                                               -> components/Logo.svelte takes over from the still
 //           NORMALLY ALREADY IN: loadLogoEarly() below starts it when the preload ends, beside the audio
@@ -24,7 +26,7 @@
 // here is simply left to that batch, which has the retries and the failure screen.
 import * as PIXI from 'pixi.js';
 
-import assets, { DEFERRED_ORDER, LOGO_DATA_URLS, PLAQUE_ATLAS_KEYS, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
+import assets, { DEFERRED_ORDER, LOGO_DATA_URLS, PLAQUE_ATLAS_KEYS, SCENE_DAY_KEYS, SCENE_LATE, SCENE_NIGHT_KEYS, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
 import { markPlaqueAssetsReady } from './assetGate';
 import { loadLogoData } from './logo/data';
 import { loadStingerData } from './stinger/data';
@@ -153,6 +155,24 @@ const watchUnreachable = (app: AppState) => {
 	};
 	window.addEventListener('resize', check);
 	check();
+};
+
+// ---- the courtyard scene for a game that booted in PORTRAIT (game/assets.ts SCENE_LATE) --------------------
+// Portrait draws the placeholder and requests none of the scene's files. The first time the layout is landscape
+// or phone sideways, components/Background.svelte calls this: the day set (published together: the scene builds
+// from all four), then the night set. Once; a file that fails leaves the placeholder standing.
+let sceneLate: Promise<void> | null = null;
+export const loadSceneLate = (app: AppState): Promise<void> => {
+	const group = async (name: string, keys: readonly string[]) => {
+		const log = (deferredLog.groups[name] = { start: performance.now(), end: 0, keys: keys.length, failed: 0 });
+		const done = await Promise.all(keys.map((key) => loadOne(key, SCENE_LATE[key])));
+		log.failed = done.filter((textures) => !textures).length;
+		if (!log.failed) app.loadedAssets = Object.assign({ ...app.loadedAssets }, ...(done as Textures[]));
+		log.end = performance.now();
+	};
+	if (!Object.keys(SCENE_LATE).length) return Promise.resolve();
+	sceneLate ??= group('sceneDay', SCENE_DAY_KEYS).then(() => group('sceneNight', SCENE_NIGHT_KEYS)).catch(() => {});
+	return sceneLate;
 };
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {
