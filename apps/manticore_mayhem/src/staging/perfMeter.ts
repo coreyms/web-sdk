@@ -15,6 +15,8 @@
 //   hidden time   a frame that spans a tab switch is not a frame: the first interval after the page comes
 //                 back is thrown away.
 
+import { perfMarks } from '../game/staging';
+
 /** a frame longer than this many medians of its minute is "long" */
 export const LONG_FACTOR = 1.5;
 /** minutes of history kept */
@@ -25,6 +27,13 @@ export const RECENT_FRAMES = 300;
 export const HALF_RATE_FACTOR = 1.8;
 /** verdict thresholds: the share of long frames in the last minute */
 export const VERDICT = { someLongShare: 0.005, strugglingShare: 0.05 } as const;
+
+/** a frame at least this long is kept in the worst-frame lists with the game's labels around it */
+export const WORST_MIN_MS = 50;
+/** how many worst frames are kept: of the first minute (loading), and of everything after it */
+export const WORST_KEPT = { firstMinute: 6, later: 14 } as const;
+/** labels up to this long BEFORE a long frame began count as its cause (a handler awaits, then the cost lands) */
+export const MARK_LOOKBACK_MS = 120;
 
 const BIN_MS = 0.25;
 const BINS = 801; // 0 .. 200 ms in quarter milliseconds; the last bin takes everything longer
@@ -40,6 +49,30 @@ let recentCount = 0;
 
 // the finished minutes, a ring of plain numbers (written once a minute)
 const ring = { minute: new Int32Array(MINUTES_KEPT), frames: new Int32Array(MINUTES_KEPT), median: new Float32Array(MINUTES_KEPT), long: new Int32Array(MINUTES_KEPT), longest: new Float32Array(MINUTES_KEPT), n: 0, at: 0 };
+
+/** one of the worst frames: its length, when it ended (seconds since the meter started), and the game's labels
+ *  that fired from MARK_LOOKBACK_MS before it began to its end (`name@ms`: ms into the frame, negative = before) */
+export type WorstFrame = { ms: number; atS: number; minute: number; marks: string };
+export const worst = { firstMinute: [] as WorstFrame[], later: [] as WorstFrame[] };
+
+// only ever called for a frame of WORST_MIN_MS or more (a handful a minute at most), so it may allocate
+const keepWorst = (dt: number, now: number) => {
+	const list = meter.minuteIndex === 0 ? worst.firstMinute : worst.later;
+	const cap = meter.minuteIndex === 0 ? WORST_KEPT.firstMinute : WORST_KEPT.later;
+	if (list.length >= cap && dt <= list[list.length - 1].ms) return;
+	const began = now - dt;
+	const found: { name: string; rel: number }[] = [];
+	if (perfMarks) {
+		for (let i = 0; i < perfMarks.slots; i += 1) {
+			const at = perfMarks.at[i];
+			if (perfMarks.name[i] && at >= began - MARK_LOOKBACK_MS && at <= now) found.push({ name: perfMarks.name[i], rel: Math.round(at - began) });
+		}
+		found.sort((a, b) => a.rel - b.rel);
+	}
+	list.push({ ms: Math.round(dt), atS: Math.round((now - meter.startedAt) / 100) / 10, minute: meter.minuteIndex + 1, marks: found.map((m) => `${m.name}@${m.rel}`).join(' ') });
+	list.sort((a, b) => b.ms - a.ms);
+	if (list.length > cap) list.length = cap;
+};
 
 export const meter = {
 	running: false,
@@ -117,6 +150,7 @@ const frame = (now: number) => {
 	recentAt = recentAt + 1 === RECENT_FRAMES ? 0 : recentAt + 1;
 	if (recentCount < RECENT_FRAMES) recentCount += 1;
 	if (dt > meter.minuteLongest) meter.minuteLongest = dt;
+	if (dt >= WORST_MIN_MS) keepWorst(dt, now);
 	meter.minuteFrames += 1;
 	meter.frames += 1;
 };

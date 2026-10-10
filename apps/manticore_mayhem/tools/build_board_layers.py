@@ -2,7 +2,7 @@
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_board_layers.py [--no-frame] [--no-bg]
 
-Sources (read only, never written), TAG = board_v4k (TILT_DEG 4) or board_v4d (TILT_DEG 0):
+Sources (read only, never written), TAG = board_v4l (TILT_DEG 4) or board_v4d (TILT_DEG 0):
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_frame.png    2048 x 1935 RGBA (v4h; 1863 up to v4g): frame + 9x9
                                                                     lattice + top links
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_neutral_frame.png   the same with the NEUTRAL steel grid (v4f)
@@ -60,7 +60,9 @@ TILT_DEG = 4
 # top ledge and on the plinth over the shackle; the leaned top links are gone from the render
 # v4k (2026-10-07): the housings in the frame's copper (ledge mode, shallower, more chamfer); the lattice rebuilt thin
 # (bar radius 0.45 of the v4 bar, was 0.7) with NO rivets (model/scripts/thin_lattice.py)
-RENDERS = {0: 'board_v4d', 4: 'board_v4k'}
+# v4l (2026-10-09): v4k with the plinth's stone tops and joints restored at the four old spike spans (v4g's spike
+# removal had pasted flat lids over them); camera, lattice, housings and chains as v4k, so every switch treats it as v4k
+RENDERS = {0: 'board_v4d', 4: 'board_v4l'}
 TAG = RENDERS[TILT_DEG]
 # --tag <render tag> overrides it (dry runs of a variant, e.g. board_v4g_uz with --no-frame --no-bg)
 import sys as _sys
@@ -167,7 +169,7 @@ LEANED_BOX = {'L': (120, 240, 240, 350), 'R': (2048 - 240, 240, 2048 - 120, 350)
 # drawn OVER the frame, so the cut sits exactly on each housing's silhouette (at most ~0.3 render px over the lip),
 # where the chain goes behind the housing: never against the sky. v4i (no housings): (304.0, 1352.0).
 # The v4j render has no leaned links (HOUSED: erase_leaned_links is skipped, it would eat the housing's pixels).
-HOUSED = TAG.startswith(('board_v4j', 'board_v4k'))
+HOUSED = TAG.startswith(('board_v4j', 'board_v4k', 'board_v4l'))
 CHAIN_CLIP = tuple(json.load(open(os.path.join(_D, f'{TAG}_housing.json')))['chain_clip']) if HOUSED else (304.0, 1352.0)
 CHAIN_PHASE_SEARCH = (700, 830)  # the tile is cut from the middle of the run (perspective is mildest there)
 CHAIN_HALF_W = 53.5  # render px either side of the centreline (the old crop was 107 wide)
@@ -366,17 +368,17 @@ def main():
     # top line is still virtual (inside the top rail). The SIDE bars' rivets (rows 1..7) bind the column 0 / 7 cells
     # like any inner rivet; the bottom bar's rivets (and the corners) belong with the bottom outer bar that row 7 is
     # already allowed to hang over (rails=False below), so they count only in the rows 0 / 7 overhang report
-    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i', 'board_v4j', 'board_v4k'))
+    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l'))
     rivet_at = (lambda r, c: 0 < r < 8) if outer_rivets else (lambda r, c: 0 < r < 8 and 0 < c < 8)
     # v4h: the opening is SQUARE, so rows 0 / 7 no longer hang over the top / bottom outer bars: they are held to them
     # like every other bar (HOLD_ROWS: rails=True in the solve), and every crossing counts as a rivet: the bottom bar's
     # real rivets and the top line's (v4h: the copper bar clips under the top rail, a rivet as their stand-in; v4i: the
     # real top bar's rivets, the clips are gone)
-    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i', 'board_v4j', 'board_v4k'))
+    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l'))
     if HOLD_ROWS:
         rivet_at = lambda r, c: True
     # v4k: the lattice has NO rivets (the crossing is the two bars, already in the opening's bar-radius inset)
-    RIVETLESS = TAG.startswith('board_v4k')
+    RIVETLESS = TAG.startswith(('board_v4k', 'board_v4l'))
     if RIVETLESS:
         rivet_at = lambda r, c: False
 

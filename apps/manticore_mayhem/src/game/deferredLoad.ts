@@ -24,6 +24,7 @@ import * as PIXI from 'pixi.js';
 import assets, { DEFERRED_ORDER, PLAQUE_ATLAS_KEYS, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
 import { markPlaqueAssetsReady } from './assetGate';
 import { loadStingerData } from './stinger/data';
+import { STAGING_TOOLS, perfMark } from './staging';
 
 type Entry = { type: string; src: unknown };
 type Textures = Record<string, unknown>;
@@ -79,6 +80,7 @@ const loadGroup = async (app: AppState, name: string, keys: string[]) => {
 	}
 	app.loadedAssets = { ...app.loadedAssets, ...loaded };
 	log.end = performance.now();
+	if (STAGING_TOOLS) perfMark(`load:${name}`);
 	if (name === 'plaque' && plaqueWhole) {
 		// one task later: StingerPlaque builds its scene in an effect on loadedAssets, and the screens that
 		// wait on the gate ask `flow.ready()` the moment it resolves

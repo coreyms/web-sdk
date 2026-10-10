@@ -38,8 +38,7 @@
 
 <!-- logo + tagline each carry a Shine: a subtle glint every 5 s while idle, a full one on spin, in sync -->
 <div class="logo"><img src={stamp('/assets/ui/logo-landscape.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-landscape.webp')} /></div>
-<!-- "WIN UP TO 20,000x" set from Corey's branded glyphs (tools/build_branded_glyphs.py), sized to the text it replaced -->
-<div class="tagline"><span class="tag"><img src={stamp('/assets/ui/10000x.webp')} alt="Win up to 10,000×" draggable="false" /><Shine src={stamp('/assets/ui/10000x.webp')} /></span></div>
+<!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
 <div class="stats hud-group">
@@ -80,25 +79,6 @@
 		filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
 	}
 	.logo img {
-		display: block;
-		width: 100%;
-		height: auto;
-	}
-	.tagline {
-		position: absolute;
-		top: 176px; /* logo is 240 wide → 124 tall from top 42 (bottom 166); the old 148 overlapped MANTIS on an iPhone (Corey 2026-09-02) */
-		left: 50px;
-		width: 240px;
-		text-align: center;
-		pointer-events: none;
-	}
-	.tagline .tag {
-		position: relative;
-		display: inline-block;
-		width: 176px; /* the old 14px text measured 176 master px wide */
-		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
-	}
-	.tagline img {
 		display: block;
 		width: 100%;
 		height: auto;

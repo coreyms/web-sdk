@@ -85,6 +85,7 @@
 	import { WIN_TIER_SOUND, WIN_TIER_STAGES, WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
 	import { stagedAmountAt, stagedSegments, stagedTotal, tierIndexAt, type CountSegment } from '../game/stinger/count';
 	import { loadStingerData } from '../game/stinger/data';
+	import { STAGING_TOOLS, perfMark } from '../game/staging';
 	import { plaquePlacement } from '../game/stinger/layout';
 	import { StingerView } from '../game/stinger/view';
 	import { STINGER_TIERS, type StingerData } from '../game/stinger/types';
@@ -141,6 +142,7 @@
 		mips = `${mode}${nearest && mode === 'auto' ? '-near' : ''}:${chained.filter(Boolean).length}`;
 		void renderer.prepare?.upload(Object.values(src).filter((x): x is PIXI.TextureSource => !!x));
 		built = true;
+		if (STAGING_TOOLS) perfMark('plaque:built');
 	});
 
 	// placement: plain arithmetic on the board frame (game/stinger/layout.ts), re-derived on every resize
@@ -186,6 +188,7 @@
 	type Beat = { type: 'show' | 'impact' | 'countStart' | 'tier' | 'countEnd' | 'hide' | 'gone'; at: number; screen: string; tier?: string; el?: number; amount?: number; skipped?: boolean };
 	const beats: Beat[] = [];
 	const log = (b: Omit<Beat, 'at' | 'screen'>) => {
+		if (STAGING_TOOLS) perfMark(`plaque:${b.type}`);
 		if (!import.meta.env.DEV) return;
 		beats.push({ ...b, at: performance.now(), screen: view.screen });
 		if (beats.length > 400) beats.splice(0, 200);

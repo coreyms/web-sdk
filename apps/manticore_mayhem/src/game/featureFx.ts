@@ -10,6 +10,7 @@
 // with performance.now() and the style rate, and Sting.svelte runs them to their end on its own.
 
 import { CELL_COUNT } from './constants';
+import { STAGING_TOOLS, perfMark } from './staging';
 
 /** THE KICK HOOK. The board's current screen-kick offset in BOARD px (board space, before the
  *  board's layout scale), written by whichever feature is kicking (swipe, roar) and applied to the
@@ -104,5 +105,8 @@ export const fxRecord = (kind: string, info?: Record<string, unknown>): FxRecord
 };
 /** stamp a phase once (the first frame it is reached) */
 export const fxStamp = (rec: FxRecord, phase: string) => {
-	if (rec.at[phase] === undefined) rec.at[phase] = performance.now();
+	if (rec.at[phase] === undefined) {
+		rec.at[phase] = performance.now();
+		if (STAGING_TOOLS) perfMark(`${rec.kind}:${phase}`);
+	}
 };

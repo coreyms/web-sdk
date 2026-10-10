@@ -19,7 +19,7 @@
 	import { LABEL_CAPS } from '../game/labelGlyphs';
 	import { labelFont } from '../game/clusterLabel';
 	import { plaqueGate } from '../game/assetGate';
-	import { meter, startMeter, stopMeter, watchCanvas, recentMedianMs, currentMinute, finishedMinutes, verdictOf, LONG_FACTOR, MINUTES_KEPT, type MinuteRow, type Verdict } from './perfMeter';
+	import { meter, startMeter, stopMeter, watchCanvas, recentMedianMs, currentMinute, finishedMinutes, worst, WORST_MIN_MS, MARK_LOOKBACK_MS, verdictOf, LONG_FACTOR, MINUTES_KEPT, type MinuteRow, type Verdict } from './perfMeter';
 
 	/** how often the box is redrawn, ms */
 	const REFRESH_MS = 1000;
@@ -35,6 +35,8 @@
 		contextLost: number;
 		contextRestored: number;
 		visibilityChanges: number;
+		/** the three worst frames after the first minute, each with the last label before it ended */
+		worstLine: string;
 		draw: Record<string, string | number | boolean | null>;
 	};
 	let snap = $state<Snapshot | null>(null);
@@ -116,6 +118,7 @@
 			contextLost: meter.contextLost,
 			contextRestored: meter.contextRestored,
 			visibilityChanges: meter.visibilityChanges,
+			worstLine: worst.later.slice(0, 3).map((f) => `${f.ms} ms ${f.marks.split(' ').pop() || '(no label)'}`).join('; '),
 			draw: {
 				rendererResolution: app?.renderer?.resolution ?? null,
 				resolutionCap: renderResolutionCap(),
@@ -153,6 +156,9 @@
 				minutesSinceLoad: r1(performance.now() / 60000),
 				longFrameRule: `longer than ${LONG_FACTOR} x the median of its own minute`,
 				perMinute: [...s.rows.map(row), { ...row(s.now), partial: true }],
+				worstFramesRule: `frames of ${WORST_MIN_MS} ms or more; marks are the game's labels from ${MARK_LOOKBACK_MS} ms before the frame began to its end, as name@ms into the frame`,
+				worstFramesFirstMinute: worst.firstMinute,
+				worstFramesLater: worst.later,
 				contextLost: s.contextLost,
 				contextRestored: s.contextRestored,
 				visibilityChanges: s.visibilityChanges,
@@ -228,6 +234,9 @@
 					{/each}
 				</tbody>
 			</table>
+			{#if snap.worstLine}
+				<div class="line small">worst after minute 1: {snap.worstLine}</div>
+			{/if}
 			<div class="line">renderer {snap.draw.rendererResolution} (cap {snap.draw.resolutionCap}), canvas {snap.draw.canvasPx} = {snap.draw.canvasMP} MP, DPR {snap.draw.devicePixelRatio}</div>
 			<div class="line">viewport {snap.draw.viewportCss}, screen {snap.draw.screenCss}, in iframe: {snap.draw.inIframe ? 'yes' : 'no'}</div>
 			<div class="line">phone tier: {snap.draw.phoneTier ? 'yes' : 'no'}, art {snap.draw.artTier}, label cap {snap.draw.labelCapPx ?? 'none'} px, plaque ready {snap.draw.plaqueReadyAtS ?? 'not yet'} s</div>

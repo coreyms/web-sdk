@@ -23,6 +23,7 @@ export const STAGING_MARKERS = [
 	'MM_STAGING_PERF_READOUT', // staging/PerfReadout.svelte: the box's data attribute
 	'mm-staging-perf', // staging/mountPerf.ts: the host element's id
 	'mm-perf', // the readout's class (also catches any of its styles in a stylesheet)
+	'worstFramesLater', // staging/PerfReadout.svelte: the copied report's worst-frame list (game/staging.ts perfMark feeds it)
 	'Copy results', // the readout's button
 	'rescap', // game/deviceTier.ts: the resolution cap override's query parameter
 	'getHighEntropyValues', // staging/PerfReadout.svelte: nothing in the game asks for device details
