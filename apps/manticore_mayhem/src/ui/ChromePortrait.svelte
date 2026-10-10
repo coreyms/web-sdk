@@ -38,7 +38,7 @@
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
 <div class="top keep" style:top="{logo.y}px">
-	<span class="logo" style:width="{logo.width}px" style:transform={logoShift} style:transition-duration="{LOGO.portrait.compactMs}ms"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked.webp')} /></span>
+	<span class="logo" style:width="{logo.width}px" style:transform={logoShift} style:transition-duration="{LOGO.portrait.compactMs}ms"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></span>
 </div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 

@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Glint overlay for a chrome image (logo, tagline): a white band masked by the image's own
-	// alpha sweeps across it — a subtle one every IDLE_MS while idle and a full one the moment a
+	// Glint overlay for a chrome image: a white band masked by an image's alpha sweeps across it (the
+	// logo passes a letters-only mask, tools/build_logo_assets.py, so the wings are never lit: Corey 2026-10-10) — a subtle one every IDLE_MS while idle and a full one the moment a
 	// spin is pressed (Corey 2026-09-05). Pure CSS mask + background animation on the compositor;
 	// no backdrop-filter (house rule), no canvas. Every Shine on the page restarts its animation
 	// on the same `bet` event, so the logo and the tagline sweep in sync.

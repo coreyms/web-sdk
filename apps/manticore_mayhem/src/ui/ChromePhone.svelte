@@ -39,7 +39,7 @@
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
 <!-- the stacked logo, a still in every tier here, with a Shine: a subtle glint every 5 s while idle, a full one on spin -->
-<div class="logo" style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked.webp')} /></div>
+<div class="logo" style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->

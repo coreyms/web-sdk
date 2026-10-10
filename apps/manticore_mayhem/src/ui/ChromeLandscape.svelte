@@ -40,7 +40,7 @@
      hand over). Phone tier: this still IS the logo, with the house Shine (a subtle glint every 5 s while idle, a
      full one on spin). -->
 <div class="logo keep" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px">
-	<img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" />{#if PHONE_TIER}<Shine src={stamp('/assets/ui/logo-stacked.webp')} />{/if}
+	<img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" />{#if PHONE_TIER}<Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} />{/if}
 </div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 

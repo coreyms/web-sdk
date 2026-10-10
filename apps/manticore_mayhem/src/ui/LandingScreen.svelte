@@ -171,7 +171,7 @@
 			/>
 		{/each}
 		<span class="shine-host logo" style:width="{logo.w}px" style:left="{logo.cx - logo.w / 2}px" style:top="{logo.cy}px">
-			<img src={logoSrc} alt="Manticore Mayhem" width={logo.w} draggable="false" /><Shine src={logoSrc} idleMs={INTRO_LOGO_SHINE_MS} />
+			<img src={logoSrc} alt="Manticore Mayhem" width={logo.w} draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} idleMs={INTRO_LOGO_SHINE_MS} />
 		</span>
 
 		<div class="gate" style:padding="{SZ.pad}px">

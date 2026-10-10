@@ -102,6 +102,7 @@ const LANDING = [
 	'ui/intro/card-2.webp',
 	'ui/intro/card-3.webp',
 	'ui/logo-stacked.webp',
+	'ui/logo-stacked-glint.webp', // the letters-only mask of the logo's glint (ui/Shine.svelte)
 	'fonts/ui/Outfit-Variable.woff2',
 	'fonts/ui/Sora-Variable.woff2',
 ];

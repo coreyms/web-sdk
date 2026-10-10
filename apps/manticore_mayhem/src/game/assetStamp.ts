@@ -154,6 +154,7 @@ export default {
 	"ui/logo/logo.json": "bf4c7904",
 	"ui/logo/logo.webp": "a7f3c52b",
 	"ui/logo-landscape.webp": "c70310b4",
+	"ui/logo-stacked-glint.webp": "7c71e249",
 	"ui/logo-stacked.webp": "71d3c9ee",
 	"ui/logo-wide.webp": "c08e52a0",
 	"ui/numerals/glyphs.json": "8604c09b",
@@ -341,6 +342,7 @@ export const fileBytes = {
 	"ui/logo/logo.json": 259817,
 	"ui/logo/logo.webp": 253288,
 	"ui/logo-landscape.webp": 19852,
+	"ui/logo-stacked-glint.webp": 15192,
 	"ui/logo-stacked.webp": 137286,
 	"ui/logo-wide.webp": 18860,
 	"ui/numerals/glyphs.json": 5905,
@@ -378,10 +380,11 @@ export const landingSizes = {
 	"ui/intro/card-2.webp": 31854,
 	"ui/intro/card-3.webp": 31792,
 	"ui/logo-stacked.webp": 137286,
+	"ui/logo-stacked-glint.webp": 15192,
 	"fonts/ui/Outfit-Variable.woff2": 13704,
 	"fonts/ui/Sora-Variable.woff2": 14980
 } as const;
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":259700,"preload":1359751,"audio":1075788} as const;
+export const bootSizes = {"landing":274892,"preload":1359751,"audio":1075788} as const;

@@ -61,6 +61,7 @@ FRAME = [754, 420]
 SRC_SCALE = 2
 STATIC_WIDTH = 1200
 STATIC_QUALITY = 90
+MASK_WIDTH = 600  # the letters-only glint mask of the static logo (a soft sweep: half the still is plenty)
 # texture px per ship px. The art is drawn 300 master px wide for 690.9 ship px, so a ship px is 0.43 device px on a
 # 1280 x 720 window at DPR 1 and 1.30 on 1920 x 1080 at the renderer's cap of 2: 1.5 covers it, with a mip chain below.
 SCALE = {"wing": Fraction(3, 2), "letters": Fraction(3, 2), "shadow": Fraction(3, 4), "glint": Fraction(1), "drop": Fraction(1, 4)}
@@ -176,6 +177,26 @@ def main() -> None:
     static_path = UI / "logo-stacked.webp"
     Image.fromarray((static * 255 + 0.5).astype(np.uint8), "RGBA").save(static_path, "WEBP", quality=STATIC_QUALITY, method=6, alpha_quality=100)
     print(f"logo-stacked.webp {STATIC_WIDTH} x {sh} (aspect {STATIC_WIDTH / sh:.4f}), {static_path.stat().st_size / 1024:.0f} KB; art box in ship px {[r3(v) for v in art]} (aspect {art[2] / art[3]:.4f})")
+
+    # ---- the glint mask of the static logo: the LETTERS only (Corey 2026-10-10: the glint must not light the
+    # wings). ui/Shine.svelte masks its sweep with this instead of the logo's own alpha. Same crop and aspect as
+    # the still, MASK_WIDTH px wide, white with the letters' alpha.
+    LT = next(L for L in lay["layers"] if L["name"] == "letters")
+    la = src["letters"][..., 3]
+    lw, lh = max(1, round(la.shape[1] / SRC_SCALE / per)), max(1, round(la.shape[0] / SRC_SCALE / per))
+    la_s = np.asarray(Image.fromarray(la.astype(np.float32), "F").resize((lw, lh), Image.LANCZOS)).clip(0, 1)
+    full = np.zeros(still.shape[:2], np.float32)
+    lx, ly = round((LT["pos"][0] - whole[0]) / per), round((LT["pos"][1] - whole[1]) / per)
+    ax0, ay0, ax1, ay1 = max(lx, 0), max(ly, 0), min(lx + lw, full.shape[1]), min(ly + lh, full.shape[0])
+    full[ay0:ay1, ax0:ax1] = la_s[ay0 - ly : ay1 - ly, ax0 - lx : ax1 - lx]
+    mcrop = full[y0:y1, x0:x1]
+    mh = round(MASK_WIDTH * mcrop.shape[0] / mcrop.shape[1])
+    ma = np.asarray(Image.fromarray(mcrop, "F").resize((MASK_WIDTH, mh), Image.LANCZOS)).clip(0, 1)
+    mask = np.dstack([np.ones_like(ma)] * 3 + [ma])
+    mask_path = UI / "logo-stacked-glint.webp"
+    Image.fromarray((mask * 255 + 0.5).astype(np.uint8), "RGBA").save(mask_path, "WEBP", quality=60, method=6, alpha_quality=90)
+    inside = float((ma * np.asarray(Image.fromarray(static[..., 3].astype(np.float32), "F").resize((MASK_WIDTH, mh), Image.LANCZOS))).sum() / max(ma.sum(), 1e-6))
+    print(f"logo-stacked-glint.webp {MASK_WIDTH} x {mh}, {mask_path.stat().st_size / 1024:.0f} KB; letters cover {ma.mean() * 100:.1f} % of the box, {inside * 100:.1f} % of the mask lies on the still's own alpha")
 
     sprites: dict[str, list[float]] = {}
     items: list[tuple[str, np.ndarray]] = []
