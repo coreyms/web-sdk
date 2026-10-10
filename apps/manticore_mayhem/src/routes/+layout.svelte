@@ -6,6 +6,7 @@
 	import Game from '../components/Game.svelte';
 	import { setContext } from '../game/context';
 	import { boot, startLandingPreload, releaseSplash } from '../game/boot.svelte';
+	import { STAGING_TOOLS } from '../game/staging';
 
 	import messagesMap from '../i18n/messagesMap';
 
@@ -25,6 +26,13 @@
 	// the audiosprite below, and the Pixi preload (Game.svelte holds <App> unmounted). Authenticate
 	// keeps running in parallel: it is latency-bound, not bandwidth-bound.
 	startLandingPreload();
+
+	// STAGING ONLY (game/staging.ts): `?perf=1` in a PUBLIC_STAGING=1 build (or on the dev server) mounts the
+	// measurement readout (src/staging/). STAGING_TOOLS is a build-time constant: in a production build this
+	// whole block, the import and the readout's code are dropped (scripts/check-production-bundle.mjs proves it).
+	if (STAGING_TOOLS && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('perf') === '1') {
+		void import('../staging/mountPerf').then((m) => m.mountPerfReadout());
+	}
 
 	// The audio (sfx sprite + base loop) used to start at the very top of the app, competing with
 	// everything else for a slow connection's bandwidth. It now starts once the Pixi preload is in

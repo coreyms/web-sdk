@@ -12,7 +12,10 @@
 	//   BIG WIN AND ABOVE (level type 'big'): the animated win plaque (components/StingerPlaque.svelte) slams
 	//     in, counts the amount with the house pacing and steps its title up through the tiers the amount
 	//     crosses, never past the book's own level. A press while it counts lands on the final amount and
-	//     tier; then the press-to-continue gate, as before (no gate while auto bonuses run).
+	//     tier. THERE IS NO PRESS GATE AND NO PROMPT (Corey 2026-10-09: "these should go away naturally"): once
+	//     the count has landed the plaque holds STINGER_PLAQUE.winHoldMs (winAutoHoldMs while auto bonuses run)
+	//     and leaves by itself; a press during the hold only ends it early. The press catcher stays up, with no
+	//     text, from the count until the hide starts, so a press never falls through to the spin button.
 	//   ANYTHING SMALLER GETS NO WIN SCREEN AT ALL (Corey 2026-10-09: "no Nice win level"): setTotalWin never
 	//     asks for one, so everything here is a Big Win or above.
 	//   THE PLAIN SCREEN below (dim, tier word, count up) is ONLY the fallback for a Big Win whose plaque art
@@ -32,7 +35,7 @@
 	import { onMount } from 'svelte';
 
 	import { getContext } from '../game/context';
-	import { awaitDeferredAssets } from '../game/assetGate';
+	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { STINGER_PLAQUE } from '../game/constants';
 	import { WIN_TIER_SOUND, WIN_TIER_STAGES } from '../game/winLevelMap';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
@@ -47,7 +50,8 @@
 	let show = $state(false);
 	let title = $state('');
 	let target = $state(0);
-	let gated = $state(false);
+	// the count has landed and the screen is holding before it leaves by itself (a press ends the hold early)
+	let holding = $state(false);
 	let resolveGate: (() => void) | null = $state(null);
 	// the plaque is carrying this win (nothing of the plain screen is drawn), and its amount is still counting
 	let viaPlaque = $state(false);
@@ -65,6 +69,12 @@
 		resolveGate = null;
 		r?.();
 	};
+	/** the hold after the count: over by itself, or at once on a press. `holding` stays up until winHide. */
+	const hold = async () => {
+		holding = true;
+		await Promise.race([waitForTimeout(autoBonusesRunning() ? STINGER_PLAQUE.winAutoHoldMs : STINGER_PLAQUE.winHoldMs), waitForResolve((resolve) => (resolveGate = resolve))]);
+		resolveGate = null;
+	};
 
 	$effect(() => {
 		context.stateGame.winShowing = show;
@@ -74,13 +84,14 @@
 		winShow: () => {
 			presentation += 1;
 			plain = false;
+			holding = false;
 			show = true;
 			void dim.set(0.55);
 		},
 		winUpdate: async ({ amount, winLevelData }) => {
 			const tier = Math.max(0, WIN_TIER_STAGES.findIndex((s) => s.alias === winLevelData.alias));
 			// the plaque's atlases are deferred assets
-			await awaitDeferredAssets();
+			await awaitPlaqueAssets();
 			const flow = stingerPlaque.flow;
 			if (flow?.ready()) {
 				viaPlaque = true;
@@ -88,13 +99,7 @@
 				counting = true;
 				await flow.win({ amount, finalTier: tier, durationMs: winLevelData.presentDuration / context.stateGameDerived.timeScale() });
 				counting = false;
-				if (!autoBonusesRunning()) {
-					gated = true;
-					await waitForResolve((resolve) => (resolveGate = resolve));
-					gated = false;
-				} else {
-					await waitForTimeout(STINGER_PLAQUE.winAutoHoldMs);
-				}
+				await hold();
 				return;
 			}
 			// THE FALLBACK. The plain screen has no tier landings: the win's own tier clip plays once
@@ -107,17 +112,12 @@
 			target = amount;
 			counted.set(0, { duration: 0 });
 			await counted.set(amount, { duration: Math.max(600, winLevelData.presentDuration) });
-			// the press gate, as on the plaque (a short hold while auto bonuses run)
-			if (!autoBonusesRunning()) {
-				gated = true;
-				await waitForResolve((resolve) => (resolveGate = resolve));
-				gated = false;
-			} else {
-				await waitForTimeout(400);
-			}
+			// the same rule as the plaque: no gate, a hold, then it leaves by itself
+			await hold();
 		},
 		winHide: async () => {
 			dismiss();
+			holding = false;
 			if (viaPlaque) {
 				const mine = presentation;
 				counting = false;
@@ -138,7 +138,7 @@
 	onMount(() => {
 		if (!import.meta.env.DEV || typeof window === 'undefined') return;
 		Object.assign(((window as any).__manticore ??= {}), {
-			winScreen: () => ({ show, viaPlaque, plain, title: plain ? title : '', gated, counting, fallbacks: fallbacks.slice() }),
+			winScreen: () => ({ show, viaPlaque, plain, title: plain ? title : '', holding, counting, fallbacks: fallbacks.slice() }),
 		});
 		return () => delete (window as any).__manticore?.winScreen;
 	});
@@ -154,7 +154,8 @@
 	</MainContainer>
 {/if}
 
-<!-- a press while the plaque counts lands the amount; once it has landed, the press continues -->
-{#if counting || (gated && resolveGate)}
-	<PressToContinue showText={gated} onpress={() => (counting ? stingerPlaque.flow?.skip() : dismiss())} />
+<!-- never a prompt: a press while the plaque counts lands the amount, a press during the hold ends it early.
+     Up until winHide (the hide's start), so no press falls through to the spin button meanwhile. -->
+{#if counting || holding}
+	<PressToContinue showText={false} onpress={() => (counting ? stingerPlaque.flow?.skip() : dismiss())} />
 {/if}

@@ -77,7 +77,7 @@
 	import { STINGER_DATA_URLS } from '../game/assets';
 	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 
-	import { STINGER_PLAQUE, PLAYGROUND_PX } from '../game/constants';
+	import { STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP } from '../game/constants';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { boardKick } from '../game/featureFx';
 	import { layoutKind } from '../game/layoutSpec';
@@ -111,7 +111,7 @@
 	$effect(() => {
 		const app = context.stateApp.pixiApplication;
 		const atlas = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
-		if (built || !data || !app || !context.stateApp.loaded || !atlas?.stg_body) return;
+		if (built || !data || !app || !atlas?.stg_body) return; // its five atlases publish together, ahead of the symbol sheets (game/deferredLoad.ts)
 		view.build(data, atlas);
 		const renderer = app.renderer as PIXI.Renderer;
 		// MIPMAPS (game/mipmaps.ts), decided per asset tier (the sharpness pass, 2026-10-08; the numbers are in
@@ -123,15 +123,22 @@
 		//               cap is 1.5): under two texels a pixel, where plain bilinear is clean. A chain there
 		//               made trilinear sampling blend in the HALF size level, which is what read soft on a
 		//               phone: NO chain on the phone tier (edge contrast up 12 to 19 %, 2.3 MB less on the GPU).
+		//   full tier at renderer resolution 2 (the desktop cap since 2026-10-09, RENDER_RESOLUTION_CAP): a 1440 x 900
+		//               window draws the plaque at about 1.2 texels a pixel, where trilinear blends a quarter of the
+		//               half size level in. The chain stays (a small window still minifies) but the NEAREST level is
+		//               sampled: edge contrast title 12.38 to 13.09, lion 22.39 to 24.42 (SHARP=desktop, the same as
+		//               no chain at that size; the cap alone took them from 10.68 / 17.32). Below resolution 2
+		//               (DPR 1, 1.25 and 1.5 desktops) nothing changes.
 		// Never the glint slices: soft highlights at 1x.
 		const src = view.sources(atlas);
 		const mode = mipMode();
 		const chained = mode === 'off' || (PHONE_TIER && mode === 'auto') ? [] : [src.plaque, src.fx, src.titles, src.glyphs];
+		const nearest = mode === 'near' || (mode === 'auto' && !PHONE_TIER && renderer.resolution >= RENDER_RESOLUTION_CAP.desktop);
 		for (const source of chained) {
 			enableMipmaps(source, renderer);
-			if (source && mode === 'near') source.mipmapFilter = 'nearest';
+			if (source && nearest) source.mipmapFilter = 'nearest';
 		}
-		mips = `${mode}:${chained.filter(Boolean).length}`;
+		mips = `${mode}${nearest && mode === 'auto' ? '-near' : ''}:${chained.filter(Boolean).length}`;
 		void renderer.prepare?.upload(Object.values(src).filter((x): x is PIXI.TextureSource => !!x));
 		built = true;
 	});
@@ -145,7 +152,7 @@
 		const p = plaquePlacement(data.json, kind, canvas.width / master.scale);
 		limit = p.limit;
 		// master -> canvas: MainContainer centres the master on the canvas at master.scale
-		view.place(master.x + (p.x - master.width / 2) * master.scale, master.y + (p.y - master.height / 2) * master.scale, p.scale * master.scale, canvas.width, canvas.height);
+		view.place(master.x + (p.x - master.width / 2) * master.scale, master.y + (p.y - master.height / 2) * master.scale, p.scale * master.scale, canvas.width, canvas.height, master.scale);
 	});
 
 	// ---- the ticker: on only while the plaque is up ----------------------------------------------
@@ -382,6 +389,11 @@
 					...api,
 					/** the real screens' entry points, and every beat played (show / impact / countStart / tier / countEnd / hide / gone) */
 					flow,
+					/** the plaque's own motion (STINGER_PLAQUE.hover): scale 0 pins it still (rect / sharpness probes), 1 = as shipped */
+					setHover: (o: { scale?: number }) => {
+						if (typeof o?.scale === 'number') view.hoverScale = Math.max(0, o.scale);
+						return view.hoverScale;
+					},
 					log: () => beats.slice(),
 					state: () => ({
 						...view.state(),

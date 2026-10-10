@@ -45,11 +45,12 @@
 <div class="stats hud-group">
 	{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />{/if}
 	<div class="keep" style="display: contents"><TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} /></div>
-	{#if !freegame}
+	<!-- REPLAY: no bet readout at all (owner 2026-10-09; see ChromeLandscape.svelte): the replay card states it -->
+	{#if !freegame && !replay}
 		<div class="spin-row">
-			{#if !replay}<div class="minus"><StepButton dir={-1} size={32} {controls} /></div>{/if}
-			<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="xl" align="left" maxWidth={200} minWidth={slot} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
-			{#if !replay}<StepButton dir={1} size={32} {controls} />{/if}
+			<div class="minus"><StepButton dir={-1} size={32} {controls} /></div>
+			<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="xl" align="left" maxWidth={200} minWidth={slot} onclick={controls.openDenom} disabled={controls.betDisabled()} />
+			<StepButton dir={1} size={32} {controls} />
 		</div>
 	{/if}
 </div>

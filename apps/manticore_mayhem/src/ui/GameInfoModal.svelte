@@ -19,6 +19,7 @@
 	import { stamp } from '../game/assets';
 	import { DISCLAIMER, rulesSections } from '../game/gameInfoText';
 	import { modeCost } from '../game/betModeMeta';
+	import { measureFitText } from '../game/textFit';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { master, scale, left, top, compact = false }: Props = $props();
@@ -105,6 +106,9 @@
 		{ icon: 'menu', color: '#ffdc4a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
 		{ icon: 'info', color: '#ffdc4a', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The − and + beside it step through the bet menu, and tapping the readout opens the full bet picker. The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The − and + beside it step through the play amount menu, and tapping the readout opens the full picker. The plaque on the reel frame names the active mode and its play amount.') },
 		{ icon: 'chevronRight', color: '#ffdc4a', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
+		// PLACEHOLDER VISUAL (owner 2026-10-09): the SKIP TO RESULT button is to be restyled; until then this row
+		// borrows the Instant (lightning) glyph. Replace the icon with the button's own art when it lands.
+		{ icon: 'instant', color: '#ffdc4a', name: 'Skip to Result', text: 'Shown during Free Spins, Super Free Spins and Epic Free Spins once the first free spin has started. Pressing it ends the presentation of the remaining spins and shows the final total of the round. It never changes the result.' },
 		{ icon: 'stop', color: '#ffdc4a', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
 	];
 
@@ -144,6 +148,31 @@
 	const tabSize = $derived(short ? 10 : dense ? 10.5 : 11);
 	const tileSize = $derived(short ? 40 : dense ? 48 : 64);
 	const iconBox = $derived(short ? 34 : dense ? 40 : 48);
+
+	// PAYTABLE FIT (Engine self-check [24], 2026-10-09). Five pays beside the symbol name do not fit a
+	// narrow window: at 400 / 425 px the "15+" column sat off the right edge at a $1 bet, and "MX$" or
+	// a top bet pushed it off wider ones. So the row is MEASURED (game/textFit.ts, one metrics call per
+	// bet / currency / size change, never per frame): when the widest pay of the table at the nominal
+	// size leaves no room for the name, the pays move to their own line under the symbol (`stack`), in
+	// five equal columns; if five would take the type under PAY_COMFORT they fold to three (3 + 2). The
+	// type shrinks only as a last resort and never under PAY_FLOOR. Nothing is clipped, abbreviated or
+	// scrolled sideways. The geometry mirrors the CSS below (.row padding / gap, section max-width).
+	const PAY_FONT = 16; // .pay-v nominal
+	const PAY_COMFORT = 12;
+	const PAY_FLOOR = 9;
+	const PAY_GAP = 14; // .pays gap beside the name
+	const PAY_STACK_GAP = 8; // .row.stack .pays column gap
+	const PAY_MIN = 44; // .pay min-width
+	const ROW_NAME_MIN = 150; // what the symbol name needs beside the pays ("PERSIAN HELMET")
+	// widest pay string of the whole table at the nominal size, plus 4% for the canvas / DOM difference
+	const widestPay = $derived(Math.max(...paying.flatMap((sym) => pays(sym).map((p) => measureFitText(payText(p), PAY_FONT, 700)))) * 1.04);
+	// inside one .row: the reading column (section max-width 880) less the scrollbar, the row's padding and border
+	const rowInner = $derived(Math.min(880, vw - 2 * pad - 12) - 2 * 12 - 2);
+	const payBands = config.paytableBands.length;
+	const stack = $derived(payBands * Math.max(PAY_MIN, widestPay) + (payBands - 1) * PAY_GAP > rowInner - tileSize - 14 - ROW_NAME_MIN - 14);
+	const stackFont = (cols: number) => Math.min(PAY_FONT, (PAY_FONT * ((rowInner - (cols - 1) * PAY_STACK_GAP) / cols - 2)) / widestPay);
+	const payCols = $derived(stackFont(payBands) >= PAY_COMFORT ? payBands : 3);
+	const payFont = $derived(stack ? Math.max(PAY_FLOOR, Math.floor(stackFont(payCols) * 10) / 10) : PAY_FONT);
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.72)" zIndex={5}>
@@ -169,15 +198,15 @@
 				<div class="pay-grid" style:grid-template-columns="1fr">
 					{#each paying as sym (sym)}
 						{@const meta = SYMBOL_META[sym]}
-						<div class="row">
+						<div class="row" class:stack>
 							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:width="{tileSize}px" style:height="{tileSize}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={meta.color} style:font-size="{dense ? 12.5 : 14}px">{meta.name}</div>
 								<div class="row-kind">{meta.kind === 'premium' ? 'Premium' : meta.kind === 'mid' ? 'Mid' : 'Low'}</div>
 							</div>
-							<div class="pays">
+							<div class="pays" style:grid-template-columns={stack ? `repeat(${payCols}, minmax(0, 1fr))` : null}>
 								{#each pays(sym) as p, i}
-									<div class="pay"><div class="pay-k">{config.paytableBands[i].label}</div><div class="slot-num pay-v">{payText(p)}</div></div>
+									<div class="pay"><div class="pay-k">{config.paytableBands[i].label}</div><div class="slot-num pay-v" style:font-size="{payFont}px">{payText(p)}</div></div>
 								{/each}
 							</div>
 						</div>
@@ -313,7 +342,7 @@
 			<section bind:this={sectionEls.volatility}>
 				<h2>Volatility</h2>
 				<div class="vol"><span class="slot-num vol-label" style:font-size="{dense ? 16 : 20}px">EXTREME</span><div class="meter">{#each [1, 2, 3, 4, 5] as i}<div class="seg on"></div>{/each}</div></div>
-				<p>Wins are infrequent but can be very large. Most spins return nothing; the free spin rounds carry the long-run RTP, with Epic Free Spins, reached by 6 or more War Standards, bought directly, or served by a Mystery, at the top of the range.</p>
+				<p>Wins are infrequent but can be very large. Most spins return nothing; the free spin rounds carry the long-run RTP, with Epic Free Spins, reached by 6 or more War Standards, {soc('bought directly', 'instantly triggered')}, or served by a Mystery, at the top of the range.</p>
 			</section>
 
 			<section bind:this={sectionEls.rules}>
@@ -570,6 +599,20 @@
 	.pay {
 		text-align: right;
 		min-width: 44px;
+	}
+	/* PAYTABLE FIT: the pays on their own line under the symbol, in equal columns (see `stack` above) */
+	.row.stack {
+		flex-wrap: wrap;
+		row-gap: 8px;
+	}
+	.row.stack .pays {
+		flex: 1 1 100%;
+		display: grid;
+		gap: 6px 8px;
+	}
+	.row.stack .pay {
+		min-width: 0;
+		text-align: center;
 	}
 	.pay-k {
 		font-size: 10.5px;

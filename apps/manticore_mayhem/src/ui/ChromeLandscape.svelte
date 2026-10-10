@@ -46,9 +46,14 @@
 	</div>
 	<div class="cell right">
 		{#if !replay}<StepButton dir={-1} size={28} {controls} />{/if}
-		<div class="spin-slot" style:margin-left={replay ? '0' : '18px'}>
-			<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={205} minWidth={slot} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
-		</div>
+		<!-- REPLAY: no bet readout at all (owner 2026-10-09). The replay card states the bet, the mode's
+		     multiplier and the real cost; this readout fell back to the base "SPIN" amount when a bought
+		     round ended (finalWin returns a buy to the base game), which misstated what the round cost. -->
+		{#if !replay}
+			<div class="spin-slot" style:margin-left="18px">
+				<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={205} minWidth={slot} onclick={controls.openDenom} disabled={controls.betDisabled()} />
+			</div>
+		{/if}
 		{#if !replay}<StepButton dir={1} size={28} {controls} />{/if}
 	</div>
 </div>

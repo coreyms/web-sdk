@@ -38,6 +38,16 @@ type Textures = Record<string, PIXI.Texture>;
 
 /** the choreography around the data (game/constants.ts STINGER_PLAQUE) */
 export type StingerTiming = {
+	hover: {
+		px: number;
+		periodMs: number;
+		deg: number;
+		tiltPeriodMs: number;
+		settle: { ms: number; px: number; deg: number; cycles: number; tiltCycles: number; decay: number };
+		nudge: { ms: number; px: number; deg: number };
+		calm: { scale: number; easeMs: number };
+		max: { px: number; deg: number };
+	};
 	enterMs: number;
 	enterDropPx: number;
 	titleDelayMs: number;
@@ -380,10 +390,12 @@ export class StingerView {
 		return { plaque: atlas.stg_body?.source, fx: atlas.stg_veins_a?.source, glint: atlas.stg_glint_00?.source, titles: atlas.stg_title_total_win?.source, glyphs: atlas.stg_g_0030?.source };
 	}
 
-	/** where the panel centre is on the canvas, the canvas px per ship px, and the canvas size (for the dim) */
-	place(x: number, y: number, scale: number, canvasWidth: number, canvasHeight: number): void {
+	/** where the panel centre is on the canvas, the canvas px per ship px, the canvas size (for the dim), and the
+	 *  canvas px per MASTER px (the hover's unit) */
+	place(x: number, y: number, scale: number, canvasWidth: number, canvasHeight: number, masterScale = scale): void {
 		this.placed.position.set(x, y);
 		this.placed.scale.set(scale);
+		this.shipPerMaster = scale > 0 ? masterScale / scale : 1;
 		this.dim.setSize(canvasWidth, canvasHeight);
 	}
 
@@ -525,6 +537,12 @@ export class StingerView {
 		this.embers.start(this.tier, this.impactT);
 		this.amount.set('', this.amountPx);
 		this.setScreen(o);
+		this.countingNow = false;
+		this.nudgeT0 = Infinity;
+		// the entrance always lands calm (a count or the intro's rows follow at once); a screen with neither eases up
+		this.calm = T.hover.calm.scale;
+		this.hoverY = 0;
+		this.hoverDeg = 0;
 		this.phase = 'enter';
 		this.root.visible = true;
 		this.tick(0);
@@ -533,6 +551,7 @@ export class StingerView {
 	/** an amount is about to count on this screen: no idle glint sweep until countEnd, and the wrap up's line waits for it */
 	countBegins(): void {
 		if (!this.ready) return;
+		this.countingNow = true;
 		this.glint.holdIdle();
 		this.lineT0 = Infinity;
 	}
@@ -543,6 +562,7 @@ export class StingerView {
 	 * the sweep waits out the tier beat's hold.
 	 */
 	countEnd(withTierUp = false): void {
+		this.countingNow = false;
 		if (!this.ready || this.phase === 'hidden' || this.phase === 'exit') return;
 		const T = this.timing;
 		const t = this.t;
@@ -583,6 +603,7 @@ export class StingerView {
 		const T = this.timing;
 		const t = this.t;
 		this.tier = Math.max(0, STINGER_TIERS.indexOf(tier));
+		this.nudgeT0 = t;
 		this.barb.flareStarting(t);
 		this.motion.startFlare(FLARE_TIER, t);
 		this.vein.setTier(this.tier, t);
@@ -614,6 +635,48 @@ export class StingerView {
 			this.pulseUpS = T.tierPulseUpMs / 1000;
 			this.pulseTo = T.tierPulse;
 		}
+	}
+
+	// ---- the plaque's own motion: hover, settle, tier nudge (STINGER_PLAQUE.hover) ------------------------
+	/** ship px per master px (place) */
+	private shipPerMaster = 1;
+	private countingNow = false;
+	private nudgeT0 = Infinity;
+	private calm = 1;
+	/** this frame's offset (MASTER px, + = down) and tilt (degrees) */
+	private hoverY = 0;
+	private hoverDeg = 0;
+	/** DEV (`__manticore.stinger.setHover`): scales the whole motion; 0 pins the plaque still */
+	hoverScale = 1;
+
+	/** `u` = seconds since the impact */
+	private stepHover(u: number, dt: number): void {
+		const H = this.timing.hover;
+		// calm: half amplitude while an amount counts and for the whole intro, eased either way
+		const target = this.countingNow || this.screen === 'intro' ? H.calm.scale : 1;
+		const step = (dt * 1000) / Math.max(1, H.calm.easeMs) * (1 - H.calm.scale);
+		this.calm = this.calm < target ? Math.min(target, this.calm + step) : Math.max(target, this.calm - step);
+		const TAU = Math.PI * 2;
+		const s = clamp01((u * 1000) / H.settle.ms);
+		// the hover fades in over the settle from zero phase; the settle rocks out under it
+		const idle = sm(s) * this.calm;
+		let y = idle * H.px * Math.sin((TAU * u * 1000) / H.periodMs);
+		let deg = idle * H.deg * Math.sin((TAU * u * 1000) / H.tiltPeriodMs);
+		if (s < 1) {
+			const damp = Math.exp(-H.settle.decay * s) * (1 - s);
+			y += H.settle.px * damp * Math.sin(TAU * H.settle.cycles * s);
+			deg += H.settle.deg * damp * Math.sin(TAU * H.settle.tiltCycles * s);
+		}
+		const n = ((this.t - this.nudgeT0) * 1000) / H.nudge.ms;
+		if (n >= 0 && n < 1) {
+			const bump = Math.sin(Math.PI * n);
+			y += H.nudge.px * bump;
+			deg += H.nudge.deg * bump;
+		}
+		y *= this.hoverScale;
+		deg *= this.hoverScale;
+		this.hoverY = Math.max(-H.max.px, Math.min(H.max.px, y));
+		this.hoverDeg = Math.max(-H.max.deg, Math.min(H.max.deg, deg));
 	}
 
 	hide(): void {
@@ -680,7 +743,11 @@ export class StingerView {
 				sx = 1 + s / 2;
 			}
 		}
-		this.body.position.y = y;
+		// THE PLAQUE'S OWN MOTION (STINGER_PLAQUE.hover): one rigid offset and tilt of the whole body about the panel
+		// centre, from the impact on. `placed` (what the layout and state() read) never moves.
+		if (this.phase !== 'enter') this.stepHover(t - this.impactT, dt);
+		this.body.position.y = y + this.hoverY * this.shipPerMaster;
+		this.body.rotation = (this.hoverDeg * Math.PI) / 180;
 		this.body.scale.set(sx, sy);
 		this.placed.alpha = alpha;
 		this.dim.alpha = dim;
@@ -892,6 +959,10 @@ export class StingerView {
 			rows: this.ready ? this.rows.filter((r) => r.view.visible).map((r) => r.text) : [],
 			missingGlyphs: this.ready ? [this.amount, ...this.rows].map((r) => r.missing).join('') : '',
 			tickMs: Number(this.tickMs.toFixed(3)),
+			/** the plaque's own motion right now: offset (master px), tilt (degrees), the calm factor, the DEV scale; and
+			 *  where the title and the amount sit relative to the body (ship px, in the body's own frame: constant while
+			 *  a screen is up, whatever the hover does, because the text is inside the one transform) */
+			hover: b ? { y: Number(this.hoverY.toFixed(3)), deg: Number(this.hoverDeg.toFixed(4)), calm: Number(this.calm.toFixed(3)), scale: this.hoverScale, live: this.liveOffsets() } : null,
 			scale: b ? this.placed.scale.x : 0,
 			/** canvas px (resting pose, the entrance transform left out): the panel centre, the frame, the bind art box, the panel */
 			panelCentre: b ? at(this.panelX, this.panelY) : null,
@@ -901,6 +972,22 @@ export class StingerView {
 			/** the movers' vertices right now, canvas px box (wing tips and tails leave the frame) */
 			movers: b ? this.moverBox() : null,
 		};
+	}
+
+	/** measured through the LIVE transforms (canvas px back into ship px, un-tilted): the panel centre's offset from
+	 *  its resting place, and the title's and the amount's places relative to the live panel centre */
+	private liveOffsets(): { centre: number[]; title: number[]; amount: number[] } {
+		const k = this.placed.scale.x || 1;
+		const rest = this.placed.toGlobal({ x: 0, y: 0 });
+		const c = this.body.toGlobal({ x: this.panelX, y: this.panelY });
+		const rot = -this.body.rotation;
+		const rel = (o: PIXI.Container) => {
+			const g = o.parent!.toGlobal(o.position);
+			const dx = (g.x - c.x) / k;
+			const dy = (g.y - c.y) / k;
+			return [Number(((dx * Math.cos(rot) - dy * Math.sin(rot)) / this.body.scale.x).toFixed(3)), Number(((dx * Math.sin(rot) + dy * Math.cos(rot)) / this.body.scale.y).toFixed(3))];
+		};
+		return { centre: [Number(((c.x - rest.x) / k).toFixed(3)), Number(((c.y - rest.y) / k).toFixed(3))], title: rel(this.title.view), amount: rel(this.amountBox) };
 	}
 
 	private moverBox(): number[] {

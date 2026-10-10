@@ -27,6 +27,12 @@ export const CELL_FILL = 0.94; // drawn tile size as a share of the cell pitch
 export const SYMBOL_FIT = 0.86;
 export const CELL_COUNT = GRID * GRID;
 
+/** THE RENDERER'S RESOLUTION CAP (components/Game.svelte clamps renderer.resolution to it; game/deviceTier.ts
+ *  renderResolutionCap() picks one). It was 1.5 for every device, a house rule that came from iOS performance.
+ *  Corey 2026-10-09: "Yes let's raise the resolution to 2x on Desktop". The phone asset tier (PHONE_TIER) keeps
+ *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged. */
+export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2 } as const;
+
 export const BOARD_SIZES = { width: SYMBOL_SIZE * GRID, height: SYMBOL_SIZE * GRID };
 export const BOARD_DIMENSIONS = { x: GRID, y: GRID };
 
@@ -207,12 +213,14 @@ export const READOUT = {
 	multTint: 0x5fd3c8,
 };
 
-/** THE CLUSTER LABELS IN THE PLAQUE'S FORGED FONT (Corey 2026-10-09). The per-cluster readout is set from the
- *  win plaque's glyph atlas (Rakkas "forged", tools/build_plaque_text.py; game/stinger/text.ts lays it out,
- *  components/ClusterLabels.svelte draws it as pooled sprites): the amount in the atlas's own cream (tint
- *  white, as on the plaque), the multiplier tinted the title's teal. Sprite tints only. The atlas is a
- *  DEFERRED asset: until it and stinger.json are in (or for a currency mark it lacks) the old stencil
- *  readout draws instead (Board.svelte). */
+/** THE CLUSTER LABELS IN THE PLAQUE'S FORGED FONT (Corey 2026-10-09). The per-cluster readout is set in the
+ *  win plaque's forged Rakkas glyphs, from the labels' OWN small atlases: the same face baked at the sizes
+ *  the labels are drawn (tools/build_plaque_text.py --labels; game/clusterLabel.ts lays a row out,
+ *  components/ClusterLabels.svelte draws it as pooled sprites at about 1:1), with the dark outline and soft
+ *  shadow baked as a second frame under each face. The amount keeps the face's cream (tint white, as on the
+ *  plaque), the multiplier is tinted the title's teal. Sprite tints only. One atlas is preloaded and the
+ *  rest are deferred; the stencil readout (Board.svelte) draws only before any is in, or for a character
+ *  the atlas lacks. */
 export const CLUSTER_LABEL = {
 	/** the cap height as a share of one cell (the stencil readout's digit height is CLUSTER.readoutHeight) */
 	capCells: 0.4,
@@ -221,14 +229,13 @@ export const CLUSTER_LABEL = {
 	 *  same value as SYMBOL_COLORS.L4) */
 	teal: 0x2eb0a8,
 	/** the multiplier's sprite tint. A tint MULTIPLIES the glyph's cream face (0xeadec2 at its upper
-	 *  quartile, sampled from stinger-glyphs.webp), so the plain teal would draw darker and greener than the
-	 *  title's; this is `teal` divided by that face, so the lit part of the drawn number is `teal` */
+	 *  quartile, sampled from the plaque's glyph atlas; the label atlases bake the same face), so the plain
+	 *  teal would draw darker and greener than the title's; this is `teal` divided by that face, so the lit
+	 *  part of the drawn number is `teal` */
 	multTint: 0x32cadd,
-	/** a hard drop shadow under every glyph (the stencil readout's): offset as shares of the cap height */
-	shadow: { dx: 0.06, dy: 0.08, tint: 0x0a0b0d, alpha: 0.85 },
-	/** a dark rim round every glyph (four copies this far off the face, in cells) so a number reads over a
-	 *  bright symbol; 0 = none */
-	rimCells: 0.018,
+	/** the row's origin is put on a whole canvas pixel while the label is still (the glyph positions are whole
+	 *  texels, so at a scale of 1 it then draws texel on pixel); a moving or punching label is left off-grid */
+	snapToPixels: true,
 };
 
 /** WHERE THE CLUSTER LABELS SIT (game/labelPlacement.ts, a pure function; self check
@@ -721,7 +728,33 @@ export const STINGER_PLAQUE = {
 	/** holds once the screen has settled, when no press is asked for (auto bonuses / replay): the win's is what
 	 *  the plain screen used, the wrap up's is Angry Mantis's (it presses on a second after the count) */
 	winAutoHoldMs: 400,
+	/** THE WIN PLAQUE NEVER ASKS FOR A PRESS (Corey 2026-10-09): once its count has landed it holds this long and
+	 *  leaves by itself (winAutoHoldMs instead while auto bonuses / a replay run). Real time at every turbo level,
+	 *  like the entrance and the exit. A press during the hold only ends it early. */
+	winHoldMs: 1200,
 	wrapAutoHoldMs: 1000,
+	/** THE PLAQUE'S OWN MOTION (Corey 2026-10-09: "some slight motion to the object itself ... it needs to remain
+	 *  readable"). ONE rigid transform on the whole plaque (frame, lions, overlays, embers, title, amount, lines:
+	 *  game/stinger/view.ts writes it on the body, about the panel centre), in MASTER px and degrees, real time at
+	 *  every turbo level. The scene dim, the board and the placement other code reads do not move.
+	 *    hover   the idle drift: y = px sin(2 pi t / periodMs), tilt = deg sin(2 pi t / tiltPeriodMs); the two
+	 *            periods are not commensurate, so it never reads as a loop. Zero phase at the impact, faded in
+	 *            over the settle, so nothing jumps.
+	 *    settle  after the slam: a damped rock, px e^(-decay u) sin(2 pi cycles u) and the same for deg, u = 0..1 over ms
+	 *    nudge   each tier landing: down px and back with a hint of tilt, one half sine over ms (on top of the board kick)
+	 *    calm    while an amount counts, and for the whole feature intro (three lines of small text), the hover is
+	 *            scaled by `calm.scale`; it eases back to full over calm.easeMs once the count has landed
+	 *    max     THE HARD LIMITS: whatever the values above add up to is clamped to these, so it cannot be tuned unreadable */
+	hover: {
+		px: 3,
+		periodMs: 3200,
+		deg: 0.3,
+		tiltPeriodMs: 4700,
+		settle: { ms: 500, px: 3, deg: 0.4, cycles: 2, tiltCycles: 1.5, decay: 5 },
+		nudge: { ms: 180, px: 2, deg: 0.1 },
+		calm: { scale: 0.5, easeMs: 300 },
+		max: { px: 5, deg: 0.5 },
+	},
 	/** the veins / embers level of each feature's intro (STINGER_TIERS) */
 	introTier: { bonus: 'super', super: 'mega', epic: 'epic' },
 	/** eye glow pulse: additive strength low..high of the glow sprite, one cycle per period, a third of a cycle between heads */

@@ -14,6 +14,8 @@
 	import { IS_SOCIAL } from '../game/social';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
+	import { loadDeferredInOrder } from '../game/deferredLoad';
+	import { renderResolutionCap } from '../game/deviceTier';
 	import { boot, reportPreload } from '../game/boot.svelte';
 	import { sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
@@ -78,14 +80,14 @@
 				else setTimeout(poll, 250);
 			};
 			poll();
-		});
+		}).then(() => loadDeferredInOrder(context.stateApp)); // the plaque first, then the drop sheets, then the idles (game/deferredLoad.ts)
 
 	$effect(() => {
 		if (context.stateApp.loaded) markAssetsLoaded();
 	});
 
-	// Retina/5K canvases at full DPR are the biggest GPU cost; 1.5x is visually indistinguishable
-	// for this art (house rule 3). Renderable GC stays DISABLED (house rule 8, Pixi 8.8.1's
+	// Retina/5K canvases at full DPR are the biggest GPU cost: the renderer's resolution is capped
+	// (RENDER_RESOLUTION_CAP: 1.5 on the phone tier, house rule 3; 2 on desktop since 2026-10-09). Renderable GC stays DISABLED (house rule 8, Pixi 8.8.1's
 	// CanvasTextPipe dereferences a GC-evicted _gpuText entry with no null guard and takes the HTML
 	// chrome down with it): poll until the system has armed its scheduler, THEN cancel it, because
 	// a disable issued against the uninitialised system is a silent no-op that init overwrites.
@@ -100,8 +102,9 @@
 				requestAnimationFrame(clamp);
 				return;
 			}
-			if (app.renderer.resolution > 1.5) {
-				app.renderer.resolution = 1.5;
+			const cap = renderResolutionCap();
+			if (app.renderer.resolution > cap) {
+				app.renderer.resolution = cap;
 				app.resize();
 			}
 			if (!app.renderer.renderableGC.enabled) {

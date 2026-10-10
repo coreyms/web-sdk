@@ -13,7 +13,7 @@
 	type Props = { size?: number; controls: Controls };
 	const { size = 92, controls }: Props = $props();
 	const ante = $derived(controls.anteActive());
-	const armedKey = $derived(controls.armedBuy());
+	const armedKey = $derived(controls.armedLabel()); // the mode's short NAME (controls.armedLabel), not the raw key
 	const onLabel = $derived(ante ? 'ANTE' : armedKey ? armedKey : null);
 	const on = $derived(onLabel !== null);
 	const k = $derived(size / 176); // design tile → our tile

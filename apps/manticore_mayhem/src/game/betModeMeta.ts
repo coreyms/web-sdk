@@ -30,6 +30,27 @@ export const applyRgsBetModes = () => {
 	}
 };
 
+// THE SHORT MODE NAME (the Angry Mantis scheme, approved September 2026): wherever a mode is picked or
+// loaded (the feature menu card and its confirm slip, the HUD readout label, the Spin button face, the
+// feature button, the autoplay pill) it carries its SHORT name; wherever it is described (the rules,
+// the replay card, the bonus plaque) it carries the name of what it awards (`text.title`). Angry Mantis
+// printed the raw RGS key for the short name; here it is read from this table so the case of the key
+// (a replay URL may say mode=bonus) never reaches the screen. None of these is a restricted word.
+const MODE_SHORT: Record<string, string> = {
+	BASE: 'BASE',
+	ANTE: 'ANTE',
+	SUPER_ANTE: 'SUPER ANTE',
+	BONUS: 'BONUS',
+	SUPER: 'SUPER',
+	EPIC: 'EPIC',
+	MYSTERY: 'MYSTERY',
+};
+/** a mode's short player-facing name, whatever the case of the key it is asked with */
+export const modeShortLabel = (mode: string): string => {
+	const key = (mode ?? '').toUpperCase();
+	return MODE_SHORT[key] ?? key.replace(/_/g, ' ');
+};
+
 const placeholderAssets = { icon: '', volatility: '', button: '', dialogImage: '', dialogVolatility: '' };
 
 const spins = config.freeSpins;

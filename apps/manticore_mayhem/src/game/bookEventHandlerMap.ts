@@ -36,7 +36,7 @@ import {
 	plateReveal,
 } from './stateGame.svelte';
 import { motionLog } from './sparkles';
-import { fxRecord, fxStamp } from './featureFx';
+import { fxRecord, fxStamp, chainHaulPress } from './featureFx';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { CellIndex } from './types';
 import {
@@ -52,6 +52,7 @@ import {
 	BONUS_MODE_LABEL,
 	SCATTER_LAND_SOUND_MAP,
 	STINGER_PLAQUE,
+	CHAIN_BOW,
 } from './constants';
 
 // ================================================================================================
@@ -264,6 +265,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			stateGame.totalFs = bookEvent.totalFs ?? stateGame.totalFs;
 			// the HUD counter reads spinsPlayed + 1 (controls.freeSpin), so it holds COMPLETED spins
 			stateGame.spinsPlayed = Math.max(0, stateGame.fs - 1);
+			// THE CHAIN HAUL IN FREE SPINS (Corey 2026-10-09): a free spin has no press, so its reveal hauls
+			// the chain as the press does in the base game (game/actor.ts onNewGameStart). Not while skipping.
+			if (CHAIN_BOW.haulOnSpin && !stateGame.skipping) chainHaulPress(Math.max(0.2, stateGameDerived.timeScale()));
 		}
 
 		// THE BOOK'S ANTICIPATION ARRAY IS HONOURED IN MYSTERY ONLY (RULE_PASS_2 section D): the

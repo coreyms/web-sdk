@@ -38,7 +38,8 @@
 
 <div class="stats">
 	{#if replay}<div></div>{:else}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />{/if}
-	<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={180} onclick={replay ? undefined : controls.openDenom} disabled={controls.betDisabled()} />
+	<!-- REPLAY: no bet readout at all (owner 2026-10-09; see ChromeLandscape.svelte): the replay card states it -->
+	{#if !replay}<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={180} onclick={controls.openDenom} disabled={controls.betDisabled()} />{/if}
 </div>
 
 <!-- WIN is centred between the two BIG buttons (bonus right edge 82 .. spin left edge W−170), not

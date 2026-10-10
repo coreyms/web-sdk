@@ -28,7 +28,7 @@
 	import { getContext } from '../game/context';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { BONUS_MODE_LABEL, STINGER_PLAQUE } from '../game/constants';
-	import { awaitDeferredAssets } from '../game/assetGate';
+	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { WIN_TIER_SOUND, WIN_TIER_STAGES_END_FEATURE, winLevelMap } from '../game/winLevelMap';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import CountUpText from './CountUpText.svelte';
@@ -59,7 +59,7 @@
 
 	context.eventEmitter.subscribeOnMount({
 		freeSpinOutroShow: async () => {
-			await awaitDeferredAssets();
+			await awaitPlaqueAssets();
 			// the line needs the session's recap (bonusEnd wrote it just before this)
 			viaPlaque = !!context.stateGame.sessionRecap && !!stingerPlaque.flow?.ready();
 			if (viaPlaque) return;

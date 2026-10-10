@@ -32,7 +32,7 @@
 	import { HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX, boardCenterY } from '../game/layoutSpec';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
-	import { awaitDeferredAssets } from '../game/assetGate';
+	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import ArtAmount from './ArtAmount.svelte';
 	import PressToContinue from './PressToContinue.svelte';
@@ -65,7 +65,7 @@
 			gated = event.gated;
 			context.stateGame.plaque = { title: event.title, sub: event.sub };
 			if (event.intro && event.gated) {
-				await awaitDeferredAssets();
+				await awaitPlaqueAssets();
 				const flow = stingerPlaque.flow;
 				const says = !!flow?.ready() && flow.introMatches(event.intro.mode, event.intro.totalFs, event.intro.tileCap);
 				if (flow && says) {

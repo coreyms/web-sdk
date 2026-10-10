@@ -222,8 +222,11 @@ export const HUD: Record<
 	// bottom edge and the readout row, phone has 60), and the board is static for the whole time
 	// the plaque is up, so the centre is both the readable place and the only one that fits.
 	landscape: {
-		// the free band between the board's bottom edge (618) and the BALANCE / WIN / SPIN row (~655)
-		pressToContinue: { y: 700, width: 620, height: 48 },
+		// the free band between the board's bottom edge (618) and the BALANCE / WIN / SPIN row (~655): the prompt's
+		// glyphs span y - 44 .. y - 24 (PressToContinue). It was y 700 (656 .. 676), on top of the HTML HUD's WIN label
+		// (Corey 2026-10-09). The only prompts left are the feature intro and the wrap up, where the SPIN readout
+		// that shares this band is down.
+		pressToContinue: { y: 672, width: 620, height: 48 },
 		// the cell area's centre (114.99 + 425.18 / 2, board_v4h) and ~0.9 of its width
 		modePlaque: { y: 327.6, height: 34, width: 380 },
 		spinWin: { y: 640, height: 28, width: 400 },

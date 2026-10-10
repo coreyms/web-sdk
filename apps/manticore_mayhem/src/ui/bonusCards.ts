@@ -6,6 +6,7 @@
 // The menu's NAME is FEATURE_MENU_NAME in game/constants.ts (placeholder BAZAAR) — one constant,
 // so Corey's final pick is one edit.
 import config from '../game/config';
+import { modeShortLabel } from '../game/betModeMeta';
 
 export type BonusCardSpec = {
 	mode: 'ANTE' | 'SUPER_ANTE' | 'BONUS' | 'SUPER' | 'EPIC' | 'MYSTERY';
@@ -25,7 +26,7 @@ export type BonusCardSpec = {
 export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'ANTE',
-		label: 'ANTE',
+		label: modeShortLabel('ANTE'),
 		pitch: 'Free Spins and Super Free Spins land about five times as often as in the base game.',
 		cta: 'ACTIVATE',
 		toggle: true,
@@ -34,7 +35,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'SUPER_ANTE',
-		label: 'SUPER ANTE',
+		label: modeShortLabel('SUPER_ANTE'),
 		pitch: 'No regular Free Spins at all. Only Super and Epic, and four standards upgrade to a Super.',
 		cta: 'ACTIVATE',
 		toggle: true,
@@ -43,7 +44,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'BONUS',
-		label: 'FREE SPINS',
+		label: modeShortLabel('BONUS'), // BONUS, as on the HUD and the Spin button (was FREE SPINS: Engine self-check [225])
 		pitch: `${config.freeSpins.bonus} spins. Multiplier tiles persist all round and double up to 64x.`,
 		cta: 'ACTIVATE',
 		toggle: false,
@@ -52,7 +53,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'SUPER',
-		label: 'SUPER',
+		label: modeShortLabel('SUPER'),
 		pitch: `${config.freeSpins.super} spins on the 128x ladder. The roar clears the lows and a Super Sting is possible.`,
 		cta: 'ACTIVATE',
 		toggle: false,
@@ -61,7 +62,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'EPIC',
-		label: 'EPIC',
+		label: modeShortLabel('EPIC'),
 		pitch: `${config.freeSpins.epic} spins, Super Stings are common, and every round returns at least ${config.epicMinWin}x.`,
 		cta: 'ACTIVATE',
 		toggle: false,
@@ -70,7 +71,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	},
 	{
 		mode: 'MYSTERY',
-		label: 'MYSTERY',
+		label: modeShortLabel('MYSTERY'),
 		pitch: `${config.mystery.nothing * 100}% nothing, ${config.mystery.super * 100}% Super, ${config.mystery.epic * 100}% Epic (never under ${config.mysteryEpicMinWin}x). Never a regular Free Spins round.`,
 		cta: 'ACTIVATE',
 		toggle: false,

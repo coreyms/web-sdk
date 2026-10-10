@@ -1,5 +1,5 @@
 import config from './config';
-import { modeCost } from './betModeMeta';
+import { modeCost, modeShortLabel } from './betModeMeta';
 import { soc } from './social';
 import { FEATURE_MENU_NAME } from './constants';
 
@@ -160,6 +160,8 @@ export const rulesSections = () => [
 				`The ${FEATURE_MENU_NAME} menu sells each feature directly: Free Spins for ${modeCost('BONUS')}x the bet, Super Free Spins for ${modeCost('SUPER')}x, Epic Free Spins for ${modeCost('EPIC')}x and a Mystery for ${modeCost('MYSTERY')}x.`,
 				`Each feature can be instantly triggered from the ${FEATURE_MENU_NAME} menu: Free Spins for ${modeCost('BONUS')}x the play amount, Super Free Spins for ${modeCost('SUPER')}x, Epic Free Spins for ${modeCost('EPIC')}x and a Mystery for ${modeCost('MYSTERY')}x.`,
 			),
+			// the menu cards, the HUD label and the Spin button carry the SHORT names (betModeMeta.ts modeShortLabel)
+			`On the ${FEATURE_MENU_NAME} menu, the Spin button and the readout beside it the features carry short names: ${modeShortLabel('BONUS')} is Free Spins, ${modeShortLabel('SUPER')} is Super Free Spins, ${modeShortLabel('EPIC')} is Epic Free Spins and ${modeShortLabel('MYSTERY')} is the Mystery.`,
 			soc(
 				`A bought feature starts with a spin that lands its ${SCATTERS}. That spin's clusters pay and the tiles it lights carry into the feature, exactly as on a natural trigger.`,
 				`An instantly triggered feature starts with a spin that lands its ${SCATTERS}. That spin's clusters win and the tiles it lights carry into the feature, exactly as on a natural trigger.`,

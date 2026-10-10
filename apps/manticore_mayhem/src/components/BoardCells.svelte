@@ -118,9 +118,28 @@
 			out.push(t);
 		}
 	};
+	/** symbols whose idle loop is expected but was not in when the sheet was built: the deferred phase
+	 *  publishes the drop sheets before the idle loops (game/deferredLoad.ts), so the idle is ADDED to the
+	 *  sheet the frame it arrives (until then the cell rests on its drop's last frame) */
+	const idleOwed = new Set<string>();
 	const sheetFor = (name: string, tex: Record<string, PIXI.Texture> | undefined): Sheet | null => {
 		const hit = sheets.get(name);
-		if (hit) return hit;
+		if (hit) {
+			if (idleOwed.has(name) && tex?.[`${name.toLowerCase()}-idle-000`]) {
+				const idle = framesOf(tex, `${name.toLowerCase()}-idle`);
+				idleOwed.delete(name);
+				if (idle.length > 1) {
+					hit.idle = idle;
+					enableMipmaps(idle[0].source, rendererOf());
+					// its source joins the GPU warm-up queue like the others
+					if (uploadQueue && !queuedSources.has(idle[0].source)) {
+						queuedSources.add(idle[0].source);
+						uploadQueue.push(idle[0].source);
+					}
+				}
+			}
+			return hit;
+		}
 		if (!tex) return null;
 		const code = name.toLowerCase();
 		if (!tex[`${code}-drop-000`]) return null; // not in yet (the deferred phase lands all at once)
@@ -128,6 +147,7 @@
 		const drop = framesOf(tex, `${code}-drop`);
 		const idle = anim.idle ? framesOf(tex, `${code}-idle`) : [];
 		const sheet: Sheet = { drop, idle: idle.length > 1 ? idle : null, from: Math.min(anim.dropFrom, drop.length - 1) };
+		if (anim.idle && !idle.length) idleOwed.add(name);
 		// MIPMAPS (game/mipmaps.ts): once per sheet source, here, before any sprite draws a frame of it
 		// and before the warm-up queue uploads it, so the chain is built with that one upload
 		enableMipmaps(drop[0]?.source, rendererOf());
@@ -140,6 +160,7 @@
 	// tick (no textures are created: these are the sources the sheets already own).
 	const SYMBOLS = ['L1', 'L2', 'L3', 'L4', 'M1', 'M2', 'M3', 'H1', 'W', 'S'];
 	let uploadQueue: PIXI.TextureSource[] | null = null;
+	const queuedSources = new Set<PIXI.TextureSource>();
 	let uploaded = 0;
 	const warmSheets = (tex: Record<string, PIXI.Texture> | undefined) => {
 		if (uploadQueue === null) {
@@ -150,6 +171,7 @@
 				set.add(sh.drop[0].source);
 				if (sh.idle) set.add(sh.idle[0].source);
 			}
+			for (const src of set) queuedSources.add(src);
 			uploadQueue = [...set];
 		}
 		if (!uploadQueue.length) return;

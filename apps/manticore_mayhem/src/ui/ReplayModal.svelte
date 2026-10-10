@@ -64,7 +64,9 @@
 		// round's events — feeding it in here would make convertTorResumableBet (game/utils.ts)
 		// drop every event before it, i.e. the whole round (checked 2026-09-20).
 		stateBet.betToResume = { ...replayBet, active: true, event: '0' };
-		if (replayBet.mode) stateBet.activeBetModeKey = replayBet.mode;
+		// upper case whatever the URL said (mode=bonus and mode=BONUS are the same round): the mode table,
+		// the labels and the handlers all key on the upper-case RGS name
+		if (replayBet.mode) stateBet.activeBetModeKey = replayBet.mode.toUpperCase();
 		replayState.phase = 'playing';
 		// a replayed bonus draws the deferred assets (game/assets.ts) from its first event
 		await awaitDeferredAssets();

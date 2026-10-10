@@ -7,6 +7,7 @@ import { numberToCurrencyString, bookEventAmountToCurrencyString } from 'utils-s
 
 import { getContext } from '../game/context';
 import { betCostFull } from '../game/modeChipData';
+import { modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 
@@ -32,9 +33,15 @@ export const createControls = () => {
 	const isReplay = () => stateUi.config.mode === 'replay';
 	const anteActive = () => stateBetDerived.activeBetMode()?.type === 'activate';
 	// armed buy mode: a selected feature (BONUS/SUPER/MYSTERY) loaded on the spin button for ONE round
-	const armedBuy = () => (stateBetDerived.activeBetMode()?.type === 'buy' ? stateBet.activeBetModeKey : null);
-	/** short mode name for the spin button face: BONUS / SUPER / MYSTERY */
-	const armedLabel = () => armedBuy();
+	// the KEY, always upper case: a replay or a resumed round can hand the key over in the URL's or the
+	// RGS's own case (mode=bonus), and callers compare it with the upper-case card keys
+	const armedBuy = () => (stateBetDerived.activeBetMode()?.type === 'buy' ? stateBet.activeBetModeKey.toUpperCase() : null);
+	/** short mode name for the HUD label, the Spin button face and the feature button: BONUS / SUPER /
+	 *  EPIC / MYSTERY, read from the mode table (game/betModeMeta.ts modeShortLabel), never the raw key */
+	const armedLabel = () => {
+		const key = armedBuy();
+		return key === null ? null : modeShortLabel(key);
+	};
 	const cancelArmed = () => {
 		stateBet.activeBetModeKey = 'BASE';
 		context.stateGame.autoLoadout = null; // one gesture, clean slate: mode AND autoplay unload
@@ -232,7 +239,7 @@ export const createControls = () => {
 	// 2026-09-20), so while a BOUGHT feature is armed or playing the label names the mode instead of
 	// the unit: BONUS / SUPER / MYSTERY (the mode key is the short name the Chow Line cards use). Base
 	// play, a natural feature and Ante keep SPIN / PLAY (Corey 2026-09-20): their price is per spin.
-	const betLabel = () => armedBuy() ?? soc('SPIN', 'PLAY');
+	const betLabel = () => armedLabel() ?? soc('SPIN', 'PLAY');
 	const hasWin = () => stateBet.winBookEventAmount > 0;
 	const freeSpin = () =>
 		context.stateGame.gameType === 'freegame' && context.stateGame.totalFs > 0

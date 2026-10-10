@@ -33,6 +33,16 @@
 		};
 	});
 
+	// DEV: how many PRESS ANYWHERE TO CONTINUE texts are on screen right now (`__manticore.pressPrompts()`; the
+	// probes assert the win plaque never shows one and the feature intro / wrap up do)
+	$effect(() => {
+		if (!import.meta.env.DEV || typeof window === 'undefined' || !props.showText) return;
+		const m = ((window as any).__manticore ??= {});
+		m.__prompts = (m.__prompts ?? 0) + 1;
+		m.pressPrompts ??= () => m.__prompts ?? 0;
+		return () => (m.__prompts -= 1);
+	});
+
 	const blink = new Tween(1, { duration: 700 });
 	let alive = true;
 	onMount(() => {
