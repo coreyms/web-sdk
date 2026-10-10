@@ -776,11 +776,11 @@ export const STINGER_PLAQUE = {
 export const LOGO = {
 	/** the static still's art box, px (tools/build_logo_assets.py prints it): only its aspect is used */
 	art: { width: 2380, height: 940 },
-	/** LANDSCAPE master (1280 x 720): the art's width and centre. The centre is the old placeholder's (160.5, 150)
-	 *  moved to the middle of the column left of the board art (0 .. 340); the width is the one the approved
-	 *  clips were judged at (logo_review_5, 5_in_game_landscape: 300), which puts the lettering at the
-	 *  placeholder's size. */
-	landscape: { cx: 168, cy: 150, width: 300 },
+	/** LANDSCAPE master (1280 x 720): the art's width and centre. Centred between the screen's left edge and the
+	 *  board frame's visible post (the frame art starts at 340, its solid post at 352: midpoint 176), and high
+	 *  in the column (Corey 2026-10-10: up, clear of the scene's chains; it may cover the lion knocker's head).
+	 *  The width is the one the approved clips were judged at (logo_review_5, 5_in_game_landscape: 300). */
+	landscape: { cx: 176, cy: 106, width: 300 },
 	/** PHONE SIDEWAYS master (1480 x 740): the left column, from the clock strip's left edge to the board art's
 	 *  post (293), above the BALANCE readout (236). */
 	phone: { left: 16, top: 46, width: 274 },
