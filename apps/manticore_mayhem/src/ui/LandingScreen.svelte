@@ -104,7 +104,7 @@
 				? { tag: 13, barW: 280, barH: 10, press: 17, pad: 16 }
 				: { tag: 14, barW: 420, barH: 10, press: 18, pad: 16 },
 	);
-	const logoSrc = $derived(stamp('/assets/ui/logo-wide.webp'));
+	const logoSrc = $derived(stamp('/assets/ui/logo-stacked.webp'));
 	const logo = $derived(INTRO_LOGO[kind]);
 	const layout = $derived(INTRO_LAYOUT[kind]);
 

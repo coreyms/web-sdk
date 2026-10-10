@@ -325,6 +325,11 @@ const assets = {
 		),
 		preload: false,
 	},
+	// THE CANVAS LOGO (components/Logo.svelte, tools/build_logo_assets.py): one atlas with the wings, the letters,
+	// both shadows and the 18 glint slices. Desktop tier only (the phone tier's logo is the chrome's <img>: the
+	// entry is removed below). Never gates the landing screen: it starts when the preload ends (game/deferredLoad.ts
+	// loadLogoEarly) and the still stands in until it lands (game/logo/state.svelte.ts).
+	logoAtlas: { type: 'sprites', src: stamp(new URL('../../assets/ui/logo/logo.json', import.meta.url).href), preload: false },
 	sound: {
 		type: 'audio',
 		src: stamp(new URL('../../assets/audio/sounds.json', import.meta.url).href),
@@ -343,6 +348,14 @@ export const STINGER_DATA_URLS = {
 	json: stamp(new URL('../../assets/ui/stinger/stinger.json', import.meta.url).href),
 	bin: stamp(new URL('../../assets/ui/stinger/stinger-motion.bin', import.meta.url).href),
 };
+
+// the canvas logo's runtime data (game/logo/data.ts fetches both itself: topology + int16 vertex tracks)
+export const LOGO_DATA_URLS = {
+	json: stamp(new URL('../../assets/ui/logo/logo-data.json', import.meta.url).href),
+	bin: stamp(new URL('../../assets/ui/logo/logo-motion.bin', import.meta.url).href),
+};
+// the phone tier never draws the canvas logo: nothing downloads or decodes its atlas there
+if (PHONE_TIER) delete (assets as unknown as Record<string, unknown>).logoAtlas;
 
 // Every asset carries its download size (scripts/stamp-assets.mjs fileBytes) so pixi-svelte's
 // AssetsLoader can weight the preload's progress by bytes rather than by file count.
@@ -405,6 +418,8 @@ if (phoneOnlyScreen()) {
 // as it lands; pixi-svelte's AssetsLoader then finishes with whatever is left: the other layouts' art).
 //   plaque  the win plaque's five atlases: a Big Win or a feature intro can come on the first spin, and
 //           used to wait behind every symbol sheet
+//   logo    the canvas logo's atlas, with its tracks (desktop tier only, 0.35 MB). Normally in before this
+//           phase starts (deferredLoad.ts loadLogoEarly); here it is the fallback, after the plaque
 //   labels  the cluster label caps that were not preloaded (the one this screen needs already is; these
 //           are for a resize or a rotation, so they follow the plaque rather than hold it up: 0.5 MB)
 //   drop    the symbols' drop sheets (a landing plays one on every spin)
@@ -413,8 +428,9 @@ const deferredKeys = (prefix: string) =>
 	Object.entries(assets as unknown as Record<string, { preload?: boolean }>)
 		.filter(([key, entry]) => key.startsWith(prefix) && !entry.preload)
 		.map(([key]) => key);
-export const DEFERRED_ORDER: { name: 'plaque' | 'labels' | 'drop' | 'idle'; keys: string[] }[] = [
+export const DEFERRED_ORDER: { name: 'plaque' | 'logo' | 'labels' | 'drop' | 'idle'; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
+	{ name: 'logo', keys: deferredKeys('logoAtlas') },
 	{ name: 'labels', keys: deferredKeys('labelGlyphs') },
 	{ name: 'drop', keys: deferredKeys('mmDrop_') },
 	{ name: 'idle', keys: deferredKeys('mmIdle_') },

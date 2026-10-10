@@ -763,6 +763,63 @@ export const STINGER_PLAQUE = {
 	blink: { gapMinMs: 2400, gapMaxMs: 6200, doubleChance: 0.2, doubleGapMs: 300, afterFlareMs: 850 },
 } as const;
 
+// ---- The logo (components/Logo.svelte, game/logo/, the HTML chromes) --------------------------------
+// ONE stacked logo with wings in every layout (Corey 2026-10-09). Two ways of drawing it, by device tier:
+//   phone tier   a static HTML <img> in the chrome (ui/Chrome*.svelte) with the house Shine glint. The chrome
+//                is drawn at the screen's own density while the canvas is capped at 1.5, and the breathing is
+//                about 2.5 CSS px of tip travel at phone size: not worth a vertex upload.
+//   desktop      the animated logo in the canvas, on the landscape master only: entrance, idle breathe, glint,
+//                flare, from the layered data (static/assets/ui/logo/, tools/build_logo_assets.py). The same
+//                <img> stands in until that data is in, and in the other two layouts.
+// Both are placed by ONE rule per layout (game/logo/layout.ts): the box of the logo's ART in master px. Every
+// number runs in REAL time at every turbo level.
+export const LOGO = {
+	/** the static still's art box, px (tools/build_logo_assets.py prints it): only its aspect is used */
+	art: { width: 2380, height: 940 },
+	/** LANDSCAPE master (1280 x 720): the art's width and centre. The centre is the old placeholder's (160.5, 150)
+	 *  moved to the middle of the column left of the board art (0 .. 340); the width is the one the approved
+	 *  clips were judged at (logo_review_5, 5_in_game_landscape: 300), which puts the lettering at the
+	 *  placeholder's size. */
+	landscape: { cx: 168, cy: 150, width: 300 },
+	/** PHONE SIDEWAYS master (1480 x 740): the left column, from the clock strip's left edge to the board art's
+	 *  post (293), above the BALANCE readout (236). */
+	phone: { left: 16, top: 46, width: 274 },
+	/** PORTRAIT master (412 x 760, wider on wide screens): the largest box of the art's aspect inside the band
+	 *  from `top` (the clock row ends at 25) down to `gapAbove` over the frame art's finial tips (198.8, or 176.6
+	 *  where the frame has grown on a wide screen), no wider than maxWidth, centred in that band and on the screen.
+	 *  IN A FEATURE the SKIP TO RESULT plate owns the lower part of that band (HUD.portrait.skipButton, from
+	 *  115): the logo steps back to the box that ends `gapAbove` over the plate, over compactMs. */
+	portrait: { top: 31, gapAbove: 8, maxWidth: 348, compactGap: 4, compactMs: 350 },
+	/** the landing screen's logo (ui/LandingScreen.svelte): the art's width and centre per master, above the cards */
+	landing: { landscape: { width: 380, cx: 640, cy: 92 }, phone: { width: 380, cx: 740, cy: 92 }, portrait: { width: 348, cx: 206, cy: 110 } },
+
+	// ---- the canvas logo --------------------------------------------------------------------------
+	/** the wing vertices are rewritten at most this often (30 a second: every second frame at 60 Hz) */
+	vertexIntervalMs: 1000 / 30,
+	/** a frame that comes this much early still counts (60 Hz frames arrive 15 to 18 ms apart, not 16.7) */
+	vertexSlackMs: 4,
+	/** the entrance starts this long after the game first shows (the HUD is fading in) */
+	entranceDelayMs: 150,
+	/** the entrance's glint: gold from this entrance frame, the red sweep later (frames of 1 / 30 s) */
+	entranceGlint: { atFrame: 24, gold: { frames: 18, peak: 0.9 }, red: { delayFrames: 7, frames: 16, peak: 0.6 } },
+	/** the idle glint: once per breath (135 frames, 4.5 s), when the idle passes this frame, only at rest */
+	idleGlint: { atFrame: 30, gold: { frames: 24, peak: 0.7 }, red: { delayFrames: 11, frames: 21, peak: 0.45 } },
+	/** the flare's glint, from the flare's own frames */
+	flareGlint: { atFrame: 4, gold: { frames: 11, peak: 1 }, red: { delayFrames: 4, frames: 10, peak: 0.65 } },
+	/** A FLARE ON A WIN: when a spin's total is final (spinWinFinal) and it is at least this many times the bet.
+	 *  One per spin, never while SKIP TO RESULT runs, never while a flare or the entrance is running, and no
+	 *  sooner than flareMinGapMs after the last one started (turbo and autoplay must not strobe it). */
+	flareMinXBet: 1,
+	flareMinGapMs: 2500,
+	/** the logo fades with the HUD's kept elements (a modal, the max win screen): Chrome.svelte's 350 ms */
+	fadeMs: 350,
+	/** the data came in after the game showed: the canvas logo takes over from the still on its bind pose and
+	 *  eases into the breathing over this much rest */
+	takeoverBlendMs: 600,
+	/** mip chain on the atlas (drawn at 0.3 to 0.9 of its size), as the plaque's full tier has */
+	mipmaps: true,
+} as const;
+
 /** the SKIP TO RESULT plate (components/SkipButton.svelte); placement is layoutSpec HUD.skipButton */
 export const SKIP_BUTTON = {
 	inMs: 220,

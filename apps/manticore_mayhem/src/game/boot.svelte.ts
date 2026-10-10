@@ -5,7 +5,7 @@
 // landing screen's own images (three 300–420 KB primer cards + the logo) were plain <img> tags
 // nothing gated on. On Slow 4G that meant the landing screen faded in with its cards still arriving.
 //
-// Now: the app fetches ONLY what the landing screen draws — the two chrome fonts, the wide logo and
+// Now: the app fetches ONLY what the landing screen draws: the two chrome fonts, the stacked logo and
 // the three cards — reporting bytes to the GREEN bar in the shell splash (src/app.html), which has
 // already been counting the JS bundle's bytes. Nothing else starts until those are in:
 //   - the Pixi preload is gated by Game.svelte holding <App> unmounted,
@@ -37,7 +37,7 @@ const IMAGES = [
 	'ui/intro/card-1.webp',
 	'ui/intro/card-2.webp',
 	'ui/intro/card-3.webp',
-	'ui/logo-wide.webp',
+	'ui/logo-stacked.webp',
 ] as const;
 /** the splash bar's share of ONE loading scale across both screens: bundle + landing assets +
  *  the Pixi preload, over everything the landing screen waits on. The Pixi scene (the room the
@@ -56,8 +56,8 @@ export const splashShare = (): number => {
  *  bytes of its baked total (components/Game.svelte) */
 export const reportPreload = (progress: number) =>
 	window.__amSplash?.setPreload(Math.round((bootSizes.preload * Math.min(100, Math.max(0, progress))) / 100), bootSizes.preload);
-// ui/logo-landscape.webp is deliberately NOT here: the landscape chrome carries it, and the chrome
-// is behind a full-screen LandingScreen until the player presses — by then the deferred phase has it.
+// ui/logo-stacked.webp is the ONE static logo: the landing screen's, every chrome's <img> on the phone tier,
+// and the desktop chrome's stand-in until the canvas logo is in (components/Logo.svelte).
 const FONTS = [
 	{ path: 'fonts/ui/Outfit-Variable.woff2', spec: '900 40px Outfit' },
 	{ path: 'fonts/ui/Sora-Variable.woff2', spec: '700 40px Sora' },

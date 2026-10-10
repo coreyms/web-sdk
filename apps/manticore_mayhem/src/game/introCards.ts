@@ -3,6 +3,7 @@
 // from tools/make_placeholders.py; the composition is Angry Mantis's "Intro Card Layouts" readout
 // (Corey 2026-09-10) in MASTER px of each LayoutKind, and the phone master is the desktop
 // composition re-centred on its wider frame.
+import { LOGO } from './constants';
 import type { LayoutKind } from './layoutSpec';
 
 export const INTRO_CARDS = ['card-1', 'card-2', 'card-3'] as const; // static/assets/ui/intro/<name>.webp, 800x1200
@@ -21,11 +22,11 @@ export const INTRO_LAYOUT: Record<LayoutKind, IntroLayout> = {
 	portrait: { style: 'fan', cardH: 390, cy: 435, tiltDeg: 3.5, backOpacity: 0.55, cycleMs: 2800 },
 };
 
-/** logo width + centre (master px); desktop x is measured from the 1280 master's left edge and
- *  re-centred for the phone master */
+/** logo width + centre (master px): the stacked logo, centred above the cards in every layout (constants
+ *  LOGO.landing; the cards' tops are at 176 in the row layouts and 222 in the portrait fan) */
 export const INTRO_LOGO: Record<LayoutKind, { w: number; cx: number; cy: number }> = {
-	landscape: { w: 470, cx: 264, cy: 106 },
-	phone: { w: 470, cx: 264 + (1480 - 1280) / 2, cy: 106 },
-	portrait: { w: 330, cx: 206, cy: 656 },
+	landscape: { w: LOGO.landing.landscape.width, cx: LOGO.landing.landscape.cx, cy: LOGO.landing.landscape.cy },
+	phone: { w: LOGO.landing.phone.width, cx: LOGO.landing.phone.cx, cy: LOGO.landing.phone.cy },
+	portrait: { w: LOGO.landing.portrait.width, cx: LOGO.landing.portrait.cx, cy: LOGO.landing.portrait.cy },
 };
 export const INTRO_LOGO_SHINE_MS = 4500; // the sweep's idle period (Corey: shine, 4.5 s)

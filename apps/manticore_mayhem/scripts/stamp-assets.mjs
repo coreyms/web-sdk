@@ -101,7 +101,7 @@ const LANDING = [
 	'ui/intro/card-1.webp',
 	'ui/intro/card-2.webp',
 	'ui/intro/card-3.webp',
-	'ui/logo-wide.webp',
+	'ui/logo-stacked.webp',
 	'fonts/ui/Outfit-Variable.woff2',
 	'fonts/ui/Sora-Variable.woff2',
 ];

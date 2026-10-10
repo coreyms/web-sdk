@@ -14,6 +14,7 @@
 	// extensions below, not by the visual size.
 	import type { Controls } from './controls.svelte';
 	import { betSlotWidth } from './betStep';
+	import { logoArtRect } from '../game/logo/layout';
 	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import TrioStat from './TrioStat.svelte';
@@ -31,13 +32,14 @@
 	const freegame = $derived(context.stateGame.gameType !== 'basegame');
 	// SPIN slot at the 'xl' digit height (26): widest price of the current mode, capped to the column
 	const slot = $derived(betSlotWidth(26, 200) + 6);
+	const logo = logoArtRect('phone'); // the logo's art box (constants LOGO.phone)
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE MAYHEM" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<!-- logo + tagline each carry a Shine: a subtle glint every 5 s while idle, a full one on spin, in sync -->
-<div class="logo"><img src={stamp('/assets/ui/logo-landscape.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-landscape.webp')} /></div>
+<!-- the stacked logo, a still in every tier here, with a Shine: a subtle glint every 5 s while idle, a full one on spin -->
+<div class="logo" style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked.webp')} /></div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
@@ -70,11 +72,9 @@
 </div>
 
 <style>
+	/* placed by the layout rule (inline left / top / width: game/logo/layout.ts) */
 	.logo {
 		position: absolute;
-		top: 42px;
-		left: 50px;
-		width: 240px;
 		pointer-events: none;
 		filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
 	}

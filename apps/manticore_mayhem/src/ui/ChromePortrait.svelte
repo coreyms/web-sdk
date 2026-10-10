@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { stamp } from '../game/assets';
 	import { getContext } from '../game/context';
-	// Portrait master (412×760): wide logo on top. Corey's 2026-09-06 layout for the foot of the
+	// Portrait master (412×760): the stacked logo on top. Corey's 2026-09-06 layout for the foot of the
 	// page: BALANCE left above the bonus button, SPIN right above a 2×2 grid [Auto +][Turbo −] that
 	// spans the spin button's height exactly (36 + 6 + 36 = 78), the menu button top-aligned with the
 	// bonus button, and a small WIN centred between the two big buttons. The whole HUD anchors to the
 	// REAL viewport bottom (Chrome.svelte's --vp-extra-bottom): on a phone taller than the master it
 	// rides down into the letterbox instead of floating mid-screen.
 	import type { Controls } from './controls.svelte';
+	import { LOGO } from '../game/constants';
+	import { logoArtRect } from '../game/logo/layout';
 	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import TrioStat from './TrioStat.svelte';
@@ -22,14 +24,22 @@
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
 	const context = getContext();
-	// the ON THE MENU pool tray takes the band under the logo during free games (HUD.portrait.pool)
+	// THE LOGO (game/logo/layout.ts, constants LOGO.portrait): the largest box between the clock row and the frame
+	// art's finials. In a feature the SKIP TO RESULT plate has the lower part of that band (HUD.portrait.skipButton),
+	// so the logo steps back to the box above the plate: a transform of the same element, nothing reflows.
 	const freegame = $derived(context.stateGame.gameType === 'freegame');
+	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale);
+	const logo = $derived(logoArtRect('portrait', vw));
+	const small = $derived(logoArtRect('portrait', vw, true));
+	const logoShift = $derived(freegame ? `translateY(${small.y - logo.y}px) scale(${small.width / logo.width})` : 'none');
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE MAYHEM" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<div class="top keep"><span class="logo"><img src={stamp('/assets/ui/logo-wide.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-wide.webp')} /></span></div>
+<div class="top keep" style:top="{logo.y}px">
+	<span class="logo" style:width="{logo.width}px" style:transform={logoShift} style:transition-duration="{LOGO.portrait.compactMs}ms"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked.webp')} /></span>
+</div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
 <div class="stats">
@@ -60,9 +70,9 @@
 </div>
 
 <style>
+	/* top and the logo's width come from the layout rule (inline: game/logo/layout.ts) */
 	.top {
 		position: absolute;
-		top: 56px; /* just below the clock strip; frees a little height for the expanded board */
 		left: 12px;
 		right: 12px;
 		display: flex;
@@ -73,8 +83,8 @@
 	.top .logo {
 		position: relative;
 		display: inline-block;
-		width: 330px;
-		margin: -8px 0;
+		transform-origin: 50% 0;
+		transition: transform 0.35s ease;
 		filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
 	}
 	.top img {
@@ -82,8 +92,6 @@
 		width: 100%;
 		height: auto;
 	}
-	/* logo-wide is 900×157 → 330×57.6 from top 56 (bottom ≈ 114); the tagline sits in the 114..150
-	   band above the frame's top rail, at the same width ratio to the logo as landscape (0.73) */
 	/* Foot of the page. `--vp-extra-bottom` (Chrome.svelte) is the letterbox below the master on
 	   tall phones, so these bottoms are measured from the REAL viewport edge; the host's safe-area
 	   inset (CSS px → master via the fit scale) keeps the row above the iOS home indicator. */

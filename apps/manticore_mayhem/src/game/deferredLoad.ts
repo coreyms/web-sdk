@@ -13,6 +13,9 @@
 // into stateApp.loadedAssets the moment its own files are in:
 //   plaque  the five stinger atlases (all or nothing) + stinger.json + the motion tracks
 //                                               -> assetGate.markPlaqueAssetsReady()
+//   logo    the canvas logo's atlas + its tracks (desktop tier only; no keys on the phone tier)
+//                                               -> components/Logo.svelte takes over from the still
+//           NORMALLY ALREADY IN: loadLogoEarly() below starts it when the preload ends, beside the audio
 //   labels  the cluster label caps that were not preloaded -> ClusterLabels picks the nearest loaded cap
 //   drop    the symbols' drop sheets            -> BoardCells picks them up per symbol
 //   idle    the symbols' idle loops             -> BoardCells adds them to the sheets it already has
@@ -21,8 +24,9 @@
 // here is simply left to that batch, which has the retries and the failure screen.
 import * as PIXI from 'pixi.js';
 
-import assets, { DEFERRED_ORDER, PLAQUE_ATLAS_KEYS, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
+import assets, { DEFERRED_ORDER, LOGO_DATA_URLS, PLAQUE_ATLAS_KEYS, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
 import { markPlaqueAssetsReady } from './assetGate';
+import { loadLogoData } from './logo/data';
 import { loadStingerData } from './stinger/data';
 import { STAGING_TOOLS, perfMark } from './staging';
 
@@ -63,8 +67,10 @@ const loadOne = async (key: string, entry: Entry): Promise<Textures | undefined>
 
 const loadGroup = async (app: AppState, name: string, keys: string[]) => {
 	const table = assets as unknown as Record<string, Entry>;
+	if (!keys.length) return; // the logo group on the phone tier
 	const log = (deferredLog.groups[name] = { start: performance.now(), end: 0, keys: keys.length, failed: 0 });
-	const extra = name === 'plaque' ? loadStingerData(STINGER_DATA_URLS).then(() => true, () => false) : Promise.resolve(true);
+	const data = name === 'plaque' ? loadStingerData(STINGER_DATA_URLS) : name === 'logo' ? loadLogoData(LOGO_DATA_URLS) : null;
+	const extra = data ? data.then(() => true, () => false) : Promise.resolve(true);
 	const done = await Promise.all(keys.map(async (key) => [key, await loadOne(key, table[key])] as const));
 	const dataIn = await extra;
 	// the plaque's five atlases publish together or not at all: its scene builds from all of them
@@ -89,6 +95,20 @@ const loadGroup = async (app: AppState, name: string, keys: string[]) => {
 	}
 };
 
+// THE LOGO DOES NOT WAIT FOR THE DEFERRED PHASE (desktop tier). Its entrance plays when the game first shows,
+// and the deferred phase only starts once the audio is in, which is also the moment the landing screen can be
+// pressed: a quick press beat the logo every time, even on a local server. So its one atlas and two data files
+// (0.35 MB) start when the Pixi preload ends (components/Game.svelte), beside the audio's 1.1 MB. It gates
+// nothing: if the press still comes first the chrome's still stands in and the canvas logo takes over without
+// an entrance (components/Logo.svelte). The ordered phase below then finds the group done.
+let logoEarly: Promise<void> | null = null;
+export const loadLogoEarly = (app: AppState): Promise<void> => {
+	const keys = DEFERRED_ORDER.find((g) => g.name === 'logo')?.keys ?? [];
+	logoEarly ??= loadGroup(app, 'logo', keys).catch(() => {});
+	return logoEarly;
+};
+const runGroup = (app: AppState, g: (typeof DEFERRED_ORDER)[number]) => (g.name === 'logo' && logoEarly ? logoEarly : loadGroup(app, g.name, g.keys));
+
 /** the deferred phase's ordered part. Resolves when the last group is published; never rejects. */
 export const loadDeferredInOrder = async (app: AppState): Promise<void> => {
 	const mode = modeFor();
@@ -101,8 +121,8 @@ export const loadDeferredInOrder = async (app: AppState): Promise<void> => {
 	deferredLog.start = performance.now();
 	if (mode === 'legacy') return;
 	try {
-		if (mode === 'parallel') await Promise.all(DEFERRED_ORDER.map((g) => loadGroup(app, g.name, g.keys)));
-		else for (const g of DEFERRED_ORDER) await loadGroup(app, g.name, g.keys);
+		if (mode === 'parallel') await Promise.all(DEFERRED_ORDER.map((g) => runGroup(app, g)));
+		else for (const g of DEFERRED_ORDER) await runGroup(app, g);
 	} catch {
 		/* whatever is missing is left to the shared loader's batch */
 	}

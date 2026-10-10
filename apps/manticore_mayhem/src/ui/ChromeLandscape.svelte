@@ -7,6 +7,9 @@
 	// with the auto top on the spin top and the turbo bottom on the spin bottom (42 + 8 + 42 = 92).
 	import type { Controls } from './controls.svelte';
 	import { frameArtRect } from '../game/layoutSpec';
+	import { PHONE_TIER } from '../game/deviceTier';
+	import { logoArtRect } from '../game/logo/layout';
+	import { logoState } from '../game/logo/state.svelte';
 	import { betSlotWidth } from './betStep';
 	import ClockStrip from './ClockStrip.svelte';
 	import Shine from './Shine.svelte';
@@ -23,6 +26,7 @@
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
 	const art = frameArtRect('landscape'); // 295.3 .. 984.2
+	const logo = logoArtRect('landscape'); // the logo's art box (constants LOGO.landscape)
 	// SPIN slot: the widest price the current mode can show at the 'lg' digit height (19), plus air;
 	// capped so a trillion-scale menu never pushes the − into the WIN column (TrioStat shrinks)
 	const slot = $derived(betSlotWidth(19, 205) + 6);
@@ -31,8 +35,13 @@
 <ClockStrip side="left" clock text="MANTICORE MAYHEM" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<!-- logo + tagline each carry a Shine: a subtle glint every 5 s while idle, a full one on spin, in sync -->
-<div class="logo keep"><img src={stamp('/assets/ui/logo-landscape.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-landscape.webp')} /></div>
+<!-- THE LOGO. Desktop tier: the canvas draws it, animated, in this same box (components/Logo.svelte), and this
+     still is only the stand-in until that is in (logoState.canvas hides it; no Shine, so nothing changes at the
+     hand over). Phone tier: this still IS the logo, with the house Shine (a subtle glint every 5 s while idle, a
+     full one on spin). -->
+<div class="logo keep" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px">
+	<img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" />{#if PHONE_TIER}<Shine src={stamp('/assets/ui/logo-stacked.webp')} />{/if}
+</div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
 <!-- readout row on the frame art's edges; maxWidth auto-shrinks huge values (stake.us GC balances hit trillions) -->
@@ -72,13 +81,14 @@
 </div>
 
 <style>
+	/* placed by the layout rule (inline left / top / width: game/logo/layout.ts) */
 	.logo {
 		position: absolute;
-		top: 90px;
-		left: 48px;
-		width: 225px;
 		pointer-events: none;
 		filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
+	}
+	.logo.canvas {
+		visibility: hidden;
 	}
 	.logo img {
 		display: block;

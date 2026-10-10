@@ -14,8 +14,8 @@
 	import { IS_SOCIAL } from '../game/social';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
-	import { loadDeferredInOrder } from '../game/deferredLoad';
-	import { renderResolutionCap } from '../game/deviceTier';
+	import { loadDeferredInOrder, loadLogoEarly } from '../game/deferredLoad';
+	import { PHONE_TIER, renderResolutionCap } from '../game/deviceTier';
 	import { boot, reportPreload } from '../game/boot.svelte';
 	import { sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
@@ -33,6 +33,7 @@
 	import Win from './Win.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
 	import Transition from './Transition.svelte';
+	import Logo from './Logo.svelte';
 	import Chrome from '../ui/Chrome.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
 	import TextWarmup from './TextWarmup.svelte';
@@ -69,6 +70,8 @@
 	$effect(() => {
 		reportPreload(context.stateApp.preLoaded ? 100 : context.stateApp.loadingProgress);
 		if (context.stateApp.preLoaded) startSoundPreload();
+		// the canvas logo's 0.35 MB starts here too, so its entrance is ready for the first show (game/deferredLoad.ts)
+		if (context.stateApp.preLoaded && !PHONE_TIER) void loadLogoEarly(context.stateApp);
 	});
 
 	// the deferred Pixi phase must not share a slow link with the audio
@@ -180,6 +183,9 @@
 			<Win />
 			<FreeSpinOutro />
 			<Transition />
+			<!-- the animated logo, desktop tier only (a constant, so no z order trap): over everything in the canvas,
+			     where the HTML logo it replaces was (components/Logo.svelte) -->
+			{#if !PHONE_TIER}<Logo />{/if}
 		{/if}
 	</App>
 {/if}
