@@ -1,0 +1,1294 @@
+{
+ "frames": {
+  "flame_epic_000": {
+   "frame": {
+    "x": 2464,
+    "y": 0,
+    "w": 284,
+    "h": 643
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 50,
+    "y": 14,
+    "w": 284,
+    "h": 643
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_001": {
+   "frame": {
+    "x": 1107,
+    "y": 0,
+    "w": 283,
+    "h": 646
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 51,
+    "y": 11,
+    "w": 283,
+    "h": 646
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_002": {
+   "frame": {
+    "x": 568,
+    "y": 0,
+    "w": 276,
+    "h": 647
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 55,
+    "y": 10,
+    "w": 276,
+    "h": 647
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_003": {
+   "frame": {
+    "x": 846,
+    "y": 0,
+    "w": 259,
+    "h": 647
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 66,
+    "y": 10,
+    "w": 259,
+    "h": 647
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_004": {
+   "frame": {
+    "x": 1676,
+    "y": 0,
+    "w": 254,
+    "h": 646
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 67,
+    "y": 11,
+    "w": 254,
+    "h": 646
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_005": {
+   "frame": {
+    "x": 2215,
+    "y": 0,
+    "w": 247,
+    "h": 644
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 69,
+    "y": 13,
+    "w": 247,
+    "h": 644
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_006": {
+   "frame": {
+    "x": 0,
+    "y": 1293,
+    "w": 244,
+    "h": 578
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 72,
+    "y": 79,
+    "w": 244,
+    "h": 578
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_007": {
+   "frame": {
+    "x": 2467,
+    "y": 649,
+    "w": 239,
+    "h": 582
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 75,
+    "y": 75,
+    "w": 239,
+    "h": 582
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_008": {
+   "frame": {
+    "x": 769,
+    "y": 1873,
+    "w": 238,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 75,
+    "y": 126,
+    "w": 238,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_009": {
+   "frame": {
+    "x": 1009,
+    "y": 1873,
+    "w": 241,
+    "h": 530
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 72,
+    "y": 127,
+    "w": 241,
+    "h": 530
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_010": {
+   "frame": {
+    "x": 2055,
+    "y": 2926,
+    "w": 246,
+    "h": 458
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 67,
+    "y": 199,
+    "w": 246,
+    "h": 458
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_011": {
+   "frame": {
+    "x": 1295,
+    "y": 2926,
+    "w": 254,
+    "h": 465
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 62,
+    "y": 192,
+    "w": 254,
+    "h": 465
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_012": {
+   "frame": {
+    "x": 2303,
+    "y": 2926,
+    "w": 260,
+    "h": 455
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 58,
+    "y": 202,
+    "w": 260,
+    "h": 455
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_013": {
+   "frame": {
+    "x": 1029,
+    "y": 2926,
+    "w": 264,
+    "h": 466
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 55,
+    "y": 191,
+    "w": 264,
+    "h": 466
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_014": {
+   "frame": {
+    "x": 0,
+    "y": 2926,
+    "w": 267,
+    "h": 481
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 53,
+    "y": 176,
+    "w": 267,
+    "h": 481
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_015": {
+   "frame": {
+    "x": 1024,
+    "y": 2415,
+    "w": 269,
+    "h": 497
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 53,
+    "y": 160,
+    "w": 269,
+    "h": 497
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_016": {
+   "frame": {
+    "x": 2251,
+    "y": 1873,
+    "w": 268,
+    "h": 512
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 56,
+    "y": 145,
+    "w": 268,
+    "h": 512
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_017": {
+   "frame": {
+    "x": 1252,
+    "y": 1873,
+    "w": 265,
+    "h": 527
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 61,
+    "y": 130,
+    "w": 265,
+    "h": 527
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_018": {
+   "frame": {
+    "x": 0,
+    "y": 1873,
+    "w": 260,
+    "h": 540
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 68,
+    "y": 117,
+    "w": 260,
+    "h": 540
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_019": {
+   "frame": {
+    "x": 1517,
+    "y": 1293,
+    "w": 251,
+    "h": 553
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 78,
+    "y": 104,
+    "w": 251,
+    "h": 553
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_020": {
+   "frame": {
+    "x": 1008,
+    "y": 1293,
+    "w": 251,
+    "h": 564
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 79,
+    "y": 93,
+    "w": 251,
+    "h": 564
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_021": {
+   "frame": {
+    "x": 503,
+    "y": 1293,
+    "w": 251,
+    "h": 573
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 79,
+    "y": 84,
+    "w": 251,
+    "h": 573
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_022": {
+   "frame": {
+    "x": 756,
+    "y": 1293,
+    "w": 250,
+    "h": 570
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 80,
+    "y": 87,
+    "w": 250,
+    "h": 570
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_023": {
+   "frame": {
+    "x": 262,
+    "y": 1873,
+    "w": 250,
+    "h": 534
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 80,
+    "y": 123,
+    "w": 250,
+    "h": 534
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_024": {
+   "frame": {
+    "x": 2529,
+    "y": 1293,
+    "w": 250,
+    "h": 541
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 80,
+    "y": 116,
+    "w": 250,
+    "h": 541
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_025": {
+   "frame": {
+    "x": 2025,
+    "y": 1293,
+    "w": 250,
+    "h": 546
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 80,
+    "y": 111,
+    "w": 250,
+    "h": 546
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_026": {
+   "frame": {
+    "x": 2277,
+    "y": 1293,
+    "w": 250,
+    "h": 546
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 80,
+    "y": 111,
+    "w": 250,
+    "h": 546
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_027": {
+   "frame": {
+    "x": 1803,
+    "y": 2926,
+    "w": 250,
+    "h": 458
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 81,
+    "y": 199,
+    "w": 250,
+    "h": 458
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_028": {
+   "frame": {
+    "x": 777,
+    "y": 2926,
+    "w": 250,
+    "h": 468
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 81,
+    "y": 189,
+    "w": 250,
+    "h": 468
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_029": {
+   "frame": {
+    "x": 269,
+    "y": 2926,
+    "w": 251,
+    "h": 478
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 81,
+    "y": 179,
+    "w": 251,
+    "h": 478
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_030": {
+   "frame": {
+    "x": 2562,
+    "y": 2415,
+    "w": 249,
+    "h": 487
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 82,
+    "y": 170,
+    "w": 249,
+    "h": 487
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_031": {
+   "frame": {
+    "x": 1548,
+    "y": 2415,
+    "w": 250,
+    "h": 492
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 82,
+    "y": 165,
+    "w": 250,
+    "h": 492
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_032": {
+   "frame": {
+    "x": 1295,
+    "y": 2415,
+    "w": 251,
+    "h": 496
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 82,
+    "y": 161,
+    "w": 251,
+    "h": 496
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_033": {
+   "frame": {
+    "x": 253,
+    "y": 2415,
+    "w": 251,
+    "h": 505
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 82,
+    "y": 152,
+    "w": 251,
+    "h": 505
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_034": {
+   "frame": {
+    "x": 2521,
+    "y": 1873,
+    "w": 249,
+    "h": 512
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 82,
+    "y": 145,
+    "w": 249,
+    "h": 512
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_035": {
+   "frame": {
+    "x": 2006,
+    "y": 1873,
+    "w": 243,
+    "h": 517
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 82,
+    "y": 140,
+    "w": 243,
+    "h": 517
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_036": {
+   "frame": {
+    "x": 1764,
+    "y": 1873,
+    "w": 240,
+    "h": 519
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 81,
+    "y": 138,
+    "w": 240,
+    "h": 519
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_037": {
+   "frame": {
+    "x": 1519,
+    "y": 1873,
+    "w": 243,
+    "h": 520
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 80,
+    "y": 137,
+    "w": 243,
+    "h": 520
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_038": {
+   "frame": {
+    "x": 2565,
+    "y": 2926,
+    "w": 247,
+    "h": 455
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 79,
+    "y": 202,
+    "w": 247,
+    "h": 455
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_039": {
+   "frame": {
+    "x": 1551,
+    "y": 2926,
+    "w": 250,
+    "h": 464
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 78,
+    "y": 193,
+    "w": 250,
+    "h": 464
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_040": {
+   "frame": {
+    "x": 522,
+    "y": 2926,
+    "w": 253,
+    "h": 476
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 76,
+    "y": 181,
+    "w": 253,
+    "h": 476
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_041": {
+   "frame": {
+    "x": 2304,
+    "y": 2415,
+    "w": 256,
+    "h": 488
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 74,
+    "y": 169,
+    "w": 256,
+    "h": 488
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_042": {
+   "frame": {
+    "x": 765,
+    "y": 2415,
+    "w": 257,
+    "h": 498
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 71,
+    "y": 159,
+    "w": 257,
+    "h": 498
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_043": {
+   "frame": {
+    "x": 506,
+    "y": 2415,
+    "w": 257,
+    "h": 504
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 69,
+    "y": 153,
+    "w": 257,
+    "h": 504
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_044": {
+   "frame": {
+    "x": 2052,
+    "y": 2415,
+    "w": 250,
+    "h": 489
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 67,
+    "y": 168,
+    "w": 250,
+    "h": 489
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_045": {
+   "frame": {
+    "x": 1800,
+    "y": 2415,
+    "w": 250,
+    "h": 491
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 66,
+    "y": 166,
+    "w": 250,
+    "h": 491
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_046": {
+   "frame": {
+    "x": 0,
+    "y": 2415,
+    "w": 251,
+    "h": 509
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 65,
+    "y": 148,
+    "w": 251,
+    "h": 509
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_047": {
+   "frame": {
+    "x": 514,
+    "y": 1873,
+    "w": 253,
+    "h": 532
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 64,
+    "y": 125,
+    "w": 253,
+    "h": 532
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_048": {
+   "frame": {
+    "x": 1770,
+    "y": 1293,
+    "w": 253,
+    "h": 547
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 65,
+    "y": 110,
+    "w": 253,
+    "h": 547
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_049": {
+   "frame": {
+    "x": 1261,
+    "y": 1293,
+    "w": 254,
+    "h": 559
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 64,
+    "y": 98,
+    "w": 254,
+    "h": 559
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_050": {
+   "frame": {
+    "x": 246,
+    "y": 1293,
+    "w": 255,
+    "h": 573
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 64,
+    "y": 84,
+    "w": 255,
+    "h": 573
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_051": {
+   "frame": {
+    "x": 2206,
+    "y": 649,
+    "w": 259,
+    "h": 585
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 63,
+    "y": 72,
+    "w": 259,
+    "h": 585
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_052": {
+   "frame": {
+    "x": 1940,
+    "y": 649,
+    "w": 264,
+    "h": 595
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 61,
+    "y": 62,
+    "w": 264,
+    "h": 595
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_053": {
+   "frame": {
+    "x": 1671,
+    "y": 649,
+    "w": 267,
+    "h": 600
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 60,
+    "y": 57,
+    "w": 267,
+    "h": 600
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_054": {
+   "frame": {
+    "x": 1398,
+    "y": 649,
+    "w": 271,
+    "h": 601
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 58,
+    "y": 56,
+    "w": 271,
+    "h": 601
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_055": {
+   "frame": {
+    "x": 1123,
+    "y": 649,
+    "w": 273,
+    "h": 603
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 57,
+    "y": 54,
+    "w": 273,
+    "h": 603
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_056": {
+   "frame": {
+    "x": 846,
+    "y": 649,
+    "w": 275,
+    "h": 614
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 56,
+    "y": 43,
+    "w": 275,
+    "h": 614
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_057": {
+   "frame": {
+    "x": 567,
+    "y": 649,
+    "w": 277,
+    "h": 627
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 55,
+    "y": 30,
+    "w": 277,
+    "h": 627
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_058": {
+   "frame": {
+    "x": 286,
+    "y": 649,
+    "w": 279,
+    "h": 638
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 54,
+    "y": 19,
+    "w": 279,
+    "h": 638
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_059": {
+   "frame": {
+    "x": 1932,
+    "y": 0,
+    "w": 281,
+    "h": 644
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 52,
+    "y": 13,
+    "w": 281,
+    "h": 644
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_060": {
+   "frame": {
+    "x": 1392,
+    "y": 0,
+    "w": 282,
+    "h": 646
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 51,
+    "y": 11,
+    "w": 282,
+    "h": 646
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_061": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 282,
+    "h": 647
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 50,
+    "y": 10,
+    "w": 282,
+    "h": 647
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_062": {
+   "frame": {
+    "x": 284,
+    "y": 0,
+    "w": 282,
+    "h": 647
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 49,
+    "y": 10,
+    "w": 282,
+    "h": 647
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  },
+  "flame_epic_063": {
+   "frame": {
+    "x": 0,
+    "y": 649,
+    "w": 284,
+    "h": 642
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 49,
+    "y": 15,
+    "w": 284,
+    "h": 642
+   },
+   "sourceSize": {
+    "w": 384,
+    "h": 704
+   }
+  }
+ },
+ "meta": {
+  "image": "flame-epic.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 2814,
+   "h": 3409
+  },
+  "scale": "1",
+  "pngHash": "aaec2da5"
+ }
+}

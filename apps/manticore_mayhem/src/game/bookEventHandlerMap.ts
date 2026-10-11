@@ -51,6 +51,7 @@ import {
 	BONUS_TRIGGER_SOUND_MAP,
 	BONUS_MODE_LABEL,
 	SCATTER_LAND_SOUND_MAP,
+	SCATTER_LAND_SOUNDS,
 	STINGER_PLAQUE,
 	CHAIN_BOW,
 } from './constants';
@@ -94,10 +95,11 @@ const winLevelSoundsStop = ({ keepMusic = false, keepUi = false } = {}) => {
 
 /** ONE scatter landing: it joins the running count (so 4 / 5 / 6 reads correctly before
  *  bonusStart, whether the scatter fell in or was stung in) and plays Angry Mantis's own ladder of
- *  scatter sounds, which carry over to Manticore UNCHANGED (Corey 2026-09-22). */
+ *  scatter sounds, which carry over to Manticore UNCHANGED (Corey 2026-09-22), plus Manticore's own
+ *  sixth for the sixth landing of a spin (2026-10-11; it was the fifth again until then). */
 const scatterLand = (cell: number, id: number) => {
 	stateGame.scatterCells = [...stateGame.scatterCells, cell];
-	const n = Math.min(5, stateGame.scatterCells.length) as 1 | 2 | 3 | 4 | 5;
+	const n = Math.min(SCATTER_LAND_SOUNDS, stateGame.scatterCells.length) as keyof typeof SCATTER_LAND_SOUND_MAP;
 	eventEmitter.broadcast({ type: 'soundOnce', name: SCATTER_LAND_SOUND_MAP[n] });
 	eventEmitter.broadcast({ type: 'soundScatterCounterIncrease' });
 	// the STANDARD scatter landing beat: the ring + its glow (SCATTER_STING.landMs) and the tint flash

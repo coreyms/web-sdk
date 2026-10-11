@@ -10,6 +10,7 @@
 // with performance.now() and the style rate, and Sting.svelte runs them to their end on its own.
 
 import { CELL_COUNT, CHAIN_GUST } from './constants';
+import { gustRattle } from './chainSound';
 import { STAGING_TOOLS, perfMark } from './staging';
 
 /** THE KICK HOOK. The board's current screen-kick offset in BOARD px (board space, before the
@@ -107,6 +108,9 @@ export const chainGust = (kind: ChainGustKind, rate: number, sourceX: number | n
 	gustFx.gusts.push(gust);
 	gustFx.count += 1;
 	if (gustFx.gusts.length > 32) gustFx.gusts.splice(0, 16);
+	// THE CHAIN SOUND of this gust (constants CHAIN_SOUND: the plaque's and the logo's rattle, nothing for a tier),
+	// once, when the board's chains start to lean
+	gustRattle(kind, gustStart(gust, 0));
 	// so __manticore.fx.records carries every gust (tools/manticore/chain_gust_probe.js)
 	if (import.meta.env.DEV) fxRecord('gust', { ...gust, leadMs });
 };

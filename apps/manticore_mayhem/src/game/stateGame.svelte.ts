@@ -11,6 +11,7 @@ import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
 import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, fxStamp, type FxRecord } from './featureFx';
+import { kickClank } from './chainSound';
 import { placeLabels } from './labelPlacement';
 import { forgedSupports, forgedWidth } from './clusterLabel';
 import {
@@ -38,6 +39,7 @@ import {
 	ANTICIPATION_TEASE,
 	SWIPE_FX,
 	ROAR_FX,
+	CHAIN_SOUND,
 	PLAYGROUND_PX,
 	ANTICIPATION,
 	cellOf,
@@ -1751,6 +1753,8 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 		onExit?.();
 	};
 	const kickK = SWIPE_FX.kickPx * PLAYGROUND_PX;
+	// THE CHAIN SOUND of this kick (constants CHAIN_SOUND): the heavy clank, once, never while skipping
+	let clanked = stateGame.skipping;
 	await raf(S.tRefill, (_t, el) => {
 		if (!alive(id)) return;
 		swipeFx.el = el;
@@ -1761,6 +1765,12 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 		const k = SWIPE_FX.kickPx > 0 && ku >= 0 && ku < 1 ? kickK * (1 - ku) * Math.sin(ku * Math.PI * 6) : 0;
 		boardKick.x = 0.6 * k;
 		boardKick.y = k;
+		// (the kick's ENVELOPE against the threshold, not the rattle's value on this frame: a kick is a few frames long
+		// at turbo and its sine can be near zero on every one of them; a swipe's envelope is at its largest at the start)
+		if (!clanked && el >= S.kickT0 && SWIPE_FX.kickPx >= CHAIN_SOUND.kickThresholdPx) {
+			clanked = true;
+			if (!stateGame.skipping) kickClank('swipe');
+		}
 		if (el < S.tExit) return;
 		exit();
 		const u = clamp01((el - S.tExit) / S.exitMs);
@@ -1828,6 +1838,7 @@ export const roarBlow = async (removed: CellIndex[], id: number, rec?: FxRecord)
 	const flashHalf = R.flashMs * 0.5;
 	roarFx.flash.fill(0);
 	roarFx.active = !stateGame.skipping;
+	let clanked = stateGame.skipping;
 	await raf(total, (_t, el) => {
 		if (!alive(id)) return;
 		if (el >= tStart && rec) fxStamp(rec, 'rattle');
@@ -1860,6 +1871,12 @@ export const roarBlow = async (removed: CellIndex[], id: number, rec?: FxRecord)
 		const k = R.kickPx > 0 && ku >= 0 && ku < 1 ? kickK * Math.pow(ku, 1.5) * Math.sin((el - tStart) * w0) : 0;
 		boardKick.x = 0.6 * k;
 		boardKick.y = k;
+		// THE CHAIN SOUND of this kick (constants CHAIN_SOUND): the heavy clank, once, never while skipping, when the
+		// kick's envelope (kickPx u^1.5, it grows with the rattle) first reaches the threshold
+		if (!clanked && R.kickPx * Math.pow(Math.max(ku, 0), 1.5) >= CHAIN_SOUND.kickThresholdPx) {
+			clanked = true;
+			if (!stateGame.skipping) kickClank('roar');
+		}
 		if (el >= lastGone && rec) fxStamp(rec, 'lastGone');
 	});
 	roarFx.active = false;

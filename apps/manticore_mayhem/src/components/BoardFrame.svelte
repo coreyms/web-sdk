@@ -1,5 +1,5 @@
 <script lang="ts">
-	// THE BOARD FRAME, THE BLACK BACKING AND THE CHAINS (board_v4e renders, tools/build_board_layers.py).
+	// THE BOARD FRAME, THE BLACK BACKING AND THE CHAINS (board_v5j renders since 2026-10-11, tools/build_board_layers.py).
 	//
 	// Mounted in the MainContainer BEFORE Board, always mounted, raw Pixi, two roots:
 	//
@@ -385,6 +385,11 @@
 			const p = node.toGlobal({ x, y });
 			return { x: Number(p.x.toFixed(2)), y: Number(p.y.toFixed(2)) };
 		};
+		const clippedBy = (node: PIXI.Container) => {
+			const out: string[] = [];
+			for (let n: PIXI.Container | null = node; n; n = n.parent) if (n.mask) out.push(n.label || n.constructor.name);
+			return out;
+		};
 		Object.defineProperty(((window as any).__manticore ??= {}), 'frame', {
 			get: () => {
 				const k = kind;
@@ -430,6 +435,11 @@
 				return {
 					kind: k,
 					ready: { frame: frameSprite.visible, chains: chainsReady },
+					/** every ancestor of the art that clips: a mask would cut the gear teeth and finials that stand
+					 *  outside the housing outline (board_v5j and v5l); the art is to be clipped by the screen alone */
+					clippedBy: { frame: clippedBy(frameSprite), chains: clippedBy(strips.L.mesh) },
+					/** the frame texture as loaded, against the tool's spec (a stale file would be drawn stretched) */
+					frameTexture: { width: frameSprite.texture.width, height: frameSprite.texture.height, spec: fs.tex },
 					/** the art container's children, bottom to top */
 					underOrder: under.children.map((c) => (c === backing ? 'backing' : c === frameSprite ? 'frame' : 'other')),
 					/** the old cell-well sprite in the board container: hidden once the frame art is loaded */

@@ -1,8 +1,11 @@
 """Export the Manticore Mayhem board frame, the chains layer and the temporary scene background.
 
-  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_board_layers.py [--no-frame] [--no-bg]
+  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_board_layers.py [--no-frame] [--no-bg] [--out <dir>]
 
-Sources (read only, never written), TAG = board_v4l (TILT_DEG 4) or board_v4d (TILT_DEG 0):
+--out <dir> writes the webps and boardArtSpec.ts under <dir> instead of the app (a dry run: nothing in the app changes).
+
+Sources (read only, never written), TAG = board_v5l (TILT_DEG 4; its render set is in drafts/bracket_r7/full, TAG_DIR)
+or board_v4d (TILT_DEG 0); board_v5j (drafts/gears_r5/full), board_v4l and older through --tag:
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_frame.png    2048 x 1935 RGBA (v4h; 1863 up to v4g): frame + 9x9
                                                                     lattice + top links
   ~/Desktop/Manticore Mayhem/images/board/drafts/<TAG>_neutral_frame.png   the same with the NEUTRAL steel grid (v4f)
@@ -29,7 +32,9 @@ REGISTRATION. The lattice's outer bars at MID-HEIGHT (the render is tilted) span
 centred vertically on it (layoutSpec.registrationOf). Per layout the scale comes from ART_FIT (landscape: the
 whole art fitted to its space, the FRAME derived from the lattice at that scale), CHAIN_FIT (portrait, Corey
 2026-10-06 21:32: each chain's centreline ~10 master px inside the screen edge, the posts and finials overhang
-off screen; vertically the dead band between the tagline and the HUD row split 1 : 1.3 above / below the art)
+off screen; vertically the dead band between the tagline and the HUD row split 1 : 1.3 above / below the art.
+Corey 2026-10-11, board_v5j: "set the base of the new to same bottom as the base of the old", so the split is made
+on board_v4l's art rows, CHAIN_FIT base_rows, and this art's bottom edge sits on that box's bottom edge)
 or PHONE_CELL (phone: the approved cell area). The tool prints the mismatches: what the tilt moved, the corners
 against the cell area, and EVERY inner bar against the tile gap it should sit in (v4f: the lattice is uniform,
 board_v4_NOTES.md v4f), and solves SYMBOL_FIT (the largest symbol scale whose opaque art, and the multiplier
@@ -62,21 +67,33 @@ TILT_DEG = 4
 # (bar radius 0.45 of the v4 bar, was 0.7) with NO rivets (model/scripts/thin_lattice.py)
 # v4l (2026-10-09): v4k with the plinth's stone tops and joints restored at the four old spike spans (v4g's spike
 # removal had pasted flat lids over them); camera, lattice, housings and chains as v4k, so every switch treats it as v4k
-RENDERS = {0: 'board_v4d', 4: 'board_v4l'}
+# v5j (LOCKED Corey 2026-10-11, model/checkpoints/2026-10-11_v5j_LOCKED): dirty gold, black iron gear pairs on the top
+# corners, hollow top rail with a brass cross shaft, brass chains, and NO plinth stones: the frame layer's alpha box is
+# (46, 46, 2003, 1792), 121 render px shorter at the bottom than v4l's (43, 46, 2004, 1913) and 3 / 1 px narrower.
+# Camera json, lattice, opening and the chain run are v4l's (the camera files are equal but for nothing; the chains
+# layer's alpha box is the same), so every switch treats it as v4l and the cells register where they did (FIT_ART).
+# v5l (LOCKED Corey 2026-10-11, model/board_v5l.blend, drafts/bracket_r7): v5j plus the redesigned brackets behind the
+# three top rail spikes (black iron clamps with lugs, four hex bolts each, a bearing barrel under each spike, lighter
+# spike undersides). Opening, cell mask, art box and both layers' alpha are v5j's and the camera json is byte-identical,
+# so no layout number changes and the chain tiles come out the same; only the frame's colour differs, in the top rail.
+RENDERS = {0: 'board_v4d', 4: 'board_v5l'}
 TAG = RENDERS[TILT_DEG]
 # --tag <render tag> overrides it (dry runs of a variant, e.g. board_v4g_uz with --no-frame --no-bg)
 import sys as _sys
 if '--tag' in _sys.argv:
     TAG = _sys.argv[_sys.argv.index('--tag') + 1]
 _D = os.path.join(DESK, 'board/drafts')
-_pick = lambda *names: next((os.path.join(_D, n) for n in names if os.path.exists(os.path.join(_D, n))), os.path.join(_D, names[-1]))
+# a tag whose render set is not loose in drafts/ (the v5 rounds each keep theirs in <round>/full)
+TAG_DIR = {'board_v5j': 'gears_r5/full', 'board_v5l': 'bracket_r7/full'}
+_T = os.path.join(_D, TAG_DIR.get(TAG, ''))
+_pick = lambda *names: next((os.path.join(_T, n) for n in names if os.path.exists(os.path.join(_T, n))), os.path.join(_T, names[-1]))
 # the grid steel (Corey 2026-10-06 21:33: B read teal over black): 'neutral' = textures_v4f/neutral, 'blue' = B.
 # v4f: <TAG>_frame.png was B and <TAG>_neutral_frame.png neutral; v4g: <TAG>_frame.png is neutral, B is <TAG>_blue_frame.png
 DEFAULT_GRID = 'neutral'
 GRID_SRC = {'blue': _pick(f'{TAG}_blue_frame.png', f'{TAG}_frame.png'), 'neutral': _pick(f'{TAG}_neutral_frame.png', f'{TAG}_frame.png')}
 SRC_FRAME = GRID_SRC[DEFAULT_GRID]
 SRC_CHAINS = _pick(f'{TAG}_chains.png', 'board_v4i_chains.png')
-SRC_CAMERA = os.path.join(_D, f'{TAG}_camera.json')
+SRC_CAMERA = os.path.join(_T, f'{TAG}_camera.json')
 FLAT_CAMERA = os.path.join(DESK, 'board/drafts/board_v4d_camera.json')
 PREV_CAMERA = os.path.join(DESK, 'board/drafts/board_v4j_camera.json')  # the previous lattice, for the before line
 SRC_BG = os.path.join(DESK, 'submission/final/tile-bg.jpg')
@@ -94,11 +111,22 @@ BARS_Z = [0.618, 0.475, 0.31, 0.145, -0.018, -0.18, -0.342, -0.502, -0.64]
 #   portrait   the 412 master less SIDE 7 a side, top under the logo's tagline band (114 .. 150)
 PHONE_CELL = {'x': 423.75, 'y': 48.0, 'size': 632.5}
 ART_FIT = {'landscape': {'x0': 340.0, 'x1': 940.0, 'top': 38.0}}
+# THE CELLS ARE THE CONTRACT (v5j and v5l, 2026-10-11): the landscape fit above was made on v4l's art box. v5j's frame is
+# 4 render px narrower (and 121 shorter), so fitting ITS box to 340 .. 940 would scale the lattice up by 0.2 % and
+# move every cell. The landscape scale and origin therefore stay those of the v4l box: the cells stay put and the v5j
+# art spans x 340.92 .. 939.69 (centre 640.31) from y 38 to 572.22 (v4l: 340 .. 940, bottom 609.24).
+FIT_ART = {'landscape': (43, 46, 2004, 1913)} if TAG.startswith('board_v5') else {}
 # portrait: the chain centrelines (mean of each run's top pivot and bottom anchor, render px) at x0 / x1 of the 412
 # master; the art then sits in the band band_top .. hud_top (tagline band bottom 150, the BALANCE / BET row's
 # content top 688, measured in the running game at 360 / 390 / 430 wide) with the dead space split above : below =
 # 1 : gap_ratio. layoutSpec.frameFor() grows the same way on wide portrait viewports (keep them in step).
-CHAIN_FIT = {'portrait': {'x0': 10.0, 'x1': 402.0, 'band_top': 150.0, 'hud_top': 688.0, 'gap_ratio': 1.3}}
+# THE BASE STAYS WHERE THE OLD BASE WAS (Corey 2026-10-11, on the portrait before / after of board_v5j: "Portrait
+# Board position I'd go lower, set the base of the new to same bottom as the base of the old"). base_rows = the
+# render rows (top, bottom) of board_v4l's art, finials to the plinth's base. The 1 : gap_ratio split is made on THAT
+# box, and the art's bottom edge is put on that box's bottom edge, at every growth k (layoutSpec PORTRAIT_FIT.baseRows,
+# keep the two in step). board_v5j ends at row 1792, 121 rows short of 1913: at k 1 its art is y 226.37 .. 624.60
+# (v4l 198.77 .. 624.60), gap above 76.37, below 63.40. An art whose rows ARE base_rows gets the plain split.
+CHAIN_FIT = {'portrait': {'x0': 10.0, 'x1': 402.0, 'band_top': 150.0, 'hud_top': 688.0, 'gap_ratio': 1.3, 'base_rows': (46.0, 1913.0)}}
 # kept proportions of the old FRAME entries: inset / cell area, gap / pitch, plate margin / cell area
 RATIOS = {'landscape': (14.5 / 549, 3 / 69, 6 / 549), 'portrait': (11 / 344, 3 / 43.5, 5 / 344), 'phone': (16 / 632.5, 3.5 / 79.5, 7 / 632.5)}
 # the bar checks (Corey 2026-10-06): every inner bar on its tile gap within BAR_TOL (master px; phone in SCREEN px
@@ -169,8 +197,15 @@ LEANED_BOX = {'L': (120, 240, 240, 350), 'R': (2048 - 240, 240, 2048 - 120, 350)
 # drawn OVER the frame, so the cut sits exactly on each housing's silhouette (at most ~0.3 render px over the lip),
 # where the chain goes behind the housing: never against the sky. v4i (no housings): (304.0, 1352.0).
 # The v4j render has no leaned links (HOUSED: erase_leaned_links is skipped, it would eat the housing's pixels).
-HOUSED = TAG.startswith(('board_v4j', 'board_v4k', 'board_v4l'))
-CHAIN_CLIP = tuple(json.load(open(os.path.join(_D, f'{TAG}_housing.json')))['chain_clip']) if HOUSED else (304.0, 1352.0)
+# v5j and v5l have no housing json of their own: their housings and chain run are v4l's (the frame layer's alpha in the chain
+# columns is compared with v4l's round both clip rows at build time, housing_check()), so they take v4l's
+# clip rows. What is NEW in front of the top housing is the chain wheel, which is in the frame layer and above the lip.
+HOUSED = TAG.startswith(('board_v4j', 'board_v4k', 'board_v4l', 'board_v5'))
+HOUSING_JSON = os.path.join(_T, f'{TAG}_housing.json')
+HOUSING_REF = 'board_v4l'
+if HOUSED and not os.path.exists(HOUSING_JSON):
+    HOUSING_JSON = os.path.join(_D, f'{HOUSING_REF}_housing.json')
+CHAIN_CLIP = tuple(json.load(open(HOUSING_JSON))['chain_clip']) if HOUSED else (304.0, 1352.0)
 CHAIN_PHASE_SEARCH = (700, 830)  # the tile is cut from the middle of the run (perspective is mildest there)
 CHAIN_HALF_W = 53.5  # render px either side of the centreline (the old crop was 107 wide)
 
@@ -239,6 +274,32 @@ def erase_leaned_links(img):
         box[stray] = 0
         print(f'  leaned link {side}: blob {len(best)} px, erased {int(kill.sum())} px + {int(stray.sum())} stray in {LEANED_BOX[side]}')
     return Image.fromarray(a)
+
+
+def housing_check(frame, cam):
+    """A tag that borrows another tag's housing json (v5j, v5l <- v4l): the frame layer's alpha in each chain column
+    (the strip's width about the run) over the rows round both clip rows must equal the reference frame's, or the
+    clip rows are not this frame's. An edge that moved a quarter of a pixel changes its alpha by 64 levels: the build
+    stops on any such pixel and prints the smaller differences (v5j: 62 px at 8 to 24 levels on two edges, the post's
+    side and the bottom ring's back rim; renders of the same geometry through a different shading pass)."""
+    import numpy as np
+    ref_path = os.path.join(_D, f'{HOUSING_REF}_frame.png')
+    if os.path.basename(HOUSING_JSON).startswith(TAG) or not os.path.exists(ref_path):
+        return
+    a = np.asarray(frame.split()[-1]).astype(int)
+    b = np.asarray(Image.open(ref_path).split()[-1]).astype(int)
+    worst = 0
+    for side in ('L', 'R'):
+        (tx, _), (bx, _) = cam['chains'][side]['top_pivot_px'], cam['chains'][side]['bottom_anchor_px']
+        for cx, row in ((tx, CHAIN_CLIP[0]), (bx, CHAIN_CLIP[1])):
+            x0, x1 = int(cx - CHAIN_HALF_W), int(cx + CHAIN_HALF_W) + 1
+            y0, y1 = int(row) - 12, int(row) + 13
+            d = np.abs(a[y0:y1, x0:x1] - b[y0:y1, x0:x1])
+            n = int((d >= 64).sum())
+            worst = max(worst, n)
+            print(f'  housing check {side} rows {y0}..{y1 - 1} x {x0}..{x1 - 1}: frame alpha against {HOUSING_REF}: {n} px differ by 64 levels or more, {int((d >= 8).sum())} by 8 or more (largest {int(d.max())})')
+    if worst:
+        raise SystemExit(f'{TAG}: the housings are not {HOUSING_REF}\'s where the chain strip is cut; it needs its own housing json')
 
 
 def chain_runs(chains, cam):
@@ -323,7 +384,13 @@ def main():
     ap.add_argument('--no-frame', action='store_true')
     ap.add_argument('--no-bg', action='store_true')
     ap.add_argument('--tag')
+    ap.add_argument('--out')
     args = ap.parse_args()
+    if args.out:
+        global ASSETS, SPEC_TS
+        ASSETS = os.path.join(args.out, 'static', 'assets')
+        SPEC_TS = os.path.join(args.out, 'boardArtSpec.ts')
+        os.makedirs(ASSETS, exist_ok=True)
 
     cam = json.load(open(SRC_CAMERA))
     flat = json.load(open(FLAT_CAMERA))
@@ -368,17 +435,17 @@ def main():
     # top line is still virtual (inside the top rail). The SIDE bars' rivets (rows 1..7) bind the column 0 / 7 cells
     # like any inner rivet; the bottom bar's rivets (and the corners) belong with the bottom outer bar that row 7 is
     # already allowed to hang over (rails=False below), so they count only in the rows 0 / 7 overhang report
-    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l'))
+    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l', 'board_v5'))
     rivet_at = (lambda r, c: 0 < r < 8) if outer_rivets else (lambda r, c: 0 < r < 8 and 0 < c < 8)
     # v4h: the opening is SQUARE, so rows 0 / 7 no longer hang over the top / bottom outer bars: they are held to them
     # like every other bar (HOLD_ROWS: rails=True in the solve), and every crossing counts as a rivet: the bottom bar's
     # real rivets and the top line's (v4h: the copper bar clips under the top rail, a rivet as their stand-in; v4i: the
     # real top bar's rivets, the clips are gone)
-    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l'))
+    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l', 'board_v5'))
     if HOLD_ROWS:
         rivet_at = lambda r, c: True
     # v4k: the lattice has NO rivets (the crossing is the two bars, already in the opening's bar-radius inset)
-    RIVETLESS = TAG.startswith(('board_v4k', 'board_v4l'))
+    RIVETLESS = TAG.startswith(('board_v4k', 'board_v4l', 'board_v5'))
     if RIVETLESS:
         rivet_at = lambda r, c: False
 
@@ -395,18 +462,24 @@ def main():
             cr = (ch['R']['top_pivot_px'][0] + ch['R']['bottom_anchor_px'][0]) / 2
             m = (fit['x1'] - fit['x0']) / (cr - cl)
             ox = fit['x0'] - cl * m
-            dead = fit['hud_top'] - fit['band_top'] - art_h * m
-            top = fit['band_top'] + max(dead, 0) / (1 + fit['gap_ratio'])
+            # the split is made on the base box (v4l's art rows), and this art's bottom goes on that box's bottom
+            base0, base1 = fit.get('base_rows', (art[1], art[3]))
+            base_h = (base1 - base0) * m
+            dead = fit['hud_top'] - fit['band_top'] - base_h
+            bottom = fit['band_top'] + max(dead, 0) / (1 + fit['gap_ratio']) + base_h
+            top = bottom - art_h * m
             oy = top - art[1] * m
             size = lat_w * m
             cy = oy + (ly0 + ly1) / 2 * m
             cell = {'x': ox + lx0 * m, 'y': cy - size / 2, 'size': size}
-            print(f'  {kind}: chain centrelines {cl:.2f} / {cr:.2f} render px -> {fit["x0"]} / {fit["x1"]} master; dead band {dead:.2f}, gap above {top - fit["band_top"]:.2f} below {fit["hud_top"] - top - art_h * m:.2f}')
+            print(f'  {kind}: chain centrelines {cl:.2f} / {cr:.2f} render px -> {fit["x0"]} / {fit["x1"]} master; dead band of the base box (rows {base0:.0f} .. {base1:.0f}) {dead:.2f}; art y {top:.2f} .. {bottom:.2f}, gap above {top - fit["band_top"]:.2f} below {fit["hud_top"] - bottom:.2f}')
         else:
             fit = ART_FIT[kind]
-            m = (fit['x1'] - fit['x0']) / art_w
-            ox = fit['x0'] - art[0] * m
-            oy = fit['top'] - art[1] * m
+            # the box the fit was made on (FIT_ART: the cells are the contract), else this render's own
+            fa = FIT_ART.get(kind, art)
+            m = (fit['x1'] - fit['x0']) / (fa[2] - fa[0])
+            ox = fit['x0'] - fa[0] * m
+            oy = fit['top'] - fa[1] * m
             size = lat_w * m
             cy = oy + (ly0 + ly1) / 2 * m
             cell = {'x': ox + lx0 * m, 'y': cy - size / 2, 'size': size}
@@ -529,6 +602,8 @@ def main():
         if HOUSED:
             print('  leaned links: none in the housed render, erase skipped')
         frame = unlean(Image.open(SRC_FRAME).convert('RGBA'))
+        if HOUSED:
+            housing_check(frame, cam)
         # the other grid steel, same crop and scale, under its suffix (a file swap switches the default)
         other = 'blue' if DEFAULT_GRID == 'neutral' else 'neutral'
         frame_other = unlean(Image.open(GRID_SRC[other]).convert('RGBA')) if os.path.exists(GRID_SRC[other]) and GRID_SRC[other] != SRC_FRAME else None
@@ -627,7 +702,7 @@ def main():
                 '// entries this registration derives (copied into layoutSpec.ts). game/layoutSpec.ts registers it.\n'
                 f'export const BOARD_ART = {body} as const;\n'
             )
-        print('wrote', os.path.relpath(SPEC_TS, APP))
+        print('wrote', SPEC_TS if args.out else os.path.relpath(SPEC_TS, APP))
 
 
 if __name__ == '__main__':

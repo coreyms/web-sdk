@@ -5,6 +5,9 @@
 //   the hanging chain's free end, the swag's lowest visible point (swagEnd) and its PIN, where it goes behind the
 //   bowl rim (read from the sprite). tiers: the texture sizes and each sprite's box (its atlas frame
 //   scene_<piece>_<side>_<set> covers exactly this box).
+//   sky: the ambient sky (game/sky.ts). ridge: the skyline cut-out's box; skyline: the highest and lowest row any
+//   sky reaches down to; wisp / fog: a cloud and a mist cell's size at scale 1 (atlas frames sky_wisp_<k>,
+//   sky_fog_<k>); birds: the copied atlas's rows (bird_<row>_<frame>.png). tiers.<tier>.ridge / sky: texture sizes.
 // SCENE_SPEC_PORTRAIT  no moving pieces. painting / fill: the rows of the frame the painting takes and the rows of
 //   the soft mist fill under it, down to where the 3D terrace covers the frame (the board is meant to hide the fill).
 // components/Background.svelte and game/scene.ts draw from both.
@@ -120,7 +123,15 @@ export const SCENE_SPEC = {
 					2267.0,
 					846.0
 				]
-			}
+			},
+			"ridge": [
+				2560,
+				328
+			],
+			"sky": [
+				1284,
+				456
+			]
 		},
 		"phone": {
 			"size": [
@@ -168,7 +179,41 @@ export const SCENE_SPEC = {
 					2268.8,
 					848.0
 				]
-			}
+			},
+			"ridge": [
+				1600,
+				205
+			],
+			"sky": [
+				804,
+				288
+			]
+		}
+	},
+	"sky": {
+		"ridge": [
+			0,
+			72,
+			2560,
+			400
+		],
+		"skyline": [
+			74,
+			393
+		],
+		"wisps": 6,
+		"wisp": [
+			640,
+			96
+		],
+		"fogs": 2,
+		"fog": [
+			1280,
+			400
+		],
+		"birds": {
+			"rows": 4,
+			"framesPerRow": 8
 		}
 	}
 } as const;

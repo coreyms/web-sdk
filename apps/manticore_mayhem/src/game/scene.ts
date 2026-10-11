@@ -3,9 +3,14 @@
 // (2560 x 1440, the landscape and phone sideways layouts) and 'portrait' (1440 x 2560: backdrop, foreground and fire
 // pass only, it has no moving pieces). Back to front, the scene agent's own order:
 //   backdrop day, night     the painting, opaque
+//   THE AMBIENT SKY         landscape only (game/sky.ts, constants SKY): clouds, the ridge cut-out day and night
+//                           (the backdrop's own skyline again, over the clouds), birds, canyon fog
 //   foreground day, night   the 3D courtyard with alpha, no fire light, no moving chains
 //   fire                    the braziers' light alone, on black, ADDITIVE. One pass for every mode: its level, the
 //                           flicker, the EPIC red and the dim are all its tint
+//   THE BRAZIER FLAMES      landscape only (game/flames.ts, constants FLAMES): the flames, their embers, and the rim
+//                           occluders (the bowls' rims cut from the foreground, with the fire pass's light on them)
+//                           that hide each flame's base behind its bowl
 //   chains day, night       per set: swag L R (MeshSimple strips), ring L R (sprites turning about the knocker's
 //                           mouth), hanging chain L R (strips)
 // A night layer sits over its day twin and fades in over it (the two foregrounds share their outline); whichever
@@ -25,9 +30,11 @@
 // tints, and a tick allocates nothing: the strips rewrite the vertex arrays their meshes already own.
 import * as PIXI from 'pixi.js';
 
-import { CHAIN_GUST, PLAYGROUND_PX, SCENE } from './constants';
+import { CHAIN_GUST, FLAMES, PLAYGROUND_PX, SCENE, SKY } from './constants';
 import { boardKick, gustFx, gustPulse, gustStart, type ChainGust } from './featureFx';
 import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from './sceneSpec';
+import { FLAME_CLIPS, FlameView } from './flames';
+import { SkyView } from './sky';
 
 export type SceneFamily = keyof typeof SCENE.modes;
 export type SceneTier = keyof typeof SCENE_SPEC.tiers;
@@ -49,7 +56,17 @@ const FIRE_TINT = 4; // r g b
 const FORE_TINT = 7; // r g b
 const DIM = 10;
 const SHOW = 11;
-const VALUES = 12;
+// the ambient sky's (SKY.modes): the clouds' tint r g b and opacity, the fog's, the birds' share
+const CLOUD_TINT = 12;
+const CLOUD_A = 15;
+const FOG_TINT = 16;
+const FOG_A = 19;
+const BIRDS = 20;
+// the brazier flames' (FLAMES): the embers' strength and tint r g b, and each clip's weight (base, super, epic)
+const EMBERS = 21;
+const EMBER_TINT = 22;
+const FLAME_W = 25;
+const VALUES = 28;
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const rgb = (r: number, g: number, b: number) => (Math.round(clamp01(r) * 255) << 16) | (Math.round(clamp01(g) * 255) << 8) | Math.round(clamp01(b) * 255);
@@ -154,6 +171,10 @@ export class SceneView {
 	private readonly fore = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
 	private readonly fire = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	private readonly sets = SETS.map(() => new PIXI.Container());
+	/** the ambient sky (landscape only), between the backdrops and the foregrounds */
+	readonly sky: SkyView | null;
+	/** the brazier flames (landscape only), over the fire pass and under the chains */
+	readonly flames: FlameView | null;
 	/** the moving pieces (landscape only): every use is behind `hasChains` */
 	private readonly hasChains: boolean;
 	private readonly chains: Record<'L' | 'R', Chain>;
@@ -191,6 +212,8 @@ export class SceneView {
 	private clock = 0;
 	private level = 0;
 
+	/** DEV / probe: the flicker signal held at this value (-1 .. 1) so two screenshots can be compared; null = running */
+	holdFlicker: number | null = null;
 	// DEV / probe counters
 	vertexWrites = 0;
 	slowSteps = 0;
@@ -208,7 +231,12 @@ export class SceneView {
 		root.eventMode = 'none';
 		root.interactiveChildren = false;
 		this.fire.blendMode = 'add';
-		root.addChild(this.backdrop[0], this.backdrop[1], this.fore[0], this.fore[1], this.fire);
+		this.sky = layout === 'landscape' ? new SkyView() : null;
+		this.flames = layout === 'landscape' ? new FlameView(tier) : null;
+		root.addChild(this.backdrop[0], this.backdrop[1]);
+		if (this.sky) root.addChild(...this.sky.layers);
+		root.addChild(this.fore[0], this.fore[1], this.fire);
+		if (this.flames) root.addChild(...this.flames.layers);
 		for (const s of [...this.backdrop, ...this.fore, this.fire, ...this.sets]) s.visible = false;
 		this.setValues(this.cur, 'base', SCENE.dim.base, false);
 		// portrait: no knockers, no chains
@@ -297,6 +325,8 @@ export class SceneView {
 		if (!this.setLayers(0, tex) || !fire) return false;
 		this.fire.texture = fire;
 		this.fire.scale.set(this.fw / fire.width);
+		this.sky?.setDay(tex);
+		this.flames?.setTextures(tex);
 		this.dayReady = true;
 		this.fire.visible = true;
 		this.apply();
@@ -307,9 +337,23 @@ export class SceneView {
 	setNight(tex: Textures, now: number): boolean {
 		if (this.nightReady) return true;
 		if (!this.setLayers(1, tex)) return false;
+		this.sky?.setNight(tex);
 		this.nightReady = true;
 		if (this.wantNight) this.mode(this.family, this.to[DIM], now);
 		return true;
+	}
+
+	/** the flames' files: whatever of them is in `tex` is built (the base clip and the rim cuts come with the day set,
+	 *  the super and epic clips in the deferred phase); a mode that was waiting for its clip crossfades to it now.
+	 *  Returns true once nothing is left to come (always, for a scene with no flames). */
+	setFlames(tex: Textures, now: number): boolean {
+		const F = this.flames;
+		if (!F) return true;
+		if (!F.allReady && this.dayReady && F.setTextures(tex)) {
+			if (FLAMES.modes[this.family] !== 'base' && this.to[SHOW] > 0) this.mode(this.family, this.to[DIM], now);
+			this.apply();
+		}
+		return F.allReady;
 	}
 
 	private setLayers(i: number, tex: Textures): boolean {
@@ -338,6 +382,8 @@ export class SceneView {
 	sources(): PIXI.TextureSource[] {
 		const out = new Set<PIXI.TextureSource>();
 		for (const s of [...this.backdrop, ...this.fore, this.fire, ...(this.hasChains ? this.chains.L.ring : [])]) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
+		this.sky?.sources(out);
+		this.flames?.sources(out);
 		return [...out];
 	}
 
@@ -369,6 +415,21 @@ export class SceneView {
 		}
 		out[DIM] = dim;
 		out[SHOW] = show ? 1 : 0;
+		const sky = SKY.modes[family];
+		for (let i = 0; i < 3; i += 1) {
+			out[CLOUD_TINT + i] = sky.clouds[i];
+			out[FOG_TINT + i] = sky.fog[i];
+		}
+		out[CLOUD_A] = sky.cloudAlpha;
+		out[FOG_A] = sky.fogAlpha;
+		out[BIRDS] = sky.birds;
+		// the flames: the mode's clip, or the base clip while that clip's sheet is still on its way
+		const clip = this.flames?.ready(FLAMES.modes[family]) ? FLAMES.modes[family] : 'base';
+		for (let i = 0; i < 3; i += 1) {
+			out[FLAME_W + i] = FLAME_CLIPS[i] === clip ? 1 : 0;
+			out[EMBER_TINT + i] = FLAMES.embers.tint[family][i];
+		}
+		out[EMBERS] = FLAMES.embers.strength[family];
 	}
 
 	/** the game's mode and dim. A night mode whose files are not in yet shows the day scene (the regular Bonus's
@@ -431,6 +492,8 @@ export class SceneView {
 			if (i === 1) this.backdrop[i].alpha = this.fore[i].alpha = this.sets[i].alpha = night;
 		}
 		this.root.alpha = c[SHOW];
+		this.sky?.look(night, this.backdrop[0].visible, this.backdrop[1].visible, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS]);
+		this.flames?.look(c[FLAME_W], c[FLAME_W + 1], c[FLAME_W + 2], night, this.fore[0].visible, this.fore[1].visible, dim, fore, c[EMBERS], c[EMBER_TINT], c[EMBER_TINT + 1], c[EMBER_TINT + 2]);
 		this.applyFire();
 	}
 
@@ -441,6 +504,8 @@ export class SceneView {
 		this.level = level;
 		const k = level * c[DIM];
 		this.fire.tint = rgb(k * c[FIRE_TINT], k * c[FIRE_TINT + 1], k * c[FIRE_TINT + 2]);
+		// the same light on the rim cuts drawn over the flames
+		this.flames?.fire(this.fire.tint);
 	}
 
 	/** one frame. `now` is the ticker's clock (ms), `dtMs` the frame's length. */
@@ -505,17 +570,32 @@ export class SceneView {
 			this.lastSlowAt = now;
 			this.clock = now;
 			this.slowSteps += 1;
-			this.flick = flickerAt(now);
+			this.flick = this.holdFlicker ?? flickerAt(now);
 			for (let i = 0; i < 2 && this.hasChains; i += 1) {
 				const c = this.chains[SIDES[i]];
 				c.idle = idleAt('hang', SIDES[i], now);
 				c.bIdle = idleAt('swag', SIDES[i], now);
 			}
 			chainsDirty = this.hasChains;
+			// the flames: their frame, and the same flicker on their brightness
+			this.flames?.step(now, this.flick);
 			if (!look) this.applyFire();
 		}
 		if (look) this.apply();
 		if (chainsDirty) this.writeChains();
+		this.sky?.tick(now);
+	}
+
+	/** DEV / probe: the ambient sky's layers hidden or back (the look is applied again at once) */
+	hideSky(on: boolean): void {
+		if (!this.sky) return;
+		this.sky.hide(on);
+		this.apply();
+	}
+
+	/** DEV / probe: the flames' look applied again after a hook changed it (hidden, forced clip, treatment, embers) */
+	refreshFlames(): void {
+		if (this.flames && this.dayReady) this.apply();
 	}
 
 	/** the gusts at `now` (the ticker's clock): new ones from the bus, finished ones dropped, the direction taken when
@@ -701,7 +781,9 @@ export class SceneView {
 			released: this.released,
 			chains: this.hasChains ? { L: chain('L'), R: chain('R') } : null,
 			/** the root's children, bottom to top, with what each draws */
-			order: this.root.children.map((ch) => `${ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`}${ch.visible ? '' : ' (off)'}`),
+			order: this.root.children.filter((ch) => !this.sky?.layers.includes(ch as PIXI.Container) && !this.flames?.layers.includes(ch as PIXI.Container)).map((ch) => `${ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`}${ch.visible ? '' : ' (off)'}`),
+			/** every child of the root, the ambient sky's and the flames' layers included, bottom to top */
+			allOrder: this.root.children.map((ch) => `${this.sky?.layers.includes(ch as PIXI.Container) || this.flames?.layers.includes(ch as PIXI.Container) ? ch.label : (ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`)}${ch.visible ? '' : ' (off)'}`),
 			chainOrder: !this.hasChains ? [] : this.sets[0].children.map((ch) => (ch instanceof PIXI.MeshSimple ? (SIDES.some((s) => this.chains[s].hang.meshes.includes(ch)) ? 'hang' : 'swag') : 'ring')),
 			counters: { vertexWrites: this.vertexWrites, slowSteps: this.slowSteps, fades: this.fades },
 			textures: { backdrop: [this.backdrop[0].texture.width, this.backdrop[0].texture.height], fire: [this.fire.texture.width, this.fire.texture.height], atlas: this.hasChains ? [this.chains.L.ring[0].texture.source.pixelWidth, this.chains.L.ring[0].texture.source.pixelHeight] : null },

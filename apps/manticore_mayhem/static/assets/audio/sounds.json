@@ -29,105 +29,105 @@
 			187
 		],
 		"sfx_ui_bonus": [
-			9721,
+			9722,
 			2000
 		],
 		"sfx_ui_minor": [
-			12721,
+			12722,
 			595
 		],
 		"sfx_ui_sub": [
 			14317,
-			98
+			97
 		],
 		"sfx_bonus_trigger_free": [
-			15415,
+			15413,
 			1199
 		],
 		"sfx_bonus_trigger_super": [
-			17613,
+			17612,
 			1335
 		],
 		"sfx_bonus_trigger_feast": [
-			19949,
+			19948,
 			1523
 		],
 		"sfx_reel_spin": [
-			22472,
+			22471,
 			1880
 		],
 		"sfx_reel_stop": [
-			25352,
+			25351,
 			260
 		],
 		"sfx_cluster_remove": [
-			26612,
+			26611,
 			183
 		],
 		"sfx_tile_double": [
-			970,
-			50
+			27794,
+			22
 		],
 		"sfx_cascade": [
-			970,
-			50
+			28816,
+			180
 		],
 		"sfx_money_counter": [
-			27795,
-			781,
+			30000,
+			1500,
 			true
 		],
 		"sfx_swipe": [
-			29576,
+			32500,
 			1022
 		],
 		"sfx_roar": [
-			31599,
+			34522,
 			3134
 		],
 		"sfx_sting_hit": [
-			35732,
+			38656,
 			778
 		],
 		"sfx_sting_big_charge": [
-			37510,
+			40434,
 			1002
 		],
 		"sfx_sting_big_hit": [
-			39513,
+			42436,
 			640
 		],
 		"sfx_sting_super_charge": [
-			41153,
+			44077,
 			2003
 		],
 		"sfx_sting_super_hit": [
-			44155,
+			47079,
 			1037
 		],
 		"sfx_scatter_sting": [
-			46192,
-			596
+			38656,
+			778
 		],
 		"sfx_win_big": [
-			47788,
-			356
+			49116,
+			800
 		],
 		"sfx_win_super": [
-			49144,
-			356
+			50916,
+			800
 		],
 		"sfx_win_mega": [
-			50500,
-			356
+			52716,
+			1280
 		],
 		"sfx_win_epic": [
-			51855,
-			356
+			54996,
+			1600
 		],
 		"sfx_win_max": [
-			53211,
-			356
+			57596,
+			3000
 		],
 		"sfx_mystery_tease": [
 			970,
@@ -136,6 +136,32 @@
 		"sfx_mystery_decision": [
 			970,
 			50
+		],
+		"sfx_scatter_land_6": [
+			61596,
+			470
+		],
+		"sfx_chain_heavy": [
+			63066,
+			1145
+		],
+		"sfx_chain_light": [
+			65211,
+			528
+		],
+		"sfx_chain_light_logo": [
+			65211,
+			528
+		],
+		"sfx_fire_super": [
+			66740,
+			6000,
+			true
+		],
+		"sfx_fire_epic": [
+			73740,
+			6000,
+			true
 		]
 	},
 	"config": {
@@ -218,7 +244,7 @@
 			"volume": 1
 		},
 		"sfx_scatter_sting": {
-			"volume": 0.5
+			"volume": 1
 		},
 		"sfx_win_big": {
 			"volume": 1
@@ -240,10 +266,28 @@
 		},
 		"sfx_mystery_decision": {
 			"volume": 1
+		},
+		"sfx_scatter_land_6": {
+			"volume": 1
+		},
+		"sfx_chain_heavy": {
+			"volume": 1
+		},
+		"sfx_chain_light": {
+			"volume": 1
+		},
+		"sfx_chain_light_logo": {
+			"volume": 0.5
+		},
+		"sfx_fire_super": {
+			"volume": 1
+		},
+		"sfx_fire_epic": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=fe967d3c",
-		"./assets/audio/sounds.m4a?v=b167d0b4"
+		"./assets/audio/sounds.ogg?v=f10602f9",
+		"./assets/audio/sounds.m4a?v=6db5eab9"
 	]
 }

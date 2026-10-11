@@ -1,0 +1,174 @@
+{
+ "frames": {
+  "sky_fog_0": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 320,
+    "h": 100
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 320,
+    "h": 100
+   },
+   "sourceSize": {
+    "w": 320,
+    "h": 100
+   }
+  },
+  "sky_fog_1": {
+   "frame": {
+    "x": 322,
+    "y": 0,
+    "w": 320,
+    "h": 100
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 320,
+    "h": 100
+   },
+   "sourceSize": {
+    "w": 320,
+    "h": 100
+   }
+  },
+  "sky_wisp_0": {
+   "frame": {
+    "x": 0,
+    "y": 102,
+    "w": 400,
+    "h": 60
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 400,
+    "h": 60
+   },
+   "sourceSize": {
+    "w": 400,
+    "h": 60
+   }
+  },
+  "sky_wisp_1": {
+   "frame": {
+    "x": 402,
+    "y": 102,
+    "w": 400,
+    "h": 60
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 400,
+    "h": 60
+   },
+   "sourceSize": {
+    "w": 400,
+    "h": 60
+   }
+  },
+  "sky_wisp_2": {
+   "frame": {
+    "x": 0,
+    "y": 164,
+    "w": 400,
+    "h": 60
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 400,
+    "h": 60
+   },
+   "sourceSize": {
+    "w": 400,
+    "h": 60
+   }
+  },
+  "sky_wisp_3": {
+   "frame": {
+    "x": 402,
+    "y": 164,
+    "w": 400,
+    "h": 60
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 400,
+    "h": 60
+   },
+   "sourceSize": {
+    "w": 400,
+    "h": 60
+   }
+  },
+  "sky_wisp_4": {
+   "frame": {
+    "x": 0,
+    "y": 226,
+    "w": 400,
+    "h": 60
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 400,
+    "h": 60
+   },
+   "sourceSize": {
+    "w": 400,
+    "h": 60
+   }
+  },
+  "sky_wisp_5": {
+   "frame": {
+    "x": 402,
+    "y": 226,
+    "w": 400,
+    "h": 60
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 400,
+    "h": 60
+   },
+   "sourceSize": {
+    "w": 400,
+    "h": 60
+   }
+  }
+ },
+ "meta": {
+  "image": "sky-phone.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 804,
+   "h": 288
+  },
+  "scale": "1",
+  "pngHash": "9884a985"
+ }
+}

@@ -8,7 +8,10 @@ import { fileBytes } from './assetStamp';
 export type MusicName = 'bgm_base' | 'bgm_bonus' | 'bgm_super' | 'bgm_epic' | 'bgm_maxwin';
 
 // One key per Manticore event (tools/build_audiosprite.py MM_EVENTS): a key with no Manticore
-// recording yet plays its borrowed Angry Mantis clip, or silence. The scatter landings, the
+// recording yet plays its borrowed Angry Mantis clip, or silence. Manticore's own since 2026-10-11: the five
+// sfx_win_* tier landings, the sfx_money_counter loop and the sfx_tile_double tick; the two fire loops (game/
+// fireSound.ts) and the chain sounds (game/chainSound.ts; sfx_chain_light_logo is the light rattle again, quieter:
+// the same sprite region with its own volume). The scatter landings, the
 // bonus-trigger fanfares and the ui clicks are the house set shared across games.
 export type SoundEffectName =
 	| 'sfx_scatter_land_1'
@@ -16,6 +19,7 @@ export type SoundEffectName =
 	| 'sfx_scatter_land_3'
 	| 'sfx_scatter_land_4'
 	| 'sfx_scatter_land_5'
+	| 'sfx_scatter_land_6'
 	| 'sfx_ui_button'
 	| 'sfx_ui_spin'
 	| 'sfx_ui_bonus'
@@ -44,7 +48,12 @@ export type SoundEffectName =
 	| 'sfx_win_epic'
 	| 'sfx_win_max'
 	| 'sfx_mystery_tease'
-	| 'sfx_mystery_decision';
+	| 'sfx_mystery_decision'
+	| 'sfx_chain_heavy'
+	| 'sfx_chain_light'
+	| 'sfx_chain_light_logo'
+	| 'sfx_fire_super'
+	| 'sfx_fire_epic';
 
 export type SoundName = MusicName | SoundEffectName;
 

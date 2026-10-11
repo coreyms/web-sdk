@@ -231,7 +231,7 @@ const assets = {
 	// the 8x8 grid of cell wells behind the tiles: shows in the seams, in the drop and in every
 	// emptied cell during a cascade
 	boardBackdrop: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-backdrop.webp', import.meta.url).href), preload: true },
-	// THE BOARD FRAME and its chain loop tiles (tools/build_board_layers.py from the board_v4i renders;
+	// THE BOARD FRAME and its chain loop tiles (tools/build_board_layers.py from the board_v5j renders;
 	// registration in game/boardArt.ts), one scale per layout: the boot layout's preloads. boardChains_* is
 	// the seamless two-link tile pair (L, R) the strips repeat (CHAIN_BOW haul, 2026-10-07)
 	boardFrame_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
@@ -272,6 +272,22 @@ const assets = {
 	scene_fore_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fore-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fore-day-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
 	scene_fire: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fire.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fire-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
 	sceneChains: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/chains.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/chains-phone.json', import.meta.url).href)), preload: sceneAtBoot },
+	// THE AMBIENT SKY of that scene (game/sky.ts, constants SKY; tools/build_scene_assets.py --sky): the day ridge cut-out,
+	// the wisp and fog atlas and the birds ride with the day set, the night cut-out with the night set (SCENE_KEYS), so
+	// they follow the scene's own boot order and a portrait boot registers none of them.
+	scene_ridge_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/ridge-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/ridge-day-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
+	sceneSky: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/sky.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/sky-phone.json', import.meta.url).href)), preload: sceneAtBoot },
+	sceneBirds: { type: 'sprites', src: stamp(new URL('../../assets/backgrounds/scene/birds.json', import.meta.url).href), preload: sceneAtBoot },
+	// THE BRAZIER FLAMES of that scene (game/flames.ts, constants FLAMES; tools/build_flame_assets.py): one atlas per clip
+	// and a small one with the rim occluders and the ember dot. The BASE clip and the cuts ride with the day set (the
+	// braziers burn from the first frame); the SUPER and EPIC clips ride the deferred phase, one group each after the
+	// night set (DEFERRED_ORDER), and until one is in its mode keeps the base clip burning. A portrait boot registers
+	// none of them (SCENE_LATE).
+	sceneFlameBase: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/flame-base.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/flame-base-phone.json', import.meta.url).href)), preload: sceneAtBoot },
+	sceneFlameFx: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/flame-fx.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/flame-fx-phone.json', import.meta.url).href)), preload: sceneAtBoot },
+	sceneFlameSuper: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/flame-super.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/flame-super-phone.json', import.meta.url).href)), preload: false },
+	sceneFlameEpic: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/flame-epic.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/flame-epic-phone.json', import.meta.url).href)), preload: false },
+	scene_ridge_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/ridge-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/ridge-night-phone.webp', import.meta.url).href)), preload: false },
 	scene_backdrop_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/backdrop-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/backdrop-night-phone.webp', import.meta.url).href)), preload: false },
 	scene_fore_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fore-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fore-night-phone.webp', import.meta.url).href)), preload: false },
 	// THE PORTRAIT COURTYARD SCENE (the same components and tool, --portrait): its own 9:16 frame, 1440 x 2560 with a
@@ -446,8 +462,8 @@ const phoneOnlyScreen = (): boolean => {
 // the same file); loadPlaceholderLate fetches the one for the layout the game was turned to, beside that layout's
 // scene, and it stands in until the scene fades in over it, or for good if the scene's files fail.
 export const SCENE_KEYS = {
-	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains'], night: ['scene_backdrop_night', 'scene_fore_night'] },
-	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire'], night: ['scenep_backdrop_night', 'scenep_fore_night'] },
+	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
+	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire'], night: ['scenep_backdrop_night', 'scenep_fore_night'], flames: [] },
 } as const;
 /** the scene the boot layout draws, and the one that waits */
 export const SCENE_AT_BOOT: keyof typeof SCENE_KEYS = sceneAtBoot ? 'landscape' : 'portrait';
@@ -461,7 +477,7 @@ export const PLACEHOLDER_LATE: Record<string, { type: string; src: string }> = {
 		delete table[key];
 	}
 	const late = SCENE_KEYS[sceneAtBoot ? 'portrait' : 'landscape'];
-	for (const key of [...late.day, ...late.night]) {
+	for (const key of [...late.day, ...late.night, ...late.flames]) {
 		SCENE_LATE[key] = table[key];
 		delete table[key];
 	}
@@ -484,6 +500,9 @@ if (phoneOnlyScreen()) {
 //           0.45 MB on the phone tier; portrait 0.34 MB, 0.16 MB):
 //           a Super or Epic feature can be bought on the first spin, and until these are in it plays over the day
 //           scene (components/Background.svelte).
+//   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips (game/flames.ts; 0.68 and 1.14 MB, 0.50 and
+//           0.89 MB on the phone tier; none when the game booted in portrait), one group each so each is uploaded by
+//           itself when it lands: until then that mode's braziers keep the base clip burning.
 //   logo    the canvas logo's atlas, with its tracks (desktop tier only, 0.35 MB). Normally in before this
 //           phase starts (deferredLoad.ts loadLogoEarly); here it is the fallback, after the plaque
 //   labels  the cluster label caps that were not preloaded (the one this screen needs already is; these
@@ -494,9 +513,11 @@ const deferredKeys = (prefix: string) =>
 	Object.entries(assets as unknown as Record<string, { preload?: boolean }>)
 		.filter(([key, entry]) => key.startsWith(prefix) && !entry.preload)
 		.map(([key]) => key);
-export const DEFERRED_ORDER: { name: 'plaque' | 'night' | 'logo' | 'labels' | 'drop' | 'idle'; keys: string[] }[] = [
+export const DEFERRED_ORDER: { name: 'plaque' | 'night' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels' | 'drop' | 'idle'; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
 	{ name: 'night', keys: [...SCENE_KEYS[SCENE_AT_BOOT].night] },
+	{ name: 'flameSuper', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(0, 1) },
+	{ name: 'flameEpic', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(1) },
 	{ name: 'logo', keys: deferredKeys('logoAtlas') },
 	{ name: 'labels', keys: deferredKeys('labelGlyphs') },
 	{ name: 'drop', keys: deferredKeys('mmDrop_') },

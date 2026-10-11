@@ -194,7 +194,21 @@
 		if (beats.length > 400) beats.splice(0, 200);
 	};
 
+	// THE TIER LANDINGS (Manticore's own clips since 2026-10-11: 0.80, 0.80, 1.28, 1.60 and 3.00 s, they were 0.36 s
+	// tin clinks). Each is its own sprite key played once per landing and NOTHING stops one: at turbo the landings
+	// come closer together than the clips are long, so they ring over each other, and MAX WIN's 3 s outlasts the
+	// plaque's hold and exit. Do not add a stop on hide.
 	const tierSound = (index: number) => context.eventEmitter.broadcast({ type: 'soundOnce', name: WIN_TIER_SOUND[index], forcePlay: true });
+	// THE COUNT-UP LOOP (sfx_money_counter, a 1.50 s seamless coin loop since 2026-10-11): on from the first frame
+	// the amount moves to the frame it lands (or the screen is superseded), on every screen that counts here. The
+	// loop is cut, not faded. bookEventHandlerMap's winLevelSoundsStop stops it again as a backstop. Under SKIP TO
+	// RESULT Sound.svelte drops the start like every other effect; the stop always goes through.
+	let countLoopOn = false;
+	const countLoop = (on: boolean) => {
+		if (on === countLoopOn) return;
+		countLoopOn = on;
+		context.eventEmitter.broadcast({ type: on ? 'soundLoop' : 'soundStop', name: 'sfx_money_counter' });
+	};
 
 	// the board kick (featureFx.boardKick, applied to the board and its frame by ClawSwipe / BoardFrame every
 	// frame): the swipe's own decaying wobble, at the plaque's amplitude
@@ -233,6 +247,7 @@
 			if (import.meta.env.DEV) beats[beats.length - 1].at -= el;
 		}
 		const ended = c.skipped || el >= c.total;
+		countLoop(!ended);
 		const amount = ended ? c.target : stagedAmountAt(c.segs, el);
 		// several bars inside one frame (a skip, a long frame) are ONE beat, on the highest tier reached
 		const index = c.beats ? tierIndexAt(amount, c.bars, c.cap) : c.shown;
@@ -287,6 +302,7 @@
 	const release = () => {
 		const c = count;
 		count = null;
+		countLoop(false);
 		c?.done();
 		const w = waiters;
 		waiters = [];

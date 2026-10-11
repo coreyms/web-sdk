@@ -2,11 +2,12 @@
 """Game assets for the courtyard scene (components/Background.svelte, game/scene.ts): the painted backdrops, the 3D
 foreground, the brazier fire pass and the moving knocker rings and chains, for the landscape and phone sideways layouts.
 
-  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_scene_assets.py [SRC] [--portrait DIR] [--backdrops DIR] [--fallback DIR]
+  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_scene_assets.py [SRC] [--portrait DIR] [--sky] [--backdrops DIR] [--fallback DIR]
   node scripts/stamp-assets.mjs          (afterwards, from the app folder)
 
-SRC alone rebuilds the landscape set, --portrait DIR alone the portrait set, both together everything. The side a run
-does not rebuild keeps its files and its block of sceneSpec.ts.
+SRC alone rebuilds the landscape set (the sky set with it), --portrait DIR alone the portrait set, both together
+everything. --sky alone rebuilds only the landscape scene's AMBIENT SKY set from the backdrops. The side a run does not
+rebuild keeps its files and its block of sceneSpec.ts.
 
 SRC (read only, never written) is one of the scene agent's deliverable folders, for example
 ~/Desktop/Manticore Mayhem/images/backgrounds/base/drafts/scene_blockout/lookdev/knocker :
@@ -39,6 +40,28 @@ the frame's own size (1440 x 2560), phone = 900 wide:
   static/assets/backgrounds/scene/portrait-fore-<day|night>[-phone].webp
   static/assets/backgrounds/scene/portrait-fire[-phone].webp          on black, half the base's size
   src/game/sceneSpec.ts SCENE_SPEC_PORTRAIT                           the frame, the tiers, the painting's and the fill's rows
+
+THE AMBIENT SKY (game/sky.ts, constants SKY; landscape scene only), built by every landscape run and by --sky alone:
+  static/assets/backgrounds/scene/ridge-<day|night>[-phone].webp      the mountains and citadel skyline CUT OUT of the
+                                                                      backdrop, sky transparent, only the band of the
+                                                                      frame the skyline crosses: drawn over the clouds
+  static/assets/backgrounds/scene/sky[-phone].json|webp               ONE atlas, white with alpha (the game tints it):
+                                                                      sky_wisp_<k> thin streaky clouds, sky_fog_<k>
+                                                                      soft mist bands. Generated here, seeded
+  static/assets/backgrounds/scene/birds.json|webp                     the Angry Mantis birds atlas, copied (--birds)
+  src/game/sceneSpec.ts SCENE_SPEC.sky                                the ridge band, the cells' sizes in frame px
+  --sky-check DIR (default .../drafts/sky_matte)                      for inspection, never shipped: ridge_matte.png
+                                                                      (the band's alpha), ridge_magenta_<set>.png (the
+                                                                      SHIPPED backdrop, flat magenta, the SHIPPED
+                                                                      cut-out over it: any magenta on the land is a
+                                                                      hole, any sky colour left on the ridge a halo)
+THE MATTE (sky_matte below): the day and night paintings share their skyline, and each separates what the other cannot
+(the day sky by the sun is the lit rock's orange, the night sky there is far brighter than the rock; snow is as bright
+as the day sky and nothing like the night one). Sky is what a flood from the frame's top reaches through pixels that
+are smooth in BOTH paintings (stars medianed out of the night), with a probe too wide for a pinhole in the ridge;
+whatever is not sky and reaches the band's bottom is land, so wisps, stars, the sun and the moon stay sky and the land
+has no holes. The edge is then placed per pixel by where its colour lies between the nearest sure sky and sure land
+colours (both paintings, six channels), feathered, and every edge pixel is repainted with the nearest pure land colour.
 
 CHECKS printed: every file's size and its GPU memory (w x h x 4); the backdrops' banding check against the
 source (flat pixels in the smooth parts, see band_check: asserted under BAND_TOLERANCE; printed only for the fire pass);
@@ -79,6 +102,30 @@ BAND_SMOOTH = 2.5
 # transparent texels kept round every sprite in the atlas (it is drawn rotated, with linear sampling), and between frames
 SPRITE_MARGIN = 1
 ATLAS_PAD = 2
+
+# ---- the ambient sky --------------------------------------------------------------------------------------------
+Q_RIDGE = 90
+Q_SKY = 90
+# the matte (see the docstring). Rows of the frame searched for the skyline; a pixel is SMOOTH when its gradient
+# (gaussian derivative, sigma 1, the largest channel) is under these in the day and in the night painting; the flood's
+# probe radius; how far from the flood's edge a pixel is still undecided; the feather (gaussian sigma, px of the frame)
+SKY_SEARCH_ROWS = 520
+SKY_SMOOTH_DAY = 6.0
+SKY_SMOOTH_NIGHT = 4.0
+SKY_PROBE = 2
+SKY_UNSURE = 4
+SKY_FEATHER = 0.7
+# the band is cut on this grid of frame px, so the phone tier's band lands on whole texels
+SKY_GRID = 8
+# the cells of the sky atlas, in px of the frame at scale 1; the full tier's texture is SKY_TEXEL frame px per texel
+# (they are soft: nothing in them is finer), the phone tier's that times the tier's own scale
+SKY_SEED = 20261011
+WISP_CELL = (640, 96)
+WISPS = ((5, 0.10), (7, 0.16), (4, 0.06), (8, 0.20), (6, 0.12), (3, 0.05))  # strands, the veil's strength
+FOG_CELL = (1280, 400)
+FOGS = 2
+SKY_TEXEL = {'wisp': 1, 'fog': 2.5}
+BIRDS_SRC = os.path.join(os.path.dirname(APP), 'angry_mantis', 'static', 'assets', 'ui', 'ambient')
 
 PIECES = ('ring', 'hang', 'swag')
 SIDES = ('L', 'R')
@@ -179,6 +226,228 @@ def skyline_pack(sizes: list[tuple[int, int]], width: int) -> tuple[list[tuple[i
             sky[k] = y + h
         pos[i] = (x, y)
     return pos, max(sky)  # type: ignore[return-value]
+
+
+def sky_matte(day: np.ndarray, night: np.ndarray) -> tuple[np.ndarray, np.ndarray, dict]:
+    """the land's alpha over the top SKY_SEARCH_ROWS of the frame from the two paintings (h, w, 3 floats), the mask of
+    pixels that are PURE land (their colour has no sky in it), and what to print. See the docstring's THE MATTE."""
+    from scipy import ndimage as ndi
+
+    def grad(a: np.ndarray) -> np.ndarray:
+        g = np.zeros(a.shape[:2])
+        for c in range(3):
+            g = np.maximum(g, np.hypot(ndi.gaussian_filter(a[..., c], 1.0, order=(0, 1)), ndi.gaussian_filter(a[..., c], 1.0, order=(1, 0))))
+        return g
+
+    def reach(seed_row: int, mask: np.ndarray) -> np.ndarray:
+        seed = np.zeros_like(mask)
+        seed[seed_row] = True
+        return ndi.binary_propagation(seed & mask, mask=mask)
+
+    smooth = (grad(day) < SKY_SMOOTH_DAY) & (grad(ndi.median_filter(night, size=(5, 5, 1))) < SKY_SMOOTH_NIGHT)
+    core = ndi.binary_erosion(smooth, iterations=SKY_PROBE, border_value=1)
+    sky = reach(0, core)
+    sky = ndi.binary_propagation(sky, mask=smooth & ndi.binary_dilation(sky, iterations=SKY_PROBE + 1))
+    land = reach(-1, ~sky)
+    sky = ~land
+    # the edge: each undecided pixel between the nearest sure sky colour and the nearest sure land colour
+    sure_sky = ndi.binary_erosion(sky, iterations=SKY_UNSURE, border_value=1)
+    sure_land = ndi.binary_erosion(land, iterations=SKY_UNSURE, border_value=1)
+    both = np.concatenate([day, ndi.median_filter(night, size=(3, 3, 1))], 2)
+    _, (sy, sx) = ndi.distance_transform_edt(~sure_sky, return_indices=True)
+    _, (ly, lx) = ndi.distance_transform_edt(~sure_land, return_indices=True)
+    s_col, l_col = both[sy, sx], both[ly, lx]
+    span = ((l_col - s_col) ** 2).sum(2)
+    est = np.clip(((both - s_col) * (l_col - s_col)).sum(2) / np.maximum(span, 1e-6), 0, 1)
+    unsure = ~(sure_sky | sure_land)
+    # no contrast in either painting (under 12 levels a channel): the flood's own answer stands
+    weak = unsure & (span < 3 * 12 ** 2)
+    est = np.where(unsure & ~weak, est, land.astype(float))
+    hard = reach(-1, est > 0.5)
+    hard = ~reach(0, ~hard)
+    alpha = np.clip(ndi.gaussian_filter(hard.astype(float), SKY_FEATHER), 0, 1)
+    alpha[alpha < 1 / 255] = 0
+    pure = hard & (est > 0.97) & ndi.binary_erosion(hard, iterations=1, border_value=1)
+    top = (alpha > 0).argmax(0)
+    # stretches where the edge was not placed by colour, as runs of columns
+    cols = np.nonzero(weak.any(0))[0]
+    runs = []
+    for c in cols:
+        if runs and c - runs[-1][1] <= 2:
+            runs[-1][1] = int(c)
+        else:
+            runs.append([int(c), int(c)])
+    return alpha, pure, {'top': top, 'unsure': int(unsure.sum()), 'weak': int(weak.sum()), 'weak_runs': runs}
+
+
+def sky_wisp(rng, w: int, h: int, strands: int, veil: float) -> np.ndarray:
+    """one wisp's alpha: thin streaks, each a soft line with its own gentle wave, tapering to nothing at both ends,
+    in a faint veil. The style of the streaks painted beside the sun in the day backdrop."""
+    from scipy import ndimage as ndi
+    x, y, u = np.arange(w)[None, :], np.arange(h)[:, None], np.arange(w) / (w - 1)
+    a = np.zeros((h, w))
+    for _ in range(strands):
+        x0, x1 = sorted(rng.uniform(0.02, 0.98, 2))
+        if x1 - x0 < 0.35:
+            x0, x1 = max(0.02, x0 - 0.2), min(0.98, x1 + 0.2)
+        t = np.clip((u - x0) / (x1 - x0), 0, 1)
+        taper = np.sin(np.pi * t) ** rng.uniform(0.9, 1.8) * ((u >= x0) & (u <= x1))
+        yc = h * rng.uniform(0.3, 0.7) + h * rng.uniform(-0.1, 0.1) * (t - 0.5) + h * rng.uniform(0.02, 0.06) * np.sin(2 * np.pi * (t * rng.uniform(0.6, 1.6) + rng.uniform()))
+        sig = h * rng.uniform(0.018, 0.05) * (0.35 + 0.65 * taper)
+        n = ndi.gaussian_filter1d(rng.standard_normal(w), w / rng.uniform(10, 22), mode='wrap')
+        n = (n - n.min()) / (np.ptp(n) + 1e-9)
+        amp = rng.uniform(0.45, 1.0) * taper * (0.45 + 0.55 * n)
+        a += amp[None, :] * np.exp(-(y - yc[None, :]) ** 2 / (2 * sig[None, :] ** 2))
+    cx, cy = w * rng.uniform(0.42, 0.58), h * rng.uniform(0.42, 0.58)
+    a += veil * np.exp(-((x - cx) / (w * 0.27)) ** 2 - ((y - cy) / (h * 0.2)) ** 2)
+    a = ndi.gaussian_filter(a, (0.8, 3.0))
+    ex = np.clip(np.minimum(u, 1 - u) / 0.06, 0, 1)
+    ey = np.clip(np.minimum(np.arange(h), h - 1 - np.arange(h)) / (h * 0.18), 0, 1)
+    a *= ex[None, :] * ey[:, None]
+    return np.clip(a / max(a.max(), 1e-9), 0, 1)
+
+
+def sky_fog(rng, w: int, h: int) -> np.ndarray:
+    """one mist band's alpha: many long soft lobes along the band's middle, thinned by slow noise, fading to nothing
+    well inside the cell on every side"""
+    from scipy import ndimage as ndi
+    x, y = np.arange(w)[None, :], np.arange(h)[:, None]
+    a = np.zeros((h, w))
+    for _ in range(16):
+        cx, cy = w * rng.uniform(0.12, 0.88), h * rng.uniform(0.36, 0.64)
+        a += rng.uniform(0.4, 1) * np.exp(-((x - cx) / (w * rng.uniform(0.14, 0.3))) ** 2 - ((y - cy) / (h * rng.uniform(0.1, 0.22))) ** 2)
+    n = ndi.gaussian_filter(rng.standard_normal((h, w)), (h / 12, w / 9))
+    a *= 0.6 + 0.4 * (n - n.min()) / np.ptp(n)
+    ex = np.clip(np.minimum(x, w - 1 - x) / (w * 0.2), 0, 1)
+    ey = np.clip(np.minimum(y, h - 1 - y) / (h * 0.32), 0, 1)
+    a *= (ex * ex * (3 - 2 * ex)) * (ey * ey * (3 - 2 * ey))
+    return np.clip(a / a.max(), 0, 1)
+
+
+def build_sky(args, FW: int, FH: int, back: dict, tiers: dict) -> tuple[dict, dict, list]:
+    """the ambient sky set from the two backdrops (already at the frame's size): the ridge cut-outs, the wisp and fog
+    atlas, the birds. Returns the spec's `sky` block, each tier's own entries, and the report."""
+    report: list[tuple[str, int, int, int]] = []
+    rows = min(SKY_SEARCH_ROWS, FH)
+    rgb = {st: np.asarray(back[st]).astype(np.float64)[:rows] for st in SETS}
+    alpha, pure, info = sky_matte(rgb['day'], rgb['night'])
+    top = info['top']
+    if alpha[-1].min() < 1:
+        die(f'the skyline reaches row {rows} of the frame: raise SKY_SEARCH_ROWS')
+    # the band: from just over the highest peak to just under the lowest sky, on the SKY_GRID
+    y0 = max(0, (int(top.min()) - 2) // SKY_GRID * SKY_GRID)
+    y1 = -(-(int(np.nonzero((alpha < 1).any(1))[0].max()) + 3) // SKY_GRID) * SKY_GRID
+    print(f'  the ridge: skyline between rows {int(top.min())} (column {int(top.argmin())}) and {int(top.max())} (column {int(top.argmax())}) of the frame; '
+          f'the band is rows {y0} to {y1}; {info["unsure"]} edge pixels placed by colour, {info["weak"]} had no contrast in either painting'
+          + (f' (columns {", ".join(f"{a}..{b}" for a, b in info["weak_runs"])}: the flood\'s edge stands there)' if info['weak'] else ''))
+    from scipy import ndimage as ndi
+    _, (py, px) = ndi.distance_transform_edt(~pure, return_indices=True)
+    band = {}
+    for st in SETS:
+        c = rgb[st].copy()
+        c[~pure] = rgb[st][py, px][~pure]
+        band[st] = Image.fromarray(np.dstack([c, alpha * 255]).round().astype(np.uint8)[y0:y1], 'RGBA')
+    check_dir = os.path.expanduser(args.sky_check)
+    os.makedirs(check_dir, exist_ok=True)
+    Image.fromarray((alpha[y0:y1] * 255).round().astype(np.uint8)).save(os.path.join(check_dir, 'ridge_matte.png'))
+
+    rng = np.random.default_rng(SKY_SEED)
+    shapes = {f'wisp_{k}': ('wisp', sky_wisp(rng, *WISP_CELL, strands, veil)) for k, (strands, veil) in enumerate(WISPS)}
+    shapes.update({f'fog_{k}': ('fog', sky_fog(rng, *FOG_CELL)) for k in range(FOGS)})
+
+    tier_spec = {}
+    for tier, width in tiers.items():
+        s = width / FW
+        suffix = '' if tier == 'full' else f'-{tier}'
+        size = (width, round((y1 - y0) * s))
+        for st in SETS:
+            name = f'ridge-{st}{suffix}.webp'
+            report.append((name, save_webp(resize_rgba(band[st], size), name, Q_RIDGE, alpha_quality=100), *size))
+            # the check, from the SHIPPED files: backdrop, flat magenta, cut-out
+            got = np.asarray(Image.open(os.path.join(OUT, name)).convert('RGBA')).astype(np.float64)
+            under = np.asarray(Image.open(os.path.join(OUT, f'backdrop-{st}{suffix}.webp')).convert('RGB')).astype(np.float64)[round(y0 * s):round(y1 * s)]
+            a = got[..., 3:] / 255
+            if tier == 'full':
+                Image.fromarray((got[..., :3] * a + np.array([255.0, 0, 255]) * (1 - a)).round().astype(np.uint8)).save(os.path.join(check_dir, f'ridge_magenta_{st}.png'))
+            # with no cloud between them the cut-out over its backdrop must be the backdrop again
+            d = np.abs(got[..., :3] * a + under * (1 - a) - under)
+            print(f'  {name}: over its own backdrop it changes the picture by a mean of {d.mean():.3f} of 255 (worst pixel {d.max():.0f})')
+        # the atlas: white, the shape in the alpha
+        cells = {}
+        for key, (kind, shape) in shapes.items():
+            k = s / SKY_TEXEL[kind]
+            cw, ch = max(1, round(shape.shape[1] * k)), max(1, round(shape.shape[0] * k))
+            a8 = Image.fromarray((shape * 255).round().astype(np.uint8)).resize((cw, ch), Image.LANCZOS)
+            cells[key] = Image.merge('RGBA', (*[Image.new('L', (cw, ch), 255)] * 3, a8))
+        # shelves two wisps wide (the cells come in two sizes: nothing cleverer is needed)
+        names = sorted(cells)
+        aw = 2 * (cells['wisp_0'].size[0] + ATLAS_PAD)
+        pos, x, y, shelf = [], 0, 0, 0
+        for n in names:
+            w, h = cells[n].size
+            if x + w + ATLAS_PAD > aw:
+                x, y, shelf = 0, y + shelf, 0
+            pos.append((x, y))
+            x, shelf = x + w + ATLAS_PAD, max(shelf, h + ATLAS_PAD)
+        ah = y + shelf
+        atlas = Image.new('RGBA', (aw, ah), (255, 255, 255, 0))
+        frames = {}
+        for n, (px_, py_) in zip(names, pos):
+            atlas.paste(cells[n], (px_, py_))
+            w, h = cells[n].size
+            frames[f'sky_{n}'] = {'frame': {'x': px_, 'y': py_, 'w': w, 'h': h}, 'rotated': False, 'trimmed': False,
+                                  'spriteSourceSize': {'x': 0, 'y': 0, 'w': w, 'h': h}, 'sourceSize': {'w': w, 'h': h}}
+        image = f'sky{suffix}.webp'
+        # exact: the white under a transparent texel is kept, so a linear sample at a streak's edge stays white
+        nbytes = save_webp(atlas, image, Q_SKY, alpha_quality=100, exact=True)
+        meta = {'image': image, 'format': 'RGBA8888', 'size': {'w': aw, 'h': ah}, 'scale': '1',
+                'pngHash': hashlib.md5(open(os.path.join(OUT, image), 'rb').read()).hexdigest()[:8]}
+        jpath = os.path.join(OUT, f'sky{suffix}.json')
+        open(jpath, 'w').write(json.dumps({'frames': frames, 'meta': meta}, indent=1) + '\n')
+        report.append((f'sky{suffix}.json + .webp', nbytes + os.path.getsize(jpath), aw, ah))
+        tier_spec[tier] = {'ridge': list(size), 'sky': [aw, ah]}
+
+    # the birds: the Angry Mantis atlas as it is, one file for both tiers (they are drawn at a quarter of its size)
+    birds_src = os.path.expanduser(args.birds)
+    for name in ('birds.json', 'birds.webp'):
+        if not os.path.isfile(os.path.join(birds_src, name)):
+            die(f'{name} not found in {birds_src}')
+    webp = open(os.path.join(birds_src, 'birds.webp'), 'rb').read()
+    open(os.path.join(OUT, 'birds.webp'), 'wb').write(webp)
+    birds = json.load(open(os.path.join(birds_src, 'birds.json')))
+    birds['meta']['image'] = 'birds.webp'
+    birds['meta']['pngHash'] = hashlib.md5(webp).hexdigest()[:8]
+    open(os.path.join(OUT, 'birds.json'), 'w').write(json.dumps(birds, indent=1) + '\n')
+    rows_of = sorted({int(k.split('_')[1]) for k in birds['frames']})
+    per_row = [sum(1 for k in birds['frames'] if int(k.split('_')[1]) == r) for r in rows_of]
+    report.append(('birds.json + .webp', len(webp) + os.path.getsize(os.path.join(OUT, 'birds.json')), birds['meta']['size']['w'], birds['meta']['size']['h']))
+    print(f'  birds: copied from {birds_src}, {len(rows_of)} rows of {per_row} frames')
+
+    spec = {
+        # the cut-out's box, and the lowest row of the frame any sky reaches
+        'ridge': [0, y0, FW, y1],
+        'skyline': [int(top.min()), int(top.max())],
+        # how many of each cell the atlas has (sky_wisp_<k>, sky_fog_<k>) and a cell's size at scale 1
+        'wisps': len(WISPS),
+        'wisp': list(WISP_CELL),
+        'fogs': FOGS,
+        'fog': list(FOG_CELL),
+        'birds': {'rows': len(rows_of), 'framesPerRow': max(per_row)},
+    }
+    return spec, tier_spec, report
+
+
+def sky_totals(report: list):
+    print('\nTHE AMBIENT SKY'.ljust(42) + 'KiB'.rjust(9) + '   texture'.ljust(16) + 'GPU MB (w x h x 4)')
+    for name, nbytes, w, h in report:
+        print(f'{name.ljust(41)}{nbytes / 1024:9.1f}   {f"{w} x {h}".ljust(13)}{w * h * 4 / 1e6:8.2f}')
+    for tier in ('full', 'phone'):
+        mine = [r for r in report if ('-phone' in r[0]) == (tier == 'phone') or r[0].startswith('birds')]
+        first = [r for r in mine if 'night' not in r[0]]
+        later = [r for r in mine if 'night' in r[0]]
+        print(f'sky {tier}: with the day set (day ridge, the atlas, the birds) {sum(r[1] for r in first) / 1024:.0f} KiB, '
+              f'{sum(r[2] * r[3] * 4 for r in first) / 1e6:.2f} MB on the GPU; with the night set (night ridge) '
+              f'{sum(r[1] for r in later) / 1024:.0f} KiB, {sum(r[2] * r[3] * 4 for r in later) / 1e6:.2f} MB')
 
 
 def build_landscape(args) -> tuple[dict, list]:
@@ -369,7 +638,22 @@ def build_landscape(args) -> tuple[dict, list]:
         print(f'  chains{suffix}: atlas {aw} x {ah}, {len(names)} frames, laid back over the frame the worst sprite differs by a mean of {worst:.2f} of 255')
         spec['tiers'][tier] = {'size': list(size), 'fire': list(fire_size), 'boxes': tier_boxes}
 
-    return spec, report
+    frame_back = {st: back[st].resize((FW, FH), Image.LANCZOS) for st in SETS}
+    spec['sky'], sky_tiers, sky_report = build_sky(args, FW, FH, frame_back, tiers)
+    for tier in tiers:
+        spec['tiers'][tier].update(sky_tiers[tier])
+    return spec, report, sky_report
+
+
+def build_sky_only(args, wide: dict) -> list:
+    """--sky alone: the sky set from the backdrops, into the landscape block already on disk"""
+    FW, FH = wide['frame']
+    back_names = {'day': 'backdropv2_2560_digital-art-4x.png', 'night': 'backdrop_night_2560_digital-art-4x.png'}
+    back = {st: Image.open(find(os.path.expanduser(args.backdrops), None, name)).convert('RGB').resize((FW, FH), Image.LANCZOS) for st, name in back_names.items()}
+    wide['sky'], sky_tiers, report = build_sky(args, FW, FH, back, {tier: entry['size'][0] for tier, entry in wide['tiers'].items()})
+    for tier in sky_tiers:
+        wide['tiers'][tier].update(sky_tiers[tier])
+    return report
 
 
 def build_portrait(folder: str) -> tuple[dict, list]:
@@ -470,16 +754,24 @@ def main():
     ap.add_argument('--portrait', default=None, help='the portrait scene folder (portrait_layers.json and the files it names)')
     ap.add_argument('--backdrops', default=os.path.join(DRAFTS, 'backdrop_upscale'))
     ap.add_argument('--fallback', default=None, help='take a base or the fire pass from here when SRC has none')
+    ap.add_argument('--sky', action='store_true', help='rebuild only the landscape scene\'s ambient sky set (ridge cut-outs, wisp and fog atlas, birds)')
+    ap.add_argument('--sky-check', default=os.path.join(DRAFTS, 'sky_matte'), help='where the matte and its magenta check images go')
+    ap.add_argument('--birds', default=BIRDS_SRC, help='the folder with the Angry Mantis birds.json and birds.webp')
     args = ap.parse_args()
-    if not args.src and not args.portrait:
-        die('nothing to build: give the landscape folder, --portrait DIR, or both')
+    if not args.src and not args.portrait and not args.sky:
+        die('nothing to build: give the landscape folder, --portrait DIR, --sky, or more than one')
     os.makedirs(OUT, exist_ok=True)
 
     wide, tall = read_spec('SCENE_SPEC'), read_spec('SCENE_SPEC_PORTRAIT')
     reports = []
+    sky_report = None
     if args.src:
-        wide, report = build_landscape(args)
+        wide, report, sky_report = build_landscape(args)
         reports.append((report, 'landscape'))
+    elif args.sky:
+        if wide is None:
+            die('--sky alone needs the landscape block of sceneSpec.ts: build the landscape folder once')
+        sky_report = build_sky_only(args, wide)
     if args.portrait:
         tall, report = build_portrait(args.portrait)
         reports.append((report, 'portrait'))
@@ -495,15 +787,21 @@ def main():
         '//   the hanging chain\'s free end, the swag\'s lowest visible point (swagEnd) and its PIN, where it goes behind the\n'
         '//   bowl rim (read from the sprite). tiers: the texture sizes and each sprite\'s box (its atlas frame\n'
         '//   scene_<piece>_<side>_<set> covers exactly this box).\n'
+        '//   sky: the ambient sky (game/sky.ts). ridge: the skyline cut-out\'s box; skyline: the highest and lowest row any\n'
+        '//   sky reaches down to; wisp / fog: a cloud and a mist cell\'s size at scale 1 (atlas frames sky_wisp_<k>,\n'
+        '//   sky_fog_<k>); birds: the copied atlas\'s rows (bird_<row>_<frame>.png). tiers.<tier>.ridge / sky: texture sizes.\n'
         '// SCENE_SPEC_PORTRAIT  no moving pieces. painting / fill: the rows of the frame the painting takes and the rows of\n'
         '//   the soft mist fill under it, down to where the 3D terrace covers the frame (the board is meant to hide the fill).\n'
         '// components/Background.svelte and game/scene.ts draw from both.\n'
     )
     open(SPEC, 'w').write(header + 'export const SCENE_SPEC = ' + json.dumps(wide, indent='\t') + ' as const;\n\n'
                           + 'export const SCENE_SPEC_PORTRAIT = ' + json.dumps(tall, indent='\t') + ' as const;\n')
-    print(f'wrote {os.path.relpath(SPEC, APP)}' + ('' if args.src and args.portrait else f' (the {"portrait" if args.src else "landscape"} block kept as it was)'))
+    kept = '' if args.src and args.portrait else ' (the portrait block kept as it was)' if args.src else ' (the landscape block kept as it was' + (', but for its sky)' if args.sky else ')')
+    print(f'wrote {os.path.relpath(SPEC, APP)}{kept}')
     for report, what in reports:
         totals(report, what)
+    if sky_report:
+        sky_totals(sky_report)
 
 
 if __name__ == '__main__':

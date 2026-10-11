@@ -15,6 +15,8 @@
 //                                               -> assetGate.markPlaqueAssetsReady()
 //   night   the courtyard scene's night backdrop and foreground
 //                                               -> components/Background.svelte crossfades a waiting Super / Epic
+//   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips, one group each
+//                                               -> game/flames.ts: that mode's braziers change from the base clip
 //   logo    the canvas logo's atlas + its tracks (desktop tier only; no keys on the phone tier)
 //                                               -> components/Logo.svelte takes over from the still
 //           NORMALLY ALREADY IN: loadLogoEarly() below starts it when the preload ends, beside the audio
@@ -172,7 +174,9 @@ export const loadSceneLate = (app: AppState): Promise<void> => {
 		log.end = performance.now();
 	};
 	const late = SCENE_KEYS[SCENE_AT_BOOT === 'landscape' ? 'portrait' : 'landscape'];
-	sceneLate ??= group('sceneDay', late.day).then(() => group('sceneNight', late.night)).catch(() => {});
+	// the flames' deferred clips one at a time, like the boot's own order (none for the portrait scene)
+	const flames = () => late.flames.reduce((chain, key) => chain.then(() => group(`sceneFlames_${key}`, [key])), Promise.resolve());
+	sceneLate ??= group('sceneDay', late.day).then(() => group('sceneNight', late.night)).then(flames).catch(() => {});
 	return sceneLate;
 };
 

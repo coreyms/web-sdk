@@ -817,8 +817,10 @@ export const LOGO = {
 	 *  post (293), above the BALANCE readout (236). */
 	phone: { left: 16, top: 46, width: 274 },
 	/** PORTRAIT master (412 x 760, wider on wide screens): the largest box of the art's aspect inside the band
-	 *  from `top` (the clock row ends at 25) down to `gapAbove` over the frame art's finial tips (198.8, or 176.6
-	 *  where the frame has grown on a wide screen), no wider than maxWidth, centred in that band and on the screen.
+	 *  from `top` (the clock row ends at 25) down to `gapAbove` over the frame art's finial tips (226.4, or 207.5
+	 *  where the frame has grown on a wide screen: board_v5j with its base on v4l's, 2026-10-11; 198.8 / 176.6 with
+	 *  v4l), no wider than maxWidth, centred in that band and on the screen. At 226.4 the box is maxWidth wide (as it
+	 *  was with v4l) and its top is at 55.96 (42.17 with v4l): the same size, 13.8 lower, centred in the taller band.
 	 *  IN A FEATURE the SKIP TO RESULT plate owns the lower part of that band (HUD.portrait.skipButton, from
 	 *  115): the logo steps back to the box that ends `gapAbove` over the plate, over compactMs. */
 	portrait: { top: 31, gapAbove: 8, maxWidth: 348, compactGap: 4, compactMs: 350 },
@@ -979,6 +981,212 @@ export const SCENE = {
 	},
 } as const;
 
+// ---- The ambient sky (game/sky.ts, drawn by game/scene.ts; assets by tools/build_scene_assets.py --sky) ----------
+// LANDSCAPE and PHONE SIDEWAYS only (Corey 2026-10-11). Four layers between the painted backdrop and the 3D
+// foreground, back to front: CLOUDS, the RIDGE cut-out (the skyline cut from the same painting, so the clouds pass
+// behind the peaks), BIRDS, canyon FOG. Every px is a px of the scene's 2560 x 1440 frame, every px/s and ms REAL
+// time at every turbo level; it never pauses and knows nothing of spins, wins or features.
+//   modes     per background key, blended by the scene's own mode crossfade (SCENE.crossfadeMs) with everything
+//             else: the clouds' and the fog's tint (times the scene's dim, like every layer) and their layer's
+//             opacity, and the birds' share: 1 in the day modes, 0 at night, so a flock in flight fades with the
+//             crossfade and none is sent until day is fully back.
+//   clouds    the Angry Mantis cloud model (ambientSpec.ts CLOUDS): each rolls one depth t in 0 .. 1 and takes
+//             scale, speed and opacity from it (far .. near), speed and scale then jittered by +- `jitter`; y
+//             anywhere in the band (held clear of the cut-out's lower edge); drifts `direction` (-1 right to
+//             left) and wraps with fresh rolls, entering up to `lead` px outside the frame; the first fill
+//             spreads them over `spread` px. scale is of the wisp cell (640 x 96 frame px, SCENE_SPEC.sky.wisp).
+//             Subtle on purpose: they share the sky with the logo.
+//   birds     the Angry Mantis bird system (ambientSpec.ts BIRDS, AmbientSky.svelte), its numbers scaled by 4/3
+//             for this frame (that scene is 1920 x 1080): everyMs 12000, flock 3..6, flapFps 9, farBelow 0.35 and
+//             the ratios are Corey's own; size 17 / 21 -> 22.7 / 28, speed 70 -> 93.3, bob 4 -> 5.3, band 33..190
+//             -> 44..253 (a band of this sky, not that game's window), spawn 60 -> 80 px outside the frame, gone
+//             80 -> 107 px past it. Per flock: a side, a depth t (size far..near, speed x speedByDepth x jitter,
+//             opacity alpha[0]..alpha[1], the small-bird row under farBelow, else one of the big rows), a height
+//             in the band, min..max birds in a loose V (each `spacing` x the size behind and beside the last).
+//             Per bird: its own size jitter, flap phase and bob. The next flock after everyMs x (1 +- spread);
+//             the first after firstS. pool: the sprites built once (a flock that would not fit is not sent);
+//             parkX / parkY: where a bird that is not flying waits, transparent, far off the frame.
+//             intervalMs: how often the birds are moved (33 like everything here; 0 = every frame).
+//   fog       soft mist bands in the gorge, behind the courtyard: per band its atlas cell, where it starts, its
+//             scale of the fog cell (1280 x 400 frame px), drift (px/s, it wraps), and opacity, which breathes by
+//             +- `breath` over breathMs (one period per band) while the band bobs bobPx over bobMs.
+export const SKY = {
+	/** positions and opacities are written at most this often, and a step never covers more than maxStepMs (a tab
+	 *  that was hidden does not jump the sky on) */
+	intervalMs: 33,
+	maxStepMs: 100,
+	modes: {
+		base: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1 },
+		bonus: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1 },
+		super: { clouds: [0.68, 0.8, 1], cloudAlpha: 0.7, fog: [0.55, 0.7, 1], fogAlpha: 1, birds: 0 },
+		epic: { clouds: [1, 0.4, 0.32], cloudAlpha: 0.7, fog: [1, 0.45, 0.36], fogAlpha: 1, birds: 0 },
+	},
+	clouds: {
+		count: 9,
+		band: { y0: 24, y1: 210 },
+		scale: { near: 1.5, far: 0.9 },
+		speed: { near: 16, far: 9 },
+		alpha: { near: 0.8, far: 0.45 },
+		jitter: 0.35,
+		direction: -1,
+		spread: 3200,
+		lead: 400,
+	},
+	birds: {
+		everyMs: 12000,
+		spread: 0.3,
+		firstS: 2,
+		flock: { min: 3, max: 6 },
+		size: { near: 22.7, far: 28 },
+		sizeJitter: [0.85, 1.15],
+		speed: 93.3,
+		speedByDepth: [0.6, 1.1],
+		jitter: 0.6,
+		alpha: [0.75, 1],
+		flapFps: 9,
+		bob: 5.3,
+		bobRate: 2.2,
+		band: { y0: 44, y1: 253 },
+		farBelow: 0.35,
+		spacing: { x: 1.6, y: 0.7 },
+		margin: 80,
+		exit: 107,
+		pool: 48,
+		parkX: -4000.5,
+		parkY: -4000.5,
+		intervalMs: 33,
+	},
+	fog: {
+		bands: [
+			{ cell: 0, x: 620, y: 730, scale: 1.25, speed: 7, alpha: 0.36 },
+			{ cell: 1, x: 2050, y: 860, scale: 1.05, speed: 11, alpha: 0.32 },
+		],
+		breath: 0.25,
+		breathMs: [23000, 31000],
+		breathPhase: 2.1,
+		bobPx: 6,
+		bobMs: 41000,
+	},
+} as const;
+
+// ---- The brazier flames (game/flames.ts, drawn by game/scene.ts; assets by tools/build_flame_assets.py) -----------
+// LANDSCAPE and PHONE SIDEWAYS only (Corey 2026-10-11). One fire in each of the courtyard's two brazier bowls, over
+// the foreground and the fire light pass and under the chains; each flame's base is hidden behind its bowl by a RIM
+// OCCLUDER cut from the foreground art (no mask, no filter). Every px is a px of the scene's 2560 x 1440 frame unless
+// it says canvas px (a clip's own canvas), every ms REAL time at every turbo level; it never pauses.
+//   bowls     per side the flame's anchor point: the bowl's centre on the rim line (game/flameSpec.ts `bowls`, measured
+//             from the foreground by the tool: the rim slab runs x 338.5 .. 696 on the left and mirrors on the right;
+//             its top silhouette is at y 715.7 at the centre).
+//   clips     as delivered (flames-drop-1 meta.json): the canvas and the anchor in canvas px (on the rim line at the
+//             bowl's centre; the art runs about 10% of its height under it, behind the rim), fps, frames, and the draw
+//             scale, each its own constant.
+//   modes     which clip a background key burns: the braziers ARE lit in the base game.
+//   twin      both bowls play the same clip from one copy of the textures; the right one is mirrored and `phase` of
+//             a loop ahead, so they never look alike.
+//   The crossfade between two clips is the scene's own (SCENE.crossfadeMs, linear, with the night crossfade): the
+//   outgoing clip's opacity runs down while the incoming one's runs up, both on the same anchor. A clip whose sheet is
+//   not in yet (super and epic ride the deferred phase) leaves the base clip burning until it lands.
+//   flicker   light and flame agree: the scene's flicker signal n(t), -1 .. 1 (SCENE.flicker, the one the fire light
+//             pass pulses on) also drives the flame: its brightness (a tint) is 1 - dim (1 - n) / 2 and its scale
+//             1 + breath n about the anchor.
+//   dim       how much of the scene's dim (SCENE.dim, the wash) the flame takes: 0 none (a flame is a light), 1 all
+//             of it like every painted layer. The embers have their own share.
+//   epicTint  EPIC's red, three treatments to choose from (`default`; __manticore.flames.treatment('A' | 'B' | 'C')):
+//             A the fire light's own multiply (SCENE.modes.epic.fireTint: it kills the pale core), B a gentler
+//             multiply, C the flame untinted over a red ADDITIVE copy of the same frame (`red` its tint, `alpha` its
+//             opacity, `scale` its size against the flame's), so the core stays pale and the fringe goes red.
+//   embers    SUPER and EPIC only (`strength` per key, blended by the scene's crossfade; 0 = none): per bowl a pool of
+//             `count` additive dots (0 turns them off). At strength 1 a bowl sends one every everyMs. Each starts
+//             inside the flame (within +- spread x the flame's half width of the centre, `from` x the flame's height
+//             above the rim line), rises at `rise` px/s easing off by `slow` over its life, drifts up to `drift` px/s
+//             sideways with a sway of sway.px at sway.hz, is `size` px across and shrinks by `shrink`, lives lifeMs,
+//             fades in over the first `fadeIn` of its life and out as (1 - u)^fadePow from `alpha`, twinkling by
+//             twinkle.depth at twinkle.hz. tint per key; dim: its share of the scene's dim. parkX / parkY: where an
+//             ember that is not burning waits, transparent, far off the frame.
+export const FLAMES = {
+	/** frames, brightness and embers are written at most this often (the scene's slow step), and a step never covers
+	 *  more than maxStepMs */
+	intervalMs: 33,
+	maxStepMs: 100,
+	bowls: { L: [517.25, 715.7], R: [2042.75, 715.7] },
+	clips: {
+		base: { canvas: [256, 256], anchor: [128, 224], fps: 15, frames: 32, drawScale: 0.85 },
+		super: { canvas: [320, 448], anchor: [160, 400], fps: 30, frames: 64, drawScale: 1 },
+		epic: { canvas: [384, 704], anchor: [192, 640], fps: 30, frames: 64, drawScale: 1.2 },
+	},
+	modes: { base: 'base', bonus: 'base', super: 'super', epic: 'epic' },
+	twin: { mirror: true, phase: 0.5 },
+	flicker: { dim: 0.14, breath: 0.02 },
+	dim: 0.35,
+	epicTint: {
+		default: 'B' as 'A' | 'B' | 'C',
+		A: [1, 0.7, 0.5],
+		B: [1, 0.85, 0.72],
+		C: { flame: [1, 1, 1], red: [1, 0.16, 0.05], alpha: 0.55, scale: 1.05 },
+	},
+	embers: {
+		count: 14,
+		strength: { base: 0, bonus: 0, super: 0.6, epic: 1 },
+		tint: { base: [1, 0.72, 0.38], bonus: [1, 0.72, 0.38], super: [1, 0.72, 0.38], epic: [1, 0.52, 0.3] },
+		dim: 0.35,
+		everyMs: 170,
+		spread: 0.55,
+		from: [0.1, 0.6],
+		rise: [70, 150],
+		slow: 0.5,
+		drift: 26,
+		sway: { px: 9, hz: [0.5, 1.3] },
+		size: [5, 11],
+		shrink: 0.4,
+		lifeMs: [1100, 2300],
+		alpha: 0.9,
+		fadeIn: 0.12,
+		fadePow: 1.6,
+		twinkle: { depth: 0.4, hz: [5, 11] },
+		parkX: -4000.5,
+		parkY: -4000.5,
+	},
+} as const;
+
+// ---- The fire loops (game/fireSound.ts; sprite entries by tools/build_audiosprite.py MM_EVENTS) ------------------
+// Tied to the flames' modes: SUPER plays sfx_fire_super (a crackle), EPIC sfx_fire_epic (a low roar), both 6.00 s
+// seamless loops, quietly under the music for the whole round; the base game and the regular Bonus have none.
+//   fadeMs       in and out with the scene's change of mode (the sound system's own fade of a playing sprite sound).
+//   stopAfterMs  a faded-out loop is stopped this long after its fade has ended.
+//   volume       the loop's level, a gain on the clip as it is in the sprite (no gain is baked in for these two):
+//                the crackle 0.44 = -7.1 dB, which puts it at -45.8 LUFS, 12 dB under the coin counter loop (-33.6);
+//                the roar 0.355 = -9.0 dB, -30.1 LUFS, 14 dB under the Super / Epic music as it plays (-11.8 LUFS at
+//                its volume 0.6 = -16.2). Both then follow the effects volume and mute like every effect.
+export const FIRE_SOUND = {
+	fadeMs: SCENE.crossfadeMs,
+	stopAfterMs: 60,
+	loops: {
+		super: { name: 'sfx_fire_super', volume: 0.44 },
+		epic: { name: 'sfx_fire_epic', volume: 0.355 },
+	},
+} as const;
+
+// ---- The chain sounds (game/chainSound.ts; sprite entries by tools/build_audiosprite.py MM_EVENTS) ----------------
+// Corey's mapping (2026-10-11): a feature's BOARD KICK (the claw swipe's, the roar's) plays the heavy clank; the WIN
+// PLAQUE dropping in plays the light rattle; the LOGO landing the light rattle, quieter; a win TIER landing nothing
+// (each tier has its own sound). The LEVELS are in the sprite (build_audiosprite.py MM_SOURCE_GAIN_DB and
+// MM_ALIAS_VOLUME): the clank 8 dB under sfx_cluster_remove, the plaque's rattle 10 dB under, the logo's 16, each
+// measured on the clip's loudest 50 ms.
+//   kickThresholdPx  the clank sounds when a kick's ENVELOPE first reaches this (playground px, like the kick itself;
+//                    the envelope, not the rattle's value on one frame): at the very start of a swipe's kick (its
+//                    5 px decay from there), and 0.4 of the way into a roar's rattle (6 px x u^1.5: about 0.55 s
+//                    into 1.4 s), as its shaking becomes visible. Once per kick.
+//   kickMinGapMs     no second clank inside this many REAL ms of the last (the clank is 1.15 s long). Two swipes
+//                    one after the other are 2.03 s apart at normal speed, 0.92 s at turbo 1 and 0.54 s at turbo 2
+//                    (measured, tools/manticore/win_sound_probe.js): so each clanks at normal speed and turbo 1, and
+//                    at turbo 2 every second one does.
+//   gust             which rattle a chain gust kind plays when the board's chains start to lean (null: none).
+export const CHAIN_SOUND = {
+	kickThresholdPx: 1.5,
+	kickMinGapMs: 800,
+	gust: { plaque: 'sfx_chain_light', logo: 'sfx_chain_light_logo', tier: null },
+} as const;
+
 // ---- Symbol art ---------------------------------------------------------------------------------
 export type SymbolInfo = { type: 'sprite'; assetKey: string; sizeRatios: { width: number; height: number } };
 
@@ -998,13 +1206,21 @@ export const TILE_VALUES = [2, 4, 8, 16, 32, 64, 128] as const;
 // ---- Sound map ----------------------------------------------------------------------------------
 // Scatter landings and the feature-entry confirmation are carried over from Angry Mantis UNCHANGED
 // (Corey 2026-09-22). Everything else in the sprite is a placeholder for Manticore's own audio.
+// THE SIXTH (Corey 2026-10-11): the house ladder is five sounds, each the first a whole tone up. This board
+// lands up to six scatters in a spin (one per column; an Epic's six, on the reveal or stung in), so the
+// sixth landing has its own sound, the first at +10 semitones (tools/build_audiosprite.py MM_EVENTS).
+// Until then the sixth landing replayed the fifth. A landing past the sixth (the books have none) holds
+// the sixth.
 export const SCATTER_LAND_SOUND_MAP = {
 	1: 'sfx_scatter_land_1',
 	2: 'sfx_scatter_land_2',
 	3: 'sfx_scatter_land_3',
 	4: 'sfx_scatter_land_4',
 	5: 'sfx_scatter_land_5',
+	6: 'sfx_scatter_land_6',
 } as const;
+/** the last rung of the scatter landing ladder */
+export const SCATTER_LAND_SOUNDS = 6;
 
 /** the feature-entry fanfare, keyed by the tier that was opened */
 export const BONUS_TRIGGER_SOUND_MAP = {

@@ -1,0 +1,154 @@
+{
+ "frames": {
+  "flame_ember": {
+   "frame": {
+    "x": 365,
+    "y": 109,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   }
+  },
+  "flame_rim_L_day": {
+   "frame": {
+    "x": 1,
+    "y": 1,
+    "w": 362,
+    "h": 34
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 362,
+    "h": 34
+   },
+   "sourceSize": {
+    "w": 362,
+    "h": 34
+   }
+  },
+  "flame_rim_L_night": {
+   "frame": {
+    "x": 1,
+    "y": 37,
+    "w": 362,
+    "h": 34
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 362,
+    "h": 34
+   },
+   "sourceSize": {
+    "w": 362,
+    "h": 34
+   }
+  },
+  "flame_rim_R_day": {
+   "frame": {
+    "x": 1,
+    "y": 73,
+    "w": 362,
+    "h": 34
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 362,
+    "h": 34
+   },
+   "sourceSize": {
+    "w": 362,
+    "h": 34
+   }
+  },
+  "flame_rim_R_night": {
+   "frame": {
+    "x": 1,
+    "y": 109,
+    "w": 362,
+    "h": 34
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 362,
+    "h": 34
+   },
+   "sourceSize": {
+    "w": 362,
+    "h": 34
+   }
+  },
+  "flame_rimfire_L": {
+   "frame": {
+    "x": 1,
+    "y": 145,
+    "w": 181,
+    "h": 17
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 181,
+    "h": 17
+   },
+   "sourceSize": {
+    "w": 181,
+    "h": 17
+   }
+  },
+  "flame_rimfire_R": {
+   "frame": {
+    "x": 184,
+    "y": 145,
+    "w": 181,
+    "h": 17
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 181,
+    "h": 17
+   },
+   "sourceSize": {
+    "w": 181,
+    "h": 17
+   }
+  }
+ },
+ "meta": {
+  "image": "flame-fx.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 399,
+   "h": 164
+  },
+  "scale": "1",
+  "pngHash": "52766c95"
+ }
+}

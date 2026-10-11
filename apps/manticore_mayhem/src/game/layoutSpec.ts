@@ -33,6 +33,10 @@ export const FRAME: Record<
 	// at that scale: 425.18 of cell area + 2 x 11.23 inset (board_v4h / v4i, 2026-10-07: the top raised so the
 	// opening is SQUARE and the lattice uniform both ways; the art is taller, bottom 609.24, was 587.2 with
 	// v4g's 425.03 and 402.63 with v4f).
+	// board_v5j (2026-10-11): THE CELLS DID NOT MOVE. Its art box is 3 render px narrower on the left, 1 on the
+	// right and 121 shorter at the bottom (no plinth stones), so at the same scale and origin (the tool's FIT_ART)
+	// the art now spans x 340.92..939.69 (centre 640.31) from y 38 to 572.22, and the readout row keyed to its
+	// edges is 0.92 narrower on the left and 0.31 on the right.
 	landscape: { x: 416.451, y: 103.76, width: 447.641, height: 447.641, inset: 11.23, cell: 51.115, gap: 2.323, margin: 4.647 },
 	// CHAIN-FIT (Corey 2026-10-06 21:32: portrait was too small): each chain's centreline 10 master px
 	// inside the screen edge (x 10 and 402), the posts and finials overhang off screen (art x -17.9 ..
@@ -40,11 +44,20 @@ export const FRAME: Record<
 	// 1 : 1.3 above / below the art (art y 198.77 .. 624.6, board_v4h: the taller square-opening art; was
 	// 205.85 .. 615.4 with v4g). 316.95 of cell area + 2 x 10.135, cells 37.2 (pitch 39.96, as v4g; 300.24 /
 	// 37.86 with v4f). frameFor() grows it on wide portrait viewports the same way (PORTRAIT_FIT).
-	portrait: { x: 37.389, y: 246.027, width: 337.222, height: 337.222, inset: 10.135, cell: 37.207, gap: 2.756, margin: 4.607 },
+	// board_v5j (2026-10-11): the art is 121 render px (27.60 master) shorter at the bottom (no plinth stones).
+	// THE RULE NOW (Corey 2026-10-11, on the portrait before / after: "Portrait Board position I'd go lower, set the
+	// base of the new to same bottom as the base of the old"): THE ART'S BOTTOM EDGE SITS WHERE board_v4l's SAT, at
+	// every growth k. The 1 : 1.3 split is still made, but on v4l's art box (PORTRAIT_FIT.baseRows), and this art
+	// hangs from that box's bottom edge: art y 226.37..624.60 at k 1 (v4l 198.77..624.60), gap above 76.37, below
+	// 63.40 as v4l. The frame rect's y is 273.625 (v4l 246.027 + the 27.598 the art lost; the plain split on the v5j
+	// box, tried first the same day, gave 258.026 and art y 210.77..609.00). Size, x and the cells' pitch are v4l's.
+	portrait: { x: 37.389, y: 273.625, width: 337.222, height: 337.222, inset: 10.135, cell: 37.207, gap: 2.756, margin: 4.607 },
 	// 632.5 of cells + 2x16 = 664.5 square, centred on the master so the chrome's 340-wide side
 	// columns stay clear; the manticore stands in the right one. Approved as is (Corey 2026-10-06):
 	// here the art is registered TO these cells, so it overhangs the master top and bottom (board_v4h: art y
-	// -66.53 .. 783.24 of the 740 master, 66.5 over the top and 43.2 under the bottom).
+	// -66.53 .. 783.24 of the 740 master, 66.5 over the top and 43.2 under the bottom). board_v5j (2026-10-11):
+	// the cells as before; the shorter art ends at y 728.17, so its bottom edge is now ON the screen, 11.8
+	// above the master's bottom edge (art x 294.68..1185.42).
 	phone: { x: 407.75, y: 32, width: 664.5, height: 664.5, inset: 16, cell: 76, gap: 3.5, margin: 7 },
 };
 
@@ -60,13 +73,19 @@ export const MANTICORE: Record<LayoutKind, { x: number; y: number; size: number;
 /** the portrait chain-fit (tools/build_board_layers.py CHAIN_FIT, keep the two in step): the chain
  *  centrelines `chainInset` inside the viewport edges, the dead band between the tagline (`bandTop`) and
  *  the BALANCE / BET row's top (`hudTop`, measured in the running game, pinned to the real viewport
- *  bottom) split 1 : `gapRatio` above / below the art, growth capped at `maxK` (height budget). */
-export const PORTRAIT_FIT = { chainInset: 10, bandTop: 150, hudTop: 688, gapRatio: 1.3, maxK: 1.12 };
+ *  bottom) split 1 : `gapRatio` above / below the BASE BOX, growth capped at `maxK` (height budget).
+ *  `baseRows` = the render rows (top, bottom) of board_v4l's art, finials to the plinth's base: the split is
+ *  made on that box and the art's bottom edge is put on that box's bottom edge (Corey 2026-10-11: "set the
+ *  base of the new to same bottom as the base of the old"). board_v5j's art ends at row 1792, so it stands
+ *  121 render px lower than the plain split would put its top. An art whose rows are baseRows gets the plain split. */
+export const PORTRAIT_FIT = { chainInset: 10, bandTop: 150, hudTop: 688, gapRatio: 1.3, maxK: 1.12, baseRows: [46, 1913] };
 
 // Portrait viewports WIDER than the 412x760 master (tablets, foldables: the fit is by height) would
 // leave dead side space. frameFor() grows the portrait frame uniformly, every dimension x k about the
 // master's centre line, until the chains sit chainInset inside the real viewport edges again (cap maxK),
-// and re-places it vertically by the same 1 : gapRatio split. Other layouts pass through.
+// and re-places it vertically by the same rule as k 1: the 1 : gapRatio split on the base box (baseRows) grown by
+// k, the art's bottom edge on that box's bottom edge. So at every k the art's bottom is where board_v4l's was at
+// that k (624.60 at k 1, 653.48 at the 1.12 cap). Other layouts pass through.
 export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const base = FRAME[kind];
 	if (kind !== 'portrait' || !viewportMasterWidth) return base;
@@ -74,7 +93,9 @@ export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const k = Math.min(Math.max((viewportMasterWidth - P.chainInset * 2) / chainSpanOf(base), 1), P.maxK);
 	if (k <= 1) return base;
 	const art = artRectOf(base);
-	const top = P.bandTop + Math.max(P.hudTop - P.bandTop - art.height * k, 0) / (1 + P.gapRatio);
+	const baseHeight = (P.baseRows[1] - P.baseRows[0]) * registrationOf(base).m * k;
+	const bottom = P.bandTop + Math.max(P.hudTop - P.bandTop - baseHeight, 0) / (1 + P.gapRatio) + baseHeight;
+	const top = bottom - art.height * k;
 	const cx = MASTER.portrait.width / 2;
 	return {
 		...base,
@@ -171,7 +192,8 @@ export const boardCenterY = (kind: LayoutKind, viewportMasterWidth?: number) => 
 };
 
 /** the spin-win readout's centre y. Portrait: the middle of the band between the frame art's bottom and
- *  the BALANCE / BET row (the art moves with frameFor's growth); the others use their HUD slot. */
+ *  the BALANCE / BET row (the art moves with frameFor's growth; its bottom is board_v4l's at every k, so this
+ *  is where it was with v4l: 656.3 at k 1, 670.74 at the 1.12 cap); the others use their HUD slot. */
 export const spinWinY = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	if (kind !== 'portrait') return HUD[kind].spinWin.y;
 	return (frameArtRect(kind, viewportMasterWidth).bottom + PORTRAIT_FIT.hudTop) / 2;
@@ -236,13 +258,15 @@ export const HUD: Record<
 	},
 	portrait: {
 		pressToContinue: { y: 700, width: 300, height: 44 },
-		// the cell area's centre at k 1 (256.16 + 316.95 / 2, board_v4h); ModePlaque uses boardCenterY (follows the growth)
-		modePlaque: { y: 414.6, height: 28, width: 260 },
-		// y at k 1: midway between the art bottom (624.6, board_v4h) and the BALANCE / BET row (688); SpinWin uses
-		// spinWinY (follows the growth)
+		// the cell area's centre at k 1 (283.76 + 316.95 / 2, board_v5j with its base on v4l's, 2026-10-11; 256.16 +
+		// 316.95 / 2 = 414.6 with v4h); ModePlaque uses boardCenterY (follows the growth)
+		modePlaque: { y: 442.2, height: 28, width: 260 },
+		// y at k 1: midway between the art bottom (624.6, the same with board_v5j as with v4h since 2026-10-11) and
+		// the BALANCE / BET row (688); SpinWin uses spinWinY (follows the growth)
 		spinWin: { y: 656.3, height: 26, width: 340 },
-		// the tagline band under the logo (logo bottom ~114, frame art top 198.77 at k 1, board_v4h): the chrome
-		// hides the tagline for the whole free game, so this band is free in every portrait fit.
+		// the band under the logo: the logo steps back to end at 111 in a feature, the plate's hit area is 115..163,
+		// and the frame art's top is 226.37 at k 1 (board_v5j with its base on v4l's, 2026-10-11; 198.77 with v4h),
+		// so 63.4 master px are clear between the plate's hit area and the finials. This game has no tagline.
 		skipButton: { x: 96, y: 115, width: 220, height: 48 },
 	},
 	phone: {

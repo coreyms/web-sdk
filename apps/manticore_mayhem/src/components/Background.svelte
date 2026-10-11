@@ -3,7 +3,11 @@
 	// numbers, game/sceneSpec.ts the geometry, tools/build_scene_assets.py the files). Two scenes, one per frame:
 	//   LANDSCAPE and PHONE SIDEWAYS   one 16:9 frame: painted backdrop, 3D foreground, the braziers' fire light as an
 	//                                  additive pass that flickers, and the knocker rings and chains, which sway in
-	//                                  the wind and swing on the board's kick.
+	//                                  the wind and swing on the board's kick. Between the backdrop and the foreground
+	//                                  it has THE AMBIENT SKY (game/sky.ts, constants SKY): drifting wisps behind the
+	//                                  ridge, birds in the day modes, mist in the gorge. And in each of its two
+	//                                  bowls THE BRAZIER FLAMES (game/flames.ts, constants FLAMES): the base clip in
+	//                                  the day modes, the super and epic clips with embers at night.
 	//   PORTRAIT                       its own 9:16 frame: backdrop, the paved floor, the same fire pass treatment.
 	//                                  Nothing moves in it (no columns, knockers or chains are in view).
 	// Each is cover-fitted to the canvas and centred exactly as the placeholder was. This component only tells the
@@ -14,6 +18,8 @@
 	//   dim      the old wash as a tint on every layer (SCENE.dim).
 	// A change of either crossfades. A Super or Epic that starts before the night files are in (the deferred
 	// phase, after the plaque) plays over the day scene and crossfades when they land.
+	// THE FIRE LOOPS (game/fireSound.ts, constants FIRE_SOUND) follow the same `family`: super and epic each have a
+	// quiet loop for the whole round, in every layout (the portrait scene has the braziers' light too).
 	//
 	// WHICH FILES: only the boot layout's scene is registered (game/assets.ts). When the layout first becomes the
 	// other scene's (the device was turned), game/deferredLoad.ts loadSceneLate fetches that scene then, and it fades
@@ -31,12 +37,17 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, SCENE, zIndexes } from '../game/constants';
+	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, FIRE_SOUND, FLAMES, SCENE, SKY, zIndexes } from '../game/constants';
 	import { SCENE_AT_BOOT } from '../game/assets';
 	import { loadPlaceholderLate, loadSceneLate } from '../game/deferredLoad';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from '../game/sceneSpec';
 	import { SceneView, flickerAt, idleAt, type SceneLayout } from '../game/scene';
+	import { FLAME_SPEC } from '../game/flameSpec';
+	import type { FlameClip, FlameTreatment } from '../game/flames';
+	import { fireSoundLog, fireSoundState, setFireSound } from '../game/fireSound';
+	import { chainSoundLog } from '../game/chainSound';
+	import { sound } from '../game/sound';
 
 	const context = getContext();
 	const canvas = $derived(context.stateLayoutDerived.canvasSizes());
@@ -79,7 +90,7 @@
 	/** the scene this layout draws */
 	const which: SceneLayout = $derived(kind === 'portrait' ? 'portrait' : 'landscape');
 	const dim = $derived(context.stateGame.gameType === 'freegame' ? SCENE.dim.freegame : SCENE.dim.base);
-	const ready = $state({ landscape: { day: false, night: false }, portrait: { day: false, night: false } });
+	const ready = $state({ landscape: { day: false, night: false, flames: false }, portrait: { day: false, night: false, flames: false } });
 	/** this layout's scene has its day files */
 	const sceneOn = $derived(ready[which].day);
 	/** the scene has fully covered the placeholder (which is then not drawn) */
@@ -128,8 +139,9 @@
 		context.stateApp.pixiApplication?.ticker.remove(tick);
 	};
 
-	// the files: a scene's day set builds it, its night set joins it. Uploaded once when they land if that scene is
-	// the one on screen; a scene that is not showing takes its upload when it is next shown.
+	// the files: a scene's day set builds it, its night set joins it, and the landscape scene's two deferred flame
+	// clips after that. Each lot is uploaded once, when it lands, if that scene is the one on screen (sources already
+	// on the GPU are only bound again); a scene that is not showing takes its upload when it is next shown.
 	$effect(() => {
 		const assets = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 		if (!assets) return;
@@ -137,10 +149,11 @@
 			for (const layout of LAYOUTS) {
 				const view = views[layout];
 				const r = ready[layout];
-				if (r.day && r.night) continue;
+				if (r.day && r.night && r.flames) continue;
 				const before = view.sources().length;
 				if (!r.day && view.setDay(assets)) r.day = true;
 				if (r.day && !r.night && view.setNight(assets, performance.now())) r.night = true;
+				if (r.day && !r.flames && view.setFlames(assets, performance.now())) r.flames = true;
 				if (view.sources().length === before) continue;
 				if (layout === which) void renderer()?.prepare?.upload(view.sources());
 				else view.released = true;
@@ -202,6 +215,22 @@
 			}
 			wasOn = on;
 			lastWhich = w;
+		});
+	});
+
+	// THE FIRE LOOP of the mode (game/fireSound.ts): on for a SUPER or an EPIC round, off otherwise, fading with the
+	// scene's change of mode. SKIP TO RESULT fades it out like every effect it silences, and it stays out for what is
+	// left of that round (the base game is back half a second after a skip ends: a loop started then would fade in
+	// and straight out again). Nothing is asked before the sprite has loaded.
+	let fireSkipped = false;
+	$effect(() => {
+		const want = family === 'super' || family === 'epic' ? family : null;
+		const skipping = context.stateGame.skipping;
+		const loaded = sound.loadStatus === 'loaded';
+		untrack(() => {
+			if (!want) fireSkipped = false;
+			else if (skipping) fireSkipped = true;
+			setFireSound(loaded && !skipping && !fireSkipped ? want : null);
 		});
 	});
 
@@ -270,6 +299,93 @@
 					/** false = the placeholder draws every layout again (the A / B of the cost) */
 					enable: (on: boolean) => (enabled = on),
 				},
+				// ---- __manticore.sky (tools/manticore/ambient_probe.js): the landscape scene's ambient sky ----
+				sky: {
+					/** what the sky draws now (frame px), the root's whole layer order, and whether each scene has one */
+					state: () => ({
+						...views.landscape.sky!.state(),
+						on: which === 'landscape' && sceneOn && enabled,
+						order: views.landscape.state().allOrder,
+						portraitHasSky: views.portrait.sky !== null,
+						portraitOrder: views.portrait.root.children.length,
+						fit: { scale: views.landscape.root.scale.x, x: views.landscape.root.x, y: views.landscape.root.y },
+					}),
+					constants: () => JSON.parse(JSON.stringify(SKY)),
+					/** every sky layer off (true) or back: the scene is then the picture the source composite has */
+					hide: (on = true) => views.landscape.hideSky(on),
+					/** nothing moves, no flock is sent, until freeze(false) */
+					freeze: (on = true) => (views.landscape.sky!.frozen = on),
+					/** a flock now (day only): what was rolled, or false */
+					flock: () => views.landscape.sky!.forceFlock(),
+					clearBirds: () => views.landscape.sky!.clearBirds(),
+					/** every cloud to a known place along its run (0 .. 1), and one cloud to a given place and size */
+					cloudPhase: (phase: number) => views.landscape.sky!.cloudPhase(phase),
+					cloud: (i: number, x: number, y: number, scale = 1, alpha = 1) => views.landscape.sky!.placeCloud(i, x, y, scale, alpha),
+					reroll: () => views.landscape.sky!.rerollClouds(),
+					/** a frame px on the canvas */
+					toCanvas: (x: number, y: number) => pt(views.landscape, x, y),
+				},
+				// ---- __manticore.flames (tools/manticore/flame_probe.js): the landscape scene's brazier flames ----
+				flames: {
+					/** what the flames draw now (frame px), the root's whole layer order, which of their sources have a GL
+					 *  texture, and the scene values they follow */
+					state: () => {
+						const view = views.landscape;
+						const sc = view.state();
+						const table = (renderer() as any)?.texture?._glTextures ?? {};
+						const set = new Set<PIXI.TextureSource>();
+						view.flames!.sources(set);
+						return {
+							...view.flames!.state(),
+							on: which === 'landscape' && sceneOn && enabled,
+							family: sc.family,
+							night: sc.night,
+							fading: sc.fading,
+							sceneFlicker: sc.fire.flicker,
+							fireTint: sc.fire.tint,
+							foreTint: sc.tints.fore,
+							order: sc.allOrder,
+							portraitHasFlames: views.portrait.flames !== null,
+							sources: set.size,
+							onGpu: [...set].filter((source) => !!table[source.uid]).length,
+							managed: (renderer() as any)?.texture?.managedTextures?.length ?? null,
+							fit: { scale: view.root.scale.x, x: view.root.x, y: view.root.y },
+						};
+					},
+					constants: () => JSON.parse(JSON.stringify(FLAMES)),
+					spec: () => JSON.parse(JSON.stringify(FLAME_SPEC)),
+					/** flames, embers and rim cuts off (true) or back: the scene is then the picture the source composite has */
+					hide: (on = true) => {
+						views.landscape.flames!.hidden = on;
+						views.landscape.refreshFlames();
+					},
+					/** one clip burning whatever the mode (null: the mode's own again); at once, no crossfade */
+					force: (clip: FlameClip | null = null) => {
+						views.landscape.flames!.forced = clip;
+						views.landscape.refreshFlames();
+					},
+					/** EPIC's tint treatment: 'A' the light's multiply, 'B' a gentler multiply, 'C' untinted over a red additive copy */
+					treatment: (t: FlameTreatment = FLAMES.epicTint.default) => {
+						views.landscape.flames!.treatment = t;
+						views.landscape.refreshFlames();
+					},
+					/** every clip held on this frame, the right bowl its phase ahead (null: running again); embers hold too */
+					freeze: (frame: number | null = null) => (views.landscape.flames!.frozen = frame),
+					/** hold the scene's flicker signal at a value, -1 .. 1 (the fire light and the flames; null: running again) */
+					flicker: (value: number | null = null) => (views.landscape.holdFlicker = value),
+					/** false: no embers are sent, and the ones burning are put back. `strength`: the embers' strength
+					 *  whatever the mode says (0 .. 1; null: the mode's own again) */
+					embers: (on = true, strength: number | null = null) => {
+						views.landscape.flames!.emberForced = strength;
+						views.landscape.flames!.embersOff = !on;
+						if (!on) views.landscape.flames!.clearEmbers();
+						views.landscape.refreshFlames();
+					},
+					toCanvas: (x: number, y: number) => pt(views.landscape, x, y),
+				},
+				// ---- __manticore.fireSound / chainSound (tools/manticore/win_sound_probe.js, ONLY=fire,chain) ----
+				fireSound: { state: () => fireSoundState(), log: () => fireSoundLog.map((e) => ({ ...e })), constants: () => JSON.parse(JSON.stringify(FIRE_SOUND)) },
+				chainSound: { log: () => chainSoundLog.asked.map((e) => ({ ...e })), refused: () => chainSoundLog.refused, constants: () => JSON.parse(JSON.stringify({ sound: CHAIN_SOUND, gust: CHAIN_GUST })) },
 			});
 		}
 		return () => stop();
