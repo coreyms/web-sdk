@@ -45,7 +45,8 @@ THE AMBIENT SKY (game/sky.ts, constants SKY; landscape scene only), built by eve
   static/assets/backgrounds/scene/ridge-<day|night>[-phone].webp      the mountains and citadel skyline CUT OUT of the
                                                                       backdrop, sky transparent, only the band of the
                                                                       frame the skyline crosses: drawn over the clouds
-  static/assets/backgrounds/scene/sky[-phone].json|webp               ONE atlas, white with alpha (the game tints it):
+  static/assets/backgrounds/scene/sky[-phone].json|webp               ONE atlas, white with alpha (the game tints it;
+                                                                      sky_aurora, the aurora's column, is coloured):
                                                                       sky_wisp_<k> thin streaky clouds, sky_fog_<k>
                                                                       soft mist bands. Generated here, seeded
   static/assets/backgrounds/scene/birds.json|webp                     the Angry Mantis birds atlas, copied (--birds)
@@ -125,6 +126,17 @@ WISPS = ((5, 0.10), (7, 0.16), (4, 0.06), (8, 0.20), (6, 0.12), (3, 0.05))  # st
 FOG_CELL = (1280, 400)
 FOGS = 2
 SKY_TEXEL = {'wisp': 1, 'fog': 2.5}
+# THE AURORA's one cell (sky_aurora; game/sky.ts draws every curtain as a row of it, additive; EPIC only): a curtain
+# column, COLOURED (the only cell that is not white): top to bottom clear, violet, teal, green, a bright lower edge,
+# then gone (Corey's playground, sky-playground_reference.html `const AUR`: position, r, g, b, alpha, interpolated
+# unpremultiplied like a canvas gradient). Across, its alpha falls off as a TRIANGLE sampled at the texel centres
+# (1 / W at the outer texels, 1 - 1 / W at the two middle ones), so columns drawn at half their width apart sum to
+# exactly 1 everywhere, a linear sample included: no seam. For that the sample at the cell's own edge must not reach
+# a transparent neighbour: the outer columns are repeated AURORA_BLEED texels outside the frame. As tall as the tier's
+# fog cell (it shares their shelf: the atlas does not grow), AURORA_W texels wide on every tier.
+AURORA_STOPS = ((0.0, 120, 60, 200, 0.0), (0.3, 90, 120, 210, 0.22), (0.6, 50, 210, 160, 0.5), (0.85, 70, 255, 140, 0.9), (0.94, 200, 255, 205, 1.0), (1.0, 70, 255, 140, 0.0))
+AURORA_W = 16
+AURORA_BLEED = 1
 BIRDS_SRC = os.path.join(os.path.dirname(APP), 'angry_mantis', 'static', 'assets', 'ui', 'ambient')
 
 PIECES = ('ring', 'hang', 'swag')
@@ -324,6 +336,20 @@ def sky_fog(rng, w: int, h: int) -> np.ndarray:
     return np.clip(a / a.max(), 0, 1)
 
 
+def sky_aurora(w: int, h: int, bleed: int) -> Image.Image:
+    """the aurora's column cell, w + 2 x bleed wide (see AURORA_STOPS): the gradient down, the triangle across"""
+    v = (np.arange(h) + 0.5) / h
+    pos = [st[0] for st in AURORA_STOPS]
+    chan = [np.interp(v, pos, [st[k] for st in AURORA_STOPS]) for k in (1, 2, 3, 4)]
+    tri = 1 - np.abs(np.arange(w) + 0.5 - w / 2) / (w / 2)
+    tri = np.concatenate([np.repeat(tri[:1], bleed), tri, np.repeat(tri[-1:], bleed)])
+    out = np.empty((h, w + 2 * bleed, 4))
+    for k in range(3):
+        out[..., k] = chan[k][:, None]
+    out[..., 3] = chan[3][:, None] * tri[None, :] * 255
+    return Image.fromarray(out.round().astype(np.uint8), 'RGBA')
+
+
 def build_sky(args, FW: int, FH: int, back: dict, tiers: dict) -> tuple[dict, dict, list]:
     """the ambient sky set from the two backdrops (already at the frame's size): the ridge cut-outs, the wisp and fog
     atlas, the birds. Returns the spec's `sky` block, each tier's own entries, and the report."""
@@ -379,6 +405,9 @@ def build_sky(args, FW: int, FH: int, back: dict, tiers: dict) -> tuple[dict, di
             cw, ch = max(1, round(shape.shape[1] * k)), max(1, round(shape.shape[0] * k))
             a8 = Image.fromarray((shape * 255).round().astype(np.uint8)).resize((cw, ch), Image.LANCZOS)
             cells[key] = Image.merge('RGBA', (*[Image.new('L', (cw, ch), 255)] * 3, a8))
+        # the aurora's column: as tall as this tier's fog cell; its frame is the cell without the repeated outer columns
+        cells['aurora'] = sky_aurora(AURORA_W, cells['fog_0'].size[1], AURORA_BLEED)
+        bleed = {'aurora': AURORA_BLEED}
         # shelves two wisps wide (the cells come in two sizes: nothing cleverer is needed)
         names = sorted(cells)
         aw = 2 * (cells['wisp_0'].size[0] + ATLAS_PAD)
@@ -395,6 +424,7 @@ def build_sky(args, FW: int, FH: int, back: dict, tiers: dict) -> tuple[dict, di
         for n, (px_, py_) in zip(names, pos):
             atlas.paste(cells[n], (px_, py_))
             w, h = cells[n].size
+            px_, w = px_ + bleed.get(n, 0), w - 2 * bleed.get(n, 0)
             frames[f'sky_{n}'] = {'frame': {'x': px_, 'y': py_, 'w': w, 'h': h}, 'rotated': False, 'trimmed': False,
                                   'spriteSourceSize': {'x': 0, 'y': 0, 'w': w, 'h': h}, 'sourceSize': {'w': w, 'h': h}}
         image = f'sky{suffix}.webp'

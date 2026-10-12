@@ -1,8 +1,28 @@
 {
  "frames": {
+  "sky_aurora": {
+   "frame": {
+    "x": 1,
+    "y": 0,
+    "w": 16,
+    "h": 100
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 100
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 100
+   }
+  },
   "sky_fog_0": {
    "frame": {
-    "x": 0,
+    "x": 20,
     "y": 0,
     "w": 320,
     "h": 100
@@ -22,7 +42,7 @@
   },
   "sky_fog_1": {
    "frame": {
-    "x": 322,
+    "x": 342,
     "y": 0,
     "w": 320,
     "h": 100
@@ -169,6 +189,6 @@
    "h": 288
   },
   "scale": "1",
-  "pngHash": "9884a985"
+  "pngHash": "36e19eec"
  }
 }

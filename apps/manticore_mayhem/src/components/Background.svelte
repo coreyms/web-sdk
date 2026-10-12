@@ -318,6 +318,14 @@
 					/** a flock now (day only): what was rolled, or false */
 					flock: () => views.landscape.sky!.forceFlock(),
 					clearBirds: () => views.landscape.sky!.clearBirds(),
+					/** the same for the bats (night only) */
+					batFlock: () => views.landscape.sky!.forceFlock('bats'),
+					clearBats: () => views.landscape.sky!.clearBirds('bats'),
+					/** `seconds` of one kind's flock timer and flight at once: { flocks, refused, maxLive, pool } */
+					/** the aurora held flat (every column of the first curtain the same; the seam test), or released: () */
+					auroraFlat: (y = 0, h = 0, alpha = 1) => views.landscape.sky!.auroraFlat(y, h, alpha),
+					stepFlyers: (kind: 'birds' | 'bats', dt: number) => views.landscape.sky!.stepFlyers(kind, dt),
+					runFlyers: (kind: 'birds' | 'bats', seconds: number, dt = 0.25) => views.landscape.sky!.runFlyers(kind, seconds, dt),
 					/** every cloud to a known place along its run (0 .. 1), and one cloud to a given place and size */
 					cloudPhase: (phase: number) => views.landscape.sky!.cloudPhase(phase),
 					cloud: (i: number, x: number, y: number, scale = 1, alpha = 1) => views.landscape.sky!.placeCloud(i, x, y, scale, alpha),

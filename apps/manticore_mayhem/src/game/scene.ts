@@ -56,17 +56,19 @@ const FIRE_TINT = 4; // r g b
 const FORE_TINT = 7; // r g b
 const DIM = 10;
 const SHOW = 11;
-// the ambient sky's (SKY.modes): the clouds' tint r g b and opacity, the fog's, the birds' share
+// the ambient sky's (SKY.modes): the clouds' tint r g b and opacity, the fog's, the birds' share, the bats' share, the aurora's level
 const CLOUD_TINT = 12;
 const CLOUD_A = 15;
 const FOG_TINT = 16;
 const FOG_A = 19;
 const BIRDS = 20;
+const BATS = 21;
+const AURORA = 22;
 // the brazier flames' (FLAMES): the embers' strength and tint r g b, and each clip's weight (base, super, epic)
-const EMBERS = 21;
-const EMBER_TINT = 22;
-const FLAME_W = 25;
-const VALUES = 28;
+const EMBERS = 23;
+const EMBER_TINT = 24;
+const FLAME_W = 27;
+const VALUES = 30;
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const rgb = (r: number, g: number, b: number) => (Math.round(clamp01(r) * 255) << 16) | (Math.round(clamp01(g) * 255) << 8) | Math.round(clamp01(b) * 255);
@@ -423,6 +425,8 @@ export class SceneView {
 		out[CLOUD_A] = sky.cloudAlpha;
 		out[FOG_A] = sky.fogAlpha;
 		out[BIRDS] = sky.birds;
+		out[BATS] = sky.bats;
+		out[AURORA] = sky.aurora;
 		// the flames: the mode's clip, or the base clip while that clip's sheet is still on its way
 		const clip = this.flames?.ready(FLAMES.modes[family]) ? FLAMES.modes[family] : 'base';
 		for (let i = 0; i < 3; i += 1) {
@@ -492,7 +496,7 @@ export class SceneView {
 			if (i === 1) this.backdrop[i].alpha = this.fore[i].alpha = this.sets[i].alpha = night;
 		}
 		this.root.alpha = c[SHOW];
-		this.sky?.look(night, this.backdrop[0].visible, this.backdrop[1].visible, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS]);
+		this.sky?.look(night, this.backdrop[0].visible, this.backdrop[1].visible, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS], c[BATS], c[AURORA]);
 		this.flames?.look(c[FLAME_W], c[FLAME_W + 1], c[FLAME_W + 2], night, this.fore[0].visible, this.fore[1].visible, dim, fore, c[EMBERS], c[EMBER_TINT], c[EMBER_TINT + 1], c[EMBER_TINT + 2]);
 		this.applyFire();
 	}

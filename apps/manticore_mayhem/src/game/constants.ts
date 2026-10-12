@@ -982,89 +982,173 @@ export const SCENE = {
 } as const;
 
 // ---- The ambient sky (game/sky.ts, drawn by game/scene.ts; assets by tools/build_scene_assets.py --sky) ----------
-// LANDSCAPE and PHONE SIDEWAYS only (Corey 2026-10-11). Four layers between the painted backdrop and the 3D
-// foreground, back to front: CLOUDS, the RIDGE cut-out (the skyline cut from the same painting, so the clouds pass
-// behind the peaks), BIRDS, canyon FOG. Every px is a px of the scene's 2560 x 1440 frame, every px/s and ms REAL
-// time at every turbo level; it never pauses and knows nothing of spins, wins or features.
+// LANDSCAPE and PHONE SIDEWAYS only (Corey 2026-10-11). Six layers between the painted backdrop and the 3D
+// foreground, back to front: the AURORA (EPIC), CLOUDS, the RIDGE cut-out (the skyline cut from the same painting, so
+// the aurora and the clouds pass behind the peaks), BIRDS (day), BATS (night), canyon FOG. Every px is a px of the scene's 2560 x 1440 frame, every
+// px/s and ms REAL time at every turbo level; it never pauses and knows nothing of spins, wins or features.
+// THE NUMBERS of clouds, birds, bats, fog and aurora are Corey's own, tuned in the sky playground and pasted
+// 2026-10-11 (images/sky_r1/corey_sky_values_2026-10-11_1848.txt, with its 19:17, 19:23 and 19:52 blocks). The phone sideways fit crops
+// about 128 px of the frame at the top and at the bottom, so the top of every band is off the screen there.
 //   modes     per background key, blended by the scene's own mode crossfade (SCENE.crossfadeMs) with everything
 //             else: the clouds' and the fog's tint (times the scene's dim, like every layer) and their layer's
-//             opacity, and the birds' share: 1 in the day modes, 0 at night, so a flock in flight fades with the
-//             crossfade and none is sent until day is fully back.
-//   clouds    the Angry Mantis cloud model (ambientSpec.ts CLOUDS): each rolls one depth t in 0 .. 1 and takes
-//             scale, speed and opacity from it (far .. near), speed and scale then jittered by +- `jitter`; y
-//             anywhere in the band (held clear of the cut-out's lower edge); drifts `direction` (-1 right to
-//             left) and wraps with fresh rolls, entering up to `lead` px outside the frame; the first fill
-//             spreads them over `spread` px. scale is of the wisp cell (640 x 96 frame px, SCENE_SPEC.sky.wisp).
-//             Subtle on purpose: they share the sky with the logo.
-//   birds     the Angry Mantis bird system (ambientSpec.ts BIRDS, AmbientSky.svelte), its numbers scaled by 4/3
-//             for this frame (that scene is 1920 x 1080): everyMs 12000, flock 3..6, flapFps 9, farBelow 0.35 and
-//             the ratios are Corey's own; size 17 / 21 -> 22.7 / 28, speed 70 -> 93.3, bob 4 -> 5.3, band 33..190
-//             -> 44..253 (a band of this sky, not that game's window), spawn 60 -> 80 px outside the frame, gone
-//             80 -> 107 px past it. Per flock: a side, a depth t (size far..near, speed x speedByDepth x jitter,
-//             opacity alpha[0]..alpha[1], the small-bird row under farBelow, else one of the big rows), a height
-//             in the band, min..max birds in a loose V (each `spacing` x the size behind and beside the last).
-//             Per bird: its own size jitter, flap phase and bob. The next flock after everyMs x (1 +- spread);
-//             the first after firstS. pool: the sprites built once (a flock that would not fit is not sent);
-//             parkX / parkY: where a bird that is not flying waits, transparent, far off the frame.
-//             intervalMs: how often the birds are moved (33 like everything here; 0 = every frame).
+//             opacity, and the flyers' shares: birds 1 in the day modes and 0 at night, bats the other way round. A
+//             flock in flight fades with the crossfade and is gone at share 0; none of a kind is sent until its
+//             share is fully 1, so the two kinds are never in the air together. `aurora`: the aurora's level, 1 in
+//             EPIC and 0 elsewhere, so it fades in and out with EPIC's crossfade. EPIC's fog is near white on purpose
+//             (Corey: the fires redden the foreground, not the mist) and its clouds barely there and pale green
+//             (Corey: "barely visible during Epic, so the Aurora pops").
+//   aurora    EPIC ONLY, behind the clouds and the cut-out (the peaks hide it as they hide a cloud). `ribbons`
+//             curtains, each a row of `columns` + 1 ADDITIVE sprites of the atlas's one coloured cell (sky_aurora:
+//             clear, violet, teal, green, a bright lower edge), FW / columns apart and twice that wide: the cell's
+//             alpha is a triangle across, so neighbours overlap by half and sum to 1, which interpolates height,
+//             lower edge and brightness from column to column with no seam. Per column at u = 2 pi x / FW, with
+//             tw = t x waveSpeed, ts = t x shimmerSpeed (t in s) and ph = ribbon x ribbonPhase (the shape's own
+//             numbers are in game/sky.ts writeAurora, from the playground's reference):
+//               lower edge  base - ribbon x spread + wave x (two sines along u, drifting with tw), never under the
+//                           cut-out's lower edge
+//               height      height x (0.65 .. 1)
+//               opacity     strength x (1 - shimmer + shimmer x rays) x swell, x `further` for every curtain after
+//                           the first; rays 0 .. 1 are the fine moving streaks (ts), swell 0.1 .. 1 the slow
+//                           brightening along the curtain
+//             Tinted by the scene's dim like every layer. columns: 96 keeps the finest streak (23 along the frame)
+//             at four columns a period; fewer is cheaper and softer.
+//   clouds    the Angry Mantis cloud model (ambientSpec.ts CLOUDS): each cloud takes scale, speed and opacity from
+//             a depth (0 = the far values, 1 = the near ones), speed and scale then each jittered by +- `jitter`.
+//             sets: 'two' = TWO SEPARATE SETS (Corey): the clouds are alternately far and near for good (the even
+//             ones far, the odd ones near: 23 gives 12 far and 11 near), each using only its set's values, every
+//             near cloud drawn over every far one; 'blended' = the first model: each rolls a depth anywhere in
+//             0 .. 1 at every wrap and sits between the far and the near values. y anywhere in the band (held clear
+//             of the cut-out's lower edge: a cloud's lower edge never passes it); drifts `direction` (-1 right to
+//             left) and wraps with fresh rolls, entering up to `lead` px outside the frame; the first fill spreads
+//             them over `spread` px. scale is of the wisp cell (640 x 96 frame px, SCENE_SPEC.sky.wisp).
+//   birds     the Angry Mantis bird system (ambientSpec.ts BIRDS, AmbientSky.svelte). Per flock: a side, a depth t
+//             (size far..near, speed x speedByDepth x (1 +- jitter), opacity alpha[0]..alpha[1], the small-bird row
+//             under farBelow, else one of the big rows), a height in the band, min..max birds. formation 'v': a
+//             loose V, each bird `spacing` x the size behind and beside the last, all at the flock's speed. Per
+//             bird: its own size jitter, flap phase and bob (bob px at bobRate rad/s), plus `flutter` px of a faster
+//             uneven wobble (0 for the birds). The next flock after everyMs x (1 +- spread); the first after
+//             firstS. Spawned `margin` px outside the frame, gone `exit` px past it, each by itself. pool: the
+//             sprites built once (a flock that would not fit is not sent and counted as refused; 96 because the
+//             slowest far flock, 4.85 px/s, takes over nine minutes to cross: 20000 simulated hours peak at 80 in
+//             flight, mean 29, and 48 refused one flock in 180); parkX / parkY: where a bird that is not flying
+//             waits, transparent, far off the frame. intervalMs: how often they are moved (33 like everything
+//             here; 0 = every frame).
+//   bats      NIGHT ONLY (SUPER, EPIC): the birds' code, frames and fields with their own numbers, drawn as dark
+//             silhouettes (`tint` times the scene's dim). formation 'scattered' (Corey: not in a V, more
+//             randomness): each bat starts up to looseX px behind the flock's lead point and up to looseY px above
+//             or below its height, and flies at the flock's speed x (1 +- looseSpeed), so the group drifts apart;
+//             `spacing` is only read by a V. looseX, looseY and looseSpeed are PROVISIONAL (not tuned by Corey
+//             yet). pool 64: a flock about every 3 s of up to 5, a typical crossing 9 s and the slowest 59 s;
+//             5000 simulated hours of night peak at 41 in flight, mean 16.
 //   fog       soft mist bands in the gorge, behind the courtyard: per band its atlas cell, where it starts, its
-//             scale of the fog cell (1280 x 400 frame px), drift (px/s, it wraps), and opacity, which breathes by
-//             +- `breath` over breathMs (one period per band) while the band bobs bobPx over bobMs.
+//             scale of the fog cell (1280 x 400 frame px), drift (px/s, it wraps once it has wholly left the
+//             frame), and opacity, which breathes by +- `breath` over breathMs (one period per band) while the band
+//             bobs bobPx over bobMs.
 export const SKY = {
 	/** positions and opacities are written at most this often, and a step never covers more than maxStepMs (a tab
 	 *  that was hidden does not jump the sky on) */
 	intervalMs: 33,
 	maxStepMs: 100,
 	modes: {
-		base: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1 },
-		bonus: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1 },
-		super: { clouds: [0.68, 0.8, 1], cloudAlpha: 0.7, fog: [0.55, 0.7, 1], fogAlpha: 1, birds: 0 },
-		epic: { clouds: [1, 0.4, 0.32], cloudAlpha: 0.7, fog: [1, 0.45, 0.36], fogAlpha: 1, birds: 0 },
+		base: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1, bats: 0, aurora: 0 },
+		bonus: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1, bats: 0, aurora: 0 },
+		super: { clouds: [0.68, 0.8, 1], cloudAlpha: 0.7, fog: [0.55, 0.7, 1], fogAlpha: 1, birds: 0, bats: 1, aurora: 0 },
+		epic: { clouds: [0.72, 0.95, 0.82], cloudAlpha: 0.15, fog: [0.92, 0.95, 1], fogAlpha: 1, birds: 0, bats: 1, aurora: 1 },
+	},
+	aurora: {
+		strength: 0.55,
+		ribbons: 4,
+		base: 360,
+		spread: 60,
+		height: 415,
+		wave: 23,
+		waveSpeed: 0.25,
+		shimmer: 0.14,
+		shimmerSpeed: 2.2,
+		further: 0.7,
+		ribbonPhase: 2.1,
+		columns: 96,
 	},
 	clouds: {
-		count: 9,
-		band: { y0: 24, y1: 210 },
-		scale: { near: 1.5, far: 0.9 },
-		speed: { near: 16, far: 9 },
-		alpha: { near: 0.8, far: 0.45 },
-		jitter: 0.35,
+		count: 23,
+		sets: 'two' as 'two' | 'blended',
+		band: { y0: 0, y1: 400 },
+		scale: { near: 2.5, far: 0.9 },
+		speed: { near: 151, far: 62 },
+		alpha: { near: 0.6, far: 0.71 },
+		jitter: 0.86,
 		direction: -1,
 		spread: 3200,
 		lead: 400,
 	},
 	birds: {
-		everyMs: 12000,
-		spread: 0.3,
+		everyMs: 15000,
+		spread: 0.5,
 		firstS: 2,
 		flock: { min: 3, max: 6 },
-		size: { near: 22.7, far: 28 },
+		size: { near: 31.8, far: 15.4 },
 		sizeJitter: [0.85, 1.15],
-		speed: 93.3,
-		speedByDepth: [0.6, 1.1],
-		jitter: 0.6,
-		alpha: [0.75, 1],
-		flapFps: 9,
-		bob: 5.3,
-		bobRate: 2.2,
-		band: { y0: 44, y1: 253 },
+		speed: 121.2,
+		speedByDepth: [0.2, 0.57],
+		jitter: 0.8,
+		alpha: [0.11, 0.68],
+		flapFps: 15,
+		bob: 7.5,
+		bobRate: 1.1,
+		flutter: 0,
+		band: { y0: 0, y1: 600 },
 		farBelow: 0.35,
-		spacing: { x: 1.6, y: 0.7 },
+		formation: 'v',
+		spacing: { x: 1.65, y: 0.7 },
+		looseX: 0,
+		looseY: 0,
+		looseSpeed: 0,
 		margin: 80,
 		exit: 107,
-		pool: 48,
+		pool: 96,
+		parkX: -4000.5,
+		parkY: -4000.5,
+		intervalMs: 33,
+	},
+	bats: {
+		everyMs: 3000,
+		spread: 0.5,
+		firstS: 2,
+		flock: { min: 2, max: 5 },
+		size: { near: 31.2, far: 24.7 },
+		sizeJitter: [0.85, 1.15],
+		speed: 397,
+		speedByDepth: [0.5, 1],
+		jitter: 0.6,
+		alpha: [0.67, 0.86],
+		flapFps: 24,
+		bob: 30,
+		bobRate: 8,
+		flutter: 14,
+		band: { y0: 61, y1: 311 },
+		farBelow: 0.35,
+		formation: 'scattered',
+		spacing: { x: 2.4, y: 1.4 },
+		looseX: 320,
+		looseY: 110,
+		looseSpeed: 0.35,
+		tint: [0.07, 0.06, 0.1],
+		margin: 80,
+		exit: 107,
+		pool: 64,
 		parkX: -4000.5,
 		parkY: -4000.5,
 		intervalMs: 33,
 	},
 	fog: {
 		bands: [
-			{ cell: 0, x: 620, y: 730, scale: 1.25, speed: 7, alpha: 0.36 },
-			{ cell: 1, x: 2050, y: 860, scale: 1.05, speed: 11, alpha: 0.32 },
+			{ cell: 0, x: 620, y: 988, scale: 3, speed: 59, alpha: 0.43 },
+			{ cell: 1, x: 2050, y: 748, scale: 3, speed: 60, alpha: 0.48 },
 		],
-		breath: 0.25,
+		breath: 0.2,
 		breathMs: [23000, 31000],
 		breathPhase: 2.1,
-		bobPx: 6,
+		bobPx: 10.5,
 		bobMs: 41000,
 	},
 } as const;
