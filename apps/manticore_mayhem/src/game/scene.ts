@@ -70,6 +70,17 @@ const EMBER_TINT = 24;
 const FLAME_W = 27;
 const VALUES = 30;
 
+/** THE LIGHT THE BOARD FRAME TAKES (components/BoardFrame.svelte, constants FRAME_RELIGHT): what the scene on screen
+ *  draws this frame. `night` 0 .. 1 is the night layers' opacity (0 while the night files are on their way), `fire`
+ *  the fire pass's level after the flicker and before the dim, `fireR/G/B` and `foreR/G/B` the mode's two tints, all
+ *  mid crossfade when the scene is. components/Background.svelte writes it from the scene it ticks and clears it when
+ *  no scene is drawn, so the frame stays in its day light then. */
+export const sceneLight = { night: 0, fire: 0, fireR: 1, fireG: 1, fireB: 1, foreR: 1, foreG: 1, foreB: 1 };
+export const clearSceneLight = (): void => {
+	sceneLight.night = sceneLight.fire = 0;
+	sceneLight.fireR = sceneLight.fireG = sceneLight.fireB = sceneLight.foreR = sceneLight.foreG = sceneLight.foreB = 1;
+};
+
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const rgb = (r: number, g: number, b: number) => (Math.round(clamp01(r) * 255) << 16) | (Math.round(clamp01(g) * 255) << 8) | Math.round(clamp01(b) * 255);
 /** sum of weight sin(2 pi t / period + phase) over [period ms, weight, phase] terms: -1 .. 1 */
@@ -510,6 +521,21 @@ export class SceneView {
 		this.fire.tint = rgb(k * c[FIRE_TINT], k * c[FIRE_TINT + 1], k * c[FIRE_TINT + 2]);
 		// the same light on the rim cuts drawn over the flames
 		this.flames?.fire(this.fire.tint);
+	}
+
+	/** this scene's light for the board frame (sceneLight), as drawn now: the scene's own night (times its fade in
+	 *  over the placeholder), fire level, and tints. Nothing allocated. */
+	writeLight(): void {
+		const c = this.cur;
+		const L = sceneLight;
+		L.night = (this.nightReady ? c[NIGHT] : 0) * clamp01(c[SHOW]);
+		L.fire = this.level;
+		L.fireR = c[FIRE_TINT];
+		L.fireG = c[FIRE_TINT + 1];
+		L.fireB = c[FIRE_TINT + 2];
+		L.foreR = c[FORE_TINT];
+		L.foreG = c[FORE_TINT + 1];
+		L.foreB = c[FORE_TINT + 2];
 	}
 
 	/** one frame. `now` is the ticker's clock (ms), `dtMs` the frame's length. */

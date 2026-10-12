@@ -319,6 +319,37 @@ export const SYMBOL_COLORS: Record<string, number> = {
  *  render_layers_tilt.py exposure) once Corey picks the level; then these go back to 0xffffff. */
 export const FRAME_ART = { tint: 0xb4b4b4, chainTint: 0xb4b4b4 };
 
+// ---- The frame's relight and its turning gears (approved Corey 2026-10-11; components/BoardFrame.svelte) ----------
+// The frame art is three layers and six gear loops per layout (tools/build_board_layers.py + tools/board_relight.py;
+// every position is in game/boardArtSpec.ts `relight`):
+//   DAY     the D1 plate (the frame without its six turning parts) at FRAME_ART.tint, then the six day loops
+//   NIGHT   (SUPER and EPIC) the night plate, the fire plate ADDED, the six night loops, the six fire loops ADDED.
+//           The night layers fade in over the day layers with the scene's own day to night change, and the fire
+//           layers are tinted by the scene's own fire level, flicker and mode tint (game/scene.ts sceneLight: the
+//           courtyard's numbers, SCENE.modes and SCENE.fire, nothing of the frame's own):
+//             night layers   FRAME_ART.tint x the mode's foreTint (EPIC 1, 0.86, 0.86), opacity = the scene's night
+//             fire layers    fireGain x the scene's fire level (0.7 SUPER, 1 EPIC, flickering) x its fireTint (EPIC
+//                            1, 0.7, 0.5) x the scene's night, so there is no fire light on the frame by day. NOT
+//                            times FRAME_ART.tint and not times the scene's dim: the pictures were approved that way
+//           The chains are lit the same three ways (one tile sheet, three strips per run).
+//   SHADOW  the contact shadow on the floor under the feet, UNDER the frame and the black backing: a white cut-out
+//           whose tint is the shadow's colour and whose opacity its strength, day to night with the same fade.
+//   GEARS   the chain wheel, the key pinion (with its back ring) and the end gear at each top corner turn with THE
+//           HAUL (CHAIN_BOW.haul*), never with the board kick: links = the haul's own offset, as drawn this frame
+//           (the backOut overshoot included, so the gears run past and come back with the chain), and
+//           frame = round(links x loopsPerLink x N) mod N (N = 20 frames a loop; the end gear's loop is 10). One
+//           link is one whole loop, so at rest every loop is on frame 0, which is the locked picture. All six
+//           loops always show the same frame number (their cells only add up in step). A frame change is a swap
+//           between textures of one atlas that is already on the GPU: nothing is created or uploaded.
+export const FRAME_RELIGHT = {
+	fireGain: 1,
+	shadow: {
+		day: { color: [24, 12, 6], alpha: 0.6 },
+		night: { color: [2, 3, 8], alpha: 0.75 },
+	},
+	gears: { loopsPerLink: 1 },
+} as const;
+
 // ---- The multiplier plates (MOTION_SPEC "Dim rule ... and multiplier plates", LOCKED Corey 2026-10-07 13:25) ----
 // A multiplier is a property of the CELL, drawn as a plate UNDER the symbol (the old top-right badge is
 // retired): a translucent rounded fill and a bright border in one colour per value, and a large "x<value>"
@@ -1115,9 +1146,11 @@ export const SKY = {
 		spread: 0.5,
 		firstS: 2,
 		flock: { min: 2, max: 5 },
-		size: { near: 31.2, far: 24.7 },
+		// Corey 2026-10-11 22:45, on staging: "slow the bats down and make them smaller, they definitely read as birds here
+		// too big": size near 31.2 -> 17, far 24.7 -> 11, speed 397 -> 230 (the crossing times in the text above are the old speed's)
+		size: { near: 17, far: 11 },
 		sizeJitter: [0.85, 1.15],
-		speed: 397,
+		speed: 230,
 		speedByDepth: [0.5, 1],
 		jitter: 0.6,
 		alpha: [0.67, 0.86],

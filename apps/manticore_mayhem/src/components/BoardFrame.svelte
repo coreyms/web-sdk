@@ -34,6 +34,16 @@
 	// and driven by the sum of the gusts' half-sine pulses (game/featureFx.ts gustFx, read through a cursor like the
 	// haul's presses). It moves the vertices only, sideways and opposite on the two runs, never the frame or the ends.
 	//
+	// THE RELIGHT AND THE GEARS (constants FRAME_RELIGHT, approved Corey 2026-10-11; tools/board_relight.py). `under`,
+	// bottom to top: the contact SHADOW, the black backing, the DAY plate (the frame without its six turning parts),
+	// the six day gear loops, the NIGHT plate, the FIRE plate (additive), the six night loops, the six fire loops
+	// (additive). The night layers fade in over the day ones and the fire layers take their tint from the scene's own
+	// night, fire level, flicker and mode tints (game/scene.ts sceneLight, read once a tick); a layout whose night set
+	// is not in yet keeps its day light and fades when it lands. Each chain run is three strips over the same
+	// vertices (day, night, fire: one tile sheet). The gears' frame comes from the haul's own offset, as drawn this
+	// frame: one link is one loop, so at rest they are on frame 0, the locked picture. A frame change swaps textures
+	// of an atlas that is already on the GPU. No filter, no mask, nothing allocated in the tick.
+	//
 	// Registration: game/boardArt.ts maps the lattice's outer bar rectangle onto the layout's cell
 	// area (re-derived from frameFor() on every layout change, so the portrait growth and a flip
 	// re-register). House rules: no filters, no texture per frame (the strips rewrite 48 floats in
@@ -46,8 +56,10 @@
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
 	import { BOARD_ART } from '../game/boardArtSpec';
 	import { boardRegistration, chainBow } from '../game/boardArt';
-	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, CHAIN_GUST, FRAME_ART, PLAYGROUND_PX, SYMBOL_SIZE } from '../game/constants';
+	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, CHAIN_GUST, FRAME_ART, FRAME_RELIGHT, PLAYGROUND_PX, SCENE, SYMBOL_SIZE } from '../game/constants';
 	import { boardKick, chainFx, gustFx, gustPulse, gustStart, type ChainGust } from '../game/featureFx';
+	import { sceneLight } from '../game/scene';
+	import { loadFrameNightLate } from '../game/deferredLoad';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -59,8 +71,35 @@
 	// FRAME_ART: the art is too bright on screen; a tint until the darker re-render (constants.ts)
 	frameSprite.tint = FRAME_ART.tint;
 	const backing = new PIXI.Graphics();
-	// the black first, then the frame: the lattice and the rails draw OVER the backing, the tiles over both
-	under.addChild(backing, frameSprite);
+	// THE RELIGHT'S LAYERS (constants FRAME_RELIGHT). The shadow is the floor's, so it is under everything of the frame.
+	const RL = BOARD_ART.relight;
+	const GEAR_SETS = ['day', 'night', 'fire'] as const;
+	type GearSet = (typeof GEAR_SETS)[number];
+	/** frames in the gears' loop (the end gear's own loop is half of it: RL.loop) */
+	const GEAR_N = RL.frames;
+	const shadowSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	const nightSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	const fireSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	fireSprite.blendMode = 'add';
+	/** per set, one container (its tint and opacity are the set's) of six sprites in the tool's draw order */
+	const gearBox = {} as Record<GearSet, PIXI.Container>;
+	const gearSprites = {} as Record<GearSet, PIXI.Sprite[]>;
+	for (const set of GEAR_SETS) {
+		gearBox[set] = new PIXI.Container();
+		gearBox[set].visible = false;
+		gearSprites[set] = RL.parts.map(() => {
+			const sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+			if (set === 'fire') sprite.blendMode = 'add';
+			gearBox[set].addChild(sprite);
+			return sprite;
+		});
+	}
+	for (const s of [shadowSprite, nightSprite, fireSprite]) s.visible = false;
+	gearBox.day.tint = FRAME_ART.tint;
+	// the black first, then the frame: the lattice and the rails draw OVER the backing, the tiles over both. The night
+	// gears come AFTER the fire plate, so they cover its light where they sit, and the fire gears add theirs last
+	under.addChild(shadowSprite, backing, frameSprite, gearBox.day, nightSprite, fireSprite, gearBox.night, gearBox.fire);
+	const UNDER_NAMES = new Map<PIXI.Container, string>([[shadowSprite, 'shadow'], [backing, 'backing'], [frameSprite, 'frame'], [gearBox.day, 'gears-day'], [nightSprite, 'frame-night'], [fireSprite, 'frame-fire'], [gearBox.night, 'gears-night'], [gearBox.fire, 'gears-fire']]);
 
 	const chains = new PIXI.Container({ zIndex: 1 });
 	const SIDES = ['L', 'R'] as const;
@@ -74,20 +113,26 @@
 	}
 	/** rest: vertices at rest (master); s / bow per row; v: each row's tile coordinate before the haul (render y
 	 *  less the tile phase, in periods); u0 / u1 the run's tile columns in the sheet */
-	type Strip = { mesh: PIXI.MeshSimple; rest: Float32Array; s: Float32Array; bow: Float32Array; v: Float32Array; u0: number; u1: number };
+	/** `lit`: the run's three strips over the same vertices, day (= `mesh`), night and fire (additive), each on its own
+	 *  columns of the one tile sheet (`u`: per strip u0, u1) */
+	type Strip = { mesh: PIXI.MeshSimple; lit: PIXI.MeshSimple[]; u: Float32Array; rest: Float32Array; s: Float32Array; bow: Float32Array; v: Float32Array; u0: number; u1: number };
 	const strips = {} as Record<Side, Strip>;
 	for (const side of SIDES) {
-		const mesh = new PIXI.MeshSimple({
-			texture: PIXI.Texture.WHITE,
-			vertices: new Float32Array(ROWS * 2 * 2),
-			uvs: new Float32Array(ROWS * 2 * 2),
-			indices: indices.slice(),
+		const lit = GEAR_SETS.map((set) => {
+			const mesh = new PIXI.MeshSimple({
+				texture: PIXI.Texture.WHITE,
+				vertices: new Float32Array(ROWS * 2 * 2),
+				uvs: new Float32Array(ROWS * 2 * 2),
+				indices: indices.slice(),
+			});
+			mesh.autoUpdate = false;
+			mesh.visible = false;
+			if (set === 'fire') mesh.blendMode = 'add';
+			chains.addChild(mesh);
+			return mesh;
 		});
-		mesh.autoUpdate = false;
-		mesh.visible = false;
-		mesh.tint = FRAME_ART.chainTint;
-		chains.addChild(mesh);
-		strips[side] = { mesh, rest: new Float32Array(ROWS * 2 * 2), s: new Float32Array(ROWS), bow: new Float32Array(ROWS), v: new Float32Array(ROWS), u0: 0, u1: 1 };
+		lit[0].tint = FRAME_ART.chainTint;
+		strips[side] = { mesh: lit[0], lit, u: new Float32Array(GEAR_SETS.length * 2), rest: new Float32Array(ROWS * 2 * 2), s: new Float32Array(ROWS), bow: new Float32Array(ROWS), v: new Float32Array(ROWS), u0: 0, u1: 1 };
 	}
 
 	parent.addToParent(under);
@@ -100,12 +145,53 @@
 	const boardScale = $derived(context.stateGameDerived.boardLayout().scale);
 	const textures = $derived.by(() => {
 		const assets = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
-		return { frame: assets?.[`boardFrame_${kind}`], chains: assets?.[`boardChains_${kind}`] };
+		return {
+			frame: assets?.[`boardFrame_${kind}`],
+			chains: assets?.[`boardChains_${kind}`],
+			shadow: assets?.[`boardShadow_${kind}`],
+			night: assets?.[`boardFrameNight_${kind}`],
+			fire: assets?.[`boardFrameFire_${kind}`],
+			gears: { day: gearTable(assets, kind, 'day'), night: gearTable(assets, kind, 'night'), fire: gearTable(assets, kind, 'fire') },
+		};
 	});
+	// the other layouts' night sets are not registered at boot: this layout's is fetched the first time it shows
+	$effect(() => {
+		void loadFrameNightLate(context.stateApp, kind);
+	});
+
+	/** a set's loops for a layout: per part (the tool's draw order) its frames in order, from the atlas's frame names;
+	 *  null until that atlas is in. Built once per layout and set, then kept. */
+	const gearTables: Record<string, PIXI.Texture[][]> = {};
+	function gearTable(assets: Record<string, PIXI.Texture> | undefined, k: LayoutKind, set: GearSet): PIXI.Texture[][] | null {
+		const id = `${k}_${set}`;
+		if (gearTables[id]) return gearTables[id];
+		if (!assets?.[`boardGear_${id}_${RL.parts[0]}_00`]) return null;
+		const table: PIXI.Texture[][] = [];
+		for (const part of RL.parts) {
+			const row: PIXI.Texture[] = [];
+			for (let i = 0; i < RL.loop[part]; i += 1) {
+				const tex = assets[`boardGear_${id}_${part}_${i < 10 ? '0' : ''}${i}`];
+				if (!tex) return null;
+				row.push(tex);
+			}
+			table.push(row);
+		}
+		gearTables[id] = table;
+		return table;
+	}
+	/** what the tick draws from (plain copies, no reactive reads in the frame): each set's loops for this layout, the
+	 *  frame the gears are on, and whether this layout's night set (night plate, fire plate, both loops) is whole */
+	const gear = { tables: { day: null, night: null, fire: null } as Record<GearSet, PIXI.Texture[][] | null>, frame: 0, shown: -1, swaps: 0 };
+	let nightSet = false;
+	/** the night set landed while the scene was already in its night: its own fade in from then (SCENE.crossfadeMs) */
+	let nightInAt = -1;
+	/** the light as last written to the layers (NaN: write it again) */
+	const lit = { night: NaN, fire: 0, nightTint: 0, fireTint: 0, chainNightTint: 0, shadowTint: 0, shadowAlpha: 0 };
 
 	/** each run's top pivot in master units (the gust's direction is taken from it when a gust starts) */
 	const anchorTop = { L: new PIXI.Point(), R: new PIXI.Point() };
 	/** plain copies the ticker reads (no reactive reads in the frame) */
+	let lastKind: LayoutKind | null = null;
 	let scale = 1;
 	/** master px per playground px for this layout (the chain spring runs in playground px) */
 	let pg = 1;
@@ -141,10 +227,15 @@
 			}
 			st.u0 = part.texX / TW;
 			st.u1 = (part.texX + part.texW) / TW;
-			st.mesh.texture = tex;
-			(st.mesh.vertices as Float32Array).set(st.rest);
-			st.mesh.geometry.getBuffer('aPosition').update();
-			st.mesh.visible = true;
+			// the three strips: the same vertices, each on its own columns of the sheet (day, night, fire)
+			const cols = [part, spec.night[side], spec.fire[side]];
+			for (let i = 0; i < st.lit.length; i += 1) {
+				st.u[i * 2] = cols[i].texX / TW;
+				st.u[i * 2 + 1] = (cols[i].texX + cols[i].texW) / TW;
+				st.lit[i].texture = tex;
+				(st.lit[i].vertices as Float32Array).set(st.rest);
+				st.lit[i].geometry.getBuffer('aPosition').update();
+			}
 		}
 		setUvs();
 	};
@@ -156,18 +247,88 @@
 		const shift = haul.offset / 2;
 		for (const side of SIDES) {
 			const st = strips[side];
-			const uvs = st.mesh.geometry.getBuffer('aUV').data as Float32Array;
-			for (let r = 0; r < ROWS; r += 1) {
-				const tv = st.v[r] - shift;
-				const o = r * 4;
-				uvs[o] = st.u0;
-				uvs[o + 1] = tv;
-				uvs[o + 2] = st.u1;
-				uvs[o + 3] = tv;
+			for (let i = 0; i < st.lit.length; i += 1) {
+				const buffer = st.lit[i].geometry.getBuffer('aUV');
+				const uvs = buffer.data as Float32Array;
+				const u0 = st.u[i * 2];
+				const u1 = st.u[i * 2 + 1];
+				for (let r = 0; r < ROWS; r += 1) {
+					const tv = st.v[r] - shift;
+					const o = r * 4;
+					uvs[o] = u0;
+					uvs[o + 1] = tv;
+					uvs[o + 2] = u1;
+					uvs[o + 3] = tv;
+				}
+				buffer.update();
 			}
-			st.mesh.geometry.getBuffer('aUV').update();
 		}
 		haul.last = haul.offset;
+	};
+	/** THE GEARS' FRAME from the haul's offset as drawn (links; the backOut overshoot is in it): one link is
+	 *  FRAME_RELIGHT.gears.loopsPerLink loops of GEAR_N frames, so a chain at rest (a whole number of links) is frame 0 */
+	const gearFrameFor = (links: number) => {
+		const f = Math.round(links * FRAME_RELIGHT.gears.loopsPerLink * GEAR_N) % GEAR_N;
+		return f < 0 ? f + GEAR_N : f;
+	};
+	/** every loop of every set that is in to frame `f` (the end gear's loop is shorter: f modulo its own length): a
+	 *  texture swap per sprite, all six parts of a set always on the same frame */
+	const setGears = (f: number) => {
+		for (const set of GEAR_SETS) {
+			const table = gear.tables[set];
+			if (!table) continue;
+			const sprites = gearSprites[set];
+			for (let i = 0; i < sprites.length; i += 1) sprites[i].texture = table[i][f % table[i].length];
+		}
+		gear.shown = f;
+		gear.swaps += 1;
+	};
+	const tintOf = (base: number, r: number, g: number, b: number) =>
+		(Math.round(Math.min(255, ((base >> 16) & 255) * r)) << 16) | (Math.round(Math.min(255, ((base >> 8) & 255) * g)) << 8) | Math.round(Math.min(255, (base & 255) * b));
+	/** THE LIGHT: the scene's night and fire onto the layers (visibility, opacity and tints only). Called every tick;
+	 *  it writes only when a value changed. Day layers are drawn until night covers them, night layers once it starts. */
+	const applyLight = (now: number) => {
+		const L = sceneLight;
+		let fadeIn = 1;
+		if (nightInAt >= 0) {
+			fadeIn = clamp01((now - nightInAt) / Math.max(SCENE.crossfadeMs, 1));
+			if (fadeIn >= 1) nightInAt = -1;
+		}
+		const night = nightSet ? clamp01(L.night * fadeIn) : 0;
+		const fire = Math.min(1, Math.max(0, L.fire * FRAME_RELIGHT.fireGain)) * night;
+		const nightTint = tintOf(FRAME_ART.tint, L.foreR, L.foreG, L.foreB);
+		const chainNightTint = tintOf(FRAME_ART.chainTint, L.foreR, L.foreG, L.foreB);
+		const fireTint = tintOf(0xffffff, fire * L.fireR, fire * L.fireG, fire * L.fireB);
+		const S = FRAME_RELIGHT.shadow;
+		const shadowTint = tintOf(0xffffff, (S.day.color[0] + (S.night.color[0] - S.day.color[0]) * night) / 255, (S.day.color[1] + (S.night.color[1] - S.day.color[1]) * night) / 255, (S.day.color[2] + (S.night.color[2] - S.day.color[2]) * night) / 255);
+		const shadowAlpha = S.day.alpha + (S.night.alpha - S.day.alpha) * night;
+		if (night === lit.night && fire === lit.fire && nightTint === lit.nightTint && fireTint === lit.fireTint && shadowTint === lit.shadowTint && shadowAlpha === lit.shadowAlpha) return;
+		lit.night = night;
+		lit.fire = fire;
+		lit.nightTint = nightTint;
+		lit.chainNightTint = chainNightTint;
+		lit.fireTint = fireTint;
+		lit.shadowTint = shadowTint;
+		lit.shadowAlpha = shadowAlpha;
+		const day = night < 1;
+		const dark = night > 0;
+		const hasFrame = frameSprite.texture !== PIXI.Texture.EMPTY;
+		frameSprite.visible = hasFrame && day;
+		gearBox.day.visible = hasFrame && day && !!gear.tables.day;
+		nightSprite.visible = fireSprite.visible = gearBox.night.visible = gearBox.fire.visible = hasFrame && dark;
+		nightSprite.alpha = gearBox.night.alpha = night;
+		nightSprite.tint = gearBox.night.tint = nightTint;
+		fireSprite.tint = gearBox.fire.tint = fireTint;
+		shadowSprite.tint = shadowTint;
+		shadowSprite.alpha = shadowAlpha;
+		for (const side of SIDES) {
+			const meshes = strips[side].lit;
+			meshes[0].visible = chainsReady && day;
+			meshes[1].visible = meshes[2].visible = chainsReady && dark;
+			meshes[1].alpha = night;
+			meshes[1].tint = chainNightTint;
+			meshes[2].tint = fireTint;
+		}
 	};
 	const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 	/** the haul at `now`: each press runs haulDelayMs, then haulLinks over haulMs with haulEasing, in style
@@ -205,21 +366,60 @@
 		backing.clear().rect(r.opening.x, r.opening.y, r.opening.width, r.opening.height).fill(BOARD_BACKING.color);
 		// the frame: its crop origin in render px through the registration, texture px -> master
 		const fs = BOARD_ART.frame[k];
-		if (t.frame) {
-			frameSprite.texture = t.frame;
-			const o = r.map(fs.crop[0], fs.crop[1]);
-			frameSprite.position.set(o.x, o.y);
-			frameSprite.scale.set((r.m * fs.size[0]) / fs.tex[0], (r.m * fs.size[1]) / fs.tex[1]);
-			frameSprite.visible = true;
-		} else frameSprite.visible = false;
+		const o = r.map(fs.crop[0], fs.crop[1]);
+		/** a layer that covers the frame's own crop of the render, whatever its texture's size (the fire plate is half) */
+		const cover = (sprite: PIXI.Sprite, tex: PIXI.Texture) => {
+			sprite.texture = tex;
+			sprite.position.set(o.x, o.y);
+			sprite.scale.set((r.m * fs.size[0]) / tex.width, (r.m * fs.size[1]) / tex.height);
+		};
+		if (t.frame) cover(frameSprite, t.frame);
+		else frameSprite.texture = PIXI.Texture.EMPTY;
+		// THE RELIGHT: this layout's night set is whole or it is not used (the night plate has no gears in it)
+		const spec = RL.layouts[k];
+		const wasNight = nightSet;
+		nightSet = !!(t.frame && t.night && t.fire && t.gears.day && t.gears.night && t.gears.fire);
+		if (nightSet) {
+			cover(nightSprite, t.night!);
+			cover(fireSprite, t.fire!);
+			// it landed with the scene already in its night: fade it in from here. A layout that was turned to with its
+			// set already in takes the scene's night at once.
+			if (!wasNight && lastKind === k && sceneLight.night > 0) nightInAt = performance.now();
+			else if (lastKind !== k) nightInAt = -1;
+			// one upload when the set lands (sources already on the GPU are only bound again), never at a first draw
+			if (!wasNight || lastKind !== k) void context.stateApp.pixiApplication?.renderer?.prepare?.upload([t.night!.source, t.fire!.source, t.gears.night![0][0].source]);
+		}
+		lastKind = k;
+		for (const set of GEAR_SETS) {
+			const table = set === 'day' || nightSet ? t.gears[set] : null;
+			gear.tables[set] = table;
+			if (!table) continue;
+			// each loop's own box of the render (a whole number of the plate's texture px), through the registration
+			RL.parts.forEach((part, i) => {
+				const box = spec.gears[part].box;
+				const tex = table[i][0];
+				const at = r.map(box[0], box[1]);
+				gearSprites[set][i].position.set(at.x, at.y);
+				gearSprites[set][i].scale.set((r.m * box[2]) / tex.width, (r.m * box[3]) / tex.height);
+			});
+		}
+		setGears(gear.frame);
+		if (t.shadow && t.frame) {
+			const box = spec.shadow.box;
+			const at = r.map(box[0], box[1]);
+			shadowSprite.texture = t.shadow;
+			shadowSprite.position.set(at.x, at.y);
+			shadowSprite.scale.set((r.m * box[2]) / t.shadow.width, (r.m * box[3]) / t.shadow.height);
+			shadowSprite.visible = true;
+		} else shadowSprite.visible = false;
 		if (t.chains) {
 			layoutStrips(k, r.map, t.chains);
 			chainsReady = true;
 			dirty = true;
-		} else {
-			chainsReady = false;
-			for (const side of SIDES) strips[side].mesh.visible = false;
-		}
+		} else chainsReady = false;
+		// the layers' visibility, opacity and tints for the light as it is now
+		lit.night = NaN;
+		applyLight(performance.now());
 	});
 
 	context.eventEmitter.subscribeOnMount({
@@ -300,8 +500,13 @@
 			under.position.set(kx, ky);
 			dirty = true;
 		}
+		// the light first: it needs no chains (the scene's night, fire level and tints onto the layers)
+		applyLight(performance.now());
 		if (!chainsReady) return;
 		if (tickHaul(performance.now())) setUvs();
+		// the gears follow the chain's own travel, this frame's (the overshoot too): a texture swap when the frame changes
+		gear.frame = gearFrameFor(haul.offset);
+		if (gear.frame !== gear.shown) setGears(gear.frame);
 		// the kick's scalar: boardKick is (0.6 k, k); fall back to x / 0.6 for a purely sideways kick
 		const kpx = boardKick.y / PLAYGROUND_PX;
 		const kxpx = boardKick.x / PLAYGROUND_PX / 0.6;
@@ -374,6 +579,11 @@
 				v[o + 3] = st.rest[o + 3] + oy;
 			}
 			st.mesh.geometry.getBuffer('aPosition').update();
+			// the night and fire strips ride the same vertices
+			for (let i = 1; i < st.lit.length; i += 1) {
+				(st.lit[i].vertices as Float32Array).set(v);
+				st.lit[i].geometry.getBuffer('aPosition').update();
+			}
 		}
 	};
 
@@ -389,6 +599,58 @@
 			const out: string[] = [];
 			for (let n: PIXI.Container | null = node; n; n = n.parent) if (n.mask) out.push(n.label || n.constructor.name);
 			return out;
+		};
+		/** the relight's whole state: the light, every layer of the art container, every gear sprite, the shadow, the
+		 *  chains' three strips, and each texture source the frame draws from with its size and whether it is on the GPU */
+		const relightState = () => {
+			const glTable = (context.stateApp.pixiApplication?.renderer as any)?.texture?._glTextures ?? {};
+			const sources = new Map<PIXI.TextureSource, string>();
+			const add = (name: string, tex: PIXI.Texture | null | undefined) => {
+				if (tex && tex !== PIXI.Texture.EMPTY && tex !== PIXI.Texture.WHITE && !sources.has(tex.source)) sources.set(tex.source, name);
+			};
+			add('plate-day', frameSprite.texture);
+			add('gears-day + shadow', gear.tables.day?.[0][0]);
+			add('chains day + night + fire', strips.L.mesh.texture);
+			add('plate-night', nightSet ? nightSprite.texture : null);
+			add('plate-fire', nightSet ? fireSprite.texture : null);
+			add('gears-night + fire', gear.tables.night?.[0][0]);
+			const rect = (s: PIXI.Sprite) => {
+				const a = g(s, 0, 0);
+				const b = g(s, s.texture.width, s.texture.height);
+				return { x: a.x, y: a.y, right: b.x, bottom: b.y };
+			};
+			const look = (c: PIXI.Container) => ({ visible: c.visible, alpha: Number(c.alpha.toFixed(4)), tint: c.tint as number, blend: c.blendMode as string });
+			return {
+				constants: FRAME_RELIGHT,
+				frames: GEAR_N,
+				loop: RL.loop,
+				parts: RL.parts,
+				/** the scene's light as the frame last read it, and what the frame made of it */
+				scene: { ...sceneLight },
+				night: lit.night,
+				fire: lit.fire,
+				nightSet,
+				fadingIn: nightInAt >= 0,
+				tints: { day: FRAME_ART.tint, night: lit.nightTint, fire: lit.fireTint, chainNight: lit.chainNightTint, shadow: lit.shadowTint, shadowAlpha: lit.shadowAlpha },
+				/** the art container's children, bottom to top */
+				plateScreen: rect(frameSprite),
+				layers: under.children.map((c) => ({ name: UNDER_NAMES.get(c) ?? 'other', ...look(c), tex: c instanceof PIXI.Sprite ? [c.texture.width, c.texture.height] : null })),
+				gears: {
+					frame: gear.frame,
+					shown: gear.shown,
+					swaps: gear.swaps,
+					sets: Object.fromEntries(
+						GEAR_SETS.map((set) => [
+							set,
+							gearSprites[set].map((sprite, i) => ({ part: RL.parts[i], frame: gear.tables[set] ? gear.tables[set]![i].indexOf(sprite.texture) : -1, name: sprite.texture.label ?? null, blend: sprite.blendMode as string, screen: gear.tables[set] ? rect(sprite) : null, tex: [sprite.texture.width, sprite.texture.height] })),
+						]),
+					),
+				},
+				shadow: { ...look(shadowSprite), screen: shadowSprite.visible ? rect(shadowSprite) : null, under: under.children.indexOf(shadowSprite) },
+				chains: Object.fromEntries(SIDES.map((side) => [side, strips[side].lit.map((mesh, i) => ({ set: GEAR_SETS[i], ...look(mesh), u: [Number(strips[side].u[i * 2].toFixed(5)), Number(strips[side].u[i * 2 + 1].toFixed(5))] }))])),
+				/** every source the frame draws from in this layout: resident MB as RGBA8 (no mipmaps), and on the GPU or not */
+				memory: [...sources].map(([source, name]) => ({ name, w: source.pixelWidth, h: source.pixelHeight, MB: Number(((source.pixelWidth * source.pixelHeight * 4) / 2 ** 20).toFixed(2)), onGpu: !!glTable[source.uid] })),
+			};
 		};
 		Object.defineProperty(((window as any).__manticore ??= {}), 'frame', {
 			get: () => {
@@ -429,19 +691,23 @@
 							lx: Number(((v[i * 4] - st.rest[i * 4] - under.position.x) * masterToScreen).toFixed(3)),
 							ly: Number(((v[i * 4 + 1] - st.rest[i * 4 + 1] - under.position.y) * masterToScreen).toFixed(3)),
 						})),
-						visible: st.mesh.visible && chains.visible,
+						visible: st.lit.some((mesh) => mesh.visible) && chains.visible,
 					};
 				}
 				return {
 					kind: k,
-					ready: { frame: frameSprite.visible, chains: chainsReady },
+					ready: { frame: frameSprite.texture !== PIXI.Texture.EMPTY, chains: chainsReady, gears: !!gear.tables.day, night: nightSet, shadow: shadowSprite.visible },
 					/** every ancestor of the art that clips: a mask would cut the gear teeth and finials that stand
 					 *  outside the housing outline (board_v5j and v5l); the art is to be clipped by the screen alone */
 					clippedBy: { frame: clippedBy(frameSprite), chains: clippedBy(strips.L.mesh) },
 					/** the frame texture as loaded, against the tool's spec (a stale file would be drawn stretched) */
 					frameTexture: { width: frameSprite.texture.width, height: frameSprite.texture.height, spec: fs.tex },
 					/** the art container's children, bottom to top */
-					underOrder: under.children.map((c) => (c === backing ? 'backing' : c === frameSprite ? 'frame' : 'other')),
+					underOrder: under.children.map((c) => UNDER_NAMES.get(c) ?? 'other'),
+					/** THE RELIGHT AND THE GEARS (constants FRAME_RELIGHT; tools/manticore/gear_probe.js) */
+					relight: relightState(),
+					/** the tool's numbers for this layout: the plate's crop and sizes, each loop's box, the shadow's, the checks */
+					relightSpec: { frame: fs, layout: RL.layouts[k], checks: RL.checks },
 					/** the old cell-well sprite in the board container: hidden once the frame art is loaded */
 					backdropVisible: (() => {
 						const bd = boardNode?.children.find((c) => c.label === 'boardBackdrop');
@@ -505,6 +771,24 @@
 					chains: chainOut,
 					zOrder: parent.parent.children.map((c) => (c === under ? 'frame+backing' : c === chains ? 'chains' : c === boardNode ? 'board' : c.label || 'other') + '@' + c.zIndex),
 				};
+			},
+			configurable: true,
+			enumerable: true,
+		});
+		// the per-frame read of tools/manticore/gear_probe.js: the haul, the frame it asks for and the frame every one
+		// of the 18 gear sprites really holds (found in its own loop), and the light as last written
+		Object.defineProperty((window as any).__manticore, 'frameGears', {
+			get: () => {
+				const shown = {} as Record<GearSet, number[]>;
+				let inStep = true;
+				for (const set of GEAR_SETS) {
+					const table = gear.tables[set];
+					shown[set] = table ? gearSprites[set].map((sprite, i) => table[i].indexOf(sprite.texture)) : [];
+					shown[set].forEach((f, i) => {
+						if (f !== gear.frame % table![i].length) inStep = false;
+					});
+				}
+				return { t: performance.now(), offset: haul.offset, base: haul.base, live: haul.live.length, presses: chainFx.presses.length, uv0: (strips.L.mesh.geometry.getBuffer('aUV').data as Float32Array)[1], frame: gear.frame, drawn: gear.shown, shown, inStep, swaps: gear.swaps, night: lit.night, fire: lit.fire, fireTint: lit.fireTint, nightTint: lit.nightTint, nightSet, sn: sceneLight.night, sf: sceneLight.fire, kick: boardKick.y };
 			},
 			configurable: true,
 			enumerable: true,

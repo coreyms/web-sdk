@@ -240,6 +240,35 @@ const assets = {
 	boardChains_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
 	boardChains_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-phone.webp', import.meta.url).href), preload: atBoot('phone') },
 	boardChains_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-chain-tile-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
+	// THE FRAME'S RELIGHT AND ITS TURNING GEARS (constants FRAME_RELIGHT; tools/board_relight.py; Corey 2026-10-11).
+	// boardFrame_* above is now the D1 PLATE: the frame lit for the day WITHOUT its six turning parts, and the chain
+	// tile sheet holds the day, night and fire chains side by side.
+	//   boardGears_<layout>        one atlas: the six day gear loops (100 cells) and the contact shadow. The base game
+	//                              draws it from the first frame, so it rides with the plate: the boot layout's
+	//                              preloads, the other two in the deferred phase.
+	//   boardFrameNight_<layout>, boardFrameFire_<layout>, boardGearsNight_<layout>
+	//                              the NIGHT set (SUPER and EPIC): the night plate, the fire plate (half size, added)
+	//                              and one atlas with the six night loops and the six fire loops. Never at boot: the
+	//                              boot layout's set is its own deferred group after the scene's night (DEFERRED_ORDER
+	//                              frameNight), and the other two layouts' sets are not registered at all
+	//                              (FRAME_NIGHT_LATE): game/deferredLoad.ts loadFrameNightLate fetches a layout's set
+	//                              the first time the game is turned to it. Until a set is in, that layout's frame
+	//                              keeps its day light in every mode, as it always did, and fades to night when it lands.
+	// The PHONE master's new layers have a half size twin for the phone tier (game/deviceTier.ts): its textures are 2
+	// texture px per master px, and a phone tier screen draws at most 1.01 canvas px per master px (short side <= 500
+	// CSS px over the 740 master, at the 1.5 resolution cap), so the twin is still 1 : 1 there at a quarter of the memory.
+	boardGears_landscape: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-landscape.json', import.meta.url).href), preload: atBoot('landscape') },
+	boardGears_phone: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/board-gears-phone.json', import.meta.url).href), stamp(new URL('../../assets/ui/board-gears-phone-half.json', import.meta.url).href)), preload: atBoot('phone') },
+	boardGears_portrait: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-portrait.json', import.meta.url).href), preload: atBoot('portrait') },
+	boardFrameNight_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-night-landscape.webp', import.meta.url).href), preload: false },
+	boardFrameNight_phone: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-frame-night-phone.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-frame-night-phone-half.webp', import.meta.url).href)), preload: false },
+	boardFrameNight_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-night-portrait.webp', import.meta.url).href), preload: false },
+	boardFrameFire_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-fire-landscape.webp', import.meta.url).href), preload: false },
+	boardFrameFire_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-fire-phone.webp', import.meta.url).href), preload: false },
+	boardFrameFire_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-fire-portrait.webp', import.meta.url).href), preload: false },
+	boardGearsNight_landscape: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-night-landscape.json', import.meta.url).href), preload: false },
+	boardGearsNight_phone: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/board-gears-night-phone.json', import.meta.url).href), stamp(new URL('../../assets/ui/board-gears-night-phone-half.json', import.meta.url).href)), preload: false },
+	boardGearsNight_portrait: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-night-portrait.json', import.meta.url).href), preload: false },
 	// THE PLACEHOLDER BACKGROUND (the citadel courtyard painting for every mode). Every layout now draws a courtyard
 	// scene (below) and only falls back to this while that scene's files are on their way or if they failed: a game
 	// that was turned loads the other layout's scene then (SCENE_LATE). So NONE of these entries stays registered
@@ -443,7 +472,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 // if such a device ever does report a landscape window (a browser's "desktop site" mode can), game/
 // deferredLoad.ts fetches them then, so the worst case is the old flat fallback for one download.
 export const UNREACHABLE_ASSETS: Record<string, { type: string; src: string }> = {};
-const LANDSCAPE_ONLY_KEYS = ['boardFrame_landscape', 'boardChains_landscape', 'bg_base_landscape', 'bg_bonus_landscape', 'bg_super_landscape', 'bg_epic_landscape'] as const;
+const LANDSCAPE_ONLY_KEYS = ['boardFrame_landscape', 'boardGears_landscape', 'boardChains_landscape', 'bg_base_landscape', 'bg_bonus_landscape', 'bg_super_landscape', 'bg_epic_landscape'] as const;
 const phoneOnlyScreen = (): boolean => {
 	if (!PHONE_TIER || typeof window === 'undefined') return false;
 	const short = Math.min(window.screen?.width ?? Infinity, window.screen?.height ?? Infinity);
@@ -483,6 +512,24 @@ export const PLACEHOLDER_LATE: Record<string, { type: string; src: string }> = {
 	}
 }
 
+// THE FRAME'S NIGHT SET, BY BOOT LAYOUT (2026-10-11): the boot layout's three files stay registered (deferred, their
+// own group below); the other two layouts' wait here, keyed by layout, and are fetched the first time the game is
+// turned to that layout (game/deferredLoad.ts loadFrameNightLate, asked by components/BoardFrame.svelte). A desktop
+// that is never resized into the phone master never downloads or decodes that master's 30 MB night set.
+export const FRAME_NIGHT_KEYS = (kind: 'landscape' | 'phone' | 'portrait'): string[] => [`boardFrameNight_${kind}`, `boardFrameFire_${kind}`, `boardGearsNight_${kind}`];
+export const FRAME_NIGHT_LATE: Record<string, Record<string, { type: string; src: string }>> = {};
+{
+	const table = assets as unknown as Record<string, { type: string; src: string }>;
+	for (const kind of ['landscape', 'phone', 'portrait'] as const) {
+		if (kind === bootLayout) continue;
+		FRAME_NIGHT_LATE[kind] = {};
+		for (const key of FRAME_NIGHT_KEYS(kind)) {
+			FRAME_NIGHT_LATE[kind][key] = table[key];
+			delete table[key];
+		}
+	}
+}
+
 if (phoneOnlyScreen()) {
 	const table = assets as unknown as Record<string, { type: string; src: string }>;
 	for (const key of LANDSCAPE_ONLY_KEYS) {
@@ -500,6 +547,9 @@ if (phoneOnlyScreen()) {
 //           0.45 MB on the phone tier; portrait 0.34 MB, 0.16 MB):
 //           a Super or Epic feature can be bought on the first spin, and until these are in it plays over the day
 //           scene (components/Background.svelte).
+//   frameNight   the boot layout's board frame night set (constants FRAME_RELIGHT: the night plate, the fire plate and
+//           the night + fire gear atlas; landscape 0.77 MB, portrait 0.63 MB, phone 1.28 MB or 0.57 MB on the phone
+//           tier), right after the scene's own night: until it is in, a Super or Epic keeps the frame in its day light.
 //   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips (game/flames.ts; 0.68 and 1.14 MB, 0.50 and
 //           0.89 MB on the phone tier; none when the game booted in portrait), one group each so each is uploaded by
 //           itself when it lands: until then that mode's braziers keep the base clip burning.
@@ -513,9 +563,10 @@ const deferredKeys = (prefix: string) =>
 	Object.entries(assets as unknown as Record<string, { preload?: boolean }>)
 		.filter(([key, entry]) => key.startsWith(prefix) && !entry.preload)
 		.map(([key]) => key);
-export const DEFERRED_ORDER: { name: 'plaque' | 'night' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels' | 'drop' | 'idle'; keys: string[] }[] = [
+export const DEFERRED_ORDER: { name: 'plaque' | 'night' | 'frameNight' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels' | 'drop' | 'idle'; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
 	{ name: 'night', keys: [...SCENE_KEYS[SCENE_AT_BOOT].night] },
+	{ name: 'frameNight', keys: FRAME_NIGHT_KEYS(bootLayout) },
 	{ name: 'flameSuper', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(0, 1) },
 	{ name: 'flameEpic', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(1) },
 	{ name: 'logo', keys: deferredKeys('logoAtlas') },

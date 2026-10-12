@@ -15,6 +15,8 @@
 //                                               -> assetGate.markPlaqueAssetsReady()
 //   night   the courtyard scene's night backdrop and foreground
 //                                               -> components/Background.svelte crossfades a waiting Super / Epic
+//   frameNight   the boot layout's board frame night set (night plate, fire plate, night + fire gear atlas)
+//                                               -> components/BoardFrame.svelte fades the frame to its night light
 //   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips, one group each
 //                                               -> game/flames.ts: that mode's braziers change from the base clip
 //   logo    the canvas logo's atlas + its tracks (desktop tier only; no keys on the phone tier)
@@ -28,7 +30,7 @@
 // here is simply left to that batch, which has the retries and the failure screen.
 import * as PIXI from 'pixi.js';
 
-import assets, { DEFERRED_ORDER, LOGO_DATA_URLS, PLACEHOLDER_LATE, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
+import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, LOGO_DATA_URLS, PLACEHOLDER_LATE, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
 import { markPlaqueAssetsReady } from './assetGate';
 import { loadLogoData } from './logo/data';
 import { loadStingerData } from './stinger/data';
@@ -190,6 +192,24 @@ export const loadPlaceholderLate = (app: AppState, kind: string): Promise<void> 
 		if (textures) app.loadedAssets = { ...app.loadedAssets, ...textures };
 	});
 	return placeholderLate[key];
+};
+
+/** the board frame's night set of a layout the game did not boot in (game/assets.ts FRAME_NIGHT_LATE): fetched the
+ *  first time the game is turned to that layout, published together (the frame goes to night only with all three).
+ *  Once per layout; a failure leaves that layout's frame in its day light. */
+const frameNightLate: Record<string, Promise<void>> = {};
+export const loadFrameNightLate = (app: AppState, kind: string): Promise<void> => {
+	const entries = FRAME_NIGHT_LATE[kind];
+	if (!entries) return Promise.resolve();
+	frameNightLate[kind] ??= (async () => {
+		const keys = Object.keys(entries);
+		const log = (deferredLog.groups[`frameNight_${kind}`] = { start: performance.now(), end: 0, keys: keys.length, failed: 0 });
+		const done = await Promise.all(keys.map((key) => loadOne(key, entries[key])));
+		log.failed = done.filter((textures) => !textures).length;
+		if (!log.failed) app.loadedAssets = Object.assign({ ...app.loadedAssets }, ...(done as Textures[]));
+		log.end = performance.now();
+	})().catch(() => {});
+	return frameNightLate[kind];
 };
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {

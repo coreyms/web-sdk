@@ -88,7 +88,7 @@ export const BOARD_ART = {
 	"chains": {
 		"landscape": {
 			"tex": [
-				256,
+				512,
 				128
 			],
 			"periodPx": 125.85,
@@ -105,11 +105,31 @@ export const BOARD_ART = {
 			"R": {
 				"texX": 72,
 				"texW": 66
+			},
+			"night": {
+				"L": {
+					"texX": 142,
+					"texW": 66
+				},
+				"R": {
+					"texX": 212,
+					"texW": 66
+				}
+			},
+			"fire": {
+				"L": {
+					"texX": 282,
+					"texW": 66
+				},
+				"R": {
+					"texX": 352,
+					"texW": 66
+				}
 			}
 		},
 		"portrait": {
 			"tex": [
-				128,
+				512,
 				128
 			],
 			"periodPx": 125.85,
@@ -126,11 +146,31 @@ export const BOARD_ART = {
 			"R": {
 				"texX": 61,
 				"texW": 55
+			},
+			"night": {
+				"L": {
+					"texX": 120,
+					"texW": 55
+				},
+				"R": {
+					"texX": 179,
+					"texW": 55
+				}
+			},
+			"fire": {
+				"L": {
+					"texX": 238,
+					"texW": 55
+				},
+				"R": {
+					"texX": 297,
+					"texW": 55
+				}
 			}
 		},
 		"phone": {
 			"tex": [
-				256,
+				1024,
 				128
 			],
 			"periodPx": 125.85,
@@ -147,6 +187,26 @@ export const BOARD_ART = {
 			"R": {
 				"texX": 104,
 				"texW": 98
+			},
+			"night": {
+				"L": {
+					"texX": 206,
+					"texW": 98
+				},
+				"R": {
+					"texX": 308,
+					"texW": 98
+				}
+			},
+			"fire": {
+				"L": {
+					"texX": 410,
+					"texW": 98
+				},
+				"R": {
+					"texX": 512,
+					"texW": 98
+				}
 			}
 		}
 	},
@@ -639,6 +699,545 @@ export const BOARD_ART = {
 			"cell": 76.0,
 			"gap": 3.5,
 			"margin": 7.0
+		}
+	},
+	"relight": {
+		"source": "gears_sync_r1 + relight_r1",
+		"frames": 20,
+		"trimPx": 20,
+		"featherPx": 6,
+		"parts": [
+			"endgear_L",
+			"endgear_R",
+			"pinion_L",
+			"pinion_R",
+			"wheel_L",
+			"wheel_R"
+		],
+		"loop": {
+			"endgear_L": 10,
+			"endgear_R": 10,
+			"pinion_L": 20,
+			"pinion_R": 20,
+			"wheel_L": 20,
+			"wheel_R": 20
+		},
+		"checks": {
+			"day": {
+				"frame0_vs_relight_frame_max": 4.16,
+				"frame0_px_over_2": 2,
+				"frame0_alpha_px_differ_from_locked": 0,
+				"turned_px_over_8_left_still_by_the_trim_worst_frame": 953,
+				"turned_max": 54.0
+			},
+			"night": {
+				"frame0_vs_relight_frame_max": 26.16,
+				"frame0_px_over_2": 4,
+				"frame0_alpha_px_differ_from_locked": 0,
+				"turned_px_over_8_left_still_by_the_trim_worst_frame": 90,
+				"turned_max": 45.0
+			},
+			"fire": {
+				"frame0_vs_relight_fire_max": 6.0,
+				"frame0_px_over_2": 27,
+				"frame0_px_over_8": 0,
+				"turned_px_over_8_left_still_by_the_trim_worst_frame": 813,
+				"turned_max": 48.0
+			}
+		},
+		"layouts": {
+			"landscape": {
+				"tiers": {
+					"full": {
+						"day": {
+							"size": [
+								1266,
+								846
+							],
+							"cells": 101,
+							"residentMB": 4.09,
+							"bytes": 593000
+						},
+						"night": {
+							"size": [
+								1661,
+								1191
+							],
+							"cells": 200,
+							"residentMB": 7.55,
+							"bytes": 637238
+						},
+						"cellsMB": {
+							"day": 3.44,
+							"night": 3.44,
+							"fire": 3.44
+						},
+						"plateMB": {
+							"day": 4.95,
+							"night": 4.95,
+							"fire": 1.24
+						}
+					}
+				},
+				"night": {
+					"tex": [
+						1205,
+						1076
+					]
+				},
+				"fire": {
+					"tex": [
+						603,
+						538
+					]
+				},
+				"gears": {
+					"endgear_L": {
+						"tex": [
+							147,
+							95,
+							201,
+							157
+						],
+						"box": [
+							280.2017,
+							195.2138,
+							88.2373,
+							101.2974
+						]
+					},
+					"endgear_R": {
+						"tex": [
+							1004,
+							95,
+							1058,
+							157
+						],
+						"box": [
+							1680.561,
+							195.2138,
+							88.2373,
+							101.2974
+						]
+					},
+					"pinion_L": {
+						"tex": [
+							104,
+							100,
+							181,
+							188
+						],
+						"box": [
+							209.9386,
+							203.3829,
+							125.8199,
+							143.777
+						]
+					},
+					"pinion_R": {
+						"tex": [
+							1025,
+							100,
+							1101,
+							188
+						],
+						"box": [
+							1714.8755,
+							203.3829,
+							124.1859,
+							143.777
+						]
+					},
+					"wheel_L": {
+						"tex": [
+							14,
+							82,
+							129,
+							208
+						],
+						"box": [
+							62.8763,
+							173.974,
+							187.9129,
+							205.8625
+						]
+					},
+					"wheel_R": {
+						"tex": [
+							1081,
+							83,
+							1191,
+							208
+						],
+						"box": [
+							1806.3809,
+							175.6078,
+							179.7427,
+							204.2286
+						]
+					}
+				},
+				"shadow": {
+					"box": [
+						0,
+						1690,
+						2048,
+						245
+					],
+					"tex": [
+						627,
+						75
+					]
+				},
+				"restOutline": {
+					"day": {
+						"pxSolved": 178,
+						"pxOffByMoreThan1": 25
+					},
+					"night": {
+						"pxSolved": 194,
+						"pxOffByMoreThan1": 25
+					}
+				}
+			},
+			"portrait": {
+				"tiers": {
+					"full": {
+						"day": {
+							"size": [
+								1996,
+								368
+							],
+							"cells": 101,
+							"residentMB": 2.8,
+							"bytes": 458746
+						},
+						"night": {
+							"size": [
+								812,
+								1712
+							],
+							"cells": 200,
+							"residentMB": 5.3,
+							"bytes": 504624
+						},
+						"cellsMB": {
+							"day": 2.4,
+							"night": 2.4,
+							"fire": 2.4
+						},
+						"plateMB": {
+							"day": 3.45,
+							"night": 3.45,
+							"fire": 0.86
+						}
+					}
+				},
+				"night": {
+					"tex": [
+						1006,
+						899
+					]
+				},
+				"fire": {
+					"tex": [
+						503,
+						450
+					]
+				},
+				"gears": {
+					"endgear_L": {
+						"tex": [
+							123,
+							79,
+							168,
+							131
+						],
+						"box": [
+							280.7425,
+							194.485,
+							88.0765,
+							101.6863
+						]
+					},
+					"endgear_R": {
+						"tex": [
+							838,
+							79,
+							883,
+							131
+						],
+						"box": [
+							1680.1809,
+							194.485,
+							88.0765,
+							101.6863
+						]
+					},
+					"pinion_L": {
+						"tex": [
+							87,
+							83,
+							151,
+							157
+						],
+						"box": [
+							210.2813,
+							202.307,
+							125.2644,
+							144.7075
+						]
+					},
+					"pinion_R": {
+						"tex": [
+							855,
+							83,
+							919,
+							157
+						],
+						"box": [
+							1713.4543,
+							202.307,
+							125.2644,
+							144.7075
+						]
+					},
+					"wheel_L": {
+						"tex": [
+							12,
+							69,
+							108,
+							174
+						],
+						"box": [
+							63.4871,
+							174.9299,
+							187.8966,
+							205.3281
+						]
+					},
+					"wheel_R": {
+						"tex": [
+							903,
+							69,
+							994,
+							174
+						],
+						"box": [
+							1807.4026,
+							174.9299,
+							178.1103,
+							205.3281
+						]
+					}
+				},
+				"shadow": {
+					"box": [
+						0,
+						1690,
+						2048,
+						245
+					],
+					"tex": [
+						524,
+						63
+					]
+				},
+				"restOutline": {
+					"day": {
+						"pxSolved": 176,
+						"pxOffByMoreThan1": 38
+					},
+					"night": {
+						"pxSolved": 171,
+						"pxOffByMoreThan1": 38
+					}
+				}
+			},
+			"phone": {
+				"tiers": {
+					"full": {
+						"day": {
+							"size": [
+								1068,
+								2190
+							],
+							"cells": 101,
+							"residentMB": 8.92,
+							"bytes": 1044702
+						},
+						"night": {
+							"size": [
+								1828,
+								2380
+							],
+							"cells": 200,
+							"residentMB": 16.6,
+							"bytes": 1062920
+						},
+						"cellsMB": {
+							"day": 7.7,
+							"night": 7.7,
+							"fire": 7.7
+						},
+						"plateMB": {
+							"day": 10.95,
+							"night": 10.95,
+							"fire": 2.74
+						}
+					},
+					"half": {
+						"day": {
+							"size": [
+								970,
+								704
+							],
+							"cells": 101,
+							"residentMB": 2.6,
+							"bytes": 407685
+						},
+						"night": {
+							"size": [
+								1526,
+								734
+							],
+							"cells": 200,
+							"residentMB": 4.27,
+							"bytes": 432938
+						},
+						"cellsMB": {
+							"day": 1.92,
+							"night": 1.92,
+							"fire": 1.92
+						},
+						"plateMB": {
+							"day": 10.95,
+							"night": 2.74,
+							"fire": 2.74
+						}
+					}
+				},
+				"night": {
+					"tex": [
+						1793,
+						1601
+					]
+				},
+				"fire": {
+					"tex": [
+						897,
+						801
+					]
+				},
+				"gears": {
+					"endgear_L": {
+						"tex": [
+							218,
+							142,
+							298,
+							234
+						],
+						"box": [
+							279.3988,
+							195.925,
+							87.8528,
+							101.0219
+						]
+					},
+					"endgear_R": {
+						"tex": [
+							1494,
+							142,
+							1574,
+							234
+						],
+						"box": [
+							1680.6503,
+							195.925,
+							87.8528,
+							101.0219
+						]
+					},
+					"pinion_L": {
+						"tex": [
+							154,
+							148,
+							270,
+							280
+						],
+						"box": [
+							209.1166,
+							202.5134,
+							127.3865,
+							144.9444
+						]
+					},
+					"pinion_R": {
+						"tex": [
+							1524,
+							148,
+							1638,
+							280
+						],
+						"box": [
+							1713.5951,
+							202.5134,
+							125.1902,
+							144.9444
+						]
+					},
+					"wheel_L": {
+						"tex": [
+							20,
+							122,
+							192,
+							310
+						],
+						"box": [
+							61.9632,
+							173.9638,
+							188.8834,
+							206.436
+						]
+					},
+					"wheel_R": {
+						"tex": [
+							1608,
+							122,
+							1772,
+							310
+						],
+						"box": [
+							1805.8405,
+							173.9638,
+							180.0982,
+							206.436
+						]
+					}
+				},
+				"shadow": {
+					"box": [
+						0,
+						1690,
+						2048,
+						245
+					],
+					"tex": [
+						933,
+						112
+					]
+				},
+				"restOutline": {
+					"day": {
+						"pxSolved": 134,
+						"pxOffByMoreThan1": 19
+					},
+					"night": {
+						"pxSolved": 121,
+						"pxOffByMoreThan1": 19
+					}
+				}
+			}
 		}
 	}
 } as const;

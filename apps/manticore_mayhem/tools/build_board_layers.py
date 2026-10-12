@@ -25,6 +25,12 @@ Outputs (static/assets):
                                       row against the row one period later). The leaned top links are ERASED from the frame
                                       export (the loop enters the cap straight): erase_leaned_links().
   backgrounds/<mode>-<layout>.webp    mode = base / bonus / super / epic (one image for now), cover crops
+  THE RELIGHT AND THE TURNING GEARS (board_v5l only, Corey 2026-10-11; tools/board_relight.py has the sources and the
+  method): the frame PIXELS exported above are the D1 plate (the frame lit for the day, without its six turning parts),
+  the chain tile sheet holds three sets side by side (day, night, fire), and board_relight.build() writes
+  ui/board-frame-night-<layout>.webp, ui/board-frame-fire-<layout>.webp, ui/board-gears-<layout>.{json,webp} and
+  ui/board-gears-night-<layout>.{json,webp} (phone: -half twins for the phone tier) and the spec's `relight` block.
+  Every NUMBER of the layouts still comes from the LOCKED render (bracket_r7/full): the alpha is the contract.
   src/game/boardArtSpec.ts            GENERATED: lattice, art bbox, corners, crop origins, texture scales and
                                       the FRAME rects this registration derives (copy them into layoutSpec.ts)
 
@@ -97,6 +103,13 @@ SRC_CAMERA = os.path.join(_T, f'{TAG}_camera.json')
 FLAT_CAMERA = os.path.join(DESK, 'board/drafts/board_v4d_camera.json')
 PREV_CAMERA = os.path.join(DESK, 'board/drafts/board_v4j_camera.json')  # the previous lattice, for the before line
 SRC_BG = os.path.join(DESK, 'submission/final/tile-bg.jpg')
+# THE RELIGHT (board_v5l, Corey 2026-10-11: "D1", "Super and Epic look good", the contact shadow "Yes"; the gears "Looks
+# great"). The locked render above keeps giving every number; the exported pixels are relight_r1's and gears_sync_r1's.
+RELIT = TAG == 'board_v5l'
+if RELIT:
+    _sys.path.insert(0, HERE)
+    _sys.dont_write_bytecode = True
+    import board_relight
 
 # lattice bar axes, world units: the v4 numbers (board_v4_NOTES.md, "Grid material finding") for the flat
 # reference; a v4f camera json carries its own (respaced) bar_x / bar_z
@@ -339,32 +352,35 @@ def chain_runs(chains, cam):
     return out, period, phase
 
 
-def chain_tile_sheet(runs, period, phase, scale):
+def chain_tile_sheet(run_sets, period, phase, scale):
     """L and R two-link tiles side by side (a 4 px transparent gutter), each the de-slanted run from `phase`
     over one `period`, resampled to the layout's texture scale; the sheet is power-of-two on both sides so the
-    wrap works on every WebGL. Returns (sheet, parts, seam) where seam is each run's mean |RGBA| difference
-    between the tile's first row and the row one period later (0 = seamless)."""
+    wrap works on every WebGL. `run_sets` is [(name, runs)]: the first set's tiles come first and are the spec's
+    L / R as before; every further set (the relight's night and fire chains: the same links, lit again) follows
+    in the same sheet and is returned under its name. Returns (sheet, parts, seam) where seam is the first set's
+    mean |RGBA| difference between the tile's first row and the row one period later (0 = seamless)."""
     import numpy as np
     parts, ims, seam = {}, [], {}
     tw = math.ceil(2 * CHAIN_HALF_W * scale)
     th_n = math.ceil(period * scale)
     pot = lambda n: 1 << max(0, math.ceil(math.log2(max(n, 1))))
-    TW, TH = pot(2 * tw + 8), pot(th_n)
+    TW, TH = pot(len(run_sets) * (2 * tw + 8)), pot(th_n)
     x = 2
-    for side in ('L', 'R'):
-        rows = runs[side]
+    for name, side in [(n, sd) for n, _ in run_sets for sd in ('L', 'R')]:
+        rows = dict(run_sets)[name][side]
         y0 = int(math.floor(phase))
         span = rows[y0:y0 + int(math.ceil(period)) + 2]
         strip = Image.fromarray(np.clip(span + 0.5, 0, 255).astype('uint8'), 'RGBA')
         tile = strip.resize((tw, TH), Image.LANCZOS, box=(0, phase - y0, strip.size[0], phase - y0 + period))
         ims.append((x, tile))
-        parts[side] = {'texX': x, 'texW': tw}
+        (parts if name == run_sets[0][0] else parts.setdefault(name, {}))[side] = {'texX': x, 'texW': tw}
         # the seam: row `phase` against row `phase + period`, at render resolution
         def row_at(yy):
             i = int(math.floor(yy))
             f = yy - i
             return rows[i] * (1 - f) + rows[i + 1] * f
-        seam[side] = round(float(np.abs(row_at(phase) - row_at(phase + period)).mean()), 3)
+        if name == run_sets[0][0]:
+            seam[side] = round(float(np.abs(row_at(phase) - row_at(phase + period)).mean()), 3)
         x += tw + 4
     sheet = Image.new('RGBA', (TW, TH), (0, 0, 0, 0))
     for px, im in ims:
@@ -610,6 +626,19 @@ def main():
         chains = Image.open(SRC_CHAINS).convert('RGBA')
         runs, period, phase = chain_runs(chains, cam)
         print(f'chain loop: two-link period {period} render px, tile phase y {phase}, strip clip {CHAIN_CLIP}')
+        run_sets = [('day', runs)]
+        frame_px = frame
+        if RELIT:
+            # the pixels: the D1 plate for the frame, and the chains lit three times. Each relit layer's alpha is the
+            # locked layer's (relight_r1 NOTES departure 1; the plate's only behind the turning parts), so the period and
+            # the phase measured on the locked chains above hold for all three sets
+            frame_px = Image.open(board_relight.PLATE['day']).convert('RGBA')
+            run_sets = []
+            for name in board_relight.SETS:
+                lit = Image.open(board_relight.CHAINS[name]).convert('RGBA')
+                assert lit.split()[-1].tobytes() == chains.split()[-1].tobytes(), f'{name} chains: alpha is not the locked layer\'s'
+                run_sets.append((name, chain_runs(lit, cam)[0]))
+            print(f'relight: frame pixels from {os.path.relpath(board_relight.PLATE["day"], _D)}, chain sets {[n for n, _ in run_sets]}')
         fbox = crop_box(frame.split()[-1].getbbox(), frame.size)
         half = chains.size[0] // 2
         cboxes = {}
@@ -621,13 +650,13 @@ def main():
             scale = m * DEVICE_PX
             cw, chh = fbox[2] - fbox[0], fbox[3] - fbox[1]
             tw, th = math.ceil(cw * scale), math.ceil(chh * scale)
-            tex = frame.crop(fbox).resize((tw, th), Image.LANCZOS)
+            tex = frame_px.crop(fbox).resize((tw, th), Image.LANCZOS)
             sizes[f'ui/board-frame-{kind}.webp'] = save_webp(tex, f'ui/board-frame-{kind}.webp')
             if frame_other is not None:
                 sizes[f'ui/board-frame-{kind}-{other}.webp'] = save_webp(frame_other.crop(fbox).resize((tw, th), Image.LANCZOS), f'ui/board-frame-{kind}-{other}.webp')
             frame_spec[kind] = {'crop': [fbox[0], fbox[1]], 'size': [cw, chh], 'tex': [tw, th]}
             # THE CHAIN LOOP: the seamless two-link tiles, L then R, power-of-two (the strip repeats it)
-            sheet, parts, seam = chain_tile_sheet(runs, period, phase, scale)
+            sheet, parts, seam = chain_tile_sheet(run_sets, period, phase, scale)
             path = os.path.join(ASSETS, f'ui/board-chain-tile-{kind}.webp')
             sheet.save(path, 'WEBP', lossless=True, method=6)
             sizes[f'ui/board-chain-tile-{kind}.webp'] = os.path.getsize(path)
@@ -692,6 +721,9 @@ def main():
             'symbolArt': {n: [round(float(xs.min()) - 0.5 / 128, 4), round(float(ys.min()) - 0.5 / 128, 4), round(float(xs.max()) + 0.5 / 128, 4), round(float(ys.max()) + 0.5 / 128, 4)] for n, (xs, ys) in tiles_art.items()},
         }
         spec['frameRects'] = {k: {kk: round(vv, 3) for kk, vv in v.items()} for k, v in frames.items()}
+        if RELIT:
+            # the night and fire plates, the gear loops and the contact shadow, and what the game needs to place them
+            spec['relight'] = board_relight.build(os.path.join(ASSETS, 'ui'), frame_spec)
         body = json.dumps(spec, indent='\t')
         with open(SPEC_TS, 'w') as f:
             f.write(

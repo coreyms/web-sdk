@@ -42,7 +42,7 @@
 	import { loadPlaceholderLate, loadSceneLate } from '../game/deferredLoad';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from '../game/sceneSpec';
-	import { SceneView, flickerAt, idleAt, type SceneLayout } from '../game/scene';
+	import { SceneView, clearSceneLight, flickerAt, idleAt, type SceneLayout } from '../game/scene';
 	import { FLAME_SPEC } from '../game/flameSpec';
 	import type { FlameClip, FlameTreatment } from '../game/flames';
 	import { fireSoundLog, fireSoundState, setFireSound } from '../game/fireSound';
@@ -118,6 +118,8 @@
 		const t0 = import.meta.env.DEV ? performance.now() : 0;
 		const view = views[active];
 		view.tick(ticker.lastTime, ticker.deltaMS);
+		// the board frame's relight reads the scene on screen (game/scene.ts sceneLight)
+		view.writeLight();
 		if (!covered && view.shown) settle();
 		if (import.meta.env.DEV) {
 			const ms = performance.now() - t0;
@@ -137,6 +139,8 @@
 		if (!ticking) return;
 		ticking = false;
 		context.stateApp.pixiApplication?.ticker.remove(tick);
+		// no scene is drawn: the frame goes back to its day light
+		clearSceneLight();
 	};
 
 	// the files: a scene's day set builds it, its night set joins it, and the landscape scene's two deferred flame
