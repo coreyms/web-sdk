@@ -12,8 +12,10 @@
 //            backdrop again
 //   birds    DAY ONLY. The Angry Mantis bird system: flocks of min..max in a loose V every everyMs, from either
 //            side, a depth per flock choosing size, speed and the small-bird row, a flap phase and a bob per bird
-//   bats     NIGHT ONLY (SUPER, EPIC). The same flyer code and the same resident frames with SKY.bats' numbers,
-//            tinted to a dark silhouette, formation 'scattered': each bat at its own place along and across the
+//   bats     NIGHT ONLY (SUPER, EPIC). The same flyer code with SKY.bats' numbers and the bats' own sheet (the
+//            birds' rectangles, black already: only the scene's dim tints it), which lands with the scene's night
+//            set: until then there are no bats (the pool is not built), never a bird's frame standing in.
+//            Formation 'scattered': each bat at its own place along and across the
 //            group and at its own speed, so the group drifts apart, with a flutter on top of the bob
 //   fog      one or two soft mist bands drifting in the gorge, behind the courtyard
 // The portrait scene has none of it. Everything is scenery: real time at every turbo level, never paused, nothing to
@@ -100,7 +102,7 @@ class Flyers {
 		this.nextFlock = B.firstS;
 	}
 
-	/** the pool, once, from the rows of resident frames (both kinds draw from the same ones) */
+	/** the pool, once, from the kind's own rows of resident frames (the birds' atlas, the bats' sheet) */
 	build(rows: PIXI.Texture[][]): void {
 		const B = this.B;
 		this.rows = rows;
@@ -251,6 +253,22 @@ class Flyers {
 		return { seconds, flocks: this.flocks - flocks, refused: this.refused - refused, maxLive, pool: this.pool.length };
 	}
 
+	/** which texture source this kind draws from: its label (the file's URL), the frame names' prefixes, and whether
+	 *  any frame of its rows or any sprite of its pool is of another source */
+	drawsFrom() {
+		const source = this.rows.length ? this.rows[0][0].source : null;
+		const names = new Set<string>();
+		let mixed = false;
+		for (const row of this.rows) {
+			for (const t of row) {
+				names.add(String(t.label ?? '').split('_')[0]);
+				if (t.source !== source) mixed = true;
+			}
+		}
+		for (const b of this.pool) if (b.s.texture.source !== source) mixed = true;
+		return { file: source ? String(source.label ?? '') : null, uid: source ? source.uid : null, names: [...names], mixed, sprites: this.pool.length };
+	}
+
 	state() {
 		return {
 			share: this.share,
@@ -287,6 +305,7 @@ export class SkyView {
 	private readonly cloudList: Cloud[] = [];
 	private readonly fogList: Fog[] = [];
 	private readonly birdRows: PIXI.Texture[][] = [];
+	private readonly batRows: PIXI.Texture[][] = [];
 	/** the aurora's columns, curtain by curtain, left to right (SKY.aurora.columns + 1 each) */
 	private readonly auroraCols: PIXI.Sprite[] = [];
 	private auroraReady = false;
@@ -315,18 +334,20 @@ export class SkyView {
 		for (const sprite of this.ridge) sprite.position.set(x0, y0);
 	}
 
-	/** the day files are in: the day cut-out, the wisp and fog atlas, the birds (and with them the bats: the same
-	 *  frames). Each part builds by itself; a part whose file is missing is simply not drawn (the clouds never without
-	 *  the cut-out that hides them). */
+	/** the day files are in: the day cut-out, the wisp and fog atlas, the birds. Each part builds by itself; a part
+	 *  whose file is missing is simply not drawn (the clouds never without the cut-out that hides them). */
 	setDay(tex: Textures): void {
 		this.setRidge(0, tex);
 		if (!this.atlasReady && tex.sky_wisp_0 && tex.sky_fog_0) this.buildAtlas(tex);
 		if (!this.auroraReady && tex.sky_aurora) this.buildAurora(tex.sky_aurora);
-		if (!this.birdFlyers.ready && tex['bird_0_0.png']) this.buildBirds(tex);
+		if (!this.birdFlyers.ready && tex['bird_0_0.png']) this.buildFlyers(this.birdFlyers, this.birdRows, 'bird', tex);
 	}
 
+	/** the night files are in: the night cut-out and the bats' sheet. A sheet that is missing leaves the night without
+	 *  bats (their pool is never built from the birds' frames). */
 	setNight(tex: Textures): void {
 		this.setRidge(1, tex);
+		if (!this.batFlyers.ready && tex[`${SKY.bats.frames}_0_0.png`]) this.buildFlyers(this.batFlyers, this.batRows, SKY.bats.frames, tex);
 	}
 
 	private setRidge(i: number, tex: Textures): void {
@@ -419,19 +440,19 @@ export class SkyView {
 		}
 	}
 
-	private buildBirds(tex: Textures): void {
+	/** one kind's rows of frames (<prefix>_<row>_<frame>.png: the bats' sheet has the birds' rows) and its pool */
+	private buildFlyers(flyers: Flyers, rows: PIXI.Texture[][], prefix: string, tex: Textures): void {
 		const spec = SCENE_SPEC.sky.birds;
 		for (let r = 0; r < spec.rows; r += 1) {
 			const row: PIXI.Texture[] = [];
 			for (let k = 0; k < spec.framesPerRow; k += 1) {
-				const t = tex[`bird_${r}_${k}.png`];
+				const t = tex[`${prefix}_${r}_${k}.png`];
 				if (t) row.push(t);
 			}
-			if (row.length) this.birdRows.push(row);
+			if (row.length) rows.push(row);
 		}
-		if (!this.birdRows.length) return;
-		this.birdFlyers.build(this.birdRows);
-		this.batFlyers.build(this.birdRows);
+		if (!rows.length) return;
+		flyers.build(rows);
 	}
 
 	/** every texture source the sky draws from (the scene's one upload, and its release) */
@@ -439,6 +460,7 @@ export class SkyView {
 		for (const s of this.ridge) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
 		if (this.wisps.length) out.add(this.wisps[0].source);
 		if (this.birdRows.length) out.add(this.birdRows[0][0].source);
+		if (this.batRows.length) out.add(this.batRows[0][0].source);
 	}
 
 	/** (re)roll one cloud: its depth drives size, speed and opacity together (two sets: 0 for the far set, 1 for the
@@ -638,7 +660,14 @@ export class SkyView {
 			birds: this.birdFlyers.state(),
 			bats: this.batFlyers.state(),
 			counters: { steps: this.steps, birdSteps: this.birdFlyers.steps, batSteps: this.batFlyers.steps },
-			textures: { atlas: this.wisps.length ? [this.wisps[0].source.pixelWidth, this.wisps[0].source.pixelHeight] : null, birds: this.birdRows.length ? [this.birdRows[0][0].source.pixelWidth, this.birdRows[0][0].source.pixelHeight] : null },
+			textures: {
+				atlas: this.wisps.length ? [this.wisps[0].source.pixelWidth, this.wisps[0].source.pixelHeight] : null,
+				birds: this.birdRows.length ? [this.birdRows[0][0].source.pixelWidth, this.birdRows[0][0].source.pixelHeight] : null,
+				bats: this.batRows.length ? [this.batRows[0][0].source.pixelWidth, this.batRows[0][0].source.pixelHeight] : null,
+				/** which file each kind draws from: every frame of its rows AND every sprite of its pool (flying or parked)
+				 *  is of this one source, or `mixed`; and the two kinds' sources are not the same one */
+				flyers: { birds: this.birdFlyers.drawsFrom(), bats: this.batFlyers.drawsFrom(), shared: this.birdRows.length > 0 && this.batRows.length > 0 && this.birdRows[0][0].source === this.batRows[0][0].source },
+			},
 		};
 	}
 }

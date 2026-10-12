@@ -302,8 +302,10 @@ const assets = {
 	scene_fire: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fire.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fire-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
 	sceneChains: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/chains.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/chains-phone.json', import.meta.url).href)), preload: sceneAtBoot },
 	// THE AMBIENT SKY of that scene (game/sky.ts, constants SKY; tools/build_scene_assets.py --sky): the day ridge cut-out,
-	// the wisp and fog atlas and the birds ride with the day set, the night cut-out with the night set (SCENE_KEYS), so
-	// they follow the scene's own boot order and a portrait boot registers none of them.
+	// the wisp and fog atlas and the birds ride with the day set, the night cut-out and the BATS' own small sheet
+	// (sceneBats: the birds' canvas and rectangles, frames bat_<row>_<frame>.png, one file for both tiers like the
+	// birds) with the night set (SCENE_KEYS), so they follow the scene's own boot order and a portrait boot registers
+	// none of them.
 	scene_ridge_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/ridge-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/ridge-day-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
 	sceneSky: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/sky.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/sky-phone.json', import.meta.url).href)), preload: sceneAtBoot },
 	sceneBirds: { type: 'sprites', src: stamp(new URL('../../assets/backgrounds/scene/birds.json', import.meta.url).href), preload: sceneAtBoot },
@@ -316,6 +318,7 @@ const assets = {
 	sceneFlameFx: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/flame-fx.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/flame-fx-phone.json', import.meta.url).href)), preload: sceneAtBoot },
 	sceneFlameSuper: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/flame-super.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/flame-super-phone.json', import.meta.url).href)), preload: false },
 	sceneFlameEpic: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/flame-epic.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/flame-epic-phone.json', import.meta.url).href)), preload: false },
+	sceneBats: { type: 'sprites', src: stamp(new URL('../../assets/backgrounds/scene/bats.json', import.meta.url).href), preload: false },
 	scene_ridge_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/ridge-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/ridge-night-phone.webp', import.meta.url).href)), preload: false },
 	scene_backdrop_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/backdrop-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/backdrop-night-phone.webp', import.meta.url).href)), preload: false },
 	scene_fore_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fore-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fore-night-phone.webp', import.meta.url).href)), preload: false },
@@ -491,7 +494,7 @@ const phoneOnlyScreen = (): boolean => {
 // the same file); loadPlaceholderLate fetches the one for the layout the game was turned to, beside that layout's
 // scene, and it stands in until the scene fades in over it, or for good if the scene's files fail.
 export const SCENE_KEYS = {
-	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
+	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
 	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire'], night: ['scenep_backdrop_night', 'scenep_fore_night'], flames: [] },
 } as const;
 /** the scene the boot layout draws, and the one that waits */

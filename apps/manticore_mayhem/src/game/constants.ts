@@ -1064,8 +1064,12 @@ export const SCENE = {
 //             flight, mean 29, and 48 refused one flock in 180); parkX / parkY: where a bird that is not flying
 //             waits, transparent, far off the frame. intervalMs: how often they are moved (33 like everything
 //             here; 0 = every frame).
-//   bats      NIGHT ONLY (SUPER, EPIC): the birds' code, frames and fields with their own numbers, drawn as dark
-//             silhouettes (`tint` times the scene's dim). formation 'scattered' (Corey: not in a V, more
+//   bats      NIGHT ONLY (SUPER, EPIC): the birds' code and fields with their own numbers and THEIR OWN FRAMES
+//             (Corey 2026-10-12: a bat sheet made from the birds' by erasing, bats.json beside birds.json, the same
+//             rows and rectangles; `frames` is the frame names' prefix, <frames>_<row>_<frame>.png; it rides the
+//             scene's NIGHT set, and until it lands there are no bats, never a bird standing in). The sheet is
+//             black already, so `tint` is 1, 1, 1: the bats take only the scene's dim, like the birds (it stays a
+//             constant, times the dim, to tune). formation 'scattered' (Corey: not in a V, more
 //             randomness): each bat starts up to looseX px behind the flock's lead point and up to looseY px above
 //             or below its height, and flies at the flock's speed x (1 +- looseSpeed), so the group drifts apart;
 //             `spacing` is only read by a V. looseX, looseY and looseSpeed are PROVISIONAL (not tuned by Corey
@@ -1148,7 +1152,9 @@ export const SKY = {
 		flock: { min: 2, max: 5 },
 		// Corey 2026-10-11 22:45, on staging: "slow the bats down and make them smaller, they definitely read as birds here
 		// too big": size near 31.2 -> 17, far 24.7 -> 11, speed 397 -> 230 (the crossing times in the text above are the old speed's)
-		size: { near: 17, far: 11 },
+		// Corey 2026-10-12, with the bat sheet (a bat is less of its cell than the bird it was cut from): near 17 -> 26,
+		// far 11 -> 16; the speed stays
+		size: { near: 26, far: 16 },
 		sizeJitter: [0.85, 1.15],
 		speed: 230,
 		speedByDepth: [0.5, 1],
@@ -1165,7 +1171,8 @@ export const SKY = {
 		looseX: 320,
 		looseY: 110,
 		looseSpeed: 0.35,
-		tint: [0.07, 0.06, 0.1],
+		frames: 'bat',
+		tint: [1, 1, 1],
 		margin: 80,
 		exit: 107,
 		pool: 64,

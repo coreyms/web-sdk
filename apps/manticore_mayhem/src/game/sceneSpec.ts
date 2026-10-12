@@ -7,7 +7,7 @@
 //   scene_<piece>_<side>_<set> covers exactly this box).
 //   sky: the ambient sky (game/sky.ts). ridge: the skyline cut-out's box; skyline: the highest and lowest row any
 //   sky reaches down to; wisp / fog: a cloud and a mist cell's size at scale 1 (atlas frames sky_wisp_<k>,
-//   sky_fog_<k>); birds: the copied atlas's rows (bird_<row>_<frame>.png). tiers.<tier>.ridge / sky: texture sizes.
+//   sky_fog_<k>); birds: the copied atlas's rows (bird_<row>_<frame>.png; the bats' bat_<row>_<frame>.png are the same rows). tiers.<tier>.ridge / sky: texture sizes.
 // SCENE_SPEC_PORTRAIT  no moving pieces. painting / fill: the rows of the frame the painting takes and the rows of
 //   the soft mist fill under it, down to where the 3D terrace covers the frame (the board is meant to hide the fill).
 // components/Background.svelte and game/scene.ts draw from both.

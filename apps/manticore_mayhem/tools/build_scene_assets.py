@@ -50,6 +50,11 @@ THE AMBIENT SKY (game/sky.ts, constants SKY; landscape scene only), built by eve
                                                                       sky_wisp_<k> thin streaky clouds, sky_fog_<k>
                                                                       soft mist bands. Generated here, seeded
   static/assets/backgrounds/scene/birds.json|webp                     the Angry Mantis birds atlas, copied (--birds)
+  static/assets/backgrounds/scene/bats.json|webp                      the night flyers (--bats): Corey's bat sheet, the
+                                                                      birds' sheet with parts of each silhouette erased,
+                                                                      so the birds' frame rectangles hold for it
+                                                                      (bat_<row>_<frame>.png); lossless, one file for
+                                                                      both tiers like the birds; rides the NIGHT set
   src/game/sceneSpec.ts SCENE_SPEC.sky                                the ridge band, the cells' sizes in frame px
   --sky-check DIR (default .../drafts/sky_matte)                      for inspection, never shipped: ridge_matte.png
                                                                       (the band's alpha), ridge_magenta_<set>.png (the
@@ -138,6 +143,8 @@ AURORA_STOPS = ((0.0, 120, 60, 200, 0.0), (0.3, 90, 120, 210, 0.22), (0.6, 50, 2
 AURORA_W = 16
 AURORA_BLEED = 1
 BIRDS_SRC = os.path.join(os.path.dirname(APP), 'angry_mantis', 'static', 'assets', 'ui', 'ambient')
+# the bat sheet (Corey 2026-10-12): read where it lies, like every other source of this tool; nothing is copied into the repo
+BATS_SRC = os.path.expanduser('~/Desktop/Manticore Mayhem/bats_sheet.png')
 
 PIECES = ('ring', 'hang', 'swag')
 SIDES = ('L', 'R')
@@ -453,6 +460,37 @@ def build_sky(args, FW: int, FH: int, back: dict, tiers: dict) -> tuple[dict, di
     report.append(('birds.json + .webp', len(webp) + os.path.getsize(os.path.join(OUT, 'birds.json')), birds['meta']['size']['w'], birds['meta']['size']['h']))
     print(f'  birds: copied from {birds_src}, {len(rows_of)} rows of {per_row} frames')
 
+    # the bats: Corey's sheet on the birds' canvas (each bat inside its bird's cell), so the atlas is the birds' with
+    # the frames renamed bat_<row>_<frame>.png. Lossless: a silhouette this small keeps its exact edge. One file for
+    # both tiers, like the birds.
+    bats_src = os.path.expanduser(args.bats)
+    if not os.path.isfile(bats_src):
+        die(f'the bat sheet is not at {bats_src} (--bats)')
+    sheet = Image.open(bats_src).convert('RGBA')
+    want = (birds['meta']['size']['w'], birds['meta']['size']['h'])
+    if sheet.size != want:
+        die(f'the bat sheet is {sheet.size[0]} x {sheet.size[1]}, the birds\' atlas {want[0]} x {want[1]}: its frames would not hold')
+    sheet_alpha = np.asarray(sheet)[..., 3]
+    bat_frames = {}
+    for key, entry in birds['frames'].items():
+        f = entry['frame']
+        if not (sheet_alpha[f['y']:f['y'] + f['h'], f['x']:f['x'] + f['w']] > 0).any():
+            die(f'the bat sheet has nothing in the cell of {key}')
+        bat_frames['bat_' + key.split('_', 1)[1]] = entry
+    cells = np.zeros(sheet_alpha.shape, bool)
+    for entry in birds['frames'].values():
+        f = entry['frame']
+        cells[f['y']:f['y'] + f['h'], f['x']:f['x'] + f['w']] = True
+    if (sheet_alpha[~cells] > 0).any():
+        die('the bat sheet has pixels outside the birds\' cells')
+    nbytes = save_webp(sheet, 'bats.webp', 100, lossless=True, exact=True)
+    bats = {'frames': bat_frames, 'meta': {'image': 'bats.webp', 'size': birds['meta']['size'], 'scale': '1',
+                                           'pngHash': hashlib.md5(open(os.path.join(OUT, 'bats.webp'), 'rb').read()).hexdigest()[:8]}}
+    open(os.path.join(OUT, 'bats.json'), 'w').write(json.dumps(bats, indent=1) + '\n')
+    # 'bats night': sky_totals counts it with the night set
+    report.append(('bats.json + .webp (night)', nbytes + os.path.getsize(os.path.join(OUT, 'bats.json')), *want))
+    print(f'  bats: {bats_src}, {len(bat_frames)} frames on the birds\' rectangles, lossless')
+
     spec = {
         # the cut-out's box, and the lowest row of the frame any sky reaches
         'ridge': [0, y0, FW, y1],
@@ -472,11 +510,11 @@ def sky_totals(report: list):
     for name, nbytes, w, h in report:
         print(f'{name.ljust(41)}{nbytes / 1024:9.1f}   {f"{w} x {h}".ljust(13)}{w * h * 4 / 1e6:8.2f}')
     for tier in ('full', 'phone'):
-        mine = [r for r in report if ('-phone' in r[0]) == (tier == 'phone') or r[0].startswith('birds')]
+        mine = [r for r in report if ('-phone' in r[0]) == (tier == 'phone') or r[0].startswith(('birds', 'bats'))]
         first = [r for r in mine if 'night' not in r[0]]
         later = [r for r in mine if 'night' in r[0]]
         print(f'sky {tier}: with the day set (day ridge, the atlas, the birds) {sum(r[1] for r in first) / 1024:.0f} KiB, '
-              f'{sum(r[2] * r[3] * 4 for r in first) / 1e6:.2f} MB on the GPU; with the night set (night ridge) '
+              f'{sum(r[2] * r[3] * 4 for r in first) / 1e6:.2f} MB on the GPU; with the night set (night ridge, the bats) '
               f'{sum(r[1] for r in later) / 1024:.0f} KiB, {sum(r[2] * r[3] * 4 for r in later) / 1e6:.2f} MB')
 
 
@@ -784,9 +822,10 @@ def main():
     ap.add_argument('--portrait', default=None, help='the portrait scene folder (portrait_layers.json and the files it names)')
     ap.add_argument('--backdrops', default=os.path.join(DRAFTS, 'backdrop_upscale'))
     ap.add_argument('--fallback', default=None, help='take a base or the fire pass from here when SRC has none')
-    ap.add_argument('--sky', action='store_true', help='rebuild only the landscape scene\'s ambient sky set (ridge cut-outs, wisp and fog atlas, birds)')
+    ap.add_argument('--sky', action='store_true', help='rebuild only the landscape scene\'s ambient sky set (ridge cut-outs, wisp and fog atlas, birds, bats)')
     ap.add_argument('--sky-check', default=os.path.join(DRAFTS, 'sky_matte'), help='where the matte and its magenta check images go')
     ap.add_argument('--birds', default=BIRDS_SRC, help='the folder with the Angry Mantis birds.json and birds.webp')
+    ap.add_argument('--bats', default=BATS_SRC, help='the bat sheet (a PNG on the birds\' canvas: every bat inside its bird\'s cell)')
     args = ap.parse_args()
     if not args.src and not args.portrait and not args.sky:
         die('nothing to build: give the landscape folder, --portrait DIR, --sky, or more than one')
@@ -819,7 +858,7 @@ def main():
         '//   scene_<piece>_<side>_<set> covers exactly this box).\n'
         '//   sky: the ambient sky (game/sky.ts). ridge: the skyline cut-out\'s box; skyline: the highest and lowest row any\n'
         '//   sky reaches down to; wisp / fog: a cloud and a mist cell\'s size at scale 1 (atlas frames sky_wisp_<k>,\n'
-        '//   sky_fog_<k>); birds: the copied atlas\'s rows (bird_<row>_<frame>.png). tiers.<tier>.ridge / sky: texture sizes.\n'
+        '//   sky_fog_<k>); birds: the copied atlas\'s rows (bird_<row>_<frame>.png; the bats\' bat_<row>_<frame>.png are the same rows). tiers.<tier>.ridge / sky: texture sizes.\n'
         '// SCENE_SPEC_PORTRAIT  no moving pieces. painting / fill: the rows of the frame the painting takes and the rows of\n'
         '//   the soft mist fill under it, down to where the 3D terrace covers the frame (the board is meant to hide the fill).\n'
         '// components/Background.svelte and game/scene.ts draw from both.\n'
