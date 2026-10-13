@@ -30,6 +30,9 @@ export const createControls = () => {
 	});
 
 	const isIdle = () => context.stateXstateDerived.isIdle();
+	// an open round is still waiting to be resumed after a reload (stateGame.resumeHold): every control that
+	// starts a round or changes the bet shows its normal disabled state until that round has been handed over
+	const held = () => context.stateGame.resumeHold;
 	const isReplay = () => stateUi.config.mode === 'replay';
 	const anteActive = () => stateBetDerived.activeBetMode()?.type === 'activate';
 	// armed buy mode: a selected feature (BONUS/SUPER/MYSTERY) loaded on the spin button for ONE round
@@ -61,9 +64,10 @@ export const createControls = () => {
 	// ── spin / stop ──────────────────────────────────────────────────────
 	// Idle + unaffordable stays PRESSABLE: the press opens the balance notice (submission checklist:
 	// tell the player, send no play request). A disabled button could never reach that card.
-	const spinDisabled = () => (isIdle() ? betCostFull() <= 0 : (stopDisabled && !autoRunning()) || jurisdiction().disabledSlamstop);
+	const spinDisabled = () => held() || (isIdle() ? betCostFull() <= 0 : (stopDisabled && !autoRunning()) || jurisdiction().disabledSlamstop);
 	const showStop = () => !isIdle() && !autoRunning() && !jurisdiction().disabledSlamstop;
 	const spin = () => {
+		if (held()) return;
 		if (isIdle() && !canAfford()) {
 			sound('soundPressMinor');
 			stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientBalance' };
@@ -92,9 +96,9 @@ export const createControls = () => {
 
 	// ── autoplay (loadout flow: configure → LOAD to the spin button → Spin starts the run) ──
 	const autoLoadout = () => context.stateGame.autoLoadout;
-	const autoDisabled = () => stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAfford();
+	const autoDisabled = () => held() || stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAfford();
 	const autoPress = () => {
-		if (jurisdiction().disabledAutoplay) return;
+		if (jurisdiction().disabledAutoplay || held()) return;
 		sound('soundPressMinor');
 		if (autoRunning()) {
 			stateBet.autoSpinsCounter = 0;
@@ -113,7 +117,7 @@ export const createControls = () => {
 	};
 	const startLoadout = () => {
 		const loadout = context.stateGame.autoLoadout;
-		if (!loadout) return;
+		if (!loadout || held()) return;
 		// An autoplay run never plays a bought feature: the run would re-buy at the feature price on
 		// every press with no per-round confirmation (Stake review 2026-09-20). Drop the armed buy
 		// before the run starts, exactly as the SDK's own AutoSpinsStartButton does. Ante persists.
@@ -165,8 +169,9 @@ export const createControls = () => {
 	// (utils-xstate), displayRTP / displayNetPosition / displaySessionTimer (MenuButton.svelte).
 	// disabledFullscreen: the game has no fullscreen control of its own, so there is nothing to hide.
 	const jurisdiction = () => stateConfig.jurisdiction;
-	const bonusDisabled = () => !isIdle() || jurisdiction().disabledBuyFeature;
+	const bonusDisabled = () => held() || !isIdle() || jurisdiction().disabledBuyFeature;
 	const bonusPress = () => {
+		if (held()) return;
 		// Corey 2026-09-02: the bonus head button has its own voice again (ui-bonus.ogg, remixed);
 		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
 		sound('soundPressBonus');
@@ -176,12 +181,14 @@ export const createControls = () => {
 		else stateModal.modal = { name: 'buyBonus' };
 	};
 	const activateMode = (mode: string) => {
+		if (held()) return;
 		stateBet.activeBetModeKey = mode;
 		stateUi.autoSpinsLossLimitText = INFINITY_MARK;
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
 		stateModal.modal = null;
 	};
 	const buyMode = (mode: string) => {
+		if (held()) return;
 		// arm only: the feature loads onto the spin button for ONE round. Nothing is charged and
 		// nothing plays until the player presses Spin, and the round's finalWin returns the game to
 		// the base game, so the next feature round is a fresh selection + confirmation.
@@ -192,7 +199,7 @@ export const createControls = () => {
 
 	// ── bet amount ───────────────────────────────────────────────────────
 	const betOptions = () => stateConfig.betAmountOptions;
-	const betDisabled = () => !isIdle();
+	const betDisabled = () => held() || !isIdle();
 	const openDenom = () => {
 		if (betDisabled()) return;
 		sound('soundPressMinor');
@@ -200,6 +207,7 @@ export const createControls = () => {
 	};
 	// silent: a caller that already voiced the press (the autoplay card's stepper uses the sub click)
 	const setBet = (value: number, opts?: { silent?: boolean }) => {
+		if (held()) return;
 		if (!opts?.silent) sound('soundPressGeneral');
 		stateBetDerived.setBetAmount(value);
 	};

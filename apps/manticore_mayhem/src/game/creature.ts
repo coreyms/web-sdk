@@ -53,7 +53,7 @@ type StingKind = 'normal' | 'big' | 'super' | 'scatter';
 export type CreatureLayer = 'front' | 'behind';
 export type CreaturePlace = { x: number; y: number; scale: number; layer: CreatureLayer };
 /** what the creature needs from the game (components/Background.svelte hands it over; this file imports no state) */
-export type CreatureEnv = { ts: () => number; skipping: () => boolean; play: (name: string) => void; stop: (name: string) => void };
+export type CreatureEnv = { ts: () => number; skipping: () => boolean; play: (name: string, rate?: number) => void; stop: (name: string) => void };
 
 const SPEC = CREATURE_SPEC;
 const FPS = SPEC.fps;
@@ -141,6 +141,8 @@ export class Creature {
 	private glowA = 0;
 	private last = -1;
 	private breathTake = 0;
+	/** the take the snarl and the growl last used (0 = none yet): the next play takes the other one */
+	private voiceTake = { snarl: 0, growl: 0 };
 	private breathOn: string | null = null;
 	private drawnClip: CreatureClip = 'idle';
 	private drawnFrame = 0;
@@ -474,9 +476,18 @@ export class Creature {
 
 	// ---- the clips ----
 	/** every sound of his is asked for here (counted, so a probe can hold him to silence while he is hidden) */
-	private say(name: string): void {
+	private say(name: string, rate?: number): void {
 		this.counters.sounds += 1;
-		this.env.play(name);
+		this.env.play(name, rate);
+	}
+	/** THE VOICE (CREATURE.voice): which take of the snarl or the growl plays next and how fast. Never the take that
+	 *  played last (the first is a coin toss), at a random rate inside the range. Presentation only, plain Math.random. */
+	pickVoice(clip: 'snarl' | 'growl'): { name: string; take: number; rate: number } {
+		const last = this.voiceTake[clip];
+		const take = last ? 3 - last : Math.random() < 0.5 ? 1 : 2;
+		this.voiceTake[clip] = take;
+		const { rateMin, rateMax } = CREATURE.voice;
+		return { name: `sfx_manticore_${clip}_${take}`, take, rate: rateMin + Math.random() * (rateMax - rateMin) };
 	}
 	private quiet(): void {
 		if (!this.breathOn) return;
@@ -500,7 +511,11 @@ export class Creature {
 		this.state = 'clip';
 		this.glowA = 0;
 		this.note('start', { clip, offset: Math.round(offset) });
-		if (clip === 'snarl' || clip === 'growl') this.say(`sfx_manticore_${clip}_${Math.random() < 0.5 ? 1 : 2}`);
+		if (clip === 'snarl' || clip === 'growl') {
+			const voice = this.pickVoice(clip);
+			this.note('voice', voice);
+			this.say(voice.name, voice.rate);
+		}
 	}
 	private toIdle(now: number): void {
 		this.state = 'idle';

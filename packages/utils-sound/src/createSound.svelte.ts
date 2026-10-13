@@ -336,8 +336,9 @@ function createSound<TSoundName extends string>() {
 	};
 
 	const enable = () => {
-		Howler.volume(1);
+		// unmute first: Howler's global volume() skips html5 elements while the global mute is on
 		Howler.mute(false);
+		Howler.volume(1);
 	};
 
 	const enableEffect = () => {

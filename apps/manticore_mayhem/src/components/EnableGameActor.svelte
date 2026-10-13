@@ -31,8 +31,13 @@
 
 	context.eventEmitter.subscribeOnMount({
 		// Connect every actor with app.eventEmitter to avoid call actor directly
-		bet: () => gameActor.send({ type: 'BET' }),
-		autoBet: () => gameActor.send({ type: 'AUTO_BET' }),
+		// the last line of the open-round hold (stateGame.resumeHold): no new round before the open one is resumed
+		bet: () => {
+			if (!context.stateGame.resumeHold) gameActor.send({ type: 'BET' });
+		},
+		autoBet: () => {
+			if (!context.stateGame.resumeHold) gameActor.send({ type: 'AUTO_BET' });
+		},
 		resumeBet: () => gameActor.send({ type: 'RESUME_BET' }),
 	});
 </script>

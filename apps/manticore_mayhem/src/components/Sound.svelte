@@ -12,7 +12,7 @@
 		| { type: 'soundPressMinor' }
 		| { type: 'soundPressSub' }
 		| { type: 'soundPressBonus' }
-		| { type: 'soundOnce'; name: SoundEffectName; forcePlay?: boolean }
+		| { type: 'soundOnce'; name: SoundEffectName; forcePlay?: boolean; rate?: number } // rate: playback rate of this one play (the creature's voice)
 		| { type: 'soundLoop'; name: SoundEffectName }
 		| { type: 'soundStop'; name: SoundName }
 		| { type: 'soundFade'; name: SoundName; from: number; to: number; duration: number }
@@ -48,8 +48,11 @@
 		soundLoop: ({ name }) => {
 			if (!context.stateGame.skipping) sound.players.loop.play({ name });
 		},
-		soundOnce: ({ name, forcePlay }) => {
-			if (!context.stateGame.skipping) sound.players.once.play({ name, forcePlay });
+		soundOnce: ({ name, forcePlay, rate }) => {
+			if (context.stateGame.skipping) return;
+			sound.players.once.play({ name, forcePlay });
+			// the sprite player's own rate(): it sets the rate of the play it has just started under this name
+			if (rate !== undefined) sound.players.once.rate({ name, rate });
 		},
 		soundStop: ({ name }) => sound.stop({ name }),
 		soundFade: async ({ name, duration, from, to }) => await sound.fade({ name, duration, from, to }), // prettier-ignore
@@ -86,6 +89,9 @@
 
 	// A bonus in progress (resume) goes straight to its own loop.
 	onMount(() => {
+		// the restored mixer level goes to the music player BEFORE the first play: the effect that normally hands it
+		// over runs after this mount, so a session restored as muted started its track audible for a moment
+		sound.players.music.volume(stateSoundDerived.volumeMusic());
 		if (context.stateGame.gameType === 'freegame') {
 			const mode = context.stateGame.bonusMode;
 			// Angry Mantis's loops are Manticore's placeholder music (Corey 2026-09-22): the Feast track

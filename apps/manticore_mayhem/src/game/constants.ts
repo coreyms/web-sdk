@@ -1503,6 +1503,10 @@ export const CHAIN_SOUND = {
 //             The clip ends STANDING, so no frame of it is the crouch again: under 4 % needs a clip from the rig.
 //   snarlOdds, growlOdds   rolled once at each idle loop restart, snarl first, never both, plain Math.random
 //   breath    one quiet breath sound per idle loop, the two takes in turn, stopped when anything else of his starts
+//   voice     the snarl and the growl only (the breaths are left alone): never the same take twice in a row per sound,
+//             and each play at a random playback rate from rateMin to rateMax (pitch and length move together, about
+//             a semitone either way). The snarl's accent is 0.218 s into its trimmed take, so the extremes move it by
+//             +11 / -10 ms against the animation: a third of a 33 ms frame.
 //   beatWaitMs   REAL ms the swipe's strike pose waits for the board's own beat before going on without it;
 //   crouchTimeoutMs   REAL ms in the crouch with no sting coming before he gets up
 //   cueBiasMs REAL ms a read-ahead estimate is put LATE on purpose. The board's step before a feature ends on a frame
@@ -1539,6 +1543,7 @@ export const CREATURE = {
 	snarlOdds: 1 / 20,
 	growlOdds: 1 / 30,
 	breath: true,
+	voice: { rateMin: 0.95, rateMax: 1.05 },
 	shadowAlpha: 1,
 	beatWaitMs: 300,
 	crouchTimeoutMs: 3000,

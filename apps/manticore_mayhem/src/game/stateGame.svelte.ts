@@ -179,6 +179,12 @@ export const stateGame = $state({
 	scatterCounter: 0,
 	/** true while a spin's choreography is in flight (probe hook: atRest) */
 	busy: false,
+	/** THE OPEN ROUND COMES FIRST (Engine guideline 187, 2026-10-13): true from boot until components/ResumeBet.svelte
+	 *  has handed an open round to the game actor (which is then busy until that round's end-round is answered) or
+	 *  knows there is none. While it is set nothing can start a round or change the bet: ui/controls.svelte.ts
+	 *  disables Spin, Space, autoplay, the feature button and the steppers, and components/EnableGameActor.svelte
+	 *  drops `bet` / `autoBet` whoever sends them. */
+	resumeHold: true,
 	/** the plain mode plaque's current copy, null when it is down */
 	plaque: null as null | { title: string; sub: string },
 

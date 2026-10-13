@@ -129,8 +129,9 @@ export function createMusicPlayer<TSoundName extends string>(
 	 *  honoured, so a zero level mutes the element and any other level unmutes it. */
 	const setLevel = (entry: { howl: Howl }, name: TSoundName) => {
 		const level = levelFor(name);
-		entry.howl.volume(level);
+		// after the mute, never before: Howler's html5 volume() skips the element while the sound is muted and mute(false) does not put the element's volume back
 		entry.howl.mute(level === 0);
+		entry.howl.volume(level);
 		// Apple touch devices: the level lives on a GainNode in front of the element, because the
 		// element's volume is ignored there (elementGain.ts). Attaches on the first call that finds
 		// a playing node and a running context; until then the mute above is all iOS honours.

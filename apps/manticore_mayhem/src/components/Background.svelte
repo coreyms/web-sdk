@@ -273,7 +273,7 @@
 	creature.env = {
 		ts: () => context.stateGameDerived.timeScale(),
 		skipping: () => context.stateGame.skipping,
-		play: (name) => context.eventEmitter.broadcast({ type: 'soundOnce', name: name as SoundEffectName, forcePlay: true }),
+		play: (name, rate) => context.eventEmitter.broadcast({ type: 'soundOnce', name: name as SoundEffectName, forcePlay: true, rate }),
 		stop: (name) => context.eventEmitter.broadcast({ type: 'soundStop', name: name as SoundEffectName }),
 	};
 	// he stands in the scene of the current layout: the shadow on its floor, the body there too or in its twin in front
@@ -620,6 +620,8 @@
 					/** the next idle loop restart plays this alternate (or none) instead of rolling */
 					forceRoll: (what: 'snarl' | 'growl' | 'none' | null) => (creature.forceRoll = what),
 					growl: () => creature.growl(),
+					/** the voice's own picker, asked `n` times in a row (no sound is played): the takes and rates it would use */
+					voicePicks: (clip: 'snarl' | 'growl', n: number) => Array.from({ length: n }, () => creature.pickVoice(clip)),
 				},
 				// ---- __manticore.fireSound / chainSound (tools/manticore/win_sound_probe.js, ONLY=fire,chain) ----
 				fireSound: { state: () => fireSoundState(), log: () => fireSoundLog.map((e) => ({ ...e })), constants: () => JSON.parse(JSON.stringify(FIRE_SOUND)) },

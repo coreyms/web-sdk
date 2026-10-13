@@ -255,7 +255,7 @@
 
 			<section bind:this={sectionEls.clusters}>
 				<h2>Clusters and Cascades</h2>
-				<p><strong>8 × 8 grid, {soc('cluster pays', 'cluster wins')}.</strong> {config.minCluster} or more matching symbols touching each other left, right, up or down form one cluster. Position on the grid does not matter and there are no paylines.</p>
+				<p><strong>8 × 8 grid, {soc('cluster pays', 'cluster wins')}.</strong> {config.minCluster} or more matching symbols touching each other left, right, up or down form one cluster. Position on the grid does not matter and there are no fixed lines.</p>
 				<p>{soc('Every winning cluster is removed, the symbols above it fall down and new symbols drop in from the top. The board keeps paying and refilling until a spin has no clusters left.', 'Every winning cluster is removed, the symbols above it fall down and new symbols drop in from the top. The board keeps winning and refilling until a spin has no clusters left.')}</p>
 				<p>{soc(`The larger the cluster, the higher the band it pays from: ${config.paytableBands.map((b) => b.label).join(', ')}.`, `The larger the cluster, the higher the band it wins from: ${config.paytableBands.map((b) => b.label).join(', ')}.`)}</p>
 			</section>
