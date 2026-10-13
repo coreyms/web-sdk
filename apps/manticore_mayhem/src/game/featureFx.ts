@@ -9,7 +9,7 @@
 // engine's beat (a normal sting's ring runs into the gap after it), so the engine stamps each one
 // with performance.now() and the style rate, and Sting.svelte runs them to their end on its own.
 
-import { CELL_COUNT, CHAIN_GUST } from './constants';
+import { CELL_COUNT, CHAIN_GUST, FOREGROUND_KICK } from './constants';
 import { gustRattle } from './chainSound';
 import { STAGING_TOOLS, perfMark } from './staging';
 
@@ -18,6 +18,23 @@ import { STAGING_TOOLS, perfMark } from './staging';
  *  board container by ClawSwipe.svelte. A future layer that must follow the kick (the CHAINS bow,
  *  MOTION_SPEC "Board layers and the kick") reads this, once a tick; it is 0, 0 at rest. */
 export const boardKick = { x: 0, y: 0 };
+
+/** THE FOREGROUND KICK (constants FOREGROUND_KICK): the courtyard's foreground is shoved with the board. ONE read
+ *  of boardKick moves both: components/BoardFrame.svelte's tick, which mirrors the kick onto the frame, hands the
+ *  same value on in CANVAS px through shoveForeground, and the scene's taker (components/Background.svelte, which
+ *  moves SceneView.foreground) gets it inside that same call, so the floor and the frame can never be a frame apart.
+ *  x, y: the shove as last handed over (0, 0 at rest). `enabled`: the switch at run time (the constant's value; the
+ *  DEV hook __manticore.foregroundKick.enable turns it for a probe). Presentation only: nothing waits on it. */
+export const foregroundKick = { enabled: FOREGROUND_KICK.on as boolean, x: 0, y: 0, take: null as null | ((x: number, y: number) => void) };
+/** the board's kick this frame, in canvas px (0, 0 while the switch is off) */
+export const shoveForeground = (x: number, y: number): void => {
+	const f = foregroundKick;
+	if (!f.enabled) x = y = 0;
+	if (x === f.x && y === f.y) return;
+	f.x = x;
+	f.y = y;
+	f.take?.(x, y);
+};
 
 /** the claw swipe in flight (stateGame.swipeBand writes it every frame; ClawSwipe.svelte draws it) */
 export const swipeFx = {

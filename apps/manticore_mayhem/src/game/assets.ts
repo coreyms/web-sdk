@@ -62,6 +62,10 @@ const atBoot = (kind: 'landscape' | 'phone' | 'portrait') => bootLayout === kind
  *  one (portrait). Only that one gates the landing screen; the other is not registered at all (SCENE_LATE). */
 const sceneAtBoot = bootLayout !== 'portrait';
 const portraitSceneAtBoot = !sceneAtBoot;
+/** THE AMBIENT SKY's wisp and fog atlas and the birds are drawn by BOTH scenes' skies (2026-10-12: the portrait scene has
+ *  the sky too), so they preload with whichever scene the boot layout draws: always. Written as a sum of the two so
+ *  scripts/stamp-assets.mjs keeps counting none of the scenes' files into the loading bar's weights. */
+const skyAtBoot = sceneAtBoot || portraitSceneAtBoot;
 
 // TWO LOAD PHASES (pixi-svelte AssetsLoader). `preload: true` gates the landing screen: everything
 // the base game draws in its first seconds. `preload: false` keeps downloading behind the game.
@@ -304,11 +308,12 @@ const assets = {
 	// THE AMBIENT SKY of that scene (game/sky.ts, constants SKY; tools/build_scene_assets.py --sky): the day ridge cut-out,
 	// the wisp and fog atlas and the birds ride with the day set, the night cut-out and the BATS' own small sheet
 	// (sceneBats: the birds' canvas and rectangles, frames bat_<row>_<frame>.png, one file for both tiers like the
-	// birds) with the night set (SCENE_KEYS), so they follow the scene's own boot order and a portrait boot registers
-	// none of them.
+	// birds) with the night set (SCENE_KEYS), so they follow the scene's own boot order. The atlas, the birds and the bats
+	// are SHARED with the portrait scene's sky (same keys, same files, one copy on the GPU); only the cut-outs are per scene.
+	// A portrait boot registers neither landscape cut-out.
 	scene_ridge_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/ridge-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/ridge-day-phone.webp', import.meta.url).href)), preload: sceneAtBoot },
-	sceneSky: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/sky.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/sky-phone.json', import.meta.url).href)), preload: sceneAtBoot },
-	sceneBirds: { type: 'sprites', src: stamp(new URL('../../assets/backgrounds/scene/birds.json', import.meta.url).href), preload: sceneAtBoot },
+	sceneSky: { type: 'sprites', src: tiered(stamp(new URL('../../assets/backgrounds/scene/sky.json', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/sky-phone.json', import.meta.url).href)), preload: skyAtBoot },
+	sceneBirds: { type: 'sprites', src: stamp(new URL('../../assets/backgrounds/scene/birds.json', import.meta.url).href), preload: skyAtBoot },
 	// THE BRAZIER FLAMES of that scene (game/flames.ts, constants FLAMES; tools/build_flame_assets.py): one atlas per clip
 	// and a small one with the rim occluders and the ember dot. The BASE clip and the cuts ride with the day set (the
 	// braziers burn from the first frame); the SUPER and EPIC clips ride the deferred phase, one group each after the
@@ -331,6 +336,11 @@ const assets = {
 	scenep_fire: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-fire.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-fire-phone.webp', import.meta.url).href)), preload: portraitSceneAtBoot },
 	scenep_backdrop_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-night-phone.webp', import.meta.url).href)), preload: false },
 	scenep_fore_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-fore-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-fore-night-phone.webp', import.meta.url).href)), preload: false },
+	// THE PORTRAIT SKY's own files (2026-10-12; game/sky.ts, constants SKY.portrait; tools/build_scene_assets.py
+	// --portrait-sky): only the skyline cut-outs of the portrait backdrops, day with the portrait day set, night with its
+	// night set. Its clouds, fog, aurora, birds and bats draw the landscape sky's sceneSky, sceneBirds and sceneBats.
+	scenep_ridge_day: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-ridge-day.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-ridge-day-phone.webp', import.meta.url).href)), preload: portraitSceneAtBoot },
+	scenep_ridge_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-ridge-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-ridge-night-phone.webp', import.meta.url).href)), preload: false },
 	// THE CLUSTER LABELS' GLYPHS (components/ClusterLabels.svelte, game/clusterLabel.ts; built by
 	// tools/build_plaque_text.py --labels): the forged Rakkas face baked at five cap heights in canvas
 	// pixels, one small atlas each (60 to 180 KB), so a label is drawn at about 1:1 on any screen. ONE is
@@ -486,6 +496,7 @@ const phoneOnlyScreen = (): boolean => {
 //                                           portrait scene's files is registered.
 //   booted in portrait                      the mirror: the 9:16 scene from the first frame, none of the 16:9
 //                                           scene's files registered.
+// (2026-10-12: but for the three files both scenes' skies draw, SCENE_SHARED_KEYS, which every boot registers.)
 // The scene that is not registered waits in SCENE_LATE. The first time the layout becomes one of its own,
 // game/deferredLoad.ts loadSceneLate fetches its day set, then its night set.
 // THE PLACEHOLDER'S CROPS are registered in NO boot (2026-10-10; until then the other layouts' crops rode the
@@ -495,8 +506,10 @@ const phoneOnlyScreen = (): boolean => {
 // scene, and it stands in until the scene fades in over it, or for good if the scene's files fail.
 export const SCENE_KEYS = {
 	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
-	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire'], night: ['scenep_backdrop_night', 'scenep_fore_night'], flames: [] },
+	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire', 'scenep_ridge_day', 'sceneSky', 'sceneBirds'], night: ['scenep_backdrop_night', 'scenep_fore_night', 'scenep_ridge_night', 'sceneBats'], flames: [] },
 } as const;
+/** the keys BOTH scenes list (the sky's atlas, the birds, the bats): registered in every boot, fetched once, never late */
+export const SCENE_SHARED_KEYS: readonly string[] = [...SCENE_KEYS.portrait.day, ...SCENE_KEYS.portrait.night].filter((key) => ([...SCENE_KEYS.landscape.day, ...SCENE_KEYS.landscape.night] as string[]).includes(key));
 /** the scene the boot layout draws, and the one that waits */
 export const SCENE_AT_BOOT: keyof typeof SCENE_KEYS = sceneAtBoot ? 'landscape' : 'portrait';
 export const SCENE_LATE: Record<string, { type: string; src: string }> = {};
@@ -510,6 +523,8 @@ export const PLACEHOLDER_LATE: Record<string, { type: string; src: string }> = {
 	}
 	const late = SCENE_KEYS[sceneAtBoot ? 'portrait' : 'landscape'];
 	for (const key of [...late.day, ...late.night, ...late.flames]) {
+		// what the boot layout's scene draws too stays registered (it loads with that scene)
+		if (SCENE_SHARED_KEYS.includes(key)) continue;
 		SCENE_LATE[key] = table[key];
 		delete table[key];
 	}

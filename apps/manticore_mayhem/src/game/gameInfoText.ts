@@ -41,7 +41,8 @@ const MODE_RTP_LINE = Object.entries(config.betModes)
 const RTP = pct(config.rtp);
 const MAX_WIN = config.maxWin.toLocaleString();
 
-// symbol names are Corey's open decision; read them, never write them into the prose
+// symbol names (Corey 2026-10-12: the wild is "Wild", the scatter "War Standard Scatter", the tiles "Multiplier Tiles");
+// read them from config.ts, never write them into the prose
 const SCATTER = config.symbols.S.name;
 const SCATTERS = `${SCATTER}s`;
 const WILD = config.symbols.W.name;
@@ -69,7 +70,7 @@ export const rulesSections = () => [
 				'Every winning cluster is removed, the symbols above it fall and new symbols drop in from the top. The board keeps paying and refilling until a spin has no clusters left. All wins of a spin are added together.',
 				'Every winning cluster is removed, the symbols above it fall and new symbols drop in from the top. The board keeps winning and refilling until a spin has no clusters left. All wins of a spin are added together.',
 			),
-			`The ${WILD} is wild. It stands in for every symbol except the ${SCATTER} and has no value of its own. A wild can be part of two clusters at once and counts in both.`,
+			`The ${WILD} stands in for every symbol except the ${SCATTER} and has no value of its own. A ${WILD} can be part of two clusters at once and counts in both.`,
 			soc(
 				`All wins and prices in these rules are multiples of the bet. The total payout of any round is capped at ${MAX_WIN}x the bet.`,
 				`All wins in these rules are multiples of the play amount. The total win of any round is capped at ${MAX_WIN}x the play amount.`,
@@ -87,20 +88,20 @@ export const rulesSections = () => [
 				`Each symbol wins by cluster size, in five bands: ${BANDS}. The Symbols table shows each band's value as a multiple of the play amount.`,
 			),
 			soc(
-				'A cluster pays its table value multiplied by the sum of the multiplier tiles under it. A cluster with no tiles under it pays its table value once. For example, a cluster sitting on tiles of 2x, 4x and 8x pays its table value x14.',
-				'A cluster wins its table value multiplied by the sum of the multiplier tiles under it. A cluster with no tiles under it wins its table value once. For example, a cluster sitting on tiles of 2x, 4x and 8x wins its table value x14.',
+				'A cluster pays its table value multiplied by the sum of the Multiplier Tiles under it. A cluster with no tiles under it pays its table value once. For example, a cluster sitting on tiles of 2x, 4x and 8x pays its table value x14.',
+				'A cluster wins its table value multiplied by the sum of the Multiplier Tiles under it. A cluster with no tiles under it wins its table value once. For example, a cluster sitting on tiles of 2x, 4x and 8x wins its table value x14.',
 			),
-			`The ${SCATTER} is the scatter. It has no value of its own. It awards the features.`,
+			`The ${SCATTER} has no value of its own. It awards the features.`,
 		],
 	},
 	{
 		modalSection: 'tiles',
 		title: 'MULTIPLIER TILES',
 		paragraphs: [
-			`Every winning cluster lights the cells under it. A cold cell becomes a ${config.tileSeed}x multiplier tile and a lit cell doubles: 2x, 4x, 8x and on up the ladder. This happens on every winning cluster, in every mode.`,
+			`Every winning cluster lights the cells under it. A cold cell becomes a ${config.tileSeed}x Multiplier Tile and a lit cell doubles: 2x, 4x, 8x and on up the ladder. This happens on every winning cluster, in every mode.`,
 			soc(
-				'A cluster uses the tiles as they stand when it lands. The cells it covers step up after it pays. A wild shared by two clusters steps up once.',
-				'A cluster uses the tiles as they stand when it lands. The cells it covers step up after it wins. A wild shared by two clusters steps up once.',
+				'A cluster uses the tiles as they stand when it lands. The cells it covers step up after it pays. A Wild shared by two clusters steps up once.',
+				'A cluster uses the tiles as they stand when it lands. The cells it covers step up after it wins. A Wild shared by two clusters steps up once.',
 			),
 			`The ladder stops at ${CAP_LOW}x in the Base Game, Ante, Super Ante and Free Spins, and at ${CAP_HIGH}x in Super Free Spins and Epic Free Spins.`,
 			'Tiles reset at the start of every spin in the Base Game, Ante and Super Ante.',
@@ -115,7 +116,7 @@ export const rulesSections = () => [
 			`STING: before the board is evaluated, the Manticore's tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A NORMAL STING turns one cell wild. A BIG STING turns a cross of five cells wild. A SUPER STING turns a 3x3 block of nine cells wild.`,
 			`A spin has at most one big or super sting, and it is always the last sting of that spin. A big or super sting always completes at least one winning cluster. A normal sting has no such guarantee. No sting ever lands on a ${SCATTER}.`,
 			'Normal stings can land in every spin except the Mystery spin. Big stings land only in Free Spins, Super Free Spins and Epic Free Spins. Super stings land only in Super Free Spins and Epic Free Spins.',
-			`ROAR: in Super Free Spins and Epic Free Spins only, the Manticore may roar before the board is evaluated. Every low symbol (${LOW_NAMES}) is blown off the board and replaced. The multiplier tiles under them stay. A roar always comes before any stings.`,
+			`ROAR: in Super Free Spins and Epic Free Spins only, the Manticore may roar before the board is evaluated. Every low symbol (${LOW_NAMES}) is blown off the board and replaced. The Multiplier Tiles under them stay. A roar always comes before any stings.`,
 			soc(
 				`On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is paid until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along. This never happens on a feature bought from the ${FEATURE_MENU_NAME} menu.`,
 				`On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is counted until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along. This never happens on a feature instantly triggered from the ${FEATURE_MENU_NAME} menu.`,

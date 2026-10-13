@@ -36,7 +36,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'SUPER_ANTE',
 		label: modeShortLabel('SUPER_ANTE'),
-		pitch: 'No regular Free Spins at all. Only Super and Epic, and four standards upgrade to a Super.',
+		pitch: 'No regular Free Spins at all. Only Super and Epic, and four scatters upgrade to a Super.',
 		cta: 'ACTIVATE',
 		toggle: true,
 		accent: '#e08a3c',
@@ -45,7 +45,7 @@ export const BONUS_CARDS: BonusCardSpec[] = [
 	{
 		mode: 'BONUS',
 		label: modeShortLabel('BONUS'), // BONUS, as on the HUD and the Spin button (was FREE SPINS: Engine self-check [225])
-		pitch: `${config.freeSpins.bonus} spins. Multiplier tiles persist all round and double up to 64x.`,
+		pitch: `${config.freeSpins.bonus} spins. Multiplier Tiles persist all round and double up to 64x.`,
 		cta: 'ACTIVATE',
 		toggle: false,
 		accent: '#2eb0a8',

@@ -39,8 +39,8 @@ export default {
 		L3: { name: 'Ancient Key', tier: 'LOW', paytable: [0.4, 0.6, 1.2, 3.0, 12.0] },
 		L2: { name: 'Bull Skull', tier: 'LOW', paytable: [0.3, 0.5, 1.0, 2.5, 10.0] },
 		L1: { name: 'Iron Shackle', tier: 'LOW', paytable: [0.2, 0.4, 0.8, 2.0, 8.0] },
-		W: { name: 'Lion-Sun Medallion', tier: 'WILD', paytable: null },
-		S: { name: 'War Standard', tier: 'SCATTER', paytable: null },
+		W: { name: 'Wild', tier: 'WILD', paytable: null },
+		S: { name: 'War Standard Scatter', tier: 'SCATTER', paytable: null },
 	},
 	// pay order, best first (used by the paytable table and nothing else)
 	payOrder: ['H1', 'M3', 'M2', 'M1', 'L4', 'L3', 'L2', 'L1'],

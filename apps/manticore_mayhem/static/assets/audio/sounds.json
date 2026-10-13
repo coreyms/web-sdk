@@ -111,23 +111,23 @@
 		],
 		"sfx_win_big": [
 			49116,
-			800
+			1300
 		],
 		"sfx_win_super": [
-			50916,
-			800
+			51416,
+			1300
 		],
 		"sfx_win_mega": [
-			52716,
-			1280
+			53716,
+			1300
 		],
 		"sfx_win_epic": [
-			54996,
-			1600
+			56016,
+			1300
 		],
 		"sfx_win_max": [
-			57596,
-			3000
+			58316,
+			1300
 		],
 		"sfx_mystery_tease": [
 			970,
@@ -138,30 +138,54 @@
 			50
 		],
 		"sfx_scatter_land_6": [
-			61596,
+			60616,
 			470
 		],
 		"sfx_chain_heavy": [
-			63066,
+			62086,
 			1145
 		],
 		"sfx_chain_light": [
-			65211,
+			64231,
 			528
 		],
 		"sfx_chain_light_logo": [
-			65211,
+			64231,
 			528
 		],
 		"sfx_fire_super": [
-			66740,
+			65760,
 			6000,
 			true
 		],
 		"sfx_fire_epic": [
-			73740,
+			72760,
 			6000,
 			true
+		],
+		"sfx_manticore_breath_1": [
+			79760,
+			1800
+		],
+		"sfx_manticore_breath_2": [
+			82560,
+			1800
+		],
+		"sfx_manticore_snarl_1": [
+			85360,
+			662
+		],
+		"sfx_manticore_snarl_2": [
+			87022,
+			691
+		],
+		"sfx_manticore_growl_1": [
+			88714,
+			1166
+		],
+		"sfx_manticore_growl_2": [
+			90880,
+			1213
 		]
 	},
 	"config": {
@@ -284,10 +308,28 @@
 		},
 		"sfx_fire_epic": {
 			"volume": 1
+		},
+		"sfx_manticore_breath_1": {
+			"volume": 1
+		},
+		"sfx_manticore_breath_2": {
+			"volume": 1
+		},
+		"sfx_manticore_snarl_1": {
+			"volume": 1
+		},
+		"sfx_manticore_snarl_2": {
+			"volume": 1
+		},
+		"sfx_manticore_growl_1": {
+			"volume": 1
+		},
+		"sfx_manticore_growl_2": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=f10602f9",
-		"./assets/audio/sounds.m4a?v=6db5eab9"
+		"./assets/audio/sounds.ogg?v=9ce18e34",
+		"./assets/audio/sounds.m4a?v=6b3b4bb2"
 	]
 }

@@ -99,8 +99,8 @@ export const betModeMeta: BetModeMeta = {
 			title: soc('SUPER ANTE BET', 'SUPER ANTE MODE'),
 			description: 'No regular Free Spins at all: only Super and Epic, about one and a half times as often as Ante reaches Free Spins and Super.',
 			dialog: soc(
-				'Ten times the bet. Regular Free Spins cannot trigger: only Super Free Spins and Epic Free Spins, and four standards upgrade to a Super. Stays active until you turn it off.',
-				'Ten times the play amount. Regular Free Spins cannot trigger: only Super Free Spins and Epic Free Spins, and four standards upgrade to a Super. Stays active until you turn it off.',
+				'Ten times the bet. Regular Free Spins cannot trigger: only Super Free Spins and Epic Free Spins, and four scatters upgrade to a Super. Stays active until you turn it off.',
+				'Ten times the play amount. Regular Free Spins cannot trigger: only Super Free Spins and Epic Free Spins, and four scatters upgrade to a Super. Stays active until you turn it off.',
 			),
 			button: 'ACTIVATE',
 			betAmountLabel: soc('SUPER ANTE BET', 'SUPER ANTE MODE'),
@@ -118,7 +118,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'FREE SPINS',
-			description: `${spins.bonus} free spins. Multiplier tiles persist for the whole round, doubling up to 64x.`,
+			description: `${spins.bonus} free spins. Multiplier Tiles persist for the whole round, doubling up to 64x.`,
 			dialog: soc(`Buy ${spins.bonus} free spins with tiles that persist all round.`, `Play ${spins.bonus} free spins with tiles that persist all round.`),
 			button: soc('BUY', 'PLAY'),
 			betAmountLabel: 'FREE SPINS',

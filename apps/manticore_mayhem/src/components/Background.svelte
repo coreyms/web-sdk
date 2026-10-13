@@ -8,8 +8,14 @@
 	//                                  ridge, birds in the day modes, mist in the gorge. And in each of its two
 	//                                  bowls THE BRAZIER FLAMES (game/flames.ts, constants FLAMES): the base clip in
 	//                                  the day modes, the super and epic clips with embers at night.
-	//   PORTRAIT                       its own 9:16 frame: backdrop, the paved floor, the same fire pass treatment.
-	//                                  Nothing moves in it (no columns, knockers or chains are in view).
+	//   PORTRAIT                       its own 9:16 frame: backdrop, the paved floor, the same fire pass treatment, and
+	//                                  THE AMBIENT SKY too (2026-10-12; constants SKY.portrait: its own cut-out, the
+	//                                  landscape sky's atlas, birds and bats). No columns, knockers, chains or flames
+	//                                  are in view.
+	// THE FOREGROUND KICK (constants FOREGROUND_KICK): in both scenes everything from the foreground up (SceneView
+	// .foreground) is shoved with the board on a kick, by the same offset on the same frame; the backdrop and the sky
+	// stay still. This component hands the scenes the shove (featureFx.foregroundKick.take) and works out how much
+	// oversize the foreground must be drawn in this layout so the shove never shows an edge (`foregroundOver`).
 	// Each is cover-fitted to the canvas and centred exactly as the placeholder was. This component only tells the
 	// scene of the current layout WHICH mode it is in:
 	//   family   the game's four background keys, unchanged: base outside a feature (Base, the antes, a Mystery's
@@ -37,12 +43,18 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, FIRE_SOUND, FLAMES, SCENE, SKY, zIndexes } from '../game/constants';
+	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureSpot } from '../game/constants';
+	import { creature, creatureFront } from '../game/creature';
+	import { creatureLoader, creatureLoadLog, creatureLoadState } from '../game/creatureLoad';
+	import { CREATURE_SPEC } from '../game/creatureSpec';
+	import type { SoundEffectName } from '../game/sound';
+	import { boardKick, foregroundKick, shoveForeground } from '../game/featureFx';
 	import { SCENE_AT_BOOT } from '../game/assets';
 	import { loadPlaceholderLate, loadSceneLate } from '../game/deferredLoad';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from '../game/sceneSpec';
-	import { SceneView, clearSceneLight, flickerAt, idleAt, type SceneLayout } from '../game/scene';
+	import { SceneView, clearSceneLight, flickerAt, idleAt, isCreature, type SceneLayout } from '../game/scene';
+	import { skyNumbers } from '../game/sky';
 	import { FLAME_SPEC } from '../game/flameSpec';
 	import type { FlameClip, FlameTreatment } from '../game/flames';
 	import { fireSoundLog, fireSoundState, setFireSound } from '../game/fireSound';
@@ -86,11 +98,14 @@
 		views[layout].root.zIndex = zIndexes.background.scene;
 		parent.addToParent(views[layout].root);
 	}
+	// each scene's twin root IN FRONT of the board (components/CreatureFront.svelte puts them on the stage)
+	creatureFront.roots = LAYOUTS.map((layout) => views[layout].front);
+	creatureFront.sync();
 
 	/** the scene this layout draws */
 	const which: SceneLayout = $derived(kind === 'portrait' ? 'portrait' : 'landscape');
 	const dim = $derived(context.stateGame.gameType === 'freegame' ? SCENE.dim.freegame : SCENE.dim.base);
-	const ready = $state({ landscape: { day: false, night: false, flames: false }, portrait: { day: false, night: false, flames: false } });
+	const ready = $state({ landscape: { day: false, night: false, flames: false, sky: false }, portrait: { day: false, night: false, flames: false, sky: false } });
 	/** this layout's scene has its day files */
 	const sceneOn = $derived(ready[which].day);
 	/** the scene has fully covered the placeholder (which is then not drawn) */
@@ -107,7 +122,8 @@
 	const settle = () => {
 		covered = true;
 		const other = views[active === 'landscape' ? 'portrait' : 'landscape'];
-		if (other.dayReady && other.release()) memory.releases += 1;
+		// what the two scenes share (the sky's atlas, the birds, the bats) is being drawn: it stays on the GPU
+		if (other.dayReady && other.release(views[active].sources())) memory.releases += 1;
 	};
 
 	// the ticker: ONE callback, on while a scene is drawn (the fire always flickers), off before its files are in
@@ -118,6 +134,8 @@
 		const t0 = import.meta.env.DEV ? performance.now() : 0;
 		const view = views[active];
 		view.tick(ticker.lastTime, ticker.deltaMS);
+		// the creature stands in this scene (his own clock: the board's beats are stamped with performance.now())
+		creature.tick(performance.now());
 		// the board frame's relight reads the scene on screen (game/scene.ts sceneLight)
 		view.writeLight();
 		if (!covered && view.shown) settle();
@@ -153,11 +171,13 @@
 			for (const layout of LAYOUTS) {
 				const view = views[layout];
 				const r = ready[layout];
-				if (r.day && r.night && r.flames) continue;
+				if (r.day && r.night && r.flames && r.sky) continue;
 				const before = view.sources().length;
 				if (!r.day && view.setDay(assets)) r.day = true;
 				if (r.day && !r.night && view.setNight(assets, performance.now())) r.night = true;
 				if (r.day && !r.flames && view.setFlames(assets, performance.now())) r.flames = true;
+				// the sky's shared files (atlas, birds, bats) can land after this scene's own sets when it was fetched at a turn
+				if (r.day && !r.sky && view.setSky(assets)) r.sky = true;
 				if (view.sources().length === before) continue;
 				if (layout === which) void renderer()?.prepare?.upload(view.sources());
 				else view.released = true;
@@ -172,12 +192,33 @@
 		void loadSceneLate(context.stateApp);
 	});
 
+	// THE FOREGROUND KICK: the shove BoardFrame hands over (canvas px) goes to both scenes (the one not showing costs
+	// two numbers), so a turn mid kick has nothing to catch up
+	foregroundKick.take = (x, y) => {
+		views.landscape.kick(x, y);
+		views.portrait.kick(x, y);
+	};
+	/** the switch at run time (the constant; the DEV hook turns it): off = no shove and no oversize, as before */
+	let foregroundOn = $state(FOREGROUND_KICK.on as boolean);
+	/** canvas px per PLAYGROUND px of the board in this layout: what a kick of 1 px moves the board on the canvas */
+	const canvasPerKickPx = $derived(context.stateGameDerived.boardLayout().scale * context.stateLayoutDerived.mainLayout().scale * PLAYGROUND_PX);
+	/** THE OVERSIZE: the smallest uniform scale about the frame's centre that keeps every canvas edge under the
+	 *  foreground at the largest shove, (0.6, 1) x coverPx, plus the slack. `cropX / cropY`: what the cover fit
+	 *  already hides beyond each edge (canvas px); `halfW / halfH`: half the fitted frame (canvas px). */
+	const foregroundOver = (perPx: number, cropX: number, cropY: number, halfW: number, halfH: number) => {
+		const needX = Math.max(0, 0.6 * FOREGROUND_KICK.coverPx * perPx + FOREGROUND_KICK.slackPx - cropX);
+		const needY = Math.max(0, FOREGROUND_KICK.coverPx * perPx + FOREGROUND_KICK.slackPx - cropY);
+		return 1 + Math.max(needX / halfW, needY / halfH);
+	};
+
 	// placement: the placeholder's own cover fit, on each scene's frame
 	$effect(() => {
 		for (const layout of LAYOUTS) {
 			const [fw, fh] = frames[layout];
 			const s = Math.max(canvas.width / fw, canvas.height / fh);
-			views[layout].place((canvas.width - fw * s) / 2, (canvas.height - fh * s) / 2, s);
+			const x = (canvas.width - fw * s) / 2;
+			const y = (canvas.height - fh * s) / 2;
+			views[layout].place(x, y, s, foregroundOn ? foregroundOver(canvasPerKickPx, -x, -y, (fw * s) / 2, (fh * s) / 2) : 1);
 		}
 	});
 
@@ -196,11 +237,11 @@
 			if (turned) {
 				const other = views[w === 'landscape' ? 'portrait' : 'landscape'];
 				other.hide();
-				other.root.visible = false;
+				other.show(false);
 				covered = false;
 			}
 			active = w;
-			view.root.visible = on;
+			view.show(on);
 			if (on) {
 				if (view.released) {
 					view.released = false;
@@ -220,6 +261,45 @@
 			wasOn = on;
 			lastWhich = w;
 		});
+	});
+
+	// ---- THE CREATURE (game/creature.ts, constants CREATURE) ------------------------------------------
+	// WHICH SPOT: landscape = desktop, the phone master = phone sideways, and a portrait screen is a PHONE or a TABLET
+	// by the layout system's own size class (its short side at most 480 CSS px is a phone): never between the two.
+	const spot: CreatureSpot = $derived(
+		kind === 'landscape' ? 'desktop' : kind === 'phone' ? 'phoneSideways' : ['smallMobile', 'mobile'].includes(context.stateLayoutDerived.canvasSizeType()) ? 'portraitPhone' : 'portraitTablet',
+	);
+	creatureLoader.renderer = renderer;
+	creature.env = {
+		ts: () => context.stateGameDerived.timeScale(),
+		skipping: () => context.stateGame.skipping,
+		play: (name) => context.eventEmitter.broadcast({ type: 'soundOnce', name: name as SoundEffectName, forcePlay: true }),
+		stop: (name) => context.eventEmitter.broadcast({ type: 'soundStop', name: name as SoundEffectName }),
+	};
+	// he stands in the scene of the current layout: the shadow on its floor, the body there too or in its twin in front
+	// of the board, both over everything else in their container. Only on a change of layout or spot.
+	$effect(() => {
+		const view = views[which];
+		const place = CREATURE.place[spot];
+		untrack(() => {
+			view.foreground.addChild(creature.shadowNode);
+			(place.layer === 'front' ? view.frontForeground : view.foreground).addChild(creature.bodyNode);
+			creature.place(place);
+		});
+	});
+	// the look of the mode (the scene's own family)
+	$effect(() => {
+		creature.mode(family);
+	});
+	// the board's beats and the handlers' look-ahead: he follows, nothing waits for him
+	context.eventEmitter.subscribeOnMount({
+		featureBeat: ({ beat }) => creature.beat(beat),
+		stingBeat: ({ phase, kind, more }) => creature.stingBeat(phase, kind, !!more),
+		creatureCue: ({ what, inMs, kind }) => {
+			if (what === 'swipe') creature.cueSwipe(inMs);
+			else if (what === 'growl') creature.growl();
+			else creature.cueBeat(what, inMs, kind ?? null);
+		},
 	});
 
 	// THE FIRE LOOP of the mode (game/fireSound.ts): on for a SUPER or an EPIC round, off otherwise, fading with the
@@ -242,13 +322,30 @@
 		// ---- DEV hook: __manticore.scene (tools/manticore/scene_probe.js) ---------------------------
 		if (import.meta.env.DEV && typeof window !== 'undefined') {
 			/** how many of a scene's sources have a GL texture right now (the renderer's own table, not the count it keeps) */
-			const onGpu = (view: SceneView) => {
+			const onGpu = (view: SceneView, shared = false) => {
 				const table = (renderer() as any)?.texture?._glTextures ?? {};
-				return view.sources().filter((source) => !!table[source.uid]).length;
+				const other = views[view === views.landscape ? 'portrait' : 'landscape'].sources();
+				return view.sources().filter((source) => other.includes(source) === shared && !!table[source.uid]).length;
 			};
+			/** the sky hooks act on the sky of the scene of the current layout (or of `layout`) */
+			const skyOf = (layout: SceneLayout = which) => views[layout].sky;
 			const pt = (view: SceneView, x: number, y: number) => {
 				const p = view.root.toGlobal({ x, y });
 				return { x: Number(p.x.toFixed(2)), y: Number(p.y.toFixed(2)) };
+			};
+			/** a frame px of something IN THE FOREGROUND (chains, flames, floor) on the canvas: through the foreground
+			 *  container, so its oversize and any kick are in it */
+			const ptFore = (view: SceneView, x: number, y: number) => {
+				const p = view.foreground.toGlobal({ x, y });
+				return { x: Number(p.x.toFixed(2)), y: Number(p.y.toFixed(2)) };
+			};
+			/** the foreground's own fit: canvas px = x + frame px x scale (the root's fit with the oversize and the kick) */
+			const foreFit = (view: SceneView) => ({ scale: view.root.scale.x * view.foreground.scale.x, x: view.root.x + view.foreground.x * view.root.scale.x, y: view.root.y + view.foreground.y * view.root.scale.y });
+			/** the canvas rectangle the foreground picture covers now, and how far it reaches past each canvas edge */
+			const foreCover = (layout: SceneLayout) => {
+				const f = foreFit(views[layout]);
+				const [fw, fh] = frames[layout];
+				return { left: -f.x, top: -f.y, right: f.x + fw * f.scale - canvas.width, bottom: f.y + fh * f.scale - canvas.height };
 			};
 			Object.assign(((window as any).__manticore ??= {}), {
 				scene: {
@@ -270,13 +367,15 @@
 								return out;
 							})(),
 							/** canvas px per frame px, the frame's rectangle on the canvas, and the stage's children by z */
-							fit: { scale: view.root.scale.x, x: view.root.x, y: view.root.y, frame: frames[layout] },
+							fit: { scale: view.root.scale.x, x: view.root.x, y: view.root.y, frame: frames[layout], /** the foreground's own (oversize, kick) */ fore: foreFit(view) },
 							stage: view.root.parent?.children.map((c) => `${c.label || c.constructor.name}@${c.zIndex}${c.visible ? '' : ' (off)'}`) ?? [],
 							textures: { ...view.state().textures, managed: (renderer() as any)?.texture?.managedTextures?.length ?? null },
 							/** both scenes: files in, GPU copies let go, and how often that happened */
 							resident: {
-								landscape: { ...ready.landscape, released: views.landscape.released, onGpu: onGpu(views.landscape) },
-								portrait: { ...ready.portrait, released: views.portrait.released, onGpu: onGpu(views.portrait) },
+								/** onGpu: its OWN sources with a GL texture; sharedOnGpu: the ones both scenes draw (the sky's atlas,
+								 *  the birds, the bats), which stay while either scene shows */
+								landscape: { ...ready.landscape, released: views.landscape.released, onGpu: onGpu(views.landscape), sharedOnGpu: onGpu(views.landscape, true), sources: views.landscape.sources().length },
+								portrait: { ...ready.portrait, released: views.portrait.released, onGpu: onGpu(views.portrait), sharedOnGpu: onGpu(views.portrait, true), sources: views.portrait.sources().length },
 								...memory,
 							},
 							/** landscape only, per side, in CANVAS px as Pixi draws them: the ring's hook for the swag through the
@@ -288,7 +387,7 @@
 											(['L', 'R'] as const).map((side) => {
 												const p = SCENE_SPEC.points[side];
 												const hook = view.hookOnScreen(side);
-												return [side, { pivot: pt(view, p.pivot[0], p.pivot[1]), ringHook: hook.ring, swagTop: hook.swag, gap: Number(Math.hypot(hook.ring.x - hook.swag.x, hook.ring.y - hook.swag.y).toFixed(3)), swagPin: pt(view, p.swagPin[0], p.swagPin[1]) }];
+												return [side, { pivot: ptFore(view, p.pivot[0], p.pivot[1]), ringHook: hook.ring, swagTop: hook.swag, gap: Number(Math.hypot(hook.ring.x - hook.swag.x, hook.ring.y - hook.swag.y).toFixed(3)), swagPin: ptFore(view, p.swagPin[0], p.swagPin[1]) }];
 											}),
 										),
 						};
@@ -303,39 +402,51 @@
 					/** false = the placeholder draws every layout again (the A / B of the cost) */
 					enable: (on: boolean) => (enabled = on),
 				},
-				// ---- __manticore.sky (tools/manticore/ambient_probe.js): the landscape scene's ambient sky ----
+				// ---- __manticore.sky (tools/manticore/ambient_probe.js): the ambient sky of the scene of the CURRENT layout
+				// (landscape and phone sideways: the 16:9 scene's; portrait: the 9:16 scene's), or of `layout` where a hook
+				// takes one. hide and freeze act on BOTH scenes' skies, so a probe that turns the device keeps them ----
 				sky: {
-					/** what the sky draws now (frame px), the root's whole layer order, and whether each scene has one */
-					state: () => ({
-						...views.landscape.sky!.state(),
-						on: which === 'landscape' && sceneOn && enabled,
-						order: views.landscape.state().allOrder,
-						portraitHasSky: views.portrait.sky !== null,
+					/** what the sky draws now (frame px), the root's whole layer order, and the scene's fit */
+					state: (layout: SceneLayout = which) => ({
+						...skyOf(layout).state(),
+						on: layout === which && sceneOn && enabled,
+						order: views[layout].state().allOrder,
+						portraitHasSky: true,
 						portraitOrder: views.portrait.root.children.length,
-						fit: { scale: views.landscape.root.scale.x, x: views.landscape.root.x, y: views.landscape.root.y },
+						frame: frames[layout],
+						fit: { scale: views[layout].root.scale.x, x: views[layout].root.x, y: views[layout].root.y, /** the foreground's own (oversize, kick): the sky keeps the root's */ fore: foreFit(views[layout]) },
 					}),
 					constants: () => JSON.parse(JSON.stringify(SKY)),
+					/** the numbers the sky of a layout runs on: SKY's own (landscape), SKY through SKY.portrait (portrait) */
+					numbers: (layout: SceneLayout = which) => JSON.parse(JSON.stringify(skyNumbers(layout))),
 					/** every sky layer off (true) or back: the scene is then the picture the source composite has */
-					hide: (on = true) => views.landscape.hideSky(on),
+					hide: (on = true) => {
+						for (const layout of LAYOUTS) views[layout].hideSky(on);
+					},
 					/** nothing moves, no flock is sent, until freeze(false) */
-					freeze: (on = true) => (views.landscape.sky!.frozen = on),
+					freeze: (on = true) => {
+						for (const layout of LAYOUTS) views[layout].sky.frozen = on;
+						return on;
+					},
 					/** a flock now (day only): what was rolled, or false */
-					flock: () => views.landscape.sky!.forceFlock(),
-					clearBirds: () => views.landscape.sky!.clearBirds(),
+					flock: () => skyOf().forceFlock(),
+					clearBirds: () => skyOf().clearBirds(),
 					/** the same for the bats (night only) */
-					batFlock: () => views.landscape.sky!.forceFlock('bats'),
-					clearBats: () => views.landscape.sky!.clearBirds('bats'),
-					/** `seconds` of one kind's flock timer and flight at once: { flocks, refused, maxLive, pool } */
+					batFlock: () => skyOf().forceFlock('bats'),
+					clearBats: () => skyOf().clearBirds('bats'),
 					/** the aurora held flat (every column of the first curtain the same; the seam test), or released: () */
-					auroraFlat: (y = 0, h = 0, alpha = 1) => views.landscape.sky!.auroraFlat(y, h, alpha),
-					stepFlyers: (kind: 'birds' | 'bats', dt: number) => views.landscape.sky!.stepFlyers(kind, dt),
-					runFlyers: (kind: 'birds' | 'bats', seconds: number, dt = 0.25) => views.landscape.sky!.runFlyers(kind, seconds, dt),
+					auroraFlat: (y = 0, h = 0, alpha = 1) => skyOf().auroraFlat(y, h, alpha),
+					stepFlyers: (kind: 'birds' | 'bats', dt: number) => skyOf().stepFlyers(kind, dt),
+					/** `seconds` of one kind's flock timer and flight at once: { flocks, refused, maxLive, pool } */
+					runFlyers: (kind: 'birds' | 'bats', seconds: number, dt = 0.25) => skyOf().runFlyers(kind, seconds, dt),
+					/** THE GAP measured: `seconds` of one kind run at once, every pair on the frame at every step (sky.ts gapRun) */
+					gapRun: (kind: 'birds' | 'bats', seconds: number, dt: number, FH: number, gx: number, gy: number, off = false) => skyOf().gapRun(kind, seconds, dt, FH, gx, gy, off),
 					/** every cloud to a known place along its run (0 .. 1), and one cloud to a given place and size */
-					cloudPhase: (phase: number) => views.landscape.sky!.cloudPhase(phase),
-					cloud: (i: number, x: number, y: number, scale = 1, alpha = 1) => views.landscape.sky!.placeCloud(i, x, y, scale, alpha),
-					reroll: () => views.landscape.sky!.rerollClouds(),
+					cloudPhase: (phase: number) => skyOf().cloudPhase(phase),
+					cloud: (i: number, x: number, y: number, scale = 1, alpha = 1) => skyOf().placeCloud(i, x, y, scale, alpha),
+					reroll: () => skyOf().rerollClouds(),
 					/** a frame px on the canvas */
-					toCanvas: (x: number, y: number) => pt(views.landscape, x, y),
+					toCanvas: (x: number, y: number) => pt(views[which], x, y),
 				},
 				// ---- __manticore.flames (tools/manticore/flame_probe.js): the landscape scene's brazier flames ----
 				flames: {
@@ -361,7 +472,8 @@
 							sources: set.size,
 							onGpu: [...set].filter((source) => !!table[source.uid]).length,
 							managed: (renderer() as any)?.texture?.managedTextures?.length ?? null,
-							fit: { scale: view.root.scale.x, x: view.root.x, y: view.root.y },
+							// the flames are in the foreground container: their fit is its (oversize and kick included)
+							fit: foreFit(view),
 						};
 					},
 					constants: () => JSON.parse(JSON.stringify(FLAMES)),
@@ -393,14 +505,122 @@
 						if (!on) views.landscape.flames!.clearEmbers();
 						views.landscape.refreshFlames();
 					},
-					toCanvas: (x: number, y: number) => pt(views.landscape, x, y),
+					toCanvas: (x: number, y: number) => ptFore(views.landscape, x, y),
+				},
+				// ---- __manticore.foregroundKick (tools/manticore/chain_gust_probe.js, ONLY=foreground): the scene's side of
+				// the foreground kick. The board's side is __manticore.frameGust.kick ----
+				foregroundKick: {
+					constants: () => JSON.parse(JSON.stringify(FOREGROUND_KICK)),
+					/** the scene of the current layout (or of `layout`): the switch, the shove as handed over (canvas px), the
+					 *  foreground container's place and oversize, the foreground's fit, how far the picture reaches past each
+					 *  canvas edge NOW (negative = an edge shows), the largest shove this layout can get (canvas px), and where
+					 *  everything that must stay still is */
+					state: (layout: SceneLayout = which) => ({
+						t: performance.now(),
+						layout,
+						enabled: foregroundKick.enabled,
+						handed: { x: foregroundKick.x, y: foregroundKick.y },
+						source: { x: boardKick.x, y: boardKick.y },
+						...views[layout].foregroundState(),
+						fit: foreFit(views[layout]),
+						rootFit: { scale: views[layout].root.scale.x, x: views[layout].root.x, y: views[layout].root.y },
+						cover: foreCover(layout),
+						maxShove: { x: 0.6 * FOREGROUND_KICK.coverPx * canvasPerKickPx, y: FOREGROUND_KICK.coverPx * canvasPerKickPx },
+						canvasPerKickPx,
+						canvas: { width: canvas.width, height: canvas.height },
+						still: views[layout].stillLayers(),
+						rootOrder: views[layout].root.children.map((c) => c.label || 'sprite'),
+						foregroundOrder: views[layout].foreground.children.filter((c) => !isCreature(c)).map((c) => c.label || 'sprite'),
+					}),
+					/** light enough for every frame: the shove the scene holds and draws (canvas px), and whether anything else moved */
+					sample: () => {
+						const f = views[which].foregroundState();
+						return { t: performance.now(), x: f.drawn.x, y: f.drawn.y, hx: foregroundKick.x, hy: foregroundKick.y, /** sum of |x| + |y| of everything that must stay still */ still: views[which].stillLayers().reduce((n, l) => n + Math.abs(l.x) + Math.abs(l.y), 0) };
+					},
+					/** the switch (false = the board alone kicks and the foreground is drawn at the frame's own size) */
+					enable: (on: boolean) => {
+						foregroundKick.enabled = on;
+						foregroundOn = on;
+						if (!on) shoveForeground(0, 0);
+						return on;
+					},
+					/** HOLD a kick of `px` playground px on the board ((0.6, 1) x px, like every kick; 0 lets go): for a still
+					 *  at a known shove. A feature's own kick writes over it. */
+					hold: (px: number) => {
+						boardKick.x = 0.6 * px * PLAYGROUND_PX;
+						boardKick.y = px * PLAYGROUND_PX;
+						return { x: boardKick.x, y: boardKick.y };
+					},
+				},
+				// ---- __manticore.creature (tools/manticore/creature_probe.js) ----
+				creature: {
+					constants: () => JSON.parse(JSON.stringify(CREATURE)),
+					spec: () => ({ canvas: CREATURE_SPEC.canvas, feetRow: CREATURE_SPEC.feetRow, feetCol: CREATURE_SPEC.feetCol, fps: CREATURE_SPEC.fps, clips: JSON.parse(JSON.stringify(CREATURE_SPEC.clips)), tier, tierCanvas: CREATURE_SPEC.tiers[tier].canvas }),
+					/** everything: the state machine, what is loaded, the spot, and where the nodes are ON THE CANVAS through
+					 *  their own transforms (the feet point, and one 1024 canvas px in canvas px) */
+					state: () => {
+						const body = creature.bodyNode;
+						const sh = creature.shadowNode;
+						const at = (n: PIXI.Container) => {
+							if (!n.parent) return null;
+							const a = n.toGlobal({ x: 0, y: 0 });
+							const b = n.toGlobal({ x: 1, y: 0 });
+							return { x: Number(a.x.toFixed(3)), y: Number(a.y.toFixed(3)), px: Number((b.x - a.x).toFixed(5)) };
+						};
+						const view = views[which];
+						const stage = view.root.parent?.children ?? [];
+						const main = stage.find((c) => c.children?.some((k) => k.mask) || c.children?.some((k) => k.children?.some((j) => j.mask)));
+						return {
+							...creature.info(),
+							spot,
+							kind,
+							which,
+							sizeType: context.stateLayoutDerived.canvasSizeType(),
+							canvas: { width: canvas.width, height: canvas.height },
+							fore: foreFit(view),
+							body: at(body),
+							shadow: at(sh),
+							/** the stage, bottom to top, and where the scene, the board and the creature's front host are in it */
+							stage: stage.map((c) => `${c.label || c.constructor.name}@${c.zIndex}`),
+							stageIndex: { scene: stage.indexOf(view.root), front: stage.findIndex((c) => c.label === 'creature-front'), board: main ? stage.indexOf(main) : -1, count: stage.length },
+							/** the foreground's children, bottom to top (the creature's nodes included) */
+							foreground: view.foreground.children.map((c) => c.label || 'sprite'),
+							frontForeground: view.frontForeground.children.map((c) => c.label || 'sprite'),
+							load: creatureLoadState(),
+						};
+					},
+					/** light enough for every frame: his frame, the looks' opacities, and the kick as each layer draws it */
+					sample: () => {
+						const view = views[which];
+						const k = view.root.scale.x || 1;
+						const f = view.foregroundState();
+						const body = creature.bodyNode.parent ? creature.bodyNode.toGlobal({ x: 0, y: 0 }) : { x: 0, y: 0 };
+						const sh = creature.shadowNode.parent ? creature.shadowNode.toGlobal({ x: 0, y: 0 }) : { x: 0, y: 0 };
+						return { ...creature.sample(), bx: body.x, by: body.y, sx: sh.x, sy: sh.y, floorX: f.drawn.x, floorY: f.drawn.y, frontX: (f.front.x - f.rest.x) * k, frontY: (f.front.y - f.rest.y) * k, handedX: foregroundKick.x, handedY: foregroundKick.y, turbo: context.stateGame.turboLevel, skipping: context.stateGame.skipping };
+					},
+					log: () => creature.log.map((e) => ({ ...e })),
+					loadLog: () => creatureLoadLog.map((e) => ({ ...e })),
+					/** every source he draws from: its size, its bytes as RGBA8 with no mipmaps, and whether it has a GL texture */
+					memory: () => {
+						const table = (renderer() as any)?.texture?._glTextures ?? {};
+						const list = creature.sources().map(({ name, source }) => ({ name, w: source.pixelWidth, h: source.pixelHeight, bytes: source.pixelWidth * source.pixelHeight * 4, onGpu: !!table[source.uid], mips: source.autoGenerateMipmaps, gc: source.autoGarbageCollect }));
+						return { list, gpuBytes: list.filter((s) => s.onGpu).reduce((n, s) => n + s.bytes, 0), managed: (renderer() as any)?.texture?.managedTextures?.length ?? null };
+					},
+					/** the A / B switch: false = he is not drawn, takes no beat and plays no sound */
+					enable: (on: boolean) => (creature.enabled = on),
+					/** the next idle loop restart plays this alternate (or none) instead of rolling */
+					forceRoll: (what: 'snarl' | 'growl' | 'none' | null) => (creature.forceRoll = what),
+					growl: () => creature.growl(),
 				},
 				// ---- __manticore.fireSound / chainSound (tools/manticore/win_sound_probe.js, ONLY=fire,chain) ----
 				fireSound: { state: () => fireSoundState(), log: () => fireSoundLog.map((e) => ({ ...e })), constants: () => JSON.parse(JSON.stringify(FIRE_SOUND)) },
 				chainSound: { log: () => chainSoundLog.asked.map((e) => ({ ...e })), refused: () => chainSoundLog.refused, constants: () => JSON.parse(JSON.stringify({ sound: CHAIN_SOUND, gust: CHAIN_GUST })) },
 			});
 		}
-		return () => stop();
+		return () => {
+			stop();
+			foregroundKick.take = null;
+		};
 	});
 </script>
 

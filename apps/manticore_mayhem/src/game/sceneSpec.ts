@@ -10,6 +10,8 @@
 //   sky_fog_<k>); birds: the copied atlas's rows (bird_<row>_<frame>.png; the bats' bat_<row>_<frame>.png are the same rows). tiers.<tier>.ridge / sky: texture sizes.
 // SCENE_SPEC_PORTRAIT  no moving pieces. painting / fill: the rows of the frame the painting takes and the rows of
 //   the soft mist fill under it, down to where the 3D terrace covers the frame (the board is meant to hide the fill).
+//   sky: the portrait sky's own ridge cut-out box and skyline rows (it draws the landscape sky's atlas, birds and
+//   bats: SCENE_SPEC.sky has their cells); tiers.<tier>.ridge: the cut-out's texture size.
 // components/Background.svelte and game/scene.ts draw from both.
 export const SCENE_SPEC = {
 	"source": "knocker_r4",
@@ -241,6 +243,10 @@ export const SCENE_SPEC_PORTRAIT = {
 			"fire": [
 				720,
 				1280
+			],
+			"ridge": [
+				1440,
+				216
 			]
 		},
 		"phone": {
@@ -251,7 +257,23 @@ export const SCENE_SPEC_PORTRAIT = {
 			"fire": [
 				450,
 				800
+			],
+			"ridge": [
+				900,
+				135
 			]
 		}
+	},
+	"sky": {
+		"ridge": [
+			0,
+			376,
+			1440,
+			592
+		],
+		"skyline": [
+			385,
+			582
+		]
 	}
 } as const;

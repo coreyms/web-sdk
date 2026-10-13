@@ -1,0 +1,254 @@
+{
+ "frames": {
+  "creature_epic_charge_loop_000": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 329,
+    "h": 358
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 49,
+    "w": 329,
+    "h": 358
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_001": {
+   "frame": {
+    "x": 331,
+    "y": 0,
+    "w": 329,
+    "h": 358
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 49,
+    "w": 329,
+    "h": 358
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_002": {
+   "frame": {
+    "x": 0,
+    "y": 1080,
+    "w": 329,
+    "h": 357
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 50,
+    "w": 329,
+    "h": 357
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_003": {
+   "frame": {
+    "x": 331,
+    "y": 1080,
+    "w": 329,
+    "h": 357
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 50,
+    "w": 329,
+    "h": 357
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_004": {
+   "frame": {
+    "x": 0,
+    "y": 360,
+    "w": 329,
+    "h": 358
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 49,
+    "w": 329,
+    "h": 358
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_005": {
+   "frame": {
+    "x": 331,
+    "y": 360,
+    "w": 329,
+    "h": 358
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 49,
+    "w": 329,
+    "h": 358
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_006": {
+   "frame": {
+    "x": 0,
+    "y": 1439,
+    "w": 329,
+    "h": 357
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 50,
+    "w": 329,
+    "h": 357
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_007": {
+   "frame": {
+    "x": 331,
+    "y": 1439,
+    "w": 329,
+    "h": 357
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 50,
+    "w": 329,
+    "h": 357
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_008": {
+   "frame": {
+    "x": 0,
+    "y": 720,
+    "w": 329,
+    "h": 358
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 49,
+    "w": 329,
+    "h": 358
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_009": {
+   "frame": {
+    "x": 331,
+    "y": 720,
+    "w": 329,
+    "h": 358
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 49,
+    "w": 329,
+    "h": 358
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_010": {
+   "frame": {
+    "x": 0,
+    "y": 1798,
+    "w": 329,
+    "h": 357
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 50,
+    "w": 329,
+    "h": 357
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_loop_011": {
+   "frame": {
+    "x": 331,
+    "y": 1798,
+    "w": 329,
+    "h": 357
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 50,
+    "w": 329,
+    "h": 357
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  }
+ },
+ "meta": {
+  "image": "creature-epic-charge_loop-phone.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 662,
+   "h": 2157
+  },
+  "scale": "1",
+  "pngHash": "c848960c"
+ }
+}

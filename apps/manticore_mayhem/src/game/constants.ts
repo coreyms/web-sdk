@@ -157,8 +157,14 @@ export const symbolAnim = (name: string): SymbolAnim => {
 	if (!a) symbolAnimCache.set(name, (a = { ...SYMBOL_ANIM_DEFAULT, ...SYMBOL_ANIM[name] }));
 	return a;
 };
-/** the sheets' frame rate, in STYLE time (divided by timeScale like every other duration) */
+/** the sheets' frame rate. The DROP sheet (a landing) plays in STYLE time, divided by timeScale like every other
+ *  duration; the IDLE loop of a resting piece by SHEET_IDLE_TURBO below */
 export const SHEET_FPS = 30;
+/** Corey 2026-10-12: "slow down the idle glints/animations on board pieces in Turbo/Turbo 2 to match regular, keep same
+ *  animation speeds for landing/clearing/drop in etc." false: a resting piece's idle loop runs at SHEET_FPS in REAL
+ *  time at every turbo level (what turbo 0 always did). true: the old behaviour, the loop sped up by TURBO_SCALE
+ *  (2.2 and 4 times). Nothing waits for an idle loop: it is only which frame a resting cell shows. */
+export const SHEET_IDLE_TURBO = false;
 
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {
@@ -344,8 +350,16 @@ export const FRAME_ART = { tint: 0xb4b4b4, chainTint: 0xb4b4b4 };
 export const FRAME_RELIGHT = {
 	fireGain: 1,
 	shadow: {
-		day: { color: [24, 12, 6], alpha: 0.6 },
-		night: { color: [2, 3, 8], alpha: 0.75 },
+		// Corey 2026-10-12: "The shadow could probably be a little bit stronger": the strength (opacity, not size) up
+		// in every layout and mode: day 0.6 -> 0.78 -> 1, night 0.75 -> 0.975.
+		// Later the same day ("Stronger 2x"): BY DAY the shadow is drawn TWICE (a second sprite on the same cut-out,
+		// straight over the first, components/BoardFrame.svelte): with the cut-out's own alpha m the floor gets
+		// 1 - (1 - m)^2 where one layer at full strength gave m. `dayDouble` is the second layer's strength (0 = one
+		// layer as before, 1 = the full double); its opacity is day.alpha x dayDouble x (1 - night), so it leaves with
+		// the day to night fade and NIGHT is one layer at night.alpha, exactly as it was.
+		day: { color: [24, 12, 6], alpha: 1 },
+		dayDouble: 1,
+		night: { color: [2, 3, 8], alpha: 0.975 },
 	},
 	gears: { loopsPerLink: 1 },
 } as const;
@@ -826,6 +840,32 @@ export const STINGER_PLAQUE = {
 	blink: { gapMinMs: 2400, gapMaxMs: 6200, doubleChance: 0.2, doubleGapMs: 300, afterFlareMs: 850 },
 } as const;
 
+// ---- THE FOREGROUND KICK (Corey 2026-10-12: "Probably the entire foreground but not the background should kick.") ----
+// On every board kick (the claw swipe's, the roar's, the win plaque's impact and tier ups) the courtyard's FOREGROUND
+// is shoved by the SAME offset as the board, on the same frame: floor, columns, pedestals, braziers, the fire light
+// pass, the flames with their embers and rim cuts, and the knocker chains (which keep their own swing on top; that
+// swing is still driven once, by the kick's size, game/scene.ts). The painted backdrop, every sky layer (aurora,
+// clouds, ridge cut-outs, birds, bats, fog), the logo and the HTML HUD stay still.
+//   HOW   components/BoardFrame.svelte reads featureFx.boardKick once a tick for the frame, and hands that same read,
+//         in canvas px, to featureFx.shoveForeground; components/Background.svelte passes it to the scenes, and
+//         game/scene.ts moves ONE container, SceneView.foreground. A future foreground creature joins that container.
+//   on        false = the board alone kicks, as before (and the foreground is not drawn oversize)
+//   coverPx   the largest kick any feature asks for, PLAYGROUND px (read from the kicks' own constants, so a kick
+//             made larger is still covered). The shove is (0.6 x, 1 x) this.
+//   slackPx   CANVAS px kept beyond the largest shove (the scaled picture's own soft last pixel)
+// THE OVERSIZE: so no edge of the foreground ever shows, it is drawn larger about the frame's centre by the SMALLEST
+// uniform scale that keeps every edge of the canvas covered at the largest shove in that layout (components/
+// Background.svelte, `foregroundOver`): an edge the cover fit already crops by more than the shove needs nothing.
+// It is not one fixed percentage because the shove is in board px and the frame is fitted to the screen: measured
+// 2026-10-12 (chain_gust_probe.js FOREGROUND) it comes to 0.66 % at 844 x 390, 0.93 % at 390 x 844, 1.32 % at
+// 1440 x 900 and 1.48 % at 1280 x 720 (the largest seen: 1.94 % at 667 x 375). A fixed 0.5 % about the centre
+// would leave up to 3 px of the backdrop showing under the floor on a roar at 1440 x 900.
+export const FOREGROUND_KICK = {
+	on: true,
+	coverPx: Math.max(SWIPE_FX.kickPx, ROAR_FX.kickPx, STINGER_PLAQUE.kickPx, STINGER_PLAQUE.kickTierPx),
+	slackPx: 0.5,
+} as const;
+
 // ---- The logo (components/Logo.svelte, game/logo/, the HTML chromes) --------------------------------
 // ONE stacked logo with wings in every layout (Corey 2026-10-09). Two ways of drawing it, by device tier:
 //   phone tier   a static HTML <img> in the chrome (ui/Chrome*.svelte) with the house Shine glint. The chrome
@@ -852,9 +892,18 @@ export const LOGO = {
 	 *  where the frame has grown on a wide screen: board_v5j with its base on v4l's, 2026-10-11; 198.8 / 176.6 with
 	 *  v4l), no wider than maxWidth, centred in that band and on the screen. At 226.4 the box is maxWidth wide (as it
 	 *  was with v4l) and its top is at 55.96 (42.17 with v4l): the same size, 13.8 lower, centred in the taller band.
-	 *  IN A FEATURE the SKIP TO RESULT plate owns the lower part of that band (HUD.portrait.skipButton, from
-	 *  115): the logo steps back to the box that ends `gapAbove` over the plate, over compactMs. */
-	portrait: { top: 31, gapAbove: 8, maxWidth: 348, compactGap: 4, compactMs: 350 },
+	 *  THAT IS THE TABLET'S RULE (and any portrait screen that is not a phone). It gives centre 206.0, 115.2 and width
+	 *  348 at 768 x 1024. `skipGap`: on a narrow tablet the box is also kept this far left of the SKIP button (layoutSpec
+	 *  SKIP), which stands beside the logo's upper right; at 768 x 1024 that allows 369, so the 348 stands.
+	 *  THE LOGO STAYS WHERE IT IS IN A FEATURE (Corey 2026-10-12: its step back to centre 206, 71, width 202.6 above the
+	 *  old SKIP TO RESULT plate is gone, phone and tablet). */
+	portrait: { top: 31, gapAbove: 8, maxWidth: 348, skipGap: 8 },
+	/** PORTRAIT PHONE (the layout system's size class, short side at most 480 CSS px: layoutSpec isPhoneSizeType), the
+	 *  owner's own box (Corey 2026-10-12 22:11, placement playground v3): up in the left corner, clear of the creature
+	 *  who stands top right behind the board, and drawn in front of him (the HTML HUD is over the whole canvas).
+	 *  Centre and width in the 412 wide master (scale 0.74 of the 348); on a wider phone the box keeps its distance
+	 *  from the screen's centre line, like the canvas. It was centre 206.0, 124.7, width 348. */
+	portraitPhone: { cx: 138.7, cy: 100.7, width: 257.5 },
 	/** the landing screen's logo (ui/LandingScreen.svelte): the art's width and centre per master, above the cards */
 	landing: { landscape: { width: 380, cx: 640, cy: 92 }, phone: { width: 380, cx: 740, cy: 92 }, portrait: { width: 348, cx: 206, cy: 110 } },
 
@@ -885,23 +934,34 @@ export const LOGO = {
 	mipmaps: true,
 } as const;
 
-/** the SKIP TO RESULT plate (components/SkipButton.svelte); placement is layoutSpec HUD.skipButton */
-export const SKIP_BUTTON = {
+/** THE SKIP BUTTON AND ITS PROMPT (components/SkipButton.svelte, HTML; placement is layoutSpec SKIP). The button is
+ *  the Play button's plate at half its height with a fast forward glyph and no text. A press does not skip: it opens
+ *  the prompt "Skip to result?" beside it; Yes skips, No, a tap anywhere else or promptMs with no answer closes it.
+ *  Nothing waits on any of it: the feature plays on underneath. */
+export const SKIP_HUD = {
 	inMs: 220,
 	outMs: 120,
-	/** the drawn plate's height inside the (taller) hit area, and its inset from the slot's sides */
-	plateHeight: 40,
-	plateInset: 0,
-	radius: 7,
-	plateColor: 0x0d0e12,
-	plateAlpha: 0.82,
-	edgeColor: 0x9fd9d4,
-	edgeAlpha: 0.32,
-	highlightAlpha: 0.14,
-	textTint: 0x9fd9d4,
-	/** glyph height as a share of the plate height */
-	textShare: 0.4,
-	pressedAlpha: 0.6,
+	/** the prompt closes by itself after this long with no answer */
+	promptMs: 4000,
+	/** the Play button's own look (ui/SquareSpin.svelte): ring and radius from the Play button's size in master px */
+	plate: 'rgba(20, 18, 16, .85)',
+	ring: { share: 0.03, min: 2, color: '#fff' },
+	radius: { share: 0.22, base: 8, grow: 0.07 },
+	/** the glyph's height as a share of the button's height */
+	glyphShare: 0.62,
+	/** the touch target is grown (invisibly) to at least this, CSS px */
+	minHitCss: 44,
+	/** the prompt, as shares of the Play button's size on screen, each with a floor in CSS px. Yes and No are at
+	 *  least 52 x 40 CSS px on any screen. */
+	prompt: {
+		gapCss: 6,
+		button: { w: 0.6, h: 0.42, minW: 52, minH: 40 },
+		font: { share: 0.15, min: 12 },
+		pad: { share: 0.1, min: 8 },
+		gap: { share: 0.08, min: 6 },
+		/** the question's line box, in ems */
+		line: 1.3,
+	},
 } as const;
 
 export const MOTION_BLUR_VELOCITY = 31;
@@ -1013,7 +1073,8 @@ export const SCENE = {
 } as const;
 
 // ---- The ambient sky (game/sky.ts, drawn by game/scene.ts; assets by tools/build_scene_assets.py --sky) ----------
-// LANDSCAPE and PHONE SIDEWAYS only (Corey 2026-10-11). Six layers between the painted backdrop and the 3D
+// LANDSCAPE and PHONE SIDEWAYS (Corey 2026-10-11), and PORTRAIT with the same code (Corey 2026-10-12: "Full sky in
+// portrait"; its numbers are SKY.portrait, at the end of this comment). Six layers between the painted backdrop and the 3D
 // foreground, back to front: the AURORA (EPIC), CLOUDS, the RIDGE cut-out (the skyline cut from the same painting, so
 // the aurora and the clouds pass behind the peaks), BIRDS (day), BATS (night), canyon FOG. Every px is a px of the scene's 2560 x 1440 frame, every
 // px/s and ms REAL time at every turbo level; it never pauses and knows nothing of spins, wins or features.
@@ -1072,13 +1133,49 @@ export const SCENE = {
 //             constant, times the dim, to tune). formation 'scattered' (Corey: not in a V, more
 //             randomness): each bat starts up to looseX px behind the flock's lead point and up to looseY px above
 //             or below its height, and flies at the flock's speed x (1 +- looseSpeed), so the group drifts apart;
-//             `spacing` is only read by a V. looseX, looseY and looseSpeed are PROVISIONAL (not tuned by Corey
-//             yet). pool 64: a flock about every 3 s of up to 5, a typical crossing 9 s and the slowest 59 s;
-//             5000 simulated hours of night peak at 41 in flight, mean 16.
+//             `spacing` is only read by a V. Every number is Corey's own from the playground (2026-10-12 21:01),
+//             but for three. bobBySize / flutterBySize (Corey: "the bob height variation should be handled by the
+//             bird size"): a bat's bob, and its flutter, is the number here x (its own size / size.near), so a
+//             small far bat swings less than a big near one; the birds have neither switch and keep one bob for
+//             every bird. minGapX / minGapY / gapTries / gapPassS: THE GAP, no two bats nearly on top of each other,
+//             decided when the flock is rolled (the note is at the numbers). pool 112: a flock every 1.08 to 6.92 s of 3..8, each bat starting up to 1200 px behind
+//             the lead and flying 20 to 672 px/s, so the slowest possible crossing is 195 s. 100000 simulated hours
+//             (90 million flocks) of the 2560 frame peak at 96 in flight, mean 36, and of the 1440 portrait frame
+//             at 75, mean 25; the old 64 would have refused one flock in 1300 in landscape (and 63 in 90 million
+//             in portrait). 112 is that peak plus two full flocks.
 //   fog       soft mist bands in the gorge, behind the courtyard: per band its atlas cell, where it starts, its
 //             scale of the fog cell (1280 x 400 frame px), drift (px/s, it wraps once it has wholly left the
 //             frame), and opacity, which breathes by +- `breath` over breathMs (one period per band) while the band
 //             bobs bobPx over bobMs.
+//   portrait  THE PORTRAIT SKY (Corey 2026-10-12). The portrait scene is its own 1440 x 2560 frame with its own cut-out
+//             (SCENE_SPEC_PORTRAIT.sky, cut from the portrait backdrops by the same matte); it draws the same atlas,
+//             birds and bats, by the same code, with the same modes, crossfade and dim. Its numbers are NOT a second
+//             free set: every one is a landscape number above put through one of four rules, and whatever is not
+//             listed in the block is the landscape value itself. Tune from here.
+//             K  `scale` = 1. Screen px per frame px in portrait over the same in landscape. Both scenes are cover
+//                fitted and the two frames are each other turned (1440 x 2560, 2560 x 1440), so on ANY screen the
+//                portrait fit equals the fit of the same screen held sideways: phone 390 x 844 0.3297 both ways, tablet
+//                768 x 1024 0.5333 both ways. So K is exactly 1 and a cloud, bird or bat is the same size and speed in
+//                screen px as on that phone held sideways. game/sky.ts multiplies by K every SIZE and SPEED: clouds
+//                scale, speed, lead; birds and bats size, speed, bob, flutter, looseX, looseY, margin, exit; fog scale,
+//                speed, bobPx; aurora wave. (The painting itself is drawn smaller in portrait, 891 rows against 1440,
+//                0.619: with K = 0.619 everything would keep its size against the MOUNTAINS instead of on the screen.
+//                One number to change if that is wanted.)
+//             W  1440 / 2560 = 0.5625, the frame's width over landscape's: COUNTS along the frame, so the density
+//                along it matches.     clouds.count 23 -> 13 (7 far, 6 near); aurora.columns 96 -> 54 (the same 26.67
+//                px a column, and the curtain's folds keep their landscape length: it is the landscape curtain's
+//                first 1440 px); clouds.spread 3200 -> 2080 (the frame plus the same 640 beyond it); fog x 620 -> 349,
+//                2050 -> 1153. The flocks keep everyMs and min..max (a flock crosses the narrower frame sooner, so
+//                the number in the air at once falls by W by itself) and the pools keep their sizes (never refused).
+//             S  592 / 400 = 1.48, the portrait cut-out's lower edge over landscape's (the sky is the top of the frame
+//                down to the skyline, rows 385 .. 582 here, 74 .. 393 there): every BAND and height IN THE SKY.
+//                clouds.band 0 .. 400 -> 0 .. 592; birds.band 0 .. 600 -> 0 .. 888; bats.band 0 .. 261 -> 0 .. 386;
+//                aurora.base 360 -> 533, spread 60 -> 89, height 415 -> 614.
+//             P  y -> 340 + y x 891 / 1440, the same place IN THE PAINTING (its rows 340 .. 1231 of the portrait
+//                frame): the FOG, which belongs to the painting's gorge. The portrait painting has the same gorge
+//                (the cliffs under the bridge and the river valley below them), so the two bands sit on the same
+//                two places of it: y 988 -> 951, 748 -> 803. On a phone the board covers most of that (the bands
+//                are 1200 px tall, so their upper half shows between the logo and the board and beside the frame).
 export const SKY = {
 	/** positions and opacities are written at most this often, and a step never covers more than maxStepMs (a tab
 	 *  that was hidden does not jump the sky on) */
@@ -1146,36 +1243,68 @@ export const SKY = {
 		intervalMs: 33,
 	},
 	bats: {
-		everyMs: 3000,
-		spread: 0.5,
-		firstS: 2,
-		flock: { min: 2, max: 5 },
-		// Corey 2026-10-11 22:45, on staging: "slow the bats down and make them smaller, they definitely read as birds here
-		// too big": size near 31.2 -> 17, far 24.7 -> 11, speed 397 -> 230 (the crossing times in the text above are the old speed's)
-		// Corey 2026-10-12, with the bat sheet (a bat is less of its cell than the bird it was cut from): near 17 -> 26,
-		// far 11 -> 16; the speed stays
-		size: { near: 26, far: 16 },
-		sizeJitter: [0.85, 1.15],
-		speed: 230,
+		// COREY'S OWN VALUES, tuned in the sky playground v7 and pasted 2026-10-12 21:01
+		// (~/Desktop/Manticore Mayhem/images/sky_r3/corey_bat_values_2026-10-12_2100.txt), put in exactly. From the
+		// values before: alpha 0.67 .. 0.86 -> 0.84 .. 1; size near 26 -> 46.5, far 16 -> 26; sizeJitter 0.85 -> 0.49;
+		// everyMs 3000 -> 4000; spread 0.5 -> 0.73; firstS 2 -> 1; flock 2..5 -> 3..8; speed 230 -> 261; flapFps 24 -> 15;
+		// bob 30 -> 11; flutter 14 -> 20.5; band 61 .. 311 -> 0 .. 261; farBelow 0.35 -> 0.59; margin 80 -> 108;
+		// looseX 320 -> 1200; looseY 110 -> 258; looseSpeed 0.35 -> 0.61. NOT his: bobBySize, flutterBySize and pool
+		// (each has its own note below).
+		everyMs: 4000,
+		spread: 0.73,
+		firstS: 1,
+		flock: { min: 3, max: 8 },
+		size: { near: 46.5, far: 26 },
+		sizeJitter: [0.49, 1.15],
+		speed: 261,
 		speedByDepth: [0.5, 1],
 		jitter: 0.6,
-		alpha: [0.67, 0.86],
-		flapFps: 24,
-		bob: 30,
+		alpha: [0.84, 1],
+		flapFps: 15,
+		bob: 11,
 		bobRate: 8,
-		flutter: 14,
-		band: { y0: 61, y1: 311 },
-		farBelow: 0.35,
+		flutter: 20.5,
+		// Corey 2026-10-12, with the values: "I really think the bob height variation should be handled by the bird size".
+		// bobBySize: a bat's bob is `bob` x (its own drawn size / size.near), its size being the flock's by depth x its
+		// own sizeJitter, so `bob` is the bob of a bat of exactly the near size: far 26 x 0.49 = 12.74 px bobs 3.01 px,
+		// near 46.5 x 1.15 = 53.5 px bobs 12.65 px. flutterBySize: the same for `flutter` (5.62 .. 23.58 px), my choice,
+		// not his words: false gives every bat the whole `flutter` again. (The playground he tuned in gave every bat
+		// the whole bob and the whole flutter.)
+		bobBySize: true,
+		flutterBySize: true,
+		band: { y0: 0, y1: 261 },
+		farBelow: 0.59,
 		formation: 'scattered',
 		spacing: { x: 2.4, y: 1.4 },
-		looseX: 320,
-		looseY: 110,
-		looseSpeed: 0.35,
+		looseX: 1200,
+		looseY: 258,
+		looseSpeed: 0.61,
+		// THE GAP (Corey 2026-10-12, of the EPIC capture sky_r4/sky_desktop_1440x900_epic_bats_15s.mp4: "there were two
+		// bats so close together they were almost overlapping and swapping places up and down. Not exactly on top of each
+		// other, but so close that it didn't look right."). Decided when a flock is rolled, never per frame (game/sky.ts,
+		// Flyers.spawn and near). A bat's path is its straight flight (where it starts, its lane, its own speed) with a
+		// vertical envelope of its own bob + flutter + half its height. Two bats are too close if, at any time while both
+		// are over the frame (plus the larger one's width each side), they come within minGapX x the larger one's width
+		// of each other along the flight AND their envelopes are closer than minGapY x the larger one's height. That is
+		// worked out in closed form against every bat of the same flock and every bat already in flight. A bat that is
+		// too close has its place (behind the lead, above or below) rolled again, up to gapTries times; its size and speed
+		// are never rolled again. Still too close: it is left out of the flock; or, where that would take the flock under
+		// flock.min, it is moved to the nearest free lane inside the flock's own looseY, and failing that to just above
+		// the frame, out of sight. A bat whose envelope is wholly above the frame is never seen and blocks nobody.
+		// gapPassS (NOT in his words, mine, 0 = off = the rule exactly as above): a pass that keeps two bats within
+		// minGapX for no longer than this many seconds is let through. It is here because the rule at 0 costs most of
+		// the bats on screen (sky_r5/NOTES.md has the numbers): the one number to raise if the sky is too empty.
+		// Only the bats have these (the birds fly a V with fixed spacing and are approved as they are).
+		minGapX: 1.5,
+		minGapY: 1.5,
+		gapTries: 12,
+		gapPassS: 1, // set by Claude 2026-10-13 00:05 while Corey slept: strict (0) leaves 7.5 bats on screen against his 19.7; 1 s keeps 16.2 and still stops pairs flying together. His call in the morning.
 		frames: 'bat',
 		tint: [1, 1, 1],
-		margin: 80,
+		margin: 108,
 		exit: 107,
-		pool: 64,
+		// 64 -> 112 with his values (bigger flocks, longer trails: see the comment above)
+		pool: 112,
 		parkX: -4000.5,
 		parkY: -4000.5,
 		intervalMs: 33,
@@ -1190,6 +1319,21 @@ export const SKY = {
 		breathPhase: 2.1,
 		bobPx: 10.5,
 		bobMs: 41000,
+	},
+	/** THE PORTRAIT SKY: only what differs from the numbers above, each by its rule (K, W, S, P in the comment) */
+	portrait: {
+		scale: 1,
+		aurora: { base: 533, spread: 89, height: 614, columns: 54 },
+		clouds: { count: 13, band: { y0: 0, y1: 592 }, spread: 2080 },
+		birds: { band: { y0: 0, y1: 888 } },
+		// Corey's bat values 2026-10-12: the band 0 .. 261 by rule S (x 1.48)
+		bats: { band: { y0: 0, y1: 386 } },
+		fog: {
+			bands: [
+				{ x: 349, y: 951 },
+				{ x: 1153, y: 803 },
+			],
+		},
 	},
 } as const;
 
@@ -1273,20 +1417,30 @@ export const FLAMES = {
 } as const;
 
 // ---- The fire loops (game/fireSound.ts; sprite entries by tools/build_audiosprite.py MM_EVENTS) ------------------
-// Tied to the flames' modes: SUPER plays sfx_fire_super (a crackle), EPIC sfx_fire_epic (a low roar), both 6.00 s
+// Tied to the flames' modes: SUPER plays sfx_fire_super (a crackle), EPIC sfx_fire_epic (a low roar with that crackle
+// layered on since 2026-10-12; the roar alone was inaudible under the EPIC music), both 6.00 s
 // seamless loops, quietly under the music for the whole round; the base game and the regular Bonus have none.
 //   fadeMs       in and out with the scene's change of mode (the sound system's own fade of a playing sprite sound).
 //   stopAfterMs  a faded-out loop is stopped this long after its fade has ended.
 //   volume       the loop's level, a gain on the clip as it is in the sprite (no gain is baked in for these two):
 //                the crackle 0.44 = -7.1 dB, which puts it at -45.8 LUFS, 12 dB under the coin counter loop (-33.6);
-//                the roar 0.355 = -9.0 dB, -30.1 LUFS, 14 dB under the Super / Epic music as it plays (-11.8 LUFS at
-//                its volume 0.6 = -16.2). Both then follow the effects volume and mute like every effect.
+//                EPIC's loop 0.49 = -6.2 dB (2026-10-12; it was 0.355 for the roar alone). The new clip is the old roar
+//                x 0.634 (-4.0 dB) plus SUPER's own crackle x 0.892 (-1.0 dB), sample aligned (least squares fit of
+//                the two sources to it, residual -57 dBFS). What Corey hears in SUPER is the crackle at 0.44, so
+//                EPIC's copy of it is put at the same level: 0.44 / 0.892 = 0.493, rounded to 0.49 (0.437, 0.06 dB
+//                under SUPER's). The roar under it then plays at 0.634 x 0.49 = 0.31, 1.2 dB under where it was at
+//                0.355. Whole clip: -24.9 LUFS in the sprite, -31.1 as played (it measured -30.1 as the roar alone
+//                and could not be heard: nearly all of that number is the roar's energy under 120 Hz, so the full
+//                band figure says nothing about audibility; over 500 Hz the old loop's loudest 50 ms played 15.7 dB
+//                under SUPER's crackle's (rms 3.8 dB under) and the new one's plays level with it (rms 1.2 dB
+//                over)). Super and Epic share one music track at volume 0.6. Both loops then follow the effects
+//                volume and mute like every effect.
 export const FIRE_SOUND = {
 	fadeMs: SCENE.crossfadeMs,
 	stopAfterMs: 60,
 	loops: {
 		super: { name: 'sfx_fire_super', volume: 0.44 },
-		epic: { name: 'sfx_fire_epic', volume: 0.355 },
+		epic: { name: 'sfx_fire_epic', volume: 0.49 },
 	},
 } as const;
 
@@ -1312,6 +1466,79 @@ export const CHAIN_SOUND = {
 } as const;
 
 // ---- Symbol art ---------------------------------------------------------------------------------
+// ---- THE MANTICORE (game/creature.ts, game/creatureLoad.ts, game/creatureAssets.ts; wired 2026-10-13) ----------
+// The creature sprite from rig drop 3 (tools/build_creature_assets.py; clip facts in the generated game/creatureSpec.ts,
+// never typed here). Decisions: Corey 2026-10-12 / 13 unless marked. Idle and the idle alternates run in REAL time at
+// every turbo level; the attack clips in STYLE time (x TURBO_SCALE) like the board effects they belong to. Nothing in
+// the game waits for him.
+//   place     PER LAYOUT (Corey's placement playground, 2026-10-12 22:11): the feet point (canvas col 512, feetRow) in
+//             px of that layout's scene frame INSIDE the foreground container (so the oversize and the kick are in it),
+//             the draw scale of the rig's 1024 canvas in those px, and the layer: 'front' = in front of the board, its
+//             frame and its chains (and behind the HTML HUD and every canvas overlay), 'behind' = in the scene's
+//             foreground, behind the board. His shadow lies on the floor (the scene's foreground) in both.
+//             WHICH PORTRAIT: a portrait screen is 'portraitPhone' or 'portraitTablet', never between: by the layout
+//             system's own size class (utils-layout canvasSizeType, the test that already tells a phone held sideways
+//             from a desktop window): the screen's SHORT side at most 480 CSS px is a phone, wider is a tablet.
+//   looks     the look each mode shows. ONE is resident; a change of mode crosses to the new one over lookFadeMs (the
+//             scene's own crossfade) once its idle sheet is uploaded. The rig's fourth look ("night", no fire) is not
+//             shipped: no mode shows it.
+//   holdMs    the freeze on a clip's hold frame (the rig's default), style time
+//   rushMs    an action asked for mid idle: the idle runs to its frame 1 the short way round inside this (style time)
+//             and the clip starts then; from the loop's last rushFreeFrames frames or its first rushFreeFrames + 1 it
+//             starts at once (creature_loader_spec.md 3.2: only those seven are within two idle steps of frame 1)
+//   strikeLead   a sting_hit starts (holdFrame - 1) frames BEFORE the hit, so the tail lands on it (false: on it)
+//   sting     the board's own beats the strike is timed from, style ms: where a normal and a scatter sting's cell flips
+//             in its beat, the scatter run's first hold, the two charge lengths (all read from STING / SCATTER_STING)
+//   stingCut  BETWEEN TWO STINGS of a run he goes back to the crouch: sting_hit plays on to afterFrame and is then cut
+//             to charge_loop frame toLoopFrame. Measured on the day look (2026-10-13, outline difference / tail tip
+//             travel on the 1024 canvas): straight from the hold frame f6 the cut is 35 % and 256 px; from f13 to
+//             charge_loop f6 it is 8.6 % and 6 px, the smallest there is (sting_hit's own step there is 6 % and 23 px).
+//             The clip ends STANDING, so no frame of it is the crouch again: under 4 % needs a clip from the rig.
+//   snarlOdds, growlOdds   rolled once at each idle loop restart, snarl first, never both, plain Math.random
+//   breath    one quiet breath sound per idle loop, the two takes in turn, stopped when anything else of his starts
+//   beatWaitMs   REAL ms the swipe's strike pose waits for the board's own beat before going on without it;
+//   crouchTimeoutMs   REAL ms in the crouch with no sting coming before he gets up
+//   cueBiasMs REAL ms a read-ahead estimate is put LATE on purpose. The board's step before a feature ends on a frame
+//             boundary and that frame is a busy one (the drop settles, the next handler starts): measured 2026-10-13
+//             in the dev build, the feature's beat came 25 to 49 ms after the drop's own arithmetic. The swipe's
+//             wind-up starts on the arithmetic and is spread to the late anchor; the beat itself lands the strike. So
+//             he is not seen striking before the tears, and a prompt beat costs one wind-up frame at most.
+//   cueBeatBiasMs   the same for a roar and for the first sting's charge_in, which have no strike to protect: half of
+//             it, so the clip starts within about a frame of its beat either way
+export const CREATURE = {
+	on: true,
+	place: {
+		desktop: { x: 2089.9, y: 1213.3, scale: 0.96, layer: 'front' },
+		phoneSideways: { x: 2249.3, y: 1157.2, scale: 0.97, layer: 'behind' },
+		portraitPhone: { x: 1039.9, y: 1001.6, scale: 0.77, layer: 'behind' },
+		portraitTablet: { x: 1254.2, y: 2026.8, scale: 0.555, layer: 'front' },
+	},
+	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
+	lookFadeMs: SCENE.crossfadeMs,
+	holdMs: 150,
+	rushMs: 100,
+	rushFreeFrames: 3,
+	strikeLead: true,
+	sting: {
+		normalHitMs: STING.hitAt * STING.normalMs,
+		scatterHitMs: STING.hitAt * SCATTER_STING.hitMs,
+		scatterHoldMs: SCATTER_STING.holdMs,
+		chargeMs: STING.chargeMs,
+		superChargeMs: STING.superChargeMs,
+	},
+	stingCut: { afterFrame: 13, toLoopFrame: 6 },
+	snarlOdds: 1 / 20,
+	growlOdds: 1 / 30,
+	breath: true,
+	shadowAlpha: 1,
+	beatWaitMs: 300,
+	crouchTimeoutMs: 3000,
+	cueBiasMs: 34,
+	cueBeatBiasMs: 17,
+} as const;
+/** which of CREATURE.place a layout takes */
+export type CreatureSpot = keyof typeof CREATURE.place;
+
 export type SymbolInfo = { type: 'sprite'; assetKey: string; sizeRatios: { width: number; height: number } };
 
 const staticSprite = (name: SymbolName, size = CELL_FILL): SymbolInfo => ({

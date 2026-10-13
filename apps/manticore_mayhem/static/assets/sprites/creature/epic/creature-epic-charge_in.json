@@ -1,0 +1,134 @@
+{
+ "frames": {
+  "creature_epic_charge_in_000": {
+   "frame": {
+    "x": 0,
+    "y": 1071,
+    "w": 487,
+    "h": 532
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 70,
+    "w": 487,
+    "h": 532
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_charge_in_001": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 487,
+    "h": 534
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 68,
+    "w": 487,
+    "h": 534
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_charge_in_002": {
+   "frame": {
+    "x": 0,
+    "y": 536,
+    "w": 487,
+    "h": 533
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 69,
+    "w": 487,
+    "h": 533
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_charge_in_003": {
+   "frame": {
+    "x": 0,
+    "y": 1605,
+    "w": 487,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 71,
+    "w": 487,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_charge_in_004": {
+   "frame": {
+    "x": 0,
+    "y": 2138,
+    "w": 486,
+    "h": 529
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 73,
+    "w": 486,
+    "h": 529
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_charge_in_005": {
+   "frame": {
+    "x": 0,
+    "y": 2669,
+    "w": 485,
+    "h": 528
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 60,
+    "y": 74,
+    "w": 485,
+    "h": 528
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  }
+ },
+ "meta": {
+  "image": "creature-epic-charge_in.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 489,
+   "h": 3199
+  },
+  "scale": "1",
+  "pngHash": "5b606924"
+ }
+}

@@ -97,10 +97,9 @@ walk(ASSETS);
 // splash weights the bundle download and these assets by bytes, and it has to know the totals
 // before a single one of them has answered — so they are baked here at build time rather than
 // discovered from Content-Length (which a compressed transfer hides).
+// (the animated explainer cards, ui/intro/card-*.{webp,jpg,mp4}, are deliberately NOT in this list: they
+// gate nothing and are fetched by ui/LandingScreen.svelte after the Pixi preload, 2026-10-12)
 const LANDING = [
-	'ui/intro/card-1.webp',
-	'ui/intro/card-2.webp',
-	'ui/intro/card-3.webp',
 	'ui/logo-stacked.webp',
 	'ui/logo-stacked-glint.webp', // the letters-only mask of the logo's glint (ui/Shine.svelte)
 	'fonts/ui/Outfit-Variable.woff2',

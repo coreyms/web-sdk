@@ -1,75 +1,223 @@
 <script lang="ts">
-	// SKIP TO RESULT. A Pixi-side plate in the feature layer (the HTML chrome is the standard Angry
-	// Mantis HUD and does not change), placed from the HUD.skipButton slot like PressToContinue is from
-	// its own, in the mode plaque's family: the same dark plate, the same stencil glyphs, a hairline
-	// edge and a top highlight for the glass. Modest on purpose: it must not fight the board.
+	// THE SKIP BUTTON AND ITS PROMPT (Corey 2026-10-12: "like a half height Play Button with two arrows, like a fast
+	// forward button. It doesn't need the text on it, but should show a prompt to confirm"). It replaces the Pixi
+	// SKIP TO RESULT plate. HTML, in its own fixed layer over the canvas and over the HUD (mounted beside the chrome in
+	// components/Game.svelte), so nothing drawn in the canvas, the creature included, can cover it. Top right in every
+	// view: layoutSpec SKIP has the rule, constants SKIP_HUD the look.
 	//
-	// Up only while a feature's spins are playing: gameType 'freegame', the first free spin's reveal
-	// has begun (fs >= 1, bonusStart zeroes it), no plaque, no press gate, not already skipping. That
-	// hides it through the bonusStart transition / plaque, the wrap-up (freeSpinEnd flips gameType
-	// first) and the base game. Pressing it is stateGameDerived.requestSkip() and nothing else; the
-	// button goes down because `skipping` is now true. Touch and pointer only, no hotkey.
+	// Up only while a feature's spins are playing, exactly as the plate was: gameType 'freegame', the first free spin's
+	// reveal has begun (fs >= 1, bonusStart zeroes it), no plaque, no press gate, no win screen, not already skipping.
 	//
-	// House rules: always mounted (visibility by alpha, never {#if} around the MainContainer), no
-	// filters, every tunable from layoutSpec / constants, SteadyTween (svelte/motion's leaks a task).
-	import { Rectangle } from 'pixi-svelte';
-	import { MainContainer } from 'components-layout';
-	import { cubicOut } from 'svelte/easing';
+	// A press does NOT skip. It opens the prompt "Skip to result?" beside the button. Yes is
+	// stateGameDerived.requestSkip() and the press sound, and nothing else; No, a tap anywhere else, SKIP_HUD.promptMs
+	// with no answer, or the button going down closes it. All of that is this component's own state and one timer: the
+	// board's event flow is not touched and nothing waits on the prompt, so the feature plays on underneath.
+	// Touch and pointer only, no hotkey (the button is disabled while it is down, so a held Space never reaches it).
+	//
+	// House rules: no filter, no backdrop-filter, no mask; the fades are opacity; every number from layoutSpec / constants.
+	import { onDestroy } from 'svelte';
+	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 
 	import { getContext } from '../game/context';
 	import { featureSpinsLive } from '../game/stateGame.svelte';
-	import { HUD, layoutKind } from '../game/layoutSpec';
-	import { SKIP_BUTTON } from '../game/constants';
-	import { SteadyTween as Tween } from '../game/tween.svelte';
-	import ArtAmount from './ArtAmount.svelte';
+	import { SKIP, isPhoneSizeType, layoutKind, skipButtonRect, skipPromptRect, skipSpot } from '../game/layoutSpec';
+	import { SKIP_HUD } from '../game/constants';
+	import Icon from '../ui/Icon.svelte';
 
 	const context = getContext();
 	const sg = context.stateGame;
-	const slot = $derived(HUD[layoutKind(context.stateLayoutDerived.layoutType())].skipButton);
 
 	const up = $derived(featureSpinsLive() && !sg.skipping && sg.fs >= 1 && !sg.plaque && sg.pressGates === 0 && !sg.winShowing);
-	const alpha = new Tween(0, { easing: cubicOut });
-	$effect(() => {
-		void alpha.set(up ? 1 : 0, { duration: up ? SKIP_BUTTON.inMs : SKIP_BUTTON.outMs });
+
+	// ---- where: the button's box by the layout rule, the prompt's box beside it ----
+	const spot = $derived(skipSpot(layoutKind(context.stateLayoutDerived.layoutType()), isPhoneSizeType(context.stateLayoutDerived.canvasSizeType())));
+	const view = $derived({ width: innerWidth.current ?? 1, height: innerHeight.current ?? 1 });
+	const box = $derived(skipButtonRect(spot, view));
+	/** the Play button's size on this screen, CSS px (the button is that wide), and CSS px per master px */
+	const play = $derived(box.width);
+	const playMaster = $derived(SKIP.slots[spot].play);
+	const scale = $derived(play / playMaster);
+	// the Play button's own ring and radius (ui/SquareSpin.svelte works them out in master px; the chrome scales them)
+	const ring = $derived(Math.max(SKIP_HUD.ring.min, playMaster * SKIP_HUD.ring.share) * scale);
+	const radius = $derived(Math.min(Math.round(Math.min(playMaster * SKIP_HUD.radius.share, SKIP_HUD.radius.base + playMaster * SKIP_HUD.radius.grow)) * scale, box.height / 2));
+	const hit = $derived(Math.max(0, (SKIP_HUD.minHitCss - box.height) / 2));
+	const P = SKIP_HUD.prompt;
+	const ask = $derived.by(() => {
+		const buttonW = Math.max(P.button.minW, play * P.button.w);
+		const buttonH = Math.max(P.button.minH, play * P.button.h);
+		const font = Math.max(P.font.min, play * P.font.share);
+		const pad = Math.max(P.pad.min, play * P.pad.share);
+		const gap = Math.max(P.gap.min, play * P.gap.share);
+		const size = { width: buttonW * 2 + gap + pad * 2, height: pad * 2 + font * P.line + gap + buttonH };
+		return { buttonW, buttonH, font, pad, gap, rect: skipPromptRect(spot, box, size, P.gapCss, view) };
 	});
 
-	let pressed = $state(false);
+	// ---- the prompt ----
+	let open = $state(false);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let root: HTMLDivElement | undefined = $state();
+	const close = () => {
+		clearTimeout(timer);
+		open = false;
+	};
 	const press = () => {
-		pressed = false;
+		if (!up) return;
+		if (open) return close();
+		open = true;
+		clearTimeout(timer);
+		timer = setTimeout(close, SKIP_HUD.promptMs);
+	};
+	const yes = () => {
+		close();
 		if (!up) return;
 		if (context.stateGameDerived.requestSkip()) context.eventEmitter.broadcast({ type: 'soundPressMinor' });
 	};
+	// the button went down under an open prompt (the feature ended, a plaque or a win screen came up)
+	$effect(() => {
+		if (!up) close();
+	});
+	// a tap anywhere else closes it; the tap itself is left alone
+	$effect(() => {
+		if (!open) return;
+		const away = (event: PointerEvent) => {
+			if (!root?.contains(event.target as Node)) close();
+		};
+		window.addEventListener('pointerdown', away, true);
+		return () => window.removeEventListener('pointerdown', away, true);
+	});
+	onDestroy(() => clearTimeout(timer));
 
-	// the plate sits inside the hit area, centred; the hit area itself is the touch target
-	const plateH = $derived(Math.min(SKIP_BUTTON.plateHeight, slot.height));
-	const px = $derived(slot.x + SKIP_BUTTON.plateInset);
-	const py = $derived(slot.y + (slot.height - plateH) / 2);
-	const pw = $derived(slot.width - SKIP_BUTTON.plateInset * 2);
-	const cx = $derived(slot.x + slot.width / 2);
-	const cy = $derived(slot.y + slot.height / 2);
-	const textH = $derived(plateH * SKIP_BUTTON.textShare);
-	const a = $derived(alpha.current * (pressed ? SKIP_BUTTON.pressedAlpha : 1));
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		// house rule: extend __manticore, never a new global (tools/manticore/skip_probe.js reads the constants)
+		((window as any).__manticore ??= {}).skipHud = () => ({ promptMs: SKIP_HUD.promptMs, minHitCss: SKIP_HUD.minHitCss, open, up });
+	}
 </script>
 
-<MainContainer>
-	{#if alpha.current > 0}
-		<Rectangle x={px} y={py} width={pw} height={plateH} borderRadius={SKIP_BUTTON.radius} backgroundColor={SKIP_BUTTON.plateColor} alpha={a * SKIP_BUTTON.plateAlpha} borderColor={SKIP_BUTTON.edgeColor} borderWidth={1.5} borderAlpha={SKIP_BUTTON.edgeAlpha} />
-		<!-- the glass: a thin highlight along the top edge -->
-		<Rectangle x={px + SKIP_BUTTON.radius} y={py + 1.5} width={pw - SKIP_BUTTON.radius * 2} height={1.5} backgroundColor={0xffffff} alpha={a * SKIP_BUTTON.highlightAlpha} />
-		<ArtAmount text="SKIP TO RESULT" height={textH} x={cx} y={cy + textH / 2 - 1} maxWidth={pw * 0.88} alpha={a} tint={SKIP_BUTTON.textTint} />
-		<!-- the hit area: the whole slot, touch and pointer only -->
-		<Rectangle
-			x={slot.x}
-			y={slot.y}
-			width={slot.width}
-			height={slot.height}
-			backgroundColor={0xffffff}
-			alpha={0.001}
-			eventMode={up ? 'static' : 'none'}
-			cursor="pointer"
-			onpointerdown={() => (pressed = true)}
-			onpointerupoutside={() => (pressed = false)}
-			onpointerup={press}
-		/>
+<div class="am-ui skip-layer" bind:this={root} style:--in="{SKIP_HUD.inMs}ms" style:--out="{SKIP_HUD.outMs}ms">
+	<button
+		class="slot-btn skip"
+		class:up
+		data-skip="button"
+		disabled={!up}
+		onclick={press}
+		aria-label="Skip to result"
+		aria-expanded={open}
+		style:left="{box.x}px"
+		style:top="{box.y}px"
+		style:width="{box.width}px"
+		style:height="{box.height}px"
+		style:border-radius="{radius}px"
+		style:background={SKIP_HUD.plate}
+		style:box-shadow="inset 0 0 0 {ring}px {SKIP_HUD.ring.color}, 0 4px 12px rgba(0,0,0,.45)"
+		style:--hit="-{hit}px"
+	>
+		<Icon name="skip" s={box.height * SKIP_HUD.glyphShare} />
+	</button>
+	{#if open && up}
+		<div
+			class="ask"
+			data-skip="prompt"
+			role="dialog"
+			aria-label="Skip to result?"
+			style:left="{ask.rect.x}px"
+			style:top="{ask.rect.y}px"
+			style:width="{ask.rect.width}px"
+			style:height="{ask.rect.height}px"
+			style:padding="{ask.pad}px"
+			style:gap="{ask.gap}px"
+			style:font-size="{ask.font}px"
+		>
+			<span class="q" style:line-height={P.line}>Skip to result?</span>
+			<div class="row" style:gap="{ask.gap}px" style:height="{ask.buttonH}px">
+				<button class="slot-btn yes" data-skip="yes" onclick={yes}>Yes</button>
+				<button class="slot-btn no" data-skip="no" onclick={close}>No</button>
+			</div>
+		</div>
 	{/if}
-</MainContainer>
+</div>
+
+<style>
+	/* over the HUD (Chrome.svelte's layer is 20), under the modals (60) */
+	.skip-layer {
+		position: fixed;
+		inset: 0;
+		z-index: 21;
+		pointer-events: none;
+		overflow: hidden;
+	}
+	.skip {
+		position: absolute;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #fff;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity var(--out) ease, transform 0.08s ease;
+	}
+	.skip.up {
+		opacity: 1;
+		pointer-events: auto;
+		transition: opacity var(--in) ease, transform 0.08s ease;
+	}
+	.skip:disabled {
+		opacity: 0;
+		cursor: default;
+	}
+	.skip:active:not(:disabled) {
+		transform: translateY(1px);
+	}
+	/* the touch target, grown to SKIP_HUD.minHitCss without moving a pixel */
+	.skip::after {
+		content: '';
+		position: absolute;
+		inset: var(--hit, 0px) 0;
+	}
+	/* the black glass of the menu and the modals (ChromeStyles.svelte), with no backdrop-filter */
+	.ask {
+		position: absolute;
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		background: var(--ui-glass);
+		/* (the hairline edge is drawn inside the box, so Yes and No keep their whole size) */
+		border-radius: 10px;
+		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55), inset 0 0 0 1px var(--ui-glass-edge), inset 0 1px 0 var(--ui-glass-hi);
+		color: var(--ui-ink);
+		pointer-events: auto;
+	}
+	.q {
+		display: block;
+		text-align: center;
+		font-weight: 800;
+		letter-spacing: 0.02em;
+		white-space: nowrap;
+	}
+	.row {
+		display: flex;
+	}
+	.yes,
+	.no {
+		flex: 1 1 0;
+		min-width: 0;
+		height: 100%;
+		border-radius: 8px;
+		font-size: 1em;
+		font-weight: 800;
+		letter-spacing: 0.04em;
+		transition: transform 0.08s ease;
+	}
+	.yes {
+		background: var(--ui-gold);
+		color: var(--ui-gold-ink);
+	}
+	.no {
+		background: var(--ui-glass-well-2);
+		color: var(--ui-ink);
+		box-shadow: inset 0 0 0 1px var(--ui-rule-2);
+	}
+	.yes:active,
+	.no:active {
+		transform: translateY(1px);
+	}
+</style>

@@ -37,7 +37,8 @@
 	//
 	// SYMBOL SHEETS (tools/SYMBOL_SHEETS.md): once the deferred drop / idle sheets are in, a cell
 	// plays its symbol's drop sheet from the landing contact (Cell.landAt, stamped by the engine) at
-	// SHEET_FPS in STYLE time (x timeScale), then loops its idle sheet; a cell at rest shows an idle
+	// SHEET_FPS in STYLE time (x timeScale), then loops its idle sheet (in REAL time at every turbo level, constants
+	// SHEET_IDLE_TURBO: a resting piece glints at the regular speed whatever the turbo); a cell at rest shows an idle
 	// frame (idle 0 = the drop's last frame), so the static-to-animation cut never shimmers. A cell
 	// that leaves its place for any other reason (a fall, the roar's rattle, the swipe's exit, a
 	// removal) shows the static atlas frame until it lands again; a scale-only beat in place (a win
@@ -55,7 +56,7 @@
 	import { quadOut, quadIn, backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, reelOf, rowOf, symbolAnim } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, reelOf, rowOf, symbolAnim } from '../game/constants';
 	import { BOARD_ART } from '../game/boardArtSpec';
 	import { PLATE_GLYPHS, PLATE_GLYPH_PREFIX, PLATE_GLYPH_MIDDLE, PLATE_KERN } from '../game/plateGlyphs';
 	import { PHONE_TIER } from '../game/deviceTier';
@@ -219,9 +220,11 @@
 
 	let gen = 0;
 	let glowing = 0;
-	/** set once a tick by sync(): real ms since the last tick and the style rate */
+	/** set once a tick by sync(): real ms since the last tick and the style rate; dtIdle is what an idle loop's
+	 *  clock takes (the real ms, or the style ms with SHEET_IDLE_TURBO) */
 	let now = 0;
 	let dtStyle = 0;
+	let dtIdle = 0;
 	let rate = 1;
 
 	/** which texture a cell shows this tick (static atlas frame, or a sheet frame), advancing its clip */
@@ -293,7 +296,8 @@
 			sl.mode = MODE_IDLE;
 			sl.clock = idleOffset(c.reel, c.row);
 		} else if (!fresh && !frozen) {
-			sl.clock += dtStyle;
+			// the landing's drop sheet keeps its turbo speed; the idle loop of a resting piece does not take it
+			sl.clock += sl.mode === MODE_IDLE ? dtIdle : dtStyle;
 		}
 		if (sl.mode === MODE_DROP) {
 			const span = (sheet.drop.length - sheet.from) * FRAME_MS;
@@ -795,6 +799,7 @@
 		now = performance.now();
 		rate = Math.max(0.2, context.stateGameDerived.timeScale());
 		dtStyle = lastFrame ? Math.min(now - lastFrame, 1000) * rate : 0;
+		dtIdle = SHEET_IDLE_TURBO ? dtStyle : lastFrame ? Math.min(now - lastFrame, 1000) : 0;
 		if (lastFrame) {
 			const d = now - lastFrame;
 			motionLog.frames += 1;

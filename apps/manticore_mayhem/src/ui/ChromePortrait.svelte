@@ -8,7 +8,7 @@
 	// REAL viewport bottom (Chrome.svelte's --vp-extra-bottom): on a phone taller than the master it
 	// rides down into the letterbox instead of floating mid-screen.
 	import type { Controls } from './controls.svelte';
-	import { LOGO } from '../game/constants';
+	import { MASTER, isPhoneSizeType } from '../game/layoutSpec';
 	import { logoArtRect } from '../game/logo/layout';
 	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
@@ -24,21 +24,22 @@
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
 	const context = getContext();
-	// THE LOGO (game/logo/layout.ts, constants LOGO.portrait): the largest box between the clock row and the frame
-	// art's finials. In a feature the SKIP TO RESULT plate has the lower part of that band (HUD.portrait.skipButton),
-	// so the logo steps back to the box above the plate: a transform of the same element, nothing reflows.
-	const freegame = $derived(context.stateGame.gameType === 'freegame');
+	// THE LOGO (game/logo/layout.ts): on a phone the owner's own box, up in the left corner beside the creature (constants
+	// LOGO.portraitPhone); on a tablet the largest box between the clock row and the frame art's finials, centred
+	// (LOGO.portrait). It is the same box in the base game and in a feature: the SKIP button (components/SkipButton.svelte)
+	// stands top right, beside it, and nothing owns a band under it any more.
 	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale);
-	const logo = $derived(logoArtRect('portrait', vw));
-	const small = $derived(logoArtRect('portrait', vw, true));
-	const logoShift = $derived(freegame ? `translateY(${small.y - logo.y}px) scale(${small.width / logo.width})` : 'none');
+	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+	const logo = $derived(logoArtRect('portrait', vw, phone));
+	// the box's centre from the master's centre line; this frame's own centre line is the screen's
+	const logoDx = $derived(logo.x + logo.width / 2 - MASTER.portrait.width / 2);
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE MAYHEM" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<div class="top keep" style:top="{logo.y}px">
-	<span class="logo" style:width="{logo.width}px" style:transform={logoShift} style:transition-duration="{LOGO.portrait.compactMs}ms"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></span>
+<div class="top keep" style:top="{logo.y}px" style:transform="translateX({logoDx}px)">
+	<span class="logo" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></span>
 </div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
@@ -83,8 +84,6 @@
 	.top .logo {
 		position: relative;
 		display: inline-block;
-		transform-origin: 50% 0;
-		transition: transform 0.35s ease;
 		filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
 	}
 	.top img {

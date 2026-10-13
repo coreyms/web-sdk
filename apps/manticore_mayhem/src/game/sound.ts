@@ -53,7 +53,14 @@ export type SoundEffectName =
 	| 'sfx_chain_light'
 	| 'sfx_chain_light_logo'
 	| 'sfx_fire_super'
-	| 'sfx_fire_epic';
+	| 'sfx_fire_epic'
+	// the creature's own (game/creature.ts, 2026-10-13): one breath per idle loop, the snarl and the growl, two takes each
+	| 'sfx_manticore_breath_1'
+	| 'sfx_manticore_breath_2'
+	| 'sfx_manticore_snarl_1'
+	| 'sfx_manticore_snarl_2'
+	| 'sfx_manticore_growl_1'
+	| 'sfx_manticore_growl_2';
 
 export type SoundName = MusicName | SoundEffectName;
 

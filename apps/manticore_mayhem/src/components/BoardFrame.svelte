@@ -57,7 +57,7 @@
 	import { BOARD_ART } from '../game/boardArtSpec';
 	import { boardRegistration, chainBow } from '../game/boardArt';
 	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, CHAIN_GUST, FRAME_ART, FRAME_RELIGHT, PLAYGROUND_PX, SCENE, SYMBOL_SIZE } from '../game/constants';
-	import { boardKick, chainFx, gustFx, gustPulse, gustStart, type ChainGust } from '../game/featureFx';
+	import { boardKick, chainFx, gustFx, gustPulse, gustStart, shoveForeground, type ChainGust } from '../game/featureFx';
 	import { sceneLight } from '../game/scene';
 	import { loadFrameNightLate } from '../game/deferredLoad';
 
@@ -78,6 +78,10 @@
 	/** frames in the gears' loop (the end gear's own loop is half of it: RL.loop) */
 	const GEAR_N = RL.frames;
 	const shadowSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	/** THE DAY SHADOW'S SECOND LAYER (FRAME_RELIGHT.shadow.dayDouble): the same cut-out straight over the first, by day only */
+	const shadowDaySprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	shadowSprite.label = 'board-shadow';
+	shadowDaySprite.label = 'board-shadow-day2';
 	const nightSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	const fireSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	fireSprite.blendMode = 'add';
@@ -94,12 +98,12 @@
 			return sprite;
 		});
 	}
-	for (const s of [shadowSprite, nightSprite, fireSprite]) s.visible = false;
+	for (const s of [shadowSprite, shadowDaySprite, nightSprite, fireSprite]) s.visible = false;
 	gearBox.day.tint = FRAME_ART.tint;
 	// the black first, then the frame: the lattice and the rails draw OVER the backing, the tiles over both. The night
 	// gears come AFTER the fire plate, so they cover its light where they sit, and the fire gears add theirs last
-	under.addChild(shadowSprite, backing, frameSprite, gearBox.day, nightSprite, fireSprite, gearBox.night, gearBox.fire);
-	const UNDER_NAMES = new Map<PIXI.Container, string>([[shadowSprite, 'shadow'], [backing, 'backing'], [frameSprite, 'frame'], [gearBox.day, 'gears-day'], [nightSprite, 'frame-night'], [fireSprite, 'frame-fire'], [gearBox.night, 'gears-night'], [gearBox.fire, 'gears-fire']]);
+	under.addChild(shadowSprite, shadowDaySprite, backing, frameSprite, gearBox.day, nightSprite, fireSprite, gearBox.night, gearBox.fire);
+	const UNDER_NAMES = new Map<PIXI.Container, string>([[shadowSprite, 'shadow'], [shadowDaySprite, 'shadow-day2'], [backing, 'backing'], [frameSprite, 'frame'], [gearBox.day, 'gears-day'], [nightSprite, 'frame-night'], [fireSprite, 'frame-fire'], [gearBox.night, 'gears-night'], [gearBox.fire, 'gears-fire']]);
 
 	const chains = new PIXI.Container({ zIndex: 1 });
 	const SIDES = ['L', 'R'] as const;
@@ -143,6 +147,8 @@
 	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale);
 	const reg = $derived(boardRegistration(kind, vw));
 	const boardScale = $derived(context.stateGameDerived.boardLayout().scale);
+	/** canvas px per master px (the MainContainer's scale): the foreground's shove is handed over in canvas px */
+	const masterScale = $derived(context.stateLayoutDerived.mainLayout().scale);
 	const textures = $derived.by(() => {
 		const assets = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 		return {
@@ -186,13 +192,14 @@
 	/** the night set landed while the scene was already in its night: its own fade in from then (SCENE.crossfadeMs) */
 	let nightInAt = -1;
 	/** the light as last written to the layers (NaN: write it again) */
-	const lit = { night: NaN, fire: 0, nightTint: 0, fireTint: 0, chainNightTint: 0, shadowTint: 0, shadowAlpha: 0 };
+	const lit = { night: NaN, fire: 0, nightTint: 0, fireTint: 0, chainNightTint: 0, shadowTint: 0, shadowAlpha: 0, shadowDayAlpha: 0 };
 
 	/** each run's top pivot in master units (the gust's direction is taken from it when a gust starts) */
 	const anchorTop = { L: new PIXI.Point(), R: new PIXI.Point() };
 	/** plain copies the ticker reads (no reactive reads in the frame) */
 	let lastKind: LayoutKind | null = null;
 	let scale = 1;
+	let toCanvas = 1;
 	/** master px per playground px for this layout (the chain spring runs in playground px) */
 	let pg = 1;
 	let chainsReady = false;
@@ -302,7 +309,9 @@
 		const S = FRAME_RELIGHT.shadow;
 		const shadowTint = tintOf(0xffffff, (S.day.color[0] + (S.night.color[0] - S.day.color[0]) * night) / 255, (S.day.color[1] + (S.night.color[1] - S.day.color[1]) * night) / 255, (S.day.color[2] + (S.night.color[2] - S.day.color[2]) * night) / 255);
 		const shadowAlpha = S.day.alpha + (S.night.alpha - S.day.alpha) * night;
-		if (night === lit.night && fire === lit.fire && nightTint === lit.nightTint && fireTint === lit.fireTint && shadowTint === lit.shadowTint && shadowAlpha === lit.shadowAlpha) return;
+		// the day's second layer leaves with the same fade: none of it is left at night
+		const shadowDayAlpha = S.day.alpha * S.dayDouble * (1 - night);
+		if (night === lit.night && fire === lit.fire && nightTint === lit.nightTint && fireTint === lit.fireTint && shadowTint === lit.shadowTint && shadowAlpha === lit.shadowAlpha && shadowDayAlpha === lit.shadowDayAlpha) return;
 		lit.night = night;
 		lit.fire = fire;
 		lit.nightTint = nightTint;
@@ -310,6 +319,7 @@
 		lit.fireTint = fireTint;
 		lit.shadowTint = shadowTint;
 		lit.shadowAlpha = shadowAlpha;
+		lit.shadowDayAlpha = shadowDayAlpha;
 		const day = night < 1;
 		const dark = night > 0;
 		const hasFrame = frameSprite.texture !== PIXI.Texture.EMPTY;
@@ -319,8 +329,10 @@
 		nightSprite.alpha = gearBox.night.alpha = night;
 		nightSprite.tint = gearBox.night.tint = nightTint;
 		fireSprite.tint = gearBox.fire.tint = fireTint;
-		shadowSprite.tint = shadowTint;
+		shadowSprite.tint = shadowDaySprite.tint = shadowTint;
 		shadowSprite.alpha = shadowAlpha;
+		shadowDaySprite.alpha = shadowDayAlpha;
+		shadowDaySprite.visible = shadowSprite.visible && shadowDayAlpha > 0;
 		for (const side of SIDES) {
 			const meshes = strips[side].lit;
 			meshes[0].visible = chainsReady && day;
@@ -357,6 +369,7 @@
 		const k = kind;
 		const t = textures;
 		scale = boardScale;
+		toCanvas = masterScale;
 		pg = boardScale * PLAYGROUND_PX;
 		for (const side of SIDES) {
 			const a = r.map(BOARD_ART.anchors[side].top[0], BOARD_ART.anchors[side].top[1]);
@@ -407,11 +420,15 @@
 		if (t.shadow && t.frame) {
 			const box = spec.shadow.box;
 			const at = r.map(box[0], box[1]);
-			shadowSprite.texture = t.shadow;
-			shadowSprite.position.set(at.x, at.y);
-			shadowSprite.scale.set((r.m * box[2]) / t.shadow.width, (r.m * box[3]) / t.shadow.height);
+			for (const sprite of [shadowSprite, shadowDaySprite]) {
+				sprite.texture = t.shadow;
+				sprite.position.set(at.x, at.y);
+				sprite.scale.set((r.m * box[2]) / t.shadow.width, (r.m * box[3]) / t.shadow.height);
+			}
 			shadowSprite.visible = true;
-		} else shadowSprite.visible = false;
+			// (0 until the light is first applied; applyLight then shows it)
+			shadowDaySprite.visible = lit.shadowDayAlpha > 0;
+		} else shadowSprite.visible = shadowDaySprite.visible = false;
 		if (t.chains) {
 			layoutStrips(k, r.map, t.chains);
 			chainsReady = true;
@@ -500,6 +517,9 @@
 			under.position.set(kx, ky);
 			dirty = true;
 		}
+		// THE FOREGROUND KICK: the courtyard's foreground takes this same read, in canvas px, inside this call
+		// (featureFx.shoveForeground; it returns at once while nothing has changed)
+		shoveForeground(kx * toCanvas, ky * toCanvas);
 		// the light first: it needs no chains (the scene's night, fire level and tints onto the layers)
 		applyLight(performance.now());
 		if (!chainsReady) return;
@@ -631,7 +651,7 @@
 				fire: lit.fire,
 				nightSet,
 				fadingIn: nightInAt >= 0,
-				tints: { day: FRAME_ART.tint, night: lit.nightTint, fire: lit.fireTint, chainNight: lit.chainNightTint, shadow: lit.shadowTint, shadowAlpha: lit.shadowAlpha },
+				tints: { day: FRAME_ART.tint, night: lit.nightTint, fire: lit.fireTint, chainNight: lit.chainNightTint, shadow: lit.shadowTint, shadowAlpha: lit.shadowAlpha, shadowDayAlpha: lit.shadowDayAlpha },
 				/** the art container's children, bottom to top */
 				plateScreen: rect(frameSprite),
 				layers: under.children.map((c) => ({ name: UNDER_NAMES.get(c) ?? 'other', ...look(c), tex: c instanceof PIXI.Sprite ? [c.texture.width, c.texture.height] : null })),
@@ -646,7 +666,7 @@
 						]),
 					),
 				},
-				shadow: { ...look(shadowSprite), screen: shadowSprite.visible ? rect(shadowSprite) : null, under: under.children.indexOf(shadowSprite) },
+				shadow: { ...look(shadowSprite), screen: shadowSprite.visible ? rect(shadowSprite) : null, under: under.children.indexOf(shadowSprite), /** the day's second layer: straight over the first, on its box */ day2: { ...look(shadowDaySprite), screen: shadowDaySprite.visible ? rect(shadowDaySprite) : null, under: under.children.indexOf(shadowDaySprite) } },
 				chains: Object.fromEntries(SIDES.map((side) => [side, strips[side].lit.map((mesh, i) => ({ set: GEAR_SETS[i], ...look(mesh), u: [Number(strips[side].u[i * 2].toFixed(5)), Number(strips[side].u[i * 2 + 1].toFixed(5))] }))])),
 				/** every source the frame draws from in this layout: resident MB as RGBA8 (no mipmaps), and on the GPU or not */
 				memory: [...sources].map(([source, name]) => ({ name, w: source.pixelWidth, h: source.pixelHeight, MB: Number(((source.pixelWidth * source.pixelHeight * 4) / 2 ** 20).toFixed(2)), onGpu: !!glTable[source.uid] })),
@@ -816,6 +836,8 @@
 					kick: {
 						source: { x: boardKick.x * scale, y: boardKick.y * scale },
 						frame: { x: under.position.x, y: under.position.y },
+						/** canvas px per master px as handed to the foreground's shove */
+						toCanvas,
 						board: boardNode ? { x: (BOARD_SIZES.width / 2 - boardNode.pivot.x) * boardNode.scale.x, y: (BOARD_SIZES.height / 2 - boardNode.pivot.y) * boardNode.scale.y } : null,
 					},
 					/** the haul (uvs only): offset in links, the last press, each run's first-row v */

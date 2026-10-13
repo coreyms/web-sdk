@@ -5,8 +5,8 @@
 // landing screen's own images (three 300–420 KB primer cards + the logo) were plain <img> tags
 // nothing gated on. On Slow 4G that meant the landing screen faded in with its cards still arriving.
 //
-// Now: the app fetches ONLY what the landing screen draws: the two chrome fonts, the stacked logo and
-// the three cards — reporting bytes to the GREEN bar in the shell splash (src/app.html), which has
+// Now: the app fetches ONLY what the landing screen needs to stand: the two chrome fonts and the stacked
+// logo (the three placeholder cards too, until the animated cards replaced them on 2026-10-12: see IMAGES) — reporting bytes to the GREEN bar in the shell splash (src/app.html), which has
 // already been counting the JS bundle's bytes. Nothing else starts until those are in:
 //   - the Pixi preload is gated by Game.svelte holding <App> unmounted,
 //   - startSoundPreload() is gated by routes/+layout.svelte.
@@ -33,10 +33,10 @@ declare global {
 }
 
 /** paths relative to static/assets — the byte sizes come from scripts/stamp-assets.mjs */
+// THE EXPLAINER CARDS ARE NOT HERE (2026-10-12): the placeholder posters card-1..3.webp were, but the
+// animated cards (frame, posters, clips, the Cinzel title face) are decoration and gate nothing.
+// ui/LandingScreen.svelte asks for them once the Pixi preload is in and fades each card in when it has it.
 const IMAGES = [
-	'ui/intro/card-1.webp',
-	'ui/intro/card-2.webp',
-	'ui/intro/card-3.webp',
 	'ui/logo-stacked.webp',
 ] as const;
 /** the splash bar's share of ONE loading scale across both screens: bundle + landing assets +

@@ -317,6 +317,12 @@ const liveById = () => new Map(stateGame.cells.map((c) => [c.id, c]));
  *  the drop did not reach (one that was stung in place, say). Presentation only. */
 const lastAura = new Set<CellIndex>();
 
+/** HOW LONG THE NEXT DROP WILL TAKE, TOLD AS IT STARTS (presentation only; nothing waits on it): a handler that knows
+ *  what follows its drop (the book is fully known) sets `next`, and the next reveal / refill calls it once with its own
+ *  length in style ms, the moment it starts to fall. The creature's wind-up is timed from it (game/creature.ts,
+ *  bookEventHandlerMap.ts cueCreature). Never called while skipping. */
+export const dropHook = { next: null as null | ((totalStyleMs: number) => void) };
+
 /** animate a batch of falling cells, landing beat and aura included. The FINAL positions are
  *  applied whether or not the run was superseded: a cancelled animation must never leave the board
  *  half-way between two grids. */
@@ -327,11 +333,17 @@ const runDrops = async (
 	auras: AuraJob[] = [],
 	onLand?: (cell: Cell) => void,
 ) => {
-	if (!jobs.length && !auras.length) return;
+	const told = dropHook.next;
+	dropHook.next = null;
+	if (!jobs.length && !auras.length) {
+		if (told && !stateGame.skipping) told(0);
+		return;
+	}
 	const auraMs = CLUSTER.auraMs;
 	let total = jobs.reduce((n, j) => Math.max(n, j.delay + j.dur), 0) + LAND_MS;
 	for (const j of jobs) if (j.aura) total = Math.max(total, j.delay + j.dur + auraMs);
 	for (const a of auras) total = Math.max(total, a.t0 + auraMs);
+	if (told && !stateGame.skipping) told(total);
 	const map = liveById();
 	const landed = new Set<number>(); // job cell ids whose contact has been stamped
 	await raf(total, (_t, now) => {

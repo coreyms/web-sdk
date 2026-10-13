@@ -1,0 +1,134 @@
+{
+ "frames": {
+  "creature_epic_charge_in_000": {
+   "frame": {
+    "x": 0,
+    "y": 728,
+    "w": 330,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 47,
+    "w": 330,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_in_001": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 330,
+    "h": 362
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 45,
+    "w": 330,
+    "h": 362
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_in_002": {
+   "frame": {
+    "x": 0,
+    "y": 364,
+    "w": 330,
+    "h": 362
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 45,
+    "w": 330,
+    "h": 362
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_in_003": {
+   "frame": {
+    "x": 0,
+    "y": 1090,
+    "w": 330,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 47,
+    "w": 330,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_in_004": {
+   "frame": {
+    "x": 0,
+    "y": 1452,
+    "w": 330,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 48,
+    "w": 330,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_charge_in_005": {
+   "frame": {
+    "x": 0,
+    "y": 1813,
+    "w": 329,
+    "h": 358
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 49,
+    "w": 329,
+    "h": 358
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  }
+ },
+ "meta": {
+  "image": "creature-epic-charge_in-phone.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 332,
+   "h": 2173
+  },
+  "scale": "1",
+  "pngHash": "dc3f454e"
+ }
+}

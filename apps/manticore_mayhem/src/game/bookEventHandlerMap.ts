@@ -34,6 +34,7 @@ import {
 	scatterRing,
 	scatterTrigger,
 	plateReveal,
+	dropHook,
 } from './stateGame.svelte';
 import { motionLog } from './sparkles';
 import { fxRecord, fxStamp, chainHaulPress } from './featureFx';
@@ -54,6 +55,7 @@ import {
 	SCATTER_LAND_SOUNDS,
 	STINGER_PLAQUE,
 	CHAIN_BOW,
+	SPIN_TOTAL,
 } from './constants';
 
 // ================================================================================================
@@ -204,6 +206,22 @@ const capCut = (bookEvent: BookEventOfType<'cascade'>, bookEvents: BookEvent[]):
 	return bookEvent.wins.length;
 };
 
+// ---- THE CREATURE'S LOOK-AHEAD (game/creature.ts; presentation only) -------------------------------
+// The round is known up front, so the handler whose drop comes BEFORE a feature tells the creature when that feature's
+// own beat will come: the drop says how long it will take as it starts (stateGame dropHook), `after` adds whatever
+// this handler still plays behind it, and the creature starts its wind-up early enough for the strike to land on the
+// beat. Nothing here waits, nothing is delayed: the handlers' own awaits are exactly what they were.
+/** the spin total's last presentation after a spin's last cascade (components/SpinWin.svelte spinWinFinal), style ms */
+const SPIN_FINAL_MS = SPIN_TOTAL.finalDelayMs + SPIN_TOTAL.finalRiseMs + SPIN_TOTAL.finalCountMs + SPIN_TOTAL.finalHoldMs;
+const creatureWhat = (next: BookEvent | undefined) => (next?.type === 'swipe' ? 'swipe' : next?.type === 'roar' ? 'roar' : next?.type === 'sting' ? 'sting' : null);
+/** arm the cue for the feature that follows `bookEvent`'s drop; `after`: style ms this handler plays after the drop */
+const cueCreature = (bookEvent: BookEvent, bookEvents: BookEvent[], after: () => number = () => 0) => {
+	const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+	const what = creatureWhat(next);
+	if (!what || stateGame.skipping) return;
+	dropHook.next = (dropMs) => eventEmitter.broadcast({ type: 'creatureCue', what, inMs: dropMs + after(), kind: next.type === 'sting' ? next.kind : undefined });
+};
+
 /** apply board changes with no motion at all: the SKIP TO RESULT rule (every wait collapses, every step
  *  writes its final state), held only for the microtasks these calls take */
 const quietly = async (fn: () => Promise<void>) => {
@@ -285,6 +303,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// Corey's reel_spin (2026-10-07): a 1.88 s one-shot as the columns pour in (the Angry Mantis
 		// spin LOOP is replaced in the Manticore sprite by tools/build_audiosprite.py MM_EVENTS)
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_spin', forcePlay: true });
+		// the creature: a roar, a sting or (on a board with no win) a swipe straight after this drop-in and its tease beat
+		cueCreature(bookEvent, bookEvents, () => {
+			if (!revealTease.teased) return 0;
+			const after = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+			return revealTease.hit ? SCATTER_STING.triggerMs : after?.type === 'sting' && after.kind === 'scatter' ? 0 : ANTICIPATION_TEASE.missHoldMs;
+		});
 		const id = await revealBoard(bookEvent.board, {
 			anticipation,
 			tease: !isMystery,
@@ -294,6 +318,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		fxStamp(rec, 'landed');
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop', forcePlay: true });
 		if (isMystery && bookEvent.gameType === 'basegame') eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_mystery_decision', forcePlay: true });
+		// THE MYSTERY MISS (Corey 2026-10-11): the creature growls at a Mystery that awarded nothing, as its board lands
+		if (isMystery && bookEvent.gameType === 'basegame' && stateGame.mysteryOutcome === 'nothing') eventEmitter.broadcast({ type: 'creatureCue', what: 'growl', inMs: 0 });
 
 		// the derived tease's outcome: a hit plays the trigger pulse (and the house bonus-confirm SFX), a
 		// miss rests. A scatter sting run straight after is its own rest (SCATTER_STING.holdMs), so a miss
@@ -378,6 +404,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// CLUSTER.refillDelayMs: the plates' count-over plays before the refill lands on them
 		await waitStyle(CLUSTER.refillDelayMs);
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cascade', forcePlay: true });
+		// the creature: a swipe after this spin's last cascade winds up through the refill's settle and the spin total
+		cueCreature(bookEvent, bookEvents, () => SPIN_FINAL_MS);
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 
 		settleBoard();
@@ -386,6 +414,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'spinWinShow', amount: bookEvent.spinWin });
 		// the last cascade of the spin: the spin total's final presentation (SPIN_TOTAL), after the refill
 		const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+		// (the same cue again from here, a closer estimate now that the refill is down)
+		if (next?.type === 'swipe' && !stateGame.skipping) eventEmitter.broadcast({ type: 'creatureCue', what: 'swipe', inMs: SPIN_FINAL_MS });
 		if (next?.type !== 'cascade') await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin });
 	},
 
@@ -406,6 +436,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await swipeBand(bookEvent.removed, bookEvent.rows, id, { rec, onExit: plates });
 		await applyTiles(bookEvent.tiles, id, SWIPE_FX.exitMs + MULT_PLATE.changeDelayMs);
 		fxStamp(rec, 'refill');
+		cueCreature(bookEvent, bookEvents); // a second swipe straight after this refill
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 		settleBoard();
 		fxStamp(rec, 'settled');
@@ -419,8 +450,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const id = newRun();
 		const { kind, center, cells } = bookEvent;
 		const rec = fxRecord('sting', { kind, cells: cells.length, turbo: stateGame.turboLevel, skipping: stateGame.skipping });
+		// `more`: another sting of this run follows (the creature stays down between them, game/creature.ts)
+		const following = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+		const more = following?.type === 'sting';
 		const beat = (phase: 'charge' | 'wait' | 'strike') =>
-			eventEmitter.broadcast({ type: 'stingBeat', phase, kind, center, cells });
+			eventEmitter.broadcast({ type: 'stingBeat', phase, kind, center, cells, more });
+		// the creature: a swipe straight after this run's last sting (no drop comes between, so the cue is this beat's length)
+		if (following?.type === 'swipe' && !stateGame.skipping && kind !== 'scatter') {
+			eventEmitter.broadcast({ type: 'creatureCue', what: 'swipe', inMs: kind === 'normal' ? STING.normalMs : (kind === 'super' ? STING.superChargeMs : STING.chargeMs) + STING.bigHitMs + STING.undimMs });
+		}
 
 		if (kind === 'scatter') {
 			// SCATTER_STING (locked 2026-10-06 18:29). One event per scatter, in the book's order; how many
@@ -487,6 +525,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
 		await roarBlow(bookEvent.removed, id, rec);
 		fxStamp(rec, 'refill');
+		cueCreature(bookEvent, bookEvents); // the first sting, or a swipe, straight after this refill
 		// the multiplier tiles under the removed lows are untouched (EVENT_SCHEMA.md)
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 		settleBoard();

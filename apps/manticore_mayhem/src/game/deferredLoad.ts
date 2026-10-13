@@ -19,12 +19,19 @@
 //                                               -> components/BoardFrame.svelte fades the frame to its night light
 //   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips, one group each
 //                                               -> game/flames.ts: that mode's braziers change from the base clip
+//   creatureIdle   THE CREATURE's idle sheet (game/creatureLoad.ts; not in game/assets.ts: one look is resident and
+//           the shared loader would fetch all three): the look of the mode the game is in
+//                                               -> game/creature.ts: he fades in and stands there breathing
 //   logo    the canvas logo's atlas + its tracks (desktop tier only; no keys on the phone tier)
 //                                               -> components/Logo.svelte takes over from the still
 //           NORMALLY ALREADY IN: loadLogoEarly() below starts it when the preload ends, beside the audio
 //   labels  the cluster label caps that were not preloaded -> ClusterLabels picks the nearest loaded cap
 //   drop    the symbols' drop sheets            -> BoardCells picks them up per symbol
 //   idle    the symbols' idle loops             -> BoardCells adds them to the sheets it already has
+//   creatureActs, creatureAlts   his attacks, then his snarl and growl (2026-10-13: they were straight after his idle
+//           sheet, which on a slow link put about 15 MB in front of the symbols' own sheets)
+//                                               -> game/creature.ts takes each action as its sheet lands; until then
+//                                                  that action is simply not played and nothing waits for it
 // The shared loader then runs its batch as before: Pixi's cache answers at once for everything loaded here,
 // so it only downloads what is left (the other layouts' art) and sets stateApp.loaded. A file that fails
 // here is simply left to that batch, which has the retries and the failure screen.
@@ -32,6 +39,7 @@ import * as PIXI from 'pixi.js';
 
 import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, LOGO_DATA_URLS, PLACEHOLDER_LATE, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';
 import { markPlaqueAssetsReady } from './assetGate';
+import { loadCreatureBoot, releaseCreatureRest } from './creatureLoad';
 import { loadLogoData } from './logo/data';
 import { loadStingerData } from './stinger/data';
 import { STAGING_TOOLS, perfMark } from './staging';
@@ -113,7 +121,21 @@ export const loadLogoEarly = (app: AppState): Promise<void> => {
 	logoEarly ??= loadGroup(app, 'logo', keys).catch(() => {});
 	return logoEarly;
 };
-const runGroup = (app: AppState, g: (typeof DEFERRED_ORDER)[number]) => (g.name === 'logo' && logoEarly ? logoEarly : loadGroup(app, g.name, g.keys));
+/** the creature's IDLE group runs after the group named here (the flames' last clip); his other two groups run when
+ *  the whole order is through (after the symbols' idle loops, the last group) */
+const CREATURE_AFTER = 'flameEpic';
+const runGroup = async (app: AppState, g: (typeof DEFERRED_ORDER)[number]) => {
+	await (g.name === 'logo' && logoEarly ? logoEarly : loadGroup(app, g.name, g.keys));
+	if (g.name === CREATURE_AFTER) await loadCreatureBoot(deferredLog.groups);
+};
+/** DEV, the probe only (`?creaturehold=1`): his attacks and alternates stay held until __manticore.creatureRestRelease(),
+ *  so the probe can ask him for an attack while only his idle sheet is in */
+const releaseCreature = async () => {
+	if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('creaturehold') === '1') {
+		await new Promise<void>((resolve) => ((window as any).__manticore.creatureRestRelease = () => resolve()));
+	}
+	await releaseCreatureRest();
+};
 
 /** the deferred phase's ordered part. Resolves when the last group is published; never rejects. */
 export const loadDeferredInOrder = async (app: AppState): Promise<void> => {
@@ -125,13 +147,18 @@ export const loadDeferredInOrder = async (app: AppState): Promise<void> => {
 		await new Promise<void>((resolve) => ((window as any).__manticore.deferredRelease = () => resolve()));
 	}
 	deferredLog.start = performance.now();
-	if (mode === 'legacy') return;
+	if (mode === 'legacy') {
+		// (the probe's old single batch has no place for him: he loads beside it)
+		void loadCreatureBoot(deferredLog.groups).then(releaseCreatureRest);
+		return;
+	}
 	try {
 		if (mode === 'parallel') await Promise.all(DEFERRED_ORDER.map((g) => runGroup(app, g)));
 		else for (const g of DEFERRED_ORDER) await runGroup(app, g);
 	} catch {
 		/* whatever is missing is left to the shared loader's batch */
 	}
+	await releaseCreature();
 	watchUnreachable(app);
 };
 
@@ -168,7 +195,10 @@ const watchUnreachable = (app: AppState) => {
 // then the night set. Once; a file that fails leaves the placeholder crop standing.
 let sceneLate: Promise<void> | null = null;
 export const loadSceneLate = (app: AppState): Promise<void> => {
-	const group = async (name: string, keys: readonly string[]) => {
+	const group = async (name: string, all: readonly string[]) => {
+		// the keys both scenes list (the sky's atlas, the birds, the bats) are the boot scene's: already registered, never
+		// fetched here (components/Background.svelte gives a sky whatever of them lands after its scene)
+		const keys = all.filter((key) => SCENE_LATE[key]);
 		const log = (deferredLog.groups[name] = { start: performance.now(), end: 0, keys: keys.length, failed: 0 });
 		const done = await Promise.all(keys.map((key) => loadOne(key, SCENE_LATE[key])));
 		log.failed = done.filter((textures) => !textures).length;

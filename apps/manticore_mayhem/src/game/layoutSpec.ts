@@ -227,16 +227,13 @@ export const boardPlacement = (kind: LayoutKind, viewportMasterWidth?: number) =
 //  · pressToContinue — the PRESS ANYWHERE prompt
 //  · modePlaque      — the plain mode plaque over the board centre (feature start/end)
 //  · spinWin         — the running spin total shown while a spin cascades
-//  · skipButton      — the SKIP TO RESULT plate (components/SkipButton.svelte), up during the spins of
-//                      a feature. x/y is the HIT AREA's top-left; the plate is drawn inside it. The
-//                      height is the touch target (>= 47 master px in every layout).
+// (The SKIP button is HTML, over the canvas: SKIP below.)
 export const HUD: Record<
 	LayoutKind,
 	{
 		pressToContinue: { y: number; width: number; height: number };
 		modePlaque: { y: number; height: number; width: number };
 		spinWin: { y: number; height: number; width: number };
-		skipButton: { x: number; y: number; width: number; height: number };
 	}
 > = {
 	// THE MODE PLAQUE OVERLAYS THE BOARD CENTRE in every layout. There is no free band tall enough
@@ -252,9 +249,6 @@ export const HUD: Record<
 		// the cell area's centre (114.99 + 425.18 / 2, board_v4h) and ~0.9 of its width
 		modePlaque: { y: 327.6, height: 34, width: 380 },
 		spinWin: { y: 640, height: 28, width: 400 },
-		// top right of the page: the band above the manticore (which stands at y 380, size 430, so
-		// its head reaches ~165) and clear of the board art (right edge 940, skip plate from 1010) and the clock strip
-		skipButton: { x: 1010, y: 34, width: 230, height: 48 },
 	},
 	portrait: {
 		pressToContinue: { y: 700, width: 300, height: 44 },
@@ -264,10 +258,6 @@ export const HUD: Record<
 		// y at k 1: midway between the art bottom (624.6, the same with board_v5j as with v4h since 2026-10-11) and
 		// the BALANCE / BET row (688); SpinWin uses spinWinY (follows the growth)
 		spinWin: { y: 656.3, height: 26, width: 340 },
-		// the band under the logo: the logo steps back to end at 111 in a feature, the plate's hit area is 115..163,
-		// and the frame art's top is 226.37 at k 1 (board_v5j with its base on v4l's, 2026-10-11; 198.77 with v4h),
-		// so 63.4 master px are clear between the plate's hit area and the finials. This game has no tagline.
-		skipButton: { x: 96, y: 115, width: 220, height: 48 },
 	},
 	phone: {
 		// phone has no free band under the board (the board runs to 680 of 740 and the strip below it
@@ -277,12 +267,75 @@ export const HUD: Record<
 		pressToContinue: { y: 26, width: 600, height: 44 },
 		modePlaque: { y: 364, height: 34, width: 560 },
 		spinWin: { y: 718, height: 24, width: 420 },
-		// centre top, the same empty band the PRESS ANYWHERE prompt rides in; the two are never up
-		// at once (the prompt only while the game waits for a press, the skip only while it spins).
-		// The band is only 32 master px tall (the frame's top rail starts at 32), so the 48 hit area
-		// starts at the master's top edge and its 40 plate (4..44) laps the rail but never the cells
-		// (first row at 48). The clock strip's texts sit in the side columns, the centre is clear.
-		// top right like landscape (Corey 2026-10-05): under the clock strip, above the manticore band
-		skipButton: { x: 1230, y: 40, width: 230, height: 48 },
 	},
+};
+
+// ---- THE SKIP BUTTON (components/SkipButton.svelte; HTML over the canvas, so nothing in the canvas covers it) ----
+// Corey 2026-10-12 22:11 (corey_placement_2026-10-12_2211.txt): "like a half height Play Button with two arrows, like
+// a fast forward button", top right in every view. It is the Play (spin) button's width and half its height, so it
+// scales exactly as the HUD does. One rule per spot; `play` is that layout's Play button size in master px
+// (ui/Chrome*.svelte: SquareSpin size).
+//   landscape, phone   placed in the MASTER, like everything in those two chromes: x / y are its top left.
+//                      As an offset from the Play button's top left: landscape +69.5, -570.9; phone +123.1, -525.3.
+//   portrait           the portrait chrome spans the REAL viewport width and its Play cluster hangs from the right
+//                      edge, so the button does too: `right` is the gap from the viewport's right edge to its own
+//                      right edge, in master px. y is in the master, with the clock row and the logo (the Play
+//                      button hangs from the viewport's bottom, so an offset from it would wander with the height).
+//                      A portrait screen is a phone or a tablet by the layout system's size class, the creature's
+//                      own test (isPhoneSizeType): the owner placed the two apart.
+// The four reference screens come out at (CSS px, the owner's numbers in brackets): 1440 x 900 left 1317.9 top 89.0,
+// 103.5 x 51.8 (1317.9, 89.0, 103.5 x 51.8); 844 x 390 774.1, 20.4, 61.1 x 30.6 (774.1, 20.4, 61.1 x 30.6);
+// 390 x 844 310.5, 97.2, 73.8 x 36.9 (310.5, 97.2, 73.8 x 36.9); 768 x 1024 643.4, 51.3, 105.1 x 52.5 (643.4, 51.3,
+// 105.1 x 52.5). tools/manticore/skip_probe.js holds them to 1 px.
+export type SkipSpot = 'landscape' | 'phone' | 'portraitPhone' | 'portraitTablet';
+export const SKIP: {
+	slots: { landscape: { play: number; x: number; y: number }; phone: { play: number; x: number; y: number }; portraitPhone: { play: number; right: number; y: number }; portraitTablet: { play: number; right: number; y: number } };
+	edgeCss: number;
+	clockBottom: number;
+} = {
+	slots: {
+		landscape: { play: 92, x: 1171.5, y: 39.1 },
+		// (its right edge is 44 master px past the 1480 master: on a phone the master is fitted by height and the
+		// screen is wider, so that is on the screen; where it is not, edgeCss below holds it in)
+		phone: { play: 116, x: 1408.1, y: 38.7 },
+		portraitPhone: { play: 78, right: 6, y: 36.9 },
+		portraitTablet: { play: 78, right: 14.5, y: 38.1 },
+	},
+	/** never closer to a screen edge than this, CSS px (the button and its prompt) */
+	edgeCss: 4,
+	/** the clock row's lower edge in every master (ui/ClockStrip.svelte: top 10, 12 px type): the prompt stays under it */
+	clockBottom: 28,
+};
+
+/** a portrait screen is a phone (short side at most 480 CSS px) by utils-layout's size class, else a tablet */
+export const isPhoneSizeType = (sizeType: string) => sizeType === 'smallMobile' || sizeType === 'mobile';
+
+export const skipSpot = (kind: LayoutKind, phone: boolean): SkipSpot => (kind === 'portrait' ? (phone ? 'portraitPhone' : 'portraitTablet') : kind);
+
+export type CssRect = { x: number; y: number; width: number; height: number };
+
+/** the SKIP button's box in CSS px for a viewport, by the fit the chrome and the canvas both use */
+export const skipButtonRect = (spot: SkipSpot, view: { width: number; height: number }): CssRect => {
+	const M = MASTER[spot === 'landscape' || spot === 'phone' ? spot : 'portrait'];
+	const scale = Math.min(view.width / M.width, view.height / M.height);
+	const left = (view.width - M.width * scale) / 2;
+	const top = (view.height - M.height * scale) / 2;
+	const slot = SKIP.slots[spot];
+	const width = slot.play * scale;
+	const height = width / 2;
+	const x = 'x' in slot ? left + slot.x * scale : view.width - (slot.right + slot.play) * scale;
+	return { x: Math.max(SKIP.edgeCss, Math.min(x, view.width - SKIP.edgeCss - width)), y: Math.max(SKIP.edgeCss, top + slot.y * scale), width, height };
+};
+
+/** THE PROMPT'S BOX for a button box, CSS px: under the button with their right edges in line; to the button's left
+ *  when there is no room under it; always inside the screen and under the clock row. `size` is the prompt's own. */
+export const skipPromptRect = (spot: SkipSpot, button: CssRect, size: { width: number; height: number }, gap: number, view: { width: number; height: number }): CssRect => {
+	const M = MASTER[spot === 'landscape' || spot === 'phone' ? spot : 'portrait'];
+	const scale = Math.min(view.width / M.width, view.height / M.height);
+	const minY = Math.max(SKIP.edgeCss, (view.height - M.height * scale) / 2 + SKIP.clockBottom * scale);
+	const below = button.y + button.height + gap + size.height <= view.height - SKIP.edgeCss;
+	const x = below ? button.x + button.width - size.width : button.x - gap - size.width;
+	const y = below ? button.y + button.height + gap : button.y;
+	const hold = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
+	return { x: hold(x, SKIP.edgeCss, view.width - SKIP.edgeCss - size.width), y: hold(y, minY, Math.max(minY, view.height - SKIP.edgeCss - size.height)), ...size };
 };

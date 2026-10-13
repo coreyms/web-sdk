@@ -2,12 +2,13 @@
 """Game assets for the courtyard scene (components/Background.svelte, game/scene.ts): the painted backdrops, the 3D
 foreground, the brazier fire pass and the moving knocker rings and chains, for the landscape and phone sideways layouts.
 
-  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_scene_assets.py [SRC] [--portrait DIR] [--sky] [--backdrops DIR] [--fallback DIR]
+  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_scene_assets.py [SRC] [--portrait DIR] [--sky] [--portrait-sky DIR] [--backdrops DIR] [--fallback DIR]
   node scripts/stamp-assets.mjs          (afterwards, from the app folder)
 
 SRC alone rebuilds the landscape set (the sky set with it), --portrait DIR alone the portrait set, both together
-everything. --sky alone rebuilds only the landscape scene's AMBIENT SKY set from the backdrops. The side a run does not
-rebuild keeps its files and its block of sceneSpec.ts.
+everything. --sky alone rebuilds only the landscape scene's AMBIENT SKY set from the backdrops, --portrait-sky DIR alone
+only the portrait scene's ridge cut-outs from DIR's backdrops (the portrait backdrops, foregrounds and fire pass are not
+written again). The side a run does not rebuild keeps its files and its block of sceneSpec.ts.
 
 SRC (read only, never written) is one of the scene agent's deliverable folders, for example
 ~/Desktop/Manticore Mayhem/images/backgrounds/base/drafts/scene_blockout/lookdev/knocker :
@@ -39,7 +40,15 @@ the frame's own size (1440 x 2560), phone = 900 wide:
   static/assets/backgrounds/scene/portrait-backdrop-<day|night>[-phone].webp
   static/assets/backgrounds/scene/portrait-fore-<day|night>[-phone].webp
   static/assets/backgrounds/scene/portrait-fire[-phone].webp          on black, half the base's size
-  src/game/sceneSpec.ts SCENE_SPEC_PORTRAIT                           the frame, the tiers, the painting's and the fill's rows
+  static/assets/backgrounds/scene/portrait-ridge-<day|night>[-phone].webp   THE PORTRAIT SKY's cut-outs (2026-10-12): the
+                                                                      skyline cut out of the portrait backdrops by the
+                                                                      landscape matte (sky_matte), the band of the frame
+                                                                      it crosses. The portrait sky draws the SAME atlas,
+                                                                      birds and bats as the landscape one (sky*.json,
+                                                                      birds.json, bats.json): nothing else is made for it
+  src/game/sceneSpec.ts SCENE_SPEC_PORTRAIT                           the frame, the tiers, the painting's and the fill's rows,
+                                                                      sky.ridge / sky.skyline and tiers.<tier>.ridge
+  --sky-check DIR                                                     ridge_matte_portrait.png, ridge_magenta_portrait_<set>.png
 
 THE AMBIENT SKY (game/sky.ts, constants SKY; landscape scene only), built by every landscape run and by --sky alone:
   static/assets/backgrounds/scene/ridge-<day|night>[-phone].webp      the mountains and citadel skyline CUT OUT of the
@@ -123,6 +132,9 @@ SKY_UNSURE = 4
 SKY_FEATHER = 0.7
 # the band is cut on this grid of frame px, so the phone tier's band lands on whole texels
 SKY_GRID = 8
+# the portrait frame: its painting starts lower (under the sky extended above it) and is drawn smaller, so the
+# skyline is searched over more rows; same thresholds, probe and feather
+PORTRAIT_SKY_SEARCH_ROWS = 760
 # the cells of the sky atlas, in px of the frame at scale 1; the full tier's texture is SKY_TEXEL frame px per texel
 # (they are soft: nothing in them is finer), the phone tier's that times the tier's own scale
 SKY_SEED = 20261011
@@ -724,7 +736,7 @@ def build_sky_only(args, wide: dict) -> list:
     return report
 
 
-def build_portrait(folder: str) -> tuple[dict, list]:
+def build_portrait(args, folder: str) -> tuple[dict, list]:
     """the PORTRAIT scene from its own folder (portrait_layers.json names the files): backdrop, foreground and fire pass
     only, there are no moving pieces. Same tiers rule (full = the frame, phone = PORTRAIT_PHONE_WIDTH wide), same
     qualities, same checks."""
@@ -788,7 +800,92 @@ def build_portrait(folder: str) -> tuple[dict, list]:
         report.append((name, save_webp(fp, name, Q_FIRE), *fire_size))
         report_band(name, fp, None)
         spec['tiers'][tier] = {'size': list(size), 'fire': list(fire_size)}
-    return spec, report
+    # THE PORTRAIT SKY's cut-outs, from the backdrops just shipped
+    spec['sky'], sky_tiers, sky_report = build_portrait_ridge(args, FW, FH, back, {'full': FW, 'phone': PORTRAIT_PHONE_WIDTH})
+    for tier in sky_tiers:
+        spec['tiers'][tier].update(sky_tiers[tier])
+    return spec, report + sky_report
+
+
+def build_portrait_ridge(args, FW: int, FH: int, back: dict, tiers: dict) -> tuple[dict, dict, list]:
+    """THE PORTRAIT SKY's cut-outs: the skyline cut out of the two portrait backdrops (at the frame's size) by the
+    landscape scene's own matte (sky_matte) and the same band rule, repaint and check as build_sky. Returns the portrait
+    spec's `sky` block, each tier's own entry, and the report. The atlas, the birds and the bats are the landscape
+    sky's files: nothing of them is built here."""
+    from scipy import ndimage as ndi
+    report: list[tuple[str, int, int, int]] = []
+    rows = min(PORTRAIT_SKY_SEARCH_ROWS, FH)
+    rgb = {st: np.asarray(back[st]).astype(np.float64)[:rows] for st in SETS}
+    alpha, pure, info = sky_matte(rgb['day'], rgb['night'])
+    top = info['top']
+    if alpha[-1].min() < 1:
+        die(f'the portrait skyline reaches row {rows} of the frame: raise PORTRAIT_SKY_SEARCH_ROWS')
+    y0 = max(0, (int(top.min()) - 2) // SKY_GRID * SKY_GRID)
+    y1 = -(-(int(np.nonzero((alpha < 1).any(1))[0].max()) + 3) // SKY_GRID) * SKY_GRID
+    print(f'  the portrait ridge: skyline between rows {int(top.min())} (column {int(top.argmin())}) and {int(top.max())} (column {int(top.argmax())}) of the frame; '
+          f'the band is rows {y0} to {y1}; {info["unsure"]} edge pixels placed by colour, {info["weak"]} had no contrast in either painting'
+          + (f' (columns {", ".join(f"{a}..{b}" for a, b in info["weak_runs"])}: the flood\'s edge stands there)' if info['weak'] else ''))
+    _, (py, px) = ndi.distance_transform_edt(~pure, return_indices=True)
+    band = {}
+    for st in SETS:
+        c = rgb[st].copy()
+        c[~pure] = rgb[st][py, px][~pure]
+        band[st] = Image.fromarray(np.dstack([c, alpha * 255]).round().astype(np.uint8)[y0:y1], 'RGBA')
+    check_dir = os.path.expanduser(args.sky_check)
+    os.makedirs(check_dir, exist_ok=True)
+    Image.fromarray((alpha[y0:y1] * 255).round().astype(np.uint8)).save(os.path.join(check_dir, 'ridge_matte_portrait.png'))
+    tier_spec = {}
+    for tier, width in tiers.items():
+        s = width / FW
+        suffix = '' if tier == 'full' else f'-{tier}'
+        size = (width, round((y1 - y0) * s))
+        for st in SETS:
+            name = f'portrait-ridge-{st}{suffix}.webp'
+            report.append((name, save_webp(resize_rgba(band[st], size), name, Q_RIDGE, alpha_quality=100), *size))
+            # the check, from the SHIPPED files: backdrop, flat magenta, cut-out
+            got = np.asarray(Image.open(os.path.join(OUT, name)).convert('RGBA')).astype(np.float64)
+            under = np.asarray(Image.open(os.path.join(OUT, f'portrait-backdrop-{st}{suffix}.webp')).convert('RGB')).astype(np.float64)[round(y0 * s):round(y0 * s) + size[1]]
+            a = got[..., 3:] / 255
+            if tier == 'full':
+                Image.fromarray((got[..., :3] * a + np.array([255.0, 0, 255]) * (1 - a)).round().astype(np.uint8)).save(os.path.join(check_dir, f'ridge_magenta_portrait_{st}.png'))
+            d = np.abs(got[..., :3] * a + under * (1 - a) - under)
+            print(f'  {name}: over its own backdrop it changes the picture by a mean of {d.mean():.3f} of 255 (worst pixel {d.max():.0f})')
+        tier_spec[tier] = {'ridge': list(size)}
+    for tier in tiers:
+        mine = [r for r in report if ('-phone' in r[0]) == (tier == 'phone')]
+        print(f'portrait sky {tier}: day cut-out {sum(r[1] for r in mine if "night" not in r[0]) / 1024:.0f} KiB, {sum(r[2] * r[3] * 4 for r in mine if "night" not in r[0]) / 1e6:.2f} MB on the GPU; '
+              f'night cut-out {sum(r[1] for r in mine if "night" in r[0]) / 1024:.0f} KiB, {sum(r[2] * r[3] * 4 for r in mine if "night" in r[0]) / 1e6:.2f} MB (the atlas, the birds and the bats are the landscape sky\'s files)')
+    return {'ridge': [0, y0, FW, y1], 'skyline': [int(top.min()), int(top.max())]}, tier_spec, report
+
+
+def portrait_backdrops(folder: str) -> tuple[int, int, dict]:
+    """the portrait folder's frame and its two backdrops (portrait_layers.json names them)"""
+    folder = os.path.abspath(os.path.expanduser(folder))
+    layers_path = os.path.join(folder, 'portrait_layers.json')
+    if not os.path.isfile(layers_path):
+        die(f'no portrait_layers.json in {folder}')
+    layers = json.load(open(layers_path))
+    FW, FH = layers['frame']
+    back = {}
+    for st in SETS:
+        path = os.path.join(folder, layers['files'].get(f'backdrop_{st}', ''))
+        if not os.path.isfile(path):
+            die(f'portrait_layers.json files.backdrop_{st}: not named or not found in {folder}')
+        back[st] = Image.open(path).convert('RGB')
+        if back[st].size != (FW, FH):
+            die(f'portrait {st}: backdrop {back[st].size}, the frame is {(FW, FH)}')
+    return FW, FH, back
+
+
+def build_portrait_sky_only(args, tall: dict) -> list:
+    """--portrait-sky DIR alone: the cut-outs from DIR's backdrops, into the portrait block already on disk"""
+    FW, FH, back = portrait_backdrops(args.portrait_sky)
+    if [FW, FH] != tall['frame']:
+        die(f'--portrait-sky: the folder\'s frame {FW} x {FH} is not the portrait block\'s {tall["frame"]}')
+    tall['sky'], sky_tiers, report = build_portrait_ridge(args, FW, FH, back, {tier: entry['size'][0] for tier, entry in tall['tiers'].items()})
+    for tier in sky_tiers:
+        tall['tiers'][tier].update(sky_tiers[tier])
+    return report
 
 
 def read_spec(name: str) -> dict | None:
@@ -823,12 +920,13 @@ def main():
     ap.add_argument('--backdrops', default=os.path.join(DRAFTS, 'backdrop_upscale'))
     ap.add_argument('--fallback', default=None, help='take a base or the fire pass from here when SRC has none')
     ap.add_argument('--sky', action='store_true', help='rebuild only the landscape scene\'s ambient sky set (ridge cut-outs, wisp and fog atlas, birds, bats)')
+    ap.add_argument('--portrait-sky', default=None, help='rebuild only the portrait scene\'s ridge cut-outs from this portrait folder\'s backdrops')
     ap.add_argument('--sky-check', default=os.path.join(DRAFTS, 'sky_matte'), help='where the matte and its magenta check images go')
     ap.add_argument('--birds', default=BIRDS_SRC, help='the folder with the Angry Mantis birds.json and birds.webp')
     ap.add_argument('--bats', default=BATS_SRC, help='the bat sheet (a PNG on the birds\' canvas: every bat inside its bird\'s cell)')
     args = ap.parse_args()
-    if not args.src and not args.portrait and not args.sky:
-        die('nothing to build: give the landscape folder, --portrait DIR, --sky, or more than one')
+    if not args.src and not args.portrait and not args.sky and not args.portrait_sky:
+        die('nothing to build: give the landscape folder, --portrait DIR, --sky, --portrait-sky DIR, or more than one')
     os.makedirs(OUT, exist_ok=True)
 
     wide, tall = read_spec('SCENE_SPEC'), read_spec('SCENE_SPEC_PORTRAIT')
@@ -842,8 +940,12 @@ def main():
             die('--sky alone needs the landscape block of sceneSpec.ts: build the landscape folder once')
         sky_report = build_sky_only(args, wide)
     if args.portrait:
-        tall, report = build_portrait(args.portrait)
+        tall, report = build_portrait(args, args.portrait)
         reports.append((report, 'portrait'))
+    elif args.portrait_sky:
+        if tall is None:
+            die('--portrait-sky alone needs the portrait block of sceneSpec.ts: build the portrait folder once')
+        build_portrait_sky_only(args, tall)
     if wide is None or tall is None:
         die(f'{os.path.relpath(SPEC, APP)} has no {"landscape" if wide is None else "portrait"} block yet and this run does not build one: pass both folders once')
 
@@ -861,11 +963,13 @@ def main():
         '//   sky_fog_<k>); birds: the copied atlas\'s rows (bird_<row>_<frame>.png; the bats\' bat_<row>_<frame>.png are the same rows). tiers.<tier>.ridge / sky: texture sizes.\n'
         '// SCENE_SPEC_PORTRAIT  no moving pieces. painting / fill: the rows of the frame the painting takes and the rows of\n'
         '//   the soft mist fill under it, down to where the 3D terrace covers the frame (the board is meant to hide the fill).\n'
+        '//   sky: the portrait sky\'s own ridge cut-out box and skyline rows (it draws the landscape sky\'s atlas, birds and\n'
+        '//   bats: SCENE_SPEC.sky has their cells); tiers.<tier>.ridge: the cut-out\'s texture size.\n'
         '// components/Background.svelte and game/scene.ts draw from both.\n'
     )
     open(SPEC, 'w').write(header + 'export const SCENE_SPEC = ' + json.dumps(wide, indent='\t') + ' as const;\n\n'
                           + 'export const SCENE_SPEC_PORTRAIT = ' + json.dumps(tall, indent='\t') + ' as const;\n')
-    kept = '' if args.src and args.portrait else ' (the portrait block kept as it was)' if args.src else ' (the landscape block kept as it was' + (', but for its sky)' if args.sky else ')')
+    kept = '' if args.src and args.portrait else ' (the portrait block kept as it was' + (', but for its sky)' if args.portrait_sky else ')') if args.src or (args.sky and not args.portrait) else ' (the landscape block kept as it was' + (', but for its sky)' if args.sky else ')')
     print(f'wrote {os.path.relpath(SPEC, APP)}{kept}')
     for report, what in reports:
         totals(report, what)

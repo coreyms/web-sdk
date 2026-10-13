@@ -1,0 +1,1094 @@
+{
+ "frames": {
+  "creature_epic_idle_000": {
+   "frame": {
+    "x": 2672,
+    "y": 726,
+    "w": 330,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 47,
+    "w": 330,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_001": {
+   "frame": {
+    "x": 1007,
+    "y": 726,
+    "w": 331,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 38,
+    "y": 47,
+    "w": 331,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_002": {
+   "frame": {
+    "x": 2684,
+    "y": 0,
+    "w": 331,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 38,
+    "y": 46,
+    "w": 331,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_003": {
+   "frame": {
+    "x": 0,
+    "y": 363,
+    "w": 331,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 38,
+    "y": 46,
+    "w": 331,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_004": {
+   "frame": {
+    "x": 2016,
+    "y": 0,
+    "w": 332,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 37,
+    "y": 46,
+    "w": 332,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_005": {
+   "frame": {
+    "x": 2350,
+    "y": 0,
+    "w": 332,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 37,
+    "y": 46,
+    "w": 332,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_006": {
+   "frame": {
+    "x": 1011,
+    "y": 0,
+    "w": 333,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 36,
+    "y": 46,
+    "w": 333,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_007": {
+   "frame": {
+    "x": 1346,
+    "y": 0,
+    "w": 333,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 36,
+    "y": 46,
+    "w": 333,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_008": {
+   "frame": {
+    "x": 1681,
+    "y": 0,
+    "w": 333,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 36,
+    "y": 46,
+    "w": 333,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_009": {
+   "frame": {
+    "x": 675,
+    "y": 0,
+    "w": 334,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 35,
+    "y": 46,
+    "w": 334,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_010": {
+   "frame": {
+    "x": 338,
+    "y": 0,
+    "w": 335,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 35,
+    "y": 46,
+    "w": 335,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_011": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 336,
+    "h": 361
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 34,
+    "y": 46,
+    "w": 336,
+    "h": 361
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_012": {
+   "frame": {
+    "x": 2720,
+    "y": 363,
+    "w": 336,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 34,
+    "y": 47,
+    "w": 336,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_013": {
+   "frame": {
+    "x": 0,
+    "y": 726,
+    "w": 336,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 34,
+    "y": 47,
+    "w": 336,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_014": {
+   "frame": {
+    "x": 1700,
+    "y": 363,
+    "w": 338,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 33,
+    "y": 47,
+    "w": 338,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_015": {
+   "frame": {
+    "x": 2040,
+    "y": 363,
+    "w": 338,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 33,
+    "y": 47,
+    "w": 338,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_016": {
+   "frame": {
+    "x": 2380,
+    "y": 363,
+    "w": 338,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 33,
+    "y": 47,
+    "w": 338,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_017": {
+   "frame": {
+    "x": 1359,
+    "y": 363,
+    "w": 339,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 32,
+    "y": 47,
+    "w": 339,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_018": {
+   "frame": {
+    "x": 333,
+    "y": 363,
+    "w": 340,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 32,
+    "y": 47,
+    "w": 340,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_019": {
+   "frame": {
+    "x": 675,
+    "y": 363,
+    "w": 340,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 32,
+    "y": 47,
+    "w": 340,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_020": {
+   "frame": {
+    "x": 1017,
+    "y": 363,
+    "w": 340,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 32,
+    "y": 47,
+    "w": 340,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_021": {
+   "frame": {
+    "x": 2412,
+    "y": 1450,
+    "w": 341,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 32,
+    "y": 48,
+    "w": 341,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_022": {
+   "frame": {
+    "x": 1380,
+    "y": 1450,
+    "w": 342,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 31,
+    "y": 48,
+    "w": 342,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_023": {
+   "frame": {
+    "x": 1724,
+    "y": 1450,
+    "w": 342,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 31,
+    "y": 48,
+    "w": 342,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_024": {
+   "frame": {
+    "x": 2394,
+    "y": 1088,
+    "w": 343,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 31,
+    "y": 48,
+    "w": 343,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_025": {
+   "frame": {
+    "x": 2739,
+    "y": 1088,
+    "w": 343,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 31,
+    "y": 48,
+    "w": 343,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_026": {
+   "frame": {
+    "x": 664,
+    "y": 1088,
+    "w": 344,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 31,
+    "y": 48,
+    "w": 344,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_027": {
+   "frame": {
+    "x": 1010,
+    "y": 1088,
+    "w": 344,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 31,
+    "y": 48,
+    "w": 344,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_028": {
+   "frame": {
+    "x": 1356,
+    "y": 1088,
+    "w": 344,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 31,
+    "y": 48,
+    "w": 344,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_029": {
+   "frame": {
+    "x": 0,
+    "y": 1450,
+    "w": 343,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 32,
+    "y": 48,
+    "w": 343,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_030": {
+   "frame": {
+    "x": 1702,
+    "y": 1088,
+    "w": 344,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 32,
+    "y": 48,
+    "w": 344,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_031": {
+   "frame": {
+    "x": 2048,
+    "y": 1088,
+    "w": 344,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 32,
+    "y": 48,
+    "w": 344,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_032": {
+   "frame": {
+    "x": 345,
+    "y": 1450,
+    "w": 343,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 33,
+    "y": 48,
+    "w": 343,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_033": {
+   "frame": {
+    "x": 690,
+    "y": 1450,
+    "w": 343,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 33,
+    "y": 48,
+    "w": 343,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_034": {
+   "frame": {
+    "x": 1035,
+    "y": 1450,
+    "w": 343,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 33,
+    "y": 48,
+    "w": 343,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_035": {
+   "frame": {
+    "x": 2068,
+    "y": 1450,
+    "w": 342,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 34,
+    "y": 48,
+    "w": 342,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_036": {
+   "frame": {
+    "x": 2755,
+    "y": 1450,
+    "w": 341,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 35,
+    "y": 48,
+    "w": 341,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_037": {
+   "frame": {
+    "x": 0,
+    "y": 1811,
+    "w": 341,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 35,
+    "y": 48,
+    "w": 341,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_038": {
+   "frame": {
+    "x": 343,
+    "y": 1811,
+    "w": 340,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 36,
+    "y": 48,
+    "w": 340,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_039": {
+   "frame": {
+    "x": 685,
+    "y": 1811,
+    "w": 339,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 36,
+    "y": 48,
+    "w": 339,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_040": {
+   "frame": {
+    "x": 1026,
+    "y": 1811,
+    "w": 338,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 37,
+    "y": 48,
+    "w": 338,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_041": {
+   "frame": {
+    "x": 1366,
+    "y": 1811,
+    "w": 338,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 37,
+    "y": 48,
+    "w": 338,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_042": {
+   "frame": {
+    "x": 1706,
+    "y": 1811,
+    "w": 336,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 38,
+    "y": 48,
+    "w": 336,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_043": {
+   "frame": {
+    "x": 2044,
+    "y": 1811,
+    "w": 336,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 38,
+    "y": 48,
+    "w": 336,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_044": {
+   "frame": {
+    "x": 2382,
+    "y": 1811,
+    "w": 334,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 48,
+    "w": 334,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_045": {
+   "frame": {
+    "x": 2718,
+    "y": 1811,
+    "w": 334,
+    "h": 359
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 48,
+    "w": 334,
+    "h": 359
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_046": {
+   "frame": {
+    "x": 338,
+    "y": 726,
+    "w": 333,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 47,
+    "w": 333,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_047": {
+   "frame": {
+    "x": 673,
+    "y": 726,
+    "w": 332,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 47,
+    "w": 332,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_048": {
+   "frame": {
+    "x": 1340,
+    "y": 726,
+    "w": 331,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 47,
+    "w": 331,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_049": {
+   "frame": {
+    "x": 1673,
+    "y": 726,
+    "w": 331,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 47,
+    "w": 331,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_050": {
+   "frame": {
+    "x": 0,
+    "y": 1088,
+    "w": 330,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 47,
+    "w": 330,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_051": {
+   "frame": {
+    "x": 332,
+    "y": 1088,
+    "w": 330,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 40,
+    "y": 47,
+    "w": 330,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_052": {
+   "frame": {
+    "x": 2006,
+    "y": 726,
+    "w": 331,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 47,
+    "w": 331,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_epic_idle_053": {
+   "frame": {
+    "x": 2339,
+    "y": 726,
+    "w": 331,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 47,
+    "w": 331,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  }
+ },
+ "meta": {
+  "image": "creature-epic-idle-phone.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 3098,
+   "h": 2172
+  },
+  "scale": "1",
+  "pngHash": "e6f91e33"
+ }
+}

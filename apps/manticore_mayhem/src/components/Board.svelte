@@ -10,8 +10,15 @@
 		| { type: 'featureBeat'; beat: FeatureBeat; rows: number[] }
 		/** one beat of a sting, for the rig slot (components/Sting.svelte). `phase` is the beat
 		 *  itself — `wait` the scatter sting's disappointment hold, `charge` the big / super
-		 *  wind-up, `strike` the hit — and `kind` is the book's, never re-derived. */
-		| { type: 'stingBeat'; phase: 'charge' | 'wait' | 'strike'; kind: StingKind; center: number; cells: number[] };
+		 *  wind-up, `strike` the hit — and `kind` is the book's, never re-derived.
+		 *  `more` (2026-10-13, for the creature, game/creature.ts): another sting of this run follows this one. Read
+		 *  ahead from the book, which is fully known; presentation only. */
+		| { type: 'stingBeat'; phase: 'charge' | 'wait' | 'strike'; kind: StingKind; center: number; cells: number[]; more?: boolean }
+		/** THE CREATURE'S LOOK-AHEAD (game/creature.ts; presentation only, nothing waits on it): the next feature's own
+		 *  beat (a swipe's tears, a roar, the first sting of a run) comes in `inMs` of STYLE time from now, so his
+		 *  wind-up can start early and its strike land on that beat. 'growl': the growl that answers a Mystery which
+		 *  awarded nothing, now. */
+		| { type: 'creatureCue'; what: 'swipe' | 'roar' | 'sting' | 'growl'; inMs: number; kind?: StingKind };
 </script>
 
 <script lang="ts">

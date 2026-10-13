@@ -1,9 +1,16 @@
 <script lang="ts">
-	// Post-intro landing screen (HTML overlay over the Pixi cafeteria Background): Corey's three
-	// primer cards (game/introCards.ts) and the logo on the live scene — placed clear of the windows
-	// band and the fan so the ambient layers stay in view — with the gold loading bar, then PRESS
-	// ANYWHERE TO CONTINUE, along the bottom. Desktop/phone lay the cards in a row; portrait deals
-	// them as a fan whose front card rotates on its own (a tap is the continue press).
+	// Post-intro landing screen (HTML overlay over the Pixi courtyard Background): the logo, the three
+	// ANIMATED explainer cards (approved 2026-10-12: game/introCards.ts for every number and for where
+	// things stand, game/introCardText.ts for the strings), the gold loading bar, then PRESS ANYWHERE TO
+	// CONTINUE. Where the screen has room the cards stand three in a row; where it has not, one card
+	// shows at a time and they rotate when the visible card's clip has played once (dots; a swipe or a
+	// tap on a dot changes the card; a tap anywhere else is still the continue press).
+	//
+	// THE CARDS ARE DECORATION. Nothing here waits for them: they are not in the landing-first phase
+	// (game/boot.svelte.ts) and not in the gate (`ready` below). Their files are asked for only when
+	// INTRO_CARD.armAfter says so (by default once the loading bar is done), each card fades in when the
+	// frame picture is decoded, a clip that will not play leaves its poster, and the press pauses every
+	// clip and lets go of its file.
 	// Pressing hands off to the Pixi transition via onpress (see components/LoadingScreen.svelte).
 	import { onMount, untrack } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
@@ -13,7 +20,8 @@
 	import { MASTER, layoutKind } from '../game/layoutSpec';
 	import { stamp } from '../game/assets';
 	import { sound } from '../game/sound';
-	import { INTRO_CARDS, INTRO_CARD_ASPECT, INTRO_LAYOUT, INTRO_LOGO, INTRO_LOGO_SHINE_MS } from '../game/introCards';
+	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, INTRO_LOGO_SHINE_MS, introGatePctSize, introPlacement } from '../game/introCards';
+	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, introBodyRuns, introSceneIndexAt } from '../game/introCardText';
 	import Shine from './Shine.svelte';
 
 	type Props = { onpress: () => void };
@@ -26,8 +34,8 @@
 	onMount(async () => {
 		// THE HANDOFF (2026-09-15): this screen is what the shell splash (src/app.html) fades to, so
 		// it must be mounted and painted before the splash goes. game/boot.svelte.ts has already
-		// fetched and decoded the cards, the logo and these two faces by the time we get here — the
-		// fade reveals a finished picture, not three empty card slots.
+		// fetched and decoded the logo and these two faces by the time we get here. The explainer cards
+		// are not waited for: each fades in whole when its frame picture is decoded.
 		boot.landingMounted = true;
 		try {
 			await Promise.all([document.fonts.load('900 40px Outfit'), document.fonts.load('700 40px Sora')]);
@@ -52,9 +60,8 @@
 
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const master = $derived(MASTER[kind]);
-	const scale = $derived(Math.min((innerWidth.current ?? 1) / master.width, (innerHeight.current ?? 1) / master.height));
-	const left = $derived(((innerWidth.current ?? 1) - master.width * scale) / 2);
-	const top = $derived(((innerHeight.current ?? 1) - master.height * scale) / 2);
+	// where the logo, the cards, the dots and the gate stand for this viewport (game/introCards.ts)
+	const place = $derived(introPlacement(kind, innerWidth.current ?? 1, innerHeight.current ?? 1));
 
 	// The audiosprite is roughly a third of the payload and downloads in parallel with the images
 	// (game/sound.ts), so the bar blends both — otherwise it parks at 100% for however long the
@@ -97,43 +104,206 @@
 	const ready = $derived(context.stateApp.preLoaded && fontsReady && audioReady);
 
 	// per-kind sizing of the gate (master units)
-	const SZ = $derived(
-		kind === 'phone'
-			? { tag: 22, barW: 520, barH: 14, press: 30, pad: 26 }
-			: kind === 'portrait'
-				? { tag: 13, barW: 280, barH: 10, press: 17, pad: 16 }
-				: { tag: 14, barW: 420, barH: 10, press: 18, pad: 16 },
-	);
+	const SZ = $derived(INTRO_GATE[kind]);
 	const logoSrc = $derived(stamp('/assets/ui/logo-stacked.webp'));
-	const logo = $derived(INTRO_LOGO[kind]);
-	const layout = $derived(INTRO_LAYOUT[kind]);
+	const logo = $derived(place.logo);
 
-	// ---- the cards: master-px rects + tilt per card, from the layout table ----
-	let front = $state(0); // fan: which card is in front
+	// ---- the cards -------------------------------------------------------------------------------
+	const C = INTRO_CARD;
+	const N = INTRO_CARD_TEXT.length;
+	const frameSrc = stamp(INTRO_CARD_ASSETS.frame);
+	const posterSrc = INTRO_CARD_TEXT.map((c) => stamp(INTRO_CARD_ASSETS.poster(c.key)));
+	const clipSrc = INTRO_CARD_TEXT.map((c) => stamp(INTRO_CARD_ASSETS.clip(c.key)));
+	const bodyRuns = INTRO_CARD_TEXT.map(introBodyRuns);
+	// posters only, and no clip is ever asked for, where the player asked for less motion
+	const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	/** the cards may ask for their files (INTRO_CARD.armAfter: once the loading bar is done, or once the Pixi preload is in) */
+	let armed = $state(false);
 	$effect(() => {
-		if (layout.style !== 'fan') return;
-		const id = setInterval(() => (front = (front + 1) % INTRO_CARDS.length), layout.cycleMs);
-		return () => clearInterval(id);
+		if (C.armAfter === 'loaded' ? ready : context.stateApp.preLoaded) armed = true;
 	});
-	const cards = $derived.by(() => {
-		const H = layout.cardH;
-		const W = H * INTRO_CARD_ASPECT;
-		const cx = master.width / 2;
-		if (layout.style === 'row') {
-			return INTRO_CARDS.map((name, i) => {
-				const k = i - 1;
-				return { name, x: cx + k * (W + layout.gap), y: layout.cy, w: W, h: H, rot: k * layout.tiltDeg, z: 1, alpha: 1 };
-			});
+	/** the frame picture is decoded: the cards fade in. A frame that never arrives leaves no cards, and nothing waits. */
+	let frameReady = $state(false);
+	$effect(() => {
+		if (!armed) return;
+		const img = new Image();
+		img.src = frameSrc;
+		img.decode().then(() => (frameReady = true), () => {});
+	});
+
+	const oneUp = $derived(place.mode !== 'row');
+	/** one card at a time: which one shows */
+	let active = $state(0);
+	let activeSince = 0;
+	const isVisible = (i: number) => frameReady && (!oneUp || i === active);
+	/** the scene line each card shows (follows its clip's time) */
+	let sceneIdx = $state(INTRO_CARD_TEXT.map(() => 0));
+	/** the clip is really running, so it is drawn over the poster (a clip that never starts stays hidden under it) */
+	let live = $state(INTRO_CARD_TEXT.map(() => false));
+	let videos: (HTMLVideoElement | undefined)[] = $state([]);
+	const lastT = INTRO_CARD_TEXT.map(() => 0);
+	// the same elements, kept past the unmount for the DEV hook (it reports that they were let go)
+	const kept: (HTMLVideoElement | undefined)[] = [];
+	let mounted = true;
+
+	const wantsClip = (i: number) =>
+		armed && frameReady && !reducedMotion && !pressed && (!oneUp || i === active) && (!C.holdClipsUntilLoaded || ready);
+	const startClip = (i: number) => {
+		const v = videos[i];
+		if (!v) return;
+		v.muted = true;
+		// a plain same-origin URL, set only when the card first has to play: a card that is never shown is never fetched
+		if (!v.getAttribute('src')) v.src = clipSrc[i];
+		// refused (iPhone Low Power Mode) or cut short by a pause: the poster stays, nothing to report
+		if (v.paused) v.play().catch(() => {});
+	};
+	$effect(() => {
+		for (let i = 0; i < N; i += 1) {
+			const v = videos[i];
+			if (!v) continue;
+			kept[i] = v;
+			if (wantsClip(i)) startClip(i);
+			else if (!v.paused) v.pause();
 		}
-		// fan: the front card upright and raised, the others tilted out, a step smaller and dimmed
-		const spread = W * 0.42;
-		return INTRO_CARDS.map((name, i) => {
-			const k = (i - front + 3) % 3;
-			const slot = k === 0 ? 0 : k === 1 ? 1 : -1;
-			const s = k ? 0.92 : 1;
-			return { name, x: cx + slot * spread, y: layout.cy - (k ? -18 : 18), w: W * s, h: H * s, rot: slot * layout.tiltDeg * 1.6, z: k === 0 ? 3 : 1, alpha: k ? layout.backOpacity : 1 };
-		});
 	});
+	/** pause every clip and let go of its file, so no decoder stays alive behind the game */
+	const releaseClips = () => {
+		for (let i = 0; i < N; i += 1) {
+			const v = videos[i] ?? kept[i];
+			if (!v) continue;
+			v.pause();
+			v.removeAttribute('autoplay');
+			if (v.getAttribute('src')) {
+				v.removeAttribute('src');
+				v.load();
+			}
+			live[i] = false;
+		}
+	};
+
+	/** one card at a time: bring card i up from its start; `byUser` = inside a tap or swipe, where a refused clip may start */
+	const show = (i: number, byUser = false) => {
+		const next = ((i % N) + N) % N;
+		if (next !== active) {
+			const v = videos[next];
+			if (v && v.getAttribute('src')) v.currentTime = 0;
+			sceneIdx[next] = 0;
+			lastT[next] = 0;
+			active = next;
+		}
+		activeSince = performance.now();
+		if (byUser && wantsClip(next)) startClip(next);
+	};
+	$effect(() => {
+		// the dwell clock starts when the visible card is actually there
+		if (frameReady && oneUp) untrack(() => (activeSince = performance.now()));
+	});
+
+	// one loop for the three cards: the scene line follows the clip's time, and with one card at a time the
+	// card moves on when its clip has played once (or, with no clip running, after stillDwellMs)
+	const frame = (now: number) => {
+		for (let i = 0; i < N; i += 1) {
+			const v = videos[i];
+			if (!v || v.paused || v.readyState < 2) continue;
+			const card = INTRO_CARD_TEXT[i];
+			const t = v.currentTime;
+			if (!live[i] && t > 0.03) live[i] = true;
+			const idx = introSceneIndexAt(card, t);
+			if (idx !== sceneIdx[i]) sceneIdx[i] = idx;
+			if (oneUp && i === active) {
+				const length = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : card.clipSeconds;
+				if (t >= length - C.endSlackSeconds || t < lastT[i] - 1) {
+					show(active + 1);
+					continue;
+				}
+			}
+			lastT[i] = t;
+		}
+		if (oneUp && frameReady) {
+			const v = videos[active];
+			const running = !!v && !v.paused && v.currentTime > 0.03;
+			const since = now - activeSince;
+			if ((!running && since > C.stillDwellMs) || since > INTRO_CARD_TEXT[active].clipSeconds * 1000 + C.stallGraceMs) show(active + 1);
+		}
+	};
+	onMount(() => {
+		let raf = 0;
+		const tick = () => {
+			raf = requestAnimationFrame(tick);
+			if (!pressed) frame(performance.now());
+		};
+		raf = requestAnimationFrame(tick);
+		return () => {
+			cancelAnimationFrame(raf);
+			mounted = false;
+			releaseClips();
+		};
+	});
+
+	// a drag across the visible card changes the card; anything shorter is the continue press
+	let down: { x: number; y: number; id: number } | null = null;
+	const cardDown = (e: PointerEvent) => (down = { x: e.clientX, y: e.clientY, id: e.pointerId });
+	const cardUp = (e: PointerEvent) => {
+		const d = down;
+		down = null;
+		// released on the card without having gone down on it: the press began on the screen behind, in the instant
+		// before the card appeared. It is still a press (found by the probe pressing the moment the gate opened).
+		if (!d || d.id !== e.pointerId) return press();
+		const dx = e.clientX - d.x;
+		const dy = e.clientY - d.y;
+		if (Math.abs(dx) >= C.swipeMinPx && Math.abs(dx) > Math.abs(dy)) show(active + (dx < 0 ? 1 : -1), true);
+		else press();
+	};
+
+	// the slate's numbers as CSS variables (card-width units, multiplied by --u = 1% of the card's width)
+	const S = INTRO_CARD_STYLE;
+	const cardVars = [
+		`--win-l:${C.window.left}%`, `--win-t:${C.window.top}%`, `--win-w:${C.window.width}%`, `--win-h:${C.window.height}%`,
+		`--side:${S.side}`,
+		`--t-top:${S.title.top}`, `--t-h:${S.title.height}`, `--t-size:${S.title.size}`, `--t-weight:${S.title.weight}`, `--t-ls:${S.title.letterSpacingEm}em`, `--t-color:${S.title.color}`, `--t-font:${S.title.font}`,
+		`--t-dark-y:${S.titleEdge.darkY}`, `--t-dark:${S.titleEdge.dark}`, `--t-light-y:${S.titleEdge.lightY}`, `--t-light:${S.titleEdge.light}`,
+		`--b-top:${S.body.top}`, `--b-h:${S.body.height}`, `--b-size:${S.body.size}`, `--b-weight:${S.body.weight}`, `--b-lh:${S.body.lineHeight}`, `--b-color:${S.body.color}`, `--b-font:${S.body.font}`,
+		`--hl-color:${S.highlight.color}`, `--hl-weight:${S.highlight.weight}`,
+		`--r-top:${S.rule.top}`, `--r-side:${S.rule.side}`, `--r-h:${S.rule.height}`, `--r-color:${S.rule.color}`,
+		`--c-top:${S.scene.top}`, `--c-h:${S.scene.height}`, `--c-size:${S.scene.size}`, `--c-weight:${S.scene.weight}`, `--c-lh:${S.scene.lineHeight}`, `--c-color:${S.scene.color}`, `--c-font:${S.scene.font}`,
+		`--fade-in:${C.fadeInMs}ms`, `--swap:${C.swapMs}ms`, `--slide:${C.swapSlide}px`, `--scene-fade:${C.sceneFadeMs}ms`,
+	].join(';');
+
+	// ---- DEV hook: __manticore.landing() (tools/manticore/landing_probe.js) ----
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		Object.assign(((window as any).__manticore ??= {}), {
+			landing: () => ({
+				mounted,
+				dismissed: pressed,
+				ready,
+				armed,
+				armAfter: C.armAfter,
+				holdClipsUntilLoaded: C.holdClipsUntilLoaded,
+				frameReady,
+				reducedMotion,
+				kind,
+				mode: place.mode,
+				scale: place.scale,
+				cardCssWidth: place.cardW * place.scale,
+				active,
+				visible: INTRO_CARD_TEXT.map((_, i) => i).filter(isVisible),
+				cards: INTRO_CARD_TEXT.map((card, i) => {
+					const v = videos[i] ?? kept[i];
+					return {
+						key: card.key,
+						visible: isVisible(i),
+						live: live[i],
+						sceneIndex: sceneIdx[i],
+						sceneLine: card.sceneLines[sceneIdx[i]].text,
+						video: v
+							? { paused: v.paused, currentTime: v.currentTime, readyState: v.readyState, duration: v.duration, src: v.getAttribute('src'), currentSrc: v.currentSrc, loop: v.loop, muted: v.muted, connected: v.isConnected }
+							: null,
+					};
+				}),
+			}),
+		});
+	}
 
 	const press = () => {
 		// same tap target serves both states: while assets are missing it retries instead of entering
@@ -143,6 +313,7 @@
 		}
 		if (!ready || pressed) return;
 		pressed = true;
+		releaseClips();
 		// the continue press has a voice of its own (the minor click, Corey 2026-09-02); the sprite
 		// is guaranteed loaded here — it is one of the things this screen waited for
 		sound.players.once.play({ name: 'sfx_ui_minor' });
@@ -154,27 +325,69 @@
 	<!-- full-screen continue target -->
 	<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>
 
-	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
-		<!-- the primer cards: HTML images in master px (the browser resamples the 800×1200 sources;
-		     no card draws above ~330 CSS px wide, so one size serves every layout) -->
-		{#each cards as c (c.name)}
-			<img
-				class="card"
-				src={stamp(`/assets/ui/intro/${c.name}.webp`)}
-				alt=""
-				draggable="false"
-				style:width="{c.w}px"
-				style:height="{c.h}px"
-				style:transform="translate({c.x - c.w / 2}px, {c.y - c.h / 2}px) rotate({c.rot}deg)"
-				style:z-index={c.z}
-				style:opacity={c.alpha}
-			/>
-		{/each}
+	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({place.left}px, {place.top}px) scale({place.scale})">
+		<!-- the explainer cards, in master px: clip in the glass window, the frame picture over it, live text on the slate -->
+		{#if armed}
+			<div class="cards" class:one-up={oneUp} style={cardVars}>
+				{#each INTRO_CARD_TEXT as card, i (card.key)}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="icard"
+						class:on={isVisible(i)}
+						data-card={card.key}
+						style:width="{place.cardW}px"
+						style:height="{place.cardH}px"
+						style:left="{place.slots[i].x - place.cardW / 2}px"
+						style:top="{place.slots[i].y - place.cardH / 2}px"
+						style:--u="{place.cardW / 100}px"
+						onpointerdown={cardDown}
+						onpointerup={cardUp}
+						onpointercancel={() => (down = null)}
+					>
+						<div class="win">
+							<img class="poster" src={posterSrc[i]} alt="" draggable="false" />
+							{#if !reducedMotion}
+								<video
+									bind:this={videos[i]}
+									class:live={live[i]}
+									poster={posterSrc[i]}
+									autoplay={wantsClip(i)}
+									muted
+									loop
+									playsinline
+									preload="metadata"
+									disablepictureinpicture
+									disableremoteplayback
+									tabindex="-1"
+									aria-hidden="true"
+								></video>
+							{/if}
+						</div>
+						<img class="frame" src={frameSrc} alt="" draggable="false" />
+						<div class="z zt"><span class="t">{card.title}</span></div>
+						<div class="z zb">
+							<span class="b">{#each bodyRuns[i] as run}{#if run.hl}<b>{run.text}</b>{:else}{run.text}{/if}{/each}</span>
+						</div>
+						<div class="rule"></div>
+						<div class="z zc">
+							{#key sceneIdx[i]}<span class="cap">{card.sceneLines[sceneIdx[i]].text}</span>{/key}
+						</div>
+					</div>
+				{/each}
+				{#if place.dots && frameReady}
+					<div class="dots" class:vertical={place.dots.vertical} style:left="{place.dots.x}px" style:top="{place.dots.y}px" style:--dot="{C.dot[kind].size}px" style:--hit="{C.dot[kind].hit}px">
+						{#each INTRO_CARD_TEXT as card, i (card.key)}
+							<button type="button" class:on={i === active} aria-label={INTRO_DOT_LABEL(card.title)} aria-current={i === active} onclick={() => show(i, true)}><i></i></button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
 		<span class="shine-host logo" style:width="{logo.w}px" style:left="{logo.cx - logo.w / 2}px" style:top="{logo.cy}px">
 			<img src={logoSrc} alt="Manticore Mayhem" width={logo.w} draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} idleMs={INTRO_LOGO_SHINE_MS} />
 		</span>
 
-		<div class="gate" style:padding="{SZ.pad}px">
+		<div class="gate" style:padding="{SZ.pad}px" style:transform="translateX({place.gateCx - master.width / 2}px)">
 			{#if assetsFailed}
 				<!-- same stencil style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
 				<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM · TAP TO RETRY</div>
@@ -182,7 +395,7 @@
 				<div class="bar" style:width="{SZ.barW}px" style:height="{SZ.barH}px">
 					<div class="fill" style:width="{Math.max(4, progress)}%"></div>
 				</div>
-				<div class="pct" style:font-size="{Math.max(10, SZ.tag * 0.8)}px">{loadingLabel} · {progress}%</div>
+				<div class="pct" style:font-size="{introGatePctSize(kind)}px">{loadingLabel} · {progress}%</div>
 			{:else}
 				<div class="pressText" style:font-size="{SZ.press}px">PRESS ANYWHERE TO CONTINUE</div>
 			{/if}
@@ -223,15 +436,181 @@
 		pointer-events: none;
 		z-index: 2;
 	}
-	.card {
+	.cards {
 		position: absolute;
-		left: 0;
-		top: 0;
-		transform-origin: 50% 50%;
+		inset: 0;
+		z-index: 3;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	/* a card: hidden until its frame picture is decoded (and, one at a time, until it is the one showing) */
+	.icard {
+		position: absolute;
+		opacity: 0;
+		transition: opacity var(--fade-in) ease;
+		pointer-events: none;
+	}
+	.icard.on {
+		opacity: 1;
+	}
+	.one-up .icard {
+		transform: translateX(var(--slide)) scale(0.98);
 		transition:
-			transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1),
-			opacity 0.4s ease;
-		will-change: transform;
+			opacity var(--swap) ease,
+			transform var(--swap) ease;
+		touch-action: none;
+	}
+	.one-up .icard.on {
+		transform: none;
+		pointer-events: auto;
+		cursor: pointer;
+	}
+	/* the glass window: poster underneath, the clip over it once it is really running */
+	.win {
+		position: absolute;
+		left: var(--win-l);
+		top: var(--win-t);
+		width: var(--win-w);
+		height: var(--win-h);
+		background: #000;
+		overflow: hidden;
+	}
+	.win .poster,
+	.win video {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+		pointer-events: none;
+	}
+	.win video {
+		opacity: 0;
+	}
+	.win video.live {
+		opacity: 1;
+	}
+	/* a refused autoplay must not leave the system's play glyph on the glass */
+	.win video::-webkit-media-controls,
+	.win video::-webkit-media-controls-start-playback-button,
+	.win video::-webkit-media-controls-overlay-play-button {
+		display: none !important;
+		-webkit-appearance: none;
+	}
+	.frame {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		display: block;
+		pointer-events: none;
+	}
+	/* the slate's fixed zones (card-width units x --u) */
+	.z {
+		position: absolute;
+		left: calc(var(--u) * var(--side));
+		right: calc(var(--u) * var(--side));
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		overflow: hidden;
+	}
+	.zt {
+		top: calc(var(--u) * var(--t-top));
+		height: calc(var(--u) * var(--t-h));
+		white-space: nowrap;
+	}
+	.zb {
+		top: calc(var(--u) * var(--b-top));
+		height: calc(var(--u) * var(--b-h));
+	}
+	.zc {
+		top: calc(var(--u) * var(--c-top));
+		height: calc(var(--u) * var(--c-h));
+	}
+	.rule {
+		position: absolute;
+		left: calc(var(--u) * var(--r-side));
+		right: calc(var(--u) * var(--r-side));
+		top: calc(var(--u) * var(--r-top));
+		height: max(1px, calc(var(--u) * var(--r-h)));
+		background: linear-gradient(90deg, transparent, var(--r-color) 18%, var(--r-color) 82%, transparent);
+	}
+	.t {
+		font-family: var(--t-font);
+		font-weight: var(--t-weight);
+		font-size: calc(var(--u) * var(--t-size));
+		line-height: 1;
+		letter-spacing: var(--t-ls);
+		color: var(--t-color);
+		text-transform: uppercase;
+		text-shadow:
+			0 calc(var(--u) * var(--t-dark-y)) 0 var(--t-dark),
+			0 calc(var(--u) * var(--t-light-y)) 0 var(--t-light);
+	}
+	.b {
+		font-family: var(--b-font);
+		font-weight: var(--b-weight);
+		font-size: calc(var(--u) * var(--b-size));
+		line-height: var(--b-lh);
+		color: var(--b-color);
+	}
+	.b b {
+		color: var(--hl-color);
+		font-weight: var(--hl-weight);
+	}
+	.cap {
+		font-family: var(--c-font);
+		font-weight: var(--c-weight);
+		font-size: calc(var(--u) * var(--c-size));
+		line-height: var(--c-lh);
+		color: var(--c-color);
+		animation: landing-scene-in var(--scene-fade) ease both;
+	}
+	@keyframes landing-scene-in {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+	/* one card at a time: the dots (each button is a touch target, the drawn dot is the <i> inside) */
+	.dots {
+		position: absolute;
+		display: flex;
+		transform: translate(-50%, -50%);
+		pointer-events: auto;
+	}
+	.dots.vertical {
+		flex-direction: column;
+	}
+	.dots button {
+		width: var(--hit);
+		height: var(--hit);
+		padding: 0;
+		border: 0;
+		background: transparent;
+		display: grid;
+		place-items: center;
+		cursor: pointer;
+	}
+	.dots button i {
+		display: block;
+		width: var(--dot);
+		height: var(--dot);
+		border-radius: 50%;
+		background: rgba(18, 12, 8, 0.8);
+		/* a gold ring, so the dots that are not lit still read on the bright stone and on the dark pillars */
+		box-shadow:
+			0 0 0 calc(var(--dot) * 0.16) rgba(233, 196, 106, 0.8),
+			0 calc(var(--dot) * 0.2) calc(var(--dot) * 0.5) rgba(0, 0, 0, 0.7);
+		transition: background 0.2s ease;
+	}
+	.dots button.on i {
+		background: #e9c46a;
 	}
 	.shine-host {
 		position: relative;
@@ -302,8 +681,13 @@
 		.pressText {
 			animation: none;
 		}
-		.card {
-			transition: none;
+		.icard,
+		.one-up .icard {
+			transition: opacity var(--swap) ease;
+			transform: none;
+		}
+		.cap {
+			animation: none;
 		}
 	}
 </style>

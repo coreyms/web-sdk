@@ -8,6 +8,11 @@ const fontCss = [
 	['Sora', '100 800', stamp('/assets/fonts/ui/Sora-Variable.woff2')],
 	// bonus-buy "meal ticket" display faces (OFL, bundled — no external hosts)
 	['Black Ops One', '400', stamp('/assets/fonts/ui/BlackOpsOne-Regular.woff2')],
+	// the intro cards' title face (ui/LandingScreen.svelte; OFL, licence beside it: OFL-Cinzel.txt). Static
+	// 700, Latin. NOT kicked off below: the browser fetches it when the cards first draw, after the Pixi
+	// preload, so pixi-svelte's document.fonts.ready wait never includes it; until it is in, the title
+	// draws in the serif fallback (font-display: swap).
+	['Cinzel', '700', stamp('/assets/fonts/ui/Cinzel-Bold.woff2')],
 ]
 	.map(
 		([family, weight, url]) =>

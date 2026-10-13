@@ -1,5 +1,8 @@
-// THE AMBIENT SKY of the landscape courtyard scene (game/scene.ts owns it and its place in the layer order; constants
-// SKY has every number; assets by tools/build_scene_assets.py --sky). Raw Pixi, in px of the scene's frame. Six layers
+// THE AMBIENT SKY of the courtyard scenes (game/scene.ts owns it and its place in the layer order; constants SKY has
+// every number; assets by tools/build_scene_assets.py --sky and --portrait-sky). One SkyView per scene: the LANDSCAPE
+// one with SKY's numbers as they stand, the PORTRAIT one (2026-10-12) with the same numbers put through SKY.portrait
+// (skyNumbers below: sizes and speeds x its scale, counts, bands and positions restated for the 1440 x 2560 frame) and
+// its own cut-out; both draw the same atlas, birds and bats. Raw Pixi, in px of the scene's frame. Six layers
 // that SceneView puts between the painted backdrop and the 3D foreground, back to front:
 //   aurora   EPIC ONLY. Curtains of light behind the clouds and the peaks: each a row of additive column sprites of
 //            one small gradient cell of the atlas, half a column apart, so they sum without a seam (writeAurora)
@@ -16,10 +19,17 @@
 //            birds' rectangles, black already: only the scene's dim tints it), which lands with the scene's night
 //            set: until then there are no bats (the pool is not built), never a bird's frame standing in.
 //            Formation 'scattered': each bat at its own place along and across the
-//            group and at its own speed, so the group drifts apart, with a flutter on top of the bob
+//            group and at its own speed, so the group drifts apart, with a flutter on top of the bob. BOB AND
+//            FLUTTER BY SIZE (Corey 2026-10-12: "the bob height variation should be handled by the bird size"): a
+//            bat's bob is SKY.bats.bob x (its own drawn size / SKY.bats.size.near), so a small far bat swings less
+//            than a big near one; the flutter the same. Each is a switch of the kind (bobBySize, flutterBySize),
+//            off for the birds, whose bob is the one number for every bird as before.
+//            THE GAP (Corey 2026-10-12: two bats "so close together they were almost overlapping and swapping places
+//            up and down"): when a flock is rolled each bat is placed so that it never comes within SKY.bats' minGapX
+//            / minGapY of another while both are over the frame (Flyers.spawn, near, lane; the rule is at the
+//            numbers). Decided there, once; the tick is as it was. The birds have no such numbers and no such test
 //   fog      one or two soft mist bands drifting in the gorge, behind the courtyard
-// The portrait scene has none of it. Everything is scenery: real time at every turbo level, never paused, nothing to
-// do with spins, wins or features.
+// Everything is scenery: real time at every turbo level, never paused, nothing to do with spins, wins or features.
 // House rules: no filters, no texture created or uploaded after the files land (a flap is a swap between resident
 // frames), tints and dims are tints, and a tick allocates nothing: the clouds, the fog and the flyers' pools are built
 // once, a flock takes sprites from the pool and gives them back. A flyer that is not flying is PARKED: transparent and
@@ -29,11 +39,13 @@
 import * as PIXI from 'pixi.js';
 
 import { SKY } from './constants';
-import { SCENE_SPEC } from './sceneSpec';
+import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from './sceneSpec';
 
 type Textures = Record<string, PIXI.Texture | undefined>;
 type Cloud = { s: PIXI.Sprite; v: number; t: number; k: number; near: number; d: number };
-type Bird = { s: PIXI.Sprite; live: boolean; dir: number; frames: PIXI.Texture[]; v: number; y0: number; ph: number; size: number; flock: number };
+/** bob, fl: this flyer's own bob and flutter height (px), set when its flock is rolled */
+/** w: its drawn width at its widest frame (px), set with its size */
+type Bird = { s: PIXI.Sprite; live: boolean; dir: number; frames: PIXI.Texture[]; v: number; y0: number; ph: number; size: number; flock: number; bob: number; fl: number; w: number };
 type Fog = { s: PIXI.Sprite; v: number; alpha: number; y: number };
 /** DEV / probe: one flock as it was rolled */
 export type FlockRoll = { id: number; dir: number; depth: number; row: number; n: number; size: number; v: number; y0: number; alpha: number; x0: number };
@@ -53,6 +65,10 @@ type FlyerSpec = {
 	readonly bob: number;
 	readonly bobRate: number;
 	readonly flutter: number;
+	/** the bob (the flutter) of one flyer is the kind's x (its own size / size.near); absent or false: the kind's
+	 *  number for every flyer, whatever its size (the birds) */
+	readonly bobBySize?: boolean;
+	readonly flutterBySize?: boolean;
 	readonly band: { readonly y0: number; readonly y1: number };
 	readonly farBelow: number;
 	readonly formation: 'v' | 'scattered';
@@ -60,6 +76,11 @@ type FlyerSpec = {
 	readonly looseX: number;
 	readonly looseY: number;
 	readonly looseSpeed: number;
+	/** THE GAP (the bats; constants SKY.bats has the rule). Absent or 0: no flyer is kept from another (the birds) */
+	readonly minGapX?: number;
+	readonly minGapY?: number;
+	readonly gapTries?: number;
+	readonly gapPassS?: number;
 	readonly margin: number;
 	readonly exit: number;
 	readonly pool: number;
@@ -68,10 +89,40 @@ type FlyerSpec = {
 	readonly intervalMs: number;
 };
 export type FlyerKind = 'birds' | 'bats';
+export type SkyLayout = 'landscape' | 'portrait';
+type Band = { readonly y0: number; readonly y1: number };
+type FogBand = { readonly cell: number; readonly x: number; readonly y: number; readonly scale: number; readonly speed: number; readonly alpha: number };
+/** one scene's sky numbers: SKY's own for landscape, SKY through SKY.portrait for portrait */
+type SkyNumbers = {
+	readonly aurora: { readonly strength: number; readonly ribbons: number; readonly base: number; readonly spread: number; readonly height: number; readonly wave: number; readonly waveSpeed: number; readonly shimmer: number; readonly shimmerSpeed: number; readonly further: number; readonly ribbonPhase: number; readonly columns: number };
+	readonly clouds: { readonly count: number; readonly sets: 'two' | 'blended'; readonly band: Band; readonly scale: { readonly near: number; readonly far: number }; readonly speed: { readonly near: number; readonly far: number }; readonly alpha: { readonly near: number; readonly far: number }; readonly jitter: number; readonly direction: number; readonly spread: number; readonly lead: number };
+	readonly birds: FlyerSpec;
+	readonly bats: FlyerSpec;
+	readonly fog: { readonly bands: readonly FogBand[]; readonly breath: number; readonly breathMs: readonly number[]; readonly breathPhase: number; readonly bobPx: number; readonly bobMs: number };
+};
+
+/** a scene's sky numbers. Landscape: SKY as it stands. Portrait: SKY.portrait's own fields over SKY's (counts, bands,
+ *  positions), and every size and speed times its `scale` (constants SKY, `portrait`, has each rule). Built once per
+ *  SkyView. */
+export const skyNumbers = (layout: SkyLayout): SkyNumbers => {
+	if (layout === 'landscape') return SKY;
+	const P = SKY.portrait;
+	const k = P.scale;
+	const flyer = (B: FlyerSpec, band: Band): FlyerSpec => ({ ...B, band, size: { near: B.size.near * k, far: B.size.far * k }, speed: B.speed * k, bob: B.bob * k, flutter: B.flutter * k, looseX: B.looseX * k, looseY: B.looseY * k, margin: B.margin * k, exit: B.exit * k });
+	const C = SKY.clouds;
+	return {
+		aurora: { ...SKY.aurora, ...P.aurora, wave: SKY.aurora.wave * k },
+		clouds: { ...C, ...P.clouds, scale: { near: C.scale.near * k, far: C.scale.far * k }, speed: { near: C.speed.near * k, far: C.speed.far * k }, lead: C.lead * k },
+		birds: flyer(SKY.birds, P.birds.band),
+		bats: flyer(SKY.bats, P.bats.band),
+		fog: { ...SKY.fog, bobPx: SKY.fog.bobPx * k, bands: SKY.fog.bands.map((b, i) => ({ ...b, ...P.fog.bands[i], scale: b.scale * k, speed: b.speed * k })) },
+	};
+};
 
 const SETS = ['day', 'night'] as const;
 const TAU = Math.PI * 2;
-const FW = SCENE_SPEC.frame[0];
+/** the frame width the aurora's shape was tuned on: its folds keep this length in px in every scene */
+const AURORA_REF_W = SCENE_SPEC.frame[0];
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const jit = (share: number) => 1 + (Math.random() * 2 - 1) * share;
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -91,14 +142,27 @@ class Flyers {
 	flocks = 0;
 	refused = 0;
 	readonly last: FlockRoll = { id: 0, dir: 0, depth: 0.5, row: 0, n: 0, size: 0.5, v: 0.5, y0: 0.5, alpha: 0.5, x0: 0 };
+	/** THE GAP, counted: flyers rolled; of those, how many had their place rolled again (and how many rolls that took),
+	 *  were moved to a free lane (and of those, to the lane above the frame), were left out of their flock */
+	gapRolled = 0;
+	gapRerolled = 0;
+	gapRolls = 0;
+	gapMoved = 0;
+	gapHidden = 0;
+	gapDropped = 0;
+	/** DEV / probe: the gap rule left out of the rolls (gapRun's "before") */
+	private gapOff = false;
 
 	private rows: PIXI.Texture[][] = [];
+	/** per row of frames: its widest frame's width over its height (a flyer's drawn width is its size x this) */
+	private aspect: number[] = [];
 	private readonly pool: Bird[] = [];
 	/** seconds: this kind's own clock, and until its next flock */
 	private clock = 0;
 	private nextFlock: number;
 
-	constructor(readonly B: FlyerSpec) {
+	/** B: the kind's numbers for this scene; FW: the scene's frame width */
+	constructor(readonly B: FlyerSpec, private readonly FW: number) {
 		this.nextFlock = B.firstS;
 	}
 
@@ -106,6 +170,7 @@ class Flyers {
 	build(rows: PIXI.Texture[][]): void {
 		const B = this.B;
 		this.rows = rows;
+		this.aspect = rows.map((row) => row.reduce((m, t) => Math.max(m, t.width / t.height), 0));
 		for (let i = 0; i < B.pool; i += 1) {
 			const s = new PIXI.Sprite(rows[0][0]);
 			s.anchor.set(0.5);
@@ -114,7 +179,7 @@ class Flyers {
 			this.layer.addChild(s);
 			// the fractional fields start fractional: a whole number first would make the engine reshape the record the
 			// first time a flock uses it
-			this.pool.push({ s, live: false, dir: 1, frames: rows[0], v: 0.5, y0: 0.5, ph: 0.5, size: 0.5, flock: 0 });
+			this.pool.push({ s, live: false, dir: 1, frames: rows[0], v: 0.5, y0: 0.5, ph: 0.5, size: 0.5, flock: 0, bob: 0.5, fl: 0.5, w: 0.5 });
 		}
 		this.ready = true;
 	}
@@ -122,7 +187,12 @@ class Flyers {
 	/** one flock, the Angry Mantis roll. Returns false when the pool has no room for it (it is then not sent).
 	 *  formation 'v': each flyer `spacing` x the size behind and beside the last, all at the flock's speed.
 	 *  'scattered': each at a random place up to looseX behind the lead point and up to looseY above or below the
-	 *  flock's height, and at the flock's speed x (1 +- looseSpeed), so the group drifts apart. */
+	 *  flock's height, and at the flock's speed x (1 +- looseSpeed), so the group drifts apart.
+	 *  Each flyer's bob and flutter height are fixed here: the kind's number, x (its size / size.near) where the kind
+	 *  says bobBySize / flutterBySize (the size is the flock's by depth x the flyer's own jitter).
+	 *  THE GAP (a scattered kind with minGapX and minGapY, the bats): a flyer that would come too close to another
+	 *  (near) has its place rolled again up to gapTries times, then is left out of the flock, or, at the flock's
+	 *  minimum, moved to a free lane (lane). All of it here, once per flock; the tick knows nothing of it. */
 	spawn(): boolean {
 		const B = this.B;
 		const rows = this.rows.length;
@@ -133,7 +203,7 @@ class Flyers {
 		const row = t < B.farBelow && rows > 1 ? rows - 1 : Math.floor(Math.random() * bigRows);
 		const v = B.speed * lerp(B.speedByDepth[0], B.speedByDepth[1], t) * jit(B.jitter);
 		const y0 = lerp(B.band.y0, B.band.y1, Math.random());
-		const x0 = dir > 0 ? -B.margin : FW + B.margin;
+		const x0 = dir > 0 ? -B.margin : this.FW + B.margin;
 		const n = Math.round(lerp(B.flock.min, B.flock.max, Math.random()));
 		if (this.pool.length - this.live < n) {
 			this.refused += 1;
@@ -142,42 +212,156 @@ class Flyers {
 		this.flocks += 1;
 		const alpha = lerp(B.alpha[0], B.alpha[1], t);
 		const scattered = B.formation === 'scattered';
+		const gap = scattered && !this.gapOff && (B.minGapX ?? 0) > 0 && (B.minGapY ?? 0) > 0;
+		const tries = B.gapTries ?? 0;
+		/** how many of the flock may still be left out (never under the kind's minimum) */
+		let spare = n - B.flock.min;
+		/** i: flyers sent; rolled: flyers rolled (sent or left out) */
 		let i = 0;
-		for (let p = 0; p < this.pool.length && i < n; p += 1) {
+		let rolled = 0;
+		for (let p = 0; p < this.pool.length && rolled < n; p += 1) {
 			const b = this.pool[p];
 			if (b.live) continue;
-			b.live = true;
+			rolled += 1;
 			b.dir = dir;
 			b.frames = this.rows[row];
 			b.ph = Math.random() * 100;
 			b.size = size * lerp(B.sizeJitter[0], B.sizeJitter[1], Math.random());
+			b.w = b.size * this.aspect[row];
+			b.bob = B.bobBySize ? (B.bob * b.size) / B.size.near : B.bob;
+			b.fl = B.flutterBySize ? (B.flutter * b.size) / B.size.near : B.flutter;
 			b.flock = this.flocks;
 			if (scattered) {
 				b.v = v * (1 + (Math.random() * 2 - 1) * B.looseSpeed);
 				b.y0 = y0 + (Math.random() * 2 - 1) * B.looseY;
 				b.s.x = x0 - dir * Math.random() * B.looseX;
+				if (gap) {
+					this.gapRolled += 1;
+					if (this.near(b)) {
+						let k = 0;
+						let hit = true;
+						while (hit && k < tries) {
+							k += 1;
+							b.y0 = y0 + (Math.random() * 2 - 1) * B.looseY;
+							b.s.x = x0 - dir * Math.random() * B.looseX;
+							hit = this.near(b);
+						}
+						this.gapRerolled += 1;
+						this.gapRolls += k;
+						if (hit) {
+							if (spare > 0) {
+								// left out: it was never live, and is parked again
+								spare -= 1;
+								this.gapDropped += 1;
+								b.s.position.set(B.parkX, B.parkY);
+								continue;
+							}
+							this.gapMoved += 1;
+							this.lane(b, y0);
+						}
+					}
+				}
 			} else {
 				b.v = v;
 				b.y0 = y0 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * size * B.spacing.y;
 				b.s.x = x0 - dir * i * size * B.spacing.x;
 			}
+			b.live = true;
 			b.s.y = b.y0;
 			b.s.alpha = alpha;
 			i += 1;
 		}
-		this.live += n;
+		this.live += i;
 		const f = this.last;
 		f.id = this.flocks;
 		f.dir = dir;
 		f.depth = t;
 		f.row = row;
-		f.n = n;
+		f.n = i;
 		f.size = size;
 		f.v = v;
 		f.y0 = y0;
 		f.alpha = alpha;
 		f.x0 = x0;
 		return true;
+	}
+
+	/** THE GAP: would flyer `c` (not yet live: where it is, its lane y0, its speed) come too close to any flyer in
+	 *  flight, at any time from now while both are over the frame? Closed form, nothing allocated.
+	 *  Each flies straight at its own speed, so the distance between two along the flight is a straight line in time:
+	 *  the time they spend within minGapX x the larger one's width of each other is one interval, cut to the time both
+	 *  are over the frame (the frame plus that larger width each side). Across the flight each keeps to its envelope,
+	 *  its lane +- (bob + flutter + half its height): too close when the two envelopes are nearer than minGapY x the
+	 *  larger one's height. A flyer whose envelope is wholly above the frame is never seen and is close to nobody.
+	 *  gapPassS: that interval may be up to this long (0: no time at all). */
+	private near(c: Bird): boolean {
+		const B = this.B;
+		const FW = this.FW;
+		const gx = B.minGapX ?? 0;
+		const gy = B.minGapY ?? 0;
+		const pass = B.gapPassS ?? 0;
+		const ce = c.bob + c.fl + c.size / 2;
+		if (c.y0 + ce <= 0) return false;
+		for (let i = 0; i < this.pool.length; i += 1) {
+			const o = this.pool[i];
+			if (!o.live || o === c) continue;
+			const oe = o.bob + o.fl + o.size / 2;
+			if (o.y0 + oe <= 0) continue;
+			const dy = c.y0 > o.y0 ? c.y0 - o.y0 : o.y0 - c.y0;
+			if (dy - ce - oe >= gy * (c.size > o.size ? c.size : o.size)) continue;
+			const W = c.w > o.w ? c.w : o.w;
+			// the time both are over the frame, from now
+			let t0 = c.dir > 0 ? (-W - c.s.x) / c.v : (c.s.x - FW - W) / c.v;
+			let t1 = c.dir > 0 ? (FW + W - c.s.x) / c.v : (c.s.x + W) / c.v;
+			const o0 = o.dir > 0 ? (-W - o.s.x) / o.v : (o.s.x - FW - W) / o.v;
+			const o1 = o.dir > 0 ? (FW + W - o.s.x) / o.v : (o.s.x + W) / o.v;
+			if (o0 > t0) t0 = o0;
+			if (o1 < t1) t1 = o1;
+			if (t0 < 0) t0 = 0;
+			if (t1 <= t0) continue;
+			// the time they are within G of each other along the flight: |d + r t| < G
+			const G = gx * W;
+			const d = c.s.x - o.s.x;
+			const r = c.dir * c.v - o.dir * o.v;
+			if (r === 0) {
+				if ((d < 0 ? -d : d) < G && t1 - t0 > pass) return true;
+				continue;
+			}
+			let a0 = (-G - d) / r;
+			let a1 = (G - d) / r;
+			if (a0 > a1) {
+				const q = a0;
+				a0 = a1;
+				a1 = q;
+			}
+			if (a0 < t0) a0 = t0;
+			if (a1 > t1) a1 = t1;
+			if (a1 > a0 && a1 - a0 > pass) return true;
+		}
+		return false;
+	}
+
+	/** THE GAP, the last resort for a flyer its flock cannot spare: the free lane nearest the one it rolled, inside the
+	 *  flock's own looseY (yFlock: the flock's height); if there is none, the lane just above the frame, out of sight,
+	 *  which is free by the rule. Where it starts and its speed stay as rolled. */
+	private lane(b: Bird, yFlock: number): void {
+		const B = this.B;
+		const y = b.y0;
+		const lo = yFlock - B.looseY;
+		const hi = yFlock + B.looseY;
+		const step = b.size / 4 > 4 ? b.size / 4 : 4;
+		for (let k = 1; y - k * step >= lo || y + k * step <= hi; k += 1) {
+			if (y - k * step >= lo) {
+				b.y0 = y - k * step;
+				if (!this.near(b)) return;
+			}
+			if (y + k * step <= hi) {
+				b.y0 = y + k * step;
+				if (!this.near(b)) return;
+			}
+		}
+		this.gapHidden += 1;
+		b.y0 = -(b.bob + b.fl + b.size / 2) - 1;
 	}
 
 	private drop(b: Bird): void {
@@ -221,12 +405,13 @@ class Flyers {
 			const b = this.pool[i];
 			if (!b.live) continue;
 			b.s.x += b.dir * b.v * dt;
-			if (b.dir > 0 ? b.s.x > FW + B.exit : b.s.x < -B.exit) {
+			if (b.dir > 0 ? b.s.x > this.FW + B.exit : b.s.x < -B.exit) {
 				this.drop(b);
 				continue;
 			}
-			if (B.flutter !== 0) b.s.y = b.y0 + Math.sin(this.clock * B.bobRate + b.ph) * B.bob + Math.sin(this.clock * B.bobRate * 3.1 + b.ph * 2.3) * Math.sin(this.clock * 1.7 + b.ph) * B.flutter;
-			else b.s.y = b.y0 + Math.sin(this.clock * B.bobRate + b.ph) * B.bob;
+			// b.bob and b.fl: the flyer's own heights (spawn); for a kind without bobBySize they ARE B.bob and B.flutter
+			if (B.flutter !== 0) b.s.y = b.y0 + Math.sin(this.clock * B.bobRate + b.ph) * b.bob + Math.sin(this.clock * B.bobRate * 3.1 + b.ph * 2.3) * Math.sin(this.clock * 1.7 + b.ph) * b.fl;
+			else b.s.y = b.y0 + Math.sin(this.clock * B.bobRate + b.ph) * b.bob;
 			const tex = b.frames[Math.floor(this.clock * B.flapFps + b.ph) % b.frames.length];
 			if (b.s.texture !== tex) b.s.texture = tex; // a swap between resident frames, never a new texture
 			const sc = b.size / tex.height;
@@ -253,6 +438,102 @@ class Flyers {
 		return { seconds, flocks: this.flocks - flocks, refused: this.refused - refused, maxLive, pool: this.pool.length };
 	}
 
+	/** THE GAP, measured (the probe's numbers; the rule itself is spawn and near, this only watches). `seconds` of the
+	 *  kind's flock timer and flight at a full share in steps of `dt`, and AT EVERY STEP every pair of flyers whose
+	 *  sprites are both on the frame (FW x FH), from the sprites themselves as the tick left them (x, y with the bob and
+	 *  flutter of that step, the drawn width and height of that step's frame). A pair is INSIDE THE GAP when it is
+	 *  under gx x the larger width apart along the flight AND the clear space between the two (top of one to bottom of
+	 *  the other) is under gy x the larger height. Returned: the pair steps inside, the longest one pair stayed inside
+	 *  (s), the closest any pair came (`clearance`: the larger of its two distances over their limits, 1 = on the
+	 *  limit, under 1 = inside), the same for the centres alone in sizes (`centres`), the mean on the frame, the rule's
+	 *  counts, and what the flocks were (sizes of flock, and per flyer sent its place behind the lead and above or
+	 *  below as a share of looseX / looseY, its size over the flock's, its speed over the flock's: 12 bins each).
+	 *  `off`: the same with the rule left out of the rolls (what the sky was before it). Leaves none in flight. */
+	gapRun(seconds: number, dt: number, FH: number, gx: number, gy: number, off = false) {
+		const B = this.B;
+		const FW = this.FW;
+		const share = this.share;
+		const N = this.pool.length;
+		const lastIn = new Int32Array(N * N).fill(-2);
+		const since = new Float64Array(N * N);
+		const on: Bird[] = [];
+		const bins = () => new Array<number>(12).fill(0);
+		const bin = (h: number[], u: number) => (h[Math.max(0, Math.min(11, Math.floor(u * 12)))] += 1);
+		const c0 = { rolled: this.gapRolled, rerolled: this.gapRerolled, rolls: this.gapRolls, moved: this.gapMoved, hidden: this.gapHidden, dropped: this.gapDropped };
+		const flocks0 = this.flocks;
+		const refused0 = this.refused;
+		const out = { seconds, dt, steps: 0, inside: 0, longestS: 0, clearance: Infinity, centres: Infinity, worst: null as null | Record<string, number>, onFrame: 0, live: 0, maxLive: 0, pairs: 0, flocks: 0, refused: 0, sent: 0, flockSizes: new Array<number>(B.flock.max + 1).fill(0), along: bins(), across: bins(), size: bins(), speed: bins(), sizeSum: 0, speedSum: 0, outOfSight: 0, gap: c0 };
+		this.clear();
+		this.share = 1;
+		this.gapOff = off;
+		for (let t = 0, step = 0; t < seconds; t += dt, step += 1) {
+			const before = this.flocks;
+			this.tickBirds(dt);
+			if (this.flocks !== before) {
+				// the flock just sent, as rolled (the tick has moved it one step on since)
+				const f = this.last;
+				out.flockSizes[f.n] += 1;
+				for (const b of this.pool) {
+					if (!b.live || b.flock !== f.id) continue;
+					out.sent += 1;
+					bin(out.along, (Math.abs(b.s.x - b.dir * b.v * dt - f.x0) / (B.looseX || 1)) * 0.999999);
+					bin(out.across, (b.y0 - f.y0 + B.looseY) / (2 * B.looseY || 1));
+					bin(out.size, (b.size / f.size - B.sizeJitter[0]) / (B.sizeJitter[1] - B.sizeJitter[0]));
+					bin(out.speed, (b.v / f.v - (1 - B.looseSpeed)) / (2 * B.looseSpeed || 1));
+					out.sizeSum += b.size;
+					out.speedSum += b.v;
+					if (b.y0 + b.bob + b.fl + b.size / 2 <= 0) out.outOfSight += 1;
+				}
+			}
+			on.length = 0;
+			for (const b of this.pool) {
+				if (!b.live) continue;
+				const hw = Math.abs(b.s.width) / 2;
+				const hh = Math.abs(b.s.height) / 2;
+				if (b.s.x + hw > 0 && b.s.x - hw < FW && b.s.y + hh > 0 && b.s.y - hh < FH) on.push(b);
+			}
+			out.steps += 1;
+			out.onFrame += on.length;
+			out.live += this.live;
+			if (this.live > out.maxLive) out.maxLive = this.live;
+			for (let i = 0; i < on.length; i += 1) {
+				for (let j = i + 1; j < on.length; j += 1) {
+					const a = on[i];
+					const b = on[j];
+					const W = Math.max(Math.abs(a.s.width), Math.abs(b.s.width));
+					const H = Math.max(Math.abs(a.s.height), Math.abs(b.s.height));
+					const dx = Math.abs(a.s.x - b.s.x);
+					const dy = Math.abs(a.s.y - b.s.y);
+					const clear = dy - (Math.abs(a.s.height) + Math.abs(b.s.height)) / 2;
+					const c = Math.max(dx / (gx * W), clear / (gy * H));
+					const centre = Math.max(dx / W, dy / H);
+					out.pairs += 1;
+					if (centre < out.centres) out.centres = centre;
+					if (c < out.clearance) {
+						out.clearance = c;
+						out.worst = { t, dx, dy, clear, W, H, ax: a.s.x, ay: a.s.y, bx: b.s.x, by: b.s.y, aSize: a.size, bSize: b.size, av: a.dir * a.v, bv: b.dir * b.v, aFlock: a.flock, bFlock: b.flock };
+					}
+					if (c < 1) {
+						const k = this.pool.indexOf(a) * N + this.pool.indexOf(b);
+						if (lastIn[k] !== step - 1) since[k] = t;
+						lastIn[k] = step;
+						out.inside += 1;
+						if (t - since[k] + dt > out.longestS) out.longestS = t - since[k] + dt;
+					}
+				}
+			}
+		}
+		this.clear();
+		this.share = share;
+		this.gapOff = false;
+		out.flocks = this.flocks - flocks0;
+		out.refused = this.refused - refused0;
+		out.onFrame /= out.steps;
+		out.live /= out.steps;
+		out.gap = { rolled: this.gapRolled - c0.rolled, rerolled: this.gapRerolled - c0.rerolled, rolls: this.gapRolls - c0.rolls, moved: this.gapMoved - c0.moved, hidden: this.gapHidden - c0.hidden, dropped: this.gapDropped - c0.dropped };
+		return out;
+	}
+
 	/** which texture source this kind draws from: its label (the file's URL), the frame names' prefixes, and whether
 	 *  any frame of its rows or any sprite of its pool is of another source */
 	drawsFrom() {
@@ -275,12 +556,15 @@ class Flyers {
 			live: this.live,
 			pool: this.pool.length,
 			nextFlockS: this.nextFlock,
+			/** the kind's own clock (s): with a flyer's ph, bob and flutter the probe works out where it must be */
+			clock: this.clock,
 			flocks: this.flocks,
 			refused: this.refused,
+			gap: { rolled: this.gapRolled, rerolled: this.gapRerolled, rolls: this.gapRolls, moved: this.gapMoved, hidden: this.gapHidden, dropped: this.gapDropped },
 			last: { ...this.last },
 			/** slot: its place in the pool (a flyer keeps it from take-off to landing) */
 			list: this.pool
-				.map((b, slot) => ({ x: b.s.x, y: b.s.y, w: Math.abs(b.s.width), h: Math.abs(b.s.height), alpha: b.s.alpha, visible: b.s.visible, live: b.live, slot, dir: b.dir, v: b.v, y0: b.y0, size: b.size, flock: b.flock, row: this.rows.indexOf(b.frames), frame: b.frames.indexOf(b.s.texture), flipped: b.s.scale.x < 0 }))
+				.map((b, slot) => ({ x: b.s.x, y: b.s.y, w: Math.abs(b.s.width), h: Math.abs(b.s.height), alpha: b.s.alpha, visible: b.s.visible, live: b.live, slot, dir: b.dir, v: b.v, y0: b.y0, size: b.size, bob: b.bob, flutter: b.fl, ph: b.ph, flock: b.flock, row: this.rows.indexOf(b.frames), frame: b.frames.indexOf(b.s.texture), flipped: b.s.scale.x < 0 }))
 				.filter((b) => b.live),
 			parked: this.pool.filter((b) => !b.live).map((b) => ({ x: b.s.x, y: b.s.y, alpha: b.s.alpha, visible: b.s.visible })),
 		};
@@ -291,13 +575,18 @@ export class SkyView {
 	readonly aurora = new PIXI.Container();
 	readonly clouds = new PIXI.Container();
 	readonly ridge = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
-	private readonly birdFlyers = new Flyers(SKY.birds);
-	private readonly batFlyers = new Flyers(SKY.bats);
-	readonly birds = this.birdFlyers.layer;
-	readonly bats = this.batFlyers.layer;
+	/** this scene's numbers (skyNumbers), its frame width, its cut-out's box and the cut-outs' asset key prefix */
+	readonly N: SkyNumbers;
+	private readonly FW: number;
+	private readonly box: readonly number[];
+	private readonly prefix: string;
+	private readonly birdFlyers: Flyers;
+	private readonly batFlyers: Flyers;
+	readonly birds: PIXI.Container;
+	readonly bats: PIXI.Container;
 	readonly fog = new PIXI.Container();
 	/** every layer, in draw order */
-	readonly layers: PIXI.Container[] = [this.aurora, this.clouds, this.ridge[0], this.ridge[1], this.birds, this.bats, this.fog];
+	readonly layers: PIXI.Container[];
 
 	private readonly ridgeReady = [false, false];
 	private atlasReady = false;
@@ -310,6 +599,8 @@ export class SkyView {
 	private readonly auroraCols: PIXI.Sprite[] = [];
 	private auroraReady = false;
 	private auroraCellH = 1.5;
+	/** u per column: 2 pi over the landscape frame's width, in steps of one column */
+	private auroraU = 0.5;
 
 	/** the look last given by the scene: night 0 .. 1, and the aurora's level (1 in EPIC) */
 	private night = 0;
@@ -323,15 +614,24 @@ export class SkyView {
 	frozen = false;
 	steps = 0;
 
-	constructor() {
+	constructor(readonly layout: SkyLayout = 'landscape') {
+		const spec = layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT;
+		this.N = skyNumbers(layout);
+		this.FW = spec.frame[0];
+		this.box = spec.sky.ridge;
+		this.prefix = layout === 'landscape' ? 'scene' : 'scenep';
+		this.birdFlyers = new Flyers(this.N.birds, this.FW);
+		this.batFlyers = new Flyers(this.N.bats, this.FW);
+		this.birds = this.birdFlyers.layer;
+		this.bats = this.batFlyers.layer;
+		this.layers = [this.aurora, this.clouds, this.ridge[0], this.ridge[1], this.birds, this.bats, this.fog];
 		const names = ['sky-aurora', 'sky-clouds', 'sky-ridge-day', 'sky-ridge-night', 'sky-birds', 'sky-bats', 'sky-fog'];
 		this.layers.forEach((layer, i) => {
 			layer.label = names[i];
 			layer.visible = false;
 		});
 		this.clouds.sortableChildren = true; // nearer clouds draw over farther ones
-		const [x0, y0] = SCENE_SPEC.sky.ridge;
-		for (const sprite of this.ridge) sprite.position.set(x0, y0);
+		for (const sprite of this.ridge) sprite.position.set(this.box[0], this.box[1]);
 	}
 
 	/** the day files are in: the day cut-out, the wisp and fog atlas, the birds. Each part builds by itself; a part
@@ -350,11 +650,16 @@ export class SkyView {
 		if (!this.batFlyers.ready && tex[`${SKY.bats.frames}_0_0.png`]) this.buildFlyers(this.batFlyers, this.batRows, SKY.bats.frames, tex);
 	}
 
+	/** nothing is left to come: both cut-outs, the atlas (clouds, fog, aurora), the birds and the bats are built */
+	get complete(): boolean {
+		return this.ridgeReady[0] && this.ridgeReady[1] && this.atlasReady && this.auroraReady && this.birdFlyers.ready && this.batFlyers.ready;
+	}
+
 	private setRidge(i: number, tex: Textures): void {
-		const texture = tex[`scene_ridge_${SETS[i]}`];
+		const texture = tex[`${this.prefix}_ridge_${SETS[i]}`];
 		if (!texture || this.ridgeReady[i]) return;
 		this.ridge[i].texture = texture;
-		this.ridge[i].scale.set((SCENE_SPEC.sky.ridge[2] - SCENE_SPEC.sky.ridge[0]) / texture.width);
+		this.ridge[i].scale.set((this.box[2] - this.box[0]) / texture.width);
 		this.ridgeReady[i] = true;
 	}
 
@@ -364,7 +669,7 @@ export class SkyView {
 			const t = tex[`sky_wisp_${k}`];
 			if (t) this.wisps.push(t);
 		}
-		for (let n = 0; n < SKY.clouds.count; n += 1) {
+		for (let n = 0; n < this.N.clouds.count; n += 1) {
 			const s = new PIXI.Sprite(this.wisps[n % this.wisps.length]);
 			s.anchor.set(0.5);
 			// two sets: the even ones are the far set, the odd ones the near set, for good (23 clouds: 12 far, 11 near)
@@ -373,7 +678,7 @@ export class SkyView {
 			this.clouds.addChild(s);
 			this.cloudList.push(cloud);
 		}
-		for (const band of SKY.fog.bands) {
+		for (const band of this.N.fog.bands) {
 			const t = tex[`sky_fog_${band.cell}`];
 			if (!t) continue;
 			const s = new PIXI.Sprite(t);
@@ -391,9 +696,10 @@ export class SkyView {
 	 *  and twice that wide (the cell's alpha is a triangle across: neighbours overlap by half and sum to 1), additive,
 	 *  standing on their lower edge. Their x and width never change; a write sets lower edge, height and opacity. */
 	private buildAurora(cell: PIXI.Texture): void {
-		const A = SKY.aurora;
-		const step = FW / A.columns;
+		const A = this.N.aurora;
+		const step = this.FW / A.columns;
 		this.auroraCellH = cell.height;
+		this.auroraU = (step / AURORA_REF_W) * TAU;
 		for (let r = 0; r < A.ribbons; r += 1) {
 			for (let c = 0; c <= A.columns; c += 1) {
 				const s = new PIXI.Sprite(cell);
@@ -410,14 +716,16 @@ export class SkyView {
 	}
 
 	/** every column of every curtain at `t` seconds: the playground's reference formulas (sky-playground_reference.html,
-	 *  "P.aurora"). u runs 0 .. 2 pi along the frame; the numbers that multiply u and the clocks are the curtain's
-	 *  shape (how many folds, streaks and swells there are along the frame and which way each drifts). */
+	 *  "P.aurora"). u runs 0 .. 2 pi along the LANDSCAPE frame's width (a narrower frame shows the first part of the
+	 *  same curtain); the numbers that multiply u and the clocks are the curtain's shape (how many folds, streaks and
+	 *  swells there are along that width and which way each drifts). */
 	private writeAurora(t: number): void {
-		const A = SKY.aurora;
+		const A = this.N.aurora;
 		const n = A.columns;
+		const du = this.auroraU;
 		const tw = t * A.waveSpeed;
 		const ts = t * A.shimmerSpeed;
-		const bottom = SCENE_SPEC.sky.ridge[3];
+		const bottom = this.box[3];
 		const cellH = this.auroraCellH;
 		let i = 0;
 		for (let r = 0; r < A.ribbons; r += 1) {
@@ -425,7 +733,7 @@ export class SkyView {
 			const k = A.strength * (r ? A.further : 1);
 			const y0 = A.base - r * A.spread;
 			for (let c = 0; c <= n; c += 1) {
-				const u = (c / n) * TAU;
+				const u = c * du;
 				const s = this.auroraCols[i];
 				i += 1;
 				const yb = y0 + A.wave * (Math.sin(u * 1.3 + tw + ph) + 0.5 * Math.sin(u * 2.9 - tw * 1.7 + ph * 1.3));
@@ -467,8 +775,9 @@ export class SkyView {
 	 *  near one, the cloud's own for good; blended: the roll); y anywhere in the band, held clear of the cut-out's
 	 *  lower edge (under it nothing would hide a cloud from the land) */
 	private roll(c: Cloud, entering: boolean): void {
-		const C = SKY.clouds;
+		const C = this.N.clouds;
 		const spec = SCENE_SPEC.sky;
+		const FW = this.FW;
 		const t = Math.random();
 		const two = C.sets === 'two';
 		const d = two ? c.near : t;
@@ -481,7 +790,7 @@ export class SkyView {
 		c.s.alpha = lerp(C.alpha.far, C.alpha.near, d);
 		c.v = lerp(C.speed.far, C.speed.near, d) * jit(C.jitter);
 		const halfH = (c.s.texture.height * scale) / 2;
-		c.s.y = Math.min(lerp(C.band.y0, C.band.y1, Math.random()), spec.ridge[3] - halfH);
+		c.s.y = Math.min(lerp(C.band.y0, C.band.y1, Math.random()), this.box[3] - halfH);
 		const half = (c.s.texture.width * scale) / 2;
 		// fresh clouds enter from the upwind edge; the first fill spreads them across the whole run
 		c.s.x = entering ? (C.direction > 0 ? -half - Math.random() * C.lead : FW + half + Math.random() * C.lead) : -half + Math.random() * C.spread - C.lead;
@@ -533,14 +842,15 @@ export class SkyView {
 		this.steps += 1;
 		if (this.auroraReady && this.auroraLevel > 0 && !this.auroraHeld) this.writeAurora(now / 1000);
 		if (!this.atlasReady) return;
-		const dir = SKY.clouds.direction;
+		const FW = this.FW;
+		const dir = this.N.clouds.direction;
 		for (let i = 0; i < this.cloudList.length; i += 1) {
 			const c = this.cloudList[i];
 			c.s.x += dir * c.v * dt;
 			const half = Math.abs(c.s.width) / 2;
 			if ((dir > 0 && c.s.x - half > FW) || (dir < 0 && c.s.x + half < 0)) this.roll(c, true);
 		}
-		const F = SKY.fog;
+		const F = this.N.fog;
 		for (let i = 0; i < this.fogList.length; i += 1) {
 			const f = this.fogList[i];
 			const half = Math.abs(f.s.width) / 2;
@@ -590,12 +900,17 @@ export class SkyView {
 		return this.flyers(kind).run(seconds, dt);
 	}
 
+	/** THE GAP measured over `seconds` of one kind run at once (see Flyers.gapRun); FH: the scene's frame height */
+	gapRun(kind: FlyerKind, seconds: number, dt: number, FH: number, gx: number, gy: number, off = false) {
+		return this.flyers(kind).gapRun(seconds, dt, FH, gx, gy, off);
+	}
+
 	/** the aurora held as the probe wants it (the seam test): every column of the first curtain with its lower edge at
 	 *  `y`, `h` tall, at `alpha`, the other curtains dark; held until auroraFlat() with no height */
 	auroraFlat(y = 0, h = 0, alpha = 1): void {
 		this.auroraHeld = h > 0;
 		if (!this.auroraHeld) return;
-		const n = SKY.aurora.columns + 1;
+		const n = this.N.aurora.columns + 1;
 		for (let i = 0; i < this.auroraCols.length; i += 1) {
 			const s = this.auroraCols[i];
 			s.y = y;
@@ -617,7 +932,7 @@ export class SkyView {
 			const c = this.cloudList[i];
 			const half = Math.abs(c.s.width) / 2;
 			const u = (((i / n + phase) % 1) + 1) % 1;
-			c.s.x = -half + u * (FW + 2 * half);
+			c.s.x = -half + u * (this.FW + 2 * half);
 		}
 	}
 
@@ -643,7 +958,8 @@ export class SkyView {
 			frozen: this.frozen,
 			night: this.night,
 			layers: this.layers.map((l) => ({ name: l.label, visible: l.visible, alpha: l.alpha, tint: l.tint, children: l.children.length })),
-			ridge: { box: SCENE_SPEC.sky.ridge, textures: this.ridge.map((s) => [s.texture.width, s.texture.height]), drawn: this.ridge.map((s) => [s.x, s.y, s.width, s.height]) },
+			layout: this.layout,
+			ridge: { box: this.box, textures: this.ridge.map((s) => [s.texture.width, s.texture.height]), drawn: this.ridge.map((s) => [s.x, s.y, s.width, s.height]) },
 			/** depth: what drives size, speed and opacity (two sets: 0 far, 1 near); roll: the cloud's own random roll,
 			 *  new at every wrap; set: 0 far, 1 near (by the cloud's place in the list); z: its draw order */
 			clouds: this.cloudList.map((c) => ({ ...box(c.s), depth: c.d, roll: c.t, set: c.near, z: c.s.zIndex, v: c.v, cell: c.k, scale: Math.abs(c.s.scale.x) / (SCENE_SPEC.sky.wisp[0] / c.s.texture.width) })),

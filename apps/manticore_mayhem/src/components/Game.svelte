@@ -26,6 +26,7 @@
 	import LoadingScreen from './LoadingScreen.svelte';
 	import Board from './Board.svelte';
 	import BoardFrame from './BoardFrame.svelte';
+	import CreatureFront from './CreatureFront.svelte';
 	import SpinWin from './SpinWin.svelte';
 	import SkipButton from './SkipButton.svelte';
 	import ModePlaque from './ModePlaque.svelte';
@@ -171,11 +172,13 @@
 				<BoardFrame />
 				<Board />
 			</MainContainer>
+			<!-- the creature, where he stands IN FRONT of the board (desktop, portrait tablet): over the board, under
+			     everything below this line and under the HTML HUD -->
+			<CreatureFront />
 
 			<!-- ALWAYS MOUNTED, visibility-toggled (house rule: the conditional-mount z-order trap).
 			     Order here is the z-order: readouts, then the plaque, then the presentations. -->
 			<SpinWin />
-			<SkipButton />
 			<ModePlaque />
 			<!-- the animated win plaque: the Big Win and above screen, the feature intro and the wrap up
 			     (driven by Win / ModePlaque / FreeSpinOutro through StingerPlaque.svelte's `stingerPlaque.flow`) -->
@@ -193,6 +196,8 @@
 <!-- HTML chrome: control bar, feature menu, bet picker, game info -->
 {#if !redirecting}
 	<Chrome />
+	<!-- the SKIP button and its prompt: HTML over the canvas and the HUD, so the creature never covers it -->
+	<SkipButton />
 	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
 		<LandingScreen onpress={() => (landingPressed = true)} />
 	{/if}

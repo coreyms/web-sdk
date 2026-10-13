@@ -1,10 +1,10 @@
 // THE COURTYARD SCENE: raw Pixi in one container, in px of the scene's own frame (game/sceneSpec.ts;
 // components/Background.svelte cover-fits it to the canvas). There are TWO scenes, one SceneView each: 'landscape'
-// (2560 x 1440, the landscape and phone sideways layouts) and 'portrait' (1440 x 2560: backdrop, foreground and fire
-// pass only, it has no moving pieces). Back to front, the scene agent's own order:
+// (2560 x 1440, the landscape and phone sideways layouts) and 'portrait' (1440 x 2560: backdrop, the ambient sky,
+// foreground and fire pass; no flames and no chains). Back to front, the scene agent's own order:
 //   backdrop day, night     the painting, opaque
-//   THE AMBIENT SKY         landscape only (game/sky.ts, constants SKY): clouds, the ridge cut-out day and night
-//                           (the backdrop's own skyline again, over the clouds), birds, canyon fog
+//   THE AMBIENT SKY         both scenes (game/sky.ts, constants SKY, SKY.portrait): aurora, clouds, the ridge cut-out
+//                           day and night (the backdrop's own skyline again, over the clouds), birds, bats, canyon fog
 //   foreground day, night   the 3D courtyard with alpha, no fire light, no moving chains
 //   fire                    the braziers' light alone, on black, ADDITIVE. One pass for every mode: its level, the
 //                           flicker, the EPIC red and the dim are all its tint
@@ -13,6 +13,13 @@
 //                           that hide each flame's base behind its bowl
 //   chains day, night       per set: swag L R (MeshSimple strips), ring L R (sprites turning about the knocker's
 //                           mouth), hanging chain L R (strips)
+// THE FOREGROUND CONTAINER (constants FOREGROUND_KICK): everything from "foreground day" down this list is in ONE
+// container, `SceneView.foreground`, over the sky. A board kick shoves that container and nothing else (the same
+// offset as the board, the same frame: featureFx.shoveForeground), and it is drawn a little oversize about the
+// frame's centre so the shove never shows an edge. The backdrops and the sky's layers are the root's own children
+// and never move. THE CREATURE (game/creature.ts, constants CREATURE) is in it: his shadow always, his body where he
+// stands behind the board; where he stands in front of it his body is in `frontForeground`, the foreground's twin in a
+// second root above the board, laid by the same call from the same numbers (see `front`).
 // A night layer sits over its day twin and fades in over it (the two foregrounds share their outline); whichever
 // of the two is fully covered or fully transparent is not drawn at all.
 //
@@ -82,6 +89,8 @@ export const clearSceneLight = (): void => {
 };
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+/** the creature's nodes (game/creature.ts) are guests in the foreground: the scene's own readouts leave them out */
+export const isCreature = (node: PIXI.Container) => typeof node.label === 'string' && node.label.startsWith('creature-');
 const rgb = (r: number, g: number, b: number) => (Math.round(clamp01(r) * 255) << 16) | (Math.round(clamp01(g) * 255) << 8) | Math.round(clamp01(b) * 255);
 /** sum of weight sin(2 pi t / period + phase) over [period ms, weight, phase] terms: -1 .. 1 */
 const slow = (terms: Terms, ms: number): number => {
@@ -184,8 +193,23 @@ export class SceneView {
 	private readonly fore = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
 	private readonly fire = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	private readonly sets = SETS.map(() => new PIXI.Container());
-	/** the ambient sky (landscape only), between the backdrops and the foregrounds */
-	readonly sky: SkyView | null;
+	/** THE FOREGROUND (constants FOREGROUND_KICK): the foregrounds, the fire pass, the flames' layers and the chain
+	 *  sets, in frame px. The ONE thing a board kick moves in the scene; a foreground creature is added to it. */
+	readonly foreground = new PIXI.Container();
+	/** THE FOREGROUND AGAIN, IN FRONT OF THE BOARD (the creature, where he stands before it: constants CREATURE). `front`
+	 *  is this scene's second root (components/CreatureFront.svelte puts it on the stage above the board) and takes the
+	 *  root's place, scale, opacity and visibility; `frontForeground` in it takes the foreground's oversize and kick.
+	 *  Both pairs are written by the same two methods from the same numbers (place, layForeground), so anything in
+	 *  `frontForeground` is where it would be in `foreground`, on every frame. */
+	readonly front = new PIXI.Container();
+	readonly frontForeground = new PIXI.Container();
+	/** the frame's height; the foreground's oversize (1 = none) and the kick it holds, canvas px */
+	private readonly fh: number;
+	private over = 1;
+	private kickX = 0;
+	private kickY = 0;
+	/** the ambient sky, between the backdrops and the foregrounds (each scene its own, the atlas, birds and bats shared) */
+	readonly sky: SkyView;
 	/** the brazier flames (landscape only), over the fire pass and under the chains */
 	readonly flames: FlameView | null;
 	/** the moving pieces (landscape only): every use is behind `hasChains` */
@@ -237,6 +261,7 @@ export class SceneView {
 		this.tier = tier;
 		this.hasChains = layout === 'landscape';
 		this.fw = (layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).frame[0];
+		this.fh = (layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).frame[1];
 		this.prefix = layout === 'landscape' ? 'scene' : 'scenep';
 		const root = this.root;
 		root.label = layout === 'landscape' ? 'scene' : 'scene-portrait';
@@ -244,18 +269,30 @@ export class SceneView {
 		root.eventMode = 'none';
 		root.interactiveChildren = false;
 		this.fire.blendMode = 'add';
-		this.sky = layout === 'landscape' ? new SkyView() : null;
+		this.sky = new SkyView(layout);
 		this.flames = layout === 'landscape' ? new FlameView(tier) : null;
 		root.addChild(this.backdrop[0], this.backdrop[1]);
-		if (this.sky) root.addChild(...this.sky.layers);
-		root.addChild(this.fore[0], this.fore[1], this.fire);
-		if (this.flames) root.addChild(...this.flames.layers);
+		root.addChild(...this.sky.layers);
+		// the foreground container: foregrounds, fire pass, flames, then (below) the chain sets.
+		// THE CREATURE JOINS HERE (components/Background.svelte attaches game/creature.ts's two nodes to the scene of the
+		// current layout, over the chains): frame px like everything in it, and the board's kick moves him with the floor.
+		const fg = this.foreground;
+		fg.label = 'scene-foreground';
+		root.addChild(fg);
+		this.front.label = layout === 'landscape' ? 'scene-front' : 'scene-portrait-front';
+		this.frontForeground.label = 'scene-front-foreground';
+		this.front.visible = false;
+		this.front.eventMode = 'none';
+		this.front.interactiveChildren = false;
+		this.front.addChild(this.frontForeground);
+		fg.addChild(this.fore[0], this.fore[1], this.fire);
+		if (this.flames) fg.addChild(...this.flames.layers);
 		for (const s of [...this.backdrop, ...this.fore, this.fire, ...this.sets]) s.visible = false;
 		this.setValues(this.cur, 'base', SCENE.dim.base, false);
 		// portrait: no knockers, no chains
 		this.chains = this.hasChains ? this.buildChains(tier) : (null as unknown as Record<'L' | 'R', Chain>);
 		if (this.hasChains) for (const side of SIDES) this.pivotPts[side].set(SCENE_SPEC.points[side].pivot[0], SCENE_SPEC.points[side].pivot[1]);
-		if (this.hasChains) root.addChild(this.sets[0], this.sets[1]);
+		if (this.hasChains) fg.addChild(this.sets[0], this.sets[1]);
 	}
 
 	private buildChains(tier: SceneTier): Record<'L' | 'R', Chain> {
@@ -338,7 +375,7 @@ export class SceneView {
 		if (!this.setLayers(0, tex) || !fire) return false;
 		this.fire.texture = fire;
 		this.fire.scale.set(this.fw / fire.width);
-		this.sky?.setDay(tex);
+		this.sky.setDay(tex);
 		this.flames?.setTextures(tex);
 		this.dayReady = true;
 		this.fire.visible = true;
@@ -350,10 +387,23 @@ export class SceneView {
 	setNight(tex: Textures, now: number): boolean {
 		if (this.nightReady) return true;
 		if (!this.setLayers(1, tex)) return false;
-		this.sky?.setNight(tex);
+		this.sky.setNight(tex);
 		this.nightReady = true;
 		if (this.wantNight) this.mode(this.family, this.to[DIM], now);
 		return true;
+	}
+
+	/** THE SKY's files that landed after their set did (the atlas, the birds and the bats are one copy for both scenes
+	 *  and load with the scene the game booted in: a scene fetched at a turn can have its own day or night set before
+	 *  the bats' sheet is in). Whatever is in `tex` now is built. Returns true once the sky has everything. */
+	setSky(tex: Textures): boolean {
+		const sky = this.sky;
+		if (sky.complete) return true;
+		if (!this.dayReady) return false;
+		sky.setDay(tex);
+		if (this.nightReady) sky.setNight(tex);
+		this.apply();
+		return sky.complete;
 	}
 
 	/** the flames' files: whatever of them is in `tex` is built (the base clip and the rim cuts come with the day set,
@@ -395,25 +445,74 @@ export class SceneView {
 	sources(): PIXI.TextureSource[] {
 		const out = new Set<PIXI.TextureSource>();
 		for (const s of [...this.backdrop, ...this.fore, this.fire, ...(this.hasChains ? this.chains.L.ring : [])]) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
-		this.sky?.sources(out);
+		this.sky.sources(out);
 		this.flames?.sources(out);
 		return [...out];
 	}
 
 	/** let the GPU copies go while the other layout's scene is showing (the decoded images stay, so nothing is
-	 *  downloaded or decoded again): Pixi uploads a source again the next time it is drawn. Returns how many. */
-	release(): number {
+	 *  downloaded or decoded again): Pixi uploads a source again the next time it is drawn. `keep`: the sources of the
+	 *  scene that IS showing; what this one shares with it (the sky's atlas, the birds, the bats) stays on the GPU, it
+	 *  is being drawn. Returns how many of its sources it had. */
+	release(keep: readonly PIXI.TextureSource[] = []): number {
 		if (this.released) return 0;
 		const list = this.sources();
-		for (const source of list) source.unload();
+		for (const source of list) if (!keep.includes(source)) source.unload();
 		this.released = list.length > 0;
 		return list.length;
 	}
 
-	/** cover fit: the frame's top-left corner on the canvas and canvas px per frame px */
-	place(x: number, y: number, scale: number): void {
+	/** cover fit: the frame's top-left corner on the canvas and canvas px per frame px. `over`: the foreground's
+	 *  oversize about the frame's centre (FOREGROUND_KICK; 1 = drawn at the frame's own size) */
+	place(x: number, y: number, scale: number, over = 1): void {
 		this.root.position.set(x, y);
 		this.root.scale.set(scale);
+		this.front.position.set(x, y);
+		this.front.scale.set(scale);
+		this.over = over;
+		this.layForeground();
+	}
+
+	/** THE FOREGROUND KICK: the board's kick this frame, in CANVAS px (featureFx.shoveForeground) */
+	kick(x: number, y: number): void {
+		if (x === this.kickX && y === this.kickY) return;
+		this.kickX = x;
+		this.kickY = y;
+		this.layForeground();
+	}
+
+	/** the foreground container: oversize about the frame's centre, plus the kick (canvas px to frame px) */
+	private layForeground(): void {
+		const k = this.root.scale.x || 1;
+		const x = (this.fw * (1 - this.over)) / 2 + this.kickX / k;
+		const y = (this.fh * (1 - this.over)) / 2 + this.kickY / k;
+		this.foreground.scale.set(this.over);
+		this.foreground.position.set(x, y);
+		// the same numbers, the same call: what stands in front of the board is shoved with the floor
+		this.frontForeground.scale.set(this.over);
+		this.frontForeground.position.set(x, y);
+	}
+
+	/** drawn or not: the root and its twin in front of the board */
+	show(on: boolean): void {
+		this.root.visible = on;
+		this.front.visible = on;
+	}
+
+	/** DEV / probe: where the foreground is (frame px in the root), its oversize, and the kick it holds (canvas px) */
+	foregroundState() {
+		const f = this.foreground;
+		const k = this.root.scale.x || 1;
+		const rx = (this.fw * (1 - this.over)) / 2;
+		const ry = (this.fh * (1 - this.over)) / 2;
+		// (the creature's two nodes are his own, game/creature.ts: not counted among the scene's layers)
+		return { over: this.over, x: f.x, y: f.y, rest: { x: rx, y: ry }, kick: { x: this.kickX, y: this.kickY }, drawn: { x: (f.x - rx) * k, y: (f.y - ry) * k }, children: f.children.filter((ch) => !isCreature(ch)).length, front: { x: this.frontForeground.x, y: this.frontForeground.y, scale: this.frontForeground.scale.x, rootX: this.front.x, rootY: this.front.y, rootScale: this.front.scale.x, alpha: this.front.alpha, visible: this.front.visible } };
+	}
+
+	/** DEV / probe: the place (frame px in the root) of everything that must stay still under a kick: the root's own
+	 *  children but the foreground, i.e. the backdrops and every sky layer, the fog included */
+	stillLayers(): { name: string; x: number; y: number }[] {
+		return this.root.children.filter((ch) => ch !== this.foreground).map((ch) => ({ name: ch.label || (this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : 'layer'), x: ch.x, y: ch.y }));
 	}
 
 	private setValues(out: Float64Array, family: SceneFamily, dim: number, show: boolean): void {
@@ -481,6 +580,7 @@ export class SceneView {
 		this.to[SHOW] = 0;
 		this.fadeAt = -1;
 		this.root.alpha = 0;
+		this.front.alpha = 0;
 	}
 
 	get shown(): boolean {
@@ -507,7 +607,8 @@ export class SceneView {
 			if (i === 1) this.backdrop[i].alpha = this.fore[i].alpha = this.sets[i].alpha = night;
 		}
 		this.root.alpha = c[SHOW];
-		this.sky?.look(night, this.backdrop[0].visible, this.backdrop[1].visible, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS], c[BATS], c[AURORA]);
+		this.front.alpha = c[SHOW];
+		this.sky.look(night, this.backdrop[0].visible, this.backdrop[1].visible, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS], c[BATS], c[AURORA]);
 		this.flames?.look(c[FLAME_W], c[FLAME_W + 1], c[FLAME_W + 2], night, this.fore[0].visible, this.fore[1].visible, dim, fore, c[EMBERS], c[EMBER_TINT], c[EMBER_TINT + 1], c[EMBER_TINT + 2]);
 		this.applyFire();
 	}
@@ -613,12 +714,11 @@ export class SceneView {
 		}
 		if (look) this.apply();
 		if (chainsDirty) this.writeChains();
-		this.sky?.tick(now);
+		this.sky.tick(now);
 	}
 
 	/** DEV / probe: the ambient sky's layers hidden or back (the look is applied again at once) */
 	hideSky(on: boolean): void {
-		if (!this.sky) return;
 		this.sky.hide(on);
 		this.apply();
 	}
@@ -667,8 +767,8 @@ export class SceneView {
 			this.dirR = 1;
 			return;
 		}
-		this.dirL = this.root.toGlobal(this.pivotPts.L, this.gp).x >= sourceX ? 1 : -1;
-		this.dirR = this.root.toGlobal(this.pivotPts.R, this.gp).x >= sourceX ? 1 : -1;
+		this.dirL = this.foreground.toGlobal(this.pivotPts.L, this.gp).x >= sourceX ? 1 : -1;
+		this.dirR = this.foreground.toGlobal(this.pivotPts.R, this.gp).x >= sourceX ? 1 : -1;
 	}
 
 	/** DEV / probe: the per-frame read of tools/manticore/chain_gust_probe.js (state() is too much for every frame) */
@@ -757,6 +857,8 @@ export class SceneView {
 		const c = this.cur;
 		const night = this.nightReady ? c[NIGHT] : 0;
 		const set = night >= 0.5 ? 1 : 0;
+		/** the layers bottom to top as they are drawn: the root's children, the foreground container opened out */
+		const layers = this.root.children.flatMap((ch) => (ch === this.foreground ? this.foreground.children.filter((x) => !isCreature(x)) : [ch]));
 		const chain = (side: 'L' | 'R') => {
 			const ch = this.chains[side];
 			const hv = ch.hang.meshes[set].vertices as Float32Array;
@@ -808,12 +910,15 @@ export class SceneView {
 			/** THE GUSTS: the lagged pulse (playground px), each side's lean, the gusts held that have not started yet */
 			gust: { g: this.g, pulse: this.gustRaw, dirL: this.dirL, dirR: this.dirR, pending: this.gustLive.filter((x) => this.gustAt < gustStart(x, CHAIN_GUST.sceneLagMs)).length, live: this.gustLive.length, startAt: this.gustStartAt, at: this.gustAt },
 			layout: this.layout,
+			/** THE FOREGROUND KICK: the container's place, oversize and kick; what the root itself holds, bottom to top */
+			foreground: this.foregroundState(),
+			rootOrder: this.root.children.map((ch) => ch.label || 'sprite'),
 			released: this.released,
 			chains: this.hasChains ? { L: chain('L'), R: chain('R') } : null,
 			/** the root's children, bottom to top, with what each draws */
-			order: this.root.children.filter((ch) => !this.sky?.layers.includes(ch as PIXI.Container) && !this.flames?.layers.includes(ch as PIXI.Container)).map((ch) => `${ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`}${ch.visible ? '' : ' (off)'}`),
+			order: layers.filter((ch) => !this.sky.layers.includes(ch as PIXI.Container) && !this.flames?.layers.includes(ch as PIXI.Container)).map((ch) => `${ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`}${ch.visible ? '' : ' (off)'}`),
 			/** every child of the root, the ambient sky's and the flames' layers included, bottom to top */
-			allOrder: this.root.children.map((ch) => `${this.sky?.layers.includes(ch as PIXI.Container) || this.flames?.layers.includes(ch as PIXI.Container) ? ch.label : (ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`)}${ch.visible ? '' : ' (off)'}`),
+			allOrder: layers.map((ch) => `${this.sky.layers.includes(ch as PIXI.Container) || this.flames?.layers.includes(ch as PIXI.Container) ? ch.label : (ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`)}${ch.visible ? '' : ' (off)'}`),
 			chainOrder: !this.hasChains ? [] : this.sets[0].children.map((ch) => (ch instanceof PIXI.MeshSimple ? (SIDES.some((s) => this.chains[s].hang.meshes.includes(ch)) ? 'hang' : 'swag') : 'ring')),
 			counters: { vertexWrites: this.vertexWrites, slowSteps: this.slowSteps, fades: this.fades },
 			textures: { backdrop: [this.backdrop[0].texture.width, this.backdrop[0].texture.height], fire: [this.fire.texture.width, this.fire.texture.height], atlas: this.hasChains ? [this.chains.L.ring[0].texture.source.pixelWidth, this.chains.L.ring[0].texture.source.pixelHeight] : null },
