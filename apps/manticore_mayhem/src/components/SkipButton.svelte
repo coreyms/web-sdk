@@ -12,6 +12,11 @@
 	// stateGameDerived.requestSkip() and the press sound, and nothing else; No, a tap anywhere else, SKIP_HUD.promptMs
 	// with no answer, or the button going down closes it. All of that is this component's own state and one timer: the
 	// board's event flow is not touched and nothing waits on the prompt, so the feature plays on underneath.
+	// THE SOUNDS (Corey 2026-10-13: "use the same sound as the hamburger menu"): every press of the button itself, the
+	// one that opens the prompt and the one that closes it again, broadcasts what the HUD's menu button broadcasts on
+	// each of its presses (ui/controls.svelte.ts menuPress: 'soundPressMinor'). Yes has the same event, as before. No
+	// is silent, like CANCEL on the HUD's other confirm prompt (ui/BonusBuyModal.svelte), and so are a tap elsewhere
+	// and the timeout, like a tap beside the menu's popover.
 	// Touch and pointer only, no hotkey (the button is disabled while it is down, so a held Space never reaches it).
 	//
 	// House rules: no filter, no backdrop-filter, no mask; the fades are opacity; every number from layoutSpec / constants.
@@ -62,6 +67,7 @@
 	};
 	const press = () => {
 		if (!up) return;
+		context.eventEmitter.broadcast({ type: 'soundPressMinor' });
 		if (open) return close();
 		open = true;
 		clearTimeout(timer);

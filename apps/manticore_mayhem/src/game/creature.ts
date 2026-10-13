@@ -31,6 +31,15 @@
 // LOOKS: one per mode (CREATURE.looks), ONE resident. A change of mode asks for the new look (onWantLook); the old
 // one keeps playing until the new one's idle sheet is uploaded, then the two cross over lookFadeMs (the outline is
 // identical in every look, so nothing ghosts), then the old look is let go (onLookFree).
+// WHO HOLDS WHAT (2026-10-13; a look that is let go is DESTROYED by the loader, and a sprite drawn with a destroyed
+// texture throws inside Pixi's render, which stops Pixi's ticker): the lower colour sprite only ever holds a frame of
+// `look`, the upper one a frame of `next`, and three things keep it so:
+//   endFade   hands the upper sprite's texture to the lower one BEFORE it lets the old look go, whatever he is doing
+//   fireable  an action is checked against the look(s) being drawn when it STARTS, not only when it was cued: a cue
+//             made under the old look can come due during the crossfade or after it, when the look that has to draw
+//             it has no sheet for it yet (its attacks land after its idle sheet). Then it is not played
+//   forget    takes a look's textures off the sprites as well as out of the tables (counters.rescued: never needed
+//             in any run, and the probe holds it to 0)
 // House rules: no filters, shaders or masks; a frame is a swap between resident textures; a tick allocates nothing.
 import * as PIXI from 'pixi.js';
 
@@ -103,9 +112,13 @@ export class Creature {
 	private fadeAt = -1;
 	private appearAt = -1;
 	private shown = 0;
+	/** the fade in after the landing screen: ms of it done (-1: none). Stepped, not read off the clock (constants) */
+	private unveilMs = -1;
 	/** DEV A / B and the layouts that hide him */
 	enabled: boolean = CREATURE.on;
 	private placed = false;
+	/** the landing screen is up (veil): not drawn, no action, no sound; his sheets load all the same */
+	private veiled = false;
 
 	// ---- the state machine ----
 	private state: 'hidden' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
@@ -134,7 +147,7 @@ export class Creature {
 
 	// ---- DEV / probe ----
 	readonly log: { t: number; what: string; clip?: string; frame?: number; info?: unknown }[] = [];
-	counters = { swaps: 0, ticks: 0, rolls: 0, snarls: 0, growls: 0, skipped: 0 };
+	counters = { swaps: 0, ticks: 0, rolls: 0, snarls: 0, growls: 0, skipped: 0, rescued: 0, sounds: 0 };
 	/** DEV: the roll's two draws (null: Math.random) so a probe can force an alternate */
 	forceRoll: 'snarl' | 'growl' | 'none' | null = null;
 
@@ -174,6 +187,21 @@ export class Creature {
 		this.bodyNode.scale.set(p.scale);
 	}
 
+	/** THE LANDING SCREEN is up (true) or has gone (components/Background.svelte). While it is up he is not drawn and
+	 *  silent, like a layout that hides him; when it goes he fades in over CREATURE.landingFadeMs from the first frame
+	 *  of his idle loop. Nothing waits for it and his sheets load as ever */
+	veil(on: boolean, now: number = performance.now()): void {
+		if (on === this.veiled) return;
+		this.veiled = on;
+		if (on || !this.look) return;
+		this.appearAt = -1;
+		this.unveilMs = 0;
+		this.shown = 0;
+		this.idleT0 = now;
+		this.idleFrame = 1;
+		this.note('unveil');
+	}
+
 	// ---- the files (game/creatureLoad.ts) ----
 	/** a sheet's frames by name, in order; null when one is missing */
 	private static frames(tex: Record<string, PIXI.Texture>, prefix: string, n: number): Frames | null {
@@ -208,9 +236,28 @@ export class Creature {
 		this.note('sheet', { look, clip });
 		return true;
 	}
-	/** a look's textures are about to be destroyed: forget them */
+	/** a look's textures are about to be destroyed: forget them, and make sure no sprite is left holding one (the
+	 *  callers have already seen to that: see WHO HOLDS WHAT in the header; `rescued` counts the times they had not) */
 	forget(look: CreatureLook): void {
+		const sheets = this.looks[look];
+		if (!sheets) return;
 		delete this.looks[look];
+		for (const sprite of this.colour) {
+			const source = sprite.texture === PIXI.Texture.EMPTY ? null : sprite.texture.source;
+			if (!source) continue;
+			for (const clip of CREATURE_CLIPS) {
+				if (sheets[clip]?.[0].source !== source) continue;
+				sprite.texture = PIXI.Texture.EMPTY;
+				this.drawnFrame = 0; // whatever look is on show draws its frame again on the next tick
+				this.counters.rescued += 1;
+				this.note('rescued', { look, clip });
+				break;
+			}
+		}
+	}
+	/** he draws this look now, is crossing over to it, or the mode asks for it: the loader must not let it go */
+	uses(look: CreatureLook): boolean {
+		return look === this.look || look === this.next || look === this.want;
 	}
 	has(look: CreatureLook, clip: CreatureClip): boolean {
 		return !!this.looks[look]?.[clip];
@@ -247,6 +294,7 @@ export class Creature {
 			this.idleT0 = now;
 			this.idleFrame = 1;
 			this.appearAt = now;
+			this.unveilMs = -1;
 			this.shown = 0;
 			this.drawnFrame = 0;
 			this.note('appear', want);
@@ -267,12 +315,16 @@ export class Creature {
 		const to = this.next;
 		this.next = null;
 		this.fadeAt = -1;
+		// THE HAND-OVER: the lower sprite takes the texture the upper one is showing (a frame of the new look) HERE,
+		// before the old look is let go. It used to be left to this tick's draw(), which changes nothing when the new
+		// look has no sheet for the clip he is in: the lower sprite then kept a frame of the look being destroyed.
+		if (done && to) this.colour[0].texture = this.colour[1].texture;
 		this.colour[1].visible = false;
 		this.colour[1].alpha = 0;
 		this.colour[1].texture = PIXI.Texture.EMPTY;
 		if (done && to) {
 			this.look = to;
-			this.drawnFrame = 0; // the lower sprite takes the new look's frame this tick
+			this.drawnFrame = 0; // and draws the new look's own frame this tick
 			this.note('look', { from, to });
 			if (from && from !== to) this.onLookFree?.(from);
 		} else if (to && to !== this.look) this.onLookFree?.(to);
@@ -280,7 +332,25 @@ export class Creature {
 
 	// ---- what the board tells him (all presentation; every call returns at once) ----
 	private canPlay(clip: CreatureClip): boolean {
-		return this.enabled && this.placed && !!this.look && this.state !== 'hidden' && this.has(this.look, clip) && !!this.shadows[clip] && (!this.next || this.fadeAt < 0 || this.has(this.next, clip)) && !this.env.skipping();
+		return this.enabled && this.placed && !this.veiled && this.state !== 'hidden' && this.drawable(clip) && !this.env.skipping();
+	}
+	/** every look being drawn NOW has this clip's sheet: the look on show, and the one crossing over it */
+	private drawable(clip: CreatureClip): boolean {
+		return !!this.look && this.has(this.look, clip) && !!this.shadows[clip] && (!this.next || this.fadeAt < 0 || this.has(this.next, clip));
+	}
+	/** a cue's action can be drawn NOW. Asked when it starts: the look may have changed since the cue was made */
+	private fireable(kind: CueKind): boolean {
+		return kind === 'charge' ? this.drawable('charge_in') && this.drawable('charge_loop') && this.drawable('sting_hit') : this.drawable(kind);
+	}
+	/** a cue whose action cannot be drawn is not played (and with a charge goes the strike planned on it) */
+	private refuse(kind: CueKind, now: number): void {
+		this.cue = null;
+		if (kind === 'charge') {
+			this.hit = null;
+			this.stinging = false;
+		}
+		if (this.state === 'rush') this.toIdle(now);
+		this.miss(kind === 'charge' ? 'sting' : kind);
 	}
 	/** THE SWIPE, READ AHEAD: the tears will appear in `etaStyleMs` of style time from now */
 	cueSwipe(etaStyleMs: number): void {
@@ -403,6 +473,11 @@ export class Creature {
 	}
 
 	// ---- the clips ----
+	/** every sound of his is asked for here (counted, so a probe can hold him to silence while he is hidden) */
+	private say(name: string): void {
+		this.counters.sounds += 1;
+		this.env.play(name);
+	}
 	private quiet(): void {
 		if (!this.breathOn) return;
 		this.env.stop(this.breathOn);
@@ -425,7 +500,7 @@ export class Creature {
 		this.state = 'clip';
 		this.glowA = 0;
 		this.note('start', { clip, offset: Math.round(offset) });
-		if (clip === 'snarl' || clip === 'growl') this.env.play(`sfx_manticore_${clip}_${Math.random() < 0.5 ? 1 : 2}`);
+		if (clip === 'snarl' || clip === 'growl') this.say(`sfx_manticore_${clip}_${Math.random() < 0.5 ? 1 : 2}`);
 	}
 	private toIdle(now: number): void {
 		this.state = 'idle';
@@ -441,10 +516,16 @@ export class Creature {
 		this.crouchT = (frame - 1) * FRAME_MS;
 		if (this.glowT0 < 0) this.glowT0 = performance.now();
 	}
-	/** the cue's clip starts now, `late` real ms after it should have */
-	private fire(now: number, late: number): void {
+	/** the cue's clip starts now, `late` real ms after it should have. False: nothing started (he was already down
+	 *  for a charge, or the action cannot be drawn by the look(s) on show now and is not played) */
+	private fire(now: number, late: number): boolean {
 		const c = this.cue!;
 		this.cue = null;
+		if (c.kind === 'charge' && this.down()) return false;
+		if (!this.fireable(c.kind)) {
+			this.refuse(c.kind, now);
+			return false;
+		}
 		const ts = Math.max(0.2, this.env.ts());
 		if (c.kind === 'swipe') {
 			this.start('swipe', now, WINDUP.swipe * clamp01((now - c.at) / Math.max(c.strikeAt - c.at, 1)), c.strikeAt);
@@ -454,7 +535,6 @@ export class Creature {
 			this.start('roar', now, c.ahead ? late * ts : 0);
 			this.run.cued = !!c.ahead;
 		} else if (c.kind === 'growl') this.start('growl', now, 0);
-		else if (c.kind === 'charge' && this.down()) return;
 		else if (this.hit && this.hit.start - now < CHARGE_IN_MS / ts) {
 			this.lastBeat = now;
 			// less time than charge_in is long before the strike must start: its last frames only
@@ -463,6 +543,7 @@ export class Creature {
 			this.lastBeat = now;
 			this.start('charge_in', now, late * ts);
 		}
+		return true;
 	}
 	/** in the crouch, on his way into it, or striking from it */
 	private down(): boolean {
@@ -476,15 +557,16 @@ export class Creature {
 		this.last = now;
 		this.counters.ticks += 1;
 		const ts = Math.max(0.2, this.env.ts());
-		const on = this.enabled && this.placed;
+		const on = this.enabled && this.placed && !this.veiled;
 		if (this.env.skipping() || !on) {
-			// SKIP TO RESULT (and a layout that hides him): no action, no sound; whatever ran is cut to idle
+			// SKIP TO RESULT (and a layout that hides him, and the landing screen): no action, no sound; whatever ran is
+			// cut to idle
 			if (this.state !== 'idle') this.toIdle(now);
 			this.cue = null;
 			this.swipeNext = null;
 			this.quiet();
 		}
-		this.tickLook(now, on);
+		this.tickLook(now, on, dt);
 		if (!on) {
 			this.swipeNext = null;
 			return;
@@ -510,7 +592,10 @@ export class Creature {
 				const c = this.cue;
 				const free = frame <= CREATURE.rushFreeFrames + 1 || frame > N.idle - CREATURE.rushFreeFrames;
 				const rushMs = free ? 0 : CREATURE.rushMs / ts;
-				if (now >= c.at - rushMs) {
+				if (now >= c.at - rushMs && !this.fireable(c.kind)) {
+					// (no rush towards an action that will not be played)
+					this.refuse(c.kind, now);
+				} else if (now >= c.at - rushMs) {
 					// THE RUSH: the idle runs to its frame 1 first, inside rushMs. It never makes a strike late: a swipe or a
 					// sting with less lead than its own wind-up gets less rush, or none
 					const room = c.kind === 'swipe' ? c.at - now : c.kind === 'charge' && this.hit ? this.hit.start - now - 2 * FRAME_MS / ts : rushMs;
@@ -613,9 +698,11 @@ export class Creature {
 			} else if (this.cue && this.cue.kind === 'charge') {
 				this.cue = null;
 			} else if (this.cue && now >= this.cue.at) {
-				this.fire(now, now - this.cue.at);
-				clip = this.run.clip;
-				frame = 1;
+				// (a cue that is refused leaves him in the crouch)
+				if (this.fire(now, now - this.cue.at)) {
+					clip = this.run.clip;
+					frame = 1;
+				}
 			} else if (!this.hit && now - this.lastBeat > CREATURE.crouchTimeoutMs) {
 				// no sting came after all: he gets up (the end of sting_hit is the only way up there is)
 				this.start('sting_hit', now, CREATURE.stingCut.afterFrame * FRAME_MS);
@@ -657,12 +744,17 @@ export class Creature {
 		this.quiet();
 		this.breathTake = 1 - this.breathTake;
 		this.breathOn = `sfx_manticore_breath_${this.breathTake + 1}`;
-		this.env.play(this.breathOn);
+		this.say(this.breathOn);
 	}
 
 	/** the change of look and the first fade in (alphas only) */
-	private tickLook(now: number, on: boolean): void {
-		if (this.appearAt >= 0) {
+	private tickLook(now: number, on: boolean, dt: number): void {
+		if (this.unveilMs >= 0 && on) {
+			// after the landing screen: by real time, but a long frame moves it no further than landingFadeStepMs
+			this.unveilMs += Math.min(dt, CREATURE.landingFadeStepMs);
+			this.shown = clamp01(this.unveilMs / Math.max(CREATURE.landingFadeMs, 1));
+			if (this.shown >= 1) this.unveilMs = -1;
+		} else if (this.appearAt >= 0) {
 			this.shown = clamp01((now - this.appearAt) / Math.max(CREATURE.lookFadeMs, 1));
 			if (this.shown >= 1) this.appearAt = -1;
 		}
@@ -709,6 +801,16 @@ export class Creature {
 	}
 
 	// ---- DEV / probe (window.__manticore.creature, components/Background.svelte) ----
+	/** how many of his four sprites hold a texture that has been DESTROYED (its sheet was unloaded). Always 0: a sprite
+	 *  drawn with one throws inside Pixi's render and stops the ticker (tools/manticore/creature_probe.js HANDOVER) */
+	private dead(): number {
+		let n = 0;
+		for (const s of [this.shadow, this.colour[0], this.colour[1], this.glow]) {
+			const t = s.texture;
+			if (t !== PIXI.Texture.EMPTY && (t.destroyed || !t.source || t.source.destroyed)) n += 1;
+		}
+		return n;
+	}
 	sample() {
 		const r = this.run;
 		return {
@@ -725,6 +827,7 @@ export class Creature {
 			hold: this.state === 'clip' ? r.hold : 0,
 			cue: this.cue ? this.cue.kind : null,
 			stinging: this.stinging,
+			dead: this.dead(),
 		};
 	}
 	info() {
@@ -732,6 +835,8 @@ export class Creature {
 			...this.sample(),
 			enabled: this.enabled,
 			placed: this.placed,
+			veiled: this.veiled,
+			drawn: { body: this.bodyNode.visible, shadow: this.shadowNode.visible, bodyAlpha: this.bodyNode.alpha, shadowAlpha: this.shadowNode.alpha },
 			want: this.want,
 			loaded: Object.fromEntries((Object.keys(this.looks) as CreatureLook[]).map((l) => [l, Object.keys(this.looks[l]!)])),
 			shared: { shadow: !!this.shadows.idle, glow: !!this.glowFrames },

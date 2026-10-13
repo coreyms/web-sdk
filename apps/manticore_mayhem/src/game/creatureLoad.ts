@@ -18,6 +18,18 @@
 // until the new one's idle sheet is uploaded, the two cross over (game/creature.ts), and the old look is then
 // UNLOADED (PIXI.Assets.unload: its GPU copies and its decoded pictures both go; the files stay in the HTTP cache,
 // so coming back to it downloads nothing). For the length of the crossfade two looks' sheets are on the GPU.
+//
+// WHO OWNS A LOOK'S FILES (2026-10-13). Unloading DESTROYS textures, and a destroyed texture that is still drawn, or
+// still waiting for its upload, throws inside Pixi. So a file is destroyed only when all of this holds:
+//   - he does not draw the look, is not crossing over to it, and the mode does not ask for it (creature.uses; the
+//     look waiting to fade in counts, which the first version missed when a third look was asked for meanwhile)
+//   - every run that fetched files of that look has ENDED (nothing of it is on the wire or waiting for its upload),
+//     and the renderer's upload queue is empty (the game's warm-up at the landing screen's end queues every texture
+//     on the stage, the frame he is showing among them)
+//   - no NEW run for that look has started meanwhile. A look can be let go and asked for again before its files
+//     have gone (two quick changes of mode while a sheet is on the wire). Then the files are not destroyed at all:
+//     they are handed to the new run (`sweep`: "kept"), which finds them in Pixi's cache.
+// The files of a look that was let go wait in `trash[look]` until then; one sweeper per look works through it.
 import * as PIXI from 'pixi.js';
 
 import { creature } from './creature';
@@ -35,7 +47,7 @@ const GROUPS: { name: string; clips: CreatureClip[]; shared: (keyof typeof CREAT
 /** the renderer, for the one upload per sheet (components/Background.svelte sets it) */
 export const creatureLoader = { renderer: null as null | (() => PIXI.Renderer | undefined) };
 /** DEV / probe: every load, upload and unload, oldest first */
-export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped'; look: string; file: string; ms?: number }[] = [];
+export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept'; look: string; file: string; ms?: number }[] = [];
 const note = (what: (typeof creatureLoadLog)[number]['what'], look: string, file: string, ms?: number) => {
 	if (!import.meta.env.DEV) return;
 	creatureLoadLog.push({ t: performance.now(), what, look, file, ms });
@@ -48,6 +60,9 @@ const shared: Partial<Record<keyof typeof CREATURE_SHARED, boolean>> = {};
 /** per look: the run that is loading it (a look let go mid load is dropped by its run), and the files it holds */
 const runs: Partial<Record<CreatureLook, { id: number; done: Promise<void>; idle: Promise<void>; drop: () => void; urls: string[] }>> = {};
 let serial = 0;
+/** per look: the files of runs that were let go, waiting to be destroyed; the runs that must end first; the one
+ *  destroy in flight; whether its sweeper is at work (see WHO OWNS A LOOK'S FILES) */
+const trash: Partial<Record<CreatureLook, { urls: string[]; ends: Promise<void>[]; busy: Promise<void> | null; sweeping: boolean }>> = {};
 /** the hold on everything after the idle group: set by the boot, let go by releaseCreatureRest (null: no hold) */
 let rest: Promise<void> | null = null;
 let letRestGo = () => {};
@@ -71,23 +86,49 @@ const fetchSheet = async (url: string, look: string): Promise<Sheet | null> => {
 	}
 };
 
-const unload = async (look: CreatureLook) => {
+/** let a look go: its run ends, he forgets its textures, and its files go to the trash (destroyed by `sweep`) */
+const unload = (look: CreatureLook): void => {
 	const run = runs[look];
 	if (!run) return;
 	delete runs[look];
 	creature.forget(look);
 	// (a run held behind the symbols is let out of its hold: it sees it is no longer the look's run and ends)
 	run.drop();
-	// whatever of it is still on its way lands first, then everything it holds goes
-	await run.done.catch(() => {});
-	for (const url of run.urls) {
-		try {
-			await PIXI.Assets.unload(url);
-			note('unload', look, url.split('/').pop()!.split('?')[0]);
-		} catch {
-			/* never loaded */
+	const bin = (trash[look] ??= { urls: [], ends: [], busy: null, sweeping: false });
+	for (const url of run.urls) if (!bin.urls.includes(url)) bin.urls.push(url);
+	bin.ends.push(run.done);
+	if (!bin.sweeping) void sweep(look);
+};
+
+/** destroy what is in a look's trash, one file at a time, each only when it is safe (WHO OWNS A LOOK'S FILES) */
+const sweep = async (look: CreatureLook) => {
+	const bin = trash[look]!;
+	bin.sweeping = true;
+	for (;;) {
+		// nothing of it may be waiting in the renderer's upload queue (resolves at once when the queue is empty), and
+		// whatever of the runs that held these files is still on its way lands first (more may be let go meanwhile)
+		await creatureLoader.renderer?.()?.prepare?.upload();
+		while (bin.ends.length) await bin.ends.shift()!.catch(() => {});
+		const back = runs[look];
+		if (back) {
+			// THE LOOK CAME BACK before its files went: they are the new run's now, and nothing is destroyed
+			for (const url of bin.urls) if (!back.urls.includes(url)) back.urls.push(url);
+			note('kept', look, `${bin.urls.length} files`);
+			bin.urls.length = 0;
+			break;
 		}
+		const url = bin.urls.shift();
+		if (!url) break;
+		bin.busy = PIXI.Assets.unload(url).then(
+			() => note('unload', look, url.split('/').pop()!.split('?')[0]),
+			() => {
+				/* never loaded */
+			},
+		);
+		await bin.busy;
+		bin.busy = null;
 	}
+	bin.sweeping = false;
 };
 
 const load = (look: CreatureLook) => {
@@ -101,6 +142,10 @@ const load = (look: CreatureLook) => {
 	// (listed BEFORE the first line of the run: with the shared sheets already in, it reaches mine() without a wait)
 	runs[look] = entry;
 	entry.done = (async () => {
+		// (a file of this look is being destroyed this very moment: that one finishes first, the sweeper then sees this
+		// run and stops. Only ever the length of one destroy, which waits for nothing)
+		const busy = trash[look]?.busy;
+		if (busy) await busy;
 		for (const group of GROUPS) {
 			const first = !groupLog?.[group.name];
 			const log = first && groupLog ? (groupLog[group.name] = { start: performance.now(), end: 0, keys: group.clips.length + group.shared.length, failed: 0 }) : null;
@@ -112,14 +157,14 @@ const load = (look: CreatureLook) => {
 			}
 			for (const clip of group.clips) {
 				if (!mine()) return;
-				// a look that is neither on show nor wanted any more is not worth another sheet
-				if (creature.wanted !== look && creature.look !== look) {
+				// a look that is not on show, not crossing over and not wanted any more is not worth another sheet
+				if (!creature.uses(look)) {
 					note('dropped', look, clip);
-					void unload(look);
+					unload(look);
 					return;
 				}
 				const url = CREATURE_FILES[look][clip];
-				urls.push(url);
+				if (!urls.includes(url)) urls.push(url);
 				const sheet = await fetchSheet(url, look);
 				if (!mine()) return;
 				if (!sheet || !creature.setClip(look, clip, sheet.textures)) {
@@ -152,7 +197,7 @@ const ensure = (look: CreatureLook): Promise<void> => {
 creature.onWantLook = (look) => {
 	if (booted) void ensure(look);
 };
-creature.onLookFree = (look) => void unload(look);
+creature.onLookFree = (look) => unload(look);
 
 /** the creature's place in the deferred phase: the look of the mode the game is in NOW (a round resumed in a SUPER
  *  loads the super look, not the day one first). Resolves when that look's IDLE group is in (he is on show); the
@@ -175,4 +220,4 @@ export const releaseCreatureRest = (): Promise<void> => {
 };
 
 /** DEV / probe: what is loaded, per look */
-export const creatureLoadState = () => ({ booted, held: !!rest, shared: { ...shared }, looks: Object.fromEntries(Object.entries(runs).map(([look, run]) => [look, run!.urls.length])) });
+export const creatureLoadState = () => ({ booted, held: !!rest, shared: { ...shared }, looks: Object.fromEntries(Object.entries(runs).map(([look, run]) => [look, run!.urls.length])), trash: Object.fromEntries(Object.entries(trash).map(([look, bin]) => [look, bin!.urls.length])) });

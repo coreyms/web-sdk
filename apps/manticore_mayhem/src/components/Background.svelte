@@ -291,6 +291,12 @@
 	$effect(() => {
 		creature.mode(family);
 	});
+	// THE LANDING SCREEN (ui/LandingScreen.svelte, HTML over this canvas) is up until its press has played out to
+	// black: he is not drawn behind it, body or shadow, in any layout, and is silent; he fades in when it goes
+	// (constants CREATURE.landingFadeMs). His sheets load meanwhile exactly as before, and nothing waits for this.
+	$effect(() => {
+		creature.veil(context.stateLayout.showLoadingScreen);
+	});
 	// the board's beats and the handlers' look-ahead: he follows, nothing waits for him
 	context.eventEmitter.subscribeOnMount({
 		featureBeat: ({ beat }) => creature.beat(beat),
@@ -608,6 +614,9 @@
 					},
 					/** the A / B switch: false = he is not drawn, takes no beat and plays no sound */
 					enable: (on: boolean) => (creature.enabled = on),
+					/** the look of a mode, asked for by hand (the game's own mode is left alone, so only at rest in the base
+					 *  game): changes of look at chosen moments, with no round (creature_probe.js HANDOVER) */
+					mode: (f: keyof typeof CREATURE.looks) => creature.mode(f),
 					/** the next idle loop restart plays this alternate (or none) instead of rolling */
 					forceRoll: (what: 'snarl' | 'growl' | 'none' | null) => (creature.forceRoll = what),
 					growl: () => creature.growl(),

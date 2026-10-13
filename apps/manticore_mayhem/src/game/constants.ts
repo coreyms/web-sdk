@@ -1482,6 +1482,13 @@ export const CHAIN_SOUND = {
 //   looks     the look each mode shows. ONE is resident; a change of mode crosses to the new one over lookFadeMs (the
 //             scene's own crossfade) once its idle sheet is uploaded. The rig's fourth look ("night", no fire) is not
 //             shipped: no mode shows it.
+//   landingFadeMs   THE LANDING SCREEN (Corey 2026-10-13: he stood behind the intro cards, his head and wing between
+//             the logo and the card on a portrait phone): while the landing screen is up he is not drawn (body and
+//             shadow, in every layout) and makes no sound; his sheets load as before. When the landing screen goes he
+//             fades in over this many REAL ms, under the black of the transition as it clears (350 ms).
+//   landingFadeStepMs   ...and no tick moves that fade by more than this many ms' worth. The board mounts in the
+//             frames in which the landing screen goes (over a second in the dev build): counted by the clock alone the
+//             fade would be over when the next frame is drawn, which is a pop. Two 60 Hz frames.
 //   holdMs    the freeze on a clip's hold frame (the rig's default), style time
 //   rushMs    an action asked for mid idle: the idle runs to its frame 1 the short way round inside this (style time)
 //             and the clip starts then; from the loop's last rushFreeFrames frames or its first rushFreeFrames + 1 it
@@ -1515,6 +1522,8 @@ export const CREATURE = {
 	},
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
 	lookFadeMs: SCENE.crossfadeMs,
+	landingFadeMs: 400,
+	landingFadeStepMs: 34,
 	holdMs: 150,
 	rushMs: 100,
 	rushFreeFrames: 3,
