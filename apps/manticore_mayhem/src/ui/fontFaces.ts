@@ -13,6 +13,12 @@ const fontCss = [
 	// preload, so pixi-svelte's document.fonts.ready wait never includes it; until it is in, the title
 	// draws in the serif fallback (font-display: swap).
 	['Cinzel', '700', stamp('/assets/fonts/ui/Cinzel-Bold.woff2')],
+	// READING TEXT (Build B2, 2026-10-14; images/rules_menu_ref_r1/COMPARISON.md fix 1, Corey: the standard for every
+	// game). 'Outfit-Variable.woff2' above is NOT variable: it is one static Black (900) face, so every weight drew
+	// black. This is the real variable Outfit (wght 100 to 900, google/fonts, OFL, licence beside it: OFL-Outfit.txt),
+	// named apart so the HUD, which is drawn in that black face, does not change. Used only by Game Info's body copy
+	// (ui/GameInfoModal.svelte --gi-body). NOT kicked off below: the browser fetches it when Game Info first draws.
+	['Outfit Text', '100 900', stamp('/assets/fonts/ui/OutfitText-Variable.woff2')],
 ]
 	.map(
 		([family, weight, url]) =>

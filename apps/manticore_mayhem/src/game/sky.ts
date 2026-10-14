@@ -28,6 +28,14 @@
 //            up and down"): when a flock is rolled each bat is placed so that it never comes within SKY.bats' minGapX
 //            / minGapY of another while both are over the frame (Flyers.spawn, near, lane; the rule is at the
 //            numbers). Decided there, once; the tick is as it was. The birds have no such numbers and no such test
+//            FLAP-TIMED BOB AND GLIDES (Build B2, 2026-10-14; Corey: "Yes go with the build on the flap timed bob and
+//            glides, I trust you"): a bat's bob no longer runs on a clock of its own. It is a function of where the bat
+//            is in its own wing cycle (SKY.bats.flapBob): the body lifts while the wings beat down and sinks while they
+//            come back up, one bob per flap, still bob x its size. Every so often (SKY.bats.glide, each bat on its own
+//            random schedule) a bat holds its wings spread on one frame of its row for a moment: the bob stands still
+//            (its cycle is held), the flutter eases out, it sinks a little, smoothly, then flaps on from that frame and climbs back. Only which frame shows
+//            and the positions change: no texture, no filter. The birds have neither (their numbers lack both fields)
+//            and fly exactly as before
 //   fog      one or two soft mist bands drifting in the gorge, behind the courtyard
 // Everything is scenery: real time at every turbo level, never paused, nothing to do with spins, wins or features.
 // House rules: no filters, no texture created or uploaded after the files land (a flap is a swap between resident
@@ -45,7 +53,14 @@ type Textures = Record<string, PIXI.Texture | undefined>;
 type Cloud = { s: PIXI.Sprite; v: number; t: number; k: number; near: number; d: number };
 /** bob, fl: this flyer's own bob and flutter height (px), set when its flock is rolled */
 /** w: its drawn width at its widest frame (px), set with its size */
-type Bird = { s: PIXI.Sprite; live: boolean; dir: number; frames: PIXI.Texture[]; v: number; y0: number; ph: number; size: number; flock: number; bob: number; fl: number; w: number };
+/** THE FLAP-TIMED BOB AND GLIDES (kinds with flapBob / glide, the bats): fp: its flap offset (the cycle position is
+ *  clock x flapFps + fp, in frames; set to ph at spawn and moved after a glide so the cycle goes on from the held
+ *  frame); gs: 0 flapping, 1 a glide is due (it starts at gStart, when the glide frame next comes up); gAt: when the
+ *  next glide is due; gStart / gEnd: the current or last glide (the kind's clock, s); gPrev: when the last glide
+ *  ended; hp: the cycle position held
+ *  through it; gf: its row's glide frame; gS: its sink (px, by its size). lp / lw / ls: the last tick's cycle
+ *  position, flutter weight (1 flapping, 0 gliding, between while easing) and sink, for the probe */
+type Bird = { s: PIXI.Sprite; live: boolean; dir: number; frames: PIXI.Texture[]; v: number; y0: number; ph: number; size: number; flock: number; bob: number; fl: number; w: number; fp: number; gs: number; gAt: number; gStart: number; gEnd: number; gPrev: number; hp: number; gf: number; gS: number; lp: number; lw: number; ls: number };
 type Fog = { s: PIXI.Sprite; v: number; alpha: number; y: number };
 /** DEV / probe: one flock as it was rolled */
 export type FlockRoll = { id: number; dir: number; depth: number; row: number; n: number; size: number; v: number; y0: number; alpha: number; x0: number };
@@ -69,6 +84,10 @@ type FlyerSpec = {
 	 *  number for every flyer, whatever its size (the birds) */
 	readonly bobBySize?: boolean;
 	readonly flutterBySize?: boolean;
+	/** THE FLAP-TIMED BOB (the bats; constants SKY.bats has the rule). Absent: the bob runs on bobRate (the birds) */
+	readonly flapBob?: { readonly downAt: number; readonly rise: number; readonly flutter: number };
+	/** THE GLIDES (the bats; constants SKY.bats has the rule). Absent: never (the birds) */
+	readonly glide?: { readonly firstS: readonly [number, number]; readonly everyS: readonly [number, number]; readonly holdS: readonly [number, number]; readonly frame: readonly number[]; readonly sinkPx: number; readonly easeS: number; readonly recoverS: number };
 	readonly band: { readonly y0: number; readonly y1: number };
 	readonly farBelow: number;
 	readonly formation: 'v' | 'scattered';
@@ -108,7 +127,7 @@ export const skyNumbers = (layout: SkyLayout): SkyNumbers => {
 	if (layout === 'landscape') return SKY;
 	const P = SKY.portrait;
 	const k = P.scale;
-	const flyer = (B: FlyerSpec, band: Band): FlyerSpec => ({ ...B, band, size: { near: B.size.near * k, far: B.size.far * k }, speed: B.speed * k, bob: B.bob * k, flutter: B.flutter * k, looseX: B.looseX * k, looseY: B.looseY * k, margin: B.margin * k, exit: B.exit * k });
+	const flyer = (B: FlyerSpec, band: Band): FlyerSpec => ({ ...B, band, size: { near: B.size.near * k, far: B.size.far * k }, speed: B.speed * k, bob: B.bob * k, flutter: B.flutter * k, looseX: B.looseX * k, looseY: B.looseY * k, margin: B.margin * k, exit: B.exit * k, ...(B.glide ? { glide: { ...B.glide, sinkPx: B.glide.sinkPx * k } } : {}) });
 	const C = SKY.clouds;
 	return {
 		aurora: { ...SKY.aurora, ...P.aurora, wave: SKY.aurora.wave * k },
@@ -126,6 +145,17 @@ const AURORA_REF_W = SCENE_SPEC.frame[0];
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const jit = (share: number) => 1 + (Math.random() * 2 - 1) * share;
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+/** smoothstep on 0 .. 1 (clamped) */
+const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+/** THE FLAP-TIMED BOB: the body's height (0 low .. 1 high) at cycle position `pos` (frames, 8 to a flap). The rise
+ *  takes `rise` of the cycle, centred on `downAt` (where the wings beat down), the sink the rest; eased at both ends,
+ *  n: frames to a flap (the row's length).
+ *  so the height has no corner. Exported for the probe's own arithmetic. */
+export const flapLift = (pos: number, downAt: number, rise: number, n = 8): number => {
+	let s = (pos - downAt) / n + rise / 2;
+	s -= Math.floor(s);
+	return s < rise ? ease(s / rise) : 1 - ease((s - rise) / (1 - rise));
+};
 const rgb = (r: number, g: number, b: number) => (Math.round(clamp01(r) * 255) << 16) | (Math.round(clamp01(g) * 255) << 8) | Math.round(clamp01(b) * 255);
 
 /** one kind of flyer (the birds by day, the bats by night): its layer, its pool, its flock timer */
@@ -179,7 +209,7 @@ class Flyers {
 			this.layer.addChild(s);
 			// the fractional fields start fractional: a whole number first would make the engine reshape the record the
 			// first time a flock uses it
-			this.pool.push({ s, live: false, dir: 1, frames: rows[0], v: 0.5, y0: 0.5, ph: 0.5, size: 0.5, flock: 0, bob: 0.5, fl: 0.5, w: 0.5 });
+			this.pool.push({ s, live: false, dir: 1, frames: rows[0], v: 0.5, y0: 0.5, ph: 0.5, size: 0.5, flock: 0, bob: 0.5, fl: 0.5, w: 0.5, fp: 0.5, gs: 0, gAt: 0.5, gStart: 0.5, gEnd: -1e6 + 0.5, gPrev: -1e6 + 0.5, hp: 0.5, gf: 0, gS: 0.5, lp: 0.5, lw: 1.5, ls: 0.5 });
 		}
 		this.ready = true;
 	}
@@ -230,6 +260,15 @@ class Flyers {
 			b.w = b.size * this.aspect[row];
 			b.bob = B.bobBySize ? (B.bob * b.size) / B.size.near : B.bob;
 			b.fl = B.flutterBySize ? (B.flutter * b.size) / B.size.near : B.flutter;
+			// the glides: its row's frame, its sink by its size, its first glide on its own random time
+			const G = B.glide;
+			b.fp = b.ph;
+			b.gs = 0;
+			b.gEnd = -1e6;
+			b.gPrev = -1e6;
+			b.gf = G ? (G.frame[row] ?? G.frame[0]) : 0;
+			b.gS = G ? (G.sinkPx * b.size) / B.size.near : 0;
+			b.gAt = G ? this.clock + lerp(G.firstS[0], G.firstS[1], Math.random()) : 0;
 			b.flock = this.flocks;
 			if (scattered) {
 				b.v = v * (1 + (Math.random() * 2 - 1) * B.looseSpeed);
@@ -300,12 +339,13 @@ class Flyers {
 		const gx = B.minGapX ?? 0;
 		const gy = B.minGapY ?? 0;
 		const pass = B.gapPassS ?? 0;
-		const ce = c.bob + c.fl + c.size / 2;
+		// the envelope: bob + flutter + a glide's sink + half its height (gS is 0 for a kind without glides)
+		const ce = c.bob + c.fl + c.gS + c.size / 2;
 		if (c.y0 + ce <= 0) return false;
 		for (let i = 0; i < this.pool.length; i += 1) {
 			const o = this.pool[i];
 			if (!o.live || o === c) continue;
-			const oe = o.bob + o.fl + o.size / 2;
+			const oe = o.bob + o.fl + o.gS + o.size / 2;
 			if (o.y0 + oe <= 0) continue;
 			const dy = c.y0 > o.y0 ? c.y0 - o.y0 : o.y0 - c.y0;
 			if (dy - ce - oe >= gy * (c.size > o.size ? c.size : o.size)) continue;
@@ -361,7 +401,7 @@ class Flyers {
 			}
 		}
 		this.gapHidden += 1;
-		b.y0 = -(b.bob + b.fl + b.size / 2) - 1;
+		b.y0 = -(b.bob + b.fl + b.gS + b.size / 2) - 1;
 	}
 
 	private drop(b: Bird): void {
@@ -409,6 +449,10 @@ class Flyers {
 				this.drop(b);
 				continue;
 			}
+			if (B.flapBob) {
+				this.flapStep(b);
+				continue;
+			}
 			// b.bob and b.fl: the flyer's own heights (spawn); for a kind without bobBySize they ARE B.bob and B.flutter
 			if (B.flutter !== 0) b.s.y = b.y0 + Math.sin(this.clock * B.bobRate + b.ph) * b.bob + Math.sin(this.clock * B.bobRate * 3.1 + b.ph * 2.3) * Math.sin(this.clock * 1.7 + b.ph) * b.fl;
 			else b.s.y = b.y0 + Math.sin(this.clock * B.bobRate + b.ph) * b.bob;
@@ -417,6 +461,68 @@ class Flyers {
 			const sc = b.size / tex.height;
 			b.s.scale.set(b.dir > 0 ? sc : -sc, sc);
 		}
+	}
+
+	/** THE FLAP-TIMED BOB AND GLIDES, one flyer, one step (the bats; the x has moved already). Its cycle position
+	 *  picks the frame and, through flapLift, the height of its bob; the flutter is as before (its own clock), at
+ *  flapBob.flutter of its height so it does not drown the beat. A glide
+	 *  that is due starts when the glide frame next comes up and holds that frame and that cycle position for its time
+	 *  (so the bob stands still at the height it had there), easing the flutter out over easeS while it sinks gS; after
+	 *  it the cycle goes on from the held position, the flutter eases back in over easeS and the sink climbs back over
+	 *  recoverS. No jump in either direction: each piece is held or eased from where it was. Allocates nothing. */
+	private flapStep(b: Bird): void {
+		const B = this.B;
+		const F = B.flapBob!;
+		const G = B.glide;
+		const c = this.clock;
+		const n = b.frames.length;
+		let pos = c * B.flapFps + b.fp;
+		let w = 1;
+		let sink = 0;
+		let frame = -1;
+		if (G) {
+			if (b.gs === 0 && c >= b.gAt) {
+				// due: from the moment its glide frame next comes up (at once if it is up)
+				const k = Math.floor(pos) % n;
+				const ahead = (b.gf - k + n) % n;
+				b.hp = ahead === 0 ? pos : Math.floor(pos) + ahead;
+				b.gStart = c + (b.hp - pos) / B.flapFps;
+				b.gEnd = b.gStart + lerp(G.holdS[0], G.holdS[1], Math.random());
+				b.gs = 1;
+			}
+			if (b.gs === 1 && c >= b.gEnd) {
+				// over: the cycle goes on from the held position, the next one on its own time
+				b.fp = b.hp - b.gEnd * B.flapFps;
+				b.gPrev = b.gEnd;
+				b.gs = 0;
+				b.gAt = b.gEnd + lerp(G.everyS[0], G.everyS[1], Math.random());
+				pos = c * B.flapFps + b.fp;
+			}
+			if (b.gs === 1 && c >= b.gStart) {
+				pos = b.hp;
+				frame = b.gf;
+				w = 1 - ease((c - b.gStart) / G.easeS);
+				sink = b.gS * ease((c - b.gStart) / (b.gEnd - b.gStart));
+			} else {
+				// flapping (or waiting for the glide frame): easing back in after the last glide, if it was lately
+				const e = c - b.gPrev;
+				if (e < G.easeS) w = ease(e / G.easeS);
+				if (e < G.recoverS) sink = b.gS * (1 - ease(e / G.recoverS));
+			}
+		}
+		const bob = b.bob * (1 - 2 * flapLift(pos, F.downAt, F.rise, n));
+		// the flutter at F.flutter of its own height (its by-size height b.fl untouched), on its own clock as before
+		const flutter = Math.sin(c * B.bobRate * 3.1 + b.ph * 2.3) * Math.sin(c * 1.7 + b.ph) * b.fl * F.flutter;
+		// the bob needs no fade: through a glide its cycle position is held, so it is a constant, not a bob; only the
+		// flutter, which runs on its own clock, is faded out (w) and back in
+		b.s.y = b.y0 + bob + w * flutter + sink;
+		b.lp = pos;
+		b.lw = w;
+		b.ls = sink;
+		const tex = b.frames[frame >= 0 ? frame : Math.floor(pos) % n];
+		if (b.s.texture !== tex) b.s.texture = tex; // a swap between resident frames, never a new texture
+		const sc = b.size / tex.height;
+		b.s.scale.set(b.dir > 0 ? sc : -sc, sc);
 	}
 
 	// ---- DEV / probe ---------------------------------------------------------------------------------------------
@@ -482,7 +588,7 @@ class Flyers {
 					bin(out.speed, (b.v / f.v - (1 - B.looseSpeed)) / (2 * B.looseSpeed || 1));
 					out.sizeSum += b.size;
 					out.speedSum += b.v;
-					if (b.y0 + b.bob + b.fl + b.size / 2 <= 0) out.outOfSight += 1;
+					if (b.y0 + b.bob + b.fl + b.gS + b.size / 2 <= 0) out.outOfSight += 1;
 				}
 			}
 			on.length = 0;
@@ -564,7 +670,7 @@ class Flyers {
 			last: { ...this.last },
 			/** slot: its place in the pool (a flyer keeps it from take-off to landing) */
 			list: this.pool
-				.map((b, slot) => ({ x: b.s.x, y: b.s.y, w: Math.abs(b.s.width), h: Math.abs(b.s.height), alpha: b.s.alpha, visible: b.s.visible, live: b.live, slot, dir: b.dir, v: b.v, y0: b.y0, size: b.size, bob: b.bob, flutter: b.fl, ph: b.ph, flock: b.flock, row: this.rows.indexOf(b.frames), frame: b.frames.indexOf(b.s.texture), flipped: b.s.scale.x < 0 }))
+				.map((b, slot) => ({ x: b.s.x, y: b.s.y, w: Math.abs(b.s.width), h: Math.abs(b.s.height), alpha: b.s.alpha, visible: b.s.visible, live: b.live, slot, dir: b.dir, v: b.v, y0: b.y0, size: b.size, bob: b.bob, flutter: b.fl, ph: b.ph, flock: b.flock, row: this.rows.indexOf(b.frames), frame: b.frames.indexOf(b.s.texture), flipped: b.s.scale.x < 0, fp: b.fp, gliding: b.gs === 1 && this.clock >= b.gStart, gAt: b.gAt, gStart: b.gStart, gEnd: b.gEnd, gf: b.gf, gS: b.gS, pos: b.lp, flapW: b.lw, sink: b.ls }))
 				.filter((b) => b.live),
 			parked: this.pool.filter((b) => !b.live).map((b) => ({ x: b.s.x, y: b.s.y, alpha: b.s.alpha, visible: b.s.visible })),
 		};

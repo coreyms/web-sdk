@@ -1,11 +1,18 @@
 <script lang="ts">
 	// Game Info: sticky tab strip + scroll-spied sections. Stake Engine requires full feature
-	// disclosure here — paytable, modes, the Mystery split and the Epic floor, max win, RTP,
-	// volatility, and the verbatim rules disclaimer (gameInfoText.ts). Every NUMBER comes from
-	// config.ts, which mirrors game_config.py, and from the RGS's own prices.
+	// disclosure here: paytable, modes, the Mystery split and the Epic floor, max win, RTP per mode,
+	// volatility, and the verbatim rules disclaimer. Every NUMBER comes from config.ts, which mirrors
+	// game_config.py, and from the RGS's own prices.
 	//
-	// The numbers are the published math's; the wording is final (rules copy in gameInfoText.ts)
-	// and has not been through Corey or a Stake review.
+	// The wording (game/gameInfoText.ts) is the trimmed page Corey approved on 2026-10-13 (Desktop review folder
+	// feedback/rules_trim_r1): it has been through the owner's review, not yet through a Stake review. Eight sections;
+	// the old Game Rules block is gone, each of its facts now lives once in the section it belongs to.
+	//
+	// READABILITY (Build B2, 2026-10-14; images/rules_menu_ref_r1/COMPARISON.md fixes 1 to 6, approved): body copy
+	// (paragraphs, list items, card text, notes) in the real variable Outfit at 400 ('Outfit Text', ui/fontFaces.ts)
+	// with bold keywords at 700; headings, names and labels keep the HUD's heavy Outfit; the panel's own greys lifted;
+	// labels 12 px; the reading measure held to about 72 characters (cards and pay rows stay 880 px); section headings
+	// 20 px with more air between sections; the compact header up to 600 px of window height. The HUD is untouched.
 	import type { ComponentProps } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
@@ -18,7 +25,7 @@
 	import { soc } from '../game/social';
 	import { skipAllowed } from '../game/stateGame.svelte';
 	import { stamp } from '../game/assets';
-	import { DISCLAIMER, rulesSections } from '../game/gameInfoText';
+	import { gameInfoText, runs, MODE_NAMES, pct, type GuideId } from '../game/gameInfoText';
 	import { modeCost } from '../game/betModeMeta';
 	import { measureFitText } from '../game/textFit';
 
@@ -26,7 +33,7 @@
 	const { master, scale, left, top, compact = false }: Props = $props();
 	// `compact` is the LAYOUT KIND (any non-landscape chrome). That was the wrong gate for type
 	// size (Stake review 2026-09-20, FIX 6): Stake's Popout S is a 400x225 iframe that resolves to
-	// the phone kind, so it took the phone's compact sizes — and, before FIX 5, saw them scaled by
+	// the phone kind, so it took the phone's compact sizes and, before FIX 5, saw them scaled by
 	// 0.27 on top. The shell is the viewport now, so gate on the REAL window instead: `narrow` is
 	// what the reading column can afford, `short` is a viewport with no vertical room. Minimum
 	// sizes below are CSS px and never drop under 10.
@@ -35,6 +42,9 @@
 	const narrow = $derived(vw < 720);
 	const short = $derived(vh < 340);
 	const dense = $derived(narrow || short);
+	// the fixed header (title row + tabs) goes compact on any window under 600 px high (COMPARISON.md fix 6: at
+	// 800 x 450 the full header took a quarter of the window); the reading sizes below still follow `short` / `dense`
+	const lowHead = $derived(vh < 600);
 
 	const open = $derived(stateModal.modal?.name === 'gameRules' || stateModal.modal?.name === 'payTable');
 	const close = () => (stateModal.modal = null);
@@ -42,16 +52,16 @@
 	const SECTIONS = [
 		{ id: 'paytable', label: soc('Paytable', 'Symbols') },
 		{ id: 'guide', label: 'UI Guide' },
-		{ id: 'clusters', label: 'Clusters' },
+		{ id: 'howto', label: 'How to Play' },
 		{ id: 'modes', label: 'Game Modes' },
 		{ id: 'mystery', label: 'Mystery Disclosure' },
 		{ id: 'tiles', label: 'Multiplier Tiles' },
-		{ id: 'maxwin', label: 'Max Win' },
-		{ id: 'rtp', label: 'RTP' },
-		{ id: 'volatility', label: 'Volatility' },
-		{ id: 'rules', label: 'Rules' },
-		{ id: 'version', label: 'Version' },
+		{ id: 'maxwin', label: 'Max Win & RTP' },
+		{ id: 'legal', label: 'Legal' },
 	];
+
+	// every string of the page; the Epic floor shows its live amount at the current bet
+	const T = $derived(gameInfoText((x) => numberToCurrencyString(x * stateBet.betAmount)));
 
 	const SYMBOL_META: Record<string, { name: string; color: string; kind: 'premium' | 'mid' | 'low' }> = {
 		H1: { name: config.symbols.H1.name, color: '#e2b648', kind: 'premium' },
@@ -72,50 +82,56 @@
 	const social = $derived(stateUrlDerived.social());
 	const payText = (mult: number) => (social ? `${mult}×` : numberToCurrencyString(mult * stateBet.betAmount));
 
-	// (authenticate has resolved before the chrome mounts, so the jurisdiction's switches are in)
-	const RULES_SECTIONS = rulesSections(skipAllowed());
-
-	const SPECIALS = [
-		{ glyph: 'W', name: config.symbols.W.name, color: '#e2b648', note: soc('Substitutes for every paying symbol and has no pay of its own. The manticore\u2019s sting turns cells wild before a board is evaluated.', 'Substitutes for every winning symbol and has no value of its own. The manticore\u2019s sting turns cells wild before a board is evaluated.') },
-		{ glyph: 'S', name: config.symbols.S.name, color: '#b02c2c', note: `4 / 5 / 6 or more anywhere award ${config.freeSpins.bonus} Free Spins / ${config.freeSpins.super} Super Free Spins / ${config.freeSpins.epic} Epic Free Spins. In Super Ante, 4 upgrade to a Super. No War Standard Scatters land during a feature and there are no retriggers.` },
-	];
+	// the Wild and the scatter, described once under Special Symbols (the Wild row at the foot of the pay grid is gone:
+	// the same symbol was shown twice, eight lines apart; rules trim, Corey 2026-10-13)
+	const SPECIALS = $derived([
+		{ glyph: 'W', name: config.symbols.W.name, color: '#e2b648', note: T.paytable.wild },
+		{ glyph: 'S', name: config.symbols.S.name, color: '#b02c2c', note: T.paytable.scatter },
+	]);
 
 	// the cap is a base-bet multiple in every mode; a mode's ceiling against its own price is what a
-	// player (and a reviewer) needs to see — 20,000x of a 300x Mystery Spin is 66.7x the price
-	const capPerPrice = (cost: number) => {
-		const x = config.maxWin / cost;
-		return Number.isInteger(x) ? x.toLocaleString() : x.toFixed(1).replace(/\.0$/, '');
-	};
-	const MODES = [
-		{ id: 'base', label: 'Base Game', accent: '#eef0f6', cost: `${modeCost('BASE')}\u00d7`, costNum: modeCost('BASE'), enter: 'Default play.', spins: 'One spin per play.', mech: soc(`Clusters of ${config.minCluster}+ touching symbols pay and cascade. Multiplier Tiles reset every spin. 4, 5 or 6 or more War Standard Scatters award Free Spins, Super Free Spins or Epic Free Spins.`, `Clusters of ${config.minCluster}+ touching symbols win and cascade. Multiplier Tiles reset every spin. 4, 5 or 6 or more War Standard Scatters award Free Spins, Super Free Spins or Epic Free Spins.`) },
-		{ id: 'ante', label: 'Ante', accent: '#e0b64a', cost: `${modeCost('ANTE')}\u00d7`, costNum: modeCost('ANTE'), enter: soc('Switch on from the feature menu; stays on until switched off.', 'Switch on from the feature menu; stays on until switched off.'), spins: 'One spin per play.', mech: 'Free Spins and Super Free Spins land about five times as often as in the base game. Multiplier Tiles still reset every spin.' },
-		{ id: 'super_ante', label: 'Super Ante', accent: '#e08a3c', cost: `${modeCost('SUPER_ANTE')}\u00d7`, costNum: modeCost('SUPER_ANTE'), enter: 'Switch on from the feature menu; stays on until switched off.', spins: 'One spin per play.', mech: 'Regular Free Spins cannot trigger at all: only Super and Epic, and 4 War Standard Scatters upgrade to a Super.' },
-		{ id: 'bonus', label: 'Free Spins', accent: '#2eb0a8', cost: `${modeCost('BONUS')}\u00d7`, costNum: modeCost('BONUS'), enter: soc('Land 4 War Standard Scatters, or buy directly.', 'Land 4 War Standard Scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.bonus} free spins.`, mech: `Multiplier Tiles PERSIST for the whole round and double up to ${config.tileCap.bonus}\u00d7.` },
-		{ id: 'super', label: 'Super Free Spins', accent: '#7fb6ff', cost: `${modeCost('SUPER')}\u00d7`, costNum: modeCost('SUPER'), enter: soc('Land 5 War Standard Scatters, or buy directly.', 'Land 5 War Standard Scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.super} free spins.`, mech: `Tiles persist and run to the ${config.tileCap.super}\u00d7 ladder. The roar clears the low symbols and a Super Sting is possible.` },
-		{ id: 'epic', label: 'Epic Free Spins', accent: '#ff6a4a', cost: `${modeCost('EPIC')}\u00d7`, costNum: modeCost('EPIC'), enter: soc('Land 6 or more War Standard Scatters, or buy directly.', 'Land 6 or more War Standard Scatters, or trigger it instantly from the feature menu.'), spins: `${config.freeSpins.epic} free spins.`, mech: soc(`Tiles persist on the ${config.tileCap.epic}\u00d7 ladder, Super Stings are common, and every round pays at least ${config.epicMinWin}\u00d7 the bet.`, `Tiles persist on the ${config.tileCap.epic}\u00d7 ladder, Super Stings are common, and every round wins at least ${config.epicMinWin}\u00d7 the play amount.`) },
-		{ id: 'mystery', label: 'Mystery', accent: '#b07fe0', cost: `${modeCost('MYSTERY')}\u00d7`, costNum: modeCost('MYSTERY'), enter: soc('Buy from the feature menu.', 'Trigger from the feature menu.'), spins: 'One Mystery spin, then whatever it awards.', mech: soc(`${config.mystery.nothing * 100}% award no feature (the Mystery spin still pays its clusters), ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.epic * 100}% award Epic Free Spins. Never a regular Free Spins round. The split is fixed in the published math.`, `${config.mystery.nothing * 100}% award no feature (the Mystery spin still wins its clusters), ${config.mystery.super * 100}% award Super Free Spins and ${config.mystery.epic * 100}% award Epic Free Spins. Never a regular Free Spins round. The split is fixed in the published math.`) },
+	// player (and a reviewer) needs to see: 10,000x of a 3x Ante spin is 3,333.3x the price. One decimal at most,
+	// thousands separated like the cap itself ("3,333.3", "1,000")
+	const capPerPrice = (cost: number) => (config.maxWin / cost).toLocaleString('en-US', { maximumFractionDigits: 1 });
+	const MODE_STYLE: { id: keyof typeof config.betModes; accent: string; rgs: string }[] = [
+		{ id: 'base', accent: '#eef0f6', rgs: 'BASE' },
+		{ id: 'ante', accent: '#e0b64a', rgs: 'ANTE' },
+		{ id: 'super_ante', accent: '#e08a3c', rgs: 'SUPER_ANTE' },
+		{ id: 'bonus', accent: '#2eb0a8', rgs: 'BONUS' },
+		{ id: 'super', accent: '#7fb6ff', rgs: 'SUPER' },
+		{ id: 'epic', accent: '#ff6a4a', rgs: 'EPIC' },
+		{ id: 'mystery', accent: '#b07fe0', rgs: 'MYSTERY' },
 	];
+	// RTP per mode from the published math (Stake wants it per mode, the seven cell grid stays: Corey 2026-10-13)
+	const MODES = $derived(
+		MODE_STYLE.map((m) => ({
+			...m,
+			label: MODE_NAMES[m.id],
+			costNum: modeCost(m.rgs),
+			cost: `${modeCost(m.rgs)}\u00d7`,
+			rtp: pct(config.betModes[m.id].rtp),
+			...T.modes.cards[m.id],
+		})),
+	);
 
 	// UI guide (submission checklist "User interaction guide is included in the game information"):
-	// one control per row — the same icon the chrome draws, the name, what a press does
+	// one control per row: the same icon the chrome draws, the name, what a press does (text: gameInfoText.ts)
 	type IconName = ComponentProps<typeof Icon>['name'];
-	type GuideRow = { icon: IconName | null; art?: string; color: string; name: string; text: string };
-	const GUIDE_ALL: GuideRow[] = [
-		{ icon: 'play', color: '#ffdc4a', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
-		{ icon: 'turbo', color: '#ffdc4a', name: 'Turbo', text: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. The turbo setting and the sound settings are remembered on this device.' },
-		{ icon: 'auto', color: '#ffdc4a', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, plus an ADVANCED fold with a stop-on-loss limit, a stop-on-single-win limit, Stop on Free Games (autoplay ends when a feature triggers; the feature still plays out) and Autoplay Bonuses (feature screens continue on their own). LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. While a run is active the Spin button turns green with the spins left and this button turns red with an X.' },
-		{ icon: 'polymath', color: '#ffdc4a', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the feature menu: switch Ante Bet or Super Ante Bet on, or buy Free Spins, Super Free Spins, Epic Free Spins or a Mystery directly. A loaded feature is shown on the Spin button and on this button by name; tap the button again to cancel it.', 'Opens the feature menu: switch Ante Mode or Super Ante Mode on, or trigger Free Spins, Super Free Spins, Epic Free Spins or a Mystery instantly. A loaded feature is shown on the Spin button and on this button by name; tap the button again to cancel it.') },
-		{ icon: 'menu', color: '#ffdc4a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
-		{ icon: 'info', color: '#ffdc4a', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The − and + beside it step through the bet menu, and tapping the readout opens the full bet picker. The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The − and + beside it step through the play amount menu, and tapping the readout opens the full picker. The plaque on the reel frame names the active mode and its play amount.') },
-		{ icon: 'chevronRight', color: '#ffdc4a', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
+	const GUIDE_ICONS: { id: GuideId; icon: IconName }[] = [
+		{ id: 'spin', icon: 'play' },
+		{ id: 'turbo', icon: 'turbo' },
+		{ id: 'autoplay', icon: 'auto' },
+		{ id: 'feature', icon: 'polymath' },
+		{ id: 'menu', icon: 'menu' },
+		{ id: 'readouts', icon: 'info' },
+		{ id: 'keyboard', icon: 'chevronRight' },
 		// the SKIP button's own glyph (components/SkipButton.svelte, 2026-10-13: the press opens a prompt first)
-		{ icon: 'skip', color: '#ffdc4a', name: 'Skip to Result', text: 'Shown during Free Spins, Super Free Spins and Epic Free Spins once the first free spin has started. Pressing it asks "Skip to result?". Yes ends the presentation of the remaining spins and shows the final total of the round. No closes the question and the spins play on. It never changes the result.' },
-		{ icon: 'stop', color: '#ffdc4a', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
+		{ id: 'skip', icon: 'skip' },
+		{ id: 'screens', icon: 'stop' },
 	];
 	// Stake's jurisdiction switches: where the operator disables the slam stop or turbo there is no SKIP (stateGame
 	// skipAllowed), so the guide does not describe one
-	const GUIDE = $derived(skipAllowed() ? GUIDE_ALL : GUIDE_ALL.filter((row) => row.icon !== 'skip'));
-
+	const GUIDE = $derived(GUIDE_ICONS.filter((g) => g.id !== 'skip' || skipAllowed()).map((g) => ({ ...g, color: '#ffdc4a', ...T.guide.rows[g.id] })));
 
 	let active = $state('paytable');
 	let contentEl: HTMLDivElement | undefined = $state();
@@ -150,7 +166,7 @@
 	const pad = $derived(short ? 10 : dense ? 14 : 28);
 	// body copy never goes under 12 CSS px, tabs never under 10, tiles never under 40
 	const bodySize = $derived(dense ? 12.5 : 13.5);
-	const tabSize = $derived(short ? 10 : dense ? 10.5 : 11);
+	const tabSize = $derived(lowHead ? 10 : dense ? 10.5 : 11);
 	const tileSize = $derived(short ? 40 : dense ? 48 : 64);
 	const iconBox = $derived(short ? 34 : dense ? 40 : 48);
 
@@ -180,24 +196,26 @@
 	const payFont = $derived(stack ? Math.max(PAY_FLOOR, Math.floor(stackFont(payCols) * 10) / 10) : PAY_FONT);
 </script>
 
+{#snippet rich(text: string)}{#each runs(text) as r}{#if r.b}<strong>{r.t}</strong>{:else}{r.t}{/if}{/each}{/snippet}
+
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.72)" zIndex={5}>
-	<!-- full screen: no margin, no radius — the glass IS the page (Black Glass Panels, 2026-09-09) -->
-	<div class="panel" onclick={(e) => e.stopPropagation()} role="presentation">
-		<div class="head" style:padding="{short ? 8 : dense ? 12 : 14}px {pad}px">
-			<div class="h-title am-stencil" style:font-size="{short ? 14 : dense ? 17 : 22}px">GAME INFO</div>
-			<button class="slot-btn x" onclick={close} style:width="{short ? 30 : 40}px" style:height="{short ? 30 : 40}px" aria-label="Close"><Icon name="close" s={short ? 14 : dense ? 16 : 18} /></button>
+	<!-- full screen: no margin, no radius; the glass IS the page (Black Glass Panels, 2026-09-09) -->
+	<div class="panel" data-gameinfo onclick={(e) => e.stopPropagation()} role="presentation">
+		<div class="head" style:padding="{lowHead ? 8 : dense ? 12 : 14}px {pad}px">
+			<div class="h-title am-stencil" style:font-size="{lowHead ? 14 : dense ? 17 : 22}px">GAME INFO</div>
+			<button class="slot-btn x" onclick={close} style:width="{lowHead ? 30 : 40}px" style:height="{lowHead ? 30 : 40}px" aria-label="Close"><Icon name="close" s={lowHead ? 14 : dense ? 16 : 18} /></button>
 		</div>
 
 		<div class="tabs" bind:this={navEl} style:padding="4px {pad - 8}px">
 			{#each SECTIONS as s (s.id)}
-				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={short ? '7px 8px 6px' : dense ? '9px 9px 8px' : '10px 12px 9px'} style:font-size="{tabSize}px">{s.label}</button>
+				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={lowHead ? '7px 8px 6px' : dense ? '9px 9px 8px' : '10px 12px 9px'} style:font-size="{tabSize}px">{s.label}</button>
 			{/each}
 		</div>
 
-		<div class="content" bind:this={contentEl} onscroll={onScroll} style:padding="{short ? 12 : dense ? 16 : 22}px {pad}px 40px" style:gap="{short ? 16 : dense ? 22 : 30}px" style:font-size="{bodySize}px">
+		<div class="content" class:dense bind:this={contentEl} onscroll={onScroll} style:padding="{short ? 12 : dense ? 16 : 22}px {pad}px 40px" style:gap="{short ? 24 : dense ? 36 : 52}px" style:font-size="{bodySize}px">
 			<section bind:this={sectionEls.paytable}>
 				<h2>{soc('Paytable', 'Symbols')}</h2>
-				<p>{soc(`Pays by CLUSTER SIZE: ${config.minCluster} or more matching symbols touching each other left, right, up or down. A cluster's pay is multiplied by the SUM of the Multiplier Tiles under it.`, `Wins by CLUSTER SIZE: ${config.minCluster} or more matching symbols touching each other left, right, up or down. A cluster's win is multiplied by the SUM of the Multiplier Tiles under it.`)}</p>
+				<p>{@render rich(T.paytable.intro)}</p>
 				<!-- ONE column, always: five cluster-size bands per row need the full reading width.
 				     Angry Mantis fitted two columns because it only had three "of a kind" cells. -->
 				<div class="pay-grid" style:grid-template-columns="1fr">
@@ -216,25 +234,16 @@
 							</div>
 						</div>
 					{/each}
-					<!-- Wild sits in the paytable grid per convention: its own tile, no pay values —
-					     it has no paytable of its own, only the substitution rule as its caption -->
-					<div class="row">
-						<img class="tile" src={tileSrc('W')} alt="Wild" style:width="{tileSize}px" style:height="{tileSize}px" />
-						<div class="row-main">
-							<div class="row-name" style:color="#ffdc4a">Wild</div>
-							<div class="row-kind">{soc('Substitutes for every paying symbol', 'Substitutes for every winning symbol')}</div>
-						</div>
-					</div>
 				</div>
 				<div class="tear"></div>
-				<div class="subhead">Special Symbols</div>
+				<div class="subhead">{T.paytable.specials}</div>
 				<div class="pay-grid" style:grid-template-columns="1fr">
 					{#each SPECIALS as s (s.glyph)}
 						<div class="row top">
 							<img class="tile" src={tileSrc(s.glyph)} alt={s.name} style:width="{tileSize}px" style:height="{tileSize}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={s.color}>{s.name}</div>
-								<div class="note">{s.note}</div>
+								<div class="note">{@render rich(s.note)}</div>
 							</div>
 						</div>
 					{/each}
@@ -243,44 +252,42 @@
 
 			<section bind:this={sectionEls.guide}>
 				<h2>User Interface Guide</h2>
-				<p>{soc('Every control on the screen, what it does, and how the readouts are calculated. Controls are the same on desktop and phone; on portrait phones they sit under the reels.', 'Every control on the screen, what it does, and how the readouts are calculated. Controls are the same on desktop and phone; on portrait phones they sit under the reels.')}</p>
+				<p>{T.guide.intro}</p>
 				<div class="guide">
-					{#each GUIDE as g (g.name)}
+					{#each GUIDE as g (g.id)}
 						<div class="guide-row">
 							<div class="guide-icon" style:color={g.color} style:width="{iconBox}px" style:height="{iconBox}px">
-								{#if g.art}<img src={stamp(g.art)} alt="" style:width="{iconBox * 0.75}px" draggable="false" />{:else if g.icon}<Icon name={g.icon} s={iconBox * 0.46} />{/if}
+								<Icon name={g.icon} s={iconBox * 0.46} />
 							</div>
 							<div class="guide-text">
 								<div class="guide-name" style:font-size="{dense ? 13 : 15}px">{g.name}</div>
-								<div class="v">{g.text}</div>
+								<div class="v">{@render rich(g.text)}</div>
 							</div>
 						</div>
 					{/each}
 				</div>
 			</section>
 
-			<section bind:this={sectionEls.clusters}>
-				<h2>Clusters and Cascades</h2>
-				<p><strong>8 × 8 grid, {soc('cluster pays', 'cluster wins')}.</strong> {config.minCluster} or more matching symbols touching each other left, right, up or down form one cluster. Position on the grid does not matter and there are no fixed lines.</p>
-				<p>{soc('Every winning cluster is removed, the symbols above it fall down and new symbols drop in from the top. The board keeps paying and refilling until a spin has no clusters left.', 'Every winning cluster is removed, the symbols above it fall down and new symbols drop in from the top. The board keeps winning and refilling until a spin has no clusters left.')}</p>
-				<p>{soc(`The larger the cluster, the higher the band it pays from: ${config.paytableBands.map((b) => b.label).join(', ')}.`, `The larger the cluster, the higher the band it wins from: ${config.paytableBands.map((b) => b.label).join(', ')}.`)}</p>
+			<section bind:this={sectionEls.howto}>
+				<h2>How to Play</h2>
+				{#each T.howTo as p}<p>{@render rich(p)}</p>{/each}
 			</section>
 
 			<section bind:this={sectionEls.modes}>
-				<h2>All Game Modes</h2>
-				<p>{soc('Seven modes. Base, Ante and Super Ante are bet-by-bet; the features are entered by War Standard Scatters, a direct bonus buy, or a Mystery.', 'Seven modes. Base, Ante and Super Ante run spin by spin; the features are entered by War Standard Scatters, triggered instantly from the feature menu, or served by a Mystery.')}</p>
+				<h2>Game Modes</h2>
+				{#each T.modes.intro as p}<p>{@render rich(p)}</p>{/each}
 				<div class="modes">
 					{#each MODES as m (m.id)}
 						<div class="mode" style:border-left-color={m.accent}>
 							<div class="mode-head">
 								<div class="mode-name" style:color={m.accent} style:font-size="{dense ? 14 : 16}px">{m.label}</div>
-								<div class="mode-meta"><span>{soc('COST', 'PLAY AMOUNT')} <b class="slot-num" style:color={m.accent}>{m.cost}</b></span><span>RTP <b class="slot-num">{(config.rtp * 100).toFixed(2)}%</b></span><span>MAX WIN <b class="slot-num">{config.maxWin.toLocaleString()}× {soc('bet', 'play amount')}</b>{#if m.costNum > 1}<span class="dim">&nbsp;= {capPerPrice(m.costNum)}× {soc('the mode price', 'the play amount for this mode')}</span>{/if}</span></div>
+								<div class="mode-meta"><span>{soc('COST', 'PLAY AMOUNT')} <b class="slot-num" style:color={m.accent}>{m.cost}</b></span><span>RTP <b class="slot-num">{m.rtp}</b></span><span>MAX WIN <b class="slot-num">{config.maxWin.toLocaleString()}× {soc('bet', 'play amount')}</b>{#if m.costNum > 1}<span class="dim">&nbsp;= {capPerPrice(m.costNum)}× {soc('the mode price', 'the play amount for this mode')}</span>{/if}</span></div>
 							</div>
 							<div class="kv-grid" style:grid-template-columns={narrow ? '1fr' : '1fr 1fr'}>
-								<div><div class="k">Enter</div><div class="v">{m.enter}</div></div>
-								<div><div class="k">Spins</div><div class="v">{m.spins}</div></div>
+								<div><div class="k">Enter</div><div class="v">{@render rich(m.enter)}</div></div>
+								<div><div class="k">Spins</div><div class="v">{@render rich(m.spins)}</div></div>
 							</div>
-							<div><div class="k">Mechanics</div><div class="v">{m.mech}</div></div>
+							<div><div class="k">Mechanics</div><div class="v">{@render rich(m.mech)}</div></div>
 						</div>
 					{/each}
 				</div>
@@ -289,16 +296,13 @@
 			<section bind:this={sectionEls.mystery}>
 				<h2>Mystery Disclosure</h2>
 				<div class="callout gold">
-					<p><strong>What a Mystery awards:</strong> exactly <span class="slot-num mono">{config.mystery.nothing * 100}%</span> no feature (the Mystery spin itself still plays and can {soc('pay', 'win')} clusters), <span class="slot-num mono">{config.mystery.super * 100}%</span> Super Free Spins and <span class="slot-num mono">{config.mystery.epic * 100}%</span> Epic Free Spins, for {modeCost('MYSTERY')}× {soc('the bet', 'the play amount')}. It NEVER awards a regular Free Spins round. These shares are fixed in the published math.</p>
-					<p><strong>A Mystery is a real spin:</strong> three War Standard Scatters always land in the first three columns and the rest of the board is played out. A Mystery that awards no feature still plays its spin, and any clusters on it {soc('pay', 'win')} normally.</p>
-					<p><strong>Epic floor:</strong> an Epic Free Spins round reached through a Mystery {soc('pays at least', 'wins at least')} <span class="slot-num mono">{soc(`${config.mysteryEpicMinWin}× bet`, `${config.mysteryEpicMinWin}× play amount`)}</span>, {(config.mysteryEpicMinWin / modeCost('MYSTERY')).toFixed(2)}× the Mystery price. An Epic entered any other way {soc('pays at least', 'wins at least')} <span class="slot-num mono">{config.epicMinWin}×</span>. Super Free Spins have no floor.</p>
-					
+					{#each T.mystery as p}<p>{@render rich(p)}</p>{/each}
 				</div>
 			</section>
 
 			<section bind:this={sectionEls.tiles}>
 				<h2>Multiplier Tiles</h2>
-				<p>Every cell a winning cluster is removed from lights up as a <strong>2× Multiplier Tile</strong>. Each further cluster removed from that same cell <strong>doubles</strong> it.</p>
+				<p>{@render rich(T.tiles.intro)}</p>
 				<div class="menu-strip">
 					{#each [2, 4, 8, 16, 32, 64, 128] as value, i (value)}
 						<div class="menu-item">
@@ -308,59 +312,39 @@
 					{/each}
 				</div>
 				<ul>
-					<li>The tiles under a winning cluster are <strong>added together</strong>, and the cluster {soc('pays', 'wins')} its table value multiplied by that sum. A cluster with no tiles under it {soc('pays', 'wins')} its table value once.</li>
-					<li>Tiles <strong>reset every spin</strong> in the Base Game, Ante and Super Ante.</li>
-					<li>Tiles <strong>persist for the whole round</strong> in Free Spins, Super Free Spins and Epic Free Spins.</li>
-					<li>The ladder stops at <strong>{config.tileCap.bonus}×</strong> in the Base Game, Ante, Super Ante and Free Spins, and at <strong>{config.tileCap.super}×</strong> in Super Free Spins and Epic Free Spins.</li>
+					{#each T.tiles.rules as li}<li>{@render rich(li)}</li>{/each}
 				</ul>
-				<div class="subhead">The manticore</div>
+				<div class="subhead">{T.tiles.manticore}</div>
 				<ul>
-					<li><strong>Swipe.</strong> When a spin runs out of clusters the paw may clear {config.swipeBandRows} adjacent rows anywhere on the board (any of the {config.swipeBandStarts.length} possible bands, equally likely), at most twice per spin. Every cell in those rows steps up its Multiplier Tile: a cold cell lights to 2×, a lit cell doubles. War Standard Scatters in those rows stay. The board refills and play carries on.</li>
-					<li><strong>Sting.</strong> Before a board is evaluated the tail may strike up to five times. A normal sting turns one cell wild. A <strong>Big Sting</strong> turns a plus of five cells wild and a <strong>Super Sting</strong> a block of nine; at most one of those per spin, always the last strike, and it always completes a winning cluster. Base, Ante and Super Ante see normal stings only; Free Spins add the Big Sting; Super and Epic Free Spins add the Super Sting. Stings never land on a War Standard Scatter. On some naturally triggered features the Manticore also stings the missing War Standard Scatters onto a resting board; the result of that spin was already decided.</li>
-					<li><strong>Roar.</strong> Every low symbol is blown off the board and replaced. Multiplier Tiles under them are not affected. Super Free Spins and Epic Free Spins only.</li>
+					{#each T.tiles.creature as li}<li>{@render rich(li)}</li>{/each}
 				</ul>
-				
 			</section>
 
 			<section bind:this={sectionEls.maxwin}>
-				<h2>Max Win</h2>
+				<h2>Max Win and RTP</h2>
 				<div class="callout red">
-					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{short ? 20 : dense ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{soc('bet (hard cap)', 'play amount (hard cap)')}</span></div>
-					<p>{soc(`The total payout of any round is capped at ${config.maxWin.toLocaleString()}× the bet. The cap is reached when the wins of a round add up to it. Once reached, the round ends immediately, any remaining free spins are not played, and the cap is paid.`, `The total win of any round is capped at ${config.maxWin.toLocaleString()}× the play amount. The cap is reached when the wins of a round add up to it. Once reached, the round ends immediately, any remaining free spins are not played, and the cap is won.`)}</p>
+					<div class="maxwin-line"><span class="slot-num maxwin" style:font-size="{short ? 20 : dense ? 22 : 36}px">{config.maxWin.toLocaleString()}×</span><span class="dim">{T.maxWin.unit}</span></div>
+					<p>{@render rich(T.maxWin.text)}</p>
 				</div>
-			</section>
-
-			<section bind:this={sectionEls.rtp}>
-				<h2>Return to Player (RTP)</h2>
+				<div class="subhead">{T.maxWin.rtpHead}</div>
 				<div class="rtp-grid" style:grid-template-columns={narrow ? '1fr 1fr' : 'repeat(5, 1fr)'}>
-					{#each MODES.filter((m) => m.costNum > 0) as m (m.id)}
+					{#each MODES as m (m.id)}
 						<div class="rtp-cell">
 							<div class="rtp-k" style:color={m.accent}>{m.label}</div>
-							<div class="slot-num rtp-v" style:font-size="{dense ? 18 : 22}px">{(config.rtp * 100).toFixed(2)}%</div>
+							<div class="slot-num rtp-v" style:font-size="{dense ? 18 : 22}px">{m.rtp}</div>
 						</div>
 					{/each}
 				</div>
-				<p>Every game mode has a theoretical return to player of <span class="slot-num mono">{(config.rtp * 100).toFixed(2)}%</span>, calculated over 100,000 simulated rounds per mode.</p>
-				<p class="dim">RTP describes long-run behaviour across all players. Individual sessions may return significantly above or below this figure.</p>
-			</section>
-
-			<section bind:this={sectionEls.volatility}>
-				<h2>Volatility</h2>
+				<p>{@render rich(T.maxWin.rtp)}</p>
+				<div class="subhead">{T.maxWin.volHead}</div>
 				<div class="vol"><span class="slot-num vol-label" style:font-size="{dense ? 16 : 20}px">EXTREME</span><div class="meter">{#each [1, 2, 3, 4, 5] as i}<div class="seg on"></div>{/each}</div></div>
-				<p>Wins are infrequent but can be very large. Most spins return nothing; the free spin rounds carry the long-run RTP, with Epic Free Spins, reached by 6 or more War Standard Scatters, {soc('bought directly', 'instantly triggered')}, or served by a Mystery, at the top of the range.</p>
+				<p>{@render rich(T.maxWin.volatility)}</p>
 			</section>
 
-			<section bind:this={sectionEls.rules}>
-				<h2>Game Rules</h2>
-				{#each RULES_SECTIONS as s (s.title)}
-					<div class="subhead">{s.title}</div>
-					{#each s.paragraphs as p}<p>{p}</p>{/each}
-				{/each}
-				<div class="callout muted"><p class="dim">{DISCLAIMER}</p></div>
-			</section>
-
-			<section bind:this={sectionEls.version}>
-				<h2>Version</h2>
+			<section bind:this={sectionEls.legal}>
+				<h2>Legal</h2>
+				<div class="callout muted"><p class="dim">{T.legal.disclaimer}</p></div>
+				<div class="subhead">{T.legal.versionHead}</div>
 				<div class="kv-grid" style:grid-template-columns={narrow ? '1fr' : '1fr 1fr'}>
 					{#each [['Game version', __APP_VERSION__], ['Math version', config.mathVersion], ['Provider', 'Polymath Games'], ['Replay mode', 'Supported']] as [k, v]}
 						<div class="kv"><span class="dim">{k}</span><span class="slot-num">{v}</span></div>
@@ -376,9 +360,16 @@
 	/* ── black glass, full screen (surface tokens from ChromeStyles; the paper tokens are gone) ── */
 	.panel {
 		--ink: var(--ui-ink);
-		--body: var(--ui-ink-2);
-		--muted: var(--ui-ink-2);
-		--faint: var(--ui-ink-3);
+		/* the panel's OWN greys, lifted for reading (COMPARISON.md fix 2: body #a5a8b6 was 8.1:1, faint #6d707d 3.9:1 on
+		   the glass); the HUD's --ui-ink-2 / --ui-ink-3 are untouched */
+		--body: #c9ccd6;
+		--muted: #c9ccd6;
+		--faint: #969aa8;
+		/* the reading face (ui/fontFaces.ts): real variable Outfit, drawn at 400 with bold keywords at 700. Headings,
+		   names and labels name --ui-font (the HUD's black Outfit) themselves */
+		--gi-body: 'Outfit Text', var(--ui-font);
+		/* the reading measure, about 72 characters of Outfit Text at the body size (COMPARISON.md fix 4) */
+		--measure: 31em;
 		--rule: var(--ui-rule);
 		--rule-2: var(--ui-rule-2);
 		--well: var(--ui-glass-well);
@@ -453,6 +444,8 @@
 		align-items: stretch;
 		line-height: 1.55;
 		color: var(--body);
+		font-family: var(--gi-body);
+		font-weight: 400;
 		overscroll-behavior: contain;
 		scrollbar-width: thin;
 		scrollbar-color: var(--rule-2) transparent;
@@ -466,16 +459,30 @@
 		max-width: 880px;
 		margin: 0 auto;
 	}
+	/* section headings above the body size (COMPARISON.md fix 5: 13 px read smaller than the 13.5 px body) */
 	h2 {
 		margin: 0;
-		font-size: 13px;
+		font-family: var(--ui-font);
+		font-size: 20px;
 		font-weight: 900;
 		letter-spacing: 3px;
 		color: var(--gold);
 		text-transform: uppercase;
 	}
+	.content.dense h2 {
+		font-size: 18px;
+	}
 	p {
 		margin: 0;
+	}
+	/* reading text holds to the measure; cards, pay rows, the RTP grid and the guide boxes keep the full 880 */
+	p,
+	.note,
+	.v {
+		max-width: var(--measure);
+	}
+	ul {
+		max-width: calc(var(--measure) + 18px);
 	}
 	strong {
 		color: var(--ink);
@@ -496,6 +503,7 @@
 		gap: 6px;
 	}
 	.subhead {
+		font-family: var(--ui-font);
 		font-size: 11.5px;
 		letter-spacing: 2px;
 		font-weight: 800;
@@ -578,13 +586,15 @@
 		min-width: 0;
 	}
 	.row-name {
+		font-family: var(--ui-font);
 		font-size: 14px;
 		font-weight: 800;
 		letter-spacing: 1.5px;
 		text-transform: uppercase;
 	}
 	.row-kind {
-		font-size: 11.5px;
+		font-family: var(--ui-font);
+		font-size: 12px;
 		color: var(--faint);
 		letter-spacing: 1px;
 		text-transform: uppercase;
@@ -620,7 +630,8 @@
 		text-align: center;
 	}
 	.pay-k {
-		font-size: 10.5px;
+		font-family: var(--ui-font);
+		font-size: 12px;
 		font-weight: 800;
 		letter-spacing: 0.5px;
 		color: var(--faint);
@@ -655,6 +666,7 @@
 		flex-wrap: wrap;
 	}
 	.mode-name {
+		font-family: var(--ui-font);
 		font-weight: 900;
 		letter-spacing: 2px;
 		text-transform: uppercase;
@@ -663,7 +675,8 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px 14px;
-		font-size: 10.5px;
+		font-family: var(--ui-font);
+		font-size: 12px;
 		font-weight: 700;
 		letter-spacing: 1.4px;
 		color: var(--faint);
@@ -702,6 +715,7 @@
 		gap: 3px;
 	}
 	.guide-name {
+		font-family: var(--ui-font);
 		font-weight: 800;
 		letter-spacing: 1.5px;
 		color: var(--ink);
@@ -714,7 +728,8 @@
 		font-size: 12.5px;
 	}
 	.k {
-		font-size: 10.5px;
+		font-family: var(--ui-font);
+		font-size: 12px;
 		font-weight: 800;
 		letter-spacing: 1.6px;
 		color: var(--faint);
@@ -734,6 +749,7 @@
 		font-weight: 600;
 	}
 	.callout {
+		max-width: calc(var(--measure) + 34px);
 		padding: 14px 16px;
 		border-radius: 12px;
 		border: 1px solid var(--rule-2);
@@ -777,7 +793,8 @@
 		text-align: center;
 	}
 	.rtp-k {
-		font-size: 10.5px;
+		font-family: var(--ui-font);
+		font-size: 12px;
 		letter-spacing: 1.4px;
 		font-weight: 800;
 		text-transform: uppercase;

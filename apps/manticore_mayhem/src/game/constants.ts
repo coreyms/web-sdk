@@ -4,9 +4,10 @@ import type { SymbolName } from './types';
 import config from './config';
 
 // ---- FEATURE MENU NAME ----------------------------------------------------------------------
-// Corey has not picked the final name for the feature menu yet (Angry Mantis called it the Chow
-// Line). BAZAAR is the placeholder; it is deliberately ONE constant so renaming is one edit.
-export const FEATURE_MENU_NAME = 'BAZAAR';
+// THE ARMOURY (Corey 2026-10-13; BAZAAR was the placeholder, Angry Mantis called it the Chow Line). ONE constant so
+// renaming is one edit. The name carries its own article: write "in THE ARMOURY" / "Opens THE ARMOURY", never
+// "the ${FEATURE_MENU_NAME} menu" (that read "the THE ARMOURY menu"; game/gameInfoText.ts).
+export const FEATURE_MENU_NAME = 'THE ARMOURY';
 
 // ---- Board ------------------------------------------------------------------------------------
 export const GRID = 8; // 8 reels x 8 rows (config.numReels / numRows)
@@ -1309,6 +1310,27 @@ export const SKY = {
 		// the whole bob and the whole flutter.)
 		bobBySize: true,
 		flutterBySize: true,
+		// THE FLAP-TIMED BOB (Build B2, 2026-10-14; Corey: "Yes go with the build on the flap timed bob and glides, I trust
+		// you", values mine, judged by him on a clip: images/sky_r6). The bob is no longer on bobRate's clock: it follows
+		// each bat's own wing cycle (8 frames a flap at flapFps 15, so one bob per 0.53 s). In the sheet the wings rise
+		// over frames 0 to 7 (the silhouette's weight climbs from low to high) and beat down in the swap from 7 back to 0.
+		// The body LIFTS over `rise` of the cycle centred on `downAt` (a position in frames: 0 is that swap, 0.25 a
+		// quarter frame after it) and SINKS over the rest, eased at both ends; the swing is still +-bob x its size / near.
+		// rise 0.35 = a quick lift over 2.8 frames and a slower sink over 5.2, the power stroke and the recovery. The
+		// flutter (above, by size) stays on its own clock on top, but at `flutter` x its height while flapping: at its full
+		// 20.5 (about 4 wobbles a second, up to twice the bob) it drowned the beat, so a bat bobbed in time with its wings
+		// in one flap and against them in the next (sky_r6/NOTES.md). 1 gives today's whole flutter back; the 20.5 above
+		// and its scaling by size are unchanged. bobRate now drives only that flutter.
+		flapBob: { downAt: 0.25, rise: 0.35, flutter: 0.4 },
+		// THE GLIDES: every so often a bat holds its wings spread. Each bat has its own schedule (its first glide firstS
+		// after it takes off, then everyS after the last one ends, each a fresh random), so a flock never glides together.
+		// A glide that is due waits for its row's `frame` to come up in the cycle (at most one flap, 0.53 s), then holds
+		// that frame for holdS: the bob stands still (its wing cycle is held, so its height is held), the flutter eases
+		// out over easeS, the bat sinks sinkPx x its size / near (smoothly, eased at both ends), then it flaps on from
+		// the same frame, the flutter eases back in over easeS and the sink climbs back over recoverS (keep recoverS under everyS[0]). frame: per row of the sheet, the
+		// frame with the wings out level (rows 0 and 1: frame 5, row 2: frame 7, the small row 3: frame 4). The gap rule
+		// counts the sink in each bat's envelope (game/sky.ts near), so it holds as before.
+		glide: { firstS: [0.6, 8], everyS: [3, 8], holdS: [0.5, 1.2], frame: [5, 5, 7, 4], sinkPx: 14, easeS: 0.18, recoverS: 1.4 },
 		band: { y0: 0, y1: 261 },
 		farBelow: 0.59,
 		formation: 'scattered',
