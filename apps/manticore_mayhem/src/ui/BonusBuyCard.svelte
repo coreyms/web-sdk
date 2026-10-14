@@ -19,6 +19,8 @@
 	const canAfford = $derived(stateBet.balanceAmount >= price);
 	// every card shows what a play costs, ante included (its 3x price, not a "+" surcharge)
 	const costText = $derived(numberToCurrencyString(price));
+	// the pitch; the Epic floor in it is x times the CURRENT bet as money, so it follows the stepper under the panel
+	const pitch = $derived(opt.pitch((x) => numberToCurrencyString(x * stateBet.betAmount)));
 	// What the price covers. A feature card's price buys ONE feature round outright, so it reads
 	// TOTAL: "PER SPIN" under a 100x price read as 100x charged for every free spin (Stake review
 	// 2026-09-20). Ante really is a per-spin price and keeps the per-spin wording.
@@ -35,7 +37,7 @@
 <div class="card hover-lift" class:compact class:active style:--m={opt.accent}>
 	{#if active}<span class="on-tag">ON</span>{/if}
 	<span class="pill">{opt.label}</span>
-	<div class="pitch">{opt.pitch}</div>
+	<div class="pitch">{pitch}</div>
 	<div class="volm">
 		<span class="volm-lbl">VOLATILITY</span>
 		<span class="bar">

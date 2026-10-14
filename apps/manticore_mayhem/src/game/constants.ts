@@ -9,6 +9,95 @@ import config from './config';
 // "the ${FEATURE_MENU_NAME} menu" (that read "the THE ARMOURY menu"; game/gameInfoText.ts).
 export const FEATURE_MENU_NAME = 'THE ARMOURY';
 
+// ---- THE ARMOURY (the feature menu; spec: ~/Desktop/Manticore Mayhem/feedback/armoury_build_r1/SPEC.md) ----------
+// The name's partner values: everything the owner tuned in the prototype (values of 2026-10-13 14:05, locked 14:16),
+// every breakpoint and every number a probe checks. Type sizes stay in the component's stylesheet in design px (spec
+// 4.6). The reusable parts (ui/armoury/menuFrame.ts, motion.ts, heroGrid.ts, fit.ts) take these as arguments; the
+// game's data and copy are game/armouryData.ts and game/armouryText.ts.
+export const ARMOURY = {
+	/** the dim over the game: flat colour layers; a new mode's colour fades in over the old one */
+	tint: { opacity: 0.72, confirmAdd: 0.12, confirmMax: 0.95, inMs: 50, outMs: 150, crossMs: 400, confirmMs: 170 },
+	/** the ease is 1 - exp(-t / tauMs), run for `run` tau (520 ms); large moves (hero, confirm card) use tau * large */
+	motion: {
+		tauMs: 80,
+		run: 6.5,
+		large: 1.66,
+		/** points of the CSS linear() ease */
+		easePoints: 21,
+		staggerMs: 49,
+		firstTileMs: 30,
+		heroAtMs: 120,
+		plateAtMs: 200,
+		contentAtMs: [200, 240, 280],
+		contentFadeMs: 160,
+		slide: 80,
+		slideTouch: 40,
+		swapOutMs: 120,
+		heroSwapSlide: 0.45,
+		textSwapSlide: 0.25,
+		textSwapDelayMs: 30,
+		heroSwapRun: 1.25,
+		confirmGuardMs: 350,
+		confirmDelayMs: 60,
+		cardFrom: { y: 30, scale: 0.92 },
+		cardOutMs: 130,
+		backMs: 330,
+		closeMs: 150,
+		closeDoneMs: 170,
+		flashMs: 40,
+		veilMs: 100,
+	},
+	hero: {
+		follow: 1.0,
+		lagMs: 120,
+		degPer500: 3,
+		maxDeg: 6,
+		/** design px of pointer travel from the hero's centre to the grid's outermost yaw / pitch at follow 1 */
+		yawSpan: 700,
+		pitchSpan: 450,
+		/** the desktop hero's centre for the pointer, design px (spec 4.3) */
+		pointerCentre: { x: 365, y: 271 },
+		/** NO CROSS-BLEND BETWEEN FRAMES, EVER (owner, prototype v9): one opaque frame shows and a change is a hard swap.
+		 *  The new frame may fade in ON TOP of the old one (which stays fully opaque under it) only on a step of
+		 *  `fromDeg` degrees or more: `ms` at most, ramped as the prototype's fadeFor (0 at fromDeg, `ms` at
+		 *  fromDeg + rampDeg). `hold`: a pointer resting near the half way line keeps the frame it has (no flicker). */
+		frameFade: { ms: 45, fromDeg: 2, rampDeg: 3, hold: 0.56 },
+		parallax: { x: 2.2, y: 1.6, rays: -0.6, shadow: 0.5 },
+		breathe: { on: true, scale: 0.012, y: 2.5, periodMs: 5200 },
+		idleTurn: { deg: 6, periodMs: 7000, easeMs: 90 },
+		/** a decoded grid replaces the flat art by fading in on top of it (the flat art is its straight-on frame) */
+		swapInMs: 150,
+		/** at most this many hero atlases are held decoded: the one on show and the one before it */
+		keepDecoded: 2,
+		gridAfterOpenMs: 1000,
+	},
+	swipe: { startPx: 8, goPx: 40, flickPx: 12, flickSpeed: 0.5, endPull: 0.3, carryPx: 60, backMs: 200, yawPerPx: 0.06, yawMax: 12, clickBlockMs: 350 },
+	fit: {
+		price: { floor: 18, floorTouch: 15, floorStacked: 13, pad: 64, padTouch: 50 },
+		/** tile multiple: room is the tile less `pad` (desktop), `padTouch`, or `padTwoWide` (the phone's two wide tiles) */
+		tile: { floor: 14, floorTouch: 11, pad: 22, padTouch: 12, padTwoWide: 70 },
+		confirm: { total: 16, row: 13, totalTouch: 13, rowTouch: 11, gap: 14 },
+	},
+	layout: {
+		/** the desktop menu is the 1440 x 810 box over the 1280 x 720 master. `scaledUnderRatio` (owner 2026-10-13
+		 *  22:18, "desktop scaled"): where the game shows its phone sideways chrome on a frame narrower than this ratio
+		 *  (the 400 x 225 mini player, 800 x 450 popouts, 16:9 phones held sideways), the menu is the desktop box fitted
+		 *  to the window, with its own copies of the bet controls. 2.16 to 1 phones keep the sideways layout. */
+		desktop: { w: 1440, h: 810, master: 1280, scaledUnderRatio: 1.9 },
+		portrait: { w: 390, minHero: 44, gapToHud: 6, underClock: 2, nameBandMin: 16, minHitCss: 44 },
+		tablet: { w: 569, minFrame: 512, maxContent: 720, nameTop: 28, contentTop: 52 },
+		sideways: { w: 844, h: 390, rail: 324, minLeft: 180, hudGap: 8, heroDropUnder: 56 },
+	},
+	/** static/assets/ui/armoury/, made by tools/build_armoury_assets.py (its own copy of these sizes, kept in step) */
+	assets: {
+		folderMaxMb: 7,
+		thumbCell: 256,
+		heroFullH: 640,
+		heroHalfH: 320,
+		crestH: 96,
+	},
+} as const;
+
 // ---- Board ------------------------------------------------------------------------------------
 export const GRID = 8; // 8 reels x 8 rows (config.numReels / numRows)
 export const SYMBOL_SIZE = 110; // one cell in board units; layoutSpec scales the whole board

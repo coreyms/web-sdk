@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Feature menu on black glass (the Angry Mantis anatomy, re-skinned). The menu's NAME is
-	// FEATURE_MENU_NAME in game/constants.ts — placeholder BAZAAR until Corey picks the final one.
+	// FEATURE_MENU_NAME in game/constants.ts: THE ARMOURY (Corey 2026-10-13; BAZAAR was the placeholder). This OLD
+	// menu stays the default until THE ARMOURY (ui/armoury/) replaces it (spec feedback/armoury_build_r1 commit 10).
 	// (Was "CHOW LINE" on Angry Mantis; the layout below is unchanged, only the heading is a constant.)
 	// was the meal-ticket
 	// row from Claude Design "Meal Tickets 1a"): one glass panel with a small CHOW LINE head, the

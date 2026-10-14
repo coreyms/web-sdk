@@ -93,6 +93,20 @@ const walk = (dir) => {
 };
 walk(ASSETS);
 
+// THE ARMOURY's folder (tools/build_armoury_assets.py; spec feedback/armoury_build_r1 3.4): static/ is copied whole into
+// the build, so only finished .webp files and heroes.json may be in it, and it stays under its budget with every hero
+// grid in (constants.ts ARMOURY.assets.folderMaxMb). Every file in it is stamped by the walk above like any other; the
+// grid atlases heroes.json names are stamped by their own content (assets.ts stamp() on the file's path).
+{
+	const ARMOURY_DIR = 'ui/armoury/';
+	const ARMOURY_MAX_MB = 7;
+	const files = Object.keys(stamps).filter((rel) => rel.startsWith(ARMOURY_DIR));
+	const odd = files.filter((rel) => !/\.webp$/.test(rel) && rel !== `${ARMOURY_DIR}heroes.json`);
+	const bytes = files.reduce((n, rel) => n + statSync(join(ASSETS, rel)).size, 0);
+	if (odd.length) throw new Error(`stamp-assets: only .webp and heroes.json may be in static/assets/${ARMOURY_DIR}: ${odd.join(', ')}`);
+	if (bytes > ARMOURY_MAX_MB * 1048576) throw new Error(`stamp-assets: static/assets/${ARMOURY_DIR} is ${(bytes / 1048576).toFixed(2)} MB, over its ${ARMOURY_MAX_MB} MB budget`);
+}
+
 // 3. byte sizes for the LANDING-FIRST phase (src/game/boot.svelte.ts). The green bar in the shell
 // splash weights the bundle download and these assets by bytes, and it has to know the totals
 // before a single one of them has answered — so they are baked here at build time rather than

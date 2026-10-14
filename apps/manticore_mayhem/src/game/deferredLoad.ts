@@ -35,6 +35,8 @@
 // The shared loader then runs its batch as before: Pixi's cache answers at once for everything loaded here,
 // so it only downloads what is left (the other layouts' art) and sets stateApp.loaded. A file that fails
 // here is simply left to that batch, which has the retries and the failure screen.
+//   armoury   LAST, once stateApp.loaded is set (components/Game.svelte): THE ARMOURY's menu core, the feature menu's
+//           small HTML pictures (game/armouryLoad.ts; logged here as deferredLog.groups.armoury). Not Pixi assets.
 import * as PIXI from 'pixi.js';
 
 import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, LOGO_DATA_URLS, PLACEHOLDER_LATE, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS } from './assets';

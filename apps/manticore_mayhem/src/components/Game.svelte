@@ -15,6 +15,7 @@
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
 	import { loadDeferredInOrder, loadLogoEarly } from '../game/deferredLoad';
+	import { loadArmouryCore } from '../game/armouryLoad';
 	import { PHONE_TIER, renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
@@ -90,6 +91,9 @@
 
 	$effect(() => {
 		if (context.stateApp.loaded) markAssetsLoaded();
+		// THE ARMOURY's menu core (the feature menu's small pictures, 0.3 to 0.6 MB): the deferred phase's last group, after
+		// everything else is in, so it is never in front of anything that loaded before it (game/armouryLoad.ts)
+		if (context.stateApp.loaded) void loadArmouryCore();
 	});
 
 	// Retina/5K canvases at full DPR are the biggest GPU cost: the renderer's resolution is capped
