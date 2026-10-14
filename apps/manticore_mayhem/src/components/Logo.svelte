@@ -46,6 +46,7 @@
 	import { logoState } from '../game/logo/state.svelte';
 	import { LogoStill } from '../game/logo/still';
 	import { LogoView } from '../game/logo/view';
+	import { hudHiddenByModal } from '../ui/armoury/armouryView.svelte';
 
 	const context = getContext();
 	const sg = context.stateGame;
@@ -86,9 +87,10 @@
 
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const active = $derived(built && enabled && kind === 'landscape');
-	/** the HUD's own rule for its logo (ui/Chrome.svelte): gone under a modal; a kept element in landscape and portrait
-	 *  (only the deep hide takes it), and on the phone master it goes with the HUD */
-	const hudShows = $derived(stateModal.modal == null && (kind === 'phone' ? !hudOff : !deep));
+	/** the HUD's own rule for its logo (ui/Chrome.svelte): gone under a modal (but not under THE ARMOURY, which keeps the
+	 *  game visible under its tint: the one shared rule, ui/armoury/armouryView hudHiddenByModal); a kept element in
+	 *  landscape and portrait (only the deep hide takes it), and on the phone master it goes with the HUD */
+	const hudShows = $derived(!hudHiddenByModal(stateModal.modal) && (kind === 'phone' ? !hudOff : !deep));
 	const shown = $derived(active && hudShows);
 	const stillOn = $derived(stillBuilt && stillEnabled && !active);
 	const stillShown = $derived(stillOn && hudShows);

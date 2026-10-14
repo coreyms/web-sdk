@@ -42,6 +42,9 @@ export const ARMOURY_TEXT = {
 	close: 'Close',
 	volatility: 'VOLATILITY',
 	balanceShort: soc('Balance too low at this bet', 'Balance too low at this play amount'),
+	/** the chip on a mode that is on: on its tile, and leading the plate's status line (the status templates below start
+	 *  with it: "ON. Active now. ..."; the menu draws it as the chip and the rest as the line, `afterTag`) */
+	onTag: { spin: 'ON', buy: 'LOADED' } satisfies Record<ArmouryGroup, string>,
 	/** the plate's line under the name while a mode is on, and just after it was switched off */
 	status: {
 		anteOn: soc('ON. Active now. Every spin costs **{amt}** until you switch it off.', 'ON. Active now. Every spin uses **{amt}** until you switch it off.'),
@@ -106,6 +109,9 @@ export const armouryName = (mode: ArmouryModeId): string => modeShortLabel(mode)
 /** fill a template's named slots; a slot with no value is left as it is (the probe finds it) */
 export const fill = (template: string, slots: Record<string, string | number>): string =>
 	template.replace(/\{(\w+)\}/g, (whole, key: string) => (key in slots ? String(slots[key]) : whole));
+
+/** a status line less its leading chip ("ON. Active now. ..." -> "Active now. ..."): the menu draws the chip itself */
+export const afterTag = (s: string, tag: string): string => (s.startsWith(`${tag}. `) ? s.slice(tag.length + 2) : s);
 
 /** `**word**` to runs: odd runs are the gold key terms. Rendered as text nodes, never as HTML */
 export const boldRuns = (s: string): { t: string; b: boolean }[] => s.split('**').map((t, i) => ({ t, b: i % 2 === 1 }));

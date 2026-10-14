@@ -11,6 +11,8 @@ import { modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 import { SLAM_HURRY } from '../game/constants';
+import { ARMOURY_SWITCH } from '../game/armourySwitch';
+import { armouryView } from './armoury/armouryView.svelte';
 
 export const createControls = () => {
 	const context = getContext();
@@ -210,13 +212,16 @@ export const createControls = () => {
 	const jurisdiction = () => stateConfig.jurisdiction;
 	const bonusDisabled = () => held() || !isIdle() || jurisdiction().disabledBuyFeature;
 	const bonusPress = () => {
-		if (held()) return;
+		// refused under disabledBuyFeature as well as hidden (THE ARMOURY spec 7.1: the comment above said so, the code
+		// only had the button's own disabled state and its absence)
+		if (held() || jurisdiction().disabledBuyFeature) return;
 		// Corey 2026-09-02: the bonus head button has its own voice again (ui-bonus.ogg, remixed);
 		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
 		sound('soundPressBonus');
 		// same gesture as switching Ante off: while a mode is active/armed the head button disarms it
-		// (and unloads any waiting autoplay run with it)
-		if (anteActive() || armedBuy()) cancelArmed();
+		// (and unloads any waiting autoplay run with it). THE ARMOURY (DEV switch ?armoury=1, owner 2026-10-13 22:18,
+		// answer 1): with a mode on the button OPENS the menu on that mode; switching off happens inside the menu.
+		if ((anteActive() || armedBuy()) && !ARMOURY_SWITCH) cancelArmed();
 		else stateModal.modal = { name: 'buyBonus' };
 	};
 	const activateMode = (mode: string) => {
@@ -240,7 +245,8 @@ export const createControls = () => {
 	const betOptions = () => stateConfig.betAmountOptions;
 	const betDisabled = () => held() || !isIdle();
 	const openDenom = () => {
-		if (betDisabled()) return;
+		// never while THE ARMOURY is shown: the bet picker would replace it (its lit bet readout takes no pointer too)
+		if (betDisabled() || armouryView.shown) return;
 		sound('soundPressMinor');
 		stateModal.modal = { name: 'betAmountMenu' };
 	};

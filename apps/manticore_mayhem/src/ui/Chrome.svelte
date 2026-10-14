@@ -7,7 +7,9 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { MASTER, layoutKind } from '../game/layoutSpec';
+	import { MASTER, layoutKind, isPhoneSizeType } from '../game/layoutSpec';
+	import { ARMOURY } from '../game/constants';
+	import { ARMOURY_SWITCH } from '../game/armourySwitch';
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
 	import ChromeLandscape from './ChromeLandscape.svelte';
@@ -19,6 +21,11 @@
 	import ReplayModal from './ReplayModal.svelte';
 	import GameInfoModal from './GameInfoModal.svelte';
 	import NoticeModal from './NoticeModal.svelte';
+	import Armoury from './armoury/Armoury.svelte';
+	import ArmouryTint from './armoury/ArmouryTint.svelte';
+	import { armouryView, hudHiddenByModal } from './armoury/armouryView.svelte';
+	import { menuFrame } from './armoury/menuFrame';
+	import { pickEase } from './armoury/motion';
 
 	const context = getContext();
 	const controls = createControls();
@@ -38,6 +45,18 @@
 	// centred (the frame, the tray, Marty all keep their master y), only the chrome's bottom-anchored
 	// HUD reaches down through this extra to the real viewport edge (Corey 2026-09-06).
 	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : 0);
+
+	// THE ARMOURY (DEV switch ?armoury=1, game/armourySwitch.ts; spec feedback/armoury_build_r1): the menu follows the
+	// chrome (ui/armoury/menuFrame.ts). It takes over from the old menu only where its layout is built: the desktop
+	// layout over the landscape chrome (commit 4). Everywhere else, and always without the switch, the old menu stays.
+	const vw = $derived(innerWidth.current ?? 1);
+	const vh = $derived(innerHeight.current ?? 1);
+	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth }, ARMOURY.layout));
+	const armouryTakes = $derived(ARMOURY_SWITCH && armouryFrame.layout === 'desktop' && !armouryFrame.hudCopies);
+	$effect.pre(() => {
+		armouryView.takes = armouryTakes;
+	});
 
 	let show = $state(true);
 	// the max-win screen's DEEP hide: fades even the `keep` elements (logo, WIN readout). Set
@@ -84,7 +103,22 @@
      the landscape and portrait logos and every layout's WIN readout stay up through every presentation
      (Corey 2026-09-15; the wrap-up total is then readable off the HUD as well as the plate). The phone
      logo shares its column with the prompt, so it still goes with the HUD there. -->
-<div class="am-ui layer" class:hidden={context.stateLayout.showLoadingScreen || stateModal.modal != null} class:hud-off={!show} class:hud-deep={!show && deep}>
+<!-- THE ARMOURY is the one modal the HUD stays up under (hudHiddenByModal): its tint is inside the frame below and the
+     BALANCE and bet row are raised above it (the .armoury-open rules), lit; everything else is under the tint. -->
+<div
+	class="am-ui layer"
+	class:hidden={context.stateLayout.showLoadingScreen || hudHiddenByModal(stateModal.modal)}
+	class:hud-off={!show}
+	class:hud-deep={!show && deep}
+	class:armoury-open={armouryView.shown}
+	class:armoury-confirm={armouryView.confirm}
+	class:armoury-closing={armouryView.closing}
+	style:--arm-ease={ARMOURY_SWITCH ? pickEase(ARMOURY.motion) : null}
+	style:--arm-back={ARMOURY_SWITCH ? `${ARMOURY.motion.backMs}ms` : null}
+	style:--arm-step={ARMOURY_SWITCH ? `${ARMOURY.tint.confirmMs}ms` : null}
+	style:--arm-close={ARMOURY_SWITCH ? `${ARMOURY.motion.closeMs}ms` : null}
+	style:--arm-dim={ARMOURY_SWITCH ? 1 - ARMOURY.tint.confirmAdd - ARMOURY.tint.opacity : null}
+>
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px">
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />
@@ -93,11 +127,13 @@
 		{:else}
 			<ChromePortrait {controls} />
 		{/if}
+		{#if ARMOURY_SWITCH}<ArmouryTint {fitLeft} {top} {scale} {vw} {vh} />{/if}
 	</div>
 </div>
 
 <div class="am-ui layer modals">
-	<BonusBuyModal {controls} {master} {scale} {left} {top} compact={kind === 'portrait'} />
+	{#if !armouryTakes}<BonusBuyModal {controls} {master} {scale} {left} {top} compact={kind === 'portrait'} />{/if}
+	{#if ARMOURY_SWITCH}<Armoury {controls} frame={armouryFrame} takes={armouryTakes} />{/if}
 	<AutoplayModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<DenomModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<GameInfoModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
@@ -144,6 +180,35 @@
 	}
 	.modals {
 		z-index: 60;
+	}
+	/* THE LIT HUD under THE ARMOURY (spec 2.3; landscape chrome, the only one the Armoury draws over yet). The tint
+	   (ArmouryTint, z 11, inside .fit) covers every HUD element; the trio gives up its own stacking so its BALANCE cell
+	   and its bet cell (the real minus, readout and plus) can sit above the tint one by one. WIN stays under. The bet
+	   readout takes no pointer here (it would open the bet picker, which would replace the menu). In confirm the lit
+	   cells step back to 0.16 and take nothing; they come back over the cancel's 330 ms. */
+	.layer.armoury-open :global(.trio) {
+		z-index: auto;
+	}
+	.layer.armoury-open :global(.trio > .cell.left),
+	.layer.armoury-open :global(.trio > .cell.right) {
+		position: relative;
+		z-index: 12;
+		transition: opacity var(--arm-back) var(--arm-ease);
+	}
+	.layer.armoury-open :global(.trio .stat) {
+		pointer-events: none !important;
+	}
+	.layer.armoury-confirm :global(.trio > .cell.left),
+	.layer.armoury-confirm :global(.trio > .cell.right) {
+		opacity: var(--arm-dim);
+		transition: opacity var(--arm-step) var(--arm-ease);
+	}
+	.layer.armoury-confirm :global(.trio > .cell *) {
+		pointer-events: none !important;
+	}
+	.layer.armoury-closing :global(.trio > .cell.left),
+	.layer.armoury-closing :global(.trio > .cell.right) {
+		transition: opacity var(--arm-close) linear;
 	}
 	.fit {
 		position: absolute;
