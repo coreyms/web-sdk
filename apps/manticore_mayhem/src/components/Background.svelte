@@ -276,14 +276,18 @@
 		play: (name, rate) => context.eventEmitter.broadcast({ type: 'soundOnce', name: name as SoundEffectName, forcePlay: true, rate }),
 		stop: (name) => context.eventEmitter.broadcast({ type: 'soundStop', name: name as SoundEffectName }),
 	};
-	// he stands in the scene of the current layout: the shadow on its floor, the body there too or in its twin in front
-	// of the board, both over everything else in their container. Only on a change of layout or spot.
+	// he stands in the scene of the current layout: the shadow on its floor, the body in the scene's twin root (behind
+	// the board or in front of it, over the logo either way). Only on a change of layout or spot.
 	$effect(() => {
 		const view = views[which];
 		const place = CREATURE.place[spot];
 		untrack(() => {
 			view.foreground.addChild(creature.shadowNode);
-			(place.layer === 'front' ? view.frontForeground : view.foreground).addChild(creature.bodyNode);
+			// the body is always in the scene's twin root; the layer says which host on the stage holds that root:
+			// behind the board or in front of it, both over the canvas logo (game/creature.ts creatureFront)
+			view.frontForeground.addChild(creature.bodyNode);
+			creatureFront.layer = place.layer;
+			creatureFront.sync();
 			creature.place(place);
 		});
 	});
@@ -588,7 +592,9 @@
 							shadow: at(sh),
 							/** the stage, bottom to top, and where the scene, the board and the creature's front host are in it */
 							stage: stage.map((c) => `${c.label || c.constructor.name}@${c.zIndex}`),
-							stageIndex: { scene: stage.indexOf(view.root), front: stage.findIndex((c) => c.label === 'creature-front'), board: main ? stage.indexOf(main) : -1, count: stage.length },
+							stageIndex: { scene: stage.indexOf(view.root), logo: stage.findIndex((c) => c.label === 'logo'), behind: stage.findIndex((c) => c.label === 'creature-behind'), front: stage.findIndex((c) => c.label === 'creature-front'), board: main ? stage.indexOf(main) : -1, count: stage.length },
+							/** which host holds this scene's twin root (his body's root) */
+							host: view.front.parent?.label ?? null,
 							/** the foreground's children, bottom to top (the creature's nodes included) */
 							foreground: view.foreground.children.map((c) => c.label || 'sprite'),
 							frontForeground: view.frontForeground.children.map((c) => c.label || 'sprite'),

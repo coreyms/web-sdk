@@ -33,6 +33,25 @@ export const CELL_COUNT = GRID * GRID;
  *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged. */
 export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2 } as const;
 
+/** PHONES ALLOWED THE DESKTOP CAP (docs/device-quality-plan-v3.md section 6; Corey 2026-10-13): an iPhone whose screen
+ *  density is `density` and whose short side is at least `minShort` CSS px and not one of `notShort` is an iPhone 12 or
+ *  newer by screen size (375 and 414 wide are the 2017 to 2021 phones: X, XS, 11 Pro, 12 / 13 mini, the Plus and Max
+ *  models up to the 11 Pro Max) and renders at RENDER_RESOLUTION_CAP.desktop. Every other phone keeps
+ *  RENDER_RESOLUTION_CAP.phone. Read once from static signals before the renderer exists (game/deviceTier.ts): never
+ *  a frame-rate cap, never a start-up benchmark, never a change mid session. Rollback: `on` false. */
+export const PHONE_2X_ALLOW = { on: true, density: 3, minShort: 390, notShort: [414] } as const;
+
+/** THE CANVAS PIXEL CEILING (Corey 2026-10-13), everything that is NOT the phone tier: the renderer's resolution is
+ *  min(devicePixelRatio, the cap, sqrt(RENDER_MAX_PIXELS / (CSS width x CSS height))) and never under 1. 8.3 million
+ *  is a 4K screen's worth (3840 x 2160 = 8,294,400), so a normal retina window is untouched at 2 (1920 x 1080 CSS at 2
+ *  is exactly a 4K canvas) and a full screen 5K (2560 x 1440 CSS at DPR 2: 14.7 MP at 2) lands at 1.5005.
+ *  RECOMPUTED ON RESIZE WITH HYSTERESIS (components/Game.svelte): only once the window's size has stood still for
+ *  RENDER_RESIZE.settleMs, and then only if the wanted value differs from the renderer's by more than
+ *  RENDER_RESIZE.band of it, or is the plain cap again (so a window back under the ceiling is exactly at 2). A drag
+ *  therefore changes the resolution at most once, when it ends. */
+export const RENDER_MAX_PIXELS = 8_300_000;
+export const RENDER_RESIZE = { settleMs: 250, band: 0.04 } as const;
+
 export const BOARD_SIZES = { width: SYMBOL_SIZE * GRID, height: SYMBOL_SIZE * GRID };
 export const BOARD_DIMENSIONS = { x: GRID, y: GRID };
 
@@ -69,6 +88,11 @@ export const PORTRAIT_BACKGROUND_RATIO = 1242 / 2208;
  *  turbo 1 and instant feels like turbo 2". Manticore-local: the shared stateBet.timeScale() is a 1 / 2 switch
  *  and Angry Mantis (frozen) keeps using it. */
 export const TURBO_SCALE = [1, 2.2, 4] as const;
+/** THE SLAM STOP HURRIES THE SPIN (2026-10-13; ui/controls.svelte.ts, stateGame.hurryLevel): a Spin press or a board tap
+ *  during a live spin runs the rest of it at the fastest turbo level the operator allows (TURBO_SCALE above: 4, or
+ *  2.2 where super turbo is disabled, nothing where turbo is). false = the slam stop is as it was before (the shared
+ *  turbo flag only, which this game's motion does not read). */
+export const SLAM_HURRY = true;
 // MOTION PASS 1 (Corey 2026-10-05, Manticore Motion Playground preset "Corey 2026-10-05", "final with
 // the placeholder shapes; may change with real symbols"). Every number below is the playground's.
 export const DROP = {
@@ -932,6 +956,19 @@ export const LOGO = {
 	takeoverBlendMs: 600,
 	/** mip chain on the atlas (drawn at 0.3 to 0.9 of its size), as the plaque's full tier has */
 	mipmaps: true,
+
+	// ---- the still, in the canvas (game/logo/still.ts; 2026-10-13: every logo is in the canvas, under the creature) ----
+	/** the still's drop shadow per master, master px: what the chrome's <img> wore as a CSS drop-shadow (offset down,
+	 *  blur radius, opacity). Baked once into a texture `shadowBakeWidth` px of art wide (no filters in the canvas).
+	 *  THE SHINE (ui/Shine.svelte's numbers): the glint texture in `strips` vertical strips; a white band `band` art
+	 *  widths wide (a triangle, `peak` at its centre) whose centre runs from `from` to `to` art widths; every idleMs a
+	 *  sweep of idleSweepMs at idleOpacity (ramped in and out over idleRampMs), and on a spin press a full one over
+	 *  bigMs (ease out, opacity up to 1 by bigRampAt of it, then down to 0). */
+	still: {
+		shadow: { landscape: { dy: 4, blur: 8, alpha: 0.7 }, phone: { dy: 4, blur: 8, alpha: 0.7 }, portrait: { dy: 3, blur: 6, alpha: 0.6 } },
+		shadowBakeWidth: 256,
+		shine: { strips: 40, band: 0.9, from: -0.9, to: 1.9, peak: 0.95, idleMs: 5000, idleSweepMs: 800, idleRampMs: 100, idleOpacity: 0.4, bigMs: 520, bigRampAt: 0.15 },
+	},
 } as const;
 
 /** THE SKIP BUTTON AND ITS PROMPT (components/SkipButton.svelte, HTML; placement is layoutSpec SKIP). The button is

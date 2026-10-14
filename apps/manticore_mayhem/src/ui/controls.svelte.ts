@@ -10,6 +10,7 @@ import { betCostFull } from '../game/modeChipData';
 import { modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
+import { SLAM_HURRY } from '../game/constants';
 
 export const createControls = () => {
 	const context = getContext();
@@ -21,11 +22,23 @@ export const createControls = () => {
 			stopDisabled = true;
 			// a slam-stop finishes the reels fast; under an operator's disabledTurbo the reels keep
 			// their normal speed (the stop still lands, the turbo flag never flips)
-			if (!jurisdiction().disabledTurbo) stateBetDerived.updateIsTurbo(true, { persistent: false });
+			if (!jurisdiction().disabledTurbo) {
+				stateBetDerived.updateIsTurbo(true, { persistent: false });
+				// THE HURRY (2026-10-13). The shared flag above is all the slam stop ever set, and this game's motion does
+				// not read it (it runs on its own TURBO_SCALE by stateGame.turboLevel), so until now a STOP press changed
+				// nothing on this board. The rest of the spin now runs at the fastest level the operator allows
+				// (stateGame.hurryLevel: speed only, the one reader is timeScale()).
+				if (SLAM_HURRY) context.stateGame.hurryLevel = maxTurboLevel() as 0 | 1 | 2;
+			}
 		},
 		stopButtonEnable: () => {
 			stopDisabled = false;
 			stateBetDerived.updateIsTurbo(false, { persistent: false });
+			context.stateGame.hurryLevel = 0;
+		},
+		// a tap on the board (components/BoardTap.svelte): the Spin press of a live spin, by the same function
+		boardTap: () => {
+			boardTap();
 		},
 	});
 
@@ -90,8 +103,34 @@ export const createControls = () => {
 			context.eventEmitter.broadcast({ type: 'stopButtonClick' });
 			return;
 		}
-		if (jurisdiction().disabledSlamstop) return; // operator flag: reels always run their full spin
-		if (!stopDisabled) context.eventEmitter.broadcast({ type: 'stopButtonClick' });
+		slamStop();
+	};
+	/** THE SLAM STOP: what a Spin press does during a live spin, and a tap on the board through boardTap below. The
+	 *  ONE function for both, so both honour the same switches: nothing under jurisdiction.disabledSlamstop, once per
+	 *  spin, and under disabledTurbo the stop lands with no speed up (the stopButtonClick subscriber above). Speed
+	 *  only: it never touches an outcome and awaits nothing. Returns whether it took. */
+	const slamStop = (): boolean => {
+		if (jurisdiction().disabledSlamstop) return false; // operator flag: reels always run their full spin
+		if (stopDisabled) return false;
+		context.eventEmitter.broadcast({ type: 'stopButtonClick' });
+		return true;
+	};
+	/** A TAP ON THE BOARD (Corey 2026-10-13: "touching the board during anticipation should end the anticipation
+	 *  and/or rapidly speed it up the spin through clusters. (obviously not with that switch)"). Only during a live
+	 *  spin (drop, tease, cascades, a feature's spins): not at rest (a tap never starts a round), not while a round is
+	 *  held for a resume, not in a replay (Spin is the REPLAY banner there), not under a modal, the landing screen, a
+	 *  press gate, a plaque or a win screen, not while SKIP TO RESULT runs. During autoplay it hurries the spin and
+	 *  does NOT end the run (the Spin press does; a board tap changes speed only). */
+	const boardTap = (): boolean => {
+		const sg = context.stateGame;
+		if (held() || isReplay() || isIdle()) return false;
+		if (stateModal.modal != null || context.stateLayout.showLoadingScreen || sg.pressGates > 0 || sg.winShowing || sg.plaque !== null || sg.skipping) return false;
+		// "obviously not with that switch": a tap is a speed up and nothing else, so with the operator's turbo off it
+		// is refused outright (no press sound, the STOP face untouched), like under disabledSlamstop in slamStop
+		if (jurisdiction().disabledTurbo) return false;
+		if (!slamStop()) return false;
+		sound('soundPressBet');
+		return true;
 	};
 
 	// ── autoplay (loadout flow: configure → LOAD to the spin button → Spin starts the run) ──
@@ -257,7 +296,7 @@ export const createControls = () => {
 	return {
 		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, playCostText, autoRunning, autoCount, autoCountText, canAfford,
 		playCost: betCostFull,
-		spinDisabled, showStop, spin,
+		spinDisabled, showStop, spin, slamStop, boardTap,
 		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,
 		turboPress, turboLevel,
 		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,

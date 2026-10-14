@@ -3,9 +3,11 @@
 // Raw Pixi, one instance (`creature`), drawn by the courtyard scene of the current layout (game/scene.ts).
 //
 // TWO NODES, ONE PLACE. `shadowNode` always lies on the floor: a child of SceneView.foreground, under the board.
-// `bodyNode` (the colour sprite, a second one for a change of look, the additive charge glow) is a child of
-// SceneView.foreground too where he stands BEHIND the board, or of SceneView.frontForeground where he stands IN
-// FRONT of it (CREATURE.place.<layout>.layer). Those two containers are laid by the same call from the same numbers
+// `bodyNode` (the colour sprite, a second one for a change of look, the additive charge glow) is ALWAYS a child of
+// SceneView.frontForeground, the foreground's twin in a root of its own (2026-10-13: the logo is drawn in the canvas
+// between the scene and him, so he cannot be inside the scene any more). CREATURE.place.<layout>.layer says which
+// host on the stage that root is in: `behind` the board or in `front` of it (creatureFront below; both hosts are over
+// the logo). Those two containers are laid by the same call from the same numbers
 // (SceneView.layForeground: the cover fit, the oversize, the board's kick), and both nodes take their place from
 // place() below, so body, shadow, floor and board move by the same offset on the same frame in either layer.
 // Units inside a node: px of the rig's 1024 canvas, the feet point (col 512, feetRow) at the node's origin.
@@ -865,15 +867,20 @@ export class Creature {
 }
 
 export const creature = new Creature();
-/** WHERE THE SCENES' FRONT ROOTS GO (SceneView.front): components/Background.svelte lists them in `roots`,
- *  components/CreatureFront.svelte owns `host`, a container it puts on the stage straight after the board: over the
- *  board, its frame and its chains, under every canvas overlay that follows (spin total, plaques, win screens,
- *  transition, logo) and under the HTML HUD. sync() puts the roots in the host, whichever of the two came first. */
+/** WHERE THE SCENES' TWIN ROOTS GO (SceneView.front; his body is always in one, 2026-10-13): components/Background.svelte
+ *  lists them in `roots` and sets `layer` from the current spot; components/CreatureFront.svelte is mounted TWICE in
+ *  components/Game.svelte and owns the two hosts: `behind` straight after the canvas logo and BEFORE the board, `front`
+ *  straight after the board. Stage order: scene < logo < behind < board, its frame and chains < front < every canvas
+ *  overlay that follows (spin total, plaques, win screens, transition) < the HTML HUD. So he is over the logo in
+ *  either layer. sync() puts the roots in the layer's host, whichever came first. */
 export const creatureFront = {
-	host: null as PIXI.Container | null,
+	/** the two hosts on the stage (components/CreatureFront.svelte, one per layer) and the layer of the current spot */
+	hosts: { front: null as PIXI.Container | null, behind: null as PIXI.Container | null },
+	layer: 'front' as CreatureLayer,
 	roots: [] as PIXI.Container[],
 	sync(): void {
-		if (!this.host) return;
-		for (const root of this.roots) if (root.parent !== this.host) this.host.addChild(root);
+		const host = this.hosts[this.layer];
+		if (!host) return;
+		for (const root of this.roots) if (root.parent !== host) host.addChild(root);
 	},
 };

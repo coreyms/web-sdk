@@ -17,14 +17,16 @@
 	// each of its presses (ui/controls.svelte.ts menuPress: 'soundPressMinor'). Yes has the same event, as before. No
 	// is silent, like CANCEL on the HUD's other confirm prompt (ui/BonusBuyModal.svelte), and so are a tap elsewhere
 	// and the timeout, like a tap beside the menu's popover.
+	// NOT WHERE THE OPERATOR FORBIDS IT: jurisdiction.disabledSlamstop or disabledTurbo (see `allowed` below).
 	// Touch and pointer only, no hotkey (the button is disabled while it is down, so a held Space never reaches it).
 	//
-	// House rules: no filter, no backdrop-filter, no mask; the fades are opacity; every number from layoutSpec / constants.
+	// House rules: no backdrop-filter, no mask; the fades are opacity; every number from layoutSpec / constants. (The one
+	// CSS filter on it is the HUD's shared mouse hover lift, ui/ChromeStyles.svelte.)
 	import { onDestroy } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 
 	import { getContext } from '../game/context';
-	import { featureSpinsLive } from '../game/stateGame.svelte';
+	import { featureSpinsLive, skipAllowed } from '../game/stateGame.svelte';
 	import { SKIP, isPhoneSizeType, layoutKind, skipButtonRect, skipPromptRect, skipSpot } from '../game/layoutSpec';
 	import { SKIP_HUD } from '../game/constants';
 	import Icon from '../ui/Icon.svelte';
@@ -32,7 +34,10 @@
 	const context = getContext();
 	const sg = context.stateGame;
 
-	const up = $derived(featureSpinsLive() && !sg.skipping && sg.fs >= 1 && !sg.plaque && sg.pressGates === 0 && !sg.winShowing);
+	// STAKE'S JURISDICTION SWITCHES (stateGame.svelte.ts skipAllowed): with disabledSlamstop or disabledTurbo there is no
+	// SKIP, and nothing of it is rendered at all (not a hidden button)
+	const allowed = $derived(skipAllowed());
+	const up = $derived(allowed && featureSpinsLive() && !sg.skipping && sg.fs >= 1 && !sg.plaque && sg.pressGates === 0 && !sg.winShowing);
 
 	// ---- where: the button's box by the layout rule, the prompt's box beside it ----
 	const spot = $derived(skipSpot(layoutKind(context.stateLayoutDerived.layoutType()), isPhoneSizeType(context.stateLayoutDerived.canvasSizeType())));
@@ -95,10 +100,11 @@
 
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		// house rule: extend __manticore, never a new global (tools/manticore/skip_probe.js reads the constants)
-		((window as any).__manticore ??= {}).skipHud = () => ({ promptMs: SKIP_HUD.promptMs, minHitCss: SKIP_HUD.minHitCss, open, up });
+		((window as any).__manticore ??= {}).skipHud = () => ({ promptMs: SKIP_HUD.promptMs, minHitCss: SKIP_HUD.minHitCss, open, up, allowed });
 	}
 </script>
 
+{#if allowed}
 <div class="am-ui skip-layer" bind:this={root} style:--in="{SKIP_HUD.inMs}ms" style:--out="{SKIP_HUD.outMs}ms">
 	<button
 		class="slot-btn skip"
@@ -141,6 +147,7 @@
 		</div>
 	{/if}
 </div>
+{/if}
 
 <style>
 	/* over the HUD (Chrome.svelte's layer is 20), under the modals (60) */
@@ -159,12 +166,12 @@
 		color: #fff;
 		opacity: 0;
 		pointer-events: none;
-		transition: opacity var(--out) ease, transform 0.08s ease;
+		transition: opacity var(--out) ease, transform 0.08s ease, filter var(--ui-hover-ms) ease;
 	}
 	.skip.up {
 		opacity: 1;
 		pointer-events: auto;
-		transition: opacity var(--in) ease, transform 0.08s ease;
+		transition: opacity var(--in) ease, transform 0.08s ease, filter var(--ui-hover-ms) ease;
 	}
 	.skip:disabled {
 		opacity: 0;
@@ -211,7 +218,7 @@
 		font-size: 1em;
 		font-weight: 800;
 		letter-spacing: 0.04em;
-		transition: transform 0.08s ease;
+		transition: transform 0.08s ease, filter var(--ui-hover-ms) ease;
 	}
 	.yes {
 		background: var(--ui-gold);

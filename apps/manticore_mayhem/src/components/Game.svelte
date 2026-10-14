@@ -15,7 +15,8 @@
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
 	import { loadDeferredInOrder, loadLogoEarly } from '../game/deferredLoad';
-	import { PHONE_TIER, renderResolutionCap } from '../game/deviceTier';
+	import { PHONE_TIER, renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
+	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
 	import { sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
@@ -26,6 +27,7 @@
 	import LoadingScreen from './LoadingScreen.svelte';
 	import Board from './Board.svelte';
 	import BoardFrame from './BoardFrame.svelte';
+	import BoardTap from './BoardTap.svelte';
 	import CreatureFront from './CreatureFront.svelte';
 	import SpinWin from './SpinWin.svelte';
 	import SkipButton from './SkipButton.svelte';
@@ -91,7 +93,8 @@
 	});
 
 	// Retina/5K canvases at full DPR are the biggest GPU cost: the renderer's resolution is capped
-	// (RENDER_RESOLUTION_CAP: 1.5 on the phone tier, house rule 3; 2 on desktop since 2026-10-09). Renderable GC stays DISABLED (house rule 8, Pixi 8.8.1's
+	// (RENDER_RESOLUTION_CAP: 1.5 on the phone tier, house rule 3; 2 on desktop since 2026-10-09 and on an allowlisted
+	// iPhone since 2026-10-13; off the phone tier also the pixel ceiling RENDER_MAX_PIXELS). Renderable GC stays DISABLED (house rule 8, Pixi 8.8.1's
 	// CanvasTextPipe dereferences a GC-evicted _gpuText entry with no null guard and takes the HTML
 	// chrome down with it): poll until the system has armed its scheduler, THEN cancel it, because
 	// a disable issued against the uninitialised system is a silent no-op that init overwrites.
@@ -100,16 +103,17 @@
 		if (!app) return;
 		let cancelled = false;
 		let framesWaited = 0;
+		let clamped = false;
 		const clamp = () => {
 			if (cancelled) return;
 			if (!app.renderer) {
 				requestAnimationFrame(clamp);
 				return;
 			}
-			const cap = renderResolutionCap();
-			if (app.renderer.resolution > cap) {
-				app.renderer.resolution = cap;
-				app.resize();
+			// the boot's clamp, once (this function is polled below until the GC system is armed)
+			if (!clamped) {
+				clamped = true;
+				applyResolution(app, true);
 			}
 			if (!app.renderer.renderableGC.enabled) {
 				if (framesWaited++ < 600) requestAnimationFrame(clamp);
@@ -118,10 +122,39 @@
 			app.renderer.renderableGC.enabled = false;
 		};
 		clamp();
+		// THE PIXEL CEILING FOLLOWS THE WINDOW (constants RENDER_MAX_PIXELS / RENDER_RESIZE): recomputed when the size
+		// has stood still for settleMs, so a drag changes the renderer's resolution at most once, at its end
+		let settle: ReturnType<typeof setTimeout> | undefined;
+		const onResize = () => {
+			clearTimeout(settle);
+			settle = setTimeout(() => {
+				if (!cancelled && app.renderer) applyResolution(app, false);
+			}, RENDER_RESIZE.settleMs);
+		};
+		window.addEventListener('resize', onResize);
 		return () => {
 			cancelled = true;
+			clearTimeout(settle);
+			window.removeEventListener('resize', onResize);
 		};
 	});
+
+	/** the renderer's resolution for the window as it is now (game/deviceTier.ts renderResolutionFor). `first`: the
+	 *  boot's clamp, applied whatever the difference. Later (a resize): only outside the hysteresis band, or back to
+	 *  the plain cap. DEV counts the changes (tools/manticore/res_probe.js). */
+	const resChanges = { count: 0, last: 0 };
+	const applyResolution = (app: PIXI.Application, first: boolean) => {
+		const want = renderResolutionFor(window.innerWidth, window.innerHeight);
+		const now = app.renderer.resolution;
+		if (want === now) return;
+		const plain = Math.min(window.devicePixelRatio || 1, renderResolutionCap());
+		if (!first && Math.abs(want - now) <= now * RENDER_RESIZE.band && want !== plain) return;
+		app.renderer.resolution = want;
+		app.resize();
+		resChanges.count += 1;
+		resChanges.last = want;
+	};
+	if (import.meta.env.DEV && typeof window !== 'undefined') ((window as any).__manticore ??= {}).resChanges = () => ({ ...resChanges });
 
 	// GPU warm-up at loading-screen dismissal: pre-upload every mounted TEXTURE (never the stage
 	// itself — prepare.upload(stage) also queues Graphics contexts, and a context replaced meanwhile
@@ -167,14 +200,22 @@
 			<!-- Sound mounts after the first user interaction (loading screen click) per autoplay rules -->
 			<Sound />
 
+			<!-- THE LOGO, in the canvas in every layout and tier (components/Logo.svelte): straight over the scene and UNDER
+			     the creature, the board and everything below this line (a constant mount, so no z order trap) -->
+			<Logo />
+			<!-- the creature, where he stands BEHIND the board (portrait phone, phone sideways): over the logo -->
+			<CreatureFront layer="behind" />
+
 			<MainContainer>
 				<!-- the frame + backing (under the board, kicked with it) and the chains (beside it) -->
 				<BoardFrame />
 				<Board />
+				<!-- the board's tap area (draws nothing): a tap during a live spin hurries it, as the Spin press does -->
+				<BoardTap />
 			</MainContainer>
 			<!-- the creature, where he stands IN FRONT of the board (desktop, portrait tablet): over the board, under
 			     everything below this line and under the HTML HUD -->
-			<CreatureFront />
+			<CreatureFront layer="front" />
 
 			<!-- ALWAYS MOUNTED, visibility-toggled (house rule: the conditional-mount z-order trap).
 			     Order here is the z-order: readouts, then the plaque, then the presentations. -->
@@ -186,9 +227,6 @@
 			<Win />
 			<FreeSpinOutro />
 			<Transition />
-			<!-- the animated logo, desktop tier only (a constant, so no z order trap): over everything in the canvas,
-			     where the HTML logo it replaces was (components/Logo.svelte) -->
-			{#if !PHONE_TIER}<Logo />{/if}
 		{/if}
 	</App>
 {/if}

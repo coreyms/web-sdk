@@ -32,7 +32,7 @@
 	const priceFit = $derived(rowW > 0 && priceW > 0 ? Math.min(1, rowW / priceW) : 1);
 </script>
 
-<div class="card" class:compact class:active style:--m={opt.accent}>
+<div class="card hover-lift" class:compact class:active style:--m={opt.accent}>
 	{#if active}<span class="on-tag">ON</span>{/if}
 	<span class="pill">{opt.label}</span>
 	<div class="pitch">{opt.pitch}</div>

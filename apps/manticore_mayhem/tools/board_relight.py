@@ -40,6 +40,13 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
+# WARNING, 2026-10-13: THE SHIPPED FRAME FILES ARE NO LONGER BUILT FROM THE v5l PLATES BELOW. The ten board-frame-* files
+# in static/assets/ui (day, night, night half twin, fire) carry the lion crest on both foot plates (board v5m) and were
+# exported from ~/Desktop/Manticore Mayhem/images/board/export_v5m_emblem/sources/ (board_v5m_D1_plate.png,
+# board_v5m_night_plate.png, board_v5m_fire_plate_on_black.png, board_v5m_fire_frame_on_black.png; see that folder's
+# NOTES.md and scripts/export_game_files.py, which swaps the four paths in memory). PLATE and FIRE_REST here still point
+# at the v5l sources: a plain re-run of build_board_layers.py writes the OLD FEET back. Before a re-run, point PLATE
+# day / night / fire and FIRE_REST at those four v5m files (alpha is v5l's, nothing else changes).
 DRAFTS = os.path.expanduser('~/Desktop/Manticore Mayhem/images/board/drafts')
 GEARS = os.path.join(DRAFTS, 'gears_sync_r1')
 RELIGHT = os.path.join(DRAFTS, 'relight_r1', 'full')

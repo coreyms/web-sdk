@@ -10,6 +10,7 @@
 	import type { Controls } from './controls.svelte';
 	import { MASTER, isPhoneSizeType } from '../game/layoutSpec';
 	import { logoArtRect } from '../game/logo/layout';
+	import { logoState } from '../game/logo/state.svelte';
 	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import TrioStat from './TrioStat.svelte';
@@ -39,7 +40,9 @@
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
 <div class="top keep" style:top="{logo.y}px" style:transform="translateX({logoDx}px)">
-	<span class="logo" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></span>
+	<!-- THE CANVAS DRAWS THE LOGO (components/Logo.svelte, game/logo/still.ts: under the creature); this is the fallback
+	     until the canvas has it, hidden from then on (logoState.canvas) -->
+	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></span>
 </div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
@@ -85,6 +88,9 @@
 		position: relative;
 		display: inline-block;
 		filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
+	}
+	.top .logo.canvas {
+		visibility: hidden;
 	}
 	.top img {
 		display: block;

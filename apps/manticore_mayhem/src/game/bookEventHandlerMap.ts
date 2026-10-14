@@ -250,7 +250,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	reveal: async (bookEvent: BookEventOfType<'reveal'>, { bookEvents }: BookEventContext) => {
 		const isBonusGame = checkIsMultipleRevealEvents({ bookEvents });
 		if (isBonusGame) {
-			eventEmitter.broadcast({ type: 'stopButtonEnable' });
+			// each spin of a feature book gets its STOP back (and the hurry of the spin before it ends). NOT the book's
+			// first reveal (2026-10-13): the round began with STOP enabled (utils.ts playBet), and a STOP press or a tap
+			// on the board made while the book was still on its way had its hurry cleared here before a tile fell
+			if (bookEvents.find((e) => e.type === 'reveal') !== bookEvent) eventEmitter.broadcast({ type: 'stopButtonEnable' });
 			recordBookEvent({ bookEvent });
 		}
 		if (bookEvent.gameType === 'basegame') stateGameDerived.resetSession();

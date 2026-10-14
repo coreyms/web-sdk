@@ -17,9 +17,9 @@
 // container, `SceneView.foreground`, over the sky. A board kick shoves that container and nothing else (the same
 // offset as the board, the same frame: featureFx.shoveForeground), and it is drawn a little oversize about the
 // frame's centre so the shove never shows an edge. The backdrops and the sky's layers are the root's own children
-// and never move. THE CREATURE (game/creature.ts, constants CREATURE) is in it: his shadow always, his body where he
-// stands behind the board; where he stands in front of it his body is in `frontForeground`, the foreground's twin in a
-// second root above the board, laid by the same call from the same numbers (see `front`).
+// and never move. THE CREATURE (game/creature.ts, constants CREATURE) is in it with his shadow; his body is always in
+// `frontForeground`, the foreground's twin in a second root, laid by the same call from the same numbers (see `front`):
+// that root goes on the stage over the canvas logo, behind the board or in front of it (2026-10-13).
 // A night layer sits over its day twin and fades in over it (the two foregrounds share their outline); whichever
 // of the two is fully covered or fully transparent is not drawn at all.
 //
@@ -196,8 +196,9 @@ export class SceneView {
 	/** THE FOREGROUND (constants FOREGROUND_KICK): the foregrounds, the fire pass, the flames' layers and the chain
 	 *  sets, in frame px. The ONE thing a board kick moves in the scene; a foreground creature is added to it. */
 	readonly foreground = new PIXI.Container();
-	/** THE FOREGROUND AGAIN, IN FRONT OF THE BOARD (the creature, where he stands before it: constants CREATURE). `front`
-	 *  is this scene's second root (components/CreatureFront.svelte puts it on the stage above the board) and takes the
+	/** THE FOREGROUND AGAIN, OUTSIDE THE SCENE'S ROOT (the creature's body: constants CREATURE). `front` is this scene's
+	 *  second root (components/CreatureFront.svelte puts it on the stage over the canvas logo, under the board or above
+	 *  it by his layer) and takes the
 	 *  root's place, scale, opacity and visibility; `frontForeground` in it takes the foreground's oversize and kick.
 	 *  Both pairs are written by the same two methods from the same numbers (place, layForeground), so anything in
 	 *  `frontForeground` is where it would be in `foreground`, on every frame. */

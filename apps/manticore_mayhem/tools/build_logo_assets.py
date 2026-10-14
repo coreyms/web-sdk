@@ -5,7 +5,13 @@ desktop stand-in) and the animated one the desktop draws in the canvas (componen
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_logo_assets.py [--src DIR]
   node scripts/stamp-assets.mjs          (afterwards, from the app folder)
 
-Source (read only, never written), --src (default ~/Desktop/Manticore Mayhem/images/ui/drafts/logo_review_6):
+SOURCE OF TRUTH since 2026-10-13: ~/Desktop/Manticore Mayhem/images/logo_fix_r1/src_b (the default --src). It is the
+round 6 logo with the baked shine marks on the red A, H, E and the last M retouched (strength b of logo_fix_r1/NOTES.md:
+the still, layered/letters.png and the red glint slices 02 to 06; every other layered file is round 6's byte for byte).
+The old folder images/ui/drafts/logo_review_6 STILL HAS THE MARKS: building from it brings them back. A run on src_b
+gives the shipped files byte for byte (checked against logo_fix_r1/build/b/ui).
+
+Source (read only, never written), --src (default ~/Desktop/Manticore Mayhem/images/logo_fix_r1/src_b):
   logo_stacked.png                         the approved still, 2400 px wide, transparent
   layered/logo_stacked_layered.json + PNGs the same logo in layers at 2x: two wing meshes with their idle_breathe (135
                                            frames), flare (22) and entrance (34) tracks, the letter shadow, the letters,
@@ -55,7 +61,7 @@ import build_stinger_assets as B  # noqa: E402  (load, resample, scaled, pack: t
 APP = HERE.parent
 UI = APP / "static" / "assets" / "ui"
 OUT = UI / "logo"
-SRC_DEFAULT = Path.home() / "Desktop" / "Manticore Mayhem" / "images" / "ui" / "drafts" / "logo_review_6"
+SRC_DEFAULT = Path.home() / "Desktop" / "Manticore Mayhem" / "images" / "logo_fix_r1" / "src_b"  # NOT ui/drafts/logo_review_6 (it has the marks)
 
 FRAME = [754, 420]
 SRC_SCALE = 2

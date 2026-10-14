@@ -15,6 +15,7 @@
 	import type { Controls } from './controls.svelte';
 	import { betSlotWidth } from './betStep';
 	import { logoArtRect } from '../game/logo/layout';
+	import { logoState } from '../game/logo/state.svelte';
 	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import TrioStat from './TrioStat.svelte';
@@ -38,8 +39,9 @@
 <ClockStrip side="left" clock text="MANTICORE MAYHEM" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<!-- the stacked logo, a still in every tier here, with a Shine: a subtle glint every 5 s while idle, a full one on spin -->
-<div class="logo" style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></div>
+<!-- the stacked logo. THE CANVAS DRAWS IT (components/Logo.svelte, game/logo/still.ts: under the creature, with the
+     shadow and the Shine); this <img> is the fallback until the canvas has it, and hidden from then on (logoState.canvas) -->
+<div class="logo" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
@@ -77,6 +79,9 @@
 		position: absolute;
 		pointer-events: none;
 		filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
+	}
+	.logo.canvas {
+		visibility: hidden;
 	}
 	.logo img {
 		display: block;

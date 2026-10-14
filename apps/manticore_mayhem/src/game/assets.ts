@@ -1,6 +1,6 @@
 import { loadTextures } from 'pixi.js';
 import stamps, { fileBytes } from './assetStamp';
-import { PHONE_TIER, renderResolutionCap } from './deviceTier';
+import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
 
@@ -27,8 +27,9 @@ export const stamp = (href: string): string => {
 const tiered = (full: string, half: string): string => (PHONE_TIER ? half : full);
 
 /** Which of the cluster labels' atlases to PRELOAD: the baked cap nearest the cap height the labels will
- *  have on this screen, in canvas pixels (0.40 of a cell x the renderer's resolution under its cap,
- *  game/deviceTier.ts renderResolutionCap: 1.5 on the phone tier, 2 on desktop). Only a
+ *  have on this screen, in canvas pixels (0.40 of a cell x the renderer's effective resolution,
+ *  game/deviceTier.ts renderResolutionFor: the cap, 1.5 on the phone tier and 2 on desktop and on an allowlisted
+ *  iPhone, and off the phone tier the pixel ceiling of a very large window). Only a
  *  guess from the window at boot (the cell is about 53.4 px per 1280 x 720 of a desktop window, 0.107 of a
  *  sideways phone's height, 0.097 of a portrait's width): it decides nothing but the download ORDER. The
  *  component measures the real size every frame and uses the nearest cap that is loaded, and all five are
@@ -38,7 +39,7 @@ const LABEL_BOOT_CAP: number = (() => {
 	const w = window.innerWidth || 1280;
 	const h = window.innerHeight || 720;
 	const cell = w < h ? Math.min(w * 0.097, h * 0.05) : PHONE_TIER ? h * 0.1074 : Math.min(w / 1280, h / 720) * 53.44;
-	const pick = pickLabelCap(cell * 0.4 * Math.min(window.devicePixelRatio || 1, renderResolutionCap()), LABEL_CAPS.map(() => true));
+	const pick = pickLabelCap(cell * 0.4 * renderResolutionFor(w, h), LABEL_CAPS.map(() => true));
 	return LABEL_CAPS[pick < 0 ? 0 : pick];
 })();
 
@@ -414,6 +415,11 @@ const assets = {
 	// both shadows and the 18 glint slices. Desktop tier only (the phone tier's logo is the chrome's <img>: the
 	// entry is removed below). Never gates the landing screen: it starts when the preload ends (game/deferredLoad.ts
 	// loadLogoEarly) and the still stands in until it lands (game/logo/state.svelte.ts).
+	// THE LOGO'S STILL, DRAWN IN THE CANVAS (game/logo/still.ts; 2026-10-13: the logo is under the creature in every
+	// layout, so it can no longer be the chrome's <img>). Every tier, at boot: the landing screen has already fetched
+	// both files (the same stamped URLs), so this is a cache hit and one decode. The glint is the Shine's letter mask.
+	logoStill: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-stacked.webp', import.meta.url).href), preload: true },
+	logoGlint: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-stacked-glint.webp', import.meta.url).href), preload: true },
 	logoAtlas: { type: 'sprites', src: stamp(new URL('../../assets/ui/logo/logo.json', import.meta.url).href), preload: false },
 	sound: {
 		type: 'audio',

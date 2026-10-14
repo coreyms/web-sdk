@@ -16,6 +16,7 @@
 	import Icon from './Icon.svelte';
 	import config from '../game/config';
 	import { soc } from '../game/social';
+	import { skipAllowed } from '../game/stateGame.svelte';
 	import { stamp } from '../game/assets';
 	import { DISCLAIMER, rulesSections } from '../game/gameInfoText';
 	import { modeCost } from '../game/betModeMeta';
@@ -71,7 +72,8 @@
 	const social = $derived(stateUrlDerived.social());
 	const payText = (mult: number) => (social ? `${mult}×` : numberToCurrencyString(mult * stateBet.betAmount));
 
-	const RULES_SECTIONS = rulesSections();
+	// (authenticate has resolved before the chrome mounts, so the jurisdiction's switches are in)
+	const RULES_SECTIONS = rulesSections(skipAllowed());
 
 	const SPECIALS = [
 		{ glyph: 'W', name: config.symbols.W.name, color: '#e2b648', note: soc('Substitutes for every paying symbol and has no pay of its own. The manticore\u2019s sting turns cells wild before a board is evaluated.', 'Substitutes for every winning symbol and has no value of its own. The manticore\u2019s sting turns cells wild before a board is evaluated.') },
@@ -98,7 +100,7 @@
 	// one control per row — the same icon the chrome draws, the name, what a press does
 	type IconName = ComponentProps<typeof Icon>['name'];
 	type GuideRow = { icon: IconName | null; art?: string; color: string; name: string; text: string };
-	const GUIDE: GuideRow[] = [
+	const GUIDE_ALL: GuideRow[] = [
 		{ icon: 'play', color: '#ffdc4a', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
 		{ icon: 'turbo', color: '#ffdc4a', name: 'Turbo', text: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. The turbo setting and the sound settings are remembered on this device.' },
 		{ icon: 'auto', color: '#ffdc4a', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, plus an ADVANCED fold with a stop-on-loss limit, a stop-on-single-win limit, Stop on Free Games (autoplay ends when a feature triggers; the feature still plays out) and Autoplay Bonuses (feature screens continue on their own). LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. While a run is active the Spin button turns green with the spins left and this button turns red with an X.' },
@@ -110,6 +112,10 @@
 		{ icon: 'skip', color: '#ffdc4a', name: 'Skip to Result', text: 'Shown during Free Spins, Super Free Spins and Epic Free Spins once the first free spin has started. Pressing it asks "Skip to result?". Yes ends the presentation of the remaining spins and shows the final total of the round. No closes the question and the spins play on. It never changes the result.' },
 		{ icon: 'stop', color: '#ffdc4a', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
 	];
+	// Stake's jurisdiction switches: where the operator disables the slam stop or turbo there is no SKIP (stateGame
+	// skipAllowed), so the guide does not describe one
+	const GUIDE = $derived(skipAllowed() ? GUIDE_ALL : GUIDE_ALL.filter((row) => row.icon !== 'skip'));
+
 
 	let active = $state('paytable');
 	let contentEl: HTMLDivElement | undefined = $state();

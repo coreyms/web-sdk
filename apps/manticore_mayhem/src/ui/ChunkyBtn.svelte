@@ -55,7 +55,7 @@
 		align-items: center;
 		justify-content: center;
 		gap: 2px;
-		transition: transform 0.08s ease;
+		transition: transform 0.08s ease, filter var(--ui-hover-ms) ease;
 	}
 	.chunky:active:not(:disabled) {
 		transform: translateY(1px);

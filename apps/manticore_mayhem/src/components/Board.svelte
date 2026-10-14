@@ -6,6 +6,8 @@
 	export type EmitterEventBoard =
 		| { type: 'boardShow' }
 		| { type: 'boardHide' }
+		/** a tap or click on the board's opening (components/BoardTap.svelte): ui/controls.svelte.ts hurries a live spin */
+		| { type: 'boardTap' }
 		/** a manticore set piece is playing; milestone 1 uses it for the board-side flash only */
 		| { type: 'featureBeat'; beat: FeatureBeat; rows: number[] }
 		/** one beat of a sting, for the rig slot (components/Sting.svelte). `phase` is the beat
@@ -26,7 +28,7 @@
 	// those cells make was written by a book event (game/bookEventHandlerMap.ts). This component
 	// draws; it decides nothing.
 	import { Sprite, Rectangle } from 'pixi-svelte';
-	import { stateBet } from 'state-shared';
+	import { stateBet, stateConfig } from 'state-shared';
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
@@ -133,6 +135,9 @@
 			mysteryOutcome: () => stateGame.mysteryOutcome,
 			/** press SKIP TO RESULT (stateGameDerived.requestSkip): true if the press took */
 			skip: () => context.stateGameDerived.requestSkip(),
+			/** DEV: force Stake's jurisdiction switches as authenticate would have set them (skip_probe.js, motion_probe.js):
+			 *  a patch of stateConfig.jurisdiction; returns the block as it then is */
+			jurisdiction: (patch: Record<string, boolean | number> = {}) => JSON.parse(JSON.stringify(Object.assign(stateConfig.jurisdiction, patch))),
 			/** the ONE way to set the live turbo level (0 / 1 / 2), for the motion probe's timeScale runs */
 			setTurbo: (level: 0 | 1 | 2) => context.stateGameDerived.setTurboLevel(level),
 			/** a book amount as the readouts print it, so a probe can compare canvas text it cannot read */

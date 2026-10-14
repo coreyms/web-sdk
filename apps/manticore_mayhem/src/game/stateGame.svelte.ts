@@ -1,4 +1,4 @@
-import { stateBet, stateBetDerived } from 'state-shared';
+import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
 import { waitForTimeout } from 'utils-shared/wait';
 import { createGetWinLevelDataByWinLevelAlias } from 'utils-shared/winLevel';
 import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
@@ -190,6 +190,11 @@ export const stateGame = $state({
 
 	turboLevel: 0 as 0 | 1 | 2,
 	baseTurboLevel: 0 as 0 | 1 | 2,
+	/** THE SLAM STOP'S HURRY (2026-10-13; ui/controls.svelte.ts sets and clears it, nothing else): a Spin press or a
+	 *  tap on the board during a live spin runs the rest of that spin at this turbo level if it is over the player's
+	 *  own (0 = none). Speed only: timeScale() below is the one reader. Not persisted, never shown on the turbo
+	 *  button, cleared when the spin is over (stopButtonEnable). */
+	hurryLevel: 0 as 0 | 1 | 2,
 	autoLoadout: null as AutoLoadout | null,
 	autoStopOnFreeGames: false,
 	autoPlayBonuses: false,
@@ -227,7 +232,7 @@ const isReplayPlayback = (): boolean =>
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 /** the ONE style-time divisor: by Manticore's turbo level (TURBO_SCALE), not the shared 1 / 2 switch */
-export const timeScale = () => TURBO_SCALE[stateGame.turboLevel] ?? 1;
+export const timeScale = () => TURBO_SCALE[stateGame.hurryLevel > stateGame.turboLevel ? stateGame.hurryLevel : stateGame.turboLevel] ?? 1;
 const ts = () => Math.max(0.2, timeScale());
 
 /** a pause in STYLE time: authored at normal speed, divided by the turbo scale like every
@@ -241,9 +246,13 @@ export const newRun = () => ++runId;
 export const currentRun = () => runId;
 const alive = (id: number) => id === runId;
 
-/** one rAF pass over `ms` of STYLE time, already divided by the turbo scale */
+/** one rAF pass over `ms` of STYLE time, divided by the turbo scale.
+ *  THE SCALE IS READ EVERY FRAME (2026-10-13). Until then it was read once, as the pass began, so a hurry (the slam
+ *  stop, a tap on the board: stateGame.hurryLevel) or a turbo press only reached the NEXT beat: the drop in flight
+ *  and its whole scatter tease played out at the old speed. Now the pass counts style ms frame by frame at the scale
+ *  of the moment, so the beat in the air speeds up with everything behind it. With a scale that does not change
+ *  this is the same arithmetic as before (elapsed real ms x the scale). */
 const raf = (ms: number, step: (t: number, elapsed: number) => void): Promise<void> => {
-	const scaled = Math.max(1, ms / ts());
 	return new Promise((resolve) => {
 		// SKIP TO RESULT: the pass lands on its last frame at once. Every caller's step() writes the
 		// final state at t = 1, so the structural result is identical to the full animation's.
@@ -252,10 +261,21 @@ const raf = (ms: number, step: (t: number, elapsed: number) => void): Promise<vo
 			resolve();
 			return;
 		}
-		const t0 = performance.now();
+		// style ms done up to `from` (real), and the scale since
+		let done = 0;
+		let from = performance.now();
+		let rate = ts();
 		const tick = () => {
+			const now = performance.now();
+			const live = ts();
+			if (live !== rate) {
+				done += (now - from) * rate;
+				from = now;
+				rate = live;
+			}
 			// a skip pressed mid-beat ends the beat on its next frame, at its final state
-			const t = stateGame.skipping ? 1 : clamp01((performance.now() - t0) / scaled);
+			// (a pass never lasts under 1 real ms: the floor the fixed scale had)
+			const t = stateGame.skipping ? 1 : clamp01((done + (now - from) * rate) / Math.max(ms, rate));
 			step(t, t * ms);
 			if (t < 1) requestAnimationFrame(tick);
 			else resolve();
@@ -511,7 +531,7 @@ export const boardInvariant = () => {
 //     same pooled sprites, inside the same mask), starts the exit itself when no press did (a free spin, a
 //     resume, a synthetic book), and then drops the new board as it always has.
 //   · SKIP TO RESULT: no exit at all (the board is simply replaced, as before).
-// The fall is in style time at the rate captured when it started, like every other beat.
+// The fall is in style time, at the rate of the moment like the drops (raf): a hurry mid fall speeds it up too.
 type ExitJob = { cell: Cell; row: number; delay: number; sign: number };
 type ExitRun = {
 	token: number;
@@ -569,6 +589,14 @@ export const startBoardExit = (from: 'press' | 'reveal' = 'press') => {
 	const log = import.meta.env.DEV ? boardExit.log[boardExit.log.length - 1] : null;
 	const tick = () => {
 		if (run.token !== exitToken) return; // cancelled: whoever cancelled has put the board right
+		// a hurry (or a turbo press) mid fall: the exit keeps step with the drop that follows it (raf above), so the
+		// new board never overtakes the old one. Its clock is moved, not jumped (exitGate reads the same two numbers)
+		const live = ts();
+		if (live !== run.rate) {
+			const real = performance.now();
+			run.t0 = real - ((real - run.t0) * run.rate) / live;
+			run.rate = live;
+		}
 		const now = stateGame.skipping ? run.total : (performance.now() - run.t0) * run.rate;
 		for (const j of run.jobs) {
 			const e = BOARD_EXIT.easing(clamp01((now - j.delay) / BOARD_EXIT.fallMs));
@@ -782,7 +810,8 @@ export const revealBoard = async (
 			revealTease.origin = 0;
 			onFrame = (now) => {
 				// the drop's clock in real time (probe hook): style ms `now` happened at origin + now / rate
-				if (!revealTease.origin) {
+				// (a hurry mid drop moves the origin with the rate, so the two still say when `now` is)
+				if (!revealTease.origin || revealTease.rate !== ts()) {
 					revealTease.rate = ts();
 					revealTease.origin = performance.now() - now / revealTease.rate;
 				}
@@ -1999,10 +2028,18 @@ const setTurboLevel = (level: 0 | 1 | 2) => {
  *  `skipping` would be set with no bonusEnd left to clear it (caught by the skip probe). */
 export const featureSpinsLive = () => stateGame.gameType === 'freegame' && stateGame.sessionRecap === null;
 
-/** press SKIP TO RESULT: only while a feature's spins are live, and a second press is a no-op.
- *  Returns whether it took. */
+/** STAKE'S JURISDICTION SWITCHES AND THE SKIP (2026-10-13): SKIP TO RESULT is a slam stop and a speed up in one, so
+ *  an operator that disables either (authenticate's jurisdiction.disabledSlamstop / disabledTurbo, stateConfig) has no
+ *  SKIP at all: the button is not rendered (components/SkipButton.svelte), requestSkip refuses, and the rules page's
+ *  UI guide has no "Skip to Result" row (ui/GameInfoModal.svelte). jurisdiction.minimumRoundDuration needs nothing
+ *  here: the shared machine holds it after the whole presentation, skipped or not, and before the end of the round
+ *  (packages/utils-xstate createPrimaryMachines playGame). */
+export const skipAllowed = (): boolean => !stateConfig.jurisdiction.disabledSlamstop && !stateConfig.jurisdiction.disabledTurbo;
+
+/** press SKIP TO RESULT: only where the operator allows it, only while a feature's spins are live, and a second
+ *  press is a no-op. Returns whether it took. */
 const requestSkip = (): boolean => {
-	if (!featureSpinsLive() || stateGame.skipping) return false;
+	if (!skipAllowed() || !featureSpinsLive() || stateGame.skipping) return false;
 	stateGame.skipping = true;
 	return true;
 };

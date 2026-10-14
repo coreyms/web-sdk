@@ -35,10 +35,9 @@
 <ClockStrip side="left" clock text="MANTICORE MAYHEM" />
 <ClockStrip side="right" text="POLYMATH GAMES" />
 
-<!-- THE LOGO. Desktop tier: the canvas draws it, animated, in this same box (components/Logo.svelte), and this
-     still is only the stand-in until that is in (logoState.canvas hides it; no Shine, so nothing changes at the
-     hand over). Phone tier: this still IS the logo, with the house Shine (a subtle glint every 5 s while idle, a
-     full one on spin). -->
+<!-- THE LOGO. The canvas draws it in this same box in every tier (components/Logo.svelte: animated on the desktop
+     tier, the still of game/logo/still.ts otherwise, both under the creature). This <img> is only the fallback until
+     the canvas has it (logoState.canvas hides it, Shine and all). -->
 <div class="logo keep" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px">
 	<img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" />{#if PHONE_TIER}<Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} />{/if}
 </div>
