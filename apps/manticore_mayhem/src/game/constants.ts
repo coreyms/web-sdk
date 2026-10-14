@@ -1608,11 +1608,12 @@ export const TILE_VALUES = [2, 4, 8, 16, 32, 64, 128] as const;
 // ---- Sound map ----------------------------------------------------------------------------------
 // Scatter landings and the feature-entry confirmation are carried over from Angry Mantis UNCHANGED
 // (Corey 2026-09-22). Everything else in the sprite is a placeholder for Manticore's own audio.
-// THE SIXTH (Corey 2026-10-11): the house ladder is five sounds, each the first a whole tone up. This board
-// lands up to six scatters in a spin (one per column; an Epic's six, on the reveal or stung in), so the
-// sixth landing has its own sound, the first at +10 semitones (tools/build_audiosprite.py MM_EVENTS).
-// Until then the sixth landing replayed the fifth. A landing past the sixth (the books have none) holds
-// the sixth.
+// THE SIXTH (Corey 2026-10-11): the house ladder is five sounds, each the first a whole tone up. An Epic
+// lands six scatters in a spin (one per column, on the reveal or stung in), so the sixth landing has its
+// own sound, the first at +10 semitones (tools/build_audiosprite.py MM_EVENTS). Until then the sixth
+// landing replayed the fifth. THE 8 SCATTER EPIC (math 2026.10.13, Corey's decision): a feature never
+// triggers on 7, and 8 (one in every column) is only ever an Epic's forced first board, on the reveal or
+// with 5 or 6 of them stung in; its 7th and 8th landings replay the sixth (Math.min below), no new sound.
 export const SCATTER_LAND_SOUND_MAP = {
 	1: 'sfx_scatter_land_1',
 	2: 'sfx_scatter_land_2',

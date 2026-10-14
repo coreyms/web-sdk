@@ -43,7 +43,8 @@
 	const FLASH_POOL = 12;
 	const STREAK_POOL = 4;
 	const RING_POOL = 6;
-	// big / super ripples (2) and the scatter landing rings (up to six scatters landing close together)
+	// big / super ripples (2) and the scatter landing rings (up to eight scatters, one per column, landing close
+	// together; a ring past the pool is counted in stats.dropped and skipped)
 	const SHAPE_RING_POOL = 8;
 
 	const root = new PIXI.Container({ zIndex: 15 });

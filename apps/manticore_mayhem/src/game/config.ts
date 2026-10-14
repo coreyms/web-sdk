@@ -3,7 +3,9 @@
 // rules copy and the fallback cost multipliers (the RGS's authenticate values always win).
 export default {
 	// the published math set this build is approved against (library/publish_files)
-	mathVersion: '2026.10.06', // swipe band roams (math-sdk 82d7496)
+	// 2026.10.13 (game_config.py MATH_VERSION, rule pass 3): no feature triggers on 7 scatters; 8 are only ever the
+	// forced first board of an Epic. RTP and every rate as 2026.10.06 (swipe band roams, math-sdk 82d7496)
+	mathVersion: '2026.10.13',
 	providerName: 'polymath_games',
 	gameName: 'Manticore Mayhem',
 	gameID: 'manticore_mayhem',
@@ -50,7 +52,7 @@ export default {
 	// multiplier-tile ladder caps per feature (TILE_CAP); base/ante/super_ante run the standard cap
 	tileCap: { base: 64, bonus: 64, super: 128, epic: 128 },
 	tileSeed: 2,
-	// scatter counts that open each tier in the base game
+	// scatter counts that open each tier in the base game (6 or more is an Epic; read by nothing, a mirror)
 	scatterTriggers: { 4: 'bonus', 5: 'super', 6: 'epic' },
 	// SWIPE band (SWIPE_BAND_ROWS / SWIPE_BAND_STARTS, 2026-10-06): each swipe clears 3 contiguous
 	// rows whose top row (0-based) is drawn uniformly from these starts, in every mode. The
