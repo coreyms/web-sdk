@@ -49,6 +49,7 @@
 	import { CREATURE_SPEC } from '../game/creatureSpec';
 	import type { SoundEffectName } from '../game/sound';
 	import { boardKick, foregroundKick, shoveForeground } from '../game/featureFx';
+	import { boardOpening } from '../game/boardTap';
 	import { SCENE_AT_BOOT } from '../game/assets';
 	import { loadPlaceholderLate, loadSceneLate } from '../game/deferredLoad';
 	import { PHONE_TIER } from '../game/deviceTier';
@@ -275,6 +276,8 @@
 		skipping: () => context.stateGame.skipping,
 		play: (name, rate) => context.eventEmitter.broadcast({ type: 'soundOnce', name: name as SoundEffectName, forcePlay: true, rate }),
 		stop: (name) => context.eventEmitter.broadcast({ type: 'soundStop', name: name as SoundEffectName }),
+		idle: () => context.stateXstateDerived.isIdle(),
+		board: (x, y) => boardOpening.contains(x, y),
 	};
 	// he stands in the scene of the current layout: the shadow on its floor, the body in the scene's twin root (behind
 	// the board or in front of it, over the logo either way). Only on a change of layout or spot.
@@ -628,6 +631,13 @@
 					growl: () => creature.growl(),
 					/** the voice's own picker, asked `n` times in a row (no sound is played): the takes and rates it would use */
 					voicePicks: (clip: 'snarl' | 'growl', n: number) => Array.from({ length: n }, () => creature.pickVoice(clip)),
+					/** THE POKE: its hit area on the canvas, whether it is live, its clocks; whether a canvas point would
+					 *  take one; a poke by hand (the tap's own path, minus the hit test) */
+					pokeInfo: () => creature.pokeInfo(),
+					pokeHits: (x: number, y: number) => creature.pokeHits(x, y),
+					poke: () => creature.poke(performance.now()),
+					/** the A / B of CREATURE.glowPhase (the crouch's phase before a lit strike) */
+					glowPhase: (on: boolean) => (creature.glowPhase = on),
 				},
 				// ---- __manticore.fireSound / chainSound (tools/manticore/win_sound_probe.js, ONLY=fire,chain) ----
 				fireSound: { state: () => fireSoundState(), log: () => fireSoundLog.map((e) => ({ ...e })), constants: () => JSON.parse(JSON.stringify(FIRE_SOUND)) },

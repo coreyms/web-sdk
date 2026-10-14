@@ -1,0 +1,154 @@
+{
+ "frames": {
+  "creature_epic_sting_recrouch_000": {
+   "frame": {
+    "x": 0,
+    "y": 3180,
+    "w": 498,
+    "h": 468
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 53,
+    "y": 134,
+    "w": 498,
+    "h": 468
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_sting_recrouch_001": {
+   "frame": {
+    "x": 0,
+    "y": 2664,
+    "w": 489,
+    "h": 514
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 56,
+    "y": 88,
+    "w": 489,
+    "h": 514
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_sting_recrouch_002": {
+   "frame": {
+    "x": 0,
+    "y": 539,
+    "w": 487,
+    "h": 535
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 67,
+    "w": 487,
+    "h": 535
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_sting_recrouch_003": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 485,
+    "h": 537
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 61,
+    "y": 65,
+    "w": 485,
+    "h": 537
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_sting_recrouch_004": {
+   "frame": {
+    "x": 0,
+    "y": 1076,
+    "w": 484,
+    "h": 530
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 61,
+    "y": 72,
+    "w": 484,
+    "h": 530
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_sting_recrouch_005": {
+   "frame": {
+    "x": 0,
+    "y": 1608,
+    "w": 485,
+    "h": 526
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 76,
+    "w": 485,
+    "h": 526
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_epic_sting_recrouch_006": {
+   "frame": {
+    "x": 0,
+    "y": 2136,
+    "w": 485,
+    "h": 526
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 76,
+    "w": 485,
+    "h": 526
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  }
+ },
+ "meta": {
+  "image": "creature-epic-sting_recrouch.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 500,
+   "h": 3650
+  },
+  "scale": "1",
+  "pngHash": "3947d2ba"
+ }
+}

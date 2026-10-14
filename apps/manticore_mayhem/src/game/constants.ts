@@ -1615,7 +1615,7 @@ export const CHAIN_SOUND = {
 
 // ---- Symbol art ---------------------------------------------------------------------------------
 // ---- THE MANTICORE (game/creature.ts, game/creatureLoad.ts, game/creatureAssets.ts; wired 2026-10-13) ----------
-// The creature sprite from rig drop 3 (tools/build_creature_assets.py; clip facts in the generated game/creatureSpec.ts,
+// The creature sprite from rig drop 4 with its glow add-on (2026-10-13; tools/build_creature_assets.py; clip facts in the generated game/creatureSpec.ts,
 // never typed here). Decisions: Corey 2026-10-12 / 13 unless marked. Idle and the idle alternates run in REAL time at
 // every turbo level; the attack clips in STYLE time (x TURBO_SCALE) like the board effects they belong to. Nothing in
 // the game waits for him.
@@ -1644,11 +1644,40 @@ export const CHAIN_SOUND = {
 //   strikeLead   a sting_hit starts (holdFrame - 1) frames BEFORE the hit, so the tail lands on it (false: on it)
 //   sting     the board's own beats the strike is timed from, style ms: where a normal and a scatter sting's cell flips
 //             in its beat, the scatter run's first hold, the two charge lengths (all read from STING / SCATTER_STING)
-//   stingCut  BETWEEN TWO STINGS of a run he goes back to the crouch: sting_hit plays on to afterFrame and is then cut
-//             to charge_loop frame toLoopFrame. Measured on the day look (2026-10-13, outline difference / tail tip
-//             travel on the 1024 canvas): straight from the hold frame f6 the cut is 35 % and 256 px; from f13 to
-//             charge_loop f6 it is 8.6 % and 6 px, the smallest there is (sting_hit's own step there is 6 % and 23 px).
-//             The clip ends STANDING, so no frame of it is the crouch again: under 4 % needs a clip from the rig.
+//   recrouch  BETWEEN TWO STINGS of a run (drop 4): the rig's sting_recrouch follows sting_hit's hold frame f6 (the tail
+//             whips back: 24 % of the outline, the size of sting_hit's own step out of its hold) and its f7 is
+//             charge_loop f12's outline exactly, so it hands over to charge_loop f1 as the loop's own seam (2.6 %). The
+//             old cut (sting_hit f13 to charge_loop f6) is gone. strikeFromFrame: a strike that comes due during the
+//             re-crouch starts from this frame of it on (3.9 % and 12 px to sting_hit f1; from f4 it is 4.9 % and
+//             39 px). Measured joins: creature/prep_2026-10-13/creature_loader_spec_delta.md 4.1.
+//   crouchUpFrame   NO STING CAME after all (crouchTimeoutMs): he gets up by playing sting_hit from the frame AFTER this
+//             one, out of whatever charge_loop frame he is on (there is no stand up clip). The old cut's frame: 8.6 %
+//             at best (charge_loop f6 to sting_hit f13), 10.4 % from f14.
+//   glow      THE LIT STRIKE (the glow add-on, Corey 2026-10-13 "the glow must stay lit until the sting lands"): a big
+//             or super sting's tail keeps the charge's glow at `strength` from sting_hit f1 through the hold frame the
+//             hit lands on, then fades over the rig's three glow frames after it (sting_hit f7..f9, or sting_recrouch
+//             f1..f3 when another sting follows), along the rig's gain hint (0.75 / 0.5 / 0.25 at each frame's start)
+//             and on to 0 at the end of the third, in a straight line. fadeMs: STYLE (clip) ms of that fade, so it
+//             follows turbo (45 ms at 2.2, 25 at 4); not above 100, the glow frames end there. A normal or scatter
+//             sting has no glow at all (unchanged).
+//   glowPhase BEFORE A LIT STRIKE the crouch starts on the charge_loop frame that makes its LAST frame before sting_hit
+//             f12, so the strike's glow follows on from the glow frame the rig built it to follow (spec delta 8.7).
+//             Started on f1, the loop is left on f7 / f8 (the strike starts strikeLead early) and the strike's glow
+//             f1 is 0.55 to 0.65 of the light the frame before it, with half the lit area moving, for one frame
+//             (measured on the shipped atlas 2026-10-14; from loop f1 it is x1.00 and 10 %; the loop's own seam is
+//             x0.62). The body join this moves, charge_in f6 to charge_loop f6, is 3.25 % and 5 px. false: always f1.
+//   glowAim   ...and when he is ALREADY DOWN as a lit charge starts (a big or super after normal stings: no phase can be
+//             picked), the crouch loop runs at most maxRate faster or slower than 1 until the strike so that it still
+//             leaves the loop on f1 (a super after two normal stings: about 4 %); a rate beyond that is not used. Only
+//             with minFrames or more loop frames left. Presentation only: the strike's time is the board's.
+//   poke      (Corey 2026-10-13 14:37) a tap or click on his body while he and the game are idle plays one of `clips`
+//             at random (snarl or growl, NEVER the roar), with the voice's own rules (never the take that played last,
+//             a random rate). cooldownMs: REAL ms after that clip has ended before he takes another poke.
+//             rollQuietMs: REAL ms after it has ended before the idle roll may play an alternate again (the poke
+//             resets his random idle timer: three idle loops). area: his body's hit area, a polygon in px of the rig's
+//             1024 canvas about the feet point (x, y pairs; y up is negative), head, mane, shoulders and front legs,
+//             no wings, no tail, the gap between the forelegs left out. It never takes a tap on the board's opening
+//             (that stays the board's: game/boardTap.ts) and lies under every HTML control.
 //   snarlOdds, growlOdds   rolled once at each idle loop restart, snarl first, never both, plain Math.random
 //   breath    one quiet breath sound per idle loop, the two takes in turn, stopped when anything else of his starts
 //   voice     the snarl and the growl only (the breaths are left alone): never the same take twice in a row per sound,
@@ -1687,7 +1716,18 @@ export const CREATURE = {
 		chargeMs: STING.chargeMs,
 		superChargeMs: STING.superChargeMs,
 	},
-	stingCut: { afterFrame: 13, toLoopFrame: 6 },
+	recrouch: { strikeFromFrame: 5 },
+	crouchUpFrame: 13,
+	glow: { strength: 1, fadeMs: 100 },
+	glowPhase: true,
+	glowAim: { maxRate: 0.12, minFrames: 12 },
+	poke: {
+		on: true,
+		clips: ['snarl', 'growl'] as const,
+		cooldownMs: 600,
+		rollQuietMs: 5400,
+		area: [-60, -485, 60, -485, 160, -420, 240, -335, 295, -250, 305, -150, 320, 25, 110, 30, 80, -70, -140, -70, -160, 30, -335, 25, -315, -150, -300, -260, -245, -350, -160, -425],
+	},
 	snarlOdds: 1 / 20,
 	growlOdds: 1 / 30,
 	breath: true,

@@ -20,8 +20,9 @@
 
 	const host = new PIXI.Container();
 	host.label = `creature-${layer}`;
-	host.eventMode = 'none';
-	host.interactiveChildren = false;
+	// (passive: nothing here takes a pointer itself, but his body node can: the poke, game/creature.ts)
+	host.eventMode = 'passive';
+	host.interactiveChildren = true;
 	// (registered first, so on unmount the scenes' roots are out of the host before pixi-svelte destroys it)
 	onMount(() => {
 		creatureFront.hosts[layer] = host;

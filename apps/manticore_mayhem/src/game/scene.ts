@@ -283,8 +283,11 @@ export class SceneView {
 		this.front.label = layout === 'landscape' ? 'scene-front' : 'scene-portrait-front';
 		this.frontForeground.label = 'scene-front-foreground';
 		this.front.visible = false;
-		this.front.eventMode = 'none';
-		this.front.interactiveChildren = false;
+		// (passive: the twin root and its foreground take no pointer themselves; the creature's body node in it can, the
+		// poke, game/creature.ts: it is 'static' only while a poke can be taken, and its sprites are never hit tested)
+		this.front.eventMode = 'passive';
+		this.front.interactiveChildren = true;
+		this.frontForeground.eventMode = 'passive';
 		this.front.addChild(this.frontForeground);
 		fg.addChild(this.fore[0], this.fore[1], this.fire);
 		if (this.flames) fg.addChild(...this.flames.layers);
