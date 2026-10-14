@@ -21,9 +21,9 @@ export type ArmouryLayout = 'desktop' | 'portrait' | 'tablet' | 'sideways';
 
 export type FrameRules = {
 	desktop: { w: number; h: number; master: number; scaledUnderRatio: number };
-	portrait: { w: number; gapToHud: number; underClock: number; nameBandMin: number; minHitCss: number };
+	portrait: { w: number; gapToHud: number; underClock: number; nameBandMin: number; minHitCss: number; nameGap: number };
 	tablet: { w: number; minFrame: number; maxContent: number; nameTop: number; contentTop: number };
-	sideways: { w: number; h: number; minLeft: number; hudGap: number };
+	sideways: { w: number; h: number; minLeft: number; hudGap: number; nameAbove: number };
 };
 
 export type FrameInput = {
@@ -105,6 +105,8 @@ export type Anchors = {
 	clockBottom?: number;
 	/** sideways: the right edge of the HUD's column (readouts and the plus stepper) */
 	hudRight?: number;
+	/** sideways: the top left of the HUD's BALANCE readout (the menu's name sits above it) */
+	balance?: { x: number; y: number };
 	/** env(safe-area-inset-*) */
 	safe: { top: number; right: number; bottom: number; left: number };
 };
@@ -115,9 +117,10 @@ export type DesignAnchors = {
 	contentBottom: number;
 	/** sideways: where the middle column starts, design px from the frame's left */
 	midLeft: number;
-	/** portrait phone: the name sits centred in the band above the clock strip, or under the strip when that band is
-	 *  under nameBandMin design px high (the tablet's place) */
-	name: { place: 'band' | 'under'; y: number };
+	/** where the name goes. Portrait phone: centred in the band above the clock strip ('band', y its centre), or, when
+	 *  that band is under nameBandMin design px high, under the strip ('under', y its top) with the content nameGap
+	 *  lower (the tablet's place). Sideways: 'above' the HUD's BALANCE, x its left, y nameAbove over its top */
+	name: { place: 'band' | 'under' | 'above'; y: number; x?: number };
 	/** the safe area insets, design px */
 	safe: { top: number; right: number; bottom: number; left: number };
 	/** design px a control must be to reach the CSS minimum hit size */
@@ -138,13 +141,19 @@ export const designAnchors = (f: MenuFrame, a: Anchors, rules: FrameRules): Desi
 		if (a.hudTop != null) contentBottom = Math.min(contentBottom, y(a.hudTop) - rules.portrait.gapToHud);
 		const bandTop = safe.top;
 		const bandBottom = a.clockTop != null ? y(a.clockTop) : bandTop;
-		name = bandBottom - bandTop >= rules.portrait.nameBandMin ? { place: 'band', y: (bandTop + bandBottom) / 2 } : { place: 'under', y: contentTop };
+		if (bandBottom - bandTop >= rules.portrait.nameBandMin) name = { place: 'band', y: (bandTop + bandBottom) / 2 };
+		else {
+			name = { place: 'under', y: contentTop };
+			contentTop += rules.portrait.nameGap;
+		}
 	} else if (f.layout === 'tablet') {
 		contentTop = Math.max(contentTop, rules.tablet.contentTop);
 		if (a.hudTop != null) contentBottom = Math.min(contentBottom, y(a.hudTop) - rules.portrait.gapToHud);
 		name = { place: 'under', y: Math.max(safe.top, rules.tablet.nameTop) };
 	} else if (f.layout === 'sideways') {
 		midLeft = Math.max(rules.sideways.minLeft, a.hudRight != null ? (a.hudRight - f.left) / u + rules.sideways.hudGap : 0, safe.left);
+		contentTop = Math.max(safe.top, 0);
+		if (a.balance) name = { place: 'above', x: (a.balance.x - f.left) / u, y: y(a.balance.y) - rules.sideways.nameAbove };
 	} else {
 		contentTop = 0;
 		contentBottom = f.height;

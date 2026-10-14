@@ -99,7 +99,7 @@ walk(ASSETS);
 // grid atlases heroes.json names are stamped by their own content (assets.ts stamp() on the file's path).
 {
 	const ARMOURY_DIR = 'ui/armoury/';
-	// PROVISIONAL 10 (spec 3.4 said 7; measured 9.25 MB with all six grids at the owner's sizes): the owner decides.
+	// FINAL 10 (owner 2026-10-14 16:51; spec 3.4 said 7; measured 9.25 MB with all six grids at the owner's sizes).
 	// Kept in step with tools/build_armoury_assets.py FOLDER_MAX_MB and constants.ts ARMOURY.assets.folderMaxMb.
 	const ARMOURY_MAX_MB = 10;
 	const files = Object.keys(stamps).filter((rel) => rel.startsWith(ARMOURY_DIR));

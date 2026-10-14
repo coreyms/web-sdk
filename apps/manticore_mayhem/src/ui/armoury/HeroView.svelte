@@ -5,8 +5,10 @@
 		lagMs: number;
 		degPer500: number;
 		maxDeg: number;
-		yawSpan: number;
-		pitchSpan: number;
+		yawSpanLeft: number;
+		yawSpanRight: number;
+		pitchSpanTop: number;
+		pitchSpanBottom: number;
 		pointerCentre: { x: number; y: number };
 		frameFade: { ms: number; fromDeg: number; rampDeg: number; hold: number };
 		parallax: { x: number; y: number; rays: number; shadow: number };
@@ -61,8 +63,21 @@
 		rules: HeroRules;
 		/** the id of the rays <symbol> */
 		raysId: string;
+		/** the pointer centre in the menu's design px, where the hero sits in this layout (default rules.pointerCentre, the
+		 *  desktop hero's) */
+		centre?: { x: number; y: number } | null;
+		/** the menu box, design px: no span reaches past its edges (a span is the smaller of its constant and the distance
+		 *  from the pointer centre to that edge), so a real pointer at any edge of the box shows the full turn */
+		bounds?: { w: number; h: number } | null;
 	};
-	const { art, flatUrl, flatAr, flatReady, heroH, grid, active, calm, frame, reduced, rules, raysId }: Props = $props();
+	const { art, flatUrl, flatAr, flatReady, heroH, grid, active, calm, frame, reduced, rules, raysId, centre = null, bounds = null }: Props = $props();
+	/** the spans this layout uses (spec 5.4; owner 2026-10-14 16:51, the full turn both ways) */
+	const spans = $derived.by(() => {
+		const c = centre ?? rules.pointerCentre;
+		if (!bounds) return rules;
+		const m = (a: number, b: number) => Math.max(1, Math.min(a, b));
+		return { yawSpanLeft: m(rules.yawSpanLeft, c.x), yawSpanRight: m(rules.yawSpanRight, bounds.w - c.x), pitchSpanTop: m(rules.pitchSpanTop, c.y), pitchSpanBottom: m(rules.pitchSpanBottom, bounds.h - c.y) };
+	});
 
 	const fine = (() => {
 		try {
@@ -158,6 +173,8 @@
 	const cur = { x: 0, y: 0 };
 	const turn = { yaw: 0 };
 	let frozen = false;
+	/** a swipe's turn (portrait phone, tablet: degrees, spec 5.2), added to the idle turn while a finger drags */
+	let dragYaw = 0;
 	/** the breathing held still (DEV freezeIdle) */
 	let frozenBreath = $state(false);
 	let t0 = 0;
@@ -208,7 +225,7 @@
 		let ax: number;
 		let ay: number;
 		if (!fine && !override) {
-			const want = idleOn() ? idleTurnYaw(now - t0, rules.idleTurn) : 0;
+			const want = (idleOn() ? idleTurnYaw(now - t0, rules.idleTurn) : 0) + (reduced ? 0 : dragYaw);
 			turn.yaw = easeToward(turn.yaw, want, dt, rules.idleTurn.easeMs);
 			busy = busy || idleOn() || Math.abs(want - turn.yaw) > 0.02;
 			ax = turn.yaw;
@@ -228,7 +245,7 @@
 				const r = gridReach(g);
 				yaw = Math.max(-r.yaw, Math.min(r.yaw, ax));
 			} else {
-				const a = pointerAngles(cur, g, rules, k);
+				const a = pointerAngles(cur, g, spans, k);
 				yaw = a.yaw;
 				pitch = a.pitch;
 			}
@@ -284,8 +301,9 @@
 		t0 = performance.now();
 		const onMove = (e: PointerEvent) => {
 			if (!fine || e.pointerType === 'touch') return;
-			ptr.x = (e.clientX - frame.left) / frame.u - rules.pointerCentre.x;
-			ptr.y = (e.clientY - frame.top) / frame.u - rules.pointerCentre.y;
+			const c = centre ?? rules.pointerCentre;
+			ptr.x = (e.clientX - frame.left) / frame.u - c.x;
+			ptr.y = (e.clientY - frame.top) / frame.u - c.y;
 			ptr.on = true;
 			kick();
 		};
@@ -335,6 +353,8 @@
 			eased: { x: +cur.x.toFixed(2), y: +cur.y.toFixed(2) },
 			...last,
 			idle: idleOn(),
+			dragYaw,
+			spans: { left: spans.yawSpanLeft, right: spans.yawSpanRight, top: spans.pitchSpanTop, bottom: spans.pitchSpanBottom },
 			frozen,
 			breathing,
 		};
@@ -343,6 +363,12 @@
 	export const setPointer = (x: number | null, y?: number) => {
 		override = x == null ? null : { x, y: y ?? 0 };
 		if (manual) return;
+		kick();
+	};
+	/** a swipe's turn in degrees (0 when the finger lets go: the turn eases back) */
+	export const setDragYaw = (deg: number) => {
+		if (deg === dragYaw) return;
+		dragYaw = deg;
 		kick();
 	};
 	/** hold the idle motion still (the touch turn and the breathing) */

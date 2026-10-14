@@ -20,6 +20,9 @@ export const armouryView = $state({
 	tint: '#000000',
 	/** bumped on a layout change while open (rotation, resize): every animation stops, everything snaps to rest */
 	snap: 0,
+	/** the two frames of a layout snap: every transition of the HUD layer is off too (a chrome remounted for the new
+	 *  layout must not fade its lit pieces in from the old layout's state) */
+	snapping: false,
 	/** prefers-reduced-motion, read once when the menu mounts: the lit HUD's steps are 0 ms too */
 	reduced: false,
 });

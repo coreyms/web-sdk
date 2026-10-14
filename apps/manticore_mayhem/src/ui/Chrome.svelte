@@ -47,14 +47,20 @@
 	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : 0);
 
 	// THE ARMOURY (on by default since 2026-10-14; `?armoury=0` turns it off on dev and staging only, game/armourySwitch.ts;
-	// spec feedback/armoury_build_r1): the menu follows the chrome (ui/armoury/menuFrame.ts). It takes over from the old
-	// menu only where its layout is built: the desktop layout over the landscape chrome. Everywhere else (portrait phone,
-	// tablet, sideways, the small 16:9 frames, until part C), and with the switch off, the old menu stays.
+	// spec feedback/armoury_build_r1): the menu follows the chrome (ui/armoury/menuFrame.ts). Since part C it has a layout
+	// for every chrome (desktop, portrait phone, tablet, sideways, and the desktop box scaled on small 16:9 frames), so with
+	// the switch on it is the menu everywhere; with the switch off the old menu is exactly as it was.
 	const vw = $derived(innerWidth.current ?? 1);
 	const vh = $derived(innerHeight.current ?? 1);
 	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
 	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth }, ARMOURY.layout));
-	const armouryTakes = $derived(ARMOURY_SWITCH && armouryFrame.layout === 'desktop' && !armouryFrame.hudCopies);
+	const armouryTakes = $derived(ARMOURY_SWITCH);
+	// the real HUD's BALANCE and bet row are lit above the tint in every layout but the desktop box scaled onto a phone
+	// sideways chrome (the small 16:9 frames): there the menu draws its own copies and the whole HUD stays under the tint
+	const armouryLit = $derived(armouryView.shown && !armouryFrame.hudCopies);
+	// ...and there the real HUD steps aside under the tint (the spec 2.3 fallback), so its own BALANCE and bet never show
+	// twice beside the menu's copies
+	const armouryCopies = $derived(armouryView.shown && armouryFrame.hudCopies);
 	$effect.pre(() => {
 		armouryView.takes = armouryTakes;
 	});
@@ -112,6 +118,10 @@
 	class:hud-off={!show}
 	class:hud-deep={!show && deep}
 	class:armoury-open={armouryView.shown}
+	class:armoury-lit={armouryLit}
+	class:armoury-copies={armouryCopies}
+	class:armoury-snap={armouryView.snapping}
+	data-chrome={kind}
 	class:armoury-confirm={armouryView.confirm}
 	class:armoury-closing={armouryView.closing}
 	style:--arm-ease={ARMOURY_SWITCH ? pickEase(ARMOURY.motion) : null}
@@ -182,34 +192,81 @@
 	.modals {
 		z-index: 60;
 	}
-	/* THE LIT HUD under THE ARMOURY (spec 2.3; landscape chrome, the only one the Armoury draws over yet). The tint
-	   (ArmouryTint, z 11, inside .fit) covers every HUD element; the trio gives up its own stacking so its BALANCE cell
-	   and its bet cell (the real minus, readout and plus) can sit above the tint one by one. WIN stays under. The bet
-	   readout takes no pointer here (it would open the bet picker, which would replace the menu). In confirm the lit
-	   cells step back to 0.16 and take nothing; they come back over the cancel's 330 ms. */
-	.layer.armoury-open :global(.trio) {
+	/* THE LIT HUD under THE ARMOURY (spec 2.3). The tint (ArmouryTint, z 11, inside .fit) covers every HUD element; the
+	   pieces that stay lit (the BALANCE readout, the bet readout and its two steppers) are the real HUD's own elements,
+	   raised above it one by one (z 12), so the steppers are the real ones (rules, sounds, disabled states). Their row
+	   gives up its own stacking so its cells can be ordered alone. WIN, Spin, the feature button, autoplay and turbo
+	   stay under. The bet readout takes no pointer (it would open the bet picker, which would replace the menu). In
+	   confirm the lit pieces step back to 0.16 and take nothing; they come back over the cancel's 330 ms. Per chrome:
+	     landscape (desktop): the trio's BALANCE cell and its bet cell (minus, readout, plus)
+	     portrait (portrait phone, tablet): the .stats row (BALANCE, bet readout) and the grid's plus and minus
+	     phone (sideways): the column's BALANCE and its .spin-row (minus, readout, plus)
+	   Not lit on the phone chrome's small 16:9 frames (the desktop box scaled): the menu draws its own copies there. */
+	.layer.armoury-lit[data-chrome='landscape'] :global(.trio),
+	.layer.armoury-lit[data-chrome='portrait'] :global(.bar),
+	.layer.armoury-lit[data-chrome='phone'] :global(.stats) {
 		z-index: auto;
 	}
-	.layer.armoury-open :global(.trio > .cell.left),
-	.layer.armoury-open :global(.trio > .cell.right) {
-		position: relative;
+	.layer.armoury-lit[data-chrome='landscape'] :global(.trio > .cell.left),
+	.layer.armoury-lit[data-chrome='landscape'] :global(.trio > .cell.right),
+	.layer.armoury-lit[data-chrome='portrait'] :global(.stats),
+	.layer.armoury-lit[data-chrome='portrait'] :global(.bar .grid > :nth-child(2)),
+	.layer.armoury-lit[data-chrome='portrait'] :global(.bar .grid > :nth-child(4)),
+	.layer.armoury-lit[data-chrome='phone'] :global(.stats > :first-child),
+	.layer.armoury-lit[data-chrome='phone'] :global(.stats > .spin-row) {
 		z-index: 12;
 		transition: opacity var(--arm-back) var(--arm-ease);
 	}
-	.layer.armoury-open :global(.trio .stat) {
+	.layer.armoury-lit[data-chrome='landscape'] :global(.trio > .cell.left),
+	.layer.armoury-lit[data-chrome='landscape'] :global(.trio > .cell.right),
+	.layer.armoury-lit[data-chrome='phone'] :global(.stats > :first-child),
+	.layer.armoury-lit[data-chrome='phone'] :global(.stats > .spin-row) {
+		position: relative;
+	}
+	.layer.armoury-lit[data-chrome='landscape'] :global(.trio .stat),
+	.layer.armoury-lit[data-chrome='portrait'] :global(.stats .stat),
+	.layer.armoury-lit[data-chrome='phone'] :global(.spin-row .stat) {
 		pointer-events: none !important;
 	}
-	.layer.armoury-confirm :global(.trio > .cell.left),
-	.layer.armoury-confirm :global(.trio > .cell.right) {
+	.layer.armoury-lit.armoury-confirm[data-chrome='landscape'] :global(.trio > .cell.left),
+	.layer.armoury-lit.armoury-confirm[data-chrome='landscape'] :global(.trio > .cell.right),
+	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.stats),
+	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.bar .grid > :nth-child(2)),
+	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.bar .grid > :nth-child(4)),
+	.layer.armoury-lit.armoury-confirm[data-chrome='phone'] :global(.stats > :first-child),
+	.layer.armoury-lit.armoury-confirm[data-chrome='phone'] :global(.stats > .spin-row) {
 		opacity: var(--arm-dim);
 		transition: opacity var(--arm-step) var(--arm-ease);
 	}
-	.layer.armoury-confirm :global(.trio > .cell *) {
+	/* the phone chrome's BALANCE is a TrioStat itself, whose own rule holds it at opacity 1 !important */
+	.layer.armoury-lit.armoury-confirm[data-chrome='phone'] :global(.stats > .stat:first-child) {
+		opacity: var(--arm-dim) !important;
+	}
+	.layer.armoury-lit.armoury-confirm[data-chrome='landscape'] :global(.trio > .cell *),
+	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.stats *),
+	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.bar .grid *),
+	.layer.armoury-lit.armoury-confirm[data-chrome='phone'] :global(.stats *) {
 		pointer-events: none !important;
 	}
-	.layer.armoury-closing :global(.trio > .cell.left),
-	.layer.armoury-closing :global(.trio > .cell.right) {
+	.layer.armoury-lit.armoury-closing[data-chrome='landscape'] :global(.trio > .cell.left),
+	.layer.armoury-lit.armoury-closing[data-chrome='landscape'] :global(.trio > .cell.right),
+	.layer.armoury-lit.armoury-closing[data-chrome='portrait'] :global(.stats),
+	.layer.armoury-lit.armoury-closing[data-chrome='portrait'] :global(.bar .grid > :nth-child(2)),
+	.layer.armoury-lit.armoury-closing[data-chrome='portrait'] :global(.bar .grid > :nth-child(4)),
+	.layer.armoury-lit.armoury-closing[data-chrome='phone'] :global(.stats > :first-child),
+	.layer.armoury-lit.armoury-closing[data-chrome='phone'] :global(.stats > .spin-row) {
 		transition: opacity var(--arm-close) linear;
+	}
+	/* a layout change with the menu open (rotation, resize): two frames with no transition anywhere in the HUD, so the lit
+	   pieces of a chrome remounted for the new layout simply are what the menu's state says (spec 5.6) */
+	.layer.armoury-snap :global(*) {
+		transition: none !important;
+	}
+	/* the small 16:9 frames: the desktop box scaled over the phone sideways chrome draws its own bet controls; the HUD
+	   under the tint steps aside (the tint stays) and comes back with the HUD's own return when the menu closes */
+	.layer.armoury-copies .fit > :global(:not(.armoury-tint)) {
+		opacity: 0;
+		transition: opacity var(--arm-step) linear;
 	}
 	.fit {
 		position: absolute;

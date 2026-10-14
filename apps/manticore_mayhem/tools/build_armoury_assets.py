@@ -54,10 +54,9 @@ GRID_H_FOR = {'dagger': 512, 'crown': 512}
 GRID_Q = 86
 CARD_LG = os.path.join(DESK, 'intro_cards_r3', 'card_frame.webp')   # the approved 1024 x 1536 frame
 CARD_LG_Q = 86
-# PROVISIONAL (2026-10-14, part B): the spec's budget was 7 MB (3.4), set on an estimate of 5 to 6 MB of grids. At the
-# owner's sizes (640 px, the dagger and the crown 512) the folder measures 9.25 MB: grids 6.97, phone strips 1.15, the
-# menu core 0.81, card-frame-lg 0.31. Raised to 10 so the build runs; the OWNER decides (keep, or smaller frames / q).
-# Kept in step with scripts/stamp-assets.mjs ARMOURY_MAX_MB and constants.ts ARMOURY.assets.folderMaxMb.
+# FINAL (owner 2026-10-14 16:51, "Yes"): 10 MB. The spec's budget was 7 MB (3.4), set on an estimate of 5 to 6 MB of
+# grids; measured with all six grids at the owner's sizes the folder is 9.25 MB (grids 6.97, phone strips 1.15, menu
+# core 0.81, card-frame-lg 0.31). Kept in step with scripts/stamp-assets.mjs and constants.ts ARMOURY.assets.folderMaxMb.
 FOLDER_MAX_MB = 10
 WEBP_MAX = 16383      # the WebP format's largest side
 

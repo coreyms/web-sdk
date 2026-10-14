@@ -202,15 +202,18 @@ export const gridReach = (g: { yaw: number[]; pitch: number[] }) => ({
 const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
 
 /** pointer devices: the eased pointer (design px from the hero's centre) to the grid's angles. At follow 1 the stage
- *  edges (yawSpan, pitchSpan away) reach the grid's outermost angles */
+ *  edges (yawSpanLeft / yawSpanRight, pitchSpanTop / pitchSpanBottom away) reach the grid's outermost angles; each side
+ *  has its own span (the pointer centre need not be the box's centre) */
 export const pointerAngles = (
 	cur: { x: number; y: number },
 	g: { yaw: number[]; pitch: number[] },
-	rules: { yawSpan: number; pitchSpan: number },
+	rules: { yawSpanLeft: number; yawSpanRight: number; pitchSpanTop: number; pitchSpanBottom: number },
 	follow: number,
 ): { yaw: number; pitch: number } => {
 	const r = gridReach(g);
-	return { yaw: clamp((cur.x / rules.yawSpan) * r.yaw * follow, r.yaw), pitch: clamp((cur.y / rules.pitchSpan) * r.pitch * follow, r.pitch) };
+	const span = cur.x < 0 ? rules.yawSpanLeft : rules.yawSpanRight;
+	const pspan = cur.y < 0 ? rules.pitchSpanTop : rules.pitchSpanBottom;
+	return { yaw: clamp((cur.x / span) * r.yaw * follow, r.yaw), pitch: clamp((cur.y / pspan) * r.pitch * follow, r.pitch) };
 };
 
 /** with no grid: the 2D tilt, `degPer500` degrees per 500 design px, `maxDeg` at most */

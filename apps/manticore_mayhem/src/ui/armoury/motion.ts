@@ -90,6 +90,10 @@ export type MoveOptions = {
 export type Mover = {
 	/** run one move; returns false when nothing animates (reduced motion, zero length, or no Web Animations) */
 	move: (el: Animatable | null | undefined, opts: MoveOptions) => boolean;
+	/** run any keyframes (the touch layouts' run time moves: the plate's and the tray's eased places, the swipe's carry,
+	 *  entry and spring back); returns the animation, or null when nothing animates (reduced motion, zero length, or no
+	 *  Web Animations: the element is then simply at its rest state) */
+	play: (el: Animatable | null | undefined, keyframes: Keyframe[], opts: { duration: number; delay?: number; ease: string; fill?: FillMode }) => AnimationLike | null;
 	/** how many moves are running now */
 	running: () => number;
 	/** cancel every running move: each element lands at its rest state */
@@ -124,6 +128,19 @@ export const createMover = (reduced: boolean): Mover => {
 			return false;
 		}
 	};
+	const play: Mover['play'] = (el, keyframes, opts) => {
+		if (!el || reduced || opts.duration <= 0) return null;
+		try {
+			const a = el.animate!(keyframes, { duration: opts.duration, delay: Math.max(0, opts.delay ?? 0), easing: opts.ease, fill: opts.fill ?? 'none' });
+			live.add(a);
+			a.onfinish = a.oncancel = () => {
+				live.delete(a);
+			};
+			return a;
+		} catch {
+			return null;
+		}
+	};
 	const stopAll = () => {
 		for (const a of [...live]) {
 			try {
@@ -134,7 +151,7 @@ export const createMover = (reduced: boolean): Mover => {
 			live.delete(a);
 		}
 	};
-	return { move, running: () => live.size, stopAll };
+	return { move, play, running: () => live.size, stopAll };
 };
 
 // ---- THE TIMELINES (spec 5.2). Plain data: which piece moves, when, how far, how long, on which ease. The menu maps

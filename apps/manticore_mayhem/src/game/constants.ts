@@ -14,6 +14,9 @@ export const FEATURE_MENU_NAME = 'THE ARMOURY';
 // every breakpoint and every number a probe checks. Type sizes stay in the component's stylesheet in design px (spec
 // 4.6). The reusable parts (ui/armoury/menuFrame.ts, motion.ts, heroGrid.ts, fit.ts) take these as arguments; the
 // game's data and copy are game/armouryData.ts and game/armouryText.ts.
+/** the desktop hero's pointer centre in the 1440 x 810 design box (spec 4.3); the hero's near spans are its distances
+ *  to the box's left and top edges (ARMOURY.hero) */
+const HERO_POINTER = { x: 365, y: 271 } as const;
 export const ARMOURY = {
 	/** the dim over the game: flat colour layers; a new mode's colour fades in over the old one */
 	tint: { opacity: 0.72, confirmAdd: 0.12, confirmMax: 0.95, inMs: 50, outMs: 150, crossMs: 400, confirmMs: 170 },
@@ -60,11 +63,21 @@ export const ARMOURY = {
 		lagMs: 120,
 		degPer500: 3,
 		maxDeg: 6,
-		/** design px of pointer travel from the hero's centre to the grid's outermost yaw / pitch at follow 1 */
-		yawSpan: 700,
-		pitchSpan: 450,
+		/** design px of pointer travel from the hero's centre to the grid's outermost yaw / pitch at follow 1, one span per
+		 *  side. THE FULL TURN BOTH WAYS (owner 2026-10-14 16:51, "Yes"): the pointer centre is off the box's middle, so the
+		 *  near sides take the distance from the centre to the box's edge (left 365, top 271) and a real pointer at the
+		 *  box's left or top edge reaches the outermost column or row. The far sides keep 700 and 450, which are inside
+		 *  the box (right edge 1075 away, bottom 539): full yaw at x 1065, full pitch at y 721, as before. The desktop box
+		 *  is the master rectangle and the small 16:9 frames show the same box scaled, so its edges are inside the window at
+		 *  every desktop size: full yaw and pitch at every window edge. A pointer step's motion at the hero's edge is the
+		 *  grid's own step (5 degrees, the dagger 2.5, the crown 1), unchanged; only the pointer travel per step on the left
+		 *  (365 px for 10 degrees) and the top is shorter */
+		yawSpanLeft: HERO_POINTER.x,
+		yawSpanRight: 700,
+		pitchSpanTop: HERO_POINTER.y,
+		pitchSpanBottom: 450,
 		/** the desktop hero's centre for the pointer, design px (spec 4.3) */
-		pointerCentre: { x: 365, y: 271 },
+		pointerCentre: HERO_POINTER,
 		/** NO CROSS-BLEND BETWEEN FRAMES, EVER (owner, prototype v9): one opaque frame shows and a change is a hard swap.
 		 *  The new frame may fade in ON TOP of the old one (which stays fully opaque under it) only on a step of
 		 *  `fromDeg` degrees or more: `ms` at most, ramped as the prototype's fadeFor (0 at fromDeg, `ms` at
@@ -92,15 +105,23 @@ export const ARMOURY = {
 		 *  (the 400 x 225 mini player, 800 x 450 popouts, 16:9 phones held sideways), the menu is the desktop box fitted
 		 *  to the window, with its own copies of the bet controls. 2.16 to 1 phones keep the sideways layout. */
 		desktop: { w: 1440, h: 810, master: 1280, scaledUnderRatio: 1.9 },
-		portrait: { w: 390, minHero: 44, gapToHud: 6, underClock: 2, nameBandMin: 16, minHitCss: 44 },
-		tablet: { w: 569, minFrame: 512, maxContent: 720, nameTop: 28, contentTop: 52 },
-		sideways: { w: 844, h: 390, rail: 324, minLeft: 180, hudGap: 8, heroDropUnder: 56 },
+		/** portrait phone P1b (page.css 276-392). `nameGap`: when the band above the clock strip is too short for the name
+		 *  it goes under the strip and the content starts this much lower (the tablet's 28 / 52). The hero is the piece
+		 *  that gives: under `minHero` design px it is dropped (spec risk 4: short phones, browser bars showing). The
+		 *  confirm card is `card` design px, centred, `cardGap` under the first content line; on a phone too short for it,
+		 *  it is scaled down to the room between that line and the bottom of the content (never over the HUD row) */
+		portrait: { w: 390, minHero: 44, gapToHud: 6, underClock: 2, nameBandMin: 16, minHitCss: 44, nameGap: 24, card: { w: 366, h: 549 }, cardGap: 4, rays: { perH: 1.22, max: 300 } },
+		tablet: { w: 569, minFrame: 512, maxContent: 720, nameTop: 28, contentTop: 52, cardTop: 40 },
+		/** phone sideways (page.css 427-482). The name sits `nameAbove` design px above the HUD's BALANCE label; the rail's
+		 *  tiles keep `edge` design px off the right edge (beyond the safe area) and the close sits `edge` px outside them;
+		 *  the confirm is the tray's own slab, `slab` wide, `slabTop` down, centred */
+		sideways: { w: 844, h: 390, rail: 324, minLeft: 180, hudGap: 8, heroDropUnder: 56, nameAbove: 31, edge: 6, slab: 420, slabTop: 14 },
 	},
 	/** static/assets/ui/armoury/, made by tools/build_armoury_assets.py (its own copy of these sizes, kept in step) */
 	assets: {
-		/** PROVISIONAL 10 (spec 3.4 said 7, on an estimate of 5 to 6 MB of grids). Measured 2026-10-14 with all six grids at
-		 *  the owner's sizes: 9.25 MB (grids 6.97, phone strips 1.15, menu core 0.81, card-frame-lg 0.31). The owner
-		 *  decides: keep, or smaller frames. Kept in step with scripts/stamp-assets.mjs and tools/build_armoury_assets.py */
+		/** FINAL 10 (owner 2026-10-14 16:51, "Yes"; spec 3.4 said 7, on an estimate of 5 to 6 MB of grids). Measured
+		 *  2026-10-14 with all six grids at the owner's sizes: 9.25 MB (grids 6.97, phone strips 1.15, menu core 0.81,
+		 *  card-frame-lg 0.31). Kept in step with scripts/stamp-assets.mjs and tools/build_armoury_assets.py */
 		folderMaxMb: 10,
 		thumbCell: 256,
 		heroFullH: 640,
