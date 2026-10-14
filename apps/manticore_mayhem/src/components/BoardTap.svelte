@@ -12,7 +12,7 @@
 
 	import { getContext } from '../game/context';
 	import { BOARD_SIZES } from '../game/constants';
-	import { boardTapLog, routeBoardTap } from '../game/boardTap';
+	import { boardOpening, boardTapLog, routeBoardTap } from '../game/boardTap';
 
 	const context = getContext();
 	const area = new PIXI.Container();
@@ -35,6 +35,13 @@
 		rect.width = w;
 		rect.height = h;
 	});
+	// the creature's poke area asks this, so a tap on the opening is never his (game/creature.ts)
+	const local = new PIXI.Point();
+	boardOpening.contains = (x, y) => {
+		if (!area.parent) return false;
+		area.toLocal({ x, y }, undefined, local);
+		return rect.contains(local.x, local.y);
+	};
 	onMount(() => {
 		if (import.meta.env.DEV && typeof window !== 'undefined') {
 			// tools/manticore/skip_probe.js: where the area is on the canvas (CSS px of the canvas), and what was routed
@@ -51,6 +58,7 @@
 		}
 		return () => {
 			area.onpointertap = null;
+			boardOpening.contains = () => false;
 			if (import.meta.env.DEV && typeof window !== 'undefined') delete (window as any).__manticore?.boardTap;
 		};
 	});

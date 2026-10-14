@@ -12,7 +12,8 @@
 // (renderer.prepare.upload, so no upload happens in the frame an action starts; the sources are kept out of Pixi's
 // idle texture collection, so none is uploaded again mid play):
 //   creatureIdle   the idle sheet and, once, the shadows of every clip      -> he shows (or the change of look starts)
-//   creatureActs   swipe, roar, charge_in, charge_loop, sting_hit and, once, the charge glow
+//   creatureActs   swipe, roar, charge_in, charge_loop, sting_hit, sting_recrouch (last: only ever played inside a
+//                  sting run, and no sting is played until it is in) and, once, the glow atlas
 //   creatureAlts   snarl, growl
 // Until an action's sheet is in, that action is simply not played. On a change of mode the old look keeps playing
 // until the new one's idle sheet is uploaded, the two cross over (game/creature.ts), and the old look is then
@@ -40,7 +41,7 @@ type Sheet = { textures: Record<string, PIXI.Texture> };
 
 const GROUPS: { name: string; clips: CreatureClip[]; shared: (keyof typeof CREATURE_SHARED)[] }[] = [
 	{ name: 'creatureIdle', clips: ['idle'], shared: ['shadow'] },
-	{ name: 'creatureActs', clips: ['swipe', 'roar', 'charge_in', 'charge_loop', 'sting_hit'], shared: ['glow'] },
+	{ name: 'creatureActs', clips: ['swipe', 'roar', 'charge_in', 'charge_loop', 'sting_hit', 'sting_recrouch'], shared: ['glow'] },
 	{ name: 'creatureAlts', clips: ['snarl', 'growl'], shared: [] },
 ];
 

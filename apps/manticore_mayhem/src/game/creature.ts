@@ -23,10 +23,18 @@
 //               board's own beat has come (+ holdMs), then returns
 //   roar        one shot from the board's beat
 //   sting       charge_in ONCE, then charge_loop (the crouch) for as long as stings keep coming; each strike is
-//               sting_hit started strikeLead before the hit so its hold frame lands on it; between stings sting_hit is
-//               cut back to the crouch after CREATURE.stingCut.afterFrame; after the last it plays out to idle. The
-//               additive glow follows charge_loop and ramps 0 to 1 over a big / super charge
+//               sting_hit started strikeLead before the hit so its hold frame lands on it; between stings
+//               sting_recrouch follows the hold frame and returns to charge_loop f1 (the rig's whip back, drop 4);
+//               after the last sting_hit plays out to idle. THE GLOW (one additive sprite, the shared glow atlas):
+//               over charge_loop it ramps 0 to 1 over a big / super charge, and a LIT strike (the big / super one)
+//               keeps it at 1 from sting_hit f1 through the hold frame the hit lands on, then fades over the rig's
+//               three glow frames after it (sting_hit f7..f9, or sting_recrouch f1..f3; CREATURE.glow). A normal or
+//               scatter sting has no glow at all
 //   snarl, growl   idle alternates in REAL time; the growl also answers a Mystery that awarded nothing
+//   POKE      a tap or click on his body while he and the game are idle plays a random snarl or growl (never the
+//             roar; the voice's own no repeat and rate rules), then a short cooldown; the idle roll stays quiet for a
+//             while after it. His hit area (CREATURE.poke.area) is a tight polygon about his body that never covers
+//             the board's opening (game/boardTap.ts boardOpening) and lies under every HTML control
 // Action clips run in STYLE time (x the turbo scale), like the board effects they belong to. NOTHING WAITS FOR HIM:
 // every method here returns at once, and a clip whose sheet is not in is simply not played.
 //
@@ -51,11 +59,21 @@ import { CREATURE_CLIPS, type CreatureClip, type CreatureLook } from './creature
 
 type Frames = PIXI.Texture[];
 type CueKind = 'swipe' | 'roar' | 'charge' | 'growl';
+type PokeClip = 'snarl' | 'growl';
 type StingKind = 'normal' | 'big' | 'super' | 'scatter';
 export type CreatureLayer = 'front' | 'behind';
 export type CreaturePlace = { x: number; y: number; scale: number; layer: CreatureLayer };
 /** what the creature needs from the game (components/Background.svelte hands it over; this file imports no state) */
-export type CreatureEnv = { ts: () => number; skipping: () => boolean; play: (name: string, rate?: number) => void; stop: (name: string) => void };
+export type CreatureEnv = {
+	ts: () => number;
+	skipping: () => boolean;
+	play: (name: string, rate?: number) => void;
+	stop: (name: string) => void;
+	/** the game is idle between rounds (a poke is taken only then, like Angry Mantis's) */
+	idle: () => boolean;
+	/** a canvas point is on the board's opening (a poke never takes a board tap) */
+	board: (x: number, y: number) => boolean;
+};
 
 const SPEC = CREATURE_SPEC;
 const FPS = SPEC.fps;
@@ -84,6 +102,8 @@ type Run = {
 	beatAt: number;
 	/** sting_hit only: back to the crouch after the strike (another sting follows) */
 	toCrouch: boolean;
+	/** sting_hit and sting_recrouch: the strike is a LIT one (a big / super sting) and its glow frames are in */
+	lit: boolean;
 	/** it was started early by a cue and the board's beat has not confirmed it yet */
 	cued: boolean;
 };
@@ -96,7 +116,7 @@ export class Creature {
 	private readonly colour = [new PIXI.Sprite(PIXI.Texture.EMPTY), new PIXI.Sprite(PIXI.Texture.EMPTY)];
 	private readonly glow = new PIXI.Sprite(PIXI.Texture.EMPTY);
 
-	env: CreatureEnv = { ts: () => 1, skipping: () => false, play: () => {}, stop: () => {} };
+	env: CreatureEnv = { ts: () => 1, skipping: () => false, play: () => {}, stop: () => {}, idle: () => false, board: () => false };
 	/** the loader's two hooks: a look is wanted (load its idle sheet first), a look is no longer drawn (let it go) */
 	onWantLook: ((look: CreatureLook) => void) | null = null;
 	onLookFree: ((look: CreatureLook) => void) | null = null;
@@ -105,6 +125,8 @@ export class Creature {
 	private readonly looks: Partial<Record<CreatureLook, Partial<Record<CreatureClip, Frames>>>> = {};
 	private readonly shadows: Partial<Record<CreatureClip, Frames>> = {};
 	private glowFrames: Frames | null = null;
+	/** the glow that stays on the tail through a lit strike: over sting_hit f1..f9 and sting_recrouch f1..f3 */
+	private readonly glowOver: { sting_hit: Frames | null; sting_recrouch: Frames | null } = { sting_hit: null, sting_recrouch: null };
 
 	// ---- the look ----
 	/** the look on show (null: nothing yet), the one fading in, and the one the mode asks for */
@@ -126,7 +148,7 @@ export class Creature {
 	private state: 'hidden' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
 	private idleT0 = 0;
 	private idleFrame = 1;
-	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, cued: false };
+	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false };
 	private rush = { from: 1, to: 1, t0: 0 };
 	/** what starts when the rush ends, or at `at` (real ms: the clip's first frame). strikeAt: swipe only */
 	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean } | null = null;
@@ -135,8 +157,10 @@ export class Creature {
 	/** the crouch: its loop clock (clip ms), whether stings are still coming, the strike that is planned (the real time
 	 *  sting_hit must START, and whether another sting follows it), when a beat last came, the glow's ramp */
 	private crouchT = 0;
+	/** the crouch loop's clock rate: 1, or a little off it before a lit strike (aimCrouch) */
+	private crouchRate = 1;
 	private stinging = false;
-	private hit: { start: number; more: boolean } | null = null;
+	private hit: { start: number; more: boolean; lit: boolean } | null = null;
 	private lastBeat = 0;
 	private glowT0 = 0;
 	private glowT1 = 0;
@@ -148,12 +172,26 @@ export class Creature {
 	private breathOn: string | null = null;
 	private drawnClip: CreatureClip = 'idle';
 	private drawnFrame = 0;
+	/** the glow's frame set and frame on show (DEV / probe) */
+	private glowClip: CreatureClip | null = null;
+	private glowFrame = 0;
+
+	// ---- the poke (CREATURE.poke) ----
+	/** his body's hit area, px of the rig's canvas about the feet point (the body node's own units) */
+	private readonly pokePoly = new PIXI.Polygon(CREATURE.poke.area as unknown as number[]);
+	private readonly pokePt = new PIXI.Point();
+	/** real ms: no poke is taken before pokeReadyAt, and the idle roll is quiet until rollQuietUntil */
+	private pokeReadyAt = 0;
+	private rollQuietUntil = 0;
+	private pokeOn = false;
 
 	// ---- DEV / probe ----
 	readonly log: { t: number; what: string; clip?: string; frame?: number; info?: unknown }[] = [];
-	counters = { swaps: 0, ticks: 0, rolls: 0, snarls: 0, growls: 0, skipped: 0, rescued: 0, sounds: 0 };
+	counters = { swaps: 0, ticks: 0, rolls: 0, snarls: 0, growls: 0, skipped: 0, rescued: 0, sounds: 0, pokes: 0, pokeRefused: 0 };
 	/** DEV: the roll's two draws (null: Math.random) so a probe can force an alternate */
 	forceRoll: 'snarl' | 'growl' | 'none' | null = null;
+	/** the crouch phase before a lit strike (constants CREATURE.glowPhase; DEV A / B) */
+	glowPhase: boolean = CREATURE.glowPhase;
 
 	constructor() {
 		this.shadowNode.label = 'creature-shadow';
@@ -172,6 +210,17 @@ export class Creature {
 		this.shadow.alpha = CREATURE.shadowAlpha;
 		this.shadowNode.addChild(this.shadow);
 		this.bodyNode.addChild(this.colour[0], this.colour[1], this.glow);
+		// THE POKE: the body node itself is the target (eventMode 'static' only while a poke can be taken, tick());
+		// its sprites are never hit tested (interactiveChildren stays false), only this polygon, minus the board
+		this.bodyNode.cursor = 'pointer';
+		this.bodyNode.hitArea = {
+			contains: (x: number, y: number) => {
+				if (!this.pokePoly.contains(x, y)) return false;
+				const g = this.bodyNode.toGlobal({ x, y }, this.pokePt);
+				return !this.env.board(g.x, g.y);
+			},
+		};
+		this.bodyNode.onpointertap = () => this.poke(performance.now());
 	}
 
 	private note(what: string, info?: unknown): void {
@@ -220,8 +269,11 @@ export class Creature {
 	/** the shadow atlas (every clip) or the glow atlas */
 	setShared(kind: 'shadow' | 'glow', tex: Record<string, PIXI.Texture>): boolean {
 		if (kind === 'glow') {
-			this.glowFrames = Creature.frames(tex, 'creature_glow', SPEC.clips.charge_glow.frames);
+			this.glowFrames = Creature.frames(tex, SPEC.glow.charge_glow, SPEC.clips.charge_glow.frames);
 			if (this.glowFrames) this.glow.scale.set(SPEC.canvas[0] / this.glowFrames[0].orig.width);
+			// the lit strike's frames (the glow add-on; an atlas without them leaves the strike unlit, as before)
+			this.glowOver.sting_hit = Creature.frames(tex, SPEC.glow.sting_hit_glow, SPEC.clips.sting_hit_glow.frames);
+			this.glowOver.sting_recrouch = Creature.frames(tex, SPEC.glow.sting_recrouch_glow, SPEC.clips.sting_recrouch_glow.frames);
 			return !!this.glowFrames;
 		}
 		for (const clip of CREATURE_CLIPS) {
@@ -344,7 +396,7 @@ export class Creature {
 	}
 	/** a cue's action can be drawn NOW. Asked when it starts: the look may have changed since the cue was made */
 	private fireable(kind: CueKind): boolean {
-		return kind === 'charge' ? this.drawable('charge_in') && this.drawable('charge_loop') && this.drawable('sting_hit') : this.drawable(kind);
+		return kind === 'charge' ? this.drawable('charge_in') && this.drawable('charge_loop') && this.drawable('sting_hit') && this.drawable('sting_recrouch') : this.drawable(kind);
 	}
 	/** a cue whose action cannot be drawn is not played (and with a charge goes the strike planned on it) */
 	private refuse(kind: CueKind, now: number): void {
@@ -382,7 +434,7 @@ export class Creature {
 		const beat = now + etaStyleMs / ts + CREATURE.cueBeatBiasMs;
 		if (what === 'roar') {
 			if (this.canPlay('roar')) this.cue = { kind: 'roar', at: beat, strikeAt: 0, ahead: true };
-		} else if (this.canPlay('charge_in') && this.canPlay('charge_loop') && this.canPlay('sting_hit') && this.state !== 'crouch') {
+		} else if (this.canPlay('charge_in') && this.canPlay('charge_loop') && this.canPlay('sting_hit') && this.canPlay('sting_recrouch') && this.state !== 'crouch') {
 			// a normal sting's charge_in is timed back from its hit; a big / super charge starts on its beat; a scatter
 			// run starts with its own long hold (the wait beat places the charge_in)
 			if (kind === 'scatter') return;
@@ -431,7 +483,7 @@ export class Creature {
 	/** a sting's beat (the stingBeat broadcast). `more`: another sting of this run follows this one */
 	stingBeat(phase: 'charge' | 'wait' | 'strike', kind: StingKind, more: boolean): void {
 		const now = performance.now();
-		if (!this.canPlay('charge_in') || !this.canPlay('charge_loop') || !this.canPlay('sting_hit')) return this.miss('sting');
+		if (!this.canPlay('charge_in') || !this.canPlay('charge_loop') || !this.canPlay('sting_hit') || !this.canPlay('sting_recrouch')) return this.miss('sting');
 		const ts = Math.max(0.2, this.env.ts());
 		const S = CREATURE.sting;
 		const lead = this.strikeLead() / ts;
@@ -447,20 +499,21 @@ export class Creature {
 		if (phase === 'charge') {
 			// big / super: the crouch for the whole charge, the glow over it, the strike on the charge's end
 			const end = now + (kind === 'super' ? S.superChargeMs : S.chargeMs) / ts;
-			this.hit = { start: end - lead, more };
+			this.hit = { start: end - lead, more, lit: true };
 			this.glowT1 = end - lead;
 			this.glowT0 = this.state === 'crouch' ? now : -1; // -1: from the first frame of the loop
 			if (!this.down() && this.cue?.kind !== 'charge') this.cue = { kind: 'charge', at: now, strikeAt: 0 };
+			if (this.state === 'crouch') this.aimCrouch(now);
 			this.note('sting', { phase, kind, more });
 			return;
 		}
 		// strike: a normal or scatter hit lands partway into its beat; a big / super strike is NOW
 		if (kind === 'big' || kind === 'super') {
-			if (!(this.state === 'clip' && this.run.clip === 'sting_hit')) this.hit = { start: now - lead, more };
+			if (!(this.state === 'clip' && this.run.clip === 'sting_hit')) this.hit = { start: now - lead, more, lit: true };
 			else this.run.toCrouch = more;
 		} else {
 			const hitStart = now + (kind === 'scatter' ? S.scatterHitMs : S.normalHitMs) / ts - lead;
-			this.hit = { start: hitStart, more };
+			this.hit = { start: hitStart, more, lit: false };
 			// not down yet (no cue came): whatever is left of charge_in before the strike must start
 			if (!this.down() && this.cue?.kind !== 'charge') this.cue = { kind: 'charge', at: Math.max(now, hitStart - CHARGE_IN_MS / ts), strikeAt: 0 };
 		}
@@ -509,6 +562,7 @@ export class Creature {
 		r.startAt = now;
 		r.beatAt = 0;
 		r.toCrouch = false;
+		r.lit = false;
 		r.cued = false;
 		this.state = 'clip';
 		this.glowA = 0;
@@ -531,6 +585,7 @@ export class Creature {
 	private toCrouch(frame: number): void {
 		this.state = 'crouch';
 		this.crouchT = (frame - 1) * FRAME_MS;
+		this.crouchRate = 1;
 		if (this.glowT0 < 0) this.glowT0 = performance.now();
 	}
 	/** the cue's clip starts now, `late` real ms after it should have. False: nothing started (he was already down
@@ -564,7 +619,7 @@ export class Creature {
 	}
 	/** in the crouch, on his way into it, or striking from it */
 	private down(): boolean {
-		return this.state === 'crouch' || (this.state === 'clip' && (this.run.clip === 'charge_in' || (this.run.clip === 'sting_hit' && (this.run.toCrouch || this.run.hold < 2))));
+		return this.state === 'crouch' || (this.state === 'clip' && (this.run.clip === 'charge_in' || this.run.clip === 'sting_recrouch' || (this.run.clip === 'sting_hit' && (this.run.toCrouch || this.run.hold < 2))));
 	}
 
 	/** one frame; `now` is performance.now() */
@@ -589,7 +644,7 @@ export class Creature {
 			return;
 		}
 		// a swipe read ahead becomes the cue once no sting is left for him to play before it
-		if (this.swipeNext && !this.hit && !(this.cue && this.cue.kind === 'charge') && !(this.state === 'clip' && (this.run.clip === 'charge_in' || (this.run.clip === 'sting_hit' && this.run.hold < 2)))) {
+		if (this.swipeNext && !this.hit && !(this.cue && this.cue.kind === 'charge') && !(this.state === 'clip' && (this.run.clip === 'charge_in' || this.run.clip === 'sting_recrouch' || (this.run.clip === 'sting_hit' && this.run.hold < 2)))) {
 			this.cue = { kind: 'swipe', at: this.swipeNext.at, strikeAt: this.swipeNext.strikeAt };
 			this.swipeNext = null;
 		}
@@ -644,7 +699,7 @@ export class Creature {
 			const r = this.run;
 			// another action's first frame is due: cut to it (never before a strike of this one has landed)
 			const striking = (r.clip === 'swipe' || r.clip === 'sting_hit') && r.hold < 2;
-			if (this.cue && now >= this.cue.at && !striking && r.clip !== 'charge_in' && !this.hit) this.fire(now, now - this.cue.at);
+			if (this.cue && now >= this.cue.at && !striking && r.clip !== 'charge_in' && r.clip !== 'sting_recrouch' && !this.hit) this.fire(now, now - this.cue.at);
 			if (r.clip === 'swipe' && r.hold < 2) {
 				// ANCHORED: the wind-up is read backwards from the strike; then the strike pose is held until the board's
 				// beat (+ holdMs), or beatWaitMs if no beat comes
@@ -683,11 +738,17 @@ export class Creature {
 			frame = Math.floor(r.t / FRAME_MS) + 1;
 			if (clip === 'charge_in' && this.hit && now >= this.hit.start) this.strike(now);
 			else if (clip === 'sting_hit' && r.hold === 2 && this.hit && now >= this.hit.start) this.strike(now);
-			else if (clip === 'sting_hit' && r.toCrouch && r.hold === 2 && frame > CREATURE.stingCut.afterFrame) this.toCrouch(CREATURE.stingCut.toLoopFrame);
+			else if (clip === 'sting_hit' && r.toCrouch && r.hold === 2) this.recrouch(now);
+			else if (clip === 'sting_recrouch' && this.hit && now >= this.hit.start && frame >= CREATURE.recrouch.strikeFromFrame) this.strike(now);
 			else if (frame > N[clip]) {
 				if (clip === 'charge_in') {
-					this.toCrouch(1);
+					this.toCrouch(this.crouchPhase(now));
 					this.crouchT += r.t - CHARGE_IN_MS;
+					this.aimCrouch(now);
+				} else if (clip === 'sting_recrouch') {
+					this.toCrouch(SPEC.clips.sting_recrouch.returnsToFrame);
+					this.crouchT += r.t - N.sting_recrouch * FRAME_MS;
+					this.aimCrouch(now);
 				} else {
 					const over = r.t - N[clip] * FRAME_MS;
 					this.toIdle(now);
@@ -704,7 +765,7 @@ export class Creature {
 			}
 		}
 		if (this.state === 'crouch') {
-			this.crouchT += this.drawnClip === 'charge_loop' ? dt * ts : 0;
+			this.crouchT += this.drawnClip === 'charge_loop' ? dt * ts * this.crouchRate : 0;
 			clip = 'charge_loop';
 			frame = (Math.floor(this.crouchT / FRAME_MS) % N.charge_loop) + 1;
 			if (this.hit && now >= this.hit.start) {
@@ -722,15 +783,56 @@ export class Creature {
 				}
 			} else if (!this.hit && now - this.lastBeat > CREATURE.crouchTimeoutMs) {
 				// no sting came after all: he gets up (the end of sting_hit is the only way up there is)
-				this.start('sting_hit', now, CREATURE.stingCut.afterFrame * FRAME_MS);
+				this.start('sting_hit', now, CREATURE.crouchUpFrame * FRAME_MS);
 				this.run.hold = 2;
 				clip = 'sting_hit';
-				frame = CREATURE.stingCut.afterFrame + 1;
+				frame = CREATURE.crouchUpFrame + 1;
 			}
-			// the glow: charge_loop's own frame, ramping over a big / super charge; none in a normal run's crouch
-			this.glowA = this.state === 'crouch' && this.glowT1 > this.glowT0 && this.glowT0 >= 0 && now <= this.glowT1 + 50 ? clamp01((now - this.glowT0) / (this.glowT1 - this.glowT0)) : 0;
-		} else this.glowA = 0;
+		}
+		// THE GLOW, worked out once a tick after every change of state above (a strike that starts in the crouch is state
+		// `clip` on that same tick): over charge_loop the ramp of a big / super charge, none in a normal run's crouch; over
+		// a lit strike litAlpha. The ramp ends at glowT1, the tick sting_hit starts, so it is 1 on both sides of the cut
+		this.glowA =
+			this.state === 'crouch'
+				? this.glowT1 > this.glowT0 && this.glowT0 >= 0 && now <= this.glowT1 + 50
+					? clamp01((now - this.glowT0) / (this.glowT1 - this.glowT0))
+					: 0
+				: this.state === 'clip'
+					? this.litAlpha()
+					: 0;
 		this.draw(clip, frame);
+		this.tickPoke(now, on);
+	}
+
+	/** the crouch frame a charge_in hands over to (constants CREATURE.glowPhase): charge_loop f1, or, before a LIT strike,
+	 *  the frame that makes the loop's last frame before sting_hit its f12, so the strike's glow follows on from the
+	 *  frame the rig built it to follow (the glow add-on: from any other frame the light dips for a frame) */
+	private crouchPhase(now: number): number {
+		const h = this.hit;
+		if (!this.glowPhase || !h || !h.lit) return 1;
+		const ts = Math.max(0.2, this.env.ts());
+		const frames = Math.round(((h.start - now) * ts) / FRAME_MS);
+		if (frames < N.charge_loop) return 1;
+		return 1 + ((N.charge_loop - (frames % N.charge_loop)) % N.charge_loop);
+	}
+	/** ALREADY DOWN when a lit strike is planned (a big / super after normal stings: the charge comes in the crouch, so
+	 *  no phase can be picked): the loop runs a little fast or slow until the strike (at most CREATURE.glowAim.maxRate
+	 *  off 1) so that the strike still leaves it on f1. A rate it would need beyond that is not used: the loop runs as
+	 *  ever. Also fine tunes the phase picked at charge_in's end. Presentation only: the strike's time is the board's */
+	private aimCrouch(now: number): void {
+		this.crouchRate = 1;
+		const h = this.hit;
+		if (!this.glowPhase || !h || !h.lit || this.state !== 'crouch') return;
+		const ts = Math.max(0.2, this.env.ts());
+		const left = ((h.start - now) * ts) / FRAME_MS; // loop frames until sting_hit starts
+		if (left < CREATURE.glowAim.minFrames) return;
+		const at = this.crouchT / FRAME_MS + left; // where the loop would be then (frames from its f1)
+		const L = N.charge_loop;
+		// the strike starts as the loop reaches the END of an f1 (its last frame drawn is f1): the nearest such point
+		const goal = Math.round((at - 1) / L) * L + 1;
+		const rate = (goal - this.crouchT / FRAME_MS) / left;
+		if (Math.abs(rate - 1) <= CREATURE.glowAim.maxRate) this.crouchRate = rate;
+		this.note('aim', { left: Math.round(left), rate: Math.round(rate * 1000) / 1000, used: this.crouchRate !== 1 });
 	}
 
 	/** the planned strike starts (from the crouch, from what is left of charge_in, or straight after the last one) */
@@ -739,13 +841,111 @@ export class Creature {
 		this.hit = null;
 		const ts = Math.max(0.2, this.env.ts());
 		this.start('sting_hit', now, Math.min((now - h.start) * ts, WINDUP.sting_hit));
+		this.crouchRate = 1;
 		this.run.toCrouch = h.more;
+		this.run.lit = h.lit && !!this.glowOver.sting_hit;
 		this.stinging = h.more;
 		this.glowT0 = this.glowT1 = 0;
 	}
+	/** between two stings of a run: the rig's re-crouch follows the hold frame instead of the rest of sting_hit */
+	private recrouch(now: number): void {
+		const over = this.run.t - WINDUP.sting_hit;
+		const lit = this.run.lit;
+		this.start('sting_recrouch', now, Math.max(0, over));
+		// (start() clears these; he is still down and the run is still on)
+		this.run.lit = lit && !!this.glowOver.sting_recrouch;
+		this.stinging = true;
+	}
+	/** a lit strike's glow: 1 from sting_hit f1 to the end of its hold frame (the hit lands on it), then the rig's gain
+	 *  hint read as a line through its values and carried on to 0 at the end of the last glow frame. Clip ms, so turbo */
+	private litAlpha(): number {
+		const r = this.run;
+		if (!r.lit) return 0;
+		if (r.clip === 'sting_hit') {
+			const from = HOLD.sting_hit! * FRAME_MS; // the start of f7
+			if (r.hold < 2 || r.t < from || r.toCrouch) return CREATURE.glow.strength; // f1..f6, the hold included
+			return Creature.fade(SPEC.clips.sting_hit_glow.gain, HOLD.sting_hit!, r.t - from);
+		}
+		if (r.clip === 'sting_recrouch') return Creature.fade(SPEC.clips.sting_recrouch_glow.gain, 0, r.t);
+		return 0;
+	}
+	/** gain[first..] are the hint's values at each fading frame's START; between them a straight line, after the last
+	 *  one a straight line to 0 over one more frame. `t`: clip ms since the fade began */
+	private static fade(gain: readonly number[], first: number, t: number): number {
+		const n = gain.length - first;
+		const x = clamp01(t / CREATURE.glow.fadeMs) * n;
+		if (x >= n) return 0;
+		const k = Math.floor(x);
+		const g0 = gain[first + k];
+		const g1 = k + 1 < n ? gain[first + k + 1] : 0;
+		return CREATURE.glow.strength * (g0 + (g1 - g0) * (x - k));
+	}
+
+	// ---- the poke ----
+	/** a poke can be taken now: he stands in his idle loop with nothing cued, read ahead or crossing over, fully shown,
+	 *  the game is idle, the cooldown is over, and one of the poke clips can be drawn */
+	private pokeable(now: number, on: boolean): boolean {
+		return (
+			CREATURE.poke.on &&
+			on &&
+			this.state === 'idle' &&
+			!this.cue &&
+			!this.swipeNext &&
+			!this.hit &&
+			!this.stinging &&
+			!this.next &&
+			this.shown >= 1 &&
+			now >= this.pokeReadyAt &&
+			!this.env.skipping() &&
+			this.env.idle() &&
+			CREATURE.poke.clips.some((c) => this.canPlay(c))
+		);
+	}
+	/** the hit area is live only while a poke can be taken (no pointer cursor over him otherwise) */
+	private tickPoke(now: number, on: boolean): void {
+		const want = this.pokeable(now, on);
+		if (want === this.pokeOn) return;
+		this.pokeOn = want;
+		this.bodyNode.eventMode = want ? 'static' : 'none';
+	}
+	/** a tap or click on his body: a random snarl or growl, never the roar */
+	poke(now: number): boolean {
+		if (!this.pokeable(now, this.enabled && this.placed && !this.veiled)) {
+			this.counters.pokeRefused += 1;
+			this.note('poke', { refused: true });
+			return false;
+		}
+		const can = CREATURE.poke.clips.filter((c) => this.canPlay(c)) as PokeClip[];
+		const clip = can[Math.floor(Math.random() * can.length)];
+		this.counters.pokes += 1;
+		// the cooldown and the idle roll's quiet both count from the clip's end (snarl and growl run in real time)
+		const end = now + N[clip] * FRAME_MS;
+		this.pokeReadyAt = end + CREATURE.poke.cooldownMs;
+		this.rollQuietUntil = end + CREATURE.poke.rollQuietMs;
+		this.note('poke', { clip });
+		this.start(clip, now, 0);
+		this.tickPoke(now, true);
+		return true;
+	}
+	/** DEV / probe: the hit area in canvas px (the polygon's corners) and the poke's clocks */
+	pokeInfo() {
+		const pts: { x: number; y: number }[] = [];
+		const p = this.pokePoly.points;
+		for (let i = 0; i < p.length; i += 2) {
+			const g = this.bodyNode.toGlobal({ x: p[i], y: p[i + 1] });
+			pts.push({ x: g.x, y: g.y });
+		}
+		const now = performance.now();
+		return { on: this.pokeOn, eventMode: this.bodyNode.eventMode, area: pts, readyInMs: this.pokeReadyAt - now, quietInMs: this.rollQuietUntil - now, pokes: this.counters.pokes, refused: this.counters.pokeRefused };
+	}
+	/** DEV / probe: would this canvas point take a poke (the hit area minus the board) */
+	pokeHits(x: number, y: number): boolean {
+		const l = this.bodyNode.toLocal({ x, y });
+		return (this.bodyNode.hitArea as PIXI.IHitArea).contains(l.x, l.y);
+	}
 
 	private rollAlt(now: number): boolean {
-		if (this.cue || this.stinging || this.next) return false;
+		if (this.cue || this.stinging || this.next || now < this.rollQuietUntil) return false;
 		this.counters.rolls += 1;
 		const forced = this.forceRoll;
 		const pick = forced ? (forced === 'none' ? null : forced) : Math.random() < CREATURE.snarlOdds ? 'snarl' : Math.random() < CREATURE.growlOdds ? 'growl' : null;
@@ -796,9 +996,15 @@ export class Creature {
 	/** a swap between resident textures, only when the frame changed */
 	private draw(clip: CreatureClip, frame: number): void {
 		const look = this.looks[this.look!];
-		const g = clip === 'charge_loop' && this.glowFrames && this.glowA > 0;
-		if (this.glow.visible !== !!g) this.glow.visible = !!g;
-		if (g && this.glow.alpha !== this.glowA) this.glow.alpha = this.glowA;
+		// the glow: the frame set of the body clip, the body's frame (no glow frame under sting_hit f10+ or
+		// sting_recrouch f4+: no glow). Set BEFORE the early return: a glow that comes on mid frame gets its own frame
+		const over = clip === 'charge_loop' ? this.glowFrames : clip === 'sting_hit' ? this.glowOver.sting_hit : clip === 'sting_recrouch' ? this.glowOver.sting_recrouch : null;
+		const gt = this.glowA > 0 ? over?.[frame - 1] : undefined;
+		if (this.glow.visible !== !!gt) this.glow.visible = !!gt;
+		if (gt && this.glow.alpha !== this.glowA) this.glow.alpha = this.glowA;
+		if (gt && this.glow.texture !== gt) this.glow.texture = gt;
+		this.glowClip = gt ? clip : null;
+		this.glowFrame = gt ? frame : 0;
 		if (clip === this.drawnClip && frame === this.drawnFrame) return;
 		const tex = look?.[clip]?.[frame - 1];
 		if (!tex) return;
@@ -813,7 +1019,6 @@ export class Creature {
 			const t1 = this.looks[this.next]?.[clip]?.[frame - 1];
 			if (t1) this.colour[1].texture = t1;
 		}
-		if (g) this.glow.texture = this.glowFrames![frame - 1];
 		this.counters.swaps += 1;
 	}
 
@@ -828,6 +1033,17 @@ export class Creature {
 		}
 		return n;
 	}
+	/** the shadow's frame on show as `clip:frame` (DEV / probe: the shadow follows him through every clip) */
+	private shadowFrameOf(): string | null {
+		const t = this.shadow.texture;
+		for (const c of CREATURE_CLIPS) {
+			const f = this.shadows[c];
+			if (!f || f[0].source !== t.source) continue;
+			const i = f.indexOf(t);
+			if (i >= 0) return `${c}:${i + 1}`;
+		}
+		return null;
+	}
 	sample() {
 		const r = this.run;
 		return {
@@ -841,6 +1057,10 @@ export class Creature {
 			a1: this.colour[1].visible ? this.colour[1].alpha : 0,
 			shown: this.bodyNode.visible ? this.bodyNode.alpha : 0,
 			glow: this.glow.visible ? this.glow.alpha : 0,
+			glowClip: this.glow.visible ? this.glowClip : null,
+			glowFrame: this.glow.visible ? this.glowFrame : 0,
+			shadowFrame: this.shadowFrameOf(),
+			poke: this.pokeOn,
 			hold: this.state === 'clip' ? r.hold : 0,
 			cue: this.cue ? this.cue.kind : null,
 			stinging: this.stinging,
@@ -856,7 +1076,12 @@ export class Creature {
 			drawn: { body: this.bodyNode.visible, shadow: this.shadowNode.visible, bodyAlpha: this.bodyNode.alpha, shadowAlpha: this.shadowNode.alpha },
 			want: this.want,
 			loaded: Object.fromEntries((Object.keys(this.looks) as CreatureLook[]).map((l) => [l, Object.keys(this.looks[l]!)])),
-			shared: { shadow: !!this.shadows.idle, glow: !!this.glowFrames },
+			shared: {
+				shadow: !!this.shadows.idle,
+				glow: !!this.glowFrames,
+				shadowFrames: CREATURE_CLIPS.reduce((n, c) => n + (this.shadows[c]?.length ?? 0), 0),
+				glowFrames: { charge_loop: this.glowFrames?.length ?? 0, sting_hit: this.glowOver.sting_hit?.length ?? 0, sting_recrouch: this.glowOver.sting_recrouch?.length ?? 0 },
+			},
 			counters: { ...this.counters },
 			layer: this.bodyNode.parent?.label ?? null,
 			shadowLayer: this.shadowNode.parent?.label ?? null,
