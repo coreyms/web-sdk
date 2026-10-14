@@ -70,13 +70,18 @@ export const ms = (value: number, reduced: boolean): number => (reduced ? 0 : Ma
 export type Animatable = {
 	animate?: (keyframes: Keyframe[] | PropertyIndexedKeyframes, options: KeyframeAnimationOptions) => AnimationLike;
 };
-export type AnimationLike = { cancel: () => void; finish?: () => void; onfinish: ((e?: unknown) => void) | null; oncancel: ((e?: unknown) => void) | null };
+// the handlers are typed loosely so a real DOM Animation (whose handlers take `this: Animation` and an event) fits
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Handler = ((this: any, e: any) => any) | null;
+export type AnimationLike = { cancel: () => void; finish?: () => void; onfinish: Handler; oncancel: Handler };
 
 export type MoveOptions = {
 	/** the transform it starts from; it ends at the element's own transform (none in the keyframe) */
 	from?: string;
 	/** fade in from 0 as well */
 	fade?: boolean;
+	/** with `fade`: the opacity it fades in from (default 0); a move that takes over from a cut one starts where that was */
+	fadeFrom?: number;
 	duration: number;
 	delay?: number;
 	ease: string;
@@ -105,7 +110,7 @@ export const createMover = (reduced: boolean): Mover => {
 				end.transform = 'none';
 			}
 			if (opts.fade) {
-				start.opacity = 0;
+				start.opacity = Math.max(0, Math.min(1, opts.fadeFrom ?? 0));
 				end.opacity = 1;
 			}
 			const a = el.animate!([start, end], { duration: opts.duration, delay: Math.max(0, opts.delay ?? 0), easing: opts.ease, fill: 'backwards' });
@@ -130,4 +135,84 @@ export const createMover = (reduced: boolean): Mover => {
 		}
 	};
 	return { move, running: () => live.size, stopAll };
+};
+
+// ---- THE TIMELINES (spec 5.2). Plain data: which piece moves, when, how far, how long, on which ease. The menu maps
+// the piece names to its elements and hands each step to a mover; node checks the numbers as they are. ------------
+
+export type TimelineRules = MotionRules & {
+	staggerMs: number;
+	firstTileMs: number;
+	heroAtMs: number;
+	plateAtMs: number;
+	/** the plate's contents: heading and volatility, text, price and button */
+	contentAtMs: readonly number[];
+	contentFadeMs: number;
+	trayFadeMs: number;
+	headFadeMs: number;
+	slide: number;
+	slideTouch: number;
+	heroSwapSlide: number;
+	textSwapSlide: number;
+	textSwapDelayMs: number;
+	heroSwapRun: number;
+};
+
+export type Piece = 'tray' | 'header' | 'close' | 'tile' | 'hero' | 'plate' | 'head' | 'vol' | 'body' | 'buy';
+
+export type Step = {
+	piece: Piece;
+	/** tiles: the tile's place in reading order */
+	index?: number;
+	delay: number;
+	duration: number;
+	/** px it rises from (positive: starts lower; negative: starts higher); 0: a fade only */
+	fromY: number;
+	/** 'move': the exponential ease; 'linear': a plain fade */
+	ease: 'move' | 'linear';
+};
+
+/**
+ * THE OPEN (spec 5.2): the tray slab, the name and the close fade; tile i starts at firstTile + i * stagger and rises
+ * `slide` px as it fades in (desktop: even tiles from below, odd from above; touch layouts: all from below, slideTouch);
+ * the hero rises on the large ease from heroAt; the plate is ONE piece at its final size that rises and fades from
+ * plateAt; its contents only fade, a beat apart. Under reduced motion: nothing (every piece is simply at rest).
+ */
+export const entrancePlan = (r: TimelineRules, o: { tiles: number; touch: boolean; reduced: boolean }): Step[] => {
+	if (o.reduced) return [];
+	const small = r.run * r.tauMs;
+	const large = small * r.large;
+	const D = o.touch ? r.slideTouch : r.slide;
+	const fade = Math.min(r.contentFadeMs, small * 0.4);
+	const steps: Step[] = [
+		{ piece: 'tray', delay: 0, duration: r.trayFadeMs, fromY: 0, ease: 'linear' },
+		{ piece: 'header', delay: 0, duration: r.headFadeMs, fromY: 0, ease: 'linear' },
+		{ piece: 'close', delay: 0, duration: r.headFadeMs, fromY: 0, ease: 'linear' },
+	];
+	for (let i = 0; i < o.tiles; i++) steps.push({ piece: 'tile', index: i, delay: r.firstTileMs + r.staggerMs * i, duration: small, fromY: !o.touch && i % 2 ? -D : D, ease: 'move' });
+	steps.push({ piece: 'hero', delay: r.heroAtMs, duration: large, fromY: D, ease: 'move' });
+	steps.push({ piece: 'plate', delay: r.plateAtMs, duration: small, fromY: D, ease: 'move' });
+	const [a, b, c] = r.contentAtMs;
+	steps.push({ piece: 'head', delay: a, duration: fade, fromY: 0, ease: 'linear' });
+	steps.push({ piece: 'vol', delay: a, duration: fade, fromY: 0, ease: 'linear' });
+	steps.push({ piece: 'body', delay: b, duration: fade, fromY: 0, ease: 'linear' });
+	steps.push({ piece: 'buy', delay: c, duration: fade, fromY: 0, ease: 'linear' });
+	return steps;
+};
+
+/** when the open is settled: the latest end of any step (0 under reduced motion) */
+export const entranceEnd = (steps: Step[]): number => steps.reduce((m, s) => Math.max(m, s.delay + s.duration), 0);
+
+/**
+ * A CHANGE OF MODE BY TAP, the way in (spec 5.2): after the old hero and text have faded out, the new hero rises
+ * slide * heroSwapSlide px over heroSwapRun small moves, the new text slide * textSwapSlide px, textSwapDelay later.
+ */
+export const swapPlan = (r: TimelineRules, o: { touch: boolean; reduced: boolean }): { hero: Step; text: Step } | null => {
+	if (o.reduced) return null;
+	const small = r.run * r.tauMs;
+	const D = o.touch ? r.slideTouch : r.slide;
+	return {
+		hero: { piece: 'hero', delay: 0, duration: small * r.heroSwapRun, fromY: Math.round(D * r.heroSwapSlide), ease: 'move' },
+		text: { piece: 'plate', delay: r.textSwapDelayMs, duration: small, fromY: Math.round(D * r.textSwapSlide), ease: 'move' },
+	};
 };

@@ -1,9 +1,19 @@
 <script lang="ts">
 	// THE ARMOURY: the feature menu (spec ~/Desktop/Manticore Mayhem/feedback/armoury_build_r1/SPEC.md; the approved
-	// prototype images/feature_menu_r2/, page.css and page.js). Spec commit 4: the DESKTOP layout, static. Plain fades
-	// only (the staggered entrance, the swap and the confirm card's rise are commit 5); flat hero art with no tilt or
-	// follow (commit 6); portrait, tablet, sideways and the small 16:9 frames are commits 7 and 8 (the old menu stays
-	// there until then). Mounted only behind the DEV switch (game/armourySwitch.ts, `?armoury=1`).
+	// prototype images/feature_menu_r2/, page.css and page.js). Spec commit 4: the DESKTOP layout; commit 5: its MOTION
+	// (spec 5: the staggered open, the swap, activate to confirm, cancel, close, reduced motion, every interruption of
+	// 5.6); flat hero art with no tilt or follow (commit 6); portrait, tablet, sideways and the small 16:9 frames are
+	// commits 7 and 8 (the old menu stays there until then). Mounted only behind the DEV switch (game/armourySwitch.ts,
+	// `?armoury=1`).
+	//
+	// MOTION. Transform and opacity only, every number from constants.ts ARMOURY.motion, the ease from motion.ts. The
+	// one shot moves of the open and of a swap are motion.ts movers (element.animate, one mover per group so a group can
+	// be cut alone: tiles, hero, plate, the header pieces); every state move (swap out, confirm, cancel, the plate's
+	// height, close) is a CSS transition keyed by a class. No element carries both kinds on one property. HIT BOXES DO
+	// NOT MOVE: every moving piece is a still box with a moving inner wrapper (a tile is a still button with a moving
+	// face; ACTIVATE rides its plate by a counter move on the button and the same move on its face; the confirm card's
+	// two buttons are still boxes whose faces follow the card about the card's own centre). Reduced motion: every
+	// duration and delay is 0 (not 1 ms), read once at mount; the plans are empty and the swap and the close are at once.
 	//
 	// HTML, like the HUD and every other menu: the canvas is not touched. Authored in the prototype's own design px
 	// inside ONE box scaled by one transform (menuFrame.ts: on desktop exactly the chrome's master rectangle, 1440 x 810
@@ -30,7 +40,7 @@
 	import type { MenuFrame } from './menuFrame';
 	import { armouryView } from './armouryView.svelte';
 	import { fitConfirmAmount, fitPrice } from './fit';
-	import { moveDurations, pickEase, prefersReducedMotion } from './motion';
+	import { createMover, entranceEnd, entrancePlan, moveDurations, pickEase, prefersReducedMotion, swapPlan, type Mover, type MoveOptions, type Step } from './motion';
 	import { ARMOURY } from '../../game/constants';
 	import config from '../../game/config';
 	import { modeCost } from '../../game/betModeMeta';
@@ -46,8 +56,11 @@
 
 	const M = ARMOURY.motion;
 	const reduced = prefersReducedMotion();
+	armouryView.reduced = reduced;
 	const ease = pickEase(M);
 	const durs = moveDurations(M, reduced);
+	/** a CSS duration or delay: 0 under reduced motion (not 1 ms, spec 5.5) */
+	const cssMs = (n: number) => `${reduced ? 0 : n}ms`;
 
 	// ---- open / close ----------------------------------------------------------------------------------------------
 	const wantOpen = $derived(takes && stateModal.modal?.name === 'buyBonus');
@@ -56,8 +69,13 @@
 	let byUs = false;
 	let closeTimer: ReturnType<typeof setTimeout> | undefined;
 	let rootEl = $state<HTMLDivElement>();
+	/** every open is a fresh mount ({#key}): an open during a close finishes the close and starts from the beginning */
+	let openSeq = $state(0);
 
+	/** the tile chosen (the tint follows it at once) */
 	let sel = $state<ArmouryModeId>('BONUS');
+	/** the mode the hero and the plate show: it follows `sel` once the old content has faded out (a swap) */
+	let view = $state<ArmouryModeId>('BONUS');
 	let confirm = $state(false);
 	let confirmAt = 0;
 	let confirming = false;
@@ -65,23 +83,156 @@
 	/** the line after a switch off (SWITCH OFF / UNLOAD): which mode it was */
 	let note = $state<ArmouryModeId | null>(null);
 
-	const mode = $derived(armouryMode(sel)!);
+	const mode = $derived(armouryMode(view)!);
 	/** the mode that is on (an ante active or a buy loaded on Spin), if it is one of the six */
 	const activeId = $derived.by(() => {
 		const k = (stateBet.activeBetModeKey ?? '').toUpperCase();
 		return armouryMode(k) ? (k as ArmouryModeId) : null;
 	});
 
+	// ---- motion (spec 5) ---------------------------------------------------------------------------------------------
+	// one mover per group, so a group can be cut alone (spec 5.6: a tile tapped during the open cuts the hero's and the
+	// plate's entrance, the other tiles finish theirs)
+	const mv = { tiles: createMover(reduced), hero: createMover(reduced), plate: createMover(reduced), head: createMover(reduced) };
+	const movers: Mover[] = Object.values(mv);
+	const stopMotion = () => {
+		for (const g of movers) g.stopAll();
+	};
+	/** the old hero and text are on their way out (a swap); the timer lands the newest selection */
+	let swapOut = $state(false);
+	let swapTimer: ReturnType<typeof setTimeout> | undefined;
+	/** the plate's height eases to a new mode's (off for the first frames of an open and on a layout snap) */
+	let plateEase = $state(false);
+	/** a layout change while moving: every transition off for two frames, so everything simply lands */
+	let snapping = $state(false);
+	/** the confirm card's buttons are still boxes; their faces turn about the card's centre (design px, per face) */
+	let faceOrigin = $state({ confirm: '0px 0px', cancel: '0px 0px' });
+
+	let trayEl = $state<HTMLDivElement>();
+	let hdrInEl = $state<HTMLElement>();
+	let closeEl = $state<HTMLButtonElement>();
+	let heroMv = $state<HTMLDivElement>();
+	let panelMv = $state<HTMLDivElement>();
+	let detailMv = $state<HTMLDivElement>();
+	let dHeadEl = $state<HTMLDivElement>();
+	let dBodyEl = $state<HTMLDivElement>();
+	let volEl = $state<HTMLDivElement>();
+	let buyEl = $state<HTMLDivElement>();
+	let statusEl = $state<HTMLDivElement>();
+	let ctaFace = $state<HTMLSpanElement>();
+	let cardEl = $state<HTMLDivElement>();
+	let confirmBtn = $state<HTMLButtonElement>();
+	let cancelBtn = $state<HTMLButtonElement>();
+	let tileEls = $state<Record<string, HTMLButtonElement | undefined>>({});
+	let tileMv = $state<Record<string, HTMLSpanElement | undefined>>({});
+	let ctaEl = $state<HTMLButtonElement>();
+
+	const opts = (s: Step, extra: Partial<MoveOptions> = {}): MoveOptions => ({
+		from: s.fromY ? `translateY(${s.fromY}px)` : undefined,
+		fade: true,
+		duration: s.duration,
+		delay: s.delay,
+		ease: s.ease === 'linear' ? 'linear' : ease,
+		...extra,
+	});
+	/** ACTIVATE rides its plate but its hit box stays put: the button takes the opposite move, its face the same move */
+	const pinCta = (g: Mover, s: Step) => {
+		if (!s.fromY) return;
+		const o = { duration: s.duration, delay: s.delay, ease: s.ease === 'linear' ? 'linear' : ease };
+		g.move(ctaEl, { ...o, from: `translateY(${-s.fromY}px)` });
+		g.move(ctaFace, { ...o, from: `translateY(${s.fromY}px)` });
+	};
+	/** THE OPEN (spec 5.2): tray, name and close fade; the tiles in a stagger; the hero; the plate and its contents */
+	const wave = () => {
+		stopMotion();
+		const order = trayGroups.flatMap((g) => g.modes);
+		for (const s of entrancePlan(M, { tiles: order.length, touch: false, reduced })) {
+			if (s.piece === 'tile') mv.tiles.move(tileMv[order[s.index ?? 0].id], opts(s));
+			else if (s.piece === 'hero') mv.hero.move(heroMv, opts(s));
+			else if (s.piece === 'plate') {
+				mv.plate.move(panelMv, opts(s));
+				pinCta(mv.plate, s);
+			} else if (s.piece === 'head') mv.plate.move(dHeadEl, opts(s));
+			else if (s.piece === 'vol') mv.plate.move(volEl, opts(s));
+			else if (s.piece === 'body') mv.plate.move(dBodyEl, opts(s));
+			else if (s.piece === 'buy') mv.plate.move(buyEl, opts(s));
+			else mv.head.move(s.piece === 'tray' ? trayEl : s.piece === 'header' ? hdrInEl : closeEl, opts(s));
+		}
+	};
+	/** a swap's way in: the new hero rises, the new text rises a beat later. `from`: the plate's own entrance was cut
+	 *  part way (a tile tapped during the open), so the whole plate carries on from where it was instead */
+	const swapIn = (from: { y: number; o: number } | null) => {
+		const plan = swapPlan(M, { touch: false, reduced });
+		if (!plan) return;
+		mv.hero.move(heroMv, opts(plan.hero));
+		if (from && from.o > 0.01) {
+			const s: Step = { ...plan.text, delay: 0, fromY: from.y };
+			mv.plate.move(panelMv, opts(s, { fadeFrom: from.o }));
+			pinCta(mv.plate, s);
+		} else if (from) {
+			mv.plate.move(panelMv, opts(plan.text));
+			pinCta(mv.plate, plan.text);
+		} else {
+			mv.plate.move(detailMv, opts(plan.text));
+			pinCta(mv.plate, plan.text);
+		}
+	};
+	/** the old content is out: show the newest selection (the hero's and the plate's moves so far give way) */
+	const land = (animate: boolean) => {
+		clearTimeout(swapTimer);
+		swapTimer = undefined;
+		let from: { y: number; o: number } | null = null;
+		if (animate && panelMv && panelMv.getAnimations().length > 0) {
+			const cs = getComputedStyle(panelMv);
+			let y = 0;
+			try {
+				y = cs.transform && cs.transform !== 'none' ? new DOMMatrixReadOnly(cs.transform).m42 : 0;
+			} catch {
+				y = 0;
+			}
+			from = { y: Math.round(y * 10) / 10, o: Number(cs.opacity) || 0 };
+		}
+		mv.hero.stopAll();
+		mv.plate.stopAll();
+		view = sel;
+		swapOut = false;
+		if (!animate) return;
+		const seq = openSeq;
+		tick().then(() => {
+			if (phase === 'open' && !confirm && seq === openSeq && view === sel) swapIn(from);
+		});
+	};
+	/** a layout change while moving (rotation, resize): every animation stops, everything lands in the new layout */
+	const snapAll = () => {
+		stopMotion();
+		if (swapTimer) land(false);
+		plateEase = false;
+		snapping = true;
+		armouryView.snap += 1;
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() => {
+				snapping = false;
+				plateEase = phase === 'open';
+			}),
+		);
+	};
+
 	const beginOpen = () => {
 		if (phase === 'closing') finishClose();
 		clearTimeout(closeTimer);
+		stopMotion();
 		byUs = false;
 		confirming = false;
 		flash = false;
 		confirm = false;
 		note = null;
+		swapOut = false;
+		plateEase = false;
+		snapping = false;
 		if (activeId) sel = activeId; // with a mode on, the menu opens on it
+		view = sel;
 		phase = 'open';
+		openSeq += 1;
 		armouryView.tint = mode.tint;
 		armouryView.confirm = false;
 		armouryView.closing = false;
@@ -90,22 +241,43 @@
 		loadArmouryCore(); // the deferred group may not have landed yet: it is asked for now (the menu never waits)
 		for (const url of allPics()) want(url);
 		void loadFonts();
-		tick().then(() => tileEls[sel]?.focus({ preventScroll: true }));
+		const seq = openSeq;
+		tick().then(() => {
+			if (phase !== 'open' || seq !== openSeq) return;
+			wave();
+			tileEls[sel]?.focus({ preventScroll: true });
+			// the plate takes its first size at once (one piece at its final size from its first frame); later changes ease
+			requestAnimationFrame(() =>
+				requestAnimationFrame(() => {
+					if (phase === 'open' && seq === openSeq && !snapping) plateEase = true;
+				}),
+			);
+		});
 	};
 	const beginClose = () => {
+		// one quick fade, no movement: every move is cut where it is (the .closing rule stops every transition)
+		stopMotion();
+		clearTimeout(swapTimer);
+		swapTimer = undefined;
 		phase = 'closing';
 		armouryView.open = false;
 		armouryView.confirm = false;
 		armouryView.closing = true;
-		closeTimer = setTimeout(finishClose, reduced ? 0 : M.closeDoneMs);
+		if (reduced) finishClose();
+		else closeTimer = setTimeout(finishClose, M.closeDoneMs);
 	};
 	const finishClose = () => {
 		clearTimeout(closeTimer);
+		clearTimeout(swapTimer);
+		swapTimer = undefined;
+		stopMotion();
 		const hadFocus = !!rootEl && rootEl.contains(document.activeElement);
 		phase = 'closed';
 		confirm = false;
 		flash = false;
 		note = null;
+		swapOut = false;
+		plateEase = false;
 		armouryView.shown = false;
 		armouryView.open = false;
 		armouryView.confirm = false;
@@ -132,8 +304,19 @@
 		void stateBet.betAmount;
 		untrack(() => (note = null));
 	});
+	// spec 5.6: a layout change while open (rotation, resize): everything snaps to its rest state, no entrance replay
+	let frameKey = '';
+	$effect(() => {
+		const k = `${frame.layout} ${frame.u} ${frame.left} ${frame.top} ${frame.width} ${frame.height}`;
+		untrack(() => {
+			if (k !== frameKey && frameKey && phase === 'open') snapAll();
+			frameKey = k;
+		});
+	});
 	onMount(() => () => {
 		clearTimeout(closeTimer);
+		clearTimeout(swapTimer);
+		stopMotion();
 		armouryView.shown = armouryView.open = armouryView.confirm = armouryView.closing = false;
 	});
 
@@ -153,7 +336,22 @@
 		note = null;
 		armouryView.tint = m.tint;
 		controls.sound('soundPressSub'); // choosing a tile: the small click (owner, answer 4)
+		// the tapped tile lands at once if its own entrance is still to come; the others finish theirs (spec 5.6)
+		for (const a of tileMv[m.id]?.getAnimations() ?? []) a.cancel();
+		if (reduced) {
+			land(false);
+			return true;
+		}
+		if (swapTimer) return true; // already on its way out: it lands on the newest selection
+		swapOut = true;
+		// it lands when the old hero has finished fading out (its own transitionend: the fade starts on the next frame,
+		// so a 120 ms timer from the tap would land with the old content still part visible); the timer is a fallback
+		swapTimer = setTimeout(() => land(true), M.swapOutMs * 2);
 		return true;
+	};
+	/** the swap's fade out has ended: show the newest selection */
+	const onFadeEnd = (e: TransitionEvent) => {
+		if (e.target === e.currentTarget && e.propertyName === 'opacity' && swapOut && swapTimer) land(true);
 	};
 	const step = (dir: 1 | -1) => {
 		const i = ARMOURY_MODES.findIndex((m) => m.id === sel);
@@ -162,20 +360,45 @@
 		select(n.id);
 		if (onTile) tileEls[n.id]?.focus({ preventScroll: true });
 	};
+	/** where the confirm card's centre is, from each of its two buttons' faces (design px; layout offsets, so a
+	 *  transform anywhere above does not matter) */
+	const measureFaces = () => {
+		const card = cardEl;
+		const fc = confirmBtn?.querySelector<HTMLElement>('.face');
+		const fx = cancelBtn?.querySelector<HTMLElement>('.face');
+		if (!card || !fc || !fx) return;
+		const at = (f: HTMLElement) => {
+			let x = 0;
+			let y = 0;
+			for (let e: HTMLElement | null = f; e && e !== card; e = e.offsetParent as HTMLElement | null) {
+				x += e.offsetLeft;
+				y += e.offsetTop;
+			}
+			return `${(card.offsetWidth / 2 - x).toFixed(1)}px ${(card.offsetHeight / 2 - y).toFixed(1)}px`;
+		};
+		faceOrigin = { confirm: at(fc), cancel: at(fx) };
+	};
 	const activate = () => {
 		if (phase !== 'open' || confirm) return false;
+		// allowed during the open and during a swap: every piece lands where it belongs first (spec 5.6)
+		stopMotion();
+		if (swapTimer) land(false);
 		const id = sel;
 		if (activeId === id) {
 			// SWITCH OFF / UNLOAD needs no card: it lowers the spend, so it happens at once and says so; the menu stays open
 			controls.sound('soundPressMinor');
 			controls.cancelArmed(); // also unloads a parked autoplay run, as the HUD button always did
 			note = id;
-			tick().then(() => ctaEl?.focus({ preventScroll: true }));
+			tick().then(() => {
+				ctaEl?.focus({ preventScroll: true });
+				mv.plate.move(statusEl, { fade: true, duration: M.contentFadeMs, ease: 'linear' });
+			});
 			return true;
 		}
 		const p = price(id);
 		if (!(p > 0) || p > stateBet.balanceAmount) return false;
 		controls.sound('soundPressMinor');
+		measureFaces();
 		confirm = true;
 		confirmAt = performance.now();
 		armouryView.confirm = true;
@@ -190,7 +413,7 @@
 		return true;
 	};
 	const doConfirm = () => {
-		// the wrong click guard: CONFIRM is not live until it has faded in
+		// the wrong click guard: CONFIRM is not live until it has faded in (kept under reduced motion: it is a guard)
 		if (!confirm || confirming || phase !== 'open' || performance.now() - confirmAt < M.confirmGuardMs) return false;
 		const m = mode;
 		confirming = true;
@@ -276,10 +499,10 @@
 	let labelW = $state<number[]>([0, 0, 0]);
 	const confirmRows = $derived.by(() => {
 		void fontTick;
-		const x = modeCost(sel);
+		const x = modeCost(mode.id);
 		const rows = [
 			{ label: TX.confirmRow.base, value: money(stateBet.betAmount), total: false },
-			{ label: armouryName(sel), value: fill(TX.confirmRow.multiple, { x }), total: false },
+			{ label: armouryName(mode.id), value: fill(TX.confirmRow.multiple, { x }), total: false },
 			{ label: mode.group === 'spin' ? TX.confirmRow.everySpin : TX.confirmRow.total, value: priceText, total: true },
 		];
 		return rows.map((r, i) => {
@@ -334,10 +557,6 @@
 	let detailH = $state(0);
 	const detailTop = $derived(mode.odds ? 92 : 96);
 
-	let tileEls = $state<Record<string, HTMLButtonElement | undefined>>({});
-	let ctaEl = $state<HTMLButtonElement>();
-	let cardEl = $state<HTMLDivElement>();
-
 	const tileLabel = (m: ArmouryMode) =>
 		fill(TX.aria.tile, { name: armouryName(m.id), kind: TX.aria.kind[m.group], x: modeCost(m.id) }) + (activeId === m.id ? TX.aria.on : '');
 	const tileMultiple = (m: ArmouryMode) => {
@@ -346,7 +565,19 @@
 		const head = `${x}x`;
 		return full.startsWith(head) ? { head, tail: full.slice(head.length) } : { head: full, tail: '' };
 	};
-	const groups = (['spin', 'buy'] as const).map((g) => ({ g, modes: ARMOURY_MODES.filter((m) => m.group === g) }));
+	const trayGroups = (['spin', 'buy'] as const).map((g) => ({ g, modes: ARMOURY_MODES.filter((m) => m.group === g) }));
+
+	/** every animation now running on the menu, its tint or the lit HUD cells (spec 5.6: zero after any interruption) */
+	const running = () => {
+		try {
+			return document.getAnimations().filter((a) => {
+				const t = (a.effect as KeyframeEffect | null)?.target;
+				return a.playState !== 'finished' && a.playState !== 'idle' && t instanceof Element && !!t.closest('.arm, .armoury-tint, .trio > .cell');
+			}).length;
+		} catch {
+			return 0;
+		}
+	};
 
 	// ---- DEV hook (house rule: window.__manticore only; removed on unmount) -----------------------------------------
 	onMount(() => {
@@ -365,6 +596,9 @@
 				u: frame.u,
 				frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height },
 				selection: sel,
+				/** the mode the hero and the plate show (it follows the selection once a swap has faded the old out) */
+				shown: view,
+				swapping: swapTimer != null,
 				confirm,
 				active: activeId,
 				short,
@@ -375,6 +609,13 @@
 				tint: armouryView.tint,
 				decoded: Object.keys(pics).length,
 				hero: 'flat',
+				reduced,
+				/** animations running now on the menu, its tint and the lit HUD cells (CSS transitions included) */
+				running: running(),
+				/** the moves this menu started that are still running, per group */
+				moves: Object.fromEntries(Object.entries(mv).map(([k, g]) => [k, g.running()])),
+				/** no requestAnimationFrame loop yet (the hero's follow is commit 6) */
+				loop: false,
 				balance: stateBet.balanceAmount,
 				bet: stateBet.betAmount,
 				mode: stateBet.activeBetModeKey,
@@ -403,11 +644,23 @@
 					cta: q('.cta'),
 					tray: q('.tray'),
 					tiles: Object.fromEntries(ARMOURY_MODES.map((m) => [m.id, box(tileEls[m.id])])),
+					/** the moving faces (the hit boxes above stay put) */
+					tileFaces: Object.fromEntries(ARMOURY_MODES.map((m) => [m.id, box(tileMv[m.id])])),
+					ctaFace: box(ctaFace),
 					card: confirm ? q('.card') : null,
+					cardFace: confirm ? q('.card-mv') : null,
 					confirmBtn: confirm ? q('.c-confirm') : null,
+					confirmFace: confirm ? q('.c-confirm .face') : null,
+					cancel: confirm ? q('.cancel') : null,
+					cancelFace: confirm ? q('.cancel .face') : null,
 				};
 			},
 			constants: () => ARMOURY,
+			/** the open's and a swap's plans as built (spec 5.2), and when the open is settled */
+			timeline: () => {
+				const steps = entrancePlan(M, { tiles: ARMOURY_MODES.length, touch: false, reduced });
+				return { entrance: steps, end: entranceEnd(steps), swap: swapPlan(M, { touch: false, reduced }), ease };
+			},
 		};
 		const m = ((window as any).__manticore ??= {});
 		m.armoury = hook;
@@ -425,181 +678,206 @@
 {#snippet thumb(m: ArmouryMode, cls: string)}<span class="tpic {cls}" class:ready={pics[PIC.thumbs] != null} style:background-image={url(PIC.thumbs)} style:background-position={thumbPos(m)}></span>{/snippet}
 
 {#if phase !== 'closed'}
-	<div
-		class="arm"
-		class:open={phase === 'open'}
-		class:closing={phase === 'closing'}
-		class:confirm
-		class:has-odds={!!mode.odds}
-		class:reduced
-		bind:this={rootEl}
-		style:left="{frame.left}px"
-		style:top="{frame.top}px"
-		style:transform="scale({frame.u})"
-		style:--acc={mode.accent}
-		style:--ease={ease}
-		style:--dur="{durs.small}ms"
-		style:--dur-l="{durs.large}ms"
-		style:--close-ms="{M.closeMs}ms"
-		style:--confirm-ms="{ARMOURY.tint.confirmMs}ms"
-		style:--back-ms="{M.backMs}ms"
-		style:--card-out-ms="{M.cardOutMs}ms"
-		style:--card-delay="{M.confirmDelayMs}ms"
-		style:--guard-ms="{M.confirmGuardMs}ms"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="arm-name"
-	>
-		<svg class="defs" width="0" height="0" aria-hidden="true">
-			<symbol id="arm-burst" viewBox="0 0 100 100">
-				<g fill="currentColor">{#each RAYS as pts}<polygon points={pts} />{/each}</g>
-				<circle cx="50" cy="50" r="25.5" fill="none" stroke="currentColor" stroke-width="0.7" />
-				<circle cx="50" cy="50" r="23" fill="currentColor" opacity=".35" />
-			</symbol>
-		</svg>
-
-		<div class="hdr" inert={confirm}>
-			<i class="hdr-crest pic" class:ready={pics[PIC.crest] != null} style:background-image={url(PIC.crest)} aria-hidden="true"></i>
-			<span id="arm-name">{TX.name}</span>
-		</div>
-		<button type="button" class="close lift" aria-label={TX.close} onclick={() => close()}>
-			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" /></svg>
-		</button>
-
-		<!-- the hero: flat art in this commit (the grid's straight-on frame), rays and a ground shadow -->
-		<div class="hero" aria-hidden="true">
-			<div class="hero-in">
-				{@render burst('')}
-				<div class="shadow"></div>
-				{#key mode.id}
-					<div
-						class="hero-img pic"
-						class:ready={pics[PIC.hero(mode)] != null}
-						style:background-image={url(PIC.hero(mode))}
-						style:height="{mode.heroH * 100}%"
-						style:aspect-ratio={pics[PIC.hero(mode)] ?? 1}
-					></div>
-				{/key}
-			</div>
-		</div>
-
-		<!-- the buy plate: one fill that stretches and two brass rules -->
-		<div class="panel" inert={confirm}>
-			<div class="plate" style:transform="translateY({detailTop}px)" aria-hidden="true">
-				<div class="plate-fill" style:transform="scaleY({(detailH / 100).toFixed(4)})"></div>
-				<div class="plate-top"></div>
-				<div class="plate-bot" style:transform="translateY({Math.max(0, detailH - 2)}px)"></div>
-			</div>
-			<div class="detail" style:top="{detailTop}px" bind:offsetHeight={detailH}>
-				<div class="d-head">
-					<div class="kicker">{TX.kicker[mode.group]}</div>
-					<div class="name">{armouryName(mode.id)}</div>
-				</div>
-				<div class="d-body">
-					<div class="desc">{@render rich(TX.pitch[mode.id], pitchAmt)}</div>
-					{#if mode.odds}
-						<div class="odds">
-							{#each mode.odds as o (o.text)}
-								{@const n = Math.round(o.share * 100)}
-								<div class="orow">
-									<span class="opct">{fill(TX.oddsShare, { n })}</span>
-									<span class="obar" aria-hidden="true"><i style:width="{n}%" style:background={o.color}></i></span>
-									<span class="oname">{TX.odds[o.text]}</span>
-								</div>
-							{/each}
-						</div>
-					{/if}
-					{#if status}
-						<div class="status">{#if status.tag}<span class="on-tag">{status.tag}</span>{/if}{@render rich(status.text, status.amt)}</div>
-					{/if}
-				</div>
-				<div class="vol" role="img" aria-label={fill(TX.aria.volatility, { n: mode.volatility })}>
-					<span class="vol-l" aria-hidden="true">{TX.volatility}</span>
-					<span class="pips" aria-hidden="true">{#each [1, 2, 3, 4] as i}<i class:on={i <= mode.volatility}></i>{/each}</span>
-				</div>
-				<div class="buy">
-					<div class="plaque" class:ready={pics[PIC.plaque] != null} style:background-image={url(PIC.plaque)}>
-						<span class="fig" dir="ltr" aria-live="polite" style:font-size="{priceFit.size}px">{priceText}</span>
-					</div>
-					<div class="per">{TX.priceLabel[mode.group]}</div>
-					<button
-						type="button"
-						class="btn lift cta"
-						class:off={isOn}
-						bind:this={ctaEl}
-						disabled={short}
-						aria-describedby={short ? 'arm-why' : undefined}
-						onclick={activate}
-					>
-						{isOn ? (mode.group === 'spin' ? TX.button.switchOff : TX.button.unload) : TX.button.activate}
-					</button>
-					{#if short}<div class="why" id="arm-why">{TX.balanceShort}</div>{/if}
-				</div>
-			</div>
-		</div>
-
-		<!-- the tray: two per spin modes, four buys -->
-		<div class="tray" inert={confirm}>
-			{#each groups as grp (grp.g)}
-				<div class="grp grp-{grp.g}">
-					<div class="gh"><b>{TX.group[grp.g].head}</b><span>{TX.group[grp.g].sub}</span></div>
-					<div class="tiles">
-						{#each grp.modes as m (m.id)}
-							{@const mult = tileMultiple(m)}
-							<button
-								type="button"
-								class="tile"
-								data-mode={m.id}
-								class:sel={m.id === sel}
-								class:on={activeId === m.id}
-								style:--m={m.accent}
-								aria-pressed={m.id === sel}
-								aria-label={tileLabel(m)}
-								bind:this={tileEls[m.id]}
-								onclick={() => select(m.id)}
-							>
-								<span class="thumb" aria-hidden="true">{@render burst('')}{@render thumb(m, '')}</span>
-								<span class="tn" aria-hidden="true">{armouryName(m.id)}</span>
-								<span class="tp" aria-hidden="true">{mult.head}{#if mult.tail}<small>{mult.tail}</small>{/if}</span>
-								{#if activeId === m.id}<span class="on-tag" aria-hidden="true">{TX.onTag[m.group]}</span>{/if}
-							</button>
-						{/each}
-					</div>
-				</div>
-			{/each}
-		</div>
-
-		<!-- the confirm card: the intro cards' own frame, centred; the rest steps back -->
+	{#key openSeq}
 		<div
-			class="card"
-			class:ready={pics[PIC.card] != null}
-			style:background-image={url(PIC.card)}
-			role="alertdialog"
-			aria-label={fill(TX.confirmTitle, { name: armouryName(mode.id) })}
-			aria-hidden={!confirm}
-			inert={!confirm}
-			tabindex="-1"
-			bind:this={cardEl}
+			class="arm"
+			class:open={phase === 'open'}
+			class:closing={phase === 'closing'}
+			class:confirm
+			class:has-odds={!!mode.odds}
+			class:reduced
+			class:swap-out={swapOut}
+			class:plate-ease={plateEase}
+			class:snap={snapping}
+			bind:this={rootEl}
+			style:left="{frame.left}px"
+			style:top="{frame.top}px"
+			style:transform="scale({frame.u})"
+			style:--acc={mode.accent}
+			style:--ease={ease}
+			style:--dur="{durs.small}ms"
+			style:--dur-l="{durs.large}ms"
+			style:--close-ms={cssMs(M.closeMs)}
+			style:--confirm-ms={cssMs(ARMOURY.tint.confirmMs)}
+			style:--back-ms={cssMs(M.backMs)}
+			style:--out-ms={cssMs(M.swapOutMs)}
+			style:--veil-ms={cssMs(M.veilMs)}
+			style:--card-out-ms={cssMs(M.cardOutMs)}
+			style:--card-delay={cssMs(M.confirmDelayMs)}
+			style:--card-y="{M.cardFrom.y}px"
+			style:--card-s={M.cardFrom.scale}
+			style:--sink="{M.sinkPx}px"
+			style:--guard-ms={cssMs(M.confirmGuardMs)}
+			style:--guard-fade-ms={cssMs(M.confirmFadeMs)}
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="arm-name"
 		>
-			<div class="c-art" aria-hidden="true"><div class="c-in">{@render burst('')}{@render thumb(mode, 'c-pic')}</div></div>
-			<div class="c-body">
-				<div class="name">{armouryName(mode.id)}</div>
-				<div class="c-gets">{@render rich(TX.gets[mode.id], pitchAmt)}</div>
-				<div class="crows" bind:clientWidth={rowW}>
-					{#each confirmRows as r, i (i)}
-						<div class="crow" class:total={r.total}>
-							<span bind:offsetWidth={labelW[i]}>{r.label}</span>
-							<b dir="ltr" style:font-size="{r.size}px">{r.value}</b>
+			<svg class="defs" width="0" height="0" aria-hidden="true">
+				<symbol id="arm-burst" viewBox="0 0 100 100">
+					<g fill="currentColor">{#each RAYS as pts}<polygon points={pts} />{/each}</g>
+					<circle cx="50" cy="50" r="25.5" fill="none" stroke="currentColor" stroke-width="0.7" />
+					<circle cx="50" cy="50" r="23" fill="currentColor" opacity=".35" />
+				</symbol>
+			</svg>
+
+			<div class="hdr" inert={confirm}>
+				<span class="hdr-in" bind:this={hdrInEl}>
+					<i class="hdr-crest pic" class:ready={pics[PIC.crest] != null} style:background-image={url(PIC.crest)} aria-hidden="true"></i>
+					<span id="arm-name">{TX.name}</span>
+				</span>
+			</div>
+			<button type="button" class="close lift" aria-label={TX.close} bind:this={closeEl} onclick={() => close()}>
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" /></svg>
+			</button>
+
+			<!-- the hero: flat art in this commit (the grid's straight-on frame), rays and a ground shadow. Still box (the
+			     confirm's fade), the swap's fade out, then the moving wrapper (the open's rise, a swap's rise) -->
+			<div class="hero" aria-hidden="true">
+				<div class="hero-fade" ontransitionend={onFadeEnd}>
+					<div class="hero-mv" bind:this={heroMv}>
+						<div class="hero-in">
+							{@render burst('')}
+							<div class="shadow"></div>
+							{#key mode.id}
+								<div
+									class="hero-img pic"
+									class:ready={pics[PIC.hero(mode)] != null}
+									style:background-image={url(PIC.hero(mode))}
+									style:height="{mode.heroH * 100}%"
+									style:aspect-ratio={pics[PIC.hero(mode)] ?? 1}
+								></div>
+							{/key}
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- the buy plate: one fill that stretches and two brass rules. Still box (the confirm's fade), the moving
+			     plate (the open's rise), the text's fade out and its moving wrapper (a swap's rise) -->
+			<div class="panel" inert={confirm}>
+				<div class="panel-mv" bind:this={panelMv}>
+					<div class="plate" style:transform="translateY({detailTop}px)" aria-hidden="true">
+						<div class="plate-fill" style:transform="scaleY({(detailH / 100).toFixed(4)})"></div>
+						<div class="plate-top"></div>
+						<div class="plate-bot" style:transform="translateY({Math.max(0, detailH - 2)}px)"></div>
+					</div>
+					<div class="detail" style:top="{detailTop}px" bind:offsetHeight={detailH}>
+						<div class="detail-mv" bind:this={detailMv}>
+							<div class="d-head" bind:this={dHeadEl}>
+								<div class="kicker">{TX.kicker[mode.group]}</div>
+								<div class="name">{armouryName(mode.id)}</div>
+							</div>
+							<div class="d-body" bind:this={dBodyEl}>
+								<div class="desc">{@render rich(TX.pitch[mode.id], pitchAmt)}</div>
+								{#if mode.odds}
+									<div class="odds">
+										{#each mode.odds as o (o.text)}
+											{@const n = Math.round(o.share * 100)}
+											<div class="orow">
+												<span class="opct">{fill(TX.oddsShare, { n })}</span>
+												<span class="obar" aria-hidden="true"><i style:width="{n}%" style:background={o.color}></i></span>
+												<span class="oname">{TX.odds[o.text]}</span>
+											</div>
+										{/each}
+									</div>
+								{/if}
+								{#if status}
+									<div class="status" bind:this={statusEl}>{#if status.tag}<span class="on-tag">{status.tag}</span>{/if}{@render rich(status.text, status.amt)}</div>
+								{/if}
+							</div>
+							<div class="vol" role="img" aria-label={fill(TX.aria.volatility, { n: mode.volatility })} bind:this={volEl}>
+								<span class="vol-l" aria-hidden="true">{TX.volatility}</span>
+								<span class="pips" aria-hidden="true">{#each [1, 2, 3, 4] as i}<i class:on={i <= mode.volatility}></i>{/each}</span>
+							</div>
+							<div class="buy" bind:this={buyEl}>
+								<div class="plaque" class:ready={pics[PIC.plaque] != null} style:background-image={url(PIC.plaque)}>
+									<span class="fig" dir="ltr" aria-live="polite" style:font-size="{priceFit.size}px">{priceText}</span>
+								</div>
+								<div class="per">{TX.priceLabel[mode.group]}</div>
+								<button
+									type="button"
+									class="btn lift cta"
+									class:off={isOn}
+									bind:this={ctaEl}
+									disabled={short}
+									aria-describedby={short ? 'arm-why' : undefined}
+									onclick={activate}
+								>
+									<span class="face" bind:this={ctaFace}>{isOn ? (mode.group === 'spin' ? TX.button.switchOff : TX.button.unload) : TX.button.activate}</span>
+								</button>
+								{#if short}<div class="why" id="arm-why">{TX.balanceShort}</div>{/if}
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- the tray: two per spin modes, four buys. Still box (the confirm's fade), the slab (the open's fade) -->
+			<div class="tray-box" inert={confirm}>
+				<div class="tray" bind:this={trayEl}>
+					{#each trayGroups as grp (grp.g)}
+						<div class="grp grp-{grp.g}">
+							<div class="gh"><b>{TX.group[grp.g].head}</b><span>{TX.group[grp.g].sub}</span></div>
+							<div class="tiles">
+								{#each grp.modes as m (m.id)}
+									{@const mult = tileMultiple(m)}
+									<!-- a still button (its hit box never moves); the moving wrapper (the open); the face (the confirm's sink) -->
+									<button
+										type="button"
+										class="tile"
+										data-mode={m.id}
+										class:sel={m.id === sel}
+										class:on={activeId === m.id}
+										style:--m={m.accent}
+										aria-pressed={m.id === sel}
+										aria-label={tileLabel(m)}
+										bind:this={tileEls[m.id]}
+										onclick={() => select(m.id)}
+									>
+										<span class="tmv" bind:this={tileMv[m.id]}>
+											<span class="tf">
+												<span class="thumb" aria-hidden="true">{@render burst('')}{@render thumb(m, '')}</span>
+												<span class="tn" aria-hidden="true">{armouryName(m.id)}</span>
+												<span class="tp" aria-hidden="true">{mult.head}{#if mult.tail}<small>{mult.tail}</small>{/if}</span>
+												{#if activeId === m.id}<span class="on-tag" aria-hidden="true">{TX.onTag[m.group]}</span>{/if}
+											</span>
+										</span>
+									</button>
+								{/each}
+							</div>
 						</div>
 					{/each}
 				</div>
-				<div class="c-what">{@render rich(mode.group === 'spin' ? anteConfirm(mode.id as 'ANTE' | 'SUPER_ANTE') : named(TX.confirmBuy, mode.id), '')}</div>
-				<button type="button" class="btn lift c-confirm" onclick={doConfirm}>{TX.button.confirm}</button>
-				<button type="button" class="cancel" onclick={cancel}>{TX.button.cancel}</button>
 			</div>
-			<div class="c-flash" class:on={flash}></div>
+
+			<!-- the confirm card: the intro cards' own frame, centred; the rest steps back. The card is a still box; its
+			     picture and text rise in a moving wrapper; its two buttons stay put while their faces follow the card -->
+			<div class="card" role="alertdialog" aria-label={fill(TX.confirmTitle, { name: armouryName(mode.id) })} aria-hidden={!confirm} inert={!confirm} tabindex="-1" bind:this={cardEl}>
+				<div class="card-mv" class:ready={pics[PIC.card] != null} style:background-image={url(PIC.card)}>
+					<div class="c-art" aria-hidden="true"><div class="c-in">{@render burst('')}{@render thumb(mode, 'c-pic')}</div></div>
+					<div class="c-body">
+						<div class="name">{armouryName(mode.id)}</div>
+						<div class="c-gets">{@render rich(TX.gets[mode.id], pitchAmt)}</div>
+						<div class="crows" bind:clientWidth={rowW}>
+							{#each confirmRows as r, i (i)}
+								<div class="crow" class:total={r.total}>
+									<span bind:offsetWidth={labelW[i]}>{r.label}</span>
+									<b dir="ltr" style:font-size="{r.size}px">{r.value}</b>
+								</div>
+							{/each}
+						</div>
+						<div class="c-what">{@render rich(mode.group === 'spin' ? anteConfirm(mode.id as 'ANTE' | 'SUPER_ANTE') : named(TX.confirmBuy, mode.id), '')}</div>
+					</div>
+					<div class="c-flash" class:on={flash}></div>
+				</div>
+				<div class="c-keys">
+					<button type="button" class="btn lift c-confirm" bind:this={confirmBtn} onclick={doConfirm}><span class="face cf" style:transform-origin={faceOrigin.confirm}>{TX.button.confirm}</span></button>
+					<button type="button" class="cancel" bind:this={cancelBtn} onclick={cancel}><span class="face cf" style:transform-origin={faceOrigin.cancel}>{TX.button.cancel}</span></button>
+				</div>
+			</div>
 		</div>
-	</div>
+	{/key}
 {/if}
 
 <style>
@@ -663,12 +941,20 @@
 		color: var(--cream);
 		user-select: none;
 		-webkit-user-select: none;
-		/* the open is a plain fade in this commit (the staggered entrance is commit 5); the close one 150 ms fade */
-		animation: arm-in 120ms linear backwards;
 	}
+	/* the close: one fade of the whole menu, no movement. Every other transition stops where it is (spec 5.6) */
 	.arm.closing {
 		opacity: 0;
 		transition: opacity var(--close-ms) linear;
+	}
+	/* a layout change while moving: two frames with no transition, so everything simply lands in the new layout */
+	.arm.closing :global(*),
+	.arm.closing :global(*::before),
+	.arm.closing :global(*::after),
+	.arm.snap :global(*),
+	.arm.snap :global(*::before),
+	.arm.snap :global(*::after) {
+		transition: none !important;
 	}
 	.arm > :global(*) {
 		position: absolute;
@@ -719,12 +1005,14 @@
 		opacity: 1;
 	}
 
-	/* the button lift: a flat white veil, opacity only (no filter) */
+	/* the button lift: a flat white veil, opacity only (no filter). A button's face carries the veil (the face is what
+	   moves); the press nudge is the `translate` property, so it never meets a move's `transform` */
 	.lift {
 		position: relative;
-		transition: transform 60ms linear;
+		transition: translate 60ms linear;
 	}
-	.lift::before {
+	.close::before,
+	.btn > .face::before {
 		content: '';
 		position: absolute;
 		inset: 0;
@@ -735,27 +1023,29 @@
 		pointer-events: none;
 	}
 	@media (hover: hover) and (pointer: fine) {
-		.lift:not(:disabled):hover::before {
+		.close:hover::before,
+		.btn:not(:disabled):hover > .face::before {
 			opacity: 0.16;
 		}
-		.lift:not(:disabled):active::before {
+		.close:active::before,
+		.btn:not(:disabled):active > .face::before {
 			opacity: 0.34;
 			transition-duration: 30ms;
 		}
 		.lift:not(:disabled):active {
-			transform: translateY(2px);
+			translate: 0 2px;
 		}
 		.cancel:hover {
 			opacity: 1;
 		}
 		.cancel:active {
 			opacity: 1;
-			transform: translateY(2px);
+			translate: 0 2px;
 		}
-		.tray:has(.tile:hover) .tile::after {
+		.tray:has(.tile:hover) .tf::after {
 			opacity: 0.45;
 		}
-		.tray .tile:hover::after {
+		.tray .tile:hover .tf::after {
 			opacity: 0;
 		}
 	}
@@ -809,6 +1099,11 @@
 		--bs: 500px;
 		pointer-events: none;
 	}
+	.hero-fade,
+	.hero-mv {
+		position: absolute;
+		inset: 0;
+	}
 	.hero-in,
 	.c-in {
 		position: absolute;
@@ -850,6 +1145,13 @@
 		width: 700px;
 		height: 0;
 	}
+	.panel-mv {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 700px;
+		height: 0;
+	}
 	.plate {
 		position: absolute;
 		left: 0;
@@ -876,16 +1178,25 @@
 		height: 2px;
 		background: var(--brass-lo);
 	}
+	/* a new mode's or bet's plate height eases (the open and a layout snap take it at once) */
+	.plate-ease .plate,
+	.plate-ease .plate > div {
+		transition: transform var(--dur) var(--ease);
+	}
 	.detail {
 		position: absolute;
 		box-sizing: border-box;
 		left: 0;
 		width: 700px;
-		padding: 20px 32px 26px;
 		border-top: 2px solid transparent;
 		border-bottom: 2px solid transparent;
 	}
-	.has-odds .detail {
+	/* the moving wrapper holds the padding, so the volatility row (absolute) keeps the box it always had */
+	.detail-mv {
+		position: relative;
+		padding: 20px 32px 26px;
+	}
+	.has-odds .detail-mv {
 		padding-top: 14px;
 		padding-bottom: 16px;
 	}
@@ -1060,7 +1371,21 @@
 		unicode-bidi: isolate;
 	}
 	.btn {
+		display: block;
 		height: 64px;
+		padding: 0;
+		border: 0;
+		background: none;
+		font: inherit;
+		color: inherit;
+	}
+	.btn > .face {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		height: 100%;
 		padding: 0 34px;
 		border: 1px solid var(--btn-line);
 		border-radius: 3px;
@@ -1080,7 +1405,7 @@
 		grid-area: btn;
 		min-width: 250px;
 	}
-	.btn.off {
+	.btn.off > .face {
 		background: linear-gradient(180deg, var(--iron-hi), var(--iron-lo));
 		color: var(--gold);
 		text-shadow: 0 -1px 0 var(--black);
@@ -1089,7 +1414,7 @@
 			inset 0 0 0 2px var(--iron-deep),
 			0 5px 0 var(--shade-45);
 	}
-	.btn:disabled {
+	.btn:disabled > .face {
 		background: linear-gradient(180deg, var(--dis-1), var(--dis-2));
 		color: var(--dis-text);
 		text-shadow: none;
@@ -1100,11 +1425,16 @@
 	}
 
 	/* ── tray ── */
-	.tray {
+	.tray-box {
 		left: 0;
 		top: 500px;
 		width: 1440px;
 		height: 232px;
+	}
+	.tray {
+		position: absolute;
+		inset: 0;
+		box-sizing: border-box;
 		padding: 14px 60px 0;
 		display: flex;
 		gap: 44px;
@@ -1141,11 +1471,31 @@
 		gap: 14px;
 		margin-top: 8px;
 	}
+	/* a tile: a still button (its hit box never moves), a moving wrapper (the open), the face (the confirm's sink) */
 	.tile {
 		position: relative;
 		flex: 1;
 		min-width: 0;
 		height: 160px;
+		display: block;
+		padding: 0;
+		border: 0;
+		background: none;
+		font: inherit;
+		color: inherit;
+		appearance: none;
+		-webkit-appearance: none;
+		border-radius: 0;
+	}
+	.tmv {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+	.tf {
+		position: relative;
+		width: 100%;
+		height: 100%;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -1153,11 +1503,6 @@
 		gap: 9px;
 		padding: 0 0 6px;
 		box-sizing: border-box;
-		font: inherit;
-		color: inherit;
-		appearance: none;
-		-webkit-appearance: none;
-		border-radius: 0;
 		background: linear-gradient(180deg, var(--iron-hi) 0%, var(--iron-lo) 100%);
 		border: 2px solid var(--brass-lo);
 		box-shadow:
@@ -1208,19 +1553,19 @@
 		color: var(--cream-2);
 	}
 	/* focus is brightness only: a flat dark veil whose opacity changes; nothing moves */
-	.tile::after {
+	.tf::after {
 		content: '';
 		position: absolute;
 		inset: -2px;
 		background: var(--veil);
 		opacity: 0.4;
-		transition: opacity 100ms linear;
+		transition: opacity var(--veil-ms) linear;
 		pointer-events: none;
 	}
-	.tile.sel::after {
+	.tile.sel .tf::after {
 		opacity: 0 !important;
 	}
-	.tile.sel {
+	.tile.sel .tf {
 		border-color: var(--brass-hi);
 		box-shadow:
 			inset 0 0 0 2px var(--iron-deep),
@@ -1238,38 +1583,74 @@
 		background: var(--m);
 	}
 
-	/* ── confirm: the tray, the hero, the plate and the name step back; the card fades in (its rise is commit 5) ── */
+	/* ── a swap: the old hero and text fade out (120 ms linear), the new come back on the ease ── */
+	.hero-fade,
+	.detail {
+		transition: opacity var(--back-ms) var(--ease);
+	}
+	.arm.swap-out .hero-fade,
+	.arm.swap-out .detail {
+		opacity: 0;
+		transition: opacity var(--out-ms) linear;
+	}
+
+	/* ── confirm: the tray, the hero, the plate and the name step back, the tiles not chosen sink; the card rises from
+	   lower and smaller on the large ease; cancel drops it back fast and the rest returns over 330 ms ── */
 	.hdr,
 	.hero,
 	.panel,
-	.tray {
+	.tray-box {
 		transition: opacity var(--back-ms) var(--ease);
 	}
 	.arm.confirm .hdr,
 	.arm.confirm .hero,
 	.arm.confirm .panel,
-	.arm.confirm .tray {
+	.arm.confirm .tray-box {
 		opacity: 0;
 		transition: opacity var(--confirm-ms) var(--ease);
 		pointer-events: none;
+	}
+	.tf {
+		transition: transform var(--back-ms) var(--ease);
+	}
+	.arm.confirm .tile:not(.sel) .tf {
+		transform: translateY(var(--sink));
+		transition: transform var(--confirm-ms) var(--ease);
 	}
 	.card {
 		left: 470px;
 		top: 28px;
 		width: 500px;
 		height: 750px;
-		background: 0 0 / 100% 100% no-repeat;
-		opacity: 0;
 		pointer-events: none;
-		transition: opacity var(--card-out-ms) linear;
-	}
-	.card:not(.ready) {
-		background-image: none !important;
 	}
 	.arm.confirm .card {
-		opacity: 1;
 		pointer-events: auto;
-		transition: opacity var(--dur-l) var(--ease) var(--card-delay);
+	}
+	.card-mv {
+		position: absolute;
+		inset: 0;
+		background: 0 0 / 100% 100% no-repeat;
+	}
+	.card-mv:not(.ready) {
+		background-image: none !important;
+	}
+	/* the card and its buttons' faces move as one (the faces turn about the card's centre: faceOrigin) */
+	.card-mv,
+	.cf {
+		opacity: 0;
+		transform: translateY(var(--card-y)) scale(var(--card-s));
+		transition:
+			opacity var(--card-out-ms) linear,
+			transform var(--card-out-ms) linear;
+	}
+	.arm.confirm .card-mv,
+	.arm.confirm .cf {
+		opacity: 1;
+		transform: none;
+		transition:
+			opacity var(--dur-l) var(--ease) var(--card-delay),
+			transform var(--dur-l) var(--ease) var(--card-delay);
 	}
 	.c-art {
 		position: absolute;
@@ -1288,6 +1669,17 @@
 		left: 76px;
 		right: 76px;
 		top: 266px;
+		bottom: 84px;
+		display: flex;
+		flex-direction: column;
+		text-align: center;
+		gap: 6px;
+	}
+	/* the two buttons: still boxes at the foot of the card body */
+	.c-keys {
+		position: absolute;
+		left: 76px;
+		right: 76px;
 		bottom: 84px;
 		display: flex;
 		flex-direction: column;
@@ -1356,24 +1748,24 @@
 		color: var(--cream-2);
 		text-wrap: pretty;
 	}
+	/* CONFIRM is not live before the guard (350 ms), then appears in 80 ms */
 	.c-confirm {
-		margin-top: auto;
 		flex: none;
 		height: 60px;
 		opacity: 0;
 		visibility: hidden;
 		transition:
-			opacity 80ms linear,
+			opacity var(--guard-fade-ms) linear,
 			visibility 0s,
-			transform 60ms linear;
+			translate 60ms linear;
 	}
 	.arm.confirm .c-confirm {
 		opacity: 1;
 		visibility: visible;
 		transition:
-			opacity 80ms linear var(--guard-ms),
+			opacity var(--guard-fade-ms) linear var(--guard-ms),
 			visibility 0s linear var(--guard-ms),
-			transform 60ms linear;
+			translate 60ms linear;
 	}
 	.cancel {
 		margin: 2px auto 0;
@@ -1389,7 +1781,10 @@
 		opacity: 0.85;
 		transition:
 			opacity 100ms linear,
-			transform 60ms linear;
+			translate 60ms linear;
+	}
+	.cancel .face {
+		display: block;
 	}
 	.c-flash {
 		position: absolute;
@@ -1410,10 +1805,5 @@
 		transition-duration: 0s !important;
 		transition-delay: 0s !important;
 		animation: none !important;
-	}
-	@keyframes arm-in {
-		from {
-			opacity: 0;
-		}
 	}
 </style>

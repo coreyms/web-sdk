@@ -114,9 +114,9 @@
 	class:armoury-confirm={armouryView.confirm}
 	class:armoury-closing={armouryView.closing}
 	style:--arm-ease={ARMOURY_SWITCH ? pickEase(ARMOURY.motion) : null}
-	style:--arm-back={ARMOURY_SWITCH ? `${ARMOURY.motion.backMs}ms` : null}
-	style:--arm-step={ARMOURY_SWITCH ? `${ARMOURY.tint.confirmMs}ms` : null}
-	style:--arm-close={ARMOURY_SWITCH ? `${ARMOURY.motion.closeMs}ms` : null}
+	style:--arm-back={ARMOURY_SWITCH ? `${armouryView.reduced ? 0 : ARMOURY.motion.backMs}ms` : null}
+	style:--arm-step={ARMOURY_SWITCH ? `${armouryView.reduced ? 0 : ARMOURY.tint.confirmMs}ms` : null}
+	style:--arm-close={ARMOURY_SWITCH ? `${armouryView.reduced ? 0 : ARMOURY.motion.closeMs}ms` : null}
 	style:--arm-dim={ARMOURY_SWITCH ? 1 - ARMOURY.tint.confirmAdd - ARMOURY.tint.opacity : null}
 >
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px">

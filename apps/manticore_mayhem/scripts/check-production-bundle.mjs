@@ -13,7 +13,9 @@
 // the deployer can confirm the flag took.
 //
 // The markers are strings that exist ONLY in the staging code and survive minification (property names,
-// DOM ids and attributes, query parameter names, button copy). Add one here whenever staging code grows.
+// DOM ids and attributes, query parameter names, button copy). Add one here whenever staging code grows. A marker
+// may be a RegExp where the bare word is also in the game (THE ARMOURY's switch: "armoury" is in class names and
+// asset paths, so the marker is the URL parameter READ itself).
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
 
@@ -27,7 +29,12 @@ export const STAGING_MARKERS = [
 	'Copy results', // the readout's button
 	'rescap', // game/deviceTier.ts: the resolution cap override's query parameter
 	'getHighEntropyValues', // staging/PerfReadout.svelte: nothing in the game asks for device details
+	/\.get\(\s*["'`]armoury["'`]\s*\)/, // game/armourySwitch.ts: the `?armoury=1` read (THE ARMOURY on staging, 2026-10-14)
 ];
+/** a marker's name in the report */
+const label = (m) => (typeof m === 'string' ? m : m.source);
+/** where a marker is in a text, or -1 */
+const find = (text, m) => (typeof m === 'string' ? text.indexOf(m) : text.search(m));
 const TEXT = new Set(['.js', '.mjs', '.css', '.html', '.json', '.map', '.txt', '.svg']);
 
 const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? walk(join(dir, d.name)) : [join(dir, d.name)]));
@@ -42,9 +49,10 @@ export const scan = (build) => {
 		const text = readFileSync(file, 'utf8');
 		files += 1;
 		bytes += statSync(file).size;
-		for (const marker of STAGING_MARKERS) {
-			const at = text.indexOf(marker);
-			if (at >= 0) hits.push({ file: relative(build, file), marker, context: text.slice(Math.max(0, at - 40), at + marker.length + 40).replace(/\s+/g, ' ') });
+		for (const m of STAGING_MARKERS) {
+			const at = find(text, m);
+			const marker = label(m);
+			if (at >= 0) hits.push({ file: relative(build, file), marker, context: text.slice(Math.max(0, at - 40), at + 60).replace(/\s+/g, ' ') });
 		}
 	}
 	return { hits, files, bytes };
@@ -61,7 +69,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 	const { hits, files, bytes } = scan(build);
 	const found = [...new Set(hits.map((h) => h.marker))];
 	if (expectStaging) {
-		const missing = STAGING_MARKERS.filter((m) => !found.includes(m));
+		const missing = STAGING_MARKERS.map(label).filter((m) => !found.includes(m));
 		if (missing.length) {
 			console.error(`[check-production-bundle] --expect-staging: this is NOT a complete staging build. Missing: ${missing.join(', ')}. Was it built with PUBLIC_STAGING=1?`);
 			process.exit(1);

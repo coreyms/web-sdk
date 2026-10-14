@@ -18,6 +18,10 @@ export const armouryView = $state({
 	closing: false,
 	/** the tint's colour: the chosen mode's */
 	tint: '#000000',
+	/** bumped on a layout change while open (rotation, resize): every animation stops, everything snaps to rest */
+	snap: 0,
+	/** prefers-reduced-motion, read once when the menu mounts: the lit HUD's steps are 0 ms too */
+	reduced: false,
 });
 
 /**

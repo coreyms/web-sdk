@@ -30,15 +30,23 @@ export const ARMOURY = {
 		plateAtMs: 200,
 		contentAtMs: [200, 240, 280],
 		contentFadeMs: 160,
+		/** the open: the tray slab's fade, and the name's and the close button's */
+		trayFadeMs: 90,
+		headFadeMs: 120,
 		slide: 80,
+		/** portrait, tablet and sideways (commits 7 and 8): every slide is halved there */
 		slideTouch: 40,
 		swapOutMs: 120,
 		heroSwapSlide: 0.45,
 		textSwapSlide: 0.25,
 		textSwapDelayMs: 30,
 		heroSwapRun: 1.25,
+		/** CONFIRM is not live before this, then appears in confirmFadeMs (a wrong click guard; kept under reduced motion) */
 		confirmGuardMs: 350,
+		confirmFadeMs: 80,
 		confirmDelayMs: 60,
+		/** activate: the tiles not chosen sink this far (desktop) while the tray fades */
+		sinkPx: 15,
 		cardFrom: { y: 30, scale: 0.92 },
 		cardOutMs: 130,
 		backMs: 330,
