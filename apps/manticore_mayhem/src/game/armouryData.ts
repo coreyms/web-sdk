@@ -73,6 +73,9 @@ export const ARMOURY_ASSETS = {
 	thumbs: '/assets/ui/armoury/thumbs.webp',
 	/** the flat hero: its grid's straight-on frame, full tier 640 px high, phone tier (PHONE_TIER) 320 */
 	hero: (art: ArmouryArt, half: boolean) => `/assets/ui/armoury/hero-${art}${half ? '-half' : ''}.webp`,
+	/** the confirm card's frame for the DESKTOP layout (the approved 1024 x 1536 original; the other layouts and the
+	 *  moment before it is decoded use the intro cards' 768 px frame). Fetched when the menu opens, never at boot */
+	cardLg: '/assets/ui/armoury/card-frame-lg.webp',
 	/** the angle grids, if any: { <art>: { cols, rows, yaw, pitch, ar, cell, grid, turn } } (ui/armoury/heroGrid.ts parseHeroes) */
 	heroes: '/assets/ui/armoury/heroes.json',
 } as const;

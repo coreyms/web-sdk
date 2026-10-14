@@ -46,9 +46,10 @@
 	// HUD reaches down through this extra to the real viewport edge (Corey 2026-09-06).
 	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : 0);
 
-	// THE ARMOURY (DEV switch ?armoury=1, game/armourySwitch.ts; spec feedback/armoury_build_r1): the menu follows the
-	// chrome (ui/armoury/menuFrame.ts). It takes over from the old menu only where its layout is built: the desktop
-	// layout over the landscape chrome (commit 4). Everywhere else, and always without the switch, the old menu stays.
+	// THE ARMOURY (on by default since 2026-10-14; `?armoury=0` turns it off on dev and staging only, game/armourySwitch.ts;
+	// spec feedback/armoury_build_r1): the menu follows the chrome (ui/armoury/menuFrame.ts). It takes over from the old
+	// menu only where its layout is built: the desktop layout over the landscape chrome. Everywhere else (portrait phone,
+	// tablet, sideways, the small 16:9 frames, until part C), and with the switch off, the old menu stays.
 	const vw = $derived(innerWidth.current ?? 1);
 	const vh = $derived(innerHeight.current ?? 1);
 	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));

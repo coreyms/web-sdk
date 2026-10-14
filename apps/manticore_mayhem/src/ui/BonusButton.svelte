@@ -9,6 +9,11 @@
 	// no backdrop-filter in the chrome.
 	import Icon from './Icon.svelte';
 	import type { Controls } from './controls.svelte';
+	// THE ARMOURY: where it is the menu for the chrome on screen (armouryView.takes), with a mode on this button OPENS
+	// the menu (controls.bonusPress), so its label must not say "Disable Ante" / "Cancel X". Where the old menu shows,
+	// the label is exactly as before.
+	import { armouryView } from './armoury/armouryView.svelte';
+	import { ARMOURY_TEXT, fill } from '../game/armouryText';
 
 	type Props = { size?: number; controls: Controls };
 	const { size = 92, controls }: Props = $props();
@@ -37,7 +42,7 @@
 	class:on
 	disabled={controls.bonusDisabled()}
 	onclick={controls.bonusPress}
-	aria-label={ante ? 'Disable Ante' : armedKey ? `Cancel ${armedKey}` : soc('Buy bonus', 'Get bonus')}
+	aria-label={armouryView.takes && onLabel ? fill(ARMOURY_TEXT.aria.hudButtonOn, { name: onLabel }) : ante ? 'Disable Ante' : armedKey ? `Cancel ${armedKey}` : soc('Buy bonus', 'Get bonus')}
 	style:width="{size}px"
 	style:height="{size}px"
 	style:border-radius="{radius}px"

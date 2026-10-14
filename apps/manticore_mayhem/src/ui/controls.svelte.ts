@@ -11,7 +11,6 @@ import { modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 import { SLAM_HURRY } from '../game/constants';
-import { ARMOURY_SWITCH } from '../game/armourySwitch';
 import { armouryView } from './armoury/armouryView.svelte';
 
 export const createControls = () => {
@@ -219,9 +218,10 @@ export const createControls = () => {
 		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
 		sound('soundPressBonus');
 		// same gesture as switching Ante off: while a mode is active/armed the head button disarms it
-		// (and unloads any waiting autoplay run with it). THE ARMOURY (DEV switch ?armoury=1, owner 2026-10-13 22:18,
-		// answer 1): with a mode on the button OPENS the menu on that mode; switching off happens inside the menu.
-		if ((anteActive() || armedBuy()) && !ARMOURY_SWITCH) cancelArmed();
+		// (and unloads any waiting autoplay run with it). THE ARMOURY (owner 2026-10-13 22:18, answer 1): where it is the
+		// menu for the chrome on screen (armouryView.takes), with a mode on the button OPENS the menu on that mode and
+		// switching off happens inside the menu. Where the old menu still shows, the button disarms as it always did.
+		if ((anteActive() || armedBuy()) && !armouryView.takes) cancelArmed();
 		else stateModal.modal = { name: 'buyBonus' };
 	};
 	const activateMode = (mode: string) => {

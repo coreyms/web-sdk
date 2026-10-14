@@ -1,1 +1,182 @@
-{}
+{
+	"crest-day": {
+		"cols": 5,
+		"rows": 3,
+		"yaw": [
+			-10,
+			-5,
+			0,
+			5,
+			10
+		],
+		"pitch": [
+			-5,
+			0,
+			5
+		],
+		"ar": 0.99805,
+		"cell": [
+			639,
+			640
+		],
+		"grid": "grid-crest-day.webp",
+		"turn": "turn-crest-day.webp",
+		"turnCell": [
+			319,
+			320
+		]
+	},
+	"crest-fire": {
+		"cols": 5,
+		"rows": 3,
+		"yaw": [
+			-10,
+			-5,
+			0,
+			5,
+			10
+		],
+		"pitch": [
+			-5,
+			0,
+			5
+		],
+		"ar": 0.99805,
+		"cell": [
+			639,
+			640
+		],
+		"grid": "grid-crest-fire.webp",
+		"turn": "turn-crest-fire.webp",
+		"turnCell": [
+			319,
+			320
+		]
+	},
+	"standard": {
+		"cols": 5,
+		"rows": 3,
+		"yaw": [
+			-10,
+			-5,
+			0,
+			5,
+			10
+		],
+		"pitch": [
+			-5,
+			0,
+			5
+		],
+		"ar": 0.93359,
+		"cell": [
+			598,
+			640
+		],
+		"grid": "grid-standard.webp",
+		"turn": "turn-standard.webp",
+		"turnCell": [
+			299,
+			320
+		]
+	},
+	"dagger": {
+		"cols": 9,
+		"rows": 3,
+		"yaw": [
+			-10,
+			-7.5,
+			-5,
+			-2.5,
+			0,
+			2.5,
+			5,
+			7.5,
+			10
+		],
+		"pitch": [
+			-5,
+			0,
+			5
+		],
+		"ar": 1.0918,
+		"cell": [
+			559,
+			512
+		],
+		"grid": "grid-dagger.webp",
+		"turn": "turn-dagger.webp",
+		"turnCell": [
+			280,
+			256
+		]
+	},
+	"crown": {
+		"cols": 21,
+		"rows": 1,
+		"yaw": [
+			-10,
+			-9,
+			-8,
+			-7,
+			-6,
+			-5,
+			-4,
+			-3,
+			-2,
+			-1,
+			0,
+			1,
+			2,
+			3,
+			4,
+			5,
+			6,
+			7,
+			8,
+			9,
+			10
+		],
+		"pitch": [
+			0
+		],
+		"ar": 1.0332,
+		"cell": [
+			529,
+			512
+		],
+		"grid": "grid-crown.webp",
+		"turn": "turn-crown.webp",
+		"turnCell": [
+			264,
+			256
+		]
+	},
+	"seal": {
+		"cols": 5,
+		"rows": 3,
+		"yaw": [
+			-10,
+			-5,
+			0,
+			5,
+			10
+		],
+		"pitch": [
+			-5,
+			0,
+			5
+		],
+		"ar": 0.92773,
+		"cell": [
+			594,
+			640
+		],
+		"grid": "grid-seal.webp",
+		"turn": "turn-seal.webp",
+		"turnCell": [
+			297,
+			320
+		]
+	}
+}

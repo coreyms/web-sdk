@@ -2,9 +2,9 @@
 	// THE ARMOURY: the feature menu (spec ~/Desktop/Manticore Mayhem/feedback/armoury_build_r1/SPEC.md; the approved
 	// prototype images/feature_menu_r2/, page.css and page.js). Spec commit 4: the DESKTOP layout; commit 5: its MOTION
 	// (spec 5: the staggered open, the swap, activate to confirm, cancel, close, reduced motion, every interruption of
-	// 5.6); flat hero art with no tilt or follow (commit 6); portrait, tablet, sideways and the small 16:9 frames are
-	// commits 7 and 8 (the old menu stays there until then). Mounted only behind the DEV switch (game/armourySwitch.ts,
-	// `?armoury=1`).
+	// 5.6); commit 6: THE HERO (HeroView.svelte: follow, tilt, the angle grids and their load queue, breathing, the idle
+	// turn) and the warm pass, with the desktop keyboard, focus trap, `inert` and labels (spec 7.3, 7.4); portrait,
+	// tablet, sideways and the small 16:9 frames are commits 7 and 8 (the old menu stays there until then).
 	//
 	// MOTION. Transform and opacity only, every number from constants.ts ARMOURY.motion, the ease from motion.ts. The
 	// one shot moves of the open and of a swap are motion.ts movers (element.animate, one mover per group so a group can
@@ -39,6 +39,7 @@
 	import type { Controls } from '../controls.svelte';
 	import type { MenuFrame } from './menuFrame';
 	import { armouryView } from './armouryView.svelte';
+	import HeroView from './HeroView.svelte';
 	import { fitConfirmAmount, fitPrice } from './fit';
 	import { createMover, entranceEnd, entrancePlan, moveDurations, pickEase, prefersReducedMotion, swapPlan, type Mover, type MoveOptions, type Step } from './motion';
 	import { ARMOURY } from '../../game/constants';
@@ -49,7 +50,7 @@
 	import { INTRO_CARD_ASSETS } from '../../game/introCards';
 	import { ARMOURY_ART_ORDER, ARMOURY_ASSETS, ARMOURY_MODES, armouryMode, type ArmouryMode, type ArmouryModeId } from '../../game/armouryData';
 	import { ARMOURY_TEXT as TX, afterTag, anteConfirm, armouryName, boldRuns, fill } from '../../game/armouryText';
-	import { armouryDecoded, loadArmouryCore } from '../../game/armouryLoad';
+	import { armouryDecoded, whenArmouryCore, heroGridReady, heroGridsInfo, loadArmouryCore, onHeroGrids, pauseHeroGrids, selectHeroGrid, startHeroGrids } from '../../game/armouryLoad';
 
 	type Props = { controls: Controls; frame: MenuFrame; takes: boolean };
 	const { controls, frame, takes }: Props = $props();
@@ -126,6 +127,56 @@
 	let tileEls = $state<Record<string, HTMLButtonElement | undefined>>({});
 	let tileMv = $state<Record<string, HTMLSpanElement | undefined>>({});
 	let ctaEl = $state<HTMLButtonElement>();
+
+	// ---- the hero (spec 5.4; HeroView.svelte) and its angle grids (spec 3.3; game/armouryLoad.ts) ------------------
+	let heroView = $state<ReturnType<typeof HeroView>>();
+	/** bumped whenever a grid's state changes (a decode landed, one was let go) */
+	let gridTick = $state(0);
+	const heroGrid = $derived.by(() => {
+		void gridTick;
+		const h = heroGridReady(mode.art);
+		return h ? { view: h.view, url: h.url } : null;
+	});
+	/** no entrance or swap moves the hero now: a decoded grid may take over from the flat art */
+	const calm = () => phase === 'open' && !confirm && !swapOut && !swapTimer && mv.hero.running() === 0;
+	let gridTimer: ReturnType<typeof setTimeout> | undefined;
+	/** the first open has asked for the grids (after its entrance, ARMOURY.hero.gridAfterOpenMs) */
+	let gridsAsked = false;
+	onMount(() => onHeroGrids(() => (gridTick += 1)));
+	// the hero on show goes to the front of the load queue
+	$effect(() => {
+		const art = mode.art;
+		untrack(() => selectHeroGrid(art));
+	});
+	// the queue holds while a round is in flight and carries on at idle (spec 3.3 point 5)
+	$effect(() => {
+		const idle = controls.isIdle();
+		untrack(() => pauseHeroGrids(!idle));
+	});
+
+	// ---- the warm pass (spec 3.3 point 6): once the menu core is decoded and the game is idle with no modal up, the menu
+	// is mounted ONCE at 1 % opacity for two frames and unmounted (the cure for "first open is weird"). Never in a
+	// round, never once the menu has been opened. It takes no pointer, no focus and is hidden from screen readers.
+	let warm = $state(false);
+	let warmed = false;
+	let coreIn = $state(false);
+	// waits for the deferred phase's last group; never asks for it (that would pull it into the loading screen)
+	onMount(() => void whenArmouryCore().then(() => (coreIn = true)));
+	$effect(() => {
+		if (!coreIn || !takes || warmed || phase !== 'closed' || stateModal.modal != null || !controls.isIdle() || document.hidden) return;
+		untrack(() => {
+			warmed = true;
+			warm = true;
+			for (const url of allPics()) want(url);
+			requestAnimationFrame(() =>
+				requestAnimationFrame(() =>
+					requestAnimationFrame(() => {
+						warm = false;
+					}),
+				),
+			);
+		});
+	});
 
 	const opts = (s: Step, extra: Partial<MoveOptions> = {}): MoveOptions => ({
 		from: s.fromY ? `translateY(${s.fromY}px)` : undefined,
@@ -238,8 +289,17 @@
 		armouryView.closing = false;
 		armouryView.open = true;
 		armouryView.shown = true;
+		warm = false;
+		warmed = true;
 		loadArmouryCore(); // the deferred group may not have landed yet: it is asked for now (the menu never waits)
 		for (const url of allPics()) want(url);
+		if (frame.layout === 'desktop') want(PIC.cardLg); // the large confirm card frame: with the menu, never at boot
+		// the angle grids: nothing before the first open; then heroes.json and the atlases one at a time once its entrance
+		// is over (spec 3.3 point 4). A close before then does not cancel it: the player has shown the menu is wanted
+		if (!gridsAsked) {
+			gridsAsked = true;
+			gridTimer = setTimeout(() => void startHeroGrids(mode.art), reduced ? 0 : ARMOURY.hero.gridAfterOpenMs);
+		}
 		void loadFonts();
 		const seq = openSeq;
 		tick().then(() => {
@@ -271,7 +331,9 @@
 		clearTimeout(swapTimer);
 		swapTimer = undefined;
 		stopMotion();
-		const hadFocus = !!rootEl && rootEl.contains(document.activeElement);
+		const a = document.activeElement;
+		const hadFocus = (!!rootEl && rootEl.contains(a)) || a === document.body || a == null || hudSteppers().includes(a as HTMLButtonElement);
+		setHudInert('off'); // before the focus goes back to the HUD's feature button
 		phase = 'closed';
 		confirm = false;
 		flash = false;
@@ -316,6 +378,7 @@
 	onMount(() => () => {
 		clearTimeout(closeTimer);
 		clearTimeout(swapTimer);
+		clearTimeout(gridTimer);
 		stopMotion();
 		armouryView.shown = armouryView.open = armouryView.confirm = armouryView.closing = false;
 	});
@@ -431,9 +494,78 @@
 		return true;
 	};
 
+	// ---- access (spec 7.3, 7.4): the Tab order, the focus trap, `inert` on the HUD under the menu ------------------
+	const HUD_FIT = '.am-ui.layer:not(.modals) .fit';
+	/** the HUD's two bet steppers, lit above the tint and live: the minus and the plus (never the bet readout, which
+	 *  would open the bet picker in the menu's place) */
+	const hudSteppers = (): HTMLButtonElement[] => {
+		const cell = document.querySelector(`${HUD_FIT} .trio > .cell.right`);
+		return cell ? [...cell.querySelectorAll<HTMLButtonElement>('button')].filter((b) => !b.closest('.spin-slot')) : [];
+	};
+	/** what Tab walks, in order: the six tiles in reading order, ACTIVATE, close, then the HUD's minus and plus. In
+	 *  confirm: CONFIRM (once its guard is over and it shows) and Cancel */
+	const tabStops = (): HTMLElement[] => {
+		const usable = (el: HTMLElement | undefined | null): el is HTMLElement =>
+			!!el && !(el as HTMLButtonElement).disabled && !el.closest('[inert]') && getComputedStyle(el).visibility !== 'hidden';
+		if (confirm) return ([confirmBtn, cancelBtn] as (HTMLElement | undefined)[]).filter(usable);
+		const tiles: (HTMLElement | undefined)[] = trayGroups.flatMap((g) => g.modes).map((m) => tileEls[m.id]);
+		return [...tiles, ctaEl, closeEl, ...hudSteppers()].filter(usable);
+	};
+	const moveFocus = (dir: 1 | -1) => {
+		const stops = tabStops();
+		if (!stops.length) return;
+		const i = stops.indexOf(document.activeElement as HTMLElement);
+		const next = i < 0 ? (dir > 0 ? 0 : stops.length - 1) : (i + dir + stops.length) % stops.length;
+		stops[next].focus({ preventScroll: true });
+	};
+	/** `inert` set by this menu on the HUD (only these are taken off again) */
+	let inerted: Element[] = [];
+	/** everything in the HUD layer is inert under the open menu but the lit BALANCE, the two steppers and the tint (the
+	 *  tint is over the rest anyway; this keeps the keyboard and screen readers off it too). In confirm the whole HUD
+	 *  is, the tint still not */
+	const setHudInert = (how: 'off' | 'open' | 'confirm') => {
+		for (const el of inerted) el.removeAttribute('inert');
+		inerted = [];
+		if (how === 'off' || typeof document === 'undefined') return;
+		const fit = document.querySelector(HUD_FIT);
+		if (!fit) return;
+		const keep: Element[] = how === 'open' ? [...hudSteppers(), ...document.querySelectorAll(`${HUD_FIT} .trio > .cell.left`)] : [];
+		const path = new Set<Element>();
+		for (const k of keep) for (let e: Element | null = k; e && e !== fit; e = e.parentElement) path.add(e);
+		const walk = (parent: Element) => {
+			for (const c of parent.children) {
+				// the tint stays out: an inert element is skipped by hit testing, and the tint must take every press
+				if (keep.includes(c) || c.classList.contains('armoury-tint')) continue;
+				if (path.has(c)) walk(c);
+				else if (!c.hasAttribute('inert')) {
+					c.setAttribute('inert', '');
+					inerted.push(c);
+				}
+			}
+		};
+		walk(fit);
+	};
+	$effect(() => {
+		const how = phase === 'open' ? (confirm ? 'confirm' : 'open') : 'off';
+		void frame.layout;
+		void armouryView.snap;
+		untrack(() => {
+			if (how === 'off') setHudInert('off');
+			// after the DOM settles (a remounted chrome after a layout change has new elements)
+			else tick().then(() => phase !== 'closed' && setHudInert(phase === 'open' ? (confirm ? 'confirm' : 'open') : 'off'));
+		});
+	});
+	onMount(() => () => setHudInert('off'));
+
 	// ---- keys (spec 7.3) -------------------------------------------------------------------------------------------
 	const onKey = (e: KeyboardEvent) => {
 		if (phase !== 'open') return;
+		if (e.key === 'Tab') {
+			// the focus trap: Tab and Shift+Tab walk the menu's stops (and the lit steppers) and wrap
+			e.preventDefault();
+			moveFocus(e.shiftKey ? -1 : 1);
+			return;
+		}
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			if (confirm) cancel();
@@ -518,11 +650,14 @@
 		plaque: stamp(ARMOURY_ASSETS.plaque),
 		crest: stamp(ARMOURY_ASSETS.crest),
 		card: stamp(INTRO_CARD_ASSETS.frame),
+		cardLg: stamp(ARMOURY_ASSETS.cardLg),
 		hero: (m: ArmouryMode) => stamp(ARMOURY_ASSETS.hero(m.art, PHONE_TIER)),
 	};
 	const allPics = () => [PIC.thumbs, PIC.plaque, PIC.crest, PIC.card, ...ARMOURY_MODES.map(PIC.hero)];
 	/** url -> its aspect ratio, once decoded */
 	const pics = $state<Record<string, number>>({});
+	/** the confirm card's frame: on desktop the large one once it is decoded (spec 3.1, decided in the spec) */
+	const cardPic = $derived(frame.layout === 'desktop' && pics[PIC.cardLg] != null ? PIC.cardLg : PIC.card);
 	const asked = new Set<string>();
 	const want = (url: string) => {
 		if (asked.has(url) || typeof window === 'undefined') return;
@@ -567,12 +702,13 @@
 	};
 	const trayGroups = (['spin', 'buy'] as const).map((g) => ({ g, modes: ARMOURY_MODES.filter((m) => m.group === g) }));
 
-	/** every animation now running on the menu, its tint or the lit HUD cells (spec 5.6: zero after any interruption) */
+	/** every animation now running on the menu, its tint or the lit HUD cells (spec 5.6: zero after any interruption).
+	 *  The hero's breathing is the one deliberate endless motion (spec 5.4) and is not counted */
 	const running = () => {
 		try {
 			return document.getAnimations().filter((a) => {
 				const t = (a.effect as KeyframeEffect | null)?.target;
-				return a.playState !== 'finished' && a.playState !== 'idle' && t instanceof Element && !!t.closest('.arm, .armoury-tint, .trio > .cell');
+				return a.playState !== 'finished' && a.playState !== 'idle' && t instanceof Element && !!t.closest('.arm, .armoury-tint, .trio > .cell') && !t.classList.contains('hero-breathe');
 			}).length;
 		} catch {
 			return 0;
@@ -608,14 +744,21 @@
 				status: status ? { tag: status.tag, text: status.text } : null,
 				tint: armouryView.tint,
 				decoded: Object.keys(pics).length,
-				hero: 'flat',
+				/** the hero on show: 'grid' or 'flat', its frame, the loop (HeroView.svelte debug()) */
+				hero: heroView?.debug()?.mode ?? 'flat',
+				heroView: heroView?.debug() ?? null,
+				/** each hero's grid: unasked, none, waiting, loading, ready, released, failed; what is held decoded */
+				grids: heroGridsInfo(),
+				cardFrame: cardPic === PIC.cardLg ? 'lg' : 'intro',
+				warm,
+				warmed,
 				reduced,
 				/** animations running now on the menu, its tint and the lit HUD cells (CSS transitions included) */
 				running: running(),
 				/** the moves this menu started that are still running, per group */
 				moves: Object.fromEntries(Object.entries(mv).map(([k, g]) => [k, g.running()])),
-				/** no requestAnimationFrame loop yet (the hero's follow is commit 6) */
-				loop: false,
+				/** the hero's requestAnimationFrame loop is running now (spec 5.4: only while something moves) */
+				loop: heroView?.debug()?.loop ?? false,
 				balance: stateBet.balanceAmount,
 				bet: stateBet.betAmount,
 				mode: stateBet.activeBetModeKey,
@@ -656,6 +799,15 @@
 				};
 			},
 			constants: () => ARMOURY,
+			/** hold the hero's pointer at design px from its pointer centre (null: the real pointer again) */
+			setPointer: (x: number | null, y?: number) => heroView?.setPointer(x, y),
+			/** hold the idle motion still (the touch turn and the breathing) */
+			freezeIdle: (on: boolean) => heroView?.freezeIdle(on),
+			/** a probe's own clock for the hero (deterministic clips): heroClock(true), then heroTick(ms) per frame */
+			heroClock: (on: boolean) => heroView?.manualClock(on),
+			heroTick: (ms: number) => heroView?.tickBy(ms),
+			/** the stops Tab walks now, as labels */
+			tabStops: () => tabStops().map((el) => el.getAttribute('aria-label') || el.textContent?.trim() || el.className),
 			/** the open's and a swap's plans as built (spec 5.2), and when the open is settled */
 			timeline: () => {
 				const steps = entrancePlan(M, { tiles: ARMOURY_MODES.length, touch: false, reduced });
@@ -677,11 +829,14 @@
 {#snippet burst(cls: string)}<svg class="burst {cls}" viewBox="0 0 100 100" aria-hidden="true"><use href="#arm-burst" width="100" height="100" /></svg>{/snippet}
 {#snippet thumb(m: ArmouryMode, cls: string)}<span class="tpic {cls}" class:ready={pics[PIC.thumbs] != null} style:background-image={url(PIC.thumbs)} style:background-position={thumbPos(m)}></span>{/snippet}
 
-{#if phase !== 'closed'}
+{#if phase !== 'closed' || warm}
 	{#key openSeq}
 		<div
 			class="arm"
 			class:open={phase === 'open'}
+			class:warm={warm && phase === 'closed'}
+			inert={warm && phase === 'closed'}
+			aria-hidden={warm && phase === 'closed' ? 'true' : undefined}
 			class:closing={phase === 'closing'}
 			class:confirm
 			class:has-odds={!!mode.odds}
@@ -731,23 +886,27 @@
 				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" /></svg>
 			</button>
 
-			<!-- the hero: flat art in this commit (the grid's straight-on frame), rays and a ground shadow. Still box (the
-			     confirm's fade), the swap's fade out, then the moving wrapper (the open's rise, a swap's rise) -->
+			<!-- the hero (HeroView.svelte): flat art, then its angle grid once decoded; rays and a ground shadow. Still box
+			     (the confirm's fade), the swap's fade out, then the moving wrapper (the open's rise, a swap's rise) -->
 			<div class="hero" aria-hidden="true">
 				<div class="hero-fade" ontransitionend={onFadeEnd}>
 					<div class="hero-mv" bind:this={heroMv}>
 						<div class="hero-in">
-							{@render burst('')}
-							<div class="shadow"></div>
-							{#key mode.id}
-								<div
-									class="hero-img pic"
-									class:ready={pics[PIC.hero(mode)] != null}
-									style:background-image={url(PIC.hero(mode))}
-									style:height="{mode.heroH * 100}%"
-									style:aspect-ratio={pics[PIC.hero(mode)] ?? 1}
-								></div>
-							{/key}
+							<HeroView
+								bind:this={heroView}
+								art={mode.art}
+								flatUrl={PIC.hero(mode)}
+								flatAr={pics[PIC.hero(mode)]}
+								flatReady={pics[PIC.hero(mode)] != null}
+								heroH={mode.heroH}
+								grid={heroGrid}
+								active={phase === 'open' && !confirm && !warm}
+								{calm}
+								frame={{ left: frame.left, top: frame.top, u: frame.u }}
+								{reduced}
+								rules={ARMOURY.hero}
+								raysId="arm-burst"
+							/>
 						</div>
 					</div>
 				</div>
@@ -854,7 +1013,7 @@
 			<!-- the confirm card: the intro cards' own frame, centred; the rest steps back. The card is a still box; its
 			     picture and text rise in a moving wrapper; its two buttons stay put while their faces follow the card -->
 			<div class="card" role="alertdialog" aria-label={fill(TX.confirmTitle, { name: armouryName(mode.id) })} aria-hidden={!confirm} inert={!confirm} tabindex="-1" bind:this={cardEl}>
-				<div class="card-mv" class:ready={pics[PIC.card] != null} style:background-image={url(PIC.card)}>
+				<div class="card-mv" class:ready={pics[cardPic] != null} style:background-image={url(cardPic)}>
 					<div class="c-art" aria-hidden="true"><div class="c-in">{@render burst('')}{@render thumb(mode, 'c-pic')}</div></div>
 					<div class="c-body">
 						<div class="name">{armouryName(mode.id)}</div>
@@ -941,6 +1100,13 @@
 		color: var(--cream);
 		user-select: none;
 		-webkit-user-select: none;
+	}
+	/* the warm pass: mounted once at 1 % for two frames, taking nothing (spec 3.3 point 6) */
+	.arm.warm {
+		opacity: 0.01;
+	}
+	.arm.warm :global(*) {
+		pointer-events: none !important;
 	}
 	/* the close: one fade of the whole menu, no movement. Every other transition stops where it is (spec 5.6) */
 	.arm.closing {
@@ -1121,21 +1287,6 @@
 		margin: calc(var(--bs, 400px) / -2) 0 0 calc(var(--bs, 400px) / -2);
 		color: var(--acc);
 		opacity: 0.5;
-	}
-	.hero-img {
-		position: relative;
-		display: block;
-		flex: none;
-		background: center / contain no-repeat;
-	}
-	.shadow {
-		position: absolute;
-		left: 22%;
-		right: 22%;
-		bottom: 1%;
-		height: 7%;
-		border-radius: 50%;
-		background: radial-gradient(closest-side, var(--shade-55), transparent);
 	}
 
 	/* ── the plate ── */

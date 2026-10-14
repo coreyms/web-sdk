@@ -92,6 +92,9 @@ export const ARMOURY_TEXT = {
 		kind: { spin: soc('per spin mode', 'per play mode'), buy: soc('feature buy', 'feature') } satisfies Record<ArmouryGroup, string>,
 		on: ', on',
 		volatility: 'Volatility {n} of 4',
+		/** the HUD's feature button with a mode on, behind the switch (it OPENS the menu on that mode, owner's answer 1):
+		 *  its label at rest, plus which mode is on. Without the switch the button keeps "Disable Ante" / "Cancel X" */
+		hudButtonOn: soc('Buy bonus, {name} on', 'Get bonus, {name} on'),
 	},
 } as const;
 

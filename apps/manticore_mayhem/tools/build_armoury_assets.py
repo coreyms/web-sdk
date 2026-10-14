@@ -25,8 +25,11 @@ OUTPUTS, static/assets/ui/armoury/ (only finished .webp and one .json; nothing e
   heroes.json              { "<art>": { cols, rows, yaw, pitch, ar, cell, grid, turn, turnCell } } for the heroes whose
                            grids are packed (ui/armoury/heroGrid.ts parseHeroes); {} = flat art everywhere
   grid-<art>.webp          (--grids) the whole set, cols x rows cells in manifest order, row by row, no trimming, no
-                           padding; cells GRID_H px high (frames are only scaled DOWN, never up)
-  turn-<art>.webp          (--grids) the phone tier's strip: the pitch 0 row only, TURN_H px high
+                           padding; cells GRID_H_FOR[art] px high (frames are only scaled DOWN, never up)
+  turn-<art>.webp          (--grids) the phone tier's strip: the pitch 0 row only, half the grid's cell height
+  card-frame-lg.webp       the confirm card's frame for the DESKTOP layout: the approved 1024 x 1536 intro card frame
+                           (spec 3.1 "soft spot", decided in the spec: the desktop confirm card gets the larger picture).
+                           Fetched when the menu opens, never at boot and not in the deferred group
 
 Sizes are kept in step by hand with constants.ts ARMOURY.assets. Every encode is WebP; frames are re-encoded and scaled
 down, never sharpened or upscaled. The folder must stay under FOLDER_MAX_MB (scripts/stamp-assets.mjs fails above it)."""
@@ -46,8 +49,16 @@ HERO_H = 640
 HERO_HALF_H = 320
 CREST_H = 96
 GRID_H = 640          # owner 2026-10-13 22:18: "640px"
-TURN_H = 320
-FOLDER_MAX_MB = 7
+# owner 2026-10-14 10:58 "Okay 512 then": the two fine sets (the dagger's 27 frames, the crown's 21) at 512 px frames
+GRID_H_FOR = {'dagger': 512, 'crown': 512}
+GRID_Q = 86
+CARD_LG = os.path.join(DESK, 'intro_cards_r3', 'card_frame.webp')   # the approved 1024 x 1536 frame
+CARD_LG_Q = 86
+# PROVISIONAL (2026-10-14, part B): the spec's budget was 7 MB (3.4), set on an estimate of 5 to 6 MB of grids. At the
+# owner's sizes (640 px, the dagger and the crown 512) the folder measures 9.25 MB: grids 6.97, phone strips 1.15, the
+# menu core 0.81, card-frame-lg 0.31. Raised to 10 so the build runs; the OWNER decides (keep, or smaller frames / q).
+# Kept in step with scripts/stamp-assets.mjs ARMOURY_MAX_MB and constants.ts ARMOURY.assets.folderMaxMb.
+FOLDER_MAX_MB = 10
 WEBP_MAX = 16383      # the WebP format's largest side
 
 # tray order (game/armouryData.ts ARMOURY_MODES): art key -> hero folder
@@ -132,23 +143,45 @@ def pack(art, h, row_only=False):
     return atlas, (cw, ch), (cols, rows, yaw, pitch, W0 / H0)
 
 
+def grid_h(art):
+    return GRID_H_FOR.get(art, GRID_H)
+
+
+def edge_motion(art, h):
+    """the largest move of the silhouette's left or right edge between two neighbouring frames of the pitch 0 row,
+    in px of a frame drawn h px high (the owner's motion rule: under about 6 px a step)"""
+    d, man, cols, rows, files, yaw, pitch = manifest(art)
+    r = nearest(pitch, 0)
+    boxes = []
+    for c in range(cols):
+        im = Image.open(os.path.join(d, files[r * cols + c])).convert('RGBA')
+        a = im.getchannel('A').point(lambda v: 255 if v > 24 else 0)
+        boxes.append((a.getbbox(), im.height))
+    worst = 0.0
+    for (b0, H0), (b1, _) in zip(boxes, boxes[1:]):
+        if b0 and b1:
+            worst = max(worst, abs(b1[0] - b0[0]) * h / H0, abs(b1[2] - b0[2]) * h / H0)
+    return worst
+
+
 def build_grid(art, dest):
-    grid, cell, (cols, rows, yaw, pitch, ar) = pack(art, GRID_H)
-    turn, tcell, _ = pack(art, TURN_H, row_only=True)
+    gh = grid_h(art)
+    grid, cell, (cols, rows, yaw, pitch, ar) = pack(art, gh)
+    turn, tcell, _ = pack(art, gh // 2, row_only=True)
     gname, tname = 'grid-%s.webp' % art, 'turn-%s.webp' % art
-    gb = write(os.path.join(dest, gname), webp(grid, 86))
-    tb = write(os.path.join(dest, tname), webp(turn, 86))
+    gb = write(os.path.join(dest, gname), webp(grid, GRID_Q))
+    tb = write(os.path.join(dest, tname), webp(turn, GRID_Q))
     entry = {'cols': cols, 'rows': rows, 'yaw': yaw, 'pitch': pitch, 'ar': round(ar, 5), 'cell': list(cell), 'grid': gname,
              'turn': tname, 'turnCell': list(tcell)}
-    info = {'frames': cols * rows, 'cell': cell, 'atlas': grid.size, 'bytes': gb, 'decodedMB': grid.width * grid.height * 4 / 1e6,
+    info = {'frames': cols * rows, 'cell': cell, 'edge': edge_motion(art, cell[1]), 'atlas': grid.size, 'bytes': gb, 'decodedMB': grid.width * grid.height * 4 / 1e6,
             'turnFrames': cols, 'turnAtlas': turn.size, 'turnBytes': tb, 'turnDecodedMB': turn.width * turn.height * 4 / 1e6}
     return entry, info
 
 
 def report_grid(art, info):
-    print('  %-10s %2d frames, cell %dx%d, atlas %5dx%-4d %7.0f KB, %5.1f MB decoded | turn %2d frames %5dx%-3d %5.0f KB, %4.1f MB decoded' % (
+    print('  %-10s %2d frames, cell %dx%d, atlas %5dx%-4d %7.0f KB, %5.1f MB decoded | turn %2d frames %5dx%-3d %5.0f KB, %4.1f MB decoded | edge %.1f px a step at cell size' % (
         art, info['frames'], info['cell'][0], info['cell'][1], info['atlas'][0], info['atlas'][1], info['bytes'] / 1024,
-        info['decodedMB'], info['turnFrames'], info['turnAtlas'][0], info['turnAtlas'][1], info['turnBytes'] / 1024, info['turnDecodedMB']))
+        info['decodedMB'], info['turnFrames'], info['turnAtlas'][0], info['turnAtlas'][1], info['turnBytes'] / 1024, info['turnDecodedMB'], info['edge']))
 
 
 def main():
@@ -170,6 +203,8 @@ def main():
         twot = sorted((t for _, t in dec), reverse=True)[:2]
         print('  all six: %.2f MB of grids (desktop), %.2f MB of turn strips (phone); two held decoded at worst %.1f MB desktop, %.1f MB phone' % (
             tot['bytes'] / 1048576, tot['turn'] / 1048576, sum(two), sum(twot)))
+        card = Image.open(CARD_LG).convert('RGBA')
+        print('  card-frame-lg.webp %dx%d q%d: %.0f KB (source %.0f KB)' % (card.width, card.height, CARD_LG_Q, len(webp(card, CARD_LG_Q)) / 1024, os.path.getsize(CARD_LG) / 1024))
         return
 
     os.makedirs(OUT, exist_ok=True)
@@ -194,6 +229,10 @@ def main():
         sizes['hero-%s.webp' % art] = write(os.path.join(OUT, 'hero-%s.webp' % art), webp(scaled(im, HERO_H), 88))
         sizes['hero-%s-half.webp' % art] = write(os.path.join(OUT, 'hero-%s-half.webp' % art), webp(scaled(im, HERO_HALF_H), 88))
         print('hero  %-10s straight-on frame (yaw %s, pitch %s) of %s, %dx%d' % (art, ang[0], ang[1], HERO_FOR[art], im.width, im.height))
+    # the desktop confirm card's frame: the approved original, re-encoded
+    card = Image.open(CARD_LG).convert('RGBA')
+    assert card.size == (1024, 1536), 'card-frame-lg: expected the 1024 x 1536 original, got %s' % (card.size,)
+    sizes['card-frame-lg.webp'] = write(os.path.join(OUT, 'card-frame-lg.webp'), webp(card, CARD_LG_Q))
     # the grids, if asked for
     want = ORDER if a.grids == 'all' else [g for g in a.grids.split(',') if g]
     for g in want:

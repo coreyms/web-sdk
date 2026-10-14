@@ -5,7 +5,7 @@
 // share, with Chrome.svelte (the lit HUD classes) and components/Logo.svelte (the canvas logo stays under the tint).
 
 export const armouryView = $state({
-	/** the Armoury is the menu for the chrome on screen (the DEV switch, and a layout it draws): the old menu stands
+	/** the Armoury is the menu for the chrome on screen (the switch, on by default, and a layout it draws): the old menu stands
 	 *  down and the HUD stays visible under the open menu */
 	takes: false,
 	/** mounted: open, or fading out after a close */

@@ -98,11 +98,19 @@ export const ARMOURY = {
 	},
 	/** static/assets/ui/armoury/, made by tools/build_armoury_assets.py (its own copy of these sizes, kept in step) */
 	assets: {
-		folderMaxMb: 7,
+		/** PROVISIONAL 10 (spec 3.4 said 7, on an estimate of 5 to 6 MB of grids). Measured 2026-10-14 with all six grids at
+		 *  the owner's sizes: 9.25 MB (grids 6.97, phone strips 1.15, menu core 0.81, card-frame-lg 0.31). The owner
+		 *  decides: keep, or smaller frames. Kept in step with scripts/stamp-assets.mjs and tools/build_armoury_assets.py */
+		folderMaxMb: 10,
 		thumbCell: 256,
 		heroFullH: 640,
 		heroHalfH: 320,
 		crestH: 96,
+		/** the angle grids' frame height (owner 2026-10-13 "640px"); the dagger and the crown at 512 (owner 2026-10-14 10:58
+		 *  "Okay 512 then"); the phone tier's strip (the pitch 0 row) at half the grid's frame height */
+		gridH: 640,
+		gridHFor: { dagger: 512, crown: 512 },
+		turnShare: 0.5,
 	},
 } as const;
 

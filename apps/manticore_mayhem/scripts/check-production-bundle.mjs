@@ -29,7 +29,7 @@ export const STAGING_MARKERS = [
 	'Copy results', // the readout's button
 	'rescap', // game/deviceTier.ts: the resolution cap override's query parameter
 	'getHighEntropyValues', // staging/PerfReadout.svelte: nothing in the game asks for device details
-	/\.get\(\s*["'`]armoury["'`]\s*\)/, // game/armourySwitch.ts: the `?armoury=1` read (THE ARMOURY on staging, 2026-10-14)
+	/\.get\(\s*["'`]armoury["'`]\s*\)/, // game/armourySwitch.ts: the `?armoury=0` escape hatch's read (THE ARMOURY is on by default in every build since 2026-10-14; only staging and dev may turn it off)
 ];
 /** a marker's name in the report */
 const label = (m) => (typeof m === 'string' ? m : m.source);
