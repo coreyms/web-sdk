@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { MULT_PLATE } from './constants';
 
 // Baked textures for the motion pass (components/BoardCells.svelte), built ONCE and cached — house
 // rule: no per-frame textures, no filters. Both are white with alpha so a sprite tint colours them.
@@ -42,4 +43,29 @@ export const glowTexture = (): PIXI.Texture => {
 	ctx.fillRect(0, 0, GLOW_PX, GLOW_PX);
 	glow = PIXI.Texture.from(c);
 	return glow;
+};
+
+/** THE MULTIPLIER TILE'S INNER GLOW (MULT_PLATE.innerGlow*, Corey 2026-10-13 12:06; the Symbol Fit Playground's
+ *  glowFor): one white square, alpha 255 x (1 - e)^power with e the distance to the nearest edge over half the side,
+ *  bright at the edge and clear in the middle. Tinted the level colour and stretched to each cell's box. */
+let innerGlow: PIXI.Texture | null = null;
+export const innerGlowTexture = (): PIXI.Texture => {
+	if (innerGlow) return innerGlow;
+	const N = MULT_PLATE.innerGlowPx;
+	const c = document.createElement('canvas');
+	c.width = N;
+	c.height = N;
+	const ctx = c.getContext('2d')!;
+	const d = ctx.createImageData(N, N);
+	for (let j = 0; j < N; j += 1) {
+		for (let i = 0; i < N; i += 1) {
+			const e = Math.min(i + 0.5, j + 0.5, N - i - 0.5, N - j - 0.5) / (N / 2);
+			const k = (j * N + i) * 4;
+			d.data[k] = d.data[k + 1] = d.data[k + 2] = 255;
+			d.data[k + 3] = Math.round(255 * Math.pow(1 - e, MULT_PLATE.innerGlowPower));
+		}
+	}
+	ctx.putImageData(d, 0, 0);
+	innerGlow = PIXI.Texture.from(c);
+	return innerGlow;
 };

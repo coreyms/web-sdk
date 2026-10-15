@@ -27,7 +27,7 @@
 	// The 8x8 cluster-drop board. Every tile here is a position in stateGame.cells, and every move
 	// those cells make was written by a book event (game/bookEventHandlerMap.ts). This component
 	// draws; it decides nothing.
-	import { Sprite, Rectangle } from 'pixi-svelte';
+	import { Sprite } from 'pixi-svelte';
 	import { stateBet, stateConfig } from 'state-shared';
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
@@ -238,8 +238,9 @@
 
 {#if show}
 	<BoardContainer>
-		<!-- the board window: a tile falling in from above is clipped until it enters the grid -->
-		<Rectangle isMask width={layout.width} height={layout.height} />
+		<!-- NO BOARD WINDOW CLIP (Corey 2026-10-13 12:06, Symbol Fit Playground v7: "board window clip off"): a symbol
+		     on the board, resting or popping, is never cut. Only a tile still coming in over the top edge or leaving under
+		     the bottom edge is cut at the window, by BoardCells' own fall layer -->
 		<!-- the old cell wells: the PRE-LOAD FALLBACK only. Once this layout's frame art is in, its steel
 		     lattice (BoardFrame.svelte, under this container, over the black backing) is the cell grid
 		     and this must not paint over it -->

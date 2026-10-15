@@ -212,7 +212,7 @@ const capCut = (bookEvent: BookEventOfType<'cascade'>, bookEvents: BookEvent[]):
 // own beat will come: the drop says how long it will take as it starts (stateGame dropHook), `after` adds whatever
 // this handler still plays behind it, and the creature starts its wind-up early enough for the strike to land on the
 // beat. Nothing here waits, nothing is delayed: the handlers' own awaits are exactly what they were.
-/** the spin total's last presentation after a spin's last cascade (components/SpinWin.svelte spinWinFinal), style ms */
+/** the spin total's last presentation after a spin's last cascade (components/BoardPlaque.svelte spinWinFinal), style ms */
 const SPIN_FINAL_MS = SPIN_TOTAL.finalDelayMs + SPIN_TOTAL.finalRiseMs + SPIN_TOTAL.finalCountMs + SPIN_TOTAL.finalHoldMs;
 const creatureWhat = (next: BookEvent | undefined) => (next?.type === 'swipe' ? 'swipe' : next?.type === 'roar' ? 'roar' : next?.type === 'sting' ? 'sting' : null);
 /** arm the cue for the feature that follows `bookEvent`'s drop; `after`: style ms this handler plays after the drop */

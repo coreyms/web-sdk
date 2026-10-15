@@ -265,6 +265,32 @@ const assets = {
 	boardGears_landscape: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-landscape.json', import.meta.url).href), preload: atBoot('landscape') },
 	boardGears_phone: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/board-gears-phone.json', import.meta.url).href), stamp(new URL('../../assets/ui/board-gears-phone-half.json', import.meta.url).href)), preload: atBoot('phone') },
 	boardGears_portrait: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-portrait.json', import.meta.url).href), preload: atBoot('portrait') },
+	// THE SPIN AMOUNT PLAQUE (images/spin_amount_final/SPEC.md, components/BoardPlaque.svelte): per layout the day plaque, its
+	// shadow and the crest ride with the frame (the boot layout's preload); the night, fire and crest night / fire join the
+	// frame's night set (FRAME_NIGHT_KEYS: the boot layout's deferred group, the other layouts' late load). The figures'
+	// atlas (Cinzel Bold in inlaid brass, plaque-numerals; the half for the phone tier) preloads: a win can come on the first spin.
+	boardPlaque_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
+	boardPlaqueShadow_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-shadow-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
+	boardPlaqueCrest_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
+	boardPlaque_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-phone.webp', import.meta.url).href), preload: atBoot('phone') },
+	boardPlaqueShadow_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-shadow-phone.webp', import.meta.url).href), preload: atBoot('phone') },
+	boardPlaqueCrest_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-phone.webp', import.meta.url).href), preload: atBoot('phone') },
+	boardPlaque_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
+	boardPlaqueShadow_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-shadow-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
+	boardPlaqueCrest_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
+	boardPlaqueNight_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-night-landscape.webp', import.meta.url).href), preload: false },
+	boardPlaqueFire_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-fire-landscape.webp', import.meta.url).href), preload: false },
+	boardPlaqueCrestNight_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-night-landscape.webp', import.meta.url).href), preload: false },
+	boardPlaqueCrestFire_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-fire-landscape.webp', import.meta.url).href), preload: false },
+	boardPlaqueNight_phone: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-plaque-night-phone.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-plaque-night-phone-half.webp', import.meta.url).href)), preload: false },
+	boardPlaqueFire_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-fire-phone.webp', import.meta.url).href), preload: false },
+	boardPlaqueCrestNight_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-night-phone.webp', import.meta.url).href), preload: false },
+	boardPlaqueCrestFire_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-fire-phone.webp', import.meta.url).href), preload: false },
+	boardPlaqueNight_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-night-portrait.webp', import.meta.url).href), preload: false },
+	boardPlaqueFire_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-fire-portrait.webp', import.meta.url).href), preload: false },
+	boardPlaqueCrestNight_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-night-portrait.webp', import.meta.url).href), preload: false },
+	boardPlaqueCrestFire_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-fire-portrait.webp', import.meta.url).href), preload: false },
+	plaqueNumerals: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/plaque-numerals/plaque-numerals.json', import.meta.url).href), stamp(new URL('../../assets/ui/plaque-numerals/plaque-numerals-half.json', import.meta.url).href)), preload: true },
 	boardFrameNight_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-night-landscape.webp', import.meta.url).href), preload: false },
 	boardFrameNight_phone: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-frame-night-phone.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-frame-night-phone-half.webp', import.meta.url).href)), preload: false },
 	boardFrameNight_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-night-portrait.webp', import.meta.url).href), preload: false },
@@ -540,7 +566,7 @@ export const PLACEHOLDER_LATE: Record<string, { type: string; src: string }> = {
 // own group below); the other two layouts' wait here, keyed by layout, and are fetched the first time the game is
 // turned to that layout (game/deferredLoad.ts loadFrameNightLate, asked by components/BoardFrame.svelte). A desktop
 // that is never resized into the phone master never downloads or decodes that master's 30 MB night set.
-export const FRAME_NIGHT_KEYS = (kind: 'landscape' | 'phone' | 'portrait'): string[] => [`boardFrameNight_${kind}`, `boardFrameFire_${kind}`, `boardGearsNight_${kind}`];
+export const FRAME_NIGHT_KEYS = (kind: 'landscape' | 'phone' | 'portrait'): string[] => [`boardFrameNight_${kind}`, `boardFrameFire_${kind}`, `boardGearsNight_${kind}`, `boardPlaqueNight_${kind}`, `boardPlaqueFire_${kind}`, `boardPlaqueCrestNight_${kind}`, `boardPlaqueCrestFire_${kind}`];
 export const FRAME_NIGHT_LATE: Record<string, Record<string, { type: string; src: string }>> = {};
 {
 	const table = assets as unknown as Record<string, { type: string; src: string }>;

@@ -60,6 +60,7 @@
 	import { boardKick, chainFx, gustFx, gustPulse, gustStart, shoveForeground, type ChainGust } from '../game/featureFx';
 	import { sceneLight } from '../game/scene';
 	import { loadFrameNightLate } from '../game/deferredLoad';
+	import { boardPlateSlot, boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -100,10 +101,20 @@
 	}
 	for (const s of [shadowSprite, shadowDaySprite, nightSprite, fireSprite]) s.visible = false;
 	gearBox.day.tint = FRAME_ART.tint;
-	// the black first, then the frame: the lattice and the rails draw OVER the backing, the tiles over both. The night
-	// gears come AFTER the fire plate, so they cover its light where they sit, and the fire gears add theirs last
-	under.addChild(shadowSprite, shadowDaySprite, backing, frameSprite, gearBox.day, nightSprite, fireSprite, gearBox.night, gearBox.fire);
-	const UNDER_NAMES = new Map<PIXI.Container, string>([[shadowSprite, 'shadow'], [shadowDaySprite, 'shadow-day2'], [backing, 'backing'], [frameSprite, 'frame'], [gearBox.day, 'gears-day'], [nightSprite, 'frame-night'], [fireSprite, 'frame-fire'], [gearBox.night, 'gears-night'], [gearBox.fire, 'gears-fire']]);
+	// THE WHOLE-CELL MULTIPLIER TILES (MULT_PLATE.style 'cell', Corey 2026-10-13 12:06): over the black backing, UNDER
+	// the frame (the bars draw over the tiles, neighbours join under the shared bar). The slot has the board
+	// container's transform (set with the layout below; `under` already carries the kick); BoardCells fills it.
+	const plateSlot = new PIXI.Container({ label: 'board-plates' });
+	boardPlateSlot.current = plateSlot;
+	// the black first, then the tiles, then the frame: the lattice and the rails draw OVER the backing and the tiles,
+	// the symbols over all of it. The night gears come AFTER the fire plate, so they cover its light where they sit,
+	// and the fire gears add theirs last
+	// THE SPIN AMOUNT PLAQUE (components/BoardPlaque.svelte): over every frame layer (it covers part of the rail, so it
+	// must be above the fire plate or the rail's glow would add over it), master units like the frame
+	const plaqueSlot = new PIXI.Container({ label: 'board-plaque' });
+	boardPlaqueSlot.current = plaqueSlot;
+	under.addChild(shadowSprite, shadowDaySprite, backing, plateSlot, frameSprite, gearBox.day, nightSprite, fireSprite, gearBox.night, gearBox.fire, plaqueSlot);
+	const UNDER_NAMES = new Map<PIXI.Container, string>([[shadowSprite, 'shadow'], [shadowDaySprite, 'shadow-day2'], [backing, 'backing'], [plateSlot, 'plates'], [frameSprite, 'frame'], [gearBox.day, 'gears-day'], [nightSprite, 'frame-night'], [fireSprite, 'frame-fire'], [gearBox.night, 'gears-night'], [gearBox.fire, 'gears-fire'], [plaqueSlot, 'plaque']]);
 
 	const chains = new PIXI.Container({ zIndex: 1 });
 	const SIDES = ['L', 'R'] as const;
@@ -320,6 +331,14 @@
 		lit.shadowTint = shadowTint;
 		lit.shadowAlpha = shadowAlpha;
 		lit.shadowDayAlpha = shadowDayAlpha;
+		// the plaque's layers take this same light (components/BoardPlaque.svelte)
+		frameLight.night = night;
+		frameLight.fire = fire;
+		frameLight.nightTint = nightTint;
+		frameLight.fireTint = fireTint;
+		frameLight.shadowTint = shadowTint;
+		frameLight.nightSet = nightSet;
+		frameLight.seq += 1;
 		const day = night < 1;
 		const dark = night > 0;
 		const hasFrame = frameSprite.texture !== PIXI.Texture.EMPTY;
@@ -377,6 +396,11 @@
 		}
 		// the backing: the frame's inner opening (cell area plus the inset)
 		backing.clear().rect(r.opening.x, r.opening.y, r.opening.width, r.opening.height).fill(BOARD_BACKING.color);
+		// the tiles' slot: the board container's own placement (its kick comes from `under`)
+		const bl = context.stateGameDerived.boardLayout();
+		plateSlot.position.set(bl.x, bl.y);
+		plateSlot.pivot.set(bl.pivot.x, bl.pivot.y);
+		plateSlot.scale.set(bl.scale);
 		// the frame: its crop origin in render px through the registration, texture px -> master
 		const fs = BOARD_ART.frame[k];
 		const o = r.map(fs.crop[0], fs.crop[1]);
@@ -690,7 +714,7 @@
 				// the cell area as the board places it, through the parent (master -> screen)
 				const c0 = g(parent.parent, r.cell.x, r.cell.y);
 				const c1 = g(parent.parent, r.cell.x + r.cell.size, r.cell.y + r.cell.size);
-				const boardNode = parent.parent.children.find((c) => c !== under && c !== chains && c.mask) as PIXI.Container | undefined;
+				const boardNode = parent.parent.children.find((c) => c !== under && c !== chains && c.label === 'board') as PIXI.Container | undefined;
 				const masterToScreen = parent.parent.worldTransform.a;
 				const chainOut = {} as Record<Side, unknown>;
 				for (const side of SIDES) {
@@ -818,7 +842,7 @@
 		Object.defineProperty((window as any).__manticore, 'frameGust', {
 			get: () => {
 				const masterToScreen = parent.parent.worldTransform.a;
-				const boardNode = parent.parent.children.find((c) => c !== under && c !== chains && c.mask) as PIXI.Container | undefined;
+				const boardNode = parent.parent.children.find((c) => c !== under && c !== chains && c.label === 'board') as PIXI.Container | undefined;
 				const row = (side: Side) => {
 					const st = strips[side];
 					let m = 0;

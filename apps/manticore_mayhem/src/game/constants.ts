@@ -133,6 +133,50 @@ export const CELL_FILL = 0.94; // drawn tile size as a share of the cell pitch
 export const SYMBOL_FIT = 0.86;
 export const CELL_COUNT = GRID * GRID;
 
+/** THE SYMBOL OVERHAUL (Corey 2026-10-13 12:06, Symbol Fit Playground v7; values file
+ *  images/symbol_fit_r1/values/corey_symbol_fit_2026-10-13_1206_CURRENT.txt; the playground's src/app.js is the
+ *  reference). Per symbol: `size` x the old drawn side (SYMBOL_SIZE x CELL_FILL x SYMBOL_FIT, 0.8084 of the pitch;
+ *  `global` multiplies every symbol), `dx` / `dy` in DESKTOP MASTER px at the playground's pitch `refPitch` (they scale
+ *  with the pitch in every layout: board px = master px / refPitch x SYMBOL_SIZE), `top` the "on top" number.
+ *  PLACEMENT: every symbol on the TRUE centre of its lattice opening (BOARD_ART.crossings per cell), not the uniform
+ *  tile grid; a tile in the air takes its column's centre interpolated by the row it is passing.
+ *  DRAW ORDER (the playground's sort): the POP BAND first (any symbol pulsing or popping: a win pulse, a cluster
+ *  removal, a sting pop, the scatter trigger, the tease breathing) draws above every resting symbol (Corey 12:05);
+ *  inside each band the "on top" number, then lower rows on top, then the cell. Back to the resting order when the
+ *  pop ends. The scatter hanging into the cell below at 1.525 / dy +4.5 is intended.
+ *  Symbols draw OVER the bars; the board window does not clip a symbol that is on the board (only a tile still
+ *  coming in over the top edge or leaving under the bottom edge is cut at the window: BoardCells' fall layer). */
+export const SYMBOL_PLACE = {
+	refPitch: 53.438,
+	global: 1,
+	symbols: {
+		H1: { size: 1.33, dx: 0, dy: 0, top: 7 },
+		M3: { size: 1.235, dx: 0, dy: -0.3, top: 6 },
+		M2: { size: 1.305, dx: 0, dy: 0, top: 5 },
+		M1: { size: 1.37, dx: -1.4, dy: 1.5, top: 4 },
+		L4: { size: 1.3, dx: 0, dy: 0, top: 3 },
+		L3: { size: 1.44, dx: 0.5, dy: -2.1, top: 2 },
+		L2: { size: 1.395, dx: 0, dy: 0, top: 1 },
+		L1: { size: 1.285, dx: 0.3, dy: 0, top: 0 },
+		W: { size: 1.095, dx: 0, dy: 0, top: 8 },
+		S: { size: 1.525, dx: 0, dy: 4.5, top: 9 },
+	} as Record<string, { size: number; dx: number; dy: number; top: number }>,
+};
+/** the pop sizes of the same values (mode 'multiply': the factor multiplies the symbol's own size; every symbol's
+ *  "pop x" is 1). The engine's own constants carry them: tease ANTICIPATION_TEASE.landedPulse (1 + 0.185), win pulse
+ *  CLUSTER.winScale, scatter trigger SCATTER_STING.triggerScale, sting STING.popScale / bigPopScale, the remove-cells
+ *  pop and the cluster removal peak (1.13 x 1.12) in stateGame, the landing squash GRAVITY_DROP. Listed here for the
+ *  probe (tools/manticore/symbols_probe.js) to hold them to the values file. */
+/** a symbol's drawn size as a multiple of the old uniform side (SYMBOL_PLACE.global x its own size) */
+export const symbolScale = (name: string) => SYMBOL_PLACE.global * (SYMBOL_PLACE.symbols[name]?.size ?? 1);
+export const SYMBOL_POPS = { tease: 1.185, winPulse: 1.13, scatterTrigger: 1.2, clusterRemoval: 1.266, removeCells: 1.4, bigSting: 1.45, sting: 1.5, squashW: 1.25, squashH: 0.75, mode: 'multiply' as const };
+/** THE DARK RIM round every symbol (Corey 2026-10-13 12:06): `masterPx` desktop master px at each symbol's own size
+ *  (refPitch above), the silhouette (outline and shadow included) grown by it, softened by a gaussian of `softness` x
+ *  max(masterPx, 0.5), `color` at `opacity`, under the art. BAKED into every static, drop and idle cell of both tiers
+ *  by tools/pack_symbol_sheets.py (which reads these numbers and SYMBOL_PLACE from this file): no filter, no extra
+ *  sprite. */
+export const SYMBOL_RIM = { masterPx: 0.7, opacity: 1, softness: 0.39, color: 0x0c0806 };
+
 /** THE RENDERER'S RESOLUTION CAP (components/Game.svelte clamps renderer.resolution to it; game/deviceTier.ts
  *  renderResolutionCap() picks one). It was 1.5 for every device, a house rule that came from iOS performance.
  *  Corey 2026-10-09: "Yes let's raise the resolution to 2x on Desktop". The phone asset tier (PHONE_TIER) keeps
@@ -418,10 +462,12 @@ export const SPARKLE = {
 	maxCells: 43,
 };
 
-/** the spin total (components/SpinWin.svelte): a running bump as each cluster's count-up finishes,
+/** the spin total (components/BoardPlaque.svelte, the plaque under the board; SpinWin.svelte until 2026-10-14): a running bump as each cluster's count-up finishes,
  *  then the final presentation after the last refill. finalRiseMs 0 / finalCountMs 0 = it just sits. */
 export const SPIN_TOTAL = {
-	bumpScale: 1.2,
+	/** 1.08 on the plaque (images/spin_amount_final/SPEC.md: 1.2 pokes the longest amount over the lip), scaled about the
+	 *  figure block's centre */
+	bumpScale: 1.08,
 	bumpMs: 140,
 	finalDelayMs: 150,
 	finalRiseMs: 0,
@@ -429,6 +475,30 @@ export const SPIN_TOTAL = {
 	finalEasing: backOut,
 	finalCountMs: 0,
 	finalHoldMs: 280,
+};
+
+/** THE SPIN AMOUNT PLAQUE (Corey 2026-10-13, images/spin_amount_final/SPEC.md; components/BoardPlaque.svelte): the
+ *  leaning plaque at 35 degrees under the board, face R4, figures N1 (Cinzel Bold, inlaid brass, no outline, no shadow)
+ *  from their own atlas (game/plaqueNumeralGlyphs.ts), the lion crest on the empty plaque, the figure block at the
+ *  HALVED lean. Its boxes and homographies are game/boardPlaqueSpec.ts (render px, through the frame's registration).
+ *  gap / space: the figures' spacing in digit heights (layoutNumerals' GAP / SPACE for this set). maxWidthPerHeight:
+ *  the figure block's width at height 1; a longer string shrinks uniformly and is centred on the figure line.
+ *  crestOutMs: the crest fades out on the first figures of a spin, then the figures fade in over figuresInMs;
+ *  crestBackMs: when the figures clear, the crest comes back. Night: a plain tint on the figures, the mode's, lerped
+ *  with the scene's night. All ms are style time (divided by timeScale; 0 while a skip runs). */
+export const BOARD_PLAQUE = {
+	gap: 0.03,
+	space: 0.32,
+	maxWidthPerHeight: 9.2475,
+	lean: 'halved' as 'halved' | 'full',
+	crestOutMs: 100,
+	figuresInMs: 180,
+	crestBackMs: 220,
+	tintDay: 0xffffff,
+	tintSuper: 0xedebf2,
+	tintEpic: 0xf7e0d6,
+	/** quads in the figures' mesh: the longest Stake amount is 17 glyphs */
+	maxGlyphs: 32,
 };
 
 /** the aura's colour (the playground's landing glow) */
@@ -504,20 +574,34 @@ export const FRAME_RELIGHT = {
 // Drawn by components/BoardCells.svelte; the timing is stateGame's (plateChange). px are playground px
 // (x PLAYGROUND_PX at draw time); ms are style time.
 export const MULT_PLATE = {
-	style: 'plate' as const,
+	/** THE WHOLE-CELL TILE (Corey 2026-10-13 12:06, Symbol Fit Playground v7): the lit square is the cell's own
+	 *  lattice opening grown by half a bar each way (bar centre line to bar centre line, per cell, square), drawn
+	 *  UNDER the frame art (BoardFrame's `under`, between the black backing and the day plate); neighbours join under
+	 *  the shared bar. fill 0, border alpha 0 (width 3 desktop master px, not drawn), corner 0, the INNER GLOW (one
+	 *  pre-made white square, bright at the edge and clear in the middle, tinted the level colour and stretched to the
+	 *  cell) at innerGlowAlpha, the number at 0.45 of a pitch in the level colour, 0.65 under a symbol and 0.65 on an
+	 *  empty lit cell. The 'plate' numbers below (insetCells, cornerPx, borderPx) are the retired plate's. */
+	style: 'cell' as const,
+	innerGlowAlpha: 1,
+	/** the playground's glow square: 128 px, alpha 255 x (1 - e)^2.2, e = distance to the nearest edge / half side */
+	innerGlowPx: 128,
+	innerGlowPower: 2.2,
+	borderMasterPx: 3,
+	/** the number's alpha on a lit cell no symbol covers (it was a literal 1 in BoardCells) */
+	numberAlphaEmpty: 0.65,
 	colors: { 2: 0xe32400, 4: 0xea4d00, 8: 0xf07500, 16: 0xf79e00, 32: 0xfec700, 64: 0xffe37f, 128: 0xfff1bf, 256: 0xffffff } as Record<number, number>,
-	fillAlpha: 0.46,
-	borderAlpha: 0.82,
+	fillAlpha: 0,
+	borderAlpha: 0,
 	borderPx: 2.5,
 	/** inside the cell's clear lattice opening (see BoardCells: the playground's cell well is the opening here) */
 	insetCells: 0.01,
-	cornerPx: 8,
+	cornerPx: 0,
 	/** the number's FONT SIZE (Barlow Condensed 700, the playground's canvas px) as a share of a cell:
-	 *  0.48 per Corey 2026-10-07 (the locked spec said 0.46). Never shrunk: a value wider than the plate
+	 *  0.45 per Corey 2026-10-13 12:06 (0.48 from 2026-10-07; the locked spec said 0.46). Never shrunk: a value wider than the tile
 	 *  closes its tracking instead (BoardCells layoutPlate) */
-	numberSizeCells: 0.48,
+	numberSizeCells: 0.45,
 	numberAnchor: 'centre' as const,
-	numberAlphaUnderSymbol: 0.56,
+	numberAlphaUnderSymbol: 0.65,
 	numberGlowPx: 12,
 	symbolAlphaOnPlate: 1,
 	symbolScaleOnPlate: 1,
@@ -806,7 +890,8 @@ export const ANTICIPATION_TEASE = {
 	rainStretch: 1.12,
 	rainGhosts: 1,
 	rainGhostOffset: 0.1,
-	landedPulse: 0.05,
+	/** the breathing scatters grow to 1 + this (SYMBOL_POPS.tease, Corey 2026-10-13 12:06: 1.185, was 1.05) */
+	landedPulse: 0.185,
 	landedPulseHz: 1.5,
 	missHoldMs: 500,
 };

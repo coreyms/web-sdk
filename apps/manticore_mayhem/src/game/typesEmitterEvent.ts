@@ -1,5 +1,5 @@
 import type { EmitterEventBoard } from '../components/Board.svelte';
-import type { EmitterEventSpinWin } from '../components/SpinWin.svelte';
+import type { EmitterEventSpinWin } from '../components/BoardPlaque.svelte';
 import type { EmitterEventModePlaque } from '../components/ModePlaque.svelte';
 import type { EmitterEventWin } from '../components/Win.svelte';
 import type { EmitterEventFreeSpinOutro } from '../components/FreeSpinOutro.svelte';
