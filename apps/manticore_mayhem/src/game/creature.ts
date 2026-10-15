@@ -1135,8 +1135,12 @@ export const creatureFront = {
 	hosts: { front: null as PIXI.Container | null, behind: null as PIXI.Container | null },
 	layer: 'front' as CreatureLayer,
 	roots: [] as PIXI.Container[],
+	/** THE MAX WIN SCREEN'S LIFT (components/MaxWinCinematic.svelte): while it is set the roots sit in this host instead,
+	 *  over the screen's dim and under its titles, in either layer. A stage level container like the two hosts, so he
+	 *  stays on exactly the same pixels; cleared, he goes back to the layer's host. */
+	lift: null as PIXI.Container | null,
 	sync(): void {
-		const host = this.hosts[this.layer];
+		const host = this.lift ?? this.hosts[this.layer];
 		if (!host) return;
 		for (const root of this.roots) if (root.parent !== host) host.addChild(root);
 	},

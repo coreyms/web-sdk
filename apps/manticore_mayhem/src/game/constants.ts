@@ -1985,3 +1985,113 @@ export const SPIN_PRICE_FIT = {
 	weight: 800,
 	letterSpacing: -0.5,
 } as const;
+
+// ---- THE MAX WIN SCREEN (Corey 2026-10-15 18:10; Stake approval review 2026-10-15, Major 2) ------------
+// components/MaxWinCinematic.svelte, game/maxWin.svelte.ts, game/medallionRain.ts. Modelled on the one
+// Angry Mantis ships: ONE beat scored by bgm_maxwin, played ONCE (loop: false, the manifest says loop), every stage an
+// offset in ms from the instant the MAX tier lands on the plaque's count, which is also the instant the track starts.
+// THE TRACK, MEASURED (bgm_maxwin.ogg, 30.000 s; RMS per 0.25 s and per band, ffmpeg + python, 2026-10-15):
+//   0 to 0.75 s   the attack (-50 to -22 dB); full from 1.0 s (-13.8 dB, the downbeat)
+//   1 to 10 s     a steady body, -14 to -17 dB; the top band (over 3 kHz) about -33 dB
+//   10.25 s       THE SWELL: the body rises to -13.3 dB at 10.25 s and the top band 6 dB (-30.9 dB at 10 s, -26.6 at
+//                 11 s), and stays that bright to the fade
+//   26.0 s        the fade starts (-15 dB at 26.0, -19 at 26.25, -26 at 27.0, -41 at 28.0, -59 at 29.0, -85 at 29.75)
+//   30.0 s        the end ('ended' is what opens the gate)
+// NOTHING here is divided by timeScale(): turbo never outruns the music (the plaque's count before it is turbo's).
+export const MAX_WIN = {
+	/** the MAX plaque holds its landing this long (its 3 s tier clip plays out), then the deep dim */
+	dimAt: 3000,
+	/** the dim's alpha over the board, the plaque and the canvas logo (the HTML HUD goes by uiHide { deep }) */
+	dimAlpha: 0.88,
+	dimFadeMs: 700,
+	/** the screen leaving after the gate: the dim, the rain and the titles fade together, then he goes back down */
+	outFadeMs: 500,
+	/** the roar where he stands, with the dim (his clip, sfx_roar) */
+	roarAt: 3000,
+	/** MAYHEM UNLEASHED slams in: the roar's mouth is open by then (roar clip f18 of 53 at 30 fps) */
+	unleashedAt: 3600,
+	/** UNLEASHED lands this long after MAYHEM */
+	unleashedStaggerMs: 140,
+	/** MAX WIN slams on the track's swell; MAYHEM UNLEASHED recedes behind it */
+	slamAt: 10250,
+	/** the slam: a title punches in from slamFrom x its size to 1 over slamMs (an overshoot ease), alpha in over slamFadeMs */
+	slamMs: 340,
+	slamFrom: 1.7,
+	slamFadeMs: 160,
+	/** the halo flares to this x its strength on the landing and settles over glowSettleMs */
+	glowFlare: 1.8,
+	glowSettleMs: 900,
+	/** the payout and the multiple fade in under MAX WIN this long after its slam */
+	amountAt: 260,
+	amountFadeMs: 320,
+	recedeMs: 520,
+	/** MAYHEM UNLEASHED's alpha once receded */
+	recedeAlpha: 0.9,
+	/** bgm_maxwin's length (music.json duration). Only the FALLBACK timer uses it: a real 'ended' always wins */
+	trackMs: 30000,
+	/** added to trackMs for the fallback gate (a muted or blocked audio context never delivers 'ended') */
+	gatePad: 500,
+	/** after the gate arms the screen also moves on by itself (Angry Mantis; a press just gets there sooner) */
+	autoAdvanceMs: 3000,
+	/** the sound of each slam: the plaque's own landing thump (STINGER_PLAQUE's impacts) */
+	slamSound: 'sfx_plaque_land',
+	/** Title and amount slots per LayoutKind, in that kind's MASTER px from its centre: `*Cap` are cap heights,
+	 *  `*Width` shrink-to-fit caps, `x` / `*Y` fractions of the master width / height. `mayhem*` / `unleashed*` are the
+	 *  two lines of MAYHEM UNLEASHED; `recede*` where that pair sits (its centre) and its scale once MAX WIN is on it. */
+	layout: {
+		landscape: {
+			x: 0.46,
+			lineCap: 92, lineWidth: 1040, mayhemY: 0.36, unleashedY: 0.53,
+			recedeScale: 0.48, recedeY: 0.15,
+			maxCap: 104, maxWidth: 1060, maxY: 0.47,
+			amountCap: 62, amountWidth: 900, amountY: 0.66,
+			multCap: 34, multWidth: 420, multY: 0.77,
+		},
+		phone: {
+			x: 0.47,
+			lineCap: 100, lineWidth: 1140, mayhemY: 0.36, unleashedY: 0.54,
+			recedeScale: 0.48, recedeY: 0.15,
+			maxCap: 112, maxWidth: 1160, maxY: 0.47,
+			amountCap: 66, amountWidth: 980, amountY: 0.67,
+			multCap: 36, multWidth: 460, multY: 0.78,
+		},
+		portrait: {
+			x: 0.5,
+			lineCap: 46, lineWidth: 380, mayhemY: 0.43, unleashedY: 0.52,
+			recedeScale: 0.55, recedeY: 0.1,
+			maxCap: 52, maxWidth: 384, maxY: 0.5,
+			amountCap: 32, amountWidth: 372, amountY: 0.6,
+			multCap: 20, multWidth: 220, multY: 0.67,
+		},
+	},
+	/** THE WILD MEDALLION RAIN (game/medallionRain.ts): the Wild's static tile (`W.png` in the mmSymbols
+	 *  atlas) falling and turning over like thrown coins behind the creature and the titles. One pooled container,
+	 *  every sprite made up front, moved by ONE ticker callback; density = how many of the pool are live. */
+	rain: {
+		texture: 'W.png',
+		/** pool size per LayoutKind (portrait fewer: a phone must stay readable) */
+		count: { landscape: 46, phone: 52, portrait: 24 },
+		/** drawn width as a fraction of the master width */
+		size: { landscape: [0.035, 0.085], phone: [0.035, 0.085], portrait: [0.08, 0.17] },
+		/** fall speed in master px per second at the largest size (a small one is further away and slower) */
+		speed: [220, 560],
+		/** the coin turn (the width follows cos of it) in turns per second, and a slower roll in radians per second */
+		flip: [0.35, 1.3],
+		roll: [-0.9, 0.9],
+		/** a far (small) medallion is dimmer: alpha from alpha[0] at the smallest to alpha[1] at the largest */
+		alpha: [0.42, 0.92],
+		/** ms from track start: sparse with the dim, building to a downpour on the MAX WIN slam, held through the
+		 *  track's body, thinning with its fade so the screen is clear as the music ends */
+		sparseAt: 3000,
+		downpourAt: 10250,
+		holdUntil: 26000,
+		emptyAt: 28000,
+		/** and the whole rain fades with the music's own tail (the ones still falling go with it) */
+		fadeFrom: 27000,
+		fadeTo: 29500,
+		/** the narrowest a turning medallion gets, as a share of its width (edge on it read as a dark scratch) */
+		minTurn: 0.16,
+		sparseShare: 0.18,
+		fullShare: 1,
+	},
+} as const;

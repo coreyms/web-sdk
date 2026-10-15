@@ -37,6 +37,7 @@ import {
 	dropHook,
 } from './stateGame.svelte';
 import { motionLog } from './sparkles';
+import { maxWinArm, maxWinPrefetch, maxWinReset, maxWinState } from './maxWin.svelte';
 import { fxRecord, fxStamp, chainHaulPress } from './featureFx';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { CellIndex } from './types';
@@ -154,6 +155,9 @@ const nextCascadeWinners = (bookEvent: BookEvent, bookEvents: BookEvent[]): Set<
 //   IN A FEATURE (every max win book known): the Max Win screen IS the wrap up (freeSpinEnd), titled MAX WIN
 //     instead of TOTAL WIN; `wincap` itself presents nothing and the capping spin gets no win screen of its own.
 //   IN THE BASE GAME (no wrap up exists; no such book is known): the win plaque at `wincap`, as a safety net.
+//   EITHER WAY (Corey 2026-10-15): the MAX tier landing on that plaque starts THE MAX WIN SCREEN (bgm_maxwin, the deep
+//     dim, his roar, MAYHEM UNLEASHED, MAX WIN with the book's amount and multiple, the Wild Medallion rain;
+//     components/MaxWinCinematic.svelte), armed here at `wincap` with the book's amount; the round's one gate is its.
 /** the book said `wincap` this round: the capping spin's setTotalWin presents nothing, the wrap up is the MAX WIN one */
 let capShown = false;
 /** the rest of the capped cascade step, owed to the board (run under the Max Win screen's entrance; finalWin
@@ -174,6 +178,12 @@ const winAsks: { from: 'setTotalWin' | 'wincap'; gameType: string; amount: numbe
 if (import.meta.env.DEV && typeof window !== 'undefined') {
 	Object.assign(((window as any).__manticore ??= {}), { capLog: () => ({ ...capLog, capShown }), winAsks: () => winAsks.slice() });
 }
+
+/** THE MAX WIN SCREEN (components/MaxWinCinematic.svelte, Corey 2026-10-15): the plaque's MAX landing has normally
+ *  started it already (armed at `wincap`); this waits for the whole screen, its gate included, and starts it itself
+ *  when no plaque landed (the plain fallback screens). `payout` is the book's wincap.amount. */
+let capAmount = 0;
+const maxWinScreen = () => eventEmitter.broadcastAsync({ type: 'maxWinCinematicPlay', payout: capAmount });
 
 /** how many of this cascade's clusters to present when `wincap` is the next event (null = no cap here) */
 const capCut = (bookEvent: BookEventOfType<'cascade'>, bookEvents: BookEvent[]): number | null => {
@@ -258,6 +268,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			recordBookEvent({ bookEvent });
 		}
 		if (bookEvent.gameType === 'basegame') stateGameDerived.resetSession();
+		// THE MAX WIN SCREEN'S TYPE (game/maxWin.svelte.ts): a book that ends at the cap fetches it now, a whole round ahead
+		if (bookEvents.some((e) => e.type === 'wincap')) void maxWinPrefetch();
 		// The Mystery marker is event 0 of its book, and a RESUMED round replays only from its last
 		// recorded reveal (utils.ts convertTorResumableBet), so the marker is not in `bookEvents`
 		// then. The round's own bet mode says it just as well: Authenticate / ResumeBet restore it
@@ -625,6 +637,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGameDerived.finishSkip();
 		stateBet.winBookEventAmount = bookEvent.amount;
 		capShown = true;
+		// the plaque's MAX landing starts the max win screen from here on, with the book's own amount
+		capAmount = bookEvent.amount;
+		maxWinArm(bookEvent.amount);
 		eventEmitter.broadcast({ type: 'spinWinHide' });
 		// IN A FEATURE (Corey 2026-10-09: "Max win should go directly to the wrap up screen, and we should show
 		// Max Win instead of Total Win"): nothing is presented here. The book goes on to setTotalWin, bonusEnd
@@ -646,6 +661,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (capTail) await waitForTimeout(STINGER_PLAQUE.enterMs);
 		await landCapTail();
 		await shown;
+		// the max win screen (started by the plaque's MAX landing), its gate, then the round goes on as before
+		await maxWinScreen();
 		winLevelSoundsStop();
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
@@ -669,6 +686,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			await landCapTail();
 		}
 		await counted;
+		// A CAPPED ROUND: the max win screen (started by the wrap up's MAX landing) and its gate; the wrap up has none
+		if (capped) await maxWinScreen();
 		winLevelSoundsStop({ keepUi: true });
 		eventEmitter.broadcast({ type: 'freeSpinOutroHide' });
 		await eventEmitter.broadcastAsync({ type: 'transition' });
@@ -691,6 +710,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// board is the book's whatever path the round took)
 		await landCapTail();
 		capShown = false;
+		// a max win screen that never ran (nothing landed MAX) is disarmed with the round
+		if (maxWinState.armed && maxWinState.startedAt === 0) maxWinReset();
+		capAmount = 0;
 		// belt and braces: a round that paid nothing emits no setTotalWin at all (EVENT_SCHEMA.md),
 		// so the HUD's amount has to land on the book's own final number either way
 		stateBet.winBookEventAmount = bookEvent.amount;

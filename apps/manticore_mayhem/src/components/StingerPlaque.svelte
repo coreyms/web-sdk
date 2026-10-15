@@ -86,6 +86,7 @@
 	import { stagedAmountAt, stagedSegments, stagedTotal, tierIndexAt, type CountSegment } from '../game/stinger/count';
 	import { loadStingerData } from '../game/stinger/data';
 	import { STAGING_TOOLS, perfMark } from '../game/staging';
+	import { maxWinTierLanded } from '../game/maxWin.svelte';
 	import { plaquePlacement } from '../game/stinger/layout';
 	import { StingerView } from '../game/stinger/view';
 	import { STINGER_TIERS, type StingerData } from '../game/stinger/types';
@@ -260,6 +261,9 @@
 			// the chains lean from the tier's punch a beat later (CHAIN_GUST.tier), never while skipping
 			if (!context.stateGame.skipping) chainGust('tier', Math.max(0.2, context.stateGameDerived.timeScale()));
 			log({ type: 'tier', tier: STINGER_TIERS[index], el, amount, skipped: c.skipped });
+			// THE MAX WIN SCREEN'S CLOCK (game/maxWin.svelte.ts): the top tier landing starts bgm_maxwin and the screen,
+			// when the book's `wincap` has armed it (a press that lands the count early lands it here too)
+			if (index === STINGER_TIERS.length - 1) maxWinTierLanded();
 		}
 		view.setAmountText(format(amount, c.target), c.fit);
 		if (!ended) return;
