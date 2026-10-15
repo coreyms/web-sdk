@@ -88,7 +88,7 @@
 				else setTimeout(poll, 250);
 			};
 			poll();
-		}).then(() => loadDeferredInOrder(context.stateApp)); // the plaque first, then the drop sheets, then the idles (game/deferredLoad.ts)
+		}).then(() => loadDeferredInOrder(context.stateApp)); // the plaque, then the creature's idle sheet, then the scene and the symbols' sheets (game/deferredLoad.ts)
 
 	$effect(() => {
 		if (context.stateApp.loaded) markAssetsLoaded();

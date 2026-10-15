@@ -15,7 +15,7 @@
 	// THE SOUNDS (Corey 2026-10-13: "use the same sound as the hamburger menu"): every press of the button itself, the
 	// one that opens the prompt and the one that closes it again, broadcasts what the HUD's menu button broadcasts on
 	// each of its presses (ui/controls.svelte.ts menuPress: 'soundPressMinor'). Yes has the same event, as before. No
-	// is silent, like CANCEL on the HUD's other confirm prompt (ui/BonusBuyModal.svelte), and so are a tap elsewhere
+	// is silent, like CANCEL on the HUD's other confirm prompt (the Armoury's confirm card), and so are a tap elsewhere
 	// and the timeout, like a tap beside the menu's popover.
 	// NOT WHERE THE OPERATOR FORBIDS IT: jurisdiction.disabledSlamstop or disabledTurbo (see `allowed` below).
 	// Touch and pointer only, no hotkey (the button is disabled while it is down, so a held Space never reaches it).

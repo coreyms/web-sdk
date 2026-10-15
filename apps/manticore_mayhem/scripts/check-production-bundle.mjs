@@ -14,8 +14,8 @@
 //
 // The markers are strings that exist ONLY in the staging code and survive minification (property names,
 // DOM ids and attributes, query parameter names, button copy). Add one here whenever staging code grows. A marker
-// may be a RegExp where the bare word is also in the game (THE ARMOURY's switch: "armoury" is in class names and
-// asset paths, so the marker is the URL parameter READ itself).
+// may be a RegExp where the bare word is also in the game (match the staging code's own READ of it then). The
+// Armoury's `?armoury=` switch and its regex marker went with the old menu at the switch-over (2026-10-14).
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
 
@@ -29,7 +29,6 @@ export const STAGING_MARKERS = [
 	'Copy results', // the readout's button
 	'rescap', // game/deviceTier.ts: the resolution cap override's query parameter
 	'getHighEntropyValues', // staging/PerfReadout.svelte: nothing in the game asks for device details
-	/\.get\(\s*["'`]armoury["'`]\s*\)/, // game/armourySwitch.ts: the `?armoury=0` escape hatch's read (THE ARMOURY is on by default in every build since 2026-10-14; only staging and dev may turn it off)
 ];
 /** a marker's name in the report */
 const label = (m) => (typeof m === 'string' ? m : m.source);

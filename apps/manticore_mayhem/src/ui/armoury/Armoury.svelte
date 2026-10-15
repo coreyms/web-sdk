@@ -64,8 +64,8 @@
 	import { ARMOURY_TEXT as TX, afterTag, anteConfirm, armouryName, boldRuns, fill } from '../../game/armouryText';
 	import { armouryDecoded, whenArmouryCore, heroGridReady, heroGridsInfo, loadArmouryCore, onHeroGrids, pauseHeroGrids, selectHeroGrid, startHeroGrids } from '../../game/armouryLoad';
 
-	type Props = { controls: Controls; frame: MenuFrame; takes: boolean };
-	const { controls, frame, takes }: Props = $props();
+	type Props = { controls: Controls; frame: MenuFrame };
+	const { controls, frame }: Props = $props();
 
 	const M = ARMOURY.motion;
 	const SW = ARMOURY.swipe;
@@ -82,7 +82,7 @@
 	const cssMs = (n: number) => `${reduced ? 0 : n}ms`;
 
 	// ---- open / close ----------------------------------------------------------------------------------------------
-	const wantOpen = $derived(takes && stateModal.modal?.name === 'buyBonus');
+	const wantOpen = $derived(stateModal.modal?.name === 'buyBonus');
 	let phase = $state<'closed' | 'open' | 'closing'>('closed');
 	/** this menu asked for the close (the X, Escape, CONFIRM): it fades; any other close is at once */
 	let byUs = false;
@@ -198,7 +198,7 @@
 	// waits for the deferred phase's last group; never asks for it (that would pull it into the loading screen)
 	onMount(() => void whenArmouryCore().then(() => (coreIn = true)));
 	$effect(() => {
-		if (!coreIn || !takes || warmed || phase !== 'closed' || stateModal.modal != null || !controls.isIdle() || document.hidden) return;
+		if (!coreIn || warmed || phase !== 'closed' || stateModal.modal != null || !controls.isIdle() || document.hidden) return;
 		untrack(() => {
 			warmed = true;
 			warm = true;
@@ -1122,7 +1122,6 @@
 		};
 		const hook = {
 			state: () => ({
-				takes,
 				phase,
 				open: phase === 'open',
 				layout: frame.layout,
@@ -1176,7 +1175,7 @@
 			/** the HUD button's own function with no check in front of it (a probe proves its guards) */
 			pressHud: () => controls.bonusPress(),
 			open: () => {
-				if (!takes || controls.bonusDisabled()) return false;
+				if (controls.bonusDisabled()) return false;
 				controls.bonusPress();
 				return true;
 			},

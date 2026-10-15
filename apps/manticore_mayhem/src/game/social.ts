@@ -4,7 +4,7 @@
 //
 // Read window.location directly instead of stateUrlDerived.social(): that helper goes through
 // SvelteKit's `page` store, which is NOT populated yet when module-scope string tables
-// (gameInfoText, betModeMeta, bonusCards, i18n catalogs) are built — it silently returned the
+// (gameInfoText, betModeMeta, armouryText, i18n catalogs) are built — it silently returned the
 // standard strings. The app is ssr:false, so window exists whenever any module initialises.
 export const IS_SOCIAL =
 	typeof window !== 'undefined' &&

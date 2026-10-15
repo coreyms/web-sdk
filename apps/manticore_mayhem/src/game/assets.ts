@@ -486,26 +486,9 @@ for (const entry of Object.values(assets) as { src: unknown; bytes?: number }[])
 	if (bytes) entry.bytes = bytes;
 }
 
-// DEV ONLY, SYMBOL STYLE TRIAL (2026-10-07): `?symbols=<style>` (or localStorage `mm.symbols`) points the
-// static atlas and every drop / idle sheet at static/assets/sprites/mmSymbols-trial/<style>/ (built by
-// tools/pack_symbol_sheets.py --style; same file names). A/B/C alias outline / outline-pop / outline-pop-rim.
-// The trial files have no assetStamp key, so their URLs go out bare (no ?v=); nothing here runs in a build.
-if (import.meta.env.DEV && typeof window !== 'undefined') {
-	const alias: Record<string, string> = { A: 'outline', B: 'outline-pop', C: 'outline-pop-rim' };
-	let pick: string | null = null;
-	try {
-		pick = new URLSearchParams(window.location.search).get('symbols') ?? window.localStorage.getItem('mm.symbols');
-	} catch {}
-	const style = pick ? (alias[pick] ?? pick) : null;
-	if (style && /^[a-z-]+$/.test(style) && style !== 'current') {
-		for (const entry of Object.values(assets) as { src: unknown; bytes?: number }[]) {
-			if (typeof entry.src !== 'string' || !entry.src.includes('/sprites/mmSymbols/')) continue;
-			entry.src = entry.src.replace('/sprites/mmSymbols/', `/sprites/mmSymbols-trial/${style}/`).replace(/\?v=[^&#]*/, '');
-			delete entry.bytes;
-		}
-		console.info(`[manticore] DEV symbol style trial: ${style}`);
-	}
-}
+// (The DEV symbol style trial, `?symbols=<style>` over static/assets/sprites/mmSymbols-trial/, was removed with that
+// folder on 2026-10-14: the folder must not ship. Folder archived at ~/Desktop/Manticore Mayhem/_archive/
+// shipped-build-removed-2026-10-14/; the hook is in git history before that date.)
 
 // ART NO SCREEN OF THIS DEVICE CAN SHOW (2026-10-09). The desktop landscape master needs a wide window whose
 // SHORT side is over 480 CSS px (utils-layout createLayout, the breakpoints `bootLayout` above repeats). A

@@ -7,8 +7,8 @@
 // spins showed no plaque" on the owner's iPhone.
 //
 // Here the app runs the important groups ITSELF, before the shared loader's batch, from the hook the loader
-// already offers (stateApp.beforeDeferred, components/Game.svelte): game/assets.ts DEFERRED_ORDER, one
-// group after another (sequential: on a slow link the plaque gets the whole pipe; measured against starting
+// already offers (stateApp.beforeDeferred, components/Game.svelte): game/assets.ts DEFERRED_ORDER, one group after
+// another, with the creature's idle sheet straight after the plaque (constants CREATURE.deferredAfter, 2026-10-14) (sequential: on a slow link the plaque gets the whole pipe; measured against starting
 // them together by tools/manticore/defer_probe.js, numbers in tools/manticore/README.md), each PUBLISHED
 // into stateApp.loadedAssets the moment its own files are in:
 //   plaque  the five stinger atlases (all or nothing) + stinger.json + the motion tracks
@@ -20,7 +20,8 @@
 //   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips, one group each
 //                                               -> game/flames.ts: that mode's braziers change from the base clip
 //   creatureIdle   THE CREATURE's idle sheet (game/creatureLoad.ts; not in game/assets.ts: one look is resident and
-//           the shared loader would fetch all three): the look of the mode the game is in
+//           the shared loader would fetch all three): the look of the mode the game is in. Straight after the plaque since
+//           2026-10-14 (CREATURE.deferredAfter; it was after the flames' last clip and landed at 16-17 s on fast 4G)
 //                                               -> game/creature.ts: he fades in and stands there breathing
 //   logo    the canvas logo's atlas + its tracks (desktop tier only; no keys on the phone tier)
 //                                               -> components/Logo.svelte takes over from the still
@@ -45,6 +46,7 @@ import { loadCreatureBoot, releaseCreatureRest } from './creatureLoad';
 import { loadLogoData } from './logo/data';
 import { loadStingerData } from './stinger/data';
 import { STAGING_TOOLS, perfMark } from './staging';
+import { CREATURE } from './constants';
 
 type Entry = { type: string; src: unknown };
 type Textures = Record<string, unknown>;
@@ -123,9 +125,9 @@ export const loadLogoEarly = (app: AppState): Promise<void> => {
 	logoEarly ??= loadGroup(app, 'logo', keys).catch(() => {});
 	return logoEarly;
 };
-/** the creature's IDLE group runs after the group named here (the flames' last clip); his other two groups run when
- *  the whole order is through (after the symbols' idle loops, the last group) */
-const CREATURE_AFTER = 'flameEpic';
+/** the creature's IDLE group runs straight after the group CREATURE.deferredAfter names ('start': before the first); his
+ *  other two groups run when the whole order is through (after the symbols' idle loops, the last group) */
+const CREATURE_AFTER: string = CREATURE.deferredAfter;
 const runGroup = async (app: AppState, g: (typeof DEFERRED_ORDER)[number]) => {
 	await (g.name === 'logo' && logoEarly ? logoEarly : loadGroup(app, g.name, g.keys));
 	if (g.name === CREATURE_AFTER) await loadCreatureBoot(deferredLog.groups);
@@ -155,8 +157,11 @@ export const loadDeferredInOrder = async (app: AppState): Promise<void> => {
 		return;
 	}
 	try {
-		if (mode === 'parallel') await Promise.all(DEFERRED_ORDER.map((g) => runGroup(app, g)));
-		else for (const g of DEFERRED_ORDER) await runGroup(app, g);
+		if (mode === 'parallel') await Promise.all([...(CREATURE_AFTER === 'start' ? [loadCreatureBoot(deferredLog.groups)] : []), ...DEFERRED_ORDER.map((g) => runGroup(app, g))]);
+		else {
+			if (CREATURE_AFTER === 'start') await loadCreatureBoot(deferredLog.groups);
+			for (const g of DEFERRED_ORDER) await runGroup(app, g);
+		}
 	} catch {
 		/* whatever is missing is left to the shared loader's batch */
 	}

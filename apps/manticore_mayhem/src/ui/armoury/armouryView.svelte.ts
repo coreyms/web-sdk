@@ -5,9 +5,6 @@
 // share, with Chrome.svelte (the lit HUD classes) and components/Logo.svelte (the canvas logo stays under the tint).
 
 export const armouryView = $state({
-	/** the Armoury is the menu for the chrome on screen (the switch, on by default, and a layout it draws): the old menu stands
-	 *  down and the HUD stays visible under the open menu */
-	takes: false,
 	/** mounted: open, or fading out after a close */
 	shown: false,
 	/** open and not closing */
@@ -31,4 +28,4 @@ export const armouryView = $state({
  * THE HUD'S RULE UNDER A MODAL, in ONE place (Chrome.svelte's layer and Logo.svelte's canvas logo read it, so the two
  * cannot drift): every modal hides the HUD, except the Armoury, which keeps the game and the HUD visible under its tint.
  */
-export const hudHiddenByModal = (modal: { name: string } | null | undefined): boolean => modal != null && !(modal.name === 'buyBonus' && armouryView.takes);
+export const hudHiddenByModal = (modal: { name: string } | null | undefined): boolean => modal != null && modal.name !== 'buyBonus';

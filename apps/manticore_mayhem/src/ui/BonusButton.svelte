@@ -4,15 +4,12 @@
 	// 2026-09-06), scaled from its 176px tile onto our 92 / 116 / 78 sizes; position, size and corner
 	// shape stay as the HUD pass set them. OFF: dark glass tile, faint rim, white PolyMath mark with the
 	// green hub. ON (ante active or a buy mode armed): solid ink fill, gold rim + glow, the mode name in
-	// gold above the mark; tapping switches the mode off. Rim/text/glow colours and ring weight are the
+	// gold above the mark; tapping opens the feature menu on that mode. Rim/text/glow colours and ring weight are the
 	// Play button's (white at rest, #ffdc4a armed), not the design's #F9B705 — Corey 23:14. The design's blur(6) is dropped — house rule 2,
 	// no backdrop-filter in the chrome.
 	import Icon from './Icon.svelte';
 	import type { Controls } from './controls.svelte';
-	// THE ARMOURY: where it is the menu for the chrome on screen (armouryView.takes), with a mode on this button OPENS
-	// the menu (controls.bonusPress), so its label must not say "Disable Ante" / "Cancel X". Where the old menu shows,
-	// the label is exactly as before.
-	import { armouryView } from './armoury/armouryView.svelte';
+	// THE ARMOURY: with a mode on this button OPENS the menu on that mode (controls.bonusPress), so its label says so
 	import { ARMOURY_TEXT, fill } from '../game/armouryText';
 
 	type Props = { size?: number; controls: Controls };
@@ -42,7 +39,7 @@
 	class:on
 	disabled={controls.bonusDisabled()}
 	onclick={controls.bonusPress}
-	aria-label={armouryView.takes && onLabel ? fill(ARMOURY_TEXT.aria.hudButtonOn, { name: onLabel }) : ante ? 'Disable Ante' : armedKey ? `Cancel ${armedKey}` : soc('Buy bonus', 'Get bonus')}
+	aria-label={onLabel ? fill(ARMOURY_TEXT.aria.hudButtonOn, { name: onLabel }) : soc('Buy bonus', 'Get bonus')}
 	style:width="{size}px"
 	style:height="{size}px"
 	style:border-radius="{radius}px"

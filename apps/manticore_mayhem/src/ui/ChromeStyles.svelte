@@ -39,7 +39,6 @@
 			--ui-hover-ms: 100ms;
 			--ui-hover-lift: contrast(0.88) brightness(1.14);
 			--ui-press-lift: contrast(0.84) brightness(1.22);
-			--ui-hover-card: contrast(0.95) brightness(1.06);
 		}
 		/* the ONE theme cue every modal shares (approval review 2026-09-15: the three modal
 		   families carried nothing from the game): headings set in the stencil face the numerals
@@ -102,7 +101,7 @@
 		}
 		/* HOVER (Corey 2026-10-13): only where there is a real pointer that can hover. A touch screen matches neither
 		   query, so nothing changes there (no sticky hover after a tap). Every HUD and modal button is a .slot-btn:
-		   Play, feature, turbo, autoplay, plus, minus, the menu, SKIP and its Yes / No, the feature cards' buttons, the
+		   Play, feature, turbo, autoplay, plus, minus, the menu, SKIP and its Yes / No, the Armoury's buttons, the
 		   modals' buttons. Not a disabled one. Not the three that already had a hover of their own (the modals' close
 		   X, the bet picker's options, the menu's Game Info row). */
 		@media (hover: hover) and (pointer: fine) {
@@ -111,13 +110,6 @@
 			}
 			.slot-btn:active:not(:disabled):not(.x):not(.opt):not(.info-row) {
 				filter: var(--ui-press-lift);
-			}
-			/* a surface that is not a button itself (the feature menu's cards): a fainter lift */
-			.hover-lift {
-				transition: filter var(--ui-hover-ms) ease;
-			}
-			.hover-lift:hover {
-				filter: var(--ui-hover-card);
 			}
 		}
 		.slot-btn:focus-visible {

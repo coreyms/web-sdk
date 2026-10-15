@@ -1,7 +1,7 @@
 // The opening primer (ui/LandingScreen.svelte): three ANIMATED explainer cards over the backdrop
 // while the audio lands: CLUSTERS, SCATTERS, THE MANTICORE (approved 2026-10-12, review page
-// "intro_cards_r3"; they replace milestone 1's placeholder posters card-1..3.webp, whose files are
-// still in static/assets/ui/intro but are no longer requested).
+// "intro_cards_r3"; they replace milestone 1's placeholder posters card-1..3.webp, whose files left
+// static/ on 2026-10-14 and are archived on the Desktop).
 //
 // A card is: a muted looping clip in the frame's glass window, the frame picture on top of it, and
 // live text on the slate in fixed zones (title, copy, a divider, and under it a gold scene line that

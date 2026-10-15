@@ -9,13 +9,11 @@
 	import { getContext } from '../game/context';
 	import { MASTER, layoutKind, isPhoneSizeType } from '../game/layoutSpec';
 	import { ARMOURY } from '../game/constants';
-	import { ARMOURY_SWITCH } from '../game/armourySwitch';
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
 	import ChromePhone from './ChromePhone.svelte';
-	import BonusBuyModal from './BonusBuyModal.svelte';
 	import AutoplayModal from './AutoplayModal.svelte';
 	import DenomModal from './DenomModal.svelte';
 	import ReplayModal from './ReplayModal.svelte';
@@ -46,24 +44,18 @@
 	// HUD reaches down through this extra to the real viewport edge (Corey 2026-09-06).
 	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : 0);
 
-	// THE ARMOURY (on by default since 2026-10-14; `?armoury=0` turns it off on dev and staging only, game/armourySwitch.ts;
-	// spec feedback/armoury_build_r1): the menu follows the chrome (ui/armoury/menuFrame.ts). Since part C it has a layout
-	// for every chrome (desktop, portrait phone, tablet, sideways, and the desktop box scaled on small 16:9 frames), so with
-	// the switch on it is the menu everywhere; with the switch off the old menu is exactly as it was.
+	// THE ARMOURY (spec feedback/armoury_build_r1): the feature menu, in every layout (desktop, portrait phone, tablet,
+	// sideways, and the desktop box scaled on small 16:9 frames). It follows the chrome (ui/armoury/menuFrame.ts).
 	const vw = $derived(innerWidth.current ?? 1);
 	const vh = $derived(innerHeight.current ?? 1);
 	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
 	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth }, ARMOURY.layout));
-	const armouryTakes = $derived(ARMOURY_SWITCH);
 	// the real HUD's BALANCE and bet row are lit above the tint in every layout but the desktop box scaled onto a phone
 	// sideways chrome (the small 16:9 frames): there the menu draws its own copies and the whole HUD stays under the tint
 	const armouryLit = $derived(armouryView.shown && !armouryFrame.hudCopies);
 	// ...and there the real HUD steps aside under the tint (the spec 2.3 fallback), so its own BALANCE and bet never show
 	// twice beside the menu's copies
 	const armouryCopies = $derived(armouryView.shown && armouryFrame.hudCopies);
-	$effect.pre(() => {
-		armouryView.takes = armouryTakes;
-	});
 
 	let show = $state(true);
 	// the max-win screen's DEEP hide: fades even the `keep` elements (logo, WIN readout). Set
@@ -124,11 +116,11 @@
 	data-chrome={kind}
 	class:armoury-confirm={armouryView.confirm}
 	class:armoury-closing={armouryView.closing}
-	style:--arm-ease={ARMOURY_SWITCH ? pickEase(ARMOURY.motion) : null}
-	style:--arm-back={ARMOURY_SWITCH ? `${armouryView.reduced ? 0 : ARMOURY.motion.backMs}ms` : null}
-	style:--arm-step={ARMOURY_SWITCH ? `${armouryView.reduced ? 0 : ARMOURY.tint.confirmMs}ms` : null}
-	style:--arm-close={ARMOURY_SWITCH ? `${armouryView.reduced ? 0 : ARMOURY.motion.closeMs}ms` : null}
-	style:--arm-dim={ARMOURY_SWITCH ? 1 - ARMOURY.tint.confirmAdd - ARMOURY.tint.opacity : null}
+	style:--arm-ease={pickEase(ARMOURY.motion)}
+	style:--arm-back="{armouryView.reduced ? 0 : ARMOURY.motion.backMs}ms"
+	style:--arm-step="{armouryView.reduced ? 0 : ARMOURY.tint.confirmMs}ms"
+	style:--arm-close="{armouryView.reduced ? 0 : ARMOURY.motion.closeMs}ms"
+	style:--arm-dim={1 - ARMOURY.tint.confirmAdd - ARMOURY.tint.opacity}
 >
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px">
 		{#if kind === 'landscape'}
@@ -138,13 +130,12 @@
 		{:else}
 			<ChromePortrait {controls} />
 		{/if}
-		{#if ARMOURY_SWITCH}<ArmouryTint {fitLeft} {top} {scale} {vw} {vh} />{/if}
+		<ArmouryTint {fitLeft} {top} {scale} {vw} {vh} />
 	</div>
 </div>
 
 <div class="am-ui layer modals">
-	{#if !armouryTakes}<BonusBuyModal {controls} {master} {scale} {left} {top} compact={kind === 'portrait'} />{/if}
-	{#if ARMOURY_SWITCH}<Armoury {controls} frame={armouryFrame} takes={armouryTakes} />{/if}
+	<Armoury {controls} frame={armouryFrame} />
 	<AutoplayModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<DenomModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
 	<GameInfoModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />

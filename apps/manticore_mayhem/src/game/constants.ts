@@ -4,7 +4,7 @@ import type { SymbolName } from './types';
 import config from './config';
 
 // ---- FEATURE MENU NAME ----------------------------------------------------------------------
-// THE ARMOURY (Corey 2026-10-13; BAZAAR was the placeholder, Angry Mantis called it the Chow Line). ONE constant so
+// THE ARMOURY (Corey 2026-10-13; Angry Mantis called it the Chow Line). ONE constant so
 // renaming is one edit. The name carries its own article: write "in THE ARMOURY" / "Opens THE ARMOURY", never
 // "the ${FEATURE_MENU_NAME} menu" (that read "the THE ARMOURY menu"; game/gameInfoText.ts).
 export const FEATURE_MENU_NAME = 'THE ARMOURY';
@@ -202,7 +202,7 @@ export const SYMBOL_RIM = { masterPx: 0.7, opacity: 1, softness: 0.39, color: 0x
  *  renderResolutionCap() picks one). It was 1.5 for every device, a house rule that came from iOS performance.
  *  Corey 2026-10-09: "Yes let's raise the resolution to 2x on Desktop". The phone asset tier (PHONE_TIER) keeps
  *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged. */
-export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2 } as const;
+export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2, phone3x: 3 } as const;
 
 /** PHONES ALLOWED THE DESKTOP CAP (docs/device-quality-plan-v3.md section 6; Corey 2026-10-13): an iPhone whose screen
  *  density is `density` and whose short side is at least `minShort` CSS px and not one of `notShort` is an iPhone 12 or
@@ -211,6 +211,15 @@ export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2 } as const;
  *  RENDER_RESOLUTION_CAP.phone. Read once from static signals before the renderer exists (game/deviceTier.ts): never
  *  a frame-rate cap, never a start-up benchmark, never a change mid session. Rollback: `on` false. */
 export const PHONE_2X_ALLOW = { on: true, density: 3, minShort: 390, notShort: [414] } as const;
+
+/** THE LARGE IPHONES AT 3x (Corey 2026-10-14 19:38: "Yes 3x on Plus and Pro Max IPhones"; his 16-17 Pro Max class phone,
+ *  440 x 956 @3, held 58.4 Hz at both 3 and 2): an iPhone that PHONE_2X_ALLOW admits (density 3, not 414) whose short
+ *  side is at least `minShort` CSS px renders at RENDER_RESOLUTION_CAP.phone3x. 420 takes in the Air (420), the 12 / 13
+ *  Pro Max and 14 Plus (428), the 14 Pro Max, 15 Plus, 15 Pro Max and 16 Plus (430) and the 16 / 17 Pro Max (440); the
+ *  390 to 402 iPhones stay at 2 and every other phone at 1.5. The ASSET tier does not change (PHONE_TIER: the half
+ *  sheets), only the renderer's resolution. Read once before the renderer exists, like the 2x list. Rollback: `on`
+ *  false (those phones go back to 2). The staging `?rescap=` override still wins. */
+export const PHONE_3X_ALLOW = { on: true, minShort: 420 } as const;
 
 /** THE CANVAS PIXEL CEILING (Corey 2026-10-13), everything that is NOT the phone tier: the renderer's resolution is
  *  min(devicePixelRatio, the cap, sqrt(RENDER_MAX_PIXELS / (CSS width x CSS height))) and never under 1. 8.3 million
@@ -1838,6 +1847,14 @@ export const CREATURE = {
 	},
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
 	lookLoad: { prefetch: true, prefetchLooks: ['super', 'epic'], early: true, waitMs: 250 },
+	/** HIS IDLE SHEET'S PLACE IN THE DEFERRED PHASE (2026-10-14, part D; Decimus cold load at staging 7184e88: it landed at
+	 *  16-17 s on fast 4G and 92 s on slow 4G, queued behind the plaque, the night scene, the night frame and the flames).
+	 *  The group it runs straight after (game/deferredLoad.ts), always after the audio and never in the first, blocking
+	 *  download: 'start' = the very first group; 'plaque' = right after the win plaque's set (1.2 MB full tier, 0.75 MB
+	 *  phone), ahead of everything else; 'flameEpic' = the old place. 'plaque' because 'start' put the plaque behind his
+	 *  2.1 / 3.8 MB sheet: defer_probe, phone slow 4G, plaque ready at 16.5 s (budget 12) and harsh 32.8 s (budget 25,
+	 *  over the 30 s a Big Win waits for it: assetGate PLAQUE_WAIT_MS). */
+	deferredAfter: 'plaque' as 'start' | 'plaque' | 'flameEpic',
 	lookFadeMs: SCENE.crossfadeMs,
 	landingFadeMs: 400,
 	landingFadeStepMs: 34,

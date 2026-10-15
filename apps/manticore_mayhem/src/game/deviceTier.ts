@@ -3,7 +3,7 @@
 // 2026-09-17: a tester's phone tab crashed on the production build. Measured at 390x844 the eight
 // insect pose sheets decode to ~178 MB of RGBA and the symbol atlas to ~11 MB, while a phone reel
 // cell only ever draws at ~95-124 PHYSICAL px (the renderer caps DPR at 1.5 on a phone; 2 on an allowlisted
-// iPhone since 2026-10-13, PHONE_2X below, where the half cells are drawn up to ~165 px) — the full 256 px
+// iPhone since 2026-10-13, PHONE_2X below, where the half cells are drawn up to ~165 px; 3 on a large one since 2026-10-14) — the full 256 px
 // cells are pure waste there. game/assets.ts swaps in the half-resolution twins built by
 // apps/manticore_mayhem/tools/make_placeholders.py. Desktop draws cells up to ~260 px and keeps the full sheets.
 //
@@ -12,7 +12,8 @@
 // half the board on one sheet and half on the other. Rotating a phone does not change
 // screen.width/height, so a phone stays a phone in both orientations.
 
-import { PHONE_2X_ALLOW, RENDER_MAX_PIXELS, RENDER_RESOLUTION_CAP } from './constants';
+import { RENDER_MAX_PIXELS } from './constants';
+import { deviceResolutionCap, phoneAllowed2x, phoneAllowed3x, type DeviceSignals } from './deviceCap';
 import { STAGING_TOOLS, RESCAP_RANGE } from './staging';
 
 const query = (name = 'tier'): string | null => {
@@ -42,16 +43,10 @@ const detect = (): boolean => {
 
 export const PHONE_TIER: boolean = detect();
 
-/** THE PHONE ALLOWLIST (constants PHONE_2X_ALLOW): is this an iPhone 12 or newer, by its static signals? A pure
- *  function of what it is handed, so the probe can put any device through it (tools/manticore/res_probe.js). */
-export type DeviceSignals = { userAgent: string; touchPoints: number; density: number; screenWidth: number; screenHeight: number };
-export const phoneAllowed2x = (d: DeviceSignals): boolean => {
-	if (!PHONE_2X_ALLOW.on) return false;
-	// an iPhone's own WebKit (every iOS browser is WebKit): the token, the engine and a touch screen
-	const iphone = /\biPhone\b/.test(d.userAgent) && /AppleWebKit/.test(d.userAgent) && d.touchPoints > 0;
-	const short = Math.min(d.screenWidth, d.screenHeight);
-	return iphone && Math.abs(d.density - PHONE_2X_ALLOW.density) < 0.01 && short >= PHONE_2X_ALLOW.minShort && !(PHONE_2X_ALLOW.notShort as readonly number[]).includes(short);
-};
+/** THE PHONE ALLOWLISTS (constants PHONE_2X_ALLOW, PHONE_3X_ALLOW): pure functions in game/deviceCap.ts, so a node
+ *  check and the probe can put any device through them (tools/manticore/rescap_check.mjs, res_probe.js). */
+export { phoneAllowed2x, phoneAllowed3x, deviceResolutionCap, type DeviceSignals };
+const signalsNone: DeviceSignals = { userAgent: '', touchPoints: 0, density: 1, screenWidth: 0, screenHeight: 0 };
 const signals = (): DeviceSignals => ({
 	userAgent: navigator.userAgent ?? '',
 	touchPoints: navigator.maxTouchPoints ?? 0,
@@ -61,6 +56,10 @@ const signals = (): DeviceSignals => ({
 });
 /** decided ONCE at module load, like the tier: a phone of the phone tier that is on the allowlist */
 export const PHONE_2X: boolean = typeof window !== 'undefined' && PHONE_TIER && phoneAllowed2x(signals());
+/** ...and a large one (short side 420 and up): cap 3 */
+export const PHONE_3X: boolean = typeof window !== 'undefined' && PHONE_TIER && phoneAllowed3x(signals());
+/** this device's cap, decided once (no `?rescap=`) */
+const DEVICE_CAP: number = typeof window === 'undefined' ? deviceResolutionCap(false, signalsNone) : deviceResolutionCap(PHONE_TIER, signals());
 
 /** `?rescap=<n>`: DEV, or a PUBLIC_STAGING=1 build (game/staging.ts: dropped from a production bundle), held to 1 .. 3 */
 const forcedCap = (): number | null => {
@@ -70,8 +69,9 @@ const forcedCap = (): number | null => {
 };
 
 /** the renderer's resolution cap for this device (RENDER_RESOLUTION_CAP: 1.5 on the phone tier, 2 on an allowlisted
- *  iPhone and everywhere else). `?rescap=<n>` overrides it, so a probe or a tester can A / B caps on the same build. */
-export const renderResolutionCap = (): number => forcedCap() ?? (PHONE_TIER && !PHONE_2X ? RENDER_RESOLUTION_CAP.phone : RENDER_RESOLUTION_CAP.desktop);
+ *  iPhone and everywhere else, 3 on a large allowlisted iPhone; game/deviceCap.ts). `?rescap=<n>` overrides it, so a
+ *  probe or a tester can A / B caps on the same build. */
+export const renderResolutionCap = (): number => forcedCap() ?? DEVICE_CAP;
 
 /** THE RENDERER'S RESOLUTION for a window of this CSS size: the device's density under the cap, and off the phone
  *  tier also under the pixel ceiling (constants RENDER_MAX_PIXELS), never under 1. A forced `?rescap=` is taken as
@@ -91,10 +91,13 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 	/** tools/manticore/res_probe.js: the allowlist as a pure function, this device's answer, and the resolution rule */
 	hook.renderRes = {
 		phone2x: PHONE_2X,
+		phone3x: PHONE_3X,
 		cap: renderResolutionCap(),
 		maxPixels: RENDER_MAX_PIXELS,
 		signals,
 		allowed: (d: DeviceSignals) => phoneAllowed2x(d),
+		/** the cap rule for any device and tier (no `?rescap=`) */
+		capFor: (d: DeviceSignals, phoneTier: boolean) => deviceResolutionCap(phoneTier, d),
 		/** the rule for any window and tier (no `?rescap=`) */
 		want: (w: number, h: number, density: number, phoneTier: boolean, cap: number) => renderResolutionFor(w, h, density, phoneTier, cap, true),
 	};

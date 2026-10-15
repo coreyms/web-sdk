@@ -73,8 +73,10 @@ const fileBytes = {}; // path -> bytes; an atlas manifest counts its image too (
 const walk = (dir) => {
 	for (const entry of readdirSync(dir).sort()) {
 		const full = join(dir, entry);
-		// mmSymbols-trial holds DEV-only style trials (?symbols=): never stamped, never shipped
-		if (statSync(full).isDirectory()) { if (entry !== 'mmSymbols-trial') walk(full); }
+		// mmSymbols-trial (the DEV symbol style trials) left static/ on 2026-10-14 (archived on the Desktop); a worktree may
+		// still hold a symlink of that name, dangling now, so the name is skipped BEFORE it is stat'ed
+		if (entry === 'mmSymbols-trial') continue;
+		if (statSync(full).isDirectory()) walk(full);
 		else if (!/^\.|\.py$/.test(entry)) {
 			const rel = relative(ASSETS, full);
 			stamps[rel] = h8(full);

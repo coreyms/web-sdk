@@ -36,7 +36,7 @@ export type ArmouryMode = {
 	odds?: readonly ArmouryOddsRow[];
 };
 
-// accents are the old menu's (ui/bonusCards.ts), tints and hero heights the prototype's (feature_menu_r2/src/page.js;
+// accents are the old menu's (ui/bonusCards.ts, removed at the switch-over), tints and hero heights the prototype's (feature_menu_r2/src/page.js;
 // SUPER and EPIC: the dagger and the crown at the prototype's default 0.9 since the manticore was scrapped as a hero)
 export const ARMOURY_MODES: readonly ArmouryMode[] = [
 	{ id: 'ANTE', group: 'spin', accent: '#e0b64a', tint: '#2a1a05', art: 'crest-day', heroH: 0.78, volatility: 2 },

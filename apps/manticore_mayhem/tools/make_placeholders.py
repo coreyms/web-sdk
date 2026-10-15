@@ -11,7 +11,7 @@ Outputs (static/assets):
   sprites/mmSymbols/mmSymbols-half.json + .webp   128 px twin for the phone asset tier
   ui/logo-wide.webp, ui/logo-landscape.webp       placeholder wordmark
   ui/10000x.webp                                  placeholder "WIN UP TO 10,000x" tagline strip
-  ui/intro/card-1..3.webp                         placeholder primer cards (landing screen)
+  ui/intro/card-1..3.webp                         placeholder primer cards (no longer written or shipped, 2026-10-14)
   ui/board-backdrop.webp                          the 8x8 cell wells behind the tiles
   tiles/<code>.webp, tiles/x<n>.webp              single tiles for the HTML Game Info paytable
 
@@ -260,5 +260,6 @@ if __name__ == "__main__":
     build_backdrop()
     build_logo()
     build_tagline()
-    build_cards()
+    # build_cards() is NOT called (2026-10-14): the placeholder primer cards left the shipped build (the animated
+    # explainer cards, game/introCards.ts, replaced them); it stays importable
     print("placeholders written to", STATIC)

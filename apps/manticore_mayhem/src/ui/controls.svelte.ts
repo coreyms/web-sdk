@@ -217,12 +217,9 @@ export const createControls = () => {
 		// Corey 2026-09-02: the bonus head button has its own voice again (ui-bonus.ogg, remixed);
 		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
 		sound('soundPressBonus');
-		// same gesture as switching Ante off: while a mode is active/armed the head button disarms it
-		// (and unloads any waiting autoplay run with it). THE ARMOURY (owner 2026-10-13 22:18, answer 1): where it is the
-		// menu for the chrome on screen (armouryView.takes), with a mode on the button OPENS the menu on that mode and
-		// switching off happens inside the menu. Where the old menu still shows, the button disarms as it always did.
-		if ((anteActive() || armedBuy()) && !armouryView.takes) cancelArmed();
-		else stateModal.modal = { name: 'buyBonus' };
+		// THE ARMOURY (owner 2026-10-13 22:18, answer 1): with a mode on, the button OPENS the menu on that mode;
+		// switching off (and unloading a waiting autoplay run with it, cancelArmed) happens inside the menu
+		stateModal.modal = { name: 'buyBonus' };
 	};
 	const activateMode = (mode: string) => {
 		if (held()) return;

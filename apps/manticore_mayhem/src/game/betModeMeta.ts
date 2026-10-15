@@ -56,9 +56,8 @@ const placeholderAssets = { icon: '', volatility: '', button: '', dialogImage: '
 const spins = config.freeSpins;
 // THE COPY AGREES WITH THE RULES PAGE (game/gameInfoText.ts, approved 2026-10-14): Ante names all three features;
 // Super Ante says what 4 scatters award; the tiles "double up to" their cap; the Epic floor names its base ("your
-// bet", social "your play amount"); the Mystery Epic's own floor is stated nowhere. `description` is not drawn by the
-// menu (the card pitches are ui/bonusCards.ts and show the Epic floor's live amount); `dialog` is the old menu's
-// confirm slip for the two antes.
+// bet", social "your play amount"); the Mystery Epic's own floor is stated nowhere. `description` and `dialog` are not drawn
+// by THE ARMOURY (its copy is game/armouryText.ts); they stay filled because the shared BetModeMeta type carries them.
 const SCATTERS = `${config.symbols.S.name}s`;
 
 export const betModeMeta: BetModeMeta = {
