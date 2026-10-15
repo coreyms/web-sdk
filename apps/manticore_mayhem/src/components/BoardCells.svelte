@@ -64,16 +64,16 @@
 
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_PLACE, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
-	import { openingsFor, offsetAt, type Openings } from '../game/symbolPlace';
-	import { boardPlateSlot } from '../game/boardPlateSlot';
-	import { layoutKind } from '../game/layoutSpec';
+	import { openingsFor, offsetAt, latticeEdges, type Openings } from '../game/symbolPlace';
+	import { boardPlateSlot, boardCutSlot } from '../game/boardPlateSlot';
+	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
 	import { PLATE_GLYPHS, PLATE_GLYPH_PREFIX, PLATE_GLYPH_MIDDLE, PLATE_KERN } from '../game/plateGlyphs';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { dotTexture, glowTexture, innerGlowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
-	import { boardExit, plateGhosts, type Cell } from '../game/stateGame.svelte';
-	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP } from '../game/constants';
+	import { boardExit, boardExitPressing, plateGhosts, type Cell } from '../game/stateGame.svelte';
+	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP, FALL_CUT } from '../game/constants';
 	const ANTICIPATION_TEASE_PULSE = ANTICIPATION_TEASE.landedPulse;
 
 	const context = getContext();
@@ -87,13 +87,19 @@
 	// container; put there in sync() as soon as the slot exists
 	const plateLayer = new PIXI.Container({ label: 'mult-tiles' });
 	const cellLayer = new PIXI.Container({ zIndex: 0, sortableChildren: true });
-	// THE FALL LAYER: tiles crossing the board window's top or bottom edge on their way in or out, cut at the window
-	// (8 pitches tall, a pitch of slack either side so a wide symbol's sides are never cut); just under the resting
-	// tiles, over the Mystery tease (-1) and the roar's cell flashes (-0.5). Hidden (no mask work) while empty.
-	const fallLayer = new PIXI.Container({ zIndex: -0.25, visible: false });
-	const fallMask = new PIXI.Graphics().rect(-SYMBOL_SIZE, 0, BOARD_SIZES.width + 2 * SYMBOL_SIZE, BOARD_SIZES.height).fill(0xffffff);
-	fallLayer.addChild(fallMask);
+	// THE CUT LAYER (FALL_CUT, Corey 2026-10-15 10:08): everything crossing the board window's top or bottom edge, cut
+	// at the INNER WINDOW EDGE where the black lattice ends (this layout's own registration, setCutLines; a pitch of
+	// slack either side so a wide symbol's sides are never cut) by its ONE mask: the tiles on their way in or out
+	// (`fallTiles`) over the anticipation reels (`teaseSlot`, Anticipation.svelte moves its tree in, game/boardPlateSlot.ts
+	// boardCutSlot). Just under the resting tiles, over the roar's cell flashes (-0.5). Hidden (no mask work) while
+	// neither has anything to show. The mask's rect is redrawn only when the layout changes.
+	const fallLayer = new PIXI.Container({ zIndex: -0.25, visible: false, label: 'cutLayer' });
+	const fallMask = new PIXI.Graphics();
+	const teaseSlot = new PIXI.Container({ label: 'cutTease' });
+	const fallTiles = new PIXI.Container({ label: 'cutTiles' });
+	fallLayer.addChild(fallMask, teaseSlot, fallTiles);
 	fallLayer.mask = fallMask;
+	boardCutSlot.current = teaseSlot;
 	const flashLayer = new PIXI.Container({ zIndex: 11, visible: false });
 	const parent = getContextParent();
 	parent.addToParent(fallLayer);
@@ -108,6 +114,18 @@
 	/** board px per desktop master px of SYMBOL_PLACE's dx / dy (they scale with the pitch in every layout) */
 	const PER_MASTER = SYMBOL_SIZE / SYMBOL_PLACE.refPitch;
 	const off = { x: 0, y: 0 };
+
+	// ---- THE CUT LINES (FALL_CUT), board px: the cut layer's mask runs from cutTop to cutBottom, the lattice's outer
+	// bars' chosen edge (game/symbolPlace.ts latticeEdges) in this layout, moved outward by FALL_CUT.offsetPx
+	let cutTop = 0;
+	let cutBottom = BOARD_SIZES.height;
+	const setCutLines = (kind: LayoutKind, vw?: number) => {
+		const e = latticeEdges(kind, vw);
+		cutTop = e.top[FALL_CUT.edge] - FALL_CUT.offsetPx;
+		cutBottom = e.bottom[FALL_CUT.edge] + FALL_CUT.offsetPx;
+		fallMask.clear().rect(-SYMBOL_SIZE, cutTop, BOARD_SIZES.width + 2 * SYMBOL_SIZE, cutBottom - cutTop).fill(0xffffff);
+	};
+	setCutLines('landscape');
 
 	const assets = () => context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 	const rendererOf = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
@@ -356,6 +374,8 @@
 		sl.top = p?.top ?? 0;
 	};
 	let inFall = 0;
+	/** set once a tick by sync(): the board's own cells are falling off (a press exit not yet handed to `leaving`) */
+	let exitPressing = false;
 	/** `leaving`: one of the previous board's tiles falling off (BOARD_EXIT) */
 	const syncCell = (c: Cell, tex: Record<string, PIXI.Texture> | undefined, leaving = false) => {
 		let sl = live.get(c.id);
@@ -420,15 +440,19 @@
 			sl.sy = c.scaleY;
 			s.setSize(SIZE * sl.k * c.scaleX, SIZE * sl.k * c.scaleY);
 		}
-		// THE FALL LAYER: in the air on the way in (above its row, not in its landing beat, no rattle) with its sprite
-		// over the window's top edge, or on the way out (the board exit, the roar's fall) over the bottom edge
+		// THE CUT LAYER: in the air on the way in (above its row, not in its landing beat, no rattle) with its sprite
+		// over the top cut line, or on the way out (the board exit from the press on, the roar's fall) over the bottom
+		// cut line. `reach`: how far the sprite runs up / down from its centre, tipped (a tipping tile's corner); the
+		// mask cuts the pixels past the line, and a tile not yet past it draws whole, so nothing shows past the line. A
+		// resting tile (y on its row) is never in it: its overhang shows whole until it starts to fall
 		const half = (SIZE * sl.k * Math.max(c.scaleX, c.scaleY, 1)) / 2;
+		const reach = c.rot === 0 ? half : half * (Math.abs(Math.cos(c.rot)) + Math.abs(Math.sin(c.rot)));
 		const entering = c.y < c.row - 1e-4 && !sl.landing && c.dx === 0 && c.rot === 0 && c.state !== 'removing';
-		const outgoing = (leaving || c.state === 'removing') && c.y > c.row + 1e-4;
-		const fall = (entering && y - half < 0) || (outgoing && y + half > BOARD_SIZES.height);
+		const outgoing = (leaving || exitPressing || c.state === 'removing') && c.y > c.row + 1e-4;
+		const fall = (entering && y - reach < cutTop) || (outgoing && y + reach > cutBottom);
 		if (fall !== sl.fall) {
 			sl.fall = fall;
-			(fall ? fallLayer : cellLayer).addChild(s);
+			(fall ? fallTiles : cellLayer).addChild(s);
 			sl.z = -1;
 		}
 		if (fall) inFall += 1;
@@ -926,13 +950,15 @@
 		const tex = assets();
 		// plain reads outside any effect: no dependency tracking, no flush
 		const cells = stateGame.cells;
+		exitPressing = boardExitPressing();
 		for (let i = 0; i < cells.length; i += 1) syncCell(cells[i], tex);
 		// THE BOARD EXIT: the previous board's tiles still falling off (plain objects the engine moves; same
 		// pooled sprites, same mask). Their ids are the ones they had on the board, so a tile keeps its sprite
 		// through the hand-over.
 		const leaving = boardExit.leaving;
 		for (let i = 0; i < leaving.length; i += 1) syncCell(leaving[i], tex, true);
-		if (fallLayer.visible !== inFall > 0) fallLayer.visible = inFall > 0;
+		const cutOn = inFall > 0 || boardCutSlot.tease;
+		if (fallLayer.visible !== cutOn) fallLayer.visible = cutOn;
 		for (const [id, sl] of live) {
 			if (sl.gen === gen) continue;
 			sl.s.visible = false;
@@ -951,6 +977,7 @@
 	// the openings for this layout (and the portrait growth): plain copies for the ticker, the tiles re-placed
 	$effect(() => {
 		op = openingsFor(layoutK, viewW);
+		setCutLines(layoutK, viewW);
 		relayoutPlates();
 	});
 
@@ -1028,6 +1055,33 @@
 				plateObjects: () => ({ plates: plates.filter(Boolean).length, glyphPool: glyphPool.length }),
 				/** plates a reset cleared that are still shrinking away (BOARD_EXIT.plateOutMs): cell and drawn scale */
 				plateGhosts: () => plates.flatMap((p, i) => (p && p.ghost ? [{ i, scale: p.root.scale.x }] : [])),
+				/** THE CUT LINES probe (tools/manticore/exitcut_probe.js): the fall layer's lines (board px and screen px), the
+				 *  window's inner edges on screen, and every live tile's sprite (and its halo, when shown) as drawn last
+				 *  frame: screen rect, in the fall layer or not, the cell it belongs to */
+				fallCut: () => {
+					const g0 = fallLayer.toGlobal({ x: 0, y: cutTop });
+					const g1 = fallLayer.toGlobal({ x: 0, y: cutBottom });
+					const e0 = fallLayer.toGlobal({ x: 0, y: 0 });
+					const e1 = fallLayer.toGlobal({ x: BOARD_SIZES.width, y: BOARD_SIZES.height });
+					const rect = (o: PIXI.Container) => (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(o.getBounds());
+					const tiles = [...live.entries()].filter(([, sl]) => sl.s.visible).map(([id, sl]) => {
+						const c = stateGame.cells.find((x) => x.id === id);
+						const l = c ? null : boardExit.leaving.find((x) => x.id === id);
+						const cc = c ?? l;
+						return { id, name: sl.name, reel: cc?.reel ?? -1, row: cc?.row ?? -1, y: cc?.y ?? NaN, rot: cc?.rot ?? 0, dx: cc?.dx ?? 0, sx: cc?.scaleX ?? 1, sy: cc?.scaleY ?? 1, state: cc?.state ?? null, leaving: !!l, landing: sl.landing, fall: sl.fall, inFallLayer: sl.s.parent === fallTiles, screen: rect(sl.s), glow: sl.g.visible ? rect(sl.g) : null };
+					});
+					// every candidate edge of the lattice's outer bars, board px and screen px (the setting picks one)
+					const le = latticeEdges(op.kind, op.vw);
+					const sy = (v: number) => fallLayer.toGlobal({ x: 0, y: v }).y;
+					const edges = { top: Object.fromEntries(Object.entries(le.top).map(([k, v]) => [k, { board: v, screen: sy(v) }])), bottom: Object.fromEntries(Object.entries(le.bottom).map(([k, v]) => [k, { board: v, screen: sy(v) }])) };
+					// the anticipation reels: in the cut layer's tease slot, and their shown sprites' screen rects
+					const teaseRoot = teaseSlot.children[0] as PIXI.Container | undefined;
+					const teaseRects: { x: number; y: number; w: number; h: number }[] = [];
+					if (teaseRoot)
+						for (const col of teaseRoot.children)
+							if (col.visible) for (const ch of (col as PIXI.Container).children[0]?.children ?? []) if (ch.visible && (ch as PIXI.Sprite).texture !== PIXI.Texture.EMPTY) teaseRects.push(rect(ch as PIXI.Container));
+					return { layout: op.kind, setting: { edge: FALL_CUT.edge, offsetPx: FALL_CUT.offsetPx }, cut: { top: cutTop, bottom: cutBottom }, edges, screen: { cutTop: g0.y, cutBottom: g1.y, innerTop: e0.y, innerBottom: e1.y, left: e0.x, right: e1.x, scale: fallLayer.worldTransform.d }, mask: { on: fallLayer.mask === fallMask, visible: fallLayer.visible, top: fallLayer.toGlobal({ x: 0, y: fallMask.bounds.minY }).y, bottom: fallLayer.toGlobal({ x: 0, y: fallMask.bounds.maxY }).y }, pressing: exitPressing, tease: { inSlot: !!teaseRoot, on: boardCutSlot.tease, cols: teaseRoot ? teaseRoot.children.filter((c) => c.visible).length : 0, rain: teaseRects }, tiles };
+				},
 				/** THE SYMBOL OVERHAUL probe (tools/manticore/symbols_probe.js): the constants, this layout's openings, every
 				 *  live tile as drawn (board px and screen px, its size multiple, its zIndex, pop band, fall layer) in the
 				 *  order the renderer draws them, the multiplier tiles as drawn, and every display object with a filter */
@@ -1058,7 +1112,7 @@
 						order,
 						/** the board container: world scale (screen px per board px) and its mask (none: the window clip is off) */
 						board: boardNode ? { scale: boardNode.worldTransform.a, masked: !!boardNode.mask, label: boardNode.label } : null,
-						fall: { visible: fallLayer.visible, count: inFall, masked: fallLayer.mask === fallMask, children: fallLayer.children.length - 1 },
+						fall: { visible: fallLayer.visible, count: inFall, masked: fallLayer.mask === fallMask, children: fallTiles.children.length },
 						plates: plates.flatMap((p, i) => (p && p.shown ? [{ i, value: stateGame.tiles[i]?.value ?? 0, x: p.root.x, y: p.root.y, box: Array.from(op.box.slice(i * 4, i * 4 + 4)), parent: plateLayer.parent?.label ?? null, inner: { visible: p.inner.visible, alpha: p.inner.alpha, tint: p.inner.tint as number, w: p.inner.width, h: p.inner.height, tex: p.inner.texture.width }, fillShown: p.g.visible, covered: !!covered[i], numAlpha: p.cur.alpha, em: NUM_EM, screen: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(p.inner.getBounds()) }] : [])),
 						filtered,
 					};
@@ -1067,6 +1121,7 @@
 		}
 		return () => {
 			ticker?.remove(sync);
+			if (boardCutSlot.current === teaseSlot) boardCutSlot.current = null;
 			// the parent's unmount destroys the layers; the pooled sprites and particles go with them
 			for (const sl of free) {
 				sl.s.destroy();

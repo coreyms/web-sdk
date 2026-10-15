@@ -618,6 +618,10 @@ export const startBoardExit = (from: 'press' | 'reveal' = 'press') => {
 	requestAnimationFrame(tick);
 };
 
+/** the board's OWN cells are falling off (a press started the exit and no reveal has taken the board yet, the tiles
+ *  possibly waiting below the opening): BoardCells cuts them at the bottom line like `leaving`. Read once a frame. */
+export const boardExitPressing = () => exitRun !== null && !exitRun.handed;
+
 /** a spin that never got its book (a failed play): the board comes back as it was */
 export const cancelBoardExit = () => {
 	const live = exitRun && !exitRun.handed;

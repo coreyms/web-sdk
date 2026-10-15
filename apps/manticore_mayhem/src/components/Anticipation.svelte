@@ -14,7 +14,11 @@
 	// beamPeriodMs on the column's own clock), the rain (rainAlpha, positioned by the engine: its own speed
 	// through the hold, then locked to the incoming stack, fading over the fall), and NO edge spill.
 	//
-	// House rules: mounted INSIDE Board's masked container (the tease never leaves the board), all
+	// THE CUT (FALL_CUT, Corey 2026-10-15 10:06: the cut line "also controls the anticipation reels"): the tree lives in
+	// BoardCells' cut layer (game/boardPlateSlot.ts boardCutSlot), so the rain entering above the window and leaving below
+	// it is cut at the inner window edge by that layer's one mask, like the tiles coming in and going out.
+	//
+	// House rules: mounted INSIDE the board container (the tease never leaves the board), all
 	// eight columns always built with `visible` toggled (the conditional-mount z-order trap), the
 	// beam and spill are baked textures built once (game/beamTexture.ts) on additive sprites — no
 	// filters, no per-frame textures — and the loose symbols are not board cells, so they never
@@ -31,6 +35,7 @@
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, CELL_FILL, GRID, ANTICIPATION, ANTICIPATION_TEASE } from '../game/constants';
 	import { beamTexture, spillTexture } from '../game/beamTexture';
+	import { boardCutSlot } from '../game/boardPlateSlot';
 
 	const context = getContext();
 	const stateGame = context.stateGame;
@@ -56,7 +61,9 @@
 	// ---- the tree: one column per reel, at a FIXED board z (above the backdrop, below the
 	// symbols): the tease is a light effect behind the tiles, never a layer that can end up over them
 	const root = new PIXI.Container({ zIndex: -1 });
-	getContextParent().addToParent(root);
+	// into the cut layer's tease slot (BoardCells mounts first); the board container only until the slot exists
+	if (boardCutSlot.current) boardCutSlot.current.addChild(root);
+	else getContextParent().addToParent(root);
 
 	// the rain's loose symbols are shared by every column (they all read the same `names` / `dist`),
 	// so each column owns its own sprites but they are driven from one set of numbers
@@ -125,6 +132,7 @@
 		if (!any) {
 			if (running) {
 				running = false;
+				boardCutSlot.tease = false;
 				for (const col of columns) col.c.visible = false;
 			}
 			return;
@@ -132,6 +140,11 @@
 		const now = performance.now();
 		if (!running) {
 			running = true;
+			// the cut layer shows from this frame on (BoardCells keeps it shown while `tease` is set)
+			const slot = boardCutSlot.current;
+			if (slot && root.parent !== slot) slot.addChild(root);
+			boardCutSlot.tease = true;
+			if (slot?.parent && !slot.parent.visible) slot.parent.visible = true;
 			last = now; // the clock only runs while the tease shows: no jump on the first frame
 		}
 		const ts = Math.max(0.2, context.stateGameDerived.timeScale());
@@ -231,6 +244,7 @@
 		ticker?.add(tick, undefined, PIXI.UPDATE_PRIORITY.HIGH);
 		return () => {
 			ticker?.remove(tick);
+			boardCutSlot.tease = false;
 			// the parent's unmount destroys root; the baked textures are shared and stay
 			root.destroy({ children: true });
 		};

@@ -59,6 +59,25 @@ export const openingsFor = (kind: LayoutKind, vw?: number): Openings => {
 	return { kind, vw, ox, oy, box, bar: (2 * BOARD_ART.bars.barRadius * reg.m) / pl.scale };
 };
 
+/** THE LATTICE'S OUTER EDGES in board units (y), this layout's own registration: the top and bottom outer bars of
+ *  BOARD_ART.lattice at their inner face (`opening`, the window's clear edge), their centre line (`centre`) and their
+ *  outer face (`outer`: where the black lattice ends and the bronze rail begins). The frame's art is registered with
+ *  a uniform scale, so a horizontal render line stays horizontal: read at the lattice's mid x. BoardCells' cut lines
+ *  (FALL_CUT) come from here. */
+export type LatticeEdge = 'opening' | 'centre' | 'outer';
+export const latticeEdges = (kind: LayoutKind, vw?: number): { top: Record<LatticeEdge, number>; bottom: Record<LatticeEdge, number> } => {
+	const reg = registrationOf(frameFor(kind, vw));
+	const pl = boardPlacement(kind, vw);
+	const L = BOARD_ART.lattice;
+	const r = BOARD_ART.bars.barRadius;
+	const xm = (L.x0 + L.x1) / 2;
+	const y = (v: number) => (reg.map(xm, v).y - pl.y) / pl.scale + BOARD_SIZES.height / 2;
+	return {
+		top: { opening: y(L.y0 + r), centre: y(L.y0), outer: y(L.y0 - r) },
+		bottom: { opening: y(L.y1 - r), centre: y(L.y1), outer: y(L.y1 + r) },
+	};
+};
+
 /** the draw offset of a tile in column `reel` at the (fractional, possibly off-board) row-space y: the openings of
  *  the two rows it is between, interpolated; above row 0 / below row 7 it keeps that row's offset. Written into
  *  `out` (no allocation). */
