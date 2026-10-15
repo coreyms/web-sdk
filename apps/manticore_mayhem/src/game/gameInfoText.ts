@@ -69,13 +69,36 @@ const MENU = FEATURE_MENU_NAME;
 
 /** one guide row's text, keyed by the row id GameInfoModal draws its icon for */
 export type GuideId = 'spin' | 'turbo' | 'autoplay' | 'feature' | 'menu' | 'readouts' | 'keyboard' | 'skip' | 'screens';
+/** THE OPERATOR'S SWITCHES the rules page follows (2026-10-15, approval review minor; front-end-communication.md:22):
+ *  authenticate's jurisdiction block (stateConfig.jurisdiction), the same flags the controls read (ui/controls.svelte.ts,
+ *  ui/Chrome*.svelte, stateGame skipAllowed). A control the operator turns off is neither drawn nor described: its UI
+ *  guide row goes (guideRowShown) and no other sentence names it. */
+export type RulesFlags = {
+	disabledAutoplay?: boolean;
+	disabledTurbo?: boolean;
+	disabledSuperTurbo?: boolean;
+	disabledSlamstop?: boolean;
+	disabledSpacebar?: boolean;
+	disabledBuyFeature?: boolean;
+};
+/** the UI guide's rows under the operator's switches: no Turbo row under disabledTurbo, no Autoplay row under
+ *  disabledAutoplay, no feature menu row under disabledBuyFeature (their buttons are not drawn: ui/Chrome*.svelte), (Skip
+ *  to Result keeps the SKIP button's own rule, stateGame skipAllowed: ui/GameInfoModal.svelte asks it). The Keyboard row stays under disabledSpacebar (Escape still closes a window); its text drops the Space bar */
+export const guideRowShown = (id: GuideId, j: RulesFlags): boolean => {
+	if (id === 'turbo') return !j.disabledTurbo;
+	if (id === 'autoplay') return !j.disabledAutoplay;
+	if (id === 'feature') return !j.disabledBuyFeature;
+	return true;
+};
+/** "A and B" / "A" / "" */
+const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : (xs[0] ?? ''));
 
 /**
  * Every string of the rules page. A function, not a constant: the prices come from the authenticate response
  * (landed by the time Game Info opens), and the Epic floor shows its live amount at the current bet.
  * `amount(x)`: x times the current bet in the session's currency (numberToCurrencyString; SC / GC in social).
  */
-export const gameInfoText = (amount: (x: number) => string) => ({
+export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) => ({
 	paytable: {
 		intro: soc(
 			"Each symbol pays by **cluster size**, in five bands. The table shows what each band pays at the current bet. A cluster's pay is multiplied by the **sum** of the Multiplier Tiles under it.",
@@ -88,8 +111,28 @@ export const gameInfoText = (amount: (x: number) => string) => ({
 	guide: {
 		intro: 'Controls are the same on desktop and phone. On portrait phones they sit under the reels.',
 		rows: {
-			spin: { name: 'Spin', text: 'Plays one round at the SPIN amount. While the reels drop it turns into **STOP**, which lands the result at once. With Autoplay or a feature loaded, it shows what the next press starts.' },
-			turbo: { name: 'Turbo', text: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation. Instant (lightning icon) lands each result at once. Turbo and sound settings are remembered on this device.' },
+			// every sentence that names a control the operator can switch off is said only where it is on (RulesFlags).
+			// STOP lands the result at once only with the slam stop AND turbo allowed (under disabledTurbo the press
+			// lands nothing sooner: ui/controls.svelte.ts stopButtonClick)
+			spin: {
+				name: 'Spin',
+				text: [
+					'Plays one round at the SPIN amount.',
+					!j.disabledSlamstop && !j.disabledTurbo ? 'While the reels drop it turns into **STOP**, which lands the result at once.' : '',
+					((x) => (x ? `With ${x} loaded, it shows what the next press starts.` : ''))(
+						[!j.disabledAutoplay ? 'Autoplay' : '', !j.disabledBuyFeature ? 'a feature' : ''].filter(Boolean).join(' or '),
+					),
+				]
+					.filter(Boolean)
+					.join(' '),
+			},
+			// disabledSuperTurbo: no Instant level (ui/controls.svelte.ts maxTurboLevel)
+			turbo: {
+				name: 'Turbo',
+				text: j.disabledSuperTurbo
+					? 'Switches between Off and Turbo. Turbo shortens the reel drop and the win presentation. Turbo and sound settings are remembered on this device.'
+					: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation. Instant (lightning icon) lands each result at once. Turbo and sound settings are remembered on this device.',
+			},
 			autoplay: {
 				name: 'Autoplay',
 				text: 'Opens the Autoplay ticket: the number of spins, plus an **ADVANCED** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **LOAD** parks the run on the Spin button. Spin starts it, and Spin again stops it at any time. During a run the Spin button is green with the spins left and this button is red with an X.',
@@ -109,20 +152,37 @@ export const gameInfoText = (amount: (x: number) => string) => ({
 					'**BALANCE** is your current balance. **WIN** is the running total of the round. **SPIN** is the full play amount of one press in the active mode (base amount × the mode multiplier). − and + step through the play amount menu. Tap the readout for the full picker. The plaque on the reel frame names the active mode and its play amount.',
 				),
 			},
-			keyboard: { name: 'Keyboard', text: 'Space bar plays a round. Hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
+			// disabledSpacebar: the Space bar plays nothing (ui/Chrome.svelte), so only Escape is left
+			keyboard: {
+				name: 'Keyboard',
+				text: [
+					j.disabledSpacebar
+						? ''
+						: ((x) => (x ? `Space bar plays a round. Hold it to keep playing (${x} ${x.includes(' and ') ? 'are' : 'is'} locked while it is held).` : 'Space bar plays a round. Hold it to keep playing.'))(
+								andList([!j.disabledTurbo ? 'Turbo' : '', !j.disabledAutoplay ? 'Autoplay' : ''].filter(Boolean)),
+							),
+					'Escape closes any open window.',
+				]
+					.filter(Boolean)
+					.join(' '),
+			},
 			// wording unchanged on purpose (an open question with Corey, 2026-10-14). The row is left out where the operator
 			// disables the slam stop or turbo (stateGame skipAllowed; GameInfoModal filters it)
 			skip: {
 				name: 'Skip to Result',
 				text: 'Shown during Free Spins, Super Free Spins and Epic Free Spins once the first free spin has started. Pressing it asks "Skip to result?". Yes ends the presentation of the remaining spins and shows the final total of the round. No closes the question and the spins play on. It never changes the result.',
 			},
-			screens: { name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. With **Autoplay Bonuses** on, they continue on their own.' },
+			// Autoplay Bonuses is a setting of the Autoplay ticket: not named under disabledAutoplay
+			screens: {
+				name: 'Feature screens',
+				text: j.disabledAutoplay ? 'Feature intros and wrap-ups wait for a press anywhere.' : 'Feature intros and wrap-ups wait for a press anywhere. With **Autoplay Bonuses** on, they continue on their own.',
+			},
 		} satisfies Record<GuideId, { name: string; text: string }>,
 	},
 	howTo: [
 		soc(
-			`Choose a bet and press **SPIN** (or the space bar). The board is ${config.numReels} columns by ${config.numRows[0]} rows. **${config.minCluster} or more** matching symbols touching each other left, right, up or down form a **cluster** and pay. Diagonals do not count. Position on the board does not matter and there are no paylines.`,
-			`Choose a play amount and press **SPIN** (or the space bar). The board is ${config.numReels} columns by ${config.numRows[0]} rows. **${config.minCluster} or more** matching symbols touching each other left, right, up or down form a **cluster** and win. Diagonals do not count. Position on the board does not matter and there are no lines.`,
+			`Choose a bet and press **SPIN**${j.disabledSpacebar ? '' : ' (or the space bar)'}. The board is ${config.numReels} columns by ${config.numRows[0]} rows. **${config.minCluster} or more** matching symbols touching each other left, right, up or down form a **cluster** and pay. Diagonals do not count. Position on the board does not matter and there are no paylines.`,
+			`Choose a play amount and press **SPIN**${j.disabledSpacebar ? '' : ' (or the space bar)'}. The board is ${config.numReels} columns by ${config.numRows[0]} rows. **${config.minCluster} or more** matching symbols touching each other left, right, up or down form a **cluster** and win. Diagonals do not count. Position on the board does not matter and there are no lines.`,
 		),
 		'Every winning cluster is removed, the symbols above it fall and new symbols drop in from the top. This repeats until a spin has no clusters left. All wins of a spin are added together.',
 		soc('All wins and prices in these rules are multiples of the bet.', 'All wins in these rules are multiples of the play amount.'),
@@ -183,12 +243,22 @@ export const gameInfoText = (amount: (x: number) => string) => ({
 			bonus: {
 				enter: soc(`Land 4 ${SCATTERS}, or buy directly.`, `Land 4 ${SCATTERS}, or trigger it instantly from ${MENU}.`),
 				spins: `${config.freeSpins.bonus} free spins.`,
-				mech: [`Multiplier Tiles **persist** for the whole round and double up to ${config.tileCap.bonus}×.`],
+				// THE UPGRADE (2026-10-15, approval review minor): a bought round's trigger spin can land 5 or 6+ scatters
+				// and so become Super or Epic Free Spins (1 in 105.6 / 1 in 35,904; a bought Super: Epic 1 in 1,108). No odds
+				// are stated; the cards' spin count and cap are the round's as bought.
+				mech: [
+					`Multiplier Tiles **persist** for the whole round and double up to ${config.tileCap.bonus}×.`,
+					soc('A bought round can still upgrade to Super or Epic Free Spins.', 'An instantly triggered round can still upgrade to Super or Epic Free Spins.'),
+				],
 			},
 			super: {
 				enter: soc(`Land 5 ${SCATTERS}, or buy directly.`, `Land 5 ${SCATTERS}, or trigger it instantly from ${MENU}.`),
 				spins: `${config.freeSpins.super} free spins.`,
-				mech: [`Tiles persist and double up to ${config.tileCap.super}×.`, 'The roar clears the low symbols and a Super Sting is possible.'],
+				mech: [
+					`Tiles persist and double up to ${config.tileCap.super}×.`,
+					'The roar clears the low symbols and a Super Sting is possible.',
+					soc('A bought round can still upgrade to Epic Free Spins.', 'An instantly triggered round can still upgrade to Epic Free Spins.'),
+				],
 			},
 			epic: {
 				enter: soc(`Land 6 or more ${SCATTERS}, or buy directly.`, `Land 6 or more ${SCATTERS}, or trigger it instantly from ${MENU}.`),

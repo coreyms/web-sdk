@@ -1132,6 +1132,15 @@ export const FOREGROUND_KICK = {
 //                <img> stands in until that data is in, and in the other two layouts.
 // Both are placed by ONE rule per layout (game/logo/layout.ts): the box of the logo's ART in master px. Every
 // number runs in REAL time at every turbo level.
+/** THE INTRO CARDS' BODY SHRINK TO FIT (ui/LandingScreen.svelte, 2026-10-15). On Linux Chromium (the decimus probe host)
+ *  Sora sets wider than on a Mac or an iPhone, and the scatters card's body wrapped to 5 lines in a zone that holds about
+ *  4.5 (8 to 9 CSS px over at 1440 x 900, 1280 x 720, 390 x 844, 360 x 640; the clusters card at 768 x 1024): the zone
+ *  clips the top of line 1 and the descenders of line 5. Once the fonts are in, and on every resize, a body taller than
+ *  its zone steps its font size down by `stepPx` (layout px, before the card's scale) until it fits, never under
+ *  `floor` x the slate's size (INTRO_CARD_STYLE.body.size). A body that already fits is not touched. `slackPx`: how far
+ *  over the zone's height a body may be and still count as fitting (sub-pixel rounding). */
+export const INTRO_BODY_FIT = { stepPx: 0.25, floor: 0.85, slackPx: 0.5 } as const;
+
 export const LOGO = {
 	/** the static still's art box, px (tools/build_logo_assets.py prints it): only its aspect is used */
 	art: { width: 2380, height: 940 },
@@ -1769,6 +1778,13 @@ export const CHAIN_SOUND = {
 //             WHICH PORTRAIT: a portrait screen is 'portraitPhone' or 'portraitTablet', never between: by the layout
 //             system's own size class (utils-layout canvasSizeType, the test that already tells a phone held sideways
 //             from a desktop window): the screen's SHORT side at most 480 CSS px is a phone, wider is a tablet.
+//             TABLET (2026-10-15, approval review major 1): was { x 1254.2, y 2026.8, scale 0.555, front } on the floor
+//             right of the board, where at 1024 x 1366 his wing hid most of the bottom right cell and the edge of
+//             column 7, the tail rose past rows 6 and 7 and he sat under the SPIN readout. Now as on the phone: behind
+//             the board, on the frame's top right corner beside the logo, his claws on or behind the top rail. His
+//             drawn pixels clear the cell area and every HUD text at 600 x 960, 768 x 1024, 820 x 1180, 834 x 1194 and
+//             1024 x 1366 (creature_probe.js PLACE). shadow false: his feet are off the floor there (the shadow would
+//             float on the cliffs). The SKIP TO RESULT plate (features only) covers the tip of his tail at 768 and 1024.
 //   looks     the look each mode shows. ONE is resident; a change of mode crosses to the new one over lookFadeMs (the
 //             scene's own crossfade) once its idle sheet is uploaded. The rig's fourth look ("night", no fire) is not
 //             shipped: no mode shows it.
@@ -1854,7 +1870,7 @@ export const CREATURE = {
 		desktop: { x: 2089.9, y: 1213.3, scale: 0.96, layer: 'front' },
 		phoneSideways: { x: 2249.3, y: 1157.2, scale: 0.97, layer: 'behind' },
 		portraitPhone: { x: 1039.9, y: 1001.6, scale: 0.77, layer: 'behind' },
-		portraitTablet: { x: 1254.2, y: 2026.8, scale: 0.555, layer: 'front' },
+		portraitTablet: { x: 1210, y: 905, scale: 0.58, layer: 'behind', shadow: false },
 	},
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
 	// prefetchGroups (2026-10-15, download analysis S3, Corey yes): the prefetch takes only these load groups of each look

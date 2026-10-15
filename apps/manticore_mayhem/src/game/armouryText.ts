@@ -25,6 +25,13 @@ const CAP = config.tileCap;
 const FLOOR = config.epicMinWin;
 const SCATTERS = `${config.symbols.S.name}s`;
 const share = (x: number) => Math.round(x * 100);
+/** THE UPGRADE (2026-10-15, approval review minor): a bought Free Spins or Super round can still become a higher feature
+ *  (its trigger spin can land more scatters). Said on the plate and the confirm card, the same words as the rules page
+ *  (gameInfoText.ts cards); no odds are stated */
+const UPGRADE = {
+	BONUS: soc('A bought round can still upgrade to Super or Epic Free Spins.', 'An instantly triggered round can still upgrade to Super or Epic Free Spins.'),
+	SUPER: soc('A bought round can still upgrade to Epic Free Spins.', 'An instantly triggered round can still upgrade to Epic Free Spins.'),
+};
 
 export const ARMOURY_TEXT = {
 	name: FEATURE_MENU_NAME,
@@ -56,8 +63,10 @@ export const ARMOURY_TEXT = {
 	pitch: {
 		ANTE: '**Free Spins**, **Super Free Spins** and **Epic Free Spins** land about **five times as often** on every spin.',
 		SUPER_ANTE: `Only **Super** and **Epic Free Spins** can trigger: **4 ${SCATTERS}** award **Super Free Spins** instead.`,
-		BONUS: `**${SPINS.bonus} free spins** where **Multiplier Tiles** stay all round and double up to **${CAP.bonus}x**.`,
-		SUPER: `**${SPINS.super} free spins**, tiles double up to **${CAP.super}x**, a **roar** that clears the low symbols and a possible **Super Sting**.`,
+		// THE UPGRADE (2026-10-15, approval review minor): a bought Free Spins or Super round can still become a higher
+		// feature (its trigger spin lands more scatters). No odds are stated
+		BONUS: `**${SPINS.bonus} free spins** where **Multiplier Tiles** stay all round and double up to **${CAP.bonus}x**. ${UPGRADE.BONUS}`,
+		SUPER: `**${SPINS.super} free spins**, tiles double up to **${CAP.super}x**, a **roar** that clears the low symbols and a possible **Super Sting**. ${UPGRADE.SUPER}`,
 		EPIC: soc(
 			`**${SPINS.epic} free spins**, tiles double up to **${CAP.epic}x**, **Super Stings** are common and every round returns **at least ${FLOOR}x your bet ({amt})**.`,
 			`**${SPINS.epic} free spins**, tiles double up to **${CAP.epic}x**, **Super Stings** are common and every round returns **at least ${FLOOR}x your play amount ({amt})**.`,
@@ -71,8 +80,8 @@ export const ARMOURY_TEXT = {
 	gets: {
 		ANTE: 'About five times the Free Spins, Super Free Spins and Epic Free Spins triggers',
 		SUPER_ANTE: `Super and Epic Free Spins only, 4 ${SCATTERS} award Super Free Spins`,
-		BONUS: `${SPINS.bonus} free spins, Multiplier Tiles stay all round, up to ${CAP.bonus}x`,
-		SUPER: `${SPINS.super} free spins, tiles up to ${CAP.super}x, the roar, a possible Super Sting`,
+		BONUS: `${SPINS.bonus} free spins, Multiplier Tiles stay all round, up to ${CAP.bonus}x. ${UPGRADE.BONUS}`,
+		SUPER: `${SPINS.super} free spins, tiles up to ${CAP.super}x, the roar, a possible Super Sting. ${UPGRADE.SUPER}`,
 		EPIC: soc(
 			`${SPINS.epic} free spins, tiles up to ${CAP.epic}x, common Super Stings, at least ${FLOOR}x your bet ({amt})`,
 			`${SPINS.epic} free spins, tiles up to ${CAP.epic}x, common Super Stings, at least ${FLOOR}x your play amount ({amt})`,

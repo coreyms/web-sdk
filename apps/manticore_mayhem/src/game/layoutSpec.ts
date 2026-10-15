@@ -260,11 +260,13 @@ export const HUD: Record<
 		spinWin: { y: 656.3, height: 26, width: 340 },
 	},
 	phone: {
-		// phone has no free band under the board (the board runs to 680 of 740 and the strip below it
-		// is only 60 master px), so the prompt rides above it — the side columns hold the chrome and
-		// the centre top is empty. The plaque OVERLAYS the board centre for the same reason: below it
-		// there is no room for the plate, and the board is static whenever the plaque is up.
-		pressToContinue: { y: 26, width: 600, height: 44 },
+		// The prompt sits in the HUD band UNDER the board (2026-10-15, approval review major 6): the strip from the
+		// board's bottom (680) to the master's (740), where the spin amount plaque is, empty while a prompt is up
+		// (feature intro, wrap up, max win wrap up). Its glyphs span y - 40.5 .. y - 22 = 711.5 .. 730. It was y 26,
+		// above the board: the glyphs ran from -14.5 to 4, so only their lower half showed at 844 x 390. The plaque
+		// OVERLAYS the board centre: below it there is no room for the plate, and the board is static whenever the
+		// plaque is up.
+		pressToContinue: { y: 752, width: 600, height: 44 },
 		modePlaque: { y: 364, height: 34, width: 560 },
 		spinWin: { y: 718, height: 24, width: 420 },
 	},

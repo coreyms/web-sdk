@@ -589,7 +589,10 @@
 						};
 						const view = views[which];
 						const stage = view.root.parent?.children ?? [];
-						const main = stage.find((c) => c.children?.some((k) => k.mask) || c.children?.some((k) => k.children?.some((j) => j.mask)));
+						// the board's stage child: the one whose subtree holds the container labelled 'board' (components/BoardContainer.svelte;
+						// found by its mask until the board window mask went, 2026-10-13, which left stageIndex.board at -1)
+						const holdsBoard = (c: PIXI.Container, depth = 0): boolean => c.label === 'board' || (depth < 3 && (c.children ?? []).some((k) => holdsBoard(k as PIXI.Container, depth + 1)));
+						const main = stage.find((c) => holdsBoard(c as PIXI.Container));
 						return {
 							...creature.info(),
 							spot,
@@ -619,6 +622,39 @@
 						const body = creature.bodyNode.parent ? creature.bodyNode.toGlobal({ x: 0, y: 0 }) : { x: 0, y: 0 };
 						const sh = creature.shadowNode.parent ? creature.shadowNode.toGlobal({ x: 0, y: 0 }) : { x: 0, y: 0 };
 						return { ...creature.sample(), bx: body.x, by: body.y, sx: sh.x, sy: sh.y, floorX: f.drawn.x, floorY: f.drawn.y, frontX: (f.front.x - f.rest.x) * k, frontY: (f.front.y - f.rest.y) * k, handedX: foregroundKick.x, handedY: foregroundKick.y, turbo: context.stateGame.turboLevel, skipping: context.stateGame.skipping };
+					},
+					/** his BODY's drawn pixels on the canvas (2026-10-15, the tablet placement): the body node rendered by itself
+					 *  at resolution 1, a pixel counted where its alpha is over `alphaMin` (of 255); the box they span in CSS
+					 *  px and, per rect given (CSS px), the area of him inside it in CSS px squared (creature_probe.js PLACE) */
+					opaque: (rects: { x0: number; y0: number; x1: number; y1: number }[] = [], alphaMin = 96) => {
+						const r = renderer();
+						const n = creature.bodyNode;
+						if (!r || !n.parent || !n.visible) return null;
+						const B = n.getBounds();
+						const ex = r.extract.pixels({ target: n, resolution: 1 });
+						const W = ex.width;
+						const H = ex.height;
+						const cw = B.width / W;
+						const ch = B.height / H;
+						const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+						const inside = rects.map(() => 0);
+						let count = 0;
+						for (let y = 0; y < H; y += 1) {
+							for (let x = 0; x < W; x += 1) {
+								if (ex.pixels[(y * W + x) * 4 + 3] <= alphaMin) continue;
+								const px = B.x + (x + 0.5) * cw;
+								const py = B.y + (y + 0.5) * ch;
+								count += 1;
+								box.x0 = Math.min(box.x0, px - cw / 2);
+								box.y0 = Math.min(box.y0, py - ch / 2);
+								box.x1 = Math.max(box.x1, px + cw / 2);
+								box.y1 = Math.max(box.y1, py + ch / 2);
+								rects.forEach((q, i) => {
+									if (px >= q.x0 && px < q.x1 && py >= q.y0 && py < q.y1) inside[i] += cw * ch;
+								});
+							}
+						}
+						return { count, box: count ? box : null, inside };
 					},
 					log: () => creature.log.map((e) => ({ ...e })),
 					loadLog: () => creatureLoadLog.map((e) => ({ ...e })),

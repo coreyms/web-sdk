@@ -66,7 +66,8 @@ type CueKind = 'swipe' | 'roar' | 'charge' | 'growl';
 type PokeClip = 'snarl' | 'growl';
 type StingKind = 'normal' | 'big' | 'super' | 'scatter';
 export type CreatureLayer = 'front' | 'behind';
-export type CreaturePlace = { x: number; y: number; scale: number; layer: CreatureLayer };
+/** shadow: false = no floor shadow in this spot (where his feet are behind the board, off the floor: constants CREATURE.place) */
+export type CreaturePlace = { x: number; y: number; scale: number; layer: CreatureLayer; shadow?: boolean };
 /** what the creature needs from the game (components/Background.svelte hands it over; this file imports no state) */
 export type CreatureEnv = {
 	ts: () => number;
@@ -246,6 +247,8 @@ export class Creature {
 		this.bodyNode.position.set(p.x, p.y);
 		this.shadowNode.scale.set(p.scale);
 		this.bodyNode.scale.set(p.scale);
+		// the sprite, not the node: the node's visibility is the veil's and the layout's (tick)
+		this.shadow.visible = p.shadow !== false;
 	}
 
 	/** THE LANDING SCREEN is up (true) or has gone (components/Background.svelte). While it is up he is not drawn and
@@ -1115,7 +1118,7 @@ export class Creature {
 			layer: this.bodyNode.parent?.label ?? null,
 			shadowLayer: this.shadowNode.parent?.label ?? null,
 			node: { x: this.bodyNode.x, y: this.bodyNode.y, scale: this.bodyNode.scale.x, shadowX: this.shadowNode.x, shadowY: this.shadowNode.y, shadowScale: this.shadowNode.scale.x },
-			sprite: { scale: this.colour[0].scale.x, anchor: [this.colour[0].anchor.x, this.colour[0].anchor.y], shadowScale: this.shadow.scale.x, shadowAlpha: this.shadow.alpha, glowBlend: this.glow.blendMode, tex: [this.colour[0].texture.orig.width, this.colour[0].texture.orig.height] },
+			sprite: { scale: this.colour[0].scale.x, anchor: [this.colour[0].anchor.x, this.colour[0].anchor.y], shadowScale: this.shadow.scale.x, shadowAlpha: this.shadow.alpha, shadowShown: this.shadow.visible, glowBlend: this.glow.blendMode, tex: [this.colour[0].texture.orig.width, this.colour[0].texture.orig.height] },
 		};
 	}
 }
