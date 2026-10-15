@@ -1214,7 +1214,7 @@
   },
   "scale": "0.5",
   "fps": 30,
-  "encoding": "lossless",
+  "encoding": "near-lossless 60",
   "fit": {
    "source": "L1_iron-shackle/animation/drop",
    "sourcePx": 512,
@@ -1277,6 +1277,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "f2553ced"
+  "pngHash": "904f5539"
  }
 }

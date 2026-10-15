@@ -1514,7 +1514,7 @@
   },
   "scale": "1",
   "fps": 30,
-  "encoding": "lossless",
+  "encoding": "near-lossless 60",
   "fit": {
    "source": "M2_persian-dagger/animation/idle",
    "sourcePx": 512,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "f8a52641"
+  "pngHash": "467e3521"
  }
 }

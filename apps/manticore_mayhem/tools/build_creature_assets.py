@@ -1,9 +1,28 @@
 #!/usr/bin/env python
 """Game assets for THE MANTICORE CREATURE from a rig drop (drop 3 and later), in the game's own atlas conventions.
-A sibling in style of apps/manticore_mayhem/tools/build_flame_assets.py (same packer, same webp settings, same
-TexturePacker JSON the game's loader already reads). It lives OUTSIDE the repo for now (prep work, 2026-10-12): when
-the creature is wired, move it to apps/manticore_mayhem/tools/build_creature_assets.py and point --out at
-static/assets/sprites/creature.
+
+CHANGED 2026-10-13 FOR DROP 4 (10 clips: sting_recrouch is new, the roar is 53 frames). The clips were always read from
+meta.json, so the tenth clip and the longer roar need no special case; what changed is:
+  - the look folders are <--drop>, <--drop>-night, -super, -epic (default drop-4; was fixed to drop-3)
+  - the spec carries the new clip fields follows / followsFrame / returnsToFrame, and the looks are checked to agree on them
+  - two OPTIONAL memory levers, both off by default (the default output is what drop 3's build would have made):
+      --clip-size roar=544:368        one clip at a smaller canvas than its tier (full:phone, multiples of 4). Its frames
+                                      carry that sourceSize; game/creature.ts already scales a sprite by canvas / orig.width
+                                      on every frame swap, so the loader needs nothing. The shadow atlas is not touched.
+      --thin roar=37:2                from rig frame 37 on keep every 2nd frame and HOLD it for the ones dropped: the
+                                      dropped frames keep their NAMES and point at the kept frame's rectangle (two names,
+                                      one rectangle, as duplicate frames always were), so the loader needs nothing. The
+                                      clip's shadow frames are thinned the same way. The LAST frame is always kept.
+
+A sibling in style of apps/manticore_mayhem/tools/build_flame_assets.py (same packer, same TexturePacker JSON the
+game's loader already reads). Until 2026-10-15 the drop 4 version lived in ~/Desktop/Manticore Mayhem/creature/
+prep_2026-10-13/ (the in-repo copy was the drop 3 one); this is that file with the 2026-10-15 encode change. The
+shipped set (drop 4 + the glow add-on) is rebuilt with:
+
+  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_creature_assets.py \
+      --drops /Volumes/manticore/rig-review/2026-10-13 --looks day,super,epic \
+      --addon /Volumes/manticore/rig-review/2026-10-13/drop-4-glow-addon --out <scratch folder>
+  then copy <out>/{day,super,epic,shared} into static/assets/sprites/creature and <out>/creatureSpec.ts into src/game.
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python build_creature_assets.py \
       --drops <folder holding drop-3, drop-3-night, drop-3-super, drop-3-epic> --out <folder> [--looks day,super,epic]
@@ -38,12 +57,25 @@ overwrite each other.
 SHARED FILES. The rig renders shadows and charge_glow once (the day pass) and copies them into every look. This tool
 checks that by content hash across the looks it was given and refuses to share anything that differs.
 
+THE GLOW ADD-ON (2026-10-13, drop-4-glow-addon: sting_hit_glow 9 frames, sting_recrouch_glow 3 frames).
+  --addon <folder>      its meta_addon.json `clips` are merged into every look's clips after charge_glow (and checked
+                        against the folder's own merged meta/<look>/meta.json); its atlases are read from that folder.
+                        EVERY overlay clip now goes into the ONE shared glow atlas creature-glow[-phone] (it was
+                        charge_glow alone): charge_glow keeps its names creature_glow_<NNN>, an add-on overlay is
+                        creature_glow_<the body clip it lies over>_<NNN> (creature_glow_sting_hit_000 ..). The spec
+                        carries overlayFrames / gain / gainBaked.
+  --only-shared         build the shared atlases only (shadows, glow) and take every look's rows from the report.json
+                        already in --out: the look atlases are not read, resized or written. For adding the glow
+                        add-on to a finished build without touching it.
+
 WHAT IS CHECKED AND PRINTED: every clip's frame count against meta.json and that its frames are contiguous; no sheet
 over 4096; duplicate frames inside a clip are stored once (two names, one rectangle); each shipped webp against the
 frames handed to the encoder (premultiplied, mean and worst of 255); totals per look and tier.
 
-webp: quality 90, method 6, alpha_quality 100 (build_flame_assets.py Q_FLAME, board_relight.py Q_GEARS). The shadow
-atlas has no colour, so it is lossless (it is small). No mipmaps are assumed (game/mipmaps.ts: art drawn near 1:1 has
+webp: the look atlases quality 85, method 6, alpha_quality 70 (Corey 2026-10-15, A1 of the download analysis, after the
+side-by-side samples: "q85 + alpha_q 70 is acceptable"; was quality 90, alpha_quality 100). The shared glow atlas keeps
+quality 90, alpha_quality 100 (an additive overlay, not in the samples). The shadow atlas has no colour, so it is
+lossless (it is small). No mipmaps are assumed (game/mipmaps.ts: art drawn near 1:1 has
 none), so GPU bytes = sheet width x height x 4.
 """
 from __future__ import annotations
@@ -60,8 +92,12 @@ from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = None
 
-LOOKS = {'day': 'drop-3', 'night': 'drop-3-night', 'super': 'drop-3-super', 'epic': 'drop-3-epic'}
-Q_CREATURE = 90   # build_flame_assets.py Q_FLAME, board_relight.py Q_GEARS
+LOOK_SUFFIX = {'day': '', 'night': '-night', 'super': '-super', 'epic': '-epic'}
+LOOKS: dict[str, str] = {}  # look -> folder name, filled from --drop
+CLIP_FACTS = ('frames', 'holdFrame', 'returnsTo', 'returnsToFrame', 'startsFrom', 'follows', 'followsFrame', 'overlay', 'overlayOf', 'overlayFrames', 'gainBaked')
+Q_CREATURE = 85   # the look atlases (Corey 2026-10-15, A1; was 90 = build_flame_assets.py Q_FLAME)
+A_CREATURE = 70   # their alpha_quality (Corey 2026-10-15, A1; was 100)
+Q_GLOW, A_GLOW = 90, 100  # the shared additive glow atlas keeps the old settings (not part of A1's samples)
 MAX_SHEET = 4096  # house rule
 PAD = 2           # transparent px round every frame in a sheet (build_flame_assets.py PAD)
 TIERS = (('full', ''), ('phone', '-phone'))
@@ -217,7 +253,8 @@ def build_atlas(job: dict) -> dict:
             if job['lossless']:
                 atlas.save(path, 'WEBP', lossless=True, quality=100, method=6, exact=True)
             else:
-                atlas.save(path, 'WEBP', quality=Q_CREATURE, method=6, alpha_quality=100)
+                q, aq = job.get('quality', (Q_CREATURE, A_CREATURE))
+                atlas.save(path, 'WEBP', quality=q, method=6, alpha_quality=aq)
             meta = {'image': image, 'format': 'RGBA8888', 'size': {'w': aw, 'h': ah}, 'scale': '1',
                     'pngHash': hashlib.md5(open(path, 'rb').read()).hexdigest()[:8]}
             if len(pages) > 1:
@@ -237,15 +274,32 @@ def md5(path: str) -> str:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--drops', required=True, help='the folder that holds the look folders (drop-3, drop-3-night, ...)')
+    ap.add_argument('--drops', required=True, help='the folder that holds the look folders (drop-4, drop-4-night, ...)')
+    ap.add_argument('--drop', default='drop-4', help='the day look folder name; the others are <name>-night, -super, -epic')
+    ap.add_argument('--clip-size', action='append', default=[], metavar='CLIP=FULL:PHONE', help='one clip at its own canvas, px per tier')
+    ap.add_argument('--thin', action='append', default=[], metavar='CLIP=FROM:STEP', help='from rig frame FROM keep every STEPth frame, hold it for the rest')
     ap.add_argument('--out', required=True)
     ap.add_argument('--looks', default='day,night,super,epic')
     ap.add_argument('--full', type=int, default=640, help='the full tier canvas, px (the rig canvas is 1024)')
     ap.add_argument('--phone', type=int, default=432, help='the phone tier canvas, px')
     ap.add_argument('--jobs', type=int, default=8)
+    ap.add_argument('--addon', default='', help='a folder with meta_addon.json and its overlay atlases (the glow add-on)')
+    ap.add_argument('--only-shared', action='store_true', help='build the shared atlases only; the looks come from the report.json in --out')
     ap.add_argument('--report-only', action='store_true', help='pack and count, write no image')
     args = ap.parse_args()
     looks = [l for l in args.looks.split(',') if l]
+    LOOKS.update({l: args.drop + sfx for l, sfx in LOOK_SUFFIX.items()})
+    clip_size = {}
+    for item in args.clip_size:
+        c, v = item.split('=')
+        f, p = (int(x) for x in v.split(':'))
+        if f % 4 or p % 4:
+            die(f'--clip-size {item}: not multiples of 4')
+        clip_size[c] = {'full': f, 'phone': p}
+    thin = {}
+    for item in args.thin:
+        c, v = item.split('=')
+        thin[c] = tuple(int(x) for x in v.split(':'))
     for l in looks:
         if l not in LOOKS:
             die(f'unknown look {l}')
@@ -260,6 +314,17 @@ def main():
         if not os.path.isfile(os.path.join(folder, 'meta.json')):
             die(f'{folder}/meta.json is missing')
         metas[l] = (folder, json.load(open(os.path.join(folder, 'meta.json'))))
+        if args.addon:
+            add = json.load(open(os.path.join(os.path.expanduser(args.addon), 'meta_addon.json')))['clips']
+            merged = {}
+            for c, v in metas[l][1]['clips'].items():
+                merged[c] = v
+                if c == 'charge_glow':
+                    merged.update(add)
+            metas[l][1]['clips'] = merged
+            theirs = os.path.join(os.path.expanduser(args.addon), 'meta', l, 'meta.json')
+            if os.path.isfile(theirs) and json.load(open(theirs)) != metas[l][1]:
+                die(f'{theirs} is not {folder}/meta.json + meta_addon.json')
         if metas[l][1].get('look') != l:
             die(f"{folder}/meta.json says look {metas[l][1].get('look')}, expected {l}")
     first = metas[looks[0]][1]
@@ -271,17 +336,36 @@ def main():
         for k in ('canvas', 'feetRow', 'contactX', 'fps', 'shadow'):
             if m[k] != first[k]:
                 die(f'{l}: meta.json {k} differs from {looks[0]}')
-        if {c: (v['frames'], v.get('holdFrame')) for c, v in m['clips'].items()} != {c: (v['frames'], v.get('holdFrame')) for c, v in first['clips'].items()}:
+        facts = lambda mm: {c: tuple(v.get(k) for k in CLIP_FACTS) for c, v in mm['clips'].items()}
+        if facts(m) != facts(first):
             die(f'{l}: the clips differ from {looks[0]}')
     clips = first['clips']
     overlays = [c for c, v in clips.items() if v.get('overlay')]
     colour = [c for c in clips if c not in overlays]
     shadowed = [c for c, v in clips.items() if v.get('shadowAtlas')]
     scanvas = tuple(first['shadow']['canvas'])
+    for c in list(clip_size) + list(thin):
+        if c not in clips:
+            die(f'no clip {c} in meta.json')
+
+    def held(c: str, src: list) -> list:
+        """--thin: a dropped frame is drawn from the last kept frame before it (the clip's last frame is always kept)"""
+        if c not in thin:
+            return src
+        start, step = thin[c]
+        out, keep = [], 0
+        for i in range(len(src)):
+            n = i + 1
+            if n < start or (n - start) % step == 0 or n == len(src):
+                keep = i
+            out.append(src[keep])
+        return out
 
     # the shared files must be the same bytes in every look given
     shared_src = metas[looks[0]][0]
-    for c in overlays + [f'{c}_shadow' for c in shadowed]:
+    addon_clips = set(json.load(open(os.path.join(os.path.expanduser(args.addon), 'meta_addon.json')))['clips']) if args.addon else set()
+    src_of = lambda c: os.path.expanduser(args.addon) if c in addon_clips else shared_src
+    for c in [c for c in overlays if c not in addon_clips] + [f'{c}_shadow' for c in shadowed]:
         hashes = {l: md5(os.path.join(metas[l][0], f'{c}.png')) for l in looks}
         if len(set(hashes.values())) != 1:
             die(f'{c}.png differs between looks {hashes}: it cannot be shared, give it a per look atlas')
@@ -293,21 +377,27 @@ def main():
         for l in looks:
             folder = metas[l][0]
             os.makedirs(os.path.join(out, l), exist_ok=True)
-            for c in colour:
-                src = read_clip(folder, clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png')
+            for c in ([] if args.only_shared else colour):
+                src = held(c, read_clip(folder, clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png'))
+                t = clip_size.get(c, tiers)[tier]
                 jobs.append({'key': [tier, l, c], 'out': os.path.join(out, l), 'base': f'creature-{l}-{c}{suffix}',
                              'frames': [(f'creature_{l}_{c}_{n:03d}', png, e) for n, (png, e) in enumerate(src)],
                              'canvas': canvas, 'size': (t, t), 'lossless': False, 'report_only': args.report_only})
+        t = tiers[tier]
         os.makedirs(os.path.join(out, 'shared'), exist_ok=True)
+        gframes = []
         for c in overlays:
-            src = read_clip(shared_src, clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png')
-            name = 'glow' if c == 'charge_glow' else c
-            jobs.append({'key': [tier, 'shared', c], 'out': os.path.join(out, 'shared'), 'base': f'creature-{name}{suffix}',
-                         'frames': [(f'creature_{name}_{n:03d}', png, e) for n, (png, e) in enumerate(src)],
-                         'canvas': canvas, 'size': (t, t), 'lossless': False, 'report_only': args.report_only})
+            if clips[c].get('overlay') != 'additive':
+                die(f'{c}: overlay {clips[c].get("overlay")} (only additive is known)')
+            src = read_clip(src_of(c), clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png')
+            # charge_glow keeps the names the game already reads; any other overlay is named for the body clip under it
+            stem = 'creature_glow' if c == 'charge_glow' else f"creature_glow_{clips[c]['overlayOf']}"
+            gframes += [(f'{stem}_{n:03d}', png, e) for n, (png, e) in enumerate(src)]
+        jobs.append({'key': [tier, 'shared', 'glow'], 'out': os.path.join(out, 'shared'), 'base': f'creature-glow{suffix}', 'frames': gframes,
+                     'canvas': canvas, 'size': (t, t), 'lossless': False, 'quality': (Q_GLOW, A_GLOW), 'report_only': args.report_only})
         frames = []
         for c in shadowed:
-            src = read_clip(shared_src, clips[c]['shadowAtlas'], clips[c]['frames'], c + '/frame_{n:04d}_shadow.png')
+            src = held(c, read_clip(shared_src, clips[c]['shadowAtlas'], clips[c]['frames'], c + '/frame_{n:04d}_shadow.png'))
             frames += [(f'creature_shadow_{c}_{n:03d}', png, e) for n, (png, e) in enumerate(src)]
         jobs.append({'key': [tier, 'shared', 'shadow'], 'out': os.path.join(out, 'shared'), 'base': f'creature-shadow{suffix}', 'frames': frames,
                      'canvas': scanvas, 'size': (t // 4, t // 4), 'lossless': True, 'report_only': args.report_only})
@@ -322,25 +412,37 @@ def main():
             print(f"  {'/'.join(r['key']):28s} {r['frames']:3d} frames ({r['stored']} stored), " + ', '.join(f"{x['sheet'][0]} x {x['sheet'][1]}" for x in s)
                   + (f", {sum(x['webpBytes'] for x in s) / 1024:.0f} KiB, encoder error mean {max(x['errMean'] for x in s)} worst {max(x['errMax'] for x in s)} of 255" if not args.report_only else ''), flush=True)
     by = {tuple(r['key']): r for r in done}
+    if args.only_shared:
+        had = json.load(open(os.path.join(out, 'report.json')))
+        if (had['tiers']['full']['canvas'], had['tiers']['phone']['canvas']) != (args.full, args.phone) or sorted(had['tiers']['full']['looks']) != sorted(looks):
+            die('--only-shared: the report.json in --out is of another build (tier sizes or looks)')
+        for tier, _ in TIERS:
+            for l in looks:
+                for c in colour:
+                    by[(tier, l, c)] = {'sheets': had['tiers'][tier]['looks'][l]['clips'][c]}
 
     # ---- the spec and the report -------------------------------------------------------------------------------------
     spec = {
         'source': {l: metas[l][1].get('drop', LOOKS[l]) for l in looks},
         'canvas': list(canvas), 'feetRow': first['feetRow'], 'feetCol': canvas[0] // 2, 'contactX': first['contactX'], 'fps': first['fps'],
         'shadow': {'canvasShare': 0.25, 'scale': first['shadow']['scale']},
-        'clips': {c: {k: v[k] for k in ('frames', 'loop', 'holdFrame', 'returnsTo', 'startsFrom', 'overlay', 'overlayOf') if k in v} | {'shadow': c in shadowed} for c, v in clips.items()},
+        'clips': {c: {k: v[k] for k in ('frames', 'loop', 'holdFrame', 'returnsTo', 'returnsToFrame', 'startsFrom', 'follows', 'followsFrame', 'overlay', 'overlayOf', 'overlayFrames', 'gain', 'gainBaked') if k in v} | {'shadow': c in shadowed} for c, v in clips.items()},
         'looks': looks,
-        'frameName': {'colour': 'creature_<look>_<clip>_<NNN>', 'shadow': 'creature_shadow_<clip>_<NNN>', 'glow': 'creature_glow_<NNN>'},
+        **({'held': {c: {'from': v[0], 'every': v[1]} for c, v in thin.items()}} if thin else {}),
+        'frameName': {'colour': 'creature_<look>_<clip>_<NNN>', 'shadow': 'creature_shadow_<clip>_<NNN>', 'glow': 'creature_glow_<NNN>', 'glowOver': 'creature_glow_<body clip>_<NNN>'},
+        'glow': {c: ('creature_glow' if c == 'charge_glow' else f"creature_glow_{clips[c]['overlayOf']}") for c in overlays},
         'tiers': {},
     }
-    report = {'tiers': {}, 'units': 'bytes; GPU = sheet width x height x 4 (RGBA8, no mipmaps)'}
+    report = {'drop': args.drop, 'clipSize': clip_size, 'thin': {c: list(v) for c, v in thin.items()}, 'tiers': {}, 'units': 'bytes; GPU = sheet width x height x 4 (RGBA8, no mipmaps)'}
     for tier, suffix in TIERS:
         t = tiers[tier]
         T = spec['tiers'][tier] = {'canvas': [t, t], 'scale': t / canvas[0], 'shadowCanvas': [t // 4, t // 4], 'looks': {}, 'shared': {}}
+        if clip_size:
+            T['clipCanvas'] = {c: [v[tier], v[tier]] for c, v in clip_size.items()}
         R = report['tiers'][tier] = {'canvas': t, 'looks': {}, 'shared': {}}
-        for c in overlays + ['shadow']:
+        for c in ['glow', 'shadow']:
             r = by[(tier, 'shared', c)]
-            T['shared']['glow' if c == 'charge_glow' else c] = [{'file': f"shared/{x['file']}.json", 'sheet': x['sheet']} for x in r['sheets']]
+            T['shared'][c] = [{'file': f"shared/{x['file']}.json", 'sheet': x['sheet']} for x in r['sheets']]
             R['shared'][c] = r['sheets']
         for l in looks:
             T['looks'][l] = {c: [{'file': f"{l}/{x['file']}.json", 'sheet': x['sheet']} for x in by[(tier, l, c)]['sheets']] for c in colour}
