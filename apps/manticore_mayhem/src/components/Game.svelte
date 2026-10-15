@@ -37,6 +37,7 @@
 	import StingerPlaque from './StingerPlaque.svelte';
 	import Win from './Win.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
+	import MaxWinCinematic from './MaxWinCinematic.svelte';
 	import Transition from './Transition.svelte';
 	import Logo from './Logo.svelte';
 	import Chrome from '../ui/Chrome.svelte';
@@ -232,6 +233,9 @@
 			<StingerPlaque />
 			<Win />
 			<FreeSpinOutro />
+			<!-- THE MAX WIN SCREEN (components/MaxWinCinematic.svelte): over the board, the plaques and the win screens, its
+			     own dim, the lifted creature and its titles; under the scene transition and the HTML HUD -->
+			<MaxWinCinematic />
 			<Transition />
 		{/if}
 	</App>

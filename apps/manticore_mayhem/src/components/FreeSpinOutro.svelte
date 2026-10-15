@@ -18,7 +18,8 @@
 	// titled with the win ladder's words instead of TOTAL WIN: BIG WIN slams in and the amount counts to the
 	// book's capped amount on the house Max pacing (winLevelMap level 10, 7 s over the base ladder's bars), the
 	// title and the look stepping up through Super / Mega / Epic to MAX WIN with each tier's clip; then the
-	// same line and the same gate.
+	// same line; then THE MAX WIN SCREEN (components/MaxWinCinematic.svelte, 2026-10-15) takes over from the MAX
+	// landing and owns the round's one gate, so this screen has none of its own in a capped round.
 	import { Rectangle } from 'pixi-svelte';
 	import { MainContainer } from 'components-layout';
 	import { Tween } from 'svelte/motion';
@@ -88,6 +89,9 @@
 				});
 				counting = false;
 				await flow.lineIn();
+				// A CAPPED ROUND HAS NO GATE HERE (2026-10-15): the MAX landing has started the max win screen
+				// (components/MaxWinCinematic.svelte), which takes the plaque away under its dim and owns the round's one gate
+				if (capped) return;
 				// auto bonuses press on a moment after the count (Angry Mantis); re-checked when the hold ends, so
 				// stopping autoplay during it brings the press gate back
 				if (autoBonusesRunning()) await waitForTimeout(STINGER_PLAQUE.wrapAutoHoldMs);
@@ -98,6 +102,7 @@
 			target = amount;
 			counted.set(0, { duration: 0 });
 			await counted.set(amount, { duration: Math.max(900, winLevelData.presentDuration) });
+			if (capped) return; // the max win screen follows and owns the gate (above)
 			if (!autoBonusesRunning()) await waitForResolve((resolve) => (resolveGate = resolve));
 		},
 		freeSpinOutroHide: async () => {
