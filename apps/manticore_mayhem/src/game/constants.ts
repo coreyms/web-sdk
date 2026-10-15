@@ -339,6 +339,17 @@ export const BOARD_EXIT = {
 	maxScattersVisible: 3,
 };
 
+/** THE CUT LINES (Corey 2026-10-15 10:06 and 10:08, "A is the right answer"): BoardCells' one cut layer (its one mask)
+ *  cuts every tile leaving under the bottom edge (the board exit from the spin press on, the roar's fall), every tile
+ *  coming in over the top edge, and the anticipation reels (components/Anticipation.svelte), at the INNER WINDOW EDGE
+ *  where the black lattice ends: the outer face of the lattice's bottom bar for the bottom line and of its top bar for
+ *  the top line, read from each layout's own board registration (symbolPlace.ts latticeEdges). Not from the symbols: a
+ *  resting tile is never in the cut layer, so a resting overhang (the row-7 scatter over the bottom rail) shows whole
+ *  while it rests and is cut once it starts to fall.
+ *  `edge`: 'outer' (where the lattice ends, the bronze rail begins), 'centre' (the bar's centre line) or 'opening'
+ *  (the bar's inner face). `offsetPx`: board px moved OUTWARD from that edge (down at the bottom, up at the top). */
+export const FALL_CUT: { edge: 'opening' | 'centre' | 'outer'; offsetPx: number } = { edge: 'outer', offsetPx: 0 };
+
 /** per-symbol landing animation (tools/SYMBOL_SHEETS.md, sheets from tools/pack_symbol_sheets.py).
  *  squash: GRAVITY_DROP's sprite squash for this symbol (L4 bakes its own stamp squash into its drop
  *  frames, so the sprite must not squash it again). dropFrom: the first drop frame the game plays
