@@ -362,6 +362,7 @@ const imageOf = (jsonUrl: string, image: string): string => {
 const prefetchLooks = async () => {
 	for (const look of CREATURE.lookLoad.prefetchLooks as readonly CreatureLook[]) {
 		for (const group of GROUPS) {
+			if (!(CREATURE.lookLoad.prefetchGroups as readonly string[]).includes(group.name)) continue;
 			for (const clip of group.clips) {
 				const url = CREATURE_FILES[look][clip];
 				// a look loaded already (on show, or loading) has its files in: nothing to fetch

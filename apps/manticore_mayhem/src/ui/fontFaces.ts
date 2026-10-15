@@ -36,5 +36,6 @@ if (typeof document !== 'undefined' && !document.getElementById('am-fonts')) {
 	// actually cover the bundled fonts, so Pixi text never rasterizes with a fallback font.
 	document.fonts?.load('700 16px Outfit');
 	document.fonts?.load('700 16px Sora');
-	document.fonts?.load("16px 'Black Ops One'");
+	// Black Ops One is NOT kicked off (2026-10-15, download analysis S2, Corey yes): only HTML uses it (ChromeStyles'
+	// display class), and HTML text fetches its own face when it first draws, so its 56 KB left the boot path
 }

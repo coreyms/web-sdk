@@ -1,5 +1,8 @@
 """Build the Manticore Mayhem PLACEHOLDER art (run with math-sdk/env/bin/python).
 The real symbol art (mmSymbols atlas, symbol tiles/<code>.webp) now comes from tools/pack_symbol_sheets.py.
+The Game Info multiplier ladder (tiles/x2.webp .. x128.webp) is CAPTURED from the live game since 2026-10-15:
+parent repo tools/manticore/rules_tiles_capture.js (the whole-cell tiles as BoardCells draws them), then
+scripts/stamp-assets.mjs. build_tiles() here would write the retired round badges.
 
 Milestone 1 ships no production art: every tile is a flat coloured plate carrying the symbol's
 CODE ID and its TIER word, so a board read at phone size still sorts tier first and symbol second
@@ -169,7 +172,8 @@ def build_atlas():
 
 
 def build_tiles():
-    """individual tile files for the HTML Game Info paytable (<img> cannot read the atlas)"""
+    """individual tile files for the HTML Game Info paytable (<img> cannot read the atlas). RETIRED for the
+    x<n> ladder: tools/manticore/rules_tiles_capture.js (parent repo) captures the game's own tiles."""
     out = os.path.join(STATIC, "tiles")
     os.makedirs(out, exist_ok=True)
     for code, (tier, _name, rgb) in SYMBOLS.items():

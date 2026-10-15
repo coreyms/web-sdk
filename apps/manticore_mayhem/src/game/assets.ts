@@ -312,7 +312,8 @@ const assets = {
 	// the same layout today (md5 checked), so the nine feature keys point AT the base file: one download
 	// and one texture per layout instead of four (Pixi's loader caches by URL). The keys stay, so
 	// components/Background.svelte and everything else is unchanged. THIS ENDS WHEN THE REAL FEATURE SCENES
-	// ARRIVE: point each key back at its own file (they are still on disk, static/assets/backgrounds/).
+	// ARRIVE: point each key back at its own file. The nine copies left the shipped build on 2026-10-15 (download
+	// analysis S1): they are in ~/Desktop/Manticore Mayhem/_archive/shipped-build-removed-2026-10-15/static/assets/backgrounds/.
 	bg_bonus_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-landscape.webp', import.meta.url).href), preload: false },
 	bg_bonus_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-phone.webp', import.meta.url).href), preload: false },
 	bg_bonus_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-portrait.webp', import.meta.url).href), preload: false },

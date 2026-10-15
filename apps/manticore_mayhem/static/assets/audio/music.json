@@ -3,12 +3,12 @@
 	"tracks": {
 		"bgm_base": {
 			"src": [
-				"./assets/audio/music/bgm_base.ogg?v=c8fcbaab",
-				"./assets/audio/music/bgm_base.m4a?v=5d195445"
+				"./assets/audio/music/bgm_base.ogg?v=9658973b",
+				"./assets/audio/music/bgm_base.m4a?v=6185c22c"
 			],
 			"bytes": [
-				1524614,
-				1468736
+				1032181,
+				987711
 			],
 			"loop": true,
 			"duration": 120,
@@ -16,12 +16,12 @@
 		},
 		"bgm_bonus": {
 			"src": [
-				"./assets/audio/music/bgm_bonus.ogg?v=d2a7ac18",
-				"./assets/audio/music/bgm_bonus.m4a?v=d248dccc"
+				"./assets/audio/music/bgm_bonus.ogg?v=e7f42aef",
+				"./assets/audio/music/bgm_bonus.m4a?v=18e50784"
 			],
 			"bytes": [
-				1554928,
-				1471126
+				1039708,
+				991061
 			],
 			"loop": true,
 			"duration": 120,
@@ -29,12 +29,12 @@
 		},
 		"bgm_super": {
 			"src": [
-				"./assets/audio/music/bgm_super.ogg?v=fc1e7de0",
-				"./assets/audio/music/bgm_super.m4a?v=5ddecb67"
+				"./assets/audio/music/bgm_super.ogg?v=17003f05",
+				"./assets/audio/music/bgm_super.m4a?v=7fbf7ec4"
 			],
 			"bytes": [
-				1449323,
-				1465629
+				962613,
+				985364
 			],
 			"loop": true,
 			"duration": 120,
@@ -42,12 +42,12 @@
 		},
 		"bgm_epic": {
 			"src": [
-				"./assets/audio/music/bgm_epic.ogg?v=113269c1",
-				"./assets/audio/music/bgm_epic.m4a?v=5f9a83b0"
+				"./assets/audio/music/bgm_epic.ogg?v=6615a4e6",
+				"./assets/audio/music/bgm_epic.m4a?v=e631e63c"
 			],
 			"bytes": [
-				1435956,
-				1467070
+				943695,
+				986827
 			],
 			"loop": true,
 			"duration": 120,
@@ -55,12 +55,12 @@
 		},
 		"bgm_maxwin": {
 			"src": [
-				"./assets/audio/music/bgm_maxwin.ogg?v=bb053e2e",
-				"./assets/audio/music/bgm_maxwin.m4a?v=59d7e760"
+				"./assets/audio/music/bgm_maxwin.ogg?v=52ffca2e",
+				"./assets/audio/music/bgm_maxwin.m4a?v=73548adc"
 			],
 			"bytes": [
-				362836,
-				368014
+				239439,
+				247799
 			],
 			"loop": true,
 			"duration": 30,

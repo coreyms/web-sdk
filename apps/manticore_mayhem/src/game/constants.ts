@@ -1846,7 +1846,11 @@ export const CREATURE = {
 		portraitTablet: { x: 1254.2, y: 2026.8, scale: 0.555, layer: 'front' },
 	},
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
-	lookLoad: { prefetch: true, prefetchLooks: ['super', 'epic'], early: true, waitMs: 250 },
+	// prefetchGroups (2026-10-15, download analysis S3, Corey yes): the prefetch takes only these load groups of each look
+	// (game/creatureLoad.ts GROUPS); the alternates (snarl, growl) load when the mode asks for the look, like any look.
+	// Until a sheet is in its action is simply not played, so a feature that starts first shows no snarl / growl
+	// until they land. Saves 6.6 MB desktop / 3.7 MB phone per session.
+	lookLoad: { prefetch: true, prefetchLooks: ['super', 'epic'], prefetchGroups: ['creatureIdle', 'creatureActs'], early: true, waitMs: 250 },
 	/** HIS IDLE SHEET'S PLACE IN THE DEFERRED PHASE (2026-10-14, part D; Decimus cold load at staging 7184e88: it landed at
 	 *  16-17 s on fast 4G and 92 s on slow 4G, queued behind the plaque, the night scene, the night frame and the flames).
 	 *  The group it runs straight after (game/deferredLoad.ts), always after the audio and never in the first, blocking

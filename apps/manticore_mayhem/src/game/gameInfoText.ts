@@ -17,6 +17,9 @@ export const DISCLAIMER =
 // example stays. The Epic floor names its base and shows the live amount ("200x your bet ($20.00)", social "your play
 // amount"); the Mystery Epic's own floor is stated nowhere (menu or rules); the menu is FEATURE_MENU_NAME everywhere,
 // and that name carries its article ("in THE ARMOURY", never "the ... menu").
+// Layout round 1 (Corey 2026-10-15): the cards' one meta line became three stat tiles (modes.stats), the intro gained
+// the line that defines "your bet", and MECHANICS became WHAT'S DIFFERENT, its copy split into bullets at sentence
+// boundaries with every sentence unchanged.
 //
 // COPY RULES: no em or en dash anywhere; social wording (soc second argument) never says bet / buy / bought / pay /
 // cost / price: "play amount", "instantly triggered", "win", "value" (tools/manticore/rules_probe.js sweeps both).
@@ -142,46 +145,70 @@ export const gameInfoText = (amount: (x: number) => string) => ({
 				`Bought features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per round differ between a bought feature and a natural one, and every mode returns ${RTP} of what is bet in it.`,
 				`Instantly triggered features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per round differ between an instantly triggered feature and a natural one, and every mode returns ${RTP} of what is played in it.`,
 			),
+			// what "your bet" on the cards means (Corey 2026-10-15): the amount the HUD's + and − set (StepButton draws the
+			// true minus sign, U+2212, as here)
+			soc(
+				"Your bet is the amount you set with + and −. Every mode's cost is a multiple of it.",
+				"Your play amount is the amount you set with + and −. Every mode's round is a multiple of it.",
+			),
 		],
-		/** the seven cards' fields, keyed by config.betModes key */
+		/** the three stat tiles of a mode card (Corey 2026-10-15): price, RTP, max win. The max win reads the same on both
+		 *  sites: `MAX WIN 10,000×`, with `(3,333.3× THIS MODE)` under it on every mode that costs more than 1x */
+		stats: {
+			price: soc('COST', 'EACH ROUND'),
+			priceUnit: soc('YOUR BET', 'YOUR PLAY AMOUNT'),
+			rtp: 'RTP',
+			maxWin: 'MAX WIN',
+			thisMode: 'THIS MODE',
+		},
+		/** the card body's labels (drawn in capitals) */
+		labels: { enter: 'How to enter', spins: 'Spins', mech: "What's different" },
+		/** the seven cards' fields, keyed by config.betModes key. `mech` is the WHAT'S DIFFERENT bullets: the approved
+		 *  mechanics copy split at its sentence boundaries, every sentence word for word (Corey 2026-10-15) */
 		cards: {
-			base: { enter: 'Default play.', spins: 'One spin per play.', mech: `Multiplier Tiles reset every spin. ${SCATTERS} trigger the features.` },
+			base: { enter: 'Default play.', spins: 'One spin per play.', mech: ['Multiplier Tiles reset every spin.', `${SCATTERS} trigger the features.`] },
 			ante: {
 				enter: `Switch on in ${MENU}; stays on until switched off.`,
 				spins: 'One spin per play.',
-				mech: `Free Spins, Super Free Spins and Epic Free Spins each land ${ANTE_RATE} as often as in the Base Game. Everything else plays as in the Base Game.`,
+				mech: [`Free Spins, Super Free Spins and Epic Free Spins each land ${ANTE_RATE} as often as in the Base Game.`, 'Everything else plays as in the Base Game.'],
 			},
 			super_ante: {
 				enter: `Switch on in ${MENU}; stays on until switched off.`,
 				spins: 'One spin per play.',
-				mech: `Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Super Free Spins land ${SUPER_ANTE_SUPER_RATE} as often as in the Base Game and Epic Free Spins ${SUPER_ANTE_EPIC_RATE} as often.`,
+				mech: [
+					`Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead.`,
+					`Super Free Spins land ${SUPER_ANTE_SUPER_RATE} as often as in the Base Game and Epic Free Spins ${SUPER_ANTE_EPIC_RATE} as often.`,
+				],
 			},
 			bonus: {
 				enter: soc(`Land 4 ${SCATTERS}, or buy directly.`, `Land 4 ${SCATTERS}, or trigger it instantly from ${MENU}.`),
 				spins: `${config.freeSpins.bonus} free spins.`,
-				mech: `Multiplier Tiles **persist** for the whole round and double up to ${config.tileCap.bonus}×.`,
+				mech: [`Multiplier Tiles **persist** for the whole round and double up to ${config.tileCap.bonus}×.`],
 			},
 			super: {
 				enter: soc(`Land 5 ${SCATTERS}, or buy directly.`, `Land 5 ${SCATTERS}, or trigger it instantly from ${MENU}.`),
 				spins: `${config.freeSpins.super} free spins.`,
-				mech: `Tiles persist and double up to ${config.tileCap.super}×. The roar clears the low symbols and a Super Sting is possible.`,
+				mech: [`Tiles persist and double up to ${config.tileCap.super}×.`, 'The roar clears the low symbols and a Super Sting is possible.'],
 			},
 			epic: {
 				enter: soc(`Land 6 or more ${SCATTERS}, or buy directly.`, `Land 6 or more ${SCATTERS}, or trigger it instantly from ${MENU}.`),
 				spins: `${config.freeSpins.epic} free spins.`,
 				// COPY RULE (Corey 2026-10-13 14:14): a guaranteed multiple names its base and shows the live amount. The
 				// Mystery Epic's own floor is stated nowhere, so this sentence names only the two routes it covers
-				mech: soc(
-					`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings are common. **Epic floor:** a round triggered by ${SCATTERS} or bought directly always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
-					`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings are common. **Epic floor:** a round triggered by ${SCATTERS} or instantly triggered always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
-				),
+				mech: [
+					`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings are common.`,
+					soc(
+						`**Epic floor:** a round triggered by ${SCATTERS} or bought directly always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
+						`**Epic floor:** a round triggered by ${SCATTERS} or instantly triggered always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
+					),
+				],
 			},
 			mystery: {
 				enter: soc(`Buy from ${MENU}.`, `Trigger from ${MENU}.`),
 				spins: 'One Mystery spin, then whatever it awards.',
-				mech: 'Awards Super Free Spins, Epic Free Spins or no feature, never regular Free Spins. The exact shares are under Mystery Disclosure.',
+				mech: ['Awards Super Free Spins, Epic Free Spins or no feature, never regular Free Spins.', 'The exact shares are under Mystery Disclosure.'],
 			},
-		} as Record<string, { enter: string; spins: string; mech: string }>,
+		} as Record<string, { enter: string; spins: string; mech: string[] }>,
 	},
 	mystery: [
 		soc(

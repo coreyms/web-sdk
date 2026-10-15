@@ -13,6 +13,12 @@
 	// with bold keywords at 700; headings, names and labels keep the HUD's heavy Outfit; the panel's own greys lifted;
 	// labels 12 px; the reading measure held to about 72 characters (cards and pay rows stay 880 px); section headings
 	// 20 px with more air between sections; the compact header up to 600 px of window height. The HUD is untouched.
+	//
+	// LAYOUT ROUND 1 (Corey 2026-10-15, feedback/rules_layout_r1): each mode card's one meta line became three boxed
+	// stat tiles (COST / EACH ROUND, RTP, MAX WIN with the per-mode bracket); the card body is HOW TO ENTER and SPINS
+	// side by side, then WHAT'S DIFFERENT as bullets; type scale: mode name, then stat values, labels 10.5 px and
+	// quieter (--label), body text in --ink; the 72 character measure is gone, running text fills the 880 px column to
+	// the cards' right edge. This supersedes "labels 12 px" and the measure above.
 	import type { ComponentProps } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
@@ -93,6 +99,7 @@
 	// player (and a reviewer) needs to see: 10,000x of a 3x Ante spin is 3,333.3x the price. One decimal at most,
 	// thousands separated like the cap itself ("3,333.3", "1,000")
 	const capPerPrice = (cost: number) => (config.maxWin / cost).toLocaleString('en-US', { maximumFractionDigits: 1 });
+	const MAX_WIN = config.maxWin.toLocaleString('en-US');
 	const MODE_STYLE: { id: keyof typeof config.betModes; accent: string; rgs: string }[] = [
 		{ id: 'base', accent: '#eef0f6', rgs: 'BASE' },
 		{ id: 'ante', accent: '#e0b64a', rgs: 'ANTE' },
@@ -169,6 +176,9 @@
 	const tabSize = $derived(lowHead ? 10 : dense ? 10.5 : 11);
 	const tileSize = $derived(short ? 40 : dense ? 48 : 64);
 	const iconBox = $derived(short ? 34 : dense ? 40 : 48);
+	// TYPE SCALE of a mode card (Corey 2026-10-15): the mode name biggest (20 / 16.5), then the stat values, the body at
+	// its size, the labels small and quiet (10.5 px, --label)
+	const statSize = $derived(dense ? 15 : 17);
 
 	// PAYTABLE FIT (Engine self-check [24], 2026-10-09). Five pays beside the symbol name do not fit a
 	// narrow window: at 400 / 425 px the "15+" column sat off the right edge at a $1 bet, and "MX$" or
@@ -189,6 +199,12 @@
 	const widestPay = $derived(Math.max(...paying.flatMap((sym) => pays(sym).map((p) => measureFitText(payText(p), PAY_FONT, 700)))) * 1.04);
 	// inside one .row: the reading column (section max-width 880) less the scrollbar, the row's padding and border
 	const rowInner = $derived(Math.min(880, vw - 2 * pad - 12) - 2 * 12 - 2);
+	// THE MULTIPLIER TILE LADDER (Corey 2026-10-15 10:09: the tiles as the game draws them, tools/manticore/
+	// rules_tiles_capture.js, 192 px = 64 CSS px at 3x). Seven square tiles with an arrow after each but the last; one row
+	// when it fits the reading column, else 4 + 3 (the 4th arrow ends the first row). Mirrors .ladder's CSS (step gap 6).
+	const LADDER_STEP = 14 + 2 * 6; // .ladder-arrow width + the gaps either side of it
+	const ladderTile = $derived(short ? 40 : dense ? 56 : 64);
+	const ladderSplit = $derived(7 * ladderTile + 6 * LADDER_STEP > Math.min(880, vw - 2 * pad - 12));
 	const payBands = config.paytableBands.length;
 	const stack = $derived(payBands * Math.max(PAY_MIN, widestPay) + (payBands - 1) * PAY_GAP > rowInner - tileSize - 14 - ROW_NAME_MIN - 14);
 	const stackFont = (cols: number) => Math.min(PAY_FONT, (PAY_FONT * ((rowInner - (cols - 1) * PAY_STACK_GAP) / cols - 2)) / widestPay);
@@ -278,16 +294,37 @@
 				{#each T.modes.intro as p}<p>{@render rich(p)}</p>{/each}
 				<div class="modes">
 					{#each MODES as m (m.id)}
-						<div class="mode" style:border-left-color={m.accent}>
+						<div class="mode" class:narrow data-mode={m.id} style:border-left-color={m.accent}>
 							<div class="mode-head">
-								<div class="mode-name" style:color={m.accent} style:font-size="{dense ? 14 : 16}px">{m.label}</div>
-								<div class="mode-meta"><span>{soc('COST', 'PLAY AMOUNT')} <b class="slot-num" style:color={m.accent}>{m.cost}</b></span><span>RTP <b class="slot-num">{m.rtp}</b></span><span>MAX WIN <b class="slot-num">{config.maxWin.toLocaleString()}× {soc('bet', 'play amount')}</b>{#if m.costNum > 1}<span class="dim">&nbsp;= {capPerPrice(m.costNum)}× {soc('the mode price', 'the play amount for this mode')}</span>{/if}</span></div>
+								<div class="mode-name" style:color={m.accent} style:font-size="{dense ? 16.5 : 20}px">{m.label}</div>
+								<!-- the three stat tiles (Corey 2026-10-15): a quiet label, the value big, a small line under it -->
+								<div class="stats">
+									<div class="stat price" data-stat="price">
+										<div class="stat-k">{T.modes.stats.price}</div>
+										<div class="slot-num stat-v" style:color={m.accent} style:font-size="{statSize}px">{m.cost}</div>
+										<div class="stat-sub">{T.modes.stats.priceUnit}</div>
+									</div>
+									<div class="stat rtp" data-stat="rtp">
+										<div class="stat-k">{T.modes.stats.rtp}</div>
+										<div class="slot-num stat-v" style:font-size="{statSize}px">{m.rtp}</div>
+									</div>
+									<div class="stat max" data-stat="max">
+										<div class="stat-k">{T.modes.stats.maxWin}</div>
+										<div class="slot-num stat-v" style:font-size="{statSize}px">{MAX_WIN}×</div>
+										{#if m.costNum > 1}<div class="stat-sub">({capPerPrice(m.costNum)}× {T.modes.stats.thisMode})</div>{/if}
+									</div>
+								</div>
 							</div>
 							<div class="kv-grid" style:grid-template-columns={narrow ? '1fr' : '1fr 1fr'}>
-								<div><div class="k">Enter</div><div class="v">{@render rich(m.enter)}</div></div>
-								<div><div class="k">Spins</div><div class="v">{@render rich(m.spins)}</div></div>
+								<div><div class="k">{T.modes.labels.enter}</div><div class="v">{@render rich(m.enter)}</div></div>
+								<div><div class="k">{T.modes.labels.spins}</div><div class="v">{@render rich(m.spins)}</div></div>
 							</div>
-							<div><div class="k">Mechanics</div><div class="v">{@render rich(m.mech)}</div></div>
+							<div>
+								<div class="k">{T.modes.labels.mech}</div>
+								<ul class="mech">
+									{#each m.mech as s}<li>{@render rich(s)}</li>{/each}
+								</ul>
+							</div>
 						</div>
 					{/each}
 				</div>
@@ -303,12 +340,13 @@
 			<section bind:this={sectionEls.tiles}>
 				<h2>Multiplier Tiles</h2>
 				<p>{@render rich(T.tiles.intro)}</p>
-				<div class="menu-strip">
+				<div class="ladder" style:--ladder-tile="{ladderTile}px">
 					{#each [2, 4, 8, 16, 32, 64, 128] as value, i (value)}
-						<div class="menu-item">
+						<div class="ladder-step">
 							<img class="tile" src={stamp(`/assets/tiles/x${value}.webp`)} alt="{value} times" />
+							{#if i < 6}<div class="ladder-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg></div>{/if}
 						</div>
-						{#if i < 6}<div class="menu-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg></div>{/if}
+						{#if i === 3 && ladderSplit}<div class="ladder-break" aria-hidden="true"></div>{/if}
 					{/each}
 				</div>
 				<ul>
@@ -365,11 +403,12 @@
 		--body: #c9ccd6;
 		--muted: #c9ccd6;
 		--faint: #969aa8;
+		/* the spaced capital labels (HOW TO ENTER, SPINS, the stat tiles' labels, the pay bands, the symbol kind): smaller
+		   and quieter than the text they name (Corey 2026-10-15); about 5:1 on the glass */
+		--label: #80848f;
 		/* the reading face (ui/fontFaces.ts): real variable Outfit, drawn at 400 with bold keywords at 700. Headings,
 		   names and labels name --ui-font (the HUD's black Outfit) themselves */
 		--gi-body: 'Outfit Text', var(--ui-font);
-		/* the reading measure, about 72 characters of Outfit Text at the body size (COMPARISON.md fix 4) */
-		--measure: 31em;
 		--rule: var(--ui-rule);
 		--rule-2: var(--ui-rule-2);
 		--well: var(--ui-glass-well);
@@ -443,14 +482,16 @@
 		flex-direction: column;
 		align-items: stretch;
 		line-height: 1.55;
-		color: var(--body);
+		/* body text bright (Corey 2026-10-15): the reading copy in --ink, emphasis by weight */
+		color: var(--ink);
 		font-family: var(--gi-body);
 		font-weight: 400;
 		overscroll-behavior: contain;
 		scrollbar-width: thin;
 		scrollbar-color: var(--rule-2) transparent;
 	}
-	/* the reading column: capped and centred on wide masters */
+	/* the reading column: capped and centred on wide masters. Running text (paragraphs, lists, notes, callouts) fills it
+	   to the cards' right edge (Corey 2026-10-15: the 72 character measure is gone) */
 	section {
 		display: flex;
 		flex-direction: column;
@@ -474,15 +515,6 @@
 	}
 	p {
 		margin: 0;
-	}
-	/* reading text holds to the measure; cards, pay rows, the RTP grid and the guide boxes keep the full 880 */
-	p,
-	.note,
-	.v {
-		max-width: var(--measure);
-	}
-	ul {
-		max-width: calc(var(--measure) + 18px);
 	}
 	strong {
 		color: var(--ink);
@@ -540,33 +572,32 @@
 		flex-shrink: 0;
 		display: block;
 	}
-	.menu-strip {
+	/* the multiplier tile ladder: square whole-cell tiles as on the board (half a frame bar round each), arrows centred */
+	.ladder {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 10px 6px;
+		margin-top: 4px;
+	}
+	.ladder-step {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		flex-wrap: wrap;
-		margin-top: 4px;
 	}
-	.menu-item {
+	.ladder .tile {
+		width: var(--ladder-tile);
+		height: var(--ladder-tile);
+		border-radius: 3px;
+	}
+	.ladder-arrow {
 		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 2px;
-	}
-	.menu-item .tile {
-		width: 40px;
-		height: 40px;
-		border-radius: 8px;
-	}
-	.menu-num {
-		font-size: 10px;
-		font-weight: 800;
+		width: 14px;
 		color: var(--faint);
 	}
-	.menu-arrow {
-		color: var(--faint);
-		font-weight: 800;
-		margin-bottom: 12px;
+	.ladder-break {
+		flex-basis: 100%;
+		height: 0;
 	}
 	.leaf-stack {
 		position: relative;
@@ -594,15 +625,15 @@
 	}
 	.row-kind {
 		font-family: var(--ui-font);
-		font-size: 12px;
-		color: var(--faint);
+		font-size: 10.5px;
+		color: var(--label);
 		letter-spacing: 1px;
 		text-transform: uppercase;
 		margin-top: 2px;
 	}
 	/* floors (Stake review FIX 6): no line in Game Info renders under 10 CSS px at any size */
 	.note {
-		color: var(--body);
+		color: var(--ink);
 		font-size: 12px;
 		line-height: 1.45;
 	}
@@ -631,10 +662,10 @@
 	}
 	.pay-k {
 		font-family: var(--ui-font);
-		font-size: 12px;
+		font-size: 10.5px;
 		font-weight: 800;
 		letter-spacing: 0.5px;
-		color: var(--faint);
+		color: var(--label);
 		text-transform: uppercase;
 	}
 	.pay-v {
@@ -658,11 +689,13 @@
 		flex-direction: column;
 		gap: 6px;
 	}
+	/* the name left, the three stat tiles right; on a narrow window (or whenever they do not fit beside the name) the
+	   tiles take their own line and share it, wrapping again rather than overflowing */
 	.mode-head {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
+		gap: 8px 16px;
 		flex-wrap: wrap;
 	}
 	.mode-name {
@@ -670,22 +703,67 @@
 		font-weight: 900;
 		letter-spacing: 2px;
 		text-transform: uppercase;
+		line-height: 1.2;
 	}
-	.mode-meta {
+	.stats {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 4px 14px;
-		font-family: var(--ui-font);
-		font-size: 12px;
-		font-weight: 700;
-		letter-spacing: 1.4px;
-		color: var(--faint);
-		text-transform: uppercase;
+		gap: 6px;
+		min-width: 0;
+		max-width: 100%;
 	}
-	.mode-meta b {
+	.mode.narrow .stats {
+		flex: 1 1 100%;
+	}
+	.stat {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		min-width: 0;
+		padding: 6px 10px 7px;
+		border-radius: 8px;
+		border: 1px solid var(--rule-2);
+		font-family: var(--ui-font);
+	}
+	/* desktop: fixed tile widths so the tiles line up from card to card */
+	.mode:not(.narrow) .stat.price {
+		width: 164px;
+	}
+	.mode:not(.narrow) .stat.rtp {
+		width: 92px;
+	}
+	.mode:not(.narrow) .stat.max {
+		width: 178px;
+	}
+	.mode.narrow .stat {
+		flex: 1 1 auto;
+	}
+	.stat-k {
+		font-size: 10.5px;
+		font-weight: 800;
+		letter-spacing: 1.6px;
+		color: var(--label);
+		text-transform: uppercase;
+		line-height: 1.3;
+	}
+	.stat-v {
+		font-weight: 700;
 		color: var(--ink);
-		font-weight: 600;
-		letter-spacing: 0;
+		line-height: 1.2;
+		white-space: nowrap;
+	}
+	.stat-sub {
+		font-size: 10.5px;
+		font-weight: 700;
+		letter-spacing: 1px;
+		color: var(--label);
+		text-transform: uppercase;
+		line-height: 1.3;
+	}
+	/* WHAT'S DIFFERENT: the mechanics sentences as bullets */
+	.mode ul.mech {
+		margin: 2px 0 0 18px;
+		gap: 3px;
 	}
 	.guide {
 		display: flex;
@@ -729,14 +807,14 @@
 	}
 	.k {
 		font-family: var(--ui-font);
-		font-size: 12px;
+		font-size: 10.5px;
 		font-weight: 800;
 		letter-spacing: 1.6px;
-		color: var(--faint);
+		color: var(--label);
 		text-transform: uppercase;
 	}
 	.v {
-		color: var(--body);
+		color: var(--ink);
 		margin-top: 2px;
 	}
 	.kv {
@@ -749,7 +827,6 @@
 		font-weight: 600;
 	}
 	.callout {
-		max-width: calc(var(--measure) + 34px);
 		padding: 14px 16px;
 		border-radius: 12px;
 		border: 1px solid var(--rule-2);
