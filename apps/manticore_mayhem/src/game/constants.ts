@@ -1667,6 +1667,19 @@ export const CHAIN_SOUND = {
 //   looks     the look each mode shows. ONE is resident; a change of mode crosses to the new one over lookFadeMs (the
 //             scene's own crossfade) once its idle sheet is uploaded. The rig's fourth look ("night", no fire) is not
 //             shipped: no mode shows it.
+//   lookLoad  WHEN A FEATURE'S LOOK IS FETCHED (Corey 2026-10-14 17:19: "The 12MB download, not okay [...] It's probably
+//             okay to start the download after loading everything else and the player is playing, though. Not okay to
+//             wait til the feature and show the wrong manticore"; 17:21: "I'd rather load the wrong manticore in the
+//             rare case a player gets a super or epic on first spin, not hide it completely"; game/creatureLoad.ts).
+//             prefetch: once every deferred group is in AND the player's first round has settled, the files of
+//             `prefetchLooks` (this tier's only) are fetched into the HTTP cache, one file at a time at low priority,
+//             never decoded and never uploaded (one look stays resident); a new file does not start while a round's
+//             play request is on the wire (`waitMs`: how often it looks again; a file already on its way runs on, at
+//             low priority: a fetch cannot be paused). early: the look of a feature that is coming (a book with a Super or Epic in it, or a
+//             Super or Epic buy armed) starts loading at once, its idle sheet decoded and uploaded during the trigger
+//             and the intro; its attacks and alternates wait until the mode asks for it and the crossover to it is
+//             over (every change of look), so only its idle sheet is on the GPU beside the look on show until then. If it is still not in when the feature shows, he
+//             stays in the look on show until it is (no hiding), then the two cross over as before
 //   landingFadeMs   THE LANDING SCREEN (Corey 2026-10-13: he stood behind the intro cards, his head and wing between
 //             the logo and the card on a portrait phone): while the landing screen is up he is not drawn (body and
 //             shadow, in every layout) and makes no sound; his sheets load as before. When the landing screen goes he
@@ -1739,6 +1752,7 @@ export const CREATURE = {
 		portraitTablet: { x: 1254.2, y: 2026.8, scale: 0.555, layer: 'front' },
 	},
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
+	lookLoad: { prefetch: true, prefetchLooks: ['super', 'epic'], early: true, waitMs: 250 },
 	lookFadeMs: SCENE.crossfadeMs,
 	landingFadeMs: 400,
 	landingFadeStepMs: 34,

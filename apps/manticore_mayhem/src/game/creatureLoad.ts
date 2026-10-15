@@ -31,8 +31,29 @@
 //     have gone (two quick changes of mode while a sheet is on the wire). Then the files are not destroyed at all:
 //     they are handed to the new run (`sweep`: "kept"), which finds them in Pixi's cache.
 // The files of a look that was let go wait in `trash[look]` until then; one sweeper per look works through it.
+//
+// WHEN A FEATURE'S LOOK IS FETCHED (2026-10-14, constants CREATURE.lookLoad; Corey: "The 12MB download, not okay [...]
+// Not okay to wait til the feature and show the wrong manticore", then "I'd rather load the wrong manticore in the rare
+// case a player gets a super or epic on first spin, not hide it completely"). Until then the first SUPER or EPIC of a
+// session downloaded its look at the change of mode, and he stayed in his day look until it landed. Now:
+//   THE PREFETCH   once every deferred group is in (creatureDeferredDone) AND the player's first round has settled
+//                  (creatureRoundSettled), the files of SUPER then EPIC, this tier's only, are fetched into the HTTP
+//                  cache: one file at a time, `fetch` at low priority, the body read and thrown away. Nothing is
+//                  decoded, nothing goes to the GPU, Pixi's cache does not see them: one look stays resident. The
+//                  sheet's picture is asked for by the very URL Pixi asks for it later (the json's folder + meta.image +
+//                  the json's own query, as pixi.js's spritesheet loader builds it), so the change of look finds both
+//                  files in the cache. A new file does not start while a round's play request is on the wire
+//                  (creatureRoundRequest); one already on its way runs on at low priority (a fetch cannot be paused)
+//   EARLY          creatureBookArrived: the round's book has a feature in it (its first bonusStart), or
+//                  creatureBuyArmed: a Super or Epic buy is armed. That look starts loading at once (creature.prepare),
+//                  its idle sheet decoded and uploaded during the trigger and the intro, and its attacks and alternates
+//                  wait until the mode asks for it and the crossover to it is over (for every change of look): until
+//                  the old look is let go only the new one's idle sheet is on the GPU beside it. A look no longer coming (the buy disarmed, the book played out) is let go as usual
+//   NOT READY      if the look is still not in when the feature shows, he stays in the look on show, never hidden,
+//                  and the two cross over when its idle sheet is up, exactly as before
 import * as PIXI from 'pixi.js';
 
+import { CREATURE } from './constants';
 import { creature } from './creature';
 import { CREATURE_FILES, CREATURE_SHARED, type CreatureClip, type CreatureLook } from './creatureAssets';
 
@@ -59,7 +80,7 @@ let booted = false;
 let groupLog: GroupLog | null = null;
 const shared: Partial<Record<keyof typeof CREATURE_SHARED, boolean>> = {};
 /** per look: the run that is loading it (a look let go mid load is dropped by its run), and the files it holds */
-const runs: Partial<Record<CreatureLook, { id: number; done: Promise<void>; idle: Promise<void>; drop: () => void; urls: string[] }>> = {};
+const runs: Partial<Record<CreatureLook, { id: number; done: Promise<void>; idle: Promise<void>; drop: () => void; urls: string[]; go: () => void; on: () => void }>> = {};
 let serial = 0;
 /** per look: the files of runs that were let go, waiting to be destroyed; the runs that must end first; the one
  *  destroy in flight; whether its sweeper is at work (see WHO OWNS A LOOK'S FILES) */
@@ -138,8 +159,16 @@ const load = (look: CreatureLook) => {
 	const mine = () => runs[look]?.id === id;
 	let idleIn = () => {};
 	let drop = () => {};
+	let go = () => {};
+	let on = () => {};
 	const dropped = new Promise<void>((resolve) => (drop = resolve));
-	const entry = { id, done: Promise.resolve(), idle: new Promise<void>((resolve) => (idleIn = resolve)), drop, urls };
+	/** the mode asks for this look (at once for the look of the mode; for a look loaded ahead, when its mode comes) */
+	const wanted = new Promise<void>((resolve) => (go = resolve));
+	/** he shows this look (the crossover to it is over, or it is his first) */
+	const shown = new Promise<void>((resolve) => (on = resolve));
+	const entry = { id, done: Promise.resolve(), idle: new Promise<void>((resolve) => (idleIn = resolve)), drop, urls, go, on };
+	if (creature.wanted === look) go();
+	if (creature.look === look) on();
 	// (listed BEFORE the first line of the run: with the shared sheets already in, it reaches mine() without a wait)
 	runs[look] = entry;
 	entry.done = (async () => {
@@ -180,6 +209,14 @@ const load = (look: CreatureLook) => {
 				// the attacks and the alternates wait behind the symbols' sheets (see the header)
 				if (rest) await Promise.race([rest, dropped]);
 				if (!mine()) return;
+				// a look loaded AHEAD of its mode: the rest waits until the mode asks for it, and every new look's rest
+				// waits until the crossover to it is over and the old look is let go (2026-10-14: so two looks' sheets
+				// on the GPU are never more than the old look's and the new one's idle sheet; nothing of the new look but
+				// its idle loop can be played before the crossover ends anyway)
+				await Promise.race([wanted, dropped]);
+				if (!mine()) return;
+				if (creature.look !== look) await Promise.race([shown, dropped]);
+				if (!mine()) return;
 			}
 		}
 	})().finally(idleIn);
@@ -187,10 +224,12 @@ const load = (look: CreatureLook) => {
 };
 
 const ensure = (look: CreatureLook): Promise<void> => {
-	if (runs[look]) {
-		// already here (or on its way): the change of look can start as soon as its idle sheet is in
+	const run = runs[look];
+	if (run) {
+		// already here (or on its way, or loaded ahead): the change of look can start as soon as its idle sheet is in
+		if (creature.wanted === look) run.go();
 		creature.lookReady(performance.now());
-		return runs[look]!.done;
+		return run.done;
 	}
 	return load(look);
 };
@@ -199,6 +238,7 @@ creature.onWantLook = (look) => {
 	if (booted) void ensure(look);
 };
 creature.onLookFree = (look) => unload(look);
+creature.onLookOn = (look) => runs[look]?.on();
 
 /** the creature's place in the deferred phase: the look of the mode the game is in NOW (a round resumed in a SUPER
  *  loads the super look, not the day one first). Resolves when that look's IDLE group is in (he is on show); the
@@ -209,7 +249,13 @@ export const loadCreatureBoot = (log: GroupLog): Promise<void> => {
 	rest = new Promise<void>((resolve) => (letRestGo = resolve));
 	const look = creature.wanted;
 	void ensure(look).catch(() => {});
-	return (runs[look]?.idle ?? Promise.resolve()).catch(() => {});
+	const idle = (runs[look]?.idle ?? Promise.resolve()).catch(() => {});
+	// a look named ahead before he was booted (a feature on the very first rounds) starts once his own is in
+	void idle.then(() => {
+		const ahead = creature.prepared;
+		if (ahead && !runs[ahead]) void ensure(ahead).catch(() => {});
+	});
+	return idle;
 };
 
 /** the symbols' sheets are in: his attacks and alternates may load now. Resolves when the look on its way has all
@@ -220,5 +266,123 @@ export const releaseCreatureRest = (): Promise<void> => {
 	return (runs[creature.wanted]?.done ?? Promise.resolve()).catch(() => {});
 };
 
+// ---- EARLY: the look of a feature that is coming (see the header) ---------------------------------------------------
+/** the round's book is in (game/utils.ts playBet): the look of its feature, if it has one, loads now */
+export const creatureBookArrived = (events: readonly { type: string; bonus?: string }[]): void => {
+	creatureRoundRequest(false);
+	if (!CREATURE.lookLoad.early) return;
+	const start = events.find((e) => e.type === 'bonusStart');
+	const look = start ? (CREATURE.looks as Record<string, CreatureLook>)[String(start.bonus)] : undefined;
+	creature.prepare('book', look ?? null);
+};
+/** the round's book has played out (its feature with it): nothing is coming any more; the first settles the prefetch's
+ *  second condition */
+export const creatureBookDone = (): void => {
+	creature.prepare('book', null);
+	creatureRoundSettled();
+};
+/** the armed mode changed (components/Background.svelte): a Super or Epic buy's look loads now, a disarmed one is let go */
+export const creatureBuyArmed = (modeKey: string | null | undefined): void => {
+	if (!CREATURE.lookLoad.early) return;
+	const look = (CREATURE.looks as Record<string, CreatureLook>)[String(modeKey ?? '').toLowerCase()];
+	creature.prepare('buy', look && look !== CREATURE.looks.base ? look : null);
+};
+
+// ---- THE PREFETCH (see the header) -----------------------------------------------------------------------------------
+/** DEV / probe: when its two conditions came and when it ran, and every file it fetched (performance.now(), bytes) */
+export const creaturePrefetchLog = {
+	deferredAt: 0,
+	settledAt: 0,
+	startAt: 0,
+	doneAt: 0,
+	/** a round's play request on the wire (no new file starts meanwhile) */
+	request: false,
+	waits: 0,
+	files: [] as { url: string; look: string; start: number; end: number; bytes: number; ok: boolean; skipped?: boolean }[],
+};
+const P = creaturePrefetchLog;
+/** every deferred group is in, the armoury's last (components/Game.svelte) */
+export const creatureDeferredDone = (): void => {
+	if (!P.deferredAt) P.deferredAt = performance.now();
+	maybePrefetch();
+};
+/** a round has settled (its book played out) */
+export const creatureRoundSettled = (): void => {
+	if (!P.settledAt) P.settledAt = performance.now();
+	maybePrefetch();
+};
+/** a round's play request goes out (true: the press, game/actor.ts) or has come back (false: its book, or its error) */
+export const creatureRoundRequest = (on: boolean): void => {
+	P.request = on;
+};
+const maybePrefetch = () => {
+	if (!CREATURE.lookLoad.prefetch || P.startAt || !P.deferredAt || !P.settledAt || typeof fetch !== 'function') return;
+	P.startAt = performance.now();
+	void prefetchLooks();
+};
+const later = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** one file into the HTTP cache: fetched at low priority and read to its end, nothing kept (`text`: the body as text) */
+const fetchToCache = async (url: string, look: string, text: boolean): Promise<string | null> => {
+	while (P.request) {
+		P.waits += 1;
+		await later(CREATURE.lookLoad.waitMs);
+	}
+	const f = { url, look, start: performance.now(), end: 0, bytes: 0, ok: false };
+	if (import.meta.env.DEV) P.files.push(f);
+	try {
+		const res = await fetch(url, { priority: 'low' } as RequestInit);
+		let out: string | null = null;
+		if (text) {
+			out = await res.text();
+			f.bytes = out.length;
+		} else if (res.body) {
+			const reader = res.body.getReader();
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				f.bytes += value.byteLength;
+			}
+		}
+		f.ok = res.ok;
+		return res.ok ? out ?? '' : null;
+	} catch {
+		return null;
+	} finally {
+		f.end = performance.now();
+	}
+};
+/** the picture of a sheet by the URL pixi.js's spritesheet loader asks for: the json's folder + meta.image + the json's
+ *  own query (its copySearchParams) */
+const imageOf = (jsonUrl: string, image: string): string => {
+	const json = new URL(jsonUrl, location.href);
+	const img = new URL(image, json);
+	img.search = json.search;
+	return img.href;
+};
+const prefetchLooks = async () => {
+	for (const look of CREATURE.lookLoad.prefetchLooks as readonly CreatureLook[]) {
+		for (const group of GROUPS) {
+			for (const clip of group.clips) {
+				const url = CREATURE_FILES[look][clip];
+				// a look loaded already (on show, or loading) has its files in: nothing to fetch
+				if (runs[look]) {
+					if (import.meta.env.DEV) P.files.push({ url, look, start: performance.now(), end: performance.now(), bytes: 0, ok: true, skipped: true });
+					continue;
+				}
+				const body = await fetchToCache(url, look, true);
+				if (body === null) continue;
+				let image = '';
+				try {
+					image = String((JSON.parse(body) as { meta?: { image?: string } }).meta?.image ?? '');
+				} catch {
+					/* not a sheet: nothing more to fetch */
+				}
+				if (image) await fetchToCache(imageOf(url, image), look, false);
+			}
+		}
+	}
+	P.doneAt = performance.now();
+};
+
 /** DEV / probe: what is loaded, per look */
-export const creatureLoadState = () => ({ booted, held: !!rest, shared: { ...shared }, looks: Object.fromEntries(Object.entries(runs).map(([look, run]) => [look, run!.urls.length])), trash: Object.fromEntries(Object.entries(trash).map(([look, bin]) => [look, bin!.urls.length])) });
+export const creatureLoadState = () => ({ booted, held: !!rest, prepared: creature.prepared, shared: { ...shared }, looks: Object.fromEntries(Object.entries(runs).map(([look, run]) => [look, run!.urls.length])), trash: Object.fromEntries(Object.entries(trash).map(([look, bin]) => [look, bin!.urls.length])) });
