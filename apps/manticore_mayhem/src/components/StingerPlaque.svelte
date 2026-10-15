@@ -276,6 +276,10 @@
 			kick(STINGER_PLAQUE.kickPx);
 			// the air of the slam reaches the chains a beat later (CHAIN_GUST.plaque), never while skipping
 			if (!context.stateGame.skipping) chainGust('plaque', Math.max(0.2, context.stateGameDerived.timeScale()));
+			// THE LANDING THUMP (sfx_plaque_land, Corey 2026-10-15): every impact, the feature intro's, the win's and the
+			// wrap-up's; on a win the tier's choir stab plays over it (its level sits under the stab: build_audiosprite.py
+			// MM_SOURCE_GAIN_DB). Sound.svelte drops it while skipping, like every effect.
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_plaque_land', forcePlay: true });
 			if (landSound >= 0) tierSound(landSound);
 			landSound = -1;
 			log({ type: 'impact', tier: STINGER_TIERS[view.tier] });

@@ -60,7 +60,9 @@ export type SoundEffectName =
 	| 'sfx_manticore_snarl_1'
 	| 'sfx_manticore_snarl_2'
 	| 'sfx_manticore_growl_1'
-	| 'sfx_manticore_growl_2';
+	| 'sfx_manticore_growl_2'
+	// the win plaque's landing thump (components/StingerPlaque.svelte, 2026-10-15): every impact, under a tier's stab
+	| 'sfx_plaque_land';
 
 export type SoundName = MusicName | SoundEffectName;
 

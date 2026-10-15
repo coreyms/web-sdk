@@ -186,6 +186,10 @@
 		"sfx_manticore_growl_2": [
 			90880,
 			1213
+		],
+		"sfx_plaque_land": [
+			93093,
+			554
 		]
 	},
 	"config": {
@@ -326,10 +330,13 @@
 		},
 		"sfx_manticore_growl_2": {
 			"volume": 1
+		},
+		"sfx_plaque_land": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=9ce18e34",
-		"./assets/audio/sounds.m4a?v=6b3b4bb2"
+		"./assets/audio/sounds.ogg?v=f90d219b",
+		"./assets/audio/sounds.m4a?v=d2572677"
 	]
 }
