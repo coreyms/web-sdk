@@ -1,0 +1,771 @@
+// GENERATED from boardPlaqueSpec.json (images/spin_amount_final, 2026-10-13) for the TypeScript side (the app does not
+// import JSON modules): the spin amount plaque's boxes, figure quads and homographies in RENDER px of the board's
+// 2048 canvas. Do not edit by hand; regenerate from the JSON. components/BoardPlaque.svelte draws through it.
+export const BOARD_PLAQUE_SPEC = {
+	"_about": "Spin amount plaque. Positions are RENDER px of the board's 2048 canvas (the units of game/boardArtSpec.ts frame.crop and relight.shadow.box); put them through the frame's own registration (BoardFrame: r.map(u, v), scale r.m) so they sit in `under` and ride the kick. `master` blocks are the same numbers already put through that registration for the stated viewport, for checking.",
+	"glyphSet": {
+		"atlas": "ui/plaque-numerals/plaque-numerals(.webp|.json)",
+		"atlasHalf": "ui/plaque-numerals/plaque-numerals-half",
+		"table": "src/game/plaqueNumeralGlyphs.ts",
+		"prefix": "plq_",
+		"digitH": 69.0,
+		"gap": 0.03,
+		"space": 0.32,
+		"note": "layoutNumerals with this table, gap 0.03 (the stencil set uses 0.05)"
+	},
+	"figureBlock": {
+		"rectInLayoutUnits": [
+			-319.04,
+			-33.25,
+			319.04,
+			30.75
+		],
+		"layoutHeight": 69.0,
+		"maxWidthPerHeight": 9.2475,
+		"note": "lay the string out at height = digitH with maxWidth = maxWidthPerHeight x height; a shrunk row is centred on the figure line (shift up by (1 - fit) x height / 2); then every glyph corner (x, y) goes through H: X = (h0 x + h1 y + h2) / (h6 x + h7 y + 1), Y = (h3 x + h4 y + h5) / (h6 x + h7 y + 1)"
+	},
+	"figures": {
+		"tintDay": "0xffffff",
+		"tintSuper": "0xedebf2",
+		"tintEpic": "0xf7e0d6",
+		"bumpScale": 1.08,
+		"fadeInMs": 180
+	},
+	"crest": {
+		"outMs": 100,
+		"thenFiguresInMs": 180,
+		"backInMs": 220,
+		"watermark": false
+	},
+	"layouts": {
+		"landscape": {
+			"files": {
+				"day": "ui/board-plaque-landscape.webp",
+				"night": "ui/board-plaque-night-landscape.webp",
+				"fire": "ui/board-plaque-fire-landscape.webp",
+				"shadow": "ui/board-plaque-shadow-landscape.webp",
+				"crestDay": "ui/board-plaque-crest-landscape.webp",
+				"crestNight": "ui/board-plaque-crest-night-landscape.webp",
+				"crestFire": "ui/board-plaque-crest-fire-landscape.webp"
+			},
+			"tex": {
+				"plaque": [
+					620,
+					123
+				],
+				"fire": [
+					310,
+					62
+				],
+				"shadow": [
+					313,
+					65
+				],
+				"crest": [
+					71,
+					65
+				]
+			},
+			"scaleAboutAnchor": 1.0,
+			"anchorRender": [
+				1024.39,
+				1701.1
+			],
+			"offsetRender": [
+				0,
+				0.0
+			],
+			"render": {
+				"plaqueBox": [
+					518.0,
+					1694.0,
+					1012.0,
+					200.0
+				],
+				"shadowBox": [
+					514.0,
+					1694.0,
+					1020.0,
+					210.0
+				],
+				"crestBox": [
+					966.0,
+					1740.0,
+					116.0,
+					106.0
+				],
+				"figureQuadHalved": [
+					[
+						631.15,
+						1755.58
+					],
+					[
+						1417.63,
+						1755.58
+					],
+					[
+						1429.24,
+						1828.76
+					],
+					[
+						619.54,
+						1828.76
+					]
+				],
+				"figureQuadFull": [
+					[
+						636.96,
+						1755.58
+					],
+					[
+						1411.83,
+						1755.58
+					],
+					[
+						1435.05,
+						1828.76
+					],
+					[
+						613.73,
+						1828.76
+					]
+				],
+				"H_halved": [
+					1.2512193,
+					-0.4660638,
+					1024.3913879,
+					0.0,
+					0.3287714,
+					1793.0697468,
+					0.0,
+					-0.000455
+				],
+				"H_full": [
+					1.2511359,
+					-0.9326242,
+					1024.3925129,
+					0.0,
+					-0.4868839,
+					1792.5372142,
+					0.0,
+					-0.0009105
+				]
+			},
+			"master": {
+				"viewportCss": [
+					1440,
+					900
+				],
+				"masterPerRender": 0.30597,
+				"plaqueBox": [
+					485.33,
+					542.23,
+					309.64,
+					61.19
+				],
+				"shadowBox": [
+					484.11,
+					542.23,
+					312.09,
+					64.25
+				],
+				"crestBox": [
+					622.41,
+					556.31,
+					35.49,
+					32.43
+				],
+				"figureQuadHalved": [
+					[
+						519.95,
+						561.07
+					],
+					[
+						760.59,
+						561.07
+					],
+					[
+						764.14,
+						583.47
+					],
+					[
+						516.4,
+						583.47
+					]
+				],
+				"figureQuadFull": [
+					[
+						521.73,
+						561.07
+					],
+					[
+						758.81,
+						561.07
+					],
+					[
+						765.92,
+						583.47
+					],
+					[
+						514.63,
+						583.47
+					]
+				],
+				"figureHeightMaster": 22.39,
+				"figureHeightCss": 25.2,
+				"outerFigureLeanDeg": {
+					"halved": 9.0,
+					"full": 17.6
+				}
+			}
+		},
+		"portrait": {
+			"files": {
+				"day": "ui/board-plaque-portrait.webp",
+				"night": "ui/board-plaque-night-portrait.webp",
+				"fire": "ui/board-plaque-fire-portrait.webp",
+				"shadow": "ui/board-plaque-shadow-portrait.webp",
+				"crestDay": "ui/board-plaque-crest-portrait.webp",
+				"crestNight": "ui/board-plaque-crest-night-portrait.webp",
+				"crestFire": "ui/board-plaque-crest-fire-portrait.webp"
+			},
+			"tex": {
+				"plaque": [
+					648,
+					127
+				],
+				"fire": [
+					324,
+					64
+				],
+				"shadow": [
+					327,
+					67
+				],
+				"crest": [
+					73,
+					67
+				]
+			},
+			"scaleAboutAnchor": 1.0,
+			"anchorRender": [
+				1024.39,
+				1699.12
+			],
+			"offsetRender": [
+				0,
+				0.0
+			],
+			"render": {
+				"plaqueBox": [
+					390.0,
+					1692.0,
+					1268.0,
+					248.0
+				],
+				"shadowBox": [
+					384.0,
+					1692.0,
+					1280.0,
+					260.0
+				],
+				"crestBox": [
+					954.0,
+					1748.0,
+					142.0,
+					130.0
+				],
+				"figureQuadHalved": [
+					[
+						531.96,
+						1767.35
+					],
+					[
+						1516.82,
+						1767.35
+					],
+					[
+						1531.74,
+						1859.18
+					],
+					[
+						517.05,
+						1859.18
+					]
+				],
+				"figureQuadFull": [
+					[
+						539.42,
+						1767.35
+					],
+					[
+						1509.37,
+						1767.35
+					],
+					[
+						1539.2,
+						1859.18
+					],
+					[
+						509.59,
+						1859.18
+					]
+				],
+				"H_halved": [
+					1.567417,
+					-0.4777975,
+					1024.3919373,
+					0.0,
+					0.5899217,
+					1814.3779049,
+					0.0,
+					-0.0004664
+				],
+				"H_full": [
+					1.5672842,
+					-0.9561093,
+					1024.3933694,
+					0.0,
+					-0.2559733,
+					1813.6928559,
+					0.0,
+					-0.0009334
+				]
+			},
+			"master": {
+				"viewportCss": [
+					390,
+					844
+				],
+				"masterPerRender": 0.22808,
+				"plaqueBox": [
+					61.31,
+					601.79,
+					289.21,
+					56.56
+				],
+				"shadowBox": [
+					59.94,
+					601.79,
+					291.95,
+					59.3
+				],
+				"crestBox": [
+					189.95,
+					614.56,
+					32.39,
+					29.65
+				],
+				"figureQuadHalved": [
+					[
+						93.69,
+						618.98
+					],
+					[
+						318.32,
+						618.98
+					],
+					[
+						321.72,
+						639.92
+					],
+					[
+						90.28,
+						639.92
+					]
+				],
+				"figureQuadFull": [
+					[
+						95.39,
+						618.98
+					],
+					[
+						316.62,
+						618.98
+					],
+					[
+						323.42,
+						639.92
+					],
+					[
+						88.58,
+						639.92
+					]
+				],
+				"figureHeightMaster": 20.94,
+				"figureHeightCss": 19.8,
+				"outerFigureLeanDeg": {
+					"halved": 9.2,
+					"full": 18.0
+				}
+			}
+		},
+		"portraitTablet": {
+			"files": {
+				"day": "ui/board-plaque-portrait.webp",
+				"night": "ui/board-plaque-night-portrait.webp",
+				"fire": "ui/board-plaque-fire-portrait.webp",
+				"shadow": "ui/board-plaque-shadow-portrait.webp",
+				"crestDay": "ui/board-plaque-crest-portrait.webp",
+				"crestNight": "ui/board-plaque-crest-night-portrait.webp",
+				"crestFire": "ui/board-plaque-crest-fire-portrait.webp"
+			},
+			"tex": {
+				"plaque": [
+					648,
+					127
+				],
+				"fire": [
+					324,
+					64
+				],
+				"shadow": [
+					327,
+					67
+				],
+				"crest": [
+					73,
+					67
+				]
+			},
+			"scaleAboutAnchor": 0.68,
+			"anchorRender": [
+				1024.39,
+				1699.12
+			],
+			"offsetRender": [
+				0,
+				3.2
+			],
+			"render": {
+				"plaqueBox": [
+					593.0,
+					1697.48,
+					862.24,
+					168.64
+				],
+				"shadowBox": [
+					588.92,
+					1697.48,
+					870.4,
+					176.8
+				],
+				"crestBox": [
+					976.52,
+					1735.56,
+					96.56,
+					88.4
+				],
+				"figureQuadHalved": [
+					[
+						689.54,
+						1748.72
+					],
+					[
+						1359.25,
+						1748.72
+					],
+					[
+						1369.39,
+						1811.16
+					],
+					[
+						679.4,
+						1811.16
+					]
+				],
+				"figureQuadFull": [
+					[
+						694.61,
+						1748.72
+					],
+					[
+						1354.17,
+						1748.72
+					],
+					[
+						1374.46,
+						1811.16
+					],
+					[
+						674.33,
+						1811.16
+					]
+				],
+				"H_halved": [
+					1.0658436,
+					-0.4777972,
+					1024.3914001,
+					0.0,
+					0.1460527,
+					1780.6955213,
+					0.0,
+					-0.0004664
+				],
+				"H_full": [
+					1.0657533,
+					-0.9561226,
+					1024.392374,
+					0.0,
+					-0.6845476,
+					1780.229688,
+					0.0,
+					-0.0009334
+				]
+			},
+			"master": {
+				"viewportCss": [
+					768,
+					1024
+				],
+				"masterPerRender": 0.25545,
+				"plaqueBox": [
+					95.8,
+					629.34,
+					220.26,
+					43.08
+				],
+				"shadowBox": [
+					94.76,
+					629.34,
+					222.35,
+					45.16
+				],
+				"crestBox": [
+					193.77,
+					639.06,
+					24.67,
+					22.58
+				],
+				"figureQuadHalved": [
+					[
+						120.46,
+						642.43
+					],
+					[
+						291.54,
+						642.43
+					],
+					[
+						294.13,
+						658.38
+					],
+					[
+						117.87,
+						658.38
+					]
+				],
+				"figureQuadFull": [
+					[
+						121.76,
+						642.43
+					],
+					[
+						290.24,
+						642.43
+					],
+					[
+						295.43,
+						658.38
+					],
+					[
+						116.58,
+						658.38
+					]
+				],
+				"figureHeightMaster": 15.95,
+				"figureHeightCss": 21.5,
+				"outerFigureLeanDeg": {
+					"halved": 9.2,
+					"full": 18.0
+				}
+			}
+		},
+		"phone": {
+			"files": {
+				"day": "ui/board-plaque-phone.webp",
+				"night": "ui/board-plaque-night-phone.webp",
+				"fire": "ui/board-plaque-fire-phone.webp",
+				"nightHalf": "ui/board-plaque-night-phone-half.webp",
+				"shadow": "ui/board-plaque-shadow-phone.webp",
+				"crestDay": "ui/board-plaque-crest-phone.webp",
+				"crestNight": "ui/board-plaque-crest-night-phone.webp",
+				"crestFire": "ui/board-plaque-crest-fire-phone.webp"
+			},
+			"tex": {
+				"plaque": [
+					612,
+					106
+				],
+				"fire": [
+					306,
+					53
+				],
+				"shadow": [
+					306,
+					54
+				],
+				"crest": [
+					59,
+					57
+				],
+				"nightHalf": [
+					306,
+					53
+				]
+			},
+			"scaleAboutAnchor": 1.0,
+			"anchorRender": [
+				1024.39,
+				1702.88
+			],
+			"offsetRender": [
+				0,
+				0.0
+			],
+			"render": {
+				"plaqueBox": [
+					688.0,
+					1696.0,
+					672.0,
+					116.0
+				],
+				"shadowBox": [
+					688.0,
+					1698.0,
+					672.0,
+					118.0
+				],
+				"crestBox": [
+					992.0,
+					1722.0,
+					64.0,
+					62.0
+				],
+				"figureQuadHalved": [
+					[
+						752.48,
+						1726.5
+					],
+					[
+						1296.3,
+						1726.5
+					],
+					[
+						1302.01,
+						1780.72
+					],
+					[
+						746.77,
+						1780.72
+					]
+				],
+				"figureQuadFull": [
+					[
+						755.34,
+						1726.5
+					],
+					[
+						1293.44,
+						1726.5
+					],
+					[
+						1304.86,
+						1780.72
+					],
+					[
+						743.92,
+						1780.72
+					]
+				],
+				"H_halved": [
+					0.8614699,
+					-0.33279,
+					1024.3899536,
+					0.0,
+					0.2777809,
+					1754.3859881,
+					0.0,
+					-0.0003249
+				],
+				"H_full": [
+					0.8615406,
+					-0.6658369,
+					1024.3904042,
+					0.0,
+					-0.2920264,
+					1754.1043818,
+					0.0,
+					-0.00065
+				]
+			},
+			"master": {
+				"viewportCss": [
+					844,
+					390
+				],
+				"masterPerRender": 0.45516,
+				"plaqueBox": [
+					586.89,
+					684.48,
+					305.86,
+					52.8
+				],
+				"shadowBox": [
+					586.89,
+					685.39,
+					305.86,
+					53.71
+				],
+				"crestBox": [
+					725.26,
+					696.31,
+					29.13,
+					28.22
+				],
+				"figureQuadHalved": [
+					[
+						616.24,
+						698.36
+					],
+					[
+						863.76,
+						698.36
+					],
+					[
+						866.36,
+						723.04
+					],
+					[
+						613.64,
+						723.04
+					]
+				],
+				"figureQuadFull": [
+					[
+						617.54,
+						698.36
+					],
+					[
+						862.46,
+						698.36
+					],
+					[
+						867.66,
+						723.04
+					],
+					[
+						612.34,
+						723.04
+					]
+				],
+				"figureHeightMaster": 24.68,
+				"figureHeightCss": 13.0,
+				"outerFigureLeanDeg": {
+					"halved": 6.0,
+					"full": 11.9
+				}
+			}
+		}
+	}
+} as const;

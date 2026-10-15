@@ -1219,10 +1219,10 @@
    "source": "S_war-standard/animation/drop",
    "sourcePx": 512,
    "box512": [
-    66.419,
-    66.133,
-    447.068,
-    445.867
+    79.073,
+    78.933,
+    434.315,
+    433.067
    ],
    "angle": 0,
    "fitJson": {
@@ -1232,8 +1232,12 @@
     "rot": 0
    }
   },
+  "darkRimPx": [
+   2.72,
+   1.061
+  ],
   "style": {
-   "name": "outline-pop",
+   "name": "outline-pop-darkrim",
    "outline": {
     "radius": 2.5,
     "color": [
@@ -1258,8 +1262,21 @@
     "pivot": 0.42,
     "gamma": 1.4,
     "strength": 0.5
+   },
+   "darkRim": {
+    "masterPx": 0.7,
+    "opacity": 1,
+    "softness": 0.39,
+    "color": [
+     12,
+     8,
+     6
+    ],
+    "refPitch": 53.438,
+    "global": 1,
+    "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "3a85a1eb"
+  "pngHash": "ca5b9f87"
  }
 }

@@ -89,15 +89,52 @@ OUTLINE = {"radius": 2.5, "color": (0x1A, 0x12, 0x0C), "alpha": 0.9, "floor": 0.
 SHADOW = {"offset": (1.0, 1.0), "blur": 0.8, "alpha": 0.5}
 POP = {"sat": 1.3, "contrast": 1.15, "pivot": 0.42, "gamma": 1.4, "strength": 0.5}
 RIM = {"width": 1.0, "dir": (-1.0, -1.0), "blur": 0.5, "color": (0xFF, 0xF4, 0xE0), "alpha": 0.6}
+# darkRim (Corey 2026-10-13 12:06, the Symbol Fit Playground's DARK RIM, baked): the styled silhouette (outline and
+# shadow included) grown by `masterPx` desktop master px AT EACH SYMBOL'S OWN DRAWN SIZE, gaussian `softness` x
+# max(masterPx, 0.5), `color` at `opacity`, UNDER the styled art. The numbers and each symbol's size are read from
+# src/game/constants.ts (SYMBOL_RIM, SYMBOL_PLACE, CELL_FILL, SYMBOL_FIT) so the two never drift.
+CONSTANTS_TS = os.path.join(APP, "src", "game", "constants.ts")
+
+
+def _read_rim():
+    src = open(CONSTANTS_TS).read()
+    num = lambda name: float(re.search(r"export const " + name + r" = ([\d.]+);", src).group(1))
+    rim = re.search(r"export const SYMBOL_RIM = \{ masterPx: ([\d.]+), opacity: ([\d.]+), softness: ([\d.]+), color: 0x([0-9a-fA-F]{6}) \}", src)
+    place = src[src.index("export const SYMBOL_PLACE"):]
+    place = place[:place.index("};") + 2]
+    ref = float(re.search(r"refPitch: ([\d.]+)", place).group(1))
+    glob = float(re.search(r"global: ([\d.]+)", place).group(1))
+    sizes = {m.group(1): float(m.group(2)) for m in re.finditer(r"\b([A-Z][A-Z0-9]?): \{ size: ([\d.]+)", place)}
+    assert rim and set(sizes) == set(CODES), (rim, sizes)
+    hexc = rim.group(4)
+    return {"masterPx": float(rim.group(1)), "opacity": float(rim.group(2)), "softness": float(rim.group(3)),
+            "color": tuple(int(hexc[i:i + 2], 16) for i in (0, 2, 4)), "refPitch": ref, "global": glob,
+            "spriteFrac": num("CELL_FILL") * num("SYMBOL_FIT"), "sizes": sizes}
+
+
+DARK_RIM = _read_rim()
+
+
+def dark_rim_px(code):
+    """the rim's width and gaussian sigma in 256 px cell pixels for `code` (cell px per desktop master px = 256 / the
+    symbol's drawn side in master px at the playground's pitch)"""
+    d = DARK_RIM
+    per_master = CELL / (d["spriteFrac"] * d["refPitch"] * d["global"] * d["sizes"][code])
+    return d["masterPx"] * per_master, d["softness"] * max(d["masterPx"], 0.5) * per_master
+
+
 STYLES = {
     "outline": {"outline": OUTLINE, "shadow": SHADOW},
     "outline-pop": {"outline": OUTLINE, "shadow": SHADOW, "pop": POP},
     "outline-pop-rim": {"outline": OUTLINE, "shadow": SHADOW, "pop": POP, "rim": RIM},
+    "outline-pop-darkrim": {"outline": OUTLINE, "shadow": SHADOW, "pop": POP,
+                            "darkRim": {k: v for k, v in DARK_RIM.items() if k != "sizes"}},
 }
 # SHIPPED STYLE (Corey 2026-10-07, "ship B for now"): outline-pop is what a plain run writes into mmSymbols/.
+# 2026-10-14: outline-pop plus the owner's dark rim (Symbol Fit Playground v7, 2026-10-13 12:06).
 # An explicit --style <name> is a TRIAL build into mmSymbols-trial/<name>/ and never touches the shipped set;
 # --style none there gives the unstyled sheets for comparison.
-SHIP_STYLE = "outline-pop"
+SHIP_STYLE = "outline-pop-darkrim"
 STYLES["none"] = {}
 STYLE_ARG = arg("--style")
 if STYLE_ARG and STYLE_ARG not in STYLES:
@@ -141,8 +178,8 @@ def _pop(rgb, cfg):
     return np.clip(rgb + (l2 - l)[..., None], 0, 1)
 
 
-def stylize(im, cfg=None):
-    """one 256 px RGBA cell -> the styled cell (premultiplied compositing, clean alpha)"""
+def stylize(im, cfg=None, code=None):
+    """one 256 px RGBA cell -> the styled cell (premultiplied compositing, clean alpha). `code` sizes the dark rim."""
     cfg = cfg or STYLE
     if not cfg:
         return im
@@ -177,6 +214,19 @@ def stylize(im, cfg=None):
         under_a = ol_a + under_a * (1 - ol_a)
         pm_rgb = pm_rgb + under_rgb * (1 - a[..., None])
         out_a = a + under_a * (1 - a)
+    if "darkRim" in cfg:
+        # the playground's rimFor(): the silhouette stamped round a circle of the rim's width, filled with the colour,
+        # softened (canvas shadowBlur 2 sigma); drawn under the symbol at its opacity
+        assert code, "the dark rim is sized per symbol"
+        dc = cfg["darkRim"]
+        w_px, sigma = dark_rim_px(code)
+        sil = _dilate(np.clip(out_a, 0, 1), w_px)
+        if sigma >= 0.3 * CELL / 256:
+            sil = ndimage.gaussian_filter(sil, sigma, mode="constant", cval=0.0)
+        rim_a = np.clip(sil * dc["opacity"], 0, 1)
+        rim_rgb = np.array(dc["color"]) / 255.0 * rim_a[..., None]
+        pm_rgb = pm_rgb + rim_rgb * (1 - out_a[..., None])
+        out_a = out_a + rim_a * (1 - out_a)
     out_a = np.clip(out_a, 0, 1)
     rgb_out = np.where(out_a[..., None] > 1e-6, pm_rgb / np.maximum(out_a[..., None], 1e-6), 0)  # unpremultiply; empty px rgb 0
     o = np.dstack([np.clip(rgb_out, 0, 1), out_a])
@@ -349,13 +399,15 @@ def build_sheets(geo, only):
                 src = Image.open(fp)
                 assert src.size[0] == src.size[1], fp
                 fname = f"{code.lower()}-{clip}-{i:03d}"
-                cell = stylize(process(src, g, CELL))
+                cell = stylize(process(src, g, CELL), code=code)
                 full.append((fname, cell))
                 if HALF_TIER:
                     half.append((fname, half_of(cell) if STYLE else process(src, g, HALF)))
             fit_meta = {"fit": {"source": f"{os.path.basename(sdir)}/animation/{folder}", "sourcePx": 512,
                                 "box512": [round(v, 3) for v in source_box(g, 512)], "angle": g["angle"],
                                 "fitJson": g["fit"]}}
+            if STYLE.get("darkRim"):
+                fit_meta["darkRimPx"] = [round(v, 3) for v in dark_rim_px(code)]
             base = f"{code.lower()}-{clip}"
             r1 = pack(base, full, CELL, clip, fit_meta)
             r2 = pack(base + "-half", half, HALF, clip, fit_meta) if HALF_TIER else r1
@@ -388,7 +440,7 @@ def build_atlas():
             fr = doc["frames"][f"{code}.png"]["frame"]
             assert fr["w"] == px and fr["h"] == px, (code, fr)
             tile = Image.open(os.path.join(HANDOFF_TILES, code.lower() + ".webp")).convert("RGBA")
-            tile = stylize(tile)
+            tile = stylize(tile, code=code)
             if px != CELL:
                 tile = tile.resize((px, px), Image.LANCZOS)
             sheet.paste(tile, (fr["x"], fr["y"]))  # replace the cell outright (no compositing on the plate)

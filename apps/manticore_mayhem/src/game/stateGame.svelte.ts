@@ -47,6 +47,7 @@ import {
 	rowOf,
 	TURBO_SCALE,
 	symbolAnim,
+	symbolScale,
 } from './constants';
 
 // ================================================================================================
@@ -308,7 +309,8 @@ const stackedAbove = (i: number, count: number) => i - count - DROP.clearance;
  * centre shift that keeps the bottom edge on the floor, less the bounce lift. Matches the
  * playground's `squash` / `settle` / `bounce` tracks sample for sample.
  */
-const landPose = (u: number, squash: number = GRAVITY_DROP.squash): [number, number, number] => {
+/** `size`: the symbol's own drawn size (constants symbolScale), so its bottom stays planted through the squash */
+const landPose = (u: number, squash: number = GRAVITY_DROP.squash, size = 1): [number, number, number] => {
 	let sx = 1;
 	let sy = 1;
 	// squash: per symbol (constants SYMBOL_ANIM; L4 bakes its own into its drop frames, so 0)
@@ -326,7 +328,7 @@ const landPose = (u: number, squash: number = GRAVITY_DROP.squash): [number, num
 			sy *= 1 + k;
 		}
 	}
-	let dy = ((1 - sy) * CELL_FILL * SYMBOL_FIT) / 2; // the drawn tile's bottom stays planted
+	let dy = ((1 - sy) * CELL_FILL * SYMBOL_FIT * size) / 2; // the drawn tile's bottom stays planted
 	if (GRAVITY_DROP.bounceCells > 0 && GRAVITY_DROP.bounceMs > 0) {
 		dy -= Math.sin(Math.PI * clamp01(u / GRAVITY_DROP.bounceMs)) * GRAVITY_DROP.bounceCells;
 	}
@@ -388,7 +390,7 @@ const runDrops = async (
 					cell.landAt = performance.now() - u / ts();
 					onLand?.(cell);
 				}
-				const [sx, sy, dy] = landPose(u, symbolAnim(cell.name).squash);
+				const [sx, sy, dy] = landPose(u, symbolAnim(cell.name).squash, symbolScale(cell.name));
 				cell.scaleX = sx;
 				cell.scaleY = sy;
 				cell.y = y + dy;

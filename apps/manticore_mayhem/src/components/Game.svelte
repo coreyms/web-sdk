@@ -31,7 +31,7 @@
 	import BoardFrame from './BoardFrame.svelte';
 	import BoardTap from './BoardTap.svelte';
 	import CreatureFront from './CreatureFront.svelte';
-	import SpinWin from './SpinWin.svelte';
+	import BoardPlaque from './BoardPlaque.svelte';
 	import SkipButton from './SkipButton.svelte';
 	import ModePlaque from './ModePlaque.svelte';
 	import StingerPlaque from './StingerPlaque.svelte';
@@ -225,7 +225,7 @@
 
 			<!-- ALWAYS MOUNTED, visibility-toggled (house rule: the conditional-mount z-order trap).
 			     Order here is the z-order: readouts, then the plaque, then the presentations. -->
-			<SpinWin />
+			<BoardPlaque />
 			<ModePlaque />
 			<!-- the animated win plaque: the Big Win and above screen, the feature intro and the wrap up
 			     (driven by Win / ModePlaque / FreeSpinOutro through StingerPlaque.svelte's `stingerPlaque.flow`) -->

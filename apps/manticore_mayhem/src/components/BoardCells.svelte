@@ -47,24 +47,34 @@
 	// load every cell shows the static atlas frame. Only the pooled sprite's texture is switched
 	// between already-parsed sheet frames: no texture is ever created here.
 	//
-	// Z-order is unchanged in effect: this layer sits at the cells' old z (0) in Board's sorted
-	// container, with the old per-cell ladder inside it (aura -1, static 0, removing 8, win 10); the
-	// flashes (11) and sparkles (12) sit over the tiles, under the sting (15) and the badges (20).
+	// THE SYMBOL OVERHAUL (Corey 2026-10-13 12:06, Symbol Fit Playground v7, constants SYMBOL_PLACE): every symbol on
+	// the TRUE centre of its lattice opening (game/symbolPlace.ts), at its own size and dx / dy; drawn over the bars and
+	// never cut by the board window. DRAW ORDER inside this layer (zIndex): the auras (-1) under every tile, then the
+	// RESTING band and over it the POP band (a symbol pulsing or popping: scale up both ways, or a removal in place),
+	// each sorted by the symbol's "on top" number, then lower rows on top, then the cell (the playground's sort). A
+	// tile still coming in over the top edge, or leaving under the bottom edge, is moved to the FALL LAYER (just under
+	// this one), the only thing cut at the board window; it comes back when it is wholly inside. The dark rim round
+	// each symbol is baked into its sheets (SYMBOL_RIM, tools/pack_symbol_sheets.py).
+	// The flashes (11) and sparkles (12) sit over the tiles, under the sting (15) and the badges (20). The multiplier
+	// TILES are not in the board container any more: they draw UNDER the frame (BoardFrame's plate slot).
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
 	import { quadOut, quadIn, backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, reelOf, rowOf, symbolAnim } from '../game/constants';
-	import { BOARD_ART } from '../game/boardArtSpec';
+	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_PLACE, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
+	import { openingsFor, offsetAt, type Openings } from '../game/symbolPlace';
+	import { boardPlateSlot } from '../game/boardPlateSlot';
+	import { layoutKind } from '../game/layoutSpec';
 	import { PLATE_GLYPHS, PLATE_GLYPH_PREFIX, PLATE_GLYPH_MIDDLE, PLATE_KERN } from '../game/plateGlyphs';
 	import { PHONE_TIER } from '../game/deviceTier';
-	import { dotTexture, glowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
+	import { dotTexture, glowTexture, innerGlowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
 	import { boardExit, plateGhosts, type Cell } from '../game/stateGame.svelte';
-	import { BOARD_EXIT } from '../game/constants';
+	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP } from '../game/constants';
+	const ANTICIPATION_TEASE_PULSE = ANTICIPATION_TEASE.landedPulse;
 
 	const context = getContext();
 	const stateGame = context.stateGame;
@@ -73,14 +83,31 @@
 	const SIZE = SYMBOL_SIZE * CELL_FILL * SYMBOL_FIT;
 	const GLOW_SIZE = SIZE * 1.45;
 
-	// the plates: under the Mystery tease (-1) and the tiles (0), over the old cell-well backdrop (-2)
-	const plateLayer = new PIXI.Container({ zIndex: -1.5 });
+	// the multiplier tiles: UNDER the frame art, in BoardFrame's plate slot (game/boardPlateSlot.ts), not in the board
+	// container; put there in sync() as soon as the slot exists
+	const plateLayer = new PIXI.Container({ label: 'mult-tiles' });
 	const cellLayer = new PIXI.Container({ zIndex: 0, sortableChildren: true });
+	// THE FALL LAYER: tiles crossing the board window's top or bottom edge on their way in or out, cut at the window
+	// (8 pitches tall, a pitch of slack either side so a wide symbol's sides are never cut); just under the resting
+	// tiles, over the Mystery tease (-1) and the roar's cell flashes (-0.5). Hidden (no mask work) while empty.
+	const fallLayer = new PIXI.Container({ zIndex: -0.25, visible: false });
+	const fallMask = new PIXI.Graphics().rect(-SYMBOL_SIZE, 0, BOARD_SIZES.width + 2 * SYMBOL_SIZE, BOARD_SIZES.height).fill(0xffffff);
+	fallLayer.addChild(fallMask);
+	fallLayer.mask = fallMask;
 	const flashLayer = new PIXI.Container({ zIndex: 11, visible: false });
 	const parent = getContextParent();
-	parent.addToParent(plateLayer);
+	parent.addToParent(fallLayer);
 	parent.addToParent(cellLayer);
 	parent.addToParent(flashLayer);
+
+	// ---- THE TRUE OPENINGS (game/symbolPlace.ts): recomputed when the layout or the portrait growth changes; the
+	// ticker reads the plain `op` -------------------------------------------------------------------------------
+	const layoutK = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
+	const viewW = $derived(context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale);
+	let op: Openings = openingsFor('landscape');
+	/** board px per desktop master px of SYMBOL_PLACE's dx / dy (they scale with the pitch in every layout) */
+	const PER_MASTER = SYMBOL_SIZE / SYMBOL_PLACE.refPitch;
+	const off = { x: 0, y: 0 };
 
 	const assets = () => context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 	const rendererOf = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
@@ -193,6 +220,8 @@
 	// setter marks the render group dirty even when the value is the same)
 	type Slot = {
 		s: PIXI.Sprite; g: PIXI.Sprite; gen: number; name: string; tex: PIXI.Texture | null; y: number; sx: number; sy: number; a: number; tint: number; z: number; glow: number; gc: number; rot: number;
+		/** the symbol's own size (SYMBOL_PLACE) and offset in board px, set when the name changes; in the fall layer */
+		k: number; pdx: number; pdy: number; top: number; fall: boolean; pop: boolean; rowZ: number;
 		/** sheet playback: mode, style ms into the clip, the last Cell.landAt seen, still in the landing beat, the frame shown */
 		mode: number; clock: number; landAt: number; landing: boolean; frame: number;
 	};
@@ -210,7 +239,7 @@
 		g.zIndex = -1;
 		g.visible = false;
 		cellLayer.addChild(g);
-		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1 };
+		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, k: 1, pdx: 0, pdy: 0, top: 0, fall: false, pop: false, rowZ: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1 };
 	};
 	const live = new Map<number, Slot>(); // cell id -> its sprite
 	const free: Slot[] = [];
@@ -318,7 +347,17 @@
 		return sheet.idle[sl.frame];
 	};
 
-	const syncCell = (c: Cell, tex: Record<string, PIXI.Texture> | undefined) => {
+	/** the symbol's place numbers into the slot (on a name change only) */
+	const placeOf = (sl: Slot, name: string) => {
+		const p = SYMBOL_PLACE.symbols[name];
+		sl.k = symbolScale(name);
+		sl.pdx = (p?.dx ?? 0) * PER_MASTER;
+		sl.pdy = (p?.dy ?? 0) * PER_MASTER;
+		sl.top = p?.top ?? 0;
+	};
+	let inFall = 0;
+	/** `leaving`: one of the previous board's tiles falling off (BOARD_EXIT) */
+	const syncCell = (c: Cell, tex: Record<string, PIXI.Texture> | undefined, leaving = false) => {
 		let sl = live.get(c.id);
 		if (!sl) {
 			sl = free.pop() ?? slot();
@@ -335,8 +374,12 @@
 			sl.landAt = c.landAt;
 			sl.landing = false;
 			sl.frame = -1;
-			sl.s.x = (c.reel + 0.5) * SYMBOL_SIZE;
-			sl.g.x = sl.s.x;
+			sl.s.x = NaN;
+			sl.pop = false;
+			if (sl.fall) {
+				sl.fall = false;
+				cellLayer.addChild(sl.s);
+			}
 			sl.s.visible = true;
 			live.set(c.id, sl);
 		}
@@ -346,6 +389,9 @@
 			// a new symbol (the sting's flip): its own clip, from rest
 			if (sl.name && sl.mode !== MODE_STATIC) sl.mode = MODE_STATIC;
 			sl.name = c.name;
+			placeOf(sl, c.name);
+			sl.sx = sl.sy = NaN; // its own size
+			sl.z = -1;
 		}
 		const t = pickTexture(c, sl, tex);
 		if (t !== sl.tex) {
@@ -355,22 +401,37 @@
 			s.texture = t ?? PIXI.Texture.EMPTY;
 			sl.tex = t;
 		}
-		// dx / rot: the roar's rattle and fall (0 at rest)
-		const x = (c.reel + 0.5 + c.dx) * SYMBOL_SIZE;
+		// THE TRUE OPENING of the row it is at (interpolated in the air) plus the symbol's own dx / dy; c.dx / rot: the
+		// roar's rattle and fall (0 at rest)
+		offsetAt(op, c.reel, c.y, off);
+		const x = (c.reel + 0.5 + c.dx) * SYMBOL_SIZE + off.x + sl.pdx;
+		const y = (c.y + 0.5) * SYMBOL_SIZE + off.y + sl.pdy;
 		if (s.x !== x) {
 			s.x = x;
 			sl.g.x = x;
 		}
-		if (c.y !== sl.y) {
+		if (s.y !== y) {
 			sl.y = c.y;
-			s.y = (c.y + 0.5) * SYMBOL_SIZE;
-			sl.g.y = s.y;
+			s.y = y;
+			sl.g.y = y;
 		}
 		if (c.scaleX !== sl.sx || c.scaleY !== sl.sy) {
 			sl.sx = c.scaleX;
 			sl.sy = c.scaleY;
-			s.setSize(SIZE * c.scaleX, SIZE * c.scaleY);
+			s.setSize(SIZE * sl.k * c.scaleX, SIZE * sl.k * c.scaleY);
 		}
+		// THE FALL LAYER: in the air on the way in (above its row, not in its landing beat, no rattle) with its sprite
+		// over the window's top edge, or on the way out (the board exit, the roar's fall) over the bottom edge
+		const half = (SIZE * sl.k * Math.max(c.scaleX, c.scaleY, 1)) / 2;
+		const entering = c.y < c.row - 1e-4 && !sl.landing && c.dx === 0 && c.rot === 0 && c.state !== 'removing';
+		const outgoing = (leaving || c.state === 'removing') && c.y > c.row + 1e-4;
+		const fall = (entering && y - half < 0) || (outgoing && y + half > BOARD_SIZES.height);
+		if (fall !== sl.fall) {
+			sl.fall = fall;
+			(fall ? fallLayer : cellLayer).addChild(s);
+			sl.z = -1;
+		}
+		if (fall) inFall += 1;
 		if (c.rot !== sl.rot) {
 			sl.rot = c.rot;
 			s.rotation = c.rot;
@@ -384,7 +445,14 @@
 			sl.tint = tint;
 			s.tint = tint;
 		}
-		const z = c.state === 'win' ? 10 : c.state === 'removing' ? 8 : 0;
+		// THE DRAW ORDER (the playground's sort): the pop band over the resting band; inside each, the "on top" number,
+		// then lower rows on top, then the cell
+		const placed = Math.abs(c.y - c.row) < 1e-4;
+		const pop = (c.scaleX > 1 + 1e-4 && c.scaleY > 1 + 1e-4) || (c.state === 'removing' && placed);
+		sl.pop = pop;
+		const rowNow = c.y <= 0 ? 0 : c.y >= GRID - 1 ? GRID - 1 : Math.round(c.y);
+		sl.rowZ = rowNow;
+		const z = (pop ? 1000 : 0) + sl.top * 100 + rowNow * 10 + c.reel / 10;
 		if (z !== sl.z) {
 			sl.z = z;
 			s.zIndex = z;
@@ -411,21 +479,23 @@
 		}
 	};
 
-	// ---- the multiplier plates ---------------------------------------------------------------------
-	// the playground's cell well is the lattice's clear opening here: one pitch less the bar's width
-	const OPENING = 1 - (2 * BOARD_ART.bars.barRadius) / ((BOARD_ART.lattice.x1 - BOARD_ART.lattice.x0) / 8);
-	const PLATE = SYMBOL_SIZE * (OPENING - 2 * MULT_PLATE.insetCells);
-	const PLATE_R = MULT_PLATE.cornerPx * PLAYGROUND_PX;
-	const PLATE_W = MULT_PLATE.borderPx * PLAYGROUND_PX;
+	// ---- the multiplier TILES (MULT_PLATE.style 'cell', Corey 2026-10-13 12:06) --------------------------------
+	// Each cell's own whole-cell box (bar centre line to bar centre line, from op.box), under the frame: the fill
+	// (MULT_PLATE.fillAlpha) and the border (borderAlpha, borderMasterPx in from the bar centre line, cornerPx inner
+	// radius) are drawn only when their alpha is over 0 (both 0 today), the INNER GLOW (one baked white square, bright
+	// at its edge: fxTexture innerGlowTexture) tinted the level colour at innerGlowAlpha and stretched to the box, and
+	// the number in the box's middle. A layout change re-places them (relayoutPlates); nothing is redrawn per frame.
 	/** the number's font size (canvas px of the playground: the em, not the digit height) */
 	const NUM_EM = SYMBOL_SIZE * MULT_PLATE.numberSizeCells;
 	/** the coloured copy under the white face reaches this far past each glyph (board px). The
 	 *  playground strokes 0.06 em centred on the outline; the copy shows only the outer part, so it is
 	 *  drawn a little wider than that stroke's outer half to keep the coloured rim readable */
 	const OUTLINE = NUM_EM * 0.05;
-	/** the widest the number's ink (outline included) may run: inside the plate's border. Wider than
-	 *  this (x256 at 0.48) the TRACKING closes up, never the height */
-	const NUM_MAX_W = PLATE - 2 * PLATE_W - 2 * OUTLINE;
+	/** the border's width in board px (desktop master px at the playground's pitch) */
+	const TILE_BORDER = MULT_PLATE.borderMasterPx * PER_MASTER;
+	/** the widest the number's ink (outline included) may run: inside the narrowest tile's visible border. Wider than
+	 *  this the TRACKING closes up, never the height. Set per layout (relayoutPlates). */
+	let NUM_MAX_W = SYMBOL_SIZE - 2 * OUTLINE;
 	const PLATE_KEY_0 = `${PLATE_GLYPH_PREFIX}0.png`;
 	type PlateGlyphRect = { key: string; x: number; y: number; w: number; h: number };
 	/** canvas fillText's layout of `text` at NUM_EM with textAlign centre and textBaseline middle, as
@@ -475,7 +545,7 @@
 	const coverDim = new Float32Array(CELL_COUNT);
 
 	type Row = { c: PIXI.Container; out: PIXI.Container; face: PIXI.Container; text: string; w: number; h: number; track: number; scale: number; alpha: number; tint: number; ftint: number };
-	type Plate = { root: PIXI.Container; g: PIXI.Graphics; glow: PIXI.Sprite; old: Row; cur: Row; value: number; from: number; tint: number; glowTint: number; numAlpha: number; shown: boolean; ghost: boolean };
+	type Plate = { root: PIXI.Container; g: PIXI.Graphics; inner: PIXI.Sprite; glow: PIXI.Sprite; old: Row; cur: Row; value: number; from: number; tint: number; glowTint: number; numAlpha: number; shown: boolean; ghost: boolean };
 	const plates: (Plate | null)[] = Array(CELL_COUNT).fill(null);
 	const glyphPool: PIXI.Sprite[] = [];
 	const row = (): Row => {
@@ -485,25 +555,60 @@
 		c.addChild(out, face);
 		return { c, out, face, text: '', w: 0, h: 0, track: 0, scale: NaN, alpha: NaN, tint: -1, ftint: -1 };
 	};
+	/** one tile's geometry for its cell's box (op.box): the root on the box centre, the fill / border drawn white
+	 *  (the colour is the tint) only when their alphas are over 0, the inner glow stretched to the box */
+	const placePlate = (p: Plate, index: number) => {
+		const b = op.box;
+		const k = index * 4;
+		const w = b[k + 2] - b[k];
+		const h = b[k + 3] - b[k + 1];
+		p.root.position.set((b[k] + b[k + 2]) / 2, (b[k + 1] + b[k + 3]) / 2);
+		p.g.clear();
+		if (MULT_PLATE.fillAlpha > 0) p.g.rect(-w / 2, -h / 2, w, h).fill({ color: 0xffffff, alpha: MULT_PLATE.fillAlpha });
+		if (MULT_PLATE.borderAlpha > 0 && TILE_BORDER > 0) {
+			const W = Math.min(TILE_BORDER, w / 2 - 0.5);
+			const R = MULT_PLATE.cornerPx * PER_MASTER;
+			p.g.rect(-w / 2, -h / 2, w, h).fill({ color: 0xffffff, alpha: MULT_PLATE.borderAlpha });
+			p.g.roundRect(-w / 2 + W, -h / 2 + W, w - 2 * W, h - 2 * W, R).cut();
+		}
+		p.g.visible = MULT_PLATE.fillAlpha > 0 || MULT_PLATE.borderAlpha > 0;
+		p.inner.setSize(w, h);
+	};
 	const plateAt = (index: number): Plate => {
 		let p = plates[index];
 		if (p) return p;
-		const root = new PIXI.Container({ x: (reelOf(index) + 0.5) * SYMBOL_SIZE, y: (rowOf(index) + 0.5) * SYMBOL_SIZE });
-		// drawn ONCE, white: the colour is the tint
-		const g = new PIXI.Graphics()
-			.roundRect(-PLATE / 2, -PLATE / 2, PLATE, PLATE, PLATE_R)
-			.fill({ color: 0xffffff, alpha: MULT_PLATE.fillAlpha })
-			.roundRect(-PLATE / 2 + PLATE_W / 2, -PLATE / 2 + PLATE_W / 2, PLATE - PLATE_W, PLATE - PLATE_W, Math.max(0, PLATE_R - PLATE_W / 2))
-			.stroke({ color: 0xffffff, width: PLATE_W, alpha: MULT_PLATE.borderAlpha });
+		const root = new PIXI.Container();
+		const g = new PIXI.Graphics();
+		// THE INNER GLOW: the baked white square (bright at its edge, clear in the middle), tinted the level colour
+		const inner = new PIXI.Sprite(innerGlowTexture());
+		inner.anchor.set(0.5);
+		inner.alpha = MULT_PLATE.innerGlowAlpha;
+		inner.visible = MULT_PLATE.innerGlowAlpha > 0;
 		const glow = new PIXI.Sprite(glowTexture());
 		glow.anchor.set(0.5);
 		const old = row();
 		const cur = row();
-		root.addChild(g, glow, old.c, cur.c);
+		root.addChild(g, inner, glow, old.c, cur.c);
 		plateLayer.addChild(root);
-		p = { root, g, glow, old, cur, value: -1, from: -1, tint: -1, glowTint: -1, numAlpha: NaN, shown: true, ghost: false };
+		p = { root, g, inner, glow, old, cur, value: -1, from: -1, tint: -1, glowTint: -1, numAlpha: NaN, shown: true, ghost: false };
+		placePlate(p, index);
 		plates[index] = p;
 		return p;
+	};
+	/** a layout change: every tile on its cell's new box, the number's width limit for the narrowest box, the
+	 *  flashes on the openings */
+	const relayoutPlates = () => {
+		let narrowest = Infinity;
+		for (let i = 0; i < CELL_COUNT; i += 1) narrowest = Math.min(narrowest, op.box[i * 4 + 2] - op.box[i * 4]);
+		const border = MULT_PLATE.borderAlpha > 0 ? Math.max(0, TILE_BORDER - op.bar / 2) : 0;
+		const maxW = narrowest - op.bar - 2 * border - 2 * OUTLINE;
+		if (Math.abs(maxW - NUM_MAX_W) > 1e-6) {
+			NUM_MAX_W = maxW;
+			// the rows lay out again at the next frame
+			for (const p of plates) if (p) p.cur.text = p.old.text = '';
+		}
+		plates.forEach((p, i) => p && placePlate(p, i));
+		flashes.forEach((f, i) => f.position.set((reelOf(i) + 0.5) * SYMBOL_SIZE + op.ox[i], (rowOf(i) + 0.5) * SYMBOL_SIZE + op.oy[i]));
 	};
 	/** lay a row's glyphs out for `text` (only when it changes): the white face and the coloured copy */
 	const setRow = (r: Row, text: string, tex: Record<string, PIXI.Texture> | undefined) => {
@@ -614,9 +719,10 @@
 			if (tint !== p.tint) {
 				p.tint = tint;
 				p.g.tint = tint;
+				p.inner.tint = tint;
 			}
 			const pop = tile.pop < 1 ? 1 + (MULT_PLATE.revealPopScale - 1) * Math.sin(Math.PI * tile.pop) : 1;
-			const numA = covered[i] ? MULT_PLATE.numberAlphaUnderSymbol : 1;
+			const numA = covered[i] ? MULT_PLATE.numberAlphaUnderSymbol : MULT_PLATE.numberAlphaEmpty;
 			// COUNT: the old number shrinks away over the first 45 % (quadIn), the new one grows in (backOut)
 			let oldScale = 0;
 			let curScale = pop;
@@ -689,8 +795,9 @@
 
 	const spawn = (b: Burst) => {
 		const rnd = seeded(b.seed);
-		const ox = (b.reel + 0.5) * SYMBOL_SIZE;
-		const oy = (b.row + 0.5) * SYMBOL_SIZE;
+		const bi = b.reel * GRID + b.row;
+		const ox = (b.reel + 0.5) * SYMBOL_SIZE + (bi >= 0 && bi < CELL_COUNT ? op.ox[bi] : 0);
+		const oy = (b.row + 0.5) * SYMBOL_SIZE + (bi >= 0 && bi < CELL_COUNT ? op.oy[bi] : 0);
 		for (let i = 0; i < PER_CELL; i += 1) {
 			// the same three rolls per dot as the playground, in the same order, so a seed draws alike
 			const a = rnd() * Math.PI * 2;
@@ -810,6 +917,10 @@
 		lastFrame = now;
 		gen += 1;
 		glowing = 0;
+		inFall = 0;
+		// the tiles' layer into the frame's plate slot (BoardFrame mounts first; this is a no-op once there)
+		const slotNow = boardPlateSlot.current;
+		if (slotNow && plateLayer.parent !== slotNow) slotNow.addChild(plateLayer);
 		covered.fill(0);
 		coverDim.fill(1);
 		const tex = assets();
@@ -820,7 +931,8 @@
 		// pooled sprites, same mask). Their ids are the ones they had on the board, so a tile keeps its sprite
 		// through the hand-over.
 		const leaving = boardExit.leaving;
-		for (let i = 0; i < leaving.length; i += 1) syncCell(leaving[i], tex);
+		for (let i = 0; i < leaving.length; i += 1) syncCell(leaving[i], tex, true);
+		if (fallLayer.visible !== inFall > 0) fallLayer.visible = inFall > 0;
 		for (const [id, sl] of live) {
 			if (sl.gen === gen) continue;
 			sl.s.visible = false;
@@ -835,6 +947,12 @@
 		tickSparkles(now);
 		if (uploadQueue === null || uploadQueue.length) warmSheets(tex);
 	};
+
+	// the openings for this layout (and the portrait growth): plain copies for the ticker, the tiles re-placed
+	$effect(() => {
+		op = openingsFor(layoutK, viewW);
+		relayoutPlates();
+	});
 
 	sync();
 	onMount(() => {
@@ -910,6 +1028,41 @@
 				plateObjects: () => ({ plates: plates.filter(Boolean).length, glyphPool: glyphPool.length }),
 				/** plates a reset cleared that are still shrinking away (BOARD_EXIT.plateOutMs): cell and drawn scale */
 				plateGhosts: () => plates.flatMap((p, i) => (p && p.ghost ? [{ i, scale: p.root.scale.x }] : [])),
+				/** THE SYMBOL OVERHAUL probe (tools/manticore/symbols_probe.js): the constants, this layout's openings, every
+				 *  live tile as drawn (board px and screen px, its size multiple, its zIndex, pop band, fall layer) in the
+				 *  order the renderer draws them, the multiplier tiles as drawn, and every display object with a filter */
+				symbolFit: () => {
+					const byId = new Map<PIXI.Sprite, number>();
+					for (const [id, sl] of live) byId.set(sl.s, id);
+					const tiles = [...live.entries()].filter(([, sl]) => sl.s.visible).map(([id, sl]) => {
+						const c = stateGame.cells.find((x) => x.id === id) ?? boardExit.leaving.find((x) => x.id === id);
+						const b = sl.s.getBounds();
+						return { id, name: sl.name, reel: c?.reel ?? -1, row: c?.row ?? -1, y: c?.y ?? NaN, state: c?.state ?? null, sx: c?.scaleX ?? NaN, sy: c?.scaleY ?? NaN, x: sl.s.x, yDraw: sl.s.y, w: sl.s.width, h: sl.s.height, k: sl.k, top: sl.top, rowZ: sl.rowZ, z: sl.s.zIndex, pop: sl.pop, fall: sl.fall, screen: { x: b.x, y: b.y, w: b.width, h: b.height } };
+					});
+					// the draw order: the layer's children as the renderer sorts them (stable, by zIndex), tiles only
+					const order = (cellLayer.children as PIXI.Sprite[]).map((ch, i) => ({ ch, i })).filter(({ ch }) => byId.has(ch as PIXI.Sprite) && ch.visible).sort((a, b) => a.ch.zIndex - b.ch.zIndex || a.i - b.i).map(({ ch }) => byId.get(ch as PIXI.Sprite)!);
+					const filtered: string[] = [];
+					const walk = (n: PIXI.Container, path: string) => {
+						if (n.filters && (Array.isArray(n.filters) ? n.filters.length : true)) filtered.push(path + (n.label ? ':' + n.label : ''));
+						n.children?.forEach((ch, i) => walk(ch as PIXI.Container, path + '/' + i));
+					};
+					const stage = context.stateApp.pixiApplication?.stage;
+					if (stage) walk(stage, 'stage');
+					const boardNode = cellLayer.parent;
+					return {
+						constants: { place: SYMBOL_PLACE, pops: SYMBOL_POPS, rim: SYMBOL_RIM, size: SIZE, teasePulse: 1 + ANTICIPATION_TEASE_PULSE, engine: { winScale: CLUSTER.winScale, triggerScale: SCATTER_STING.triggerScale, popScale: STING.popScale, bigPopScale: STING.bigPopScale, squash: GRAVITY_DROP.squash }, plate: { style: MULT_PLATE.style, fillAlpha: MULT_PLATE.fillAlpha, borderAlpha: MULT_PLATE.borderAlpha, borderMasterPx: MULT_PLATE.borderMasterPx, cornerPx: MULT_PLATE.cornerPx, numberSizeCells: MULT_PLATE.numberSizeCells, numberAlphaUnderSymbol: MULT_PLATE.numberAlphaUnderSymbol, numberAlphaEmpty: MULT_PLATE.numberAlphaEmpty, innerGlowAlpha: MULT_PLATE.innerGlowAlpha } },
+						layout: op.kind,
+						openings: Array.from({ length: CELL_COUNT }, (_, i) => ({ i, ox: op.ox[i], oy: op.oy[i], box: Array.from(op.box.slice(i * 4, i * 4 + 4)) })),
+						bar: op.bar,
+						tiles,
+						order,
+						/** the board container: world scale (screen px per board px) and its mask (none: the window clip is off) */
+						board: boardNode ? { scale: boardNode.worldTransform.a, masked: !!boardNode.mask, label: boardNode.label } : null,
+						fall: { visible: fallLayer.visible, count: inFall, masked: fallLayer.mask === fallMask, children: fallLayer.children.length - 1 },
+						plates: plates.flatMap((p, i) => (p && p.shown ? [{ i, value: stateGame.tiles[i]?.value ?? 0, x: p.root.x, y: p.root.y, box: Array.from(op.box.slice(i * 4, i * 4 + 4)), parent: plateLayer.parent?.label ?? null, inner: { visible: p.inner.visible, alpha: p.inner.alpha, tint: p.inner.tint as number, w: p.inner.width, h: p.inner.height, tex: p.inner.texture.width }, fillShown: p.g.visible, covered: !!covered[i], numAlpha: p.cur.alpha, em: NUM_EM, screen: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(p.inner.getBounds()) }] : [])),
+						filtered,
+					};
+				},
 			});
 		}
 		return () => {
@@ -924,6 +1077,8 @@
 				sl.g.destroy();
 			}
 			for (const p of plates) p?.root.destroy({ children: true });
+			plateLayer.removeFromParent();
+			plateLayer.destroy();
 			for (const s of glyphPool) s.destroy();
 			for (const f of flashes) f.destroy();
 			sparkLayer.destroy();
