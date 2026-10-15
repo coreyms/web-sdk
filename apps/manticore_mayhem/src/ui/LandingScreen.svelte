@@ -21,6 +21,7 @@
 	import { stamp } from '../game/assets';
 	import { sound } from '../game/sound';
 	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, INTRO_LOGO_SHINE_MS, introGatePctSize, introPlacement } from '../game/introCards';
+	import { INTRO_BODY_FIT } from '../game/constants';
 	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, introBodyRuns, introSceneIndexAt } from '../game/introCardText';
 	import Shine from './Shine.svelte';
 
@@ -256,6 +257,51 @@
 		else press();
 	};
 
+	// ---- THE BODY SHRINK TO FIT (constants INTRO_BODY_FIT) ----------------------------------------------
+	// A body taller than its zone (.zb clips it top and bottom) steps its font size down until it fits, never under the
+	// floor. Measured in layout px (offsetHeight ignores the .fit and card transforms); hidden cards are only at opacity
+	// 0, so every card is measured. Runs once the body faces are in, on every placement change (resize, turn) and when
+	// the cards mount; never per frame. A body that fits keeps --b-k unset (the slate's own size).
+	const bodyEls: (HTMLElement | undefined)[] = $state([]);
+	const bodyFit: { k: number; bodyH: number; zoneH: number; fontPx: number }[] = [];
+	const fitBodies = () => {
+		for (let i = 0; i < N; i += 1) {
+			const b = bodyEls[i];
+			const zone = b?.parentElement;
+			if (!b || !zone) continue;
+			b.style.removeProperty('--b-k');
+			const zoneH = zone.clientHeight;
+			const base = parseFloat(getComputedStyle(b).fontSize);
+			let k = 1;
+			if (zoneH > 0 && base > 0) {
+				const minK = INTRO_BODY_FIT.floor;
+				while (b.offsetHeight > zoneH + INTRO_BODY_FIT.slackPx && k > minK) {
+					k = Math.max(minK, k - INTRO_BODY_FIT.stepPx / base);
+					b.style.setProperty('--b-k', String(k));
+				}
+			}
+			bodyFit[i] = { k, bodyH: b.offsetHeight, zoneH, fontPx: base * k };
+		}
+	};
+	let bodyFacesIn = $state(false);
+	onMount(() => {
+		let gone = false;
+		// the body's two weights (400, the highlight 600), then whatever else the page still loads
+		Promise.all([document.fonts.load(`${INTRO_CARD_STYLE.body.weight} 40px Sora`), document.fonts.load(`${INTRO_CARD_STYLE.highlight.weight} 40px Sora`)])
+			.catch(() => {})
+			.then(() => document.fonts.ready)
+			.then(() => {
+				if (!gone) bodyFacesIn = true;
+			});
+		return () => (gone = true);
+	});
+	$effect(() => {
+		// what the fit depends on: the faces, the placement (the card's width), the cards being mounted
+		void place;
+		if (!bodyFacesIn || !armed || bodyEls.filter(Boolean).length < N) return;
+		untrack(fitBodies);
+	});
+
 	// the slate's numbers as CSS variables (card-width units, multiplied by --u = 1% of the card's width)
 	const S = INTRO_CARD_STYLE;
 	const cardVars = [
@@ -273,6 +319,12 @@
 	// ---- DEV hook: __manticore.landing() (tools/manticore/landing_probe.js) ----
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		Object.assign(((window as any).__manticore ??= {}), {
+			/** the body shrink to fit: runs it again now (a probe that widened the text with a style first) and says per
+			 *  card the factor, the body's and the zone's height and the font size, layout px */
+			landingFit: () => {
+				fitBodies();
+				return bodyFit.map((f, i) => ({ key: INTRO_CARD_TEXT[i].key, ...f }));
+			},
 			landing: () => ({
 				mounted,
 				dismissed: pressed,
@@ -366,7 +418,7 @@
 						<img class="frame" src={frameSrc} alt="" draggable="false" />
 						<div class="z zt"><span class="t">{card.title}</span></div>
 						<div class="z zb">
-							<span class="b">{#each bodyRuns[i] as run}{#if run.hl}<b>{run.text}</b>{:else}{run.text}{/if}{/each}</span>
+							<span class="b" bind:this={bodyEls[i]}>{#each bodyRuns[i] as run}{#if run.hl}<b>{run.text}</b>{:else}{run.text}{/if}{/each}</span>
 						</div>
 						<div class="rule"></div>
 						<div class="z zc">
@@ -553,7 +605,8 @@
 	.b {
 		font-family: var(--b-font);
 		font-weight: var(--b-weight);
-		font-size: calc(var(--u) * var(--b-size));
+		/* --b-k: the shrink to fit (fitBodies, constants INTRO_BODY_FIT), 1 wherever the body fits its zone */
+		font-size: calc(var(--u) * var(--b-size) * var(--b-k, 1));
 		line-height: var(--b-lh);
 		color: var(--b-color);
 	}

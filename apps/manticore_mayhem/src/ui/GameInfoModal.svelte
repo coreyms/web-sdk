@@ -21,7 +21,7 @@
 	// the cards' right edge. This supersedes "labels 12 px" and the measure above.
 	import type { ComponentProps } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
-	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
+	import { stateBet, stateModal, stateUrlDerived, stateConfig } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import type { Controls } from './controls.svelte';
@@ -31,7 +31,7 @@
 	import { soc } from '../game/social';
 	import { skipAllowed } from '../game/stateGame.svelte';
 	import { stamp } from '../game/assets';
-	import { gameInfoText, runs, MODE_NAMES, pct, type GuideId } from '../game/gameInfoText';
+	import { gameInfoText, guideRowShown, runs, MODE_NAMES, pct, type GuideId } from '../game/gameInfoText';
 	import { modeCost } from '../game/betModeMeta';
 	import { measureFitText } from '../game/textFit';
 
@@ -67,7 +67,9 @@
 	];
 
 	// every string of the page; the Epic floor shows its live amount at the current bet
-	const T = $derived(gameInfoText((x) => numberToCurrencyString(x * stateBet.betAmount)));
+	// the operator's switches (authenticate's jurisdiction block, the flags the controls read): the text names no control
+	// the operator turned off (gameInfoText.ts RulesFlags)
+	const T = $derived(gameInfoText((x) => numberToCurrencyString(x * stateBet.betAmount), stateConfig.jurisdiction));
 
 	const SYMBOL_META: Record<string, { name: string; color: string; kind: 'premium' | 'mid' | 'low' }> = {
 		H1: { name: config.symbols.H1.name, color: '#e2b648', kind: 'premium' },
@@ -136,9 +138,12 @@
 		{ id: 'skip', icon: 'skip' },
 		{ id: 'screens', icon: 'stop' },
 	];
-	// Stake's jurisdiction switches: where the operator disables the slam stop or turbo there is no SKIP (stateGame
-	// skipAllowed), so the guide does not describe one
-	const GUIDE = $derived(GUIDE_ICONS.filter((g) => g.id !== 'skip' || skipAllowed()).map((g) => ({ ...g, color: '#ffdc4a', ...T.guide.rows[g.id] })));
+	// Stake's jurisdiction switches: a control the operator turns off has no row (gameInfoText.ts guideRowShown: Turbo,
+	// Autoplay, the feature menu); where the slam stop or turbo is off there is no SKIP (stateGame skipAllowed), so the
+	// guide does not describe one
+	const GUIDE = $derived(
+		GUIDE_ICONS.filter((g) => (g.id === 'skip' ? skipAllowed() : guideRowShown(g.id, stateConfig.jurisdiction))).map((g) => ({ ...g, color: '#ffdc4a', ...T.guide.rows[g.id] })),
+	);
 
 	let active = $state('paytable');
 	let contentEl: HTMLDivElement | undefined = $state();
