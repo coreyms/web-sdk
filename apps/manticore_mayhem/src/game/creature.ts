@@ -41,6 +41,10 @@
 // LOOKS: one per mode (CREATURE.looks), ONE resident. A change of mode asks for the new look (onWantLook); the old
 // one keeps playing until the new one's idle sheet is uploaded, then the two cross over lookFadeMs (the outline is
 // identical in every look, so nothing ghosts), then the old look is let go (onLookFree).
+// A LOOK AHEAD OF ITS MODE (2026-10-14, constants CREATURE.lookLoad.early): `prepare` names the look of a feature that is
+// coming (game/creatureLoad.ts: a book with one in it, or a buy armed). The loader starts it at once; he does NOT change
+// to it (only the mode does that, as before), and `uses` keeps it from being let go until the mode asks for it (then
+// it is simply the wanted look, its idle sheet in already) or nothing names it any more.
 // WHO HOLDS WHAT (2026-10-13; a look that is let go is DESTROYED by the loader, and a sprite drawn with a destroyed
 // texture throws inside Pixi's render, which stops Pixi's ticker): the lower colour sprite only ever holds a frame of
 // `look`, the upper one a frame of `next`, and three things keep it so:
@@ -120,6 +124,8 @@ export class Creature {
 	/** the loader's two hooks: a look is wanted (load its idle sheet first), a look is no longer drawn (let it go) */
 	onWantLook: ((look: CreatureLook) => void) | null = null;
 	onLookFree: ((look: CreatureLook) => void) | null = null;
+	/** ...and a look is the one on show (the first one, or the crossover to it is over) */
+	onLookOn: ((look: CreatureLook) => void) | null = null;
 
 	// ---- the textures (resident; arrays by frame, built once per sheet) ----
 	private readonly looks: Partial<Record<CreatureLook, Partial<Record<CreatureClip, Frames>>>> = {};
@@ -133,6 +139,8 @@ export class Creature {
 	look: CreatureLook | null = null;
 	private next: CreatureLook | null = null;
 	private want: CreatureLook = CREATURE.looks.base;
+	/** the look of a feature that is coming, by what said so (the round's book, an armed buy): loaded ahead, not shown */
+	private readonly ahead: { book: CreatureLook | null; buy: CreatureLook | null } = { book: null, buy: null };
 	private fadeAt = -1;
 	private appearAt = -1;
 	private shown = 0;
@@ -313,7 +321,7 @@ export class Creature {
 	}
 	/** he draws this look now, is crossing over to it, or the mode asks for it: the loader must not let it go */
 	uses(look: CreatureLook): boolean {
-		return look === this.look || look === this.next || look === this.want;
+		return look === this.look || look === this.next || look === this.want || look === this.prepared;
 	}
 	has(look: CreatureLook, clip: CreatureClip): boolean {
 		return !!this.looks[look]?.[clip];
@@ -334,10 +342,28 @@ export class Creature {
 		if (look === this.want) return;
 		this.want = look;
 		this.note('want', look);
+		// a look that was loaded ahead is now simply the wanted one
+		if (this.ahead.book === look) this.ahead.book = null;
+		if (this.ahead.buy === look) this.ahead.buy = null;
 		if (look !== this.look || this.next) this.onWantLook?.(look);
 	}
 	get wanted(): CreatureLook {
 		return this.want;
+	}
+	/** the look loaded ahead of its mode (null: none) */
+	get prepared(): CreatureLook | null {
+		return this.ahead.book ?? this.ahead.buy;
+	}
+	/** A LOOK AHEAD OF ITS MODE: `why` says a feature with this look is coming (null: it no longer is). The loader starts
+	 *  it; nothing on show changes. A look no longer named by anything is let go, unless it is drawn or wanted */
+	prepare(why: 'book' | 'buy', look: CreatureLook | null): void {
+		const before = this.prepared;
+		this.ahead[why] = look === this.want ? null : look;
+		const now = this.prepared;
+		if (now === before) return;
+		this.note('prepare', { why, look: now });
+		if (now && now !== this.look && now !== this.next) this.onWantLook?.(now);
+		if (before && before !== now && !this.uses(before)) this.onLookFree?.(before);
 	}
 	/** the wanted look's idle sheet is uploaded (the loader calls this; also when more of a look lands) */
 	lookReady(now: number): void {
@@ -354,6 +380,7 @@ export class Creature {
 			this.shown = 0;
 			this.drawnFrame = 0;
 			this.note('appear', want);
+			this.onLookOn?.(want);
 			return;
 		}
 		if (want === this.look) {
@@ -383,6 +410,7 @@ export class Creature {
 			this.drawnFrame = 0; // and draws the new look's own frame this tick
 			this.note('look', { from, to });
 			if (from && from !== to) this.onLookFree?.(from);
+			this.onLookOn?.(to);
 		} else if (to && to !== this.look) this.onLookFree?.(to);
 	}
 
@@ -1075,6 +1103,7 @@ export class Creature {
 			veiled: this.veiled,
 			drawn: { body: this.bodyNode.visible, shadow: this.shadowNode.visible, bodyAlpha: this.bodyNode.alpha, shadowAlpha: this.shadowNode.alpha },
 			want: this.want,
+			prepared: this.prepared,
 			loaded: Object.fromEntries((Object.keys(this.looks) as CreatureLook[]).map((l) => [l, Object.keys(this.looks[l]!)])),
 			shared: {
 				shadow: !!this.shadows.idle,

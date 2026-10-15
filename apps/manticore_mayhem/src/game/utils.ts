@@ -7,6 +7,7 @@ import type { Bet, BookEventOfType } from './typesBookEvent';
 import { bookEventHandlerMap } from './bookEventHandlerMap';
 import type { SymbolName } from './types';
 import { STAGING_TOOLS, perfMark } from './staging';
+import { creatureBookArrived, creatureBookDone } from './creatureLoad';
 
 // STAGING READOUT ONLY (game/staging.ts perfMark): each book event leaves its type as a label, so a long frame
 // can be traced to the step of the round it fell in. A production build uses the map as it is.
@@ -25,7 +26,13 @@ export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEvent
 
 export const playBet = async (bet: Bet) => {
 	stateBet.winBookEventAmount = 0;
-	await playBookEvents(bet.state);
+	// THE CREATURE: a feature in this book starts its look loading now, ahead of the change of mode (game/creatureLoad.ts)
+	creatureBookArrived(bet.state);
+	try {
+		await playBookEvents(bet.state);
+	} finally {
+		creatureBookDone();
+	}
 	eventEmitter.broadcast({ type: 'stopButtonEnable' });
 };
 

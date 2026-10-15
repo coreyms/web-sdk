@@ -45,7 +45,8 @@
 	import { layoutKind } from '../game/layoutSpec';
 	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureSpot } from '../game/constants';
 	import { creature, creatureFront } from '../game/creature';
-	import { creatureLoader, creatureLoadLog, creatureLoadState } from '../game/creatureLoad';
+	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog } from '../game/creatureLoad';
+	import { stateBet } from 'state-shared';
 	import { CREATURE_SPEC } from '../game/creatureSpec';
 	import type { SoundEffectName } from '../game/sound';
 	import { boardKick, foregroundKick, shoveForeground } from '../game/featureFx';
@@ -297,6 +298,12 @@
 	// the look of the mode (the scene's own family)
 	$effect(() => {
 		creature.mode(family);
+	});
+	// A FEATURE'S LOOK AHEAD OF ITS MODE (game/creatureLoad.ts EARLY): an armed Super or Epic buy loads its look now, and
+	// a disarmed one lets it go
+	$effect(() => {
+		const key = stateBet.activeBetModeKey;
+		untrack(() => creatureBuyArmed(key));
 	});
 	// THE LANDING SCREEN (ui/LandingScreen.svelte, HTML over this canvas) is up until its press has played out to
 	// black: he is not drawn behind it, body or shadow, in any layout, and is silent; he fades in when it goes
@@ -615,6 +622,8 @@
 					},
 					log: () => creature.log.map((e) => ({ ...e })),
 					loadLog: () => creatureLoadLog.map((e) => ({ ...e })),
+					/** THE PREFETCH (game/creatureLoad.ts): its two conditions, when it ran, every file it fetched */
+					prefetch: () => JSON.parse(JSON.stringify(creaturePrefetchLog)),
 					/** every source he draws from: its size, its bytes as RGBA8 with no mipmaps, and whether it has a GL texture */
 					memory: () => {
 						const table = (renderer() as any)?.texture?._glTextures ?? {};

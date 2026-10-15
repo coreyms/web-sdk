@@ -13,6 +13,7 @@ import { stateGameDerived } from './stateGame.svelte';
 import { eventEmitter } from './eventEmitter';
 import { chainHaulPress } from './featureFx';
 import { CHAIN_BOW } from './constants';
+import { creatureRoundRequest } from './creatureLoad';
 
 const refreshBalance = async () => {
 	if (stateUrlDerived.replay()) return;
@@ -37,6 +38,8 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		if (lastRevealEvent) stateGameDerived.setBoardFromSymbols(lastRevealEvent.board);
 	},
 	onNewGameStart: async () => {
+		// the play request goes out: the creature's prefetch starts no new file until its book is in (game/creatureLoad.ts)
+		creatureRoundRequest(true);
 		// THE BOARD EXIT (BOARD_EXIT, Corey 2026-10-09): the press sets the previous board falling off the
 		// bottom of the opening before the book arrives, like the Angry Mantis pre-spin. Pictures only: the
 		// board is still the last book's until the reveal replaces it (game/stateGame.svelte.ts revealBoard,
@@ -51,6 +54,7 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	// a failed play leaves the wallet readout on its pre-error value until the next successful
 	// round; re-read it from the RGS so the player sees the truth straight away (review 2026-09-06)
 	onNewGameError: () => {
+		creatureRoundRequest(false);
 		stateGameDerived.cancelBoardExit();
 		void refreshBalance();
 	},
