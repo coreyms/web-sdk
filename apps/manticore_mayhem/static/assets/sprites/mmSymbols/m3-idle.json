@@ -1514,7 +1514,7 @@
   },
   "scale": "1",
   "fps": 30,
-  "encoding": "lossless",
+  "encoding": "near-lossless 60",
   "fit": {
    "source": "M3_royal-chalice/animation/idle",
    "sourcePx": 512,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "435026df"
+  "pngHash": "2d9258d9"
  }
 }

@@ -914,7 +914,7 @@
   },
   "scale": "1",
   "fps": 30,
-  "encoding": "lossless",
+  "encoding": "near-lossless 60",
   "fit": {
    "source": "L3_ancient-key/animation/drop",
    "sourcePx": 512,
@@ -977,6 +977,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "c168d6db"
+  "pngHash": "6b2974d6"
  }
 }

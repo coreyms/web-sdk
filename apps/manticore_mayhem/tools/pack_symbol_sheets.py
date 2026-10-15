@@ -38,6 +38,8 @@ import json
 import math
 import os
 import re
+import shutil
+import subprocess
 import sys
 
 import numpy as np
@@ -325,21 +327,42 @@ def frame_entry(x, y, px):
             "pivot": {"x": 0.5, "y": 0.5}}
 
 
-def save_webp(img, path, lossless_only=False):
-    """lossless unless that is more than 1.6x the q95 file, then q95 (alpha stays lossless).
-    lossless_only: the base atlas, where the static tiles must be the approved pixels exactly."""
+NEAR_LOSSLESS = 60  # cwebp -near_lossless level for the animation sheets (Corey 2026-10-15, S4)
+CWEBP = shutil.which("cwebp") or "/opt/homebrew/bin/cwebp"
+
+
+def save_near_lossless(img, path):
+    """cwebp -lossless -q 100 -m 6 -near_lossless 60 (Pillow has no near_lossless option); the PNG in between is
+    the exact pixels the sheet was built from"""
+    png = path + ".tmp.png"
+    img.save(png, "PNG")
+    try:
+        subprocess.run([CWEBP, "-quiet", "-lossless", "-q", "100", "-m", "6", "-near_lossless", str(NEAR_LOSSLESS),
+                        png, "-o", path], check=True)
+    finally:
+        os.remove(png)
+    return f"near-lossless {NEAR_LOSSLESS}"
+
+
+def save_webp(img, path, lossless_only=False, full_tier=False):
+    """animation sheets: near-lossless 60 (Corey 2026-10-15, S4: "I really can't tell the differences"); on the half
+    tier only when plain lossless is within 1.6x the q95 file, else q95 (alpha stays lossless) as before.
+    lossless_only: the base atlas, where the static tiles must be the approved pixels exactly (stays lossless)."""
     if lossless_only:
         img.save(path, "WEBP", lossless=True, quality=100, method=6)
         return "lossless"
+    if full_tier:
+        return save_near_lossless(img, path)
     img.save(path + ".tmp-ll", "WEBP", lossless=True, quality=100, method=4)
     img.save(path + ".tmp-lossy", "WEBP", quality=95, method=6, alpha_quality=100)
     ll, lossy = os.path.getsize(path + ".tmp-ll"), os.path.getsize(path + ".tmp-lossy")
     pick = ".tmp-ll" if ll <= lossy * 1.6 else ".tmp-lossy"
-    os.replace(path + pick, path)
+    if pick == ".tmp-lossy":
+        os.replace(path + pick, path)
     for t in (".tmp-ll", ".tmp-lossy"):
         if os.path.exists(path + t):
             os.remove(path + t)
-    return "lossless" if pick == ".tmp-ll" else "q95"
+    return save_near_lossless(img, path) if pick == ".tmp-ll" else "q95"
 
 
 def pack(name, frames, px, clip, meta_extra):
@@ -367,8 +390,10 @@ def pack(name, frames, px, clip, meta_extra):
     out = {}
     for (fname, _), ci in zip(frames, cell_of):
         out[fname] = frame_entry(*pos[ci], px)
-    # full tier: always lossless (Corey 2026-10-06); half tier: lossless unless 1.6x the q95 file
-    enc = save_webp(sheet, os.path.join(SPRITES, name + ".webp"), lossless_only=(px == CELL))
+    # full tier: was always lossless (Corey 2026-10-06); since 2026-10-15 (Corey, S4 of the download analysis, after
+    # the side-by-side samples) near-lossless 60. Half tier: near-lossless 60 unless plain lossless is 1.6x the q95
+    # file, then q95 as before. The base atlas (build_atlas) stays lossless.
+    enc = save_webp(sheet, os.path.join(SPRITES, name + ".webp"), full_tier=(px == CELL))
     meta = {"image": name + ".webp", "format": "RGBA8888", "size": {"w": sheet.width, "h": sheet.height},
             "scale": "1" if px == CELL else "0.5", "fps": FPS, "encoding": enc}
     meta.update(meta_extra)

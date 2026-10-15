@@ -1214,7 +1214,7 @@
   },
   "scale": "1",
   "fps": 30,
-  "encoding": "lossless",
+  "encoding": "near-lossless 60",
   "fit": {
    "source": "M1_persian-helmet/animation/drop",
    "sourcePx": 512,
@@ -1277,6 +1277,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "f5813511"
+  "pngHash": "14dc1f40"
  }
 }

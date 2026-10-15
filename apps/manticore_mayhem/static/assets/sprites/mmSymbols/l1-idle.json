@@ -1514,7 +1514,7 @@
   },
   "scale": "1",
   "fps": 30,
-  "encoding": "lossless",
+  "encoding": "near-lossless 60",
   "fit": {
    "source": "L1_iron-shackle/animation/idle",
    "sourcePx": 512,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "790b0077"
+  "pngHash": "06ad59d9"
  }
 }
