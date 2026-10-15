@@ -63,7 +63,7 @@ export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 		highlights: ['sting', 'swipe', 'roar'],
 		sceneLines: [
 			{ from: 0, to: 4.5, text: 'STING: the tail turns cells wild, one cell or a whole cross' },
-			{ from: 4.5, to: 6.833, text: 'SWIPE: the paw clears three rows. Their tiles light up or double' },
+			{ from: 4.5, to: 6.833, text: 'SWIPE: his claws tear through three rows. Their tiles light up or double' },
 			{ from: 6.833, to: 10.633, text: 'ROAR: in Super and Epic Free Spins, every low symbol is blown off and replaced' },
 		],
 	},
