@@ -5,7 +5,9 @@ export default {
 	// the published math set this build is approved against (library/publish_files)
 	// 2026.10.13 (game_config.py MATH_VERSION, rule pass 3): no feature triggers on 7 scatters; 8 are only ever the
 	// forced first board of an Epic. RTP and every rate as 2026.10.06 (swipe band roams, math-sdk 82d7496)
-	mathVersion: '2026.10.13',
+	// 2026.10.15 (diversity pass): the Super and Epic buys re-dealt for outcome diversity (77k / 138k effective
+	// books); rules, RTP, max win odds and every disclosed rate unchanged; the other modes byte-identical
+	mathVersion: '2026.10.15',
 	providerName: 'polymath_games',
 	gameName: 'Manticore Mayhem',
 	gameID: 'manticore_mayhem',
