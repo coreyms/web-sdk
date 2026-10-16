@@ -44,7 +44,7 @@
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
 	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureSpot } from '../game/constants';
-	import { creature, creatureFront } from '../game/creature';
+	import { creature, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
 	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog } from '../game/creatureLoad';
 	import { stateBet } from 'state-shared';
 	import { CREATURE_SPEC } from '../game/creatureSpec';
@@ -284,16 +284,25 @@
 	// the board or in front of it, over the logo either way). Only on a change of layout or spot.
 	$effect(() => {
 		const view = views[which];
-		const place = CREATURE.place[spot];
+		const layer = CREATURE.place[spot].layer;
 		untrack(() => {
 			view.foreground.addChild(creature.shadowNode);
 			// the body is always in the scene's twin root; the layer says which host on the stage holds that root:
 			// behind the board or in front of it, both over the canvas logo (game/creature.ts creatureFront)
 			view.frontForeground.addChild(creature.bodyNode);
-			creatureFront.layer = place.layer;
+			creatureFront.layer = layer;
 			creatureFront.sync();
-			creature.place(place);
+			creature.place(creaturePlace);
 		});
+	});
+	// ...and where in it: the spot's place for the canvas's shape (the desktop spot follows it from 16:10 to 16:9,
+	// constants CREATURE.desktopTall). A resize moves him without re-adding his nodes. DEV: `placeOverride` (the
+	// __manticore.creature.placeAt hook) stands him somewhere else until it is cleared.
+	let placeOverride: CreaturePlace | null = $state(null);
+	const creaturePlace = $derived(placeOverride ?? creaturePlaceFor(spot, canvas.width / Math.max(canvas.height, 1)));
+	$effect(() => {
+		const place = creaturePlace;
+		untrack(() => creature.place(place));
 	});
 	// the look of the mode (the scene's own family)
 	$effect(() => {
@@ -656,6 +665,10 @@
 						}
 						return { count, box: count ? box : null, inside };
 					},
+					/** where he stands now (the spot's place for this canvas, game/creature.ts creaturePlaceFor), and a DEV
+					 *  override of it (null: back to the layout's) */
+					place: () => ({ ...creaturePlace }),
+					placeAt: (p: CreaturePlace | null) => (placeOverride = p),
 					log: () => creature.log.map((e) => ({ ...e })),
 					loadLog: () => creatureLoadLog.map((e) => ({ ...e })),
 					/** THE PREFETCH (game/creatureLoad.ts): its two conditions, when it ran, every file it fetched */
