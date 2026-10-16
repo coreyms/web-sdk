@@ -52,8 +52,8 @@ export const BOARD_ART = {
 				1758
 			],
 			"tex": [
-				1205,
-				1076
+				1969,
+				1758
 			]
 		},
 		"portrait": {
@@ -66,8 +66,8 @@ export const BOARD_ART = {
 				1758
 			],
 			"tex": [
-				1006,
-				899
+				1509,
+				1348
 			]
 		},
 		"phone": {
@@ -88,7 +88,7 @@ export const BOARD_ART = {
 	"chains": {
 		"landscape": {
 			"tex": [
-				512,
+				1024,
 				128
 			],
 			"periodPx": 125.85,
@@ -100,36 +100,36 @@ export const BOARD_ART = {
 			],
 			"L": {
 				"texX": 2,
-				"texW": 66
+				"texW": 107
 			},
 			"R": {
-				"texX": 72,
-				"texW": 66
+				"texX": 113,
+				"texW": 107
 			},
 			"night": {
 				"L": {
-					"texX": 142,
-					"texW": 66
+					"texX": 224,
+					"texW": 107
 				},
 				"R": {
-					"texX": 212,
-					"texW": 66
+					"texX": 335,
+					"texW": 107
 				}
 			},
 			"fire": {
 				"L": {
-					"texX": 282,
-					"texW": 66
+					"texX": 446,
+					"texW": 107
 				},
 				"R": {
-					"texX": 352,
-					"texW": 66
+					"texX": 557,
+					"texW": 107
 				}
 			}
 		},
 		"portrait": {
 			"tex": [
-				512,
+				1024,
 				128
 			],
 			"periodPx": 125.85,
@@ -141,30 +141,30 @@ export const BOARD_ART = {
 			],
 			"L": {
 				"texX": 2,
-				"texW": 55
+				"texW": 83
 			},
 			"R": {
-				"texX": 61,
-				"texW": 55
+				"texX": 89,
+				"texW": 83
 			},
 			"night": {
 				"L": {
-					"texX": 120,
-					"texW": 55
+					"texX": 176,
+					"texW": 83
 				},
 				"R": {
-					"texX": 179,
-					"texW": 55
+					"texX": 263,
+					"texW": 83
 				}
 			},
 			"fire": {
 				"L": {
-					"texX": 238,
-					"texW": 55
+					"texX": 350,
+					"texW": 83
 				},
 				"R": {
-					"texX": 297,
-					"texW": 55
+					"texX": 437,
+					"texW": 83
 				}
 			}
 		},
@@ -702,7 +702,7 @@ export const BOARD_ART = {
 		}
 	},
 	"relight": {
-		"source": "gears_sync_r1 + relight_r1",
+		"source": "export_v5n_nofinials (gears_sync_r1 + relight_r1 methods, board v5n)",
 		"frames": 20,
 		"trimPx": 20,
 		"featherPx": 6,
@@ -724,25 +724,25 @@ export const BOARD_ART = {
 		},
 		"checks": {
 			"day": {
-				"frame0_vs_relight_frame_max": 4.16,
-				"frame0_px_over_2": 2,
+				"frame0_vs_relight_frame_max": 11.71,
+				"frame0_px_over_2": 4,
 				"frame0_alpha_px_differ_from_locked": 0,
-				"turned_px_over_8_left_still_by_the_trim_worst_frame": 953,
-				"turned_max": 54.0
+				"turned_px_over_8_left_still_by_the_trim_worst_frame": 635,
+				"turned_max": 53.0
 			},
 			"night": {
 				"frame0_vs_relight_frame_max": 26.16,
 				"frame0_px_over_2": 4,
 				"frame0_alpha_px_differ_from_locked": 0,
-				"turned_px_over_8_left_still_by_the_trim_worst_frame": 90,
-				"turned_max": 45.0
+				"turned_px_over_8_left_still_by_the_trim_worst_frame": 94,
+				"turned_max": 43.0
 			},
 			"fire": {
-				"frame0_vs_relight_fire_max": 6.0,
-				"frame0_px_over_2": 27,
+				"frame0_vs_relight_fire_max": 7.0,
+				"frame0_px_over_2": 29,
 				"frame0_px_over_8": 0,
-				"turned_px_over_8_left_still_by_the_trim_worst_frame": 813,
-				"turned_max": 48.0
+				"turned_px_over_8_left_still_by_the_trim_worst_frame": 128,
+				"turned_max": 36.0
 			}
 		},
 		"layouts": {
@@ -751,129 +751,129 @@ export const BOARD_ART = {
 					"full": {
 						"day": {
 							"size": [
-								1266,
-								846
+								1575,
+								1615
 							],
 							"cells": 101,
-							"residentMB": 4.09,
-							"bytes": 593000
+							"residentMB": 9.7,
+							"bytes": 1003876
 						},
 						"night": {
 							"size": [
-								1661,
-								1191
+								1518,
+								3085
 							],
 							"cells": 200,
-							"residentMB": 7.55,
-							"bytes": 637238
+							"residentMB": 17.86,
+							"bytes": 1070505
 						},
 						"cellsMB": {
-							"day": 3.44,
-							"night": 3.44,
-							"fire": 3.44
+							"day": 8.42,
+							"night": 8.42,
+							"fire": 8.42
 						},
 						"plateMB": {
-							"day": 4.95,
-							"night": 4.95,
-							"fire": 1.24
+							"day": 13.2,
+							"night": 13.2,
+							"fire": 3.3
 						}
 					}
 				},
 				"night": {
 					"tex": [
-						1205,
-						1076
+						1969,
+						1758
 					]
 				},
 				"fire": {
 					"tex": [
-						603,
-						538
+						985,
+						879
 					]
 				},
 				"gears": {
 					"endgear_L": {
 						"tex": [
-							147,
-							95,
-							201,
-							157
+							245,
+							156,
+							327,
+							255
 						],
 						"box": [
-							280.2017,
-							195.2138,
-							88.2373,
-							101.2974
+							285.0,
+							196.0,
+							82.0,
+							99.0
 						]
 					},
 					"endgear_R": {
 						"tex": [
-							1004,
-							95,
-							1058,
-							157
+							1642,
+							156,
+							1726,
+							255
 						],
 						"box": [
-							1680.561,
-							195.2138,
-							88.2373,
-							101.2974
+							1682.0,
+							196.0,
+							84.0,
+							99.0
 						]
 					},
 					"pinion_L": {
 						"tex": [
-							104,
-							100,
-							181,
-							188
+							171,
+							165,
+							295,
+							306
 						],
 						"box": [
-							209.9386,
-							203.3829,
-							125.8199,
-							143.777
+							211.0,
+							205.0,
+							124.0,
+							141.0
 						]
 					},
 					"pinion_R": {
 						"tex": [
-							1025,
-							100,
-							1101,
-							188
+							1675,
+							165,
+							1798,
+							306
 						],
 						"box": [
-							1714.8755,
-							203.3829,
-							124.1859,
-							143.777
+							1715.0,
+							205.0,
+							123.0,
+							141.0
 						]
 					},
 					"wheel_L": {
 						"tex": [
-							14,
-							82,
-							129,
-							208
+							24,
+							153,
+							210,
+							339
 						],
 						"box": [
-							62.8763,
-							173.974,
-							187.9129,
-							205.8625
+							64.0,
+							193.0,
+							186.0,
+							186.0
 						]
 					},
 					"wheel_R": {
 						"tex": [
-							1081,
-							83,
-							1191,
-							208
+							1769,
+							153,
+							1945,
+							339
 						],
 						"box": [
-							1806.3809,
-							175.6078,
-							179.7427,
-							204.2286
+							1809.0,
+							193.0,
+							176.0,
+							186.0
 						]
 					}
 				},
@@ -885,18 +885,18 @@ export const BOARD_ART = {
 						245
 					],
 					"tex": [
-						627,
-						75
+						1024,
+						123
 					]
 				},
 				"restOutline": {
 					"day": {
-						"pxSolved": 178,
-						"pxOffByMoreThan1": 25
+						"pxSolved": 0,
+						"pxOffByMoreThan1": 0
 					},
 					"night": {
-						"pxSolved": 194,
-						"pxOffByMoreThan1": 25
+						"pxSolved": 0,
+						"pxOffByMoreThan1": 0
 					}
 				}
 			},
@@ -905,129 +905,129 @@ export const BOARD_ART = {
 					"full": {
 						"day": {
 							"size": [
-								1996,
-								368
+								1214,
+								1250
 							],
 							"cells": 101,
-							"residentMB": 2.8,
-							"bytes": 458746
+							"residentMB": 5.79,
+							"bytes": 821280
 						},
 						"night": {
 							"size": [
-								812,
-								1712
+								2039,
+								1395
 							],
 							"cells": 200,
-							"residentMB": 5.3,
-							"bytes": 504624
+							"residentMB": 10.85,
+							"bytes": 864389
 						},
 						"cellsMB": {
-							"day": 2.4,
-							"night": 2.4,
-							"fire": 2.4
+							"day": 5.01,
+							"night": 5.01,
+							"fire": 5.01
 						},
 						"plateMB": {
-							"day": 3.45,
-							"night": 3.45,
-							"fire": 0.86
+							"day": 7.76,
+							"night": 7.76,
+							"fire": 1.94
 						}
 					}
 				},
 				"night": {
 					"tex": [
-						1006,
-						899
+						1509,
+						1348
 					]
 				},
 				"fire": {
 					"tex": [
-						503,
-						450
+						755,
+						674
 					]
 				},
 				"gears": {
 					"endgear_L": {
 						"tex": [
-							123,
-							79,
-							168,
-							131
+							187,
+							119,
+							251,
+							196
 						],
 						"box": [
-							280.7425,
-							194.485,
-							88.0765,
-							101.6863
+							284.0046,
+							195.1944,
+							83.5096,
+							100.4199
 						]
 					},
 					"endgear_R": {
 						"tex": [
-							838,
-							79,
-							883,
-							131
+							1258,
+							119,
+							1323,
+							196
 						],
 						"box": [
-							1680.1809,
-							194.485,
-							88.0765,
-							101.6863
+							1681.4858,
+							195.1944,
+							84.8144,
+							100.4199
 						]
 					},
 					"pinion_L": {
 						"tex": [
-							87,
-							83,
-							151,
-							157
+							131,
+							126,
+							227,
+							235
 						],
 						"box": [
-							210.2813,
-							202.307,
+							210.9337,
+							204.3234,
 							125.2644,
-							144.7075
+							142.1528
 						]
 					},
 					"pinion_R": {
 						"tex": [
-							855,
-							83,
-							919,
-							157
+							1283,
+							126,
+							1378,
+							235
 						],
 						"box": [
-							1713.4543,
-							202.307,
-							125.2644,
-							144.7075
+							1714.1067,
+							204.3234,
+							123.9596,
+							142.1528
 						]
 					},
 					"wheel_L": {
 						"tex": [
-							12,
-							69,
-							108,
-							174
+							18,
+							117,
+							161,
+							260
 						],
 						"box": [
 							63.4871,
-							174.9299,
-							187.8966,
-							205.3281
+							192.5861,
+							186.5918,
+							186.4941
 						]
 					},
 					"wheel_R": {
 						"tex": [
-							903,
-							69,
-							994,
-							174
+							1355,
+							117,
+							1491,
+							260
 						],
 						"box": [
-							1807.4026,
-							174.9299,
-							178.1103,
-							205.3281
+							1808.055,
+							192.5861,
+							177.4579,
+							186.4941
 						]
 					}
 				},
@@ -1039,18 +1039,18 @@ export const BOARD_ART = {
 						245
 					],
 					"tex": [
-						524,
-						63
+						785,
+						94
 					]
 				},
 				"restOutline": {
 					"day": {
-						"pxSolved": 176,
-						"pxOffByMoreThan1": 38
+						"pxSolved": 196,
+						"pxOffByMoreThan1": 26
 					},
 					"night": {
-						"pxSolved": 171,
-						"pxOffByMoreThan1": 38
+						"pxSolved": 202,
+						"pxOffByMoreThan1": 26
 					}
 				}
 			},
@@ -1059,26 +1059,26 @@ export const BOARD_ART = {
 					"full": {
 						"day": {
 							"size": [
-								1068,
-								2190
+								1445,
+								1494
 							],
 							"cells": 101,
-							"residentMB": 8.92,
-							"bytes": 1044702
+							"residentMB": 8.24,
+							"bytes": 1036685
 						},
 						"night": {
 							"size": [
-								1828,
-								2380
+								1600,
+								2548
 							],
 							"cells": 200,
-							"residentMB": 16.6,
-							"bytes": 1062920
+							"residentMB": 15.55,
+							"bytes": 1078073
 						},
 						"cellsMB": {
-							"day": 7.7,
-							"night": 7.7,
-							"fire": 7.7
+							"day": 7.2,
+							"night": 7.2,
+							"fire": 7.2
 						},
 						"plateMB": {
 							"day": 10.95,
@@ -1089,26 +1089,26 @@ export const BOARD_ART = {
 					"half": {
 						"day": {
 							"size": [
-								970,
-								704
+								998,
+								650
 							],
 							"cells": 101,
-							"residentMB": 2.6,
-							"bytes": 407685
+							"residentMB": 2.47,
+							"bytes": 403496
 						},
 						"night": {
 							"size": [
-								1526,
-								734
+								1533,
+								691
 							],
 							"cells": 200,
-							"residentMB": 4.27,
-							"bytes": 432938
+							"residentMB": 4.04,
+							"bytes": 435212
 						},
 						"cellsMB": {
-							"day": 1.92,
-							"night": 1.92,
-							"fire": 1.92
+							"day": 1.8,
+							"night": 1.8,
+							"fire": 1.8
 						},
 						"plateMB": {
 							"day": 10.95,
@@ -1132,15 +1132,15 @@ export const BOARD_ART = {
 				"gears": {
 					"endgear_L": {
 						"tex": [
-							218,
+							222,
 							142,
 							298,
 							234
 						],
 						"box": [
-							279.3988,
+							283.7914,
 							195.925,
-							87.8528,
+							83.4601,
 							101.0219
 						]
 					},
@@ -1148,70 +1148,70 @@ export const BOARD_ART = {
 						"tex": [
 							1494,
 							142,
-							1574,
+							1572,
 							234
 						],
 						"box": [
 							1680.6503,
 							195.925,
-							87.8528,
+							85.6564,
 							101.0219
 						]
 					},
 					"pinion_L": {
 						"tex": [
 							154,
-							148,
+							150,
 							270,
 							280
 						],
 						"box": [
 							209.1166,
-							202.5134,
+							204.7096,
 							127.3865,
-							144.9444
+							142.7483
 						]
 					},
 					"pinion_R": {
 						"tex": [
 							1524,
-							148,
+							150,
 							1638,
 							280
 						],
 						"box": [
 							1713.5951,
-							202.5134,
+							204.7096,
 							125.1902,
-							144.9444
+							142.7483
 						]
 					},
 					"wheel_L": {
 						"tex": [
 							20,
-							122,
+							138,
 							192,
 							310
 						],
 						"box": [
 							61.9632,
-							173.9638,
+							191.5328,
 							188.8834,
-							206.436
+							188.867
 						]
 					},
 					"wheel_R": {
 						"tex": [
-							1608,
-							122,
+							1610,
+							138,
 							1772,
 							310
 						],
 						"box": [
-							1805.8405,
-							173.9638,
-							180.0982,
-							206.436
+							1808.0368,
+							191.5328,
+							177.9018,
+							188.867
 						]
 					}
 				},
@@ -1229,12 +1229,12 @@ export const BOARD_ART = {
 				},
 				"restOutline": {
 					"day": {
-						"pxSolved": 134,
-						"pxOffByMoreThan1": 19
+						"pxSolved": 128,
+						"pxOffByMoreThan1": 18
 					},
 					"night": {
-						"pxSolved": 121,
-						"pxOffByMoreThan1": 19
+						"pxSolved": 119,
+						"pxOffByMoreThan1": 21
 					}
 				}
 			}
