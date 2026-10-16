@@ -1,9 +1,10 @@
 <script lang="ts" module>
-	import type { WinLevelData } from '../game/winLevelMap';
+	import type { WinLevelData, WinTierStage } from '../game/winLevelMap';
 
 	export type EmitterEventWin =
 		| { type: 'winShow' }
-		| { type: 'winUpdate'; amount: number; winLevelData: WinLevelData }
+		// `stages`: the ladder the count steps up on (a free spin's feature ladder, WIN_TIER_STAGES_FEATURE_SPIN); none = the base one
+		| { type: 'winUpdate'; amount: number; winLevelData: WinLevelData; stages?: readonly WinTierStage[] }
 		| { type: 'winHide' };
 </script>
 
@@ -88,8 +89,8 @@
 			show = true;
 			void dim.set(0.55);
 		},
-		winUpdate: async ({ amount, winLevelData }) => {
-			const tier = Math.max(0, WIN_TIER_STAGES.findIndex((s) => s.alias === winLevelData.alias));
+		winUpdate: async ({ amount, winLevelData, stages = WIN_TIER_STAGES }) => {
+			const tier = Math.max(0, stages.findIndex((s) => s.alias === winLevelData.alias));
 			// the plaque's atlases are deferred assets
 			await awaitPlaqueAssets();
 			const flow = stingerPlaque.flow;
@@ -97,7 +98,7 @@
 				viaPlaque = true;
 				void dim.set(0, { duration: 0 }); // the plaque brings its own scene dim
 				counting = true;
-				await flow.win({ amount, finalTier: tier, durationMs: winLevelData.presentDuration / context.stateGameDerived.timeScale() });
+				await flow.win({ amount, finalTier: tier, durationMs: winLevelData.presentDuration / context.stateGameDerived.timeScale(), stages });
 				counting = false;
 				await hold();
 				return;
