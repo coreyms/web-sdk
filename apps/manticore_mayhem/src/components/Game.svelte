@@ -33,6 +33,7 @@
 	import CreatureFront from './CreatureFront.svelte';
 	import BoardPlaque from './BoardPlaque.svelte';
 	import SkipButton from './SkipButton.svelte';
+	import SymbolPopup from './SymbolPopup.svelte';
 	import ModePlaque from './ModePlaque.svelte';
 	import StingerPlaque from './StingerPlaque.svelte';
 	import Win from './Win.svelte';
@@ -246,6 +247,8 @@
 	<Chrome />
 	<!-- the SKIP button and its prompt: HTML over the canvas and the HUD, so the creature never covers it -->
 	<SkipButton />
+	<!-- the symbol pay popup: a tap on a symbol of an idle board (HTML, takes no pointer) -->
+	<SymbolPopup />
 	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
 		<LandingScreen onpress={() => (landingPressed = true)} />
 	{/if}
