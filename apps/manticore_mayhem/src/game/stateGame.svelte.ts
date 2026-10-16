@@ -10,6 +10,7 @@ import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
+import { winFx, shineCells, spawnWinBurst, popPose, sweepAt, POP_AT, winFxStats, type ShineCell, type PopPose } from './winFx';
 import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, fxStamp, type FxRecord } from './featureFx';
 import { cueWellSting, cueWellSwipe, cueWellTile, cueWellWin, clearWellCues } from './wellsFx';
 import { kickClank } from './chainSound';
@@ -31,6 +32,7 @@ import {
 	CLUSTER_LABEL,
 	LABEL_PLACE,
 	SPARKLE,
+	WIN_FX,
 	SYMBOL_COLORS,
 	AURA_COLOR,
 	MULT_PLATE,
@@ -1004,8 +1006,15 @@ const textWidth = (text: string, height: number) => {
 };
 /** the shrink removal: grow a hair, then shrink to nothing (the playground's 'shrink' style) */
 const shrinkScale = (u: number) => (u < 0.25 ? 1 + 0.12 * (u / 0.25) : 1.12 * (1 - CLUSTER.removeEasing((u - 0.25) / 0.75)));
+/** the burst's colour for a symbol (WIN_FX.colors, sampled from the art) */
+const winColor = (name: string) => WIN_FX.colors[name] ?? SYMBOL_COLORS[name] ?? 0xffffff;
+/** the board shake this win set wrote last (so the end of a superseded set never zeroes another feature's kick) */
+let shakeOwned = false;
+const popScratch: PopPose = { sx: 1, sy: 1, rot: 0, alpha: 1, heat: 0 };
 
-type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean; cleared: boolean };
+/** `fx`: the WIN_FX shine of this cell (null in the 'old' look); `rank`: its order from the cluster centre; `dir`:
+ *  its twist direction (alternate cells opposite ways) */
+type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean; cleared: boolean; rank: number; dir: number; fx: ShineCell | null };
 type Cluster = {
 	members: Member[];
 	/** the cluster's start (before its standalone aura) and the readout's start (after it) */
@@ -1020,6 +1029,8 @@ type Cluster = {
 	tCountDone: number;
 	tReadoutDone: number;
 	tRemEnd: number;
+	/** WIN_FX.shake: when this cluster's first symbol pops (style ms), -1 = no shake */
+	tShake: number;
 	spec: WinSpec;
 	readout: Readout;
 	wa: number;
@@ -1036,6 +1047,9 @@ type Cluster = {
  */
 export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHooks = {}): Promise<CellIndex[]> => {
 	if (!wins.length) return [];
+	// the look, once for the whole set (WIN_FX; DEV ?winfx=old keeps the shrink, the square flash and the dots)
+	const fxNew = winFx.style === 'new';
+	const removeMs = Math.max(fxNew ? WIN_FX.pop.removeMs : CLUSTER.removeMs, 1);
 	const at = new Map<CellIndex, Cell>();
 	for (const c of stateGame.cells) if (c.state !== 'removing') at.set(cellOf(c.reel, c.row), c);
 	const allWinners = new Set<CellIndex>();
@@ -1085,10 +1099,11 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			const cell = at.get(index);
 			if (!cell || claimed.has(index)) continue; // a shared cell leaves with the first cluster
 			claimed.add(index);
-			members.push({ cell, index, removeT0: 0, spawned: false, cleared: false });
+			members.push({ cell, index, removeT0: 0, spawned: false, cleared: false, rank: 0, dir: (reelOf(index) + rowOf(index)) % 2 ? -1 : 1, fx: null });
 		}
 		// cells leave in order of distance from the cluster centre
 		members.sort((a, b) => Math.hypot(rowOf(a.index) + 0.5 - cy, reelOf(a.index) + 0.5 - cx) - Math.hypot(rowOf(b.index) + 0.5 - cy, reelOf(b.index) + 0.5 - cx));
+		members.forEach((m, k) => (m.rank = k));
 		// a winner the preceding drop did not glow gets the standalone aura (the whole cluster, together)
 		const aura = CLUSTER.auraMs > 0 && members.some((m) => !lastAura.has(m.index)) ? CLUSTER.auraMs : 0;
 		let t = tc + aura;
@@ -1113,8 +1128,9 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		let tRemEnd = tReadoutDone;
 		members.forEach((m, k) => {
 			m.removeT0 = tReadoutDone + k * SPARKLE.staggerMs;
-			tRemEnd = Math.max(tRemEnd, m.removeT0 + Math.max(CLUSTER.removeMs, 1));
+			tRemEnd = Math.max(tRemEnd, m.removeT0 + removeMs);
 		});
+		const tShake = fxNew && members.length >= WIN_FX.shake.minCluster ? tReadoutDone + POP_AT * removeMs : -1;
 		tRem = Math.max(tRem, tRemEnd);
 		readoutDone[i] = tReadoutDone;
 		const start = tc;
@@ -1155,6 +1171,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			tCountDone,
 			tReadoutDone,
 			tRemEnd,
+			tShake,
 			spec,
 			readout,
 			wa: widths[i].wa * size,
@@ -1168,6 +1185,16 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	for (const c of stateGame.cells) if (!allWinners.has(cellOf(c.reel, c.row)) && c.state !== 'removing') dimmed.push(c);
 	for (const cl of clusters) for (const m of cl.members) m.cell.state = 'win';
 	for (const c of dimmed) c.state = 'dim';
+	// WIN_FX: each winner's shine on the bus (BoardCells draws it), from now until it has left
+	if (fxNew) {
+		for (const cl of clusters) {
+			for (const m of cl.members) {
+				m.fx = { band: 0, a: 0, heat: 0, pulse: 1 };
+				shineCells.set(m.cell.id, m.fx);
+			}
+		}
+	}
+	const shaken = new Set<number>();
 	const lifeReal = SPARKLE.lifeMs / ts();
 
 	// ---- sample ----
@@ -1197,20 +1224,52 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 				if (now < cl.t) continue;
 				if (now < m.removeT0) {
 					const s = 1 + (CLUSTER.winScale - 1) * CLUSTER.winEasing(clamp01((now - cl.t) / Math.max(CLUSTER.winRiseMs, 1)));
-					c.scaleX = s;
-					c.scaleY = s;
+					const fx = m.fx;
+					if (fx) {
+						// WIN_FX: the breath (in over the rise, out before the pop, so the pop starts from winScale; drawn by
+						// the renderer from fx.pulse, the cell keeps the held scale) ...
+						const B = WIN_FX.breathe;
+						const el = now - cl.t;
+						const env = clamp01(el / Math.max(cl.rise, 1)) * clamp01((m.removeT0 - now) / Math.max(B.fadeMs, 1));
+						fx.pulse = 1 + B.amp * env * Math.sin((2 * Math.PI * el) / B.periodMs);
+						// ... and the shine: a sweep as the cluster starts, a softer one as its count lands
+						const S = WIN_FX.shine;
+						const lag = Math.min(m.rank * S.staggerMs, S.staggerCapMs);
+						fx.a = 0;
+						fx.heat = 0;
+						sweepAt(el - S.startMs - lag, S.peak, fx);
+						sweepAt(now - cl.tCountDone - lag, S.secondPeak, fx);
+					}
+					if (c.scaleX !== s) c.scaleX = s;
+					if (c.scaleY !== s) c.scaleY = s;
 					continue;
 				}
-				// leaving: shrink from the held win scale; sparkle at the first frame of it
-				if (!m.spawned) {
-					m.spawned = true;
-					if (!stateGame.skipping) spawnSparkles(c.reel, c.row, SYMBOL_COLORS[c.name] ?? 0xffffff, lifeReal);
-				}
 				c.state = 'removing';
-				const u = clamp01((now - m.removeT0) / Math.max(CLUSTER.removeMs, 1));
-				const s = u >= 1 ? 0 : CLUSTER.winScale * shrinkScale(u);
-				c.scaleX = s;
-				c.scaleY = s;
+				const u = clamp01((now - m.removeT0) / removeMs);
+				if (m.fx) {
+					// WIN_FX: squash, pop and twist away (game/winFx.ts popPose); the burst and the embers at the pop
+					const p = popPose(u, CLUSTER.winScale, m.dir, popScratch);
+					c.scaleX = p.sx;
+					c.scaleY = p.sy;
+					c.rot = p.rot;
+					c.alpha = p.alpha;
+					m.fx.a = 0;
+					m.fx.pulse = 1;
+					m.fx.heat = p.heat;
+					if (!m.spawned && u >= POP_AT) {
+						m.spawned = true;
+						if (!stateGame.skipping) spawnWinBurst(c.reel, c.row, winColor(c.name), ts());
+					}
+				} else {
+					// leaving: shrink from the held win scale; sparkle at the first frame of it
+					if (!m.spawned) {
+						m.spawned = true;
+						if (!stateGame.skipping) spawnSparkles(c.reel, c.row, SYMBOL_COLORS[c.name] ?? 0xffffff, lifeReal);
+					}
+					const s = u >= 1 ? 0 : CLUSTER.winScale * shrinkScale(u);
+					c.scaleX = s;
+					c.scaleY = s;
+				}
 				if (u >= 1 && !m.cleared) {
 					m.cleared = true;
 					hooks.onCleared?.(m.index);
@@ -1229,6 +1288,31 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			if (!shown) {
 				live.set(cl.readout.id, cl.readout);
 				listChanged = true;
+			}
+		}
+		// WIN_FX.shake: a big cluster nudges the board as its first symbol pops (featureFx.boardKick, board px)
+		if (fxNew) {
+			const K = WIN_FX.shake;
+			let kx = 0;
+			let ky = 0;
+			let on = false;
+			for (const cl of clusters) {
+				const el = now - cl.tShake;
+				if (cl.tShake < 0 || el < 0 || el >= K.ms) continue;
+				on = true;
+				if (!shaken.has(cl.readout.id)) {
+					shaken.add(cl.readout.id);
+					winFxStats.shakes += 1;
+				}
+				const d = (1 - el / K.ms) ** 2;
+				const ph = (2 * Math.PI * K.hz * el) / 1000;
+				kx += K.ampPx * d * Math.sin(ph);
+				ky += K.ampPx * K.yShare * d * Math.sin(ph * 1.3);
+			}
+			if (on || shakeOwned) {
+				boardKick.x = kx;
+				boardKick.y = ky;
+				shakeOwned = on;
 			}
 		}
 		if (listChanged) {
@@ -1281,8 +1365,14 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	// ---- the structural result, whether or not the run was superseded ----
 	const removed: CellIndex[] = [];
 	const goingIds = new Set<number>();
+	if (shakeOwned) {
+		boardKick.x = 0;
+		boardKick.y = 0;
+		shakeOwned = false;
+	}
 	for (const cl of clusters) {
 		for (const m of cl.members) {
+			if (m.fx) shineCells.delete(m.cell.id);
 			removed.push(m.index);
 			goingIds.add(m.cell.id);
 			if (!m.cleared) {
@@ -1329,6 +1419,36 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	return removed;
 };
 
+/** WIN_FX for removeCells: the same pop as a cluster's symbols (from scale 1), its heat on the shine bus, a burst each */
+const popAway = async (goingIds: number[], id: number) => {
+	const going = new Set(goingIds);
+	const heat = new Map<number, ShineCell>();
+	for (const cid of goingIds) {
+		const fx = { band: 0, a: 0, heat: 0, pulse: 1 };
+		heat.set(cid, fx);
+		shineCells.set(cid, fx);
+	}
+	const burst = new Set<number>();
+	await raf(WIN_FX.pop.removeMs, (t) => {
+		if (!alive(id)) return;
+		for (const c of stateGame.cells) {
+			if (!going.has(c.id)) continue;
+			const p = popPose(t, 1, (c.reel + c.row) % 2 ? -1 : 1, popScratch);
+			c.scaleX = p.sx;
+			c.scaleY = p.sy;
+			c.rot = p.rot;
+			c.alpha = p.alpha;
+			const fx = heat.get(c.id);
+			if (fx) fx.heat = p.heat;
+			if (t >= POP_AT && !burst.has(c.id)) {
+				burst.add(c.id);
+				if (!stateGame.skipping) spawnWinBurst(c.reel, c.row, winColor(c.name), ts());
+			}
+		}
+	});
+	for (const cid of goingIds) shineCells.delete(cid);
+};
+
 /** the cluster leaves the board: a pop, then nothing. The DELETION is unconditional: a superseded
  *  run may skip the animation, never the structural change. `onCleared` fires per cell once it is gone. */
 export const removeCells = async (cells: CellIndex[], id: number, onCleared?: (cell: CellIndex) => void) => {
@@ -1342,7 +1462,8 @@ export const removeCells = async (cells: CellIndex[], id: number, onCleared?: (c
 	}
 	if (!goingIds.length) return;
 	const going = new Set(goingIds);
-	await raf(CLUSTER.removeMs, (t) => {
+	if (winFx.style === 'new') await popAway(goingIds, id);
+	else await raf(CLUSTER.removeMs, (t) => {
 		if (!alive(id)) return;
 		const e = CLUSTER.removeEasing(t);
 		const s = t < 0.3 ? 1 + 0.4 * (t / 0.3) : 1.4 * (1 - CLUSTER.removeEasing((t - 0.3) / 0.7));

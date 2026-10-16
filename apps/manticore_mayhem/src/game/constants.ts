@@ -512,6 +512,78 @@ export const SPARKLE = {
 	maxCells: 43,
 };
 
+/** THE WIN EFFECT, ROUND 1 (Corey 2026-10-16, "Yes that sounds good" to the code-only fix of the design review
+ *  2026-10-15 item 2, "Poor animations"). Replaces the 'old' look above (the 1.13 grow and still hold, the 135 ms
+ *  shrink, the white square flash and the 2.5 px dots), which stays selectable for comparison: DEV `?winfx=old`
+ *  (game/winFx.ts). Per winning symbol, all in STYLE ms (divided by the turbo scale; a skip spawns nothing):
+ *    rise    the same 1.13 grow over CLUSTER.winRiseMs, then a slow breath (`breathe`) while the readout is up
+ *    shine   a slanted light band sweeps across the symbol (the logo's Shine, LOGO.still.shine: the symbol's own
+ *            frame cut into strips, each strip an additive copy whose opacity is the band; no mask, no filter), once
+ *            as the cluster starts and again, softer, as its count lands
+ *    pop     replaces the shrink: squash wide and short with a slight twist (the symbol heats up), pop out bigger
+ *            with the twist reversed, then collapse to nothing still turning (`pop`)
+ *    burst   at the pop: a soft round glow and a ray burst tinted the symbol's colour (`colors`), plus 6 to 10
+ *            embers that fly out and fall (`embers`); no white square
+ *    shake   a cluster of `shake.minCluster`+ symbols nudges the whole board 1 to 2 screen px as it pops
+ *  components/BoardCells.svelte draws the shine, the burst and the embers from pooled sprites; game/stateGame.svelte.ts
+ *  (presentWinSet, removeCells) drives the cells, the shine values and the shake. */
+export const WIN_FX = {
+	/** the default look; DEV `?winfx=old|new` overrides it (game/winFx.ts) */
+	style: 'new' as 'new' | 'old',
+	/** each symbol's own colour for its burst and embers, SAMPLED FROM THE ART (the static atlas frames,
+	 *  mmSymbols.webp, 2026-10-16): the mean of the lit pixels of the dominant hue, value lifted to at least 0.8.
+	 *  L4 is the green of its wax (the largest area: the gold gryphon is the brighter but smaller part). */
+	colors: {
+		L1: 0xcc9567, // the shackle's aged bronze
+		L2: 0xcca372, // the bull skull's bone
+		L3: 0xda9a46, // the key's gold
+		L4: 0x6fcc5c, // the seal's green wax
+		M1: 0xcc944e, // the helmet's gold
+		M2: 0xcc9750, // the dagger's bronze blade
+		M3: 0xdaa154, // the chalice's gold
+		H1: 0xe8a544, // the crown's gold
+		W: 0xfbb25c, // the Wild medallion's copper gold
+		S: 0xef1d10, // the War Standard's red
+	} as Record<string, number>,
+	/** the winners breathe while the readout is up: scale winScale x (1 + amp sin), one period of periodMs, eased in
+	 *  over the rise and out over the fadeMs before the pop (so the pop always starts from winScale exactly) */
+	breathe: { amp: 0.03, periodMs: 700, fadeMs: 140 },
+	/** THE SHINE. The symbol's frame in `cols` x `rows` strips (phone tier: colsPhone x rowsPhone), each an additive
+	 *  copy tinted `tint`. A band `band` symbol widths wide (a triangle, its peak in the middle) runs from `from` to
+	 *  `to` symbol widths over sweepMs, leaning by `slant` (the band's centre at the top is slant x 0.5 widths ahead of
+	 *  the middle, at the bottom behind). Its opacity ramps in and out over rampShare of the sweep, peaking at `peak`
+	 *  (the first sweep, at the cluster's start + startMs) and `secondPeak` (the second, when the count lands). Cells
+	 *  start staggerMs apart in order of distance from the cluster centre, the stagger capped at staggerCapMs. */
+	shine: { cols: 12, rows: 3, colsPhone: 8, rowsPhone: 2, tint: 0xfff0d2, band: 0.55, from: -0.4, to: 1.4, slant: -0.45, sweepMs: 520, rampShare: 0.18, peak: 1, secondPeak: 0.7, startMs: 40, staggerMs: 14, staggerCapMs: 140 },
+	/** THE POP (replaces CLUSTER.removeStyle 'shrink'), one symbol, removeMs long from its removal start (the cells
+	 *  still leave SPARKLE.staggerMs apart, nearest the centre first). Scales are multiples of CLUSTER.winScale.
+	 *    0 .. squashShare     squash to (1 + squashX, 1 - squashY), twist to twistIn (alternate cells opposite
+	 *                         ways), heat (the whole symbol as an additive copy) up to heatSquash
+	 *    .. + popShare        pop out to popScale both ways, the twist reversed to -twistPop, heat to heatPop: the
+	 *                         burst and the embers start at the beginning of this phase
+	 *    .. 1                 collapse to 0 (quadIn), turning on to -twistOut, the alpha fading from fadeFrom of
+	 *                         this phase, the heat going down with it */
+	pop: { removeMs: 210, squashShare: 0.36, squashX: 0.15, squashY: 0.13, twistIn: 0.06, heatSquash: 0.45, popShare: 0.2, popScale: 1.28, twistPop: 0.1, heatPop: 0.75, twistOut: 0.42, fadeFrom: 0.45 },
+	/** THE BURST on the pop: a ray burst (`rays`, the fxTexture burst, tinted the symbol's colour) growing from
+	 *  fromCells to toCells cells across while it turns by spin radians, and a soft round glow (`core`, tinted the colour
+	 *  whitened by `whiten`) from fromCells to toCells. Each fades in over inShare of its life and out after. Pool: one
+	 *  ray + one core per cell, maxCells cells in flight (lifeMs / SPARKLE.staggerMs). */
+	burst: {
+		rays: { lifeMs: 420, fromCells: 0.5, toCells: 2, peak: 1, inShare: 0.1, spin: 0.35 },
+		core: { lifeMs: 300, fromCells: 0.6, toCells: 1.4, peak: 0.9, inShare: 0.12, whiten: 0.55 },
+		maxCells: 43,
+	},
+	/** THE EMBERS: `count` per cell (phone tier `countPhone`), a streak sizePx board px long at the start (shrinking
+	 *  over its life), flying out spreadCells (x 0.6..1.4 per ember) on a quadOut, lifted by `lift` cells, pulled down
+	 *  by `gravity` cells over the life, turned along its path. Tinted the symbol's colour whitened by `whiten`,
+	 *  flickering by `flicker`. Life lifeMs x 0.7..1.0 per ember. One ParticleContainer, pool count x maxCells. */
+	embers: { count: 8, countPhone: 6, sizePx: 22, spreadCells: 0.85, lift: 0.35, gravity: 0.9, lifeMs: 800, whiten: 0.5, flicker: 0.25, maxCells: 43 },
+	/** THE SHAKE: a cluster of at least minCluster symbols moves the board (featureFx.boardKick, board px) as its first
+	 *  symbol pops: a decaying wobble of ampPx board px (about 1.5 to 2 screen px on a 1440 x 900 desktop, 1 to 1.5 on
+	 *  a phone) at hz (style time) over ms; the y wobble is yShare of the x one, a quarter period behind */
+	shake: { minCluster: 15, ampPx: 3.5, hz: 17, ms: 320, yShare: 0.6 },
+};
+
 /** the spin total (components/BoardPlaque.svelte, the plaque under the board; SpinWin.svelte until 2026-10-14): a running bump as each cluster's count-up finishes,
  *  then the final presentation after the last refill. finalRiseMs 0 / finalCountMs 0 = it just sits. */
 export const SPIN_TOTAL = {
