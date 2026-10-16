@@ -65,11 +65,67 @@ export const BOARD_SIZE_VARIANTS: Record<BoardSizeKey, BoardSizeVariant> = {
 /** the variant a release build ships (today's board) */
 export const BOARD_SIZE_DEFAULT: BoardSizeKey = 'current';
 
+/** the page's `?board=` value in a DEV build, null in a release build */
+const boardParam = (): string | null => {
+	if (!import.meta.env.DEV || typeof location === 'undefined') return null;
+	return new URLSearchParams(location.search).get('board');
+};
+
 const pick = (): BoardSizeKey => {
-	if (!import.meta.env.DEV || typeof location === 'undefined') return BOARD_SIZE_DEFAULT;
-	const q = new URLSearchParams(location.search).get('board');
+	const q = boardParam();
 	return q === '75' ? 'h75' : q === '80' ? 'h80' : BOARD_SIZE_DEFAULT;
 };
 
 export const BOARD_SIZE_KEY: BoardSizeKey = pick();
 export const BOARD_SIZE: BoardSizeVariant = BOARD_SIZE_VARIANTS[BOARD_SIZE_KEY];
+
+// ---- PHONE PORTRAIT, round 1 (branch board-phone-r1, 2026-10-16; NOT for merge as is) -------------------------------
+// Corey: "on phone, we should do bigger board mock ups as well ... so the chains on the side of the board are on screen,
+// but maybe half of each side of the chains could be clipped by the edges of the page".
+//
+// THE LIMIT TODAY is the screen's WIDTH: the portrait frame is sized so each chain's centreline sits
+// PORTRAIT_FIT.chainInset (10 master px) inside the screen edge (layoutSpec frameFor; the 412 master is fitted by width
+// on every phone taller than 412 x 760, so the board is 77 % of the screen's width there whatever the height). The
+// height has room to spare on every phone checked (the HUD rides down to the real bottom edge), so the only way to
+// grow is to let the art run off the sides.
+//
+// A variant names the render x of the board art (board_v5l, render px, left side; the right side mirrors it about the
+// lattice's centre) that is held ON the screen's left edge, as an offset outward from the left chain's centreline (render
+// x 164.70, the mean of its top pivot and bottom anchor; BOARD_ART.anchors). The two held points are then the
+// screen's width apart: k = viewport width / (chain span - 2 x offset), both in master units at k 1.
+//   current     the shipped rule (centreline 10 master px inside the edge), untouched
+//   chainsHalf  offset 0: the centreline on the edge, the outer half of each chain off screen
+//   chainsOff   offset 49.5: the frame POST's outer face (render x 214.2: board-frame-portrait.webp column 89 of 1006,
+//               the solid post at mid height) on the edge; the chain's visible links (42 of the strip's 55 texture px,
+//               centreline +/- 40.9 render px) are wholly off screen, only the post's small brackets (to render 200.5)
+//               are cut. The upper bound: past it the post itself is cut.
+// The growth k is capped at maxK (a height guard for odd viewports; no phone checked comes near it). The board grows
+// UPWARD ONLY: the art's bottom edge stays where the shipped rule puts it on that viewport (layoutSpec frameFor), so
+// the spin amount plaque, the spin win readout and the BALANCE / SPIN row keep today's places; the frame's top comes
+// closer to the logo and covers more of the creature, who stands behind the board.
+// `?board=half` or `?board=off` in a DEV build; a release build ships 'current'. Landscape and phone sideways are
+// untouched (the sideways board is limited by the screen's HEIGHT, not by its chains).
+export type PortraitBoardKey = 'current' | 'chainsHalf' | 'chainsOff';
+
+export type PortraitBoardVariant = {
+	/** render px from the left chain's centreline outward to the art point held on the screen edge; null = shipped rule */
+	edgeOut: number | null;
+	/** the growth cap for this variant */
+	maxK: number;
+};
+
+export const PORTRAIT_BOARD_VARIANTS: Record<PortraitBoardKey, PortraitBoardVariant> = {
+	current: { edgeOut: null, maxK: 1.12 },
+	chainsHalf: { edgeOut: 0, maxK: 1.25 },
+	chainsOff: { edgeOut: 49.5, maxK: 1.25 },
+};
+
+export const PORTRAIT_BOARD_DEFAULT: PortraitBoardKey = 'current';
+
+const pickPortrait = (): PortraitBoardKey => {
+	const q = boardParam();
+	return q === 'half' ? 'chainsHalf' : q === 'off' ? 'chainsOff' : PORTRAIT_BOARD_DEFAULT;
+};
+
+export const PORTRAIT_BOARD_KEY: PortraitBoardKey = pickPortrait();
+export const PORTRAIT_BOARD: PortraitBoardVariant = PORTRAIT_BOARD_VARIANTS[PORTRAIT_BOARD_KEY];

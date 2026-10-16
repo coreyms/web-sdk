@@ -8,7 +8,7 @@
 // phone-sideways, mirrored from the render so it faces the board; portrait hides it).
 import { SYMBOL_SIZE, GRID } from './constants';
 import { BOARD_ART } from './boardArtSpec';
-import { BOARD_SIZE, BOARD_SIZE_VARIANTS, type BoardSizeVariant } from './boardSizeVariant';
+import { BOARD_SIZE, BOARD_SIZE_VARIANTS, PORTRAIT_BOARD, type BoardSizeVariant } from './boardSizeVariant';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -108,11 +108,21 @@ export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const base = FRAME[kind];
 	if (kind !== 'portrait' || !viewportMasterWidth) return base;
 	const P = PORTRAIT_FIT;
-	const k = Math.min(Math.max((viewportMasterWidth - P.chainInset * 2) / chainSpanOf(base), 1), P.maxK);
+	// the shipped growth: the chain centrelines chainInset inside the viewport's edges
+	const kShip = Math.min(Math.max((viewportMasterWidth - P.chainInset * 2) / chainSpanOf(base), 1), P.maxK);
+	// BOARD PHONE MOCKUP (board-phone-r1, game/boardSizeVariant.ts): a variant holds a point of the art outside the
+	// chains' centrelines on the screen edges instead, and grows UPWARD ONLY: its art's bottom stays where the shipped
+	// rule puts it on this viewport, so the spin amount plaque and the BALANCE / SPIN row keep today's relation (with the
+	// shipped split, 56 % of the growth goes down: on a 375 x 667 iPhone SE the BALANCE label then sat on the cells)
+	const V = PORTRAIT_BOARD;
+	const k = V.edgeOut === null ? kShip : Math.min(Math.max(viewportMasterWidth / (chainSpanOf(base) - 2 * V.edgeOut * registrationOf(base).m), 1), V.maxK);
 	if (k <= 1) return base;
 	const art = artRectOf(base);
-	const baseHeight = (P.baseRows[1] - P.baseRows[0]) * registrationOf(base).m * k;
-	const bottom = P.bandTop + Math.max(P.hudTop - P.bandTop - baseHeight, 0) / (1 + P.gapRatio) + baseHeight;
+	const bottomAt = (kk: number) => {
+		const baseHeight = (P.baseRows[1] - P.baseRows[0]) * registrationOf(base).m * kk;
+		return P.bandTop + Math.max(P.hudTop - P.bandTop - baseHeight, 0) / (1 + P.gapRatio) + baseHeight;
+	};
+	const bottom = bottomAt(V.edgeOut === null ? k : kShip);
 	const top = bottom - art.height * k;
 	const cx = MASTER.portrait.width / 2;
 	return {
