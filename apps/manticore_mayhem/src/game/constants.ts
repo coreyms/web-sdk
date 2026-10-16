@@ -2,6 +2,7 @@ import { quadIn, quadOut, quartIn, backIn, backOut } from 'svelte/easing';
 
 import type { SymbolName } from './types';
 import config from './config';
+import { BOARD_SIZE } from './boardSizeVariant';
 
 // ---- FEATURE MENU NAME ----------------------------------------------------------------------
 // THE ARMOURY (Corey 2026-10-13; Angry Mantis called it the Chow Line). ONE constant so
@@ -1148,7 +1149,8 @@ export const LOGO = {
 	 *  board frame's visible post (the frame art starts at 340, its solid post at 352: midpoint 176), and high
 	 *  in the column (Corey 2026-10-10: up, clear of the scene's chains; it may cover the lion knocker's head).
 	 *  The width is the one the approved clips were judged at (logo_review_5, 5_in_game_landscape: 300). */
-	landscape: { cx: 176, cy: 106, width: 300 },
+	// BOARD SIZE MOCKUP (board-size-r1): from game/boardSizeVariant.ts; 'current' = { cx: 176, cy: 106, width: 300 }
+	landscape: BOARD_SIZE.logo,
 	/** PHONE SIDEWAYS master (1480 x 740): the left column, from the clock strip's left edge to the board art's
 	 *  post (293), above the BALANCE readout (236). */
 	phone: { left: 16, top: 46, width: 274 },
@@ -1864,7 +1866,8 @@ export const CHAIN_SOUND = {
 export const CREATURE = {
 	on: true,
 	place: {
-		desktop: { x: 2089.9, y: 1213.3, scale: 0.96, layer: 'front' },
+		// BOARD SIZE MOCKUP (board-size-r1): from game/boardSizeVariant.ts; 'current' = { x: 2089.9, y: 1213.3, scale: 0.96 }
+		desktop: { ...BOARD_SIZE.creature, layer: 'front' as const },
 		phoneSideways: { x: 2249.3, y: 1157.2, scale: 0.97, layer: 'behind' },
 		portraitPhone: { x: 1039.9, y: 1001.6, scale: 0.77, layer: 'behind' },
 		portraitTablet: { x: 1210, y: 905, scale: 0.58, layer: 'behind', shadow: false },

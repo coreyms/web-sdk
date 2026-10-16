@@ -386,5 +386,5 @@
 
 <!-- the gate only exists once the track has ended: until then nothing here takes a press -->
 {#if gateArmed}
-	<PressToContinue showText onpress={() => press()} />
+	<PressToContinue showText atHudBand onpress={() => press()} />
 {/if}

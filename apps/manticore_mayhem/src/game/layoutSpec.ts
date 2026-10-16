@@ -8,6 +8,7 @@
 // phone-sideways, mirrored from the render so it faces the board; portrait hides it).
 import { SYMBOL_SIZE, GRID } from './constants';
 import { BOARD_ART } from './boardArtSpec';
+import { BOARD_SIZE, BOARD_SIZE_VARIANTS, type BoardSizeVariant } from './boardSizeVariant';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -17,6 +18,21 @@ export const MASTER: Record<LayoutKind, { width: number; height: number }> = {
 	// Phone held sideways (layoutType 'landscape': ratio >= 1.3 AND device width <= 480).
 	phone: { width: 1480, height: 740 },
 };
+
+/** today's landscape frame rect (board_v5l, see FRAME.landscape's notes) */
+const LANDSCAPE_FRAME_K1 = { x: 416.451, y: 103.76, width: 447.641, height: 447.641, inset: 11.23, cell: 51.115, gap: 2.323, margin: 4.647 };
+
+/** BOARD SIZE MOCKUP (game/boardSizeVariant.ts): the landscape frame rect for a variant, every dimension x k
+ *  (k = cell area / 425.18) about the cell area's centre line (x 640.27), the cell area's top at `cellTop`.
+ *  The 'current' variant returns today's rect untouched. */
+function landscapeFrameOf(v: BoardSizeVariant) {
+	const b = LANDSCAPE_FRAME_K1;
+	if (v === BOARD_SIZE_VARIANTS.current) return b;
+	const k = v.cellArea / BOARD_SIZE_VARIANTS.current.cellArea;
+	const cx = b.x + b.width / 2;
+	const width = b.width * k;
+	return { x: cx - width / 2, y: v.cellTop - b.inset * k, width, height: width, inset: b.inset * k, cell: b.cell * k, gap: b.gap * k, margin: b.margin * k };
+}
 
 // Board frame geometry. inset = the distance from the frame edge to the first cell; the 8x8 cell
 // area is `width - 2*inset` square by construction.
@@ -37,7 +53,9 @@ export const FRAME: Record<
 	// right and 121 shorter at the bottom (no plinth stones), so at the same scale and origin (the tool's FIT_ART)
 	// the art now spans x 340.92..939.69 (centre 640.31) from y 38 to 572.22, and the readout row keyed to its
 	// edges is 0.92 narrower on the left and 0.31 on the right.
-	landscape: { x: 416.451, y: 103.76, width: 447.641, height: 447.641, inset: 11.23, cell: 51.115, gap: 2.323, margin: 4.647 },
+	// BOARD SIZE MOCKUP (board-size-r1): the rect comes from game/boardSizeVariant.ts; 'current' is this exact rect:
+	// { x: 416.451, y: 103.76, width: 447.641, height: 447.641, inset: 11.23, cell: 51.115, gap: 2.323, margin: 4.647 }
+	landscape: landscapeFrameOf(BOARD_SIZE),
 	// CHAIN-FIT (Corey 2026-10-06 21:32: portrait was too small): each chain's centreline 10 master px
 	// inside the screen edge (x 10 and 402), the posts and finials overhang off screen (art x -17.9 ..
 	// 429.5); vertically the dead band between the tagline (150) and the BALANCE / BET row (688) is split
@@ -177,6 +195,24 @@ const artRectOf = (f: FrameRect) => {
  *  HTML chrome keys the BALANCE / WIN / SPIN row to its edges (ui/ChromeLandscape.svelte). */
 export const frameArtRect = (kind: LayoutKind, viewportMasterWidth?: number) => artRectOf(frameFor(kind, viewportMasterWidth));
 
+/** BOARD SIZE MOCKUP: the PRESS ANYWHERE prompt's y in each layout's band under the board as shipped (HUD.<kind>
+ *  .pressToContinue before the mockup). The max win screen keeps it there (components/PressToContinue atHudBand). */
+export const HUD_BAND_PROMPT_Y: Record<LayoutKind, number> = { landscape: 672, portrait: 700, phone: 752 };
+
+/** BOARD SIZE MOCKUP: the landscape HUD's readout row (BALANCE / WIN / SPIN) is keyed to the frame art's edges, but a
+ *  bigger board's art would run into the button clusters, so the row never comes closer than this to them (master
+ *  units): left = the [Bonus, Menu] cluster's right edge (66 + 148 = 214) + 20; right = the [Auto / Turbo, Spin]
+ *  cluster's left edge (1042) - 16. Today's art (340.92 .. 939.69) is inside both, so 'current' is unchanged. */
+export const TRIO_CLEAR = { left: 234, right: 1026 };
+
+/** the landscape readout row's span (ui/ChromeLandscape.svelte and THE ARMOURY's copy of it) */
+export const landscapeTrioSpan = () => {
+	const a = frameArtRect('landscape');
+	const x0 = Math.max(a.x, TRIO_CLEAR.left);
+	const x1 = Math.min(a.right, TRIO_CLEAR.right);
+	return { x: x0, width: x1 - x0 };
+};
+
 /** the board's horizontal centre in master units. The landscape board is deliberately LEFT of the
  *  master centre (the manticore has the right column), so anything that belongs to the board —
  *  the mode plaque, the spin-win readout — has to centre on this and not on the master. */
@@ -245,9 +281,11 @@ export const HUD: Record<
 		// glyphs span y - 44 .. y - 24 (PressToContinue). It was y 700 (656 .. 676), on top of the HTML HUD's WIN label
 		// (Corey 2026-10-09). The only prompts left are the feature intro and the wrap up, where the SPIN readout
 		// that shares this band is down.
-		pressToContinue: { y: 672, width: 620, height: 48 },
+		// BOARD SIZE MOCKUP: 672 for 'current'; the bigger boards fill this band (game/boardSizeVariant.ts promptY)
+		pressToContinue: { y: BOARD_SIZE.promptY, width: 620, height: 48 },
 		// the cell area's centre (114.99 + 425.18 / 2, board_v4h) and ~0.9 of its width
-		modePlaque: { y: 327.6, height: 34, width: 380 },
+		// BOARD SIZE MOCKUP: the cell area's centre of the running variant (327.6 for 'current')
+		modePlaque: { y: BOARD_SIZE.cellTop + BOARD_SIZE.cellArea / 2, height: 34, width: 380 },
 		spinWin: { y: 640, height: 28, width: 400 },
 	},
 	portrait: {

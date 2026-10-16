@@ -6,7 +6,7 @@
 	// left. [Bonus · Menu] bottom-left with their bottoms aligned; [Auto/Turbo · Spin] bottom-right
 	// with the auto top on the spin top and the turbo bottom on the spin bottom (42 + 8 + 42 = 92).
 	import type { Controls } from './controls.svelte';
-	import { frameArtRect } from '../game/layoutSpec';
+	import { landscapeTrioSpan } from '../game/layoutSpec';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { logoArtRect } from '../game/logo/layout';
 	import { logoState } from '../game/logo/state.svelte';
@@ -25,7 +25,8 @@
 	type Props = { controls: Controls };
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
-	const art = frameArtRect('landscape'); // 295.3 .. 984.2
+	// the frame art's edges, held clear of the button clusters (layoutSpec TRIO_CLEAR; 340.92 .. 939.69 today)
+	const art = landscapeTrioSpan();
 	const logo = logoArtRect('landscape'); // the logo's art box (constants LOGO.landscape)
 	// SPIN slot: the widest price the current mode can show at the 'lg' digit height (19), plus air;
 	// capped so a trillion-scale menu never pushes the − into the WIN column (TrioStat shrinks)

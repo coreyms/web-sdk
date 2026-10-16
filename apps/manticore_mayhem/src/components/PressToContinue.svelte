@@ -5,17 +5,24 @@
 	import { onMount, untrack } from 'svelte';
 
 	import { getContext } from '../game/context';
-	import { HUD, layoutKind } from '../game/layoutSpec';
+	import { HUD, HUD_BAND_PROMPT_Y, layoutKind } from '../game/layoutSpec';
 	import ArtAmount from './ArtAmount.svelte';
 
 	// `active` (default true — conditionally-mounted gates need nothing): consumers whose
 	// PressToContinue stays ALWAYS mounted under a persistent FadeContainer (BonusIntro) pass
 	// their `show` here so the gate follows visibility, not mount.
-	type Props = { onpress: () => void; showText?: boolean; active?: boolean };
+	// `atHudBand` (BOARD SIZE MOCKUP, board-size-r1): put the prompt in the layout's ORIGINAL band under the board
+	// (HUD_BAND_PROMPT_Y) instead of the board-relative slot; the max win screen hides the board, and its own
+	// lines run down to y 0.77 of the screen, so its prompt keeps today's place.
+	type Props = { onpress: () => void; showText?: boolean; active?: boolean; atHudBand?: boolean };
 	const props: Props = $props();
 	const context = getContext();
 	const active = $derived(props.active ?? true);
-	const slot = $derived(HUD[layoutKind(context.stateLayoutDerived.layoutType())].pressToContinue);
+	const slot = $derived.by(() => {
+		const kind = layoutKind(context.stateLayoutDerived.layoutType());
+		const s = HUD[kind].pressToContinue;
+		return props.atHudBand ? { ...s, y: HUD_BAND_PROMPT_Y[kind] } : s;
+	});
 
 	// Press-gate registration: the emitter fans the Space hotKey out to EVERY OnHotkey, so without
 	// this a "continue" press also reached Chrome's Space→controls.spin, whose stopButtonClick
