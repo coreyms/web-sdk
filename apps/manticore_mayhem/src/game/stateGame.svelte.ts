@@ -11,6 +11,7 @@ import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
 import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, fxStamp, type FxRecord } from './featureFx';
+import { cueWellSting, cueWellSwipe, cueWellTile, cueWellWin, clearWellCues } from './wellsFx';
 import { kickClank } from './chainSound';
 import { placeLabels } from './labelPlacement';
 import { forgedSupports, forgedWidth } from './clusterLabel';
@@ -1182,6 +1183,8 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			if (now >= cl.t && !cl.started) {
 				cl.started = true;
 				hooks.onClusterStart?.(i);
+				// THE WELLS (game/wellsFx.ts): the cluster's veins ripple from its first cell as its pulse starts
+				if (!stateGame.skipping) cueWellWin(cl.spec.cells, ts());
 			}
 			if (now >= cl.tCountDone && !cl.counted) {
 				cl.counted = true;
@@ -1413,7 +1416,11 @@ const pumpPlates = () => {
 			continue;
 		}
 		if (el < 0) continue;
-		if (!j.started) startPlate(j, tile);
+		if (!j.started) {
+			startPlate(j, tile);
+			// THE WELLS (game/wellsFx.ts): the cell's veins flare with the count-over (never on a skip: that path finishes above)
+			if (j.change) cueWellTile(j.cell, tile.from, tile.value, j.rate);
+		}
 		const chg = j.change ? clamp01(el / Math.max(MULT_PLATE.changeMs, 1)) : 1;
 		const pop = tile.value > 0 ? clamp01(el / Math.max(MULT_PLATE.revealPopMs, 1)) : 1;
 		if (tile.chg !== chg) tile.chg = chg;
@@ -1574,6 +1581,8 @@ export const stingHit = async (
 				ringMs: kind === 'normal' ? STING.ringMs : 0,
 				kind,
 			});
+			// THE WELLS (game/wellsFx.ts): the struck cell's veins flare at the hit, outward from it
+			cueWellSting(cell, t0 + (STING.hitAt * ms) / rate, rate, kind);
 		}
 	}
 	let flipped = false;
@@ -1629,7 +1638,11 @@ export const stingBig = async (
 		const rate = ts();
 		if (charge > 0) stingFx.charge = { centre: center, t0, rate, dur: charge, kind };
 		const hitT0 = t0 + charge / rate;
-		for (const cell of cells) stingFx.strikes.push({ cell, t0: hitT0, rate, dur: hit, hitAt: STING.hitAt, streak: false, ringMs: 0, kind });
+		for (const cell of cells) {
+			stingFx.strikes.push({ cell, t0: hitT0, rate, dur: hit, hitAt: STING.hitAt, streak: false, ringMs: 0, kind });
+			// THE WELLS (game/wellsFx.ts): the struck cell's veins flare at the hit, outward from it
+			cueWellSting(cell, hitT0 + (STING.hitAt * hit) / rate, rate, kind);
+		}
 		const reach = (kind === 'super' ? 1.5 * Math.SQRT2 : 1.5) * STING.bigRingReach;
 		if (STING.bigRingMs > 0) {
 			for (let k = 0; k < Math.max(1, Math.round(STING.bigRings)); k += 1) {
@@ -1796,6 +1809,8 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 	swipeFx.el = 0;
 	swipeFx.alpha = 1;
 	swipeFx.active = !stateGame.skipping;
+	// THE WELLS (game/wellsFx.ts): the swiped rows' veins flare right to left with the tears
+	if (!stateGame.skipping) cueWellSwipe(rows, ts());
 	let exited = false;
 	const exit = () => {
 		if (exited) return;
@@ -2047,6 +2062,8 @@ export const skipAllowed = (): boolean => !stateConfig.jurisdiction.disabledSlam
 const requestSkip = (): boolean => {
 	if (!skipAllowed() || !featureSpinsLive() || stateGame.skipping) return false;
 	stateGame.skipping = true;
+	// the wells' queued light-ups go with it (the wells also drop their flares that have not started)
+	clearWellCues();
 	return true;
 };
 

@@ -1,23 +1,26 @@
-"""THE WELLS TRIAL (wells_r1, 2026-10-16): procedural backing textures for the 64 board cells, MOCKUPS for Corey to
-pick from. DEV only (?wells=A..F in the game, src/game/wellsTrial.ts); a release build keeps the black backing.
+"""THE BOARD WELLS (Corey 2026-10-16 16:40 "Well backgrounds look good"): the backing texture of the 64 board cells and
+the glow of their veins (src/game/wells.ts, constants WELLS / WELLS_FX). Shipped: option D of the wells_r1 / r2
+mockups, black marble cut from the Big Win plaque's own slab with continuous dull gold veins.
 
-Every option is MOSTLY BLACK with a faint per-cell pattern, so the symbols stay the hero. Per option four variants
-(different seeds / crops) packed 2 x 2 into one atlas: 512 x 512 (256 px a cell, 2x the ~101 CSS px desktop cell
-the board is about to grow to) and a half atlas 256 x 256 (128 px a cell) for the phone tier (37.5 CSS px a cell at
-390 x 844, drawn at the 1.5 render cap = 56 device px).
+Per atlas four variants (crops / seeds) packed 2 x 2: 512 x 512 (256 px a cell; the desktop cell is ~99 CSS px at
+1920 x 1080, ~198 device px at the DPR 2 cap) and a half atlas 256 x 256 (128 px a cell) for the phone tier (37 CSS px
+a cell, 56 device px at the 1.5 cap, 111 at an allowlisted iPhone's 3x).
+  board-wells[-half].webp       the wells, opaque RGB (lossy q 92)
+  board-wells-glow[-half].webp  the same veins as light: opaque greyscale RGB, intensity = brightness, bloom baked
+                                (lossy q 90). Drawn ADDITIVE, so its black adds nothing: no alpha channel to ship.
 
 The cell texture covers the whole-cell box (bar centre line to bar centre line, symbolPlace.ts op.box), so its
 outer HIDDEN px (half a lattice bar, ~3.7 % a side) sit under the frame's bars; nothing that matters is drawn there.
 
-Palette sampled from the game's own art (2026-10-16):
+The other mockup options (A..F, C2, D1; palette notes below) are kept so the round can be re-rendered:
   board frame bronze (board-frame-landscape.webp) shadows 49 36 20, mid 105 70 38
   HUD plate bronze (ui/ChromeStyles.svelte --plate-bronze-2/3) 8f6636 / 5a3e1f, rivet 7a5529 -> d2a364
   board backdrop stone (board-backdrop.webp) 15 17 18
   win plaque marble (ui/board-plaque-*.webp) dark 54 37 23, veins 180 113 60
-All of it darkened: nothing in a well goes over ~45 luma except a rivet's highlight point.
 
-Run:  math-sdk/env/bin/python apps/manticore_mayhem/tools/build_wells_trial.py [out_dir_for_loose_pngs]
-Writes src/game/wellsTrial/wells-<opt>.png and wells-<opt>-half.png, and (when given) the loose 256 px variants.
+Run:  math-sdk/env/bin/python apps/manticore_mayhem/tools/build_board_wells.py               (the shipped D webps)
+      math-sdk/env/bin/python apps/manticore_mayhem/tools/build_board_wells.py --mockups DIR [A,B,...]
+                                                     (PNG atlases + loose 256 px variants of the mockup options)
 """
 
 import os
@@ -29,7 +32,7 @@ from scipy.ndimage import gaussian_filter
 
 N = 256
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, '..', 'src', 'game', 'wellsTrial')
+OUT = os.path.join(HERE, '..', 'static', 'assets', 'ui')
 # the share of a side hidden under half a lattice bar (bar radius 2.95 screen px on a 79.7 px cell)
 HIDDEN = 0.037
 H0 = HIDDEN * N  # ~9.5 px
@@ -406,47 +409,55 @@ SEEDS = {'A': 101, 'B': 202, 'C': 303, 'C2': 313, 'D1': 404, 'D': 0, 'E': 505, '
 SEED_STEP = {'D': 1}
 
 
+def atlas_of(key):
+    """the option's four variants: (wells atlas RGB, glow atlas greyscale or None, the tiles, the glows)"""
+    fn = OPTIONS[key]
+    parts = [fn(SEEDS[key] + SEED_STEP.get(key, 17) * i) for i in range(4)]
+    tiles = [to_img(p[0] if isinstance(p, tuple) else p) for p in parts]
+    glows = [p[1] for p in parts if isinstance(p, tuple)]
+    atlas = Image.new('RGB', (2 * N, 2 * N))
+    for i, t in enumerate(tiles):
+        atlas.paste(t, ((i % 2) * N, (i // 2) * N))
+    glow = None
+    if len(glows) == 4:
+        g = np.zeros((2 * N, 2 * N), np.uint8)
+        for i, gl in enumerate(glows):
+            g[(i // 2) * N:(i // 2 + 1) * N, (i % 2) * N:(i % 2 + 1) * N] = np.round(np.clip(gl, 0, 1) * 255).astype(np.uint8)
+        glow = Image.fromarray(np.stack([g] * 3, -1), 'RGB')
+    return atlas, glow, tiles
+
+
+def half(im):
+    return im.resize((im.width // 2, im.height // 2), Image.LANCZOS)
+
+
 def main():
-    """build_wells_trial.py [loose_dir] [OPTION,OPTION]: every option, or only the listed ones"""
-    loose = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] != '-' else None
-    only = sys.argv[2].split(',') if len(sys.argv) > 2 else list(OPTIONS)
+    if len(sys.argv) > 1 and sys.argv[1] == '--mockups':
+        out = sys.argv[2]
+        only = sys.argv[3].split(',') if len(sys.argv) > 3 else list(OPTIONS)
+        os.makedirs(out, exist_ok=True)
+        for key in only:
+            atlas, glow, tiles = atlas_of(key)
+            for i, t in enumerate(tiles):
+                t.save(os.path.join(out, f'well_{key}_v{i}_256.png'))
+            atlas.save(os.path.join(out, f'wells-{key}-atlas-512.png'))
+            half(atlas).save(os.path.join(out, f'wells-{key}-atlas-256-phone.png'))
+            if glow:
+                glow.save(os.path.join(out, f'wells-{key}-glow-atlas-512.png'))
+            luma = np.asarray(atlas).astype(float) @ [0.299, 0.587, 0.114]
+            print(f'{key}: luma mean {luma.mean():.1f} p99 {np.percentile(luma, 99):.1f} max {luma.max():.0f}')
+        return
+    # THE SHIPPED WELLS: option D
+    atlas, glow, _ = atlas_of('D')
     os.makedirs(OUT, exist_ok=True)
-    if loose:
-        os.makedirs(loose, exist_ok=True)
-    for key in only:
-        fn = OPTIONS[key]
-        parts = [fn(SEEDS[key] + SEED_STEP.get(key, 17) * i) for i in range(4)]
-        glows = [p[1] for p in parts if isinstance(p, tuple)]
-        tiles = [to_img(p[0] if isinstance(p, tuple) else p) for p in parts]
-        atlas = Image.new('RGB', (2 * N, 2 * N))
-        for i, t in enumerate(tiles):
-            atlas.paste(t, ((i % 2) * N, (i // 2) * N))
-            if loose:
-                t.save(os.path.join(loose, f'well_{key}_v{i}_256.png'))
-        atlas.save(os.path.join(OUT, f'wells-{key}.png'), optimize=True)
-        atlas.resize((N, N), Image.LANCZOS).save(os.path.join(OUT, f'wells-{key}-half.png'), optimize=True)
-        a = np.asarray(atlas).astype(float)
-        luma = a @ [0.299, 0.587, 0.114]
-        print(f'{key}: luma mean {luma.mean():.1f} p99 {np.percentile(luma, 99):.1f} max {luma.max():.0f}')
-        if loose:
-            atlas.save(os.path.join(loose, f'wells-{key}-atlas-512.png'))
-            atlas.resize((N, N), Image.LANCZOS).save(os.path.join(loose, f'wells-{key}-atlas-256-phone.png'))
-        if len(glows) == 4:
-            g = np.zeros((2 * N, 2 * N, 4), np.uint8)
-            g[..., :3] = 255
-            for i, gl in enumerate(glows):
-                g[(i // 2) * N:(i // 2 + 1) * N, (i % 2) * N:(i % 2 + 1) * N, 3] = np.round(np.clip(gl, 0, 1) * 255).astype(np.uint8)
-            gim = Image.fromarray(g, 'RGBA')
-            gim.save(os.path.join(OUT, f'wells-{key}-glow.png'), optimize=True)
-            # the half: alpha averaged 2 x 2 (RGB stays white)
-            h = g[..., 3].astype(float).reshape(N, 2, N, 2).mean((1, 3))
-            gh = np.zeros((N, N, 4), np.uint8)
-            gh[..., :3] = 255
-            gh[..., 3] = np.round(h).astype(np.uint8)
-            Image.fromarray(gh, 'RGBA').save(os.path.join(OUT, f'wells-{key}-glow-half.png'), optimize=True)
-            print(f'{key}: glow coverage (alpha > 64) {(g[..., 3] > 64).mean() * 100:.1f} %')
-            if loose:
-                gim.save(os.path.join(loose, f'wells-{key}-glow-atlas-512.png'))
+    for name, im, q in (('board-wells', atlas, 92), ('board-wells-glow', glow, 90)):
+        for suffix, img in (('', im), ('-half', half(im))):
+            path = os.path.join(OUT, f'{name}{suffix}.webp')
+            img.save(path, quality=q, method=6)
+            print(f'{path}: {img.width} x {img.height}, {os.path.getsize(path) // 1024} KB')
+    luma = np.asarray(atlas).astype(float) @ [0.299, 0.587, 0.114]
+    g = np.asarray(glow)[..., 0]
+    print(f'wells luma mean {luma.mean():.1f} p99 {np.percentile(luma, 99):.1f}; glow coverage (> 64) {(g > 64).mean() * 100:.1f} %')
 
 
 if __name__ == '__main__':

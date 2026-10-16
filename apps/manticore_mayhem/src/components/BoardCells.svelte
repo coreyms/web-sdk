@@ -74,7 +74,8 @@
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
 	import { boardExit, boardExitPressing, plateGhosts, type Cell } from '../game/stateGame.svelte';
 	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP, FALL_CUT } from '../game/constants';
-	import { createWellsTrial } from '../game/wellsTrial';
+	import { createWells } from '../game/wells';
+	import { cueWellTile } from '../game/wellsFx';
 	const ANTICIPATION_TEASE_PULSE = ANTICIPATION_TEASE.landedPulse;
 
 	const context = getContext();
@@ -130,8 +131,8 @@
 
 	const assets = () => context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 	const rendererOf = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
-	// THE WELLS TRIAL (DEV only, constants WELLS_TRIAL): null in a release build
-	const wells = createWellsTrial(rendererOf);
+	// THE BOARD WELLS and their reactive veins (game/wells.ts, constants WELLS / WELLS_FX): in the frame's plate slot
+	const wells = createWells(rendererOf);
 
 	/** blend white towards a flash colour by `k` — cheaper than a filter and batches with the rest */
 	const lerpTint = (color: number, k: number) => {
@@ -962,7 +963,7 @@
 		// the tiles' layer into the frame's plate slot (BoardFrame mounts first; this is a no-op once there)
 		const slotNow = boardPlateSlot.current;
 		if (slotNow && plateLayer.parent !== slotNow) slotNow.addChild(plateLayer);
-		if (wells) wells.mount(slotNow);
+		wells.mount(slotNow);
 		covered.fill(0);
 		coverDim.fill(1);
 		const tex = assets();
@@ -987,8 +988,8 @@
 		}
 		motionLog.glowInUse = glowing;
 		if (glowing > motionLog.glowPeak) motionLog.glowPeak = glowing;
-		// THE WELLS TRIAL (DEV only): the light and the dim on the wells, the reactive veins' triggers and flares
-		if (wells) wells.tick(now, { tiles: stateGame.tiles, cells, cover: coverDim, skipping: stateGame.skipping, freegame: stateGame.gameType === 'freegame', rate });
+		// THE WELLS: the light and the dim on the wells, the light-up cues (game/wellsFx.ts), the flares, the board power
+		wells.tick(now, { tex, tiles: stateGame.tiles, cover: coverDim, skipping: stateGame.skipping, freegame: stateGame.gameType === 'freegame' });
 		syncPlates(tex);
 		tickSparkles(now);
 		if (uploadQueue === null || uploadQueue.length) warmSheets(tex);
@@ -999,7 +1000,7 @@
 		op = openingsFor(layoutK, viewW);
 		setCutLines(layoutK, viewW);
 		relayoutPlates();
-		if (wells) wells.place(op);
+		wells.place(op);
 	});
 
 	sync();
@@ -1008,12 +1009,13 @@
 		// drawn is the frame the board engine just wrote
 		const ticker = context.stateApp.pixiApplication?.ticker;
 		ticker?.add(sync, undefined, PIXI.UPDATE_PRIORITY.HIGH);
-		if (import.meta.env.DEV && wells) {
-			// THE WELLS TRIAL's hook (wells_r1 captures): switch option, read its state, and STAGE a look for a still
+		if (import.meta.env.DEV) {
+			// THE WELLS' DEV hook (tools/manticore probes, the wells_r1 / r2 captures): show / hide, read the state and the
+			// cost, a flare by hand, and STAGE a look for a still
 			// (the scene's mode and lit tiles written straight into the state; a capture aid, never a real round)
 			const sg = context.stateGame as any;
 			(((window as any).__manticore ??= {}) as any).wells = {
-				set: (option: string | null) => wells.set(option),
+				show: (on: boolean) => wells.show(on),
 				state: () => wells.state(),
 				flare: (cell: number, kind: 'light' | 'double' | 'win' | 'swipe' | 'sting', delayMs?: number) => wells.flare(cell, kind, delayMs),
 				cost: () => wells.cost(),
@@ -1024,11 +1026,13 @@
 						sg.bonusMode = o.mode === 'base' ? null : o.mode;
 					}
 					if (o.tiles && o.animate) {
-						// a staged count-over per listed cell (old value -> new), the plate's own look: the flares fire
+						// a staged count-over per listed cell (old value -> new), the plate's own look, cueing the wells as the
+						// plate job does
 						const t0 = performance.now();
 						const cellsOn = Object.entries(o.tiles).map(([k, v]) => [Number(k), v] as const);
 						for (const [k, v] of cellsOn) {
 							const t = sg.tiles[k];
+							cueWellTile(k, t.value, v, 1);
 							t.from = t.value;
 							t.value = v;
 							t.chg = 0;

@@ -236,6 +236,12 @@ const assets = {
 	// the 8x8 grid of cell wells behind the tiles: shows in the seams, in the drop and in every
 	// emptied cell during a cascade
 	boardBackdrop: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-backdrop.webp', import.meta.url).href), preload: true },
+	// THE BOARD WELLS (game/wells.ts, constants WELLS / WELLS_FX; tools/build_board_wells.py): the 64 cells' marble
+	// (four variants in one atlas) and the same veins as light for the reactive light-ups (greyscale, drawn additive).
+	// Both at boot: the wells are under every cell from the first board, and the first win can light the veins.
+	// The phone tier takes the half atlases (128 px cells).
+	boardWells: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-wells.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-wells-half.webp', import.meta.url).href)), preload: true },
+	boardWellsGlow: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-wells-glow.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-wells-glow-half.webp', import.meta.url).href)), preload: true },
 	// THE BOARD FRAME and its chain loop tiles (tools/build_board_layers.py from the board_v5j renders;
 	// registration in game/boardArt.ts), one scale per layout: the boot layout's preloads. boardChains_* is
 	// the seamless two-link tile pair (L, R) the strips repeat (CHAIN_BOW haul, 2026-10-07)

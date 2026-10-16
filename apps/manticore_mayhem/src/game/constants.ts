@@ -822,59 +822,43 @@ export const CHAIN_GUST = {
 } as const;
 
 /** the flat backing behind the cell wells and the tiles, under the board kick: covers the frame's
- *  inner opening (the cell area plus the inset). A texture replaces the colour when Corey has the
- *  asset (BoardFrame.svelte draws it). */
+ *  inner opening (the cell area plus the inset). The wells (WELLS) are drawn over it; it is what shows in the
+ *  frame's inset round the cells and for the moment before the wells' atlas is in (BoardFrame.svelte draws it). */
 export const BOARD_BACKING = { color: 0x000000 };
 
-/** THE WELLS TRIAL (wells_r1, 2026-10-16, DEV ONLY: game/wellsTrial.ts). Mockups of a per-cell backing texture for
- *  Corey to pick from; a release build never loads them and keeps BOARD_BACKING's black. `?wells=A..F` (or C2) draws
- *  one option's atlas (tools/build_wells_trial.py: four 256 px variants 2 x 2 in 512 x 512, the phone tier's half
- *  atlas 256 x 256) as one sprite per cell on the cell's whole box (bar centre line to bar centre line), between the
- *  black backing and the multiplier tiles, under the frame. `?symfill=82` scales every symbol by symfill /
- *  currentFillPct (SYMBOL_PLACE.global) to judge a bigger symbol by eye; the default size is unchanged.
- *  `orient`: which per-cell turns a variant may take (a lit bevel keeps its light from the top: flipX only). */
-export const WELLS_TRIAL = {
-	options: {
-		A: { name: 'black stone block', orient: 'flipX' },
-		B: { name: 'black iron plate, bronze rivets', orient: 'flipX' },
-		C: { name: 'engraved rosette', orient: 'flipX' },
-		C2: { name: 'engraved Assyrian star', orient: 'flipX' },
-		D: { name: 'black marble, gold veins (r2: the stinger slab, reactive veins)', orient: 'any' },
-		D1: { name: 'black marble, gold veins (r1, kept to compare)', orient: 'any' },
-		E: { name: 'recessed well, bronze inset', orient: 'any' },
-		F: { name: 'basalt recess', orient: 'flipX' },
-	} as Record<string, { name: string; orient: 'flipX' | 'any' }>,
-	/** variants per atlas (2 x 2) and the atlas's cell px (full and phone tier) */
+/** THE BOARD WELLS (Corey 2026-10-16 16:40 "Well backgrounds look good": option D of feedback/wells_r1 and r2).
+ *  Black marble cut from the Big Win plaque's own slab, with continuous dull gold veins (tools/build_board_wells.py):
+ *  four 256 px variants 2 x 2 in one 512 atlas (ui/board-wells.webp; the phone tier's half atlas has 128 px cells),
+ *  one sprite per cell on the cell's whole box (bar centre line to bar centre line, symbolPlace.ts op.box), over
+ *  BOARD_BACKING and under the multiplier tiles and the frame (game/wells.ts). Each cell takes a variant and one of
+ *  the 8 turns from a fixed table (`seed`; no two edge neighbours share a variant), so the 64 cells never look
+ *  stamped. A well darkens with the symbol on it while a win set is up (the dim rule's factor, as the tiles do):
+ *  without it the dimmed symbols lose their black surround and the win reads muddier. */
+export const WELLS = {
 	variants: 4,
 	cellPx: 256,
 	cellPxPhone: 128,
-	/** the seed of the per-cell variant / turn table (no two edge neighbours share a variant) */
 	seed: 0x5eed,
-	/** the symbols' share of the cell today as the harsh review measured it (~75 %): ?symfill is relative to it */
-	currentFillPct: 75,
-	symFillMin: 60,
-	symFillMax: 100,
-	/** a well darkens with the symbol on it while a win set is up (the dim rule's factor, as the tiles do); without it
-	 *  the dimmed symbols lose their black surround and the win reads muddier. ?wellsdim=0 turns it off. */
 	dimWithBoard: true,
 };
 
-/** THE REACTIVE VEINS (wells_r2, Corey 2026-10-16 15:25 + 15:27 "Yes"; DEV ONLY with ?wells=D, game/wellsTrial.ts).
- *  The stinger plaque's own vein rule (images/ui/model/stinger_vein_fx.json): per cell ONE static additive sprite of
- *  the well's own veins (white, alpha = intensity, bloom baked: wells-D-glow.png), drawn over the multiplier tiles and
- *  under the frame and the symbols; the game moves only its alpha and tint. One flare = in (sine) over `inMs`, held
- *  `holdMs`, out over `outMs` ((1 - u)^1.6); overlapping flares on a cell take the strongest. Times are STYLE ms
- *  (divided by the turbo scale when the flare starts). Presentation only: every trigger is read from state the game
- *  already keeps (the tiles' count-over, the winners' pulse, swipeFx, stingFx), nothing in the engine waits on it.
- *    light / double  a multiplier lights (0 -> x2) or steps up under the cell, with the plate's count-over
- *    win             a paying cluster, as its pulse starts: a ripple from its first cell (lowest index) outward
+/** THE REACTIVE VEINS (wells_r2, Corey 2026-10-16 15:25 + 15:27 "Yes", approved 16:40). The stinger plaque's own
+ *  vein rule (images/ui/model/stinger_vein_fx.json): per cell ONE static additive sprite of the well's own veins
+ *  (ui/board-wells-glow.webp: greyscale, brightness = intensity, bloom baked; additive, so its black adds nothing),
+ *  drawn over the multiplier tiles (a lit tile is nearly opaque) and under the frame and the symbols; the game moves
+ *  only its alpha and tint. One flare = in (sine) over `inMs`, held `holdMs`, out over `outMs` ((1 - u)^1.6);
+ *  overlapping flares on a cell take the strongest. Times are STYLE ms (divided by the turbo scale of the beat).
+ *  Presentation only: the beats' own call sites cue them (game/wellsFx.ts), nothing waits on them, none while skipping.
+ *    light / double  a multiplier lights (0 -> x2) or steps up under the cell, as the plate's count-over starts
+ *    win             a paying cluster, as its pulse starts: a ripple from its first cell (the book's order) outward
  *    swipe           the swiped rows, right to left like the tears, over sweepMs
  *    sting           the struck cell at the hit, then outward ring by ring (reach, falloff per ring); not scatters
  *    power           free spins only: every vein rests at a glow that rises with the board's total tile value
  *                    (log scale from refValue, full at fullValue, capped at `cap`), eased over riseMs, with a slow
  *                    shimmer (each cell its own phase) so the board breathes rather than sits lit
  *  The wells (not the glow) take the scene's night and fire: night x `night` per channel times the mode's foreTint,
- *  and the fire's warmth by fire x night. */
+ *  and the fire's warmth by fire x night. cueMax / cueMaxAgeMs: the cue queue's bound and the age past which a cue
+ *  that was never read (a hidden tab) is dropped instead of played late. */
 export const WELLS_FX = {
 	tint: { light: 0xffa63c, double: 0xffc860, win: 0xffb852, swipe: 0xff6a24, sting: 0xff8a2e, power: 0xff9a3a },
 	light: { peak: 0.85, inMs: 380, holdMs: 120, outMs: 900 },
@@ -889,6 +873,8 @@ export const WELLS_FX = {
 	epsilon: 0.004,
 	/** the flare pool's size (each a plain object, reused) */
 	pool: 256,
+	cueMax: 64,
+	cueMaxAgeMs: 1500,
 };
 
 // ---- The sting (RULE_PASS_2 section F) ----------------------------------------------------------

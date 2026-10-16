@@ -1524,7 +1524,7 @@
     470.626,
     470.495
    ],
-   "angle": 0.0,
+   "angle": 0,
    "fitJson": {
     "size": 78,
     "dx": 0,
@@ -1550,8 +1550,8 @@
    },
    "shadow": {
     "offset": [
-     1.0,
-     1.0
+     1,
+     1
     ],
     "blur": 0.8,
     "alpha": 0.5
@@ -1565,7 +1565,7 @@
    },
    "darkRim": {
     "masterPx": 0.7,
-    "opacity": 1.0,
+    "opacity": 1,
     "softness": 0.39,
     "color": [
      12,
@@ -1573,9 +1573,10 @@
      6
     ],
     "refPitch": 53.438,
-    "global": 1.0,
+    "global": 1,
     "spriteFrac": 0.8083999999999999
    }
-  }
+  },
+  "pngHash": "1a7a9d6d"
  }
 }
