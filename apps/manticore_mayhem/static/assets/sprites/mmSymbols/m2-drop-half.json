@@ -1224,7 +1224,7 @@
     457.783,
     451.927
    ],
-   "angle": 0,
+   "angle": 0.0,
    "fitJson": {
     "size": 88,
     "dx": 0,
@@ -1233,8 +1233,8 @@
    }
   },
   "darkRimPx": [
-   3.179,
-   1.24
+   2.907,
+   1.134
   ],
   "style": {
    "name": "outline-pop-darkrim",
@@ -1250,8 +1250,8 @@
    },
    "shadow": {
     "offset": [
-     1,
-     1
+     1.0,
+     1.0
     ],
     "blur": 0.8,
     "alpha": 0.5
@@ -1265,7 +1265,7 @@
    },
    "darkRim": {
     "masterPx": 0.7,
-    "opacity": 1,
+    "opacity": 1.0,
     "softness": 0.39,
     "color": [
      12,
@@ -1273,10 +1273,9 @@
      6
     ],
     "refPitch": 53.438,
-    "global": 1,
+    "global": 1.0,
     "spriteFrac": 0.8083999999999999
    }
-  },
-  "pngHash": "76bdbb6c"
+  }
  }
 }

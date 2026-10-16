@@ -167,19 +167,21 @@ export const CELL_COUNT = GRID * GRID;
  *  pop ends. The scatter hanging into the cell below at 1.525 / dy +4.5 is intended.
  *  Symbols draw OVER the bars; the board window does not clip a symbol that is on the board (only a tile still
  *  coming in over the top edge or leaving under the bottom edge is cut at the window: BoardCells' fall layer). */
+// Corey 2026-10-16 15:28: the Wild grows to ~89% (x 89/75) and the Key, Dagger and Seal to ~82% (x 82/75); the rest
+// stay. Values file: tools/manticore/ref/symbol_fit/corey_symbol_fit_2026-10-16_1528_CURRENT.txt.
 export const SYMBOL_PLACE = {
 	refPitch: 53.438,
 	global: 1,
 	symbols: {
 		H1: { size: 1.33, dx: 0, dy: 0, top: 7 },
 		M3: { size: 1.235, dx: 0, dy: -0.3, top: 6 },
-		M2: { size: 1.305, dx: 0, dy: 0, top: 5 },
+		M2: { size: 1.427, dx: 0, dy: 0, top: 5 },
 		M1: { size: 1.37, dx: -1.4, dy: 1.5, top: 4 },
-		L4: { size: 1.3, dx: 0, dy: 0, top: 3 },
-		L3: { size: 1.44, dx: 0.5, dy: -2.1, top: 2 },
+		L4: { size: 1.421, dx: 0, dy: 0, top: 3 },
+		L3: { size: 1.575, dx: 0.5, dy: -2.1, top: 2 },
 		L2: { size: 1.395, dx: 0, dy: 0, top: 1 },
 		L1: { size: 1.285, dx: 0.3, dy: 0, top: 0 },
-		W: { size: 1.095, dx: 0, dy: 0, top: 8 },
+		W: { size: 1.3, dx: 0, dy: 0, top: 8 },
 		S: { size: 1.525, dx: 0, dy: 4.5, top: 9 },
 	} as Record<string, { size: number; dx: number; dy: number; top: number }>,
 };
@@ -380,6 +382,13 @@ export const SHEET_FPS = 30;
  *  time at every turbo level (what turbo 0 always did). true: the old behaviour, the loop sped up by TURBO_SCALE
  *  (2.2 and 4 times). Nothing waits for an idle loop: it is only which frame a resting cell shows. */
 export const SHEET_IDLE_TURBO = false;
+/** THE IDLE GLINTS REST BETWEEN LOOPS (Corey 2026-10-16 15:38: "I think we have too many idle glints happening across the
+ *  board on the symbols"). Every resting piece used to loop its idle sheet back to back (about 2 s a loop), so all 64
+ *  cells glinted all the time. Now each cell HOLDS its rest frame (idle 0 = the drop's last frame, no jump) for a rest
+ *  of its own between minMs and maxMs (fixed per board position, so neighbours never sync), then plays one loop. A cell
+ *  that has just landed starts in its rest, so the board does not glint in unison after every spin. With the defaults
+ *  about 64 x 2 / (2 + 13) = 8 or 9 cells glint at any moment instead of 64. Presentation only. */
+export const SYMBOL_IDLE_REST = { minMs: 7000, maxMs: 19000 };
 
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {

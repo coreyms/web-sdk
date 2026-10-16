@@ -456,8 +456,8 @@
    },
    "shadow": {
     "offset": [
-     1,
-     1
+     1.0,
+     1.0
     ],
     "blur": 0.8,
     "alpha": 0.5
@@ -471,7 +471,7 @@
    },
    "darkRim": {
     "masterPx": 0.7,
-    "opacity": 1,
+    "opacity": 1.0,
     "softness": 0.39,
     "color": [
      12,
@@ -479,10 +479,9 @@
      6
     ],
     "refPitch": 53.438,
-    "global": 1,
+    "global": 1.0,
     "spriteFrac": 0.8083999999999999
    }
-  },
-  "pngHash": "04967674"
+  }
  }
 }
