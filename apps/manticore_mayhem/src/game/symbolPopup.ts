@@ -30,6 +30,9 @@ export type PopupContent = {
 	rows: PopupRow[];
 	/** the Wild's line */
 	line: string | null;
+	/** the small muted line under a paying symbol's table: the bands are the BASE amounts, the tiles multiply them
+	 *  (Corey 2026-10-16 16:47: "15+ ... $100.00" must not read as what 15 or more always pays) */
+	note: string | null;
 };
 
 const PAYING = new Set<string>(config.payOrder);
@@ -56,7 +59,7 @@ export const wildLine = (): string => {
 export const popupContent = (code: PopupCode, amount: (x: number) => string, superAnte = false): PopupContent => {
 	const sym = config.symbols[code];
 	const base = { code, name: sym.name, kind: KIND[sym.tier] ?? '' };
-	if (code === 'W') return { ...base, head: null, rows: [], line: wildLine() };
+	if (code === 'W') return { ...base, head: null, rows: [], line: wildLine(), note: null };
 	if (code === 'S') {
 		const fs = config.freeSpins;
 		return {
@@ -68,14 +71,16 @@ export const popupContent = (code: PopupCode, amount: (x: number) => string, sup
 				{ k: '6+', v: `${fs.epic} ${MODE_NAMES.epic}`, top: true },
 			],
 			line: null,
+			note: null,
 		};
 	}
 	const pays = (sym.paytable ?? []) as readonly number[];
 	return {
 		...base,
-		head: ['CLUSTER', soc('PAYS', 'WINS')],
+		head: ['CLUSTER', soc('BASE PAY', 'BASE WIN')],
 		rows: config.paytableBands.map((band, i) => ({ k: band.label, v: amount(pays[i] ?? 0), top: i === config.paytableBands.length - 1 })),
 		line: null,
+		note: soc('Lit Multiplier Tiles under a cluster multiply its pay', 'Lit Multiplier Tiles under a cluster multiply its win'),
 	};
 };
 

@@ -157,6 +157,7 @@
 			kind: s(P.kindFont, P.kindFloor),
 			row: s(P.rowFont, P.rowFloor),
 			head: s(P.headFont, P.headFloor),
+			note: s(P.noteFont, P.noteFloor),
 		};
 	});
 	const place = $derived.by(() => {
@@ -256,6 +257,7 @@
 					head: content?.head ?? null,
 					rows: content?.rows.map((r) => ({ ...r })) ?? [],
 					line: content?.line ?? null,
+					note: content?.note ?? null,
 					place: place ? { ...place, width: popW, height: popH } : null,
 					cell: view ? { ...view.cell } : null,
 					board: view ? { ...view.board } : null,
@@ -341,6 +343,9 @@
 							{/each}
 						</div>
 					{/if}
+					{#if content.note}
+						<p class="sp-note" style:font-size="{dims.note}px">{content.note}</p>
+					{/if}
 				</div>
 			{/key}
 		</div>
@@ -422,6 +427,15 @@
 		font-family: 'Outfit Text', var(--ui-font);
 		font-weight: 400;
 		color: var(--plate-ink, #f7eedc);
+	}
+	/* the base-amount note under the table: muted, smaller than the rows, wraps inside the panel */
+	.sp-note {
+		margin: 0.7em 0 0;
+		line-height: 1.3;
+		font-family: 'Outfit Text', var(--ui-font);
+		font-weight: 400;
+		color: #b3a184;
+		overflow-wrap: break-word;
 	}
 	.sp-rows {
 		margin-top: 0.5em;

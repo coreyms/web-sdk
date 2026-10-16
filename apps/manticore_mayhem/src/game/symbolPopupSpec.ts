@@ -34,6 +34,9 @@ export const SYMBOL_POPUP = {
 	rowFloor: 12.5,
 	headFont: 10.5,
 	headFloor: 10,
+	/** the muted note under a paying symbol's table (smaller than the rows) */
+	noteFont: 11.5,
+	noteFloor: 10.5,
 	/** a band row's line box, in ems */
 	rowLine: 1.5,
 	/** the gap between the popup and the tapped cell, and the margin it keeps from the board / screen edge */
