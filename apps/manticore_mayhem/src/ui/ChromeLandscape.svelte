@@ -25,7 +25,7 @@
 	type Props = { controls: Controls };
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
-	// the frame art's edges, held clear of the button clusters (layoutSpec TRIO_CLEAR; 340.92 .. 939.69 today)
+	// the frame art's edges, held clear of the button clusters (layoutSpec TRIO_CLEAR; the art is 271.34 .. 1009.28)
 	const art = landscapeTrioSpan();
 	const logo = logoArtRect('landscape'); // the logo's art box (constants LOGO.landscape)
 	// SPIN slot: the widest price the current mode can show at the 'lg' digit height (19), plus air;

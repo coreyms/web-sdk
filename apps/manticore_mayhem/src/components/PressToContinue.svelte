@@ -1,27 +1,41 @@
 <script lang="ts">
 	import { OnHotkey } from 'components-shared';
 	import { MainContainer, OnPressFullScreen } from 'components-layout';
+	import { Container, Rectangle } from 'pixi-svelte';
 	import { Tween } from 'svelte/motion';
 	import { onMount, untrack } from 'svelte';
 
 	import { getContext } from '../game/context';
-	import { HUD, HUD_BAND_PROMPT_Y, layoutKind } from '../game/layoutSpec';
+	import { HUD, HUD_BAND_PROMPT_Y, PROMPT_VEIL, boardRowRect, layoutKind } from '../game/layoutSpec';
 	import ArtAmount from './ArtAmount.svelte';
 
 	// `active` (default true — conditionally-mounted gates need nothing): consumers whose
 	// PressToContinue stays ALWAYS mounted under a persistent FadeContainer (BonusIntro) pass
 	// their `show` here so the gate follows visibility, not mount.
-	// `atHudBand` (BOARD SIZE MOCKUP, board-size-r1): put the prompt in the layout's ORIGINAL band under the board
-	// (HUD_BAND_PROMPT_Y) instead of the board-relative slot; the max win screen hides the board, and its own
-	// lines run down to y 0.77 of the screen, so its prompt keeps today's place.
+	// `atHudBand`: put the prompt in the layout's band UNDER the board (layoutSpec HUD_BAND_PROMPT_Y) instead of its HUD
+	// slot. On the desktop the slot is over the board's bottom row since the board grew (2026-10-16); the max win
+	// screen hides the board, and its own lines run down to y 0.77 of the screen, so its prompt keeps the band.
 	type Props = { onpress: () => void; showText?: boolean; active?: boolean; atHudBand?: boolean };
 	const props: Props = $props();
 	const context = getContext();
 	const active = $derived(props.active ?? true);
+	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const slot = $derived.by(() => {
-		const kind = layoutKind(context.stateLayoutDerived.layoutType());
 		const s = HUD[kind].pressToContinue;
 		return props.atHudBand ? { ...s, y: HUD_BAND_PROMPT_Y[kind] } : s;
+	});
+	// OVER THE BOARD (the desktop slot, 2026-10-16) the prompt crosses the bottom row's symbols: that row is veiled
+	// while it is up (layoutSpec PROMPT_VEIL) and the glyphs get the hard drop shadow the board's own readouts use
+	// (components/Board.svelte), a second run of them, no filter. Phone and portrait (and the max win's band) are drawn
+	// as before, without either.
+	const PROMPT_SHADOW = { dx: 0.05, dy: 0.06, tint: 0x0a0b0d };
+	const overBoard = $derived(kind === 'landscape' && !props.atHudBand);
+	const shadow = $derived(overBoard ? PROMPT_SHADOW : undefined);
+	const veilRect = $derived(overBoard ? boardRowRect(kind, PROMPT_VEIL.row) : null);
+	const veil = new Tween(0, { duration: PROMPT_VEIL.fadeMs });
+	$effect(() => {
+		const on = !!props.showText && overBoard;
+		untrack(() => void veil.set(on ? 1 : 0, { duration: on ? PROMPT_VEIL.fadeMs : 0 }));
 	});
 
 	// Press-gate registration: the emitter fans the Space hotKey out to EVERY OnHotkey, so without
@@ -65,6 +79,12 @@
 
 {#if props.showText}
 <MainContainer>
+	<!-- the veil's own container is always there, so the veil (mounted later) stays UNDER the glyphs -->
+	<Container>
+		{#if veilRect && veil.current > 0}
+			<Rectangle x={veilRect.x} y={veilRect.y} width={veilRect.width} height={veilRect.height} backgroundColor={PROMPT_VEIL.color} alpha={PROMPT_VEIL.alpha * veil.current} />
+		{/if}
+	</Container>
 	<ArtAmount
 		text="PRESS ANYWHERE TO CONTINUE"
 		height={slot.height * 0.42}
@@ -72,6 +92,7 @@
 		y={slot.y - slot.height * 0.5}
 		alpha={blink.current}
 		maxWidth={slot.width}
+		{shadow}
 	/>
 </MainContainer>
 {/if}

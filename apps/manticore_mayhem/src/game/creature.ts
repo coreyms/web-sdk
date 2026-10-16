@@ -57,7 +57,7 @@
 // House rules: no filters, shaders or masks; a frame is a swap between resident textures; a tick allocates nothing.
 import * as PIXI from 'pixi.js';
 
-import { CREATURE } from './constants';
+import { CREATURE, type CreatureSpot } from './constants';
 import { CREATURE_SPEC } from './creatureSpec';
 import { CREATURE_CLIPS, type CreatureClip, type CreatureLook } from './creatureAssets';
 
@@ -68,6 +68,19 @@ type StingKind = 'normal' | 'big' | 'super' | 'scatter';
 export type CreatureLayer = 'front' | 'behind';
 /** shadow: false = no floor shadow in this spot (where his feet are behind the board, off the floor: constants CREATURE.place) */
 export type CreaturePlace = { x: number; y: number; scale: number; layer: CreatureLayer; shadow?: boolean };
+
+/** WHERE HE STANDS for a spot and the canvas's shape (width / height). Every spot is its CREATURE.place entry, but the
+ *  desktop one: place.desktop at CREATURE.desktopWide.aspect (16:9) and wider, and below it the straight line through
+ *  that and CREATURE.desktopTall (16:10), held at CREATURE.desktopMinAspect (4:3): the feet point and the scale; the
+ *  layer is the spot's */
+export const creaturePlaceFor = (spot: CreatureSpot, aspect: number): CreaturePlace => {
+	const p: CreaturePlace = CREATURE.place[spot];
+	if (spot !== 'desktop' || aspect >= CREATURE.desktopWide.aspect) return p;
+	const T = CREATURE.desktopTall;
+	const t = (Math.max(aspect, CREATURE.desktopMinAspect) - T.aspect) / (CREATURE.desktopWide.aspect - T.aspect);
+	const lerp = (a: number, b: number) => a + (b - a) * t;
+	return { ...p, x: lerp(T.x, p.x), y: lerp(T.y, p.y), scale: lerp(T.scale, p.scale) };
+};
 /** what the creature needs from the game (components/Background.svelte hands it over; this file imports no state) */
 export type CreatureEnv = {
 	ts: () => number;

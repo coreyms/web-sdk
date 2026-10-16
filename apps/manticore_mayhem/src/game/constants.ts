@@ -2,7 +2,6 @@ import { quadIn, quadOut, quartIn, backIn, backOut } from 'svelte/easing';
 
 import type { SymbolName } from './types';
 import config from './config';
-import { BOARD_SIZE } from './boardSizeVariant';
 
 // ---- FEATURE MENU NAME ----------------------------------------------------------------------
 // THE ARMOURY (Corey 2026-10-13; Angry Mantis called it the Chow Line). ONE constant so
@@ -1148,9 +1147,12 @@ export const LOGO = {
 	/** LANDSCAPE master (1280 x 720): the art's width and centre. Centred between the screen's left edge and the
 	 *  board frame's visible post (the frame art starts at 340, its solid post at 352: midpoint 176), and high
 	 *  in the column (Corey 2026-10-10: up, clear of the scene's chains; it may cover the lion knocker's head).
-	 *  The width is the one the approved clips were judged at (logo_review_5, 5_in_game_landscape: 300). */
-	// BOARD SIZE MOCKUP (board-size-r1): from game/boardSizeVariant.ts; 'current' = { cx: 176, cy: 106, width: 300 }
-	landscape: BOARD_SIZE.logo,
+	 *  The width is the one the approved clips were judged at (logo_review_5, 5_in_game_landscape: 300).
+	 *  2026-10-16, THE BIGGER BOARD (layoutSpec LANDSCAPE_BOARD): the same rule. The post is now at 285.0 (render x 82.2
+	 *  of the board art: 378.27 + (82.2 - 329.571) x 0.377077), so the box runs from 26 to 259.0, 26 clear of the
+	 *  screen's left edge and of the post: width 233.0 (0.777 of 300), centre 142.5; its top stays at 46.76, under the
+	 *  clock strip (centre y 46.76 + 92.02 / 2). It was { cx: 176, cy: 106, width: 300 }. */
+	landscape: { cx: 142.5, cy: 92.77, width: 233 },
 	/** PHONE SIDEWAYS master (1480 x 740): the left column, from the clock strip's left edge to the board art's
 	 *  post (293), above the BALANCE readout (236). */
 	phone: { left: 16, top: 46, width: 274 },
@@ -1866,12 +1868,30 @@ export const CHAIN_SOUND = {
 export const CREATURE = {
 	on: true,
 	place: {
-		// BOARD SIZE MOCKUP (board-size-r1): from game/boardSizeVariant.ts; 'current' = { x: 2089.9, y: 1213.3, scale: 0.96 }
-		desktop: { ...BOARD_SIZE.creature, layer: 'front' as const },
+		// DESKTOP, 16:9 and wider (2026-10-16, THE BIGGER BOARD, layoutSpec LANDSCAPE_BOARD; was { x 2089.9, y 1213.3,
+		// scale 0.96 } beside the k 1 board): see desktopTall below for the rule and the numbers.
+		desktop: { x: 2180, y: 1213.3, scale: 0.86, layer: 'front' },
 		phoneSideways: { x: 2249.3, y: 1157.2, scale: 0.97, layer: 'behind' },
 		portraitPhone: { x: 1039.9, y: 1001.6, scale: 0.77, layer: 'behind' },
 		portraitTablet: { x: 1210, y: 905, scale: 0.58, layer: 'behind', shadow: false },
 	},
+	/** THE DESKTOP SPOT FOLLOWS THE SCREEN'S SHAPE (2026-10-16, with the bigger board, layoutSpec LANDSCAPE_BOARD). The
+	 *  scene is fitted to COVER the canvas and the master to FIT it, so on a screen narrower than 16:9 the scene's sides
+	 *  are cut and the HUD sits higher in the scene: one spot cannot clear the cells, the screen's right edge and the
+	 *  [Auto / Turbo] buttons on both 16:9 and 16:10. place.desktop is the spot at desktopWide.aspect (16:9) and wider;
+	 *  desktopTall is the spot at its aspect (16:10); every other screen takes the straight line through the two (feet
+	 *  point and scale), held at desktopMinAspect (4:3) at the narrow end (game/creature.ts creaturePlaceFor).
+	 *  The rule both were set by: his drawn body (alpha > 96, over 3.4 s of idle) at least 5 CSS px clear of the cell
+	 *  area, his wing tips and claws on the screen, nothing of him under a readout or the [Auto / Turbo] buttons, only
+	 *  his right paw under the Play button (as since 2026-10-12, and less of it than before). The 16:9 spot is the 75 %
+	 *  mockup's ({ x 2161.3, scale 0.86 }) 18.7 scene px right, clear of the cells (its wing tip was over column 8);
+	 *  the 16:10 one is smaller and further back on the floor. Measured at 1920 x 1080, 1280 x 720, 1024 x 576,
+	 *  1440 x 900, 1680 x 1050, 1512 x 982, 1360 x 800 and 1024 x 768 (feedback/board_75_final/creature_check.json).
+	 *  A 21:9 screen (2560 x 1080) takes the 16:9 spot: there his claws go 21 CSS px under the screen's bottom and his
+	 *  paws under the Play and Turbo buttons (not tuned: no 21:9 spot yet). */
+	desktopTall: { aspect: 1.6, x: 2090, y: 1150, scale: 0.76 },
+	desktopWide: { aspect: 16 / 9 },
+	desktopMinAspect: 4 / 3,
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
 	// prefetchGroups (2026-10-15, download analysis S3, Corey yes): the prefetch takes only these load groups of each look
 	// (game/creatureLoad.ts GROUPS); the alternates (snarl, growl) load when the mode asks for the look, like any look.
