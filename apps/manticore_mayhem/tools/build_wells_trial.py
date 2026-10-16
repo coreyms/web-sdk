@@ -246,8 +246,8 @@ def opt_c2(seed):
     return engraved(seed, STAR)
 
 
-# ---- D. black marble: near-black with very faint dull gold veins ------------------------------------------------
-def opt_d(seed):
+# ---- D1 (wells_r1's D, kept for comparison). black marble: near-black with very faint dull gold veins --------------
+def opt_d1(seed):
     rng = np.random.default_rng(seed)
     base = MARBLE[None, None, :] + (noise(seed, 3, 4) * 3.6 + noise(seed + 1, 24, 3) * 1.6)[..., None]
     # cloudy charcoal depth
@@ -273,6 +273,96 @@ def opt_d(seed):
     rgb += (halo * fade * 3.2)[..., None] * np.array([1.0, 0.75, 0.4])
     rgb *= (0.55 + 0.45 * smoothstep(-1, 2.5, VIS))[..., None]
     return rgb
+
+
+# ---- D (wells_r2, Corey 2026-10-16 15:25 picked D: "reminds me of the stinger slate board"). The plaque's own slab ----
+# (static/assets/ui/stinger/stinger-plaque.webp, frame stg_body, the panel inside the frame) cut into four 256 px
+# crops, its lighting flattened, darkened to "mostly black" and its veins keyed exactly as the stinger's vein FX
+# (images/ui/model/scripts/61_veins.py: luminance above the local stone level times a warmth key, specks dropped),
+# then pushed toward dull gold so they read at 80 to 100 px cells. The GLOW sprite of each crop is the same vein key,
+# white RGB with alpha = intensity and the bloom baked in (max(core, 0.55 blur + 0.38 wider blur)); the game draws it
+# ADDITIVE with a gold tint over the well and animates only its alpha and tint (the stinger's own rule).
+SLAB = None
+SLAB_BOX = (232, 236, 1088, 500)  # the panel in stg_body px, clear of the frame, the lion's chin and the wings
+D_CROPS = [(0, 4), (200, 0), (400, 8), (600, 2)]
+D_DARK = 0.30  # the slab's stone times this: median luma ~15
+D_KEY_FLOOR = 0.04
+D_MIN_AREA = 6
+D_CRACKLE_MIX = 0.16
+D_CRACKLE_GLOW = 0.4
+# the stinger's bloom (0.55, 0.38) a little wider and hotter: a well is drawn at 80 to 100 px, the plaque far larger
+D_BLOOM = (0.7, 0.55)
+D_GLOW_GAIN = 1.35
+D_VEIN_COL = np.array([104, 78, 42], float)
+D_VEIN_MIX = 0.55
+
+
+def slab():
+    global SLAB
+    if SLAB is not None:
+        return SLAB
+    import json
+    st = os.path.join(HERE, '..', 'static', 'assets', 'ui', 'stinger')
+    fr = json.load(open(os.path.join(st, 'stinger-plaque.json')))['frames']['stg_body']['frame']
+    im = Image.open(os.path.join(st, 'stinger-plaque.webp')).convert('RGB')
+    body = im.crop((fr['x'], fr['y'], fr['x'] + fr['w'], fr['y'] + fr['h']))
+    P = np.asarray(body.crop(SLAB_BOX)).astype(float) / 255
+    lum = P @ np.array([0.299, 0.587, 0.114])
+    # flatten the render's light: the stone divided by its own wide average
+    wide = gaussian_filter(lum, 40)
+    flat = P * (np.median(lum) / np.maximum(wide, 1e-3))[..., None]
+    lumf = flat @ np.array([0.299, 0.587, 0.114])
+    # the stinger's vein key (61_veins.py), its 4x radii scaled to this res (x 0.344)
+    bg = gaussian_filter(lumf, 8.3)
+    warm = np.clip(((flat[..., 0] - flat[..., 2]) - 0.035) / 0.07, 0, 1)
+    # (r2: a higher floor and bigger pieces than the plaque's own key, so only the cracks' lines are kept, not the
+    # stone's fine crackle: the well stays mostly black)
+    v = np.clip((lumf - bg - D_KEY_FLOOR) / 0.16, 0, 1) * warm
+    from scipy import ndimage as ndi
+    lab, _ = ndi.label(v > 0.12)
+    area = np.bincount(lab.ravel())
+    v *= area[lab] >= D_MIN_AREA
+    v = np.clip(v * 1.35, 0, 1) ** 0.85
+    SLAB = (flat, v)
+    return SLAB
+
+
+def vein_lines(seed):
+    """r1's veins (a domain-warped sine band, gold at the core, coming and going along its length), denser for r2:
+    a main set and a crossing set, both continuous, so a light-up runs ALONG a crack"""
+    rng = np.random.default_rng(seed)
+    out = np.zeros((N, N))
+    for k, (w, amp, freq) in enumerate(((0.030, 1.0, 1.0), (0.022, 0.75, 1.6), (0.016, 0.5, 2.3))):
+        ang = rng.uniform(0, np.pi)
+        u = xx * np.cos(ang) + yy * np.sin(ang)
+        warp = noise(seed + 10 * k + 3, 3, 5) * 46 + noise(seed + 10 * k + 4, 10, 3) * 9
+        f = rng.uniform(0.016, 0.022) * freq
+        band = np.abs(np.sin((u + warp) * f * np.pi))
+        core = np.exp(-(band / w) ** 2)
+        fade = smoothstep(-0.55, 0.25, noise(seed + 10 * k + 5, 3, 3))
+        out = np.maximum(out, core * fade * amp)
+    return out
+
+
+def d_parts(i):
+    flat, v = slab()
+    x, y = D_CROPS[i]
+    # the plaque slab's stone (its fine crackle kept faint), darkened to mostly black
+    stone = flat[y:y + N, x:x + N] * 255 * D_DARK
+    crackle = v[y:y + N, x:x + N]
+    lines = vein_lines(4040 + 31 * i)
+    a = np.clip(lines * D_VEIN_MIX + crackle * D_CRACKLE_MIX, 0, 1)[..., None]
+    rgb = stone * (1 - a) + D_VEIN_COL[None, None, :] * a
+    edge = smoothstep(-1, 2.5, VIS)
+    rgb *= (0.55 + 0.45 * edge)[..., None]
+    # the glow: the same veins (the crackle weaker), bloom baked in, nothing under the bars
+    core = np.clip(lines + crackle * D_CRACKLE_GLOW, 0, 1) * smoothstep(0.5, 3.0, VIS)
+    glow = np.maximum(core, D_BLOOM[0] * blur(core, 1.4) + D_BLOOM[1] * blur(core, 5.0))
+    return rgb, np.clip(glow * D_GLOW_GAIN, 0, 1)
+
+
+def opt_d(seed):
+    return d_parts(seed % 4)
 
 
 # ---- E. recessed well: thin dark bronze inset line, soft inner shadow, faint warm bounce to the centre ----------
@@ -310,17 +400,24 @@ def opt_f(seed):
     return rgb
 
 
-OPTIONS = {'A': opt_a, 'B': opt_b, 'C': opt_c, 'C2': opt_c2, 'D': opt_d, 'E': opt_e, 'F': opt_f}
-SEEDS = {'A': 101, 'B': 202, 'C': 303, 'C2': 313, 'D': 404, 'E': 505, 'F': 606}
+OPTIONS = {'A': opt_a, 'B': opt_b, 'C': opt_c, 'C2': opt_c2, 'D1': opt_d1, 'D': opt_d, 'E': opt_e, 'F': opt_f}
+# D1 keeps r1's D seed (404) so it regenerates byte for byte; D's seed only picks the crop (seed % 4)
+SEEDS = {'A': 101, 'B': 202, 'C': 303, 'C2': 313, 'D1': 404, 'D': 0, 'E': 505, 'F': 606}
+SEED_STEP = {'D': 1}
 
 
 def main():
-    loose = sys.argv[1] if len(sys.argv) > 1 else None
+    """build_wells_trial.py [loose_dir] [OPTION,OPTION]: every option, or only the listed ones"""
+    loose = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] != '-' else None
+    only = sys.argv[2].split(',') if len(sys.argv) > 2 else list(OPTIONS)
     os.makedirs(OUT, exist_ok=True)
     if loose:
         os.makedirs(loose, exist_ok=True)
-    for key, fn in OPTIONS.items():
-        tiles = [to_img(fn(SEEDS[key] + 17 * i)) for i in range(4)]
+    for key in only:
+        fn = OPTIONS[key]
+        parts = [fn(SEEDS[key] + SEED_STEP.get(key, 17) * i) for i in range(4)]
+        glows = [p[1] for p in parts if isinstance(p, tuple)]
+        tiles = [to_img(p[0] if isinstance(p, tuple) else p) for p in parts]
         atlas = Image.new('RGB', (2 * N, 2 * N))
         for i, t in enumerate(tiles):
             atlas.paste(t, ((i % 2) * N, (i // 2) * N))
@@ -334,6 +431,22 @@ def main():
         if loose:
             atlas.save(os.path.join(loose, f'wells-{key}-atlas-512.png'))
             atlas.resize((N, N), Image.LANCZOS).save(os.path.join(loose, f'wells-{key}-atlas-256-phone.png'))
+        if len(glows) == 4:
+            g = np.zeros((2 * N, 2 * N, 4), np.uint8)
+            g[..., :3] = 255
+            for i, gl in enumerate(glows):
+                g[(i // 2) * N:(i // 2 + 1) * N, (i % 2) * N:(i % 2 + 1) * N, 3] = np.round(np.clip(gl, 0, 1) * 255).astype(np.uint8)
+            gim = Image.fromarray(g, 'RGBA')
+            gim.save(os.path.join(OUT, f'wells-{key}-glow.png'), optimize=True)
+            # the half: alpha averaged 2 x 2 (RGB stays white)
+            h = g[..., 3].astype(float).reshape(N, 2, N, 2).mean((1, 3))
+            gh = np.zeros((N, N, 4), np.uint8)
+            gh[..., :3] = 255
+            gh[..., 3] = np.round(h).astype(np.uint8)
+            Image.fromarray(gh, 'RGBA').save(os.path.join(OUT, f'wells-{key}-glow-half.png'), optimize=True)
+            print(f'{key}: glow coverage (alpha > 64) {(g[..., 3] > 64).mean() * 100:.1f} %')
+            if loose:
+                gim.save(os.path.join(loose, f'wells-{key}-glow-atlas-512.png'))
 
 
 if __name__ == '__main__':

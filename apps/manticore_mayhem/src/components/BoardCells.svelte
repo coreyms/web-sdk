@@ -973,8 +973,8 @@
 		}
 		motionLog.glowInUse = glowing;
 		if (glowing > motionLog.glowPeak) motionLog.glowPeak = glowing;
-		// the wells take the dim rule of the symbol on them, like the tiles (DEV trial only)
-		if (wells) wells.dim(coverDim);
+		// THE WELLS TRIAL (DEV only): the light and the dim on the wells, the reactive veins' triggers and flares
+		if (wells) wells.tick(now, { tiles: stateGame.tiles, cells, cover: coverDim, skipping: stateGame.skipping, freegame: stateGame.gameType === 'freegame', rate });
 		syncPlates(tex);
 		tickSparkles(now);
 		if (uploadQueue === null || uploadQueue.length) warmSheets(tex);
@@ -1001,12 +1001,35 @@
 			(((window as any).__manticore ??= {}) as any).wells = {
 				set: (option: string | null) => wells.set(option),
 				state: () => wells.state(),
-				stage: (o: { mode?: 'base' | 'bonus' | 'super' | 'epic'; tiles?: Record<number, number> }) => {
+				flare: (cell: number, kind: 'light' | 'double' | 'win' | 'swipe' | 'sting', delayMs?: number) => wells.flare(cell, kind, delayMs),
+				cost: () => wells.cost(),
+				log: () => wells.log(),
+				stage: (o: { mode?: 'base' | 'bonus' | 'super' | 'epic'; tiles?: Record<number, number>; animate?: boolean }) => {
 					if (o.mode) {
 						sg.gameType = o.mode === 'base' ? 'basegame' : 'freegame';
 						sg.bonusMode = o.mode === 'base' ? null : o.mode;
 					}
-					if (o.tiles) {
+					if (o.tiles && o.animate) {
+						// a staged count-over per listed cell (old value -> new), the plate's own look: the flares fire
+						const t0 = performance.now();
+						const cellsOn = Object.entries(o.tiles).map(([k, v]) => [Number(k), v] as const);
+						for (const [k, v] of cellsOn) {
+							const t = sg.tiles[k];
+							t.from = t.value;
+							t.value = v;
+							t.chg = 0;
+							t.pop = 0;
+						}
+						const step = () => {
+							const u = Math.min(1, (performance.now() - t0) / 600);
+							for (const [k] of cellsOn) {
+								sg.tiles[k].chg = u;
+								sg.tiles[k].pop = Math.min(1, u * 10);
+							}
+							if (u < 1) requestAnimationFrame(step);
+						};
+						requestAnimationFrame(step);
+					} else if (o.tiles) {
 						const next = sg.tiles.map(() => ({ value: 0, scale: 1, from: 0, chg: 1, pop: 1 }));
 						for (const [k, v] of Object.entries(o.tiles)) next[Number(k)] = { value: v, scale: 1, from: v, chg: 1, pop: 1 };
 						sg.tiles = next;

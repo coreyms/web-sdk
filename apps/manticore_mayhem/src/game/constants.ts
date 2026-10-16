@@ -830,7 +830,8 @@ export const WELLS_TRIAL = {
 		B: { name: 'black iron plate, bronze rivets', orient: 'flipX' },
 		C: { name: 'engraved rosette', orient: 'flipX' },
 		C2: { name: 'engraved Assyrian star', orient: 'flipX' },
-		D: { name: 'black marble, gold veins', orient: 'any' },
+		D: { name: 'black marble, gold veins (r2: the stinger slab, reactive veins)', orient: 'any' },
+		D1: { name: 'black marble, gold veins (r1, kept to compare)', orient: 'any' },
 		E: { name: 'recessed well, bronze inset', orient: 'any' },
 		F: { name: 'basalt recess', orient: 'flipX' },
 	} as Record<string, { name: string; orient: 'flipX' | 'any' }>,
@@ -847,6 +848,38 @@ export const WELLS_TRIAL = {
 	/** a well darkens with the symbol on it while a win set is up (the dim rule's factor, as the tiles do); without it
 	 *  the dimmed symbols lose their black surround and the win reads muddier. ?wellsdim=0 turns it off. */
 	dimWithBoard: true,
+};
+
+/** THE REACTIVE VEINS (wells_r2, Corey 2026-10-16 15:25 + 15:27 "Yes"; DEV ONLY with ?wells=D, game/wellsTrial.ts).
+ *  The stinger plaque's own vein rule (images/ui/model/stinger_vein_fx.json): per cell ONE static additive sprite of
+ *  the well's own veins (white, alpha = intensity, bloom baked: wells-D-glow.png), drawn over the multiplier tiles and
+ *  under the frame and the symbols; the game moves only its alpha and tint. One flare = in (sine) over `inMs`, held
+ *  `holdMs`, out over `outMs` ((1 - u)^1.6); overlapping flares on a cell take the strongest. Times are STYLE ms
+ *  (divided by the turbo scale when the flare starts). Presentation only: every trigger is read from state the game
+ *  already keeps (the tiles' count-over, the winners' pulse, swipeFx, stingFx), nothing in the engine waits on it.
+ *    light / double  a multiplier lights (0 -> x2) or steps up under the cell, with the plate's count-over
+ *    win             a paying cluster, as its pulse starts: a ripple from its first cell (lowest index) outward
+ *    swipe           the swiped rows, right to left like the tears, over sweepMs
+ *    sting           the struck cell at the hit, then outward ring by ring (reach, falloff per ring); not scatters
+ *    power           free spins only: every vein rests at a glow that rises with the board's total tile value
+ *                    (log scale from refValue, full at fullValue, capped at `cap`), eased over riseMs, with a slow
+ *                    shimmer (each cell its own phase) so the board breathes rather than sits lit
+ *  The wells (not the glow) take the scene's night and fire: night x `night` per channel times the mode's foreTint,
+ *  and the fire's warmth by fire x night. */
+export const WELLS_FX = {
+	tint: { light: 0xffa63c, double: 0xffc860, win: 0xffb852, swipe: 0xff6a24, sting: 0xff8a2e, power: 0xff9a3a },
+	light: { peak: 0.85, inMs: 380, holdMs: 120, outMs: 900 },
+	double: { peak: 1, inMs: 420, holdMs: 180, outMs: 1100 },
+	win: { peak: 0.8, inMs: 170, holdMs: 260, outMs: 700, stepMs: 55 },
+	swipe: { peak: 0.9, inMs: 110, holdMs: 220, outMs: 800, sweepMs: 240 },
+	sting: { peak: 0.95, inMs: 110, holdMs: 120, outMs: 800, stepMs: 70, reach: 2, falloff: 0.55 },
+	power: { cap: 0.34, refValue: 8, fullValue: 2048, riseMs: 2200, fallMs: 900, shimmer: 0.35, periodMs: 3500 },
+	night: [0.6, 0.64, 0.82] as [number, number, number],
+	fireWarm: [1, 0.85, 0.72] as [number, number, number],
+	/** below this a glow sprite is hidden (not drawn at all) */
+	epsilon: 0.004,
+	/** the flare pool's size (each a plain object, reused) */
+	pool: 256,
 };
 
 // ---- The sting (RULE_PASS_2 section F) ----------------------------------------------------------
