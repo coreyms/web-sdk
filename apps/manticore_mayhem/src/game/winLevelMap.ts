@@ -1,5 +1,6 @@
 import { SECOND } from 'constants-shared/time';
 import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
+import type { BonusMode } from './types';
 
 export const winLevelMap = {
 	1: { level: 1, alias: 'zero', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
@@ -49,6 +50,55 @@ export const WIN_TIER_STAGES_END_FEATURE = [
 ] as const;
 
 export type WinTierStage = { alias: string; title: string; xBet: number };
+
+// A FREE SPIN'S OWN WIN PLAQUE IS FEATURE RELATIVE (harsh review 2026-10-15, gameplay finding 6; Corey 2026-10-16:
+// "Yes, this is a good idea for this game"). On the base ladder (Big at 15x) the plaque covered the board 1.3 times per
+// Free Spins round, 2.3 per Super and 4.2 per Epic, in exactly the spins where the board was escalating. Inside a
+// feature a spin's own win now gets a plaque only from the bar of the feature it is in (the book's bonusStart.bonus, a
+// bought or a naturally triggered round alike, a BONUS buy that plays a Super or an Epic included); a smaller spin win
+// counts up on the board's own readout only, as an under 15x win always did. Same words, same house pacing (3 to 7 s by
+// final tier, no pause at the bars), same base ladder shape (x1, x2, x4, x10 of Big); Max stays the 10,000x cap.
+// MEASURED on the shipped books (publish_files 2026-10-15, lookup table weighted; the capping spin of a capped round
+// gets none), plaques per round, before (15x) -> after, and the share of rounds with 0 / 1 / 2 / 3+ after:
+//   Free Spins, Big 25x (0.25 of the 100x price): 1.31 -> 0.83 (49 / 30 / 14 / 8 %)
+//   Super,      Big 40x (0.16 of the 250x price): 2.30 -> 1.16 (38 / 30 / 18 / 14 %)
+//   Epic,       Big 75x (0.15 of the 500x price): 4.19 -> 1.55 ( 6 / 53 / 28 / 13 %)
+// HOW, to re-measure on new books: feedback/feature_tiers_r1/ (walk_books.py, then measure.py for candidate bars and
+// final.py for these ladders) in the Manticore Mayhem working folder. PRESENTATION ONLY: the word is picked from the
+// book's own amount and decides nothing.
+export const WIN_TIER_STAGES_FEATURE_SPIN = {
+	bonus: [
+		{ alias: 'big', title: 'BIG WIN', xBet: 25 },
+		{ alias: 'superwin', title: 'SUPER WIN', xBet: 50 },
+		{ alias: 'mega', title: 'MEGA WIN', xBet: 100 },
+		{ alias: 'epic', title: 'EPIC WIN', xBet: 250 },
+		{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
+	],
+	super: [
+		{ alias: 'big', title: 'BIG WIN', xBet: 40 },
+		{ alias: 'superwin', title: 'SUPER WIN', xBet: 80 },
+		{ alias: 'mega', title: 'MEGA WIN', xBet: 160 },
+		{ alias: 'epic', title: 'EPIC WIN', xBet: 400 },
+		{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
+	],
+	epic: [
+		{ alias: 'big', title: 'BIG WIN', xBet: 75 },
+		{ alias: 'superwin', title: 'SUPER WIN', xBet: 150 },
+		{ alias: 'mega', title: 'MEGA WIN', xBet: 300 },
+		{ alias: 'epic', title: 'EPIC WIN', xBet: 750 },
+		{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
+	],
+} as const satisfies Record<BonusMode, readonly WinTierStage[]>;
+
+/** the per spin ladder for a free spin of this feature (the base ladder if the feature is somehow unknown) */
+export const featureSpinStages = (mode: BonusMode | null): readonly WinTierStage[] => (mode ? WIN_TIER_STAGES_FEATURE_SPIN[mode] : WIN_TIER_STAGES);
+
+/** a free spin's own win on its feature's ladder: Big (level 6) to Max (level 10), or undefined under Big (no plaque) */
+export const getFeatureSpinWinLevelData = ({ bookEventAmount, mode }: { bookEventAmount: number; mode: BonusMode | null }): WinLevelData | undefined => {
+	const xBet = bookEventAmount / BOOK_AMOUNT_MULTIPLIER;
+	const tier = featureSpinStages(mode).filter((s) => xBet >= s.xBet).length - 1;
+	return tier < 0 ? undefined : winLevelMap[(6 + tier) as WinLevel];
+};
 
 // PRESENTATION ONLY. Manticore's schema carries no `setWin` and therefore no per-spin winLevel, so
 // the tier WORD over a base-game count-up is picked from the amount the book already sent. The

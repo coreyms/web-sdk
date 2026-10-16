@@ -21,8 +21,9 @@
 		/** the art, the tracks and the scene are in: false = the caller keeps its plain screen */
 		ready: () => boolean;
 		/** the win screen: Big slams in and the amount counts to `amount` over durationMs (house pacing), the title
-		 *  stepping up at each bar crossed, never past `finalTier`. Resolves when the count has landed. */
-		win: (o: { amount: number; finalTier: number; durationMs: number }) => Promise<void>;
+		 *  stepping up at each bar crossed, never past `finalTier`. Resolves when the count has landed.
+		 *  `stages`: the ladder whose bars those are (a free spin's feature ladder); none = WIN_TIER_STAGES. */
+		win: (o: { amount: number; finalTier: number; durationMs: number; stages?: readonly { xBet: number }[] }) => Promise<void>;
 		/** the feature's intro: resolves once its rows are in */
 		intro: (o: { mode: StingerMode }) => Promise<void>;
 		/** does the baked intro copy say what the book says (spins in the title, the tile cap in the rows)? */
@@ -362,11 +363,11 @@
 
 	const flow: StingerPlaqueFlow = {
 		ready: () => view.ready,
-		win: async ({ amount, finalTier, durationMs }) => {
+		win: async ({ amount, finalTier, durationMs, stages = WIN_TIER_STAGES }) => {
 			if (!view.ready) return;
 			// Big always opens the ladder; its clip plays on the impact, as each later tier's does on its landing
 			begin({ screen: 'win', tier: 'big' }, 0);
-			await counting({ amount, durationMs, bars: barsOf(WIN_TIER_STAGES), cap: Math.max(0, Math.min(STINGER_TIERS.length - 1, finalTier)), shown: 0, beats: true });
+			await counting({ amount, durationMs, bars: barsOf(stages), cap: Math.max(0, Math.min(STINGER_TIERS.length - 1, finalTier)), shown: 0, beats: true });
 		},
 		intro: async ({ mode }) => {
 			if (!view.ready) return;

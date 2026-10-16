@@ -9,7 +9,7 @@ import { eventEmitter } from './eventEmitter';
 import type { MusicName } from './sound';
 import { playBookEvent } from './utils';
 import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
-import { getWinLevelDataByBookEventAmount } from './winLevelMap';
+import { getWinLevelDataByBookEventAmount, getFeatureSpinWinLevelData, featureSpinStages } from './winLevelMap';
 import {
 	stateGame,
 	stateGameDerived,
@@ -174,7 +174,7 @@ const landCapTail = async () => {
 /** DEV: what the last cut did (tools/manticore/skip_probe.js) */
 const capLog: { clusters: number; shown: number; spinStepMax: number; spinWin: number; tailAt: number; via: '' | 'wrap' | 'win' } = { clusters: 0, shown: 0, spinStepMax: 0, spinWin: 0, tailAt: 0, via: '' };
 /** DEV: every win screen a setTotalWin / wincap asked for (the probes read which spins got one) */
-const winAsks: { from: 'setTotalWin' | 'wincap'; gameType: string; amount: number; total: number; alias: string }[] = [];
+const winAsks: { from: 'setTotalWin' | 'wincap'; gameType: string; amount: number; total: number; alias: string; ladder?: string | null }[] = [];
 if (import.meta.env.DEV && typeof window !== 'undefined') {
 	Object.assign(((window as any).__manticore ??= {}), { capLog: () => ({ ...capLog, capShown }), winAsks: () => winAsks.slice() });
 }
@@ -616,18 +616,23 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		//   A FREE SPIN (Corey 2026-10-09): setTotalWin is the ROUND total there, so the spin's OWN win is read
 		//   from the book's cascade.spinWin, and a SKIP TO RESULT plays none of them. The wrap up at the end of
 		//   the feature is unchanged.
-		//   ONLY BIG AND ABOVE (15x) GETS A WIN SCREEN, everywhere (Corey 2026-10-09: "no Nice win level"): a
-		//   smaller win is the board's own run up and nothing more.
+		//   ONLY BIG AND ABOVE GETS A WIN SCREEN, everywhere (Corey 2026-10-09: "no Nice win level"): a
+		//   smaller win is the board's own run up and nothing more. Big is 15x in the base game; A FREE SPIN'S Big
+		//   is its feature's own bar (Corey 2026-10-16, harsh review gameplay finding 6: WIN_TIER_STAGES_FEATURE_SPIN,
+		//   Free Spins 25x / Super 40x / Epic 75x), and its count steps up on that feature's ladder.
 		const free = stateGame.gameType !== 'basegame';
 		if (free && stateGame.skipping) return;
 		const amount = free ? spinOwnWin(bookEvent, bookEvents) : bookEvent.amount;
 		if (amount <= 0) return;
-		const winLevelData = getWinLevelDataByBookEventAmount({ bookEventAmount: amount });
+		const winLevelData = free
+			? getFeatureSpinWinLevelData({ bookEventAmount: amount, mode: stateGame.bonusMode })
+			: getWinLevelDataByBookEventAmount({ bookEventAmount: amount });
 		if (!winLevelData || winLevelData.type !== 'big') return;
-		if (import.meta.env.DEV) winAsks.push({ from: 'setTotalWin', gameType: stateGame.gameType, amount, total: bookEvent.amount, alias: winLevelData.alias });
+		const stages = free ? featureSpinStages(stateGame.bonusMode) : undefined;
+		if (import.meta.env.DEV) winAsks.push({ from: 'setTotalWin', gameType: stateGame.gameType, amount, total: bookEvent.amount, alias: winLevelData.alias, ladder: free ? stateGame.bonusMode : 'base' });
 		eventEmitter.broadcast({ type: 'winShow' });
 		winLevelSoundsPlay({ winLevelData });
-		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount, winLevelData });
+		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount, winLevelData, stages });
 		winLevelSoundsStop();
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
