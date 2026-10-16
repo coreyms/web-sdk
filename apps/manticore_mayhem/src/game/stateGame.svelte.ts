@@ -10,7 +10,7 @@ import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
-import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, fxStamp, type FxRecord } from './featureFx';
+import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, triggerFx, clearTriggerFx, fxStamp, type FxRecord } from './featureFx';
 import { cueWellSting, cueWellSwipe, cueWellTile, cueWellWin, clearWellCues } from './wellsFx';
 import { kickClank } from './chainSound';
 import { placeLabels } from './labelPlacement';
@@ -38,6 +38,7 @@ import {
 	STING,
 	SCATTER_STING,
 	ANTICIPATION_TEASE,
+	TRIGGER_BEAT,
 	SWIPE_FX,
 	ROAR_FX,
 	CHAIN_SOUND,
@@ -174,6 +175,10 @@ export const stateGame = $state({
 	 *  own fade (over the fall), its offset in cells (locked to the incoming stack after the launch) and
 	 *  the style ms since the column began to show (the beam swings on it). */
 	anticipation: Array.from({ length: GRID }, () => ({ on: false, q: 0, fade: 1, tease: false, rainFade: 1, rain: 0, el: 0 })),
+	/** THE TRIGGER BEAT'S RELIGHT (constants TRIGGER_BEAT.relightAt): true from the moment a Super / Epic trigger beat
+	 *  relights the scene until the feature's own gameType takes over at the beat's end. components/Background.svelte
+	 *  draws the feature's scene (bonusMode's) while it is set, so the relight plays in front of the player */
+	relightAhead: false,
 	/** the Mystery outcome of the round being played, null outside a Mystery book. Presentation
 	 *  never branches on it (the spin plays itself out); it is a DEV / probe read only. */
 	mysteryOutcome: null as MysteryOutcome | null,
@@ -1772,6 +1777,77 @@ export const scatterTrigger = async (cells: CellIndex[], id: number, rec?: FxRec
 		c.glowColor = AURA_COLOR;
 	}
 	if (rec) fxStamp(rec, 'triggerEnd');
+};
+
+// ---- THE TRIGGER BEAT (constants TRIGGER_BEAT; harsh review 2026-10-15 design item 8, Corey 17:32 "A1") ---------
+
+const backOut = (u: number) => {
+	const k = 1.70158;
+	const v = u - 1;
+	return 1 + (k + 1) * v * v * v + k * v * v;
+};
+
+/**
+ * The feature trigger's own beat, played by the bonusStart handler before the intro plaque: every scatter in `cells`
+ * (the book's bonusStart.scatters, as live S cells) lifts to liftScale with its glow full, a light column rises from
+ * each and a halo flares at the lift's peak, the rest of the board darkens to dimTo; `onRoar` at roarAt, `onRelight`
+ * at relightAt (when given: Super / Epic), everything back at rest over the last releaseMs. STYLE time (turbo divides
+ * it); the skip rule: t = 1 writes the rest state. Resolves when the beat is over.
+ */
+export const triggerBeat = async (cells: CellIndex[], ms: number, id: number, { onRoar, onRelight, rec }: { onRoar?: () => void; onRelight?: () => void; rec?: FxRecord } = {}) => {
+	const T = TRIGGER_BEAT;
+	const ids = new Set(scatterIdsAt(cells));
+	let roared = false;
+	let relit = false;
+	if (rec) fxStamp(rec, 'beat');
+	triggerFx.active = !stateGame.skipping;
+	triggerFx.cells = cells.slice();
+	const rel0 = Math.max(0, ms - T.releaseMs);
+	await raf(ms, (t, el) => {
+		if (!alive(id)) return;
+		if (!roared && (el >= T.roarAt || t >= 1)) {
+			roared = true;
+			if (t < 1) onRoar?.();
+		}
+		if (!relit && (el >= T.relightAt || t >= 1)) {
+			relit = true;
+			onRelight?.();
+		}
+		// the release: 1 -> 0 over the last releaseMs (smoothstep back to rest)
+		const r = el <= rel0 ? 1 : 1 - clamp01((el - rel0) / Math.max(T.releaseMs, 1));
+		const rel = t >= 1 ? 0 : r * r * (3 - 2 * r);
+		const up = clamp01(el / Math.max(T.liftMs, 1));
+		const lift = t >= 1 ? 1 : 1 + (T.liftScale - 1) * backOut(up) * rel;
+		const breathe = 1 - T.breathe * 0.5 * (1 - Math.cos((el / 1000) * T.breatheHz * Math.PI * 2));
+		const glow = t >= 1 ? 0 : Math.min(1, up * 1.5) * breathe * rel;
+		const dim = t >= 1 ? 1 : 1 - (1 - T.dimTo) * clamp01(el / Math.max(T.dimInMs, 1)) * rel;
+		const map = liveById();
+		for (const c of map.values()) {
+			if (ids.has(c.id)) {
+				c.scaleX = lift;
+				c.scaleY = lift;
+				c.glow = glow;
+				c.glowColor = t >= 1 ? AURA_COLOR : T.glowColor;
+			} else c.dim = dim;
+		}
+		// the light columns and the flare (components/TriggerBeat.svelte)
+		const flareAt = T.liftMs * 0.55;
+		triggerFx.el = el;
+		triggerFx.shaft = t >= 1 ? 0 : clamp01(el / Math.max(T.shaftInMs, 1));
+		triggerFx.alpha = t >= 1 ? 0 : T.shaftAlpha * clamp01(el / Math.max(T.shaftInMs * 0.5, 1)) * rel;
+		triggerFx.flare = t >= 1 || el < flareAt ? 0 : Math.max(0, 1 - (el - flareAt) / Math.max(T.flareMs, 1));
+	});
+	clearTriggerFx();
+	const map = liveById();
+	for (const c of map.values()) {
+		if (ids.has(c.id)) {
+			c.scaleX = 1;
+			c.scaleY = 1;
+			c.glow = 0;
+			c.glowColor = AURA_COLOR;
+		} else c.dim = 1;
+	}
+	if (rec) fxStamp(rec, 'beatEnd');
 };
 
 // ---- the claw swipe (MOTION_SPEC "Claw swipe", the playground's compileSwipe) ---------------------

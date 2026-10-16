@@ -67,8 +67,10 @@
 	const canvas = $derived(context.stateLayoutDerived.canvasSizes());
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 
+	// THE TRIGGER BEAT'S RELIGHT (constants TRIGGER_BEAT.relightAt): a Super / Epic trigger beat draws the feature's scene
+	// (night, the fire braziers, his night or fire look) from the beat on, in front of the player, before the intro plaque
 	const family = $derived(
-		context.stateGame.gameType !== 'freegame'
+		context.stateGame.gameType !== 'freegame' && !context.stateGame.relightAhead
 			? 'base'
 			: context.stateGame.bonusMode === 'epic'
 				? 'epic'

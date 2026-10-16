@@ -92,6 +92,26 @@ export const clearStingFx = () => {
 	stingFx.charge = null;
 };
 
+// ---- the trigger beat (constants TRIGGER_BEAT) ------------------------------------------------------
+
+/** THE TRIGGER BEAT's light columns and flares, written every frame by stateGame.triggerBeat (style time) and drawn by
+ *  components/TriggerBeat.svelte. `cells`: the triggering scatters (cellIndex); `shaft` 0..1 the columns' rise,
+ *  `alpha` their light; `flare` 0..1 the halo burst at the lift's peak. All 0 / inactive at rest. */
+export const triggerFx = {
+	active: false,
+	cells: [] as number[],
+	shaft: 0,
+	alpha: 0,
+	flare: 0,
+	/** style ms since the beat began (the columns' shimmer runs on it) */
+	el: 0,
+};
+export const clearTriggerFx = () => {
+	triggerFx.active = false;
+	triggerFx.cells = [];
+	triggerFx.shaft = triggerFx.alpha = triggerFx.flare = triggerFx.el = 0;
+};
+
 // ---- the chain haul (CHAIN_BOW.haul*) -------------------------------------------------------------
 
 /** every spin press, as performance.now() and the style rate at that moment: components/BoardFrame.svelte

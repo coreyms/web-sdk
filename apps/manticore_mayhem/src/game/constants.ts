@@ -973,6 +973,15 @@ export const scatterWait = (k: number, n: number) => (k < n - 1 ? scatterRung(k)
 // once the column launches and lasts until it lands; the beam fades over fadeMs from the launch. The landed
 // scatters breathe (landedPulse at landedPulseHz) until the drop ends. Hit (a 4th scatter on the board):
 // SCATTER_STING's trigger pulse. Miss: a missHoldMs rest. The frontend only reads the board it was given.
+// NO SPOTLIGHT ON A REGULAR SPIN (Corey 2026-10-16 17:32: "anticipation columns look good on mystery but not on regular
+// spins, the difference is the spotlight, it should be removed. We can adjust the rain to make it look better."). The
+// narrow gold searchlight that swung through every held column (beamAlpha, beamColor, beamSwing, beamPeriodMs) is off:
+// `beam: false` hides it, and its column mask with it. The Mystery tease (ANTICIPATION below) keeps its own light.
+// THE RAIN WITHOUT IT (harsh review 2026-10-15 design item 16: "multi-exposed ghost strips"): it was three equal copies
+// of every loose symbol at 0.2 (one 0.1 cell above, one below), which over a black well reads as a smear. Now ONE
+// symbol at rainAlpha with a single TRAIL copy above it (the way it came from) at rainTrailAlpha of that, rainStretch
+// taller so it reads as falling fast, and nothing below it. The teased column also gets a faint warm edge glow from
+// the Mystery's own spill strips (spillAlpha, spillWidth cells), so it still reads as a column being teased.
 export const ANTICIPATION_TEASE = {
 	triggerAfter: 3,
 	holdMs: 700,
@@ -980,22 +989,83 @@ export const ANTICIPATION_TEASE = {
 	holdFloorMs: 300,
 	fallSlow: 1.7,
 	fadeMs: 260,
+	/** the searchlight on a regular spin's teased columns: off (Corey 17:32). true brings the old gold beam back */
+	beam: false,
 	beamAlpha: 0.75,
 	beamColor: 0xffe08a,
 	beamSwing: 0.13,
 	beamPeriodMs: 840,
-	spillAlpha: 0,
-	spillWidth: 0.2,
-	rainAlpha: 0.2,
+	spillAlpha: 0.22,
+	spillWidth: 0.16,
+	rainAlpha: 0.3,
+	/** the trail copy above each loose symbol, as a share of rainAlpha (0 = no trail) */
+	rainTrailAlpha: 0.4,
 	rainSpeedCellsPerS: 5.5,
-	rainStretch: 1.12,
-	rainGhosts: 1,
-	rainGhostOffset: 0.1,
+	rainStretch: 1.3,
+	/** where the trail copy sits above its symbol, in cells (the copies themselves are ANTICIPATION.rainGhosts either
+	 *  side, shared with the Mystery; a regular spin shows only the one above) */
+	rainGhostOffset: 0.16,
 	/** the breathing scatters grow to 1 + this (SYMBOL_POPS.tease, Corey 2026-10-13 12:06: 1.185, was 1.05) */
 	landedPulse: 0.185,
 	landedPulseHz: 1.5,
 	missHoldMs: 500,
 };
+
+// ---- THE TRIGGER BEAT (harsh review 2026-10-15 design item 8; Corey 2026-10-16 17:32: "A1. Sounds good") ----------
+// A feature trigger had no celebration of its own: the War Standards sat still, the screen dipped to black and the
+// intro plaque opened. Now, at the book's bonusStart and before the intro plaque (stateGame.triggerBeat, drawn by
+// components/TriggerBeat.svelte), in STYLE ms (divided by the turbo scale like every board beat, so turbo shortens it):
+//   0          the board around the scatters darkens to dimTo; every triggering scatter (the bonusStart's cells) lifts to
+//              liftScale over liftMs (backOut) with its glow full in glowColor; a light column rises from each
+//              (shaftInMs, shaftCells tall over the scatter, shaftAlpha) and a halo flares at the lift's peak (flareMs)
+//   roarAt     the manticore roars (his roar clip and sfx_roar: the same beat the book's roar and the Max Win screen use)
+//   relightAt  SUPER and EPIC only: the scene relights IN FRONT of the player (the night sky, the fire braziers, his
+//              night or fire look) over the scene's own crossfade (SCENE.crossfadeMs), before the intro plaque, not under it
+//   the last releaseMs  everything settles back to rest
+// `ms` is the Free Spins beat and `msRelit` the Super / Epic one (the relight lands in view). Then the intro plaque.
+// The scatter landing ladder and the house bonus-confirm SFX are untouched (cross-game standard). blackFade false: the
+// beat replaces the old fade to black before the plaque (the "whole screen dims" the review saw); true puts the fade
+// back after the beat.
+export const TRIGGER_BEAT = {
+	on: true,
+	ms: 1250,
+	msRelit: 1500,
+	liftMs: 260,
+	liftScale: 1.25,
+	releaseMs: 300,
+	dimTo: 0.5,
+	dimInMs: 220,
+	glowColor: 0xffd25a,
+	/** the lifted scatters' glow breathes between 1 and 1 - breathe at breatheHz */
+	breathe: 0.25,
+	breatheHz: 2.4,
+	roarAt: 140,
+	relightAt: 120,
+	shaftInMs: 320,
+	/** the column's height above the scatter's centre, in cells (it rises out of the board's top on the upper rows) */
+	shaftCells: 5.5,
+	shaftWidthCells: 1.15,
+	shaftAlpha: 1,
+	shaftColor: 0xffd27a,
+	flareMs: 380,
+	flareCells: 2.3,
+	flareAlpha: 0.9,
+	blackFade: false,
+} as const;
+
+// ---- THE CREATURE'S NIGHT LIFT (harsh review 2026-10-15 design item 11; Corey 2026-10-16: "1. Yes" to the cheap lift
+// as an interim) ---------------------------------------------------------------------------------------------------
+// In SUPER (night) and EPIC (fire) his own sheets are composited dark (creatureSpec: night + 0.70 x fire, and night +
+// 1.00 x fire x (1, 0.7, 0.5)) and read as a brown silhouette against the night courtyard. Nothing in the code darkens
+// him further (the scene's foreTint and dim never reach his body node), so the lift is LIGHT ADDED, not a tint taken
+// away: one additive copy of the frame on show (game/creature.ts `lift`) at `add` x that look's share of the crossfade,
+// tinted `tint`. A pixel of colour c becomes c x (1 + add x tint): one brightness step that keeps his own contrast and
+// colours, nothing outside his outline. The day look gets none. INTERIM: the Rig is re-rendering the night and fire
+// sheets with a proper rim light; set both `add` to 0 when they land.
+export const CREATURE_LIFT = {
+	super: { add: 0.35, tint: 0xd8e2ff },
+	epic: { add: 0.3, tint: 0xffe2c8 },
+} as const;
 
 // ---- Scatter tease on a Mystery reveal (RULE_PASS_2 section D) -----------------------------------
 // Angry Mantis's Anticipation.svelte, adapted from five spinning reels to an 8x8 drop: an
