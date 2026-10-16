@@ -1096,6 +1096,95 @@ export const STINGER_PLAQUE = {
 	blink: { gapMinMs: 2400, gapMaxMs: 6200, doubleChance: 0.2, doubleGapMs: 300, afterFlareMs: 850 },
 } as const;
 
+// ---- THE PLAQUE'S TEXT, r1 (2026-10-16; design review 2026-10-15 item 3, Corey yes) ------------------------------
+// The title and the amount the win plaque, the feature intro and the wrap up draw, OVER the layout stinger.json carries
+// (which the stinger build writes and this does not touch). All sizes are SHIP px of the 946 x 532 plaque frame; the
+// `cy` values are shares of the panel's height (222 ship px), as in stinger.json.
+//   look      the title treatment (game/stinger/bigTitle.ts): 0 the shipped polished gold, 1 rim (the shipped image
+//             with a dark ring and a white lift, no new texture), 2 forge, 3 molten (the bright bakes,
+//             tools/build_bigwin_titles.py). ?bwtitle=0..3 overrides it on the dev server and a staging build.
+//   win       the win screen: title cap and centre, the amount's em size (stinger.json had 64: +34 %) and centre, and
+//             the widest either may draw (a longer amount shrinks to it, fitted once to the count's final string)
+//   wrap      the wrap up (TOTAL WIN): the same, its amount 56 -> 75 (+34 %); the line under it is unchanged
+//   intro     the feature intro: the title (smaller than the win's, in its mode's colour) between two mode emblems
+//             (the Armoury's own art: War Standard, dagger, crown), each `emblem.h` tall at `emblem.x` from the panel
+//             centre, `emblem.tilt` radians leaning in, mirrored on the left
+//   rim       look 1 only: `steps` dark copies (colour `color`) in a ring `px` (at a 50 px cap) around the title, the
+//             ring dropped by dropShare of px (a shadow), and an additive copy at liftAlpha over the face
+//   modeTint  look 1 only: the multiply on the gold intro titles (looks 2 and 3 bake the mode colours)
+export const BIG_TITLE = {
+	look: 2 as 0 | 1 | 2 | 3,
+	win: { titleCap: 54, titleCy: 0.29, titleMax: 540, amountPx: 86, amountCy: 0.73, amountMax: 540 },
+	wrap: { titleCap: 42, titleCy: 0.19, titleMax: 520, amountPx: 75, amountCy: 0.53, amountMax: 540 },
+	intro: { titleCap: 34, titleCy: 0.18, titleMax: 450, emblem: { h: 72, x: 268, cy: 0.16, tilt: 0.12 } },
+	rim: { steps: 8, px: 3, color: 0x120904, dropShare: 0.5, liftAlpha: 0.45 },
+	modeTint: { bonus: 0x8ff0e4, super: 0xa8c8ff, epic: 0xff9a80 },
+} as const;
+
+// ---- THE PLAQUE'S TIER ESCALATION, r1 (2026-10-16; review item 3: "BIG: embers; SUPER: + coin spill; MEGA: + light rays
+// behind; EPIC: + creature roar and the fire set") -----------------------------------------------------------------
+// Overlays AROUND the plaque (game/stinger/escalation.ts), on the win screen and the wrap up, each tier adding to the
+// one below; the plaque's own flares, veins, barbs, eyes and embers are unchanged. Ship px of the plaque frame, origin
+// the panel centre, + y down; seconds unless a name says Ms. Real time at every turbo level, like the plaque.
+// Index [tier] runs big, super, mega, epic (max uses epic's).
+//   embers  (BIG and up) sparks rising up the plaque's side pillars and beyond, OVER the plaque but never over its text
+//           panel (|x| from area[0] to area[1], y from area[2] to area[3]), the plaque's own ember sprites (fx atlas, 8
+//           ship px) at size[0..1] x that, additive: `rate[tier]` per second, each living life[0..1] s, rising
+//           rise[0..1] px/s with a sideways sway of sway px; tint `hot[tier]`. A landing sends `burst[tier]` at once.
+//           The pool is the most alive at once.
+//   coins   (SUPER and up) the Wild's gold medallion (W.png, the board's own atlas, already resident) thrown out from
+//           behind the plaque's side pillars (|x| spawnX[0..1], y spawnY[0..1]): `burst[tier]` at the landing, then
+//           `trickle[tier]` per second while the screen is up. Thrown at speed[0..1] px/s leaning outward lean[0..1]
+//           radians off straight up, falling at gravity px/s^2, size[0..1] px wide, turning like a thrown coin (flip
+//           turns/s, the width follows its cosine, never under minTurn); gone below killY or after life s (fading
+//           over the last fadeS)
+//   rays    (MEGA and up) `count` light wedges (game/beamTexture.ts, the tease's searchlight texture, made once and
+//           shared) fanned around the panel centre behind the plaque, `len` long and `width` wide at their far end,
+//           turning at spin rad/s; alpha `alpha[tier]` faded in over inMs; tint `tint[tier]` (EPIC's is fire)
+//   epic    (EPIC, on a win whose count stops there: a Max win's own screen roars on its slam) the creature roars (his
+//           roar clip and sfx_roar, as the book's roar plays them) roarDelayMs after the landing, and the courtyard's
+//           braziers burn the Epic fire clip until the plaque leaves (game/scene.ts flames, a cut under the landing's
+//           kick: the scene has no crossfade for a forced clip)
+export const PLAQUE_ESCALATION = {
+	embers: {
+		pool: 64,
+		rate: [14, 20, 28, 38],
+		burst: [10, 14, 18, 26],
+		life: [1.4, 2.6],
+		rise: [70, 190],
+		sway: 14,
+		size: [2.6, 5.2],
+		area: [300, 560, -60, 320],
+		hot: [0xffb050, 0xffa040, 0xff8a30, 0xff5a1e],
+	},
+	coins: {
+		pool: 48,
+		burst: [0, 18, 26, 34],
+		trickle: [0, 3, 5, 7],
+		speed: [420, 860],
+		lean: [0.12, 0.7],
+		gravity: 1700,
+		size: [34, 58],
+		flip: [0.8, 2.2],
+		minTurn: 0.16,
+		spawnY: [-60, 140],
+		spawnX: [330, 440],
+		killY: 1100,
+		life: 2.8,
+		fadeS: 0.3,
+	},
+	rays: {
+		count: 12,
+		len: 1400,
+		width: 170,
+		spin: 0.1,
+		alpha: [0, 0, 0.4, 0.5],
+		inMs: 450,
+		tint: [0xffc050, 0xffc050, 0xffc050, 0xff7030],
+	},
+	epic: { roarDelayMs: 120 },
+} as const;
+
 // ---- THE FOREGROUND KICK (Corey 2026-10-12: "Probably the entire foreground but not the background should kick.") ----
 // On every board kick (the claw swipe's, the roar's, the win plaque's impact and tier ups) the courtyard's FOREGROUND
 // is shoved by the SAME offset as the board, on the same frame: floor, columns, pedestals, braziers, the fire light

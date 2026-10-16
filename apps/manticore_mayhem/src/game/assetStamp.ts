@@ -321,6 +321,14 @@ export default {
 	"ui/armoury/turn-dagger.webp": "706f0671",
 	"ui/armoury/turn-seal.webp": "b6fb03f2",
 	"ui/armoury/turn-standard.webp": "9a3b1317",
+	"ui/bigwin/bigwin-titles-forge-half.json": "99d45a03",
+	"ui/bigwin/bigwin-titles-forge-half.webp": "f4baa185",
+	"ui/bigwin/bigwin-titles-forge.json": "67d31e02",
+	"ui/bigwin/bigwin-titles-forge.webp": "016c05f1",
+	"ui/bigwin/bigwin-titles-molten-half.json": "b63c7708",
+	"ui/bigwin/bigwin-titles-molten-half.webp": "1aef65ed",
+	"ui/bigwin/bigwin-titles-molten.json": "2d0cf467",
+	"ui/bigwin/bigwin-titles-molten.webp": "cda59fd9",
 	"ui/board-backdrop.webp": "cec3c215",
 	"ui/board-chain-tile-landscape.webp": "2fc4d384",
 	"ui/board-chain-tile-phone.webp": "483ff20e",
@@ -429,7 +437,7 @@ export default {
 	"ui/stinger/stinger-titles-half.webp": "d24589c8",
 	"ui/stinger/stinger-titles.json": "12b37819",
 	"ui/stinger/stinger-titles.webp": "73bc3abe",
-	"ui/stinger/stinger.json": "cf4eedce"
+	"ui/stinger/stinger.json": "359bf49b"
 } as const;
 
 // Byte size of every file under static/assets (an atlas json includes its image): game/assets.ts
@@ -755,6 +763,14 @@ export const fileBytes = {
 	"ui/armoury/turn-dagger.webp": 121946,
 	"ui/armoury/turn-seal.webp": 157902,
 	"ui/armoury/turn-standard.webp": 129112,
+	"ui/bigwin/bigwin-titles-forge-half.json": 171311,
+	"ui/bigwin/bigwin-titles-forge-half.webp": 167776,
+	"ui/bigwin/bigwin-titles-forge.json": 283560,
+	"ui/bigwin/bigwin-titles-forge.webp": 280000,
+	"ui/bigwin/bigwin-titles-molten-half.json": 172718,
+	"ui/bigwin/bigwin-titles-molten-half.webp": 169174,
+	"ui/bigwin/bigwin-titles-molten.json": 290373,
+	"ui/bigwin/bigwin-titles-molten.webp": 286800,
 	"ui/board-backdrop.webp": 17802,
 	"ui/board-chain-tile-landscape.webp": 61412,
 	"ui/board-chain-tile-phone.webp": 83998,
@@ -863,7 +879,7 @@ export const fileBytes = {
 	"ui/stinger/stinger-titles-half.webp": 162962,
 	"ui/stinger/stinger-titles.json": 278039,
 	"ui/stinger/stinger-titles.webp": 274498,
-	"ui/stinger/stinger.json": 77044
+	"ui/stinger/stinger.json": 77057
 } as const;
 
 // Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the green bar by them).

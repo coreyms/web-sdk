@@ -7,6 +7,7 @@ import type { EmitterEventMaxWinCinematic } from '../components/MaxWinCinematic.
 import type { EmitterEventSound } from '../components/Sound.svelte';
 import type { EmitterEventTransition } from '../components/Transition.svelte';
 import type { EmitterEventReplay } from '../ui/ReplayModal.svelte';
+import type { EmitterEventPlaque } from '../components/StingerPlaque.svelte';
 
 export type EmitterEventGame =
 	| EmitterEventBoard
@@ -17,4 +18,5 @@ export type EmitterEventGame =
 	| EmitterEventMaxWinCinematic
 	| EmitterEventSound
 	| EmitterEventTransition
-	| EmitterEventReplay;
+	| EmitterEventReplay
+	| EmitterEventPlaque;

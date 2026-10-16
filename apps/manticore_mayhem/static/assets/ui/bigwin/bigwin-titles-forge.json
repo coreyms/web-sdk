@@ -1,0 +1,254 @@
+{
+ "frames": {
+  "bwt_forge_win_big": {
+   "frame": {
+    "x": 4,
+    "y": 340,
+    "w": 565,
+    "h": 160
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 565,
+    "h": 160
+   },
+   "sourceSize": {
+    "w": 565,
+    "h": 160
+   }
+  },
+  "bwt_forge_win_super": {
+   "frame": {
+    "x": 4,
+    "y": 4,
+    "w": 726,
+    "h": 160
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 726,
+    "h": 160
+   },
+   "sourceSize": {
+    "w": 726,
+    "h": 160
+   }
+  },
+  "bwt_forge_win_mega": {
+   "frame": {
+    "x": 738,
+    "y": 4,
+    "w": 694,
+    "h": 160
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 694,
+    "h": 160
+   },
+   "sourceSize": {
+    "w": 694,
+    "h": 160
+   }
+  },
+  "bwt_forge_win_epic": {
+   "frame": {
+    "x": 4,
+    "y": 172,
+    "w": 627,
+    "h": 160
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 627,
+    "h": 160
+   },
+   "sourceSize": {
+    "w": 627,
+    "h": 160
+   }
+  },
+  "bwt_forge_win_max": {
+   "frame": {
+    "x": 639,
+    "y": 172,
+    "w": 607,
+    "h": 160
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 607,
+    "h": 160
+   },
+   "sourceSize": {
+    "w": 607,
+    "h": 160
+   }
+  },
+  "bwt_forge_total_win": {
+   "frame": {
+    "x": 577,
+    "y": 340,
+    "w": 546,
+    "h": 126
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 546,
+    "h": 126
+   },
+   "sourceSize": {
+    "w": 546,
+    "h": 126
+   }
+  },
+  "bwt_forge_intro_bonus": {
+   "frame": {
+    "x": 818,
+    "y": 574,
+    "w": 518,
+    "h": 103
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 518,
+    "h": 103
+   },
+   "sourceSize": {
+    "w": 518,
+    "h": 103
+   }
+  },
+  "bwt_forge_intro_super": {
+   "frame": {
+    "x": 4,
+    "y": 508,
+    "w": 806,
+    "h": 103
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 806,
+    "h": 103
+   },
+   "sourceSize": {
+    "w": 806,
+    "h": 103
+   }
+  },
+  "bwt_forge_intro_epic": {
+   "frame": {
+    "x": 4,
+    "y": 619,
+    "w": 751,
+    "h": 103
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 751,
+    "h": 103
+   },
+   "sourceSize": {
+    "w": 751,
+    "h": 103
+   }
+  },
+  "bwt_forge_emblem_bonus": {
+   "frame": {
+    "x": 1131,
+    "y": 440,
+    "w": 121,
+    "h": 126
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 126
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 126
+   }
+  },
+  "bwt_forge_emblem_super": {
+   "frame": {
+    "x": 1254,
+    "y": 172,
+    "w": 142,
+    "h": 126
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 142,
+    "h": 126
+   },
+   "sourceSize": {
+    "w": 142,
+    "h": 126
+   }
+  },
+  "bwt_forge_emblem_epic": {
+   "frame": {
+    "x": 1254,
+    "y": 306,
+    "w": 136,
+    "h": 126
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 136,
+    "h": 126
+   },
+   "sourceSize": {
+    "w": 136,
+    "h": 126
+   }
+  }
+ },
+ "meta": {
+  "image": "bigwin-titles-forge.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 1440,
+   "h": 726
+  },
+  "scale": "1",
+  "pngHash": "016c05f1"
+ }
+}

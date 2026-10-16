@@ -314,6 +314,19 @@
 	// the board's beats and the handlers' look-ahead: he follows, nothing waits for him
 	context.eventEmitter.subscribeOnMount({
 		featureBeat: ({ beat }) => creature.beat(beat),
+		// THE EPIC FIRE SET (constants PLAQUE_ESCALATION.epic, components/StingerPlaque.svelte): an Epic win's plaque has
+		// the braziers burn the Epic clip until it leaves. A cut (the scene has no crossfade for a forced clip), made
+		// under the landing's kick; never when the Epic sheet is not in (the mode's own clip stays)
+		plaqueFire: ({ on }) => {
+			for (const layout of LAYOUTS) {
+				const flames = views[layout].flames;
+				if (!flames) continue;
+				const want = on && flames.ready('epic') ? 'epic' : null;
+				if (flames.forced === want) continue;
+				flames.forced = want;
+				views[layout].refreshFlames();
+			}
+		},
 		stingBeat: ({ phase, kind, more }) => creature.stingBeat(phase, kind, !!more),
 		creatureCue: ({ what, inMs, kind }) => {
 			if (what === 'swipe') creature.cueSwipe(inMs);

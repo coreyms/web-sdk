@@ -44,6 +44,10 @@
 
 	/** set while the plaque component is mounted */
 	export const stingerPlaque: { flow: StingerPlaqueFlow | null } = { flow: null };
+
+	/** THE EPIC FIRE SET (PLAQUE_ESCALATION.epic): the courtyard's braziers burn the Epic clip while an Epic win's plaque
+	 *  is up (components/Background.svelte); off again once the plaque has gone */
+	export type EmitterEventPlaque = { type: 'plaqueFire'; on: boolean };
 </script>
 
 <script lang="ts">
@@ -77,7 +81,8 @@
 	import { STINGER_DATA_URLS } from '../game/assets';
 	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 
-	import { STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP } from '../game/constants';
+	import { MAX_WIN, PLAQUE_ESCALATION, STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP } from '../game/constants';
+	import { beamTexture } from '../game/beamTexture';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { boardKick, chainGust } from '../game/featureFx';
 	import { layoutKind } from '../game/layoutSpec';
@@ -114,7 +119,8 @@
 		const app = context.stateApp.pixiApplication;
 		const atlas = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 		if (built || !data || !app || !atlas?.stg_body) return; // its five atlases publish together, ahead of the symbol sheets (game/deferredLoad.ts)
-		view.build(data, atlas);
+		// the escalation's coins are the board's own Wild medallion (resident with the symbols), its rays the tease's beam
+		view.build(data, atlas, Math.random, { coin: atlas[MAX_WIN.rain.texture] ?? null, beam: beamTexture() });
 		const renderer = app.renderer as PIXI.Renderer;
 		// MIPMAPS (game/mipmaps.ts), decided per asset tier (the sharpness pass, 2026-10-08; the numbers are in
 		// tools/manticore/README.md, measured by stinger_flow_probe.js SHARP=1 + stinger_sharpness.py):
@@ -134,14 +140,15 @@
 		// Never the glint slices: soft highlights at 1x.
 		const src = view.sources(atlas);
 		const mode = mipMode();
-		const chained = mode === 'off' || (PHONE_TIER && mode === 'auto') ? [] : [src.plaque, src.fx, src.titles, src.glyphs];
+		const chained = mode === 'off' || (PHONE_TIER && mode === 'auto') ? [] : [src.plaque, src.fx, src.titles, src.glyphs, src.big];
 		const nearest = mode === 'near' || (mode === 'auto' && !PHONE_TIER && renderer.resolution >= RENDER_RESOLUTION_CAP.desktop);
 		for (const source of chained) {
 			enableMipmaps(source, renderer);
 			if (source && nearest) source.mipmapFilter = 'nearest';
 		}
 		mips = `${mode}${nearest && mode === 'auto' ? '-near' : ''}:${chained.filter(Boolean).length}`;
-		void renderer.prepare?.upload(Object.values(src).filter((x): x is PIXI.TextureSource => !!x));
+		// (+ the escalation's ray wedge, a canvas texture made once: up with the atlases, never on the first Mega)
+		void renderer.prepare?.upload([...Object.values(src), beamTexture().source].filter((x): x is PIXI.TextureSource => !!x));
 		built = true;
 		if (STAGING_TOOLS) perfMark('plaque:built');
 	});
@@ -186,7 +193,7 @@
 	let gone: (() => void)[] = [];
 
 	// DEV: every beat with its wall clock stamp and its place on the count (the flow probe's pacing checks)
-	type Beat = { type: 'show' | 'impact' | 'countStart' | 'tier' | 'countEnd' | 'hide' | 'gone'; at: number; screen: string; tier?: string; el?: number; amount?: number; skipped?: boolean };
+	type Beat = { type: 'show' | 'impact' | 'countStart' | 'tier' | 'countEnd' | 'hide' | 'gone' | 'roar'; at: number; screen: string; tier?: string; el?: number; amount?: number; skipped?: boolean };
 	const beats: Beat[] = [];
 	const log = (b: Omit<Beat, 'at' | 'screen'>) => {
 		if (STAGING_TOOLS) perfMark(`plaque:${b.type}`);
@@ -264,6 +271,9 @@
 			// THE MAX WIN SCREEN'S CLOCK (game/maxWin.svelte.ts): the top tier landing starts bgm_maxwin and the screen,
 			// when the book's `wincap` has armed it (a press that lands the count early lands it here too)
 			if (index === STINGER_TIERS.length - 1) maxWinTierLanded();
+			// THE EPIC STEP (PLAQUE_ESCALATION.epic): a win whose count STOPS at Epic gets the creature's roar and the
+			// Epic braziers on that landing (a Max win roars on its own screen's slam, game/maxWin.svelte.ts)
+			if (index === EPIC && c.cap === EPIC && view.screen === 'win' && view.escalate && !context.stateGame.skipping) epicStep();
 		}
 		view.setAmountText(format(amount, c.target), c.fit);
 		if (!ended) return;
@@ -271,6 +281,26 @@
 		count = null;
 		log({ type: 'countEnd', tier: STINGER_TIERS[c.shown], el, amount, skipped: c.skipped });
 		c.done();
+	};
+
+	const EPIC = STINGER_TIERS.indexOf('epic');
+	let fireOn = false;
+	const fire = (on: boolean) => {
+		if (on === fireOn) return;
+		fireOn = on;
+		context.eventEmitter.broadcast({ type: 'plaqueFire', on });
+	};
+	const epicStep = () => {
+		fire(true);
+		const at = view.clock + PLAQUE_ESCALATION.epic.roarDelayMs / 1000;
+		const mine = screenNo;
+		// a superseded or ended screen releases the wait early: no roar then
+		void until(at).then(() => {
+			if (mine !== screenNo || !ticking || view.phase === 'exit' || view.clock < at || context.stateGame.skipping) return;
+			context.eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar', forcePlay: true });
+			log({ type: 'roar' });
+		});
 	};
 
 	const tick = (ticker: PIXI.Ticker) => {
@@ -321,6 +351,7 @@
 		ticking = false;
 		context.stateApp.pixiApplication?.ticker.remove(tick);
 		endKick();
+		fire(false);
 		release();
 		const g = gone;
 		gone = [];
@@ -328,8 +359,12 @@
 		log({ type: 'gone' });
 	};
 
+	/** counts the screens shown (a parked roar belongs to one) */
+	let screenNo = 0;
 	const begin = (o: StingerShow, sound: number) => {
 		release();
+		screenNo += 1;
+		fire(false);
 		view.show(o);
 		landSound = sound;
 		log({ type: 'show', tier: o.tier });

@@ -3,6 +3,7 @@ import stamps, { fileBytes } from './assetStamp';
 import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
+import { bakedLook, titleVariant } from './stinger/bigTitle';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
 // waits for that worker's first message with no error path. Behind a CSP whose worker-src has no
@@ -438,6 +439,17 @@ const assets = {
 		),
 		preload: false,
 	},
+	// THE PLAQUE'S BRIGHT TITLES AND MODE EMBLEMS (r1 2026-10-16, tools/build_bigwin_titles.py, game/stinger/bigTitle.ts):
+	// the page's look only (BIG_TITLE.look; ?bwtitle=3 loads the molten bake instead). Its key starts with `stinger`, so
+	// it rides the plaque's own deferred group, all or nothing with the five atlases above.
+	stingerBigTitles: {
+		type: 'sprites',
+		src:
+			bakedLook() === 'molten'
+				? tiered(stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten.json', import.meta.url).href), stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten-half.json', import.meta.url).href))
+				: tiered(stamp(new URL('../../assets/ui/bigwin/bigwin-titles-forge.json', import.meta.url).href), stamp(new URL('../../assets/ui/bigwin/bigwin-titles-forge-half.json', import.meta.url).href)),
+		preload: false,
+	},
 	// THE CANVAS LOGO (components/Logo.svelte, tools/build_logo_assets.py): one atlas with the wings, the letters,
 	// both shadows and the 18 glint slices. Desktop tier only (the phone tier's logo is the chrome's <img>: the
 	// entry is removed below). Never gates the landing screen: it starts when the preload ends (game/deferredLoad.ts
@@ -474,6 +486,9 @@ export const LOGO_DATA_URLS = {
 };
 // the phone tier never draws the canvas logo: nothing downloads or decodes its atlas there
 if (PHONE_TIER) delete (assets as unknown as Record<string, unknown>).logoAtlas;
+// the bright titles (looks 2 and 3, game/stinger/bigTitle.ts) replace every one of the plaque's own baked titles: their
+// atlas is not loaded then (full tier 268 KB / 3.78 MB on the GPU with mips, phone 159 KB / 1.73 MB)
+if (titleVariant() >= 2) delete (assets as unknown as Record<string, unknown>).stingerTitles;
 
 // Every asset carries its download size (scripts/stamp-assets.mjs fileBytes) so pixi-svelte's
 // AssetsLoader can weight the preload's progress by bytes rather than by file count.
