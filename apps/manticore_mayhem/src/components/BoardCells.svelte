@@ -74,6 +74,8 @@
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
 	import { boardExit, boardExitPressing, plateGhosts, type Cell } from '../game/stateGame.svelte';
 	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP, FALL_CUT } from '../game/constants';
+	import { createWells } from '../game/wells';
+	import { cueWellTile } from '../game/wellsFx';
 	const ANTICIPATION_TEASE_PULSE = ANTICIPATION_TEASE.landedPulse;
 
 	const context = getContext();
@@ -129,6 +131,8 @@
 
 	const assets = () => context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 	const rendererOf = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
+	// THE BOARD WELLS and their reactive veins (game/wells.ts, constants WELLS / WELLS_FX): in the frame's plate slot
+	const wells = createWells(rendererOf);
 
 	/** blend white towards a flash colour by `k` — cheaper than a filter and batches with the rest */
 	const lerpTint = (color: number, k: number) => {
@@ -959,6 +963,7 @@
 		// the tiles' layer into the frame's plate slot (BoardFrame mounts first; this is a no-op once there)
 		const slotNow = boardPlateSlot.current;
 		if (slotNow && plateLayer.parent !== slotNow) slotNow.addChild(plateLayer);
+		wells.mount(slotNow);
 		covered.fill(0);
 		coverDim.fill(1);
 		const tex = assets();
@@ -983,6 +988,8 @@
 		}
 		motionLog.glowInUse = glowing;
 		if (glowing > motionLog.glowPeak) motionLog.glowPeak = glowing;
+		// THE WELLS: the light and the dim on the wells, the light-up cues (game/wellsFx.ts), the flares, the board power
+		wells.tick(now, { tex, tiles: stateGame.tiles, cover: coverDim, skipping: stateGame.skipping, freegame: stateGame.gameType === 'freegame' });
 		syncPlates(tex);
 		tickSparkles(now);
 		if (uploadQueue === null || uploadQueue.length) warmSheets(tex);
@@ -993,6 +1000,7 @@
 		op = openingsFor(layoutK, viewW);
 		setCutLines(layoutK, viewW);
 		relayoutPlates();
+		wells.place(op);
 	});
 
 	sync();
@@ -1001,6 +1009,52 @@
 		// drawn is the frame the board engine just wrote
 		const ticker = context.stateApp.pixiApplication?.ticker;
 		ticker?.add(sync, undefined, PIXI.UPDATE_PRIORITY.HIGH);
+		if (import.meta.env.DEV) {
+			// THE WELLS' DEV hook (tools/manticore probes, the wells_r1 / r2 captures): show / hide, read the state and the
+			// cost, a flare by hand, and STAGE a look for a still
+			// (the scene's mode and lit tiles written straight into the state; a capture aid, never a real round)
+			const sg = context.stateGame as any;
+			(((window as any).__manticore ??= {}) as any).wells = {
+				show: (on: boolean) => wells.show(on),
+				state: () => wells.state(),
+				flare: (cell: number, kind: 'light' | 'double' | 'win' | 'swipe' | 'sting', delayMs?: number) => wells.flare(cell, kind, delayMs),
+				cost: () => wells.cost(),
+				log: () => wells.log(),
+				stage: (o: { mode?: 'base' | 'bonus' | 'super' | 'epic'; tiles?: Record<number, number>; animate?: boolean }) => {
+					if (o.mode) {
+						sg.gameType = o.mode === 'base' ? 'basegame' : 'freegame';
+						sg.bonusMode = o.mode === 'base' ? null : o.mode;
+					}
+					if (o.tiles && o.animate) {
+						// a staged count-over per listed cell (old value -> new), the plate's own look, cueing the wells as the
+						// plate job does
+						const t0 = performance.now();
+						const cellsOn = Object.entries(o.tiles).map(([k, v]) => [Number(k), v] as const);
+						for (const [k, v] of cellsOn) {
+							const t = sg.tiles[k];
+							cueWellTile(k, t.value, v, 1);
+							t.from = t.value;
+							t.value = v;
+							t.chg = 0;
+							t.pop = 0;
+						}
+						const step = () => {
+							const u = Math.min(1, (performance.now() - t0) / 600);
+							for (const [k] of cellsOn) {
+								sg.tiles[k].chg = u;
+								sg.tiles[k].pop = Math.min(1, u * 10);
+							}
+							if (u < 1) requestAnimationFrame(step);
+						};
+						requestAnimationFrame(step);
+					} else if (o.tiles) {
+						const next = sg.tiles.map(() => ({ value: 0, scale: 1, from: 0, chg: 1, pop: 1 }));
+						for (const [k, v] of Object.entries(o.tiles)) next[Number(k)] = { value: v, scale: 1, from: v, chg: 1, pop: 1 };
+						sg.tiles = next;
+					}
+				},
+			};
+		}
 		if (import.meta.env.DEV) {
 			// SHEETS probe (tools/manticore/sheet_probe.js): which symbols' sheets are parsed, and per
 			// live cell its clip mode, frame index within that clip, clip clock and texture size

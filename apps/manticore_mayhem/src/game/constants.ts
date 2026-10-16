@@ -822,9 +822,60 @@ export const CHAIN_GUST = {
 } as const;
 
 /** the flat backing behind the cell wells and the tiles, under the board kick: covers the frame's
- *  inner opening (the cell area plus the inset). A texture replaces the colour when Corey has the
- *  asset (BoardFrame.svelte draws it). */
+ *  inner opening (the cell area plus the inset). The wells (WELLS) are drawn over it; it is what shows in the
+ *  frame's inset round the cells and for the moment before the wells' atlas is in (BoardFrame.svelte draws it). */
 export const BOARD_BACKING = { color: 0x000000 };
+
+/** THE BOARD WELLS (Corey 2026-10-16 16:40 "Well backgrounds look good": option D of feedback/wells_r1 and r2).
+ *  Black marble cut from the Big Win plaque's own slab, with continuous dull gold veins (tools/build_board_wells.py):
+ *  four 256 px variants 2 x 2 in one 512 atlas (ui/board-wells.webp; the phone tier's half atlas has 128 px cells),
+ *  one sprite per cell on the cell's whole box (bar centre line to bar centre line, symbolPlace.ts op.box), over
+ *  BOARD_BACKING and under the multiplier tiles and the frame (game/wells.ts). Each cell takes a variant and one of
+ *  the 8 turns from a fixed table (`seed`; no two edge neighbours share a variant), so the 64 cells never look
+ *  stamped. A well darkens with the symbol on it while a win set is up (the dim rule's factor, as the tiles do):
+ *  without it the dimmed symbols lose their black surround and the win reads muddier. */
+export const WELLS = {
+	variants: 4,
+	cellPx: 256,
+	cellPxPhone: 128,
+	seed: 0x5eed,
+	dimWithBoard: true,
+};
+
+/** THE REACTIVE VEINS (wells_r2, Corey 2026-10-16 15:25 + 15:27 "Yes", approved 16:40). The stinger plaque's own
+ *  vein rule (images/ui/model/stinger_vein_fx.json): per cell ONE static additive sprite of the well's own veins
+ *  (ui/board-wells-glow.webp: greyscale, brightness = intensity, bloom baked; additive, so its black adds nothing),
+ *  drawn over the multiplier tiles (a lit tile is nearly opaque) and under the frame and the symbols; the game moves
+ *  only its alpha and tint. One flare = in (sine) over `inMs`, held `holdMs`, out over `outMs` ((1 - u)^1.6);
+ *  overlapping flares on a cell take the strongest. Times are STYLE ms (divided by the turbo scale of the beat).
+ *  Presentation only: the beats' own call sites cue them (game/wellsFx.ts), nothing waits on them, none while skipping.
+ *    light / double  a multiplier lights (0 -> x2) or steps up under the cell, as the plate's count-over starts
+ *    win             a paying cluster, as its pulse starts: a ripple from its first cell (the book's order) outward
+ *    swipe           the swiped rows, right to left like the tears, over sweepMs
+ *    sting           the struck cell at the hit, then outward ring by ring (reach, falloff per ring); not scatters
+ *    power           free spins only: every vein rests at a glow that rises with the board's total tile value
+ *                    (log scale from refValue, full at fullValue, capped at `cap`), eased over riseMs, with a slow
+ *                    shimmer (each cell its own phase) so the board breathes rather than sits lit
+ *  The wells (not the glow) take the scene's night and fire: night x `night` per channel times the mode's foreTint,
+ *  and the fire's warmth by fire x night. cueMax / cueMaxAgeMs: the cue queue's bound and the age past which a cue
+ *  that was never read (a hidden tab) is dropped instead of played late. */
+export const WELLS_FX = {
+	tint: { light: 0xffa63c, double: 0xffc860, win: 0xffb852, swipe: 0xff6a24, sting: 0xff8a2e, power: 0xff9a3a },
+	light: { peak: 0.85, inMs: 380, holdMs: 120, outMs: 900 },
+	double: { peak: 1, inMs: 420, holdMs: 180, outMs: 1100 },
+	win: { peak: 0.8, inMs: 170, holdMs: 260, outMs: 700, stepMs: 55 },
+	swipe: { peak: 0.9, inMs: 110, holdMs: 220, outMs: 800, sweepMs: 240 },
+	sting: { peak: 0.95, inMs: 110, holdMs: 120, outMs: 800, stepMs: 70, reach: 2, falloff: 0.55 },
+	power: { cap: 0.34, refValue: 8, fullValue: 2048, riseMs: 2200, fallMs: 900, shimmer: 0.35, periodMs: 3500 },
+	night: [0.6, 0.64, 0.82] as [number, number, number],
+	fireWarm: [1, 0.85, 0.72] as [number, number, number],
+	/** below this a glow sprite is hidden (not drawn at all) */
+	epsilon: 0.004,
+	/** the flare pool's size (each a plain object, reused) */
+	pool: 256,
+	cueMax: 64,
+	cueMaxAgeMs: 1500,
+};
 
 // ---- The sting (RULE_PASS_2 section F) ----------------------------------------------------------
 // Four kinds, one presentation each, all driven by the book's `kind`:
