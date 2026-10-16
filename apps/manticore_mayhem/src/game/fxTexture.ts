@@ -69,3 +69,97 @@ export const innerGlowTexture = (): PIXI.Texture => {
 	innerGlow = PIXI.Texture.from(c);
 	return innerGlow;
 };
+
+// ---- THE WIN EFFECT (constants WIN_FX, 2026-10-16): three more baked textures, white with alpha so the tint colours
+// them, built once on first use (BoardCells builds them at mount). No per-frame texture, no filter.
+
+/** the burst's rays: `RAY_COUNT` soft tapered rays of two lengths round a faint centre, 128 px across */
+let rays: PIXI.Texture | null = null;
+export const RAYS_PX = 128;
+const RAY_COUNT = 12;
+export const raysTexture = (): PIXI.Texture => {
+	if (rays) return rays;
+	const c = document.createElement('canvas');
+	c.width = RAYS_PX;
+	c.height = RAYS_PX;
+	const ctx = c.getContext('2d')!;
+	const r = RAYS_PX / 2;
+	ctx.translate(r, r);
+	ctx.globalCompositeOperation = 'lighter';
+	for (let i = 0; i < RAY_COUNT; i += 1) {
+		// long and short rays alternate; each a thin wedge fading out along its length
+		const len = (i % 2 ? 0.62 : 0.98) * r;
+		const half = (i % 2 ? 0.05 : 0.07) * Math.PI;
+		ctx.save();
+		ctx.rotate((i / RAY_COUNT) * Math.PI * 2);
+		const g = ctx.createLinearGradient(0, 0, len, 0);
+		g.addColorStop(0, 'rgba(255,255,255,0.75)');
+		g.addColorStop(0.5, 'rgba(255,255,255,0.35)');
+		g.addColorStop(1, 'rgba(255,255,255,0)');
+		ctx.fillStyle = g;
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.lineTo(len * Math.cos(half), len * Math.sin(half));
+		ctx.lineTo(len, 0);
+		ctx.lineTo(len * Math.cos(half), -len * Math.sin(half));
+		ctx.closePath();
+		ctx.fill();
+		ctx.restore();
+	}
+	// a faint halo the rays grow out of
+	const h = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.55);
+	h.addColorStop(0, 'rgba(255,255,255,0.45)');
+	h.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = h;
+	ctx.fillRect(-r, -r, RAYS_PX, RAYS_PX);
+	rays = PIXI.Texture.from(c);
+	return rays;
+};
+
+/** the soft round glow at the heart of the burst (the brief: "no white square, a soft round glow at most"): a smooth
+ *  falloff to nothing at the edge, 64 px across */
+let core: PIXI.Texture | null = null;
+export const CORE_PX = 64;
+export const coreTexture = (): PIXI.Texture => {
+	if (core) return core;
+	const c = document.createElement('canvas');
+	c.width = CORE_PX;
+	c.height = CORE_PX;
+	const ctx = c.getContext('2d')!;
+	const r = CORE_PX / 2;
+	const g = ctx.createRadialGradient(r, r, 0, r, r, r);
+	g.addColorStop(0, 'rgba(255,255,255,1)');
+	g.addColorStop(0.25, 'rgba(255,255,255,0.7)');
+	g.addColorStop(0.6, 'rgba(255,255,255,0.2)');
+	g.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = g;
+	ctx.fillRect(0, 0, CORE_PX, CORE_PX);
+	core = PIXI.Texture.from(c);
+	return core;
+};
+
+/** an ember: a streak twice as long as it is tall, a hot centre and a soft edge, EMBER_W x EMBER_H px; drawn turned
+ *  along its path (the long axis is x) */
+let ember: PIXI.Texture | null = null;
+export const EMBER_W = 32;
+export const EMBER_H = 16;
+export const emberTexture = (): PIXI.Texture => {
+	if (ember) return ember;
+	const c = document.createElement('canvas');
+	c.width = EMBER_W;
+	c.height = EMBER_H;
+	const ctx = c.getContext('2d')!;
+	ctx.translate(EMBER_W / 2, EMBER_H / 2);
+	ctx.scale(EMBER_W / EMBER_H, 1);
+	const r = EMBER_H / 2;
+	const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+	g.addColorStop(0, 'rgba(255,255,255,1)');
+	g.addColorStop(0.35, 'rgba(255,255,255,0.85)');
+	g.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = g;
+	ctx.beginPath();
+	ctx.arc(0, 0, r, 0, Math.PI * 2);
+	ctx.fill();
+	ember = PIXI.Texture.from(c);
+	return ember;
+};

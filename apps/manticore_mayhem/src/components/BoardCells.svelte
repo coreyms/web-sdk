@@ -34,6 +34,10 @@
 	//     texture, additive, tinted the cleared tile's colour, driven from game/sparkles.ts bursts
 	//     (a fresh seeded pattern per burst; dead dots are zeroed, never removed)
 	//   · the CELL FLASH: 64 fixed white additive squares, one per cellIndex, that flash at a burst
+	// (the sparkles and the flash are the 'old' win look, DEV ?winfx=old). THE WIN EFFECT (WIN_FX, 2026-10-16, the
+	// default) replaces them with three pooled layers of its own, below: the SHINE (the symbol's frame in strips, one
+	// additive layer over the tiles), the BURST (a ray sprite and a soft round glow per popping cell) and the EMBERS
+	// (one ParticleContainer of streaks), all driven from game/winFx.ts.
 	//
 	// SYMBOL SHEETS (tools/SYMBOL_SHEETS.md): once the deferred drop / idle sheets are in, a cell
 	// plays its symbol's drop sheet from the landing contact (Cell.landAt, stamped by the engine) at
@@ -69,11 +73,12 @@
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
 	import { PLATE_GLYPHS, PLATE_GLYPH_PREFIX, PLATE_GLYPH_MIDDLE, PLATE_KERN } from '../game/plateGlyphs';
 	import { PHONE_TIER } from '../game/deviceTier';
-	import { dotTexture, glowTexture, innerGlowTexture, DOT_PX, GLOW_PX } from '../game/fxTexture';
+	import { dotTexture, glowTexture, innerGlowTexture, DOT_PX, GLOW_PX, raysTexture, coreTexture, emberTexture, RAYS_PX, CORE_PX, EMBER_W } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
+	import { winFx, shineCells, takeWinBursts, winFxStats, type ShineCell, type WinBurst } from '../game/winFx';
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
 	import { boardExit, boardExitPressing, plateGhosts, type Cell } from '../game/stateGame.svelte';
-	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP, FALL_CUT } from '../game/constants';
+	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP, FALL_CUT, WIN_FX } from '../game/constants';
 	const ANTICIPATION_TEASE_PULSE = ANTICIPATION_TEASE.landedPulse;
 
 	const context = getContext();
@@ -242,6 +247,8 @@
 		k: number; pdx: number; pdy: number; top: number; fall: boolean; pop: boolean; rowZ: number;
 		/** sheet playback: mode, style ms into the clip, the last Cell.landAt seen, still in the landing beat, the frame shown */
 		mode: number; clock: number; landAt: number; landing: boolean; frame: number;
+		/** WIN_FX: the shine group this tile holds while it shines (null otherwise) */
+		sh: Shine | null;
 	};
 	const slot = (): Slot => {
 		const s = new PIXI.Sprite(PIXI.Texture.EMPTY);
@@ -257,7 +264,7 @@
 		g.zIndex = -1;
 		g.visible = false;
 		cellLayer.addChild(g);
-		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, k: 1, pdx: 0, pdy: 0, top: 0, fall: false, pop: false, rowZ: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1 };
+		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, k: 1, pdx: 0, pdy: 0, top: 0, fall: false, pop: false, rowZ: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1, sh: null };
 	};
 	const live = new Map<number, Slot>(); // cell id -> its sprite
 	const free: Slot[] = [];
@@ -365,6 +372,136 @@
 		return sheet.idle[sl.frame];
 	};
 
+	// ---- THE WIN SHINE (WIN_FX.shine): the logo's Shine on a symbol. A group per shining tile: the tile's OWN current
+	// frame (the frozen sheet frame while it wins, the atlas frame while it pops) cut into cols x rows strips, each an
+	// additive copy whose opacity is the band; the heat (the pop) is one more additive copy of the whole frame. The
+	// strips' textures are the group's own, made once with the group and only re-pointed (source + frame,
+	// Texture.update) when the tile's frame changes: no texture is ever created per frame. Groups are pooled (grown one
+	// per tick at rest up to SHINE_PREWARM, more only if a win set needs them), taken when a win set starts and given
+	// back when it ends. All of them sit in ONE additive layer just over the tiles (not interleaved with the tiles, so
+	// the strips batch together instead of breaking the tiles' batch twice per winner). NO VISIBILITY TOGGLES inside a
+	// held group: the stage is one render group and every `visible` flip rebuilds its whole instruction set, so a strip
+	// is lit and dimmed by its alpha only (0 = drawn as nothing), and the group's transform follows its tile only while
+	// it shows anything. No mask, no filter.
+	const SH_COLS = PHONE_TIER ? WIN_FX.shine.colsPhone : WIN_FX.shine.cols;
+	const SH_ROWS = PHONE_TIER ? WIN_FX.shine.rowsPhone : WIN_FX.shine.rows;
+	const SH_N = SH_COLS * SH_ROWS;
+	const SHINE_PREWARM = winFx.style === 'new' ? (PHONE_TIER ? 20 : 28) : 0;
+	const shineLayer = new PIXI.Container({ zIndex: 0.5, label: 'winShine' });
+	if (SHINE_PREWARM > 0) parent.addToParent(shineLayer);
+	type Shine = { root: PIXI.Container; full: PIXI.Sprite; strips: PIXI.Sprite[]; texs: PIXI.Texture[]; alpha: Float32Array; src: PIXI.Texture | null; lit: boolean };
+	const shinePool: Shine[] = [];
+	const shineAll: Shine[] = [];
+	let shineInUse = 0;
+	const makeShine = (): Shine => {
+		const root = new PIXI.Container({ label: 'winShine' });
+		root.visible = false;
+		const strips: PIXI.Sprite[] = [];
+		const texs: PIXI.Texture[] = [];
+		const full = new PIXI.Sprite(PIXI.Texture.EMPTY);
+		full.anchor.set(0.5);
+		full.blendMode = 'add';
+		full.tint = WIN_FX.shine.tint;
+		full.alpha = 0;
+		root.addChild(full);
+		for (let k = 0; k < SH_N; k += 1) {
+			const t = new PIXI.Texture({ source: PIXI.Texture.WHITE.source, frame: new PIXI.Rectangle(0, 0, 1, 1), dynamic: true });
+			const st = new PIXI.Sprite(t);
+			st.blendMode = 'add';
+			st.tint = WIN_FX.shine.tint;
+			st.alpha = 0;
+			root.addChild(st);
+			strips.push(st);
+			texs.push(t);
+		}
+		shineLayer.addChild(root);
+		const g = { root, full, strips, texs, alpha: new Float32Array(SH_N), src: null, lit: false };
+		shineAll.push(g);
+		winFxStats.shinePool = shineAll.length;
+		return g;
+	};
+	/** point a group's strips at `tex` (the tile's frame), laid out over its orig box about the centre (anchor 0.5) */
+	const aimShine = (g: Shine, tex: PIXI.Texture) => {
+		g.src = tex;
+		g.full.texture = tex;
+		const F = tex.frame;
+		const O = tex.orig;
+		for (let j = 0; j < SH_ROWS; j += 1) {
+			for (let i = 0; i < SH_COLS; i += 1) {
+				const k = j * SH_COLS + i;
+				const t = g.texs[k];
+				if (t.source !== tex.source) t.source = tex.source;
+				t.frame.x = F.x + (i * F.width) / SH_COLS;
+				t.frame.y = F.y + (j * F.height) / SH_ROWS;
+				t.frame.width = F.width / SH_COLS;
+				t.frame.height = F.height / SH_ROWS;
+				t.update();
+				g.strips[k].position.set(-O.width / 2 + (i * O.width) / SH_COLS, -O.height / 2 + (j * O.height) / SH_ROWS);
+			}
+		}
+	};
+	const dropShine = (sl: Slot) => {
+		const g = sl.sh;
+		if (!g) return;
+		sl.sh = null;
+		g.root.visible = false;
+		// handed back dark (every strip and the heat at 0), so the next owner starts from nothing lit
+		if (g.lit) {
+			for (let k = 0; k < SH_N; k += 1) {
+				if (g.alpha[k] !== 0) {
+					g.alpha[k] = 0;
+					g.strips[k].alpha = 0;
+				}
+			}
+			g.full.alpha = 0;
+			g.lit = false;
+		}
+		shinePool.push(g);
+		shineInUse -= 1;
+	};
+	/** draw tile `sl`'s shine this tick (`fx` from the engine, `alpha` the tile's own) */
+	const drawShine = (sl: Slot, fx: ShineCell, alpha: number) => {
+		const tex = sl.tex;
+		if (!tex || tex.rotate) return;
+		let g = sl.sh;
+		if (!g) {
+			g = shinePool.pop() ?? makeShine();
+			sl.sh = g;
+			g.root.visible = true;
+			shineInUse += 1;
+		}
+		const on = fx.a > 0 || fx.heat > 0;
+		// dark and staying dark: nothing to move or write. A group is aimed at its tile's frame only when it first
+		// lights (the sweeps start staggered, so a big win set's aims spread over several frames, not its first one)
+		if (!on && !g.lit) return;
+		if (g.src !== tex) aimShine(g, tex);
+		g.lit = on;
+		const s = sl.s;
+		g.root.position.set(s.x, s.y);
+		g.root.rotation = s.rotation;
+		g.root.scale.set(s.scale.x, s.scale.y);
+		// the heat: the whole frame once; a strip adds only what the band has over it (additive: heat + strip = band)
+		let heat = fx.heat * alpha;
+		if (heat < 0.004) heat = 0;
+		if (g.full.alpha !== heat) g.full.alpha = heat;
+		const S = WIN_FX.shine;
+		const half = S.band / 2;
+		for (let j = 0; j < SH_ROWS; j += 1) {
+			// the band leans: its centre on this row of strips
+			const centre = fx.band + S.slant * ((j + 0.5) / SH_ROWS - 0.5);
+			for (let i = 0; i < SH_COLS; i += 1) {
+				const d = Math.abs((i + 0.5) / SH_COLS - centre);
+				const band = fx.a > 0 && d < half ? fx.a * (1 - d / half) : 0;
+				let a = band > fx.heat ? (band - fx.heat) * alpha : 0;
+				if (a < 0.004) a = 0;
+				const k = j * SH_COLS + i;
+				if (g.alpha[k] === a) continue;
+				g.alpha[k] = a;
+				g.strips[k].alpha = a;
+			}
+		}
+	};
+
 	/** the symbol's place numbers into the slot (on a name change only) */
 	const placeOf = (sl: Slot, name: string) => {
 		const p = SYMBOL_PLACE.symbols[name];
@@ -435,10 +572,13 @@
 			s.y = y;
 			sl.g.y = y;
 		}
-		if (c.scaleX !== sl.sx || c.scaleY !== sl.sy) {
-			sl.sx = c.scaleX;
-			sl.sy = c.scaleY;
-			s.setSize(SIZE * sl.k * c.scaleX, SIZE * sl.k * c.scaleY);
+		// WIN_FX: the shine bus for this tile (a winner's band / heat / breath), read once
+		const fx = shineCells.size ? shineCells.get(c.id) : undefined;
+		const pulse = fx ? fx.pulse : 1;
+		if (c.scaleX * pulse !== sl.sx || c.scaleY * pulse !== sl.sy) {
+			sl.sx = c.scaleX * pulse;
+			sl.sy = c.scaleY * pulse;
+			s.setSize(SIZE * sl.k * sl.sx, SIZE * sl.k * sl.sy);
 		}
 		// THE CUT LAYER: in the air on the way in (above its row, not in its landing beat, no rattle) with its sprite
 		// over the top cut line, or on the way out (the board exit from the press on, the roar's fall) over the bottom
@@ -491,6 +631,9 @@
 			sl.g.tint = c.glowColor;
 		}
 		if (c.glow > 0) glowing += 1;
+		// WIN_FX: the shine over this tile while the engine has one for it (game/winFx.ts shineCells)
+		if (fx && !sl.fall) drawShine(sl, fx, c.alpha);
+		else if (sl.sh) dropShine(sl);
 		// the plate this cell stands on: covered while the symbol sits on it (the playground's rule: within
 		// half a row, still opaque), darkened with it
 		if (c.alpha > 0.5 && c.scaleX > 0.05) {
@@ -791,7 +934,8 @@
 
 	// ---- the sparkles: one particle container, bounded pool, zero allocation per burst ------------
 	const PER_CELL = PHONE_TIER ? SPARKLE.countPhone : SPARKLE.count;
-	const POOL = PER_CELL * SPARKLE.maxCells;
+	// (the 'old' look's dots only: WIN_FX has its own embers below)
+	const POOL = winFx.style === 'old' ? PER_CELL * SPARKLE.maxCells : 0;
 	type Dot = { p: PIXI.Particle; alive: boolean; ox: number; oy: number; a: number; sp: number; life: number; roll: number; t0: number; ms: number };
 	const sparkLayer = new PIXI.ParticleContainer({
 		zIndex: 12,
@@ -925,6 +1069,206 @@
 		if (aliveDots > sparkleStats.peak) sparkleStats.peak = aliveDots;
 	};
 
+	// ---- THE WIN BURST AND THE EMBERS (WIN_FX.burst / WIN_FX.embers), the 'new' look only. Pools sized once at
+	// mount: per burst a ray sprite and a soft round glow (one container, additive, over the tiles where the flashes
+	// were), and one particle container of embers on one baked streak texture. Zero allocation per burst. ----------
+	const NEW_FX = winFx.style === 'new';
+	const BR = WIN_FX.burst;
+	const EM = WIN_FX.embers;
+	type BurstSlot = { rays: PIXI.Sprite; core: PIXI.Sprite; on: boolean; t0: number; rl: number; cl: number; rot0: number; spin: number };
+	const burstLayer = new PIXI.Container({ zIndex: 11, label: 'winBurst' });
+	burstLayer.visible = false;
+	const burstSlots: BurstSlot[] = [];
+	const RAYS_K = SYMBOL_SIZE / RAYS_PX;
+	const CORE_K = SYMBOL_SIZE / CORE_PX;
+	const EM_PER = PHONE_TIER ? EM.countPhone : EM.count;
+	const EM_POOL = NEW_FX ? EM_PER * EM.maxCells : 0;
+	type Ember = { p: PIXI.Particle; alive: boolean; ox: number; oy: number; cx: number; cy: number; lift: number; t0: number; ms: number; roll: number; fl: number };
+	const emberLayer = new PIXI.ParticleContainer({
+		zIndex: 12,
+		visible: false,
+		texture: emberTexture(),
+		dynamicProperties: { position: true, scale: true, rotation: true, color: true },
+	});
+	emberLayer.blendMode = 'add';
+	const embers: Ember[] = [];
+	const freeEmbers: Ember[] = [];
+	if (NEW_FX) {
+		parent.addToParent(burstLayer);
+		parent.addToParent(emberLayer);
+		for (let i = 0; i < BR.maxCells; i += 1) {
+			const rays = new PIXI.Sprite(raysTexture());
+			const core = new PIXI.Sprite(coreTexture());
+			for (const sp of [rays, core]) {
+				sp.anchor.set(0.5);
+				sp.blendMode = 'add';
+				sp.alpha = 0;
+				sp.scale.set(0);
+				burstLayer.addChild(sp);
+			}
+			burstSlots.push({ rays, core, on: false, t0: 0, rl: 1, cl: 1, rot0: 0, spin: 0 });
+		}
+		for (let i = 0; i < EM_POOL; i += 1) {
+			const p = new PIXI.Particle({ texture: emberTexture(), x: 0, y: 0, scaleX: 0, scaleY: 0, anchorX: 0.5, anchorY: 0.5, alpha: 0 });
+			emberLayer.addParticle(p);
+			const e: Ember = { p, alive: false, ox: 0, oy: 0, cx: 0, cy: 0, lift: 0, t0: 0, ms: 1, roll: 1, fl: 0 };
+			embers.push(e);
+			freeEmbers.push(e);
+		}
+		sparkleStats.poolSize = EM_POOL;
+	}
+	let aliveEmbers = 0;
+	let burstsOn = 0;
+	const EM_SPREAD = EM.spreadCells * SYMBOL_SIZE;
+	const EM_GRAV = EM.gravity * SYMBOL_SIZE;
+	const EM_LIFT = EM.lift * SYMBOL_SIZE;
+	const EM_SCALE = EM.sizePx / EMBER_W;
+	/** an ease out that lands hard (the burst's growth) */
+	const cubicOut = (t: number) => 1 - (1 - t) * (1 - t) * (1 - t);
+
+	const spawnWin = (b: WinBurst) => {
+		const rnd = seeded(b.seed);
+		const bi = b.reel * GRID + b.row;
+		const ox = (b.reel + 0.5) * SYMBOL_SIZE + (bi >= 0 && bi < CELL_COUNT ? op.ox[bi] : 0);
+		const oy = (b.row + 0.5) * SYMBOL_SIZE + (bi >= 0 && bi < CELL_COUNT ? op.oy[bi] : 0);
+		// the burst: a free slot, or (never more than maxCells in flight) the oldest one is taken over
+		let slotB: BurstSlot | null = null;
+		for (const bs of burstSlots) {
+			if (!bs.on) {
+				slotB = bs;
+				break;
+			}
+		}
+		if (!slotB) {
+			winFxStats.burstDropped += 1;
+			slotB = burstSlots[0];
+			for (const bs of burstSlots) if (bs.t0 < slotB.t0) slotB = bs;
+		} else burstsOn += 1;
+		slotB.on = true;
+		slotB.t0 = b.t0;
+		slotB.rl = b.rays;
+		slotB.cl = b.core;
+		slotB.rot0 = rnd() * Math.PI * 2;
+		slotB.spin = (rnd() < 0.5 ? -1 : 1) * BR.rays.spin;
+		slotB.rays.position.set(ox, oy);
+		slotB.core.position.set(ox, oy);
+		slotB.rays.tint = b.tint;
+		slotB.core.tint = mixColor(b.tint, 0xffffff, BR.core.whiten);
+		// the embers: spread evenly round the cell with a jitter, so a handful never bunches up
+		const tint = mixColor(b.tint, 0xffffff, EM.whiten);
+		for (let i = 0; i < EM_PER; i += 1) {
+			const a = ((i + rnd() * 0.7) / EM_PER) * Math.PI * 2;
+			const sp = (0.6 + rnd() * 0.8) * EM_SPREAD;
+			const e = freeEmbers.pop();
+			if (!e) {
+				sparkleStats.dropped += 1;
+				continue;
+			}
+			e.alive = true;
+			e.ox = ox;
+			e.oy = oy;
+			e.cx = Math.cos(a) * sp;
+			e.cy = Math.sin(a) * sp;
+			e.lift = EM_LIFT * (0.6 + rnd() * 0.8);
+			e.t0 = b.t0;
+			e.ms = b.embers * (0.7 + rnd() * 0.3);
+			e.roll = 0.75 + rnd() * 0.5;
+			e.fl = rnd() * Math.PI * 2;
+			e.p.tint = tint;
+			aliveEmbers += 1;
+		}
+	};
+
+	/** a fade in over `inShare`, then a falloff to nothing (squared, so it lets go quickly) */
+	const envelope = (v: number, inShare: number) => (v < inShare ? v / inShare : (1 - (v - inShare) / (1 - inShare)) ** 2);
+	let emberWarm = 3;
+	const tickWinFx = (now: number) => {
+		const fresh = takeWinBursts();
+		for (let i = 0; i < fresh.length; i += 1) spawnWin(fresh[i]);
+		// the particle pipe compiles on its first render: at mount, not at the first pop (as the sparkles do)
+		if (emberWarm > 0) {
+			emberWarm -= 1;
+			emberLayer.visible = true;
+			burstLayer.visible = true;
+			emberLayer.update();
+			if (emberWarm === 0 && aliveEmbers === 0 && burstsOn === 0) {
+				emberLayer.visible = false;
+				burstLayer.visible = false;
+			}
+			if (aliveEmbers === 0 && burstsOn === 0) return;
+		}
+		if (aliveEmbers === 0 && burstsOn === 0) {
+			if (emberLayer.visible) emberLayer.visible = false;
+			if (burstLayer.visible) burstLayer.visible = false;
+			sparkleStats.inUse = 0;
+			winFxStats.burstsInUse = 0;
+			return;
+		}
+		// the bursts: the rays grow and turn, the glow grows; each fades in, then out
+		for (const bs of burstSlots) {
+			if (!bs.on) continue;
+			const el = now - bs.t0;
+			const vr = el / bs.rl;
+			const vc = el / bs.cl;
+			// (no visibility flips: a finished sprite is alpha 0 at scale 0, see the shine's note on render groups)
+			if (vr >= 1 && vc >= 1) {
+				bs.on = false;
+				bs.rays.alpha = bs.core.alpha = 0;
+				bs.rays.scale.set(0);
+				bs.core.scale.set(0);
+				burstsOn -= 1;
+				continue;
+			}
+			if (vr < 1 && vr >= 0) {
+				bs.rays.scale.set(RAYS_K * (BR.rays.fromCells + (BR.rays.toCells - BR.rays.fromCells) * cubicOut(vr)));
+				bs.rays.rotation = bs.rot0 + bs.spin * vr;
+				bs.rays.alpha = BR.rays.peak * envelope(vr, BR.rays.inShare);
+			} else if (bs.rays.alpha !== 0) {
+				bs.rays.alpha = 0;
+				bs.rays.scale.set(0);
+			}
+			if (vc < 1 && vc >= 0) {
+				bs.core.scale.set(CORE_K * (BR.core.fromCells + (BR.core.toCells - BR.core.fromCells) * cubicOut(vc)));
+				bs.core.alpha = BR.core.peak * envelope(vc, BR.core.inShare);
+			} else if (bs.core.alpha !== 0) {
+				bs.core.alpha = 0;
+				bs.core.scale.set(0);
+			}
+		}
+		burstLayer.visible = burstsOn > 0;
+		// the embers: out on a quadOut, lifted, then gravity; turned along the path; shrinking, flickering, fading
+		for (let i = 0; i < embers.length; i += 1) {
+			const e = embers[i];
+			if (!e.alive) continue;
+			const u = (now - e.t0) / e.ms;
+			const p = e.p;
+			if (u >= 1) {
+				e.alive = false;
+				aliveEmbers -= 1;
+				p.alpha = 0;
+				p.scaleX = p.scaleY = 0;
+				freeEmbers.push(e);
+				continue;
+			}
+			const uu = u < 0 ? 0 : u;
+			const out = uu * (2 - uu);
+			const dOut = 2 * (1 - uu);
+			p.x = e.ox + e.cx * out;
+			p.y = e.oy + e.cy * out - e.lift * out + EM_GRAV * uu * uu;
+			p.rotation = Math.atan2(e.cy * dOut - e.lift * dOut + 2 * EM_GRAV * uu, e.cx * dOut);
+			const sc = EM_SCALE * e.roll * (1 - 0.55 * uu);
+			p.scaleX = sc;
+			p.scaleY = sc;
+			p.alpha = (1 - uu * uu) * (1 - EM.flicker * 0.5 * (1 + Math.sin(uu * 28 + e.fl)));
+		}
+		emberLayer.visible = aliveEmbers > 0;
+		if (aliveEmbers > 0) emberLayer.update();
+		sparkleStats.inUse = aliveEmbers;
+		if (aliveEmbers > sparkleStats.peak) sparkleStats.peak = aliveEmbers;
+		winFxStats.burstsInUse = burstsOn;
+		if (burstsOn > winFxStats.burstPeak) winFxStats.burstPeak = burstsOn;
+	};
+
 	let lastFrame = 0;
 	const sync = () => {
 		now = performance.now();
@@ -964,6 +1308,7 @@
 			sl.s.visible = false;
 			sl.g.visible = false;
 			sl.glow = 0;
+			if (sl.sh) dropShine(sl);
 			live.delete(id);
 			free.push(sl);
 		}
@@ -971,6 +1316,13 @@
 		if (glowing > motionLog.glowPeak) motionLog.glowPeak = glowing;
 		syncPlates(tex);
 		tickSparkles(now);
+		if (NEW_FX) {
+			tickWinFx(now);
+			winFxStats.shineInUse = shineInUse;
+			if (shineInUse > winFxStats.shinePeak) winFxStats.shinePeak = shineInUse;
+			// the shine pool grows one group a tick while the board is at rest, up to SHINE_PREWARM
+			if (shineAll.length < SHINE_PREWARM && shineCells.size === 0) shinePool.push(makeShine());
+		}
 		if (uploadQueue === null || uploadQueue.length) warmSheets(tex);
 	};
 
@@ -1035,6 +1387,19 @@
 						fit: SYMBOL_FIT,
 					};
 				},
+				configurable: true,
+				enumerable: true,
+			});
+			// WIN_FX probe: which look runs (DEV ?winfx=old|new), the pools and their peaks, the shines on the bus now
+			Object.defineProperty((window as any).__manticore, 'winfx', {
+				get: () => ({
+					style: winFx.style,
+					...winFxStats,
+					shineCells: shineCells.size,
+					shineStrips: SH_N,
+					embers: { inUse: aliveEmbers, pool: EM_POOL, perCell: EM_PER },
+					burstPool: { inUse: burstsOn, pool: burstSlots.length },
+				}),
 				configurable: true,
 				enumerable: true,
 			});
@@ -1137,6 +1502,17 @@
 			for (const s of glyphPool) s.destroy();
 			for (const f of flashes) f.destroy();
 			sparkLayer.destroy();
+			for (const g of shineAll) {
+				for (const t of g.texs) t.destroy(false);
+				g.root.destroy({ children: true });
+			}
+			shineLayer.destroy();
+			for (const bs of burstSlots) {
+				bs.rays.destroy();
+				bs.core.destroy();
+			}
+			burstLayer.destroy();
+			emberLayer.destroy();
 		};
 	});
 </script>
