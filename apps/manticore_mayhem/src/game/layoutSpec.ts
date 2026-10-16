@@ -8,6 +8,8 @@
 // phone-sideways, mirrored from the render so it faces the board; portrait hides it).
 import { SYMBOL_SIZE, GRID } from './constants';
 import { BOARD_ART } from './boardArtSpec';
+import { PORTRAIT_BOARD, PORTRAIT_BOARD_VARIANTS } from './boardSizeVariant';
+import { BOARD_PLAQUE_SPEC } from './boardPlaqueSpec';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -119,6 +121,37 @@ export const MANTICORE: Record<LayoutKind, { x: number; y: number; size: number;
  *  121 render px lower than the plain split would put its top. An art whose rows are baseRows gets the plain split. */
 export const PORTRAIT_FIT = { chainInset: 10, bandTop: 150, hudTop: 688, gapRatio: 1.3, maxK: 1.12, baseRows: [46, 1913] };
 
+/** THE PHONE'S BIGGER BOARD (game/boardSizeVariant.ts, Corey 2026-10-16): the growth past the shipped rule goes down as
+ *  far as the gap from the spin amount plaque's bottom to the BALANCE / SPIN row allows: that gap never closes below
+ *  today's on that phone or `minHudGapCss` CSS px, whichever is smaller. The rest goes up.
+ *  `hudRowTop`: the row's top (the BALANCE label) in the scene's master px with no letterbox (ui/ChromePortrait.svelte
+ *  .stats: bottom 100 of the 760, 37.55 tall); it rides down with the letterbox under the master (Chrome.svelte
+ *  --vp-extra-bottom). Measured: 546.3 CSS px at 375 x 667 (622.47), 713.8 at 390 x 844 (688.25 = 622.44 + 65.81).
+ *  PORTRAIT_FIT.hudTop (688) is the same row on a 390 x 844 phone. */
+export const PORTRAIT_GROW = { minHudGapCss: 24, hudRowTop: 622.45 };
+
+/** the live portrait viewport: the master height the screen shows (the 760 master plus the letterbox the HUD rides
+ *  down into), CSS px per master px, and whether the screen is a phone (isPhoneSizeType). game/stateLayout.ts sets the
+ *  source once; frameFor reads it on every call, so a $derived that calls frameFor follows a height-only resize too.
+ *  Without a source (node tools) frameFor is the shipped tablet rule. */
+export type PortraitViewport = { masterHeight: number; cssPerMaster: number; phone: boolean };
+let portraitViewport: (() => PortraitViewport) | null = null;
+export const setPortraitViewportSource = (source: () => PortraitViewport) => {
+	portraitViewport = source;
+};
+
+/** the shipped growth k on a portrait viewport this wide (master units): the chain centrelines chainInset inside its
+ *  edges, 1 .. maxK. Above 1 the spin amount plaque uses its tablet numbers (components/BoardPlaque.svelte), whatever
+ *  the bigger phone board does, so every screen keeps the plaque it had. */
+export const portraitShippedK = (viewportMasterWidth: number) =>
+	Math.min(Math.max((viewportMasterWidth - PORTRAIT_FIT.chainInset * 2) / chainSpanOf(FRAME.portrait), 1), PORTRAIT_FIT.maxK);
+
+/** render px from the frame art's bottom edge (BOARD_ART.art) down to the spin amount plaque's bottom edge */
+const plaqueBelowArtPx = (tablet: boolean) => {
+	const box = BOARD_PLAQUE_SPEC.layouts[tablet ? 'portraitTablet' : 'portrait'].render.plaqueBox;
+	return box[1] + box[3] - BOARD_ART.art[3];
+};
+
 // Portrait viewports WIDER than the 412x760 master (tablets, foldables: the fit is by height) would
 // leave dead side space. frameFor() grows the portrait frame uniformly, every dimension x k about the
 // master's centre line, until the chains sit chainInset inside the real viewport edges again (cap maxK),
@@ -129,11 +162,31 @@ export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const base = FRAME[kind];
 	if (kind !== 'portrait' || !viewportMasterWidth) return base;
 	const P = PORTRAIT_FIT;
-	const k = Math.min(Math.max((viewportMasterWidth - P.chainInset * 2) / chainSpanOf(base), 1), P.maxK);
+	// the shipped growth: the chain centrelines chainInset inside the viewport's edges
+	const kShip = portraitShippedK(viewportMasterWidth);
+	// THE PHONE'S BIGGER BOARD (game/boardSizeVariant.ts): on a phone the variant holds a point of the art at or outside
+	// the chains' centrelines on the screen edges instead ('chainsHalf' ships); a tablet keeps the shipped rule
+	const view = portraitViewport?.() ?? null;
+	const V = view?.phone ? PORTRAIT_BOARD : PORTRAIT_BOARD_VARIANTS.current;
+	const m0 = registrationOf(base).m;
+	const k = V.edgeOut === null ? kShip : Math.min(Math.max(viewportMasterWidth / (chainSpanOf(base) - 2 * V.edgeOut * m0), kShip), V.maxK);
 	if (k <= 1) return base;
 	const art = artRectOf(base);
-	const baseHeight = (P.baseRows[1] - P.baseRows[0]) * registrationOf(base).m * k;
-	const bottom = P.bandTop + Math.max(P.hudTop - P.bandTop - baseHeight, 0) / (1 + P.gapRatio) + baseHeight;
+	const bottomAt = (kk: number) => {
+		const baseHeight = (P.baseRows[1] - P.baseRows[0]) * m0 * kk;
+		return P.bandTop + Math.max(P.hudTop - P.bandTop - baseHeight, 0) / (1 + P.gapRatio) + baseHeight;
+	};
+	// the shipped rule's bottom; the growth past it goes DOWN as far as the room over the BALANCE / SPIN row allows
+	// (PORTRAIT_GROW), so the frame's top (and the creature behind it) stays put where the screen is tall enough
+	let bottom = bottomAt(kShip);
+	if (k > kShip && view) {
+		const below = plaqueBelowArtPx(kShip > 1) * m0;
+		const hudTop = PORTRAIT_GROW.hudRowTop + Math.max(0, (view.masterHeight - MASTER.portrait.height) / 2);
+		const gapToday = hudTop - (bottom + below * kShip);
+		const minGap = Math.min(gapToday, PORTRAIT_GROW.minHudGapCss / view.cssPerMaster);
+		const down = gapToday - minGap - below * (k - kShip);
+		bottom += Math.min(Math.max(down, 0), art.height * (k - kShip));
+	}
 	const top = bottom - art.height * k;
 	const cx = MASTER.portrait.width / 2;
 	return {
