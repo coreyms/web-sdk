@@ -57,7 +57,7 @@
 	import { stamp } from '../../game/assets';
 	import { PHONE_TIER } from '../../game/deviceTier';
 	import { INTRO_CARD_ASSETS } from '../../game/introCards';
-	import { frameArtRect } from '../../game/layoutSpec';
+	import { landscapeTrioSpan } from '../../game/layoutSpec';
 	import TrioStat from '../TrioStat.svelte';
 	import StepButton from '../StepButton.svelte';
 	import { ARMOURY_ART_ORDER, ARMOURY_ASSETS, ARMOURY_MODES, armouryMode, type ArmouryMode, type ArmouryModeId } from '../../game/armouryData';
@@ -932,7 +932,7 @@
 	});
 	/** the small 16:9 frames: the menu's own BALANCE, bet readout and steppers, where the landscape HUD's trio would sit
 	 *  under the desktop box (the trio's master rectangle at the box's 1440 / 1280) */
-	const ART = frameArtRect('landscape');
+	const ART = landscapeTrioSpan();
 	const K = LAY.desktop.w / LAY.desktop.master;
 	const COPY = { left: ART.x * K, top: (720 - 18 - 92) * K, width: ART.width, height: 92, k: K };
 

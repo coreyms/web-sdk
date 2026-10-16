@@ -167,19 +167,21 @@ export const CELL_COUNT = GRID * GRID;
  *  pop ends. The scatter hanging into the cell below at 1.525 / dy +4.5 is intended.
  *  Symbols draw OVER the bars; the board window does not clip a symbol that is on the board (only a tile still
  *  coming in over the top edge or leaving under the bottom edge is cut at the window: BoardCells' fall layer). */
+// Corey 2026-10-16 15:28: the Wild grows to ~89% (x 89/75) and the Key, Dagger and Seal to ~82% (x 82/75); the rest
+// stay. Values file: tools/manticore/ref/symbol_fit/corey_symbol_fit_2026-10-16_1528_CURRENT.txt.
 export const SYMBOL_PLACE = {
 	refPitch: 53.438,
 	global: 1,
 	symbols: {
 		H1: { size: 1.33, dx: 0, dy: 0, top: 7 },
 		M3: { size: 1.235, dx: 0, dy: -0.3, top: 6 },
-		M2: { size: 1.305, dx: 0, dy: 0, top: 5 },
+		M2: { size: 1.427, dx: 0, dy: 0, top: 5 },
 		M1: { size: 1.37, dx: -1.4, dy: 1.5, top: 4 },
-		L4: { size: 1.3, dx: 0, dy: 0, top: 3 },
-		L3: { size: 1.44, dx: 0.5, dy: -2.1, top: 2 },
+		L4: { size: 1.421, dx: 0, dy: 0, top: 3 },
+		L3: { size: 1.575, dx: 0.5, dy: -2.1, top: 2 },
 		L2: { size: 1.395, dx: 0, dy: 0, top: 1 },
 		L1: { size: 1.285, dx: 0.3, dy: 0, top: 0 },
-		W: { size: 1.095, dx: 0, dy: 0, top: 8 },
+		W: { size: 1.3, dx: 0, dy: 0, top: 8 },
 		S: { size: 1.525, dx: 0, dy: 4.5, top: 9 },
 	} as Record<string, { size: number; dx: number; dy: number; top: number }>,
 };
@@ -380,6 +382,13 @@ export const SHEET_FPS = 30;
  *  time at every turbo level (what turbo 0 always did). true: the old behaviour, the loop sped up by TURBO_SCALE
  *  (2.2 and 4 times). Nothing waits for an idle loop: it is only which frame a resting cell shows. */
 export const SHEET_IDLE_TURBO = false;
+/** THE IDLE GLINTS REST BETWEEN LOOPS (Corey 2026-10-16 15:38: "I think we have too many idle glints happening across the
+ *  board on the symbols"). Every resting piece used to loop its idle sheet back to back (about 2 s a loop), so all 64
+ *  cells glinted all the time. Now each cell HOLDS its rest frame (idle 0 = the drop's last frame, no jump) for a rest
+ *  of its own between minMs and maxMs (fixed per board position, so neighbours never sync), then plays one loop. A cell
+ *  that has just landed starts in its rest, so the board does not glint in unison after every spin. With the defaults
+ *  about 64 x 2 / (2 + 13) = 8 or 9 cells glint at any moment instead of 64. Presentation only. */
+export const SYMBOL_IDLE_REST = { minMs: 7000, maxMs: 19000 };
 
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {
@@ -1212,8 +1221,12 @@ export const LOGO = {
 	/** LANDSCAPE master (1280 x 720): the art's width and centre. Centred between the screen's left edge and the
 	 *  board frame's visible post (the frame art starts at 340, its solid post at 352: midpoint 176), and high
 	 *  in the column (Corey 2026-10-10: up, clear of the scene's chains; it may cover the lion knocker's head).
-	 *  The width is the one the approved clips were judged at (logo_review_5, 5_in_game_landscape: 300). */
-	landscape: { cx: 176, cy: 106, width: 300 },
+	 *  The width is the one the approved clips were judged at (logo_review_5, 5_in_game_landscape: 300).
+	 *  2026-10-16, THE BIGGER BOARD (layoutSpec LANDSCAPE_BOARD): the same rule. The post is now at 285.0 (render x 82.2
+	 *  of the board art: 378.27 + (82.2 - 329.571) x 0.377077), so the box runs from 26 to 259.0, 26 clear of the
+	 *  screen's left edge and of the post: width 233.0 (0.777 of 300), centre 142.5; its top stays at 46.76, under the
+	 *  clock strip (centre y 46.76 + 92.02 / 2). It was { cx: 176, cy: 106, width: 300 }. */
+	landscape: { cx: 142.5, cy: 92.77, width: 233 },
 	/** PHONE SIDEWAYS master (1480 x 740): the left column, from the clock strip's left edge to the board art's
 	 *  post (293), above the BALANCE readout (236). */
 	phone: { left: 16, top: 46, width: 274 },
@@ -1929,11 +1942,30 @@ export const CHAIN_SOUND = {
 export const CREATURE = {
 	on: true,
 	place: {
-		desktop: { x: 2089.9, y: 1213.3, scale: 0.96, layer: 'front' },
+		// DESKTOP, 16:9 and wider (2026-10-16, THE BIGGER BOARD, layoutSpec LANDSCAPE_BOARD; was { x 2089.9, y 1213.3,
+		// scale 0.96 } beside the k 1 board): see desktopTall below for the rule and the numbers.
+		desktop: { x: 2180, y: 1213.3, scale: 0.86, layer: 'front' },
 		phoneSideways: { x: 2249.3, y: 1157.2, scale: 0.97, layer: 'behind' },
 		portraitPhone: { x: 1039.9, y: 1001.6, scale: 0.77, layer: 'behind' },
 		portraitTablet: { x: 1210, y: 905, scale: 0.58, layer: 'behind', shadow: false },
 	},
+	/** THE DESKTOP SPOT FOLLOWS THE SCREEN'S SHAPE (2026-10-16, with the bigger board, layoutSpec LANDSCAPE_BOARD). The
+	 *  scene is fitted to COVER the canvas and the master to FIT it, so on a screen narrower than 16:9 the scene's sides
+	 *  are cut and the HUD sits higher in the scene: one spot cannot clear the cells, the screen's right edge and the
+	 *  [Auto / Turbo] buttons on both 16:9 and 16:10. place.desktop is the spot at desktopWide.aspect (16:9) and wider;
+	 *  desktopTall is the spot at its aspect (16:10); every other screen takes the straight line through the two (feet
+	 *  point and scale), held at desktopMinAspect (4:3) at the narrow end (game/creature.ts creaturePlaceFor).
+	 *  The rule both were set by: his drawn body (alpha > 96, over 3.4 s of idle) at least 5 CSS px clear of the cell
+	 *  area, his wing tips and claws on the screen, nothing of him under a readout or the [Auto / Turbo] buttons, only
+	 *  his right paw under the Play button (as since 2026-10-12, and less of it than before). The 16:9 spot is the 75 %
+	 *  mockup's ({ x 2161.3, scale 0.86 }) 18.7 scene px right, clear of the cells (its wing tip was over column 8);
+	 *  the 16:10 one is smaller and further back on the floor. Measured at 1920 x 1080, 1280 x 720, 1024 x 576,
+	 *  1440 x 900, 1680 x 1050, 1512 x 982, 1360 x 800 and 1024 x 768 (feedback/board_75_final/creature_check.json).
+	 *  A 21:9 screen (2560 x 1080) takes the 16:9 spot: there his claws go 21 CSS px under the screen's bottom and his
+	 *  paws under the Play and Turbo buttons (not tuned: no 21:9 spot yet). */
+	desktopTall: { aspect: 1.6, x: 2090, y: 1150, scale: 0.76 },
+	desktopWide: { aspect: 16 / 9 },
+	desktopMinAspect: 4 / 3,
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
 	// prefetchGroups (2026-10-15, download analysis S3, Corey yes): the prefetch takes only these load groups of each look
 	// (game/creatureLoad.ts GROUPS); the alternates (snarl, growl) load when the mode asks for the look, like any look.

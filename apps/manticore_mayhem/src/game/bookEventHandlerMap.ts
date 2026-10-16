@@ -667,8 +667,16 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
 
-	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>) => {
+	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>, { bookEvents }: BookEventContext) => {
 		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];
+		// THE WRAP UP COUNTS THE ROUND TOTAL (harsh review 2026-10-15, gameplay finding 9): freeSpinEnd.amount is the
+		// feature's own total, which leaves out the trigger spin's base game win, so the plaque read $225.80 under a
+		// HUD WIN of $226.30. The plaque now shows the book's last setTotalWin before this event (the round total the
+		// HUD shows); a round with no such event keeps freeSpinEnd.amount. Both are the book's numbers.
+		const lastTotal = _.findLast(bookEvents.slice(0, bookEvents.indexOf(bookEvent)), (e) => e.type === 'setTotalWin') as
+			| BookEventOfType<'setTotalWin'>
+			| undefined;
+		const wrapAmount = lastTotal && lastTotal.amount >= bookEvent.amount ? lastTotal.amount : bookEvent.amount;
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		stateGame.gameType = 'basegame';
 		eventEmitter.broadcast({ type: 'spinWinHide' });
@@ -679,7 +687,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const capped = capShown;
 		winLevelSoundsPlay({ winLevelData });
 		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroShow' });
-		const counted = eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: bookEvent.amount, winLevelData, capped });
+		const counted = eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: wrapAmount, winLevelData, capped });
 		if (capped) {
 			if (import.meta.env.DEV) capLog.via = 'wrap';
 			if (capTail) await waitForTimeout(STINGER_PLAQUE.enterMs);

@@ -39,7 +39,7 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { layoutKind, frameFor, FRAME } from '../game/layoutSpec';
+	import { layoutKind, portraitShippedK } from '../game/layoutSpec';
 	import { boardRegistration } from '../game/boardArt';
 	import { BOARD_PLAQUE, FRAME_ART, SPIN_TOTAL, TIMINGS } from '../game/constants';
 	import { BOARD_PLAQUE_SPEC } from '../game/boardPlaqueSpec';
@@ -81,8 +81,10 @@
 	type SpecKey = 'landscape' | 'portrait' | 'portraitTablet' | 'phone';
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale);
-	/** the spec's layout: the portrait TABLET numbers whenever the portrait frame grows (k above 1, SPEC "Portrait, tablet") */
-	const specKey = $derived<SpecKey>(kind === 'portrait' && frameFor('portrait', vw).width > FRAME.portrait.width + 1e-6 ? 'portraitTablet' : kind);
+	/** the spec's layout: the portrait TABLET numbers whenever the SHIPPED rule grows the portrait frame (k above 1, SPEC
+	 *  "Portrait, tablet"). The phone's bigger board (game/boardSizeVariant.ts) grows it on every phone; it keeps the
+	 *  plaque that phone had (layoutSpec portraitShippedK) */
+	const specKey = $derived<SpecKey>(kind === 'portrait' && portraitShippedK(vw) > 1 ? 'portraitTablet' : kind);
 	const reg = $derived(boardRegistration(kind, vw));
 	const textures = $derived.by(() => {
 		const a = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;

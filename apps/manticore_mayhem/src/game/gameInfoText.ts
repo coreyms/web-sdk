@@ -266,7 +266,7 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				// COPY RULE (Corey 2026-10-13 14:14): a guaranteed multiple names its base and shows the live amount. The
 				// Mystery Epic's own floor is stated nowhere, so this sentence names only the two routes it covers
 				mech: [
-					`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings are common.`,
+					`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings land far more often than in Super Free Spins.`,
 					soc(
 						`**Epic floor:** a round triggered by ${SCATTERS} or bought directly always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
 						`**Epic floor:** a round triggered by ${SCATTERS} or instantly triggered always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,

@@ -63,7 +63,7 @@
 	import { quadOut, quadIn, backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_PLACE, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_IDLE_REST, SYMBOL_PLACE, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
 	import { openingsFor, offsetAt, latticeEdges, type Openings } from '../game/symbolPlace';
 	import { boardPlateSlot, boardCutSlot } from '../game/boardPlateSlot';
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
@@ -304,6 +304,10 @@
 	/** a cell's idle phase when it enters idle without a landing: deterministic per board position,
 	 *  57 distinct phases over the 64 cells (no two neighbours alike), no allocation */
 	const idleOffset = (reel: number, row: number) => ((reel * 29 + row * 47) % 60) * FRAME_MS;
+	/** a cell's rest between idle loops (SYMBOL_IDLE_REST): fixed per board position, spread over min..max */
+	let idleRestOn = true; // DEV: __manticore.setIdleRest(false) gives the old back to back loops (sheet_probe's 30 fps check)
+	const idleRest = (reel: number, row: number) =>
+		!idleRestOn ? 0 : SYMBOL_IDLE_REST.minMs + (((reel * 37 + row * 61) % 64) / 63) * (SYMBOL_IDLE_REST.maxMs - SYMBOL_IDLE_REST.minMs);
 	const pickTexture = (c: Cell, sl: Slot, tex: Record<string, PIXI.Texture> | undefined): PIXI.Texture | null => {
 		const fallback = staticTexture(c.name, tex);
 		const sheet = sheetFor(c.name, tex);
@@ -344,7 +348,11 @@
 			// entering idle without a landing (the first board, a new symbol from the sting's flip, back
 			// from the rattle): a per-cell phase so the board never breathes in unison
 			sl.mode = MODE_IDLE;
-			sl.clock = idleOffset(c.reel, c.row);
+			// with SYMBOL_IDLE_REST the phase is spread over the cell's whole rest + loop cycle, so a fresh board
+			// already has a few cells mid-glint instead of every cell resting for its first 7 s
+			sl.clock = sheet.idle
+				? (((c.reel * 29 + c.row * 47) % 60) / 60) * (idleRest(c.reel, c.row) + sheet.idle.length * FRAME_MS)
+				: idleOffset(c.reel, c.row);
 		} else if (!fresh && !frozen) {
 			// the landing's drop sheet keeps its turbo speed; the idle loop of a resting piece does not take it
 			sl.clock += sl.mode === MODE_IDLE ? dtIdle : dtStyle;
@@ -357,14 +365,20 @@
 			}
 			sl.mode = MODE_IDLE;
 			sl.clock -= span;
+			// SYMBOL_IDLE_REST: a landed cell joins its rest part way through (per position), so the first glints
+			// after a landing come at staggered times instead of the whole board holding still for the shortest rest
+			if (sheet.idle) sl.clock += (((c.reel * 41 + c.row * 23) % 60) / 60) * idleRest(c.reel, c.row);
 		}
 		// idle: loop the idle sheet, or rest on the drop's last frame when there is none
 		if (!sheet.idle) {
 			sl.frame = sheet.drop.length - 1;
 			return sheet.drop[sl.frame];
 		}
+		// each cycle: the cell's rest on idle frame 0 (the rest pose), then one loop of the sheet (SYMBOL_IDLE_REST)
 		const n = sheet.idle.length;
-		sl.frame = Math.floor(sl.clock / FRAME_MS) % n;
+		const rest = idleRest(c.reel, c.row);
+		const t = sl.clock % (rest + n * FRAME_MS);
+		sl.frame = t < rest ? 0 : Math.floor((t - rest) / FRAME_MS) % n;
 		return sheet.idle[sl.frame];
 	};
 
@@ -1041,6 +1055,7 @@
 			// SHEETS probe (tools/manticore/sheet_probe.js): which symbols' sheets are parsed, and per
 			// live cell its clip mode, frame index within that clip, clip clock and texture size
 			const renderer = context.stateApp.pixiApplication?.renderer as any;
+			((window as any).__manticore ??= {}).setIdleRest = (on: boolean) => (idleRestOn = !!on);
 			Object.defineProperty(((window as any).__manticore ??= {}), 'sheets', {
 				get: () => {
 					const tex = assets();

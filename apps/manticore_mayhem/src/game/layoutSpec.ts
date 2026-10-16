@@ -8,6 +8,8 @@
 // phone-sideways, mirrored from the render so it faces the board; portrait hides it).
 import { SYMBOL_SIZE, GRID } from './constants';
 import { BOARD_ART } from './boardArtSpec';
+import { PORTRAIT_BOARD, PORTRAIT_BOARD_VARIANTS } from './boardSizeVariant';
+import { BOARD_PLAQUE_SPEC } from './boardPlaqueSpec';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -16,6 +18,43 @@ export const MASTER: Record<LayoutKind, { width: number; height: number }> = {
 	portrait: { width: 412, height: 760 },
 	// Phone held sideways (layoutType 'landscape': ratio >= 1.3 AND device width <= 480).
 	phone: { width: 1480, height: 740 },
+};
+
+// ---- THE DESKTOP BOARD SIZE (2026-10-16; Stake's review of the first submission, 5.3 / 9: "Small grid") ----------------
+// The landscape master's cell area was 425.18 (59 % of a 16:9 screen's height). The board_size_r1 mockups put a 538
+// board next to it (75 % of a 16:9 height) and an 80 % one; Corey picked 75 % ("I actually like the 80% more but it
+// covers too much of the sky"). This is that board, 524 of cell area (72.8 % of a 16:9 height; on a 1920 x 1080 screen
+// a cell is 98.8 CSS px, was 80.2):
+//   BOTTOM  the bronze spin amount plaque hangs under the board, right over the HUD's WIN readout (its labels start at
+//           y 660: ui/ChromeLandscape.svelte). The board keeps the 75 % mockup's bottom: the plaque's drawn bottom at
+//           654.8 (its sprite box 659.1), cells' top + 1.14888 x the cell area. So the board grew UP.
+//   TOP     on a 16:9 screen the master IS the screen, and at 538 the top rail's spikes and the corner finials were
+//           above the screen edge and the gears cut. At 524 the whole top rail, its gears and its spikes are on a 16:9
+//           screen (the spike tips 5.2 under the edge) and only the four corner finials go over it; on 16:10 (the
+//           master fitted by width, 40 master units of canvas above it) the whole art is on the screen, finials and
+//           all (art top -37.8). The 538 board, 2.6 % bigger, cut the gears at 16:9 and the finial tips at 16:10
+//           (feedback/board_75_final/finials_*.png: the options side by side).
+// The frame art, its chains, the cells, the plaque and everything registered to them scale together about the cell
+// area's centre line (x 640.27, as before). tools/build_board_layers.py still prints the k 1 rect (its frameRects):
+// this one is that rect x 1.23242 (landscapeFrame below).
+export const LANDSCAPE_BOARD = {
+	/** the cell area's side (8 cells + 7 gaps), master units */
+	cellArea: 524,
+	/** the cell area's top edge, master units */
+	cellTop: 57.1,
+	/** the board_v5l fit at k 1 (the frame rect the tool prints) */
+	k1: { x: 416.451, y: 103.76, width: 447.641, height: 447.641, inset: 11.23, cell: 51.115, gap: 2.323, margin: 4.647 },
+};
+
+/** the landscape frame rect: LANDSCAPE_BOARD.k1, every dimension x k (k = cellArea / the k 1 cell area, 1.23242) about
+ *  the cell area's centre line, the cell area's top at cellTop. Gives x 364.431, y 43.26, width 551.68, inset 13.84,
+ *  cell 62.995, gap 2.863 (pitch 65.858), cells x 378.27..902.27, y 57.1..581.1. */
+const landscapeFrame = () => {
+	const b = LANDSCAPE_BOARD.k1;
+	const k = LANDSCAPE_BOARD.cellArea / (b.width - 2 * b.inset);
+	const cx = b.x + b.width / 2;
+	const width = b.width * k;
+	return { x: cx - width / 2, y: LANDSCAPE_BOARD.cellTop - b.inset * k, width, height: width, inset: b.inset * k, cell: b.cell * k, gap: b.gap * k, margin: b.margin * k };
 };
 
 // Board frame geometry. inset = the distance from the frame edge to the first cell; the 8x8 cell
@@ -37,7 +76,9 @@ export const FRAME: Record<
 	// right and 121 shorter at the bottom (no plinth stones), so at the same scale and origin (the tool's FIT_ART)
 	// the art now spans x 340.92..939.69 (centre 640.31) from y 38 to 572.22, and the readout row keyed to its
 	// edges is 0.92 narrower on the left and 0.31 on the right.
-	landscape: { x: 416.451, y: 103.76, width: 447.641, height: 447.641, inset: 11.23, cell: 51.115, gap: 2.323, margin: 4.647 },
+	// 2026-10-16 (LANDSCAPE_BOARD above): this fit x 1.23242, the cells 378.27..902.27 x 57.1..581.1, the art x
+	// 271.34..1009.28 from y -37.78 to 620.59 (the plaque under it). It was the k 1 rect, LANDSCAPE_BOARD.k1.
+	landscape: landscapeFrame(),
 	// CHAIN-FIT (Corey 2026-10-06 21:32: portrait was too small): each chain's centreline 10 master px
 	// inside the screen edge (x 10 and 402), the posts and finials overhang off screen (art x -17.9 ..
 	// 429.5); vertically the dead band between the tagline (150) and the BALANCE / BET row (688) is split
@@ -80,6 +121,37 @@ export const MANTICORE: Record<LayoutKind, { x: number; y: number; size: number;
  *  121 render px lower than the plain split would put its top. An art whose rows are baseRows gets the plain split. */
 export const PORTRAIT_FIT = { chainInset: 10, bandTop: 150, hudTop: 688, gapRatio: 1.3, maxK: 1.12, baseRows: [46, 1913] };
 
+/** THE PHONE'S BIGGER BOARD (game/boardSizeVariant.ts, Corey 2026-10-16): the growth past the shipped rule goes down as
+ *  far as the gap from the spin amount plaque's bottom to the BALANCE / SPIN row allows: that gap never closes below
+ *  today's on that phone or `minHudGapCss` CSS px, whichever is smaller. The rest goes up.
+ *  `hudRowTop`: the row's top (the BALANCE label) in the scene's master px with no letterbox (ui/ChromePortrait.svelte
+ *  .stats: bottom 100 of the 760, 37.55 tall); it rides down with the letterbox under the master (Chrome.svelte
+ *  --vp-extra-bottom). Measured: 546.3 CSS px at 375 x 667 (622.47), 713.8 at 390 x 844 (688.25 = 622.44 + 65.81).
+ *  PORTRAIT_FIT.hudTop (688) is the same row on a 390 x 844 phone. */
+export const PORTRAIT_GROW = { minHudGapCss: 24, hudRowTop: 622.45 };
+
+/** the live portrait viewport: the master height the screen shows (the 760 master plus the letterbox the HUD rides
+ *  down into), CSS px per master px, and whether the screen is a phone (isPhoneSizeType). game/stateLayout.ts sets the
+ *  source once; frameFor reads it on every call, so a $derived that calls frameFor follows a height-only resize too.
+ *  Without a source (node tools) frameFor is the shipped tablet rule. */
+export type PortraitViewport = { masterHeight: number; cssPerMaster: number; phone: boolean };
+let portraitViewport: (() => PortraitViewport) | null = null;
+export const setPortraitViewportSource = (source: () => PortraitViewport) => {
+	portraitViewport = source;
+};
+
+/** the shipped growth k on a portrait viewport this wide (master units): the chain centrelines chainInset inside its
+ *  edges, 1 .. maxK. Above 1 the spin amount plaque uses its tablet numbers (components/BoardPlaque.svelte), whatever
+ *  the bigger phone board does, so every screen keeps the plaque it had. */
+export const portraitShippedK = (viewportMasterWidth: number) =>
+	Math.min(Math.max((viewportMasterWidth - PORTRAIT_FIT.chainInset * 2) / chainSpanOf(FRAME.portrait), 1), PORTRAIT_FIT.maxK);
+
+/** render px from the frame art's bottom edge (BOARD_ART.art) down to the spin amount plaque's bottom edge */
+const plaqueBelowArtPx = (tablet: boolean) => {
+	const box = BOARD_PLAQUE_SPEC.layouts[tablet ? 'portraitTablet' : 'portrait'].render.plaqueBox;
+	return box[1] + box[3] - BOARD_ART.art[3];
+};
+
 // Portrait viewports WIDER than the 412x760 master (tablets, foldables: the fit is by height) would
 // leave dead side space. frameFor() grows the portrait frame uniformly, every dimension x k about the
 // master's centre line, until the chains sit chainInset inside the real viewport edges again (cap maxK),
@@ -90,11 +162,31 @@ export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const base = FRAME[kind];
 	if (kind !== 'portrait' || !viewportMasterWidth) return base;
 	const P = PORTRAIT_FIT;
-	const k = Math.min(Math.max((viewportMasterWidth - P.chainInset * 2) / chainSpanOf(base), 1), P.maxK);
+	// the shipped growth: the chain centrelines chainInset inside the viewport's edges
+	const kShip = portraitShippedK(viewportMasterWidth);
+	// THE PHONE'S BIGGER BOARD (game/boardSizeVariant.ts): on a phone the variant holds a point of the art at or outside
+	// the chains' centrelines on the screen edges instead ('chainsHalf' ships); a tablet keeps the shipped rule
+	const view = portraitViewport?.() ?? null;
+	const V = view?.phone ? PORTRAIT_BOARD : PORTRAIT_BOARD_VARIANTS.current;
+	const m0 = registrationOf(base).m;
+	const k = V.edgeOut === null ? kShip : Math.min(Math.max(viewportMasterWidth / (chainSpanOf(base) - 2 * V.edgeOut * m0), kShip), V.maxK);
 	if (k <= 1) return base;
 	const art = artRectOf(base);
-	const baseHeight = (P.baseRows[1] - P.baseRows[0]) * registrationOf(base).m * k;
-	const bottom = P.bandTop + Math.max(P.hudTop - P.bandTop - baseHeight, 0) / (1 + P.gapRatio) + baseHeight;
+	const bottomAt = (kk: number) => {
+		const baseHeight = (P.baseRows[1] - P.baseRows[0]) * m0 * kk;
+		return P.bandTop + Math.max(P.hudTop - P.bandTop - baseHeight, 0) / (1 + P.gapRatio) + baseHeight;
+	};
+	// the shipped rule's bottom; the growth past it goes DOWN as far as the room over the BALANCE / SPIN row allows
+	// (PORTRAIT_GROW), so the frame's top (and the creature behind it) stays put where the screen is tall enough
+	let bottom = bottomAt(kShip);
+	if (k > kShip && view) {
+		const below = plaqueBelowArtPx(kShip > 1) * m0;
+		const hudTop = PORTRAIT_GROW.hudRowTop + Math.max(0, (view.masterHeight - MASTER.portrait.height) / 2);
+		const gapToday = hudTop - (bottom + below * kShip);
+		const minGap = Math.min(gapToday, PORTRAIT_GROW.minHudGapCss / view.cssPerMaster);
+		const down = gapToday - minGap - below * (k - kShip);
+		bottom += Math.min(Math.max(down, 0), art.height * (k - kShip));
+	}
 	const top = bottom - art.height * k;
 	const cx = MASTER.portrait.width / 2;
 	return {
@@ -177,6 +269,37 @@ const artRectOf = (f: FrameRect) => {
  *  HTML chrome keys the BALANCE / WIN / SPIN row to its edges (ui/ChromeLandscape.svelte). */
 export const frameArtRect = (kind: LayoutKind, viewportMasterWidth?: number) => artRectOf(frameFor(kind, viewportMasterWidth));
 
+/** the PRESS ANYWHERE prompt's y in each layout's band UNDER the board (HUD.<kind>.pressToContinue before the desktop
+ *  board grew, 2026-10-16). The max win screen keeps its prompt there (components/PressToContinue atHudBand): it hides
+ *  the board, and its own lines run down to y 0.77 of the screen. Phone and portrait are the same as their HUD slot. */
+export const HUD_BAND_PROMPT_Y: Record<LayoutKind, number> = { landscape: 672, portrait: 700, phone: 752 };
+
+/** THE DESKTOP PROMPT'S VEIL (2026-10-16): over the board the PRESS ANYWHERE prompt crosses the bottom row's symbols
+ *  (HUD.landscape.pressToContinue), and on gold crowns, keys and the feature's tinted cells its glyphs did not read.
+ *  While it is up, that row is veiled: a plain rectangle (no filter, no mask) over exactly the row's cells, the colour
+ *  of the mode plaque's plate, fading in over fadeMs. Desktop only; phone and portrait keep their band under the board. */
+export const PROMPT_VEIL = { row: 7, color: 0x0d0e12, alpha: 0.72, fadeMs: 220 };
+
+/** one board row's cells (the full cell area's width, one cell tall) in master units */
+export const boardRowRect = (kind: LayoutKind, row: number, viewportMasterWidth?: number) => {
+	const f = frameFor(kind, viewportMasterWidth);
+	return { x: f.x + f.inset, y: f.y + f.inset + row * (f.cell + f.gap), width: f.width - 2 * f.inset, height: f.cell };
+};
+
+/** the landscape HUD's readout row (BALANCE / WIN / SPIN) is keyed to the frame art's edges, but never closer than this
+ *  to the button clusters (master units): left = the [Bonus, Menu] cluster's right edge (66 + 148 = 214) + 20; right =
+ *  the [Auto / Turbo, Spin] cluster's left edge (1042) - 16. The art (271.34 .. 1009.28) is inside both today, so the
+ *  row is keyed to it; a bigger board would be held here. */
+export const TRIO_CLEAR = { left: 234, right: 1026 };
+
+/** the landscape readout row's span (ui/ChromeLandscape.svelte and THE ARMOURY's copy of it) */
+export const landscapeTrioSpan = () => {
+	const a = frameArtRect('landscape');
+	const x0 = Math.max(a.x, TRIO_CLEAR.left);
+	const x1 = Math.min(a.right, TRIO_CLEAR.right);
+	return { x: x0, width: x1 - x0 };
+};
+
 /** the board's horizontal centre in master units. The landscape board is deliberately LEFT of the
  *  master centre (the manticore has the right column), so anything that belongs to the board —
  *  the mode plaque, the spin-win readout — has to centre on this and not on the master. */
@@ -241,13 +364,18 @@ export const HUD: Record<
 	// bottom edge and the readout row, phone has 60), and the board is static for the whole time
 	// the plaque is up, so the centre is both the readable place and the only one that fits.
 	landscape: {
-		// the free band between the board's bottom edge (618) and the BALANCE / WIN / SPIN row (~655): the prompt's
-		// glyphs span y - 44 .. y - 24 (PressToContinue). It was y 700 (656 .. 676), on top of the HTML HUD's WIN label
-		// (Corey 2026-10-09). The only prompts left are the feature intro and the wrap up, where the SPIN readout
-		// that shares this band is down.
-		pressToContinue: { y: 672, width: 620, height: 48 },
-		// the cell area's centre (114.99 + 425.18 / 2, board_v4h) and ~0.9 of its width
-		modePlaque: { y: 327.6, height: 34, width: 380 },
+		// the prompt's glyphs span y - 44 .. y - 24 (PressToContinue). Up to 2026-10-16 it sat in the free band between
+		// the board's bottom edge (618) and the BALANCE / WIN / SPIN row (~655), at y 672 (it was y 700, 656 .. 676, on
+		// top of the HTML HUD's WIN label: Corey 2026-10-09). The only prompts left are the feature intro and the wrap
+		// up, where the SPIN readout is down.
+		// 2026-10-16, THE BIGGER BOARD (LANDSCAPE_BOARD): that band is gone (the board's plaque fills it down to the WIN
+		// readout), so the prompt is OVER THE BOARD, its glyphs centred on the bottom row (cells y 518.1 .. 581.1, centre
+		// 549.6: glyphs 539.5 .. 559.7), under the feature intro and the wrap up (the win plaque's art ends about 475),
+		// on that row veiled (PROMPT_VEIL) and with the hard drop shadow the board's readouts use. The max win screen
+		// keeps 672 (HUD_BAND_PROMPT_Y). Was y 672 (glyphs 628 .. 648).
+		pressToContinue: { y: 583.7, width: 620, height: 48 },
+		// the cell area's centre (57.1 + 524 / 2; was 327.6 with the k 1 board), the plain plate's slot
+		modePlaque: { y: 319.1, height: 34, width: 380 },
 		spinWin: { y: 640, height: 28, width: 400 },
 	},
 	portrait: {
