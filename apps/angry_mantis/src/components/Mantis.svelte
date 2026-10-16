@@ -8,6 +8,9 @@
 		| { type: 'mantisHide' }
 		| { type: 'mantisStrike'; striker: Striker; trigger: 'auto' | 'glowingLeaf'; position?: Position }
 		| { type: 'mantisEat'; striker: Striker; symbol: PayingSymbolName | null; from?: Position | null }
+		// SKIP TO RESULT: an eat that is not shown (bookEventHandlerMap quiet path) puts away whatever a strike
+		// already in flight left out, as mantisEat's own ending does
+		| { type: 'mantisRest'; striker: Striker }
 		| { type: 'mantisReact'; kind: RigReaction; chain?: boolean }; // chain: two different clips back to back
 </script>
 
@@ -397,6 +400,17 @@
 			eating = null;
 			heroTray = null;
 			context.stateGame.servingSymbol = null; // the eat event has marked the pool by now
+			stopHeroPose();
+			heroBell = false;
+			spotlight = false;
+			busy[striker] = false;
+		},
+		mantisRest: ({ striker }) => {
+			eating = null;
+			chomp = false;
+			heroTray = null;
+			trayFade.set(0, { duration: 0 });
+			context.stateGame.servingSymbol = null;
 			stopHeroPose();
 			heroBell = false;
 			spotlight = false;

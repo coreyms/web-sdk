@@ -2,9 +2,13 @@
 	// Game Info: sticky tab strip + scroll-spied sections. Stake Engine requires full feature
 	// disclosure here — paytable, modes, Feast floor/max-win odds, max win, RTP, volatility, and the
 	// verbatim rules disclaimer (gameInfoText.ts). All numbers come from config / the math run.
+	//
+	// READABILITY (1.0.13, the standard since Manticore's Build B2 of 2026-10-14): body copy (paragraphs, list items,
+	// card text, notes) in the real variable Outfit at 400 ('Outfit Text', ui/fontFaces.ts) with bold keywords at 700;
+	// headings, names and labels keep the HUD's heavy Outfit. Layout, sizes and colours are unchanged. The HUD is untouched.
 	import type { ComponentProps } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
-	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
+	import { stateBet, stateModal, stateUrlDerived, stateConfig } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import type { Controls } from './controls.svelte';
@@ -13,8 +17,9 @@
 	import config from '../game/config';
 	import { soc } from '../game/social';
 	import { stamp } from '../game/assets';
-	import { DISCLAIMER, rulesSections } from '../game/gameInfoText';
+	import { DISCLAIMER, rulesSections, guideRowShown, andList, type GuideId } from '../game/gameInfoText';
 	import { modeCost } from '../game/betModeMeta';
+	import { measureFitText, UI_TEXT_FACE } from '../game/textFit';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { master, scale, left, top, compact = false }: Props = $props();
@@ -69,7 +74,10 @@
 	const social = $derived(stateUrlDerived.social());
 	const payText = (mult: number) => (social ? `${mult}×` : numberToCurrencyString(mult * stateBet.betAmount));
 
-	const RULES_SECTIONS = rulesSections();
+	// the operator's switches (authenticate's jurisdiction block, the flags the controls read): the rules name no
+	// control the operator turned off (gameInfoText.ts RulesFlags)
+	const J = $derived(stateConfig.jurisdiction);
+	const RULES_SECTIONS = $derived(rulesSections(J));
 
 	const SPECIALS = [
 		{ glyph: 'W', name: 'Wild', color: '#ffdc4a', note: soc('Substitutes for every paying symbol. Never lands on reel 1. Does not substitute for Marky scatters or Service Bells.', 'Substitutes for every menu symbol. Never lands on reel 1. Does not substitute for Marky scatters or Service Bells.') },
@@ -95,17 +103,63 @@
 	// UI guide (submission checklist "User interaction guide is included in the game information"):
 	// one control per row — the same icon the chrome draws, the name, what a press does
 	type IconName = ComponentProps<typeof Icon>['name'];
-	type GuideRow = { icon: IconName | null; art?: string; color: string; name: string; text: string };
-	const GUIDE: GuideRow[] = [
-		{ icon: 'play', color: '#ffdc4a', name: 'Spin', text: soc('Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.', 'Plays one round at the SPIN amount. While the reels drop the button turns into STOP, which lands the result at once. With Autoplay or a feature loaded, the button shows what the next press starts.') },
-		{ icon: 'turbo', color: '#ffdc4a', name: 'Turbo', text: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. The turbo setting and the sound settings are remembered on this device.' },
-		{ icon: 'auto', color: '#ffdc4a', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, plus an ADVANCED fold with a stop-on-loss limit, a stop-on-single-win limit, Stop on Free Games (autoplay ends when a feature triggers; the feature still plays out) and Autoplay Bonuses (feature screens continue on their own). LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. While a run is active the Spin button turns green with the spins left and this button turns red with an X.' },
-		{ icon: 'polymath', color: '#ffdc4a', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or a Mystery Spin directly. A loaded feature is shown on the Spin button and on this button by name (ANTE, BONUS, SUPER or MYSTERY); tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or a Mystery spin instantly. A loaded feature is shown on the Spin button and on this button by name (ANTE, BONUS, SUPER or MYSTERY); tap the button again to cancel it.') },
-		{ icon: 'menu', color: '#ffdc4a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
-		{ icon: 'info', color: '#ffdc4a', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The − and + beside it step through the bet menu, and tapping the readout opens the full bet picker. The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The − and + beside it step through the play amount menu, and tapping the readout opens the full picker. The plaque on the reel frame names the active mode and its play amount.') },
-		{ icon: 'chevronRight', color: '#ffdc4a', name: 'Keyboard', text: 'Space bar plays a round; hold it to keep playing (Turbo and Autoplay are locked while it is held). Escape closes any open window.' },
-		{ icon: 'stop', color: '#ffdc4a', name: 'Feature screens', text: 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
-	];
+	type GuideRow = { id: GuideId; icon: IconName | null; art?: string; color: string; name: string; text: string };
+	// every sentence that names a control the operator can switch off is said only where it is on (gameInfoText.ts
+	// RulesFlags; Manticore 2026-10-15). STOP lands the result at once only with the slam stop AND turbo allowed
+	// (under disabledTurbo the press lands nothing sooner: ui/controls.svelte.ts stopButtonClick).
+	const GUIDE_ALL = $derived<GuideRow[]>([
+		{
+			id: 'spin',
+			icon: 'play',
+			color: '#ffdc4a',
+			name: 'Spin',
+			text: [
+				'Plays one round at the SPIN amount.',
+				!J.disabledSlamstop && !J.disabledTurbo ? 'While the reels drop the button turns into STOP, which lands the result at once.' : '',
+				((x) => (x ? `With ${x} loaded, the button shows what the next press starts.` : ''))([!J.disabledAutoplay ? 'Autoplay' : '', !J.disabledBuyFeature ? 'a feature' : ''].filter(Boolean).join(' or ')),
+			]
+				.filter(Boolean)
+				.join(' '),
+		},
+		{
+			id: 'turbo',
+			icon: 'turbo',
+			color: '#ffdc4a',
+			name: 'Turbo',
+			// disabledSuperTurbo: no Instant level (ui/controls.svelte.ts maxTurboLevel)
+			text: J.disabledSuperTurbo
+				? 'Switches between Off and Turbo. Turbo shortens the reel drop and the win presentation. The turbo setting and the sound settings are remembered on this device.'
+				: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation; Instant (lightning icon) lands each result immediately. The turbo setting and the sound settings are remembered on this device.',
+		},
+		{ id: 'autoplay', icon: 'auto', color: '#ffdc4a', name: 'Autoplay', text: 'Opens the Autoplay ticket: number of spins, plus an ADVANCED fold with a stop-on-loss limit, a stop-on-single-win limit, Stop on Free Games (autoplay ends when a feature triggers; the feature still plays out) and Autoplay Bonuses (feature screens continue on their own). LOAD parks the run on the Spin button; pressing Spin starts it and pressing again stops it. While a run is active the Spin button turns green with the spins left and this button turns red with an X.' },
+		{ id: 'feature', icon: 'polymath', color: '#ffdc4a', name: soc('Bonus Buy', 'Feature Menu'), text: soc('Opens the Chow Line: switch Ante Bet on, or buy Free Spins, Super Free Spins or a Mystery Spin directly. A loaded feature is shown on the Spin button and on this button by name (ANTE, BONUS, SUPER or MYSTERY); tap the button again to cancel it.', 'Opens the Chow Line: switch Ante Mode on, or trigger Free Spins, Super Free Spins or a Mystery spin instantly. A loaded feature is shown on the Spin button and on this button by name (ANTE, BONUS, SUPER or MYSTERY); tap the button again to cancel it.') },
+		{ id: 'menu', icon: 'menu', color: '#ffdc4a', name: 'Menu', text: 'Game Info (this screen) plus separate music and sound-effect volume sliders with mute buttons.' },
+		{ id: 'readouts', icon: 'info', color: '#ffdc4a', name: 'Readouts', text: soc('BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full cost of one press in the active mode (base bet × the mode multiplier). The − and + beside it step through the bet menu, and tapping the readout opens the full bet picker. The plaque on the reel frame names the active mode and its price.', 'BALANCE is your current balance. WIN is the running total of the current round. SPIN is the full play amount of one press in the active mode (base amount × the mode multiplier). The − and + beside it step through the play amount menu, and tapping the readout opens the full picker. The plaque on the reel frame names the active mode and its play amount.') },
+		{
+			id: 'keyboard',
+			icon: 'chevronRight',
+			color: '#ffdc4a',
+			name: 'Keyboard',
+			// disabledSpacebar: the Space bar plays nothing (ui/Chrome.svelte), so only Escape is left
+			text: [
+				J.disabledSpacebar
+					? ''
+					: ((x) => (x ? `Space bar plays a round; hold it to keep playing (${x} ${x.includes(' and ') ? 'are' : 'is'} locked while it is held).` : 'Space bar plays a round; hold it to keep playing.'))(
+							andList([!J.disabledTurbo ? 'Turbo' : '', !J.disabledAutoplay ? 'Autoplay' : ''].filter(Boolean)),
+						),
+				'Escape closes any open window.',
+			]
+				.filter(Boolean)
+				.join(' '),
+		},
+		// THE SKIP BUTTON (1.0.13, Manticore's wording with this game's feature names). The row is left out where the
+		// operator disables the slam stop or turbo (stateGame skipAllowed; guideRowShown)
+		{ id: 'skip', icon: 'skip', color: '#ffdc4a', name: 'Skip to Result', text: 'Shown during Free Spins, Super Free Spins and Mantis Feast once the first free spin has started. Pressing it asks "Skip to result?". Yes ends the presentation of the remaining spins and shows the final total of the round. No closes the question and the spins play on. It never changes the result.' },
+		// Autoplay Bonuses is a setting of the Autoplay ticket: not named under disabledAutoplay
+		{ id: 'screens', icon: 'stop', color: '#ffdc4a', name: 'Feature screens', text: J.disabledAutoplay ? 'Feature intros and wrap-ups wait for a press anywhere.' : 'Feature intros and wrap-ups wait for a press anywhere. Autoplay Bonuses in the Autoplay ticket lets those screens continue on their own.' },
+	]);
+	// Stake's jurisdiction switches: a control the operator turns off has no row (gameInfoText.ts guideRowShown)
+	const GUIDE = $derived(GUIDE_ALL.filter((g) => guideRowShown(g.id, J)));
 
 	let active = $state('paytable');
 	let contentEl: HTMLDivElement | undefined = $state();
@@ -143,6 +197,34 @@
 	const tabSize = $derived(short ? 10 : dense ? 10.5 : 11);
 	const tileSize = $derived(short ? 40 : dense ? 48 : 64);
 	const iconBox = $derived(short ? 34 : dense ? 40 : 48);
+
+	// PAYTABLE FIT (Manticore's fix of 2026-10-09, Engine self-check [24], ported for 1.0.13). Three pays beside the
+	// symbol name did not fit everywhere: in MXN ("MX$" and the thousands) the "5 of a kind" column sat off the
+	// right edge at 400 / 425 px and in the two-column grid at 800 px. So the row is MEASURED (game/textFit.ts, one
+	// metrics call per bet / currency / size change, never per frame): the two-column grid is kept only where every
+	// row still fits its pays beside the name; otherwise the rows take the whole column, and where even that leaves
+	// no room the pays move to their own line under the symbol (`stack`) in three equal columns. The type shrinks
+	// only as a last resort and never under PAY_FLOOR. Nothing is clipped, abbreviated or scrolled sideways. The
+	// geometry mirrors the CSS below (.row padding / gap, .pays gap, section max-width, .pay-grid gap).
+	const PAY_FONT = 16; // .pay-v nominal
+	const PAY_FLOOR = 9;
+	const PAY_GAP = 14; // .pays gap beside the name
+	const PAY_STACK_GAP = 8; // .row.stack .pays column gap
+	const PAY_MIN = 44; // .pay min-width
+	const PAY_BANDS = 3; // 3, 4 and 5 of a kind
+	// widest pay string of the whole table at the nominal size, plus 4% for the canvas / DOM difference
+	const widestPay = $derived(Math.max(...paying.flatMap((sym) => pays(sym).map((p) => measureFitText(payText(p), PAY_FONT, 700)))) * 1.04);
+	// the name may wrap between words, never inside one: the room it needs is its longest word (.row-name)
+	const nameSize = $derived(dense ? 12.5 : 14);
+	const nameMin = $derived(Math.max(...paying.flatMap((sym) => SYMBOL_META[sym].name.toUpperCase().split(' ').map((w) => measureFitText(w, nameSize, 800, 1.5, UI_TEXT_FACE)))) * 1.04);
+	// inside one .row with `cols` grid columns: the reading column (section max-width 880) less the scrollbar, the
+	// grid gap, the row's padding and border
+	const rowInner = (cols: number) => (Math.min(880, vw - 2 * pad - 12) - (cols - 1) * 8) / cols - 2 * 12 - 2;
+	const fits = (cols: number) => PAY_BANDS * Math.max(PAY_MIN, widestPay) + (PAY_BANDS - 1) * PAY_GAP <= rowInner(cols) - tileSize - 14 - nameMin - 14;
+	const payCols = $derived(!narrow && fits(2) ? 2 : 1);
+	const stack = $derived(payCols === 1 && !fits(1));
+	const stackFont = $derived(Math.min(PAY_FONT, (PAY_FONT * ((rowInner(1) - (PAY_BANDS - 1) * PAY_STACK_GAP) / PAY_BANDS - 2)) / widestPay));
+	const payFont = $derived(stack ? Math.max(PAY_FLOOR, Math.floor(stackFont * 10) / 10) : PAY_FONT);
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.72)" zIndex={5}>
@@ -163,18 +245,18 @@
 			<section bind:this={sectionEls.paytable}>
 				<h2>{soc('Paytable', 'Symbols')}</h2>
 				<p>{soc('Pays per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins pay left to right on adjacent reels starting from reel 1.', 'Wins per way for 3, 4 and 5 of a kind, multiplied by the number of matching ways. Wins form left to right on adjacent reels starting from reel 1.')} {soc('Only the highest win per symbol is paid. Base game wins are capped at 250× the bet per spin.', 'Only the highest win per symbol counts. A single base game spin never wins more than 250× the play amount.')}</p>
-				<div class="pay-grid" style:grid-template-columns={narrow ? '1fr' : 'repeat(2, minmax(0,1fr))'}>
+				<div class="pay-grid" style:grid-template-columns={payCols === 1 ? '1fr' : 'repeat(2, minmax(0,1fr))'}>
 					{#each paying as sym (sym)}
 						{@const meta = SYMBOL_META[sym]}
-						<div class="row">
+						<div class="row" class:stack>
 							<img class="tile" src={tileSrc(sym)} alt={meta.name} style:width="{tileSize}px" style:height="{tileSize}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={meta.color} style:font-size="{dense ? 12.5 : 14}px">{meta.name}</div>
 								<div class="row-kind">{meta.kind === 'premium' ? 'Premium' : meta.kind === 'mid' ? 'Mid' : 'Low'}</div>
 							</div>
-							<div class="pays">
+							<div class="pays" style:grid-template-columns={stack ? `repeat(${PAY_BANDS}, minmax(0, 1fr))` : null}>
 								{#each pays(sym) as p, i}
-									<div class="pay"><div class="pay-k">{3 + i} of a kind</div><div class="slot-num pay-v">{payText(p)}</div></div>
+									<div class="pay"><div class="pay-k">{3 + i} of a kind</div><div class="slot-num pay-v" style:font-size="{payFont}px">{payText(p)}</div></div>
 								{/each}
 							</div>
 						</div>
@@ -348,6 +430,9 @@
 		--body: var(--ui-ink-2);
 		--muted: var(--ui-ink-2);
 		--faint: var(--ui-ink-3);
+		/* the reading face (ui/fontFaces.ts): real variable Outfit, drawn at 400 with bold keywords at 700. Headings,
+		   names and labels name --ui-font (the HUD's black Outfit) themselves */
+		--gi-body: 'Outfit Text', var(--ui-font);
 		--rule: var(--ui-rule);
 		--rule-2: var(--ui-rule-2);
 		--well: var(--ui-glass-well);
@@ -422,6 +507,8 @@
 		align-items: stretch;
 		line-height: 1.55;
 		color: var(--body);
+		font-family: var(--gi-body);
+		font-weight: 400;
 		overscroll-behavior: contain;
 		scrollbar-width: thin;
 		scrollbar-color: var(--rule-2) transparent;
@@ -437,6 +524,7 @@
 	}
 	h2 {
 		margin: 0;
+		font-family: var(--ui-font);
 		font-size: 13px;
 		font-weight: 900;
 		letter-spacing: 3px;
@@ -465,6 +553,7 @@
 		gap: 6px;
 	}
 	.subhead {
+		font-family: var(--ui-font);
 		font-size: 11.5px;
 		letter-spacing: 2px;
 		font-weight: 800;
@@ -520,6 +609,7 @@
 		border-radius: 8px;
 	}
 	.menu-num {
+		font-family: var(--ui-font);
 		font-size: 10px;
 		font-weight: 800;
 		color: var(--faint);
@@ -547,12 +637,14 @@
 		min-width: 0;
 	}
 	.row-name {
+		font-family: var(--ui-font);
 		font-size: 14px;
 		font-weight: 800;
 		letter-spacing: 1.5px;
 		text-transform: uppercase;
 	}
 	.row-kind {
+		font-family: var(--ui-font);
 		font-size: 11.5px;
 		color: var(--faint);
 		letter-spacing: 1px;
@@ -573,7 +665,22 @@
 		text-align: right;
 		min-width: 44px;
 	}
+	/* PAYTABLE FIT: the pays on their own line under the symbol, in equal columns (see `stack` above) */
+	.row.stack {
+		flex-wrap: wrap;
+		row-gap: 8px;
+	}
+	.row.stack .pays {
+		flex: 1 1 100%;
+		display: grid;
+		gap: 6px 8px;
+	}
+	.row.stack .pay {
+		min-width: 0;
+		text-align: center;
+	}
 	.pay-k {
+		font-family: var(--ui-font);
 		font-size: 10.5px;
 		font-weight: 800;
 		letter-spacing: 0.5px;
@@ -609,11 +716,13 @@
 		flex-wrap: wrap;
 	}
 	.mode-name {
+		font-family: var(--ui-font);
 		font-weight: 900;
 		letter-spacing: 2px;
 		text-transform: uppercase;
 	}
 	.mode-meta {
+		font-family: var(--ui-font);
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px 14px;
@@ -656,6 +765,7 @@
 		gap: 3px;
 	}
 	.guide-name {
+		font-family: var(--ui-font);
 		font-weight: 800;
 		letter-spacing: 1.5px;
 		color: var(--ink);
@@ -668,6 +778,7 @@
 		font-size: 12.5px;
 	}
 	.k {
+		font-family: var(--ui-font);
 		font-size: 10.5px;
 		font-weight: 800;
 		letter-spacing: 1.6px;
@@ -679,6 +790,7 @@
 		margin-top: 2px;
 	}
 	.kv {
+		font-family: var(--ui-font);
 		display: flex;
 		justify-content: space-between;
 		gap: 12px;
@@ -731,6 +843,7 @@
 		text-align: center;
 	}
 	.rtp-k {
+		font-family: var(--ui-font);
 		font-size: 10.5px;
 		letter-spacing: 1.4px;
 		font-weight: 800;

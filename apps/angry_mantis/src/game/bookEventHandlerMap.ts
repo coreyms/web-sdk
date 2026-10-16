@@ -62,6 +62,18 @@ const musicPlay = (name: MusicName) => {
 // the cafeteria room a bonus mode plays in (Background.svelte); regular free spins share base
 const sceneOf = (mode: BonusMode): Scene => (mode === 'super' || mode === 'feast' ? mode : 'base');
 
+// SKIP TO RESULT (stateGame.skipping): does the spin this reveal starts end the feature at the cap? Its
+// events run up to the next free spin's updateFreeSpin (or the session's bonusEnd). That spin always plays
+// in full, presentation and all, so a skip never swallows the max win.
+const spinReachesCap = (bookEvent: BookEvent, bookEvents: BookEvent[]): boolean => {
+	for (let i = bookEvents.indexOf(bookEvent) + 1; i < bookEvents.length; i += 1) {
+		const e = bookEvents[i];
+		if (e.type === 'updateFreeSpin' || e.type === 'bonusEnd' || e.type === 'reveal') return false;
+		if (e.type === 'wincap' || e.type === 'maxWinCinematic') return true;
+	}
+	return false;
+};
+
 // per-free-spin outcome tracking for mantis reactions (reveal resets, setWin marks)
 let freeSpinHadWin = false;
 // celebration cooldown (CELEBRATE): the free-spin index of the last celebration, reset per bonus
@@ -147,6 +159,23 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			stateGameDerived.resetSession();
 		}
 		stateGame.gameType = bookEvent.gameType;
+		if (bookEvent.gameType === 'freegame') {
+			// the feature's first free spin has started: SKIP TO RESULT is offered from here on
+			stateGame.freeSpinsBegun = true;
+			// the spin that reaches the cap always plays in full (and nothing after it can be skipped)
+			if (spinReachesCap(bookEvent, bookEvents)) {
+				stateGame.capSpin = true;
+				stateGameDerived.finishSkip();
+			}
+			if (stateGame.skipping) {
+				// SKIP TO RESULT: no drop, no tease, no landing beats; the board is simply this reveal's
+				stateGame.antePrevLocked = false;
+				stateGame.winFocus = null;
+				eventEmitter.broadcast({ type: 'boardSettle', board: bookEvent.board });
+				eventEmitter.broadcast({ type: 'soundScatterCounterClear' });
+				return;
+			}
+		}
 		eventEmitter.broadcast({ type: 'soundLoop', name: 'sfx_reel_spin' });
 		// Scatter anticipation (Corey 2026-09-08, replaces the "after the third scatter" rule):
 		//  - free games: none — a single scatter already retriggers there, the tease is noise;
@@ -207,6 +236,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			.slice(idx + 1)
 			.find((e): e is BookEventOfType<'setTotalWin'> => e.type === 'setTotalWin');
 		if (upcomingTotal) stateBet.winBookEventAmount = upcomingTotal.amount;
+		if (stateGame.skipping) return; // SKIP TO RESULT: the total above, no combos
 		stateGameDerived.scatterTrace('winInfo', { wins: bookEvent.wins.length });
 		const lit: Position[] = [];
 		for (const [i, win] of bookEvent.wins.entries()) {
@@ -231,6 +261,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateBet.winBookEventAmount = bookEvent.amount;
 	},
 	wincap: async (bookEvent: BookEventOfType<'wincap'>) => {
+		// a skip never swallows the max win (backstop: the capping spin's reveal has already ended it)
+		stateGameDerived.finishSkip();
 		stateBet.winBookEventAmount = bookEvent.amount;
 	},
 	anteLock: async (bookEvent: BookEventOfType<'anteLock'>) => {
@@ -277,6 +309,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.bonusMode = bookEvent.mode;
 		stateGame.bonusHost = bookEvent.host;
 		stateGame.totalFs = bookEvent.totalFs;
+		// a new session: no recap yet (bonusEnd writes it; SKIP reads it as "the spins are over"), no free
+		// spin started (SKIP is offered from the first one), no max-win spin found yet
+		stateGame.sessionRecap = null;
+		stateGame.freeSpinsBegun = false;
+		stateGame.capSpin = false;
 
 		// super is Marky's stage: base Marty walks off in full view before the door drops
 		if (bookEvent.mode === 'super') await eventEmitter.broadcastAsync({ type: 'martyWalkOut' });
@@ -330,7 +367,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 	},
 	updateFreeSpin: async (bookEvent: BookEventOfType<'updateFreeSpin'>) => {
-		if (!freeSpinHadWin && !stateUrlDerived.replay() && Math.random() < 1 / 3) {
+		if (!freeSpinHadWin && !stateGame.skipping && !stateUrlDerived.replay() && Math.random() < 1 / 3) {
 			eventEmitter.broadcast({ type: 'mantisReact', kind: 'angry' });
 		}
 		stateGame.spinsPlayed = bookEvent.amount;
@@ -340,6 +377,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	strike: async (bookEvent: BookEventOfType<'strike'>) => {
 		stateGame.strikeCount = bookEvent.strikeIndex + 1;
+		if (stateGame.skipping) {
+			// SKIP TO RESULT: the bell this strike answers, and no strike (the eat below marks it answered)
+			stateGame.pendingStrikePos = bookEvent.position ? { reel: bookEvent.position.reel, row: bookEvent.position.row - 1 } : null;
+			return;
+		}
 		// setWin hides the win plate the instant its hold ends, but the plate still fades for
 		// 400 ms over the board centre — exactly where the first bell rings and the tray drops in,
 		// so the press was lost under it (Corey 2026-09-10, regular and turbo). Let it clear first;
@@ -362,6 +404,18 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		});
 	},
 	eat: async (bookEvent: BookEventOfType<'eat'>) => {
+		if (stateGame.skipping) {
+			// SKIP TO RESULT: the eat's state only. mantisRest puts away whatever a strike that was already
+			// in flight when the skip was pressed left out (the hero tray, the bell, the spotlight)
+			const from = stateGame.pendingStrikePos;
+			if (bookEvent.symbolEaten && from) stateGame.consumedLeaves = [...stateGame.consumedLeaves, from];
+			stateGame.pendingStrikePos = null;
+			stateGame.symbolPool = [...bookEvent.remainingPool];
+			eventEmitter.broadcast({ type: 'mantisRest', striker: bookEvent.striker });
+			if (bookEvent.symbolEaten) eventEmitter.broadcast({ type: 'boardMarkEaten', symbol: bookEvent.symbolEaten });
+			if (stateGame.consumedLeaves.length >= stateGame.leafOrder.length) eventEmitter.broadcast({ type: 'menuGlow', on: false });
+			return;
+		}
 		if (bookEvent.symbolEaten) {
 			// answer the bell AND consume the pool entry BEFORE the flight starts (the hero tray's
 			// insect hides the instant the flying insect appears; see Mantis.svelte)
@@ -390,9 +444,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	removeSymbolFromPool: async (bookEvent: BookEventOfType<'removeSymbolFromPool'>) => {
 		stateGame.symbolPool = [...bookEvent.remainingPool];
 		stateGame.eatenSymbols = config.eatOrder.filter((s) => !bookEvent.remainingPool.includes(s));
+		if (stateGame.skipping) return; // SKIP TO RESULT: no beat for the menu
 		await eventEmitter.broadcastAsync({ type: 'poolRemove', symbol: bookEvent.symbol });
 	},
 	retriggerSpins: async (bookEvent: BookEventOfType<'retriggerSpins'>) => {
+		if (stateGame.skipping) {
+			stateGame.totalFs = bookEvent.newTotalFs; // SKIP TO RESULT: the count only, no floaters
+			return;
+		}
 		// Each awarded scatter pops its own '+1 SPIN' floater straight off the symbol — same
 		// style/size/speed as the combo-win amounts (Corey 2026-08-30, replacing the banner).
 		eventEmitter.broadcast({ type: 'mantisReact', kind: 'astonished' });
@@ -417,6 +476,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		//      tray rain, press gate held until the track ends.
 		// Every number is the book's: `payout` here is the same amount its wincap/setTotalWin write
 		// two events later. The old "19999.9x" top-up readout is gone.
+		// a skip never swallows the max win (backstop: the capping spin's reveal has already ended it)
+		stateGameDerived.finishSkip();
 		const winLevelData = winLevelMap[10];
 		// the HUD WIN readout climbs with the plate (kept on screen until the deep dim)
 		stateBet.winBookEventAmount = bookEvent.payout;
@@ -436,6 +497,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateBet.winBookEventAmount = bookEvent.payout;
 	},
 	bonusEnd: async (bookEvent: BookEventOfType<'bonusEnd'>) => {
+		// SKIP TO RESULT ends HERE, before anything else: the door and the wrap-up that follow play at
+		// normal speed exactly as they do unskipped, with the book's own total
+		stateGameDerived.finishSkip();
 		eventEmitter.broadcast({ type: 'menuGlow', on: false });
 		// only Marky walks off (super empties the stage); Marty stays put until freeSpinEnd hands
 		// his slot back to MartyArt (Corey 2026-09-05: he must never vanish behind the door drop)
@@ -525,6 +589,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// here (2026-09-15 pm): it runs at maxWinCinematic, over the all-wild soap board.
 		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];
 		const amount = bookEvent.amount;
+		// SKIP TO RESULT: no win screen for a skipped spin (the wrap-up shows the round's total)
+		if (stateGame.skipping) return;
 
 		if (stateGame.gameType === 'freegame' && bookEvent.amount > 0) {
 			freeSpinHadWin = true;

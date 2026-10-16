@@ -729,3 +729,34 @@ export const SPIN_PRICE_FIT = {
 	weight: 800,
 	letterSpacing: -0.5,
 } as const;
+
+/** THE SKIP BUTTON AND ITS PROMPT (components/SkipButton.svelte, HTML; placement is layoutSpec SKIP). Manticore
+ *  Mayhem's button as it was before its bronze HUD (web-sdk 991c8e3), on this game's own Play button look: the Play
+ *  button's plate at half its height with a fast forward glyph and no text. A press does not skip: it opens the
+ *  prompt "Skip to result?" beside it; Yes skips, No, a tap anywhere else or promptMs with no answer closes it.
+ *  Nothing waits on any of it: the feature plays on underneath. */
+export const SKIP_HUD = {
+	inMs: 220,
+	outMs: 120,
+	/** the prompt closes by itself after this long with no answer */
+	promptMs: 4000,
+	/** the Play button's own look (ui/SquareSpin.svelte): ring and radius from the Play button's size in master px */
+	plate: 'rgba(20, 18, 16, .85)',
+	ring: { share: 0.03, min: 2, color: '#fff' },
+	radius: { share: 0.22, base: 8, grow: 0.07 },
+	/** the glyph's height as a share of the button's height */
+	glyphShare: 0.62,
+	/** the touch target is grown (invisibly) to at least this, CSS px */
+	minHitCss: 44,
+	/** the prompt, as shares of the Play button's size on screen, each with a floor in CSS px. Yes and No are at
+	 *  least 52 x 40 CSS px on any screen. */
+	prompt: {
+		gapCss: 6,
+		button: { w: 0.6, h: 0.42, minW: 52, minH: 40 },
+		font: { share: 0.15, min: 12 },
+		pad: { share: 0.1, min: 8 },
+		gap: { share: 0.08, min: 6 },
+		/** the question's line box, in ems */
+		line: 1.3,
+	},
+} as const;

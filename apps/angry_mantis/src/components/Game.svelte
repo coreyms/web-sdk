@@ -44,6 +44,7 @@
 	import AllWildTopUp from './AllWildTopUp.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
 		import Chrome from '../ui/Chrome.svelte';
+		import SkipButton from './SkipButton.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
 	import TextWarmup from './TextWarmup.svelte';
 
@@ -263,6 +264,8 @@
 <!-- HTML chrome (design "Graffiti Grunge"): control bar, bonus buy, bet picker, game info -->
 {#if !redirecting}
 	<Chrome />
+	<!-- the SKIP button and its prompt: HTML over the canvas and the HUD, so the hosts never cover it -->
+	<SkipButton />
 	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
 		<LandingScreen onpress={() => (landingPressed = true)} />
 	{/if}

@@ -31,6 +31,15 @@
 			--ui-rule: rgba(255, 255, 255, 0.09);
 			--ui-rule-2: rgba(255, 255, 255, 0.16);
 			--ui-gold-ink: #1b1204;
+			/* HOVER AND PRESSED LIFTS, mouse only (Manticore 2026-10-13, ported for 1.0.13; the rules are at the foot of
+			   this block). ONE place for the numbers. A lift is a light veil over the whole button, as a CSS filter:
+			   contrast(k) then brightness(b) maps a colour c to b*k*c + b*(1 - k)/2, so 0.88 / 1.14 adds about 17 of 255
+			   to every colour (and so shows on the black glass buttons, where a plain brightness would not) and
+			   0.84 / 1.22 about 25. No movement, no scale. (CSS filter on HTML is allowed: the "no filters" house rule is
+			   about Pixi; only backdrop-filter is out here.) */
+			--ui-hover-ms: 100ms;
+			--ui-hover-lift: contrast(0.88) brightness(1.14);
+			--ui-press-lift: contrast(0.84) brightness(1.22);
 		}
 		/* the ONE theme cue every modal shares (approval review 2026-09-15: the three modal
 		   families carried nothing from the game): headings set in the stencil face the numerals
@@ -82,9 +91,27 @@
 			touch-action: manipulation;
 			pointer-events: auto;
 		}
+		.slot-btn {
+			/* the lift's fade. A component that sets its own `transition` on a button lists
+			   `filter var(--ui-hover-ms) ease` in it too (the shorthand replaces this one). */
+			transition: filter var(--ui-hover-ms) ease;
+		}
 		.slot-btn:disabled {
 			cursor: not-allowed;
 			opacity: 0.55;
+		}
+		/* HOVER (Corey 2026-10-13, the standard since Manticore): only where there is a real pointer that can hover. A
+		   touch screen matches neither query, so nothing changes there (no sticky hover after a tap). Every HUD and
+		   modal button is a .slot-btn: Play, feature, turbo, autoplay, plus, minus, the menu, SKIP and its Yes / No,
+		   the Chow Line's buttons, the modals' buttons. Not a disabled one. Not the three that already had a hover of
+		   their own (the modals' close X, the bet picker's options, the menu's Game Info row). */
+		@media (hover: hover) and (pointer: fine) {
+			.slot-btn:hover:not(:disabled):not(.x):not(.opt):not(.info-row) {
+				filter: var(--ui-hover-lift);
+			}
+			.slot-btn:active:not(:disabled):not(.x):not(.opt):not(.info-row) {
+				filter: var(--ui-press-lift);
+			}
 		}
 		.slot-btn:focus-visible {
 			outline: 2px solid var(--ui-amber);

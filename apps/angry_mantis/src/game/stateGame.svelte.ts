@@ -1,6 +1,6 @@
 import _ from 'lodash';
 
-import { stateBet, stateBetDerived } from 'state-shared';
+import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
 import { createEnhanceBoard, createReelForCascading } from 'utils-slots';
 import { createGetWinLevelDataByWinLevelAlias } from 'utils-shared/winLevel';
 import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
@@ -147,6 +147,30 @@ export const stateGame = $state({
 	// count of ACTIVE press-to-continue gates (see PressToContinue.svelte): while > 0, Chrome's
 	// Space→spin/stop hotkey is disabled so a continue press can't leak into stopButtonClick
 	pressGates: 0,
+	/** the win plate on screen (Win.svelte: from its winUpdate until its fade-out has finished, the life of
+	 *  its press gate): the SKIP button stays down under a big win screen and stays up over the plain plate
+	 *  of a regular win */
+	winPlate: null as null | 'plain' | 'big',
+	/** THE OPEN ROUND COMES FIRST (Engine guideline 187, ported from Manticore 2026-10-15): true from boot
+	 *  until components/ResumeBet.svelte has handed an open round to the game actor (which is then busy
+	 *  until that round's end-round is answered) or knows there is none. While it is set nothing can start
+	 *  a round or change the bet: ui/controls.svelte.ts disables Spin, Space, autoplay, the feature button
+	 *  and the steppers, and components/EnableGameActor.svelte drops `bet` / `autoBet` whoever sends them. */
+	resumeHold: true,
+	// ---- SKIP TO RESULT (components/SkipButton.svelte; Manticore's button, ported 2026-10-15) ----
+	/** SKIP TO RESULT is pressed: every remaining book event of the feature still runs through its own
+	 *  handler and applies its state (pool, eaten marks, spin counter, totals), the board is settled
+	 *  straight onto each reveal's board, and the presentation (reel drops, combos, win plates, strikes,
+	 *  eats, floaters, per-spin sounds) is left out. Set ONLY by stateGameDerived.requestSkip, cleared
+	 *  ONLY by stateGameDerived.finishSkip (bonusEnd, and the max-win spin, which always plays in full).
+	 *  Not persisted: a reload mid-skip resumes the round at normal speed. */
+	skipping: false,
+	/** the feature's first free spin has started (its first reveal): the SKIP button is offered from here.
+	 *  bonusStart clears it, so the intro and the opening bites are never skippable */
+	freeSpinsBegun: false,
+	/** this feature's remaining events are its max-win spin (the reveal that reaches the cap found it):
+	 *  that spin always plays in full, so SKIP is down until the feature ends. bonusStart clears it */
+	capSpin: false,
 	// ---- scatter landing (SCATTER_LAND, constants.ts) ----
 	// cells whose scatter is being slapped down right now (ReelSymbol hides its own tile meanwhile,
 	// ScatterDrop.svelte draws the card above the frame)
@@ -329,6 +353,35 @@ const clearScatterFx = () => {
 const { enhanceBoard } = createEnhanceBoard();
 const enhancedBoard = enhanceBoard({ board: stateGame.board });
 
+/** is the feature still playing its spins? bonusEnd writes the recap (and bonusStart clears it), and
+ *  gameType stays 'freegame' until freeSpinEnd a beat later: a press in that gap must not take, or
+ *  `skipping` would be set with no bonusEnd left to clear it. */
+export const featureSpinsLive = () => stateGame.gameType === 'freegame' && stateGame.sessionRecap === null;
+
+/** STAKE'S JURISDICTION SWITCHES AND THE SKIP: SKIP TO RESULT is a slam stop and a speed up in one, so
+ *  an operator that disables either (authenticate's jurisdiction.disabledSlamstop / disabledTurbo,
+ *  stateConfig) has no SKIP at all: the button is not rendered (components/SkipButton.svelte),
+ *  requestSkip refuses, and the rules page has no Skip to Result row or sentence (ui/GameInfoModal.svelte,
+ *  game/gameInfoText.ts). jurisdiction.minimumRoundDuration needs nothing here: the shared machine holds
+ *  it after the whole presentation, skipped or not, before the end of the round (utils-xstate). */
+export const skipAllowed = (): boolean => !stateConfig.jurisdiction.disabledSlamstop && !stateConfig.jurisdiction.disabledTurbo;
+
+/** press SKIP TO RESULT: only where the operator allows it, only while a feature's spins are live and
+ *  its first free spin has started, never on the max-win spin, and a second press is a no-op. Returns
+ *  whether it took. A reel drop in flight lands at once (the slam stop); the beat in flight finishes,
+ *  and every later event of the feature takes its handler's quiet path (bookEventHandlerMap.ts). */
+const requestSkip = (): boolean => {
+	if (!skipAllowed() || !featureSpinsLive() || !stateGame.freeSpinsBegun || stateGame.capSpin || stateGame.skipping) return false;
+	stateGame.skipping = true;
+	if (!stateGame.board.every((reel) => reel.reelState.motion === 'stopped')) eventEmitter.broadcast({ type: 'stopButtonClick' });
+	return true;
+};
+
+/** the skip is over: what follows (the max-win spin, the wrap-up) plays at normal speed */
+const finishSkip = () => {
+	stateGame.skipping = false;
+};
+
 export const { getWinLevelDataByWinLevelAlias } = createGetWinLevelDataByWinLevelAlias({ winLevelMap });
 
 export const stateGameDerived = {
@@ -346,4 +399,6 @@ export const stateGameDerived = {
 	getWinLevelDataByWinLevelAlias,
 	resetSession,
 	setTurboLevel,
+	requestSkip,
+	finishSkip,
 };

@@ -61,7 +61,8 @@
 		transition:
 			box-shadow 0.25s,
 			background 0.25s,
-			transform 0.08s ease;
+			transform 0.08s ease,
+			filter var(--ui-hover-ms) ease;
 	}
 	.fb.on {
 		background: #0b0c10;

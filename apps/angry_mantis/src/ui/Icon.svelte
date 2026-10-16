@@ -1,10 +1,13 @@
 <script lang="ts">
-	type Props = { name: 'play' | 'stop' | 'auto' | 'turbo' | 'instant' | 'menu' | 'close' | 'info' | 'music' | 'musicMute' | 'volume' | 'volumeMute' | 'coins' | 'chevronLeft' | 'chevronRight' | 'polymath'; s?: number };
+	type Props = { name: 'play' | 'skip' | 'stop' | 'auto' | 'turbo' | 'instant' | 'menu' | 'close' | 'info' | 'music' | 'musicMute' | 'volume' | 'volumeMute' | 'coins' | 'chevronLeft' | 'chevronRight' | 'polymath'; s?: number };
 	const { name, s = 20 }: Props = $props();
 </script>
 
 {#if name === 'play'}
 	<svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.55.83l11.5-7.5a1 1 0 0 0 0-1.66l-11.5-7.5A1 1 0 0 0 7 4.5z" /></svg>
+{:else if name === 'skip'}
+	<!-- fast forward: two of the play glyph's triangles, side by side (the SKIP button, Manticore's glyph) -->
+	<svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.5 6.2v11.6a.8.8 0 0 0 1.25.66L12 12.66v5.14a.8.8 0 0 0 1.25.66l8.2-5.8a.8.8 0 0 0 0-1.32l-8.2-5.8A.8.8 0 0 0 12 6.2v5.14L3.75 5.54A.8.8 0 0 0 2.5 6.2z" /></svg>
 {:else if name === 'stop'}
 	<svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
 {:else if name === 'auto'}

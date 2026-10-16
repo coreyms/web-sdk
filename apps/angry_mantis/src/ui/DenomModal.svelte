@@ -106,7 +106,7 @@
 	<div class="center" style:padding="{MARGIN}px">
 		<div class="panel am-glass" class:tight class:tiny onclick={(e) => e.stopPropagation()} role="presentation" style:width="{cardWidth}px">
 			<div class="head">
-				<div class="title am-stencil">PRICE LIST</div>
+				<div class="title am-stencil">{soc('PRICE LIST', 'PLAY AMOUNTS')}</div>
 				<div class="pill">{soc('PER SPIN', 'PER PLAY')}</div>
 				<button class="slot-btn x" onclick={(e) => (e.stopPropagation(), close())} aria-label="Close">
 					<Icon name="close" s={tiny ? 13 : 16} />
@@ -126,7 +126,7 @@
 				</div>
 			</div>
 
-			<div class="cap">{soc('Amount per spin. Feature prices are multiples of this.', 'Amount per play. Feature prices are multiples of this.')}</div>
+			<div class="cap">{soc('Amount per spin. Feature prices are multiples of this.', "Amount per play. Each mode's round is a multiple of this.")}</div>
 		</div>
 	</div>
 </ModalShell>

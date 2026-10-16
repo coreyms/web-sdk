@@ -12,15 +12,46 @@ const MODE_RTP_LINE = Object.entries(config.betModes)
 	.map(([key, m]) => `${MODE_NAMES[key] ?? key.toUpperCase()} ${pct(m.rtp)}`)
 	.join(', ');
 
+/** THE OPERATOR'S SWITCHES the rules page follows (Manticore 2026-10-15, ported for 1.0.13; front-end-communication.md):
+ *  authenticate's jurisdiction block (stateConfig.jurisdiction), the same flags the controls read (ui/controls.svelte.ts,
+ *  ui/Chrome*.svelte, stateGame skipAllowed). A control the operator turns off is neither drawn nor described: its UI
+ *  guide row goes (ui/GameInfoModal.svelte guideRowShown) and no other sentence names it. */
+export type RulesFlags = {
+	disabledAutoplay?: boolean;
+	disabledTurbo?: boolean;
+	disabledSuperTurbo?: boolean;
+	disabledSlamstop?: boolean;
+	disabledSpacebar?: boolean;
+	disabledBuyFeature?: boolean;
+};
+/** SKIP TO RESULT exists only where both the slam stop and turbo are allowed (stateGame skipAllowed, the same rule) */
+export const skipShown = (j: RulesFlags) => !j.disabledSlamstop && !j.disabledTurbo;
+/** the UI guide's rows (ui/GameInfoModal.svelte), keyed for the operator's switches */
+export type GuideId = 'spin' | 'turbo' | 'autoplay' | 'feature' | 'menu' | 'readouts' | 'keyboard' | 'skip' | 'screens';
+/** the UI guide's rows under the operator's switches: no Turbo row under disabledTurbo, no Autoplay row under
+ *  disabledAutoplay, no feature menu row under disabledBuyFeature (their buttons are not drawn: ui/Chrome*.svelte),
+ *  no Skip to Result row where SKIP does not exist (skipShown). The Keyboard row stays under disabledSpacebar
+ *  (Escape still closes a window); its text drops the Space bar. */
+export const guideRowShown = (id: GuideId, j: RulesFlags): boolean => {
+	if (id === 'turbo') return !j.disabledTurbo;
+	if (id === 'autoplay') return !j.disabledAutoplay;
+	if (id === 'feature') return !j.disabledBuyFeature;
+	if (id === 'skip') return skipShown(j);
+	return true;
+};
+/** "A and B" / "A" / "" */
+export const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : (xs[0] ?? ''));
+
 // A function, not a constant: this module is evaluated at boot, but the buy prices below come from
-// the authenticate response, which has only landed by the time the info modal is opened.
-export const rulesSections = () => [
+// the authenticate response, which has only landed by the time the info modal is opened. `j`: the
+// operator's switches (RulesFlags), so the text names no control the operator turned off.
+export const rulesSections = (j: RulesFlags = {}) => [
 	{
 		title: 'HOW TO PLAY',
 		paragraphs: [
 			soc(
-				'Choose a bet and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row: 1,024 ways to win. Only the highest win per symbol is paid.',
-				'Choose a play amount and press SPIN (or the spacebar). Wins are formed by matching symbols on adjacent reels from left to right, in any row: 1,024 ways to win. Only the highest win per symbol counts.',
+				`Choose a bet and press SPIN${j.disabledSpacebar ? '' : ' (or the spacebar)'}. Wins are formed by matching symbols on adjacent reels from left to right, in any row: 1,024 ways to win. Only the highest win per symbol is paid.`,
+				`Choose a play amount and press SPIN${j.disabledSpacebar ? '' : ' (or the spacebar)'}. Wins are formed by matching symbols on adjacent reels from left to right, in any row: 1,024 ways to win. Only the highest win per symbol counts.`,
 			),
 			soc(
 				'A single base game spin never pays more than 250x the bet. The total payout of any round is capped at 20,000x the bet.',
@@ -45,6 +76,8 @@ export const rulesSections = () => [
 			),
 			`Each Marky scatter in free spins awards +1 extra spin, up to +${config.freeSpins.maxRetrigger} per session. Once the maximum extra spins have been awarded, Marky scatters stop appearing for the rest of the session. A spin that reaches the 20,000x cap ends the round at once and awards no extra spin.`,
 			soc(`Every Mantis Feast session pays at least ${config.feastMinWin}x the bet.`, `Every Mantis Feast session wins at least ${config.feastMinWin}x the play amount.`),
+			// the SKIP button (1.0.13); not where the operator disables the slam stop or turbo
+			...(skipShown(j) ? ['Once the first free spin has started, Skip to Result ends the presentation of the remaining spins and shows the final total of the round. The outcome is unchanged.'] : []),
 		],
 	},
 	{
@@ -68,7 +101,13 @@ export const rulesSections = () => [
 	{
 		title: 'SETTINGS',
 		paragraphs: [
-			'Autoplay requires confirmation before it starts and can be stopped at any time. Sound can be turned off in the settings menu. Spacebar spins.',
+			[
+				j.disabledAutoplay ? '' : 'Autoplay requires confirmation before it starts and can be stopped at any time.',
+				'Sound can be turned off in the settings menu.',
+				j.disabledSpacebar ? '' : 'Spacebar spins.',
+			]
+				.filter(Boolean)
+				.join(' '),
 		],
 	},
 ];

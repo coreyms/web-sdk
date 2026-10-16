@@ -38,6 +38,7 @@
 	import { MAX_WIN } from '../game/constants';
 	import { maxWinBegin } from '../game/maxWin.svelte';
 	import { stateBetDerived } from 'state-shared';
+	import { untrack } from 'svelte';
 
 	const context = getContext();
 
@@ -56,6 +57,13 @@
 	let skipHold = $state(() => {});
 	// big+ only: flips true after the hold so the plate plays its drop-out before the fade
 	let leaving = $state(false);
+	// SKIP TO RESULT pressed over a regular win's plain plate (the SKIP button stays up over it, never over a
+	// big win screen): the count jumps to the amount and the hold is cut, as a press on the plate does
+	let finishNow = $state(() => {});
+
+	$effect(() => {
+		if (context.stateGame.skipping && show) untrack(() => (finishNow(), skipHold()));
+	});
 	const pop = new Tween(0.6, { duration: 420, easing: backOut });
 
 	// money-counter is a rhythmic ~0.78 s tick bed, so it runs as a loop for as long as the amount is
@@ -70,6 +78,9 @@
 		winUpdate: async (emitterEvent) => {
 			amount = emitterEvent.amount;
 			maxSequence = emitterEvent.maxSequence ?? false;
+			// the plate's life for the SKIP button (stateGame.winPlate): set and cleared in the same breath as
+			// winLevelData, which mounts and drops the plate's press gate below
+			context.stateGame.winPlate = emitterEvent.winLevelData.type === 'big' ? 'big' : 'plain';
 			winLevelData = emitterEvent.winLevelData;
 			leaving = false;
 			presentId += 1;
@@ -94,7 +105,10 @@
 		// drop the presentation only once the fade-OUT settles (a superseded fade's promise never
 		// resolves, and the guard re-checks, so a winShow overlap can't wipe the incoming one);
 		// while empty, the subtree's press rect and hotkey are gone too
-		if (!show) winLevelData = undefined;
+		if (!show) {
+			winLevelData = undefined;
+			context.stateGame.winPlate = null;
+		}
 	}}
 >
 	{#key presentId}
@@ -114,6 +128,7 @@
 					<OnMount
 						onmount={async () => {
 							const done = oncomplete; // pin to THIS presentation — a stale chain must not resolve a future one
+							finishNow = finishCountUp;
 							// the ticking money loop runs under every count-up that actually counts (Corey
 							// 2026-09-08: regular wins were dry); a zero-duration pop has nothing to tick over.
 							// startCountUp() resolves on a natural settle AND on a press-to-skip (finishCountUp
@@ -132,6 +147,8 @@
 							// max-win sequence: a short hold only — the track is already running and
 							// MaxWinCinematic's dim is due MAX_WIN.dimAt after the MAX plate landed
 							const hold = maxSequence ? MAX_WIN.plateHold : isBigWin ? 1400 : 300;
+							// (a skip pressed during the count leaves only the brief beat)
+							if (context.stateGame.skipping) skipHold();
 							await Promise.race([waitForTimeout(hold), skipped.then(() => waitForTimeout(beat))]);
 							if (isBigWin) {
 								// drop the plate off the bottom; the fade-out follows (backstop: never wedge on it)

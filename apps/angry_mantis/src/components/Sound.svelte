@@ -42,8 +42,15 @@
 		soundScatterCounterClear: () => (context.stateGame.scatterCounter = 0),
 		// game
 		soundMusic: ({ name, loop }) => sound.players.music.play({ name, loop }),
-		soundLoop: ({ name }) => sound.players.loop.play({ name }),
-		soundOnce: ({ name, forcePlay }) => sound.players.once.play({ name, forcePlay }),
+		// SKIP TO RESULT: the music carries on, the per-spin effects (reel stops, landings, bells, strikes)
+		// do not. The skipped handlers broadcast almost none of them; this drops what a beat that was
+		// already in flight still sends, and bonusEnd / the max-win spin clear `skipping` first.
+		soundLoop: ({ name }) => {
+			if (!context.stateGame.skipping) sound.players.loop.play({ name });
+		},
+		soundOnce: ({ name, forcePlay }) => {
+			if (!context.stateGame.skipping) sound.players.once.play({ name, forcePlay });
+		},
 		soundStop: ({ name }) => sound.stop({ name }),
 		soundFade: async ({ name, duration, from, to }) => await sound.fade({ name, duration, from, to }), // prettier-ignore
 		soundDuck: ({ level }) => sound.players?.music?.volume(stateSoundDerived.volumeMusic() * level),
@@ -80,6 +87,11 @@
 	// base-loop.ogg is self-contained (Corey 2026-09-01) — it just loops from the start, no intro
 	// stinger to sequence behind. A bonus in progress (resume) goes straight to its own loop.
 	onMount(() => {
+		// the restored mixer level goes to the music player BEFORE the first play: the effect that normally
+		// hands it over runs after this mount, so a session restored as muted started its track audible
+		// for a moment, and an unmute after that could leave the track silent (utils-sound createMusic
+		// setLevel: mute before volume; Manticore 2026-10-13)
+		sound.players.music.volume(stateSoundDerived.volumeMusic());
 		if (context.stateGame.gameType === 'freegame') {
 			const mode = context.stateGame.bonusMode;
 			sound.players.music.play({ name: mode === 'feast' ? 'bgm_feast' : mode === 'super' ? 'bgm_super' : 'bgm_free' });

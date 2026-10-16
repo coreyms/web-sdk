@@ -108,7 +108,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: transform 0.08s ease, background 0.2s ease;
+		transition: transform 0.08s ease, background 0.2s ease, filter var(--ui-hover-ms) ease;
 	}
 	.spin:active:not(:disabled) {
 		transform: translateY(1px);

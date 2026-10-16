@@ -3,6 +3,7 @@
 // these units and scaled uniformly to the viewport, so a coordinate here lands on the
 // same pixel in both layers.
 import { SYMBOL_SIZE } from './constants';
+import config from './config';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -246,4 +247,92 @@ export const poolIconFor = (kind: LayoutKind, index: number, count: number) => {
 		y: hud.y + (Math.floor(index / hud.cols) - (rows - 1) / 2) * hud.cell,
 		size: hud.cell - 8,
 	};
+};
+
+// ---- THE SKIP BUTTON (components/SkipButton.svelte; HTML over the canvas and the HUD) ----
+// Manticore Mayhem's fast forward SKIP (Corey 2026-10-12: "like a half height Play Button with two arrows"),
+// ported to Angry Mantis 2026-10-15 (1.0.13). It is the Play (spin) button's width and half its height, so it
+// scales exactly as the HUD does. Manticore puts it in the top right corner; on this game's layouts that corner
+// is taken (the ON THE MENU tray on desktop and sideways phones, the wide logo on portrait phones), so each
+// layout has its own free spot, all of them clear of the tray, the logo, the hosts and the HUD:
+//   landscape, phone   centred under the ON THE MENU tray (HUD[kind].pool), `gap` master px below its last row;
+//                      the hosts' antennae start well below it (MARTY: landscape ~305, phone ~287)
+//   portrait           centred under the reel frame's bottom rail when that floor band has room above the
+//                      BALANCE / SPIN readouts (every portrait phone: Marty stands right, Marky left in the
+//                      Feast, the drain grate between them); otherwise (tablets, where the grown frame reaches
+//                      down to the readouts) in the top right corner beside the logo, as on Manticore's tablet
+export type SkipSpot = 'landscape' | 'phone' | 'portraitFloor' | 'portraitCorner';
+export const SKIP = {
+	/** the Play button's size per layout, master px (ui/Chrome*.svelte SquareSpin size) */
+	play: { landscape: 92, phone: 116, portrait: 78 } as Record<LayoutKind, number>,
+	/** under the tray: master px between the tray's last icon row and the button */
+	gap: 14,
+	/** portrait floor: master px below the frame art's bottom edge, and the clearance kept above the readouts */
+	floorGap: 10,
+	/** portrait: the master y the BALANCE / SPIN readouts' labels start at, measured from the master's bottom
+	 *  (ChromePortrait .stats bottom 100 plus the TrioStat's ~44 px), so the floor spot is used only above it */
+	statsFromBottom: 146,
+	/** portrait corner: gap from the viewport's right edge and the master y, master px (Manticore's tablet spot) */
+	corner: { right: 14.5, y: 38 },
+	/** never closer to a screen edge than this, CSS px (the button and its prompt) */
+	edgeCss: 4,
+	/** the clock row's lower edge in every master (ui/ClockStrip.svelte): the prompt stays under it */
+	clockBottom: 28,
+};
+
+export type CssRect = { x: number; y: number; width: number; height: number };
+
+/** the fit the chrome and the canvas share (ui/Chrome.svelte): master px -> CSS px */
+const fitOf = (kind: LayoutKind, view: { width: number; height: number }) => {
+	const M = MASTER[kind];
+	const scale = Math.min(view.width / M.width, view.height / M.height);
+	return { scale, left: (view.width - M.width * scale) / 2, top: (view.height - M.height * scale) / 2, M };
+};
+
+/** which spot the SKIP button takes for a layout and a viewport */
+export const skipSpot = (kind: LayoutKind, view: { width: number; height: number }): SkipSpot => {
+	if (kind !== 'portrait') return kind;
+	const { scale, M } = fitOf(kind, view);
+	const vwMaster = view.width / scale;
+	// the portrait HUD rides down into the letterbox on tall phones (Chrome.svelte extraBottom)
+	const extraBottom = Math.max(0, (view.height / scale - M.height) / 2);
+	const floorTop = frameArtRect(kind, vwMaster).bottom + SKIP.floorGap;
+	const statsTop = M.height + extraBottom - SKIP.statsFromBottom;
+	return floorTop + SKIP.play.portrait / 2 + SKIP.floorGap <= statsTop ? 'portraitFloor' : 'portraitCorner';
+};
+
+/** the SKIP button's box in CSS px for a layout and a viewport, by the fit the chrome and the canvas both use */
+export const skipButtonRect = (kind: LayoutKind, spot: SkipSpot, view: { width: number; height: number }): CssRect => {
+	const { scale, left, top } = fitOf(kind, view);
+	const width = SKIP.play[kind] * scale;
+	const height = width / 2;
+	let x: number;
+	let y: number;
+	if (spot === 'landscape' || spot === 'phone') {
+		const pool = HUD[kind].pool;
+		const rows = Math.ceil(config.eatOrder.length / pool.cols); // PoolHud's grid
+		const trayBottom = pool.y + (rows / 2) * pool.cell;
+		x = left + pool.x * scale - width / 2;
+		y = top + (trayBottom + SKIP.gap) * scale;
+	} else if (spot === 'portraitFloor') {
+		x = view.width / 2 - width / 2;
+		y = top + (frameArtRect(kind, view.width / scale).bottom + SKIP.floorGap) * scale;
+	} else {
+		x = view.width - SKIP.corner.right * scale - width;
+		y = top + SKIP.corner.y * scale;
+	}
+	return { x: Math.max(SKIP.edgeCss, Math.min(x, view.width - SKIP.edgeCss - width)), y: Math.max(SKIP.edgeCss, y), width, height };
+};
+
+/** THE PROMPT'S BOX for a button box, CSS px: under the button, centred on it; above it when there is no room
+ *  under it; always inside the screen and under the clock row.
+ *  `size` is the prompt's own. */
+export const skipPromptRect = (kind: LayoutKind, button: CssRect, size: { width: number; height: number }, gap: number, view: { width: number; height: number }): CssRect => {
+	const { scale, top } = fitOf(kind, view);
+	const minY = Math.max(SKIP.edgeCss, top + SKIP.clockBottom * scale);
+	const below = button.y + button.height + gap + size.height <= view.height - SKIP.edgeCss;
+	const x = button.x + button.width / 2 - size.width / 2;
+	const y = below ? button.y + button.height + gap : button.y - gap - size.height;
+	const hold = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
+	return { x: hold(x, SKIP.edgeCss, view.width - SKIP.edgeCss - size.width), y: hold(y, minY, Math.max(minY, view.height - SKIP.edgeCss - size.height)), ...size };
 };
