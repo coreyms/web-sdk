@@ -79,7 +79,10 @@ const pick = (): BoardSizeKey => {
 export const BOARD_SIZE_KEY: BoardSizeKey = pick();
 export const BOARD_SIZE: BoardSizeVariant = BOARD_SIZE_VARIANTS[BOARD_SIZE_KEY];
 
-// ---- PHONE PORTRAIT, round 1 (branch board-phone-r1, 2026-10-16; NOT for merge as is) -------------------------------
+// ---- PHONE PORTRAIT (branch board-phone-r1, 2026-10-16) --------------------------------------------------------------
+// CHAINS HALF CLIPPED SHIPS (Corey 2026-10-16 14:59, on board_phone_r1: "2. Half Clipped. 3. Yes"). The variants below
+// were round 1's mockups; 'chainsHalf' is now the layout a release build ships on a portrait PHONE (the layout system's
+// size class, layoutSpec isPhoneSizeType). A portrait tablet keeps the shipped rule ('current') whatever is picked.
 // Corey: "on phone, we should do bigger board mock ups as well ... so the chains on the side of the board are on screen,
 // but maybe half of each side of the chains could be clipped by the edges of the page".
 //
@@ -99,12 +102,14 @@ export const BOARD_SIZE: BoardSizeVariant = BOARD_SIZE_VARIANTS[BOARD_SIZE_KEY];
 //               the solid post at mid height) on the edge; the chain's visible links (42 of the strip's 55 texture px,
 //               centreline +/- 40.9 render px) are wholly off screen, only the post's small brackets (to render 200.5)
 //               are cut. The upper bound: past it the post itself is cut.
-// The growth k is capped at maxK (a height guard for odd viewports; no phone checked comes near it). The board grows
-// UPWARD ONLY: the art's bottom edge stays where the shipped rule puts it on that viewport (layoutSpec frameFor), so
-// the spin amount plaque, the spin win readout and the BALANCE / SPIN row keep today's places; the frame's top comes
-// closer to the logo and covers more of the creature, who stands behind the board.
-// `?board=half` or `?board=off` in a DEV build; a release build ships 'current'. Landscape and phone sideways are
-// untouched (the sideways board is limited by the screen's HEIGHT, not by its chains).
+// The growth k is capped at maxK (a height guard for odd viewports; no phone checked comes near it). WHERE THE GROWTH
+// GOES (Corey 2026-10-16, question 3: "Yes"): DOWN first, so the frame's top and the creature behind it stay where they
+// are, as far as the room under the board allows; the rest goes up. The room is the gap from the spin amount plaque
+// to the BALANCE / SPIN row: it never closes below today's gap on that phone or PORTRAIT_GROW.minHudGapCss, whichever
+// is smaller (layoutSpec frameFor). On a 375 x 667 iPhone SE there is no room (the plaque already sits behind the
+// row), so there it all goes up.
+// DEV only: `?board=current` (the old rule, for comparing) or `?board=off`. Landscape and phone sideways are untouched
+// (the sideways board is limited by the screen's HEIGHT, not by its chains).
 export type PortraitBoardKey = 'current' | 'chainsHalf' | 'chainsOff';
 
 export type PortraitBoardVariant = {
@@ -120,11 +125,12 @@ export const PORTRAIT_BOARD_VARIANTS: Record<PortraitBoardKey, PortraitBoardVari
 	chainsOff: { edgeOut: 49.5, maxK: 1.25 },
 };
 
-export const PORTRAIT_BOARD_DEFAULT: PortraitBoardKey = 'current';
+/** the variant a release build ships on a portrait phone */
+export const PORTRAIT_BOARD_DEFAULT: PortraitBoardKey = 'chainsHalf';
 
 const pickPortrait = (): PortraitBoardKey => {
 	const q = boardParam();
-	return q === 'half' ? 'chainsHalf' : q === 'off' ? 'chainsOff' : PORTRAIT_BOARD_DEFAULT;
+	return q === 'current' ? 'current' : q === 'off' ? 'chainsOff' : PORTRAIT_BOARD_DEFAULT;
 };
 
 export const PORTRAIT_BOARD_KEY: PortraitBoardKey = pickPortrait();
