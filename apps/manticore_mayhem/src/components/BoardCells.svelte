@@ -74,6 +74,7 @@
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
 	import { boardExit, boardExitPressing, plateGhosts, type Cell } from '../game/stateGame.svelte';
 	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP, FALL_CUT } from '../game/constants';
+	import { createWellsTrial } from '../game/wellsTrial';
 	const ANTICIPATION_TEASE_PULSE = ANTICIPATION_TEASE.landedPulse;
 
 	const context = getContext();
@@ -129,6 +130,8 @@
 
 	const assets = () => context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 	const rendererOf = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
+	// THE WELLS TRIAL (DEV only, constants WELLS_TRIAL): null in a release build
+	const wells = createWellsTrial(rendererOf);
 
 	/** blend white towards a flash colour by `k` — cheaper than a filter and batches with the rest */
 	const lerpTint = (color: number, k: number) => {
@@ -945,6 +948,7 @@
 		// the tiles' layer into the frame's plate slot (BoardFrame mounts first; this is a no-op once there)
 		const slotNow = boardPlateSlot.current;
 		if (slotNow && plateLayer.parent !== slotNow) slotNow.addChild(plateLayer);
+		if (wells) wells.mount(slotNow);
 		covered.fill(0);
 		coverDim.fill(1);
 		const tex = assets();
@@ -969,6 +973,8 @@
 		}
 		motionLog.glowInUse = glowing;
 		if (glowing > motionLog.glowPeak) motionLog.glowPeak = glowing;
+		// the wells take the dim rule of the symbol on them, like the tiles (DEV trial only)
+		if (wells) wells.dim(coverDim);
 		syncPlates(tex);
 		tickSparkles(now);
 		if (uploadQueue === null || uploadQueue.length) warmSheets(tex);
@@ -979,6 +985,7 @@
 		op = openingsFor(layoutK, viewW);
 		setCutLines(layoutK, viewW);
 		relayoutPlates();
+		if (wells) wells.place(op);
 	});
 
 	sync();
@@ -987,6 +994,26 @@
 		// drawn is the frame the board engine just wrote
 		const ticker = context.stateApp.pixiApplication?.ticker;
 		ticker?.add(sync, undefined, PIXI.UPDATE_PRIORITY.HIGH);
+		if (import.meta.env.DEV && wells) {
+			// THE WELLS TRIAL's hook (wells_r1 captures): switch option, read its state, and STAGE a look for a still
+			// (the scene's mode and lit tiles written straight into the state; a capture aid, never a real round)
+			const sg = context.stateGame as any;
+			(((window as any).__manticore ??= {}) as any).wells = {
+				set: (option: string | null) => wells.set(option),
+				state: () => wells.state(),
+				stage: (o: { mode?: 'base' | 'bonus' | 'super' | 'epic'; tiles?: Record<number, number> }) => {
+					if (o.mode) {
+						sg.gameType = o.mode === 'base' ? 'basegame' : 'freegame';
+						sg.bonusMode = o.mode === 'base' ? null : o.mode;
+					}
+					if (o.tiles) {
+						const next = sg.tiles.map(() => ({ value: 0, scale: 1, from: 0, chg: 1, pop: 1 }));
+						for (const [k, v] of Object.entries(o.tiles)) next[Number(k)] = { value: v, scale: 1, from: v, chg: 1, pop: 1 };
+						sg.tiles = next;
+					}
+				},
+			};
+		}
 		if (import.meta.env.DEV) {
 			// SHEETS probe (tools/manticore/sheet_probe.js): which symbols' sheets are parsed, and per
 			// live cell its clip mode, frame index within that clip, clip clock and texture size

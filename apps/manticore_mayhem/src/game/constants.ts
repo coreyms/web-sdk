@@ -817,6 +817,38 @@ export const CHAIN_GUST = {
  *  asset (BoardFrame.svelte draws it). */
 export const BOARD_BACKING = { color: 0x000000 };
 
+/** THE WELLS TRIAL (wells_r1, 2026-10-16, DEV ONLY: game/wellsTrial.ts). Mockups of a per-cell backing texture for
+ *  Corey to pick from; a release build never loads them and keeps BOARD_BACKING's black. `?wells=A..F` (or C2) draws
+ *  one option's atlas (tools/build_wells_trial.py: four 256 px variants 2 x 2 in 512 x 512, the phone tier's half
+ *  atlas 256 x 256) as one sprite per cell on the cell's whole box (bar centre line to bar centre line), between the
+ *  black backing and the multiplier tiles, under the frame. `?symfill=82` scales every symbol by symfill /
+ *  currentFillPct (SYMBOL_PLACE.global) to judge a bigger symbol by eye; the default size is unchanged.
+ *  `orient`: which per-cell turns a variant may take (a lit bevel keeps its light from the top: flipX only). */
+export const WELLS_TRIAL = {
+	options: {
+		A: { name: 'black stone block', orient: 'flipX' },
+		B: { name: 'black iron plate, bronze rivets', orient: 'flipX' },
+		C: { name: 'engraved rosette', orient: 'flipX' },
+		C2: { name: 'engraved Assyrian star', orient: 'flipX' },
+		D: { name: 'black marble, gold veins', orient: 'any' },
+		E: { name: 'recessed well, bronze inset', orient: 'any' },
+		F: { name: 'basalt recess', orient: 'flipX' },
+	} as Record<string, { name: string; orient: 'flipX' | 'any' }>,
+	/** variants per atlas (2 x 2) and the atlas's cell px (full and phone tier) */
+	variants: 4,
+	cellPx: 256,
+	cellPxPhone: 128,
+	/** the seed of the per-cell variant / turn table (no two edge neighbours share a variant) */
+	seed: 0x5eed,
+	/** the symbols' share of the cell today as the harsh review measured it (~75 %): ?symfill is relative to it */
+	currentFillPct: 75,
+	symFillMin: 60,
+	symFillMax: 100,
+	/** a well darkens with the symbol on it while a win set is up (the dim rule's factor, as the tiles do); without it
+	 *  the dimmed symbols lose their black surround and the win reads muddier. ?wellsdim=0 turns it off. */
+	dimWithBoard: true,
+};
+
 // ---- The sting (RULE_PASS_2 section F) ----------------------------------------------------------
 // Four kinds, one presentation each, all driven by the book's `kind`:
 //   normal  a fast tail hit on the one cell; several fire back to back with `gapMs` between them
