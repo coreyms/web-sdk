@@ -1221,10 +1221,7 @@ export const SKIP_HUD = {
 	outMs: 120,
 	/** the prompt closes by itself after this long with no answer */
 	promptMs: 4000,
-	/** the Play button's own look (ui/SquareSpin.svelte): ring and radius from the Play button's size in master px */
-	plate: 'rgba(20, 18, 16, .85)',
-	ring: { share: 0.03, min: 2, color: '#fff' },
-	radius: { share: 0.22, base: 8, grow: 0.07 },
+	/** (the look is the Play button's bronze plate, ui/ChromeStyles.svelte .am-plate.half, since 2026-10-15) */
 	/** the glyph's height as a share of the button's height */
 	glyphShare: 0.62,
 	/** the touch target is grown (invisibly) to at least this, CSS px */

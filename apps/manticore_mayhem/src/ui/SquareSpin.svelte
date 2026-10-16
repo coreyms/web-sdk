@@ -17,14 +17,11 @@
 	const showStop = $derived(controls.showStop());
 	const countText = $derived(controls.autoCountText());
 	const countFont = $derived(countText.length > 3 ? 0.28 : countText === '∞' ? 0.55 : 0.32);
-	// Corey's 2026-09-06 spec: a near-black flat square with a THIN outline. The old state colours
-	// stay (Corey 16:20): red fill while stopping, green fill while an autoplay run is live, a green
-	// outline with a loadout parked, gold with a buy mode armed, white otherwise.
-	const background = $derived(
-		showStop ? 'rgba(120, 30, 45, .88)' : autoActive ? 'rgba(60, 90, 20, .88)' : 'rgba(20, 18, 16, .85)',
-	);
-	const ring = $derived(Math.max(2, size * 0.03));
-	const radius = $derived(Math.round(Math.min(size * 0.22, 8 + size * 0.07)));
+	// The old state colours stay (Corey 16:20): red fill while stopping, green fill while an autoplay
+	// run is live, a green outline with a loadout parked, gold with a buy mode armed, white otherwise.
+	// THE BRONZE PLATE (2026-10-15, ui/ChromeStyles.svelte .am-plate): the fills tint its glass
+	// (.plate-stop, .plate-run), the outline colour is its bezel metal (`metal` below).
+	const glassTint = $derived(showStop ? 'plate-stop' : autoActive ? 'plate-run' : '');
 	// armed buy mode: the selected feature is loaded on this button until cancelled — make that
 	// unmistakable: short feature name + the price each press will wager
 	const armed = $derived(controls.armedBuy() !== null);
@@ -56,20 +53,19 @@
 			letterSpacing: SPIN_PRICE_FIT.letterSpacing,
 		}),
 	);
-	// during free games the button keeps its white outline — colour marks an idle button only
-	const ringColor = $derived(freegame ? '#fff' : autoActive || loaded ? '#9CD92F' : armed ? '#ffdc4a' : '#fff');
+	// during free games the button keeps its own outline (white, now the pale iron bezel): colour marks an idle
+	// button only. Otherwise bronze, green with a run live or a loadout parked, gold with a buy mode armed.
+	const metal = $derived(freegame ? 'plate-silver' : autoActive || loaded ? 'plate-green' : armed ? 'plate-gold' : '');
 </script>
 
 <button
-	class="slot-btn spin"
+	class="slot-btn spin am-plate {metal} {glassTint}"
 	disabled={replay ? !replayAgain : controls.spinDisabled()}
 	onclick={replay ? () => replayState.start?.() : controls.spin}
 	aria-label={replay ? 'Replay' : showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin'}
 	style:width="{size}px"
 	style:height="{size}px"
-	style:background
-	style:border-radius="{radius}px"
-	style:box-shadow="inset 0 0 0 {ring}px {ringColor}, 0 4px 12px rgba(0,0,0,.45)"
+	style:--plate-s="{size}px"
 >
 	{#if freegame && fs && showFreeSpins}
 		<div class="count">
@@ -104,11 +100,10 @@
 
 <style>
 	.spin {
-		color: #fff;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: transform 0.08s ease, background 0.2s ease, filter var(--ui-hover-ms) ease;
+		transition: transform 0.08s ease, filter var(--ui-hover-ms) ease;
 	}
 	.spin:active:not(:disabled) {
 		transform: translateY(1px);
