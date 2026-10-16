@@ -14,6 +14,8 @@
 	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import TrioStat from './TrioStat.svelte';
+	import MeterReadout from './MeterReadout.svelte';
+	import { METER_VARIANT } from '../game/powerMeter.svelte';
 	import StepButton from './StepButton.svelte';
 	import BonusButton from './BonusButton.svelte';
 	import MenuButton from './MenuButton.svelte';
@@ -50,6 +52,9 @@
 	{#if replay}<div></div>{:else}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />{/if}
 	<!-- REPLAY: no bet readout at all (owner 2026-10-09; see ChromeLandscape.svelte): the replay card states it -->
 	{#if !replay}<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={180} onclick={controls.openDenom} disabled={controls.betDisabled()} />{/if}
+	<!-- THE POWER METER MOCKUP, placement C (DEV ?meter=C): centred between BALANCE and the bet readout. CHANGES THE
+	     CROSS-GAME HUD ROW (flagged in power_meter_r1/README.md). -->
+	{#if METER_VARIANT === 'C'}<div class="meter-c"><MeterReadout size="lg" align="center" /></div>{/if}
 </div>
 
 <!-- WIN is centred between the two BIG buttons (bonus right edge 82 .. spin left edge W−170), not
@@ -109,6 +114,12 @@
 		justify-content: space-between;
 		align-items: flex-end;
 		pointer-events: none;
+	}
+	.meter-c {
+		position: absolute;
+		left: 50%;
+		bottom: 0;
+		transform: translateX(-50%);
 	}
 	.bar {
 		position: absolute;

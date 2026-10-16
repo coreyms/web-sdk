@@ -2092,3 +2092,38 @@ export const MAX_WIN = {
 		fullShare: 1,
 	},
 } as const;
+
+// ---- THE BOARD POWER METER: MOCKUP r1 (DEV only, ?meter=A|B|C|D; feedback/power_meter_r1/README) ------------------------
+// The number is the SUM OF THE MULTIPLIER TILES THE BOARD SHOWS (stateGame.tiles, the book's values as presented, the
+// same sum a cluster multiplies by when it covers those tiles). It is never computed ahead of the board and never
+// predicted. Placements: A the bronze plaque under the board, B a tally plate on the top rail, C a HUD readout,
+// D a gauge on the left post. Shown in the free spins only (tiles reset every base spin); ?meterBase=1 shows it in the
+// base game too, for comparison.
+export const POWER_METER = {
+	/** the word before the number (no money words: the same on Stake and stake.us) */
+	word: 'BOARD',
+	/** the number's prefix in the label face (lower-case x like the cluster labels' multiplier) and in the plaque's
+	 *  Cinzel set (upper-case only) */
+	prefix: 'x',
+	plaquePrefix: 'X',
+	/** a rise counts up from the old sum to the new over countMs (style ms); a fall (a new round) snaps */
+	countMs: 520,
+	/** the pop on every rise: scale 1 + popScale about the readout's centre over popMs; a rise of bigRise or more
+	 *  pops bigPopScale */
+	popScale: 0.14,
+	bigPopScale: 0.3,
+	bigRise: 40,
+	popMs: 260,
+	/** fade in / out when a feature starts / ends */
+	fadeMs: 260,
+	/** A: the plaque shows the spin total for this long after a spin's final presentation, then the sum again */
+	plaqueWinHoldMs: 1600,
+	/** B: the tally plate on the top rail, in the frame art's render px (BOARD_ART.render): centre, cap height, padding */
+	rail: { u: 1024, v: 226, cap: 64, padX: 0.55, padY: 0.42, gap: 0.32, plate: 0x16100c, plateAlpha: 0.88, rim: 0x9a7440, rimPx: 5 },
+	/** D: the left post. Number and word on the post's black panel; the gauge (one segment per 8 lit cells of 64) up
+	 *  the post's inner face. Render px. */
+	post: { u: 172, wordV: 1572, numV: 1662, wordCap: 34, numCap: 62, numMaxW: 190, plateV: 1622, plateW: 214, plateH: 236, plate: 0x0d0a08, plateAlpha: 0.94, gaugeU: 262, gaugeTop: 420, gaugeBottom: 1500, gaugeW: 26, segGap: 14, unlit: 0x2a1c14, lit: 0xd8452b, rim: 0x9a7440 },
+	/** the word's tint (the labels' cream amount face) and the number's (the labels' multiplier teal) */
+	wordTint: 0xffffff,
+	numTint: 0x32cadd,
+} as const;

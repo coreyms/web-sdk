@@ -41,12 +41,13 @@
 	import { getContext } from '../game/context';
 	import { layoutKind, frameFor, FRAME } from '../game/layoutSpec';
 	import { boardRegistration } from '../game/boardArt';
-	import { BOARD_PLAQUE, FRAME_ART, SPIN_TOTAL, TIMINGS } from '../game/constants';
+	import { BOARD_PLAQUE, FRAME_ART, POWER_METER, SPIN_TOTAL, TIMINGS } from '../game/constants';
 	import { BOARD_PLAQUE_SPEC } from '../game/boardPlaqueSpec';
 	import { PLAQUE_DIGIT_H, PLAQUE_GLYPHS, PLAQUE_GLYPH_PREFIX } from '../game/plaqueNumeralGlyphs';
 	import { tokenizeNumerals } from '../game/numeralTokens';
 	import { boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
 	import { enableMipmaps } from '../game/mipmaps';
+	import { METER_VARIANT, meterLive, meterPlaqueText } from '../game/powerMeter.svelte';
 
 	const context = getContext();
 
@@ -298,6 +299,10 @@
 	const bump = { t0: -1, ms: 1 };
 	const rise = { t0: -1, ms: 1, scale: 1 };
 	let finalRun = 0;
+	/** THE POWER METER MOCKUP, placement A (DEV ?meter=A, game/powerMeter.svelte.ts): in a feature the plaque's resting
+	 *  figures are the board's tile sum; a spin's final total takes the plaque until this time, then the sum comes back */
+	const METER_A = METER_VARIANT === 'A';
+	let meterWinUntil = 0;
 	const show = () => {
 		if (showing) return;
 		showing = true;
@@ -323,6 +328,7 @@
 			await waitForTimeout(Math.max(1, real(SPIN_TOTAL.finalDelayMs)));
 			if (run !== finalRun) return;
 			show();
+			if (METER_A && meterLive.on) meterWinUntil = performance.now() + real(POWER_METER.plaqueWinHoldMs);
 			rise.scale = SPIN_TOTAL.finalScale;
 			rise.t0 = performance.now();
 			rise.ms = Math.max(1, real(SPIN_TOTAL.finalRiseMs));
@@ -402,11 +408,16 @@
 				amount = count.to;
 			}
 		}
-		const text = forced ?? bookEventAmountToCurrencyString(Math.round(value));
-		if (atlasTexture && (shown.relayout || ((text !== shown.text || reserve !== shown.reserve) && (showing || forced !== null)))) build(text, reserve);
+		// placement A: the board's sum whenever the meter is up and no spin total holds the plaque
+		const power = METER_A && meterLive.alpha > 0 && now >= meterWinUntil ? meterPlaqueText(meterLive.shown) : null;
+		if (power !== null) reserve = null;
+		const text = forced ?? power ?? bookEventAmountToCurrencyString(Math.round(value));
+		if (atlasTexture && (shown.relayout || ((text !== shown.text || reserve !== shown.reserve) && (showing || forced !== null || power !== null)))) build(text, reserve);
 		// the fades, the bump and the final rise
-		const fa = forced !== null ? 1 : stepFade(figFade, now);
-		const ca = forced !== null ? 0 : stepFade(crestFade, now);
+		const fw = forced !== null ? 1 : stepFade(figFade, now);
+		const fa = power !== null ? Math.max(meterLive.alpha, Math.min(fw, 1)) : fw;
+		const cw = forced !== null ? 0 : stepFade(crestFade, now);
+		const ca = power !== null ? Math.min(cw, 1 - meterLive.alpha) : cw;
 		const hidden = forced === null && !!context.stateGame.plaque;
 		const alpha = hidden ? 0 : fa;
 		if (figures.alpha !== alpha) figures.alpha = alpha;
@@ -419,6 +430,7 @@
 			if (u >= 1) bump.t0 = -1;
 			else s = Math.max(s, 1 + (SPIN_TOTAL.bumpScale - 1) * Math.sin(Math.PI * Math.max(0, u)));
 		}
+		if (power !== null) s = Math.max(s, meterLive.pop);
 		if (rise.t0 >= 0 && rise.scale !== 1) {
 			const u = Math.min(1, (now - rise.t0) / rise.ms);
 			s = Math.max(s, 1 + (rise.scale - 1) * SPIN_TOTAL.finalEasing(u));

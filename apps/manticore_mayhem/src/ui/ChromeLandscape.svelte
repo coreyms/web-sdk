@@ -15,6 +15,8 @@
 	import Shine from './Shine.svelte';
 
 	import TrioStat from './TrioStat.svelte';
+	import MeterReadout from './MeterReadout.svelte';
+	import { METER_VARIANT } from '../game/powerMeter.svelte';
 	import StepButton from './StepButton.svelte';
 	import BonusButton from './BonusButton.svelte';
 	import MenuButton from './MenuButton.svelte';
@@ -47,6 +49,9 @@
 <div class="trio hud-group" style:left="{art.x}px" style:width="{art.width}px">
 	<div class="cell left">
 		{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />{/if}
+		<!-- THE POWER METER MOCKUP, placement C (DEV ?meter=C): a third readout, right-justified in BALANCE's cell so WIN
+		     keeps the centre line. CHANGES THE CROSS-GAME HUD ROW (flagged in power_meter_r1/README.md). -->
+		{#if METER_VARIANT === 'C'}<div class="meter-c"><MeterReadout size="lg" align="right" /></div>{/if}
 	</div>
 	<div class="cell centre keep">
 		<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" maxWidth={205} />
@@ -113,6 +118,12 @@
 	}
 	.cell.left {
 		justify-content: flex-start;
+		position: relative;
+	}
+	.meter-c {
+		position: absolute;
+		right: 64px;
+		bottom: 0;
 	}
 	.cell.centre {
 		justify-content: center;

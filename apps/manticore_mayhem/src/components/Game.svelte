@@ -32,6 +32,8 @@
 	import BoardTap from './BoardTap.svelte';
 	import CreatureFront from './CreatureFront.svelte';
 	import BoardPlaque from './BoardPlaque.svelte';
+	import PowerMeter from './PowerMeter.svelte';
+	import { METER_VARIANT } from '../game/powerMeter.svelte';
 	import SkipButton from './SkipButton.svelte';
 	import ModePlaque from './ModePlaque.svelte';
 	import StingerPlaque from './StingerPlaque.svelte';
@@ -227,6 +229,8 @@
 			<!-- ALWAYS MOUNTED, visibility-toggled (house rule: the conditional-mount z-order trap).
 			     Order here is the z-order: readouts, then the plaque, then the presentations. -->
 			<BoardPlaque />
+			<!-- THE BOARD POWER METER MOCKUP (DEV, ?meter=A|B|C|D): draws into the frame's plaque slot, so its place here sets no z-order -->
+			{#if METER_VARIANT}<PowerMeter />{/if}
 			<ModePlaque />
 			<!-- the animated win plaque: the Big Win and above screen, the feature intro and the wrap up
 			     (driven by Win / ModePlaque / FreeSpinOutro through StingerPlaque.svelte's `stingerPlaque.flow`) -->
