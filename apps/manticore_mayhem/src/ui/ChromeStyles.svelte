@@ -116,6 +116,127 @@
 			outline: 2px solid var(--ui-amber);
 			outline-offset: 3px;
 		}
+		/* THE HUD BUTTON PLATE (Corey 2026-10-15, direction "A. Riveted bronze plate", feedback/hud_buttons_r1, without
+		   the sun crest): the frame's own foot plate. Smoked warm glass inside a bevelled bronze bezel (four border
+		   colours lit from the top left) with a rivet in each corner. Play, the feature button, menu, autoplay, turbo,
+		   the steppers and SKIP. The state colour is the bezel metal (.plate-gold / -green / -pink / -silver, bronze
+		   by default) and, where a button tints its glass, --plate-g1 / --plate-g2 (or .plate-stop / .plate-run).
+		   EVERYTHING IS DRAWN ON ::before, behind the content (isolation keeps it above the page): the button keeps its
+		   box, its content box and every ::after hit area exactly as before. No backdrop-filter, no mask, no filter.
+		   A component sets --plate-s, its own size in its own px (master px in the scaled chrome, CSS px on the SKIP
+		   layer). The ::before is drawn in CSS px, as the mock was: it is --plate-k (the chrome's --fit-scale) times the
+		   button's size and scaled back by 1 / --plate-k, so the bezel, the rivets and the 40 px rivet rule are the
+		   mock's numbers on every screen (Chrome floors a border's width to whole px in an element's own units: in
+		   master px the chrome's scale would multiply that floor, 1.98 px drawn as 1.8 CSS px on a tablet). */
+		:root {
+			--plate-bronze-1: #e6c993;
+			--plate-bronze-2: #8f6636;
+			--plate-bronze-3: #5a3e1f;
+			--plate-bronze-4: #bd8f52;
+			--plate-ink: #f7eedc;
+			--plate-rivet: radial-gradient(circle at 36% 34%, #fff0c8 0, #d2a364 32%, #7a5529 60%, rgba(0, 0, 0, 0.45) 70%, transparent 78%);
+		}
+		.am-plate {
+			--plate-k: var(--fit-scale, 1);
+			/* the button's size in CSS px */
+			--plate-css: calc(var(--plate-s) * var(--plate-k));
+			--plate-b1: var(--plate-bronze-1);
+			--plate-b2: var(--plate-bronze-2);
+			--plate-b3: var(--plate-bronze-3);
+			--plate-b4: var(--plate-bronze-4);
+			--plate-g1: rgba(36, 25, 15, 0.6);
+			--plate-g2: rgba(12, 9, 6, 0.76);
+			--plate-bz: clamp(1.5px, calc(var(--plate-css) * 0.055), 5.5px);
+			/* the rivets go below 40 CSS px (the sideways rail, the portrait phone's small squares, the steppers) */
+			--plate-rs: min(calc(var(--plate-css) * 0.085), 9px, max(0px, calc((var(--plate-css) - 39.5px) * 100)));
+			--plate-ro: calc(var(--plate-css) * 0.06);
+			--plate-r: 0.14;
+			isolation: isolate;
+			background: transparent;
+			border-radius: calc(var(--plate-s) * var(--plate-r));
+			color: var(--plate-ink);
+		}
+		/* (the SKIP button: as wide as Play, half as high) */
+		.am-plate.half {
+			--plate-r: 0.07;
+		}
+		.am-plate::before {
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: calc(100% * var(--plate-k));
+			height: calc(100% * var(--plate-k));
+			transform: scale(calc(1 / var(--plate-k)));
+			transform-origin: 0 0;
+			z-index: -1;
+			pointer-events: none;
+			box-sizing: border-box;
+			border-radius: calc(var(--plate-css) * var(--plate-r));
+			border: var(--plate-bz) solid;
+			border-color: var(--plate-b1) var(--plate-b2) var(--plate-b3) var(--plate-b4);
+			background:
+				var(--plate-rivet) left var(--plate-ro) top var(--plate-ro) / var(--plate-rs) var(--plate-rs) no-repeat,
+				var(--plate-rivet) right var(--plate-ro) top var(--plate-ro) / var(--plate-rs) var(--plate-rs) no-repeat,
+				var(--plate-rivet) left var(--plate-ro) bottom var(--plate-ro) / var(--plate-rs) var(--plate-rs) no-repeat,
+				var(--plate-rivet) right var(--plate-ro) bottom var(--plate-ro) / var(--plate-rs) var(--plate-rs) no-repeat,
+				linear-gradient(180deg, rgba(255, 232, 190, 0.16), rgba(255, 232, 190, 0) 42%),
+				linear-gradient(180deg, var(--plate-g1), var(--plate-g2));
+			background-clip: padding-box;
+			box-shadow:
+				inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+				inset 0 1px 0 1px rgba(255, 236, 200, 0.08),
+				0 0 0 1px rgba(18, 11, 5, 0.7),
+				0 4px 10px rgba(0, 0, 0, 0.5),
+				var(--plate-glow, 0 0 0 0 transparent);
+			transition: box-shadow 0.25s;
+		}
+		/* pressed: the bevel turns over (lit from the bottom right) and the glass sinks */
+		.am-plate:active:not(:disabled)::before {
+			border-color: var(--plate-b3) var(--plate-b4) var(--plate-b1) var(--plate-b2);
+			box-shadow:
+				inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+				inset 0 3px 8px rgba(0, 0, 0, 0.55),
+				0 0 0 1px rgba(18, 11, 5, 0.7),
+				0 2px 6px rgba(0, 0, 0, 0.5);
+			transition: none;
+		}
+		.am-plate:disabled {
+			color: #cfc8bb;
+		}
+		.am-plate.plate-gold {
+			--plate-b1: #fff1b8;
+			--plate-b2: #cfa432;
+			--plate-b3: #8f6d12;
+			--plate-b4: #ecc85e;
+		}
+		.am-plate.plate-green {
+			--plate-b1: #e2f7b0;
+			--plate-b2: #78a52d;
+			--plate-b3: #436314;
+			--plate-b4: #aed45e;
+		}
+		.am-plate.plate-pink {
+			--plate-b1: #ffd0de;
+			--plate-b2: #c94d75;
+			--plate-b3: #7d2a48;
+			--plate-b4: #ff8ab0;
+		}
+		/* free spins (the code's white ring there): pale iron */
+		.am-plate.plate-silver {
+			--plate-b1: #f4ecdc;
+			--plate-b2: #9a938a;
+			--plate-b3: #5c5650;
+			--plate-b4: #cfc6b8;
+		}
+		.am-plate.plate-stop {
+			--plate-g1: rgba(150, 36, 56, 0.88);
+			--plate-g2: rgba(96, 18, 34, 0.9);
+		}
+		.am-plate.plate-run {
+			--plate-g1: rgba(82, 120, 28, 0.88);
+			--plate-g2: rgba(44, 70, 12, 0.9);
+		}
 		@keyframes slot-count {
 			0% {
 				transform: translateY(20%);

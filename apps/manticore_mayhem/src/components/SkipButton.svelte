@@ -27,7 +27,7 @@
 
 	import { getContext } from '../game/context';
 	import { featureSpinsLive, skipAllowed } from '../game/stateGame.svelte';
-	import { SKIP, isPhoneSizeType, layoutKind, skipButtonRect, skipPromptRect, skipSpot } from '../game/layoutSpec';
+	import { isPhoneSizeType, layoutKind, skipButtonRect, skipPromptRect, skipSpot } from '../game/layoutSpec';
 	import { SKIP_HUD } from '../game/constants';
 	import Icon from '../ui/Icon.svelte';
 
@@ -43,13 +43,10 @@
 	const spot = $derived(skipSpot(layoutKind(context.stateLayoutDerived.layoutType()), isPhoneSizeType(context.stateLayoutDerived.canvasSizeType())));
 	const view = $derived({ width: innerWidth.current ?? 1, height: innerHeight.current ?? 1 });
 	const box = $derived(skipButtonRect(spot, view));
-	/** the Play button's size on this screen, CSS px (the button is that wide), and CSS px per master px */
+	/** the Play button's size on this screen, CSS px (the button is that wide) */
 	const play = $derived(box.width);
-	const playMaster = $derived(SKIP.slots[spot].play);
-	const scale = $derived(play / playMaster);
-	// the Play button's own ring and radius (ui/SquareSpin.svelte works them out in master px; the chrome scales them)
-	const ring = $derived(Math.max(SKIP_HUD.ring.min, playMaster * SKIP_HUD.ring.share) * scale);
-	const radius = $derived(Math.min(Math.round(Math.min(playMaster * SKIP_HUD.radius.share, SKIP_HUD.radius.base + playMaster * SKIP_HUD.radius.grow)) * scale, box.height / 2));
+	// THE BRONZE PLATE (2026-10-15, ui/ChromeStyles.svelte .am-plate.half): the Play button's plate, bezel and rivets
+	// at the Play button's size in CSS px (--plate-s), its corner radius halved with its height
 	const hit = $derived(Math.max(0, (SKIP_HUD.minHitCss - box.height) / 2));
 	const P = SKIP_HUD.prompt;
 	const ask = $derived.by(() => {
@@ -107,7 +104,7 @@
 {#if allowed}
 <div class="am-ui skip-layer" bind:this={root} style:--in="{SKIP_HUD.inMs}ms" style:--out="{SKIP_HUD.outMs}ms">
 	<button
-		class="slot-btn skip"
+		class="slot-btn skip am-plate half"
 		class:up
 		data-skip="button"
 		disabled={!up}
@@ -118,9 +115,7 @@
 		style:top="{box.y}px"
 		style:width="{box.width}px"
 		style:height="{box.height}px"
-		style:border-radius="{radius}px"
-		style:background={SKIP_HUD.plate}
-		style:box-shadow="inset 0 0 0 {ring}px {SKIP_HUD.ring.color}, 0 4px 12px rgba(0,0,0,.45)"
+		style:--plate-s="{play}px"
 		style:--hit="-{hit}px"
 	>
 		<Icon name="skip" s={box.height * SKIP_HUD.glyphShare} />
@@ -163,7 +158,6 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: #fff;
 		opacity: 0;
 		pointer-events: none;
 		transition: opacity var(--out) ease, transform 0.08s ease, filter var(--ui-hover-ms) ease;
@@ -176,6 +170,8 @@
 	.skip:disabled {
 		opacity: 0;
 		cursor: default;
+		/* disabled here only means gone: the glyph keeps the plate's ink through the fade out */
+		color: var(--plate-ink);
 	}
 	.skip:active:not(:disabled) {
 		transform: translateY(1px);
@@ -186,16 +182,22 @@
 		position: absolute;
 		inset: var(--hit, 0px) 0;
 	}
-	/* the black glass of the menu and the modals (ChromeStyles.svelte), with no backdrop-filter */
+	/* the bronze plate's glass and bezel (ChromeStyles.svelte .am-plate, 2026-10-15), with no backdrop-filter. (The
+	   bezel is drawn inside the box as inset bands, not a border, so Yes and No keep their whole size.) */
 	.ask {
 		position: absolute;
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
-		background: var(--ui-glass);
-		/* (the hairline edge is drawn inside the box, so Yes and No keep their whole size) */
-		border-radius: 10px;
-		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55), inset 0 0 0 1px var(--ui-glass-edge), inset 0 1px 0 var(--ui-glass-hi);
+		background: linear-gradient(180deg, rgba(36, 25, 15, 0.86), rgba(12, 9, 6, 0.92));
+		border-radius: 8px;
+		box-shadow:
+			0 10px 24px rgba(0, 0, 0, 0.55),
+			inset 0 2px 0 var(--plate-bronze-1),
+			inset -2px 0 0 var(--plate-bronze-2),
+			inset 0 -2px 0 var(--plate-bronze-3),
+			inset 2px 0 0 var(--plate-bronze-4),
+			inset 0 0 0 3px rgba(0, 0, 0, 0.6);
 		color: var(--ui-ink);
 		pointer-events: auto;
 	}
@@ -221,13 +223,14 @@
 		transition: transform 0.08s ease, filter var(--ui-hover-ms) ease;
 	}
 	.yes {
-		background: var(--ui-gold);
+		background: linear-gradient(180deg, #ffe98a, #e5b82e);
 		color: var(--ui-gold-ink);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -2px 0 rgba(0, 0, 0, 0.25);
 	}
 	.no {
-		background: var(--ui-glass-well-2);
+		background: rgba(255, 230, 190, 0.08);
 		color: var(--ui-ink);
-		box-shadow: inset 0 0 0 1px var(--ui-rule-2);
+		box-shadow: inset 0 0 0 1px var(--plate-bronze-2);
 	}
 	.yes:active,
 	.no:active {

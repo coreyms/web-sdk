@@ -17,30 +17,35 @@
 
 	// Corey's 2026-09-06 button spec (Claude Design mocks): flat, no gradients, no inner highlight,
 	// thin light outlines. At rest nothing but the bonus button is coloured.
-	// glass  → a near-black translucent square with a thin light outline and a white glyph (menu,
-	//          autoplay, turbo, −, +). ACTIVE keeps the old coloured-glass look (Corey 16:20): the
-	//          fill and outline take the accent, the glyph goes white — only the outline is thinner.
-	// solid  → a flat fill in the accent with a faint lighter outline (the bonus button).
-	const ring = $derived(glass ? Math.max(1.5, size * 0.04) : Math.max(1.5, size * 0.02));
+	// glass  → the HUD's square (menu, autoplay, turbo, −, +). ACTIVE keeps the old coloured-glass
+	//          look (Corey 16:20): the fill takes the accent (and, since 2026-10-15, the bezel its metal).
+	// solid  → a flat fill in the accent with a faint lighter outline (unused since the bonus button
+	//          became its own component).
+	// THE BRONZE PLATE (2026-10-15): a glass button is the HUD's riveted plate (ui/ChromeStyles.svelte .am-plate).
+	// Active, the bezel takes the accent's metal and the glass keeps the accent tint it always had.
+	const METAL: Record<string, string> = { '#ffdc4a': 'gold', '#9cd92f': 'green', '#ff5a8a': 'pink' };
+	const metal = $derived(glass && active ? (METAL[color.toLowerCase()] ?? '') : '');
+	const ring = $derived(Math.max(1.5, size * 0.02));
 	const radius = $derived(Math.round(Math.min(size * 0.22, 8 + size * 0.07)));
-	const background = $derived(glass ? (active ? `linear-gradient(180deg, ${color}b3 0%, ${color}66 100%)` : 'rgba(14, 13, 12, 0.72)') : color);
-	const outline = $derived(glass ? (active ? color : 'rgba(255,255,255,0.7)') : 'rgba(255,255,255,0.45)');
-	const shadow = $derived(`inset 0 0 0 ${ring}px ${outline}, 0 3px 8px rgba(0,0,0,0.4)`);
-	const fg = $derived(glass ? '#fff' : '#0e0717');
+	const tint = $derived(glass && active ? [`${color}b3`, `${color}66`] : null);
 </script>
 
 <button
-	class="slot-btn chunky"
+	class="slot-btn chunky {metal ? `plate-${metal}` : ''}"
 	class:glass
+	class:am-plate={glass}
 	{disabled}
 	{onclick}
 	aria-label={ariaLabel}
 	style:width="{size}px"
 	style:height="{size}px"
-	style:border-radius="{radius}px"
-	style:background
-	style:box-shadow={shadow}
-	style:color={fg}
+	style:--plate-s="{size}px"
+	style:--plate-g1={tint?.[0]}
+	style:--plate-g2={tint?.[1]}
+	style:border-radius={glass ? undefined : `${radius}px`}
+	style:background={glass ? undefined : color}
+	style:box-shadow={glass ? undefined : `inset 0 0 0 ${ring}px rgba(255,255,255,0.45), 0 3px 8px rgba(0,0,0,0.4)`}
+	style:color={glass ? undefined : '#0e0717'}
 >
 	{@render children()}
 	{#if label}
