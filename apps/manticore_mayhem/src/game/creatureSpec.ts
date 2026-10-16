@@ -6,7 +6,7 @@ export const CREATURE_SPEC = {
 	"source": {
 		"day": "drop-4 (day look; mane R12b / C7g (mt_08_mane_r12b), final wings E1 + L1 (viewer-right wing re-attached, viewer-left wing lowered; WingBreath x4), ManeDyn rev 3 one-shots, framing C5; drop 4: roar v3 (53 frames, longer settle) + sting_recrouch (10th clip))",
 		"super": "drop-4-super (super = night + 0.70 x fire x (1.0,1.0,1.0), composited offline in linear light, premultiplied, alpha = max; mane R12b / C7g (mt_08_mane_r12b), final wings E1 + L1 (viewer-right wing re-attached, viewer-left wing lowered; WingBreath x4), ManeDyn rev 3 one-shots, framing C5; drop 4: roar v3 (53 frames, longer settle) + sting_recrouch (10th clip))",
-		"epic": "drop-4-epic (epic = night + 1.00 x fire x (1.0,0.7,0.5), composited offline in linear light, premultiplied, alpha = max; mane R12b / C7g (mt_08_mane_r12b), final wings E1 + L1 (viewer-right wing re-attached, viewer-left wing lowered; WingBreath x4), ManeDyn rev 3 one-shots, framing C5; drop 4: roar v3 (53 frames, longer settle) + sting_recrouch (10th clip))"
+		"epic": "drop-5-epic (epic = night + 1.00 x fire x (1.0,0.7,0.5) + 3.50 x rim_fire x (1.0,0.42,0.1) (rim light, drop 5), composited offline in linear light, premultiplied, alpha = max; mane R12b / C7g (mt_08_mane_r12b), final wings E1 + L1 (viewer-right wing re-attached, viewer-left wing lowered; WingBreath x4), ManeDyn rev 3 one-shots, framing C5; drop 4: roar v3 (53 frames, longer settle) + sting_recrouch (10th clip); drop 5: epic fire rim light (A3))"
 	},
 	"canvas": [
 		1024,
