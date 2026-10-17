@@ -3,7 +3,7 @@
   "bwt_molten_win_big": {
    "frame": {
     "x": 4,
-    "y": 876,
+    "y": 440,
     "w": 729,
     "h": 210
    },
@@ -22,7 +22,7 @@
   },
   "bwt_molten_win_super": {
    "frame": {
-    "x": 4,
+    "x": 119,
     "y": 4,
     "w": 933,
     "h": 210
@@ -42,7 +42,7 @@
   },
   "bwt_molten_win_mega": {
    "frame": {
-    "x": 4,
+    "x": 119,
     "y": 222,
     "w": 894,
     "h": 210
@@ -62,8 +62,8 @@
   },
   "bwt_molten_win_epic": {
    "frame": {
-    "x": 4,
-    "y": 440,
+    "x": 1060,
+    "y": 4,
     "w": 808,
     "h": 210
    },
@@ -82,8 +82,8 @@
   },
   "bwt_molten_win_max": {
    "frame": {
-    "x": 4,
-    "y": 658,
+    "x": 1021,
+    "y": 222,
     "w": 783,
     "h": 210
    },
@@ -102,8 +102,8 @@
   },
   "bwt_molten_total_win": {
    "frame": {
-    "x": 4,
-    "y": 1094,
+    "x": 930,
+    "y": 440,
     "w": 696,
     "h": 163
    },
@@ -122,8 +122,8 @@
   },
   "bwt_molten_intro_bonus": {
    "frame": {
-    "x": 4,
-    "y": 1547,
+    "x": 961,
+    "y": 752,
     "w": 655,
     "h": 133
    },
@@ -142,8 +142,8 @@
   },
   "bwt_molten_intro_super": {
    "frame": {
-    "x": 4,
-    "y": 1265,
+    "x": 930,
+    "y": 611,
     "w": 1017,
     "h": 133
    },
@@ -163,7 +163,7 @@
   "bwt_molten_intro_epic": {
    "frame": {
     "x": 4,
-    "y": 1406,
+    "y": 752,
     "w": 949,
     "h": 133
    },
@@ -182,62 +182,62 @@
   },
   "bwt_molten_emblem_bonus": {
    "frame": {
-    "x": 795,
-    "y": 856,
-    "w": 190,
-    "h": 200
+    "x": 741,
+    "y": 440,
+    "w": 181,
+    "h": 198
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 190,
-    "h": 200
+    "w": 181,
+    "h": 198
    },
    "sourceSize": {
-    "w": 190,
-    "h": 200
+    "w": 181,
+    "h": 198
    }
   },
   "bwt_molten_emblem_super": {
    "frame": {
-    "x": 820,
-    "y": 440,
-    "w": 228,
-    "h": 200
+    "x": 4,
+    "y": 4,
+    "w": 107,
+    "h": 238
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 228,
-    "h": 200
+    "w": 107,
+    "h": 238
    },
    "sourceSize": {
-    "w": 228,
-    "h": 200
+    "w": 107,
+    "h": 238
    }
   },
   "bwt_molten_emblem_epic": {
    "frame": {
-    "x": 820,
-    "y": 648,
-    "w": 218,
-    "h": 200
+    "x": 1634,
+    "y": 440,
+    "w": 168,
+    "h": 153
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 218,
-    "h": 200
+    "w": 168,
+    "h": 153
    },
    "sourceSize": {
-    "w": 218,
-    "h": 200
+    "w": 168,
+    "h": 153
    }
   }
  },
@@ -245,10 +245,10 @@
   "image": "bigwin-titles-molten.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 1056,
-   "h": 1684
+   "w": 1952,
+   "h": 889
   },
   "scale": "1",
-  "pngHash": "43c068c0"
+  "pngHash": "3a9b357b"
  }
 }

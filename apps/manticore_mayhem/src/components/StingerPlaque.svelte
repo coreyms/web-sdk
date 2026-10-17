@@ -121,7 +121,8 @@
 		const atlas = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
 		if (built || !data || !app || !atlas?.stg_body) return; // its five atlases publish together, ahead of the symbol sheets (game/deferredLoad.ts)
 		// the escalation's coins are the board's own Wild medallion (resident with the symbols), its rays the tease's beam
-		view.build(data, atlas, Math.random, { coin: atlas[MAX_WIN.rain.texture] ?? null, beam: beamTexture() });
+		const coin = atlas[MAX_WIN.rain.texture] ?? null;
+		view.build(data, atlas, Math.random, { coin, beam: beamTexture() });
 		const renderer = app.renderer as PIXI.Renderer;
 		// MIPMAPS (game/mipmaps.ts), decided per asset tier (the sharpness pass, 2026-10-08; the numbers are in
 		// tools/manticore/README.md, measured by stinger_flow_probe.js SHARP=1 + stinger_sharpness.py):
@@ -148,8 +149,9 @@
 			if (source && nearest) source.mipmapFilter = 'nearest';
 		}
 		mips = `${mode}${nearest && mode === 'auto' ? '-near' : ''}:${chained.filter(Boolean).length}`;
-		// (+ the escalation's ray wedge, a canvas texture made once: up with the atlases, never on the first Mega)
-		void renderer.prepare?.upload([...Object.values(src), beamTexture().source].filter((x): x is PIXI.TextureSource => !!x));
+		// (+ the escalation's ray wedge, a canvas texture made once: up with the atlases, never on the first Mega; + the
+		// escalation's Wild coin, whose sheet may not be on the GPU yet: up now, never on the first Super. r3, 2026-10-17)
+		void renderer.prepare?.upload([...Object.values(src), beamTexture().source, coin?.source].filter((x): x is PIXI.TextureSource => !!x));
 		built = true;
 		if (STAGING_TOOLS) perfMark('plaque:built');
 	});

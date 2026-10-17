@@ -17,7 +17,11 @@ in a bright treatment that holds on the current marble and on a darker black iro
             "the symbols should use probably the symbols from the Armoury because they are better resolution and
             brighter"): the flat 640 px tall hero (sharper than any heroes.json grid cell, whose front cells are 640,
             512 and 512 tall) resized straight to the drawn size at the plaque's density, as bright as the menu
-            shows it: no dark rim, no shadow, no tint (r1 had a dark rim and a drop shadow)
+            shows it: no dark rim, no shadow, no tint (r1 had a dark rim and a drop shadow).
+            r3 (Corey 2026-10-17 13:11 "they look really dark and blurry"): each emblem has its own size and lean
+            (EMBLEMS, = game/constants.ts BIG_TITLE.intro.emblem), fitted to the clear marble beside the title, and
+            the lean is BAKED (rotated once from the 640 px hero, premultiplied, then resized once to the drawn size),
+            so the game draws the frame 1:1 at the plaque's density with no runtime rotation or scale resample
 
 Two looks (the DEV / staging switch ?bwtitle=2|3, game/stinger/bigTitle.ts):
   forge   (2)  white to gold to deep amber, one dark outline
@@ -60,14 +64,23 @@ QUALITY = 92
 # the cap height each group is BAKED at, ship px: the cap the game draws (game/constants.ts BIG_TITLE win.titleCap,
 # wrap.titleCap, intro.titleCap), so the drawn texel density is exactly TIERS (more where a long title shrinks to fit)
 BAKE_CAP = {"win": 54, "total": 42, "intro": 34}
-EMBLEM_H = 100  # ship px, the emblem's baked height = BIG_TITLE.intro.emblem.h (drawn 1:1)
 
 # the words are the plaque's own (build_plaque_text.TITLES), so the two sets never disagree (the intro's spin counts
 # are checked against the book at runtime: StingerPlaque.svelte introMatches)
 WINS = {k: v[0] for k, v in bpt.TITLES.items() if k.startswith("win_")}
 TOTAL = {"total_win": bpt.TITLES["total_win"][0]}
 INTROS = {k: v[0] for k, v in bpt.TITLES.items() if k.startswith("intro_")}
-EMBLEMS = {"emblem_bonus": "hero-standard.webp", "emblem_super": "hero-dagger.webp", "emblem_epic": "hero-crown.webp"}
+# the intro emblems: (Armoury hero file, the art's UPRIGHT height in ship px, the lean in radians, + = counter-clockwise,
+# the top toward the title on the RIGHT emblem; the game mirrors the left one). Must equal game/constants.ts
+# BIG_TITLE.intro.emblem[mode].h / .tilt (view.ts warns on the dev server when the baked frame disagrees).
+# r3 (2026-10-17): fitted to the clear marble beside the title (feedback/bigwin_title_r3/tools/fit_emblems.py): the War
+# Standard 96, the dagger 89 stood nearly upright (0.55) in the strip beside the title and the first copy row, the
+# crown 77 (r2: all three 100 px, upright art, leaned at runtime, half over the side pillars)
+EMBLEMS = {
+    "emblem_bonus": ("hero-standard.webp", 96, 0.12),
+    "emblem_super": ("hero-dagger.webp", 89, 0.55),
+    "emblem_epic": ("hero-crown.webp", 77, 0.12),
+}
 
 # gradient stops (position over the cap band, 0 = cap top, 1 = baseline; RGB)
 GOLD = {
@@ -140,11 +153,15 @@ def bake_title(face: bpt.Face, text: str, stops, outline) -> tuple[Image.Image, 
 EMBLEM_CROP_ALPHA = 2
 
 
-def bake_emblem(file: str) -> Image.Image:
-    """the Armoury's hero picture as the menu shows it, cropped to its art: no rim, no shadow, no tint"""
+def bake_emblem(file: str, tilt: float) -> tuple[Image.Image, int]:
+    """the Armoury's hero picture as the menu shows it, leaned by `tilt` radians (counter-clockwise) and cropped to its
+    art: no rim, no shadow, no tint. Returns the image and the UPRIGHT art's height (what the drawn height is of)"""
     src = Image.open(ARMOURY / file).convert("RGBA")
-    box = src.getchannel("A").point(lambda v: 255 if v >= EMBLEM_CROP_ALPHA else 0).getbbox()
-    return src.crop(box)
+    crop = lambda im: im.crop(im.getchannel("A").point(lambda v: 255 if v >= EMBLEM_CROP_ALPHA else 0).getbbox())
+    upright = crop(src)
+    # rotated premultiplied (RGBa), so the transparent margin's colour never fringes the edge
+    leaned = upright.convert("RGBa").rotate(float(np.degrees(tilt)), resample=Image.BICUBIC, expand=True).convert("RGBA")
+    return crop(leaned), upright.height
 
 
 def to_ship(img: Image.Image, scale: float) -> np.ndarray:
@@ -166,7 +183,7 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     chars = "".join(sorted({c for d in (WINS, TOTAL, INTROS) for t in d.values() for c in t}))
     face = bpt.Face(bpt.MACONDO, EM, chars)
-    emblems = {name: bake_emblem(f) for name, f in EMBLEMS.items()}
+    emblems = {name: (*bake_emblem(f, tilt), h) for name, (f, h, tilt) in EMBLEMS.items()}
     spec: dict[str, dict[str, list[float]]] = {}
     report = []
     for look in GOLD:
@@ -175,9 +192,10 @@ def main() -> None:
             for name, text in words.items():
                 img, meta = bake_title(face, text, MODE[name] if group == "intro" else GOLD[look], OUTLINE[look])
                 baked[name] = (img, meta, BAKE_CAP[group] / meta["cap"])
-        for name, img in emblems.items():
-            baked[name] = (img, {"w": img.width, "h": img.height, "baseline": img.height, "cap": img.height}, EMBLEM_H / img.height)
-        # the boxes in SHIP px: [w, h, baseline, cap] (an emblem: cap = its height, baseline = its bottom)
+        for name, (img, upright_h, h) in emblems.items():
+            baked[name] = (img, {"w": img.width, "h": img.height, "baseline": img.height, "cap": upright_h}, h / upright_h)
+        # the boxes in SHIP px: [w, h, baseline, cap] (an emblem: the leaned frame's w and h, baseline = its bottom, cap =
+        # the upright art's height, i.e. BIG_TITLE.intro.emblem[mode].h)
         spec[look] = {name: [round(m[k] * k2, 2) for k in ("w", "h", "baseline", "cap")] for name, (_, m, k2) in baked.items()}
         for suffix, tex in TIERS.items():
             items = [(f"bwt_{look}_{name}", to_ship(img, k * tex)) for name, (img, _, k) in baked.items()]
@@ -194,8 +212,8 @@ def main() -> None:
         "// AUTO-GENERATED by apps/manticore_mayhem/tools/build_bigwin_titles.py (do not edit: rerun the tool).",
         "// THE WIN PLAQUE'S BRIGHT TITLES: every frame's box in SHIP px of the 946 x 532 plaque, tier independent",
         "// (static/assets/ui/bigwin/bigwin-titles-<look>[-half].json, frames bwt_<look>_<name>): [w, h, baseline, cap].",
-        "// baseline and cap are measured from the image's top; an emblem's cap is its height. The image is drawn at",
-        "// (drawn cap / cap) of these.",
+        "// baseline and cap are measured from the image's top. The image is drawn at (drawn cap / cap) of these. An emblem",
+        "// is the leaned frame (baked lean), drawn 1:1: w x h, baseline = its bottom, cap = the upright art's height.",
         f"export const BIG_TITLE_LOOKS = {json.dumps(list(GOLD))} as const;",
         "export type BigTitleLook = (typeof BIG_TITLE_LOOKS)[number];",
         "export const BIG_TITLE_SPEC: Record<BigTitleLook, Record<string, readonly [number, number, number, number]>> = {",

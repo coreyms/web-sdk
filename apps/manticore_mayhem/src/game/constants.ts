@@ -1368,6 +1368,17 @@ export const STINGER_PLAQUE = {
 //             centre, `emblem.tilt` radians leaning in, mirrored on the left. r2: 100 px tall on BOTH tiers (r1 scaled the
 //             texture, not the ship box: 108 on desktop, 72 on phones) at x 288, the title's max width 450 -> 424 so the
 //             widest title (10 SUPER FREE SPINS) keeps 10 px or more from the tilted emblems
+//             r3 (Corey 2026-10-17 13:11 "they look really dark and blurry"): r2's emblems sat half over the side pillars
+//             and the frame's top corners. Each now has its own box INSIDE the clear marble beside the title: the title's
+//             baked image 12 px or more away (titleMax[mode]: Epic 424 -> 392), the copy rows' ink 8 or more, the marble's
+//             edge 6 (top 4). That strip is only about 80 px tall (the panel top to the first copy row, which is 438 px
+//             wide; the second is 532 of the panel's 596), so: the War Standard 96 (Bonus's short title leaves room), the
+//             dagger 89 stood nearly upright (lean 0.55) in the strip beside the title AND the first row (119 px tall
+//             drawn), the crown 77. `h` is the upright art's height, `tilt` its lean (+ = the top toward the title),
+//             both BAKED into the frame by tools/build_bigwin_titles.py (EMBLEMS, same numbers), so the game draws the
+//             frame 1:1 (no runtime rotation or rescale); `x`, `y` the frame centre for the RIGHT emblem (the left one is
+//             its mirror), x from the panel centre, y in ship px from the panel top. Full alpha with the plaque (its
+//             entrance and exit fade only), no tint, normal blend, over every plaque layer
 //   rim       look 1 only: `steps` dark copies (colour `color`) in a ring `px` (at a 50 px cap) around the title, the
 //             ring dropped by dropShare of px (a shadow), and an additive copy at liftAlpha over the face
 //   modeTint  look 1 only: the multiply on the gold intro titles (looks 2 and 3 bake the mode colours)
@@ -1375,7 +1386,16 @@ export const BIG_TITLE = {
 	look: 3 as 0 | 1 | 2 | 3,
 	win: { titleCap: 54, titleCy: 0.28, titleMax: 540, amountPx: 86, amountCy: 0.715, amountMax: 540 },
 	wrap: { titleCap: 42, titleCy: 0.19, titleMax: 520, amountPx: 75, amountCy: 0.53, amountMax: 540 },
-	intro: { titleCap: 34, titleCy: 0.18, titleMax: 424, emblem: { h: 100, x: 288, cy: 0.16, tilt: 0.12 } },
+	intro: {
+		titleCap: 34,
+		titleCy: 0.18,
+		titleMax: { bonus: 424, super: 424, epic: 392 },
+		emblem: {
+			bonus: { h: 96, tilt: 0.12, x: 247, y: 54.5 },
+			super: { h: 89, tilt: 0.55, x: 260, y: 64.5 },
+			epic: { h: 77, tilt: 0.12, x: 250.5, y: 45 },
+		},
+	},
 	rim: { steps: 8, px: 3, color: 0x120904, dropShare: 0.5, liftAlpha: 0.45 },
 	modeTint: { bonus: 0x8ff0e4, super: 0xa8c8ff, epic: 0xff9a80 },
 } as const;

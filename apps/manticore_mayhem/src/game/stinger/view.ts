@@ -146,6 +146,8 @@ export class StingerView {
 	private placed = new PIXI.Container();
 	private body = new PIXI.Container();
 	private textLayer = new PIXI.Container();
+	/** the feature intro's two emblems (full alpha, not the text's fades) */
+	private emblemLayer = new PIXI.Container();
 
 	private motion!: StingerMotion;
 	private vein!: VeinFx;
@@ -397,8 +399,12 @@ export class StingerView {
 		this.amountBox.addChild(this.amount.view, this.amountGlow.view);
 		this.rows = [0, 1, 2].map(() => new PlaqueText(font, atlas));
 		this.textLayer.position.set(this.panelX, py);
-		this.textLayer.addChild(...this.emblems, this.titleOld.view, this.title.view, this.amountBox, ...this.rows.map((r) => r.view));
-		this.body.addChild(this.textLayer);
+		this.textLayer.addChild(this.titleOld.view, this.title.view, this.amountBox, ...this.rows.map((r) => r.view));
+		// r3: the intro emblems in their own layer over every plaque layer, at full alpha: they ride the body (the
+		// entrance, hover and exit motion) and the plaque's own fade, never the title's punch fade or the text's exit fade
+		this.emblemLayer.position.set(this.panelX, py);
+		this.emblemLayer.addChild(...this.emblems);
+		this.body.addChild(this.emblemLayer, this.textLayer);
 		// the tier escalation: rays and coins behind the whole plaque, embers in front of it (neither hovers with it: they
 		// are the room's, not the plaque's)
 		this.escalation.build(
@@ -449,21 +455,20 @@ export class StingerView {
 			this.amountBox.visible = true;
 			rowsOff();
 		} else if (o.screen === 'intro') {
-			this.title.set(`intro_${this.mode}`, B.intro.titleCap, B.intro.titleMax);
+			this.title.set(`intro_${this.mode}`, B.intro.titleCap, B.intro.titleMax[this.mode]);
 			this.title.view.y = ph * B.intro.titleCy;
 			const em = emblemTexture(this.mode, this.atlas);
 			if (em) {
-				const H = B.intro.emblem;
+				const H = B.intro.emblem[this.mode];
+				if (import.meta.env.DEV && em.upright !== H.h) console.warn(`[manticore] intro emblem ${this.mode}: baked ${em.upright} px, BIG_TITLE wants ${H.h} (rerun tools/build_bigwin_titles.py)`);
 				this.emblems.forEach((s, i) => {
 					const side = i === 0 ? -1 : 1;
 					s.texture = em.texture;
-					// H.h ship px tall on every asset tier: the scale is of the TEXTURE's height (2 or 3/2 texels per ship
-					// px, tools/build_bigwin_titles.py TIERS), never of the spec's ship box (r1 did that, so a desktop emblem
-					// drew 1.5x the phone one)
-					const k = H.h / em.texture.height;
-					s.scale.set(side * k, k); // the left one mirrored
-					s.position.set(side * H.x, ph * H.cy);
-					s.rotation = -side * H.tilt;
+					// r3: the lean is baked, so the frame is drawn 1:1 at its ship box (2 or 3/2 texels per ship px, the
+					// plaque's density, tools/build_bigwin_titles.py TIERS): no rotation, no resample beyond the plaque's own
+					s.scale.set((side * em.w) / em.texture.width, em.h / em.texture.height); // the left one mirrored
+					s.position.set(side * H.x, H.y);
+					s.rotation = 0;
 					s.visible = true;
 				});
 			}
@@ -931,7 +936,6 @@ export class StingerView {
 			title.alpha = d.titleAlpha;
 			this.title.glowGain(sm(tin / (T.titleGlowMs / 1000)));
 		} else d.titleAlpha = 0;
-		for (const e of this.emblems) if (e.visible) e.alpha = d.titleAlpha;
 		// the outgoing title of a tier up: grows a little and is gone
 		const old = this.titleOld.view;
 		const x = (t - this.oldT0) / (T.tierOldOutMs / 1000);
@@ -1009,6 +1013,9 @@ export class StingerView {
 			titleVariant: this.variant,
 			escalation: this.ready ? { ...this.escalation.alive, sample: this.escalation.sample } : null,
 			emblems: this.emblems.filter((e) => e.visible).length,
+			/** the intro emblems as drawn (r3 diagnosis): canvas px box (resting pose), texture px, canvas px per texel,
+			 *  the alpha it reaches the screen with, tint, blend, and what the sampler does */
+			emblemDraw: this.ready ? this.emblems.filter((e) => e.visible).map((e) => this.emblemDraw(e)) : [],
 			amount: this.ready ? this.amount.text : '',
 			/** the text's live transforms: title scale / alpha, the outgoing title's alpha, the amount's pulse scale, alpha and slide offset (ship px), its width, the end brighten, the rows' alphas, the exit fade */
 			text: this.ready ? { ...this.drawn, rowAlpha: [...this.drawn.rowAlpha], amountWidth: Number(this.amount.width.toFixed(2)), impact: this.impactT, amountT0: this.amountT0 } : null,
@@ -1029,6 +1036,30 @@ export class StingerView {
 			/** the movers' vertices right now, canvas px box (wing tips and tails leave the frame) */
 			movers: b ? this.moverBox() : null,
 		};
+	}
+
+	/** DEV: one emblem as the renderer sees it */
+	private emblemDraw(e: PIXI.Sprite) {
+		const b = e.getBounds();
+		const src = e.texture.source;
+		const r2 = (n: number) => Number(n.toFixed(3));
+		return {
+			box: [b.x, b.y, b.x + b.width, b.y + b.height].map((n) => Number(n.toFixed(1))),
+			texture: [e.texture.frame.width, e.texture.frame.height],
+			canvasPerTexel: r2(b.height / e.texture.frame.height),
+			worldAlpha: r2(e.alpha * this.chainAlpha(e)),
+			tint: e.tint,
+			blend: e.groupBlendMode,
+			rotation: r2(e.rotation),
+			sampler: { scaleMode: src.scaleMode, mipmapFilter: src.mipmapFilter, mips: src.autoGenerateMipmaps ? src.mipLevelCount : 1, resolution: src.resolution },
+		};
+	}
+
+	/** the product of the alphas from an object up to the stage */
+	private chainAlpha(o: PIXI.Container): number {
+		let a = 1;
+		for (let p: PIXI.Container | null = o.parent; p; p = p.parent) a *= p.alpha;
+		return a;
 	}
 
 	/** measured through the LIVE transforms (canvas px back into ship px, un-tilted): the panel centre's offset from

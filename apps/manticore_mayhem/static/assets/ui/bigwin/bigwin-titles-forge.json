@@ -3,7 +3,7 @@
   "bwt_forge_win_big": {
    "frame": {
     "x": 4,
-    "y": 860,
+    "y": 432,
     "w": 727,
     "h": 206
    },
@@ -22,7 +22,7 @@
   },
   "bwt_forge_win_super": {
    "frame": {
-    "x": 4,
+    "x": 119,
     "y": 4,
     "w": 933,
     "h": 206
@@ -42,7 +42,7 @@
   },
   "bwt_forge_win_mega": {
    "frame": {
-    "x": 4,
+    "x": 119,
     "y": 218,
     "w": 892,
     "h": 206
@@ -62,8 +62,8 @@
   },
   "bwt_forge_win_epic": {
    "frame": {
-    "x": 4,
-    "y": 432,
+    "x": 1060,
+    "y": 4,
     "w": 806,
     "h": 206
    },
@@ -82,8 +82,8 @@
   },
   "bwt_forge_win_max": {
    "frame": {
-    "x": 4,
-    "y": 646,
+    "x": 1019,
+    "y": 218,
     "w": 781,
     "h": 206
    },
@@ -102,8 +102,8 @@
   },
   "bwt_forge_total_win": {
    "frame": {
-    "x": 4,
-    "y": 1074,
+    "x": 928,
+    "y": 432,
     "w": 694,
     "h": 160
    },
@@ -122,8 +122,8 @@
   },
   "bwt_forge_intro_bonus": {
    "frame": {
-    "x": 4,
-    "y": 1518,
+    "x": 958,
+    "y": 738,
     "w": 652,
     "h": 130
    },
@@ -142,8 +142,8 @@
   },
   "bwt_forge_intro_super": {
    "frame": {
-    "x": 4,
-    "y": 1242,
+    "x": 928,
+    "y": 600,
     "w": 1015,
     "h": 130
    },
@@ -163,7 +163,7 @@
   "bwt_forge_intro_epic": {
    "frame": {
     "x": 4,
-    "y": 1380,
+    "y": 738,
     "w": 946,
     "h": 130
    },
@@ -182,62 +182,62 @@
   },
   "bwt_forge_emblem_bonus": {
    "frame": {
-    "x": 793,
-    "y": 848,
-    "w": 190,
-    "h": 200
+    "x": 739,
+    "y": 432,
+    "w": 181,
+    "h": 198
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 190,
-    "h": 200
+    "w": 181,
+    "h": 198
    },
    "sourceSize": {
-    "w": 190,
-    "h": 200
+    "w": 181,
+    "h": 198
    }
   },
   "bwt_forge_emblem_super": {
    "frame": {
-    "x": 818,
-    "y": 432,
-    "w": 228,
-    "h": 200
+    "x": 4,
+    "y": 4,
+    "w": 107,
+    "h": 238
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 228,
-    "h": 200
+    "w": 107,
+    "h": 238
    },
    "sourceSize": {
-    "w": 228,
-    "h": 200
+    "w": 107,
+    "h": 238
    }
   },
   "bwt_forge_emblem_epic": {
    "frame": {
-    "x": 818,
-    "y": 640,
-    "w": 218,
-    "h": 200
+    "x": 1630,
+    "y": 432,
+    "w": 168,
+    "h": 153
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 218,
-    "h": 200
+    "w": 168,
+    "h": 153
    },
    "sourceSize": {
-    "w": 218,
-    "h": 200
+    "w": 168,
+    "h": 153
    }
   }
  },
@@ -245,10 +245,10 @@
   "image": "bigwin-titles-forge.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 1056,
-   "h": 1652
+   "w": 1952,
+   "h": 872
   },
   "scale": "1",
-  "pngHash": "01950394"
+  "pngHash": "2305cff5"
  }
 }
