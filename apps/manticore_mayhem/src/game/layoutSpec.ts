@@ -276,14 +276,16 @@ export const frameArtRect = (kind: LayoutKind, viewportMasterWidth?: number) => 
  *  the board, and its own lines run down to y 0.77 of the screen. Phone and portrait are the same as their HUD slot. */
 export const HUD_BAND_PROMPT_Y: Record<LayoutKind, number> = { landscape: 672, portrait: 700, phone: 752 };
 
-/** THE DESKTOP PROMPT'S VEIL (2026-10-16): over the board the PRESS ANYWHERE prompt crosses the bottom row's symbols
- *  (HUD.landscape.pressToContinue), and on gold crowns, keys and the feature's tinted cells its glyphs did not read.
- *  While it is up, that row is veiled: a plain rectangle (no filter, no mask) over exactly the row's cells, the colour
- *  of the mode plaque's plate, fading in over fadeMs. Desktop only; phone and portrait keep their band under the board. */
-export const PROMPT_VEIL = { row: 7, color: 0x0d0e12, alpha: 0.72, fadeMs: 220 };
+/** THE DESKTOP PROMPT'S ROW (was PROMPT_VEIL, 2026-10-16; the veil removed 2026-10-17, Corey 15:31 "on desktop does it
+ *  really hold a tinted background over the board?", 15:32 "2. Yes, that's a great idea!"). The desktop's prompt is
+ *  drawn on the board plaque now (components/BoardPlaque.svelte, constants PLAQUE_PROMPT). Only its FALLBACK (the
+ *  plaque not ready yet, or Cinzel never loading: components/PressToContinue.svelte) is still drawn over the board, on
+ *  this row (the bottom one), with no veil. */
+export const PROMPT_BOARD_ROW = 7;
 /** fonts r2 (2026-10-17): the Cinzel prompt is about 44 % wider than the old stencil line at the same cap height, and
- *  at the slot's own maxWidth (620) it ran 6 to 8 px past the veiled row onto the frame's posts. Over the board it is
- *  fitted to this share of the veiled row's width as well (desktop only; 0.94 leaves about 16 px each side) */
+ *  at the slot's own maxWidth (620) it ran 6 to 8 px past the bottom row onto the frame's posts. Over the board (the
+ *  fallback only since the prompt went on the plaque) it is fitted to this share of that row's width as well (desktop
+ *  only; 0.94 leaves about 16 px each side) */
 export const PROMPT_IN_ROW = 0.94;
 
 /** one board row's cells (the full cell area's width, one cell tall) in master units */
@@ -379,6 +381,8 @@ export const HUD: Record<
 		// 549.6: glyphs 539.5 .. 559.7), under the feature intro and the wrap up (the win plaque's art ends about 475),
 		// on that row veiled (PROMPT_VEIL) and with the hard drop shadow the board's readouts use. The max win screen
 		// keeps 672 (HUD_BAND_PROMPT_Y). Was y 672 (glyphs 628 .. 648).
+		// 2026-10-17 (Corey 15:32): the prompt is drawn ON THE BOARD PLAQUE instead (components/BoardPlaque.svelte,
+		// constants PLAQUE_PROMPT) and the veil is gone. This slot is only the fallback's (PROMPT_BOARD_ROW).
 		pressToContinue: { y: 583.7, width: 620, height: 48 },
 		// the cell area's centre (57.1 + 524 / 2; was 327.6 with the k 1 board), the plain plate's slot
 		modePlaque: { y: 319.1, height: 34, width: 380 },

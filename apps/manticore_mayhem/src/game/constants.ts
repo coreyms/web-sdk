@@ -2571,8 +2571,9 @@ export const LOAD_GATE = {
 // THE IN-GAME PRESS ANYWHERE TO CONTINUE (fonts r2, Corey 2026-10-17 14:01, option 1): Cinzel 700, the display face, in
 // the landing screen's PRESS ANYWHERE colour and tracking (ui/LandingScreen.svelte .pressText: #eef0e6, 0.05em, text
 // shadow 0 2px 4px rgba(0, 0, 0, 0.7) at its 18 px desktop size, here in ems of the font). It keeps the old line's slot,
-// cap height, centring and maxWidth fit (components/PressToContinue.svelte), its blink and, over the board, its veil and
-// its hard drop shadow. Drawn once into a texture (game/pressPrompt.ts, components/PressPromptText.svelte).
+// cap height, centring and maxWidth fit (components/PressToContinue.svelte) and its blink. Drawn once into a texture
+// (game/pressPrompt.ts, components/PressPromptText.svelte). On the desktop's feature intro and wrap up it is drawn on
+// the board plaque since 2026-10-17 (PLAQUE_PROMPT below); the veil over the board's bottom row is gone.
 export const PRESS_PROMPT = {
 	/** the words, the same on every site (social included) */
 	text: 'PRESS ANYWHERE TO CONTINUE',
@@ -2595,4 +2596,22 @@ export const PRESS_PROMPT = {
 	texMax: 4096,
 	/** how many sizes stay cached with nobody showing them (the desktop's over the board line and the max win's) */
 	keep: 2,
+} as const;
+
+// THE DESKTOP PROMPT ON THE BOARD PLAQUE (Corey 2026-10-17 15:32, "2. Yes, that's a great idea!"; game/plaquePrompt.svelte.ts,
+// components/BoardPlaque.svelte). On the desktop's feature intro and wrap up PRESS ANYWHERE TO CONTINUE is drawn on the
+// plaque's dark text field, centred in its slanted window, in the plaque's layer stack (between the crest and the
+// figures), leaning with the plaque through the figures' homography like the explainer lines. The same Cinzel texture
+// (PRESS_PROMPT: the off-white ink and the soft shadow baked in) on a small grid mesh; no hard drop shadow (the field is
+// dark already). No filter, mask or shader.
+export const PLAQUE_PROMPT = {
+	/** THE SIZE: the explainer lines' font size on this screen (game/plaqueTips.ts tipFont) times this. The line is
+	 *  longer than the window at that size on every layout, so `fill` decides in practice */
+	sizeOfTip: 1,
+	/** the line's ink is fitted to this share of the slanted window's width at the capitals' top row (the window's
+	 *  narrow side), centred in it: about 6 % of the window clear on each side */
+	fill: 0.88,
+	/** the mesh the texture is drawn on: columns x rows of quads through the homography (the tips' own grid density) */
+	gridX: 24,
+	gridY: 2,
 } as const;
