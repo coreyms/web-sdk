@@ -33,22 +33,20 @@
 	// run of Arabic letters (with the point inside it) is reversed first, the way a browser shows it ("م.ج" then the
 	// number). Lower-case letters the set lacks fall back to its small capitals' upper-case twin.
 	//
-	// THE EXPLAINER LINES (Corey 2026-10-16 17:41; r2 particle text 2026-10-17 08:52 / 08:59 / 09:12; r3 10:17,
-	// game/plaqueTips.ts, game/plaqueMotes.ts): while the board is idle in the base game (game/boardIdle.ts, the symbol
-	// pay popup's own rule) and the plaque has no figures, a galaxy of gold motes turns in its text box (r3: the crest is
-	// gone, PLAQUE_TIPS.crest). Every PLAQUE_TIPS.gapMs one line forms out of all of them (they spiral slowly into its
-	// glyph points, the crisp text fades in as they land and they fade out under it), holds or scrolls with no mote on
-	// the plaque, and its part on show bursts back into them; they drift home into the galaxy. Every line is one row at
-	// the scroll size on every screen: wider than the box, it scrolls right to left, its beginning formed and its end
-	// burst. Line 1 first, then the others in turn, line 1 back every third line. Motes and text hide as soon as the
-	// board stops being idle, and never show while the figures do (the figures, the win readout, always win).
+	// THE EXPLAINER LINES (Corey 2026-10-16 17:41; r4 2026-10-17 11:28, game/plaqueTips.ts): while the board is idle in the
+	// base game (game/boardIdle.ts, the symbol pay popup's own rule) and the plaque has no figures, one line at a time
+	// crosses the plaque's text box as a plain MARQUEE: it enters from fully outside the box's right edge, moves left at
+	// one constant speed (a short ease in, none at the end) and goes on until its last letter has left the box's left
+	// edge. It never pauses, and it is never shown whole. The box cuts it hard at both edges: the mesh spans only the
+	// part of the line inside the box (no mask). Between lines the box is empty (no crest since r3, PLAQUE_TIPS.crest);
+	// PLAQUE_TIPS.gapMs runs from one line gone to the next one entering. Line 1 first, then the others in turn, line 1
+	// back every third line. A line hides as soon as the board stops being idle, and never shows while the figures do (the
+	// figures, the win readout, always win). r2 and r3's gold particles are gone (Corey 11:28).
 	//
-	// Each line is drawn ONCE into a canvas (the Cinzel face the intro cards use) when it comes up, uploaded, and its
-	// glyph points read back from that same canvas (getImageData, once); it shows on a small grid mesh whose corners go
-	// through the figures' homography, so it leans with the plaque (a scroll moves the mesh's window over the texture:
-	// a vertex update, never a texture upload). The motes are one ParticleContainer on one small texture made once,
-	// put through the same homography each frame they show. No text object, filter, mask or shader; the plaque takes no
-	// press (eventMode none).
+	// Each line is drawn ONCE into a canvas (the Cinzel face the intro cards use) when it comes up and uploaded; it shows
+	// on a small grid mesh whose corners go through the figures' homography, so it leans with the plaque. The marquee
+	// moves the mesh's window over that texture each frame: a vertex update, never a texture upload. No text object,
+	// filter, mask or shader; the plaque takes no press (eventMode none).
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
@@ -65,10 +63,7 @@
 	import { boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { boardIdle } from '../game/boardIdle';
-	import { PLAQUE_TIPS as TIPS, planTips, fitTips, pointerIsMouse, scrollAt, scrollSpan, tipAt, tipLines, type TipPlan } from '../game/plaqueTips';
-	import { PlaqueMotes, PLAQUE_MOTES as MOTES } from '../game/plaqueMotes';
-	import { moteTexture } from '../game/fxTexture';
-	import { PHONE_TIER } from '../game/deviceTier';
+	import { PLAQUE_TIPS as TIPS, marqueeAt, marqueeSpan, pointerIsMouse, tipAt, tipFont, tipLines } from '../game/plaqueTips';
 
 	const context = getContext();
 
@@ -96,7 +91,7 @@
 	mesh.autoUpdate = false;
 	figures.addChild(mesh);
 	// the explainer lines: one canvas texture on a (gridX x gridY) mesh of quads through the homography; the mesh spans
-	// the part of the line inside the text box (all of it when it is formed in place, a moving window when it scrolls)
+	// only the part of the line inside the text box (the marquee's hard cut at the box's edges)
 	const tips = new PIXI.Container({ label: 'plaque-tips' });
 	const TX = TIPS.gridX;
 	const TY = TIPS.gridY;
@@ -112,45 +107,22 @@
 		}
 	const tipCanvas = document.createElement('canvas');
 	tipCanvas.width = tipCanvas.height = 1;
-	// read back once per line for its glyph points: a canvas the CPU keeps (no GPU read back, no browser warning)
-	const tipCtx = tipCanvas.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+	const tipCtx = tipCanvas.getContext('2d') as CanvasRenderingContext2D;
 	const tipSource = new PIXI.CanvasSource({ resource: tipCanvas as unknown as PIXI.ICanvas, resolution: 1 });
 	const tipTexture = new PIXI.Texture({ source: tipSource, label: 'plaque-tips' });
 	const tipMesh = new PIXI.MeshSimple({ texture: tipTexture, vertices: tipPos, uvs: tipUv, indices: tipIdx });
 	tipMesh.autoUpdate = false;
+	// nothing in the box until a line enters
+	tipMesh.visible = false;
 	tips.addChild(tipMesh);
 	// a tap on the plaque is a tap on whatever was there before: the lines take no press
 	tips.eventMode = 'none';
 	tips.interactiveChildren = false;
-	// the motes (game/plaqueMotes.ts): one ParticleContainer of sprites on one small texture made once
-	// (game/fxTexture.ts moteTexture), added light. Their positions and colours go up each frame they show; their
-	// sizes (static) only when the layout changes. The phone tier draws fewer (PLAQUE_MOTES.countPhone)
-	const MOTE_N = PHONE_TIER ? MOTES.countPhone : MOTES.count;
-	const moteSim = new PlaqueMotes(MOTE_N);
-	const moteTex = moteTexture(MOTES.texPx);
-	const moteLayer = new PIXI.ParticleContainer({
-		label: 'plaque-motes',
-		texture: moteTex,
-		dynamicProperties: { position: true, color: true, vertex: false, rotation: false, uvs: false },
-	});
-	moteLayer.blendMode = 'add';
-	moteLayer.eventMode = 'none';
-	moteLayer.interactiveChildren = false;
-	/** a Particle takes a number tint as BGR */
-	const bgr = (c: number) => ((c & 0xff) << 16) | (c & 0xff00) | ((c >> 16) & 0xff);
-	const moteParts: PIXI.Particle[] = [];
-	for (let i = 0; i < MOTE_N; i += 1) {
-		const p = new PIXI.Particle({ texture: moteTex, anchorX: 0.5, anchorY: 0.5, alpha: 0, tint: bgr(moteSim.tint[i]) });
-		moteParts.push(p);
-		moteLayer.addParticle(p);
-	}
-	root.addChild(shadow, day, night, fire, crest, tips, moteLayer, figures);
+	root.addChild(shadow, day, night, fire, crest, tips, figures);
 	for (const s of [shadow, day, night, fire, crestDay, crestNight, crestFire]) s.visible = false;
 	figures.alpha = 0;
 	tips.alpha = 0;
 	tips.visible = false;
-	moteLayer.alpha = 0;
-	moteLayer.visible = false;
 
 	// ---- the layout's numbers --------------------------------------------------------------------------------------
 	type SpecKey = 'landscape' | 'portrait' | 'portraitTablet' | 'phone';
@@ -213,7 +185,7 @@
 		if (sig === placedFor) return;
 		placedFor = sig;
 		map = r.map;
-		// the registration is a scale and a shift (layoutSpec registrationOf): kept as numbers for the per-frame motes
+		// the registration is a scale and a shift (layoutSpec registrationOf): kept as numbers for the per-frame marquee
 		const a0 = r.map(0, 0);
 		regX = a0.x;
 		regY = a0.y;
@@ -243,10 +215,8 @@
 		atlas = t.all;
 		shown.relayout = true; // lay the figures out again for this layout
 		lit.seq = -1;
-		// the explainer lines and the motes: this layout's box; a line on show is let go (game/plaqueTips.ts), the motes
-		// kept inside the new box and sized for it
+		// the explainer lines: this layout's box; a line on show is let go (game/plaqueTips.ts)
 		tipBox = TIPS.box[specKey] ?? TIPS.box.landscape;
-		moteSim.setBox(tipBox[0], tipBox[1], tipBox[2]);
 		meshAt.x0 = NaN;
 		tipNeed.layout = true;
 	});
@@ -317,7 +287,7 @@
 		P.y = regY + regM * ((H[3] * x + H[4] * y + H[5]) / w);
 		return P;
 	};
-	// ---- the explainer lines: the mesh, the plan, the drawing, the glyph points ----------------------------------------
+	// ---- the explainer lines: the mesh, the size, the drawing -----------------------------------------------------------
 	let tipBox: readonly [number, number, number] = TIPS.box.landscape;
 	const tipNeed = { layout: true };
 	/** what the mesh spans now: layout x0 to x1 across the box's height, the texture's u0 to u1 across it */
@@ -345,10 +315,10 @@
 	const fontAt = (px: number) => TIPS.font.replace('{px}', String(px));
 	/** the face: loading, ready (Cinzel in, or given up on it and drawing in the fallback) */
 	const face = { asked: false, ready: false };
-	/** the plan of every line on this screen (game/plaqueTips.ts planTips), the words it was made for, the cap height
-	 *  (x the font size) the rows are centred on, and the CSS px per layout unit it was made at */
-	let tipPlans: TipPlan[] = [];
+	/** the words on this screen (Tap or Click), the size every line is drawn at (layout units, game/plaqueTips.ts
+	 *  tipFont), the cap height (x the font size) the row is centred on, and the CSS px per layout unit it was made at */
 	let tipTexts: string[] = [];
+	let tipFontU = 0;
 	let capK = 0.7;
 	let planK = 0;
 	const REF = 100;
@@ -373,117 +343,38 @@
 		tipCtx.font = fontAt(REF);
 		capK = (tipCtx.measureText('H').actualBoundingBoxAscent || REF * 0.7) / REF;
 		planK = cssPerUnit().ku;
-		tipPlans = planTips(tipTexts, widthAt1, tipBox, planK, capK);
+		tipFontU = tipFont(tipBox, planK, capK, Math.min(...tipTexts.map(widthAt1)));
 	};
-	/** the line on show: its index, how it shows, its size, its rows, the texture's size, the strip it is drawn on
-	 *  (layout units: x 0 to stripW, the screen x is the strip's x plus the offset, offset0 at the start, offset1 at the
-	 *  scroll's end) and its rows' ink boxes in the strip */
+	/** the line on show: its index and words, its size, the texture's size, the strip it is drawn on (layout units: x 0
+	 *  to stripW; its x on the box is the strip's x plus the marquee's offset, offset0 as it enters, offset1 once it is
+	 *  gone) and its ink in the strip */
 	const tipShown = {
 		index: -1,
-		mode: 'fit' as 'fit' | 'scroll',
+		text: '',
 		font: 0,
-		rows: [] as string[],
 		cw: 0,
 		ch: 0,
 		kCss: 0,
 		stripW: 0,
 		offset0: 0,
 		offset1: 0,
-		points: 0,
-		ink: [] as { x0: number; x1: number; y0: number; y1: number }[],
+		ink: { x0: 0, x1: 0, y0: 0, y1: 0 },
 	};
-	/** the glyph points read off the canvas (strip units), sorted along x into sortX / sortY */
-	const sampX = new Float32Array(MOTES.maxPoints);
-	const sampY = new Float32Array(MOTES.maxPoints);
-	const sortX = new Float32Array(MOTES.maxPoints);
-	const sortY = new Float32Array(MOTES.maxPoints);
-	const sortI = new Int32Array(MOTES.maxPoints);
-	/** a small seeded random (the same line takes the same points) */
-	const seeded = (seed: number) => {
-		let s = seed >>> 0 || 1;
-		return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
-	};
-	/** THE GLYPH POINTS: the brass pixels of the canvas just drawn (getImageData, once per line), on a grid of about
-	 *  pointGridUnits, `want` of them picked evenly at random (a reservoir), sorted along x */
-	const samplePoints = (cw: number, ch: number, want: number, seed: number) => {
-		const [, top, bot] = tipBox;
-		const Hh = bot - top;
-		const data = tipCtx.getImageData(0, 0, cw, ch).data;
-		const step = Math.max(1, Math.round((TIPS.pointGridUnits * cw) / tipShown.stripW));
-		const k = Math.min(want, MOTES.maxPoints);
-		const rnd = seeded(seed);
-		let seen = 0;
-		const ux = tipShown.stripW / cw;
-		const uy = Hh / ch;
-		for (let y = Math.floor(step / 2); y < ch; y += step)
-			for (let x = Math.floor(step / 2); x < cw; x += step) {
-				const o = (y * cw + x) * 4;
-				if ((data[o] * data[o + 3]) / 255 < TIPS.pointInk) continue;
-				const sx = (x + 0.5) * ux;
-				const sy = top + (y + 0.5) * uy;
-				if (seen < k) {
-					sampX[seen] = sx;
-					sampY[seen] = sy;
-				} else {
-					const j = Math.floor(rnd() * (seen + 1));
-					if (j < k) {
-						sampX[j] = sx;
-						sampY[j] = sy;
-					}
-				}
-				seen += 1;
-			}
-		const n = Math.min(seen, k);
-		for (let i = 0; i < n; i += 1) sortI[i] = i;
-		sortI.subarray(0, n).sort((a, b) => sampX[a] - sampX[b]);
-		for (let i = 0; i < n; i += 1) {
-			sortX[i] = sampX[sortI[i]];
-			sortY[i] = sampY[sortI[i]];
-		}
-		return n;
-	};
-	/** the scroll's font for this screen (a DEV forced scroll of a line that would fit) */
-	const scrollFontNow = () => planTips(['W'], () => 1e9, tipBox, planK, capK)[0].font;
-	/** draw line `index` into the canvas at the screen's own density, upload it and read its glyph points (once per
-	 *  line, never per frame). `mode` null: the line's plan; 'fit' / 'scroll': DEV, forced (`fontCss`: a forced scroll's
-	 *  size on screen, so a desktop review can show a scroll) */
-	const drawTip = (index: number, mode: 'fit' | 'scroll' | null, fontCss: number | null = null): boolean => {
-		const plan = tipPlans[index];
+	/** draw line `index` into the canvas at the screen's own density and upload it (once per line, never per frame).
+	 *  `fontCss`: DEV, a size on screen to draw it at instead */
+	const drawTip = (index: number, fontCss: number | null = null): boolean => {
 		const text = tipTexts[index];
-		if (!plan || text === undefined) return false;
+		if (text === undefined) return false;
 		const [hw, top, bot] = tipBox;
 		const Hh = bot - top;
-		const m = mode ?? plan.mode;
-		let font = plan.font;
-		let rows = plan.rows.map((r) => r.join(' '));
-		if (m !== plan.mode) {
-			if (m === 'scroll') {
-				font = fontCss !== null && planK > 0 ? fontCss / planK : scrollFontNow();
-				rows = [text];
-			} else {
-				const f = fitTips(tipTexts, widthAt1, tipBox)[index];
-				font = f.font;
-				rows = f.rows.map((r) => r.join(' '));
-			}
-		}
-		// the strip: the box itself for a line formed in place; the line's own width (and a margin for the engraving)
-		// for a scroll, which starts at the box's left end and ends at its right
-		const pad = 4;
-		if (m === 'fit') {
-			tipShown.stripW = 2 * hw;
-			tipShown.offset0 = tipShown.offset1 = -hw;
-		} else {
-			const tw = widthAt1(text) * font;
-			tipShown.stripW = tw + 2 * pad;
-			if (tw + 2 * TIPS.scrollPad <= 2 * hw) {
-				// it fits in the box at this size: centred, no scroll
-				tipShown.offset0 = tipShown.offset1 = -tw / 2 - pad;
-			} else {
-				tipShown.offset0 = -hw + TIPS.scrollPad - pad;
-				tipShown.offset1 = hw - TIPS.scrollPad - pad - tw;
-			}
-		}
-		const W = tipShown.stripW;
+		const font = fontCss !== null && planK > 0 ? fontCss / planK : tipFontU;
+		const pad = TIPS.stripPad;
+		const W = widthAt1(text) * font + 2 * pad;
+		tipShown.stripW = W;
+		// the marquee: the strip's left edge on the box's right edge as it enters (all of it outside), its right edge on
+		// the box's left edge once it is gone (all of it past)
+		tipShown.offset0 = hw;
+		tipShown.offset1 = -hw - W;
 		// screen px per layout unit across the box and down it, at the renderer's resolution
 		const res = (context.stateApp.pixiApplication?.renderer?.resolution ?? 1) * TIPS.texScale;
 		const { ku, kv } = cssPerUnit();
@@ -500,84 +391,27 @@
 		// strip units -> canvas px: x from the strip's left, y from the box's top
 		g.setTransform(cw / W, 0, 0, ch / Hh, 0, (-top * ch) / Hh);
 		g.font = fontAt(font);
-		g.textAlign = m === 'fit' ? 'center' : 'left';
+		g.textAlign = 'left';
 		g.textBaseline = 'alphabetic';
-		const ax = m === 'fit' ? hw : pad;
-		const n = rows.length;
-		const mid = (top + bot) / 2;
-		const lh = font * TIPS.lineHeight;
+		const base = (top + bot) / 2 + (capK * font) / 2;
 		const cap = capK * font;
-		tipShown.ink.length = 0;
-		for (let r = 0; r < n; r += 1) {
-			const row = rows[r];
-			const base = mid + (r - (n - 1) / 2) * lh + cap / 2;
-			g.fillStyle = TIPS.lipColor;
-			g.fillText(row, ax, base + TIPS.lipOffset);
-			g.fillStyle = TIPS.lightColor;
-			g.fillText(row, ax, base + TIPS.lightOffset);
-			const brass = g.createLinearGradient(0, base - cap, 0, base);
-			brass.addColorStop(0, TIPS.brassTop);
-			brass.addColorStop(1, TIPS.brassBottom);
-			g.fillStyle = brass;
-			g.fillText(row, ax, base);
-			const mt = g.measureText(row);
-			tipShown.ink.push({ x0: ax - mt.actualBoundingBoxLeft, x1: ax + mt.actualBoundingBoxRight, y0: base - mt.actualBoundingBoxAscent + Math.min(0, TIPS.lipOffset), y1: base + mt.actualBoundingBoxDescent + Math.max(0, TIPS.lightOffset) });
-		}
+		g.fillStyle = TIPS.lipColor;
+		g.fillText(text, pad, base + TIPS.lipOffset);
+		g.fillStyle = TIPS.lightColor;
+		g.fillText(text, pad, base + TIPS.lightOffset);
+		const brass = g.createLinearGradient(0, base - cap, 0, base);
+		brass.addColorStop(0, TIPS.brassTop);
+		brass.addColorStop(1, TIPS.brassBottom);
+		g.fillStyle = brass;
+		g.fillText(text, pad, base);
+		const mt = g.measureText(text);
+		tipShown.ink = { x0: pad - mt.actualBoundingBoxLeft, x1: pad + mt.actualBoundingBoxRight, y0: base - mt.actualBoundingBoxAscent + Math.min(0, TIPS.lipOffset), y1: base + mt.actualBoundingBoxDescent + Math.max(0, TIPS.lightOffset) };
 		tipSource.update();
 		tipShown.index = index;
-		tipShown.mode = m;
+		tipShown.text = text;
 		tipShown.font = font;
-		tipShown.rows = rows;
 		tipShown.kCss = ku;
-		// the glyph points: about one for every mote on the part inside the box (r3: every mote forms the line)
-		const want = Math.round(m === 'fit' ? MOTE_N : MOTE_N * Math.max(1, W / (2 * hw)));
-		tipShown.points = samplePoints(cw, ch, want, 1 + index * 7919);
 		return true;
-	};
-
-	// ---- the motes: sizes, and each frame's positions --------------------------------------------------------------
-	let moteScale = 1;
-	/** size the motes for this screen (static sprite data: uploaded once, here): "specs that are too big, especially on
-	 *  mobile screens" (r3), so a smaller text box on screen draws them smaller (PLAQUE_MOTES.sizeRefCss) */
-	const placeMotes = () => {
-		const ku = cssPerUnit().ku;
-		if (!(ku > 0)) return;
-		moteScale = Math.max(MOTES.sizeMinScale, Math.min(MOTES.sizeMaxScale, (2 * tipBox[0] * ku) / MOTES.sizeRefCss));
-		const a = through(0, 0);
-		const ax = a.x;
-		const ay = a.y;
-		const b = through(1, 0);
-		const mPerU = Math.hypot(b.x - ax, b.y - ay);
-		const [s0, s1] = MOTES.sizeCss;
-		for (let i = 0; i < MOTE_N; i += 1) {
-			const css = (s0 + (s1 - s0) * moteSim.size[i]) * moteScale;
-			const s = ((css / ku) * mPerU) / MOTES.texPx;
-			moteParts[i].scaleX = moteParts[i].scaleY = s;
-		}
-		moteLayer.update();
-	};
-	/** every mote through the homography onto its sprite (position and brightness) */
-	const drawMotes = () => {
-		const h0 = H[0];
-		const h1 = H[1];
-		const h2 = H[2];
-		const h3 = H[3];
-		const h4 = H[4];
-		const h5 = H[5];
-		const h6 = H[6];
-		const h7 = H[7];
-		const xs = moteSim.x;
-		const ys = moteSim.y;
-		const al = moteSim.alpha;
-		for (let i = 0; i < MOTE_N; i += 1) {
-			const x = xs[i];
-			const y = ys[i];
-			const w = h6 * x + h7 * y + 1;
-			const p = moteParts[i];
-			p.x = regX + regM * ((h0 * x + h1 * y + h2) / w);
-			p.y = regY + regM * ((h3 * x + h4 * y + h5) / w);
-			p.alpha = al[i];
-		}
 	};
 
 	/** what the mesh holds now */
@@ -710,124 +544,180 @@
 	 *  the mode plaque too; null hands the plaque back to the game */
 	let forced: string | null = null;
 
-	// ---- the explainer lines' run: idle, the order, the cadence, the fades -------------------------------------------
+	// ---- the explainer lines' run: idle, the order, the cadence, the marquee -------------------------------------------
 	/** the shared idle rule (game/boardIdle.ts), copied for the tick by an effect (no reactive reads per frame) */
 	let idleNow = false;
 	$effect(() => {
 		idleNow = boardIdle();
 	});
 	const tipFade = fade(0);
-	const moteFade = fade(0);
-	/** off: nothing; wait: the board settled, the motes come at t; drift: the galaxy turns, the next line comes at t
-	 *  (counted from base); form: a line is forming, up or scrolling (msg); burst: it is bursting until t. slot: lines
-	 *  shown in this idle spell; other: the other lines shown so far (kept across spells) */
-	type Phase = 'off' | 'wait' | 'drift' | 'form' | 'burst';
+	/** off: nothing; wait: the board settled, the cadence starts at t; gap: the box is empty, the next line enters at t
+	 *  (counted from base); run: a line is crossing the box. slot: lines shown in this idle spell; other: the other
+	 *  lines shown so far (kept across spells) */
+	type Phase = 'off' | 'wait' | 'gap' | 'run';
 	const tipRun = { phase: 'off' as Phase, t: 0, base: 0, slot: 0, other: 0, index: -1 };
-	/** the line on show: its times (the tips' clock, ms) and, for a scroll, its path */
-	const msg = { index: -1, mode: 'fit' as 'fit' | 'scroll', t0: 0, tLand: 0, tScroll0: 0, scrollMs: 0, ramp: 0, dist: 0, v: 0, tBurst: 0, hold: false, freezeMs: -1, landed: false, scrolling: false, scrollDone: false };
-	/** DEV (feedback/plaque_tips_r3/plaque_tips_probe.js): a line asked for now (shown at once, `hold` keeps it up and,
-	 *  for a scroll, `holdAt` stops it that far along its scroll), whatever the board does while one is held; the
-	 *  cadence's two waits; the motes off (the cost A / B); the tips' clock slowed (the quarter speed close-up) */
-	let tipPending: { index: number; mode: 'fit' | 'scroll' | null; hold: boolean; holdAt: number | null; fontCss: number | null } | null = null;
+	/** the line crossing the box: when it entered (the tips' clock, ms), its path (dist layout units at v a ms, ms long,
+	 *  easing in over ease), where it is (offset), and whether it is drawn at all (live: also through a hide's fade).
+	 *  DEV: hold keeps it up whatever the board does; freezeMs (0 or more) stops it that far along, for a still */
+	const msg = { index: -1, t0: 0, ms: 0, ease: 0, dist: 0, v: 0, offset: 0, live: false, hold: false, freezeMs: -1 };
+	/** DEV (feedback/plaque_tips_r4/plaque_tips_probe.js): a line asked for now (shown at once; `hold` keeps it up
+	 *  whatever the board does, `holdAt` 0..1 stops it that far along its path for a still); the cadence's two waits; the
+	 *  tips' clock slowed or sped up */
+	let tipPending: { index: number; hold: boolean; holdAt: number | null; fontCss: number | null } | null = null;
 	let devHold = false;
 	const pace = { gapMs: TIPS.gapMs, firstMs: TIPS.firstMs };
-	let motesOn = true;
 	let slow = 1;
-	const moteStat = { frames: 0, ms: 0, worst: 0, last: { frames: 0, avgMs: 0, worstMs: 0 } };
-	const tipLog: { at: number; what: string; index: number; mode?: string }[] = [];
-	const tipNote = (what: string, index: number, mode?: string) => {
+	const tipLog: { at: number; what: string; index: number }[] = [];
+	const tipNote = (what: string, index: number) => {
 		if (!import.meta.env.DEV) return;
-		tipLog.push({ at: clock.now, what, index, ...(mode ? { mode } : {}) });
+		tipLog.push({ at: clock.now, what, index });
 		if (tipLog.length > 160) tipLog.splice(0, 80);
 	};
-	/** THE TIPS' CLOCK (ms): performance.now, or slower under the DEV slow motion (every time below is on it) */
+	/** THE TIPS' CLOCK (ms): performance.now, or slower / faster under the DEV clock (every time below is on it) */
 	const clock = { now: 0, real: 0 };
-	/** the screen x of the part of the line inside the box, and its texture's u there */
+	/** the part of the strip inside the box (layout x), and its texture's u there */
 	const visibleStrip = () => {
 		const hw = tipBox[0];
-		const off = moteSim.offset;
+		const off = msg.offset;
 		const x0 = Math.max(-hw, off);
 		const x1 = Math.min(hw, off + tipShown.stripW);
 		return { x0, x1, u0: (x0 - off) / tipShown.stripW, u1: (x1 - off) / tipShown.stripW };
 	};
-	const win = { k0: 0, k1: 0 };
-	const startLine = (now: number, index: number, mode: 'fit' | 'scroll' | null, hold: boolean, holdAt: number | null, fontCss: number | null = null): boolean => {
-		computePlans();
-		if (!drawTip(index, mode, fontCss)) return false;
-		moteSim.setPoints(sortX, sortY, tipShown.points);
-		moteSim.offset = tipShown.offset0;
-		msg.index = index;
-		msg.mode = tipShown.mode;
-		msg.t0 = now;
-		msg.tLand = now + TIPS.gatherMs;
-		// "When they form into words, have it as a lower transition": the whole galaxy spirals into the part on show
-		moteSim.windowOf(win);
-		moteSim.gather(win.k0, win.k1, now, TIPS.gatherMs, TIPS.gatherJitter);
-		if (msg.mode === 'scroll') {
-			msg.dist = tipShown.offset0 - tipShown.offset1;
-			msg.v = (TIPS.scrollEmPerSec * tipShown.font) / 1000;
-			const span = scrollSpan(msg.dist, msg.v);
-			msg.scrollMs = span.ms;
-			msg.ramp = span.ramp;
-			msg.tScroll0 = msg.tLand + TIPS.scrollStartReadMs;
-			const endRead = Math.max(TIPS.scrollEndReadMs, TIPS.scrollMinUpMs - TIPS.scrollStartReadMs - msg.scrollMs);
-			msg.tBurst = msg.tScroll0 + msg.scrollMs + endRead;
-		} else msg.tBurst = msg.tLand + TIPS.holdMs;
-		msg.hold = hold;
-		msg.freezeMs = holdAt === null ? -1 : Math.max(0, Math.min(1, holdAt)) * msg.scrollMs;
-		msg.landed = false;
-		msg.scrolling = false;
-		msg.scrollDone = false;
+	/** the hard cut at the box's edges: the mesh spans only the part of the line inside the box; none of it inside, the
+	 *  mesh is not drawn */
+	const placeLine = () => {
 		const v = visibleStrip();
-		buildTipMesh(v.x0, v.x1, v.u0, v.u1);
-		// "the crisp text fades in as they land"
-		fadeTo(tipFade, 1, TIPS.textInMs, TIPS.textInStartMs, now);
-		tipRun.phase = 'form';
+		const inside = v.x1 > v.x0;
+		tipMesh.visible = inside;
+		if (inside) buildTipMesh(v.x0, v.x1, v.u0, v.u1);
+		return inside;
+	};
+
+	/** DEV: every frame of a line's crossing, checked in the page (the probe reads it): frames, frames it did not move
+	 *  left (holds), frames its whole ink was inside the box (whole), its ink at the entry and at the end, the speed
+	 *  after the ease in as a share of the constant speed, and why it ended */
+	const runStat = {
+		index: -1,
+		t0: 0,
+		end: '' as string,
+		frames: 0,
+		drawn: 0,
+		holds: 0,
+		frozen: 0,
+		whole: 0,
+		maxShownFrac: 0,
+		firstDrawnU: -1,
+		enterInkLeftU: 0,
+		endInkRightU: NaN,
+		endOffset: NaN,
+		offset1: 0,
+		minRatio: Infinity,
+		maxRatio: 0,
+		exitRatio: NaN,
+		v: 0,
+		ms: 0,
+		ease: 0,
+		fontCss: 0,
+		prevOff: NaN,
+		prevNow: 0,
+		prevRatio: NaN,
+	};
+	const runs: Record<string, unknown>[] = [];
+	const statStart = (now: number) => {
+		if (!import.meta.env.DEV) return;
+		const hw = tipBox[0];
+		Object.assign(runStat, { index: msg.index, t0: now, end: '', frames: 0, drawn: 0, holds: 0, frozen: 0, whole: 0, maxShownFrac: 0, firstDrawnU: -1, endInkRightU: NaN, endOffset: NaN, minRatio: Infinity, maxRatio: 0, exitRatio: NaN, prevRatio: NaN, prevOff: NaN, prevNow: now });
+		runStat.enterInkLeftU = tipShown.offset0 + tipShown.ink.x0 - hw;
+		runStat.offset1 = tipShown.offset1;
+		runStat.v = msg.v;
+		runStat.ms = msg.ms;
+		runStat.ease = msg.ease;
+		runStat.fontCss = tipShown.font * tipShown.kCss;
+	};
+	const statFrame = (now: number, tau: number, frozen: boolean) => {
+		if (!import.meta.env.DEV) return;
+		const hw = tipBox[0];
+		const off = msg.offset;
+		runStat.frames += 1;
+		const inkL = tipShown.ink.x0 + off;
+		const inkR = tipShown.ink.x1 + off;
+		const shown = Math.max(0, Math.min(hw, inkR) - Math.max(-hw, inkL));
+		if (shown > 0) {
+			runStat.drawn += 1;
+			if (runStat.firstDrawnU < 0) runStat.firstDrawnU = Math.min(hw, off + tipShown.stripW) - Math.max(-hw, off);
+		}
+		runStat.maxShownFrac = Math.max(runStat.maxShownFrac, shown / Math.max(1e-6, inkR - inkL));
+		if (inkL >= -hw - 1e-6 && inkR <= hw + 1e-6) runStat.whole += 1;
+		if (frozen) runStat.frozen += 1;
+		else if (!Number.isNaN(runStat.prevOff)) {
+			const step = runStat.prevOff - off;
+			const dt = now - runStat.prevNow;
+			if (!(step > 0)) runStat.holds += 1;
+			// the constant speed after the ease in (the very last frame is cut short at the end of the path)
+			if (dt > 0 && tau - dt >= msg.ease && tau < msg.ms) {
+				const r = step / (dt * msg.v);
+				runStat.minRatio = Math.min(runStat.minRatio, r);
+				runStat.maxRatio = Math.max(runStat.maxRatio, r);
+				runStat.prevRatio = r;
+			}
+		}
+		runStat.prevOff = off;
+		runStat.prevNow = now;
+	};
+	const statEnd = (why: string) => {
+		if (!import.meta.env.DEV || runStat.end) return;
+		runStat.end = why;
+		runStat.endOffset = msg.offset;
+		runStat.endInkRightU = tipShown.ink.x1 + msg.offset + tipBox[0];
+		runStat.exitRatio = runStat.prevRatio;
+		const { prevOff, prevNow, prevRatio, ...rest } = runStat;
+		runs.push({ ...rest });
+		if (runs.length > 60) runs.splice(0, 30);
+	};
+
+	const startLine = (now: number, index: number, hold: boolean, holdAt: number | null, fontCss: number | null = null): boolean => {
+		computePlans();
+		if (!drawTip(index, fontCss)) return false;
+		msg.index = index;
+		msg.t0 = now;
+		msg.dist = tipShown.offset0 - tipShown.offset1;
+		msg.v = (TIPS.scrollEmPerSec * tipShown.font) / 1000;
+		const span = marqueeSpan(msg.dist, msg.v);
+		msg.ms = span.ms;
+		msg.ease = span.ease;
+		msg.offset = tipShown.offset0;
+		msg.hold = hold;
+		msg.freezeMs = holdAt === null ? -1 : Math.max(0, Math.min(1, holdAt)) * msg.ms;
+		msg.live = true;
+		placeLine();
+		// no fade in: the line enters from outside the box, at its full opacity
+		fadeTo(tipFade, 1, 0, 0, now);
+		tipRun.phase = 'run';
 		tipRun.index = index;
-		tipNote('gather', index, msg.mode);
+		statStart(now);
+		tipNote('enter', index);
 		return true;
 	};
-	/** "keep it as an explosion on the way out": the part on show bursts into the motes, the text goes */
-	const burstLine = (now: number) => {
-		const [, top, bot] = tipBox;
-		const v = visibleStrip();
-		moteSim.windowOf(win);
-		moteSim.burst(win.k0, win.k1, (v.x0 + v.x1) / 2, (top + bot) / 2, now);
-		fadeTo(tipFade, 0, TIPS.burstTextMs, 0, now);
-		msg.hold = false;
-		tipRun.phase = 'burst';
-		tipRun.t = now + TIPS.burstMs;
-		tipNote('burst', msg.index, msg.mode);
-	};
-	/** a line on show cut short (a new layout, a DEV ask): the motes let go, the text out at once */
+	/** a line on show cut short at once (a new layout, a DEV ask): it just goes */
 	const cutLine = (now: number) => {
-		moteSim.releaseAll(now);
 		fadeTo(tipFade, 0, 0, 0, now);
 		tips.alpha = 0;
 		tips.visible = false;
+		tipMesh.visible = false;
+		msg.live = false;
 		msg.hold = false;
 	};
-	/** a scrolling line: where it is, its mesh window (nothing follows it: r3 "a weird particle following effect there
-	 *  on side scroll that should be removed") */
-	const stepScroll = (now: number) => {
-		let tau = now - msg.tScroll0;
-		if (msg.freezeMs >= 0) tau = Math.min(tau, msg.freezeMs);
-		moteSim.offset = tipShown.offset0 - scrollAt(tau, msg.dist, msg.v, msg.scrollMs, msg.ramp);
-		if (tau > 0 && !msg.scrolling && msg.dist > 0) {
-			msg.scrolling = true;
-			tipNote('scroll', msg.index);
-		}
-		if (tau >= msg.scrollMs && msg.scrolling && !msg.scrollDone) {
-			msg.scrollDone = true;
-			tipNote('scrollEnd', msg.index);
-		}
-		const v = visibleStrip();
-		buildTipMesh(v.x0, v.x1, v.u0, v.u1);
+	/** the marquee's step: the line's place now (always further left than the frame before, except a DEV still).
+	 *  Returns true once its strip is wholly past the box's left edge */
+	const stepLine = (now: number, count: boolean): boolean => {
+		let tau = now - msg.t0;
+		const frozen = msg.freezeMs >= 0 && tau >= msg.freezeMs;
+		if (frozen) tau = msg.freezeMs;
+		msg.offset = tipShown.offset0 - marqueeAt(tau, msg.dist, msg.v, msg.ms, msg.ease);
+		placeLine();
+		if (count) statFrame(now, tau, frozen);
+		return !frozen && tau >= msg.ms;
 	};
-	/** while a line is up, after its motes have landed and faded, no mote is drawn ("No particles while words are
-	 *  displayed except intro/outro") */
-	const motesResting = (now: number) => tipRun.phase === 'form' && msg.landed && now >= msg.tLand + MOTES.onFadeMs + 50;
-	let lastTipNow = 0;
 	const tipTick = (realNow: number) => {
 		// the tips' clock
 		clock.now = clock.real ? clock.now + (realNow - clock.real) / slow : realNow;
@@ -844,12 +734,13 @@
 		// the figures first: not while they are up or still fading out (the start delay counts from them gone)
 		const want = ready && (idleNow || devHold || tipPending !== null) && !showing && figFade.v <= 0.001 && forced === null;
 		if (ready && tipNeed.layout) {
-			// a new layout: a line on show is let go, the motes sized for it
+			// a new layout: a line on show is let go, the next one comes firstMs later
 			tipNeed.layout = false;
-			placeMotes();
-			if (tipRun.phase === 'form' || tipRun.phase === 'burst') {
+			if (tipRun.phase === 'run') {
 				cutLine(now);
-				tipRun.phase = 'drift';
+				statEnd('relayout');
+				devHold = false;
+				tipRun.phase = 'gap';
 				tipRun.base = now;
 				tipRun.t = now + pace.firstMs;
 				tipNote('relayout', msg.index);
@@ -857,11 +748,13 @@
 		}
 		if (!want) {
 			if (tipRun.phase !== 'off') {
+				// "hidden as soon as a spin starts": a line on show just goes (a quick fade, still moving); the next
+				// idle stretch starts fresh, line 1 first
 				tipNote(tipRun.phase === 'wait' ? 'cancel' : 'hide', tipRun.index);
+				if (tipRun.phase === 'run') statEnd('hide');
 				tipRun.phase = 'off';
 				tipRun.slot = 0;
 				fadeTo(tipFade, 0, TIPS.hideMs, 0, now);
-				fadeTo(moteFade, 0, TIPS.hideMs, 0, now);
 				msg.hold = false;
 			}
 		} else if (tipRun.phase === 'off') {
@@ -870,72 +763,58 @@
 			tipNote('wait', -1);
 		} else if (tipRun.phase === 'wait') {
 			if (now >= tipRun.t) {
-				// the galaxy comes in; the first line of the spell firstMs after
-				moteSim.scatter(now);
-				placeMotes();
-				fadeTo(moteFade, 1, TIPS.motesInMs, 0, now);
-				tipRun.phase = 'drift';
+				// the board has settled: the first line of the spell firstMs after
+				tipRun.phase = 'gap';
 				tipRun.base = now;
-				tipRun.t = now + TIPS.motesInMs + pace.firstMs;
-				tipNote('motes', -1);
+				tipRun.t = now + pace.firstMs;
+				tipNote('settled', -1);
 			}
 		} else if (tipPending !== null) {
 			const ask = tipPending;
 			tipPending = null;
-			if (tipRun.phase === 'form' || tipRun.phase === 'burst') cutLine(now);
+			if (tipRun.phase === 'run') {
+				cutLine(now);
+				statEnd('cut');
+			}
 			devHold = ask.hold;
-			if (!startLine(now, ask.index, ask.mode, ask.hold, ask.holdAt, ask.fontCss)) tipRun.phase = 'drift';
-		} else if (tipRun.phase === 'drift') {
+			if (!startLine(now, ask.index, ask.hold, ask.holdAt, ask.fontCss)) {
+				tipRun.phase = 'gap';
+				tipRun.base = now;
+				tipRun.t = now + pace.gapMs;
+			}
+		} else if (tipRun.phase === 'gap') {
 			if (now >= tipRun.t) {
 				const at = tipAt(tipRun.slot, tipRun.other);
-				if (startLine(now, at.index, null, false, null)) {
+				if (startLine(now, at.index, false, null)) {
 					if (at.usesOther) tipRun.other += 1;
 					tipRun.slot += 1;
 				} else tipRun.t = now + 250;
 			}
-		} else if (tipRun.phase === 'form') {
-			if (msg.mode === 'scroll') stepScroll(now);
-			if (!msg.landed && now >= msg.tLand) {
-				msg.landed = true;
-				tipNote('land', msg.index, msg.mode);
-			}
-			if (!msg.hold && now >= msg.tBurst) burstLine(now);
-		} else if (tipRun.phase === 'burst') {
-			if (now >= tipRun.t) {
-				// "every 10 s, measured from the end of the previous message"
-				tipRun.phase = 'drift';
+		} else if (tipRun.phase === 'run') {
+			if (stepLine(now, true)) {
+				// "On exit they have to exit all the way to the left edge, not stop": the last letter has left the box's
+				// left edge; the box is empty and the gap counts from now
+				msg.live = false;
+				tipMesh.visible = false;
+				fadeTo(tipFade, 0, 0, 0, now);
+				statEnd('gone');
+				devHold = false;
+				tipRun.phase = 'gap';
 				tipRun.base = now;
 				tipRun.t = now + pace.gapMs;
-				devHold = false;
-				tipNote('end', msg.index, msg.mode);
+				tipNote('gone', msg.index);
 			}
 		}
+		// a line hidden on its way keeps moving while it fades out (it never stops on the plaque)
+		if (tipRun.phase !== 'run' && msg.live) stepLine(now, false);
 		const ta = stepFade(tipFade, now) * TIPS.alpha;
-		if (tips.alpha !== ta) tips.alpha = ta;
-		tips.visible = ta > 0.001;
-		const ma = stepFade(moteFade, now);
-		if (moteLayer.alpha !== ma) moteLayer.alpha = ma;
-		moteLayer.visible = motesOn && ma > 0.001 && !motesResting(now);
-		// the motes move only while they show
-		const dt = lastTipNow ? Math.min(0.05, (now - lastTipNow) / 1000) : 0;
-		lastTipNow = now;
-		if (moteLayer.visible) {
-			const c0 = import.meta.env.DEV ? performance.now() : 0;
-			moteSim.step(dt, now);
-			drawMotes();
-			if (import.meta.env.DEV) {
-				const d = performance.now() - c0;
-				moteStat.frames += 1;
-				moteStat.ms += d;
-				if (d > moteStat.worst) moteStat.worst = d;
-				if (moteStat.frames >= 240) {
-					moteStat.last = { frames: moteStat.frames, avgMs: moteStat.ms / moteStat.frames, worstMs: moteStat.worst };
-					moteStat.frames = 0;
-					moteStat.ms = 0;
-					moteStat.worst = 0;
-				}
-			}
+		if (msg.live && tipRun.phase !== 'run' && ta <= 0.001) {
+			// a hidden line is let go: the box is empty again
+			msg.live = false;
+			tipMesh.visible = false;
 		}
+		if (tips.alpha !== ta) tips.alpha = ta;
+		tips.visible = msg.live && ta > 0.001;
 	};
 
 	// ---- the light (the frame's own) and the tick --------------------------------------------------------------------
@@ -986,10 +865,9 @@
 		}
 		const text = forced ?? bookEventAmountToCurrencyString(Math.round(value));
 		if (atlasTexture && (shown.relayout || ((text !== shown.text || reserve !== shown.reserve) && (showing || forced !== null)))) build(text, reserve);
-		// the explainer lines (they move the crest's fade, so before it is read)
+		// the explainer lines
 		tipTick(now);
 		if (tips.visible && mesh.tint !== tipMesh.tint) tipMesh.tint = mesh.tint;
-		if (moteLayer.visible && mesh.tint !== moteLayer.tint) moteLayer.tint = mesh.tint;
 		// the fades, the bump and the final rise
 		const fa = forced !== null ? 1 : stepFade(figFade, now);
 		const ca = forced !== null ? 0 : stepFade(crestFade, now);
@@ -1068,10 +946,10 @@
 				},
 				/** the visual (drawing) order a string is laid out in */
 				plaqueVisual: (text: string) => visualOrder(text),
-				/** THE EXPLAINER LINES (feedback/plaque_tips_r2/plaque_tips_probe.js): the run, the line on show (how it shows,
-				 *  its rows and size, its scroll), the text box, the mesh's window and every row's ink on screen (CSS px, four
-				 *  corners each, the ink clipped to the box), the motes (how many, how bright, any outside the box), their
-				 *  cost, every line's plan on this screen, the log */
+				/** THE EXPLAINER LINES (feedback/plaque_tips_r4/plaque_tips_probe.js): the run, the line on show (its size,
+				 *  its place on the marquee), the text box, the mesh's window and the ink on screen (CSS px, four corners
+				 *  each: clipped to the box, and whole), every line's width against the box on this screen, the in-page
+				 *  frame checks of the line crossing now and of the last ones, the log */
 				plaqueTips: () => {
 					const [hw, top, bot] = tipBox;
 					const corners = (x0: number, y0: number, x1: number, y1: number) =>
@@ -1085,52 +963,27 @@
 							return g(root, m.x, m.y);
 						});
 					if (root.parent) computePlans();
-					const on = tipRun.phase === 'form' || tipRun.phase === 'burst';
-					const off = moteSim.offset;
+					const on = tipRun.phase === 'run';
+					const off = msg.offset;
 					const v = visibleStrip();
-					const boxQ = corners(-hw, top, hw, bot);
-					// the motes on screen: lit ones, and any outside the box's quad (0.75 px tolerance)
-					const inQuad = (pt: { x: number; y: number }, q: { x: number; y: number }[], tol = 0.75) => {
-						let sign = 0;
-						for (let i = 0; i < 4; i += 1) {
-							const a = q[i];
-							const b = q[(i + 1) % 4];
-							const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-							const cr = ((b.x - a.x) * (pt.y - a.y) - (b.y - a.y) * (pt.x - a.x)) / len;
-							if (Math.abs(cr) <= tol) continue;
-							const s = Math.sign(cr);
-							if (sign === 0) sign = s;
-							else if (s !== sign) return false;
-						}
-						return true;
-					};
-					let lit = 0;
-					let outside = 0;
-					let sumA = 0;
-					const la = moteLayer.visible ? moteLayer.alpha : 0;
-					for (let i = 0; i < MOTE_N; i += 1) {
-						const a = moteSim.alpha[i] * la;
-						if (a <= 0.02) continue;
-						lit += 1;
-						sumA += a;
-						const pt = g(root, moteParts[i].x, moteParts[i].y);
-						if (!inQuad(pt, boxQ)) outside += 1;
-					}
+					const k = tipShown.ink;
+					const pad = TIPS.stripPad;
+					const { prevOff, prevNow, prevRatio, ...run } = runStat;
 					return {
 						phase: tipRun.phase,
 						index: on ? msg.index : -1,
 						lastIndex: tipRun.index,
 						slot: tipRun.slot,
 						other: tipRun.other,
-						mode: on ? tipShown.mode : null,
-						text: on ? (tipTexts[msg.index] ?? null) : null,
-						rows: on ? tipShown.rows.slice() : [],
+						text: on ? tipShown.text : null,
 						font: on ? tipShown.font : null,
 						/** the font size and the cap height on screen, CSS px */
 						fontCss: on ? +(tipShown.font * tipShown.kCss).toFixed(2) : null,
 						capCss: on ? +(tipShown.font * capK * tipShown.kCss).toFixed(2) : null,
 						alpha: +tips.alpha.toFixed(3),
 						visible: tips.visible,
+						meshVisible: tipMesh.visible,
+						live: msg.live,
 						idle: idleNow,
 						showing,
 						crestAlpha: +crest.alpha.toFixed(3),
@@ -1139,86 +992,86 @@
 						faceLoaded: typeof document !== 'undefined' ? document.fonts.check(TIPS.fontCheck) : null,
 						order: root.children.map((c) => c.label || 'Sprite'),
 						eventMode: tips.eventMode,
-						moteEventMode: moteLayer.eventMode,
 						tint: tipMesh.tint as number,
 						texture: { w: tipShown.cw, h: tipShown.ch, res: context.stateApp.pixiApplication?.renderer?.resolution ?? 1 },
-						box: boxQ,
+						box: corners(-hw, top, hw, bot),
 						field: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(day.getBounds()),
-						/** the mesh's window (what of the line can draw), four corners on screen */
-						window: on ? corners(v.x0, top, v.x1, bot) : null,
-						ink: on
-							? tipShown.ink
-									.map((k) => ({ x0: Math.max(-hw, k.x0 + off), x1: Math.min(hw, k.x1 + off), y0: k.y0, y1: k.y1 }))
-									.filter((k) => k.x1 > k.x0)
-									.map((k) => corners(k.x0, k.y0, k.x1, k.y1))
-							: [],
-						scroll: on && tipShown.mode === 'scroll' ? { offset: +off.toFixed(2), offset0: +tipShown.offset0.toFixed(2), offset1: +tipShown.offset1.toFixed(2), dist: +msg.dist.toFixed(2), ms: Math.round(msg.scrollMs), emPerSec: TIPS.scrollEmPerSec, cssPerSec: +(msg.v * 1000 * tipShown.kCss).toFixed(1), scrolling: msg.scrolling, done: msg.scrollDone } : null,
-						times: on ? { t0: msg.t0, tLand: msg.tLand, tScroll0: msg.mode === 'scroll' ? msg.tScroll0 : null, tBurst: msg.tBurst, hold: msg.hold } : null,
-						next: tipRun.phase === 'drift' || tipRun.phase === 'wait' ? Math.round(tipRun.t - clock.now) : null,
-						/** the tips' clock (ms; performance.now unless slowed) */
+						/** the mesh's window (what of the line can draw), four corners on screen; null when none of it is in */
+						window: msg.live && v.x1 > v.x0 ? corners(v.x0, top, v.x1, bot) : null,
+						/** the ink inside the box (clipped), and the whole ink wherever it is (outside the box too) */
+						ink: msg.live && Math.min(hw, k.x1 + off) > Math.max(-hw, k.x0 + off) ? [corners(Math.max(-hw, k.x0 + off), k.y0, Math.min(hw, k.x1 + off), k.y1)] : [],
+						inkWhole: msg.live ? corners(k.x0 + off, k.y0, k.x1 + off, k.y1) : null,
+						marquee: msg.live
+							? {
+									offset: +off.toFixed(3),
+									offset0: +tipShown.offset0.toFixed(2),
+									offset1: +tipShown.offset1.toFixed(2),
+									dist: +msg.dist.toFixed(2),
+									ms: Math.round(msg.ms),
+									ease: msg.ease,
+									hw,
+									stripW: +tipShown.stripW.toFixed(2),
+									inkLeft: +(k.x0 + off).toFixed(2),
+									inkRight: +(k.x1 + off).toFixed(2),
+									emPerSec: TIPS.scrollEmPerSec,
+									unitsPerSec: +(msg.v * 1000).toFixed(1),
+									cssPerSec: +(msg.v * 1000 * tipShown.kCss).toFixed(1),
+									frozen: msg.freezeMs >= 0,
+								}
+							: null,
+						times: on ? { t0: msg.t0, end: msg.t0 + msg.ms, hold: msg.hold } : null,
+						next: tipRun.phase === 'gap' || tipRun.phase === 'wait' ? Math.round(tipRun.t - clock.now) : null,
+						/** the tips' clock (ms; performance.now unless slowed or sped up) */
 						clock: clock.now,
 						slow,
-						motes: {
-							n: MOTE_N,
-							phoneTier: PHONE_TIER,
-							on: motesOn,
-							visible: moteLayer.visible,
-							alpha: +moteLayer.alpha.toFixed(3),
-							lit,
-							meanAlpha: lit ? +(sumA / lit).toFixed(3) : 0,
-							outside,
-							/** drawn by the sim (alpha over 0.003) at its last step, and whether the layer rests (a line up) */
-							simLit: moteSim.lit,
-							resting: motesResting(clock.now),
-							points: moteSim.points,
-							/** the size scale for this screen and the sizes on screen, CSS px */
-							scale: +moteScale.toFixed(3),
-							sizeCss: MOTES.sizeCss.map((v) => +(v * moteScale).toFixed(2)),
-							blend: moteLayer.blendMode,
-							texture: { label: moteTex.label ?? null, w: moteTex.source.pixelWidth, h: moteTex.source.pixelHeight, uid: moteTex.source.uid },
-							perf: { ...moteStat.last },
-						},
 						lines: tipTexts.slice(),
 						kCss: +planK.toFixed(4),
-						plans: tipPlans.map((p, i) => ({ mode: p.mode, font: +p.font.toFixed(2), fontCss: +(p.font * planK).toFixed(2), rows: p.rows.map((r) => r.join(' ')), widths: p.rows.map((r) => +(widthAt1(r.join(' ')) * p.font).toFixed(2)), text: tipTexts[i] })),
+						/** every line on this screen: its size on screen, its ink width against the box's (layout units) */
+						sizes: tipTexts.map((t) => {
+							const w = widthAt1(t) * tipFontU;
+							return { text: t, fontCss: +(tipFontU * planK).toFixed(2), widthU: +w.toFixed(1), boxU: 2 * hw, wider: w > 2 * hw, stripW: +(w + 2 * pad).toFixed(1) };
+						}),
 						boxUnits: [...tipBox],
-						constants: { ...TIPS, motes: { ...MOTES } },
+						constants: { ...TIPS },
 						pace: { ...pace },
+						/** the line crossing now (or the last one), checked every frame in the page */
+						run: { ...run },
+						runs: runs.map((r) => ({ ...r })),
 						log: tipLog.map((e) => ({ ...e })),
 					};
 				},
-				/** show line `i` (0 is line 1) now. `mode` forces 'fit' or 'scroll' (`fontCss` the forced scroll's size);
-				 *  `hold` keeps it up (formed, or for a scroll stopped `holdAt` 0..1 along it) whatever the board does, until
-				 *  plaqueTipsForce(null) */
-				plaqueTipsShow: (i: number, opts: { mode?: 'fit' | 'scroll'; hold?: boolean; holdAt?: number; fontCss?: number } = {}) => {
-					tipPending = { index: i, mode: opts.mode ?? null, hold: !!opts.hold, holdAt: opts.holdAt ?? null, fontCss: opts.fontCss ?? null };
+				/** show line `i` (0 is line 1) now, entering at the right edge. `hold` keeps it up whatever the board does;
+				 *  with `holdAt` (0..1) it stops that far along its path, for a still, until plaqueTipsForce(null);
+				 *  `fontCss` draws it at another size on screen */
+				plaqueTipsShow: (i: number, opts: { hold?: boolean; holdAt?: number; fontCss?: number } = {}) => {
+					tipPending = { index: i, hold: !!opts.hold, holdAt: opts.holdAt ?? null, fontCss: opts.fontCss ?? null };
 				},
-				/** r1's: hold line `i` up for a still; null lets a held line burst and hands the plaque back to the cadence */
+				/** r1's: line `i` up and held (it crosses whatever the board does); null lets a stopped line go on from where
+				 *  it stands and hands the plaque back to the cadence */
 				plaqueTipsForce: (i: number | null) => {
 					if (i === null) {
-						if (msg.hold) {
-							// it bursts where it stands (a held scroll stays at its stop)
-							msg.hold = false;
-							msg.tBurst = Math.min(msg.tBurst, clock.now);
+						if (msg.freezeMs >= 0) {
+							// on along its path from its stop, at full speed (its ease in was before the stop)
+							msg.t0 = clock.now - msg.freezeMs;
+							msg.freezeMs = -1;
 						}
+						msg.hold = false;
+						devHold = false;
 						return;
 					}
-					tipPending = { index: i, mode: null, hold: true, holdAt: null, fontCss: null };
+					tipPending = { index: i, hold: true, holdAt: null, fontCss: null };
 				},
 				/** the cadence's waits (ms); null puts the constants back */
 				plaqueTipsPace: (p: { gapMs?: number; firstMs?: number } | null) => {
 					pace.gapMs = p?.gapMs ?? TIPS.gapMs;
 					pace.firstMs = p?.firstMs ?? TIPS.firstMs;
 					// a wait under way is counted again from its start with the new numbers
-					if (tipRun.phase === 'drift') tipRun.t = tipRun.base + (tipRun.slot === 0 ? TIPS.motesInMs + pace.firstMs : pace.gapMs);
+					if (tipRun.phase === 'gap') tipRun.t = tipRun.base + (tipRun.slot === 0 ? pace.firstMs : pace.gapMs);
 				},
-				/** the tips' clock runs `k` times slower (4: the quarter speed close-up); 1 is real time */
+				/** the tips' clock runs `k` times slower (4: quarter speed; 0.25: four times faster, for a quick check of
+				 *  every line); 1 is real time */
 				plaqueTipsSlow: (k: number) => {
-					slow = Math.max(1, k);
-				},
-				/** the motes drawn (true) or not (false), for the cost A / B */
-				plaqueMotes: (on: boolean) => {
-					motesOn = on;
+					slow = Math.max(0.1, k);
 				},
 			});
 		}

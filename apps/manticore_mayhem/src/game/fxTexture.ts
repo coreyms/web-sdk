@@ -24,29 +24,6 @@ export const dotTexture = (): PIXI.Texture => {
 	return dot;
 };
 
-/** THE PLAQUE'S MOTES (components/BoardPlaque.svelte, game/plaqueMotes.ts, Corey 2026-10-17 08:52): gold dust in
- *  lamplight, a bright core in a soft glow, white so each mote's tint colours it. `px` across, made once. */
-let mote: PIXI.Texture | null = null;
-export const moteTexture = (px: number): PIXI.Texture => {
-	if (mote) return mote;
-	const c = document.createElement('canvas');
-	c.width = px;
-	c.height = px;
-	const ctx = c.getContext('2d')!;
-	const r = px / 2;
-	const g = ctx.createRadialGradient(r, r, 0, r, r, r);
-	g.addColorStop(0, 'rgba(255,255,255,1)');
-	g.addColorStop(0.16, 'rgba(255,255,255,0.95)');
-	g.addColorStop(0.36, 'rgba(255,255,255,0.5)');
-	g.addColorStop(0.62, 'rgba(255,255,255,0.14)');
-	g.addColorStop(1, 'rgba(255,255,255,0)');
-	ctx.fillStyle = g;
-	ctx.fillRect(0, 0, px, px);
-	mote = PIXI.Texture.from(c);
-	mote.label = 'plaque-mote';
-	return mote;
-};
-
 /** the landing aura: a rounded square halo that fades out from the tile's edge, drawn behind the
  *  tile on an additive sprite. 128 px across; the tile occupies the middle ~70% of it. */
 let glow: PIXI.Texture | null = null;
