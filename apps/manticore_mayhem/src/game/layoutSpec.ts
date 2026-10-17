@@ -281,6 +281,10 @@ export const HUD_BAND_PROMPT_Y: Record<LayoutKind, number> = { landscape: 672, p
  *  While it is up, that row is veiled: a plain rectangle (no filter, no mask) over exactly the row's cells, the colour
  *  of the mode plaque's plate, fading in over fadeMs. Desktop only; phone and portrait keep their band under the board. */
 export const PROMPT_VEIL = { row: 7, color: 0x0d0e12, alpha: 0.72, fadeMs: 220 };
+/** fonts r2 (2026-10-17): the Cinzel prompt is about 44 % wider than the old stencil line at the same cap height, and
+ *  at the slot's own maxWidth (620) it ran 6 to 8 px past the veiled row onto the frame's posts. Over the board it is
+ *  fitted to this share of the veiled row's width as well (desktop only; 0.94 leaves about 16 px each side) */
+export const PROMPT_IN_ROW = 0.94;
 
 /** one board row's cells (the full cell area's width, one cell tall) in master units */
 export const boardRowRect = (kind: LayoutKind, row: number, viewportMasterWidth?: number) => {
