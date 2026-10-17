@@ -8,6 +8,7 @@ Sources (read only, never written):
   ~/Desktop/Manticore Mayhem/handoff/assets/tiles/<code>.webp          the ten approved 256 px static tiles
   ~/Desktop/Manticore Mayhem/images/symbols/<CODE_name>/animation/drop/  drop frames, 512 px RGBA
   ~/Desktop/Manticore Mayhem/images/symbols/<CODE_name>/animation/idle/  idle loop frames, 512 px RGBA
+  SOURCE_OVERRIDES (below): S reads its frames and tile from S_war-standard/graded_r1/ (tools/grade_war_standard.py)
   tools/render_symbols/out/render/<CODE>.png + fit.json                 the 1024 harness renders the tiles were baked
                                                                          from (make_tiles.py); the fit is derived from
                                                                          them and cached in render_symbols/sheet_fit.json
@@ -71,6 +72,10 @@ CLIPS = {
     "M1": {"drop": "drop", "idle": "idle"},  # drop/ = drop_lively
     "L3": {"drop": "drop", "idle": None},  # no idle delivered yet
 }
+# SOURCE OVERRIDES: a symbol whose frames and static tile come from a graded copy instead of the masters (the masters
+# stay untouched). The folder holds drop/ and idle/ (same file names as animation/<folder>/) and tile/<code>.webp.
+#   S: the War Standard re-grade (review B5, Corey 2026-10-17 13:08, no Blender), written by tools/grade_war_standard.py
+SOURCE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r1")}
 FRAME_RE = re.compile(r"^(?:[A-Za-z0-9]+_(?:drop|idle)_)?\d{3,4}\.png$")
 
 
@@ -246,6 +251,20 @@ def symbol_dir(code):
     raise SystemExit(f"no symbol folder for {code}")
 
 
+def clip_dir(code, folder):
+    """the folder a clip's frames are read from: the graded copy for an overridden symbol, else animation/<folder>"""
+    if code in SOURCE_OVERRIDES:
+        return os.path.join(SOURCE_OVERRIDES[code], folder)
+    return os.path.join(symbol_dir(code), "animation", folder)
+
+
+def tile_path(code):
+    """the 256 px static tile: the graded copy for an overridden symbol, else the handoff tile"""
+    if code in SOURCE_OVERRIDES:
+        return os.path.join(SOURCE_OVERRIDES[code], "tile", code.lower() + ".webp")
+    return os.path.join(HANDOFF_TILES, code.lower() + ".webp")
+
+
 def frame_files(folder):
     return [os.path.join(folder, f) for f in sorted(os.listdir(folder)) if FRAME_RE.match(f)]
 
@@ -418,7 +437,7 @@ def build_sheets(geo, only):
             if not folder:
                 print(f"{code} {clip}: none delivered, skipped")
                 continue
-            files = frame_files(os.path.join(sdir, "animation", folder))
+            files = frame_files(clip_dir(code, folder))
             full, half = [], []
             for i, fp in enumerate(files):
                 src = Image.open(fp)
@@ -428,7 +447,8 @@ def build_sheets(geo, only):
                 full.append((fname, cell))
                 if HALF_TIER:
                     half.append((fname, half_of(cell) if STYLE else process(src, g, HALF)))
-            fit_meta = {"fit": {"source": f"{os.path.basename(sdir)}/animation/{folder}", "sourcePx": 512,
+            src_rel = os.path.relpath(clip_dir(code, folder), SYMBOLS_DIR)
+            fit_meta = {"fit": {"source": src_rel, "sourcePx": 512,
                                 "box512": [round(v, 3) for v in source_box(g, 512)], "angle": g["angle"],
                                 "fitJson": g["fit"]}}
             if STYLE.get("darkRim"):
@@ -464,7 +484,7 @@ def build_atlas():
         for code in CODES:
             fr = doc["frames"][f"{code}.png"]["frame"]
             assert fr["w"] == px and fr["h"] == px, (code, fr)
-            tile = Image.open(os.path.join(HANDOFF_TILES, code.lower() + ".webp")).convert("RGBA")
+            tile = Image.open(tile_path(code)).convert("RGBA")
             tile = stylize(tile, code=code)
             if px != CELL:
                 tile = tile.resize((px, px), Image.LANCZOS)
@@ -481,7 +501,7 @@ def build_atlas():
 def build_tiles():
     os.makedirs(TILES_OUT, exist_ok=True)
     for code in CODES:
-        tile = Image.open(os.path.join(HANDOFF_TILES, code.lower() + ".webp")).convert("RGBA")
+        tile = Image.open(tile_path(code)).convert("RGBA")
         tile.resize((128, 128), Image.LANCZOS).save(os.path.join(TILES_OUT, code.lower() + ".webp"), "WEBP",
                                                      lossless=True, quality=100, method=6)
     print("tiles: ten 128 px paytable thumbnails")
@@ -533,7 +553,7 @@ def verify(geo, only):
         if only and code not in only:
             continue
         c = code.lower()
-        tile = Image.open(os.path.join(HANDOFF_TILES, c + ".webp")).convert("RGBA")
+        tile = Image.open(tile_path(code)).convert("RGBA")
         line = {"code": code}
         # the fit replay itself: the 1024 render through process() vs the handoff tile
         rp = os.path.join(RS, "out", "render", code + ".png")
@@ -557,16 +577,16 @@ def verify(geo, only):
         line["half0_vs_tile128"] = diff(hd[f"{c}-drop-000"], tile.resize((HALF, HALF), Image.LANCZOS))
         sdir = symbol_dir(code)
         clips = CLIPS.get(code, {"drop": "drop", "idle": "idle"})
-        line["clip_drop"] = clipped_alpha(geo, code, os.path.join(sdir, "animation", clips["drop"]))
+        line["clip_drop"] = clipped_alpha(geo, code, clip_dir(code, clips["drop"]))
         if clips.get("idle"):
-            line["clip_idle"] = clipped_alpha(geo, code, os.path.join(sdir, "animation", clips["idle"]))
+            line["clip_idle"] = clipped_alpha(geo, code, clip_dir(code, clips["idle"]))
         rows.append(line)
         print(json.dumps(line))
     # base atlas: the ten tiles exactly, overlays untouched
     for suffix, px in (("", CELL), ("-half", HALF)):
         fr = sheet_frames_atlas(f"mmSymbols{suffix}")
         for code in CODES:
-            t = Image.open(os.path.join(HANDOFF_TILES, code.lower() + ".webp")).convert("RGBA")
+            t = Image.open(tile_path(code)).convert("RGBA")
             if px != CELL:
                 t = t.resize((px, px), Image.LANCZOS)
             print(f"mmSymbols{suffix} {code}.png vs handoff", diff(fr[f"{code}.png"], t))
@@ -608,7 +628,7 @@ def contact(rows):
         d.text((10, y + cell // 2), code, fill=(220, 210, 190))
         drop = sheet_frames(f"{c}-drop")
         names = list(drop)
-        picks = [Image.open(os.path.join(HANDOFF_TILES, c + ".webp")).convert("RGBA")]
+        picks = [Image.open(tile_path(code)).convert("RGBA")]
         picks += [drop[names[min(k, len(names) - 1)]] for k in (0, 12, 24, 47)]
         if os.path.exists(os.path.join(SPRITES, f"{c}-idle.json")):
             picks.append(sheet_frames(f"{c}-idle")[f"{c}-idle-000"])

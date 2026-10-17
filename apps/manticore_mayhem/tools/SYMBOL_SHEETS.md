@@ -31,6 +31,20 @@ plates over the real atlas and paytable tiles). The packer imports its `mult_ove
 - `tools/render_symbols/out/render/<CODE>.png` (1024 harness renders) + `fit.json`: the fit is derived from these and
   cached in `tools/render_symbols/sheet_fit.json`, so a re-run still works when `out/` (gitignored) is gone.
 
+## S re-grade (2026-10-17, review B5; Corey 13:08 "Okay let's do it. Not in blender")
+
+The War Standard's red cloth read flat and saturated next to the lit set, so its renders are colour graded (no
+re-render): `tools/grade_war_standard.py` reads the S masters (drop, idle, the handoff tile) and writes graded copies to
+`~/Desktop/Manticore Mayhem/images/symbols/S_war-standard/graded_r1/` (`drop/`, `idle/`, `tile/s.webp`, `grade.json`).
+The packer's `SOURCE_OVERRIDES` points S there, so every S output (sheets, both tiers, the atlas cell, the paytable
+tile) comes from the graded copy; the masters are never written. The grade, one set of constants for every frame and
+the tile: a value curve on the red cloth only (hue and saturation keyed; the sun, laurels, pole, finials and fringe left
+alone), its shadows pulled toward crimson #6a0e0e, saturation x 0.85, an edge falloff from the alpha's distance to the
+edge (x 0.75 at the edge, gone 18 master px in), and the outer gold's highlights lifted 0.30 toward #ffd27a. Alpha and
+frame timing are byte for byte the masters'. A `strong` variant lives next to it in `GRADES` (`--variant strong`).
+Re-run: `python tools/grade_war_standard.py`, then `python tools/pack_symbol_sheets.py --only S` and the stamp.
+Review: `~/Desktop/Manticore Mayhem/feedback/wstandard_r1/`.
+
 ## The fit
 
 `make_tiles.py` crops each 1024 render to its silhouette, rotates by `rot`, scales so the larger side is `size` %

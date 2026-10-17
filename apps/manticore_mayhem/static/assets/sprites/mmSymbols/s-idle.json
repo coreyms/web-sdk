@@ -1516,7 +1516,7 @@
   "fps": 30,
   "encoding": "near-lossless 60",
   "fit": {
-   "source": "S_war-standard/animation/idle",
+   "source": "S_war-standard/graded_r1/idle",
    "sourcePx": 512,
    "box512": [
     79.073,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "b13e9436"
+  "pngHash": "e2aa6710"
  }
 }
