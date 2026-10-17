@@ -64,6 +64,20 @@ export class PlaqueText {
 	get width(): number {
 		return this.run.width;
 	}
+
+	/** the row's ink across, [left, right] in view px: from the first face's left to the last face's right, given the
+	 *  glyph frames' padding around the face in font units (constants MAX_WIN.glyphInk). [0, 0] for an empty row */
+	inkSpan(padLeft: number, padRight: number): [number, number] {
+		const run = this.run;
+		if (!run.count) return [0, 0];
+		let left = Infinity;
+		let right = -Infinity;
+		for (let i = 0; i < run.count; i += 1) {
+			left = Math.min(left, run.x[i] + padLeft * run.scale);
+			right = Math.max(right, run.x[i] + run.w[i] - padRight * run.scale);
+		}
+		return [left, right];
+	}
 }
 
 export class PlaqueTitle {
@@ -73,6 +87,8 @@ export class PlaqueTitle {
 	/** the halo's own strength (titles[name].glow.alpha); glowGain() fades it in */
 	private glowBase = 0;
 	name = '';
+	/** view px per title px of the last set() (its cap and maxWidth fit) */
+	scale = 1;
 
 	constructor(
 		private titles: StingerJson['text']['titles'],
@@ -90,6 +106,7 @@ export class PlaqueTitle {
 		if (!t) return;
 		let sc = capPx / t.cap;
 		if (maxWidth && t.w * sc > maxWidth) sc = maxWidth / t.w;
+		this.scale = sc;
 		const left = (-t.w / 2) * sc;
 		const top = -(t.baseline - t.cap / 2) * sc;
 		this.face.texture = this.atlas[t.frame] ?? PIXI.Texture.EMPTY;
