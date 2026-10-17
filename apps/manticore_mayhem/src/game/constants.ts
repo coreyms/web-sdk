@@ -1197,6 +1197,30 @@ export const CREATURE_LIFT = {
 	epic: { add: 0, tint: 0xffe2c8 }, // was 0.3 until the drop 5 rim light
 } as const;
 
+// ---- THE BACK-FEET SHADE (Corey 2026-10-17 13:21: "The back feet also look to bright, you would think they would be
+// carrying shadows on top of them, but I don't want to send this back to the rig agent"; creature_shade_r1) ----------
+// His rear paws stand under his chest, between and behind the front legs, but the Rig's sheets light them like the front
+// paws. Options, one sprite over his colour sprites and lifts (game/creature.ts `shade`), tints and alpha only, switched
+// in DEV by __manticore.creatureShade('off' | 'A' | 'B'):
+//   A  THE SHADOW PASS OVER THE BODY: the floor shadow's own frame drawn again over him at `alpha`. Zero new bytes. It
+//      darkens everything of him inside the footprint, and the front paws stand in the footprint's densest part, so they
+//      darken as much as the rear paws. The floor under him gets the copy too, so the floor shadow is drawn lighter
+//      (floorKeep: its alpha becomes 1 - (1 - CREATURE.shadowAlpha) / (1 - alpha)) and the floor reads as before.
+//   B  A BAKED CONTACT OCCLUSION PASS (tools/build_creature_assets.py SHADE, --only-shade): one black + alpha frame per
+//      body frame, every look shares it, at the shadow atlas's quarter canvas (shared/creature-shade[-phone], 118 KiB /
+//      94 KiB, 1.10 / 0.56 MB on the GPU). Strongest on the rear paws, zero on the face and the front legs, and zero on
+//      whatever passes in front of the rear paws (the swiping paw, the sting's low mane and beard). Drawn at `alpha` of
+//      the look on show (blended through a look crossfade). Fades in over inMs when it first appears after the still.
+// `mode` is the production default: B, Corey 2026-10-17 14:47 "B .6 looks good let's lock that in" (day 0.6; super and
+// epic 0.5, as on the sheet he looked at).
+export type CreatureShadeMode = 'off' | 'A' | 'B';
+export const CREATURE_SHADE = {
+	mode: 'B' as CreatureShadeMode,
+	A: { alpha: { day: 0.32, super: 0.32, epic: 0.32 }, floorKeep: true },
+	B: { alpha: { day: 0.6, super: 0.5, epic: 0.5 } },
+	inMs: 300,
+} as const;
+
 // ---- Scatter tease on a Mystery reveal (RULE_PASS_2 section D) -----------------------------------
 // Angry Mantis's Anticipation.svelte, adapted from five spinning reels to an 8x8 drop: an
 // anticipated COLUMN holds above the board before it falls, falls slower when it does, and shows

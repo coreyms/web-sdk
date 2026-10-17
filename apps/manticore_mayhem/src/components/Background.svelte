@@ -43,11 +43,12 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureSpot } from '../game/constants';
+	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
 	import { creature, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
 	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog } from '../game/creatureLoad';
 	import { stateBet } from 'state-shared';
 	import { CREATURE_SPEC } from '../game/creatureSpec';
+	import { bootCreatureShade, setCreatureShade } from '../game/creatureShade';
 	import type { SoundEffectName } from '../game/sound';
 	import { boardKick, foregroundKick, shoveForeground } from '../game/featureFx';
 	import { boardOpening } from '../game/boardTap';
@@ -279,6 +280,8 @@
 		kind === 'landscape' ? 'desktop' : kind === 'phone' ? 'phoneSideways' : ['smallMobile', 'mobile'].includes(context.stateLayoutDerived.canvasSizeType()) ? 'portraitPhone' : 'portraitTablet',
 	);
 	creatureLoader.renderer = renderer;
+	// THE BACK-FEET SHADE (constants CREATURE_SHADE; game/creatureShade.ts): the production default, or DEV ?creatureshade=
+	bootCreatureShade();
 	creature.env = {
 		ts: () => context.stateGameDerived.timeScale(),
 		skipping: () => context.stateGame.skipping,
@@ -717,6 +720,9 @@
 					/** the A / B of CREATURE.glowPhase (the crouch's phase before a lit strike) */
 					glowPhase: (on: boolean) => (creature.glowPhase = on),
 				},
+				/** THE BACK-FEET SHADE (Corey 2026-10-17 13:21; constants CREATURE_SHADE): 'off', 'A' (the shadow pass over
+				 *  him) or 'B' (the baked contact occlusion; fetches its atlas first). Resolves to the mode and whether B is in */
+				creatureShade: (mode: CreatureShadeMode) => setCreatureShade(mode),
 				// ---- __manticore.fireSound / chainSound (tools/manticore/win_sound_probe.js, ONLY=fire,chain) ----
 				fireSound: { state: () => fireSoundState(), log: () => fireSoundLog.map((e) => ({ ...e })), constants: () => JSON.parse(JSON.stringify(FIRE_SOUND)) },
 				chainSound: { log: () => chainSoundLog.asked.map((e) => ({ ...e })), refused: () => chainSoundLog.refused, constants: () => JSON.parse(JSON.stringify({ sound: CHAIN_SOUND, gust: CHAIN_GUST })) },
