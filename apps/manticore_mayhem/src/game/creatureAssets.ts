@@ -1,7 +1,7 @@
 // THE CREATURE'S FILES (game/creature.ts draws them, game/creatureLoad.ts fetches them; built by
 // tools/build_creature_assets.py from the rig drop into static/assets/sprites/creature). One atlas per clip and look,
-// a full tier (640 px canvas) and a phone tier twin (432 px), and two atlases every look shares (the shadows of every
-// clip, the glow of the charge and of the lit strike). GENERATED LIST, literal URLs on purpose (game/assets.ts says why).
+// a full tier (640 px canvas) and a phone tier twin (432 px), and three atlases every look shares (the shadows of every
+// clip, the glow of the charge and of the lit strike, the back-feet shade). GENERATED LIST, literal URLs on purpose (game/assets.ts says why).
 // NONE OF THIS IS IN game/assets.ts: the shared loader would fetch every look in its last batch, and only ONE look
 // may be resident at a time (constants CREATURE). The night look of the rig drop is not shipped: no mode shows it.
 import { stamp } from './assets';
@@ -56,9 +56,11 @@ export const CREATURE_FILES: Record<CreatureLook, Record<CreatureClip, string>> 
 		growl: tiered(stamp(new URL('../../assets/sprites/creature/epic/creature-epic-growl.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/epic/creature-epic-growl-phone.json', import.meta.url).href)),
 	},
 };
-/** shared by every look, loaded once: every clip's shadow frames, and the glow (the charge's, and the lit strike's over
- *  sting_hit and sting_recrouch, one atlas) */
+/** shared by every look, loaded once: every clip's shadow frames, the glow (the charge's, and the lit strike's over
+ *  sting_hit and sting_recrouch, one atlas), and the back-feet shade (option B of constants CREATURE_SHADE; fetched in
+ *  his idle group only while that option is on, game/creatureLoad.ts) */
 export const CREATURE_SHARED = {
 	shadow: tiered(stamp(new URL('../../assets/sprites/creature/shared/creature-shadow.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/shared/creature-shadow-phone.json', import.meta.url).href)),
 	glow: tiered(stamp(new URL('../../assets/sprites/creature/shared/creature-glow.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/shared/creature-glow-phone.json', import.meta.url).href)),
+	shade: tiered(stamp(new URL('../../assets/sprites/creature/shared/creature-shade.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/shared/creature-shade-phone.json', import.meta.url).href)),
 };

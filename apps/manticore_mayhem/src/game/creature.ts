@@ -61,7 +61,7 @@
 // House rules: no filters, shaders or masks; a frame is a swap between resident textures; a tick allocates nothing.
 import * as PIXI from 'pixi.js';
 
-import { CREATURE, CREATURE_LIFT, type CreatureSpot } from './constants';
+import { CREATURE, CREATURE_LIFT, CREATURE_SHADE, type CreatureShadeMode, type CreatureSpot } from './constants';
 import { CREATURE_SPEC } from './creatureSpec';
 import { CREATURE_CLIPS, type CreatureClip, type CreatureLook } from './creatureAssets';
 
@@ -150,6 +150,17 @@ export class Creature {
 	/** THE NIGHT LIFT (constants CREATURE_LIFT, Corey 2026-10-16 "1. Yes", interim): an additive copy of each colour
 	 *  sprite's frame, over it, in the night and fire looks only (syncLift). Same textures: nothing created or uploaded */
 	private readonly lift = [new PIXI.Sprite(PIXI.Texture.EMPTY), new PIXI.Sprite(PIXI.Texture.EMPTY)];
+	/** THE BACK-FEET SHADE (constants CREATURE_SHADE, Corey 2026-10-17 13:21): one sprite over both colour sprites and
+	 *  their lifts, under the glow. A: the floor shadow's frame on show; B: the baked occlusion frame of the drawn frame
+	 *  (syncShade). Resident shared textures only: nothing created or uploaded per frame */
+	private readonly shade = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	/** which option is drawn (game/creatureShade.ts; DEV: __manticore.creatureShade) */
+	private shadeMode: CreatureShadeMode = CREATURE_SHADE.mode;
+	/** a switch by hand shows B at once (the fade is for its first appearance after the still) */
+	private shadeNow = false;
+	private readonly shadeFrames: Partial<Record<CreatureClip, Frames>> = {};
+	/** B's fade in after the still (real ms it came on; -1 none) */
+	private shadeOnAt = -1;
 
 	env: CreatureEnv = { ts: () => 1, skipping: () => false, play: () => {}, stop: () => {}, idle: () => false, board: () => false };
 	/** the loader's two hooks: a look is wanted (load its idle sheet first), a look is no longer drawn (let it go) */
@@ -244,7 +255,9 @@ export class Creature {
 		}
 		const ay = SPEC.feetRow / SPEC.canvas[1];
 		const ax = SPEC.feetCol / SPEC.canvas[0];
-		for (const s of [this.shadow, ...this.colour, ...this.lift, this.glow]) s.anchor.set(ax, ay);
+		for (const s of [this.shadow, ...this.colour, ...this.lift, this.shade, this.glow]) s.anchor.set(ax, ay);
+		this.shade.tint = 0x000000;
+		this.shade.visible = false;
 		this.glow.blendMode = 'add';
 		for (const s of this.lift) {
 			s.blendMode = 'add';
@@ -255,7 +268,8 @@ export class Creature {
 		this.shadow.alpha = CREATURE.shadowAlpha;
 		this.shadowNode.addChild(this.shadow);
 		// each lift right over its own colour sprite, so the look crossfade covers the old look's lift with the new one
-		this.bodyNode.addChild(this.colour[0], this.lift[0], this.colour[1], this.lift[1], this.glow);
+		// the shade over both looks (it is the same for every look) and under the tail's glow
+		this.bodyNode.addChild(this.colour[0], this.lift[0], this.colour[1], this.lift[1], this.shade, this.glow);
 		// THE POKE: the body node itself is the target (eventMode 'static' only while a poke can be taken, tick());
 		// its sprites are never hit tested (interactiveChildren stays false), only this polygon, minus the board
 		this.bodyNode.cursor = 'pointer';
@@ -315,7 +329,8 @@ export class Creature {
 		return out;
 	}
 	/** the shadow atlas (every clip) or the glow atlas */
-	setShared(kind: 'shadow' | 'glow', tex: Record<string, PIXI.Texture>): boolean {
+	setShared(kind: 'shadow' | 'glow' | 'shade', tex: Record<string, PIXI.Texture>): boolean {
+		if (kind === 'shade') return this.setShade(tex);
 		if (kind === 'glow') {
 			this.glowFrames = Creature.frames(tex, SPEC.glow.charge_glow, SPEC.clips.charge_glow.frames);
 			if (this.glowFrames) this.glow.scale.set(SPEC.canvas[0] / this.glowFrames[0].orig.width);
@@ -333,6 +348,28 @@ export class Creature {
 		// phone that is the full still's, 160 px, over a 108 px shadow atlas); draw() rescales on the first swap
 		const on = this.shadow.texture === PIXI.Texture.EMPTY ? this.shadows.idle![0] : this.shadow.texture;
 		this.shadow.scale.set(SPEC.canvas[0] / on.orig.width);
+		return true;
+	}
+	/** THE BACK-FEET SHADE's option (game/creatureShade.ts). `instant`: no fade in (a switch by hand) */
+	setShadeMode(mode: CreatureShadeMode, instant = false): void {
+		this.shadeMode = mode;
+		this.shadeNow = instant;
+		this.syncShade(performance.now());
+	}
+	get shadeOption(): CreatureShadeMode {
+		return this.shadeMode;
+	}
+	/** THE BACK-FEET SHADE's baked atlas (option B; game/creatureLoad.ts loads it, in his idle group): every clip's
+	 *  occlusion frames */
+	private setShade(tex: Record<string, PIXI.Texture>): boolean {
+		const got: Partial<Record<CreatureClip, Frames>> = {};
+		for (const clip of CREATURE_CLIPS) {
+			const f = Creature.frames(tex, `creature_shade_${clip}`, N[clip]);
+			if (!f) return false;
+			got[clip] = f;
+		}
+		Object.assign(this.shadeFrames, got);
+		this.syncShade(performance.now());
 		return true;
 	}
 	/** one clip of one look is in (already uploaded) */
@@ -396,6 +433,7 @@ export class Creature {
 	sources(): { name: string; source: PIXI.TextureSource }[] {
 		const out: { name: string; source: PIXI.TextureSource }[] = [];
 		if (this.shadows.idle) out.push({ name: 'shared/shadow', source: this.shadows.idle[0].source });
+		if (this.shadeFrames.idle) out.push({ name: 'shared/shade', source: this.shadeFrames.idle[0].source });
 		if (this.glowFrames) out.push({ name: 'shared/glow', source: this.glowFrames[0].source });
 		for (const look of Object.keys(this.looks) as CreatureLook[]) for (const clip of CREATURE_CLIPS) if (this.looks[look]![clip]) out.push({ name: `${look}/${clip}`, source: this.looks[look]![clip]![0].source });
 		return out;
@@ -488,6 +526,7 @@ export class Creature {
 		this.colour[1].texture = PIXI.Texture.EMPTY;
 		// the lifts let go of the old look's frames before it can be freed below
 		this.syncLift();
+		this.syncShade(performance.now());
 		if (done && to) {
 			this.look = to;
 			this.syncLift();
@@ -745,6 +784,7 @@ export class Creature {
 		if (this.state === 'still') {
 			// one picture: only the veil's and the layout's alphas move (no clip, no sound, no poke)
 			this.tickLook(now, on, dt);
+			this.syncShade(now);
 			return;
 		}
 		if (import.meta.env.DEV && this.pin) {
@@ -766,6 +806,7 @@ export class Creature {
 		if (!on) {
 			this.swipeNext = null;
 			this.syncLift();
+			this.syncShade(now);
 			return;
 		}
 		// a swipe read ahead becomes the cue once no sting is left for him to play before it
@@ -927,6 +968,7 @@ export class Creature {
 					: 0;
 		this.draw(clip, frame);
 		this.syncLift();
+		this.syncShade(now);
 		this.tickPoke(now, on);
 	}
 
@@ -953,6 +995,57 @@ export class Creature {
 			if (s.tint !== L!.tint) s.tint = L!.tint;
 			if (!s.visible) s.visible = true;
 		}
+	}
+
+	/** THE BACK-FEET SHADE (constants CREATURE_SHADE): the shade sprite shows A, the floor shadow's frame on show, or B,
+	 *  the baked frame of the body frame drawn, at the option's alpha for the look on show, blended with the incoming
+	 *  look's by the crossfade (the shade is the same for both looks, only its strength differs). With A the floor shadow
+	 *  is drawn lighter so floor + copy read as CREATURE.shadowAlpha. A few compares a tick, writes only on a change */
+	private syncShade(now: number): void {
+		const m = this.shadeMode;
+		let tex: PIXI.Texture | undefined;
+		let a = 0;
+		if (m !== 'off' && this.look) {
+			const A = m === 'A' ? CREATURE_SHADE.A.alpha : CREATURE_SHADE.B.alpha;
+			const u = this.next && this.colour[1].visible ? this.colour[1].alpha : 0;
+			a = A[this.look] + ((this.next ? A[this.next] : A[this.look]) - A[this.look]) * u;
+			if (m === 'A') tex = this.shadow.visible && this.shadow.texture !== PIXI.Texture.EMPTY ? this.shadow.texture : undefined;
+			else tex = this.drawnFrame > 0 ? this.shadeFrames[this.drawnClip]?.[this.drawnFrame - 1] : undefined;
+		}
+		if (m === 'B' && tex) {
+			// B first appears after his still (or at a DEV switch while he is on show): a short fade, not a pop
+			if (this.shadeOnAt < 0) this.shadeOnAt = this.bodyNode.visible && this.shown >= 1 && !this.shadeNow ? now : now - CREATURE_SHADE.inMs;
+			this.shadeNow = false;
+			a *= clamp01((now - this.shadeOnAt) / Math.max(CREATURE_SHADE.inMs, 1));
+		} else if (m !== 'B') this.shadeOnAt = -1; // (a tick with no frame of B, a hand-over or a hidden layout, does not fade it again)
+		const floor = m === 'A' && tex && CREATURE_SHADE.A.floorKeep ? Math.max(0, 1 - (1 - CREATURE.shadowAlpha) / (1 - a)) : CREATURE.shadowAlpha;
+		if (this.shadow.alpha !== floor) this.shadow.alpha = floor;
+		const s = this.shade;
+		if (!tex || a <= 0) {
+			if (s.visible) {
+				s.visible = false;
+				s.texture = PIXI.Texture.EMPTY;
+			}
+			return;
+		}
+		if (s.texture !== tex) s.texture = tex;
+		const k = SPEC.canvas[0] / tex.orig.width;
+		if (s.scale.x !== k) s.scale.set(k);
+		if (s.alpha !== a) s.alpha = a;
+		if (!s.visible) s.visible = true;
+	}
+	/** the shade's frame on show as `clip:frame` (DEV / probe: B follows the body frame by frame; A is the shadow's) */
+	private shadeFrameOf(): string | null {
+		if (!this.shade.visible) return null;
+		const t = this.shade.texture;
+		const table = this.shadeMode === 'A' ? this.shadows : this.shadeFrames;
+		for (const c of CREATURE_CLIPS) {
+			const f = table[c];
+			if (!f || f[0].source !== t.source) continue;
+			const i = f.indexOf(t);
+			if (i >= 0) return `${c}:${i + 1}`;
+		}
+		return null;
 	}
 
 	/** the crouch frame a charge_in hands over to (constants CREATURE.glowPhase): charge_loop f1, or, before a LIT strike,
@@ -1182,7 +1275,7 @@ export class Creature {
 	 *  drawn with one throws inside Pixi's render and stops the ticker (tools/manticore/creature_probe.js HANDOVER) */
 	private dead(): number {
 		let n = 0;
-		for (const s of [this.shadow, this.colour[0], this.colour[1], ...this.lift, this.glow]) {
+		for (const s of [this.shadow, this.colour[0], this.colour[1], ...this.lift, this.shade, this.glow]) {
 			const t = s.texture;
 			if (t !== PIXI.Texture.EMPTY && (t.destroyed || !t.source || t.source.destroyed)) n += 1;
 		}
@@ -1215,6 +1308,9 @@ export class Creature {
 			glowClip: this.glow.visible ? this.glowClip : null,
 			glowFrame: this.glow.visible ? this.glowFrame : 0,
 			shadowFrame: this.shadowFrameOf(),
+			shade: this.shadeMode,
+			shadeFrame: this.shadeFrameOf(),
+			shadeAlpha: this.shade.visible ? this.shade.alpha : 0,
 			poke: this.pokeOn,
 			hold: this.state === 'clip' ? r.hold : 0,
 			cue: this.cue ? this.cue.kind : null,
@@ -1235,6 +1331,7 @@ export class Creature {
 			shared: {
 				shadow: !!this.shadows.idle,
 				glow: !!this.glowFrames,
+				shade: !!this.shadeFrames.idle,
 				shadowFrames: CREATURE_CLIPS.reduce((n, c) => n + (this.shadows[c]?.length ?? 0), 0),
 				glowFrames: { charge_loop: this.glowFrames?.length ?? 0, sting_hit: this.glowOver.sting_hit?.length ?? 0, sting_recrouch: this.glowOver.sting_recrouch?.length ?? 0 },
 			},
