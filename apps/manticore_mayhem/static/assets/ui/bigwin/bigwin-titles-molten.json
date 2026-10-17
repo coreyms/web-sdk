@@ -1,0 +1,254 @@
+{
+ "frames": {
+  "bwt_molten_win_big": {
+   "frame": {
+    "x": 4,
+    "y": 1203,
+    "w": 729,
+    "h": 210
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 729,
+    "h": 210
+   },
+   "sourceSize": {
+    "w": 729,
+    "h": 210
+   }
+  },
+  "bwt_molten_win_super": {
+   "frame": {
+    "x": 4,
+    "y": 331,
+    "w": 933,
+    "h": 210
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 933,
+    "h": 210
+   },
+   "sourceSize": {
+    "w": 933,
+    "h": 210
+   }
+  },
+  "bwt_molten_win_mega": {
+   "frame": {
+    "x": 4,
+    "y": 549,
+    "w": 894,
+    "h": 210
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 894,
+    "h": 210
+   },
+   "sourceSize": {
+    "w": 894,
+    "h": 210
+   }
+  },
+  "bwt_molten_win_epic": {
+   "frame": {
+    "x": 4,
+    "y": 767,
+    "w": 808,
+    "h": 210
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 808,
+    "h": 210
+   },
+   "sourceSize": {
+    "w": 808,
+    "h": 210
+   }
+  },
+  "bwt_molten_win_max": {
+   "frame": {
+    "x": 4,
+    "y": 985,
+    "w": 783,
+    "h": 210
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 783,
+    "h": 210
+   },
+   "sourceSize": {
+    "w": 783,
+    "h": 210
+   }
+  },
+  "bwt_molten_total_win": {
+   "frame": {
+    "x": 4,
+    "y": 1421,
+    "w": 696,
+    "h": 163
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 696,
+    "h": 163
+   },
+   "sourceSize": {
+    "w": 696,
+    "h": 163
+   }
+  },
+  "bwt_molten_intro_bonus": {
+   "frame": {
+    "x": 4,
+    "y": 1874,
+    "w": 655,
+    "h": 133
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 655,
+    "h": 133
+   },
+   "sourceSize": {
+    "w": 655,
+    "h": 133
+   }
+  },
+  "bwt_molten_intro_super": {
+   "frame": {
+    "x": 4,
+    "y": 1592,
+    "w": 1017,
+    "h": 133
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 1017,
+    "h": 133
+   },
+   "sourceSize": {
+    "w": 1017,
+    "h": 133
+   }
+  },
+  "bwt_molten_intro_epic": {
+   "frame": {
+    "x": 4,
+    "y": 1733,
+    "w": 949,
+    "h": 133
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 949,
+    "h": 133
+   },
+   "sourceSize": {
+    "w": 949,
+    "h": 133
+   }
+  },
+  "bwt_molten_emblem_bonus": {
+   "frame": {
+    "x": 319,
+    "y": 4,
+    "w": 309,
+    "h": 317
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 309,
+    "h": 317
+   },
+   "sourceSize": {
+    "w": 309,
+    "h": 317
+   }
+  },
+  "bwt_molten_emblem_super": {
+   "frame": {
+    "x": 4,
+    "y": 4,
+    "w": 307,
+    "h": 319
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 307,
+    "h": 319
+   },
+   "sourceSize": {
+    "w": 307,
+    "h": 319
+   }
+  },
+  "bwt_molten_emblem_epic": {
+   "frame": {
+    "x": 636,
+    "y": 4,
+    "w": 358,
+    "h": 312
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 358,
+    "h": 312
+   },
+   "sourceSize": {
+    "w": 358,
+    "h": 312
+   }
+  }
+ },
+ "meta": {
+  "image": "bigwin-titles-molten.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 1056,
+   "h": 2011
+  },
+  "scale": "1",
+  "pngHash": "60127411"
+ }
+}

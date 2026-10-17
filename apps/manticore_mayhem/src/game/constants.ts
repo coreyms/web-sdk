@@ -1380,6 +1380,156 @@ export const STINGER_PLAQUE = {
 	blink: { gapMinMs: 2400, gapMaxMs: 6200, doubleChance: 0.2, doubleGapMs: 300, afterFlareMs: 850 },
 } as const;
 
+// ---- THE PLAQUE'S TEXT, r1 (2026-10-16; design review 2026-10-15 item 3, Corey yes) ------------------------------
+// The title and the amount the win plaque, the feature intro and the wrap up draw, OVER the layout stinger.json carries
+// (which the stinger build writes and this does not touch). All sizes are SHIP px of the 946 x 532 plaque frame; the
+// `cy` values are shares of the panel's height (222 ship px), as in stinger.json.
+//   look      the title treatment (game/stinger/bigTitle.ts): 0 the shipped polished gold, 1 rim (the shipped image
+//             with a dark ring and a white lift, no new texture), 2 forge, 3 molten (the bright bakes,
+//             tools/build_bigwin_titles.py). ?bwtitle=0..3 overrides it on the dev server and a staging build.
+//             r2: 3 molten ships (Corey 2026-10-17 11:56 "I like the molten look"); r1 had 2 forge.
+//   r2 fit    re-measured on the v6 / v6c plaque (2026-10-17): its marble slab ends at 218 of the 222 px panel (the new
+//             bottom gold moulding), the lion crest's tip reaches 16 px down at the centre and the bottom diamond 200 px
+//             up (the old plaque's bottom creature came up to 196 across 150 px). The win block moved up 2 to 3 px
+//             (titleCy 0.29 -> 0.28, amountCy 0.73 -> 0.715): about 19 px clear of the crest tip, 13 of the diamond.
+//   win       the win screen: title cap and centre, the amount's em size (stinger.json had 64: +34 %) and centre, and
+//             the widest either may draw (a longer amount shrinks to it, fitted once to the count's final string)
+//   wrap      the wrap up (TOTAL WIN): the same, its amount 56 -> 75 (+34 %); the line under it is unchanged
+//   intro     the feature intro: the title (smaller than the win's, in its mode's colour) between two mode emblems
+//             (the Armoury's own art: War Standard, dagger, crown), each `emblem.h` tall at `emblem.x` from the panel
+//             centre, `emblem.tilt` radians leaning in, mirrored on the left. r2: 100 px tall on BOTH tiers (r1 scaled the
+//             texture, not the ship box: 108 on desktop, 72 on phones) at x 288, the title's max width 450 -> 424 so the
+//             widest title (10 SUPER FREE SPINS) keeps 10 px or more from the tilted emblems
+//             r3 (Corey 2026-10-17 13:11 "they look really dark and blurry"): r2's emblems sat half over the side pillars
+//             and the frame's top corners. Each now has its own box INSIDE the clear marble beside the title: the title's
+//             baked image 12 px or more away (titleMax[mode]: Epic 424 -> 392), the copy rows' ink 8 or more, the marble's
+//             edge 6 (top 4). That strip is only about 80 px tall (the panel top to the first copy row, which is 438 px
+//             wide; the second is 532 of the panel's 596), so: the War Standard 96 (Bonus's short title leaves room), the
+//             dagger 89 stood nearly upright (lean 0.55) in the strip beside the title AND the first row (119 px tall
+//             drawn), the crown 77. `h` is the upright art's height, `tilt` its lean (+ = the top toward the title),
+//             both BAKED into the frame by tools/build_bigwin_titles.py (EMBLEMS, same numbers), so the game draws the
+//             frame 1:1 (no runtime rotation or rescale); `x`, `y` the frame centre for the RIGHT emblem (the left one is
+//             its mirror), x from the panel centre, y in ship px from the panel top. Full alpha with the plaque (its
+//             entrance and exit fade only), no tint, normal blend, over every plaque layer
+//             r4 (Corey 2026-10-17 17:13 "perhaps we should use the actual board symbols because they are already
+//             brighter, with some soft glow"): the art is the BOARD's own symbol at rest (S, M2, H1: the full-tier
+//             <code>-idle-000 frame), refitted to r3's boxes and gaps as large as each allows (feedback/bigwin_title_r4/
+//             tools/fit_emblems_r4.py): the War Standard 96.5, the dagger 93.5 leaned 0.5 (the board draws it at about
+//             45 degrees, so this stands it nearly upright), the crown 69 (wider than the Armoury's, so shorter).
+//             tools/build_bigwin_titles.py READS these numbers and emblemGlow from this file
+//             r5 (Corey 2026-10-17 18:01 "I like the previous orientation/position of the dagger, crown, war standard
+//             from R2 as well"): r4's art (the board's resting frames, both tiers baked from the full tier) at r2's
+//             place and lean again: ONE box for all three modes, `h` ship px tall (the art's height before the lean, as
+//             r2's texture was), its centre at `x` from the panel centre and `cy` x the panel height from its top,
+//             leaned `tilt` radians toward the title, the left one its mirror (r2's numbers), and the title's max width
+//             r2's 424 (r3's per-mode titleMax only served r3's boxes). `turn[mode]` turns the board image first so it
+//             reads as r2's Armoury art did: the board's dagger already lies on the Armoury dagger's diagonal (its long
+//             axis 46.8 degrees against 47.6, from the alpha's moments), so 0.014 brings the blade to r2's angle and
+//             r4's 0.5 upright lean is gone; the War Standard and the crown stand upright as drawn (0). The turn and
+//             the lean are BAKED into the frame in one resample (no runtime rotation); the frame is centred on the
+//             art's centre before the turn, as r2's sprite turned about its own centre, so the game draws it 1:1 there
+//   emblemGlow the soft glow BAKED behind each intro emblem, in its frame (no runtime filter): the art's silhouette plus
+//             a pool over its box (`pool` = that pool's strength, so a thin blade still lifts), blurred so it falls off
+//             radially to about 1 % at `reach` x the emblem's height `h` past the art (the blur's sigma is reach / 2.5);
+//             `alpha` its peak, reached behind a solid part of the art (`gain` x the blur, capped at 1, x alpha: at the
+//             outline of a broad part about half of it, 0.4, then falling away; 1 with no plateau, so it reads as a
+//             soft lift and not a ring or a sticker; r4 tried gain 2 / alpha 0.55, which made a flat box), `soft` the
+//             falloff's power (1 = the blur's own), `color` the mode's (the molten intro title's 0.7 stop: Bonus teal,
+//             Super blue, Epic fire). The frame is padded by the reach on every side, so its centre stays the art's.
+//             r5 (Corey 2026-10-17 18:01 "the glow is just a bit to strong"): alpha 0.8 -> 0.48 (60 % of r4) and reach
+//             0.3 -> 0.25 (the box is now 100 px for every mode, so r4's 0.3 would have reached further than it did;
+//             feedback/bigwin_title_r5 has the next step softer, 0.4 / 0.22). The pool is now an ellipse on the art's
+//             own long axis (from the alpha's moments, 2 sigma each way), not on its box, so the diagonal dagger's
+//             pool follows the blade instead of filling a square
+//   rim       look 1 only: `steps` dark copies (colour `color`) in a ring `px` (at a 50 px cap) around the title, the
+//             ring dropped by dropShare of px (a shadow), and an additive copy at liftAlpha over the face
+//   modeTint  look 1 only: the multiply on the gold intro titles (looks 2 and 3 bake the mode colours)
+export const BIG_TITLE = {
+	look: 3 as 0 | 1 | 2 | 3,
+	win: { titleCap: 54, titleCy: 0.28, titleMax: 540, amountPx: 86, amountCy: 0.715, amountMax: 540 },
+	wrap: { titleCap: 42, titleCy: 0.19, titleMax: 520, amountPx: 75, amountCy: 0.53, amountMax: 540 },
+	intro: {
+		titleCap: 34,
+		titleCy: 0.18,
+		titleMax: 424,
+		emblem: { h: 100, x: 288, cy: 0.16, tilt: 0.12, turn: { bonus: 0, super: 0.014, epic: 0 } },
+		emblemGlow: {
+			reach: 0.25,
+			alpha: 0.48,
+			pool: 0.4,
+			gain: 1,
+			soft: 1,
+			color: { bonus: 0x46cec2, super: 0x88b6ff, epic: 0xff7c54 },
+		},
+	},
+	rim: { steps: 8, px: 3, color: 0x120904, dropShare: 0.5, liftAlpha: 0.45 },
+	modeTint: { bonus: 0x8ff0e4, super: 0xa8c8ff, epic: 0xff9a80 },
+} as const;
+
+// ---- THE PLAQUE'S TIER ESCALATION, r1 (2026-10-16; review item 3: "BIG: embers; SUPER: + coin spill; MEGA: + light rays
+// behind; EPIC: + creature roar and the fire set") -----------------------------------------------------------------
+// Overlays AROUND the plaque (game/stinger/escalation.ts), on the win screen and the wrap up, each tier adding to the
+// one below; the plaque's own flares, veins, barbs, eyes and embers are unchanged. Ship px of the plaque frame, origin
+// the panel centre, + y down; seconds unless a name says Ms. Real time at every turbo level, like the plaque.
+// Index [tier] runs big, super, mega, epic (max uses epic's).
+//   embers  (BIG and up) sparks rising up the plaque's side pillars and beyond, OVER the plaque but never over its text
+//           panel (|x| from area[0] to area[1], y from area[2] to area[3]), the plaque's own ember sprites (fx atlas, 8
+//           ship px) at size[0..1] x that, additive: `rate[tier]` per second, each living life[0..1] s, rising
+//           rise[0..1] px/s with a sideways sway of sway px; tint `hot[tier]`. A landing sends `burst[tier]` at once.
+//           The pool is the most alive at once.
+//   coins   (SUPER and up) the Wild's gold medallion (W.png, the board's own atlas, already resident) thrown out from
+//           behind the plaque's side pillars (|x| spawnX[0..1], y spawnY[0..1]): `burst[tier]` at the landing, then
+//           `trickle[tier]` per second while the screen is up. Thrown at speed[0..1] px/s leaning outward lean[0..1]
+//           radians off straight up, falling at gravity px/s^2, size[0..1] px wide, turning like a thrown coin (flip
+//           turns/s, the width follows its cosine, never under minTurn); gone below killY or after life s (fading
+//           over the last fadeS)
+//   rays    (MEGA and up) `count` light wedges (game/beamTexture.ts, the tease's searchlight texture, made once and
+//           shared) fanned around the panel centre behind the plaque, `len` long and `width` wide at their far end,
+//           turning at spin rad/s; alpha `alpha[tier]` faded in over inMs; tint `tint[tier]` (EPIC's is fire)
+//   epic    (EPIC, on a win whose count stops there: a Max win's own screen roars on its slam) the creature roars (his
+//           roar clip and sfx_roar, as the book's roar plays them) roarDelayMs after the landing, and the courtyard's
+//           braziers burn the Epic fire clip until the plaque leaves (game/scene.ts flames, a cut under the landing's
+//           kick: the scene has no crossfade for a forced clip)
+export const PLAQUE_ESCALATION = {
+	embers: {
+		pool: 64,
+		rate: [14, 20, 28, 38],
+		burst: [10, 14, 18, 26],
+		life: [1.4, 2.6],
+		rise: [70, 190],
+		sway: 14,
+		size: [2.6, 5.2],
+		area: [300, 560, -60, 320],
+		hot: [0xffb050, 0xffa040, 0xff8a30, 0xff5a1e],
+	},
+	coins: {
+		pool: 48,
+		burst: [0, 18, 26, 34],
+		trickle: [0, 3, 5, 7],
+		speed: [420, 860],
+		lean: [0.12, 0.7],
+		gravity: 1700,
+		size: [34, 58],
+		flip: [0.8, 2.2],
+		minTurn: 0.16,
+		spawnY: [-60, 140],
+		spawnX: [330, 440],
+		killY: 1100,
+		life: 2.8,
+		fadeS: 0.3,
+	},
+	rays: {
+		count: 12,
+		len: 1400,
+		width: 170,
+		spin: 0.1,
+		alpha: [0, 0, 0.4, 0.5],
+		inMs: 450,
+		tint: [0xffc050, 0xffc050, 0xffc050, 0xff7030],
+	},
+	epic: { roarDelayMs: 120 },
+} as const;
+
 // ---- THE PLAQUE'S BACKGROUND GLOW (branch portrait-glow-r1, OPTIONS for Corey) -------------------------------------
 // Corey 2026-10-17: "we should add some background glow to the stinger so it doesn't blend with the board so much"
 // (the 8 FREE SPINS intro on a phone: the plaque's dark iron and brown edges run into the board frame and the symbols).
