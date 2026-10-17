@@ -3,6 +3,7 @@ do it. Not in blender"). A colour grade of the existing renders only: no re-rend
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/grade_war_standard.py [--variant default|strong]
                                                                                          [--out <dir>] [--stills-only]
+  ... tools/grade_war_standard.py --armoury [--variant armoury] [--out <dir>]      the Armoury's War Standard frames
 
 Reads (never written):
   ~/Desktop/Manticore Mayhem/images/symbols/S_war-standard/animation/drop/S_drop_*.png   512 px RGBA, 48 frames
@@ -24,6 +25,18 @@ Steps, all on straight (unpremultiplied) RGB; alpha is copied through untouched:
      alpha edge, back to 1 at EDGE_WIDTH master px in (smoothstep on the distance from the alpha > 0.5 edge).
   3. outer gold only (not the emblem): highlights over GOLD_HI (smoothstep from..to on value) move toward GOLD_EDGE by
      GOLD_LIFT. No glow, no outline: only pixels already lit move.
+
+--armoury (Corey 2026-10-17 14:07, "Can it do the same color grade on the scatter in the Armoury?"): the same steps on
+the Armoury's War Standard frames, with the "armoury" numbers. Reads (never written):
+  ~/Desktop/Manticore Mayhem/images/feature_menu_heroes_r1/standard/manifest.json + every frame it lists (5 x 3, 956 x
+  1024 RGBA; the straight-on frame r1c2 is also the Armoury's flat hero and thumb, the set has no flat.png)
+Writes (default --out, the folder tools/build_armoury_assets.py SOURCE_OVERRIDES reads):
+  ~/Desktop/Manticore Mayhem/images/feature_menu_heroes_r1/standard/graded_r1/  same file names + manifest.json (copied)
+The board frames get the packer's pop (pack_symbol_sheets.py POP: saturation x1.3, contrast x1.15, S-curve) AFTER the
+grade; the Armoury build has no such step, so the "armoury" numbers are not the board's: they were fitted so the
+Armoury cloth lands on the SHIPPED board S cloth (darkest 5%, median, brightest 5%: Lab L and C*); the match is noted at GRADES["armoury"].
+Widths stay in 512 px board master px: ARMOURY px per master px is the straight-on frame's silhouette width over the
+board idle master's (S_idle_000), so the edge falloff covers the same share of the cloth.
 """
 import json
 import os
@@ -42,6 +55,10 @@ GRADED_DIR = os.path.join(S_DIR, "graded_r1")
 FIT_CACHE = os.path.join(HERE, "render_symbols", "sheet_fit.json")
 MASTER_PX = 512
 CELL = 256
+ARMOURY_SRC = os.path.join(WORK, "images", "feature_menu_heroes_r1", "standard")
+ARMOURY_GRADED_DIR = os.path.join(ARMOURY_SRC, "graded_r1")
+ARMOURY_STRAIGHT_ON = "r1c2.png"  # yaw 0, pitch 0 (build_armoury_assets.centre_frame)
+SILHOUETTE_ALPHA = 128  # alpha over this counts toward a silhouette's width (the px scale)
 
 # ---- the grade ------------------------------------------------------------------------------------------------------
 # hues in degrees, saturation / value 0..1 (HSV), widths in 512 px master pixels, colours sRGB 0..255
@@ -79,6 +96,24 @@ GRADES = {
         "GOLD_EDGE": (0xFF, 0xD2, 0x7A),
         "GOLD_HI": (0.65, 0.95),
         "GOLD_LIFT": 0.40,
+    },
+    # the Armoury (2026-10-17): fitted to land on the shipped board S cloth WITHOUT a pop step after it (the board's
+    # default x the packer's pop). Same crimson, edge falloff and gold edge as default; a gentler shadow curve (the
+    # Armoury renders already sit darker in the folds: darkest 5% L 21.5 against the board master tile's 28.4) and the
+    # saturation the pop would have added (0.85 x 1.3 is about 1.1 net on the board). Measured on the red cloth (Lab,
+    # darkest 5% / median / brightest 5%): shipped board S cell L 14.0 / 32.3 / 59.7, C* 41.0 / 72.1 / 66.9; the built
+    # hero-standard.webp L 15.1 / 33.4 / 58.2, C* 41.2 / 70.5 / 67.4 (was L 22.0 / 39.1 / 58.7, C* 54.0 / 78.1 / 58.8)
+    "armoury": {
+        "CURVE": ((0.0, 0.0), (0.50, 0.39), (0.62, 0.45), (0.72, 0.58), (0.80, 0.78), (0.86, 0.94), (1.0, 1.0)),
+        "CRIMSON": (0x6A, 0x0E, 0x0E),
+        "CRIMSON_BELOW": (0.40, 0.72),
+        "CRIMSON_PULL": 0.38,
+        "SAT": 1.14,
+        "EDGE_DARK": 0.25,
+        "EDGE_WIDTH": 18.0,
+        "GOLD_EDGE": (0xFF, 0xD2, 0x7A),
+        "GOLD_HI": (0.70, 0.95),
+        "GOLD_LIFT": 0.30,
     },
 }
 LUMA = np.array([0.2126, 0.7152, 0.0722])
@@ -166,7 +201,48 @@ def frame_files(folder):
     return sorted(f for f in os.listdir(folder) if f.endswith(".png") and " " not in f and f[0] != "_")
 
 
+def silhouette_width(im):
+    box = im.convert("RGBA").getchannel("A").point(lambda v: 255 if v > SILHOUETTE_ALPHA else 0).getbbox()
+    return box[2] - box[0]
+
+
+def armoury_px_scale():
+    """Armoury frame px per 512 board master px: the straight-on frame's silhouette over the board idle master's"""
+    master = Image.open(os.path.join(MASTER_CLIPS["idle"], frame_files(MASTER_CLIPS["idle"])[0]))
+    assert master.size == (MASTER_PX, MASTER_PX), master.size
+    return silhouette_width(Image.open(os.path.join(ARMOURY_SRC, ARMOURY_STRAIGHT_ON))) / silhouette_width(master)
+
+
+def armoury_main():
+    """grade every frame the Armoury standard's manifest lists into ARMOURY_GRADED_DIR (the masters are never written)"""
+    variant = arg("--variant", "armoury")
+    g = GRADES[variant]
+    out_dir = arg("--out", ARMOURY_GRADED_DIR if variant == "armoury" else ARMOURY_GRADED_DIR + "_" + variant)
+    assert os.path.realpath(out_dir) != os.path.realpath(ARMOURY_SRC)
+    man_path = os.path.join(ARMOURY_SRC, "manifest.json")
+    man = json.load(open(man_path))
+    files = [x["file"] if isinstance(x, dict) else x for x in man["frames"]]
+    assert ARMOURY_STRAIGHT_ON in files
+    scale = armoury_px_scale()
+    os.makedirs(out_dir, exist_ok=True)
+    for fn in files:
+        assert not os.path.exists(os.path.join(out_dir, fn)) or "--force" in sys.argv, "%s exists (--force to regrade)" % fn
+    for fn in files:
+        im = Image.open(os.path.join(ARMOURY_SRC, fn))
+        o = grade(im, g, scale)
+        assert np.array_equal(np.asarray(o)[..., 3], np.asarray(im.convert("RGBA"))[..., 3]), fn
+        o.save(os.path.join(out_dir, fn), "PNG")
+    with open(man_path, "rb") as f, open(os.path.join(out_dir, "manifest.json"), "wb") as o:
+        o.write(f.read())
+    json.dump({"variant": variant, "grade": g, "hueRed": [HUE_RED, HUE_RED_FADE, HUE_RED_WRAP], "satRed": SAT_RED,
+               "hueGold": HUE_GOLD, "satGold": SAT_GOLD, "pxScale": scale, "source": ARMOURY_SRC},
+              open(os.path.join(out_dir, "grade.json"), "w"), indent=1)
+    print(f"armoury: {len(files)} frames, px scale {scale:.4f} -> {out_dir}")
+
+
 def main():
+    if "--armoury" in sys.argv:
+        return armoury_main()
     variant = arg("--variant", "default")
     g = GRADES[variant]
     out_dir = arg("--out", GRADED_DIR if variant == "default" else GRADED_DIR + "_" + variant)
