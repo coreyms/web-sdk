@@ -30,7 +30,8 @@ const tiered = (full: string, half: string): string => (PHONE_TIER ? half : full
  *  have on this screen, in canvas pixels (0.40 of a cell x the renderer's effective resolution,
  *  game/deviceTier.ts renderResolutionFor: the cap, 1.5 on the phone tier and 2 on desktop and on an allowlisted
  *  iPhone, and off the phone tier the pixel ceiling of a very large window). Only a
- *  guess from the window at boot (the cell is about 53.4 px per 1280 x 720 of a desktop window, 0.107 of a
+ *  guess from the window at boot (the cell is about 65.9 px per 1280 x 720 of a desktop window since the 524 board,
+ *  board-75-final 2026-10-16, was 53.4; 0.107 of a
  *  sideways phone's height, 0.097 of a portrait's width): it decides nothing but the download ORDER. The
  *  component measures the real size every frame and uses the nearest cap that is loaded, and all five are
  *  in a moment later. */
@@ -38,7 +39,7 @@ const LABEL_BOOT_CAP: number = (() => {
 	if (typeof window === 'undefined') return LABEL_CAPS[0];
 	const w = window.innerWidth || 1280;
 	const h = window.innerHeight || 720;
-	const cell = w < h ? Math.min(w * 0.097, h * 0.05) : PHONE_TIER ? h * 0.1074 : Math.min(w / 1280, h / 720) * 53.44;
+	const cell = w < h ? Math.min(w * 0.097, h * 0.05) : PHONE_TIER ? h * 0.1074 : Math.min(w / 1280, h / 720) * 65.87;
 	const pick = pickLabelCap(cell * 0.4 * renderResolutionFor(w, h), LABEL_CAPS.map(() => true));
 	return LABEL_CAPS[pick < 0 ? 0 : pick];
 })();
