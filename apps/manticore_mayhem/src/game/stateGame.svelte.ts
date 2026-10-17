@@ -1971,30 +1971,51 @@ export const triggerBeat = async (cells: CellIndex[], ms: number, id: number, { 
 	if (rec) fxStamp(rec, 'beatEnd');
 };
 
-// ---- the claw swipe (MOTION_SPEC "Claw swipe", the playground's compileSwipe) ---------------------
+// ---- the claw swipe (constants SWIPE_FX, claw-swipe-r1; the timing contract MOTION_SPEC "Claw swipe") ----------
 
-/** the swipe's schedule in style ms: when the last tear is fully out, when the symbols start to
- *  leave (and the tears fade), when the kick starts, and when the refill may start */
+/** the swipe's schedule in style ms: when the last claw is fully drawn on (`revealed`), when the last one has
+ *  burnt out, when the symbols start to leave (the book's beat, SWIPE_FX.exitAtMs, unchanged by the claws), when
+ *  the impact flash and the kick start, and when the refill may start */
 export const swipeSchedule = () => {
-	const n = Math.max(1, Math.round(SWIPE_FX.tearCount));
-	const lastReveal = (n - 1) * SWIPE_FX.tearStaggerMs + SWIPE_FX.tearSweepMs;
-	const tExit = lastReveal + SWIPE_FX.tearHoldMs;
+	const n = Math.max(1, Math.round(SWIPE_FX.clawCount));
+	const lastReveal = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs;
+	const clawsOut = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawTailAtMs + SWIPE_FX.clawTailMs;
+	const tExit = SWIPE_FX.exitAtMs;
 	const exitMs = Math.max(SWIPE_FX.exitMs, 1);
 	return {
 		n,
 		lastReveal,
+		clawsOut,
 		tExit,
 		exitMs,
-		kickT0: lastReveal - SWIPE_FX.tearSweepMs * 0.3,
-		tRefill: tExit + Math.max(exitMs, SWIPE_FX.tearFadeMs) + SWIPE_FX.refillDelayMs,
+		kickT0: SWIPE_FX.impactAtMs,
+		tRefill: tExit + Math.max(exitMs, SWIPE_FX.scarFadeMs) + SWIPE_FX.refillDelayMs,
 	};
 };
 
+/** THE TILES FOLLOW THE CLAWS (SWIPE_FX.tileLagMs, r2 / r3): style ms from the swipe's start to the moment the
+ *  burn-out of the claw over `cell`'s row passes the middle of the cell. Claw i runs (i + 0.5) / clawCount down the
+ *  band (ClawSwipe.svelte), so a row takes the first claw that runs through it (a band of 3 rows and 4 claws: claws
+ *  0, 1 and 3); from clawTailAtMs its burn-out crosses the board right to left at a steady speed over clawTailMs,
+ *  so reel r is passed (1 - (r + 0.5) / 8) of the way through. Presentation only: the values are the book's. */
+export const swipeTileDelayMs = (cell: CellIndex, rows: number[]) => {
+	const n = Math.max(1, Math.round(SWIPE_FX.clawCount));
+	const top = rows.length ? Math.min(...rows) : 0;
+	const span = rows.length ? Math.max(...rows) + 1 - top : 1;
+	const k = rowOf(cell) - top;
+	let claw = -1;
+	for (let i = 0; i < n && claw < 0; i += 1) if (Math.floor(((i + 0.5) * span) / n) === k) claw = i;
+	if (claw < 0) claw = Math.max(0, Math.min(n - 1, Math.round(((k + 0.5) * n) / span - 0.5)));
+	const b = clamp01(1 - (reelOf(cell) + 0.5) / GRID);
+	return claw * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawTailAtMs + SWIPE_FX.clawTailMs * b + SWIPE_FX.tileLagMs;
+};
+
 /**
- * The claw swipe over `rows` (the book's): the tears (ClawSwipe.svelte, from swipeFx) rake right to
- * left, hold, and fade while the `removed` symbols leave by SWIPE_FX.exit; the board kicks on the
- * last tear. `onExit` fires when the symbols start to leave (the handler pops the swipe's tiles
- * then). Resolves when the refill may start; the cells are gone by then, whatever happened.
+ * The claw swipe over `rows` (the book's): four claws (ClawSwipe.svelte, from swipeFx) rake the band, the impact
+ * flashes it and the board kicks; the struck symbols take the ember tint (the cells' flash) from the impact; at
+ * the exit the `removed` symbols leave by SWIPE_FX.exit while the scars fade. `onExit` fires when the symbols
+ * start to leave (since r2 the handler lights the band's tiles from the swipe's start instead, swipeTileDelayMs). Resolves when the refill may start; the cells are
+ * gone by then, whatever happened.
  */
 export const swipeBand = async (removed: CellIndex[], rows: number[], id: number, { onExit, rec }: { onExit?: () => void; rec?: FxRecord } = {}) => {
 	const S = swipeSchedule();
@@ -2006,7 +2027,7 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 	swipeFx.el = 0;
 	swipeFx.alpha = 1;
 	swipeFx.active = !stateGame.skipping;
-	// THE WELLS (game/wellsFx.ts): the swiped rows' veins flare right to left with the tears
+	// THE WELLS (game/wellsFx.ts): the swiped rows' veins flare right to left with the claws (WELLS_FX.swipe.sweepMs)
 	if (!stateGame.skipping) cueWellSwipe(rows, ts());
 	let exited = false;
 	const exit = () => {
@@ -2020,11 +2041,28 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 	const kickK = SWIPE_FX.kickPx * PLAYGROUND_PX;
 	// THE CHAIN SOUND of this kick (constants CHAIN_SOUND): the heavy clank, once, never while skipping
 	let clanked = stateGame.skipping;
+	// the ember tint on the struck symbols: their flash colour now, the strength from the impact on
+	{
+		const going = new Set(goingIds);
+		for (const c of stateGame.cells) if (going.has(c.id)) c.flashColor = SWIPE_FX.woundColor;
+	}
+	let wound = -1;
 	await raf(S.tRefill, (_t, el) => {
 		if (!alive(id)) return;
 		swipeFx.el = el;
-		swipeFx.alpha = el > S.tExit ? 1 - clamp01((el - S.tExit) / Math.max(SWIPE_FX.tearFadeMs, 1)) : 1;
+		swipeFx.alpha = el > S.tExit ? 1 - clamp01((el - S.tExit) / Math.max(SWIPE_FX.scarFadeMs, 1)) : 1;
 		if (el >= S.lastReveal && rec) fxStamp(rec, 'revealed');
+		if (el >= S.kickT0 && rec) fxStamp(rec, 'impact');
+		// the wound: up over woundRiseMs from the impact, held while they leave (never while skipping)
+		const wk = stateGame.skipping ? 0 : SWIPE_FX.woundAlpha * clamp01((el - S.kickT0) / Math.max(SWIPE_FX.woundRiseMs, 1));
+		if (wk !== wound) {
+			wound = wk;
+			const map = liveById();
+			for (const cellId of goingIds) {
+				const c = map.get(cellId);
+				if (c) c.flash = wk;
+			}
+		}
 		// the kick: (0.6k, k), k = kickPx (1 - u) sin(6 pi u)
 		const ku = (el - S.kickT0) / Math.max(SWIPE_FX.kickMs, 1);
 		const k = SWIPE_FX.kickPx > 0 && ku >= 0 && ku < 1 ? kickK * (1 - ku) * Math.sin(ku * Math.PI * 6) : 0;

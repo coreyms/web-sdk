@@ -748,52 +748,98 @@ export const FEATURE_FX = {
  *  (landscape's on-screen cell is 66 master px, so on a desktop the two read the same size). */
 export const PLAYGROUND_PX = SYMBOL_SIZE / 66.5;
 
-// ---- The claw swipe (MOTION_SPEC "Claw swipe", LOCKED Corey 2026-10-06 10:02 + the slant mapping) ----
-// Tears rake right to left across the swiped band, hold, then fade while the band's symbols leave;
-// the refill drops after max(exitMs, tearFadeMs). Drawn by components/ClawSwipe.svelte (raw Pixi,
-// polygons only, no filters); the cells' exit is the board engine's (stateGame.swipeBand).
-// Every px is playground px (x PLAYGROUND_PX at draw time); every ms is style time.
+// ---- The claw swipe (claw-swipe-r1, 2026-10-16; the timing contract is MOTION_SPEC "Claw swipe", LOCKED Corey
+// 2026-10-06 10:02) ----------------------------------------------------------------------------------------------
+// The harsh design review (2026-10-15 item 5): the old torn red bands "read as a glitch, not a claw". Corey 17:32:
+// "The manticore has four claws, but it was on my mind to improve that." So: FOUR claw strokes rake the band right
+// to left (he stands right of the board), one after another. r2, Corey 2026-10-17 09:52: "The look of the claw swipe
+// looks better, but I don't like the claw curves. If we could use that style claw mark in the directions/angles we
+// already had it, that would probably look great." So each claw is a STRAIGHT stroke laid exactly where the old
+// tears were: across the board's whole width, evenly down the band, at the band's slant; a short warm-white impact
+// flash on the slashed rows and the board kick land with the first claw; each claw leaves an ember scar and the
+// struck symbols take an ember tint until they leave. The symbols leave and the tiles pop at exitAtMs exactly as
+// before (the book's beat), the scars fade with them and the refill drops after max(exitMs, scarFadeMs).
+// Drawn by components/ClawSwipe.svelte: pooled additive sprites of ONE baked streak texture (game/fxTexture.ts
+// clawTexture, made once), no filters, no masks; the cells' exit and the kick are stateGame.swipeBand's.
+// Every px is playground px (x PLAYGROUND_PX at draw time); every ms is style time (turbo divides it).
 export const SWIPE_FX = {
-	tearCount: 4,
-	/** 'rows': the slant comes from the event's rows (top band slantTopDeg, bottom band slantBottomDeg);
-	 *  'fixed': tearSlantDeg */
+	/** "The manticore has four claws" (Corey 2026-10-16 17:32) */
+	clawCount: 4,
+	/** THE GAP BETWEEN CLAWS: each claw starts this long after the one above it. r3, Corey 2026-10-17 10:31: "let's
+	 *  lower the latency between the individual claw marks" (it was 40, the review's stagger) */
+	clawStaggerMs: 20,
+	/** each claw draws on right to left over clawDrawMs (quadOut, the hot tip leading), holds, then from clawTailAtMs
+	 *  BURNS OUT right to left: its right end retreats across the board at a steady speed over clawTailMs with an
+	 *  ember riding it, and the tiles light in its wake (r3, Corey 10:31: "They should really follow the fade out of
+	 *  the claw marks"; slow enough that the sweep reads at normal speed). A claw lives clawTailAtMs + clawTailMs.
+	 *  r1 / r2 had a 65 ms quadIn tail (140 ms a claw) */
+	clawDrawMs: 60,
+	clawTailAtMs: 70,
+	clawTailMs: 300,
+	/** the burning claw's alpha falls to 1 - this by the end of its tail */
+	clawTailFade: 0.55,
+	/** THE OLD TEARS' LAYOUT (MOTION_SPEC "Claw swipe", Corey 2026-10-06 + the slant mapping), kept for the claws:
+	 *  each claw spans the board's width, its middle at the band's (i + 0.5) / clawCount, top claw first, drawn
+	 *  right to left. 'rows': the slant comes from the band's centre row (the top of the board slantTopDeg, the
+	 *  bottom slantBottomDeg; negative = the right end higher); 'fixed': clawSlantDeg */
 	slantMode: 'rows' as 'rows' | 'fixed',
 	slantTopDeg: -6,
 	slantBottomDeg: 3,
-	tearSlantDeg: -3,
-	/** random y jitter along each tear's centreline (26 segments) */
-	tearJitterPx: 5,
-	/** the core's thickness */
-	tearThickPx: 9.5,
-	/** the hot bands' width outside the core, before the spikes */
-	tearEdgePx: 6.5,
-	tearEdgeColor: 0x000000,
-	/** the glow under the bands (the playground's shadowBlur, here a stack of soft strokes) */
-	tearGlowColor: 0xff2600,
-	tearGlowAlpha: 1,
-	tearGlowPx: 10,
-	/** torn-paper spikes on the bands' outer side (78 segments, alternating 1.0 / 0.25) */
-	tearEdgeJitterPx: 9.5,
-	/** the bands show the board captured at the swipe's start at this alpha (flipped on the top band) */
-	tearReflect: 0.8,
-	/** the core cuts through the symbols to the bare board, then black at this alpha over it */
-	tearCoreAlpha: 0.7,
-	/** each tear is revealed right to left over this (quadOut) */
-	tearSweepMs: 110,
-	/** between tears, top to bottom */
-	tearStaggerMs: 5,
-	tearHoldMs: 370,
-	tearFadeMs: 380,
-	/** how the swiped symbols leave, starting with the tears' fade */
+	clawSlantDeg: -3,
+	/** the claw's core at its thickest (the texture is scaled to it), playground px */
+	clawCorePx: 9,
+	/** per claw tint over the baked colours (white keeps them: bright core, red-orange falloff) */
+	clawTints: [0xffffff, 0xfff0e2, 0xffffff, 0xffe8d8],
+	/** the hot tip riding the claw's front while it draws on: the soft dot, stretched along the claw */
+	tipPx: 15,
+	tipStretch: 2.6,
+	tipTint: 0xfff4dc,
+	tipAlpha: 0.95,
+	/** the ember riding the burn-out's front (the same dot), its colour and alpha */
+	emberTint: 0xffa04a,
+	emberAlpha: 0.85,
+	/** the ember scar each claw leaves along its path: the same streak tinted this, at this alpha, until the
+	 *  symbols leave, then fading over scarFadeMs */
+	scarTint: 0xff4a24,
+	scarAlpha: 0.45,
+	scarFadeMs: 380,
+	/** THE IMPACT (the review: a 60 ms white flash on the slashed rows): an additive warm-white quad over the band,
+	 *  up in impactRiseMs, gone by impactFlashMs. The board kick starts on it. */
+	impactAtMs: 40,
+	impactFlashMs: 60,
+	impactRiseMs: 10,
+	impactAlpha: 0.5,
+	impactTint: 0xfff0dc,
+	/** the struck symbols take this tint (the cells' flash) from the impact, up over woundRiseMs, until they leave */
+	woundColor: 0xb8402a,
+	woundAlpha: 0.42,
+	woundRiseMs: 90,
+	/** THE TILES FOLLOW THE CLAWS (r2, Corey 2026-10-17 09:55: "I would also suggest for this the multipliers light up
+	 *  following the claw marks from right to left"; r3, 10:31: "They should really follow the fade out of the claw
+	 *  marks"): each tile of the band pops, lights or doubles (the plate's own beat, the book's values) when the
+	 *  burn-out of the claw over its row passes the middle of its cell, column by column right to left
+	 *  (stateGame.swipeTileDelayMs), plus this lag. With 4 claws 20 ms apart the last tile pops at about 411 ms, its
+	 *  pop done by 471, before the symbols leave at exitAtMs. Before r2 they all started at exitAtMs + exitMs +
+	 *  MULT_PLATE.changeDelayMs (855 ms); in r2 on the claw's tip (all by ~180 ms). */
+	tileLagMs: 0,
+	/** THE BOOK'S BEAT, unchanged by the claws: the band's symbols start to leave this long after the swipe starts (it
+	 *  was the four tears' 125 ms + their 370 ms hold); the refill drops at exitAtMs + max(exitMs, scarFadeMs) */
+	exitAtMs: 495,
+	/** how the swiped symbols leave, from exitAtMs */
 	exit: 'fade' as const,
 	exitMs: 260,
 	/** slideLeft only (not chosen) */
 	slideCells: 1.3,
-	/** the board kick on the last tear: (0.6k, k), k = kickPx (1 - u) sin(6 pi u) */
-	kickPx: 5,
+	/** the board kick from the impact: (0.6k, k), k = kickPx (1 - u) sin(6 pi u); peak 0.92 kickPx. The review: "a 2
+	 *  to 4 px shake" (5 before the claws, a 4.6 px peak) */
+	kickPx: 3.5,
 	kickMs: 180,
 	/** after the symbols have gone, before the refill */
 	refillDelayMs: 0,
+	/** the baked streak (game/fxTexture.ts clawTexture), texture px: its size, the arc's sag (fraction of the
+	 *  chord; 0 = a straight stroke, r2 "I don't like the claw curves"; r1 had 0.055), the core's full width at
+	 *  its thickest and where along the claw that is (0 = the tip's start), the glow's reach past the core */
+	tex: { w: 1024, h: 64, sagFrac: 0, corePx: 10, peakU: 0.38, glowPx: 24 },
 };
 
 // ---- The roar (MOTION_SPEC "Roar", Corey 2026-10-06 17:44, kick sync after) ----------------------
@@ -867,7 +913,7 @@ export const CHAIN_BOW = {
 // lean away from where it landed, smoothly, then swing back and settle. Never a board shake: the kick path is
 // untouched and the gust adds to it. The pulse is one half sine of `ms`, REAL time at every turbo level (it is
 // air); the delays are divided by the turbo scale when `delaysFollowTurbo` so they stay in step with the beats.
-// `strength` is a FRACTION OF ONE CLAW SWIPE KICK's chain travel (SWIPE_FX.kickPx 5): `unitPx` is the pulse
+// `strength` is a FRACTION OF ONE CLAW SWIPE KICK's chain travel (SWIPE_FX.kickPx 5 when measured; 3.5 since the claws, r1): `unitPx` is the pulse
 // amplitude, in playground px, that moves each system as far as that kick does, measured by
 // tools/manticore/chain_gust_probe.js KICKREF (a rattle and a pulse of the same px do not move a chain the
 // same distance, so the two systems calibrate separately). Tune strengths and delays; leave unitPx to the probe.
@@ -923,7 +969,7 @@ export const WELLS = {
  *  Presentation only: the beats' own call sites cue them (game/wellsFx.ts), nothing waits on them, none while skipping.
  *    light / double  a multiplier lights (0 -> x2) or steps up under the cell, as the plate's count-over starts
  *    win             a paying cluster, as its pulse starts: a ripple from its first cell (the book's order) outward
- *    swipe           the swiped rows, right to left like the tears, over sweepMs
+ *    swipe           the swiped rows, right to left with the claws, over sweepMs
  *    sting           the struck cell at the hit, then outward ring by ring (reach, falloff per ring); not scatters
  *    power           free spins only: every vein rests at a glow that rises with the board's total tile value
  *                    (log scale from refValue, full at fullValue, capped at `cap`), eased over riseMs, with a slow
@@ -936,7 +982,10 @@ export const WELLS_FX = {
 	light: { peak: 0.85, inMs: 380, holdMs: 120, outMs: 900 },
 	double: { peak: 1, inMs: 420, holdMs: 180, outMs: 1100 },
 	win: { peak: 0.8, inMs: 170, holdMs: 260, outMs: 700, stepMs: 55 },
-	swipe: { peak: 0.9, inMs: 110, holdMs: 220, outMs: 800, sweepMs: 240 },
+	/** swipe: sweepMs in step with the four claws drawing on right to left (claw-swipe r3: the last claw starts at 60
+	 *  ms and is half drawn by 90; 150 in r1 / r2, 240 with the old tears). The tiles' own light-ups follow the
+	 *  claws' slower burn-out (SWIPE_FX.clawTailMs) and flare their cells' veins as they come */
+	swipe: { peak: 0.9, inMs: 110, holdMs: 220, outMs: 800, sweepMs: (SWIPE_FX.clawCount - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs / 2 },
 	sting: { peak: 0.95, inMs: 110, holdMs: 120, outMs: 800, stepMs: 70, reach: 2, falloff: 0.55 },
 	power: { cap: 0.34, refValue: 8, fullValue: 2048, riseMs: 2200, fallMs: 900, shimmer: 0.35, periodMs: 3500 },
 	night: [0.6, 0.64, 0.82] as [number, number, number],

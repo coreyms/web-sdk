@@ -256,7 +256,7 @@
 		<Sting />
 		<!-- the feature trigger beat's light columns and flares (constants TRIGGER_BEAT) -->
 		<TriggerBeat />
-		<!-- the claw swipe's tears (z 21), the roar's cell flashes (z -0.5) and the board kick -->
+		<!-- the claw swipe's claws (z 21), the roar's cell flashes (z -0.5) and the board kick -->
 		<ClawSwipe />
 
 		<!-- THE CLUSTER LABELS in the plaque's forged font (CLUSTER_LABEL): always mounted, one pooled layer;
