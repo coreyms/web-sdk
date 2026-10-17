@@ -2202,7 +2202,9 @@ export const CREATURE = {
 	growlOdds: 1 / 30,
 	breath: true,
 	voice: { rateMin: 0.95, rateMax: 1.05 },
-	shadowAlpha: 1,
+	/** the floor shadow's strength (the Rig's rendered shadow pass is pure black, alpha up to 254): Corey 2026-10-17 13:20
+	 *  "it needs to be much lighter, it doesn't look right being near black" (was 1) */
+	shadowAlpha: 0.45,
 	beatWaitMs: 300,
 	crouchTimeoutMs: 3000,
 	cueBiasMs: 34,
