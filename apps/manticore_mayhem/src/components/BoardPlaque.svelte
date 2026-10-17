@@ -51,6 +51,15 @@
 	// the window by the mesh's UVs each frame (a small buffer update, never a texture or an upload); outside the text
 	// the clamped texture is clear, so nothing repeats. No text object, filter, mask or shader; the plaque takes no
 	// press (eventMode none).
+	//
+	// THE DESKTOP PRESS ANYWHERE TO CONTINUE (Corey 2026-10-17 15:32, constants PLAQUE_PROMPT, game/plaquePrompt.svelte.ts):
+	// while the desktop's feature intro or wrap up waits for a press, the prompt is drawn here, on the text field,
+	// centred in the slanted window, at about the explainer lines' size and fitted inside the window with a margin. It
+	// is the game's one prompt texture (game/pressPrompt.ts: Cinzel 700, the off-white ink, the soft shadow baked in),
+	// taken from the shared cache at this screen's density when the prompt comes up or the layout changes, on a small
+	// grid mesh put through the figures' homography so it leans with the plaque. Its layer sits between the crest and
+	// the figures (over the tips). While it is up the plaque is clear: no explainer line, no figures, no crest. It
+	// blinks with PressToContinue's own blink (an alpha, nothing drawn per frame).
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
@@ -68,6 +77,9 @@
 	import { enableMipmaps } from '../game/mipmaps';
 	import { boardIdle } from '../game/boardIdle';
 	import { PLAQUE_TIPS as TIPS, edgeAt, marqueeAt, marqueeSpan, pointerIsMouse, slantEdges, tipAt, tipFont, tipLines } from '../game/plaqueTips';
+	import { PLAQUE_PROMPT, PRESS_PROMPT } from '../game/constants';
+	import { pressPromptFace, pressPromptRelease, pressPromptTake, type PressPromptRaster } from '../game/pressPrompt';
+	import { plaquePrompt, plaquePromptReady } from '../game/plaquePrompt.svelte';
 
 	const context = getContext();
 
@@ -135,7 +147,32 @@
 	// a tap on the plaque is a tap on whatever was there before: the lines take no press
 	tips.eventMode = 'none';
 	tips.interactiveChildren = false;
-	root.addChild(shadow, day, night, fire, crest, tips, figures);
+	// the desktop's PRESS ANYWHERE (PLAQUE_PROMPT): the prompt's texture on a (gridX x gridY) mesh of quads over the
+	// texture's own rectangle in layout units, through the homography
+	const promptLayer = new PIXI.Container({ label: 'plaque-prompt' });
+	const PGX = PLAQUE_PROMPT.gridX;
+	const PGY = PLAQUE_PROMPT.gridY;
+	const promptPos = new Float32Array((PGX + 1) * (PGY + 1) * 2);
+	const promptUv = new Float32Array((PGX + 1) * (PGY + 1) * 2);
+	const promptIdx = new Uint32Array(PGX * PGY * 6);
+	for (let j = 0; j <= PGY; j += 1) for (let i = 0; i <= PGX; i += 1) promptUv.set([i / PGX, j / PGY], (j * (PGX + 1) + i) * 2);
+	for (let j = 0; j < PGY; j += 1)
+		for (let i = 0; i < PGX; i += 1) {
+			const a = j * (PGX + 1) + i;
+			const b = a + PGX + 1;
+			promptIdx.set([a, a + 1, b + 1, a, b + 1, b], (j * PGX + i) * 6);
+		}
+	const promptMesh = new PIXI.MeshSimple({ texture: PIXI.Texture.EMPTY, vertices: promptPos, uvs: promptUv, indices: promptIdx });
+	promptMesh.autoUpdate = false;
+	// the texture is white letters over the soft shadow: the ink is the tint, the same as PressPromptText's
+	promptMesh.tint = PRESS_PROMPT.ink;
+	promptLayer.addChild(promptMesh);
+	promptLayer.eventMode = 'none';
+	promptLayer.interactiveChildren = false;
+	promptLayer.visible = false;
+	/** the prompt's mesh must be placed again (a new layout, a new density) before it is next drawn */
+	const promptNeed = { v: true };
+	root.addChild(shadow, day, night, fire, crest, tips, promptLayer, figures);
 	for (const s of [shadow, day, night, fire, crestDay, crestNight, crestFire]) s.visible = false;
 	figures.alpha = 0;
 	tips.alpha = 0;
@@ -239,6 +276,7 @@
 		Object.assign(win, slantEdges(art, L.render.plaqueBox, H, tipBox[1], tipBox[2]));
 		win.built = false;
 		tipNeed.layout = true;
+		promptNeed.v = true;
 	});
 
 	// ---- the figures' layout (layout units at height PLAQUE_DIGIT_H, x from the row's centre, y from its optical centre) --
@@ -470,6 +508,76 @@
 		tipShown.font = font;
 		tipShown.kCss = ku;
 		return true;
+	};
+
+	// ---- the desktop's PRESS ANYWHERE on the text field (PLAQUE_PROMPT) -------------------------------------------------
+	/** the prompt on show: the shared texture it holds, the line's centre x, baseline, advance width and cap height
+	 *  (layout units, after the fit), the texture's rectangle (layout units), the density it was drawn at (device px
+	 *  per layout unit), the size it was asked for and the width it was fitted to */
+	const promptShown = { raster: null as PressPromptRaster | null, cx: 0, base: 0, w: 0, cap: 0, x0: 0, y0: 0, tw: 0, th: 0, px: 0, capAsked: 0, maxW: 0, placed: 0 };
+	/** Cinzel is in (pressPromptFace said yes); until then, or if it never is, the plaque does not draw the prompt */
+	let promptFaceOk = false;
+	/** take the prompt's texture at this screen's density and lay its mesh over the window (when it comes up, or the
+	 *  layout or the density changed; never per frame) */
+	const placePrompt = () => {
+		computePlans();
+		const [, top, bot] = tipBox;
+		const mid = (top + bot) / 2;
+		// about the explainer lines' size (the same face, so the same cap height per font size)
+		const capAsked = capK * tipFontU * PLAQUE_PROMPT.sizeOfTip;
+		// centred in the slanted window at the row's middle, fitted to the window's width at the capitals' top row
+		// (the window is a trapezoid, narrower at the top) less the margin
+		const capTop = mid - capAsked / 2;
+		const cx = (leftAt(mid) + rightAt(mid)) / 2;
+		const half = Math.min(cx - leftAt(capTop), rightAt(capTop) - cx);
+		const maxW = 2 * half * PLAQUE_PROMPT.fill;
+		const px = planK * (context.stateApp.pixiApplication?.renderer?.resolution ?? 1);
+		if (!(px > 0)) return false;
+		// take the new one before letting the old one go, so the same size keeps its texture
+		const raster = pressPromptTake(capAsked, maxW, px);
+		if (promptShown.raster) pressPromptRelease(promptShown.raster);
+		promptShown.raster = raster;
+		const cap = raster.info.capUnits;
+		const base = mid + cap / 2;
+		const tw = raster.info.size[0] / px;
+		const th = raster.info.size[1] / px;
+		const x0 = cx - raster.anchor.x * tw;
+		const y0 = base - raster.anchor.y * th;
+		for (let j = 0; j <= PGY; j += 1)
+			for (let i = 0; i <= PGX; i += 1) {
+				const p = through(x0 + (tw * i) / PGX, y0 + (th * j) / PGY);
+				const k = (j * (PGX + 1) + i) * 2;
+				promptPos[k] = p.x;
+				promptPos[k + 1] = p.y;
+			}
+		promptMesh.geometry.getBuffer('aPosition').update();
+		promptMesh.texture = raster.texture;
+		Object.assign(promptShown, { cx, base, w: raster.info.widthUnits, cap, x0, y0, tw, th, px, capAsked, maxW });
+		promptShown.placed += 1;
+		return true;
+	};
+	const unplacePrompt = () => {
+		promptMesh.texture = PIXI.Texture.EMPTY;
+		if (promptShown.raster) pressPromptRelease(promptShown.raster);
+		promptShown.raster = null;
+		promptNeed.v = true;
+	};
+	/** a desktop prompt waiting for a press (PressToContinue's count), read once a frame */
+	let promptUpNow = false;
+	/** the prompt's frame: can the plaque draw it (published for PressToContinue), is one up, is it drawn, its blink */
+	const promptTick = () => {
+		promptUpNow = plaquePrompt.count > 0;
+		const ready = promptFaceOk && day.texture !== PIXI.Texture.EMPTY && !!root.parent;
+		if (plaquePromptReady.ready !== ready) plaquePromptReady.ready = ready;
+		if (promptUpNow && ready) {
+			if (promptNeed.v || !promptShown.raster) promptNeed.v = !placePrompt();
+			const on = !!promptShown.raster;
+			if (promptLayer.alpha !== plaquePrompt.alpha) promptLayer.alpha = plaquePrompt.alpha;
+			if (promptLayer.visible !== on) promptLayer.visible = on;
+		} else if (promptShown.raster || promptLayer.visible) {
+			promptLayer.visible = false;
+			unplacePrompt();
+		}
 	};
 
 	/** what the mesh holds now */
@@ -798,7 +906,7 @@
 		} else if (!face.asked) face.ready = true;
 		const ready = face.ready && day.texture !== PIXI.Texture.EMPTY && !!root.parent;
 		// the figures first: not while they are up or still fading out (the start delay counts from them gone)
-		const want = ready && (idleNow || devHold || tipPending !== null) && !showing && figFade.v <= 0.001 && forced === null;
+		const want = ready && (idleNow || devHold || tipPending !== null) && !showing && figFade.v <= 0.001 && forced === null && !promptUpNow;
 		if (ready && tipNeed.layout) {
 			// a new layout: a line on show is let go, the next one comes firstMs later
 			tipNeed.layout = false;
@@ -933,19 +1041,22 @@
 		}
 		const text = forced ?? bookEventAmountToCurrencyString(Math.round(value));
 		if (atlasTexture && (shown.relayout || ((text !== shown.text || reserve !== shown.reserve) && (showing || forced !== null)))) build(text, reserve);
-		// the explainer lines
+		// the desktop's prompt first (the lines and the figures stand aside for it), then the explainer lines
+		promptTick();
 		tipTick(now);
+		// the plaque is clear while the prompt is up: a line on its way out is not drawn either
+		if (promptUpNow && tips.visible) tips.visible = false;
 		if (tips.visible && mesh.tint !== tipMesh.tint) tipMesh.tint = mesh.tint;
 		// the fades, the bump and the final rise
 		const fa = forced !== null ? 1 : stepFade(figFade, now);
 		const ca = forced !== null ? 0 : stepFade(crestFade, now);
-		const hidden = forced === null && !!context.stateGame.plaque;
+		const hidden = forced === null && (!!context.stateGame.plaque || promptUpNow);
 		const alpha = hidden ? 0 : fa;
 		if (figures.alpha !== alpha) figures.alpha = alpha;
 		figures.visible = alpha > 0.001;
 		if (crest.alpha !== ca) crest.alpha = ca;
 		// "Remove the icon in the middle of that board" (r3, 10:17): PLAQUE_TIPS.crest false, never drawn
-		crest.visible = TIPS.crest && ca > 0.001;
+		crest.visible = TIPS.crest && ca > 0.001 && !promptUpNow;
 		let s = 1;
 		if (bump.t0 >= 0) {
 			const u = (now - bump.t0) / bump.ms;
@@ -959,9 +1070,23 @@
 		if (figures.scale.x !== s) figures.scale.set(s);
 	};
 
+	// a new density places the prompt again: the layout's scale here, the renderer's resolution by its 'resize' event
+	// (Game.svelte applyResolution calls app.resize(); the renderer is an EventEmitter at run time)
+	$effect(() => {
+		void context.stateLayoutDerived.mainLayout().scale;
+		void context.stateLayoutDerived.canvasSizes();
+		promptNeed.v = true;
+	});
 	onMount(() => {
 		const ticker = context.stateApp.pixiApplication?.ticker;
 		ticker?.add(tick, undefined, PIXI.UPDATE_PRIORITY.NORMAL);
+		let mounted = true;
+		void pressPromptFace().then((ok) => {
+			if (mounted) promptFaceOk = ok;
+		});
+		const emitter = context.stateApp.pixiApplication?.renderer as unknown as { on(e: 'resize', f: () => void): void; off(e: 'resize', f: () => void): void } | undefined;
+		const onResize = () => (promptNeed.v = true);
+		emitter?.on('resize', onResize);
 		if (import.meta.env.DEV && typeof window !== 'undefined') {
 			const g = (node: PIXI.Container, x: number, y: number) => {
 				const p = node.toGlobal({ x, y });
@@ -1000,6 +1125,43 @@
 						});
 					})(),
 					light: { ...frameLight, nightIn },
+					/** THE DESKTOP PRESS ANYWHERE (PLAQUE_PROMPT): up, drawn, its blink, its size against the explainer lines'
+					 *  (CSS px), its ink box on screen (four corners), its margins to the slanted window at the capitals' top
+					 *  row and at the baseline (layout units and CSS px; the ink is inside when all four are 0 or more) */
+					prompt: (() => {
+						const r = promptShown.raster;
+						const ps = promptShown;
+						const pt = (x: number, y: number) => {
+							const m = through(x, y);
+							return g(root, m.x, m.y);
+						};
+						const xl = ps.cx - ps.w / 2;
+						const xr = ps.cx + ps.w / 2;
+						const yt = ps.base - ps.cap;
+						const margins = r ? { topLeft: xl - leftAt(yt), topRight: rightAt(yt) - xr, baseLeft: xl - leftAt(ps.base), baseRight: rightAt(ps.base) - xr } : null;
+						return {
+							count: plaquePrompt.count,
+							up: promptUpNow,
+							ready: plaquePromptReady.ready,
+							drawn: promptLayer.visible && !!r && !!root.parent,
+							layerAlpha: +promptLayer.alpha.toFixed(3),
+							tint: promptMesh.tint as number,
+							key: r?.key ?? null,
+							placed: ps.placed,
+							capCss: r ? +(ps.cap * planK).toFixed(2) : null,
+							capAskedCss: r ? +(ps.capAsked * planK).toFixed(2) : null,
+							tipFontCss: +(tipFontU * planK).toFixed(2),
+							tipCapCss: +(tipFontU * capK * planK).toFixed(2),
+							fitted: r ? +(ps.cap / ps.capAsked).toFixed(3) : null,
+							widthU: r ? +ps.w.toFixed(2) : null,
+							maxWU: r ? +ps.maxW.toFixed(2) : null,
+							ink: r ? [pt(xl, yt), pt(xr, yt), pt(xr, ps.base), pt(xl, ps.base)] : null,
+							window: [pt(win.lt, tipBox[1]), pt(win.rt, tipBox[1]), pt(win.rb, tipBox[2]), pt(win.lb, tipBox[2])],
+							margins: margins && Object.fromEntries(Object.entries(margins).map(([k2, v]) => [k2, { u: +v.toFixed(2), css: +(v * planK).toFixed(2) }])),
+							inside: !!margins && Object.values(margins).every((v) => v >= 0),
+							texture: r ? { w: r.info.size[0], h: r.info.size[1], px: +ps.px.toFixed(4), fontPx: r.info.fontPx } : null,
+						};
+					})(),
 					constants: { ...BOARD_PLAQUE, bumpScale: SPIN_TOTAL.bumpScale },
 					memory: [day, night, fire, shadow, crestDay, crestNight, crestFire]
 						.map((s) => s.texture)
@@ -1187,7 +1349,11 @@
 			});
 		}
 		return () => {
+			mounted = false;
 			ticker?.remove(tick);
+			emitter?.off('resize', onResize);
+			unplacePrompt();
+			plaquePromptReady.ready = false;
 			root.removeFromParent();
 			freeLineTexture();
 			root.destroy({ children: true });
