@@ -4,7 +4,8 @@
 //   1 rim      the same baked image, no new texture: a dark outline from RIM_STEPS dark copies set in a ring around
 //              it, and an additive copy over it that lifts the gold toward white
 //   2 forge    the bright bake (tools/build_bigwin_titles.py): white to gold to deep amber, one thick dark outline
-//   3 molten   the bright bake, hotter: white to gold to fire orange, a dark red rim inside a black outline
+//   3 molten   the bright bake, hotter: white to gold to fire orange, a dark red rim inside a black outline. The
+//              default since r2 (Corey 2026-10-17 11:56)
 // The feature intro's three titles are in their mode's colour on 2 and 3 (baked) and tinted on 1. Every look is plain
 // sprites off a resident atlas: no filter, no mask, nothing rastered at runtime.
 import * as PIXI from 'pixi.js';

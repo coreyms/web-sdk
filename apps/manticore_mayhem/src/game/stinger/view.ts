@@ -457,7 +457,10 @@ export class StingerView {
 				this.emblems.forEach((s, i) => {
 					const side = i === 0 ? -1 : 1;
 					s.texture = em.texture;
-					const k = H.h / em.h;
+					// H.h ship px tall on every asset tier: the scale is of the TEXTURE's height (2 or 3/2 texels per ship
+					// px, tools/build_bigwin_titles.py TIERS), never of the spec's ship box (r1 did that, so a desktop emblem
+					// drew 1.5x the phone one)
+					const k = H.h / em.texture.height;
 					s.scale.set(side * k, k); // the left one mirrored
 					s.position.set(side * H.x, ph * H.cy);
 					s.rotation = -side * H.tilt;

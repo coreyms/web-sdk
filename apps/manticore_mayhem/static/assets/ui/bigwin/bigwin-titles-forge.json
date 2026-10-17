@@ -3,241 +3,241 @@
   "bwt_forge_win_big": {
    "frame": {
     "x": 4,
-    "y": 340,
-    "w": 565,
-    "h": 160
+    "y": 860,
+    "w": 727,
+    "h": 206
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 565,
-    "h": 160
+    "w": 727,
+    "h": 206
    },
    "sourceSize": {
-    "w": 565,
-    "h": 160
+    "w": 727,
+    "h": 206
    }
   },
   "bwt_forge_win_super": {
    "frame": {
     "x": 4,
     "y": 4,
-    "w": 726,
-    "h": 160
+    "w": 933,
+    "h": 206
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 726,
-    "h": 160
+    "w": 933,
+    "h": 206
    },
    "sourceSize": {
-    "w": 726,
-    "h": 160
+    "w": 933,
+    "h": 206
    }
   },
   "bwt_forge_win_mega": {
    "frame": {
-    "x": 738,
-    "y": 4,
-    "w": 694,
-    "h": 160
+    "x": 4,
+    "y": 218,
+    "w": 892,
+    "h": 206
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 694,
-    "h": 160
+    "w": 892,
+    "h": 206
    },
    "sourceSize": {
-    "w": 694,
-    "h": 160
+    "w": 892,
+    "h": 206
    }
   },
   "bwt_forge_win_epic": {
    "frame": {
     "x": 4,
-    "y": 172,
-    "w": 627,
-    "h": 160
+    "y": 432,
+    "w": 806,
+    "h": 206
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 627,
-    "h": 160
+    "w": 806,
+    "h": 206
    },
    "sourceSize": {
-    "w": 627,
-    "h": 160
+    "w": 806,
+    "h": 206
    }
   },
   "bwt_forge_win_max": {
    "frame": {
-    "x": 639,
-    "y": 172,
-    "w": 607,
-    "h": 160
+    "x": 4,
+    "y": 646,
+    "w": 781,
+    "h": 206
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 607,
-    "h": 160
+    "w": 781,
+    "h": 206
    },
    "sourceSize": {
-    "w": 607,
-    "h": 160
+    "w": 781,
+    "h": 206
    }
   },
   "bwt_forge_total_win": {
    "frame": {
-    "x": 577,
-    "y": 340,
-    "w": 546,
-    "h": 126
+    "x": 4,
+    "y": 1074,
+    "w": 694,
+    "h": 160
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 546,
-    "h": 126
+    "w": 694,
+    "h": 160
    },
    "sourceSize": {
-    "w": 546,
-    "h": 126
+    "w": 694,
+    "h": 160
    }
   },
   "bwt_forge_intro_bonus": {
    "frame": {
-    "x": 818,
-    "y": 574,
-    "w": 518,
-    "h": 103
+    "x": 4,
+    "y": 1518,
+    "w": 652,
+    "h": 130
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 518,
-    "h": 103
+    "w": 652,
+    "h": 130
    },
    "sourceSize": {
-    "w": 518,
-    "h": 103
+    "w": 652,
+    "h": 130
    }
   },
   "bwt_forge_intro_super": {
    "frame": {
     "x": 4,
-    "y": 508,
-    "w": 806,
-    "h": 103
+    "y": 1242,
+    "w": 1015,
+    "h": 130
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 806,
-    "h": 103
+    "w": 1015,
+    "h": 130
    },
    "sourceSize": {
-    "w": 806,
-    "h": 103
+    "w": 1015,
+    "h": 130
    }
   },
   "bwt_forge_intro_epic": {
    "frame": {
     "x": 4,
-    "y": 619,
-    "w": 751,
-    "h": 103
+    "y": 1380,
+    "w": 946,
+    "h": 130
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 751,
-    "h": 103
+    "w": 946,
+    "h": 130
    },
    "sourceSize": {
-    "w": 751,
-    "h": 103
+    "w": 946,
+    "h": 130
    }
   },
   "bwt_forge_emblem_bonus": {
    "frame": {
-    "x": 1131,
-    "y": 440,
-    "w": 121,
-    "h": 126
+    "x": 793,
+    "y": 848,
+    "w": 190,
+    "h": 200
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 121,
-    "h": 126
+    "w": 190,
+    "h": 200
    },
    "sourceSize": {
-    "w": 121,
-    "h": 126
+    "w": 190,
+    "h": 200
    }
   },
   "bwt_forge_emblem_super": {
    "frame": {
-    "x": 1254,
-    "y": 172,
-    "w": 142,
-    "h": 126
+    "x": 818,
+    "y": 432,
+    "w": 228,
+    "h": 200
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 142,
-    "h": 126
+    "w": 228,
+    "h": 200
    },
    "sourceSize": {
-    "w": 142,
-    "h": 126
+    "w": 228,
+    "h": 200
    }
   },
   "bwt_forge_emblem_epic": {
    "frame": {
-    "x": 1254,
-    "y": 306,
-    "w": 136,
-    "h": 126
+    "x": 818,
+    "y": 640,
+    "w": 218,
+    "h": 200
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 136,
-    "h": 126
+    "w": 218,
+    "h": 200
    },
    "sourceSize": {
-    "w": 136,
-    "h": 126
+    "w": 218,
+    "h": 200
    }
   }
  },
@@ -245,10 +245,10 @@
   "image": "bigwin-titles-forge.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 1440,
-   "h": 726
+   "w": 1056,
+   "h": 1652
   },
   "scale": "1",
-  "pngHash": "016c05f1"
+  "pngHash": "01950394"
  }
 }

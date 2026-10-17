@@ -1355,20 +1355,27 @@ export const STINGER_PLAQUE = {
 //   look      the title treatment (game/stinger/bigTitle.ts): 0 the shipped polished gold, 1 rim (the shipped image
 //             with a dark ring and a white lift, no new texture), 2 forge, 3 molten (the bright bakes,
 //             tools/build_bigwin_titles.py). ?bwtitle=0..3 overrides it on the dev server and a staging build.
+//             r2: 3 molten ships (Corey 2026-10-17 11:56 "I like the molten look"); r1 had 2 forge.
+//   r2 fit    re-measured on the v6 / v6c plaque (2026-10-17): its marble slab ends at 218 of the 222 px panel (the new
+//             bottom gold moulding), the lion crest's tip reaches 16 px down at the centre and the bottom diamond 200 px
+//             up (the old plaque's bottom creature came up to 196 across 150 px). The win block moved up 2 to 3 px
+//             (titleCy 0.29 -> 0.28, amountCy 0.73 -> 0.715): about 19 px clear of the crest tip, 13 of the diamond.
 //   win       the win screen: title cap and centre, the amount's em size (stinger.json had 64: +34 %) and centre, and
 //             the widest either may draw (a longer amount shrinks to it, fitted once to the count's final string)
 //   wrap      the wrap up (TOTAL WIN): the same, its amount 56 -> 75 (+34 %); the line under it is unchanged
 //   intro     the feature intro: the title (smaller than the win's, in its mode's colour) between two mode emblems
 //             (the Armoury's own art: War Standard, dagger, crown), each `emblem.h` tall at `emblem.x` from the panel
-//             centre, `emblem.tilt` radians leaning in, mirrored on the left
+//             centre, `emblem.tilt` radians leaning in, mirrored on the left. r2: 100 px tall on BOTH tiers (r1 scaled the
+//             texture, not the ship box: 108 on desktop, 72 on phones) at x 288, the title's max width 450 -> 424 so the
+//             widest title (10 SUPER FREE SPINS) keeps 10 px or more from the tilted emblems
 //   rim       look 1 only: `steps` dark copies (colour `color`) in a ring `px` (at a 50 px cap) around the title, the
 //             ring dropped by dropShare of px (a shadow), and an additive copy at liftAlpha over the face
 //   modeTint  look 1 only: the multiply on the gold intro titles (looks 2 and 3 bake the mode colours)
 export const BIG_TITLE = {
-	look: 2 as 0 | 1 | 2 | 3,
-	win: { titleCap: 54, titleCy: 0.29, titleMax: 540, amountPx: 86, amountCy: 0.73, amountMax: 540 },
+	look: 3 as 0 | 1 | 2 | 3,
+	win: { titleCap: 54, titleCy: 0.28, titleMax: 540, amountPx: 86, amountCy: 0.715, amountMax: 540 },
 	wrap: { titleCap: 42, titleCy: 0.19, titleMax: 520, amountPx: 75, amountCy: 0.53, amountMax: 540 },
-	intro: { titleCap: 34, titleCy: 0.18, titleMax: 450, emblem: { h: 72, x: 268, cy: 0.16, tilt: 0.12 } },
+	intro: { titleCap: 34, titleCy: 0.18, titleMax: 424, emblem: { h: 100, x: 288, cy: 0.16, tilt: 0.12 } },
 	rim: { steps: 8, px: 3, color: 0x120904, dropShare: 0.5, liftAlpha: 0.45 },
 	modeTint: { bonus: 0x8ff0e4, super: 0xa8c8ff, epic: 0xff9a80 },
 } as const;

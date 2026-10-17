@@ -13,13 +13,18 @@ in a bright treatment that holds on the current marble and on a darker black iro
   intro     the three feature titles in their MODE colour (the Armoury's accents: Bonus teal, Super blue, Epic
             fire red), never gold, so a feature intro never reads as a win
   emblems   the Armoury's own hero art (static/assets/ui/armoury/hero-<art>.webp: the War Standard for Bonus, the
-            dagger for Super, the crown for Epic, the same pictures as the buy cards), small, with a dark rim
+            dagger for Super, the crown for Epic, the same pictures as the buy cards). r2 (Corey 2026-10-17 11:56
+            "the symbols should use probably the symbols from the Armoury because they are better resolution and
+            brighter"): the flat 640 px tall hero (sharper than any heroes.json grid cell, whose front cells are 640,
+            512 and 512 tall) resized straight to the drawn size at the plaque's density, as bright as the menu
+            shows it: no dark rim, no shadow, no tint (r1 had a dark rim and a drop shadow)
 
 Two looks (the DEV / staging switch ?bwtitle=2|3, game/stinger/bigTitle.ts):
   forge   (2)  white to gold to deep amber, one dark outline
   molten  (3)  white to gold to fire orange, a dark red inner rim inside a black outline
 
-Writes, per look and per asset tier (FULL at 1.5 texture px per ship px, PHONE at 1x, game/deviceTier.ts):
+Writes, per look and per asset tier (r2: the stinger PLAQUE's own density, tools/build_stinger_assets.py TIERS
+plaque: FULL at 2 texture px per ship px, PHONE `-half` at 3/2; r1 baked 3/2 and 1, softer than the v6 plaque):
   static/assets/ui/bigwin/bigwin-titles-<look>[-half].json|webp     Pixi spritesheet, frames bwt_<look>_<name>
   src/game/stinger/bigTitleSpec.ts                                   every frame's box in SHIP px (tier independent)
 This tool writes nothing the stinger build (tools/build_stinger_assets.py) writes.
@@ -48,12 +53,14 @@ SPEC_TS = APP / "src" / "game" / "stinger" / "bigTitleSpec.ts"
 ARMOURY = APP / "static" / "assets" / "ui" / "armoury"
 
 EM = bpt.TITLE_EM  # 228 px: the masks are drawn at 3x of a 76 px em, as the plaque's own titles are
-TIERS = {"": 1.5, "-half": 1.0}  # texture px per ship px (the stinger build's FULL and PHONE tiers)
+# texture px per ship px: the stinger build's PLAQUE tiers (build_stinger_assets.TIERS[*]["plaque"]), checked in main()
+TIERS = {"": 2.0, "-half": 1.5}
 QUALITY = 92
 
-# the cap height each group is BAKED at, ship px (the game draws them at or under this; game/constants.ts BIG_TITLE)
-BAKE_CAP = {"win": 56, "total": 44, "intro": 36}
-EMBLEM_H = 84  # ship px, the emblem's baked height (drawn at about 60 to 76)
+# the cap height each group is BAKED at, ship px: the cap the game draws (game/constants.ts BIG_TITLE win.titleCap,
+# wrap.titleCap, intro.titleCap), so the drawn texel density is exactly TIERS (more where a long title shrinks to fit)
+BAKE_CAP = {"win": 54, "total": 42, "intro": 34}
+EMBLEM_H = 100  # ship px, the emblem's baked height = BIG_TITLE.intro.emblem.h (drawn 1:1)
 
 # the words are the plaque's own (build_plaque_text.TITLES), so the two sets never disagree (the intro's spin counts
 # are checked against the book at runtime: StingerPlaque.svelte introMatches)
@@ -129,26 +136,15 @@ def bake_title(face: bpt.Face, text: str, stops, outline) -> tuple[Image.Image, 
     return img.crop(box), meta
 
 
+# the faintest alpha that counts as the picture when it is cropped (the hero files carry a soft transparent margin)
+EMBLEM_CROP_ALPHA = 2
+
+
 def bake_emblem(file: str) -> Image.Image:
+    """the Armoury's hero picture as the menu shows it, cropped to its art: no rim, no shadow, no tint"""
     src = Image.open(ARMOURY / file).convert("RGBA")
-    src = src.crop(src.getbbox())
-    a = src.getchannel("A")
-    pad = max(8, src.height // 24)
-    big = Image.new("RGBA", (src.width + 2 * pad, src.height + 2 * pad), (0, 0, 0, 0))
-    am = Image.new("L", big.size, 0)
-    am.paste(a, (pad, pad))
-    # a dark rim and a soft shadow, so the picture holds on a light or a dark slab
-    rim = bpt.dilate(am, src.height * 0.012).filter(ImageFilter.GaussianBlur(src.height * 0.01))
-    shadow = ImageChops.offset(rim, 0, int(src.height * 0.02)).filter(ImageFilter.GaussianBlur(src.height * 0.02))
-    canvas = np.zeros((big.height, big.width, 4), np.float32)
-    canvas = bpt.over(canvas, (0, 0, 0), bpt.A(shadow) * 0.6)
-    canvas = bpt.over(canvas, (12 / 255, 6 / 255, 3 / 255), bpt.A(rim) * 0.9)
-    layer = np.zeros_like(canvas)
-    s = np.asarray(src, np.float32) / 255
-    layer[pad : pad + src.height, pad : pad + src.width] = s
-    canvas = bpt.over(canvas, layer[..., :3], layer[..., 3])
-    img = Image.fromarray((np.clip(canvas, 0, 1) * 255).astype(np.uint8), "RGBA")
-    return img.crop(img.getbbox())
+    box = src.getchannel("A").point(lambda v: 255 if v >= EMBLEM_CROP_ALPHA else 0).getbbox()
+    return src.crop(box)
 
 
 def to_ship(img: Image.Image, scale: float) -> np.ndarray:
@@ -163,6 +159,10 @@ def to_ship(img: Image.Image, scale: float) -> np.ndarray:
 
 
 def main() -> None:
+    # the titles' density is the plaque's: never drift from the stinger build's tiers
+    from build_stinger_assets import TIERS as STINGER_TIERS
+    for suffix, tex in TIERS.items():
+        assert float(STINGER_TIERS[suffix]["plaque"]) == tex, f"tier {suffix!r}: {tex} vs the plaque's {STINGER_TIERS[suffix]['plaque']}"
     OUT.mkdir(parents=True, exist_ok=True)
     chars = "".join(sorted({c for d in (WINS, TOTAL, INTROS) for t in d.values() for c in t}))
     face = bpt.Face(bpt.MACONDO, EM, chars)

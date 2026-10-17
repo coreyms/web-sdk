@@ -448,8 +448,9 @@ const assets = {
 		),
 		preload: false,
 	},
-	// THE PLAQUE'S BRIGHT TITLES AND MODE EMBLEMS (r1 2026-10-16, tools/build_bigwin_titles.py, game/stinger/bigTitle.ts):
-	// the page's look only (BIG_TITLE.look; ?bwtitle=3 loads the molten bake instead). Its key starts with `stinger`, so
+	// THE PLAQUE'S BRIGHT TITLES AND MODE EMBLEMS (r1 2026-10-16, r2 2026-10-17; tools/build_bigwin_titles.py,
+	// game/stinger/bigTitle.ts): the page's look only (BIG_TITLE.look, molten since r2; ?bwtitle=2 loads the forge bake
+	// instead). At the plaque's density since r2: full tier 407 KB / 9.04 MB on the GPU with mips, phone 277 KB / 3.89 MB. Its key starts with `stinger`, so
 	// it rides the plaque's own deferred group, all or nothing with the five atlases above.
 	stingerBigTitles: {
 		type: 'sprites',
