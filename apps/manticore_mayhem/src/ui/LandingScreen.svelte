@@ -467,7 +467,7 @@
 
 		<div class="gate" style:padding="{SZ.pad}px" style:transform="translateX({place.gateCx - master.width / 2}px)">
 			{#if assetsFailed}
-				<!-- same stencil style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
+				<!-- same display style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
 				<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM · TAP TO RETRY</div>
 			{:else if !ready}
 				<div class="bar" style:width="{SZ.barW}px" style:height="{SZ.barH}px">
@@ -740,9 +740,14 @@
 		color: rgba(238, 240, 230, 0.5);
 		font-variant-numeric: tabular-nums;
 	}
+	/* PRESS ANYWHERE in the game's display face (review D10, Corey 2026-10-17 13:05; ChromeStyles --ui-font-display):
+	   Cinzel 700, was Outfit Black. Its capitals are wider than Outfit's, so it tracks at --press-track, about Outfit's
+	   old width at every size (the sideways column, introCards.ts INTRO_CARD.side, is set by this line). */
 	.pressText {
-		font-weight: 900;
-		letter-spacing: 2.5px;
+		--press-track: 0.05em;
+		font-family: var(--ui-font-display);
+		font-weight: var(--ui-display-weight);
+		letter-spacing: var(--press-track);
 		color: #eef0e6;
 		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
 		animation: landing-pulse 1.6s ease-in-out infinite;

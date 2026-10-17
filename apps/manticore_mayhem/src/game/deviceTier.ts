@@ -68,8 +68,8 @@ const forcedCap = (): number | null => {
 	return forced >= RESCAP_RANGE.min ? Math.min(RESCAP_RANGE.max, forced) : null;
 };
 
-/** the renderer's resolution cap for this device (RENDER_RESOLUTION_CAP: 1.5 on the phone tier, 2 on an allowlisted
- *  iPhone and everywhere else, 3 on a large allowlisted iPhone; game/deviceCap.ts). `?rescap=<n>` overrides it, so a
+/** the renderer's resolution cap for this device (RENDER_RESOLUTION_CAP: 3 on the phone tier since
+ *  2026-10-17, 2 everywhere else; game/deviceCap.ts). `?rescap=<n>` overrides it, so a
  *  probe or a tester can A / B caps on the same build. */
 export const renderResolutionCap = (): number => forcedCap() ?? DEVICE_CAP;
 

@@ -68,6 +68,20 @@ THE GLOW ADD-ON (2026-10-13, drop-4-glow-addon: sting_hit_glow 9 frames, sting_r
                         already in --out: the look atlases are not read, resized or written. For adding the glow
                         add-on to a finished build without touching it.
 
+THE BACK-FEET SHADE (2026-10-17, Corey 13:21: "The back feet also look to bright, you would think they would be carrying
+shadows on top of them, but I don't want to send this back to the rig agent"). Option B of creature_shade_r1: a BAKED
+CONTACT OCCLUSION pass, one black + alpha frame per body frame, every look shares it (the outline is the same in every
+look), drawn by game/creature.ts over his colour sprites at a runtime strength (constants CREATURE_SHADE). Built from the
+DAY look's masters and the shadow pass, at the shadow atlas's quarter canvas (it is soft, like the shadow):
+  occlusion = height window (rig rows, SHADE['rows']) x between the front legs (rig columns, SHADE['cols'])
+              x the floor shadow's footprint at or just below the pixel (SHADE['reach'] rig px)
+              x NOT SOMETHING IN FRONT: the pixel's colour is near the same pixel in some idle frame (the rear paws and the
+                belly barely move; a swiping paw, the low mane of a sting or the beard coming down do), SHADE['front']
+              x his own alpha
+  --shade               also build shared/creature-shade[-phone] (in the report and the spec)
+  --only-shade          build ONLY shared/creature-shade[-phone] into --out/shared and write nothing else (no report, no
+                        spec, no other atlas): safe to point --out at static/assets/sprites/creature. Needs the day look.
+
 WHAT IS CHECKED AND PRINTED: every clip's frame count against meta.json and that its frames are contiguous; no sheet
 over 4096; duplicate frames inside a clip are stored once (two names, one rectangle); each shipped webp against the
 frames handed to the encoder (premultiplied, mean and worst of 255); totals per look and tier.
@@ -101,6 +115,22 @@ Q_GLOW, A_GLOW = 90, 100  # the shared additive glow atlas keeps the old setting
 MAX_SHEET = 4096  # house rule
 PAD = 2           # transparent px round every frame in a sheet (build_flame_assets.py PAD)
 TIERS = (('full', ''), ('phone', '-phone'))
+# THE BACK-FEET SHADE (option B, see the docstring). Rig px of the 1024 canvas, y down (feetRow 884; the rear paws stand
+# on rows ~800..850 between the front legs, the front paws reach row ~944 at columns ~200..375 and ~590..760)
+SHADE = {
+    'work': 512,                                  # px the occlusion is worked out at (half the rig canvas)
+    'share': 0.25,                                # stored at this share of the tier canvas (the shadow atlas's own)
+    'rows': (730, 800, 870, 910),                 # 0 above row 730, full from 800 to 870, 0 again by 910 (smoothstep)
+    'cols': (380, 440, 585, 640),                 # 0 left of 380, full 440..585, 0 right of 640 (inside the front legs)
+    'reach': 64,                                  # the footprint is the shadow's max over this many rows below
+    'blur': 3,                                    # box blur (work px) before the colour test, against a px of motion
+    'front': (0.07, 0.15),                        # colour distance to the nearest idle frame (mean premultiplied RGB,
+                                                  # 0..1, after frontDistSoft): under 0.07 it is the rear paws / belly as
+                                                  # in idle, over 0.15 it is something in front of them
+    'frontDistSoft': 3.2,                         # the distance is smoothed first (gaussian, work px): a claw edge that
+                                                  # moved a px is not "in front"; a swiping paw or the beard is
+    'frontSoft': 2.4,                             # the keep mask softened (gaussian, work px), so no blotches
+}
 
 
 def die(msg: str):
@@ -155,6 +185,68 @@ def frame_on_canvas(png: str, entry: dict, canvas: tuple[int, int]) -> Image.Ima
     return im
 
 
+# ---- the back-feet shade (option B) ---------------------------------------------------------------------------------
+def _ss(e0, e1, x):
+    t = np.clip((x - e0) / (e1 - e0), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
+_shade_ref: dict[str, tuple] = {}
+
+
+def _premul(im: Image.Image) -> np.ndarray:
+    a = np.asarray(im).astype(np.float32) / 255.0
+    return a[..., :3] * a[..., 3:]
+
+
+def _blur_rgb(rgb: np.ndarray, r: int) -> np.ndarray:
+    from PIL import ImageFilter
+    ch = [np.asarray(Image.fromarray((np.clip(rgb[..., c], 0, 1) * 255).astype('uint8')).filter(ImageFilter.BoxBlur(r))) for c in range(3)]
+    return np.dstack(ch).astype(np.float32) / 255.0
+
+
+def shade_box(work: int) -> tuple[int, int, int, int]:
+    """the work px rows / columns the occlusion can be non zero in: (y0, y1, x0, x1)"""
+    k = work / 1024
+    r, c = SHADE['rows'], SHADE['cols']
+    return int(r[0] * k), int(np.ceil(r[3] * k)) + 1, int(c[0] * k), int(np.ceil(c[3] * k)) + 1
+
+
+def shade_frame(spec: dict, canvas: tuple[int, int], scanvas: tuple[int, int]) -> Image.Image:
+    """one occlusion frame at SHADE['work'] px: RGB 0, alpha = the unit occlusion (the runtime strength scales it)"""
+    from PIL import ImageFilter
+    W = SHADE['work']
+    k = W / canvas[0]
+    y0, y1, x0, x1 = shade_box(W)
+    key = spec['idle_folder']
+    if key not in _shade_ref:
+        refs = [_blur_rgb(_premul(frame_on_canvas(png, e, canvas).convert('RGBa').resize((W, W), Image.BOX).convert('RGBA')), SHADE['blur'])[y0:y1, x0:x1] for png, e in spec['idle']]
+        _shade_ref[key] = np.stack(refs)
+    ref = _shade_ref[key]
+    body = frame_on_canvas(spec['png'], spec['entry'], canvas).convert('RGBa').resize((W, W), Image.BOX).convert('RGBA')
+    shadow = frame_on_canvas(spec['spng'], spec['sentry'], scanvas).resize((W, W), Image.BILINEAR)
+    ba = np.asarray(body)[..., 3].astype(np.float32) / 255.0
+    sa = np.asarray(shadow)[..., 3].astype(np.float32) / 255.0
+    y = (np.arange(W, dtype=np.float32) / k)[:, None]
+    x = (np.arange(W, dtype=np.float32) / k)[None, :]
+    r, c = SHADE['rows'], SHADE['cols']
+    v = _ss(r[0], r[1], y) * (1 - _ss(r[2], r[3], y))
+    h = _ss(c[0], c[1], x) * (1 - _ss(c[2], c[3], x))
+    foot = sa.copy()
+    for d in range(1, int(round(SHADE['reach'] * k)) + 1):
+        foot[:-d] = np.maximum(foot[:-d], sa[d:])
+    cur = _blur_rgb(_premul(body), SHADE['blur'])[y0:y1, x0:x1]
+    dist = np.abs(ref - cur[None]).mean(-1).min(0)
+    dist = np.asarray(Image.fromarray((np.clip(dist, 0, 1) * 255).astype('uint8')).filter(ImageFilter.GaussianBlur(SHADE['frontDistSoft']))).astype(np.float32) / 255.0
+    keep = Image.fromarray(((1 - _ss(*SHADE['front'], dist)) * 255).astype('uint8')).filter(ImageFilter.GaussianBlur(SHADE['frontSoft']))
+    k_full = np.ones((W, W), np.float32)
+    k_full[y0:y1, x0:x1] = np.asarray(keep).astype(np.float32) / 255.0
+    occ = np.clip(v * h * foot * k_full * ba, 0, 1)
+    out = np.zeros((W, W, 4), np.uint8)
+    out[..., 3] = np.round(occ * 255).astype(np.uint8)
+    return Image.fromarray(out, 'RGBA')
+
+
 # ---- packing (build_flame_assets.py shelf_pack / pack, plus pages) ---------------------------------------------------
 def shelf_pack(sizes, width):
     order = sorted(range(len(sizes)), key=lambda k: (-sizes[k][1], -sizes[k][0]))
@@ -207,9 +299,13 @@ def build_atlas(job: dict) -> dict:
     alias: dict[str, int] = {}
     index = []  # per frame: which stored cell
     for name, png, entry in job['frames']:
-        im = frame_on_canvas(png, entry, canvas)
-        if size != canvas:
-            im = im.convert('RGBa').resize(size, Image.LANCZOS).convert('RGBA')
+        if job.get('shade'):
+            # (png is the frame's shade spec; the occlusion is worked out at SHADE['work'] px, then stored at `size`)
+            im = shade_frame(png, canvas, tuple(job['scanvas'])).resize(size, Image.BOX)
+        else:
+            im = frame_on_canvas(png, entry, canvas)
+            if size != canvas:
+                im = im.convert('RGBa').resize(size, Image.LANCZOS).convert('RGBA')
         a = np.asarray(im)[..., 3]
         ys, xs = np.nonzero(a)
         if not len(xs):
@@ -286,6 +382,8 @@ def main():
     ap.add_argument('--addon', default='', help='a folder with meta_addon.json and its overlay atlases (the glow add-on)')
     ap.add_argument('--only-shared', action='store_true', help='build the shared atlases only; the looks come from the report.json in --out')
     ap.add_argument('--report-only', action='store_true', help='pack and count, write no image')
+    ap.add_argument('--shade', action='store_true', help='also build the back-feet shade atlas shared/creature-shade[-phone]')
+    ap.add_argument('--only-shade', action='store_true', help='build ONLY shared/creature-shade[-phone] and write nothing else')
     args = ap.parse_args()
     looks = [l for l in args.looks.split(',') if l]
     LOOKS.update({l: args.drop + sfx for l, sfx in LOOK_SUFFIX.items()})
@@ -371,9 +469,36 @@ def main():
             die(f'{c}.png differs between looks {hashes}: it cannot be shared, give it a per look atlas')
     print(f'shared across {", ".join(looks)} (same bytes in every look): {", ".join(overlays)} and {len(shadowed)} shadow atlases')
 
+    def shade_job(tier: str, suffix: str) -> dict:
+        """the back-feet shade of every shadowed clip, from the DAY look's masters and the shadow pass"""
+        if 'day' not in metas:
+            die('--shade / --only-shade need the day look (--looks day,...)')
+        day = metas['day'][0]
+        idle = read_clip(day, clips['idle']['atlas'], clips['idle']['frames'], 'idle/frame_{n:04d}.png')
+        frames = []
+        for c in shadowed:
+            body = held(c, read_clip(day, clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png'))
+            shad = held(c, read_clip(shared_src, clips[c]['shadowAtlas'], clips[c]['frames'], c + '/frame_{n:04d}_shadow.png'))
+            for n, ((png, e), (spng, se)) in enumerate(zip(body, shad)):
+                frames.append((f'creature_shade_{c}_{n:03d}', {'png': png, 'entry': e, 'spng': spng, 'sentry': se, 'idle': idle, 'idle_folder': day}, None))
+        t = round(tiers[tier] * SHADE['share'])
+        return {'key': [tier, 'shared', 'shade'], 'out': os.path.join(out, 'shared'), 'base': f'creature-shade{suffix}', 'frames': frames, 'shade': True,
+                'canvas': canvas, 'scanvas': scanvas, 'size': (t, t), 'lossless': True, 'report_only': args.report_only}
+
+    if args.only_shade:
+        os.makedirs(os.path.join(out, 'shared'), exist_ok=True)
+        with Pool(min(args.jobs, len(TIERS))) as pool:
+            for r in pool.imap_unordered(build_atlas, [shade_job(tier, suffix) for tier, suffix in TIERS]):
+                s = r['sheets']
+                print(f"  {'/'.join(r['key']):28s} {r['frames']:3d} frames ({r['stored']} stored), " + ', '.join(f"{x['sheet'][0]} x {x['sheet'][1]} ({x['gpuBytes'] / 1e6:.2f} MB GPU)" for x in s)
+                      + (f", {sum(x['webpBytes'] + x['jsonBytes'] for x in s) / 1024:.0f} KiB download" if not args.report_only else ''), flush=True)
+        return
+
     jobs = []
     for tier, suffix in TIERS:
         t = tiers[tier]
+        if args.shade:
+            jobs.append(shade_job(tier, suffix))
         for l in looks:
             folder = metas[l][0]
             os.makedirs(os.path.join(out, l), exist_ok=True)
@@ -440,7 +565,7 @@ def main():
         if clip_size:
             T['clipCanvas'] = {c: [v[tier], v[tier]] for c, v in clip_size.items()}
         R = report['tiers'][tier] = {'canvas': t, 'looks': {}, 'shared': {}}
-        for c in ['glow', 'shadow']:
+        for c in ['glow', 'shadow'] + (['shade'] if args.shade else []):
             r = by[(tier, 'shared', c)]
             T['shared'][c] = [{'file': f"shared/{x['file']}.json", 'sheet': x['sheet']} for x in r['sheets']]
             R['shared'][c] = r['sheets']

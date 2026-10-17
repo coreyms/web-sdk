@@ -203,8 +203,14 @@ export const SYMBOL_RIM = { masterPx: 0.7, opacity: 1, softness: 0.39, color: 0x
 /** THE RENDERER'S RESOLUTION CAP (components/Game.svelte clamps renderer.resolution to it; game/deviceTier.ts
  *  renderResolutionCap() picks one). It was 1.5 for every device, a house rule that came from iOS performance.
  *  Corey 2026-10-09: "Yes let's raise the resolution to 2x on Desktop". The phone asset tier (PHONE_TIER) keeps
- *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged. */
-export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2, phone3x: 3 } as const;
+ *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged.
+ *  EVERY PHONE AT 3 (Corey 2026-10-17 12:30: "Yes let's raise it to 3x for all phones"): his Samsung A13 5G (Mali-G57
+ *  MC2, 4 GB, 384 x 853 CSS at DPR 1.875) ran 9.4 minutes at ?rescap=3 with a steady 16.6 ms median, no heat, no
+ *  battery drop. The renderer is min(devicePixelRatio, cap), so a phone never draws more than its own screen: a
+ *  DPR 2 phone draws at 2, a DPR 3 phone at 3. The phone ASSET tier (PHONE_TIER, the half sheets) is unchanged; only
+ *  the renderer's resolution moves. The two iPhone allowlists below are switched off (every phone gets `phone`);
+ *  ROLLBACK: `phone: 1.5` and both lists `on: true` restore the 2026-10-14 rule. */
+export const RENDER_RESOLUTION_CAP = { phone: 3, desktop: 2, phone3x: 3 } as const;
 
 /** PHONES ALLOWED THE DESKTOP CAP (docs/device-quality-plan-v3.md section 6; Corey 2026-10-13): an iPhone whose screen
  *  density is `density` and whose short side is at least `minShort` CSS px and not one of `notShort` is an iPhone 12 or
@@ -212,7 +218,8 @@ export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2, phone3x: 3 } as c
  *  models up to the 11 Pro Max) and renders at RENDER_RESOLUTION_CAP.desktop. Every other phone keeps
  *  RENDER_RESOLUTION_CAP.phone. Read once from static signals before the renderer exists (game/deviceTier.ts): never
  *  a frame-rate cap, never a start-up benchmark, never a change mid session. Rollback: `on` false. */
-export const PHONE_2X_ALLOW = { on: true, density: 3, minShort: 390, notShort: [414] } as const;
+/** OFF since 2026-10-17 (every phone at RENDER_RESOLUTION_CAP.phone = 3); kept for the rollback. */
+export const PHONE_2X_ALLOW = { on: false, density: 3, minShort: 390, notShort: [414] } as const;
 
 /** THE LARGE IPHONES AT 3x (Corey 2026-10-14 19:38: "Yes 3x on Plus and Pro Max IPhones"; his 16-17 Pro Max class phone,
  *  440 x 956 @3, held 58.4 Hz at both 3 and 2): an iPhone that PHONE_2X_ALLOW admits (density 3, not 414) whose short
@@ -221,7 +228,8 @@ export const PHONE_2X_ALLOW = { on: true, density: 3, minShort: 390, notShort: [
  *  390 to 402 iPhones stay at 2 and every other phone at 1.5. The ASSET tier does not change (PHONE_TIER: the half
  *  sheets), only the renderer's resolution. Read once before the renderer exists, like the 2x list. Rollback: `on`
  *  false (those phones go back to 2). The staging `?rescap=` override still wins. */
-export const PHONE_3X_ALLOW = { on: true, minShort: 420 } as const;
+/** OFF since 2026-10-17 (every phone at RENDER_RESOLUTION_CAP.phone = 3); kept for the rollback. */
+export const PHONE_3X_ALLOW = { on: false, minShort: 420 } as const;
 
 /** THE CANVAS PIXEL CEILING (Corey 2026-10-13), everything that is NOT the phone tier: the renderer's resolution is
  *  min(devicePixelRatio, the cap, sqrt(RENDER_MAX_PIXELS / (CSS width x CSS height))) and never under 1. 8.3 million
@@ -1189,6 +1197,30 @@ export const CREATURE_LIFT = {
 	epic: { add: 0, tint: 0xffe2c8 }, // was 0.3 until the drop 5 rim light
 } as const;
 
+// ---- THE BACK-FEET SHADE (Corey 2026-10-17 13:21: "The back feet also look to bright, you would think they would be
+// carrying shadows on top of them, but I don't want to send this back to the rig agent"; creature_shade_r1) ----------
+// His rear paws stand under his chest, between and behind the front legs, but the Rig's sheets light them like the front
+// paws. Options, one sprite over his colour sprites and lifts (game/creature.ts `shade`), tints and alpha only, switched
+// in DEV by __manticore.creatureShade('off' | 'A' | 'B'):
+//   A  THE SHADOW PASS OVER THE BODY: the floor shadow's own frame drawn again over him at `alpha`. Zero new bytes. It
+//      darkens everything of him inside the footprint, and the front paws stand in the footprint's densest part, so they
+//      darken as much as the rear paws. The floor under him gets the copy too, so the floor shadow is drawn lighter
+//      (floorKeep: its alpha becomes 1 - (1 - CREATURE.shadowAlpha) / (1 - alpha)) and the floor reads as before.
+//   B  A BAKED CONTACT OCCLUSION PASS (tools/build_creature_assets.py SHADE, --only-shade): one black + alpha frame per
+//      body frame, every look shares it, at the shadow atlas's quarter canvas (shared/creature-shade[-phone], 118 KiB /
+//      94 KiB, 1.10 / 0.56 MB on the GPU). Strongest on the rear paws, zero on the face and the front legs, and zero on
+//      whatever passes in front of the rear paws (the swiping paw, the sting's low mane and beard). Drawn at `alpha` of
+//      the look on show (blended through a look crossfade). Fades in over inMs when it first appears after the still.
+// `mode` is the production default: B, Corey 2026-10-17 14:47 "B .6 looks good let's lock that in" (day 0.6; super and
+// epic 0.5, as on the sheet he looked at).
+export type CreatureShadeMode = 'off' | 'A' | 'B';
+export const CREATURE_SHADE = {
+	mode: 'B' as CreatureShadeMode,
+	A: { alpha: { day: 0.32, super: 0.32, epic: 0.32 }, floorKeep: true },
+	B: { alpha: { day: 0.6, super: 0.5, epic: 0.5 } },
+	inMs: 300,
+} as const;
+
 // ---- Scatter tease on a Mystery reveal (RULE_PASS_2 section D) -----------------------------------
 // Angry Mantis's Anticipation.svelte, adapted from five spinning reels to an 8x8 drop: an
 // anticipated COLUMN holds above the board before it falls, falls slower when it does, and shows
@@ -1464,6 +1496,67 @@ export const PLAQUE_ESCALATION = {
 	epic: { roarDelayMs: 120 },
 } as const;
 
+// ---- THE PLAQUE'S BACKGROUND GLOW (branch portrait-glow-r1, OPTIONS for Corey) -------------------------------------
+// Corey 2026-10-17: "we should add some background glow to the stinger so it doesn't blend with the board so much"
+// (the 8 FREE SPINS intro on a phone: the plaque's dark iron and brown edges run into the board frame and the symbols).
+// Three looks, one switch, for the intro, the win plaque and the wrap up alike (game/stinger/view.ts setGlow):
+//   A  a warm gold halo: a soft glow of the plaque's own outline behind it, reaching about 10 % of its width past it
+//   B  a dark pool of the same outline behind it (wider and darker), and a thin warm rim right at its edge
+//   C  the scene dim raised to a flat dark wash (the board outside the plaque goes dark) and a faint warm halo
+//   off  no glow (the look before 2026-10-17)
+// THE TEXTURES (game/fxTexture.ts plaqueHaloTexture): baked ONCE, when the plaque is built (the default's) or on the
+// first DEV switch that needs another, uploaded with the plaque's atlases (components/StingerPlaque.svelte), from the plaque
+// body's own alpha (its sprite, the whole silhouette but the moving wing tips): drawn small into a 2D canvas with the
+// canvas's own shadowBlur (as the logo still bakes its drop shadow), white with alpha, then drawn as plain sprites with a
+// tint. Nothing is filtered, masked or redrawn per frame; nothing is downloaded. Each sprite is the body's first child,
+// so it takes the plaque's entrance drop and scale, the touch down squash, the hover and the exit, and the plaque's
+// alpha (`placed`); the dim follows the plaque's own dim ramp.
+//   halo      each baked outline glow: `reach` = how far past the body's outline the texture runs (share of the body's
+//             width), `blur` = the canvas shadowBlur as a share of the body's width, `passes` = how many times the
+//             blurred outline is laid over itself (each pass lifts the near edge), `bakeWidth` = texture px across
+//   options   per look, back to front, each layer: which halo, its tint, alpha, blend ('add' glows, 'normal' darkens) and
+//             a scale about the plaque's centre; `dim`: the scene dim's alpha (null = the plaque's own, 0.28)
+//   A-soft    THE DEFAULT since Corey 2026-10-17 13:02: "I like A and C the most, maybe A but not as bright." A's wide
+//             halo at 57 % of A's strength (tint x alpha, by luminance), a warmer, less saturated gold, on the intro,
+//             the wrap up and the Big Win (PLAQUE_GLOW_SOFT)
+//   A-dim     one step dimmer than A-soft (44 % of A), for Corey to compare
+// DEV switch `__manticore.plaqueGlow('A-soft' | 'A-dim' | 'A' | 'B' | 'C' | 'off')` (components/StingerPlaque.svelte).
+// Back to no glow: default 'off'.
+export type PlaqueGlowKey = 'off' | 'A' | 'B' | 'C' | 'A-soft' | 'A-dim';
+export type PlaqueGlowLayer = { halo: 'wide' | 'tight'; tint: number; alpha: number; blend: 'add' | 'normal'; scale: number };
+/** A-soft's numbers (PLAQUE_GLOW below; Corey 2026-10-17 13:02 "maybe A but not as bright"). A is gold 0xffb347 (hue
+ *  35, saturation 0.72) at alpha 0.75, additive: luminance x alpha 187.3 x 0.75 = 140.5.
+ *    tint      one step warmer and less saturated than A's gold (hue 28, saturation 0.62): over the bright gold symbols
+ *              A's hot core read yellow-white even at the lower alpha
+ *    alpha     A-soft: luminance 183.5 x 0.44 = 80.7, 57 % of A
+ *    dimAlpha  A-dim, one step dimmer: 183.5 x 0.34 = 62.4, 44 % of A */
+export const PLAQUE_GLOW_SOFT = { tint: 0xffab61, alpha: 0.44, dimAlpha: 0.34 } as const;
+export const PLAQUE_GLOW: {
+	default: PlaqueGlowKey;
+	halo: Record<'wide' | 'tight', { reach: number; blur: number; passes: number; bakeWidth: number }>;
+	options: Record<Exclude<PlaqueGlowKey, 'off'>, { layers: PlaqueGlowLayer[]; dim: number | null }>;
+} = {
+	// Corey 2026-10-17 13:02: "I like A and C the most, maybe A but not as bright."
+	default: 'A-soft',
+	halo: {
+		wide: { reach: 0.14, blur: 0.09, passes: 3, bakeWidth: 256 },
+		tight: { reach: 0.05, blur: 0.022, passes: 3, bakeWidth: 384 },
+	},
+	options: {
+		A: { layers: [{ halo: 'wide', tint: 0xffb347, alpha: 0.75, blend: 'add', scale: 1 }], dim: null },
+		B: {
+			layers: [
+				{ halo: 'wide', tint: 0x000000, alpha: 1, blend: 'normal', scale: 1.12 },
+				{ halo: 'tight', tint: 0xff9a3c, alpha: 0.85, blend: 'add', scale: 1 },
+			],
+			dim: null,
+		},
+		C: { layers: [{ halo: 'wide', tint: 0xffa040, alpha: 0.5, blend: 'add', scale: 1 }], dim: 0.6 },
+		'A-soft': { layers: [{ halo: 'wide', tint: PLAQUE_GLOW_SOFT.tint, alpha: PLAQUE_GLOW_SOFT.alpha, blend: 'add', scale: 1 }], dim: null },
+		'A-dim': { layers: [{ halo: 'wide', tint: PLAQUE_GLOW_SOFT.tint, alpha: PLAQUE_GLOW_SOFT.dimAlpha, blend: 'add', scale: 1 }], dim: null },
+	},
+};
+
 // ---- THE FOREGROUND KICK (Corey 2026-10-12: "Probably the entire foreground but not the background should kick.") ----
 // On every board kick (the claw swipe's, the roar's, the win plaque's impact and tier ups) the courtyard's FOREGROUND
 // is shoved by the SAME offset as the board, on the same frame: floor, columns, pedestals, braziers, the fire light
@@ -1541,6 +1634,19 @@ export const LOGO = {
 	 *  Centre and width in the 412 wide master (scale 0.74 of the 348); on a wider phone the box keeps its distance
 	 *  from the screen's centre line, like the canvas. It was centre 206.0, 124.7, width 348. */
 	portraitPhone: { cx: 138.7, cy: 100.7, width: 257.5 },
+	/** THE PORTRAIT PHONE LOGO ON THE LEFT EDGE (branch portrait-glow-r1, OPTION for Corey, 2026-10-17 11:42: "move that
+	 *  logo in portrait mode close to the left edge and anchor it there maybe the point of the left wings widest stretch
+	 *  point plus 2 pixels for spacing"). The box keeps portraitPhone's width and centre y; only x moves, so that the
+	 *  left wing's tip sits `edgeCss` CSS px from the screen's left edge plus env(safe-area-inset-left).
+	 *    wingTipArt  the leftmost opaque point of the art (logo-stacked.webp, 1200 x 474, alpha > 32): column 0, rows 365
+	 *                to 392, the left wing's tip (alpha up to 90 there). The still is trimmed to its own alpha box, so the
+	 *                tip IS the box's left edge. In art px of LOGO.art's width (0 = the box's left edge). The portrait
+	 *                logo is that still (game/logo/still.ts), never the animated one: no widest frame to measure.
+	 *  options: 'current' (portraitPhone's centre, the look before 2026-10-17) | 'edge' (the default). DEV switch `__manticore.logoPlace('current' |
+	 *  'edge')` (components/Logo.svelte). Portrait phone only.
+	 *  THE DEFAULT IS 'edge' since Corey 2026-10-17 13:02: "Yes, Logo on left edge looks proper for placement."
+	 *  'current' stays as a DEV option; back to the old place: default 'current'. */
+	portraitPhoneEdge: { wingTipArt: 0, edgeCss: 2, default: 'edge' as 'current' | 'edge' },
 	/** the landing screen's logo (ui/LandingScreen.svelte): the art's width and centre per master, above the cards */
 	landing: { landscape: { width: 380, cx: 640, cy: 92 }, phone: { width: 380, cx: 740, cy: 92 }, portrait: { width: 348, cx: 206, cy: 110 } },
 
@@ -2260,6 +2366,48 @@ export const CREATURE = {
 	desktopTall: { aspect: 1.6, x: 2090, y: 1150, scale: 0.76 },
 	desktopWide: { aspect: 16 / 9 },
 	desktopMinAspect: 4 / 3,
+	/** THE PORTRAIT PHONE DOCK (branch portrait-glow-r1, OPTIONS for Corey; 2026-10-17 11:36 "we need to reposition the
+	 *  manticore on portrait mode", 11:38 "The ideal mark point for the manticore would be so the bottom of his claw shows
+	 *  at the end of a swipe motion. Then align that point with the top of the board, so it stays the same on different
+	 *  portrait size resolutions"). place.portraitPhone is a point in the SCENE (cover fitted), the board is in the MASTER
+	 *  (fitted by width): the two drift apart from one phone to the next, which is how he ended up behind the 524 board
+	 *  with only his head and wings over its rail. The dock holds ONE point of him on ONE row of the board art instead:
+	 *    claw    the lowest point of his striking claw at the END of the swipe: swipe f16 (the hold frame, the pose he
+	 *            holds on the strike), rig px of the 1024 canvas, alpha > 32. f17 and f18 are the same row. Measured on all
+	 *            three looks' swipe atlases: row 776.0 on the full tier, 777.5 on the phone tier (one texel of 2.4 rig
+	 *            px); x 231 (he is not moved sideways: only y follows the dock)
+	 *    edges   the board art rows he docks to, render px of board_v5l (game/boardArtSpec.ts), through the board's own
+	 *            registration (layoutSpec registrationOf), so they hold at every growth k and every phone:
+	 *              frame  the outer metal top bar's top edge (board-frame-portrait.webp, alpha > 32, flat between the
+	 *                     spikes: texture row 127 = render 205.6; the spikes and the corner blocks rise above it)
+	 *              grid   the cell area's top edge (BOARD_ART.lattice.y0 299.247: the cells' top, the lattice's outer bar)
+	 *    options current  place.portraitPhone, untouched (the look before 2026-10-17)
+	 *            A        the claw on the frame's top bar, his size unchanged (THE DEFAULT)
+	 *            B        the claw on the cell area's top edge (the claw overlaps the rail; he stays behind the board)
+	 *            C        A at size 0.85 (only if A meets the logo or the status bar at 375 x 667)
+	 *  DEV switch `__manticore.creaturePlace('current' | 'A' | 'B' | 'C')` (components/Background.svelte). Portrait
+	 *  phone only; every other spot is untouched.
+	 *  THE DEFAULT IS A since Corey 2026-10-17 13:02: "A Claw on Frame Top." (the claw point at the end of the swipe on
+	 *  the frame's top bar, size 1). 'current', B and C stay as DEV options only; back to the old spot: default 'current'. */
+	portraitDock: {
+		claw: { x: 231, y: 776, clip: 'swipe', frame: 16 },
+		edges: { frame: 205.6, grid: 299.247 },
+		options: {
+			A: { edge: 'frame', size: 1 },
+			B: { edge: 'grid', size: 1 },
+			C: { edge: 'frame', size: 0.85 },
+		},
+		// Corey 2026-10-17 13:02: "A Claw on Frame Top."
+		default: 'A' as CreatureDockKey,
+	},
+	/** THE SHARP IDLE ON PHONES (creature-sharp investigation option C, feedback/creature_sharp_r1/REPORT.md). Corey
+	 *  2026-10-17 13:02: "Option C Sounds fine". On the phone tier each look's IDLE sheet is the full tier's 640 px file
+	 *  (game/creatureAssets.ts), and his still is the full still too (game/assets.ts creatureStill), so he is the same
+	 *  picture when his idle lands; the attacks, the alternates, the shared shadow and glow atlases stay on the 432 phone
+	 *  sheets. The sprite takes its scale from each frame's own size on every swap (game/creature.ts draw), so the 640 idle
+	 *  and the 432 clips draw on the same anchor and place. Measured 156.29 MB per look on the GPU on a phone (was 123.5; the
+	 *  probe's BUDGET.phone) and a 216.0 MB peak while two looks cross over. ROLLBACK: false (every phone sheet at 432 again, as before 2026-10-17). */
+	phoneFullIdle: true,
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
 	// prefetchGroups (2026-10-15, download analysis S3, Corey yes): the prefetch takes only these load groups of each look
 	// (game/creatureLoad.ts GROUPS); the alternates (snarl, growl) load when the mode asks for the look, like any look.
@@ -2310,7 +2458,9 @@ export const CREATURE = {
 	growlOdds: 1 / 30,
 	breath: true,
 	voice: { rateMin: 0.95, rateMax: 1.05 },
-	shadowAlpha: 1,
+	/** the floor shadow's strength (the Rig's rendered shadow pass is pure black, alpha up to 254): Corey 2026-10-17 13:20
+	 *  "it needs to be much lighter, it doesn't look right being near black" (was 1) */
+	shadowAlpha: 0.45,
 	beatWaitMs: 300,
 	crouchTimeoutMs: 3000,
 	cueBiasMs: 34,
@@ -2318,6 +2468,8 @@ export const CREATURE = {
 } as const;
 /** which of CREATURE.place a layout takes */
 export type CreatureSpot = keyof typeof CREATURE.place;
+/** the portrait phone dock's options (CREATURE.portraitDock); 'current' = place.portraitPhone as it is */
+export type CreatureDockKey = 'current' | 'A' | 'B' | 'C';
 
 export type SymbolInfo = { type: 'sprite'; assetKey: string; sizeRatios: { width: number; height: number } };
 
@@ -2430,11 +2582,13 @@ export const MAX_WIN = {
 	/** the sound of each slam: the plaque's own landing thump (STINGER_PLAQUE's impacts) */
 	slamSound: 'sfx_plaque_land',
 	/** Title and amount slots per LayoutKind, in that kind's MASTER px from its centre: `*Cap` are cap heights,
-	 *  `*Width` shrink-to-fit caps, `x` / `*Y` fractions of the master width / height. `mayhem*` / `unleashed*` are the
-	 *  two lines of MAYHEM UNLEASHED; `recede*` where that pair sits (its centre) and its scale once MAX WIN is on it. */
+	 *  `*Width` shrink-to-fit caps, `*Y` fractions of the master height. `mayhem*` / `unleashed*` are the
+	 *  two lines of MAYHEM UNLEASHED; `recede*` where that pair sits (its centre) and its scale once MAX WIN is on it.
+	 *  ACROSS, every line is centred on the SCREEN's centre by its visible ink (Corey 2026-10-17 15:34, "Screen, not
+	 *  board"): the master's centre is the canvas centre, and titleInk / glyphInk below take each line's ink to it.
+	 *  (Up to then the landscape and phone lines sat on x 0.46 / 0.47 of the master, left of centre to dodge him.) */
 	layout: {
 		landscape: {
-			x: 0.46,
 			lineCap: 92, lineWidth: 1040, mayhemY: 0.36, unleashedY: 0.53,
 			recedeScale: 0.48, recedeY: 0.15,
 			maxCap: 104, maxWidth: 1060, maxY: 0.47,
@@ -2442,7 +2596,6 @@ export const MAX_WIN = {
 			multCap: 34, multWidth: 420, multY: 0.77,
 		},
 		phone: {
-			x: 0.47,
 			lineCap: 100, lineWidth: 1140, mayhemY: 0.36, unleashedY: 0.54,
 			recedeScale: 0.48, recedeY: 0.15,
 			maxCap: 112, maxWidth: 1160, maxY: 0.47,
@@ -2450,7 +2603,6 @@ export const MAX_WIN = {
 			multCap: 36, multWidth: 460, multY: 0.78,
 		},
 		portrait: {
-			x: 0.5,
 			lineCap: 46, lineWidth: 380, mayhemY: 0.43, unleashedY: 0.52,
 			recedeScale: 0.55, recedeY: 0.1,
 			maxCap: 52, maxWidth: 384, maxY: 0.5,
@@ -2458,6 +2610,19 @@ export const MAX_WIN = {
 			multCap: 20, multWidth: 220, multY: 0.67,
 		},
 	},
+	/** THE BAKED TITLES' INK (maxwin_center_r1, 2026-10-17): where each title's gold face is centred inside its own
+	 *  image, in title px (the full tier's image px, the units of the atlas meta's `w`): the face's ink centre minus the
+	 *  image centre. Measured off maxwin.webp (gold face = alpha >= 128 and brightest channel >= 90); the phone tier's
+	 *  half size images agree within 1 title px (-6, -6, +29). MAX WIN's face sits 29.5 right of its image's centre
+	 *  (the image has a faint shade along its left edge and the N's tail runs out to its right edge). The screen puts each
+	 *  title this far the other way inside its slot, so the slam and the recede scale about the ink's centre. */
+	titleInk: { mw_mayhem: -6, mw_unleashed: -6, mw_max: 29.5 } as Record<string, number>,
+	/** THE GLYPH FRAMES' PADDING around the gold face (the amount and the multiple, the forged glyph atlas), font
+	 *  units: every frame carries the dark outline on both sides and the drop shadow down right, so the face starts
+	 *  this far in from a frame's left edge and ends this far in from its right. Measured over all 68 glyphs of both
+	 *  tiers: left 18 to 20, right 28 to 32. The row is centred on the span from its first face's left to its last
+	 *  face's right (PlaqueText.inkSpan), not on its advance box. */
+	glyphInk: { left: 19, right: 29.5 },
 	/** THE WILD MEDALLION RAIN (game/medallionRain.ts): the Wild's static tile (`W.png` in the mmSymbols
 	 *  atlas) falling and turning over like thrown coins behind the creature and the titles. One pooled container,
 	 *  every sprite made up front, moved by ONE ticker callback; density = how many of the pool are live. */
@@ -2530,4 +2695,33 @@ export const LOAD_GATE = {
 	besideAudioFiles: 0,
 	musicSideTracks: 'afterGate' as 'afterGate' | 'asBefore',
 	sceneBesideAttacks: true,
+} as const;
+
+// THE IN-GAME PRESS ANYWHERE TO CONTINUE (fonts r2, Corey 2026-10-17 14:01, option 1): Cinzel 700, the display face, in
+// the landing screen's PRESS ANYWHERE colour and tracking (ui/LandingScreen.svelte .pressText: #eef0e6, 0.05em, text
+// shadow 0 2px 4px rgba(0, 0, 0, 0.7) at its 18 px desktop size, here in ems of the font). It keeps the old line's slot,
+// cap height, centring and maxWidth fit (components/PressToContinue.svelte), its blink and, over the board, its veil and
+// its hard drop shadow. Drawn once into a texture (game/pressPrompt.ts, components/PressPromptText.svelte).
+export const PRESS_PROMPT = {
+	/** the words, the same on every site (social included) */
+	text: 'PRESS ANYWHERE TO CONTINUE',
+	family: 'Cinzel',
+	weight: 700,
+	/** what document.fonts.load waits on before the line is ever drawn */
+	fontCheck: '700 32px Cinzel',
+	/** the landing's letter spacing, in ems */
+	trackEm: 0.05,
+	/** the letters' colour (the texture is white, the sprite is tinted): the landing's #eef0e6 */
+	ink: 0xeef0e6,
+	/** the landing's soft text shadow, baked into the texture: 2 px down and a 4 px blur at 18 px, 70 % black */
+	soft: { dyEm: 2 / 18, blurEm: 4 / 18, color: 'rgba(0, 0, 0, 0.7)' },
+	/** the texture's clear margin: this many blurs plus this share of the font size, for the shadow and the overhang */
+	padBlurs: 1.5,
+	padEm: 0.08,
+	/** the size the face is measured at (its cap height and the line's width per font size) */
+	measurePx: 100,
+	/** the texture's largest side in px */
+	texMax: 4096,
+	/** how many sizes stay cached with nobody showing them (the desktop's over the board line and the max win's) */
+	keep: 2,
 } as const;

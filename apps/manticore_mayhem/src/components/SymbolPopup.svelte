@@ -19,11 +19,11 @@
 	// on another symbol moves it there.
 	//
 	// House rules: no backdrop-filter, no filter, no mask; the pop is opacity and a small scale; DEV hooks only on
-	// window.__manticore; fonts the HUD already loads (Black Ops One, Outfit, Sora).
+	// window.__manticore; fonts the chrome already loads (Cinzel for the name, Outfit, Sora).
 	import { onMount, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fade } from 'svelte/transition';
-	import { stateBet, stateBetDerived, stateModal, stateUi } from 'state-shared';
+	import { stateBet } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 	import type * as PIXI from 'pixi.js';
 
@@ -34,33 +34,16 @@
 	import { openingsFor } from '../game/symbolPlace';
 	import { boardOpening } from '../game/boardTap';
 	import { stamp } from '../game/assets';
-	import { maxWinState } from '../game/maxWin.svelte';
-	import { armouryView } from '../ui/armoury/armouryView.svelte';
+	import { boardIdle } from '../game/boardIdle';
 	import { SYMBOL_POPUP as P } from '../game/symbolPopupSpec';
 	import { isPopupCode, placePopup, popupContent, symbolPopupHook, type Box, type PopupCode } from '../game/symbolPopup';
 
 	const context = getContext();
 	const sg = context.stateGame;
 
-	/** THE IDLE BOARD: the one place the popup may open (and the moment it stops being true, it closes) */
-	const idle = () =>
-		context.stateXstateDerived.isIdle() &&
-		!sg.resumeHold &&
-		stateUi.config.mode !== 'replay' &&
-		!context.stateLayout.showLoadingScreen &&
-		stateModal.modal == null &&
-		!stateUi.menuOpen &&
-		!armouryView.shown &&
-		!stateBetDerived.hasAutoBetCounter() &&
-		!stateBet.isSpaceHold &&
-		sg.gameType !== 'freegame' &&
-		sg.pressGates === 0 &&
-		!sg.winShowing &&
-		sg.plaque === null &&
-		!sg.skipping &&
-		!sg.busy &&
-		sg.readouts.length === 0 &&
-		maxWinState.phase === 'idle';
+	/** THE IDLE BOARD: the one place the popup may open (and the moment it stops being true, it closes). The rule is
+	 *  game/boardIdle.ts, shared with the plaque's explainer lines (components/BoardPlaque.svelte) */
+	const idle = boardIdle;
 
 	type View = { id: number; code: PopupCode; reel: number; row: number; cell: Box; board: Box; k: number };
 	let view = $state<View | null>(null);

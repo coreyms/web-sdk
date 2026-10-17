@@ -6,8 +6,8 @@
 	import { onMount, untrack } from 'svelte';
 
 	import { getContext } from '../game/context';
-	import { HUD, HUD_BAND_PROMPT_Y, PROMPT_VEIL, boardRowRect, layoutKind } from '../game/layoutSpec';
-	import ArtAmount from './ArtAmount.svelte';
+	import { HUD, HUD_BAND_PROMPT_Y, PROMPT_IN_ROW, PROMPT_VEIL, boardRowRect, layoutKind } from '../game/layoutSpec';
+	import PressPromptText from './PressPromptText.svelte';
 
 	// `active` (default true — conditionally-mounted gates need nothing): consumers whose
 	// PressToContinue stays ALWAYS mounted under a persistent FadeContainer (BonusIntro) pass
@@ -25,13 +25,18 @@
 		return props.atHudBand ? { ...s, y: HUD_BAND_PROMPT_Y[kind] } : s;
 	});
 	// OVER THE BOARD (the desktop slot, 2026-10-16) the prompt crosses the bottom row's symbols: that row is veiled
-	// while it is up (layoutSpec PROMPT_VEIL) and the glyphs get the hard drop shadow the board's own readouts use
-	// (components/Board.svelte), a second run of them, no filter. Phone and portrait (and the max win's band) are drawn
+	// while it is up (layoutSpec PROMPT_VEIL) and the letters get the hard drop shadow the board's own readouts use
+	// (components/Board.svelte), a second copy of them, no filter. Phone and portrait (and the max win's band) are drawn
 	// as before, without either.
+	// THE FACE (fonts r2, Corey 2026-10-17 14:01): Cinzel 700, drawn once into a texture (PressPromptText,
+	// game/pressPrompt.ts) where the Black Ops One atlas line (ArtAmount) was: the same slot, cap height, centring and
+	// maxWidth fit, and over the board also fitted inside the veiled row (layoutSpec PROMPT_IN_ROW).
 	const PROMPT_SHADOW = { dx: 0.05, dy: 0.06, tint: 0x0a0b0d };
 	const overBoard = $derived(kind === 'landscape' && !props.atHudBand);
 	const shadow = $derived(overBoard ? PROMPT_SHADOW : undefined);
 	const veilRect = $derived(overBoard ? boardRowRect(kind, PROMPT_VEIL.row) : null);
+	// over the board the line also stays inside the veiled row (fonts r2: Cinzel is wider than the stencil was)
+	const fitWidth = $derived(veilRect ? Math.min(slot.width, veilRect.width * PROMPT_IN_ROW) : slot.width);
 	const veil = new Tween(0, { duration: PROMPT_VEIL.fadeMs });
 	$effect(() => {
 		const on = !!props.showText && overBoard;
@@ -85,13 +90,12 @@
 			<Rectangle x={veilRect.x} y={veilRect.y} width={veilRect.width} height={veilRect.height} backgroundColor={PROMPT_VEIL.color} alpha={PROMPT_VEIL.alpha * veil.current} />
 		{/if}
 	</Container>
-	<ArtAmount
-		text="PRESS ANYWHERE TO CONTINUE"
+	<PressPromptText
 		height={slot.height * 0.42}
 		x={context.stateLayoutDerived.mainLayout().width * 0.5}
 		y={slot.y - slot.height * 0.5}
 		alpha={blink.current}
-		maxWidth={slot.width}
+		maxWidth={fitWidth}
 		{shadow}
 	/>
 </MainContainer>

@@ -251,3 +251,64 @@ export const clawTexture = (): ClawGeom => {
 	claw = { texture: PIXI.Texture.from(c), w, h, pad, chord, yEnd, corePx, yAt };
 	return claw;
 };
+
+/** THE PLAQUE'S HALO (constants PLAQUE_GLOW, branch portrait-glow-r1): the plaque body's own outline, blurred, white with
+ *  alpha, baked ONCE per halo kind into a small 2D canvas (the canvas's shadowBlur, as game/logo/still.ts bakes the logo's
+ *  shadow; no filter in the renderer) and drawn as a plain sprite behind the plaque with a tint. `body` is the body
+ *  sprite's texture (its frame of the plaque atlas), `bodyW` / `bodyH` its size in ship px. Returns the texture and its
+ *  box in ship px relative to the body's top left corner, and how it was made (`silhouette` false: the atlas image could
+ *  not be drawn, so the halo is of the body's rounded box instead). */
+export type PlaqueHalo = { texture: PIXI.Texture; x: number; y: number; width: number; height: number; silhouette: boolean; bakeMs: number; bytes: number; profile: { down: number[]; left: number[]; shipPerPx: number } | null };
+const halos = new Map<string, PlaqueHalo>();
+export const plaqueHaloTexture = (key: string, body: PIXI.Texture, bodyW: number, bodyH: number, spec: { reach: number; blur: number; passes: number; bakeWidth: number }): PlaqueHalo => {
+	const had = halos.get(key);
+	if (had) return had;
+	const t0 = performance.now();
+	const pad = spec.reach * bodyW;
+	const W = spec.bakeWidth;
+	const k = W / (bodyW + 2 * pad); // canvas px per ship px
+	const H = Math.round((bodyH + 2 * pad) * k);
+	const c = document.createElement('canvas');
+	c.width = W;
+	c.height = H;
+	const ctx = c.getContext('2d')!;
+	const bw = bodyW * k;
+	const bh = bodyH * k;
+	const px = pad * k;
+	// the shape itself is drawn off the canvas; only its blurred shadow lands on it, `passes` times over
+	const off = W + bw + 16;
+	ctx.shadowColor = '#fff';
+	ctx.shadowBlur = spec.blur * bodyW * k;
+	ctx.shadowOffsetX = off;
+	const image = body.source?.resource as CanvasImageSource | undefined;
+	const f = body.frame;
+	let silhouette = false;
+	for (let i = 0; i < spec.passes; i += 1) {
+		try {
+			if (!image) throw new Error('no image');
+			ctx.drawImage(image, f.x, f.y, f.width, f.height, px - off, px, bw, bh);
+			silhouette = true;
+		} catch {
+			ctx.fillStyle = '#fff';
+			ctx.beginPath();
+			ctx.roundRect(px - off, px, bw, bh, bh * 0.08);
+			ctx.fill();
+		}
+	}
+	const out: PlaqueHalo = { texture: PIXI.Texture.from(c), x: -pad, y: -pad, width: bodyW + 2 * pad, height: bodyH + 2 * pad, silhouette, bakeMs: 0, bytes: W * H * 4, profile: null };
+	out.bakeMs = performance.now() - t0;
+	if (import.meta.env.DEV) {
+		// DEV (the cost and reach report): the halo's alpha (0..1) outward from the body's box, one sample per ship px of
+		// body width share: down the centre column from the body's bottom edge, along the middle row from its left edge
+		const col = ctx.getImageData(Math.floor(W / 2), 0, 1, H).data;
+		const row = ctx.getImageData(0, Math.floor(H / 2), W, 1).data;
+		const bottom = Math.round(px + bh);
+		out.profile = {
+			down: Array.from({ length: H - bottom }, (_, i) => col[(bottom + i) * 4 + 3] / 255),
+			left: Array.from({ length: Math.round(px) }, (_, i) => row[(Math.round(px) - 1 - i) * 4 + 3] / 255),
+			shipPerPx: 1 / k,
+		};
+	}
+	halos.set(key, out);
+	return out;
+};

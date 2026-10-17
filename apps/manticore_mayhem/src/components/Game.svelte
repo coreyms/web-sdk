@@ -110,8 +110,8 @@
 	});
 
 	// Retina/5K canvases at full DPR are the biggest GPU cost: the renderer's resolution is capped
-	// (RENDER_RESOLUTION_CAP: 1.5 on the phone tier, house rule 3; 2 on desktop since 2026-10-09 and on an allowlisted
-	// iPhone since 2026-10-13; off the phone tier also the pixel ceiling RENDER_MAX_PIXELS). Renderable GC stays DISABLED (house rule 8, Pixi 8.8.1's
+	// (RENDER_RESOLUTION_CAP: 3 on the phone tier since 2026-10-17 (was 1.5, house rule 3); 2 on desktop since
+	// 2026-10-09; off the phone tier also the pixel ceiling RENDER_MAX_PIXELS). Renderable GC stays DISABLED (house rule 8, Pixi 8.8.1's
 	// CanvasTextPipe dereferences a GC-evicted _gpuText entry with no null guard and takes the HTML
 	// chrome down with it): poll until the system has armed its scheduler, THEN cancel it, because
 	// a disable issued against the uninitialised system is a silent no-op that init overwrites.

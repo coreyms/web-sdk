@@ -43,11 +43,15 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureSpot } from '../game/constants';
-	import { creature, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
+	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
+	import { creature, creatureDocked, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
+	import { boardRegistration } from '../game/boardArt';
+	import { portraitOptions } from '../game/portraitOptions.svelte';
 	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog } from '../game/creatureLoad';
 	import { stateBet } from 'state-shared';
 	import { CREATURE_SPEC } from '../game/creatureSpec';
+	import type { CreatureClip } from '../game/creatureAssets';
+	import { bootCreatureShade, setCreatureShade } from '../game/creatureShade';
 	import type { SoundEffectName } from '../game/sound';
 	import { boardKick, foregroundKick, shoveForeground } from '../game/featureFx';
 	import { boardOpening } from '../game/boardTap';
@@ -165,11 +169,16 @@
 		clearSceneLight();
 	};
 
+	/** DEV, the probe only (`?flamehold=1`): the deferred flame clips are not built when their files land but when
+	 *  __manticore.flames.land() is called, so a probe can put that moment inside a crossfade (night_fade_r1) */
+	let flameHold = $state(import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('flamehold') === '1');
+
 	// the files: a scene's day set builds it, its night set joins it, and the landscape scene's two deferred flame
 	// clips after that. Each lot is uploaded once, when it lands, if that scene is the one on screen (sources already
 	// on the GPU are only bound again); a scene that is not showing takes its upload when it is next shown.
 	$effect(() => {
 		const assets = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
+		const holdFlames = flameHold;
 		if (!assets) return;
 		untrack(() => {
 			for (const layout of LAYOUTS) {
@@ -179,7 +188,7 @@
 				const before = view.sources().length;
 				if (!r.day && view.setDay(assets)) r.day = true;
 				if (r.day && !r.night && view.setNight(assets, performance.now())) r.night = true;
-				if (r.day && !r.flames && view.setFlames(assets, performance.now())) r.flames = true;
+				if (r.day && !r.flames && !holdFlames && view.setFlames(assets, performance.now())) r.flames = true;
 				// the sky's shared files (atlas, birds, bats) can land after this scene's own sets when it was fetched at a turn
 				if (r.day && !r.sky && view.setSky(assets)) r.sky = true;
 				if (view.sources().length === before) continue;
@@ -274,6 +283,8 @@
 		kind === 'landscape' ? 'desktop' : kind === 'phone' ? 'phoneSideways' : ['smallMobile', 'mobile'].includes(context.stateLayoutDerived.canvasSizeType()) ? 'portraitPhone' : 'portraitTablet',
 	);
 	creatureLoader.renderer = renderer;
+	// THE BACK-FEET SHADE (constants CREATURE_SHADE; game/creatureShade.ts): the production default, or DEV ?creatureshade=
+	bootCreatureShade();
 	creature.env = {
 		ts: () => context.stateGameDerived.timeScale(),
 		skipping: () => context.stateGame.skipping,
@@ -301,7 +312,32 @@
 	// constants CREATURE.desktopTall). A resize moves him without re-adding his nodes. DEV: `placeOverride` (the
 	// __manticore.creature.placeAt hook) stands him somewhere else until it is cleared.
 	let placeOverride: CreaturePlace | null = $state(null);
-	const creaturePlace = $derived(placeOverride ?? creaturePlaceFor(spot, canvas.width / Math.max(canvas.height, 1)));
+	/** THE PORTRAIT PHONE DOCK (constants CREATURE.portraitDock, game/creature.ts creatureDocked): with an option on, his
+	 *  claw point goes on a row of the board art, through the board's own registration (the master fit, the growth k)
+	 *  and the portrait scene's cover fit and oversize at rest. Portrait phone only; 'current' is the spot as it is. */
+	const dockEdge = (row: number) => {
+		const master = context.stateLayoutDerived.mainLayout();
+		const vw = canvas.width / master.scale;
+		const my = boardRegistration('portrait', vw).map(0, row).y;
+		return master.y + (my - master.height / 2) * master.scale;
+	};
+	const dockFit = () => {
+		const [fw, fh] = frames.portrait;
+		const s = Math.max(canvas.width / fw, canvas.height / fh);
+		const x = (canvas.width - fw * s) / 2;
+		const y = (canvas.height - fh * s) / 2;
+		const over = foregroundOn ? foregroundOver(canvasPerKickPx, -x, -y, (fw * s) / 2, (fh * s) / 2) : 1;
+		return { y, scale: s, foreY: (fh * (1 - over)) / 2, over };
+	};
+	const spotPlace = (): CreaturePlace => {
+		const base = creaturePlaceFor(spot, canvas.width / Math.max(canvas.height, 1));
+		const key = portraitOptions.creature;
+		if (spot !== 'portraitPhone' || which !== 'portrait' || key === 'current') return base;
+		const D = CREATURE.portraitDock;
+		const o = D.options[key];
+		return creatureDocked(base, o.size, dockEdge(D.edges[o.edge]), dockFit());
+	};
+	const creaturePlace = $derived(placeOverride ?? spotPlace());
 	$effect(() => {
 		const place = creaturePlace;
 		untrack(() => creature.place(place));
@@ -400,6 +436,12 @@
 				return { left: -f.x, top: -f.y, right: f.x + fw * f.scale - canvas.width, bottom: f.y + fh * f.scale - canvas.height };
 			};
 			Object.assign(((window as any).__manticore ??= {}), {
+				/** THE PORTRAIT PHONE DOCK's option (constants CREATURE.portraitDock): 'current' (the old spot) | 'A' (the default since 2026-10-17) | 'B' | 'C'.
+				 *  Returns the option in force. */
+				creaturePlace: (key: CreatureDockKey) => {
+					if (key === 'current' || key in CREATURE.portraitDock.options) portraitOptions.creature = key;
+					return portraitOptions.creature;
+				},
 				scene: {
 					/** the scene of the current layout (or of `layout`: the one that is not showing) */
 					state: (layout: SceneLayout = which) => {
@@ -558,6 +600,11 @@
 						views.landscape.refreshFlames();
 					},
 					toCanvas: (x: number, y: number) => ptFore(views.landscape, x, y),
+					/** `?flamehold=1` only: build the deferred clips now (their files are in by then); the time it was asked */
+					land: () => {
+						flameHold = false;
+						return performance.now();
+					},
 				},
 				// ---- __manticore.foregroundKick (tools/manticore/chain_gust_probe.js, ONLY=foreground): the scene's side of
 				// the foreground kick. The board's side is __manticore.frameGust.kick ----
@@ -607,7 +654,7 @@
 				// ---- __manticore.creature (tools/manticore/creature_probe.js) ----
 				creature: {
 					constants: () => JSON.parse(JSON.stringify(CREATURE)),
-					spec: () => ({ canvas: CREATURE_SPEC.canvas, feetRow: CREATURE_SPEC.feetRow, feetCol: CREATURE_SPEC.feetCol, fps: CREATURE_SPEC.fps, clips: JSON.parse(JSON.stringify(CREATURE_SPEC.clips)), tier, tierCanvas: CREATURE_SPEC.tiers[tier].canvas }),
+					spec: () => ({ canvas: CREATURE_SPEC.canvas, feetRow: CREATURE_SPEC.feetRow, feetCol: CREATURE_SPEC.feetCol, fps: CREATURE_SPEC.fps, clips: JSON.parse(JSON.stringify(CREATURE_SPEC.clips)), tier, tierCanvas: CREATURE_SPEC.tiers[tier].canvas, /** the idle sheets' canvas (CREATURE.phoneFullIdle: 640 on the phone too) */ idleCanvas: CREATURE_SPEC.tiers[CREATURE.phoneFullIdle ? 'full' : tier].canvas }),
 					/** everything: the state machine, what is loaded, the spot, and where the nodes are ON THE CANVAS through
 					 *  their own transforms (the feet point, and one 1024 canvas px in canvas px) */
 					state: () => {
@@ -692,6 +739,30 @@
 					 *  override of it (null: back to the layout's) */
 					place: () => ({ ...creaturePlace }),
 					placeAt: (p: CreaturePlace | null) => (placeOverride = p),
+					/** DEV: hold one frame of a clip still (the placement stills: swipe f16, the end of the swipe), null = run */
+					pin: (clip: CreatureClip | null, frame = 1) => (creature.pin = clip ? { clip, frame } : null),
+					/** the portrait dock: the option, his claw point and the board edges on the canvas (CSS px), at rest */
+					dock: () => {
+						const D = CREATURE.portraitDock;
+						const p = creaturePlace;
+						const f = dockFit();
+						const toCanvas = (localY: number) => f.y + (f.foreY + localY * f.over) * f.scale;
+						const toCanvasX = (localX: number) => {
+							const [fw] = frames.portrait;
+							const x0 = (canvas.width - fw * f.scale) / 2;
+							return x0 + ((fw * (1 - f.over)) / 2 + localX * f.over) * f.scale;
+						};
+						return {
+							key: portraitOptions.creature,
+							spot,
+							place: { ...p },
+							claw: { x: toCanvasX(p.x + (D.claw.x - CREATURE_SPEC.feetCol) * p.scale), y: toCanvas(p.y - (CREATURE_SPEC.feetRow - D.claw.y) * p.scale) },
+							feet: { x: toCanvasX(p.x), y: toCanvas(p.y) },
+							/** canvas px per rig px */
+							rigPx: p.scale * f.over * f.scale,
+							edges: { frame: dockEdge(D.edges.frame), grid: dockEdge(D.edges.grid) },
+						};
+					},
 					log: () => creature.log.map((e) => ({ ...e })),
 					loadLog: () => creatureLoadLog.map((e) => ({ ...e })),
 					/** THE PREFETCH (game/creatureLoad.ts): its two conditions, when it ran, every file it fetched */
@@ -720,6 +791,9 @@
 					/** the A / B of CREATURE.glowPhase (the crouch's phase before a lit strike) */
 					glowPhase: (on: boolean) => (creature.glowPhase = on),
 				},
+				/** THE BACK-FEET SHADE (Corey 2026-10-17 13:21; constants CREATURE_SHADE): 'off', 'A' (the shadow pass over
+				 *  him) or 'B' (the baked contact occlusion; fetches its atlas first). Resolves to the mode and whether B is in */
+				creatureShade: (mode: CreatureShadeMode) => setCreatureShade(mode),
 				// ---- __manticore.fireSound / chainSound (tools/manticore/win_sound_probe.js, ONLY=fire,chain) ----
 				fireSound: { state: () => fireSoundState(), log: () => fireSoundLog.map((e) => ({ ...e })), constants: () => JSON.parse(JSON.stringify(FIRE_SOUND)) },
 				chainSound: { log: () => chainSoundLog.asked.map((e) => ({ ...e })), refused: () => chainSoundLog.refused, constants: () => JSON.parse(JSON.stringify({ sound: CHAIN_SOUND, gust: CHAIN_GUST })) },

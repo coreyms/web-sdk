@@ -3,7 +3,9 @@
 // logo maps the same art box of its frame onto it (components/Logo.svelte), so the two are the same picture
 // in the same place. Numbers in constants LOGO.
 import { LOGO } from '../constants';
-import { frameArtRect, MASTER, SKIP, type LayoutKind } from '../layoutSpec';
+import { frameArtRect, MASTER, portraitViewportNow, SKIP, type LayoutKind } from '../layoutSpec';
+import { portraitOptions } from '../portraitOptions.svelte';
+import { safeInsetLeftCss } from '../safeInset';
 
 export type LogoRect = { x: number; y: number; width: number; height: number };
 
@@ -28,6 +30,16 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 	if (phone) {
 		const { cx, cy, width } = LOGO.portraitPhone;
 		const height = width / ASPECT;
+		const view = portraitViewportNow();
+		if (portraitOptions.logo === 'edge' && view) {
+			// THE LEFT EDGE OPTION (constants LOGO.portraitPhoneEdge): the left wing's tip edgeCss CSS px (plus the safe area)
+			// in from the screen's left edge. The screen's left edge is half the viewport's width left of the master's centre.
+			const E = LOGO.portraitPhoneEdge;
+			const vw = Math.max(viewportMasterWidth ?? MASTER.portrait.width, 1);
+			const tip = (E.wingTipArt * width) / LOGO.art.width;
+			const x = MASTER.portrait.width / 2 - vw / 2 + (E.edgeCss + safeInsetLeftCss()) / view.cssPerMaster - tip;
+			return { x, y: cy - height / 2, width, height };
+		}
 		return { x: cx - width / 2, y: cy - height / 2, width, height };
 	}
 	const P = LOGO.portrait;

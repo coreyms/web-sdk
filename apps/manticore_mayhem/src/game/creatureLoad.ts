@@ -63,7 +63,8 @@ type GroupLog = Record<string, { start: number; end: number; keys: number; faile
 type Sheet = { textures: Record<string, PIXI.Texture> };
 
 const GROUPS: { name: string; clips: CreatureClip[]; shared: (keyof typeof CREATURE_SHARED)[] }[] = [
-	{ name: 'creatureIdle', clips: ['idle'], shared: ['shadow'] },
+	// (the shade, the back-feet shade's atlas, only while its option B is on: constants CREATURE_SHADE, sharedWanted())
+	{ name: 'creatureIdle', clips: ['idle'], shared: ['shadow', 'shade'] },
 	{ name: 'creatureActs', clips: ['swipe', 'roar', 'charge_in', 'charge_loop', 'sting_hit', 'sting_recrouch'], shared: ['glow'] },
 	{ name: 'creatureAlts', clips: ['snarl', 'growl'], shared: [] },
 ];
@@ -81,6 +82,18 @@ const note = (what: (typeof creatureLoadLog)[number]['what'], look: string, file
 let booted = false;
 let groupLog: GroupLog | null = null;
 const shared: Partial<Record<keyof typeof CREATURE_SHARED, boolean>> = {};
+/** a shared sheet on its way or in (one fetch however many runs, or the DEV shade switch, ask; a failure may be asked again) */
+const sharedLoads: Partial<Record<keyof typeof CREATURE_SHARED, Promise<boolean>>> = {};
+/** the shared sheets a run fetches: the shade only while he draws option B (constants CREATURE_SHADE) */
+const sharedWanted = (kind: keyof typeof CREATURE_SHARED): boolean => kind !== 'shade' || creature.shadeOption === 'B';
+/** a shared sheet, once: fetched, uploaded and handed to him (resolves whether it is in; never rejects) */
+export const loadCreatureShared = (kind: keyof typeof CREATURE_SHARED): Promise<boolean> =>
+	(sharedLoads[kind] ??= (async () => {
+		const sheet = await fetchSheet(CREATURE_SHARED[kind], 'shared');
+		if (sheet && creature.setShared(kind, sheet.textures)) return (shared[kind] = true);
+		delete sharedLoads[kind];
+		return false;
+	})());
 /** per look: the run that is loading it (a look let go mid load is dropped by its run), and the files it holds */
 const runs: Partial<Record<CreatureLook, { id: number; done: Promise<void>; idle: Promise<void>; held: Promise<void>; drop: () => void; urls: string[]; go: () => void; on: () => void }>> = {};
 let serial = 0;
@@ -184,12 +197,11 @@ const load = (look: CreatureLook) => {
 		if (busy) await busy;
 		for (const group of GROUPS) {
 			const first = !groupLog?.[group.name];
-			const log = first && groupLog ? (groupLog[group.name] = { start: performance.now(), end: 0, keys: group.clips.length + group.shared.length, failed: 0 }) : null;
-			for (const kind of group.shared) {
+			const kinds = group.shared.filter(sharedWanted);
+			const log = first && groupLog ? (groupLog[group.name] = { start: performance.now(), end: 0, keys: group.clips.length + kinds.length, failed: 0 }) : null;
+			for (const kind of kinds) {
 				if (shared[kind]) continue;
-				const sheet = await fetchSheet(CREATURE_SHARED[kind], 'shared');
-				if (sheet && creature.setShared(kind, sheet.textures)) shared[kind] = true;
-				else if (log) log.failed += 1;
+				if (!(await loadCreatureShared(kind)) && log) log.failed += 1;
 			}
 			for (const clip of group.clips) {
 				if (!mine()) return;

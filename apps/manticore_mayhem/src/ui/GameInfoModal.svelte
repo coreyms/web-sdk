@@ -437,8 +437,9 @@
 		border-bottom: 1px solid var(--rule);
 	}
 	.h-title {
-		font-weight: 900;
-		letter-spacing: 5px;
+		/* the display face (ChromeStyles --ui-font-display, review D10): Cinzel 700 with the wide tracking */
+		font-weight: var(--ui-display-weight);
+		letter-spacing: var(--ui-display-track-wide);
 		color: var(--ink);
 	}
 	.x {

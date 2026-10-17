@@ -11,6 +11,17 @@
 		:root {
 			--ui-font: 'Outfit', system-ui, sans-serif;
 			--ui-font-num: 'Sora', system-ui, sans-serif;
+			/* THE DISPLAY FACE (review D10, Corey 2026-10-17 13:05): every live title in the game is set in Cinzel Bold,
+			   the face the Armoury, the intro cards and the board plaque already use. Outfit stays the body face and the
+			   HUD keeps Sora. Cinzel ships one weight (700, ui/fontFaces.ts); Outfit stands in while it loads.
+			   Tracking: the plain heading (.am-stencil) and the wide one the single-word modal headers take
+			   (GAME INFO, AUTOPLAY); both in em so they follow the size. The wide one keeps AUTOPLAY no wider than
+			   it was in Black Ops One (125 px at 18 px): the Autoplay head shares its row with the price pill and
+			   the close button only while all three fit, and on a 390 px phone it had 2 px to spare. */
+			--ui-font-display: 'Cinzel', var(--ui-font);
+			--ui-display-weight: 700;
+			--ui-display-track: 0.08em;
+			--ui-display-track-wide: 0.15em;
 			--ui-text: #eef0f6;
 			--ui-gold: #ffdc4a;
 			--ui-green: #9cd92f;
@@ -41,13 +52,13 @@
 			--ui-press-lift: contrast(0.84) brightness(1.22);
 		}
 		/* the ONE theme cue every modal shares (approval review 2026-09-15: the three modal
-		   families carried nothing from the game): headings set in the stencil face the numerals
-		   atlas, the 20,000x plate and the stinger plates already use — Black Ops One, gold, on
-		   the glass. Bundled font (fontFaces.ts). */
+		   families carried nothing from the game): headings set in the game's display face, gold, on
+		   the glass. Black Ops One until 2026-10-17; Cinzel Bold since (review D10, one display face for
+		   every title). The class keeps its name so every card that uses it follows. Bundled font (fontFaces.ts). */
 		.am-stencil {
-			font-family: 'Black Ops One', var(--ui-font);
-			font-weight: 400;
-			letter-spacing: 0.12em;
+			font-family: var(--ui-font-display);
+			font-weight: var(--ui-display-weight);
+			letter-spacing: var(--ui-display-track);
 			color: var(--ui-gold);
 			text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
 		}

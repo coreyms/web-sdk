@@ -5,11 +5,16 @@
   ... tools/build_armoury_assets.py --grids crown,dagger      also pack those heroes' angle grids (spec commit 11)
   ... tools/build_armoury_assets.py --grids all
   ... tools/build_armoury_assets.py --measure DIR             pack every grid into DIR (not static/) and print the sizes
+  ... tools/build_armoury_assets.py --only standard           rebuild ONE hero's files only: hero-<art>(-half), grid- and
+                                                              turn-<art> (if heroes.json has its grid) and thumbs.webp
+                                                              (its cell); every other file is left as it is on disk
   node scripts/stamp-assets.mjs                                (afterwards, from the app folder)
 
 SOURCES (read only, never written; they stay in the Desktop working folder, spec 3.4):
   ~/Desktop/Manticore Mayhem/images/feature_menu_heroes_r1/<folder>/   manifest.json + frames (+ flat.png), per hero
   ~/Desktop/Manticore Mayhem/images/feature_menu_r1/src/assets/        plaque.webp, crest-day.png
+SOURCE_OVERRIDES: a hero whose frames are read from another folder (same manifest.json and file names), e.g. the War
+Standard's graded copy (tools/grade_war_standard.py --armoury; Corey 2026-10-17 14:07).
 Which folder each hero comes from: HERO_FOR below (the prototype's choice, feature_menu_r2/build.py HERO_FOR: the
 dagger at 2.5 degree steps for SUPER, the crown at 1 degree of yaw for EPIC; the manticore is scrapped as a hero).
 
@@ -70,6 +75,14 @@ HERO_FOR = {
     'crown': 'crown-epic-yaw1',
     'seal': 'seal',
 }
+# art key -> the folder its frames come from instead of HEROES/HERO_FOR[art] (tools/grade_war_standard.py --armoury
+# writes the War Standard's graded copy there; Corey 2026-10-17 14:07 "Can it do the same color grade on the scatter
+# in the Armoury?")
+SOURCE_OVERRIDES = {'standard': os.path.join(HEROES, HERO_FOR['standard'], 'graded_r1')}
+
+
+def hero_dir(art):
+    return SOURCE_OVERRIDES.get(art) or os.path.join(HEROES, HERO_FOR[art])
 
 
 def webp(im, q, method=6):
@@ -85,7 +98,7 @@ def write(path, data):
 
 
 def manifest(art):
-    d = os.path.join(HEROES, HERO_FOR[art])
+    d = hero_dir(art)
     with open(os.path.join(d, 'manifest.json'), encoding='utf-8') as f:
         man = json.load(f)
     cols, rows, fr = int(man['cols']), int(man['rows']), man['frames']
@@ -183,11 +196,51 @@ def report_grid(art, info):
         info['decodedMB'], info['turnFrames'], info['turnAtlas'][0], info['turnAtlas'][1], info['turnBytes'] / 1024, info['turnDecodedMB'], info['edge']))
 
 
+def thumbs_sheet():
+    sheet = Image.new('RGBA', (THUMB * len(ORDER), THUMB), (0, 0, 0, 0))
+    for i, art in enumerate(ORDER):
+        pic, what = small_picture(art)
+        pic.thumbnail((THUMB, THUMB), Image.LANCZOS)
+        sheet.paste(pic, (i * THUMB + (THUMB - pic.width) // 2, (THUMB - pic.height) // 2), pic)
+        print('thumb %d %-10s from %s (%s), %dx%d in its cell' % (i, art, hero_dir(art), what, pic.width, pic.height))
+    return sheet
+
+
+def build_only(art):
+    """one hero's outputs: the flat heroes, its grid and turn strip if heroes.json packs them (the entry must come out
+    the same), and the thumbs sheet (its cell). Nothing else in OUT is written."""
+    assert art in ORDER, 'unknown art key %s (one of %s)' % (art, ', '.join(ORDER))
+    sizes = {}
+    sizes['thumbs.webp'] = write(os.path.join(OUT, 'thumbs.webp'), webp(thumbs_sheet(), 86))
+    im, ang = centre_frame(art)
+    sizes['hero-%s.webp' % art] = write(os.path.join(OUT, 'hero-%s.webp' % art), webp(scaled(im, HERO_H), 88))
+    sizes['hero-%s-half.webp' % art] = write(os.path.join(OUT, 'hero-%s-half.webp' % art), webp(scaled(im, HERO_HALF_H), 88))
+    print('hero  %-10s straight-on frame (yaw %s, pitch %s) of %s, %dx%d' % (art, ang[0], ang[1], hero_dir(art), im.width, im.height))
+    with open(os.path.join(OUT, 'heroes.json'), encoding='utf-8') as f:
+        heroes = json.load(f)
+    if art in heroes:
+        entry, info = build_grid(art, OUT)
+        assert entry == heroes[art], '%s: the grid entry changed (%s, was %s); run the full build' % (art, entry, heroes[art])
+        sizes[entry['grid']] = info['bytes']; sizes[entry['turn']] = info['turnBytes']
+        report_grid(art, info)
+    for k in sorted(sizes):
+        print('  %-26s %8.1f KB' % (k, sizes[k] / 1024))
+    folder = sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT))
+    print('folder static/assets/ui/armoury: %.2f MB in %d files' % (folder / 1048576, len(os.listdir(OUT))))
+    if folder > FOLDER_MAX_MB * 1048576:
+        sys.exit('the folder is over %d MB' % FOLDER_MAX_MB)
+    print('now run: node scripts/stamp-assets.mjs')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--grids', default='', help='comma separated art keys whose grids to pack into static/, or "all"')
     ap.add_argument('--measure', default='', help='pack every grid into this folder (not static/) and print the sizes')
+    ap.add_argument('--only', default='', help='rebuild one art key\'s files (and thumbs.webp) only')
     a = ap.parse_args()
+
+    if a.only:
+        return build_only(a.only)
 
     if a.measure:
         os.makedirs(a.measure, exist_ok=True)
@@ -215,19 +268,13 @@ def main():
     crest = crest.crop(crest.getbbox())
     sizes['crest.webp'] = write(os.path.join(OUT, 'crest.webp'), webp(scaled(crest, CREST_H), 90))
     # the thumbs sheet, tray order
-    sheet = Image.new('RGBA', (THUMB * len(ORDER), THUMB), (0, 0, 0, 0))
-    for i, art in enumerate(ORDER):
-        pic, what = small_picture(art)
-        pic.thumbnail((THUMB, THUMB), Image.LANCZOS)
-        sheet.paste(pic, (i * THUMB + (THUMB - pic.width) // 2, (THUMB - pic.height) // 2), pic)
-        print('thumb %d %-10s from %s (%s), %dx%d in its cell' % (i, art, HERO_FOR[art], what, pic.width, pic.height))
-    sizes['thumbs.webp'] = write(os.path.join(OUT, 'thumbs.webp'), webp(sheet, 86))
+    sizes['thumbs.webp'] = write(os.path.join(OUT, 'thumbs.webp'), webp(thumbs_sheet(), 86))
     # the flat heroes: the straight-on frame on the grid's own canvas
     for art in ORDER:
         im, ang = centre_frame(art)
         sizes['hero-%s.webp' % art] = write(os.path.join(OUT, 'hero-%s.webp' % art), webp(scaled(im, HERO_H), 88))
         sizes['hero-%s-half.webp' % art] = write(os.path.join(OUT, 'hero-%s-half.webp' % art), webp(scaled(im, HERO_HALF_H), 88))
-        print('hero  %-10s straight-on frame (yaw %s, pitch %s) of %s, %dx%d' % (art, ang[0], ang[1], HERO_FOR[art], im.width, im.height))
+        print('hero  %-10s straight-on frame (yaw %s, pitch %s) of %s, %dx%d' % (art, ang[0], ang[1], hero_dir(art), im.width, im.height))
     # the desktop confirm card's frame: the approved original, re-encoded
     card = Image.open(CARD_LG).convert('RGBA')
     assert card.size == (1024, 1536), 'card-frame-lg: expected the 1024 x 1536 original, got %s' % (card.size,)
