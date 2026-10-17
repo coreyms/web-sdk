@@ -1216,7 +1216,7 @@
   "fps": 30,
   "encoding": "q95",
   "fit": {
-   "source": "S_war-standard/animation/drop",
+   "source": "S_war-standard/graded_r1/drop",
    "sourcePx": 512,
    "box512": [
     79.073,
@@ -1277,6 +1277,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "f670416e"
+  "pngHash": "ae4d8bcb"
  }
 }
