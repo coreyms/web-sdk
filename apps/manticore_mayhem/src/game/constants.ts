@@ -2442,11 +2442,13 @@ export const MAX_WIN = {
 	/** the sound of each slam: the plaque's own landing thump (STINGER_PLAQUE's impacts) */
 	slamSound: 'sfx_plaque_land',
 	/** Title and amount slots per LayoutKind, in that kind's MASTER px from its centre: `*Cap` are cap heights,
-	 *  `*Width` shrink-to-fit caps, `x` / `*Y` fractions of the master width / height. `mayhem*` / `unleashed*` are the
-	 *  two lines of MAYHEM UNLEASHED; `recede*` where that pair sits (its centre) and its scale once MAX WIN is on it. */
+	 *  `*Width` shrink-to-fit caps, `*Y` fractions of the master height. `mayhem*` / `unleashed*` are the
+	 *  two lines of MAYHEM UNLEASHED; `recede*` where that pair sits (its centre) and its scale once MAX WIN is on it.
+	 *  ACROSS, every line is centred on the SCREEN's centre by its visible ink (Corey 2026-10-17 15:34, "Screen, not
+	 *  board"): the master's centre is the canvas centre, and titleInk / glyphInk below take each line's ink to it.
+	 *  (Up to then the landscape and phone lines sat on x 0.46 / 0.47 of the master, left of centre to dodge him.) */
 	layout: {
 		landscape: {
-			x: 0.46,
 			lineCap: 92, lineWidth: 1040, mayhemY: 0.36, unleashedY: 0.53,
 			recedeScale: 0.48, recedeY: 0.15,
 			maxCap: 104, maxWidth: 1060, maxY: 0.47,
@@ -2454,7 +2456,6 @@ export const MAX_WIN = {
 			multCap: 34, multWidth: 420, multY: 0.77,
 		},
 		phone: {
-			x: 0.47,
 			lineCap: 100, lineWidth: 1140, mayhemY: 0.36, unleashedY: 0.54,
 			recedeScale: 0.48, recedeY: 0.15,
 			maxCap: 112, maxWidth: 1160, maxY: 0.47,
@@ -2462,7 +2463,6 @@ export const MAX_WIN = {
 			multCap: 36, multWidth: 460, multY: 0.78,
 		},
 		portrait: {
-			x: 0.5,
 			lineCap: 46, lineWidth: 380, mayhemY: 0.43, unleashedY: 0.52,
 			recedeScale: 0.55, recedeY: 0.1,
 			maxCap: 52, maxWidth: 384, maxY: 0.5,
@@ -2470,6 +2470,19 @@ export const MAX_WIN = {
 			multCap: 20, multWidth: 220, multY: 0.67,
 		},
 	},
+	/** THE BAKED TITLES' INK (maxwin_center_r1, 2026-10-17): where each title's gold face is centred inside its own
+	 *  image, in title px (the full tier's image px, the units of the atlas meta's `w`): the face's ink centre minus the
+	 *  image centre. Measured off maxwin.webp (gold face = alpha >= 128 and brightest channel >= 90); the phone tier's
+	 *  half size images agree within 1 title px (-6, -6, +29). MAX WIN's face sits 29.5 right of its image's centre
+	 *  (the image has a faint shade along its left edge and the N's tail runs out to its right edge). The screen puts each
+	 *  title this far the other way inside its slot, so the slam and the recede scale about the ink's centre. */
+	titleInk: { mw_mayhem: -6, mw_unleashed: -6, mw_max: 29.5 } as Record<string, number>,
+	/** THE GLYPH FRAMES' PADDING around the gold face (the amount and the multiple, the forged glyph atlas), font
+	 *  units: every frame carries the dark outline on both sides and the drop shadow down right, so the face starts
+	 *  this far in from a frame's left edge and ends this far in from its right. Measured over all 68 glyphs of both
+	 *  tiers: left 18 to 20, right 28 to 32. The row is centred on the span from its first face's left to its last
+	 *  face's right (PlaqueText.inkSpan), not on its advance box. */
+	glyphInk: { left: 19, right: 29.5 },
 	/** THE WILD MEDALLION RAIN (game/medallionRain.ts): the Wild's static tile (`W.png` in the mmSymbols
 	 *  atlas) falling and turning over like thrown coins behind the creature and the titles. One pooled container,
 	 *  every sprite made up front, moved by ONE ticker callback; density = how many of the pool are live. */

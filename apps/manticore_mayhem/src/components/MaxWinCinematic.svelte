@@ -151,22 +151,31 @@
 		if (laid === key) return;
 		laid = key;
 		const L = MAX_WIN.layout[kind];
-		const W = master.width;
 		const H = master.height;
-		const cx = (L.x - 0.5) * W;
 		t.mayhem.set('mw_mayhem', L.lineCap, L.lineWidth);
 		t.unleashed.set('mw_unleashed', L.lineCap, L.lineWidth);
 		t.max.set('mw_max', L.maxCap, L.maxWidth);
 		const em = (cap: number) => (cap * t.font.em) / t.font.cap;
 		t.amount.set(payoutText, em(L.amountCap), { maxWidth: L.amountWidth });
 		t.mult.set(multText, em(L.multCap), { maxWidth: L.multWidth });
+		// ACROSS: every slot on x 0, the master's centre = the SCREEN's centre (Corey 2026-10-17 15:34), and each line's
+		// visible ink moved onto it inside its slot (constants MAX_WIN.titleInk / glyphInk), so the slam and the recede
+		// scale about the ink's own centre
+		const titleX = (title: PlaqueTitle) => -(MAX_WIN.titleInk[title.name] ?? 0) * title.scale;
+		const rowX = (row: PlaqueText) => {
+			const [left, right] = row.inkSpan(MAX_WIN.glyphInk.left, MAX_WIN.glyphInk.right);
+			return -(left + right) / 2;
+		};
 		const mid = (L.mayhemY + L.unleashedY) / 2;
 		mayhemSlot.position.set(0, (L.mayhemY - mid) * H);
 		unleashedSlot.position.set(0, (L.unleashedY - mid) * H);
-		maxSlot.position.set(cx, (L.maxY - 0.5) * H);
-		amountSlot.position.set(cx, 0);
-		t.amount.view.position.set(0, (L.amountY - 0.5) * H);
-		t.mult.view.position.set(0, (L.multY - 0.5) * H);
+		t.mayhem.view.position.set(titleX(t.mayhem), 0);
+		t.unleashed.view.position.set(titleX(t.unleashed), 0);
+		maxSlot.position.set(0, (L.maxY - 0.5) * H);
+		t.max.view.position.set(titleX(t.max), 0);
+		amountSlot.position.set(0, 0);
+		t.amount.view.position.set(rowX(t.amount), (L.amountY - 0.5) * H);
+		t.mult.view.position.set(rowX(t.mult), (L.multY - 0.5) * H);
 		if (import.meta.env.DEV) {
 			const missing = t.font.missing(payoutText + multText);
 			if (missing) console.warn(`[manticore] the max win type cannot draw "${missing}"`);
@@ -220,9 +229,8 @@
 			flare(ty.max, t, MAX_WIN.slamAt);
 			// the pair recedes (shrinks and lifts) as MAX WIN lands on it
 			const r = smooth(clamp01((t - MAX_WIN.slamAt) / MAX_WIN.recedeMs));
-			const cx = (L.x - 0.5) * master.width;
 			const mid = (L.mayhemY + L.unleashedY) / 2;
-			pair.position.set(cx, ((mid + (L.recedeY - mid) * r) - 0.5) * H);
+			pair.position.set(0, ((mid + (L.recedeY - mid) * r) - 0.5) * H);
 			pair.scale.set(1 + (L.recedeScale - 1) * r);
 			pair.alpha = 1 + (MAX_WIN.recedeAlpha - 1) * r;
 			const a = t - MAX_WIN.slamAt - MAX_WIN.amountAt;
