@@ -52,7 +52,6 @@
 	import { fitConfirmAmount, fitPrice } from './fit';
 	import { createMover, entranceEnd, entrancePlan, moveDurations, pickEase, prefersReducedMotion, swapPlan, type Mover, type MoveOptions, type Step } from './motion';
 	import { ARMOURY } from '../../game/constants';
-	import config from '../../game/config';
 	import { modeCost } from '../../game/betModeMeta';
 	import { stamp } from '../../game/assets';
 	import { PHONE_TIER } from '../../game/deviceTier';
@@ -61,7 +60,7 @@
 	import TrioStat from '../TrioStat.svelte';
 	import StepButton from '../StepButton.svelte';
 	import { ARMOURY_ART_ORDER, ARMOURY_ASSETS, ARMOURY_MODES, armouryMode, type ArmouryMode, type ArmouryModeId } from '../../game/armouryData';
-	import { ARMOURY_TEXT as TX, afterTag, anteConfirm, armouryName, boldRuns, fill } from '../../game/armouryText';
+	import { ARMOURY_FLOOR, ARMOURY_TEXT as TX, afterTag, anteConfirm, armouryName, boldRuns, fill } from '../../game/armouryText';
 	import { armouryDecoded, whenArmouryCore, heroGridReady, heroGridsInfo, loadArmouryCore, onHeroGrids, pauseHeroGrids, selectHeroGrid, startHeroGrids } from '../../game/armouryLoad';
 
 	type Props = { controls: Controls; frame: MenuFrame };
@@ -738,7 +737,9 @@
 
 	/** a template's sentence: {name} filled, {amt} left for the amount span */
 	const named = (t: string, id: ArmouryModeId) => fill(t, { name: armouryName(id) });
-	const pitchAmt = $derived(money(config.epicMinWin * stateBet.betAmount));
+	/** the {amt} of the plate's sentence and the confirm card's line: the mode's floor (ARMOURY_FLOOR: Free Spins, Super,
+	 *  Epic) times the bet, in the session's currency. A mode without a floor has no {amt} slot */
+	const pitchAmt = $derived(money((ARMOURY_FLOOR[mode.id] ?? 0) * stateBet.betAmount));
 	const status = $derived.by((): { tag: string | null; text: string; amt: string } | null => {
 		if (isOn) {
 			const tag = TX.onTag[mode.group];

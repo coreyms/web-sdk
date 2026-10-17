@@ -63,6 +63,9 @@ export type WinTierStage = { alias: string; title: string; xBet: number };
 //   Free Spins, Big 25x (0.25 of the 100x price): 1.31 -> 0.83 (49 / 30 / 14 / 8 %)
 //   Super,      Big 40x (0.16 of the 250x price): 2.30 -> 1.16 (38 / 30 / 18 / 14 %)
 //   Epic,       Big 75x (0.15 of the 500x price): 4.19 -> 1.55 ( 6 / 53 / 28 / 13 %)
+// RE-MEASURED on the 2026.10.16 books (feedback/math_reshape_r1/data/feature_tiers_new_books.txt), the same bars, the
+// buy's own rounds: Free Spins 1.41 -> 0.83 (53 / 25 / 13 / 9 %), Super 2.75 -> 1.20 (41 / 27 / 16 / 17 %),
+// Epic 5.04 -> 1.45 (14 / 50 / 23 / 14 %)
 // HOW, to re-measure on new books: feedback/feature_tiers_r1/ (walk_books.py, then measure.py for candidate bars and
 // final.py for these ladders) in the Manticore Mayhem working folder. PRESENTATION ONLY: the word is picked from the
 // book's own amount and decides nothing.

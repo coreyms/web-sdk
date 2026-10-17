@@ -7,7 +7,9 @@ export default {
 	// forced first board of an Epic. RTP and every rate as 2026.10.06 (swipe band roams, math-sdk 82d7496)
 	// 2026.10.15 (diversity pass): the Super and Epic buys re-dealt for outcome diversity (77k / 138k effective
 	// books); rules, RTP, max win odds and every disclosed rate unchanged; the other modes byte-identical
-	mathVersion: '2026.10.15',
+	// 2026.10.16 (math reshape, Corey 2026-10-16 16:16): 44% base hit rate, swipes and sting runs that always complete a
+	// winning cluster, the free-spins rescue swipe, Free Spins 10x / Super 25x floors (freeSpinsMinWin / superMinWin)
+	mathVersion: '2026.10.16',
 	providerName: 'polymath_games',
 	gameName: 'Manticore Mayhem',
 	gameID: 'manticore_mayhem',
@@ -63,6 +65,11 @@ export default {
 	swipeBandStarts: [0, 1, 2, 3, 4, 5],
 	// Mystery split, Corey's 50 / 40 / 10 (MYSTERY_SPLIT)
 	mystery: { nothing: 0.5, super: 0.4, epic: 0.1 },
+	// FEATURE FLOORS on the FREE SPINS total, in base-bet multiples (game_config.py BONUS_MIN_WIN, SUPER_MIN_WIN,
+	// EPIC_MIN_WIN; FEATURE_MIN_WIN). The books are re-drawn to meet them (natural, bought and Mystery rounds alike);
+	// the frontend only states them. The Mystery Epic's own floor (mysteryEpicMinWin) is stated nowhere
+	freeSpinsMinWin: 10,
+	superMinWin: 25,
 	epicMinWin: 200,
 	mysteryEpicMinWin: 500,
 	paddingReels: {
