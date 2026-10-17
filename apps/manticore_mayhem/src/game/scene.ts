@@ -256,6 +256,8 @@ export class SceneView {
 	vertexWrites = 0;
 	slowSteps = 0;
 	fades = 0;
+	/** clips that landed into a running crossfade and joined it (setFlames) */
+	joins = 0;
 
 	constructor(layout: SceneLayout, tier: SceneTier) {
 		this.layout = layout;
@@ -412,12 +414,14 @@ export class SceneView {
 
 	/** the flames' files: whatever of them is in `tex` is built (the base clip and the rim cuts come with the day set,
 	 *  the super and epic clips in the deferred phase); a mode that was waiting for its clip crossfades to it now.
+	 *  A clip that lands while a crossfade is running (the night one, typically) JOINS it: same start, same clock,
+	 *  so the fade still ends crossfadeMs after it began and the new clip comes in at that fade's progress.
 	 *  Returns true once nothing is left to come (always, for a scene with no flames). */
 	setFlames(tex: Textures, now: number): boolean {
 		const F = this.flames;
 		if (!F) return true;
 		if (!F.allReady && this.dayReady && F.setTextures(tex)) {
-			if (FLAMES.modes[this.family] !== 'base' && this.to[SHOW] > 0) this.mode(this.family, this.to[DIM], now);
+			if (FLAMES.modes[this.family] !== 'base' && this.to[SHOW] > 0) this.mode(this.family, this.to[DIM], now, true);
 			this.apply();
 		}
 		return F.allReady;
@@ -552,8 +556,9 @@ export class SceneView {
 
 	/** the game's mode and dim. A night mode whose files are not in yet shows the day scene (the regular Bonus's
 	 *  values) until setNight. `now` < 0 sets everything at once (the first show behind the loading screen). A scene
-	 *  that was not showing takes the mode at once and only fades IN (over the placeholder it replaces). */
-	mode(family: SceneFamily, dim: number, now: number): void {
+	 *  that was not showing takes the mode at once and only fades IN (over the placeholder it replaces). `join`: a
+	 *  crossfade already running keeps its start and its clock and only takes the new targets (setFlames). */
+	mode(family: SceneFamily, dim: number, now: number, join = false): void {
 		this.family = family;
 		this.wantNight = SCENE.modes[family].night > 0;
 		const next = this.next;
@@ -568,6 +573,13 @@ export class SceneView {
 		let same = true;
 		for (let i = 0; i < VALUES; i += 1) if (next[i] !== this.to[i]) same = false;
 		if (same) return;
+		if (join && this.fadeAt >= 0) {
+			// `from` and `fadeAt` stay: every value runs on from the same start, the new ones (the clip that landed)
+			// from where that start had them, so it comes in at the fade's progress and ends with it
+			this.to.set(next);
+			this.joins += 1;
+			return;
+		}
 		if (this.cur[SHOW] <= 0 && this.fadeAt < 0) {
 			this.cur.set(next);
 			this.cur[SHOW] = 0;
@@ -924,7 +936,7 @@ export class SceneView {
 			/** every child of the root, the ambient sky's and the flames' layers included, bottom to top */
 			allOrder: layers.map((ch) => `${this.sky.layers.includes(ch as PIXI.Container) || this.flames?.layers.includes(ch as PIXI.Container) ? ch.label : (ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`)}${ch.visible ? '' : ' (off)'}`),
 			chainOrder: !this.hasChains ? [] : this.sets[0].children.map((ch) => (ch instanceof PIXI.MeshSimple ? (SIDES.some((s) => this.chains[s].hang.meshes.includes(ch)) ? 'hang' : 'swag') : 'ring')),
-			counters: { vertexWrites: this.vertexWrites, slowSteps: this.slowSteps, fades: this.fades },
+			counters: { vertexWrites: this.vertexWrites, slowSteps: this.slowSteps, fades: this.fades, joins: this.joins },
 			textures: { backdrop: [this.backdrop[0].texture.width, this.backdrop[0].texture.height], fire: [this.fire.texture.width, this.fire.texture.height], atlas: this.hasChains ? [this.chains.L.ring[0].texture.source.pixelWidth, this.chains.L.ring[0].texture.source.pixelHeight] : null },
 		};
 	}

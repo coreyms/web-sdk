@@ -165,11 +165,16 @@
 		clearSceneLight();
 	};
 
+	/** DEV, the probe only (`?flamehold=1`): the deferred flame clips are not built when their files land but when
+	 *  __manticore.flames.land() is called, so a probe can put that moment inside a crossfade (night_fade_r1) */
+	let flameHold = $state(import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('flamehold') === '1');
+
 	// the files: a scene's day set builds it, its night set joins it, and the landscape scene's two deferred flame
 	// clips after that. Each lot is uploaded once, when it lands, if that scene is the one on screen (sources already
 	// on the GPU are only bound again); a scene that is not showing takes its upload when it is next shown.
 	$effect(() => {
 		const assets = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
+		const holdFlames = flameHold;
 		if (!assets) return;
 		untrack(() => {
 			for (const layout of LAYOUTS) {
@@ -179,7 +184,7 @@
 				const before = view.sources().length;
 				if (!r.day && view.setDay(assets)) r.day = true;
 				if (r.day && !r.night && view.setNight(assets, performance.now())) r.night = true;
-				if (r.day && !r.flames && view.setFlames(assets, performance.now())) r.flames = true;
+				if (r.day && !r.flames && !holdFlames && view.setFlames(assets, performance.now())) r.flames = true;
 				// the sky's shared files (atlas, birds, bats) can land after this scene's own sets when it was fetched at a turn
 				if (r.day && !r.sky && view.setSky(assets)) r.sky = true;
 				if (view.sources().length === before) continue;
@@ -545,6 +550,11 @@
 						views.landscape.refreshFlames();
 					},
 					toCanvas: (x: number, y: number) => ptFore(views.landscape, x, y),
+					/** `?flamehold=1` only: build the deferred clips now (their files are in by then); the time it was asked */
+					land: () => {
+						flameHold = false;
+						return performance.now();
+					},
 				},
 				// ---- __manticore.foregroundKick (tools/manticore/chain_gust_probe.js, ONLY=foreground): the scene's side of
 				// the foreground kick. The board's side is __manticore.frameGust.kick ----
