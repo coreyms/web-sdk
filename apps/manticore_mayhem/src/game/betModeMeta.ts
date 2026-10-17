@@ -56,7 +56,8 @@ const placeholderAssets = { icon: '', volatility: '', button: '', dialogImage: '
 const spins = config.freeSpins;
 // THE COPY AGREES WITH THE RULES PAGE (game/gameInfoText.ts, approved 2026-10-14): Ante names all three features;
 // Super Ante says what 4 scatters award; the tiles "double up to" their cap; the Epic floor names its base ("your
-// bet", social "your play amount"); the Mystery Epic's own floor is stated nowhere. `description` and `dialog` are not drawn
+// bet", social "your play amount"), and so do the Free Spins and Super floors (math 2026.10.16, config.freeSpinsMinWin /
+// superMinWin); the Mystery Epic's own floor is stated nowhere. `description` and `dialog` are not drawn
 // by THE ARMOURY (its copy is game/armouryText.ts); they stay filled because the shared BetModeMeta type carries them.
 const SCATTERS = `${config.symbols.S.name}s`;
 
@@ -81,10 +82,10 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: soc('ANTE BET', 'ANTE MODE'),
-			description: 'Free Spins, Super Free Spins and Epic Free Spins each land about five times as often as in the Base Game.',
+			description: 'Free Spins, Super Free Spins and Epic Free Spins each land about six times as often as in the Base Game.',
 			dialog: soc(
-				'Triples the bet. Free Spins, Super Free Spins and Epic Free Spins each land about five times as often. Ante Bet stays active until you turn it off.',
-				'Triples the play amount. Free Spins, Super Free Spins and Epic Free Spins each land about five times as often. Ante Mode stays active until you turn it off.',
+				'Triples the bet. Free Spins, Super Free Spins and Epic Free Spins each land about six times as often. Ante Bet stays active until you turn it off.',
+				'Triples the play amount. Free Spins, Super Free Spins and Epic Free Spins each land about six times as often. Ante Mode stays active until you turn it off.',
 			),
 			button: 'ACTIVATE',
 			betAmountLabel: soc('ANTE BET', 'ANTE MODE'),
@@ -102,7 +103,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: soc('SUPER ANTE BET', 'SUPER ANTE MODE'),
-			description: `Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Super Free Spins land about 50 times as often as in the Base Game and Epic Free Spins about 45 times as often.`,
+			description: `Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Super Free Spins land about 60 times as often as in the Base Game and Epic Free Spins about 55 times as often.`,
 			dialog: soc(
 				`Ten times the bet. Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Stays active until you turn it off.`,
 				`Ten times the play amount. Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Stays active until you turn it off.`,
@@ -123,7 +124,10 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'FREE SPINS',
-			description: `${spins.bonus} free spins. Multiplier Tiles persist for the whole round and double up to ${config.tileCap.bonus}x.`,
+			description: soc(
+				`${spins.bonus} free spins. Multiplier Tiles persist for the whole round and double up to ${config.tileCap.bonus}x, and every round returns at least ${config.freeSpinsMinWin}x your bet.`,
+				`${spins.bonus} free spins. Multiplier Tiles persist for the whole round and double up to ${config.tileCap.bonus}x, and every round returns at least ${config.freeSpinsMinWin}x your play amount.`,
+			),
 			dialog: soc(`Buy ${spins.bonus} free spins with tiles that persist all round.`, `Play ${spins.bonus} free spins with tiles that persist all round.`),
 			button: soc('BUY', 'PLAY'),
 			betAmountLabel: 'FREE SPINS',
@@ -141,7 +145,10 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'SUPER FREE SPINS',
-			description: `${spins.super} free spins. Tiles persist and double up to ${config.tileCap.super}x. The roar clears the low symbols and a Super Sting is possible.`,
+			description: soc(
+				`${spins.super} free spins. Tiles persist and double up to ${config.tileCap.super}x. The roar clears the low symbols, a Super Sting is possible, and every round returns at least ${config.superMinWin}x your bet.`,
+				`${spins.super} free spins. Tiles persist and double up to ${config.tileCap.super}x. The roar clears the low symbols, a Super Sting is possible, and every round returns at least ${config.superMinWin}x your play amount.`,
+			),
 			dialog: soc(`Buy ${spins.super} Super Free Spins.`, `Play ${spins.super} Super Free Spins.`),
 			button: soc('BUY', 'PLAY'),
 			betAmountLabel: 'SUPER FREE SPINS',
