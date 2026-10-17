@@ -10,9 +10,11 @@
 	// and only in Mystery.
 	//
 	// THE DERIVED TEASE (ANTICIPATION_TEASE, every other mode, Corey 2026-10-06 18:52) reuses this same
-	// tree with its own numbers: the beam (beamAlpha, tinted beamColor, swinging beamSwing over
-	// beamPeriodMs on the column's own clock), the rain (rainAlpha, positioned by the engine: its own speed
-	// through the hold, then locked to the incoming stack, fading over the fall), and NO edge spill.
+	// tree with its own numbers: the rain (rainAlpha, positioned by the engine: its own speed through the
+	// hold, then locked to the incoming stack, fading over the fall) and a faint fixed edge spill. Since
+	// Corey 2026-10-16 17:32 there is NO beam on a regular spin ("the difference is the spotlight, it should
+	// be removed"): ANTICIPATION_TEASE.beam false hides the light, and the rain is one symbol with a single
+	// trail copy above it instead of three equal exposures.
 	//
 	// THE CUT (FALL_CUT, Corey 2026-10-15 10:06: the cut line "also controls the anticipation reels"): the tree lives in
 	// BoardCells' cut layer (game/boardPlateSlot.ts boardCutSlot), so the rain entering above the window and leaving below
@@ -174,6 +176,9 @@
 			if (col.teaseBeam) {
 				col.teaseBeam = false;
 				col.beam.setSize(beamW, beamLen);
+				// the Mystery's own look: its light on, every rain copy at full share (a regular spin's tease changes both)
+				col.light.visible = true;
+				for (const row of col.loose) for (const s of row) s.alpha = 1;
 			}
 			col.spill.visible = true;
 			col.rain.alpha = ANTICIPATION.rainAlpha * a.fade;
@@ -205,9 +210,26 @@
 
 	/** one column of the derived tease: everything comes from the engine's numbers (a.el, a.rain, a.fade,
 	 *  a.rainFade), so the column draws exactly the frame the drop is on */
-	const teaseColumn = (col: Column, a: { el: number; rain: number; fade: number; rainFade: number }, tex: Record<string, PIXI.Texture> | undefined) => {
+	const teaseColumn = (col: Column, a: { el: number; q: number; rain: number; fade: number; rainFade: number }, tex: Record<string, PIXI.Texture> | undefined) => {
 		const T = ANTICIPATION_TEASE;
+		if (!col.teaseBeam) {
+			col.teaseBeam = true;
+			col.beam.setSize(teaseBeamW, beamLen);
+			// NO SPOTLIGHT ON A REGULAR SPIN (Corey 2026-10-16 17:32): the light (and its mask) is not drawn at all.
+			// THE RAIN'S TRAIL: the copy above each loose symbol at rainTrailAlpha, the one below hidden
+			col.light.visible = T.beam;
+			for (const row of col.loose)
+				for (let g = 0; g < GHOSTS.length; g += 1) row[g].alpha = GHOSTS[g] === 0 ? 1 : GHOSTS[g] < 0 ? T.rainTrailAlpha : 0;
+		}
+		// the Mystery's warm edge strips, faint and fixed (no growth over the hold), fading with the beam's fade
 		col.spill.visible = T.spillAlpha > 0;
+		if (col.spill.visible) {
+			col.spill.alpha = T.spillAlpha * a.fade;
+			const spillW = SYMBOL_SIZE * CELL_FILL * T.spillWidth;
+			col.left.setSize(spillW, COLUMN_H);
+			col.right.setSize(spillW, COLUMN_H);
+			col.right.x = SYMBOL_SIZE - spillW;
+		}
 		col.rain.alpha = T.rainAlpha * a.rainFade;
 		const shift = a.rain * SYMBOL_SIZE;
 		for (let k = 0; k < N; k += 1) {
@@ -230,12 +252,9 @@
 				s.y = y + GHOSTS[g] * T.rainGhostOffset * SYMBOL_SIZE;
 			}
 		}
+		if (!T.beam) return;
 		col.light.alpha = T.beamAlpha * a.fade;
 		if (col.beam.tint !== T.beamColor) col.beam.tint = T.beamColor;
-		if (!col.teaseBeam) {
-			col.teaseBeam = true;
-			col.beam.setSize(teaseBeamW, beamLen);
-		}
 		col.beam.rotation = Math.sin((a.el / T.beamPeriodMs) * Math.PI * 2) * T.beamSwing;
 	};
 

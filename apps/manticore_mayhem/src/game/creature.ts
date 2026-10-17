@@ -57,7 +57,7 @@
 // House rules: no filters, shaders or masks; a frame is a swap between resident textures; a tick allocates nothing.
 import * as PIXI from 'pixi.js';
 
-import { CREATURE, type CreatureSpot } from './constants';
+import { CREATURE, CREATURE_LIFT, type CreatureSpot } from './constants';
 import { CREATURE_SPEC } from './creatureSpec';
 import { CREATURE_CLIPS, type CreatureClip, type CreatureLook } from './creatureAssets';
 
@@ -133,6 +133,9 @@ export class Creature {
 	/** [0] the look on show, [1] the look fading in over it */
 	private readonly colour = [new PIXI.Sprite(PIXI.Texture.EMPTY), new PIXI.Sprite(PIXI.Texture.EMPTY)];
 	private readonly glow = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	/** THE NIGHT LIFT (constants CREATURE_LIFT, Corey 2026-10-16 "1. Yes", interim): an additive copy of each colour
+	 *  sprite's frame, over it, in the night and fire looks only (syncLift). Same textures: nothing created or uploaded */
+	private readonly lift = [new PIXI.Sprite(PIXI.Texture.EMPTY), new PIXI.Sprite(PIXI.Texture.EMPTY)];
 
 	env: CreatureEnv = { ts: () => 1, skipping: () => false, play: () => {}, stop: () => {}, idle: () => false, board: () => false };
 	/** the loader's two hooks: a look is wanted (load its idle sheet first), a look is no longer drawn (let it go) */
@@ -225,13 +228,18 @@ export class Creature {
 		}
 		const ay = SPEC.feetRow / SPEC.canvas[1];
 		const ax = SPEC.feetCol / SPEC.canvas[0];
-		for (const s of [this.shadow, ...this.colour, this.glow]) s.anchor.set(ax, ay);
+		for (const s of [this.shadow, ...this.colour, ...this.lift, this.glow]) s.anchor.set(ax, ay);
 		this.glow.blendMode = 'add';
+		for (const s of this.lift) {
+			s.blendMode = 'add';
+			s.visible = false;
+		}
 		this.glow.visible = false;
 		this.colour[1].visible = false;
 		this.shadow.alpha = CREATURE.shadowAlpha;
 		this.shadowNode.addChild(this.shadow);
-		this.bodyNode.addChild(this.colour[0], this.colour[1], this.glow);
+		// each lift right over its own colour sprite, so the look crossfade covers the old look's lift with the new one
+		this.bodyNode.addChild(this.colour[0], this.lift[0], this.colour[1], this.lift[1], this.glow);
 		// THE POKE: the body node itself is the target (eventMode 'static' only while a poke can be taken, tick());
 		// its sprites are never hit tested (interactiveChildren stays false), only this polygon, minus the board
 		this.bodyNode.cursor = 'pointer';
@@ -421,8 +429,11 @@ export class Creature {
 		this.colour[1].visible = false;
 		this.colour[1].alpha = 0;
 		this.colour[1].texture = PIXI.Texture.EMPTY;
+		// the lifts let go of the old look's frames before it can be freed below
+		this.syncLift();
 		if (done && to) {
 			this.look = to;
+			this.syncLift();
 			this.drawnFrame = 0; // and draws the new look's own frame this tick
 			this.note('look', { from, to });
 			if (from && from !== to) this.onLookFree?.(from);
@@ -685,6 +696,7 @@ export class Creature {
 		this.tickLook(now, on, dt);
 		if (!on) {
 			this.swipeNext = null;
+			this.syncLift();
 			return;
 		}
 		// a swipe read ahead becomes the cue once no sting is left for him to play before it
@@ -845,7 +857,33 @@ export class Creature {
 					? this.litAlpha()
 					: 0;
 		this.draw(clip, frame);
+		this.syncLift();
 		this.tickPoke(now, on);
+	}
+
+	/** THE NIGHT LIFT (constants CREATURE_LIFT): each lift sprite shows its colour sprite's frame, at that look's `add` x
+	 *  the colour sprite's own alpha (the look crossfade), tinted the look's `tint`; off in the day look. A few compares
+	 *  a tick, writes only on a change */
+	private syncLift(): void {
+		for (let i = 0; i < 2; i += 1) {
+			const c = this.colour[i];
+			const s = this.lift[i];
+			const look = i === 0 ? this.look : this.next;
+			const L = look === 'super' || look === 'epic' ? CREATURE_LIFT[look] : null;
+			const a = L && c.visible && c.texture !== PIXI.Texture.EMPTY ? L.add * c.alpha : 0;
+			if (a <= 0) {
+				if (s.visible) {
+					s.visible = false;
+					s.texture = PIXI.Texture.EMPTY;
+				}
+				continue;
+			}
+			if (s.texture !== c.texture) s.texture = c.texture;
+			if (s.scale.x !== c.scale.x) s.scale.set(c.scale.x);
+			if (s.alpha !== a) s.alpha = a;
+			if (s.tint !== L!.tint) s.tint = L!.tint;
+			if (!s.visible) s.visible = true;
+		}
 	}
 
 	/** the crouch frame a charge_in hands over to (constants CREATURE.glowPhase): charge_loop f1, or, before a LIT strike,
@@ -1071,7 +1109,7 @@ export class Creature {
 	 *  drawn with one throws inside Pixi's render and stops the ticker (tools/manticore/creature_probe.js HANDOVER) */
 	private dead(): number {
 		let n = 0;
-		for (const s of [this.shadow, this.colour[0], this.colour[1], this.glow]) {
+		for (const s of [this.shadow, this.colour[0], this.colour[1], ...this.lift, this.glow]) {
 			const t = s.texture;
 			if (t !== PIXI.Texture.EMPTY && (t.destroyed || !t.source || t.source.destroyed)) n += 1;
 		}
