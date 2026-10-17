@@ -5,9 +5,9 @@
 	// game/featureFx.ts every frame; this layer draws from it on the app ticker, raw Pixi, no Svelte in
 	// the frame. Three things:
 	//
-	// 1. THE CLAWS (clawLayer, z 21: over the tiles and the badges, under the readouts' HUD). FOUR curved claw
-	//    streaks ("The manticore has four claws", Corey 2026-10-16 17:32) rake the swiped band from upper right to
-	//    lower left, SWIPE_FX.clawStaggerMs apart: each draws on behind a hot tip, holds, and burns out with its
+	// 1. THE CLAWS (clawLayer, z 21: over the tiles and the badges, under the readouts' HUD). FOUR straight claw
+	//    strokes ("The manticore has four claws", Corey 2026-10-16 17:32; straight and laid where the old tears were,
+	//    r2 2026-10-17 09:52) rake the swiped band right to left, top claw first, SWIPE_FX.clawStaggerMs apart: each draws on behind a hot tip, holds, and burns out with its
 	//    tail chasing the tip. Each claw leaves an ember scar along its path that holds until the symbols leave and
 	//    fades with them (swipeFx.alpha). A warm-white flash covers the band for impactFlashMs at impactAtMs.
 	//    Every claw and scar is a sprite of ONE baked streak (game/fxTexture.ts clawTexture, made at mount) with
@@ -31,10 +31,9 @@
 	import { quadIn, quadOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_COUNT, BOARD_SIZES, SWIPE_FX, ROAR_FX, PLAYGROUND_PX, reelOf, rowOf } from '../game/constants';
+	import { SYMBOL_SIZE, GRID, CELL_COUNT, BOARD_SIZES, SWIPE_FX, ROAR_FX, PLAYGROUND_PX, reelOf, rowOf } from '../game/constants';
 	import { swipeFx, roarFx, boardKick } from '../game/featureFx';
 	import { clawTexture, dotTexture, DOT_PX } from '../game/fxTexture';
-	import { seeded } from '../game/sparkles';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -102,31 +101,30 @@
 	/** texture x at u along the claw: the whole texture past the ends, so the end caps' glow is never cut */
 	const xAt = (u: number) => (u <= 0 ? 0 : u >= 1 ? geom.w : geom.pad + u * geom.chord);
 
-	/** the claws' places for a band: the four run from above the band's top to below its bottom at clawSlopeDeg,
-	 *  clawSpacingCells apart along the width, the rightmost first, the rake centred on the board. A little seeded
-	 *  variety per claw (slope, length) so they never look stamped. */
+	/** the slant for a band, as the old tears had it: fixed, or from the band's centre row (the top of the board =
+	 *  slantTopDeg) */
+	const slantFor = (rows: number[]) => {
+		if (F.slantMode !== 'rows' || !rows.length) return F.clawSlantDeg;
+		const mean = rows.reduce((p, r) => p + r, 0) / rows.length;
+		return F.slantTopDeg + ((F.slantBottomDeg - F.slantTopDeg) * mean) / (GRID - 1);
+	};
+
+	/** the claws' places for a band, exactly where the old tears were (r2, Corey 2026-10-17 09:52 "in the
+	 *  directions/angles we already had it"): claw i (top first) is a straight stroke across the board's whole width,
+	 *  its middle at the band's (i + 0.5) / N, its line y = y0 + (x - W / 2) tan(slant), drawn from the right edge to
+	 *  the left one. */
 	const build = (rows: number[]) => {
 		const top = (rows.length ? rows[0] : 3) * CELL;
 		const bot = (rows.length ? rows[rows.length - 1] + 1 : 6) * CELL;
-		const over = F.clawOverCells * CELL;
-		const rnd = seeded(29 + (rows[0] ?? 0) * 7);
-		const dx = F.clawSpacingCells * CELL;
-		const rise = bot - top + 2 * over;
-		const run0 = rise / Math.tan((F.clawSlopeDeg * Math.PI) / 180);
-		const x0 = W / 2 + (run0 + (N - 1) * dx) / 2;
+		const tan = Math.tan((slantFor(rows) * Math.PI) / 180);
 		const sy = (F.clawCorePx * K) / geom.corePx;
+		// right edge to left edge: the chord is the board's width along the slant
+		const L = W / Math.cos(Math.atan(tan));
 		for (let i = 0; i < N; i += 1) {
 			const c = claws[i];
-			const slope = ((F.clawSlopeDeg + (rnd() - 0.5) * 4) * Math.PI) / 180;
-			const len = 1 + (rnd() - 0.5) * 0.08;
-			const ys = top - over + (rnd() - 0.5) * 0.12 * CELL;
-			const xs = x0 - i * dx;
-			const r = rise * len;
-			const xe = xs - r / Math.tan(slope);
-			const ye = ys + r;
-			const L = Math.hypot(xe - xs, ye - ys);
-			c.root.position.set(xs, ys);
-			c.root.rotation = Math.atan2(ye - ys, xe - xs);
+			const y0 = top + ((bot - top) * (i + 0.5)) / N;
+			c.root.position.set(W, y0 + (W / 2) * tan);
+			c.root.rotation = Math.atan2(-W * tan, -W);
 			c.root.scale.set(L / geom.chord, sy);
 			// the tip: the soft dot stretched along the claw, its size in board px whatever the container's scale
 			c.tip.scale.set(((F.tipPx * K * F.tipStretch) / DOT_PX) * (geom.chord / L), (F.tipPx * K) / DOT_PX / sy);

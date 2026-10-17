@@ -21,6 +21,7 @@ import {
 	stingHit,
 	stingBig,
 	swipeBand,
+	swipeTileDelayMs,
 	roarBlow,
 	flashCells,
 	waitStyle,
@@ -47,6 +48,7 @@ import {
 	CLUSTER,
 	MULT_PLATE,
 	SWIPE_FX,
+	rowOf,
 	SCATTER_STING,
 	ANTICIPATION_TEASE,
 	scatterWait,
@@ -436,8 +438,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	// ---- swipe: the paw clears a band of three rows (the book's `rows`) ---------------------------
-	// SWIPE_FX: four claws rake the band from the upper right, the impact flashes it and the board kicks; at
-	// SWIPE_FX.exitAtMs the band's symbols leave while the claws' scars fade
+	// SWIPE_FX: four claws rake the band right to left, the band's tiles light behind them, the impact flashes it and
+	// the board kicks; at SWIPE_FX.exitAtMs the band's symbols leave while the claws' scars fade
 	// (scatters survive the paw: they are not in `removed`); the swipe's tiles pop as the symbols
 	// start to leave, and the refill drops once they are gone.
 	swipe: async (bookEvent: BookEventOfType<'swipe'>, { bookEvents }: BookEventContext) => {
@@ -445,12 +447,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const rec = fxRecord('swipe', { rows: bookEvent.rows, removed: bookEvent.removed.length, turbo: stateGame.turboLevel, skipping: stateGame.skipping });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_swipe', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'swipe', rows: bookEvent.rows });
-		// the plates in the band play their beat once the symbols have faded (exitMs) + changeDelayMs
+		// THE TILES FOLLOW THE CLAWS (r2, Corey 2026-10-17 09:55): every plate of the band (the removed cells' and any
+		// tile entry in its rows) plays its beat as the claw over its row reaches it, right to left; queued now, at the
+		// swipe's start, in style ms, so turbo scales it and a skip lands them at once (plateReveal)
 		const tileMap = new Map(bookEvent.tiles);
-		const plates = () => {
-			for (const cell of bookEvent.removed) plateReveal(cell, tileMap.get(cell) ?? null, SWIPE_FX.exitMs + MULT_PLATE.changeDelayMs);
-		};
-		await swipeBand(bookEvent.removed, bookEvent.rows, id, { rec, onExit: plates });
+		const band = new Set(bookEvent.rows);
+		const bandCells = new Set<CellIndex>(bookEvent.removed);
+		for (const [cell] of bookEvent.tiles) if (band.has(rowOf(cell))) bandCells.add(cell);
+		for (const cell of bandCells) plateReveal(cell, tileMap.get(cell) ?? null, swipeTileDelayMs(cell, bookEvent.rows));
+		await swipeBand(bookEvent.removed, bookEvent.rows, id, { rec });
 		await applyTiles(bookEvent.tiles, id, SWIPE_FX.exitMs + MULT_PLATE.changeDelayMs);
 		fxStamp(rec, 'refill');
 		cueCreature(bookEvent, bookEvents); // a second swipe straight after this refill

@@ -679,8 +679,11 @@ export const PLAYGROUND_PX = SYMBOL_SIZE / 66.5;
 // ---- The claw swipe (claw-swipe-r1, 2026-10-16; the timing contract is MOTION_SPEC "Claw swipe", LOCKED Corey
 // 2026-10-06 10:02) ----------------------------------------------------------------------------------------------
 // The harsh design review (2026-10-15 item 5): the old torn red bands "read as a glitch, not a claw". Corey 17:32:
-// "The manticore has four claws, but it was on my mind to improve that." So: FOUR curved claw streaks rake the band
-// from upper right to lower left (he stands right of the board), one after another; a short warm-white impact
+// "The manticore has four claws, but it was on my mind to improve that." So: FOUR claw strokes rake the band right
+// to left (he stands right of the board), one after another. r2, Corey 2026-10-17 09:52: "The look of the claw swipe
+// looks better, but I don't like the claw curves. If we could use that style claw mark in the directions/angles we
+// already had it, that would probably look great." So each claw is a STRAIGHT stroke laid exactly where the old
+// tears were: across the board's whole width, evenly down the band, at the band's slant; a short warm-white impact
 // flash on the slashed rows and the board kick land with the first claw; each claw leaves an ember scar and the
 // struck symbols take an ember tint until they leave. The symbols leave and the tiles pop at exitAtMs exactly as
 // before (the book's beat), the scars fade with them and the refill drops after max(exitMs, scarFadeMs).
@@ -697,12 +700,14 @@ export const SWIPE_FX = {
 	clawLifeMs: 140,
 	clawDrawMs: 60,
 	clawTailAtMs: 75,
-	/** the claws' slope from the horizontal ("cutting diagonally across the rows") and how far each runs past the
-	 *  band's top and bottom edges, in cells */
-	clawSlopeDeg: 30,
-	clawOverCells: 0.35,
-	/** the gap between neighbouring claws along the board's width, in cells (the four together span it) */
-	clawSpacingCells: 0.8,
+	/** THE OLD TEARS' LAYOUT (MOTION_SPEC "Claw swipe", Corey 2026-10-06 + the slant mapping), kept for the claws:
+	 *  each claw spans the board's width, its middle at the band's (i + 0.5) / clawCount, top claw first, drawn
+	 *  right to left. 'rows': the slant comes from the band's centre row (the top of the board slantTopDeg, the
+	 *  bottom slantBottomDeg; negative = the right end higher); 'fixed': clawSlantDeg */
+	slantMode: 'rows' as 'rows' | 'fixed',
+	slantTopDeg: -6,
+	slantBottomDeg: 3,
+	clawSlantDeg: -3,
 	/** the claw's core at its thickest (the texture is scaled to it), playground px */
 	clawCorePx: 9,
 	/** per claw tint over the baked colours (white keeps them: bright core, red-orange falloff) */
@@ -728,8 +733,14 @@ export const SWIPE_FX = {
 	woundColor: 0xb8402a,
 	woundAlpha: 0.42,
 	woundRiseMs: 90,
-	/** THE BOOK'S BEAT, unchanged by the claws: the band's symbols start to leave (and the tiles pop) this long after
-	 *  the swipe starts (it was the four tears' 125 ms + their 370 ms hold) */
+	/** THE TILES FOLLOW THE CLAWS (r2, Corey 2026-10-17 09:55: "I would also suggest for this the multipliers light up
+	 *  following the claw marks from right to left"): each tile of the band pops, lights or doubles (the plate's own
+	 *  beat, the book's values) when the claw over its row reaches the middle of its cell, column by column right to
+	 *  left (stateGame.swipeTileDelayMs), plus this lag. Before r2 they all started at exitAtMs + exitMs +
+	 *  MULT_PLATE.changeDelayMs (855 ms). */
+	tileLagMs: 0,
+	/** THE BOOK'S BEAT, unchanged by the claws: the band's symbols start to leave this long after the swipe starts (it
+	 *  was the four tears' 125 ms + their 370 ms hold); the refill drops at exitAtMs + max(exitMs, scarFadeMs) */
 	exitAtMs: 495,
 	/** how the swiped symbols leave, from exitAtMs */
 	exit: 'fade' as const,
@@ -743,9 +754,9 @@ export const SWIPE_FX = {
 	/** after the symbols have gone, before the refill */
 	refillDelayMs: 0,
 	/** the baked streak (game/fxTexture.ts clawTexture), texture px: its size, the arc's sag (fraction of the
-	 *  chord, bowing towards the upper left on the board), the core's full width at its thickest and where along
-	 *  the claw that is (0 = the tip's start), the glow's reach past the core */
-	tex: { w: 1024, h: 128, sagFrac: 0.055, corePx: 10, peakU: 0.38, glowPx: 24 },
+	 *  chord; 0 = a straight stroke, r2 "I don't like the claw curves"; r1 had 0.055), the core's full width at
+	 *  its thickest and where along the claw that is (0 = the tip's start), the glow's reach past the core */
+	tex: { w: 1024, h: 64, sagFrac: 0, corePx: 10, peakU: 0.38, glowPx: 24 },
 };
 
 // ---- The roar (MOTION_SPEC "Roar", Corey 2026-10-06 17:44, kick sync after) ----------------------
@@ -888,8 +899,8 @@ export const WELLS_FX = {
 	light: { peak: 0.85, inMs: 380, holdMs: 120, outMs: 900 },
 	double: { peak: 1, inMs: 420, holdMs: 180, outMs: 1100 },
 	win: { peak: 0.8, inMs: 170, holdMs: 260, outMs: 700, stepMs: 55 },
-	/** swipe: sweepMs in step with the four claws raking right to left (claw-swipe-r1: the last claw starts at 120 ms
-	 *  and is half drawn by 150; it was 240 with the old tears) */
+	/** swipe: sweepMs in step with the four claws raking right to left (claw-swipe r1 / r2: the last claw starts at
+	 *  120 ms and is half drawn by 150; it was 240 with the old tears) */
 	swipe: { peak: 0.9, inMs: 110, holdMs: 220, outMs: 800, sweepMs: (SWIPE_FX.clawCount - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs / 2 },
 	sting: { peak: 0.95, inMs: 110, holdMs: 120, outMs: 800, stepMs: 70, reach: 2, falloff: 0.55 },
 	power: { cap: 0.34, refValue: 8, fullValue: 2048, riseMs: 2200, fallMs: 900, shimmer: 0.35, periodMs: 3500 },

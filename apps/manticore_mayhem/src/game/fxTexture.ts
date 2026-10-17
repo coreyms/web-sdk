@@ -70,12 +70,13 @@ export const innerGlowTexture = (): PIXI.Texture => {
 	return innerGlow;
 };
 
-/** THE CLAW STREAK (SWIPE_FX.tex, claw-swipe-r1): one curved claw cut, baked once and shared by the four claws and
+/** THE CLAW STREAK (SWIPE_FX.tex, claw-swipe r1 / r2): one claw cut, baked once and shared by the four claws and
  *  their scars (components/ClawSwipe.svelte crops a frame of it per sprite to draw a claw on). Coloured, for an
  *  additive sprite: a near-white core that is thickest at peakU and tapers to a point at both ends, a gold edge and
- *  a red-orange falloff to deep red. The centreline is a circular arc from (pad, yEnd) to (w - pad, yEnd) bowing
- *  `sag` towards +y. Computed per pixel from the arc (exact distance and position along it), no canvas strokes,
- *  so it looks the same in every browser. `yAt(u)` is the centreline's y at u (0 = the start, 1 = the end). */
+ *  a red-orange falloff to deep red. The centreline runs from (pad, yEnd) to (w - pad, yEnd): straight along the
+ *  middle at sag 0 (r2), else a circular arc bowing `sag` towards +y (r1). Computed per pixel from the path (exact
+ *  distance and position along it), no canvas strokes, so it looks the same in every browser. `yAt(u)` is the
+ *  centreline's y at u (0 = the start, 1 = the end). */
 export type ClawGeom = { texture: PIXI.Texture; w: number; h: number; pad: number; chord: number; yEnd: number; corePx: number; yAt: (u: number) => number };
 let claw: ClawGeom | null = null;
 export const clawTexture = (): ClawGeom => {
@@ -84,12 +85,14 @@ export const clawTexture = (): ClawGeom => {
 	const pad = glowPx + 4;
 	const chord = w - 2 * pad;
 	const sag = sagFrac * chord;
-	const yEnd = pad;
+	// sag 0 (r2): a straight stroke along the texture's middle
+	const straight = sag <= 0.5;
+	const yEnd = straight ? h / 2 : pad;
 	// the circle through both ends and the bowed middle; its centre is above the texture
-	const R = (chord * chord) / 4 / (2 * sag) + sag / 2;
+	const R = straight ? 1 : (chord * chord) / 4 / (2 * sag) + sag / 2;
 	const cx = w / 2;
 	const cy = yEnd + sag - R;
-	const phi1 = Math.asin(chord / 2 / R);
+	const phi1 = straight ? 0 : Math.asin(chord / 2 / R);
 	const gamma = Math.log(0.5) / Math.log(peakU);
 	const taper = (u: number) => (u <= 0 || u >= 1 ? 0 : Math.pow(Math.sin(Math.PI * Math.pow(u, gamma)), 0.85));
 	const c = document.createElement('canvas');
@@ -106,15 +109,24 @@ export const clawTexture = (): ClawGeom => {
 	const mix = (a: number[], b: number[], t: number, k: number) => a[k] + (b[k] - a[k]) * t;
 	for (let y = 0; y < h; y += 1) {
 		for (let x = 0; x < w; x += 1) {
-			const dx = x + 0.5 - cx;
-			const dy = y + 0.5 - cy;
-			const r = Math.hypot(dx, dy);
-			const phi = Math.atan2(dx, dy);
-			const u = (phi + phi1) / (2 * phi1);
+			let u: number;
+			let off: number;
+			let len: number;
+			if (straight) {
+				u = (x + 0.5 - pad) / chord;
+				off = y + 0.5 - yEnd;
+				len = chord;
+			} else {
+				const dx = x + 0.5 - cx;
+				const dy = y + 0.5 - cy;
+				u = (Math.atan2(dx, dy) + phi1) / (2 * phi1);
+				off = Math.hypot(dx, dy) - R;
+				len = 2 * phi1 * R;
+			}
 			const uc = Math.max(0, Math.min(1, u));
-			// past an end: the distance runs on along the arc from that end
-			const beyond = u < 0 ? -u * 2 * phi1 * R : u > 1 ? (u - 1) * 2 * phi1 * R : 0;
-			const d = Math.hypot(r - R, beyond);
+			// past an end: the distance runs on along the path from that end
+			const beyond = u < 0 ? -u * len : u > 1 ? (u - 1) * len : 0;
+			const d = Math.hypot(off, beyond);
 			const tp = taper(uc);
 			const hw = (corePx / 2) * tp;
 			const core = hw <= 0 ? 0 : Math.max(0, Math.min(1, (hw + 0.75 - d) / 1.5));
@@ -138,6 +150,7 @@ export const clawTexture = (): ClawGeom => {
 	}
 	ctx.putImageData(img, 0, 0);
 	const yAt = (u: number) => {
+		if (straight) return yEnd;
 		const phi = -phi1 + 2 * phi1 * Math.max(0, Math.min(1, u));
 		return cy + R * Math.cos(phi);
 	};
