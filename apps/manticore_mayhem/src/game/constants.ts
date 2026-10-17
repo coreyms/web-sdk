@@ -2423,3 +2423,32 @@ export const LOAD_GATE = {
 	musicSideTracks: 'afterGate' as 'afterGate' | 'asBefore',
 	sceneBesideAttacks: true,
 } as const;
+
+// THE IN-GAME PRESS ANYWHERE TO CONTINUE (fonts r2, Corey 2026-10-17 14:01, option 1): Cinzel 700, the display face, in
+// the landing screen's PRESS ANYWHERE colour and tracking (ui/LandingScreen.svelte .pressText: #eef0e6, 0.05em, text
+// shadow 0 2px 4px rgba(0, 0, 0, 0.7) at its 18 px desktop size, here in ems of the font). It keeps the old line's slot,
+// cap height, centring and maxWidth fit (components/PressToContinue.svelte), its blink and, over the board, its veil and
+// its hard drop shadow. Drawn once into a texture (game/pressPrompt.ts, components/PressPromptText.svelte).
+export const PRESS_PROMPT = {
+	/** the words, the same on every site (social included) */
+	text: 'PRESS ANYWHERE TO CONTINUE',
+	family: 'Cinzel',
+	weight: 700,
+	/** what document.fonts.load waits on before the line is ever drawn */
+	fontCheck: '700 32px Cinzel',
+	/** the landing's letter spacing, in ems */
+	trackEm: 0.05,
+	/** the letters' colour (the texture is white, the sprite is tinted): the landing's #eef0e6 */
+	ink: 0xeef0e6,
+	/** the landing's soft text shadow, baked into the texture: 2 px down and a 4 px blur at 18 px, 70 % black */
+	soft: { dyEm: 2 / 18, blurEm: 4 / 18, color: 'rgba(0, 0, 0, 0.7)' },
+	/** the texture's clear margin: this many blurs plus this share of the font size, for the shadow and the overhang */
+	padBlurs: 1.5,
+	padEm: 0.08,
+	/** the size the face is measured at (its cap height and the line's width per font size) */
+	measurePx: 100,
+	/** the texture's largest side in px */
+	texMax: 4096,
+	/** how many sizes stay cached with nobody showing them (the desktop's over the board line and the max win's) */
+	keep: 2,
+} as const;
