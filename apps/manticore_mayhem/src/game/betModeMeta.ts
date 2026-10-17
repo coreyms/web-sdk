@@ -56,8 +56,8 @@ const placeholderAssets = { icon: '', volatility: '', button: '', dialogImage: '
 const spins = config.freeSpins;
 // THE COPY AGREES WITH THE RULES PAGE (game/gameInfoText.ts, approved 2026-10-14): Ante names all three features;
 // Super Ante says what 4 scatters award; the tiles "double up to" their cap; the Epic floor names its base ("your
-// bet", social "your play amount"), and so do the Free Spins and Super floors (math 2026.10.16, config.freeSpinsMinWin /
-// superMinWin); the Mystery Epic's own floor is stated nowhere. `description` and `dialog` are not drawn
+// bet", social "your play amount"); the Free Spins and Super floors (math 2026.10.16) are stated on the rules page only
+// (Corey 2026-10-17); the Mystery Epic's own floor is stated nowhere. `description` and `dialog` are not drawn
 // by THE ARMOURY (its copy is game/armouryText.ts); they stay filled because the shared BetModeMeta type carries them.
 const SCATTERS = `${config.symbols.S.name}s`;
 
@@ -124,10 +124,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'FREE SPINS',
-			description: soc(
-				`${spins.bonus} free spins. Multiplier Tiles persist for the whole round and double up to ${config.tileCap.bonus}x, and every round returns at least ${config.freeSpinsMinWin}x your bet.`,
-				`${spins.bonus} free spins. Multiplier Tiles persist for the whole round and double up to ${config.tileCap.bonus}x, and every round returns at least ${config.freeSpinsMinWin}x your play amount.`,
-			),
+			description: `${spins.bonus} free spins. Multiplier Tiles persist for the whole round and double up to ${config.tileCap.bonus}x.`,
 			dialog: soc(`Buy ${spins.bonus} free spins with tiles that persist all round.`, `Play ${spins.bonus} free spins with tiles that persist all round.`),
 			button: soc('BUY', 'PLAY'),
 			betAmountLabel: 'FREE SPINS',
@@ -145,10 +142,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'SUPER FREE SPINS',
-			description: soc(
-				`${spins.super} free spins. Tiles persist and double up to ${config.tileCap.super}x. The roar clears the low symbols, a Super Sting is possible, and every round returns at least ${config.superMinWin}x your bet.`,
-				`${spins.super} free spins. Tiles persist and double up to ${config.tileCap.super}x. The roar clears the low symbols, a Super Sting is possible, and every round returns at least ${config.superMinWin}x your play amount.`,
-			),
+			description: `${spins.super} free spins. Tiles persist and double up to ${config.tileCap.super}x. The roar clears the low symbols and a Super Sting is possible.`,
 			dialog: soc(`Buy ${spins.super} Super Free Spins.`, `Play ${spins.super} Super Free Spins.`),
 			button: soc('BUY', 'PLAY'),
 			betAmountLabel: 'SUPER FREE SPINS',
