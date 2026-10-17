@@ -203,8 +203,14 @@ export const SYMBOL_RIM = { masterPx: 0.7, opacity: 1, softness: 0.39, color: 0x
 /** THE RENDERER'S RESOLUTION CAP (components/Game.svelte clamps renderer.resolution to it; game/deviceTier.ts
  *  renderResolutionCap() picks one). It was 1.5 for every device, a house rule that came from iOS performance.
  *  Corey 2026-10-09: "Yes let's raise the resolution to 2x on Desktop". The phone asset tier (PHONE_TIER) keeps
- *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged. */
-export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2, phone3x: 3 } as const;
+ *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged.
+ *  EVERY PHONE AT 3 (Corey 2026-10-17 12:30: "Yes let's raise it to 3x for all phones"): his Samsung A13 5G (Mali-G57
+ *  MC2, 4 GB, 384 x 853 CSS at DPR 1.875) ran 9.4 minutes at ?rescap=3 with a steady 16.6 ms median, no heat, no
+ *  battery drop. The renderer is min(devicePixelRatio, cap), so a phone never draws more than its own screen: a
+ *  DPR 2 phone draws at 2, a DPR 3 phone at 3. The phone ASSET tier (PHONE_TIER, the half sheets) is unchanged; only
+ *  the renderer's resolution moves. The two iPhone allowlists below are switched off (every phone gets `phone`);
+ *  ROLLBACK: `phone: 1.5` and both lists `on: true` restore the 2026-10-14 rule. */
+export const RENDER_RESOLUTION_CAP = { phone: 3, desktop: 2, phone3x: 3 } as const;
 
 /** PHONES ALLOWED THE DESKTOP CAP (docs/device-quality-plan-v3.md section 6; Corey 2026-10-13): an iPhone whose screen
  *  density is `density` and whose short side is at least `minShort` CSS px and not one of `notShort` is an iPhone 12 or
@@ -212,7 +218,8 @@ export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2, phone3x: 3 } as c
  *  models up to the 11 Pro Max) and renders at RENDER_RESOLUTION_CAP.desktop. Every other phone keeps
  *  RENDER_RESOLUTION_CAP.phone. Read once from static signals before the renderer exists (game/deviceTier.ts): never
  *  a frame-rate cap, never a start-up benchmark, never a change mid session. Rollback: `on` false. */
-export const PHONE_2X_ALLOW = { on: true, density: 3, minShort: 390, notShort: [414] } as const;
+/** OFF since 2026-10-17 (every phone at RENDER_RESOLUTION_CAP.phone = 3); kept for the rollback. */
+export const PHONE_2X_ALLOW = { on: false, density: 3, minShort: 390, notShort: [414] } as const;
 
 /** THE LARGE IPHONES AT 3x (Corey 2026-10-14 19:38: "Yes 3x on Plus and Pro Max IPhones"; his 16-17 Pro Max class phone,
  *  440 x 956 @3, held 58.4 Hz at both 3 and 2): an iPhone that PHONE_2X_ALLOW admits (density 3, not 414) whose short
@@ -221,7 +228,8 @@ export const PHONE_2X_ALLOW = { on: true, density: 3, minShort: 390, notShort: [
  *  390 to 402 iPhones stay at 2 and every other phone at 1.5. The ASSET tier does not change (PHONE_TIER: the half
  *  sheets), only the renderer's resolution. Read once before the renderer exists, like the 2x list. Rollback: `on`
  *  false (those phones go back to 2). The staging `?rescap=` override still wins. */
-export const PHONE_3X_ALLOW = { on: true, minShort: 420 } as const;
+/** OFF since 2026-10-17 (every phone at RENDER_RESOLUTION_CAP.phone = 3); kept for the rollback. */
+export const PHONE_3X_ALLOW = { on: false, minShort: 420 } as const;
 
 /** THE CANVAS PIXEL CEILING (Corey 2026-10-13), everything that is NOT the phone tier: the renderer's resolution is
  *  min(devicePixelRatio, the cap, sqrt(RENDER_MAX_PIXELS / (CSS width x CSS height))) and never under 1. 8.3 million
