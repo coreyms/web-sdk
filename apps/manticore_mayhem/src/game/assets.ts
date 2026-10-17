@@ -3,7 +3,7 @@ import stamps, { fileBytes } from './assetStamp';
 import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
-import { LOAD_GATE } from './constants';
+import { CREATURE, LOAD_GATE } from './constants';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
 // waits for that worker's first message with no error path. Behind a CSP whose worker-src has no
@@ -26,6 +26,8 @@ export const stamp = (href: string): string => {
 // candidates must be written as literal `new URL(..., import.meta.url)` calls — Vite rewrites those
 // at build time and cannot follow a computed path.
 const tiered = (full: string, half: string): string => (PHONE_TIER ? half : full);
+/** HIS STILL'S tier (constants CREATURE.phoneFullIdle): the full still on the phone too while its idle is the full sheet */
+const tieredStill = (full: string, half: string): string => (PHONE_TIER && !CREATURE.phoneFullIdle ? half : full);
 
 /** Which of the cluster labels' atlases to PRELOAD: the baked cap nearest the cap height the labels will
  *  have on this screen, in canvas pixels (0.40 of a cell x the renderer's effective resolution,
@@ -463,7 +465,9 @@ const assets = {
 	// His sheets themselves are not in this table (game/creatureAssets.ts says why).
 	creatureStill: {
 		type: 'sprites',
-		src: tiered(
+		// the phone takes the FULL still while its idle is the full sheet (constants CREATURE.phoneFullIdle, Corey
+		// 2026-10-17 13:02 "Option C Sounds fine"): the still is idle frame 1, so nothing jumps when the idle starts
+		src: tieredStill(
 			stamp(new URL('../../assets/sprites/creature/still/creature-day-still.json', import.meta.url).href),
 			stamp(new URL('../../assets/sprites/creature/still/creature-day-still-phone.json', import.meta.url).href),
 		),

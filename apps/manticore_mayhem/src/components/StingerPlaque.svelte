@@ -142,7 +142,9 @@
 			if (source && nearest) source.mipmapFilter = 'nearest';
 		}
 		mips = `${mode}${nearest && mode === 'auto' ? '-near' : ''}:${chained.filter(Boolean).length}`;
-		void renderer.prepare?.upload(Object.values(src).filter((x): x is PIXI.TextureSource => !!x));
+		// ...and the background glow's halo (constants PLAQUE_GLOW, A-soft by default), baked by build(): uploaded here
+		// with the atlases, so the first show uploads nothing either
+		void renderer.prepare?.upload([...Object.values(src).filter((x): x is PIXI.TextureSource => !!x), ...view.glowSources()]);
 		built = true;
 		if (STAGING_TOOLS) perfMark('plaque:built');
 	});
@@ -417,7 +419,7 @@
 		// ---- DEV hook: __manticore.stinger (tools/manticore/stinger_probe.js) --------------------
 		if (import.meta.env.DEV && typeof window !== 'undefined') {
 			Object.assign(((window as any).__manticore ??= {}), {
-				/** THE PLAQUE'S BACKGROUND GLOW, the options for Corey (constants PLAQUE_GLOW): 'off' is the shipped look */
+				/** THE PLAQUE'S BACKGROUND GLOW, the options for Corey (constants PLAQUE_GLOW): 'A-soft' is the default since 2026-10-17, 'off' no glow */
 				plaqueGlow: (key: PlaqueGlowKey) => {
 					if (key !== 'off' && !(key in PLAQUE_GLOW.options)) return view.glowKey;
 					view.setGlow(key);

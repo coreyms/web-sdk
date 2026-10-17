@@ -1355,8 +1355,9 @@ export const STINGER_PLAQUE = {
 //   A  a warm gold halo: a soft glow of the plaque's own outline behind it, reaching about 10 % of its width past it
 //   B  a dark pool of the same outline behind it (wider and darker), and a thin warm rim right at its edge
 //   C  the scene dim raised to a flat dark wash (the board outside the plaque goes dark) and a faint warm halo
-//   off  as shipped (the default)
-// THE TEXTURES (game/fxTexture.ts plaqueHaloTexture): baked ONCE, on the first show that needs them, from the plaque
+//   off  no glow (the look before 2026-10-17)
+// THE TEXTURES (game/fxTexture.ts plaqueHaloTexture): baked ONCE, when the plaque is built (the default's) or on the
+// first DEV switch that needs another, uploaded with the plaque's atlases (components/StingerPlaque.svelte), from the plaque
 // body's own alpha (its sprite, the whole silhouette but the moving wing tips): drawn small into a 2D canvas with the
 // canvas's own shadowBlur (as the logo still bakes its drop shadow), white with alpha, then drawn as plain sprites with a
 // tint. Nothing is filtered, masked or redrawn per frame; nothing is downloaded. Each sprite is the body's first child,
@@ -1367,15 +1368,28 @@ export const STINGER_PLAQUE = {
 //             blurred outline is laid over itself (each pass lifts the near edge), `bakeWidth` = texture px across
 //   options   per look, back to front, each layer: which halo, its tint, alpha, blend ('add' glows, 'normal' darkens) and
 //             a scale about the plaque's centre; `dim`: the scene dim's alpha (null = the plaque's own, 0.28)
-// DEV switch `__manticore.plaqueGlow('A' | 'B' | 'C' | 'off')` (components/StingerPlaque.svelte).
-export type PlaqueGlowKey = 'off' | 'A' | 'B' | 'C';
+//   A-soft    THE DEFAULT since Corey 2026-10-17 13:02: "I like A and C the most, maybe A but not as bright." A's wide
+//             halo at 57 % of A's strength (tint x alpha, by luminance), a warmer, less saturated gold, on the intro,
+//             the wrap up and the Big Win (PLAQUE_GLOW_SOFT)
+//   A-dim     one step dimmer than A-soft (44 % of A), for Corey to compare
+// DEV switch `__manticore.plaqueGlow('A-soft' | 'A-dim' | 'A' | 'B' | 'C' | 'off')` (components/StingerPlaque.svelte).
+// Back to no glow: default 'off'.
+export type PlaqueGlowKey = 'off' | 'A' | 'B' | 'C' | 'A-soft' | 'A-dim';
 export type PlaqueGlowLayer = { halo: 'wide' | 'tight'; tint: number; alpha: number; blend: 'add' | 'normal'; scale: number };
+/** A-soft's numbers (PLAQUE_GLOW below; Corey 2026-10-17 13:02 "maybe A but not as bright"). A is gold 0xffb347 (hue
+ *  35, saturation 0.72) at alpha 0.75, additive: luminance x alpha 187.3 x 0.75 = 140.5.
+ *    tint      one step warmer and less saturated than A's gold (hue 28, saturation 0.62): over the bright gold symbols
+ *              A's hot core read yellow-white even at the lower alpha
+ *    alpha     A-soft: luminance 183.5 x 0.44 = 80.7, 57 % of A
+ *    dimAlpha  A-dim, one step dimmer: 183.5 x 0.34 = 62.4, 44 % of A */
+export const PLAQUE_GLOW_SOFT = { tint: 0xffab61, alpha: 0.44, dimAlpha: 0.34 } as const;
 export const PLAQUE_GLOW: {
 	default: PlaqueGlowKey;
 	halo: Record<'wide' | 'tight', { reach: number; blur: number; passes: number; bakeWidth: number }>;
 	options: Record<Exclude<PlaqueGlowKey, 'off'>, { layers: PlaqueGlowLayer[]; dim: number | null }>;
 } = {
-	default: 'off',
+	// Corey 2026-10-17 13:02: "I like A and C the most, maybe A but not as bright."
+	default: 'A-soft',
 	halo: {
 		wide: { reach: 0.14, blur: 0.09, passes: 3, bakeWidth: 256 },
 		tight: { reach: 0.05, blur: 0.022, passes: 3, bakeWidth: 384 },
@@ -1390,6 +1404,8 @@ export const PLAQUE_GLOW: {
 			dim: null,
 		},
 		C: { layers: [{ halo: 'wide', tint: 0xffa040, alpha: 0.5, blend: 'add', scale: 1 }], dim: 0.6 },
+		'A-soft': { layers: [{ halo: 'wide', tint: PLAQUE_GLOW_SOFT.tint, alpha: PLAQUE_GLOW_SOFT.alpha, blend: 'add', scale: 1 }], dim: null },
+		'A-dim': { layers: [{ halo: 'wide', tint: PLAQUE_GLOW_SOFT.tint, alpha: PLAQUE_GLOW_SOFT.dimAlpha, blend: 'add', scale: 1 }], dim: null },
 	},
 };
 
@@ -1478,9 +1494,11 @@ export const LOGO = {
 	 *                to 392, the left wing's tip (alpha up to 90 there). The still is trimmed to its own alpha box, so the
 	 *                tip IS the box's left edge. In art px of LOGO.art's width (0 = the box's left edge). The portrait
 	 *                logo is that still (game/logo/still.ts), never the animated one: no widest frame to measure.
-	 *  options: 'current' (portraitPhone's centre, the default) | 'edge'. DEV switch `__manticore.logoPlace('current' |
-	 *  'edge')` (components/Logo.svelte). Portrait phone only. */
-	portraitPhoneEdge: { wingTipArt: 0, edgeCss: 2, default: 'current' as 'current' | 'edge' },
+	 *  options: 'current' (portraitPhone's centre, the look before 2026-10-17) | 'edge' (the default). DEV switch `__manticore.logoPlace('current' |
+	 *  'edge')` (components/Logo.svelte). Portrait phone only.
+	 *  THE DEFAULT IS 'edge' since Corey 2026-10-17 13:02: "Yes, Logo on left edge looks proper for placement."
+	 *  'current' stays as a DEV option; back to the old place: default 'current'. */
+	portraitPhoneEdge: { wingTipArt: 0, edgeCss: 2, default: 'edge' as 'current' | 'edge' },
 	/** the landing screen's logo (ui/LandingScreen.svelte): the art's width and centre per master, above the cards */
 	landing: { landscape: { width: 380, cx: 640, cy: 92 }, phone: { width: 380, cx: 740, cy: 92 }, portrait: { width: 348, cx: 206, cy: 110 } },
 
@@ -2215,12 +2233,14 @@ export const CREATURE = {
 	 *              frame  the outer metal top bar's top edge (board-frame-portrait.webp, alpha > 32, flat between the
 	 *                     spikes: texture row 127 = render 205.6; the spikes and the corner blocks rise above it)
 	 *              grid   the cell area's top edge (BOARD_ART.lattice.y0 299.247: the cells' top, the lattice's outer bar)
-	 *    options current  place.portraitPhone, untouched (the default: what staging runs)
-	 *            A        the claw on the frame's top bar, his size unchanged
+	 *    options current  place.portraitPhone, untouched (the look before 2026-10-17)
+	 *            A        the claw on the frame's top bar, his size unchanged (THE DEFAULT)
 	 *            B        the claw on the cell area's top edge (the claw overlaps the rail; he stays behind the board)
 	 *            C        A at size 0.85 (only if A meets the logo or the status bar at 375 x 667)
 	 *  DEV switch `__manticore.creaturePlace('current' | 'A' | 'B' | 'C')` (components/Background.svelte). Portrait
-	 *  phone only; every other spot is untouched. */
+	 *  phone only; every other spot is untouched.
+	 *  THE DEFAULT IS A since Corey 2026-10-17 13:02: "A Claw on Frame Top." (the claw point at the end of the swipe on
+	 *  the frame's top bar, size 1). 'current', B and C stay as DEV options only; back to the old spot: default 'current'. */
 	portraitDock: {
 		claw: { x: 231, y: 776, clip: 'swipe', frame: 16 },
 		edges: { frame: 205.6, grid: 299.247 },
@@ -2229,8 +2249,17 @@ export const CREATURE = {
 			B: { edge: 'grid', size: 1 },
 			C: { edge: 'frame', size: 0.85 },
 		},
-		default: 'current' as CreatureDockKey,
+		// Corey 2026-10-17 13:02: "A Claw on Frame Top."
+		default: 'A' as CreatureDockKey,
 	},
+	/** THE SHARP IDLE ON PHONES (creature-sharp investigation option C, feedback/creature_sharp_r1/REPORT.md). Corey
+	 *  2026-10-17 13:02: "Option C Sounds fine". On the phone tier each look's IDLE sheet is the full tier's 640 px file
+	 *  (game/creatureAssets.ts), and his still is the full still too (game/assets.ts creatureStill), so he is the same
+	 *  picture when his idle lands; the attacks, the alternates, the shared shadow and glow atlases stay on the 432 phone
+	 *  sheets. The sprite takes its scale from each frame's own size on every swap (game/creature.ts draw), so the 640 idle
+	 *  and the 432 clips draw on the same anchor and place. Measured 156.29 MB per look on the GPU on a phone (was 123.5; the
+	 *  probe's BUDGET.phone) and a 216.0 MB peak while two looks cross over. ROLLBACK: false (every phone sheet at 432 again, as before 2026-10-17). */
+	phoneFullIdle: true,
 	looks: { base: 'day', bonus: 'day', super: 'super', epic: 'epic' },
 	// prefetchGroups (2026-10-15, download analysis S3, Corey yes): the prefetch takes only these load groups of each look
 	// (game/creatureLoad.ts GROUPS); the alternates (snarl, growl) load when the mode asks for the look, like any look.

@@ -269,7 +269,7 @@
 		// ---- DEV hook: __manticore.logo (tools/manticore/logo_probe.js) ------------------------------
 		if (import.meta.env.DEV && typeof window !== 'undefined') {
 			Object.assign(((window as any).__manticore ??= {}), {
-				/** THE PORTRAIT PHONE LOGO's option (constants LOGO.portraitPhoneEdge): 'current' (shipped) or 'edge' (the left
+				/** THE PORTRAIT PHONE LOGO's option (constants LOGO.portraitPhoneEdge): 'current' (the old centre) or 'edge' (the default since 2026-10-17) (the left
 				 *  wing's tip 2 CSS px from the screen's left edge). Returns the option in force. */
 				logoPlace: (key: 'current' | 'edge') => {
 					if (key === 'current' || key === 'edge') portraitOptions.logo = key;

@@ -415,7 +415,7 @@
 				return { left: -f.x, top: -f.y, right: f.x + fw * f.scale - canvas.width, bottom: f.y + fh * f.scale - canvas.height };
 			};
 			Object.assign(((window as any).__manticore ??= {}), {
-				/** THE PORTRAIT PHONE DOCK's option (constants CREATURE.portraitDock): 'current' (shipped) | 'A' | 'B' | 'C'.
+				/** THE PORTRAIT PHONE DOCK's option (constants CREATURE.portraitDock): 'current' (the old spot) | 'A' (the default since 2026-10-17) | 'B' | 'C'.
 				 *  Returns the option in force. */
 				creaturePlace: (key: CreatureDockKey) => {
 					if (key === 'current' || key in CREATURE.portraitDock.options) portraitOptions.creature = key;
@@ -628,7 +628,7 @@
 				// ---- __manticore.creature (tools/manticore/creature_probe.js) ----
 				creature: {
 					constants: () => JSON.parse(JSON.stringify(CREATURE)),
-					spec: () => ({ canvas: CREATURE_SPEC.canvas, feetRow: CREATURE_SPEC.feetRow, feetCol: CREATURE_SPEC.feetCol, fps: CREATURE_SPEC.fps, clips: JSON.parse(JSON.stringify(CREATURE_SPEC.clips)), tier, tierCanvas: CREATURE_SPEC.tiers[tier].canvas }),
+					spec: () => ({ canvas: CREATURE_SPEC.canvas, feetRow: CREATURE_SPEC.feetRow, feetCol: CREATURE_SPEC.feetCol, fps: CREATURE_SPEC.fps, clips: JSON.parse(JSON.stringify(CREATURE_SPEC.clips)), tier, tierCanvas: CREATURE_SPEC.tiers[tier].canvas, /** the idle sheets' canvas (CREATURE.phoneFullIdle: 640 on the phone too) */ idleCanvas: CREATURE_SPEC.tiers[CREATURE.phoneFullIdle ? 'full' : tier].canvas }),
 					/** everything: the state machine, what is loaded, the spot, and where the nodes are ON THE CANVAS through
 					 *  their own transforms (the feet point, and one 1024 canvas px in canvas px) */
 					state: () => {

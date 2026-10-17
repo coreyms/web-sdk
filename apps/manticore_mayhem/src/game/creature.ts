@@ -329,7 +329,10 @@ export class Creature {
 			if (!f) return false;
 			this.shadows[clip] = f;
 		}
-		this.shadow.scale.set(SPEC.canvas[0] / this.shadows.idle![0].orig.width);
+		// the scale of the shadow ON SHOW: the still's own shadow can still be up (constants CREATURE.phoneFullIdle: on a
+		// phone that is the full still's, 160 px, over a 108 px shadow atlas); draw() rescales on the first swap
+		const on = this.shadow.texture === PIXI.Texture.EMPTY ? this.shadows.idle![0] : this.shadow.texture;
+		this.shadow.scale.set(SPEC.canvas[0] / on.orig.width);
 		return true;
 	}
 	/** one clip of one look is in (already uploaded) */
@@ -1162,7 +1165,11 @@ export class Creature {
 		if (c0.texture === PIXI.Texture.EMPTY || c0.scale.x !== SPEC.canvas[0] / tex.orig.width) for (const s of this.colour) s.scale.set(SPEC.canvas[0] / tex.orig.width);
 		c0.texture = tex;
 		const sh = this.shadows[clip]?.[frame - 1];
-		if (sh) this.shadow.texture = sh;
+		if (sh) {
+			// the shadow atlas's tier can differ from the still's (constants CREATURE.phoneFullIdle): its scale follows it
+			if (this.shadow.texture === PIXI.Texture.EMPTY || this.shadow.texture.orig.width !== sh.orig.width) this.shadow.scale.set(SPEC.canvas[0] / sh.orig.width);
+			this.shadow.texture = sh;
+		}
 		if (this.next) {
 			const t1 = this.looks[this.next]?.[clip]?.[frame - 1];
 			if (t1) this.colour[1].texture = t1;

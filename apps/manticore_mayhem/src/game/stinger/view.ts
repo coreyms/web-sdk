@@ -434,6 +434,11 @@ export class StingerView {
 		this.sceneDim = opt?.dim ?? this.json.text.layout.scene_dim;
 	}
 
+	/** the background glow's baked halos (PLAQUE_GLOW), for the pre-upload with the atlases */
+	glowSources(): PIXI.TextureSource[] {
+		return Object.values(this.halos).map((h) => h.texture.source);
+	}
+
 	/** the five texture sources, for mip chains and the pre-upload */
 	sources(atlas: Textures): { plaque?: PIXI.TextureSource; fx?: PIXI.TextureSource; glint?: PIXI.TextureSource; titles?: PIXI.TextureSource; glyphs?: PIXI.TextureSource } {
 		return { plaque: atlas.stg_body?.source, fx: atlas.stg_veins_a?.source, glint: atlas.stg_glint_00?.source, titles: atlas.stg_title_total_win?.source, glyphs: atlas.stg_g_0030?.source };
