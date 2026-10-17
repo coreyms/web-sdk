@@ -92,7 +92,8 @@ SRC_DEFAULT = Path.home() / "Desktop" / "Manticore Mayhem" / "images" / "ui"
 TIERS = {
     # plaque 2 (was 3/2): Corey 2026-10-17 10:41 "Yes sharper plaque", for 1920-class DPR 2 desktops (+116 KB, +5.1 MB GPU)
     "": {"plaque": Fraction(2), "fx": Fraction(3, 2), "glint": Fraction(1), "text": Fraction(3, 2)},
-    "-half": {"plaque": Fraction(1), "fx": Fraction(1), "glint": Fraction(3, 4), "text": Fraction(1)},
+    # plaque 3/2 (was 1): Corey 2026-10-17 11:01, phones on the 2x/3x iPhone caps drew the plaque magnified (1.24 device px per texel at 3x)
+    "-half": {"plaque": Fraction(3, 2), "fx": Fraction(1), "glint": Fraction(3, 4), "text": Fraction(1)},
     # TEST ONLY (--tiers ...,mid): not built by default, not loaded by the game
     "-mid": {"plaque": Fraction(5, 4), "fx": Fraction(5, 4), "glint": Fraction(3, 4), "text": Fraction(5, 4)},
 }
