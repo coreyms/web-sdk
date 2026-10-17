@@ -10,12 +10,20 @@
 // So every line is a plain MARQUEE on every screen: one row at the scroll size, it enters from fully outside the right
 // edge of the plaque's text box, moves left at one constant speed (a short ease in at its start, none at its end) and
 // keeps going until its last letter has left the box's left edge. It never pauses or holds, and since every line is
-// fed through the box it is never shown whole at once. The box cuts it hard at both edges (the mesh only spans the part
-// inside the box: no mask). Between lines the box is empty; no crest (r3).
+// fed through the box it is never shown whole at once. Between lines the box is empty; no crest (r3).
+//
+// r5 (12:38): "I'd hope we could do the edges for enter and exit the slanted lines of the sides of the panel". The plaque
+// is a trapezoid, wider at the bottom; the line now enters and leaves along the dark field's two SLANTED inner edges
+// (PLAQUE_TIPS.edges, measured from the plaque art in its own px), so a letter is cut on the slant as it passes. The cut
+// is the mesh itself: its four corners are that trapezoid window and the line scrolls through it by its UVs, on a
+// texture drawn once per line and padded with clear pixels (clamped, so nothing repeats). No mask, filter or shader.
 // components/BoardPlaque.svelte draws it; this file has the words, the order, the numbers and the path.
 //
 // PRESENTATION ONLY: nothing here reads or changes an outcome. The words are Corey's, exactly; tools' rules_probe.js
 // banned-word list is checked against every line by feedback/plaque_tips_r4/plaque_tips_probe.js.
+
+/** one plaque art's slanted inner edges (PLAQUE_TIPS.edges), art px */
+export type PlaqueEdgeArt = { tex: readonly [number, number]; top: number; bottom: number; left: readonly [number, number]; right: readonly [number, number] };
 
 /** Every number of the explainer lines. Layout units are the plaque figures' own flat space (boardPlaqueSpec.ts
  *  figureBlock: the figure row is 638 x 64 of them, centred on 0, y down), put through the same halved-lean homography
@@ -54,7 +62,9 @@ export const PLAQUE_TIPS = {
 	scrollMaxCss: 26,
 	scrollCapMax: 0.6,
 	/** "never show the full sentence" (r4, 11:28): the narrowest line on this screen is always at least this many times
-	 *  the box's width, so no line ever fits in the box whole. On the six probed layouts r3's sizes already give 1.07 or
+	 *  the box's width, so no line ever fits in the box whole. Since r5 "the box's width" is the slanted window's width
+	 *  at its narrowest row (its top), a little wider than r4's box, so this now lifts the size a few per cent on most
+	 *  screens. On the six probed layouts r3's sizes already give 1.07 or
 	 *  more, so this changes nothing there; on a big desktop (about 1700 CSS px wide and up), where scrollMaxCss would let
 	 *  a short line fit, it lifts the size just enough. Never over the scrollCapMax height rule */
 	scrollNarrowestOverBox: 1.04,
@@ -62,13 +72,29 @@ export const PLAQUE_TIPS = {
 	// ---- the face and the box (r1) ----
 	/** THE TEXT BOX inside the plaque's dark field, in layout units: [halfWidth, top, bottom]. The field measured from
 	 *  the day plaque art (x +-331, y -49.5 to 44.5 in every layout but the phone's, x +-344, y -43.7 to 37.8 there),
-	 *  less a margin so the letters never touch the rim. The marquee is cut at its left and right edges */
+	 *  less a margin so the letters never touch the rim. Since r5 its top and bottom are the window's top and bottom
+	 *  rows and its halfWidth only sets the scale (CSS px per unit); the left and right cut is PLAQUE_TIPS.edges */
 	box: {
 		landscape: [312, -42, 38],
 		portrait: [312, -42, 38],
 		portraitTablet: [312, -42, 38],
 		phone: [326, -37, 32],
 	} as Record<string, readonly [number, number, number]>,
+	/** THE SLANTED SIDES (r5, Corey 12:38): the inner edges of the plaque's dark text field, where the marquee is cut,
+	 *  measured from each day plaque art in the art's OWN px (static/assets/ui/board-plaque-<art>.webp at its full size
+	 *  `tex`; x right, y down). `top` and `bottom` are the field's top and bottom rows; `left` and `right` are each
+	 *  edge's x at those two rows [atTop, atBottom]. Landscape and portrait: the inner side of the inlaid gold line
+	 *  that rings the field; the phone art has no inlay, so the field's own edge. Every px is read as a share of `tex`
+	 *  (so the half size tier, or any size the art is drawn at, gives the same line) and goes through the layout's
+	 *  plaque box and homography (game/plaqueTips.ts slantEdges), so the cut sits on the art on every layout. The
+	 *  portrait tablet layout draws the portrait art */
+	edges: {
+		landscape: { tex: [620, 123], top: 27, bottom: 93, left: [60.9, 36.8], right: [559.8, 584.1] },
+		portrait: { tex: [648, 127], top: 27, bottom: 97, left: [64.1, 38.1], right: [584.7, 610.9] },
+		phone: { tex: [612, 106], top: 20, bottom: 84, left: [39.5, 24.1], right: [572.2, 587.9] },
+	} as Record<string, PlaqueEdgeArt>,
+	/** the cut sits this many art px inside each measured edge, so no letter pixel ever lands on the gold line itself */
+	edgeInsetArtPx: 0.5,
 	/** the face: Cinzel, the intro cards' title face (ui/fontFaces.ts), a Roman inscription face; no new family */
 	font: "700 {px}px Cinzel, 'Times New Roman', serif",
 	fontCheck: '700 32px Cinzel',
@@ -123,20 +149,54 @@ export const tipAt = (slot: number, other: number): { index: number; usesOther: 
 		: { index: 1 + (other % (TIP_COUNT - 1)), usesOther: true };
 
 /** the size of every line on this screen (one row, one size for all). The box is [halfWidth, top, bottom], `kCss` the
- *  CSS px per layout unit across the box, `capK` the face's cap height per font size and `narrowestK` the narrowest
- *  line's width per font size. Returns the font size in layout units: scrollBoxFrac of the box's height, scrollMinCss
- *  to scrollMaxCss on screen, but never so small that the narrowest line is under scrollNarrowestOverBox of the box's
- *  width, and its cap never over scrollCapMax of the box */
-export const tipFont = (box: readonly [number, number, number], kCss: number, capK: number, narrowestK: number): number => {
+ *  CSS px per layout unit across the box, `capK` the face's cap height per font size, `narrowestK` the narrowest
+ *  line's width per font size and `windowW` the width (layout units) a line must never fit in: the slanted window at
+ *  its narrowest row (r5; r4's box width when not given). Returns the font size in layout units: scrollBoxFrac of the
+ *  box's height, scrollMinCss to scrollMaxCss on screen, but never so small that the narrowest line is under
+ *  scrollNarrowestOverBox of windowW, and its cap never over scrollCapMax of the box */
+export const tipFont = (box: readonly [number, number, number], kCss: number, capK: number, narrowestK: number, windowW = 2 * box[0]): number => {
 	const Hh = box[2] - box[1];
 	const k = kCss > 0 ? kCss : 1;
 	const r3 = Math.min(Math.max(PLAQUE_TIPS.scrollBoxFrac * Hh, PLAQUE_TIPS.scrollMinCss / k), PLAQUE_TIPS.scrollMaxCss / k);
-	const neverWhole = narrowestK > 0 ? (PLAQUE_TIPS.scrollNarrowestOverBox * 2 * box[0]) / narrowestK : 0;
+	const neverWhole = narrowestK > 0 ? (PLAQUE_TIPS.scrollNarrowestOverBox * windowW) / narrowestK : 0;
 	return Math.min(Math.max(r3, neverWhole), (PLAQUE_TIPS.scrollCapMax * Hh) / Math.max(0.3, capK));
 };
 
-/** THE MARQUEE'S PATH. A line's strip (its text and a stripPad margin) starts with its left edge on the box's right
- *  edge and ends with its right edge on the box's left edge: `dist` is the box's width plus the strip's, at `v` layout
+/** THE SLANTED WINDOW (r5) in layout units: each slanted edge's x at the box's top row and at its bottom row (left
+ *  top, left bottom, right top, right bottom). `art` is the plaque art's edges (PLAQUE_TIPS.edges), `plaqueBox` the
+ *  render box the art is drawn over ([x, y, w, h], boardPlaqueSpec render.plaqueBox), `H` the layout's homography
+ *  (layout units to render px, h8 = 1). Each edge's two ends go art px, to render px, back through H to layout units;
+ *  a homography keeps a line a line, so the edge is straight in layout units too and is read off at the two rows */
+export type SlantEdges = { lt: number; lb: number; rt: number; rb: number };
+export const slantEdges = (art: PlaqueEdgeArt, plaqueBox: readonly number[], H: readonly number[], top: number, bot: number): SlantEdges => {
+	const inset = PLAQUE_TIPS.edgeInsetArtPx;
+	/** art px to layout units: the render point (X, Y) solved back through H */
+	const back = (ax: number, ay: number): [number, number] => {
+		const X = plaqueBox[0] + (ax / art.tex[0]) * plaqueBox[2];
+		const Y = plaqueBox[1] + (ay / art.tex[1]) * plaqueBox[3];
+		const a = H[0] - X * H[6];
+		const b = H[1] - X * H[7];
+		const c = H[3] - Y * H[6];
+		const d = H[4] - Y * H[7];
+		const e = X - H[2];
+		const f = Y - H[5];
+		const det = a * d - b * c;
+		return [(e * d - b * f) / det, (a * f - c * e) / det];
+	};
+	const at = (p: [number, number], q: [number, number], y: number) => p[0] + ((q[0] - p[0]) * (y - p[1])) / (q[1] - p[1]);
+	const l0 = back(art.left[0] + inset, art.top);
+	const l1 = back(art.left[1] + inset, art.bottom);
+	const r0 = back(art.right[0] - inset, art.top);
+	const r1 = back(art.right[1] - inset, art.bottom);
+	return { lt: at(l0, l1, top), lb: at(l0, l1, bot), rt: at(r0, r1, top), rb: at(r0, r1, bot) };
+};
+/** a slanted edge's x at layout row y (x0 at the box's top row, x1 at its bottom row) */
+export const edgeAt = (x0: number, x1: number, top: number, bot: number, y: number): number => x0 + ((x1 - x0) * (y - top)) / (bot - top);
+
+/** THE MARQUEE'S PATH. A line's strip (its text and a stripPad margin) starts with its left edge on the window's
+ *  outermost right point (the right slanted edge's bottom end: all of it outside that edge) and ends with its right
+ *  edge on the window's outermost left point (all of it past the left slanted edge): `dist` is the window's widest
+ *  span plus the strip's, at `v` layout
  *  units a ms. marqueeSpan: its whole length in ms (the ease in costs half of scrollEaseInMs); marqueeAt: how far it has
  *  moved `t` ms in (0 to dist), easing in over the first scrollEaseInMs and then at v to the end, no ease out */
 export const marqueeSpan = (dist: number, v: number): { ms: number; ease: number } => {

@@ -37,16 +37,20 @@
 	// base game (game/boardIdle.ts, the symbol pay popup's own rule) and the plaque has no figures, one line at a time
 	// crosses the plaque's text box as a plain MARQUEE: it enters from fully outside the box's right edge, moves left at
 	// one constant speed (a short ease in, none at the end) and goes on until its last letter has left the box's left
-	// edge. It never pauses, and it is never shown whole. The box cuts it hard at both edges: the mesh spans only the
-	// part of the line inside the box (no mask). Between lines the box is empty (no crest since r3, PLAQUE_TIPS.crest);
+	// edge. It never pauses, and it is never shown whole. Since r5 (Corey 12:38) the left and right cut is the dark
+	// field's two SLANTED inner edges (PLAQUE_TIPS.edges, measured from the art), so a letter is cut on the slant as it
+	// enters and leaves. Between lines the box is empty (no crest since r3, PLAQUE_TIPS.crest);
 	// PLAQUE_TIPS.gapMs runs from one line gone to the next one entering. Line 1 first, then the others in turn, line 1
 	// back every third line. A line hides as soon as the board stops being idle, and never shows while the figures do (the
 	// figures, the win readout, always win). r2 and r3's gold particles are gone (Corey 11:28).
 	//
-	// Each line is drawn ONCE into a canvas (the Cinzel face the intro cards use) when it comes up and uploaded; it shows
-	// on a small grid mesh whose corners go through the figures' homography, so it leans with the plaque. The marquee
-	// moves the mesh's window over that texture each frame: a vertex update, never a texture upload. No text object,
-	// filter, mask or shader; the plaque takes no press (eventMode none).
+	// Each line is drawn ONCE, when it comes up, into its own canvas texture (the Cinzel face the intro cards use, at the
+	// renderer's resolution, clear pixels padding the text) and that texture is destroyed when the line ends. It shows
+	// on a small grid mesh whose four outer corners are the slanted window, put through the figures' homography so it
+	// leans with the plaque; the mesh's positions change only with the layout. The marquee scrolls the line through
+	// the window by the mesh's UVs each frame (a small buffer update, never a texture or an upload); outside the text
+	// the clamped texture is clear, so nothing repeats. No text object, filter, mask or shader; the plaque takes no
+	// press (eventMode none).
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
@@ -63,7 +67,7 @@
 	import { boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { boardIdle } from '../game/boardIdle';
-	import { PLAQUE_TIPS as TIPS, marqueeAt, marqueeSpan, pointerIsMouse, tipAt, tipFont, tipLines } from '../game/plaqueTips';
+	import { PLAQUE_TIPS as TIPS, edgeAt, marqueeAt, marqueeSpan, pointerIsMouse, slantEdges, tipAt, tipFont, tipLines } from '../game/plaqueTips';
 
 	const context = getContext();
 
@@ -90,13 +94,15 @@
 	const mesh = new PIXI.MeshSimple({ texture: PIXI.Texture.WHITE, vertices: positions, uvs, indices });
 	mesh.autoUpdate = false;
 	figures.addChild(mesh);
-	// the explainer lines: one canvas texture on a (gridX x gridY) mesh of quads through the homography; the mesh spans
-	// only the part of the line inside the text box (the marquee's hard cut at the box's edges)
+	// the explainer lines: the line's texture on a (gridX x gridY) mesh of quads through the homography; the mesh is the
+	// slanted window (r5) and the line scrolls through it by its UVs
 	const tips = new PIXI.Container({ label: 'plaque-tips' });
 	const TX = TIPS.gridX;
 	const TY = TIPS.gridY;
 	const tipPos = new Float32Array((TX + 1) * (TY + 1) * 2);
 	const tipUv = new Float32Array((TX + 1) * (TY + 1) * 2);
+	/** each vertex's layout x (the UVs are worked out from it every frame) */
+	const tipX = new Float32Array((TX + 1) * (TY + 1));
 	const tipIdx = new Uint32Array(TX * TY * 6);
 	for (let j = 0; j <= TY; j += 1) for (let i = 0; i <= TX; i += 1) tipUv.set([i / TX, j / TY], (j * (TX + 1) + i) * 2);
 	for (let j = 0; j < TY; j += 1)
@@ -105,12 +111,23 @@
 			const b = a + TX + 1;
 			tipIdx.set([a, a + 1, b + 1, a, b + 1, b], (j * TX + i) * 6);
 		}
-	const tipCanvas = document.createElement('canvas');
-	tipCanvas.width = tipCanvas.height = 1;
-	const tipCtx = tipCanvas.getContext('2d') as CanvasRenderingContext2D;
-	const tipSource = new PIXI.CanvasSource({ resource: tipCanvas as unknown as PIXI.ICanvas, resolution: 1 });
-	const tipTexture = new PIXI.Texture({ source: tipSource, label: 'plaque-tips' });
-	const tipMesh = new PIXI.MeshSimple({ texture: tipTexture, vertices: tipPos, uvs: tipUv, indices: tipIdx });
+	/** a 1 x 1 canvas only for measuring the words (never a texture) */
+	const measureCanvas = document.createElement('canvas');
+	measureCanvas.width = measureCanvas.height = 1;
+	const tipCtx = measureCanvas.getContext('2d') as CanvasRenderingContext2D;
+	/** the line on show's own canvas and texture: made when the line starts, destroyed when it ends (null between) */
+	const lineTex = { canvas: null as HTMLCanvasElement | null, texture: null as PIXI.Texture | null, made: 0, freed: 0 };
+	const freeLineTexture = () => {
+		tipMesh.texture = PIXI.Texture.EMPTY;
+		if (lineTex.texture) {
+			lineTex.texture.destroy(true);
+			lineTex.freed += 1;
+		}
+		if (lineTex.canvas) lineTex.canvas.width = lineTex.canvas.height = 0;
+		lineTex.texture = null;
+		lineTex.canvas = null;
+	};
+	const tipMesh = new PIXI.MeshSimple({ texture: PIXI.Texture.EMPTY, vertices: tipPos, uvs: tipUv, indices: tipIdx });
 	tipMesh.autoUpdate = false;
 	// nothing in the box until a line enters
 	tipMesh.visible = false;
@@ -215,9 +232,12 @@
 		atlas = t.all;
 		shown.relayout = true; // lay the figures out again for this layout
 		lit.seq = -1;
-		// the explainer lines: this layout's box; a line on show is let go (game/plaqueTips.ts)
+		// the explainer lines: this layout's box and slanted window (the art this layout draws); a line on show is let go
+		// (game/plaqueTips.ts)
 		tipBox = TIPS.box[specKey] ?? TIPS.box.landscape;
-		meshAt.x0 = NaN;
+		const art = TIPS.edges[kind] ?? TIPS.edges.landscape;
+		Object.assign(win, slantEdges(art, L.render.plaqueBox, H, tipBox[1], tipBox[2]));
+		win.built = false;
 		tipNeed.layout = true;
 	});
 
@@ -290,26 +310,48 @@
 	// ---- the explainer lines: the mesh, the size, the drawing -----------------------------------------------------------
 	let tipBox: readonly [number, number, number] = TIPS.box.landscape;
 	const tipNeed = { layout: true };
-	/** what the mesh spans now: layout x0 to x1 across the box's height, the texture's u0 to u1 across it */
-	const meshAt = { x0: NaN, x1: NaN, u0: NaN, u1: NaN };
-	const buildTipMesh = (x0: number, x1: number, u0: number, u1: number) => {
-		if (x0 === meshAt.x0 && x1 === meshAt.x1 && u0 === meshAt.u0 && u1 === meshAt.u1) return;
-		meshAt.x0 = x0;
-		meshAt.x1 = x1;
-		meshAt.u0 = u0;
-		meshAt.u1 = u1;
+	/** THE SLANTED WINDOW (r5), layout units: each slanted edge's x at the box's top row and its bottom row (left top,
+	 *  left bottom, right top, right bottom; game/plaqueTips.ts slantEdges); built: the mesh's positions are on it; uvAt:
+	 *  the strip offset the UVs were last worked out for */
+	const win = { lt: -TIPS.box.landscape[0], lb: -TIPS.box.landscape[0], rt: TIPS.box.landscape[0], rb: TIPS.box.landscape[0], built: false, uvAt: NaN, uvW: NaN };
+	/** a slanted edge's x at layout row y */
+	const leftAt = (y: number) => edgeAt(win.lt, win.lb, tipBox[1], tipBox[2], y);
+	const rightAt = (y: number) => edgeAt(win.rt, win.rb, tipBox[1], tipBox[2], y);
+	/** the window's outermost points (its widest span) and its width at its narrowest row */
+	const outL = () => Math.min(win.lt, win.lb);
+	const outR = () => Math.max(win.rt, win.rb);
+	const narrowW = () => Math.min(win.rt - win.lt, win.rb - win.lb);
+	/** the mesh's positions: rows from the box's top to its bottom, each row from the left slanted edge to the right one
+	 *  (only when the layout changes) */
+	const buildTipWindow = () => {
 		const [, top, bot] = tipBox;
-		for (let j = 0; j <= TY; j += 1)
+		for (let j = 0; j <= TY; j += 1) {
+			const y = top + ((bot - top) * j) / TY;
+			const x0 = leftAt(y);
+			const x1 = rightAt(y);
 			for (let i = 0; i <= TX; i += 1) {
-				const f = i / TX;
-				const p = through(x0 + (x1 - x0) * f, top + ((bot - top) * j) / TY);
-				const o = (j * (TX + 1) + i) * 2;
-				tipPos[o] = p.x;
-				tipPos[o + 1] = p.y;
-				tipUv[o] = u0 + (u1 - u0) * f;
-				tipUv[o + 1] = j / TY;
+				const x = x0 + ((x1 - x0) * i) / TX;
+				const p = through(x, y);
+				const k = j * (TX + 1) + i;
+				tipPos[k * 2] = p.x;
+				tipPos[k * 2 + 1] = p.y;
+				tipX[k] = x;
+				tipUv[k * 2 + 1] = j / TY;
 			}
+		}
 		tipMesh.geometry.getBuffer('aPosition').update();
+		win.built = true;
+		win.uvAt = NaN;
+	};
+	/** the scroll: every vertex's u is where its layout x falls on the line's strip (off: the strip's left edge, W: its
+	 *  width). Outside 0..1 the clamped texture is clear. A small buffer update, no texture work */
+	const scrollTipUvs = (off: number, W: number) => {
+		if (!win.built) buildTipWindow();
+		if (off === win.uvAt && W === win.uvW) return;
+		win.uvAt = off;
+		win.uvW = W;
+		const n = (TX + 1) * (TY + 1);
+		for (let k = 0; k < n; k += 1) tipUv[k * 2] = (tipX[k] - off) / W;
 		tipMesh.geometry.getBuffer('aUV').update();
 	};
 	const fontAt = (px: number) => TIPS.font.replace('{px}', String(px));
@@ -343,11 +385,13 @@
 		tipCtx.font = fontAt(REF);
 		capK = (tipCtx.measureText('H').actualBoundingBoxAscent || REF * 0.7) / REF;
 		planK = cssPerUnit().ku;
-		tipFontU = tipFont(tipBox, planK, capK, Math.min(...tipTexts.map(widthAt1)));
+		// "never show the full sentence": the narrowest line never fits the slanted window at its narrowest row (r5)
+		tipFontU = tipFont(tipBox, planK, capK, Math.min(...tipTexts.map(widthAt1)), narrowW());
 	};
 	/** the line on show: its index and words, its size, the texture's size, the strip it is drawn on (layout units: x 0
 	 *  to stripW; its x on the box is the strip's x plus the marquee's offset, offset0 as it enters, offset1 once it is
-	 *  gone) and its ink in the strip */
+	 *  gone), its ink in the strip, and the slanted edges at the ink's top and bottom rows (the innermost and the
+	 *  outermost x of each edge over the rows the ink covers) */
 	const tipShown = {
 		index: -1,
 		text: '',
@@ -359,34 +403,36 @@
 		offset0: 0,
 		offset1: 0,
 		ink: { x0: 0, x1: 0, y0: 0, y1: 0 },
+		edge: { inL: 0, inR: 0, outL: 0, outR: 0 },
 	};
-	/** draw line `index` into the canvas at the screen's own density and upload it (once per line, never per frame).
-	 *  `fontCss`: DEV, a size on screen to draw it at instead */
+	/** draw line `index` into its OWN canvas at the screen's own density and make its texture (once per line, never per
+	 *  frame; freeLineTexture destroys it when the line ends). `fontCss`: DEV, a size on screen to draw it at instead */
 	const drawTip = (index: number, fontCss: number | null = null): boolean => {
 		const text = tipTexts[index];
 		if (text === undefined) return false;
-		const [hw, top, bot] = tipBox;
+		const [, top, bot] = tipBox;
 		const Hh = bot - top;
 		const font = fontCss !== null && planK > 0 ? fontCss / planK : tipFontU;
 		const pad = TIPS.stripPad;
 		const W = widthAt1(text) * font + 2 * pad;
 		tipShown.stripW = W;
-		// the marquee: the strip's left edge on the box's right edge as it enters (all of it outside), its right edge on
-		// the box's left edge once it is gone (all of it past)
-		tipShown.offset0 = hw;
-		tipShown.offset1 = -hw - W;
+		// the marquee (r5): the strip's left edge on the window's outermost right point as it enters (all of it outside
+		// the right slanted edge), its right edge on the window's outermost left point once it is gone (all of it past
+		// the left slanted edge)
+		tipShown.offset0 = outR();
+		tipShown.offset1 = outL() - W;
 		// screen px per layout unit across the box and down it, at the renderer's resolution
 		const res = (context.stateApp.pixiApplication?.renderer?.resolution ?? 1) * TIPS.texScale;
 		const { ku, kv } = cssPerUnit();
 		const cw = Math.max(2, Math.min(TIPS.texMax, Math.ceil(W * ku * res)));
 		const ch = Math.max(2, Math.min(TIPS.texMax, Math.ceil(Hh * kv * res)));
-		if (cw !== tipShown.cw || ch !== tipShown.ch) {
-			tipSource.resize(cw, ch, 1);
-			tipShown.cw = cw;
-			tipShown.ch = ch;
-		}
-		const g = tipCtx;
-		g.setTransform(1, 0, 0, 1, 0, 0);
+		freeLineTexture();
+		const canvas = document.createElement('canvas');
+		canvas.width = cw;
+		canvas.height = ch;
+		tipShown.cw = cw;
+		tipShown.ch = ch;
+		const g = canvas.getContext('2d') as CanvasRenderingContext2D;
 		g.clearRect(0, 0, cw, ch);
 		// strip units -> canvas px: x from the strip's left, y from the box's top
 		g.setTransform(cw / W, 0, 0, ch / Hh, 0, (-top * ch) / Hh);
@@ -406,7 +452,19 @@
 		g.fillText(text, pad, base);
 		const mt = g.measureText(text);
 		tipShown.ink = { x0: pad - mt.actualBoundingBoxLeft, x1: pad + mt.actualBoundingBoxRight, y0: base - mt.actualBoundingBoxAscent + Math.min(0, TIPS.lipOffset), y1: base + mt.actualBoundingBoxDescent + Math.max(0, TIPS.lightOffset) };
-		tipSource.update();
+		const e0 = leftAt(tipShown.ink.y0);
+		const e1 = leftAt(tipShown.ink.y1);
+		const f0 = rightAt(tipShown.ink.y0);
+		const f1 = rightAt(tipShown.ink.y1);
+		tipShown.edge = { inL: Math.max(e0, e1), outL: Math.min(e0, e1), inR: Math.min(f0, f1), outR: Math.max(f0, f1) };
+		// the line's texture: the canvas as it is (one upload), clamped, so past the clear padding at either end of the
+		// text the window samples nothing (no repeat)
+		const source = new PIXI.CanvasSource({ resource: canvas as unknown as PIXI.ICanvas, resolution: 1, addressMode: 'clamp-to-edge', scaleMode: 'linear', label: 'plaque-tips-line' });
+		lineTex.canvas = canvas;
+		lineTex.texture = new PIXI.Texture({ source, label: 'plaque-tips-line' });
+		lineTex.made += 1;
+		tipMesh.texture = lineTex.texture;
+		win.uvAt = NaN;
 		tipShown.index = index;
 		tipShown.text = text;
 		tipShown.font = font;
@@ -575,26 +633,23 @@
 	};
 	/** THE TIPS' CLOCK (ms): performance.now, or slower / faster under the DEV clock (every time below is on it) */
 	const clock = { now: 0, real: 0 };
-	/** the part of the strip inside the box (layout x), and its texture's u there */
+	/** the part of the strip within the window's widest span (layout x; the slanted edges cut inside it) */
 	const visibleStrip = () => {
-		const hw = tipBox[0];
 		const off = msg.offset;
-		const x0 = Math.max(-hw, off);
-		const x1 = Math.min(hw, off + tipShown.stripW);
-		return { x0, x1, u0: (x0 - off) / tipShown.stripW, u1: (x1 - off) / tipShown.stripW };
+		return { x0: Math.max(outL(), off), x1: Math.min(outR(), off + tipShown.stripW) };
 	};
-	/** the hard cut at the box's edges: the mesh spans only the part of the line inside the box; none of it inside, the
-	 *  mesh is not drawn */
+	/** the cut along the slanted edges (r5): the mesh is the window and the line scrolls through it by its UVs; while
+	 *  none of the strip is within the window's widest span the mesh is not drawn */
 	const placeLine = () => {
 		const v = visibleStrip();
-		const inside = v.x1 > v.x0;
+		const inside = v.x1 > v.x0 && !!lineTex.texture;
 		tipMesh.visible = inside;
-		if (inside) buildTipMesh(v.x0, v.x1, v.u0, v.u1);
+		if (inside) scrollTipUvs(msg.offset, tipShown.stripW);
 		return inside;
 	};
 
 	/** DEV: every frame of a line's crossing, checked in the page (the probe reads it): frames, frames it did not move
-	 *  left (holds), frames its whole ink was inside the box (whole), its ink at the entry and at the end, the speed
+	 *  left (holds), frames its whole ink was inside the slanted window (whole), its ink at the entry and at the end, the speed
 	 *  after the ease in as a share of the constant speed, and why it ended */
 	const runStat = {
 		index: -1,
@@ -621,13 +676,17 @@
 		prevOff: NaN,
 		prevNow: 0,
 		prevRatio: NaN,
+		texAtStart: 0,
+		texChanges: 0,
+		texUid: -1,
 	};
 	const runs: Record<string, unknown>[] = [];
 	const statStart = (now: number) => {
 		if (!import.meta.env.DEV) return;
-		const hw = tipBox[0];
-		Object.assign(runStat, { index: msg.index, t0: now, end: '', frames: 0, drawn: 0, holds: 0, frozen: 0, whole: 0, maxShownFrac: 0, firstDrawnU: -1, endInkRightU: NaN, endOffset: NaN, minRatio: Infinity, maxRatio: 0, exitRatio: NaN, prevRatio: NaN, prevOff: NaN, prevNow: now });
-		runStat.enterInkLeftU = tipShown.offset0 + tipShown.ink.x0 - hw;
+		Object.assign(runStat, { index: msg.index, t0: now, end: '', frames: 0, drawn: 0, holds: 0, frozen: 0, whole: 0, maxShownFrac: 0, firstDrawnU: -1, endInkRightU: NaN, endOffset: NaN, minRatio: Infinity, maxRatio: 0, exitRatio: NaN, prevRatio: NaN, prevOff: NaN, prevNow: now, texAtStart: lineTex.made, texChanges: 0, texUid: lineTex.texture?.source.uid ?? -1 });
+		// from fully outside the RIGHT slanted edge: the ink's left end against the right edge's outermost x over the
+		// ink's rows (0 or more: no ink inside the window)
+		runStat.enterInkLeftU = tipShown.offset0 + tipShown.ink.x0 - tipShown.edge.outR;
 		runStat.offset1 = tipShown.offset1;
 		runStat.v = msg.v;
 		runStat.ms = msg.ms;
@@ -636,18 +695,23 @@
 	};
 	const statFrame = (now: number, tau: number, frozen: boolean) => {
 		if (!import.meta.env.DEV) return;
-		const hw = tipBox[0];
 		const off = msg.offset;
+		const e = tipShown.edge;
 		runStat.frames += 1;
 		const inkL = tipShown.ink.x0 + off;
 		const inkR = tipShown.ink.x1 + off;
-		const shown = Math.max(0, Math.min(hw, inkR) - Math.max(-hw, inkL));
+		// the most of the ink's width the window can show on any of the ink's rows (its widest rows)
+		const shown = Math.max(0, Math.min(e.outR, inkR) - Math.max(e.outL, inkL));
 		if (shown > 0) {
 			runStat.drawn += 1;
-			if (runStat.firstDrawnU < 0) runStat.firstDrawnU = Math.min(hw, off + tipShown.stripW) - Math.max(-hw, off);
+			// how much ink came into the window on the first frame any did (at most one frame's travel)
+			if (runStat.firstDrawnU < 0) runStat.firstDrawnU = shown;
 		}
 		runStat.maxShownFrac = Math.max(runStat.maxShownFrac, shown / Math.max(1e-6, inkR - inkL));
-		if (inkL >= -hw - 1e-6 && inkR <= hw + 1e-6) runStat.whole += 1;
+		// whole: the ink's box inside the trapezoid, i.e. inside both slanted edges at every row it covers
+		if (inkL >= e.inL - 1e-6 && inkR <= e.inR + 1e-6) runStat.whole += 1;
+		// one texture for the whole line: never a new one, never a swap
+		if ((lineTex.texture?.source.uid ?? -1) !== runStat.texUid || lineTex.made !== runStat.texAtStart) runStat.texChanges += 1;
 		if (frozen) runStat.frozen += 1;
 		else if (!Number.isNaN(runStat.prevOff)) {
 			const step = runStat.prevOff - off;
@@ -668,7 +732,8 @@
 		if (!import.meta.env.DEV || runStat.end) return;
 		runStat.end = why;
 		runStat.endOffset = msg.offset;
-		runStat.endInkRightU = tipShown.ink.x1 + msg.offset + tipBox[0];
+		// fully past the LEFT slanted edge: the ink's right end against the left edge's outermost x (0 or less)
+		runStat.endInkRightU = tipShown.ink.x1 + msg.offset - tipShown.edge.outL;
 		runStat.exitRatio = runStat.prevRatio;
 		const { prevOff, prevNow, prevRatio, ...rest } = runStat;
 		runs.push({ ...rest });
@@ -698,7 +763,7 @@
 		tipNote('enter', index);
 		return true;
 	};
-	/** a line on show cut short at once (a new layout, a DEV ask): it just goes */
+	/** a line on show cut short at once (a new layout, a DEV ask): it just goes, and its texture with it */
 	const cutLine = (now: number) => {
 		fadeTo(tipFade, 0, 0, 0, now);
 		tips.alpha = 0;
@@ -706,6 +771,7 @@
 		tipMesh.visible = false;
 		msg.live = false;
 		msg.hold = false;
+		freeLineTexture();
 	};
 	/** the marquee's step: the line's place now (always further left than the frame before, except a DEV still).
 	 *  Returns true once its strip is wholly past the box's left edge */
@@ -798,6 +864,7 @@
 				tipMesh.visible = false;
 				fadeTo(tipFade, 0, 0, 0, now);
 				statEnd('gone');
+				freeLineTexture();
 				devHold = false;
 				tipRun.phase = 'gap';
 				tipRun.base = now;
@@ -809,9 +876,10 @@
 		if (tipRun.phase !== 'run' && msg.live) stepLine(now, false);
 		const ta = stepFade(tipFade, now) * TIPS.alpha;
 		if (msg.live && tipRun.phase !== 'run' && ta <= 0.001) {
-			// a hidden line is let go: the box is empty again
+			// a hidden line is let go: the box is empty again, its texture destroyed
 			msg.live = false;
 			tipMesh.visible = false;
+			freeLineTexture();
 		}
 		if (tips.alpha !== ta) tips.alpha = ta;
 		tips.visible = msg.live && ta > 0.001;
@@ -946,12 +1014,27 @@
 				},
 				/** the visual (drawing) order a string is laid out in */
 				plaqueVisual: (text: string) => visualOrder(text),
-				/** THE EXPLAINER LINES (feedback/plaque_tips_r4/plaque_tips_probe.js): the run, the line on show (its size,
-				 *  its place on the marquee), the text box, the mesh's window and the ink on screen (CSS px, four corners
-				 *  each: clipped to the box, and whole), every line's width against the box on this screen, the in-page
-				 *  frame checks of the line crossing now and of the last ones, the log */
+				/** THE EXPLAINER LINES (feedback/plaque_tips_r5/plaque_tips_probe.js): the run, the line on show (its size,
+				 *  its place on the marquee), the text box, the slanted window and the ink on screen (CSS px, four corners
+				 *  each: clipped to the window, and whole), points along each slanted edge with their outward normals, the
+				 *  line's texture and the renderer's texture count, every line's width against the window on this screen,
+				 *  the in-page frame checks of the line crossing now and of the last ones, the log */
 				plaqueTips: () => {
 					const [hw, top, bot] = tipBox;
+					const pt = (x: number, y: number) => {
+						const m = through(x, y);
+						return g(root, m.x, m.y);
+					};
+					/** points along a slanted edge, top to bottom, each with its outward unit normal on screen */
+					const along = (x0: number, x1: number, side: -1 | 1) => {
+						const a = pt(x0, top);
+						const b = pt(x1, bot);
+						const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+						const nx = (side * (b.y - a.y)) / len;
+						const ny = (-side * (b.x - a.x)) / len;
+						return [0.08, 0.25, 0.42, 0.5, 0.58, 0.75, 0.92].map((t) => ({ t, ...pt(x0 + (x1 - x0) * t, top + (bot - top) * t), nx: +nx.toFixed(4), ny: +ny.toFixed(4) }));
+					};
+					const renderer = context.stateApp.pixiApplication?.renderer as unknown as { texture?: { managedTextures?: unknown[] } } | undefined;
 					const corners = (x0: number, y0: number, x1: number, y1: number) =>
 						[
 							[x0, y0],
@@ -996,11 +1079,29 @@
 						texture: { w: tipShown.cw, h: tipShown.ch, res: context.stateApp.pixiApplication?.renderer?.resolution ?? 1 },
 						box: corners(-hw, top, hw, bot),
 						field: (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(day.getBounds()),
-						/** the mesh's window (what of the line can draw), four corners on screen; null when none of it is in */
-						window: msg.live && v.x1 > v.x0 ? corners(v.x0, top, v.x1, bot) : null,
-						/** the ink inside the box (clipped), and the whole ink wherever it is (outside the box too) */
-						ink: msg.live && Math.min(hw, k.x1 + off) > Math.max(-hw, k.x0 + off) ? [corners(Math.max(-hw, k.x0 + off), k.y0, Math.min(hw, k.x1 + off), k.y1)] : [],
+						/** THE SLANTED WINDOW (r5), four corners on screen (top left, top right, bottom right, bottom left): the
+						 *  mesh's own outline, where the line is cut */
+						window: [pt(win.lt, top), pt(win.rt, top), pt(win.rb, bot), pt(win.lb, bot)],
+						/** the slanted edges in layout units (x at the box's top and bottom rows) and the art's numbers */
+						slant: { lt: +win.lt.toFixed(2), lb: +win.lb.toFixed(2), rt: +win.rt.toFixed(2), rb: +win.rb.toFixed(2), narrowU: +narrowW().toFixed(2), widestU: +(outR() - outL()).toFixed(2), art: TIPS.edges[kind] ?? null, kind },
+						/** points along each slanted edge (top to bottom) on screen, with the outward normal */
+						edges: { left: along(win.lt, win.lb, -1), right: along(win.rt, win.rb, 1) },
+						/** the part of the strip within the window's widest span; null when none of it is */
+						strip: msg.live && v.x1 > v.x0 ? corners(v.x0, top, v.x1, bot) : null,
+						/** the ink inside the window (clipped by both slanted edges at its top and bottom rows), and the whole ink
+						 *  wherever it is (outside the window too) */
+						ink: (() => {
+							if (!msg.live) return [];
+							const l0 = Math.max(k.x0 + off, leftAt(k.y0));
+							const r0 = Math.min(k.x1 + off, rightAt(k.y0));
+							const l1 = Math.max(k.x0 + off, leftAt(k.y1));
+							const r1 = Math.min(k.x1 + off, rightAt(k.y1));
+							return r0 > l0 && r1 > l1 ? [[pt(l0, k.y0), pt(r0, k.y0), pt(r1, k.y1), pt(l1, k.y1)]] : [];
+						})(),
 						inkWhole: msg.live ? corners(k.x0 + off, k.y0, k.x1 + off, k.y1) : null,
+						/** the line's own texture (one per line, destroyed when it ends) and the renderer's texture count */
+						lineTexture: { alive: !!lineTex.texture, uid: lineTex.texture?.source.uid ?? null, label: lineTex.texture?.source.label ?? null, w: lineTex.texture?.source.pixelWidth ?? 0, h: lineTex.texture?.source.pixelHeight ?? 0, addressMode: lineTex.texture?.source.style.addressMode ?? null, made: lineTex.made, freed: lineTex.freed, meshHasIt: !!lineTex.texture && tipMesh.texture === lineTex.texture },
+						textureCount: renderer?.texture?.managedTextures?.length ?? null,
 						marquee: msg.live
 							? {
 									offset: +off.toFixed(3),
@@ -1009,7 +1110,16 @@
 									dist: +msg.dist.toFixed(2),
 									ms: Math.round(msg.ms),
 									ease: msg.ease,
-									hw,
+									/** the window's outermost left and right x (its widest span, the path's two ends) */
+									winOutL: +outL().toFixed(2),
+									winOutR: +outR().toFixed(2),
+									/** each slanted edge's innermost and outermost x over the rows the ink covers: the line is whole
+									 *  only with inkLeft >= inL and inkRight <= inR; fully outside with inkLeft >= outR, fully past
+									 *  with inkRight <= outL */
+									inL: +tipShown.edge.inL.toFixed(2),
+									inR: +tipShown.edge.inR.toFixed(2),
+									outL: +tipShown.edge.outL.toFixed(2),
+									outR: +tipShown.edge.outR.toFixed(2),
 									stripW: +tipShown.stripW.toFixed(2),
 									inkLeft: +(k.x0 + off).toFixed(2),
 									inkRight: +(k.x1 + off).toFixed(2),
@@ -1026,10 +1136,11 @@
 						slow,
 						lines: tipTexts.slice(),
 						kCss: +planK.toFixed(4),
-						/** every line on this screen: its size on screen, its ink width against the box's (layout units) */
+						/** every line on this screen: its size on screen, its width against the slanted window's narrowest
+						 *  row (r5) and against r4's box (layout units) */
 						sizes: tipTexts.map((t) => {
 							const w = widthAt1(t) * tipFontU;
-							return { text: t, fontCss: +(tipFontU * planK).toFixed(2), widthU: +w.toFixed(1), boxU: 2 * hw, wider: w > 2 * hw, stripW: +(w + 2 * pad).toFixed(1) };
+							return { text: t, fontCss: +(tipFontU * planK).toFixed(2), widthU: +w.toFixed(1), winU: +narrowW().toFixed(1), wider: w > narrowW(), overWin: +(w / narrowW()).toFixed(3), boxU: 2 * hw, stripW: +(w + 2 * pad).toFixed(1) };
 						}),
 						boxUnits: [...tipBox],
 						constants: { ...TIPS },
@@ -1078,8 +1189,8 @@
 		return () => {
 			ticker?.remove(tick);
 			root.removeFromParent();
+			freeLineTexture();
 			root.destroy({ children: true });
-			tipTexture.destroy(true);
 		};
 	});
 </script>
