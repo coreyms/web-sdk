@@ -1,44 +1,39 @@
 <script lang="ts">
-	// THE CLAW SWIPE'S TEARS, THE ROAR'S CELL FLASHES AND THE BOARD KICK (MOTION_SPEC "Claw swipe",
-	// "Roar"; the playground's draw() for tears, motion-playground.html).
+	// THE CLAW SWIPE'S CLAWS, THE ROAR'S CELL FLASHES AND THE BOARD KICK (constants SWIPE_FX, claw-swipe-r1; ROAR_FX).
 	//
 	// The board engine (stateGame.swipeBand / roarBlow) owns the clock and the cells and writes
 	// game/featureFx.ts every frame; this layer draws from it on the app ticker, raw Pixi, no Svelte in
 	// the frame. Three things:
 	//
-	// 1. THE TEARS (tearLayer, z 21: over the tiles and the badges, under the readouts' HUD). Each tear
-	//    is the playground's three non-overlapping polygons around a jittered centreline (26 segments):
-	//    the CORE (+-tearThickPx / 2) and the TOP and BOTTOM hot bands outside it, whose outer side
-	//    carries the torn-paper spikes (78 segments, 1.0 / 0.25 of tearEdgeJitterPx). The reveal is the
-	//    playground's clip rect sweeping right to left, done by cutting the polygons at the front (no
-	//    mask). Per frame, in this order:
-	//      glow   the outer outlines stroked in the glow colour, six graded strokes from wide and faint
-	//             to narrow and solid (the canvas shadowBlur without a filter). Bevel joins: round
-	//             joins on these widths cost 50 ms a sweep frame at CPU 4x in tessellation alone
-	//      bands  filled with the edge colour, then the board copy at tearReflect through the band as a
-	//             mask: upright on the bottom band, flipped about the tear's line on the top band. The
-	//             copy is ONE RenderTexture of the board rendered ONCE at the swipe's start (allocated
-	//             once, at the first swipe, and reused)
-	//      core   black at tearCoreAlpha and nothing else: the tear layer sits over the tiles, so the cut
-	//             darkens them; the backing and the frame's lattice under the board read through it
-	//    The geometry is rebuilt only while a tear is still sweeping (the first ~125 ms); after that
-	//    only the layer's alpha moves (the shared fade).
+	// 1. THE CLAWS (clawLayer, z 21: over the tiles and the badges, under the readouts' HUD). FOUR curved claw
+	//    streaks ("The manticore has four claws", Corey 2026-10-16 17:32) rake the swiped band from upper right to
+	//    lower left, SWIPE_FX.clawStaggerMs apart: each draws on behind a hot tip, holds, and burns out with its
+	//    tail chasing the tip. Each claw leaves an ember scar along its path that holds until the symbols leave and
+	//    fades with them (swipeFx.alpha). A warm-white flash covers the band for impactFlashMs at impactAtMs.
+	//    Every claw and scar is a sprite of ONE baked streak (game/fxTexture.ts clawTexture, made at mount) with
+	//    its OWN Texture object over that one source (made once): drawing on is cropping that object's frame, no
+	//    mask, no new texture. A claw is a container at its start point, turned along its chord and scaled from
+	//    texture px; the sprites inside sit at the crop's texture x. 4 containers x (scar, claw, tip) + the flash,
+	//    all additive, built once, reused by every swipe; nothing is allocated per frame or per swipe. Inside the
+	//    layer nothing is ever hidden with `visible` (each toggle makes Pixi rebuild the render group's instructions,
+	//    measured as a 100 ms frame at CPU 4x): a sprite that is out is at alpha 0; only the layer itself toggles.
 	// 2. THE ROAR'S CELL FLASHES (wellLayer, z -0.5: on the cell well, UNDER the tiles, like the
 	//    playground's): 64 rounded squares built once, alpha from roarFx.
 	// 3. THE KICK: boardKick (board px) is applied to the board container's pivot, so the whole board
-	//    (mask, backdrop, tiles, tears) translates together and returns exactly to rest.
+	//    (mask, backdrop, tiles, claws) translates together and returns exactly to rest.
 	//
-	// House rules: always mounted, no filters, no backdrop-filter, no texture per frame (the one
-	// RenderTexture is allocated once), every duration from constants.ts divided by timeScale (the
-	// engine's clock already is).
+	// House rules: always mounted, no filters, no masks, no backdrop-filter, no texture per frame, every duration
+	// from constants.ts in style ms (the engine's clock already is: turbo shortens it). A skip never shows a claw:
+	// swipeBand leaves swipeFx.active false while skipping.
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { quadOut } from 'svelte/easing';
+	import { quadIn, quadOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, GRID, CELL_COUNT, BOARD_SIZES, SWIPE_FX, ROAR_FX, PLAYGROUND_PX, reelOf, rowOf } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_COUNT, BOARD_SIZES, SWIPE_FX, ROAR_FX, PLAYGROUND_PX, reelOf, rowOf } from '../game/constants';
 	import { swipeFx, roarFx, boardKick } from '../game/featureFx';
+	import { clawTexture, dotTexture, DOT_PX } from '../game/fxTexture';
 	import { seeded } from '../game/sparkles';
 
 	const context = getContext();
@@ -47,191 +42,171 @@
 	const H = BOARD_SIZES.height;
 	const CELL = SYMBOL_SIZE;
 	const K = PLAYGROUND_PX;
-	const SEGS = 26;
-	const FINE = 78;
-	const MAX_TEARS = Math.max(1, Math.round(SWIPE_FX.tearCount));
+	const F = SWIPE_FX;
+	const N = Math.max(1, Math.round(F.clawCount));
 
-	// ---- the tears -------------------------------------------------------------------------------
-	const tearLayer = new PIXI.Container({ zIndex: 21, visible: false });
-	parent.addToParent(tearLayer);
-	const glowG = new PIXI.Graphics();
-	const bandFillG = new PIXI.Graphics();
-	const botMask = new PIXI.Graphics();
-	const topMasks = Array.from({ length: MAX_TEARS }, () => new PIXI.Graphics());
-	const coreFillG = new PIXI.Graphics();
-	// the board copy: the RenderTexture is made at the first swipe (never per frame, never per swipe)
-	let rt: PIXI.RenderTexture | null = null;
-	const botRefl = new PIXI.Sprite(PIXI.Texture.EMPTY);
-	botRefl.alpha = SWIPE_FX.tearReflect;
-	botRefl.mask = botMask;
-	const topRefl = topMasks.map((m) => {
-		const s = new PIXI.Sprite(PIXI.Texture.EMPTY);
-		s.alpha = SWIPE_FX.tearReflect;
-		s.scale.y = -1;
-		s.mask = m;
-		return s;
+	// ---- the claws -------------------------------------------------------------------------------
+	const geom = clawTexture();
+	const src = geom.texture.source;
+	const clawLayer = new PIXI.Container({ zIndex: 21, visible: false, label: 'clawSwipe' });
+	parent.addToParent(clawLayer);
+	const flash = new PIXI.Sprite(PIXI.Texture.WHITE);
+	flash.blendMode = 'add';
+	flash.tint = F.impactTint;
+	flash.alpha = 0;
+	clawLayer.addChild(flash);
+	/** a crop of the streak: its own Texture over the one source, so its frame can move (dynamic: the sprite follows) */
+	const cropOf = () => new PIXI.Texture({ source: src, frame: new PIXI.Rectangle(0, 0, geom.w, geom.h), dynamic: true });
+	type Claw = {
+		root: PIXI.Container;
+		scar: PIXI.Sprite;
+		scarTex: PIXI.Texture;
+		claw: PIXI.Sprite;
+		clawTex: PIXI.Texture;
+		tip: PIXI.Sprite;
+		t0: number;
+		/** the crop last given (texture px), so an unchanged frame is never re-sent */
+		scarB: number;
+		clawA: number;
+		clawB: number;
+	};
+	const claws: Claw[] = Array.from({ length: N }, (_, i) => {
+		const root = new PIXI.Container({ alpha: 0 });
+		const scarTex = cropOf();
+		const clawTex = cropOf();
+		const scar = new PIXI.Sprite(scarTex);
+		scar.blendMode = 'add';
+		scar.tint = F.scarTint;
+		const claw = new PIXI.Sprite(clawTex);
+		claw.blendMode = 'add';
+		claw.tint = F.clawTints[i % F.clawTints.length] ?? 0xffffff;
+		const tip = new PIXI.Sprite(dotTexture());
+		tip.anchor.set(0.5);
+		tip.blendMode = 'add';
+		tip.tint = F.tipTint;
+		root.addChild(scar, claw, tip);
+		clawLayer.addChild(root);
+		return { root, scar, scarTex, claw, clawTex, tip, t0: i * F.clawStaggerMs, scarB: -1, clawA: -1, clawB: -1 };
 	});
-	tearLayer.addChild(glowG, bandFillG, botRefl, ...topRefl, coreFillG, botMask, ...topMasks);
 
-	/** one tear's outlines, sampled at FINE + 1 evenly spaced x across the board (board px) */
-	type Tear = { y0: number; t0: number; topOut: Float64Array; coreTop: Float64Array; coreBot: Float64Array; botOut: Float64Array };
-	const tears: Tear[] = Array.from({ length: MAX_TEARS }, () => ({
-		y0: 0,
-		t0: 0,
-		topOut: new Float64Array(FINE + 1),
-		coreTop: new Float64Array(FINE + 1),
-		coreBot: new Float64Array(FINE + 1),
-		botOut: new Float64Array(FINE + 1),
-	}));
-	const pts = new Float64Array(SEGS + 1);
-
-	/** the slant for a band: fixed, or from the band's centre row (top of the board = slantTopDeg) */
-	const slantFor = (rows: number[]) => {
-		if (SWIPE_FX.slantMode !== 'rows' || !rows.length) return SWIPE_FX.tearSlantDeg;
-		const mean = rows.reduce((a, b) => a + b, 0) / rows.length;
-		return SWIPE_FX.slantTopDeg + ((SWIPE_FX.slantBottomDeg - SWIPE_FX.slantTopDeg) * mean) / (GRID - 1);
+	/** a crop [xa, xb] of the streak (texture px) onto a sprite: the frame and the sprite's place in the claw's
+	 *  container (texture x from the start of the arc, y from its end points) */
+	const crop = (s: PIXI.Sprite, t: PIXI.Texture, xa: number, xb: number) => {
+		const wpx = Math.max(xb - xa, 0.5);
+		t.frame.x = xa;
+		t.frame.width = wpx;
+		t.update();
+		s.x = xa - geom.pad;
+		s.y = -geom.yEnd;
 	};
+	/** texture x at u along the claw: the whole texture past the ends, so the end caps' glow is never cut */
+	const xAt = (u: number) => (u <= 0 ? 0 : u >= 1 ? geom.w : geom.pad + u * geom.chord);
 
-	/** the playground's compileSwipe + the tear geometry of its draw(), in board px. The seeds are the
-	 *  playground's (17 + 101 i for the centreline, 3 seed + 7 for the spikes), so the shapes match. */
+	/** the claws' places for a band: the four run from above the band's top to below its bottom at clawSlopeDeg,
+	 *  clawSpacingCells apart along the width, the rightmost first, the rake centred on the board. A little seeded
+	 *  variety per claw (slope, length) so they never look stamped. */
 	const build = (rows: number[]) => {
-		const top = rows.length ? rows[0] : 3;
-		const bot = rows.length ? rows[rows.length - 1] + 1 : 6;
-		const slant = Math.tan((slantFor(rows) * Math.PI) / 180);
-		const half = (SWIPE_FX.tearThickPx * K) / 2;
-		const edge = SWIPE_FX.tearEdgePx * K;
-		const ej = SWIPE_FX.tearEdgeJitterPx * K;
-		for (let i = 0; i < MAX_TEARS; i += 1) {
-			const tr = tears[i];
-			const seed = 17 + i * 101;
-			tr.y0 = (top + ((bot - top) * (i + 0.5)) / MAX_TEARS) * CELL;
-			tr.t0 = i * SWIPE_FX.tearStaggerMs;
-			const rnd = seeded(seed);
-			for (let k = 0; k <= SEGS; k += 1) {
-				const x = (W * k) / SEGS;
-				pts[k] = tr.y0 + (x - W / 2) * slant + (rnd() - 0.5) * 2 * SWIPE_FX.tearJitterPx * K;
-			}
-			const rnd2 = seeded(seed * 3 + 7);
-			for (let k = 0; k <= FINE; k += 1) {
-				const x = (W * k) / FINE;
-				const u = Math.max(0, Math.min(SEGS - 1e-9, (x / W) * SEGS));
-				const j = Math.floor(u);
-				const f = u - j;
-				const c = pts[j] * (1 - f) + pts[j + 1] * f;
-				const spike = rnd2() * ej * (k % 2 ? 1 : 0.25);
-				const spike2 = rnd2() * ej * (k % 2 ? 0.25 : 1);
-				tr.coreTop[k] = c - half;
-				tr.coreBot[k] = c + half;
-				tr.topOut[k] = c - half - edge - spike;
-				tr.botOut[k] = c + half + edge + spike2;
-			}
+		const top = (rows.length ? rows[0] : 3) * CELL;
+		const bot = (rows.length ? rows[rows.length - 1] + 1 : 6) * CELL;
+		const over = F.clawOverCells * CELL;
+		const rnd = seeded(29 + (rows[0] ?? 0) * 7);
+		const dx = F.clawSpacingCells * CELL;
+		const rise = bot - top + 2 * over;
+		const run0 = rise / Math.tan((F.clawSlopeDeg * Math.PI) / 180);
+		const x0 = W / 2 + (run0 + (N - 1) * dx) / 2;
+		const sy = (F.clawCorePx * K) / geom.corePx;
+		for (let i = 0; i < N; i += 1) {
+			const c = claws[i];
+			const slope = ((F.clawSlopeDeg + (rnd() - 0.5) * 4) * Math.PI) / 180;
+			const len = 1 + (rnd() - 0.5) * 0.08;
+			const ys = top - over + (rnd() - 0.5) * 0.12 * CELL;
+			const xs = x0 - i * dx;
+			const r = rise * len;
+			const xe = xs - r / Math.tan(slope);
+			const ye = ys + r;
+			const L = Math.hypot(xe - xs, ye - ys);
+			c.root.position.set(xs, ys);
+			c.root.rotation = Math.atan2(ye - ys, xe - xs);
+			c.root.scale.set(L / geom.chord, sy);
+			// the tip: the soft dot stretched along the claw, its size in board px whatever the container's scale
+			c.tip.scale.set(((F.tipPx * K * F.tipStretch) / DOT_PX) * (geom.chord / L), (F.tipPx * K) / DOT_PX / sy);
+			c.t0 = i * F.clawStaggerMs;
+			c.scarB = c.clawA = c.clawB = -1;
 		}
+		flashShown = false;
+		flash.position.set(0, top);
+		flash.setSize(W, bot - top);
 	};
 
-	// polyline helpers: a sampled outline from the reveal front xc to the right edge, as flat x,y pairs
-	const sampleX = (k: number) => (W * k) / FINE;
-	const at = (arr: Float64Array, x: number) => {
-		const u = Math.max(0, Math.min(FINE - 1e-9, (x / W) * FINE));
-		const j = Math.floor(u);
-		const f = u - j;
-		return arr[j] * (1 - f) + arr[j + 1] * f;
-	};
-	/** push arr's points with x >= xc onto out (forward, or right to left when `reverse`) */
-	const pushLine = (out: number[], arr: Float64Array, xc: number, reverse: boolean) => {
-		const first = Math.max(0, Math.ceil((xc / W) * FINE - 1e-9));
-		if (!reverse) {
-			if (xc > 0) out.push(xc, at(arr, xc));
-			for (let k = first; k <= FINE; k += 1) if (sampleX(k) > xc) out.push(sampleX(k), arr[k]);
-		} else {
-			for (let k = FINE; k >= first; k -= 1) if (sampleX(k) > xc) out.push(sampleX(k), arr[k]);
-			if (xc > 0) out.push(xc, at(arr, xc));
-		}
-	};
-	// a FRESH array per shape: Pixi's Polygon keeps the array it is given and tessellates it later, at
-	// render time, so a reused buffer would draw whatever it last held (these allocate only while a
-	// tear is sweeping, a handful of frames per swipe)
-	const polyOf = (a: Float64Array, b: Float64Array, xc: number) => {
-		const out: number[] = [];
-		pushLine(out, a, xc, false);
-		pushLine(out, b, xc, true);
-		return out;
-	};
-	const lineOf = (a: Float64Array, xc: number) => {
-		const out: number[] = [];
-		pushLine(out, a, xc, false);
-		return out;
-	};
-
-	/** the glow: the playground's canvas glow (a glowPx / 2 stroke on the outline, shadowBlur glowPx,
-	 *  i.e. a Gaussian of sigma glowPx / 2) as six strokes on the outer outlines, each [how far it
-	 *  reaches past the outline in glowPx, alpha]: the stacked alphas follow the Gaussian's falloff */
-	const GLOW = [
-		[1.4, 0.05],
-		[1.1, 0.065],
-		[0.85, 0.1],
-		[0.65, 0.11],
-		[0.45, 0.14],
-		[0.25, 1],
-	] as const;
-
-	const reveals = new Float64Array(MAX_TEARS).fill(-1);
-	let complete = false;
-	const drawTears = (el: number) => {
-		let changed = false;
-		for (let i = 0; i < MAX_TEARS; i += 1) {
-			const r = el < tears[i].t0 ? -1 : Math.min((el - tears[i].t0) / Math.max(SWIPE_FX.tearSweepMs, 1), 1);
-			if (r !== reveals[i]) {
-				reveals[i] = r;
-				changed = true;
-			}
-		}
-		if (!changed && complete) return;
-		complete = reveals.every((r) => r >= 1);
-		glowG.clear();
-		bandFillG.clear();
-		botMask.clear();
-		coreFillG.clear();
-		for (let i = 0; i < MAX_TEARS; i += 1) {
-			const m = topMasks[i];
-			m.clear();
-			const r = reveals[i];
-			if (r < 0) {
-				topRefl[i].visible = false;
+	/** this swipe's impact flash has been on screen (reset by build) */
+	let flashShown = false;
+	/** one frame of the claws at style ms `el` (the scars' fade is swipeFx.alpha) */
+	const drawClaws = (el: number, fade: number) => {
+		for (const c of claws) {
+			const tau = el - c.t0;
+			if (tau < 0) {
+				c.root.alpha = 0;
 				continue;
 			}
-			const tr = tears[i];
-			// the playground's clip rect: from x1 - (x1 - x0) quadOut(reveal) - 2 px to the right edge
-			const xc = Math.max(0, W - W * quadOut(r) - 2 * K);
-			if (SWIPE_FX.tearGlowAlpha > 0 && SWIPE_FX.tearGlowPx > 0) {
-				for (const [wk, ak] of GLOW) {
-					const style = { color: SWIPE_FX.tearGlowColor, width: 2 * SWIPE_FX.tearGlowPx * K * wk, alpha: SWIPE_FX.tearGlowAlpha * ak, join: 'bevel' as const, cap: 'butt' as const };
-					glowG.poly(lineOf(tr.topOut, xc), false).stroke(style);
-					glowG.poly(lineOf(tr.botOut, xc), false).stroke(style);
+			c.root.alpha = 1;
+			const b = quadOut(Math.min(1, tau / Math.max(F.clawDrawMs, 1)));
+			const tailSpan = Math.max(F.clawLifeMs - F.clawTailAtMs, 1);
+			const tu = Math.max(0, Math.min(1, (tau - F.clawTailAtMs) / tailSpan));
+			const a = quadIn(tu);
+			// the claw: [a, b], burning out over its tail
+			if (tu >= 1 || b <= 0) c.claw.alpha = 0;
+			else {
+				const xa = a <= 0 ? 0 : xAt(a);
+				const xb = xAt(b);
+				if (xa !== c.clawA || xb !== c.clawB) {
+					c.clawA = xa;
+					c.clawB = xb;
+					crop(c.claw, c.clawTex, xa, xb);
 				}
+				c.claw.alpha = 1 - tu * tu;
 			}
-			bandFillG.poly(polyOf(tr.topOut, tr.coreTop, xc)).fill({ color: SWIPE_FX.tearEdgeColor });
-			bandFillG.poly(polyOf(tr.coreBot, tr.botOut, xc)).fill({ color: SWIPE_FX.tearEdgeColor });
-			m.poly(polyOf(tr.topOut, tr.coreTop, xc)).fill(0xffffff);
-			botMask.poly(polyOf(tr.coreBot, tr.botOut, xc)).fill(0xffffff);
-			coreFillG.poly(polyOf(tr.coreTop, tr.coreBot, xc)).fill({ color: 0x000000, alpha: SWIPE_FX.tearCoreAlpha });
-			topRefl[i].visible = SWIPE_FX.tearReflect > 0;
-			// flipped about the tear's line: board y maps to 2 y0 - y
-			topRefl[i].y = 2 * tr.y0;
+			// the scar: [0, b], held, then the shared fade
+			const sb = xAt(b);
+			if (sb !== c.scarB) {
+				c.scarB = sb;
+				crop(c.scar, c.scarTex, 0, sb);
+			}
+			c.scar.alpha = b > 0 ? F.scarAlpha * fade : 0;
+			// the hot tip, on the front while it draws on
+			if (b < 1) {
+				c.tip.x = b * geom.chord;
+				c.tip.y = geom.yAt(b) - geom.yEnd;
+				c.tip.alpha = F.tipAlpha;
+			} else c.tip.alpha = 0;
 		}
-		botRefl.visible = SWIPE_FX.tearReflect > 0;
+		// the impact: up over impactRiseMs, out (squared) by impactFlashMs. At turbo the whole flash can fall between
+		// two frames (60 style ms at turbo 4x is 15 real ms), so the first frame on or past the impact shows the peak
+		const ft = el - F.impactAtMs;
+		if (ft >= 0 && F.impactAlpha > 0 && (ft < F.impactFlashMs || !flashShown)) {
+			const rise = Math.max(F.impactRiseMs, 1);
+			// (its first frame is always the peak: the rise is shorter than a frame anyway)
+			flash.alpha = !flashShown ? F.impactAlpha : F.impactAlpha * (ft < rise ? ft / rise : Math.pow(1 - (ft - rise) / Math.max(F.impactFlashMs - rise, 1), 2));
+			flashShown = true;
+		} else flash.alpha = 0;
 	};
 
-	/** render the board (without the tears) into the copy, once per swipe */
-	const captureFor = (renderer: PIXI.Renderer) => {
-		if (!rt) {
-			rt = PIXI.RenderTexture.create({ width: W, height: H, resolution: 1 });
-			botRefl.texture = rt;
-			for (const s of topRefl) s.texture = rt;
-		}
-		tearLayer.visible = false;
-		renderer.render({ container: parent.parent, target: rt, clear: true, transform: identity });
-	};
-	const identity = new PIXI.Matrix();
+	/** DEV probe: the slowest claw frame so far, in ms, and the swipes drawn */
+	const swipeStats = { drawMs: 0, swipes: 0 };
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		Object.assign(((window as any).__manticore ??= {}), {
+			swipeStats: () => ({ ...swipeStats }),
+			/** the claw layer's live sprites (claw-swipe-r1 probes): visible claws / scars / tips, the flash's alpha */
+			claws: () => ({
+				layer: clawLayer.visible,
+				alpha: clawLayer.alpha,
+				claws: claws.filter((c) => c.root.alpha > 0 && c.claw.alpha > 0).length,
+				scars: claws.filter((c) => c.root.alpha > 0 && c.scar.alpha > 0).length,
+				tips: claws.filter((c) => c.root.alpha > 0 && c.tip.alpha > 0).length,
+				flash: +flash.alpha.toFixed(3),
+				sprites: clawLayer.children.length + claws.length * 3,
+			}),
+		});
+	}
 
 	// ---- the roar's cell flashes, on the well under the tiles ------------------------------------
 	const wellLayer = new PIXI.Container({ zIndex: -0.5, visible: false });
@@ -246,41 +221,29 @@
 	});
 
 	// ---- the ticker ----------------------------------------------------------------------------
-	/** DEV probe: the slowest capture and tear rebuild so far, in ms */
-	const swipeStats = { captureMs: 0, drawMs: 0, captures: 0 };
-	if (import.meta.env.DEV && typeof window !== 'undefined') {
-		Object.assign(((window as any).__manticore ??= {}), { swipeStats: () => ({ ...swipeStats }) });
-	}
 	let serial = -1;
 	let kx = 0;
 	let ky = 0;
 	const tick = () => {
-		const app = context.stateApp.pixiApplication;
 		// the kick: the board container's pivot, offset by the kick (the base pivot is the board's centre)
 		if (boardKick.x !== kx || boardKick.y !== ky) {
 			kx = boardKick.x;
 			ky = boardKick.y;
 			parent.parent.pivot.set(W / 2 - kx, H / 2 - ky);
 		}
-		// the tears
+		// the claws
 		if (swipeFx.active) {
-			if (serial !== swipeFx.serial && app?.renderer) {
+			if (serial !== swipeFx.serial) {
 				serial = swipeFx.serial;
 				build(swipeFx.rows);
-				reveals.fill(-1);
-				complete = false;
-				const c0 = performance.now();
-				captureFor(app.renderer as PIXI.Renderer);
-				swipeStats.captureMs = Math.max(swipeStats.captureMs, performance.now() - c0);
-				swipeStats.captures += 1;
+				swipeStats.swipes += 1;
 			}
 			const d0 = performance.now();
-			drawTears(swipeFx.el);
+			drawClaws(swipeFx.el, swipeFx.alpha);
 			swipeStats.drawMs = Math.max(swipeStats.drawMs, performance.now() - d0);
-			tearLayer.alpha = swipeFx.alpha;
-			tearLayer.visible = swipeFx.alpha > 0;
-		} else if (tearLayer.visible) {
-			tearLayer.visible = false;
+			clawLayer.visible = true;
+		} else if (clawLayer.visible) {
+			clawLayer.visible = false;
 		}
 		// the roar's flashes
 		if (roarFx.active || wellLayer.visible) {
@@ -299,15 +262,25 @@
 	};
 
 	onMount(() => {
-		const ticker = context.stateApp.pixiApplication?.ticker;
-		// after BoardCells' sync (HIGH) so the copy holds this frame's tiles, before the render (LOW)
+		const app = context.stateApp.pixiApplication;
+		const ticker = app?.ticker;
+		// the streak's one upload now, not on the first swipe's frame (a renderer without initSource uploads on first draw)
+		try {
+			(app?.renderer as any)?.texture?.initSource?.(src);
+		} catch {
+			/* first draw uploads it */
+		}
+		// after BoardCells' sync (HIGH), before the render (LOW)
 		ticker?.add(tick, undefined, PIXI.UPDATE_PRIORITY.NORMAL);
 		return () => {
 			ticker?.remove(tick);
 			parent.parent.pivot.set(W / 2, H / 2);
-			tearLayer.destroy({ children: true });
+			for (const c of claws) {
+				c.scarTex.destroy(false);
+				c.clawTex.destroy(false);
+			}
+			clawLayer.destroy({ children: true });
 			wellLayer.destroy({ children: true });
-			rt?.destroy(true);
 		};
 	});
 </script>

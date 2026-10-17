@@ -436,7 +436,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	// ---- swipe: the paw clears a band of three rows (the book's `rows`) ---------------------------
-	// SWIPE_FX: the tears rake the band right to left, hold, then fade while the band's symbols leave
+	// SWIPE_FX: four claws rake the band from the upper right, the impact flashes it and the board kicks; at
+	// SWIPE_FX.exitAtMs the band's symbols leave while the claws' scars fade
 	// (scatters survive the paw: they are not in `removed`); the swipe's tiles pop as the symbols
 	// start to leave, and the refill drops once they are gone.
 	swipe: async (bookEvent: BookEventOfType<'swipe'>, { bookEvents }: BookEventContext) => {

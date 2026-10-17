@@ -1774,30 +1774,34 @@ export const scatterTrigger = async (cells: CellIndex[], id: number, rec?: FxRec
 	if (rec) fxStamp(rec, 'triggerEnd');
 };
 
-// ---- the claw swipe (MOTION_SPEC "Claw swipe", the playground's compileSwipe) ---------------------
+// ---- the claw swipe (constants SWIPE_FX, claw-swipe-r1; the timing contract MOTION_SPEC "Claw swipe") ----------
 
-/** the swipe's schedule in style ms: when the last tear is fully out, when the symbols start to
- *  leave (and the tears fade), when the kick starts, and when the refill may start */
+/** the swipe's schedule in style ms: when the last claw is fully drawn on (`revealed`), when the last one has
+ *  burnt out, when the symbols start to leave (the book's beat, SWIPE_FX.exitAtMs, unchanged by the claws), when
+ *  the impact flash and the kick start, and when the refill may start */
 export const swipeSchedule = () => {
-	const n = Math.max(1, Math.round(SWIPE_FX.tearCount));
-	const lastReveal = (n - 1) * SWIPE_FX.tearStaggerMs + SWIPE_FX.tearSweepMs;
-	const tExit = lastReveal + SWIPE_FX.tearHoldMs;
+	const n = Math.max(1, Math.round(SWIPE_FX.clawCount));
+	const lastReveal = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs;
+	const clawsOut = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawLifeMs;
+	const tExit = SWIPE_FX.exitAtMs;
 	const exitMs = Math.max(SWIPE_FX.exitMs, 1);
 	return {
 		n,
 		lastReveal,
+		clawsOut,
 		tExit,
 		exitMs,
-		kickT0: lastReveal - SWIPE_FX.tearSweepMs * 0.3,
-		tRefill: tExit + Math.max(exitMs, SWIPE_FX.tearFadeMs) + SWIPE_FX.refillDelayMs,
+		kickT0: SWIPE_FX.impactAtMs,
+		tRefill: tExit + Math.max(exitMs, SWIPE_FX.scarFadeMs) + SWIPE_FX.refillDelayMs,
 	};
 };
 
 /**
- * The claw swipe over `rows` (the book's): the tears (ClawSwipe.svelte, from swipeFx) rake right to
- * left, hold, and fade while the `removed` symbols leave by SWIPE_FX.exit; the board kicks on the
- * last tear. `onExit` fires when the symbols start to leave (the handler pops the swipe's tiles
- * then). Resolves when the refill may start; the cells are gone by then, whatever happened.
+ * The claw swipe over `rows` (the book's): four claws (ClawSwipe.svelte, from swipeFx) rake the band, the impact
+ * flashes it and the board kicks; the struck symbols take the ember tint (the cells' flash) from the impact; at
+ * the exit the `removed` symbols leave by SWIPE_FX.exit while the scars fade. `onExit` fires when the symbols
+ * start to leave (the handler pops the swipe's tiles then). Resolves when the refill may start; the cells are
+ * gone by then, whatever happened.
  */
 export const swipeBand = async (removed: CellIndex[], rows: number[], id: number, { onExit, rec }: { onExit?: () => void; rec?: FxRecord } = {}) => {
 	const S = swipeSchedule();
@@ -1809,7 +1813,7 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 	swipeFx.el = 0;
 	swipeFx.alpha = 1;
 	swipeFx.active = !stateGame.skipping;
-	// THE WELLS (game/wellsFx.ts): the swiped rows' veins flare right to left with the tears
+	// THE WELLS (game/wellsFx.ts): the swiped rows' veins flare right to left with the claws (WELLS_FX.swipe.sweepMs)
 	if (!stateGame.skipping) cueWellSwipe(rows, ts());
 	let exited = false;
 	const exit = () => {
@@ -1823,11 +1827,28 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 	const kickK = SWIPE_FX.kickPx * PLAYGROUND_PX;
 	// THE CHAIN SOUND of this kick (constants CHAIN_SOUND): the heavy clank, once, never while skipping
 	let clanked = stateGame.skipping;
+	// the ember tint on the struck symbols: their flash colour now, the strength from the impact on
+	{
+		const going = new Set(goingIds);
+		for (const c of stateGame.cells) if (going.has(c.id)) c.flashColor = SWIPE_FX.woundColor;
+	}
+	let wound = -1;
 	await raf(S.tRefill, (_t, el) => {
 		if (!alive(id)) return;
 		swipeFx.el = el;
-		swipeFx.alpha = el > S.tExit ? 1 - clamp01((el - S.tExit) / Math.max(SWIPE_FX.tearFadeMs, 1)) : 1;
+		swipeFx.alpha = el > S.tExit ? 1 - clamp01((el - S.tExit) / Math.max(SWIPE_FX.scarFadeMs, 1)) : 1;
 		if (el >= S.lastReveal && rec) fxStamp(rec, 'revealed');
+		if (el >= S.kickT0 && rec) fxStamp(rec, 'impact');
+		// the wound: up over woundRiseMs from the impact, held while they leave (never while skipping)
+		const wk = stateGame.skipping ? 0 : SWIPE_FX.woundAlpha * clamp01((el - S.kickT0) / Math.max(SWIPE_FX.woundRiseMs, 1));
+		if (wk !== wound) {
+			wound = wk;
+			const map = liveById();
+			for (const cellId of goingIds) {
+				const c = map.get(cellId);
+				if (c) c.flash = wk;
+			}
+		}
 		// the kick: (0.6k, k), k = kickPx (1 - u) sin(6 pi u)
 		const ku = (el - S.kickT0) / Math.max(SWIPE_FX.kickMs, 1);
 		const k = SWIPE_FX.kickPx > 0 && ku >= 0 && ku < 1 ? kickK * (1 - ku) * Math.sin(ku * Math.PI * 6) : 0;

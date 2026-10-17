@@ -253,7 +253,7 @@
 		<!-- the Mystery column tease and the sting rig slot: both always mounted, both board-space -->
 		<Anticipation />
 		<Sting />
-		<!-- the claw swipe's tears (z 21), the roar's cell flashes (z -0.5) and the board kick -->
+		<!-- the claw swipe's claws (z 21), the roar's cell flashes (z -0.5) and the board kick -->
 		<ClawSwipe />
 
 		<!-- THE CLUSTER LABELS in the plaque's forged font (CLUSTER_LABEL): always mounted, one pooled layer;
