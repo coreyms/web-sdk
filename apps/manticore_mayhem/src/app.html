@@ -382,16 +382,26 @@
 					setPreload: function (l, t) { preload.loaded = l; preload.total = t; paint(); },
 					setShare: function (s) { share = Math.max(0.01, Math.min(1, s)); paint(); },
 					getShare: function () { return share; },
-					hideNow: function () { gone = true; if (el.parentNode) el.parentNode.removeChild(el); },
+					hideNow: function () { gone = true; out(); if (el.parentNode) el.parentNode.removeChild(el); },
 					done: function () {
 						if (gone) return;
 						gone = true;
 						setTimeout(function () {
 							el.classList.add('am-out');
+							out();
 							setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 520);
 						}, Math.max(0, MIN_MS - (Date.now() - t0)));
-					}
+					},
+					/* the splash has started its fade (it takes no pointer from then on) or is gone: the landing screen
+					   shows PRESS ANYWHERE only from here (game/boot.svelte.ts splashOut; a tap on the splash was lost) */
+					isOut: function () { return isOut; }
 				};
+				var isOut = false;
+				function out() {
+					if (isOut) return;
+					isOut = true;
+					try { window.dispatchEvent(new Event('am-splash-out')); } catch (e) {}
+				}
 				window.__amSplash = api;
 
 				/* a replay link is a recording: the round card is the first thing it shows */

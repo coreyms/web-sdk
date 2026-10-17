@@ -38,15 +38,15 @@ export const shoveForeground = (x: number, y: number): void => {
 
 /** the claw swipe in flight (stateGame.swipeBand writes it every frame; ClawSwipe.svelte draws it) */
 export const swipeFx = {
-	/** a swipe is on the board: the layer captures the reflection once, then draws the tears */
+	/** a swipe is on the board (never while skipping): the layer draws the claws */
 	active: false,
-	/** bumped per swipe, so the layer captures the board exactly once for each one */
+	/** bumped per swipe, so the layer places the claws for its band exactly once for each one */
 	serial: 0,
 	/** style ms since the swipe began */
 	el: 0,
 	/** the swiped rows (the book's), top to bottom */
 	rows: [] as number[],
-	/** the tears' shared fade, 1 -> 0 over tearFadeMs */
+	/** the scars' shared fade, 1 -> 0 over SWIPE_FX.scarFadeMs from the exit */
 	alpha: 1,
 };
 
@@ -90,6 +90,26 @@ export const clearStingFx = () => {
 	stingFx.strikes.length = 0;
 	stingFx.rings.length = 0;
 	stingFx.charge = null;
+};
+
+// ---- the trigger beat (constants TRIGGER_BEAT) ------------------------------------------------------
+
+/** THE TRIGGER BEAT's light columns and flares, written every frame by stateGame.triggerBeat (style time) and drawn by
+ *  components/TriggerBeat.svelte. `cells`: the triggering scatters (cellIndex); `shaft` 0..1 the columns' rise,
+ *  `alpha` their light; `flare` 0..1 the halo burst at the lift's peak. All 0 / inactive at rest. */
+export const triggerFx = {
+	active: false,
+	cells: [] as number[],
+	shaft: 0,
+	alpha: 0,
+	flare: 0,
+	/** style ms since the beat began (the columns' shimmer runs on it) */
+	el: 0,
+};
+export const clearTriggerFx = () => {
+	triggerFx.active = false;
+	triggerFx.cells = [];
+	triggerFx.shaft = triggerFx.alpha = triggerFx.flare = triggerFx.el = 0;
 };
 
 // ---- the chain haul (CHAIN_BOW.haul*) -------------------------------------------------------------

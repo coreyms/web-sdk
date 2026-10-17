@@ -14,13 +14,14 @@
 	import { IS_SOCIAL } from '../game/social';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
-	import { loadDeferredInOrder, loadLogoEarly } from '../game/deferredLoad';
+	import { loadDeferredInOrder, loadGate, loadLogoEarly } from '../game/deferredLoad';
+	import { gateSettled, loadGate as gateState } from '../game/loadGate.svelte';
 	import { loadArmouryCore } from '../game/armouryLoad';
 	import { creatureDeferredDone } from '../game/creatureLoad';
 	import { PHONE_TIER, renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
-	import { sound, startSoundPreload } from '../game/sound';
+	import { releaseMusicSideTracks, sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import ResumeBet from './ResumeBet.svelte';
@@ -33,6 +34,7 @@
 	import CreatureFront from './CreatureFront.svelte';
 	import BoardPlaque from './BoardPlaque.svelte';
 	import SkipButton from './SkipButton.svelte';
+	import SymbolPopup from './SymbolPopup.svelte';
 	import ModePlaque from './ModePlaque.svelte';
 	import StingerPlaque from './StingerPlaque.svelte';
 	import Win from './Win.svelte';
@@ -76,20 +78,28 @@
 	$effect(() => {
 		reportPreload(context.stateApp.preLoaded ? 100 : context.stateApp.loadingProgress);
 		if (context.stateApp.preLoaded) startSoundPreload();
+		// THE GATE (first-minute plan D, constants LOAD_GATE): the win plaque and the symbols' sheets, from the moment the audio
+		// is in, and PRESS ANYWHERE waits for them, up to the cap (ui/LandingScreen.svelte; game/deferredLoad.ts loadGate)
+		if (context.stateApp.preLoaded) void loadGate(context.stateApp, () => sound.isReady);
 		// the canvas logo's 0.35 MB starts here too, so its entrance is ready for the first show (game/deferredLoad.ts)
 		if (context.stateApp.preLoaded && !PHONE_TIER) void loadLogoEarly(context.stateApp);
 	});
+	// the music's side tracks buffer only once the gate is in (game/sound.ts)
+	void gateSettled.then(releaseMusicSideTracks);
 
-	// the deferred Pixi phase must not share a slow link with the audio
+	// the rest of the deferred Pixi phase must not share a slow link with the audio or the gate: it starts once both are in
+	// (the audio: or after AUDIO_WAIT_MS, as before; the gate always settles)
+	const AUDIO_WAIT_MS = 30_000;
+	const POLL_MS = 250;
 	context.stateApp.beforeDeferred = () =>
 		new Promise<void>((resolve) => {
 			const t0 = performance.now();
 			const poll = () => {
-				if (sound.isReady || performance.now() - t0 > 30000) resolve();
-				else setTimeout(poll, 250);
+				if (gateState.settled && (sound.isReady || performance.now() - t0 > AUDIO_WAIT_MS)) resolve();
+				else setTimeout(poll, POLL_MS);
 			};
 			poll();
-		}).then(() => loadDeferredInOrder(context.stateApp)); // the plaque, then the creature's idle sheet, then the scene and the symbols' sheets (game/deferredLoad.ts)
+		}).then(() => loadDeferredInOrder(context.stateApp)); // his idle sheet, his attacks, the scene, his alternates (game/deferredLoad.ts)
 
 	$effect(() => {
 		if (context.stateApp.loaded) markAssetsLoaded();
@@ -246,6 +256,8 @@
 	<Chrome />
 	<!-- the SKIP button and its prompt: HTML over the canvas and the HUD, so the creature never covers it -->
 	<SkipButton />
+	<!-- the symbol pay popup: a tap on a symbol of an idle board (HTML, takes no pointer) -->
+	<SymbolPopup />
 	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
 		<LandingScreen onpress={() => (landingPressed = true)} />
 	{/if}

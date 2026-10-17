@@ -79,54 +79,54 @@
 		],
 		"sfx_swipe": [
 			32500,
-			1022
+			1000
 		],
 		"sfx_roar": [
-			34522,
+			34500,
 			3134
 		],
 		"sfx_sting_hit": [
-			38656,
+			38634,
 			778
 		],
 		"sfx_sting_big_charge": [
-			40434,
+			40412,
 			1002
 		],
 		"sfx_sting_big_hit": [
-			42436,
+			42414,
 			640
 		],
 		"sfx_sting_super_charge": [
-			44077,
+			44054,
 			2003
 		],
 		"sfx_sting_super_hit": [
-			47079,
+			47057,
 			1037
 		],
 		"sfx_scatter_sting": [
-			38656,
+			38634,
 			778
 		],
 		"sfx_win_big": [
-			49116,
+			49094,
 			1300
 		],
 		"sfx_win_super": [
-			51416,
+			51394,
 			1300
 		],
 		"sfx_win_mega": [
-			53716,
+			53694,
 			1300
 		],
 		"sfx_win_epic": [
-			56016,
+			55994,
 			1300
 		],
 		"sfx_win_max": [
-			58316,
+			58294,
 			1300
 		],
 		"sfx_mystery_tease": [
@@ -138,57 +138,57 @@
 			50
 		],
 		"sfx_scatter_land_6": [
-			60616,
+			60594,
 			470
 		],
 		"sfx_chain_heavy": [
-			62086,
+			62063,
 			1145
 		],
 		"sfx_chain_light": [
-			64231,
+			64209,
 			528
 		],
 		"sfx_chain_light_logo": [
-			64231,
+			64209,
 			528
 		],
 		"sfx_fire_super": [
-			65760,
+			65740,
 			6000,
 			true
 		],
 		"sfx_fire_epic": [
-			72760,
+			72740,
 			6000,
 			true
 		],
 		"sfx_manticore_breath_1": [
-			79760,
+			79740,
 			1800
 		],
 		"sfx_manticore_breath_2": [
-			82560,
+			82540,
 			1800
 		],
 		"sfx_manticore_snarl_1": [
-			85360,
+			85340,
 			662
 		],
 		"sfx_manticore_snarl_2": [
-			87022,
+			87002,
 			691
 		],
 		"sfx_manticore_growl_1": [
-			88714,
+			88694,
 			1166
 		],
 		"sfx_manticore_growl_2": [
-			90880,
+			90860,
 			1213
 		],
 		"sfx_plaque_land": [
-			93093,
+			93073,
 			554
 		]
 	},
@@ -336,7 +336,7 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=f90d219b",
-		"./assets/audio/sounds.m4a?v=5ba013e4"
+		"./assets/audio/sounds.ogg?v=604f263d",
+		"./assets/audio/sounds.m4a?v=57de2f65"
 	]
 }

@@ -71,14 +71,10 @@ TITLE_NUDGE: dict[tuple[str, str], float] = {}
 # The bonus intro explanations (Corey 2026-10-08, layout C): three even rows at 33 px on the 946 px
 # ship plaque, max row width 572 px. Each screen stands alone: a player who never read the rules
 # should know what to expect. One wording for Stake and stake.us (no "pays" / "bet"). No em dashes.
-# 2026-10-16 (review fixes, Corey yes): Bonus row 3 names the swipe too (a swipe clears SWIPE_BAND_ROWS 3 x 8 = 24
-# cells, each lit if cold, doubled if lit); Epic row 3 no longer claims frequent roars (ROAR_CHANCE super 0.10, epic
-# 0.08) and says what is true: a Super Sting per spin is 0.40 x 0.50 = 0.20 in the Epic against 0.04 in the Super
-# (game_config STING_CHANCE x STING_SUPER_CHANCE). Widths at 33 px: 508 and 421 of the 572 px row.
 INTRO_COPY = {
-    "bonus": ["Wins add multipliers to their cells", "They double up to 64x and stay all round", "Stings make wilds, swipes light 24 tiles"],
+    "bonus": ["Wins add multipliers to their cells", "They double up to 64x and stay all round", "Stings turn symbols wild"],
     "super": ["Wins add multipliers to their cells", "They double up to 128x and stay all round", "Roars and Super Stings can strike"],
-    "epic": ["Wins add multipliers to their cells", "They double up to 128x and stay all round", "Super Stings land far more often"],
+    "epic": ["Wins add multipliers to their cells", "They double up to 128x and stay all round", "Roars and Super Stings strike often"],
 }
 WRAP_COPY = {"title": "total_win", "line": "in {spins} {mode}"}  # e.g. "in 10 Super Free Spins"
 # slab_dark: the marble panel is darkened 35 % on every screen (a black sprite clipped to the panel,

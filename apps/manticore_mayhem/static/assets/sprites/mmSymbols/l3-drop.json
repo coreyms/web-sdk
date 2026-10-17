@@ -933,8 +933,8 @@
    }
   },
   "darkRimPx": [
-   2.881,
-   1.123
+   2.634,
+   1.027
   ],
   "style": {
    "name": "outline-pop-darkrim",
@@ -977,6 +977,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "6b2974d6"
+  "pngHash": "9bb74712"
  }
 }

@@ -1,17 +1,19 @@
 """THE BOARD FRAME RELIGHT AND THE TURNING GEARS (approved Corey 2026-10-11), called by tools/build_board_layers.py.
 
-Sources (read only, never written), all 2048 x 1935 like the board render:
-  drafts/gears_sync_r1/plate/board_v5l_{D1,night}_plate.png       the frame layer WITHOUT the six turning parts (their rest
-                                                                  shadow is in it); the D1 plate is the day frame the main
-                                                                  tool exports as ui/board-frame-<layout>.webp
-  drafts/gears_sync_r1/plate/board_v5l_fire_plate_on_black.png    the fire light alone on black (additive), darkest of the loop
-  drafts/relight_r1/full/fire/board_v5l_fire_frame_on_black.png   the fire light at rest (outside the gear cells the plate is this)
-  drafts/gears_sync_r1/sheets/full2048/<D1|night|fire>/<part>_<L|R>.png   the gear frame loops, 5 columns, 1 px gutter
-  drafts/gears_sync_r1/work/layers_report.json                    each loop's box in render px and its cell size
-  drafts/gears_sync_r1/work/renders/D1/<group>_<pose>.png         each group alone (every other object a holdout): what a
-                                                                  part ever covers, for the trim
-  drafts/relight_r1/full/shadow/board_v5l_contact_shadow.png      black with alpha: the floor shadow under the feet
-  drafts/bracket_r7/full/board_v5l_frame.png                      the LOCKED frame: the alpha contract
+Sources (read only, never written), all 2048 x 1935 like the board render; v5n = no corner finials (see THE SOURCES below),
+in ~/Desktop/Manticore Mayhem/images/board/export_v5n_nofinials/ unless named:
+  sources/board_v5n_{D1,night}_plate.png              the frame layer WITHOUT the six turning parts (their rest shadow is in
+                                                      it), the crest on the feet; the D1 plate is the day frame the main tool
+                                                      exports as ui/board-frame-<layout>.webp
+  sources/board_v5n_fire_plate_on_black.png           the fire light alone on black (additive), darkest of the loop
+  sources/board_v5n_fire_frame_on_black.png           the fire light at rest (outside the gear cells the plate is this)
+  gears/sheets/full2048/<D1|night|fire>/<part>_<L|R>.png   the gear frame loops, 5 columns, 1 px gutter
+  gears/work/layers_report.json                       each loop's box in render px and its cell size
+  renders/D1/<group>_<pose>.png                       each group alone (every other object a holdout): what a part ever
+                                                      covers, for the trim
+  relight/<rig>/board_v5n_<rig>_frame.png             the rest frame layers (the rest picture of the alpha contract)
+  relight/board_v5n_locked_frame.png                  the LOCKED alpha without the finials
+  drafts/relight_r1/full/shadow/board_v5l_contact_shadow.png   black with alpha: the floor shadow under the feet
 
 Outputs (static/assets/ui), per layout:
   board-frame-night-<layout>.webp     the night plate at the day plate's size (phone: a -half twin for the phone tier)
@@ -40,20 +42,24 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
-# WARNING, 2026-10-13: THE SHIPPED FRAME FILES ARE NO LONGER BUILT FROM THE v5l PLATES BELOW. The ten board-frame-* files
-# in static/assets/ui (day, night, night half twin, fire) carry the lion crest on both foot plates (board v5m) and were
-# exported from ~/Desktop/Manticore Mayhem/images/board/export_v5m_emblem/sources/ (board_v5m_D1_plate.png,
-# board_v5m_night_plate.png, board_v5m_fire_plate_on_black.png, board_v5m_fire_frame_on_black.png; see that folder's
-# NOTES.md and scripts/export_game_files.py, which swaps the four paths in memory). PLATE and FIRE_REST here still point
-# at the v5l sources: a plain re-run of build_board_layers.py writes the OLD FEET back. Before a re-run, point PLATE
-# day / night / fire and FIRE_REST at those four v5m files (alpha is v5l's, nothing else changes).
+# THE SOURCES (2026-10-16, frame_hires_r1, Corey 17:32 "get rid of the two spikes off the top of the board"): board v5n = v5m (the
+# lion crest on both foot plates, 2026-10-13) WITHOUT the two corner finials and the square collars they stood on. They were
+# loose pieces of the 'frame' mesh, removed in memory from model_v5m_emblem/board_v5m_emblem.blend (never saved) and the frame
+# layer rendered again through the same pipeline: the rest layers (relight_r1's method), the six gear loops and the plates
+# (gears_sync_r1's method, every pose again), all in ~/Desktop/Manticore Mayhem/images/board/export_v5n_nofinials/ (its
+# scripts/, in run order: render_v5n.py, relight_v5n.py, gears_v5n.py, sources_v5n.py; checks in work/*.json). Outside the finials' change mask every rest pixel is relight_r1's and the feet carry v5m's crest, so
+# a plain re-run of build_board_layers.py now writes the shipped files. Before 2026-10-16 PLATE pointed at gears_sync_r1's v5l
+# plates and the shipped frame files were v5m composites made outside this tool (export_v5m_emblem/NOTES.md).
 DRAFTS = os.path.expanduser('~/Desktop/Manticore Mayhem/images/board/drafts')
-GEARS = os.path.join(DRAFTS, 'gears_sync_r1')
-RELIGHT = os.path.join(DRAFTS, 'relight_r1', 'full')
-LOCKED = os.path.join(DRAFTS, 'bracket_r7', 'full', 'board_v5l_frame.png')
-PLATE = {'day': os.path.join(GEARS, 'plate', 'board_v5l_D1_plate.png'), 'night': os.path.join(GEARS, 'plate', 'board_v5l_night_plate.png'),
-         'fire': os.path.join(GEARS, 'plate', 'board_v5l_fire_plate_on_black.png')}
-FIRE_REST = os.path.join(RELIGHT, 'fire', 'board_v5l_fire_frame_on_black.png')
+V5N = os.path.expanduser('~/Desktop/Manticore Mayhem/images/board/export_v5n_nofinials')
+GEARS = os.path.join(V5N, 'gears')                     # gears_sync_r1's layout: sheets/full2048, work/layers_report.json, work/comp
+GEAR_RENDERS = os.path.join(V5N, 'renders')            # <rig>/<group>_<pose>.png: each group alone, for the trim
+RELIGHT = os.path.join(DRAFTS, 'relight_r1', 'full')   # the chains and the contact shadow (the finials touch neither)
+REST = {st: os.path.join(V5N, 'relight', rig, f'board_v5n_{rig}_frame.png') for st, rig in (('day', 'D1'), ('night', 'night'), ('fire', 'fire'))}
+LOCKED = os.path.join(V5N, 'relight', 'board_v5n_locked_frame.png')
+PLATE = {'day': os.path.join(V5N, 'sources', 'board_v5n_D1_plate.png'), 'night': os.path.join(V5N, 'sources', 'board_v5n_night_plate.png'),
+         'fire': os.path.join(V5N, 'sources', 'board_v5n_fire_plate_on_black.png')}
+FIRE_REST = os.path.join(V5N, 'sources', 'board_v5n_fire_frame_on_black.png')
 SHADOW = os.path.join(RELIGHT, 'shadow', 'board_v5l_contact_shadow.png')
 CHAINS = {'day': os.path.join(RELIGHT, 'D1', 'board_v5l_D1_chains.png'), 'night': os.path.join(RELIGHT, 'night', 'board_v5l_night_chains.png'),
           'fire': os.path.join(RELIGHT, 'fire', 'board_v5l_fire_chains.png')}
@@ -99,7 +105,7 @@ def _load_strip(path, mode):
 def trim_weights():
     """per part, f over the gear strip (rows Y0 .. Y1): 1 on what the part ever covers and for TRIM_PX - FEATHER_PX
     round it, 0 from TRIM_PX out"""
-    ren = os.path.join(GEARS, 'work', 'renders', 'D1')
+    ren = os.path.join(GEAR_RENDERS, 'D1')
     out = {}
     half = np.zeros((Y1 - Y0, 2048), bool)
     half[:, :1024] = True
@@ -155,7 +161,7 @@ def check_full(loops, weights, fire_full, log):
     night_alpha = {}
     for st in ('day', 'night'):
         plate = _pm(_load_strip(PLATE[st], 'RGBA'))
-        rest = _pm(_load_strip(os.path.join(RELIGHT, RIG[st], f'board_v5l_{RIG[st]}_frame.png'), 'RGBA'))
+        rest = _pm(_load_strip(REST[st], 'RGBA'))
         worst8 = worst = 0
         for k in range(N):
             c = plate.copy()
@@ -305,7 +311,7 @@ def build(ui_dir, frame_spec, log=print):
         ys, xs = np.nonzero(weights[(g, s)] > 0)
         x0, y0, x1, y1 = report['boxes_render_px'][f'{g}_{s}']
         kept[(g, s)] = (max(x0, int(xs.min())), max(y0, int(ys.min()) + Y0), min(x1, int(xs.max()) + 1), min(y1, int(ys.max()) + 1 + Y0))
-    spec = {'source': 'gears_sync_r1 + relight_r1', 'frames': N, 'trimPx': TRIM_PX, 'featherPx': FEATHER_PX, 'parts': [f'{g}_{s}' for g, s in PARTS],
+    spec = {'source': 'export_v5n_nofinials (gears_sync_r1 + relight_r1 methods, board v5n)', 'frames': N, 'trimPx': TRIM_PX, 'featherPx': FEATHER_PX, 'parts': [f'{g}_{s}' for g, s in PARTS],
             'loop': {f'{g}_{s}': FRAMES[g] for g, s in PARTS}, 'checks': checks, 'layouts': {}}
     for kind, fs in frame_spec.items():
         (cx, cy), (cw, ch), (tw, th) = fs['crop'], fs['size'], fs['tex']
@@ -316,7 +322,7 @@ def build(ui_dir, frame_spec, log=print):
         # ---- the plates: night at the day plate's size, fire at half of it (opaque: it is added)
         night = night_full.crop(fbox).resize((tw, th), Image.LANCZOS)
         plates = {'day': Image.open(PLATE['day']).convert('RGBA').crop(fbox).resize((tw, th), Image.LANCZOS), 'night': night}
-        rests = {st: Image.open(os.path.join(RELIGHT, RIG[st], f'board_v5l_{RIG[st]}_frame.png')).convert('RGBA').crop(fbox).resize((tw, th), Image.LANCZOS) for st in ('day', 'night')}
+        rests = {st: Image.open(REST[st]).convert('RGBA').crop(fbox).resize((tw, th), Image.LANCZOS) for st in ('day', 'night')}
         night.save(os.path.join(ui_dir, f'board-frame-night-{kind}.webp'), 'WEBP', quality=Q_PLATE, method=6, alpha_quality=100)
         ftw, fth = math.ceil(tw * FIRE_SCALE), math.ceil(th * FIRE_SCALE)
         fire = Image.fromarray(fire_full, 'RGB').crop(fbox).resize((ftw, fth), Image.LANCZOS)

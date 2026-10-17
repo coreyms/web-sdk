@@ -1,12 +1,14 @@
 // THE CREATURE'S LOADER (game/creatureAssets.ts has the files, game/creature.ts draws them; constants CREATURE).
-// DEFERRED, never a preload: the game is playable before he arrives and he fades in when his idle sheet lands.
-// game/deferredLoad.ts calls loadCreatureBoot at its place in the deferred order (after the flames' clips); from
-// then on a change of mode loads the look that mode shows, on demand.
-// THE IDLE SHEET FIRST, THE REST BEHIND THE SYMBOLS (2026-10-13): loadCreatureBoot resolves when the IDLE group is in,
-// and the attacks and the alternates of whatever look is loading are HELD until game/deferredLoad.ts calls
-// releaseCreatureRest, after the labels and the symbols' drop and idle sheets. On a slow link his 15 MB no longer sit
-// in front of the symbols' own sheets; he stands there breathing meanwhile, and an action whose sheet is not in yet is
-// simply not played (game/creature.ts canPlay: no wait, no throw, the board's timing untouched).
+// DEFERRED, never a preload: the game is playable before he arrives. Only his STILL is in the first download (game/
+// assets.ts creatureStill, game/creature.ts setStill): he stands there from the first frame and starts breathing when his
+// idle sheet lands. game/deferredLoad.ts calls loadCreatureBoot first thing after the gate (first-minute plan D,
+// constants CREATURE.restHeldAfter); from then on a change of mode loads the look that mode shows, on demand.
+// THE IDLE SHEET FIRST, THEN HIS ATTACKS, HIS ALTERNATES LAST (plan D, 2026-10-16; since 2026-10-13 the attacks waited
+// behind the symbols' sheets, which are now in the gate): loadCreatureBoot hands back two promises, `idle` (his idle group
+// is in: he breathes) and `held` (the run has reached the group CREATURE.restHeldAfter names, his attacks: what follows
+// is HELD until game/deferredLoad.ts calls releaseCreatureRest, after the scene's night set, the night frame, the flames
+// and the labels). An action whose sheet is not in yet is simply not played (game/creature.ts canPlay: no wait, no
+// throw, the board's timing untouched). DEV `?creaturehold=1`: the hold is after his idle group instead.
 //
 // ONE LOOK RESIDENT. A look is three groups, fetched one after another and each uploaded once, when it lands
 // (renderer.prepare.upload, so no upload happens in the frame an action starts; the sources are kept out of Pixi's
@@ -80,13 +82,16 @@ let booted = false;
 let groupLog: GroupLog | null = null;
 const shared: Partial<Record<keyof typeof CREATURE_SHARED, boolean>> = {};
 /** per look: the run that is loading it (a look let go mid load is dropped by its run), and the files it holds */
-const runs: Partial<Record<CreatureLook, { id: number; done: Promise<void>; idle: Promise<void>; drop: () => void; urls: string[]; go: () => void; on: () => void }>> = {};
+const runs: Partial<Record<CreatureLook, { id: number; done: Promise<void>; idle: Promise<void>; held: Promise<void>; drop: () => void; urls: string[]; go: () => void; on: () => void }>> = {};
 let serial = 0;
 /** per look: the files of runs that were let go, waiting to be destroyed; the runs that must end first; the one
  *  destroy in flight; whether its sweeper is at work (see WHO OWNS A LOOK'S FILES) */
 const trash: Partial<Record<CreatureLook, { urls: string[]; ends: Promise<void>[]; busy: Promise<void> | null; sweeping: boolean }>> = {};
-/** the hold on everything after the idle group: set by the boot, let go by releaseCreatureRest (null: no hold) */
+/** the hold on everything after the group holdAfter() names: set by the boot, let go by releaseCreatureRest (null: no hold) */
 let rest: Promise<void> | null = null;
+/** the group after which a run waits for `rest` (constants CREATURE.restHeldAfter; DEV `?creaturehold=1`: his idle group) */
+const holdAfter = (): string =>
+	import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('creaturehold') === '1' ? 'creatureIdle' : CREATURE.restHeldAfter;
 let letRestGo = () => {};
 
 const fetchSheet = async (url: string, look: string): Promise<Sheet | null> => {
@@ -158,6 +163,7 @@ const load = (look: CreatureLook) => {
 	const urls: string[] = [];
 	const mine = () => runs[look]?.id === id;
 	let idleIn = () => {};
+	let heldIn = () => {};
 	let drop = () => {};
 	let go = () => {};
 	let on = () => {};
@@ -166,7 +172,7 @@ const load = (look: CreatureLook) => {
 	const wanted = new Promise<void>((resolve) => (go = resolve));
 	/** he shows this look (the crossover to it is over, or it is his first) */
 	const shown = new Promise<void>((resolve) => (on = resolve));
-	const entry = { id, done: Promise.resolve(), idle: new Promise<void>((resolve) => (idleIn = resolve)), drop, urls, go, on };
+	const entry = { id, done: Promise.resolve(), idle: new Promise<void>((resolve) => (idleIn = resolve)), held: new Promise<void>((resolve) => (heldIn = resolve)), drop, urls, go, on };
 	if (creature.wanted === look) go();
 	if (creature.look === look) on();
 	// (listed BEFORE the first line of the run: with the shared sheets already in, it reaches mine() without a wait)
@@ -206,9 +212,14 @@ const load = (look: CreatureLook) => {
 			if (group.name === 'creatureIdle') {
 				creature.lookReady(performance.now());
 				idleIn();
-				// the attacks and the alternates wait behind the symbols' sheets (see the header)
+			}
+			if (group.name === holdAfter()) {
+				heldIn();
+				// what follows waits behind the scene's groups (see the header)
 				if (rest) await Promise.race([rest, dropped]);
 				if (!mine()) return;
+			}
+			if (group.name === 'creatureIdle') {
 				// a look loaded AHEAD of its mode: the rest waits until the mode asks for it, and every new look's rest
 				// waits until the crossover to it is over and the old look is let go (2026-10-14: so two looks' sheets
 				// on the GPU are never more than the old look's and the new one's idle sheet; nothing of the new look but
@@ -219,7 +230,10 @@ const load = (look: CreatureLook) => {
 				if (!mine()) return;
 			}
 		}
-	})().finally(idleIn);
+	})().finally(() => {
+		idleIn();
+		heldIn();
+	});
 	return entry.done;
 };
 
@@ -241,21 +255,23 @@ creature.onLookFree = (look) => unload(look);
 creature.onLookOn = (look) => runs[look]?.on();
 
 /** the creature's place in the deferred phase: the look of the mode the game is in NOW (a round resumed in a SUPER
- *  loads the super look, not the day one first). Resolves when that look's IDLE group is in (he is on show); the
- *  other two groups are held until releaseCreatureRest. Never rejects. */
-export const loadCreatureBoot = (log: GroupLog): Promise<void> => {
+ *  loads the super look, not the day one first). `idle` resolves when that look's IDLE group is in (he breathes),
+ *  `held` when the run has reached its hold (after CREATURE.restHeldAfter's group): the rest waits for
+ *  releaseCreatureRest. Neither rejects. */
+export const loadCreatureBoot = (log: GroupLog): { idle: Promise<void>; held: Promise<void> } => {
 	groupLog = log;
 	booted = true;
 	rest = new Promise<void>((resolve) => (letRestGo = resolve));
 	const look = creature.wanted;
 	void ensure(look).catch(() => {});
 	const idle = (runs[look]?.idle ?? Promise.resolve()).catch(() => {});
+	const held = (runs[look]?.held ?? Promise.resolve()).catch(() => {});
 	// a look named ahead before he was booted (a feature on the very first rounds) starts once his own is in
 	void idle.then(() => {
 		const ahead = creature.prepared;
 		if (ahead && !runs[ahead]) void ensure(ahead).catch(() => {});
 	});
-	return idle;
+	return { idle, held };
 };
 
 /** the symbols' sheets are in: his attacks and alternates may load now. Resolves when the look on its way has all

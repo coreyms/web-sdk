@@ -10,7 +10,9 @@ import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
-import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, fxStamp, type FxRecord } from './featureFx';
+import { winFx, shineCells, spawnWinBurst, popPose, sweepAt, POP_AT, winFxStats, type ShineCell, type PopPose } from './winFx';
+import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, triggerFx, clearTriggerFx, fxStamp, type FxRecord } from './featureFx';
+import { cueWellSting, cueWellSwipe, cueWellTile, cueWellWin, clearWellCues } from './wellsFx';
 import { kickClank } from './chainSound';
 import { placeLabels } from './labelPlacement';
 import { forgedSupports, forgedWidth } from './clusterLabel';
@@ -30,6 +32,7 @@ import {
 	CLUSTER_LABEL,
 	LABEL_PLACE,
 	SPARKLE,
+	WIN_FX,
 	SYMBOL_COLORS,
 	AURA_COLOR,
 	MULT_PLATE,
@@ -37,6 +40,7 @@ import {
 	STING,
 	SCATTER_STING,
 	ANTICIPATION_TEASE,
+	TRIGGER_BEAT,
 	SWIPE_FX,
 	ROAR_FX,
 	CHAIN_SOUND,
@@ -173,6 +177,10 @@ export const stateGame = $state({
 	 *  own fade (over the fall), its offset in cells (locked to the incoming stack after the launch) and
 	 *  the style ms since the column began to show (the beam swings on it). */
 	anticipation: Array.from({ length: GRID }, () => ({ on: false, q: 0, fade: 1, tease: false, rainFade: 1, rain: 0, el: 0 })),
+	/** THE TRIGGER BEAT'S RELIGHT (constants TRIGGER_BEAT.relightAt): true from the moment a Super / Epic trigger beat
+	 *  relights the scene until the feature's own gameType takes over at the beat's end. components/Background.svelte
+	 *  draws the feature's scene (bonusMode's) while it is set, so the relight plays in front of the player */
+	relightAhead: false,
 	/** the Mystery outcome of the round being played, null outside a Mystery book. Presentation
 	 *  never branches on it (the spin plays itself out); it is a DEV / probe read only. */
 	mysteryOutcome: null as MysteryOutcome | null,
@@ -1003,8 +1011,15 @@ const textWidth = (text: string, height: number) => {
 };
 /** the shrink removal: grow a hair, then shrink to nothing (the playground's 'shrink' style) */
 const shrinkScale = (u: number) => (u < 0.25 ? 1 + 0.12 * (u / 0.25) : 1.12 * (1 - CLUSTER.removeEasing((u - 0.25) / 0.75)));
+/** the burst's colour for a symbol (WIN_FX.colors, sampled from the art) */
+const winColor = (name: string) => WIN_FX.colors[name] ?? SYMBOL_COLORS[name] ?? 0xffffff;
+/** the board shake this win set wrote last (so the end of a superseded set never zeroes another feature's kick) */
+let shakeOwned = false;
+const popScratch: PopPose = { sx: 1, sy: 1, rot: 0, alpha: 1, heat: 0 };
 
-type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean; cleared: boolean };
+/** `fx`: the WIN_FX shine of this cell (null in the 'old' look); `rank`: its order from the cluster centre; `dir`:
+ *  its twist direction (alternate cells opposite ways) */
+type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean; cleared: boolean; rank: number; dir: number; fx: ShineCell | null };
 type Cluster = {
 	members: Member[];
 	/** the cluster's start (before its standalone aura) and the readout's start (after it) */
@@ -1019,6 +1034,8 @@ type Cluster = {
 	tCountDone: number;
 	tReadoutDone: number;
 	tRemEnd: number;
+	/** WIN_FX.shake: when this cluster's first symbol pops (style ms), -1 = no shake */
+	tShake: number;
 	spec: WinSpec;
 	readout: Readout;
 	wa: number;
@@ -1035,6 +1052,9 @@ type Cluster = {
  */
 export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHooks = {}): Promise<CellIndex[]> => {
 	if (!wins.length) return [];
+	// the look, once for the whole set (WIN_FX; DEV ?winfx=old keeps the shrink, the square flash and the dots)
+	const fxNew = winFx.style === 'new';
+	const removeMs = Math.max(fxNew ? WIN_FX.pop.removeMs : CLUSTER.removeMs, 1);
 	const at = new Map<CellIndex, Cell>();
 	for (const c of stateGame.cells) if (c.state !== 'removing') at.set(cellOf(c.reel, c.row), c);
 	const allWinners = new Set<CellIndex>();
@@ -1084,10 +1104,11 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			const cell = at.get(index);
 			if (!cell || claimed.has(index)) continue; // a shared cell leaves with the first cluster
 			claimed.add(index);
-			members.push({ cell, index, removeT0: 0, spawned: false, cleared: false });
+			members.push({ cell, index, removeT0: 0, spawned: false, cleared: false, rank: 0, dir: (reelOf(index) + rowOf(index)) % 2 ? -1 : 1, fx: null });
 		}
 		// cells leave in order of distance from the cluster centre
 		members.sort((a, b) => Math.hypot(rowOf(a.index) + 0.5 - cy, reelOf(a.index) + 0.5 - cx) - Math.hypot(rowOf(b.index) + 0.5 - cy, reelOf(b.index) + 0.5 - cx));
+		members.forEach((m, k) => (m.rank = k));
 		// a winner the preceding drop did not glow gets the standalone aura (the whole cluster, together)
 		const aura = CLUSTER.auraMs > 0 && members.some((m) => !lastAura.has(m.index)) ? CLUSTER.auraMs : 0;
 		let t = tc + aura;
@@ -1112,8 +1133,9 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		let tRemEnd = tReadoutDone;
 		members.forEach((m, k) => {
 			m.removeT0 = tReadoutDone + k * SPARKLE.staggerMs;
-			tRemEnd = Math.max(tRemEnd, m.removeT0 + Math.max(CLUSTER.removeMs, 1));
+			tRemEnd = Math.max(tRemEnd, m.removeT0 + removeMs);
 		});
+		const tShake = fxNew && members.length >= WIN_FX.shake.minCluster ? tReadoutDone + POP_AT * removeMs : -1;
 		tRem = Math.max(tRem, tRemEnd);
 		readoutDone[i] = tReadoutDone;
 		const start = tc;
@@ -1154,6 +1176,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			tCountDone,
 			tReadoutDone,
 			tRemEnd,
+			tShake,
 			spec,
 			readout,
 			wa: widths[i].wa * size,
@@ -1167,6 +1190,16 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	for (const c of stateGame.cells) if (!allWinners.has(cellOf(c.reel, c.row)) && c.state !== 'removing') dimmed.push(c);
 	for (const cl of clusters) for (const m of cl.members) m.cell.state = 'win';
 	for (const c of dimmed) c.state = 'dim';
+	// WIN_FX: each winner's shine on the bus (BoardCells draws it), from now until it has left
+	if (fxNew) {
+		for (const cl of clusters) {
+			for (const m of cl.members) {
+				m.fx = { band: 0, a: 0, heat: 0, pulse: 1 };
+				shineCells.set(m.cell.id, m.fx);
+			}
+		}
+	}
+	const shaken = new Set<number>();
 	const lifeReal = SPARKLE.lifeMs / ts();
 
 	// ---- sample ----
@@ -1182,6 +1215,8 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			if (now >= cl.t && !cl.started) {
 				cl.started = true;
 				hooks.onClusterStart?.(i);
+				// THE WELLS (game/wellsFx.ts): the cluster's veins ripple from its first cell as its pulse starts
+				if (!stateGame.skipping) cueWellWin(cl.spec.cells, ts());
 			}
 			if (now >= cl.tCountDone && !cl.counted) {
 				cl.counted = true;
@@ -1194,20 +1229,52 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 				if (now < cl.t) continue;
 				if (now < m.removeT0) {
 					const s = 1 + (CLUSTER.winScale - 1) * CLUSTER.winEasing(clamp01((now - cl.t) / Math.max(CLUSTER.winRiseMs, 1)));
-					c.scaleX = s;
-					c.scaleY = s;
+					const fx = m.fx;
+					if (fx) {
+						// WIN_FX: the breath (in over the rise, out before the pop, so the pop starts from winScale; drawn by
+						// the renderer from fx.pulse, the cell keeps the held scale) ...
+						const B = WIN_FX.breathe;
+						const el = now - cl.t;
+						const env = clamp01(el / Math.max(cl.rise, 1)) * clamp01((m.removeT0 - now) / Math.max(B.fadeMs, 1));
+						fx.pulse = 1 + B.amp * env * Math.sin((2 * Math.PI * el) / B.periodMs);
+						// ... and the shine: a sweep as the cluster starts, a softer one as its count lands
+						const S = WIN_FX.shine;
+						const lag = Math.min(m.rank * S.staggerMs, S.staggerCapMs);
+						fx.a = 0;
+						fx.heat = 0;
+						sweepAt(el - S.startMs - lag, S.peak, fx);
+						sweepAt(now - cl.tCountDone - lag, S.secondPeak, fx);
+					}
+					if (c.scaleX !== s) c.scaleX = s;
+					if (c.scaleY !== s) c.scaleY = s;
 					continue;
 				}
-				// leaving: shrink from the held win scale; sparkle at the first frame of it
-				if (!m.spawned) {
-					m.spawned = true;
-					if (!stateGame.skipping) spawnSparkles(c.reel, c.row, SYMBOL_COLORS[c.name] ?? 0xffffff, lifeReal);
-				}
 				c.state = 'removing';
-				const u = clamp01((now - m.removeT0) / Math.max(CLUSTER.removeMs, 1));
-				const s = u >= 1 ? 0 : CLUSTER.winScale * shrinkScale(u);
-				c.scaleX = s;
-				c.scaleY = s;
+				const u = clamp01((now - m.removeT0) / removeMs);
+				if (m.fx) {
+					// WIN_FX: squash, pop and twist away (game/winFx.ts popPose); the burst and the embers at the pop
+					const p = popPose(u, CLUSTER.winScale, m.dir, popScratch);
+					c.scaleX = p.sx;
+					c.scaleY = p.sy;
+					c.rot = p.rot;
+					c.alpha = p.alpha;
+					m.fx.a = 0;
+					m.fx.pulse = 1;
+					m.fx.heat = p.heat;
+					if (!m.spawned && u >= POP_AT) {
+						m.spawned = true;
+						if (!stateGame.skipping) spawnWinBurst(c.reel, c.row, winColor(c.name), ts());
+					}
+				} else {
+					// leaving: shrink from the held win scale; sparkle at the first frame of it
+					if (!m.spawned) {
+						m.spawned = true;
+						if (!stateGame.skipping) spawnSparkles(c.reel, c.row, SYMBOL_COLORS[c.name] ?? 0xffffff, lifeReal);
+					}
+					const s = u >= 1 ? 0 : CLUSTER.winScale * shrinkScale(u);
+					c.scaleX = s;
+					c.scaleY = s;
+				}
 				if (u >= 1 && !m.cleared) {
 					m.cleared = true;
 					hooks.onCleared?.(m.index);
@@ -1226,6 +1293,31 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			if (!shown) {
 				live.set(cl.readout.id, cl.readout);
 				listChanged = true;
+			}
+		}
+		// WIN_FX.shake: a big cluster nudges the board as its first symbol pops (featureFx.boardKick, board px)
+		if (fxNew) {
+			const K = WIN_FX.shake;
+			let kx = 0;
+			let ky = 0;
+			let on = false;
+			for (const cl of clusters) {
+				const el = now - cl.tShake;
+				if (cl.tShake < 0 || el < 0 || el >= K.ms) continue;
+				on = true;
+				if (!shaken.has(cl.readout.id)) {
+					shaken.add(cl.readout.id);
+					winFxStats.shakes += 1;
+				}
+				const d = (1 - el / K.ms) ** 2;
+				const ph = (2 * Math.PI * K.hz * el) / 1000;
+				kx += K.ampPx * d * Math.sin(ph);
+				ky += K.ampPx * K.yShare * d * Math.sin(ph * 1.3);
+			}
+			if (on || shakeOwned) {
+				boardKick.x = kx;
+				boardKick.y = ky;
+				shakeOwned = on;
 			}
 		}
 		if (listChanged) {
@@ -1278,8 +1370,14 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	// ---- the structural result, whether or not the run was superseded ----
 	const removed: CellIndex[] = [];
 	const goingIds = new Set<number>();
+	if (shakeOwned) {
+		boardKick.x = 0;
+		boardKick.y = 0;
+		shakeOwned = false;
+	}
 	for (const cl of clusters) {
 		for (const m of cl.members) {
+			if (m.fx) shineCells.delete(m.cell.id);
 			removed.push(m.index);
 			goingIds.add(m.cell.id);
 			if (!m.cleared) {
@@ -1326,6 +1424,36 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	return removed;
 };
 
+/** WIN_FX for removeCells: the same pop as a cluster's symbols (from scale 1), its heat on the shine bus, a burst each */
+const popAway = async (goingIds: number[], id: number) => {
+	const going = new Set(goingIds);
+	const heat = new Map<number, ShineCell>();
+	for (const cid of goingIds) {
+		const fx = { band: 0, a: 0, heat: 0, pulse: 1 };
+		heat.set(cid, fx);
+		shineCells.set(cid, fx);
+	}
+	const burst = new Set<number>();
+	await raf(WIN_FX.pop.removeMs, (t) => {
+		if (!alive(id)) return;
+		for (const c of stateGame.cells) {
+			if (!going.has(c.id)) continue;
+			const p = popPose(t, 1, (c.reel + c.row) % 2 ? -1 : 1, popScratch);
+			c.scaleX = p.sx;
+			c.scaleY = p.sy;
+			c.rot = p.rot;
+			c.alpha = p.alpha;
+			const fx = heat.get(c.id);
+			if (fx) fx.heat = p.heat;
+			if (t >= POP_AT && !burst.has(c.id)) {
+				burst.add(c.id);
+				if (!stateGame.skipping) spawnWinBurst(c.reel, c.row, winColor(c.name), ts());
+			}
+		}
+	});
+	for (const cid of goingIds) shineCells.delete(cid);
+};
+
 /** the cluster leaves the board: a pop, then nothing. The DELETION is unconditional: a superseded
  *  run may skip the animation, never the structural change. `onCleared` fires per cell once it is gone. */
 export const removeCells = async (cells: CellIndex[], id: number, onCleared?: (cell: CellIndex) => void) => {
@@ -1339,7 +1467,8 @@ export const removeCells = async (cells: CellIndex[], id: number, onCleared?: (c
 	}
 	if (!goingIds.length) return;
 	const going = new Set(goingIds);
-	await raf(CLUSTER.removeMs, (t) => {
+	if (winFx.style === 'new') await popAway(goingIds, id);
+	else await raf(CLUSTER.removeMs, (t) => {
 		if (!alive(id)) return;
 		const e = CLUSTER.removeEasing(t);
 		const s = t < 0.3 ? 1 + 0.4 * (t / 0.3) : 1.4 * (1 - CLUSTER.removeEasing((t - 0.3) / 0.7));
@@ -1413,7 +1542,11 @@ const pumpPlates = () => {
 			continue;
 		}
 		if (el < 0) continue;
-		if (!j.started) startPlate(j, tile);
+		if (!j.started) {
+			startPlate(j, tile);
+			// THE WELLS (game/wellsFx.ts): the cell's veins flare with the count-over (never on a skip: that path finishes above)
+			if (j.change) cueWellTile(j.cell, tile.from, tile.value, j.rate);
+		}
 		const chg = j.change ? clamp01(el / Math.max(MULT_PLATE.changeMs, 1)) : 1;
 		const pop = tile.value > 0 ? clamp01(el / Math.max(MULT_PLATE.revealPopMs, 1)) : 1;
 		if (tile.chg !== chg) tile.chg = chg;
@@ -1574,6 +1707,8 @@ export const stingHit = async (
 				ringMs: kind === 'normal' ? STING.ringMs : 0,
 				kind,
 			});
+			// THE WELLS (game/wellsFx.ts): the struck cell's veins flare at the hit, outward from it
+			cueWellSting(cell, t0 + (STING.hitAt * ms) / rate, rate, kind);
 		}
 	}
 	let flipped = false;
@@ -1629,7 +1764,11 @@ export const stingBig = async (
 		const rate = ts();
 		if (charge > 0) stingFx.charge = { centre: center, t0, rate, dur: charge, kind };
 		const hitT0 = t0 + charge / rate;
-		for (const cell of cells) stingFx.strikes.push({ cell, t0: hitT0, rate, dur: hit, hitAt: STING.hitAt, streak: false, ringMs: 0, kind });
+		for (const cell of cells) {
+			stingFx.strikes.push({ cell, t0: hitT0, rate, dur: hit, hitAt: STING.hitAt, streak: false, ringMs: 0, kind });
+			// THE WELLS (game/wellsFx.ts): the struck cell's veins flare at the hit, outward from it
+			cueWellSting(cell, hitT0 + (STING.hitAt * hit) / rate, rate, kind);
+		}
 		const reach = (kind === 'super' ? 1.5 * Math.SQRT2 : 1.5) * STING.bigRingReach;
 		if (STING.bigRingMs > 0) {
 			for (let k = 0; k < Math.max(1, Math.round(STING.bigRings)); k += 1) {
@@ -1761,30 +1900,122 @@ export const scatterTrigger = async (cells: CellIndex[], id: number, rec?: FxRec
 	if (rec) fxStamp(rec, 'triggerEnd');
 };
 
-// ---- the claw swipe (MOTION_SPEC "Claw swipe", the playground's compileSwipe) ---------------------
+// ---- THE TRIGGER BEAT (constants TRIGGER_BEAT; harsh review 2026-10-15 design item 8, Corey 17:32 "A1") ---------
 
-/** the swipe's schedule in style ms: when the last tear is fully out, when the symbols start to
- *  leave (and the tears fade), when the kick starts, and when the refill may start */
+const backOut = (u: number) => {
+	const k = 1.70158;
+	const v = u - 1;
+	return 1 + (k + 1) * v * v * v + k * v * v;
+};
+
+/**
+ * The feature trigger's own beat, played by the bonusStart handler before the intro plaque: every scatter in `cells`
+ * (the book's bonusStart.scatters, as live S cells) lifts to liftScale with its glow full, a light column rises from
+ * each and a halo flares at the lift's peak, the rest of the board darkens to dimTo; `onRoar` at roarAt, `onRelight`
+ * at relightAt (when given: Super / Epic), everything back at rest over the last releaseMs. STYLE time (turbo divides
+ * it); the skip rule: t = 1 writes the rest state. Resolves when the beat is over.
+ */
+export const triggerBeat = async (cells: CellIndex[], ms: number, id: number, { onRoar, onRelight, rec }: { onRoar?: () => void; onRelight?: () => void; rec?: FxRecord } = {}) => {
+	const T = TRIGGER_BEAT;
+	const ids = new Set(scatterIdsAt(cells));
+	let roared = false;
+	let relit = false;
+	if (rec) fxStamp(rec, 'beat');
+	triggerFx.active = !stateGame.skipping;
+	triggerFx.cells = cells.slice();
+	const rel0 = Math.max(0, ms - T.releaseMs);
+	await raf(ms, (t, el) => {
+		if (!alive(id)) return;
+		if (!roared && (el >= T.roarAt || t >= 1)) {
+			roared = true;
+			if (t < 1) onRoar?.();
+		}
+		if (!relit && (el >= T.relightAt || t >= 1)) {
+			relit = true;
+			onRelight?.();
+		}
+		// the release: 1 -> 0 over the last releaseMs (smoothstep back to rest)
+		const r = el <= rel0 ? 1 : 1 - clamp01((el - rel0) / Math.max(T.releaseMs, 1));
+		const rel = t >= 1 ? 0 : r * r * (3 - 2 * r);
+		const up = clamp01(el / Math.max(T.liftMs, 1));
+		const lift = t >= 1 ? 1 : 1 + (T.liftScale - 1) * backOut(up) * rel;
+		const breathe = 1 - T.breathe * 0.5 * (1 - Math.cos((el / 1000) * T.breatheHz * Math.PI * 2));
+		const glow = t >= 1 ? 0 : Math.min(1, up * 1.5) * breathe * rel;
+		const dim = t >= 1 ? 1 : 1 - (1 - T.dimTo) * clamp01(el / Math.max(T.dimInMs, 1)) * rel;
+		const map = liveById();
+		for (const c of map.values()) {
+			if (ids.has(c.id)) {
+				c.scaleX = lift;
+				c.scaleY = lift;
+				c.glow = glow;
+				c.glowColor = t >= 1 ? AURA_COLOR : T.glowColor;
+			} else c.dim = dim;
+		}
+		// the light columns and the flare (components/TriggerBeat.svelte)
+		const flareAt = T.liftMs * 0.55;
+		triggerFx.el = el;
+		triggerFx.shaft = t >= 1 ? 0 : clamp01(el / Math.max(T.shaftInMs, 1));
+		triggerFx.alpha = t >= 1 ? 0 : T.shaftAlpha * clamp01(el / Math.max(T.shaftInMs * 0.5, 1)) * rel;
+		triggerFx.flare = t >= 1 || el < flareAt ? 0 : Math.max(0, 1 - (el - flareAt) / Math.max(T.flareMs, 1));
+	});
+	clearTriggerFx();
+	const map = liveById();
+	for (const c of map.values()) {
+		if (ids.has(c.id)) {
+			c.scaleX = 1;
+			c.scaleY = 1;
+			c.glow = 0;
+			c.glowColor = AURA_COLOR;
+		} else c.dim = 1;
+	}
+	if (rec) fxStamp(rec, 'beatEnd');
+};
+
+// ---- the claw swipe (constants SWIPE_FX, claw-swipe-r1; the timing contract MOTION_SPEC "Claw swipe") ----------
+
+/** the swipe's schedule in style ms: when the last claw is fully drawn on (`revealed`), when the last one has
+ *  burnt out, when the symbols start to leave (the book's beat, SWIPE_FX.exitAtMs, unchanged by the claws), when
+ *  the impact flash and the kick start, and when the refill may start */
 export const swipeSchedule = () => {
-	const n = Math.max(1, Math.round(SWIPE_FX.tearCount));
-	const lastReveal = (n - 1) * SWIPE_FX.tearStaggerMs + SWIPE_FX.tearSweepMs;
-	const tExit = lastReveal + SWIPE_FX.tearHoldMs;
+	const n = Math.max(1, Math.round(SWIPE_FX.clawCount));
+	const lastReveal = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs;
+	const clawsOut = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawTailAtMs + SWIPE_FX.clawTailMs;
+	const tExit = SWIPE_FX.exitAtMs;
 	const exitMs = Math.max(SWIPE_FX.exitMs, 1);
 	return {
 		n,
 		lastReveal,
+		clawsOut,
 		tExit,
 		exitMs,
-		kickT0: lastReveal - SWIPE_FX.tearSweepMs * 0.3,
-		tRefill: tExit + Math.max(exitMs, SWIPE_FX.tearFadeMs) + SWIPE_FX.refillDelayMs,
+		kickT0: SWIPE_FX.impactAtMs,
+		tRefill: tExit + Math.max(exitMs, SWIPE_FX.scarFadeMs) + SWIPE_FX.refillDelayMs,
 	};
 };
 
+/** THE TILES FOLLOW THE CLAWS (SWIPE_FX.tileLagMs, r2 / r3): style ms from the swipe's start to the moment the
+ *  burn-out of the claw over `cell`'s row passes the middle of the cell. Claw i runs (i + 0.5) / clawCount down the
+ *  band (ClawSwipe.svelte), so a row takes the first claw that runs through it (a band of 3 rows and 4 claws: claws
+ *  0, 1 and 3); from clawTailAtMs its burn-out crosses the board right to left at a steady speed over clawTailMs,
+ *  so reel r is passed (1 - (r + 0.5) / 8) of the way through. Presentation only: the values are the book's. */
+export const swipeTileDelayMs = (cell: CellIndex, rows: number[]) => {
+	const n = Math.max(1, Math.round(SWIPE_FX.clawCount));
+	const top = rows.length ? Math.min(...rows) : 0;
+	const span = rows.length ? Math.max(...rows) + 1 - top : 1;
+	const k = rowOf(cell) - top;
+	let claw = -1;
+	for (let i = 0; i < n && claw < 0; i += 1) if (Math.floor(((i + 0.5) * span) / n) === k) claw = i;
+	if (claw < 0) claw = Math.max(0, Math.min(n - 1, Math.round(((k + 0.5) * n) / span - 0.5)));
+	const b = clamp01(1 - (reelOf(cell) + 0.5) / GRID);
+	return claw * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawTailAtMs + SWIPE_FX.clawTailMs * b + SWIPE_FX.tileLagMs;
+};
+
 /**
- * The claw swipe over `rows` (the book's): the tears (ClawSwipe.svelte, from swipeFx) rake right to
- * left, hold, and fade while the `removed` symbols leave by SWIPE_FX.exit; the board kicks on the
- * last tear. `onExit` fires when the symbols start to leave (the handler pops the swipe's tiles
- * then). Resolves when the refill may start; the cells are gone by then, whatever happened.
+ * The claw swipe over `rows` (the book's): four claws (ClawSwipe.svelte, from swipeFx) rake the band, the impact
+ * flashes it and the board kicks; the struck symbols take the ember tint (the cells' flash) from the impact; at
+ * the exit the `removed` symbols leave by SWIPE_FX.exit while the scars fade. `onExit` fires when the symbols
+ * start to leave (since r2 the handler lights the band's tiles from the swipe's start instead, swipeTileDelayMs). Resolves when the refill may start; the cells are
+ * gone by then, whatever happened.
  */
 export const swipeBand = async (removed: CellIndex[], rows: number[], id: number, { onExit, rec }: { onExit?: () => void; rec?: FxRecord } = {}) => {
 	const S = swipeSchedule();
@@ -1796,6 +2027,8 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 	swipeFx.el = 0;
 	swipeFx.alpha = 1;
 	swipeFx.active = !stateGame.skipping;
+	// THE WELLS (game/wellsFx.ts): the swiped rows' veins flare right to left with the claws (WELLS_FX.swipe.sweepMs)
+	if (!stateGame.skipping) cueWellSwipe(rows, ts());
 	let exited = false;
 	const exit = () => {
 		if (exited) return;
@@ -1808,11 +2041,28 @@ export const swipeBand = async (removed: CellIndex[], rows: number[], id: number
 	const kickK = SWIPE_FX.kickPx * PLAYGROUND_PX;
 	// THE CHAIN SOUND of this kick (constants CHAIN_SOUND): the heavy clank, once, never while skipping
 	let clanked = stateGame.skipping;
+	// the ember tint on the struck symbols: their flash colour now, the strength from the impact on
+	{
+		const going = new Set(goingIds);
+		for (const c of stateGame.cells) if (going.has(c.id)) c.flashColor = SWIPE_FX.woundColor;
+	}
+	let wound = -1;
 	await raf(S.tRefill, (_t, el) => {
 		if (!alive(id)) return;
 		swipeFx.el = el;
-		swipeFx.alpha = el > S.tExit ? 1 - clamp01((el - S.tExit) / Math.max(SWIPE_FX.tearFadeMs, 1)) : 1;
+		swipeFx.alpha = el > S.tExit ? 1 - clamp01((el - S.tExit) / Math.max(SWIPE_FX.scarFadeMs, 1)) : 1;
 		if (el >= S.lastReveal && rec) fxStamp(rec, 'revealed');
+		if (el >= S.kickT0 && rec) fxStamp(rec, 'impact');
+		// the wound: up over woundRiseMs from the impact, held while they leave (never while skipping)
+		const wk = stateGame.skipping ? 0 : SWIPE_FX.woundAlpha * clamp01((el - S.kickT0) / Math.max(SWIPE_FX.woundRiseMs, 1));
+		if (wk !== wound) {
+			wound = wk;
+			const map = liveById();
+			for (const cellId of goingIds) {
+				const c = map.get(cellId);
+				if (c) c.flash = wk;
+			}
+		}
 		// the kick: (0.6k, k), k = kickPx (1 - u) sin(6 pi u)
 		const ku = (el - S.kickT0) / Math.max(SWIPE_FX.kickMs, 1);
 		const k = SWIPE_FX.kickPx > 0 && ku >= 0 && ku < 1 ? kickK * (1 - ku) * Math.sin(ku * Math.PI * 6) : 0;
@@ -2047,6 +2297,8 @@ export const skipAllowed = (): boolean => !stateConfig.jurisdiction.disabledSlam
 const requestSkip = (): boolean => {
 	if (!skipAllowed() || !featureSpinsLive() || stateGame.skipping) return false;
 	stateGame.skipping = true;
+	// the wells' queued light-ups go with it (the wells also drop their flares that have not started)
+	clearWellCues();
 	return true;
 };
 

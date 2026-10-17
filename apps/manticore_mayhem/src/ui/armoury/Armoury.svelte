@@ -52,12 +52,11 @@
 	import { fitConfirmAmount, fitPrice } from './fit';
 	import { createMover, entranceEnd, entrancePlan, moveDurations, pickEase, prefersReducedMotion, swapPlan, type Mover, type MoveOptions, type Step } from './motion';
 	import { ARMOURY } from '../../game/constants';
-	import config from '../../game/config';
 	import { modeCost } from '../../game/betModeMeta';
 	import { stamp } from '../../game/assets';
 	import { PHONE_TIER } from '../../game/deviceTier';
 	import { INTRO_CARD_ASSETS } from '../../game/introCards';
-	import { frameArtRect } from '../../game/layoutSpec';
+	import { landscapeTrioSpan } from '../../game/layoutSpec';
 	import TrioStat from '../TrioStat.svelte';
 	import StepButton from '../StepButton.svelte';
 	import { ARMOURY_ART_ORDER, ARMOURY_ASSETS, ARMOURY_MODES, armouryMode, type ArmouryMode, type ArmouryModeId } from '../../game/armouryData';
@@ -738,7 +737,6 @@
 
 	/** a template's sentence: {name} filled, {amt} left for the amount span */
 	const named = (t: string, id: ArmouryModeId) => fill(t, { name: armouryName(id) });
-	const pitchAmt = $derived(money(config.epicMinWin * stateBet.betAmount));
 	const status = $derived.by((): { tag: string | null; text: string; amt: string } | null => {
 		if (isOn) {
 			const tag = TX.onTag[mode.group];
@@ -932,7 +930,7 @@
 	});
 	/** the small 16:9 frames: the menu's own BALANCE, bet readout and steppers, where the landscape HUD's trio would sit
 	 *  under the desktop box (the trio's master rectangle at the box's 1440 / 1280) */
-	const ART = frameArtRect('landscape');
+	const ART = landscapeTrioSpan();
 	const K = LAY.desktop.w / LAY.desktop.master;
 	const COPY = { left: ART.x * K, top: (720 - 18 - 92) * K, width: ART.width, height: 92, k: K };
 
@@ -1370,7 +1368,7 @@
 									<div class="name">{armouryName(mode.id)}</div>
 								</div>
 								<div class="d-body" bind:this={dBodyEl}>
-									<div class="desc">{@render rich(TX.pitch[mode.id], pitchAmt)}</div>
+									<div class="desc">{@render rich(TX.pitch[mode.id], '')}</div>
 									{#if mode.odds}
 										<div class="odds">
 											{#each mode.odds as o (o.text)}
@@ -1479,7 +1477,7 @@
 					<div class="c-art" aria-hidden="true"><div class="c-in">{@render burst('')}{@render thumb(mode, 'c-pic')}</div></div>
 					<div class="c-body">
 						<div class="name">{armouryName(mode.id)}</div>
-						{#if !touch}<div class="c-gets">{@render rich(TX.gets[mode.id], pitchAmt)}</div>{/if}
+						{#if !touch}<div class="c-gets">{@render rich(TX.gets[mode.id], '')}</div>{/if}
 						<div class="crows" bind:clientWidth={rowW}>
 							{#each confirmRows as r, i (i)}
 								<div class="crow" class:total={r.total}>

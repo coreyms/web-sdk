@@ -9,8 +9,9 @@
 // word: the component puts each {amt} in a span (white-space: nowrap; dir="ltr"; unicode-bidi: isolate).
 //
 // COPY RULES: no em or en dash anywhere; the social wording (soc's second argument) never says bet, buy, cost,
-// charged, price, pay or purchase ("play amount", "uses", "Nothing was used"). The guaranteed multiple (the Epic
-// floor) names its base and shows the live amount; the Mystery Epic's own floor is stated nowhere.
+// charged, price, pay or purchase ("play amount", "uses", "Nothing was used"). The feature floors (Free Spins, Super
+// and Epic, math 2026.10.16) are stated on the rules page only (gameInfoText.ts), never here (Corey 2026-10-17 "I don't
+// want to state these at least"; Epic 11:07 "Remove it"); the Mystery Epic's own floor is stated nowhere.
 //
 // Numbers come from the game: spin counts and tile caps from config.ts, the Mystery's shares from config.mystery,
 // cost multiples from the RGS (modeCost, filled in at render time as {x}).
@@ -22,7 +23,6 @@ import type { ArmouryGroup, ArmouryModeId } from './armouryData';
 
 const SPINS = config.freeSpins;
 const CAP = config.tileCap;
-const FLOOR = config.epicMinWin;
 const SCATTERS = `${config.symbols.S.name}s`;
 const share = (x: number) => Math.round(x * 100);
 /** THE UPGRADE (2026-10-15, approval review minor): a bought Free Spins or Super round can still become a higher feature
@@ -59,18 +59,16 @@ export const ARMOURY_TEXT = {
 		anteOff: soc('**{name}** is off. Every spin costs **{amt}** again.', '**{name}** is off. Every spin uses **{amt}** again.'),
 		buyUnloaded: soc('**{name}** is unloaded. Nothing was charged.', '**{name}** is unloaded. Nothing was used.'),
 	},
-	/** the plate's sentence per mode. EPIC's {amt} is the floor (config.epicMinWin times the bet) as money */
+	/** the plate's sentence per mode (no {amt} slot: no floor is stated here, the rules page has them).
+	 *  The Ante's "six" follows gameInfoText.ts ANTE_RATE (1 in 64 / 379 / 2,372 against 1 in 363 / 2,432 / 13,911) */
 	pitch: {
-		ANTE: '**Free Spins**, **Super Free Spins** and **Epic Free Spins** land about **five times as often** on every spin.',
+		ANTE: '**Free Spins**, **Super Free Spins** and **Epic Free Spins** land about **six times as often** on every spin.',
 		SUPER_ANTE: `Only **Super** and **Epic Free Spins** can trigger: **4 ${SCATTERS}** award **Super Free Spins** instead.`,
 		// THE UPGRADE (2026-10-15, approval review minor): a bought Free Spins or Super round can still become a higher
 		// feature (its trigger spin lands more scatters). No odds are stated
 		BONUS: `**${SPINS.bonus} free spins** where **Multiplier Tiles** stay all round and double up to **${CAP.bonus}x**. ${UPGRADE.BONUS}`,
 		SUPER: `**${SPINS.super} free spins**, tiles double up to **${CAP.super}x**, a **roar** that clears the low symbols and a possible **Super Sting**. ${UPGRADE.SUPER}`,
-		EPIC: soc(
-			`**${SPINS.epic} free spins**, tiles double up to **${CAP.epic}x**, **Super Stings** are common and every round returns **at least ${FLOOR}x your bet ({amt})**.`,
-			`**${SPINS.epic} free spins**, tiles double up to **${CAP.epic}x**, **Super Stings** are common and every round returns **at least ${FLOOR}x your play amount ({amt})**.`,
-		),
+		EPIC: `**${SPINS.epic} free spins**, tiles double up to **${CAP.epic}x** and **Super Stings** land far more often.`,
 		MYSTERY: 'One spin reveals **no feature**, **Super** or **Epic Free Spins**.',
 	} satisfies Record<ArmouryModeId, string>,
 	/** the Mystery's odds rows (armouryData.ts ARMOURY_MODES odds): {n} is the share in percent */
@@ -78,14 +76,11 @@ export const ARMOURY_TEXT = {
 	oddsShare: '{n}%',
 	/** the desktop confirm card's "what you get" line (left out on the phone's card, owner 2026-10-13) */
 	gets: {
-		ANTE: 'About five times the Free Spins, Super Free Spins and Epic Free Spins triggers',
+		ANTE: 'About six times the Free Spins, Super Free Spins and Epic Free Spins triggers',
 		SUPER_ANTE: `Super and Epic Free Spins only, 4 ${SCATTERS} award Super Free Spins`,
 		BONUS: `${SPINS.bonus} free spins, Multiplier Tiles stay all round, up to ${CAP.bonus}x. ${UPGRADE.BONUS}`,
 		SUPER: `${SPINS.super} free spins, tiles up to ${CAP.super}x, the roar, a possible Super Sting. ${UPGRADE.SUPER}`,
-		EPIC: soc(
-			`${SPINS.epic} free spins, tiles up to ${CAP.epic}x, common Super Stings, at least ${FLOOR}x your bet ({amt})`,
-			`${SPINS.epic} free spins, tiles up to ${CAP.epic}x, common Super Stings, at least ${FLOOR}x your play amount ({amt})`,
-		),
+		EPIC: `${SPINS.epic} free spins, tiles up to ${CAP.epic}x, far more Super Stings`,
 		MYSTERY: `One spin: ${share(config.mystery.nothing)}% no feature, ${share(config.mystery.super)}% Super, ${share(config.mystery.epic)}% Epic`,
 	} satisfies Record<ArmouryModeId, string>,
 	/** the confirm card's rows. A buy: BET / <NAME> {x}x / TOTAL. An ante: BET / <NAME> {x}x / EVERY SPIN */

@@ -13,6 +13,7 @@
 	import { getContext } from '../game/context';
 	import { BOARD_SIZES } from '../game/constants';
 	import { boardOpening, boardTapLog, routeBoardTap } from '../game/boardTap';
+	import { symbolPopupHook } from '../game/symbolPopup';
 
 	const context = getContext();
 	const area = new PIXI.Container();
@@ -24,6 +25,8 @@
 	const hurry = () => context.eventEmitter.broadcast({ type: 'boardTap' });
 	area.onpointertap = (event: PIXI.FederatedPointerEvent) => {
 		routeBoardTap(event.global.x, event.global.y, hurry);
+		// the symbol pay popup (components/SymbolPopup.svelte): it opens on an idle board only and decides that itself
+		symbolPopupHook.tap(event.global.x, event.global.y, area);
 	};
 	// the opening: the board container is centred on boardLayout().x / y at boardLayout().scale
 	$effect(() => {

@@ -31,12 +31,18 @@ const STING_MAX_PER_SPIN = 5; // game_config.STING_MAX_PER_SPIN
 const SWIPE_MAX_PER_SPIN = 'twice'; // game_config.SWIPE_MAX_PER_SPIN = 2
 const MYSTERY_SCATTERS = 3; // game_config.MYSTERY_SCATTER_REELS (0, 1, 2): one per column
 const MYSTERY_STINGS = { super: 2, epic: 3 }; // game_config.MYSTERY_STING_COUNT
-// Feature rates against the Base Game (readme "FEATURE RATES AND MEANS AS SHIPPED"):
-// Ante 1 in 60 / 400 / 2,400 vs base 1 in 300 / 2,000 / 12,000 is 5x on every tier;
-// Super Ante Super 1 in 39 (51x base) and Epic 1 in 262 (46x base).
-const ANTE_RATE = 'about five times';
-const SUPER_ANTE_SUPER_RATE = 'about 50 times';
-const SUPER_ANTE_EPIC_RATE = 'about 45 times';
+// Feature rates against the Base Game, measured on the 2026.10.16 books (feedback/math_reshape_r1/data/
+// today_vs_new_real_books.md): base Free Spins / Super / Epic 1 in 363 / 2,432 / 13,911; Ante 1 in 64 / 379 / 2,372,
+// which is 5.7x / 6.4x / 5.9x the base rate, so about six times on every tier; Super Ante Super 1 in 40 (60.8x base)
+// and Epic 1 in 259 (53.7x base). (2026.10.15: Ante 5x, Super Ante 51x / 46x.)
+const ANTE_RATE = 'about six times';
+const SUPER_ANTE_SUPER_RATE = 'about 60 times';
+const SUPER_ANTE_EPIC_RATE = 'about 55 times';
+// THE FEATURE FLOORS (math 2026.10.16): the free spins of a Free Spins round total at least config.freeSpinsMinWin and of
+// a Super round at least config.superMinWin, whatever started it (scatters, a buy, a Mystery: lowest live totals 10.0x
+// and 25.0x on the books); the Epic as before. Each names its base and shows the live amount, like the Epic floor
+const FS_FLOOR = config.freeSpinsMinWin;
+const SUPER_FLOOR = config.superMinWin;
 
 export const MODE_NAMES: Record<string, string> = {
 	base: 'Base Game',
@@ -248,6 +254,10 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				// are stated; the cards' spin count and cap are the round's as bought.
 				mech: [
 					`Multiplier Tiles **persist** for the whole round and double up to ${config.tileCap.bonus}×.`,
+					soc(
+						`**Free Spins floor:** a Free Spins round always pays at least **${FS_FLOOR}x your bet** (${amount(FS_FLOOR)}) from its free spins.`,
+						`**Free Spins floor:** a Free Spins round always wins at least **${FS_FLOOR}x your play amount** (${amount(FS_FLOOR)}) from its free spins.`,
+					),
 					soc('A bought round can still upgrade to Super or Epic Free Spins.', 'An instantly triggered round can still upgrade to Super or Epic Free Spins.'),
 				],
 			},
@@ -257,6 +267,10 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				mech: [
 					`Tiles persist and double up to ${config.tileCap.super}×.`,
 					'The roar clears the low symbols and a Super Sting is possible.',
+					soc(
+						`**Super floor:** a Super Free Spins round always pays at least **${SUPER_FLOOR}x your bet** (${amount(SUPER_FLOOR)}) from its free spins.`,
+						`**Super floor:** a Super Free Spins round always wins at least **${SUPER_FLOOR}x your play amount** (${amount(SUPER_FLOOR)}) from its free spins.`,
+					),
 					soc('A bought round can still upgrade to Epic Free Spins.', 'An instantly triggered round can still upgrade to Epic Free Spins.'),
 				],
 			},
@@ -266,7 +280,7 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				// COPY RULE (Corey 2026-10-13 14:14): a guaranteed multiple names its base and shows the live amount. The
 				// Mystery Epic's own floor is stated nowhere, so this sentence names only the two routes it covers
 				mech: [
-					`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings are common.`,
+					`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings land far more often than in Super Free Spins.`,
 					soc(
 						`**Epic floor:** a round triggered by ${SCATTERS} or bought directly always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
 						`**Epic floor:** a round triggered by ${SCATTERS} or instantly triggered always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
@@ -308,8 +322,15 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 		],
 		manticore: 'The Manticore',
 		creature: [
-			`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on.`,
-			`**Sting.** Before the board is evaluated, the tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A **normal sting** turns one cell wild, a **Big Sting** a cross of five cells and a **Super Sting** a 3x3 block of nine cells. A spin has at most one Big or Super Sting. It is always the last sting of that spin and it always completes at least one winning cluster. No sting ever lands on a ${SCATTER}.`,
+			// MUST WIN (math 2026.10.16, game_config SWIPE_MUST_WIN, SWIPE_CHANCE_DEAD, STING_MUST_WIN): every swipe's refill
+			// completes a winning cluster; in free spins the first swipe roll of a spin that has paid nothing uses the rescue
+			// chance (0.9 against 0.12); a Big or Super Sting, and the last sting of a normal-only run, completes a cluster.
+			// The promise is the last sting's only: the earlier normal stings of a run carry none of their own
+			soc(
+				`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not paid yet.`,
+				`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not won yet.`,
+			),
+			`**Sting.** Before the board is evaluated, the tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A **normal sting** turns one cell wild, a **Big Sting** a cross of five cells and a **Super Sting** a 3x3 block of nine cells. A spin has at most one Big or Super Sting, and it is always the last sting of that spin. A Big or Super Sting always completes a winning cluster, and so does the last sting of every run of normal stings. No sting ever lands on a ${SCATTER}.`,
 			'Normal stings can land in every spin except the Mystery spin. Big Stings land only in Free Spins, Super Free Spins and Epic Free Spins. Super Stings land only in Super Free Spins and Epic Free Spins.',
 			'**Roar.** In Super Free Spins and Epic Free Spins only, the Manticore may roar before the board is evaluated. Every low symbol is blown off the board and replaced. The Multiplier Tiles under them stay. A roar always comes before any stings.',
 			soc(
@@ -327,7 +348,13 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 		rtpHead: 'Return to Player (RTP)',
 		rtp: `Every game mode has a theoretical return to player of **${RTP}**. RTP describes long-run behaviour across all players. A single session can return much more or much less.`,
 		volHead: 'Volatility',
-		volatility: 'Wins are infrequent but can be very large. Most spins return nothing. The free spin rounds carry the long-run RTP, with Epic Free Spins at the top of the range.',
+		// math 2026.10.16 (today_vs_new_real_books.md): a win on 44.2% of base spins (Ante 37.7%, Super Ante 41.6%); spins
+		// that win nothing 55.8% / 62.3% / 58.4%; more than half of the wins are under 1x the bet in all three; the
+		// feature rounds carry 43.6% / 79.8% / 95.1% of the RTP. "Wins are infrequent" (the 28% books) is no longer true
+		volatility: soc(
+			'Wins come often but are mostly small: many are smaller than the bet, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP, with Epic Free Spins at the top of the range.',
+			'Wins come often but are mostly small: many are smaller than the play amount, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP, with Epic Free Spins at the top of the range.',
+		),
 	},
 	legal: {
 		disclaimer: DISCLAIMER,

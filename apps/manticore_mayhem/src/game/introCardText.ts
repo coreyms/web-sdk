@@ -36,7 +36,7 @@ export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 		body: '5 or more matching symbols that touch form a cluster. Every win lights Multiplier Tiles under it, and lit tiles double.',
 		highlights: ['Multiplier Tiles'],
 		sceneLines: [
-			{ from: 0, to: 1.9, text: '5 or more matching symbols that touch form a cluster' },
+			{ from: 0, to: 1.9, text: '5 Persian Daggers in a row: a cluster' },
 			{ from: 1.9, to: 4.1, text: 'Any shape counts: left, right, up or down. Not diagonals' },
 			{ from: 4.1, to: 6.3, text: 'The Wild stands in for any symbol except the War Standard Scatter' },
 			{ from: 6.3, to: 9.567, text: 'Every winning cluster lights the cells under it: 2x Multiplier Tiles' },
@@ -59,8 +59,8 @@ export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 		key: 'features',
 		clipSeconds: 10.633,
 		title: 'THE MANTICORE',
-		body: 'The Manticore can step into a spin. Its sting, swipe and roar each change the board.',
-		highlights: ['sting', 'swipe', 'roar'],
+		body: 'The Manticore can step into a spin. A sting turns cells wild. A swipe lights or doubles 24 tiles, and in Free Spins they stay all round.',
+		highlights: ['sting', 'swipe'],
 		sceneLines: [
 			{ from: 0, to: 4.5, text: 'STING: the tail turns cells wild, one cell or a whole cross' },
 			{ from: 4.5, to: 6.833, text: 'SWIPE: his claws tear through three rows. Their tiles light up or double' },

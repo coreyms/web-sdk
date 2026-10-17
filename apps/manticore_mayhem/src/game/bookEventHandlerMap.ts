@@ -9,7 +9,7 @@ import { eventEmitter } from './eventEmitter';
 import type { MusicName } from './sound';
 import { playBookEvent } from './utils';
 import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
-import { getWinLevelDataByBookEventAmount } from './winLevelMap';
+import { getWinLevelDataByBookEventAmount, getFeatureSpinWinLevelData, featureSpinStages } from './winLevelMap';
 import {
 	stateGame,
 	stateGameDerived,
@@ -21,6 +21,7 @@ import {
 	stingHit,
 	stingBig,
 	swipeBand,
+	swipeTileDelayMs,
 	roarBlow,
 	flashCells,
 	waitStyle,
@@ -33,6 +34,7 @@ import {
 	scatterHold,
 	scatterRing,
 	scatterTrigger,
+	triggerBeat,
 	plateReveal,
 	dropHook,
 } from './stateGame.svelte';
@@ -47,8 +49,10 @@ import {
 	CLUSTER,
 	MULT_PLATE,
 	SWIPE_FX,
+	rowOf,
 	SCATTER_STING,
 	ANTICIPATION_TEASE,
+	TRIGGER_BEAT,
 	scatterWait,
 	BONUS_TRIGGER_SOUND_MAP,
 	BONUS_MODE_LABEL,
@@ -144,6 +148,16 @@ const nextCascadeWinners = (bookEvent: BookEvent, bookEvents: BookEvent[]): Set<
 	return out;
 };
 
+/** THE TRIGGER BEAT'S SCATTERS: the book's bonusStart.scatters that hold a War Standard on the live board (the board IS
+ *  the book's: they always do). Should the two ever disagree, every War Standard on the board plays the beat (DEV warns) */
+const triggerCells = (bookEvent: BookEventOfType<'bonusStart'>): CellIndex[] => {
+	const live = new Set(stateGame.cells.filter((c) => c.name === 'S' && Math.abs(c.y - c.row) < 1e-3).map((c) => c.reel * 8 + c.row));
+	const listed = (bookEvent.scatters ?? []).filter((c) => live.has(c));
+	if (listed.length === (bookEvent.scatters ?? []).length && listed.length) return listed;
+	if (import.meta.env.DEV) console.warn('[manticore] bonusStart.scatters do not match the board', bookEvent.scatters, [...live]);
+	return [...live];
+};
+
 // ---- THE MAX WIN CUT (Corey 2026-10-09; presentation only) ----------------------------------------
 // The book writes `wincap` straight after the cascade step that takes the ROUND total to the cap, and that
 // step still lists every cluster of its board (each clamped at the cap). The player must not watch clusters
@@ -174,7 +188,7 @@ const landCapTail = async () => {
 /** DEV: what the last cut did (tools/manticore/skip_probe.js) */
 const capLog: { clusters: number; shown: number; spinStepMax: number; spinWin: number; tailAt: number; via: '' | 'wrap' | 'win' } = { clusters: 0, shown: 0, spinStepMax: 0, spinWin: 0, tailAt: 0, via: '' };
 /** DEV: every win screen a setTotalWin / wincap asked for (the probes read which spins got one) */
-const winAsks: { from: 'setTotalWin' | 'wincap'; gameType: string; amount: number; total: number; alias: string }[] = [];
+const winAsks: { from: 'setTotalWin' | 'wincap'; gameType: string; amount: number; total: number; alias: string; ladder?: string | null }[] = [];
 if (import.meta.env.DEV && typeof window !== 'undefined') {
 	Object.assign(((window as any).__manticore ??= {}), { capLog: () => ({ ...capLog, capShown }), winAsks: () => winAsks.slice() });
 }
@@ -436,7 +450,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	// ---- swipe: the paw clears a band of three rows (the book's `rows`) ---------------------------
-	// SWIPE_FX: the tears rake the band right to left, hold, then fade while the band's symbols leave
+	// SWIPE_FX: four claws rake the band right to left, the band's tiles light behind them, the impact flashes it and
+	// the board kicks; at SWIPE_FX.exitAtMs the band's symbols leave while the claws' scars fade
 	// (scatters survive the paw: they are not in `removed`); the swipe's tiles pop as the symbols
 	// start to leave, and the refill drops once they are gone.
 	swipe: async (bookEvent: BookEventOfType<'swipe'>, { bookEvents }: BookEventContext) => {
@@ -444,12 +459,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const rec = fxRecord('swipe', { rows: bookEvent.rows, removed: bookEvent.removed.length, turbo: stateGame.turboLevel, skipping: stateGame.skipping });
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_swipe', forcePlay: true });
 		eventEmitter.broadcast({ type: 'featureBeat', beat: 'swipe', rows: bookEvent.rows });
-		// the plates in the band play their beat once the symbols have faded (exitMs) + changeDelayMs
+		// THE TILES FOLLOW THE CLAWS (r2, Corey 2026-10-17 09:55): every plate of the band (the removed cells' and any
+		// tile entry in its rows) plays its beat as the claw over its row reaches it, right to left; queued now, at the
+		// swipe's start, in style ms, so turbo scales it and a skip lands them at once (plateReveal)
 		const tileMap = new Map(bookEvent.tiles);
-		const plates = () => {
-			for (const cell of bookEvent.removed) plateReveal(cell, tileMap.get(cell) ?? null, SWIPE_FX.exitMs + MULT_PLATE.changeDelayMs);
-		};
-		await swipeBand(bookEvent.removed, bookEvent.rows, id, { rec, onExit: plates });
+		const band = new Set(bookEvent.rows);
+		const bandCells = new Set<CellIndex>(bookEvent.removed);
+		for (const [cell] of bookEvent.tiles) if (band.has(rowOf(cell))) bandCells.add(cell);
+		for (const cell of bandCells) plateReveal(cell, tileMap.get(cell) ?? null, swipeTileDelayMs(cell, bookEvent.rows));
+		await swipeBand(bookEvent.removed, bookEvent.rows, id, { rec });
 		await applyTiles(bookEvent.tiles, id, SWIPE_FX.exitMs + MULT_PLATE.changeDelayMs);
 		fxStamp(rec, 'refill');
 		cueCreature(bookEvent, bookEvents); // a second swipe straight after this refill
@@ -562,12 +580,34 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// a new session has no recap yet (bonusEnd writes it; requestSkip / SkipButton read it as
 		// "the spins are over")
 		stateGame.sessionRecap = null;
+
+		// THE TRIGGER BEAT (constants TRIGGER_BEAT; harsh review 2026-10-15 design item 8, Corey 2026-10-16 17:32 "A1"):
+		// the book's triggering scatters lift and flare with a light column each, he roars, and a Super / Epic relights
+		// the scene in front of the player; then the intro plaque. At the base game's turbo (it shortens the beat), the
+		// HUD leaving under it. Not on a skip (no beat of any kind plays then) and not without the book's scatters on
+		// the board (a resumed round never replays its bonusStart).
+		const hidden = eventEmitter.broadcastAsync({ type: 'uiHide' });
+		const cells = TRIGGER_BEAT.on && !stateGame.skipping && stateGame.gameType === 'basegame' ? triggerCells(bookEvent) : [];
+		if (cells.length) {
+			const relit = bookEvent.bonus !== 'bonus';
+			const rec = fxRecord('trigger', { bonus: bookEvent.bonus, cells: cells.slice(), turbo: stateGame.turboLevel, relit });
+			await triggerBeat(cells, relit ? TRIGGER_BEAT.msRelit : TRIGGER_BEAT.ms, newRun(), {
+				rec,
+				onRoar: () => {
+					eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
+					eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar', forcePlay: true });
+				},
+				onRelight: relit ? () => (stateGame.relightAhead = true) : undefined,
+			});
+			fxStamp(rec, 'end');
+		}
+		await hidden;
 		// every feature starts at normal speed; the base level comes back at freeSpinEnd
 		stateGameDerived.setTurboLevel(0);
-
-		await eventEmitter.broadcastAsync({ type: 'uiHide' });
-		await eventEmitter.broadcastAsync({ type: 'transition' });
+		// the fade to black is the beat's now (TRIGGER_BEAT.blackFade); a round with no beat keeps it
+		if (!cells.length || TRIGGER_BEAT.blackFade) await eventEmitter.broadcastAsync({ type: 'transition' });
 		stateGame.gameType = 'freegame';
+		stateGame.relightAhead = false;
 		musicPlay(modeMusic());
 		await eventEmitter.broadcastAsync({
 			type: 'modePlaqueShow',
@@ -616,18 +656,23 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		//   A FREE SPIN (Corey 2026-10-09): setTotalWin is the ROUND total there, so the spin's OWN win is read
 		//   from the book's cascade.spinWin, and a SKIP TO RESULT plays none of them. The wrap up at the end of
 		//   the feature is unchanged.
-		//   ONLY BIG AND ABOVE (15x) GETS A WIN SCREEN, everywhere (Corey 2026-10-09: "no Nice win level"): a
-		//   smaller win is the board's own run up and nothing more.
+		//   ONLY BIG AND ABOVE GETS A WIN SCREEN, everywhere (Corey 2026-10-09: "no Nice win level"): a
+		//   smaller win is the board's own run up and nothing more. Big is 15x in the base game; A FREE SPIN'S Big
+		//   is its feature's own bar (Corey 2026-10-16, harsh review gameplay finding 6: WIN_TIER_STAGES_FEATURE_SPIN,
+		//   Free Spins 25x / Super 40x / Epic 75x), and its count steps up on that feature's ladder.
 		const free = stateGame.gameType !== 'basegame';
 		if (free && stateGame.skipping) return;
 		const amount = free ? spinOwnWin(bookEvent, bookEvents) : bookEvent.amount;
 		if (amount <= 0) return;
-		const winLevelData = getWinLevelDataByBookEventAmount({ bookEventAmount: amount });
+		const winLevelData = free
+			? getFeatureSpinWinLevelData({ bookEventAmount: amount, mode: stateGame.bonusMode })
+			: getWinLevelDataByBookEventAmount({ bookEventAmount: amount });
 		if (!winLevelData || winLevelData.type !== 'big') return;
-		if (import.meta.env.DEV) winAsks.push({ from: 'setTotalWin', gameType: stateGame.gameType, amount, total: bookEvent.amount, alias: winLevelData.alias });
+		const stages = free ? featureSpinStages(stateGame.bonusMode) : undefined;
+		if (import.meta.env.DEV) winAsks.push({ from: 'setTotalWin', gameType: stateGame.gameType, amount, total: bookEvent.amount, alias: winLevelData.alias, ladder: free ? stateGame.bonusMode : 'base' });
 		eventEmitter.broadcast({ type: 'winShow' });
 		winLevelSoundsPlay({ winLevelData });
-		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount, winLevelData });
+		await eventEmitter.broadcastAsync({ type: 'winUpdate', amount, winLevelData, stages });
 		winLevelSoundsStop();
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
@@ -667,8 +712,16 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'winHide' });
 	},
 
-	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>) => {
+	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>, { bookEvents }: BookEventContext) => {
 		const winLevelData = winLevelMap[bookEvent.winLevel as WinLevel];
+		// THE WRAP UP COUNTS THE ROUND TOTAL (harsh review 2026-10-15, gameplay finding 9): freeSpinEnd.amount is the
+		// feature's own total, which leaves out the trigger spin's base game win, so the plaque read $225.80 under a
+		// HUD WIN of $226.30. The plaque now shows the book's last setTotalWin before this event (the round total the
+		// HUD shows); a round with no such event keeps freeSpinEnd.amount. Both are the book's numbers.
+		const lastTotal = _.findLast(bookEvents.slice(0, bookEvents.indexOf(bookEvent)), (e) => e.type === 'setTotalWin') as
+			| BookEventOfType<'setTotalWin'>
+			| undefined;
+		const wrapAmount = lastTotal && lastTotal.amount >= bookEvent.amount ? lastTotal.amount : bookEvent.amount;
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		stateGame.gameType = 'basegame';
 		eventEmitter.broadcast({ type: 'spinWinHide' });
@@ -679,7 +732,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const capped = capShown;
 		winLevelSoundsPlay({ winLevelData });
 		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroShow' });
-		const counted = eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: bookEvent.amount, winLevelData, capped });
+		const counted = eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: wrapAmount, winLevelData, capped });
 		if (capped) {
 			if (import.meta.env.DEV) capLog.via = 'wrap';
 			if (capTail) await waitForTimeout(STINGER_PLAQUE.enterMs);
@@ -725,6 +778,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 		stateGame.busy = false;
 		stateGame.spinWin = 0;
+		stateGame.relightAhead = false;
 		eventEmitter.broadcast({ type: 'spinWinHide' });
 		eventEmitter.broadcast({ type: 'modePlaqueHide' });
 	},

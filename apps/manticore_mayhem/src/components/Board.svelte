@@ -42,6 +42,7 @@
 	import ArtAmount from './ArtAmount.svelte';
 	import Anticipation from './Anticipation.svelte';
 	import Sting from './Sting.svelte';
+	import TriggerBeat from './TriggerBeat.svelte';
 	import ClawSwipe from './ClawSwipe.svelte';
 	import { fxLog, boardKick, swipeFx, gustFx, chainGust, type ChainGustKind } from '../game/featureFx';
 	import BoardCells from './BoardCells.svelte';
@@ -253,7 +254,9 @@
 		<!-- the Mystery column tease and the sting rig slot: both always mounted, both board-space -->
 		<Anticipation />
 		<Sting />
-		<!-- the claw swipe's tears (z 21), the roar's cell flashes (z -0.5) and the board kick -->
+		<!-- the feature trigger beat's light columns and flares (constants TRIGGER_BEAT) -->
+		<TriggerBeat />
+		<!-- the claw swipe's claws (z 21), the roar's cell flashes (z -0.5) and the board kick -->
 		<ClawSwipe />
 
 		<!-- THE CLUSTER LABELS in the plaque's forged font (CLUSTER_LABEL): always mounted, one pooled layer;

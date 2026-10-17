@@ -4,7 +4,7 @@
 	// Mounted in the MainContainer BEFORE Board, always mounted, raw Pixi, two roots:
 	//
 	// 1. `under` (zIndex -1, under the board container): the flat backing over the frame's inner
-	//    opening (BOARD_BACKING; a texture replaces it later), then the frame sprite over it, so the
+	//    opening (BOARD_BACKING; the marble wells, game/wells.ts, sit over it in the plate slot), then the frame sprite over it, so the
 	//    steel lattice reads on black and IS the cell grid (Board.svelte hides the old cell-well
 	//    backdrop once the frame art is in; it stays only as the pre-load fallback). The board container is
 	//    masked to its 8 x 8 pitch, which is smaller than the opening and far smaller than the frame,

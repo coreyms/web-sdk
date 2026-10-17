@@ -78,9 +78,12 @@ export const INTRO_CARD = {
 	 *  be read while the audio is still loading (289 KB beside the audio's 2.0 MB).
 	 *  Measured 2026-10-12 (tools/manticore/landing_probe.js `timing`, seven cold loads, dev server, headless, median
 	 *  ms to PRESS ANYWHERE at 1440x900 / 390x844): before the cards 1497 / 1029; 'loaded' 1484 / 950; 'preload'
-	 *  1546 / 1017. On a link the download fills, 'preload' also costs the time 289 KB take. */
-	armAfter: 'loaded' as 'loaded' | 'preload',
-	/** true: with armAfter 'preload', the CLIPS still wait for the loading bar (posters until then). false: they
+	 *  1546 / 1017. On a link the download fills, 'preload' also costs the time 289 KB take.
+	 *  'audio' (first-minute plan D, 2026-10-16; the default since): once the audio is in. PRESS ANYWHERE then waits for
+	 *  THE GATE (constants LOAD_GATE) for up to 10 s more, and the cards are what the player reads meanwhile; they never
+	 *  share the link with the audio, only with the gate's files (289 KB beside its 4 to 11 MB). */
+	armAfter: 'audio' as 'loaded' | 'preload' | 'audio',
+	/** true: with armAfter 'preload' or 'audio', the CLIPS still wait for the loading bar (posters until then). false: they
 	 *  start as soon as the cards are up (three clips decoding beside the audio: 1839 / 1089 ms, the slowest). */
 	holdClipsUntilLoaded: true,
 } as const;
