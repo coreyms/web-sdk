@@ -15,7 +15,7 @@
 //
 // Then the handoff: LandingScreen mounts, calls releaseSplash(), the splash fades over 450 ms and
 // the YELLOW bar takes over reporting the Pixi preload + audio exactly as before.
-import { stamp } from './assets';
+import { GATE_BYTES, stamp } from './assets';
 import { landingSizes, bootSizes } from './assetStamp';
 
 declare global {
@@ -28,6 +28,8 @@ declare global {
 			getShare(): number;
 			done(): void;
 			hideNow(): void;
+			/** the splash has started fading out (it takes no pointer from then on) or is gone */
+			isOut?(): boolean;
 		};
 	}
 }
@@ -40,7 +42,8 @@ const IMAGES = [
 	'ui/logo-stacked.webp',
 ] as const;
 /** the splash bar's share of ONE loading scale across both screens: bundle + landing assets +
- *  the Pixi preload, over everything the landing screen waits on. The Pixi scene (the room the
+ *  the Pixi preload, over everything the landing screen waits on (the audio and, since first-minute plan D, THE GATE:
+ *  game/assets.ts GATE_BYTES). The Pixi scene (the room the
  *  landing sits in) only renders once its whole preload phase is in (pixi-svelte AssetsLoader), so
  *  the splash has to cover it — Corey 2026-09-15: no landing over a black canvas. Production knows
  *  the bundle size (window.__AM_BOOT); dev does not, so its share leaves the bundle out.
@@ -48,7 +51,7 @@ const IMAGES = [
 export const splashShare = (): number => {
 	const b = (typeof window !== 'undefined' && (window as unknown as { __AM_BOOT?: { jsBytes?: number } }).__AM_BOOT) || undefined;
 	const js = b?.jsBytes ?? 0;
-	const everything = js + bootSizes.landing + bootSizes.preload + bootSizes.audio;
+	const everything = js + bootSizes.landing + bootSizes.preload + bootSizes.audio + GATE_BYTES;
 	return everything > 0 ? (js + bootSizes.landing + bootSizes.preload) / everything : 0;
 };
 
@@ -68,7 +71,19 @@ export const boot = $state({
 	landingReady: false,
 	/** ui/LandingScreen.svelte is mounted, so the splash has something to fade to */
 	landingMounted: false,
+	/** THE SPLASH HAS CLEARED (it has started its fade, from which it takes no pointer, or there is none): until then it
+	 *  covers the landing screen and takes every tap, so ui/LandingScreen.svelte shows and arms PRESS ANYWHERE only from
+	 *  here. Before 2026-10-16 a fast phone had PRESS ready about 2.8 s before the splash cleared, and a tap in that
+	 *  window was lost (firstminute_r1). */
+	splashOut: false,
 });
+
+if (typeof window !== 'undefined') {
+	const splashOut = () => (boot.splashOut = true);
+	// (a shell without isOut is an older one that never says: it is taken as out, as before)
+	if (!window.__amSplash || typeof window.__amSplash.isOut !== 'function' || window.__amSplash.isOut()) splashOut();
+	else window.addEventListener('am-splash-out', splashOut, { once: true });
+}
 
 const sizeOf = (path: string) => (landingSizes as Record<string, number>)[path] ?? 0;
 

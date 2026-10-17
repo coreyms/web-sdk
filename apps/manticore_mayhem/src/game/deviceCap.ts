@@ -17,8 +17,9 @@ export const phoneAllowed2x = (d: DeviceSignals): boolean => {
 /** THE LARGE IPHONES (constants PHONE_3X_ALLOW): on the 2x list, and a short side of at least minShort CSS px */
 export const phoneAllowed3x = (d: DeviceSignals): boolean => PHONE_3X_ALLOW.on && phoneAllowed2x(d) && Math.min(d.screenWidth, d.screenHeight) >= PHONE_3X_ALLOW.minShort;
 
-/** the cap for a device: off the phone tier the desktop cap (2); on it, 3 for a large allowlisted iPhone, 2 for an
- *  allowlisted one, 1.5 for every other phone. `?rescap=` is applied on top of this by game/deviceTier.ts. */
+/** the cap for a device: off the phone tier the desktop cap (2); on it RENDER_RESOLUTION_CAP.phone (3 since
+ *  2026-10-17, both lists off). With the lists on (the rollback): 3 for a large allowlisted iPhone, 2 for an
+ *  allowlisted one, `phone` for every other phone. `?rescap=` is applied on top of this by game/deviceTier.ts. */
 export const deviceResolutionCap = (phoneTier: boolean, d: DeviceSignals): number => {
 	if (!phoneTier) return RENDER_RESOLUTION_CAP.desktop;
 	if (phoneAllowed3x(d)) return RENDER_RESOLUTION_CAP.phone3x;

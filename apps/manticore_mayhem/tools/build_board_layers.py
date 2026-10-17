@@ -44,8 +44,8 @@ on board_v4l's art rows, CHAIN_FIT base_rows, and this art's bottom edge sits on
 or PHONE_CELL (phone: the approved cell area). The tool prints the mismatches: what the tilt moved, the corners
 against the cell area, and EVERY inner bar against the tile gap it should sit in (v4f: the lattice is uniform,
 board_v4_NOTES.md v4f), and solves SYMBOL_FIT (the largest symbol scale whose opaque art, and the multiplier
-badge, clear every bar and rivet by the margin). Texture resolution: at least 2 texture px per master px
-(portrait at the frameFor() growth cap, 1.12).
+badge, clear every bar and rivet by the margin). Texture resolution: GROWTH x DEVICE_PX texture px per master px of the
+k 1 fit, capped at the render's own pixels (SOURCE_CAP; see TEXTURE RESOLUTION).
 """
 import argparse
 import json
@@ -151,8 +151,19 @@ FIT_MARGIN = {'landscape': 1.0, 'portrait': 1.0, 'phone': 1.5 * 740 / 390}
 CELL_FILL = 0.94   # constants.ts: drawn tile size / cell pitch
 BADGE = {'size': 0.4, 'offset': 0.26, 'disc': 104 / 128}  # constants.ts TILE; the badge disc spans 12..116 of 128
 TILES = os.path.join(ASSETS, 'tiles')
-GROWTH = {'landscape': 1.0, 'portrait': 1.12, 'phone': 1.0}
-DEVICE_PX = 2.0  # texture px per master px the export must reach
+# TEXTURE RESOLUTION (frame_hires_r1, Corey 2026-10-16: "the frame textures go soft at DPR 2 on the bigger board"). A layout's
+# frame textures (plates, gear loops, chain tiles) are made at  m x GROWTH x DEVICE_PX  texture px per render px, never more
+# than SOURCE_CAP (the 2048 render's own pixels: nothing is upsampled), where m is the k 1 fit printed above:
+#   landscape  GROWTH = layoutSpec LANDSCAPE_BOARD (524 of cells over the k 1 fit's 425.181: the board drawn 1.23242 x the
+#              fit), DEVICE_PX 3 = a 16:9 screen at the renderer's pixel ceiling (1920 x 1080 at DPR 2; constants
+#              RENDER_MAX_PIXELS holds every bigger screen there): 1.132 wanted, so the cap rules: 1.0, the frame drawn at most
+#              1.13 x its texture (it was 1.85 x at 0.612)
+#   portrait   GROWTH 1.12 (PORTRAIT_FIT.maxK), DEVICE_PX 3 = a 3x iPhone at its cap 3 (deviceCap.ts PHONE_3X: 430 x 932
+#              wants 0.750, 440 x 956 0.768): 0.766 (it was 0.511, drawn up to 1.47 x)
+#   phone      unchanged (2 texture px per master px; the sideways phone already reached 1 : 1 at its caps)
+GROWTH = {'landscape': 524 / 425.181, 'portrait': 1.12, 'phone': 1.0}
+DEVICE_PX = {'landscape': 3.0, 'portrait': 3.0, 'phone': 2.0}
+SOURCE_CAP = 1.0
 MARGIN = 6  # render px kept around each alpha bbox
 QUALITY = 85
 
@@ -647,7 +658,7 @@ def main():
             cboxes[side] = crop_box((b[0] + x0, b[1], b[2] + x0, b[3]), chains.size)
         for kind in ('landscape', 'portrait', 'phone'):
             m = layouts[kind]['m'] * GROWTH[kind]  # master px per render px at the largest fit
-            scale = m * DEVICE_PX
+            scale = min(m * DEVICE_PX[kind], SOURCE_CAP)
             cw, chh = fbox[2] - fbox[0], fbox[3] - fbox[1]
             tw, th = math.ceil(cw * scale), math.ceil(chh * scale)
             tex = frame_px.crop(fbox).resize((tw, th), Image.LANCZOS)

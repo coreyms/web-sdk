@@ -203,8 +203,14 @@ export const SYMBOL_RIM = { masterPx: 0.7, opacity: 1, softness: 0.39, color: 0x
 /** THE RENDERER'S RESOLUTION CAP (components/Game.svelte clamps renderer.resolution to it; game/deviceTier.ts
  *  renderResolutionCap() picks one). It was 1.5 for every device, a house rule that came from iOS performance.
  *  Corey 2026-10-09: "Yes let's raise the resolution to 2x on Desktop". The phone asset tier (PHONE_TIER) keeps
- *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged. */
-export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2, phone3x: 3 } as const;
+ *  1.5 exactly as before; everything else is capped at 2. A DPR 1 desktop was never capped and is unchanged.
+ *  EVERY PHONE AT 3 (Corey 2026-10-17 12:30: "Yes let's raise it to 3x for all phones"): his Samsung A13 5G (Mali-G57
+ *  MC2, 4 GB, 384 x 853 CSS at DPR 1.875) ran 9.4 minutes at ?rescap=3 with a steady 16.6 ms median, no heat, no
+ *  battery drop. The renderer is min(devicePixelRatio, cap), so a phone never draws more than its own screen: a
+ *  DPR 2 phone draws at 2, a DPR 3 phone at 3. The phone ASSET tier (PHONE_TIER, the half sheets) is unchanged; only
+ *  the renderer's resolution moves. The two iPhone allowlists below are switched off (every phone gets `phone`);
+ *  ROLLBACK: `phone: 1.5` and both lists `on: true` restore the 2026-10-14 rule. */
+export const RENDER_RESOLUTION_CAP = { phone: 3, desktop: 2, phone3x: 3 } as const;
 
 /** PHONES ALLOWED THE DESKTOP CAP (docs/device-quality-plan-v3.md section 6; Corey 2026-10-13): an iPhone whose screen
  *  density is `density` and whose short side is at least `minShort` CSS px and not one of `notShort` is an iPhone 12 or
@@ -212,7 +218,8 @@ export const RENDER_RESOLUTION_CAP = { phone: 1.5, desktop: 2, phone3x: 3 } as c
  *  models up to the 11 Pro Max) and renders at RENDER_RESOLUTION_CAP.desktop. Every other phone keeps
  *  RENDER_RESOLUTION_CAP.phone. Read once from static signals before the renderer exists (game/deviceTier.ts): never
  *  a frame-rate cap, never a start-up benchmark, never a change mid session. Rollback: `on` false. */
-export const PHONE_2X_ALLOW = { on: true, density: 3, minShort: 390, notShort: [414] } as const;
+/** OFF since 2026-10-17 (every phone at RENDER_RESOLUTION_CAP.phone = 3); kept for the rollback. */
+export const PHONE_2X_ALLOW = { on: false, density: 3, minShort: 390, notShort: [414] } as const;
 
 /** THE LARGE IPHONES AT 3x (Corey 2026-10-14 19:38: "Yes 3x on Plus and Pro Max IPhones"; his 16-17 Pro Max class phone,
  *  440 x 956 @3, held 58.4 Hz at both 3 and 2): an iPhone that PHONE_2X_ALLOW admits (density 3, not 414) whose short
@@ -221,7 +228,8 @@ export const PHONE_2X_ALLOW = { on: true, density: 3, minShort: 390, notShort: [
  *  390 to 402 iPhones stay at 2 and every other phone at 1.5. The ASSET tier does not change (PHONE_TIER: the half
  *  sheets), only the renderer's resolution. Read once before the renderer exists, like the 2x list. Rollback: `on`
  *  false (those phones go back to 2). The staging `?rescap=` override still wins. */
-export const PHONE_3X_ALLOW = { on: true, minShort: 420 } as const;
+/** OFF since 2026-10-17 (every phone at RENDER_RESOLUTION_CAP.phone = 3); kept for the rollback. */
+export const PHONE_3X_ALLOW = { on: false, minShort: 420 } as const;
 
 /** THE CANVAS PIXEL CEILING (Corey 2026-10-13), everything that is NOT the phone tier: the renderer's resolution is
  *  min(devicePixelRatio, the cap, sqrt(RENDER_MAX_PIXELS / (CSS width x CSS height))) and never under 1. 8.3 million
@@ -512,6 +520,78 @@ export const SPARKLE = {
 	maxCells: 43,
 };
 
+/** THE WIN EFFECT, ROUND 1 (Corey 2026-10-16, "Yes that sounds good" to the code-only fix of the design review
+ *  2026-10-15 item 2, "Poor animations"). Replaces the 'old' look above (the 1.13 grow and still hold, the 135 ms
+ *  shrink, the white square flash and the 2.5 px dots), which stays selectable for comparison: DEV `?winfx=old`
+ *  (game/winFx.ts). Per winning symbol, all in STYLE ms (divided by the turbo scale; a skip spawns nothing):
+ *    rise    the same 1.13 grow over CLUSTER.winRiseMs, then a slow breath (`breathe`) while the readout is up
+ *    shine   a slanted light band sweeps across the symbol (the logo's Shine, LOGO.still.shine: the symbol's own
+ *            frame cut into strips, each strip an additive copy whose opacity is the band; no mask, no filter), once
+ *            as the cluster starts and again, softer, as its count lands
+ *    pop     replaces the shrink: squash wide and short with a slight twist (the symbol heats up), pop out bigger
+ *            with the twist reversed, then collapse to nothing still turning (`pop`)
+ *    burst   at the pop: a soft round glow and a ray burst tinted the symbol's colour (`colors`), plus 6 to 10
+ *            embers that fly out and fall (`embers`); no white square
+ *    shake   a cluster of `shake.minCluster`+ symbols nudges the whole board 1 to 2 screen px as it pops
+ *  components/BoardCells.svelte draws the shine, the burst and the embers from pooled sprites; game/stateGame.svelte.ts
+ *  (presentWinSet, removeCells) drives the cells, the shine values and the shake. */
+export const WIN_FX = {
+	/** the default look; DEV `?winfx=old|new` overrides it (game/winFx.ts) */
+	style: 'new' as 'new' | 'old',
+	/** each symbol's own colour for its burst and embers, SAMPLED FROM THE ART (the static atlas frames,
+	 *  mmSymbols.webp, 2026-10-16): the mean of the lit pixels of the dominant hue, value lifted to at least 0.8.
+	 *  L4 is the green of its wax (the largest area: the gold gryphon is the brighter but smaller part). */
+	colors: {
+		L1: 0xcc9567, // the shackle's aged bronze
+		L2: 0xcca372, // the bull skull's bone
+		L3: 0xda9a46, // the key's gold
+		L4: 0x6fcc5c, // the seal's green wax
+		M1: 0xcc944e, // the helmet's gold
+		M2: 0xcc9750, // the dagger's bronze blade
+		M3: 0xdaa154, // the chalice's gold
+		H1: 0xe8a544, // the crown's gold
+		W: 0xfbb25c, // the Wild medallion's copper gold
+		S: 0xef1d10, // the War Standard's red
+	} as Record<string, number>,
+	/** the winners breathe while the readout is up: scale winScale x (1 + amp sin), one period of periodMs, eased in
+	 *  over the rise and out over the fadeMs before the pop (so the pop always starts from winScale exactly) */
+	breathe: { amp: 0.03, periodMs: 700, fadeMs: 140 },
+	/** THE SHINE. The symbol's frame in `cols` x `rows` strips (phone tier: colsPhone x rowsPhone), each an additive
+	 *  copy tinted `tint`. A band `band` symbol widths wide (a triangle, its peak in the middle) runs from `from` to
+	 *  `to` symbol widths over sweepMs, leaning by `slant` (the band's centre at the top is slant x 0.5 widths ahead of
+	 *  the middle, at the bottom behind). Its opacity ramps in and out over rampShare of the sweep, peaking at `peak`
+	 *  (the first sweep, at the cluster's start + startMs) and `secondPeak` (the second, when the count lands). Cells
+	 *  start staggerMs apart in order of distance from the cluster centre, the stagger capped at staggerCapMs. */
+	shine: { cols: 12, rows: 3, colsPhone: 8, rowsPhone: 2, tint: 0xfff0d2, band: 0.55, from: -0.4, to: 1.4, slant: -0.45, sweepMs: 520, rampShare: 0.18, peak: 1, secondPeak: 0.7, startMs: 40, staggerMs: 14, staggerCapMs: 140 },
+	/** THE POP (replaces CLUSTER.removeStyle 'shrink'), one symbol, removeMs long from its removal start (the cells
+	 *  still leave SPARKLE.staggerMs apart, nearest the centre first). Scales are multiples of CLUSTER.winScale.
+	 *    0 .. squashShare     squash to (1 + squashX, 1 - squashY), twist to twistIn (alternate cells opposite
+	 *                         ways), heat (the whole symbol as an additive copy) up to heatSquash
+	 *    .. + popShare        pop out to popScale both ways, the twist reversed to -twistPop, heat to heatPop: the
+	 *                         burst and the embers start at the beginning of this phase
+	 *    .. 1                 collapse to 0 (quadIn), turning on to -twistOut, the alpha fading from fadeFrom of
+	 *                         this phase, the heat going down with it */
+	pop: { removeMs: 210, squashShare: 0.36, squashX: 0.15, squashY: 0.13, twistIn: 0.06, heatSquash: 0.45, popShare: 0.2, popScale: 1.28, twistPop: 0.1, heatPop: 0.75, twistOut: 0.42, fadeFrom: 0.45 },
+	/** THE BURST on the pop: a ray burst (`rays`, the fxTexture burst, tinted the symbol's colour) growing from
+	 *  fromCells to toCells cells across while it turns by spin radians, and a soft round glow (`core`, tinted the colour
+	 *  whitened by `whiten`) from fromCells to toCells. Each fades in over inShare of its life and out after. Pool: one
+	 *  ray + one core per cell, maxCells cells in flight (lifeMs / SPARKLE.staggerMs). */
+	burst: {
+		rays: { lifeMs: 420, fromCells: 0.5, toCells: 2, peak: 1, inShare: 0.1, spin: 0.35 },
+		core: { lifeMs: 300, fromCells: 0.6, toCells: 1.4, peak: 0.9, inShare: 0.12, whiten: 0.55 },
+		maxCells: 43,
+	},
+	/** THE EMBERS: `count` per cell (phone tier `countPhone`), a streak sizePx board px long at the start (shrinking
+	 *  over its life), flying out spreadCells (x 0.6..1.4 per ember) on a quadOut, lifted by `lift` cells, pulled down
+	 *  by `gravity` cells over the life, turned along its path. Tinted the symbol's colour whitened by `whiten`,
+	 *  flickering by `flicker`. Life lifeMs x 0.7..1.0 per ember. One ParticleContainer, pool count x maxCells. */
+	embers: { count: 8, countPhone: 6, sizePx: 22, spreadCells: 0.85, lift: 0.35, gravity: 0.9, lifeMs: 800, whiten: 0.5, flicker: 0.25, maxCells: 43 },
+	/** THE SHAKE: a cluster of at least minCluster symbols moves the board (featureFx.boardKick, board px) as its first
+	 *  symbol pops: a decaying wobble of ampPx board px (about 1.5 to 2 screen px on a 1440 x 900 desktop, 1 to 1.5 on
+	 *  a phone) at hz (style time) over ms; the y wobble is yShare of the x one, a quarter period behind */
+	shake: { minCluster: 15, ampPx: 3.5, hz: 17, ms: 320, yShare: 0.6 },
+};
+
 /** the spin total (components/BoardPlaque.svelte, the plaque under the board; SpinWin.svelte until 2026-10-14): a running bump as each cluster's count-up finishes,
  *  then the final presentation after the last refill. finalRiseMs 0 / finalCountMs 0 = it just sits. */
 export const SPIN_TOTAL = {
@@ -676,52 +756,98 @@ export const FEATURE_FX = {
  *  (landscape's on-screen cell is 66 master px, so on a desktop the two read the same size). */
 export const PLAYGROUND_PX = SYMBOL_SIZE / 66.5;
 
-// ---- The claw swipe (MOTION_SPEC "Claw swipe", LOCKED Corey 2026-10-06 10:02 + the slant mapping) ----
-// Tears rake right to left across the swiped band, hold, then fade while the band's symbols leave;
-// the refill drops after max(exitMs, tearFadeMs). Drawn by components/ClawSwipe.svelte (raw Pixi,
-// polygons only, no filters); the cells' exit is the board engine's (stateGame.swipeBand).
-// Every px is playground px (x PLAYGROUND_PX at draw time); every ms is style time.
+// ---- The claw swipe (claw-swipe-r1, 2026-10-16; the timing contract is MOTION_SPEC "Claw swipe", LOCKED Corey
+// 2026-10-06 10:02) ----------------------------------------------------------------------------------------------
+// The harsh design review (2026-10-15 item 5): the old torn red bands "read as a glitch, not a claw". Corey 17:32:
+// "The manticore has four claws, but it was on my mind to improve that." So: FOUR claw strokes rake the band right
+// to left (he stands right of the board), one after another. r2, Corey 2026-10-17 09:52: "The look of the claw swipe
+// looks better, but I don't like the claw curves. If we could use that style claw mark in the directions/angles we
+// already had it, that would probably look great." So each claw is a STRAIGHT stroke laid exactly where the old
+// tears were: across the board's whole width, evenly down the band, at the band's slant; a short warm-white impact
+// flash on the slashed rows and the board kick land with the first claw; each claw leaves an ember scar and the
+// struck symbols take an ember tint until they leave. The symbols leave and the tiles pop at exitAtMs exactly as
+// before (the book's beat), the scars fade with them and the refill drops after max(exitMs, scarFadeMs).
+// Drawn by components/ClawSwipe.svelte: pooled additive sprites of ONE baked streak texture (game/fxTexture.ts
+// clawTexture, made once), no filters, no masks; the cells' exit and the kick are stateGame.swipeBand's.
+// Every px is playground px (x PLAYGROUND_PX at draw time); every ms is style time (turbo divides it).
 export const SWIPE_FX = {
-	tearCount: 4,
-	/** 'rows': the slant comes from the event's rows (top band slantTopDeg, bottom band slantBottomDeg);
-	 *  'fixed': tearSlantDeg */
+	/** "The manticore has four claws" (Corey 2026-10-16 17:32) */
+	clawCount: 4,
+	/** THE GAP BETWEEN CLAWS: each claw starts this long after the one above it. r3, Corey 2026-10-17 10:31: "let's
+	 *  lower the latency between the individual claw marks" (it was 40, the review's stagger) */
+	clawStaggerMs: 20,
+	/** each claw draws on right to left over clawDrawMs (quadOut, the hot tip leading), holds, then from clawTailAtMs
+	 *  BURNS OUT right to left: its right end retreats across the board at a steady speed over clawTailMs with an
+	 *  ember riding it, and the tiles light in its wake (r3, Corey 10:31: "They should really follow the fade out of
+	 *  the claw marks"; slow enough that the sweep reads at normal speed). A claw lives clawTailAtMs + clawTailMs.
+	 *  r1 / r2 had a 65 ms quadIn tail (140 ms a claw) */
+	clawDrawMs: 60,
+	clawTailAtMs: 70,
+	clawTailMs: 300,
+	/** the burning claw's alpha falls to 1 - this by the end of its tail */
+	clawTailFade: 0.55,
+	/** THE OLD TEARS' LAYOUT (MOTION_SPEC "Claw swipe", Corey 2026-10-06 + the slant mapping), kept for the claws:
+	 *  each claw spans the board's width, its middle at the band's (i + 0.5) / clawCount, top claw first, drawn
+	 *  right to left. 'rows': the slant comes from the band's centre row (the top of the board slantTopDeg, the
+	 *  bottom slantBottomDeg; negative = the right end higher); 'fixed': clawSlantDeg */
 	slantMode: 'rows' as 'rows' | 'fixed',
 	slantTopDeg: -6,
 	slantBottomDeg: 3,
-	tearSlantDeg: -3,
-	/** random y jitter along each tear's centreline (26 segments) */
-	tearJitterPx: 5,
-	/** the core's thickness */
-	tearThickPx: 9.5,
-	/** the hot bands' width outside the core, before the spikes */
-	tearEdgePx: 6.5,
-	tearEdgeColor: 0x000000,
-	/** the glow under the bands (the playground's shadowBlur, here a stack of soft strokes) */
-	tearGlowColor: 0xff2600,
-	tearGlowAlpha: 1,
-	tearGlowPx: 10,
-	/** torn-paper spikes on the bands' outer side (78 segments, alternating 1.0 / 0.25) */
-	tearEdgeJitterPx: 9.5,
-	/** the bands show the board captured at the swipe's start at this alpha (flipped on the top band) */
-	tearReflect: 0.8,
-	/** the core cuts through the symbols to the bare board, then black at this alpha over it */
-	tearCoreAlpha: 0.7,
-	/** each tear is revealed right to left over this (quadOut) */
-	tearSweepMs: 110,
-	/** between tears, top to bottom */
-	tearStaggerMs: 5,
-	tearHoldMs: 370,
-	tearFadeMs: 380,
-	/** how the swiped symbols leave, starting with the tears' fade */
+	clawSlantDeg: -3,
+	/** the claw's core at its thickest (the texture is scaled to it), playground px */
+	clawCorePx: 9,
+	/** per claw tint over the baked colours (white keeps them: bright core, red-orange falloff) */
+	clawTints: [0xffffff, 0xfff0e2, 0xffffff, 0xffe8d8],
+	/** the hot tip riding the claw's front while it draws on: the soft dot, stretched along the claw */
+	tipPx: 15,
+	tipStretch: 2.6,
+	tipTint: 0xfff4dc,
+	tipAlpha: 0.95,
+	/** the ember riding the burn-out's front (the same dot), its colour and alpha */
+	emberTint: 0xffa04a,
+	emberAlpha: 0.85,
+	/** the ember scar each claw leaves along its path: the same streak tinted this, at this alpha, until the
+	 *  symbols leave, then fading over scarFadeMs */
+	scarTint: 0xff4a24,
+	scarAlpha: 0.45,
+	scarFadeMs: 380,
+	/** THE IMPACT (the review: a 60 ms white flash on the slashed rows): an additive warm-white quad over the band,
+	 *  up in impactRiseMs, gone by impactFlashMs. The board kick starts on it. */
+	impactAtMs: 40,
+	impactFlashMs: 60,
+	impactRiseMs: 10,
+	impactAlpha: 0.5,
+	impactTint: 0xfff0dc,
+	/** the struck symbols take this tint (the cells' flash) from the impact, up over woundRiseMs, until they leave */
+	woundColor: 0xb8402a,
+	woundAlpha: 0.42,
+	woundRiseMs: 90,
+	/** THE TILES FOLLOW THE CLAWS (r2, Corey 2026-10-17 09:55: "I would also suggest for this the multipliers light up
+	 *  following the claw marks from right to left"; r3, 10:31: "They should really follow the fade out of the claw
+	 *  marks"): each tile of the band pops, lights or doubles (the plate's own beat, the book's values) when the
+	 *  burn-out of the claw over its row passes the middle of its cell, column by column right to left
+	 *  (stateGame.swipeTileDelayMs), plus this lag. With 4 claws 20 ms apart the last tile pops at about 411 ms, its
+	 *  pop done by 471, before the symbols leave at exitAtMs. Before r2 they all started at exitAtMs + exitMs +
+	 *  MULT_PLATE.changeDelayMs (855 ms); in r2 on the claw's tip (all by ~180 ms). */
+	tileLagMs: 0,
+	/** THE BOOK'S BEAT, unchanged by the claws: the band's symbols start to leave this long after the swipe starts (it
+	 *  was the four tears' 125 ms + their 370 ms hold); the refill drops at exitAtMs + max(exitMs, scarFadeMs) */
+	exitAtMs: 495,
+	/** how the swiped symbols leave, from exitAtMs */
 	exit: 'fade' as const,
 	exitMs: 260,
 	/** slideLeft only (not chosen) */
 	slideCells: 1.3,
-	/** the board kick on the last tear: (0.6k, k), k = kickPx (1 - u) sin(6 pi u) */
-	kickPx: 5,
+	/** the board kick from the impact: (0.6k, k), k = kickPx (1 - u) sin(6 pi u); peak 0.92 kickPx. The review: "a 2
+	 *  to 4 px shake" (5 before the claws, a 4.6 px peak) */
+	kickPx: 3.5,
 	kickMs: 180,
 	/** after the symbols have gone, before the refill */
 	refillDelayMs: 0,
+	/** the baked streak (game/fxTexture.ts clawTexture), texture px: its size, the arc's sag (fraction of the
+	 *  chord; 0 = a straight stroke, r2 "I don't like the claw curves"; r1 had 0.055), the core's full width at
+	 *  its thickest and where along the claw that is (0 = the tip's start), the glow's reach past the core */
+	tex: { w: 1024, h: 64, sagFrac: 0, corePx: 10, peakU: 0.38, glowPx: 24 },
 };
 
 // ---- The roar (MOTION_SPEC "Roar", Corey 2026-10-06 17:44, kick sync after) ----------------------
@@ -795,7 +921,7 @@ export const CHAIN_BOW = {
 // lean away from where it landed, smoothly, then swing back and settle. Never a board shake: the kick path is
 // untouched and the gust adds to it. The pulse is one half sine of `ms`, REAL time at every turbo level (it is
 // air); the delays are divided by the turbo scale when `delaysFollowTurbo` so they stay in step with the beats.
-// `strength` is a FRACTION OF ONE CLAW SWIPE KICK's chain travel (SWIPE_FX.kickPx 5): `unitPx` is the pulse
+// `strength` is a FRACTION OF ONE CLAW SWIPE KICK's chain travel (SWIPE_FX.kickPx 5 when measured; 3.5 since the claws, r1): `unitPx` is the pulse
 // amplitude, in playground px, that moves each system as far as that kick does, measured by
 // tools/manticore/chain_gust_probe.js KICKREF (a rattle and a pulse of the same px do not move a chain the
 // same distance, so the two systems calibrate separately). Tune strengths and delays; leave unitPx to the probe.
@@ -851,7 +977,7 @@ export const WELLS = {
  *  Presentation only: the beats' own call sites cue them (game/wellsFx.ts), nothing waits on them, none while skipping.
  *    light / double  a multiplier lights (0 -> x2) or steps up under the cell, as the plate's count-over starts
  *    win             a paying cluster, as its pulse starts: a ripple from its first cell (the book's order) outward
- *    swipe           the swiped rows, right to left like the tears, over sweepMs
+ *    swipe           the swiped rows, right to left with the claws, over sweepMs
  *    sting           the struck cell at the hit, then outward ring by ring (reach, falloff per ring); not scatters
  *    power           free spins only: every vein rests at a glow that rises with the board's total tile value
  *                    (log scale from refValue, full at fullValue, capped at `cap`), eased over riseMs, with a slow
@@ -864,7 +990,10 @@ export const WELLS_FX = {
 	light: { peak: 0.85, inMs: 380, holdMs: 120, outMs: 900 },
 	double: { peak: 1, inMs: 420, holdMs: 180, outMs: 1100 },
 	win: { peak: 0.8, inMs: 170, holdMs: 260, outMs: 700, stepMs: 55 },
-	swipe: { peak: 0.9, inMs: 110, holdMs: 220, outMs: 800, sweepMs: 240 },
+	/** swipe: sweepMs in step with the four claws drawing on right to left (claw-swipe r3: the last claw starts at 60
+	 *  ms and is half drawn by 90; 150 in r1 / r2, 240 with the old tears). The tiles' own light-ups follow the
+	 *  claws' slower burn-out (SWIPE_FX.clawTailMs) and flare their cells' veins as they come */
+	swipe: { peak: 0.9, inMs: 110, holdMs: 220, outMs: 800, sweepMs: (SWIPE_FX.clawCount - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs / 2 },
 	sting: { peak: 0.95, inMs: 110, holdMs: 120, outMs: 800, stepMs: 70, reach: 2, falloff: 0.55 },
 	power: { cap: 0.34, refValue: 8, fullValue: 2048, riseMs: 2200, fallMs: 900, shimmer: 0.35, periodMs: 3500 },
 	night: [0.6, 0.64, 0.82] as [number, number, number],
@@ -973,6 +1102,15 @@ export const scatterWait = (k: number, n: number) => (k < n - 1 ? scatterRung(k)
 // once the column launches and lasts until it lands; the beam fades over fadeMs from the launch. The landed
 // scatters breathe (landedPulse at landedPulseHz) until the drop ends. Hit (a 4th scatter on the board):
 // SCATTER_STING's trigger pulse. Miss: a missHoldMs rest. The frontend only reads the board it was given.
+// NO SPOTLIGHT ON A REGULAR SPIN (Corey 2026-10-16 17:32: "anticipation columns look good on mystery but not on regular
+// spins, the difference is the spotlight, it should be removed. We can adjust the rain to make it look better."). The
+// narrow gold searchlight that swung through every held column (beamAlpha, beamColor, beamSwing, beamPeriodMs) is off:
+// `beam: false` hides it, and its column mask with it. The Mystery tease (ANTICIPATION below) keeps its own light.
+// THE RAIN WITHOUT IT (harsh review 2026-10-15 design item 16: "multi-exposed ghost strips"): it was three equal copies
+// of every loose symbol at 0.2 (one 0.1 cell above, one below), which over a black well reads as a smear. Now ONE
+// symbol at rainAlpha with a single TRAIL copy above it (the way it came from) at rainTrailAlpha of that, rainStretch
+// taller so it reads as falling fast, and nothing below it. The teased column also gets a faint warm edge glow from
+// the Mystery's own spill strips (spillAlpha, spillWidth cells), so it still reads as a column being teased.
 export const ANTICIPATION_TEASE = {
 	triggerAfter: 3,
 	holdMs: 700,
@@ -980,22 +1118,84 @@ export const ANTICIPATION_TEASE = {
 	holdFloorMs: 300,
 	fallSlow: 1.7,
 	fadeMs: 260,
+	/** the searchlight on a regular spin's teased columns: off (Corey 17:32). true brings the old gold beam back */
+	beam: false,
 	beamAlpha: 0.75,
 	beamColor: 0xffe08a,
 	beamSwing: 0.13,
 	beamPeriodMs: 840,
-	spillAlpha: 0,
-	spillWidth: 0.2,
-	rainAlpha: 0.2,
+	spillAlpha: 0.22,
+	spillWidth: 0.16,
+	rainAlpha: 0.3,
+	/** the trail copy above each loose symbol, as a share of rainAlpha (0 = no trail) */
+	rainTrailAlpha: 0.4,
 	rainSpeedCellsPerS: 5.5,
-	rainStretch: 1.12,
-	rainGhosts: 1,
-	rainGhostOffset: 0.1,
+	rainStretch: 1.3,
+	/** where the trail copy sits above its symbol, in cells (the copies themselves are ANTICIPATION.rainGhosts either
+	 *  side, shared with the Mystery; a regular spin shows only the one above) */
+	rainGhostOffset: 0.16,
 	/** the breathing scatters grow to 1 + this (SYMBOL_POPS.tease, Corey 2026-10-13 12:06: 1.185, was 1.05) */
 	landedPulse: 0.185,
 	landedPulseHz: 1.5,
 	missHoldMs: 500,
 };
+
+// ---- THE TRIGGER BEAT (harsh review 2026-10-15 design item 8; Corey 2026-10-16 17:32: "A1. Sounds good") ----------
+// A feature trigger had no celebration of its own: the War Standards sat still, the screen dipped to black and the
+// intro plaque opened. Now, at the book's bonusStart and before the intro plaque (stateGame.triggerBeat, drawn by
+// components/TriggerBeat.svelte), in STYLE ms (divided by the turbo scale like every board beat, so turbo shortens it):
+//   0          the board around the scatters darkens to dimTo; every triggering scatter (the bonusStart's cells) lifts to
+//              liftScale over liftMs (backOut) with its glow full in glowColor; a light column rises from each
+//              (shaftInMs, shaftCells tall over the scatter, shaftAlpha) and a halo flares at the lift's peak (flareMs)
+//   roarAt     the manticore roars (his roar clip and sfx_roar: the same beat the book's roar and the Max Win screen use)
+//   relightAt  SUPER and EPIC only: the scene relights IN FRONT of the player (the night sky, the fire braziers, his
+//              night or fire look) over the scene's own crossfade (SCENE.crossfadeMs), before the intro plaque, not under it
+//   the last releaseMs  everything settles back to rest
+// `ms` is the Free Spins beat and `msRelit` the Super / Epic one (the relight lands in view). Then the intro plaque.
+// The scatter landing ladder and the house bonus-confirm SFX are untouched (cross-game standard). blackFade false: the
+// beat replaces the old fade to black before the plaque (the "whole screen dims" the review saw); true puts the fade
+// back after the beat.
+export const TRIGGER_BEAT = {
+	on: true,
+	ms: 1250,
+	msRelit: 1500,
+	liftMs: 260,
+	liftScale: 1.25,
+	releaseMs: 300,
+	dimTo: 0.5,
+	dimInMs: 220,
+	glowColor: 0xffd25a,
+	/** the lifted scatters' glow breathes between 1 and 1 - breathe at breatheHz */
+	breathe: 0.25,
+	breatheHz: 2.4,
+	roarAt: 140,
+	relightAt: 120,
+	shaftInMs: 320,
+	/** the column's height above the scatter's centre, in cells (it rises out of the board's top on the upper rows) */
+	shaftCells: 5.5,
+	shaftWidthCells: 1.15,
+	shaftAlpha: 1,
+	shaftColor: 0xffd27a,
+	flareMs: 380,
+	flareCells: 2.3,
+	flareAlpha: 0.9,
+	blackFade: false,
+} as const;
+
+// ---- THE CREATURE'S NIGHT LIFT (harsh review 2026-10-15 design item 11; Corey 2026-10-16: "1. Yes" to the cheap lift
+// as an interim) ---------------------------------------------------------------------------------------------------
+// In SUPER (night) and EPIC (fire) his own sheets are composited dark (creatureSpec: night + 0.70 x fire, and night +
+// 1.00 x fire x (1, 0.7, 0.5)) and read as a brown silhouette against the night courtyard. Nothing in the code darkens
+// him further (the scene's foreTint and dim never reach his body node), so the lift is LIGHT ADDED, not a tint taken
+// away: one additive copy of the frame on show (game/creature.ts `lift`) at `add` x that look's share of the crossfade,
+// tinted `tint`. A pixel of colour c becomes c x (1 + add x tint): one brightness step that keeps his own contrast and
+// colours, nothing outside his outline. The day look gets none. INTERIM: the Rig is re-rendering the night and fire
+// sheets with a proper rim light; set both `add` to 0 when they land. EPIC landed 2026-10-16 (drop 5, web-sdk 8fdce3d),
+// so epic's add is 0; SUPER keeps the lift (Corey: rim light "epic only").
+export const CREATURE_LIFT = {
+	super: { add: 0.35, tint: 0xd8e2ff },
+	epic: { add: 0, tint: 0xffe2c8 }, // was 0.3 until the drop 5 rim light
+} as const;
 
 // ---- Scatter tease on a Mystery reveal (RULE_PASS_2 section D) -----------------------------------
 // Angry Mantis's Anticipation.svelte, adapted from five spinning reels to an 8x8 drop: an
@@ -1958,14 +2158,20 @@ export const CREATURE = {
 	// Until a sheet is in its action is simply not played, so a feature that starts first shows no snarl / growl
 	// until they land. Saves 6.6 MB desktop / 3.7 MB phone per session.
 	lookLoad: { prefetch: true, prefetchLooks: ['super', 'epic'], prefetchGroups: ['creatureIdle', 'creatureActs'], early: true, waitMs: 250 },
-	/** HIS IDLE SHEET'S PLACE IN THE DEFERRED PHASE (2026-10-14, part D; Decimus cold load at staging 7184e88: it landed at
-	 *  16-17 s on fast 4G and 92 s on slow 4G, queued behind the plaque, the night scene, the night frame and the flames).
-	 *  The group it runs straight after (game/deferredLoad.ts), always after the audio and never in the first, blocking
-	 *  download: 'start' = the very first group; 'plaque' = right after the win plaque's set (1.2 MB full tier, 0.75 MB
-	 *  phone), ahead of everything else; 'flameEpic' = the old place. 'plaque' because 'start' put the plaque behind his
-	 *  2.1 / 3.8 MB sheet: defer_probe, phone slow 4G, plaque ready at 16.5 s (budget 12) and harsh 32.8 s (budget 25,
-	 *  over the 30 s a Big Win waits for it: assetGate PLAQUE_WAIT_MS). */
-	deferredAfter: 'plaque' as 'start' | 'plaque' | 'flameEpic',
+	/** HIS PLACE IN THE LOAD (first-minute plan D, Corey 2026-10-16 17:21 "Yes D"; until then CREATURE.deferredAfter put
+	 *  his idle sheet straight after the plaque and his attacks behind the symbols' sheets). Now:
+	 *    - his STILL (idle frame 1 of the base look and its shadow, tools/build_creature_still.py, 45 KB / 25 KB) is in the
+	 *      FIRST download (game/assets.ts creatureStill): he stands in the courtyard from the game's first frame
+	 *      (game/creature.ts setStill) and starts breathing, from that same picture and with no fade, when his idle sheet
+	 *      lands. A round resumed in a Super or Epic has no still of its look: he appears as before, when its sheet lands.
+	 *    - the win plaque and the symbols' sheets are the GATE (LOAD_GATE): PRESS ANYWHERE waits for them
+	 *    - after the gate (game/deferredLoad.ts): his idle sheet, then his attacks, then the scene's night set, the night
+	 *      frame, the flames, the labels, then his alternates, then the shared loader's remainder and the Armoury.
+	 *  restHeldAfter: the group of the boot look after which the rest of it is HELD until game/deferredLoad.ts lets it go
+	 *  (DEV `?creaturehold=1` holds after his idle group instead, so a probe can ask for an attack with only it in). */
+	restHeldAfter: 'creatureActs' as 'creatureIdle' | 'creatureActs',
+	/** the look his still is of (the base look: a fresh session always starts in it) */
+	stillLook: 'day' as const,
 	lookFadeMs: SCENE.crossfadeMs,
 	landingFadeMs: 400,
 	landingFadeStepMs: 34,
@@ -1996,7 +2202,9 @@ export const CREATURE = {
 	growlOdds: 1 / 30,
 	breath: true,
 	voice: { rateMin: 0.95, rateMax: 1.05 },
-	shadowAlpha: 1,
+	/** the floor shadow's strength (the Rig's rendered shadow pass is pure black, alpha up to 254): Corey 2026-10-17 13:20
+	 *  "it needs to be much lighter, it doesn't look right being near black" (was 1) */
+	shadowAlpha: 0.45,
 	beatWaitMs: 300,
 	crouchTimeoutMs: 3000,
 	cueBiasMs: 34,
@@ -2174,4 +2382,46 @@ export const MAX_WIN = {
 		sparseShare: 0.18,
 		fullShare: 1,
 	},
+} as const;
+
+// THE LOADING GATE (first-minute plan D, Corey 2026-10-16 17:21 "Yes D"; measurements and the options in
+// ~/Desktop/Manticore Mayhem/feedback/firstminute_r1/REPORT.md, the result in firstminute_r2/). Until then PRESS ANYWHERE
+// waited for the audio alone and every deferred file started after it: a reviewer who pressed at once spun on a FROZEN
+// board (no symbol sheet in) in an empty courtyard, for 24 s on desktop fast 4G and the whole first minute on slow 4G.
+// Now PRESS ANYWHERE (ui/LandingScreen.svelte) waits for the audio AND the gate: the win plaque's set and the symbols'
+// drop and idle sheets (game/assets.ts GATE_ORDER, loaded by game/deferredLoad.ts loadGate), which start the moment the
+// audio is in (besideAudioFiles below: the plan said beside the audio, which measured worse), and the loading bar
+// counts them with the audio. But never more than capMs after the audio is ready: past the cap PRESS shows and the rest of
+// the gate lands behind the game as before.
+//   capMs        the cap, real ms after the audio is ready (the plan's 10 s: desktop fast 4G about +10 s to the first spin,
+//                phone fast 4G about +5 s, slow 4G +10 s either way)
+//   scatter      the scatter's two sheets (3.3 MB full tier, 0.85 MB phone tier) are in the gate. false = the plan's
+//                cheaper variant (they load straight after the gate instead)
+//   besideAudioFiles   how many of the gate's files may be on the wire at once WHILE THE AUDIO IS STILL LOADING (all of a
+//                group's once it is in). 0: none, the gate starts the moment the audio is in. MEASURED 2026-10-16
+//                (firstminute_r2, production build, Chrome's throttles): with 1 the link shares itself between the audio and
+//                the gate's file, the audio is ready later (desktop slow 4G 61.4 s instead of 54.3) and so is the cap counted
+//                from it: PRESS ANYWHERE at 71.7 s (+17.4 s) against 64.7 s (+10.4 s, the plan's number) with 0; desktop fast
+//                4G 21.9 against 21.1 s, phone fast 4G 13.7 against 14.4 s, phone slow 4G 56.2 against 51.0 s. Starting
+//                beside the audio buys nothing on a link the download fills, and costs the audio its share of it.
+//   musicSideTracks   the four other music tracks are not buffered ahead beside the gate's files (game/sound.ts): when
+//                the gate was capped they stream when first played instead
+//   sceneBesideAttacks   AFTER THE GATE (game/deferredLoad.ts): his idle sheet alone first, then his attacks BESIDE the
+//                scene's night set, night frame, flames and labels (true), or strictly before them (false). His sheets
+//                go one at a time, each decoded and uploaded before the next is asked for, so the link idles between
+//                them; the scene's files fill those gaps. Nothing after the gate can delay the gate. Measured (desktop
+//                fast 4G): his attacks and the scene's groups, 10.8 MB, went at 0.83 MB/s side by side, 0.68 MB/s one
+//                after the other.
+// NO CAP (Corey 2026-10-17 08:19 / 08:21: "We should just wait to show until everything is loaded for the first spin",
+// then "Yes that's what I meant" to removing the 10 s cap): capMs null = PRESS ANYWHERE waits for the whole gate. The
+// only way past it unsettled is stallMs: no gate file landing (done or failed) for that long, so a request that never
+// answers cannot keep the game from starting.
+export const LOAD_GATE = {
+	capMs: null as number | null,
+	/** real ms with no gate file landing after which PRESS shows anyway (a hung request), counted from the audio */
+	stallMs: 90_000,
+	scatter: true,
+	besideAudioFiles: 0,
+	musicSideTracks: 'afterGate' as 'afterGate' | 'asBefore',
+	sceneBesideAttacks: true,
 } as const;

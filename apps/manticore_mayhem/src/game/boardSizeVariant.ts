@@ -4,7 +4,7 @@
 
 /** the page's `?board=` value in a DEV build, null in a release build */
 const boardParam = (): string | null => {
-	if (!import.meta.env.DEV || typeof location === 'undefined') return null;
+	if (!import.meta.env?.DEV || typeof location === 'undefined') return null;
 	return new URLSearchParams(location.search).get('board');
 };
 

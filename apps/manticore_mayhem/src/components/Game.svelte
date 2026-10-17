@@ -14,13 +14,14 @@
 	import { IS_SOCIAL } from '../game/social';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
-	import { loadDeferredInOrder, loadLogoEarly } from '../game/deferredLoad';
+	import { loadDeferredInOrder, loadGate, loadLogoEarly } from '../game/deferredLoad';
+	import { gateSettled, loadGate as gateState } from '../game/loadGate.svelte';
 	import { loadArmouryCore } from '../game/armouryLoad';
 	import { creatureDeferredDone } from '../game/creatureLoad';
 	import { PHONE_TIER, renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
-	import { sound, startSoundPreload } from '../game/sound';
+	import { releaseMusicSideTracks, sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import ResumeBet from './ResumeBet.svelte';
@@ -77,20 +78,28 @@
 	$effect(() => {
 		reportPreload(context.stateApp.preLoaded ? 100 : context.stateApp.loadingProgress);
 		if (context.stateApp.preLoaded) startSoundPreload();
+		// THE GATE (first-minute plan D, constants LOAD_GATE): the win plaque and the symbols' sheets, from the moment the audio
+		// is in, and PRESS ANYWHERE waits for them, up to the cap (ui/LandingScreen.svelte; game/deferredLoad.ts loadGate)
+		if (context.stateApp.preLoaded) void loadGate(context.stateApp, () => sound.isReady);
 		// the canvas logo's 0.35 MB starts here too, so its entrance is ready for the first show (game/deferredLoad.ts)
 		if (context.stateApp.preLoaded && !PHONE_TIER) void loadLogoEarly(context.stateApp);
 	});
+	// the music's side tracks buffer only once the gate is in (game/sound.ts)
+	void gateSettled.then(releaseMusicSideTracks);
 
-	// the deferred Pixi phase must not share a slow link with the audio
+	// the rest of the deferred Pixi phase must not share a slow link with the audio or the gate: it starts once both are in
+	// (the audio: or after AUDIO_WAIT_MS, as before; the gate always settles)
+	const AUDIO_WAIT_MS = 30_000;
+	const POLL_MS = 250;
 	context.stateApp.beforeDeferred = () =>
 		new Promise<void>((resolve) => {
 			const t0 = performance.now();
 			const poll = () => {
-				if (sound.isReady || performance.now() - t0 > 30000) resolve();
-				else setTimeout(poll, 250);
+				if (gateState.settled && (sound.isReady || performance.now() - t0 > AUDIO_WAIT_MS)) resolve();
+				else setTimeout(poll, POLL_MS);
 			};
 			poll();
-		}).then(() => loadDeferredInOrder(context.stateApp)); // the plaque, then the creature's idle sheet, then the scene and the symbols' sheets (game/deferredLoad.ts)
+		}).then(() => loadDeferredInOrder(context.stateApp)); // his idle sheet, his attacks, the scene, his alternates (game/deferredLoad.ts)
 
 	$effect(() => {
 		if (context.stateApp.loaded) markAssetsLoaded();
@@ -101,8 +110,8 @@
 	});
 
 	// Retina/5K canvases at full DPR are the biggest GPU cost: the renderer's resolution is capped
-	// (RENDER_RESOLUTION_CAP: 1.5 on the phone tier, house rule 3; 2 on desktop since 2026-10-09 and on an allowlisted
-	// iPhone since 2026-10-13; off the phone tier also the pixel ceiling RENDER_MAX_PIXELS). Renderable GC stays DISABLED (house rule 8, Pixi 8.8.1's
+	// (RENDER_RESOLUTION_CAP: 3 on the phone tier since 2026-10-17 (was 1.5, house rule 3); 2 on desktop since
+	// 2026-10-09; off the phone tier also the pixel ceiling RENDER_MAX_PIXELS). Renderable GC stays DISABLED (house rule 8, Pixi 8.8.1's
 	// CanvasTextPipe dereferences a GC-evicted _gpuText entry with no null guard and takes the HTML
 	// chrome down with it): poll until the system has armed its scheduler, THEN cancel it, because
 	// a disable issued against the uninitialised system is a silent no-op that init overwrites.

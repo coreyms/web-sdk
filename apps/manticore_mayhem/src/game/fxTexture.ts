@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { MULT_PLATE } from './constants';
+import { MULT_PLATE, SWIPE_FX } from './constants';
 
 // Baked textures for the motion pass (components/BoardCells.svelte), built ONCE and cached — house
 // rule: no per-frame textures, no filters. Both are white with alpha so a sprite tint colours them.
@@ -68,4 +68,186 @@ export const innerGlowTexture = (): PIXI.Texture => {
 	ctx.putImageData(d, 0, 0);
 	innerGlow = PIXI.Texture.from(c);
 	return innerGlow;
+};
+
+// ---- THE WIN EFFECT (constants WIN_FX, 2026-10-16): three more baked textures, white with alpha so the tint colours
+// them, built once on first use (BoardCells builds them at mount). No per-frame texture, no filter.
+
+/** the burst's rays: `RAY_COUNT` soft tapered rays of two lengths round a faint centre, 128 px across */
+let rays: PIXI.Texture | null = null;
+export const RAYS_PX = 128;
+const RAY_COUNT = 12;
+export const raysTexture = (): PIXI.Texture => {
+	if (rays) return rays;
+	const c = document.createElement('canvas');
+	c.width = RAYS_PX;
+	c.height = RAYS_PX;
+	const ctx = c.getContext('2d')!;
+	const r = RAYS_PX / 2;
+	ctx.translate(r, r);
+	ctx.globalCompositeOperation = 'lighter';
+	for (let i = 0; i < RAY_COUNT; i += 1) {
+		// long and short rays alternate; each a thin wedge fading out along its length
+		const len = (i % 2 ? 0.62 : 0.98) * r;
+		const half = (i % 2 ? 0.05 : 0.07) * Math.PI;
+		ctx.save();
+		ctx.rotate((i / RAY_COUNT) * Math.PI * 2);
+		const g = ctx.createLinearGradient(0, 0, len, 0);
+		g.addColorStop(0, 'rgba(255,255,255,0.75)');
+		g.addColorStop(0.5, 'rgba(255,255,255,0.35)');
+		g.addColorStop(1, 'rgba(255,255,255,0)');
+		ctx.fillStyle = g;
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.lineTo(len * Math.cos(half), len * Math.sin(half));
+		ctx.lineTo(len, 0);
+		ctx.lineTo(len * Math.cos(half), -len * Math.sin(half));
+		ctx.closePath();
+		ctx.fill();
+		ctx.restore();
+	}
+	// a faint halo the rays grow out of
+	const h = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.55);
+	h.addColorStop(0, 'rgba(255,255,255,0.45)');
+	h.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = h;
+	ctx.fillRect(-r, -r, RAYS_PX, RAYS_PX);
+	rays = PIXI.Texture.from(c);
+	return rays;
+};
+
+/** the soft round glow at the heart of the burst (the brief: "no white square, a soft round glow at most"): a smooth
+ *  falloff to nothing at the edge, 64 px across */
+let core: PIXI.Texture | null = null;
+export const CORE_PX = 64;
+export const coreTexture = (): PIXI.Texture => {
+	if (core) return core;
+	const c = document.createElement('canvas');
+	c.width = CORE_PX;
+	c.height = CORE_PX;
+	const ctx = c.getContext('2d')!;
+	const r = CORE_PX / 2;
+	const g = ctx.createRadialGradient(r, r, 0, r, r, r);
+	g.addColorStop(0, 'rgba(255,255,255,1)');
+	g.addColorStop(0.25, 'rgba(255,255,255,0.7)');
+	g.addColorStop(0.6, 'rgba(255,255,255,0.2)');
+	g.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = g;
+	ctx.fillRect(0, 0, CORE_PX, CORE_PX);
+	core = PIXI.Texture.from(c);
+	return core;
+};
+
+/** an ember: a streak twice as long as it is tall, a hot centre and a soft edge, EMBER_W x EMBER_H px; drawn turned
+ *  along its path (the long axis is x) */
+let ember: PIXI.Texture | null = null;
+export const EMBER_W = 32;
+export const EMBER_H = 16;
+export const emberTexture = (): PIXI.Texture => {
+	if (ember) return ember;
+	const c = document.createElement('canvas');
+	c.width = EMBER_W;
+	c.height = EMBER_H;
+	const ctx = c.getContext('2d')!;
+	ctx.translate(EMBER_W / 2, EMBER_H / 2);
+	ctx.scale(EMBER_W / EMBER_H, 1);
+	const r = EMBER_H / 2;
+	const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+	g.addColorStop(0, 'rgba(255,255,255,1)');
+	g.addColorStop(0.35, 'rgba(255,255,255,0.85)');
+	g.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = g;
+	ctx.beginPath();
+	ctx.arc(0, 0, r, 0, Math.PI * 2);
+	ctx.fill();
+	ember = PIXI.Texture.from(c);
+	return ember;
+};
+
+/** THE CLAW STREAK (SWIPE_FX.tex, claw-swipe r1 / r2): one claw cut, baked once and shared by the four claws and
+ *  their scars (components/ClawSwipe.svelte crops a frame of it per sprite to draw a claw on). Coloured, for an
+ *  additive sprite: a near-white core that is thickest at peakU and tapers to a point at both ends, a gold edge and
+ *  a red-orange falloff to deep red. The centreline runs from (pad, yEnd) to (w - pad, yEnd): straight along the
+ *  middle at sag 0 (r2), else a circular arc bowing `sag` towards +y (r1). Computed per pixel from the path (exact
+ *  distance and position along it), no canvas strokes, so it looks the same in every browser. `yAt(u)` is the
+ *  centreline's y at u (0 = the start, 1 = the end). */
+export type ClawGeom = { texture: PIXI.Texture; w: number; h: number; pad: number; chord: number; yEnd: number; corePx: number; yAt: (u: number) => number };
+let claw: ClawGeom | null = null;
+export const clawTexture = (): ClawGeom => {
+	if (claw) return claw;
+	const { w, h, sagFrac, corePx, peakU, glowPx } = SWIPE_FX.tex;
+	const pad = glowPx + 4;
+	const chord = w - 2 * pad;
+	const sag = sagFrac * chord;
+	// sag 0 (r2): a straight stroke along the texture's middle
+	const straight = sag <= 0.5;
+	const yEnd = straight ? h / 2 : pad;
+	// the circle through both ends and the bowed middle; its centre is above the texture
+	const R = straight ? 1 : (chord * chord) / 4 / (2 * sag) + sag / 2;
+	const cx = w / 2;
+	const cy = yEnd + sag - R;
+	const phi1 = straight ? 0 : Math.asin(chord / 2 / R);
+	const gamma = Math.log(0.5) / Math.log(peakU);
+	const taper = (u: number) => (u <= 0 || u >= 1 ? 0 : Math.pow(Math.sin(Math.PI * Math.pow(u, gamma)), 0.85));
+	const c = document.createElement('canvas');
+	c.width = w;
+	c.height = h;
+	const ctx = c.getContext('2d')!;
+	const img = ctx.createImageData(w, h);
+	const D = img.data;
+	// core, gold edge, red-orange, deep red
+	const C0 = [255, 252, 240];
+	const C1 = [255, 196, 92];
+	const C2 = [255, 72, 18];
+	const C3 = [186, 22, 4];
+	const mix = (a: number[], b: number[], t: number, k: number) => a[k] + (b[k] - a[k]) * t;
+	for (let y = 0; y < h; y += 1) {
+		for (let x = 0; x < w; x += 1) {
+			let u: number;
+			let off: number;
+			let len: number;
+			if (straight) {
+				u = (x + 0.5 - pad) / chord;
+				off = y + 0.5 - yEnd;
+				len = chord;
+			} else {
+				const dx = x + 0.5 - cx;
+				const dy = y + 0.5 - cy;
+				u = (Math.atan2(dx, dy) + phi1) / (2 * phi1);
+				off = Math.hypot(dx, dy) - R;
+				len = 2 * phi1 * R;
+			}
+			const uc = Math.max(0, Math.min(1, u));
+			// past an end: the distance runs on along the path from that end
+			const beyond = u < 0 ? -u * len : u > 1 ? (u - 1) * len : 0;
+			const d = Math.hypot(off, beyond);
+			const tp = taper(uc);
+			const hw = (corePx / 2) * tp;
+			const core = hw <= 0 ? 0 : Math.max(0, Math.min(1, (hw + 0.75 - d) / 1.5));
+			const gw = glowPx * (0.3 + 0.7 * tp);
+			const s = Math.max(0, d - hw) / gw;
+			const glow = Math.exp(-s * s * 4.5) * (0.3 + 0.7 * tp) * 0.9;
+			const a = Math.max(core, glow);
+			const k = (y * w + x) * 4;
+			if (a <= 0.002) {
+				D[k + 3] = 0;
+				continue;
+			}
+			const t1 = Math.min(1, s / 0.45);
+			const t2 = Math.max(0, Math.min(1, (s - 0.45) / 0.55));
+			for (let ch = 0; ch < 3; ch += 1) {
+				const g = s < 0.45 ? mix(C1, C2, t1, ch) : mix(C2, C3, t2, ch);
+				D[k + ch] = Math.round(core * C0[ch] + (1 - core) * g);
+			}
+			D[k + 3] = Math.round(255 * a);
+		}
+	}
+	ctx.putImageData(img, 0, 0);
+	const yAt = (u: number) => {
+		if (straight) return yEnd;
+		const phi = -phi1 + 2 * phi1 * Math.max(0, Math.min(1, u));
+		return cy + R * Math.cos(phi);
+	};
+	claw = { texture: PIXI.Texture.from(c), w, h, pad, chord, yEnd, corePx, yAt };
+	return claw;
 };

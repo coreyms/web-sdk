@@ -2,6 +2,7 @@ import { createSound, supportsAudioFormat, type MusicManifest } from 'utils-soun
 
 import assets from './assets';
 import { fileBytes } from './assetStamp';
+import { LOAD_GATE } from './constants';
 
 // Names match tools/build_audiosprite.py. MusicName lives in music.json (one streamed file per
 // track); every SoundEffectName lives in the sounds.json audiosprite.
@@ -167,7 +168,32 @@ const loadMusicManifest = async () => {
 			track.src = order.map((i) => track.src![i]);
 		}
 	}
-	sound.loadMusic(manifest);
+	sound.loadMusic(holdSideTracks(manifest));
+};
+
+// ── the music's side tracks wait for THE GATE (first-minute plan D, constants LOAD_GATE.musicSideTracks) ──────────────
+// The shared player (utils-sound createMusic, left alone) starts buffering every track it can list 3 s after the music
+// first plays, i.e. 3 s after PRESS ANYWHERE. When the gate was capped its files are still on the wire then, and the four
+// side tracks would take a share of the link from them. So until releaseMusicSideTracks() (components/Game.svelte, when
+// the gate has settled) the manifest's track table LISTS only the gate track; every track is still there by name, so a
+// side track that is played starts as ever. When the gate was not capped (the usual case) it has settled before the
+// player lists the table and nothing changes. When it was, the side tracks are not buffered ahead: each one streams
+// when it is first played, as it always has on iOS (whose media elements buffer nothing before play()). Measured
+// 2026-10-16: warming them into the HTTP cache instead put their WHOLE files on the wire (3.2 MB) where the player's
+// own buffering takes about 0.5 MB, in front of the creature's sheets.
+let sideHeld = LOAD_GATE.musicSideTracks === 'afterGate';
+let gateTrack: string | undefined;
+const holdSideTracks = (manifest: MusicManifest<MusicName>): MusicManifest<MusicName> => {
+	if (!sideHeld) return manifest;
+	gateTrack = manifest.gate;
+	const tracks = new Proxy(manifest.tracks, {
+		ownKeys: (target) => (sideHeld ? Reflect.ownKeys(target).filter((key) => key === gateTrack) : Reflect.ownKeys(target)),
+	});
+	return { ...manifest, tracks };
+};
+/** the gate has settled: the side tracks may be listed (see above). Idempotent. */
+export const releaseMusicSideTracks = (): void => {
+	sideHeld = false;
 };
 
 /** Idempotent — call it as early as possible; extra calls are free. */

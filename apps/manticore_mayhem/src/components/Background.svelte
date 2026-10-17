@@ -67,8 +67,10 @@
 	const canvas = $derived(context.stateLayoutDerived.canvasSizes());
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 
+	// THE TRIGGER BEAT'S RELIGHT (constants TRIGGER_BEAT.relightAt): a Super / Epic trigger beat draws the feature's scene
+	// (night, the fire braziers, his night or fire look) from the beat on, in front of the player, before the intro plaque
 	const family = $derived(
-		context.stateGame.gameType !== 'freegame'
+		context.stateGame.gameType !== 'freegame' && !context.stateGame.relightAhead
 			? 'base'
 			: context.stateGame.bonusMode === 'epic'
 				? 'epic'
@@ -163,11 +165,16 @@
 		clearSceneLight();
 	};
 
+	/** DEV, the probe only (`?flamehold=1`): the deferred flame clips are not built when their files land but when
+	 *  __manticore.flames.land() is called, so a probe can put that moment inside a crossfade (night_fade_r1) */
+	let flameHold = $state(import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('flamehold') === '1');
+
 	// the files: a scene's day set builds it, its night set joins it, and the landscape scene's two deferred flame
 	// clips after that. Each lot is uploaded once, when it lands, if that scene is the one on screen (sources already
 	// on the GPU are only bound again); a scene that is not showing takes its upload when it is next shown.
 	$effect(() => {
 		const assets = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
+		const holdFlames = flameHold;
 		if (!assets) return;
 		untrack(() => {
 			for (const layout of LAYOUTS) {
@@ -177,7 +184,7 @@
 				const before = view.sources().length;
 				if (!r.day && view.setDay(assets)) r.day = true;
 				if (r.day && !r.night && view.setNight(assets, performance.now())) r.night = true;
-				if (r.day && !r.flames && view.setFlames(assets, performance.now())) r.flames = true;
+				if (r.day && !r.flames && !holdFlames && view.setFlames(assets, performance.now())) r.flames = true;
 				// the sky's shared files (atlas, birds, bats) can land after this scene's own sets when it was fetched at a turn
 				if (r.day && !r.sky && view.setSky(assets)) r.sky = true;
 				if (view.sources().length === before) continue;
@@ -307,6 +314,14 @@
 	// the look of the mode (the scene's own family)
 	$effect(() => {
 		creature.mode(family);
+	});
+	// HIS STILL (first-minute plan D; game/assets.ts creatureStill, game/creature.ts setStill): the first download's picture
+	// of him stands in the courtyard until his idle sheet lands. After the mode above, so a resumed Super or Epic, which
+	// has no still of its look, does not take it.
+	$effect(() => {
+		const body = context.stateApp.loadedAssets?.creature_still_body as PIXI.Texture | undefined;
+		const shadow = context.stateApp.loadedAssets?.creature_still_shadow as PIXI.Texture | undefined;
+		if (body) untrack(() => creature.setStill(CREATURE.stillLook, body, shadow ?? null));
 	});
 	// A FEATURE'S LOOK AHEAD OF ITS MODE (game/creatureLoad.ts EARLY): an armed Super or Epic buy loads its look now, and
 	// a disarmed one lets it go
@@ -535,6 +550,11 @@
 						views.landscape.refreshFlames();
 					},
 					toCanvas: (x: number, y: number) => ptFore(views.landscape, x, y),
+					/** `?flamehold=1` only: build the deferred clips now (their files are in by then); the time it was asked */
+					land: () => {
+						flameHold = false;
+						return performance.now();
+					},
 				},
 				// ---- __manticore.foregroundKick (tools/manticore/chain_gust_probe.js, ONLY=foreground): the scene's side of
 				// the foreground kick. The board's side is __manticore.frameGust.kick ----
