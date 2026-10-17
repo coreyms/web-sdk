@@ -9,11 +9,18 @@
 // incorporated sides scroll in this as well, so it appears larger on small screens still. The particles would come
 // together to form the first part of the sentence and explode on the last part."
 //
-// So: gold motes drift in the plaque's text box whenever the board is idle (game/plaqueMotes.ts moves them); every
-// gapMs a line forms out of them, holds, and bursts back into them. A line that would be under readableCss on this
-// screen side scrolls instead, one row at scrollCss: the motes form its beginning, it scrolls right to left (the
-// letters crumble back into motes at the left edge, new ones are fed in from the swarm at the right) and its end
-// bursts. components/BoardPlaque.svelte draws it all; this file has the words, the order, the numbers and the fit.
+// r3 (10:17): "Remove the icon in the middle of that board, and can we increase the amount of particles and mark their
+// movement more spiral galaxy like? When they form into words, have it as a lower transition, but keep it as an
+// explosion on the way out. The particles also have specs that are too big, especially on mobile screens. Keep the
+// side scrolling on desktop, not limited to mobile. There's a weird particle following effect there on side scroll
+// that should be removed. No particles while words are displayed except intro/outro."
+//
+// So: a galaxy of gold motes turns in the plaque's text box whenever the board is idle (game/plaqueMotes.ts), with no
+// crest under it. Every gapMs a line forms out of ALL of them, slowly, spiralling in; the motes fade as the crisp text
+// comes up, and while it holds or scrolls only the text is on the plaque; then the part on show bursts back into the
+// motes, which drift home into the galaxy. Every line is one row at the scroll size on every screen: a line wider than
+// the box scrolls right to left (its beginning formed, its end burst), a shorter one sits centred.
+// components/BoardPlaque.svelte draws it all; this file has the words, the order, the numbers and the plan.
 //
 // PRESENTATION ONLY: nothing here reads or changes an outcome. The words are Corey's, exactly; tools' rules_probe.js
 // banned-word list is checked against every line by feedback/plaque_tips_r2/plaque_tips_probe.js.
@@ -29,19 +36,22 @@ export const PLAQUE_TIPS = {
 	motesInMs: 700,
 	/** "hidden as soon as a spin starts": motes and text fade out this fast when the board stops being idle */
 	hideMs: 120,
+	/** "Remove the icon in the middle of that board" (r3, 10:17): the plaque's crest is never drawn (false); the motes
+	 *  own the empty plaque */
+	crest: false,
 	/** the first line of an idle spell comes this long after the motes are in (Corey named only the gap; this is ours:
 	 *  a new player sees "Tap a symbol" soon, a player spinning on sees few lines) */
 	firstMs: 4000,
 	/** "maybe every 10 seconds it shows a message" (08:52, 08:59 "Yes"): from the END of one line (its burst done) to
 	 *  the start of the next one's gather */
 	gapMs: 10000,
-	/** "come together to form the sentence": the motes' stream into the letters (each mote takes 1 - gatherJitter to
-	 *  1 times this, so they land one after another, not all at once) */
-	gatherMs: 800,
-	gatherJitter: 0.3,
+	/** "When they form into words, have it as a lower transition" (r3; r2 was 0.8 s): every mote spirals into the
+	 *  letters over 1 - gatherJitter to 1 times this, so they land one after another */
+	gatherMs: 1600,
+	gatherJitter: 0.35,
 	/** "the crisp text fades in as they land": from this far into the gather, over textInMs */
-	textInStartMs: 380,
-	textInMs: 480,
+	textInStartMs: 900,
+	textInMs: 700,
 	/** "holding 4 s" (08:59 "Yes"): a fitted line is fully formed this long, from the gather's end to the burst */
 	holdMs: 4000,
 	/** "explode back into particles when existing": the burst (the text goes in burstTextMs, the motes fly out and
@@ -53,14 +63,18 @@ export const PLAQUE_TIPS = {
 	/** "muted enough that it does not compete with the board": the lines' opacity at full fade */
 	alpha: 0.82,
 
-	// ---- the side scroll (r2, 09:12 "so it appears larger on small screens still") ----
-	/** a line that fits (one or two rows) at this size on screen or larger is formed in place; smaller, it scrolls.
-	 *  The brief: "aim for at least about 11 CSS px" */
+	// ---- the side scroll (r2, 09:12 "so it appears larger on small screens still"; r3 "Keep the side scrolling on
+	// desktop, not limited to mobile") ----
+	/** every line is one row at the scroll size on every screen (true), scrolling when it is wider than the box; false
+	 *  is r2's rule: formed in place on one or two rows when that is readableCss or larger */
+	alwaysScroll: true,
+	/** r2's readable size ("aim for at least about 11 CSS px"), for the r2 rule */
 	readableCss: 11,
-	/** the scroll's letters on screen, CSS px (the old fit gave 6 to 8 on the small phones) */
-	scrollCss: 12.5,
-	/** ...never above this, nor with a cap height over scrollCapMax of the text box's height */
-	scrollMaxCss: 16,
+	/** THE SIZE: a font this share of the text box's height (layout units; on the desktop about 24 CSS px), never under
+	 *  scrollMinCss on screen (the phones), never over scrollMaxCss, nor with a cap height over scrollCapMax of the box */
+	scrollBoxFrac: 0.56,
+	scrollMinCss: 12.5,
+	scrollMaxCss: 26,
 	scrollCapMax: 0.6,
 	/** the scroll's speed, in ems (the scroll font's size) a second: 4.5 em/s is about 7 letters a second, slower than
 	 *  reading pace, so a line reads comfortably while it moves */
@@ -76,8 +90,6 @@ export const PLAQUE_TIPS = {
 	scrollMinUpMs: 4000,
 	/** the scroll starts and ends with the text this far (layout units) in from the box's edge */
 	scrollPad: 8,
-	/** at the right edge the next letters are fed from the swarm: a mote is sent this long before its point comes in */
-	feedMs: 520,
 
 	// ---- the face and the box (r1) ----
 	/** THE TEXT BOX inside the plaque's dark field, in layout units: [halfWidth, top, bottom]. The field measured from
@@ -190,11 +202,11 @@ const bestFit = (text: string, width: (s: string) => number, box: readonly [numb
 };
 
 /**
- * THE PLAN for every line on this screen. `width(s)` is the width of `s` at font size 1 (layout units), the box is
+ * THE PLAN for every line on this screen (r3: alwaysScroll, every line 'scroll'). `width(s)` is the width of `s` at font size 1 (layout units), the box is
  * [halfWidth, top, bottom], `kCss` the CSS px per layout unit across the box and `capK` the face's cap height per
  * font size. A line that can be formed in place at readableCss or more is ('fit'), every such line at the size the
  * hardest of them needs (sameSize), on one row whenever it fits at that size, else two; the rest scroll ('scroll'), one
- * row at scrollCss (never so tall its cap passes scrollCapMax of the box). Never overflows: a fitted line's rows are
+ * row at the scroll size (scrollBoxFrac of the box, scrollMinCss to scrollMaxCss on screen, its cap never over scrollCapMax of the box). Never overflows: a fitted line's rows are
  * inside the box at its font; a scrolled line's row is inside the box's height.
  */
 export const planTips = (
@@ -209,11 +221,15 @@ export const planTips = (
 	const lh = PLAQUE_TIPS.lineHeight;
 	const k = kCss > 0 ? kCss : 1;
 	const best = texts.map((t) => bestFit(t, width, box));
-	const fits = best.map((b) => b.size * k >= PLAQUE_TIPS.readableCss - 1e-6);
+	const fits = best.map((b) => !PLAQUE_TIPS.alwaysScroll && b.size * k >= PLAQUE_TIPS.readableCss - 1e-6);
 	const common = PLAQUE_TIPS.sameSize
 		? Math.min(PLAQUE_TIPS.maxFont, ...best.filter((_, i) => fits[i]).map((b) => b.size))
 		: Infinity;
-	const scrollFont = Math.min(PLAQUE_TIPS.scrollCss / k, PLAQUE_TIPS.scrollMaxCss / k, (PLAQUE_TIPS.scrollCapMax * Hh) / Math.max(0.3, capK));
+	const scrollFont = Math.min(
+		Math.max(PLAQUE_TIPS.scrollBoxFrac * Hh, PLAQUE_TIPS.scrollMinCss / k),
+		PLAQUE_TIPS.scrollMaxCss / k,
+		(PLAQUE_TIPS.scrollCapMax * Hh) / Math.max(0.3, capK),
+	);
 	return best.map((b, i) => {
 		if (!fits[i]) return { mode: 'scroll', font: scrollFont, rows: [b.words] };
 		const font = Math.min(PLAQUE_TIPS.maxFont, common, b.size);
@@ -224,8 +240,17 @@ export const planTips = (
 };
 
 /** r1's fit (every line formed in place, whatever its size), kept for the record and the probe's comparison */
-export const fitTips = (texts: string[], width: (s: string) => number, box: readonly [number, number, number]): TipFit[] =>
-	planTips(texts, width, box, 1e9, 0.7).map(({ font, rows }) => ({ font, rows }));
+export const fitTips = (texts: string[], width: (s: string) => number, box: readonly [number, number, number]): TipFit[] => {
+	const W = box[0] * 2;
+	const Hh = box[2] - box[1];
+	const best = texts.map((t) => bestFit(t, width, box));
+	const common = Math.min(PLAQUE_TIPS.maxFont, ...best.map((b) => b.size));
+	return best.map((b, i) => {
+		const font = PLAQUE_TIPS.sameSize ? common : b.size;
+		if (width(texts[i]) * font <= W + 1e-6 && font * PLAQUE_TIPS.lineHeight <= Hh + 1e-6) return { font, rows: [b.words] };
+		return { font, rows: b.rows };
+	});
+};
 
 /** THE SCROLL'S PATH: how far (layout units, 0 to `dist`) the text has moved `t` ms after the scroll starts, at `v`
  *  units a ms, easing in and out over PLAQUE_TIPS.scrollRampMs; and the scroll's whole length in ms */

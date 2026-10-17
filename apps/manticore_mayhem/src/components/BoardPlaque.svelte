@@ -12,7 +12,7 @@
 <script lang="ts">
 	// THE SPIN AMOUNT PLAQUE (Corey 2026-10-13, images/spin_amount_final/SPEC.md; constants BOARD_PLAQUE): the running
 	// total of the spin being cascaded (cascade.spinWin; the HUD's WIN readout owns the round total), drawn as inlaid brass
-	// figures on a bronze plaque that leans 35 degrees under the board, with the lion crest on the empty plaque. It replaces
+	// figures on a bronze plaque that leans 35 degrees under the board (the lion crest on the empty plaque is not drawn since r3 of the explainer lines, PLAQUE_TIPS.crest). It replaces
 	// SpinWin.svelte's stencil readout ("SPIN $x" in the MainContainer).
 	//
 	// Everything lives in BoardFrame's `under` (game/boardPlateSlot.ts boardPlaqueSlot, after the fire gears), in master
@@ -33,15 +33,15 @@
 	// run of Arabic letters (with the point inside it) is reversed first, the way a browser shows it ("م.ج" then the
 	// number). Lower-case letters the set lacks fall back to its small capitals' upper-case twin.
 	//
-	// THE EXPLAINER LINES (Corey 2026-10-16 17:41; r2 particle text 2026-10-17 08:52 / 08:59 / 09:12, game/plaqueTips.ts,
-	// game/plaqueMotes.ts): while the board is idle in the base game (game/boardIdle.ts, the symbol pay popup's own rule)
-	// and the plaque has no figures, gold motes drift in its text box; every PLAQUE_TIPS.gapMs one line forms out of
-	// them (the crest fades out, the motes stream into the line's glyph points, the crisp text fades in as they land),
-	// holds, and bursts back into them (the crest comes back). A line too small to read on this screen side scrolls
-	// instead: its beginning forms, it scrolls right to left (letters crumble into motes at the left end, the swarm
-	// feeds the next ones at the right) and its end bursts. Line 1 first, then the others in turn, line 1 back every
-	// third line. Motes and text hide as soon as the board stops being idle, and never show while the figures do (the
-	// figures, the win readout, always win).
+	// THE EXPLAINER LINES (Corey 2026-10-16 17:41; r2 particle text 2026-10-17 08:52 / 08:59 / 09:12; r3 10:17,
+	// game/plaqueTips.ts, game/plaqueMotes.ts): while the board is idle in the base game (game/boardIdle.ts, the symbol
+	// pay popup's own rule) and the plaque has no figures, a galaxy of gold motes turns in its text box (r3: the crest is
+	// gone, PLAQUE_TIPS.crest). Every PLAQUE_TIPS.gapMs one line forms out of all of them (they spiral slowly into its
+	// glyph points, the crisp text fades in as they land and they fade out under it), holds or scrolls with no mote on
+	// the plaque, and its part on show bursts back into them; they drift home into the galaxy. Every line is one row at
+	// the scroll size on every screen: wider than the box, it scrolls right to left, its beginning formed and its end
+	// burst. Line 1 first, then the others in turn, line 1 back every third line. Motes and text hide as soon as the
+	// board stops being idle, and never show while the figures do (the figures, the win readout, always win).
 	//
 	// Each line is drawn ONCE into a canvas (the Cinzel face the intro cards use) when it comes up, uploaded, and its
 	// glyph points read back from that same canvas (getImageData, once); it shows on a small grid mesh whose corners go
@@ -475,8 +475,13 @@
 		} else {
 			const tw = widthAt1(text) * font;
 			tipShown.stripW = tw + 2 * pad;
-			tipShown.offset0 = -hw + TIPS.scrollPad - pad;
-			tipShown.offset1 = Math.min(tipShown.offset0, hw - TIPS.scrollPad - pad - tw);
+			if (tw + 2 * TIPS.scrollPad <= 2 * hw) {
+				// it fits in the box at this size: centred, no scroll
+				tipShown.offset0 = tipShown.offset1 = -tw / 2 - pad;
+			} else {
+				tipShown.offset0 = -hw + TIPS.scrollPad - pad;
+				tipShown.offset1 = hw - TIPS.scrollPad - pad - tw;
+			}
 		}
 		const W = tipShown.stripW;
 		// screen px per layout unit across the box and down it, at the renderer's resolution
@@ -524,18 +529,20 @@
 		tipShown.font = font;
 		tipShown.rows = rows;
 		tipShown.kCss = ku;
-		// the glyph points: a fitted line gets formShare of the motes; a scrolling one that many on the part inside the box
-		const form = MOTE_N * MOTES.formShare;
-		const want = Math.round(m === 'fit' ? form : (form * W) / (2 * hw));
+		// the glyph points: about one for every mote on the part inside the box (r3: every mote forms the line)
+		const want = Math.round(m === 'fit' ? MOTE_N : MOTE_N * Math.max(1, W / (2 * hw)));
 		tipShown.points = samplePoints(cw, ch, want, 1 + index * 7919);
 		return true;
 	};
 
 	// ---- the motes: sizes, and each frame's positions --------------------------------------------------------------
-	/** size the motes for this screen (static sprite data: uploaded once, here) */
+	let moteScale = 1;
+	/** size the motes for this screen (static sprite data: uploaded once, here): "specs that are too big, especially on
+	 *  mobile screens" (r3), so a smaller text box on screen draws them smaller (PLAQUE_MOTES.sizeRefCss) */
 	const placeMotes = () => {
 		const ku = cssPerUnit().ku;
 		if (!(ku > 0)) return;
+		moteScale = Math.max(MOTES.sizeMinScale, Math.min(MOTES.sizeMaxScale, (2 * tipBox[0] * ku) / MOTES.sizeRefCss));
 		const a = through(0, 0);
 		const ax = a.x;
 		const ay = a.y;
@@ -543,7 +550,7 @@
 		const mPerU = Math.hypot(b.x - ax, b.y - ay);
 		const [s0, s1] = MOTES.sizeCss;
 		for (let i = 0; i < MOTE_N; i += 1) {
-			const css = s0 + (s1 - s0) * moteSim.size[i];
+			const css = (s0 + (s1 - s0) * moteSim.size[i]) * moteScale;
 			const s = ((css / ku) * mPerU) / MOTES.texPx;
 			moteParts[i].scaleX = moteParts[i].scaleY = s;
 		}
@@ -623,10 +630,10 @@
 	const fade = (v: number): Fade => ({ from: v, to: v, t0: 0, ms: 0, v });
 	const figFade = fade(0);
 	const crestFade = fade(1);
-	const fadeTo = (f: Fade, to: number, ms: number, delay = 0) => {
+	const fadeTo = (f: Fade, to: number, ms: number, delay = 0, at = performance.now()) => {
 		f.from = f.v;
 		f.to = to;
-		f.t0 = performance.now() + delay;
+		f.t0 = at + delay;
 		f.ms = ms;
 		if (ms <= 0 && delay <= 0) f.v = to;
 	};
@@ -711,27 +718,30 @@
 	});
 	const tipFade = fade(0);
 	const moteFade = fade(0);
-	/** off: nothing; wait: the board settled, the motes come at t; drift: the motes drift, the next line comes at t;
-	 *  form: a line is forming, up or scrolling (msg); burst: it is bursting until t. slot: lines shown in this idle
-	 *  spell; other: the other lines shown so far (kept across spells); crestOut: the lines faded the crest out */
+	/** off: nothing; wait: the board settled, the motes come at t; drift: the galaxy turns, the next line comes at t
+	 *  (counted from base); form: a line is forming, up or scrolling (msg); burst: it is bursting until t. slot: lines
+	 *  shown in this idle spell; other: the other lines shown so far (kept across spells) */
 	type Phase = 'off' | 'wait' | 'drift' | 'form' | 'burst';
-	const tipRun = { phase: 'off' as Phase, t: 0, base: 0, slot: 0, other: 0, index: -1, crestOut: false };
-	/** the line on show: its times (performance.now ms) and, for a scroll, its path */
-	const msg = { index: -1, mode: 'fit' as 'fit' | 'scroll', t0: 0, tLand: 0, tScroll0: 0, scrollMs: 0, ramp: 0, dist: 0, v: 0, tBurst: 0, nextIn: 0, hold: false, freezeMs: -1, landed: false, scrolling: false, scrollDone: false };
-	/** DEV (feedback/plaque_tips_r2/plaque_tips_probe.js): a line asked for now (shown at once, `hold` keeps it up and,
+	const tipRun = { phase: 'off' as Phase, t: 0, base: 0, slot: 0, other: 0, index: -1 };
+	/** the line on show: its times (the tips' clock, ms) and, for a scroll, its path */
+	const msg = { index: -1, mode: 'fit' as 'fit' | 'scroll', t0: 0, tLand: 0, tScroll0: 0, scrollMs: 0, ramp: 0, dist: 0, v: 0, tBurst: 0, hold: false, freezeMs: -1, landed: false, scrolling: false, scrollDone: false };
+	/** DEV (feedback/plaque_tips_r3/plaque_tips_probe.js): a line asked for now (shown at once, `hold` keeps it up and,
 	 *  for a scroll, `holdAt` stops it that far along its scroll), whatever the board does while one is held; the
-	 *  cadence's two waits; the motes off (the cost A / B) */
+	 *  cadence's two waits; the motes off (the cost A / B); the tips' clock slowed (the quarter speed close-up) */
 	let tipPending: { index: number; mode: 'fit' | 'scroll' | null; hold: boolean; holdAt: number | null; fontCss: number | null } | null = null;
 	let devHold = false;
 	const pace = { gapMs: TIPS.gapMs, firstMs: TIPS.firstMs };
 	let motesOn = true;
+	let slow = 1;
 	const moteStat = { frames: 0, ms: 0, worst: 0, last: { frames: 0, avgMs: 0, worstMs: 0 } };
 	const tipLog: { at: number; what: string; index: number; mode?: string }[] = [];
 	const tipNote = (what: string, index: number, mode?: string) => {
 		if (!import.meta.env.DEV) return;
-		tipLog.push({ at: performance.now(), what, index, ...(mode ? { mode } : {}) });
+		tipLog.push({ at: clock.now, what, index, ...(mode ? { mode } : {}) });
 		if (tipLog.length > 160) tipLog.splice(0, 80);
 	};
+	/** THE TIPS' CLOCK (ms): performance.now, or slower under the DEV slow motion (every time below is on it) */
+	const clock = { now: 0, real: 0 };
 	/** the screen x of the part of the line inside the box, and its texture's u there */
 	const visibleStrip = () => {
 		const hw = tipBox[0];
@@ -740,25 +750,19 @@
 		const x1 = Math.min(hw, off + tipShown.stripW);
 		return { x0, x1, u0: (x0 - off) / tipShown.stripW, u1: (x1 - off) / tipShown.stripW };
 	};
+	const win = { k0: 0, k1: 0 };
 	const startLine = (now: number, index: number, mode: 'fit' | 'scroll' | null, hold: boolean, holdAt: number | null, fontCss: number | null = null): boolean => {
 		computePlans();
 		if (!drawTip(index, mode, fontCss)) return false;
-		const hw = tipBox[0];
-		moteSim.releaseAll();
 		moteSim.setPoints(sortX, sortY, tipShown.points);
 		moteSim.offset = tipShown.offset0;
 		msg.index = index;
 		msg.mode = tipShown.mode;
 		msg.t0 = now;
 		msg.tLand = now + TIPS.gatherMs;
-		// "come together to form the sentence": every point inside the box takes a mote from anywhere in the swarm
-		let k = 0;
-		for (; k < moteSim.points; k += 1) {
-			const sx = moteSim.px[k] + moteSim.offset;
-			if (sx > hw) break;
-			if (sx >= -hw) moteSim.bind(k, now, TIPS.gatherMs * (1 - TIPS.gatherJitter * Math.random()), false);
-		}
-		msg.nextIn = k;
+		// "When they form into words, have it as a lower transition": the whole galaxy spirals into the part on show
+		moteSim.windowOf(win);
+		moteSim.gather(win.k0, win.k1, now, TIPS.gatherMs, TIPS.gatherJitter);
 		if (msg.mode === 'scroll') {
 			msg.dist = tipShown.offset0 - tipShown.offset1;
 			msg.v = (TIPS.scrollEmPerSec * tipShown.font) / 1000;
@@ -776,70 +780,59 @@
 		msg.scrollDone = false;
 		const v = visibleStrip();
 		buildTipMesh(v.x0, v.x1, v.u0, v.u1);
-		// "the crisp text fades in as they land"; the crest goes while a line is up
-		fadeTo(tipFade, 1, TIPS.textInMs, TIPS.textInStartMs);
-		if (!tipRun.crestOut) {
-			tipRun.crestOut = true;
-			fadeTo(crestFade, 0, BOARD_PLAQUE.crestOutMs);
-		}
-		moteSim.dimTo = MOTES.textDim;
+		// "the crisp text fades in as they land"
+		fadeTo(tipFade, 1, TIPS.textInMs, TIPS.textInStartMs, now);
 		tipRun.phase = 'form';
 		tipRun.index = index;
 		tipNote('gather', index, msg.mode);
 		return true;
 	};
-	/** "explode back into particles": the motes on the line fly out, the text goes, the crest comes back */
+	/** "keep it as an explosion on the way out": the part on show bursts into the motes, the text goes */
 	const burstLine = (now: number) => {
 		const [, top, bot] = tipBox;
 		const v = visibleStrip();
-		moteSim.burst((v.x0 + v.x1) / 2, (top + bot) / 2);
-		fadeTo(tipFade, 0, TIPS.burstTextMs);
-		// the crest comes back once the text is gone ("the crest fades only while text is up"), under the flying motes
-		if (tipRun.crestOut) {
-			tipRun.crestOut = false;
-			fadeTo(crestFade, 1, BOARD_PLAQUE.crestBackMs, TIPS.burstTextMs);
-		}
-		moteSim.dimTo = 1;
+		moteSim.windowOf(win);
+		moteSim.burst(win.k0, win.k1, (v.x0 + v.x1) / 2, (top + bot) / 2, now);
+		fadeTo(tipFade, 0, TIPS.burstTextMs, 0, now);
 		msg.hold = false;
 		tipRun.phase = 'burst';
 		tipRun.t = now + TIPS.burstMs;
 		tipNote('burst', msg.index, msg.mode);
 	};
 	/** a line on show cut short (a new layout, a DEV ask): the motes let go, the text out at once */
-	const cutLine = () => {
-		moteSim.releaseAll();
-		fadeTo(tipFade, 0, 0);
+	const cutLine = (now: number) => {
+		moteSim.releaseAll(now);
+		fadeTo(tipFade, 0, 0, 0, now);
 		tips.alpha = 0;
 		tips.visible = false;
 		msg.hold = false;
 	};
-	/** a scrolling line: where it is, the next letters fed from the swarm at the right end, its mesh window */
+	/** a scrolling line: where it is, its mesh window (nothing follows it: r3 "a weird particle following effect there
+	 *  on side scroll that should be removed") */
 	const stepScroll = (now: number) => {
-		const hw = tipBox[0];
 		let tau = now - msg.tScroll0;
 		if (msg.freezeMs >= 0) tau = Math.min(tau, msg.freezeMs);
 		moteSim.offset = tipShown.offset0 - scrollAt(tau, msg.dist, msg.v, msg.scrollMs, msg.ramp);
-		if (tau > 0 && !msg.scrolling) {
+		if (tau > 0 && !msg.scrolling && msg.dist > 0) {
 			msg.scrolling = true;
 			tipNote('scroll', msg.index);
 		}
-		if (tau >= msg.scrollMs && !msg.scrollDone) {
+		if (tau >= msg.scrollMs && msg.scrolling && !msg.scrollDone) {
 			msg.scrollDone = true;
 			tipNote('scrollEnd', msg.index);
-		}
-		// a point that will be inside the box feedMs from now takes the free mote nearest it
-		let tauF = tau + TIPS.feedMs;
-		if (msg.freezeMs >= 0) tauF = Math.min(tauF, msg.freezeMs);
-		const offF = tipShown.offset0 - scrollAt(tauF, msg.dist, msg.v, msg.scrollMs, msg.ramp);
-		while (msg.nextIn < moteSim.points && moteSim.px[msg.nextIn] + offF <= hw) {
-			moteSim.bind(msg.nextIn, now, TIPS.feedMs, true);
-			msg.nextIn += 1;
 		}
 		const v = visibleStrip();
 		buildTipMesh(v.x0, v.x1, v.u0, v.u1);
 	};
+	/** while a line is up, after its motes have landed and faded, no mote is drawn ("No particles while words are
+	 *  displayed except intro/outro") */
+	const motesResting = (now: number) => tipRun.phase === 'form' && msg.landed && now >= msg.tLand + MOTES.onFadeMs + 50;
 	let lastTipNow = 0;
-	const tipTick = (now: number) => {
+	const tipTick = (realNow: number) => {
+		// the tips' clock
+		clock.now = clock.real ? clock.now + (realNow - clock.real) / slow : realNow;
+		clock.real = realNow;
+		const now = clock.now;
 		if (!face.asked && typeof document !== 'undefined' && document.fonts) {
 			face.asked = true;
 			const done = () => {
@@ -851,16 +844,11 @@
 		// the figures first: not while they are up or still fading out (the start delay counts from them gone)
 		const want = ready && (idleNow || devHold || tipPending !== null) && !showing && figFade.v <= 0.001 && forced === null;
 		if (ready && tipNeed.layout) {
-			// a new layout: a line on show is let go (the motes stay, inside the new box), the motes sized for it
+			// a new layout: a line on show is let go, the motes sized for it
 			tipNeed.layout = false;
 			placeMotes();
 			if (tipRun.phase === 'form' || tipRun.phase === 'burst') {
-				cutLine();
-				if (tipRun.crestOut) {
-					tipRun.crestOut = false;
-					fadeTo(crestFade, 1, BOARD_PLAQUE.crestBackMs);
-				}
-				moteSim.dimTo = 1;
+				cutLine(now);
 				tipRun.phase = 'drift';
 				tipRun.base = now;
 				tipRun.t = now + pace.firstMs;
@@ -872,14 +860,9 @@
 				tipNote(tipRun.phase === 'wait' ? 'cancel' : 'hide', tipRun.index);
 				tipRun.phase = 'off';
 				tipRun.slot = 0;
-				fadeTo(tipFade, 0, TIPS.hideMs);
-				fadeTo(moteFade, 0, TIPS.hideMs);
-				moteSim.dimTo = 1;
+				fadeTo(tipFade, 0, TIPS.hideMs, 0, now);
+				fadeTo(moteFade, 0, TIPS.hideMs, 0, now);
 				msg.hold = false;
-				if (tipRun.crestOut) {
-					tipRun.crestOut = false;
-					if (!showing && forced === null) fadeTo(crestFade, 1, BOARD_PLAQUE.crestBackMs);
-				}
 			}
 		} else if (tipRun.phase === 'off') {
 			tipRun.phase = 'wait';
@@ -887,10 +870,10 @@
 			tipNote('wait', -1);
 		} else if (tipRun.phase === 'wait') {
 			if (now >= tipRun.t) {
-				// the motes come in, fresh in the box; the first line of the spell firstMs after
-				moteSim.scatter();
+				// the galaxy comes in; the first line of the spell firstMs after
+				moteSim.scatter(now);
 				placeMotes();
-				fadeTo(moteFade, 1, TIPS.motesInMs);
+				fadeTo(moteFade, 1, TIPS.motesInMs, 0, now);
 				tipRun.phase = 'drift';
 				tipRun.base = now;
 				tipRun.t = now + TIPS.motesInMs + pace.firstMs;
@@ -899,7 +882,7 @@
 		} else if (tipPending !== null) {
 			const ask = tipPending;
 			tipPending = null;
-			if (tipRun.phase === 'form' || tipRun.phase === 'burst') cutLine();
+			if (tipRun.phase === 'form' || tipRun.phase === 'burst') cutLine(now);
 			devHold = ask.hold;
 			if (!startLine(now, ask.index, ask.mode, ask.hold, ask.holdAt, ask.fontCss)) tipRun.phase = 'drift';
 		} else if (tipRun.phase === 'drift') {
@@ -912,11 +895,11 @@
 			}
 		} else if (tipRun.phase === 'form') {
 			if (msg.mode === 'scroll') stepScroll(now);
-			if (!msg.hold && now >= msg.tBurst) burstLine(now);
-			else if (!msg.landed && now >= msg.tLand) {
+			if (!msg.landed && now >= msg.tLand) {
 				msg.landed = true;
 				tipNote('land', msg.index, msg.mode);
 			}
+			if (!msg.hold && now >= msg.tBurst) burstLine(now);
 		} else if (tipRun.phase === 'burst') {
 			if (now >= tipRun.t) {
 				// "every 10 s, measured from the end of the previous message"
@@ -932,13 +915,13 @@
 		tips.visible = ta > 0.001;
 		const ma = stepFade(moteFade, now);
 		if (moteLayer.alpha !== ma) moteLayer.alpha = ma;
-		moteLayer.visible = motesOn && ma > 0.001;
+		moteLayer.visible = motesOn && ma > 0.001 && !motesResting(now);
 		// the motes move only while they show
 		const dt = lastTipNow ? Math.min(0.05, (now - lastTipNow) / 1000) : 0;
 		lastTipNow = now;
 		if (moteLayer.visible) {
 			const c0 = import.meta.env.DEV ? performance.now() : 0;
-			moteSim.step(dt, now, tipRun.phase === 'form' && msg.mode === 'scroll' && msg.scrolling);
+			moteSim.step(dt, now);
 			drawMotes();
 			if (import.meta.env.DEV) {
 				const d = performance.now() - c0;
@@ -1015,7 +998,8 @@
 		if (figures.alpha !== alpha) figures.alpha = alpha;
 		figures.visible = alpha > 0.001;
 		if (crest.alpha !== ca) crest.alpha = ca;
-		crest.visible = ca > 0.001;
+		// "Remove the icon in the middle of that board" (r3, 10:17): PLAQUE_TIPS.crest false, never drawn
+		crest.visible = TIPS.crest && ca > 0.001;
 		let s = 1;
 		if (bump.t0 >= 0) {
 			const u = (now - bump.t0) / bump.ms;
@@ -1150,6 +1134,7 @@
 						idle: idleNow,
 						showing,
 						crestAlpha: +crest.alpha.toFixed(3),
+						crestVisible: crest.visible,
 						faceReady: face.ready,
 						faceLoaded: typeof document !== 'undefined' ? document.fonts.check(TIPS.fontCheck) : null,
 						order: root.children.map((c) => c.label || 'Sprite'),
@@ -1169,7 +1154,10 @@
 							: [],
 						scroll: on && tipShown.mode === 'scroll' ? { offset: +off.toFixed(2), offset0: +tipShown.offset0.toFixed(2), offset1: +tipShown.offset1.toFixed(2), dist: +msg.dist.toFixed(2), ms: Math.round(msg.scrollMs), emPerSec: TIPS.scrollEmPerSec, cssPerSec: +(msg.v * 1000 * tipShown.kCss).toFixed(1), scrolling: msg.scrolling, done: msg.scrollDone } : null,
 						times: on ? { t0: msg.t0, tLand: msg.tLand, tScroll0: msg.mode === 'scroll' ? msg.tScroll0 : null, tBurst: msg.tBurst, hold: msg.hold } : null,
-						next: tipRun.phase === 'drift' || tipRun.phase === 'wait' ? Math.round(tipRun.t - performance.now()) : null,
+						next: tipRun.phase === 'drift' || tipRun.phase === 'wait' ? Math.round(tipRun.t - clock.now) : null,
+						/** the tips' clock (ms; performance.now unless slowed) */
+						clock: clock.now,
+						slow,
 						motes: {
 							n: MOTE_N,
 							phoneTier: PHONE_TIER,
@@ -1179,10 +1167,13 @@
 							lit,
 							meanAlpha: lit ? +(sumA / lit).toFixed(3) : 0,
 							outside,
-							bound: moteSim.bound(),
-							free: moteSim.freeCount,
+							/** drawn by the sim (alpha over 0.003) at its last step, and whether the layer rests (a line up) */
+							simLit: moteSim.lit,
+							resting: motesResting(clock.now),
 							points: moteSim.points,
-							dim: +moteSim.dim.toFixed(3),
+							/** the size scale for this screen and the sizes on screen, CSS px */
+							scale: +moteScale.toFixed(3),
+							sizeCss: MOTES.sizeCss.map((v) => +(v * moteScale).toFixed(2)),
 							blend: moteLayer.blendMode,
 							texture: { label: moteTex.label ?? null, w: moteTex.source.pixelWidth, h: moteTex.source.pixelHeight, uid: moteTex.source.uid },
 							perf: { ...moteStat.last },
@@ -1206,9 +1197,9 @@
 				plaqueTipsForce: (i: number | null) => {
 					if (i === null) {
 						if (msg.hold) {
+							// it bursts where it stands (a held scroll stays at its stop)
 							msg.hold = false;
-							msg.freezeMs = -1;
-							msg.tBurst = Math.min(msg.tBurst, performance.now());
+							msg.tBurst = Math.min(msg.tBurst, clock.now);
 						}
 						return;
 					}
@@ -1220,6 +1211,10 @@
 					pace.firstMs = p?.firstMs ?? TIPS.firstMs;
 					// a wait under way is counted again from its start with the new numbers
 					if (tipRun.phase === 'drift') tipRun.t = tipRun.base + (tipRun.slot === 0 ? TIPS.motesInMs + pace.firstMs : pace.gapMs);
+				},
+				/** the tips' clock runs `k` times slower (4: the quarter speed close-up); 1 is real time */
+				plaqueTipsSlow: (k: number) => {
+					slow = Math.max(1, k);
 				},
 				/** the motes drawn (true) or not (false), for the cost A / B */
 				plaqueMotes: (on: boolean) => {
