@@ -494,6 +494,10 @@
 						/** the last ticker frame, ms (0 until the plaque has ticked) */
 						frameMs: Number(frameMs.toFixed(2)),
 						textures: (context.stateApp.pixiApplication?.renderer as any)?.texture?.managedTextures?.length ?? null,
+						/** every texture on the GPU as `uid:label:w x h` (r4: which one a cycle adds, if any) */
+						textureList: (((context.stateApp.pixiApplication?.renderer as any)?.texture?.managedTextures ?? []) as PIXI.TextureSource[]).map(
+							(s) => `${s.uid}:${s.label ?? ''}:${(s.resource as { src?: string } | null)?.src?.split('/').pop()?.split('?')[0] ?? ''}:${s.pixelWidth}x${s.pixelHeight}`,
+						),
 					}),
 				},
 			});

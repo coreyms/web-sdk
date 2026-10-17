@@ -21,7 +21,17 @@ in a bright treatment that holds on the current marble and on a darker black iro
             r3 (Corey 2026-10-17 13:11 "they look really dark and blurry"): each emblem has its own size and lean
             (EMBLEMS, = game/constants.ts BIG_TITLE.intro.emblem), fitted to the clear marble beside the title, and
             the lean is BAKED (rotated once from the 640 px hero, premultiplied, then resized once to the drawn size),
-            so the game draws the frame 1:1 at the plaque's density with no runtime rotation or scale resample
+            so the game draws the frame 1:1 at the plaque's density with no runtime rotation or scale resample.
+            r4 (Corey 2026-10-17 17:13 "perhaps we should use the actual board symbols because they are already
+            brighter, with some soft glow"): the art is now the BOARD's own symbol, the frame a resting cell shows
+            (static/assets/sprites/mmSymbols/<code>-idle.webp frame <code>-idle-000, the FULL tier, 256 px cells: S the
+            War Standard, M2 the dagger, H1 the crown), which carries the symbol packer's style step (the masters do
+            not). The Armoury hero files are no longer read. Behind the art a soft glow in the mode's colour is BAKED
+            into the same frame (no runtime filter): the art's silhouette plus a soft pool over its box, blurred so it
+            falls off radially to about `reach` x the emblem's height past the art, at `alpha` at most. Both tiers
+            are baked from the full-tier art at their own density (2 and 3/2 texels per ship px), so a phone is never
+            upscaled from a half-size copy. The sizes, leans, places and glow numbers are READ from
+            game/constants.ts (BIG_TITLE.intro.emblem and .emblemGlow), so the two never disagree
 
 Two looks (the DEV / staging switch ?bwtitle=2|3, game/stinger/bigTitle.ts):
   forge   (2)  white to gold to deep amber, one dark outline
@@ -41,6 +51,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -54,7 +65,8 @@ HERE = Path(__file__).resolve().parent
 APP = HERE.parent
 OUT = APP / "static" / "assets" / "ui" / "bigwin"
 SPEC_TS = APP / "src" / "game" / "stinger" / "bigTitleSpec.ts"
-ARMOURY = APP / "static" / "assets" / "ui" / "armoury"
+SYMBOLS = APP / "static" / "assets" / "sprites" / "mmSymbols"
+CONSTANTS_TS = APP / "src" / "game" / "constants.ts"
 
 EM = bpt.TITLE_EM  # 228 px: the masks are drawn at 3x of a 76 px em, as the plaque's own titles are
 # texture px per ship px: the stinger build's PLAQUE tiers (build_stinger_assets.TIERS[*]["plaque"]), checked in main()
@@ -70,17 +82,28 @@ BAKE_CAP = {"win": 54, "total": 42, "intro": 34}
 WINS = {k: v[0] for k, v in bpt.TITLES.items() if k.startswith("win_")}
 TOTAL = {"total_win": bpt.TITLES["total_win"][0]}
 INTROS = {k: v[0] for k, v in bpt.TITLES.items() if k.startswith("intro_")}
-# the intro emblems: (Armoury hero file, the art's UPRIGHT height in ship px, the lean in radians, + = counter-clockwise,
-# the top toward the title on the RIGHT emblem; the game mirrors the left one). Must equal game/constants.ts
-# BIG_TITLE.intro.emblem[mode].h / .tilt (view.ts warns on the dev server when the baked frame disagrees).
-# r3 (2026-10-17): fitted to the clear marble beside the title (feedback/bigwin_title_r3/tools/fit_emblems.py): the War
-# Standard 96, the dagger 89 stood nearly upright (0.55) in the strip beside the title and the first copy row, the
-# crown 77 (r2: all three 100 px, upright art, leaned at runtime, half over the side pillars)
-EMBLEMS = {
-    "emblem_bonus": ("hero-standard.webp", 96, 0.12),
-    "emblem_super": ("hero-dagger.webp", 89, 0.55),
-    "emblem_epic": ("hero-crown.webp", 77, 0.12),
-}
+# the intro emblems (r4): the board symbol's resting frame, full tier (sheet, frame). The size (the UPRIGHT art's height
+# in ship px), the lean (radians, + = counter-clockwise, the top toward the title on the RIGHT emblem; the game mirrors
+# the left one) and the glow come from game/constants.ts BIG_TITLE.intro (read_intro_constants), fitted to the clear
+# marble beside the title by feedback/bigwin_title_r4/tools/fit_emblems_r4.py
+EMBLEM_SRC = {"bonus": ("s-idle", "s-idle-000"), "super": ("m2-idle", "m2-idle-000"), "epic": ("h1-idle", "h1-idle-000")}
+
+
+def read_intro_constants() -> tuple[dict[str, dict[str, float]], dict]:
+    """BIG_TITLE.intro.emblem[mode] {h, tilt, x, y} and BIG_TITLE.intro.emblemGlow from game/constants.ts"""
+    src = CONSTANTS_TS.read_text()
+    block = src[src.index("export const BIG_TITLE = {") :]
+    block = block[: block.index("} as const;")]
+    em = block[block.index("emblem: {") : block.index("emblemGlow: {")]
+    num = r"(-?[\d.]+)"
+    boxes = {m: dict(zip("h tilt x y".split(), map(float, g))) for m, *g in re.findall(rf"(bonus|super|epic): {{ h: {num}, tilt: {num}, x: {num}, y: {num} }}", em)}
+    gl = block[block.index("emblemGlow: {") :]
+    gl = gl[: gl.index("\n\t\t},")]
+    glow = {k: float(re.search(rf"\b{k}: {num}", gl).group(1)) for k in ("reach", "alpha", "pool", "gain", "soft")}
+    glow["color"] = {m: int(c, 16) for m, c in re.findall(r"(bonus|super|epic): 0x([0-9a-fA-F]{6})", gl)}
+    assert set(boxes) == set(EMBLEM_SRC) == set(glow["color"]), (boxes, glow)
+    return boxes, glow
+
 
 # gradient stops (position over the cap band, 0 = cap top, 1 = baseline; RGB)
 GOLD = {
@@ -149,19 +172,55 @@ def bake_title(face: bpt.Face, text: str, stops, outline) -> tuple[Image.Image, 
     return img.crop(box), meta
 
 
-# the faintest alpha that counts as the picture when it is cropped (the hero files carry a soft transparent margin)
+# the faintest alpha that counts as the picture when it is cropped
 EMBLEM_CROP_ALPHA = 2
 
 
-def bake_emblem(file: str, tilt: float) -> tuple[Image.Image, int]:
-    """the Armoury's hero picture as the menu shows it, leaned by `tilt` radians (counter-clockwise) and cropped to its
-    art: no rim, no shadow, no tint. Returns the image and the UPRIGHT art's height (what the drawn height is of)"""
-    src = Image.open(ARMOURY / file).convert("RGBA")
-    crop = lambda im: im.crop(im.getchannel("A").point(lambda v: 255 if v >= EMBLEM_CROP_ALPHA else 0).getbbox())
-    upright = crop(src)
+def symbol_frame(mode: str) -> Image.Image:
+    """the board symbol's resting frame, full tier, as the board shows it"""
+    sheet, frame = EMBLEM_SRC[mode]
+    f = json.loads((SYMBOLS / f"{sheet}.json").read_text())["frames"][frame]["frame"]
+    return Image.open(SYMBOLS / f"{sheet}.webp").convert("RGBA").crop((f["x"], f["y"], f["x"] + f["w"], f["y"] + f["h"]))
+
+
+def _crop(im: Image.Image) -> Image.Image:
+    return im.crop(im.getchannel("A").point(lambda v: 255 if v >= EMBLEM_CROP_ALPHA else 0).getbbox())
+
+
+def leaned_art(mode: str, tilt: float) -> tuple[Image.Image, int]:
+    """the symbol leaned by `tilt` radians (counter-clockwise) and cropped to its art, and the UPRIGHT art's height"""
+    upright = _crop(symbol_frame(mode))
     # rotated premultiplied (RGBa), so the transparent margin's colour never fringes the edge
     leaned = upright.convert("RGBa").rotate(float(np.degrees(tilt)), resample=Image.BICUBIC, expand=True).convert("RGBA")
-    return crop(leaned), upright.height
+    return _crop(leaned), upright.height
+
+
+def bake_emblem(mode: str, box: dict[str, float], glow: dict) -> tuple[Image.Image, int]:
+    """the leaned symbol over its soft mode-coloured glow, in source px. The frame is the art's box padded by the glow's
+    reach on every side (so the frame's centre is the art's centre). Returns the image and the upright art's height"""
+    art, upright_h = leaned_art(mode, box["tilt"])
+    reach = glow["reach"] * upright_h  # source px: reach x the emblem's (upright) height
+    pad = int(np.ceil(reach))
+    W, H = art.width + 2 * pad, art.height + 2 * pad
+    a = np.zeros((H, W, 4), np.float32)
+    a[pad : pad + art.height, pad : pad + art.width] = np.asarray(art, np.float32) / 255
+    sil = a[..., 3]
+    # the glow's source: the silhouette, and a softer pool over the art's box (an ellipse through its box) so a thin
+    # piece (the dagger's blade) still lifts; blurred so it falls to about 1 % at `reach` past the art and never
+    # draws a ring (it is a filled pool, brightest behind the art)
+    yy, xx = np.mgrid[0:H, 0:W]
+    ax, ay = art.width / 2, art.height / 2
+    ell = (((xx + 0.5 - W / 2) / ax) ** 2 + ((yy + 0.5 - H / 2) / ay) ** 2) <= 1
+    body = np.maximum(sil, glow["pool"] * ell)
+    g = np.clip(ndi.gaussian_filter(body, reach / 2.5) * glow["gain"], 0, 1) ** glow["soft"]
+    ga = glow["alpha"] * g
+    c = glow["color"][mode]
+    rgb = np.array([(c >> 16) & 255, (c >> 8) & 255, c & 255], np.float32) / 255
+    # the art over the glow (premultiplied over), back to straight alpha
+    out_a = sil + ga * (1 - sil)
+    out_pm = a[..., :3] * sil[..., None] + rgb * (ga * (1 - sil))[..., None]
+    out = np.concatenate([out_pm / np.maximum(out_a, 1e-6)[..., None], out_a[..., None]], -1)
+    return Image.fromarray((np.clip(out, 0, 1) * 255 + 0.5).astype(np.uint8), "RGBA"), upright_h
 
 
 def to_ship(img: Image.Image, scale: float) -> np.ndarray:
@@ -183,7 +242,8 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     chars = "".join(sorted({c for d in (WINS, TOTAL, INTROS) for t in d.values() for c in t}))
     face = bpt.Face(bpt.MACONDO, EM, chars)
-    emblems = {name: (*bake_emblem(f, tilt), h) for name, (f, h, tilt) in EMBLEMS.items()}
+    boxes, glow = read_intro_constants()
+    emblems = {f"emblem_{m}": (*bake_emblem(m, b, glow), b["h"]) for m, b in boxes.items()}
     spec: dict[str, dict[str, list[float]]] = {}
     report = []
     for look in GOLD:

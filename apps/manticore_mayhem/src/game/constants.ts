@@ -1411,6 +1411,20 @@ export const STINGER_PLAQUE = {
 //             frame 1:1 (no runtime rotation or rescale); `x`, `y` the frame centre for the RIGHT emblem (the left one is
 //             its mirror), x from the panel centre, y in ship px from the panel top. Full alpha with the plaque (its
 //             entrance and exit fade only), no tint, normal blend, over every plaque layer
+//             r4 (Corey 2026-10-17 17:13 "perhaps we should use the actual board symbols because they are already
+//             brighter, with some soft glow"): the art is the BOARD's own symbol at rest (S, M2, H1: the full-tier
+//             <code>-idle-000 frame), refitted to r3's boxes and gaps as large as each allows (feedback/bigwin_title_r4/
+//             tools/fit_emblems_r4.py): the War Standard 96.5, the dagger 93.5 leaned 0.5 (the board draws it at about
+//             45 degrees, so this stands it nearly upright), the crown 69 (wider than the Armoury's, so shorter).
+//             tools/build_bigwin_titles.py READS these numbers and emblemGlow from this file
+//   emblemGlow the soft glow BAKED behind each intro emblem, in its frame (no runtime filter): the art's silhouette plus
+//             a pool over its box (`pool` = that pool's strength, so a thin blade still lifts), blurred so it falls off
+//             radially to about 1 % at `reach` x the emblem's height `h` past the art (the blur's sigma is reach / 2.5);
+//             `alpha` its peak, reached behind a solid part of the art (`gain` x the blur, capped at 1, x alpha: at the
+//             outline of a broad part about half of it, 0.4, then falling away; 1 with no plateau, so it reads as a
+//             soft lift and not a ring or a sticker; r4 tried gain 2 / alpha 0.55, which made a flat box), `soft` the
+//             falloff's power (1 = the blur's own), `color` the mode's (the molten intro title's 0.7 stop: Bonus teal,
+//             Super blue, Epic fire). The frame is padded by the reach on every side, so its centre stays the art's
 //   rim       look 1 only: `steps` dark copies (colour `color`) in a ring `px` (at a 50 px cap) around the title, the
 //             ring dropped by dropShare of px (a shadow), and an additive copy at liftAlpha over the face
 //   modeTint  look 1 only: the multiply on the gold intro titles (looks 2 and 3 bake the mode colours)
@@ -1423,9 +1437,17 @@ export const BIG_TITLE = {
 		titleCy: 0.18,
 		titleMax: { bonus: 424, super: 424, epic: 392 },
 		emblem: {
-			bonus: { h: 96, tilt: 0.12, x: 247, y: 54.5 },
-			super: { h: 89, tilt: 0.55, x: 260, y: 64.5 },
-			epic: { h: 77, tilt: 0.12, x: 250.5, y: 45 },
+			bonus: { h: 96.5, tilt: 0.12, x: 248, y: 53.5 },
+			super: { h: 93.5, tilt: 0.5, x: 260, y: 64 },
+			epic: { h: 69, tilt: 0.12, x: 250.5, y: 43.5 },
+		},
+		emblemGlow: {
+			reach: 0.3,
+			alpha: 0.8,
+			pool: 0.4,
+			gain: 1,
+			soft: 1,
+			color: { bonus: 0x46cec2, super: 0x88b6ff, epic: 0xff7c54 },
 		},
 	},
 	rim: { steps: 8, px: 3, color: 0x120904, dropShare: 0.5, liftAlpha: 0.45 },
