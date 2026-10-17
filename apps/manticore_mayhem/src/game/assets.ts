@@ -3,6 +3,7 @@ import stamps, { fileBytes } from './assetStamp';
 import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
+import { LOAD_GATE } from './constants';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
 // waits for that worker's first message with no error path. Behind a CSP whose worker-src has no
@@ -73,7 +74,8 @@ const skyAtBoot = sceneAtBoot || portraitSceneAtBoot;
 // the base game draws in its first seconds. `preload: false` keeps downloading behind the game.
 //
 // The static symbol atlas, the backdrop, numerals and audio manifests preload; the symbol drop and
-// idle sheets (4.4 MB phone tier, 13.6 MB full) ride the deferred phase (game/assetGate.ts).
+// idle sheets (4.4 MB phone tier, 13.6 MB full) are `preload: false` but are THE GATE (GATE_ORDER below, constants
+// LOAD_GATE): loaded once the audio is in and waited for by PRESS ANYWHERE, up to its cap.
 const assets = {
 	// the ten static symbol tiles (the approved handoff art, lossless), the x2..x128 multiplier
 	// overlays and one empty cell well (tools/pack_symbol_sheets.py rebuilds it)
@@ -87,8 +89,8 @@ const assets = {
 	},
 	// THE SYMBOL SHEETS (tools/pack_symbol_sheets.py, tools/SYMBOL_SHEETS.md): per symbol a drop
 	// sheet (plays from the landing contact) and an idle loop, 256 px cells with a 128 px phone twin.
-	// DEFERRED: they never gate the landing screen. Until they are in, every cell shows its static
-	// atlas frame (components/BoardCells.svelte). L2's idle is a single still and L3 has none, so
+	// Not in the Pixi preload: THE GATE (GATE_ORDER below) loads them after the audio and PRESS ANYWHERE waits for them
+	// up to LOAD_GATE.capMs. Until they are in, every cell shows its static atlas frame (components/BoardCells.svelte). L2's idle is a single still and L3 has none, so
 	// neither is loaded (constants SYMBOL_ANIM). Frame names <code>-drop-000 / <code>-idle-000.
 	mmDrop_l1: {
 		type: 'sprites',
@@ -455,6 +457,18 @@ const assets = {
 	logoStill: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-stacked.webp', import.meta.url).href), preload: true },
 	logoGlint: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-stacked-glint.webp', import.meta.url).href), preload: true },
 	logoAtlas: { type: 'sprites', src: stamp(new URL('../../assets/ui/logo/logo.json', import.meta.url).href), preload: false },
+	// THE CREATURE'S STILL (first-minute plan D, constants CREATURE.restHeldAfter; tools/build_creature_still.py): his idle
+	// loop's first frame and its shadow, one small atlas per tier (45 KB, 25 KB on the phone tier), in the FIRST download
+	// so he stands in the courtyard from the game's first frame (game/creature.ts setStill, components/Background.svelte).
+	// His sheets themselves are not in this table (game/creatureAssets.ts says why).
+	creatureStill: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/creature/still/creature-day-still.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/creature/still/creature-day-still-phone.json', import.meta.url).href),
+		),
+		preload: true,
+	},
 	sound: {
 		type: 'audio',
 		src: stamp(new URL('../../assets/audio/sounds.json', import.meta.url).href),
@@ -580,10 +594,18 @@ if (phoneOnlyScreen()) {
 	}
 }
 
-// THE DEFERRED PHASE'S ORDER (game/deferredLoad.ts loads these groups one after another and publishes each
-// as it lands; pixi-svelte's AssetsLoader then finishes with whatever is left: the other layouts' art).
-//   plaque  the win plaque's five atlases: a Big Win or a feature intro can come on the first spin, and
-//           used to wait behind every symbol sheet
+// THE GATE AND THE DEFERRED PHASE'S ORDER (first-minute plan D, Corey 2026-10-16 17:21; constants LOAD_GATE).
+// THE GATE: game/deferredLoad.ts loadGate starts these the moment the audio is in (LOAD_GATE.besideAudioFiles), one group
+// after another, each published as it lands, and PRESS ANYWHERE waits for them (ui/LandingScreen.svelte; never more than
+// LOAD_GATE.capMs after the audio is ready):
+//   plaque  the win plaque's five atlases (+ its two data files): a Big Win or a feature intro can come on the first
+//           spin (game/assetGate.ts)
+//   drop    the symbols' drop sheets (a landing plays one on every spin)
+//   idle    the symbols' idle loops (until a symbol's sheets are in, its cells are frozen on the static tile)
+//   (LOAD_GATE.scatter false: the scatter's two sheets leave the gate for a group of their own straight after it)
+// THEN, once the gate and the audio are in (game/deferredLoad.ts loadDeferredInOrder): the creature's idle sheet and his
+// attacks (game/creatureLoad.ts, not in this table), then DEFERRED_ORDER below, then his alternates; pixi-svelte's
+// AssetsLoader then finishes with whatever is left (the other layouts' art), and the Armoury's core is last of all.
 //   night   the boot layout's courtyard scene's night backdrop and foreground (Super and Epic; landscape 0.87 MB,
 //           0.45 MB on the phone tier; portrait 0.34 MB, 0.16 MB):
 //           a Super or Epic feature can be bought on the first spin, and until these are in it plays over the day
@@ -594,28 +616,39 @@ if (phoneOnlyScreen()) {
 //   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips (game/flames.ts; 0.68 and 1.14 MB, 0.50 and
 //           0.89 MB on the phone tier; none when the game booted in portrait), one group each so each is uploaded by
 //           itself when it lands: until then that mode's braziers keep the base clip burning.
-//   logo    the canvas logo's atlas, with its tracks (desktop tier only, 0.35 MB). Normally in before this
-//           phase starts (deferredLoad.ts loadLogoEarly); here it is the fallback, after the plaque
+//   logo    the canvas logo's atlas, with its tracks (desktop tier only, 0.35 MB). Normally in long before this
+//           (deferredLoad.ts loadLogoEarly starts it when the preload ends); here it is the fallback
 //   labels  the cluster label caps that were not preloaded (the one this screen needs already is; these
-//           are for a resize or a rotation, so they follow the plaque rather than hold it up: 0.5 MB)
-//   drop    the symbols' drop sheets (a landing plays one on every spin)
-//   idle    the symbols' idle loops
+//           are for a resize or a rotation: 0.5 MB)
 const deferredKeys = (prefix: string) =>
 	Object.entries(assets as unknown as Record<string, { preload?: boolean }>)
 		.filter(([key, entry]) => key.startsWith(prefix) && !entry.preload)
 		.map(([key]) => key);
-export const DEFERRED_ORDER: { name: 'plaque' | 'night' | 'frameNight' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels' | 'drop' | 'idle'; keys: string[] }[] = [
+const SCATTER_SHEETS = ['mmDrop_s', 'mmIdle_s'];
+const notScatter = (keys: string[]) => (LOAD_GATE.scatter ? keys : keys.filter((key) => !SCATTER_SHEETS.includes(key)));
+export type LoadGroupName = 'plaque' | 'drop' | 'idle' | 'scatter' | 'night' | 'frameNight' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels';
+export const GATE_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
+	{ name: 'drop', keys: notScatter(deferredKeys('mmDrop_')) },
+	{ name: 'idle', keys: notScatter(deferredKeys('mmIdle_')) },
+];
+export const DEFERRED_ORDER: { name: LoadGroupName; keys: string[] }[] = [
+	// the cheaper variant's scatter sheets (empty, so skipped, while they are in the gate)
+	{ name: 'scatter', keys: LOAD_GATE.scatter ? [] : SCATTER_SHEETS.filter((key) => key in assets) },
 	{ name: 'night', keys: [...SCENE_KEYS[SCENE_AT_BOOT].night] },
 	{ name: 'frameNight', keys: FRAME_NIGHT_KEYS(bootLayout) },
 	{ name: 'flameSuper', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(0, 1) },
 	{ name: 'flameEpic', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(1) },
 	{ name: 'logo', keys: deferredKeys('logoAtlas') },
 	{ name: 'labels', keys: deferredKeys('labelGlyphs') },
-	{ name: 'drop', keys: deferredKeys('mmDrop_') },
-	{ name: 'idle', keys: deferredKeys('mmIdle_') },
 ];
 /** the plaque cannot build without ALL of these (they publish together or not at all) */
 export const PLAQUE_ATLAS_KEYS = deferredKeys('stinger');
+/** one gate file's download size, bytes (an atlas counts its json and its picture: scripts/stamp-assets.mjs fileBytes) */
+export const gateFileBytes = (key: string): number => (assets as unknown as Record<string, { bytes?: number }>)[key]?.bytes ?? 0;
+/** THE GATE's download size, bytes (its atlases + the plaque's two data files): the loading bar (ui/LandingScreen.svelte)
+ *  and the splash's share of the one loading scale (game/boot.svelte.ts) weigh it against the audio */
+export const GATE_BYTES: number =
+	GATE_ORDER.flatMap((g) => g.keys).reduce((n, key) => n + gateFileBytes(key), 0) + (bytesFor(STINGER_DATA_URLS.json) ?? 0) + (bytesFor(STINGER_DATA_URLS.bin) ?? 0);
 
 export default assets;

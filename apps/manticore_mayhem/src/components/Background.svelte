@@ -310,6 +310,14 @@
 	$effect(() => {
 		creature.mode(family);
 	});
+	// HIS STILL (first-minute plan D; game/assets.ts creatureStill, game/creature.ts setStill): the first download's picture
+	// of him stands in the courtyard until his idle sheet lands. After the mode above, so a resumed Super or Epic, which
+	// has no still of its look, does not take it.
+	$effect(() => {
+		const body = context.stateApp.loadedAssets?.creature_still_body as PIXI.Texture | undefined;
+		const shadow = context.stateApp.loadedAssets?.creature_still_shadow as PIXI.Texture | undefined;
+		if (body) untrack(() => creature.setStill(CREATURE.stillLook, body, shadow ?? null));
+	});
 	// A FEATURE'S LOOK AHEAD OF ITS MODE (game/creatureLoad.ts EARLY): an armed Super or Epic buy loads its look now, and
 	// a disarmed one lets it go
 	$effect(() => {

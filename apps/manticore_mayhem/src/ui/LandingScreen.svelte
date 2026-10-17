@@ -8,9 +8,14 @@
 	//
 	// THE CARDS ARE DECORATION. Nothing here waits for them: they are not in the landing-first phase
 	// (game/boot.svelte.ts) and not in the gate (`ready` below). Their files are asked for only when
-	// INTRO_CARD.armAfter says so (by default once the loading bar is done), each card fades in when the
-	// frame picture is decoded, a clip that will not play leaves its poster, and the press pauses every
+	// INTRO_CARD.armAfter says so (by default once the audio is in: they are read while THE GATE finishes), each card
+	// fades in when the frame picture is decoded, a clip that will not play leaves its poster, and the press pauses every
 	// clip and lets go of its file.
+	//
+	// THE GATE (first-minute plan D, Corey 2026-10-16 17:21; constants LOAD_GATE): PRESS ANYWHERE waits for the audio AND
+	// the win plaque's set and the symbols' sheets (game/deferredLoad.ts loadGate, after the audio), but never more than
+	// LOAD_GATE.capMs after the audio is ready; the bar counts the gate's bytes too. And never before the shell splash has
+	// cleared (game/boot.svelte.ts splashOut): a tap on the splash was lost.
 	// Pressing hands off to the Pixi transition via onpress (see components/LoadingScreen.svelte).
 	import { onMount, untrack } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
@@ -18,10 +23,12 @@
 	import { getContext } from '../game/context';
 	import { boot, releaseSplash, splashShare } from '../game/boot.svelte';
 	import { MASTER, layoutKind } from '../game/layoutSpec';
-	import { stamp } from '../game/assets';
+	import { GATE_BYTES, stamp } from '../game/assets';
+	import { bootSizes } from '../game/assetStamp';
+	import { loadGate } from '../game/loadGate.svelte';
 	import { sound } from '../game/sound';
 	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, INTRO_LOGO_SHINE_MS, introGatePctSize, introPlacement } from '../game/introCards';
-	import { INTRO_BODY_FIT } from '../game/constants';
+	import { INTRO_BODY_FIT, LOAD_GATE } from '../game/constants';
 	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, introBodyRuns, introSceneIndexAt } from '../game/introCardText';
 	import Shine from './Shine.svelte';
 
@@ -72,18 +79,13 @@
 	// stopped at `start` (its share of everything: bundle + landing images + the Pixi preload,
 	// game/boot.svelte.ts splashShare) and this bar carries on from there with the one thing still
 	// in flight — the audio (sfx sprite + base loop, byte progress from game/sound.ts).
+	// Since first-minute plan D the bar carries THE GATE too (game/loadGate.svelte.ts: its files' bytes as they land),
+	// weighed against the audio by bytes (scripts/stamp-assets.mjs bootSizes.audio, game/assets.ts GATE_BYTES).
 	const start = Math.round(splashShare() * 100);
-	const IMAGE_WEIGHT = 0;
-	const AUDIO_WEIGHT = 1;
 	const audioReady = $derived(sound.isReady);
-	// stateApp.loadingProgress now ticks once per settled asset promise (pixi-svelte AssetsLoader),
-	// so it moves continuously through the image phase; `loaded` still pins the readout to exactly
-	// 100 at the moment the phase closes, so rounding can never leave it at 99.
-	// the gate is the PRELOAD phase (game/assets.ts): the deferred keys keep downloading behind the game
-	const imageProgress = $derived(context.stateApp.preLoaded ? 100 : context.stateApp.loadingProgress);
-	const rawProgress = $derived(
-		Math.round(Math.min(100, start + (100 - start) * (imageProgress * IMAGE_WEIGHT + sound.progress * 100 * AUDIO_WEIGHT) / 100)),
-	);
+	const AUDIO_BYTES = bootSizes.audio;
+	const rest = $derived((sound.progress * AUDIO_BYTES + Math.min(loadGate.doneBytes, GATE_BYTES)) / Math.max(1, AUDIO_BYTES + GATE_BYTES));
+	const rawProgress = $derived(Math.round(Math.min(100, start + (100 - start) * rest)));
 	// high-water mark: the audio share restarts as the sprite hands off to the music player, and a
 	// bar that slips back reads as a hang (seen 60% -> 49% on the throttled probe, 2026-09-15)
 	let highWater = $state(0);
@@ -102,7 +104,24 @@
 	// off `ready` alone.
 	const assetsFailed = $derived(context.stateApp.failedAssets.length > 0);
 	// audio joins images + fonts in the gate: PRESS ANYWHERE must not appear over a silent game
-	const ready = $derived(context.stateApp.preLoaded && fontsReady && audioReady);
+	// ...and THE GATE (up to its cap after the audio is ready), and the splash must have cleared (see the header)
+	let audioAt = $state(0);
+	let capped = $state(false);
+	$effect(() => {
+		if (!audioReady || capped) return;
+		untrack(() => (audioAt ||= performance.now()));
+		// re-armed by every gate file that lands (done or failed): with capMs null only a stall lets PRESS through
+		if (LOAD_GATE.capMs === null) void loadGate.filesDone;
+		const ms = LOAD_GATE.capMs ?? LOAD_GATE.stallMs;
+		const id = setTimeout(() => (capped = true), ms);
+		return () => clearTimeout(id);
+	});
+	const gateIn = $derived(loadGate.settled || capped);
+	const ready = $derived(context.stateApp.preLoaded && fontsReady && audioReady && gateIn && boot.splashOut);
+	let readyAt = $state(0);
+	$effect(() => {
+		if (ready) untrack(() => (readyAt ||= performance.now()));
+	});
 
 	// per-kind sizing of the gate (master units)
 	const SZ = $derived(INTRO_GATE[kind]);
@@ -119,10 +138,11 @@
 	// posters only, and no clip is ever asked for, where the player asked for less motion
 	const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-	/** the cards may ask for their files (INTRO_CARD.armAfter: once the loading bar is done, or once the Pixi preload is in) */
+	/** the cards may ask for their files (INTRO_CARD.armAfter: once the loading bar is done, once the audio is in, or once the
+	 *  Pixi preload is in) */
 	let armed = $state(false);
 	$effect(() => {
-		if (C.armAfter === 'loaded' ? ready : context.stateApp.preLoaded) armed = true;
+		if (C.armAfter === 'loaded' ? ready : C.armAfter === 'audio' ? context.stateApp.preLoaded && audioReady : context.stateApp.preLoaded) armed = true;
 	});
 	/** the frame picture is decoded: the cards fade in. A frame that never arrives leaves no cards, and nothing waits. */
 	let frameReady = $state(false);
@@ -196,9 +216,12 @@
 		activeSince = performance.now();
 		if (byUser && wantsClip(next)) startClip(next);
 	};
+	/** one card at a time: the cards move on by themselves only once their clips may play (armed during the gate's wait,
+	 *  plan D, they hold the first card's poster until then, so its clip is the first one seen); with reduced motion at once */
+	const rotating = $derived(!C.holdClipsUntilLoaded || ready || reducedMotion);
 	$effect(() => {
-		// the dwell clock starts when the visible card is actually there
-		if (frameReady && oneUp) untrack(() => (activeSince = performance.now()));
+		// the dwell clock starts when the visible card is actually there, and again when the cards start moving on
+		if (frameReady && oneUp && rotating) untrack(() => (activeSince = performance.now()));
 	});
 
 	// one loop for the three cards: the scene line follows the clip's time, and with one card at a time the
@@ -221,7 +244,7 @@
 			}
 			lastT[i] = t;
 		}
-		if (oneUp && frameReady) {
+		if (oneUp && frameReady && rotating) {
 			const v = videos[active];
 			const running = !!v && !v.paused && v.currentTime > 0.03;
 			const since = now - activeSince;
@@ -329,6 +352,9 @@
 				mounted,
 				dismissed: pressed,
 				ready,
+				/** THE GATE (plan D): performance.now() the audio was ready, the gate settled, PRESS was ready; whether the
+				 *  cap opened it; the gate's bytes */
+				gate: { audioAt, settledAt: loadGate.settledAt, readyAt, capped, capMs: LOAD_GATE.capMs, settled: loadGate.settled, doneBytes: loadGate.doneBytes, totalBytes: GATE_BYTES, files: loadGate.files, filesDone: loadGate.filesDone, failed: loadGate.failed, splashOut: boot.splashOut },
 				armed,
 				armAfter: C.armAfter,
 				holdClipsUntilLoaded: C.holdClipsUntilLoaded,
