@@ -1417,6 +1417,17 @@ export const STINGER_PLAQUE = {
 //             tools/fit_emblems_r4.py): the War Standard 96.5, the dagger 93.5 leaned 0.5 (the board draws it at about
 //             45 degrees, so this stands it nearly upright), the crown 69 (wider than the Armoury's, so shorter).
 //             tools/build_bigwin_titles.py READS these numbers and emblemGlow from this file
+//             r5 (Corey 2026-10-17 18:01 "I like the previous orientation/position of the dagger, crown, war standard
+//             from R2 as well"): r4's art (the board's resting frames, both tiers baked from the full tier) at r2's
+//             place and lean again: ONE box for all three modes, `h` ship px tall (the art's height before the lean, as
+//             r2's texture was), its centre at `x` from the panel centre and `cy` x the panel height from its top,
+//             leaned `tilt` radians toward the title, the left one its mirror (r2's numbers), and the title's max width
+//             r2's 424 (r3's per-mode titleMax only served r3's boxes). `turn[mode]` turns the board image first so it
+//             reads as r2's Armoury art did: the board's dagger already lies on the Armoury dagger's diagonal (its long
+//             axis 46.8 degrees against 47.6, from the alpha's moments), so 0.014 brings the blade to r2's angle and
+//             r4's 0.5 upright lean is gone; the War Standard and the crown stand upright as drawn (0). The turn and
+//             the lean are BAKED into the frame in one resample (no runtime rotation); the frame is centred on the
+//             art's centre before the turn, as r2's sprite turned about its own centre, so the game draws it 1:1 there
 //   emblemGlow the soft glow BAKED behind each intro emblem, in its frame (no runtime filter): the art's silhouette plus
 //             a pool over its box (`pool` = that pool's strength, so a thin blade still lifts), blurred so it falls off
 //             radially to about 1 % at `reach` x the emblem's height `h` past the art (the blur's sigma is reach / 2.5);
@@ -1424,7 +1435,12 @@ export const STINGER_PLAQUE = {
 //             outline of a broad part about half of it, 0.4, then falling away; 1 with no plateau, so it reads as a
 //             soft lift and not a ring or a sticker; r4 tried gain 2 / alpha 0.55, which made a flat box), `soft` the
 //             falloff's power (1 = the blur's own), `color` the mode's (the molten intro title's 0.7 stop: Bonus teal,
-//             Super blue, Epic fire). The frame is padded by the reach on every side, so its centre stays the art's
+//             Super blue, Epic fire). The frame is padded by the reach on every side, so its centre stays the art's.
+//             r5 (Corey 2026-10-17 18:01 "the glow is just a bit to strong"): alpha 0.8 -> 0.48 (60 % of r4) and reach
+//             0.3 -> 0.25 (the box is now 100 px for every mode, so r4's 0.3 would have reached further than it did;
+//             feedback/bigwin_title_r5 has the next step softer, 0.4 / 0.22). The pool is now an ellipse on the art's
+//             own long axis (from the alpha's moments, 2 sigma each way), not on its box, so the diagonal dagger's
+//             pool follows the blade instead of filling a square
 //   rim       look 1 only: `steps` dark copies (colour `color`) in a ring `px` (at a 50 px cap) around the title, the
 //             ring dropped by dropShare of px (a shadow), and an additive copy at liftAlpha over the face
 //   modeTint  look 1 only: the multiply on the gold intro titles (looks 2 and 3 bake the mode colours)
@@ -1435,15 +1451,11 @@ export const BIG_TITLE = {
 	intro: {
 		titleCap: 34,
 		titleCy: 0.18,
-		titleMax: { bonus: 424, super: 424, epic: 392 },
-		emblem: {
-			bonus: { h: 96.5, tilt: 0.12, x: 248, y: 53.5 },
-			super: { h: 93.5, tilt: 0.5, x: 260, y: 64 },
-			epic: { h: 69, tilt: 0.12, x: 250.5, y: 43.5 },
-		},
+		titleMax: 424,
+		emblem: { h: 100, x: 288, cy: 0.16, tilt: 0.12, turn: { bonus: 0, super: 0.014, epic: 0 } },
 		emblemGlow: {
-			reach: 0.3,
-			alpha: 0.8,
+			reach: 0.25,
+			alpha: 0.48,
 			pool: 0.4,
 			gain: 1,
 			soft: 1,

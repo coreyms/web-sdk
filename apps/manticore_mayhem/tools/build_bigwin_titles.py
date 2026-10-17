@@ -31,7 +31,12 @@ in a bright treatment that holds on the current marble and on a darker black iro
             falls off radially to about `reach` x the emblem's height past the art, at `alpha` at most. Both tiers
             are baked from the full-tier art at their own density (2 and 3/2 texels per ship px), so a phone is never
             upscaled from a half-size copy. The sizes, leans, places and glow numbers are READ from
-            game/constants.ts (BIG_TITLE.intro.emblem and .emblemGlow), so the two never disagree
+            game/constants.ts (BIG_TITLE.intro.emblem and .emblemGlow), so the two never disagree.
+            r5 (Corey 2026-10-17 18:01 "soften the glow, and rotate the new tile images"): r4's art at r2's place and
+            lean: one box for every mode (BIG_TITLE.intro.emblem {h, x, cy, tilt, turn[mode]}). Each board image is
+            turned by turn[mode] and leaned by tilt in ONE premultiplied rotation about the art's centre, scaled so
+            the art before the lean is h ship px tall (r2's rule), and cropped symmetrically about that centre, so
+            the frame's centre is r2's turning point. The glow's pool follows the art's long axis (alpha moments)
 
 Two looks (the DEV / staging switch ?bwtitle=2|3, game/stinger/bigTitle.ts):
   forge   (2)  white to gold to deep amber, one dark outline
@@ -82,21 +87,23 @@ BAKE_CAP = {"win": 54, "total": 42, "intro": 34}
 WINS = {k: v[0] for k, v in bpt.TITLES.items() if k.startswith("win_")}
 TOTAL = {"total_win": bpt.TITLES["total_win"][0]}
 INTROS = {k: v[0] for k, v in bpt.TITLES.items() if k.startswith("intro_")}
-# the intro emblems (r4): the board symbol's resting frame, full tier (sheet, frame). The size (the UPRIGHT art's height
-# in ship px), the lean (radians, + = counter-clockwise, the top toward the title on the RIGHT emblem; the game mirrors
-# the left one) and the glow come from game/constants.ts BIG_TITLE.intro (read_intro_constants), fitted to the clear
-# marble beside the title by feedback/bigwin_title_r4/tools/fit_emblems_r4.py
+# the intro emblems (r4): the board symbol's resting frame, full tier (sheet, frame). r5: the size (the turned art's
+# height before the lean, ship px), the turn per mode and the lean (radians, + = counter-clockwise, the top toward the
+# title on the RIGHT emblem; the game mirrors the left one) and the glow come from game/constants.ts BIG_TITLE.intro
+# (read_intro_constants): r2's one box, r4's art
 EMBLEM_SRC = {"bonus": ("s-idle", "s-idle-000"), "super": ("m2-idle", "m2-idle-000"), "epic": ("h1-idle", "h1-idle-000")}
 
 
 def read_intro_constants() -> tuple[dict[str, dict[str, float]], dict]:
-    """BIG_TITLE.intro.emblem[mode] {h, tilt, x, y} and BIG_TITLE.intro.emblemGlow from game/constants.ts"""
+    """per mode {h, tilt, turn} from BIG_TITLE.intro.emblem (one box, a turn per mode) and BIG_TITLE.intro.emblemGlow"""
     src = CONSTANTS_TS.read_text()
     block = src[src.index("export const BIG_TITLE = {") :]
     block = block[: block.index("} as const;")]
     em = block[block.index("emblem: {") : block.index("emblemGlow: {")]
     num = r"(-?[\d.]+)"
-    boxes = {m: dict(zip("h tilt x y".split(), map(float, g))) for m, *g in re.findall(rf"(bonus|super|epic): {{ h: {num}, tilt: {num}, x: {num}, y: {num} }}", em)}
+    one = {k: float(re.search(rf"\b{k}: {num}", em).group(1)) for k in ("h", "x", "cy", "tilt")}
+    turn = em[em.index("turn: {") :]
+    boxes = {m: {**one, "turn": float(t)} for m, t in re.findall(rf"(bonus|super|epic): {num}", turn[: turn.index("}")])}
     gl = block[block.index("emblemGlow: {") :]
     gl = gl[: gl.index("\n\t\t},")]
     glow = {k: float(re.search(rf"\b{k}: {num}", gl).group(1)) for k in ("reach", "alpha", "pool", "gain", "soft")}
@@ -187,30 +194,46 @@ def _crop(im: Image.Image) -> Image.Image:
     return im.crop(im.getchannel("A").point(lambda v: 255 if v >= EMBLEM_CROP_ALPHA else 0).getbbox())
 
 
-def leaned_art(mode: str, tilt: float) -> tuple[Image.Image, int]:
-    """the symbol leaned by `tilt` radians (counter-clockwise) and cropped to its art, and the UPRIGHT art's height"""
+def leaned_art(mode: str, turn: float, tilt: float) -> tuple[Image.Image, float]:
+    """the symbol turned by `turn` and leaned by `tilt` radians (counter-clockwise) in one rotation about its art's centre,
+    cropped symmetrically about that centre (so the centre is the turning point, as r2's sprite anchor was), and the
+    turned art's height before the lean (r2's emblem height: its texture's)"""
     upright = _crop(symbol_frame(mode))
-    # rotated premultiplied (RGBa), so the transparent margin's colour never fringes the edge
-    leaned = upright.convert("RGBa").rotate(float(np.degrees(tilt)), resample=Image.BICUBIC, expand=True).convert("RGBA")
-    return _crop(leaned), upright.height
+    # the turned art's height, measured on the alpha alone (the art is resampled only once, below)
+    turned = upright.getchannel("A").rotate(float(np.degrees(turn)), resample=Image.BICUBIC, expand=True)
+    tb = turned.point(lambda v: 255 if v >= EMBLEM_CROP_ALPHA else 0).getbbox()
+    turned_h = tb[3] - tb[1]
+    # rotated premultiplied (RGBa), so the transparent margin's colour never fringes the edge; expand keeps the centre
+    leaned = upright.convert("RGBa").rotate(float(np.degrees(turn + tilt)), resample=Image.BICUBIC, expand=True).convert("RGBA")
+    x0, y0, x1, y1 = leaned.getchannel("A").point(lambda v: 255 if v >= EMBLEM_CROP_ALPHA else 0).getbbox()
+    cx, cy = leaned.width / 2, leaned.height / 2
+    hw, hh = int(np.ceil(max(cx - x0, x1 - cx))), int(np.ceil(max(cy - y0, y1 - cy)))
+    return leaned.crop((int(cx) - hw, int(cy) - hh, int(cx) + hw, int(cy) + hh)), float(turned_h)
 
 
-def bake_emblem(mode: str, box: dict[str, float], glow: dict) -> tuple[Image.Image, int]:
-    """the leaned symbol over its soft mode-coloured glow, in source px. The frame is the art's box padded by the glow's
-    reach on every side (so the frame's centre is the art's centre). Returns the image and the upright art's height"""
-    art, upright_h = leaned_art(mode, box["tilt"])
-    reach = glow["reach"] * upright_h  # source px: reach x the emblem's (upright) height
+def bake_emblem(mode: str, box: dict[str, float], glow: dict) -> tuple[Image.Image, float]:
+    """the turned and leaned symbol over its soft mode-coloured glow, in source px. The frame is the art's box padded by
+    the glow's reach on every side (so the frame's centre is the art's centre). Returns the image and the turned art's
+    height before the lean"""
+    art, upright_h = leaned_art(mode, box["turn"], box["tilt"])
+    reach = glow["reach"] * upright_h  # source px: reach x the emblem's height (before the lean)
     pad = int(np.ceil(reach))
     W, H = art.width + 2 * pad, art.height + 2 * pad
     a = np.zeros((H, W, 4), np.float32)
     a[pad : pad + art.height, pad : pad + art.width] = np.asarray(art, np.float32) / 255
     sil = a[..., 3]
-    # the glow's source: the silhouette, and a softer pool over the art's box (an ellipse through its box) so a thin
-    # piece (the dagger's blade) still lifts; blurred so it falls to about 1 % at `reach` past the art and never
-    # draws a ring (it is a filled pool, brightest behind the art)
+    # the glow's source: the silhouette, and a softer pool over the art (r5: an ellipse on the art's own long axis,
+    # 2 sigma of its alpha each way, so the diagonal dagger's pool follows the blade; r4's went through the art's box)
+    # so a thin piece (the dagger's blade) still lifts; blurred so it falls to about 1 % at `reach` past the art and
+    # never draws a ring (it is a filled pool, brightest behind the art)
     yy, xx = np.mgrid[0:H, 0:W]
-    ax, ay = art.width / 2, art.height / 2
-    ell = (((xx + 0.5 - W / 2) / ax) ** 2 + ((yy + 0.5 - H / 2) / ay) ** 2) <= 1
+    wsum = sil.sum()
+    mx, my = (xx * sil).sum() / wsum, (yy * sil).sum() / wsum
+    dx, dy = xx - mx, yy - my
+    cov = np.array([[(dx * dx * sil).sum(), (dx * dy * sil).sum()], [(dx * dy * sil).sum(), (dy * dy * sil).sum()]]) / wsum
+    ev, vec = np.linalg.eigh(cov)
+    u, v = dx * vec[0, 1] + dy * vec[1, 1], dx * vec[0, 0] + dy * vec[1, 0]
+    ell = (u / (2 * np.sqrt(ev[1]))) ** 2 + (v / (2 * np.sqrt(ev[0]))) ** 2 <= 1
     body = np.maximum(sil, glow["pool"] * ell)
     g = np.clip(ndi.gaussian_filter(body, reach / 2.5) * glow["gain"], 0, 1) ** glow["soft"]
     ga = glow["alpha"] * g
@@ -255,7 +278,7 @@ def main() -> None:
         for name, (img, upright_h, h) in emblems.items():
             baked[name] = (img, {"w": img.width, "h": img.height, "baseline": img.height, "cap": upright_h}, h / upright_h)
         # the boxes in SHIP px: [w, h, baseline, cap] (an emblem: the leaned frame's w and h, baseline = its bottom, cap =
-        # the upright art's height, i.e. BIG_TITLE.intro.emblem[mode].h)
+        # the art's height before the lean, i.e. BIG_TITLE.intro.emblem.h)
         spec[look] = {name: [round(m[k] * k2, 2) for k in ("w", "h", "baseline", "cap")] for name, (_, m, k2) in baked.items()}
         for suffix, tex in TIERS.items():
             items = [(f"bwt_{look}_{name}", to_ship(img, k * tex)) for name, (img, _, k) in baked.items()]
@@ -273,7 +296,7 @@ def main() -> None:
         "// THE WIN PLAQUE'S BRIGHT TITLES: every frame's box in SHIP px of the 946 x 532 plaque, tier independent",
         "// (static/assets/ui/bigwin/bigwin-titles-<look>[-half].json, frames bwt_<look>_<name>): [w, h, baseline, cap].",
         "// baseline and cap are measured from the image's top. The image is drawn at (drawn cap / cap) of these. An emblem",
-        "// is the leaned frame (baked lean), drawn 1:1: w x h, baseline = its bottom, cap = the upright art's height.",
+        "// is the turned and leaned frame (baked), drawn 1:1: w x h, baseline = its bottom, cap = the art's height before the lean.",
         f"export const BIG_TITLE_LOOKS = {json.dumps(list(GOLD))} as const;",
         "export type BigTitleLook = (typeof BIG_TITLE_LOOKS)[number];",
         "export const BIG_TITLE_SPEC: Record<BigTitleLook, Record<string, readonly [number, number, number, number]>> = {",

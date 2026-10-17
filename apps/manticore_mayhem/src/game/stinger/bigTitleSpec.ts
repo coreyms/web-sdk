@@ -2,7 +2,7 @@
 // THE WIN PLAQUE'S BRIGHT TITLES: every frame's box in SHIP px of the 946 x 532 plaque, tier independent
 // (static/assets/ui/bigwin/bigwin-titles-<look>[-half].json, frames bwt_<look>_<name>): [w, h, baseline, cap].
 // baseline and cap are measured from the image's top. The image is drawn at (drawn cap / cap) of these. An emblem
-// is the leaned frame (baked lean), drawn 1:1: w x h, baseline = its bottom, cap = the upright art's height.
+// is the turned and leaned frame (baked), drawn 1:1: w x h, baseline = its bottom, cap = the art's height before the lean.
 export const BIG_TITLE_LOOKS = ["forge", "molten"] as const;
 export type BigTitleLook = (typeof BIG_TITLE_LOOKS)[number];
 export const BIG_TITLE_SPEC: Record<BigTitleLook, Record<string, readonly [number, number, number, number]>> = {
@@ -16,9 +16,9 @@ export const BIG_TITLE_SPEC: Record<BigTitleLook, Record<string, readonly [numbe
 		intro_bonus: [326.01, 64.99, 40.89, 34.0],
 		intro_super: [507.42, 64.99, 40.89, 34.0],
 		intro_epic: [472.99, 64.99, 40.89, 34.0],
-		emblem_bonus: [149.31, 158.43, 158.43, 96.5],
-		emblem_super: [119.15, 177.9, 177.9, 93.5],
-		emblem_epic: [127.58, 113.56, 113.56, 69.0],
+		emblem_bonus: [154.33, 158.27, 158.27, 100.0],
+		emblem_super: [153.51, 159.65, 159.65, 100.0],
+		emblem_epic: [179.17, 156.25, 156.25, 100.0],
 	},
 	molten: {
 		win_big: [364.33, 104.92, 65.62, 54.0],
@@ -30,8 +30,8 @@ export const BIG_TITLE_SPEC: Record<BigTitleLook, Record<string, readonly [numbe
 		intro_bonus: [327.3, 66.28, 41.53, 34.0],
 		intro_super: [508.71, 66.28, 41.53, 34.0],
 		intro_epic: [474.28, 66.28, 41.53, 34.0],
-		emblem_bonus: [149.31, 158.43, 158.43, 96.5],
-		emblem_super: [119.15, 177.9, 177.9, 93.5],
-		emblem_epic: [127.58, 113.56, 113.56, 69.0],
+		emblem_bonus: [154.33, 158.27, 158.27, 100.0],
+		emblem_super: [153.51, 159.65, 159.65, 100.0],
+		emblem_epic: [179.17, 156.25, 156.25, 100.0],
 	},
 };

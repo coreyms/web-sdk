@@ -509,19 +509,20 @@ export class StingerView {
 			this.amountBox.visible = true;
 			rowsOff();
 		} else if (o.screen === 'intro') {
-			this.title.set(`intro_${this.mode}`, B.intro.titleCap, B.intro.titleMax[this.mode]);
+			this.title.set(`intro_${this.mode}`, B.intro.titleCap, B.intro.titleMax);
 			this.title.view.y = ph * B.intro.titleCy;
 			const em = emblemTexture(this.mode, this.atlas);
 			if (em) {
-				const H = B.intro.emblem[this.mode];
+				const H = B.intro.emblem; // r5: r2's one box for every mode
 				if (import.meta.env.DEV && em.upright !== H.h) console.warn(`[manticore] intro emblem ${this.mode}: baked ${em.upright} px, BIG_TITLE wants ${H.h} (rerun tools/build_bigwin_titles.py)`);
 				this.emblems.forEach((s, i) => {
 					const side = i === 0 ? -1 : 1;
 					s.texture = em.texture;
 					// r3: the lean is baked, so the frame is drawn 1:1 at its ship box (2 or 3/2 texels per ship px, the
-					// plaque's density, tools/build_bigwin_titles.py TIERS): no rotation, no resample beyond the plaque's own
+					// plaque's density, tools/build_bigwin_titles.py TIERS): no rotation, no resample beyond the plaque's own.
+					// r5: centred where r2 put it (the frame's centre is the art's, r2's turning point)
 					s.scale.set((side * em.w) / em.texture.width, em.h / em.texture.height); // the left one mirrored
-					s.position.set(side * H.x, H.y);
+					s.position.set(side * H.x, ph * H.cy);
 					s.rotation = 0;
 					s.visible = true;
 				});

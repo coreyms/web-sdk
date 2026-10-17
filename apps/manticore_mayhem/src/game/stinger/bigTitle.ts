@@ -131,8 +131,8 @@ export const makeTitle = (variant: TitleVariant, titles: StingerJson['text']['ti
 	return new BakedTitle(look, atlas);
 };
 
-/** the feature intro's mode emblem (r4: the board's own symbol over its soft mode glow, baked with its lean into the same atlas): the frame's ship
- *  box w x h (drawn 1:1) and the upright art's height it was baked at, or null */
+/** the feature intro's mode emblem (r4: the board's own symbol over its soft mode glow, baked with its lean into the same atlas; r5: and its
+ *  turn): the frame's ship box w x h (drawn 1:1) and the art's height before the lean it was baked at, or null */
 export const emblemTexture = (mode: string, atlas: Textures): { texture: PIXI.Texture; w: number; h: number; upright: number } | null => {
 	const look = bakedLook();
 	const box = BIG_TITLE_SPEC[look][`emblem_${mode}`];
