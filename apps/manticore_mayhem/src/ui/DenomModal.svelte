@@ -272,7 +272,7 @@
 	}
 	.tight .title {
 		font-size: 17px;
-		letter-spacing: 2px;
+		letter-spacing: var(--ui-display-track);
 	}
 	.tight .pill {
 		padding: 5px 10px;
@@ -297,7 +297,7 @@
 	}
 	.tiny .title {
 		font-size: 13px;
-		letter-spacing: 1.5px;
+		letter-spacing: var(--ui-display-track);
 	}
 	.tiny .pill {
 		padding: 3px 7px;

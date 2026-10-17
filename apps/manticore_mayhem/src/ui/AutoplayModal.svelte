@@ -271,8 +271,9 @@
 	.title {
 		flex: 0 0 auto;
 		font-size: 18px;
-		font-weight: 900;
-		letter-spacing: 3.5px;
+		/* the display face (ChromeStyles --ui-font-display, review D10): Cinzel 700 with the wide tracking */
+		font-weight: var(--ui-display-weight);
+		letter-spacing: var(--ui-display-track-wide);
 		color: var(--ui-ink);
 		white-space: nowrap;
 	}
@@ -630,7 +631,7 @@
 	}
 	.tiny .title {
 		font-size: 15px;
-		letter-spacing: 2px;
+		letter-spacing: var(--ui-display-track);
 	}
 	.tiny .chip {
 		padding: 6px 3px 5px;

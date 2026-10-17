@@ -19,7 +19,7 @@
 	// on another symbol moves it there.
 	//
 	// House rules: no backdrop-filter, no filter, no mask; the pop is opacity and a small scale; DEV hooks only on
-	// window.__manticore; fonts the HUD already loads (Black Ops One, Outfit, Sora).
+	// window.__manticore; fonts the chrome already loads (Cinzel for the name, Outfit, Sora).
 	import { onMount, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fade } from 'svelte/transition';
