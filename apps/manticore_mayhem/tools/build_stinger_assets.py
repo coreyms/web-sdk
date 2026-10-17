@@ -51,6 +51,21 @@ texture px per ship px (the frame is 1182 px, about 1:1 on a 3x phone in portrai
 at today's 1.5 cap it shows nothing the half tier does not). It is written as stinger-<atlas>-mid.*, is not built by
 default and no game code loads it. stinger.json is the same whichever tiers are written.
 --out-dir: write somewhere other than static/assets/ui/stinger (a trial build).
+
+--drop DIR: a Rig delivery folder (rig-review/<date>/, e.g. the v6 plaque of 2026-10-17), read IN PLACE of the matching
+--src pieces: <drop>/*layered_2x/ (the 15 cut-outs + stinger_layered.json; with --layered 4x the *layered/ set
+instead) and <drop>/*fx/ (model/*.json and drafts/<review>/sprites/, per file / per review folder: what the drop does
+not carry, the barb and final fx sprites, still comes from --src). The fx folder's SHA256_sprites.txt and every
+`<sha256>  <file>` line of <drop>/NOTES.md (under its `### <folder>/` headings) are checked before anything is built.
+Everything else (the text, the grade) is --src's. A rebuild from a new drop is one command, from the app folder:
+  .../math-sdk/env/bin/python tools/build_stinger_assets.py --drop <drop folder> --keep-shipped-copy
+  node scripts/stamp-assets.mjs
+--keep-shipped-copy: the intro / wrap up copy in stinger.json is the one already in --out-dir (what ships), not
+plaque-text.json's (on 2026-10-17 the working folder's plaque-text.json carried two unshipped intro lines).
+--layered 2x|4x: which cut-out set of the drop (default 2x). The plaque tiers resample from either; a 4x source makes
+the same rects, motion and stinger.json (sizes / uvs are x 2 of the 2x set's, pos / bind / tracks the same).
+--plaque-scale X: TEST ONLY (a trial build into --out-dir): the FULL tier's plaque cut-outs at X texture px per ship px
+instead of TIERS[""]["plaque"] (1.5), e.g. 2 or 3 from the 4x set. The game ships 1.5.
 """
 from __future__ import annotations
 
@@ -343,24 +358,82 @@ def main() -> None:
     ap.add_argument("--out-dir", type=Path, default=OUT, help="where the atlases, stinger.json and stinger-motion.bin are written (default: static/assets/ui/stinger)")
     ap.add_argument("--no-grade", action="store_true", help="skip the plaque grade (GRADE): the ungraded art, as built before 2026-10-09")
     ap.add_argument("--tiers", default=DEFAULT_TIERS, help=f"comma list of {', '.join(TIER_FLAGS)} (default {DEFAULT_TIERS}; mid is a test tier the game does not load)")
+    ap.add_argument("--drop", type=Path, help="a Rig delivery folder: its stinger_*_layered_2x/ and stinger_*_fx/ are read instead of --src's")
+    ap.add_argument("--layered", choices=("2x", "4x"), default="2x", help="with --drop: the 2x cut-outs (default, what ships) or the 4x set")
+    ap.add_argument("--keep-shipped-copy", action="store_true", help="the intro / wrap up copy from the stinger.json already in --out-dir, not plaque-text.json")
+    ap.add_argument("--plaque-scale", type=Fraction, help="TEST ONLY: the FULL tier's plaque texture px per ship px (ships 3/2)")
     args = ap.parse_args()
     OUT = args.out_dir
     P = None if args.no_grade else GRADE
     want = [w.strip() for w in args.tiers.split(",") if w.strip()]
     assert want and all(w in TIER_FLAGS for w in want), f"--tiers: a comma list of {list(TIER_FLAGS)}"
     write_tiers = {TIER_FLAGS[w] for w in want}
+    if args.plaque_scale is not None:
+        assert OUT != APP / "static" / "assets" / "ui" / "stinger", "--plaque-scale is a trial: give --out-dir"
+        TIERS[""] = {**TIERS[""], "plaque": args.plaque_scale}
     S: Path = args.src
     M, D, TA = S / "model", S / "drafts", S / "drafts" / "text_assets"
+    LM, FM = M / "layered", M  # the cut-outs; the overlay recipes
+    review = lambda name: D / name  # an overlay review folder (drafts/<name>/sprites/4x)
+    if args.drop:
+        # the folders directly under the drop: <any>layered_2x, <any>layered (the 4x set), <any>fx (stinger_v6_layered_2x
+        # on 2026-10-17; a later drop may drop the prefix). A dated folder holding a newer drop as a SUBFOLDER (e.g.
+        # 2026-10-17/stinger_v6c/) is not searched: point --drop at the subfolder.
+        def one(suffix):
+            hits = sorted(p for p in args.drop.iterdir() if p.is_dir() and (p.name == suffix or p.name.endswith("_" + suffix)))
+            if len(hits) != 1:
+                sys.exit(f"--drop: want one folder named *{suffix} in {args.drop}, found {[h.name for h in hits]}")
+            return hits[0]
+
+        LM = one("layered_2x" if args.layered == "2x" else "layered")
+        fx = one("fx")
+        checked = 0
+        sums = fx / "SHA256_sprites.txt"
+        if sums.exists():
+            for line in sums.read_text().splitlines():
+                if line.strip():
+                    h, rel = line.split(None, 1)
+                    assert hashlib.sha256((fx / rel.strip()).read_bytes()).hexdigest() == h, f"--drop: sha256 of {rel} does not match"
+                    checked += 1
+        # NOTES.md lists `<sha256>  <file>` under `### <folder>/` headings: every listed file that is in the drop is checked
+        notes = args.drop / "NOTES.md"
+        if notes.exists():
+            under = None
+            for line in notes.read_text().splitlines():
+                if line.startswith("### "):
+                    name = line[4:].split()[0].rstrip("/") if line[4:].strip() else ""
+                    # a heading names a folder (or a folder inside one, "stinger_v6_fx/model", whose lines may repeat
+                    # the "model/" part): a line's file is looked up under the heading and under its first folder
+                    under = [args.drop / name, args.drop / name.split("/")[0]] if name and (args.drop / name.split("/")[0]).is_dir() else None
+                    continue
+                parts = line.split()
+                if under is not None and len(parts) == 2 and len(parts[0]) == 64 and all(c in "0123456789abcdef" for c in parts[0]):
+                    f = next((u / parts[1] for u in under if (u / parts[1]).is_file()), None)
+                    if f is not None:
+                        assert hashlib.sha256(f.read_bytes()).hexdigest() == parts[0], f"--drop: sha256 of {f} does not match NOTES.md"
+                        checked += 1
+        print(f"drop: {LM.name} + {fx.name} from {args.drop} ({checked} sha256 checked; the rest from {S})")
+        FM = fx / "model"
+        review = lambda name: fx / "drafts" / name if (fx / "drafts" / name).is_dir() else D / name
+    elif args.layered == "4x":
+        LM = M / "layered_4x"
+    fxjson = lambda name: json.loads((FM / name if (FM / name).exists() else M / name).read_text())
     OUT.mkdir(parents=True, exist_ok=True)
-    lay = json.loads((M / "layered" / "stinger_layered.json").read_text())
-    vein = json.loads((M / "stinger_vein_fx.json").read_text())
-    glint = json.loads((M / "stinger_glint_fx.json").read_text())
-    barb = json.loads((M / "stinger_barb_fx.json").read_text())
-    eyes = json.loads((M / "stinger_v5_eye_anchors.json").read_text())
-    flare = json.loads((M / "stinger_eye_flare_fx.json").read_text())
-    emb = json.loads((M / "stinger_embers_fx.json").read_text())
+    lay = json.loads((LM / "stinger_layered.json").read_text())
+    vein = fxjson("stinger_vein_fx.json")
+    glint = fxjson("stinger_glint_fx.json")
+    barb = fxjson("stinger_barb_fx.json")
+    eyes = fxjson("stinger_v5_eye_anchors.json")
+    flare = fxjson("stinger_eye_flare_fx.json")
+    emb = fxjson("stinger_embers_fx.json")
     text = json.loads((TA / "plaque-text.json").read_text())
-    assert lay["frame"] == [946, 532] and lay["texture_scale"] == 2 and lay["fps"] == 30
+    if args.keep_shipped_copy:
+        text["copy"] = json.loads((OUT / "stinger.json").read_text())["text"]["copy"]
+    # TS: source texture px per ship px. The 2x set ships; the 4x set (v6, 2026-10-17) is the same art at twice the
+    # resolution (size / uvs x 2, everything else equal), so every ship px number below is the same from either.
+    TS = lay["texture_scale"]
+    assert lay["frame"] == [946, 532] and TS in (2, 4) and lay["fps"] == 30
+    PADQ = 2 * TS
     assert [lay["actions"][a]["last_frame"] for a in ("idle_all", "land_flare", "tier_flare")] == [105, 30, 21]
     for doc in (vein, glint, barb, emb):
         assert [t["name"] for t in doc["tiers"]] == TIER_NAMES
@@ -374,19 +447,20 @@ def main() -> None:
 
     # ---- the layered plaque: textures, topology, tracks ------------------------------------------
     by = {L["name"]: L for L in lay["layers"]}
-    plaque_src = {L["name"]: load(M / "layered" / L["texture"]) for L in lay["layers"]}
+    plaque_src = {L["name"]: load(LM / L["texture"]) for L in lay["layers"]}
     layers_out, blob, off, art_boxes = [], [], 0, []
     for L in lay["layers"]:
         n = L["name"]
         tw, th = L["size"]
         assert plaque_src[n].shape[:2] == (th, tw), n
-        # the cut-outs are padded (right / bottom) to a multiple of 4 source px so they resample to whole pixels
-        pw, ph = -(-tw // 4) * 4, -(-th // 4) * 4
+        # the cut-outs are padded (right / bottom) to a multiple of 2 ship px (4 source px at 2x, 8 at 4x) so they
+        # resample to whole pixels
+        pw, ph = -(-tw // PADQ) * PADQ, -(-th // PADQ) * PADQ
         ys, xs = np.nonzero(plaque_src[n][..., 3] > 0.5)  # the solid art, texture px
         if L["type"] == "static":
             layers_out.append({"name": n, "type": "static", "frame": f"stg_{n}"})
-            rect(n, [L["pos"][0], L["pos"][1], pw / 2, ph / 2])
-            art_boxes.append([L["pos"][0] + xs.min() / 2, L["pos"][1] + ys.min() / 2, L["pos"][0] + (xs.max() + 1) / 2, L["pos"][1] + (ys.max() + 1) / 2])
+            rect(n, [L["pos"][0], L["pos"][1], pw / TS, ph / TS])
+            art_boxes.append([L["pos"][0] + xs.min() / TS, L["pos"][1] + ys.min() / TS, L["pos"][0] + (xs.max() + 1) / TS, L["pos"][1] + (ys.max() + 1) / TS])
             continue
         G = by[L["share"]] if "share" in L else L  # the back sheets draw the front sheet's geometry
         nv = len(G["uvs"]) // 2
@@ -398,9 +472,9 @@ def main() -> None:
             continue
         assert L["type"] == "mesh" and L["add"] in ("linear", "polar")
         # at the bind pose a mover's texture is a plain translation of its cut-out: its solid art joins the art box
-        o = np.array(L["bind"], np.float64).reshape(-1, 2) - np.array(L["uvs"], np.float64).reshape(-1, 2) / 2
+        o = np.array(L["bind"], np.float64).reshape(-1, 2) - np.array(L["uvs"], np.float64).reshape(-1, 2) / TS
         assert np.abs(o - o.mean(0)).max() < 0.01, n
-        art_boxes.append([o[0, 0] + xs.min() / 2, o[0, 1] + ys.min() / 2, o[0, 0] + (xs.max() + 1) / 2, o[0, 1] + (ys.max() + 1) / 2])
+        art_boxes.append([o[0, 0] + xs.min() / TS, o[0, 1] + ys.min() / TS, o[0, 0] + (xs.max() + 1) / TS, o[0, 1] + (ys.max() + 1) / TS])
         uv = np.array(L["uvs"], np.float64).reshape(-1, 2) / [pw, ph]
         idle = np.array(L["frames"]["idle_all"], np.float64)
         assert idle.shape == (106, nv * 2) and np.abs(idle[105] - idle[0]).max() == 0  # frame 105 is frame 0
@@ -442,39 +516,39 @@ def main() -> None:
                 sprites[name][0] = r3(box[0] - origin[0])
                 sprites[name][1] = r3(box[1] - origin[1])
 
-        vs = D / "stinger_veins_review" / "sprites" / "4x"
+        vs = review("stinger_veins_review") / "sprites" / "4x"
         vo = vein["sprites"]["top_left_px_1x"]
         assert vein["slab_dark"]["top_left_px_1x"] == vo and vein["sprites"]["size_px_1x"] == vein["slab_dark"]["size_px_1x"]
         for f in vein["sprites"]["veins"]:
             add(f[:-4], vs / f, t["fx"], vo)
         add("glow", vs / vein["sprites"]["glow"], FIXED["glow"], vo)
         add("slab_dark", vs / vein["slab_dark"]["file"], FIXED["slab_dark"], vo)
-        bs = D / "stinger_barb_review" / "sprites" / "4x"
+        bs = review("stinger_barb_review") / "sprites" / "4x"
         for side in "LR":
             sp = barb["sprites"][side]
             for kind in ("halo", "highlight"):
                 add(sp[kind][:-4], bs / sp[kind], t["fx"], sp["anchor_px_1x"], anchored=True)
-        es = D / "stinger_eyes_v2_review" / "sprites" / "4x"
+        es = review("stinger_eyes_v2_review") / "sprites" / "4x"
         for eye, e in eyes["eyes"].items():
             for fr, f in e["sprites"]["lid_frames"].items():
                 add(f[:-4], es / f, FIXED["eye"], e["sprites"]["lid_top_left_px_1x"], trim=False, art=True)
             for fr, f in e["sprites"]["glow_additive_frames"].items():
                 add(f[:-4], es / f, FIXED["eye"], e["sprites"]["glow_top_left_px_1x"], trim=False)
-        fs = D / "stinger_final_fx_review" / "sprites" / "4x"
+        fs = review("stinger_final_fx_review") / "sprites" / "4x"
         for key in ("bloom", "streak"):
             sp = flare["sprites"][key]
             add(sp["file"][:-4], fs / sp["file"], t["fx"], [sp["size_px_1x"][0] / 2, sp["size_px_1x"][1] / 2], trim=False, anchored=True)
         for name in ("ember_dot", "ember_flake", "ember_hot", "ember_spark", "ember_streak"):
             w, h = emb["sprites"][name]
             add(name, fs / f"{name}.png", FIXED["ember"], [w / 2, h / 2], trim=False, anchored=True)
-        gs = D / "stinger_glint_review" / "sprites" / "4x"
+        gs = review("stinger_glint_review") / "sprites" / "4x"
         st = glint["sprites"]["star"]
         add("star", gs / st["file"], t["fx"], [st["size_px_1x"][0] / 2, st["size_px_1x"][1] / 2], trim=False, anchored=True)
         return items
 
     def glint_items(t, like=None):
         items = []
-        gs = D / "stinger_glint_review" / "sprites" / "4x"
+        gs = review("stinger_glint_review") / "sprites" / "4x"
         for sl in glint["sprites"]["slices"]:
             img, box = scaled(load(gs / sl["file"]), 4, t["glint"], True, like["glint"] if like else None)
             items.append((f"stg_{sl['file'][:-4]}", img))
@@ -527,8 +601,8 @@ def main() -> None:
             continue
         items = []
         for L in lay["layers"]:
-            src = pad_to(plaque_src[L["name"]], 4)
-            f = t["plaque"] / 2
+            src = pad_to(plaque_src[L["name"]], PADQ)
+            f = t["plaque"] / TS
             img = resample(src, whole(src.shape[1] * f), whole(src.shape[0] * f))
             items.append((f"stg_{L['name']}", grade_layer(img, P, float(t["plaque"]))))
         write_atlas("plaque", suffix, items)
