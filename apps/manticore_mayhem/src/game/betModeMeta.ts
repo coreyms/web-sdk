@@ -160,10 +160,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: 'EPIC FREE SPINS',
-			description: soc(
-				`${spins.epic} free spins. Tiles persist and double up to ${config.tileCap.epic}x, Super Stings land far more often than in Super Free Spins, and every round returns at least ${config.epicMinWin}x your bet.`,
-				`${spins.epic} free spins. Tiles persist and double up to ${config.tileCap.epic}x, Super Stings land far more often than in Super Free Spins, and every round returns at least ${config.epicMinWin}x your play amount.`,
-			),
+			description: `${spins.epic} free spins. Tiles persist and double up to ${config.tileCap.epic}x, and Super Stings land far more often than in Super Free Spins.`,
 			dialog: soc(`Buy ${spins.epic} Epic Free Spins.`, `Play ${spins.epic} Epic Free Spins.`),
 			button: soc('BUY', 'PLAY'),
 			betAmountLabel: 'EPIC FREE SPINS',
