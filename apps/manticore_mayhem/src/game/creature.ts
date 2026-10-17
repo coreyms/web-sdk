@@ -85,6 +85,16 @@ export const creaturePlaceFor = (spot: CreatureSpot, aspect: number): CreaturePl
 	const lerp = (a: number, b: number) => a + (b - a) * t;
 	return { ...p, x: lerp(T.x, p.x), y: lerp(T.y, p.y), scale: lerp(T.scale, p.scale) };
 };
+/** THE PORTRAIT PHONE DOCK (constants CREATURE.portraitDock; branch portrait-glow-r1, options for Corey): the spot's
+ *  place with its scale times `size` and its y moved so that his claw point (the striking claw's lowest point at the end
+ *  of the swipe) lands on the canvas row `edgeY` (a board edge). `fit`: where his parent is at rest (no kick), canvas px
+ *  = fit.y + (fit.foreY + local y x fit.over) x fit.scale: the scene's twin root (the cover fit) and its foreground (the
+ *  oversize). x stays the spot's: only the height follows the board. */
+export const creatureDocked = (p: CreaturePlace, size: number, edgeY: number, fit: { y: number; scale: number; foreY: number; over: number }): CreaturePlace => {
+	const scale = p.scale * size;
+	const local = ((edgeY - fit.y) / fit.scale - fit.foreY) / fit.over;
+	return { ...p, scale, y: local + (CREATURE_SPEC.feetRow - CREATURE.portraitDock.claw.y) * scale };
+};
 /** what the creature needs from the game (components/Background.svelte hands it over; this file imports no state) */
 export type CreatureEnv = {
 	ts: () => number;
@@ -170,6 +180,8 @@ export class Creature {
 	/** DEV A / B and the layouts that hide him */
 	enabled: boolean = CREATURE.on;
 	private placed = false;
+	/** DEV only (`__manticore.creature.pin`): a clip's frame held still instead of his own state (null: he runs as ever) */
+	pin: { clip: CreatureClip; frame: number } | null = null;
 	/** the landing screen is up (veil): not drawn, no action, no sound; his sheets load all the same */
 	private veiled = false;
 
@@ -317,7 +329,10 @@ export class Creature {
 			if (!f) return false;
 			this.shadows[clip] = f;
 		}
-		this.shadow.scale.set(SPEC.canvas[0] / this.shadows.idle![0].orig.width);
+		// the scale of the shadow ON SHOW: the still's own shadow can still be up (constants CREATURE.phoneFullIdle: on a
+		// phone that is the full still's, 160 px, over a 108 px shadow atlas); draw() rescales on the first swap
+		const on = this.shadow.texture === PIXI.Texture.EMPTY ? this.shadows.idle![0] : this.shadow.texture;
+		this.shadow.scale.set(SPEC.canvas[0] / on.orig.width);
 		return true;
 	}
 	/** one clip of one look is in (already uploaded) */
@@ -732,6 +747,13 @@ export class Creature {
 			this.tickLook(now, on, dt);
 			return;
 		}
+		if (import.meta.env.DEV && this.pin) {
+			// DEV (`__manticore.creature.pin`): one frame of a clip held still, for the placement stills; nothing else runs
+			this.tickLook(now, on, dt);
+			this.draw(this.pin.clip, this.pin.frame);
+			this.syncLift();
+			return;
+		}
 		if (this.env.skipping() || !on) {
 			// SKIP TO RESULT (and a layout that hides him, and the landing screen): no action, no sound; whatever ran is
 			// cut to idle
@@ -1143,7 +1165,11 @@ export class Creature {
 		if (c0.texture === PIXI.Texture.EMPTY || c0.scale.x !== SPEC.canvas[0] / tex.orig.width) for (const s of this.colour) s.scale.set(SPEC.canvas[0] / tex.orig.width);
 		c0.texture = tex;
 		const sh = this.shadows[clip]?.[frame - 1];
-		if (sh) this.shadow.texture = sh;
+		if (sh) {
+			// the shadow atlas's tier can differ from the still's (constants CREATURE.phoneFullIdle): its scale follows it
+			if (this.shadow.texture === PIXI.Texture.EMPTY || this.shadow.texture.orig.width !== sh.orig.width) this.shadow.scale.set(SPEC.canvas[0] / sh.orig.width);
+			this.shadow.texture = sh;
+		}
 		if (this.next) {
 			const t1 = this.looks[this.next]?.[clip]?.[frame - 1];
 			if (t1) this.colour[1].texture = t1;

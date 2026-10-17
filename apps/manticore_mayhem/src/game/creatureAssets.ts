@@ -5,9 +5,14 @@
 // NONE OF THIS IS IN game/assets.ts: the shared loader would fetch every look in its last batch, and only ONE look
 // may be resident at a time (constants CREATURE). The night look of the rig drop is not shipped: no mode shows it.
 import { stamp } from './assets';
+import { CREATURE } from './constants';
 import { PHONE_TIER } from './deviceTier';
 
 const tiered = (full: string, phone: string): string => (PHONE_TIER ? phone : full);
+/** THE IDLE SHEETS (constants CREATURE.phoneFullIdle, creature-sharp option C, Corey 2026-10-17 13:02 "Option C Sounds
+ *  fine"): the phone tier takes the full tier's 640 px idle as well; every other clip keeps its phone twin. Both URLs
+ *  stay literal, so the build keeps both files and the rollback (the constant false) is the phone file again. */
+const tieredIdle = (full: string, phone: string): string => (PHONE_TIER && !CREATURE.phoneFullIdle ? phone : full);
 
 export const CREATURE_LOOKS = ['day', 'super', 'epic'] as const;
 export type CreatureLook = (typeof CREATURE_LOOKS)[number];
@@ -18,7 +23,7 @@ export type CreatureClip = (typeof CREATURE_CLIPS)[number];
 
 export const CREATURE_FILES: Record<CreatureLook, Record<CreatureClip, string>> = {
 	day: {
-		idle: tiered(stamp(new URL('../../assets/sprites/creature/day/creature-day-idle.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/day/creature-day-idle-phone.json', import.meta.url).href)),
+		idle: tieredIdle(stamp(new URL('../../assets/sprites/creature/day/creature-day-idle.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/day/creature-day-idle-phone.json', import.meta.url).href)),
 		swipe: tiered(stamp(new URL('../../assets/sprites/creature/day/creature-day-swipe.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/day/creature-day-swipe-phone.json', import.meta.url).href)),
 		roar: tiered(stamp(new URL('../../assets/sprites/creature/day/creature-day-roar.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/day/creature-day-roar-phone.json', import.meta.url).href)),
 		sting_hit: tiered(stamp(new URL('../../assets/sprites/creature/day/creature-day-sting_hit.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/day/creature-day-sting_hit-phone.json', import.meta.url).href)),
@@ -29,7 +34,7 @@ export const CREATURE_FILES: Record<CreatureLook, Record<CreatureClip, string>> 
 		growl: tiered(stamp(new URL('../../assets/sprites/creature/day/creature-day-growl.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/day/creature-day-growl-phone.json', import.meta.url).href)),
 	},
 	super: {
-		idle: tiered(stamp(new URL('../../assets/sprites/creature/super/creature-super-idle.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/super/creature-super-idle-phone.json', import.meta.url).href)),
+		idle: tieredIdle(stamp(new URL('../../assets/sprites/creature/super/creature-super-idle.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/super/creature-super-idle-phone.json', import.meta.url).href)),
 		swipe: tiered(stamp(new URL('../../assets/sprites/creature/super/creature-super-swipe.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/super/creature-super-swipe-phone.json', import.meta.url).href)),
 		roar: tiered(stamp(new URL('../../assets/sprites/creature/super/creature-super-roar.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/super/creature-super-roar-phone.json', import.meta.url).href)),
 		sting_hit: tiered(stamp(new URL('../../assets/sprites/creature/super/creature-super-sting_hit.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/super/creature-super-sting_hit-phone.json', import.meta.url).href)),
@@ -40,7 +45,7 @@ export const CREATURE_FILES: Record<CreatureLook, Record<CreatureClip, string>> 
 		growl: tiered(stamp(new URL('../../assets/sprites/creature/super/creature-super-growl.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/super/creature-super-growl-phone.json', import.meta.url).href)),
 	},
 	epic: {
-		idle: tiered(stamp(new URL('../../assets/sprites/creature/epic/creature-epic-idle.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/epic/creature-epic-idle-phone.json', import.meta.url).href)),
+		idle: tieredIdle(stamp(new URL('../../assets/sprites/creature/epic/creature-epic-idle.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/epic/creature-epic-idle-phone.json', import.meta.url).href)),
 		swipe: tiered(stamp(new URL('../../assets/sprites/creature/epic/creature-epic-swipe.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/epic/creature-epic-swipe-phone.json', import.meta.url).href)),
 		roar: tiered(stamp(new URL('../../assets/sprites/creature/epic/creature-epic-roar.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/epic/creature-epic-roar-phone.json', import.meta.url).href)),
 		sting_hit: tiered(stamp(new URL('../../assets/sprites/creature/epic/creature-epic-sting_hit.json', import.meta.url).href), stamp(new URL('../../assets/sprites/creature/epic/creature-epic-sting_hit-phone.json', import.meta.url).href)),

@@ -43,11 +43,14 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureSpot } from '../game/constants';
-	import { creature, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
+	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureDockKey, type CreatureSpot } from '../game/constants';
+	import { creature, creatureDocked, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
+	import { boardRegistration } from '../game/boardArt';
+	import { portraitOptions } from '../game/portraitOptions.svelte';
 	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog } from '../game/creatureLoad';
 	import { stateBet } from 'state-shared';
 	import { CREATURE_SPEC } from '../game/creatureSpec';
+	import type { CreatureClip } from '../game/creatureAssets';
 	import type { SoundEffectName } from '../game/sound';
 	import { boardKick, foregroundKick, shoveForeground } from '../game/featureFx';
 	import { boardOpening } from '../game/boardTap';
@@ -306,7 +309,32 @@
 	// constants CREATURE.desktopTall). A resize moves him without re-adding his nodes. DEV: `placeOverride` (the
 	// __manticore.creature.placeAt hook) stands him somewhere else until it is cleared.
 	let placeOverride: CreaturePlace | null = $state(null);
-	const creaturePlace = $derived(placeOverride ?? creaturePlaceFor(spot, canvas.width / Math.max(canvas.height, 1)));
+	/** THE PORTRAIT PHONE DOCK (constants CREATURE.portraitDock, game/creature.ts creatureDocked): with an option on, his
+	 *  claw point goes on a row of the board art, through the board's own registration (the master fit, the growth k)
+	 *  and the portrait scene's cover fit and oversize at rest. Portrait phone only; 'current' is the spot as it is. */
+	const dockEdge = (row: number) => {
+		const master = context.stateLayoutDerived.mainLayout();
+		const vw = canvas.width / master.scale;
+		const my = boardRegistration('portrait', vw).map(0, row).y;
+		return master.y + (my - master.height / 2) * master.scale;
+	};
+	const dockFit = () => {
+		const [fw, fh] = frames.portrait;
+		const s = Math.max(canvas.width / fw, canvas.height / fh);
+		const x = (canvas.width - fw * s) / 2;
+		const y = (canvas.height - fh * s) / 2;
+		const over = foregroundOn ? foregroundOver(canvasPerKickPx, -x, -y, (fw * s) / 2, (fh * s) / 2) : 1;
+		return { y, scale: s, foreY: (fh * (1 - over)) / 2, over };
+	};
+	const spotPlace = (): CreaturePlace => {
+		const base = creaturePlaceFor(spot, canvas.width / Math.max(canvas.height, 1));
+		const key = portraitOptions.creature;
+		if (spot !== 'portraitPhone' || which !== 'portrait' || key === 'current') return base;
+		const D = CREATURE.portraitDock;
+		const o = D.options[key];
+		return creatureDocked(base, o.size, dockEdge(D.edges[o.edge]), dockFit());
+	};
+	const creaturePlace = $derived(placeOverride ?? spotPlace());
 	$effect(() => {
 		const place = creaturePlace;
 		untrack(() => creature.place(place));
@@ -392,6 +420,12 @@
 				return { left: -f.x, top: -f.y, right: f.x + fw * f.scale - canvas.width, bottom: f.y + fh * f.scale - canvas.height };
 			};
 			Object.assign(((window as any).__manticore ??= {}), {
+				/** THE PORTRAIT PHONE DOCK's option (constants CREATURE.portraitDock): 'current' (the old spot) | 'A' (the default since 2026-10-17) | 'B' | 'C'.
+				 *  Returns the option in force. */
+				creaturePlace: (key: CreatureDockKey) => {
+					if (key === 'current' || key in CREATURE.portraitDock.options) portraitOptions.creature = key;
+					return portraitOptions.creature;
+				},
 				scene: {
 					/** the scene of the current layout (or of `layout`: the one that is not showing) */
 					state: (layout: SceneLayout = which) => {
@@ -604,7 +638,7 @@
 				// ---- __manticore.creature (tools/manticore/creature_probe.js) ----
 				creature: {
 					constants: () => JSON.parse(JSON.stringify(CREATURE)),
-					spec: () => ({ canvas: CREATURE_SPEC.canvas, feetRow: CREATURE_SPEC.feetRow, feetCol: CREATURE_SPEC.feetCol, fps: CREATURE_SPEC.fps, clips: JSON.parse(JSON.stringify(CREATURE_SPEC.clips)), tier, tierCanvas: CREATURE_SPEC.tiers[tier].canvas }),
+					spec: () => ({ canvas: CREATURE_SPEC.canvas, feetRow: CREATURE_SPEC.feetRow, feetCol: CREATURE_SPEC.feetCol, fps: CREATURE_SPEC.fps, clips: JSON.parse(JSON.stringify(CREATURE_SPEC.clips)), tier, tierCanvas: CREATURE_SPEC.tiers[tier].canvas, /** the idle sheets' canvas (CREATURE.phoneFullIdle: 640 on the phone too) */ idleCanvas: CREATURE_SPEC.tiers[CREATURE.phoneFullIdle ? 'full' : tier].canvas }),
 					/** everything: the state machine, what is loaded, the spot, and where the nodes are ON THE CANVAS through
 					 *  their own transforms (the feet point, and one 1024 canvas px in canvas px) */
 					state: () => {
@@ -689,6 +723,30 @@
 					 *  override of it (null: back to the layout's) */
 					place: () => ({ ...creaturePlace }),
 					placeAt: (p: CreaturePlace | null) => (placeOverride = p),
+					/** DEV: hold one frame of a clip still (the placement stills: swipe f16, the end of the swipe), null = run */
+					pin: (clip: CreatureClip | null, frame = 1) => (creature.pin = clip ? { clip, frame } : null),
+					/** the portrait dock: the option, his claw point and the board edges on the canvas (CSS px), at rest */
+					dock: () => {
+						const D = CREATURE.portraitDock;
+						const p = creaturePlace;
+						const f = dockFit();
+						const toCanvas = (localY: number) => f.y + (f.foreY + localY * f.over) * f.scale;
+						const toCanvasX = (localX: number) => {
+							const [fw] = frames.portrait;
+							const x0 = (canvas.width - fw * f.scale) / 2;
+							return x0 + ((fw * (1 - f.over)) / 2 + localX * f.over) * f.scale;
+						};
+						return {
+							key: portraitOptions.creature,
+							spot,
+							place: { ...p },
+							claw: { x: toCanvasX(p.x + (D.claw.x - CREATURE_SPEC.feetCol) * p.scale), y: toCanvas(p.y - (CREATURE_SPEC.feetRow - D.claw.y) * p.scale) },
+							feet: { x: toCanvasX(p.x), y: toCanvas(p.y) },
+							/** canvas px per rig px */
+							rigPx: p.scale * f.over * f.scale,
+							edges: { frame: dockEdge(D.edges.frame), grid: dockEdge(D.edges.grid) },
+						};
+					},
 					log: () => creature.log.map((e) => ({ ...e })),
 					loadLog: () => creatureLoadLog.map((e) => ({ ...e })),
 					/** THE PREFETCH (game/creatureLoad.ts): its two conditions, when it ran, every file it fetched */
