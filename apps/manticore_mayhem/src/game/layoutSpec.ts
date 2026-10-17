@@ -139,6 +139,8 @@ let portraitViewport: (() => PortraitViewport) | null = null;
 export const setPortraitViewportSource = (source: () => PortraitViewport) => {
 	portraitViewport = source;
 };
+/** the live portrait viewport now (null without a source: node tools) */
+export const portraitViewportNow = (): PortraitViewport | null => portraitViewport?.() ?? null;
 
 /** the shipped growth k on a portrait viewport this wide (master units): the chain centrelines chainInset inside its
  *  edges, 1 .. maxK. Above 1 the spin amount plaque uses its tablet numbers (components/BoardPlaque.svelte), whatever

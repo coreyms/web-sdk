@@ -33,6 +33,8 @@ import { BarbFx, EyeFx, GlintFx, LID_CLOSED, LID_OPEN, VeinFx, rgbInt } from './
 import { PlaqueText, PlaqueTitle } from './plaqueText';
 import { PlaqueFont } from './text';
 import { STINGER_TIERS, type StingerData, type StingerJson, type StingerMode, type StingerScreen, type StingerTier } from './types';
+import { PLAQUE_GLOW, type PlaqueGlowKey } from '../constants';
+import { plaqueHaloTexture, type PlaqueHalo } from '../fxTexture';
 
 type Textures = Record<string, PIXI.Texture>;
 
@@ -142,6 +144,14 @@ export class StingerView {
 	private placed = new PIXI.Container();
 	private body = new PIXI.Container();
 	private textLayer = new PIXI.Container();
+	/** THE BACKGROUND GLOW (constants PLAQUE_GLOW): the body's first children, behind every layer of the plaque */
+	private glowLayer = new PIXI.Container();
+	private glowSprites: PIXI.Sprite[] = [];
+	private bodyTex: PIXI.Texture | null = null;
+	private bodyRect = [0, 0, 1, 1];
+	/** the look on show ('off' = as shipped) and the halos it has baked (DEV state, the cost) */
+	glowKey: PlaqueGlowKey = PLAQUE_GLOW.default;
+	readonly halos: Record<string, PlaqueHalo> = {};
 
 	private motion!: StingerMotion;
 	private vein!: VeinFx;
@@ -276,6 +286,9 @@ export class StingerView {
 			this.buffers[i] = mesh.geometry.getBuffer('aPosition');
 			meshOf.set(M.name, mesh);
 		});
+		this.bodyTex = tex('body');
+		this.bodyRect = [...R.body];
+		this.body.addChild(this.glowLayer);
 		for (const L of json.motion.layers) {
 			if (L.type === 'static') this.body.addChild(sprite(L.name));
 			// a back sheet draws its front sheet's geometry (one vertex buffer, two textures)
@@ -383,6 +396,42 @@ export class StingerView {
 		// the entrance moves and scales the plaque about the panel centre
 		this.body.pivot.set(this.panelX, this.panelY);
 		this.ready = true;
+		this.setGlow(this.glowKey);
+	}
+
+	/** THE BACKGROUND GLOW (constants PLAQUE_GLOW): which look. Its halos are baked on the first call that needs them
+	 *  (never before the plaque is built, never per frame); 'off' draws nothing and restores the plaque's own dim. */
+	setGlow(key: PlaqueGlowKey): void {
+		this.glowKey = key;
+		if (!this.ready) return;
+		const opt = key === 'off' ? null : PLAQUE_GLOW.options[key];
+		const layers = opt?.layers ?? [];
+		while (this.glowSprites.length < layers.length) {
+			const s = new PIXI.Sprite(PIXI.Texture.EMPTY);
+			s.label = 'plaque-glow';
+			this.glowSprites.push(s);
+			this.glowLayer.addChild(s);
+		}
+		const [bx, by, bw, bh] = this.bodyRect;
+		const cx = bx + bw / 2;
+		const cy = by + bh / 2;
+		this.glowSprites.forEach((s, i) => {
+			const L = layers[i];
+			s.visible = !!L;
+			if (!L || !this.bodyTex) return;
+			const halo = (this.halos[L.halo] ??= plaqueHaloTexture(L.halo, this.bodyTex, bw, bh, PLAQUE_GLOW.halo[L.halo]));
+			s.texture = halo.texture;
+			s.anchor.set(0.5);
+			// the halo's box is centred on the body's, so a scale about the centre keeps it centred
+			s.position.set(cx + halo.x + halo.width / 2 - bw / 2, cy + halo.y + halo.height / 2 - bh / 2);
+			s.width = halo.width * L.scale;
+			s.height = halo.height * L.scale;
+			s.tint = L.tint;
+			s.alpha = L.alpha;
+			s.blendMode = L.blend;
+		});
+		this.glowLayer.visible = layers.length > 0;
+		this.sceneDim = opt?.dim ?? this.json.text.layout.scene_dim;
 	}
 
 	/** the five texture sources, for mip chains and the pre-upload */
@@ -971,6 +1020,9 @@ export class StingerView {
 			panel: b ? [...at(this.json.text.layout.panel[0], this.json.text.layout.panel[1]), ...at(this.json.text.layout.panel[0] + this.json.text.layout.panel[2], this.json.text.layout.panel[1] + this.json.text.layout.panel[3])] : null,
 			/** the movers' vertices right now, canvas px box (wing tips and tails leave the frame) */
 			movers: b ? this.moverBox() : null,
+			/** THE BACKGROUND GLOW (PLAQUE_GLOW): the look, its sprites, whether they ride the body (its first child, under
+			 *  `placed`: the entrance, the hover, the exit and the plaque's alpha), the plaque's alpha and the dim now */
+			glow: { key: this.glowKey, sprites: this.glowSprites.filter((s) => s.visible).length, inBody: this.glowLayer.parent === this.body && this.body.getChildIndex(this.glowLayer) === 0, plaqueAlpha: Number(this.placed.alpha.toFixed(3)), bodyY: Number(this.body.position.y.toFixed(2)), bodyScale: Number(this.body.scale.x.toFixed(4)), dim: Number(this.dim.alpha.toFixed(3)) },
 		};
 	}
 

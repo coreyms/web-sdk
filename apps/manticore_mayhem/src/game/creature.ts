@@ -85,6 +85,16 @@ export const creaturePlaceFor = (spot: CreatureSpot, aspect: number): CreaturePl
 	const lerp = (a: number, b: number) => a + (b - a) * t;
 	return { ...p, x: lerp(T.x, p.x), y: lerp(T.y, p.y), scale: lerp(T.scale, p.scale) };
 };
+/** THE PORTRAIT PHONE DOCK (constants CREATURE.portraitDock; branch portrait-glow-r1, options for Corey): the spot's
+ *  place with its scale times `size` and its y moved so that his claw point (the striking claw's lowest point at the end
+ *  of the swipe) lands on the canvas row `edgeY` (a board edge). `fit`: where his parent is at rest (no kick), canvas px
+ *  = fit.y + (fit.foreY + local y x fit.over) x fit.scale: the scene's twin root (the cover fit) and its foreground (the
+ *  oversize). x stays the spot's: only the height follows the board. */
+export const creatureDocked = (p: CreaturePlace, size: number, edgeY: number, fit: { y: number; scale: number; foreY: number; over: number }): CreaturePlace => {
+	const scale = p.scale * size;
+	const local = ((edgeY - fit.y) / fit.scale - fit.foreY) / fit.over;
+	return { ...p, scale, y: local + (CREATURE_SPEC.feetRow - CREATURE.portraitDock.claw.y) * scale };
+};
 /** what the creature needs from the game (components/Background.svelte hands it over; this file imports no state) */
 export type CreatureEnv = {
 	ts: () => number;
@@ -170,6 +180,8 @@ export class Creature {
 	/** DEV A / B and the layouts that hide him */
 	enabled: boolean = CREATURE.on;
 	private placed = false;
+	/** DEV only (`__manticore.creature.pin`): a clip's frame held still instead of his own state (null: he runs as ever) */
+	pin: { clip: CreatureClip; frame: number } | null = null;
 	/** the landing screen is up (veil): not drawn, no action, no sound; his sheets load all the same */
 	private veiled = false;
 
@@ -730,6 +742,13 @@ export class Creature {
 		if (this.state === 'still') {
 			// one picture: only the veil's and the layout's alphas move (no clip, no sound, no poke)
 			this.tickLook(now, on, dt);
+			return;
+		}
+		if (import.meta.env.DEV && this.pin) {
+			// DEV (`__manticore.creature.pin`): one frame of a clip held still, for the placement stills; nothing else runs
+			this.tickLook(now, on, dt);
+			this.draw(this.pin.clip, this.pin.frame);
+			this.syncLift();
 			return;
 		}
 		if (this.env.skipping() || !on) {

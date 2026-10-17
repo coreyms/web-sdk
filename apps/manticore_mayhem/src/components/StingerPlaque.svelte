@@ -78,7 +78,7 @@
 	import { STINGER_DATA_URLS } from '../game/assets';
 	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 
-	import { STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP } from '../game/constants';
+	import { STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP, PLAQUE_GLOW, type PlaqueGlowKey } from '../game/constants';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { boardKick, chainGust } from '../game/featureFx';
 	import { layoutKind } from '../game/layoutSpec';
@@ -417,6 +417,12 @@
 		// ---- DEV hook: __manticore.stinger (tools/manticore/stinger_probe.js) --------------------
 		if (import.meta.env.DEV && typeof window !== 'undefined') {
 			Object.assign(((window as any).__manticore ??= {}), {
+				/** THE PLAQUE'S BACKGROUND GLOW, the options for Corey (constants PLAQUE_GLOW): 'off' is the shipped look */
+				plaqueGlow: (key: PlaqueGlowKey) => {
+					if (key !== 'off' && !(key in PLAQUE_GLOW.options)) return view.glowKey;
+					view.setGlow(key);
+					return view.glowKey;
+				},
 				stinger: {
 					...api,
 					/** the real screens' entry points, and every beat played (show / impact / countStart / tier / countEnd / hide / gone) */
@@ -426,6 +432,13 @@
 						if (typeof o?.scale === 'number') view.hoverScale = Math.max(0, o.scale);
 						return view.hoverScale;
 					},
+					/** THE BACKGROUND GLOW's options (constants PLAQUE_GLOW): the look and what its halos cost */
+					glow: () => ({
+						key: view.glowKey,
+						halos: Object.fromEntries(Object.entries(view.halos).map(([k, h]) => [k, { w: h.texture.source.pixelWidth, h: h.texture.source.pixelHeight, bytes: h.bytes, bakeMs: Number(h.bakeMs.toFixed(2)), silhouette: h.silhouette, profile: h.profile }])),
+						/** the plaque body's width in ship px (the reach's unit) */
+						bodyWidth: data?.json.sprites.body[2] ?? 0,
+					}),
 					log: () => beats.slice(),
 					state: () => ({
 						...view.state(),
@@ -447,7 +460,10 @@
 		return () => {
 			stop();
 			if (stingerPlaque.flow === flow) stingerPlaque.flow = null;
-			if (import.meta.env.DEV && typeof window !== 'undefined') delete (window as any).__manticore?.stinger;
+			if (import.meta.env.DEV && typeof window !== 'undefined') {
+				delete (window as any).__manticore?.stinger;
+				delete (window as any).__manticore?.plaqueGlow;
+			}
 			// the parent's unmount destroys the root without its children: they go here
 			for (const child of view.root.removeChildren()) child.destroy({ children: true });
 		};

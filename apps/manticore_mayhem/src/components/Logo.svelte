@@ -44,6 +44,7 @@
 	import { loadLogoData, logoDataNow, type LogoData } from '../game/logo/data';
 	import { logoArtRect, logoFramePlacement } from '../game/logo/layout';
 	import { logoState } from '../game/logo/state.svelte';
+	import { portraitOptions } from '../game/portraitOptions.svelte';
 	import { LogoStill } from '../game/logo/still';
 	import { LogoView } from '../game/logo/view';
 	import { hudHiddenByModal } from '../ui/armoury/armouryView.svelte';
@@ -268,6 +269,12 @@
 		// ---- DEV hook: __manticore.logo (tools/manticore/logo_probe.js) ------------------------------
 		if (import.meta.env.DEV && typeof window !== 'undefined') {
 			Object.assign(((window as any).__manticore ??= {}), {
+				/** THE PORTRAIT PHONE LOGO's option (constants LOGO.portraitPhoneEdge): 'current' (shipped) or 'edge' (the left
+				 *  wing's tip 2 CSS px from the screen's left edge). Returns the option in force. */
+				logoPlace: (key: 'current' | 'edge') => {
+					if (key === 'current' || key === 'edge') portraitOptions.logo = key;
+					return portraitOptions.logo;
+				},
 				logo: {
 					state: () => {
 						const source = view.source((context.stateApp.loadedAssets ?? {}) as Record<string, PIXI.Texture>);
@@ -322,7 +329,10 @@
 			stop();
 			stopStill();
 			logoState.canvas = false;
-			if (import.meta.env.DEV && typeof window !== 'undefined') delete (window as any).__manticore?.logo;
+			if (import.meta.env.DEV && typeof window !== 'undefined') {
+				delete (window as any).__manticore?.logo;
+				delete (window as any).__manticore?.logoPlace;
+			}
 			// the parent's unmount destroys the root without its children: they go here
 			for (const child of view.root.removeChildren()) child.destroy({ children: true });
 			for (const child of host.removeChildren()) child.destroy({ children: true });
