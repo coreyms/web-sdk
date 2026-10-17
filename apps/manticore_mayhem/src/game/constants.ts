@@ -1958,14 +1958,20 @@ export const CREATURE = {
 	// Until a sheet is in its action is simply not played, so a feature that starts first shows no snarl / growl
 	// until they land. Saves 6.6 MB desktop / 3.7 MB phone per session.
 	lookLoad: { prefetch: true, prefetchLooks: ['super', 'epic'], prefetchGroups: ['creatureIdle', 'creatureActs'], early: true, waitMs: 250 },
-	/** HIS IDLE SHEET'S PLACE IN THE DEFERRED PHASE (2026-10-14, part D; Decimus cold load at staging 7184e88: it landed at
-	 *  16-17 s on fast 4G and 92 s on slow 4G, queued behind the plaque, the night scene, the night frame and the flames).
-	 *  The group it runs straight after (game/deferredLoad.ts), always after the audio and never in the first, blocking
-	 *  download: 'start' = the very first group; 'plaque' = right after the win plaque's set (1.2 MB full tier, 0.75 MB
-	 *  phone), ahead of everything else; 'flameEpic' = the old place. 'plaque' because 'start' put the plaque behind his
-	 *  2.1 / 3.8 MB sheet: defer_probe, phone slow 4G, plaque ready at 16.5 s (budget 12) and harsh 32.8 s (budget 25,
-	 *  over the 30 s a Big Win waits for it: assetGate PLAQUE_WAIT_MS). */
-	deferredAfter: 'plaque' as 'start' | 'plaque' | 'flameEpic',
+	/** HIS PLACE IN THE LOAD (first-minute plan D, Corey 2026-10-16 17:21 "Yes D"; until then CREATURE.deferredAfter put
+	 *  his idle sheet straight after the plaque and his attacks behind the symbols' sheets). Now:
+	 *    - his STILL (idle frame 1 of the base look and its shadow, tools/build_creature_still.py, 45 KB / 25 KB) is in the
+	 *      FIRST download (game/assets.ts creatureStill): he stands in the courtyard from the game's first frame
+	 *      (game/creature.ts setStill) and starts breathing, from that same picture and with no fade, when his idle sheet
+	 *      lands. A round resumed in a Super or Epic has no still of its look: he appears as before, when its sheet lands.
+	 *    - the win plaque and the symbols' sheets are the GATE (LOAD_GATE): PRESS ANYWHERE waits for them
+	 *    - after the gate (game/deferredLoad.ts): his idle sheet, then his attacks, then the scene's night set, the night
+	 *      frame, the flames, the labels, then his alternates, then the shared loader's remainder and the Armoury.
+	 *  restHeldAfter: the group of the boot look after which the rest of it is HELD until game/deferredLoad.ts lets it go
+	 *  (DEV `?creaturehold=1` holds after his idle group instead, so a probe can ask for an attack with only it in). */
+	restHeldAfter: 'creatureActs' as 'creatureIdle' | 'creatureActs',
+	/** the look his still is of (the base look: a fresh session always starts in it) */
+	stillLook: 'day' as const,
 	lookFadeMs: SCENE.crossfadeMs,
 	landingFadeMs: 400,
 	landingFadeStepMs: 34,
@@ -2174,4 +2180,40 @@ export const MAX_WIN = {
 		sparseShare: 0.18,
 		fullShare: 1,
 	},
+} as const;
+
+// THE LOADING GATE (first-minute plan D, Corey 2026-10-16 17:21 "Yes D"; measurements and the options in
+// ~/Desktop/Manticore Mayhem/feedback/firstminute_r1/REPORT.md, the result in firstminute_r2/). Until then PRESS ANYWHERE
+// waited for the audio alone and every deferred file started after it: a reviewer who pressed at once spun on a FROZEN
+// board (no symbol sheet in) in an empty courtyard, for 24 s on desktop fast 4G and the whole first minute on slow 4G.
+// Now PRESS ANYWHERE (ui/LandingScreen.svelte) waits for the audio AND the gate: the win plaque's set and the symbols'
+// drop and idle sheets (game/assets.ts GATE_ORDER, loaded by game/deferredLoad.ts loadGate), which start the moment the
+// audio is in (besideAudioFiles below: the plan said beside the audio, which measured worse), and the loading bar
+// counts them with the audio. But never more than capMs after the audio is ready: past the cap PRESS shows and the rest of
+// the gate lands behind the game as before.
+//   capMs        the cap, real ms after the audio is ready (the plan's 10 s: desktop fast 4G about +10 s to the first spin,
+//                phone fast 4G about +5 s, slow 4G +10 s either way)
+//   scatter      the scatter's two sheets (3.3 MB full tier, 0.85 MB phone tier) are in the gate. false = the plan's
+//                cheaper variant (they load straight after the gate instead)
+//   besideAudioFiles   how many of the gate's files may be on the wire at once WHILE THE AUDIO IS STILL LOADING (all of a
+//                group's once it is in). 0: none, the gate starts the moment the audio is in. MEASURED 2026-10-16
+//                (firstminute_r2, production build, Chrome's throttles): with 1 the link shares itself between the audio and
+//                the gate's file, the audio is ready later (desktop slow 4G 61.4 s instead of 54.3) and so is the cap counted
+//                from it: PRESS ANYWHERE at 71.7 s (+17.4 s) against 64.7 s (+10.4 s, the plan's number) with 0; desktop fast
+//                4G 21.9 against 21.1 s, phone fast 4G 13.7 against 14.4 s, phone slow 4G 56.2 against 51.0 s. Starting
+//                beside the audio buys nothing on a link the download fills, and costs the audio its share of it.
+//   musicSideTracks   the four other music tracks are not buffered ahead beside the gate's files (game/sound.ts): when
+//                the gate was capped they stream when first played instead
+//   sceneBesideAttacks   AFTER THE GATE (game/deferredLoad.ts): his idle sheet alone first, then his attacks BESIDE the
+//                scene's night set, night frame, flames and labels (true), or strictly before them (false). His sheets
+//                go one at a time, each decoded and uploaded before the next is asked for, so the link idles between
+//                them; the scene's files fill those gaps. Nothing after the gate can delay the gate. Measured (desktop
+//                fast 4G): his attacks and the scene's groups, 10.8 MB, went at 0.83 MB/s side by side, 0.68 MB/s one
+//                after the other.
+export const LOAD_GATE = {
+	capMs: 10_000,
+	scatter: true,
+	besideAudioFiles: 0,
+	musicSideTracks: 'afterGate' as 'afterGate' | 'asBefore',
+	sceneBesideAttacks: true,
 } as const;

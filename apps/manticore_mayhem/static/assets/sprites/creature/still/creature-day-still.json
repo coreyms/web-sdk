@@ -1,0 +1,54 @@
+{
+ "frames": {
+  "creature_still_body": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 487,
+    "h": 532
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 70,
+    "w": 487,
+    "h": 532
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_still_shadow": {
+   "frame": {
+    "x": 0,
+    "y": 534,
+    "w": 140,
+    "h": 33
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 4,
+    "y": 121,
+    "w": 140,
+    "h": 33
+   },
+   "sourceSize": {
+    "w": 160,
+    "h": 160
+   }
+  }
+ },
+ "meta": {
+  "image": "creature-day-still.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 487,
+   "h": 567
+  },
+  "scale": "1",
+  "pngHash": "4e0b829e"
+ }
+}

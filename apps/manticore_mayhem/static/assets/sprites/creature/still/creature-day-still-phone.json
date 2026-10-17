@@ -1,0 +1,54 @@
+{
+ "frames": {
+  "creature_still_body": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 330,
+    "h": 360
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 39,
+    "y": 47,
+    "w": 330,
+    "h": 360
+   },
+   "sourceSize": {
+    "w": 432,
+    "h": 432
+   }
+  },
+  "creature_still_shadow": {
+   "frame": {
+    "x": 0,
+    "y": 362,
+    "w": 94,
+    "h": 22
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 3,
+    "y": 82,
+    "w": 94,
+    "h": 22
+   },
+   "sourceSize": {
+    "w": 108,
+    "h": 108
+   }
+  }
+ },
+ "meta": {
+  "image": "creature-day-still-phone.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 330,
+   "h": 384
+  },
+  "scale": "1",
+  "pngHash": "8677857e"
+ }
+}

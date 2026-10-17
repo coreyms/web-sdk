@@ -163,6 +163,10 @@ export default {
 	"sprites/creature/shared/creature-shadow-phone.webp": "f721eef6",
 	"sprites/creature/shared/creature-shadow.json": "587c9422",
 	"sprites/creature/shared/creature-shadow.webp": "609beee6",
+	"sprites/creature/still/creature-day-still-phone.json": "1b37cc11",
+	"sprites/creature/still/creature-day-still-phone.webp": "8677857e",
+	"sprites/creature/still/creature-day-still.json": "77da7085",
+	"sprites/creature/still/creature-day-still.webp": "4e0b829e",
 	"sprites/creature/super/creature-super-charge_in-phone.json": "16e5322c",
 	"sprites/creature/super/creature-super-charge_in-phone.webp": "9d1f1021",
 	"sprites/creature/super/creature-super-charge_in.json": "6ca2de7d",
@@ -601,6 +605,10 @@ export const fileBytes = {
 	"sprites/creature/shared/creature-shadow-phone.webp": 160456,
 	"sprites/creature/shared/creature-shadow.json": 390357,
 	"sprites/creature/shared/creature-shadow.webp": 319402,
+	"sprites/creature/still/creature-day-still-phone.json": 26639,
+	"sprites/creature/still/creature-day-still-phone.webp": 25898,
+	"sprites/creature/still/creature-day-still.json": 46306,
+	"sprites/creature/still/creature-day-still.webp": 45568,
 	"sprites/creature/super/creature-super-charge_in-phone.json": 136196,
 	"sprites/creature/super/creature-super-charge_in-phone.webp": 134264,
 	"sprites/creature/super/creature-super-charge_in.json": 230343,
@@ -884,4 +892,4 @@ export const landingSizes = {
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":180978,"preload":1652519,"audio":1637857} as const;
+export const bootSizes = {"landing":180978,"preload":1698825,"audio":1637857} as const;

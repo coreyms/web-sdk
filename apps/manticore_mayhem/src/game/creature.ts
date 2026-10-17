@@ -37,6 +37,10 @@
 //             the board's opening (game/boardTap.ts boardOpening) and lies under every HTML control
 // Action clips run in STYLE time (x the turbo scale), like the board effects they belong to. NOTHING WAITS FOR HIM:
 // every method here returns at once, and a clip whose sheet is not in is simply not played.
+//   still     (first-minute plan D, 2026-10-16) before his idle sheet is in: ONE picture, his idle loop's first frame and
+//             its shadow from the first download (game/assets.ts creatureStill; setStill). No action, no sound. When the
+//             idle sheet lands the loop starts from frame 1, the same picture, so nothing fades and nothing jumps: the
+//             first appearance never shows two pictures at once (the design review's ghosted head and wings, 7 to 16 s)
 //
 // LOOKS: one per mode (CREATURE.looks), ONE resident. A change of mode asks for the new look (onWantLook); the old
 // one keeps playing until the new one's idle sheet is uploaded, then the two cross over lookFadeMs (the outline is
@@ -167,7 +171,7 @@ export class Creature {
 	private veiled = false;
 
 	// ---- the state machine ----
-	private state: 'hidden' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
+	private state: 'hidden' | 'still' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
 	private idleT0 = 0;
 	private idleFrame = 1;
 	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false };
@@ -316,6 +320,29 @@ export class Creature {
 		this.note('sheet', { look, clip });
 		return true;
 	}
+	/** HIS STILL (see `still` in the header): the picture of `look`'s idle frame 1 and its shadow, in the first download.
+	 *  Taken only before any look is on show and only for the look the mode asks for (a round resumed in a Super or Epic
+	 *  has no still of its look: he appears as before, when its idle sheet lands). Behind the landing screen it waits
+	 *  under the veil and fades in with it, the one picture; with no landing screen it is on show at once. */
+	setStill(look: CreatureLook, body: PIXI.Texture, shadow: PIXI.Texture | null): boolean {
+		if (this.look || look !== this.want) return false;
+		this.look = look;
+		this.state = 'still';
+		for (const s of this.colour) s.scale.set(SPEC.canvas[0] / body.orig.width);
+		this.colour[0].texture = body;
+		if (shadow) {
+			this.shadow.texture = shadow;
+			this.shadow.scale.set(SPEC.canvas[0] / shadow.orig.width);
+		}
+		// the idle loop's first draw swaps to its own frame 1 (the same picture)
+		this.drawnClip = 'idle';
+		this.drawnFrame = 0;
+		this.appearAt = -1;
+		this.unveilMs = -1;
+		this.shown = this.veiled ? 0 : 1;
+		this.note('still', look);
+		return true;
+	}
 	/** a look's textures are about to be destroyed: forget them, and make sure no sprite is left holding one (the
 	 *  callers have already seen to that: see WHO HOLDS WHAT in the header; `rescued` counts the times they had not) */
 	forget(look: CreatureLook): void {
@@ -385,6 +412,21 @@ export class Creature {
 	lookReady(now: number): void {
 		const want = this.want;
 		if (!this.has(want, 'idle') || !this.shadows.idle) return;
+		if (this.state === 'still') {
+			if (want === this.look) {
+				// THE STILL HANDS OVER: the loop starts on its frame 1, the picture he already shows. No fade, no jump
+				this.state = 'idle';
+				this.idleT0 = now;
+				this.idleFrame = 1;
+				this.drawnFrame = 0;
+				this.note('breathe', want);
+				this.onLookOn?.(want);
+				return;
+			}
+			// the mode asked for another look before the still's own sheet came: the still goes, that look appears as ever
+			this.look = null;
+			this.state = 'hidden';
+		}
 		if (!this.look) {
 			// the first look: he fades in
 			this.look = want;
@@ -674,6 +716,11 @@ export class Creature {
 		this.counters.ticks += 1;
 		const ts = Math.max(0.2, this.env.ts());
 		const on = this.enabled && this.placed && !this.veiled;
+		if (this.state === 'still') {
+			// one picture: only the veil's and the layout's alphas move (no clip, no sound, no poke)
+			this.tickLook(now, on, dt);
+			return;
+		}
 		if (this.env.skipping() || !on) {
 			// SKIP TO RESULT (and a layout that hides him, and the landing screen): no action, no sound; whatever ran is
 			// cut to idle
