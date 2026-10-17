@@ -90,7 +90,8 @@ SRC_DEFAULT = Path.home() / "Desktop" / "Manticore Mayhem" / "images" / "ui"
 
 # texture px per ship px, by atlas group and tier
 TIERS = {
-    "": {"plaque": Fraction(3, 2), "fx": Fraction(3, 2), "glint": Fraction(1), "text": Fraction(3, 2)},
+    # plaque 2 (was 3/2): Corey 2026-10-17 10:41 "Yes sharper plaque", for 1920-class DPR 2 desktops (+116 KB, +5.1 MB GPU)
+    "": {"plaque": Fraction(2), "fx": Fraction(3, 2), "glint": Fraction(1), "text": Fraction(3, 2)},
     "-half": {"plaque": Fraction(1), "fx": Fraction(1), "glint": Fraction(3, 4), "text": Fraction(1)},
     # TEST ONLY (--tiers ...,mid): not built by default, not loaded by the game
     "-mid": {"plaque": Fraction(5, 4), "fx": Fraction(5, 4), "glint": Fraction(3, 4), "text": Fraction(5, 4)},
@@ -361,7 +362,7 @@ def main() -> None:
     ap.add_argument("--drop", type=Path, help="a Rig delivery folder: its stinger_*_layered_2x/ and stinger_*_fx/ are read instead of --src's")
     ap.add_argument("--layered", choices=("2x", "4x"), default="2x", help="with --drop: the 2x cut-outs (default, what ships) or the 4x set")
     ap.add_argument("--keep-shipped-copy", action="store_true", help="the intro / wrap up copy from the stinger.json already in --out-dir, not plaque-text.json")
-    ap.add_argument("--plaque-scale", type=Fraction, help="TEST ONLY: the FULL tier's plaque texture px per ship px (ships 3/2)")
+    ap.add_argument("--plaque-scale", type=Fraction, help="TEST ONLY: the FULL tier's plaque texture px per ship px (ships 2)")
     args = ap.parse_args()
     OUT = args.out_dir
     P = None if args.no_grade else GRADE

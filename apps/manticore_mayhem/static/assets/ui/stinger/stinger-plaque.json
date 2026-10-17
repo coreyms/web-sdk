@@ -2,302 +2,302 @@
  "frames": {
   "stg_wing_C_L_back": {
    "frame": {
-    "x": 821,
-    "y": 720,
-    "w": 156,
-    "h": 117
+    "x": 1080,
+    "y": 956,
+    "w": 208,
+    "h": 156
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 156,
-    "h": 117
+    "w": 208,
+    "h": 156
    },
    "sourceSize": {
-    "w": 156,
-    "h": 117
+    "w": 208,
+    "h": 156
    }
   },
   "stg_wing_C_R_back": {
    "frame": {
-    "x": 1149,
-    "y": 720,
-    "w": 150,
-    "h": 117
+    "x": 1512,
+    "y": 956,
+    "w": 200,
+    "h": 156
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 150,
-    "h": 117
+    "w": 200,
+    "h": 156
    },
    "sourceSize": {
-    "w": 150,
-    "h": 117
+    "w": 200,
+    "h": 156
    }
   },
   "stg_body": {
    "frame": {
     "x": 4,
     "y": 4,
-    "w": 1302,
-    "h": 708
+    "w": 1736,
+    "h": 944
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 1302,
-    "h": 708
+    "w": 1736,
+    "h": 944
    },
    "sourceSize": {
-    "w": 1302,
-    "h": 708
+    "w": 1736,
+    "h": 944
    }
   },
   "stg_tail_L": {
    "frame": {
-    "x": 162,
-    "y": 720,
-    "w": 156,
-    "h": 240
+    "x": 212,
+    "y": 956,
+    "w": 208,
+    "h": 320
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 156,
-    "h": 240
+    "w": 208,
+    "h": 320
    },
    "sourceSize": {
-    "w": 156,
-    "h": 240
+    "w": 208,
+    "h": 320
    }
   },
   "stg_tail_R": {
    "frame": {
     "x": 4,
-    "y": 720,
-    "w": 150,
-    "h": 249
+    "y": 956,
+    "w": 200,
+    "h": 332
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 150,
-    "h": 249
+    "w": 200,
+    "h": 332
    },
    "sourceSize": {
-    "w": 150,
-    "h": 249
+    "w": 200,
+    "h": 332
    }
   },
   "stg_front_tail_L": {
    "frame": {
-    "x": 1155,
-    "y": 845,
-    "w": 96,
-    "h": 96
+    "x": 1512,
+    "y": 1120,
+    "w": 128,
+    "h": 128
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 96,
-    "h": 96
+    "w": 128,
+    "h": 128
    },
    "sourceSize": {
-    "w": 96,
-    "h": 96
+    "w": 128,
+    "h": 128
    }
   },
   "stg_front_tail_R": {
    "frame": {
-    "x": 723,
-    "y": 720,
-    "w": 90,
-    "h": 120
+    "x": 952,
+    "y": 956,
+    "w": 120,
+    "h": 160
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 90,
-    "h": 120
+    "w": 120,
+    "h": 160
    },
    "sourceSize": {
-    "w": 90,
-    "h": 120
+    "w": 120,
+    "h": 160
    }
   },
   "stg_wing_C_L": {
    "frame": {
-    "x": 985,
-    "y": 720,
-    "w": 156,
-    "h": 117
+    "x": 1296,
+    "y": 956,
+    "w": 208,
+    "h": 156
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 156,
-    "h": 117
+    "w": 208,
+    "h": 156
    },
    "sourceSize": {
-    "w": 156,
-    "h": 117
+    "w": 208,
+    "h": 156
    }
   },
   "stg_wing_C_R": {
    "frame": {
-    "x": 821,
-    "y": 845,
-    "w": 150,
-    "h": 117
+    "x": 1080,
+    "y": 1120,
+    "w": 200,
+    "h": 156
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 150,
-    "h": 117
+    "w": 200,
+    "h": 156
    },
    "sourceSize": {
-    "w": 150,
-    "h": 117
+    "w": 200,
+    "h": 156
    }
   },
   "stg_wing_L": {
    "frame": {
-    "x": 326,
-    "y": 720,
-    "w": 195,
-    "h": 204
+    "x": 428,
+    "y": 956,
+    "w": 260,
+    "h": 272
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 195,
-    "h": 204
+    "w": 260,
+    "h": 272
    },
    "sourceSize": {
-    "w": 195,
-    "h": 204
+    "w": 260,
+    "h": 272
    }
   },
   "stg_wing_R": {
    "frame": {
-    "x": 529,
-    "y": 720,
-    "w": 186,
-    "h": 201
+    "x": 696,
+    "y": 956,
+    "w": 248,
+    "h": 268
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 186,
-    "h": 201
+    "w": 248,
+    "h": 268
    },
    "sourceSize": {
-    "w": 186,
-    "h": 201
+    "w": 248,
+    "h": 268
    }
   },
   "stg_front_wing_C_L": {
    "frame": {
-    "x": 1023,
-    "y": 845,
-    "w": 39,
-    "h": 108
+    "x": 1344,
+    "y": 1120,
+    "w": 52,
+    "h": 144
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 39,
-    "h": 108
+    "w": 52,
+    "h": 144
    },
    "sourceSize": {
-    "w": 39,
-    "h": 108
+    "w": 52,
+    "h": 144
    }
   },
   "stg_front_wing_C_R": {
    "frame": {
-    "x": 979,
-    "y": 845,
-    "w": 36,
-    "h": 111
+    "x": 1288,
+    "y": 1120,
+    "w": 48,
+    "h": 148
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 36,
-    "h": 111
+    "w": 48,
+    "h": 148
    },
    "sourceSize": {
-    "w": 36,
-    "h": 111
+    "w": 48,
+    "h": 148
    }
   },
   "stg_front_wing_L": {
    "frame": {
-    "x": 1070,
-    "y": 845,
-    "w": 36,
-    "h": 105
+    "x": 1404,
+    "y": 1120,
+    "w": 48,
+    "h": 140
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 36,
-    "h": 105
+    "w": 48,
+    "h": 140
    },
    "sourceSize": {
-    "w": 36,
-    "h": 105
+    "w": 48,
+    "h": 140
    }
   },
   "stg_front_wing_R": {
    "frame": {
-    "x": 1114,
-    "y": 845,
-    "w": 33,
-    "h": 99
+    "x": 1460,
+    "y": 1120,
+    "w": 44,
+    "h": 132
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 33,
-    "h": 99
+    "w": 44,
+    "h": 132
    },
    "sourceSize": {
-    "w": 33,
-    "h": 99
+    "w": 44,
+    "h": 132
    }
   }
  },
@@ -305,10 +305,10 @@
   "image": "stinger-plaque.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 1312,
-   "h": 973
+   "w": 1760,
+   "h": 1292
   },
   "scale": "1",
-  "pngHash": "cde3ca4b"
+  "pngHash": "be5fd869"
  }
 }
