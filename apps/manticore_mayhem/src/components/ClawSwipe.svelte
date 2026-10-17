@@ -7,8 +7,9 @@
 	//
 	// 1. THE CLAWS (clawLayer, z 21: over the tiles and the badges, under the readouts' HUD). FOUR straight claw
 	//    strokes ("The manticore has four claws", Corey 2026-10-16 17:32; straight and laid where the old tears were,
-	//    r2 2026-10-17 09:52) rake the swiped band right to left, top claw first, SWIPE_FX.clawStaggerMs apart: each draws on behind a hot tip, holds, and burns out with its
-	//    tail chasing the tip. Each claw leaves an ember scar along its path that holds until the symbols leave and
+	//    r2 2026-10-17 09:52) rake the swiped band right to left, top claw first, SWIPE_FX.clawStaggerMs apart: each
+	//    draws on behind a hot tip, holds, then burns out right to left at a steady speed with an ember on the
+	//    burn-out's front (r3: the band's tiles light in its wake). Each claw leaves an ember scar along its path that holds until the symbols leave and
 	//    fades with them (swipeFx.alpha). A warm-white flash covers the band for impactFlashMs at impactAtMs.
 	//    Every claw and scar is a sprite of ONE baked streak (game/fxTexture.ts clawTexture, made at mount) with
 	//    its OWN Texture object over that one source (made once): drawing on is cropping that object's frame, no
@@ -28,7 +29,7 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { quadIn, quadOut } from 'svelte/easing';
+	import { quadOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, GRID, CELL_COUNT, BOARD_SIZES, SWIPE_FX, ROAR_FX, PLAYGROUND_PX, reelOf, rowOf } from '../game/constants';
@@ -64,6 +65,8 @@
 		clawTex: PIXI.Texture;
 		tip: PIXI.Sprite;
 		t0: number;
+		/** the tip is the burn-out's ember now (its tint set) */
+		ember: boolean;
 		/** the crop last given (texture px), so an unchanged frame is never re-sent */
 		scarB: number;
 		clawA: number;
@@ -85,7 +88,7 @@
 		tip.tint = F.tipTint;
 		root.addChild(scar, claw, tip);
 		clawLayer.addChild(root);
-		return { root, scar, scarTex, claw, clawTex, tip, t0: i * F.clawStaggerMs, scarB: -1, clawA: -1, clawB: -1 };
+		return { root, scar, scarTex, claw, clawTex, tip, ember: false, t0: i * F.clawStaggerMs, scarB: -1, clawA: -1, clawB: -1 };
 	});
 
 	/** a crop [xa, xb] of the streak (texture px) onto a sprite: the frame and the sprite's place in the claw's
@@ -130,6 +133,8 @@
 			c.tip.scale.set(((F.tipPx * K * F.tipStretch) / DOT_PX) * (geom.chord / L), (F.tipPx * K) / DOT_PX / sy);
 			c.t0 = i * F.clawStaggerMs;
 			c.scarB = c.clawA = c.clawB = -1;
+			c.ember = false;
+			c.tip.tint = F.tipTint;
 		}
 		flashShown = false;
 		flash.position.set(0, top);
@@ -148,9 +153,10 @@
 			}
 			c.root.alpha = 1;
 			const b = quadOut(Math.min(1, tau / Math.max(F.clawDrawMs, 1)));
-			const tailSpan = Math.max(F.clawLifeMs - F.clawTailAtMs, 1);
-			const tu = Math.max(0, Math.min(1, (tau - F.clawTailAtMs) / tailSpan));
-			const a = quadIn(tu);
+			// the burn-out: its front retreats right to left at a steady speed (the tiles light in its wake,
+			// stateGame.swipeTileDelayMs)
+			const tu = Math.max(0, Math.min(1, (tau - F.clawTailAtMs) / Math.max(F.clawTailMs, 1)));
+			const a = tu;
 			// the claw: [a, b], burning out over its tail
 			if (tu >= 1 || b <= 0) c.claw.alpha = 0;
 			else {
@@ -161,7 +167,7 @@
 					c.clawB = xb;
 					crop(c.claw, c.clawTex, xa, xb);
 				}
-				c.claw.alpha = 1 - tu * tu;
+				c.claw.alpha = 1 - F.clawTailFade * tu;
 			}
 			// the scar: [0, b], held, then the shared fade
 			const sb = xAt(b);
@@ -170,11 +176,17 @@
 				crop(c.scar, c.scarTex, 0, sb);
 			}
 			c.scar.alpha = b > 0 ? F.scarAlpha * fade : 0;
-			// the hot tip, on the front while it draws on
-			if (b < 1) {
-				c.tip.x = b * geom.chord;
-				c.tip.y = geom.yAt(b) - geom.yEnd;
-				c.tip.alpha = F.tipAlpha;
+			// the hot tip on the front while it draws on; then the ember on the burn-out's front (the same dot)
+			const tipU = b < 1 ? b : tu > 0 && tu < 1 ? a : -1;
+			if (tipU >= 0) {
+				const ember = b >= 1;
+				if (ember !== c.ember) {
+					c.ember = ember;
+					c.tip.tint = ember ? F.emberTint : F.tipTint;
+				}
+				c.tip.x = tipU * geom.chord;
+				c.tip.y = geom.yAt(tipU) - geom.yEnd;
+				c.tip.alpha = ember ? F.emberAlpha * (1 - F.clawTailFade * tu) : F.tipAlpha;
 			} else c.tip.alpha = 0;
 		}
 		// the impact: up over impactRiseMs, out (squared) by impactFlashMs. At turbo the whole flash can fall between

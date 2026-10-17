@@ -1782,7 +1782,7 @@ export const scatterTrigger = async (cells: CellIndex[], id: number, rec?: FxRec
 export const swipeSchedule = () => {
 	const n = Math.max(1, Math.round(SWIPE_FX.clawCount));
 	const lastReveal = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs;
-	const clawsOut = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawLifeMs;
+	const clawsOut = (n - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawTailAtMs + SWIPE_FX.clawTailMs;
 	const tExit = SWIPE_FX.exitAtMs;
 	const exitMs = Math.max(SWIPE_FX.exitMs, 1);
 	return {
@@ -1796,11 +1796,11 @@ export const swipeSchedule = () => {
 	};
 };
 
-/** THE TILES FOLLOW THE CLAWS (SWIPE_FX.tileLagMs, r2): style ms from the swipe's start to the moment the claw over
- *  `cell`'s row reaches the middle of the cell. Claw i runs (i + 0.5) / clawCount down the band (ClawSwipe.svelte),
- *  so a row takes the first claw that runs through it (a band of 3 rows and 4 claws: claws 0, 1 and 3); the claw's
- *  front crosses the board right to left over clawDrawMs (quadOut), so reel r is reached at the inverse of quadOut
- *  of 1 - (r + 0.5) / 8. Presentation only: the values are the book's. */
+/** THE TILES FOLLOW THE CLAWS (SWIPE_FX.tileLagMs, r2 / r3): style ms from the swipe's start to the moment the
+ *  burn-out of the claw over `cell`'s row passes the middle of the cell. Claw i runs (i + 0.5) / clawCount down the
+ *  band (ClawSwipe.svelte), so a row takes the first claw that runs through it (a band of 3 rows and 4 claws: claws
+ *  0, 1 and 3); from clawTailAtMs its burn-out crosses the board right to left at a steady speed over clawTailMs,
+ *  so reel r is passed (1 - (r + 0.5) / 8) of the way through. Presentation only: the values are the book's. */
 export const swipeTileDelayMs = (cell: CellIndex, rows: number[]) => {
 	const n = Math.max(1, Math.round(SWIPE_FX.clawCount));
 	const top = rows.length ? Math.min(...rows) : 0;
@@ -1810,7 +1810,7 @@ export const swipeTileDelayMs = (cell: CellIndex, rows: number[]) => {
 	for (let i = 0; i < n && claw < 0; i += 1) if (Math.floor(((i + 0.5) * span) / n) === k) claw = i;
 	if (claw < 0) claw = Math.max(0, Math.min(n - 1, Math.round(((k + 0.5) * n) / span - 0.5)));
 	const b = clamp01(1 - (reelOf(cell) + 0.5) / GRID);
-	return claw * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs * (1 - Math.sqrt(1 - b)) + SWIPE_FX.tileLagMs;
+	return claw * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawTailAtMs + SWIPE_FX.clawTailMs * b + SWIPE_FX.tileLagMs;
 };
 
 /**

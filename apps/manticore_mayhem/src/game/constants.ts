@@ -693,13 +693,19 @@ export const PLAYGROUND_PX = SYMBOL_SIZE / 66.5;
 export const SWIPE_FX = {
 	/** "The manticore has four claws" (Corey 2026-10-16 17:32) */
 	clawCount: 4,
-	/** each claw's start after the previous one (the review: staggered 40 ms) */
-	clawStaggerMs: 40,
-	/** each claw's whole life (the review: 120 to 160 ms each): it draws on over clawDrawMs (quadOut, the hot tip
-	 *  leading), holds, then its tail chases the tip from clawTailAtMs and it burns out by clawLifeMs */
-	clawLifeMs: 140,
+	/** THE GAP BETWEEN CLAWS: each claw starts this long after the one above it. r3, Corey 2026-10-17 10:31: "let's
+	 *  lower the latency between the individual claw marks" (it was 40, the review's stagger) */
+	clawStaggerMs: 20,
+	/** each claw draws on right to left over clawDrawMs (quadOut, the hot tip leading), holds, then from clawTailAtMs
+	 *  BURNS OUT right to left: its right end retreats across the board at a steady speed over clawTailMs with an
+	 *  ember riding it, and the tiles light in its wake (r3, Corey 10:31: "They should really follow the fade out of
+	 *  the claw marks"; slow enough that the sweep reads at normal speed). A claw lives clawTailAtMs + clawTailMs.
+	 *  r1 / r2 had a 65 ms quadIn tail (140 ms a claw) */
 	clawDrawMs: 60,
-	clawTailAtMs: 75,
+	clawTailAtMs: 70,
+	clawTailMs: 300,
+	/** the burning claw's alpha falls to 1 - this by the end of its tail */
+	clawTailFade: 0.55,
 	/** THE OLD TEARS' LAYOUT (MOTION_SPEC "Claw swipe", Corey 2026-10-06 + the slant mapping), kept for the claws:
 	 *  each claw spans the board's width, its middle at the band's (i + 0.5) / clawCount, top claw first, drawn
 	 *  right to left. 'rows': the slant comes from the band's centre row (the top of the board slantTopDeg, the
@@ -717,6 +723,9 @@ export const SWIPE_FX = {
 	tipStretch: 2.6,
 	tipTint: 0xfff4dc,
 	tipAlpha: 0.95,
+	/** the ember riding the burn-out's front (the same dot), its colour and alpha */
+	emberTint: 0xffa04a,
+	emberAlpha: 0.85,
 	/** the ember scar each claw leaves along its path: the same streak tinted this, at this alpha, until the
 	 *  symbols leave, then fading over scarFadeMs */
 	scarTint: 0xff4a24,
@@ -734,10 +743,12 @@ export const SWIPE_FX = {
 	woundAlpha: 0.42,
 	woundRiseMs: 90,
 	/** THE TILES FOLLOW THE CLAWS (r2, Corey 2026-10-17 09:55: "I would also suggest for this the multipliers light up
-	 *  following the claw marks from right to left"): each tile of the band pops, lights or doubles (the plate's own
-	 *  beat, the book's values) when the claw over its row reaches the middle of its cell, column by column right to
-	 *  left (stateGame.swipeTileDelayMs), plus this lag. Before r2 they all started at exitAtMs + exitMs +
-	 *  MULT_PLATE.changeDelayMs (855 ms). */
+	 *  following the claw marks from right to left"; r3, 10:31: "They should really follow the fade out of the claw
+	 *  marks"): each tile of the band pops, lights or doubles (the plate's own beat, the book's values) when the
+	 *  burn-out of the claw over its row passes the middle of its cell, column by column right to left
+	 *  (stateGame.swipeTileDelayMs), plus this lag. With 4 claws 20 ms apart the last tile pops at about 411 ms, its
+	 *  pop done by 471, before the symbols leave at exitAtMs. Before r2 they all started at exitAtMs + exitMs +
+	 *  MULT_PLATE.changeDelayMs (855 ms); in r2 on the claw's tip (all by ~180 ms). */
 	tileLagMs: 0,
 	/** THE BOOK'S BEAT, unchanged by the claws: the band's symbols start to leave this long after the swipe starts (it
 	 *  was the four tears' 125 ms + their 370 ms hold); the refill drops at exitAtMs + max(exitMs, scarFadeMs) */
@@ -899,8 +910,9 @@ export const WELLS_FX = {
 	light: { peak: 0.85, inMs: 380, holdMs: 120, outMs: 900 },
 	double: { peak: 1, inMs: 420, holdMs: 180, outMs: 1100 },
 	win: { peak: 0.8, inMs: 170, holdMs: 260, outMs: 700, stepMs: 55 },
-	/** swipe: sweepMs in step with the four claws raking right to left (claw-swipe r1 / r2: the last claw starts at
-	 *  120 ms and is half drawn by 150; it was 240 with the old tears) */
+	/** swipe: sweepMs in step with the four claws drawing on right to left (claw-swipe r3: the last claw starts at 60
+	 *  ms and is half drawn by 90; 150 in r1 / r2, 240 with the old tears). The tiles' own light-ups follow the
+	 *  claws' slower burn-out (SWIPE_FX.clawTailMs) and flare their cells' veins as they come */
 	swipe: { peak: 0.9, inMs: 110, holdMs: 220, outMs: 800, sweepMs: (SWIPE_FX.clawCount - 1) * SWIPE_FX.clawStaggerMs + SWIPE_FX.clawDrawMs / 2 },
 	sting: { peak: 0.95, inMs: 110, holdMs: 120, outMs: 800, stepMs: 70, reach: 2, falloff: 0.55 },
 	power: { cap: 0.34, refValue: 8, fullValue: 2048, riseMs: 2200, fallMs: 900, shimmer: 0.35, periodMs: 3500 },
