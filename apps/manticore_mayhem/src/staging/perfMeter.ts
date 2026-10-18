@@ -230,7 +230,10 @@ export const verdictOf = (rows: MinuteRow[], now: MinuteRow, liveMedian: number)
 	// the latest evidence: the minute in progress once it has a few seconds of frames, else the last finished one
 	const latest = now.frames >= 240 ? now : (rows[rows.length - 1] ?? now);
 	if (latest.frames < 120) return { code: 'measuring', text: 'measuring (give it a minute)' };
-	const median = now.frames >= 240 ? Math.max(now.medianMs, liveMedian) : latest.medianMs;
+	// the live median (the last RECENT_FRAMES frames) counts either way: a drop to 30 Hz just before a minute ends leaves
+	// the minute in progress too short to judge and the finished one mostly fast, and its slow frames then read as long
+	// ("struggling", chain8 2026-10-18) where the rate itself had halved
+	const median = Math.max(now.frames >= 240 ? now.medianMs : latest.medianMs, liveMedian);
 	if (base && median >= base * HALF_RATE_FACTOR) {
 		const ratio = median / base;
 		const what = ratio < 2.5 ? 'half rate' : ratio < 3.5 ? 'a third of the rate' : 'a fraction of the rate';

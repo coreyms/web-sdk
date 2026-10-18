@@ -1088,7 +1088,7 @@ export class Creature {
 	}
 	/** ALREADY DOWN when a lit strike is planned (a big / super after normal stings: the charge comes in the crouch, so
 	 *  no phase can be picked): the loop runs a little fast or slow until the strike (at most CREATURE.glowAim.maxRate
-	 *  off 1) so that the strike still leaves it on f1. A rate it would need beyond that is not used: the loop runs as
+	 *  off 1) so that the strike still leaves it on f12 or f1. A rate it would need beyond that is not used: the loop runs as
 	 *  ever. Also fine tunes the phase picked at charge_in's end. Presentation only: the strike's time is the board's */
 	private aimCrouch(now: number): void {
 		this.crouchRate = 1;
@@ -1099,8 +1099,11 @@ export class Creature {
 		if (left < CREATURE.glowAim.minFrames) return;
 		const at = this.crouchT / FRAME_MS + left; // where the loop would be then (frames from its f1)
 		const L = N.charge_loop;
-		// the strike starts as the loop reaches the END of an f1 (its last frame drawn is f1): the nearest such point
-		const goal = Math.round((at - 1) / L) * L + 1;
+		// the strike starts as the loop goes from f12 to f1, the middle of the two frames the strike's glow can follow on from
+		// (its last frame drawn is f12 or f1, a frame of room either way): the nearest such point. Until 2026-10-18 the END of
+		// f1, the late edge of that pair: since sting r2 the strike's lead has the trail's 100 ms flight in it, and the display's
+		// own tick then drew f2 now and then (a frame of glow at 0.55 to 0.65; chain8 and chain9, turbo 1 super)
+		const goal = Math.round(at / L) * L;
 		const rate = (goal - this.crouchT / FRAME_MS) / left;
 		if (Math.abs(rate - 1) <= CREATURE.glowAim.maxRate) this.crouchRate = rate;
 		this.note('aim', { left: Math.round(left), rate: Math.round(rate * 1000) / 1000, used: this.crouchRate !== 1 });

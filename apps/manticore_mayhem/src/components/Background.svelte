@@ -43,7 +43,7 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, zIndexes, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
+	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
 	import { creature, creatureDocked, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
 	import { boardRegistration } from '../game/boardArt';
 	import { portraitOptions } from '../game/portraitOptions.svelte';
@@ -663,6 +663,8 @@
 				// ---- __manticore.creature (tools/manticore/creature_probe.js) ----
 				creature: {
 					constants: () => JSON.parse(JSON.stringify(CREATURE)),
+					/** the sting's look and timing (his strike lands STING_FX.flightMs before a normal sting's flip) */
+					stingFx: () => JSON.parse(JSON.stringify(STING_FX)),
 					spec: () => ({ canvas: CREATURE_SPEC.canvas, feetRow: CREATURE_SPEC.feetRow, feetCol: CREATURE_SPEC.feetCol, fps: CREATURE_SPEC.fps, clips: JSON.parse(JSON.stringify(CREATURE_SPEC.clips)), tier, tierCanvas: CREATURE_SPEC.tiers[tier].canvas, /** the idle sheets' canvas (CREATURE.phoneFullIdle: 640 on the phone too) */ idleCanvas: CREATURE_SPEC.tiers[CREATURE.phoneFullIdle ? 'full' : tier].canvas }),
 					/** everything: the state machine, what is loaded, the spot, and where the nodes are ON THE CANVAS through
 					 *  their own transforms (the feet point, and one 1024 canvas px in canvas px) */
