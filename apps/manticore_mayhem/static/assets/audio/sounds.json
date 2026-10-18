@@ -62,71 +62,71 @@
 		],
 		"sfx_cluster_remove": [
 			26611,
-			183
+			600
 		],
 		"sfx_tile_double": [
-			27794,
+			28211,
 			22
 		],
 		"sfx_cascade": [
-			28816,
-			180
+			29233,
+			480
 		],
 		"sfx_money_counter": [
-			30000,
+			30720,
 			1500,
 			true
 		],
 		"sfx_swipe": [
-			32500,
+			33220,
 			1000
 		],
 		"sfx_roar": [
-			34500,
+			35220,
 			3134
 		],
 		"sfx_sting_hit": [
-			38634,
+			39354,
 			778
 		],
 		"sfx_sting_big_charge": [
-			40412,
+			41132,
 			1002
 		],
 		"sfx_sting_big_hit": [
-			42414,
+			43134,
 			640
 		],
 		"sfx_sting_super_charge": [
-			44054,
+			44774,
 			2003
 		],
 		"sfx_sting_super_hit": [
-			47057,
+			47777,
 			1037
 		],
 		"sfx_scatter_sting": [
-			38634,
+			39354,
 			778
 		],
 		"sfx_win_big": [
-			49094,
+			49814,
 			1300
 		],
 		"sfx_win_super": [
-			51394,
+			52114,
 			1300
 		],
 		"sfx_win_mega": [
-			53694,
+			54414,
 			1300
 		],
 		"sfx_win_epic": [
-			55994,
+			56714,
 			1300
 		],
 		"sfx_win_max": [
-			58294,
+			59014,
 			1300
 		],
 		"sfx_mystery_tease": [
@@ -138,57 +138,57 @@
 			50
 		],
 		"sfx_scatter_land_6": [
-			60594,
+			61314,
 			470
 		],
 		"sfx_chain_heavy": [
-			62063,
+			62783,
 			1145
 		],
 		"sfx_chain_light": [
-			64209,
+			64929,
 			528
 		],
 		"sfx_chain_light_logo": [
-			64209,
+			64929,
 			528
 		],
 		"sfx_fire_super": [
-			65740,
+			66460,
 			6000,
 			true
 		],
 		"sfx_fire_epic": [
-			72740,
+			73460,
 			6000,
 			true
 		],
 		"sfx_manticore_breath_1": [
-			79740,
+			80460,
 			1800
 		],
 		"sfx_manticore_breath_2": [
-			82540,
+			83260,
 			1800
 		],
 		"sfx_manticore_snarl_1": [
-			85340,
+			86060,
 			662
 		],
 		"sfx_manticore_snarl_2": [
-			87002,
+			87722,
 			691
 		],
 		"sfx_manticore_growl_1": [
-			88694,
+			89414,
 			1166
 		],
 		"sfx_manticore_growl_2": [
-			90860,
+			91580,
 			1213
 		],
 		"sfx_plaque_land": [
-			93073,
+			93793,
 			554
 		]
 	},
@@ -336,7 +336,7 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=604f263d",
-		"./assets/audio/sounds.m4a?v=57de2f65"
+		"./assets/audio/sounds.ogg?v=a7c90ff2",
+		"./assets/audio/sounds.m4a?v=031b5f35"
 	]
 }
