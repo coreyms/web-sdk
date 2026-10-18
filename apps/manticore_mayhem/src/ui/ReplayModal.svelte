@@ -127,7 +127,8 @@
 		--muted: var(--ui-ink-2);
 		--faint: var(--ui-ink-3);
 		--rule: var(--ui-rule-2);
-		--green: var(--ui-green);
+		/* the win's accent: the game's gold, not Angry Mantis's lime (Corey 2026-10-17 20:27) */
+		--accent: var(--ui-gold);
 		/* Sized against the VIEWPORT (Stake review FIX 5): in a 400x225 popout the shell used to
 		   scale this card to 103 CSS px wide with sub-3 px labels. Now the card fills the window
 		   and every line has a real minimum size; it scrolls if the window is shorter than it. */
@@ -209,11 +210,11 @@
 	}
 	.v.big {
 		font-size: clamp(16px, 5vmin, 26px);
-		color: var(--green);
+		color: var(--accent);
 	}
 	.win {
-		border-color: var(--green);
-		background: rgba(156, 217, 47, 0.14);
+		border-color: var(--accent);
+		background: rgba(255, 220, 74, 0.14); /* --ui-gold at 0.14 */
 	}
 	.win.zero {
 		border-color: var(--ui-rule);

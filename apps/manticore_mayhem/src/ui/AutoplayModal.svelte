@@ -562,8 +562,9 @@
 		background: #fff;
 		transition: left 0.15s;
 	}
+	/* on: the game's gold, not Angry Mantis's lime (Corey 2026-10-17 20:27, the menus in the Manticore palette) */
 	.toggle.on .knob {
-		background: var(--ui-green);
+		background: var(--ui-gold);
 	}
 	.toggle.on .knob::after {
 		left: 23px;

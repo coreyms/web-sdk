@@ -149,7 +149,6 @@
 		--muted: var(--ui-ink-2);
 		--faint: var(--ui-ink-3);
 		--rule: var(--ui-rule-2);
-		--green: var(--ui-green);
 		max-width: 100%;
 		pointer-events: auto;
 		position: relative;
@@ -210,9 +209,10 @@
 	.opt {
 		min-width: 0;
 		padding: 0 4px;
-		border: 1px solid var(--ui-rule-2);
+		/* the HUD plate's smoked warm glass inside a bronze hairline (ChromeStyles --plate-glass-*, --plate-bronze-line) */
+		border: 1px solid var(--plate-bronze-line);
 		border-radius: 8px;
-		background: var(--ui-glass-well-2);
+		background: linear-gradient(180deg, var(--plate-glass-1), var(--plate-glass-2));
 		box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
 		display: flex;
 		align-items: center;
@@ -245,9 +245,12 @@
 		text-decoration: line-through;
 		color: var(--muted);
 	}
+	/* THE CHOSEN AMOUNT (Corey 2026-10-17 20:27, "update this to the theme of the game"): Angry Mantis's lime chip is
+	   gone. It wears the HUD's gold plate: the gold bezel lit from the top left (the .plate-gold metals) round a
+	   gold to amber fill, dark gold ink on it, the same pairing as the PER SPIN pill and Autoplay's LOAD */
 	.opt.selected {
-		border-color: var(--green);
-		background: linear-gradient(180deg, #9be04a, #6fb52a);
+		border-color: var(--plate-gold-1) var(--plate-gold-2) var(--plate-gold-3) var(--plate-gold-4);
+		background: linear-gradient(180deg, var(--ui-gold), var(--ui-amber));
 		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 	}
 	.opt.selected:hover {

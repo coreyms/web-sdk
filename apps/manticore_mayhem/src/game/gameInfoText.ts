@@ -72,9 +72,11 @@ const SWIPE_BAND = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' }[config.swipeBan
 const CAP_LOW = config.tileCap.bonus;
 const CAP_HIGH = config.tileCap.super;
 const MENU = FEATURE_MENU_NAME;
+/** a mode card's HOW TO ENTER where the operator's disabledBuyFeature leaves no way in (Ante, Super Ante, Mystery) */
+const NOT_OFFERED = 'Not offered on this site.';
 
 /** one guide row's text, keyed by the row id GameInfoModal draws its icon for */
-export type GuideId = 'spin' | 'turbo' | 'autoplay' | 'feature' | 'menu' | 'readouts' | 'keyboard' | 'skip' | 'screens';
+export type GuideId = 'spin' | 'boardTap' | 'turbo' | 'autoplay' | 'feature' | 'menu' | 'readouts' | 'symbols' | 'keyboard' | 'skip' | 'screens';
 /** THE OPERATOR'S SWITCHES the rules page follows (2026-10-15, approval review minor; front-end-communication.md:22):
  *  authenticate's jurisdiction block (stateConfig.jurisdiction), the same flags the controls read (ui/controls.svelte.ts,
  *  ui/Chrome*.svelte, stateGame skipAllowed). A control the operator turns off is neither drawn nor described: its UI
@@ -88,9 +90,13 @@ export type RulesFlags = {
 	disabledBuyFeature?: boolean;
 };
 /** the UI guide's rows under the operator's switches: no Turbo row under disabledTurbo, no Autoplay row under
- *  disabledAutoplay, no feature menu row under disabledBuyFeature (their buttons are not drawn: ui/Chrome*.svelte), (Skip
- *  to Result keeps the SKIP button's own rule, stateGame skipAllowed: ui/GameInfoModal.svelte asks it). The Keyboard row stays under disabledSpacebar (Escape still closes a window); its text drops the Space bar */
+ *  disabledAutoplay, no feature menu row under disabledBuyFeature (their buttons are not drawn: ui/Chrome*.svelte).
+ *  Skip to Result and the board tap follow the SKIP button's own rule (stateGame skipAllowed: no slam stop or no turbo,
+ *  no SKIP and no tap to speed up, ui/controls.svelte.ts boardTap); ui/GameInfoModal.svelte asks skipAllowed itself,
+ *  this mirrors it from the same two flags. The Keyboard row stays under disabledSpacebar (Escape still closes a
+ *  window); its text drops the Space bar */
 export const guideRowShown = (id: GuideId, j: RulesFlags): boolean => {
+	if (id === 'skip' || id === 'boardTap') return !j.disabledSlamstop && !j.disabledTurbo;
 	if (id === 'turbo') return !j.disabledTurbo;
 	if (id === 'autoplay') return !j.disabledAutoplay;
 	if (id === 'feature') return !j.disabledBuyFeature;
@@ -104,263 +110,308 @@ const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')
  * (landed by the time Game Info opens), and the Epic floor shows its live amount at the current bet.
  * `amount(x)`: x times the current bet in the session's currency (numberToCurrencyString; SC / GC in social).
  */
-export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) => ({
-	paytable: {
-		intro: soc(
-			"Each symbol pays by **cluster size**, in five bands. The table shows what each band pays at the current bet. A cluster's pay is multiplied by the **sum** of the Multiplier Tiles under it.",
-			"Each symbol wins by **cluster size**, in five bands. The table shows each band's value as a multiple of the play amount. A cluster's win is multiplied by the **sum** of the Multiplier Tiles under it.",
-		),
-		specials: 'Special Symbols',
-		wild: `Stands in for every symbol except the ${SCATTER} and has no value of its own. A ${WILD} can be part of two clusters at once and counts in both.`,
-		scatter: `4 anywhere award ${config.freeSpins.bonus} Free Spins, 5 award ${config.freeSpins.super} Super Free Spins and 6 or more award ${config.freeSpins.epic} Epic Free Spins. In Super Ante, 4 award Super Free Spins instead. They can land on the first board or drop in during cascades, and only one can sit in a column at a time. No retriggers: none land during a feature. It has no value of its own.`,
-	},
-	guide: {
-		intro: 'Controls are the same on desktop and phone. On portrait phones they sit under the reels.',
-		rows: {
-			// every sentence that names a control the operator can switch off is said only where it is on (RulesFlags).
-			// STOP lands the result at once only with the slam stop AND turbo allowed (under disabledTurbo the press
-			// lands nothing sooner: ui/controls.svelte.ts stopButtonClick)
-			spin: {
-				name: 'Spin',
-				text: [
-					'Plays one round at the SPIN amount.',
-					!j.disabledSlamstop && !j.disabledTurbo ? 'While the reels drop it turns into **STOP**, which lands the result at once.' : '',
-					((x) => (x ? `With ${x} loaded, it shows what the next press starts.` : ''))(
-						[!j.disabledAutoplay ? 'Autoplay' : '', !j.disabledBuyFeature ? 'a feature' : ''].filter(Boolean).join(' or '),
-					),
-				]
-					.filter(Boolean)
-					.join(' '),
-			},
-			// disabledSuperTurbo: no Instant level (ui/controls.svelte.ts maxTurboLevel)
-			turbo: {
-				name: 'Turbo',
-				text: j.disabledSuperTurbo
-					? 'Switches between Off and Turbo. Turbo shortens the reel drop and the win presentation. Turbo and sound settings are remembered on this device.'
-					: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation. Instant (lightning icon) lands each result at once. Turbo and sound settings are remembered on this device.',
-			},
-			autoplay: {
-				name: 'Autoplay',
-				text: 'Opens the Autoplay ticket: the number of spins, plus an **ADVANCED** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **LOAD** parks the run on the Spin button. Spin starts it, and Spin again stops it at any time. During a run the Spin button is green with the spins left and this button is red with an X.',
-			},
-			feature: {
-				name: soc('Bonus Buy', 'Feature Menu'),
-				text: soc(
-					`Opens ${MENU}: switch Ante Bet or Super Ante Bet on, or buy Free Spins, Super Free Spins, Epic Free Spins or a Mystery directly. A loaded feature is shown by its short name on the Spin button and on this button. Tap this button again to cancel it.`,
-					`Opens ${MENU}: switch Ante Mode or Super Ante Mode on, or trigger Free Spins, Super Free Spins, Epic Free Spins or a Mystery instantly. A loaded feature is shown by its short name on the Spin button and on this button. Tap this button again to cancel it.`,
-				),
-			},
-			menu: { name: 'Menu', text: 'Game Info (this screen), plus music and sound-effect volume sliders, each with a mute button. All sound can be turned off.' },
-			readouts: {
-				name: 'Readouts',
-				text: soc(
-					'**BALANCE** is your current balance. **WIN** is the running total of the round. **SPIN** is the full cost of one press in the active mode (base bet × the mode multiplier). − and + step through the bet menu. Tap the readout for the full bet picker. The plaque on the reel frame names the active mode and its price.',
-					'**BALANCE** is your current balance. **WIN** is the running total of the round. **SPIN** is the full play amount of one press in the active mode (base amount × the mode multiplier). − and + step through the play amount menu. Tap the readout for the full picker. The plaque on the reel frame names the active mode and its play amount.',
-				),
-			},
-			// disabledSpacebar: the Space bar plays nothing (ui/Chrome.svelte), so only Escape is left
-			keyboard: {
-				name: 'Keyboard',
-				text: [
-					j.disabledSpacebar
-						? ''
-						: ((x) => (x ? `Space bar plays a round. Hold it to keep playing (${x} ${x.includes(' and ') ? 'are' : 'is'} locked while it is held).` : 'Space bar plays a round. Hold it to keep playing.'))(
-								andList([!j.disabledTurbo ? 'Turbo' : '', !j.disabledAutoplay ? 'Autoplay' : ''].filter(Boolean)),
-							),
-					'Escape closes any open window.',
-				]
-					.filter(Boolean)
-					.join(' '),
-			},
-			// wording unchanged on purpose (an open question with Corey, 2026-10-14). The row is left out where the operator
-			// disables the slam stop or turbo (stateGame skipAllowed; GameInfoModal filters it)
-			skip: {
-				name: 'Skip to Result',
-				text: 'Shown during Free Spins, Super Free Spins and Epic Free Spins once the first free spin has started. Pressing it asks "Skip to result?". Yes ends the presentation of the remaining spins and shows the final total of the round. No closes the question and the spins play on. It never changes the result.',
-			},
-			// Autoplay Bonuses is a setting of the Autoplay ticket: not named under disabledAutoplay
-			screens: {
-				name: 'Feature screens',
-				text: j.disabledAutoplay ? 'Feature intros and wrap-ups wait for a press anywhere.' : 'Feature intros and wrap-ups wait for a press anywhere. With **Autoplay Bonuses** on, they continue on their own.',
-			},
-		} satisfies Record<GuideId, { name: string; text: string }>,
-	},
-	howTo: [
-		soc(
-			`Choose a bet and press **SPIN**${j.disabledSpacebar ? '' : ' (or the space bar)'}. The board is ${config.numReels} columns by ${config.numRows[0]} rows. **${config.minCluster} or more** matching symbols touching each other left, right, up or down form a **cluster** and pay. Diagonals do not count. Position on the board does not matter and there are no paylines.`,
-			`Choose a play amount and press **SPIN**${j.disabledSpacebar ? '' : ' (or the space bar)'}. The board is ${config.numReels} columns by ${config.numRows[0]} rows. **${config.minCluster} or more** matching symbols touching each other left, right, up or down form a **cluster** and win. Diagonals do not count. Position on the board does not matter and there are no lines.`,
-		),
-		'Every winning cluster is removed, the symbols above it fall and new symbols drop in from the top. This repeats until a spin has no clusters left. All wins of a spin are added together.',
-		soc('All wins and prices in these rules are multiples of the bet.', 'All wins in these rules are multiples of the play amount.'),
-		// Stake wants the per-mode RTP inside HOW TO PLAY itself (creators' Discord, Corey 2026-09-02)
-		`Return to player (RTP) by game mode: ${MODE_RTP_LINE}. Max win in every mode: ${MAX_WIN}x.`,
-	],
-	modes: {
-		intro: [
-			soc(
-				`Seven modes. Base, Ante and Super Ante are bet-by-bet. The features are entered by ${SCATTERS}, a direct bonus buy, or a Mystery.`,
-				`Seven modes. Base, Ante and Super Ante run spin by spin. The features are entered by ${SCATTERS}, triggered instantly from ${MENU}, or served by a Mystery.`,
+export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) => {
+	const noBuy = !!j.disabledBuyFeature;
+	return {
+		paytable: {
+			intro: soc(
+				"Each symbol pays by **cluster size**, in five bands. The table shows what each band pays at the current bet. A cluster's pay is multiplied by the **sum** of the Multiplier Tiles under it.",
+				"Each symbol wins by **cluster size**, in five bands. The table shows each band's value as a multiple of the play amount. A cluster's win is multiplied by the **sum** of the Multiplier Tiles under it.",
 			),
-			// the menu cards, the HUD label and the Spin button carry the SHORT names (betModeMeta.ts modeShortLabel)
-			`In ${MENU}, on the Spin button and on the readout beside it, the features carry short names: ${modeShortLabel('BONUS')} is Free Spins, ${modeShortLabel('SUPER')} is Super Free Spins, ${modeShortLabel('EPIC')} is Epic Free Spins and ${modeShortLabel('MYSTERY')} is the Mystery.`,
-			soc(
-				`A bought feature starts with a spin that lands its ${SCATTERS}. That spin's clusters pay and the tiles it lights carry into the feature, exactly as on a natural trigger.`,
-				`An instantly triggered feature starts with a spin that lands its ${SCATTERS}. That spin's clusters win and the tiles it lights carry into the feature, exactly as on a natural trigger.`,
-			),
-			soc(
-				`Bought features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per round differ between a bought feature and a natural one, and every mode returns ${RTP} of what is bet in it.`,
-				`Instantly triggered features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per round differ between an instantly triggered feature and a natural one, and every mode returns ${RTP} of what is played in it.`,
-			),
-			// what "your bet" on the cards means (Corey 2026-10-15): the amount the HUD's + and − set (StepButton draws the
-			// true minus sign, U+2212, as here)
-			soc(
-				"Your bet is the amount you set with + and −. Every mode's cost is a multiple of it.",
-				"Your play amount is the amount you set with + and −. Every mode's round is a multiple of it.",
-			),
-		],
-		/** the three stat tiles of a mode card (Corey 2026-10-15): price, RTP, max win. The max win reads the same on both
-		 *  sites: `MAX WIN 10,000×`, with `(3,333.3× THIS MODE)` under it on every mode that costs more than 1x */
-		stats: {
-			price: soc('COST', 'EACH ROUND'),
-			priceUnit: soc('YOUR BET', 'YOUR PLAY AMOUNT'),
-			rtp: 'RTP',
-			maxWin: 'MAX WIN',
-			thisMode: 'THIS MODE',
+			specials: 'Special Symbols',
+			wild: `Stands in for every symbol except the ${SCATTER} and has no value of its own. A ${WILD} can be part of two clusters at once and counts in both.`,
+			scatter: `4 anywhere award ${config.freeSpins.bonus} Free Spins, 5 award ${config.freeSpins.super} Super Free Spins and 6 or more award ${config.freeSpins.epic} Epic Free Spins. In Super Ante, 4 award Super Free Spins instead. They can land on the first board or drop in during cascades, and only one can sit in a column at a time. No retriggers: none land during a feature. It has no value of its own.`,
 		},
-		/** the card body's labels (drawn in capitals) */
-		labels: { enter: 'How to enter', spins: 'Spins', mech: "What's different" },
-		/** the seven cards' fields, keyed by config.betModes key. `mech` is the WHAT'S DIFFERENT bullets: the approved
-		 *  mechanics copy split at its sentence boundaries, every sentence word for word (Corey 2026-10-15) */
-		cards: {
-			base: { enter: 'Default play.', spins: 'One spin per play.', mech: ['Multiplier Tiles reset every spin.', `${SCATTERS} trigger the features.`] },
-			ante: {
-				enter: `Switch on in ${MENU}; stays on until switched off.`,
-				spins: 'One spin per play.',
-				mech: [`Free Spins, Super Free Spins and Epic Free Spins each land ${ANTE_RATE} as often as in the Base Game.`, soc('The pays and every rule are the same as in the Base Game.', 'Symbol wins and every rule are the same as in the Base Game.')],
-			},
-			super_ante: {
-				enter: `Switch on in ${MENU}; stays on until switched off.`,
-				spins: 'One spin per play.',
-				mech: [
-					`Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead.`,
-					`Super Free Spins land ${SUPER_ANTE_SUPER_RATE} as often as in the Base Game and Epic Free Spins ${SUPER_ANTE_EPIC_RATE} as often.`,
-				],
-			},
-			bonus: {
-				enter: soc(`Land 4 ${SCATTERS}, or buy directly.`, `Land 4 ${SCATTERS}, or trigger it instantly from ${MENU}.`),
-				spins: `${config.freeSpins.bonus} free spins.`,
-				// THE UPGRADE (2026-10-15, approval review minor): a bought round's trigger spin can land 5 or 6+ scatters
-				// and so become Super or Epic Free Spins (1 in 105.6 / 1 in 35,904; a bought Super: Epic 1 in 1,108). No odds
-				// are stated; the cards' spin count and cap are the round's as bought.
-				mech: [
-					`Multiplier Tiles **persist** for the whole round and double up to ${config.tileCap.bonus}×.`,
-					soc(
-						`**Free Spins floor:** a Free Spins round always pays at least **${FS_FLOOR}x your bet** (${amount(FS_FLOOR)}) from its free spins.`,
-						`**Free Spins floor:** a Free Spins round always wins at least **${FS_FLOOR}x your play amount** (${amount(FS_FLOOR)}) from its free spins.`,
+		guide: {
+			intro: 'Controls are the same on desktop and phone. On portrait phones they sit under the reels.',
+			rows: {
+				// every sentence that names a control the operator can switch off is said only where it is on (RulesFlags).
+				// STOP lands the result at once only with the slam stop AND turbo allowed (under disabledTurbo the press
+				// lands nothing sooner: ui/controls.svelte.ts stopButtonClick)
+				spin: {
+					name: 'Spin',
+					text: [
+						'Plays one round at the SPIN amount.',
+						!j.disabledSlamstop && !j.disabledTurbo ? 'While the reels drop it turns into **STOP**, which lands the result at once.' : '',
+						((x) => (x ? `With ${x} loaded, it shows what the next press starts.` : ''))(
+							[!j.disabledAutoplay ? 'Autoplay' : '', !j.disabledBuyFeature ? 'a feature' : ''].filter(Boolean).join(' or '),
+						),
+					]
+						.filter(Boolean)
+						.join(' '),
+				},
+				// THE BOARD TAP (Corey 2026-10-13; guide row 2026-10-17 20:27): during a live spin a tap or click on the board is
+				// the STOP press (ui/controls.svelte.ts boardTap -> slamStop): the reels land and the rest of that spin runs at
+				// the fastest level the operator allows (SLAM_HURRY), once per spin, free spins included; in Autoplay it does not
+				// end the run. Never at rest. The row exists only where skipAllowed (no disabledSlamstop, no disabledTurbo)
+				boardTap: {
+					name: 'Tap to Speed Up',
+					text: [
+						'While a spin plays, tap or click the board to do what **STOP** does: the reels land and the rest of that spin plays at top speed. Once per spin, in free spins too.',
+						!j.disabledAutoplay ? 'During Autoplay it speeds up the spin and the run carries on.' : '',
+						'It never changes the result.',
+					]
+						.filter(Boolean)
+						.join(' '),
+				},
+				// disabledSuperTurbo: no Instant level (ui/controls.svelte.ts maxTurboLevel)
+				turbo: {
+					name: 'Turbo',
+					text: j.disabledSuperTurbo
+						? 'Switches between Off and Turbo. Turbo shortens the reel drop and the win presentation. Turbo and sound settings are remembered on this device.'
+						: 'Cycles through Off, Turbo and Instant. Turbo shortens the reel drop and the win presentation. Instant (lightning icon) lands each result at once. Turbo and sound settings are remembered on this device.',
+				},
+				autoplay: {
+					name: 'Autoplay',
+					text: 'Opens the Autoplay ticket: the number of spins, plus an **ADVANCED** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **LOAD** parks the run on the Spin button. Spin starts it, and Spin again stops it at any time. During a run the Spin button is green with the spins left and this button is red with an X.',
+				},
+				feature: {
+					name: soc('Bonus Buy', 'Feature Menu'),
+					text: soc(
+						`Opens ${MENU}: switch Ante Bet or Super Ante Bet on, or buy Free Spins, Super Free Spins, Epic Free Spins or a Mystery directly. A loaded feature is shown by its short name on the Spin button and on this button. Tap this button again to cancel it.`,
+						`Opens ${MENU}: switch Ante Mode or Super Ante Mode on, or trigger Free Spins, Super Free Spins, Epic Free Spins or a Mystery instantly. A loaded feature is shown by its short name on the Spin button and on this button. Tap this button again to cancel it.`,
 					),
-					soc('A bought round can still upgrade to Super or Epic Free Spins.', 'An instantly triggered round can still upgrade to Super or Epic Free Spins.'),
-				],
-			},
-			super: {
-				enter: soc(`Land 5 ${SCATTERS}, or buy directly.`, `Land 5 ${SCATTERS}, or trigger it instantly from ${MENU}.`),
-				spins: `${config.freeSpins.super} free spins.`,
-				mech: [
-					`Tiles persist and double up to ${config.tileCap.super}×.`,
-					'The roar clears the low symbols and a Super Sting is possible.',
-					soc(
-						`**Super floor:** a Super Free Spins round always pays at least **${SUPER_FLOOR}x your bet** (${amount(SUPER_FLOOR)}) from its free spins.`,
-						`**Super floor:** a Super Free Spins round always wins at least **${SUPER_FLOOR}x your play amount** (${amount(SUPER_FLOOR)}) from its free spins.`,
+				},
+				menu: { name: 'Menu', text: 'Game Info (this screen), plus music and sound-effect volume sliders, each with a mute button. All sound can be turned off.' },
+				readouts: {
+					name: 'Readouts',
+					text: soc(
+						'**BALANCE** is your current balance. **WIN** is the running total of the round. **SPIN** is the full cost of one press in the active mode (base bet × the mode multiplier). − and + step through the bet menu. Tap the readout for the full bet picker. The plaque on the reel frame names the active mode and its price.',
+						'**BALANCE** is your current balance. **WIN** is the running total of the round. **SPIN** is the full play amount of one press in the active mode (base amount × the mode multiplier). − and + step through the play amount menu. Tap the readout for the full picker. The plaque on the reel frame names the active mode and its play amount.',
 					),
-					soc('A bought round can still upgrade to Epic Free Spins.', 'An instantly triggered round can still upgrade to Epic Free Spins.'),
-				],
-			},
-			epic: {
-				enter: soc(`Land 6 or more ${SCATTERS}, or buy directly.`, `Land 6 or more ${SCATTERS}, or trigger it instantly from ${MENU}.`),
-				spins: `${config.freeSpins.epic} free spins.`,
-				// COPY RULE (Corey 2026-10-13 14:14): a guaranteed multiple names its base and shows the live amount. The
-				// Mystery Epic's own floor is stated nowhere, so this sentence names only the two routes it covers
-				mech: [
-					`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings land far more often than in Super Free Spins.`,
-					soc(
-						`**Epic floor:** a round triggered by ${SCATTERS} or bought directly always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
-						`**Epic floor:** a round triggered by ${SCATTERS} or instantly triggered always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
+				},
+				// THE SYMBOL PAY POPUP (components/SymbolPopup.svelte, Corey 2026-10-16 15:32; guide row 2026-10-17 20:27): on an
+				// idle board only (game/boardIdle.ts: between rounds, never in free spins, a replay or under a window), at the
+				// current bet; the Wild and the scatter show what they do; it closes on any other press or after
+				// SYMBOL_POPUP.timeoutMs (4 s). No operator switch touches it
+				symbols: {
+					name: soc('Symbol Pays', 'Symbol Values'),
+					text: soc(
+						`Between rounds, tap or click a symbol on the board to see what each cluster size pays at the current bet. The ${WILD} and the ${SCATTER} show what they do. Not during free spins. It closes on any other press or after a few seconds.`,
+						`Between rounds, tap or click a symbol on the board to see what each cluster size wins at the current play amount. The ${WILD} and the ${SCATTER} show what they do. Not during free spins. It closes on any other press or after a few seconds.`,
 					),
-				],
-			},
-			mystery: {
-				enter: soc(`Buy from ${MENU}.`, `Trigger from ${MENU}.`),
-				spins: 'One Mystery spin, then whatever it awards.',
-				mech: ['Awards Super Free Spins, Epic Free Spins or no feature, never regular Free Spins.', 'The exact shares are under Mystery Disclosure.'],
-			},
-		} as Record<string, { enter: string; spins: string; mech: string[] }>,
-	},
-	mystery: [
-		soc(
-			`**What a Mystery awards:** exactly **${share(config.mystery.nothing)}** of Mysteries award no feature, **${share(config.mystery.super)}** award Super Free Spins and **${share(config.mystery.epic)}** award Epic Free Spins, for ${modeCost('MYSTERY')}x the bet. A Mystery never awards regular Free Spins. These shares are fixed in the published math.`,
-			`**What a Mystery awards:** exactly **${share(config.mystery.nothing)}** of Mysteries award no feature, **${share(config.mystery.super)}** award Super Free Spins and **${share(config.mystery.epic)}** award Epic Free Spins, for ${modeCost('MYSTERY')}x the play amount. A Mystery never awards regular Free Spins. These shares are fixed in the published math.`,
-		),
-		`**A Mystery is a real spin:** ${MYSTERY_SCATTERS} ${SCATTERS} always land, one in each of the first ${MYSTERY_SCATTERS} columns. The Manticore then stings in ${MYSTERY_STINGS.super} more for Super Free Spins, ${MYSTERY_STINGS.epic} more for Epic Free Spins, or none. No wild stings land on the Mystery spin, and no further ${SCATTERS} can drop in during its cascades.`,
-		soc(
-			"**The spin always plays out:** its clusters pay as normal, so a Mystery that awards no feature can still pay. When a feature is awarded, the spin's wins count toward the round and its tiles carry into the feature.",
-			"**The spin always plays out:** its clusters win as normal, so a Mystery that awards no feature can still win. When a feature is awarded, the spin's wins count toward the round and its tiles carry into the feature.",
-		),
-	],
-	tiles: {
-		intro: `Every winning cluster lights the cells under it, in every mode. A cold cell becomes a **${config.tileSeed}x Multiplier Tile** and a lit cell **doubles**.`,
-		rules: [
+				},
+				// disabledSpacebar: the Space bar plays nothing (ui/Chrome.svelte), so only Escape is left
+				keyboard: {
+					name: 'Keyboard',
+					text: [
+						j.disabledSpacebar
+							? ''
+							: ((x) => (x ? `Space bar plays a round. Hold it to keep playing (${x} ${x.includes(' and ') ? 'are' : 'is'} locked while it is held).` : 'Space bar plays a round. Hold it to keep playing.'))(
+									andList([!j.disabledTurbo ? 'Turbo' : '', !j.disabledAutoplay ? 'Autoplay' : ''].filter(Boolean)),
+								),
+						'Escape closes any open window.',
+					]
+						.filter(Boolean)
+						.join(' '),
+				},
+				// wording unchanged on purpose (an open question with Corey, 2026-10-14). The row is left out where the operator
+				// disables the slam stop or turbo (stateGame skipAllowed; GameInfoModal filters it)
+				skip: {
+					name: 'Skip to Result',
+					text: 'Shown during Free Spins, Super Free Spins and Epic Free Spins once the first free spin has started. Pressing it asks "Skip to result?". Yes ends the presentation of the remaining spins and shows the final total of the round. No closes the question and the spins play on. It never changes the result.',
+				},
+				// Autoplay Bonuses is a setting of the Autoplay ticket: not named under disabledAutoplay
+				screens: {
+					name: 'Feature screens',
+					text: j.disabledAutoplay ? 'Feature intros and wrap-ups wait for a press anywhere.' : 'Feature intros and wrap-ups wait for a press anywhere. With **Autoplay Bonuses** on, they continue on their own.',
+				},
+			} satisfies Record<GuideId, { name: string; text: string }>,
+		},
+		howTo: [
 			soc(
-				'A cluster pays its table value multiplied by the **sum** of the tiles under it. With no tiles under it, it pays its table value once. Example: on tiles of 2x, 4x and 8x it pays its table value x14.',
-				'A cluster wins its table value multiplied by the **sum** of the tiles under it. With no tiles under it, it wins its table value once. Example: on tiles of 2x, 4x and 8x it wins its table value x14.',
+				`Choose a bet and press **SPIN**${j.disabledSpacebar ? '' : ' (or the space bar)'}. The board is ${config.numReels} columns by ${config.numRows[0]} rows. **${config.minCluster} or more** matching symbols touching each other left, right, up or down form a **cluster** and pay. Diagonals do not count. Position on the board does not matter and there are no paylines.`,
+				`Choose a play amount and press **SPIN**${j.disabledSpacebar ? '' : ' (or the space bar)'}. The board is ${config.numReels} columns by ${config.numRows[0]} rows. **${config.minCluster} or more** matching symbols touching each other left, right, up or down form a **cluster** and win. Diagonals do not count. Position on the board does not matter and there are no lines.`,
 			),
-			soc(
-				`A cluster uses the tiles as they stand when it lands. The cells it covers step up after it pays. A ${WILD} shared by two clusters steps up once.`,
-				`A cluster uses the tiles as they stand when it lands. The cells it covers step up after it wins. A ${WILD} shared by two clusters steps up once.`,
-			),
-			'Tiles **reset** at the start of every spin in the Base Game, Ante and Super Ante.',
-			'When a spin triggers a feature, the tiles it lit **carry into the feature**. In Free Spins, Super Free Spins and Epic Free Spins the tiles then **persist** for every spin of the round.',
-			`The ladder stops at **${CAP_LOW}x** in the Base Game, Ante, Super Ante and Free Spins, and at **${CAP_HIGH}x** in Super Free Spins and Epic Free Spins, from the first free spin.`,
+			'Every winning cluster is removed, the symbols above it fall and new symbols drop in from the top. This repeats until a spin has no clusters left. All wins of a spin are added together.',
+			soc('All wins and prices in these rules are multiples of the bet.', 'All wins in these rules are multiples of the play amount.'),
+			// Stake wants the per-mode RTP inside HOW TO PLAY itself (creators' Discord, Corey 2026-09-02)
+			`Return to player (RTP) by game mode: ${MODE_RTP_LINE}. Max win in every mode: ${MAX_WIN}x.`,
 		],
-		manticore: 'The Manticore',
-		creature: [
-			// MUST WIN (math 2026.10.16, game_config SWIPE_MUST_WIN, SWIPE_CHANCE_DEAD, STING_MUST_WIN): every swipe's refill
-			// completes a winning cluster; in free spins the first swipe roll of a spin that has paid nothing uses the rescue
-			// chance (0.9 against 0.12); a Big or Super Sting, and the last sting of a normal-only run, completes a cluster.
-			// The promise is the last sting's only: the earlier normal stings of a run carry none of their own
+		modes: {
+			// UNDER disabledBuyFeature (Corey 2026-10-17 20:27): the feature button is not drawn and THE ARMOURY never opens,
+			// so Ante, Super Ante, the buys and the Mystery cannot be reached. The page then names no buy and no menu: the
+			// intro says only the Base Game is offered, the short names (seen only on a loaded buy) and the two bought
+			// feature paragraphs go, and the cards stay for their RTP and rules
+			intro: [
+				noBuy
+					? `Seven modes. On this site only the Base Game is offered, and the features are entered by ${SCATTERS} alone. The other cards are shown for reference.`
+					: soc(
+							`Seven modes. Base, Ante and Super Ante are bet-by-bet. The features are entered by ${SCATTERS}, a direct bonus buy, or a Mystery.`,
+							`Seven modes. Base, Ante and Super Ante run spin by spin. The features are entered by ${SCATTERS}, triggered instantly from ${MENU}, or served by a Mystery.`,
+						),
+				// the menu cards, the HUD label and the Spin button carry the SHORT names (betModeMeta.ts modeShortLabel)
+				noBuy
+					? ''
+					: `In ${MENU}, on the Spin button and on the readout beside it, the features carry short names: ${modeShortLabel('BONUS')} is Free Spins, ${modeShortLabel('SUPER')} is Super Free Spins, ${modeShortLabel('EPIC')} is Epic Free Spins and ${modeShortLabel('MYSTERY')} is the Mystery.`,
+				noBuy
+					? ''
+					: soc(
+							`A bought feature starts with a spin that lands its ${SCATTERS}. That spin's clusters pay and the tiles it lights carry into the feature, exactly as on a natural trigger.`,
+							`An instantly triggered feature starts with a spin that lands its ${SCATTERS}. That spin's clusters win and the tiles it lights carry into the feature, exactly as on a natural trigger.`,
+						),
+				noBuy
+					? ''
+					: soc(
+							`Bought features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per round differ between a bought feature and a natural one, and every mode returns ${RTP} of what is bet in it.`,
+							`Instantly triggered features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per round differ between an instantly triggered feature and a natural one, and every mode returns ${RTP} of what is played in it.`,
+						),
+				// what "your bet" on the cards means (Corey 2026-10-15): the amount the HUD's + and − set (StepButton draws the
+				// true minus sign, U+2212, as here)
+				soc(
+					"Your bet is the amount you set with + and −. Every mode's cost is a multiple of it.",
+					"Your play amount is the amount you set with + and −. Every mode's round is a multiple of it.",
+				),
+			].filter(Boolean),
+			/** the three stat tiles of a mode card (Corey 2026-10-15): price, RTP, max win. The max win reads the same on both
+			 *  sites: `MAX WIN 10,000×`, with `(3,333.3× THIS MODE)` under it on every mode that costs more than 1x */
+			stats: {
+				price: soc('COST', 'EACH ROUND'),
+				priceUnit: soc('YOUR BET', 'YOUR PLAY AMOUNT'),
+				rtp: 'RTP',
+				maxWin: 'MAX WIN',
+				thisMode: 'THIS MODE',
+			},
+			/** the card body's labels (drawn in capitals) */
+			labels: { enter: 'How to enter', spins: 'Spins', mech: "What's different" },
+			/** the seven cards' fields, keyed by config.betModes key. `mech` is the WHAT'S DIFFERENT bullets: the approved
+			 *  mechanics copy split at its sentence boundaries, every sentence word for word (Corey 2026-10-15) */
+			cards: {
+				base: { enter: 'Default play.', spins: 'One spin per play.', mech: ['Multiplier Tiles reset every spin.', `${SCATTERS} trigger the features.`] },
+				ante: {
+					enter: noBuy ? NOT_OFFERED : `Switch on in ${MENU}; stays on until switched off.`,
+					spins: 'One spin per play.',
+					mech: [`Free Spins, Super Free Spins and Epic Free Spins each land ${ANTE_RATE} as often as in the Base Game.`, soc('The pays and every rule are the same as in the Base Game.', 'Symbol wins and every rule are the same as in the Base Game.')],
+				},
+				super_ante: {
+					enter: noBuy ? NOT_OFFERED : `Switch on in ${MENU}; stays on until switched off.`,
+					spins: 'One spin per play.',
+					mech: [
+						`Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead.`,
+						`Super Free Spins land ${SUPER_ANTE_SUPER_RATE} as often as in the Base Game and Epic Free Spins ${SUPER_ANTE_EPIC_RATE} as often.`,
+					],
+				},
+				bonus: {
+					enter: noBuy ? `Land 4 ${SCATTERS}.` : soc(`Land 4 ${SCATTERS}, or buy directly.`, `Land 4 ${SCATTERS}, or trigger it instantly from ${MENU}.`),
+					spins: `${config.freeSpins.bonus} free spins.`,
+					// THE UPGRADE (2026-10-15, approval review minor): a bought round's trigger spin can land 5 or 6+ scatters
+					// and so become Super or Epic Free Spins (1 in 105.6 / 1 in 35,904; a bought Super: Epic 1 in 1,108). No odds
+					// are stated; the cards' spin count and cap are the round's as bought.
+					mech: [
+						`Multiplier Tiles **persist** for the whole round and double up to ${config.tileCap.bonus}×.`,
+						soc(
+							`**Free Spins floor:** a Free Spins round always pays at least **${FS_FLOOR}x your bet** (${amount(FS_FLOOR)}) from its free spins.`,
+							`**Free Spins floor:** a Free Spins round always wins at least **${FS_FLOOR}x your play amount** (${amount(FS_FLOOR)}) from its free spins.`,
+						),
+						noBuy ? '' : soc('A bought round can still upgrade to Super or Epic Free Spins.', 'An instantly triggered round can still upgrade to Super or Epic Free Spins.'),
+					].filter(Boolean),
+				},
+				super: {
+					enter: noBuy ? `Land 5 ${SCATTERS}.` : soc(`Land 5 ${SCATTERS}, or buy directly.`, `Land 5 ${SCATTERS}, or trigger it instantly from ${MENU}.`),
+					spins: `${config.freeSpins.super} free spins.`,
+					mech: [
+						`Tiles persist and double up to ${config.tileCap.super}×.`,
+						'The roar clears the low symbols and a Super Sting is possible.',
+						soc(
+							`**Super floor:** a Super Free Spins round always pays at least **${SUPER_FLOOR}x your bet** (${amount(SUPER_FLOOR)}) from its free spins.`,
+							`**Super floor:** a Super Free Spins round always wins at least **${SUPER_FLOOR}x your play amount** (${amount(SUPER_FLOOR)}) from its free spins.`,
+						),
+						noBuy ? '' : soc('A bought round can still upgrade to Epic Free Spins.', 'An instantly triggered round can still upgrade to Epic Free Spins.'),
+					].filter(Boolean),
+				},
+				epic: {
+					enter: noBuy ? `Land 6 or more ${SCATTERS}.` : soc(`Land 6 or more ${SCATTERS}, or buy directly.`, `Land 6 or more ${SCATTERS}, or trigger it instantly from ${MENU}.`),
+					spins: `${config.freeSpins.epic} free spins.`,
+					// COPY RULE (Corey 2026-10-13 14:14): a guaranteed multiple names its base and shows the live amount. The
+					// Mystery Epic's own floor is stated nowhere, so this sentence names only the two routes it covers
+					mech: [
+						`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings land far more often than in Super Free Spins.`,
+						noBuy
+							? soc(
+									`**Epic floor:** a round triggered by ${SCATTERS} always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
+									`**Epic floor:** a round triggered by ${SCATTERS} always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
+								)
+							: soc(
+									`**Epic floor:** a round triggered by ${SCATTERS} or bought directly always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
+									`**Epic floor:** a round triggered by ${SCATTERS} or instantly triggered always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
+								),
+					],
+				},
+				mystery: {
+					enter: noBuy ? NOT_OFFERED : soc(`Buy from ${MENU}.`, `Trigger from ${MENU}.`),
+					spins: 'One Mystery spin, then whatever it awards.',
+					mech: ['Awards Super Free Spins, Epic Free Spins or no feature, never regular Free Spins.', 'The exact shares are under Mystery Disclosure.'],
+				},
+			} as Record<string, { enter: string; spins: string; mech: string[] }>,
+		},
+		mystery: [
 			soc(
-				`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not paid yet.`,
-				`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not won yet.`,
+				`**What a Mystery awards:** exactly **${share(config.mystery.nothing)}** of Mysteries award no feature, **${share(config.mystery.super)}** award Super Free Spins and **${share(config.mystery.epic)}** award Epic Free Spins, for ${modeCost('MYSTERY')}x the bet. A Mystery never awards regular Free Spins. These shares are fixed in the published math.`,
+				`**What a Mystery awards:** exactly **${share(config.mystery.nothing)}** of Mysteries award no feature, **${share(config.mystery.super)}** award Super Free Spins and **${share(config.mystery.epic)}** award Epic Free Spins, for ${modeCost('MYSTERY')}x the play amount. A Mystery never awards regular Free Spins. These shares are fixed in the published math.`,
 			),
-			`**Sting.** Before the board is evaluated, the tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A **normal sting** turns one cell wild, a **Big Sting** a cross of five cells and a **Super Sting** a 3x3 block of nine cells. A spin has at most one Big or Super Sting, and it is always the last sting of that spin. A Big or Super Sting always lands in a winning cluster, and so does the last sting of every run of normal stings. No sting ever lands on a ${SCATTER}.`,
-			'Normal stings can land in every spin except the Mystery spin. Big Stings land only in Free Spins, Super Free Spins and Epic Free Spins. Super Stings land only in Super Free Spins and Epic Free Spins.',
-			'**Roar.** In Super Free Spins and Epic Free Spins only, the Manticore may roar before the board is evaluated. Every low symbol is blown off the board and replaced. The Multiplier Tiles under them stay. A roar always comes before any stings.',
+			`**A Mystery is a real spin:** ${MYSTERY_SCATTERS} ${SCATTERS} always land, one in each of the first ${MYSTERY_SCATTERS} columns. The Manticore then stings in ${MYSTERY_STINGS.super} more for Super Free Spins, ${MYSTERY_STINGS.epic} more for Epic Free Spins, or none. No wild stings land on the Mystery spin, and no further ${SCATTERS} can drop in during its cascades.`,
 			soc(
-				`**Scatter sting.** On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is paid until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along. This never happens on bought Free Spins, Super Free Spins or Epic Free Spins.`,
-				`**Scatter sting.** On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is counted until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along. This never happens on instantly triggered Free Spins, Super Free Spins or Epic Free Spins.`,
+				"**The spin always plays out:** its clusters pay as normal, so a Mystery that awards no feature can still pay. When a feature is awarded, the spin's wins count toward the round and its tiles carry into the feature.",
+				"**The spin always plays out:** its clusters win as normal, so a Mystery that awards no feature can still win. When a feature is awarded, the spin's wins count toward the round and its tiles carry into the feature.",
 			),
 		],
-	},
-	maxWin: {
-		unit: soc('bet (hard cap)', 'play amount (hard cap)'),
-		text: soc(
-			`The maximum win is ${MAX_WIN}x the bet in every mode. The moment a round's total reaches it, the round ends and ${MAX_WIN}x is paid. Any free spins left in that round are not played.`,
-			`The maximum win is ${MAX_WIN}x the play amount in every mode. The moment a round's total reaches it, the round ends and ${MAX_WIN}x is won. Any free spins left in that round are not played.`,
-		),
-		rtpHead: 'Return to Player (RTP)',
-		rtp: `Every game mode has a theoretical return to player of **${RTP}**. RTP describes long-run behaviour across all players. A single session can return much more or much less.`,
-		volHead: 'Volatility',
-		// math 2026.10.16 (today_vs_new_real_books.md): a win on 44.2% of base spins (Ante 37.7%, Super Ante 41.6%); spins
-		// that win nothing 55.8% / 62.3% / 58.4%; more than half of the wins are under 1x the bet in all three; the
-		// feature rounds carry 43.6% / 79.8% / 95.1% of the RTP. "Wins are infrequent" (the 28% books) is no longer true
-		volatility: soc(
-			'Wins come often but are mostly small: many are smaller than the bet, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP.',
-			'Wins come often but are mostly small: many are smaller than the play amount, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP.',
-		),
-	},
-	legal: {
-		disclaimer: DISCLAIMER,
-		versionHead: 'Version',
-	},
-});
+		tiles: {
+			intro: `Every winning cluster lights the cells under it, in every mode. A cold cell becomes a **${config.tileSeed}x Multiplier Tile** and a lit cell **doubles**.`,
+			rules: [
+				soc(
+					'A cluster pays its table value multiplied by the **sum** of the tiles under it. With no tiles under it, it pays its table value once. Example: on tiles of 2x, 4x and 8x it pays its table value x14.',
+					'A cluster wins its table value multiplied by the **sum** of the tiles under it. With no tiles under it, it wins its table value once. Example: on tiles of 2x, 4x and 8x it wins its table value x14.',
+				),
+				soc(
+					`A cluster uses the tiles as they stand when it lands. The cells it covers step up after it pays. A ${WILD} shared by two clusters steps up once.`,
+					`A cluster uses the tiles as they stand when it lands. The cells it covers step up after it wins. A ${WILD} shared by two clusters steps up once.`,
+				),
+				'Tiles **reset** at the start of every spin in the Base Game, Ante and Super Ante.',
+				'When a spin triggers a feature, the tiles it lit **carry into the feature**. In Free Spins, Super Free Spins and Epic Free Spins the tiles then **persist** for every spin of the round.',
+				`The ladder stops at **${CAP_LOW}x** in the Base Game, Ante, Super Ante and Free Spins, and at **${CAP_HIGH}x** in Super Free Spins and Epic Free Spins, from the first free spin.`,
+			],
+			manticore: 'The Manticore',
+			creature: [
+				// MUST WIN (math 2026.10.16, game_config SWIPE_MUST_WIN, SWIPE_CHANCE_DEAD, STING_MUST_WIN): every swipe's refill
+				// completes a winning cluster; in free spins the first swipe roll of a spin that has paid nothing uses the rescue
+				// chance (0.9 against 0.12); a Big or Super Sting, and the last sting of a normal-only run, completes a cluster.
+				// The promise is the last sting's only: the earlier normal stings of a run carry none of their own
+				soc(
+					`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not paid yet.`,
+					`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not won yet.`,
+				),
+				`**Sting.** Before the board is evaluated, the tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A **normal sting** turns one cell wild, a **Big Sting** a cross of five cells and a **Super Sting** a 3x3 block of nine cells. A spin has at most one Big or Super Sting, and it is always the last sting of that spin. A Big or Super Sting always lands in a winning cluster, and so does the last sting of every run of normal stings. No sting ever lands on a ${SCATTER}.`,
+				'Normal stings can land in every spin except the Mystery spin. Big Stings land only in Free Spins, Super Free Spins and Epic Free Spins. Super Stings land only in Super Free Spins and Epic Free Spins.',
+				'**Roar.** In Super Free Spins and Epic Free Spins only, the Manticore may roar before the board is evaluated. Every low symbol is blown off the board and replaced. The Multiplier Tiles under them stay. A roar always comes before any stings.',
+				soc(
+					`**Scatter sting.** On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is paid until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along.${noBuy ? '' : ' This never happens on bought Free Spins, Super Free Spins or Epic Free Spins.'}`,
+					`**Scatter sting.** On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is counted until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along.${noBuy ? '' : ' This never happens on instantly triggered Free Spins, Super Free Spins or Epic Free Spins.'}`,
+				),
+			],
+		},
+		maxWin: {
+			unit: soc('bet (hard cap)', 'play amount (hard cap)'),
+			text: soc(
+				`The maximum win is ${MAX_WIN}x the bet in every mode. The moment a round's total reaches it, the round ends and ${MAX_WIN}x is paid. Any free spins left in that round are not played.`,
+				`The maximum win is ${MAX_WIN}x the play amount in every mode. The moment a round's total reaches it, the round ends and ${MAX_WIN}x is won. Any free spins left in that round are not played.`,
+			),
+			rtpHead: 'Return to Player (RTP)',
+			rtp: `Every game mode has a theoretical return to player of **${RTP}**. RTP describes long-run behaviour across all players. A single session can return much more or much less.`,
+			volHead: 'Volatility',
+			// math 2026.10.16 (today_vs_new_real_books.md): a win on 44.2% of base spins (Ante 37.7%, Super Ante 41.6%); spins
+			// that win nothing 55.8% / 62.3% / 58.4%; more than half of the wins are under 1x the bet in all three; the
+			// feature rounds carry 43.6% / 79.8% / 95.1% of the RTP. "Wins are infrequent" (the 28% books) is no longer true
+			volatility: soc(
+				'Wins come often but are mostly small: many are smaller than the bet, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP.',
+				'Wins come often but are mostly small: many are smaller than the play amount, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP.',
+			),
+		},
+		legal: {
+			disclaimer: DISCLAIMER,
+			versionHead: 'Version',
+		},
+	};
+};
 
 /** `**word**` to runs: odd runs are bold. The page renders them as text nodes, never as HTML */
 export const runs = (s: string) => s.split('**').map((t, i) => ({ t, b: i % 2 === 1 }));
