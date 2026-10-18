@@ -72,6 +72,15 @@ export type StingStrikeFx = {
 	/** style ms of the per-cell ring after the hit; 0 = none */
 	ringMs: number;
 	kind: 'normal' | 'big' | 'super' | 'scatter';
+	/** (sting r1) style ms from t0 at which the TAIL LANDS: a normal / scatter's is its flip (hitAt x dur); a big /
+	 *  super's is 0, its strike beat (the charge's end), and its cells flip at hitAt x dur after it */
+	strikeMs?: number;
+	/** (sting r1) style ms the strike trail runs up to strikeMs (from the barb into this cell); 0 / absent = none */
+	trailMs?: number;
+	/** (sting r1) the big / super shape's centre cell: the one the tail lands on */
+	centre?: boolean;
+	/** (sting r1) components/Sting.svelte's own: the pooled trail / impact it drew this strike with */
+	slot?: number;
 };
 /** the centre telegraph of a big / super charge (or the scatter sting's wait) */
 export type StingChargeFx = { centre: number; t0: number; rate: number; dur: number; kind: 'big' | 'super' | 'scatter' };

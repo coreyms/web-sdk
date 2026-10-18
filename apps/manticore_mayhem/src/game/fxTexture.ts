@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { MULT_PLATE, SWIPE_FX } from './constants';
+import { MULT_PLATE, SWIPE_FX, STING_FX, type StingLook } from './constants';
 
 // Baked textures for the motion pass (components/BoardCells.svelte), built ONCE and cached — house
 // rule: no per-frame textures, no filters. Both are white with alpha so a sprite tint colours them.
@@ -310,5 +310,268 @@ export const plaqueHaloTexture = (key: string, body: PIXI.Texture, bodyW: number
 		};
 	}
 	halos.set(key, out);
+	return out;
+};
+
+// ---- THE STING, r1 (constants STING_FX; components/Sting.svelte) -------------------------------------------------
+// Baked ONCE per look (or once for all looks) on first use; Sting.svelte asks for every look at mount so a DEV switch
+// never bakes mid strike. No per-frame texture, no filter. All white with alpha (a sprite tint colours them) except the
+// ribbon and the look's mark, which carry the look's own colours for an additive sprite, like the claw streak.
+
+const rgbOf = (c: number) => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+/** a small seeded PRNG (mulberry32) so a baked shape is the same on every load */
+const seeded = (seed: number) => () => {
+	seed = (seed + 0x6d2b79f5) | 0;
+	let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+	t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+	return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const canvasOf = (w: number, h: number) => {
+	const c = document.createElement('canvas');
+	c.width = w;
+	c.height = h;
+	return { c, ctx: c.getContext('2d')! };
+};
+const css = (c: number, a: number) => {
+	const [r, g, b] = rgbOf(c);
+	return `rgba(${r},${g},${b},${a})`;
+};
+
+/** THE STRIKE RIBBON of a look: x runs along the trail (0 its tail, 1 the head), y across it. A white-hot core a fifth
+ *  of the width, the look's edge and outer colours falling off to nothing at the sides; the tail end cools to the look's
+ *  `tail` colour and fades out. Computed per pixel. */
+const ribbonTexture = (look: StingLook): PIXI.Texture => {
+	const L = STING_FX.looks[look];
+	const { ribbonW: w, ribbonH: h } = STING_FX.tex;
+	const { c, ctx } = canvasOf(w, h);
+	const img = ctx.createImageData(w, h);
+	const D = img.data;
+	const C0 = rgbOf(L.core);
+	const C1 = rgbOf(L.edge);
+	const C2 = rgbOf(L.outer);
+	const CT = rgbOf(L.tail);
+	for (let y = 0; y < h; y += 1) {
+		const d = Math.abs(((y + 0.5) / h) * 2 - 1);
+		for (let x = 0; x < w; x += 1) {
+			const u = (x + 0.5) / w;
+			const core = Math.max(0, Math.min(1, (0.26 - d) / 0.1 + 0.5)) * Math.pow(u, 0.8);
+			const glow = Math.min(1, 1.05 * Math.exp(-Math.pow(d / 0.62, 2) * 1.9) * Math.pow(u, 0.35));
+			const a = Math.max(core, glow);
+			const k = (y * w + x) * 4;
+			if (a < 0.003) {
+				D[k + 3] = 0;
+				continue;
+			}
+			const cool = Math.pow(1 - u, 1.6) * 0.85;
+			const t = Math.min(1, d / 0.55);
+			for (let ch = 0; ch < 3; ch += 1) {
+				let g = d < 0.3 ? C1[ch] + (C2[ch] - C1[ch]) * (d / 0.3) : C2[ch];
+				g = g + (CT[ch] - g) * cool * t;
+				const cc = C0[ch] + (C1[ch] - C0[ch]) * cool;
+				D[k + ch] = Math.round(core * cc + (1 - core) * g);
+			}
+			D[k + 3] = Math.round(255 * a);
+		}
+	}
+	ctx.putImageData(img, 0, 0);
+	return PIXI.Texture.from(c);
+};
+
+/** the ember look's mark: cracks burnt out from the strike point, a scorch under them (coloured) */
+const crackTexture = (look: StingLook): PIXI.Texture => {
+	const L = STING_FX.looks[look];
+	const N = STING_FX.tex.markPx;
+	const { c, ctx } = canvasOf(N, N);
+	const R = N / 2;
+	const rnd = seeded(7);
+	const scorch = ctx.createRadialGradient(R, R, 0, R, R, R * 0.62);
+	scorch.addColorStop(0, css(L.edge, 0.85));
+	scorch.addColorStop(0.35, css(L.outer, 0.45));
+	scorch.addColorStop(1, css(L.tail, 0));
+	ctx.fillStyle = scorch;
+	ctx.fillRect(0, 0, N, N);
+	const paths: [number, number][][] = [];
+	const branch = (x: number, y: number, ang: number, len: number, depth: number) => {
+		const pts: [number, number][] = [[x, y]];
+		const steps = Math.max(3, Math.round(len / 9));
+		for (let i = 0; i < steps; i += 1) {
+			ang += (rnd() - 0.5) * 0.7;
+			x += Math.cos(ang) * (len / steps);
+			y += Math.sin(ang) * (len / steps);
+			pts.push([x, y]);
+			if (depth < 1 && i === Math.floor(steps / 2) && rnd() < 0.6) branch(x, y, ang + (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd() * 0.4), len * 0.45, depth + 1);
+		}
+		paths.push(pts);
+	};
+	const arms = 8;
+	for (let i = 0; i < arms; i += 1) {
+		const a = (i / arms) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
+		branch(R + Math.cos(a) * 5, R + Math.sin(a) * 5, a, R * (0.62 + rnd() * 0.3), 0);
+	}
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+	const pass = (color: string, width: number) => {
+		ctx.strokeStyle = color;
+		ctx.lineWidth = width;
+		for (const pts of paths) {
+			ctx.beginPath();
+			ctx.moveTo(pts[0][0], pts[0][1]);
+			for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i][0], pts[i][1]);
+			ctx.stroke();
+		}
+	};
+	pass(css(L.outer, 0.35), 9);
+	pass(css(L.edge, 0.85), 3.6);
+	pass(css(L.core, 1), 1.4);
+	const hot = ctx.createRadialGradient(R, R, 0, R, R, R * 0.2);
+	hot.addColorStop(0, css(L.core, 1));
+	hot.addColorStop(1, css(L.edge, 0));
+	ctx.fillStyle = hot;
+	ctx.fillRect(0, 0, N, N);
+	return PIXI.Texture.from(c);
+};
+
+/** the venom look's mark: a splash, a body with lobes round it, flung drops and their streaks (coloured) */
+const splashTexture = (look: StingLook): PIXI.Texture => {
+	const L = STING_FX.looks[look];
+	const N = STING_FX.tex.markPx;
+	const { c, ctx } = canvasOf(N, N);
+	const R = N / 2;
+	const rnd = seeded(23);
+	const blob = (x: number, y: number, r: number, hot: number) => {
+		const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+		g.addColorStop(0, css(hot ? L.edge : L.outer, 0.95));
+		g.addColorStop(0.7, css(L.outer, 0.9));
+		g.addColorStop(1, css(L.tail, 0));
+		ctx.fillStyle = g;
+		ctx.beginPath();
+		ctx.arc(x, y, r, 0, Math.PI * 2);
+		ctx.fill();
+	};
+	// streaks first, under the drops
+	ctx.lineCap = 'round';
+	const drops: [number, number, number][] = [];
+	for (let i = 0; i < 12; i += 1) {
+		const a = (i / 12) * Math.PI * 2 + (rnd() - 0.5) * 0.4;
+		const d = R * (0.6 + rnd() * 0.32);
+		drops.push([R + Math.cos(a) * d, R + Math.sin(a) * d, R * (0.025 + rnd() * 0.045)]);
+		ctx.strokeStyle = css(L.outer, 0.55);
+		ctx.lineWidth = 2 + rnd() * 2;
+		ctx.beginPath();
+		ctx.moveTo(R + Math.cos(a) * R * 0.3, R + Math.sin(a) * R * 0.3);
+		ctx.lineTo(R + Math.cos(a) * d * 0.92, R + Math.sin(a) * d * 0.92);
+		ctx.stroke();
+	}
+	for (let i = 0; i < 9; i += 1) {
+		const a = (i / 9) * Math.PI * 2 + rnd() * 0.5;
+		const d = R * (0.22 + rnd() * 0.22);
+		blob(R + Math.cos(a) * d, R + Math.sin(a) * d, R * (0.12 + rnd() * 0.1), 0);
+	}
+	blob(R, R, R * 0.36, 1);
+	for (const [x, y, r] of drops) blob(x, y, r * 1.6, 0);
+	const hot = ctx.createRadialGradient(R, R, 0, R, R, R * 0.22);
+	hot.addColorStop(0, css(L.core, 0.95));
+	hot.addColorStop(1, css(L.edge, 0));
+	ctx.fillStyle = hot;
+	ctx.fillRect(0, 0, N, N);
+	return PIXI.Texture.from(c);
+};
+
+/** the gold look's mark: an eight point starburst, long and short sharp rays round a hot centre (coloured) */
+const burstTexture = (look: StingLook): PIXI.Texture => {
+	const L = STING_FX.looks[look];
+	const N = STING_FX.tex.markPx;
+	const { c, ctx } = canvasOf(N, N);
+	const R = N / 2;
+	ctx.translate(R, R);
+	ctx.globalCompositeOperation = 'lighter';
+	for (let i = 0; i < 16; i += 1) {
+		const long = i % 2 === 0;
+		const len = (long ? 0.98 : 0.55) * R;
+		const half = (long ? 0.075 : 0.06) * Math.PI;
+		ctx.save();
+		ctx.rotate((i / 16) * Math.PI * 2);
+		const g = ctx.createLinearGradient(0, 0, len, 0);
+		g.addColorStop(0, css(L.core, 0.95));
+		g.addColorStop(0.35, css(L.edge, 0.7));
+		g.addColorStop(1, css(L.outer, 0));
+		ctx.fillStyle = g;
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.lineTo(len * 0.3 * Math.cos(half), len * 0.3 * Math.sin(half));
+		ctx.lineTo(len, 0);
+		ctx.lineTo(len * 0.3 * Math.cos(half), -len * 0.3 * Math.sin(half));
+		ctx.closePath();
+		ctx.fill();
+		ctx.restore();
+	}
+	const hot = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.32);
+	hot.addColorStop(0, css(L.core, 1));
+	hot.addColorStop(1, css(L.edge, 0));
+	ctx.fillStyle = hot;
+	ctx.fillRect(-R, -R, N, N);
+	return PIXI.Texture.from(c);
+};
+
+/** a soft ring (white): a band at 0.82 of the radius (0.1 of it wide) with a faint fill inside it */
+let stingRing: PIXI.Texture | null = null;
+export const stingRingTexture = (): PIXI.Texture => {
+	if (stingRing) return stingRing;
+	const N = STING_FX.tex.ringPx;
+	const { c, ctx } = canvasOf(N, N);
+	const img = ctx.createImageData(N, N);
+	for (let y = 0; y < N; y += 1) {
+		for (let x = 0; x < N; x += 1) {
+			const r = Math.hypot(x + 0.5 - N / 2, y + 0.5 - N / 2) / (N / 2);
+			const band = Math.exp(-Math.pow((r - 0.82) / 0.1, 2));
+			const fill = r < 0.82 ? 0.1 * r * r : 0;
+			const k = (y * N + x) * 4;
+			img.data[k] = img.data[k + 1] = img.data[k + 2] = 255;
+			img.data[k + 3] = Math.round(255 * Math.min(1, band + fill));
+		}
+	}
+	ctx.putImageData(img, 0, 0);
+	stingRing = PIXI.Texture.from(c);
+	return stingRing;
+};
+
+/** a glint (white): a four point star with shorter diagonals and a soft centre */
+let glint: PIXI.Texture | null = null;
+export const glintTexture = (): PIXI.Texture => {
+	if (glint) return glint;
+	const N = STING_FX.tex.glintPx;
+	const { c, ctx } = canvasOf(N, N);
+	const img = ctx.createImageData(N, N);
+	const spike = (a: number, b: number, w: number) => Math.exp(-Math.pow(a / w, 2)) * Math.pow(Math.max(0, 1 - Math.abs(b)), 2.4);
+	for (let y = 0; y < N; y += 1) {
+		for (let x = 0; x < N; x += 1) {
+			const nx = ((x + 0.5) / N) * 2 - 1;
+			const ny = ((y + 0.5) / N) * 2 - 1;
+			const dx = (nx + ny) * Math.SQRT1_2;
+			const dy = (nx - ny) * Math.SQRT1_2;
+			const r = Math.hypot(nx, ny);
+			const a = Math.max(spike(nx, ny, 0.07), spike(ny, nx, 0.07), 0.55 * spike(dx, dy * 1.6, 0.06), 0.55 * spike(dy, dx * 1.6, 0.06), Math.exp(-Math.pow(r / 0.2, 2)));
+			const k = (y * N + x) * 4;
+			img.data[k] = img.data[k + 1] = img.data[k + 2] = 255;
+			img.data[k + 3] = Math.round(255 * Math.min(1, a));
+		}
+	}
+	ctx.putImageData(img, 0, 0);
+	glint = PIXI.Texture.from(c);
+	return glint;
+};
+
+export type StingTextures = { ribbon: PIXI.Texture; mark: PIXI.Texture; particle: PIXI.Texture; particleW: number; particleH: number };
+const stingTex = new Map<StingLook, StingTextures>();
+/** a look's strike textures: its ribbon and mark (baked for it), its particle (shared) */
+export const stingTextures = (look: StingLook): StingTextures => {
+	const had = stingTex.get(look);
+	if (had) return had;
+	const L = STING_FX.looks[look];
+	const mark = L.mark === 'crack' ? crackTexture(look) : L.mark === 'splash' ? splashTexture(look) : burstTexture(look);
+	const particle = L.particle === 'ember' ? emberTexture() : L.particle === 'drop' ? dotTexture() : glintTexture();
+	const [particleW, particleH] = L.particle === 'ember' ? [EMBER_W, EMBER_H] : L.particle === 'drop' ? [DOT_PX, DOT_PX] : [STING_FX.tex.glintPx, STING_FX.tex.glintPx];
+	const out = { ribbon: ribbonTexture(look), mark, particle, particleW, particleH };
+	stingTex.set(look, out);
 	return out;
 };
