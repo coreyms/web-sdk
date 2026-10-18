@@ -37,6 +37,7 @@ export type SoundEffectName =
 	| 'sfx_money_counter'
 	| 'sfx_swipe'
 	| 'sfx_roar'
+	| 'sfx_roar_win'
 	| 'sfx_sting_hit'
 	| 'sfx_sting_big_charge'
 	| 'sfx_sting_big_hit'

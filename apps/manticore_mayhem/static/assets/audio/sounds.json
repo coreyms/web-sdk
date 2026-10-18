@@ -85,48 +85,52 @@
 			35220,
 			3134
 		],
-		"sfx_sting_hit": [
+		"sfx_roar_win": [
 			39354,
+			2602
+		],
+		"sfx_sting_hit": [
+			42956,
 			778
 		],
 		"sfx_sting_big_charge": [
-			41132,
+			44734,
 			1002
 		],
 		"sfx_sting_big_hit": [
-			43134,
+			46736,
 			640
 		],
 		"sfx_sting_super_charge": [
-			44774,
+			48376,
 			2003
 		],
 		"sfx_sting_super_hit": [
-			47777,
+			51379,
 			1037
 		],
 		"sfx_scatter_sting": [
-			39354,
+			42956,
 			778
 		],
 		"sfx_win_big": [
-			49814,
+			53416,
 			1300
 		],
 		"sfx_win_super": [
-			52114,
+			55716,
 			1300
 		],
 		"sfx_win_mega": [
-			54414,
+			58016,
 			1300
 		],
 		"sfx_win_epic": [
-			56714,
+			60316,
 			1300
 		],
 		"sfx_win_max": [
-			59014,
+			62616,
 			1300
 		],
 		"sfx_mystery_tease": [
@@ -138,57 +142,57 @@
 			50
 		],
 		"sfx_scatter_land_6": [
-			61314,
+			64916,
 			470
 		],
 		"sfx_chain_heavy": [
-			62783,
+			66385,
 			1145
 		],
 		"sfx_chain_light": [
-			64929,
+			68531,
 			528
 		],
 		"sfx_chain_light_logo": [
-			64929,
+			68531,
 			528
 		],
 		"sfx_fire_super": [
-			66460,
+			70060,
 			6000,
 			true
 		],
 		"sfx_fire_epic": [
-			73460,
+			77060,
 			6000,
 			true
 		],
 		"sfx_manticore_breath_1": [
-			80460,
+			84060,
 			1800
 		],
 		"sfx_manticore_breath_2": [
-			83260,
+			86860,
 			1800
 		],
 		"sfx_manticore_snarl_1": [
-			86060,
+			89660,
 			662
 		],
 		"sfx_manticore_snarl_2": [
-			87722,
+			91322,
 			691
 		],
 		"sfx_manticore_growl_1": [
-			89414,
+			93014,
 			1166
 		],
 		"sfx_manticore_growl_2": [
-			91580,
+			95180,
 			1213
 		],
 		"sfx_plaque_land": [
-			93793,
+			97393,
 			554
 		]
 	},
@@ -254,6 +258,9 @@
 			"volume": 1
 		},
 		"sfx_roar": {
+			"volume": 1
+		},
+		"sfx_roar_win": {
 			"volume": 1
 		},
 		"sfx_sting_hit": {
@@ -336,7 +343,7 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=a7c90ff2",
-		"./assets/audio/sounds.m4a?v=031b5f35"
+		"./assets/audio/sounds.ogg?v=49c5b250",
+		"./assets/audio/sounds.m4a?v=82d9005b"
 	]
 }

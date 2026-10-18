@@ -135,7 +135,18 @@
 		canvas = { width: c.width, height: c.height };
 		placeAll();
 	});
+	/** DEV (window.__manticore.maxWinNudge, the nudge sweep in feedback/maxwin_nudge_r1): his nudge and a MAX WIN cap
+	 *  scale tried live instead of MAX_WIN.layout's */
+	let devNudge: { x: number; y: number; maxScale: number } | null = null;
+	/** his host's nudge on this screen (MAX_WIN.layout creatureX / creatureY, master px) */
+	const placeLift = () => {
+		const L = MAX_WIN.layout[kind];
+		const x = devNudge?.x ?? L.creatureX;
+		const y = devNudge?.y ?? L.creatureY;
+		lift.position.set(x * master.scale, y * master.scale);
+	};
 	const placeAll = () => {
+		placeLift();
 		dim.position.set(0, 0);
 		dim.setSize(canvas.width, canvas.height);
 		rain.place(canvas.width, canvas.height, master.scale, master.width);
@@ -154,7 +165,7 @@
 		const H = master.height;
 		t.mayhem.set('mw_mayhem', L.lineCap, L.lineWidth);
 		t.unleashed.set('mw_unleashed', L.lineCap, L.lineWidth);
-		t.max.set('mw_max', L.maxCap, L.maxWidth);
+		t.max.set('mw_max', L.maxCap * (devNudge?.maxScale ?? 1), L.maxWidth);
 		const em = (cap: number) => (cap * t.font.em) / t.font.cap;
 		t.amount.set(payoutText, em(L.amountCap), { maxWidth: L.amountWidth });
 		t.mult.set(multText, em(L.multCap), { maxWidth: L.multWidth });
@@ -262,7 +273,7 @@
 		const left = ms - maxWinElapsed();
 		if (left > 0) await waitForTimeout(left);
 	};
-	const sound = (name: 'sfx_roar' | typeof MAX_WIN.slamSound) => context.eventEmitter.broadcast({ type: 'soundOnce', name, forcePlay: true });
+	const sound = (name: 'sfx_roar_win' | typeof MAX_WIN.slamSound) => context.eventEmitter.broadcast({ type: 'soundOnce', name, forcePlay: true });
 
 	let done: (() => void) | undefined;
 	let donePromise: Promise<void> | undefined;
@@ -299,7 +310,7 @@
 		await waitUntil(Math.max(MAX_WIN.roarAt, dimmedAt + (MAX_WIN.roarAt - MAX_WIN.dimAt)));
 		mark('roar');
 		context.eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
-		sound('sfx_roar');
+		sound('sfx_roar_win'); // the win roar (Corey 2026-10-18: his normal roar only for his roar move)
 
 		// ---- MAYHEM UNLEASHED ----
 		await waitUntil(Math.max(MAX_WIN.unleashedAt, dimmedAt + (MAX_WIN.unleashedAt - MAX_WIN.dimAt)));
@@ -379,6 +390,16 @@
 			};
 		}
 		installMaxWinProbe(() => ({ log: log.slice(), lifted: creatureFront.lift === lift, titlesShown: !!type && maxSlot.visible, layout: kind }));
+		if (import.meta.env.DEV) {
+			const m = (window as unknown as { __manticore?: Record<string, unknown> }).__manticore;
+			if (m)
+				m.maxWinNudge = (x: number | null, y = 0, maxScale = 1) => {
+					devNudge = x === null ? null : { x, y, maxScale };
+					laid = '';
+					placeLift();
+					return { kind, nudge: devNudge };
+				};
+		}
 		return () => {
 			stopTicker();
 			if (creatureFront.lift === lift) {

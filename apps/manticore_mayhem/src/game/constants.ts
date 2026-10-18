@@ -1596,7 +1596,7 @@ export const BIG_TITLE = {
 //           shared) fanned around the panel centre behind the plaque, `len` long and `width` wide at their far end,
 //           turning at spin rad/s; alpha `alpha[tier]` faded in over inMs; tint `tint[tier]` (EPIC's is fire)
 //   epic    (EPIC, on a win whose count stops there: a Max win's own screen roars on its slam) the creature roars (his
-//           roar clip and sfx_roar, as the book's roar plays them) roarDelayMs after the landing, and the courtyard's
+//           roar clip and sfx_roar_win, the win roar since 2026-10-18) roarDelayMs after the landing, and the courtyard's
 //           braziers burn the Epic fire clip until the plaque leaves (game/scene.ts flames, a cut under the landing's
 //           kick: the scene has no crossfade for a forced clip)
 export const PLAQUE_ESCALATION = {
@@ -2754,7 +2754,7 @@ export const MAX_WIN = {
 	dimFadeMs: 700,
 	/** the screen leaving after the gate: the dim, the rain and the titles fade together, then he goes back down */
 	outFadeMs: 500,
-	/** the roar where he stands, with the dim (his clip, sfx_roar) */
+	/** the roar where he stands, with the dim (his clip, sfx_roar_win since 2026-10-18) */
 	roarAt: 3000,
 	/** MAYHEM UNLEASHED slams in: the roar's mouth is open by then (roar clip f18 of 53 at 30 fps) */
 	unleashedAt: 3600,
@@ -2788,7 +2788,13 @@ export const MAX_WIN = {
 	 *  two lines of MAYHEM UNLEASHED; `recede*` where that pair sits (its centre) and its scale once MAX WIN is on it.
 	 *  ACROSS, every line is centred on the SCREEN's centre by its visible ink (Corey 2026-10-17 15:34, "Screen, not
 	 *  board"): the master's centre is the canvas centre, and titleInk / glyphInk below take each line's ink to it.
-	 *  (Up to then the landscape and phone lines sat on x 0.46 / 0.47 of the master, left of centre to dodge him.) */
+	 *  (Up to then the landscape and phone lines sat on x 0.46 / 0.47 of the master, left of centre to dodge him.)
+	 *  `creatureX` / `creatureY`: HIS nudge on this screen only, master px (+x right, +y down), so the N of MAX WIN and
+	 *  UNLEASHED clear his wing with the text still centred (Corey 2026-10-18, "let's just do a layout nudge"; measured
+	 *  in feedback/maxwin_nudge_r1). Everywhere else he stands where the scene puts him. Landscape 16 right and 28 down
+	 *  (16:9 desktops had the N on his wing, 662 to 1,466 px2; 0 after, his box still inside the screen); phone sideways
+	 *  has no room to his right, so its MAX WIN cap went 112 -> 96 instead (124 and 224 px2 -> 0); portrait 40 down
+	 *  (UNLEASHED on him 24 and 142 px2 -> 0). 0 overlap in all 14 measured layouts. */
 	layout: {
 		landscape: {
 			lineCap: 92, lineWidth: 1040, mayhemY: 0.36, unleashedY: 0.53,
@@ -2796,13 +2802,15 @@ export const MAX_WIN = {
 			maxCap: 104, maxWidth: 1060, maxY: 0.47,
 			amountCap: 62, amountWidth: 900, amountY: 0.66,
 			multCap: 34, multWidth: 420, multY: 0.77,
+			creatureX: 16, creatureY: 28,
 		},
 		phone: {
 			lineCap: 100, lineWidth: 1140, mayhemY: 0.36, unleashedY: 0.54,
 			recedeScale: 0.48, recedeY: 0.15,
-			maxCap: 112, maxWidth: 1160, maxY: 0.47,
+			maxCap: 96, maxWidth: 1160, maxY: 0.47,
 			amountCap: 66, amountWidth: 980, amountY: 0.67,
 			multCap: 36, multWidth: 460, multY: 0.78,
+			creatureX: 0, creatureY: 0,
 		},
 		portrait: {
 			lineCap: 46, lineWidth: 380, mayhemY: 0.43, unleashedY: 0.52,
@@ -2810,6 +2818,7 @@ export const MAX_WIN = {
 			maxCap: 52, maxWidth: 384, maxY: 0.5,
 			amountCap: 32, amountWidth: 372, amountY: 0.6,
 			multCap: 20, multWidth: 220, multY: 0.67,
+			creatureX: 0, creatureY: 40,
 		},
 	},
 	/** THE BAKED TITLES' INK (maxwin_center_r1, 2026-10-17): where each title's gold face is centred inside its own

@@ -305,7 +305,8 @@
 		void until(at).then(() => {
 			if (mine !== screenNo || !ticking || view.phase === 'exit' || view.clock < at || context.stateGame.skipping) return;
 			context.eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
-			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar', forcePlay: true });
+			// the win roar, its own sound (Corey 2026-10-18: his normal roar only for his roar move)
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar_win', forcePlay: true });
 			log({ type: 'roar' });
 		});
 	};
