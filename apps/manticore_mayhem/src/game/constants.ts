@@ -1053,11 +1053,120 @@ export const STING = {
 	bigRingPx: 16,
 	bigRings: 2,
 	bigRingGapMs: 30,
-	/** normal: the tail streak from off the top-right corner into the cell during the wind-up */
+	/** normal / scatter: the tail's strike trail into the cell during the wind-up (sting r1: from the barb as drawn,
+	 *  STING_FX below; streakPx is no longer read, the trail's width is STING_FX.trail) */
 	streak: true,
 	streakPx: 6,
 	wildColor: 0xffd76a,
 	scatterColor: 0xffe08a,
+	/** THE STING'S LOOK (sting r1, Corey 2026-10-17 20:27 "We should redoo this one"): which of STING_FX.looks the strike
+	 *  is drawn in. 'gold' (THE DEFAULT, Corey 2026-10-17, after playing all three: "I like gold the best").
+	 *  'ember' and 'venom' stay as options (DEV `__manticore.stingLook('ember' | 'venom' | 'gold')`). */
+	look: 'gold' as StingLook,
+} as const;
+
+// ---- THE STING'S STRIKE, r1 (2026-10-17, components/Sting.svelte) ------------------------------------------------
+// The harsh re-review (docs/reviews/manticore-harsh-review-2026-10-17-design.md, Major "sting"): a flat yellow line
+// and a thin white ring from a fixed point off the board's top right corner. Now every strike comes FROM THE BARB AS
+// DRAWN: the tip of his tail on the frame on show (tail.tips, measured on the day look's full tier atlases; the outline
+// is the same in every look and tier), carried through his node's transform into the board's px each frame, so it
+// holds in every layout and follows the tail as it whips. Timing is untouched: the cell flips where it did
+// (STING.hitAt), the trail arrives on that beat; a big / super trail arrives on the strike beat (the charge's end,
+// where the hit sound lands) and the cells flip on theirs. r2: the trail leaves on sting_hit's hold frame (flightMs).
+//   tail      tips: the barb's point per clip frame, rig px of the 1024 canvas (frame 1 first). hold: the strike pose
+//             (sting_hit f6), used when the frame on show has no entry (idle, a clip whose sheet is not in).
+//             fallback: board cells (x right, y down from the board's top left) when he is not on screen at all: the
+//             old origin, 1.5 cells right of the board and 1.2 above it
+//   trail     the strike: a tapered ribbon (a baked texture per look on a mesh rewritten each frame, the claw's
+//             method: geometry moves, no texture is made) along a quadratic curve from the barb to the cell, bowed
+//             `bend` x the chord upward; the head runs along it on head = (u / strike)^ease, the ribbon covers
+//             [head - length, head] (length 1: rooted on the barb all the way in); widthCells at the head, tailWidth of that at its tail (taper power). The barb's
+//             head: a bright dart of headCells and a soft glow of headGlowCells; once landed the ribbon draws itself
+//             into the cell over collapseMs
+//   flightMs  THE LAUNCH (sting r2, Corey 2026-10-17 22:03 "that should launch the line from the tail to the board...
+//             when it's at the lowest point in the sting"): the trail LEAVES the barb on sting_hit's hold frame f6, the
+//             bottom of the strike (tips: y 451, the lowest of the clip; f7 is the same), and its head flies into the
+//             cell in this many style ms. Before f6 there is no line at all. The creature starts sting_hit this much
+//             earlier than r1 (game/creature.ts strikeLead), so f6 lands one flight before the tail's beat, and the
+//             board's beats stay put: a normal's flip and an impact, a big / super centre's impact on the strike beat
+//             and its hit sound, the shape's flip hitAt x bigHitMs after it. A scatter keeps r1's timing (its locked
+//             hit is 240 ms, the flip 173 ms in: no room for the 167 ms wind-up and a flight before it)
+//   shed      `count` particles dropped along the trail as the head passes, each living lifeMs (look's motion)
+//   impact    at the strike: the flash (soft core to flashCells over flashMs), the look's mark (crack, splash or
+//             starburst; markCells, popping in over markInMs, gone by markMs), a ring to ringCells over ringMs and
+//             `particles` thrown out at speedCells per second, living particleMs
+//   reveal    at the flip (a normal's is the same moment): rays BEHIND the new wild (a layer under the tiles, on the
+//             cell well, so they shine out round it and never wash over it) to raysCells, turning `spin` radians, gone by
+//             revealMs
+//             shapeFlash: the flash of a big / super shape's OTHER cells at the flip, times this (nine at once
+//             would merge into one white block)
+//   step      THE STEP UP per kind (normal < big < super): trail width, impact size, particles; `cell` is the size of
+//             the reveal and small impact on each other cell of a big / super shape at the flip
+//   charge    big / super, while the board dims: a glow at the shape's centre breathing STING.chargeBeats times and
+//             growing to glowCells, motes drawn in from radiusCells
+//   looks     per look: ribbon colour stops (head white-hot to tail), head / glow / flash / ring / rays tints, the
+//             mark and particle kinds, and the particles' motion (gravity cells / s^2, + down; drag per second)
+// House rules: no filter, shader or mask; every texture baked once (game/fxTexture.ts stingTextures); pooled sprites
+// and meshes built at mount, only transforms and alphas move.
+export type StingLook = 'ember' | 'venom' | 'gold';
+export const STING_LOOKS: readonly StingLook[] = ['ember', 'venom', 'gold'];
+type StingLookSpec = {
+	/** the ribbon across its width, centre to edge: core, edge, outer; the tail end cools to `tail` */
+	core: number;
+	edge: number;
+	outer: number;
+	tail: number;
+	head: number;
+	headGlow: number;
+	flash: number;
+	ring: number;
+	rays: number;
+	charge: number;
+	mark: 'crack' | 'splash' | 'burst';
+	particle: 'ember' | 'drop' | 'glint';
+	particleTint: number;
+	shedTint: number;
+	gravity: number;
+	drag: number;
+	/** the shed particles drift this way (cells / s, + down) */
+	shedDrift: number;
+};
+export const STING_FX = {
+	tail: {
+		tips: {
+			charge_in: [[408, 170], [398, 187], [390, 166], [381, 162], [366, 168], [358, 184]],
+			charge_loop: [[358, 184], [357, 184], [355, 186], [366, 168], [357, 181], [355, 166], [354, 186], [368, 168], [360, 184], [355, 184], [362, 168], [357, 187]],
+			sting_hit: [[357, 181], [373, 272], [432, 390], [371, 379], [261, 318], [190, 451], [187, 451], [192, 250], [237, 208], [277, 190], [307, 179], [336, 170], [358, 166], [370, 187], [389, 170], [400, 168], [405, 171], [403, 170]],
+			sting_recrouch: [[190, 248], [248, 166], [294, 138], [331, 149], [355, 162], [355, 187], [357, 187]],
+		} as Record<string, readonly (readonly [number, number])[]>,
+		hold: [190, 451] as const,
+		fallback: { x: 9.5, y: -1.2 },
+	},
+	trail: { segments: 22, bend: 0.2, length: 1, ease: 2.2, widthCells: 0.6, tailWidth: 0.1, taper: 1.1, headCells: 0.62, headGlowCells: 1.5, headAlpha: 1, collapseMs: 90 },
+	flightMs: 100,
+	shed: { count: 10, lifeMs: 420, sizeCells: 0.16 },
+	impact: { flashMs: 190, flashCells: 2.8, flashAlpha: 1, markInMs: 60, markMs: 440, markCells: 2.1, markAlpha: 1, ringMs: 360, ringCells: 2.6, ringAlpha: 1, particles: 12, particleMs: 600, speedCells: 7, particleCells: 0.3, shapeFlash: 0.45 },
+	reveal: { revealMs: 640, raysCells: 2.6, raysAlpha: 1, spin: 0.7 },
+	step: {
+		normal: { trail: 1, impact: 1, particles: 1, cell: 1 },
+		scatter: { trail: 0.85, impact: 0.7, particles: 0.6, cell: 0 },
+		big: { trail: 1.5, impact: 1.7, particles: 1, cell: 0.75 },
+		super: { trail: 2, impact: 2.4, particles: 1, cell: 0.9 },
+	},
+	charge: { big: { glowCells: 2.4, radiusCells: 2.4, motes: 14 }, super: { glowCells: 3.4, radiusCells: 3.1, motes: 24 }, glowAlpha: 0.85, moteMs: 560, moteCells: 0.28 },
+	/** the big / super ripples at the flip (stingFx.rings without a colour) drawn as the look's ring at this alpha */
+	shapeRingAlpha: 0.9,
+	looks: {
+		// the claw swipe's fire (SWIPE_FX / fxTexture clawTexture): white-hot core, gold edge, red-orange, deep red; a
+		// crack burnt into the cell, embers that rise
+		ember: { core: 0xfffcf0, edge: 0xffc45c, outer: 0xff4812, tail: 0xba1604, head: 0xfff4dc, headGlow: 0xff8a2e, flash: 0xffb052, ring: 0xff7a2a, rays: 0xffc860, charge: 0xff9a3a, mark: 'crack', particle: 'ember', particleTint: 0xffa04a, shedTint: 0xff8a3a, gravity: -2.2, drag: 3, shedDrift: -0.7 },
+		// the barb's own red venom: a hot pink-white core over crimson, a splash on the cell, drops that fall
+		venom: { core: 0xffeae4, edge: 0xff5a48, outer: 0xd8142c, tail: 0x6e001e, head: 0xffe0d8, headGlow: 0xff2a3a, flash: 0xff6a5a, ring: 0xff3a48, rays: 0xff8a70, charge: 0xff3a3a, mark: 'splash', particle: 'drop', particleTint: 0xff3448, shedTint: 0xff2a3a, gravity: 9, drag: 1.6, shedDrift: 0.9 },
+		// the wild's molten gold (STING.wildColor): a starburst, glints that hang and twinkle
+		gold: { core: 0xffffff, edge: 0xffe696, outer: 0xffbe3c, tail: 0xa8640a, head: 0xfffbe8, headGlow: 0xffd76a, flash: 0xffe08a, ring: 0xffd76a, rays: 0xffe7a0, charge: 0xffd76a, mark: 'burst', particle: 'glint', particleTint: 0xfff0b8, shedTint: 0xffe08a, gravity: 0.8, drag: 3.4, shedDrift: 0.15 },
+	} as Record<StingLook, StingLookSpec>,
+	/** the baked textures' sizes (px; drawn scaled to the cell sizes above) */
+	tex: { ribbonW: 128, ribbonH: 48, markPx: 160, ringPx: 128, glintPx: 64 },
 } as const;
 
 // ---- The scatter sting (MOTION_SPEC "Scatter sting", LOCKED Corey 2026-10-06 18:29) ---------------
@@ -2342,7 +2451,9 @@ export const CHAIN_SOUND = {
 //   rushMs    an action asked for mid idle: the idle runs to its frame 1 the short way round inside this (style time)
 //             and the clip starts then; from the loop's last rushFreeFrames frames or its first rushFreeFrames + 1 it
 //             starts at once (creature_loader_spec.md 3.2: only those seven are within two idle steps of frame 1)
-//   strikeLead   a sting_hit starts (holdFrame - 1) frames BEFORE the hit, so the tail lands on it (false: on it)
+//   strikeLead   a sting_hit starts (holdFrame - 1) frames BEFORE the hit, so the tail lands on it (false: on it).
+//             r2: a normal, big or super one starts STING_FX.flightMs earlier still, so the hold frame (the barb at
+//             its lowest) is where the trail leaves and the hit lands one flight later; a scatter's as r1
 //   sting     the board's own beats the strike is timed from, style ms: where a normal and a scatter sting's cell flips
 //             in its beat, the scatter run's first hold, the two charge lengths (all read from STING / SCATTER_STING)
 //   recrouch  BETWEEN TWO STINGS of a run (drop 4): the rig's sting_recrouch follows sting_hit's hold frame f6 (the tail

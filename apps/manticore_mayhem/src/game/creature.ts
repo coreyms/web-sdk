@@ -61,7 +61,7 @@
 // House rules: no filters, shaders or masks; a frame is a swap between resident textures; a tick allocates nothing.
 import * as PIXI from 'pixi.js';
 
-import { CREATURE, CREATURE_LIFT, CREATURE_SHADE, type CreatureShadeMode, type CreatureSpot } from './constants';
+import { CREATURE, CREATURE_LIFT, CREATURE_SHADE, STING_FX, type CreatureShadeMode, type CreatureSpot } from './constants';
 import { CREATURE_SPEC } from './creatureSpec';
 import { CREATURE_CLIPS, type CreatureClip, type CreatureLook } from './creatureAssets';
 
@@ -297,6 +297,21 @@ export class Creature {
 		if (!import.meta.env.DEV) return;
 		this.log.push({ t: performance.now(), what, clip: this.state === 'idle' || this.state === 'rush' ? 'idle' : this.state === 'crouch' ? 'charge_loop' : this.run.clip, frame: this.drawnFrame, info });
 		if (this.log.length > 1500) this.log.splice(0, 500);
+	}
+
+	/** THE BARB AS DRAWN (sting r1, components/Sting.svelte; constants STING_FX.tail): the tip of his tail on the frame on
+	 *  show, in bodyNode px (the feet point at 0, 0), written into `out`. A frame with no measured tip (idle, a clip whose
+	 *  sheet is not in) gives the strike pose's (sting_hit's hold frame). False when he is not on screen (not placed,
+	 *  hidden, faded out or not in the stage), and `out` is untouched. Reads only; allocates nothing. */
+	tailTip(out: { x: number; y: number }): boolean {
+		if (!this.placed || !this.bodyNode.visible || this.bodyNode.alpha <= 0 || !this.bodyNode.parent) return false;
+		if (this.state === 'hidden') return false;
+		const T = STING_FX.tail;
+		const p = this.drawnFrame > 0 ? T.tips[this.drawnClip]?.[this.drawnFrame - 1] : undefined;
+		const tip = p ?? T.hold;
+		out.x = tip[0] - SPEC.feetCol;
+		out.y = tip[1] - SPEC.feetRow;
+		return true;
 	}
 
 	// ---- placement (components/Background.svelte: the layout's spot, or null where he is not drawn) ----
@@ -599,13 +614,15 @@ export class Creature {
 			// a normal sting's charge_in is timed back from its hit; a big / super charge starts on its beat; a scatter
 			// run starts with its own long hold (the wait beat places the charge_in)
 			if (kind === 'scatter') return;
-			const lead = kind === 'normal' ? (CREATURE.sting.normalHitMs - this.strikeLead() - CHARGE_IN_MS) / ts : 0;
+			const lead = kind === 'normal' ? (CREATURE.sting.normalHitMs - this.strikeLead(kind) - CHARGE_IN_MS) / ts : 0;
 			this.cue = { kind: 'charge', at: beat + lead, strikeAt: 0 };
 		}
 		if (this.cue) this.note('cue', { kind: this.cue.kind, inMs: this.cue.at - now });
 	}
-	private strikeLead(): number {
-		return CREATURE.strikeLead ? WINDUP.sting_hit : 0;
+	/** style ms before the tail's beat that sting_hit starts: its wind-up, plus (sting r2) the trail's flight for a
+	 *  normal, big or super one, so its hold frame (the barb at its lowest) is where the trail leaves */
+	private strikeLead(kind: StingKind): number {
+		return CREATURE.strikeLead ? WINDUP.sting_hit + (kind === 'scatter' ? 0 : STING_FX.flightMs) : 0;
 	}
 	/** the board's own beat (the featureBeat broadcast) */
 	beat(what: 'swipe' | 'roar'): void {
@@ -647,7 +664,7 @@ export class Creature {
 		if (!this.canPlay('charge_in') || !this.canPlay('charge_loop') || !this.canPlay('sting_hit') || !this.canPlay('sting_recrouch')) return this.miss('sting');
 		const ts = Math.max(0.2, this.env.ts());
 		const S = CREATURE.sting;
-		const lead = this.strikeLead() / ts;
+		const lead = this.strikeLead(kind) / ts;
 		this.stinging = true;
 		this.lastBeat = now;
 		if (phase === 'wait') {
