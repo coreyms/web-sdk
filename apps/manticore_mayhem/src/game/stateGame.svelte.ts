@@ -997,6 +997,10 @@ export type WinSetHooks = {
 const fmtAmount = (n: number) => bookEventAmountToCurrencyString(Math.round(n));
 /** DEV probe: the last win set's label decision (font, size, collisions left, the placed boxes in cells) */
 export const labelLog = { last: null as null | { forged: boolean; size: number; collisions: number; waves: number; labels: { x: number; y: number; w: number; h: number; anchorX: number; anchorY: number }[] } };
+/** DEV probe: the last win sets' labels (tools/manticore/capped_label_probe.js): the numbers each label was handed and
+ *  the largest amount it ever read on screen (its raw amount, or its merged count), newest last (bounded) */
+export type WinSetLabel = { base: number; mult: number; total: number; raw: boolean; shownMax: number };
+export const winSetLog: { at: number; labels: WinSetLabel[] }[] = [];
 const READOUT_H = SYMBOL_SIZE * CLUSTER.readoutHeight;
 /** the drawn width of a stencil string at the readout height, for the raw layout */
 const textWidth = (text: string, height: number) => {
@@ -1039,6 +1043,8 @@ type Cluster = {
 	tShake: number;
 	spec: WinSpec;
 	readout: Readout;
+	/** DEV: this label's entry in winSetLog (null in a build) */
+	dev: WinSetLabel | null;
 	wa: number;
 	wb: number;
 	started: boolean;
@@ -1088,6 +1094,11 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	);
 	const size = placement.scale;
 	labelLog.last = import.meta.env.DEV ? { forged, size, collisions: placement.collisions.length, waves: Math.max(0, ...placement.wave), labels: placement.labels.map((l) => ({ ...l })) } : null;
+	const devSet = import.meta.env.DEV ? { at: performance.now(), labels: wins.map((w) => ({ base: w.base, mult: w.mult, total: w.total, raw: !!w.mult, shownMax: 0 })) } : null;
+	if (devSet) {
+		winSetLog.push(devSet);
+		if (winSetLog.length > 60) winSetLog.splice(0, 30);
+	}
 
 	// ---- compile ----
 	const gap0 = rawGap * size;
@@ -1180,6 +1191,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			tShake,
 			spec,
 			readout,
+			dev: devSet ? devSet.labels[i] : null,
 			wa: widths[i].wa * size,
 			wb: widths[i].wb * size,
 			started: false,
@@ -1345,6 +1357,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 				r.mode = 'raw';
 				r.amountX = r.x - half + cl.wa / 2;
 				r.multX = r.x + half - cl.wb / 2;
+				if (cl.dev && cl.spec.base > cl.dev.shownMax) cl.dev.shownMax = cl.spec.base;
 				continue;
 			}
 			let val = cl.spec.total;
@@ -1357,6 +1370,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 				scale = 1 + (READOUT.slamScale - 1) * Math.sin(Math.PI * clamp01((el - tCount) / READOUT.slamPunchMs));
 			}
 			r.mode = 'merged';
+			if (cl.dev && val > cl.dev.shownMax) cl.dev.shownMax = val;
 			const text = fmtAmount(val);
 			if (r.text !== text) r.text = text;
 			r.scale = scale;

@@ -37,6 +37,7 @@ import {
 	triggerBeat,
 	plateReveal,
 	dropHook,
+	winSetLog,
 } from './stateGame.svelte';
 import { motionLog } from './sparkles';
 import { maxWinArm, maxWinPrefetch, maxWinReset, maxWinState } from './maxWin.svelte';
@@ -186,11 +187,33 @@ const landCapTail = async () => {
 	if (import.meta.env.DEV) capLog.tailAt = performance.now();
 };
 /** DEV: what the last cut did (tools/manticore/skip_probe.js) */
-const capLog: { clusters: number; shown: number; spinStepMax: number; spinWin: number; tailAt: number; via: '' | 'wrap' | 'win' } = { clusters: 0, shown: 0, spinStepMax: 0, spinWin: 0, tailAt: 0, via: '' };
+const capLog: {
+	clusters: number;
+	shown: number;
+	spinStepMax: number;
+	spinWin: number;
+	/** the capped step's plan (capPlan): the spin's paid total, the room under the cap, the round total before the step,
+	 *  each presented cluster's listed `w` and its paid amount */
+	spinPaid: number;
+	room: number;
+	before: number;
+	listed: number[];
+	paid: number[];
+	/** the amount the capped round's wrap up (the MAX WIN one) counted to */
+	wrapAmount: number;
+	tailAt: number;
+	via: '' | 'wrap' | 'win';
+} = { clusters: 0, shown: 0, spinStepMax: 0, spinWin: 0, spinPaid: 0, room: 0, before: 0, listed: [], paid: [], wrapAmount: 0, tailAt: 0, via: '' };
 /** DEV: every win screen a setTotalWin / wincap asked for (the probes read which spins got one) */
 const winAsks: { from: 'setTotalWin' | 'wincap'; gameType: string; amount: number; total: number; alias: string; ladder?: string | null }[] = [];
 if (import.meta.env.DEV && typeof window !== 'undefined') {
-	Object.assign(((window as any).__manticore ??= {}), { capLog: () => ({ ...capLog, capShown }), winAsks: () => winAsks.slice() });
+	Object.assign(((window as any).__manticore ??= {}), {
+		capLog: () => ({ ...capLog, capShown }),
+		winAsks: () => winAsks.slice(),
+		/** the last win sets' labels as drawn (presentWinSet): the numbers handed over and the largest amount each label
+		 *  ever read (tools/manticore/capped_label_probe.js) */
+		winSets: () => winSetLog.slice(),
+	});
 }
 
 /** THE MAX WIN SCREEN (components/MaxWinCinematic.svelte, Corey 2026-10-15): the plaque's MAX landing has normally
@@ -199,37 +222,67 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 let capAmount = 0;
 const maxWinScreen = () => eventEmitter.broadcastAsync({ type: 'maxWinCinematicPlay', payout: capAmount });
 
-/** how many of this cascade's clusters to present when `wincap` is the next event (null = no cap here) */
-const capCut = (bookEvent: BookEventOfType<'cascade'>, bookEvents: BookEvent[]): number | null => {
+/** the capped step as presented: `cut` clusters, each showing what it PAYS (`paid[k]`), and the spin's own total
+ *  once they have (`spinPaid`, the spin total's last figure for this step) */
+type CapPlan = { cut: number; paid: number[]; spinPaid: number; room: number; before: number };
+/** THE CAPPED STEP'S PLAN when `wincap` is the next event (null = no cap here). The book lists every cluster of the
+ *  capping step at its full `w` (math review 2026-10-17 finding 7: Mystery 160729 lists 26,624x where 3.6x was owed),
+ *  and its spinWin is not the ceiling either (it is clamped per spin, or not at all when the spin alone stays under the
+ *  cap). What the step PAYS is the room left under the book's wincap.amount after the round total before it (all book
+ *  numbers: the last setTotalWin, this spin's previous cascade.spinWin), and never more than the step's own share of
+ *  its spinWin. Each presented cluster shows min(w, what is left of that room after the earlier ones): every cluster
+ *  before the crossing one shows its full `w`, the crossing one the rest. Nothing here makes an amount up. */
+const capPlan = (bookEvent: BookEventOfType<'cascade'>, bookEvents: BookEvent[]): CapPlan | null => {
 	const at = bookEvents.indexOf(bookEvent);
 	const cap = bookEvents[at + 1];
 	if (cap?.type !== 'wincap') return null;
 	// the round total before this step: the last setTotalWin (a resumed round keeps it in its snapshot)
 	// plus what this spin's earlier steps made (the previous cascade.spinWin since the reveal)
-	let running = 0;
+	let before = 0;
+	let spinBefore = 0;
 	let inSpin = true;
 	for (let i = at - 1; i >= 0; i -= 1) {
 		const e = bookEvents[i];
 		if (e.type === 'cascade' && inSpin) {
-			running += e.spinWin;
+			spinBefore = e.spinWin;
+			before += e.spinWin;
 			inSpin = false;
 		} else if (e.type === 'reveal') {
 			inSpin = false;
 		} else if (e.type === 'setTotalWin') {
-			running += e.amount;
+			before += e.amount;
 			break;
 		} else if (e.type === 'createBonusSnapshot') {
 			const last = _.findLast(e.bookEvents, (x) => x.type === 'setTotalWin') as BookEventOfType<'setTotalWin'> | undefined;
-			running += last?.amount ?? 0;
+			before += last?.amount ?? 0;
 			break;
 		}
 	}
+	let cut = bookEvent.wins.length;
+	let running = before;
 	for (let k = 0; k < bookEvent.wins.length; k += 1) {
 		running += bookEvent.wins[k].w;
-		if (running >= cap.amount) return k + 1;
+		if (running >= cap.amount) {
+			cut = k + 1;
+			break;
+		}
 	}
-	return bookEvent.wins.length;
+	const room = Math.max(0, Math.min(cap.amount - before, bookEvent.spinWin - spinBefore));
+	const paid: number[] = [];
+	let listed = 0;
+	for (let k = 0; k < cut; k += 1) {
+		const w = bookEvent.wins[k].w;
+		paid.push(Math.min(w, Math.max(0, room - listed)));
+		listed += w;
+	}
+	return { cut, paid, spinPaid: spinBefore + paid.reduce((a, b) => a + b, 0), room, before };
 };
+
+/** one presented cluster as the label gets it. The capped step's crossing cluster (paid under its `w`) shows its paid
+ *  amount alone: its base x multiplier would no longer multiply out to it, so it counts up as a plain total (mult 0,
+ *  the label's merged readout, as a cluster with no tile multiplier). Every other cluster is the book's three numbers. */
+const winSpecOf = (w: BookEventOfType<'cascade'>['wins'][number], paid?: number) =>
+	paid !== undefined && paid < w.w ? { cells: w.c, base: paid, mult: 0, total: paid, symbol: w.s } : { cells: w.c, base: w.p, mult: w.m, total: w.w, symbol: w.s };
 
 // ---- THE CREATURE'S LOOK-AHEAD (game/creature.ts; presentation only) -------------------------------
 // The round is known up front, so the handler whose drop comes BEFORE a feature tells the creature when that feature's
@@ -370,7 +423,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	// wins, so its order carries no per-cluster meaning: the client plays win.c per cluster, then
 	// removes whatever `removed` still lists, and the SET of cells gone before `tiles` / `fill` must
 	// equal `removed` exactly (asserted in DEV and by tools/manticore/motion_probe.js). The amounts
-	// shown are the book's: win.p (base), win.m (tile sum) and win.w (the cluster's total).
+	// shown are the book's: win.p (base), win.m (tile sum) and win.w (the cluster's total); on the capped
+	// step only, the crossing cluster shows what it pays (capPlan) and no base x multiplier.
 	cascade: async (bookEvent: BookEventOfType<'cascade'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();
 		// the running spin total: the previous step's spinWin plus each cluster's win as its count-up
@@ -380,18 +434,19 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// counting over to the book's new value where `tiles` lists one (MULT_PLATE)
 		const tileMap = new Map(bookEvent.tiles);
 		const onCleared = (cell: CellIndex) => plateReveal(cell, tileMap.get(cell) ?? null);
-		// THE MAX WIN CUT (see capCut): only the clusters up to the one that reaches the cap are presented
-		const cut = capCut(bookEvent, bookEvents);
+		// THE MAX WIN CUT (see capPlan): only the clusters up to the one that reaches the cap are presented, each
+		// showing what it pays
+		const plan = capPlan(bookEvent, bookEvents);
 		const ours = await presentWinSet(
-			(cut === null ? bookEvent.wins : bookEvent.wins.slice(0, cut)).map((w) => ({ cells: w.c, base: w.p, mult: w.m, total: w.w, symbol: w.s })),
+			plan === null ? bookEvent.wins.map((w) => winSpecOf(w)) : bookEvent.wins.slice(0, plan.cut).map((w, k) => winSpecOf(w, plan.paid[k])),
 			id,
 			{
 				onClusterStart: () => eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cluster_remove', forcePlay: true }),
 				onCountDone: (_i, total) => {
 					running += total;
-					// the capped step: the book clamps each cluster and the step's spinWin separately, so the running
-					// sum is never shown past the book's own spin total
-					if (cut !== null) running = Math.min(running, bookEvent.spinWin);
+					// the capped step: the counts are the paid amounts, so the running sum lands on the spin's paid
+					// total; never shown past it
+					if (plan !== null) running = Math.min(running, plan.spinPaid);
 					eventEmitter.broadcast({ type: 'spinWinStep', amount: running });
 					if (import.meta.env.DEV) {
 						motionLog.steps.push({ amount: running, at: performance.now(), cascade: motionLog.cascadeIndex });
@@ -409,7 +464,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			motionLog.lastCascade = { ours: ours.length, book: bookEvent.removed.length, rest: rest.length, extra };
 			if (extra.length) console.warn('[manticore] win set removed cells the book did not list', extra);
 		}
-		if (cut !== null) {
+		if (plan !== null) {
 			// the cap is reached: no more clears, no tiles beat, no refill motion, no spin total presentation.
 			// The rest of the step is owed to the board and lands without motion under the Max Win screen.
 			capTail = async () => {
@@ -418,11 +473,25 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 				await dropFill(bookEvent.fill, id);
 				settleBoard();
 			};
-			stateGame.spinWin = bookEvent.spinWin;
-			eventEmitter.broadcast({ type: 'spinWinShow', amount: bookEvent.spinWin });
+			// the spin total stays on what the spin paid (the book's cascade.spinWin here may be the full cluster sum)
+			stateGame.spinWin = plan.spinPaid;
+			eventEmitter.broadcast({ type: 'spinWinShow', amount: plan.spinPaid });
 			if (import.meta.env.DEV) {
 				motionLog.cascadeIndex += 1;
-				Object.assign(capLog, { clusters: bookEvent.wins.length, shown: cut, spinStepMax: running, spinWin: bookEvent.spinWin, tailAt: 0, via: '' });
+				Object.assign(capLog, {
+					clusters: bookEvent.wins.length,
+					shown: plan.cut,
+					spinStepMax: running,
+					spinWin: bookEvent.spinWin,
+					spinPaid: plan.spinPaid,
+					room: plan.room,
+					before: plan.before,
+					listed: bookEvent.wins.slice(0, plan.cut).map((w) => w.w),
+					paid: plan.paid.slice(),
+					wrapAmount: 0,
+					tailAt: 0,
+					via: '',
+				});
 			}
 			return;
 		}
@@ -734,7 +803,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await eventEmitter.broadcastAsync({ type: 'freeSpinOutroShow' });
 		const counted = eventEmitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount: wrapAmount, winLevelData, capped });
 		if (capped) {
-			if (import.meta.env.DEV) capLog.via = 'wrap';
+			if (import.meta.env.DEV) Object.assign(capLog, { via: 'wrap', wrapAmount });
 			if (capTail) await waitForTimeout(STINGER_PLAQUE.enterMs);
 			await landCapTail();
 		}
