@@ -418,8 +418,8 @@ export default {
 	"ui/maxwin/maxwin-half.webp": "582f783f",
 	"ui/maxwin/maxwin.json": "5e81d73e",
 	"ui/maxwin/maxwin.webp": "c6f4b190",
-	"ui/numerals/numerals.json": "fc18e992",
-	"ui/numerals/numerals.webp": "69dff050",
+	"ui/numerals/numerals.json": "a3a5ecfe",
+	"ui/numerals/numerals.webp": "a3114871",
 	"ui/numerals/plate-numerals.json": "3c24cb77",
 	"ui/numerals/plate-numerals.png": "568b8e40",
 	"ui/plaque-numerals/plaque-numerals-half.json": "1080dd2f",
@@ -870,8 +870,8 @@ export const fileBytes = {
 	"ui/maxwin/maxwin-half.webp": 433170,
 	"ui/maxwin/maxwin.json": 1174791,
 	"ui/maxwin/maxwin.webp": 1156352,
-	"ui/numerals/numerals.json": 648282,
-	"ui/numerals/numerals.webp": 617694,
+	"ui/numerals/numerals.json": 418287,
+	"ui/numerals/numerals.webp": 399516,
 	"ui/numerals/plate-numerals.json": 17677,
 	"ui/numerals/plate-numerals.png": 14195,
 	"ui/plaque-numerals/plaque-numerals-half.json": 80225,
@@ -912,4 +912,4 @@ export const landingSizes = {
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":180978,"preload":1699958,"audio":1668065} as const;
+export const bootSizes = {"landing":180978,"preload":1469963,"audio":1668065} as const;

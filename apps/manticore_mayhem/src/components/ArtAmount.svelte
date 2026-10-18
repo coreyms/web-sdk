@@ -1,5 +1,6 @@
 <script lang="ts" module>
-	import { tokenizeNumerals as tokenize } from '../game/numeralTokens';
+	// the guarded tokenizer: null also when a glyph is not in this (trimmed) atlas
+	import { stencilTokens as tokenize } from '../game/numeralLayout';
 
 	/** Can every character of this formatted amount be drawn from the glyph atlas?
 	 *  (Spaces are layout-only.) Callers whose text changes per frame must use this guard

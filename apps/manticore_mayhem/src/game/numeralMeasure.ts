@@ -4,7 +4,7 @@
 // steppers must never move when the bet changes, and the gap must fit the biggest amount the
 // currency can show). Pure glyph metrics, no DOM measurement, so both agree exactly.
 import { NUMERAL_GLYPHS, NUMERAL_DIGIT_H } from './numeralGlyphs';
-import { tokenizeNumerals } from './numeralTokens';
+import { stencilTokens } from './numeralLayout';
 
 export const NUMERAL_GAP = 0.05; // between cells, in digit heights
 export const NUMERAL_SPACE = 0.32; // a layout-only space cell, in digit heights
@@ -34,7 +34,7 @@ export const numeralRowWidth = (cells: NumeralCell[], height: number) =>
 
 /** width the atlas renders `text` at `height`; null when the atlas cannot draw it (text fallback) */
 export const measureNumerals = (text: string, height: number): number | null => {
-	const tokens = tokenizeNumerals(text);
+	const tokens = stencilTokens(text);
 	if (!tokens) return null;
 	return numeralRowWidth(numeralCells(tokens, height), height);
 };

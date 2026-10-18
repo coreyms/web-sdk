@@ -3,7 +3,9 @@
 // atlas can draw: a text that tokenizes renders every character; a text with any unsupported character
 // yields null and the caller falls back to styled text for the WHOLE string — never a partial render
 // with glyphs dropped. The atlas is generated from Black Ops One by tools/build_stencil_atlas.py and
-// covers A-Z a-z 0-9, punctuation and every Stake currency mark (utils-shared/amount.ts META).
+// covers A-Z a-z 0-9, punctuation and every Stake currency mark (utils-shared/amount.ts META). Manticore's own
+// sheet is TRIMMED to what its texts need (game/numeralGlyphs.ts): its renderers go through numeralLayout.ts
+// stencilTokens, which also says null for a name that sheet does not carry.
 const CHAR_TO_GLYPH: Record<string, string> = {
 	...Object.fromEntries([...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'].map((c) => [c, c])),
 	'.': 'period', ',': 'comma', '-': 'dash', '–': 'dash', '—': 'dash', '/': 'slash', '!': 'bang',

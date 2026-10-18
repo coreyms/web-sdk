@@ -15,6 +15,14 @@ const SEP_CELL = Math.max(NUMERAL_GLYPHS.comma.w, NUMERAL_GLYPHS.period.w);
 
 export type GlyphPlacement = { key: string; x: number; y: number; w: number; h: number };
 
+/** the tokenizer's glyph names for `text`, or null when any of them is not in THIS atlas: the sheet carries only the
+ *  glyphs Manticore's amounts and words need (game/numeralGlyphs.ts, trimmed 2026-10-18), while the tokenizer also
+ *  serves the board plaque's own set (components/BoardPlaque.svelte) */
+export const stencilTokens = (text: string): (string | null)[] | null => {
+	const tokens = tokenizeNumerals(text);
+	return tokens && tokens.every((name) => name === null || name in NUMERAL_GLYPHS) ? tokens : null;
+};
+
 type Cell = { key: string; cellW: number; w: number; h: number; d: number };
 
 /**
@@ -28,9 +36,9 @@ export const layoutNumerals = (
 	height: number,
 	opts: { reserve?: string; maxWidth?: number } = {},
 ): GlyphPlacement[] | null => {
-	const tokens = tokenizeNumerals(text);
+	const tokens = stencilTokens(text);
 	if (!tokens) return null;
-	const reserveTokens = opts.reserve === undefined ? null : tokenizeNumerals(opts.reserve);
+	const reserveTokens = opts.reserve === undefined ? null : stencilTokens(opts.reserve);
 	const s = height / NUMERAL_DIGIT_H;
 	const cellsFor = (toks: (string | null)[]): Cell[] =>
 		toks.map((name) => {
