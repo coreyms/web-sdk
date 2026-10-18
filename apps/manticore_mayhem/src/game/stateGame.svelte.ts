@@ -1707,9 +1707,10 @@ export const stingHit = async (
 				streak: (kind === 'normal' || kind === 'scatter') && STING.streak,
 				ringMs: kind === 'normal' ? STING.ringMs : 0,
 				kind,
-				// sting r1: the tail lands on the flip, its trail runs the whole wind-up (as the streak did)
+				// sting r1: the tail lands on the flip. r2 (Corey 2026-10-17 22:03): a normal's trail leaves the barb at the
+				// bottom of the strike, STING_FX.flightMs before the flip; a scatter's runs the whole wind-up as in r1
 				strikeMs: STING.hitAt * ms,
-				trailMs: STING.streak ? STING.hitAt * ms : 0,
+				trailMs: STING.streak ? (kind === 'scatter' ? STING.hitAt * ms : Math.min(STING_FX.flightMs, STING.hitAt * ms)) : 0,
 			});
 			// THE WELLS (game/wellsFx.ts): the struck cell's veins flare at the hit, outward from it
 			cueWellSting(cell, t0 + (STING.hitAt * ms) / rate, rate, kind);
@@ -1770,9 +1771,10 @@ export const stingBig = async (
 		const hitT0 = t0 + charge / rate;
 		for (const cell of cells) {
 			// sting r1: the tail lands on the centre at the strike beat (the charge's end, sting_hit's hold frame and the hit
-			// sound), its trail running bigTrailMs up to it; every cell of the shape flips at hitAt of the hit as before
+			// sound), its trail leaving the barb STING_FX.flightMs before it (r2: at the bottom of the strike, sting_hit f6);
+			// every cell of the shape flips at hitAt of the hit as before
 			const centre = cell === center;
-			stingFx.strikes.push({ cell, t0: hitT0, rate, dur: hit, hitAt: STING.hitAt, streak: false, ringMs: 0, kind, strikeMs: 0, trailMs: centre && STING.streak ? STING_FX.bigTrailMs : 0, centre });
+			stingFx.strikes.push({ cell, t0: hitT0, rate, dur: hit, hitAt: STING.hitAt, streak: false, ringMs: 0, kind, strikeMs: 0, trailMs: centre && STING.streak ? STING_FX.flightMs : 0, centre });
 			// THE WELLS (game/wellsFx.ts): the struck cell's veins flare at the hit, outward from it
 			cueWellSting(cell, hitT0 + (STING.hitAt * hit) / rate, rate, kind);
 		}

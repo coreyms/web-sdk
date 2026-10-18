@@ -1072,7 +1072,7 @@ export const STING = {
 // is the same in every look and tier), carried through his node's transform into the board's px each frame, so it
 // holds in every layout and follows the tail as it whips. Timing is untouched: the cell flips where it did
 // (STING.hitAt), the trail arrives on that beat; a big / super trail arrives on the strike beat (the charge's end,
-// where sting_hit's hold frame and the hit sound land) and the cells flip on theirs.
+// where the hit sound lands) and the cells flip on theirs. r2: the trail leaves on sting_hit's hold frame (flightMs).
 //   tail      tips: the barb's point per clip frame, rig px of the 1024 canvas (frame 1 first). hold: the strike pose
 //             (sting_hit f6), used when the frame on show has no entry (idle, a clip whose sheet is not in).
 //             fallback: board cells (x right, y down from the board's top left) when he is not on screen at all: the
@@ -1083,7 +1083,14 @@ export const STING = {
 //             [head - length, head] (length 1: rooted on the barb all the way in); widthCells at the head, tailWidth of that at its tail (taper power). The barb's
 //             head: a bright dart of headCells and a soft glow of headGlowCells; once landed the ribbon draws itself
 //             into the cell over collapseMs
-//   bigTrailMs   a big / super strike's trail runs this long before the strike beat (sting_hit's wind-up is 167 ms)
+//   flightMs  THE LAUNCH (sting r2, Corey 2026-10-17 22:03 "that should launch the line from the tail to the board...
+//             when it's at the lowest point in the sting"): the trail LEAVES the barb on sting_hit's hold frame f6, the
+//             bottom of the strike (tips: y 451, the lowest of the clip; f7 is the same), and its head flies into the
+//             cell in this many style ms. Before f6 there is no line at all. The creature starts sting_hit this much
+//             earlier than r1 (game/creature.ts strikeLead), so f6 lands one flight before the tail's beat, and the
+//             board's beats stay put: a normal's flip and an impact, a big / super centre's impact on the strike beat
+//             and its hit sound, the shape's flip hitAt x bigHitMs after it. A scatter keeps r1's timing (its locked
+//             hit is 240 ms, the flip 173 ms in: no room for the 167 ms wind-up and a flight before it)
 //   shed      `count` particles dropped along the trail as the head passes, each living lifeMs (look's motion)
 //   impact    at the strike: the flash (soft core to flashCells over flashMs), the look's mark (crack, splash or
 //             starburst; markCells, popping in over markInMs, gone by markMs), a ring to ringCells over ringMs and
@@ -1136,7 +1143,7 @@ export const STING_FX = {
 		fallback: { x: 9.5, y: -1.2 },
 	},
 	trail: { segments: 22, bend: 0.2, length: 1, ease: 2.2, widthCells: 0.6, tailWidth: 0.1, taper: 1.1, headCells: 0.62, headGlowCells: 1.5, headAlpha: 1, collapseMs: 90 },
-	bigTrailMs: 300,
+	flightMs: 100,
 	shed: { count: 10, lifeMs: 420, sizeCells: 0.16 },
 	impact: { flashMs: 190, flashCells: 2.8, flashAlpha: 1, markInMs: 60, markMs: 440, markCells: 2.1, markAlpha: 1, ringMs: 360, ringCells: 2.6, ringAlpha: 1, particles: 12, particleMs: 600, speedCells: 7, particleCells: 0.3, shapeFlash: 0.45 },
 	reveal: { revealMs: 640, raysCells: 2.6, raysAlpha: 1, spin: 0.7 },
@@ -2423,7 +2430,9 @@ export const CHAIN_SOUND = {
 //   rushMs    an action asked for mid idle: the idle runs to its frame 1 the short way round inside this (style time)
 //             and the clip starts then; from the loop's last rushFreeFrames frames or its first rushFreeFrames + 1 it
 //             starts at once (creature_loader_spec.md 3.2: only those seven are within two idle steps of frame 1)
-//   strikeLead   a sting_hit starts (holdFrame - 1) frames BEFORE the hit, so the tail lands on it (false: on it)
+//   strikeLead   a sting_hit starts (holdFrame - 1) frames BEFORE the hit, so the tail lands on it (false: on it).
+//             r2: a normal, big or super one starts STING_FX.flightMs earlier still, so the hold frame (the barb at
+//             its lowest) is where the trail leaves and the hit lands one flight later; a scatter's as r1
 //   sting     the board's own beats the strike is timed from, style ms: where a normal and a scatter sting's cell flips
 //             in its beat, the scatter run's first hold, the two charge lengths (all read from STING / SCATTER_STING)
 //   recrouch  BETWEEN TWO STINGS of a run (drop 4): the rig's sting_recrouch follows sting_hit's hold frame f6 (the tail

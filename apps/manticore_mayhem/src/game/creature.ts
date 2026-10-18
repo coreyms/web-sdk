@@ -604,13 +604,15 @@ export class Creature {
 			// a normal sting's charge_in is timed back from its hit; a big / super charge starts on its beat; a scatter
 			// run starts with its own long hold (the wait beat places the charge_in)
 			if (kind === 'scatter') return;
-			const lead = kind === 'normal' ? (CREATURE.sting.normalHitMs - this.strikeLead() - CHARGE_IN_MS) / ts : 0;
+			const lead = kind === 'normal' ? (CREATURE.sting.normalHitMs - this.strikeLead(kind) - CHARGE_IN_MS) / ts : 0;
 			this.cue = { kind: 'charge', at: beat + lead, strikeAt: 0 };
 		}
 		if (this.cue) this.note('cue', { kind: this.cue.kind, inMs: this.cue.at - now });
 	}
-	private strikeLead(): number {
-		return CREATURE.strikeLead ? WINDUP.sting_hit : 0;
+	/** style ms before the tail's beat that sting_hit starts: its wind-up, plus (sting r2) the trail's flight for a
+	 *  normal, big or super one, so its hold frame (the barb at its lowest) is where the trail leaves */
+	private strikeLead(kind: StingKind): number {
+		return CREATURE.strikeLead ? WINDUP.sting_hit + (kind === 'scatter' ? 0 : STING_FX.flightMs) : 0;
 	}
 	/** the board's own beat (the featureBeat broadcast) */
 	beat(what: 'swipe' | 'roar'): void {
@@ -652,7 +654,7 @@ export class Creature {
 		if (!this.canPlay('charge_in') || !this.canPlay('charge_loop') || !this.canPlay('sting_hit') || !this.canPlay('sting_recrouch')) return this.miss('sting');
 		const ts = Math.max(0.2, this.env.ts());
 		const S = CREATURE.sting;
-		const lead = this.strikeLead() / ts;
+		const lead = this.strikeLead(kind) / ts;
 		this.stinging = true;
 		this.lastBeat = now;
 		if (phase === 'wait') {

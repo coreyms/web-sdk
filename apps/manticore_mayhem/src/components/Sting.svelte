@@ -11,8 +11,10 @@
 	//                in every layout (desktop in front of the board, phones and tablets behind it) and follows the tail
 	//                as it whips. A tapered ribbon (the look's baked texture on a mesh whose vertices are rewritten) runs
 	//                along a quadratic curve bowed upward from the barb to the cell, a bright dart and its glow at the
-	//                head, particles shed along the way. normal / scatter: over the whole wind-up, landing on the flip.
-	//                big / super: bigTrailMs up to the strike beat (the charge's end), into the shape's centre
+	//                head, particles shed along the way. r2 (Corey 2026-10-17 22:03): it LEAVES the barb at the bottom
+	//                of the strike (sting_hit f6) and flies STING_FX.flightMs: normal, landing on the flip; big / super,
+	//                landing on the strike beat (the charge's end), into the shape's centre. Scatter: over the whole
+	//                wind-up, landing on the flip (r1)
 	//   THE IMPACT   when the tail lands: a soft flash, the look's mark (a burnt crack, a venom splash or a gold
 	//                starburst), a ring and thrown particles. Big / super: on the centre at the strike, and a smaller one
 	//                on every other cell of the shape at the flip
@@ -251,7 +253,7 @@
 	const bzd = (a: number, b: number, c: number, t: number) => 2 * (1 - t) * (b - a) + 2 * t * (c - b);
 
 	/** DEV probe counters: overlays drawn this frame and the most at once, the slowest frame */
-	const stats = { flashes: 0, streaks: 0, rings: 0, shapeRings: 0, telegraph: 0, dropped: 0, trails: 0, impacts: 0, particles: 0, drawMs: 0, tail: 0, fallback: 0, look: look as string };
+	const stats = { flashes: 0, streaks: 0, rings: 0, shapeRings: 0, telegraph: 0, dropped: 0, trails: 0, impacts: 0, particles: 0, drawMs: 0, tail: 0, fallback: 0, look: look as string, trailsNow: 0, impactsNow: 0 };
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		Object.assign(((window as any).__manticore ??= {}), {
 			stingOverlays: () => ({ ...stats, look }),
@@ -344,6 +346,7 @@
 		}
 		const ch = stingFx.charge;
 		if (!ch && !stingFx.strikes.length && !stingFx.rings.length) {
+			stats.trailsNow = stats.impactsNow = 0;
 			if (shown) hideAll();
 			return;
 		}
@@ -690,6 +693,9 @@
 			for (const s of m.parts) s.alpha = 0;
 		}
 
+		// (sting r2) this frame's own counts, for a probe timing the launch against his frames
+		stats.trailsNow = nTrails;
+		stats.impactsNow = nImpacts;
 		stats.trails = Math.max(stats.trails, nTrails);
 		stats.streaks = Math.max(stats.streaks, nTrails);
 		stats.impacts = Math.max(stats.impacts, nImpacts);
