@@ -1,6 +1,6 @@
 import { createLayout } from 'utils-layout';
 
-import { MASTER, isPhoneSizeType, setPortraitViewportSource } from './layoutSpec';
+import { MASTER, isPhoneSizeType, setLandscapeViewportSource, setPortraitViewportSource } from './layoutSpec';
 
 // Main layout sizes are the design masters (see layoutSpec.ts). Square-ish canvases use the portrait master.
 export const { stateLayout, stateLayoutDerived } = createLayout({
@@ -21,4 +21,11 @@ export const { stateLayout, stateLayoutDerived } = createLayout({
 setPortraitViewportSource(() => {
 	const scale = stateLayoutDerived.mainLayout().scale;
 	return { masterHeight: stateLayoutDerived.canvasSizes().height / scale, cssPerMaster: scale, phone: isPhoneSizeType(stateLayoutDerived.canvasSizeType()) };
+});
+
+// THE TALLER DESKTOP SCREENS (layoutSpec LANDSCAPE_TALL): the desktop board's growth reads the master height the screen
+// shows; any other layout reads as the plain 720 (no growth)
+setLandscapeViewportSource(() => {
+	if (stateLayoutDerived.layoutType() !== 'desktop') return MASTER.landscape.height;
+	return stateLayoutDerived.canvasSizes().height / stateLayoutDerived.mainLayout().scale;
 });

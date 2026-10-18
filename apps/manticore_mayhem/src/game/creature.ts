@@ -80,20 +80,30 @@ export type CreaturePlace = { x: number; y: number; scale: number; layer: Creatu
 export const creaturePlaceFor = (spot: CreatureSpot, aspect: number): CreaturePlace => {
 	const p: CreaturePlace = CREATURE.place[spot];
 	if (spot !== 'desktop' || aspect >= CREATURE.desktopWide.aspect) return p;
+	// layout_1610_r2: the line runs on through CREATURE.desktopNarrow (3:2, 4:3), piece by piece; y is the line's here,
+	// but below 16:9 the floor dock replaces it (constants CREATURE.desktopFloor, components/Background.svelte)
 	const T = CREATURE.desktopTall;
-	const t = (Math.max(aspect, CREATURE.desktopMinAspect) - T.aspect) / (CREATURE.desktopWide.aspect - T.aspect);
-	const lerp = (a: number, b: number) => a + (b - a) * t;
-	return { ...p, x: lerp(T.x, p.x), y: lerp(T.y, p.y), scale: lerp(T.scale, p.scale) };
+	const a = Math.max(aspect, CREATURE.desktopMinAspect);
+	const pts = [{ aspect: CREATURE.desktopWide.aspect, x: p.x, y: p.y, scale: p.scale }, T, ...CREATURE.desktopNarrow.map((q) => ({ ...q, y: T.y }))];
+	let i = 0;
+	while (i < pts.length - 2 && a < pts[i + 1].aspect) i += 1;
+	const hi = pts[i];
+	const lo = pts[i + 1];
+	const t = (a - lo.aspect) / (hi.aspect - lo.aspect);
+	const lerp = (u: number, v: number) => u + (v - u) * t;
+	return { ...p, x: lerp(lo.x, hi.x), y: lerp(lo.y, hi.y), scale: lerp(lo.scale, hi.scale) };
 };
 /** THE PORTRAIT PHONE DOCK (constants CREATURE.portraitDock; branch portrait-glow-r1, options for Corey): the spot's
  *  place with its scale times `size` and its y moved so that his claw point (the striking claw's lowest point at the end
  *  of the swipe) lands on the canvas row `edgeY` (a board edge). `fit`: where his parent is at rest (no kick), canvas px
  *  = fit.y + (fit.foreY + local y x fit.over) x fit.scale: the scene's twin root (the cover fit) and its foreground (the
- *  oversize). x stays the spot's: only the height follows the board. */
-export const creatureDocked = (p: CreaturePlace, size: number, edgeY: number, fit: { y: number; scale: number; foreY: number; over: number }): CreaturePlace => {
+ *  oversize). x stays the spot's: only the height follows the board. The portrait tablet takes the same dock since
+ *  layout_1610_r2 (Corey 2026-10-17 21:42). `rigRow`: the rig row that lands on `edgeY`, the claw point by default;
+ *  THE DESKTOP FLOOR (constants CREATURE.desktopFloor) passes the feet row, so his feet land on the floor row. */
+export const creatureDocked = (p: CreaturePlace, size: number, edgeY: number, fit: { y: number; scale: number; foreY: number; over: number }, rigRow: number = CREATURE.portraitDock.claw.y): CreaturePlace => {
 	const scale = p.scale * size;
 	const local = ((edgeY - fit.y) / fit.scale - fit.foreY) / fit.over;
-	return { ...p, scale, y: local + (CREATURE_SPEC.feetRow - CREATURE.portraitDock.claw.y) * scale };
+	return { ...p, scale, y: local + (CREATURE_SPEC.feetRow - rigRow) * scale };
 };
 /** what the creature needs from the game (components/Background.svelte hands it over; this file imports no state) */
 export type CreatureEnv = {

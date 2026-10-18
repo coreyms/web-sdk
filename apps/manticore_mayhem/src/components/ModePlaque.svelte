@@ -29,7 +29,7 @@
 
 	import { getContext } from '../game/context';
 	import { TIMINGS } from '../game/constants';
-	import { HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX, boardCenterY } from '../game/layoutSpec';
+	import { HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX, boardCenterY, landscapeExtraY } from '../game/layoutSpec';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { awaitPlaqueAssets } from '../game/assetGate';
@@ -43,8 +43,12 @@
 	// the plaque belongs to the BOARD, which is left of the master centre in landscape
 	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / master.scale);
 	const cx = $derived(boardCenterX(kindOf(context.stateLayoutDerived.layoutType()), vw));
-	// portrait follows frameFor's growth (the cell area's centre); the others keep their HUD slot
-	const py = $derived(kindOf(context.stateLayoutDerived.layoutType()) === 'portrait' ? boardCenterY('portrait', vw) : slot.y);
+	// portrait follows frameFor's growth (the cell area's centre), and so does the desktop on a screen narrower than 16:9
+	// (layoutSpec LANDSCAPE_TALL: the bigger board's centre); the others keep their HUD slot
+	const py = $derived.by(() => {
+		const k = kindOf(context.stateLayoutDerived.layoutType());
+		return k === 'portrait' || (k === 'landscape' && landscapeExtraY() > 0) ? boardCenterY(k, vw) : slot.y;
+	});
 
 	let title = $state('');
 	let sub = $state('');

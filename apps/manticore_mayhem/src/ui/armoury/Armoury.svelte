@@ -930,7 +930,7 @@
 	});
 	/** the small 16:9 frames: the menu's own BALANCE, bet readout and steppers, where the landscape HUD's trio would sit
 	 *  under the desktop box (the trio's master rectangle at the box's 1440 / 1280) */
-	const ART = landscapeTrioSpan();
+	const ART = landscapeTrioSpan(true);
 	const K = LAY.desktop.w / LAY.desktop.master;
 	const COPY = { left: ART.x * K, top: (720 - 18 - 92) * K, width: ART.width, height: 92, k: K };
 

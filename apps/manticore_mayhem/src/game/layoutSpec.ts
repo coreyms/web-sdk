@@ -49,12 +49,74 @@ export const LANDSCAPE_BOARD = {
 /** the landscape frame rect: LANDSCAPE_BOARD.k1, every dimension x k (k = cellArea / the k 1 cell area, 1.23242) about
  *  the cell area's centre line, the cell area's top at cellTop. Gives x 364.431, y 43.26, width 551.68, inset 13.84,
  *  cell 62.995, gap 2.863 (pitch 65.858), cells x 378.27..902.27, y 57.1..581.1. */
-const landscapeFrame = () => {
+const landscapeFrame = (cellArea: number = LANDSCAPE_BOARD.cellArea, cellTop: number = LANDSCAPE_BOARD.cellTop) => {
 	const b = LANDSCAPE_BOARD.k1;
-	const k = LANDSCAPE_BOARD.cellArea / (b.width - 2 * b.inset);
+	const k = cellArea / (b.width - 2 * b.inset);
 	const cx = b.x + b.width / 2;
 	const width = b.width * k;
-	return { x: cx - width / 2, y: LANDSCAPE_BOARD.cellTop - b.inset * k, width, height: width, inset: b.inset * k, cell: b.cell * k, gap: b.gap * k, margin: b.margin * k };
+	return { x: cx - width / 2, y: cellTop - b.inset * k, width, height: width, inset: b.inset * k, cell: b.cell * k, gap: b.gap * k, margin: b.margin * k };
+};
+
+// ---- THE TALLER DESKTOP SCREENS (layout_1610_r1; the harsh re-review of 2026-10-17: the board was 72.8 % of the height
+// on every 16:9 screen but 65.5 % at 1440 x 900; Corey 2026-10-17 20:27: "We should do this for widescreen") ----------
+// On a desktop screen narrower than 16:9 (16:10 laptops, 3:2) the master is fitted by WIDTH, so the screen shows `extra`
+// master units of canvas above the master and as many below it (40 each at 16:10, 66.7 at 3:2). There the board takes
+// the 16:9 board's share of the height the screen shows, and the HUD's bottom row (BALANCE / WIN / SPIN and both button
+// clusters) rides down by `extra` to the screen's bottom edge (ui/Chrome.svelte --vp-extra-bottom), so everything under
+// the board keeps its 16:9 place against that edge:
+//   cell area  LANDSCAPE_BOARD.cellArea x (720 + 2 extra) / 720: 582.2 at 16:10 (72.8 %, a cell 73.7 -> 81.9 CSS px at
+//              1440 x 900), 621.0 at 3:2
+//   bottom     the spin amount plaque's sprite box (cells' top + plaqueK x the cell area) ends `extra` lower than the 16:9
+//              board's (659.1), over the WIN readout that rode down by the same: the board grows UP from there
+//   top        then the top rail's spike tips are 12.5 master units under the screen's top edge at 16:10 and 17.5 at 3:2
+//              (16:9: 5.2), and only the four corner finials go over that edge, as on every 16:9 screen
+//   sideways   the board scales about the cell area's centre line (x 640.27) as before: at 16:10 the art spans x 230.3 ..
+//              1050.3; the logo's box follows its post (constants LOGO.landscapeTall), the readout row stays inside
+//              TRIO_CLEAR, the creature's 16:10 spot (CREATURE.desktopTall) was set again for it
+//   HUD top    the clock strip rides UP by `extra` to the screen's top edge (ui/ClockStrip.svelte --vp-extra-top) and the
+//              logo's box with it: at 3:2 the bigger board's top left gear stands where the strip was. The SKIP button
+//              keeps its place (it is right of the art at every shape)
+// The growth stops at `minAspect` (3:2): a narrower desktop screen (4:3) keeps the 3:2 layout and the rest of its height
+// stays letterbox. 16:9 and wider: extra 0, frameFor returns FRAME.landscape itself, so nothing there moves.
+export const LANDSCAPE_TALL = {
+	/** the screen shape (width / height) the growth stops at */
+	minAspect: 1.5,
+	/** the spin amount plaque's sprite box bottom, as a multiple of the cell area under the cells' top (57.1 + 1.14888 x
+	 *  524 = 659.1 on the 16:9 board) */
+	plaqueK: 1.14888,
+	/** less letterbox than this (master units, under a CSS px on any desktop) counts as none: a 16:9 screen whose height
+	 *  over the fit's scale comes out a hair over 720 keeps the 16:9 layout exactly */
+	minExtra: 0.5,
+};
+
+/** the live landscape (desktop) viewport: the master height the screen shows (720 plus the letterbox above and below).
+ *  game/stateLayout.ts sets the source, which gives 720 whenever the layout is not the desktop one, so this is 0 on a
+ *  phone, a tablet and a portrait screen; without a source (node tools) it is 0 as well. */
+let landscapeViewport: (() => number) | null = null;
+export const setLandscapeViewportSource = (source: () => number) => {
+	landscapeViewport = source;
+};
+
+/** the master units of canvas the desktop screen shows above the master and as many below it, as far as the board uses
+ *  them (LANDSCAPE_TALL): 0 at 16:9 and wider, 40 at 16:10, 66.7 at 3:2 and held there below 3:2. Reactive (a $derived
+ *  or $effect that calls it follows a resize). */
+export const landscapeExtraY = (masterHeight: number | null = landscapeViewport?.() ?? null) => {
+	if (masterHeight === null) return 0;
+	const M = MASTER.landscape;
+	const most = (M.width / LANDSCAPE_TALL.minAspect - M.height) / 2;
+	const extra = Math.min((masterHeight - M.height) / 2, most);
+	return extra < LANDSCAPE_TALL.minExtra ? 0 : extra;
+};
+
+/** the landscape frame rect for a desktop screen that shows `extra` master units above and below the master
+ *  (LANDSCAPE_TALL); extra 0 is FRAME.landscape itself */
+const landscapeTallFrame = (extra: number) => {
+	if (extra <= 0) return FRAME.landscape;
+	const B = LANDSCAPE_BOARD;
+	const H = MASTER.landscape.height;
+	const cellArea = (B.cellArea * (H + 2 * extra)) / H;
+	const plaqueBottom = B.cellTop + LANDSCAPE_TALL.plaqueK * B.cellArea + extra;
+	return landscapeFrame(cellArea, plaqueBottom - LANDSCAPE_TALL.plaqueK * cellArea);
 };
 
 // Board frame geometry. inset = the distance from the frame edge to the first cell; the 8x8 cell
@@ -159,9 +221,12 @@ const plaqueBelowArtPx = (tablet: boolean) => {
 // master's centre line, until the chains sit chainInset inside the real viewport edges again (cap maxK),
 // and re-places it vertically by the same rule as k 1: the 1 : gapRatio split on the base box (baseRows) grown by
 // k, the art's bottom edge on that box's bottom edge. So at every k the art's bottom is where board_v4l's was at
-// that k (624.60 at k 1, 653.48 at the 1.12 cap). Other layouts pass through.
+// that k (624.60 at k 1, 653.48 at the 1.12 cap). The landscape frame follows the desktop screen's shape below 16:9
+// (LANDSCAPE_TALL); the phone's passes through.
 export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const base = FRAME[kind];
+	// the desktop board on a screen narrower than 16:9 (LANDSCAPE_TALL); FRAME.landscape itself at 16:9 and wider
+	if (kind === 'landscape') return landscapeTallFrame(landscapeExtraY());
 	if (kind !== 'portrait' || !viewportMasterWidth) return base;
 	const P = PORTRAIT_FIT;
 	// the shipped growth: the chain centrelines chainInset inside the viewport's edges
@@ -289,20 +354,30 @@ export const PROMPT_BOARD_ROW = 7;
 export const PROMPT_IN_ROW = 0.94;
 
 /** one board row's cells (the full cell area's width, one cell tall) in master units */
-export const boardRowRect = (kind: LayoutKind, row: number, viewportMasterWidth?: number) => {
-	const f = frameFor(kind, viewportMasterWidth);
-	return { x: f.x + f.inset, y: f.y + f.inset + row * (f.cell + f.gap), width: f.width - 2 * f.inset, height: f.cell };
+export const boardRowRect = (kind: LayoutKind, row: number, viewportMasterWidth?: number) => rowRectOf(frameFor(kind, viewportMasterWidth), row);
+const rowRectOf = (f: FrameRect, row: number) => ({ x: f.x + f.inset, y: f.y + f.inset + row * (f.cell + f.gap), width: f.width - 2 * f.inset, height: f.cell });
+
+/** how far a board row's centre is below where it is on the 16:9 desktop board (master units): 0 at 16:9 and wider and
+ *  in every other layout; on a taller desktop screen the bigger board's (LANDSCAPE_TALL). What sits over a row (the
+ *  desktop prompt's fallback, HUD.landscape.pressToContinue) moves by it. */
+export const boardRowShift = (kind: LayoutKind, row: number) => {
+	if (kind !== 'landscape' || landscapeExtraY() <= 0) return 0;
+	const a = rowRectOf(frameFor('landscape'), row);
+	const b = rowRectOf(FRAME.landscape, row);
+	return a.y + a.height / 2 - (b.y + b.height / 2);
 };
 
 /** the landscape HUD's readout row (BALANCE / WIN / SPIN) is keyed to the frame art's edges, but never closer than this
  *  to the button clusters (master units): left = the [Bonus, Menu] cluster's right edge (66 + 148 = 214) + 20; right =
  *  the [Auto / Turbo, Spin] cluster's left edge (1042) - 16. The art (271.34 .. 1009.28) is inside both today, so the
- *  row is keyed to it; a bigger board would be held here. */
+ *  row is keyed to it at 16:9; the taller desktop screens' bigger board (LANDSCAPE_TALL) is held here. */
 export const TRIO_CLEAR = { left: 234, right: 1026 };
 
-/** the landscape readout row's span (ui/ChromeLandscape.svelte and THE ARMOURY's copy of it) */
-export const landscapeTrioSpan = () => {
-	const a = frameArtRect('landscape');
+/** the landscape readout row's span (ui/ChromeLandscape.svelte and THE ARMOURY's copy of it). On a desktop screen
+ *  narrower than 16:9 the art is wider (LANDSCAPE_TALL: x 230.3 .. 1050.3 at 16:10) and the row is held to TRIO_CLEAR.
+ *  `at169`: the 16:9 board's span whatever the screen (THE ARMOURY's copy, drawn in its own 16:9 desktop box). */
+export const landscapeTrioSpan = (at169 = false) => {
+	const a = at169 ? artRectOf(FRAME.landscape) : frameArtRect('landscape');
 	const x0 = Math.max(a.x, TRIO_CLEAR.left);
 	const x1 = Math.min(a.right, TRIO_CLEAR.right);
 	return { x: x0, width: x1 - x0 };

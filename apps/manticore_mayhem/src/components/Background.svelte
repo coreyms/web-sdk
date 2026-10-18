@@ -314,15 +314,17 @@
 	let placeOverride: CreaturePlace | null = $state(null);
 	/** THE PORTRAIT PHONE DOCK (constants CREATURE.portraitDock, game/creature.ts creatureDocked): with an option on, his
 	 *  claw point goes on a row of the board art, through the board's own registration (the master fit, the growth k)
-	 *  and the portrait scene's cover fit and oversize at rest. Portrait phone only; 'current' is the spot as it is. */
-	const dockEdge = (row: number) => {
+	 *  and the portrait scene's cover fit and oversize at rest. Portrait phone and portrait tablet (CREATURE.portraitDock
+	 *  .spots); 'current' is the spot as it is. The desktop below 16:9 docks his FEET on the landscape board's floor row
+	 *  through the same two helpers (CREATURE.desktopFloor). */
+	const dockEdge = (row: number, layout: SceneLayout = 'portrait') => {
 		const master = context.stateLayoutDerived.mainLayout();
 		const vw = canvas.width / master.scale;
-		const my = boardRegistration('portrait', vw).map(0, row).y;
+		const my = boardRegistration(layout === 'portrait' ? 'portrait' : 'landscape', vw).map(0, row).y;
 		return master.y + (my - master.height / 2) * master.scale;
 	};
-	const dockFit = () => {
-		const [fw, fh] = frames.portrait;
+	const dockFit = (layout: SceneLayout = 'portrait') => {
+		const [fw, fh] = frames[layout];
 		const s = Math.max(canvas.width / fw, canvas.height / fh);
 		const x = (canvas.width - fw * s) / 2;
 		const y = (canvas.height - fh * s) / 2;
@@ -330,9 +332,16 @@
 		return { y, scale: s, foreY: (fh * (1 - over)) / 2, over };
 	};
 	const spotPlace = (): CreaturePlace => {
-		const base = creaturePlaceFor(spot, canvas.width / Math.max(canvas.height, 1));
+		const aspect = canvas.width / Math.max(canvas.height, 1);
+		const base = creaturePlaceFor(spot, aspect);
+		// THE DESKTOP FLOOR (constants CREATURE.desktopFloor): below 16:9 his feet go on the board row his feet stand on at
+		// 16:9 (the courtyard floor), x and scale stay the spot line's; 16:9 and wider keep place.desktop as it is
+		if (spot === 'desktop' && which === 'landscape' && aspect < CREATURE.desktopWide.aspect) {
+			return creatureDocked(base, 1, dockEdge(CREATURE.desktopFloor.row, 'landscape'), dockFit('landscape'), CREATURE_SPEC.feetRow);
+		}
 		const key = portraitOptions.creature;
-		if (spot !== 'portraitPhone' || which !== 'portrait' || key === 'current') return base;
+		// the portrait PHONE and, since layout_1610_r2 (Corey 2026-10-17 21:42), the portrait TABLET take the dock
+		if (!(CREATURE.portraitDock.spots as readonly CreatureSpot[]).includes(spot) || which !== 'portrait' || key === 'current') return base;
 		const D = CREATURE.portraitDock;
 		const o = D.options[key];
 		return creatureDocked(base, o.size, dockEdge(D.edges[o.edge]), dockFit());
