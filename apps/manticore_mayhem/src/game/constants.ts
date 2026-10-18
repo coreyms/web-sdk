@@ -1060,9 +1060,9 @@ export const STING = {
 	wildColor: 0xffd76a,
 	scatterColor: 0xffe08a,
 	/** THE STING'S LOOK (sting r1, Corey 2026-10-17 20:27 "We should redoo this one"): which of STING_FX.looks the strike
-	 *  is drawn in. 'ember' (THE DEFAULT): the claw swipe's own fire, so the two attacks of the one beast read as one
-	 *  material. 'venom' and 'gold' stay as options (DEV `__manticore.stingLook('ember' | 'venom' | 'gold')`). */
-	look: 'ember' as StingLook,
+	 *  is drawn in. 'gold' (THE DEFAULT, Corey 2026-10-17, after playing all three: "I like gold the best").
+	 *  'ember' and 'venom' stay as options (DEV `__manticore.stingLook('ember' | 'venom' | 'gold')`). */
+	look: 'gold' as StingLook,
 } as const;
 
 // ---- THE STING'S STRIKE, r1 (2026-10-17, components/Sting.svelte) ------------------------------------------------
