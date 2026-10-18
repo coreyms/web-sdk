@@ -1,37 +1,30 @@
-// THE PLAQUE'S TITLE TREATMENTS (bigwin-title r1, 2026-10-16; design review 2026-10-15 item 3). One interface, four
-// looks, picked once per page (BIG_TITLE.look, or ?bwtitle=0..3 on the dev server and a staging build):
+// THE PLAQUE'S TITLE TREATMENTS (bigwin-title r1, 2026-10-16; design review 2026-10-15 item 3). One interface, the
+// look picked by BIG_TITLE.look (the ?bwtitle switch went 2026-10-18 with the forge bake, Corey: "Let's do that archive"):
 //   0 shipped  the plaque's own polished gold title (game/stinger/plaqueText.ts PlaqueTitle), as submitted
 //   1 rim      the same baked image, no new texture: a dark outline from RIM_STEPS dark copies set in a ring around
 //              it, and an additive copy over it that lifts the gold toward white
-//   2 forge    the bright bake (tools/build_bigwin_titles.py): white to gold to deep amber, one thick dark outline
+//   2 forge    the bright bake (tools/build_bigwin_titles.py): white to gold to deep amber, one thick dark outline.
+//              ARCHIVED 2026-10-18 (~/Desktop/_archive/manticore-bigwin-titles-forge-2026-10-18): no longer loadable
 //   3 molten   the bright bake, hotter: white to gold to fire orange, a dark red rim inside a black outline. The
 //              default since r2 (Corey 2026-10-17 11:56)
-// The feature intro's three titles are in their mode's colour on 2 and 3 (baked) and tinted on 1. Every look is plain
+// The feature intro's three titles are in their mode's colour on 3 (baked) and tinted on 1. Every look is plain
 // sprites off a resident atlas: no filter, no mask, nothing rastered at runtime.
 import * as PIXI from 'pixi.js';
 
 import { BIG_TITLE } from '../constants';
-import { STAGING_TOOLS } from '../staging';
 import { BIG_TITLE_SPEC, type BigTitleLook } from './bigTitleSpec';
 import { PlaqueTitle } from './plaqueText';
 import type { StingerJson } from './types';
 
 type Textures = Record<string, PIXI.Texture>;
 
-export type TitleVariant = 0 | 1 | 2 | 3;
+export type TitleVariant = 0 | 1 | 3;
 
-/** the look on this page: BIG_TITLE.look, or ?bwtitle=0..3 where the measuring tools are on (dev server, staging) */
-export const titleVariant = (): TitleVariant => {
-	if (STAGING_TOOLS && typeof window !== 'undefined') {
-		const raw = new URLSearchParams(window.location.search).get('bwtitle');
-		const q = raw === null || raw === '' ? NaN : Number(raw);
-		if (q === 0 || q === 1 || q === 2 || q === 3) return q;
-	}
-	return BIG_TITLE.look;
-};
-/** the baked atlas the page loads (variants 0 and 1 draw from the plaque's own titles; the default bake still loads,
- *  so the plaque's asset group is the same on every page) */
-export const bakedLook = (v: TitleVariant = titleVariant()): BigTitleLook => (v === 3 ? 'molten' : 'forge');
+/** the look on this page: BIG_TITLE.look */
+export const titleVariant = (): TitleVariant => BIG_TITLE.look;
+/** the baked atlas the page loads: molten, the only bake shipped (looks 0 and 1 draw from the plaque's own titles; the
+ *  bake still loads, so the plaque's asset group is the same whichever look is set) */
+export const bakedLook = (): BigTitleLook => 'molten';
 
 /** what view.ts asks of a title, whichever look draws it */
 export interface StingerTitle {
@@ -91,7 +84,7 @@ class RimTitle implements StingerTitle {
 	}
 }
 
-/** looks 2 and 3: one baked sprite (the outline and shadow are in the image) */
+/** look 3: one baked sprite (the outline and shadow are in the image) */
 class BakedTitle implements StingerTitle {
 	readonly view = new PIXI.Container();
 	private face = new PIXI.Sprite(PIXI.Texture.EMPTY);
@@ -125,7 +118,7 @@ class BakedTitle implements StingerTitle {
 export const makeTitle = (variant: TitleVariant, titles: StingerJson['text']['titles'], atlas: Textures): StingerTitle => {
 	if (variant === 0) return new PlaqueTitle(titles, atlas);
 	if (variant === 1) return new RimTitle(titles, atlas);
-	const look = bakedLook(variant);
+	const look = bakedLook();
 	// the bake not in (it rides the plaque's own asset group, so this is a failed file): the shipped title, never nothing
 	if (!atlas[`bwt_${look}_win_big`]) return new PlaqueTitle(titles, atlas);
 	return new BakedTitle(look, atlas);

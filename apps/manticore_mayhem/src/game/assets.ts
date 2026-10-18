@@ -3,7 +3,7 @@ import stamps, { fileBytes } from './assetStamp';
 import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
-import { bakedLook, titleVariant } from './stinger/bigTitle';
+import { titleVariant } from './stinger/bigTitle';
 import { CREATURE, LOAD_GATE } from './constants';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
@@ -451,15 +451,12 @@ const assets = {
 		preload: false,
 	},
 	// THE PLAQUE'S BRIGHT TITLES AND MODE EMBLEMS (r1 2026-10-16, r2 2026-10-17; tools/build_bigwin_titles.py,
-	// game/stinger/bigTitle.ts): the page's look only (BIG_TITLE.look, molten since r2; ?bwtitle=2 loads the forge bake
-	// instead). At the plaque's density since r2: full tier 407 KB / 9.04 MB on the GPU with mips, phone 277 KB / 3.89 MB. Its key starts with `stinger`, so
+	// game/stinger/bigTitle.ts): the molten bake, the only one shipped (r2; the forge bake and the ?bwtitle switch were
+	// archived 2026-10-18). At the plaque's density since r2: full tier 407 KB / 9.04 MB on the GPU with mips, phone 277 KB / 3.89 MB. Its key starts with `stinger`, so
 	// it rides the plaque's own deferred group, all or nothing with the five atlases above.
 	stingerBigTitles: {
 		type: 'sprites',
-		src:
-			bakedLook() === 'molten'
-				? tiered(stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten.json', import.meta.url).href), stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten-half.json', import.meta.url).href))
-				: tiered(stamp(new URL('../../assets/ui/bigwin/bigwin-titles-forge.json', import.meta.url).href), stamp(new URL('../../assets/ui/bigwin/bigwin-titles-forge-half.json', import.meta.url).href)),
+		src: tiered(stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten.json', import.meta.url).href), stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten-half.json', import.meta.url).href)),
 		preload: false,
 	},
 	// THE CANVAS LOGO (components/Logo.svelte, tools/build_logo_assets.py): one atlas with the wings, the letters,

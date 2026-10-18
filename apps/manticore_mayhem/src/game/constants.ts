@@ -1495,7 +1495,7 @@ export const STINGER_PLAQUE = {
 // `cy` values are shares of the panel's height (222 ship px), as in stinger.json.
 //   look      the title treatment (game/stinger/bigTitle.ts): 0 the shipped polished gold, 1 rim (the shipped image
 //             with a dark ring and a white lift, no new texture), 2 forge, 3 molten (the bright bakes,
-//             tools/build_bigwin_titles.py). ?bwtitle=0..3 overrides it on the dev server and a staging build.
+//             tools/build_bigwin_titles.py). 2 is archived and the ?bwtitle override is gone (2026-10-18).
 //             r2: 3 molten ships (Corey 2026-10-17 11:56 "I like the molten look"); r1 had 2 forge.
 //   r2 fit    re-measured on the v6 / v6c plaque (2026-10-17): its marble slab ends at 218 of the 222 px panel (the new
 //             bottom gold moulding), the lion crest's tip reaches 16 px down at the centre and the bottom diamond 200 px
@@ -1554,7 +1554,7 @@ export const STINGER_PLAQUE = {
 //             ring dropped by dropShare of px (a shadow), and an additive copy at liftAlpha over the face
 //   modeTint  look 1 only: the multiply on the gold intro titles (looks 2 and 3 bake the mode colours)
 export const BIG_TITLE = {
-	look: 3 as 0 | 1 | 2 | 3,
+	look: 3 as 0 | 1 | 3,
 	win: { titleCap: 54, titleCy: 0.28, titleMax: 540, amountPx: 86, amountCy: 0.715, amountMax: 540 },
 	wrap: { titleCap: 42, titleCy: 0.19, titleMax: 520, amountPx: 75, amountCy: 0.53, amountMax: 540 },
 	intro: {

@@ -190,7 +190,7 @@ export class StingerView {
 	private emberShown!: Uint8Array;
 
 	/** the title on show and the one a tier up is sending out: the two swap roles at every tier up. Their look is
-	 *  the page's (game/stinger/bigTitle.ts, BIG_TITLE.look / ?bwtitle) */
+	 *  the page's (game/stinger/bigTitle.ts, BIG_TITLE.look) */
 	private title!: StingerTitle;
 	private titleOld!: StingerTitle;
 	readonly variant: TitleVariant = titleVariant();
@@ -1064,7 +1064,7 @@ export class StingerView {
 			glintSweeps: this.ready ? this.glint.sweeps : 0,
 			blinks: this.ready ? this.eye.blinks : 0,
 			title: this.ready ? this.title.name : '',
-			/** the title look (BIG_TITLE.look / ?bwtitle) and the escalation's live overlays */
+			/** the title look (BIG_TITLE.look) and the escalation's live overlays */
 			titleVariant: this.variant,
 			escalation: this.ready ? { ...this.escalation.alive, sample: this.escalation.sample } : null,
 			emblems: this.emblems.filter((e) => e.visible).length,
