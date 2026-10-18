@@ -128,21 +128,25 @@
 	type IconName = ComponentProps<typeof Icon>['name'];
 	const GUIDE_ICONS: { id: GuideId; icon: IconName }[] = [
 		{ id: 'spin', icon: 'play' },
+		// the board tap: the speed glyph (the Instant level's lightning), drawn only where the SKIP button is (below)
+		{ id: 'boardTap', icon: 'instant' },
 		{ id: 'turbo', icon: 'turbo' },
 		{ id: 'autoplay', icon: 'auto' },
 		{ id: 'feature', icon: 'polymath' },
 		{ id: 'menu', icon: 'menu' },
 		{ id: 'readouts', icon: 'info' },
+		// the symbol pay popup (components/SymbolPopup.svelte): the coins glyph, a symbol's pays
+		{ id: 'symbols', icon: 'coins' },
 		{ id: 'keyboard', icon: 'chevronRight' },
 		// the SKIP button's own glyph (components/SkipButton.svelte, 2026-10-13: the press opens a prompt first)
 		{ id: 'skip', icon: 'skip' },
 		{ id: 'screens', icon: 'stop' },
 	];
 	// Stake's jurisdiction switches: a control the operator turns off has no row (gameInfoText.ts guideRowShown: Turbo,
-	// Autoplay, the feature menu); where the slam stop or turbo is off there is no SKIP (stateGame skipAllowed), so the
-	// guide does not describe one
+	// Autoplay, the feature menu); where the slam stop or turbo is off there is no SKIP and a board tap speeds nothing up
+	// (stateGame skipAllowed, ui/controls.svelte.ts boardTap), so the guide describes neither
 	const GUIDE = $derived(
-		GUIDE_ICONS.filter((g) => (g.id === 'skip' ? skipAllowed() : guideRowShown(g.id, stateConfig.jurisdiction))).map((g) => ({ ...g, color: '#ffdc4a', ...T.guide.rows[g.id] })),
+		GUIDE_ICONS.filter((g) => (g.id === 'skip' || g.id === 'boardTap' ? skipAllowed() : guideRowShown(g.id, stateConfig.jurisdiction))).map((g) => ({ ...g, color: '#ffdc4a', ...T.guide.rows[g.id] })),
 	);
 
 	let active = $state('paytable');
@@ -417,7 +421,6 @@
 		--rule: var(--ui-rule);
 		--rule-2: var(--ui-rule-2);
 		--well: var(--ui-glass-well);
-		--green: #9cd92f;
 		--gold: #ffdc4a;
 		--red: #ff8a70;
 		position: absolute;

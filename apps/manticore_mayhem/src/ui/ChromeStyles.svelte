@@ -144,6 +144,17 @@
 			--plate-bronze-2: #8f6636;
 			--plate-bronze-3: #5a3e1f;
 			--plate-bronze-4: #bd8f52;
+			/* the gold metal (.plate-gold) and the plate's smoked warm glass as tokens, so the menus' chosen and plain
+			   chips (ui/DenomModal.svelte) wear the HUD's own metals (Corey 2026-10-17 20:27: the bet picker "in the
+			   theme of the game"; it used Angry Mantis's lime --ui-green) */
+			--plate-gold-1: #fff1b8;
+			--plate-gold-2: #cfa432;
+			--plate-gold-3: #8f6d12;
+			--plate-gold-4: #ecc85e;
+			--plate-glass-1: rgba(36, 25, 15, 0.6);
+			--plate-glass-2: rgba(12, 9, 6, 0.76);
+			/* the bronze bezel's mid tone (--plate-bronze-4) as a hairline on the black glass */
+			--plate-bronze-line: rgba(189, 143, 82, 0.4);
 			--plate-ink: #f7eedc;
 			--plate-rivet: radial-gradient(circle at 36% 34%, #fff0c8 0, #d2a364 32%, #7a5529 60%, rgba(0, 0, 0, 0.45) 70%, transparent 78%);
 		}
@@ -155,8 +166,8 @@
 			--plate-b2: var(--plate-bronze-2);
 			--plate-b3: var(--plate-bronze-3);
 			--plate-b4: var(--plate-bronze-4);
-			--plate-g1: rgba(36, 25, 15, 0.6);
-			--plate-g2: rgba(12, 9, 6, 0.76);
+			--plate-g1: var(--plate-glass-1);
+			--plate-g2: var(--plate-glass-2);
 			--plate-bz: clamp(1.5px, calc(var(--plate-css) * 0.055), 5.5px);
 			/* the rivets go below 40 CSS px (the sideways rail, the portrait phone's small squares, the steppers) */
 			--plate-rs: min(calc(var(--plate-css) * 0.085), 9px, max(0px, calc((var(--plate-css) - 39.5px) * 100)));
@@ -216,10 +227,10 @@
 			color: #cfc8bb;
 		}
 		.am-plate.plate-gold {
-			--plate-b1: #fff1b8;
-			--plate-b2: #cfa432;
-			--plate-b3: #8f6d12;
-			--plate-b4: #ecc85e;
+			--plate-b1: var(--plate-gold-1);
+			--plate-b2: var(--plate-gold-2);
+			--plate-b3: var(--plate-gold-3);
+			--plate-b4: var(--plate-gold-4);
 		}
 		.am-plate.plate-green {
 			--plate-b1: #e2f7b0;

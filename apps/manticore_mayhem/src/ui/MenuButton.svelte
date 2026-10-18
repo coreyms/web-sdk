@@ -200,7 +200,8 @@
 	.sv.neg {
 		color: #ff8a70;
 	}
+	/* a session up: the game's gold, not Angry Mantis's lime (Corey 2026-10-17 20:27) */
 	.sv.pos {
-		color: var(--ui-green);
+		color: var(--ui-gold);
 	}
 </style>
