@@ -2616,6 +2616,19 @@ export const CREATURE = {
 	// Until a sheet is in its action is simply not played, so a feature that starts first shows no snarl / growl
 	// until they land. Saves 6.6 MB desktop / 3.7 MB phone per session.
 	lookLoad: { prefetch: true, prefetchLooks: ['super', 'epic'], prefetchGroups: ['creatureIdle', 'creatureActs'], early: true, waitMs: 250 },
+	/** HIS UPLOADS (Safari, Corey 2026-10-18 "1. Yes" twice; tools/manticore/safari_perf.js baseline: every frame over 90
+	 *  ms in a SUPER buy came in the half second after one of his ~4,000 px sheets went to the GPU, at the buy press, as
+	 *  the intro ended and after the outro, five of them in 1.5 s when the day look came back).
+	 *    strips  game/stripUpload.ts: each sheet decoded in a worker (game/creatureDecode.worker.ts) and uploaded in
+	 *            `bands` bands, one per frame, its pixel copy let go after (Safari 105-125 ms -> 42-44 ms worst frame per
+	 *            sheet; Chrome at a sixth of its CPU 67 -> 18 ms). 'all' (Corey 2026-10-18: "Would this improve Chrome
+	 *            performance on a slow pc?", measured yes), 'webkit' (Safari and iOS only) or 'off' (Pixi's own path).
+	 *            Anything the strip path cannot do falls back to Pixi's path for that sheet.
+	 *    on      game/creatureLoad.ts: uploads go one at a time, at least gapMs apart (the
+	 *            sheet he needs NOW, the idle sheet of the look the mode asks for, skips the line). Tried with a wait for a
+	 *            still moment as well (2026-10-18 r1): free spins have none, so it only moved the stalls into the spins.
+	 *  ROLLBACK: strips 'off' and on false (every sheet uploaded whole the moment it lands, as before). */
+	upload: { on: true, gapMs: 300, pollMs: 100, strips: 'all' as 'all' | 'webkit' | 'off', bands: 8 },
 	/** HIS PLACE IN THE LOAD (first-minute plan D, Corey 2026-10-16 17:21 "Yes D"; until then CREATURE.deferredAfter put
 	 *  his idle sheet straight after the plaque and his attacks behind the symbols' sheets). Now:
 	 *    - his STILL (idle frame 1 of the base look and its shadow, tools/build_creature_still.py, 45 KB / 25 KB) is in the

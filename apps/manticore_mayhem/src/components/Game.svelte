@@ -173,6 +173,28 @@
 	};
 	if (import.meta.env.DEV && typeof window !== 'undefined') ((window as any).__manticore ??= {}).resChanges = () => ({ ...resChanges });
 
+	// DEV, tools/manticore/safari_perf.js (2026-10-18, the Safari lag): every texture's FIRST upload to the GPU from the
+	// first call on, [performance.now(), ms the call took, width, height, the file]. Installed by that first call.
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		const log: [number, number, number, number, string][] = [];
+		let wrapped = false;
+		((window as any).__manticore ??= {}).gpuUploads = () => {
+			const sys = context.stateApp.pixiApplication?.renderer?.texture as unknown as { _initSource?: (s: PIXI.TextureSource) => unknown } | undefined;
+			if (!wrapped && sys?._initSource) {
+				wrapped = true;
+				const first = sys._initSource.bind(sys);
+				sys._initSource = (s: PIXI.TextureSource) => {
+					const t = performance.now();
+					const out = first(s);
+					const res = s.resource as { src?: string; currentSrc?: string } | undefined;
+					log.push([t, performance.now() - t, s.pixelWidth, s.pixelHeight, String(s.label || res?.currentSrc || res?.src || s.uid).split('/').pop()!.split('?')[0]]);
+					return out;
+				};
+			}
+			return log.slice();
+		};
+	}
+
 	// GPU warm-up at loading-screen dismissal: pre-upload every mounted TEXTURE (never the stage
 	// itself — prepare.upload(stage) also queues Graphics contexts, and a context replaced meanwhile
 	// is iterated after it was destroyed) and keep textures resident ~30 min.

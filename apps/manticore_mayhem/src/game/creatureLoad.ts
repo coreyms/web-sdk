@@ -58,6 +58,7 @@ import * as PIXI from 'pixi.js';
 import { CREATURE } from './constants';
 import { creature } from './creature';
 import { CREATURE_FILES, CREATURE_SHARED, type CreatureClip, type CreatureLook } from './creatureAssets';
+import { imageOfSheet, loadStripSheet, uploadStrips, type StripSheet } from './stripUpload';
 
 type GroupLog = Record<string, { start: number; end: number; keys: number; failed: number }>;
 type Sheet = { textures: Record<string, PIXI.Texture> };
@@ -87,9 +88,9 @@ const sharedLoads: Partial<Record<keyof typeof CREATURE_SHARED, Promise<boolean>
 /** the shared sheets a run fetches: the shade only while he draws option B (constants CREATURE_SHADE) */
 const sharedWanted = (kind: keyof typeof CREATURE_SHARED): boolean => kind !== 'shade' || creature.shadeOption === 'B';
 /** a shared sheet, once: fetched, uploaded and handed to him (resolves whether it is in; never rejects) */
-export const loadCreatureShared = (kind: keyof typeof CREATURE_SHARED): Promise<boolean> =>
+export const loadCreatureShared = (kind: keyof typeof CREATURE_SHARED, needNow: () => boolean = () => false): Promise<boolean> =>
 	(sharedLoads[kind] ??= (async () => {
-		const sheet = await fetchSheet(CREATURE_SHARED[kind], 'shared');
+		const sheet = await fetchSheet(CREATURE_SHARED[kind], 'shared', needNow);
 		if (sheet && creature.setShared(kind, sheet.textures)) return (shared[kind] = true);
 		delete sharedLoads[kind];
 		return false;
@@ -107,15 +108,85 @@ const holdAfter = (): string =>
 	import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('creaturehold') === '1' ? 'creatureIdle' : CREATURE.restHeldAfter;
 let letRestGo = () => {};
 
-const fetchSheet = async (url: string, look: string): Promise<Sheet | null> => {
+// ---- THE UPLOAD TURN (constants CREATURE.upload) ----------------------------------------------------------------------
+// One upload at a time, at least gapMs after the last one ended. A sheet needed now skips the line, and the next turn
+// counts its gap from it. (Destroys are not in it: the old look must go as soon as it is safe, ONE LOOK RESIDENT.)
+let turn: Promise<void> = Promise.resolve();
+let lastTurnEnd = 0;
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** waits for this one's turn (`needNow` is asked again while it waits: the mode may start asking for the look); call the
+ *  returned function when the upload is done */
+const takeTurn = async (needNow: () => boolean): Promise<() => void> => {
+	const U = CREATURE.upload;
+	const done = () => {
+		lastTurnEnd = performance.now();
+	};
+	if (!U.on || needNow()) return done;
+	const before = turn;
+	let free = () => {};
+	turn = new Promise<void>((resolve) => (free = resolve));
+	// (a sheet the mode starts asking for meanwhile does not wait behind the one ahead of it)
+	let ahead = true;
+	void before.then(() => (ahead = false));
+	while (ahead && !needNow()) await wait(U.pollMs);
+	const gap = lastTurnEnd + U.gapMs - performance.now();
+	if (gap > 0 && !needNow()) await wait(gap);
+	return () => {
+		done();
+		free();
+	};
+};
+
+/** the sheets the strip path made (game/stripUpload.ts, constants CREATURE.upload.strips), by URL: Pixi's cache does not
+ *  know them, so a look that comes back finds them here and a look let go is destroyed from here (`up`: its bands on
+ *  their way, so a second ask waits for the same upload) */
+const stripSheets = new Map<string, { sheet: Promise<StripSheet | null>; up: Promise<void> | null }>();
+/** a sheet let go: destroyed whichever way it was loaded */
+const unloadSheet = async (url: string): Promise<void> => {
+	const own = stripSheets.get(url);
+	if (!own) return PIXI.Assets.unload(url);
+	stripSheets.delete(url);
+	const made = await own.sheet;
+	if (!made) return PIXI.Assets.unload(url);
+	await own.up;
+	made.sheet.destroy(true);
+};
+
+const fetchSheet = async (url: string, look: string, needNow: () => boolean = () => false): Promise<Sheet | null> => {
 	const t0 = performance.now();
+	let end: (() => void) | null = null;
+	const file = url.split('/').pop()!.split('?')[0];
 	try {
+		// THE STRIP PATH first; null: this browser, this renderer or this sheet takes Pixi's path below
+		let own = stripSheets.get(url);
+		if (!own) stripSheets.set(url, (own = { sheet: loadStripSheet(url, creatureLoader.renderer?.()), up: null }));
+		const made = await own.sheet;
+		if (made && !made.source.destroyed) {
+			note('load', look, `${file} (strips)`, performance.now() - t0);
+			// (its turn and its bands in one promise, set at once: a second ask meanwhile waits for this same upload)
+			own.up ??= made.source.done
+				? Promise.resolve()
+				: (async () => {
+						const done = await takeTurn(needNow);
+						const t1 = performance.now();
+						try {
+							await uploadStrips(creatureLoader.renderer?.(), made.source);
+							note('upload', look, `${file} (strips)`, performance.now() - t1);
+						} finally {
+							done();
+						}
+					})();
+			await own.up;
+			return { textures: made.sheet.textures };
+		}
+		if (!made) stripSheets.delete(url);
 		const sheet = (await PIXI.Assets.load(url)) as Sheet;
 		const first = Object.values(sheet.textures)[0];
 		if (!first) return null;
 		// resident for good: never collected when idle (a roar's sheet can go unused for a long time), no mipmaps
 		first.source.autoGarbageCollect = false;
 		note('load', look, url.split('/').pop()!.split('?')[0], performance.now() - t0);
+		end = await takeTurn(needNow);
 		const t1 = performance.now();
 		await creatureLoader.renderer?.()?.prepare?.upload(first.source);
 		note('upload', look, url.split('/').pop()!.split('?')[0], performance.now() - t1);
@@ -123,6 +194,8 @@ const fetchSheet = async (url: string, look: string): Promise<Sheet | null> => {
 	} catch {
 		note('failed', look, url.split('/').pop()!.split('?')[0]);
 		return null;
+	} finally {
+		end?.();
 	}
 };
 
@@ -159,7 +232,7 @@ const sweep = async (look: CreatureLook) => {
 		}
 		const url = bin.urls.shift();
 		if (!url) break;
-		bin.busy = PIXI.Assets.unload(url).then(
+		bin.busy = unloadSheet(url).then(
 			() => note('unload', look, url.split('/').pop()!.split('?')[0]),
 			() => {
 				/* never loaded */
@@ -199,9 +272,12 @@ const load = (look: CreatureLook) => {
 			const first = !groupLog?.[group.name];
 			const kinds = group.shared.filter(sharedWanted);
 			const log = first && groupLog ? (groupLog[group.name] = { start: performance.now(), end: 0, keys: group.clips.length + kinds.length, failed: 0 }) : null;
+			// NEEDED NOW (constants CREATURE.upload): the idle group of the look the mode asks for goes up at once; the rest
+			// waits for a still moment
+			const needNow = () => group.name === 'creatureIdle' && creature.wanted === look;
 			for (const kind of kinds) {
 				if (shared[kind]) continue;
-				if (!(await loadCreatureShared(kind)) && log) log.failed += 1;
+				if (!(await loadCreatureShared(kind, needNow)) && log) log.failed += 1;
 			}
 			for (const clip of group.clips) {
 				if (!mine()) return;
@@ -213,7 +289,7 @@ const load = (look: CreatureLook) => {
 				}
 				const url = CREATURE_FILES[look][clip];
 				if (!urls.includes(url)) urls.push(url);
-				const sheet = await fetchSheet(url, look);
+				const sheet = await fetchSheet(url, look, needNow);
 				if (!mine()) return;
 				if (!sheet || !creature.setClip(look, clip, sheet.textures)) {
 					if (log) log.failed += 1;
@@ -379,14 +455,6 @@ const fetchToCache = async (url: string, look: string, text: boolean): Promise<s
 		f.end = performance.now();
 	}
 };
-/** the picture of a sheet by the URL pixi.js's spritesheet loader asks for: the json's folder + meta.image + the json's
- *  own query (its copySearchParams) */
-const imageOf = (jsonUrl: string, image: string): string => {
-	const json = new URL(jsonUrl, location.href);
-	const img = new URL(image, json);
-	img.search = json.search;
-	return img.href;
-};
 const prefetchLooks = async () => {
 	for (const look of CREATURE.lookLoad.prefetchLooks as readonly CreatureLook[]) {
 		for (const group of GROUPS) {
@@ -406,7 +474,7 @@ const prefetchLooks = async () => {
 				} catch {
 					/* not a sheet: nothing more to fetch */
 				}
-				if (image) await fetchToCache(imageOf(url, image), look, false);
+				if (image) await fetchToCache(imageOfSheet(url, image), look, false);
 			}
 		}
 	}
