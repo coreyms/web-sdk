@@ -447,7 +447,7 @@ export default {
 	"ui/stinger/stinger-titles-half.webp": "d24589c8",
 	"ui/stinger/stinger-titles.json": "12b37819",
 	"ui/stinger/stinger-titles.webp": "73bc3abe",
-	"ui/stinger/stinger.json": "dc00d7f5"
+	"ui/stinger/stinger.json": "2d5977e9"
 } as const;
 
 // Byte size of every file under static/assets (an atlas json includes its image): game/assets.ts
@@ -899,7 +899,7 @@ export const fileBytes = {
 	"ui/stinger/stinger-titles-half.webp": 162962,
 	"ui/stinger/stinger-titles.json": 278039,
 	"ui/stinger/stinger-titles.webp": 274498,
-	"ui/stinger/stinger.json": 77036
+	"ui/stinger/stinger.json": 77042
 } as const;
 
 // Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the green bar by them).

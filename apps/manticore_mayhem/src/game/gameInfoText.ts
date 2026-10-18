@@ -236,7 +236,7 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 			ante: {
 				enter: `Switch on in ${MENU}; stays on until switched off.`,
 				spins: 'One spin per play.',
-				mech: [`Free Spins, Super Free Spins and Epic Free Spins each land ${ANTE_RATE} as often as in the Base Game.`, 'Everything else plays as in the Base Game.'],
+				mech: [`Free Spins, Super Free Spins and Epic Free Spins each land ${ANTE_RATE} as often as in the Base Game.`, soc('The pays and every rule are the same as in the Base Game.', 'Symbol wins and every rule are the same as in the Base Game.')],
 			},
 			super_ante: {
 				enter: `Switch on in ${MENU}; stays on until switched off.`,
@@ -330,7 +330,7 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not paid yet.`,
 				`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. Every cell it clears lights up if it was cold and doubles if it was lit. ${SCATTERS} are never cleared. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not won yet.`,
 			),
-			`**Sting.** Before the board is evaluated, the tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A **normal sting** turns one cell wild, a **Big Sting** a cross of five cells and a **Super Sting** a 3x3 block of nine cells. A spin has at most one Big or Super Sting, and it is always the last sting of that spin. A Big or Super Sting always completes a winning cluster, and so does the last sting of every run of normal stings. No sting ever lands on a ${SCATTER}.`,
+			`**Sting.** Before the board is evaluated, the tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A **normal sting** turns one cell wild, a **Big Sting** a cross of five cells and a **Super Sting** a 3x3 block of nine cells. A spin has at most one Big or Super Sting, and it is always the last sting of that spin. A Big or Super Sting always lands in a winning cluster, and so does the last sting of every run of normal stings. No sting ever lands on a ${SCATTER}.`,
 			'Normal stings can land in every spin except the Mystery spin. Big Stings land only in Free Spins, Super Free Spins and Epic Free Spins. Super Stings land only in Super Free Spins and Epic Free Spins.',
 			'**Roar.** In Super Free Spins and Epic Free Spins only, the Manticore may roar before the board is evaluated. Every low symbol is blown off the board and replaced. The Multiplier Tiles under them stay. A roar always comes before any stings.',
 			soc(
@@ -352,8 +352,8 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 		// that win nothing 55.8% / 62.3% / 58.4%; more than half of the wins are under 1x the bet in all three; the
 		// feature rounds carry 43.6% / 79.8% / 95.1% of the RTP. "Wins are infrequent" (the 28% books) is no longer true
 		volatility: soc(
-			'Wins come often but are mostly small: many are smaller than the bet, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP, with Epic Free Spins at the top of the range.',
-			'Wins come often but are mostly small: many are smaller than the play amount, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP, with Epic Free Spins at the top of the range.',
+			'Wins come often but are mostly small: many are smaller than the bet, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP.',
+			'Wins come often but are mostly small: many are smaller than the play amount, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP.',
 		),
 	},
 	legal: {

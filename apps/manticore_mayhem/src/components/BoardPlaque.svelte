@@ -40,8 +40,8 @@
 	// edge. It never pauses, and it is never shown whole. Since r5 (Corey 12:38) the left and right cut is the dark
 	// field's two SLANTED inner edges (PLAQUE_TIPS.edges, measured from the art), so a letter is cut on the slant as it
 	// enters and leaves. Between lines the box is empty (no crest since r3, PLAQUE_TIPS.crest);
-	// PLAQUE_TIPS.gapMs runs from one line gone to the next one entering. Line 1 first, then the others in turn, line 1
-	// back every third line. A line hides as soon as the board stops being idle, and never shows while the figures do (the
+	// PLAQUE_TIPS.gapMs runs from one line gone to the next one entering. Line 1 first, then all twelve in turn, going on
+	// across idle spells where the last one stopped (2026-10-17 20:43). A line hides as soon as the board stops being idle, and never shows while the figures do (the
 	// figures, the win readout, always win). r2 and r3's gold particles are gone (Corey 11:28).
 	//
 	// Each line is drawn ONCE, when it comes up, into its own canvas texture (the Cinzel face the intro cards use, at the
@@ -923,11 +923,13 @@
 		if (!want) {
 			if (tipRun.phase !== 'off') {
 				// "hidden as soon as a spin starts": a line on show just goes (a quick fade, still moving); the next
-				// idle stretch starts fresh, line 1 first
+				// idle stretch goes on in turn, and a line cut before it finished comes back first (2026-10-17 20:43)
 				tipNote(tipRun.phase === 'wait' ? 'cancel' : 'hide', tipRun.index);
-				if (tipRun.phase === 'run') statEnd('hide');
+				if (tipRun.phase === 'run') {
+					statEnd('hide');
+					if (tipRun.slot > 0) tipRun.slot -= 1;
+				}
 				tipRun.phase = 'off';
-				tipRun.slot = 0;
 				fadeTo(tipFade, 0, TIPS.hideMs, 0, now);
 				msg.hold = false;
 			}

@@ -36,14 +36,13 @@ export const PLAQUE_TIPS = {
 	hideMs: 120,
 	/** "Remove the icon in the middle of that board" (r3, 10:17): the plaque's crest is never drawn (false) */
 	crest: false,
-	/** the first line of an idle spell enters this long after startDelayMs. r4 keeps r3's first line timing: r3 started
-	 *  its first line 1200 + 700 (r3's fade in) + 4000 ms after the board settled, 5900 ms in all */
-	firstMs: 4700,
-	/** "maybe every 10 seconds it shows a message" (08:52, 08:59 "Yes"): from one line fully gone past the left edge to
-	 *  the next one entering at the right edge; the box is empty in between */
-	gapMs: 10000,
-	/** "line 1 coming back every 3 lines (1, 2, 3, 1, 4, 5, 1, ...)": every this many lines is line 1 */
-	firstEvery: 3,
+	/** the first line of an idle spell enters this long after startDelayMs: 2 s after the board settles in all (Corey
+	 *  2026-10-17 20:43 "Fix the explainer lines", after the harsh re-review found a player who keeps spinning rarely
+	 *  sees one; was 4700, 5900 ms in all) */
+	firstMs: 800,
+	/** from one line fully gone past the left edge to the next one entering at the right edge; the box is empty in
+	 *  between. 6 s since 2026-10-17 20:43 (was 10 s, "maybe every 10 seconds it shows a message", 08:52) */
+	gapMs: 6000,
 	/** "muted enough that it does not compete with the board": the lines' opacity */
 	alpha: 0.82,
 
@@ -127,7 +126,7 @@ export const pointerIsMouse = (): boolean =>
 export const tipLines = (mouse: boolean): string[] => [
 	mouse ? 'Click a symbol to see its wins' : 'Tap a symbol to see its wins',
 	'5 touching symbols make a cluster',
-	'Lit tiles double on every win',
+	'A win on a lit tile doubles it',
 	'Wilds fill in for all but the War Standard',
 	'4 War Standards: Free Spins',
 	'5 War Standards: Super Free Spins',
@@ -140,13 +139,11 @@ export const tipLines = (mouse: boolean): string[] => [
 ];
 export const TIP_COUNT = 12;
 
-/** THE ORDER. `slot` counts the lines shown since the board settled (0 first); `other` is the running count of the
- *  other lines shown so far (kept across idle spells, so each spell goes on where the last one stopped). Returns the
- *  line's index (0 is line 1) and whether it used up an "other". */
-export const tipAt = (slot: number, other: number): { index: number; usesOther: boolean } =>
-	slot % PLAQUE_TIPS.firstEvery === 0
-		? { index: 0, usesOther: false }
-		: { index: 1 + (other % (TIP_COUNT - 1)), usesOther: true };
+/** THE ORDER (2026-10-17 20:43). `slot` counts the lines shown this session (0 first), kept across idle spells, so
+ *  each spell goes on where the last one stopped: line 1 leads once, then all twelve take their turn (was line 1
+ *  back every third line, and every spell restarting at line 1). Returns the line's index (0 is line 1); `other` and
+ *  `usesOther` stay for the caller and are no longer used. */
+export const tipAt = (slot: number, _other = 0): { index: number; usesOther: boolean } => ({ index: slot % TIP_COUNT, usesOther: false });
 
 /** the size of every line on this screen (one row, one size for all). The box is [halfWidth, top, bottom], `kCss` the
  *  CSS px per layout unit across the box, `capK` the face's cap height per font size, `narrowestK` the narrowest

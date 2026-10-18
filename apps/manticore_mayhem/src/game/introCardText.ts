@@ -59,7 +59,7 @@ export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 		key: 'features',
 		clipSeconds: 10.633,
 		title: 'THE MANTICORE',
-		body: 'The Manticore can step into a spin. A sting turns cells wild. A swipe lights or doubles 24 tiles, and in Free Spins they stay all round.',
+		body: 'The Manticore can step into a spin. A sting turns cells wild. A swipe lights or doubles up to 24 tiles, and in Free Spins they stay all round.',
 		highlights: ['sting', 'swipe'],
 		sceneLines: [
 			{ from: 0, to: 4.5, text: 'STING: the tail turns cells wild, one cell or a whole cross' },
