@@ -44,8 +44,9 @@
 	// across idle spells where the last one stopped (2026-10-17 20:43). A line hides as soon as the board stops being idle, and never shows while the figures do (the
 	// figures, the win readout, always win). r2 and r3's gold particles are gone (Corey 11:28).
 	//
-	// Each line is drawn ONCE, when it comes up, into its own canvas texture (the Cinzel face the intro cards use, at the
-	// renderer's resolution, clear pixels padding the text) and that texture is destroyed when the line ends. It shows
+	// Each line is drawn ONCE, when it comes up, into the lines' one kept canvas texture (the Cinzel face the intro cards
+	// use, at the renderer's resolution, clear pixels padding the text; made with the first line, destroyed only with the
+	// plaque, 2026-10-18, so an idle board makes no texture). It shows
 	// on a small grid mesh whose four outer corners are the slanted window, put through the figures' homography so it
 	// leans with the plaque; the mesh's positions change only with the layout. The marquee scrolls the line through
 	// the window by the mesh's UVs each frame (a small buffer update, never a texture or an upload); outside the text
@@ -127,14 +128,20 @@
 	const measureCanvas = document.createElement('canvas');
 	measureCanvas.width = measureCanvas.height = 1;
 	const tipCtx = measureCanvas.getContext('2d') as CanvasRenderingContext2D;
-	/** the line on show's own canvas and texture: made when the line starts, destroyed when it ends (null between) */
-	const lineTex = { canvas: null as HTMLCanvasElement | null, texture: null as PIXI.Texture | null, made: 0, freed: 0 };
+	/** the lines' ONE canvas and texture (2026-10-18, Corey "b"): made with the first line, redrawn (and resized) for
+	 *  each line after, destroyed only with the plaque, so an idle board makes and frees no texture (it used to make one
+	 *  per line and destroy it at the line's end). `on`: a line is drawn in it now. made / freed count lines. */
+	const lineTex = { canvas: null as HTMLCanvasElement | null, texture: null as PIXI.Texture | null, on: false, made: 0, freed: 0 };
+	/** the line on show ends: the mesh lets go of the texture, which is kept for the next line */
 	const freeLineTexture = () => {
 		tipMesh.texture = PIXI.Texture.EMPTY;
-		if (lineTex.texture) {
-			lineTex.texture.destroy(true);
-			lineTex.freed += 1;
-		}
+		if (lineTex.on) lineTex.freed += 1;
+		lineTex.on = false;
+	};
+	/** the plaque goes: the kept texture and its canvas with it */
+	const destroyLineTexture = () => {
+		freeLineTexture();
+		lineTex.texture?.destroy(true);
 		if (lineTex.canvas) lineTex.canvas.width = lineTex.canvas.height = 0;
 		lineTex.texture = null;
 		lineTex.canvas = null;
@@ -465,12 +472,18 @@
 		const cw = Math.max(2, Math.min(TIPS.texMax, Math.ceil(W * ku * res)));
 		const ch = Math.max(2, Math.min(TIPS.texMax, Math.ceil(Hh * kv * res)));
 		freeLineTexture();
-		const canvas = document.createElement('canvas');
-		canvas.width = cw;
-		canvas.height = ch;
+		// the kept canvas, made once (its texture below), resized to this line
+		const canvas = lineTex.canvas ?? document.createElement('canvas');
+		if (lineTex.texture) lineTex.texture.source.resize(cw, ch, 1);
+		else {
+			canvas.width = cw;
+			canvas.height = ch;
+		}
 		tipShown.cw = cw;
 		tipShown.ch = ch;
 		const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+		// the kept canvas still carries the last line's transform (and its pixels when the size did not change)
+		g.setTransform(1, 0, 0, 1, 0, 0);
 		g.clearRect(0, 0, cw, ch);
 		// strip units -> canvas px: x from the strip's left, y from the box's top
 		g.setTransform(cw / W, 0, 0, ch / Hh, 0, (-top * ch) / Hh);
@@ -495,11 +508,15 @@
 		const f0 = rightAt(tipShown.ink.y0);
 		const f1 = rightAt(tipShown.ink.y1);
 		tipShown.edge = { inL: Math.max(e0, e1), outL: Math.min(e0, e1), inR: Math.min(f0, f1), outR: Math.max(f0, f1) };
-		// the line's texture: the canvas as it is (one upload), clamped, so past the clear padding at either end of the
-		// text the window samples nothing (no repeat)
-		const source = new PIXI.CanvasSource({ resource: canvas as unknown as PIXI.ICanvas, resolution: 1, addressMode: 'clamp-to-edge', scaleMode: 'linear', label: 'plaque-tips-line' });
-		lineTex.canvas = canvas;
-		lineTex.texture = new PIXI.Texture({ source, label: 'plaque-tips-line' });
+		// the lines' texture: the canvas as it is (one upload per line), clamped, so past the clear padding at either end
+		// of the text the window samples nothing (no repeat). Made with the first line; later lines re-upload into it
+		if (lineTex.texture) lineTex.texture.source.update();
+		else {
+			const source = new PIXI.CanvasSource({ resource: canvas as unknown as PIXI.ICanvas, resolution: 1, addressMode: 'clamp-to-edge', scaleMode: 'linear', label: 'plaque-tips-line' });
+			lineTex.canvas = canvas;
+			lineTex.texture = new PIXI.Texture({ source, label: 'plaque-tips-line' });
+		}
+		lineTex.on = true;
 		lineTex.made += 1;
 		tipMesh.texture = lineTex.texture;
 		win.uvAt = NaN;
@@ -750,7 +767,7 @@
 	 *  none of the strip is within the window's widest span the mesh is not drawn */
 	const placeLine = () => {
 		const v = visibleStrip();
-		const inside = v.x1 > v.x0 && !!lineTex.texture;
+		const inside = v.x1 > v.x0 && lineTex.on;
 		tipMesh.visible = inside;
 		if (inside) scrollTipUvs(msg.offset, tipShown.stripW);
 		return inside;
@@ -1264,7 +1281,7 @@
 						})(),
 						inkWhole: msg.live ? corners(k.x0 + off, k.y0, k.x1 + off, k.y1) : null,
 						/** the line's own texture (one per line, destroyed when it ends) and the renderer's texture count */
-						lineTexture: { alive: !!lineTex.texture, uid: lineTex.texture?.source.uid ?? null, label: lineTex.texture?.source.label ?? null, w: lineTex.texture?.source.pixelWidth ?? 0, h: lineTex.texture?.source.pixelHeight ?? 0, addressMode: lineTex.texture?.source.style.addressMode ?? null, made: lineTex.made, freed: lineTex.freed, meshHasIt: !!lineTex.texture && tipMesh.texture === lineTex.texture },
+						lineTexture: { alive: lineTex.on, kept: !!lineTex.texture, uid: lineTex.texture?.source.uid ?? null, label: lineTex.texture?.source.label ?? null, w: lineTex.texture?.source.pixelWidth ?? 0, h: lineTex.texture?.source.pixelHeight ?? 0, addressMode: lineTex.texture?.source.style.addressMode ?? null, made: lineTex.made, freed: lineTex.freed, meshHasIt: !!lineTex.texture && tipMesh.texture === lineTex.texture },
 						textureCount: renderer?.texture?.managedTextures?.length ?? null,
 						marquee: msg.live
 							? {
@@ -1357,7 +1374,7 @@
 			unplacePrompt();
 			plaquePromptReady.ready = false;
 			root.removeFromParent();
-			freeLineTexture();
+			destroyLineTexture();
 			root.destroy({ children: true });
 		};
 	});
