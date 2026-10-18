@@ -2424,10 +2424,33 @@ export const CREATURE = {
 	 *  8 to 16 CSS px clear of the cells and 7 to 16 of the screen's right edge at 16:10 (1280 x 800 .. 2560 x 1600),
 	 *  11 / 8 at 3:2 (1500 x 1000), nothing under a readout or a button, not even the Play button at 16:10 and 3:2. It was
 	 *  { x 2090, y 1150, scale 0.76 }. At 4:3 (1024 x 768, the line's held end, where the board keeps its 3:2 size) he
-	 *  comes out at scale 0.485, 40 CSS px clear of the cells (was 0.61). */
-	desktopTall: { aspect: 1.6, x: 2117, y: 1150, scale: 0.71 },
+	 *  comes out at scale 0.485, 40 CSS px clear of the cells (was 0.61).
+	 *  layout_1610_r2 (Corey 2026-10-17 21:42, desktopFloor below): with his feet down on the floor his paws reach the
+	 *  HUD's bottom row, so the spots were set again, by the same rule over every clip and frame (the r1 spot put his left
+	 *  paw on the Replay / Autoplay button). 16:10 { x 2074, scale 0.62 } (was 2117, 0.71; y is the floor dock's):
+	 *  both paws left of the Replay / Turbo column, 7 CSS px clear of the cells at 1440 x 900. Below 16:10 there is not
+	 *  room for that, so the line runs on through desktopNarrow, where that column stands BETWEEN his paws (his right paw
+	 *  under the Play button, as on 16:9).
+	 *  (desktopTall.y is the line's old number and only counts if the floor dock is taken out.) */
+	desktopTall: { aspect: 1.6, x: 2074, y: 1150, scale: 0.62 },
+	/** layout_1610_r2: the line's points below 16:10, in falling aspect, held at desktopMinAspect: 3:2 (1500 x 1000: 7 to
+	 *  10 CSS px clear of the cells, no button but Play) and 4:3 (1024 x 768, 1366 x 1024: 6 to 7 px). */
+	desktopNarrow: [
+		{ aspect: 1.5, x: 2006, scale: 0.46 },
+		{ aspect: 4 / 3, x: 1928, scale: 0.41 },
+	],
 	desktopWide: { aspect: 16 / 9 },
 	desktopMinAspect: 4 / 3,
+	/** THE DESKTOP FLOOR (layout_1610_r2; Corey 2026-10-17 21:42: "For the widescreen, the feet need to be on the ground,
+	 *  not hovering over the board. The board size is fine though."). Below 16:9 the spot line above put his feet some
+	 *  100 board render rows above where they stand at 16:9 (at 1440 x 900, 48 CSS px over the floor, level with the
+	 *  board's bottom row of cells). Now below 16:9 his y is not the line's: his feet go on `row`, a row of the board art
+	 *  (render px, through the board's own registration, layoutSpec registrationOf), the row his feet stand on at 16:9
+	 *  (1766.4, measured at 1920 x 1080; 1766.3 to 1766.9 from 2560 x 1440 to 1024 x 576): the courtyard floor in front
+	 *  of the board's feet, as on 16:9, on every narrower desktop screen. x and scale stay the spot line's
+	 *  (desktopTall, desktopNarrow above). The same rule as the portrait dock (game/creature.ts creatureDocked, his feet row on the
+	 *  board row instead of his claw). 16:9 and wider keep place.desktop untouched. */
+	desktopFloor: { row: 1766.4 },
 	/** THE PORTRAIT PHONE DOCK (branch portrait-glow-r1, OPTIONS for Corey; 2026-10-17 11:36 "we need to reposition the
 	 *  manticore on portrait mode", 11:38 "The ideal mark point for the manticore would be so the bottom of his claw shows
 	 *  at the end of a swipe motion. Then align that point with the top of the board, so it stays the same on different
@@ -2448,10 +2471,16 @@ export const CREATURE = {
 	 *            B        the claw on the cell area's top edge (the claw overlaps the rail; he stays behind the board)
 	 *            C        A at size 0.85 (only if A meets the logo or the status bar at 375 x 667)
 	 *  DEV switch `__manticore.creaturePlace('current' | 'A' | 'B' | 'C')` (components/Background.svelte). Portrait
-	 *  phone only; every other spot is untouched.
+	 *  phone and (since layout_1610_r2) portrait tablet: `spots`; every other spot is untouched.
 	 *  THE DEFAULT IS A since Corey 2026-10-17 13:02: "A Claw on Frame Top." (the claw point at the end of the swipe on
 	 *  the frame's top bar, size 1). 'current', B and C stay as DEV options only; back to the old spot: default 'current'. */
 	portraitDock: {
+		/** the spots that take the dock. THE TABLET TOO since layout_1610_r2 (Corey 2026-10-17 21:42: "The manticore stands
+		 *  too high in both of these, the alignment for the manticore on the table should be the same ruling as we just
+		 *  did for the phone portrait"): on every tablet his claw at the end of the swipe lands on the frame's top bar,
+		 *  his x and size are place.portraitTablet's (so LOGO.portraitTabletClear still holds: the dock moves him down
+		 *  only). Like the phone he stands behind the board, his feet hidden behind its top rail. */
+		spots: ['portraitPhone', 'portraitTablet'] as const,
 		claw: { x: 231, y: 776, clip: 'swipe', frame: 16 },
 		edges: { frame: 205.6, grid: 299.247 },
 		options: {
