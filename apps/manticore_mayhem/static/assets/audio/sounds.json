@@ -62,15 +62,15 @@
 		],
 		"sfx_cluster_remove": [
 			26611,
-			600
+			480
 		],
 		"sfx_tile_double": [
-			28211,
+			28091,
 			22
 		],
 		"sfx_cascade": [
-			29233,
-			480
+			29113,
+			600
 		],
 		"sfx_money_counter": [
 			30720,
@@ -343,7 +343,7 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=49c5b250",
-		"./assets/audio/sounds.m4a?v=82d9005b"
+		"./assets/audio/sounds.ogg?v=b88bae66",
+		"./assets/audio/sounds.m4a?v=27eaefd4"
 	]
 }
