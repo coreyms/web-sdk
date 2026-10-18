@@ -17,9 +17,11 @@
 </div>
 
 <style>
+	/* --vp-extra-top (ui/Chrome.svelte): the letterbox over the master on a desktop screen narrower than 16:9 (layoutSpec
+	   LANDSCAPE_TALL), so the strip is at the screen's top edge there too; 0 in every other case */
 	.strip {
 		position: absolute;
-		top: 10px;
+		top: calc(10px - var(--vp-extra-top, 0px));
 		font-family: var(--ui-font);
 		font-size: 12px;
 		font-weight: 700;

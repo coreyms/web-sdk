@@ -1648,6 +1648,13 @@ export const LOGO = {
 	 *  screen's left edge and of the post: width 233.0 (0.777 of 300), centre 142.5; its top stays at 46.76, under the
 	 *  clock strip (centre y 46.76 + 92.02 / 2). It was { cx: 176, cy: 106, width: 300 }. */
 	landscape: { cx: 142.5, cy: 92.77, width: 233 },
+	/** THE TALLER DESKTOP SCREENS (layout_1610_r1, layoutSpec LANDSCAPE_TALL): below 16:9 the board is bigger and its post
+	 *  further left (render x `postRender` of the board art through the board's own registration: 245.5 at 16:10, 219.0
+	 *  at 3:2), so the box follows the same rule: `gap` clear of the screen's left edge and of the post, its top `top`
+	 *  under the clock strip's row, as at 16:9; the strip rides up to the screen's top edge there (ui/ClockStrip.svelte,
+	 *  --vp-extra-top) and the box with it (top - extra). Width 193.5 at 16:10 (218 CSS px at 1440 x 900, was 262),
+	 *  167.0 at 3:2. 16:9 and wider keep `landscape` above. */
+	landscapeTall: { postRender: 82.2, gap: 26, top: 46.76 },
 	/** PHONE SIDEWAYS master (1480 x 740): the left column, from the clock strip's left edge to the board art's
 	 *  post (293), above the BALANCE readout (236). */
 	phone: { left: 16, top: 46, width: 274 },
@@ -1662,6 +1669,20 @@ export const LOGO = {
 	 *  THE LOGO STAYS WHERE IT IS IN A FEATURE (Corey 2026-10-12: its step back to centre 206, 71, width 202.6 above the
 	 *  old SKIP TO RESULT plate is gone, phone and tablet). */
 	portrait: { top: 31, gapAbove: 8, maxWidth: 348, skipGap: 8 },
+	/** THE TABLET LOGO CLEAR OF THE CREATURE (layout_1610_r1; the harsh re-review of 2026-10-17: at 1024 x 1366 his wing
+	 *  lay on the logo's right wing and the M of MAYHEM; Corey 2026-10-17 20:27: "Needs to be fixed"). On a portrait
+	 *  screen that is not a phone the box keeps its size and band (`portrait` above) but is no longer centred where that
+	 *  would reach him: its right edge stays `gapCss` CSS px left of his leftmost drawn pixel, and if that put its left
+	 *  edge nearer than `edgeCss` to the screen's left edge it would shrink (no tablet needs it: 23 to 42 CSS px are left).
+	 *  The logo moves, not he: he already stands on the frame's top right corner with his wing tips at the screen's right
+	 *  edge, so the only ways to move him off the logo were smaller or lower behind the board, and the logo on the left
+	 *  with him on the right is the portrait phone's own layout (LOGO.portraitPhoneEdge).
+	 *    leftRig  his leftmost drawn column (alpha > 96) of the 1024 rig over his idle, both alternates (snarl, growl)
+	 *             and every attack (swipe, roar, sting_hit, sting_recrouch, charge_in, charge_loop), every frame: 80.0
+	 *             (idle f23, his left wing), measured at 1024 x 1366 and 768 x 1024 (feedback/layout_1610_r1/rig_probe.js).
+	 *             Through his spot (CREATURE.place.portraitTablet) and the portrait scene's cover fit (SCENE_SPEC_PORTRAIT
+	 *             .frame); the foreground's oversize (about 1 %) and the feature kicks (a few px) are inside `gapCss`. */
+	portraitTabletClear: { leftRig: 80, gapCss: 16, edgeCss: 16 },
 	/** PORTRAIT PHONE (the layout system's size class, short side at most 480 CSS px: layoutSpec isPhoneSizeType), the
 	 *  owner's own box (Corey 2026-10-12 22:11, placement playground v3): up in the left corner, clear of the creature
 	 *  who stands top right behind the board, and drawn in front of him (the HTML HUD is over the whole canvas).
@@ -2396,8 +2417,15 @@ export const CREATURE = {
 	 *  the 16:10 one is smaller and further back on the floor. Measured at 1920 x 1080, 1280 x 720, 1024 x 576,
 	 *  1440 x 900, 1680 x 1050, 1512 x 982, 1360 x 800 and 1024 x 768 (feedback/board_75_final/creature_check.json).
 	 *  A 21:9 screen (2560 x 1080) takes the 16:9 spot: there his claws go 21 CSS px under the screen's bottom and his
-	 *  paws under the Play and Turbo buttons (not tuned: no 21:9 spot yet). */
-	desktopTall: { aspect: 1.6, x: 2090, y: 1150, scale: 0.76 },
+	 *  paws under the Play and Turbo buttons (not tuned: no 21:9 spot yet).
+	 *  layout_1610_r1 (2026-10-17, layoutSpec LANDSCAPE_TALL): below 16:9 the board is bigger (at 16:10 its cells end 33
+	 *  CSS px further right at 1440 x 900) and the HUD's bottom row rode down to the screen's edge, so the 16:10 spot
+	 *  moved right and got smaller, by the same rule, over every frame of his idle, both alternates and every attack:
+	 *  8 to 16 CSS px clear of the cells and 7 to 16 of the screen's right edge at 16:10 (1280 x 800 .. 2560 x 1600),
+	 *  11 / 8 at 3:2 (1500 x 1000), nothing under a readout or a button, not even the Play button at 16:10 and 3:2. It was
+	 *  { x 2090, y 1150, scale 0.76 }. At 4:3 (1024 x 768, the line's held end, where the board keeps its 3:2 size) he
+	 *  comes out at scale 0.485, 40 CSS px clear of the cells (was 0.61). */
+	desktopTall: { aspect: 1.6, x: 2117, y: 1150, scale: 0.71 },
 	desktopWide: { aspect: 16 / 9 },
 	desktopMinAspect: 4 / 3,
 	/** THE PORTRAIT PHONE DOCK (branch portrait-glow-r1, OPTIONS for Corey; 2026-10-17 11:36 "we need to reposition the

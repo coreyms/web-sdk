@@ -5,7 +5,7 @@
 	import { onMount, untrack } from 'svelte';
 
 	import { getContext } from '../game/context';
-	import { HUD, HUD_BAND_PROMPT_Y, PROMPT_BOARD_ROW, PROMPT_IN_ROW, boardRowRect, layoutKind } from '../game/layoutSpec';
+	import { HUD, HUD_BAND_PROMPT_Y, PROMPT_BOARD_ROW, PROMPT_IN_ROW, boardRowRect, boardRowShift, layoutKind } from '../game/layoutSpec';
 	import { plaquePrompt, plaquePromptReady } from '../game/plaquePrompt.svelte';
 	import PressPromptText from './PressPromptText.svelte';
 
@@ -22,7 +22,10 @@
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const slot = $derived.by(() => {
 		const s = HUD[kind].pressToContinue;
-		return props.atHudBand ? { ...s, y: HUD_BAND_PROMPT_Y[kind] } : s;
+		if (props.atHudBand) return { ...s, y: HUD_BAND_PROMPT_Y[kind] };
+		// the desktop slot is over the bottom row: on a taller desktop screen the bigger board's (layoutSpec LANDSCAPE_TALL)
+		const dy = boardRowShift(kind, PROMPT_BOARD_ROW);
+		return dy ? { ...s, y: s.y + dy } : s;
 	});
 	// ON THE DESKTOP (landscape, not the max win's band) the prompt is drawn ON THE BOARD PLAQUE (Corey 2026-10-17 15:32,
 	// "2. Yes, that's a great idea!"): components/BoardPlaque.svelte draws it on the plaque's text field, centred in its

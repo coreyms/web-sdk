@@ -26,8 +26,9 @@
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
 	// the frame art's edges, held clear of the button clusters (layoutSpec TRIO_CLEAR; the art is 271.34 .. 1009.28)
-	const art = landscapeTrioSpan();
-	const logo = logoArtRect('landscape'); // the logo's art box (constants LOGO.landscape)
+	// (both follow the desktop screen's shape below 16:9: layoutSpec LANDSCAPE_TALL)
+	const art = $derived(landscapeTrioSpan());
+	const logo = $derived(logoArtRect('landscape')); // the logo's art box (constants LOGO.landscape, LOGO.landscapeTall)
 	// SPIN slot: the widest price the current mode can show at the 'lg' digit height (19), plus air;
 	// capped so a trillion-scale menu never pushes the − into the WIN column (TrioStat shrinks)
 	const slot = $derived(betSlotWidth(19, 205) + 6);
@@ -97,9 +98,11 @@
 	}
 	/* The row's content bottom (718 − 18 − 4 = 696) is the spin button's bottom edge less its 4px
 	   shadow seat, so the three amounts share the button baseline. */
+	/* bottom: 18 over the master's bottom edge, or over the screen's on a desktop screen narrower than 16:9 (Chrome.svelte
+	   --vp-extra-bottom, layoutSpec LANDSCAPE_TALL: the board grew into that letterbox; 0 at 16:9 and wider) */
 	.trio {
 		position: absolute;
-		bottom: 18px;
+		bottom: calc(18px - var(--vp-extra-bottom, 0px));
 		height: 92px;
 		display: grid;
 		grid-template-columns: 1fr auto 1fr;
@@ -134,7 +137,7 @@
 	}
 	.bar {
 		position: absolute;
-		bottom: 18px;
+		bottom: calc(18px - var(--vp-extra-bottom, 0px)); /* as .trio */
 		left: 66px; /* Corey's 2026-09-06 layout: clusters sit in from the master edges */
 		right: 86px;
 		display: flex;

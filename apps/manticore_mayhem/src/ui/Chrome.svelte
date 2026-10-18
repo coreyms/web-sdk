@@ -7,7 +7,7 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { MASTER, layoutKind, isPhoneSizeType } from '../game/layoutSpec';
+	import { MASTER, layoutKind, isPhoneSizeType, landscapeExtraY } from '../game/layoutSpec';
 	import { ARMOURY } from '../game/constants';
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
@@ -42,7 +42,13 @@
 	// master px of letterbox above and below) used to strand the HUD mid-screen. The Pixi scene stays
 	// centred (the frame, the tray, Marty all keep their master y), only the chrome's bottom-anchored
 	// HUD reaches down through this extra to the real viewport edge (Corey 2026-09-06).
-	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : 0);
+	// Desktop, a screen narrower than 16:9 (16:10, 3:2): the board grows into the canvas above and below the master
+	// (layoutSpec LANDSCAPE_TALL), and the HUD's bottom row rides down by the same `extra` to the screen's bottom edge
+	// (ui/ChromeLandscape.svelte). 0 at 16:9 and wider.
+	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : kind === 'landscape' ? landscapeExtraY((innerHeight.current ?? 1) / scale) : 0);
+	// ...and its top row (the clock strip; the logo's box follows by its own rule, game/logo/layout.ts) rides UP by the
+	// same, to the screen's top edge: on a 3:2 screen the bigger board's top left gear stands where the strip was
+	const extraTop = $derived(kind === 'landscape' ? extraBottom : 0);
 
 	// THE ARMOURY (spec feedback/armoury_build_r1): the feature menu, in every layout (desktop, portrait phone, tablet,
 	// sideways, and the desktop box scaled on small 16:9 frames). It follows the chrome (ui/armoury/menuFrame.ts).
@@ -122,7 +128,7 @@
 	style:--arm-close="{armouryView.reduced ? 0 : ARMOURY.motion.closeMs}ms"
 	style:--arm-dim={1 - ARMOURY.tint.confirmAdd - ARMOURY.tint.opacity}
 >
-	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px">
+	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px" style:--vp-extra-top="{extraTop}px">
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} />
 		{:else if kind === 'phone'}
