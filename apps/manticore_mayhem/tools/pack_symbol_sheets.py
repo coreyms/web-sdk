@@ -83,6 +83,9 @@ CLIPS = {
     # M1 REVISION 2 (Corey 2026-10-19 10:53 review; 12:07 "Helmet looks good now"): readable landing and idle, and the
     # win r3 (r2 centred in the cell while it faces the camera, Corey 12:00). Replaces drop/ = drop_lively
     "M1": {"drop": "drop_r2", "idle": "idle_r2", "win": "win_r3"},
+    # M2 REVISION 2 (Corey 2026-10-19 12:37 "Dagger looks good"): end-over-end flip into a slash with an arc, longer
+    # landing quiver, idle lift with an edge glint. Replaces drop/ and idle/
+    "M2": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
     "L3": {"drop": "drop", "idle": None},  # no idle delivered yet
     # REVISION 2 (2026-10-19, Stake's "The symbols are poorly animated"; Corey 10:11 "The crown looks much better"): the
     # readable landing and idle, and a WIN clip of its own (NOTES.md "Revision 2" in the symbol's animation folder)
