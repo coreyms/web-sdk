@@ -8,6 +8,9 @@ Sources (read only, never written):
   ~/Desktop/Manticore Mayhem/handoff/assets/tiles/<code>.webp          the ten approved 256 px static tiles
   ~/Desktop/Manticore Mayhem/images/symbols/<CODE_name>/animation/drop/  drop frames, 512 px RGBA
   ~/Desktop/Manticore Mayhem/images/symbols/<CODE_name>/animation/idle/  idle loop frames, 512 px RGBA
+  CLIPS (below) picks other folders per symbol and clip: H1 reads drop_r2/, idle_r2/ and win/ (revision 2, 2026-10-19)
+  .../animation/win/  (only where CLIPS names one) the WIN clip: masters at canvas.json "scale" x the 512 frame (768 px
+                      for 1.5), the 512 frame centred in them at the same pixel density; canvas.json gives the scale
   SOURCE_OVERRIDES (below): S reads its frames and tile from S_war-standard/graded_r1/ (tools/grade_war_standard.py)
   tools/render_symbols/out/render/<CODE>.png + fit.json                 the 1024 harness renders the tiles were baked
                                                                          from (make_tiles.py); the fit is derived from
@@ -17,6 +20,11 @@ Sources (read only, never written):
 Outputs (static/assets):
   sprites/mmSymbols/<code>-drop.json|webp, <code>-idle.json|webp        256 px cells, frames <code>-drop-000 ...
   sprites/mmSymbols/<code>-drop-half.json|webp, <code>-idle-half...     128 px twins for the phone tier
+  sprites/mmSymbols/<code>-win.json|webp, <code>-win-half...            the win clip (only symbols with one): cells of
+                                                                         scale x 256 (384 / 192 px for 1.5), the same fit,
+                                                                         scale and style per pixel as the drop, so the
+                                                                         centre 256 of frame 0 is the rest tile; the json
+                                                                         meta carries "canvas": {"scale", "cellPx", "px"}
   sprites/mmSymbols/mmSymbols.json|webp, mmSymbols-half.json|webp       base atlas: the real static tiles for the ten
                                                                          symbols; x2..x128 and cell copied unchanged
   tiles/<code>.webp                                                     128 px paytable thumbnails (GameInfoModal)
@@ -26,6 +34,9 @@ size % of the 110 px cell (the 256 tile is 0.94 of a cell) and centres it with d
 goes through the SAME crop box, rotation, scale and offset (derived once from the render, halved for the 512
 frames), so the frame that matches the rest pose lands on the static tile pixel for pixel and motion outside
 the rest silhouette is kept (up to the 256 cell edge). Downscale is one LANCZOS resample straight from 512.
+A WIN clip goes through the same box grown by its canvas scale about the box centre, resampled to scale x 256 px, so
+every output pixel samples the source exactly where the 256 cell's pixel does (the centre 256 of a win cell is the
+drop cell of the same source frame). --verify measures it (frame 0 centre vs drop frame 0 and the atlas tile).
 Frame file names vary per folder; Finder duplicates ("0001 2.png") are skipped.
 
 --style <name> (EXPERIMENT, 2026-10-07): post-process every frame and atlas tile in the 256 px cell space after the
@@ -69,14 +80,24 @@ CODES = ["L1", "L2", "L3", "L4", "M1", "M2", "M3", "H1", "W", "S"]
 # per-symbol source folders under animation/ (None = no clip delivered)
 CLIPS = {
     "L4": {"drop": "drop", "idle": "idle"},  # drop/ = baked stamp squash (NOT drop_nosquash)
-    "M1": {"drop": "drop", "idle": "idle"},  # drop/ = drop_lively
+    # M1 REVISION 2 (Corey 2026-10-19 10:53 review; 12:07 "Helmet looks good now"): readable landing and idle, and the
+    # win r3 (r2 centred in the cell while it faces the camera, Corey 12:00). Replaces drop/ = drop_lively
+    "M1": {"drop": "drop_r2", "idle": "idle_r2", "win": "win_r3"},
     "L3": {"drop": "drop", "idle": None},  # no idle delivered yet
+    # REVISION 2 (2026-10-19, Stake's "The symbols are poorly animated"; Corey 10:11 "The crown looks much better"): the
+    # readable landing and idle, and a WIN clip of its own (NOTES.md "Revision 2" in the symbol's animation folder)
+    "H1": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
 }
+# the clips a symbol may have, in build order; "win" only where CLIPS names a folder for it (no win sheet otherwise:
+# the game then keeps the shared win look for that symbol)
+CLIP_KINDS = ("drop", "idle", "win")
+DEFAULT_CLIPS = {"drop": "drop", "idle": "idle"}
+WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} written by the art job (post_r2.py)
 # SOURCE OVERRIDES: a symbol whose frames and static tile come from a graded copy instead of the masters (the masters
 # stay untouched). The folder holds drop/ and idle/ (same file names as animation/<folder>/) and tile/<code>.webp.
 #   S: the War Standard re-grade (review B5, Corey 2026-10-17 13:08, no Blender), written by tools/grade_war_standard.py
 SOURCE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r1")}
-FRAME_RE = re.compile(r"^(?:[A-Za-z0-9]+_(?:drop|idle)_)?\d{3,4}\.png$")
+FRAME_RE = re.compile(r"^(?:[A-Za-z0-9]+_(?:drop|idle|win)(?:_r\d+)?_)?\d{3,4}\.png$")
 
 
 def arg(k, d=None):
@@ -240,8 +261,9 @@ def stylize(im, cfg=None, code=None):
     return Image.fromarray(np.round(o * 255).astype(np.uint8), "RGBA")
 
 
-def half_of(styled256):
-    return styled256.resize((HALF, HALF), Image.LANCZOS)
+def half_of(styled):
+    """the half tier of a styled cell (256 -> 128, a win cell 384 -> 192)"""
+    return styled.resize((styled.width // 2, styled.height // 2), Image.LANCZOS)
 
 
 def symbol_dir(code):
@@ -263,6 +285,20 @@ def tile_path(code):
     if code in SOURCE_OVERRIDES:
         return os.path.join(SOURCE_OVERRIDES[code], "tile", code.lower() + ".webp")
     return os.path.join(HANDOFF_TILES, code.lower() + ".webp")
+
+
+def win_canvas(code, folder):
+    """the win clip's canvas scale (canvas.json "scale"); the cell sizes it gives must be whole pixels, centred"""
+    cj = json.load(open(os.path.join(clip_dir(code, folder), WIN_CANVAS_JSON)))
+    scale = float(cj["scale"])
+    for px in (CELL, HALF):
+        out = px * scale
+        assert out == int(out) and (out - px) % 2 == 0, f"{code} win canvas {scale}: {out} px cells are not centred whole pixels"
+    return scale
+
+
+def canvas_px(px, canvas):
+    return int(round(px * canvas))
 
 
 def frame_files(folder):
@@ -308,17 +344,25 @@ def source_box(g, src_px):
     return ((ox - x * sx) * s, (oy - y * sy) * s, (ox + (CELL - x) * sx) * s, (oy + (CELL - y) * sy) * s)
 
 
-def process(im, g, out_px):
-    """One source frame (any square size at the render's framing) -> an out_px tile through the fit."""
+def process(im, g, out_px, canvas=1.0):
+    """One source frame (any square size at the render's framing) -> an out_px tile through the fit.
+    canvas > 1: the source is a win master, `canvas` x its frame at the same density with the frame centred in it;
+    the fit box is grown by `canvas` about its own centre (out_px is then canvas x the cell)."""
     im = im.convert("RGBA")
     n = im.size[0]
+    frame = n / canvas  # the render-framed square inside the canvas
+    off = (n - frame) / 2
     padded = Image.new("RGBA", (n + 2 * PAD, n + 2 * PAD), (0, 0, 0, 0))
     padded.paste(im, (PAD, PAD))
-    s = n / g["render"]
+    s = frame / g["render"]
     if g["angle"]:
-        c = (g["centre"][0] * s + PAD, g["centre"][1] * s + PAD)
+        c = (g["centre"][0] * s + off + PAD, g["centre"][1] * s + off + PAD)
         padded = padded.rotate(g["angle"], resample=Image.BICUBIC, center=c)
-    x0, y0, x1, y1 = source_box(g, n)
+    x0, y0, x1, y1 = source_box(g, frame)
+    if canvas != 1.0:
+        gx, gy = (x1 - x0) * (canvas - 1) / 2, (y1 - y0) * (canvas - 1) / 2
+        x0, y0, x1, y1 = x0 - gx, y0 - gy, x1 + gx, y1 + gy
+    x0, y0, x1, y1 = x0 + off, y0 + off, x1 + off, y1 + off
     return padded.resize((out_px, out_px), Image.LANCZOS, box=(x0 + PAD, y0 + PAD, x1 + PAD, y1 + PAD))
 
 
@@ -347,6 +391,11 @@ def frame_entry(x, y, px):
 
 
 NEAR_LOSSLESS = 60  # cwebp -near_lossless level for the animation sheets (Corey 2026-10-15, S4)
+# REVISION 2 SHEETS (a symbol whose CLIPS entry names a win clip): every one of its sheets, both tiers, is lossy at this
+# quality with the alpha lossless (Corey 2026-10-19 11:59, "q85 is fine", after the side-by-side of a lit crown frame).
+# Near-lossless suited the old sheets, which barely moved (the crown's idle was 64 KB); with real motion it made the
+# crown's three sheets 3.9 MB, q85 1.56 MB
+R2_QUALITY = 85
 CWEBP = shutil.which("cwebp") or "/opt/homebrew/bin/cwebp"
 
 
@@ -363,13 +412,16 @@ def save_near_lossless(img, path):
     return f"near-lossless {NEAR_LOSSLESS}"
 
 
-def save_webp(img, path, lossless_only=False, full_tier=False):
+def save_webp(img, path, lossless_only=False, full_tier=False, lossy=False):
     """animation sheets: near-lossless 60 (Corey 2026-10-15, S4: "I really can't tell the differences"); on the half
     tier only when plain lossless is within 1.6x the q95 file, else q95 (alpha stays lossless) as before.
     lossless_only: the base atlas, where the static tiles must be the approved pixels exactly (stays lossless)."""
     if lossless_only:
         img.save(path, "WEBP", lossless=True, quality=100, method=6)
         return "lossless"
+    if lossy:
+        img.save(path, "WEBP", quality=R2_QUALITY, method=6, alpha_quality=100)
+        return f"q{R2_QUALITY}"
     if full_tier:
         return save_near_lossless(img, path)
     img.save(path + ".tmp-ll", "WEBP", lossless=True, quality=100, method=4)
@@ -384,7 +436,14 @@ def save_webp(img, path, lossless_only=False, full_tier=False):
     return save_near_lossless(img, path) if pick == ".tmp-ll" else "q95"
 
 
-def pack(name, frames, px, clip, meta_extra):
+def h8(path):
+    """the first 8 hex of the file's md5: scripts/stamp-assets.mjs's meta.pngHash, written here too so a sheet that
+    script does not list (the win sheets) still changes its json, and so its stamped URL, when its picture changes"""
+    import hashlib
+    return hashlib.md5(open(path, "rb").read()).hexdigest()[:8]
+
+
+def pack(name, frames, px, clip, meta_extra, full_tier=None, lossy=False):
     """frames: list of (frame_name, PIL image px). Pixel-identical frames share one cell."""
     uniq, cell_of = [], []
     seen = {}
@@ -412,12 +471,14 @@ def pack(name, frames, px, clip, meta_extra):
     # full tier: was always lossless (Corey 2026-10-06); since 2026-10-15 (Corey, S4 of the download analysis, after
     # the side-by-side samples) near-lossless 60. Half tier: near-lossless 60 unless plain lossless is 1.6x the q95
     # file, then q95 as before. The base atlas (build_atlas) stays lossless.
-    enc = save_webp(sheet, os.path.join(SPRITES, name + ".webp"), full_tier=(px == CELL))
+    full_tier = (px == CELL) if full_tier is None else full_tier
+    enc = save_webp(sheet, os.path.join(SPRITES, name + ".webp"), full_tier=full_tier, lossy=lossy)
     meta = {"image": name + ".webp", "format": "RGBA8888", "size": {"w": sheet.width, "h": sheet.height},
-            "scale": "1" if px == CELL else "0.5", "fps": FPS, "encoding": enc}
+            "scale": "1" if full_tier else "0.5", "fps": FPS, "encoding": enc}
     meta.update(meta_extra)
     if STYLE:
         meta["style"] = {"name": STYLE_NAME, **STYLE}
+    meta["pngHash"] = h8(os.path.join(SPRITES, name + ".webp"))
     doc = {"frames": out, "animations": {clip: [f for f, _ in frames]}, "meta": meta}
     json.dump(doc, open(os.path.join(SPRITES, name + ".json"), "w"), indent=1)
     pages.append(sheet.size)
@@ -429,33 +490,42 @@ def build_sheets(geo, only):
     for code in CODES:
         if only and code not in only:
             continue
-        sdir = symbol_dir(code)
-        clips = CLIPS.get(code, {"drop": "drop", "idle": "idle"})
+        clips = CLIPS.get(code, DEFAULT_CLIPS)
         g = geo[code]
-        for clip in ("drop", "idle"):
+        for clip in CLIP_KINDS:
             folder = clips.get(clip)
             if not folder:
-                print(f"{code} {clip}: none delivered, skipped")
+                if clip != "win":
+                    print(f"{code} {clip}: none delivered, skipped")
                 continue
+            canvas = win_canvas(code, folder) if clip == "win" else 1.0
+            px_full, px_half = canvas_px(CELL, canvas), canvas_px(HALF, canvas)
             files = frame_files(clip_dir(code, folder))
             full, half = [], []
             for i, fp in enumerate(files):
                 src = Image.open(fp)
                 assert src.size[0] == src.size[1], fp
                 fname = f"{code.lower()}-{clip}-{i:03d}"
-                cell = stylize(process(src, g, CELL), code=code)
+                cell = stylize(process(src, g, px_full, canvas), code=code)
                 full.append((fname, cell))
                 if HALF_TIER:
-                    half.append((fname, half_of(cell) if STYLE else process(src, g, HALF)))
+                    half.append((fname, half_of(cell) if STYLE else process(src, g, px_half, canvas)))
             src_rel = os.path.relpath(clip_dir(code, folder), SYMBOLS_DIR)
-            fit_meta = {"fit": {"source": src_rel, "sourcePx": 512,
+            fit_meta = {"fit": {"source": src_rel, "sourcePx": round(512 * canvas),
                                 "box512": [round(v, 3) for v in source_box(g, 512)], "angle": g["angle"],
                                 "fitJson": g["fit"]}}
             if STYLE.get("darkRim"):
                 fit_meta["darkRimPx"] = [round(v, 3) for v in dark_rim_px(code)]
             base = f"{code.lower()}-{clip}"
-            r1 = pack(base, full, CELL, clip, fit_meta)
-            r2 = pack(base + "-half", half, HALF, clip, fit_meta) if HALF_TIER else r1
+            if canvas != 1.0:
+                # the game draws the sheet at `scale` x the cell, centred, so the cell area stays where it was
+                meta_full = {**fit_meta, "canvas": {"scale": canvas, "cellPx": CELL, "px": px_full}}
+                meta_half = {**fit_meta, "canvas": {"scale": canvas, "cellPx": HALF, "px": px_half}}
+            else:
+                meta_full = meta_half = fit_meta
+            lossy = bool(clips.get("win"))  # R2_QUALITY
+            r1 = pack(base, full, px_full, clip, meta_full, full_tier=True, lossy=lossy)
+            r2 = pack(base + "-half", half, px_half, clip, meta_half, full_tier=False, lossy=lossy) if HALF_TIER else r1
             report[base] = (r1, r2)
             print(f"{base}: {r1['frames']} frames, {r1['cells']} unique cells, {r1['size']} {r1['encoding']}"
                   f" | half {r2['size']} {r2['encoding']}")
@@ -519,6 +589,52 @@ def diff(a, b):
     return round(float(d.mean()), 3), int((d.max(-1) > 8).sum())
 
 
+def diff_max(a, b):
+    """premultiplied RGBA on 0..255: mean, max, pixels with any channel over 8"""
+    d = np.abs(pm(a) - pm(b))
+    return round(float(d.mean()), 4), round(float(d.max()), 3), int((d.max(-1) > 8).sum())
+
+
+def centre(im, px):
+    o = (im.width - px) // 2
+    return im.crop((o, o, o + px, o + px))
+
+
+def verify_win(code, line):
+    """the win sheet (both tiers): frame 0's centre cell vs drop frame 0 and the atlas's static tile, the hold frames,
+    the alpha outside the centre cell at the worst frame, and nothing on the canvas edge"""
+    c = code.lower()
+    if not os.path.exists(os.path.join(SPRITES, f"{c}-win.json")):
+        return
+    atlas = {"": sheet_frames_atlas("mmSymbols"), "-half": sheet_frames_atlas("mmSymbols-half")}
+    for suffix, px in (("", CELL), ("-half", HALF)):
+        doc = json.load(open(os.path.join(SPRITES, f"{c}-win{suffix}.json")))
+        win = sheet_frames(f"{c}-win{suffix}")
+        drop = sheet_frames(f"{c}-drop{suffix}")
+        names = list(win)
+        w0 = win[names[0]]
+        cv = doc["meta"]["canvas"]
+        tag = "win" + suffix
+        line[tag + "_n"] = len(names)
+        line[tag + "_canvas"] = cv
+        line[tag + "0_centre_vs_drop0"] = diff_max(centre(w0, px), drop[f"{c}-drop-000"])
+        line[tag + "0_centre_vs_atlasTile"] = diff_max(centre(w0, px), atlas[suffix][f"{code}.png"])
+        line[tag + "0_outside_alpha"] = int(np.asarray(w0)[..., 3].sum() - np.asarray(centre(w0, px))[..., 3].sum())
+        last = win[names[-1]]
+        line[tag + "_hold_identical_from"] = next(i for i in range(len(names)) if all(diff_max(win[names[j]], last)[1] == 0 for j in range(i, len(names))))
+        worst = (0.0, -1)
+        edge = 0
+        for i, n in enumerate(names):
+            a = np.asarray(win[n])[..., 3].astype(np.float64)
+            inner = np.asarray(centre(win[n], px))[..., 3].astype(np.float64).sum()
+            out = 1 - inner / max(1.0, a.sum())
+            if out > worst[0]:
+                worst = (round(out, 4), i)
+            edge = max(edge, int(max(a[0].max(), a[-1].max(), a[:, 0].max(), a[:, -1].max())))
+        line[tag + "_worst_outside_cell"] = worst
+        line[tag + "_canvas_edge_alpha_max"] = edge
+
+
 def sheet_frames(name):
     doc = json.load(open(os.path.join(SPRITES, name + ".json")))
     img = Image.open(os.path.join(SPRITES, doc["meta"]["image"])).convert("RGBA")
@@ -575,11 +691,11 @@ def verify(geo, only):
             line["idle_seam"] = diff(idle[inames[-1]], idle[inames[0]])
         hd = sheet_frames(f"{c}-drop-half")
         line["half0_vs_tile128"] = diff(hd[f"{c}-drop-000"], tile.resize((HALF, HALF), Image.LANCZOS))
-        sdir = symbol_dir(code)
-        clips = CLIPS.get(code, {"drop": "drop", "idle": "idle"})
+        clips = CLIPS.get(code, DEFAULT_CLIPS)
         line["clip_drop"] = clipped_alpha(geo, code, clip_dir(code, clips["drop"]))
         if clips.get("idle"):
             line["clip_idle"] = clipped_alpha(geo, code, clip_dir(code, clips["idle"]))
+        verify_win(code, line)
         rows.append(line)
         print(json.dumps(line))
     # base atlas: the ten tiles exactly, overlays untouched

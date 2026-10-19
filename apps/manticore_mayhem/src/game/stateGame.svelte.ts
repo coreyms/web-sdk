@@ -10,7 +10,7 @@ import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
-import { winFx, shineCells, spawnWinBurst, popPose, sweepAt, POP_AT, winFxStats, type ShineCell, type PopPose } from './winFx';
+import { winFx, shineCells, spawnWinBurst, popPose, sweepAt, darkShine, POP_AT, winFxStats, type ShineCell, type PopPose } from './winFx';
 import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, triggerFx, clearTriggerFx, fxStamp, type FxRecord } from './featureFx';
 import { cueWellSting, cueWellSwipe, cueWellTile, cueWellWin, clearWellCues } from './wellsFx';
 import { kickClank } from './chainSound';
@@ -98,6 +98,9 @@ export type Cell = {
 	/** performance.now() of this cell's last landing contact (0 = never landed): BoardCells starts
 	 *  the symbol's drop sheet from it. Written once per landing, never per frame. */
 	landAt: number;
+	/** performance.now() of the moment this cell's cluster was presented (presentWinSet; 0 = never won): BoardCells plays
+	 *  the symbol's win sheet from it (constants WIN_SHEET). Written once per win, never per frame. */
+	winAt: number;
 	state: SymbolState;
 };
 
@@ -144,6 +147,7 @@ const makeCell = (name: SymbolName, reel: number, row: number, y = row): Cell =>
 	glow: 0,
 	glowColor: AURA_COLOR,
 	landAt: 0,
+	winAt: 0,
 	state: 'static',
 });
 
@@ -1207,7 +1211,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	if (fxNew) {
 		for (const cl of clusters) {
 			for (const m of cl.members) {
-				m.fx = { band: 0, a: 0, heat: 0, pulse: 1 };
+				m.fx = darkShine();
 				shineCells.set(m.cell.id, m.fx);
 			}
 		}
@@ -1227,6 +1231,10 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			const cl = clusters[i];
 			if (now >= cl.t && !cl.started) {
 				cl.started = true;
+				// WIN_SHEET: the moment the cluster is presented, in real ms (the style ms since cl.t taken back out), so a
+				// symbol with a win sheet starts it on frame 0 here whatever the frame timing (the landing's landAt rule)
+				const winAt = performance.now() - (now - cl.t) / ts();
+				for (const m of cl.members) m.cell.winAt = winAt;
 				hooks.onClusterStart?.(i);
 				// THE WELLS (game/wellsFx.ts): the cluster's veins ripple from its first cell as its pulse starts
 				if (!stateGame.skipping) cueWellWin(cl.spec.cells, ts());
@@ -1254,9 +1262,10 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 						const S = WIN_FX.shine;
 						const lag = Math.min(m.rank * S.staggerMs, S.staggerCapMs);
 						fx.a = 0;
+						fx.a2 = 0;
 						fx.heat = 0;
 						sweepAt(el - S.startMs - lag, S.peak, fx);
-						sweepAt(now - cl.tCountDone - lag, S.secondPeak, fx);
+						sweepAt(now - cl.tCountDone - lag, S.secondPeak, fx, true);
 					}
 					if (c.scaleX !== s) c.scaleX = s;
 					if (c.scaleY !== s) c.scaleY = s;
@@ -1272,6 +1281,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 					c.rot = p.rot;
 					c.alpha = p.alpha;
 					m.fx.a = 0;
+					m.fx.a2 = 0;
 					m.fx.pulse = 1;
 					m.fx.heat = p.heat;
 					if (!m.spawned && u >= POP_AT) {
@@ -1444,7 +1454,7 @@ const popAway = async (goingIds: number[], id: number) => {
 	const going = new Set(goingIds);
 	const heat = new Map<number, ShineCell>();
 	for (const cid of goingIds) {
-		const fx = { band: 0, a: 0, heat: 0, pulse: 1 };
+		const fx = darkShine();
 		heat.set(cid, fx);
 		shineCells.set(cid, fx);
 	}

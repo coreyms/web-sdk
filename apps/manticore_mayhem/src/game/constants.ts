@@ -397,6 +397,26 @@ export const SHEET_IDLE_TURBO = false;
  *  that has just landed starts in its rest, so the board does not glint in unison after every spin. With the defaults
  *  about 64 x 2 / (2 + 13) = 8 or 9 cells glint at any moment instead of 64. Presentation only. */
 export const SYMBOL_IDLE_REST = { minMs: 7000, maxMs: 19000 };
+/** THE WIN SHEETS (2026-10-19, Stake's rejection "The symbols are poorly animated"; the crown first, Corey 10:11 "The crown
+ *  looks much better"; tools/pack_symbol_sheets.py CLIPS "win"). A symbol whose <code>-win sheet is loaded (the sheet's
+ *  presence decides: game/assets.ts lists the files, components/BoardCells.svelte looks for `<code>-win-000`) plays it when
+ *  it wins: from frame 0 at SHEET_FPS in STYLE time (divided by the turbo scale, like the drop) from the moment its
+ *  cluster is presented (Cell.winAt), then holds its last frame (the proud pose) through the pop until the pop removes it.
+ *  The sheet's cells are canvas x the normal cell, the cell centred in them, and it is drawn at that canvas scale (the
+ *  ratio of its frame size to the drop's, so it holds on both tiers), so the cell area stays exactly where it was. Its
+ *  frame 0 is the rest pose (the drop's last frame, the idle's first). A symbol without a win sheet is unchanged.
+ *  For a symbol with one, WIN_FX keeps the rise (CLUSTER.winScale: it also puts the winner in the pop band, over its
+ *  neighbours, where the bigger canvas needs to be), the pop, the burst, the embers and the shake; and:
+ *    breathe   WIN_FX.breathe on it (false: the sheet carries the motion, a breath on top of the lift and turn reads as
+ *              wobble)
+ *    shine     WIN_FX.shine's two sweeps on it, each on its own (laid out in cell widths, so a band crosses the cell as it
+ *              does on every other symbol):
+ *                start  the sweep as the cluster starts. false: it lands on the crown's lift and quarter turn and, at its
+ *                       peak, washes the crown near white just as its rubies light one by one (frames 11 to 19, the
+ *                       clip's own light beat); seen in the 2026-10-19 in-game capture
+ *                count  the softer sweep as the count lands. true: it crosses the bounce into the proud pose (frames 26
+ *                       to 31) and reads as one more catch of light on the settled crown */
+export const WIN_SHEET = { breathe: false, shine: { start: false, count: true } };
 
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {
@@ -2898,7 +2918,7 @@ export const MAX_WIN = {
 // waited for the audio alone and every deferred file started after it: a reviewer who pressed at once spun on a FROZEN
 // board (no symbol sheet in) in an empty courtyard, for 24 s on desktop fast 4G and the whole first minute on slow 4G.
 // Now PRESS ANYWHERE (ui/LandingScreen.svelte) waits for the audio AND the gate: the win plaque's set and the symbols'
-// drop and idle sheets (game/assets.ts GATE_ORDER, loaded by game/deferredLoad.ts loadGate), which start the moment the
+// drop, idle and win sheets (game/assets.ts GATE_ORDER, loaded by game/deferredLoad.ts loadGate), which start the moment the
 // audio is in (besideAudioFiles below: the plan said beside the audio, which measured worse), and the loading bar
 // counts them with the audio. But never more than capMs after the audio is ready: past the cap PRESS shows and the rest of
 // the gate lands behind the game as before.

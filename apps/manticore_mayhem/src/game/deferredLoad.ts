@@ -13,6 +13,7 @@
 //   plaque  the five stinger atlases (all or nothing) + stinger.json + the motion tracks -> assetGate.markPlaqueAssetsReady()
 //   drop    the symbols' drop sheets            -> BoardCells picks them up per symbol
 //   idle    the symbols' idle loops             -> BoardCells adds them to the sheets it already has
+//   win     the win sheets (constants WIN_SHEET) -> BoardCells adds them to the sheets it already has
 // With LOAD_GATE.besideAudioFiles above 0 it starts at once instead, that many of its files on the wire while the audio
 // is still loading; once the audio is in, all of a group's files at once.
 //

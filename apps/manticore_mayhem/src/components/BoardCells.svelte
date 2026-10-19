@@ -51,6 +51,12 @@
 	// load every cell shows the static atlas frame. Only the pooled sprite's texture is switched
 	// between already-parsed sheet frames: no texture is ever created here.
 	//
+	// THE WIN SHEETS (constants WIN_SHEET, 2026-10-19): a symbol whose <code>-win sheet is in plays it when it wins, from
+	// frame 0 at the moment its cluster is presented (Cell.winAt) at SHEET_FPS in STYLE time, and holds the last frame
+	// through the pop (the win pulse's scale and the pop's squash and twist do NOT freeze or drop it, as they do the drop and
+	// idle). Its frames are canvas x the cell (the ratio of its frame size to the drop's), drawn at that scale about the
+	// same centre, so the cell area stays where it was. Which symbols have one is the sheets' presence, nothing here.
+	//
 	// THE SYMBOL OVERHAUL (Corey 2026-10-13 12:06, Symbol Fit Playground v7, constants SYMBOL_PLACE): every symbol on
 	// the TRUE centre of its lattice opening (game/symbolPlace.ts), at its own size and dx / dy; drawn over the bars and
 	// never cut by the board window. DRAW ORDER inside this layer (zIndex): the auras (-1) under every tile, then the
@@ -67,7 +73,7 @@
 	import { quadOut, quadIn, backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_IDLE_REST, SYMBOL_PLACE, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_IDLE_REST, WIN_SHEET, SYMBOL_PLACE, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
 	import { openingsFor, offsetAt, latticeEdges, type Openings } from '../game/symbolPlace';
 	import { boardPlateSlot, boardCutSlot } from '../game/boardPlateSlot';
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
@@ -161,7 +167,9 @@
 
 	// ---- the symbol sheets: per symbol name, the parsed drop / idle frames, built ONCE per name the
 	// first frame that symbol's drop sheet is in (frame count from the sheet itself, never assumed) --
-	type Sheet = { drop: PIXI.Texture[]; idle: PIXI.Texture[] | null; from: number };
+	/** win: the symbol's win sheet (null: none, or not in yet); winScale: its frame size over the drop's (the canvas
+	 *  scale, 1.5 for the crown); winKey: its first frame's name; winSeen: the loadedAssets object last looked in for it */
+	type Sheet = { drop: PIXI.Texture[]; idle: PIXI.Texture[] | null; from: number; win: PIXI.Texture[] | null; winScale: number; winKey: string; winSeen: unknown };
 	const sheets = new Map<string, Sheet | null>();
 	const FRAME_MS = 1000 / SHEET_FPS;
 	const pad3 = (i: number) => (i < 10 ? '00' : i < 100 ? '0' : '') + i;
@@ -177,9 +185,27 @@
 	 *  publishes the drop sheets before the idle loops (game/deferredLoad.ts), so the idle is ADDED to the
 	 *  sheet the frame it arrives (until then the cell rests on its drop's last frame) */
 	const idleOwed = new Set<string>();
+	/** add `name`'s win sheet to its sheet the frame it is in (game/deferredLoad.ts publishes the win group after the drop
+	 *  and idle groups). Looked for once per loadedAssets object (each group's publish makes a new one), never per tick. */
+	const attachWin = (sh: Sheet, tex: Record<string, PIXI.Texture> | undefined) => {
+		if (sh.win || !tex || sh.winSeen === tex) return;
+		sh.winSeen = tex;
+		if (!tex[sh.winKey]) return;
+		const win = framesOf(tex, sh.winKey.slice(0, -4));
+		if (!win.length || !sh.drop.length) return;
+		sh.win = win;
+		sh.winScale = win[0].orig.width / sh.drop[0].orig.width;
+		enableMipmaps(win[0].source, rendererOf());
+		// its source joins the GPU warm-up queue like the others
+		if (uploadQueue && !queuedSources.has(win[0].source)) {
+			queuedSources.add(win[0].source);
+			uploadQueue.push(win[0].source);
+		}
+	};
 	const sheetFor = (name: string, tex: Record<string, PIXI.Texture> | undefined): Sheet | null => {
 		const hit = sheets.get(name);
 		if (hit) {
+			if (!hit.win && hit.winSeen !== tex) attachWin(hit, tex);
 			if (idleOwed.has(name) && tex?.[`${name.toLowerCase()}-idle-000`]) {
 				const idle = framesOf(tex, `${name.toLowerCase()}-idle`);
 				idleOwed.delete(name);
@@ -201,8 +227,9 @@
 		const anim = symbolAnim(name);
 		const drop = framesOf(tex, `${code}-drop`);
 		const idle = anim.idle ? framesOf(tex, `${code}-idle`) : [];
-		const sheet: Sheet = { drop, idle: idle.length > 1 ? idle : null, from: Math.min(anim.dropFrom, drop.length - 1) };
+		const sheet: Sheet = { drop, idle: idle.length > 1 ? idle : null, from: Math.min(anim.dropFrom, drop.length - 1), win: null, winScale: 1, winKey: `${code}-win-000`, winSeen: null };
 		if (anim.idle && !idle.length) idleOwed.add(name);
+		attachWin(sheet, tex);
 		// MIPMAPS (game/mipmaps.ts): once per sheet source, here, before any sprite draws a frame of it
 		// and before the warm-up queue uploads it, so the chain is built with that one upload
 		enableMipmaps(drop[0]?.source, rendererOf());
@@ -225,6 +252,7 @@
 				const sh = sheets.get(n)!;
 				set.add(sh.drop[0].source);
 				if (sh.idle) set.add(sh.idle[0].source);
+				if (sh.win) set.add(sh.win[0].source);
 			}
 			for (const src of set) queuedSources.add(src);
 			uploadQueue = [...set];
@@ -242,6 +270,7 @@
 	const MODE_STATIC = 0;
 	const MODE_DROP = 1;
 	const MODE_IDLE = 2;
+	const MODE_WIN = 3;
 
 	// what a sprite was last given, so an unchanged field is never re-assigned (a Pixi transform
 	// setter marks the render group dirty even when the value is the same)
@@ -251,6 +280,9 @@
 		k: number; pdx: number; pdy: number; top: number; fall: boolean; pop: boolean; rowZ: number;
 		/** sheet playback: mode, style ms into the clip, the last Cell.landAt seen, still in the landing beat, the frame shown */
 		mode: number; clock: number; landAt: number; landing: boolean; frame: number;
+		/** WIN_SHEET: the last Cell.winAt seen; the canvas scale of the texture picked this tick (1 but for a win frame) and
+		 *  of the size last applied */
+		winAt: number; cs: number; csDrawn: number;
 		/** WIN_FX: the shine group this tile holds while it shines (null otherwise) */
 		sh: Shine | null;
 	};
@@ -268,7 +300,7 @@
 		g.zIndex = -1;
 		g.visible = false;
 		cellLayer.addChild(g);
-		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, k: 1, pdx: 0, pdy: 0, top: 0, fall: false, pop: false, rowZ: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1, sh: null };
+		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, k: 1, pdx: 0, pdy: 0, top: 0, fall: false, pop: false, rowZ: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1, winAt: 0, cs: 1, csDrawn: 1, sh: null };
 	};
 	const live = new Map<number, Slot>(); // cell id -> its sprite
 	const free: Slot[] = [];
@@ -319,12 +351,44 @@
 	const pickTexture = (c: Cell, sl: Slot, tex: Record<string, PIXI.Texture> | undefined): PIXI.Texture | null => {
 		const fallback = staticTexture(c.name, tex);
 		const sheet = sheetFor(c.name, tex);
+		sl.cs = 1;
 		if (!sheet) {
 			sl.mode = MODE_STATIC;
 			sl.frame = -1;
 			sl.landAt = c.landAt; // a landing before the sheets arrived is never replayed late
+			sl.winAt = c.winAt; // nor a win
 			return fallback;
 		}
+		// THE WIN SHEET (WIN_SHEET): from frame 0 at the cluster's presentation (a new Cell.winAt), in style time, held on its
+		// last frame; through the win pulse and the pop in place (scale, squash, twist), never frozen or dropped for them
+		if (sheet.win) {
+			const winning = c.state === 'win' || (c.state === 'removing' && Math.abs(c.y - c.row) < 1e-4 && c.dx === 0);
+			let freshWin = false;
+			if (c.winAt !== sl.winAt) {
+				sl.winAt = c.winAt;
+				if (c.winAt > 0 && winning) {
+					sl.mode = MODE_WIN;
+					sl.clock = Math.max(0, (now - c.winAt) * rate);
+					sl.landing = false;
+					freshWin = true;
+				}
+			}
+			if (sl.mode === MODE_WIN) {
+				if (winning) {
+					if (!freshWin) sl.clock += dtStyle;
+					sl.landAt = c.landAt;
+					const last = sheet.win.length - 1;
+					const f = Math.floor(sl.clock / FRAME_MS);
+					sl.frame = f < last ? f : last;
+					sl.cs = sheet.winScale;
+					return sheet.win[sl.frame];
+				}
+				// out of the win some other way than its pop (never in a round: a winner always leaves by it): the static
+				// frame, then idle from a per-cell phase, as after any other move
+				sl.mode = MODE_STATIC;
+				sl.frame = -1;
+			}
+		} else if (c.winAt !== sl.winAt) sl.winAt = c.winAt;
 		let fresh = false;
 		if (c.landAt !== sl.landAt) {
 			// a new landing contact: the drop sheet starts on the contact frame
@@ -477,10 +541,19 @@
 		shinePool.push(g);
 		shineInUse -= 1;
 	};
-	/** draw tile `sl`'s shine this tick (`fx` from the engine, `alpha` the tile's own) */
+	/** draw tile `sl`'s shine this tick (`fx` from the engine, `alpha` the tile's own). A win frame (sl.cs > 1) is cut
+	 *  into the same strips over its whole canvas; the band is laid out in CELL widths (each strip's centre taken back to
+	 *  the cell's frame), so it crosses the symbol as it does on a normal frame. Of the two sweeps (fx a / a2) the stronger
+	 *  is drawn; a win sheet leaves out the ones WIN_SHEET.shine turns off (the pop's heat always stays). */
 	const drawShine = (sl: Slot, fx: ShineCell, alpha: number) => {
 		const tex = sl.tex;
 		if (!tex || tex.rotate) return;
+		const cs = sl.cs;
+		const onWin = sl.mode === MODE_WIN;
+		const a1 = onWin && !WIN_SHEET.shine.start ? 0 : fx.a;
+		const a2 = onWin && !WIN_SHEET.shine.count ? 0 : fx.a2;
+		const fa = a2 > a1 ? a2 : a1;
+		const fband = a2 > a1 ? fx.band2 : fx.band;
 		let g = sl.sh;
 		if (!g) {
 			g = shinePool.pop() ?? makeShine();
@@ -488,7 +561,7 @@
 			g.root.visible = true;
 			shineInUse += 1;
 		}
-		const on = fx.a > 0 || fx.heat > 0;
+		const on = fa > 0 || fx.heat > 0;
 		// dark and staying dark: nothing to move or write. A group is aimed at its tile's frame only when it first
 		// lights (the sweeps start staggered, so a big win set's aims spread over several frames, not its first one)
 		if (!on && !g.lit) return;
@@ -505,11 +578,11 @@
 		const S = WIN_FX.shine;
 		const half = S.band / 2;
 		for (let j = 0; j < SH_ROWS; j += 1) {
-			// the band leans: its centre on this row of strips
-			const centre = fx.band + S.slant * ((j + 0.5) / SH_ROWS - 0.5);
+			// the band leans: its centre on this row of strips (rows and columns in cell widths about the centre)
+			const centre = fband + S.slant * ((j + 0.5) / SH_ROWS - 0.5) * cs;
 			for (let i = 0; i < SH_COLS; i += 1) {
-				const d = Math.abs((i + 0.5) / SH_COLS - centre);
-				const band = fx.a > 0 && d < half ? fx.a * (1 - d / half) : 0;
+				const d = Math.abs(0.5 + ((i + 0.5) / SH_COLS - 0.5) * cs - centre);
+				const band = fa > 0 && d < half ? fa * (1 - d / half) : 0;
 				let a = band > fx.heat ? (band - fx.heat) * alpha : 0;
 				if (a < 0.004) a = 0;
 				const k = j * SH_COLS + i;
@@ -549,6 +622,9 @@
 			sl.landAt = c.landAt;
 			sl.landing = false;
 			sl.frame = -1;
+			// 0, not c.winAt: a tile that first shows mid-win picks its win frame up from the clock
+			sl.winAt = 0;
+			sl.cs = sl.csDrawn = 1;
 			sl.s.x = NaN;
 			sl.pop = false;
 			if (sl.fall) {
@@ -571,8 +647,10 @@
 		const t = pickTexture(c, sl, tex);
 		if (t !== sl.tex) {
 			// sheet frames and atlas frames share one cell size per tier, so a frame switch keeps the
-			// sprite's size; only a change of texture SIZE (or the first texture) re-applies it
-			if (!sl.tex || !t || t.orig.width !== sl.tex.orig.width) sl.sx = sl.sy = NaN;
+			// sprite's size; only a change of texture SIZE (or the first texture) re-applies it. A win frame is canvas x
+			// that size and is drawn at canvas x the cell (sl.cs): the size is re-applied in this same tick, so a frame
+			// is never drawn at the other clip's size
+			if (!sl.tex || !t || t.orig.width !== sl.tex.orig.width || sl.cs !== sl.csDrawn) sl.sx = sl.sy = NaN;
 			s.texture = t ?? PIXI.Texture.EMPTY;
 			sl.tex = t;
 		}
@@ -592,11 +670,13 @@
 		}
 		// WIN_FX: the shine bus for this tile (a winner's band / heat / breath), read once
 		const fx = shineCells.size ? shineCells.get(c.id) : undefined;
-		const pulse = fx ? fx.pulse : 1;
-		if (c.scaleX * pulse !== sl.sx || c.scaleY * pulse !== sl.sy) {
+		// WIN_SHEET.breathe: a symbol playing its win sheet does not take the breath (the sheet carries the motion)
+		const pulse = fx && (sl.mode !== MODE_WIN || WIN_SHEET.breathe) ? fx.pulse : 1;
+		if (c.scaleX * pulse !== sl.sx || c.scaleY * pulse !== sl.sy || sl.cs !== sl.csDrawn) {
 			sl.sx = c.scaleX * pulse;
 			sl.sy = c.scaleY * pulse;
-			s.setSize(SIZE * sl.k * sl.sx, SIZE * sl.k * sl.sy);
+			sl.csDrawn = sl.cs;
+			s.setSize(SIZE * sl.k * sl.sx * sl.cs, SIZE * sl.k * sl.sy * sl.cs);
 		}
 		// THE CUT LAYER: in the air on the way in (above its row, not in its landing beat, no rattle) with its sprite
 		// over the top cut line, or on the way out (the board exit from the press on, the roar's fall) over the bottom
@@ -1425,7 +1505,7 @@
 							loaded.map((n) => {
 								const sh = sheets.get(n)!;
 								const src = sh.drop[0].source;
-								return [n, { drop: sh.drop.length, idle: sh.idle?.length ?? 0, from: sh.from, squash: symbolAnim(n).squash, sheetPx: src.pixelWidth, resolution: src.resolution, mips: mipLevels(src), idleMips: sh.idle ? mipLevels(sh.idle[0].source) : 0 }];
+								return [n, { drop: sh.drop.length, idle: sh.idle?.length ?? 0, win: sh.win?.length ?? 0, winScale: sh.winScale, winMips: sh.win ? mipLevels(sh.win[0].source) : 0, from: sh.from, squash: symbolAnim(n).squash, sheetPx: src.pixelWidth, resolution: src.resolution, mips: mipLevels(src), idleMips: sh.idle ? mipLevels(sh.idle[0].source) : 0 }];
 							}),
 						),
 						/** the renderer's last tick time and style rate: the clip clocks are as of this instant */
@@ -1436,7 +1516,7 @@
 						mips: (() => {
 							const per = loaded.flatMap((n) => {
 								const sh = sheets.get(n)!;
-								return [mipLevels(sh.drop[0].source), ...(sh.idle ? [mipLevels(sh.idle[0].source)] : [])];
+								return [mipLevels(sh.drop[0].source), ...(sh.idle ? [mipLevels(sh.idle[0].source)] : []), ...(sh.win ? [mipLevels(sh.win[0].source)] : [])];
 							});
 							return { atlas: mipLevels(tex?.['L1.png']?.source), numerals: mipLevels(tex?.['num_0.png']?.source), plateNumerals: mipLevels(tex?.[PLATE_KEY_0]?.source), sheets: per.length, sheetsMipped: per.filter((m) => m > 1).length, minLevels: per.length ? Math.min(...per) : 0, webgl: renderer?.context?.webGLVersion ?? null };
 						})(),
@@ -1445,8 +1525,10 @@
 							const sl = live.get(c.id);
 							return {
 								id: c.id, name: c.name, reel: c.reel, row: c.row, y: c.y, sx: c.scaleX, sy: c.scaleY, landAt: c.landAt, state: c.state,
-								mode: sl ? ['static', 'drop', 'idle'][sl.mode] : 'none', frame: sl?.frame ?? -1, clock: sl?.clock ?? 0,
+								mode: sl ? ['static', 'drop', 'idle', 'win'][sl.mode] : 'none', frame: sl?.frame ?? -1, clock: sl?.clock ?? 0,
 								texW: sl?.tex?.orig.width ?? 0, texLabel: sl?.tex?.label ?? null,
+								/** WIN_SHEET: the cluster's presentation time, the drawn canvas scale, the sprite's board px size, rotation */
+								winAt: c.winAt, cs: sl?.csDrawn ?? 1, w: sl?.s.width ?? 0, h: sl?.s.height ?? 0, rot: c.rot, alpha: c.alpha,
 								/** the drawn tile sprite's screen rect (frame_probe: the art inside the lattice openings) */
 								bounds: sl ? (({ x, y, width, height }) => ({ x, y, w: width, h: height }))(sl.s.getBounds()) : null,
 							};
@@ -1459,6 +1541,23 @@
 				configurable: true,
 				enumerable: true,
 			});
+			// WIN_SHEET probe (tools/manticore/symbols_probe.js ONLY=win), light enough to read every frame: the last sync's time
+			// and style rate, and every cell that is winning, popping or has won, as drawn: its clip, frame, texture, the canvas
+			// scale of the size applied, the drawn side over its rest side (= canvas x the cell's scale x the breath), the
+			// brightest shine strip drawn, the engine's two sweep opacities and its breath for the cell
+			(window as any).__manticore.winSheet = () => {
+				const out: { id: number; name: string; reel: number; row: number; state: string; winAt: number; mode: string; frame: number; tex: string | null; texW: number; cs: number; sx: number; rot: number; drawn: number; shine: number; a1: number; a2: number; pulse: number }[] = [];
+				for (const c of stateGame.cells) {
+					if (c.state !== 'win' && c.state !== 'removing' && !c.winAt) continue;
+					const sl = live.get(c.id);
+					if (!sl) continue;
+					let shine = 0;
+					if (sl.sh) for (let k = 0; k < SH_N; k += 1) shine = Math.max(shine, sl.sh.alpha[k]);
+					const fx = shineCells.get(c.id);
+					out.push({ id: c.id, name: c.name, reel: c.reel, row: c.row, state: c.state, winAt: c.winAt, mode: ['static', 'drop', 'idle', 'win'][sl.mode], frame: sl.frame, tex: sl.tex?.label ?? null, texW: sl.tex?.orig.width ?? 0, cs: sl.csDrawn, sx: c.scaleX, rot: c.rot, drawn: sl.s.width / (SIZE * sl.k), shine, a1: fx?.a ?? 0, a2: fx?.a2 ?? 0, pulse: fx?.pulse ?? 1 });
+				}
+				return { tick: now, rate, cells: out };
+			};
 			// WIN_FX probe: which look runs (DEV ?winfx=old|new), the pools and their peaks, the shines on the bus now
 			Object.defineProperty((window as any).__manticore, 'winfx', {
 				get: () => ({

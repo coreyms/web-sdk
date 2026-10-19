@@ -24,10 +24,15 @@ const pickStyle = (): WinFxStyle => {
 export const winFx = { style: pickStyle() };
 
 /** one cell's shine this frame: `band` the band centre in symbol widths (WIN_FX.shine.from .. to), `a` the band's
- *  opacity (0 = no band), `heat` the whole symbol's additive copy 0..1, `pulse` the breath (WIN_FX.breathe): a
- *  multiplier on the drawn size only, applied by the renderer so the engine writes no Cell field for it every frame
- *  (Cell.scaleX / scaleY keep the held winScale) */
-export type ShineCell = { band: number; a: number; heat: number; pulse: number };
+ *  opacity (0 = no band) for the FIRST sweep (as the cluster starts), `band2` / `a2` the same for the SECOND (as its count
+ *  lands), kept apart so the renderer can leave one out for a symbol with a win sheet (constants WIN_SHEET.shine; it
+ *  draws the stronger of the two it keeps, which for every other symbol is what one band of the stronger sweep always
+ *  was), `heat` the whole symbol's additive copy 0..1, `pulse` the breath (WIN_FX.breathe): a multiplier on the drawn
+ *  size only, applied by the renderer so the engine writes no Cell field for it every frame (Cell.scaleX / scaleY keep
+ *  the held winScale) */
+export type ShineCell = { band: number; a: number; band2: number; a2: number; heat: number; pulse: number };
+/** a shine bus entry with nothing lit */
+export const darkShine = (): ShineCell => ({ band: 0, a: 0, band2: 0, a2: 0, heat: 0, pulse: 1 });
 export const shineCells = new Map<number, ShineCell>();
 
 export type WinBurst = { reel: number; row: number; tint: number; seed: number; t0: number; rays: number; core: number; embers: number };
@@ -114,15 +119,22 @@ export const popPose = (u: number, base: number, dir: number, out: PopPose): Pop
 /** the u at which the pop phase starts (the burst's moment) */
 export const POP_AT = WIN_FX.pop.squashShare;
 
-/** the shine band at `el` style ms into a sweep: writes band / a into `out` (a = 0 outside the sweep) */
-export const sweepAt = (el: number, peak: number, out: ShineCell): void => {
+/** the shine band at `el` style ms into a sweep: writes band / a (`second`: band2 / a2) into `out` (left as it is
+ *  outside the sweep: the caller zeroes it first) */
+export const sweepAt = (el: number, peak: number, out: ShineCell, second = false): void => {
 	const S = WIN_FX.shine;
 	if (el < 0 || el >= S.sweepMs) return;
 	const v = el / S.sweepMs;
 	const ramp = v < S.rampShare ? v / S.rampShare : v > 1 - S.rampShare ? (1 - v) / S.rampShare : 1;
 	const a = peak * ramp;
-	if (a > out.a) {
+	const band = S.from + (S.to - S.from) * v;
+	if (second) {
+		if (a > out.a2) {
+			out.a2 = a;
+			out.band2 = band;
+		}
+	} else if (a > out.a) {
 		out.a = a;
-		out.band = S.from + (S.to - S.from) * v;
+		out.band = band;
 	}
 };

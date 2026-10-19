@@ -76,8 +76,8 @@ const skyAtBoot = sceneAtBoot || portraitSceneAtBoot;
 // TWO LOAD PHASES (pixi-svelte AssetsLoader). `preload: true` gates the landing screen: everything
 // the base game draws in its first seconds. `preload: false` keeps downloading behind the game.
 //
-// The static symbol atlas, the backdrop, numerals and audio manifests preload; the symbol drop and
-// idle sheets (4.4 MB phone tier, 13.6 MB full) are `preload: false` but are THE GATE (GATE_ORDER below, constants
+// The static symbol atlas, the backdrop, numerals and audio manifests preload; the symbol drop,
+// idle and win sheets (4.4 MB phone tier, 13.6 MB full) are `preload: false` but are THE GATE (GATE_ORDER below, constants
 // LOAD_GATE): loaded once the audio is in and waited for by PRESS ANYWHERE, up to its cap.
 const assets = {
 	// the ten static symbol tiles (the approved handoff art, lossless), the x2..x128 multiplier
@@ -204,6 +204,25 @@ const assets = {
 		src: tiered(
 			stamp(new URL('../../assets/sprites/mmSymbols/h1-idle.json', import.meta.url).href),
 			stamp(new URL('../../assets/sprites/mmSymbols/h1-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	// THE WIN SHEETS (constants WIN_SHEET; tools/pack_symbol_sheets.py CLIPS "win"): a symbol's own win clip, only for the
+	// symbols that have one (the crown and the helmet since 2026-10-19). Cells 1.5 x the normal cell (384 px, 192 on the phone tier).
+	// In THE GATE as its own group after the idle loops, so the game opens with them in. Frame names <code>-win-000.
+	mmWin_h1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/h1-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/h1-win-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmWin_m1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/m1-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/m1-win-half.json', import.meta.url).href),
 		),
 		preload: false,
 	},
@@ -619,6 +638,8 @@ if (phoneOnlyScreen()) {
 //           spin (game/assetGate.ts)
 //   drop    the symbols' drop sheets (a landing plays one on every spin)
 //   idle    the symbols' idle loops (until a symbol's sheets are in, its cells are frozen on the static tile)
+//   win     the win sheets of the symbols that have one (constants WIN_SHEET; until one is in, that symbol wins with the
+//           shared look, frozen on its frame like every other symbol)
 //   (LOAD_GATE.scatter false: the scatter's two sheets leave the gate for a group of their own straight after it)
 // THEN, once the gate and the audio are in (game/deferredLoad.ts loadDeferredInOrder): the creature's idle sheet and his
 // attacks (game/creatureLoad.ts, not in this table), then DEFERRED_ORDER below, then his alternates; pixi-svelte's
@@ -643,11 +664,12 @@ const deferredKeys = (prefix: string) =>
 		.map(([key]) => key);
 const SCATTER_SHEETS = ['mmDrop_s', 'mmIdle_s'];
 const notScatter = (keys: string[]) => (LOAD_GATE.scatter ? keys : keys.filter((key) => !SCATTER_SHEETS.includes(key)));
-export type LoadGroupName = 'plaque' | 'drop' | 'idle' | 'scatter' | 'night' | 'frameNight' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels';
+export type LoadGroupName = 'plaque' | 'drop' | 'idle' | 'win' | 'scatter' | 'night' | 'frameNight' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels';
 export const GATE_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
 	{ name: 'drop', keys: notScatter(deferredKeys('mmDrop_')) },
 	{ name: 'idle', keys: notScatter(deferredKeys('mmIdle_')) },
+	{ name: 'win', keys: deferredKeys('mmWin_') },
 ];
 export const DEFERRED_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	// the cheaper variant's scatter sheets (empty, so skipped, while they are in the gate)

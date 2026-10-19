@@ -1514,9 +1514,9 @@
   },
   "scale": "1",
   "fps": 30,
-  "encoding": "near-lossless 60",
+  "encoding": "q85",
   "fit": {
-   "source": "M1_persian-helmet/animation/idle",
+   "source": "M1_persian-helmet/animation/idle_r2",
    "sourcePx": 512,
    "box512": [
     60.565,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "02a66c45"
+  "pngHash": "5ac83605"
  }
 }
