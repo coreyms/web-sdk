@@ -29,7 +29,8 @@
 //               over charge_loop it ramps 0 to 1 over a big / super charge, and a LIT strike (the big / super one)
 //               keeps it at 1 from sting_hit f1 through the hold frame the hit lands on, then fades over the rig's
 //               three glow frames after it (sting_hit f7..f9, or sting_recrouch f1..f3; CREATURE.glow). A normal or
-//               scatter sting has no glow at all
+//               scatter sting has no glow at all. A lit strike leaves the crouch only on loop f12 or f1 (CREATURE.glowPhase,
+//               glowAim; a strike due on a frame just short of f12 waits one display frame for it: THE LANDING)
 //   snarl, growl   idle alternates in REAL time; the growl also answers a Mystery that awarded nothing
 //   POKE      a tap or click on his body while he and the game are idle plays a random snarl or growl (never the
 //             roar; the voice's own no repeat and rate rules), then a short cooldown; the idle roll stays quiet for a
@@ -221,6 +222,13 @@ export class Creature {
 	private crouchT = 0;
 	/** the crouch loop's clock rate: 1, or a little off it before a lit strike (aimCrouch) */
 	private crouchRate = 1;
+	/** the loop frame the crouch put on show on its last tick (0: none yet), the one a strike follows on from */
+	private crouchShown = 0;
+	/** THE LANDING (constants CREATURE.glowAim.landFrames): a lit strike came due short of an exit frame, so this tick
+	 *  shows f12 and the strike starts on the next one */
+	private landing = false;
+	/** the longest recent display frame, real ms (CREATURE.glowAim.tickDecay / tickCapMs) */
+	private tickMs = 0;
 	private stinging = false;
 	private hit: { start: number; more: boolean; lit: boolean } | null = null;
 	private lastBeat = 0;
@@ -758,12 +766,15 @@ export class Creature {
 		this.cue = this.cue && this.cue.at > now ? this.cue : null;
 		this.hit = null;
 		this.stinging = false;
+		this.landing = false;
 		this.glowA = 0;
 	}
 	private toCrouch(frame: number): void {
 		this.state = 'crouch';
 		this.crouchT = (frame - 1) * FRAME_MS;
 		this.crouchRate = 1;
+		this.crouchShown = 0;
+		this.landing = false;
 		if (this.glowT0 < 0) this.glowT0 = performance.now();
 	}
 	/** the cue's clip starts now, `late` real ms after it should have. False: nothing started (he was already down
@@ -805,6 +816,7 @@ export class Creature {
 		if (this.state === 'hidden' || !this.look) return;
 		const dt = this.last < 0 ? 0 : Math.max(0, now - this.last);
 		this.last = now;
+		this.tickMs = Math.max(Math.min(dt, CREATURE.glowAim.tickCapMs), this.tickMs * CREATURE.glowAim.tickDecay);
 		this.counters.ticks += 1;
 		const ts = Math.max(0.2, this.env.ts());
 		const on = this.enabled && this.placed && !this.veiled;
@@ -961,7 +973,14 @@ export class Creature {
 			this.crouchT += this.drawnClip === 'charge_loop' ? dt * ts * this.crouchRate : 0;
 			clip = 'charge_loop';
 			frame = (Math.floor(this.crouchT / FRAME_MS) % N.charge_loop) + 1;
-			if (this.hit && now >= this.hit.start) {
+			if (this.hit && now >= this.hit.start && this.mustLand(ts)) {
+				// THE LANDING: the frame on show cannot be followed by the strike's glow, so this tick shows f12 and the
+				// strike starts on the next one (that much further in: its hold frame keeps its time)
+				this.note('land', { from: this.crouchShown, lateMs: Math.round(now - this.hit.start) });
+				this.landing = true;
+				frame = N.charge_loop;
+				this.crouchT = (frame - 1) * FRAME_MS;
+			} else if (this.hit && now >= this.hit.start) {
 				this.strike(now);
 				clip = 'sting_hit';
 				frame = Math.min(N.sting_hit, Math.floor(this.run.t / FRAME_MS) + 1);
@@ -981,13 +1000,15 @@ export class Creature {
 				clip = 'sting_hit';
 				frame = CREATURE.crouchUpFrame + 1;
 			}
+			if (this.state === 'crouch') this.crouchShown = frame;
 		}
 		// THE GLOW, worked out once a tick after every change of state above (a strike that starts in the crouch is state
 		// `clip` on that same tick): over charge_loop the ramp of a big / super charge, none in a normal run's crouch; over
 		// a lit strike litAlpha. The ramp ends at glowT1, the tick sting_hit starts, so it is 1 on both sides of the cut
+		// (and on a landing's f12, however late that frame came)
 		this.glowA =
 			this.state === 'crouch'
-				? this.glowT1 > this.glowT0 && this.glowT0 >= 0 && now <= this.glowT1 + 50
+				? this.glowT1 > this.glowT0 && this.glowT0 >= 0 && (now <= this.glowT1 + 50 || this.landing)
 					? clamp01((now - this.glowT0) / (this.glowT1 - this.glowT0))
 					: 0
 				: this.state === 'clip'
@@ -1076,37 +1097,64 @@ export class Creature {
 	}
 
 	/** the crouch frame a charge_in hands over to (constants CREATURE.glowPhase): charge_loop f1, or, before a LIT strike,
-	 *  the frame that makes the loop's last frame before sting_hit its f12, so the strike's glow follows on from the
-	 *  frame the rig built it to follow (the glow add-on: from any other frame the light dips for a frame) */
+	 *  the frame that puts the loop on the aim point (aimShift) as sting_hit starts, so its last frame before the strike
+	 *  is f12 or f1 and the strike's glow follows on from the frame the rig built it to follow (the glow add-on: from any
+	 *  other frame the light dips for a frame) */
 	private crouchPhase(now: number): number {
 		const h = this.hit;
 		if (!this.glowPhase || !h || !h.lit) return 1;
 		const ts = Math.max(0.2, this.env.ts());
-		const frames = Math.round(((h.start - now) * ts) / FRAME_MS);
-		if (frames < N.charge_loop) return 1;
-		return 1 + ((N.charge_loop - (frames % N.charge_loop)) % N.charge_loop);
+		const left = ((h.start - now) * ts) / FRAME_MS;
+		if (Math.round(left) < N.charge_loop) return 1;
+		const L = N.charge_loop;
+		return 1 + (((Math.round(this.aimShift(ts) - left) % L) + L) % L);
+	}
+	/** THE AIM POINT, loop frames past the f12 to f1 seam (constants CREATURE.glowAim.edge): the frame on show as a strike
+	 *  comes due is the one the last display frame drew, up to a display frame's worth of loop frames before this point.
+	 *  Half that past the seam puts the seam in the middle of that span, so the frame is f12 or f1 either way; never
+	 *  closer than `edge` to the end of f1, so no frame before the strike is f2 */
+	private aimShift(ts: number): number {
+		return Math.min((this.tickMs * ts) / FRAME_MS / 2, 1 - CREATURE.glowAim.edge);
 	}
 	/** ALREADY DOWN when a lit strike is planned (a big / super after normal stings: the charge comes in the crouch, so
 	 *  no phase can be picked): the loop runs a little fast or slow until the strike (at most CREATURE.glowAim.maxRate
-	 *  off 1) so that the strike still leaves it on f12 or f1. A rate it would need beyond that is not used: the loop runs as
-	 *  ever. Also fine tunes the phase picked at charge_in's end. Presentation only: the strike's time is the board's */
+	 *  off 1) so that it is on the aim point (aimShift) as sting_hit starts and the strike leaves it on f12 or f1. A rate it
+	 *  would need beyond that is not used: the loop runs as ever. Also fine tunes the phase picked at charge_in's end.
+	 *  Presentation only: the strike's time is the board's */
 	private aimCrouch(now: number): void {
+		const was = this.crouchRate;
 		this.crouchRate = 1;
 		const h = this.hit;
 		if (!this.glowPhase || !h || !h.lit || this.state !== 'crouch') return;
 		const ts = Math.max(0.2, this.env.ts());
 		const left = ((h.start - now) * ts) / FRAME_MS; // loop frames until sting_hit starts
 		if (left < CREATURE.glowAim.minFrames) return;
-		const at = this.crouchT / FRAME_MS + left; // where the loop would be then (frames from its f1)
+		// WHERE THE LOOP IS NOW. Called between two ticks (a stingBeat), the clock was last moved at the last tick and the
+		// next one moves it on from there: the time since is counted in. Until 2026-10-19 it was not, so the loop came to
+		// the strike up to a display frame late (likely why the old aim at the end of f1 drew f2 now and then in chain8 and
+		// chain9, turbo 1 super: that super is aimed from its beat, between two ticks)
+		const since = this.drawnClip === 'charge_loop' && this.last >= 0 ? Math.max(0, now - this.last) : 0;
+		const pos = (this.crouchT + since * ts * was) / FRAME_MS;
 		const L = N.charge_loop;
-		// the strike starts as the loop goes from f12 to f1, the middle of the two frames the strike's glow can follow on from
-		// (its last frame drawn is f12 or f1, a frame of room either way): the nearest such point. Until 2026-10-18 the END of
-		// f1, the late edge of that pair: since sting r2 the strike's lead has the trail's 100 ms flight in it, and the display's
-		// own tick then drew f2 now and then (a frame of glow at 0.55 to 0.65; chain8 and chain9, turbo 1 super)
-		const goal = Math.round(at / L) * L;
-		const rate = (goal - this.crouchT / FRAME_MS) / left;
-		if (Math.abs(rate - 1) <= CREATURE.glowAim.maxRate) this.crouchRate = rate;
-		this.note('aim', { left: Math.round(left), rate: Math.round(rate * 1000) / 1000, used: this.crouchRate !== 1 });
+		const shift = this.aimShift(ts);
+		// the nearest aim point to where the loop would be then (frames from its f1)
+		const goal = Math.round((pos + left - shift) / L) * L + shift;
+		const rate = (goal - pos) / left;
+		const used = Math.abs(rate - 1) <= CREATURE.glowAim.maxRate;
+		if (used) this.crouchRate = rate;
+		// the next tick moves the clock from the last one at the new rate
+		this.crouchT = pos * FRAME_MS - since * ts * this.crouchRate;
+		this.note('aim', { left: Math.round(left), rate: Math.round(rate * 1000) / 1000, used, shift: Math.round(shift * 100) / 100 });
+	}
+	/** THE LANDING (constants CREATURE.glowAim.landFrames): a lit strike has come due on a loop frame its glow cannot
+	 *  follow on from (a late or uneven display frame jumped the loop past the aim's window), short of f12 by no more
+	 *  than landFrames or a display frame's worth of loop frames: it waits a frame for f12. Once per strike */
+	private mustLand(ts: number): boolean {
+		const h = this.hit;
+		const A = CREATURE.glowAim;
+		if (!h || !h.lit || !this.glowPhase || this.landing || this.crouchShown === 0) return false;
+		if ((A.exitFrames as readonly number[]).includes(this.crouchShown)) return false;
+		return N.charge_loop - this.crouchShown <= Math.max(A.landFrames, Math.ceil((this.tickMs * ts) / FRAME_MS));
 	}
 
 	/** the planned strike starts (from the crouch, from what is left of charge_in, or straight after the last one) */
@@ -1116,6 +1164,7 @@ export class Creature {
 		const ts = Math.max(0.2, this.env.ts());
 		this.start('sting_hit', now, Math.min((now - h.start) * ts, WINDUP.sting_hit));
 		this.crouchRate = 1;
+		this.landing = false;
 		this.run.toCrouch = h.more;
 		this.run.lit = h.lit && !!this.glowOver.sting_hit;
 		this.stinging = h.more;

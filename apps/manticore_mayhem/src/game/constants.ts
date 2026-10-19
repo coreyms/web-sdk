@@ -2482,7 +2482,21 @@ export const CHAIN_SOUND = {
 //             picked), the crouch loop runs at most maxRate faster or slower than 1 until the strike so that it still
 //             leaves the loop on f1 (a super after two normal stings: about 4 %); a rate beyond that is not used. Only
 //             with minFrames or more loop frames left. Presentation only: the strike's time is the board's.
-//   poke      (Corey 2026-10-13 14:37) a tap or click on his body while he and the game are idle plays one of `clips`
+//             THE EXIT (2026-10-19, Corey "3. Yes": the decimus host's turbo 2 big sting left the crouch on f11). The
+//             loop frame on show when the strike comes due is the one the last display frame drew, up to a display
+//             frame's worth of loop frames before the aim point (two at turbo 2 at 60 Hz, more on a slower host), so:
+//               exitFrames  the loop frames a lit strike may follow on from (the rig built its glow to follow f12 or f1)
+//               edge        the aim point sits half a display frame's worth of loop frames past the f12 to f1 seam, so
+//                           the frames either side of the strike are both exit frames; never closer than `edge` loop
+//                           frames to the end of f1 (no frame drawn before the strike is f2)
+//               landFrames  THE LANDING: a strike that comes due while the frame on show is short of f12 by this many
+//                           loop frames or fewer (or by no more than one display frame's worth, if that is more) waits
+//                           one display frame: that frame shows f12, the strike starts on the next one, that much
+//                           further into sting_hit, so its hold frame still lands on the board's beat. Further away
+//                           (an aim that could not be used) the strike starts as ever
+//               tickDecay, tickCapMs   the display frame the two above read: the longest recent one, falling by
+//                           tickDecay each frame, no frame counted above tickCapMs (a hidden tab's gap)
+//   poke     (Corey 2026-10-13 14:37) a tap or click on his body while he and the game are idle plays one of `clips`
 //             at random (snarl or growl, NEVER the roar), with the voice's own rules (never the take that played last,
 //             a random rate). cooldownMs: REAL ms after that clip has ended before he takes another poke.
 //             rollQuietMs: REAL ms after it has ended before the idle roll may play an alternate again (the poke
@@ -2661,7 +2675,7 @@ export const CREATURE = {
 	crouchUpFrame: 13,
 	glow: { strength: 1, fadeMs: 100 },
 	glowPhase: true,
-	glowAim: { maxRate: 0.12, minFrames: 12 },
+	glowAim: { maxRate: 0.12, minFrames: 12, exitFrames: [12, 1], edge: 0.05, landFrames: 2, tickDecay: 0.9, tickCapMs: 100 },
 	poke: {
 		on: true,
 		clips: ['snarl', 'growl'] as const,
