@@ -86,6 +86,9 @@ CLIPS = {
     # M2 REVISION 2 (Corey 2026-10-19 12:37 "Dagger looks good"): end-over-end flip into a slash with an arc, longer
     # landing quiver, idle lift with an edge glint. Replaces drop/ and idle/
     "M2": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
+    # M3 REVISION 2 (Corey 2026-10-19 14:45 "Challice looks good"): a toast tilt that spills wine in red drops with the
+    # emeralds flaring, a landing rock with a bigger splash, an idle rock while the wine swirls. Replaces drop/ and idle/
+    "M3": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
     "L3": {"drop": "drop", "idle": None},  # no idle delivered yet
     # REVISION 2 (2026-10-19, Stake's "The symbols are poorly animated"; Corey 10:11 "The crown looks much better"): the
     # readable landing and idle, and a WIN clip of its own (NOTES.md "Revision 2" in the symbol's animation folder)

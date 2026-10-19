@@ -208,7 +208,7 @@ const assets = {
 		preload: false,
 	},
 	// THE WIN SHEETS (constants WIN_SHEET; tools/pack_symbol_sheets.py CLIPS "win"): a symbol's own win clip, only for the
-	// symbols that have one (the crown, the helmet and the dagger since 2026-10-19). Cells 1.5 x the normal cell (384 px, 192 on the phone tier).
+	// symbols that have one (the crown, the helmet, the dagger and the chalice since 2026-10-19). Cells 1.5 x the normal cell (384 px, 192 on the phone tier).
 	// In THE GATE as its own group after the idle loops, so the game opens with them in. Frame names <code>-win-000.
 	mmWin_h1: {
 		type: 'sprites',
@@ -231,6 +231,14 @@ const assets = {
 		src: tiered(
 			stamp(new URL('../../assets/sprites/mmSymbols/m2-win.json', import.meta.url).href),
 			stamp(new URL('../../assets/sprites/mmSymbols/m2-win-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmWin_m3: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/m3-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/m3-win-half.json', import.meta.url).href),
 		),
 		preload: false,
 	},

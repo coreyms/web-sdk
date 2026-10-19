@@ -794,8 +794,8 @@
   },
   "m3-drop-033": {
    "frame": {
-    "x": 256,
-    "y": 1024,
+    "x": 0,
+    "y": 0,
     "w": 256,
     "h": 256
    },
@@ -818,8 +818,8 @@
   },
   "m3-drop-034": {
    "frame": {
-    "x": 512,
-    "y": 1024,
+    "x": 0,
+    "y": 0,
     "w": 256,
     "h": 256
    },
@@ -842,8 +842,8 @@
   },
   "m3-drop-035": {
    "frame": {
-    "x": 768,
-    "y": 1024,
+    "x": 0,
+    "y": 0,
     "w": 256,
     "h": 256
    },
@@ -866,8 +866,8 @@
   },
   "m3-drop-036": {
    "frame": {
-    "x": 1024,
-    "y": 1024,
+    "x": 0,
+    "y": 0,
     "w": 256,
     "h": 256
    },
@@ -890,8 +890,8 @@
   },
   "m3-drop-037": {
    "frame": {
-    "x": 1280,
-    "y": 1024,
+    "x": 0,
+    "y": 0,
     "w": 256,
     "h": 256
    },
@@ -914,8 +914,8 @@
   },
   "m3-drop-038": {
    "frame": {
-    "x": 1536,
-    "y": 1024,
+    "x": 0,
+    "y": 0,
     "w": 256,
     "h": 256
    },
@@ -938,200 +938,8 @@
   },
   "m3-drop-039": {
    "frame": {
-    "x": 1792,
-    "y": 1024,
-    "w": 256,
-    "h": 256
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 256,
-    "h": 256
-   },
-   "sourceSize": {
-    "w": 256,
-    "h": 256
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-040": {
-   "frame": {
-    "x": 0,
-    "y": 1280,
-    "w": 256,
-    "h": 256
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 256,
-    "h": 256
-   },
-   "sourceSize": {
-    "w": 256,
-    "h": 256
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-041": {
-   "frame": {
-    "x": 256,
-    "y": 1280,
-    "w": 256,
-    "h": 256
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 256,
-    "h": 256
-   },
-   "sourceSize": {
-    "w": 256,
-    "h": 256
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-042": {
-   "frame": {
-    "x": 512,
-    "y": 1280,
-    "w": 256,
-    "h": 256
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 256,
-    "h": 256
-   },
-   "sourceSize": {
-    "w": 256,
-    "h": 256
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-043": {
-   "frame": {
-    "x": 768,
-    "y": 1280,
-    "w": 256,
-    "h": 256
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 256,
-    "h": 256
-   },
-   "sourceSize": {
-    "w": 256,
-    "h": 256
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-044": {
-   "frame": {
-    "x": 1024,
-    "y": 1280,
-    "w": 256,
-    "h": 256
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 256,
-    "h": 256
-   },
-   "sourceSize": {
-    "w": 256,
-    "h": 256
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-045": {
-   "frame": {
-    "x": 1280,
-    "y": 1280,
-    "w": 256,
-    "h": 256
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 256,
-    "h": 256
-   },
-   "sourceSize": {
-    "w": 256,
-    "h": 256
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-046": {
-   "frame": {
-    "x": 1536,
-    "y": 1280,
-    "w": 256,
-    "h": 256
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 256,
-    "h": 256
-   },
-   "sourceSize": {
-    "w": 256,
-    "h": 256
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-047": {
-   "frame": {
-    "x": 1792,
-    "y": 1280,
     "w": 256,
     "h": 256
    },
@@ -1194,15 +1002,7 @@
    "m3-drop-036",
    "m3-drop-037",
    "m3-drop-038",
-   "m3-drop-039",
-   "m3-drop-040",
-   "m3-drop-041",
-   "m3-drop-042",
-   "m3-drop-043",
-   "m3-drop-044",
-   "m3-drop-045",
-   "m3-drop-046",
-   "m3-drop-047"
+   "m3-drop-039"
   ]
  },
  "meta": {
@@ -1210,13 +1010,13 @@
   "format": "RGBA8888",
   "size": {
    "w": 2048,
-   "h": 1536
+   "h": 1280
   },
   "scale": "1",
   "fps": 30,
-  "encoding": "near-lossless 60",
+  "encoding": "q85",
   "fit": {
-   "source": "M3_royal-chalice/animation/drop",
+   "source": "M3_royal-chalice/animation/drop_r2",
    "sourcePx": 512,
    "box512": [
     81.123,
@@ -1277,6 +1077,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "7bd1532a"
+  "pngHash": "76dfae55"
  }
 }

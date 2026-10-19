@@ -794,8 +794,8 @@
   },
   "m3-drop-033": {
    "frame": {
-    "x": 128,
-    "y": 512,
+    "x": 0,
+    "y": 0,
     "w": 128,
     "h": 128
    },
@@ -818,8 +818,8 @@
   },
   "m3-drop-034": {
    "frame": {
-    "x": 256,
-    "y": 512,
+    "x": 0,
+    "y": 0,
     "w": 128,
     "h": 128
    },
@@ -842,8 +842,8 @@
   },
   "m3-drop-035": {
    "frame": {
-    "x": 384,
-    "y": 512,
+    "x": 0,
+    "y": 0,
     "w": 128,
     "h": 128
    },
@@ -866,8 +866,8 @@
   },
   "m3-drop-036": {
    "frame": {
-    "x": 512,
-    "y": 512,
+    "x": 0,
+    "y": 0,
     "w": 128,
     "h": 128
    },
@@ -890,8 +890,8 @@
   },
   "m3-drop-037": {
    "frame": {
-    "x": 640,
-    "y": 512,
+    "x": 0,
+    "y": 0,
     "w": 128,
     "h": 128
    },
@@ -914,8 +914,8 @@
   },
   "m3-drop-038": {
    "frame": {
-    "x": 768,
-    "y": 512,
+    "x": 0,
+    "y": 0,
     "w": 128,
     "h": 128
    },
@@ -938,200 +938,8 @@
   },
   "m3-drop-039": {
    "frame": {
-    "x": 896,
-    "y": 512,
-    "w": 128,
-    "h": 128
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 128,
-    "h": 128
-   },
-   "sourceSize": {
-    "w": 128,
-    "h": 128
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-040": {
-   "frame": {
-    "x": 0,
-    "y": 640,
-    "w": 128,
-    "h": 128
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 128,
-    "h": 128
-   },
-   "sourceSize": {
-    "w": 128,
-    "h": 128
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-041": {
-   "frame": {
-    "x": 128,
-    "y": 640,
-    "w": 128,
-    "h": 128
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 128,
-    "h": 128
-   },
-   "sourceSize": {
-    "w": 128,
-    "h": 128
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-042": {
-   "frame": {
-    "x": 256,
-    "y": 640,
-    "w": 128,
-    "h": 128
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 128,
-    "h": 128
-   },
-   "sourceSize": {
-    "w": 128,
-    "h": 128
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-043": {
-   "frame": {
-    "x": 384,
-    "y": 640,
-    "w": 128,
-    "h": 128
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 128,
-    "h": 128
-   },
-   "sourceSize": {
-    "w": 128,
-    "h": 128
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-044": {
-   "frame": {
-    "x": 512,
-    "y": 640,
-    "w": 128,
-    "h": 128
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 128,
-    "h": 128
-   },
-   "sourceSize": {
-    "w": 128,
-    "h": 128
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-045": {
-   "frame": {
-    "x": 640,
-    "y": 640,
-    "w": 128,
-    "h": 128
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 128,
-    "h": 128
-   },
-   "sourceSize": {
-    "w": 128,
-    "h": 128
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-046": {
-   "frame": {
-    "x": 768,
-    "y": 640,
-    "w": 128,
-    "h": 128
-   },
-   "rotated": false,
-   "trimmed": false,
-   "spriteSourceSize": {
-    "x": 0,
-    "y": 0,
-    "w": 128,
-    "h": 128
-   },
-   "sourceSize": {
-    "w": 128,
-    "h": 128
-   },
-   "pivot": {
-    "x": 0.5,
-    "y": 0.5
-   }
-  },
-  "m3-drop-047": {
-   "frame": {
-    "x": 896,
-    "y": 640,
     "w": 128,
     "h": 128
    },
@@ -1194,15 +1002,7 @@
    "m3-drop-036",
    "m3-drop-037",
    "m3-drop-038",
-   "m3-drop-039",
-   "m3-drop-040",
-   "m3-drop-041",
-   "m3-drop-042",
-   "m3-drop-043",
-   "m3-drop-044",
-   "m3-drop-045",
-   "m3-drop-046",
-   "m3-drop-047"
+   "m3-drop-039"
   ]
  },
  "meta": {
@@ -1210,13 +1010,13 @@
   "format": "RGBA8888",
   "size": {
    "w": 1024,
-   "h": 768
+   "h": 640
   },
   "scale": "0.5",
   "fps": 30,
-  "encoding": "q95",
+  "encoding": "q85",
   "fit": {
-   "source": "M3_royal-chalice/animation/drop",
+   "source": "M3_royal-chalice/animation/drop_r2",
    "sourcePx": 512,
    "box512": [
     81.123,
@@ -1277,6 +1077,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "0163f5ff"
+  "pngHash": "651a3414"
  }
 }
