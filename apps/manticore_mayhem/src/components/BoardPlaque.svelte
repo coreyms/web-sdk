@@ -7,8 +7,9 @@
 		| { type: 'spinWinStep'; amount: number; clear?: { n: number; s: string; w: number }; together?: number }
 		/** a cascade with no cascade straight after it is down, awaited. `toHud` (1.0.04, PLAQUE_STREAK): it was the
 		 *  spin's last clear, so the total flies to the HUD's WIN and this resolves as it arrives */
-		| { type: 'spinWinFinal'; amount: number; toHud?: boolean }
-		| { type: 'spinWinHide' }
+		| { type: 'spinWinFinal'; amount: number; toHud?: boolean; hold?: boolean }
+		/** `roundEnd` (finalWin, 1.0.04): a held win recap (PLAQUE_HOLD) stays through it */
+		| { type: 'spinWinHide'; roundEnd?: boolean }
 		/** THE WAR STANDARD FLAG ROW (1.0.04, STORYBOARD.md S3 to S7): the tease missed (dim, fade); the trigger pulse (the
 		 *  row becomes the badge); the feature's trigger beat (the badge flares); the beat is over (the badge goes) */
 		| { type: 'plaqueTease'; what: 'miss' | 'trigger' | 'beat' | 'out' };
@@ -75,7 +76,7 @@
 	import { getContext } from '../game/context';
 	import { layoutKind, portraitShippedK } from '../game/layoutSpec';
 	import { boardRegistration } from '../game/boardArt';
-	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_BADGE, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_FLAGS, PLAQUE_RECAP, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
+	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_BADGE, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_FLAGS, PLAQUE_HOLD, PLAQUE_RECAP, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
 	import { plaqueGlowTexture } from '../game/plaqueGlow';
 	import { teaseNow } from '../game/teaseState';
 	import { recap, recapLineOn } from '../game/recap.svelte';
@@ -582,7 +583,7 @@
 	const offerMesh = new PIXI.MeshSimple({ texture: PIXI.Texture.EMPTY, vertices: offerPos, uvs: offerUv, indices: offerIdx });
 	offerMesh.autoUpdate = false;
 	offerLayer.addChild(offerMesh);
-	const offerTex = { canvas: null as HTMLCanvasElement | null, texture: null as PIXI.Texture | null, placed: false, t0: -1, text: '', made: 0 };
+	const offerTex = { canvas: null as HTMLCanvasElement | null, texture: null as PIXI.Texture | null, placed: false, t0: -1, text: '', made: 0, font: 0, fontFull: 0, w: 0, maxW: 0 };
 	// over the explainer lines and the prompt, under the figures
 	root.addChildAt(offerLayer, root.getChildIndex(promptLayer) + 1);
 	const placeOffer = () => {
@@ -592,7 +593,9 @@
 		const Hh = bot - top;
 		let font = tipFontU * PLAQUE_RECAP.offerSizeOfTip;
 		const maxW = narrowW() * PLAQUE_RECAP.offerFill;
+		const fontFull = font;
 		if (widthAt1(text) * font > maxW) font = maxW / widthAt1(text);
+		if (import.meta.env.DEV) Object.assign(offerTex, { text, font, fontFull, w: widthAt1(text) * font, maxW });
 		const pad = TIPS.stripPad;
 		const W = widthAt1(text) * font + 2 * pad;
 		const res = (context.stateApp.pixiApplication?.renderer?.resolution ?? 1) * TIPS.texScale;
@@ -970,9 +973,38 @@
 	const bump = { t0: -1, ms: 1 };
 	/** THE MOVE TO THE HUD (PLAQUE_STREAK): lift, flight, pulse (real ms from t0); from / to in the root's units; r: the
 	 *  dark field's height there (the streak's sizes are shares of it); hud: the WIN readout's box */
-	const move = { phase: 'none' as 'none' | 'lift' | 'fly', t0: 0, lift: 1, fly: 1, from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, has: false, r: 1, pulseT0: -1, pulseMs: 1, hud: { w: 0, h: 0 } };
+	const move = { phase: 'none' as 'none' | 'lift' | 'fly', keep: false, t0: 0, lift: 1, fly: 1, from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, has: false, r: 1, pulseT0: -1, pulseMs: 1, hud: { w: 0, h: 0 } };
 	const rowsFade = fade(1);
 	let finalRun = 0;
+	/** THE WIN RECAP STAYS (PLAQUE_HOLD): a base spin's rows and total are still up after the streak, until the explainer
+	 *  lines' wait is over or the next spin's reveal */
+	let held = false;
+	/** the held text is fading out for the lines (releaseHold): the lines' run goes on through it */
+	let holdFading = false;
+	/** DEV: every hold and how it ended (tools/manticore/plaque_clear_probe.js) */
+	const holdLog: { at: number; amount: number; endAt: number; how: string }[] = [];
+	const holdEnd = (how: string) => {
+		if (!held) return;
+		held = false;
+		if (import.meta.env.DEV) {
+			const e = holdLog[holdLog.length - 1];
+			if (e && e.endAt < 0) {
+				e.endAt = performance.now();
+				e.how = how;
+			}
+		}
+	};
+	/** the held text goes (the explainer lines are coming): a quick fade, then the rows go as after any fade */
+	const releaseHold = () => {
+		if (!held) return;
+		holdEnd('lines');
+		holdFading = true;
+		showing = false;
+		// (real time: the figures' fades run on performance.now, not the lines' own clock)
+		fadeTo(figFade, 0, PLAQUE_HOLD.outMs);
+		fadeTo(rowsFade, 0, PLAQUE_HOLD.outMs);
+		fadeTo(crestFade, 1, real(BOARD_PLAQUE.crestBackMs));
+	};
 	/** DEV: every row and every move to the HUD (tools/manticore/plaque_clear_probe.js) */
 	const clearLog: { at: number; n: number; code: string; text: string; amount: number; together: number; start: number; land: number; countMs: number; countAt: number; countEnd: number }[] = [];
 	/** DEV: the row whose count is running (its countEnd is stamped when the count lands) */
@@ -980,6 +1012,7 @@
 	const moveLog: { at: number; queueMs: number; liftAt: number; flyAt: number; arriveAt: number; from: { x: number; y: number } | null; to: { x: number; y: number } | null; amount: number; skipped: boolean }[] = [];
 	const show = () => {
 		if (showing) return;
+		holdFading = false;
 		// a new spin's first figures: whatever the last one left (fading out) goes
 		rows.length = 0;
 		total.shown = false;
@@ -1001,6 +1034,9 @@
 		total.value = 0;
 		bump.t0 = -1;
 		move.phase = 'none';
+		move.keep = false;
+		holdEnd('clear');
+		holdFading = false;
 		showing = false;
 		fadeTo(figFade, 0, 0);
 		fadeTo(rowsFade, 1, 0);
@@ -1070,7 +1106,7 @@
 				total.value = value;
 			}
 		},
-		spinWinFinal: async ({ amount: value, toHud }) => {
+		spinWinFinal: async ({ amount: value, toHud, hold }) => {
 			const run = ++finalRun;
 			if (!toHud) {
 				// more of the spin to come (a swipe and its cascades): the total stays; the plain hold of before
@@ -1123,7 +1159,9 @@
 			move.lift = Math.max(1, real(PLAQUE_STREAK.liftMs));
 			move.fly = hud ? Math.max(PLAQUE_STREAK.flightMinRealMs, real(PLAQUE_STREAK.flightMs)) : 0;
 			move.phase = 'lift';
-			fadeTo(rowsFade, 0, real(PLAQUE_CLEARS.rowsOutMs));
+			// THE WIN RECAP STAYS (PLAQUE_HOLD): the rows and the total stay; the total pops as the streak leaves it
+			move.keep = !!hold && PLAQUE_HOLD.on;
+			if (!move.keep) fadeTo(rowsFade, 0, real(PLAQUE_CLEARS.rowsOutMs));
 			if (log) {
 				log.liftAt = move.t0;
 				log.flyAt = move.t0 + move.lift;
@@ -1137,6 +1175,17 @@
 			if (hud) {
 				move.pulseT0 = performance.now();
 				move.pulseMs = Math.max(1, real(PLAQUE_STREAK.pulseMs));
+			}
+			if (move.keep) {
+				// the text stays as it ended (the explainer lines' wait or the next spin's reveal takes it)
+				move.phase = 'none';
+				move.keep = false;
+				held = true;
+				if (import.meta.env.DEV) {
+					holdLog.push({ at: performance.now(), amount: value, endAt: -1, how: '' });
+					if (holdLog.length > 60) holdLog.splice(0, 30);
+				}
+				return;
 			}
 			clearNow();
 		},
@@ -1155,13 +1204,18 @@
 				if (fl.on && fl.outT0 < 0) fl.outT0 = now;
 			}
 		},
-		spinWinHide: () => {
+		spinWinHide: ({ roundEnd }) => {
 			finalRun += 1;
 			// a new reveal (or the round's end): the flag row and the badge of the spin before go
 			flagsReset();
 			bump.t0 = -1;
 			move.phase = 'none';
+			move.keep = false;
 			total.on = false;
+			// THE WIN RECAP STAYS (PLAQUE_HOLD): the round's end leaves it; a new reveal hands over as before
+			if (held && roundEnd) return;
+			holdEnd('spin');
+			holdFading = false;
 			if (!showing) {
 				rows.length = 0;
 				total.shown = false;
@@ -1383,7 +1437,7 @@
 		const ready = face.ready && day.texture !== PIXI.Texture.EMPTY && !!root.parent;
 		// the figures first: not while they are up or still fading out (the start delay counts from them gone)
 		// (1.0.04) the recap: the feature offer has the plaque instead, and the lines pause while the box is open
-		const want = ready && (idleNow || devHold || tipPending !== null) && !showing && figFade.v <= 0.001 && forced === null && !promptUpNow && (devHold || tipPending !== null || (!offerOn && !recapOpenNow));
+		const want = ready && (idleNow || devHold || tipPending !== null) && ((!showing && (figFade.v <= 0.001 || holdFading)) || held) && forced === null && !promptUpNow && (devHold || tipPending !== null || (!offerOn && !recapOpenNow));
 		if (ready && tipNeed.layout) {
 			// a new layout: a line on show is let go, the next one comes firstMs later
 			tipNeed.layout = false;
@@ -1464,6 +1518,8 @@
 				tipNote('gone', msg.index);
 			}
 		}
+		// THE WIN RECAP STAYS (PLAQUE_HOLD): the wait is over, the first line enters firstMs from now: the held text goes
+		if (held && (tipRun.phase === 'gap' || tipRun.phase === 'run')) releaseHold();
 		// a line hidden on its way keeps moving while it fades out (it never stops on the plaque)
 		if (tipRun.phase !== 'run' && msg.live) stepLine(now, false);
 		const ta = stepFade(tipFade, now) * TIPS.alpha;
@@ -2010,7 +2066,7 @@
 			lift = Math.min(1, el / move.lift);
 			move.phase = el < move.lift || move.fly <= 0 ? 'lift' : 'fly';
 		}
-		const totalAlpha = hidden ? 0 : fa * (forced !== null || total.shown ? 1 : 0) * (move.phase !== 'none' ? 1 - lift * lift : 1);
+		const totalAlpha = hidden ? 0 : fa * (forced !== null || total.shown ? 1 : 0) * (move.phase !== 'none' && !move.keep ? 1 - lift * lift : 1);
 		if (figures.alpha !== totalAlpha) figures.alpha = totalAlpha;
 		figures.visible = totalAlpha > 0.001;
 		if (crest.alpha !== ca) crest.alpha = ca;
@@ -2022,7 +2078,7 @@
 			if (u >= 1) bump.t0 = -1;
 			else s = Math.max(s, 1 + (SPIN_TOTAL.bumpScale - 1) * Math.sin(Math.PI * Math.max(0, u)));
 		}
-		if (move.phase !== 'none') s = Math.max(s, 1 + (PLAQUE_STREAK.liftScale - 1) * cubicOut(lift));
+		if (move.phase !== 'none') s = Math.max(s, 1 + (PLAQUE_STREAK.liftScale - 1) * (move.keep ? Math.sin(Math.PI * lift) : cubicOut(lift)));
 		if (figures.scale.x !== s) figures.scale.set(s);
 		rowsTick(now, hidden || forced !== null ? 0 : fa * ra);
 		flagsTick(now, hidden || forced !== null);
@@ -2079,6 +2135,9 @@
 				/** THE SPIN AMOUNT PLAQUE (tools/manticore/plaque_probe.js): the layout, every layer as drawn (screen px), the
 				 *  figures (text, glyphs, fit, each quad's four corners in screen px), the fades, the light, the tint */
 				plaque: () => ({
+					/** THE FEATURE RECAP OFFER (PLAQUE_RECAP): its words, its font (fontFull before any fit), its width and
+					 *  the room it has (offerFill of the field's narrowest width), plaque units */
+					offer: { text: offerTex.text, font: offerTex.font, fontFull: offerTex.fontFull, w: offerTex.w, maxW: offerTex.maxW, drawn: offerLayer.visible },
 					kind,
 					specKey,
 					parent: root.parent?.label ?? null,
@@ -2196,6 +2255,9 @@
 					log: moveLog.map((e) => ({ ...e })),
 					phase: move.phase,
 					pulse: move.pulseT0 >= 0,
+					/** THE WIN RECAP STAYS (PLAQUE_HOLD): held now, every hold (its end: 'lines', 'spin' or 'clear') */
+					held,
+					holds: holdLog.map((e) => ({ ...e })),
 					drawn: dots.filter((d) => d.core.visible).length,
 					constants: { ...PLAQUE_STREAK },
 				}),

@@ -317,6 +317,10 @@ const spinTotalWinAhead = (bookEvent: BookEvent, bookEvents: BookEvent[]): numbe
 	}
 	return null;
 };
+/** a feature start, a feature end or a max win between `bookEvent` and the round's end (THE WIN RECAP STAYS: only a
+ *  plain base game spin keeps its text, PLAQUE_HOLD) */
+const roundFeatureAhead = (bookEvent: BookEvent, bookEvents: BookEvent[]): boolean =>
+	bookEvents.slice(bookEvents.indexOf(bookEvent) + 1).some((e) => e.type === 'bonusStart' || e.type === 'freeSpinEnd' || e.type === 'wincap');
 const creatureWhat = (next: BookEvent | undefined) => (next?.type === 'swipe' ? 'swipe' : next?.type === 'roar' ? 'roar' : next?.type === 'sting' ? 'sting' : null);
 /** arm the cue for the feature that follows `bookEvent`'s drop; `after`: style ms this handler plays after the drop */
 const cueCreature = (bookEvent: BookEvent, bookEvents: BookEvent[], after: () => number = () => 0) => {
@@ -569,7 +573,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// WIN; the broadcast resolves as it arrives and the HUD gets the book's own setTotalWin amount then (its own
 			// count-up runs from there; setTotalWin writes the same number again). A skip resolves at once.
 			const hud = lastClearOfSpin(bookEvent, bookEvents) ? spinTotalWinAhead(bookEvent, bookEvents) : null;
-			await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin, toHud: hud !== null });
+			// THE WIN RECAP STAYS (1.0.04, PLAQUE_HOLD): a base game spin whose round has no feature start or max win ahead
+			// keeps its rows and total on the plaque after the streak
+			const hold = hud !== null && stateGame.gameType === 'basegame' && !roundFeatureAhead(bookEvent, bookEvents);
+			await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin, toHud: hud !== null, hold });
 			if (hud !== null && !capShown) stateBet.winBookEventAmount = hud;
 		}
 	},
@@ -917,7 +924,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.busy = false;
 		stateGame.spinWin = 0;
 		stateGame.relightAhead = false;
-		eventEmitter.broadcast({ type: 'spinWinHide' });
+		// the round's end: a base spin's held win recap stays (PLAQUE_HOLD), the rest as before
+		eventEmitter.broadcast({ type: 'spinWinHide', roundEnd: true });
 		eventEmitter.broadcast({ type: 'modePlaqueHide' });
 	},
 

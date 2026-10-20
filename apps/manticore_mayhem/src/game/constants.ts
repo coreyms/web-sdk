@@ -766,6 +766,20 @@ export const PLAQUE_STREAK = {
 	pulseColor: 0xffc45a,
 };
 
+/** THE WIN RECAP STAYS (1.0.04; Corey 2026-10-20: "On regular spins (not free spins), let's leave the text if there was
+ *  text for a win recap there, still animate the amount going to the Win, but just leave it until either idle timeout to
+ *  show text, or player hits spin"). A base game spin (Mystery and Super Ante included) whose round has no feature start
+ *  or max win ahead: the streak to the HUD's WIN plays as PLAQUE_STREAK, but the rows and the total stay on the plaque as
+ *  they ended (the total pops to PLAQUE_STREAK.liftScale and back over liftMs as the streak leaves it, instead of growing
+ *  and fading). They go when the explainer lines' idle wait is over (PLAQUE_TIPS.idleResumeMs from the board going idle,
+ *  the first line entering firstMs after: the text fades over outMs, REAL ms, at the start of that firstMs) or at the next
+ *  spin's reveal (spinWinHide, TIMINGS.winClearMs as before), whichever is first. A skip clears the plaque as before. Free
+ *  spins: unchanged (the text leaves with the streak). on: false is the behaviour before. */
+export const PLAQUE_HOLD = {
+	on: true,
+	outMs: 200,
+};
+
 /** THE WAR STANDARD FLAG ROW ON THE PLAQUE (1.0.04; images/anticipation_r2 NOTES.md r6, option B: Corey 2026-10-20 "R5 looks
  *  good for the plaque, let's just increase the size of the first 3 flags to fill more space"; STORYBOARD.md S3 to S7;
  *  components/BoardPlaque.svelte, art tools/build_plaque_flags.py). `{flag}{flag}{flag} | FS | SUPER | EPIC` across the
@@ -844,8 +858,10 @@ export const PLAQUE_BADGE = {
 export const PLAQUE_RECAP = {
 	lineMouse: 'Click the plaque to see your last spin',
 	lineTouch: 'Tap the plaque to see your last spin',
-	offerMouse: 'CLICK TO SEE EVERY FREE SPIN',
-	offerTouch: 'TAP TO SEE EVERY FREE SPIN',
+	/** (Corey 2026-10-20: "After freespins where it says "Tap to see every free spin" change it to say, "Tap/Click for
+	 *  Round Recap""; the verb per input as the explainer line's) */
+	offerMouse: 'CLICK FOR ROUND RECAP',
+	offerTouch: 'TAP FOR ROUND RECAP',
 	offerSizeOfTip: 0.8,
 	offerFill: 0.86,
 	offerInMs: 220,
