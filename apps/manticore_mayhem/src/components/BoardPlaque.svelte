@@ -447,7 +447,7 @@
 		return { ku: span(-hw, bot, hw, bot) / (2 * hw), kv: span(0, top, 0, bot) / (bot - top) };
 	};
 	const computePlans = () => {
-		tipTexts = tipLines(pointerIsMouse());
+		tipTexts = tipLines(pointerIsMouse(), stateBet.activeBetModeKey === 'SUPER_ANTE');
 		tipCtx.font = fontAt(REF);
 		capK = (tipCtx.measureText('H').actualBoundingBoxAscent || REF * 0.7) / REF;
 		planK = cssPerUnit().ku;
@@ -475,7 +475,7 @@
 	 *  frame; freeLineTexture destroys it when the line ends). `fontCss`: DEV, a size on screen to draw it at instead */
 	const drawTip = (index: number, fontCss: number | null = null): boolean => {
 		const text = tipTexts[index];
-		if (text === undefined) return false;
+		if (text === undefined || text === '') return false;
 		const [, top, bot] = tipBox;
 		const Hh = bot - top;
 		const font = fontCss !== null && planK > 0 ? fontCss / planK : tipFontU;
@@ -1282,7 +1282,8 @@
 			}
 		} else if (tipRun.phase === 'off') {
 			tipRun.phase = 'wait';
-			tipRun.t = now + (tipPending !== null ? 0 : TIPS.startDelayMs);
+			// the first line of the spell enters idleResumeMs after the board went idle (this wait, then firstMs)
+			tipRun.t = now + (tipPending !== null ? 0 : Math.max(0, TIPS.idleResumeMs - pace.firstMs));
 			tipNote('wait', -1);
 		} else if (tipRun.phase === 'wait') {
 			if (now >= tipRun.t) {
@@ -1311,6 +1312,10 @@
 				if (startLine(now, at.index, false, null)) {
 					if (at.usesOther) tipRun.other += 1;
 					tipRun.slot += 1;
+				} else if (tipTexts[at.index] === '') {
+					// a line this mode skips (Super Ante's line 6): straight on to the next
+					tipRun.slot += 1;
+					tipNote('skip', at.index);
 				} else tipRun.t = now + 250;
 			}
 		} else if (tipRun.phase === 'run') {

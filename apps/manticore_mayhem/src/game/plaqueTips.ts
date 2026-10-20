@@ -30,7 +30,10 @@ export type PlaqueEdgeArt = { tex: readonly [number, number]; top: number; botto
  *  as the figures, so the lines lean with the plaque. */
 export const PLAQUE_TIPS = {
 	// ---- the cadence ----
-	/** the board settles (idle, the spin amount gone from the plaque) this long before the cadence starts (r1's delay) */
+	/** THE LINES COME BACK this long after the board goes idle (1.0.04, Corey 2026-10-20: "maybe after 4 seconds"): the
+	 *  first line of an idle spell enters idleResumeMs after the board settles (was startDelayMs 1200 + firstMs 800) */
+	idleResumeMs: 4000,
+	/** (before 1.0.04: the board settles this long before the cadence starts; idleResumeMs replaces it) */
 	startDelayMs: 1200,
 	/** "hidden as soon as a spin starts": a line on show fades out this fast when the board stops being idle */
 	hideMs: 120,
@@ -123,13 +126,15 @@ export const pointerIsMouse = (): boolean =>
 /** THE TWELVE LINES, Corey's words (brief of 2026-10-17; 11:29: the lines that began "His" begin "Manticore's"),
  *  line 1 first. `mouse`: the player has a mouse (Click, not Tap). Line 1 is the social wording r1 had for stake.us
  *  ("see its wins"), now on every site, so it needs no soc(); no line has a word of rules_probe.js SOCIAL_BANNED. */
-export const tipLines = (mouse: boolean): string[] => [
+/** `superAnte` (1.0.04): in Super Ante 4 or 5 War Standards are a Super (game_calculations.py bonus_type_from_scatters),
+ *  so line 5 says so and line 6 is skipped (an empty line is never shown: the cadence goes on to the next) */
+export const tipLines = (mouse: boolean, superAnte = false): string[] => [
 	mouse ? 'Click a symbol to see its wins' : 'Tap a symbol to see its wins',
 	'5 touching symbols make a cluster',
 	'A win on a lit tile doubles it',
 	'Wilds fill in for all but the War Standard',
-	'4 War Standards: Free Spins',
-	'5 War Standards: Super Free Spins',
+	superAnte ? '4 or 5 War Standards: Super Free Spins' : '4 War Standards: Free Spins',
+	superAnte ? '' : '5 War Standards: Super Free Spins',
 	'6 or more War Standards: Epic Free Spins',
 	"Manticore's sting can reveal War Standards",
 	"Manticore's sting turns symbols Wild",
