@@ -48,6 +48,7 @@ import {
 	CHAIN_SOUND,
 	PLAYGROUND_PX,
 	ANTICIPATION,
+	MYSTERY_SUN,
 	cellOf,
 	reelOf,
 	rowOf,
@@ -762,14 +763,24 @@ export const revealBoard = async (
 	// outside a Mystery tease, so `wait` below went negative and every column of a normal reveal fell at once
 	const holdStart = Array.from({ length: GRID }, (_, reel) => reel * DROP.columnStaggerMs);
 	let carried = 0;
+	// THE MYSTERY'S SUN (MYSTERY_SUN, Corey 2026-10-20 "Yes the mystery should also use the Sun anticipation"): with the
+	// sun on and chain 'landing', a teased column's hold starts no earlier than the previous teased column's landing (the
+	// regular spin's timing fix); its hold length and its slow fall stay ANTICIPATION's. MYSTERY_SUN.on false: as before
+	const sunChain = MYSTERY_SUN.on && MYSTERY_SUN.chain === 'landing';
+	const mysteryFall = dropDuration(GRID - 1 - stackedAbove(GRID - 1, GRID)) * ANTICIPATION.fallSlow;
+	const mysteryLand = Array.from({ length: GRID }, () => 0);
 	if (animate && anticipation?.length) {
 		let scale = 1;
+		let prevLand = 0;
 		for (let reel = 0; reel < GRID; reel += 1) {
 			holdStart[reel] = reel * DROP.columnStaggerMs + carried;
 			if (!anticipation[reel]) continue;
+			if (sunChain) holdStart[reel] = Math.max(holdStart[reel], prevLand);
 			holdMs[reel] = Math.max(ANTICIPATION.holdFloorMs, ANTICIPATION.holdMs * scale);
 			scale *= ANTICIPATION.holdDecay;
-			carried += holdMs[reel];
+			carried = holdStart[reel] + holdMs[reel] - reel * DROP.columnStaggerMs;
+			mysteryLand[reel] = holdStart[reel] + holdMs[reel] + (GRID - 1) * DROP.rowStaggerMs + LAND_MS + mysteryFall;
+			prevLand = mysteryLand[reel];
 		}
 	}
 	const teased = holdMs.some((ms) => ms > 0);
@@ -779,6 +790,16 @@ export const revealBoard = async (
 	revealTease.hit = !!plan && plan.hit;
 	revealTease.scatters = plan ? plan.scatters.slice() : [];
 	revealTease.plan = plan;
+	// the Mystery's tease as a plan the sun reads (presentation only; the handler's hit / miss beat stays the derived
+	// tease's: `teased` is false here)
+	revealTease.mystery = false;
+	if (teased && MYSTERY_SUN.on) {
+		const mp = mysteryPlan(board, holdStart, holdMs, mysteryLand, mysteryFall);
+		if (mp) {
+			revealTease.plan = mp;
+			revealTease.mystery = true;
+		}
+	}
 	const teaseOf = new Map<number, TeaseColumn>();
 	for (const col of plan?.columns ?? []) teaseOf.set(col.reel, col);
 
@@ -822,7 +843,16 @@ export const revealBoard = async (
 			await waitStyle(hold);
 		}
 		let onFrame: ((now: number) => void) | undefined;
-		if (teased) onFrame = (now) => tickAnticipation(now, holdStart, holdMs);
+		if (teased) {
+			revealTease.origin = 0;
+			onFrame = (now) => {
+				if (revealTease.mystery && (!revealTease.origin || revealTease.rate !== ts())) {
+					revealTease.rate = ts();
+					revealTease.origin = performance.now() - now / revealTease.rate;
+				}
+				tickAnticipation(now, holdStart, holdMs);
+			};
+		}
 		else if (plan) {
 			// the breathing scatters: from the moment the third is revealed, each once its own landing beat is over
 			const breathe = new Map<number, number>(); // cell id -> style ms its landing beat ends
@@ -893,7 +923,43 @@ export type TeasePlan = {
 	hit: boolean;
 };
 /** the last reveal's derived tease, for the handler's hit / miss beat (and the probes) */
-export const revealTease = { teased: false, hit: false, scatters: [] as CellIndex[], plan: null as TeasePlan | null, origin: 0, rate: 1 };
+export const revealTease = { teased: false, hit: false, scatters: [] as CellIndex[], plan: null as TeasePlan | null, origin: 0, rate: 1, mystery: false };
+
+/** THE MYSTERY'S TEASE AS A PLAN (MYSTERY_SUN): the book's teased columns with the holds revealBoard planned, in the
+ *  derived tease's shape, so components/SunTease.svelte and game/teaseState.ts read it the same way. The sun shows on a
+ *  column for its whole hold (as the Mystery's searchlight did; the first column's hold starts while the War Standards
+ *  in columns 0 to 2 are still falling, and their threads join as they land). Never a hit on the reveal itself: the Mystery's
+ *  extra War Standards are stung in after it (bookEventHandlerMap sting). */
+const mysteryPlan = (board: SymbolName[][], holdStart: number[], holdMs: number[], land: number[], fall: number): TeasePlan | null => {
+	const scatters: { reel: number; row: number }[] = [];
+	board.forEach((column, reel) => column.forEach((name, row) => name === 'S' && scatters.push({ reel, row })));
+	scatters.sort((a, b) => a.reel - b.reel || b.row - a.row);
+	const third = scatters[ANTICIPATION_TEASE.triggerAfter - 1];
+	let tThird = 0;
+	if (third) {
+		const fromY = stackedAbove(third.row, GRID);
+		const start = holdMs[third.reel] ? holdStart[third.reel] + holdMs[third.reel] : third.reel * DROP.columnStaggerMs;
+		tThird = start + (GRID - 1 - third.row) * DROP.rowStaggerMs + dropDuration(third.row - fromY) * revealedAt(fromY, third.row);
+	}
+	const bottomFrom = stackedAbove(GRID - 1, GRID);
+	const columns: TeaseColumn[] = [];
+	let i = 0;
+	for (let reel = 0; reel < GRID; reel += 1) {
+		if (!holdMs[reel]) continue;
+		const launch = holdStart[reel] + holdMs[reel];
+		columns.push({ reel, i, show: holdStart[reel], launch, fall, land: land[reel], fromY: bottomFrom, toY: GRID - 1 });
+		i += 1;
+	}
+	if (!columns.length) return null;
+	const scatterLand = scatters.map(({ reel, row }) => {
+		const fromY = stackedAbove(row, GRID);
+		const held = holdMs[reel] > 0;
+		const start = held ? holdStart[reel] + holdMs[reel] : reel * DROP.columnStaggerMs + (holdStart[reel] - reel * DROP.columnStaggerMs);
+		return start + (GRID - 1 - row) * DROP.rowStaggerMs + dropDuration(row - fromY) * (held ? ANTICIPATION.fallSlow : 1);
+	});
+	const cells = scatters.map((s) => cellOf(s.reel, s.row));
+	return { tThird, columns, scatters: cells, scatterLand, breathe: [], hit: false };
+};
 
 /** the hold of the i-th teased column, style ms */
 export const teaseHoldMs = (i: number) => Math.max(ANTICIPATION_TEASE.holdFloorMs, ANTICIPATION_TEASE.holdMs * Math.pow(ANTICIPATION_TEASE.holdDecay, i));

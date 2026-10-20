@@ -135,7 +135,8 @@
 			if (st.phase === 'hold') {
 				holding = true;
 				qq = smooth(st.holdProgress);
-				const rise = smooth((t - c.show) / S.riseMs);
+				// a short hold (the Mystery's: 700 ms down to 317, divided by turbo) rises in half its hold at most
+				const rise = smooth((t - c.show) / Math.max(1, Math.min(S.riseMs, (c.launch - c.show) * 0.5)));
 				e = rise;
 				y = S.fromCells * CELL + (yRest - S.fromCells * CELL) * rise - S.liftCells * CELL * qq;
 				build = c.i + st.holdProgress;

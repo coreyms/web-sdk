@@ -34,9 +34,11 @@ export type TeaseNow = {
 	ended: boolean;
 	/** held columns in this tease */
 	held: number;
+	/** this is a Mystery spin-in's tease (MYSTERY_SUN): its extra War Standards come by sting after the reveal */
+	mystery: boolean;
 };
 
-const now: TeaseNow = { active: false, t: -1, landed: 0, triggerAfter: ANTICIPATION_TEASE.triggerAfter, holdIndex: -1, reel: -1, phase: 'none', holdProgress: 0, fallProgress: 0, outcome: 'pending', ended: true, held: 0 };
+const now: TeaseNow = { active: false, t: -1, landed: 0, triggerAfter: ANTICIPATION_TEASE.triggerAfter, holdIndex: -1, reel: -1, phase: 'none', holdProgress: 0, fallProgress: 0, outcome: 'pending', ended: true, held: 0, mystery: false };
 
 /** the style ms of the drop right now (the plan's clock), -1 before its first frame */
 export const teaseClock = (): number => (revealTease.origin > 0 ? (performance.now() - revealTease.origin) * revealTease.rate : -1);
@@ -51,7 +53,8 @@ export const teaseEnd = (): number => {
 export const teaseNow = (): TeaseNow => {
 	const plan = revealTease.plan;
 	now.triggerAfter = ANTICIPATION_TEASE.triggerAfter;
-	if (!revealTease.teased || !plan || !plan.columns.length) {
+	now.mystery = revealTease.mystery;
+	if ((!revealTease.teased && !revealTease.mystery) || !plan || !plan.columns.length) {
 		Object.assign(now, { active: false, t: -1, landed: 0, holdIndex: -1, reel: -1, phase: 'none', holdProgress: 0, fallProgress: 0, outcome: 'pending', ended: true, held: 0 });
 		return now;
 	}
@@ -63,7 +66,9 @@ export const teaseNow = (): TeaseNow => {
 	now.landed = landed;
 	const last = plan.columns[plan.columns.length - 1];
 	const over = t < 0 || t >= teaseEnd() || stateGame.skipping;
-	now.outcome = landed > ANTICIPATION_TEASE.triggerAfter ? 'hit' : t >= last.land ? 'miss' : 'pending';
+	// a Mystery's reveal never lands a fourth: 'nothing' ends as a miss, Super and Epic stay 'pending' (the stings decide)
+	const missed = !revealTease.mystery || stateGame.mysteryOutcome === 'nothing';
+	now.outcome = landed > ANTICIPATION_TEASE.triggerAfter ? 'hit' : t >= last.land && missed ? 'miss' : 'pending';
 	now.holdIndex = -1;
 	now.reel = -1;
 	now.holdProgress = 0;

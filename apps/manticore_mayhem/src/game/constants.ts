@@ -1375,6 +1375,19 @@ export const SUN_TEASE = {
 	haloTint: 0xffbf4d,
 } as const;
 
+// ---- THE MYSTERY'S SUN (Corey 2026-10-20: "Yes the mystery should also use the Sun anticipation") ------------------------
+// The Mystery spin-in (three War Standards in columns 0 to 2, the book's anticipation array teasing 3 to 7) gets the War
+// Standard's sun in place of its searchlight, rain and edge glow (components/Anticipation.svelte hides them); its sounds
+// (sfx_mystery_tease, sfx_mystery_decision) are unchanged. `on` false rolls the whole change back (the old look and the
+// old chain). `chain`: 'landing' = each teased column's hold starts no earlier than the previous teased column's landing
+// (the regular spin's timing fix: the sun stays with its column until it lands, then sinks with the stack); the hold
+// lengths and the slow fall stay ANTICIPATION's. 'book' = the holds run back to back as before (the next column's sun
+// then only rises once the one before it has landed, so it may come up late in its hold or not at all).
+export const MYSTERY_SUN = {
+	on: true,
+	chain: 'landing' as 'landing' | 'book',
+};
+
 // ---- THE TRIGGER BEAT (harsh review 2026-10-15 design item 8; Corey 2026-10-16 17:32: "A1. Sounds good") ----------
 // A feature trigger had no celebration of its own: the War Standards sat still, the screen dipped to black and the
 // intro plaque opened. Now, at the book's bonusStart and before the intro plaque (stateGame.triggerBeat, drawn by

@@ -35,7 +35,7 @@
 	import { getContextParent } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, GRID, ANTICIPATION, ANTICIPATION_TEASE } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, GRID, ANTICIPATION, ANTICIPATION_TEASE, MYSTERY_SUN } from '../game/constants';
 	import { beamTexture, spillTexture } from '../game/beamTexture';
 	import { boardCutSlot } from '../game/boardPlateSlot';
 
@@ -175,6 +175,11 @@
 					continue;
 				}
 				teaseColumn(col, a, tex);
+				continue;
+			}
+			// the Mystery's own look is the War Standard's sun since 1.0.04 (MYSTERY_SUN; on false brings this back)
+			if (MYSTERY_SUN.on) {
+				col.c.visible = false;
 				continue;
 			}
 			if (col.beam.tint !== 0xffffff) col.beam.tint = 0xffffff;
