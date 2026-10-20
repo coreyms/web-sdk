@@ -16,6 +16,7 @@ import { cueWellSting, cueWellSwipe, cueWellTile, cueWellWin, clearWellCues } fr
 import { kickClank } from './chainSound';
 import { placeLabels } from './labelPlacement';
 import { forgedSupports, forgedWidth } from './clusterLabel';
+import { stagingTeaseFall, stagingTeaseHoldMs } from './staging';
 import {
 	GRID,
 	CELL_COUNT,
@@ -767,7 +768,7 @@ export const revealBoard = async (
 	// sun on and chain 'landing', a teased column's hold starts no earlier than the previous teased column's landing (the
 	// regular spin's timing fix); its hold length and its slow fall stay ANTICIPATION's. MYSTERY_SUN.on false: as before
 	const sunChain = MYSTERY_SUN.on && MYSTERY_SUN.chain === 'landing';
-	const mysteryFall = dropDuration(GRID - 1 - stackedAbove(GRID - 1, GRID)) * ANTICIPATION.fallSlow;
+	const mysteryFall = dropDuration(GRID - 1 - stackedAbove(GRID - 1, GRID)) * mysteryFallSlow();
 	const mysteryLand = Array.from({ length: GRID }, () => 0);
 	if (animate && anticipation?.length) {
 		let scale = 1;
@@ -776,7 +777,8 @@ export const revealBoard = async (
 			holdStart[reel] = reel * DROP.columnStaggerMs + carried;
 			if (!anticipation[reel]) continue;
 			if (sunChain) holdStart[reel] = Math.max(holdStart[reel], prevLand);
-			holdMs[reel] = Math.max(ANTICIPATION.holdFloorMs, ANTICIPATION.holdMs * scale);
+			// `?hold=` (staging only, game/staging.ts): one flat hold for every teased column
+			holdMs[reel] = stagingTeaseHoldMs ?? Math.max(ANTICIPATION.holdFloorMs, ANTICIPATION.holdMs * scale);
 			scale *= ANTICIPATION.holdDecay;
 			carried = holdStart[reel] + holdMs[reel] - reel * DROP.columnStaggerMs;
 			mysteryLand[reel] = holdStart[reel] + holdMs[reel] + (GRID - 1) * DROP.rowStaggerMs + LAND_MS + mysteryFall;
@@ -809,7 +811,7 @@ export const revealBoard = async (
 		const wait = holdStart[reel] + holdMs[reel] - reel * DROP.columnStaggerMs;
 		const tc = teaseOf.get(reel);
 		// a held column falls its plan's `fall` (fallSlow, or fallSlowTurbo at turbo: planTease)
-		const slow = holdMs[reel] > 0 ? ANTICIPATION.fallSlow : tc ? tc.fall / dropDuration(GRID - 1 - tc.fromY) : 1;
+		const slow = holdMs[reel] > 0 ? mysteryFallSlow() : tc ? tc.fall / dropDuration(GRID - 1 - tc.fromY) : 1;
 		const start = tc ? tc.launch : reel * DROP.columnStaggerMs + wait;
 		column.forEach((name, row) => {
 			// the whole column waits stacked above the board and pours in, bottom row first
@@ -955,14 +957,16 @@ const mysteryPlan = (board: SymbolName[][], holdStart: number[], holdMs: number[
 		const fromY = stackedAbove(row, GRID);
 		const held = holdMs[reel] > 0;
 		const start = held ? holdStart[reel] + holdMs[reel] : reel * DROP.columnStaggerMs + (holdStart[reel] - reel * DROP.columnStaggerMs);
-		return start + (GRID - 1 - row) * DROP.rowStaggerMs + dropDuration(row - fromY) * (held ? ANTICIPATION.fallSlow : 1);
+		return start + (GRID - 1 - row) * DROP.rowStaggerMs + dropDuration(row - fromY) * (held ? mysteryFallSlow() : 1);
 	});
 	const cells = scatters.map((s) => cellOf(s.reel, s.row));
 	return { tThird, columns, scatters: cells, scatterLand, breathe: [], hit: false };
 };
 
-/** the hold of the i-th teased column, style ms */
-export const teaseHoldMs = (i: number) => Math.max(ANTICIPATION_TEASE.holdFloorMs, ANTICIPATION_TEASE.holdMs * Math.pow(ANTICIPATION_TEASE.holdDecay, i));
+/** the hold of the i-th teased column at normal speed, style ms (`?hold=` on staging: one flat hold) */
+export const teaseHoldMs = (i: number) => stagingTeaseHoldMs ?? Math.max(ANTICIPATION_TEASE.holdFloorMs, ANTICIPATION_TEASE.holdMs * Math.pow(ANTICIPATION_TEASE.holdDecay, i));
+/** the Mystery's teased column's slow fall: ANTICIPATION's, or `?fall=` on staging */
+const mysteryFallSlow = () => stagingTeaseFall ?? ANTICIPATION.fallSlow;
 
 /** the drop progress at which a tile falling fromY -> toY shows its centre at the board's top edge
  *  (y = -0.5 rows), solved on DROP.easing by bisection like the playground */
@@ -1001,7 +1005,7 @@ export const planTease = (board: SymbolName[][]): TeasePlan | null => {
 	// it, so a hold of floor x rate style ms runs floor real ms
 	const rate = ts();
 	const turbo = Math.max(stateGame.turboLevel, stateGame.hurryLevel) > 0;
-	const slow = turbo ? T.fallSlowTurbo : T.fallSlow;
+	const slow = turbo ? T.fallSlowTurbo : (stagingTeaseFall ?? T.fallSlow);
 	const fall = dropDuration(GRID - 1 - bottomFrom) * slow;
 	// a column has landed when its TOP tile has touched down and settled (LAND_MS: the squash and bounce): the rows pour
 	// in rowStaggerMs apart, each falling `fall`
@@ -1012,7 +1016,9 @@ export const planTease = (board: SymbolName[][]): TeasePlan | null => {
 	for (let reel = third.reel + 1, i = 0; reel < GRID; reel += 1, i += 1) {
 		const own = reel * DROP.columnStaggerMs;
 		const show = Math.max(own, from);
-		const hold = Math.max(teaseHoldMs(i), T.turboHoldFloorRealMs * rate);
+		// at turbo ("Shorter steps", Corey 2026-10-20: "holds a third as long"): turboHoldShare of the hold in REAL ms,
+		// never under turboHoldFloorRealMs real; the plan is in style ms, so x rate
+		const hold = turbo ? Math.max(teaseHoldMs(i) * T.turboHoldShare, T.turboHoldFloorRealMs) * rate : teaseHoldMs(i);
 		const launch = Math.max(own, show + hold);
 		const land = launch + pour + fall;
 		columns.push({ reel, i, show, launch, fall, land, fromY: bottomFrom, toY: GRID - 1 });

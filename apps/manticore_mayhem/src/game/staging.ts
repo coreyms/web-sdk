@@ -64,3 +64,26 @@ const teaseKnob = (name: 'sun' | 'beams'): number | null => {
 export const stagingSun: number | null = teaseKnob('sun');
 /** `?beams=` on a staging build or the dev server (null: none, use SUN_TEASE.beams) */
 export const stagingBeams: number | null = teaseKnob('beams');
+
+// ---- THE SUN TEASE'S TIMING (ANTICIPATION_TEASE / ANTICIPATION; Corey 2026-10-20, "2. Shorter steps and the two staging
+// settings") ----------------------------------------------------------------------------------------------------------
+// `?hold=<seconds>` sets every held column's hold to one flat length (held to TEASE_HOLD_RANGE) and `?fall=<n>` the held
+// column's slow fall (held to TEASE_FALL_RANGE), on a staging build or the dev server. They apply to a regular spin's
+// tease and to the Mystery's sun tease alike; without them each keeps its own constants (ANTICIPATION_TEASE, and
+// ANTICIPATION for the Mystery). At turbo the regular tease still runs its hold for turboHoldShare of it, and `?fall=`
+// is the normal speed fall only (turbo keeps fallSlowTurbo). Never in a production build.
+export const TEASE_HOLD_RANGE = { min: 0.2, max: 3 } as const;
+export const TEASE_FALL_RANGE = { min: 1, max: 4 } as const;
+const rangedKnob = (name: string, range: { min: number; max: number }): number | null => {
+	if (!STAGING_TOOLS || typeof window === 'undefined') return null;
+	const raw = new URLSearchParams(window.location.search).get(name);
+	if (raw === null || raw.trim() === '') return null;
+	const n = Number(raw);
+	if (!Number.isFinite(n)) return null;
+	return Math.min(range.max, Math.max(range.min, n));
+};
+/** `?hold=` as STYLE ms (null: none) */
+const holdS = rangedKnob('hold', TEASE_HOLD_RANGE);
+export const stagingTeaseHoldMs: number | null = holdS === null ? null : Math.round(holdS * 1000);
+/** `?fall=` (null: none) */
+export const stagingTeaseFall: number | null = rangedKnob('fall', TEASE_FALL_RANGE);

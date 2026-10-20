@@ -29,7 +29,7 @@
 	import { teaseNow } from '../game/teaseState';
 	import { sunTexture, washTexture, threadTexture, haloTexture } from '../game/beamTexture';
 	import { boardCutSlot } from '../game/boardPlateSlot';
-	import { stagingSun, stagingBeams } from '../game/staging';
+	import { stagingSun, stagingBeams, stagingTeaseFall, stagingTeaseHoldMs } from '../game/staging';
 
 	const context = getContext();
 	const CELL = SYMBOL_SIZE;
@@ -72,7 +72,7 @@
 	const drawn = { on: false, reel: -1, x: 0, y: 0, alpha: 0, size: 0, edge: -1, phase: 'none' as string, threads: 0, halos: 0, flares: 0, beads: 0, frames: 0 };
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		Object.assign(((window as any).__manticore ??= {}), {
-			sunTease: () => ({ drawn: { ...drawn }, state: { ...teaseNow() }, knobs: { sun: sunK, beams: beamsK }, plan: revealTease.plan ? JSON.parse(JSON.stringify(revealTease.plan)) : null }),
+			sunTease: () => ({ drawn: { ...drawn }, state: { ...teaseNow() }, knobs: { sun: sunK, beams: beamsK, hold: stagingTeaseHoldMs, fall: stagingTeaseFall }, plan: revealTease.plan ? JSON.parse(JSON.stringify(revealTease.plan)) : null }),
 		});
 	}
 

@@ -1267,18 +1267,23 @@ export const scatterWait = (k: number, n: number) => (k < n - 1 ? scatterRung(k)
 // runs under turboHoldFloorRealMs of REAL time, and at turbo 1 and 2 the column falls fallSlowTurbo (today's 1.7) slower.
 export const ANTICIPATION_TEASE = {
 	triggerAfter: 3,
-	/** Corey 2026-10-20 "Yes let's go with B": the first held column's hold (style ms; was 700) */
-	holdMs: 1300,
-	/** each further held column holds x1.1 of the one before (B: the last chance holds longest; was 0.82) */
-	holdDecay: 1.1,
-	/** B's floor (was 300) */
-	holdFloorMs: 800,
-	/** B: the teased column falls 2.6x slower than a normal drop (was 1.7) */
-	fallSlow: 2.6,
-	/** at turbo 1 and 2: today's slow fall (Corey's r3 notes: "keep the fall at today's 1.7x divided by the turbo scale") */
-	fallSlowTurbo: 1.7,
-	/** no hold runs under this many REAL ms at any turbo ("floor every hold at 300 ms real time, after the division") */
-	turboHoldFloorRealMs: 300,
+	/** Corey 2026-10-20, "2. Shorter steps and the two staging settings": every held column holds 900 style ms (B's
+	 *  first was 1300 growing x1.1, before it 700 shrinking x0.82); the 4-column miss's last column lands about 10.5 s
+	 *  after the reveal at normal speed (it was 14.3 s with B) */
+	holdMs: 900,
+	/** "Shorter steps": no growth per column (B was x1.1, the old chain x0.82) */
+	holdDecay: 1.0,
+	/** "Shorter steps": no hold under 600 style ms (B 800) */
+	holdFloorMs: 600,
+	/** "Shorter steps": the teased column falls 2.2x slower than a normal drop (B 2.6, before it 1.7) */
+	fallSlow: 2.2,
+	/** at turbo 1 and 2 ("Shorter steps"): the held column falls 1.2x slower, divided by the turbo scale (was 1.7) */
+	fallSlowTurbo: 1.2,
+	/** at turbo 1 and 2 ("Shorter steps": "holds a third as long"): a hold runs holdMs x this in REAL ms */
+	turboHoldShare: 1 / 3,
+	/** and never under this many REAL ms at any turbo (was 300; at a third of 900 the share itself is 300, so the floor
+	 *  only matters if holdMs drops) */
+	turboHoldFloorRealMs: 200,
 	/** the timing fix (Corey 2026-10-20 "the anticipation moves to the next row before the symbols actually drop"):
 	 *  'landing' = a held column's hold starts at the previous held column's landing; 'launch' = the old chain */
 	holdFrom: 'landing' as 'landing' | 'launch',
