@@ -70,7 +70,8 @@
 	import { getContext } from '../game/context';
 	import { layoutKind, portraitShippedK } from '../game/layoutSpec';
 	import { boardRegistration } from '../game/boardArt';
-	import { BOARD_PLAQUE, FRAME_ART, SPIN_TOTAL, TIMINGS } from '../game/constants';
+	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_FIELD, SPIN_TOTAL, TIMINGS } from '../game/constants';
+	import { plaqueField, type PlaqueFieldMap } from '../game/plaqueField';
 	import { BOARD_PLAQUE_SPEC } from '../game/boardPlaqueSpec';
 	import { PLAQUE_DIGIT_H, PLAQUE_GLYPHS, PLAQUE_GLYPH_PREFIX } from '../game/plaqueNumeralGlyphs';
 	import { tokenizeNumerals } from '../game/numeralTokens';
@@ -212,6 +213,8 @@
 
 	/** plain copies the tick and the mesh builder read (no reactive reads per frame) */
 	let H: readonly number[] = BOARD_PLAQUE_SPEC.layouts.landscape.render.H_halved;
+	/** this layout's field map (game/plaqueField.ts): its H, its k, the field's corners */
+	let field: PlaqueFieldMap = plaqueField(TIPS.edges.landscape, BOARD_PLAQUE_SPEC.layouts.landscape.render.plaqueBox, BOARD_PLAQUE_SPEC.layouts.landscape.render.H_halved);
 	let map: (u: number, v: number) => { x: number; y: number } = (u, v) => ({ x: u, y: v });
 	/** map(u, v) = (regX + regM u, regY + regM v) */
 	let regX = 0;
@@ -251,7 +254,9 @@
 		regX = a0.x;
 		regY = a0.y;
 		regM = r.m;
-		H = BOARD_PLAQUE.lean === 'full' ? L.render.H_full : L.render.H_halved;
+		// THE ONE PERSPECTIVE (game/plaqueField.ts): every layer below goes through this H
+		field = plaqueField(TIPS.edges[kind] ?? TIPS.edges.landscape, L.render.plaqueBox, L.render.H_halved);
+		H = BOARD_PLAQUE.lean === 'field' ? field.H : BOARD_PLAQUE.lean === 'full' ? L.render.H_full : L.render.H_halved;
 		cover(shadow, t.shadow, L.render.shadowBox);
 		cover(day, t.day, L.render.plaqueBox);
 		cover(night, t.night, L.render.plaqueBox);
@@ -260,9 +265,8 @@
 		cover(crestNight, t.crestNight, L.render.crestBox);
 		cover(crestFire, t.crestFire, L.render.crestBox);
 		nightIn = !!(t.night && t.fire && t.crestNight && t.crestFire);
-		// the block's centre: the mean of its four corners
-		const q = BOARD_PLAQUE.lean === 'full' ? L.render.figureQuadFull : L.render.figureQuadHalved;
-		const c = map((q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4);
+		// the block's centre: the layout's centre row through the plaque's H (master px)
+		const c = through(0, PLAQUE_FIELD.layoutCentreY);
 		centre.x = c.x;
 		centre.y = c.y;
 		figures.pivot.set(c.x, c.y);
@@ -325,7 +329,8 @@
 		const total = rowW(cells);
 		const rc = reserve ? cellsOf(reserve) : null;
 		const reserved = rc ? Math.max(rowW(rc), total) : total;
-		const maxW = BOARD_PLAQUE.maxWidthPerHeight * height;
+		// the row never runs past the dark field (the one perspective, plaqueField: the field is faceW / k layout units wide)
+		const maxW = Math.min(BOARD_PLAQUE.maxWidthPerHeight * height, BOARD_PLAQUE.lean === 'field' ? (field.faceW / field.k) * BOARD_PLAQUE.fieldFill : Infinity);
 		const fit = reserved > maxW ? maxW / reserved : 1;
 		let cx = (reserved / 2 - total) * fit;
 		let n = 0;
@@ -1136,13 +1141,20 @@
 					},
 					/** the figure block's four corners on screen (the SPEC's halved quad) */
 					block: (() => {
-						const L = BOARD_PLAQUE_SPEC.layouts[specKey];
-						const q = BOARD_PLAQUE.lean === 'full' ? L.render.figureQuadFull : L.render.figureQuadHalved;
-						return q.map(([u, v]) => {
-							const m = map(u, v);
+						const [x0, y0, x1, y1] = BOARD_PLAQUE_SPEC.figureBlock.rectInLayoutUnits;
+						return [
+							[x0, y0],
+							[x1, y0],
+							[x1, y1],
+							[x0, y1],
+						].map(([u, v]) => {
+							const m = through(u, v);
 							return g(root, m.x, m.y);
 						});
 					})(),
+					/** THE ONE PERSPECTIVE (game/plaqueField.ts): the dark field's corners on screen (TL TR BR BL), k, the face's
+					 *  width, which H the layers use */
+					field: { lean: BOARD_PLAQUE.lean, k: +field.k.toFixed(4), faceW: +field.faceW.toFixed(2), quad: field.quad.map(([u, v]) => { const m = map(u, v); return g(root, m.x, m.y); }) },
 					light: { ...frameLight, nightIn },
 					/** THE DESKTOP PRESS ANYWHERE (PLAQUE_PROMPT): up, drawn, its blink, its size against the explainer lines'
 					 *  (CSS px), its ink box on screen (four corners), its margins to the slanted window at the capitals' top

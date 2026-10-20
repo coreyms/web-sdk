@@ -644,7 +644,13 @@ export const BOARD_PLAQUE = {
 	gap: 0.03,
 	space: 0.32,
 	maxWidthPerHeight: 9.2475,
-	lean: 'halved' as 'halved' | 'full',
+	/** the figures' lean: 'field' (1.0.04, Corey 2026-10-20: "we should be using this perspective for all text on the
+	 *  plaque") is the dark field's own full perspective, one homography per layout for every layer (game/plaqueField.ts);
+	 *  'halved' / 'full' are the spec's two older H tables (boardPlaqueSpec), kept for a quick A / B */
+	lean: 'field' as 'halved' | 'full' | 'field',
+	/** on the 'field' lean a row of figures spans at most this share of the dark field's width (the field's ends lean
+	 *  hardest, so the longest amounts stay off them) */
+	fieldFill: 0.88,
 	crestOutMs: 100,
 	figuresInMs: 180,
 	crestBackMs: 220,
@@ -654,6 +660,12 @@ export const BOARD_PLAQUE = {
 	/** quads in the figures' mesh: the longest Stake amount is 17 glyphs */
 	maxGlyphs: 32,
 };
+
+/** THE PLAQUE'S FACE (game/plaqueField.ts; images/plaque_r6_storyboard/STORYBOARD.md section 2). The face is a flat
+ *  rectangle faceH face units tall; its width follows from the plaque's lean, tiltDeg (SPEC.md "the leaning plaque at
+ *  35 degrees"). layoutCentreY: the layout point (boardPlaqueSpec figureBlock units) at the face's centre, the figure
+ *  block's own centre row */
+export const PLAQUE_FIELD = { tiltDeg: 35, faceH: 100, layoutCentreY: -1.25 };
 
 /** the aura's colour (the playground's landing glow) */
 export const AURA_COLOR = 0x7cff8a;
