@@ -914,14 +914,22 @@
 				bump.ms = Math.max(1, real(SPIN_TOTAL.bumpMs));
 				return;
 			}
-			// the flag row hands the plaque over (a miss's leftovers go in handoverOutMs; a badge stays)
-			if (fl.on && fl.outT0 < 0 && fl.shrinkT0 < 0) {
-				fl.outT0 = now;
-				fnote('handover');
+			// THE ONE OWNER (STORYBOARD.md section 3): the flag row hands the plaque over first (a miss's leftovers go in
+			// handoverOutMs; a hit's row finishes shrinking into the badge), and the first row comes in after it
+			let free = now;
+			if (fl.on) {
+				if (fl.shrinkT0 >= 0) free = fl.shrinkT0 + fl.shrinkMs;
+				else {
+					if (fl.outT0 < 0) {
+						fl.outT0 = now;
+						fnote('handover');
+					}
+					free = fl.outT0 + real(PLAQUE_FLAGS.handoverOutMs);
+				}
 			}
 			const k = Math.min(3, Math.max(1, together ?? 1)) - 1;
 			const prev = rows[rows.length - 1];
-			const start = prev ? Math.max(now, prev.start + real(PLAQUE_CLEARS.rowStaggerMs[k])) : now;
+			const start = Math.max(now, free, prev ? prev.start + real(PLAQUE_CLEARS.rowStaggerMs[k]) : now);
 			const land = start + real(PLAQUE_CLEARS.rowInMs);
 			const rec: RowRec = { n: clear.n, code: clear.s, text: rowAmount(clear.w), amount: value, start, land, landed: false, countMs: real(PLAQUE_CLEARS.countMs[k]) };
 			rows.push(rec);
@@ -1466,6 +1474,8 @@
 		}
 	};
 	rowsMaxX = () => (bd.on && bd.outT0 < 0 ? CL.badgeRowMaxX : CL.rowMaxX);
+	/** who has the plaque now (STORYBOARD.md section 3; DEV read: __manticore.plaque().owner) */
+	let owner: 'prompt' | 'mode' | 'tease' | 'count' | 'offer' | 'lines' | 'none' = 'none';
 	/** DEV: every beat of the row and the badge (what, when, the War Standards on the board then) */
 	const flagLog: { at: number; what: string; n: number; slot?: number }[] = [];
 	const fnote = (what: string, slot?: number) => {
@@ -1879,6 +1889,10 @@
 		if (figures.scale.x !== s) figures.scale.set(s);
 		rowsTick(now, hidden || forced !== null ? 0 : fa * ra);
 		flagsTick(now, hidden || forced !== null);
+		// THE ONE OWNER (STORYBOARD.md section 3), for the DEV read: the prompt, the mode plaque, the tease's flag row, the
+		// count-up (the rows and the total, with the badge beside them), the explainer lines. Each layer's own rule above
+		// keeps them apart; this names who has the plaque now
+		owner = promptUpNow ? 'prompt' : context.stateGame.plaque ? 'mode' : flagsLayer.visible ? 'tease' : figures.visible || slots[0].box.visible || slots[1].box.visible || slots[2].box.visible || badgeLayer.visible ? 'count' : tips.visible ? 'lines' : 'none';
 		streakTick(now);
 		if (!showing && fa <= 0.001 && rows.length && move.phase === 'none') {
 			// faded out: the rows go
@@ -1949,6 +1963,8 @@
 					 *  width, which H the layers use */
 					field: { lean: BOARD_PLAQUE.lean, k: +field.k.toFixed(4), faceW: +field.faceW.toFixed(2), quad: field.quad.map(([u, v]) => { const m = map(u, v); return g(root, m.x, m.y); }) },
 					light: { ...frameLight, nightIn },
+					/** who has the plaque now (STORYBOARD.md section 3) */
+					owner,
 					/** THE DESKTOP PRESS ANYWHERE (PLAQUE_PROMPT): up, drawn, its blink, its size against the explainer lines'
 					 *  (CSS px), its ink box on screen (four corners), its margins to the slanted window at the capitals' top
 					 *  row and at the baseline (layout units and CSS px; the ink is inside when all four are 0 or more) */
