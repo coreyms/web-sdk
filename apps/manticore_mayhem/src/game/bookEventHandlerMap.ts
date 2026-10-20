@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import { recapCascade, recapFeatureEnd, recapFeatureStart, recapRebuild, recapReveal } from './recap.svelte';
 
 import { waitForTimeout } from 'utils-shared/wait';
 
@@ -374,6 +375,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.gameType = bookEvent.gameType;
 		stateGame.spinWin = 0;
 		stateGame.busy = true;
+		// THE RECAP (1.0.04, game/recap.svelte.ts): a new spin's record
+		recapReveal(bookEvent.gameType);
 		eventEmitter.broadcast({ type: 'soundScatterCounterClear' });
 		eventEmitter.broadcast({ type: 'spinWinHide' });
 
@@ -474,6 +477,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// showing what it pays
 		const plan = capPlan(bookEvent, bookEvents);
 		const specs = plan === null ? bookEvent.wins.map((w) => winSpecOf(w)) : bookEvent.wins.slice(0, plan.cut).map((w, k) => winSpecOf(w, plan.paid[k]));
+		// THE RECAP (1.0.04): the presented clusters, the book's numbers as presented, and the step's spin total
+		recapCascade(
+			specs.map((sp, i) => ({ n: bookEvent.wins[i].n, s: sp.symbol, p: sp.base, m: sp.mult, w: sp.total })),
+			plan === null ? bookEvent.spinWin : plan.spinPaid,
+		);
 		const ours = await presentWinSet(
 			specs,
 			id,
@@ -697,6 +705,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.tileCap = bookEvent.tileCap;
 		stateGame.totalFs = bookEvent.totalFs;
 		stateGame.fs = 0;
+		recapFeatureStart(bookEvent.bonus);
 		stateGame.spinsPlayed = 0;
 		// a new session has no recap yet (bonusEnd writes it; requestSkip / SkipButton read it as
 		// "the spins are over")
@@ -848,6 +857,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			| BookEventOfType<'setTotalWin'>
 			| undefined;
 		const wrapAmount = lastTotal && lastTotal.amount >= bookEvent.amount ? lastTotal.amount : bookEvent.amount;
+		// THE RECAP (1.0.04): the feature's own total (the book's freeSpinEnd amount: its free spins, the rows the recap
+		// lists; the wrap-up's round total also holds a natural trigger's base win); the plaque offers the recap after it
+		recapFeatureEnd(bookEvent.amount);
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		stateGame.gameType = 'basegame';
 		eventEmitter.broadcast({ type: 'spinWinHide' });
@@ -917,6 +929,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 		const bonusStart = findLast('bonusStart' as const);
 		const setTotalWin = findLast('setTotalWin' as const);
+		// THE RECAP (1.0.04): a resumed feature's spins so far, from the book's own events
+		recapRebuild(bookEvents);
 		if (bonusStart) {
 			stateGame.bonusMode = bonusStart.bonus;
 			stateGame.tileCap = bonusStart.tileCap;

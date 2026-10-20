@@ -22,6 +22,8 @@
 // PRESENTATION ONLY: nothing here reads or changes an outcome. The words are Corey's, exactly; tools' rules_probe.js
 // banned-word list is checked against every line by feedback/plaque_tips_r4/plaque_tips_probe.js.
 
+import { PLAQUE_RECAP } from './constants';
+
 /** one plaque art's slanted inner edges (PLAQUE_TIPS.edges), art px */
 export type PlaqueEdgeArt = { tex: readonly [number, number]; top: number; bottom: number; left: readonly [number, number]; right: readonly [number, number] };
 
@@ -123,13 +125,15 @@ export const PLAQUE_TIPS = {
 export const pointerIsMouse = (): boolean =>
 	typeof matchMedia === 'function' && matchMedia('(hover: hover) and (pointer: fine)').matches;
 
-/** THE TWELVE LINES, Corey's words (brief of 2026-10-17; 11:29: the lines that began "His" begin "Manticore's"),
+/** THE LINES (twelve of Corey's words, and since 1.0.04 line 2 pointing at the recap), Corey's words (brief of 2026-10-17; 11:29: the lines that began "His" begin "Manticore's"),
  *  line 1 first. `mouse`: the player has a mouse (Click, not Tap). Line 1 is the social wording r1 had for stake.us
  *  ("see its wins"), now on every site, so it needs no soc(); no line has a word of rules_probe.js SOCIAL_BANNED. */
 /** `superAnte` (1.0.04): in Super Ante 4 or 5 War Standards are a Super (game_calculations.py bonus_type_from_scatters),
  *  so line 5 says so and line 6 is skipped (an empty line is never shown: the cadence goes on to the next) */
-export const tipLines = (mouse: boolean, superAnte = false): string[] => [
+export const tipLines = (mouse: boolean, superAnte = false, recapLine = false): string[] => [
 	mouse ? 'Click a symbol to see its wins' : 'Tap a symbol to see its wins',
+	// THE RECAP (1.0.04, PLAQUE_RECAP): skipped ('') while autoplay runs or is loaded, and with nothing to show
+	recapLine ? (mouse ? PLAQUE_RECAP.lineMouse : PLAQUE_RECAP.lineTouch) : '',
 	'5 touching symbols make a cluster',
 	'A win on a lit tile doubles it',
 	'Wilds fill in for all but the War Standard',
@@ -142,7 +146,7 @@ export const tipLines = (mouse: boolean, superAnte = false): string[] => [
 	"Manticore's roar clears low symbols in Super and Epic",
 	'In Free Spins, lit tiles stay all round',
 ];
-export const TIP_COUNT = 12;
+export const TIP_COUNT = 13;
 
 /** THE ORDER (2026-10-17 20:43). `slot` counts the lines shown this session (0 first), kept across idle spells, so
  *  each spell goes on where the last one stopped: line 1 leads once, then all twelve take their turn (was line 1

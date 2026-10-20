@@ -75,9 +75,11 @@
 	import { getContext } from '../game/context';
 	import { layoutKind, portraitShippedK } from '../game/layoutSpec';
 	import { boardRegistration } from '../game/boardArt';
-	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_BADGE, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_FLAGS, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
+	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_BADGE, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_FLAGS, PLAQUE_RECAP, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
 	import { plaqueGlowTexture } from '../game/plaqueGlow';
 	import { teaseNow } from '../game/teaseState';
+	import { recap, recapLineOn } from '../game/recap.svelte';
+	import { plaqueTap } from '../game/plaqueTap';
 	import { stateBet } from 'state-shared';
 	import { plaqueField, type PlaqueFieldMap } from '../game/plaqueField';
 	import { BOARD_PLAQUE_SPEC } from '../game/boardPlaqueSpec';
@@ -295,6 +297,7 @@
 		win.built = false;
 		tipNeed.layout = true;
 		promptNeed.v = true;
+		offerTex.placed = false;
 	});
 
 	// ---- the figures' layout (layout units at height PLAQUE_DIGIT_H, x from the row's centre, y from its optical centre) --
@@ -447,7 +450,7 @@
 		return { ku: span(-hw, bot, hw, bot) / (2 * hw), kv: span(0, top, 0, bot) / (bot - top) };
 	};
 	const computePlans = () => {
-		tipTexts = tipLines(pointerIsMouse(), stateBet.activeBetModeKey === 'SUPER_ANTE');
+		tipTexts = tipLines(pointerIsMouse(), stateBet.activeBetModeKey === 'SUPER_ANTE', recapLineOn());
 		tipCtx.font = fontAt(REF);
 		capK = (tipCtx.measureText('H').actualBoundingBoxAscent || REF * 0.7) / REF;
 		planK = cssPerUnit().ku;
@@ -546,6 +549,118 @@
 		tipShown.font = font;
 		tipShown.kCss = ku;
 		return true;
+	};
+
+	// ---- THE FEATURE RECAP OFFER (1.0.04, PLAQUE_RECAP; STORYBOARD.md section 6) ---------------------------------------
+	// After a feature's wrap-up, while the base game is idle and until the next spin, the plaque offers the recap: one still
+	// line in the explainer lines' brass, centred and fitted to the dark field. Drawn ONCE into its own canvas when it
+	// comes up (or the layout or the density changes), on a small grid mesh through the plaque's H; destroyed when the
+	// offer ends. The explainer lines skip while it is up.
+	const offerLayer = new PIXI.Container({ label: 'plaque-offer' });
+	offerLayer.eventMode = 'none';
+	offerLayer.interactiveChildren = false;
+	offerLayer.visible = false;
+	const OGX = 8;
+	const OGY = 2;
+	const offerPos = new Float32Array((OGX + 1) * (OGY + 1) * 2);
+	const offerUv = new Float32Array((OGX + 1) * (OGY + 1) * 2);
+	const offerIdx = new Uint32Array(OGX * OGY * 6);
+	for (let j = 0; j <= OGY; j += 1) for (let i = 0; i <= OGX; i += 1) offerUv.set([i / OGX, j / OGY], (j * (OGX + 1) + i) * 2);
+	for (let j = 0; j < OGY; j += 1)
+		for (let i = 0; i < OGX; i += 1) {
+			const a = j * (OGX + 1) + i;
+			const b = a + OGX + 1;
+			offerIdx.set([a, a + 1, b + 1, a, b + 1, b], (j * OGX + i) * 6);
+		}
+	const offerMesh = new PIXI.MeshSimple({ texture: PIXI.Texture.EMPTY, vertices: offerPos, uvs: offerUv, indices: offerIdx });
+	offerMesh.autoUpdate = false;
+	offerLayer.addChild(offerMesh);
+	const offerTex = { canvas: null as HTMLCanvasElement | null, texture: null as PIXI.Texture | null, placed: false, t0: -1, text: '', made: 0 };
+	// over the explainer lines and the prompt, under the figures
+	root.addChildAt(offerLayer, root.getChildIndex(promptLayer) + 1);
+	const placeOffer = () => {
+		computePlans();
+		const text = pointerIsMouse() ? PLAQUE_RECAP.offerMouse : PLAQUE_RECAP.offerTouch;
+		const [, top, bot] = tipBox;
+		const Hh = bot - top;
+		let font = tipFontU * PLAQUE_RECAP.offerSizeOfTip;
+		const maxW = narrowW() * PLAQUE_RECAP.offerFill;
+		if (widthAt1(text) * font > maxW) font = maxW / widthAt1(text);
+		const pad = TIPS.stripPad;
+		const W = widthAt1(text) * font + 2 * pad;
+		const res = (context.stateApp.pixiApplication?.renderer?.resolution ?? 1) * TIPS.texScale;
+		const { ku, kv } = cssPerUnit();
+		if (!(ku > 0)) return false;
+		const cw = Math.max(2, Math.min(TIPS.texMax, Math.ceil(W * ku * res)));
+		const ch = Math.max(2, Math.min(TIPS.texMax, Math.ceil(Hh * kv * res)));
+		const canvas = offerTex.canvas ?? document.createElement('canvas');
+		if (offerTex.texture) offerTex.texture.source.resize(cw, ch, 1);
+		else {
+			canvas.width = cw;
+			canvas.height = ch;
+		}
+		const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+		g.setTransform(1, 0, 0, 1, 0, 0);
+		g.clearRect(0, 0, cw, ch);
+		g.setTransform(cw / W, 0, 0, ch / Hh, 0, (-top * ch) / Hh);
+		g.font = fontAt(font);
+		g.textAlign = 'left';
+		g.textBaseline = 'alphabetic';
+		const base = (top + bot) / 2 + (capK * font) / 2;
+		const cap = capK * font;
+		g.fillStyle = TIPS.lipColor;
+		g.fillText(text, pad, base + TIPS.lipOffset);
+		g.fillStyle = TIPS.lightColor;
+		g.fillText(text, pad, base + TIPS.lightOffset);
+		const brass = g.createLinearGradient(0, base - cap, 0, base);
+		brass.addColorStop(0, TIPS.brassTop);
+		brass.addColorStop(1, TIPS.brassBottom);
+		g.fillStyle = brass;
+		g.fillText(text, pad, base);
+		if (offerTex.texture) offerTex.texture.source.update();
+		else {
+			const source = new PIXI.CanvasSource({ resource: canvas as unknown as PIXI.ICanvas, resolution: 1, addressMode: 'clamp-to-edge', scaleMode: 'linear', label: 'plaque-offer' });
+			offerTex.canvas = canvas;
+			offerTex.texture = new PIXI.Texture({ source, label: 'plaque-offer' });
+			offerTex.made += 1;
+		}
+		// the mesh over the strip, centred on the field
+		for (let j = 0; j <= OGY; j += 1)
+			for (let i = 0; i <= OGX; i += 1) {
+				const p = through(-W / 2 + (W * i) / OGX, top + (Hh * j) / OGY);
+				const k = (j * (OGX + 1) + i) * 2;
+				offerPos[k] = p.x;
+				offerPos[k + 1] = p.y;
+			}
+		offerMesh.geometry.getBuffer('aPosition').update();
+		offerMesh.texture = offerTex.texture as PIXI.Texture;
+		offerTex.placed = true;
+		offerTex.text = text;
+		return true;
+	};
+	const freeOffer = () => {
+		offerMesh.texture = PIXI.Texture.EMPTY;
+		offerTex.texture?.destroy(true);
+		if (offerTex.canvas) offerTex.canvas.width = offerTex.canvas.height = 0;
+		offerTex.texture = null;
+		offerTex.canvas = null;
+		offerTex.placed = false;
+		offerTex.t0 = -1;
+	};
+	const offerTick = (now: number) => {
+		const up = offerOn && idleNow && !showing && figFade.v <= 0.001 && !promptUpNow && forced === null && !context.stateGame.plaque && day.texture !== PIXI.Texture.EMPTY && !!root.parent && face.ready;
+		if (up) {
+			if (!offerTex.placed && !placeOffer()) return;
+			if (offerTex.t0 < 0) offerTex.t0 = now;
+			const a = Math.min(1, Math.max(0, (now - offerTex.t0) / Math.max(1, PLAQUE_RECAP.offerInMs)));
+			offerLayer.alpha = a * TIPS.alpha;
+			offerLayer.visible = true;
+			if (offerMesh.tint !== mesh.tint) offerMesh.tint = mesh.tint;
+		} else {
+			if (offerLayer.visible) offerLayer.visible = false;
+			offerTex.t0 = -1;
+			if (!offerOn && offerTex.texture) freeOffer();
+		}
 	};
 
 	// ---- the desktop's PRESS ANYWHERE on the text field (PLAQUE_PROMPT) -------------------------------------------------
@@ -1063,6 +1178,13 @@
 	$effect(() => {
 		idleNow = boardIdle();
 	});
+	/** the recap's state for the tick (no reactive reads per frame): the plaque offers the feature recap; a box is open */
+	let offerOn = false;
+	let recapOpenNow = false;
+	$effect(() => {
+		offerOn = recap.offer;
+		recapOpenNow = recap.open !== null;
+	});
 	const tipFade = fade(0);
 	/** off: nothing; wait: the board settled, the cadence starts at t; gap: the box is empty, the next line enters at t
 	 *  (counted from base); run: a line is crossing the box. slot: lines shown in this idle spell; other: the other
@@ -1253,7 +1375,8 @@
 		} else if (!face.asked) face.ready = true;
 		const ready = face.ready && day.texture !== PIXI.Texture.EMPTY && !!root.parent;
 		// the figures first: not while they are up or still fading out (the start delay counts from them gone)
-		const want = ready && (idleNow || devHold || tipPending !== null) && !showing && figFade.v <= 0.001 && forced === null && !promptUpNow;
+		// (1.0.04) the recap: the feature offer has the plaque instead, and the lines pause while the box is open
+		const want = ready && (idleNow || devHold || tipPending !== null) && !showing && figFade.v <= 0.001 && forced === null && !promptUpNow && (devHold || tipPending !== null || (!offerOn && !recapOpenNow));
 		if (ready && tipNeed.layout) {
 			// a new layout: a line on show is let go, the next one comes firstMs later
 			tipNeed.layout = false;
@@ -1863,6 +1986,7 @@
 		// the desktop's prompt first (the lines and the figures stand aside for it), then the explainer lines
 		promptTick();
 		tipTick(now);
+		offerTick(now);
 		// the plaque is clear while the prompt is up: a line on its way out is not drawn either
 		if (promptUpNow && tips.visible) tips.visible = false;
 		if (tips.visible && mesh.tint !== tipMesh.tint) tipMesh.tint = mesh.tint;
@@ -1897,7 +2021,7 @@
 		// THE ONE OWNER (STORYBOARD.md section 3), for the DEV read: the prompt, the mode plaque, the tease's flag row, the
 		// count-up (the rows and the total, with the badge beside them), the explainer lines. Each layer's own rule above
 		// keeps them apart; this names who has the plaque now
-		owner = promptUpNow ? 'prompt' : context.stateGame.plaque ? 'mode' : flagsLayer.visible ? 'tease' : figures.visible || slots[0].box.visible || slots[1].box.visible || slots[2].box.visible || badgeLayer.visible ? 'count' : tips.visible ? 'lines' : 'none';
+		owner = promptUpNow ? 'prompt' : context.stateGame.plaque ? 'mode' : flagsLayer.visible ? 'tease' : figures.visible || slots[0].box.visible || slots[1].box.visible || slots[2].box.visible || badgeLayer.visible ? 'count' : offerLayer.visible ? 'offer' : tips.visible ? 'lines' : 'none';
 		streakTick(now);
 		if (!showing && fa <= 0.001 && rows.length && move.phase === 'none') {
 			// faded out: the rows go
@@ -1923,6 +2047,20 @@
 		const emitter = context.stateApp.pixiApplication?.renderer as unknown as { on(e: 'resize', f: () => void): void; off(e: 'resize', f: () => void): void } | undefined;
 		const onResize = () => (promptNeed.v = true);
 		emitter?.on('resize', onResize);
+		// THE PLAQUE AS A TAP TARGET for the recap (game/plaqueTap.ts): the dark field's corners on the page, CSS px
+		plaqueTap.quad = () => {
+			const app = context.stateApp.pixiApplication;
+			const canvas = app?.canvas as HTMLCanvasElement | undefined;
+			if (!root.parent || !app || !canvas) return null;
+			const r = canvas.getBoundingClientRect();
+			const sx = r.width / (app.screen.width || r.width);
+			const sy = r.height / (app.screen.height || r.height);
+			return field.quad.map(([u, v]) => {
+				const m = map(u, v);
+				const gp = root.toGlobal({ x: m.x, y: m.y });
+				return { x: r.left + gp.x * sx, y: r.top + gp.y * sy };
+			});
+		};
 		if (import.meta.env.DEV && typeof window !== 'undefined') {
 			const g = (node: PIXI.Container, x: number, y: number) => {
 				const p = node.toGlobal({ x, y });
@@ -2236,6 +2374,8 @@
 			mounted = false;
 			ticker?.remove(tick);
 			emitter?.off('resize', onResize);
+			plaqueTap.quad = () => null;
+			freeOffer();
 			unplacePrompt();
 			plaquePromptReady.ready = false;
 			root.removeFromParent();

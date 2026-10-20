@@ -828,6 +828,51 @@ export const PLAQUE_BADGE = {
 	countTint: 0xffecbe,
 };
 
+/** THE RECAP (1.0.04; STORYBOARD.md section 6; Corey 2026-10-20: the recap is in 1.0.04; components/SpinRecap.svelte,
+ *  game/recap.svelte.ts). Words (no "bet", "buy", "cash", "money", "paid"): the explainer line that points at the plaque
+ *  (line 2; skipped while autoplay runs or is loaded on the Spin button, Corey: "omit that line of text when autospin is
+ *  active or loaded on top the play button", and while there is no spin with clears to show), the offer the plaque shows
+ *  after a feature (until the next spin), and the box's headings. Sizes are CSS px at k = 1, where k follows the plaque's
+ *  width on screen (refPlaqueCss), held to [minK, maxK]; every text size has a floor. The offer's size is a share of the
+ *  explainer lines' font, fitted to offerFill of the dark field's width. */
+export const PLAQUE_RECAP = {
+	lineMouse: 'Click the plaque to see your last spin',
+	lineTouch: 'Tap the plaque to see your last spin',
+	offerMouse: 'CLICK TO SEE EVERY FREE SPIN',
+	offerTouch: 'TAP TO SEE EVERY FREE SPIN',
+	offerSizeOfTip: 0.8,
+	offerFill: 0.86,
+	offerInMs: 220,
+	titleLast: 'YOUR LAST SPIN',
+	cascade: 'CASCADE',
+	spin: 'SPIN',
+	spinTotal: 'SPIN TOTAL',
+	featureTotal: 'FEATURE TOTAL',
+	/** a tap: the press and its release this close (CSS px) and this quick, on the plaque's dark field */
+	tapSlopPx: 12,
+	tapMs: 700,
+	refPlaqueCss: 380,
+	minK: 0.8,
+	maxK: 1.25,
+	width: 300,
+	pad: 13,
+	radius: 9,
+	bezel: 2,
+	titleFont: 17,
+	titleFloor: 14,
+	headFont: 11.5,
+	headFloor: 10.5,
+	rowFont: 15,
+	rowFloor: 13,
+	rowH: 30,
+	totalFont: 19,
+	totalFloor: 16,
+	/** the box's bottom edge sits this far above the plaque */
+	gapPx: 8,
+	inMs: 140,
+	outMs: 110,
+};
+
 /** the aura's colour (the playground's landing glow) */
 export const AURA_COLOR = 0x7cff8a;
 

@@ -35,6 +35,7 @@
 	import BoardPlaque from './BoardPlaque.svelte';
 	import SkipButton from './SkipButton.svelte';
 	import SymbolPopup from './SymbolPopup.svelte';
+	import SpinRecap from './SpinRecap.svelte';
 	import ModePlaque from './ModePlaque.svelte';
 	import StingerPlaque from './StingerPlaque.svelte';
 	import Win from './Win.svelte';
@@ -280,6 +281,8 @@
 	<SkipButton />
 	<!-- the symbol pay popup: a tap on a symbol of an idle board (HTML, takes no pointer) -->
 	<SymbolPopup />
+	<!-- the recap: a tap on the idle plaque (1.0.04, HTML; only its box takes a press) -->
+	<SpinRecap />
 	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
 		<LandingScreen onpress={() => (landingPressed = true)} />
 	{/if}
