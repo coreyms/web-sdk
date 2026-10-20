@@ -1,7 +1,9 @@
 // THE WILD MEDALLION RAIN (Corey 2026-10-15, "Wild Medallions"; constants MAX_WIN.rain), the max win screen's backdrop
 // (components/MaxWinCinematic.svelte): the Wild's static tile, the gold Lion-Sun Medallion (`W.png` in the mmSymbols
 // atlas, already resident for the board), falling behind the creature and the titles and turning over like thrown
-// coins (the width follows the cosine of a per medallion turn; no filter, no mesh).
+// coins. Since 1.0.04 (Corey 2026-10-20, "can we use the model we are using for the coin in game so they aren't flat?")
+// each one draws the 3D medallion's frame for its turn (game/coinFlip.ts, constants COIN_FLIP) at full width once that
+// sheet is in; until then the flat tile, its width following the cosine of the turn (no filter, no mesh).
 //
 // The shape of Angry Mantis's TrayRain: ONE raw Pixi container, the whole pool made up front, one tick that moves it.
 // Nothing is allocated per frame and nothing is added or removed mid beat; density is how many of the pool are live:
@@ -10,7 +12,8 @@
 // sizes and speeds are master px x the master's scale, so a phone and a desktop see the same rain.
 import * as PIXI from 'pixi.js';
 
-import { MAX_WIN } from './constants';
+import { COIN_FLIP, MAX_WIN } from './constants';
+import { coinFlipFrame, coinFlipFrames } from './coinFlip';
 import type { LayoutKind } from './layoutSpec';
 
 const R = MAX_WIN.rain;
@@ -37,7 +40,10 @@ export class MedallionRain {
 	}
 
 	/** make the pool for this LayoutKind (once per kind: a change of kind rebuilds it, outside the beat) */
+	private flat: PIXI.Texture = PIXI.Texture.EMPTY;
+
 	build(texture: PIXI.Texture, kind: LayoutKind): void {
+		this.flat = texture;
 		if (this.pool.length && kind === this.kind) return;
 		for (const child of this.root.removeChildren()) child.destroy();
 		this.pool = [];
@@ -101,6 +107,8 @@ export class MedallionRain {
 			return;
 		}
 		const want = Math.round(this.pool.length * MedallionRain.shareAt(t));
+		// the turning medallion's frames once its sheet is in (game/coinFlip.ts), else the flat tile
+		const frames = coinFlipFrames();
 		let live = 0;
 		for (let i = 0; i < this.pool.length; i += 1) {
 			const m = this.pool[i];
@@ -118,15 +126,32 @@ export class MedallionRain {
 			m.turn += m.vturn * dt;
 			m.rot += m.vrot * dt;
 			if (m.y - m.w > this.height) this.roll(m);
-			const c = Math.cos(m.turn * Math.PI * 2);
 			m.s.position.set(m.x, m.y);
 			m.s.rotation = m.rot;
+			if (frames) {
+				// the frame carries the turn and its light: full width, scaled so it is the flat tile's size face on
+				const f = coinFlipFrame(frames, m.turn);
+				if (m.s.texture !== f) m.s.texture = f;
+				m.s.setSize(m.w * COIN_FLIP.faceScale, m.w * COIN_FLIP.faceScale);
+				m.s.alpha = m.a;
+				continue;
+			}
+			if (m.s.texture !== this.flat) m.s.texture = this.flat;
+			const c = Math.cos(m.turn * Math.PI * 2);
 			// never quite edge on (a dark hairline reads as a scratch): the narrowest a coin turns is minTurn of its width
 			m.s.setSize(m.w * Math.max(R.minTurn, Math.abs(c)), m.w);
 			// the back of the coin reads a little darker as it turns away
 			m.s.alpha = m.a * (0.78 + 0.22 * Math.abs(c));
 		}
 		this.live = live;
+	}
+
+	/** DEV: the first live medallion [frame of the turning medallion (-1: the flat tile), drawn width, drawn height] */
+	sample(): number[] {
+		const m = this.pool.find((x) => x.s.visible);
+		if (!m) return [];
+		const frames = coinFlipFrames();
+		return [frames ? frames.indexOf(m.s.texture) : -1, Math.round(m.s.width), Math.round(m.s.height)];
 	}
 
 	/** every medallion off and re-rolled (the screen is over) */

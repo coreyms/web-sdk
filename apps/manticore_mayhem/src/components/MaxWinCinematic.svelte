@@ -389,7 +389,7 @@
 				return true;
 			};
 		}
-		installMaxWinProbe(() => ({ log: log.slice(), lifted: creatureFront.lift === lift, titlesShown: !!type && maxSlot.visible, layout: kind }));
+		installMaxWinProbe(() => ({ log: log.slice(), lifted: creatureFront.lift === lift, titlesShown: !!type && maxSlot.visible, layout: kind, coin: rain.sample() }));
 		if (import.meta.env.DEV) {
 			const m = (window as unknown as { __manticore?: Record<string, unknown> }).__manticore;
 			if (m)

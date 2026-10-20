@@ -3277,6 +3277,27 @@ export const MAX_WIN = {
 	},
 } as const;
 
+// THE TURNING MEDALLION (1.0.04, Corey 2026-10-20: "For the max win animation, we are using flat coins from the image of
+// the tile, can we use the model we are using for the coin in game so they aren't flat?", and yes to the big win plaque's
+// thrown coins too; game/coinFlip.ts). The Wild's own 3D medallion rendered turning (~/Desktop/Manticore Mayhem/images/
+// symbols/W_lion-sun-medallion/coin_flip_r1/, NOTES.md "For the wiring agent"): 16 frames of 192 px cover half a turn
+// (the coin is two faced, so t and t + 180 are the same picture), frame = round(u / stepDeg) % frames with u the turn in
+// degrees taken into [0, 180). Never mirrored. The Max Win rain (MAX_WIN.rain) and the plaque's escalation coins
+// (PLAQUE_ESCALATION.coins) pick the frame for their turn at full width; until the sheet is in they keep the flat W.png.
+// Loaded in the background once the deferred phase and the Armoury core are in (components/Game.svelte), never before
+// PRESS ANYWHERE; 1554 x 390, about 2.4 MB on the GPU, one sheet for both tiers.
+export const COIN_FLIP = {
+	/** static/assets/sprites/mmSymbols/w-flip.webp (coin_flip_sheet.webp as delivered) */
+	frames: 16,
+	columns: 8,
+	frame: 192,
+	gutter: 2,
+	stepDeg: 11.25,
+	/** the frame's drawn size over the flat tile's: face on the coin fills 0.917 of its frame where W.png fills 0.957 of
+	 *  its tile (alpha >= 128, measured 2026-10-20), so a frame drawn 1.044 x the old tile size is the same coin face on */
+	faceScale: 1.044,
+} as const;
+
 // THE LOADING GATE (first-minute plan D, Corey 2026-10-16 17:21 "Yes D"; measurements and the options in
 // ~/Desktop/Manticore Mayhem/feedback/firstminute_r1/REPORT.md, the result in firstminute_r2/). Until then PRESS ANYWHERE
 // waited for the audio alone and every deferred file started after it: a reviewer who pressed at once spun on a FROZEN

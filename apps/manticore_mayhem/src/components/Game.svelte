@@ -17,6 +17,7 @@
 	import { loadDeferredInOrder, loadGate, loadLogoEarly } from '../game/deferredLoad';
 	import { gateSettled, loadGate as gateState } from '../game/loadGate.svelte';
 	import { loadArmouryCore } from '../game/armouryLoad';
+	import { loadCoinFlip } from '../game/coinFlip';
 	import { creatureDeferredDone } from '../game/creatureLoad';
 	import { PHONE_TIER, renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
@@ -107,7 +108,13 @@
 		// THE ARMOURY's menu core (the feature menu's small pictures, 0.3 to 0.6 MB): the deferred phase's last group, after
 		// everything else is in, so it is never in front of anything that loaded before it (game/armouryLoad.ts)
 		// ...and when it is in, every deferred group is: the creature's prefetch may start (game/creatureLoad.ts)
-		if (context.stateApp.loaded) void loadArmouryCore().then(creatureDeferredDone);
+		// ...then THE TURNING MEDALLION (the Max Win rain's and the plaque's coins, game/coinFlip.ts): flat W.png until it is in
+		if (context.stateApp.loaded) {
+			const renderer = context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
+			void loadArmouryCore()
+				.then(creatureDeferredDone)
+				.then(() => loadCoinFlip(renderer));
+		}
 	});
 
 	// Retina/5K canvases at full DPR are the biggest GPU cost: the renderer's resolution is capped

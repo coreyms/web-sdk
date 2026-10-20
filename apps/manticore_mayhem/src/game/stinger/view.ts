@@ -1066,7 +1066,7 @@ export class StingerView {
 			title: this.ready ? this.title.name : '',
 			/** the title look (BIG_TITLE.look) and the escalation's live overlays */
 			titleVariant: this.variant,
-			escalation: this.ready ? { ...this.escalation.alive, sample: this.escalation.sample } : null,
+			escalation: this.ready ? { ...this.escalation.alive, sample: this.escalation.sample, coin: this.escalation.coinSample() } : null,
 			emblems: this.emblems.filter((e) => e.visible).length,
 			/** the intro emblems as drawn (r3 diagnosis): canvas px box (resting pose), texture px, canvas px per texel,
 			 *  the alpha it reaches the screen with, tint, blend, and what the sampler does */

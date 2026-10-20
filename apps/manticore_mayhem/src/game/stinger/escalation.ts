@@ -9,10 +9,13 @@
 // (the rays, and the coins, thrown out from behind its side pillars) and `front` over it (the embers, which rise up the
 // pillars and beyond, never over the text panel).
 // House rules: every sprite pooled and made at build, nothing allocated per frame, no filter, no mask; the textures are
-// the plaque's own ember sprites, the board's W.png medallion and the tease's beam (all resident or made once).
+// the plaque's own ember sprites, the board's W.png medallion and the tease's beam (all resident or made once); since
+// 1.0.04 (Corey 2026-10-20) the coins draw the 3D medallion's frame for their turn (game/coinFlip.ts, constants
+// COIN_FLIP) at full width once that sheet is in, the flat W.png with its cosine width until then.
 import * as PIXI from 'pixi.js';
 
-import { PLAQUE_ESCALATION } from '../constants';
+import { COIN_FLIP, PLAQUE_ESCALATION } from '../constants';
+import { coinFlipFrame, coinFlipFrames } from '../coinFlip';
 import { STAGING_TOOLS } from '../staging';
 
 /** ?bwesc=0 on the dev server or a staging build: the escalation off (an A / B against the plaque as submitted) */
@@ -40,6 +43,7 @@ export class TierEscalation {
 	private emberDebt = 0;
 	private coinDebt = 0;
 	private coinTexW = 1;
+	private coinFlat: PIXI.Texture = PIXI.Texture.EMPTY;
 	/** DEV state: how many are alive, and the last tier landed */
 	alive = { embers: 0, coins: 0, rays: 0 };
 	/** DEV: the first live ember on the canvas [x, y, width, alpha, texture width] */
@@ -70,6 +74,7 @@ export class TierEscalation {
 		}
 		if (coin) {
 			this.coinTexW = Math.max(1, coin.width);
+			this.coinFlat = coin;
 			for (let i = 0; i < E.coins.pool; i += 1) {
 				const s = new PIXI.Sprite(coin);
 				s.anchor.set(0.5);
@@ -80,6 +85,14 @@ export class TierEscalation {
 		}
 		this.back.addChild(this.rays, this.coinLayer);
 		this.front.addChild(this.emberLayer);
+	}
+
+	/** DEV: the first live coin [frame of the turning medallion (-1: the flat tile), drawn width, drawn height] */
+	coinSample(): number[] {
+		const c = this.coins.find((x) => x.age >= 0 && x.s.visible);
+		if (!c) return [];
+		const frames = coinFlipFrames();
+		return [frames ? frames.indexOf(c.s.texture) : -1, Math.round(c.s.width), Math.round(c.s.height)];
 	}
 
 	/** a screen opens at `tier` (-1: none, the intro); `t` the plaque clock of its impact. Clears what was flying. */
@@ -213,6 +226,7 @@ export class TierEscalation {
 		}
 		// coins: thrown, falling, turning
 		const C = E.coins;
+		const frames = coinFlipFrames();
 		let nc = 0;
 		for (const c of this.coins) {
 			if (c.age < 0) continue;
@@ -228,12 +242,20 @@ export class TierEscalation {
 				continue;
 			}
 			const s = c.s;
-			const k = c.size / this.coinTexW;
-			const flip = Math.max(C.minTurn, Math.abs(Math.cos(c.turn * Math.PI * 2)));
 			s.visible = true;
 			s.position.set(c.x, c.y);
 			s.rotation = c.rot;
-			s.scale.set(k * flip, k);
+			if (frames) {
+				// the frame carries the turn: full width, the flat coin's size face on
+				const f = coinFlipFrame(frames, c.turn);
+				if (s.texture !== f) s.texture = f;
+				s.setSize(c.size * COIN_FLIP.faceScale, c.size * COIN_FLIP.faceScale);
+			} else {
+				if (s.texture !== this.coinFlat) s.texture = this.coinFlat;
+				const k = c.size / this.coinTexW;
+				const flip = Math.max(C.minTurn, Math.abs(Math.cos(c.turn * Math.PI * 2)));
+				s.scale.set(k * flip, k);
+			}
 			s.alpha = Math.min(1, (C.life - c.age) / C.fadeS);
 			nc += 1;
 		}

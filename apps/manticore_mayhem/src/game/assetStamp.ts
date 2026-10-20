@@ -321,6 +321,7 @@ export default {
 	"sprites/mmSymbols/w-drop-half.webp": "edb4aa82",
 	"sprites/mmSymbols/w-drop.json": "0ff860a7",
 	"sprites/mmSymbols/w-drop.webp": "999c6652",
+	"sprites/mmSymbols/w-flip.webp": "d503ccad",
 	"sprites/mmSymbols/w-idle-half.json": "a3c6b9c1",
 	"sprites/mmSymbols/w-idle-half.webp": "1b368705",
 	"sprites/mmSymbols/w-idle.json": "316e4849",
@@ -819,6 +820,7 @@ export const fileBytes = {
 	"sprites/mmSymbols/w-drop-half.webp": 226364,
 	"sprites/mmSymbols/w-drop.json": 700209,
 	"sprites/mmSymbols/w-drop.webp": 685614,
+	"sprites/mmSymbols/w-flip.webp": 208448,
 	"sprites/mmSymbols/w-idle-half.json": 424868,
 	"sprites/mmSymbols/w-idle-half.webp": 403598,
 	"sprites/mmSymbols/w-idle.json": 1190572,
@@ -994,7 +996,7 @@ export const fileBytes = {
 	"ui/stinger/stinger.json": 77042
 } as const;
 
-// Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the green bar by them).
+// Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the splash bar by them).
 export const landingSizes = {
 	"ui/logo-stacked.webp": 137102,
 	"ui/logo-stacked-glint.webp": 15192,
