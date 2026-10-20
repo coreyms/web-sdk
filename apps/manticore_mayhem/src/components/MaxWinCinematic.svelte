@@ -215,16 +215,23 @@
 	const flare = (title: PlaqueTitle, t: number, at: number) => title.glowGain(t < at ? 0 : 1 + (MAX_WIN.glowFlare - 1) * clamp01(1 - (t - at) / MAX_WIN.glowSettleMs));
 
 	let up = false;
-	/** 1 while the screen is up, falling to 0 over outFadeMs on the way out */
+	/** performance.now() the way out began (0: not yet). The titles, the rain and his lifted host fade over outHideMs with
+	 *  the dim still full; then (he is home by then, at alpha 0) the dim fades over outRevealMs and he fades in with the
+	 *  board (constants MAX_WIN.outHideMs / outRevealMs) */
 	let outAt = 0;
+	/** he has been handed back to his own layer on the way out: the reveal fades his roots in */
+	let handedBack = false;
 	const frame = (ticker: PIXI.Ticker) => {
 		const t = maxWinElapsed();
 		const now = performance.now();
 		const dimIn = clamp01((t - MAX_WIN.dimAt) / MAX_WIN.dimFadeMs);
-		const out = outAt ? clamp01(1 - (now - outAt) / MAX_WIN.outFadeMs) : 1;
-		dim.alpha = MAX_WIN.dimAlpha * dimIn * out;
+		const out = outAt ? clamp01(1 - (now - outAt) / MAX_WIN.outHideMs) : 1;
+		const reveal = outAt ? clamp01(1 - (now - outAt - MAX_WIN.outHideMs) / MAX_WIN.outRevealMs) : 1;
+		dim.alpha = MAX_WIN.dimAlpha * dimIn * reveal;
 		rain.root.alpha = out * MedallionRain.fadeAt(t);
 		titles.alpha = out;
+		lift.alpha = handedBack ? 1 : out;
+		if (handedBack) creatureFront.setAlpha(1 - reveal);
 		rain.tick(ticker.deltaMS, t);
 		maxWinState.medallions = rain.live;
 		const ty = buildType();
@@ -288,6 +295,8 @@
 		multText = `${Math.round(bookEventAmountToBetAmountMultiplier(maxWinState.payout)).toLocaleString('en-US')}x`;
 		laid = '';
 		outAt = 0;
+		handedBack = false;
+		lift.alpha = 1;
 		placeAll();
 		const texture = (context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined)?.[MAX_WIN.rain.texture];
 		if (texture) rain.build(texture, kind);
@@ -337,12 +346,22 @@
 		maxWinState.phase = 'out';
 		mark('out');
 		outAt = performance.now();
-		await waitForTimeout(MAX_WIN.outFadeMs);
+		// (a) he, the titles and the rain fade out with the dim still full
+		await waitForTimeout(MAX_WIN.outHideMs);
+		// (b) hidden, he goes home at alpha 0 (no jump on screen)
+		creatureFront.setAlpha(0);
+		creatureFront.lift = null;
+		creatureFront.sync();
+		lift.alpha = 1;
+		handedBack = true;
+		mark('home');
+		// (c) the dim fades out and he fades in at his own place with the board (the ticker drives both)
+		await waitForTimeout(MAX_WIN.outRevealMs);
 		stopTicker();
 		root.visible = false;
 		rain.clear();
-		creatureFront.lift = null;
-		creatureFront.sync();
+		handedBack = false;
+		creatureFront.setAlpha(1);
 		dropType();
 		maxWinRelease();
 		mark('done');
@@ -389,7 +408,7 @@
 				return true;
 			};
 		}
-		installMaxWinProbe(() => ({ log: log.slice(), lifted: creatureFront.lift === lift, titlesShown: !!type && maxSlot.visible, layout: kind, coin: rain.sample() }));
+		installMaxWinProbe(() => ({ log: log.slice(), lifted: creatureFront.lift === lift, titlesShown: !!type && maxSlot.visible, layout: kind, coin: rain.sample(), out: { dim: Number(dim.alpha.toFixed(3)), lift: Number(lift.alpha.toFixed(3)), home: Number((creatureFront.hosts[creatureFront.layer]?.alpha ?? 1).toFixed(3)), handedBack, liftX: Math.round(lift.x), liftY: Math.round(lift.y) } }));
 		if (import.meta.env.DEV) {
 			const m = (window as unknown as { __manticore?: Record<string, unknown> }).__manticore;
 			if (m)
@@ -406,6 +425,7 @@
 				creatureFront.lift = null;
 				creatureFront.sync();
 			}
+			creatureFront.setAlpha(1);
 			dropType();
 			rain.destroy();
 			for (const child of root.removeChildren()) if (child !== rain.root && child !== lift) child.destroy({ children: true });

@@ -1439,6 +1439,12 @@ export const creatureFront = {
 	 *  over the screen's dim and under its titles, in either layer. A stage level container like the two hosts, so he
 	 *  stays on exactly the same pixels; cleared, he goes back to the layer's host. */
 	lift: null as PIXI.Container | null,
+	/** THE MAX WIN EXIT'S FADE (1.0.04; components/MaxWinCinematic.svelte, constants MAX_WIN.outHideMs / outRevealMs): the
+	 *  two hosts' alpha. Not the roots': the scene owns theirs (game/scene.ts, its show fade and the other layout's 0).
+	 *  Nothing else sets a host's alpha, so it is 1 everywhere but that screen's way out, which hands it back at 1 */
+	setAlpha(a: number): void {
+		for (const host of [this.hosts.front, this.hosts.behind]) if (host && host.alpha !== a) host.alpha = a;
+	},
 	sync(): void {
 		const host = this.lift ?? this.hosts[this.layer];
 		if (!host) return;

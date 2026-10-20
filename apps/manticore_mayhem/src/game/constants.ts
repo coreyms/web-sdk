@@ -3163,8 +3163,15 @@ export const MAX_WIN = {
 	/** the dim's alpha over the board, the plaque and the canvas logo (the HTML HUD goes by uiHide { deep }) */
 	dimAlpha: 0.88,
 	dimFadeMs: 700,
-	/** the screen leaving after the gate: the dim, the rain and the titles fade together, then he goes back down */
-	outFadeMs: 500,
+	/** THE WAY OUT (1.0.04, Corey 2026-10-20: "the manticore stays on the screen, the screen fades from black, then the
+	 *  manticore jumps into it's proper position. I think This should have the manticore fade off the screen while the
+	 *  screen is still black. Then appear in it's proper position, so it doesn't look like a glitch."). Up to 1.0.03 the
+	 *  dim, the rain and the titles faded together over 500 ms with him still lifted at this screen's nudge (layout
+	 *  creatureX / creatureY), then he dropped home: the jump. Now, after the gate: (a) with the dim still full, he fades
+	 *  out with the titles and the rain over outHideMs; (b) hidden, he is handed back to his own layer at alpha 0; (c) the
+	 *  dim fades out over outRevealMs and he fades in at his own place with the board. */
+	outHideMs: 400,
+	outRevealMs: 500,
 	/** the roar where he stands, with the dim (his clip, sfx_roar_win since 2026-10-18) */
 	roarAt: 3000,
 	/** MAYHEM UNLEASHED slams in: the roar's mouth is open by then (roar clip f18 of 53 at 30 fps) */
