@@ -362,7 +362,7 @@
 		// THE WIN SHEET (WIN_SHEET): from frame 0 at the cluster's presentation (a new Cell.winAt), in style time, held on its
 		// last frame; through the win pulse and the pop in place (scale, squash, twist), never frozen or dropped for them
 		if (sheet.win) {
-			const winning = c.state === 'win' || (c.state === 'removing' && Math.abs(c.y - c.row) < 1e-4 && c.dx === 0);
+			const winning = c.state === 'win' || (c.state === 'removing' && Math.abs(c.y - c.row) < 1e-4 && c.dx === 0) || c.triggerWin;
 			let freshWin = false;
 			if (c.winAt !== sl.winAt) {
 				sl.winAt = c.winAt;

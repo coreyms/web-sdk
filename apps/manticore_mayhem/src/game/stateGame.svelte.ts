@@ -40,6 +40,7 @@ import {
 	STING,
 	STING_FX,
 	SCATTER_STING,
+	WIN_SHEET,
 	ANTICIPATION_TEASE,
 	TRIGGER_BEAT,
 	SWIPE_FX,
@@ -101,6 +102,9 @@ export type Cell = {
 	/** performance.now() of the moment this cell's cluster was presented (presentWinSet; 0 = never won): BoardCells plays
 	 *  the symbol's win sheet from it (constants WIN_SHEET). Written once per win, never per frame. */
 	winAt: number;
+	/** WIN_SHEET.trigger: this scatter is playing (or holding) its win sheet for the trigger pulse, outside any cluster win;
+	 *  set by scatterTrigger, cleared by releaseTriggerWins */
+	triggerWin: boolean;
 	state: SymbolState;
 };
 
@@ -148,6 +152,7 @@ const makeCell = (name: SymbolName, reel: number, row: number, y = row): Cell =>
 	glowColor: AURA_COLOR,
 	landAt: 0,
 	winAt: 0,
+	triggerWin: false,
 	state: 'static',
 });
 
@@ -1908,6 +1913,20 @@ export const scatterTrigger = async (cells: CellIndex[], id: number, rec?: FxRec
 	const ids = new Set(scatterIdsAt(cells));
 	if (rec) fxStamp(rec, 'trigger');
 	onStart?.();
+	// WIN_SHEET.trigger: every triggering scatter plays its win sheet from the pulse (BoardCells; a cell without the sheet
+	// loaded simply stays on its frames) and holds its last frame until releaseTriggerWins
+	const sheet = WIN_SHEET.trigger.on && !stateGame.skipping;
+	if (sheet) {
+		const at = performance.now();
+		const map = liveById();
+		for (const cellId of ids) {
+			const c = map.get(cellId);
+			if (!c) continue;
+			c.winAt = at;
+			c.triggerWin = true;
+		}
+	}
+	const glow = !sheet || WIN_SHEET.trigger.glow;
 	await raf(SCATTER_STING.triggerMs, (t) => {
 		if (!alive(id)) return;
 		const map = liveById();
@@ -1917,7 +1936,7 @@ export const scatterTrigger = async (cells: CellIndex[], id: number, rec?: FxRec
 			if (!c) continue;
 			c.scaleX = v;
 			c.scaleY = v;
-			c.glow = t >= 1 ? 0 : 1 - t;
+			c.glow = t >= 1 || !glow ? 0 : 1 - t;
 			c.glowColor = SCATTER_STING.scatterColor;
 		}
 	});
@@ -1931,6 +1950,15 @@ export const scatterTrigger = async (cells: CellIndex[], id: number, rec?: FxRec
 		c.glowColor = AURA_COLOR;
 	}
 	if (rec) fxStamp(rec, 'triggerEnd');
+};
+
+/** WIN_SHEET.trigger: the triggering scatters leave their held win frame (BoardCells: the static frame, then idle) */
+export const releaseTriggerWins = () => {
+	for (const c of stateGame.cells) {
+		if (!c.triggerWin) continue;
+		c.triggerWin = false;
+		c.winAt = 0;
+	}
 };
 
 // ---- THE TRIGGER BEAT (constants TRIGGER_BEAT; harsh review 2026-10-15 design item 8, Corey 17:32 "A1") ---------

@@ -34,6 +34,7 @@ import {
 	scatterHold,
 	scatterRing,
 	scatterTrigger,
+	releaseTriggerWins,
 	triggerBeat,
 	plateReveal,
 	dropHook,
@@ -670,6 +671,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			});
 			fxStamp(rec, 'end');
 		}
+		// the scatters' trigger clip (WIN_SHEET.trigger) held its last frame through the beat
+		releaseTriggerWins();
 		await hidden;
 		// every feature starts at normal speed; the base level comes back at freeSpinEnd
 		stateGameDerived.setTurboLevel(0);

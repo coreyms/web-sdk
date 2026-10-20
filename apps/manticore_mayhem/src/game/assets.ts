@@ -93,8 +93,8 @@ const assets = {
 	// THE SYMBOL SHEETS (tools/pack_symbol_sheets.py, tools/SYMBOL_SHEETS.md): per symbol a drop
 	// sheet (plays from the landing contact) and an idle loop, 256 px cells with a 128 px phone twin.
 	// Not in the Pixi preload: THE GATE (GATE_ORDER below) loads them after the audio and PRESS ANYWHERE waits for them
-	// up to LOAD_GATE.capMs. Until they are in, every cell shows its static atlas frame (components/BoardCells.svelte). L2's idle is a single still and L3 has none, so
-	// neither is loaded (constants SYMBOL_ANIM). Frame names <code>-drop-000 / <code>-idle-000.
+	// up to LOAD_GATE.capMs. Until they are in, every cell shows its static atlas frame (components/BoardCells.svelte). Since revision 2 (2026-10-19) every symbol has a
+	// moving idle (L2's was a single still and L3 had none before). Frame names <code>-drop-000 / <code>-idle-000.
 	mmDrop_l1: {
 		type: 'sprites',
 		src: tiered(
@@ -119,11 +119,27 @@ const assets = {
 		),
 		preload: false,
 	},
+	mmIdle_l2: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l2-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l2-idle-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
 	mmDrop_l3: {
 		type: 'sprites',
 		src: tiered(
 			stamp(new URL('../../assets/sprites/mmSymbols/l3-drop.json', import.meta.url).href),
 			stamp(new URL('../../assets/sprites/mmSymbols/l3-drop-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmIdle_l3: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l3-idle.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l3-idle-half.json', import.meta.url).href),
 		),
 		preload: false,
 	},
@@ -208,7 +224,7 @@ const assets = {
 		preload: false,
 	},
 	// THE WIN SHEETS (constants WIN_SHEET; tools/pack_symbol_sheets.py CLIPS "win"): a symbol's own win clip, only for the
-	// symbols that have one (the crown, the helmet, the dagger and the chalice since 2026-10-19). Cells 1.5 x the normal cell (384 px, 192 on the phone tier).
+	// symbols that have one (every symbol since 2026-10-19; the War Standard's plays at the scatter trigger pulse, not in a cluster). Cells 1.5 x the normal cell (384 px, 192 on the phone tier).
 	// In THE GATE as its own group after the idle loops, so the game opens with them in. Frame names <code>-win-000.
 	mmWin_h1: {
 		type: 'sprites',
@@ -239,6 +255,54 @@ const assets = {
 		src: tiered(
 			stamp(new URL('../../assets/sprites/mmSymbols/m3-win.json', import.meta.url).href),
 			stamp(new URL('../../assets/sprites/mmSymbols/m3-win-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmWin_l1: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l1-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l1-win-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmWin_l2: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l2-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l2-win-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmWin_l3: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l3-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l3-win-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmWin_l4: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/l4-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/l4-win-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmWin_w: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/w-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/w-win-half.json', import.meta.url).href),
+		),
+		preload: false,
+	},
+	mmWin_s: {
+		type: 'sprites',
+		src: tiered(
+			stamp(new URL('../../assets/sprites/mmSymbols/s-win.json', import.meta.url).href),
+			stamp(new URL('../../assets/sprites/mmSymbols/s-win-half.json', import.meta.url).href),
 		),
 		preload: false,
 	},
@@ -678,14 +742,14 @@ const deferredKeys = (prefix: string) =>
 	Object.entries(assets as unknown as Record<string, { preload?: boolean }>)
 		.filter(([key, entry]) => key.startsWith(prefix) && !entry.preload)
 		.map(([key]) => key);
-const SCATTER_SHEETS = ['mmDrop_s', 'mmIdle_s'];
+const SCATTER_SHEETS = ['mmDrop_s', 'mmIdle_s', 'mmWin_s'];
 const notScatter = (keys: string[]) => (LOAD_GATE.scatter ? keys : keys.filter((key) => !SCATTER_SHEETS.includes(key)));
 export type LoadGroupName = 'plaque' | 'drop' | 'idle' | 'win' | 'scatter' | 'night' | 'frameNight' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels';
 export const GATE_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
 	{ name: 'drop', keys: notScatter(deferredKeys('mmDrop_')) },
 	{ name: 'idle', keys: notScatter(deferredKeys('mmIdle_')) },
-	{ name: 'win', keys: deferredKeys('mmWin_') },
+	{ name: 'win', keys: notScatter(deferredKeys('mmWin_')) },
 ];
 export const DEFERRED_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	// the cheaper variant's scatter sheets (empty, so skipped, while they are in the gate)

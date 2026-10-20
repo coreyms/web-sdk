@@ -11,7 +11,7 @@ Sources (read only, never written):
   CLIPS (below) picks other folders per symbol and clip: H1 reads drop_r2/, idle_r2/ and win/ (revision 2, 2026-10-19)
   .../animation/win/  (only where CLIPS names one) the WIN clip: masters at canvas.json "scale" x the 512 frame (768 px
                       for 1.5), the 512 frame centred in them at the same pixel density; canvas.json gives the scale
-  SOURCE_OVERRIDES (below): S reads its frames and tile from S_war-standard/graded_r1/ (tools/grade_war_standard.py)
+  SOURCE_OVERRIDES (below): S reads its frames from S_war-standard/graded_r2/ and its tile from graded_r1/tile/
   tools/render_symbols/out/render/<CODE>.png + fit.json                 the 1024 harness renders the tiles were baked
                                                                          from (make_tiles.py); the fit is derived from
                                                                          them and cached in render_symbols/sheet_fit.json
@@ -79,7 +79,7 @@ PAD = 512  # transparent margin around a source frame so a crop box may run past
 CODES = ["L1", "L2", "L3", "L4", "M1", "M2", "M3", "H1", "W", "S"]
 # per-symbol source folders under animation/ (None = no clip delivered)
 CLIPS = {
-    "L4": {"drop": "drop", "idle": "idle"},  # drop/ = baked stamp squash (NOT drop_nosquash)
+    "L4": {"drop": "drop", "idle": "idle_r2", "win": "win"},  # drop/ = baked stamp squash (NOT drop_nosquash), kept in r2
     # M1 REVISION 2 (Corey 2026-10-19 10:53 review; 12:07 "Helmet looks good now"): readable landing and idle, and the
     # win r3 (r2 centred in the cell while it faces the camera, Corey 12:00). Replaces drop/ = drop_lively
     "M1": {"drop": "drop_r2", "idle": "idle_r2", "win": "win_r3"},
@@ -89,7 +89,16 @@ CLIPS = {
     # M3 REVISION 2 (Corey 2026-10-19 14:45 "Challice looks good"): a toast tilt that spills wine in red drops with the
     # emeralds flaring, a landing rock with a bigger splash, an idle rock while the wine swirls. Replaces drop/ and idle/
     "M3": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
-    "L3": {"drop": "drop", "idle": None},  # no idle delivered yet
+    # REVISION 2 for the last six (Corey 2026-10-19 evening, each passed on its own review GIFs; NOTES.md "Revision 2" in
+    # each symbol's animation folder): L1 shackle (hinge snap and burst, 20:45), L2 bull skull (charge, ember eyes),
+    # L3 key (full turn in a lock and click; its first idle), L4 seal (stamps again, crest turns gold; its STAMP landing
+    # of 2026-10-06 is kept, so drop/ stays), W wild (coin spin, eyes, WILD, rim), S war standard (gust and blazing sun:
+    # its win clip plays at the scatter trigger pulse, not in a cluster; Corey 2026-10-19 "At the trigger pulse")
+    "L1": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
+    "L2": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
+    "L3": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
+    "W": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
+    "S": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
     # REVISION 2 (2026-10-19, Stake's "The symbols are poorly animated"; Corey 10:11 "The crown looks much better"): the
     # readable landing and idle, and a WIN clip of its own (NOTES.md "Revision 2" in the symbol's animation folder)
     "H1": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
@@ -101,8 +110,11 @@ DEFAULT_CLIPS = {"drop": "drop", "idle": "idle"}
 WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} written by the art job (post_r2.py)
 # SOURCE OVERRIDES: a symbol whose frames and static tile come from a graded copy instead of the masters (the masters
 # stay untouched). The folder holds drop/ and idle/ (same file names as animation/<folder>/) and tile/<code>.webp.
-#   S: the War Standard re-grade (review B5, Corey 2026-10-17 13:08, no Blender), written by tools/grade_war_standard.py
-SOURCE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r1")}
+#   S: the War Standard re-grade (review B5, Corey 2026-10-17 13:08, no Blender), written by tools/grade_war_standard.py;
+#   since revision 2 (2026-10-19) the clips come from graded_r2/ (the same grade, applied by the r2 art job before its
+#   painted light) and the static tile still from graded_r1/tile/ (TILE_OVERRIDES)
+SOURCE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r2")}
+TILE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r1", "tile", "s.webp")}
 FRAME_RE = re.compile(r"^(?:[A-Za-z0-9]+_(?:drop|idle|win)(?:_r\d+)?_)?\d{3,4}\.png$")
 
 
@@ -288,8 +300,8 @@ def clip_dir(code, folder):
 
 def tile_path(code):
     """the 256 px static tile: the graded copy for an overridden symbol, else the handoff tile"""
-    if code in SOURCE_OVERRIDES:
-        return os.path.join(SOURCE_OVERRIDES[code], "tile", code.lower() + ".webp")
+    if code in TILE_OVERRIDES:
+        return TILE_OVERRIDES[code]
     return os.path.join(HANDOFF_TILES, code.lower() + ".webp")
 
 
@@ -372,6 +384,12 @@ def process(im, g, out_px, canvas=1.0):
     return padded.resize((out_px, out_px), Image.LANCZOS, box=(x0 + PAD, y0 + PAD, x1 + PAD, y1 + PAD))
 
 
+# symbols whose fit is ONLY the cached one in sheet_fit.json: S's art changed on 2026-10-14 (face forward, spike removed,
+# web-sdk 581e8aa) but out/render/S.png is still the old az 350 render, and re-deriving from it (as a --only S pack did on
+# 2026-10-19) packs the new frames with the old art's crop and squeezes the banner to 191 px wide
+FIT_FROM_CACHE = {"S"}
+
+
 def load_geometry(only):
     cache = os.path.join(RS, "sheet_fit.json")
     fit = json.load(open(os.path.join(RS, "fit.json")))
@@ -379,6 +397,8 @@ def load_geometry(only):
     have_renders = os.path.isdir(os.path.join(RS, "out", "render"))
     for code in CODES:
         if only and code not in only:
+            continue
+        if code in FIT_FROM_CACHE and code in geo:
             continue
         if have_renders and os.path.exists(os.path.join(RS, "out", "render", code + ".png")):
             geo[code] = derive_fit(code, fit)

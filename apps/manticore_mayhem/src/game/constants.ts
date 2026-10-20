@@ -365,15 +365,14 @@ export const FALL_CUT: { edge: 'opening' | 'centre' | 'outer'; offsetPx: number 
  *  frames, so the sprite must not squash it again). dropFrom: the first drop frame the game plays
  *  (S frames 0..5 show the fall inside the frame and the game already moves the sprite; L3 frame 0 is
  *  only the identity check). idle: whether a moving idle loop exists; without one the cell rests on
- *  its last drop frame (L3 has none, L2's is a single still). The frame COUNT always comes from the
+ *  its last drop frame (every symbol has one since revision 2, 2026-10-19; L3 had none and L2's was a still). The frame COUNT always comes from the
  *  loaded sheet, never from here. */
 export type SymbolAnim = { squash: number; dropFrom: number; idle: boolean };
 export const SYMBOL_ANIM_DEFAULT: SymbolAnim = { squash: GRAVITY_DROP.squash, dropFrom: 0, idle: true };
 export const SYMBOL_ANIM: Partial<Record<string, Partial<SymbolAnim>>> = {
 	L4: { squash: 0 },
 	S: { dropFrom: 6 },
-	L3: { dropFrom: 1, idle: false },
-	L2: { idle: false },
+	L3: { dropFrom: 1 },
 };
 const symbolAnimCache = new Map<string, SymbolAnim>();
 /** cached per name: safe to call every frame (no allocation after the first call) */
@@ -416,7 +415,12 @@ export const SYMBOL_IDLE_REST = { minMs: 7000, maxMs: 19000 };
  *                       clip's own light beat); seen in the 2026-10-19 in-game capture
  *                count  the softer sweep as the count lands. true: it crosses the bounce into the proud pose (frames 26
  *                       to 31) and reads as one more catch of light on the settled crown */
-export const WIN_SHEET = { breathe: false, shine: { start: false, count: true } };
+/*    trigger   the scatter's win sheet (the War Standard never wins in a cluster): played at the trigger pulse
+ *              (stateGame scatterTrigger; Corey 2026-10-19 "At the trigger pulse"), from frame 0 at the pulse in STYLE
+ *              time, its last frame (the sun glowing) held through the trigger beat, released when the beat ends
+ *              (releaseTriggerWins). on: false keeps the pulse alone. glow: the pulse's scatter-colour aura on a cell
+ *              that plays the sheet (false: it fights the blazing sun, as the shine fought the crown's rubies) */
+export const WIN_SHEET = { breathe: false, shine: { start: false, count: true }, trigger: { on: true, glow: false } };
 
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {
