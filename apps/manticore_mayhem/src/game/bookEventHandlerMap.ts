@@ -63,6 +63,7 @@ import {
 	STINGER_PLAQUE,
 	CHAIN_BOW,
 	SPIN_TOTAL,
+	PLAQUE_STREAK,
 } from './constants';
 
 // ================================================================================================
@@ -290,8 +291,31 @@ const winSpecOf = (w: BookEventOfType<'cascade'>['wins'][number], paid?: number)
 // own beat will come: the drop says how long it will take as it starts (stateGame dropHook), `after` adds whatever
 // this handler still plays behind it, and the creature starts its wind-up early enough for the strike to land on the
 // beat. Nothing here waits, nothing is delayed: the handlers' own awaits are exactly what they were.
-/** the spin total's last presentation after a spin's last cascade (components/BoardPlaque.svelte spinWinFinal), style ms */
+/** the spin total's last presentation after a cascade with no cascade straight after it (components/BoardPlaque.svelte
+ *  spinWinFinal), style ms: the plain hold, or THE MOVE TO THE HUD after the spin's last clear (PLAQUE_STREAK; the
+ *  queue's own wait not counted) */
 const SPIN_FINAL_MS = SPIN_TOTAL.finalDelayMs + SPIN_TOTAL.finalRiseMs + SPIN_TOTAL.finalCountMs + SPIN_TOTAL.finalHoldMs;
+const SPIN_TO_HUD_MS = PLAQUE_STREAK.toHudDelayMs + PLAQUE_STREAK.liftMs + PLAQUE_STREAK.flightMs;
+/** THE SPIN'S LAST CLEAR (1.0.04, the move to the HUD): no cascade comes after this one before the spin is over (the
+ *  next setTotalWin, reveal, feature start or end, wincap or finalWin). A swipe in between does not end the spin: the
+ *  cascades after a swipe still count on the same total */
+const lastClearOfSpin = (bookEvent: BookEvent, bookEvents: BookEvent[]): boolean => {
+	for (let i = bookEvents.indexOf(bookEvent) + 1; i < bookEvents.length; i += 1) {
+		const t = bookEvents[i].type;
+		if (t === 'cascade') return false;
+		if (t === 'setTotalWin' || t === 'reveal' || t === 'bonusStart' || t === 'freeSpinEnd' || t === 'wincap' || t === 'finalWin') return true;
+	}
+	return true;
+};
+/** the book's next setTotalWin amount this spin (the HUD's number), null when the spin has none */
+const spinTotalWinAhead = (bookEvent: BookEvent, bookEvents: BookEvent[]): number | null => {
+	for (let i = bookEvents.indexOf(bookEvent) + 1; i < bookEvents.length; i += 1) {
+		const e = bookEvents[i];
+		if (e.type === 'setTotalWin') return e.amount;
+		if (e.type === 'reveal' || e.type === 'wincap' || e.type === 'finalWin') return null;
+	}
+	return null;
+};
 const creatureWhat = (next: BookEvent | undefined) => (next?.type === 'swipe' ? 'swipe' : next?.type === 'roar' ? 'roar' : next?.type === 'sting' ? 'sting' : null);
 /** arm the cue for the feature that follows `bookEvent`'s drop; `after`: style ms this handler plays after the drop */
 const cueCreature = (bookEvent: BookEvent, bookEvents: BookEvent[], after: () => number = () => 0) => {
@@ -438,17 +462,22 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// THE MAX WIN CUT (see capPlan): only the clusters up to the one that reaches the cap are presented, each
 		// showing what it pays
 		const plan = capPlan(bookEvent, bookEvents);
+		const specs = plan === null ? bookEvent.wins.map((w) => winSpecOf(w)) : bookEvent.wins.slice(0, plan.cut).map((w, k) => winSpecOf(w, plan.paid[k]));
 		const ours = await presentWinSet(
-			plan === null ? bookEvent.wins.map((w) => winSpecOf(w)) : bookEvent.wins.slice(0, plan.cut).map((w, k) => winSpecOf(w, plan.paid[k])),
+			specs,
 			id,
 			{
 				onClusterStart: () => eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cluster_remove', forcePlay: true }),
-				onCountDone: (_i, total) => {
+				onCountDone: (i, total) => {
 					running += total;
 					// the capped step: the counts are the paid amounts, so the running sum lands on the spin's paid
 					// total; never shown past it
 					if (plan !== null) running = Math.min(running, plan.spinPaid);
-					eventEmitter.broadcast({ type: 'spinWinStep', amount: running });
+					// THE PLAQUE'S ROW for this cluster (1.0.04): the book's cluster size and symbol, and the amount its own
+					// count just landed on (the book's win.w; on the capped step what it pays); `together`: how many
+					// clusters this step clears (the plaque counts faster for more)
+					const w = bookEvent.wins[i];
+					eventEmitter.broadcast({ type: 'spinWinStep', amount: running, clear: w ? { n: w.n, s: w.s, w: specs[i].total } : undefined, together: specs.length });
 					if (import.meta.env.DEV) {
 						motionLog.steps.push({ amount: running, at: performance.now(), cascade: motionLog.cascadeIndex });
 						if (motionLog.steps.length > 400) motionLog.steps.splice(0, 200);
@@ -505,7 +534,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await waitStyle(CLUSTER.refillDelayMs);
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cascade', forcePlay: true });
 		// the creature: a swipe after this spin's last cascade winds up through the refill's settle and the spin total
-		cueCreature(bookEvent, bookEvents, () => SPIN_FINAL_MS);
+		cueCreature(bookEvent, bookEvents, () => (lastClearOfSpin(bookEvent, bookEvents) && spinTotalWinAhead(bookEvent, bookEvents) !== null ? SPIN_TO_HUD_MS : SPIN_FINAL_MS));
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
 
 		settleBoard();
@@ -515,8 +544,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the last cascade of the spin: the spin total's final presentation (SPIN_TOTAL), after the refill
 		const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
 		// (the same cue again from here, a closer estimate now that the refill is down)
-		if (next?.type === 'swipe' && !stateGame.skipping) eventEmitter.broadcast({ type: 'creatureCue', what: 'swipe', inMs: SPIN_FINAL_MS });
-		if (next?.type !== 'cascade') await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin });
+		if (next?.type === 'swipe' && !stateGame.skipping) eventEmitter.broadcast({ type: 'creatureCue', what: 'swipe', inMs: lastClearOfSpin(bookEvent, bookEvents) && spinTotalWinAhead(bookEvent, bookEvents) !== null ? SPIN_TO_HUD_MS : SPIN_FINAL_MS });
+		if (next?.type !== 'cascade') {
+			// THE MOVE TO THE HUD (1.0.04, PLAQUE_STREAK): after the spin's last clear the plaque's total flies to the HUD's
+			// WIN; the broadcast resolves as it arrives and the HUD gets the book's own setTotalWin amount then (its own
+			// count-up runs from there; setTotalWin writes the same number again). A skip resolves at once.
+			const hud = lastClearOfSpin(bookEvent, bookEvents) ? spinTotalWinAhead(bookEvent, bookEvents) : null;
+			await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin, toHud: hud !== null });
+			if (hud !== null && !capShown) stateBet.winBookEventAmount = hud;
+		}
 	},
 
 	// ---- swipe: the paw clears a band of three rows (the book's `rows`) ---------------------------

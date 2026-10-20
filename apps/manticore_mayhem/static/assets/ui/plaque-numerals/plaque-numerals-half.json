@@ -1200,9 +1200,29 @@
     "h": 29
    }
   },
-  "plq_comma.png": {
+  "plq_multx.png": {
    "frame": {
     "x": 481,
+    "y": 123,
+    "w": 17,
+    "h": 17
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 17,
+    "h": 17
+   },
+   "sourceSize": {
+    "w": 17,
+    "h": 17
+   }
+  },
+  "plq_comma.png": {
+   "frame": {
+    "x": 500,
     "y": 123,
     "w": 9,
     "h": 13
@@ -1222,8 +1242,8 @@
   },
   "plq_period.png": {
    "frame": {
-    "x": 492,
-    "y": 123,
+    "x": 1,
+    "y": 159,
     "w": 9,
     "h": 9
    },
@@ -1247,7 +1267,7 @@
   "format": "RGBA8888",
   "size": {
    "w": 512,
-   "h": 160
+   "h": 172
   },
   "scale": "0.5"
  }

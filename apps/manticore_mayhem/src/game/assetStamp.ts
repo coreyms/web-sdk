@@ -466,10 +466,10 @@ export default {
 	"ui/numerals/numerals.webp": "a3114871",
 	"ui/numerals/plate-numerals.json": "3c24cb77",
 	"ui/numerals/plate-numerals.png": "568b8e40",
-	"ui/plaque-numerals/plaque-numerals-half.json": "1080dd2f",
-	"ui/plaque-numerals/plaque-numerals-half.webp": "36a402c2",
-	"ui/plaque-numerals/plaque-numerals.json": "a0dd3de4",
-	"ui/plaque-numerals/plaque-numerals.webp": "5dba98b0",
+	"ui/plaque-numerals/plaque-numerals-half.json": "2420cb70",
+	"ui/plaque-numerals/plaque-numerals-half.webp": "617d643c",
+	"ui/plaque-numerals/plaque-numerals.json": "bdd15ed1",
+	"ui/plaque-numerals/plaque-numerals.webp": "e5fedaae",
 	"ui/stinger/stinger-fx-half.json": "3d732244",
 	"ui/stinger/stinger-fx-half.webp": "3ced181c",
 	"ui/stinger/stinger-fx.json": "5c911883",
@@ -962,10 +962,10 @@ export const fileBytes = {
 	"ui/numerals/numerals.webp": 399516,
 	"ui/numerals/plate-numerals.json": 17677,
 	"ui/numerals/plate-numerals.png": 14195,
-	"ui/plaque-numerals/plaque-numerals-half.json": 80225,
-	"ui/plaque-numerals/plaque-numerals-half.webp": 63546,
-	"ui/plaque-numerals/plaque-numerals.json": 142551,
-	"ui/plaque-numerals/plaque-numerals.webp": 125846,
+	"ui/plaque-numerals/plaque-numerals-half.json": 80661,
+	"ui/plaque-numerals/plaque-numerals-half.webp": 63714,
+	"ui/plaque-numerals/plaque-numerals.json": 143687,
+	"ui/plaque-numerals/plaque-numerals.webp": 126712,
 	"ui/stinger/stinger-fx-half.json": 152072,
 	"ui/stinger/stinger-fx-half.webp": 138194,
 	"ui/stinger/stinger-fx.json": 252472,
@@ -1000,4 +1000,4 @@ export const landingSizes = {
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":180978,"preload":1469963,"audio":1668065} as const;
+export const bootSizes = {"landing":180978,"preload":1471099,"audio":1668065} as const;

@@ -667,6 +667,105 @@ export const BOARD_PLAQUE = {
  *  block's own centre row */
 export const PLAQUE_FIELD = { tiltDeg: 35, faceH: 100, layoutCentreY: -1.25 };
 
+/** THE CLUSTER ROWS AND THE SPIN TOTAL ON THE PLAQUE (1.0.04; images/plaque_r6_storyboard STORYBOARD.md S2, layout r3 C;
+ *  components/BoardPlaque.svelte). Corey 2026-10-20: "I like C here the most but grown the size of the spin amount on the
+ *  right to be larger", then "25px is the right size", and for the phone "Let's make the phone match the desktop for the
+ *  banner, and we'll adjust after it's on staging". Each cluster's own count landing on the board adds a ROW on the left
+ *  ("8 × [the symbol] 2.40": the book's cluster size, the symbol, its win as the plaque prints an amount without the
+ *  currency mark): the newest row big at the bottom left, the one before it small and dimmed above it, an older one
+ *  fading out over the top. The SPIN TOTAL on the right counts up as each row lands.
+ *  Sizes are shares of the plaque's figure height (PLAQUE_DIGIT_H layout units, before the field map's k), positions in
+ *  the plaque's layout units (x from the centre, y down; the face's centre row is PLAQUE_FIELD.layoutCentreY). ONE SET
+ *  PER LAYOUT so a phone suggestion after staging is a one-number change: landscape = desktop, portrait = the phone held
+ *  upright (and the portrait tablet), phone = the phone held sideways.
+ *    rowX            the rows' left edge          rowMaxX      a row never runs past this (the fit rule shrinks it)
+ *    big / bigIcon   the newest row's size and its symbol's height (x the row's digit height); yBig its centre row
+ *    small / ...     the row before it, at smallAlpha
+ *    totalX          the total's right edge; totalSize its size (desktop 0.611: 25 CSS px at 1920 x 1080, Corey "25px is
+ *                    the right size"); totalMinX: it never runs left of this (the fit rule)
+ *    badgeRowMaxX    while the hit badge is up (centred) the rows stop here */
+export const PLAQUE_CLEARS = {
+	layouts: {
+		landscape: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.3, yBig: 12, small: 0.3, smallIcon: 1.2, ySmall: -28, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
+		portrait: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.3, yBig: 12, small: 0.3, smallIcon: 1.2, ySmall: -28, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
+		phone: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.3, yBig: 12, small: 0.3, smallIcon: 1.2, ySmall: -28, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
+	} as Record<'landscape' | 'portrait' | 'phone', PlaqueClearsLayout>,
+	/** a row comes in (it rises from `enterRise` layout units below and fades in; the row before it shrinks up; an older
+	 *  one fades out over the top) over rowInMs (sineInOut) */
+	rowInMs: 220,
+	enterRise: 30,
+	leaveRise: 26,
+	/** rows of one cascade step start this far apart: 1 or 2 clusters in the step, then 3 or more */
+	rowStaggerMs: [260, 260, 200],
+	/** THE COUNT (Corey 2026-10-19: "when several clusters clear at the same time it counts FASTER"): a landing row's count
+	 *  runs this long by how many clusters its step cleared (1, 2, 3 or more): more is added in less time */
+	countMs: [560, 420, 320],
+	countEasing: 'quadOut' as const,
+	/** the rows fade out over this while the total lifts out (the move to the HUD) */
+	rowsOutMs: 200,
+	/** the row's amount: the formatted amount with its currency mark taken off (Corey's "8 x [icon] 2.40") */
+	dropCurrency: true,
+	/** quads per row mesh: "15 × [icon] 1,234,567.89" is 16 glyphs */
+	rowGlyphs: 24,
+	/** each symbol's art inside its 256 px tile (mmSymbols atlas), [x0, y0, x1, y1] as shares, so the icon is the art */
+	iconTrim: {
+		L1: [0.07, 0.113, 0.891, 0.953],
+		L2: [0.008, 0.062, 0.996, 0.941],
+		L3: [0.125, 0.133, 0.879, 0.871],
+		L4: [0.09, 0.062, 0.914, 0.941],
+		M1: [0.117, 0.008, 0.887, 0.996],
+		M2: [0.012, 0.062, 0.996, 0.938],
+		M3: [0.117, 0.008, 0.883, 0.996],
+		H1: [0.051, 0.133, 0.953, 0.875],
+		W: [0.016, 0.02, 0.992, 0.984],
+		S: [0.031, 0.012, 0.965, 0.992],
+	} as Record<string, readonly [number, number, number, number]>,
+};
+export type PlaqueClearsLayout = {
+	rowX: number;
+	rowMaxX: number;
+	big: number;
+	bigIcon: number;
+	yBig: number;
+	small: number;
+	smallIcon: number;
+	ySmall: number;
+	smallAlpha: number;
+	totalX: number;
+	totalSize: number;
+	totalMinX: number;
+	badgeRowMaxX: number;
+};
+
+/** THE MOVE TO THE HUD (1.0.04; Corey 2026-10-19 "solid"; images/plaque_r5 PLAN.md, STORYBOARD.md S2). After the spin's
+ *  LAST clear (no cascade before the next setTotalWin / reveal / feature start), once the counts have run (at most
+ *  queueWaitMaxMs), the total holds toHudDelayMs, then lifts out (grows to liftScale and fades over liftMs) while the
+ *  rows fade, and a small gold streak flies flightMs (sineInOut, along an arc bowed `arc` of its length to the side and
+ *  `rise` up) to the HUD's WIN. On arrival the HUD is written with the book's setTotalWin amount and counts up with its
+ *  own standard count-up; a soft pulse blooms behind its digits (pulseMs). Style ms (divided by the turbo scale); the
+ *  flight never runs under flightMinRealMs REAL ms so it can be seen at any turbo. Sizes: shares of the dark field's
+ *  height on screen. A skip plays none of it (the HUD is written at once). */
+export const PLAQUE_STREAK = {
+	queueWaitMaxMs: 1200,
+	toHudDelayMs: 250,
+	liftMs: 150,
+	liftScale: 1.15,
+	flightMs: 400,
+	flightMinRealMs: 160,
+	arc: 0.35,
+	rise: 0.25,
+	trail: 14,
+	trailStepMs: 14,
+	trailFade: 0.82,
+	headR: 0.09,
+	haloR: 0.27,
+	headColor: 0xfff0cd,
+	haloColor: 0xffb946,
+	pulseMs: 380,
+	pulseAlpha: 0.75,
+	pulseColor: 0xffc45a,
+};
+
 /** the aura's colour (the playground's landing glow) */
 export const AURA_COLOR = 0x7cff8a;
 

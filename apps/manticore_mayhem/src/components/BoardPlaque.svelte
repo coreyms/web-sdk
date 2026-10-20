@@ -2,10 +2,12 @@
 	export type EmitterEventSpinWin =
 		/** the step is over: SNAP to the book's cascade.spinWin (the running steps already got here) */
 		| { type: 'spinWinShow'; amount: number }
-		/** a cluster's count-up landed: the running number jumps to `amount` and bumps */
-		| { type: 'spinWinStep'; amount: number }
-		/** the last refill of the spin is down: the final presentation (SPIN_TOTAL), awaited */
-		| { type: 'spinWinFinal'; amount: number }
+		/** a cluster's count-up landed: `amount` is the running spin total after it; `clear` the book's cluster (size,
+		 *  symbol, its win as presented) for the plaque's row, `together` how many clusters its step clears (1.0.04) */
+		| { type: 'spinWinStep'; amount: number; clear?: { n: number; s: string; w: number }; together?: number }
+		/** a cascade with no cascade straight after it is down, awaited. `toHud` (1.0.04, PLAQUE_STREAK): it was the
+		 *  spin's last clear, so the total flies to the HUD's WIN and this resolves as it arrives */
+		| { type: 'spinWinFinal'; amount: number; toHud?: boolean }
 		| { type: 'spinWinHide' };
 </script>
 
@@ -63,14 +65,15 @@
 	// blinks with PressToContinue's own blink (an alpha, nothing drawn per frame).
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
+	import { cubicOut, quadOut, sineInOut } from 'svelte/easing';
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
 	import { layoutKind, portraitShippedK } from '../game/layoutSpec';
 	import { boardRegistration } from '../game/boardArt';
-	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_FIELD, SPIN_TOTAL, TIMINGS } from '../game/constants';
+	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
+	import { plaqueGlowTexture } from '../game/plaqueGlow';
 	import { plaqueField, type PlaqueFieldMap } from '../game/plaqueField';
 	import { BOARD_PLAQUE_SPEC } from '../game/boardPlaqueSpec';
 	import { PLAQUE_DIGIT_H, PLAQUE_GLYPHS, PLAQUE_GLYPH_PREFIX } from '../game/plaqueNumeralGlyphs';
@@ -213,6 +216,8 @@
 
 	/** plain copies the tick and the mesh builder read (no reactive reads per frame) */
 	let H: readonly number[] = BOARD_PLAQUE_SPEC.layouts.landscape.render.H_halved;
+	/** this layout's rows and total (PLAQUE_CLEARS) */
+	let CL: PlaqueClearsLayout = PLAQUE_CLEARS.layouts.landscape;
 	/** this layout's field map (game/plaqueField.ts): its H, its k, the field's corners */
 	let field: PlaqueFieldMap = plaqueField(TIPS.edges.landscape, BOARD_PLAQUE_SPEC.layouts.landscape.render.plaqueBox, BOARD_PLAQUE_SPEC.layouts.landscape.render.H_halved);
 	let map: (u: number, v: number) => { x: number; y: number } = (u, v) => ({ x: u, y: v });
@@ -265,12 +270,9 @@
 		cover(crestNight, t.crestNight, L.render.crestBox);
 		cover(crestFire, t.crestFire, L.render.crestBox);
 		nightIn = !!(t.night && t.fire && t.crestNight && t.crestFire);
-		// the block's centre: the layout's centre row through the plaque's H (master px)
-		const c = through(0, PLAQUE_FIELD.layoutCentreY);
-		centre.x = c.x;
-		centre.y = c.y;
-		figures.pivot.set(c.x, c.y);
-		figures.position.set(c.x, c.y);
+		// this layout's rows and total (PLAQUE_CLEARS; the portrait tablet takes the upright phone's numbers)
+		CL = PLAQUE_CLEARS.layouts[kind === 'landscape' ? 'landscape' : kind === 'phone' ? 'phone' : 'portrait'];
+		for (const sl of slots) sl.sig = '';
 		// the figures' atlas: one whole-source texture for the mesh (made once per source), mipmapped like the stencil's
 		if (t.glyph0 && t.glyph0.source !== atlasTexture?.source) {
 			enableMipmaps(t.glyph0.source, context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined);
@@ -318,8 +320,11 @@
 	};
 	type Placed = { key: string; x: number; y: number; w: number; h: number };
 	const placed: Placed[] = Array.from({ length: MAXG }, () => ({ key: '', x: 0, y: 0, w: 0, h: 0 }));
-	/** lay `text` out (the SPEC's fit rule: a longer string shrinks uniformly and is centred on the figure line);
-	 *  `reserve` (a count-up's final string) fixes the box and the fit so the live string right-aligns in it */
+	/** THE SPIN TOTAL's layout (1.0.04, PLAQUE_CLEARS: the total on the RIGHT of the plaque, right aligned at totalX, at
+	 *  totalSize of the figure height, centred on the face's centre row). The SPEC's fit rule: a longer string shrinks
+	 *  uniformly, here to stay right of totalMinX (and inside the dark field); `reserve` (a count-up's final string) fixes
+	 *  the fit so the live string does not change size as it counts. The DEV forced strings go through it too */
+	const totalBox = { x0: 0, x1: 0 };
 	const layout = (text: string, reserve: string | null): { n: number; fit: number } => {
 		const cells = cellsOf(text);
 		if (!cells) return { n: 0, fit: 1 };
@@ -329,23 +334,29 @@
 		const total = rowW(cells);
 		const rc = reserve ? cellsOf(reserve) : null;
 		const reserved = rc ? Math.max(rowW(rc), total) : total;
-		// the row never runs past the dark field (the one perspective, plaqueField: the field is faceW / k layout units wide)
-		const maxW = Math.min(BOARD_PLAQUE.maxWidthPerHeight * height, BOARD_PLAQUE.lean === 'field' ? (field.faceW / field.k) * BOARD_PLAQUE.fieldFill : Infinity);
-		const fit = reserved > maxW ? maxW / reserved : 1;
-		let cx = (reserved / 2 - total) * fit;
+		const size = CL.totalSize;
+		// the row never runs past totalMinX nor the dark field (the one perspective: the field is faceW / k layout units wide)
+		const fieldHalf = BOARD_PLAQUE.lean === 'field' ? ((field.faceW / field.k) * BOARD_PLAQUE.fieldFill) / 2 : Infinity;
+		const maxW = Math.min(CL.totalX - CL.totalMinX, CL.totalX + fieldHalf);
+		const fit = reserved * size > maxW ? maxW / (reserved * size) : 1;
+		const k = size * fit;
+		const cy = PLAQUE_FIELD.layoutCentreY;
+		let cx = CL.totalX - total * k;
+		totalBox.x0 = cx;
+		totalBox.x1 = CL.totalX;
 		let n = 0;
 		for (const c of cells) {
 			if (n >= MAXG) break;
 			if (c.key) {
 				const p = placed[n];
 				p.key = c.key;
-				p.w = c.w * fit;
-				p.h = c.h * fit;
-				p.x = cx + (c.cellW * fit - p.w) / 2;
-				p.y = height / 2 - p.h + c.d * fit - ((1 - fit) * height) / 2;
+				p.w = c.w * k;
+				p.h = c.h * k;
+				p.x = cx + (c.cellW * k - p.w) / 2;
+				p.y = cy + (height / 2 - c.h + c.d) * k;
 				n += 1;
 			}
-			cx += (c.cellW + gap) * fit;
+			cx += (c.cellW + gap) * k;
 		}
 		return { n, fit };
 	};
@@ -643,6 +654,148 @@
 		shown.n = n;
 		shown.fit = fit;
 		shown.relayout = false;
+		// the bump and the lift scale the total about its own centre
+		const c = through((totalBox.x0 + totalBox.x1) / 2, PLAQUE_FIELD.layoutCentreY);
+		figures.pivot.set(c.x, c.y);
+		figures.position.set(c.x, c.y);
+		centre.x = c.x;
+		centre.y = c.y;
+	};
+
+	// ---- THE CLUSTER ROWS (1.0.04, PLAQUE_CLEARS; STORYBOARD.md S2, layout C) ------------------------------------------
+	// Three row slots (the newest, the one before it, an older one leaving), each ONE mesh of numeral quads on the plaque
+	// atlas plus ONE four-vertex mesh for the symbol's icon (the mmSymbols tile, its art trimmed), every corner through the
+	// plaque's H. A slot's buffers are rewritten only when its row, size, place or alpha changed (every frame only while a
+	// row comes in: 220 ms). No text object, no filter, no texture made per frame.
+	type RowSlot = { box: PIXI.Container; glyphs: PIXI.MeshSimple; pos: Float32Array; uv: Float32Array; icon: PIXI.MeshSimple; ipos: Float32Array; iuv: Float32Array; sig: string; quads: number };
+	const RG = PLAQUE_CLEARS.rowGlyphs;
+	const rowsLayer = new PIXI.Container({ label: 'plaque-rows' });
+	const makeSlot = (): RowSlot => {
+		const pos = new Float32Array(RG * 8);
+		const uv = new Float32Array(RG * 8);
+		const idx = new Uint32Array(RG * 6);
+		for (let i = 0; i < RG; i += 1) idx.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+		const glyphs = new PIXI.MeshSimple({ texture: PIXI.Texture.WHITE, vertices: pos, uvs: uv, indices: idx });
+		glyphs.autoUpdate = false;
+		const ipos = new Float32Array(8);
+		const iuv = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+		const icon = new PIXI.MeshSimple({ texture: PIXI.Texture.EMPTY, vertices: ipos, uvs: iuv, indices: new Uint32Array([0, 1, 2, 0, 2, 3]) });
+		icon.autoUpdate = false;
+		const box = new PIXI.Container({ label: 'plaque-row' });
+		box.addChild(icon, glyphs);
+		box.visible = false;
+		rowsLayer.addChild(box);
+		return { box, glyphs, pos, uv, icon, ipos, iuv, sig: '', quads: 0 };
+	};
+	const slots: RowSlot[] = [makeSlot(), makeSlot(), makeSlot()];
+	root.addChild(rowsLayer);
+	/** the whole-source texture of a symbol tile's atlas (made once per source, never per frame) */
+	const iconSources = new Map<number, PIXI.Texture>();
+	const iconSource = (t: PIXI.Texture) => {
+		let w = iconSources.get(t.source.uid);
+		if (!w) {
+			w = new PIXI.Texture({ source: t.source });
+			iconSources.set(t.source.uid, w);
+		}
+		return w;
+	};
+	/** a row's amount: the plaque's own formatting of the book's win, the currency mark taken off (Corey's "8 x [icon]
+	 *  2.40"): the run from its first digit to its last */
+	const rowAmount = (amount: number) => {
+		const t = bookEventAmountToCurrencyString(Math.round(amount));
+		if (!PLAQUE_CLEARS.dropCurrency) return t;
+		const a = t.search(/[0-9]/);
+		let b = -1;
+		for (let i = t.length - 1; i >= 0; i -= 1) if (t[i] >= '0' && t[i] <= '9') { b = i; break; }
+		return a >= 0 && b >= a ? t.slice(a, b + 1) : t;
+	};
+	/** lay one row into a slot: `${n} ×`, the icon, the amount; left edge at CL.rowX, centre row y, `size` of the figure
+	 *  height, the icon `iconH` x the digit height; never past `maxX` (shrinks about its left edge) */
+	const buildRow = (sl: RowSlot, n: number, code: string, amountText: string, size: number, iconH: number, y: number, maxX: number) => {
+		const head = cellsOf(`${n} ×`) ?? [];
+		const tail = cellsOf(amountText) ?? [];
+		const height = PLAQUE_DIGIT_H;
+		const gap = height * BOARD_PLAQUE.gap;
+		const sp = height * BOARD_PLAQUE.space;
+		const tex = (context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined)?.[`${code}.png`];
+		const trim = PLAQUE_CLEARS.iconTrim[code] ?? [0, 0, 1, 1];
+		const iconHU = height * iconH;
+		const iconWU = tex ? (iconHU * (trim[2] - trim[0])) / (trim[3] - trim[1]) : 0;
+		const rowW = (cs: Cell[]) => cs.reduce((sum, c) => sum + c.cellW, 0) + gap * Math.max(0, cs.length - 1);
+		const wHead = rowW(head);
+		const wTail = rowW(tail);
+		const widthU = wHead + sp + iconWU + sp + wTail;
+		const fit = CL.rowX + widthU * size > maxX ? Math.max(0.2, (maxX - CL.rowX) / (widthU * size)) : 1;
+		const k = size * fit;
+		const src = atlasTexture?.source;
+		const sw = src?.width || 1;
+		const sh = src?.height || 1;
+		let q = 0;
+		const put = (c: Cell, x: number) => {
+			if (!c.key || !atlas || q >= RG) return;
+			const g = atlas[`${PLAQUE_GLYPH_PREFIX}${c.key}.png`];
+			if (!g) return;
+			const w = c.w * k;
+			const h = c.h * k;
+			const x0 = x + (c.cellW * k - w) / 2;
+			const y0 = y + (height / 2 - c.h + c.d) * k;
+			const corners = [x0, y0, x0 + w, y0, x0 + w, y0 + h, x0, y0 + h];
+			const o = q * 8;
+			for (let j = 0; j < 4; j += 1) {
+				const p = through(corners[j * 2], corners[j * 2 + 1]);
+				sl.pos[o + j * 2] = p.x;
+				sl.pos[o + j * 2 + 1] = p.y;
+			}
+			const f = g.frame;
+			sl.uv.set([f.x / sw, f.y / sh, (f.x + f.width) / sw, f.y / sh, (f.x + f.width) / sw, (f.y + f.height) / sh, f.x / sw, (f.y + f.height) / sh], o);
+			q += 1;
+		};
+		let x = CL.rowX;
+		for (const c of head) {
+			put(c, x);
+			x += (c.cellW + gap) * k;
+		}
+		x += (sp - gap) * k;
+		if (tex) {
+			const ih = iconHU * k;
+			const iw = iconWU * k;
+			const y0 = y - ih / 2;
+			const corners = [x, y0, x + iw, y0, x + iw, y0 + ih, x, y0 + ih];
+			for (let j = 0; j < 4; j += 1) {
+				const p = through(corners[j * 2], corners[j * 2 + 1]);
+				sl.ipos[j * 2] = p.x;
+				sl.ipos[j * 2 + 1] = p.y;
+			}
+			const whole = iconSource(tex);
+			const f = tex.frame;
+			const W = tex.source.width || 1;
+			const Hh = tex.source.height || 1;
+			const u0 = (f.x + f.width * trim[0]) / W;
+			const u1 = (f.x + f.width * trim[2]) / W;
+			const v0 = (f.y + f.height * trim[1]) / Hh;
+			const v1 = (f.y + f.height * trim[3]) / Hh;
+			sl.iuv.set([u0, v0, u1, v0, u1, v1, u0, v1]);
+			if (sl.icon.texture !== whole) sl.icon.texture = whole;
+			sl.icon.visible = true;
+			sl.icon.geometry.getBuffer('aPosition').update();
+			sl.icon.geometry.getBuffer('aUV').update();
+			x += iw + sp * k;
+		} else {
+			sl.icon.visible = false;
+			x += sp * k;
+		}
+		for (const c of tail) {
+			put(c, x);
+			x += (c.cellW + gap) * k;
+		}
+		for (let i = q; i < sl.quads; i += 1) {
+			sl.pos.fill(0, i * 8, i * 8 + 8);
+			sl.uv.fill(0, i * 8, i * 8 + 8);
+		}
+		sl.quads = q;
+		if (atlasTexture && sl.glyphs.texture !== atlasTexture) sl.glyphs.texture = atlasTexture;
+		sl.glyphs.geometry.getBuffer('aPosition').update();
+		sl.glyphs.geometry.getBuffer('aUV').update();
 	};
 
 	// ---- the running total: amount, fades, bump, final -------------------------------------------------------------
@@ -670,60 +823,188 @@
 	let amount = 0;
 	let showing = false;
 	/** the count of the final presentation (SPIN_TOTAL.finalCountMs): from, to, t0, ms; the reserve string */
-	const count = { on: false, from: 0, to: 0, t0: 0, ms: 0, reserve: null as string | null };
+	/** THE ROWS AND THE COUNT (PLAQUE_CLEARS). One record per cluster, newest last: it starts coming in at `start`,
+	 *  lands at `land` (real ms, performance.now) and then the total counts to its `amount` (the book's running spin
+	 *  total after it) over `countMs` real */
+	type RowRec = { n: number; code: string; text: string; amount: number; start: number; land: number; landed: boolean; countMs: number };
+	const rows: RowRec[] = [];
+	/** the total: what it shows now, its count (from, to, t0, ms), whether it is up at all, the count's reserve string,
+	 *  and the book's step total (spinWinShow) it settles on once every row has landed */
+	const total = { value: 0, from: 0, to: 0, t0: 0, ms: 1, on: false, shown: false, reserve: null as string | null, step: -1 };
 	const bump = { t0: -1, ms: 1 };
-	const rise = { t0: -1, ms: 1, scale: 1 };
+	/** THE MOVE TO THE HUD (PLAQUE_STREAK): lift, flight, pulse (real ms from t0); from / to in the root's units; r: the
+	 *  dark field's height there (the streak's sizes are shares of it); hud: the WIN readout's box */
+	const move = { phase: 'none' as 'none' | 'lift' | 'fly', t0: 0, lift: 1, fly: 1, from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, has: false, r: 1, pulseT0: -1, pulseMs: 1, hud: { w: 0, h: 0 } };
+	const rowsFade = fade(1);
 	let finalRun = 0;
+	/** DEV: every row and every move to the HUD (tools/manticore/plaque_clear_probe.js) */
+	const clearLog: { at: number; n: number; code: string; text: string; amount: number; together: number; start: number; land: number; countMs: number; countAt: number; countEnd: number }[] = [];
+	/** DEV: the row whose count is running (its countEnd is stamped when the count lands) */
+	let countLog: (typeof clearLog)[number] | null = null;
+	const moveLog: { at: number; queueMs: number; liftAt: number; flyAt: number; arriveAt: number; from: { x: number; y: number } | null; to: { x: number; y: number } | null; amount: number; skipped: boolean }[] = [];
 	const show = () => {
 		if (showing) return;
+		// a new spin's first figures: whatever the last one left (fading out) goes
+		rows.length = 0;
+		total.shown = false;
+		total.on = false;
+		total.step = -1;
+		total.value = 0;
 		showing = true;
 		const out = real(BOARD_PLAQUE.crestOutMs);
 		fadeTo(crestFade, 0, out);
 		fadeTo(figFade, 1, real(BOARD_PLAQUE.figuresInMs), out);
+		fadeTo(rowsFade, 1, 0);
+	};
+	/** the plaque empty at once (a skip, the arrival) */
+	const clearNow = () => {
+		rows.length = 0;
+		total.on = false;
+		total.shown = false;
+		total.step = -1;
+		total.value = 0;
+		bump.t0 = -1;
+		move.phase = 'none';
+		showing = false;
+		fadeTo(figFade, 0, 0);
+		fadeTo(rowsFade, 1, 0);
+		fadeTo(crestFade, 1, 0);
+	};
+	/** the HUD's WIN amount on screen, in the root's units (one DOM read per move; null when it is not there) */
+	const hudWin = (): { x: number; y: number; w: number; h: number } | null => {
+		if (typeof document === 'undefined' || !root.parent) return null;
+		const stat = [...document.querySelectorAll('.stat')].find((el) => el.querySelector('.label')?.textContent?.trim() === 'WIN');
+		const v = stat?.querySelector('.value') as HTMLElement | null | undefined;
+		const app = context.stateApp.pixiApplication;
+		const canvas = app?.canvas as HTMLCanvasElement | undefined;
+		if (!v || !app || !canvas) return null;
+		const r = v.getBoundingClientRect();
+		const c = canvas.getBoundingClientRect();
+		if (!(r.width > 0) || !(c.width > 0)) return null;
+		const sx = app.screen.width / c.width;
+		const sy = app.screen.height / c.height;
+		const a = root.toLocal({ x: (r.left - c.left) * sx, y: (r.top - c.top) * sy });
+		const b = root.toLocal({ x: (r.right - c.left) * sx, y: (r.bottom - c.top) * sy });
+		return { x: (a.x + b.x) / 2, y: a.y + (b.y - a.y) * 0.55, w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
 	};
 	context.eventEmitter.subscribeOnMount({
-		spinWinStep: ({ amount: value }) => {
+		spinWinStep: ({ amount: value, clear, together }) => {
 			show();
-			count.on = false;
-			amount = value;
-			bump.t0 = performance.now();
-			bump.ms = Math.max(1, real(SPIN_TOTAL.bumpMs));
+			const now = performance.now();
+			if (!clear) {
+				// no cluster detail: the plain step of before (the total jumps to it and bumps)
+				total.shown = true;
+				total.on = false;
+				total.value = value;
+				bump.t0 = now;
+				bump.ms = Math.max(1, real(SPIN_TOTAL.bumpMs));
+				return;
+			}
+			const k = Math.min(3, Math.max(1, together ?? 1)) - 1;
+			const prev = rows[rows.length - 1];
+			const start = prev ? Math.max(now, prev.start + real(PLAQUE_CLEARS.rowStaggerMs[k])) : now;
+			const land = start + real(PLAQUE_CLEARS.rowInMs);
+			const rec: RowRec = { n: clear.n, code: clear.s, text: rowAmount(clear.w), amount: value, start, land, landed: false, countMs: real(PLAQUE_CLEARS.countMs[k]) };
+			rows.push(rec);
+			if (rows.length > 4) rows.shift();
+			if (import.meta.env.DEV) {
+				clearLog.push({ at: now, n: rec.n, code: rec.code, text: rec.text, amount: value, together: together ?? 1, start, land, countMs: rec.countMs, countAt: -1, countEnd: -1 });
+				if (clearLog.length > 200) clearLog.splice(0, 100);
+			}
 		},
 		spinWinShow: ({ amount: value }) => {
 			show();
-			count.on = false;
-			amount = value;
-		},
-		spinWinFinal: async ({ amount: value }) => {
-			const run = ++finalRun;
-			await waitForTimeout(Math.max(1, real(SPIN_TOTAL.finalDelayMs)));
-			if (run !== finalRun) return;
-			show();
-			rise.scale = SPIN_TOTAL.finalScale;
-			rise.t0 = performance.now();
-			rise.ms = Math.max(1, real(SPIN_TOTAL.finalRiseMs));
-			if (SPIN_TOTAL.finalCountMs > 0) {
-				count.on = true;
-				count.from = 0;
-				count.to = value;
-				count.t0 = performance.now() + real(SPIN_TOTAL.finalRiseMs);
-				count.ms = Math.max(1, real(SPIN_TOTAL.finalCountMs));
-				count.reserve = bookEventAmountToCurrencyString(Math.round(value));
-			} else {
-				count.on = false;
-				amount = value;
+			// the book's step total: the counts settle there once every row of the step has landed
+			total.step = value;
+			if (!rows.length) {
+				total.shown = true;
+				total.value = value;
 			}
-			await waitForTimeout(Math.max(1, real(SPIN_TOTAL.finalRiseMs + SPIN_TOTAL.finalCountMs + SPIN_TOTAL.finalHoldMs)));
+		},
+		spinWinFinal: async ({ amount: value, toHud }) => {
+			const run = ++finalRun;
+			if (!toHud) {
+				// more of the spin to come (a swipe and its cascades): the total stays; the plain hold of before
+				await waitForTimeout(Math.max(1, real(SPIN_TOTAL.finalDelayMs + SPIN_TOTAL.finalHoldMs)));
+				return;
+			}
+			const log = import.meta.env.DEV ? { at: performance.now(), queueMs: 0, liftAt: -1, flyAt: -1, arriveAt: -1, from: null as { x: number; y: number } | null, to: null as { x: number; y: number } | null, amount: value, skipped: false } : null;
+			if (log) {
+				moveLog.push(log);
+				if (moveLog.length > 60) moveLog.splice(0, 30);
+			}
+			if (context.stateGame.skipping) {
+				// SKIP TO RESULT: none of it; the HUD is written at once by the handler
+				clearNow();
+				if (log) log.skipped = true;
+				return;
+			}
+			// the counts first (every row landed and counted), at most queueWaitMaxMs
+			const now = performance.now();
+			const last = rows[rows.length - 1];
+			const rest = Math.max(last ? last.land + last.countMs - now : 0, total.on ? total.t0 + total.ms - now : 0);
+			const wait = Math.min(real(PLAQUE_STREAK.queueWaitMaxMs), Math.max(0, rest));
+			if (log) log.queueMs = Math.round(wait);
+			if (wait > 0) await waitForTimeout(wait);
+			if (run !== finalRun) return;
+			for (const r of rows) r.landed = true;
+			total.on = false;
+			total.shown = true;
+			total.value = value;
+			await waitForTimeout(Math.max(1, real(PLAQUE_STREAK.toHudDelayMs)));
+			if (run !== finalRun) return;
+			if (context.stateGame.skipping) {
+				clearNow();
+				return;
+			}
+			// the lift and the flight (the tick draws them from move.t0)
+			const hud = hudWin();
+			move.has = !!hud;
+			move.from.x = centre.x;
+			move.from.y = centre.y;
+			if (hud) {
+				move.to.x = hud.x;
+				move.to.y = hud.y;
+				move.hud.w = hud.w;
+				move.hud.h = hud.h;
+			}
+			const q = field.quad;
+			move.r = Math.abs(map(q[3][0], q[3][1]).y - map(q[0][0], q[0][1]).y) || 1;
+			move.t0 = performance.now();
+			move.lift = Math.max(1, real(PLAQUE_STREAK.liftMs));
+			move.fly = hud ? Math.max(PLAQUE_STREAK.flightMinRealMs, real(PLAQUE_STREAK.flightMs)) : 0;
+			move.phase = 'lift';
+			fadeTo(rowsFade, 0, real(PLAQUE_CLEARS.rowsOutMs));
+			if (log) {
+				log.liftAt = move.t0;
+				log.flyAt = move.t0 + move.lift;
+				log.from = { ...move.from };
+				log.to = hud ? { x: hud.x, y: hud.y } : null;
+			}
+			await waitForTimeout(move.lift + move.fly);
+			if (run !== finalRun) return;
+			// arrival: the pulse behind the HUD's WIN; the plaque is empty (the handler writes the HUD now)
+			if (log) log.arriveAt = performance.now();
+			if (hud) {
+				move.pulseT0 = performance.now();
+				move.pulseMs = Math.max(1, real(PLAQUE_STREAK.pulseMs));
+			}
+			clearNow();
 		},
 		spinWinHide: () => {
 			finalRun += 1;
-			count.on = false;
 			bump.t0 = -1;
-			rise.t0 = -1;
-			rise.scale = 1;
-			if (!showing) return;
+			move.phase = 'none';
+			total.on = false;
+			if (!showing) {
+				rows.length = 0;
+				total.shown = false;
+				total.step = -1;
+				return;
+			}
 			showing = false;
 			fadeTo(figFade, 0, TIMINGS.winClearMs);
+			fadeTo(rowsFade, 0, TIMINGS.winClearMs);
 			fadeTo(crestFade, 1, real(BOARD_PLAQUE.crestBackMs));
 		},
 	});
@@ -1023,6 +1304,140 @@
 		const ch = (sh: number) => Math.round(((a >> sh) & 0xff) + (((b >> sh) & 0xff) - ((a >> sh) & 0xff)) * t);
 		return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 	};
+	// ---- the rows each frame (roles: the newest big, the one before small, an older one leaving) ----------------------
+	const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+	const setSlot = (sl: RowSlot, r: RowRec | undefined, size: number, iconH: number, y: number, a: number, maxX: number, tint: number) => {
+		if (!r || a <= 0.003) {
+			if (sl.box.visible) sl.box.visible = false;
+			return;
+		}
+		const sig = `${r.start}|${r.text}|${size.toFixed(4)}|${iconH.toFixed(3)}|${y.toFixed(2)}|${maxX}|${field.k}`;
+		if (sig !== sl.sig) {
+			buildRow(sl, r.n, r.code, r.text, size, iconH, y, maxX);
+			sl.sig = sig;
+		}
+		if (sl.box.alpha !== a) sl.box.alpha = a;
+		if (sl.glyphs.tint !== tint) sl.glyphs.tint = sl.icon.tint = tint;
+		sl.box.visible = true;
+	};
+	/** the rows' right limit now (the hit badge, centred, keeps them left of it: PLAQUE_CLEARS badgeRowMaxX) */
+	let rowsMaxX = () => CL.rowMaxX;
+	const rowsTick = (now: number, alpha: number) => {
+		let n = 0;
+		for (let i = 0; i < rows.length; i += 1) if (rows[i].start <= now) n = i + 1;
+		if (!n || alpha <= 0.001 || !atlasTexture) {
+			for (const sl of slots) if (sl.box.visible) sl.box.visible = false;
+			return;
+		}
+		const nw = rows[n - 1];
+		const u = clamp01((now - nw.start) / Math.max(1, nw.land - nw.start));
+		const e = sineInOut(u);
+		const maxX = rowsMaxX();
+		const tint = mesh.tint as number;
+		setSlot(slots[0], nw, CL.big, CL.bigIcon, CL.yBig + PLAQUE_CLEARS.enterRise * (1 - e), alpha * (u < 1 ? clamp01((u - 0.15) / 0.65) : 1), maxX, tint);
+		const pv = n >= 2 ? rows[n - 2] : undefined;
+		setSlot(slots[1], pv, CL.big + (CL.small - CL.big) * e, CL.bigIcon + (CL.smallIcon - CL.bigIcon) * e, CL.yBig + (CL.ySmall - CL.yBig) * e, alpha * (1 + (CL.smallAlpha - 1) * e), maxX, tint);
+		const od = n >= 3 && u < 1 ? rows[n - 3] : undefined;
+		setSlot(slots[2], od, CL.small, CL.smallIcon, CL.ySmall - PLAQUE_CLEARS.leaveRise * e, alpha * CL.smallAlpha * (1 - clamp01(e / 0.7)), maxX, tint);
+	};
+
+	// ---- THE STREAK TO THE HUD and the pulse behind the HUD's WIN (PLAQUE_STREAK): pooled additive sprites on one baked
+	// dot texture, made on the first move (never per frame) -------------------------------------------------------------
+	const streakLayer = new PIXI.Container({ label: 'plaque-streak' });
+	streakLayer.eventMode = 'none';
+	streakLayer.interactiveChildren = false;
+	root.addChild(streakLayer);
+	type Dot = { core: PIXI.Sprite; halo: PIXI.Sprite };
+	const dots: Dot[] = [];
+	let pulse: PIXI.Sprite | null = null;
+	const dotSprite = (tint: number) => {
+		const sp = new PIXI.Sprite(plaqueGlowTexture());
+		sp.anchor.set(0.5);
+		sp.blendMode = 'add';
+		sp.tint = tint;
+		sp.visible = false;
+		streakLayer.addChild(sp);
+		return sp;
+	};
+	const ensureDots = () => {
+		if (dots.length) return;
+		for (let i = 0; i <= PLAQUE_STREAK.trail; i += 1) dots.push({ halo: dotSprite(PLAQUE_STREAK.haloColor), core: dotSprite(PLAQUE_STREAK.headColor) });
+		pulse = dotSprite(PLAQUE_STREAK.pulseColor);
+	};
+	/** a soft dot of radius r (root units) at (x, y), strength a (the texture spans 2 radii each side) */
+	const putDot = (sp: PIXI.Sprite, x: number, y: number, r: number, a: number) => {
+		if (a <= 0.003 || r <= 0.01) {
+			if (sp.visible) sp.visible = false;
+			return;
+		}
+		sp.position.set(x, y);
+		sp.width = sp.height = 4 * r;
+		sp.alpha = Math.min(1, a);
+		sp.visible = true;
+	};
+	const B = { x: 0, y: 0 };
+	const bezier = (u: number) => {
+		const { from: P0, to: P1 } = move;
+		const dx = P1.x - P0.x;
+		const dy = P1.y - P0.y;
+		const L = Math.hypot(dx, dy) || 1;
+		const cx = (P0.x + P1.x) / 2 + (dy / L) * PLAQUE_STREAK.arc * L;
+		const cy = (P0.y + P1.y) / 2 - (dx / L) * PLAQUE_STREAK.arc * L - PLAQUE_STREAK.rise * L;
+		const v = 1 - u;
+		B.x = v * v * P0.x + 2 * v * u * cx + u * u * P1.x;
+		B.y = v * v * P0.y + 2 * v * u * cy + u * u * P1.y;
+		return B;
+	};
+	const streakTick = (now: number) => {
+		if (move.phase === 'none' && move.pulseT0 < 0) {
+			if (streakLayer.visible) streakLayer.visible = false;
+			return;
+		}
+		ensureDots();
+		streakLayer.visible = true;
+		const head = move.r * PLAQUE_STREAK.headR;
+		const halo = move.r * PLAQUE_STREAK.haloR;
+		const el = now - move.t0;
+		for (let j = 0; j < dots.length; j += 1) {
+			const d = dots[j];
+			if (move.phase === 'lift' && move.has) {
+				const u = clamp01(el / move.lift);
+				if (j === 0) {
+					putDot(d.halo, move.from.x, move.from.y, halo * (0.4 + 0.6 * u), 0.9 * u);
+					putDot(d.core, move.from.x, move.from.y, head * u, u);
+					continue;
+				}
+			} else if (move.phase === 'fly') {
+				const uj = (el - move.lift - (j * PLAQUE_STREAK.trailStepMs * move.fly) / PLAQUE_STREAK.flightMs) / move.fly;
+				if (uj >= 0 && uj <= 1) {
+					const p = bezier(sineInOut(uj));
+					const f = Math.pow(PLAQUE_STREAK.trailFade, j);
+					putDot(d.halo, p.x, p.y, halo * (0.55 + 0.45 * f), 0.55 * f);
+					putDot(d.core, p.x, p.y, head * (0.5 + 0.5 * f), 0.9 * f);
+					continue;
+				}
+			}
+			if (d.halo.visible) d.halo.visible = false;
+			if (d.core.visible) d.core.visible = false;
+		}
+		if (pulse) {
+			if (move.pulseT0 >= 0) {
+				const u = (now - move.pulseT0) / move.pulseMs;
+				if (u >= 1) {
+					move.pulseT0 = -1;
+					pulse.visible = false;
+				} else {
+					const e = cubicOut(u);
+					pulse.position.set(move.to.x, move.to.y);
+					pulse.width = 4 * move.hud.w * (0.55 + 0.3 * e);
+					pulse.height = 4 * move.hud.h * (0.7 + 0.35 * e);
+					pulse.alpha = PLAQUE_STREAK.pulseAlpha * Math.pow(1 - u, 1.5);
+					pulse.visible = true;
+				}
+			} else pulse.visible = false;
+		}
+	};
+
 	const tick = () => {
 		const slot = boardPlaqueSlot.current;
 		if (slot && root.parent !== slot) slot.addChild(root);
@@ -1051,18 +1466,41 @@
 			lit.tint = tint;
 			mesh.tint = tint;
 		}
-		// the text: the forced one (DEV), the final count, or the running amount
-		let value = amount;
-		let reserve: string | null = null;
-		if (count.on) {
-			const u = now < count.t0 ? 0 : Math.min(1, (now - count.t0) / count.ms);
-			value = count.from + (count.to - count.from) * cubicOut(u);
-			reserve = count.reserve;
-			if (u >= 1) {
-				count.on = false;
-				amount = count.to;
+		// THE COUNT (PLAQUE_CLEARS): a row that has landed starts the total's count to its amount (from the value on show:
+		// a row landing while the total still counts restarts the count from there)
+		for (const r of rows) {
+			if (r.landed || now < r.land) continue;
+			r.landed = true;
+			total.shown = true;
+			total.from = total.value;
+			total.to = r.amount;
+			total.t0 = now;
+			total.ms = Math.max(1, r.countMs);
+			total.on = true;
+			total.reserve = bookEventAmountToCurrencyString(Math.round(Math.max(r.amount, total.step)));
+			if (import.meta.env.DEV) {
+				const e = clearLog.find((x) => x.start === r.start && x.amount === r.amount);
+				if (e) e.countAt = now;
+				countLog = e ?? null;
 			}
 		}
+		if (total.on) {
+			const u = Math.min(1, (now - total.t0) / total.ms);
+			total.value = total.from + (total.to - total.from) * quadOut(u);
+			if (u >= 1) {
+				total.on = false;
+				total.value = total.to;
+				bump.t0 = now;
+				bump.ms = Math.max(1, real(SPIN_TOTAL.bumpMs));
+				if (import.meta.env.DEV && countLog) countLog.countEnd = now;
+			}
+		} else if (total.step >= 0 && total.shown && rows.every((r) => r.landed) && total.value !== total.step && move.phase === 'none') {
+			// the step's own total once every row has counted (the book's cascade.spinWin; normally already there)
+			total.value = total.step;
+		}
+		// the text: the forced one (DEV), or the total
+		const value = total.value;
+		const reserve = total.on ? total.reserve : null;
 		const text = forced ?? bookEventAmountToCurrencyString(Math.round(value));
 		if (atlasTexture && (shown.relayout || ((text !== shown.text || reserve !== shown.reserve) && (showing || forced !== null)))) build(text, reserve);
 		// the desktop's prompt first (the lines and the figures stand aside for it), then the explainer lines
@@ -1071,13 +1509,21 @@
 		// the plaque is clear while the prompt is up: a line on its way out is not drawn either
 		if (promptUpNow && tips.visible) tips.visible = false;
 		if (tips.visible && mesh.tint !== tipMesh.tint) tipMesh.tint = mesh.tint;
-		// the fades, the bump and the final rise
+		// the fades, the bump and the lift
 		const fa = forced !== null ? 1 : stepFade(figFade, now);
 		const ca = forced !== null ? 0 : stepFade(crestFade, now);
+		const ra = stepFade(rowsFade, now);
 		const hidden = forced === null && (!!context.stateGame.plaque || promptUpNow);
-		const alpha = hidden ? 0 : fa;
-		if (figures.alpha !== alpha) figures.alpha = alpha;
-		figures.visible = alpha > 0.001;
+		// the move to the HUD: the total lifts (grows, fades), then the streak flies
+		let lift = 0;
+		if (move.phase !== 'none') {
+			const el = now - move.t0;
+			lift = Math.min(1, el / move.lift);
+			move.phase = el < move.lift || move.fly <= 0 ? 'lift' : 'fly';
+		}
+		const totalAlpha = hidden ? 0 : fa * (forced !== null || total.shown ? 1 : 0) * (move.phase !== 'none' ? 1 - lift * lift : 1);
+		if (figures.alpha !== totalAlpha) figures.alpha = totalAlpha;
+		figures.visible = totalAlpha > 0.001;
 		if (crest.alpha !== ca) crest.alpha = ca;
 		// "Remove the icon in the middle of that board" (r3, 10:17): PLAQUE_TIPS.crest false, never drawn
 		crest.visible = TIPS.crest && ca > 0.001 && !promptUpNow;
@@ -1087,11 +1533,15 @@
 			if (u >= 1) bump.t0 = -1;
 			else s = Math.max(s, 1 + (SPIN_TOTAL.bumpScale - 1) * Math.sin(Math.PI * Math.max(0, u)));
 		}
-		if (rise.t0 >= 0 && rise.scale !== 1) {
-			const u = Math.min(1, (now - rise.t0) / rise.ms);
-			s = Math.max(s, 1 + (rise.scale - 1) * SPIN_TOTAL.finalEasing(u));
-		}
+		if (move.phase !== 'none') s = Math.max(s, 1 + (PLAQUE_STREAK.liftScale - 1) * cubicOut(lift));
 		if (figures.scale.x !== s) figures.scale.set(s);
+		rowsTick(now, hidden || forced !== null ? 0 : fa * ra);
+		streakTick(now);
+		if (!showing && fa <= 0.001 && rows.length && move.phase === 'none') {
+			// faded out: the rows go
+			rows.length = 0;
+			total.shown = false;
+		}
 	};
 
 	// a new density places the prompt again: the layout's scale here, the renderer's resolution by its 'resize' event
@@ -1199,6 +1649,31 @@
 						.concat(atlasTexture ? [atlasTexture] : [])
 						.filter((t) => t && t !== PIXI.Texture.EMPTY)
 						.map((t) => ({ label: t.label ?? null, w: t.source.pixelWidth, h: t.source.pixelHeight, mips: t.source.mipLevelCount })),
+				}),
+				/** THE ROWS AND THE COUNT (PLAQUE_CLEARS; tools/manticore/plaque_clear_probe.js): every row (its book numbers,
+				 *  start, landing, count time), the total now, the slots as drawn (text, alpha, the glyph quads and the
+				 *  icon's corners on screen), the layout's constants */
+				plaqueClears: () => ({
+					log: clearLog.map((e) => ({ ...e })),
+					total: { value: total.value, to: total.to, on: total.on, shown: total.shown, step: total.step, text: shown.text, alpha: +figures.alpha.toFixed(3), scale: +figures.scale.x.toFixed(4) },
+					slots: slots.map((sl) => ({
+						visible: sl.box.visible,
+						alpha: +sl.box.alpha.toFixed(3),
+						quads: Array.from({ length: sl.quads }, (_, i) => [0, 1, 2, 3].map((k) => g(rowsLayer, sl.pos[i * 8 + k * 2], sl.pos[i * 8 + k * 2 + 1]))),
+						icon: sl.icon.visible ? [0, 1, 2, 3].map((k) => g(rowsLayer, sl.ipos[k * 2], sl.ipos[k * 2 + 1])) : null,
+					})),
+					rows: rows.map((r) => ({ ...r })),
+					layout: { ...CL },
+					constants: { rowInMs: PLAQUE_CLEARS.rowInMs, rowStaggerMs: PLAQUE_CLEARS.rowStaggerMs, countMs: PLAQUE_CLEARS.countMs },
+				}),
+				/** THE MOVE TO THE HUD (PLAQUE_STREAK): every move (queue wait, lift, flight, arrival times; from and to in
+				 *  the plaque's units), the phase now, the streak's sprites drawn now */
+				plaqueStreak: () => ({
+					log: moveLog.map((e) => ({ ...e })),
+					phase: move.phase,
+					pulse: move.pulseT0 >= 0,
+					drawn: dots.filter((d) => d.core.visible).length,
+					constants: { ...PLAQUE_STREAK },
 				}),
 				/** a forced figure string (null: the game's own again) */
 				plaqueForce: (text: string | null) => {
