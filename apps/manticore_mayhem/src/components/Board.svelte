@@ -41,6 +41,7 @@
 	import BoardContainer from './BoardContainer.svelte';
 	import ArtAmount from './ArtAmount.svelte';
 	import Anticipation from './Anticipation.svelte';
+	import SunTease from './SunTease.svelte';
 	import Sting from './Sting.svelte';
 	import TriggerBeat from './TriggerBeat.svelte';
 	import ClawSwipe from './ClawSwipe.svelte';
@@ -253,6 +254,8 @@
 
 		<!-- the Mystery column tease and the sting rig slot: both always mounted, both board-space -->
 		<Anticipation />
+		<!-- a regular spin's scatter tease: the War Standard's sun (SUN_TEASE, 1.0.04) -->
+		<SunTease />
 		<Sting />
 		<!-- the feature trigger beat's light columns and flares (constants TRIGGER_BEAT) -->
 		<TriggerBeat />

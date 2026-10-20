@@ -44,3 +44,23 @@ export const perfMark = (name: string) => {
 	perfMarks.at[perfMarks.next] = performance.now();
 	perfMarks.next = (perfMarks.next + 1) % MARK_SLOTS;
 };
+
+// ---- THE SUN TEASE'S INTENSITY (SUN_TEASE.sun / .beams; Corey 2026-10-20 "I might want to try different intensities on
+// the beams and sun") ----------------------------------------------------------------------------------------------------
+// `?sun=<n>` and `?beams=<n>` scale the sun (its disc, ring and light down the well) and the beams (the threads, their
+// beads and the halos) on a staging build or the dev server, so the look can be tried on a phone without a rebuild.
+// Held to TEASE_KNOB_RANGE; anything else (or no switch) leaves the constant. Never in a production build (STAGING_TOOLS
+// is a constant false there and the bundler drops the read).
+export const TEASE_KNOB_RANGE = { min: 0, max: 2 } as const;
+const teaseKnob = (name: 'sun' | 'beams'): number | null => {
+	if (!STAGING_TOOLS || typeof window === 'undefined') return null;
+	const raw = new URLSearchParams(window.location.search).get(name);
+	if (raw === null || raw.trim() === '') return null;
+	const n = Number(raw);
+	if (!Number.isFinite(n)) return null;
+	return Math.min(TEASE_KNOB_RANGE.max, Math.max(TEASE_KNOB_RANGE.min, n));
+};
+/** `?sun=` on a staging build or the dev server (null: none, use SUN_TEASE.sun) */
+export const stagingSun: number | null = teaseKnob('sun');
+/** `?beams=` on a staging build or the dev server (null: none, use SUN_TEASE.beams) */
+export const stagingBeams: number | null = teaseKnob('beams');

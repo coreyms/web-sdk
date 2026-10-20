@@ -1244,13 +1244,35 @@ export const scatterWait = (k: number, n: number) => (k < n - 1 ? scatterRung(k)
 // symbol at rainAlpha with a single TRAIL copy above it (the way it came from) at rainTrailAlpha of that, rainStretch
 // taller so it reads as falling fast, and nothing below it. The teased column also gets a faint warm edge glow from
 // the Mystery's own spill strips (spillAlpha, spillWidth cells), so it still reads as a column being teased.
+// THE WAR STANDARD'S SUN (1.0.04, Corey 2026-10-20 on images/anticipation_r2 d2_sun_long_r3_B: "Yes let's go with B" and
+// "the anticipation moves to the next row before the symbols actually drop on the reel. I think it would be a better
+// look if we fixed that timing and also made the sun symbol drop like it does on the last reel on the miss"). TIMING B:
+// the holds grow toward the last chance (holdDecay above 1) and the teased column falls 2.6x slower. THE TIMING FIX:
+// `holdFrom: 'landing'`: each held column's hold starts when the column before it has LANDED (its top tile's contact),
+// not when it launched, so a column's sun stays until its symbols are down and the next sun only rises after. The rain
+// and the edge spill are off on a regular spin (`rain: false`); the sun is components/SunTease.svelte (SUN_TEASE below).
+// TURBO (Corey's r3 notes, images/anticipation_r2/NOTES.md): the turbo scale still divides the holds, but a hold never
+// runs under turboHoldFloorRealMs of REAL time, and at turbo 1 and 2 the column falls fallSlowTurbo (today's 1.7) slower.
 export const ANTICIPATION_TEASE = {
 	triggerAfter: 3,
-	holdMs: 700,
-	holdDecay: 0.82,
-	holdFloorMs: 300,
-	fallSlow: 1.7,
+	/** Corey 2026-10-20 "Yes let's go with B": the first held column's hold (style ms; was 700) */
+	holdMs: 1300,
+	/** each further held column holds x1.1 of the one before (B: the last chance holds longest; was 0.82) */
+	holdDecay: 1.1,
+	/** B's floor (was 300) */
+	holdFloorMs: 800,
+	/** B: the teased column falls 2.6x slower than a normal drop (was 1.7) */
+	fallSlow: 2.6,
+	/** at turbo 1 and 2: today's slow fall (Corey's r3 notes: "keep the fall at today's 1.7x divided by the turbo scale") */
+	fallSlowTurbo: 1.7,
+	/** no hold runs under this many REAL ms at any turbo ("floor every hold at 300 ms real time, after the division") */
+	turboHoldFloorRealMs: 300,
+	/** the timing fix (Corey 2026-10-20 "the anticipation moves to the next row before the symbols actually drop"):
+	 *  'landing' = a held column's hold starts at the previous held column's landing; 'launch' = the old chain */
+	holdFrom: 'landing' as 'landing' | 'launch',
 	fadeMs: 260,
+	/** the loose-symbol rain and the edge spill on a regular spin: off since the sun (true brings both back) */
+	rain: false,
 	/** the searchlight on a regular spin's teased columns: off (Corey 17:32). true brings the old gold beam back */
 	beam: false,
 	beamAlpha: 0.75,
@@ -1272,6 +1294,86 @@ export const ANTICIPATION_TEASE = {
 	landedPulseHz: 1.5,
 	missHoldMs: 500,
 };
+
+// ---- THE WAR STANDARD'S SUN (components/SunTease.svelte; images/anticipation_r2 NOTES.md r3, Corey 2026-10-20 "Yes let's
+// go with B" and "I might want to try different intensities on the beams and sun") --------------------------------------
+// Behind the held column whose hold is running, a faint gold disc of the War Standard's twelve rays rises in at the top
+// of the well and builds through the hold (it grows, brightens, turns faster, its light reaches further down the well,
+// the pulse quickens). Thin threads of light run from every landed War Standard to it, with beads travelling along them;
+// the landed War Standards get a halo on the pulse. When the column is released the sun SINKS with the falling stack and
+// fades by the landing (Corey: "made the sun symbol drop like it does on the last reel on the miss"); only then does the
+// next held column's sun rise. A War Standard landing beyond the third flares (a burst of the sun on it, flareMs) and the
+// sun steps up a rung (bigger, and from rung 2 a second counter-turning ring). A hit: every landed War Standard flashes
+// once (hitFlashMs) and the trigger pulse and the trigger beat take over. A miss: the last sun sinks away and that is all.
+// Style ms (divided by the turbo scale); sizes in cells. House rules: sprites, tints and the additive blend only, the
+// textures baked once (game/beamTexture.ts). `sun` and `beams` are Corey's intensity knobs (1 = the r3 B mock); a
+// staging build or the dev server also takes `?sun=` and `?beams=` (game/staging.ts, held to 0 .. 2).
+export const SUN_TEASE = {
+	/** the sun's strength (its disc, its ring and its light down the well): 1 = r3 B */
+	sun: 1,
+	/** the threads' strength (the threads, their beads and the halos): 1 = r3 B */
+	beams: 1,
+	/** the disc's size per rung (3, 4, 5 War Standards on the board), cells; it grows by holdGrow over a hold */
+	sizeCells: [3.0, 3.4, 3.8],
+	/** the disc's alpha per rung, before `sun` */
+	alpha: [0.55, 0.55, 0.58],
+	/** over a hold: size x (holdGrowFrom .. 1 + (1 - holdGrowFrom) ...): 0.8 at the start, 1.1 at the release */
+	holdGrowFrom: 0.8,
+	holdGrowTo: 1.1,
+	/** the light at the start of a hold, as a share of full (it reaches full at the release) */
+	litFrom: 0.5,
+	/** the sun rises in from above the well over riseMs, to restCells below the window's top (and a third of a cell
+	 *  higher by the end of the hold) */
+	riseMs: 420,
+	fromCells: -1.2,
+	restCells: 1.5,
+	liftCells: 0.35,
+	/** the sink (a released column): it falls to sinkPastCells under the window's bottom edge on the drop's easing, and
+	 *  fades from this share of the fall to the landing */
+	sinkPastCells: 0.6,
+	sinkFadeFrom: 0.45,
+	/** its turn: degrees a second, plus this many degrees per held column built (the build clock: column + progress) */
+	turnDegPerS: 18,
+	turnDegPerBuild: 55,
+	/** the outer ring (1.45x, counter-turning): always from rung 2, and from this share of a hold on rung 1 */
+	ringScale: 1.45,
+	ringAlpha: 0.18,
+	ringFromHold: 0.6,
+	/** the pulse (halos, beads): beats a second, plus beats per build, plus a push near the end of a hold */
+	pulseHz: 1.3,
+	pulsePerBuild: 1.1,
+	pulsePush: 0.9,
+	/** the light down the well: a soft shaft under the disc, reaching washFrom of the well at the start of a hold, all of
+	 *  it at the release */
+	washAlpha: 0.42,
+	washFrom: 0.35,
+	washWidthCells: 0.95,
+	/** the threads: width in cells, alpha before `beams`; drawInMs for a new War Standard's thread */
+	threadCells: 0.05,
+	threadAlpha: 0.75,
+	threadGlowCells: 0.18,
+	threadGlowAlpha: 0.22,
+	drawInMs: 220,
+	/** the beads: two per thread, size in cells, a trip of the thread per second at rest (faster as the build climbs) */
+	beadCells: 0.36,
+	beadSpeed: 0.8,
+	beadPerBuild: 0.6,
+	/** the halos on the landed War Standards: size in cells, alpha low .. high on the pulse */
+	haloCells: 2.4,
+	haloLow: 0.15,
+	haloHigh: 0.6,
+	/** a War Standard beyond the third: a burst of the sun on it */
+	flareMs: 520,
+	flareCells: 2.4,
+	flareAlpha: 0.9,
+	/** a hit: every landed War Standard's halo flashes once after the last landing */
+	hitFlashMs: 700,
+	/** colours (tints over the gold textures) */
+	sunTint: 0xffffff,
+	washTint: 0xffc766,
+	threadTint: 0xffe7a6,
+	haloTint: 0xffbf4d,
+} as const;
 
 // ---- THE TRIGGER BEAT (harsh review 2026-10-15 design item 8; Corey 2026-10-16 17:32: "A1. Sounds good") ----------
 // A feature trigger had no celebration of its own: the War Standards sat still, the screen dipped to black and the

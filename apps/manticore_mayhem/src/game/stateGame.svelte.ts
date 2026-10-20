@@ -787,7 +787,8 @@ export const revealBoard = async (
 	board.forEach((column, reel) => {
 		const wait = holdStart[reel] + holdMs[reel] - reel * DROP.columnStaggerMs;
 		const tc = teaseOf.get(reel);
-		const slow = holdMs[reel] > 0 ? ANTICIPATION.fallSlow : tc ? ANTICIPATION_TEASE.fallSlow : 1;
+		// a held column falls its plan's `fall` (fallSlow, or fallSlowTurbo at turbo: planTease)
+		const slow = holdMs[reel] > 0 ? ANTICIPATION.fallSlow : tc ? tc.fall / dropDuration(GRID - 1 - tc.fromY) : 1;
 		const start = tc ? tc.launch : reel * DROP.columnStaggerMs + wait;
 		column.forEach((name, row) => {
 			// the whole column waits stacked above the board and pours in, bottom row first
@@ -865,7 +866,18 @@ export const revealBoard = async (
 
 // ---- the derived scatter tease (ANTICIPATION_TEASE, the playground's compileTease) ---------------
 
-type TeaseColumn = { reel: number; i: number; show: number; launch: number; fall: number; fromY: number; toY: number };
+type TeaseColumn = {
+	reel: number;
+	i: number;
+	/** its hold starts (style ms): the previous held column's landing (holdFrom 'landing'), the first at tThird */
+	show: number;
+	launch: number;
+	fall: number;
+	/** its top tile's contact plus its landing beat (LAND_MS): the column has landed and settled */
+	land: number;
+	fromY: number;
+	toY: number;
+};
 export type TeasePlan = {
 	/** style ms the third scatter is revealed (its centre crosses the board's top edge) */
 	tThird: number;
@@ -873,6 +885,8 @@ export type TeasePlan = {
 	columns: TeaseColumn[];
 	/** every scatter on the board, landing order (by column, bottom row first) */
 	scatters: CellIndex[];
+	/** each of those scatters' landing contact, style ms (same order) */
+	scatterLand: number[];
 	/** the scatters that breathe while the tease runs (the first triggerAfter) */
 	breathe: CellIndex[];
 	/** a scatter beyond the third is on the board: the trigger pulse plays, else the miss rest */
@@ -916,15 +930,38 @@ export const planTease = (board: SymbolName[][]): TeasePlan | null => {
 	const launch3 = third.reel * DROP.columnStaggerMs + (GRID - 1 - third.row) * DROP.rowStaggerMs;
 	const tThird = launch3 + dropDuration(third.row - fromY) * revealedAt(fromY, third.row);
 	const columns: TeaseColumn[] = [];
-	let chain = tThird;
 	const bottomFrom = stackedAbove(GRID - 1, GRID);
+	// TURBO (ANTICIPATION_TEASE.turboHoldFloorRealMs, fallSlowTurbo): the plan is in style ms and the turbo scale divides
+	// it, so a hold of floor x rate style ms runs floor real ms
+	const rate = ts();
+	const turbo = Math.max(stateGame.turboLevel, stateGame.hurryLevel) > 0;
+	const slow = turbo ? T.fallSlowTurbo : T.fallSlow;
+	const fall = dropDuration(GRID - 1 - bottomFrom) * slow;
+	// a column has landed when its TOP tile has touched down and settled (LAND_MS: the squash and bounce): the rows pour
+	// in rowStaggerMs apart, each falling `fall`
+	const pour = (GRID - 1) * DROP.rowStaggerMs + LAND_MS;
+	// THE TIMING FIX (holdFrom 'landing', Corey 2026-10-20): the i-th hold starts at the (i-1)-th held column's landing,
+	// so the next column's sun never rises while the one before it is still falling; 'launch' is the old chain
+	let from = tThird;
 	for (let reel = third.reel + 1, i = 0; reel < GRID; reel += 1, i += 1) {
-		chain += teaseHoldMs(i);
 		const own = reel * DROP.columnStaggerMs;
-		columns.push({ reel, i, show: Math.max(tThird, own), launch: Math.max(own, chain), fall: dropDuration(GRID - 1 - bottomFrom) * T.fallSlow, fromY: bottomFrom, toY: GRID - 1 });
+		const show = Math.max(own, from);
+		const hold = Math.max(teaseHoldMs(i), T.turboHoldFloorRealMs * rate);
+		const launch = Math.max(own, show + hold);
+		const land = launch + pour + fall;
+		columns.push({ reel, i, show, launch, fall, land, fromY: bottomFrom, toY: GRID - 1 });
+		from = T.holdFrom === 'landing' ? land : launch;
 	}
 	const cells = scatters.map((s) => cellOf(s.reel, s.row));
-	return { tThird, columns, scatters: cells, breathe: cells.slice(0, T.triggerAfter), hit: scatters.length > T.triggerAfter };
+	// each scatter's landing contact (style ms): a held column's at its own launch, the rest at the reveal's ripple
+	const held = new Map(columns.map((c) => [c.reel, c]));
+	const scatterLand = scatters.map(({ reel, row }) => {
+		const c = held.get(reel);
+		const fromY = stackedAbove(row, GRID);
+		const start = c ? c.launch : reel * DROP.columnStaggerMs;
+		return start + (GRID - 1 - row) * DROP.rowStaggerMs + dropDuration(row - fromY) * (c ? c.fall / dropDuration(GRID - 1 - bottomFrom) : 1);
+	});
+	return { tThird, columns, scatters: cells, scatterLand, breathe: cells.slice(0, T.triggerAfter), hit: scatters.length > T.triggerAfter };
 };
 
 /** one frame of the derived tease, in the drop's own style-time clock (the playground's tease track:

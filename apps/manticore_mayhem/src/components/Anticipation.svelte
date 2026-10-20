@@ -169,6 +169,11 @@
 			col.c.visible = a.on;
 			if (!a.on) continue;
 			if (a.tease) {
+				// a regular spin: the War Standard's sun (SunTease.svelte) since 1.0.04; the rain only with ANTICIPATION_TEASE.rain
+				if (!ANTICIPATION_TEASE.rain) {
+					col.c.visible = false;
+					continue;
+				}
 				teaseColumn(col, a, tex);
 				continue;
 			}

@@ -1400,7 +1400,7 @@
 		// through the hand-over.
 		const leaving = boardExit.leaving;
 		for (let i = 0; i < leaving.length; i += 1) syncCell(leaving[i], tex, true);
-		const cutOn = inFall > 0 || boardCutSlot.tease;
+		const cutOn = inFall > 0 || boardCutSlot.tease || boardCutSlot.sun;
 		if (fallLayer.visible !== cutOn) fallLayer.visible = cutOn;
 		for (const [id, sl] of live) {
 			if (sl.gen === gen) continue;
