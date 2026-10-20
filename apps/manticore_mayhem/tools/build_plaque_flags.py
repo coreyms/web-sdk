@@ -4,11 +4,12 @@ images/plaque_r6_storyboard STORYBOARD.md S3 to S7; drawn by components/BoardPla
 
 One small atlas, static/assets/ui/plaque-flags.webp + .json (a Pixi spritesheet), baked at K px per FACE unit (the plaque
 face is 100 units tall, game/plaqueField.ts), from the anticipation work's own recipe (its flagrow_r4.py level_flag):
+  (every frame is named plqf_<name>.png)
   landed            the War Standard (s-idle frame 0, its ink box) at the landed flags' height; landedGlow its soft halo
   lvl_<L>_empty     a level flag's empty outline: the War Standard's silhouette widened LEVEL_STRETCH, an inlaid brass
                     edge, an engraved line inside it, a dark field, the word engraved inside (FS, SUPER, EPIC)
   lvl_<L>_full      the same banner filled in the War Standard's crimson with its gold edge, the word in bright gold
-  lvl_<L>_glow      its soft halo (white: tinted and added in the game)
+  lvlGlow           a level banner's soft halo (one for all: they share the silhouette; white, tinted and added in the game)
   L = FS, SUPER, EPIC, SA_SUPER (Super Ante's own SUPER: the edge and the word in its accent #e08a3c), BLANK (Super Ante's
       5th slot: no word, no level: Corey 2026-10-20 "Super Ante needs an earlier Super Ante Symbol")
   sep, lozenge      the separators' bar and lozenge
@@ -113,7 +114,8 @@ def main():
         e, f, g = level_flag(lw, lh, word, int(round(LABEL_U * K)), SA_ACCENT if key == 'SA_SUPER' else None)
         frames[f'lvl_{key}_empty'] = to_pil(e)
         frames[f'lvl_{key}_full'] = to_pil(f)
-        frames[f'lvl_{key}_glow'] = to_pil(g)
+        if key == 'FS':
+            frames['lvlGlow'] = to_pil(g)  # every level banner has the same silhouette: one halo for all
     frames['sep'] = Image.new('RGBA', (6, 64), (220, 165, 80, 255))
     d = 24; loz = Image.new('RGBA', (d, d)); ImageDraw.Draw(loz).polygon([(d / 2, 0), (d, d / 2), (d / 2, d), (0, d / 2)], fill=(232, 182, 92, 255))
     frames['lozenge'] = loz
@@ -130,7 +132,7 @@ def main():
     for k in keys:
         sheet.paste(frames[k], pos[k])
         w, h = frames[k].size
-        fr[f'{k}.png'] = {'frame': {'x': pos[k][0], 'y': pos[k][1], 'w': w, 'h': h}, 'rotated': False, 'trimmed': False, 'spriteSourceSize': {'x': 0, 'y': 0, 'w': w, 'h': h}, 'sourceSize': {'w': w, 'h': h}}
+        fr[f'plqf_{k}.png'] = {'frame': {'x': pos[k][0], 'y': pos[k][1], 'w': w, 'h': h}, 'rotated': False, 'trimmed': False, 'spriteSourceSize': {'x': 0, 'y': 0, 'w': w, 'h': h}, 'sourceSize': {'w': w, 'h': h}}
     p = os.path.join(OUT, 'plaque-flags.webp')
     sheet.save(p, 'WEBP', quality=88, method=6, alpha_quality=100)
     json.dump({'frames': fr, 'meta': {'app': 'manticore-plaque-flags', 'image': 'plaque-flags.webp', 'format': 'RGBA8888', 'size': {'w': Wd, 'h': Ht}, 'scale': '1', 'facePx': K}}, open(os.path.join(OUT, 'plaque-flags.json'), 'w'), indent=1)

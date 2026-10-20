@@ -466,6 +466,8 @@ export default {
 	"ui/numerals/numerals.webp": "a3114871",
 	"ui/numerals/plate-numerals.json": "3c24cb77",
 	"ui/numerals/plate-numerals.png": "568b8e40",
+	"ui/plaque-flags.json": "49c83d3c",
+	"ui/plaque-flags.webp": "2c17a692",
 	"ui/plaque-numerals/plaque-numerals-half.json": "2420cb70",
 	"ui/plaque-numerals/plaque-numerals-half.webp": "617d643c",
 	"ui/plaque-numerals/plaque-numerals.json": "bdd15ed1",
@@ -962,6 +964,8 @@ export const fileBytes = {
 	"ui/numerals/numerals.webp": 399516,
 	"ui/numerals/plate-numerals.json": 17677,
 	"ui/numerals/plate-numerals.png": 14195,
+	"ui/plaque-flags.json": 47703,
+	"ui/plaque-flags.webp": 43282,
 	"ui/plaque-numerals/plaque-numerals-half.json": 80661,
 	"ui/plaque-numerals/plaque-numerals-half.webp": 63714,
 	"ui/plaque-numerals/plaque-numerals.json": 143687,
@@ -1000,4 +1004,4 @@ export const landingSizes = {
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":180978,"preload":1471099,"audio":1668065} as const;
+export const bootSizes = {"landing":180978,"preload":1518802,"audio":1668065} as const;

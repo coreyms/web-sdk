@@ -8,7 +8,10 @@
 		/** a cascade with no cascade straight after it is down, awaited. `toHud` (1.0.04, PLAQUE_STREAK): it was the
 		 *  spin's last clear, so the total flies to the HUD's WIN and this resolves as it arrives */
 		| { type: 'spinWinFinal'; amount: number; toHud?: boolean }
-		| { type: 'spinWinHide' };
+		| { type: 'spinWinHide' }
+		/** THE WAR STANDARD FLAG ROW (1.0.04, STORYBOARD.md S3 to S7): the tease missed (dim, fade); the trigger pulse (the
+		 *  row becomes the badge); the feature's trigger beat (the badge flares); the beat is over (the badge goes) */
+		| { type: 'plaqueTease'; what: 'miss' | 'trigger' | 'beat' | 'out' };
 </script>
 
 <script lang="ts">
@@ -72,8 +75,10 @@
 	import { getContext } from '../game/context';
 	import { layoutKind, portraitShippedK } from '../game/layoutSpec';
 	import { boardRegistration } from '../game/boardArt';
-	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
+	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_BADGE, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_FLAGS, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
 	import { plaqueGlowTexture } from '../game/plaqueGlow';
+	import { teaseNow } from '../game/teaseState';
+	import { stateBet } from 'state-shared';
 	import { plaqueField, type PlaqueFieldMap } from '../game/plaqueField';
 	import { BOARD_PLAQUE_SPEC } from '../game/boardPlaqueSpec';
 	import { PLAQUE_DIGIT_H, PLAQUE_GLYPHS, PLAQUE_GLYPH_PREFIX } from '../game/plaqueNumeralGlyphs';
@@ -689,6 +694,15 @@
 	};
 	const slots: RowSlot[] = [makeSlot(), makeSlot(), makeSlot()];
 	root.addChild(rowsLayer);
+	// the War Standard flag row and the hit badge (PLAQUE_FLAGS, PLAQUE_BADGE): over the rows, under the streak
+	const flagsLayer = new PIXI.Container({ label: 'plaque-flags' });
+	const badgeLayer = new PIXI.Container({ label: 'plaque-badge' });
+	for (const l of [flagsLayer, badgeLayer]) {
+		l.eventMode = 'none';
+		l.interactiveChildren = false;
+		l.visible = false;
+	}
+	root.addChild(flagsLayer, badgeLayer);
 	/** the whole-source texture of a symbol tile's atlas (made once per source, never per frame) */
 	const iconSources = new Map<number, PIXI.Texture>();
 	const iconSource = (t: PIXI.Texture) => {
@@ -900,6 +914,11 @@
 				bump.ms = Math.max(1, real(SPIN_TOTAL.bumpMs));
 				return;
 			}
+			// the flag row hands the plaque over (a miss's leftovers go in handoverOutMs; a badge stays)
+			if (fl.on && fl.outT0 < 0 && fl.shrinkT0 < 0) {
+				fl.outT0 = now;
+				fnote('handover');
+			}
 			const k = Math.min(3, Math.max(1, together ?? 1)) - 1;
 			const prev = rows[rows.length - 1];
 			const start = prev ? Math.max(now, prev.start + real(PLAQUE_CLEARS.rowStaggerMs[k])) : now;
@@ -991,8 +1010,25 @@
 			}
 			clearNow();
 		},
+		plaqueTease: ({ what }) => {
+			const now = performance.now();
+			fnote(`event ${what}${fl.on ? '' : ' (no row)'}`);
+			if (what === 'miss') {
+				if (fl.on && fl.missT0 < 0 && fl.shrinkT0 < 0) fl.missT0 = now;
+			} else if (what === 'trigger') toBadge(now, PLAQUE_BADGE.shrinkAfterMs);
+			else if (what === 'beat') {
+				// a hit with no pulse of its own (a Mystery's) becomes the badge here, at once
+				if (fl.on || context.stateGame.scatterCells.length >= 3) toBadge(now, 0);
+				bd.flareT0 = now;
+			} else if (what === 'out') {
+				if (bd.on && bd.outT0 < 0) bd.outT0 = now;
+				if (fl.on && fl.outT0 < 0) fl.outT0 = now;
+			}
+		},
 		spinWinHide: () => {
 			finalRun += 1;
+			// a new reveal (or the round's end): the flag row and the badge of the spin before go
+			flagsReset();
 			bump.t0 = -1;
 			move.phase = 'none';
 			total.on = false;
@@ -1341,6 +1377,312 @@
 		setSlot(slots[2], od, CL.small, CL.smallIcon, CL.ySmall - PLAQUE_CLEARS.leaveRise * e, alpha * CL.smallAlpha * (1 - clamp01(e / 0.7)), maxX, tint);
 	};
 
+	// ---- THE WAR STANDARD FLAG ROW AND THE HIT BADGE (PLAQUE_FLAGS, PLAQUE_BADGE; STORYBOARD.md S3 to S7) --------------
+	// Every element is one four-vertex mesh on the flags atlas (tools/build_plaque_flags.py), its corners through the
+	// plaque's H; glows are the same with the additive blend. Laid out in FACE units (r6 B's) and taken to layout units by
+	// the field map's k. It reads the board (stateGame.scatterCells: every War Standard on it, landed or stung in) and the
+	// tease (game/teaseState.ts, read only: the hold that is running lights the flag at stake); the handler's plaqueTease
+	// events say miss, trigger, beat and out. Nothing here allocates per frame once the meshes exist.
+	type Quad = { mesh: PIXI.MeshSimple; pos: Float32Array; uv: Float32Array };
+	const makeQuad = (parent: PIXI.Container, add = false): Quad => {
+		const pos = new Float32Array(8);
+		const uv = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+		const mesh = new PIXI.MeshSimple({ texture: PIXI.Texture.EMPTY, vertices: pos, uvs: uv, indices: new Uint32Array([0, 1, 2, 0, 2, 3]) });
+		mesh.autoUpdate = false;
+		if (add) mesh.blendMode = 'add';
+		mesh.visible = false;
+		parent.addChild(mesh);
+		return { mesh, pos, uv };
+	};
+	const flagTex = (name: string) => (context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined)?.[`plqf_${name}.png`];
+	/** a quad of the flags atlas `name`, centred on layout (cx, cy), w x h layout units */
+	const placeQuad = (q: Quad, name: string, cx: number, cy: number, w: number, h: number, alpha: number, tint = 0xffffff) => {
+		const tex = flagTex(name);
+		if (!tex || alpha <= 0.003 || w <= 0 || h <= 0) {
+			if (q.mesh.visible) q.mesh.visible = false;
+			return;
+		}
+		const x0 = cx - w / 2;
+		const y0 = cy - h / 2;
+		const corners = [x0, y0, x0 + w, y0, x0 + w, y0 + h, x0, y0 + h];
+		for (let j = 0; j < 4; j += 1) {
+			const p = through(corners[j * 2], corners[j * 2 + 1]);
+			q.pos[j * 2] = p.x;
+			q.pos[j * 2 + 1] = p.y;
+		}
+		const f = tex.frame;
+		const W = tex.source.width || 1;
+		const Hh = tex.source.height || 1;
+		q.uv.set([f.x / W, f.y / Hh, (f.x + f.width) / W, f.y / Hh, (f.x + f.width) / W, (f.y + f.height) / Hh, f.x / W, (f.y + f.height) / Hh]);
+		const whole = iconSource(tex);
+		if (q.mesh.texture !== whole) q.mesh.texture = whole;
+		q.mesh.geometry.getBuffer('aPosition').update();
+		q.mesh.geometry.getBuffer('aUV').update();
+		q.mesh.alpha = Math.min(1, alpha);
+		if (q.mesh.tint !== tint) q.mesh.tint = tint;
+		q.mesh.visible = true;
+	};
+	// the row's quads: glows first (added), then the flags; per landed flag (glow, flag), per level flag (glow, empty,
+	// full, flash), per separator (bar, lozenge)
+	const landedQ = [0, 1, 2].map(() => ({ glow: makeQuad(flagsLayer, true), flag: makeQuad(flagsLayer), flash: makeQuad(flagsLayer, true) }));
+	const levelQ = [0, 1, 2].map(() => ({ glow: makeQuad(flagsLayer, true), empty: makeQuad(flagsLayer), full: makeQuad(flagsLayer), flash: makeQuad(flagsLayer, true) }));
+	const sepQ = [0, 1, 2].map(() => ({ bar: makeQuad(flagsLayer), loz: makeQuad(flagsLayer) }));
+	const badgeQ = { glow: makeQuad(badgeLayer, true), flag: makeQuad(badgeLayer) };
+	// the badge's count: two numeral quads on the plaque atlas
+	const BGQ = 2;
+	const bPos = new Float32Array(BGQ * 8);
+	const bUv = new Float32Array(BGQ * 8);
+	const badgeDigits = new PIXI.MeshSimple({ texture: PIXI.Texture.WHITE, vertices: bPos, uvs: bUv, indices: new Uint32Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]) });
+	badgeDigits.autoUpdate = false;
+	badgeLayer.addChild(badgeDigits);
+	/** the row: on, Super Ante's, when it came in, when each slot filled (real ms; -1 = empty), the War Standards on the
+	 *  board last frame, the miss / handover / shrink starts and the EPIC re-strike */
+	const fl = { on: false, spent: false, sa: false, t0: 0, fillAt: [-1, -1, -1, -1, -1, -1], prevN: 0, missT0: -1, outT0: -1, shrinkT0: -1, shrinkMs: 1, restrikeT0: -1, triggerT0: -1 };
+	/** the badge: on, its pop-in start, its count, its flares and its exit */
+	const bd = { on: false, t0: 0, count: 0, flareT0: -1, countT0: -1, outT0: -1 };
+	const flagsReset = () => {
+		fl.on = false;
+		fl.spent = false;
+		fl.fillAt.fill(-1);
+		fl.prevN = 0;
+		fl.missT0 = fl.outT0 = fl.shrinkT0 = fl.restrikeT0 = fl.triggerT0 = -1;
+		bd.on = false;
+		bd.flareT0 = bd.countT0 = bd.outT0 = -1;
+		bd.count = 0;
+	};
+	/** the trigger pulse (or a feature's trigger beat with no pulse of its own): every filled flag flashes now, and after
+	 *  `delay` style ms the row shrinks into the badge as the badge pops in */
+	const toBadge = (now: number, delay: number) => {
+		const at = now + real(delay);
+		if (fl.on && fl.triggerT0 < 0) fl.triggerT0 = now;
+		if (!bd.on) {
+			bd.on = true;
+			bd.t0 = at;
+			bd.count = Math.min(8, context.stateGame.scatterCells.length);
+		}
+		if (fl.on && fl.shrinkT0 < 0) {
+			fl.shrinkT0 = at;
+			fl.shrinkMs = Math.max(context.stateGame.skipping ? 1 : PLAQUE_BADGE.shrinkMinRealMs, real(PLAQUE_BADGE.shrinkMs));
+		}
+	};
+	rowsMaxX = () => (bd.on && bd.outT0 < 0 ? CL.badgeRowMaxX : CL.rowMaxX);
+	/** DEV: every beat of the row and the badge (what, when, the War Standards on the board then) */
+	const flagLog: { at: number; what: string; n: number; slot?: number }[] = [];
+	const fnote = (what: string, slot?: number) => {
+		if (!import.meta.env.DEV) return;
+		flagLog.push({ at: performance.now(), what, n: context.stateGame.scatterCells.length, slot });
+		if (flagLog.length > 200) flagLog.splice(0, 100);
+	};
+	/** DEV: the row's and the badge's last frame (tools/manticore/plaque_owner_probe.js) */
+	const flagState = { rowAlpha: 0, filled: 0, nextSlot: -1, nextGlow: 0, badgeAlpha: 0, labels: '' };
+	const flagsTick = (now: number, hidden: boolean) => {
+		const sg = context.stateGame;
+		const n = Math.min(8, sg.scatterCells.length);
+		const base = sg.gameType === 'basegame';
+		const F = PLAQUE_FLAGS;
+		// THE ROW COMES IN at the third War Standard on the board (before the spin's rows: the tease always comes first)
+		if (!fl.on && !fl.spent && !bd.on && base && sg.busy && n >= 3 && !rows.length && !sg.skipping) {
+			// once per spin (spent until the next reveal's spinWinHide)
+			fl.on = true;
+			fl.spent = true;
+			fl.t0 = now;
+			fl.sa = stateBet.activeBetModeKey === 'SUPER_ANTE';
+			fl.prevN = 3;
+			fl.missT0 = fl.outT0 = fl.shrinkT0 = fl.restrikeT0 = fl.triggerT0 = -1;
+			fl.fillAt.fill(-1);
+			for (let i = 0; i < 3; i += 1) fl.fillAt[i] = now + real(F.popInStaggerMs) * i;
+			fnote(fl.sa ? 'row superAnte' : 'row');
+		}
+		if (fl.on) {
+			for (let i = 3; i < 6; i += 1)
+				if (n > i && fl.fillAt[i] < 0) {
+					fl.fillAt[i] = now;
+					fnote('fill', i);
+				}
+			if (n > fl.prevN && n >= 7) fl.restrikeT0 = now;
+			fl.prevN = Math.max(fl.prevN, n);
+		}
+		if (bd.on && n > bd.count) {
+			bd.count = n;
+			bd.countT0 = now;
+			fnote('badge count');
+		}
+		// the row's alpha: the miss (dim, then fade), the handover, the shrink into the badge
+		let rowA = 1;
+		let dimK = 1;
+		let shrink = 0;
+		if (fl.on) {
+			if (fl.missT0 >= 0) {
+				const el = now - fl.missT0;
+				const dimMs = Math.max(1, real(F.missDimMs));
+				dimK = 1 - (1 - F.missDimTo) * clamp01(el / dimMs);
+				rowA *= 1 - clamp01((el - dimMs) / Math.max(1, real(F.missFadeMs)));
+			}
+			if (fl.outT0 >= 0) rowA *= 1 - clamp01((now - fl.outT0) / Math.max(1, real(F.handoverOutMs)));
+			if (fl.shrinkT0 >= 0 && now >= fl.shrinkT0) {
+				shrink = clamp01((now - fl.shrinkT0) / fl.shrinkMs);
+				rowA *= 1 - shrink;
+			}
+			if (rowA <= 0.001) {
+				fl.on = false;
+				fnote('row gone');
+			}
+		}
+		const showRow = fl.on && !hidden;
+		flagsLayer.visible = showRow;
+		flagState.rowAlpha = showRow ? +rowA.toFixed(3) : 0;
+		flagState.filled = fl.on ? fl.fillAt.filter((t) => t >= 0 && t <= now).length : 0;
+		if (showRow) {
+			const k = field.k;
+			const sc = 1 - 0.7 * cubicOut(shrink);
+			const cy = PLAQUE_FIELD.layoutCentreY;
+			const tl = flagTex('landed');
+			const te = flagTex('lvl_FS_empty');
+			const fw = tl ? (F.filledH * tl.frame.width) / tl.frame.height : F.filledH;
+			const lw = te ? (F.levelH * te.frame.width) / te.frame.height : F.levelH * F.levelStretch;
+			const totalW = 3 * fw + 2 * F.gap + 3 * (F.gap + F.sep + F.gap + lw);
+			const L = (fx: number) => ((fx - totalW / 2) * sc) / k;
+			const U = (fu: number) => (fu * sc) / k;
+			const labels = fl.sa ? ['SA_SUPER', 'BLANK', 'EPIC'] : ['FS', 'SUPER', 'EPIC'];
+			flagState.labels = labels.join(',');
+			// the slot at stake: the next one to fill, lit while its column holds (the tease, read only)
+			const next = n < 6 ? n : -1;
+			const t = teaseNow();
+			const holding = t.active && t.phase === 'hold';
+			const hp = holding ? t.holdProgress : 0;
+			const hz = F.nextHz[0] + (F.nextHz[1] - F.nextHz[0]) * hp;
+			const nextGlow = holding && next >= 3 && fl.missT0 < 0 ? (F.nextBase + (1 - F.nextBase) * hp) * (0.75 + 0.25 * Math.sin((now / 1000) * Math.PI * 2 * hz)) : 0;
+			flagState.nextSlot = next;
+			flagState.nextGlow = +nextGlow.toFixed(3);
+			let x = 0;
+			for (let i = 0; i < 6; i += 1) {
+				if (i >= 3) {
+					x += F.gap;
+					const sq = sepQ[i - 3];
+					placeQuad(sq.bar, 'sep', L(x + F.sep / 2), cy, U(F.sepBarW), U(F.levelH * F.sepBarH), rowA * 0.9);
+					placeQuad(sq.loz, 'lozenge', L(x + F.sep / 2), cy, U(F.lozenge), U(F.lozenge), rowA);
+					x += F.sep + F.gap;
+				} else if (i > 0) x += F.gap;
+				const w = i < 3 ? fw : lw;
+				const h = i < 3 ? F.filledH : F.levelH;
+				const cx = L(x + w / 2);
+				x += w;
+				const at = fl.fillAt[i];
+				const filled = at >= 0 && now >= at;
+				// the pop: the landed flags pop in; a level flag pops on filling (EPIC again on a 7th / 8th)
+				let pop = 1;
+				let flash = 0;
+				if (filled) {
+					const el = now - at;
+					if (i < 3) {
+						const u = clamp01(el / Math.max(1, real(F.popInMs)));
+						pop = 0.6 + 0.4 * cubicOut(u);
+					} else {
+						const u = el / Math.max(1, real(F.fillPopMs));
+						if (u < 1) pop = 1 + (F.fillPop - 1) * Math.sin(Math.PI * u);
+						flash = 1 - clamp01(el / Math.max(1, real(F.flashMs)));
+					}
+				}
+				// the trigger pulse: every filled flag flashes together
+				if (filled && fl.triggerT0 >= 0) flash = Math.max(flash, 1 - clamp01((now - fl.triggerT0) / Math.max(1, real(F.flashMs))));
+				if (i === 5 && fl.restrikeT0 >= 0) {
+					const el = now - fl.restrikeT0;
+					const u = el / Math.max(1, real(F.fillPopMs));
+					if (u < 1) pop = Math.max(pop, 1 + (F.restrikePop - 1) * Math.sin(Math.PI * u));
+					flash = Math.max(flash, 1 - clamp01(el / Math.max(1, real(F.flashMs))));
+				}
+				const pw = U(w * pop);
+				const ph = U(h * pop);
+				if (i < 3) {
+					const q = landedQ[i];
+					const a = filled ? rowA * clamp01((now - at) / Math.max(1, real(F.popInMs))) : 0;
+					placeQuad(q.glow, 'landedGlow', cx, cy, pw * 2, ph * 2, rowA * flash * 0.8, F.glowTint);
+					placeQuad(q.flag, 'landed', cx, cy, pw, ph, a);
+					placeQuad(q.flash, 'landed', cx, cy, pw, ph, a * flash * 0.5);
+				} else {
+					const q = levelQ[i - 3];
+					const lab = labels[i - 3];
+					const isNext = i === next;
+					const g = Math.max(flash, isNext ? nextGlow * 0.5 : 0);
+					const tint = fl.sa && lab === 'SA_SUPER' ? F.superAnteAccent : F.glowTint;
+					placeQuad(q.glow, 'lvlGlow', cx, cy, pw * 2, ph * 2, rowA * g, tint);
+					const ea = filled ? 0 : rowA * (0.3 + 0.7 * dimK) * (1 + (isNext ? 0.3 * nextGlow : 0));
+					placeQuad(q.empty, `lvl_${lab}_empty`, cx, cy, U(w), U(h), ea);
+					placeQuad(q.full, `lvl_${lab}_full`, cx, cy, pw, ph, filled ? rowA : 0);
+					placeQuad(q.flash, `lvl_${lab}_full`, cx, cy, pw, ph, filled ? rowA * flash * 0.5 : 0);
+				}
+			}
+		}
+		// THE BADGE (centred): pops in as the row shrinks, counts on, flares with the trigger beat, goes before the intro
+		let ba = 0;
+		if (bd.on) {
+			const shrinkMs = fl.shrinkT0 >= 0 ? fl.shrinkMs : Math.max(PLAQUE_BADGE.shrinkMinRealMs, real(PLAQUE_BADGE.shrinkMs));
+			const u = now < bd.t0 ? 0 : clamp01((now - bd.t0) / shrinkMs);
+			ba = u;
+			if (bd.outT0 >= 0) {
+				ba *= 1 - clamp01((now - bd.outT0) / Math.max(1, real(PLAQUE_BADGE.outMs)));
+				if (ba <= 0.001) {
+					bd.on = false;
+					fnote('badge gone');
+				}
+			}
+			const sc = PLAQUE_BADGE.inScale + (1 - PLAQUE_BADGE.inScale) * cubicOut(u);
+			const fh = PLAQUE_BADGE.flagH * sc;
+			const tl = flagTex('landed');
+			const fw = tl ? (fh * tl.frame.width) / tl.frame.height : fh;
+			const text = String(bd.count);
+			const cells = cellsOf(text) ?? [];
+			const dk = PLAQUE_BADGE.countSize * sc;
+			const gap = PLAQUE_DIGIT_H * BOARD_PLAQUE.gap;
+			const cw = cells.reduce((sum, c) => sum + (c.cellW + gap) * dk, 0) - gap * dk;
+			const totalW = fw + PLAQUE_BADGE.gap * sc + cw;
+			const x0 = -totalW / 2;
+			const cy = PLAQUE_FIELD.layoutCentreY;
+			const flare = Math.max(bd.flareT0 >= 0 ? 1 - clamp01((now - bd.flareT0) / Math.max(1, real(PLAQUE_BADGE.flareMs))) : 0, bd.countT0 >= 0 ? 1 - clamp01((now - bd.countT0) / Math.max(1, real(PLAQUE_BADGE.countFlareMs))) : 0);
+			const show = !hidden && ba > 0.001;
+			badgeLayer.visible = show;
+			if (show) {
+				placeQuad(badgeQ.glow, 'landedGlow', x0 + fw / 2, cy, fw * 2.2, fh * 2.2, ba * Math.min(1, PLAQUE_BADGE.glow + flare * 0.65), PLAQUE_FLAGS.glowTint);
+				placeQuad(badgeQ.flag, 'landed', x0 + fw / 2, cy, fw, fh, ba);
+				// the count, in the plaque's numerals
+				const src = atlasTexture?.source;
+				const sw = src?.width || 1;
+				const sh = src?.height || 1;
+				let x = x0 + fw + PLAQUE_BADGE.gap * sc;
+				let q = 0;
+				for (const c of cells) {
+					const g = c.key && atlas ? atlas[`${PLAQUE_GLYPH_PREFIX}${c.key}.png`] : undefined;
+					if (g && q < BGQ) {
+						const w = c.w * dk;
+						const h = c.h * dk;
+						const gx = x + (c.cellW * dk - w) / 2;
+						const gy = cy + (PLAQUE_DIGIT_H / 2 - c.h + c.d) * dk;
+						const corners = [gx, gy, gx + w, gy, gx + w, gy + h, gx, gy + h];
+						for (let j = 0; j < 4; j += 1) {
+							const p = through(corners[j * 2], corners[j * 2 + 1]);
+							bPos[q * 8 + j * 2] = p.x;
+							bPos[q * 8 + j * 2 + 1] = p.y;
+						}
+						const f = g.frame;
+						bUv.set([f.x / sw, f.y / sh, (f.x + f.width) / sw, f.y / sh, (f.x + f.width) / sw, (f.y + f.height) / sh, f.x / sw, (f.y + f.height) / sh], q * 8);
+						q += 1;
+					}
+					x += (c.cellW + gap) * dk;
+				}
+				for (let i = q; i < BGQ; i += 1) {
+					bPos.fill(0, i * 8, i * 8 + 8);
+					bUv.fill(0, i * 8, i * 8 + 8);
+				}
+				if (atlasTexture && badgeDigits.texture !== atlasTexture) badgeDigits.texture = atlasTexture;
+				badgeDigits.geometry.getBuffer('aPosition').update();
+				badgeDigits.geometry.getBuffer('aUV').update();
+				badgeDigits.alpha = ba;
+				badgeDigits.tint = PLAQUE_BADGE.countTint;
+			}
+		} else badgeLayer.visible = false;
+		flagState.badgeAlpha = +ba.toFixed(3);
+	};
+
 	// ---- THE STREAK TO THE HUD and the pulse behind the HUD's WIN (PLAQUE_STREAK): pooled additive sprites on one baked
 	// dot texture, made on the first move (never per frame) -------------------------------------------------------------
 	const streakLayer = new PIXI.Container({ label: 'plaque-streak' });
@@ -1536,6 +1878,7 @@
 		if (move.phase !== 'none') s = Math.max(s, 1 + (PLAQUE_STREAK.liftScale - 1) * cubicOut(lift));
 		if (figures.scale.x !== s) figures.scale.set(s);
 		rowsTick(now, hidden || forced !== null ? 0 : fa * ra);
+		flagsTick(now, hidden || forced !== null);
 		streakTick(now);
 		if (!showing && fa <= 0.001 && rows.length && move.phase === 'none') {
 			// faded out: the rows go
@@ -1665,6 +2008,20 @@
 					rows: rows.map((r) => ({ ...r })),
 					layout: { ...CL },
 					constants: { rowInMs: PLAQUE_CLEARS.rowInMs, rowStaggerMs: PLAQUE_CLEARS.rowStaggerMs, countMs: PLAQUE_CLEARS.countMs },
+				}),
+				/** THE WAR STANDARD FLAG ROW AND THE BADGE (PLAQUE_FLAGS, PLAQUE_BADGE): on, Super Ante's labels, the War
+				 *  Standards on the board, the filled slots, the slot at stake and its glow, the badge and its count, alphas */
+				plaqueFlags: () => ({
+					on: fl.on,
+					sa: fl.sa,
+					n: context.stateGame.scatterCells.length,
+					...flagState,
+					miss: fl.missT0 >= 0,
+					handedOver: fl.outT0 >= 0,
+					shrinking: fl.shrinkT0 >= 0,
+					badge: { on: bd.on, count: bd.count, out: bd.outT0 >= 0, flare: bd.flareT0 >= 0 },
+					drawn: { row: flagsLayer.visible, badge: badgeLayer.visible },
+					log: flagLog.map((e) => ({ ...e })),
 				}),
 				/** THE MOVE TO THE HUD (PLAQUE_STREAK): every move (queue wait, lift, flight, arrival times; from and to in
 				 *  the plaque's units), the phase now, the streak's sprites drawn now */

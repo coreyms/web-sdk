@@ -766,6 +766,68 @@ export const PLAQUE_STREAK = {
 	pulseColor: 0xffc45a,
 };
 
+/** THE WAR STANDARD FLAG ROW ON THE PLAQUE (1.0.04; images/anticipation_r2 NOTES.md r6, option B: Corey 2026-10-20 "R5 looks
+ *  good for the plaque, let's just increase the size of the first 3 flags to fill more space"; STORYBOARD.md S3 to S7;
+ *  components/BoardPlaque.svelte, art tools/build_plaque_flags.py). `{flag}{flag}{flag} | FS | SUPER | EPIC` across the
+ *  dark field once the third War Standard is on the board (whatever brought it: a landing or a sting), every level flag
+ *  filling as the next one arrives (Corey: stings "yes keep filling"; the Mystery "should follow the normal game here").
+ *  Super Ante: `| SUPER | blank | EPIC` (4 or 5 War Standards are a Super there: Corey "Super Ante needs an earlier Super
+ *  Ante Symbol"), SUPER in the Super Ante's own orange. Sizes in FACE units (the face is 100 tall, game/plaqueField.ts),
+ *  r6 B's own. Style ms (divided by the turbo scale).
+ *    popIn       the three landed flags pop in popInStaggerMs apart, each over popInMs
+ *    fill        a level flag fills: a pop to fillPop (one half sine over fillPopMs) and a gold flash fading over flashMs;
+ *                a 7th or 8th re-strikes EPIC (restrikePop, the same flash)
+ *    next        the outline at stake glows while its column holds: from nextBase to 1 as the hold runs, pulsing at
+ *                nextHz[0] to nextHz[1]
+ *    miss        the empty outlines dim to missDimTo over missDimMs, then the row fades over missFadeMs
+ *    handover    whatever is left of the row goes over handoverOutMs when the spin's first row comes in */
+export const PLAQUE_FLAGS = {
+	filledH: 72,
+	levelH: 72,
+	levelStretch: 1.35,
+	sep: 18,
+	gap: 8,
+	sepBarW: 2.2,
+	sepBarH: 0.72,
+	lozenge: 9,
+	popInStaggerMs: 90,
+	popInMs: 200,
+	fillPop: 1.45,
+	fillPopMs: 300,
+	flashMs: 600,
+	restrikePop: 1.2,
+	nextBase: 0.35,
+	nextHz: [1.4, 4.5],
+	missDimTo: 0.25,
+	missDimMs: 300,
+	missFadeMs: 600,
+	handoverOutMs: 150,
+	glowTint: 0xffb347,
+	superAnteAccent: 0xe08a3c,
+};
+
+/** THE HIT BADGE (1.0.04; Corey 2026-10-20: "on a hit shrink to a small badge in the center with a counter 1-8";
+ *  STORYBOARD.md S4): at the trigger pulse the flag row shrinks into one War Standard and the count of War Standards on
+ *  the board, CENTRED on the plaque (the phone too: "Let's make the phone match the desktop"). It stays through that
+ *  spin's cascades (the rows stop at PLAQUE_CLEARS badgeRowMaxX), the move to the HUD and the feature's trigger beat (it
+ *  flares), and is gone by the feature intro. Sizes in the plaque's layout units / shares of the figure height. */
+export const PLAQUE_BADGE = {
+	/** the row shrinks this long after the trigger pulse starts (SCATTER_STING.triggerMs: the pulse plays on the full row
+	 *  first, every filled flag flashing with it) */
+	shrinkAfterMs: 800,
+	flagH: 54,
+	countSize: 0.46,
+	gap: 6,
+	shrinkMs: 300,
+	shrinkMinRealMs: 120,
+	inScale: 0.6,
+	glow: 0.35,
+	flareMs: 400,
+	countFlareMs: 300,
+	outMs: 200,
+	countTint: 0xffecbe,
+};
+
 /** the aura's colour (the playground's landing glow) */
 export const AURA_COLOR = 0x7cff8a;
 

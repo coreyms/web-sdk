@@ -427,7 +427,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop', forcePlay: true });
 		if (isMystery && bookEvent.gameType === 'basegame') eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_mystery_decision', forcePlay: true });
 		// THE MYSTERY MISS (Corey 2026-10-11): the creature growls at a Mystery that awarded nothing, as its board lands
-		if (isMystery && bookEvent.gameType === 'basegame' && stateGame.mysteryOutcome === 'nothing') eventEmitter.broadcast({ type: 'creatureCue', what: 'growl', inMs: 0 });
+		if (isMystery && bookEvent.gameType === 'basegame' && stateGame.mysteryOutcome === 'nothing') {
+			eventEmitter.broadcast({ type: 'creatureCue', what: 'growl', inMs: 0 });
+			// the plaque's War Standard flag row (1.0.04): a Mystery that awards nothing is a miss
+			eventEmitter.broadcast({ type: 'plaqueTease', what: 'miss' });
+		}
 
 		// the derived tease's outcome: a hit plays the trigger pulse (and the house bonus-confirm SFX), a
 		// miss rests. A scatter sting run straight after is its own rest (SCATTER_STING.holdMs), so a miss
@@ -435,8 +439,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (revealTease.teased) {
 			rec.info = { ...(rec.info ?? {}), tease: { hit: revealTease.hit, scatters: revealTease.scatters.slice() } };
 			const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
-			if (revealTease.hit) await scatterTrigger(stateGame.scatterCells, id, rec, () => playTriggerSfx(bookEvent, bookEvents));
-			else if (!(next?.type === 'sting' && next.kind === 'scatter')) await scatterHold(stateGame.scatterCells, ANTICIPATION_TEASE.missHoldMs, { pulse: 0, hz: 1 }, id, rec, 'miss');
+			// the plaque's War Standard flag row (1.0.04, STORYBOARD.md S3 / S4): the trigger pulse shrinks it into the badge; a
+			// miss dims and fades it (not when scatter stings follow: the row fills on with them)
+			if (revealTease.hit) {
+				eventEmitter.broadcast({ type: 'plaqueTease', what: 'trigger' });
+				await scatterTrigger(stateGame.scatterCells, id, rec, () => playTriggerSfx(bookEvent, bookEvents));
+			} else if (!(next?.type === 'sting' && next.kind === 'scatter')) {
+				eventEmitter.broadcast({ type: 'plaqueTease', what: 'miss' });
+				await scatterHold(stateGame.scatterCells, ANTICIPATION_TEASE.missHoldMs, { pulse: 0, hz: 1 }, id, rec, 'miss');
+			}
 			settleBoard();
 		}
 		fxStamp(rec, 'end');
@@ -621,7 +632,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			const wait = scatterWait(k, n);
 			if (wait > 0) await scatterHold(stateGame.scatterCells, wait, dim, id, rec, 'wait');
 			fxStamp(rec, 'waited');
-			if (k === n - 1) await scatterTrigger(stateGame.scatterCells, id, rec, () => playTriggerSfx(bookEvent, bookEvents));
+			if (k === n - 1) {
+				// the plaque's flag row becomes the badge at this trigger pulse (1.0.04, STORYBOARD.md S5)
+				eventEmitter.broadcast({ type: 'plaqueTease', what: 'trigger' });
+				await scatterTrigger(stateGame.scatterCells, id, rec, () => playTriggerSfx(bookEvent, bookEvents));
+			}
 			settleBoard();
 			fxStamp(rec, 'end');
 			return;
@@ -694,6 +709,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the board (a resumed round never replays its bonusStart).
 		const hidden = eventEmitter.broadcastAsync({ type: 'uiHide' });
 		const cells = TRIGGER_BEAT.on && !stateGame.skipping && stateGame.gameType === 'basegame' ? triggerCells(bookEvent) : [];
+		// the plaque's War Standard badge (1.0.04, STORYBOARD.md S4): it flares with the beat and is gone by the intro
+		if (cells.length) eventEmitter.broadcast({ type: 'plaqueTease', what: 'beat' });
 		if (cells.length) {
 			const relit = bookEvent.bonus !== 'bonus';
 			const rec = fxRecord('trigger', { bonus: bookEvent.bonus, cells: cells.slice(), turbo: stateGame.turboLevel, relit });
@@ -707,6 +724,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			});
 			fxStamp(rec, 'end');
 		}
+		eventEmitter.broadcast({ type: 'plaqueTease', what: 'out' });
 		// the scatters' trigger clip (WIN_SHEET.trigger) held its last frame through the beat
 		releaseTriggerWins();
 		await hidden;

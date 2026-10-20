@@ -401,6 +401,9 @@ const assets = {
 	boardPlaqueFire_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-fire-portrait.webp', import.meta.url).href), preload: false },
 	boardPlaqueCrestNight_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-night-portrait.webp', import.meta.url).href), preload: false },
 	boardPlaqueCrestFire_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-fire-portrait.webp', import.meta.url).href), preload: false },
+	// THE WAR STANDARD FLAG ROW on the plaque (1.0.04, tools/build_plaque_flags.py; 43 KB): preloads, a tease can come on the
+	// first spin
+	plaqueFlags: { type: 'sprites', src: stamp(new URL('../../assets/ui/plaque-flags.json', import.meta.url).href), preload: true },
 	plaqueNumerals: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/plaque-numerals/plaque-numerals.json', import.meta.url).href), stamp(new URL('../../assets/ui/plaque-numerals/plaque-numerals-half.json', import.meta.url).href)), preload: true },
 	boardFrameNight_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-night-landscape.webp', import.meta.url).href), preload: false },
 	boardFrameNight_phone: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-frame-night-phone.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-frame-night-phone-half.webp', import.meta.url).href)), preload: false },
