@@ -225,6 +225,8 @@
 	let H: readonly number[] = BOARD_PLAQUE_SPEC.layouts.landscape.render.H_halved;
 	/** this layout's rows and total (PLAQUE_CLEARS) */
 	let CL: PlaqueClearsLayout = PLAQUE_CLEARS.layouts.landscape;
+	/** this layout's key in the per-layout size sets (PLAQUE_CLEARS, PLAQUE_FLAGS.scale, PLAQUE_BADGE.scale) */
+	let clKey: 'landscape' | 'portrait' | 'phone' = 'landscape';
 	/** this layout's field map (game/plaqueField.ts): its H, its k, the field's corners */
 	let field: PlaqueFieldMap = plaqueField(TIPS.edges.landscape, BOARD_PLAQUE_SPEC.layouts.landscape.render.plaqueBox, BOARD_PLAQUE_SPEC.layouts.landscape.render.H_halved);
 	let map: (u: number, v: number) => { x: number; y: number } = (u, v) => ({ x: u, y: v });
@@ -278,7 +280,8 @@
 		cover(crestFire, t.crestFire, L.render.crestBox);
 		nightIn = !!(t.night && t.fire && t.crestNight && t.crestFire);
 		// this layout's rows and total (PLAQUE_CLEARS; the portrait tablet takes the upright phone's numbers)
-		CL = PLAQUE_CLEARS.layouts[kind === 'landscape' ? 'landscape' : kind === 'phone' ? 'phone' : 'portrait'];
+		clKey = kind === 'landscape' ? 'landscape' : kind === 'phone' ? 'phone' : 'portrait';
+		CL = PLAQUE_CLEARS.layouts[clKey];
 		for (const sl of slots) sl.sig = '';
 		// the figures' atlas: one whole-source texture for the mesh (made once per source), mipmapped like the stencil's
 		if (t.glyph0 && t.glyph0.source !== atlasTexture?.source) {
@@ -1671,7 +1674,8 @@
 		flagState.rowAlpha = showRow ? +rowA.toFixed(3) : 0;
 		flagState.filled = fl.on ? fl.fillAt.filter((t) => t >= 0 && t <= now).length : 0;
 		if (showRow) {
-			const k = field.k;
+			// face units to layout units (the field map's k), at this layout's own size (PLAQUE_FLAGS.scale)
+			const k = field.k / (PLAQUE_FLAGS.scale[clKey] ?? 1);
 			const sc = 1 - 0.7 * cubicOut(shrink);
 			const cy = PLAQUE_FIELD.layoutCentreY;
 			const tl = flagTex('landed');
@@ -1764,7 +1768,7 @@
 					fnote('badge gone');
 				}
 			}
-			const sc = PLAQUE_BADGE.inScale + (1 - PLAQUE_BADGE.inScale) * cubicOut(u);
+			const sc = (PLAQUE_BADGE.inScale + (1 - PLAQUE_BADGE.inScale) * cubicOut(u)) * (PLAQUE_BADGE.scale[clKey] ?? 1);
 			const fh = PLAQUE_BADGE.flagH * sc;
 			const tl = flagTex('landed');
 			const fw = tl ? (fh * tl.frame.width) / tl.frame.height : fh;

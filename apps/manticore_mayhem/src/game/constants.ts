@@ -782,6 +782,10 @@ export const PLAQUE_STREAK = {
  *    miss        the empty outlines dim to missDimTo over missDimMs, then the row fades over missFadeMs
  *    handover    whatever is left of the row goes over handoverOutMs when the spin's first row comes in */
 export const PLAQUE_FLAGS = {
+	/** the whole row's size per layout (1 = r6 B's), its own number for each so a phone suggestion after staging is a
+	 *  one-number change (Corey 2026-10-20: "Let's make the phone match the desktop for the banner, and we'll adjust
+	 *  after it's on staging"): landscape = desktop, portrait = the phone held upright and the tablet, phone = sideways */
+	scale: { landscape: 1, portrait: 1, phone: 1 } as Record<'landscape' | 'portrait' | 'phone', number>,
 	filledH: 72,
 	levelH: 72,
 	levelStretch: 1.35,
@@ -815,6 +819,8 @@ export const PLAQUE_BADGE = {
 	/** the row shrinks this long after the trigger pulse starts (SCATTER_STING.triggerMs: the pulse plays on the full row
 	 *  first, every filled flag flashing with it) */
 	shrinkAfterMs: 800,
+	/** the badge's size per layout (1 = flagH and countSize below), each its own number (see PLAQUE_FLAGS.scale) */
+	scale: { landscape: 1, portrait: 1, phone: 1 } as Record<'landscape' | 'portrait' | 'phone', number>,
 	flagH: 54,
 	countSize: 0.46,
 	gap: 6,
