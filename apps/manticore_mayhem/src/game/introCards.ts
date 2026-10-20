@@ -71,7 +71,16 @@ export const INTRO_CARD = {
 		portrait: { size: 9, hit: 28 },
 		phone: { size: 18, hit: 56 },
 	} satisfies Record<LayoutKind, { size: number; hit: number }>,
-	/** WHEN THE CARDS MAY ASK FOR THEIR FILES. They are decoration and must never make PRESS ANYWHERE later.
+	/** THE CARDS LOAD ON THE POLYMATH SPLASH (2026-10-20, Corey: "the explainer card videos need to load on the Polymath
+	 *  splash screen, so they are ready when the landing screen drops"). The frame, the posters, the Cinzel title face and
+	 *  the three clips (about 2.0 MB, the clips 1.68 MB of it) load while the splash is up, as part of its bytes
+	 *  (game/boot.svelte.ts startCards, from when the logo and the two faces are in, beside the Pixi preload); the splash
+	 *  waits for them, and the cards are up and their clips start the moment the splash starts to fade.
+	 *  THE CAP: once everything else the splash waits on is in, it waits at most this long more for the cards, ms. Past it
+	 *  the splash moves on and the cards fall back to the rules below (armAfter, holdClipsUntilLoaded), their files still
+	 *  coming in. A clip that fails leaves its poster and counts as in. */
+	splashCapMs: 3000,
+	/** THE FALLBACK (the cards missed the splash's cap). WHEN THE CARDS MAY ASK FOR THEIR FILES. They are decoration and must never make PRESS ANYWHERE later.
 	 *  'loaded': nothing of the cards (frame, posters, title face, clips) is asked for until the loading bar is
 	 *  done, so nothing of theirs shares the link or the processor with what the gate waits on.
 	 *  'preload': the frame, the posters and the text come in as soon as the Pixi preload is in, so the cards can
@@ -83,7 +92,7 @@ export const INTRO_CARD = {
 	 *  THE GATE (constants LOAD_GATE) for up to 10 s more, and the cards are what the player reads meanwhile; they never
 	 *  share the link with the audio, only with the gate's files (289 KB beside its 4 to 11 MB). */
 	armAfter: 'audio' as 'loaded' | 'preload' | 'audio',
-	/** true: with armAfter 'preload' or 'audio', the CLIPS still wait for the loading bar (posters until then). false: they
+	/** (the fallback too) true: with armAfter 'preload' or 'audio', the CLIPS still wait for the loading bar (posters until then). false: they
 	 *  start as soon as the cards are up (three clips decoding beside the audio: 1839 / 1089 ms, the slowest). */
 	holdClipsUntilLoaded: true,
 } as const;

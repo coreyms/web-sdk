@@ -111,24 +111,38 @@ walk(ASSETS);
 	if (bytes > ARMOURY_MAX_MB * 1048576) throw new Error(`stamp-assets: static/assets/${ARMOURY_DIR} is ${(bytes / 1048576).toFixed(2)} MB, over its ${ARMOURY_MAX_MB} MB budget`);
 }
 
-// 3. byte sizes for the LANDING-FIRST phase (src/game/boot.svelte.ts). The green bar in the shell
+// 3. byte sizes for the LANDING-FIRST phase (src/game/boot.svelte.ts). The red bar in the shell
 // splash weights the bundle download and these assets by bytes, and it has to know the totals
 // before a single one of them has answered — so they are baked here at build time rather than
 // discovered from Content-Length (which a compressed transfer hides).
-// (the animated explainer cards, ui/intro/card-*.{webp,jpg,mp4}, are deliberately NOT in this list: they
-// gate nothing and are fetched by ui/LandingScreen.svelte after the Pixi preload, 2026-10-12)
+// THE EXPLAINER CARDS ARE IN IT SINCE 2026-10-20 (Corey: "the explainer card videos need to load on the Polymath splash
+// screen, so they are ready when the landing screen drops"): the frame, the three posters, the Cinzel title face and the
+// three clips load while the splash is up (src/game/boot.svelte.ts startCards, after the logo and the two faces) and the
+// splash bar counts their bytes. They still gate nothing but the splash, and that only up to INTRO_CARD.splashCapMs.
+// (src/game/boot.svelte.ts CARD_* names the same files; a clip's bytes leave the scale where no clip is asked for.)
+const CARDS = [
+	'ui/intro/card-frame.webp',
+	'ui/intro/card-clusters-poster.jpg',
+	'ui/intro/card-scatters-poster.jpg',
+	'ui/intro/card-features-poster.jpg',
+	'fonts/ui/Cinzel-Bold.woff2',
+	'ui/intro/card-clusters.mp4',
+	'ui/intro/card-scatters.mp4',
+	'ui/intro/card-features.mp4',
+];
 const LANDING = [
 	'ui/logo-stacked.webp',
 	'ui/logo-stacked-glint.webp', // the letters-only mask of the logo's glint (ui/Shine.svelte)
 	'fonts/ui/Outfit-Variable.woff2',
 	'fonts/ui/Sora-Variable.woff2',
+	...CARDS,
 ];
 const landingSizes = Object.fromEntries(LANDING.map((rel) => [rel, statSync(join(ASSETS, rel)).size]));
 
-// 4. ONE loading scale across both screens (Corey 2026-09-15): the splash's green bar stops at the
+// 4. ONE loading scale across both screens (Corey 2026-09-15): the splash's red bar stops at the
 // share the bundle + landing assets + the Pixi preload are of EVERYTHING the landing waits on (the
 // Pixi scene, the room included, only renders once its whole preload phase is in — pixi-svelte
-// AssetsLoader — so the landing cannot show before it), and the landing screen's yellow bar starts
+// AssetsLoader, so the landing cannot show before it), and the landing screen's bar (the same red since 2026-10-20) starts
 // from that share and carries the audio. The other two phases are sized here: every
 // `preload: true` entry of game/assets.ts (a sprites atlas counts its json + image), minus what
 // the landing set already fetched, and the audio the landing gates on (sfx sprite + base loop,
@@ -163,7 +177,7 @@ export default ${JSON.stringify(stamps, null, '\t')} as const;
 // hands each Pixi asset its weight so the preload's progress is bytes, not a count of files.
 export const fileBytes = ${JSON.stringify(fileBytes, null, '\t')} as const;
 
-// Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the green bar by them).
+// Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the splash bar by them).
 export const landingSizes = ${JSON.stringify(landingSizes, null, '\t')} as const;
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by

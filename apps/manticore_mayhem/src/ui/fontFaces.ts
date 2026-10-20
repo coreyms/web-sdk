@@ -8,9 +8,9 @@ const fontCss = [
 	['Sora', '100 800', stamp('/assets/fonts/ui/Sora-Variable.woff2')],
 	// THE DISPLAY FACE (review D10, Corey 2026-10-17 13:05): every live title, the intro cards, PRESS ANYWHERE, the
 	// modal headings (ChromeStyles --ui-font-display / .am-stencil), the Armoury (OFL, licence beside it:
-	// OFL-Cinzel.txt). Static 700, Latin. NOT kicked off below: the browser fetches it when the landing screen first
-	// draws it, after the Pixi preload, so pixi-svelte's document.fonts.ready wait never includes it; until it is in,
-	// the text draws in the fallback (font-display: swap). Black Ops One, the old modal heading face, left the game
+	// OFL-Cinzel.txt). Static 700, Latin. NOT kicked off below: since 2026-10-20 game/boot.svelte.ts loads it with the
+	// explainer cards on the PolyMath splash, once the Pixi preload is in, so pixi-svelte's document.fonts.ready wait
+	// never includes it; until it is in, the text draws in the fallback (font-display: swap). Black Ops One, the old modal heading face, left the game
 	// that day (56,020 bytes no longer fetched when the first modal opens).
 	['Cinzel', '700', stamp('/assets/fonts/ui/Cinzel-Bold.woff2')],
 	// READING TEXT (Build B2, 2026-10-14; images/rules_menu_ref_r1/COMPARISON.md fix 1, Corey: the standard for every

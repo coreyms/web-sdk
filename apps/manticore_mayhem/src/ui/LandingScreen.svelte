@@ -1,16 +1,20 @@
 <script lang="ts">
 	// Post-intro landing screen (HTML overlay over the Pixi courtyard Background): the logo, the three
 	// ANIMATED explainer cards (approved 2026-10-12: game/introCards.ts for every number and for where
-	// things stand, game/introCardText.ts for the strings), the gold loading bar, then PRESS ANYWHERE TO
+	// things stand, game/introCardText.ts for the strings), the red loading bar (the PolyMath splash's own red, Corey
+	// 2026-10-20: "this status bar needs to use the same red as the Polymath statusbar"), then PRESS ANYWHERE TO
 	// CONTINUE. Where the screen has room the cards stand three in a row; where it has not, one card
 	// shows at a time and they rotate when the visible card's clip has played once (dots; a swipe or a
 	// tap on a dot changes the card; a tap anywhere else is still the continue press).
 	//
-	// THE CARDS ARE DECORATION. Nothing here waits for them: they are not in the landing-first phase
-	// (game/boot.svelte.ts) and not in the gate (`ready` below). Their files are asked for only when
-	// INTRO_CARD.armAfter says so (by default once the audio is in: they are read while THE GATE finishes), each card
-	// fades in when the frame picture is decoded, a clip that will not play leaves its poster, and the press pauses every
-	// clip and lets go of its file.
+	// THE CARDS LOAD ON THE POLYMATH SPLASH (2026-10-20, Corey: "the explainer card videos need to load on the Polymath
+	// splash screen, so they are ready when the landing screen drops"). game/boot.svelte.ts loads their files while the
+	// splash is up and makes the three clip elements; the splash waits for them (up to INTRO_CARD.splashCapMs past
+	// everything else it waits on), so with boot.cards 'in' the cards are up under the splash and every visible clip starts
+	// the moment the splash starts to fade. They are still not in the gate (`ready` below). Past the cap (boot.cards
+	// 'late') the cards fall back to the rules from before: they show when INTRO_CARD.armAfter says so (the audio is in)
+	// and their clips wait for PRESS ANYWHERE (holdClipsUntilLoaded). A clip that will not play leaves its poster, and the
+	// press pauses every clip and lets go of its file.
 	//
 	// THE GATE (first-minute plan D, Corey 2026-10-16 17:21; constants LOAD_GATE): PRESS ANYWHERE waits for the audio AND
 	// the win plaque's set and the symbols' sheets (game/deferredLoad.ts loadGate, after the audio), but never more than
@@ -21,7 +25,7 @@
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 
 	import { getContext } from '../game/context';
-	import { boot, releaseSplash, splashShare } from '../game/boot.svelte';
+	import { boot, cardClip, cardClipInfo, cardsLate, dropCardHolder, releaseSplash, splashShare } from '../game/boot.svelte';
 	import { MASTER, layoutKind } from '../game/layoutSpec';
 	import { GATE_BYTES, stamp } from '../game/assets';
 	import { bootSizes } from '../game/assetStamp';
@@ -58,10 +62,20 @@
 	// ...and once the Pixi preload is in: the scene (the room this screen sits in) renders only
 	// then (pixi-svelte AssetsLoader) — a landing over a black canvas is what Corey saw on
 	// 2026-09-15. A failed preload releases too (the assetsFailed notice below takes over).
+	// ...and once the explainer cards are in (game/boot.svelte.ts boot.cards), but never more than INTRO_CARD.splashCapMs
+	// past the rest: then the splash moves on and the cards use their fallback (cardsLate).
+	let splashCapped = $state(false);
 	$effect(() => {
 		if (!boot.landingReady) return;
 		if (!(context.stateApp.preLoaded || assetsFailed)) return;
-		// a beat so Pixi has painted the room before the crossfade starts
+		if (boot.cards === 'loading' && !assetsFailed) {
+			const cap = setTimeout(() => {
+				splashCapped = true;
+				cardsLate();
+			}, INTRO_CARD.splashCapMs);
+			return () => clearTimeout(cap);
+		}
+		// a beat so Pixi has painted the room (and the cards have faded in) before the crossfade starts
 		const id = setTimeout(releaseSplash, 350);
 		return () => clearTimeout(id);
 	});
@@ -75,7 +89,7 @@
 	// (game/sound.ts), so the bar blends both — otherwise it parks at 100% for however long the
 	// audio still needs. Weights are a fixed approximation of the byte split; the label switches to
 	// LOADING AUDIO once the images are done so a long audio tail doesn't look like a hang.
-	// ONE loading scale across both screens (Corey 2026-09-15): the shell splash's green bar
+	// ONE loading scale across both screens (Corey 2026-09-15): the shell splash's red bar
 	// stopped at `start` (its share of everything: bundle + landing images + the Pixi preload,
 	// game/boot.svelte.ts splashShare) and this bar carries on from there with the one thing still
 	// in flight — the audio (sfx sprite + base loop, byte progress from game/sound.ts).
@@ -138,13 +152,17 @@
 	// posters only, and no clip is ever asked for, where the player asked for less motion
 	const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-	/** the cards may ask for their files (INTRO_CARD.armAfter: once the loading bar is done, once the audio is in, or once the
-	 *  Pixi preload is in) */
+	/** every file of the cards came in during the splash (game/boot.svelte.ts): the cards are up at once and their clips
+	 *  start with the splash's fade. Otherwise the fallback rules (armAfter, holdClipsUntilLoaded) */
+	const cardsIn = $derived(boot.cards === 'in');
+	/** the cards show (INTRO_CARD.armAfter: once the loading bar is done, once the audio is in, or once the Pixi preload is
+	 *  in; at once when they came in on the splash) */
 	let armed = $state(false);
 	$effect(() => {
-		if (C.armAfter === 'loaded' ? ready : C.armAfter === 'audio' ? context.stateApp.preLoaded && audioReady : context.stateApp.preLoaded) armed = true;
+		if (cardsIn || (C.armAfter === 'loaded' ? ready : C.armAfter === 'audio' ? context.stateApp.preLoaded && audioReady : context.stateApp.preLoaded)) armed = true;
 	});
-	/** the frame picture is decoded: the cards fade in. A frame that never arrives leaves no cards, and nothing waits. */
+	/** the frame picture is decoded (game/boot.svelte.ts decoded it on the splash): the cards fade in. A frame that never
+	 *  arrives leaves no cards, and nothing waits. */
 	let frameReady = $state(false);
 	$effect(() => {
 		if (!armed) return;
@@ -152,6 +170,9 @@
 		img.src = frameSrc;
 		img.decode().then(() => (frameReady = true), () => {});
 	});
+	/** the clips may run: on the splash's fade when the cards came in on the splash, else at PRESS ANYWHERE
+	 *  (holdClipsUntilLoaded) */
+	const clipsGo = $derived(cardsIn ? boot.splashOut : !C.holdClipsUntilLoaded || ready);
 
 	const oneUp = $derived(place.mode !== 'row');
 	/** one card at a time: which one shows */
@@ -168,13 +189,13 @@
 	const kept: (HTMLVideoElement | undefined)[] = [];
 	let mounted = true;
 
-	const wantsClip = (i: number) =>
-		armed && frameReady && !reducedMotion && !pressed && (!oneUp || i === active) && (!C.holdClipsUntilLoaded || ready);
+	const wantsClip = (i: number) => armed && frameReady && !reducedMotion && !pressed && (!oneUp || i === active) && clipsGo;
 	const startClip = (i: number) => {
 		const v = videos[i];
 		if (!v) return;
 		v.muted = true;
-		// a plain same-origin URL, set only when the card first has to play: a card that is never shown is never fetched
+		// the element came from game/boot.svelte.ts with its src (loaded on the splash); one without (no clip was asked for
+		// then) gets the plain same-origin URL only when its card first has to play
 		if (!v.getAttribute('src')) v.src = clipSrc[i];
 		// refused (iPhone Low Power Mode) or cut short by a pause: the poster stays, nothing to report
 		if (v.paused) v.play().catch(() => {});
@@ -187,6 +208,17 @@
 			if (wantsClip(i)) startClip(i);
 			else if (!v.paused) v.pause();
 		}
+	});
+	/** THE HANDOFF of a clip element: game/boot.svelte.ts made it (and loaded it, on the splash); the card's glass window
+	 *  takes it in. Moving it keeps what it has buffered. */
+	const adoptClip = (host: HTMLElement, i: number) => {
+		const v = cardClip(i);
+		host.appendChild(v);
+		videos[i] = v;
+	};
+	// the clip is drawn over the poster only once it is really running (the element is not the template's: a class by hand)
+	$effect(() => {
+		for (let i = 0; i < N; i += 1) videos[i]?.classList.toggle('live', live[i]);
 	});
 	/** pause every clip and let go of its file, so no decoder stays alive behind the game */
 	const releaseClips = () => {
@@ -218,7 +250,7 @@
 	};
 	/** one card at a time: the cards move on by themselves only once their clips may play (armed during the gate's wait,
 	 *  plan D, they hold the first card's poster until then, so its clip is the first one seen); with reduced motion at once */
-	const rotating = $derived(!C.holdClipsUntilLoaded || ready || reducedMotion);
+	const rotating = $derived(clipsGo || reducedMotion);
 	$effect(() => {
 		// the dwell clock starts when the visible card is actually there, and again when the cards start moving on
 		if (frameReady && oneUp && rotating) untrack(() => (activeSince = performance.now()));
@@ -356,6 +388,12 @@
 				 *  cap opened it; the gate's bytes */
 				gate: { audioAt, settledAt: loadGate.settledAt, readyAt, capped, capMs: LOAD_GATE.capMs, settled: loadGate.settled, doneBytes: loadGate.doneBytes, totalBytes: GATE_BYTES, files: loadGate.files, filesDone: loadGate.filesDone, failed: loadGate.failed, splashOut: boot.splashOut },
 				armed,
+				/** game/boot.svelte.ts: the cards on the splash ('in', 'late' past the cap), per clip how it came in */
+				cardsOnSplash: boot.cards,
+				splashCapped,
+				splashCapMs: C.splashCapMs,
+				clipLoad: cardClipInfo.map((x) => ({ ...x })),
+				clipsGo,
 				armAfter: C.armAfter,
 				holdClipsUntilLoaded: C.holdClipsUntilLoaded,
 				frameReady,
@@ -392,6 +430,7 @@
 		if (!ready || pressed) return;
 		pressed = true;
 		releaseClips();
+		dropCardHolder();
 		// the continue press has a voice of its own (the minor click, Corey 2026-09-02); the sprite
 		// is guaranteed loaded here — it is one of the things this screen waited for
 		sound.players.once.play({ name: 'sfx_ui_minor' });
@@ -425,20 +464,8 @@
 						<div class="win">
 							<img class="poster" src={posterSrc[i]} alt="" draggable="false" />
 							{#if !reducedMotion}
-								<video
-									bind:this={videos[i]}
-									class:live={live[i]}
-									poster={posterSrc[i]}
-									autoplay={wantsClip(i)}
-									muted
-									loop
-									playsinline
-									preload="metadata"
-									disablepictureinpicture
-									disableremoteplayback
-									tabindex="-1"
-									aria-hidden="true"
-								></video>
+								<!-- the clip's <video> is game/boot.svelte.ts's (muted, loop, playsinline, the poster), adopted here -->
+								<span class="clip-host" use:adoptClip={i}></span>
 							{/if}
 						</div>
 						<img class="frame" src={frameSrc} alt="" draggable="false" />
@@ -553,8 +580,11 @@
 		background: #000;
 		overflow: hidden;
 	}
+	.clip-host {
+		display: contents;
+	}
 	.win .poster,
-	.win video {
+	.win :global(video) {
 		position: absolute;
 		inset: 0;
 		width: 100%;
@@ -563,16 +593,16 @@
 		display: block;
 		pointer-events: none;
 	}
-	.win video {
+	.win :global(video) {
 		opacity: 0;
 	}
-	.win video.live {
+	.win :global(video.live) {
 		opacity: 1;
 	}
 	/* a refused autoplay must not leave the system's play glyph on the glass */
-	.win video::-webkit-media-controls,
-	.win video::-webkit-media-controls-start-playback-button,
-	.win video::-webkit-media-controls-overlay-play-button {
+	.win :global(video::-webkit-media-controls),
+	.win :global(video::-webkit-media-controls-start-playback-button),
+	.win :global(video::-webkit-media-controls-overlay-play-button) {
 		display: none !important;
 		-webkit-appearance: none;
 	}
@@ -729,8 +759,9 @@
 	.fill {
 		height: 100%;
 		border-radius: 6px;
-		background: linear-gradient(90deg, #dfb02c, #ffdc4a);
-		box-shadow: 0 0 12px rgba(255, 220, 74, 0.5);
+		/* the PolyMath splash's own red (src/app.html #am-splash .fill, its --accent #e32400), Corey 2026-10-20 */
+		background: linear-gradient(90deg, #c81d00, #e32400);
+		box-shadow: 0 0 12px rgba(227, 36, 0, 0.5);
 		transition: width 0.15s linear;
 	}
 	.pct {

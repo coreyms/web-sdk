@@ -999,9 +999,17 @@ export const landingSizes = {
 	"ui/logo-stacked.webp": 137102,
 	"ui/logo-stacked-glint.webp": 15192,
 	"fonts/ui/Outfit-Variable.woff2": 13704,
-	"fonts/ui/Sora-Variable.woff2": 14980
+	"fonts/ui/Sora-Variable.woff2": 14980,
+	"ui/intro/card-frame.webp": 152008,
+	"ui/intro/card-clusters-poster.jpg": 48818,
+	"ui/intro/card-scatters-poster.jpg": 67346,
+	"ui/intro/card-features-poster.jpg": 49017,
+	"fonts/ui/Cinzel-Bold.woff2": 15224,
+	"ui/intro/card-clusters.mp4": 543263,
+	"ui/intro/card-scatters.mp4": 544302,
+	"ui/intro/card-features.mp4": 588693
 } as const;
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":180978,"preload":1518802,"audio":1668065} as const;
+export const bootSizes = {"landing":2189649,"preload":1518802,"audio":1668065} as const;

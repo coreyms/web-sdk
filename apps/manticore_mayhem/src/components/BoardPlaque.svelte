@@ -457,8 +457,12 @@
 		tipCtx.font = fontAt(REF);
 		capK = (tipCtx.measureText('H').actualBoundingBoxAscent || REF * 0.7) / REF;
 		planK = cssPerUnit().ku;
-		// "never show the full sentence": the narrowest line never fits the slanted window at its narrowest row (r5)
-		tipFontU = tipFont(tipBox, planK, capK, Math.min(...tipTexts.map(widthAt1)), narrowW());
+		// "never show the full sentence": the narrowest line never fits the slanted window at its narrowest row (r5). Only
+		// the lines with words: an empty one (the recap's line 2 with nothing to show, Super Ante's line 6) is never shown,
+		// and its width 0 turned the rule off (1.0.04, found 2026-10-20 by tools/manticore/plaque_tips_probe.js: on the
+		// desktop "A win on a lit tile doubles it" fitted the window whole)
+		const worded = tipTexts.filter((t) => t !== '');
+		tipFontU = tipFont(tipBox, planK, capK, worded.length ? Math.min(...worded.map(widthAt1)) : 0, narrowW());
 	};
 	/** the line on show: its index and words, its size, the texture's size, the strip it is drawn on (layout units: x 0
 	 *  to stripW; its x on the box is the strip's x plus the marquee's offset, offset0 as it enters, offset1 once it is
