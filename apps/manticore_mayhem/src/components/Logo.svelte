@@ -46,13 +46,15 @@
 	import { logoState } from '../game/logo/state.svelte';
 	import { portraitOptions } from '../game/portraitOptions.svelte';
 	import { LogoStill } from '../game/logo/still';
+	import { stagingGlint } from '../game/staging';
 	import { LogoView } from '../game/logo/view';
 	import { hudHiddenByModal } from '../ui/armoury/armouryView.svelte';
 
 	const context = getContext();
 	const sg = context.stateGame;
 	const view = new LogoView(LOGO);
-	const still = new LogoStill({ fadeMs: LOGO.fadeMs, shadowBakeWidth: LOGO.still.shadowBakeWidth, shine: LOGO.still.shine });
+	// (`?glint=` on a staging build or the dev server scales the Shine's opacity, game/staging.ts)
+	const still = new LogoStill({ fadeMs: LOGO.fadeMs, shadowBakeWidth: LOGO.still.shadowBakeWidth, shine: { ...LOGO.still.shine, idleOpacity: LOGO.still.shine.idleOpacity * (stagingGlint ?? 1) } });
 	// on the stage itself (canvas px): see Z ORDER above. One host, the still under the animated logo (never both drawn)
 	const host = new PIXI.Container();
 	host.label = 'logo';
@@ -247,9 +249,9 @@
 			hudOff = false;
 			deep = false;
 		},
-		// the still's full Shine on a spin press, as ui/Shine.svelte
+		// the still's full Shine on a spin press, as ui/Shine.svelte: off since 1.0.04 (LOGO.still.shine.press)
 		bet: () => {
-			if (!stillOn || !still.shown) return;
+			if (!LOGO.still.shine.press || !stillOn || !still.shown) return;
 			still.sweep(performance.now(), true);
 			startStill();
 		},

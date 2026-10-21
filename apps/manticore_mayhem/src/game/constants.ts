@@ -2234,7 +2234,12 @@ export const LOGO = {
 	still: {
 		shadow: { landscape: { dy: 4, blur: 8, alpha: 0.7 }, phone: { dy: 4, blur: 8, alpha: 0.7 }, portrait: { dy: 3, blur: 6, alpha: 0.6 } },
 		shadowBakeWidth: 256,
-		shine: { strips: 40, band: 0.9, from: -0.9, to: 1.9, peak: 0.95, idleMs: 5000, idleSweepMs: 800, idleRampMs: 100, idleOpacity: 0.4, bigMs: 520, bigRampAt: 0.15 },
+		/** CALMER ON THE PHONE (1.0.04, Corey 2026-10-20: "Can we work on the current logo's glint's they are pretty
+		 *  aggressive" ... "the desktop looks good in the current state, it's the phone that looks aggressive"): the idle
+		 *  sweep every 12 s (was 5 s) at opacity 0.2 (was 0.4), and no full sweep on a spin press (`press`, was on). The
+		 *  desktop's animated logo is unchanged. The staging switch `?glint=` (0 to 2, game/staging.ts) scales its opacity.
+		 *  The chrome's HTML <img> fallback (ui/Shine.svelte in ui/Chrome*.svelte) follows the same numbers. */
+		shine: { strips: 40, band: 0.9, from: -0.9, to: 1.9, peak: 0.95, idleMs: 12000, idleSweepMs: 800, idleRampMs: 100, idleOpacity: 0.2, bigMs: 520, bigRampAt: 0.15, press: false },
 	},
 } as const;
 

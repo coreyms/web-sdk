@@ -6,15 +6,21 @@
 	// on the same `bet` event, so the logo and the tagline sweep in sync.
 	import { getContext } from '../game/context';
 
-	type Props = { src: string; idleMs?: number };
-	const { src, idleMs = 5000 }: Props = $props();
+	// THE CHROME'S LOGO (1.0.04, LOGO.still.shine): `calm` takes the still's numbers, the idle sweep every 12 s at its
+	// opacity (x `?glint=` on a staging build) and no full sweep on a press. The landing screen's keeps the old look.
+	import { LOGO } from '../game/constants';
+	import { stagingGlint } from '../game/staging';
+
+	type Props = { src: string; idleMs?: number; calm?: boolean };
+	const { src, idleMs = 5000, calm = false }: Props = $props();
 	const context = getContext();
 	let tick = $state(0);
-	context.eventEmitter.subscribeOnMount({ bet: () => tick++ });
+	context.eventEmitter.subscribeOnMount({ bet: () => !calm && tick++ });
+	const opacity = calm ? LOGO.still.shine.idleOpacity * (stagingGlint ?? 1) : 0.4;
 </script>
 
 {#key tick}
-	<span class="shine" class:big={tick > 0} style:--m="url({src})" style:--idle="{idleMs}ms" aria-hidden="true"></span>
+	<span class="shine" class:big={tick > 0} class:calm style:--m="url({src})" style:--idle="{calm ? LOGO.still.shine.idleMs : idleMs}ms" style:--o={opacity} aria-hidden="true"></span>
 {/key}
 
 <style>
@@ -45,6 +51,17 @@
 		2% { opacity: 0.4; }
 		16% { opacity: 0.4; background-position: -20% 0; }
 		18% { opacity: 0; background-position: -20% 0; }
+		100% { opacity: 0; background-position: -20% 0; }
+	}
+	/* calm (the chrome's logo, 12 s): the same 800 ms sweep (0.83 % to 6.7 % of 12 s) at --o */
+	.shine.calm {
+		animation: calm var(--idle) linear infinite;
+	}
+	@keyframes calm {
+		0% { opacity: 0; background-position: 120% 0; }
+		0.83% { opacity: var(--o); }
+		6.67% { opacity: var(--o); background-position: -20% 0; }
+		7.5% { opacity: 0; background-position: -20% 0; }
 		100% { opacity: 0; background-position: -20% 0; }
 	}
 	@keyframes big {

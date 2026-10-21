@@ -42,7 +42,7 @@
 <div class="top keep" style:top="{logo.y}px" style:transform="translateX({logoDx}px)">
 	<!-- THE CANVAS DRAWS THE LOGO (components/Logo.svelte, game/logo/still.ts: under the creature); this is the fallback
 	     until the canvas has it, hidden from then on (logoState.canvas) -->
-	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></span>
+	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} calm /></span>
 </div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 

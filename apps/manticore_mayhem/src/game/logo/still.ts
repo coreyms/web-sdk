@@ -17,7 +17,7 @@ export type StillShadow = { dy: number; blur: number; alpha: number };
 export type StillTiming = {
 	fadeMs: number;
 	shadowBakeWidth: number;
-	shine: { strips: number; band: number; from: number; to: number; peak: number; idleMs: number; idleSweepMs: number; idleRampMs: number; idleOpacity: number; bigMs: number; bigRampAt: number };
+	shine: { strips: number; band: number; from: number; to: number; peak: number; idleMs: number; idleSweepMs: number; idleRampMs: number; idleOpacity: number; bigMs: number; bigRampAt: number; press: boolean };
 };
 
 export class LogoStill {
@@ -208,6 +208,6 @@ export class LogoStill {
 	}
 
 	state() {
-		return { ready: this.ready, shine: this.shine, shown: this.shown, alpha: this.alpha, visible: this.root.visible, box: { ...this.box }, strips: this.strips.length, lit: this.strips.filter((s) => s.visible).length, bakes: this.bakes, sweeps: this.sweeps, shadow: { x: this.shadow.x, y: this.shadow.y, scale: this.shadow.scale.x, alpha: this.shadow.alpha, w: this.shadow.texture.width, h: this.shadow.texture.height }, big: this.big };
+		return { ready: this.ready, shine: this.shine, shown: this.shown, alpha: this.alpha, visible: this.root.visible, box: { ...this.box }, strips: this.strips.length, lit: this.strips.filter((s) => s.visible).length, bakes: this.bakes, sweeps: this.sweeps, idleMs: this.timing.shine.idleMs, idleOpacity: this.timing.shine.idleOpacity, peakAlpha: Math.max(0, ...this.strips.map((x) => x.alpha)), shadow: { x: this.shadow.x, y: this.shadow.y, scale: this.shadow.scale.x, alpha: this.shadow.alpha, w: this.shadow.texture.width, h: this.shadow.texture.height }, big: this.big };
 	}
 }

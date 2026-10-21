@@ -41,7 +41,7 @@
      tier, the still of game/logo/still.ts otherwise, both under the creature). This <img> is only the fallback until
      the canvas has it (logoState.canvas hides it, Shine and all). -->
 <div class="logo keep" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px">
-	<img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" />{#if PHONE_TIER}<Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} />{/if}
+	<img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" />{#if PHONE_TIER}<Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} calm />{/if}
 </div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 

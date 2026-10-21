@@ -41,7 +41,7 @@
 
 <!-- the stacked logo. THE CANVAS DRAWS IT (components/Logo.svelte, game/logo/still.ts: under the creature, with the
      shadow and the Shine); this <img> is the fallback until the canvas has it, and hidden from then on (logoState.canvas) -->
-<div class="logo" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} /></div>
+<div class="logo" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Mayhem" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} calm /></div>
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
