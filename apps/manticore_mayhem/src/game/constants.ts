@@ -2221,7 +2221,10 @@ export const LOGO = {
 	 *  who stands top right behind the board, and drawn in front of him (the HTML HUD is over the whole canvas).
 	 *  Centre and width in the 412 wide master (scale 0.74 of the 348); on a wider phone the box keeps its distance
 	 *  from the screen's centre line, like the canvas. It was centre 206.0, 124.7, width 348. */
-	portraitPhone: { cx: 138.7, cy: 100.7, width: 257.5 },
+	// 1.0.04 (harsh review 2026-10-20 design N8, "the creature's left wing touches the logo's right wing", Corey 2026-10-21
+	// "10 to 15 px more gap"): width 243 (was 257.5), the same centre height and left wing tip, so its lower right
+	// corner comes in and up off his wing: at 390 x 844 the closest drawn pixels go from -2.1 (touching) to +10.5 CSS px (440 x 700: -8.4 to +5.4)
+	portraitPhone: { cx: 138.7, cy: 100.7, width: 243 },
 	/** THE PORTRAIT PHONE LOGO ON THE LEFT EDGE (branch portrait-glow-r1, OPTION for Corey, 2026-10-17 11:42: "move that
 	 *  logo in portrait mode close to the left edge and anchor it there maybe the point of the left wings widest stretch
 	 *  point plus 2 pixels for spacing"). The box keeps portraitPhone's width and centre y; only x moves, so that the
