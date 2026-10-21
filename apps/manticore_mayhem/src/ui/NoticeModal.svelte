@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { soc } from '../game/social';
 	// Design-styled replacement for the SDK's ModalError + ModalAutoSpinMessage (same stateModal names).
-	import { stateModal } from 'state-shared';
+	import { stateModal, stateUrlDerived } from 'state-shared';
 
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
@@ -47,6 +47,10 @@
 		timeout: { title: 'CONNECTION TIMED OUT', body: 'The game server took too long to answer. Check your connection and reload the game. Any unfinished round resumes from the server.', detail: 'TIMED OUT', reload: true },
 		badReply: { title: 'UNEXPECTED REPLY', body: 'The game server sent something the game could not read. Reload the game to continue. Any unfinished round resumes from the server.', detail: 'BAD RESPONSE', reload: true },
 	};
+	// A REPLAY THAT FAILS TO LOAD (harsh review 2026-10-20 gameplay 6, game-replay-requirements "Show an appropriate
+	// message if replay data fails to load"): a replay makes no other call, so any error there is the round not loading;
+	// replay words, no "unfinished round resumes" sentence (a replay has no round of the player's to resume)
+	const REPLAY_FAILED = { title: 'REPLAY NOT AVAILABLE', body: 'This round could not be loaded. Check the link and try again.', detail: 'REPLAY', reload: true };
 	const transportKind = (e: any): string | null => {
 		if (!e || typeof e !== 'object') return null;
 		if (e.name === 'TimeoutError' || e.name === 'AbortError') return 'timeout';
@@ -82,6 +86,7 @@
 	const notice = $derived(isNotice ? MESSAGES[(modal as { message: string }).message] : null);
 	const known = $derived.by(() => {
 		if (!isError) return null;
+		if (stateUrlDerived.replay()) return REPLAY_FAILED;
 		const e = (modal as { error?: unknown }).error;
 		const t = transportKind(e);
 		if (t) return TRANSPORT[t];
@@ -99,7 +104,8 @@
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={9}>
 	<div class="center">
 		<div class="card am-glass" class:halt={needsReload} onclick={(e) => e.stopPropagation()} role="presentation">
-			<div class="stamp">{needsReload ? 'NOTICE' : 'SLIP'}</div>
+			<!-- NOTICE on every card (harsh review 2026-10-20 gameplay 7: was SLIP on the balance, limit and ERR_IPB cards) -->
+			<div class="stamp">NOTICE</div>
 			<div class="title am-stencil">{isError ? (known?.title ?? 'SOMETHING WENT WRONG') : notice?.title}</div>
 			<div class="body">{isError ? (known?.body ?? 'Reload the game to continue. Any unfinished round resumes from the server.') : notice?.body}</div>
 			{#if isError}
