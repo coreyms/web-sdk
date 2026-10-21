@@ -703,6 +703,17 @@ export class StingerView {
 		return this.t;
 	}
 
+	/** DEV: a light read for per frame probes (plaque_celebrate_probe.js): phase, screen, tier, the title's alpha */
+	lite(): { phase: string; screen: string; tier: string; titleAlpha: number } {
+		return { phase: this.phase, screen: this.screen, tier: STINGER_TIERS[this.tier], titleAlpha: this.drawn.titleAlpha };
+	}
+
+	/** when the title on show punches in, on the plaque clock (seconds): the board plaque's word punches with it
+	 *  (game/plaqueCelebrate.ts) */
+	get titleAt(): number {
+		return this.titleT0;
+	}
+
 	/**
 	 * The tier up beat, at any moment: additive tier_flare, vein step, barb charge, eye flare, ember burst, glint
 	 * held off; on the win screen the title swaps (old one out, new one punched in) and the amount pulses.

@@ -793,6 +793,48 @@ export type PlaqueClearsLayout = {
  *  own standard count-up; a soft pulse blooms behind its digits (pulseMs). Style ms (divided by the turbo scale); the
  *  flight never runs under flightMinRealMs REAL ms so it can be seen at any turbo. Sizes: shares of the dark field's
  *  height on screen. A skip plays none of it (the HUD is written at once). */
+/** THE BOARD PLAQUE CELEBRATES THE BIG WIN (1.0.04; harsh review 2026-10-20 must-fix 1, three amounts on screen during a
+ *  Big Win; Corey 2026-10-21 picked variant B of images/plaque_celebration_r1: "when the Stinger (BIG WIN plaque) drops,
+ *  the board plaque hides its total and cluster rows" and shows the Stinger's tier title in its own brass lettering, each
+ *  word punching in on the Stinger title's own beat, with the additive rim pulse and the word brighten; "make the text
+ *  20% smaller on the screen for these, leaving the stinger as the main celebrator"; MAX WIN when MAX lands ("Yes Max WIN
+ *  should be there"); the same in free spins, the War Standard badge hiding with the amount ("Yes"); the TOTAL WIN wrap
+ *  up left as it is ("Leave the plaque as is there")). components/BoardPlaque.svelte draws it from the beats
+ *  components/StingerPlaque.svelte publishes (game/plaqueCelebrate.ts). The Stinger's beats run in real time at every
+ *  turbo (turbo shortens its count), so these do too. All ms real.
+ *    figuresOutMs   on the Stinger's show the rows, the total and the badge fade out (gone before the impact at 250)
+ *    wordScale      the word's height x the total's (PLAQUE_CLEARS.totalSize): 0.8 x the preview's 1.25 (Corey "20%
+ *                   smaller"); tierGrow more per tier above BIG; any word fitted to BOARD_PLAQUE.fieldFill of the field
+ *    punchFrom / punchMs   the word punches from punchFrom to 1 (back out) over punchMs, fading in over min(100, punchMs)
+ *    oldScale / oldOutMs   the outgoing word grows to oldScale and fades over oldOutMs from its successor's bar
+ *    endPulse / endPulseMs at the count's end one pulse of the word to endPulse
+ *    pulse / pulseMs / pulseAttackMs / pulseTierStep   the rim pulse: an additive copy of the plaque at pulse x (0.75 +
+ *                   pulseTierStep x tier), attack then a quadratic decay over pulseMs; BIG's on the impact, each later
+ *                   tier's on its title beat, half of it on the count's end
+ *    brighten / brightenMs  the word's additive brighten on its own beat
+ *    wordOutMs / figuresBackDelayMs / figuresBackMs   at the Stinger's leave the word fades, then the figures fade back */
+export const PLAQUE_CELEBRATE = {
+	on: true,
+	figuresOutMs: 120,
+	wordScale: 1.0,
+	tierGrow: 0.04,
+	punchFrom: 1.4,
+	punchMs: 160,
+	oldScale: 1.15,
+	oldOutMs: 60,
+	endPulse: 1.08,
+	endPulseMs: 260,
+	pulse: 0.55,
+	pulseMs: 450,
+	pulseAttackMs: 50,
+	pulseTierStep: 0.1,
+	brighten: 0.7,
+	brightenMs: 160,
+	wordOutMs: 150,
+	figuresBackDelayMs: 100,
+	figuresBackMs: 180,
+};
+
 export const PLAQUE_STREAK = {
 	queueWaitMaxMs: 1200,
 	toHudDelayMs: 250,

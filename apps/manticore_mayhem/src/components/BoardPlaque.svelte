@@ -90,7 +90,8 @@
 	import { enableMipmaps } from '../game/mipmaps';
 	import { boardIdle } from '../game/boardIdle';
 	import { PLAQUE_TIPS as TIPS, edgeAt, marqueeAt, marqueeSpan, pointerIsMouse, slantEdges, tipAt, tipFont, tipLines } from '../game/plaqueTips';
-	import { PLAQUE_PROMPT, PRESS_PROMPT } from '../game/constants';
+	import { PLAQUE_CELEBRATE, PLAQUE_PROMPT, PRESS_PROMPT } from '../game/constants';
+	import { plaqueCelebrate, type CelebrateBeat } from '../game/plaqueCelebrate';
 	import { pressPromptFace, pressPromptRelease, pressPromptTake, type PressPromptRaster } from '../game/pressPrompt';
 	import { plaquePrompt, plaquePromptReady } from '../game/plaquePrompt.svelte';
 
@@ -837,6 +838,210 @@
 		l.visible = false;
 	}
 	root.addChild(flagsLayer, badgeLayer);
+
+	// ---- THE BIG WIN CELEBRATION (1.0.04, PLAQUE_CELEBRATE; game/plaqueCelebrate.ts) -----------------------------------
+	// While the Stinger's win screen is up the rows, the total and the badge stand aside and the plaque shows the Stinger's
+	// tier title (BIG WIN .. MAX WIN) in its own numerals atlas, through the field's H like the total, each word punching
+	// in on the Stinger title's own beat; an additive copy of the plaque pulses on each tier beat and an additive copy of
+	// the word brightens it on its beat (variant B). Two word meshes (the word on show and the one going out) and the
+	// brighten share nothing per frame but alphas and container scales; a word's buffers are written when it changes.
+	// No filter, mask or texture made per frame.
+	const CELEB_TIERS = ['BIG WIN', 'SUPER WIN', 'MEGA WIN', 'EPIC WIN', 'MAX WIN'];
+	const CW = 12;
+	type WordSlot = { box: PIXI.Container; mesh: PIXI.MeshSimple; pos: Float32Array; uv: Float32Array; text: string; sig: string };
+	const makeWord = (add: boolean): WordSlot => {
+		const pos = new Float32Array(CW * 8);
+		const uv = new Float32Array(CW * 8);
+		const idx = new Uint32Array(CW * 6);
+		for (let i = 0; i < CW; i += 1) idx.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+		const mesh = new PIXI.MeshSimple({ texture: PIXI.Texture.WHITE, vertices: pos, uvs: uv, indices: idx });
+		mesh.autoUpdate = false;
+		if (add) mesh.blendMode = 'add';
+		const box = new PIXI.Container({ label: add ? 'plaque-word-brighten' : 'plaque-word' });
+		box.addChild(mesh);
+		box.visible = false;
+		return { box, mesh, pos, uv, text: '', sig: '' };
+	};
+	const celebLayer = new PIXI.Container({ label: 'plaque-celebrate' });
+	celebLayer.eventMode = 'none';
+	celebLayer.interactiveChildren = false;
+	celebLayer.visible = false;
+	/** the rim pulse: an additive copy of the plaque's own art (the day face), placed as `day` is */
+	const rim = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	rim.blendMode = 'add';
+	rim.visible = false;
+	const words = [makeWord(false), makeWord(false)];
+	const bright = makeWord(true);
+	celebLayer.addChild(rim, words[0].box, words[1].box, bright.box);
+	root.addChild(celebLayer);
+	/** the word's height (layout units) for tier `t`, and the face's centre point it is laid on and scaled about */
+	const wordSize = (t: number) => CL.totalSize * PLAQUE_CELEBRATE.wordScale * (1 + PLAQUE_CELEBRATE.tierGrow * t);
+	/** lay `text` into a word slot, centred on the face at tier `t`'s size, fitted to the field (BOARD_PLAQUE.fieldFill) */
+	const layWord = (w: WordSlot, text: string, t: number) => {
+		const sig = `${text}|${t}|${placedFor}|${atlasTexture?.source.uid ?? 0}`;
+		if (w.sig === sig) return;
+		w.sig = sig;
+		w.text = text;
+		const cells = cellsOf(text) ?? [];
+		const height = PLAQUE_DIGIT_H;
+		const gap = height * BOARD_PLAQUE.gap;
+		const rowW = cells.reduce((sum, c) => sum + c.cellW, 0) + gap * Math.max(0, cells.length - 1);
+		const fieldW = ((field.faceW / field.k) * BOARD_PLAQUE.fieldFill);
+		let k = wordSize(t);
+		if (rowW * k > fieldW) k = fieldW / rowW;
+		const cy = PLAQUE_FIELD.layoutCentreY;
+		let cx = -(rowW * k) / 2;
+		const src = atlasTexture?.source;
+		const sw = src?.width || 1;
+		const sh = src?.height || 1;
+		let n = 0;
+		w.pos.fill(0);
+		w.uv.fill(0);
+		for (const c of cells) {
+			if (n >= CW) break;
+			const tex = c.key && atlas ? atlas[`${PLAQUE_GLYPH_PREFIX}${c.key}.png`] : undefined;
+			if (tex) {
+				const gw = c.w * k;
+				const gh = c.h * k;
+				const x = cx + (c.cellW * k - gw) / 2;
+				const y = cy + (height / 2 - c.h + c.d) * k;
+				const corners = [x, y, x + gw, y, x + gw, y + gh, x, y + gh];
+				for (let j = 0; j < 4; j += 1) {
+					const p = through(corners[j * 2], corners[j * 2 + 1]);
+					w.pos[n * 8 + j * 2] = p.x;
+					w.pos[n * 8 + j * 2 + 1] = p.y;
+				}
+				const f = tex.frame;
+				w.uv.set([f.x / sw, f.y / sh, (f.x + f.width) / sw, f.y / sh, (f.x + f.width) / sw, (f.y + f.height) / sh, f.x / sw, (f.y + f.height) / sh], n * 8);
+				n += 1;
+			}
+			cx += (c.cellW + gap) * k;
+		}
+		if (atlasTexture && w.mesh.texture !== atlasTexture) w.mesh.texture = atlasTexture;
+		w.mesh.geometry.getBuffer('aPosition').update();
+		w.mesh.geometry.getBuffer('aUV').update();
+		const c0 = through(0, cy);
+		w.box.pivot.set(c0.x, c0.y);
+		w.box.position.set(c0.x, c0.y);
+	};
+	const backOutC = (t: number) => {
+		const s = 1.70158;
+		const u = t - 1;
+		return u * u * ((s + 1) * u + s) + 1;
+	};
+	/** DEV: what the celebration drew this frame, and every word's first drawn frame (tools/manticore/plaque_celebrate_probe.js) */
+	const celebState = { on: false, hideK: 1, word: '', wordAlpha: 0, wordScale: 1, old: '', oldAlpha: 0, rim: 0, bright: 0 };
+	const celebLog: { seq: number; word: string; tier: number; punchAt: number; drawnAt: number }[] = [];
+	let celebSeq = -1;
+	let celebDrawn = -1;
+	/** this frame of the celebration; returns the share of the rows, the total and the badge left on show (1 = all) */
+	const celebrateTick = (now: number): number => {
+		const C = plaqueCelebrate;
+		const P = PLAQUE_CELEBRATE;
+		if (!P.on || !C.on || C.showAt < 0) {
+			if (celebLayer.visible) celebLayer.visible = false;
+			celebState.on = false;
+			celebState.hideK = 1;
+			return 1;
+		}
+		if (C.seq !== celebSeq) {
+			celebSeq = C.seq;
+			celebDrawn = -1;
+		}
+		const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+		let hideK = 1 - clamp((now - C.showAt) / Math.max(1, P.figuresOutMs));
+		let out = 1;
+		if (C.hideAt >= 0) {
+			out = 1 - clamp((now - C.hideAt) / Math.max(1, P.wordOutMs));
+			hideK = Math.max(hideK, clamp((now - C.hideAt - P.figuresBackDelayMs) / Math.max(1, P.figuresBackMs)));
+			if (now >= C.hideAt + Math.max(P.wordOutMs, P.figuresBackDelayMs + P.figuresBackMs)) {
+				// restored: the plaque is what it was
+				C.on = false;
+				celebLayer.visible = false;
+				celebState.on = false;
+				celebState.hideK = 1;
+				return 1;
+			}
+		}
+		celebLayer.visible = true;
+		// the word on show: the last beat whose bar has come; the one before it goes out from that bar
+		let cur: CelebrateBeat | null = null;
+		let prev: CelebrateBeat | null = null;
+		for (const b of C.beats) {
+			if (b.barAt > now) break;
+			prev = cur;
+			cur = b;
+		}
+		let wa = 0;
+		let ws = 1;
+		let oa = 0;
+		let br = 0;
+		if (cur) {
+			const A = words[0];
+			layWord(A, CELEB_TIERS[Math.max(0, Math.min(4, cur.tier))], cur.tier);
+			const tin = now - cur.punchAt;
+			if (tin >= 0) {
+				wa = clamp(tin / Math.max(1, Math.min(100, P.punchMs)));
+				ws = tin >= P.punchMs ? 1 : P.punchFrom + (1 - P.punchFrom) * backOutC(tin / Math.max(1, P.punchMs));
+				br = P.brighten * (1 - clamp(tin / Math.max(1, P.brightenMs)));
+				if (import.meta.env.DEV && celebDrawn < C.beats.indexOf(cur)) {
+					celebDrawn = C.beats.indexOf(cur);
+					celebLog.push({ seq: C.seq, word: A.text, tier: cur.tier, punchAt: cur.punchAt, drawnAt: now });
+					if (celebLog.length > 80) celebLog.splice(0, 40);
+				}
+			}
+			if (C.endAt >= 0) {
+				const u = (now - C.endAt) / Math.max(1, P.endPulseMs);
+				if (u >= 0 && u < 1) ws *= 1 + (P.endPulse - 1) * Math.sin(Math.PI * u);
+			}
+			wa *= out;
+			A.box.visible = wa > 0.003;
+			A.box.alpha = wa;
+			A.box.scale.set(ws);
+			// the brighten: the same word, additive, on its beat
+			if (br * out > 0.003) {
+				layWord(bright, A.text, cur.tier);
+				bright.box.visible = true;
+				bright.box.alpha = br * out;
+				bright.box.scale.set(ws);
+			} else bright.box.visible = false;
+			const B = words[1];
+			if (prev) {
+				const u = clamp((now - cur.barAt) / Math.max(1, P.oldOutMs));
+				oa = (1 - u) * out;
+				if (oa > 0.003) {
+					layWord(B, CELEB_TIERS[Math.max(0, Math.min(4, prev.tier))], prev.tier);
+					B.box.visible = true;
+					B.box.alpha = oa;
+					B.box.scale.set(1 + (P.oldScale - 1) * u);
+				} else B.box.visible = false;
+			} else B.box.visible = false;
+		} else {
+			words[0].box.visible = words[1].box.visible = bright.box.visible = false;
+		}
+		// the rim pulse: BIG on the impact, each later tier on its title's punch, half the last tier's on the count's end
+		let ra = 0;
+		const pulseAt = (t0: number, amp: number) => {
+			const dt = now - t0;
+			if (dt < 0) return 0;
+			if (dt < P.pulseAttackMs) return (amp * dt) / P.pulseAttackMs;
+			const u = (dt - P.pulseAttackMs) / Math.max(1, P.pulseMs);
+			return u >= 1 ? 0 : amp * (1 - u) * (1 - u);
+		};
+		for (const b of C.beats) ra = Math.max(ra, pulseAt(b.tier === 0 && C.impactAt >= 0 ? C.impactAt : b.punchAt, P.pulse * (0.75 + P.pulseTierStep * b.tier)));
+		if (C.endAt >= 0 && C.beats.length) ra = Math.max(ra, pulseAt(C.endAt, 0.5 * P.pulse * (0.75 + P.pulseTierStep * C.beats[C.beats.length - 1].tier)));
+		ra = Math.min(1, ra) * out;
+		if (ra > 0.003 && day.texture !== PIXI.Texture.EMPTY) {
+			if (rim.texture !== day.texture) rim.texture = day.texture;
+			rim.position.copyFrom(day.position);
+			rim.scale.copyFrom(day.scale);
+			rim.tint = day.tint;
+			rim.alpha = ra;
+			rim.visible = true;
+		} else rim.visible = false;
+		if (import.meta.env.DEV) Object.assign(celebState, { on: true, hideK, word: words[0].box.visible ? words[0].text : '', wordAlpha: +wa.toFixed(3), wordScale: +ws.toFixed(3), old: words[1].box.visible ? words[1].text : '', oldAlpha: +oa.toFixed(3), rim: +ra.toFixed(3), bright: +(bright.box.visible ? bright.box.alpha : 0).toFixed(3) });
+		return hideK;
+	};
 	/** the whole-source texture of a symbol tile's atlas (made once per source, never per frame) */
 	const iconSources = new Map<number, PIXI.Texture>();
 	const iconSource = (t: PIXI.Texture) => {
@@ -1679,7 +1884,7 @@
 	};
 	rowsMaxX = () => (bd.on && bd.outT0 < 0 ? CL.badgeRowMaxX : CL.rowMaxX);
 	/** who has the plaque now (STORYBOARD.md section 3; DEV read: __manticore.plaque().owner) */
-	let owner: 'prompt' | 'mode' | 'tease' | 'count' | 'offer' | 'lines' | 'none' = 'none';
+	let owner: 'prompt' | 'mode' | 'tease' | 'count' | 'celebrate' | 'offer' | 'lines' | 'none' = 'none';
 	/** DEV: every beat of the row and the badge (what, when, the War Standards on the board then) */
 	const flagLog: { at: number; what: string; n: number; slot?: number }[] = [];
 	const fnote = (what: string, slot?: number) => {
@@ -2085,7 +2290,9 @@
 			lift = Math.min(1, el / move.lift);
 			move.phase = el < move.lift || move.fly <= 0 ? 'lift' : 'fly';
 		}
-		const totalAlpha = hidden ? 0 : fa * (forced !== null || total.shown ? 1 : 0) * (move.phase !== 'none' && !move.keep ? 1 - lift * lift : 1);
+		// THE BIG WIN CELEBRATION (PLAQUE_CELEBRATE): the rows, the total and the badge stand aside while it runs
+		const celebK = forced !== null ? 1 : celebrateTick(now);
+		const totalAlpha = hidden ? 0 : fa * celebK * (forced !== null || total.shown ? 1 : 0) * (move.phase !== 'none' && !move.keep ? 1 - lift * lift : 1);
 		if (figures.alpha !== totalAlpha) figures.alpha = totalAlpha;
 		figures.visible = totalAlpha > 0.001;
 		if (crest.alpha !== ca) crest.alpha = ca;
@@ -2099,12 +2306,14 @@
 		}
 		if (move.phase !== 'none') s = Math.max(s, 1 + (PLAQUE_STREAK.liftScale - 1) * (move.keep ? Math.sin(Math.PI * lift) : cubicOut(lift)));
 		if (figures.scale.x !== s) figures.scale.set(s);
-		rowsTick(now, hidden || forced !== null ? 0 : fa * ra);
+		rowsTick(now, hidden || forced !== null ? 0 : fa * ra * celebK);
 		flagsTick(now, hidden || forced !== null);
+		if (flagsLayer.alpha !== celebK) flagsLayer.alpha = celebK;
+		if (badgeLayer.alpha !== celebK) badgeLayer.alpha = celebK;
 		// THE ONE OWNER (STORYBOARD.md section 3), for the DEV read: the prompt, the mode plaque, the tease's flag row, the
 		// count-up (the rows and the total, with the badge beside them), the explainer lines. Each layer's own rule above
 		// keeps them apart; this names who has the plaque now
-		owner = promptUpNow ? 'prompt' : context.stateGame.plaque ? 'mode' : flagsLayer.visible ? 'tease' : figures.visible || slots[0].box.visible || slots[1].box.visible || slots[2].box.visible || badgeLayer.visible ? 'count' : offerLayer.visible ? 'offer' : tips.visible ? 'lines' : 'none';
+		owner = promptUpNow ? 'prompt' : context.stateGame.plaque ? 'mode' : celebLayer.visible && celebK < 0.999 ? 'celebrate' : flagsLayer.visible ? 'tease' : figures.visible || slots[0].box.visible || slots[1].box.visible || slots[2].box.visible || badgeLayer.visible ? 'count' : offerLayer.visible ? 'offer' : tips.visible ? 'lines' : 'none';
 		streakTick(now);
 		if (!showing && fa <= 0.001 && rows.length && move.phase === 'none') {
 			// faded out: the rows go
@@ -2256,6 +2465,9 @@
 				}),
 				/** THE WAR STANDARD FLAG ROW AND THE BADGE (PLAQUE_FLAGS, PLAQUE_BADGE): on, Super Ante's labels, the War
 				 *  Standards on the board, the filled slots, the slot at stake and its glow, the badge and its count, alphas */
+				/** THE BIG WIN CELEBRATION (PLAQUE_CELEBRATE): the frame's word, the outgoing word, the rim pulse, the brighten,
+				 *  the share of the rows / total / badge on show, every word's first drawn frame, and the Stinger's beats */
+				plaqueCelebrate: () => ({ ...celebState, log: celebLog.map((e) => ({ ...e })), beats: plaqueCelebrate.beats.map((b) => ({ ...b })), seq: plaqueCelebrate.seq, showAt: plaqueCelebrate.showAt, hideAt: plaqueCelebrate.hideAt, endAt: plaqueCelebrate.endAt, active: plaqueCelebrate.on }),
 				plaqueFlags: () => ({
 					on: fl.on,
 					sa: fl.sa,

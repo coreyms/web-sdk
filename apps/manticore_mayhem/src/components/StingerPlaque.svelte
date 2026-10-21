@@ -82,7 +82,7 @@
 	import { STINGER_DATA_URLS } from '../game/assets';
 	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 
-	import { MAX_WIN, PLAQUE_ESCALATION, STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP, PLAQUE_GLOW, type PlaqueGlowKey } from '../game/constants';
+	import { MAX_WIN, PLAQUE_CELEBRATE, PLAQUE_ESCALATION, STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP, PLAQUE_GLOW, type PlaqueGlowKey } from '../game/constants';
 	import { beamTexture } from '../game/beamTexture';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { boardKick, chainGust } from '../game/featureFx';
@@ -93,6 +93,7 @@
 	import { loadStingerData } from '../game/stinger/data';
 	import { STAGING_TOOLS, perfMark } from '../game/staging';
 	import { maxWinTierLanded } from '../game/maxWin.svelte';
+	import { celebrateShow, plaqueCelebrate } from '../game/plaqueCelebrate';
 	import { plaquePlacement } from '../game/stinger/layout';
 	import { StingerView } from '../game/stinger/view';
 	import { STINGER_TIERS, type StingerData } from '../game/stinger/types';
@@ -275,6 +276,11 @@
 			// the chains lean from the tier's punch a beat later (CHAIN_GUST.tier), never while skipping
 			if (!context.stateGame.skipping) chainGust('tier', Math.max(0.2, context.stateGameDerived.timeScale()));
 			log({ type: 'tier', tier: STINGER_TIERS[index], el, amount, skipped: c.skipped });
+			// THE BOARD PLAQUE'S WORD (PLAQUE_CELEBRATE): this tier's bar now, its title's punch when the view has set it
+			if (celebrating && plaqueCelebrate.on) {
+				const now = performance.now();
+				plaqueCelebrate.beats.push({ tier: index, barAt: now, punchAt: now + (view.titleAt - view.clock) * 1000 });
+			}
 			// THE MAX WIN SCREEN'S CLOCK (game/maxWin.svelte.ts): the top tier landing starts bgm_maxwin and the screen,
 			// when the book's `wincap` has armed it (a press that lands the count early lands it here too)
 			if (index === STINGER_TIERS.length - 1) maxWinTierLanded();
@@ -285,6 +291,7 @@
 		view.setAmountText(format(amount, c.target), c.fit);
 		if (!ended) return;
 		view.countEnd(up);
+		if (celebrating && plaqueCelebrate.on) plaqueCelebrate.endAt = performance.now();
 		count = null;
 		log({ type: 'countEnd', tier: STINGER_TIERS[c.shown], el, amount, skipped: c.skipped });
 		c.done();
@@ -325,6 +332,12 @@
 			if (landSound >= 0) tierSound(landSound);
 			landSound = -1;
 			log({ type: 'impact', tier: STINGER_TIERS[view.tier] });
+			// THE BOARD PLAQUE'S FIRST WORD (PLAQUE_CELEBRATE): the impact is BIG's bar, its title punches titleDelayMs later
+			if (celebrating && plaqueCelebrate.on) {
+				const now = performance.now();
+				plaqueCelebrate.impactAt = now;
+				plaqueCelebrate.beats.push({ tier: view.tier, barAt: now, punchAt: now + (view.titleAt - view.clock) * 1000 });
+			}
 		}
 		if (count) stepCount(count);
 		stepKick(ticker.deltaMS);
@@ -361,6 +374,7 @@
 		endKick();
 		fire(false);
 		release();
+		if (plaqueCelebrate.on && plaqueCelebrate.hideAt < 0) plaqueCelebrate.hideAt = performance.now();
 		const g = gone;
 		gone = [];
 		for (const resolve of g) resolve();
@@ -369,11 +383,18 @@
 
 	/** counts the screens shown (a parked roar belongs to one) */
 	let screenNo = 0;
+	/** this screen celebrates on the board plaque (PLAQUE_CELEBRATE) */
+	let celebrating = false;
 	const begin = (o: StingerShow, sound: number) => {
 		release();
 		screenNo += 1;
 		fire(false);
 		view.show(o);
+		// the board plaque celebrates the win screen, and a capped round's wrap up whose title climbs the win ladder to
+		// MAX WIN (Corey "Yes Max WIN should be there"); not the feature intro, not the TOTAL WIN wrap up ("Leave the
+		// plaque as is there")
+		celebrating = PLAQUE_CELEBRATE.on && (o.screen === 'win' || (o.screen === 'wrap' && !!o.ladderTitle));
+		if (PLAQUE_CELEBRATE.on) celebrateShow(celebrating, performance.now());
 		landSound = sound;
 		log({ type: 'show', tier: o.tier });
 		start();
@@ -399,6 +420,7 @@
 		setAmount: (amount, target) => view.setAmountText(format(amount, target), undefined, target === undefined ? undefined : format(target)),
 		hide: () => {
 			view.hide();
+			if (plaqueCelebrate.on && plaqueCelebrate.hideAt < 0) plaqueCelebrate.hideAt = performance.now();
 			log({ type: 'hide' });
 		},
 	};
@@ -447,6 +469,7 @@
 				if (!ticking || view.phase === 'hidden') return resolve();
 				gone.push(resolve);
 				view.hide();
+				if (plaqueCelebrate.on && plaqueCelebrate.hideAt < 0) plaqueCelebrate.hideAt = performance.now();
 				log({ type: 'hide' });
 			}),
 	};
@@ -482,6 +505,8 @@
 						bodyWidth: data?.json.sprites.body[2] ?? 0,
 					}),
 					log: () => beats.slice(),
+					/** a light per frame read: phase, screen, tier, the title's alpha (plaque_celebrate_probe.js) */
+					lite: () => view.lite(),
 					state: () => ({
 						...view.state(),
 						ticking,
