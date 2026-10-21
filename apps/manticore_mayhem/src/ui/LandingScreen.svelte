@@ -759,7 +759,7 @@
 	.fill {
 		height: 100%;
 		border-radius: 6px;
-		/* the PolyMath splash's own red (src/app.html #am-splash .fill, its --accent #e32400), Corey 2026-10-20 */
+		/* the PolyMath splash's own red (src/app.html #am-splash --accent #e32400; its bar was this gradient until the 2026-10-21 segmented bar), Corey 2026-10-20 */
 		background: linear-gradient(90deg, #c81d00, #e32400);
 		box-shadow: 0 0 12px rgba(227, 36, 0, 0.5);
 		transition: width 0.15s linear;
