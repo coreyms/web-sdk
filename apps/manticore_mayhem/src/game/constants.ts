@@ -459,8 +459,9 @@ export const CLUSTER = {
  *  more opens a symbol pay card over the board before the first spin"; Corey 2026-10-21 approved t, "ignore board taps
  *  for about 1 s"): for `ignoreMs` real ms after PRESS ANYWHERE a tap on the board opens no symbol pay card
  *  (components/SymbolPopup.svelte; the press time is game/boardIdle.ts `landing`). After it the pay card works as
- *  before. 0 = the behaviour before. */
-export const FIRST_TAP = { ignoreMs: 1000 };
+ *  before. 0 = the behaviour before. 2000 since the second harsh review (2026-10-21, nice-to-have 11, was 1000): Corey
+ *  2026-10-21 "2 seconds is fine". */
+export const FIRST_TAP = { ignoreMs: 2000 };
 
 /** THE DIM FOLLOWS THE WIN (1.0.04; harsh review 2026-10-20 design N4, "A 0.2x win still dims the whole board for about
  *  1.5 s"; Corey 2026-10-21 "Scale the dim's strength and/or length with the win size, small wins light"). The non-winners
