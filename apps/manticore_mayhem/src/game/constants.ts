@@ -710,12 +710,17 @@ export const PLAQUE_FIELD = { tiltDeg: 35, faceH: 100, layoutCentreY: -1.25 };
  *    small / ...     the row before it, at smallAlpha
  *    totalX          the total's right edge; totalSize its size (desktop 0.611: 25 CSS px at 1920 x 1080, Corey "25px is
  *                    the right size"); totalMinX: it never runs left of this (the fit rule)
- *    badgeRowMaxX    while the hit badge is up (centred) the rows stop here */
+ *    badgeRowMaxX    while the hit badge is up (centred) the rows stop here
+ *  1.0.04 (harsh review 2026-10-20 design N5, "the cluster row's symbol icon is about 15 px on desktop and the older row's
+ *  text about 8 px: the bull skull icon reads as a Y"; Corey 2026-10-21 "not the same size as the newest win cluster, old
+ *  wins should still be visibly smaller"): bigIcon 1.5 (was 1.3), small 0.38 (was 0.3: 76 % of the newest row, was 60 %),
+ *  smallIcon 1.35 (was 1.2), ySmall -26 (was -28: the bigger row kept inside the field). Desktop 1920 x 1080: the newest row's icon about 34 CSS px (was 30), the older row's
+ *  figures about 15 px (was 12) and its icon about 22 (was 15). */
 export const PLAQUE_CLEARS = {
 	layouts: {
-		landscape: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.3, yBig: 12, small: 0.3, smallIcon: 1.2, ySmall: -28, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
-		portrait: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.3, yBig: 12, small: 0.3, smallIcon: 1.2, ySmall: -28, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
-		phone: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.3, yBig: 12, small: 0.3, smallIcon: 1.2, ySmall: -28, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
+		landscape: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.5, yBig: 12, small: 0.38, smallIcon: 1.35, ySmall: -26, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
+		portrait: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.5, yBig: 12, small: 0.38, smallIcon: 1.35, ySmall: -26, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
+		phone: { rowX: -281, rowMaxX: 20, big: 0.5, bigIcon: 1.5, yBig: 12, small: 0.38, smallIcon: 1.35, ySmall: -26, smallAlpha: 0.75, totalX: 281, totalSize: 0.611, totalMinX: 40, badgeRowMaxX: -48 },
 	} as Record<'landscape' | 'portrait' | 'phone', PlaqueClearsLayout>,
 	/** a row comes in (it rises from `enterRise` layout units below and fades in; the row before it shrinks up; an older
 	 *  one fades out over the top) over rowInMs (sineInOut) */
