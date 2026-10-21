@@ -21,16 +21,19 @@
 	//   slamAt       the track's swell: MAX WIN slams over it, MAYHEM UNLEASHED recedes and shrinks above it, the
 	//                payout and the multiple read underneath, the rain is a downpour
 	//   ~26 s        the track's fade: the rain thins with it
-	//   30 s         the track ENDS: only now does the press gate arm (with a trackMs + gatePad fallback for a muted or
-	//                blocked audio context), and it moves on by itself after autoAdvanceMs. Then everything fades, he
-	//                goes back down to his own layer and the round finishes exactly as before (the handler that asked
-	//                for this screen carries on: balance, finalWin, back to the base game and its music)
+	//   30 s         the track ENDS: the gate (with a trackMs + gatePad fallback for a muted or blocked audio context),
+	//                and it moves on by itself after autoAdvanceMs. Then everything fades, he goes back down to his own
+	//                layer and the round finishes exactly as before (the handler that asked for this screen carries on:
+	//                balance, finalWin, back to the base game and its music)
+	//   THE PRESS (Corey 2026-10-21): from slamAt PRESS ANYWHERE is up and a press takes the same way out at once (the
+	//                fade, him back home, the round finishing as above), the track fading out with the screen and then
+	//                stopped; with no press nothing changes
 	//
 	// NUMBERS: the payout is the book's wincap.amount and the multiple is that amount in base bet multiples
 	// ("10,000x", en-US separators). Nothing is computed. Currency text goes through the game's own formatter (SC / GC
 	// on stake.us, never a "$" there).
 	// SKIP, TURBO, AUTOPLAY: as Angry Mantis. `wincap` already ended any SKIP TO RESULT (the max win is never skipped)
-	// and the SKIP button is down for the wrap up; nothing here takes a press before the gate; the screen is not time
+	// and the SKIP button is down for the wrap up; nothing here takes a press before the MAX WIN slam; the screen is not time
 	// scaled (turbo never outruns the music); auto bonuses get the same screen and the gate's own auto advance.
 	//
 	// RAW PIXI, ALWAYS MOUNTED (the conditional mount z order trap): one root on the stage, straight after FreeSpinOutro
@@ -333,14 +336,32 @@
 		mark('slam');
 		sound(MAX_WIN.slamSound);
 
-		// ---- the gate: shut until the track has ended ----
-		await maxWinTrackEnded();
-		maxWinState.phase = 'gate';
-		mark(`gate:${maxWinState.gateBy}`);
+		// ---- the press: open from the slam (Corey 2026-10-21: the screen took no press until its 30 s track ended, so "if a
+		// player has a rendering bug or issue during that screen they would never be able to collect their max win without
+		// Support's help"; his pick: a press works from the MAX WIN slam). With no press, the track's end (or its fallback
+		// timer) arms the gate as before and autoAdvanceMs moves on, autoplay and auto bonuses included ----
 		gateArmed = true;
-		await Promise.race([waitForResolve((resolve) => (press = resolve)), waitForTimeout(MAX_WIN.autoAdvanceMs)]);
+		mark('press open');
+		let pressedEarly = false;
+		let exited = false;
+		const pressed = waitForResolve((resolve) => (press = resolve)).then(() => {
+			pressedEarly = maxWinState.phase !== 'gate';
+			if (pressedEarly) mark('pressed early');
+		});
+		const byItself = (async () => {
+			await maxWinTrackEnded();
+			// (a press already took the way out: the round's reset resolves this later, and must change nothing)
+			if (exited) return;
+			maxWinState.phase = 'gate';
+			mark(`gate:${maxWinState.gateBy}`);
+			await waitForTimeout(MAX_WIN.autoAdvanceMs);
+		})();
+		await Promise.race([pressed, byItself]);
+		exited = true;
 		gateArmed = false;
 		press = () => {};
+		// a press before the track's end: the track fades out with the screen instead of being cut (stopped once hidden)
+		if (pressedEarly) context.eventEmitter.broadcast({ type: 'soundFade', name: 'bgm_maxwin', from: 1, to: 0, duration: MAX_WIN.outHideMs + MAX_WIN.outRevealMs });
 
 		// ---- out ----
 		maxWinState.phase = 'out';
@@ -364,6 +385,11 @@
 		creatureFront.setAlpha(1);
 		dropType();
 		maxWinRelease();
+		if (pressedEarly) {
+			// the faded track stops, and its own level is put back for the next max win (the fade keeps it per track)
+			context.eventEmitter.broadcast({ type: 'soundStop', name: 'bgm_maxwin' });
+			context.eventEmitter.broadcast({ type: 'soundFade', name: 'bgm_maxwin', from: 0, to: 1, duration: 0 });
+		}
 		mark('done');
 		done?.();
 	};
@@ -433,7 +459,7 @@
 	});
 </script>
 
-<!-- the gate only exists once the track has ended: until then nothing here takes a press -->
+<!-- the gate is up from the MAX WIN slam (Corey 2026-10-21); before it nothing here takes a press -->
 {#if gateArmed}
 	<PressToContinue showText atHudBand onpress={() => press()} />
 {/if}
