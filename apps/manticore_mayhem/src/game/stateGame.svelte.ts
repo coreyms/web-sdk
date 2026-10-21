@@ -1495,7 +1495,8 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			}
 			r.mode = 'merged';
 			if (cl.dev && val > cl.dev.shownMax) cl.dev.shownMax = val;
-			const text = fmtAmount(val);
+			// mid count the digits of the cluster's own win (harsh review 2026-10-20 gameplay 5)
+			const text = bookEventAmountToCurrencyString(Math.round(val), { fractionDigitsOfBookAmount: cl.spec.total });
 			if (r.text !== text) r.text = text;
 			r.scale = scale;
 		}

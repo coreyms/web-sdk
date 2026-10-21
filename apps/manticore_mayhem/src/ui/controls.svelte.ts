@@ -291,7 +291,10 @@ export const createControls = () => {
 		if (target < winTween.current) winTween.set(target, { duration: 0 });
 		else winTween.set(target);
 	});
-	const winText = () => bookEventAmountToCurrencyString(Math.round(winTween.current));
+	// the count shows the digits its FINAL amount needs (harsh review 2026-10-20 gameplay 5, "$0.784" mid count at a $1.60
+	// bet; Corey 2026-10-21 "Yes, unless the final win is a fraction that need to carry decimals, like player betting .01
+	// cents"): cents normally, more only when the final win itself carries them; the last frame is the book's amount
+	const winText = () => bookEventAmountToCurrencyString(Math.round(winTween.current), { fractionDigitsOfBookAmount: stateBet.winBookEventAmount });
 	// SPIN readout = the full price of the next press, whatever is armed: with a 300× feature loaded
 	// the SDK's betCost() still reported the base amount here while the button charged 300× (Stake
 	// review 2026-09-05). betCostFull covers every mode, replay included.

@@ -2054,7 +2054,8 @@
 		// the text: the forced one (DEV), or the total
 		const value = total.value;
 		const reserve = total.on ? total.reserve : null;
-		const text = forced ?? bookEventAmountToCurrencyString(Math.round(value));
+		// mid count the digits of the count's own target (gameplay 5: never "$0.784" on the way to $1.60)
+		const text = forced ?? bookEventAmountToCurrencyString(Math.round(value), total.on ? { fractionDigitsOfBookAmount: total.to } : undefined);
 		if (atlasTexture && (shown.relayout || ((text !== shown.text || reserve !== shown.reserve) && (showing || forced !== null)))) build(text, reserve);
 		// the desktop's prompt first (the lines and the figures stand aside for it), then the explainer lines
 		promptTick();

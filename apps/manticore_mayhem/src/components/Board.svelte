@@ -28,7 +28,7 @@
 	// those cells make was written by a book event (game/bookEventHandlerMap.ts). This component
 	// draws; it decides nothing.
 	import { Sprite } from 'pixi-svelte';
-	import { stateBet, stateConfig } from 'state-shared';
+	import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
@@ -117,6 +117,9 @@
 			emit: (event: any) => context.eventEmitter.broadcast(event),
 			/** arm a bet mode by its RGS key (BASE / ANTE / SUPER_ANTE / BONUS / SUPER / EPIC / MYSTERY) */
 			setMode: (key: string) => (stateBet.activeBetModeKey = key),
+			/** set the bet (one of the RGS's levels, in currency units) */
+			setBet: (value: number) => stateBetDerived.setBetAmount(value),
+			bet: () => stateBet.betAmount,
 			mode: () => stateBet.activeBetModeKey,
 			/** the round's win as the frontend has it, in book units (100 = 1x bet) */
 			winAmount: () => stateBet.winBookEventAmount,
