@@ -146,6 +146,18 @@ export class MedallionRain {
 		this.live = live;
 	}
 
+	/** the screen's clock has jumped to `t` (the max win screen's early press, MaxWinCinematic): the share of the pool
+	 *  live at `t` is put on the screen at once, scattered over it as the first sparse share is, so the rain is at its
+	 *  density of that moment instead of falling in from the top */
+	fill(t: number): void {
+		const want = Math.round(this.pool.length * MedallionRain.shareAt(t));
+		for (let i = 0; i < want; i += 1) {
+			const m = this.pool[i];
+			if (m.s.visible) continue;
+			this.roll(m, true);
+		}
+	}
+
 	/** DEV: the first live medallion [frame of the turning medallion (-1: the flat tile), drawn width, drawn height] */
 	sample(): number[] {
 		const m = this.pool.find((x) => x.s.visible);

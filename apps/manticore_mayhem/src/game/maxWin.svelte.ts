@@ -123,6 +123,50 @@ export const maxWinBegin = (payout: number, by: 'tier' | 'event') => {
 	fallbackTimer = setTimeout(() => settleEnd('timeout'), MAX_WIN.trackMs + MAX_WIN.gatePad);
 };
 
+/** bgm_maxwin's Howl while it is the music asked for (the streamed player's `howl`), else null */
+const maxWinHowl = (): { seek: (s?: number) => number | unknown; playing: () => boolean; state: () => string } | null => {
+	const howl = (sound.players?.music as unknown as { howl?: { _src?: string; seek: (s?: number) => number | unknown; playing: () => boolean; state: () => string } }).howl;
+	return howl && String(howl._src ?? '').includes('bgm_maxwin') ? howl : null;
+};
+
+/** bgm_maxwin's position in ms (null when it is not the track asked for or has no position yet) */
+export const maxWinTrackPos = (): number | null => {
+	const howl = maxWinHowl();
+	if (!howl) return null;
+	const at = howl.seek();
+	return typeof at === 'number' && Number.isFinite(at) ? at * 1000 : null;
+};
+
+/**
+ * THE EARLY PRESS SKIPS AHEAD (Corey 2026-10-21, second harsh review: "Yes that's a good suggestion. Can we skip ahead
+ * with the music and the scene to keep it in sync?"). The screen's clock jumps to `toMs` (the MAX WIN slam): startedAt
+ * moves back, so every stage and the rain read the new time; bgm_maxwin is seeked to the same ms (Howler seek on its
+ * media element), so the swell lands with the slam; the fallback gate timer is re-based on the new clock, so a track
+ * that cannot be seeked (blocked, never loaded) still arms the gate at trackMs + gatePad of the screen's time. Returns
+ * whether the track took the seek. A clock already past `toMs` is left alone.
+ */
+export const maxWinJump = (toMs: number): { jumped: boolean; seeked: boolean } => {
+	if (maxWinState.startedAt === 0) return { jumped: false, seeked: false };
+	const now = performance.now();
+	if (now - maxWinState.startedAt >= toMs) return { jumped: false, seeked: false };
+	maxWinState.startedAt = now - toMs;
+	if (fallbackTimer) {
+		clearTimeout(fallbackTimer);
+		fallbackTimer = setTimeout(() => settleEnd('timeout'), Math.max(0, maxWinState.startedAt + MAX_WIN.trackMs + MAX_WIN.gatePad - now));
+	}
+	let seeked = false;
+	const howl = maxWinHowl();
+	if (howl && howl.state() !== 'unloaded') {
+		try {
+			howl.seek(toMs / 1000);
+			seeked = howl.state() === 'loaded';
+		} catch {
+			seeked = false;
+		}
+	}
+	return { jumped: true, seeked };
+};
+
 /** the plaque's count has just landed on its top tier (components/StingerPlaque.svelte): an armed round starts here */
 export const maxWinTierLanded = () => {
 	if (maxWinState.armed > 0) maxWinBegin(maxWinState.armed, 'tier');
@@ -166,6 +210,11 @@ export const installMaxWinProbe = (extra: () => Record<string, unknown>) => {
 		musicEnded: maxWinState.musicEnded,
 		gateBy: maxWinState.gateBy,
 		startedBy: maxWinState.startedBy,
+		/** bgm_maxwin's position, ms (the early press's seek: maxWinJump) */
+		trackPos: (() => {
+			const at = maxWinTrackPos();
+			return at === null ? null : Math.round(at);
+		})(),
 		payout: maxWinState.payout,
 		hudWin: stateBet.winBookEventAmount,
 		art: { requestedAt: Math.round(maxWinArt.requestedAt), loadedAt: Math.round(maxWinArt.loadedAt), loaded: !!maxWinArt.sheet, url: ATLAS_URL },

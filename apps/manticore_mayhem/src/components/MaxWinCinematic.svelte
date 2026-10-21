@@ -28,12 +28,22 @@
 	//   THE PRESS (Corey 2026-10-21): from slamAt PRESS ANYWHERE is up and a press takes the same way out at once (the
 	//                fade, him back home, the round finishing as above), the track fading out with the screen and then
 	//                stopped; with no press nothing changes
+	//   THE EARLY PRESS (Corey 2026-10-21, second harsh review: "Yes that's a good suggestion. Can we skip ahead with the
+	//                music and the scene to keep it in sync?"): the first press before slamAt (once the plaque's count is
+	//                done) jumps the whole screen to the slam: the clock moves to slamAt (game/maxWin.svelte.ts
+	//                maxWinJump), bgm_maxwin is seeked to the same ms, the stages not yet run run at once (the dim, the
+	//                HUD's deep hide, the plaque leaving, him lifted), MAYHEM UNLEASHED is in its slammed pose, the rain at
+	//                the slam's density, and MAX WIN slams with its thump. What the jump passed is not played late: his
+	//                roar (beat and sfx_roar_win) and MAYHEM UNLEASHED's thump are skipped when the jump passed them, so no
+	//                sound piles up on the slam and none plays twice. From the slam it is the slam reached normally: PRESS
+	//                ANYWHERE, a second press out. A track that cannot be seeked: the scene still jumps and the fallback
+	//                gate is re-based on the new clock
 	//
 	// NUMBERS: the payout is the book's wincap.amount and the multiple is that amount in base bet multiples
 	// ("10,000x", en-US separators). Nothing is computed. Currency text goes through the game's own formatter (SC / GC
 	// on stake.us, never a "$" there).
 	// SKIP, TURBO, AUTOPLAY: as Angry Mantis. `wincap` already ended any SKIP TO RESULT (the max win is never skipped)
-	// and the SKIP button is down for the wrap up; nothing here takes a press before the MAX WIN slam; the screen is not time
+	// and the SKIP button is down for the wrap up; a press before the MAX WIN slam skips ahead to it; the screen is not time
 	// scaled (turbo never outruns the music); auto bonuses get the same screen and the gate's own auto advance.
 	//
 	// RAW PIXI, ALWAYS MOUNTED (the conditional mount z order trap): one root on the stage, straight after FreeSpinOutro
@@ -55,7 +65,7 @@
 	import { PlaqueFont } from '../game/stinger/text';
 	import { PlaqueText, PlaqueTitle } from '../game/stinger/plaqueText';
 	import type { StingerJson } from '../game/stinger/types';
-	import { installMaxWinProbe, maxWinArt, maxWinElapsed, maxWinPrefetch, maxWinRelease, maxWinReset, maxWinBegin, maxWinState, maxWinTrackEnded } from '../game/maxWin.svelte';
+	import { installMaxWinProbe, maxWinArt, maxWinElapsed, maxWinJump, maxWinPrefetch, maxWinRelease, maxWinReset, maxWinBegin, maxWinState, maxWinTrackEnded, maxWinTrackPos } from '../game/maxWin.svelte';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -278,10 +288,32 @@
 	const mark = (stage: string) => {
 		if (import.meta.env.DEV) log.push({ stage, t: Math.round(maxWinElapsed()) });
 	};
-	/** wait until `ms` after the track started (at once if that moment has passed) */
+	// ---- the early press (THE EARLY PRESS above) ----
+	let earlyArmed = $state(false);
+	/** the early press has jumped the screen to the slam this run */
+	let jumped = false;
+	let jumpWake: () => void = () => {};
+	let jumpSignal: Promise<void> = Promise.resolve();
+	const earlyPress = () => {
+		if (!earlyArmed || jumped || maxWinElapsed() >= MAX_WIN.slamAt) return;
+		// a press that skips the plaque's count is the plaque's (its count lands MAX first)
+		if (stingerPlaque.flow?.counting()) return;
+		const r = maxWinJump(MAX_WIN.slamAt);
+		if (!r.jumped) return;
+		jumped = true;
+		earlyArmed = false;
+		rain.fill(MAX_WIN.slamAt);
+		if (import.meta.env.DEV) {
+			const at = maxWinTrackPos();
+			mark(`jump:${r.seeked ? 'seeked' : 'not seeked'}:${at === null ? '-' : Math.round(at)}`);
+		}
+		jumpWake();
+	};
+	/** wait until `ms` after the track started (at once if that moment has passed, or the early press jumped past it) */
 	const waitUntil = async (ms: number) => {
+		if (jumped) return;
 		const left = ms - maxWinElapsed();
-		if (left > 0) await waitForTimeout(left);
+		if (left > 0) await Promise.race([waitForTimeout(left), jumpSignal]);
 	};
 	const sound = (name: 'sfx_roar_win' | typeof MAX_WIN.slamSound) => context.eventEmitter.broadcast({ type: 'soundOnce', name, forcePlay: true });
 
@@ -306,6 +338,9 @@
 		rain.clear();
 		for (const s of [mayhemSlot, unleashedSlot, maxSlot]) s.visible = false;
 		amountSlot.visible = false;
+		jumped = false;
+		jumpSignal = new Promise<void>((resolve) => (jumpWake = resolve));
+		earlyArmed = true;
 
 		// ---- the dim, the lift, the roar ----
 		await waitUntil(MAX_WIN.dimAt);
@@ -320,18 +355,23 @@
 		root.visible = true;
 		startTicker();
 		await waitUntil(Math.max(MAX_WIN.roarAt, dimmedAt + (MAX_WIN.roarAt - MAX_WIN.dimAt)));
-		mark('roar');
-		context.eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
-		sound('sfx_roar_win'); // the win roar (Corey 2026-10-18: his normal roar only for his roar move)
+		if (!jumped) {
+			mark('roar');
+			context.eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
+			sound('sfx_roar_win'); // the win roar (Corey 2026-10-18: his normal roar only for his roar move)
+		} else mark('roar passed');
 
 		// ---- MAYHEM UNLEASHED ----
 		await waitUntil(Math.max(MAX_WIN.unleashedAt, dimmedAt + (MAX_WIN.unleashedAt - MAX_WIN.dimAt)));
 		maxWinState.phase = 'unleashed';
-		mark('unleashed');
-		sound(MAX_WIN.slamSound);
+		if (!jumped) {
+			mark('unleashed');
+			sound(MAX_WIN.slamSound);
+		} else mark('unleashed passed');
 
 		// ---- MAX WIN ----
 		await waitUntil(Math.max(MAX_WIN.slamAt, dimmedAt + (MAX_WIN.slamAt - MAX_WIN.dimAt)));
+		earlyArmed = false;
 		maxWinState.phase = 'slam';
 		mark('slam');
 		sound(MAX_WIN.slamSound);
@@ -459,7 +499,10 @@
 	});
 </script>
 
-<!-- the gate is up from the MAX WIN slam (Corey 2026-10-21); before it nothing here takes a press -->
+<!-- before the MAX WIN slam a press skips ahead to it (no text: THE EARLY PRESS); the gate is up from the slam -->
+{#if earlyArmed}
+	<PressToContinue onpress={() => earlyPress()} />
+{/if}
 {#if gateArmed}
 	<PressToContinue showText atHudBand onpress={() => press()} />
 {/if}
