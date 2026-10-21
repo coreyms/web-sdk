@@ -1000,8 +1000,10 @@ export const PLAQUE_RECAP = {
 	outMs: 110,
 };
 
-/** the aura's colour (the playground's landing glow) */
-export const AURA_COLOR = 0x7cff8a;
+/** the aura's colour (the playground's landing glow): the game's gold, --ui-gold #ffdc4a, the gold of the lime fix (Corey
+ *  2026-10-21, on the mint glow behind winning cells he found in free spins: "let's make it gold"; was 0x7cff8a). The
+ *  scatter beats (the trigger beat) keep their own colour */
+export const AURA_COLOR = 0xffdc4a;
 
 /** each symbol's tile colour, for the 'tile' sparkle colour (the placeholder plate hues from
  *  apps/manticore_mayhem/tools/make_placeholders.py SYMBOLS; retune when the real art lands) */

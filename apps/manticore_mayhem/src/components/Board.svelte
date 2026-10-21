@@ -234,7 +234,7 @@
 				cascadeIndex: motionLog.cascadeIndex,
 				steps: motionLog.steps.slice(),
 				readouts: stateGame.readouts.map((r) => ({ id: r.id, mode: r.mode, text: r.text, amount: r.amount, mult: r.mult, alpha: Number(r.alpha.toFixed(2)), scale: Number(r.scale.toFixed(3)), gap: Number((r.multX - r.amountX).toFixed(1)) })),
-				cells: stateGame.cells.map((c) => ({ i: c.reel * 8 + c.row, a: Number(c.alpha.toFixed(2)), d: Number(c.dim.toFixed(3)), g: Number(c.glow.toFixed(2)), s: c.state, sx: Number(c.scaleX.toFixed(3)), y: Number(c.y.toFixed(3)) })),
+				cells: stateGame.cells.map((c) => ({ i: c.reel * 8 + c.row, a: Number(c.alpha.toFixed(2)), d: Number(c.dim.toFixed(3)), g: Number(c.glow.toFixed(2)), gc: c.glowColor, s: c.state, sx: Number(c.scaleX.toFixed(3)), y: Number(c.y.toFixed(3)) })),
 				spinWin: stateGame.spinWin,
 			}),
 			configurable: true,
