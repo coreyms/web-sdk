@@ -12,6 +12,7 @@ import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 import { SLAM_HURRY } from '../game/constants';
 import { armouryView } from './armoury/armouryView.svelte';
+import { hudWin } from '../game/hudWin.svelte';
 
 export const createControls = () => {
 	const context = getContext();
@@ -275,8 +276,18 @@ export const createControls = () => {
 	// reveal, and this tween chases it — Mother Clucker timing); a reset to a smaller value
 	// (new spin) snaps instead of counting backwards
 	const winTween = new Tween(stateBet.winBookEventAmount, { duration: 550, easing: cubicOut });
+	// a win that replaces one an autoplay press kept up (game/hudWin.svelte.ts, HUD_WIN_CARRY) counts from zero, as by hand
+	let winFresh = hudWin.fresh;
 	$effect(() => {
 		const target = stateBet.winBookEventAmount;
+		const fresh = hudWin.fresh;
+		if (fresh !== winFresh) {
+			winFresh = fresh;
+			// from zero by the interpolation, not a set(0) first: an instant set stops only the newest count, and the
+			// count before it (still running when the next autoplay round came in fast) kept pulling the WIN back up
+			winTween.set(target, { interpolate: (_from: number, to: number) => (u: number) => to * u });
+			return;
+		}
 		if (target < winTween.current) winTween.set(target, { duration: 0 });
 		else winTween.set(target);
 	});

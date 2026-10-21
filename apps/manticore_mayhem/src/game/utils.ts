@@ -1,4 +1,3 @@
-import { stateBet } from 'state-shared';
 import { createPlayBookUtils } from 'utils-book';
 
 import { SYMBOL_SIZE, SYMBOL_INFO_MAP } from './constants';
@@ -8,6 +7,7 @@ import { bookEventHandlerMap } from './bookEventHandlerMap';
 import type { SymbolName } from './types';
 import { STAGING_TOOLS, perfMark } from './staging';
 import { creatureBookArrived, creatureBookDone } from './creatureLoad';
+import { hudWinRoundStart } from './hudWin.svelte';
 
 // STAGING READOUT ONLY (game/staging.ts perfMark): each book event leaves its type as a label, so a long frame
 // can be traced to the step of the round it fell in. A production build uses the map as it is.
@@ -25,7 +25,8 @@ const markedHandlerMap = (): typeof bookEventHandlerMap => {
 export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEventHandlerMap: STAGING_TOOLS ? markedHandlerMap() : bookEventHandlerMap });
 
 export const playBet = async (bet: Bet) => {
-	stateBet.winBookEventAmount = 0;
+	// a fresh WIN, unless an autoplay press kept the last win up (game/hudWin.svelte.ts, HUD_WIN_CARRY)
+	hudWinRoundStart();
 	// THE CREATURE: a feature in this book starts its look loading now, ahead of the change of mode (game/creatureLoad.ts)
 	creatureBookArrived(bet.state);
 	try {

@@ -780,6 +780,19 @@ export const PLAQUE_HOLD = {
 	outMs: 200,
 };
 
+/** THE HUD WIN UNDER AUTOPLAY (1.0.04; harsh review 2026-10-20 must-fix 3, "under Autoplay the HUD WIN never shows an
+ *  ordinary win", its fix "keep the last win on HUD WIN until the next round's first win"; Corey 2026-10-21 "2, 3, 5, and
+ *  7 are obvious fixes and need to be fixed"; game/hudWin.svelte.ts). The streak writes a base spin's win to the HUD at
+ *  the very end of the round, and Autoplay's next press cleared it before its 550 ms count could move. Angry Mantis keeps
+ *  the same press rule (no clear on a turbo autoplay press or a held space bar) but writes its HUD win as the round's
+ *  wins show, so it never met this. Under Autoplay (and a held space bar) the press keeps the last win on the WIN until
+ *  the next round has a win of its own, which counts from zero as by hand; a round with no win leaves it up. A press by
+ *  hand clears the WIN as before. autoplay / spaceHold false: the behaviour before. */
+export const HUD_WIN_CARRY = {
+	autoplay: true,
+	spaceHold: true,
+};
+
 /** THE WAR STANDARD FLAG ROW ON THE PLAQUE (1.0.04; images/anticipation_r2 NOTES.md r6, option B: Corey 2026-10-20 "R5 looks
  *  good for the plaque, let's just increase the size of the first 3 flags to fill more space"; STORYBOARD.md S3 to S7;
  *  components/BoardPlaque.svelte, art tools/build_plaque_flags.py). `{flag}{flag}{flag} | FS | SUPER | EPIC` across the

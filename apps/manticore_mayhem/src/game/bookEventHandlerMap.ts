@@ -46,6 +46,7 @@ import { maxWinArm, maxWinPrefetch, maxWinReset, maxWinState } from './maxWin.sv
 import { fxRecord, fxStamp, chainHaulPress } from './featureFx';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { CellIndex } from './types';
+import { setHudWin } from './hudWin.svelte';
 import {
 	TIMINGS,
 	STING,
@@ -595,7 +596,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// keeps its rows and total on the plaque after the streak
 			const hold = hud !== null && stateGame.gameType === 'basegame' && !roundFeatureAhead(bookEvent, bookEvents);
 			await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin, toHud: hud !== null, hold });
-			if (hud !== null && !capShown) stateBet.winBookEventAmount = hud;
+			if (hud !== null && !capShown) setHudWin(hud);
 		}
 	},
 
@@ -805,7 +806,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 	// ---- core SDK events -------------------------------------------------------------------------
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>, { bookEvents }: BookEventContext) => {
-		stateBet.winBookEventAmount = bookEvent.amount;
+		setHudWin(bookEvent.amount);
 		// the round reached the cap (the book's `wincap`): the Max Win screen is the round's one presentation
 		// (the wrap up in a feature), so the capping spin gets no win screen of its own
 		if (capShown || bookEvent.amount <= 0) return;
@@ -840,7 +841,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	wincap: async (bookEvent: BookEventOfType<'wincap'>, { bookEvents }: BookEventContext) => {
 		// a skip never swallows the max win: clear it FIRST so the cap presentation plays in full.
 		stateGameDerived.finishSkip();
-		stateBet.winBookEventAmount = bookEvent.amount;
+		setHudWin(bookEvent.amount);
 		capShown = true;
 		// the plaque's MAX landing starts the max win screen from here on, with the book's own amount
 		capAmount = bookEvent.amount;
@@ -931,7 +932,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		capAmount = 0;
 		// belt and braces: a round that paid nothing emits no setTotalWin at all (EVENT_SCHEMA.md),
 		// so the HUD's amount has to land on the book's own final number either way
-		stateBet.winBookEventAmount = bookEvent.amount;
+		setHudWin(bookEvent.amount);
 		// the round is over: the board must be back on its grid, one sprite per cell, nothing
 		// left mid-animation. DEV shouts if the book's own diff did not add up.
 		settleBoard();
