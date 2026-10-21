@@ -39,6 +39,23 @@
 			   deliberately NAMED APART from the real 'Outfit'/'Sora' that ui/fontFaces.ts injects, so
 			   the full faces landing later can never re-flow the splash.
 			   Re-tune = edit here; there is no component any more.
+			   2026-10-21, THE NEW SPLASH (Corey picked it in the preview ~/Desktop/Manticore Mayhem/images/splash_preview_r1,
+			   "It looks great ... the next step is wiring it into both games"; the same splash in both games, only the accent,
+			   the background and the lines differ). On top of the draw-in above:
+			     - the pyramid: from 620 ms a dot runs one line of the mark, the node it reaches turns lime and the mark turns
+			       over as a 3D tetrahedron, a half-turn that lands back on the logo pose (the first flip lands at about
+			       2.07 s, hence MIN_MS 2150); later passes, 1.6 s apart, run the whole triangle back to their start node;
+			     - the wordmark: Poly flips up letter by letter, Math decodes;
+			     - the bar: 20 skewed segments lit whole (5 points each), a shine and a spark; transforms only, the old
+			       width-animated fill is gone;
+			     - loading lines typed under the bar, one per stretch of it, each up at least LINE_MS;
+			     - the background: fireflies (the Lightning Bug);
+			     - a tap ripple (visual only; the splash covers the game while it is up and takes no pointer once it fades);
+			     - STILL LOADING · HANG TIGHT after 8 s;
+			     - the exit: the mark bursts, its nodes fly out, the background parts from the centre (removed at 740 ms).
+			   Reduced motion (@media prefers-reduced-motion): no dot, no turn, no shine; the rings breathe, the lines and the
+			   wordmark fade in, the shipped 450 ms fade out. Only transform, opacity and stroke-dashoffset animate: no
+			   filter, no images, no requests. The fonts need no re-subset: every new string is A-Z, space and "·".
 			   ──────────────────────────────────────────────────────────────────────────────────────── */
 			@font-face {
 				font-family: 'AMSoraSplash';
@@ -158,9 +175,6 @@
 				letter-spacing: -0.02em;
 				line-height: 1;
 				font-size: var(--wm-size);
-				opacity: 0;
-				transform: translateY(9px);
-				animation: am-rise 300ms cubic-bezier(0.2, 0.7, 0.2, 1) 490ms forwards;
 			}
 			#am-splash .wm em {
 				font-style: normal;
@@ -202,10 +216,8 @@
 				opacity: 0;
 				animation: am-rise 300ms ease-out 660ms forwards;
 			}
-			/* the bar: LandingScreen's gold bar (ui/LandingScreen.svelte .bar/.fill/.pct) in the logo's
-			   green — same track, same radius/height, the gradient built from #9CD92F by the exact
-			   light->dark ratios the gold one uses (#ffdc4a -> #dfb02c). It only appears once there is
-			   the first paint (Corey 2026-09-15: it must be there from the start, 0% and all). */
+			/* the bar's box: the bar itself is the segmented game bar (2026-10-21, below), lit in the theme accent; it is
+			   there from the first paint (Corey 2026-09-15: it must be there from the start, 0% and all). */
 			#am-splash .barwrap {
 				display: flex;
 				flex-direction: column;
@@ -216,22 +228,6 @@
 				transition: opacity 220ms ease;
 			}
 			#am-splash .barwrap.on { opacity: 1; }
-			#am-splash .bar {
-				width: var(--bar-w);
-				height: var(--bar-h);
-				border-radius: 6px;
-				background: rgba(0, 0, 0, 0.55);
-				box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
-				overflow: hidden;
-			}
-			#am-splash .fill {
-				height: 100%;
-				width: 4%;
-				border-radius: 6px;
-				background: linear-gradient(90deg, #89ae1c, #9cd92f);
-				box-shadow: 0 0 12px rgba(156, 217, 47, 0.5);
-				transition: width 0.15s linear;
-			}
 			#am-splash .pct {
 				font-weight: 700;
 				letter-spacing: 1.5px;
@@ -239,12 +235,190 @@
 				font-variant-numeric: tabular-nums;
 				font-size: var(--pct-fs);
 			}
+
+			/* ── the 2026-10-21 splash (Corey's pick in the preview: ideas=1,2,3,7,8,9&bg=theme&py=loop&poly=flip&math=decode).
+			   Compact rules from the preview's fragments (~/Desktop/Manticore Mayhem/images/splash_preview_r1/source/lib.js
+			   and r2.js); only transform, opacity and stroke-dashoffset animate ── */
+/* exit (idea 9): the background is two half panels that part from the centre */
+#am-splash{background:transparent}
+#am-splash .x9p>div{position:absolute;top:0;bottom:0;width:50%;background:radial-gradient(120% 90% at 50% 42%,#171a22 0%,#0b0c10 62%,#07080b 100%);background-size:200% 100%}
+#am-splash .x9p .l{left:0;background-position:0 0}
+#am-splash .x9p .r{right:0;background-position:100% 0}
+#am-splash .x9p i{position:absolute;top:0;bottom:0;width:2px;background:linear-gradient(transparent,var(--accent) 35%,var(--accent) 65%,transparent);opacity:0}
+#am-splash .x9p .l i{right:0}#am-splash .x9p .r i{left:0}
+#am-splash .x9{position:absolute;top:0;left:50%;width:var(--mark);height:var(--mark);margin-left:calc(var(--mark)/-2);pointer-events:none}
+#am-splash .x9 b{position:absolute;width:10%;height:10%;margin:-5% 0 0 -5%;border-radius:50%;background:#f4f6fb;opacity:0}
+#am-splash .x9 .n0{left:50%;top:17.6%}#am-splash .x9 .n1{left:14%;top:80%}#am-splash .x9 .n2{left:86%;top:80%}#am-splash .x9 .n3{left:50%;top:59.2%;background:var(--accent)}
+#am-splash .x9 s{position:absolute;left:50%;top:59.2%;width:60%;height:60%;margin:-30% 0 0 -30%;border-radius:50%;box-sizing:border-box;border:3px solid var(--accent);opacity:0}
+@keyframes am-i9-fade{from{opacity:1}to{opacity:0}}
+@keyframes am-i9-mark{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(1.55)}}
+@keyframes am-i9-glow{0%{opacity:.55;transform:scale(1)}30%{opacity:1}100%{opacity:0;transform:scale(2.6)}}
+@keyframes am-i9-n0{from{opacity:1;transform:none}to{opacity:0;transform:translate(0,-900%) scale(.4)}}
+@keyframes am-i9-n1{from{opacity:1;transform:none}to{opacity:0;transform:translate(-780%,450%) scale(.4)}}
+@keyframes am-i9-n2{from{opacity:1;transform:none}to{opacity:0;transform:translate(780%,450%) scale(.4)}}
+@keyframes am-i9-n3{from{opacity:1;transform:none}to{opacity:0;transform:scale(4)}}
+@keyframes am-i9-ring{from{opacity:.9;transform:scale(.2)}to{opacity:0;transform:scale(3.4)}}
+/* background (Angry Mantis: fireflies, the Lightning Bug) */
+#am-splash .bg5{position:absolute;inset:0;pointer-events:none;opacity:0;animation:am-i5-in 1400ms ease-out 300ms forwards}
+@keyframes am-i5-in{to{opacity:1}}
+#am-splash .bgt{position:absolute;inset:0;overflow:hidden}
+#am-splash .bgt .ff{position:absolute;left:var(--x);top:var(--y);width:3.2vmin;height:3.2vmin;margin:-1.6vmin 0 0 -1.6vmin;animation:am-t-w1 var(--d) ease-in-out var(--t) infinite alternate}
+#am-splash .bgt .ff.b{animation-name:am-t-w2}
+#am-splash .bgt .ff i{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,color-mix(in oklab,var(--accent) 40%,#fff) 0 10%,color-mix(in oklab,var(--accent) 55%,transparent) 26%,transparent 66%);opacity:0;animation:am-t-bl var(--b) ease-in-out var(--t) infinite}
+@keyframes am-t-w1{0%{transform:translate(0,0)}33%{transform:translate(4vmin,-3vmin)}66%{transform:translate(-2vmin,-6vmin)}100%{transform:translate(3vmin,-9vmin)}}
+@keyframes am-t-w2{0%{transform:translate(0,0)}33%{transform:translate(-5vmin,2vmin)}66%{transform:translate(-2vmin,-4vmin)}100%{transform:translate(-6vmin,-2vmin)}}
+@keyframes am-t-bl{0%,100%{opacity:0}40%,60%{opacity:.9}}
+@keyframes am-t-calm{0%,100%{opacity:0}50%{opacity:.5}}
+/* the pyramid: the signal runs the mark, the last node turns red and the solid half-turns onto the logo pose.
+   GENERATED (the matrix3d / keyframe numbers) by pyramid() in the preview source r2.js; re-tune there and re-run */
+#am-splash .py{position:absolute;top:0;left:50%;width:var(--mark);height:var(--mark);margin-left:calc(var(--mark)/-2);pointer-events:none;--pd:20%;--pe:.05em;--pn:.2em}
+@media (max-aspect-ratio:4/5){#am-splash .py{--pd:21.5%;--pe:.055em;--pn:.215em}}
+#am-splash .py .nA{left:50%;top:17.6%}#am-splash .py .nB{left:14%;top:80%}#am-splash .py .nC{left:86%;top:80%}
+#am-splash .py .h{position:absolute;width:24%;height:24%;margin:-12% 0 0 -12%;border-radius:50%;box-sizing:border-box;border:2px solid var(--accent);opacity:0}
+#am-splash .pyg .py .h{animation:am-py-h 450ms ease-out}
+@keyframes am-py-h{0%{opacity:.95;transform:scale(.5)}55%,100%{opacity:0;transform:scale(1.4)}}
+#am-splash .py .rp{position:absolute;width:var(--pd);height:var(--pd);margin:calc(var(--pd)/-2) 0 0 calc(var(--pd)/-2);border-radius:50%;background:var(--accent);opacity:0}
+#am-splash .py .c{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0}
+#am-splash .py .c i{position:absolute;left:0;top:0;width:11%;height:11%;margin:-5.5% 0 0 -5.5%;border-radius:50%;background:radial-gradient(circle,#fff 0 24%,var(--accent) 40%,transparent 70%)}
+#am-splash .py .pm{position:absolute;inset:0;opacity:0}
+#am-splash .pyw{position:absolute;left:50%;top:59.2%;width:0;height:0;font-size:var(--mark);transform-style:preserve-3d}
+#am-splash .pyw>span{position:absolute;display:block}
+#am-splash .pyw .f{left:-.36em;top:-.41569em;width:.72em;height:.62354em;transform-origin:.36em .41569em;clip-path:polygon(56.94% 13.89%,93.06% 86.11%,86.11% 100%,13.89% 100%,6.94% 86.11%,43.06% 13.89%);opacity:0}
+#am-splash .pyw .f0{background:color-mix(in oklab,color-mix(in oklab,var(--accent) 30%,#f4f6fb) 12%,transparent)}
+#am-splash .pyw .f1{background:color-mix(in oklab,color-mix(in oklab,var(--accent) 30%,#f4f6fb) 22%,transparent)}
+#am-splash .pyw .f2{background:color-mix(in oklab,color-mix(in oklab,var(--accent) 30%,#f4f6fb) 7%,transparent)}
+#am-splash .pyw .f3{background:color-mix(in oklab,color-mix(in oklab,var(--accent) 30%,#f4f6fb) 32%,transparent)}
+#am-splash .pyw .e{left:-.27em;top:calc(var(--pe)/-2);width:.54em;height:var(--pe);border-radius:var(--pe);background:#f4f6fb}
+#am-splash .pyw .nd{left:0;top:0;width:0;height:0;transform-style:preserve-3d}
+#am-splash .pyw .cr{position:absolute;display:block;left:calc(var(--pn)/-2);top:calc(var(--pn)/-2);width:var(--pn);height:var(--pn)}
+#am-splash .pyw .cr span{position:absolute;inset:0;border-radius:50%;box-sizing:border-box;border:var(--pe) solid #f4f6fb;background:#0b0c10}
+#am-splash .pyw .cr .rd{border-color:var(--accent);background:var(--accent);opacity:0}
+@keyframes am-py-calm{0%,100%{opacity:0;transform:scale(1)}50%{opacity:.45;transform:scale(1)}}
+@keyframes am-py-showF{0%,40.07%{opacity:0}40.27%,97.11%{opacity:1}97.32%,100%{opacity:0}}
+@keyframes am-py-hideF{0%,40.07%{opacity:1}40.27%,97.11%{opacity:0}97.32%,100%{opacity:1}}
+@keyframes am-py-fF{0%,40.27%{opacity:0}51.68%,85.91%{opacity:1}97.32%,100%{opacity:0}}
+@keyframes am-py-drF{0%,43.12%{opacity:1}85.91%,100%{opacity:0}}
+@keyframes am-py-rpF{0%,28.19%{opacity:0;transform:scale(.4)}36.24%{opacity:1;transform:scale(1.25)}40.07%{opacity:1;transform:scale(1)}40.27%,100%{opacity:0;transform:scale(1)}}
+#am-splash .pF .py .pm{animation:am-py-showF 1490ms linear}#am-splash .pF>.mark{animation:am-py-hideF 1490ms linear}#am-splash .pF .pyw .f{animation:am-py-fF 1490ms linear}#am-splash .pF .pyw .vD .rd{animation:am-py-drF 1490ms linear}
+@keyframes am-py-rF0{0%,40.27%{transform:perspective(40em) rotate3d(-0.7071,0.4082,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}68.79%{transform:perspective(3.4em) rotate3d(-0.7071,0.4082,0.5774,90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}97.32%,100%{transform:perspective(40em) rotate3d(-0.7071,0.4082,0.5774,180deg)}}
+@keyframes am-py-cF0{0%,40.27%{transform:rotate3d(-0.7071,0.4082,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}68.79%{transform:rotate3d(-0.7071,0.4082,0.5774,-90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}97.32%,100%{transform:rotate3d(-0.7071,0.4082,0.5774,-180deg)}}
+@keyframes am-py-dF0{0%{opacity:0;transform:translate(50%,17.6%)}6.71%{opacity:1;transform:translate(50%,17.6%)}32.21%{opacity:1;transform:translate(14%,80%)}37.58%,100%{opacity:0;transform:translate(14%,80%)}}
+#am-splash .pF.pv0 .py .pyw{animation:am-py-rF0 1490ms linear}#am-splash .pF.pv0 .py .cr{animation:am-py-cF0 1490ms linear}#am-splash .pF.pv0 .py .c{animation:am-py-dF0 1490ms linear}#am-splash .pF.pv0 .py .h.nA{animation-delay:100ms}#am-splash .pF.pv0 .py .rp.nB{animation:am-py-rpF 1490ms linear}#am-splash .pF.pv0 .py .vB .rd{opacity:1}
+@keyframes am-py-rF1{0%,40.27%{transform:perspective(40em) rotate3d(0.7071,0.4082,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}68.79%{transform:perspective(3.4em) rotate3d(0.7071,0.4082,0.5774,90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}97.32%,100%{transform:perspective(40em) rotate3d(0.7071,0.4082,0.5774,180deg)}}
+@keyframes am-py-cF1{0%,40.27%{transform:rotate3d(0.7071,0.4082,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}68.79%{transform:rotate3d(0.7071,0.4082,0.5774,-90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}97.32%,100%{transform:rotate3d(0.7071,0.4082,0.5774,-180deg)}}
+@keyframes am-py-dF1{0%{opacity:0;transform:translate(14%,80%)}6.71%{opacity:1;transform:translate(14%,80%)}32.21%{opacity:1;transform:translate(86%,80%)}37.58%,100%{opacity:0;transform:translate(86%,80%)}}
+#am-splash .pF.pv1 .py .pyw{animation:am-py-rF1 1490ms linear}#am-splash .pF.pv1 .py .cr{animation:am-py-cF1 1490ms linear}#am-splash .pF.pv1 .py .c{animation:am-py-dF1 1490ms linear}#am-splash .pF.pv1 .py .h.nB{animation-delay:100ms}#am-splash .pF.pv1 .py .rp.nC{animation:am-py-rpF 1490ms linear}#am-splash .pF.pv1 .py .vC .rd{opacity:1}
+@keyframes am-py-rF2{0%,40.27%{transform:perspective(40em) rotate3d(0,-0.8165,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}68.79%{transform:perspective(3.4em) rotate3d(0,-0.8165,0.5774,90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}97.32%,100%{transform:perspective(40em) rotate3d(0,-0.8165,0.5774,180deg)}}
+@keyframes am-py-cF2{0%,40.27%{transform:rotate3d(0,-0.8165,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}68.79%{transform:rotate3d(0,-0.8165,0.5774,-90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}97.32%,100%{transform:rotate3d(0,-0.8165,0.5774,-180deg)}}
+@keyframes am-py-dF2{0%{opacity:0;transform:translate(86%,80%)}6.71%{opacity:1;transform:translate(86%,80%)}32.21%{opacity:1;transform:translate(50%,17.6%)}37.58%,100%{opacity:0;transform:translate(50%,17.6%)}}
+#am-splash .pF.pv2 .py .pyw{animation:am-py-rF2 1490ms linear}#am-splash .pF.pv2 .py .cr{animation:am-py-cF2 1490ms linear}#am-splash .pF.pv2 .py .c{animation:am-py-dF2 1490ms linear}#am-splash .pF.pv2 .py .h.nC{animation-delay:100ms}#am-splash .pF.pv2 .py .rp.nA{animation:am-py-rpF 1490ms linear}#am-splash .pF.pv2 .py .vA .rd{opacity:1}
+@keyframes am-py-showL{0%,62.78%{opacity:0}62.87%,98.71%{opacity:1}98.8%,100%{opacity:0}}
+@keyframes am-py-hideL{0%,62.78%{opacity:1}62.87%,98.71%{opacity:0}98.8%,100%{opacity:1}}
+@keyframes am-py-fL{0%,62.87%{opacity:0}70.06%,91.62%{opacity:1}98.8%,100%{opacity:0}}
+@keyframes am-py-drL{0%,64.67%{opacity:1}91.62%,100%{opacity:0}}
+@keyframes am-py-rpL{0%,56.59%{opacity:0;transform:scale(.4)}60.63%{opacity:1;transform:scale(1.25)}62.78%{opacity:1;transform:scale(1)}62.87%,100%{opacity:0;transform:scale(1)}}
+#am-splash .pL .py .pm{animation:am-py-showL 3340ms linear}#am-splash .pL>.mark{animation:am-py-hideL 3340ms linear}#am-splash .pL .pyw .f{animation:am-py-fL 3340ms linear}#am-splash .pL .pyw .vD .rd{animation:am-py-drL 3340ms linear}
+@keyframes am-py-rL0{0%,62.87%{transform:perspective(40em) rotate3d(0,-0.8165,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}80.84%{transform:perspective(3.4em) rotate3d(0,-0.8165,0.5774,90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}98.8%,100%{transform:perspective(40em) rotate3d(0,-0.8165,0.5774,180deg)}}
+@keyframes am-py-cL0{0%,62.87%{transform:rotate3d(0,-0.8165,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}80.84%{transform:rotate3d(0,-0.8165,0.5774,-90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}98.8%,100%{transform:rotate3d(0,-0.8165,0.5774,-180deg)}}
+@keyframes am-py-dL0{0%{opacity:0;transform:translate(50%,17.6%)}4.49%{opacity:1;transform:translate(50%,17.6%)}22.46%{opacity:1;transform:translate(14%,80%)}40.42%{opacity:1;transform:translate(86%,80%)}58.38%{opacity:1;transform:translate(50%,17.6%)}60.78%,100%{opacity:0;transform:translate(50%,17.6%)}}
+#am-splash .pL.pv0 .py .pyw{animation:am-py-rL0 3340ms linear}#am-splash .pL.pv0 .py .cr{animation:am-py-cL0 3340ms linear}#am-splash .pL.pv0 .py .c{animation:am-py-dL0 3340ms linear}#am-splash .pL.pv0 .py .h.nA{animation-delay:150ms}#am-splash .pL.pv0 .py .h.nB{animation-delay:750ms}#am-splash .pL.pv0 .py .h.nC{animation-delay:1350ms}#am-splash .pL.pv0 .py .rp.nA{animation:am-py-rpL 3340ms linear}#am-splash .pL.pv0 .py .vA .rd{opacity:1}
+@keyframes am-py-rL1{0%,62.87%{transform:perspective(40em) rotate3d(-0.7071,0.4082,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}80.84%{transform:perspective(3.4em) rotate3d(-0.7071,0.4082,0.5774,90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}98.8%,100%{transform:perspective(40em) rotate3d(-0.7071,0.4082,0.5774,180deg)}}
+@keyframes am-py-cL1{0%,62.87%{transform:rotate3d(-0.7071,0.4082,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}80.84%{transform:rotate3d(-0.7071,0.4082,0.5774,-90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}98.8%,100%{transform:rotate3d(-0.7071,0.4082,0.5774,-180deg)}}
+@keyframes am-py-dL1{0%{opacity:0;transform:translate(14%,80%)}4.49%{opacity:1;transform:translate(14%,80%)}22.46%{opacity:1;transform:translate(86%,80%)}40.42%{opacity:1;transform:translate(50%,17.6%)}58.38%{opacity:1;transform:translate(14%,80%)}60.78%,100%{opacity:0;transform:translate(14%,80%)}}
+#am-splash .pL.pv1 .py .pyw{animation:am-py-rL1 3340ms linear}#am-splash .pL.pv1 .py .cr{animation:am-py-cL1 3340ms linear}#am-splash .pL.pv1 .py .c{animation:am-py-dL1 3340ms linear}#am-splash .pL.pv1 .py .h.nB{animation-delay:150ms}#am-splash .pL.pv1 .py .h.nC{animation-delay:750ms}#am-splash .pL.pv1 .py .h.nA{animation-delay:1350ms}#am-splash .pL.pv1 .py .rp.nB{animation:am-py-rpL 3340ms linear}#am-splash .pL.pv1 .py .vB .rd{opacity:1}
+@keyframes am-py-rL2{0%,62.87%{transform:perspective(40em) rotate3d(0.7071,0.4082,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}80.84%{transform:perspective(3.4em) rotate3d(0.7071,0.4082,0.5774,90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}98.8%,100%{transform:perspective(40em) rotate3d(0.7071,0.4082,0.5774,180deg)}}
+@keyframes am-py-cL2{0%,62.87%{transform:rotate3d(0.7071,0.4082,0.5774,0deg);animation-timing-function:cubic-bezier(.45,0,.8,.45)}80.84%{transform:rotate3d(0.7071,0.4082,0.5774,-90deg);animation-timing-function:cubic-bezier(.2,.55,.55,1)}98.8%,100%{transform:rotate3d(0.7071,0.4082,0.5774,-180deg)}}
+@keyframes am-py-dL2{0%{opacity:0;transform:translate(86%,80%)}4.49%{opacity:1;transform:translate(86%,80%)}22.46%{opacity:1;transform:translate(50%,17.6%)}40.42%{opacity:1;transform:translate(14%,80%)}58.38%{opacity:1;transform:translate(86%,80%)}60.78%,100%{opacity:0;transform:translate(86%,80%)}}
+#am-splash .pL.pv2 .py .pyw{animation:am-py-rL2 3340ms linear}#am-splash .pL.pv2 .py .cr{animation:am-py-cL2 3340ms linear}#am-splash .pL.pv2 .py .c{animation:am-py-dL2 3340ms linear}#am-splash .pL.pv2 .py .h.nC{animation-delay:150ms}#am-splash .pL.pv2 .py .h.nA{animation-delay:750ms}#am-splash .pL.pv2 .py .h.nB{animation-delay:1350ms}#am-splash .pL.pv2 .py .rp.nC{animation:am-py-rpL 3340ms linear}#am-splash .pL.pv2 .py .vC .rd{opacity:1}
+/* wordmark: Poly flips up letter by letter, Math decodes (each slot rolls PolyMath letters, then its own) */
+#am-splash .wh{display:inline-block;position:relative}
+#am-splash .hp{--b:470ms}#am-splash .hm{--b:640ms}
+#am-splash .wh i{display:inline-block;font-style:normal}
+#am-splash .s-flip i{opacity:0;transform:perspective(2em) rotateX(-95deg);transform-origin:50% 80%;animation:am-w-flip 480ms cubic-bezier(.2,.9,.3,1.25) forwards;animation-delay:calc(var(--b) + var(--i)*60ms)}
+@keyframes am-w-flip{0%{opacity:0;transform:perspective(2em) rotateX(-95deg)}30%{opacity:1}100%{opacity:1;transform:perspective(2em) rotateX(0)}}
+@keyframes am-w-on{to{opacity:1}}
+#am-splash .dc{position:relative}
+#am-splash .dc>u{text-decoration:none;opacity:0;animation:am-w-on 1ms linear calc(var(--b) + var(--i)*70ms + 300ms + var(--i)*60ms) forwards}
+#am-splash .dc>b{position:absolute;left:-.45em;right:-.45em;top:-.15em;height:1.3em;overflow:hidden;text-align:center;font-weight:inherit;opacity:0;animation:am-w-dw calc(300ms + var(--i)*60ms) linear calc(var(--b) + var(--i)*70ms) forwards}
+#am-splash .dc s{display:block;text-decoration:none;line-height:1.3em;white-space:pre;animation:am-w-dc calc(300ms + var(--i)*60ms) steps(6,end) calc(var(--b) + var(--i)*70ms) forwards}
+@keyframes am-w-dw{0%,99%{opacity:1}100%{opacity:0}}
+@keyframes am-w-dc{to{transform:translateY(-7.8em)}}
+@keyframes am-w-fade{to{opacity:1}}
+/* tap ripple (idea 7): visual only, the splash already covers the game */
+#am-splash .pg{position:absolute;top:0;left:50%;width:var(--mark);height:var(--mark);margin-left:calc(var(--mark)/-2);pointer-events:none}
+#am-splash .pg b{position:absolute;width:26%;height:26%;margin:-13% 0 0 -13%;border-radius:50%;box-sizing:border-box;border:2px solid var(--accent);opacity:0}
+#am-splash .pg .n0{left:50%;top:17.6%}#am-splash .pg .n1{left:14%;top:80%}#am-splash .pg .n2{left:86%;top:80%}#am-splash .pg .n3{left:50%;top:59.2%}
+#am-splash .rip{position:absolute;width:26vmin;height:26vmin;margin:-13vmin 0 0 -13vmin;border-radius:50%;box-sizing:border-box;border:3px solid var(--accent);opacity:0;pointer-events:none;z-index:3}
+/* the bar (idea 2): 20 skewed segments lit whole, a shine clipped to the lit part, a spark on the edge; transforms only */
+#am-splash .gbar{position:relative;width:var(--bar-w);height:calc(var(--bar-h)*1.8);padding:3px;box-sizing:border-box;border-radius:5px;background:rgba(0,0,0,.6);box-shadow:inset 0 1px 3px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.07);transform:skewX(-14deg)}
+#am-splash .gs{display:flex;gap:3px;height:100%}
+#am-splash .gs i{flex:1;position:relative;border-radius:2px;background:rgba(255,255,255,.06)}
+#am-splash .gs i::after{content:'';position:absolute;inset:0;border-radius:2px;background:linear-gradient(180deg,color-mix(in oklab,var(--accent) 55%,#fff),var(--accent) 55%,color-mix(in oklab,var(--accent) 70%,#000));box-shadow:0 0 8px color-mix(in oklab,var(--accent) 55%,transparent);opacity:0;transition:opacity 140ms ease-out var(--d,0ms)}
+#am-splash .gs i.on::after{opacity:1;animation:am-i2-pop 260ms cubic-bezier(.2,1.6,.4,1) var(--d,0ms)}
+@keyframes am-i2-pop{from{transform:scaleY(1.6)}to{transform:scaleY(1)}}
+#am-splash .gw{position:absolute;inset:3px;overflow:hidden;border-radius:2px}
+#am-splash .gc{position:absolute;inset:0;overflow:hidden;transform:translateX(-100%)}
+#am-splash .gi{position:absolute;inset:0;transform:translateX(100%)}
+#am-splash .gc,#am-splash .gi,#am-splash .gk{transition:transform 160ms ease-out}
+#am-splash .gsh{position:absolute;top:0;bottom:0;left:0;width:22%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:am-i2-shine 1800ms ease-in-out 600ms infinite both}
+@keyframes am-i2-shine{0%{transform:translateX(-100%)}70%,100%{transform:translateX(460%)}}
+#am-splash .gk{position:absolute;inset:3px;opacity:0}
+#am-splash .gk.on{opacity:1}
+#am-splash .gk b{position:absolute;left:0;top:50%;width:calc(var(--bar-h)*2.8);height:calc(var(--bar-h)*2.8);margin:calc(var(--bar-h)*-1.4) 0 0 calc(var(--bar-h)*-1.4);border-radius:50%;background:radial-gradient(circle,#fff 0 12%,color-mix(in oklab,var(--accent) 50%,#fff) 24%,transparent 62%);animation:am-i2-spark 170ms linear infinite alternate}
+@keyframes am-i2-spark{from{transform:scale(.7) rotate(0);opacity:.7}to{transform:scale(1.15) rotate(45deg);opacity:1}}
+/* loading lines (idea 3), typed */
+#am-splash .lines{position:relative;width:var(--bar-w);height:calc(var(--pct-fs)*1.6)}
+#am-splash .ln{position:absolute;left:0;right:0;top:0;text-align:center;white-space:pre;font-weight:700;font-size:var(--pct-fs);letter-spacing:.22em;line-height:1.6;color:var(--accent);transition:opacity 200ms ease-out}
+#am-splash .ln.gone{opacity:0}
+#am-splash .ln span{opacity:0;animation:am-i3-type 1ms linear forwards;animation-delay:calc(var(--i)*36ms)}
+#am-splash .ln::after{content:'';display:inline-block;width:.55em;height:.9em;margin-left:-.05em;vertical-align:-.1em;background:var(--accent);opacity:0;animation:am-i3-caret 1000ms steps(1) calc(var(--n)*36ms) infinite}
+@keyframes am-i3-type{to{opacity:1}}
+@keyframes am-i3-caret{0%{opacity:.85}50%{opacity:0}}
+@keyframes am-i3-in{from{opacity:0}}
+/* slow-load message (idea 8), from 8 s */
+#am-splash .slow{position:absolute;left:0;right:0;bottom:calc(var(--legal-b) + var(--legal-fs)*3.2);text-align:center;font-weight:700;font-size:var(--pct-fs);letter-spacing:.24em;color:rgba(244,246,251,.6);opacity:0;transition:opacity 800ms ease-out}
+#am-splash .slow.on{opacity:1}
+#am-splash .slow.on span{display:inline-block;animation:am-i8-b 2600ms ease-in-out 800ms infinite}
+@keyframes am-i8-b{0%,100%{opacity:1}50%{opacity:.5}}
+/* reduced motion: no dot, no turn, no shine, no ripple growth; calm fades */
+@media (prefers-reduced-motion: reduce){
+#am-splash .bgt .ff i{animation:am-t-calm 8s ease-in-out var(--t) infinite}
+#am-splash .bgt .ff{animation:none}
+#am-splash .py .h{animation:am-py-calm 5s ease-in-out infinite}
+#am-splash .py .h.nB{animation-delay:1.6s}#am-splash .py .h.nC{animation-delay:3.2s}
+#am-splash .wm .wh{opacity:0;transform:none;animation:am-w-fade 450ms ease-out var(--b) forwards}
+#am-splash .wm .wh *{animation:none!important;opacity:1!important;transform:none!important}
+#am-splash .wm .dc>b{display:none}
+#am-splash .gsh,#am-splash .gk{display:none}
+#am-splash .gs i.on::after{animation:none}
+#am-splash .ln span{animation:none;opacity:1}
+#am-splash .ln{animation:am-i3-in 500ms ease-out}
+#am-splash .ln::after{display:none}
+#am-splash .slow.on span{animation:none}
+}
+@media (prefers-reduced-motion: no-preference){
+#am-splash.am-out{opacity:1;transition:none}
+#am-splash.am-out::after{opacity:0;transition:opacity 200ms}
+#am-splash.am-out .x9p>div{transition:transform 560ms cubic-bezier(.7,0,.25,1) 150ms}
+#am-splash.am-out .x9p .l{transform:translateX(-101%)}
+#am-splash.am-out .x9p .r{transform:translateX(101%)}
+#am-splash.am-out .x9p i{opacity:1;transition:opacity 120ms 90ms}
+#am-splash.am-out .lock>.mark{animation:am-i9-mark 380ms cubic-bezier(.3,0,.6,1) forwards}
+#am-splash.am-out .glow{animation:am-i9-glow 440ms ease-out forwards}
+#am-splash.am-out .lockup,#am-splash.am-out .barwrap{opacity:0;transform:scale(1.05);transition:opacity 180ms,transform 180ms}
+#am-splash.am-out .legal,#am-splash.am-out .slow.on,#am-splash.am-out .py,#am-splash.am-out .pg,#am-splash.am-out .bg5{animation:am-i9-fade 200ms forwards}
+#am-splash.am-out .x9 b{animation:am-i9-n0 460ms cubic-bezier(.15,.6,.3,1) forwards}
+#am-splash.am-out .x9 .n1{animation-name:am-i9-n1}#am-splash.am-out .x9 .n2{animation-name:am-i9-n2}#am-splash.am-out .x9 .n3{animation-name:am-i9-n3}
+#am-splash.am-out .x9 s{animation:am-i9-ring 500ms ease-out forwards}
+}
 		</style>
 		%sveltekit.head%
 	</head>
 	<body style="margin: 0; padding: 0; overflow: hidden; background-color: black">
 		<!-- painted before the bundle exists; ui/LandingScreen.svelte takes over at the handoff -->
 		<div id="am-splash" role="presentation">
+			<div class="x9p" aria-hidden="true"><div class="l"><i></i></div><div class="r"><i></i></div></div>
+			<div class="bg5" aria-hidden="true"><div class="bgt"><div class="ff a" style="--x:16.6%;--y:32.7%;--d:6.9s;--b:3.9s;--t:-3.9s"><i></i></div><div class="ff b" style="--x:5.2%;--y:13.2%;--d:9s;--b:2.8s;--t:-3.3s"><i></i></div><div class="ff a" style="--x:7.3%;--y:23.6%;--d:7.9s;--b:2.4s;--t:-0.1s"><i></i></div><div class="ff b" style="--x:10.4%;--y:31.5%;--d:5.3s;--b:4.3s;--t:-4.7s"><i></i></div><div class="ff a" style="--x:82.6%;--y:33.5%;--d:9.8s;--b:3s;--t:-0.6s"><i></i></div><div class="ff b" style="--x:73.2%;--y:76.9%;--d:5.7s;--b:2.9s;--t:-5.9s"><i></i></div><div class="ff a" style="--x:72.6%;--y:92.7%;--d:5.5s;--b:4.3s;--t:-5.7s"><i></i></div><div class="ff b" style="--x:12.3%;--y:91.1%;--d:6.1s;--b:4.6s;--t:-3.9s"><i></i></div><div class="ff a" style="--x:73.9%;--y:35.5%;--d:7.2s;--b:4.2s;--t:-4.9s"><i></i></div><div class="ff b" style="--x:20%;--y:49.1%;--d:8.5s;--b:4.2s;--t:-1.1s"><i></i></div><div class="ff a" style="--x:80.4%;--y:56.7%;--d:9.8s;--b:4.8s;--t:-2.9s"><i></i></div><div class="ff b" style="--x:72.7%;--y:81.7%;--d:6.1s;--b:3.7s;--t:-0.9s"><i></i></div><div class="ff a" style="--x:87.7%;--y:60.1%;--d:7s;--b:4.5s;--t:-0.9s"><i></i></div><div class="ff b" style="--x:13.9%;--y:51.1%;--d:6.9s;--b:2.5s;--t:-0.4s"><i></i></div></div></div>
 			<div class="stage">
 				<div class="intro">
 					<div class="lock">
@@ -261,17 +435,46 @@
 							<circle class="node" cx="86" cy="80" r="7.5" fill="#0B0C10" stroke="#F4F6FB" style="animation-delay:380ms" />
 							<circle class="node" cx="50" cy="59.2" r="7.5" fill="#9CD92F" stroke="#9CD92F" style="animation-delay:430ms" />
 						</svg>
+						<div class="py" aria-hidden="true"><b class="h nA"></b><b class="h nB"></b><b class="h nC"></b><u class="rp nA"></u><u class="rp nB"></u><u class="rp nC"></u><div class="c"><i></i></div><div class="pm"><div class="pyw"><span class="f f0" style="transform:translate3d(0em,0em,-0.14697em) matrix3d(1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1)"></span><span class="f f1" style="transform:translate3d(-0.12em,-0.06928em,0.04899em) matrix3d(-0.5,0.86603,0,0,-0.28868,-0.16667,-0.94281,0,-0.8165,-0.4714,0.33333,0,0,0,0,1)"></span><span class="f f2" style="transform:translate3d(0em,0.13856em,0.04899em) matrix3d(1,0,0,0,0,0.33333,-0.94281,0,0,0.94281,0.33333,0,0,0,0,1)"></span><span class="f f3" style="transform:translate3d(0.12em,-0.06928em,0.04899em) matrix3d(-0.5,-0.86603,0,0,0.28868,-0.16667,-0.94281,0,0.8165,-0.4714,0.33333,0,0,0,0,1)"></span><span class="e" style="transform:translate3d(-0.18em,-0.10392em,-0.14697em) matrix3d(-0.5,0.86603,0,0,0.86603,0.5,0,0,0,0,-1,0,0,0,0,1)"></span><span class="e" style="transform:translate3d(-0.18em,-0.10392em,-0.14697em) matrix3d(-0.5,0.86603,0,0,0.86603,0.5,0,0,0,0,-1,0,0,0,0,1) rotateX(90deg)"></span><span class="e" style="transform:translate3d(0em,0.20785em,-0.14697em) matrix3d(1,0,0,0,0,-1,0,0,0,0,-1,0,0,0,0,1)"></span><span class="e" style="transform:translate3d(0em,0.20785em,-0.14697em) matrix3d(1,0,0,0,0,-1,0,0,0,0,-1,0,0,0,0,1) rotateX(90deg)"></span><span class="e" style="transform:translate3d(0.18em,-0.10392em,-0.14697em) matrix3d(-0.5,-0.86603,0,0,-0.86603,0.5,0,0,0,0,-1,0,0,0,0,1)"></span><span class="e" style="transform:translate3d(0.18em,-0.10392em,-0.14697em) matrix3d(-0.5,-0.86603,0,0,-0.86603,0.5,0,0,0,0,-1,0,0,0,0,1) rotateX(90deg)"></span><span class="e" style="transform:translate3d(0em,-0.20785em,0.14697em) matrix3d(0,-0.57735,-0.8165,0,-1,0,0,0,0,0.8165,-0.57735,0,0,0,0,1)"></span><span class="e" style="transform:translate3d(0em,-0.20785em,0.14697em) matrix3d(0,-0.57735,-0.8165,0,-1,0,0,0,0,0.8165,-0.57735,0,0,0,0,1) rotateX(90deg)"></span><span class="e" style="transform:translate3d(-0.18em,0.10392em,0.14697em) matrix3d(-0.5,0.28868,-0.8165,0,0.5,0.86603,0,0,0.70711,-0.40825,-0.57735,0,0,0,0,1)"></span><span class="e" style="transform:translate3d(-0.18em,0.10392em,0.14697em) matrix3d(-0.5,0.28868,-0.8165,0,0.5,0.86603,0,0,0.70711,-0.40825,-0.57735,0,0,0,0,1) rotateX(90deg)"></span><span class="e" style="transform:translate3d(0.18em,0.10392em,0.14697em) matrix3d(0.5,0.28868,-0.8165,0,0.5,-0.86603,0,0,-0.70711,-0.40825,-0.57735,0,0,0,0,1)"></span><span class="e" style="transform:translate3d(0.18em,0.10392em,0.14697em) matrix3d(0.5,0.28868,-0.8165,0,0.5,-0.86603,0,0,-0.70711,-0.40825,-0.57735,0,0,0,0,1) rotateX(90deg)"></span><span class="nd vA" style="transform:translate3d(0em,-0.41569em,-0.14697em)"><span class="cr"><span></span><span class="rd"></span></span></span><span class="nd vB" style="transform:translate3d(-0.36em,0.20785em,-0.14697em)"><span class="cr"><span></span><span class="rd"></span></span></span><span class="nd vC" style="transform:translate3d(0.36em,0.20785em,-0.14697em)"><span class="cr"><span></span><span class="rd"></span></span></span><span class="nd vD" style="transform:translate3d(0em,0em,0.44091em)"><span class="cr"><span></span><span class="rd"></span></span></span></div></div></div>
+						<div class="pg" aria-hidden="true"><b class="n0"></b><b class="n1"></b><b class="n2"></b><b class="n3"></b></div>
+						<div class="x9" aria-hidden="true"><b class="n0"></b><b class="n1"></b><b class="n2"></b><b class="n3"></b><s></s></div>
 						<div class="lockup">
-							<div class="wm">Poly<em>Math</em></div>
+							<div class="wm"><span class="wh hp s-flip"><i style="--i:0">P</i><i style="--i:1">o</i><i style="--i:2">l</i><i style="--i:3">y</i></span><em class="wh hm s-decode"><i class="dc" style="--i:0"><u>M</u><b><s>P
+y
+P
+o
+l
+y
+M</s></b></i><i class="dc" style="--i:1"><u>a</u><b><s>l
+t
+M
+l
+h
+P
+a</s></b></i><i class="dc" style="--i:2"><u>t</u><b><s>o
+l
+y
+o
+M
+P
+t</s></b></i><i class="dc" style="--i:3"><u>h</u><b><s>o
+P
+o
+l
+a
+y
+h</s></b></i></em></div>
 							<div class="rule"></div>
 							<div class="sub">Games</div>
 						</div>
 						<div class="barwrap on" id="am-barwrap">
-							<div class="bar"><div class="fill" id="am-fill"></div></div>
+							<div class="gbar" aria-hidden="true"><div class="gs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="gw"><div class="gc"><div class="gi"><div class="gsh"></div></div></div></div><div class="gk"><b></b></div></div>
 							<div class="pct" id="am-pct">LOADING · 0%</div>
+							<div class="lines" aria-hidden="true"></div>
 						</div>
 					</div>
 					<div class="legal">Play responsibly</div>
+					<div class="slow" aria-hidden="true"><span>STILL LOADING · HANG TIGHT</span></div>
 				</div>
 			</div>
 		</div>
@@ -280,17 +483,19 @@
 			   window.__amSplash is the only handle the app has on the splash:
 			     setBundle(loaded, total)  bytes of the JS bundle (this file's own bootstrap)
 			     setAssets(loaded, total)  bytes of the landing assets (src/game/boot.svelte.ts)
-			     done()                    fade out over 450 ms and remove
+			     done()                    leave (no earlier than MIN_MS, never mid first flip): the exit, removed at 740 ms
+			                               (reduced motion: the 450 ms fade, removed at 520)
 			     hideNow()                 remove instantly (?replay=true)
 			   __AM_BOOT is written into build/index.html by scripts/prune-build.mjs; in `vite dev`
 			   it is absent and the whole bundle phase is skipped (vite injects its own module). */
 			(function () {
 				var el = document.getElementById('am-splash');
 				var stage = el.querySelector('.stage');
-				var fill = document.getElementById('am-fill');
 				var pct = document.getElementById('am-pct');
 				var barwrap = document.getElementById('am-barwrap');
 				var t0 = Date.now();
+				var RM = false; /* prefers-reduced-motion: the CSS has its own @media blocks; the script skips the pyramid and keeps the ripple to a fade */
+				try { RM = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
 
 				/* the two sizing tables from PolyMathIntro.svelte, verbatim, plus the bar row */
 				var L = { w: 1280, h: 720, mark: 132, stroke: 5, node: 7.5, gapMark: 16, gapWm: 14, wmSize: 56, subSize: 15, subLs: '.52em', ruleW: 180, legalFs: 11, legalB: 40, barW: 420, barH: 10, barTop: 26, pctFs: 11.2 };
@@ -346,7 +551,9 @@
 				var share = 1;
 				var creep = 0; /* dev only: the bar must still move while vite serves its module graph */
 				var gone = false;
-				var MIN_MS = 1200; /* never cut the 880 ms draw-in short; a warm cache fades at 1.2 s */
+				/* never cut the intro short: the pyramid's first flip lands at about 2.07 s, so a warm cache now fades at 2.15 s
+				   (Corey 2026-10-21: "Yes keep it for at least 2.15 seconds"; it was 1200, the 880 ms draw-in) */
+				var MIN_MS = 2150;
 
 				/* SMOOTHING (Corey 2026-09-15): the reports are bursty — the bundle streams per chunk,
 				   the landing images per chunk, but a Pixi asset only reports when it has fully landed,
@@ -371,8 +578,9 @@
 					var p = Math.round(Math.min(cap, Math.max(target, predicted)));
 					if (p < painted) p = painted; /* never backwards */
 					painted = p;
-					fill.style.width = Math.max(4, p) + '%';
 					pct.textContent = 'LOADING · ' + p + '%';
+					paintBar(p);
+					paintLines(cap > 0 ? p / cap : 0);
 				}
 				var drawTimer = setInterval(function () { if (gone) return clearInterval(drawTimer); draw(); }, 200);
 
@@ -382,17 +590,109 @@
 					setPreload: function (l, t) { preload.loaded = l; preload.total = t; paint(); },
 					setShare: function (s) { share = Math.max(0.01, Math.min(1, s)); paint(); },
 					getShare: function () { return share; },
-					hideNow: function () { gone = true; if (el.parentNode) el.parentNode.removeChild(el); },
+					hideNow: function () { gone = true; stopExtras(); if (el.parentNode) el.parentNode.removeChild(el); },
 					done: function () {
 						if (gone) return;
 						gone = true;
-						setTimeout(function () {
-							el.classList.add('am-out');
-							setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 520);
-						}, Math.max(0, MIN_MS - (Date.now() - t0)));
+						setTimeout(leave, Math.max(0, MIN_MS - (Date.now() - t0)));
 					}
 				};
 				window.__amSplash = api;
+
+				/* the fade: never in the middle of the pyramid's first flip (a busy main thread can start it late), then the
+				   exit (idea 9: the panels part over 710 ms, removed at 740; reduced motion keeps the shipped 450 ms fade) */
+				function leave() {
+					if (flipEndAt > Date.now()) return void setTimeout(leave, flipEndAt - Date.now());
+					stopExtras();
+					el.classList.add('am-out');
+					setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, RM ? 520 : 740);
+				}
+				function stopExtras() {
+					pyStop = true;
+					clearTimeout(pyTimer);
+					pyClear();
+					clearTimeout(slowTimer);
+				}
+
+				/* the bar (idea 2): lights whole segments, 5 points each; a big jump runs them 45 ms apart */
+				var segs = el.querySelectorAll('.gs i'), gc = el.querySelector('.gc'), gi = el.querySelector('.gi'), gk = el.querySelector('.gk'), lit = 0;
+				function paintBar(p) {
+					var m = Math.min(20, Math.floor(p / 5));
+					if (m <= lit) return;
+					for (var i = lit; i < m; i++) { segs[i].style.setProperty('--d', (i - lit) * 45 + 'ms'); segs[i].classList.add('on'); }
+					lit = m;
+					var f = m * 5;
+					gc.style.transform = 'translateX(' + (f - 100) + '%)';
+					gi.style.transform = 'translateX(' + (100 - f) + '%)';
+					gk.style.transform = 'translateX(' + f + '%)';
+					gk.classList.toggle('on', m > 0 && m < 20);
+				}
+
+				/* loading lines (idea 3): a line per stretch of the bar (fractions of the splash's share), one at a time, each up
+				   for at least LINE_MS so every line reads on a slow load (Corey 2026-10-21 "Yes": each about 2 s) */
+				var LINES = ["SETTING THE TABLE","PRINTING THE MENU","SHOOING THE ROACHES","LOCATING THE INMATES","POLISHING THE SERVICE BELL","WAKING UP MARTY"];
+				var LINE_AT = [0,0.13,0.27,0.4,0.5,0.62], LINE_MS = 2000;
+				var linesBox = el.querySelector('.lines'), lineWant = 0, lineShown = -1, lineBusy = false, lineCur = null;
+				function showLine(i) {
+					if (lineCur) { var o = lineCur; o.classList.add('gone'); setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 220); }
+					var d = document.createElement('div'), txt = LINES[i];
+					d.className = 'ln';
+					for (var k = 0; k < txt.length; k++) { var sp = document.createElement('span'); sp.style.setProperty('--i', k); sp.textContent = txt[k]; d.appendChild(sp); }
+					d.style.setProperty('--n', txt.length);
+					linesBox.appendChild(d);
+					lineCur = d;
+					lineShown = i;
+					lineBusy = true;
+					setTimeout(function () { lineBusy = false; nextLine(); }, Math.max(LINE_MS, txt.length * 36 + 600));
+				}
+				function nextLine() { if (!gone && !lineBusy && lineWant > lineShown) showLine(lineShown + 1); } /* none starts once done() is in: the exit would cut it */
+				function paintLines(f) {
+					var w = 0;
+					for (var i = 0; i < LINE_AT.length; i++) if (f >= LINE_AT[i]) w = i;
+					lineWant = Math.min(w, LINES.length - 1);
+					nextLine();
+				}
+
+				/* the pyramid (idea 1): 620 ms in (the draw-in is done), the first pass runs ONE line and flips (1490 ms);
+				   every later pass, after a 1.6 s hold, runs the whole triangle back to its start node, which flips (3340 ms).
+				   One timer and one forced reflow per pass; the rest is CSS keyframes. Not under reduced motion. */
+				var lock = el.querySelector('.lock'), pyTimer = 0, pyK = -1, pyStop = false, flipEndAt = 0;
+				function pyClear() { lock.classList.remove('pyg', 'pF', 'pL', 'pv0', 'pv1', 'pv2'); }
+				function pyGo(first) {
+					if (pyStop) return;
+					var n = Math.floor(Math.random() * 3);
+					if (n === pyK) n = (n + 1 + Math.floor(Math.random() * 2)) % 3;
+					pyK = n;
+					pyClear();
+					void lock.offsetWidth;
+					lock.classList.add('pyg', first ? 'pF' : 'pL', 'pv' + n);
+					var d = first ? 1490 : 3340;
+					if (first) flipEndAt = Date.now() + d;
+					pyTimer = setTimeout(function () { pyGo(false); }, d + 1600);
+				}
+				if (!RM) pyTimer = setTimeout(function () { pyGo(true); }, 620);
+
+				/* the slow-load message (idea 8) */
+				var slowTimer = setTimeout(function () { el.querySelector('.slow').classList.add('on'); }, 8000);
+
+				/* tap ripple (idea 7): visual only; passive, never prevents or stops the event (the splash covers the game
+				   while it is up and takes no pointer once it fades) */
+				if (el.animate) {
+					var pings = el.querySelectorAll('.pg b');
+					el.addEventListener('pointerdown', function (e) {
+						if (el.classList.contains('am-out')) return;
+						var r = document.createElement('div');
+						r.className = 'rip';
+						r.style.left = e.clientX + 'px';
+						r.style.top = e.clientY + 'px';
+						el.appendChild(r);
+						r.animate(RM ? [{ opacity: 0.5 }, { opacity: 0 }] : [{ transform: 'scale(.08)', opacity: 0.9 }, { transform: 'scale(1)', opacity: 0 }], { duration: RM ? 500 : 700, easing: 'cubic-bezier(.2,.6,.3,1)' }).onfinish = function () { if (r.parentNode) r.parentNode.removeChild(r); };
+						for (var i = 0; i < pings.length; i++) {
+							var b = pings[i].getBoundingClientRect(), dist = Math.hypot(b.left + b.width / 2 - e.clientX, b.top + b.height / 2 - e.clientY);
+							pings[i].animate(RM ? [{ opacity: 0.6 }, { opacity: 0 }] : [{ transform: 'scale(.5)', opacity: 1 }, { transform: 'scale(1.7)', opacity: 0 }], { duration: RM ? 600 : 520, delay: Math.min(500, dist * 0.8), easing: 'ease-out' });
+						}
+					}, { passive: true });
+				}
 
 				/* a replay link is a recording: the round card is the first thing it shows */
 				try {
