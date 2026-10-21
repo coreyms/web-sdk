@@ -455,6 +455,13 @@ export const CLUSTER = {
 	readoutHeight: 0.42,
 };
 
+/** THE FIRST TAP (1.0.04; harsh review 2026-10-20 gameplay 10, "A reviewer who taps through the landing and taps once
+ *  more opens a symbol pay card over the board before the first spin"; Corey 2026-10-21 approved t, "ignore board taps
+ *  for about 1 s"): for `ignoreMs` real ms after PRESS ANYWHERE a tap on the board opens no symbol pay card
+ *  (components/SymbolPopup.svelte; the press time is game/boardIdle.ts `landing`). After it the pay card works as
+ *  before. 0 = the behaviour before. */
+export const FIRST_TAP = { ignoreMs: 1000 };
+
 /** THE DIM FOLLOWS THE WIN (1.0.04; harsh review 2026-10-20 design N4, "A 0.2x win still dims the whole board for about
  *  1.5 s"; Corey 2026-10-21 "Scale the dim's strength and/or length with the win size, small wins light"). The non-winners
  *  darken to a level read off this curve by the win set's own total (the book's wins of that cascade step, in bet

@@ -11,6 +11,7 @@
 	import { stateMeta, stateUrlDerived, stateConfig } from 'state-shared';
 
 	import { getContext } from '../game/context';
+	import { landing } from '../game/boardIdle';
 	import { IS_SOCIAL } from '../game/social';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
@@ -291,7 +292,12 @@
 	<!-- the recap: a tap on the idle plaque (1.0.04, HTML; only its box takes a press) -->
 	<SpinRecap />
 	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
-		<LandingScreen onpress={() => (landingPressed = true)} />
+		<LandingScreen
+			onpress={() => {
+				landing.pressedAt = performance.now();
+				landingPressed = true;
+			}}
+		/>
 	{/if}
 {/if}
 

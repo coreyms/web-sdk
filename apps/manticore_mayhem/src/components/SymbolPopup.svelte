@@ -28,13 +28,13 @@
 	import type * as PIXI from 'pixi.js';
 
 	import { getContext } from '../game/context';
-	import { BOARD_SIZES, GRID, SYMBOL_SIZE } from '../game/constants';
+	import { BOARD_SIZES, FIRST_TAP, GRID, SYMBOL_SIZE } from '../game/constants';
 	import config from '../game/config';
 	import { layoutKind } from '../game/layoutSpec';
 	import { openingsFor } from '../game/symbolPlace';
 	import { boardOpening } from '../game/boardTap';
 	import { stamp } from '../game/assets';
-	import { boardIdle } from '../game/boardIdle';
+	import { boardIdle, landing } from '../game/boardIdle';
 	import { SYMBOL_POPUP as P } from '../game/symbolPopupSpec';
 	import { isPopupCode, placePopup, popupContent, symbolPopupHook, type Box, type PopupCode } from '../game/symbolPopup';
 
@@ -82,6 +82,8 @@
 
 	const tap = (canvasX: number, canvasY: number, space: PIXI.Container) => {
 		if (!idle() || !downIdle) return close('not idle');
+		// THE FIRST TAP (FIRST_TAP): a fast tapper's taps right after PRESS ANYWHERE open nothing
+		if (performance.now() - landing.pressedAt < FIRST_TAP.ignoreMs) return close('first tap window');
 		const b = context.stateGameDerived.boardLayout();
 		const left = b.x - (BOARD_SIZES.width * b.scale) / 2;
 		const top = b.y - (BOARD_SIZES.height * b.scale) / 2;
@@ -246,6 +248,8 @@
 					board: view ? { ...view.board } : null,
 				}),
 				log: () => log.map((e) => ({ ...e })),
+				/** THE FIRST TAP (constants FIRST_TAP): when PRESS ANYWHERE was pressed (performance.now) and the window */
+				firstTap: () => ({ pressedAt: landing.pressedAt, ignoreMs: FIRST_TAP.ignoreMs }),
 				/** the page (CSS px) point at the middle of a cell, for a real click or touch */
 				cellPoint: (reel: number, row: number) => {
 					const cb = canvasBox();

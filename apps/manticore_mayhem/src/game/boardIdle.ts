@@ -15,6 +15,10 @@ import { stateGame as sg } from './stateGame.svelte';
 import { maxWinState } from './maxWin.svelte';
 import { armouryView } from '../ui/armoury/armouryView.svelte';
 
+/** when PRESS ANYWHERE was pressed (performance.now; -Infinity before it): the symbol pay card's first tap window
+ *  (constants FIRST_TAP, components/SymbolPopup.svelte) */
+export const landing = { pressedAt: -Infinity };
+
 export const boardIdle = (): boolean =>
 	stateXstateDerived.isIdle() &&
 	!sg.resumeHold &&
