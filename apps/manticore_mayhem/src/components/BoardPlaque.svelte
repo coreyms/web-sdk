@@ -491,7 +491,13 @@
 		const Hh = bot - top;
 		const font = fontCss !== null && planK > 0 ? fontCss / planK : tipFontU;
 		const pad = TIPS.stripPad;
-		const W = widthAt1(text) * font + 2 * pad;
+		// the strip holds the line as it is DRAWN: at the line's own small size the browser lays the text out a little
+		// wider than the reference size scaled (and an italic tail can overhang the advance), so the scaled width alone
+		// left the tail short of the strip's end (plaque_tips_probe endedPast, Decimus 2026-10-21: up to 7.6 units)
+		const scaled = widthAt1(text) * font;
+		tipCtx.font = fontAt(font);
+		const drawn = tipCtx.measureText(text);
+		const W = Math.max(scaled, drawn.width, drawn.actualBoundingBoxRight) + 2 * pad;
 		tipShown.stripW = W;
 		// the marquee (r5): the strip's left edge on the window's outermost right point as it enters (all of it outside
 		// the right slanted edge), its right edge on the window's outermost left point once it is gone (all of it past
@@ -540,6 +546,9 @@
 		const f0 = rightAt(tipShown.ink.y0);
 		const f1 = rightAt(tipShown.ink.y1);
 		tipShown.edge = { inL: Math.max(e0, e1), outL: Math.min(e0, e1), inR: Math.min(f0, f1), outR: Math.max(f0, f1) };
+		// the run ends once the drawn ink's right end is past the left slanted edge at the ink's own rows (never on a
+		// planned width short of the ink: the tail popped off instead of scrolling out)
+		tipShown.offset1 = Math.min(tipShown.offset1, tipShown.edge.outL - tipShown.ink.x1);
 		// the lines' texture: the canvas as it is (one upload per line), clamped, so past the clear padding at either end
 		// of the text the window samples nothing (no repeat). Made with the first line; later lines re-upload into it
 		if (lineTex.texture) lineTex.texture.source.update();

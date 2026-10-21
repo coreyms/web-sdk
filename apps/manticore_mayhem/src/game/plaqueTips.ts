@@ -142,7 +142,9 @@ export const tipLines = (mouse: boolean, superAnte = false, recapLine = false): 
 	'6 or more War Standards: Epic Free Spins',
 	"Manticore's sting can reveal War Standards",
 	"Manticore's sting turns symbols Wild",
-	"Manticore's Claw Swipe clears 3 rows and lights tiles",
+	// harsh review 2026-10-20 math 7 (Corey 2026-10-21 approved i): the War Standards in the band are never cleared and a lit
+	// tile doubles, so the line says what the swipe does to the tiles of its 3 rows (was "clears 3 rows and lights tiles")
+	"Manticore's Claw Swipe lights or doubles tiles in 3 rows",
 	"Manticore's roar clears low symbols in Super and Epic",
 	'In Free Spins, lit tiles stay all round',
 ];
