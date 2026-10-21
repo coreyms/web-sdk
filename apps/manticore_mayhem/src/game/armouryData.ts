@@ -38,12 +38,17 @@ export type ArmouryMode = {
 
 // accents are the old menu's (ui/bonusCards.ts, removed at the switch-over), tints and hero heights the prototype's (feature_menu_r2/src/page.js;
 // SUPER and EPIC: the dagger and the crown at the prototype's default 0.9 since the manticore was scrapped as a hero)
+// THE VOLATILITY PIPS (Corey 2026-10-21, after harsh review 2026-10-20 item 6 found the old pips against the mean
+// wins): ranked by the play's risk against its price, not by the mean win. "these should be ranked by play risk amount
+// vs the purchase amount. These are really marketing type numbers", "most players who play the free game buys are only
+// doing 1-2 spins, Ante/Super Ante is typically 25-100"; his values: "Ante 3, Super Ante 4, Free Spins - Epic are 3
+// and Mystery is 4" (was Ante 2, Super Ante 3, Free Spins 2, Super 3, Epic 4, Mystery 4)
 export const ARMOURY_MODES: readonly ArmouryMode[] = [
-	{ id: 'ANTE', group: 'spin', accent: '#e0b64a', tint: '#2a1a05', art: 'crest-day', heroH: 0.78, volatility: 2 },
-	{ id: 'SUPER_ANTE', group: 'spin', accent: '#e08a3c', tint: '#301405', art: 'crest-fire', heroH: 0.78, volatility: 3 },
-	{ id: 'BONUS', group: 'buy', accent: '#2eb0a8', tint: '#04282a', art: 'standard', heroH: 0.92, volatility: 2 },
+	{ id: 'ANTE', group: 'spin', accent: '#e0b64a', tint: '#2a1a05', art: 'crest-day', heroH: 0.78, volatility: 3 },
+	{ id: 'SUPER_ANTE', group: 'spin', accent: '#e08a3c', tint: '#301405', art: 'crest-fire', heroH: 0.78, volatility: 4 },
+	{ id: 'BONUS', group: 'buy', accent: '#2eb0a8', tint: '#04282a', art: 'standard', heroH: 0.92, volatility: 3 },
 	{ id: 'SUPER', group: 'buy', accent: '#7fb6ff', tint: '#071a3a', art: 'dagger', heroH: 0.9, volatility: 3 },
-	{ id: 'EPIC', group: 'buy', accent: '#ff6a4a', tint: '#3a0805', art: 'crown', heroH: 0.9, volatility: 4 },
+	{ id: 'EPIC', group: 'buy', accent: '#ff6a4a', tint: '#3a0805', art: 'crown', heroH: 0.9, volatility: 3 },
 	{
 		id: 'MYSTERY',
 		group: 'buy',

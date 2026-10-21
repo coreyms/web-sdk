@@ -47,7 +47,7 @@ export const ARMOURY_TEXT = {
 	button: { activate: 'ACTIVATE', switchOff: 'SWITCH OFF', unload: 'UNLOAD', confirm: 'CONFIRM', cancel: 'Cancel' },
 	/** the close button's label: KEEP IT EXACTLY (tools/manticore/resume_probe.js and chaos_gate.js find it by it) */
 	close: 'Close',
-	volatility: 'WIN SIZE',
+	volatility: 'VOLATILITY',
 	balanceShort: soc('Balance too low at this bet', 'Balance too low at this play amount'),
 	/** the chip on a mode that is on: on its tile, and leading the plate's status line (the status templates below start
 	 *  with it: "ON. Active now. ..."; the menu draws it as the chip and the rest as the line, `afterTag`) */
@@ -95,7 +95,7 @@ export const ARMOURY_TEXT = {
 		tile: soc('{name}, {kind}, {x} times the bet', '{name}, {kind}, {x} times the play amount'),
 		kind: { spin: soc('per spin mode', 'per play mode'), buy: soc('feature buy', 'feature') } satisfies Record<ArmouryGroup, string>,
 		on: ', on',
-		volatility: 'Win size {n} of 4',
+		volatility: 'Volatility {n} of 4',
 		/** the HUD's feature button with a mode on, behind the switch (it OPENS the menu on that mode, owner's answer 1):
 		 *  its label at rest, plus which mode is on. Without the switch the button keeps "Disable Ante" / "Cancel X" */
 		hudButtonOn: soc('Buy bonus, {name} on', 'Get bonus, {name} on'),
