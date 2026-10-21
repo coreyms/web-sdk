@@ -1105,8 +1105,9 @@ const tickAnticipation = (now: number, holdStart: number[], holdMs: number[]) =>
 /** one cluster as the handler hands it over: the book's cells and the book's three numbers */
 export type WinSpec = { cells: CellIndex[]; base: number; mult: number; total: number; symbol: SymbolName };
 export type WinSetHooks = {
-	/** a cluster's readout has begun (its SFX) */
-	onClusterStart?: (index: number) => void;
+	/** a cluster's readout has begun (its SFX). `accent` false: a skip (or a superseded run) fired this start along
+	 *  with others in the same frame and one of them has already asked for its accent (skipAccent) */
+	onClusterStart?: (index: number, accent: boolean) => void;
 	/** a cluster's count-up has landed on `total` (the spin total bumps here) */
 	onCountDone?: (index: number, total: number) => void;
 	/** a removed cell's symbol has left (its removal is over): its plate is exposed (the plate beat) */
@@ -1114,6 +1115,24 @@ export type WinSetHooks = {
 };
 
 const fmtAmount = (n: number) => bookEventAmountToCurrencyString(Math.round(n));
+
+/** ONE CLUSTER ACCENT ON A SKIP (Corey 2026-10-21, second harsh review: "place one sound accent at most on a skip").
+ *  In normal play the clusters are sequential (clusterGapMs), so each asks for its own accent in book order. A skip
+ *  lands every owed cluster start in one frame (and every later step of the skipped feature with it), so while
+ *  skipping only the FIRST start asks for its accent; a superseded run's catch-up asks for one at most. The hooks'
+ *  other work still runs. `skipAccentAsked` is cleared by requestSkip / finishSkip, so each skip gets its one. */
+let skipAccentAsked = false;
+const skipAccent = (owed: { asked: boolean }, catchUp: boolean): boolean => {
+	if (stateGame.skipping) {
+		if (skipAccentAsked) return false;
+		skipAccentAsked = true;
+		return true;
+	}
+	if (!catchUp) return true;
+	if (owed.asked) return false;
+	owed.asked = true;
+	return true;
+};
 /** DEV probe: the last win set's label decision (font, size, collisions left, the placed boxes in cells) */
 export const labelLog = { last: null as null | { forged: boolean; size: number; collisions: number; waves: number; labels: { x: number; y: number; w: number; h: number; anchorX: number; anchorY: number }[] } };
 /** DEV probe: the last win sets' labels (tools/manticore/capped_label_probe.js): the numbers each label was handed and
@@ -1338,6 +1357,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 
 	// ---- sample ----
 	const live = new Map<number, Readout>(); // readout id -> its live proxy in stateGame.readouts
+	const owedAccent = { asked: false }; // this set's catch-up accent (skipAccent)
 	const sample = (now: number) => {
 		// the dim, once, for the whole set: a darkening (the dim rule), never alpha
 		const dk = clamp01((now - dimT0) / Math.max(CLUSTER.dimMs, 1));
@@ -1352,7 +1372,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 				// symbol with a win sheet starts it on frame 0 here whatever the frame timing (the landing's landAt rule)
 				const winAt = performance.now() - (now - cl.t) / ts();
 				for (const m of cl.members) m.cell.winAt = winAt;
-				hooks.onClusterStart?.(i);
+				hooks.onClusterStart?.(i, skipAccent(owedAccent, false));
 				// THE WELLS (game/wellsFx.ts): the cluster's veins ripple from its first cell as its pulse starts
 				if (!stateGame.skipping) cueWellWin(cl.spec.cells, ts());
 			}
@@ -1531,7 +1551,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		// a skip (or a superseded run) may have jumped the hooks: fire what is still owed, in order
 		if (!cl.started) {
 			cl.started = true;
-			hooks.onClusterStart?.(clusters.indexOf(cl));
+			hooks.onClusterStart?.(clusters.indexOf(cl), skipAccent(owedAccent, true));
 		}
 		if (!cl.counted) {
 			cl.counted = true;
@@ -2471,6 +2491,7 @@ export const skipAllowed = (): boolean => !stateConfig.jurisdiction.disabledSlam
 const requestSkip = (): boolean => {
 	if (!skipAllowed() || !featureSpinsLive() || stateGame.skipping) return false;
 	stateGame.skipping = true;
+	skipAccentAsked = false;
 	// the wells' queued light-ups go with it (the wells also drop their flares that have not started)
 	clearWellCues();
 	return true;
@@ -2479,6 +2500,7 @@ const requestSkip = (): boolean => {
 /** the skip is over: the outro (or the max-win presentation) plays at normal speed from here */
 const finishSkip = () => {
 	stateGame.skipping = false;
+	skipAccentAsked = false;
 };
 
 // Board placement in master units (layoutSpec.ts). width/height are the UNSCALED Pixi board sizes.

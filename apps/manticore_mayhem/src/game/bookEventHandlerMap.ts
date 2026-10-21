@@ -510,8 +510,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			specs,
 			id,
 			{
-				// the cluster's own symbol's accent (clusterSound); a Wilds only cluster keeps the crunch
-				onClusterStart: (i) => eventEmitter.broadcast({ type: 'soundOnce', name: clusterSound(specs[i]?.symbol), forcePlay: true }),
+				// the cluster's own symbol's accent (clusterSound); a Wilds only cluster keeps the crunch. On a skip only the
+				// first owed start asks for one (stateGame skipAccent; Corey 2026-10-21 "one sound accent at most on a skip")
+				onClusterStart: (i, accent) => {
+					if (accent) eventEmitter.broadcast({ type: 'soundOnce', name: clusterSound(specs[i]?.symbol), forcePlay: true });
+				},
 				onCountDone: (i, total) => {
 					running += total;
 					// the capped step: the counts are the paid amounts, so the running sum lands on the spin's paid
