@@ -30,6 +30,11 @@ export const STAGING_MARKERS = [
 	'rescap', // game/deviceTier.ts: the resolution cap override's query parameter
 	'getHighEntropyValues', // staging/PerfReadout.svelte: nothing in the game asks for device details
 ];
+/** strings that must be in NO build, production or staging: dev server only code (a staging build is not expected to
+ *  carry them, so --expect-staging does not ask for them) */
+export const NEVER_MARKERS = [
+	'audiodiag', // ui/MenuButton.svelte: the iOS audio readout's query parameter, DEV only since 2026-10-21 (Corey "no longer needed")
+];
 /** a marker's name in the report */
 const label = (m) => (typeof m === 'string' ? m : m.source);
 /** where a marker is in a text, or -1 */
@@ -48,7 +53,7 @@ export const scan = (build) => {
 		const text = readFileSync(file, 'utf8');
 		files += 1;
 		bytes += statSync(file).size;
-		for (const m of STAGING_MARKERS) {
+		for (const m of [...STAGING_MARKERS, ...NEVER_MARKERS]) {
 			const at = find(text, m);
 			const marker = label(m);
 			if (at >= 0) hits.push({ file: relative(build, file), marker, context: text.slice(Math.max(0, at - 40), at + 60).replace(/\s+/g, ' ') });
@@ -69,6 +74,11 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 	const found = [...new Set(hits.map((h) => h.marker))];
 	if (expectStaging) {
 		const missing = STAGING_MARKERS.map(label).filter((m) => !found.includes(m));
+		const never = hits.filter((h) => NEVER_MARKERS.map(label).includes(h.marker));
+		if (never.length) {
+			console.error(`[check-production-bundle] --expect-staging: dev server only code found (${[...new Set(never.map((h) => h.marker))].join(', ')}); no build may carry it.`);
+			process.exit(1);
+		}
 		if (missing.length) {
 			console.error(`[check-production-bundle] --expect-staging: this is NOT a complete staging build. Missing: ${missing.join(', ')}. Was it built with PUBLIC_STAGING=1?`);
 			process.exit(1);
@@ -82,5 +92,5 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 		console.error('Rebuild WITHOUT PUBLIC_STAGING (and without a turbo cache hit from a staging build: pnpm turbo run build --filter=manticore_mayhem... --force).');
 		process.exit(1);
 	}
-	console.log(`[check-production-bundle] PASS: no staging code in ${build} (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned, ${STAGING_MARKERS.length} markers).`);
+	console.log(`[check-production-bundle] PASS: no staging code in ${build} (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned, ${STAGING_MARKERS.length + NEVER_MARKERS.length} markers).`);
 }

@@ -24,8 +24,10 @@
 			stateSound.volumeValueMusic = 0;
 		}
 	};
-	// staging diagnostics for the iOS audio work (2026-09-17): ?audiodiag=1 adds one readout line
-	const audioDiag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('audiodiag');
+	// diagnostics for the iOS audio work (2026-09-17): ?audiodiag=1 adds one readout line. The dev server only since
+	// 2026-10-21 (harsh review 2026-10-20 math 6; Corey "no longer needed"): import.meta.env.DEV is false in every build,
+	// so the read compiles away; scripts/check-production-bundle.mjs NEVER_MARKERS fails any build that still has it
+	const audioDiag = import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('audiodiag');
 	const toggleSfx = () => {
 		if (stateSound.volumeValueSoundEffect === 0) stateSound.volumeValueSoundEffect = lastSfx || 75;
 		else {
