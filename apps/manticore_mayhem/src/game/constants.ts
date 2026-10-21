@@ -455,6 +455,33 @@ export const CLUSTER = {
 	readoutHeight: 0.42,
 };
 
+/** THE DIM FOLLOWS THE WIN (1.0.04; harsh review 2026-10-20 design N4, "A 0.2x win still dims the whole board for about
+ *  1.5 s"; Corey 2026-10-21 "Scale the dim's strength and/or length with the win size, small wins light"). The non-winners
+ *  darken to a level read off this curve by the win set's own total (the book's wins of that cascade step, in bet
+ *  multiples), straight lines between the points, held at the ends: a 0.2x step barely dims, from 5x it is
+ *  CLUSTER.dimAlpha as before. Its length is the presentation's own (unchanged). Pairs [x bet, dim level], 1 = no dim. */
+export const WIN_DIM = {
+	curve: [
+		[0.2, 0.88],
+		[1, 0.76],
+		[2, 0.66],
+		[5, 0.5],
+	] as readonly (readonly [number, number])[],
+};
+/** the dim level for a win set paying `xBet` times the bet (WIN_DIM.curve) */
+export const winDimFor = (xBet: number): number => {
+	const c = WIN_DIM.curve;
+	if (xBet <= c[0][0]) return c[0][1];
+	for (let i = 1; i < c.length; i += 1) {
+		if (xBet <= c[i][0]) {
+			const [x0, y0] = c[i - 1];
+			const [x1, y1] = c[i];
+			return y0 + ((y1 - y0) * (xBet - x0)) / (x1 - x0);
+		}
+	}
+	return c[c.length - 1][1];
+};
+
 /** the cluster readout: "base  xmult" sit apart, slam together, punch, count up in place, then
  *  CLUSTER.holdMs. The numbers shown are the book's (win.p, win.m, win.w); a win with no tile
  *  (m = 0) skips the raw / slam phases and counts 0 -> w. */

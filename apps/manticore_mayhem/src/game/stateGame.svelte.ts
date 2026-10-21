@@ -29,6 +29,7 @@ import {
 	GRAVITY_DROP,
 	BOARD_EXIT,
 	CLUSTER,
+	winDimFor,
 	READOUT,
 	CLUSTER_LABEL,
 	LABEL_PLACE,
@@ -1317,6 +1318,8 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		};
 	});
 	const dimT0 = clusters[0].t;
+	// THE DIM FOLLOWS THE WIN (WIN_DIM): the level by this set's own total, in bet multiples (book units: 100 = 1x)
+	const dimTo = winDimFor(wins.reduce((a, w) => a + w.total, 0) / 100);
 	const dimmed: Cell[] = [];
 	for (const c of stateGame.cells) if (!allWinners.has(cellOf(c.reel, c.row)) && c.state !== 'removing') dimmed.push(c);
 	for (const cl of clusters) for (const m of cl.members) m.cell.state = 'win';
@@ -1338,7 +1341,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	const sample = (now: number) => {
 		// the dim, once, for the whole set: a darkening (the dim rule), never alpha
 		const dk = clamp01((now - dimT0) / Math.max(CLUSTER.dimMs, 1));
-		if (now >= dimT0) for (const c of dimmed) c.dim = 1 - (1 - CLUSTER.dimAlpha) * dk;
+		if (now >= dimT0) for (const c of dimmed) c.dim = 1 - (1 - dimTo) * dk;
 
 		let listChanged = false;
 		for (let i = 0; i < clusters.length; i += 1) {
@@ -1557,7 +1560,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			const map = liveById();
 			for (const idm of dimmedIds) {
 				const c = map.get(idm);
-				if (c) c.dim = CLUSTER.dimAlpha + (1 - CLUSTER.dimAlpha) * t;
+				if (c) c.dim = dimTo + (1 - dimTo) * t;
 			}
 		});
 	}

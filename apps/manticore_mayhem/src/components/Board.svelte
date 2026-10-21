@@ -48,7 +48,7 @@
 	import { fxLog, boardKick, swipeFx, gustFx, chainGust, type ChainGustKind } from '../game/featureFx';
 	import BoardCells from './BoardCells.svelte';
 	import { revealTease, plateLog, boardExit } from '../game/stateGame.svelte';
-	import { BOARD_EXIT, CHAIN_GUST, DROP } from '../game/constants';
+	import { BOARD_EXIT, CHAIN_GUST, DROP, winDimFor } from '../game/constants';
 	import { hudWin } from '../game/hudWin.svelte';
 
 	const context = getContext();
@@ -117,6 +117,8 @@
 			emit: (event: any) => context.eventEmitter.broadcast(event),
 			/** arm a bet mode by its RGS key (BASE / ANTE / SUPER_ANTE / BONUS / SUPER / EPIC / MYSTERY) */
 			setMode: (key: string) => (stateBet.activeBetModeKey = key),
+			/** THE DIM FOLLOWS THE WIN (constants WIN_DIM): the dim level for a win set paying `x` times the bet */
+			winDim: (x: number) => winDimFor(x),
 			/** set the bet (one of the RGS's levels, in currency units) */
 			setBet: (value: number) => stateBetDerived.setBetAmount(value),
 			bet: () => stateBet.betAmount,
