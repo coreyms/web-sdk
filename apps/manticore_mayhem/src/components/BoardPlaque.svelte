@@ -1640,7 +1640,7 @@
 	badgeLayer.addChild(badgeDigits);
 	/** the row: on, Super Ante's, when it came in, when each slot filled (real ms; -1 = empty), the War Standards on the
 	 *  board last frame, the miss / handover / shrink starts and the EPIC re-strike */
-	const fl = { on: false, spent: false, sa: false, t0: 0, fillAt: [-1, -1, -1, -1, -1, -1], prevN: 0, missT0: -1, outT0: -1, shrinkT0: -1, shrinkMs: 1, restrikeT0: -1, triggerT0: -1 };
+	const fl = { on: false, spent: false, sa: false, my: false, t0: 0, fillAt: [-1, -1, -1, -1, -1, -1], prevN: 0, missT0: -1, outT0: -1, shrinkT0: -1, shrinkMs: 1, restrikeT0: -1, triggerT0: -1 };
 	/** the badge: on, its pop-in start, its count, its flares and its exit */
 	const bd = { on: false, t0: 0, count: 0, flareT0: -1, countT0: -1, outT0: -1 };
 	const flagsReset = () => {
@@ -1692,11 +1692,14 @@
 			fl.spent = true;
 			fl.t0 = now;
 			fl.sa = stateBet.activeBetModeKey === 'SUPER_ANTE';
+			// a bought Mystery: 3 War Standards land and 0, 2 or 3 are stung in (game_config.MYSTERY_STING_COUNT), so 4 is
+			// never a level there (harsh review 2026-10-20 must-fix 5: its row read FS | SUPER | EPIC and filled FS)
+			fl.my = !fl.sa && (sg.mysteryOutcome !== null || stateBet.activeBetModeKey === 'MYSTERY');
 			fl.prevN = 3;
 			fl.missT0 = fl.outT0 = fl.shrinkT0 = fl.restrikeT0 = fl.triggerT0 = -1;
 			fl.fillAt.fill(-1);
 			for (let i = 0; i < 3; i += 1) fl.fillAt[i] = now + real(F.popInStaggerMs) * i;
-			fnote(fl.sa ? 'row superAnte' : 'row');
+			fnote(fl.sa ? 'row superAnte' : fl.my ? 'row mystery' : 'row');
 		}
 		if (fl.on) {
 			for (let i = 3; i < 6; i += 1)
@@ -1749,7 +1752,9 @@
 			const totalW = 3 * fw + 2 * F.gap + 3 * (F.gap + F.sep + F.gap + lw);
 			const L = (fx: number) => ((fx - totalW / 2) * sc) / k;
 			const U = (fu: number) => (fu * sc) / k;
-			const labels = fl.sa ? ['SA_SUPER', 'BLANK', 'EPIC'] : ['FS', 'SUPER', 'EPIC'];
+			// the level flags: FS | SUPER | EPIC; Super Ante SUPER | blank | EPIC; a Mystery blank | SUPER | EPIC (no Free
+			// Spins there: 3 + 2 stings = Super, 3 + 3 = Epic; Corey 2026-10-21 "2, 3, 5, and 7 are obvious fixes")
+			const labels = fl.sa ? ['SA_SUPER', 'BLANK', 'EPIC'] : fl.my ? ['BLANK', 'SUPER', 'EPIC'] : ['FS', 'SUPER', 'EPIC'];
 			flagState.labels = labels.join(',');
 			// the slot at stake: the next one to fill, lit while its column holds (the tease, read only)
 			const next = n < 6 ? n : -1;
@@ -2244,6 +2249,7 @@
 				plaqueFlags: () => ({
 					on: fl.on,
 					sa: fl.sa,
+					mystery: fl.my,
 					n: context.stateGame.scatterCells.length,
 					...flagState,
 					miss: fl.missT0 >= 0,
