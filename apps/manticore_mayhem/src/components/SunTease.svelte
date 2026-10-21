@@ -69,7 +69,7 @@
 	const flares = Array.from({ length: POOL }, () => add(sunTexture(), front));
 
 	/** DEV probe (tools/manticore/sun_tease_probe.js): what was drawn last frame, board units */
-	const drawn = { on: false, reel: -1, x: 0, y: 0, alpha: 0, size: 0, edge: -1, phase: 'none' as string, threads: 0, halos: 0, flares: 0, beads: 0, frames: 0 };
+	const drawn = { on: false, reel: -1, x: 0, y: 0, alpha: 0, size: 0, edge: -1, phase: 'none' as string, threads: 0, halos: 0, flares: 0, beads: 0, frames: 0, threadEnd: -1, floor: 0 };
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		Object.assign(((window as any).__manticore ??= {}), {
 			sunTease: () => ({ drawn: { ...drawn }, state: { ...teaseNow() }, knobs: { sun: sunK, beams: beamsK, hold: stagingTeaseHoldMs, fall: stagingTeaseFall }, plan: revealTease.plan ? JSON.parse(JSON.stringify(revealTease.plan)) : null }),
@@ -195,6 +195,7 @@
 		drawn.alpha = sunOn ? disc.alpha : 0;
 		drawn.size = D;
 		drawn.edge = edge;
+		drawn.floor = Number.isFinite(boardCutSlot.bottom) ? boardCutSlot.bottom : H;
 
 		// ---- over the tiles: halos, threads, beads, flares
 		const last = plan.columns[plan.columns.length - 1];
@@ -203,6 +204,8 @@
 		let nt = 0;
 		let nf = 0;
 		let nb = 0;
+		/** the lowest thread end drawn this frame, board px (DEV probe: never past the cut line) */
+		let threadEnd = -1;
 		for (let j = 0; j < POOL; j += 1) {
 			const halo = halos[j];
 			const th = threads[j];
@@ -246,8 +249,15 @@
 			const on = sunOn && ta > 0.01;
 			th.visible = tg.visible = b0.visible = b1.visible = on;
 			if (!on) continue;
-			const dx = x - sx;
-			const dy = y - sy;
+			// THE BOARD'S BOTTOM (1.0.04, Corey 2026-10-20: "On the anticipation reels, on a miss, the connecting lines drop
+			// below the boards boundaries, they should stop at the bottom of the board"): while the sun sinks past the cut
+			// line the falling symbols are cut at (BoardCells' fall mask, boardCutSlot.bottom), the thread and its beads end
+			// where the line to it crosses that line. No mask: the geometry is shortened
+			const floor = Number.isFinite(boardCutSlot.bottom) ? boardCutSlot.bottom : H;
+			const ty = y > floor && floor > sy ? floor : y;
+			const tx = ty === y ? x : sx + ((x - sx) * (floor - sy)) / (y - sy);
+			const dx = tx - sx;
+			const dy = ty - sy;
 			const len = Math.hypot(dx, dy) * g;
 			const rot = Math.atan2(dy, dx);
 			for (const [s, hCells, a] of [
@@ -260,6 +270,7 @@
 				s.alpha = Math.min(1, a * ta);
 			}
 			nt += 1;
+			if (ty > threadEnd) threadEnd = ty;
 			for (let k = 0; k < 2; k += 1) {
 				const b = k === 0 ? b0 : b1;
 				const u = (((sec * S.beadSpeed + S.beadPerBuild * build + j * 0.27 + k * 0.5) % 1) + 1) % 1;
@@ -270,6 +281,7 @@
 			}
 		}
 		drawn.halos = nh;
+		drawn.threadEnd = threadEnd;
 		drawn.threads = nt;
 		drawn.flares = nf;
 		drawn.beads = nb;

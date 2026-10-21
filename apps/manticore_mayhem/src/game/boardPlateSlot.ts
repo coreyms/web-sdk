@@ -17,4 +17,4 @@ export const frameLight = { night: 0, fire: 0, nightTint: 0xffffff, fireTint: 0,
  *  lines by the same one mask as the tiles coming in and going out. `tease`: Anticipation's columns are showing (the cut
  *  layer must be shown while they are). `sun`: the same for the War Standard's sun (components/SunTease.svelte, 1.0.04),
  *  which puts its disc and its light down the well in this slot too. */
-export const boardCutSlot: { current: PIXI.Container | null; tease: boolean; sun: boolean } = { current: null, tease: false, sun: false };
+export const boardCutSlot: { current: PIXI.Container | null; tease: boolean; sun: boolean; bottom: number } = { current: null, tease: false, sun: false, bottom: NaN };

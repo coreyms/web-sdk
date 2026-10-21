@@ -136,6 +136,8 @@
 		const e = latticeEdges(kind, vw);
 		cutTop = e.top[FALL_CUT.edge] - FALL_CUT.offsetPx;
 		cutBottom = e.bottom[FALL_CUT.edge] + FALL_CUT.offsetPx;
+		// the sun tease's threads end on this same line (components/SunTease.svelte, 1.0.04)
+		boardCutSlot.bottom = cutBottom;
 		fallMask.clear().rect(-SYMBOL_SIZE, cutTop, BOARD_SIZES.width + 2 * SYMBOL_SIZE, cutBottom - cutTop).fill(0xffffff);
 	};
 	setCutLines('landscape');
