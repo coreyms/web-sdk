@@ -35,6 +35,15 @@ export const STAGING_MARKERS = [
 export const NEVER_MARKERS = [
 	'audiodiag', // ui/MenuButton.svelte: the iOS audio readout's query parameter, DEV only since 2026-10-21 (Corey "no longer needed")
 ];
+/** strings the SHIPPED index.html must not carry, production or staging (Corey 2026-10-21 on src/app.html's developer
+ *  comments: "they shouldn't be in the production or staging builds"; scripts/prune-build.mjs strips them). The
+ *  tokenizer of prune-build also has to find no comment left (a `//` line comment has no safe plain-text marker). */
+export const SHELL_MARKERS = [
+	'<!--', // an HTML comment
+	'/*', // a CSS or JS block comment (none of the shell's strings, regexes or font data URIs has one)
+	'/Users/', // a local path
+	'Desktop', // a local folder
+];
 /** a marker's name in the report */
 const label = (m) => (typeof m === 'string' ? m : m.source);
 /** where a marker is in a text, or -1 */
@@ -42,6 +51,21 @@ const find = (text, m) => (typeof m === 'string' ? text.indexOf(m) : text.search
 const TEXT = new Set(['.js', '.mjs', '.css', '.html', '.json', '.map', '.txt', '.svg']);
 
 const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? walk(join(dir, d.name)) : [join(dir, d.name)]));
+
+/** the shipped shell's comment hits: the markers above, and any comment prune-build's tokenizer still finds */
+export const scanShell = async (build) => {
+	const hits = [];
+	const text = readFileSync(join(build, 'index.html'), 'utf8');
+	for (const m of SHELL_MARKERS) {
+		const at = text.indexOf(m);
+		if (at >= 0) hits.push({ file: 'index.html', marker: m, context: text.slice(Math.max(0, at - 40), at + 60).replace(/\s+/g, ' ') });
+	}
+	const { stripShellComments } = await import('./prune-build.mjs');
+	const st = stripShellComments(text);
+	const left = st.html ? st.removed.html + st.removed.css + st.removed.js : -1;
+	if (left !== 0) hits.push({ file: 'index.html', marker: 'comment', context: left < 0 ? `the comment tokenizer failed: ${st.why}` : `${left} comments left (${JSON.stringify(st.removed)})` });
+	return hits;
+};
 
 export const scan = (build) => {
 	const hits = [];
@@ -72,6 +96,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 	}
 	const { hits, files, bytes } = scan(build);
 	const found = [...new Set(hits.map((h) => h.marker))];
+	const shellHits = await scanShell(build);
+	if (shellHits.length) {
+		console.error(`[check-production-bundle] FAIL: the shipped index.html in ${build} carries developer comments or local paths. No build may carry them (scripts/prune-build.mjs strips them; did it warn?).`);
+		for (const h of shellHits.slice(0, 20)) console.error(`  ${h.marker}  in ${h.file}:  ...${h.context}...`);
+		process.exit(1);
+	}
 	if (expectStaging) {
 		const missing = STAGING_MARKERS.map(label).filter((m) => !found.includes(m));
 		const never = hits.filter((h) => NEVER_MARKERS.map(label).includes(h.marker));
@@ -92,5 +122,5 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 		console.error('Rebuild WITHOUT PUBLIC_STAGING (and without a turbo cache hit from a staging build: pnpm turbo run build --filter=manticore_mayhem... --force).');
 		process.exit(1);
 	}
-	console.log(`[check-production-bundle] PASS: no staging code in ${build} (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned, ${STAGING_MARKERS.length + NEVER_MARKERS.length} markers).`);
+	console.log(`[check-production-bundle] PASS: no staging code in ${build} (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned, ${STAGING_MARKERS.length + NEVER_MARKERS.length} markers; index.html has no comments).`);
 }
