@@ -166,6 +166,17 @@
 		const ch = (sh: number) => Math.round(((a >> sh) & 0xff) + (((b >> sh) & 0xff) - ((a >> sh) & 0xff)) * t);
 		return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 	};
+	/** the pop's flash tint per symbol: the shine's warm white moved toward the symbol's colour (WIN_FX.tintToSymbol) */
+	const heatTints = new Map<string, number>();
+	const heatTint = (name: string): number => {
+		let t = heatTints.get(name);
+		if (t === undefined) {
+			const c = WIN_FX.colors[name];
+			t = c === undefined ? WIN_FX.shine.tint : mixColor(WIN_FX.shine.tint, c, WIN_FX.tintToSymbol.strength);
+			heatTints.set(name, t);
+		}
+		return t;
+	};
 
 	// ---- the symbol sheets: per symbol name, the parsed drop / idle frames, built ONCE per name the
 	// first frame that symbol's drop sheet is in (frame count from the sheet itself, never assumed) --
@@ -577,6 +588,11 @@
 		let heat = fx.heat * alpha;
 		if (heat < 0.004) heat = 0;
 		if (g.full.alpha !== heat) g.full.alpha = heat;
+		// the flash leans to the symbol's own colour (WIN_FX.tintToSymbol)
+		if (heat > 0) {
+			const ht = heatTint(sl.name);
+			if (g.full.tint !== ht) g.full.tint = ht;
+		}
 		const S = WIN_FX.shine;
 		const half = S.band / 2;
 		for (let j = 0; j < SH_ROWS; j += 1) {
@@ -1253,7 +1269,8 @@
 		slotB.rays.position.set(ox, oy);
 		slotB.core.position.set(ox, oy);
 		slotB.rays.tint = b.tint;
-		slotB.core.tint = mixColor(b.tint, 0xffffff, BR.core.whiten);
+		// the core leans to the symbol's colour too (WIN_FX.tintToSymbol): whitened by less
+		slotB.core.tint = mixColor(b.tint, 0xffffff, BR.core.whiten * (1 - WIN_FX.tintToSymbol.strength));
 		// the embers: spread evenly round the cell with a jitter, so a handful never bunches up
 		const tint = mixColor(b.tint, 0xffffff, EM.whiten);
 		for (let i = 0; i < EM_PER; i += 1) {

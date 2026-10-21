@@ -641,6 +641,15 @@ export const WIN_FX = {
 	 *  symbol pops: a decaying wobble of ampPx board px (about 1.5 to 2 screen px on a 1440 x 900 desktop, 1 to 1.5 on
 	 *  a phone) at hz (style time) over ms; the y wobble is yShare of the x one, a quarter period behind */
 	shake: { minCluster: 15, ampPx: 3.5, hz: 17, ms: 320, yShare: 0.6 },
+	/** THE END OF A WIN LEANS TO ITS SYMBOL'S COLOUR (1.0.04; harsh review 2026-10-20 design N2, "Every win still ends in
+	 *  the same code burst: a scale-up flash and a white four-point sparkle star"; Corey 2026-10-21 wants "just a slight
+	 *  tint": that star and flash toward the winning symbol's own colour, a white core kept so it still reads as a
+	 *  sparkle). Sprite tint only. `strength` moves the pop's flash (the heat, an additive copy of the symbol, warm white
+	 *  `shine.tint`) and the burst's soft core (its colour whitened by `burst.core.whiten`) toward `colors[symbol]` by this
+	 *  share; the core's centre stays white hot (additive, the texture's peak) and the rays keep the full colour as
+	 *  before. 0 = the look before. The sting's hit is not this burst: its rays and core take the sting look's own
+	 *  colours (STING_FX.looks), unchanged. */
+	tintToSymbol: { strength: 0.35 },
 };
 
 /** the spin total (components/BoardPlaque.svelte, the plaque under the board; SpinWin.svelte until 2026-10-14): a running bump as each cluster's count-up finishes,
