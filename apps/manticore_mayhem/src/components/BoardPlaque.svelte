@@ -840,7 +840,8 @@
 	root.addChild(flagsLayer, badgeLayer);
 
 	// ---- THE BIG WIN CELEBRATION (1.0.04, PLAQUE_CELEBRATE; game/plaqueCelebrate.ts) -----------------------------------
-	// While the Stinger's win screen is up the rows, the total and the badge stand aside and the plaque shows the Stinger's
+	// While the Stinger's win screen is up the rows, the total and the badge DIM to PLAQUE_CELEBRATE.dimTo (never hidden:
+	// Corey 2026-10-21 "restore the recap and dim it to barely visible when the stinger is present") and the plaque shows the Stinger's
 	// tier title (BIG WIN .. MAX WIN) in its own numerals atlas, through the field's H like the total, each word punching
 	// in on the Stinger title's own beat; an additive copy of the plaque pulses on each tier beat and an additive copy of
 	// the word brightens it on its beat (variant B). Two word meshes (the word on show and the one going out) and the
@@ -930,11 +931,12 @@
 		return u * u * ((s + 1) * u + s) + 1;
 	};
 	/** DEV: what the celebration drew this frame, and every word's first drawn frame (tools/manticore/plaque_celebrate_probe.js) */
-	const celebState = { on: false, hideK: 1, word: '', wordAlpha: 0, wordScale: 1, old: '', oldAlpha: 0, rim: 0, bright: 0 };
+	const celebState = { on: false, hideK: 1, dimTo: PLAQUE_CELEBRATE.dimTo, word: '', wordAlpha: 0, wordScale: 1, old: '', oldAlpha: 0, rim: 0, bright: 0 };
 	const celebLog: { seq: number; word: string; tier: number; punchAt: number; drawnAt: number }[] = [];
 	let celebSeq = -1;
 	let celebDrawn = -1;
-	/** this frame of the celebration; returns the share of the rows, the total and the badge left on show (1 = all) */
+	/** this frame of the celebration; returns the share of the rows, the total and the badge left on show (1 = all, never
+	 *  under PLAQUE_CELEBRATE.dimTo) */
 	const celebrateTick = (now: number): number => {
 		const C = plaqueCelebrate;
 		const P = PLAQUE_CELEBRATE;
@@ -949,11 +951,13 @@
 			celebDrawn = -1;
 		}
 		const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
-		let hideK = 1 - clamp((now - C.showAt) / Math.max(1, P.figuresOutMs));
+		const smooth = (u: number) => u * u * (3 - 2 * u);
+		// DOWN to dimTo on the show, smoothly; back UP to 1 from where it stands after the leave (continuous either way)
+		let hideK = 1 - (1 - P.dimTo) * smooth(clamp((now - C.showAt) / Math.max(1, P.dimMs)));
 		let out = 1;
 		if (C.hideAt >= 0) {
 			out = 1 - clamp((now - C.hideAt) / Math.max(1, P.wordOutMs));
-			hideK = Math.max(hideK, clamp((now - C.hideAt - P.figuresBackDelayMs) / Math.max(1, P.figuresBackMs)));
+			hideK += (1 - hideK) * smooth(clamp((now - C.hideAt - P.figuresBackDelayMs) / Math.max(1, P.figuresBackMs)));
 			if (now >= C.hideAt + Math.max(P.wordOutMs, P.figuresBackDelayMs + P.figuresBackMs)) {
 				// restored: the plaque is what it was
 				C.on = false;
@@ -983,7 +987,8 @@
 			if (tin >= 0) {
 				wa = clamp(tin / Math.max(1, Math.min(100, P.punchMs)));
 				ws = tin >= P.punchMs ? 1 : P.punchFrom + (1 - P.punchFrom) * backOutC(tin / Math.max(1, P.punchMs));
-				br = P.brighten * (1 - clamp(tin / Math.max(1, P.brightenMs)));
+				// the beat's brighten, then held at wordHold (a little brighter than the lettering alone)
+				br = Math.max(P.wordHold * wa, P.brighten * (1 - clamp(tin / Math.max(1, P.brightenMs))));
 				if (import.meta.env.DEV && celebDrawn < C.beats.indexOf(cur)) {
 					celebDrawn = C.beats.indexOf(cur);
 					celebLog.push({ seq: C.seq, word: A.text, tier: cur.tier, punchAt: cur.punchAt, drawnAt: now });
@@ -2290,7 +2295,7 @@
 			lift = Math.min(1, el / move.lift);
 			move.phase = el < move.lift || move.fly <= 0 ? 'lift' : 'fly';
 		}
-		// THE BIG WIN CELEBRATION (PLAQUE_CELEBRATE): the rows, the total and the badge stand aside while it runs
+		// THE BIG WIN CELEBRATION (PLAQUE_CELEBRATE): the rows, the total and the badge dim to dimTo while it runs
 		const celebK = forced !== null ? 1 : celebrateTick(now);
 		const totalAlpha = hidden ? 0 : fa * celebK * (forced !== null || total.shown ? 1 : 0) * (move.phase !== 'none' && !move.keep ? 1 - lift * lift : 1);
 		if (figures.alpha !== totalAlpha) figures.alpha = totalAlpha;

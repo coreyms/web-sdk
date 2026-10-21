@@ -803,7 +803,12 @@ export type PlaqueClearsLayout = {
  *  up left as it is ("Leave the plaque as is there")). components/BoardPlaque.svelte draws it from the beats
  *  components/StingerPlaque.svelte publishes (game/plaqueCelebrate.ts). The Stinger's beats run in real time at every
  *  turbo (turbo shortens its count), so these do too. All ms real.
- *    figuresOutMs   on the Stinger's show the rows, the total and the badge fade out (gone before the impact at 250)
+ *    DIM, NEVER HIDE (Corey 2026-10-21, second harsh review: the hide and restore could read as a glitch, and the plaque
+ *    must end on the final amount because players tap it after the spin: "let's restore the recap and dim it to barely
+ *    visible when the stinger is present"). Until then (4b0fdfd) the rows, the total and the badge were hidden.
+ *    dimTo          what the rows, the total and the badge keep while the Stinger is up: "barely visible" (x their alpha)
+ *    dimMs          on the Stinger's show they fade DOWN to dimTo over dimMs, smoothstep (no snap; done before the
+ *                   impact at 250)
  *    wordScale      the word's height x the total's (PLAQUE_CLEARS.totalSize): 0.8 x the preview's 1.25 (Corey "20%
  *                   smaller"); tierGrow more per tier above BIG; any word fitted to BOARD_PLAQUE.fieldFill of the field
  *    punchFrom / punchMs   the word punches from punchFrom to 1 (back out) over punchMs, fading in over min(100, punchMs)
@@ -813,10 +818,14 @@ export type PlaqueClearsLayout = {
  *                   pulseTierStep x tier), attack then a quadratic decay over pulseMs; BIG's on the impact, each later
  *                   tier's on its title beat, half of it on the count's end
  *    brighten / brightenMs  the word's additive brighten on its own beat
- *    wordOutMs / figuresBackDelayMs / figuresBackMs   at the Stinger's leave the word fades, then the figures fade back */
+ *    wordHold       the word held a little BRIGHTER than its lettering alone (the second review's DESIGN lens: "a dull
+ *                   label"): the same additive copy stays at wordHold x the word's alpha after its beat's brighten
+ *    wordOutMs / figuresBackDelayMs / figuresBackMs   at the Stinger's leave the word fades, then the rows, the total and
+ *                   the badge fade back UP to full (smoothstep), ending on the final amount as before */
 export const PLAQUE_CELEBRATE = {
 	on: true,
-	figuresOutMs: 120,
+	dimTo: 0.12,
+	dimMs: 200,
 	wordScale: 1.0,
 	tierGrow: 0.04,
 	punchFrom: 1.4,
@@ -831,9 +840,10 @@ export const PLAQUE_CELEBRATE = {
 	pulseTierStep: 0.1,
 	brighten: 0.7,
 	brightenMs: 160,
+	wordHold: 0.3,
 	wordOutMs: 150,
 	figuresBackDelayMs: 100,
-	figuresBackMs: 180,
+	figuresBackMs: 220,
 };
 
 export const PLAQUE_STREAK = {
