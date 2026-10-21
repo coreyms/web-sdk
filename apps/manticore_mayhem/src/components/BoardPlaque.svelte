@@ -1063,6 +1063,10 @@
 		spinWinStep: ({ amount: value, clear, together }) => {
 			show();
 			const now = performance.now();
+			// a new step's clusters: the last step's total (spinWinShow) is behind them now, so the tick must not settle the
+			// count back on it (it showed the previous total for about a second after every cluster until this step's own
+			// spinWinShow came in; harsh review 2026-10-20 must-fix 2, "the plaque's running total goes backwards")
+			total.step = -1;
 			if (!clear) {
 				// no cluster detail: the plain step of before (the total jumps to it and bumps)
 				total.shown = true;
