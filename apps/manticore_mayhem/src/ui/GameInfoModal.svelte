@@ -135,6 +135,8 @@
 		{ id: 'feature', icon: 'polymath' },
 		{ id: 'menu', icon: 'menu' },
 		{ id: 'readouts', icon: 'info' },
+		// the board plaque (gameInfoText.ts plaque): its wins, the coins glyph
+		{ id: 'plaque', icon: 'coins' },
 		// the symbol pay popup (components/SymbolPopup.svelte): the coins glyph, a symbol's pays
 		{ id: 'symbols', icon: 'coins' },
 		{ id: 'keyboard', icon: 'chevronRight' },

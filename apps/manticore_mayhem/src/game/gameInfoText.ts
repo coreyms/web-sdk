@@ -76,7 +76,7 @@ const MENU = FEATURE_MENU_NAME;
 const NOT_OFFERED = 'Not offered on this site.';
 
 /** one guide row's text, keyed by the row id GameInfoModal draws its icon for */
-export type GuideId = 'spin' | 'boardTap' | 'turbo' | 'autoplay' | 'feature' | 'menu' | 'readouts' | 'symbols' | 'keyboard' | 'skip' | 'screens';
+export type GuideId = 'spin' | 'boardTap' | 'turbo' | 'autoplay' | 'feature' | 'menu' | 'readouts' | 'plaque' | 'symbols' | 'keyboard' | 'skip' | 'screens';
 /** THE OPERATOR'S SWITCHES the rules page follows (2026-10-15, approval review minor; front-end-communication.md:22):
  *  authenticate's jurisdiction block (stateConfig.jurisdiction), the same flags the controls read (ui/controls.svelte.ts,
  *  ui/Chrome*.svelte, stateGame skipAllowed). A control the operator turns off is neither drawn nor described: its UI
@@ -176,9 +176,16 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				readouts: {
 					name: 'Readouts',
 					text: soc(
-						'**BALANCE** is your current balance. **WIN** is the running total of the round. **SPIN** is the full cost of one press in the active mode (base bet × the mode multiplier). − and + step through the bet menu. Tap the readout for the full bet picker. The plaque on the reel frame names the active mode and its price.',
-						'**BALANCE** is your current balance. **WIN** is the running total of the round. **SPIN** is the full play amount of one press in the active mode (base amount × the mode multiplier). − and + step through the play amount menu. Tap the readout for the full picker. The plaque on the reel frame names the active mode and its play amount.',
+						'**BALANCE** is your current balance. **WIN** is the round\'s total so far: each spin\'s wins count up on the plaque under the board first, then move to WIN. **SPIN** is the full cost of one press in the active mode (base bet × the mode multiplier). − and + step through the bet menu. Tap the readout for the full bet picker. The plaque on the reel frame names the active mode and its price.',
+						'**BALANCE** is your current balance. **WIN** is the round\'s total so far: each spin\'s wins count up on the plaque under the board first, then move to WIN. **SPIN** is the full play amount of one press in the active mode (base amount × the mode multiplier). − and + step through the play amount menu. Tap the readout for the full picker. The plaque on the reel frame names the active mode and its play amount.',
 					),
+				},
+				// THE BOARD PLAQUE (harsh review 2026-10-20 gameplay 4: the guide had no row for it; Corey 2026-10-21 approved h):
+				// its cluster rows and spin total (PLAQUE_CLEARS), the War Standard flag row (PLAQUE_FLAGS, from the third), the
+				// recap on a tap between spins (PLAQUE_RECAP; nothing for a spin with no wins)
+				plaque: {
+					name: 'Win Plaque',
+					text: `The plaque under the board counts up each cluster's win and the spin's total, then sends the total to **WIN**. From the third ${SCATTER} on the board it shows them as flags. Between spins, tap or click it to see every cluster of your last spin, or every free spin after a feature.`,
 				},
 				// THE SYMBOL PAY POPUP (components/SymbolPopup.svelte, Corey 2026-10-16 15:32; guide row 2026-10-17 20:27): on an
 				// idle board only (game/boardIdle.ts: between rounds, never in free spins, a replay or under a window), at the
