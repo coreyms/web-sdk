@@ -32,6 +32,16 @@ export type SoundEffectName =
 	| 'sfx_reel_spin'
 	| 'sfx_reel_stop'
 	| 'sfx_cluster_remove'
+	// THE CLUSTER ACCENTS (1.0.04, Corey 2026-10-20): one per paying symbol, played in place of sfx_cluster_remove as that
+	// symbol's cluster starts (game/bookEventHandlerMap.ts clusterSound)
+	| 'sfx_clear_l1'
+	| 'sfx_clear_l2'
+	| 'sfx_clear_l3'
+	| 'sfx_clear_l4'
+	| 'sfx_clear_m1'
+	| 'sfx_clear_m2'
+	| 'sfx_clear_m3'
+	| 'sfx_clear_h1'
 	| 'sfx_tile_double'
 	| 'sfx_cascade'
 	| 'sfx_money_counter'

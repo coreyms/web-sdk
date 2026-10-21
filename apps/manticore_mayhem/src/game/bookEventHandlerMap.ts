@@ -7,7 +7,7 @@ import { recordBookEvent, checkIsMultipleRevealEvents, type BookEventHandlerMap 
 import { stateBet, stateBetDerived } from 'state-shared';
 
 import { eventEmitter } from './eventEmitter';
-import type { MusicName } from './sound';
+import type { MusicName, SoundEffectName } from './sound';
 import { playBookEvent } from './utils';
 import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { getWinLevelDataByBookEventAmount, getFeatureSpinWinLevelData, featureSpinStages } from './winLevelMap';
@@ -353,6 +353,23 @@ const spinOwnWin = (bookEvent: BookEvent, bookEvents: BookEvent[]): number => {
 	return 0;
 };
 
+
+// THE CLUSTER ACCENTS (1.0.04, Corey's eight picks 2026-10-20, "Just the unique sounds per symbol"): a cluster's highlight
+// plays its paying symbol's own sound (each its accent mixed over the highlight crunch, tools/build_audiosprite.py
+// MM_EVENTS sfx_clear_*) in place of sfx_cluster_remove. Clusters that start together each play their own. The Wild has
+// none (Corey): a cluster of Wilds only, or a symbol without a slot, keeps sfx_cluster_remove.
+const CLUSTER_SOUND: Partial<Record<string, SoundEffectName>> = {
+	L1: 'sfx_clear_l1',
+	L2: 'sfx_clear_l2',
+	L3: 'sfx_clear_l3',
+	L4: 'sfx_clear_l4',
+	M1: 'sfx_clear_m1',
+	M2: 'sfx_clear_m2',
+	M3: 'sfx_clear_m3',
+	H1: 'sfx_clear_h1',
+};
+export const clusterSound = (symbol: string | undefined): SoundEffectName => (symbol && CLUSTER_SOUND[symbol]) || 'sfx_cluster_remove';
+
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	// ---- reveal: a whole new board falls in ------------------------------------------------------
 	reveal: async (bookEvent: BookEventOfType<'reveal'>, { bookEvents }: BookEventContext) => {
@@ -490,7 +507,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			specs,
 			id,
 			{
-				onClusterStart: () => eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cluster_remove', forcePlay: true }),
+				// the cluster's own symbol's accent (clusterSound); a Wilds only cluster keeps the crunch
+				onClusterStart: (i) => eventEmitter.broadcast({ type: 'soundOnce', name: clusterSound(specs[i]?.symbol), forcePlay: true }),
 				onCountDone: (i, total) => {
 					running += total;
 					// the capped step: the counts are the paid amounts, so the running sum lands on the spin's paid

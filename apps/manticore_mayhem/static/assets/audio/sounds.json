@@ -194,6 +194,38 @@
 		"sfx_plaque_land": [
 			97393,
 			554
+		],
+		"sfx_clear_l1": [
+			98947,
+			500
+		],
+		"sfx_clear_l2": [
+			100446,
+			465
+		],
+		"sfx_clear_l3": [
+			101911,
+			483
+		],
+		"sfx_clear_l4": [
+			103394,
+			491
+		],
+		"sfx_clear_m1": [
+			104885,
+			517
+		],
+		"sfx_clear_m2": [
+			106402,
+			508
+		],
+		"sfx_clear_m3": [
+			107910,
+			498
+		],
+		"sfx_clear_h1": [
+			109408,
+			435
 		]
 	},
 	"config": {
@@ -340,10 +372,34 @@
 		},
 		"sfx_plaque_land": {
 			"volume": 1
+		},
+		"sfx_clear_l1": {
+			"volume": 1
+		},
+		"sfx_clear_l2": {
+			"volume": 1
+		},
+		"sfx_clear_l3": {
+			"volume": 1
+		},
+		"sfx_clear_l4": {
+			"volume": 1
+		},
+		"sfx_clear_m1": {
+			"volume": 1
+		},
+		"sfx_clear_m2": {
+			"volume": 1
+		},
+		"sfx_clear_m3": {
+			"volume": 1
+		},
+		"sfx_clear_h1": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=b88bae66",
-		"./assets/audio/sounds.m4a?v=27eaefd4"
+		"./assets/audio/sounds.ogg?v=f5ddc59a",
+		"./assets/audio/sounds.m4a?v=a5e4c274"
 	]
 }
