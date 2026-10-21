@@ -197,17 +197,22 @@
 					<div class="rc-title" style:font-size="{sz(R.titleFont, R.titleFloor, k)}px">{modeTitle(recap.feature.mode)}</div>
 					<div class="rc-scroll">
 						{#each recap.feature.spins as spin, si (si)}
+							<!-- a spin with no clusters has nothing to open: no arrow, not a button one can press (harsh review
+							     2026-10-20 gameplay 9, "an expand arrow on spins that paid 0.00") -->
+							{@const clears = spin.cascades.flat().length > 0}
 							<button
 								type="button"
 								class="rc-spin"
 								class:open={openRow === si}
 								class:zero={spin.total <= 0}
+								class:none={!clears}
+								disabled={!clears}
 								data-recap-row="{R.spin} {si + 1} {digits(spin.total)}"
 								style:height="{R.rowH * k}px"
 								style:font-size="{sz(R.rowFont, R.rowFloor, k)}px"
-								onclick={() => (openRow = openRow === si ? -1 : si)}
+								onclick={() => clears && (openRow = openRow === si ? -1 : si)}
 							>
-								<span class="rc-caret" aria-hidden="true">{openRow === si ? '▾' : '▸'}</span>
+								<span class="rc-caret" aria-hidden="true">{clears ? (openRow === si ? '▾' : '▸') : ''}</span>
 								<span class="rc-spin-k">{R.spin} {si + 1}</span>
 								<span class="rc-v slot-num">{digits(spin.total)}</span>
 							</button>
@@ -332,6 +337,9 @@
 	}
 	.rc-spin.zero {
 		color: #c9b28a;
+	}
+	.rc-spin.none {
+		cursor: default;
 	}
 	.rc-spin:not(.zero) .rc-v {
 		color: #ffd678;
