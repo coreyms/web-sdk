@@ -1,6 +1,7 @@
 // Control-bar behaviour shared by the landscape/portrait chrome. Mirrors what the SDK's Pixi
 // buttons (components-ui-pixi) do, so the xstate machine and RGS flow are untouched — only the skin changed.
 import { Tween } from 'svelte/motion';
+import { untrack } from 'svelte';
 import { cubicOut } from 'svelte/easing';
 import { stateBet, stateBetDerived, stateConfig, stateModal, stateUi, INFINITY_MARK } from 'state-shared';
 import { numberToCurrencyString, bookEventAmountToCurrencyString } from 'utils-shared/amount';
@@ -12,7 +13,6 @@ import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 import { SLAM_HURRY } from '../game/constants';
 import { armouryView } from './armoury/armouryView.svelte';
-import { hudWin } from '../game/hudWin.svelte';
 
 export const createControls = () => {
 	const context = getContext();
@@ -276,19 +276,13 @@ export const createControls = () => {
 	// reveal, and this tween chases it — Mother Clucker timing); a reset to a smaller value
 	// (new spin) snaps instead of counting backwards
 	const winTween = new Tween(stateBet.winBookEventAmount, { duration: 550, easing: cubicOut });
-	// a win that replaces one an autoplay press kept up (game/hudWin.svelte.ts, HUD_WIN_CARRY) counts from zero, as by hand
-	let winFresh = hudWin.fresh;
+	// The tween's own value is read UNTRACKED (2026-10-21): reading it tracked re-ran this effect on every frame of a count
+	// and started a new Tween task each time, so a clear (an instant set, which stops only the newest task) left the count
+	// before it running, and it pulled WIN back up after the clear (seen under Autoplay at turbo 2). Now one task per
+	// target: the count is the 550 ms cubicOut it was written as, and a clear stops it.
 	$effect(() => {
 		const target = stateBet.winBookEventAmount;
-		const fresh = hudWin.fresh;
-		if (fresh !== winFresh) {
-			winFresh = fresh;
-			// from zero by the interpolation, not a set(0) first: an instant set stops only the newest count, and the
-			// count before it (still running when the next autoplay round came in fast) kept pulling the WIN back up
-			winTween.set(target, { interpolate: (_from: number, to: number) => (u: number) => to * u });
-			return;
-		}
-		if (target < winTween.current) winTween.set(target, { duration: 0 });
+		if (target < untrack(() => winTween.current)) winTween.set(target, { duration: 0 });
 		else winTween.set(target);
 	});
 	// the count shows the digits its FINAL amount needs (harsh review 2026-10-20 gameplay 5, "$0.784" mid count at a $1.60

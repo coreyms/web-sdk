@@ -7,7 +7,6 @@ import { checkIsMultipleRevealEvents } from 'utils-book';
 import { createPrimaryMachines, createIntermediateMachines, createGameActor } from 'utils-xstate';
 
 import type { Bet } from './typesBookEvent';
-import { stateXstateDerived } from './stateXstate';
 import { playBet, convertTorResumableBet } from './utils';
 import { stateGameDerived } from './stateGame.svelte';
 import { eventEmitter } from './eventEmitter';
@@ -49,9 +48,9 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		// THE CHAIN HAUL (CHAIN_BOW.haulOnSpin): every spin press hauls the board's chain loop one link down
 		// (components/BoardFrame.svelte draws it), a press, the space bar and an autoplay spin alike
 		if (CHAIN_BOW.haulOnSpin) chainHaulPress(Math.max(0.2, stateGameDerived.timeScale()));
-		// THE HUD WIN UNDER AUTOPLAY (HUD_WIN_CARRY): by hand the WIN clears; under Autoplay or a held space bar the last
-		// win stays up until this round has one of its own (was: cleared here unless turbo autoplay, as Angry Mantis)
-		hudWinPress(stateXstateDerived.isAutoBetting(), stateBet.isSpaceHold);
+		// THE HUD WIN (Corey 2026-10-21): every spin's press clears it, by hand, the space bar or Autoplay ("it should clear
+		// after a winning round when the spin button is hit"); Autoplay waits for the win to be seen first (AUTOPLAY_WIN_SEEN)
+		hudWinPress();
 	},
 	// a failed play leaves the wallet readout on its pre-error value until the next successful
 	// round; re-read it from the RGS so the player sees the truth straight away (review 2026-09-06)

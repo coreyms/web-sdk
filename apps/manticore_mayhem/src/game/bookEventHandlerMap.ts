@@ -42,6 +42,7 @@ import {
 	winSetLog,
 } from './stateGame.svelte';
 import { motionLog } from './sparkles';
+import { stateXstateDerived } from './stateXstate';
 import { maxWinArm, maxWinPrefetch, maxWinReset, maxWinState } from './maxWin.svelte';
 import { fxRecord, fxStamp, chainHaulPress } from './featureFx';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
@@ -49,6 +50,7 @@ import type { CellIndex } from './types';
 import { setHudWin } from './hudWin.svelte';
 import {
 	TIMINGS,
+	AUTOPLAY_WIN_SEEN,
 	STING,
 	CLUSTER,
 	MULT_PLATE,
@@ -596,7 +598,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// keeps its rows and total on the plaque after the streak
 			const hold = hud !== null && stateGame.gameType === 'basegame' && !roundFeatureAhead(bookEvent, bookEvents);
 			await eventEmitter.broadcastAsync({ type: 'spinWinFinal', amount: bookEvent.spinWin, toHud: hud !== null, hold });
-			if (hud !== null && !capShown) setHudWin(hud);
+			if (hud !== null && !capShown) {
+				setHudWin(hud);
+				// AUTOPLAY_WIN_SEEN (Corey 2026-10-21): under Autoplay the next press clears WIN, so the round waits here for
+				// the WIN's count (real ms) and a hold (style ms, Angry Mantis's 400) before it ends; by hand nothing waits
+				if (AUTOPLAY_WIN_SEEN.on && hud > 0 && stateGame.gameType === 'basegame' && stateXstateDerived.isAutoBetting() && !stateGame.skipping) {
+					await waitForTimeout(AUTOPLAY_WIN_SEEN.countMs);
+					await waitStyle(AUTOPLAY_WIN_SEEN.holdMs);
+				}
+			}
 		}
 	},
 

@@ -871,16 +871,18 @@ export const PLAQUE_HOLD = {
 };
 
 /** THE HUD WIN UNDER AUTOPLAY (1.0.04; harsh review 2026-10-20 must-fix 3, "under Autoplay the HUD WIN never shows an
- *  ordinary win", its fix "keep the last win on HUD WIN until the next round's first win"; Corey 2026-10-21 "2, 3, 5, and
- *  7 are obvious fixes and need to be fixed"; game/hudWin.svelte.ts). The streak writes a base spin's win to the HUD at
- *  the very end of the round, and Autoplay's next press cleared it before its 550 ms count could move. Angry Mantis keeps
- *  the same press rule (no clear on a turbo autoplay press or a held space bar) but writes its HUD win as the round's
- *  wins show, so it never met this. Under Autoplay (and a held space bar) the press keeps the last win on the WIN until
- *  the next round has a win of its own, which counts from zero as by hand; a round with no win leaves it up. A press by
- *  hand clears the WIN as before. autoplay / spaceHold false: the behaviour before. */
-export const HUD_WIN_CARRY = {
-	autoplay: true,
-	spaceHold: true,
+ *  ordinary win"). Corey's rule (2026-10-21, replacing the carry of 5d44dc1): "On a losing round it should be blank, it
+ *  should clear after a winning round when the spin button is hit". So every spin's press clears WIN (by hand, the space
+ *  bar or Autoplay), and a win stays on WIN until then. The bug was the pacing: the streak writes a base spin's win at the
+ *  very end of the round and Autoplay pressed again at once, clearing it before its count moved. Angry Mantis writes its
+ *  HUD win as the round's wins start and holds 400 ms (/ the turbo scale) after its clusters before the round ends, so
+ *  its win is seen; here, under Autoplay, after the streak lands the round waits for the WIN's own count (countMs, the
+ *  HUD tween's 550 ms) and then holdMs style ms (Angry Mantis's 400, / the turbo scale) before it ends. By hand nothing
+ *  waits (the player's own press is the pace). on: false = no wait. */
+export const AUTOPLAY_WIN_SEEN = {
+	on: true,
+	countMs: 550,
+	holdMs: 400,
 };
 
 /** THE WAR STANDARD FLAG ROW ON THE PLAQUE (1.0.04; images/anticipation_r2 NOTES.md r6, option B: Corey 2026-10-20 "R5 looks

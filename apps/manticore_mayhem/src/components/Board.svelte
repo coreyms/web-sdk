@@ -49,7 +49,6 @@
 	import BoardCells from './BoardCells.svelte';
 	import { revealTease, plateLog, boardExit } from '../game/stateGame.svelte';
 	import { BOARD_EXIT, CHAIN_GUST, DROP, winDimFor } from '../game/constants';
-	import { hudWin } from '../game/hudWin.svelte';
 
 	const context = getContext();
 	const stateGame = context.stateGame;
@@ -125,8 +124,6 @@
 			mode: () => stateBet.activeBetModeKey,
 			/** the round's win as the frontend has it, in book units (100 = 1x bet) */
 			winAmount: () => stateBet.winBookEventAmount,
-			/** THE HUD WIN UNDER AUTOPLAY (HUD_WIN_CARRY): the last win carried by an autoplay press, the replacing writes */
-			hudWin: () => ({ carry: hudWin.carry, fresh: hudWin.fresh, amount: stateBet.winBookEventAmount }),
 			assetKeys: () => Object.keys(context.stateApp.loadedAssets ?? {}),
 			/** scatters counted this spin, the stung-in ones included */
 			scatters: () => [...stateGame.scatterCells],

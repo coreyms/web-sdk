@@ -25,7 +25,7 @@ const markedHandlerMap = (): typeof bookEventHandlerMap => {
 export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEventHandlerMap: STAGING_TOOLS ? markedHandlerMap() : bookEventHandlerMap });
 
 export const playBet = async (bet: Bet) => {
-	// a fresh WIN, unless an autoplay press kept the last win up (game/hudWin.svelte.ts, HUD_WIN_CARRY)
+	// a fresh WIN (game/hudWin.svelte.ts)
 	hudWinRoundStart();
 	// THE CREATURE: a feature in this book starts its look loading now, ahead of the change of mode (game/creatureLoad.ts)
 	creatureBookArrived(bet.state);
