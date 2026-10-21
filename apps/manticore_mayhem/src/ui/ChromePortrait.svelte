@@ -20,10 +20,12 @@
 	import AutoplayButton from './AutoplayButton.svelte';
 	import TurboButton from './TurboButton.svelte';
 	import SquareSpin from './SquareSpin.svelte';
+	import { replayState } from './replayState.svelte';
 
 	type Props = { controls: Controls };
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
+	const rh = $derived(replayState.hud);
 	const context = getContext();
 	// THE LOGO (game/logo/layout.ts): on a phone the owner's own box, up in the left corner beside the creature (constants
 	// LOGO.portraitPhone); on a tablet the largest box between the clock row and the frame art's finials, centred
@@ -47,9 +49,9 @@
 <!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
 <div class="stats">
-	{#if replay}<div></div>{:else}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />{/if}
-	<!-- REPLAY: no bet readout at all (owner 2026-10-09; see ChromeLandscape.svelte): the replay card states it -->
-	{#if !replay}<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={180} onclick={controls.openDenom} disabled={controls.betDisabled()} />{/if}
+	{#if replay}{#if rh && !rh.isBase}<TrioStat label="BASE AMOUNT" value={rh.base} accent="#ffdc4a" align="left" maxWidth={180} />{:else}<div></div>{/if}{:else}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />{/if}
+	<!-- REPLAY: the readout stays, a readout only (see ChromeLandscape.svelte) -->
+	{#if replay && rh}<TrioStat label={rh.label} value={rh.total} accent="#ffdc4a" size="lg" align="right" maxWidth={180} />{:else if !replay}<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={180} onclick={controls.openDenom} disabled={controls.betDisabled()} />{/if}
 </div>
 
 <!-- WIN is centred between the two BIG buttons (bonus right edge 82 .. spin left edge W−170), not

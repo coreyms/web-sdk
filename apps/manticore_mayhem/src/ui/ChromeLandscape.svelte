@@ -21,10 +21,12 @@
 	import AutoplayButton from './AutoplayButton.svelte';
 	import TurboButton from './TurboButton.svelte';
 	import SquareSpin from './SquareSpin.svelte';
+	import { replayState } from './replayState.svelte';
 
 	type Props = { controls: Controls };
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
+	const rh = $derived(replayState.hud);
 	// the frame art's edges, held clear of the button clusters (layoutSpec TRIO_CLEAR; the art is 271.34 .. 1009.28)
 	// (both follow the desktop screen's shape below 16:9: layoutSpec LANDSCAPE_TALL)
 	const art = $derived(landscapeTrioSpan());
@@ -48,17 +50,23 @@
 <!-- readout row on the frame art's edges; maxWidth auto-shrinks huge values (stake.us GC balances hit trillions) -->
 <div class="trio hud-group" style:left="{art.x}px" style:width="{art.width}px">
 	<div class="cell left">
-		{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />{/if}
+		{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />
+		{:else if rh && !rh.isBase}<TrioStat label="BASE AMOUNT" value={rh.base} accent="#ffdc4a" size="lg" align="left" maxWidth={205} />{/if}
 	</div>
 	<div class="cell centre keep">
 		<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" maxWidth={205} />
 	</div>
 	<div class="cell right">
 		{#if !replay}<StepButton dir={-1} size={28} {controls} />{/if}
-		<!-- REPLAY: no bet readout at all (owner 2026-10-09). The replay card states the bet, the mode's
-		     multiplier and the real cost; this readout fell back to the base "SPIN" amount when a bought
-		     round ended (finalWin returns a buy to the base game), which misstated what the round cost. -->
-		{#if !replay}
+		<!-- REPLAY (harsh review 2026-10-20 must-fix 4; Corey 2026-10-21 "We should keep this then for the replay"): the
+		     readout stays, a readout only (no steppers, no picker), from the replay's own amount and mode cost
+		     (ui/replayState.svelte.ts hud), never the live bet, which falls back to the base "SPIN" amount when a bought
+		     round ends (finalWin returns a buy to the base game) -->
+		{#if replay && rh}
+			<div class="spin-slot" style:margin-left="18px">
+				<TrioStat label={rh.label} value={rh.total} accent="#ffdc4a" size="lg" align="right" maxWidth={205} minWidth={slot} />
+			</div>
+		{:else if !replay}
 			<div class="spin-slot" style:margin-left="18px">
 				<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={205} minWidth={slot} onclick={controls.openDenom} disabled={controls.betDisabled()} />
 			</div>

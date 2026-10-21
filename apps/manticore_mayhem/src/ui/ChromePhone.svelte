@@ -25,10 +25,12 @@
 	import AutoplayButton from './AutoplayButton.svelte';
 	import TurboButton from './TurboButton.svelte';
 	import SquareSpin from './SquareSpin.svelte';
+	import { replayState } from './replayState.svelte';
 
 	type Props = { controls: Controls };
 	const { controls }: Props = $props();
 	const replay = $derived(controls.isReplay());
+	const rh = $derived(replayState.hud);
 	const context = getContext();
 	const freegame = $derived(context.stateGame.gameType !== 'basegame');
 	// SPIN slot at the 'xl' digit height (26): widest price of the current mode, capped to the column
@@ -46,10 +48,15 @@
 
 <!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
 <div class="stats hud-group">
-	{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />{/if}
+	{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />
+	{:else if rh && !rh.isBase}<TrioStat label="BASE AMOUNT" value={rh.base} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />{/if}
 	<div class="keep" style="display: contents"><TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} /></div>
-	<!-- REPLAY: no bet readout at all (owner 2026-10-09; see ChromeLandscape.svelte): the replay card states it -->
-	{#if !freegame && !replay}
+	<!-- REPLAY: the readout stays all round, free spins included, a readout only (see ChromeLandscape.svelte) -->
+	{#if replay && rh}
+		<div class="spin-row">
+			<TrioStat label={rh.label} value={rh.total} accent="#ffdc4a" size="xl" align="left" maxWidth={200} minWidth={slot} />
+		</div>
+	{:else if !freegame && !replay}
 		<div class="spin-row">
 			<div class="minus"><StepButton dir={-1} size={32} {controls} /></div>
 			<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="xl" align="left" maxWidth={200} minWidth={slot} onclick={controls.openDenom} disabled={controls.betDisabled()} />

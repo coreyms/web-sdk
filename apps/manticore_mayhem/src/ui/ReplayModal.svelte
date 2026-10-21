@@ -18,7 +18,7 @@
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
-	import { betModeMeta } from '../game/betModeMeta';
+	import { betModeMeta, modeShortLabel } from '../game/betModeMeta';
 	import { soc } from '../game/social';
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
@@ -55,6 +55,17 @@
 	const multiplier = $derived(Number((replayBet as { payoutMultiplier?: number } | null)?.payoutMultiplier ?? 0));
 	const totalWin = $derived(base * multiplier);
 	const xText = (n: number) => `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}x`;
+	// THE REPLAY'S BET LINE (replayState.hud): the HUD's right readout as it reads in play (a bought feature's short name,
+	// else SPIN / PLAY) over the round's total cost; the base amount for any mode but the base game
+	$effect(() => {
+		if (!replayBet) return;
+		replayState.hud = {
+			label: meta?.type === 'buy' ? modeShortLabel(modeKey) : soc('SPIN', 'PLAY'),
+			total: numberToCurrencyString(totalPlay),
+			base: numberToCurrencyString(base),
+			isBase: modeKey === 'BASE',
+		};
+	});
 
 	const start = async () => {
 		if (!replayBet) return;
