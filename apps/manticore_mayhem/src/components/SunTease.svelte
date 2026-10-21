@@ -73,6 +73,61 @@
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		Object.assign(((window as any).__manticore ??= {}), {
 			sunTease: () => ({ drawn: { ...drawn }, state: { ...teaseNow() }, knobs: { sun: sunK, beams: beamsK, hold: stagingTeaseHoldMs, fall: stagingTeaseFall }, plan: revealTease.plan ? JSON.parse(JSON.stringify(revealTease.plan)) : null }),
+			/** THE LIGHT DOWN THE SUN (2026-10-21, the hard line): the sun's own layers (glow, light, ring, disc) rendered by
+			 *  themselves at resolution 1, and the brightness of each pixel row down the disc's centre (a 5 px wide strip),
+			 *  from the disc's top to its bottom; `step` = the largest change between two neighbouring rows over the
+			 *  profile's peak (a hard line reads about 0.2 and up, an even glow a few hundredths) */
+			sunProfile: () => {
+				const r = context.stateApp.pixiApplication?.renderer;
+				if (!r || !back.parent || !disc.visible) return null;
+				const B = back.getBounds();
+				const ex = r.extract.pixels({ target: back, resolution: 1 });
+				const W = ex.width;
+				const Hh = ex.height;
+				const g = disc.getGlobalPosition();
+				const cx = Math.round(((g.x - B.x) / B.width) * W);
+				const half = (disc.getBounds().height / B.height) * Hh * 0.5;
+				const cy = ((g.y - B.y) / B.height) * Hh;
+				const y0 = Math.max(0, Math.round(cy - half));
+				const y1 = Math.min(Hh - 1, Math.round(cy + half));
+				const rows: number[] = [];
+				for (let y = y0; y <= y1; y += 1) {
+					let sum = 0;
+					let n = 0;
+					for (let x = cx - 2; x <= cx + 2; x += 1) {
+						if (x < 0 || x >= W) continue;
+						const i = (y * W + x) * 4;
+						sum += 0.2126 * ex.pixels[i] + 0.7152 * ex.pixels[i + 1] + 0.0722 * ex.pixels[i + 2];
+						n += 1;
+					}
+					rows.push(n ? sum / n : 0);
+				}
+				const peak = Math.max(1, ...rows);
+				let step = 0;
+				let at = -1;
+				for (let i = 1; i < rows.length; i += 1) {
+					const d = Math.abs(rows[i] - rows[i - 1]) / peak;
+					if (d > step) {
+						step = d;
+						at = i;
+					}
+				}
+				// the halves: the mean brightness of the disc's lower half over its upper half (1 = even); the sun's art is
+				// symmetric through its centre (twelve rays), so a light that favours one half shows here
+				const mid = Math.round(cy) - y0;
+				const mean = (a: number[]) => (a.length ? a.reduce((x, v) => x + v, 0) / a.length : 0);
+				// only the span the window shows, symmetric about the centre (a rising sun is cut at the window's top, a sinking
+				// one at its bottom): the board's opening is y 0 .. H in this layer's own units
+				const L = back.getLocalBounds();
+				const rowOfY = (ly: number) => ((ly - L.y) / L.height) * Hh - y0;
+				const span = Math.max(1, Math.floor(Math.min(mid - Math.max(0, rowOfY(0)), Math.min(rows.length, rowOfY(H)) - mid)));
+				const upper = mean(rows.slice(Math.max(0, mid - span), mid));
+				const lower = mean(rows.slice(mid, mid + span));
+				// the step at the centre row: the largest neighbour change within 4 px of it (the old shaft's hard edge sat there)
+				let centreStep = 0;
+				for (let i = Math.max(1, mid - 4); i <= Math.min(rows.length - 1, mid + 4); i += 1) centreStep = Math.max(centreStep, Math.abs(rows[i] - rows[i - 1]) / peak);
+				return { rows: rows.map((v) => Math.round(v)), peak: Math.round(peak), step: Number(step.toFixed(3)), at, centre: mid, centreStep: Number(centreStep.toFixed(3)), halves: Number((lower / Math.max(1, upper)).toFixed(3)), span, px: rows.length, phase: drawn.phase };
+			},
 		});
 	}
 
@@ -183,7 +238,8 @@
 			glow.setSize(Db * 1.3, Db * 1.3);
 			glow.alpha = Math.min(1, (0.25 + 0.2 * lit) * e * 0.6 * sunK);
 			const reach = S.washFrom + (1 - S.washFrom) * qq;
-			const top = Math.max(0, y);
+			// from the disc's top edge, its own soft top (washTexture) spreading the light through the whole sun
+			const top = Math.max(0, y - Db * S.washTop);
 			wash.position.set(x, top);
 			wash.setSize(S.washWidthCells * CELL, Math.max(1, (H - top) * reach));
 			wash.alpha = Math.min(1, S.washAlpha * e * lit * sunK);

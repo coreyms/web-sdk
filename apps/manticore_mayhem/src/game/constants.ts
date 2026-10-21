@@ -1700,6 +1700,16 @@ export const SUN_TEASE = {
 	washAlpha: 0.42,
 	washFrom: 0.35,
 	washWidthCells: 0.95,
+	/** THE LIGHT IS EVEN ACROSS THE SUN (2026-10-21, Corey on a hard line across the sun, its bottom much brighter than
+	 *  its top: "The glow should be distributed throughout the sun"). The shaft started at FULL brightness on the disc's
+	 *  centre row, so it lit the sun's lower half only, with a hard edge across it at every hold and sink position. It now
+	 *  starts washTop of the disc's size above the centre (just over its top edge) and rises from nothing over washRamp of its
+	 *  length (game/beamTexture.ts washTexture). Measured down the disc's centre (DEV __manticore.sunProfile, book 100):
+	 *  the largest step at the centre row 0.12 to 0.32 of the peak before, under 0.025 now; the lower half's mean
+	 *  brightness over the upper half's (over the span the window shows) about 2.0 before, 0.75 to 1.27 now (the sun's art
+	 *  is symmetric through its centre). */
+	washTop: 0.6,
+	washRamp: 0.1,
 	/** the threads: width in cells, alpha before `beams`; drawInMs for a new War Standard's thread */
 	threadCells: 0.05,
 	threadAlpha: 0.75,

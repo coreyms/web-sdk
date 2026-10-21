@@ -1,5 +1,7 @@
 import * as PIXI from 'pixi.js';
 
+import { SUN_TEASE } from './constants';
+
 // Baked light textures for the Mystery scatter tease (Anticipation.svelte), built once and cached —
 // house rule: no per-frame textures, no filters. Carried over from Angry Mantis unchanged; the
 // colours are Corey's from the reel-motion artifact.
@@ -158,7 +160,7 @@ export const sunTexture = (): PIXI.Texture => {
 	return sun;
 };
 
-// The sun's light down the well: bright at its top edge, gone at its foot, its sides falling off. White (the sprite's
+// The sun's light down the well: rising softly from its top edge (SUN_TEASE.washRamp), gone at its foot, its sides falling off. White (the sprite's
 // tint is the colour). Anchor 0.5, 0. Built once.
 let wash: PIXI.Texture | null = null;
 export const washTexture = (): PIXI.Texture => {
@@ -172,7 +174,10 @@ export const washTexture = (): PIXI.Texture => {
 	const img = ctx.createImageData(W, H);
 	for (let y = 0; y < H; y += 1) {
 		const v = y / (H - 1);
-		const along = Math.pow(1 - v, 0.8);
+		// a soft top (2026-10-21, Corey: "The glow should be distributed throughout the sun"): it rises from nothing over
+		// the first SUN_TEASE.washRamp of its length instead of starting at full, which drew a hard line across the sun
+		const r = Math.min(1, v / SUN_TEASE.washRamp);
+		const along = r * r * (3 - 2 * r) * Math.pow(1 - v, 0.8);
 		for (let x = 0; x < W; x += 1) {
 			const u = ((x + 0.5) / W) * 2 - 1;
 			const across = Math.pow(Math.max(0, Math.cos((u * Math.PI) / 2)), 1.5);
