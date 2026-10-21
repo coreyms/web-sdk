@@ -140,7 +140,8 @@
 	.auto-loaded {
 		font-weight: 900;
 		letter-spacing: 1.2px;
-		color: #9cd92f;
+		/* the game's gold (--ui-gold, as .armed-label), not Angry Mantis's lime #9cd92f (harsh review 2026-10-20 must-fix 7) */
+		color: #ffdc4a;
 		text-transform: uppercase;
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 		white-space: nowrap;

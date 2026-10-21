@@ -282,7 +282,9 @@
 		font-weight: 900;
 		letter-spacing: 3px;
 		color: var(--ui-gold-ink);
-		background: linear-gradient(180deg, #9be04a, #6fb52a);
+		/* the game's gold (the bet picker's chosen chip, ui/DenomModal.svelte: --ui-gold to --ui-amber), not Angry Mantis's
+		   lime (harsh review 2026-10-20 must-fix 7; Corey 2026-10-21 "2, 3, 5, and 7 are obvious fixes") */
+		background: linear-gradient(180deg, var(--ui-gold), var(--ui-amber));
 		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 	}
 	.go:active:not(:disabled) {
