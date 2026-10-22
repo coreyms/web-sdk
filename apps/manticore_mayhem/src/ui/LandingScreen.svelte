@@ -655,6 +655,10 @@
 		top: calc(var(--u) * var(--t-top));
 		height: calc(var(--u) * var(--t-h));
 		white-space: nowrap;
+		/* one card-width unit of room each side beyond the body's: "THE MANTICORE" measured 214 px in a 213 px zone with
+		 * Linux (FreeType) Cinzel metrics, 2026-10-22; the title is centred, so nothing moves where it already fit */
+		left: calc(var(--u) * (var(--side) - 1));
+		right: calc(var(--u) * (var(--side) - 1));
 	}
 	.zb {
 		top: calc(var(--u) * var(--b-top));
