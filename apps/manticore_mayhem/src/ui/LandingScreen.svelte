@@ -31,7 +31,7 @@
 	import { bootSizes } from '../game/assetStamp';
 	import { loadGate } from '../game/loadGate.svelte';
 	import { sound } from '../game/sound';
-	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, INTRO_LOGO_SHINE_MS, introGatePctSize, introPlacement } from '../game/introCards';
+	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, INTRO_LOGO_SHINE_MS, LANDING_BAR, introGatePctSize, introPlacement } from '../game/introCards';
 	import { INTRO_BODY_FIT, LOAD_GATE } from '../game/constants';
 	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, introBodyRuns, introSceneIndexAt } from '../game/introCardText';
 	import Shine from './Shine.svelte';
@@ -110,6 +110,25 @@
 		});
 	});
 	const progress = $derived(Math.max(rawProgress, highWater));
+	// THE SPLASH'S BAR (LANDING_BAR, Corey 2026-10-21 "the same look as the splash screen"): segments lit whole; the ones
+	// the splash had lit (its bar stops at `start`) are lit from the first frame with no pop; a jump lights the rest
+	// staggerMs apart, as the splash's paintBar does
+	const SEG = LANDING_BAR.segments;
+	const SEG_PTS = 100 / SEG;
+	const litFrom = Math.min(SEG, Math.floor(start / SEG_PTS));
+	let lit = $state(litFrom);
+	let segDelay = $state<number[]>(Array(SEG).fill(0));
+	$effect(() => {
+		const m = Math.min(SEG, Math.floor(progress / SEG_PTS));
+		untrack(() => {
+			if (m <= lit) return;
+			const d = segDelay.slice();
+			for (let i = lit; i < m; i += 1) d[i] = (i - lit) * LANDING_BAR.staggerMs;
+			segDelay = d;
+			lit = m;
+		});
+	});
+	const litPct = $derived(lit * SEG_PTS);
 	const loadingLabel = $derived(context.stateApp.preLoaded && !audioReady ? 'LOADING AUDIO' : 'LOADING');
 	// An asset that exhausted its retries stops the load dead (AssetsLoader leaves `loaded` false and
 	// lists the keys): entering with missing money glyphs / headshots / mode labels is worse than
@@ -497,8 +516,13 @@
 				<!-- same display style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
 				<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM · TAP TO RETRY</div>
 			{:else if !ready}
-				<div class="bar" style:width="{SZ.barW}px" style:height="{SZ.barH}px">
-					<div class="fill" style:width="{Math.max(4, progress)}%"></div>
+				<!-- the splash's segmented bar (LANDING_BAR): segments, a shine clipped to the lit part, a spark on its edge -->
+				<div class="bar gbar" style:width="{SZ.barW}px" style:height="{SZ.barH}px" style:--skew="{LANDING_BAR.skewDeg}deg" style:--spark="{(SZ.barH / 1.8) * 2.8}px" aria-hidden="true">
+					<div class="gs">
+						{#each segDelay as d, i (i)}<i class:on={i < lit} class:still={i < litFrom} style:--d="{d}ms"></i>{/each}
+					</div>
+					<div class="gw"><div class="gc" style:transform="translateX({litPct - 100}%)"><div class="gi" style:transform="translateX({100 - litPct}%)"><div class="gsh"></div></div></div></div>
+					<div class="gk" class:on={lit > 0 && lit < SEG} style:transform="translateX({litPct}%)"><b></b></div>
 				</div>
 				<div class="pct" style:font-size="{introGatePctSize(kind)}px">{loadingLabel} · {progress}%</div>
 			{:else}
@@ -750,22 +774,129 @@
 		justify-content: flex-end;
 		z-index: 5;
 	}
-	.bar {
-		border-radius: 6px;
-		background: rgba(0, 0, 0, 0.55);
-		box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+	/* THE SPLASH'S SEGMENTED BAR (LANDING_BAR; Corey 2026-10-21 "the same look as the splash screen"): src/app.html's
+	   #am-splash .gbar rules, the same colours (the splash's --accent, Manticore red #e32400), segments, shine and spark,
+	   in this screen's master px. Only transform and opacity animate. */
+	.gbar {
+		--accent: #e32400;
+		position: relative;
+		padding: 3px;
+		box-sizing: border-box;
+		border-radius: 5px;
+		background: rgba(0, 0, 0, 0.6);
+		box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.07);
+		transform: skewX(var(--skew));
+	}
+	.gs {
+		display: flex;
+		gap: 3px;
+		height: 100%;
+	}
+	.gs i {
+		flex: 1;
+		position: relative;
+		border-radius: 2px;
+		background: rgba(255, 255, 255, 0.06);
+	}
+	.gs i::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 2px;
+		background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 55%, #fff), var(--accent) 55%, color-mix(in oklab, var(--accent) 70%, #000));
+		box-shadow: 0 0 8px color-mix(in oklab, var(--accent) 55%, transparent);
+		opacity: 0;
+		transition: opacity 140ms ease-out var(--d, 0ms);
+	}
+	.gs i.on::after {
+		opacity: 1;
+		animation: landing-seg-pop 260ms cubic-bezier(0.2, 1.6, 0.4, 1) var(--d, 0ms);
+	}
+	/* the segments the splash had lit: lit from the first frame, no pop (the handoff reads as one bar) */
+	.gs i.still::after {
+		transition: none;
+		animation: none;
+	}
+	@keyframes landing-seg-pop {
+		from {
+			transform: scaleY(1.6);
+		}
+		to {
+			transform: scaleY(1);
+		}
+	}
+	.gw {
+		position: absolute;
+		inset: 3px;
+		overflow: hidden;
+		border-radius: 2px;
+	}
+	.gc {
+		position: absolute;
+		inset: 0;
 		overflow: hidden;
 	}
-	.fill {
-		height: 100%;
-		border-radius: 6px;
-		/* the PolyMath splash's own red (src/app.html #am-splash --accent #e32400; its bar was this gradient until the 2026-10-21 segmented bar), Corey 2026-10-20 */
-		background: linear-gradient(90deg, #c81d00, #e32400);
-		box-shadow: 0 0 12px rgba(227, 36, 0, 0.5);
-		transition: width 0.15s linear;
+	.gi {
+		position: absolute;
+		inset: 0;
 	}
+	.gc,
+	.gi,
+	.gk {
+		transition: transform 160ms ease-out;
+	}
+	.gsh {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		width: 22%;
+		background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+		animation: landing-shine 1800ms ease-in-out 600ms infinite both;
+	}
+	@keyframes landing-shine {
+		0% {
+			transform: translateX(-100%);
+		}
+		70%,
+		100% {
+			transform: translateX(460%);
+		}
+	}
+	.gk {
+		position: absolute;
+		inset: 3px;
+		opacity: 0;
+		pointer-events: none;
+	}
+	.gk.on {
+		opacity: 1;
+	}
+	/* the spark: the splash's, 2.8 x the bar's base (its drawn height / 1.8; --spark on the bar) */
+	.gk b {
+		position: absolute;
+		left: 0;
+		top: 50%;
+		width: var(--spark);
+		height: var(--spark);
+		margin: calc(var(--spark) / -2) 0 0 calc(var(--spark) / -2);
+		border-radius: 50%;
+		background: radial-gradient(circle, #fff 0 12%, color-mix(in oklab, var(--accent) 50%, #fff) 24%, transparent 62%);
+		animation: landing-spark 170ms linear infinite alternate;
+	}
+	@keyframes landing-spark {
+		from {
+			transform: scale(0.7) rotate(0);
+			opacity: 0.7;
+		}
+		to {
+			transform: scale(1.15) rotate(45deg);
+			opacity: 1;
+		}
+	}
+	/* the readout in the splash's face and colour ("LOADING · N%", src/app.html #am-splash .pct) */
 	.pct {
-		font-family: var(--num-font, inherit);
+		font-family: var(--ui-font, inherit);
 		font-weight: 700;
 		letter-spacing: 1.5px;
 		color: rgba(238, 240, 230, 0.5);
@@ -794,6 +925,14 @@
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.pressText {
+			animation: none;
+		}
+		/* the bar as the splash's with reduced motion: no shine, no spark, no pop */
+		.gsh,
+		.gk {
+			display: none;
+		}
+		.gs i.on::after {
 			animation: none;
 		}
 		.icard,

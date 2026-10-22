@@ -110,11 +110,28 @@ export const INTRO_CARD_STYLE = {
 	scene: { top: 107.5, height: 17, size: 3.7, weight: 600, lineHeight: 1.3, color: '#e0b860', font: "'Sora', system-ui, sans-serif" },
 } as const;
 
-/** the gate along the bottom (loading bar, then PRESS ANYWHERE): per-kind sizes, master px */
+/** the gate along the bottom (loading bar, then PRESS ANYWHERE): per-kind sizes, master px. `barH` is the bar's drawn
+ *  height: since the bar is the splash's segmented bar (2026-10-21, LANDING_BAR) it is the splash's, 1.8 x its 10 px
+ *  base (src/app.html .gbar), on the desktop and the portrait phone (was 10); the sideways phone keeps its 14 so its
+ *  landing layout stays as it is (Corey 2026-10-21) */
 export const INTRO_GATE: Record<LayoutKind, { tag: number; barW: number; barH: number; press: number; pad: number }> = {
-	landscape: { tag: 14, barW: 420, barH: 10, press: 18, pad: 16 },
-	portrait: { tag: 13, barW: 280, barH: 10, press: 17, pad: 16 },
+	landscape: { tag: 14, barW: 420, barH: 18, press: 18, pad: 16 },
+	portrait: { tag: 13, barW: 280, barH: 18, press: 17, pad: 16 },
 	phone: { tag: 22, barW: 520, barH: 14, press: 30, pad: 26 },
+};
+
+/** THE LANDING SCREEN'S LOADING BAR IS THE SPLASH'S (Corey 2026-10-21: "We should update the Landing Screen Statusbar to
+ *  have the same look as the splash screen"). The splash's segmented game bar (src/app.html .gbar, the PolyMath splash
+ *  of 2026-10-21): `segments` skewed segments lit whole (100 / segments points each), a big jump lighting them
+ *  `staggerMs` apart, the lit ones in the splash's red, a shine sweeping the lit part, a spark at the leading edge, the
+ *  readout "LOADING · N%". The percent carries on from where the splash's bar stood (game/boot.svelte.ts splashShare: the
+ *  splash's bar climbs to that share and stops), and the segments the splash had lit are lit from the first frame, so
+ *  the handoff reads as one bar. Transforms and opacity only; reduced motion: no shine, no spark, no pop. */
+export const LANDING_BAR = {
+	segments: 20,
+	staggerMs: 45,
+	/** the bar's skew, degrees (the splash's -14) */
+	skewDeg: -14,
 };
 /** the gap between the bar and its readout (ui/LandingScreen.svelte .gate) and a text line's height per px of font size */
 const GATE_ROW_GAP = 8;
