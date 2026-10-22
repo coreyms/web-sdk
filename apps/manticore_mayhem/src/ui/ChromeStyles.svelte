@@ -130,7 +130,7 @@
 		/* THE HUD BUTTON PLATE (Corey 2026-10-15, direction "A. Riveted bronze plate", feedback/hud_buttons_r1, without
 		   the sun crest): the frame's own foot plate. Smoked warm glass inside a bevelled bronze bezel (four border
 		   colours lit from the top left) with a rivet in each corner. Play, the feature button, menu, autoplay, turbo,
-		   the steppers and SKIP. The state colour is the bezel metal (.plate-gold / -green / -pink / -silver, bronze
+		   the steppers and SKIP. The state colour is the bezel metal (.plate-gold / -green / -red / -silver, bronze
 		   by default) and, where a button tints its glass, --plate-g1 / --plate-g2 (or .plate-stop / .plate-run).
 		   EVERYTHING IS DRAWN ON ::before, behind the content (isolation keeps it above the page): the button keeps its
 		   box, its content box and every ::after hit area exactly as before. No backdrop-filter, no mask, no filter.
@@ -156,6 +156,22 @@
 			/* the bronze bezel's mid tone (--plate-bronze-4) as a hairline on the black glass */
 			--plate-bronze-line: rgba(189, 143, 82, 0.4);
 			--plate-ink: #f7eedc;
+			/* THE AUTOPLAY STATES (Corey 2026-10-21, his option A: "deeper green and Manticore Red"; game/constants.ts
+			   AUTOPLAY_COLOURS): green = Autoplay on, red = its stop. The green is AUTOPLAY_COLOURS.on #5f9149, deeper and
+			   less saturated than Angry Mantis's lime #9cd92f, lit and shaded like the bronze; the red is the shell's
+			   --accent #e32400 (it was a pink, #ff5a8a). Bezel 1..4 as the bronze's (top, right, bottom, left), the live
+			   count's glass, and its ACTIVE ink (pale enough to read on that glass). */
+			--auto-green-1: #d2e4b6;
+			--auto-green-2: #557f3e;
+			--auto-green-3: #2e4a1d;
+			--auto-green-4: #8db26b;
+			--auto-glass-1: rgba(64, 102, 44, 0.88);
+			--auto-glass-2: rgba(30, 52, 20, 0.9);
+			--auto-ink: #e3efcf;
+			--auto-red-1: #ffc4b2;
+			--auto-red-2: #b71d00;
+			--auto-red-3: #6b1200;
+			--auto-red-4: #f2643f;
 			--plate-rivet: radial-gradient(circle at 36% 34%, #fff0c8 0, #d2a364 32%, #7a5529 60%, rgba(0, 0, 0, 0.45) 70%, transparent 78%);
 		}
 		.am-plate {
@@ -233,16 +249,17 @@
 			--plate-b4: var(--plate-gold-4);
 		}
 		.am-plate.plate-green {
-			--plate-b1: #e2f7b0;
-			--plate-b2: #78a52d;
-			--plate-b3: #436314;
-			--plate-b4: #aed45e;
+			--plate-b1: var(--auto-green-1);
+			--plate-b2: var(--auto-green-2);
+			--plate-b3: var(--auto-green-3);
+			--plate-b4: var(--auto-green-4);
 		}
-		.am-plate.plate-pink {
-			--plate-b1: #ffd0de;
-			--plate-b2: #c94d75;
-			--plate-b3: #7d2a48;
-			--plate-b4: #ff8ab0;
+		/* the Autoplay button while a run is live (its stop): Manticore red (was .plate-pink) */
+		.am-plate.plate-red {
+			--plate-b1: var(--auto-red-1);
+			--plate-b2: var(--auto-red-2);
+			--plate-b3: var(--auto-red-3);
+			--plate-b4: var(--auto-red-4);
 		}
 		/* free spins (the code's white ring there): pale iron */
 		.am-plate.plate-silver {
@@ -256,8 +273,8 @@
 			--plate-g2: rgba(96, 18, 34, 0.9);
 		}
 		.am-plate.plate-run {
-			--plate-g1: rgba(82, 120, 28, 0.88);
-			--plate-g2: rgba(44, 70, 12, 0.9);
+			--plate-g1: var(--auto-glass-1);
+			--plate-g2: var(--auto-glass-2);
 		}
 		@keyframes slot-count {
 			0% {

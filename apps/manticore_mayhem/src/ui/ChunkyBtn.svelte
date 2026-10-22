@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Square "graffiti grunge" button: 3px inset ring in the accent colour, optional frosted glass.
 	import type { Snippet } from 'svelte';
+	import { AUTOPLAY_COLOURS } from '../game/constants';
 
 	type Props = {
 		size?: number;
@@ -23,7 +24,8 @@
 	//          became its own component).
 	// THE BRONZE PLATE (2026-10-15): a glass button is the HUD's riveted plate (ui/ChromeStyles.svelte .am-plate).
 	// Active, the bezel takes the accent's metal and the glass keeps the accent tint it always had.
-	const METAL: Record<string, string> = { '#ffdc4a': 'gold', '#9cd92f': 'green', '#ff5a8a': 'pink' };
+	// (2026-10-21) the Autoplay states' metals: AUTOPLAY_COLOURS (Corey "deeper green and Manticore Red"; were Angry Mantis's lime and a pink)
+	const METAL: Record<string, string> = { '#ffdc4a': 'gold', [AUTOPLAY_COLOURS.on]: 'green', [AUTOPLAY_COLOURS.stop]: 'red' };
 	const metal = $derived(glass && active ? (METAL[color.toLowerCase()] ?? '') : '');
 	const ring = $derived(Math.max(1.5, size * 0.02));
 	const radius = $derived(Math.round(Math.min(size * 0.22, 8 + size * 0.07)));

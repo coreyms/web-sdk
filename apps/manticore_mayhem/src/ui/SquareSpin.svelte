@@ -54,7 +54,8 @@
 		}),
 	);
 	// during free games the button keeps its own outline (white, now the pale iron bezel): colour marks an idle
-	// button only. Otherwise bronze, green with a run live or a loadout parked, gold with a buy mode armed.
+	// button only. Otherwise bronze, green with a run live or a loadout parked, gold with a buy mode armed. The green
+	// is the Autoplay green (ChromeStyles --auto-*, Corey 2026-10-21 "deeper green and Manticore Red").
 	const metal = $derived(freegame ? 'plate-silver' : autoActive || loaded ? 'plate-green' : armed ? 'plate-gold' : '');
 </script>
 
@@ -155,7 +156,8 @@
 	.active {
 		font-weight: 900;
 		letter-spacing: 1.4px;
-		color: #dff39a;
+		/* the Autoplay green's pale ink (ChromeStyles --auto-ink; was Angry Mantis's lime tint #dff39a) */
+		color: var(--auto-ink);
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 		text-transform: uppercase;
 	}

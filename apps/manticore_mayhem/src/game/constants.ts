@@ -846,6 +846,15 @@ export const PLAQUE_CELEBRATE = {
 	figuresBackMs: 220,
 };
 
+/** THE AUTOPLAY STATE COLOURS (Corey 2026-10-21, second harsh review, his option A: "deeper green and Manticore Red").
+ *  The meaning stays: green = Autoplay on (a loadout parked on the Spin button, or a run live: the Autoplay button's
+ *  glass and bezel, the Spin button's bezel, its live count's glass and its "ACTIVE"), red = stop (the Autoplay button
+ *  while a run is live: its X stops it). Until then the shades were Angry Mantis's: its brand lime #9CD92F and a pink
+ *  #ff5a8a. `on` is a deeper, less saturated green that sits with the bronze and the gold, clearly not the lime; `stop`
+ *  is the shell's --accent, Manticore red (src/app.html). The plate metals and glass made from them are the --auto-*
+ *  tokens in ui/ChromeStyles.svelte. */
+export const AUTOPLAY_COLOURS = { on: '#5f9149', stop: '#e32400' } as const;
+
 export const PLAQUE_STREAK = {
 	queueWaitMaxMs: 1200,
 	toHudDelayMs: 250,
