@@ -1016,7 +1016,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "L3_ancient-key/animation/drop_r2",
+   "source": "L3_ancient-key/graded_r1/drop_r2",
    "sourcePx": 512,
    "box512": [
     12.761,
@@ -1077,6 +1077,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "5350d6cf"
+  "pngHash": "031f2a16"
  }
 }

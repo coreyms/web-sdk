@@ -916,7 +916,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "M2_persian-dagger/animation/drop_r2",
+   "source": "M2_persian-dagger/graded_r1/drop_r2",
    "sourcePx": 512,
    "box512": [
     64.717,
@@ -977,6 +977,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "781b418c"
+  "pngHash": "bca3af85"
  }
 }

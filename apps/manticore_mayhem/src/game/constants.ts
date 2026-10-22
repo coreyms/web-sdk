@@ -599,15 +599,17 @@ export const WIN_FX = {
 	style: 'new' as 'new' | 'old',
 	/** each symbol's own colour for its burst and embers, SAMPLED FROM THE ART (the static atlas frames,
 	 *  mmSymbols.webp, 2026-10-16): the mean of the lit pixels of the dominant hue, value lifted to at least 0.8.
-	 *  L4 is the green of its wax (the largest area: the gold gryphon is the brighter but smaller part). */
+	 *  L4 is the green of its wax (the largest area: the gold gryphon is the brighter but smaller part). M1 M2 M3 L4 L3
+ *  re-sampled 2026-10-22 from the recoloured art (an Engine.io developer's "too much yellow"; Corey "Go"): each of the
+ *  five has its own colour now, so its burst follows it. */
 	colors: {
 		L1: 0xcc9567, // the shackle's aged bronze
 		L2: 0xcca372, // the bull skull's bone
-		L3: 0xda9a46, // the key's gold
-		L4: 0x6fcc5c, // the seal's green wax
-		M1: 0xcc944e, // the helmet's gold
-		M2: 0xcc9750, // the dagger's bronze blade
-		M3: 0xdaa154, // the chalice's gold
+		L3: 0xae66cc, // the key's violet: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the graded tile, the method above)
+		L4: 0x7bcc43, // the seal's leaf-green wax: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the graded tile)
+		M1: 0xcc4155, // the helmet's crimson: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the cloth: the lit crimson pixels, hue 330..30, of the graded tile, the method above)
+		M2: 0x4bccc8, // the dagger's teal: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the teal grip, inlay and gems of the graded tile)
+		M3: 0x7e9ecc, // the chalice's blue: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the graded tile, the method above)
 		H1: 0xe8a544, // the crown's gold
 		W: 0xfbb25c, // the Wild medallion's copper gold
 		S: 0xef1d10, // the War Standard's red

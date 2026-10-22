@@ -182,29 +182,29 @@
   },
   "bwt_molten_emblem_bonus": {
    "frame": {
-    "x": 319,
+    "x": 321,
     "y": 4,
-    "w": 309,
-    "h": 317
+    "w": 307,
+    "h": 315
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 309,
-    "h": 317
+    "w": 307,
+    "h": 315
    },
    "sourceSize": {
-    "w": 309,
-    "h": 317
+    "w": 307,
+    "h": 315
    }
   },
   "bwt_molten_emblem_super": {
    "frame": {
     "x": 4,
     "y": 4,
-    "w": 307,
+    "w": 309,
     "h": 319
    },
    "rotated": false,
@@ -212,11 +212,11 @@
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 307,
+    "w": 309,
     "h": 319
    },
    "sourceSize": {
-    "w": 307,
+    "w": 309,
     "h": 319
    }
   },
@@ -224,20 +224,20 @@
    "frame": {
     "x": 636,
     "y": 4,
-    "w": 358,
-    "h": 312
+    "w": 359,
+    "h": 313
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 358,
-    "h": 312
+    "w": 359,
+    "h": 313
    },
    "sourceSize": {
-    "w": 358,
-    "h": 312
+    "w": 359,
+    "h": 313
    }
   }
  },
@@ -249,6 +249,6 @@
    "h": 2011
   },
   "scale": "1",
-  "pngHash": "60127411"
+  "pngHash": "1f4f11a9"
  }
 }

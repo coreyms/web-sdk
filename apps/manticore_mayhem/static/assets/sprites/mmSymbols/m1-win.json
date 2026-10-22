@@ -916,7 +916,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "M1_persian-helmet/animation/win_r3",
+   "source": "M1_persian-helmet/graded_r1/win_r3",
    "sourcePx": 768,
    "box512": [
     60.565,
@@ -982,6 +982,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "840a9c7c"
+  "pngHash": "e47dfa95"
  }
 }

@@ -78,7 +78,13 @@ HERO_FOR = {
 # art key -> the folder its frames come from instead of HEROES/HERO_FOR[art] (tools/grade_war_standard.py --armoury
 # writes the War Standard's graded copy there; Corey 2026-10-17 14:07 "Can it do the same color grade on the scatter
 # in the Armoury?")
-SOURCE_OVERRIDES = {'standard': os.path.join(HEROES, HERO_FOR['standard'], 'graded_r1')}
+# dagger and seal: the symbol recolour (an Engine.io developer's "too much yellow"; Corey 2026-10-22 "Go"), the board
+# symbols' grade on the hero renders with ID masks from the same camera (images/symbol_recolour_r1/official/M2/NOTES.md
+# round 3, official/WIRING_NOTES.md). dagger: SUPER card, tray and confirm card (graded_r1/flat.png = the graded
+# straight-on frame cropped as check2.py cropped flat.png); seal: the MYSTERY card (no flat.png: its thumb is the frame)
+SOURCE_OVERRIDES = {'standard': os.path.join(HEROES, HERO_FOR['standard'], 'graded_r1'),
+                    'dagger': os.path.join(HEROES, HERO_FOR['dagger'], 'graded_r1'),
+                    'seal': os.path.join(HEROES, HERO_FOR['seal'], 'graded_r1')}
 
 
 def hero_dir(art):

@@ -916,7 +916,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "M2_persian-dagger/animation/win",
+   "source": "M2_persian-dagger/graded_r1/win",
    "sourcePx": 768,
    "box512": [
     64.717,
@@ -982,6 +982,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "edd0ba23"
+  "pngHash": "a196d8ea"
  }
 }

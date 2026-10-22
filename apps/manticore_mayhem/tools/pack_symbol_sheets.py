@@ -11,7 +11,8 @@ Sources (read only, never written):
   CLIPS (below) picks other folders per symbol and clip: H1 reads drop_r2/, idle_r2/ and win/ (revision 2, 2026-10-19)
   .../animation/win/  (only where CLIPS names one) the WIN clip: masters at canvas.json "scale" x the 512 frame (768 px
                       for 1.5), the 512 frame centred in them at the same pixel density; canvas.json gives the scale
-  SOURCE_OVERRIDES (below): S reads its frames from S_war-standard/graded_r2/ and its tile from graded_r1/tile/
+  SOURCE_OVERRIDES (below): S reads its frames from S_war-standard/graded_r2/ and its tile from graded_r1/tile/;
+                      M1 M2 M3 L4 L3 read frames and tile from <CODE_name>/graded_r1/ (the recolour, 2026-10-22)
   tools/render_symbols/out/render/<CODE>.png + fit.json                 the 1024 harness renders the tiles were baked
                                                                          from (make_tiles.py); the fit is derived from
                                                                          them and cached in render_symbols/sheet_fit.json
@@ -113,8 +114,16 @@ WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} writte
 #   S: the War Standard re-grade (review B5, Corey 2026-10-17 13:08, no Blender), written by tools/grade_war_standard.py;
 #   since revision 2 (2026-10-19) the clips come from graded_r2/ (the same grade, applied by the r2 art job before its
 #   painted light) and the static tile still from graded_r1/tile/ (TILE_OVERRIDES)
-SOURCE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r2")}
-TILE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r1", "tile", "s.webp")}
+#   M1 M2 M3 L4 L3: the symbol recolour (an Engine.io developer's "too much yellow"; Corey 2026-10-22 "Go"): each of the
+#   five now has its own colour (helmet crimson, dagger teal, chalice blue, seal green, key violet), graded per frame from
+#   the masters with ID masks (images/symbol_recolour_r1/official/<CODE>/NOTES.md); clips and tile from graded_r1/. The
+#   seal's win is the FADE ending (Corey 2026-10-22; the hold version is in ~/Desktop/_archive/L4_win_hold_2026-10-22/)
+RECOLOUR_R1 = {"M1": "M1_persian-helmet", "M2": "M2_persian-dagger", "M3": "M3_royal-chalice",
+               "L4": "L4_royal-seal", "L3": "L3_ancient-key"}
+SOURCE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r2"),
+                    **{c: os.path.join(SYMBOLS_DIR, d, "graded_r1") for c, d in RECOLOUR_R1.items()}}
+TILE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r1", "tile", "s.webp"),
+                  **{c: os.path.join(SYMBOLS_DIR, d, "graded_r1", "tile", c.lower() + ".webp") for c, d in RECOLOUR_R1.items()}}
 FRAME_RE = re.compile(r"^(?:[A-Za-z0-9]+_(?:drop|idle|win)(?:_r\d+)?_)?\d{3,4}\.png$")
 
 

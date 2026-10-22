@@ -916,7 +916,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "M1_persian-helmet/animation/drop_r2",
+   "source": "M1_persian-helmet/graded_r1/drop_r2",
    "sourcePx": 512,
    "box512": [
     60.565,
@@ -977,6 +977,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "a2503930"
+  "pngHash": "d25e386b"
  }
 }

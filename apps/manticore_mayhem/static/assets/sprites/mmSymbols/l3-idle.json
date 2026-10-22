@@ -1516,7 +1516,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "L3_ancient-key/animation/idle_r2",
+   "source": "L3_ancient-key/graded_r1/idle_r2",
    "sourcePx": 512,
    "box512": [
     12.761,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "fad7a810"
+  "pngHash": "7beea87a"
  }
 }

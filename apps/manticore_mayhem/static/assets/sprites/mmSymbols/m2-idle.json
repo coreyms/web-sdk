@@ -1516,7 +1516,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "M2_persian-dagger/animation/idle_r2",
+   "source": "M2_persian-dagger/graded_r1/idle_r2",
    "sourcePx": 512,
    "box512": [
     64.717,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "cf26a1c6"
+  "pngHash": "e820d441"
  }
 }
