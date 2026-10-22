@@ -7,6 +7,26 @@
 //
 // Names (Corey 2026-10-12): the wild is "Wild", the scatter is "War Standard Scatter(s)", the tiles
 // are "Multiplier Tiles".
+//
+// NUMBERS UP FRONT (Corey 2026-10-21, "Yes, great idea"; docs/reviews/manticore-advisor-2026-10-21.md upgrade 1: every
+// 3-star game in the calibration set states a number on its landing). The numbers are read from config.ts, the mirror
+// of the shipped math (game_config.py), never typed in here: the max win line under the cards (WINCAP) and the
+// Multiplier Tiles' top value on CLUSTERS (TILE_CAP_HIGH, the Super and Epic ladder; Free Spins and the base game
+// stop at 64, hence "up to"). Social wording through soc(): "your bet" on stake.com, "your play amount" on stake.us.
+
+import config from './config';
+import { soc } from './social';
+
+/** the multiplier tiles' top value in the shipped math (config.tileCap, the highest ladder: Super and Epic) */
+export const INTRO_TILE_TOP = Math.max(...Object.values(config.tileCap));
+const TILE_TOP_TEXT = `${INTRO_TILE_TOP}x`;
+
+/** THE MAX WIN LINE on the landing (ui/LandingScreen.svelte .maxwin, over the gate): `num` is drawn in the highlight */
+export const INTRO_MAX_WIN = {
+	lead: 'WIN UP TO ',
+	num: `${config.maxWin.toLocaleString('en-US')}x`,
+	tail: soc(' YOUR BET', ' YOUR PLAY AMOUNT'),
+} as const;
 
 export type IntroCardKey = 'clusters' | 'scatters' | 'features';
 
@@ -33,8 +53,8 @@ export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 		key: 'clusters',
 		clipSeconds: 12.633,
 		title: 'CLUSTERS',
-		body: '5 or more matching symbols that touch form a cluster. Every win lights Multiplier Tiles under it, and lit tiles double.',
-		highlights: ['Multiplier Tiles'],
+		body: `5 or more matching symbols that touch form a cluster. Every win lights Multiplier Tiles under it, and lit tiles double up to ${TILE_TOP_TEXT}.`,
+		highlights: ['Multiplier Tiles', TILE_TOP_TEXT],
 		sceneLines: [
 			{ from: 0, to: 1.9, text: '5 Persian Daggers in a row: a cluster' },
 			{ from: 1.9, to: 4.1, text: 'Any shape counts: left, right, up or down. Not diagonals' },

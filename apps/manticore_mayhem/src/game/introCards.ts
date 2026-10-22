@@ -114,10 +114,12 @@ export const INTRO_CARD_STYLE = {
  *  height: since the bar is the splash's segmented bar (2026-10-21, LANDING_BAR) it is the splash's, 1.8 x its 10 px
  *  base (src/app.html .gbar), on the desktop and the portrait phone (was 10); the sideways phone keeps its 14 so its
  *  landing layout stays as it is (Corey 2026-10-21) */
-export const INTRO_GATE: Record<LayoutKind, { tag: number; barW: number; barH: number; press: number; pad: number }> = {
-	landscape: { tag: 14, barW: 420, barH: 18, press: 18, pad: 16 },
-	portrait: { tag: 13, barW: 280, barH: 18, press: 17, pad: 16 },
-	phone: { tag: 22, barW: 520, barH: 14, press: 30, pad: 26 },
+/** `maxWin` is the max win line's font size (introCardText INTRO_MAX_WIN, Corey 2026-10-21): it stands over the bar and
+ *  over PRESS ANYWHERE alike, so nothing moves when the one becomes the other, and the cards' band ends above it */
+export const INTRO_GATE: Record<LayoutKind, { tag: number; barW: number; barH: number; press: number; pad: number; maxWin: number }> = {
+	landscape: { tag: 14, barW: 420, barH: 18, press: 18, pad: 16, maxWin: 21 },
+	portrait: { tag: 13, barW: 280, barH: 18, press: 17, pad: 16, maxWin: 15 },
+	phone: { tag: 22, barW: 520, barH: 14, press: 30, pad: 26, maxWin: 28 },
 };
 
 /** THE LANDING SCREEN'S LOADING BAR IS THE SPLASH'S (Corey 2026-10-21: "We should update the Landing Screen Statusbar to
@@ -138,10 +140,11 @@ const GATE_ROW_GAP = 8;
 const GATE_LINE = 1.3;
 /** the readout's font size under the bar */
 export const introGatePctSize = (kind: LayoutKind) => Math.max(10, INTRO_GATE[kind].tag * 0.8);
-/** the highest y (master px) anything of the gate reaches: the bar with its readout, or the press line */
+/** the highest y (master px) anything of the gate reaches: the max win line over the bar with its readout, or over
+ *  the press line */
 export const introGateTop = (kind: LayoutKind) => {
 	const g = INTRO_GATE[kind];
-	const tall = Math.max(g.barH + GATE_ROW_GAP + introGatePctSize(kind) * GATE_LINE, g.press * GATE_LINE);
+	const tall = Math.max(g.barH + GATE_ROW_GAP + introGatePctSize(kind) * GATE_LINE, g.press * GATE_LINE) + GATE_ROW_GAP + g.maxWin * GATE_LINE;
 	return MASTER[kind].height - g.pad - tall;
 };
 
