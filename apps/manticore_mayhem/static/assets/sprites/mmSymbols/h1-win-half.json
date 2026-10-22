@@ -916,7 +916,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "H1_ancient-crown/animation/win",
+   "source": "H1_ancient-crown/graded_r1/win",
    "sourcePx": 768,
    "box512": [
     81.615,
@@ -982,6 +982,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "3b7d8b95"
+  "pngHash": "a4268e48"
  }
 }

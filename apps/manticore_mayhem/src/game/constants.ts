@@ -601,16 +601,17 @@ export const WIN_FX = {
 	 *  mmSymbols.webp, 2026-10-16): the mean of the lit pixels of the dominant hue, value lifted to at least 0.8.
 	 *  L4 is the green of its wax (the largest area: the gold gryphon is the brighter but smaller part). M1 M2 M3 L4 L3
  *  re-sampled 2026-10-22 from the recoloured art (an Engine.io developer's "too much yellow"; Corey "Go"): each of the
- *  five has its own colour now, so its burst follows it. */
+ *  five has its own colour now, so its burst follows it. L2 and H1 re-sampled the same day (Corey 2026-10-22: the crown
+ *  "looks good", the skull's pink eyes "work"): the crown's lemon gold, and the skull's EYE pink (its bone is white). */
 	colors: {
 		L1: 0xcc9567, // the shackle's aged bronze
-		L2: 0xcca372, // the bull skull's bone
+		L2: 0xcc73a4, // the skull's pink eyes: the symbol recolour (Corey 2026-10-22: the pink eyes "work and don't clash with anything else on the board"), sampled from the recoloured win frames 7..10 and 30 (the eye-lit pixels, hue 295..345, mean 238,135,192), value set to 0.8; not the new bone white (0xccc3b2), which would give the skull's burst no identity
 		L3: 0xae66cc, // the key's violet: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the graded tile, the method above)
 		L4: 0x7bcc43, // the seal's leaf-green wax: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the graded tile)
 		M1: 0xcc4155, // the helmet's crimson: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the cloth: the lit crimson pixels, hue 330..30, of the graded tile, the method above)
 		M2: 0x4bccc8, // the dagger's teal: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the teal grip, inlay and gems of the graded tile)
 		M3: 0x7e9ecc, // the chalice's blue: the symbol recolour (Corey "Go", 2026-10-22), sampled from the recoloured art (the graded tile, the method above)
-		H1: 0xe8a544, // the crown's gold
+		H1: 0xe8c854, // the crown's lemon gold: the symbol recolour (Corey 2026-10-22: the crown "looks good"), sampled from the recoloured art (the graded tile, the method above: 0xd5b74c, hue 47) at the old entry's brightness (v 0.91)
 		W: 0xfbb25c, // the Wild medallion's copper gold
 		S: 0xef1d10, // the War Standard's red
 	} as Record<string, number>,

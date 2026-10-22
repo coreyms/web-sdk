@@ -82,9 +82,14 @@ HERO_FOR = {
 # symbols' grade on the hero renders with ID masks from the same camera (images/symbol_recolour_r1/official/M2/NOTES.md
 # round 3, official/WIRING_NOTES.md). dagger: SUPER card, tray and confirm card (graded_r1/flat.png = the graded
 # straight-on frame cropped as check2.py cropped flat.png); seal: the MYSTERY card (no flat.png: its thumb is the frame)
+# crown: the EPIC card, tray and confirm card, a bright yellow gold to match the board crown's lemon (Corey 2026-10-22:
+# the crown "looks good"; round 1's straight C1 read olive-khaki under the low-key EPIC light, so round 2 lifts the gold's
+# value and saturation and leans its ember-lit shadows warm, hue 40 to 46), red gems kept by their ID
+# (official/H1/script/armoury/grade_crown_r2.py; graded_r1/flat.png = graded r0c10 cropped as check2.py)
 SOURCE_OVERRIDES = {'standard': os.path.join(HEROES, HERO_FOR['standard'], 'graded_r1'),
                     'dagger': os.path.join(HEROES, HERO_FOR['dagger'], 'graded_r1'),
-                    'seal': os.path.join(HEROES, HERO_FOR['seal'], 'graded_r1')}
+                    'seal': os.path.join(HEROES, HERO_FOR['seal'], 'graded_r1'),
+                    'crown': os.path.join(HEROES, HERO_FOR['crown'], 'graded_r1')}
 
 
 def hero_dir(art):

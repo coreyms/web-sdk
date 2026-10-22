@@ -1516,7 +1516,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "L2_bull-skull/animation/idle_r2",
+   "source": "L2_bull-skull/graded_r1/idle_r2",
    "sourcePx": 512,
    "box512": [
     71.467,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "bfaf1c7d"
+  "pngHash": "85b20eb9"
  }
 }

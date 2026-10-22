@@ -118,8 +118,13 @@ WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} writte
 #   five now has its own colour (helmet crimson, dagger teal, chalice blue, seal green, key violet), graded per frame from
 #   the masters with ID masks (images/symbol_recolour_r1/official/<CODE>/NOTES.md); clips and tile from graded_r1/. The
 #   seal's win is the FADE ending (Corey 2026-10-22; the hold version is in ~/Desktop/_archive/L4_win_hold_2026-10-22/)
+#   L2 H1: the second pair (Corey 2026-10-22: the crown "looks good", the skull's rings "are okay", the pink eyes "work
+#   and don't clash with anything else on the board"): the skull is bone white with obsidian horns, silver rings and
+#   pink eyes (K1 + eyes E2; the peach-eyed grade is in ~/Desktop/_archive/L2_eyes_peach_2026-10-22/), the crown a
+#   brighter lemon gold with its red gems kept (C1), so they stand apart from the shackle and the Wild coin
 RECOLOUR_R1 = {"M1": "M1_persian-helmet", "M2": "M2_persian-dagger", "M3": "M3_royal-chalice",
-               "L4": "L4_royal-seal", "L3": "L3_ancient-key"}
+               "L4": "L4_royal-seal", "L3": "L3_ancient-key",
+               "L2": "L2_bull-skull", "H1": "H1_ancient-crown"}
 SOURCE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r2"),
                     **{c: os.path.join(SYMBOLS_DIR, d, "graded_r1") for c, d in RECOLOUR_R1.items()}}
 TILE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r1", "tile", "s.webp"),
