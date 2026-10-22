@@ -21,11 +21,12 @@ import { soc } from './social';
 export const INTRO_TILE_TOP = Math.max(...Object.values(config.tileCap));
 const TILE_TOP_TEXT = `${INTRO_TILE_TOP}x`;
 
-/** THE MAX WIN LINE on the landing (ui/LandingScreen.svelte .maxwin, over the gate): `num` is drawn in the highlight */
+/** THE MAX WIN LINE on the landing (ui/LandingScreen.svelte .maxwin, over the gate): `num` is drawn in the highlight.
+ *  "YOUR PLAY AMOUNT" in every mode (Corey 2026-10-22: "YOUR PLAY AMOUNT. Easier to maintain that way.") */
 export const INTRO_MAX_WIN = {
 	lead: 'WIN UP TO ',
 	num: `${config.maxWin.toLocaleString('en-US')}x`,
-	tail: soc(' YOUR BET', ' YOUR PLAY AMOUNT'),
+	tail: ' YOUR PLAY AMOUNT',
 } as const;
 
 export type IntroCardKey = 'clusters' | 'scatters' | 'features';
