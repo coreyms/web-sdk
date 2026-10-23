@@ -21,8 +21,11 @@ import { soc } from './social';
 export const INTRO_TILE_TOP = Math.max(...Object.values(config.tileCap));
 const TILE_TOP_TEXT = `${INTRO_TILE_TOP}x`;
 
-/** THE MAX WIN LINE on the landing (ui/LandingScreen.svelte .maxwin, over the gate): `num` is drawn in the highlight.
- *  "YOUR PLAY AMOUNT" in every mode (Corey 2026-10-22: "YOUR PLAY AMOUNT. Easier to maintain that way.") */
+/** THE MAX WIN LINE: the gold caption of the CLUSTERS clip's last scene (Corey 2026-10-23: "On the Clusters Card, we
+ *  add one more video clip in that loop that has all tiles lit at 128x, and all wilds drop in, they clear and we show
+ *  10,000x over them. Then on the Gold text at the bottom of that card we say 'WIN UP TO 10,000x YOUR PLAY AMOUNT'").
+ *  It stood over the gate from 2026-10-21 until then. "YOUR PLAY AMOUNT" in every mode (Corey 2026-10-22: "YOUR PLAY
+ *  AMOUNT. Easier to maintain that way.") */
 export const INTRO_MAX_WIN = {
 	lead: 'WIN UP TO ',
 	num: `${config.maxWin.toLocaleString('en-US')}x`,
@@ -52,7 +55,7 @@ export type IntroCardText = {
 export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 	{
 		key: 'clusters',
-		clipSeconds: 12.633,
+		clipSeconds: 15.633,
 		title: 'CLUSTERS',
 		body: `5 or more matching symbols that touch form a cluster. Every win lights Multiplier Tiles under it, and lit tiles double up to ${TILE_TOP_TEXT}.`,
 		highlights: ['Multiplier Tiles', TILE_TOP_TEXT],
@@ -61,7 +64,9 @@ export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 			{ from: 1.9, to: 4.1, text: 'Any shape counts: left, right, up or down. Not diagonals' },
 			{ from: 4.1, to: 6.3, text: 'The Wild stands in for any symbol except the War Standard Scatter' },
 			{ from: 6.3, to: 9.567, text: 'Every winning cluster lights the cells under it: 2x Multiplier Tiles' },
-			{ from: 9.567, to: 12.633, text: 'A cluster on Multiplier Tiles wins its value times their sum. Then the tiles double' },
+			{ from: 9.567, to: 12.333, text: 'A cluster on Multiplier Tiles wins its value times their sum. Then the tiles double' },
+			// the max win scene (images/intro_cards_r9b, Corey 2026-10-23 "Looks good, go"): 128x tiles, Wilds, MAX WIN 10,000x
+			{ from: 12.333, to: 15.633, text: `${INTRO_MAX_WIN.lead}${INTRO_MAX_WIN.num}${INTRO_MAX_WIN.tail}` },
 		],
 	},
 	{

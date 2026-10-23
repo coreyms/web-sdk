@@ -437,7 +437,7 @@ export default {
 	"ui/board-wells-half.webp": "71f9c371",
 	"ui/board-wells.webp": "8d1869a1",
 	"ui/intro/card-clusters-poster.jpg": "b602773d",
-	"ui/intro/card-clusters.mp4": "2c100987",
+	"ui/intro/card-clusters.mp4": "23f497da",
 	"ui/intro/card-features-poster.jpg": "0b25ab97",
 	"ui/intro/card-features.mp4": "60690a73",
 	"ui/intro/card-frame.webp": "1a6d4da9",
@@ -936,7 +936,7 @@ export const fileBytes = {
 	"ui/board-wells-half.webp": 12816,
 	"ui/board-wells.webp": 48734,
 	"ui/intro/card-clusters-poster.jpg": 62722,
-	"ui/intro/card-clusters.mp4": 550529,
+	"ui/intro/card-clusters.mp4": 758523,
 	"ui/intro/card-features-poster.jpg": 46049,
 	"ui/intro/card-features.mp4": 578609,
 	"ui/intro/card-frame.webp": 152008,
@@ -1007,11 +1007,11 @@ export const landingSizes = {
 	"ui/intro/card-scatters-poster.jpg": 68065,
 	"ui/intro/card-features-poster.jpg": 46049,
 	"fonts/ui/Cinzel-Bold.woff2": 15224,
-	"ui/intro/card-clusters.mp4": 550529,
+	"ui/intro/card-clusters.mp4": 758523,
 	"ui/intro/card-scatters.mp4": 531279,
 	"ui/intro/card-features.mp4": 578609
 } as const;
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":2185463,"preload":1481319,"audio":1726744} as const;
+export const bootSizes = {"landing":2393457,"preload":1481319,"audio":1726744} as const;

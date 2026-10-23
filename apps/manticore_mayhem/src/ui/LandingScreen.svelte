@@ -33,7 +33,7 @@
 	import { sound } from '../game/sound';
 	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, INTRO_LOGO_SHINE_MS, LANDING_BAR, introGatePctSize, introPlacement } from '../game/introCards';
 	import { INTRO_BODY_FIT, LOAD_GATE } from '../game/constants';
-	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, INTRO_MAX_WIN, introBodyRuns, introSceneIndexAt } from '../game/introCardText';
+	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, introBodyRuns, introSceneIndexAt } from '../game/introCardText';
 	import Shine from './Shine.svelte';
 
 	type Props = { onpress: () => void };
@@ -512,9 +512,6 @@
 		</span>
 
 		<div class="gate" style:padding="{SZ.pad}px" style:transform="translateX({place.gateCx - master.width / 2}px)">
-			<!-- the max win line (Corey 2026-10-21): steady over the bar and over PRESS ANYWHERE, the number from config.
-			     Shown from the Pixi preload on (`face`): see .maxwin -->
-			<div class="maxwin" class:face={context.stateApp.preLoaded} style:font-size="{SZ.maxWin}px">{INTRO_MAX_WIN.lead}<b>{INTRO_MAX_WIN.num}</b>{INTRO_MAX_WIN.tail}</div>
 			{#if assetsFailed}
 				<!-- same display style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
 				<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM · TAP TO RETRY</div>
@@ -908,30 +905,6 @@
 		letter-spacing: 1.5px;
 		color: rgba(238, 240, 230, 0.5);
 		font-variant-numeric: tabular-nums;
-	}
-	/* THE MAX WIN LINE (Corey 2026-10-21, introCardText INTRO_MAX_WIN): PRESS ANYWHERE's face, steady (no pulse), in the
-	   cards' copy colour with the number in the cards' highlight gold (INTRO_CARD_STYLE body / highlight) */
-	/* Its row is held, hidden and in the HUD face, until the Pixi preload is in (Corey 2026-10-23, "Yes"): Cinzel asked
-	   for any earlier is a face in flight under pixi-svelte's document.fonts.ready wait, and a held Cinzel request held
-	   Pixi and PRESS ANYWHERE for good (landing_probe "card files held", since 049b2c1). game/boot.svelte.ts loads
-	   Cinzel after the preload for the same reason. line-height is a multiple of the size, so the row does not move */
-	.maxwin {
-		font-family: var(--ui-font);
-		visibility: hidden;
-		font-weight: var(--ui-display-weight);
-		letter-spacing: 0.05em;
-		line-height: 1.3;
-		white-space: nowrap;
-		color: #ddd3bb;
-		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-	}
-	.maxwin.face {
-		font-family: var(--ui-font-display);
-		visibility: visible;
-	}
-	.maxwin b {
-		font-weight: inherit;
-		color: #e0b860;
 	}
 	/* PRESS ANYWHERE in the game's display face (review D10, Corey 2026-10-17 13:05; ChromeStyles --ui-font-display):
 	   Cinzel 700, was Outfit Black. Its capitals are wider than Outfit's, so it tracks at --press-track, about Outfit's

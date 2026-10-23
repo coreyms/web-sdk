@@ -497,6 +497,20 @@
 						if (typeof o?.scale === 'number') view.hoverScale = Math.max(0, o.scale);
 						return view.hoverScale;
 					},
+					/** THE CLUSTERS INTRO CARD'S MAX WIN SCENE (recording only, images/intro_cards_r9). Corey 2026-10-23: "in the
+					 *  stinger shows dollar amounts, if we can wire it to show MAX WIN, and 10,000x on the next line like this that
+					 *  would work", and "I want to keep the display size of the window the same, we only show 8 symbols". After
+					 *  show({ screen: 'win', tier: 'max' }): `amount` is set as written (a multiplier, no currency formatting), and
+					 *  the plaque's panel centre goes to canvas px x, y at `scale` (ship px to canvas px) so it fits the clip's
+					 *  crop. Nothing in the game calls it; a resize puts the plaque back where the layout wants it. */
+					introCard: (o: { amount?: string; x?: number; y?: number; scale?: number }) => {
+						if (typeof o?.amount === 'string') view.setAmountText(o.amount, o.amount);
+						if (typeof o?.x === 'number' && typeof o?.y === 'number' && typeof o?.scale === 'number') {
+							const canvas = context.stateLayoutDerived.canvasSizes();
+							view.place(o.x, o.y, o.scale, canvas.width, canvas.height, context.stateLayoutDerived.mainLayout().scale);
+						}
+						return view.state();
+					},
 					/** THE BACKGROUND GLOW's options (constants PLAQUE_GLOW): the look and what its halos cost */
 					glow: () => ({
 						key: view.glowKey,
