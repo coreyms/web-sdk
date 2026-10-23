@@ -523,7 +523,7 @@ export const CLUSTER_LABEL = {
 	capCells: 0.4,
 	amountTint: 0xffffff,
 	/** the teal of the word MAYHEM in the title (tools/make_placeholders.py TURQUOISE = 46, 176, 168; the
-	 *  same value as SYMBOL_COLORS.L4) */
+	 *  seal's placeholder colour before the 2026-10-22 recolour) */
 	teal: 0x2eb0a8,
 	/** the multiplier's sprite tint. A tint MULTIPLIES the glyph's cream face (0xeadec2 at its upper
 	 *  quartile, sampled from the plaque's glyph atlas; the label atlases bake the same face), so the plain
@@ -1028,17 +1028,19 @@ export const PLAQUE_RECAP = {
  *  scatter beats (the trigger beat) keep their own colour */
 export const AURA_COLOR = 0xffdc4a;
 
-/** each symbol's tile colour, for the 'tile' sparkle colour (the placeholder plate hues from
- *  apps/manticore_mayhem/tools/make_placeholders.py SYMBOLS; retune when the real art lands) */
+/** each symbol's own colour: the cleared symbol's sparkles ('tile' sparkle colour) and the symbol names in Game Info.
+ *  The eight pay symbols are their burst colours, sampled from the recoloured art (WIN_FX.colors; Corey 2026-10-22
+ *  "Let's do 3": the placeholder plate hues from tools/make_placeholders.py no longer matched the recolour). The Wild
+ *  and the War Standard keep their own */
 export const SYMBOL_COLORS: Record<string, number> = {
-	L1: 0x8a929a,
-	L2: 0xc4bcaa,
-	L3: 0x6c8a7a,
-	L4: 0x2eb0a8,
-	M1: 0x7692b0,
-	M2: 0x967884,
-	M3: 0xc49e4a,
-	H1: 0xe2b648,
+	L1: WIN_FX.colors.L1,
+	L2: WIN_FX.colors.L2,
+	L3: WIN_FX.colors.L3,
+	L4: WIN_FX.colors.L4,
+	M1: WIN_FX.colors.M1,
+	M2: WIN_FX.colors.M2,
+	M3: WIN_FX.colors.M3,
+	H1: WIN_FX.colors.H1,
 	W: 0xd4af37,
 	S: 0xd04040,
 };

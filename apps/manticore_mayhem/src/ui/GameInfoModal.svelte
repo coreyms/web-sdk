@@ -31,6 +31,7 @@
 	import { soc } from '../game/social';
 	import { skipAllowed } from '../game/stateGame.svelte';
 	import { stamp } from '../game/assets';
+	import { SYMBOL_COLORS } from '../game/constants';
 	import { gameInfoText, guideRowShown, runs, MODE_NAMES, pct, type GuideId } from '../game/gameInfoText';
 	import { modeCost } from '../game/betModeMeta';
 	import { measureFitText } from '../game/textFit';
@@ -71,15 +72,17 @@
 	// the operator turned off (gameInfoText.ts RulesFlags)
 	const T = $derived(gameInfoText((x) => numberToCurrencyString(x * stateBet.betAmount), stateConfig.jurisdiction));
 
+	// each pay symbol's name wears its own colour, the same as its sparkles and burst (SYMBOL_COLORS)
+	const css = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 	const SYMBOL_META: Record<string, { name: string; color: string; kind: 'premium' | 'mid' | 'low' }> = {
-		H1: { name: config.symbols.H1.name, color: '#e2b648', kind: 'premium' },
-		M3: { name: config.symbols.M3.name, color: '#c49e4a', kind: 'mid' },
-		M2: { name: config.symbols.M2.name, color: '#967884', kind: 'mid' },
-		M1: { name: config.symbols.M1.name, color: '#7692b0', kind: 'mid' },
-		L4: { name: config.symbols.L4.name, color: '#2eb0a8', kind: 'low' },
-		L3: { name: config.symbols.L3.name, color: '#6c8a7a', kind: 'low' },
-		L2: { name: config.symbols.L2.name, color: '#c4bcaa', kind: 'low' },
-		L1: { name: config.symbols.L1.name, color: '#8d939a', kind: 'low' },
+		H1: { name: config.symbols.H1.name, color: css(SYMBOL_COLORS.H1), kind: 'premium' },
+		M3: { name: config.symbols.M3.name, color: css(SYMBOL_COLORS.M3), kind: 'mid' },
+		M2: { name: config.symbols.M2.name, color: css(SYMBOL_COLORS.M2), kind: 'mid' },
+		M1: { name: config.symbols.M1.name, color: css(SYMBOL_COLORS.M1), kind: 'mid' },
+		L4: { name: config.symbols.L4.name, color: css(SYMBOL_COLORS.L4), kind: 'low' },
+		L3: { name: config.symbols.L3.name, color: css(SYMBOL_COLORS.L3), kind: 'low' },
+		L2: { name: config.symbols.L2.name, color: css(SYMBOL_COLORS.L2), kind: 'low' },
+		L1: { name: config.symbols.L1.name, color: css(SYMBOL_COLORS.L1), kind: 'low' },
 	};
 	// worst-paying first in the config, best first on screen
 	const paying = [...config.payOrder];
