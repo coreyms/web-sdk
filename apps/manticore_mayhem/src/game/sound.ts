@@ -179,8 +179,25 @@ const loadMusicManifest = async () => {
 			track.src = order.map((i) => track.src![i]);
 		}
 	}
-	sound.loadMusic(holdSideTracks(manifest));
+	// THE GAPLESS BASE LOOP ON iPHONE (2026-10-23, Corey: "I'd like to make an attempt at fixing the iPhone loop before
+	// Monday, the other background music doesn't need to loop"). WebKit leaves a pause at every wrap of a looping media
+	// element, so on Apple touch devices bgm_base, and only bgm_base, is handed from its stream to a decoded Web Audio
+	// loop once it plays (utils-sound createMusic.svelte.ts, BUFFERED LOOPS). Every other track, and every track on
+	// desktop and Android, streams as before. The iPhone file is the 60 s mono .m4a (tools/build_audiosprite.py): its
+	// decoded copy is about 11.5 MB at 48 kHz.
+	sound.loadMusic(holdSideTracks(manifest), { bufferedLoops: PREFERS_AAC ? ['bgm_base'] : [] });
 };
+
+// DEV only (compiled out of every build), for tools/manticore/music_loop_probe.js: musicDiag is the menu readout line
+// (createSound diag), musicLoop the base loop's decoded copy (phase, position) while it has one, musicPlay asks for a
+// track the way the game does (Sound.svelte soundMusic), so the probe can switch away from the base and back.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+	Object.assign(((window as unknown as { __manticore?: Record<string, unknown> }).__manticore ??= {}), {
+		musicDiag: () => sound.diag(),
+		musicLoop: () => (sound.players.music as unknown as { loopState?: unknown }).loopState ?? null,
+		musicPlay: (name: MusicName) => sound.players.music.play({ name }),
+	});
+}
 
 // ── the music's side tracks wait for THE GATE (first-minute plan D, constants LOAD_GATE.musicSideTracks) ──────────────
 // The shared player (utils-sound createMusic, left alone) starts buffering every track it can list 3 s after the music

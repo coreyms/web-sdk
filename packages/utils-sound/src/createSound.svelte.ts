@@ -77,7 +77,9 @@ function createSound<TSoundName extends string>() {
 		musicGateSettled = true;
 	};
 
-	const loadMusic = (manifest: MusicManifest<TSoundName>) => {
+	/** `bufferedLoops`: the looping tracks to hand to a decoded buffer once Web Audio runs (createMusic.svelte.ts,
+	 *  BUFFERED LOOPS). Absent: every track streams, as before. */
+	const loadMusic = (manifest: MusicManifest<TSoundName>, musicOptions: { bufferedLoops?: readonly TSoundName[] } = {}) => {
 		if (musicPlayer) return;
 		musicGateActive = true;
 		// Howler suspends the AudioContext after 30 s with no WEB AUDIO sound playing. That used to
@@ -87,6 +89,7 @@ function createSound<TSoundName extends string>() {
 		// then mute EVERYTHING — caught live: idle on the base game for 30 s and the music died.
 		Howler.autoSuspend = false;
 		musicPlayer = createMusicPlayer<TSoundName>(manifest, {
+			bufferedLoops: musicOptions.bufferedLoops,
 			onTrackEnded: (name) => {
 				for (const listener of musicEndListeners) listener(name as TSoundName);
 			},
