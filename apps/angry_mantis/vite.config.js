@@ -17,11 +17,22 @@ const APP_VERSION = JSON.parse(readFileSync(new URL('./package.json', import.met
 export default {
 	...base,
 	// after adapter-static has written build/: drop the un-inlined chunk copies (scripts/prune-build.mjs).
-	// A plugin hook rather than a package.json step because `vite build` does not exit on its own here.
+	// A plugin hook rather than a package.json step because `vite build` did not exit on its own then (fixed by the
+	// Sass api below, 2026-10-23).
 	plugins: [
 		...(base.plugins ?? []),
 		{ name: 'angry-mantis-prune-build', closeBundle: { sequential: true, order: 'post', handler: () => pruneBuild(new URL('./build/', import.meta.url).pathname) } },
 	],
+	// Sass runs one-shot ('modern'), not config-vite's long-lived 'modern-compiler' (Corey 2026-10-23: "Go ahead and fix
+	// angry mantis too"). Nothing disposes that compiler after a production build, so its child processes kept node
+	// alive and `vite build` never exited. The compiled CSS is byte-identical (bundle.zpnvAQpQ.css).
+	css: {
+		...(base.css ?? {}),
+		preprocessorOptions: {
+			...(base.css?.preprocessorOptions ?? {}),
+			scss: { ...(base.css?.preprocessorOptions?.scss ?? {}), api: 'modern' },
+		},
+	},
 	define: { ...(base.define ?? {}), __APP_VERSION__: JSON.stringify(APP_VERSION) },
 	resolve: {
 		...(base.resolve ?? {}),
