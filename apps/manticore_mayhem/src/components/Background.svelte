@@ -20,10 +20,12 @@
 	// scene of the current layout WHICH mode it is in:
 	//   family   the game's four background keys, unchanged: base outside a feature (Base, the antes, a Mystery's
 	//            base spin), else the book's own bonus kind (bonus / super / epic, which is also where a Mystery's
-	//            award lands). base and bonus are the DAY scene, super the NIGHT, epic the night in red.
+	//            award lands). base and bonus are the DAY scene, super the NIGHT, epic the night in red; the bonus
+	//            draws THE SUNSET backdrop over the day one (2026-10-23, constants SCENE.modes.bonus.sunset).
 	//   dim      the old wash as a tint on every layer (SCENE.dim).
 	// A change of either crossfades. A Super or Epic that starts before the night files are in (the deferred
-	// phase, after the plaque) plays over the day scene and crossfades when they land.
+	// phase, after the plaque) plays over the day scene and crossfades when they land; a Bonus before its sunset
+	// file is in plays on the day backdrop and crossfades the same way.
 	// THE FIRE LOOPS (game/fireSound.ts, constants FIRE_SOUND) follow the same `family`: super and epic each have a
 	// quiet loop for the whole round, in every layout (the portrait scene has the braziers' light too).
 	//
@@ -43,7 +45,7 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
+	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
 	import { creature, creatureDocked, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
 	import { boardRegistration } from '../game/boardArt';
 	import { portraitOptions } from '../game/portraitOptions.svelte';
@@ -59,7 +61,7 @@
 	import { loadPlaceholderLate, loadSceneLate } from '../game/deferredLoad';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from '../game/sceneSpec';
-	import { SceneView, clearSceneLight, flickerAt, idleAt, isCreature, type SceneLayout } from '../game/scene';
+	import { SceneView, clearSceneLight, flickerAt, idleAt, isCreature, type SceneFamily, type SceneLayout } from '../game/scene';
 	import { skyNumbers } from '../game/sky';
 	import { FLAME_SPEC } from '../game/flameSpec';
 	import type { FlameClip, FlameTreatment } from '../game/flames';
@@ -72,7 +74,8 @@
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 
 	// THE TRIGGER BEAT'S RELIGHT (constants TRIGGER_BEAT.relightAt): a Super / Epic trigger beat draws the feature's scene
-	// (night, the fire braziers, his night or fire look) from the beat on, in front of the player, before the intro plaque
+	// (night, the fire braziers, his night or fire look) from the beat on, in front of the player, before the intro plaque;
+	// a Bonus beat its warm day (BONUS_WARMTH, TRIGGER_BEAT.relightBonus)
 	const family = $derived(
 		context.stateGame.gameType !== 'freegame' && !context.stateGame.relightAhead
 			? 'base'
@@ -113,7 +116,7 @@
 	/** the scene this layout draws */
 	const which: SceneLayout = $derived(kind === 'portrait' ? 'portrait' : 'landscape');
 	const dim = $derived(context.stateGame.gameType === 'freegame' ? SCENE.dim.freegame : SCENE.dim.base);
-	const ready = $state({ landscape: { day: false, night: false, flames: false, sky: false }, portrait: { day: false, night: false, flames: false, sky: false } });
+	const ready = $state({ landscape: { day: false, night: false, sunset: false, flames: false, sky: false }, portrait: { day: false, night: false, sunset: false, flames: false, sky: false } });
 	/** this layout's scene has its day files */
 	const sceneOn = $derived(ready[which].day);
 	/** the scene has fully covered the placeholder (which is then not drawn) */
@@ -184,10 +187,12 @@
 			for (const layout of LAYOUTS) {
 				const view = views[layout];
 				const r = ready[layout];
-				if (r.day && r.night && r.flames && r.sky) continue;
+				if (r.day && r.night && r.sunset && r.flames && r.sky) continue;
 				const before = view.sources().length;
 				if (!r.day && view.setDay(assets)) r.day = true;
 				if (r.day && !r.night && view.setNight(assets, performance.now())) r.night = true;
+				// THE SUNSET (the Bonus's backdrop, constants SCENE.modes.bonus.sunset): a Bonus already showing crossfades to it
+				if (r.day && !r.sunset && view.setSunset(assets, performance.now())) r.sunset = true;
 				if (r.day && !r.flames && !holdFlames && view.setFlames(assets, performance.now())) r.flames = true;
 				// the sky's shared files (atlas, birds, bats) can land after this scene's own sets when it was fetched at a turn
 				if (r.day && !r.sky && view.setSky(assets)) r.sky = true;
@@ -392,6 +397,8 @@
 			}
 		},
 		stingBeat: ({ phase, kind, more }) => creature.stingBeat(phase, kind, !!more),
+		// THE CHEER (constants PLAQUE_CHEER, components/StingerPlaque.svelte): the win plaque's tier asks for his move
+		plaqueCheer: ({ move }) => void creature.cheer(move),
 		creatureCue: ({ what, inMs, kind }) => {
 			if (what === 'swipe') creature.cueSwipe(inMs);
 			else if (what === 'growl') creature.growl();
@@ -504,6 +511,21 @@
 					idleAt: (piece: 'hang' | 'swag', side: 'L' | 'R', ms: number) => idleAt(piece, side, ms),
 					/** false = the placeholder draws every layout again (the A / B of the cost) */
 					enable: (on: boolean) => (enabled = on),
+					/** THE WARM DAY's options for Corey's look pass (constants BONUS_WARMTH, 2026-10-23): `warmth` puts one
+					 *  option's numbers into the Bonus's SCENE.fire and SKY.modes.bonus for this page (the shipped pick is
+					 *  BONUS_WARMTH.pick); `family` then shows that family's scene at once, over whatever the game is doing,
+					 *  for stills only (the game's next change of family takes over again). Returns the Bonus's values */
+					look: (family?: SceneFamily, warmth?: keyof typeof BONUS_WARMTH.options) => {
+						const opt = warmth ? BONUS_WARMTH.options[warmth] : null;
+						if (opt) {
+							(SCENE.fire.landscape as Record<string, number>).bonus = opt.fire;
+							(SCENE.fire.portrait as Record<string, number>).bonus = opt.fire;
+							(SKY.modes.bonus as Record<string, unknown>).clouds = [...opt.clouds];
+							(SKY.modes.bonus as Record<string, unknown>).fog = [...opt.fog];
+						}
+						if (family) views[which].mode(family, family === 'base' ? SCENE.dim.base : SCENE.dim.freegame, -1);
+						return { fire: SCENE.fire.landscape.bonus, clouds: [...SKY.modes.bonus.clouds], fog: [...SKY.modes.bonus.fog] };
+					},
 				},
 				// ---- __manticore.sky (tools/manticore/ambient_probe.js): the ambient sky of the scene of the CURRENT layout
 				// (landscape and phone sideways: the 16:9 scene's; portrait: the 9:16 scene's), or of `layout` where a hook

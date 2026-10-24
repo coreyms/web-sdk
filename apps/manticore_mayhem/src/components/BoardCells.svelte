@@ -86,6 +86,8 @@
 	import { boardExit, boardExitPressing, plateGhosts, type Cell } from '../game/stateGame.svelte';
 	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP, FALL_CUT, WIN_FX } from '../game/constants';
 	import { createWells } from '../game/wells';
+	import { TILE_FLARE } from '../game/constants';
+	import { tileFlareOn, takeFlareCues, createFlarePool, tileFlareStats, type FlarePool } from '../game/tileFlare';
 	import { cueWellTile } from '../game/wellsFx';
 	const ANTICIPATION_TEASE_PULSE = ANTICIPATION_TEASE.landedPulse;
 
@@ -963,6 +965,7 @@
 			const tile = tiles[i];
 			const value = tile?.value ?? 0;
 			let p = plates[i];
+			if (popOn[i] && (!value || !p)) endPop(i, p);
 			if (!value) {
 				// a plate a reset just cleared (BOARD_EXIT.plateOutMs): the picture shrinks away, the value
 				// is already gone. `shown` stays the book's truth (false); `ghost` is only the picture.
@@ -1015,8 +1018,25 @@
 					curScale = 0;
 				} else curScale = Math.max(0.01, backOut(Math.max(0, (chg - 0.45) / 0.55))) * pop;
 			}
+			// THE TILE MILESTONE FLARE'S POP (TILE_FLARE): the number scales up and back over popMs, lifted to full alpha, its
+			// row moved over the frame (into the flare layer) for the pop and home after; a symbol landing on the tile, a new
+			// count-over or the value leaving ends it at once (never a value over a symbol)
+			let curA = numA;
+			if (popOn[i]) {
+				const u = ((now - popT0[i]) * popRate[i]) / popMs[i];
+				if (u >= 1 || covered[i] || value !== popVal[i] || !flarePool) {
+					if (u < 1) tileFlareStats.pool.popsCut += 1;
+					endPop(i, p);
+				} else {
+					const sh = popShape(u);
+					curScale *= 1 + (popPeak[i] - 1) * sh;
+					if (TILE_FLARE.popLift) curA = numA + (1 - numA) * Math.min(1, Math.max(0, sh));
+					if (p.cur.c.parent !== flarePool.nums) flarePool.nums.addChild(p.cur.c);
+					p.cur.c.position.set(p.root.x, p.root.y);
+				}
+			}
 			showRow(p.old, oldScale, oldScale > 0 ? numA * Math.min(1, oldScale / pop) : 0, col, dim);
-			showRow(p.cur, curScale, numA, col, dim);
+			showRow(p.cur, curScale, curA, col, dim);
 			// the glow hugs whichever number is showing
 			const shown = oldScale > 0 ? p.old : p.cur;
 			const gs = oldScale > 0 ? oldScale : curScale;
@@ -1386,6 +1406,63 @@
 		if (burstsOn > winFxStats.burstPeak) winFxStats.burstPeak = burstsOn;
 	};
 
+	// ---- THE TILE MILESTONE FLARE (constants TILE_FLARE, game/tileFlare.ts; OFF by default, `?flare=1` on staging / dev) ----
+	// With the switch off nothing here is built and tickFlares returns at once. On: the pool (a whole board of flares, every
+	// sprite made once) goes into the board container over the frame and under the symbols, the first frame; each cue from
+	// the plate pump starts a flare on the tile's box and the pop of its own number (syncPlates applies the pop).
+	let flarePool: FlarePool | null = null;
+	const popOn = new Uint8Array(CELL_COUNT);
+	const popVal = new Int32Array(CELL_COUNT);
+	const popT0 = new Float64Array(CELL_COUNT);
+	const popRate = new Float32Array(CELL_COUNT);
+	const popMs = new Float32Array(CELL_COUNT);
+	const popPeak = new Float32Array(CELL_COUNT);
+	const easeOutBack = (x: number) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
+	const easeInOutSine = (x: number) => -(Math.cos(Math.PI * x) - 1) / 2;
+	/** the mockup's pop: up with a small overshoot over the first 35 %, back down (sine) over the rest */
+	const popShape = (x: number) => (x < 0.35 ? easeOutBack(x / 0.35) : 1 - easeInOutSine((x - 0.35) / 0.65));
+	/** the number row home to its tile (at the tile's origin, as built), the row's cached scale / alpha cleared */
+	const endPop = (i: number, p: Plate | null) => {
+		popOn[i] = 0;
+		if (!p) return;
+		if (p.cur.c.parent !== p.root) {
+			p.root.addChild(p.cur.c);
+			p.cur.c.position.set(0, 0);
+		}
+		p.cur.scale = NaN;
+		p.cur.alpha = NaN;
+	};
+	const tickFlares = () => {
+		if (!tileFlareOn) return;
+		if (!flarePool) {
+			flarePool = createFlarePool();
+			flarePool.layer.zIndex = -0.3;
+			parent.addToParent(flarePool.layer);
+		}
+		const cues = takeFlareCues();
+		if (stateGame.skipping) {
+			flarePool.clear();
+			for (let i = 0; i < CELL_COUNT; i += 1) if (popOn[i]) endPop(i, plates[i]);
+			return;
+		}
+		for (const q of cues) {
+			const k = q.cell * 4;
+			const b = op.box;
+			const w = b[k + 2] - b[k];
+			const h = b[k + 3] - b[k + 1];
+			flarePool.spawn((b[k] + b[k + 2]) / 2, (b[k + 1] + b[k + 3]) / 2, w, h, q.value, q.rate, now);
+			const m = TILE_FLARE.milestones[q.value];
+			if (!m || covered[q.cell] || !plates[q.cell]) continue;
+			popOn[q.cell] = 1;
+			popVal[q.cell] = q.value;
+			popT0[q.cell] = now;
+			popRate[q.cell] = Math.max(0.2, q.rate);
+			popMs[q.cell] = Math.max(1, m.popMs);
+			popPeak[q.cell] = m.pop;
+			tileFlareStats.pool.pops += 1;
+		}
+	};
+
 	let lastFrame = 0;
 	const sync = () => {
 		now = performance.now();
@@ -1434,7 +1511,9 @@
 		if (glowing > motionLog.glowPeak) motionLog.glowPeak = glowing;
 		// THE WELLS: the light and the dim on the wells, the light-up cues (game/wellsFx.ts), the flares, the board power
 		wells.tick(now, { tex, tiles: stateGame.tiles, cover: coverDim, skipping: stateGame.skipping, freegame: stateGame.gameType === 'freegame' });
+		tickFlares();
 		syncPlates(tex);
+		flarePool?.tick(now);
 		tickSparkles(now);
 		if (NEW_FX) {
 			tickWinFx(now);
@@ -1605,6 +1684,18 @@
 					return sl ? [{ i: c.reel * 8 + c.row, name: c.name, dim: c.dim, tint: sl.s.tint, alpha: sl.s.alpha, state: c.state }] : [];
 				}),
 				plateObjects: () => ({ plates: plates.filter(Boolean).length, glyphPool: glyphPool.length }),
+				/** THE TILE MILESTONE FLARE (tools/manticore/flare_probe.js): the switch, the cues and rings, the pool's counts
+				 *  (built only with the switch on; never grows), pops live and the numbers parked over the frame */
+				tileFlare: () => ({
+					on: tileFlareOn,
+					cues: tileFlareStats.cues,
+					rings: tileFlareStats.rings,
+					log: tileFlareStats.log.slice(),
+					pool: { ...tileFlareStats.pool, ...(flarePool ? flarePool.textureUse() : { sources: 0, textures: 0 }), inLayer: flarePool ? flarePool.layer.children[0].children.length : 0, layerVisible: flarePool ? flarePool.layer.visible : false, parent: flarePool?.layer.parent?.label ?? null },
+					popsLive: popOn.reduce((a, v) => a + v, 0),
+					numsParked: flarePool ? flarePool.nums.children.length : 0,
+					constants: TILE_FLARE,
+				}),
 				/** plates a reset cleared that are still shrinking away (BOARD_EXIT.plateOutMs): cell and drawn scale */
 				plateGhosts: () => plates.flatMap((p, i) => (p && p.ghost ? [{ i, scale: p.root.scale.x }] : [])),
 				/** THE CUT LINES probe (tools/manticore/exitcut_probe.js): the fall layer's lines (board px and screen px), the
@@ -1683,6 +1774,9 @@
 				sl.s.destroy();
 				sl.g.destroy();
 			}
+			for (let i = 0; i < CELL_COUNT; i += 1) if (popOn[i]) endPop(i, plates[i]);
+			flarePool?.destroy();
+			flarePool = null;
 			for (const p of plates) p?.root.destroy({ children: true });
 			plateLayer.removeFromParent();
 			plateLayer.destroy();

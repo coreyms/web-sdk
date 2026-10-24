@@ -73,6 +73,8 @@ export type SoundEffectName =
 	| 'sfx_manticore_snarl_2'
 	| 'sfx_manticore_growl_1'
 	| 'sfx_manticore_growl_2'
+	// THE MEGA ROAR (constants PLAQUE_CHEER, Corey's pick 2026-10-23): his roar move when a win plaque stops on MEGA
+	| 'sfx_manticore_roar_win_1'
 	// the win plaque's landing thump (components/StingerPlaque.svelte, 2026-10-15): every impact, under a tier's stab
 	| 'sfx_plaque_land';
 

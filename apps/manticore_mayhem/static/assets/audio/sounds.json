@@ -226,6 +226,10 @@
 		"sfx_clear_h1": [
 			109408,
 			435
+		],
+		"sfx_manticore_roar_win_1": [
+			110843,
+			1600
 		]
 	},
 	"config": {
@@ -396,10 +400,13 @@
 		},
 		"sfx_clear_h1": {
 			"volume": 1
+		},
+		"sfx_manticore_roar_win_1": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=e06e395a",
-		"./assets/audio/sounds.m4a?v=99671022"
+		"./assets/audio/sounds.ogg?v=f72b9896",
+		"./assets/audio/sounds.m4a?v=cad189ab"
 	]
 }

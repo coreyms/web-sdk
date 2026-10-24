@@ -95,3 +95,14 @@ export const stagingTeaseFall: number | null = rangedKnob('fall', TEASE_FALL_RAN
 export const GLINT_RANGE = { min: 0, max: 2 } as const;
 /** `?glint=` (null: none, 1) */
 export const stagingGlint: number | null = rangedKnob('glint', GLINT_RANGE);
+
+// ---- THE TILE MILESTONE FLARE (TILE_FLARE.enabled; Corey 2026-10-23, "I need to see it against the regular animations") ----
+// `?flare=1` turns the flare on and `?flare=0` off on a staging build or the dev server, whatever TILE_FLARE.enabled says,
+// so it can be played beside the regular animations without a rebuild. Never in a production build (STAGING_TOOLS is a
+// constant false there and the bundler drops the read): players get TILE_FLARE.enabled, false today.
+/** `?flare=` (null: none, use TILE_FLARE.enabled) */
+export const stagingFlare: boolean | null = (() => {
+	if (!STAGING_TOOLS || typeof window === 'undefined') return null;
+	const raw = new URLSearchParams(window.location.search).get('flare');
+	return raw === '1' ? true : raw === '0' ? false : null;
+})();

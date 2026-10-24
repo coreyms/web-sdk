@@ -1141,6 +1141,46 @@ export const MULT_PLATE = {
  *  pale gold and white is kept for x256 (the math's ladder caps at 128 today, so white is headroom). */
 export const plateColor = (v: number) => MULT_PLATE.colors[Math.max(2, Math.min(256, 1 << Math.round(Math.log2(Math.max(2, v)))))] ?? MULT_PLATE.colors[2];
 
+// ---- THE TILE MILESTONE FLARE (Corey 2026-10-23; ON for players since the same evening) ----------------------------
+// Corey: "Maybe we should just do it on every tile reaching 64 and 128"; "1. Yes" (tiles reaching it in the same step
+// flare together, one ring per step); "the numbers I had would be 64 and stronger for 128"; "I need to see it against
+// the regular animations". Every Multiplier Tile whose count-over lands on x64 or x128 flares, every time (no first per
+// round rule, no cap). A gold flare drawn over the tile and the frame (under the symbols), the tile's own number popped
+// above the frame, and ONE ring sound per step at the strongest level reached in that step. Drawn by
+// components/BoardCells.svelte from game/tileFlare.ts (one small white atlas, tinted, additive; a pool sized for a
+// whole board; nothing made per frame). Mockup: ~/Desktop/Manticore Mayhem/feedback/tile_flare_mockup_2026-10-23/.
+// ON FOR PLAYERS (Corey 2026-10-23, after the in-game review clips: "Looks good, flare on for players"). With `enabled`
+// false nothing is built or run; a staging build or the dev server still takes `?flare=1` / `?flare=0` to turn it on or
+// off for a review (game/staging.ts stagingFlare). ms are style time (divided by the turbo scale the tile's count-over ran at).
+export const TILE_FLARE = {
+	/** the switch: true = players see it (Corey 2026-10-23: "Looks good, flare on for players"); ?flare=0 / ?flare=1 on
+	 *  staging / dev still override it for a review */
+	enabled: true,
+	/** per milestone. x64 is Corey's numbers from the mockup (flare 0.80x the cell for 300 ms, pop 1.25x over 210 ms, ring
+	 *  0.05); x128 is the starting point "stronger for 128" (1.00x for 380 ms, 1.40x over 270 ms, ring 0.15), judged in
+	 *  clips. `size` is the flare's reach as a share of the cell, `ms` its life, `pop` the number's peak scale over
+	 *  `popMs`, `ring` the ring's brightness AND the ring sound's level (the brief: "at the given brightness as its level") */
+	milestones: {
+		64: { size: 0.8, ms: 300, pop: 1.25, popMs: 210, ring: 0.05 },
+		128: { size: 1.0, ms: 380, pop: 1.4, popMs: 270, ring: 0.15 },
+	} as Record<number, { size: number; ms: number; pop: number; popMs: number; ring: number }>,
+	/** the ring: an existing metallic cue, nothing new in the sprite (the 22 ms sfx_tile_double tick is too short to ring) */
+	ringSound: 'sfx_plaque_land' as const,
+	/** when the flare fires, as a share of the count-over (MULT_PLATE.changeMs): 0.45 = the moment the new number starts
+	 *  to grow in (the old one has shrunk away). At 1 (the new number settled) the refill's symbol often lands on the tile
+	 *  within ~0.2 s and hides most of the flare (first in-game peek, 2026-10-23), so it fires with the new value instead and
+	 *  the pop rides on the number's own grow-in */
+	atChange: 0.45,
+	/** the mockup's gold, per layer (the tile's own colours and material stay as they are) */
+	palette: { edge: 0xffb52e, bloom: 0xffa526, rays: 0xffd45c, ring: 0xffe7a3, spark: 0xfff4d6, core: 0xfff7e6 },
+	/** the pop lifts the number's alpha from the tile's 0.65 to full at the pop's peak (the mockup's lift) */
+	popLift: true,
+	/** flares alive at once: a whole board (every cell can reach a milestone in one step) */
+	pool: CELL_COUNT,
+	/** sparks per flare (the mockup's eight) */
+	sparks: 8,
+};
+
 /** the manticore's set pieces share these. The swipe and the roar have their own blocks below. */
 export const FEATURE_FX = {
 	/** flashCells' default strength (a feature colour flash on a set of cells) */
@@ -1783,8 +1823,12 @@ export const MYSTERY_SUN = {
 //              liftScale over liftMs (backOut) with its glow full in glowColor; a light column rises from each
 //              (shaftInMs, shaftCells tall over the scatter, shaftAlpha) and a halo flares at the lift's peak (flareMs)
 //   roarAt     the manticore roars (his roar clip and sfx_roar: the same beat the book's roar and the Max Win screen use)
-//   relightAt  SUPER and EPIC only: the scene relights IN FRONT of the player (the night sky, the fire braziers, his
-//              night or fire look) over the scene's own crossfade (SCENE.crossfadeMs), before the intro plaque, not under it
+//   relightAt  SUPER and EPIC: the scene relights IN FRONT of the player (the night sky, the fire braziers, his
+//              night or fire look) over the scene's own crossfade (SCENE.crossfadeMs), before the intro plaque, not under it.
+//              The BONUS too since 2026-10-23 (relightBonus): its WARM DAY (BONUS_WARMTH) comes in at the same moment, on
+//              the Free Spins beat's own length (ms, not msRelit), so the "8 FREE SPINS" plaque drops over the warmed
+//              scene the way the Super intro drops over the night (advisor 2026-10-23 item 6; Corey "1. Agreed. 2. Yes").
+//              Measured before it: the warm crossfade started on the plaque's show and was 37% done at its impact.
 //   the last releaseMs  everything settles back to rest
 // `ms` is the Free Spins beat and `msRelit` the Super / Epic one (the relight lands in view). Then the intro plaque.
 // The scatter landing ladder and the house bonus-confirm SFX are untouched (cross-game standard). blackFade false: the
@@ -1805,6 +1849,8 @@ export const TRIGGER_BEAT = {
 	breatheHz: 2.4,
 	roarAt: 140,
 	relightAt: 120,
+	/** the Bonus's warm day relights on the beat too (see relightAt); false = it crossfades under the intro plaque as before */
+	relightBonus: true,
 	shaftInMs: 320,
 	/** the column's height above the scatter's centre, in cells (it rises out of the board's top on the upper rows) */
 	shaftCells: 5.5,
@@ -2165,6 +2211,42 @@ export const PLAQUE_ESCALATION = {
 	epic: { roarDelayMs: 120 },
 } as const;
 
+// ---- THE MANTICORE CELEBRATES THE WIN (advisor 2026-10-23, "Path to 3 stars" item 1; Corey 2026-10-23: "1. Agreed.",
+// yes to new roar takes; game/creature.ts cheer, components/StingerPlaque.svelte cheer) ------------------------------
+// The one moment every reviewer reaches, a Big Win, had the plaque celebrating and the creature standing still beside it.
+// Now the win plaque's tier asks him for ONE move, on the tier the count STOPS at (the book's own final tier), delayMs
+// after that tier lands (a win that stays BIG: after the plaque's impact):
+//   BIG         his idle SNARL (no leg lift) with its own snarl voice (one of the two takes, pickVoice('snarl')), in real
+//               time like every idle alternate (Corey 2026-10-23: "the leg lift on Big win though seems odd. DOn't we
+//               have a snarl animation without the leg left we can use? We can use it for Super")
+//   SUPER       the FLEX: the claw swipe's wind-up played to `flex.peakFrame`, held `flex.holdMs`, and played back to
+//               idle frame 1 at `flex.backRate` (no strike), with one of the two growl takes (sfx_manticore_growl_1 / 2,
+//               never the one that played last)
+//   MEGA        his roar move with THE MEGA ROAR, `roarSound` (Corey's pick 2026-10-23, take 5: "one short explosive roar
+//               of triumph"). Its level sits 3 dB under the Epic win roar (tools/build_audiosprite.py MM_SOURCE_GAIN_DB)
+//   EPIC        Epic's own, unchanged: the roar and sfx_roar_win with the Epic braziers (PLAQUE_ESCALATION.epic; Corey
+//               2026-10-18: "his normal roar should only be used for his roar move")
+//   MAX         the Max Win screen's own roar (game/maxWin.svelte.ts), unchanged
+// A Free Spins TOTAL WIN follows ITS total's tier exactly like a win (Corey 2026-10-23, after "what if the total win is
+// really low? Those roars are all louder than Epic": yes): under BIG nothing, BIG the snarl, SUPER the flex, MEGA the roar,
+// EPIC Epic's win roar (the roar move and sfx_roar_win; the braziers keep the mode's own clip on the wrap up). So the
+// tiers climb, snarl < growl (with the paw lift) < MEGA roar < Epic roar, and no separate TOTAL WIN roar exists.
+// At most once per plaque. NOTHING on a skip: not during SKIP TO RESULT, and not once the player has pressed to land the
+// count early (that press means "hurry", Corey's no-roaring-all-the-time). No opening roar on a feature's spin 1 (settled
+// 2026-10-16): the feature intro plaque never cheers. He takes a cheer only from his idle loop with nothing cued.
+export const PLAQUE_CHEER = {
+	on: true,
+	/** the move per STINGER_TIERS index (big, super, mega); epic and max keep their own */
+	moves: ['snarl', 'flex', 'roar'] as readonly ('snarl' | 'flex' | 'roar')[],
+	/** real ms after the final tier's landing (or the impact of a win that stays BIG) */
+	delayMs: 140,
+	flex: { peakFrame: 12, holdMs: 260, backRate: 1 },
+	roarSound: 'sfx_manticore_roar_win_1',
+	/** real ms from a cheer's start before his idle roll may play a snarl or growl again (the poke's own quiet,
+	 *  CREATURE.poke.rollQuietMs, is 5400): one voice per celebration, not a snarl on top of it */
+	rollQuietMs: 6000,
+} as const;
+
 // ---- THE PLAQUE'S BACKGROUND GLOW (branch portrait-glow-r1, OPTIONS for Corey) -------------------------------------
 // Corey 2026-10-17: "we should add some background glow to the stinger so it doesn't blend with the board so much"
 // (the 8 FREE SPINS intro on a phone: the plaque's dark iron and brown edges run into the board frame and the symbols).
@@ -2429,6 +2511,35 @@ export const zIndexes = {
 /** dark wash over the backdrop so the board and the chrome read on top of it */
 export const BACKGROUND_WASH = { base: 0.3, freegame: 0.4 };
 
+// ---- THE WARM DAY: the 100x Bonus's own scene (advisor 2026-10-23, "Path to 3 stars" items 2 and 6; Corey 2026-10-23:
+// "2. Yes, fire stronger, warmer clouds and fogs. No bats, they don't fly in the daytime.") --------------------------
+// The plain Free Spins (`bonus`) played in the untouched base scene, so only Super and Epic earned the "whole scene
+// changes for the bonus" moment. It keeps the DAY files (his day look still matches, no relight of the creature, no new
+// art) and changes only numbers: the braziers' fire pass stronger and the clouds and the gorge mist warmer. The birds
+// stay (no bats by day), the flames burn the SUPER clip (since 2026-10-23, below), and the change is the scene's own 600 ms crossfade, drawn
+// during the trigger beat like Super's night (TRIGGER_BEAT.relightBonus) so the intro plaque drops over the warmed
+// scene. The order stays day, warm day, night (Super), fire (Epic): Super's night must stay the bigger reveal, so the
+// warm day still reads clearly as day.
+// The advisor's words: "change only the numbers: the fire pass 0.5 to about 0.85 ... warmer cloud and fog tints".
+//   fire     the fire pass's level in the Bonus, both layouts (base 0.5, Super 0.7 over the night)
+//   clouds   the clouds' tint (r, g, b) over the base's 1 / 0.94 / 0.82; fog the gorge mist's, over 1 / 0.9 / 0.76
+// Three levels were rendered for Corey's look pass (feedback/upgrades_2026-10-23/A): `gentle`, `advisor` (his numbers,
+// the default) and `strong`. Corey picks one: set BONUS_WARMTH.pick.
+// PICKED 2026-10-23: `strong` (Corey: "Strong, I thought we were goign to increase the fire size though.."): fire 1.0, and
+// the flames themselves bigger too (FLAMES.modes.bonus 'super', FLAMES.embers.strength.bonus 0.3).
+// THE SUNSET (2026-10-23 evening, Corey: "That one works perfectly, Bonus only. Base keeps the original."): the Bonus now
+// also has its own painting, a sunset sky behind the same courtyard (SCENE.modes.bonus.sunset). These numbers stay on top
+// of it as they were: the ridge, the foreground and the creature keep their DAY files.
+export const BONUS_WARMTH = {
+	pick: 'strong' as 'gentle' | 'advisor' | 'strong',
+	options: {
+		gentle: { fire: 0.68, clouds: [1, 0.9, 0.74], fog: [1, 0.86, 0.68] },
+		advisor: { fire: 0.85, clouds: [1, 0.86, 0.66], fog: [1, 0.82, 0.6] },
+		strong: { fire: 1, clouds: [1, 0.8, 0.56], fog: [1, 0.76, 0.5] },
+	},
+} as const;
+const WARM = BONUS_WARMTH.options[BONUS_WARMTH.pick];
+
 // ---- The courtyard scene (components/Background.svelte, game/scene.ts; assets by tools/build_scene_assets.py) ----
 // The background in every layout (Corey 2026-10-10): painted backdrop, 3D foreground, the braziers' fire light as one
 // additive pass, and in LANDSCAPE and PHONE SIDEWAYS the knocker rings and chains as moving pieces. PORTRAIT has its
@@ -2437,7 +2548,14 @@ export const BACKGROUND_WASH = { base: 0.3, freegame: 0.4 };
 // level (it is scenery, like the logo), and the idle never pauses (Corey 2026-10-10: it keeps running through spins
 // and win screens).
 //   modes     the game's four background keys (Background.svelte `family`). night: 0 the day scene, 1 the night
-//             scene. The pass's level is in `fire`, per layout. fireTint / foreTint: the EPIC red (the foreground and the chains take
+//             scene. sunset: 1 draws THE SUNSET backdrop over the day one (the regular Bonus only, 2026-10-23, Corey:
+//             "That one works perfectly, Bonus only. Base keeps the original."; earlier: "I'm going to make a sunset
+//             image because the lighting would match better"). Only the painting changes: the ridge cut-out, the
+//             foreground, the fire pass and the creature keep their DAY files (no relight), and THE WARM DAY's numbers
+//             (BONUS_WARMTH) stay on top of it. Its file rides the deferred phase (game/assets.ts DEFERRED_ORDER
+//             sunset); a Bonus that starts before it is in plays on the day backdrop and crossfades when it lands,
+//             as a Super does before the night files. The order of looks: base the sunrise day, Bonus the sunset,
+//             Super the night, Epic the fire. The pass's level is in `fire`, per layout. fireTint / foreTint: the EPIC red (the foreground and the chains take
 //             foreTint; the painted backdrop is never tinted). flicker: the band the level pulses in, as multiples
 //             of the level; EPIC only pulses DOWN from 100% (the gold burns out above it).
 //   dim       the old wash as a TINT on every layer (dims are tints, never alpha overlays): 1 - BACKGROUND_WASH.
@@ -2463,16 +2581,17 @@ export const BACKGROUND_WASH = { base: 0.3, freegame: 0.4 };
 //                    lower links is NOT drawn (a flat sprite cannot turn; a width change read as rubber).
 export const SCENE = {
 	modes: {
-		base: { night: 0, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
-		bonus: { night: 0, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
-		super: { night: 1, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
-		epic: { night: 1, fireTint: [1, 0.7, 0.5], foreTint: [1, 0.86, 0.86], flicker: [0.8, 1] },
+		base: { night: 0, sunset: 0, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		bonus: { night: 0, sunset: 1, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		super: { night: 1, sunset: 0, fireTint: [1, 1, 1], foreTint: [1, 1, 1], flicker: [0.85, 1.15] },
+		epic: { night: 1, sunset: 0, fireTint: [1, 0.7, 0.5], foreTint: [1, 0.86, 0.86], flicker: [0.8, 1] },
 	},
 	/** the fire pass's level per mode, PER LAYOUT so portrait can be tuned without touching landscape ('landscape' is
-	 *  also phone sideways). Both are the approved 50 / 50 / 70 / 100 today. */
+	 *  also phone sideways). The approved 50 / 70 / 100 for base, Super and Epic; the Bonus is THE WARM DAY's
+	 *  (BONUS_WARMTH, 2026-10-23; it was 50 like the base). */
 	fire: {
-		landscape: { base: 0.5, bonus: 0.5, super: 0.7, epic: 1 },
-		portrait: { base: 0.5, bonus: 0.5, super: 0.7, epic: 1 },
+		landscape: { base: 0.5, bonus: WARM.fire, super: 0.7, epic: 1 },
+		portrait: { base: 0.5, bonus: WARM.fire, super: 0.7, epic: 1 },
 	},
 	// the scene keeps the base wash as its dim; in a feature it stays at the level the lit stills were approved at (0.69)
 	dim: { base: 1 - BACKGROUND_WASH.base, freegame: 0.69 },
@@ -2634,7 +2753,8 @@ export const SKY = {
 	maxStepMs: 100,
 	modes: {
 		base: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1, bats: 0, aurora: 0 },
-		bonus: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1, bats: 0, aurora: 0 },
+		// THE WARM DAY (BONUS_WARMTH, 2026-10-23): warmer clouds and mist, still the birds ("No bats, they don't fly in the daytime")
+		bonus: { clouds: WARM.clouds, cloudAlpha: 1, fog: WARM.fog, fogAlpha: 1, birds: 1, bats: 0, aurora: 0 },
 		super: { clouds: [0.68, 0.8, 1], cloudAlpha: 0.7, fog: [0.55, 0.7, 1], fogAlpha: 1, birds: 0, bats: 1, aurora: 0 },
 		epic: { clouds: [0.72, 0.95, 0.82], cloudAlpha: 0.15, fog: [0.92, 0.95, 1], fogAlpha: 1, birds: 0, bats: 1, aurora: 1 },
 	},
@@ -2835,7 +2955,14 @@ export const SKY = {
 //             A the fire light's own multiply (SCENE.modes.epic.fireTint: it kills the pale core), B a gentler
 //             multiply, C the flame untinted over a red ADDITIVE copy of the same frame (`red` its tint, `alpha` its
 //             opacity, `scale` its size against the flame's), so the core stays pale and the fringe goes red.
-//   embers    SUPER and EPIC only (`strength` per key, blended by the scene's crossfade; 0 = none): per bowl a pool of
+//   BONUS     since 2026-10-23 the regular Bonus burns the SUPER clip (Corey, picking the strong warm day: "Strong, I
+//             thought we were goign to increase the fire size though.."): the base clip is drawn at 0.85 of 256 x 256, the
+//             super clip at 1.0 of 320 x 448, so the Bonus's flames stand taller than the base game's, and Epic's red
+//             clip (384 x 704 at 1.2) keeps the order climbing: base, Bonus = Super's size, Epic. The super clip rides the
+//             deferred phase (group flameSuper): until it lands the Bonus burns the base clip, as Super does. Landscape and
+//             phone sideways only: the portrait scene has no flames (its fire light pass still takes BONUS_WARMTH.fire).
+//   embers    BONUS, SUPER and EPIC (`strength` per key, blended by the scene's crossfade; 0 = none; the Bonus 0.3, a step
+//             under Super's 0.6, Corey 2026-10-23 with the bigger Bonus fire): per bowl a pool of
 //             `count` additive dots (0 turns them off). At strength 1 a bowl sends one every everyMs. Each starts
 //             inside the flame (within +- spread x the flame's half width of the centre, `from` x the flame's height
 //             above the rim line), rises at `rise` px/s easing off by `slow` over its life, drifts up to `drift` px/s
@@ -2854,7 +2981,7 @@ export const FLAMES = {
 		super: { canvas: [320, 448], anchor: [160, 400], fps: 30, frames: 64, drawScale: 1 },
 		epic: { canvas: [384, 704], anchor: [192, 640], fps: 30, frames: 64, drawScale: 1.2 },
 	},
-	modes: { base: 'base', bonus: 'base', super: 'super', epic: 'epic' },
+	modes: { base: 'base', bonus: 'super', super: 'super', epic: 'epic' },
 	twin: { mirror: true, phase: 0.5 },
 	flicker: { dim: 0.14, breath: 0.02 },
 	dim: 0.35,
@@ -2866,7 +2993,7 @@ export const FLAMES = {
 	},
 	embers: {
 		count: 14,
-		strength: { base: 0, bonus: 0, super: 0.6, epic: 1 },
+		strength: { base: 0, bonus: 0.3, super: 0.6, epic: 1 },
 		tint: { base: [1, 0.72, 0.38], bonus: [1, 0.72, 0.38], super: [1, 0.72, 0.38], epic: [1, 0.52, 0.3] },
 		dim: 0.35,
 		everyMs: 170,

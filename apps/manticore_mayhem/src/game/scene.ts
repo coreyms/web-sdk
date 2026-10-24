@@ -3,6 +3,11 @@
 // (2560 x 1440, the landscape and phone sideways layouts) and 'portrait' (1440 x 2560: backdrop, the ambient sky,
 // foreground and fire pass; no flames and no chains). Back to front, the scene agent's own order:
 //   backdrop day, night     the painting, opaque
+//   backdrop sunset         THE SUNSET (2026-10-23, Corey: "That one works perfectly, Bonus only. Base keeps the
+//                           original."): the regular Bonus's painting, between the day one and the night one. It
+//                           fades in over the day backdrop and covers it; nothing else of the day set changes (the
+//                           ridge cut-out, the foreground, the fire pass and the creature keep their DAY files: no
+//                           relight). Its file rides the deferred phase; until it is in, the Bonus is the day.
 //   THE AMBIENT SKY         both scenes (game/sky.ts, constants SKY, SKY.portrait): aurora, clouds, the ridge cut-out
 //                           day and night (the backdrop's own skyline again, over the clouds), birds, bats, canyon fog
 //   foreground day, night   the 3D courtyard with alpha, no fire light, no moving chains
@@ -75,7 +80,9 @@ const AURORA = 22;
 const EMBERS = 23;
 const EMBER_TINT = 24;
 const FLAME_W = 27;
-const VALUES = 30;
+// THE SUNSET backdrop's opacity over the day one (SCENE.modes[family].sunset; 0 while its file is on its way)
+const SUNSET = 30;
+const VALUES = 31;
 
 /** THE LIGHT THE BOARD FRAME TAKES (components/BoardFrame.svelte, constants FRAME_RELIGHT): what the scene on screen
  *  draws this frame. `night` 0 .. 1 is the night layers' opacity (0 while the night files are on their way), `fire`
@@ -188,8 +195,12 @@ export class SceneView {
 	private readonly prefix: string;
 	dayReady = false;
 	nightReady = false;
+	/** THE SUNSET backdrop is in (the regular Bonus's painting, game/assets.ts *_backdrop_sunset) */
+	sunsetReady = false;
 
 	private readonly backdrop = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
+	/** THE SUNSET backdrop (the Bonus), drawn over the day backdrop and under the night one */
+	private readonly sunset = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	private readonly fore = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
 	private readonly fire = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	private readonly sets = SETS.map(() => new PIXI.Container());
@@ -226,6 +237,7 @@ export class SceneView {
 	private fadeAt = -1;
 	private family: SceneFamily = 'base';
 	private wantNight = false;
+	private wantSunset = false;
 
 	/** the kick's lagged size, the ms not yet integrated, and whether any chain is still moving from a kick */
 	private e = 0;
@@ -274,7 +286,7 @@ export class SceneView {
 		this.fire.blendMode = 'add';
 		this.sky = new SkyView(layout);
 		this.flames = layout === 'landscape' ? new FlameView(tier) : null;
-		root.addChild(this.backdrop[0], this.backdrop[1]);
+		root.addChild(this.backdrop[0], this.sunset, this.backdrop[1]);
 		root.addChild(...this.sky.layers);
 		// the foreground container: foregrounds, fire pass, flames, then (below) the chain sets.
 		// THE CREATURE JOINS HERE (components/Background.svelte attaches game/creature.ts's two nodes to the scene of the
@@ -293,7 +305,7 @@ export class SceneView {
 		this.front.addChild(this.frontForeground);
 		fg.addChild(this.fore[0], this.fore[1], this.fire);
 		if (this.flames) fg.addChild(...this.flames.layers);
-		for (const s of [...this.backdrop, ...this.fore, this.fire, ...this.sets]) s.visible = false;
+		for (const s of [...this.backdrop, this.sunset, ...this.fore, this.fire, ...this.sets]) s.visible = false;
 		this.setValues(this.cur, 'base', SCENE.dim.base, false);
 		// portrait: no knockers, no chains
 		this.chains = this.hasChains ? this.buildChains(tier) : (null as unknown as Record<'L' | 'R', Chain>);
@@ -399,6 +411,20 @@ export class SceneView {
 		return true;
 	}
 
+	/** THE SUNSET backdrop is in (called once, after the day set): a Bonus that was waiting for it (the day scene
+	 *  stands in, as for a night mode before the night files) crossfades to it now, over SCENE.crossfadeMs */
+	setSunset(tex: Textures, now: number): boolean {
+		if (this.sunsetReady) return true;
+		const backdrop = tex[`${this.prefix}_backdrop_sunset`];
+		if (!backdrop) return false;
+		this.sunset.texture = backdrop;
+		this.sunset.scale.set(this.fw / backdrop.width);
+		this.sunsetReady = true;
+		if (this.wantSunset) this.mode(this.family, this.to[DIM], now);
+		else this.apply();
+		return true;
+	}
+
 	/** THE SKY's files that landed after their set did (the atlas, the birds and the bats are one copy for both scenes
 	 *  and load with the scene the game booted in: a scene fetched at a turn can have its own day or night set before
 	 *  the bats' sheet is in). Whatever is in `tex` now is built. Returns true once the sky has everything. */
@@ -452,7 +478,7 @@ export class SceneView {
 	/** every texture source the scene draws from, for the one upload when its files land */
 	sources(): PIXI.TextureSource[] {
 		const out = new Set<PIXI.TextureSource>();
-		for (const s of [...this.backdrop, ...this.fore, this.fire, ...(this.hasChains ? this.chains.L.ring : [])]) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
+		for (const s of [...this.backdrop, this.sunset, ...this.fore, this.fire, ...(this.hasChains ? this.chains.L.ring : [])]) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
 		this.sky.sources(out);
 		this.flames?.sources(out);
 		return [...out];
@@ -520,7 +546,7 @@ export class SceneView {
 	/** DEV / probe: the place (frame px in the root) of everything that must stay still under a kick: the root's own
 	 *  children but the foreground, i.e. the backdrops and every sky layer, the fog included */
 	stillLayers(): { name: string; x: number; y: number }[] {
-		return this.root.children.filter((ch) => ch !== this.foreground).map((ch) => ({ name: ch.label || (this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : 'layer'), x: ch.x, y: ch.y }));
+		return this.root.children.filter((ch) => ch !== this.foreground).map((ch) => ({ name: ch.label || (ch === this.sunset ? 'backdrop-sunset' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : 'layer'), x: ch.x, y: ch.y }));
 	}
 
 	private setValues(out: Float64Array, family: SceneFamily, dim: number, show: boolean): void {
@@ -552,17 +578,24 @@ export class SceneView {
 			out[EMBER_TINT + i] = FLAMES.embers.tint[family][i];
 		}
 		out[EMBERS] = FLAMES.embers.strength[family];
+		out[SUNSET] = m.sunset;
 	}
 
 	/** the game's mode and dim. A night mode whose files are not in yet shows the day scene (the regular Bonus's
-	 *  values) until setNight. `now` < 0 sets everything at once (the first show behind the loading screen). A scene
+	 *  values, on the DAY backdrop) until setNight; the Bonus before its sunset file is in shows the day backdrop
+	 *  until setSunset. `now` < 0 sets everything at once (the first show behind the loading screen). A scene
 	 *  that was not showing takes the mode at once and only fades IN (over the placeholder it replaces). `join`: a
 	 *  crossfade already running keeps its start and its clock and only takes the new targets (setFlames). */
 	mode(family: SceneFamily, dim: number, now: number, join = false): void {
 		this.family = family;
 		this.wantNight = SCENE.modes[family].night > 0;
+		this.wantSunset = SCENE.modes[family].sunset > 0;
 		const next = this.next;
-		this.setValues(next, this.wantNight && !this.nightReady ? 'bonus' : family, dim, true);
+		const waiting = this.wantNight && !this.nightReady;
+		this.setValues(next, waiting ? 'bonus' : family, dim, true);
+		// the stand-ins are the DAY: a night mode waiting for its files keeps the day backdrop (the Bonus's warm values
+		// only), and so does the Bonus until its sunset is in
+		if (waiting || !this.sunsetReady) next[SUNSET] = 0;
 		if (now < 0) {
 			this.cur.set(next);
 			this.to.set(next);
@@ -610,6 +643,7 @@ export class SceneView {
 	private apply(): void {
 		const c = this.cur;
 		const night = this.nightReady ? c[NIGHT] : 0;
+		const sunset = this.sunsetReady ? c[SUNSET] : 0;
 		const dim = c[DIM];
 		const grey = rgb(dim, dim, dim);
 		const fore = rgb(dim * c[FORE_TINT], dim * c[FORE_TINT + 1], dim * c[FORE_TINT + 2]);
@@ -622,9 +656,16 @@ export class SceneView {
 			this.sets[i].tint = fore;
 			if (i === 1) this.backdrop[i].alpha = this.fore[i].alpha = this.sets[i].alpha = night;
 		}
+		// THE SUNSET: over the day backdrop once it has started to fade in, and the day backdrop not drawn once it is
+		// covered (the day foreground, fire and chains stay: they are the Bonus's too)
+		this.sunset.visible = this.backdrop[0].visible && sunset > 0;
+		this.sunset.alpha = sunset;
+		this.sunset.tint = grey;
+		if (sunset >= 1) this.backdrop[0].visible = false;
 		this.root.alpha = c[SHOW];
 		this.front.alpha = c[SHOW];
-		this.sky.look(night, this.backdrop[0].visible, this.backdrop[1].visible, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS], c[BATS], c[AURORA]);
+		// the day cut-out (the ridge) goes with the day set's painting, sunrise or sunset alike
+		this.sky.look(night, this.backdrop[0].visible || this.sunset.visible, this.backdrop[1].visible, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS], c[BATS], c[AURORA]);
 		this.flames?.look(c[FLAME_W], c[FLAME_W + 1], c[FLAME_W + 2], night, this.fore[0].visible, this.fore[1].visible, dim, fore, c[EMBERS], c[EMBER_TINT], c[EMBER_TINT + 1], c[EMBER_TINT + 2]);
 		this.applyFire();
 	}
@@ -872,7 +913,9 @@ export class SceneView {
 	state() {
 		const c = this.cur;
 		const night = this.nightReady ? c[NIGHT] : 0;
+		const sunset = this.sunsetReady ? c[SUNSET] : 0;
 		const set = night >= 0.5 ? 1 : 0;
+		const nameOf = (ch: PIXI.Container): string => (ch === this.fire ? 'fire' : ch === this.sunset ? 'backdrop-sunset' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`);
 		/** the layers bottom to top as they are drawn: the root's children, the foreground container opened out */
 		const layers = this.root.children.flatMap((ch) => (ch === this.foreground ? this.foreground.children.filter((x) => !isCreature(x)) : [ch]));
 		const chain = (side: 'L' | 'R') => {
@@ -909,12 +952,17 @@ export class SceneView {
 		return {
 			tier: this.tier,
 			source: (this.layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).source,
-			ready: { day: this.dayReady, night: this.nightReady },
+			ready: { day: this.dayReady, night: this.nightReady, sunset: this.sunsetReady },
 			family: this.family,
 			/** what is drawn: 'day' / 'night', or 'fade' while one covers the other */
 			scene: night <= 0 ? 'day' : night >= 1 ? 'night' : 'fade',
 			night,
 			waitingForNight: this.wantNight && !this.nightReady,
+			/** THE SUNSET backdrop's opacity over the day one as drawn (0 while its file is on its way), and which
+			 *  painting covers the screen: 'sunrise' (the day), 'sunset', 'night', or 'fade' while one covers another */
+			sunset,
+			waitingForSunset: this.wantSunset && !this.sunsetReady,
+			backdrop: night >= 1 ? 'night' : night > 0 || (sunset > 0 && sunset < 1) ? 'fade' : sunset >= 1 ? 'sunset' : 'sunrise',
 			fading: this.fadeAt >= 0,
 			show: c[SHOW],
 			/** the fire pass: the mode's level, the band, the level drawn now (after the flicker), its tint as drawn */
@@ -932,12 +980,12 @@ export class SceneView {
 			released: this.released,
 			chains: this.hasChains ? { L: chain('L'), R: chain('R') } : null,
 			/** the root's children, bottom to top, with what each draws */
-			order: layers.filter((ch) => !this.sky.layers.includes(ch as PIXI.Container) && !this.flames?.layers.includes(ch as PIXI.Container)).map((ch) => `${ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`}${ch.visible ? '' : ' (off)'}`),
+			order: layers.filter((ch) => !this.sky.layers.includes(ch as PIXI.Container) && !this.flames?.layers.includes(ch as PIXI.Container)).map((ch) => `${nameOf(ch)}${ch.visible ? '' : ' (off)'}`),
 			/** every child of the root, the ambient sky's and the flames' layers included, bottom to top */
-			allOrder: layers.map((ch) => `${this.sky.layers.includes(ch as PIXI.Container) || this.flames?.layers.includes(ch as PIXI.Container) ? ch.label : (ch === this.fire ? 'fire' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`)}${ch.visible ? '' : ' (off)'}`),
+			allOrder: layers.map((ch) => `${this.sky.layers.includes(ch as PIXI.Container) || this.flames?.layers.includes(ch as PIXI.Container) ? ch.label : nameOf(ch)}${ch.visible ? '' : ' (off)'}`),
 			chainOrder: !this.hasChains ? [] : this.sets[0].children.map((ch) => (ch instanceof PIXI.MeshSimple ? (SIDES.some((s) => this.chains[s].hang.meshes.includes(ch)) ? 'hang' : 'swag') : 'ring')),
 			counters: { vertexWrites: this.vertexWrites, slowSteps: this.slowSteps, fades: this.fades, joins: this.joins },
-			textures: { backdrop: [this.backdrop[0].texture.width, this.backdrop[0].texture.height], fire: [this.fire.texture.width, this.fire.texture.height], atlas: this.hasChains ? [this.chains.L.ring[0].texture.source.pixelWidth, this.chains.L.ring[0].texture.source.pixelHeight] : null },
+			textures: { backdrop: [this.backdrop[0].texture.width, this.backdrop[0].texture.height], sunset: [this.sunset.texture.width, this.sunset.texture.height], fire: [this.fire.texture.width, this.fire.texture.height], atlas: this.hasChains ? [this.chains.L.ring[0].texture.source.pixelWidth, this.chains.L.ring[0].texture.source.pixelHeight] : null },
 		};
 	}
 }

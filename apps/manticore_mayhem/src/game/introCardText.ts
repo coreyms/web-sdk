@@ -60,13 +60,15 @@ export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 		body: `5 or more matching symbols that touch form a cluster. Every win lights Multiplier Tiles under it, and lit tiles double up to ${TILE_TOP_TEXT}.`,
 		highlights: ['Multiplier Tiles', TILE_TOP_TEXT],
 		sceneLines: [
-			{ from: 0, to: 1.9, text: '5 Persian Daggers in a row: a cluster' },
-			{ from: 1.9, to: 4.1, text: 'Any shape counts: left, right, up or down. Not diagonals' },
-			{ from: 4.1, to: 6.3, text: 'The Wild stands in for any symbol except the War Standard Scatter' },
-			{ from: 6.3, to: 9.567, text: 'Every winning cluster lights the cells under it: 2x Multiplier Tiles' },
-			{ from: 9.567, to: 12.333, text: 'A cluster on Multiplier Tiles wins its value times their sum. Then the tiles double' },
-			// the max win scene (images/intro_cards_r9b, Corey 2026-10-23 "Looks good, go"): 128x tiles, Wilds, MAX WIN 10,000x
-			{ from: 12.333, to: 15.633, text: `${INTRO_MAX_WIN.lead}${INTRO_MAX_WIN.num}${INTRO_MAX_WIN.tail}` },
+			// the max win scene (images/intro_cards_r9b, Corey 2026-10-23 "Looks good, go"): 128x tiles, Wilds, MAX WIN 10,000x.
+			// It opens the clip (Corey 2026-10-23: "It makes sense to at least do the re-order of Win up to 10,000x to the first
+			// item in the reel/video"): the r9b clip turned at its frame 379, so the doubling tiles' dissolve into it closes the loop
+			{ from: 0, to: 3.0, text: `${INTRO_MAX_WIN.lead}${INTRO_MAX_WIN.num}${INTRO_MAX_WIN.tail}` },
+			{ from: 3.0, to: 4.9, text: '5 Persian Daggers in a row: a cluster' },
+			{ from: 4.9, to: 7.1, text: 'Any shape counts: left, right, up or down. Not diagonals' },
+			{ from: 7.1, to: 9.3, text: 'The Wild stands in for any symbol except the War Standard Scatter' },
+			{ from: 9.3, to: 12.567, text: 'Every winning cluster lights the cells under it: 2x Multiplier Tiles' },
+			{ from: 12.567, to: 15.633, text: 'A cluster on Multiplier Tiles wins its value times their sum. Then the tiles double' },
 		],
 	},
 	{

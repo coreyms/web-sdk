@@ -48,7 +48,10 @@
 
 	/** THE EPIC FIRE SET (PLAQUE_ESCALATION.epic): the courtyard's braziers burn the Epic clip while an Epic win's plaque
 	 *  is up (components/Background.svelte); off again once the plaque has gone */
-	export type EmitterEventPlaque = { type: 'plaqueFire'; on: boolean };
+	export type EmitterEventPlaque =
+		| { type: 'plaqueFire'; on: boolean }
+		/** THE CHEER (constants PLAQUE_CHEER): the creature's one move for this plaque's tier (components/Background.svelte) */
+		| { type: 'plaqueCheer'; move: 'snarl' | 'flex' | 'roar' };
 </script>
 
 <script lang="ts">
@@ -82,7 +85,7 @@
 	import { STINGER_DATA_URLS } from '../game/assets';
 	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 
-	import { MAX_WIN, PLAQUE_CELEBRATE, PLAQUE_ESCALATION, STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP, PLAQUE_GLOW, type PlaqueGlowKey } from '../game/constants';
+	import { MAX_WIN, PLAQUE_CELEBRATE, PLAQUE_CHEER, PLAQUE_ESCALATION, STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP, PLAQUE_GLOW, type PlaqueGlowKey } from '../game/constants';
 	import { beamTexture } from '../game/beamTexture';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { boardKick, chainGust } from '../game/featureFx';
@@ -201,7 +204,7 @@
 	let gone: (() => void)[] = [];
 
 	// DEV: every beat with its wall clock stamp and its place on the count (the flow probe's pacing checks)
-	type Beat = { type: 'show' | 'impact' | 'countStart' | 'tier' | 'countEnd' | 'hide' | 'gone' | 'roar'; at: number; screen: string; tier?: string; el?: number; amount?: number; skipped?: boolean };
+	type Beat = { type: 'show' | 'impact' | 'countStart' | 'tier' | 'countEnd' | 'hide' | 'gone' | 'roar' | 'cheer'; at: number; screen: string; tier?: string; el?: number; amount?: number; skipped?: boolean; move?: string };
 	const beats: Beat[] = [];
 	const log = (b: Omit<Beat, 'at' | 'screen'>) => {
 		if (STAGING_TOOLS) perfMark(`plaque:${b.type}`);
@@ -287,6 +290,8 @@
 			// THE EPIC STEP (PLAQUE_ESCALATION.epic): a win whose count STOPS at Epic gets the creature's roar and the
 			// Epic braziers on that landing (a Max win roars on its own screen's slam, game/maxWin.svelte.ts)
 			if (index === EPIC && c.cap === EPIC && view.screen === 'win' && view.escalate && !context.stateGame.skipping) epicStep();
+			// THE CHEER (PLAQUE_CHEER): a win whose count stops at SUPER or MEGA, on that landing
+			if (index === c.cap && index < EPIC && view.screen === 'win') cheer(index);
 		}
 		view.setAmountText(format(amount, c.target), c.fit);
 		if (!ended) return;
@@ -318,6 +323,34 @@
 		});
 	};
 
+	// THE CHEER (constants PLAQUE_CHEER): the creature's one move per plaque, on the tier the count stops at. `cheered` is
+	// the screen that has asked already; `pressed` the screen whose count the player landed early (no cheer after that)
+	let cheered = -1;
+	let pressed = -1;
+	/** the TOTAL WIN wrap up's tier when it cheers (the total's own tier; -1: under BIG, the Max Win wrap, or no cheer) */
+	let wrapCheer = -1;
+	const cheer = (tier: number) => {
+		if (!PLAQUE_CHEER.on || cheered === screenNo || pressed === screenNo || count?.skipped || context.stateGame.skipping) return;
+		cheered = screenNo;
+		const mine = screenNo;
+		const epic = tier === EPIC;
+		const at = view.clock + (epic ? PLAQUE_ESCALATION.epic.roarDelayMs : PLAQUE_CHEER.delayMs) / 1000;
+		void until(at).then(() => {
+			if (mine !== screenNo || pressed === mine || !ticking || view.phase === 'exit' || view.clock < at || context.stateGame.skipping) return;
+			if (epic) {
+				// a TOTAL WIN at EPIC: Epic's own win roar, as epicStep plays it (the braziers keep the mode's clip here)
+				context.eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
+				context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar_win', forcePlay: true });
+				log({ type: 'roar', tier: STINGER_TIERS[tier] });
+				return;
+			}
+			const move = PLAQUE_CHEER.moves[tier];
+			if (!move) return;
+			context.eventEmitter.broadcast({ type: 'plaqueCheer', move });
+			log({ type: 'cheer', tier: STINGER_TIERS[tier], move });
+		});
+	};
+
 	const tick = (ticker: PIXI.Ticker) => {
 		frameMs = ticker.deltaMS;
 		view.advance(ticker.deltaMS);
@@ -332,6 +365,9 @@
 			if (landSound >= 0) tierSound(landSound);
 			landSound = -1;
 			log({ type: 'impact', tier: STINGER_TIERS[view.tier] });
+			// THE CHEER (PLAQUE_CHEER): a win that stays BIG cheers on the impact; a TOTAL WIN wrap up on its total's tier
+			if (view.screen === 'win' && count && count.cap === 0) cheer(0);
+			else if (view.screen === 'wrap' && wrapCheer >= 0) cheer(wrapCheer);
 			// THE BOARD PLAQUE'S FIRST WORD (PLAQUE_CELEBRATE): the impact is BIG's bar, its title punches titleDelayMs later
 			if (celebrating && plaqueCelebrate.on) {
 				const now = performance.now();
@@ -388,6 +424,7 @@
 	const begin = (o: StingerShow, sound: number) => {
 		release();
 		screenNo += 1;
+		wrapCheer = -1;
 		fire(false);
 		view.show(o);
 		// the board plaque celebrates the win screen, and a capped round's wrap up whose title climbs the win ladder to
@@ -454,6 +491,8 @@
 				return;
 			}
 			begin({ screen: 'wrap', tier: tierName(tier), mode, line }, sound ? Math.max(0, Math.min(WIN_TIER_SOUND.length - 1, tier)) : -1);
+			// THE CHEER on a TOTAL WIN (PLAQUE_CHEER): its total's tier, nothing under BIG (`sound` is the total's "big")
+			wrapCheer = sound ? Math.min(EPIC, tier) : -1;
 			// the count is paced over the ladder's bars like any other; the tier itself is fixed for the screen
 			await counting({ amount, durationMs, bars: barsOf(ladder === 'endFeature' ? WIN_TIER_STAGES_END_FEATURE : WIN_TIER_STAGES), cap: tier, shown: tier, beats: false });
 		},
@@ -461,7 +500,10 @@
 			if (ticking && view.phase === 'up' && view.screen === 'wrap') await until(view.clock + view.lineInS);
 		},
 		skip: () => {
-			if (count) count.skipped = true;
+			if (count) {
+				count.skipped = true;
+				pressed = screenNo;
+			}
 		},
 		counting: () => !!count,
 		hide: () =>

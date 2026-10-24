@@ -25,7 +25,7 @@
 //   creatureActs   his attacks (swipe, roar, the sting run) and the glow; BESIDE the scene groups below when
 //           LOAD_GATE.sceneBesideAttacks (his sheets go one at a time, each decoded and uploaded before the next is asked
 //           for, and the scene's files fill the pipe in those gaps), else strictly before them
-//   scatter (the cheaper variant only), night, frameNight, flameSuper, flameEpic, logo (fallback), labels   game/assets.ts
+//   scatter (the cheaper variant only), night, frameNight, sunset, flameSuper, flameEpic, logo (fallback), labels   game/assets.ts
 //           DEFERRED_ORDER, one after another
 //   creatureAlts   his snarl and growl, held until the above are in (constants CREATURE.restHeldAfter)
 // The shared loader then runs its batch as before: Pixi's cache answers at once for everything loaded here,
@@ -309,7 +309,7 @@ const watchUnreachable = (app: AppState) => {
 // The game registers only the scene of the layout it booted in (16:9 for landscape and phone sideways, 9:16 for
 // portrait) and requests none of the other's files. The first time the layout becomes one of the other scene's,
 // components/Background.svelte calls this: the day set (published together: the scene builds from all of it),
-// then the night set. Once; a file that fails leaves the placeholder crop standing.
+// then the night set, then the sunset (the Bonus's backdrop). Once; a file that fails leaves the placeholder crop standing.
 let sceneLate: Promise<void> | null = null;
 export const loadSceneLate = (app: AppState): Promise<void> => {
 	const group = async (name: string, all: readonly string[]) => {
@@ -325,7 +325,7 @@ export const loadSceneLate = (app: AppState): Promise<void> => {
 	const late = SCENE_KEYS[SCENE_AT_BOOT === 'landscape' ? 'portrait' : 'landscape'];
 	// the flames' deferred clips one at a time, like the boot's own order (none for the portrait scene)
 	const flames = () => late.flames.reduce((chain, key) => chain.then(() => group(`sceneFlames_${key}`, [key])), Promise.resolve());
-	sceneLate ??= group('sceneDay', late.day).then(() => group('sceneNight', late.night)).then(flames).catch(() => {});
+	sceneLate ??= group('sceneDay', late.day).then(() => group('sceneNight', late.night)).then(() => group('sceneSunset', late.sunset)).then(flames).catch(() => {});
 	return sceneLate;
 };
 

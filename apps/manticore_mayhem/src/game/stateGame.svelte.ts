@@ -17,6 +17,7 @@ import { kickClank } from './chainSound';
 import { placeLabels } from './labelPlacement';
 import { forgedSupports, forgedWidth } from './clusterLabel';
 import { stagingTeaseFall, stagingTeaseHoldMs } from './staging';
+import { tileFlareOn, isFlareMilestone, cueTileFlare } from './tileFlare';
 import {
 	GRID,
 	CELL_COUNT,
@@ -38,6 +39,7 @@ import {
 	SYMBOL_COLORS,
 	AURA_COLOR,
 	MULT_PLATE,
+	TILE_FLARE,
 	FEATURE_FX,
 	STING,
 	STING_FX,
@@ -190,7 +192,8 @@ export const stateGame = $state({
 	 *  own fade (over the fall), its offset in cells (locked to the incoming stack after the launch) and
 	 *  the style ms since the column began to show (the beam swings on it). */
 	anticipation: Array.from({ length: GRID }, () => ({ on: false, q: 0, fade: 1, tease: false, rainFade: 1, rain: 0, el: 0 })),
-	/** THE TRIGGER BEAT'S RELIGHT (constants TRIGGER_BEAT.relightAt): true from the moment a Super / Epic trigger beat
+	/** THE TRIGGER BEAT'S RELIGHT (constants TRIGGER_BEAT.relightAt): true from the moment a Super / Epic (or, with
+	 *  TRIGGER_BEAT.relightBonus, a Bonus: its warm day) trigger beat
 	 *  relights the scene until the feature's own gameType takes over at the beat's end. components/Background.svelte
 	 *  draws the feature's scene (bonusMode's) while it is set, so the relight plays in front of the player */
 	relightAhead: false,
@@ -1660,7 +1663,9 @@ export const removeCells = async (cells: CellIndex[], id: number, onCleared?: (c
 // revealPopMs) and, if the book gave the cell a new value, counts over to it over changeMs. One rAF pump
 // runs every plate in flight in style time (divided by the turbo scale captured when it was queued); a
 // skip lands every plate on its final state at once (the skip rule: chg = pop = 1, value = the book's).
-type PlateJob = { cell: CellIndex; to: number | null; t0: number; rate: number; delay: number; started: boolean; change: boolean };
+// `step`: the run id of the book event that queued it (one cascade / swipe = one step: the tile flare's one ring per step);
+// `flared`: the tile flare has been cued for this count-over (TILE_FLARE, only with its switch on)
+type PlateJob = { cell: CellIndex; to: number | null; t0: number; rate: number; delay: number; started: boolean; change: boolean; step: number; flared: boolean };
 const plateJobs: PlateJob[] = [];
 let plateRaf = 0;
 /** DEV probe log (plate_probe / tease_probe): every plate change, when it started and ended (performance.now()) */
@@ -1714,6 +1719,14 @@ const pumpPlates = () => {
 		const pop = tile.value > 0 ? clamp01(el / Math.max(MULT_PLATE.revealPopMs, 1)) : 1;
 		if (tile.chg !== chg) tile.chg = chg;
 		if (tile.pop !== pop) tile.pop = pop;
+		// THE TILE MILESTONE FLARE (TILE_FLARE, switch off by default): the count-over has landed on x64 / x128. Never on a
+		// skip (that path finishes above). The step's ring is at the highest milestone any of its tiles reaches.
+		if (tileFlareOn && j.change && !j.flared && chg >= TILE_FLARE.atChange && isFlareMilestone(tile.value) && tile.from < tile.value) {
+			j.flared = true;
+			let stepMax = tile.value;
+			for (const o of plateJobs) if (o !== j && o.step === j.step && !o.flared && o.to !== null && o.to > stepMax && isFlareMilestone(o.to)) stepMax = o.to;
+			cueTileFlare(j.cell, tile.value, j.step, j.rate, stepMax);
+		}
 		if (chg >= 1 && pop >= 1) {
 			finishPlate(j);
 			plateJobs.splice(i, 1);
@@ -1738,7 +1751,7 @@ export const plateReveal = (cell: CellIndex, to: number | null, delayMs: number 
 	}
 	if (to !== null && tile.value === to) return; // this entry has already played
 	if (!tile.value && !to) return;
-	const j: PlateJob = { cell, to, t0: performance.now(), rate: ts(), delay: delayMs, started: false, change: false };
+	const j: PlateJob = { cell, to, t0: performance.now(), rate: ts(), delay: delayMs, started: false, change: false, step: runId, flared: false };
 	if (stateGame.skipping || typeof requestAnimationFrame !== 'function') {
 		finishPlate(j);
 		return;

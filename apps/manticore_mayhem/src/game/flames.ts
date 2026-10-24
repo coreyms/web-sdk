@@ -3,7 +3,7 @@
 // scene's frame. LANDSCAPE and PHONE SIDEWAYS only: the portrait scene has none of it.
 // One fire in each of the two bowls, three layers that SceneView draws over the foreground and the fire light pass and
 // under the chains, back to front:
-//   flames   per bowl, the clip of the mode (FLAMES.modes: base in the base game and the Bonus, super, epic), its anchor
+//   flames   per bowl, the clip of the mode (FLAMES.modes: base in the base game, super in the Bonus (2026-10-23) and Super, epic), its anchor
 //            on the bowl's centre on the rim line. Both bowls play the SAME clip from the same textures; the right one is
 //            mirrored and FLAMES.twin.phase of a loop ahead. A change of mode crossfades the two clips with the scene's own
 //            crossfade (the weights are three of the scene's mode values). EPIC's red is a treatment (FLAMES.epicTint):

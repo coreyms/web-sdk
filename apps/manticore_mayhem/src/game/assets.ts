@@ -469,6 +469,11 @@ const assets = {
 	scene_ridge_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/ridge-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/ridge-night-phone.webp', import.meta.url).href)), preload: false },
 	scene_backdrop_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/backdrop-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/backdrop-night-phone.webp', import.meta.url).href)), preload: false },
 	scene_fore_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fore-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fore-night-phone.webp', import.meta.url).href)), preload: false },
+	// THE SUNSET (2026-10-23, Corey: "That one works perfectly, Bonus only. Base keeps the original."; constants
+	// SCENE.modes.bonus.sunset; tools/build_scene_assets.py --sunset): the regular Bonus's painting, only the backdrop (the
+	// ridge, the foreground and the creature keep their day files). Rides the deferred phase, its own group after the
+	// night frame (DEFERRED_ORDER sunset); until it is in, a Bonus plays on the day backdrop. One per scene, like the night set.
+	scene_backdrop_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/backdrop-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/backdrop-sunset-phone.webp', import.meta.url).href)), preload: false },
 	// THE PORTRAIT COURTYARD SCENE (the same components and tool, --portrait): its own 9:16 frame, 1440 x 2560 with a
 	// 900 x 1600 phone tier twin. Backdrop, foreground and fire pass; no atlas (nothing moves in portrait). The day set
 	// preloads when the game boots in PORTRAIT and the night set rides the deferred phase; booted in another layout,
@@ -478,6 +483,9 @@ const assets = {
 	scenep_fire: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-fire.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-fire-phone.webp', import.meta.url).href)), preload: portraitSceneAtBoot },
 	scenep_backdrop_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-night-phone.webp', import.meta.url).href)), preload: false },
 	scenep_fore_night: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-fore-night.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-fore-night-phone.webp', import.meta.url).href)), preload: false },
+	// the portrait scene's SUNSET backdrop (the Bonus; see scene_backdrop_sunset): its sky extended above the painting the
+	// way the portrait day backdrop's is
+	scenep_backdrop_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-sunset-phone.webp', import.meta.url).href)), preload: false },
 	// THE PORTRAIT SKY's own files (2026-10-12; game/sky.ts, constants SKY.portrait; tools/build_scene_assets.py
 	// --portrait-sky): only the skyline cut-outs of the portrait backdrops, day with the portrait day set, night with its
 	// night set. Its clouds, fog, aurora, birds and bats draw the landscape sky's sceneSky, sceneBirds and sceneBats.
@@ -654,15 +662,15 @@ const phoneOnlyScreen = (): boolean => {
 //                                           scene's files registered.
 // (2026-10-12: but for the three files both scenes' skies draw, SCENE_SHARED_KEYS, which every boot registers.)
 // The scene that is not registered waits in SCENE_LATE. The first time the layout becomes one of its own,
-// game/deferredLoad.ts loadSceneLate fetches its day set, then its night set.
+// game/deferredLoad.ts loadSceneLate fetches its day set, then its night set, then its sunset (the Bonus's backdrop).
 // THE PLACEHOLDER'S CROPS are registered in NO boot (2026-10-10; until then the other layouts' crops rode the
 // deferred phase, so a desktop that never turns still fetched base-portrait.webp). The boot layout's crop is never
 // drawn. The other layouts' crops wait in PLACEHOLDER_LATE (the base key per layout: the feature keys were aliases of
 // the same file); loadPlaceholderLate fetches the one for the layout the game was turned to, beside that layout's
 // scene, and it stands in until the scene fades in over it, or for good if the scene's files fail.
 export const SCENE_KEYS = {
-	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
-	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire', 'scenep_ridge_day', 'sceneSky', 'sceneBirds'], night: ['scenep_backdrop_night', 'scenep_fore_night', 'scenep_ridge_night', 'sceneBats'], flames: [] },
+	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], sunset: ['scene_backdrop_sunset'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
+	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire', 'scenep_ridge_day', 'sceneSky', 'sceneBirds'], night: ['scenep_backdrop_night', 'scenep_fore_night', 'scenep_ridge_night', 'sceneBats'], sunset: ['scenep_backdrop_sunset'], flames: [] },
 } as const;
 /** the keys BOTH scenes list (the sky's atlas, the birds, the bats): registered in every boot, fetched once, never late */
 export const SCENE_SHARED_KEYS: readonly string[] = [...SCENE_KEYS.portrait.day, ...SCENE_KEYS.portrait.night].filter((key) => ([...SCENE_KEYS.landscape.day, ...SCENE_KEYS.landscape.night] as string[]).includes(key));
@@ -678,7 +686,7 @@ export const PLACEHOLDER_LATE: Record<string, { type: string; src: string }> = {
 		delete table[key];
 	}
 	const late = SCENE_KEYS[sceneAtBoot ? 'portrait' : 'landscape'];
-	for (const key of [...late.day, ...late.night, ...late.flames]) {
+	for (const key of [...late.day, ...late.night, ...late.sunset, ...late.flames]) {
 		// what the boot layout's scene draws too stays registered (it loads with that scene)
 		if (SCENE_SHARED_KEYS.includes(key)) continue;
 		SCENE_LATE[key] = table[key];
@@ -734,6 +742,11 @@ if (phoneOnlyScreen()) {
 //   frameNight   the boot layout's board frame night set (constants FRAME_RELIGHT: the night plate, the fire plate and
 //           the night + fire gear atlas; landscape 0.77 MB, portrait 0.63 MB, phone 1.28 MB or 0.57 MB on the phone
 //           tier), right after the scene's own night: until it is in, a Super or Epic keeps the frame in its day light.
+//   sunset  the boot layout's courtyard scene's SUNSET backdrop (2026-10-23: the regular Bonus's painting; landscape
+//           0.85 MB, 0.44 MB on the phone tier; portrait 0.57 MB, 0.27 MB): a Bonus can be bought on the first spin,
+//           and until it is in the Bonus plays on the day backdrop and crossfades when it lands
+//           (components/Background.svelte, game/scene.ts setSunset). After the night pair, so a Super or Epic is not
+//           kept waiting by it, and before the flame clips (the Bonus burns the Super clip too).
 //   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips (game/flames.ts; 0.68 and 1.14 MB, 0.50 and
 //           0.89 MB on the phone tier; none when the game booted in portrait), one group each so each is uploaded by
 //           itself when it lands: until then that mode's braziers keep the base clip burning.
@@ -747,7 +760,7 @@ const deferredKeys = (prefix: string) =>
 		.map(([key]) => key);
 const SCATTER_SHEETS = ['mmDrop_s', 'mmIdle_s', 'mmWin_s'];
 const notScatter = (keys: string[]) => (LOAD_GATE.scatter ? keys : keys.filter((key) => !SCATTER_SHEETS.includes(key)));
-export type LoadGroupName = 'plaque' | 'drop' | 'idle' | 'win' | 'scatter' | 'night' | 'frameNight' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels';
+export type LoadGroupName = 'plaque' | 'drop' | 'idle' | 'win' | 'scatter' | 'night' | 'frameNight' | 'sunset' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels';
 export const GATE_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
 	{ name: 'drop', keys: notScatter(deferredKeys('mmDrop_')) },
@@ -759,6 +772,7 @@ export const DEFERRED_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	{ name: 'scatter', keys: LOAD_GATE.scatter ? [] : SCATTER_SHEETS.filter((key) => key in assets) },
 	{ name: 'night', keys: [...SCENE_KEYS[SCENE_AT_BOOT].night] },
 	{ name: 'frameNight', keys: FRAME_NIGHT_KEYS(bootLayout) },
+	{ name: 'sunset', keys: [...SCENE_KEYS[SCENE_AT_BOOT].sunset] },
 	{ name: 'flameSuper', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(0, 1) },
 	{ name: 'flameEpic', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(1) },
 	{ name: 'logo', keys: deferredKeys('logoAtlas') },

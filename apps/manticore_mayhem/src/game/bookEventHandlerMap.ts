@@ -761,14 +761,17 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (cells.length) eventEmitter.broadcast({ type: 'plaqueTease', what: 'beat' });
 		if (cells.length) {
 			const relit = bookEvent.bonus !== 'bonus';
-			const rec = fxRecord('trigger', { bonus: bookEvent.bonus, cells: cells.slice(), turbo: stateGame.turboLevel, relit });
+			// THE WARM DAY (constants BONUS_WARMTH, TRIGGER_BEAT.relightBonus): the Bonus's scene changes on the beat as well,
+			// on the Free Spins beat's own length, so its intro plaque drops over the warmed scene
+			const ahead = relit || TRIGGER_BEAT.relightBonus;
+			const rec = fxRecord('trigger', { bonus: bookEvent.bonus, cells: cells.slice(), turbo: stateGame.turboLevel, relit, ahead });
 			await triggerBeat(cells, relit ? TRIGGER_BEAT.msRelit : TRIGGER_BEAT.ms, newRun(), {
 				rec,
 				onRoar: () => {
 					eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
 					eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar', forcePlay: true });
 				},
-				onRelight: relit ? () => (stateGame.relightAhead = true) : undefined,
+				onRelight: ahead ? () => (stateGame.relightAhead = true) : undefined,
 			});
 			fxStamp(rec, 'end');
 		}

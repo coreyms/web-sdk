@@ -2,7 +2,7 @@
 """Game assets for the courtyard scene (components/Background.svelte, game/scene.ts): the painted backdrops, the 3D
 foreground, the brazier fire pass and the moving knocker rings and chains, for the landscape and phone sideways layouts.
 
-  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_scene_assets.py [SRC] [--portrait DIR] [--sky] [--portrait-sky DIR] [--backdrops DIR] [--fallback DIR]
+  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_scene_assets.py [SRC] [--portrait DIR] [--sky] [--portrait-sky DIR] [--sunset [DIR]] [--backdrops DIR] [--fallback DIR]
   node scripts/stamp-assets.mjs          (afterwards, from the app folder)
 
 SRC alone rebuilds the landscape set (the sky set with it), --portrait DIR alone the portrait set, both together
@@ -49,6 +49,16 @@ the frame's own size (1440 x 2560), phone = 900 wide:
   src/game/sceneSpec.ts SCENE_SPEC_PORTRAIT                           the frame, the tiers, the painting's and the fill's rows,
                                                                       sky.ridge / sky.skyline and tiers.<tier>.ridge
   --sky-check DIR                                                     ridge_matte_portrait.png, ridge_magenta_portrait_<set>.png
+
+--sunset [DIR] (2026-10-23; Corey: "That one works perfectly, Bonus only. Base keeps the original."): THE SUNSET BACKDROP,
+the regular Bonus's painting, in both scenes. Only the backdrop: the ridge cut-outs, the foregrounds, the fire passes
+and the creature keep their DAY files (Corey's call: no relight), so nothing else is written and sceneSpec.ts is left
+as it is. DIR (default ~/Desktop/Manticore Mayhem/images/backgrounds/sunset_sky_2026-10-23, read only) holds the two
+sources its scripts/make_sunset_sources.py made the way the day ones were made (Upscayl digital-art-4x, the portrait
+frame by the portrait_r2 / r3 recipe with the extended sky): backdrop_sunset_2560_digital-art-4x.png and
+portrait/backdrop_sunset_1440x2560.png. Same sizes, quality (Q_BACKDROP) and banding check as the day backdrops:
+  static/assets/backgrounds/scene/backdrop-sunset[-phone].webp            2560 x 1440, 1600 x 900
+  static/assets/backgrounds/scene/portrait-backdrop-sunset[-phone].webp   1440 x 2560, 900 x 1600
 
 THE AMBIENT SKY (game/sky.ts, constants SKY; landscape scene only), built by every landscape run and by --sky alone:
   static/assets/backgrounds/scene/ridge-<day|night>[-phone].webp      the mountains and citadel skyline CUT OUT of the
@@ -98,6 +108,7 @@ APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(APP, 'static', 'assets', 'backgrounds', 'scene')
 SPEC = os.path.join(APP, 'src', 'game', 'sceneSpec.ts')
 DRAFTS = os.path.expanduser('~/Desktop/Manticore Mayhem/images/backgrounds/base/drafts')
+SUNSET_SRC = os.path.expanduser('~/Desktop/Manticore Mayhem/images/backgrounds/sunset_sky_2026-10-23')
 
 # the tiers: the texture width of the base (the frame's own width on the full tier). The fire pass ships at FIRE_SHARE
 # of the base's size in both (the scene agent's half size test: mean difference 1.2 of 255 at the EPIC level).
@@ -900,6 +911,34 @@ def read_spec(name: str) -> dict | None:
     return json.loads(body[:body.index(' as const;')])
 
 
+def build_sunset(folder: str) -> list:
+    """--sunset: the Bonus's sunset backdrop in both scenes, exactly as each scene's day backdrop is written (the frame's
+    size, the tier widths, Q_BACKDROP, the banding check). Nothing else is written."""
+    folder = os.path.expanduser(folder)
+    srcs = {
+        'landscape': (os.path.join(folder, 'backdrop_sunset_2560_digital-art-4x.png'), (2560, 1440), PHONE_WIDTH, 'backdrop-sunset'),
+        'portrait': (os.path.join(folder, 'portrait', 'backdrop_sunset_1440x2560.png'), (1440, 2560), PORTRAIT_PHONE_WIDTH, 'portrait-backdrop-sunset'),
+    }
+    report: list[tuple[str, int, int, int]] = []
+    for what, (path, (FW, FH), phone_w, stem) in srcs.items():
+        if not os.path.isfile(path):
+            die(f'--sunset: {path} not found (make it with scripts/make_sunset_sources.py in that folder)')
+        im = Image.open(path).convert('RGB')
+        print(f'{what} sunset backdrop from {path} ({im.size[0]} x {im.size[1]})')
+        for tier, width in (('full', FW), ('phone', phone_w)):
+            size = (width, round(FH * width / FW))
+            suffix = '' if tier == 'full' else '-phone'
+            # the landscape painting is a pixel taller than the frame: fitted to it, as the day one is
+            b = im.resize(size, Image.LANCZOS)
+            name = f'{stem}{suffix}.webp'
+            report.append((name, save_webp(b, name, Q_BACKDROP), *size))
+            report_band(name, b, 'Q_BACKDROP')
+    print('\nfile'.ljust(42) + 'KiB'.rjust(9) + '   texture'.ljust(16) + 'GPU MB (w x h x 4)')
+    for name, nbytes, w, h in report:
+        print(f'{name.ljust(41)}{nbytes / 1024:9.1f}   {f"{w} x {h}".ljust(13)}{w * h * 4 / 1e6:8.2f}')
+    return report
+
+
 def totals(report: list, what: str):
     print('\nfile'.ljust(42) + 'KiB'.rjust(9) + '   texture'.ljust(16) + 'GPU MB (w x h x 4)')
     for name, nbytes, w, h in report:
@@ -924,10 +963,15 @@ def main():
     ap.add_argument('--sky-check', default=os.path.join(DRAFTS, 'sky_matte'), help='where the matte and its magenta check images go')
     ap.add_argument('--birds', default=BIRDS_SRC, help='the folder with the Angry Mantis birds.json and birds.webp')
     ap.add_argument('--bats', default=BATS_SRC, help='the bat sheet (a PNG on the birds\' canvas: every bat inside its bird\'s cell)')
+    ap.add_argument('--sunset', nargs='?', const=SUNSET_SRC, default=None, help='build the Bonus\'s sunset backdrop in both scenes from this folder (default: the sunset_sky_2026-10-23 folder)')
     args = ap.parse_args()
-    if not args.src and not args.portrait and not args.sky and not args.portrait_sky:
-        die('nothing to build: give the landscape folder, --portrait DIR, --sky, --portrait-sky DIR, or more than one')
+    if not args.src and not args.portrait and not args.sky and not args.portrait_sky and not args.sunset:
+        die('nothing to build: give the landscape folder, --portrait DIR, --sky, --portrait-sky DIR, --sunset, or more than one')
     os.makedirs(OUT, exist_ok=True)
+    if args.sunset:
+        build_sunset(args.sunset)
+        if not args.src and not args.portrait and not args.sky and not args.portrait_sky:
+            return
 
     wide, tall = read_spec('SCENE_SPEC'), read_spec('SCENE_SPEC_PORTRAIT')
     reports = []

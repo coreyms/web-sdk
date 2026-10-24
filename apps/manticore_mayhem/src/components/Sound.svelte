@@ -12,7 +12,9 @@
 		| { type: 'soundPressMinor' }
 		| { type: 'soundPressSub' }
 		| { type: 'soundPressBonus' }
-		| { type: 'soundOnce'; name: SoundEffectName; forcePlay?: boolean; rate?: number } // rate: playback rate of this one play (the creature's voice)
+		// volume: this one play's own level (0..1, times the effects mixer level), outside the player's per-name bookkeeping so
+		// it never carries over to the next play of the same name (the tile flare's ring, constants TILE_FLARE)
+		| { type: 'soundOnce'; name: SoundEffectName; forcePlay?: boolean; rate?: number; volume?: number } // rate: playback rate of this one play (the creature's voice)
 		| { type: 'soundLoop'; name: SoundEffectName }
 		| { type: 'soundStop'; name: SoundName }
 		| { type: 'soundFade'; name: SoundName; from: number; to: number; duration: number }
@@ -48,8 +50,17 @@
 		soundLoop: ({ name }) => {
 			if (!context.stateGame.skipping) sound.players.loop.play({ name });
 		},
-		soundOnce: ({ name, forcePlay, rate }) => {
+		soundOnce: ({ name, forcePlay, rate, volume }) => {
 			if (context.stateGame.skipping) return;
+			if (volume !== undefined) {
+				// a play at its own level: straight on the sprite Howl (the same one the once player uses, so mute applies), its
+				// level set on this play id only. Dropped, never queued, before the sprite is in (the once player's rule).
+				const howl = sound.players?.once?.howl;
+				if (!howl || howl.state() !== 'loaded') return;
+				const id = howl.play(name);
+				if (typeof id === 'number') howl.volume(Math.max(0, Math.min(1, volume)) * stateSoundDerived.volumeSoundEffect(), id);
+				return;
+			}
 			sound.players.once.play({ name, forcePlay });
 			// the sprite player's own rate(): it sets the rate of the play it has just started under this name
 			if (rate !== undefined) sound.players.once.rate({ name, rate });
