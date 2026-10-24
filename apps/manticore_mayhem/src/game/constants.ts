@@ -185,6 +185,13 @@ export const SYMBOL_PLACE = {
 		S: { size: 1.525, dx: 0, dy: 4.5, top: 9 },
 	} as Record<string, { size: number; dx: number; dy: number; top: number }>,
 };
+/** THE WILD UNDER ITS CLUSTER (Corey 2026-10-24: "in cluster wins when symbols win the Wild should be the under any other
+ *  symbols in the cluster. The wild is overlapping the crown. The wild is like an assistantt to the clusters hitting";
+ *  "The order is fine in resting, not winning"). The POP band's own "on top" number (components/BoardCells.svelte's
+ *  draw order): a symbol listed here sorts by this value instead of SYMBOL_PLACE's `top` while it pulses or pops, so a
+ *  winning Wild (-1) draws under every other winning symbol and still over every resting one. The resting band keeps
+ *  SYMBOL_PLACE's order. {} = the Wild pops on top again (its `top` 8). */
+export const POP_TOP: Record<string, number> = { W: -1 };
 /** the pop sizes of the same values (mode 'multiply': the factor multiplies the symbol's own size; every symbol's
  *  "pop x" is 1). The engine's own constants carry them: tease ANTICIPATION_TEASE.landedPulse (1 + 0.185), win pulse
  *  CLUSTER.winScale, scatter trigger SCATTER_STING.triggerScale, sting STING.popScale / bigPopScale, the remove-cells
@@ -250,18 +257,27 @@ export const cellOf = (reel: number, row: number) => reel * GRID + row;
 export const reelOf = (cell: number) => Math.floor(cell / GRID);
 export const rowOf = (cell: number) => cell % GRID;
 
-// The board shown between PRESS ANYWHERE and the first spin. A deliberate showcase: every paying
-// symbol plus W and S, arranged so no five orthogonally-adjacent cells share a symbol (nothing on
-// it reads as a win). board[reel][row].
+// THE OPENING BOARD, shown between PRESS ANYWHERE and the first spin (Corey 2026-10-24: "when the game loads we should
+// re-arrange the first loading symbols so the bottom row is wild, wild, scatter x3, wild wild. Top row make it wild wild,
+// crown crown crown, wild wild then a neat pattern in between"; then "Bottom row do wild, wild scatter, wild scater wild
+// scatter wild wild"; of the mock up's boards he picked "A+1 Diamond"). Row set A + pattern 1, DIAMOND:
+//   top row     W W H1 H1 H1 H1 W W (his wild wild, crowns, wild wild, on 8 columns)
+//   rows 1-6    a diamond, mirrored left / right and top / bottom: 4 Crowns in the middle, then rings of Chalice,
+//               Dagger, Helmet, Seal and Key out to the corners
+//   bottom row  W W S W S W S W (his row is 9 symbols; on 8 columns its last wild is dropped)
+// The top row is an 8-cell Crown cluster through its wilds (4 Crowns + 4 wilds), by his choice, shown before any spin
+// (nothing is paid or presented: it is the resting board). Nothing else on the board clusters (the diamond's 4 centre
+// Crowns are one short of 5, and the Crown is kept out of row 1). The 3 scatters, one per column, are one short of the
+// Bonus trigger (4). board[reel][row], one line per reel, top to bottom.
 export const INITIAL_BOARD: SymbolName[][] = [
-	['L1', 'M1', 'L3', 'H1', 'L2', 'M2', 'L4', 'M3'],
-	['M2', 'L4', 'S', 'L1', 'M3', 'L3', 'H1', 'L2'],
-	['L3', 'H1', 'L2', 'M2', 'L4', 'M1', 'L1', 'W'],
-	['M1', 'L2', 'M3', 'L4', 'W', 'L1', 'M2', 'L3'],
-	['L4', 'M3', 'L1', 'M1', 'L3', 'H1', 'S', 'M2'],
-	['H1', 'L1', 'M2', 'L3', 'M1', 'L4', 'M3', 'L1'],
-	['L2', 'W', 'L4', 'M3', 'L1', 'M2', 'L3', 'H1'],
-	['M3', 'L3', 'M1', 'L2', 'H1', 'S', 'M1', 'L4'],
+	['W', 'L3', 'L4', 'M1', 'M1', 'L4', 'L3', 'W'],
+	['W', 'L4', 'M1', 'M2', 'M2', 'M1', 'L4', 'W'],
+	['H1', 'M1', 'M2', 'M3', 'M3', 'M2', 'M1', 'S'],
+	['H1', 'M2', 'M3', 'H1', 'H1', 'M3', 'M2', 'W'],
+	['H1', 'M2', 'M3', 'H1', 'H1', 'M3', 'M2', 'S'],
+	['H1', 'M1', 'M2', 'M3', 'M3', 'M2', 'M1', 'W'],
+	['W', 'L4', 'M1', 'M2', 'M2', 'M1', 'L4', 'S'],
+	['W', 'L3', 'L4', 'M1', 'M1', 'L4', 'L3', 'W'],
 ];
 
 export const BACKGROUND_RATIO = 1920 / 1080;
@@ -421,6 +437,24 @@ export const SYMBOL_IDLE_REST = { minMs: 7000, maxMs: 19000 };
  *              (releaseTriggerWins). on: false keeps the pulse alone. glow: the pulse's scatter-colour aura on a cell
  *              that plays the sheet (false: it fights the blazing sun, as the shine fought the crown's rubies) */
 export const WIN_SHEET = { breathe: false, shine: { start: false, count: true }, trigger: { on: true, glow: false } };
+/** THE WIN RIPPLE (2026-10-24). The harsh review: "symbols play their win clips all at once (five crowns swell as one gold
+ *  band); ripple them 30-40 ms per cell". Corey: "Show me a mock up." Of today, a left to right sweep and a flood, he
+ *  picked the flood: "That looks good surprisingly, I like 1. C." Each cell of a winning cluster starts its win clip
+ *  (WIN_SHEET), its rise to CLUSTER.winScale and its breath stepMs after the cell before it, in flood order outward from
+ *  the cluster's first cell (the book's c[0], the cell the vein ripple cueWellWin spreads from), and the cluster's whole
+ *  spread is never more than maxSpreadMs: the step is min(stepMs, maxSpreadMs / (n - 1)) for an n-cell cluster (35 ms up
+ *  to 12 cells, 28.6 for 15, 6.3 for 64). STYLE time, so turbo compresses it like everything else. Only each cell's own
+ *  start moves: the cluster label and its count, the plaque, the cluster's win sound (onClusterStart, which is also the
+ *  first cell's start), the dim, the shine sweeps and the vein ripple keep the cluster's clock.
+ *    order         'flood' (his pick, c) or 'sweep' (the mock up's b: by column, then by row inside a column)
+ *    popAfterClip  the centre-out pop (SPARKLE.staggerMs) never takes a cell before its clip has played its clipFrames
+ *                  (SHEET_FPS). Without it a late cell near the centre pops on frame 27 to 34 of its 35 in about 2 % of
+ *                  base clusters (a scan of the 300,000 base books, 1 cell of book 7351's 15); with it that cell pops as
+ *                  its clip ends (23 ms after its turn at the median, 290 ms at the most) and every other cell keeps its
+ *                  centre-out turn; a cluster's removal ends at most 44 ms later
+ *  on: false is the board as it was: every cell of a cluster starts together at the cluster's presentation. Scatter
+ *  trigger clips (WIN_SHEET.trigger) are not clusters and never ripple. */
+export const WIN_RIPPLE = { on: true, stepMs: 35, maxSpreadMs: 400, order: 'flood' as 'flood' | 'sweep', popAfterClip: true, clipFrames: 36 };
 
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {

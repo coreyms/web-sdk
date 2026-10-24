@@ -40,6 +40,7 @@ import {
 	plateReveal,
 	dropHook,
 	winSetLog,
+	rippleLog,
 } from './stateGame.svelte';
 import { motionLog } from './sparkles';
 import { stateXstateDerived } from './stateXstate';
@@ -219,6 +220,9 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 		/** the last win sets' labels as drawn (presentWinSet): the numbers handed over and the largest amount each label
 		 *  ever read (tools/manticore/capped_label_probe.js) */
 		winSets: () => winSetLog.slice(),
+		/** the last clusters' WIN_RIPPLE: each cell in its start order, its offset (style ms) and the Cell.winAt it got
+		 *  (tools/manticore/symbols_probe.js ONLY=win) */
+		ripples: () => rippleLog.map((r) => ({ ...r, cells: r.cells.map((c) => ({ ...c })) })),
 	});
 }
 

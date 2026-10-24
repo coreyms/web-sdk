@@ -45,6 +45,8 @@ import {
 	STING_FX,
 	SCATTER_STING,
 	WIN_SHEET,
+	WIN_RIPPLE,
+	SHEET_FPS,
 	ANTICIPATION_TEASE,
 	TRIGGER_BEAT,
 	SWIPE_FX,
@@ -1164,8 +1166,50 @@ let shakeOwned = false;
 const popScratch: PopPose = { sx: 1, sy: 1, rot: 0, alpha: 1, heat: 0 };
 
 /** `fx`: the WIN_FX shine of this cell (null in the 'old' look); `rank`: its order from the cluster centre; `dir`:
- *  its twist direction (alternate cells opposite ways) */
-type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean; cleared: boolean; rank: number; dir: number; fx: ShineCell | null };
+ *  its twist direction (alternate cells opposite ways); `off`: WIN_RIPPLE, its own start in style ms after the
+ *  cluster's (0 with the ripple off); `begun`: its win clip has been started (Cell.winAt) */
+type Member = { cell: Cell; index: CellIndex; removeT0: number; spawned: boolean; cleared: boolean; rank: number; dir: number; fx: ShineCell | null; off: number; begun: boolean };
+/** DEV probe (symbols_probe.js ONLY=win): the last clusters' ripples, each cell in its start order with its offset in
+ *  style ms and the Cell.winAt it was given, newest last (bounded; empty in a build) */
+export type RippleLogEntry = { at: number; n: number; step: number; first: CellIndex; cells: { index: CellIndex; off: number; winAt: number; rank: number }[] };
+export const rippleLog: RippleLogEntry[] = [];
+/** WIN_RIPPLE: each member's own start (Member.off) in flood order outward from the cluster's first cell (the first of
+ *  the book's cells still in the cluster; a cell left cut off from it by a shared cell taken by an earlier cluster
+ *  floods on from the next one in the book's order), or by column then row ('sweep'). Once per cluster, at its compile. */
+const rippleOffsets = (members: Member[], cells: CellIndex[]) => {
+	const n = members.length;
+	if (!WIN_RIPPLE.on || n < 2) return 0;
+	const step = Math.min(WIN_RIPPLE.stepMs, WIN_RIPPLE.maxSpreadMs / (n - 1));
+	const byIndex = new Map<CellIndex, Member>();
+	for (const m of members) byIndex.set(m.index, m);
+	let k = 0;
+	if (WIN_RIPPLE.order === 'sweep') {
+		const sorted = members.slice().sort((a, b) => reelOf(a.index) - reelOf(b.index) || rowOf(a.index) - rowOf(b.index));
+		for (const m of sorted) m.off = k++ * step;
+		return step;
+	}
+	const seen = new Set<CellIndex>();
+	const queue: CellIndex[] = [];
+	for (const seed of cells) {
+		if (!byIndex.has(seed) || seen.has(seed)) continue;
+		seen.add(seed);
+		queue.push(seed);
+		for (let q = queue.length - 1; q < queue.length; q += 1) {
+			const i = queue[q];
+			const m = byIndex.get(i);
+			if (m) m.off = k++ * step;
+			const row = rowOf(i);
+			// the same neighbour order as the mock up Corey picked: reel - 1, reel + 1, row - 1, row + 1
+			for (const j of [i - GRID, i + GRID, row > 0 ? i - 1 : -1, row < GRID - 1 ? i + 1 : -1]) {
+				if (byIndex.has(j) && !seen.has(j)) {
+					seen.add(j);
+					queue.push(j);
+				}
+			}
+		}
+	}
+	return step;
+};
 type Cluster = {
 	members: Member[];
 	/** the cluster's start (before its standalone aura) and the readout's start (after it) */
@@ -1186,6 +1230,8 @@ type Cluster = {
 	readout: Readout;
 	/** DEV: this label's entry in winSetLog (null in a build) */
 	dev: WinSetLabel | null;
+	/** DEV: this cluster's entry in rippleLog (null in a build) */
+	ripple: RippleLogEntry | null;
 	wa: number;
 	wb: number;
 	started: boolean;
@@ -1257,11 +1303,13 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			const cell = at.get(index);
 			if (!cell || claimed.has(index)) continue; // a shared cell leaves with the first cluster
 			claimed.add(index);
-			members.push({ cell, index, removeT0: 0, spawned: false, cleared: false, rank: 0, dir: (reelOf(index) + rowOf(index)) % 2 ? -1 : 1, fx: null });
+			members.push({ cell, index, removeT0: 0, spawned: false, cleared: false, rank: 0, dir: (reelOf(index) + rowOf(index)) % 2 ? -1 : 1, fx: null, off: 0, begun: false });
 		}
 		// cells leave in order of distance from the cluster centre
 		members.sort((a, b) => Math.hypot(rowOf(a.index) + 0.5 - cy, reelOf(a.index) + 0.5 - cx) - Math.hypot(rowOf(b.index) + 0.5 - cy, reelOf(b.index) + 0.5 - cx));
 		members.forEach((m, k) => (m.rank = k));
+		// WIN_RIPPLE: each cell's own start after the cluster's, outward from its first cell
+		const rippleStep = rippleOffsets(members, spec.cells);
 		// a winner the preceding drop did not glow gets the standalone aura (the whole cluster, together)
 		const aura = CLUSTER.auraMs > 0 && members.some((m) => !lastAura.has(m.index)) ? CLUSTER.auraMs : 0;
 		let t = tc + aura;
@@ -1284,10 +1332,20 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		lastCountDone = tCountDone;
 		const tReadoutDone = tCountDone + hold;
 		let tRemEnd = tReadoutDone;
+		// WIN_RIPPLE.popAfterClip: a late cell pops no sooner than its own clip's end (its turn otherwise, centre out)
+		const clipMs = WIN_RIPPLE.on && WIN_RIPPLE.popAfterClip ? (WIN_RIPPLE.clipFrames * 1000) / SHEET_FPS : 0;
 		members.forEach((m, k) => {
 			m.removeT0 = tReadoutDone + k * SPARKLE.staggerMs;
+			if (clipMs > 0 && m.off > 0) m.removeT0 = Math.max(m.removeT0, t + m.off + clipMs);
 			tRemEnd = Math.max(tRemEnd, m.removeT0 + removeMs);
 		});
+		let rippleDev: RippleLogEntry | null = null;
+		if (import.meta.env.DEV && members.length) {
+			const cells = members.map((m) => ({ index: m.index, off: m.off, winAt: 0, rank: m.rank })).sort((a, b) => a.off - b.off);
+			rippleDev = { at: performance.now(), n: members.length, step: rippleStep, first: cells[0].index, cells };
+			rippleLog.push(rippleDev);
+			if (rippleLog.length > 60) rippleLog.splice(0, 30);
+		}
 		const tShake = fxNew && members.length >= WIN_FX.shake.minCluster ? tReadoutDone + POP_AT * removeMs : -1;
 		tRem = Math.max(tRem, tRemEnd);
 		readoutDone[i] = tReadoutDone;
@@ -1333,6 +1391,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			spec,
 			readout,
 			dev: devSet ? devSet.labels[i] : null,
+			ripple: rippleDev,
 			wa: widths[i].wa * size,
 			wb: widths[i].wb * size,
 			started: false,
@@ -1371,10 +1430,6 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			const cl = clusters[i];
 			if (now >= cl.t && !cl.started) {
 				cl.started = true;
-				// WIN_SHEET: the moment the cluster is presented, in real ms (the style ms since cl.t taken back out), so a
-				// symbol with a win sheet starts it on frame 0 here whatever the frame timing (the landing's landAt rule)
-				const winAt = performance.now() - (now - cl.t) / ts();
-				for (const m of cl.members) m.cell.winAt = winAt;
 				hooks.onClusterStart?.(i, skipAccent(owedAccent, false));
 				// THE WELLS (game/wellsFx.ts): the cluster's veins ripple from its first cell as its pulse starts
 				if (!stateGame.skipping) cueWellWin(cl.spec.cells, ts());
@@ -1388,17 +1443,27 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 				if (cl.aura > 0 && now >= cl.tc && now < cl.t) c.glow = Math.sin(Math.PI * clamp01((now - cl.tc) / cl.aura));
 				else if (c.glow !== 0) c.glow = 0;
 				if (now < cl.t) continue;
+				// WIN_SHEET: the moment this cell's win starts (the cluster's presentation + its WIN_RIPPLE offset, in style
+				// ms), in real ms (the style ms since then taken back out), so a symbol with a win sheet starts it on frame 0
+				// here whatever the frame timing (the landing's landAt rule); in style time, so turbo and a hurry compress it
+				const own = now - cl.t - m.off;
+				if (!m.begun && own >= 0) {
+					m.begun = true;
+					c.winAt = performance.now() - own / ts();
+					if (cl.ripple) for (const e of cl.ripple.cells) if (e.index === m.index) e.winAt = c.winAt;
+				}
 				if (now < m.removeT0) {
-					const s = 1 + (CLUSTER.winScale - 1) * CLUSTER.winEasing(clamp01((now - cl.t) / Math.max(CLUSTER.winRiseMs, 1)));
+					// the rise and the breath run on the cell's own clock (WIN_RIPPLE), so a late cell lifts as its clip starts
+					const s = 1 + (CLUSTER.winScale - 1) * CLUSTER.winEasing(clamp01(own / Math.max(CLUSTER.winRiseMs, 1)));
 					const fx = m.fx;
 					if (fx) {
 						// WIN_FX: the breath (in over the rise, out before the pop, so the pop starts from winScale; drawn by
 						// the renderer from fx.pulse, the cell keeps the held scale) ...
 						const B = WIN_FX.breathe;
+						const env = clamp01(own / Math.max(cl.rise, 1)) * clamp01((m.removeT0 - now) / Math.max(B.fadeMs, 1));
+						fx.pulse = 1 + B.amp * env * Math.sin((2 * Math.PI * own) / B.periodMs);
+						// ... and the shine, on the cluster's clock: a sweep as the cluster starts, a softer one as its count lands
 						const el = now - cl.t;
-						const env = clamp01(el / Math.max(cl.rise, 1)) * clamp01((m.removeT0 - now) / Math.max(B.fadeMs, 1));
-						fx.pulse = 1 + B.amp * env * Math.sin((2 * Math.PI * el) / B.periodMs);
-						// ... and the shine: a sweep as the cluster starts, a softer one as its count lands
 						const S = WIN_FX.shine;
 						const lag = Math.min(m.rank * S.staggerMs, S.staggerCapMs);
 						fx.a = 0;

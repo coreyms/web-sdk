@@ -73,7 +73,7 @@
 	import { quadOut, quadIn, backOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_IDLE_REST, WIN_SHEET, SYMBOL_PLACE, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_IDLE_REST, WIN_SHEET, SYMBOL_PLACE, POP_TOP, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
 	import { openingsFor, offsetAt, latticeEdges, type Openings } from '../game/symbolPlace';
 	import { boardPlateSlot, boardCutSlot } from '../game/boardPlateSlot';
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
@@ -728,13 +728,14 @@
 			s.tint = tint;
 		}
 		// THE DRAW ORDER (the playground's sort): the pop band over the resting band; inside each, the "on top" number,
-		// then lower rows on top, then the cell
+		// then lower rows on top, then the cell. In the pop band POP_TOP replaces the "on top" number (the winning Wild
+		// under its cluster); the band starts at 2000 so a POP_TOP of -1 still clears the resting band's top (970.7)
 		const placed = Math.abs(c.y - c.row) < 1e-4;
 		const pop = (c.scaleX > 1 + 1e-4 && c.scaleY > 1 + 1e-4) || (c.state === 'removing' && placed);
 		sl.pop = pop;
 		const rowNow = c.y <= 0 ? 0 : c.y >= GRID - 1 ? GRID - 1 : Math.round(c.y);
 		sl.rowZ = rowNow;
-		const z = (pop ? 1000 : 0) + sl.top * 100 + rowNow * 10 + c.reel / 10;
+		const z = (pop ? 2000 + (POP_TOP[sl.name] ?? sl.top) * 100 : sl.top * 100) + rowNow * 10 + c.reel / 10;
 		if (z !== sl.z) {
 			sl.z = z;
 			s.zIndex = z;
