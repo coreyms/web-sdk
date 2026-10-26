@@ -2,7 +2,7 @@
 """Game assets for the courtyard scene (components/Background.svelte, game/scene.ts): the painted backdrops, the 3D
 foreground, the brazier fire pass and the moving knocker rings and chains, for the landscape and phone sideways layouts.
 
-  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_scene_assets.py [SRC] [--portrait DIR] [--sky] [--portrait-sky DIR] [--sunset [DIR]] [--backdrops DIR] [--fallback DIR]
+  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_scene_assets.py [SRC] [--portrait DIR] [--sky] [--portrait-sky DIR] [--sunset [DIR]] [--sunset-fore] [--backdrops DIR] [--fallback DIR]
   node scripts/stamp-assets.mjs          (afterwards, from the app folder)
 
 SRC alone rebuilds the landscape set (the sky set with it), --portrait DIR alone the portrait set, both together
@@ -59,6 +59,22 @@ frame by the portrait_r2 / r3 recipe with the extended sky): backdrop_sunset_256
 portrait/backdrop_sunset_1440x2560.png. Same sizes, quality (Q_BACKDROP) and banding check as the day backdrops:
   static/assets/backgrounds/scene/backdrop-sunset[-phone].webp            2560 x 1440, 1600 x 900
   static/assets/backgrounds/scene/portrait-backdrop-sunset[-phone].webp   1440 x 2560, 900 x 1600
+
+--sunset-fore (2026-10-24; Corey: "Couldn't we do this with a background mask and an alpha layer with soft edges and a
+light purple tint cheaply for the foreground elements?", then of the mockup, feedback/upgrades_2026-10-24/sunset_fore,
+"1. C"): THE SUNSET ON THE COURTYARD, the Bonus's foreground overlay (constants SUNSET_FORE, game/scene.ts). WHITE, with
+a soft mask in its alpha, made here from the SHIPPED day foreground's own alpha (so run it after any rebuild of
+fore-day*.webp): every blur and feather is done here, the game draws one tinted sprite. Landscape and phone sideways
+only (the portrait scene gets none: the mockup showed it barely reads there). The tiers are the day foreground's:
+  static/assets/backgrounds/scene/fore-sunset[-phone].webp       2560 x 1440, 1600 x 900 (Q_FORE, alpha_quality 100)
+  mask = A x (ambient x far + rim x (0.35 + 0.65 far) + top x (0.4 + 0.6 far)) x away-from-board, feathered, x A again
+    A      the day foreground's alpha
+    rim    the stone near the sky: a blur of (1 - A) kept inside A, so the edges that face the sky are strongest
+    top    sky-facing tops: per column, the distance DOWN from the nearest transparent texel above
+    far    far is up: full strength above SF_FAR_ROWS[0], down to SF_NEAR at SF_FAR_ROWS[1] (the near floor), 0 at
+           the bottom
+    board  an ellipse round where the board stands, faded out
+  The phone tier is the full mask resampled, then held inside the phone foreground's own alpha (no texel on the sky).
 
 THE AMBIENT SKY (game/sky.ts, constants SKY; landscape scene only), built by every landscape run and by --sky alone:
   static/assets/backgrounds/scene/ridge-<day|night>[-phone].webp      the mountains and citadel skyline CUT OUT of the
@@ -120,6 +136,21 @@ Q_BACKDROP = 90
 Q_FORE = 88
 Q_FIRE = 92
 Q_SPRITES = 92
+# THE SUNSET ON THE COURTYARD's mask (--sunset-fore; the mockup's numbers, feedback/upgrades_2026-10-24/sunset_fore
+# mockup_scripts/build_overlay.py), px of the 2560 x 1440 frame: the rim's blur and gain, the top's run cap and
+# falloff, the far rows (full above the first, SF_NEAR at the second) and the rows over which it goes to 0 at the
+# bottom, the board's ellipse (centre x y, radii) and its edge (from, over), the ambient share, the final feather
+SF_RIM_SIGMA = 26
+SF_RIM_GAIN = 2.2
+SF_TOP_CAP = 400
+SF_TOP_FALLOFF = 70.0
+SF_FAR_ROWS = (320, 1120)
+SF_NEAR = 0.12
+SF_BOTTOM_ROWS = 320
+SF_BOARD = (1280, 760, 820, 760)
+SF_BOARD_EDGE = (0.55, 0.6)
+SF_AMBIENT = 0.45
+SF_FEATHER = 9
 # the banding check (band_check below): how many more flat pixels, as a share of the smooth parts, a backdrop or the
 # fire pass may have than its source
 BAND_TOLERANCE = 0.10
@@ -939,6 +970,72 @@ def build_sunset(folder: str) -> list:
     return report
 
 
+def top_depth(solid: np.ndarray, cap: int) -> np.ndarray:
+    """per column: how many solid texels since the last one that was not, going down (cap where none is within cap)"""
+    h, w = solid.shape
+    d = np.full((h, w), cap, np.float32)
+    run = np.full(w, cap, np.float32)
+    for y in range(h):
+        run = np.where(solid[y], np.minimum(run + 1, cap), 0)
+        d[y] = run
+    return d
+
+
+def smoothstep(x: np.ndarray) -> np.ndarray:
+    x = np.clip(x, 0, 1)
+    return x * x * (3 - 2 * x)
+
+
+def sunset_fore_mask(A: np.ndarray) -> np.ndarray:
+    """THE SUNSET ON THE COURTYARD's mask (see SF_* and the docstring), from the day foreground's alpha A at the frame's
+    own size: 0 .. 1, already multiplied by A"""
+    from scipy import ndimage as ndi
+    h, w = A.shape
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    solid = A > 0.5
+    rim = np.clip(ndi.gaussian_filter(1 - A, SF_RIM_SIGMA) * SF_RIM_GAIN, 0, 1) * A
+    top = np.exp(-top_depth(solid, SF_TOP_CAP) / SF_TOP_FALLOFF)
+    far = SF_NEAR + (1 - SF_NEAR) * smoothstep((SF_FAR_ROWS[1] - yy) / (SF_FAR_ROWS[1] - SF_FAR_ROWS[0]))
+    far *= smoothstep((h - yy) / SF_BOTTOM_ROWS)
+    cx, cy, rx, ry = SF_BOARD
+    e = ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2
+    board = smoothstep((e - SF_BOARD_EDGE[0]) / SF_BOARD_EDGE[1])
+    m = np.clip(SF_AMBIENT * far + rim * (0.35 + 0.65 * far) + top * (0.4 + 0.6 * far), 0, 1) * board * A
+    return np.clip(ndi.gaussian_filter(m, SF_FEATHER) * A, 0, 1)
+
+
+def build_sunset_fore() -> list:
+    """--sunset-fore: THE SUNSET ON THE COURTYARD's overlay, both tiers of the landscape scene, from the SHIPPED day
+    foreground (fore-day.webp, fore-day-phone.webp), so run it after any rebuild of those. Nothing else is written."""
+    report: list[tuple[str, int, int, int]] = []
+    full = os.path.join(OUT, 'fore-day.webp')
+    if not os.path.isfile(full):
+        die('--sunset-fore: fore-day.webp is not built yet (build the landscape folder first)')
+    A = np.asarray(Image.open(full).convert('RGBA')).astype(np.float32)[..., 3] / 255
+    FH, FW = A.shape
+    m = sunset_fore_mask(A)
+    print(f'sunset foreground overlay from {os.path.relpath(full, APP)} ({FW} x {FH})')
+    for tier, suffix in (('full', ''), ('phone', '-phone')):
+        day = Image.open(os.path.join(OUT, f'fore-day{suffix}.webp')).convert('RGBA')
+        size = day.size
+        a8 = Image.fromarray((m * 255).round().astype(np.uint8))
+        if size != (FW, FH):
+            # resampled, then held inside this tier's own foreground alpha, so the linear sample never reaches the sky
+            a8 = a8.resize(size, Image.LANCZOS)
+            a8 = Image.fromarray(np.minimum(np.asarray(a8), np.asarray(day)[..., 3]))
+        white = Image.new('L', size, 255)
+        name = f'fore-sunset{suffix}.webp'
+        report.append((name, save_webp(Image.merge('RGBA', (white, white, white, a8)), name, Q_FORE, alpha_quality=100), *size))
+        got = np.asarray(Image.open(os.path.join(OUT, name)).convert('RGBA')).astype(np.float64)[..., 3]
+        under = np.asarray(day).astype(np.float64)[..., 3]
+        sky = under < 5
+        print(f'  {name}: mask mean {got.mean() / 2.55:.1f} % of the frame, over the foreground {got[~sky].mean() / 2.55:.1f} %, on the sky (day alpha < 5) mean {got[sky].mean():.3f} of 255, worst {got[sky].max():.0f}')
+    print('\nfile'.ljust(42) + 'KiB'.rjust(9) + '   texture'.ljust(16) + 'GPU MB (w x h x 4)')
+    for name, nbytes, w, h in report:
+        print(f'{name.ljust(41)}{nbytes / 1024:9.1f}   {f"{w} x {h}".ljust(13)}{w * h * 4 / 1e6:8.2f}')
+    return report
+
+
 def totals(report: list, what: str):
     print('\nfile'.ljust(42) + 'KiB'.rjust(9) + '   texture'.ljust(16) + 'GPU MB (w x h x 4)')
     for name, nbytes, w, h in report:
@@ -964,14 +1061,17 @@ def main():
     ap.add_argument('--birds', default=BIRDS_SRC, help='the folder with the Angry Mantis birds.json and birds.webp')
     ap.add_argument('--bats', default=BATS_SRC, help='the bat sheet (a PNG on the birds\' canvas: every bat inside its bird\'s cell)')
     ap.add_argument('--sunset', nargs='?', const=SUNSET_SRC, default=None, help='build the Bonus\'s sunset backdrop in both scenes from this folder (default: the sunset_sky_2026-10-23 folder)')
+    ap.add_argument('--sunset-fore', action='store_true', help='build the Bonus\'s foreground overlay (THE SUNSET ON THE COURTYARD, landscape scene, both tiers) from the shipped day foreground')
     args = ap.parse_args()
-    if not args.src and not args.portrait and not args.sky and not args.portrait_sky and not args.sunset:
-        die('nothing to build: give the landscape folder, --portrait DIR, --sky, --portrait-sky DIR, --sunset, or more than one')
+    if not args.src and not args.portrait and not args.sky and not args.portrait_sky and not args.sunset and not args.sunset_fore:
+        die('nothing to build: give the landscape folder, --portrait DIR, --sky, --portrait-sky DIR, --sunset, --sunset-fore, or more than one')
     os.makedirs(OUT, exist_ok=True)
     if args.sunset:
         build_sunset(args.sunset)
-        if not args.src and not args.portrait and not args.sky and not args.portrait_sky:
-            return
+    if (args.sunset or args.sunset_fore) and not args.src and not args.portrait and not args.sky and not args.portrait_sky:
+        if args.sunset_fore:
+            build_sunset_fore()
+        return
 
     wide, tall = read_spec('SCENE_SPEC'), read_spec('SCENE_SPEC_PORTRAIT')
     reports = []
@@ -1019,6 +1119,8 @@ def main():
         totals(report, what)
     if sky_report:
         sky_totals(sky_report)
+    if args.sunset_fore:
+        build_sunset_fore()
 
 
 if __name__ == '__main__':

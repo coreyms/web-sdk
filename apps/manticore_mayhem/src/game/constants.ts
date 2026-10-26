@@ -501,13 +501,18 @@ export const FIRST_TAP = { ignoreMs: 2000 };
  *  1.5 s"; Corey 2026-10-21 "Scale the dim's strength and/or length with the win size, small wins light"). The non-winners
  *  darken to a level read off this curve by the win set's own total (the book's wins of that cascade step, in bet
  *  multiples), straight lines between the points, held at the ends: a 0.2x step barely dims, from 5x it is
- *  CLUSTER.dimAlpha as before. Its length is the presentation's own (unchanged). Pairs [x bet, dim level], 1 = no dim. */
+ *  CLUSTER.dimAlpha as before. Its length is the presentation's own (unchanged). Pairs [x bet, dim level], 1 = no dim.
+ *  LIGHTER SINCE 2026-10-24 (harsh review 2026-10-23 Minor 6, "A 2x win still dims the board clearly"; Corey "I thought
+ *  we deciced previously that the dims scale. Either way we should do this", then of the mock up's curves "2. A"): the
+ *  full dim now comes at 10x, 2x sits at 0.8 (was 0.66), 5x at 0.64 (was 0.5). Was [[0.2, 0.88], [1, 0.76], [2, 0.66],
+ *  [5, 0.5]]. */
 export const WIN_DIM = {
 	curve: [
-		[0.2, 0.88],
-		[1, 0.76],
-		[2, 0.66],
-		[5, 0.5],
+		[0.2, 0.92],
+		[1, 0.85],
+		[2, 0.8],
+		[5, 0.64],
+		[10, 0.5],
 	] as readonly (readonly [number, number])[],
 };
 /** the dim level for a win set paying `xBet` times the bet (WIN_DIM.curve) */
@@ -2674,6 +2679,27 @@ export const SCENE = {
 			},
 		},
 	},
+} as const;
+
+// ---- THE SUNSET ON THE COURTYARD (2026-10-24; game/scene.ts, assets by tools/build_scene_assets.py --sunset-fore) ----
+// Corey: "Couldn't we do this with a background mask and an alpha layer with soft edges and a light purple tint cheaply
+// for the foreground elements?", then of the mockup (feedback/upgrades_2026-10-24/sunset_fore) "1. C": variant (c), the
+// baked overlay at the light strength. In the BONUS only (the sunset family: SCENE.modes.bonus.sunset), the sunset's
+// light reaches the stone that faces the sky: one WHITE sprite whose alpha is a soft mask baked offline from the day
+// foreground's own alpha (no filter, shader, mask or blend mode at run time), drawn straight over the day foreground
+// (under the night foreground, the fire pass, the flames and the chains), normal blend. Its tint is `color` x the scene
+// dim, its opacity `alpha` x the sunset's own crossfade value, so it comes and goes with the sunset backdrop. Base, Super
+// and Epic never draw it. LANDSCAPE and PHONE SIDEWAYS only: the upright phone (the portrait scene) loads nothing for it
+// (the mockup showed it barely reads on the portrait floor, and the sunset already shows well there). Its file rides the
+// deferred SUNSET group with the backdrop (game/assets.ts), never the gate; a Bonus before it lands plays without it,
+// then fades it in.
+//   on     false gives today's Bonus exactly (nothing registered, loaded or drawn)
+//   alpha  the light strength the mockup's (c) used (its (d), the stronger one, was 0.85)
+//   color  the sunset backdrop's top band hue (median RGB 126 / 100 / 151, hue about 271) lifted to a light purple
+export const SUNSET_FORE = {
+	on: true,
+	alpha: 0.5,
+	color: [165, 120, 210],
 } as const;
 
 // ---- The ambient sky (game/sky.ts, drawn by game/scene.ts; assets by tools/build_scene_assets.py --sky) ----------

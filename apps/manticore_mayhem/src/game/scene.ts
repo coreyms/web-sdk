@@ -11,6 +11,10 @@
 //   THE AMBIENT SKY         both scenes (game/sky.ts, constants SKY, SKY.portrait): aurora, clouds, the ridge cut-out
 //                           day and night (the backdrop's own skyline again, over the clouds), birds, bats, canyon fog
 //   foreground day, night   the 3D courtyard with alpha, no fire light, no moving chains
+//   foreground sunset       THE SUNSET ON THE COURTYARD (2026-10-24, constants SUNSET_FORE; landscape only): between
+//                           the day and the night foreground, one WHITE sprite with a baked soft mask in its alpha,
+//                           tinted the sunset's light purple x the dim, its opacity SUNSET_FORE.alpha x the sunset's
+//                           own crossfade value. The Bonus only; its file rides the sunset's deferred group.
 //   fire                    the braziers' light alone, on black, ADDITIVE. One pass for every mode: its level, the
 //                           flicker, the EPIC red and the dim are all its tint
 //   THE BRAZIER FLAMES      landscape only (game/flames.ts, constants FLAMES): the flames, their embers, and the rim
@@ -42,7 +46,7 @@
 // tints, and a tick allocates nothing: the strips rewrite the vertex arrays their meshes already own.
 import * as PIXI from 'pixi.js';
 
-import { CHAIN_GUST, FLAMES, PLAYGROUND_PX, SCENE, SKY } from './constants';
+import { CHAIN_GUST, FLAMES, PLAYGROUND_PX, SCENE, SKY, SUNSET_FORE } from './constants';
 import { boardKick, gustFx, gustPulse, gustStart, type ChainGust } from './featureFx';
 import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from './sceneSpec';
 import { FLAME_CLIPS, FlameView } from './flames';
@@ -82,7 +86,12 @@ const EMBER_TINT = 24;
 const FLAME_W = 27;
 // THE SUNSET backdrop's opacity over the day one (SCENE.modes[family].sunset; 0 while its file is on its way)
 const SUNSET = 30;
-const VALUES = 31;
+// THE SUNSET ON THE COURTYARD's share (SUNSET_FORE): the sunset's own value, but 0 until its overlay is in too, so an
+// overlay that lands after the backdrop fades in by itself over SCENE.crossfadeMs
+const SUNSET_FORE_V = 31;
+const VALUES = 32;
+/** SUNSET_FORE.color, 0 .. 1 */
+const SF_COLOR = SUNSET_FORE.color.map((v) => v / 255);
 
 /** THE LIGHT THE BOARD FRAME TAKES (components/BoardFrame.svelte, constants FRAME_RELIGHT): what the scene on screen
  *  draws this frame. `night` 0 .. 1 is the night layers' opacity (0 while the night files are on their way), `fire`
@@ -197,11 +206,16 @@ export class SceneView {
 	nightReady = false;
 	/** THE SUNSET backdrop is in (the regular Bonus's painting, game/assets.ts *_backdrop_sunset) */
 	sunsetReady = false;
+	/** THE SUNSET ON THE COURTYARD's overlay is in (game/assets.ts scene_fore_sunset; never, in portrait or when off) */
+	sunsetForeReady = false;
 
 	private readonly backdrop = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
 	/** THE SUNSET backdrop (the Bonus), drawn over the day backdrop and under the night one */
 	private readonly sunset = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	private readonly fore = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
+	/** THE SUNSET ON THE COURTYARD (constants SUNSET_FORE): over the day foreground, under the night one. null in the
+	 *  portrait scene and when SUNSET_FORE.on is false: nothing is made, loaded or drawn for it */
+	private readonly sunsetFore: PIXI.Sprite | null;
 	private readonly fire = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	private readonly sets = SETS.map(() => new PIXI.Container());
 	/** THE FOREGROUND (constants FOREGROUND_KICK): the foregrounds, the fire pass, the flames' layers and the chain
@@ -278,6 +292,7 @@ export class SceneView {
 		this.fw = (layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).frame[0];
 		this.fh = (layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).frame[1];
 		this.prefix = layout === 'landscape' ? 'scene' : 'scenep';
+		this.sunsetFore = layout === 'landscape' && SUNSET_FORE.on ? new PIXI.Sprite(PIXI.Texture.EMPTY) : null;
 		const root = this.root;
 		root.label = layout === 'landscape' ? 'scene' : 'scene-portrait';
 		root.visible = false;
@@ -303,9 +318,12 @@ export class SceneView {
 		this.front.interactiveChildren = true;
 		this.frontForeground.eventMode = 'passive';
 		this.front.addChild(this.frontForeground);
-		fg.addChild(this.fore[0], this.fore[1], this.fire);
+		fg.addChild(this.fore[0]);
+		if (this.sunsetFore) fg.addChild(this.sunsetFore);
+		fg.addChild(this.fore[1], this.fire);
 		if (this.flames) fg.addChild(...this.flames.layers);
 		for (const s of [...this.backdrop, this.sunset, ...this.fore, this.fire, ...this.sets]) s.visible = false;
+		if (this.sunsetFore) this.sunsetFore.visible = false;
 		this.setValues(this.cur, 'base', SCENE.dim.base, false);
 		// portrait: no knockers, no chains
 		this.chains = this.hasChains ? this.buildChains(tier) : (null as unknown as Record<'L' | 'R', Chain>);
@@ -411,18 +429,32 @@ export class SceneView {
 		return true;
 	}
 
-	/** THE SUNSET backdrop is in (called once, after the day set): a Bonus that was waiting for it (the day scene
-	 *  stands in, as for a night mode before the night files) crossfades to it now, over SCENE.crossfadeMs */
+	/** THE SUNSET backdrop is in (after the day set): a Bonus that was waiting for it (the day scene stands in, as
+	 *  for a night mode before the night files) crossfades to it now, over SCENE.crossfadeMs. With it, in the landscape
+	 *  scene, THE SUNSET ON THE COURTYARD's overlay (SUNSET_FORE): the two ride one group, so they normally land
+	 *  together and the overlay comes in with the backdrop's crossfade; one that lands later fades in by itself.
+	 *  Returns true once nothing is left to come. */
 	setSunset(tex: Textures, now: number): boolean {
-		if (this.sunsetReady) return true;
+		const want = this.sunsetFore !== null;
+		if (this.sunsetReady && (!want || this.sunsetForeReady)) return true;
+		let changed = false;
 		const backdrop = tex[`${this.prefix}_backdrop_sunset`];
-		if (!backdrop) return false;
-		this.sunset.texture = backdrop;
-		this.sunset.scale.set(this.fw / backdrop.width);
-		this.sunsetReady = true;
-		if (this.wantSunset) this.mode(this.family, this.to[DIM], now);
-		else this.apply();
-		return true;
+		if (!this.sunsetReady && backdrop) {
+			this.sunset.texture = backdrop;
+			this.sunset.scale.set(this.fw / backdrop.width);
+			this.sunsetReady = changed = true;
+		}
+		const overlay = want ? tex.scene_fore_sunset : undefined;
+		if (this.sunsetFore && !this.sunsetForeReady && overlay) {
+			this.sunsetFore.texture = overlay;
+			this.sunsetFore.scale.set(this.fw / overlay.width);
+			this.sunsetForeReady = changed = true;
+		}
+		if (changed) {
+			if (this.wantSunset) this.mode(this.family, this.to[DIM], now);
+			else this.apply();
+		}
+		return this.sunsetReady && (!want || this.sunsetForeReady);
 	}
 
 	/** THE SKY's files that landed after their set did (the atlas, the birds and the bats are one copy for both scenes
@@ -479,6 +511,7 @@ export class SceneView {
 	sources(): PIXI.TextureSource[] {
 		const out = new Set<PIXI.TextureSource>();
 		for (const s of [...this.backdrop, this.sunset, ...this.fore, this.fire, ...(this.hasChains ? this.chains.L.ring : [])]) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
+		if (this.sunsetFore && this.sunsetFore.texture !== PIXI.Texture.EMPTY) out.add(this.sunsetFore.texture.source);
 		this.sky.sources(out);
 		this.flames?.sources(out);
 		return [...out];
@@ -579,6 +612,7 @@ export class SceneView {
 		}
 		out[EMBERS] = FLAMES.embers.strength[family];
 		out[SUNSET] = m.sunset;
+		out[SUNSET_FORE_V] = m.sunset;
 	}
 
 	/** the game's mode and dim. A night mode whose files are not in yet shows the day scene (the regular Bonus's
@@ -596,6 +630,8 @@ export class SceneView {
 		// the stand-ins are the DAY: a night mode waiting for its files keeps the day backdrop (the Bonus's warm values
 		// only), and so does the Bonus until its sunset is in
 		if (waiting || !this.sunsetReady) next[SUNSET] = 0;
+		// THE SUNSET ON THE COURTYARD: with the sunset, and not before its own file is in either
+		if (waiting || !this.sunsetReady || !this.sunsetForeReady) next[SUNSET_FORE_V] = 0;
 		if (now < 0) {
 			this.cur.set(next);
 			this.to.set(next);
@@ -662,6 +698,14 @@ export class SceneView {
 		this.sunset.alpha = sunset;
 		this.sunset.tint = grey;
 		if (sunset >= 1) this.backdrop[0].visible = false;
+		// THE SUNSET ON THE COURTYARD: on the day foreground while the sunset is in, its opacity riding the sunset's crossfade
+		const sf = this.sunsetFore;
+		if (sf) {
+			const k = this.sunsetForeReady ? c[SUNSET_FORE_V] : 0;
+			sf.visible = this.fore[0].visible && k > 0;
+			sf.alpha = k * SUNSET_FORE.alpha;
+			sf.tint = rgb(dim * SF_COLOR[0], dim * SF_COLOR[1], dim * SF_COLOR[2]);
+		}
 		this.root.alpha = c[SHOW];
 		this.front.alpha = c[SHOW];
 		// the day cut-out (the ridge) goes with the day set's painting, sunrise or sunset alike
@@ -915,7 +959,7 @@ export class SceneView {
 		const night = this.nightReady ? c[NIGHT] : 0;
 		const sunset = this.sunsetReady ? c[SUNSET] : 0;
 		const set = night >= 0.5 ? 1 : 0;
-		const nameOf = (ch: PIXI.Container): string => (ch === this.fire ? 'fire' : ch === this.sunset ? 'backdrop-sunset' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`);
+		const nameOf = (ch: PIXI.Container): string => (ch === this.fire ? 'fire' : ch === this.sunset ? 'backdrop-sunset' : ch === this.sunsetFore ? 'fore-sunset' : this.backdrop.includes(ch as PIXI.Sprite) ? `backdrop-${SETS[this.backdrop.indexOf(ch as PIXI.Sprite)]}` : this.fore.includes(ch as PIXI.Sprite) ? `fore-${SETS[this.fore.indexOf(ch as PIXI.Sprite)]}` : `chains-${SETS[this.sets.indexOf(ch as PIXI.Container)]}`);
 		/** the layers bottom to top as they are drawn: the root's children, the foreground container opened out */
 		const layers = this.root.children.flatMap((ch) => (ch === this.foreground ? this.foreground.children.filter((x) => !isCreature(x)) : [ch]));
 		const chain = (side: 'L' | 'R') => {
@@ -962,6 +1006,11 @@ export class SceneView {
 			 *  painting covers the screen: 'sunrise' (the day), 'sunset', 'night', or 'fade' while one covers another */
 			sunset,
 			waitingForSunset: this.wantSunset && !this.sunsetReady,
+			/** THE SUNSET ON THE COURTYARD (SUNSET_FORE): null where the scene has none (portrait, or off). value: its share
+			 *  of the sunset as drawn (0 while its file is on its way), alpha / tint as drawn, the texture's size */
+			sunsetFore: this.sunsetFore
+				? { on: true, ready: this.sunsetForeReady, value: this.sunsetForeReady ? c[SUNSET_FORE_V] : 0, visible: this.sunsetFore.visible, alpha: this.sunsetFore.alpha, tint: this.sunsetFore.tint, strength: SUNSET_FORE.alpha, color: [...SUNSET_FORE.color], blend: this.sunsetFore.blendMode, texture: [this.sunsetFore.texture.width, this.sunsetFore.texture.height] }
+				: null,
 			backdrop: night >= 1 ? 'night' : night > 0 || (sunset > 0 && sunset < 1) ? 'fade' : sunset >= 1 ? 'sunset' : 'sunrise',
 			fading: this.fadeAt >= 0,
 			show: c[SHOW],

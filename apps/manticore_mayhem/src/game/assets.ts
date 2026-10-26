@@ -4,7 +4,7 @@ import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
 import { titleVariant } from './stinger/bigTitle';
-import { CREATURE, LOAD_GATE } from './constants';
+import { CREATURE, LOAD_GATE, SUNSET_FORE } from './constants';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
 // waits for that worker's first message with no error path. Behind a CSP whose worker-src has no
@@ -474,6 +474,11 @@ const assets = {
 	// ridge, the foreground and the creature keep their day files). Rides the deferred phase, its own group after the
 	// night frame (DEFERRED_ORDER sunset); until it is in, a Bonus plays on the day backdrop. One per scene, like the night set.
 	scene_backdrop_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/backdrop-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/backdrop-sunset-phone.webp', import.meta.url).href)), preload: false },
+	// THE SUNSET ON THE COURTYARD (2026-10-24, constants SUNSET_FORE; tools/build_scene_assets.py --sunset-fore): the
+	// Bonus's soft purple overlay on the day foreground, white with the baked mask in its alpha, at the day foreground's
+	// own tiers (2560 x 1440 64 KB, 1600 x 900 37 KB). Rides the same deferred group as the sunset backdrop (SCENE_KEYS
+	// sunset). Landscape scene only: the portrait scene has none. SUNSET_FORE.on false takes it out below.
+	scene_fore_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fore-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fore-sunset-phone.webp', import.meta.url).href)), preload: false },
 	// THE PORTRAIT COURTYARD SCENE (the same components and tool, --portrait): its own 9:16 frame, 1440 x 2560 with a
 	// 900 x 1600 phone tier twin. Backdrop, foreground and fire pass; no atlas (nothing moves in portrait). The day set
 	// preloads when the game boots in PORTRAIT and the night set rides the deferred phase; booted in another layout,
@@ -669,9 +674,11 @@ const phoneOnlyScreen = (): boolean => {
 // the same file); loadPlaceholderLate fetches the one for the layout the game was turned to, beside that layout's
 // scene, and it stands in until the scene fades in over it, or for good if the scene's files fail.
 export const SCENE_KEYS = {
-	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], sunset: ['scene_backdrop_sunset'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
+	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], sunset: SUNSET_FORE.on ? ['scene_backdrop_sunset', 'scene_fore_sunset'] : ['scene_backdrop_sunset'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
 	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire', 'scenep_ridge_day', 'sceneSky', 'sceneBirds'], night: ['scenep_backdrop_night', 'scenep_fore_night', 'scenep_ridge_night', 'sceneBats'], sunset: ['scenep_backdrop_sunset'], flames: [] },
 } as const;
+// SUNSET_FORE.on false: the overlay is not registered at all (nothing fetches or decodes it; the Bonus is as before)
+if (!SUNSET_FORE.on) delete (assets as unknown as Record<string, unknown>).scene_fore_sunset;
 /** the keys BOTH scenes list (the sky's atlas, the birds, the bats): registered in every boot, fetched once, never late */
 export const SCENE_SHARED_KEYS: readonly string[] = [...SCENE_KEYS.portrait.day, ...SCENE_KEYS.portrait.night].filter((key) => ([...SCENE_KEYS.landscape.day, ...SCENE_KEYS.landscape.night] as string[]).includes(key));
 /** the scene the boot layout draws, and the one that waits */
@@ -743,7 +750,9 @@ if (phoneOnlyScreen()) {
 //           the night + fire gear atlas; landscape 0.77 MB, portrait 0.63 MB, phone 1.28 MB or 0.57 MB on the phone
 //           tier), right after the scene's own night: until it is in, a Super or Epic keeps the frame in its day light.
 //   sunset  the boot layout's courtyard scene's SUNSET backdrop (2026-10-23: the regular Bonus's painting; landscape
-//           0.85 MB, 0.44 MB on the phone tier; portrait 0.57 MB, 0.27 MB): a Bonus can be bought on the first spin,
+//           0.85 MB, 0.44 MB on the phone tier; portrait 0.57 MB, 0.27 MB) and, landscape only, THE SUNSET ON THE
+//           COURTYARD's overlay (2026-10-24, SUNSET_FORE: 64 KB, 37 KB on the phone tier; it lands with the backdrop
+//           and fades in with it, game/scene.ts setSunset): a Bonus can be bought on the first spin,
 //           and until it is in the Bonus plays on the day backdrop and crossfades when it lands
 //           (components/Background.svelte, game/scene.ts setSunset). After the night pair, so a Super or Epic is not
 //           kept waiting by it, and before the flame clips (the Bonus burns the Super clip too).
