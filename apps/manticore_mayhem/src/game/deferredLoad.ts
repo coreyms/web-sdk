@@ -37,7 +37,7 @@
 // The canvas logo (desktop tier) is not in either part: loadLogoEarly starts it when the preload ends, beside the audio.
 import * as PIXI from 'pixi.js';
 
-import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, GATE_ORDER, LOGO_DATA_URLS, PLACEHOLDER_LATE, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS, gateFileBytes } from './assets';
+import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, GATE_ORDER, LOGO_DATA_URLS, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS, gateFileBytes } from './assets';
 import { fileBytes } from './assetStamp';
 import { markPlaqueAssetsReady } from './assetGate';
 import { loadCreatureBoot, releaseCreatureRest } from './creatureLoad';
@@ -309,7 +309,8 @@ const watchUnreachable = (app: AppState) => {
 // The game registers only the scene of the layout it booted in (16:9 for landscape and phone sideways, 9:16 for
 // portrait) and requests none of the other's files. The first time the layout becomes one of the other scene's,
 // components/Background.svelte calls this: the day set (published together: the scene builds from all of it),
-// then the night set, then the sunset (the Bonus's backdrop). Once; a file that fails leaves the placeholder crop standing.
+// then the night set, then the sunset (the Bonus's backdrop). Once; a file that fails leaves the flat sky colour standing
+// (the placeholder crop that stood in until 2026-10-28 is gone: Corey, "Oh those shouldn't be in the game at all anymore").
 let sceneLate: Promise<void> | null = null;
 export const loadSceneLate = (app: AppState): Promise<void> => {
 	const group = async (name: string, all: readonly string[]) => {
@@ -327,18 +328,6 @@ export const loadSceneLate = (app: AppState): Promise<void> => {
 	const flames = () => late.flames.reduce((chain, key) => chain.then(() => group(`sceneFlames_${key}`, [key])), Promise.resolve());
 	sceneLate ??= group('sceneDay', late.day).then(() => group('sceneNight', late.night)).then(() => group('sceneSunset', late.sunset)).then(flames).catch(() => {});
 	return sceneLate;
-};
-
-/** the placeholder crop of a layout the game did not boot in (game/assets.ts PLACEHOLDER_LATE): the fallback that
- *  stands in while that layout's scene is on its way. Once per layout; a failure leaves the flat sky colour. */
-const placeholderLate: Record<string, Promise<void>> = {};
-export const loadPlaceholderLate = (app: AppState, kind: string): Promise<void> => {
-	const key = `bg_base_${kind}`;
-	if (!PLACEHOLDER_LATE[key]) return Promise.resolve();
-	placeholderLate[key] ??= loadOne(key, PLACEHOLDER_LATE[key]).then((textures) => {
-		if (textures) app.loadedAssets = { ...app.loadedAssets, ...textures };
-	});
-	return placeholderLate[key];
 };
 
 /** the board frame's night set of a layout the game did not boot in (game/assets.ts FRAME_NIGHT_LATE): fetched the

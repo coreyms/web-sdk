@@ -455,6 +455,45 @@ export const WIN_SHEET = { breathe: false, shine: { start: false, count: true },
  *  on: false is the board as it was: every cell of a cluster starts together at the cluster's presentation. Scatter
  *  trigger clips (WIN_SHEET.trigger) are not clusters and never ripple. */
 export const WIN_RIPPLE = { on: true, stepMs: 35, maxSpreadMs: 400, order: 'flood' as 'flood' | 'sweep', popAfterClip: true, clipFrames: 36 };
+/** THE TAIL GOES WITH THE REST (2026-10-28). Corey, after the bigger removal burst: "One thing that bothers me on big
+ *  multi symbol cluster clears is there are always a few symbols left over as stragglers until the end. These clears are
+ *  perfect. That was a pre-exisitng isssue". The cause: the clusters of a step present one after another in the book's
+ *  order (CLUSTER.clusterMode 'sequence') and each cluster pops after its own label's hold, while a cell two clusters
+ *  share (most often a Wild) leaves with the first of them. A later cluster whose other cells all went that way is left
+ *  with one to four cells of its own, a REMNANT, and those cells stood alone through every earlier pop and left last, one
+ *  by one (a scan of the 300,000 base books: 52 % of the steps with two or more clusters have a remnant, and in 91 % of
+ *  those the step's last cluster is one; base book 232270's 8 clusters: 7 remnant cells left 0.4 to 1.2 s after the last
+ *  whole cluster, the 63-cell clear of book 167056: 8 lone cells popped one by one over its last 1.1 s).
+ *    remnantBelow  a cluster with fewer cells of its own than this is a remnant (config.minCluster: it could not have
+ *                  won on its own). Its cells win and pop with the last whole cluster before it (its host: they ripple
+ *                  on in the host's flood, WIN_RIPPLE, and pop in the host's centre-out turn, its SPARKLE.staggerMs
+ *                  shrunk to fit them so the host's pop keeps its length); its label, count, sound,
+ *                  plaque step and vein ripple keep their own turn in the book's order. The first cluster is never one.
+ *    quickLabels   a remnant's label does not wait out the cluster before it (CLUSTER.clusterGapMs): it starts with
+ *                  that cluster and its count lands CLUSTER.countOrderMs after the one before (book order, as always),
+ *                  so the labels of a step's tail finish about when its last symbols pop and the board never sits
+ *                  emptied for long while they count. A step with a remnant ends sooner; one without is as before.
+ *  on: false is the board as it was. */
+export const CLUSTER_TAIL = { on: true, remnantBelow: 5, quickLabels: true };
+/** THE WIN PACE (2026-10-28). Corey on the straggler fix's previews: "The timing looks better on the cluster clears, but
+ *  why the stragglers?" (on a big clear the clusters still presented one after another, so a later cluster's symbols stood
+ *  while earlier ones popped); of the two options he was shown, the same day: "b looks good fast wave". So fastWave is
+ *  the game's pace. 'sequence' (each cluster after the one before has left, the pace up to 2026-10-28) and onePop (his
+ *  option A) stay for comparison; they cost a branch each and nothing at run time.
+ *    onePop     ONE POP: every winning cell of the step wins and pops on one beat. The WIN_RIPPLE flood runs across the
+ *               whole step from the first cluster's first cell (the same maxSpreadMs window) and each cell pops as its
+ *               win clip ends (WIN_RIPPLE.clipFrames), in that flood order. The cluster labels, counts, sounds and plaque
+ *               steps still run in the book's order, labelGapMs apart (counts at least CLUSTER.countOrderMs apart), each
+ *               held holdMs after its count; a label that collides still waits for the one it collides with.
+ *    fastWave   FAST WAVE: clusters still start in the book's order and pop after their own label's hold, but each starts
+ *               startGapMs after the one before STARTS (not after it has left), held holdMs, so a step clears in about a
+ *               second; remnants (CLUSTER_TAIL) still go with their host.
+ *  Every mode keeps every amount the book's. DEV probes switch `mode` at run time. */
+export const WIN_PACE = {
+	mode: 'fastWave' as 'sequence' | 'onePop' | 'fastWave',
+	onePop: { labelGapMs: 150, holdMs: 500 },
+	fastWave: { startGapMs: 135, holdMs: 500 },
+};
 
 /** a winning cluster's highlight, and the removal that follows it */
 export const CLUSTER = {
@@ -675,18 +714,33 @@ export const WIN_FX = {
 	pop: { removeMs: 210, squashShare: 0.36, squashX: 0.15, squashY: 0.13, twistIn: 0.06, heatSquash: 0.45, popShare: 0.2, popScale: 1.28, twistPop: 0.1, heatPop: 0.75, twistOut: 0.42, fadeFrom: 0.45 },
 	/** THE BURST on the pop: a ray burst (`rays`, the fxTexture burst, tinted the symbol's colour) growing from
 	 *  fromCells to toCells cells across while it turns by spin radians, and a soft round glow (`core`, tinted the colour
-	 *  whitened by `whiten`) from fromCells to toCells. Each fades in over inShare of its life and out after. Pool: one
-	 *  ray + one core per cell, maxCells cells in flight (lifeMs / SPARKLE.staggerMs). */
+	 *  whitened by `whiten`) from fromCells to toCells. Each fades in over inShare of its life and out after, the fade out
+	 *  (1 - v) to the power fallPow (2 lets go quickly; the rays' 1 keeps them lit while they reach out). `flash`: a
+	 *  white soft glow `cells` across over the cell for the first `frames` RENDERED frames of the burst (frames, not ms,
+	 *  so it shows at every turbo level and frame rate), `peak` then `secondPeak`. Pool: one ray + one core + one flash
+	 *  per cell, maxCells cells in flight.
+	 *  BIGGER AND BRIGHTER (1.0.05 ledger row 4, Corey 2026-10-28 "Build it", to the asset grades' code-only plan for
+	 *  grade #14, the symbol removal at still 4 / motion 4: "Faint, bronze-on-dark, mostly inside the cell, about
+	 *  0.3 s"): the rays 420 ms / 0.5..2 cells -> 520 ms / 0.6..3 cells, faded out linearly (fallPow 1, was squared: tuned by eye, the
+	 *  squared fade had the tips gone before they passed about 1.3 cells); the core 300 ms / 0.6..1.4 cells whitened 0.55
+	 *  -> 360 ms / 0.7..1.8 cells at the symbol's FULL color (whiten 0; the pop's heat flash keeps tintToSymbol, 1.0.04
+	 *  change 1d); the new 2-frame white flash at the pop. The pool is the whole board (CELL_COUNT, was 43 =
+	 *  SPARKLE.lifeMs / staggerMs): clusters pop side by side, so a full-board clear has every cell's burst in flight
+	 *  at once and never takes over a live one. None of it is awaited: the round's timing is the pop's (removeMs). */
 	burst: {
-		rays: { lifeMs: 420, fromCells: 0.5, toCells: 2, peak: 1, inShare: 0.1, spin: 0.35 },
-		core: { lifeMs: 300, fromCells: 0.6, toCells: 1.4, peak: 0.9, inShare: 0.12, whiten: 0.55 },
-		maxCells: 43,
+		rays: { lifeMs: 520, fromCells: 0.6, toCells: 3, peak: 1, inShare: 0.08, spin: 0.35, fallPow: 1 },
+		core: { lifeMs: 360, fromCells: 0.7, toCells: 1.8, peak: 1, inShare: 0.1, whiten: 0, fallPow: 2 },
+		flash: { frames: 2, cells: 1.25, peak: 1, secondPeak: 0.6 },
+		maxCells: CELL_COUNT,
 	},
 	/** THE EMBERS: `count` per cell (phone tier `countPhone`), a streak sizePx board px long at the start (shrinking
 	 *  over its life), flying out spreadCells (x 0.6..1.4 per ember) on a quadOut, lifted by `lift` cells, pulled down
 	 *  by `gravity` cells over the life, turned along its path. Tinted the symbol's colour whitened by `whiten`,
-	 *  flickering by `flicker`. Life lifeMs x 0.7..1.0 per ember. One ParticleContainer, pool count x maxCells. */
-	embers: { count: 8, countPhone: 6, sizePx: 22, spreadCells: 0.85, lift: 0.35, gravity: 0.9, lifeMs: 800, whiten: 0.5, flicker: 0.25, maxCells: 43 },
+	 *  flickering by `flicker`. Life lifeMs x 0.7..1.0 per ember. One ParticleContainer, pool count x maxCells.
+	 *  MORE, FURTHER, LONGER (1.0.05 ledger row 4, Corey 2026-10-28 "Build it", grade #14's code-only plan, the burst
+	 *  above): count 8 -> 16, countPhone 6 -> 10, spreadCells 0.85 -> 1.3, lifeMs 800 -> 1000, maxCells 43 -> the whole
+	 *  board (CELL_COUNT: 1,024 streaks on desktop, 640 on the phone tier, sized once at mount). */
+	embers: { count: 16, countPhone: 10, sizePx: 22, spreadCells: 1.3, lift: 0.35, gravity: 0.9, lifeMs: 1000, whiten: 0.5, flicker: 0.25, maxCells: CELL_COUNT },
 	/** THE SHAKE: a cluster of at least minCluster symbols moves the board (featureFx.boardKick, board px) as its first
 	 *  symbol pops: a decaying wobble of ampPx board px (about 1.5 to 2 screen px on a 1440 x 900 desktop, 1 to 1.5 on
 	 *  a phone) at hz (style time) over ms; the y wobble is yShare of the x one, a quarter period behind */
@@ -697,7 +751,9 @@ export const WIN_FX = {
 	 *  sparkle). Sprite tint only. `strength` moves the pop's flash (the heat, an additive copy of the symbol, warm white
 	 *  `shine.tint`) and the burst's soft core (its colour whitened by `burst.core.whiten`) toward `colors[symbol]` by this
 	 *  share; the core's centre stays white hot (additive, the texture's peak) and the rays keep the full colour as
-	 *  before. 0 = the look before. The sting's hit is not this burst: its rays and core take the sting look's own
+	 *  before. 0 = the look before. Since 1.0.05 ledger row 4 (Corey 2026-10-28 "Build it") the core is the symbol's
+	 *  FULL color (burst.core.whiten 0) and the white hot moment is the burst's own 2-frame flash (burst.flash), so this
+	 *  share now moves the pop's heat flash only. The sting's hit is not this burst: its rays and core take the sting look's own
 	 *  colours (STING_FX.looks), unchanged. */
 	tintToSymbol: { strength: 0.35 },
 };
@@ -2543,8 +2599,9 @@ export const MOTION_BLUR_VELOCITY = 31;
 export const CONFIRM_COST_MULTIPLIER = 2;
 
 export const zIndexes = {
-	// scene: the courtyard scene (SCENE below) draws OVER the placeholder and its wash, which it replaces
-	background: { backdrop: -3, normal: -2, feature: -1, scene: -0.5 },
+	// scene: the courtyard scene (SCENE below) draws OVER the flat sky (backdrop) and its wash (feature). `normal` was the
+	// placeholder painting's, which left the game on 2026-10-28 (Corey: "Oh those shouldn't be in the game at all anymore")
+	background: { backdrop: -3, feature: -1, scene: -0.5 },
 };
 
 /** dark wash over the backdrop so the board and the chrome read on top of it */

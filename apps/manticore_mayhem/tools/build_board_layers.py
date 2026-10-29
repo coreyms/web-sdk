@@ -1,6 +1,10 @@
 """Export the Manticore Mayhem board frame, the chains layer and the temporary scene background.
 
-  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_board_layers.py [--no-frame] [--no-bg] [--out <dir>]
+  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_board_layers.py [--no-frame] [--bg] [--out <dir>]
+
+THE TEMPORARY BACKGROUND IS OFF BY DEFAULT (2026-10-28; Corey: "Oh those shouldn't be in the game at all anymore"): the
+game no longer has a placeholder background, and anything under static/assets ships, so its crops are written only with
+--bg (use it with --out; --no-bg is still accepted and does nothing).
 
 --out <dir> writes the webps and boardArtSpec.ts under <dir> instead of the app (a dry run: nothing in the app changes).
 
@@ -24,7 +28,7 @@ Outputs (static/assets):
                                       de-slanted onto the run's centreline; the tool prints the seam check (the tile's first
                                       row against the row one period later). The leaned top links are ERASED from the frame
                                       export (the loop enters the cap straight): erase_leaned_links().
-  backgrounds/<mode>-<layout>.webp    mode = base / bonus / super / epic (one image for now), cover crops
+  backgrounds/<mode>-<layout>.webp    --bg only (see above): mode = base / bonus / super / epic, cover crops
   THE RELIGHT AND THE TURNING GEARS (board_v5l only, Corey 2026-10-11; tools/board_relight.py has the sources and the
   method): the frame PIXELS exported above are the D1 plate (the frame lit for the day, without its six turning parts),
   the chain tile sheet holds three sets side by side (day, night, fire), and board_relight.build() writes
@@ -409,7 +413,8 @@ def save_webp(im, rel):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-frame', action='store_true')
-    ap.add_argument('--no-bg', action='store_true')
+    ap.add_argument('--no-bg', action='store_true')  # the old opt-out, now the default (2026-10-28)
+    ap.add_argument('--bg', action='store_true', help='also write the temporary background crops (the game does not use them: pair with --out)')
     ap.add_argument('--tag')
     ap.add_argument('--out')
     args = ap.parse_args()
@@ -674,7 +679,7 @@ def main():
             chain_spec[kind] = {'tex': list(sheet.size), 'periodPx': period, 'phasePx': phase, 'halfWidthPx': CHAIN_HALF_W, 'clip': list(CHAIN_CLIP), **parts}
             print(f'{kind}: master/px {m:.5f}  frame tex {tw}x{th} ({tex.size[0] / cw:.4f}/px)  chain tile {sheet.size} (seam |d| L {seam["L"]} R {seam["R"]} of 255)')
 
-    if not args.no_bg:
+    if args.bg and not args.no_bg:
         bg = Image.open(SRC_BG).convert('RGB')
         sw, sh = bg.size
         for kind, (mw, mh) in MASTER.items():

@@ -916,7 +916,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "L2_bull-skull/graded_r1/win",
+   "source": "L2_bull-skull/drafts/horn-pin-2026-10-28/masters/win",
    "sourcePx": 768,
    "box512": [
     71.467,
@@ -982,6 +982,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "a829748e"
+  "pngHash": "e702f54e"
  }
 }

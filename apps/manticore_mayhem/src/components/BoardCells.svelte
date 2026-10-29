@@ -79,7 +79,7 @@
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
 	import { PLATE_GLYPHS, PLATE_GLYPH_PREFIX, PLATE_GLYPH_MIDDLE, PLATE_KERN } from '../game/plateGlyphs';
 	import { PHONE_TIER } from '../game/deviceTier';
-	import { dotTexture, glowTexture, innerGlowTexture, DOT_PX, GLOW_PX, raysTexture, coreTexture, emberTexture, RAYS_PX, CORE_PX, EMBER_W } from '../game/fxTexture';
+	import { dotTexture, glowTexture, innerGlowTexture, DOT_PX, GLOW_PX, winRaysTexture, coreTexture, emberTexture, WIN_RAYS_PX, CORE_PX, EMBER_W } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
 	import { winFx, shineCells, takeWinBursts, winFxStats, type ShineCell, type WinBurst } from '../game/winFx';
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
@@ -1207,17 +1207,21 @@
 	};
 
 	// ---- THE WIN BURST AND THE EMBERS (WIN_FX.burst / WIN_FX.embers), the 'new' look only. Pools sized once at
-	// mount: per burst a ray sprite and a soft round glow (one container, additive, over the tiles where the flashes
-	// were), and one particle container of embers on one baked streak texture. Zero allocation per burst. ----------
+	// mount: per burst a ray sprite, a soft round glow and the white pop flash (one container, additive, over the tiles
+	// where the flashes were), and one particle container of embers on one baked streak texture. Zero allocation per
+	// burst. ----------
 	const NEW_FX = winFx.style === 'new';
 	const BR = WIN_FX.burst;
 	const EM = WIN_FX.embers;
-	type BurstSlot = { rays: PIXI.Sprite; core: PIXI.Sprite; on: boolean; t0: number; rl: number; cl: number; rot0: number; spin: number };
+	/** `fl`: rendered frames of the white flash still to show (WIN_FX.burst.flash.frames at the spawn) */
+	type BurstSlot = { rays: PIXI.Sprite; core: PIXI.Sprite; flash: PIXI.Sprite; on: boolean; t0: number; rl: number; cl: number; rot0: number; spin: number; fl: number };
 	const burstLayer = new PIXI.Container({ zIndex: 11, label: 'winBurst' });
 	burstLayer.visible = false;
 	const burstSlots: BurstSlot[] = [];
-	const RAYS_K = SYMBOL_SIZE / RAYS_PX;
+	// the burst's own rays (fxTexture winRaysTexture, 1.0.05 row 4): they hold their light out to the tips
+	const RAYS_K = SYMBOL_SIZE / WIN_RAYS_PX;
 	const CORE_K = SYMBOL_SIZE / CORE_PX;
+	const FLASH_SCALE = (BR.flash.cells * SYMBOL_SIZE) / CORE_PX;
 	const EM_PER = PHONE_TIER ? EM.countPhone : EM.count;
 	const EM_POOL = NEW_FX ? EM_PER * EM.maxCells : 0;
 	type Ember = { p: PIXI.Particle; alive: boolean; ox: number; oy: number; cx: number; cy: number; lift: number; t0: number; ms: number; roll: number; fl: number };
@@ -1234,16 +1238,18 @@
 		parent.addToParent(burstLayer);
 		parent.addToParent(emberLayer);
 		for (let i = 0; i < BR.maxCells; i += 1) {
-			const rays = new PIXI.Sprite(raysTexture());
+			const rays = new PIXI.Sprite(winRaysTexture());
 			const core = new PIXI.Sprite(coreTexture());
-			for (const sp of [rays, core]) {
+			// the white flash: the same soft glow untinted (one texture with the core, so the layer stays one batch)
+			const flash = new PIXI.Sprite(coreTexture());
+			for (const sp of [rays, core, flash]) {
 				sp.anchor.set(0.5);
 				sp.blendMode = 'add';
 				sp.alpha = 0;
 				sp.scale.set(0);
 				burstLayer.addChild(sp);
 			}
-			burstSlots.push({ rays, core, on: false, t0: 0, rl: 1, cl: 1, rot0: 0, spin: 0 });
+			burstSlots.push({ rays, core, flash, on: false, t0: 0, rl: 1, cl: 1, rot0: 0, spin: 0, fl: 0 });
 		}
 		for (let i = 0; i < EM_POOL; i += 1) {
 			const p = new PIXI.Particle({ texture: emberTexture(), x: 0, y: 0, scaleX: 0, scaleY: 0, anchorX: 0.5, anchorY: 0.5, alpha: 0 });
@@ -1289,8 +1295,12 @@
 		slotB.spin = (rnd() < 0.5 ? -1 : 1) * BR.rays.spin;
 		slotB.rays.position.set(ox, oy);
 		slotB.core.position.set(ox, oy);
+		slotB.flash.position.set(ox, oy);
+		slotB.flash.scale.set(FLASH_SCALE);
+		slotB.fl = BR.flash.frames;
 		slotB.rays.tint = b.tint;
-		// the core leans to the symbol's colour too (WIN_FX.tintToSymbol): whitened by less
+		// the core leans to the symbol's colour too (WIN_FX.tintToSymbol): whitened by less (whiten 0 since 1.0.05 row 4:
+		// the symbol's full color)
 		slotB.core.tint = mixColor(b.tint, 0xffffff, BR.core.whiten * (1 - WIN_FX.tintToSymbol.strength));
 		// the embers: spread evenly round the cell with a jitter, so a handful never bunches up
 		const tint = mixColor(b.tint, 0xffffff, EM.whiten);
@@ -1317,8 +1327,8 @@
 		}
 	};
 
-	/** a fade in over `inShare`, then a falloff to nothing (squared, so it lets go quickly) */
-	const envelope = (v: number, inShare: number) => (v < inShare ? v / inShare : (1 - (v - inShare) / (1 - inShare)) ** 2);
+	/** a fade in over `inShare`, then a falloff to nothing (to the power `pow`: squared lets go quickly) */
+	const envelope = (v: number, inShare: number, pow = 2) => (v < inShare ? v / inShare : (1 - (v - inShare) / (1 - inShare)) ** pow);
 	let emberWarm = 3;
 	const tickWinFx = (now: number) => {
 		const fresh = takeWinBursts();
@@ -1342,32 +1352,41 @@
 			winFxStats.burstsInUse = 0;
 			return;
 		}
-		// the bursts: the rays grow and turn, the glow grows; each fades in, then out
+		// the bursts: the white flash for its frames, the rays grow and turn, the glow grows; each fades in, then out
 		for (const bs of burstSlots) {
 			if (!bs.on) continue;
 			const el = now - bs.t0;
 			const vr = el / bs.rl;
 			const vc = el / bs.cl;
+			// the flash counts RENDERED frames (this tick draws one): peak on the first, secondPeak on the second, then off
+			if (bs.fl > 0) {
+				bs.flash.alpha = bs.fl === BR.flash.frames ? BR.flash.peak : BR.flash.secondPeak;
+				bs.fl -= 1;
+			} else if (bs.flash.alpha !== 0) {
+				bs.flash.alpha = 0;
+				bs.flash.scale.set(0);
+			}
 			// (no visibility flips: a finished sprite is alpha 0 at scale 0, see the shine's note on render groups)
-			if (vr >= 1 && vc >= 1) {
+			if (vr >= 1 && vc >= 1 && bs.fl === 0) {
 				bs.on = false;
-				bs.rays.alpha = bs.core.alpha = 0;
+				bs.rays.alpha = bs.core.alpha = bs.flash.alpha = 0;
 				bs.rays.scale.set(0);
 				bs.core.scale.set(0);
+				bs.flash.scale.set(0);
 				burstsOn -= 1;
 				continue;
 			}
 			if (vr < 1 && vr >= 0) {
 				bs.rays.scale.set(RAYS_K * (BR.rays.fromCells + (BR.rays.toCells - BR.rays.fromCells) * cubicOut(vr)));
 				bs.rays.rotation = bs.rot0 + bs.spin * vr;
-				bs.rays.alpha = BR.rays.peak * envelope(vr, BR.rays.inShare);
+				bs.rays.alpha = BR.rays.peak * envelope(vr, BR.rays.inShare, BR.rays.fallPow);
 			} else if (bs.rays.alpha !== 0) {
 				bs.rays.alpha = 0;
 				bs.rays.scale.set(0);
 			}
 			if (vc < 1 && vc >= 0) {
 				bs.core.scale.set(CORE_K * (BR.core.fromCells + (BR.core.toCells - BR.core.fromCells) * cubicOut(vc)));
-				bs.core.alpha = BR.core.peak * envelope(vc, BR.core.inShare);
+				bs.core.alpha = BR.core.peak * envelope(vc, BR.core.inShare, BR.core.fallPow);
 			} else if (bs.core.alpha !== 0) {
 				bs.core.alpha = 0;
 				bs.core.scale.set(0);
@@ -1792,6 +1811,7 @@
 			for (const bs of burstSlots) {
 				bs.rays.destroy();
 				bs.core.destroy();
+				bs.flash.destroy();
 			}
 			burstLayer.destroy();
 			emberLayer.destroy();

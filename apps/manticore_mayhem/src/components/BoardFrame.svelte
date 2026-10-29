@@ -5,8 +5,8 @@
 	//
 	// 1. `under` (zIndex -1, under the board container): the flat backing over the frame's inner
 	//    opening (BOARD_BACKING; the marble wells, game/wells.ts, sit over it in the plate slot), then the frame sprite over it, so the
-	//    steel lattice reads on black and IS the cell grid (Board.svelte hides the old cell-well
-	//    backdrop once the frame art is in; it stays only as the pre-load fallback). The board container is
+	//    steel lattice reads on black and IS the cell grid (the old cell-well backdrop that Board.svelte drew until
+	//    the frame art was in left the game on 2026-10-28: the backing and the wells are the pre-load look). The board container is
 	//    masked to its 8 x 8 pitch, which is smaller than the opening and far smaller than the frame,
 	//    so neither can live inside it: `under` MIRRORS its kick instead. ClawSwipe.svelte offsets the
 	//    board container's pivot by featureFx.boardKick (board px); `under` is offset by the same kick
@@ -752,7 +752,8 @@
 					relight: relightState(),
 					/** the tool's numbers for this layout: the plate's crop and sizes, each loop's box, the shadow's, the checks */
 					relightSpec: { frame: fs, layout: RL.layouts[k], checks: RL.checks },
-					/** the old cell-well sprite in the board container: hidden once the frame art is loaded */
+					/** the old cell-well sprite in the board container: null since it left the game (2026-10-28, asset grade #4;
+					 *  Corey "Let's fix #4 then"), else whether it draws */
 					backdropVisible: (() => {
 						const bd = boardNode?.children.find((c) => c.label === 'boardBackdrop');
 						return bd ? bd.visible && bd.alpha > 0 : null;

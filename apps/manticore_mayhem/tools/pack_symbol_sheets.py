@@ -768,7 +768,8 @@ def contact(rows):
     cell = 110 * zoom
     tile_px = round(110 * 0.94) * zoom
     off = (cell - tile_px) // 2
-    bd = ImageOps.fit(Image.open(os.path.join(STATIC, "ui", "board-backdrop.webp")).convert("RGB"),
+    # the old cell-well backdrop left the game on 2026-10-28 (asset grade #4): this contact sheet reads the archived copy
+    bd = ImageOps.fit(Image.open(os.path.expanduser('~/Desktop/_archive/manticore-placeholder-backgrounds-2026-10-28/board-backdrop.webp')).convert("RGB"),
                       (880 * zoom // 1, 880 * zoom // 1), method=Image.LANCZOS)
     well = bd.crop((0, 0, cell, cell))
     cols = ["tile", "d0", "d12", "d24", "d47", "idle0"]

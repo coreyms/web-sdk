@@ -16,7 +16,7 @@
 	// .foreground) is shoved with the board on a kick, by the same offset on the same frame; the backdrop and the sky
 	// stay still. This component hands the scenes the shove (featureFx.foregroundKick.take) and works out how much
 	// oversize the foreground must be drawn in this layout so the shove never shows an edge (`foregroundOver`).
-	// Each is cover-fitted to the canvas and centred exactly as the placeholder was. This component only tells the
+	// Each is cover-fitted to the canvas and centred on it. This component only tells the
 	// scene of the current layout WHICH mode it is in:
 	//   family   the game's four background keys, unchanged: base outside a feature (Base, the antes, a Mystery's
 	//            base spin), else the book's own bonus kind (bonus / super / epic, which is also where a Mystery's
@@ -35,13 +35,13 @@
 	// (SceneView.release: the decoded images stay, so turning back downloads and decodes nothing; Pixi uploads them
 	// again as they are drawn).
 	//
-	// THE PLACEHOLDER (the citadel courtyard painting, tools/build_board_layers.py, one crop per layout under the
-	// scene wash) is the fallback: it is drawn while a scene's files are on their way, or if they failed, and the
-	// scene fades in over it. The flat sky colour is under everything, so nothing here ever mounts conditionally
-	// (house rule: always-mounted z order).
+	// BEFORE A SCENE IS IN (a turned game while the other scene's day set is on its way, or for good if its files
+	// failed): the flat sky colour under the scene wash, and the scene fades in over it. Nothing else: THE PLACEHOLDER
+	// (the older citadel painting's crops, one per layout) left the game on 2026-10-28 (Corey: "Oh those shouldn't be in the game at all anymore"; it was
+	// a different picture). Both rectangles are always mounted (house rule: always-mounted z order).
 	import * as PIXI from 'pixi.js';
 	import { onMount, untrack } from 'svelte';
-	import { BaseSprite, Rectangle, getContextParent } from 'pixi-svelte';
+	import { Rectangle, getContextParent } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
@@ -58,7 +58,7 @@
 	import { boardKick, foregroundKick, shoveForeground } from '../game/featureFx';
 	import { boardOpening } from '../game/boardTap';
 	import { SCENE_AT_BOOT } from '../game/assets';
-	import { loadPlaceholderLate, loadSceneLate } from '../game/deferredLoad';
+	import { loadSceneLate } from '../game/deferredLoad';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from '../game/sceneSpec';
 	import { SceneView, clearSceneLight, flickerAt, idleAt, isCreature, type SceneFamily, type SceneLayout } from '../game/scene';
@@ -85,18 +85,6 @@
 					? 'super'
 					: 'bonus',
 	);
-	const texture = $derived.by(() => {
-		const assets = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
-		return assets?.[`bg_${family}_${kind}`] ?? assets?.[`bg_base_${kind}`] ?? PIXI.Texture.EMPTY;
-	});
-	/** cover fit: the texture fills the canvas, centred, the overflow cropped by the canvas edge. A scale,
-	 *  never width / height: those are relative to whichever texture the sprite holds when they land */
-	const fit = $derived.by(() => {
-		const tw = texture.width || 1;
-		const th = texture.height || 1;
-		const s = Math.max(canvas.width / tw, canvas.height / th);
-		return { x: (canvas.width - tw * s) / 2, y: (canvas.height - th * s) / 2, s };
-	});
 	const wash = $derived(context.stateGame.gameType === 'freegame' ? BACKGROUND_WASH.freegame : BACKGROUND_WASH.base);
 
 	// ---- the courtyard scenes ---------------------------------------------------------------------
@@ -119,9 +107,9 @@
 	const ready = $state({ landscape: { day: false, night: false, sunset: false, flames: false, sky: false }, portrait: { day: false, night: false, sunset: false, flames: false, sky: false } });
 	/** this layout's scene has its day files */
 	const sceneOn = $derived(ready[which].day);
-	/** the scene has fully covered the placeholder (which is then not drawn) */
+	/** the scene has fully covered the flat sky and its wash (the wash is then not drawn) */
 	let covered = $state(false);
-	/** DEV A / B (tools/manticore/scene_probe.js cost): false hands every layout back to the placeholder */
+	/** DEV A / B (tools/manticore/scene_probe.js cost): false hands every layout back to the flat sky colour under its wash */
 	let enabled = $state(true);
 	/** the scene being drawn (a plain copy of `which` for the ticker) */
 	let active: SceneLayout = 'landscape';
@@ -129,7 +117,7 @@
 	const memory = { releases: 0, wakes: 0 };
 
 	const renderer = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
-	/** this layout's scene covers the screen: the placeholder goes, and so do the other scene's GPU copies */
+	/** this layout's scene covers the screen: the wash goes, and so do the other scene's GPU copies */
 	const settle = () => {
 		covered = true;
 		const other = views[active === 'landscape' ? 'portrait' : 'landscape'];
@@ -202,11 +190,10 @@
 			}
 		});
 	});
-	// only the boot layout's scene was registered: fetch the other one the first time it can show, and with it the
-	// placeholder crop of this layout, which stands in until the scene is in (nothing of either on a game never turned)
+	// only the boot layout's scene was registered: fetch the other one the first time it can show (nothing on a game
+	// never turned). Until its day set is in, the flat sky colour under its wash shows (no placeholder crop since 2026-10-28)
 	$effect(() => {
 		if (!enabled || which === SCENE_AT_BOOT) return;
-		if (!ready[which].day) void loadPlaceholderLate(context.stateApp, kind);
 		void loadSceneLate(context.stateApp);
 	});
 
@@ -229,7 +216,7 @@
 		return 1 + Math.max(needX / halfW, needY / halfH);
 	};
 
-	// placement: the placeholder's own cover fit, on each scene's frame
+	// placement: a cover fit of each scene's frame on the canvas, centred
 	$effect(() => {
 		for (const layout of LAYOUTS) {
 			const [fw, fh] = frames[layout];
@@ -467,8 +454,8 @@
 							...view.state(),
 							kind,
 							on: mine && sceneOn && enabled,
-							/** the placeholder: drawn (true) or covered by the scene, and its wash */
-							placeholder: { drawn: texture !== PIXI.Texture.EMPTY && !covered, wash: covered ? 0 : wash },
+							/** the flat sky's wash before the scene covers it (0 once covered; no placeholder since 2026-10-28) */
+							flat: { wash: covered ? 0 : wash },
 							ticking,
 							/** the tick's own cost since the last read: mean and worst ms, and how many ticks */
 							tick: (() => {
@@ -509,7 +496,7 @@
 					spec: (layout: SceneLayout = 'landscape') => JSON.parse(JSON.stringify(layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT)),
 					flickerAt: (ms: number) => flickerAt(ms),
 					idleAt: (piece: 'hang' | 'swag', side: 'L' | 'R', ms: number) => idleAt(piece, side, ms),
-					/** false = the placeholder draws every layout again (the A / B of the cost) */
+					/** false = the flat sky colour under its wash in every layout (the A / B of the cost) */
 					enable: (on: boolean) => (enabled = on),
 					/** THE WARM DAY's options for Corey's look pass (constants BONUS_WARMTH, 2026-10-23): `warmth` puts one
 					 *  option's numbers into the Bonus's SCENE.fire and SKY.modes.bonus for this page (the shipped pick is
@@ -839,15 +826,7 @@
 	});
 </script>
 
-<!-- the flat sky stays under the art: it is what shows before the texture is in -->
+<!-- the flat sky stays under the art: it is what shows before a scene is in -->
 <Rectangle zIndex={zIndexes.background.backdrop} width={canvas.width} height={canvas.height} backgroundColor={0x2a2230} />
-<!-- the placeholder and its wash: the fallback, until the scene has covered them -->
-<BaseSprite
-	zIndex={zIndexes.background.normal}
-	{texture}
-	visible={texture !== PIXI.Texture.EMPTY && !covered}
-	x={fit.x}
-	y={fit.y}
-	scale={fit.s}
-/>
+<!-- its wash, until the scene has covered it (the placeholder painting that sat between them left on 2026-10-28) -->
 <Rectangle zIndex={zIndexes.background.feature} width={canvas.width} height={canvas.height} backgroundColor={0x05060a} alpha={wash} visible={!covered} />

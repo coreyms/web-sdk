@@ -1516,7 +1516,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "L2_bull-skull/graded_r1/idle_r2",
+   "source": "L2_bull-skull/drafts/horn-pin-2026-10-28/masters/idle_r2",
    "sourcePx": 512,
    "box512": [
     71.467,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "c53c0ad8"
+  "pngHash": "e6d3a56a"
  }
 }

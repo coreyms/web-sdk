@@ -46,6 +46,8 @@ import {
 	SCATTER_STING,
 	WIN_SHEET,
 	WIN_RIPPLE,
+	CLUSTER_TAIL,
+	WIN_PACE,
 	SHEET_FPS,
 	ANTICIPATION_TEASE,
 	TRIGGER_BEAT,
@@ -1226,6 +1228,9 @@ type Cluster = {
 	tRemEnd: number;
 	/** WIN_FX.shake: when this cluster's first symbol pops (style ms), -1 = no shake */
 	tShake: number;
+	/** its cells' own clock (their win clip, rise and pop): t, except WIN_PACE fastWave, where a label held back by a
+	 *  collision never holds its cells back */
+	tCells: number;
 	spec: WinSpec;
 	readout: Readout;
 	/** DEV: this label's entry in winSetLog (null in a build) */
@@ -1253,7 +1258,33 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	for (const c of stateGame.cells) if (c.state !== 'removing') at.set(cellOf(c.reel, c.row), c);
 	const allWinners = new Set<CellIndex>();
 	for (const w of wins) for (const index of w.cells) allWinners.add(index);
-	const claimed = new Set<CellIndex>();
+	// THE TAIL GOES WITH THE REST (CLUSTER_TAIL): the cells each cluster takes (a shared cell leaves with the first cluster
+	// that lists it) and its host: itself, or for a REMNANT (fewer than remnantBelow cells of its own) the last whole
+	// cluster before it, whose turn its cells win and pop in. `guests`: per host, its remnants' cells, then their book cells
+	// (the seeds their flood carries on from)
+	const own: CellIndex[][] = [];
+	const hostOf: number[] = [];
+	const guests: { cells: CellIndex[]; seeds: CellIndex[] }[] = wins.map(() => ({ cells: [], seeds: [] }));
+	{
+		const taken = new Set<CellIndex>();
+		let host = -1;
+		wins.forEach((w, i) => {
+			const mine: CellIndex[] = [];
+			for (const index of w.cells) {
+				if (!at.has(index) || taken.has(index)) continue;
+				taken.add(index);
+				mine.push(index);
+			}
+			own.push(mine);
+			// WIN_PACE onePop: every cluster after the first goes with the first (one shared pop)
+			const remnant = host >= 0 && (WIN_PACE.mode === 'onePop' || (CLUSTER_TAIL.on && mine.length < CLUSTER_TAIL.remnantBelow));
+			hostOf.push(remnant ? host : i);
+			if (remnant) {
+				guests[host].cells.push(...mine);
+				guests[host].seeds.push(...w.cells);
+			} else host = i;
+		});
+	}
 
 	// ---- the labels: which font, how big, where (CLUSTER_LABEL, LABEL_PLACE) ----
 	// One decision for the whole win set: the plaque's forged glyphs when the atlas is in and can set every
@@ -1292,32 +1323,48 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	let tc = 0;
 	let tRem = 0;
 	let lastCountDone = 0;
+	/** the previous cluster's start (CLUSTER_TAIL.quickLabels: a remnant's label starts no sooner) */
+	let startPrev = 0;
+	/** WIN_PACE fastWave: the previous cluster's wave start (before any label collision wait) */
+	let wavePrev = 0;
 	/** per cluster, when its readout has left (LABEL_PLACE rule 5: a label that still collides waits for it) */
 	const readoutDone: number[] = [];
 	const clusters: Cluster[] = wins.map((spec, i) => {
 		const cx = spec.cells.reduce((n, index) => n + reelOf(index) + 0.5, 0) / Math.max(1, spec.cells.length);
 		const cy = spec.cells.reduce((n, index) => n + rowOf(index) + 0.5, 0) / Math.max(1, spec.cells.length);
+		const remnant = hostOf[i] !== i;
+		// CLUSTER_TAIL.quickLabels: a remnant's label starts with the cluster before it, not after that one's removal
+		if (i > 0 && WIN_PACE.mode === 'onePop') tc = startPrev + WIN_PACE.onePop.labelGapMs;
+		else if (i > 0 && WIN_PACE.mode === 'fastWave') tc = wavePrev + WIN_PACE.fastWave.startGapMs;
+		else if (remnant && CLUSTER_TAIL.quickLabels) tc = startPrev;
+		const tWave = tc;
+		wavePrev = tWave;
 		for (const j of placement.after[i]) tc = Math.max(tc, readoutDone[j] ?? 0);
+		// its own cells, then its remnants' (CLUSTER_TAIL); a remnant has none: its cells go with its host
 		const members: Member[] = [];
-		for (const index of spec.cells) {
-			const cell = at.get(index);
-			if (!cell || claimed.has(index)) continue; // a shared cell leaves with the first cluster
-			claimed.add(index);
-			members.push({ cell, index, removeT0: 0, spawned: false, cleared: false, rank: 0, dir: (reelOf(index) + rowOf(index)) % 2 ? -1 : 1, fx: null, off: 0, begun: false });
+		if (!remnant) {
+			for (const index of [...own[i], ...guests[i].cells]) {
+				const cell = at.get(index)!;
+				members.push({ cell, index, removeT0: 0, spawned: false, cleared: false, rank: 0, dir: (reelOf(index) + rowOf(index)) % 2 ? -1 : 1, fx: null, off: 0, begun: false });
+			}
 		}
 		// cells leave in order of distance from the cluster centre
 		members.sort((a, b) => Math.hypot(rowOf(a.index) + 0.5 - cy, reelOf(a.index) + 0.5 - cx) - Math.hypot(rowOf(b.index) + 0.5 - cy, reelOf(b.index) + 0.5 - cx));
 		members.forEach((m, k) => (m.rank = k));
-		// WIN_RIPPLE: each cell's own start after the cluster's, outward from its first cell
-		const rippleStep = rippleOffsets(members, spec.cells);
-		// a winner the preceding drop did not glow gets the standalone aura (the whole cluster, together)
-		const aura = CLUSTER.auraMs > 0 && members.some((m) => !lastAura.has(m.index)) ? CLUSTER.auraMs : 0;
+		// WIN_RIPPLE: each cell's own start after the cluster's, outward from its first cell (and on into its remnants')
+		const rippleStep = rippleOffsets(members, guests[i].seeds.length ? [...spec.cells, ...guests[i].seeds] : spec.cells);
+		// a winner the preceding drop did not glow gets the standalone aura (the whole cluster, together); a remnant has no
+		// cells to glow, and its host's own cells decide its aura, so taking remnants in never moves the host's start
+		const aura = CLUSTER.auraMs > 0 && !remnant && own[i].some((index) => !lastAura.has(index)) ? CLUSTER.auraMs : 0;
 		let t = tc + aura;
 		const rise = Math.max(CLUSTER.winRiseMs, i === 0 ? CLUSTER.dimMs : 0, 1);
 		const raw = spec.mult ? READOUT.rawMs : 0;
 		const slam = raw > 0 ? READOUT.slamMs : 0;
 		const count = READOUT.countMs;
-		const hold = CLUSTER.holdMs;
+		const hold = WIN_PACE.mode === 'onePop' ? WIN_PACE.onePop.holdMs : WIN_PACE.mode === 'fastWave' ? WIN_PACE.fastWave.holdMs : CLUSTER.holdMs;
+		// WIN_PACE onePop: each cell pops as its win clip ends, in the step's flood order
+		const onePop = WIN_PACE.mode === 'onePop';
+		const clipFull = (WIN_RIPPLE.clipFrames * 1000) / SHEET_FPS;
 		// counts land in BOOK ORDER: a win with no tile multiplier has no raw / slam beat, so started the
 		// usual stagger after a multiplied one its count would land first and the spin total would step
 		// out of order. It starts late enough to land CLUSTER.countOrderMs after the one before.
@@ -1329,14 +1376,20 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			}
 		}
 		const tCountDone = t + rise + raw + slam + count;
+		const tCells = WIN_PACE.mode === 'fastWave' ? Math.min(t, tWave + aura) : t;
 		lastCountDone = tCountDone;
 		const tReadoutDone = tCountDone + hold;
 		let tRemEnd = tReadoutDone;
 		// WIN_RIPPLE.popAfterClip: a late cell pops no sooner than its own clip's end (its turn otherwise, centre out)
 		const clipMs = WIN_RIPPLE.on && WIN_RIPPLE.popAfterClip ? (WIN_RIPPLE.clipFrames * 1000) / SHEET_FPS : 0;
+		// CLUSTER_TAIL: a host's centre-out pop keeps its own length with its remnants' cells taken in (the stagger shrinks
+		// to fit them), so taking them in never ends the step later
+		const stagger = guests[i].cells.length ? (SPARKLE.staggerMs * Math.max(1, own[i].length - 1)) / Math.max(1, members.length - 1) : SPARKLE.staggerMs;
 		members.forEach((m, k) => {
-			m.removeT0 = tReadoutDone + k * SPARKLE.staggerMs;
-			if (clipMs > 0 && m.off > 0) m.removeT0 = Math.max(m.removeT0, t + m.off + clipMs);
+			m.removeT0 = tReadoutDone - (t - tCells) + k * stagger;
+			// (WIN_PACE fastWave: every cell, the first too, since its shorter hold would otherwise cut the first cells' clips)
+			if (clipMs > 0 && (m.off > 0 || WIN_PACE.mode === 'fastWave')) m.removeT0 = Math.max(m.removeT0, tCells + m.off + clipMs);
+			if (onePop) m.removeT0 = t + m.off + clipFull;
 			tRemEnd = Math.max(tRemEnd, m.removeT0 + removeMs);
 		});
 		let rippleDev: RippleLogEntry | null = null;
@@ -1346,10 +1399,11 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			rippleLog.push(rippleDev);
 			if (rippleLog.length > 60) rippleLog.splice(0, 30);
 		}
-		const tShake = fxNew && members.length >= WIN_FX.shake.minCluster ? tReadoutDone + POP_AT * removeMs : -1;
+		const tShake = fxNew && members.length >= WIN_FX.shake.minCluster ? (onePop ? t + clipFull : tReadoutDone - (t - tCells)) + POP_AT * removeMs : -1;
 		tRem = Math.max(tRem, tRemEnd);
 		readoutDone[i] = tReadoutDone;
 		const start = tc;
+		startPrev = start;
 		// the gap is measured from the removal end, and a win with no tile multiplier has no raw / slam beat,
 		// so it ends rawMs + slamMs sooner: without making that up here its removal end + the (negative) gap
 		// falls before its own start and every cluster of the set starts together (Corey 2026-10-09, the
@@ -1388,6 +1442,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			tReadoutDone,
 			tRemEnd,
 			tShake,
+			tCells,
 			spec,
 			readout,
 			dev: devSet ? devSet.labels[i] : null,
@@ -1440,13 +1495,13 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			}
 			for (const m of cl.members) {
 				const c = m.cell;
-				if (cl.aura > 0 && now >= cl.tc && now < cl.t) c.glow = Math.sin(Math.PI * clamp01((now - cl.tc) / cl.aura));
+				if (cl.aura > 0 && now >= cl.tCells - cl.aura && now < cl.tCells) c.glow = Math.sin(Math.PI * clamp01((now - cl.tCells + cl.aura) / cl.aura));
 				else if (c.glow !== 0) c.glow = 0;
-				if (now < cl.t) continue;
+				if (now < cl.tCells) continue;
 				// WIN_SHEET: the moment this cell's win starts (the cluster's presentation + its WIN_RIPPLE offset, in style
 				// ms), in real ms (the style ms since then taken back out), so a symbol with a win sheet starts it on frame 0
 				// here whatever the frame timing (the landing's landAt rule); in style time, so turbo and a hurry compress it
-				const own = now - cl.t - m.off;
+				const own = now - cl.tCells - m.off;
 				if (!m.begun && own >= 0) {
 					m.begun = true;
 					c.winAt = performance.now() - own / ts();

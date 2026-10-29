@@ -15,7 +15,7 @@ Outputs (static/assets):
   ui/logo-wide.webp, ui/logo-landscape.webp       placeholder wordmark
   ui/10000x.webp                                  placeholder "WIN UP TO 10,000x" tagline strip
   ui/intro/card-1..3.webp                         placeholder primer cards (no longer written or shipped, 2026-10-14)
-  ui/board-backdrop.webp                          the 8x8 cell wells behind the tiles
+  (ui/board-backdrop.webp, the 8x8 cell wells, is no longer written: it left the game on 2026-10-28, asset grade #4)
   tiles/<code>.webp, tiles/x<n>.webp              single tiles for the HTML Game Info paytable
 
 Frames in the atlas:
@@ -261,7 +261,8 @@ def build_cards():
 if __name__ == "__main__":
     # build_atlas() and build_tiles() are NOT called: they would overwrite the real symbol atlas and
     # paytable tiles (tools/pack_symbol_sheets.py). mult_overlay() and cell_well() stay importable.
-    build_backdrop()
+    # build_backdrop() is NOT called (2026-10-28, asset grade #4; Corey "Let's fix #4 then"): the grey cell-well
+    # backdrop left the game (anything under static/assets ships); it stays importable
     build_logo()
     build_tagline()
     # build_cards() is NOT called (2026-10-14): the placeholder primer cards left the shipped build (the animated

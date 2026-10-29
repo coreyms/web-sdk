@@ -27,12 +27,10 @@
 	// The 8x8 cluster-drop board. Every tile here is a position in stateGame.cells, and every move
 	// those cells make was written by a book event (game/bookEventHandlerMap.ts). This component
 	// draws; it decides nothing.
-	import { Sprite } from 'pixi-svelte';
 	import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
-	import { layoutKind } from '../game/layoutSpec';
 	import { SYMBOL_SIZE, GRID, CLUSTER, READOUT } from '../game/constants';
 	import ClusterLabels from './ClusterLabels.svelte';
 	import { playBookEvents } from '../game/utils';
@@ -69,11 +67,6 @@
 		},
 	});
 
-	const layout = $derived(context.stateGameDerived.boardLayout());
-	/** this layout's frame art is loaded (BoardFrame.svelte draws it): the backdrop steps aside */
-	const frameArtIn = $derived(
-		!!(context.stateApp.loadedAssets as Record<string, unknown> | undefined)?.[`boardFrame_${layoutKind(context.stateLayoutDerived.layoutType())}`],
-	);
 
 	// DEV ONLY: the Playwright gates read the game through this, never through Pixi canvas text.
 	// Merged, not assigned — game/deviceTier.ts writes assetTier onto the same object and mount
@@ -248,10 +241,9 @@
 		<!-- NO BOARD WINDOW CLIP (Corey 2026-10-13 12:06, Symbol Fit Playground v7: "board window clip off"): a symbol
 		     on the board, resting or popping, is never cut. Only a tile still coming in over the top edge or leaving under
 		     the bottom edge is cut at the window, by BoardCells' own fall layer -->
-		<!-- the old cell wells: the PRE-LOAD FALLBACK only. Once this layout's frame art is in, its steel
-		     lattice (BoardFrame.svelte, under this container, over the black backing) is the cell grid
-		     and this must not paint over it -->
-		<Sprite key="boardBackdrop" label="boardBackdrop" zIndex={-2} width={layout.width} height={layout.height} visible={!frameArtIn} />
+		<!-- (the old cell-well backdrop, the grey placeholder grid drawn here until this layout's frame art was in, is
+		     gone: 2026-10-28, asset grade #4, Corey "Let's fix #4 then". It painted over the marble wells and the black
+		     backing that BoardFrame.svelte's `under` draws from the first board, frame or no frame, so those show now) -->
 
 		<!-- the 64 tiles and the multiplier badges: raw pooled Pixi sprites synced from the ticker
 		     (BoardCells.svelte says why they are not one pixi-svelte <Sprite> each any more) -->

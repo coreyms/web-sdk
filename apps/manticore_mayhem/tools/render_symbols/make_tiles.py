@@ -15,7 +15,8 @@ import json, os, subprocess, sys, math
 from PIL import Image, ImageOps
 HERE = os.path.dirname(os.path.abspath(__file__))
 BLENDER = "/Applications/Blender.app/Contents/MacOS/Blender"
-BACKDROP = os.path.join(HERE, "..", "..", "static", "assets", "ui", "board-backdrop.webp")
+# the old cell-well backdrop left the game on 2026-10-28 (asset grade #4): the contact sheets read the archived copy
+BACKDROP = os.path.expanduser('~/Desktop/_archive/manticore-placeholder-backgrounds-2026-10-28/board-backdrop.webp')
 TILE = 256
 def arg(k, d=None): return sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
 out = arg("--out", os.path.join(HERE, "out")); only = arg("--only")

@@ -338,9 +338,11 @@ const assets = {
 		),
 		preload: false,
 	},
-	// the 8x8 grid of cell wells behind the tiles: shows in the seams, in the drop and in every
-	// emptied cell during a cascade
-	boardBackdrop: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-backdrop.webp', import.meta.url).href), preload: true },
+	// (THE OLD CELL-WELL BACKDROP, ui/board-backdrop.webp, a flat grey placeholder grid drawn only until a layout's frame
+	// art was in, left the game on 2026-10-28: asset grade #4, the placeholders' rule, Corey: "Oh those shouldn't be in the game at all anymore"
+	// and "Let's fix #4 then". Under it the marble wells below and the frame's black backing were already drawn, so a
+	// layout whose frame is not in yet now shows those. 17 KB; archived in ~/Desktop/_archive/manticore-placeholder-
+	// backgrounds-2026-10-28/.)
 	// THE BOARD WELLS (game/wells.ts, constants WELLS / WELLS_FX; tools/build_board_wells.py): the 64 cells' marble
 	// (four variants in one atlas) and the same veins as light for the reactive light-ups (greyscale, drawn additive).
 	// Both at boot: the wells are under every cell from the first board, and the first win can light the veins.
@@ -414,29 +416,13 @@ const assets = {
 	boardGearsNight_landscape: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-night-landscape.json', import.meta.url).href), preload: false },
 	boardGearsNight_phone: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/board-gears-night-phone.json', import.meta.url).href), stamp(new URL('../../assets/ui/board-gears-night-phone-half.json', import.meta.url).href)), preload: false },
 	boardGearsNight_portrait: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-night-portrait.json', import.meta.url).href), preload: false },
-	// THE PLACEHOLDER BACKGROUND (the citadel courtyard painting for every mode). Every layout now draws a courtyard
-	// scene (below) and only falls back to this while that scene's files are on their way or if they failed: a game
-	// that was turned loads the other layout's scene then (SCENE_LATE). So NONE of these entries stays registered
-	// (see "by boot layout" below): the boot layout never draws its crop, and the other layouts' crops are fetched
-	// with their scene, at the turn (PLACEHOLDER_LATE), not on every session that never turns.
-	bg_base_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-landscape.webp', import.meta.url).href), preload: atBoot('landscape') },
-	bg_base_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-phone.webp', import.meta.url).href), preload: atBoot('phone') },
-	bg_base_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-portrait.webp', import.meta.url).href), preload: atBoot('portrait') },
-	// PLACEHOLDER ALIASES (2026-10-09): bonus-*, super-* and epic-*.webp are byte for byte the base file of
-	// the same layout today (md5 checked), so the nine feature keys point AT the base file: one download
-	// and one texture per layout instead of four (Pixi's loader caches by URL). The keys stay, so
-	// components/Background.svelte and everything else is unchanged. THIS ENDS WHEN THE REAL FEATURE SCENES
-	// ARRIVE: point each key back at its own file. The nine copies left the shipped build on 2026-10-15 (download
-	// analysis S1): they are in ~/Desktop/Manticore Mayhem/_archive/shipped-build-removed-2026-10-15/static/assets/backgrounds/.
-	bg_bonus_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-landscape.webp', import.meta.url).href), preload: false },
-	bg_bonus_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-phone.webp', import.meta.url).href), preload: false },
-	bg_bonus_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-portrait.webp', import.meta.url).href), preload: false },
-	bg_super_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-landscape.webp', import.meta.url).href), preload: false },
-	bg_super_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-phone.webp', import.meta.url).href), preload: false },
-	bg_super_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-portrait.webp', import.meta.url).href), preload: false },
-	bg_epic_landscape: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-landscape.webp', import.meta.url).href), preload: false },
-	bg_epic_phone: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-phone.webp', import.meta.url).href), preload: false },
-	bg_epic_portrait: { type: 'sprite', src: stamp(new URL('../../assets/backgrounds/base-portrait.webp', import.meta.url).href), preload: false },
+	// THE PLACEHOLDER BACKGROUND IS GONE (2026-10-28; Corey: "Oh those shouldn't be in the game at all anymore"). The
+	// three crops of the older citadel painting (backgrounds/base-<landscape|phone|portrait>.webp, 89 to 341 KB; the
+	// bonus / super / epic keys were aliases of the same files) stood in for a turned game's other scene while its files
+	// were on their way, and they were a different picture (sphinx statues, other chains, another castle; the asset
+	// grades of 2026-10-28 gave them 3/10). No bg_* key is registered or fetched now: until a scene is in, the flat sky
+	// colour under its wash is what shows (components/Background.svelte). The files are in ~/Desktop/_archive/
+	// manticore-placeholder-backgrounds-2026-10-28/; the entries are in git history before that date.
 	// THE COURTYARD SCENE (components/Background.svelte, game/scene.ts, tools/build_scene_assets.py; constants SCENE):
 	// the LANDSCAPE and PHONE SIDEWAYS background, one set for both (they share the scene's camera), 2560 wide with a
 	// 1600 wide phone tier twin. The DAY set (backdrop, foreground, the fire pass and the chains' one atlas, which
@@ -654,13 +640,13 @@ for (const entry of Object.values(assets) as { src: unknown; bytes?: number }[])
 // if such a device ever does report a landscape window (a browser's "desktop site" mode can), game/
 // deferredLoad.ts fetches them then, so the worst case is the old flat fallback for one download.
 export const UNREACHABLE_ASSETS: Record<string, { type: string; src: string }> = {};
-const LANDSCAPE_ONLY_KEYS = ['boardFrame_landscape', 'boardGears_landscape', 'boardChains_landscape', 'bg_base_landscape', 'bg_bonus_landscape', 'bg_super_landscape', 'bg_epic_landscape'] as const;
+const LANDSCAPE_ONLY_KEYS = ['boardFrame_landscape', 'boardGears_landscape', 'boardChains_landscape'] as const; // (the placeholder's landscape crops left with it, 2026-10-28)
 const phoneOnlyScreen = (): boolean => {
 	if (!PHONE_TIER || typeof window === 'undefined') return false;
 	const short = Math.min(window.screen?.width ?? Infinity, window.screen?.height ?? Infinity);
 	return short <= LANDSCAPE_MASTER_MIN_SHORT_SIDE && bootLayout !== 'landscape';
 };
-// THE SCENES AND THE PLACEHOLDER, BY BOOT LAYOUT (2026-10-10). Before the unreachable art is taken out below:
+// THE SCENES, BY BOOT LAYOUT (2026-10-10). Before the unreachable art is taken out below:
 //   booted in landscape or phone sideways   the 16:9 scene is the background from the first frame, and NONE of the
 //                                           portrait scene's files is registered.
 //   booted in portrait                      the mirror: the 9:16 scene from the first frame, none of the 16:9
@@ -668,11 +654,9 @@ const phoneOnlyScreen = (): boolean => {
 // (2026-10-12: but for the three files both scenes' skies draw, SCENE_SHARED_KEYS, which every boot registers.)
 // The scene that is not registered waits in SCENE_LATE. The first time the layout becomes one of its own,
 // game/deferredLoad.ts loadSceneLate fetches its day set, then its night set, then its sunset (the Bonus's backdrop).
-// THE PLACEHOLDER'S CROPS are registered in NO boot (2026-10-10; until then the other layouts' crops rode the
-// deferred phase, so a desktop that never turns still fetched base-portrait.webp). The boot layout's crop is never
-// drawn. The other layouts' crops wait in PLACEHOLDER_LATE (the base key per layout: the feature keys were aliases of
-// the same file); loadPlaceholderLate fetches the one for the layout the game was turned to, beside that layout's
-// scene, and it stands in until the scene fades in over it, or for good if the scene's files fail.
+// (THE PLACEHOLDER'S CROPS were registered in no boot from 2026-10-10 and waited in PLACEHOLDER_LATE for a turn; they
+// left the game on 2026-10-28, see the note where their entries were. A turned game shows the flat sky colour under
+// its wash until the late scene's day set is in, or for good if its files fail.)
 export const SCENE_KEYS = {
 	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], sunset: SUNSET_FORE.on ? ['scene_backdrop_sunset', 'scene_fore_sunset'] : ['scene_backdrop_sunset'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
 	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire', 'scenep_ridge_day', 'sceneSky', 'sceneBirds'], night: ['scenep_backdrop_night', 'scenep_fore_night', 'scenep_ridge_night', 'sceneBats'], sunset: ['scenep_backdrop_sunset'], flames: [] },
@@ -684,14 +668,8 @@ export const SCENE_SHARED_KEYS: readonly string[] = [...SCENE_KEYS.portrait.day,
 /** the scene the boot layout draws, and the one that waits */
 export const SCENE_AT_BOOT: keyof typeof SCENE_KEYS = sceneAtBoot ? 'landscape' : 'portrait';
 export const SCENE_LATE: Record<string, { type: string; src: string }> = {};
-export const PLACEHOLDER_LATE: Record<string, { type: string; src: string }> = {};
 {
 	const table = assets as unknown as Record<string, { type: string; src: string }>;
-	for (const key of Object.keys(table)) {
-		if (!/^bg_[a-z]+_(landscape|phone|portrait)$/.test(key)) continue;
-		if (key.startsWith('bg_base_') && key !== `bg_base_${bootLayout}`) PLACEHOLDER_LATE[key] = table[key];
-		delete table[key];
-	}
 	const late = SCENE_KEYS[sceneAtBoot ? 'portrait' : 'landscape'];
 	for (const key of [...late.day, ...late.night, ...late.sunset, ...late.flames]) {
 		// what the boot layout's scene draws too stays registered (it loads with that scene)
@@ -722,7 +700,7 @@ export const FRAME_NIGHT_LATE: Record<string, Record<string, { type: string; src
 if (phoneOnlyScreen()) {
 	const table = assets as unknown as Record<string, { type: string; src: string }>;
 	for (const key of LANDSCAPE_ONLY_KEYS) {
-		if (!table[key]) continue; // the placeholder's landscape crop is already out when the scene is in
+		if (!table[key]) continue;
 		UNREACHABLE_ASSETS[key] = table[key];
 		delete table[key];
 	}

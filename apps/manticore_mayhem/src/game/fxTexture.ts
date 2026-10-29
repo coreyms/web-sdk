@@ -116,6 +116,53 @@ export const raysTexture = (): PIXI.Texture => {
 	return rays;
 };
 
+/** THE WIN BURST'S OWN RAYS (1.0.05 ledger row 4, Corey 2026-10-28 "Build it": the rays out to about 3 cells): the
+ *  shared `raysTexture` above fades to half by the middle of a ray, so drawn 3 cells across its tips were gone past
+ *  about 1.3 cells (tuned by eye on the before / after captures). These hold their light further out (1 -> 0.7 at the
+ *  middle -> 0), a little wider, and are baked at 256 px so 3 cells on a 2x desktop stay smooth. The sting keeps the
+ *  shared texture. White with alpha, built once. */
+let winRays: PIXI.Texture | null = null;
+export const WIN_RAYS_PX = 256;
+const WIN_RAY_COUNT = 14;
+export const winRaysTexture = (): PIXI.Texture => {
+	if (winRays) return winRays;
+	const c = document.createElement('canvas');
+	c.width = WIN_RAYS_PX;
+	c.height = WIN_RAYS_PX;
+	const ctx = c.getContext('2d')!;
+	const r = WIN_RAYS_PX / 2;
+	ctx.translate(r, r);
+	ctx.globalCompositeOperation = 'lighter';
+	for (let i = 0; i < WIN_RAY_COUNT; i += 1) {
+		// long and short rays alternate, the short ones turned a little off the even spacing so the ring never reads regular
+		const len = (i % 2 ? 0.66 : 0.98) * r;
+		const half = (i % 2 ? 0.055 : 0.08) * Math.PI;
+		ctx.save();
+		ctx.rotate(((i + (i % 2 ? 0.12 : 0)) / WIN_RAY_COUNT) * Math.PI * 2);
+		const g = ctx.createLinearGradient(0, 0, len, 0);
+		g.addColorStop(0, 'rgba(255,255,255,1)');
+		g.addColorStop(0.5, 'rgba(255,255,255,0.7)');
+		g.addColorStop(0.8, 'rgba(255,255,255,0.3)');
+		g.addColorStop(1, 'rgba(255,255,255,0)');
+		ctx.fillStyle = g;
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.lineTo(len * Math.cos(half), len * Math.sin(half));
+		ctx.lineTo(len, 0);
+		ctx.lineTo(len * Math.cos(half), -len * Math.sin(half));
+		ctx.closePath();
+		ctx.fill();
+		ctx.restore();
+	}
+	const h = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.5);
+	h.addColorStop(0, 'rgba(255,255,255,0.5)');
+	h.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = h;
+	ctx.fillRect(-r, -r, WIN_RAYS_PX, WIN_RAYS_PX);
+	winRays = PIXI.Texture.from(c);
+	return winRays;
+};
+
 /** the soft round glow at the heart of the burst (the brief: "no white square, a soft round glow at most"): a smooth
  *  falloff to nothing at the edge, 64 px across */
 let core: PIXI.Texture | null = null;
