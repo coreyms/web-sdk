@@ -113,7 +113,10 @@ WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} writte
 # stay untouched). The folder holds drop/ and idle/ (same file names as animation/<folder>/) and tile/<code>.webp.
 #   S: the War Standard re-grade (review B5, Corey 2026-10-17 13:08, no Blender), written by tools/grade_war_standard.py;
 #   since revision 2 (2026-10-19) the clips come from graded_r2/ (the same grade, applied by the r2 art job before its
-#   painted light) and the static tile still from graded_r1/tile/ (TILE_OVERRIDES)
+#   painted light) and the static tile still from graded_r1/tile/ (TILE_OVERRIDES). Since 2026-10-29 the FS War Standard
+#   (Cinzel 900 "FS" painted into a flattened cloth, the sun emblem gone; Corey 2026-10-29 "9px", the S 9 px right of the
+#   F so they do not touch): clips and tile from drafts/fs-2026-10-28/delivery_s9/ (masters graded and lit at 1.5x the
+#   512 framing, which process() fits at any size)
 #   M1 M2 M3 L4 L3: the symbol recolour (an Engine.io developer's "too much yellow"; Corey 2026-10-22 "Go"): each of the
 #   five now has its own colour (helmet crimson, dagger teal, chalice blue, seal green, key violet), graded per frame from
 #   the masters with ID masks (images/symbol_recolour_r1/official/<CODE>/NOTES.md); clips and tile from graded_r1/. The
@@ -125,9 +128,10 @@ WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} writte
 RECOLOUR_R1 = {"M1": "M1_persian-helmet", "M2": "M2_persian-dagger", "M3": "M3_royal-chalice",
                "L4": "L4_royal-seal", "L3": "L3_ancient-key",
                "L2": "L2_bull-skull", "H1": "H1_ancient-crown"}
-SOURCE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r2"),
+FS_DELIVERY = os.path.join(SYMBOLS_DIR, "S_war-standard", "drafts", "fs-2026-10-28", "delivery_s9")
+SOURCE_OVERRIDES = {"S": os.path.join(FS_DELIVERY, "masters"),
                     **{c: os.path.join(SYMBOLS_DIR, d, "graded_r1") for c, d in RECOLOUR_R1.items()}}
-TILE_OVERRIDES = {"S": os.path.join(SYMBOLS_DIR, "S_war-standard", "graded_r1", "tile", "s.webp"),
+TILE_OVERRIDES = {"S": os.path.join(FS_DELIVERY, "tile", "s.webp"),
                   **{c: os.path.join(SYMBOLS_DIR, d, "graded_r1", "tile", c.lower() + ".webp") for c, d in RECOLOUR_R1.items()}}
 FRAME_RE = re.compile(r"^(?:[A-Za-z0-9]+_(?:drop|idle|win)(?:_r\d+)?_)?\d{3,4}\.png$")
 

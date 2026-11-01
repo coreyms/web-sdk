@@ -1516,7 +1516,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "S_war-standard/graded_r2/idle_r2",
+   "source": "S_war-standard/drafts/fs-2026-10-28/delivery_s9/masters/idle_r2",
    "sourcePx": 512,
    "box512": [
     79.073,
@@ -1577,6 +1577,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "2cc79408"
+  "pngHash": "feb08fcb"
  }
 }

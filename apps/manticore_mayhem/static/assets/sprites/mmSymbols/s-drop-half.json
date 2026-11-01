@@ -1216,7 +1216,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "S_war-standard/graded_r2/drop_r2",
+   "source": "S_war-standard/drafts/fs-2026-10-28/delivery_s9/masters/drop_r2",
    "sourcePx": 512,
    "box512": [
     79.073,
@@ -1277,6 +1277,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "58f52b08"
+  "pngHash": "9b439690"
  }
 }
