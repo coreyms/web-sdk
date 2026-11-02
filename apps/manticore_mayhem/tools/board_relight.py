@@ -82,6 +82,74 @@ FIRE_SCALE = 0.5
 PAD = 2
 Q_PLATE = 85
 Q_GEARS = 90
+
+# ---- THE CONTRAST GRADE (Corey 2026-11-01, looking at staging with fresh eyes: "The board frame doesn't have a lot of contrast
+# in it, needs work. I'd keep the shape of it the same, but like the gears don't pop, we can probably make the dark parts of
+# those black to contrast more. The chains appear soft as well") ----------------------------------------------------------
+# A tone grade in the compositing step, never a remodel or a relight: the shape, the camera, the cut-outs, every alpha, the
+# file names, sizes and the atlas layout are untouched. Every lit layer of one lighting (the plate, its six gear loops, its
+# chain strip) takes the SAME curve, anchored on that plate's own median luminance over its opaque pixels, so the night,
+# already dark, is graded in proportion and not crushed flat. A pixel at luminance L keeps its hue and is scaled by
+# 1 - crush x s(L): s = 1 below lo x median, 0 above hi x median, a smoothstep between. Day (median 107): a 37 goes to about
+# 10 (the gear recesses, the grooves, the dirt round the rivets: near black), 60 to 29, 75 to 56, 97 and up untouched (the
+# gold stays where it is). The fire layers (additive light) are not graded: they add to the graded night, and light has no
+# dark parts. A gear cell is solved so that cell over graded plate = grade(cell over plate), pixel by pixel (the feather's
+# partial alphas included), so frame 0 over the plate is still the rest picture, graded. Alpha never changes anywhere.
+# Corey on the card, 2026-11-01 evening: "The two outer gears look good, but I'd revert the inner sideways gear. The chain
+# looked better beforehand." So the plates and the wheel and pinion loops (`parts`) take the grade; the end gear (the worm seen
+# edge on, next to the plaque) keeps its ungraded loops over the graded plate, and the chain strips are not graded (`chains`).
+GRADE = {'on': True, 'crush': 0.72, 'lo': 0.41, 'hi': 0.90, 'parts': ('wheel', 'pinion'), 'chains': False}
+_anchor_cache = {}
+
+
+def _lum(a):
+    return 0.2126 * a[..., 0] + 0.7152 * a[..., 1] + 0.0722 * a[..., 2]
+
+
+def grade_anchor(st):
+    """the lighting's median luminance over its plate's opaque pixels (day / night); the fire takes no grade"""
+    if st not in _anchor_cache:
+        a = np.asarray(Image.open(PLATE[st]).convert('RGBA')).astype(np.float64)
+        _anchor_cache[st] = float(np.median(_lum(a)[a[..., 3] > 250]))
+    return _anchor_cache[st]
+
+
+def grade_factor(rgb, st):
+    """per pixel: what the colour is scaled by (1 = untouched); rgb float (..., 3+)"""
+    med = grade_anchor(st)
+    lo, hi = GRADE['lo'] * med, GRADE['hi'] * med
+    t = np.clip((_lum(rgb) - lo) / max(hi - lo, 1e-6), 0, 1)
+    return 1 - GRADE['crush'] * (1 - t * t * (3 - 2 * t))
+
+
+def grade_image(im, st):
+    """a straight-alpha RGBA image graded for its lighting (alpha kept); the fire and a grade that is off pass through"""
+    if not GRADE['on'] or st == 'fire':
+        return im
+    a = np.asarray(im.convert('RGBA')).astype(np.float64)
+    a[..., :3] *= grade_factor(a, st)[..., None]
+    return Image.fromarray(np.clip(a + 0.5, 0, 255).astype(np.uint8), 'RGBA')
+
+
+def grade_cell(cell, plate, st):
+    """a gear loop cell (straight RGBA uint8 strip, alpha x f) solved for the graded plate: with R = P (1 - a) + C a the
+    cell's colour becomes (grade(R) - grade(P) (1 - a)) / a, so what the stack shows is grade(R). Where the plate is not
+    under it (its alpha under half: a tooth past the housing, over the black backing) the cell's own colour is graded."""
+    C = cell.astype(np.float64)
+    a = C[..., 3:] / 255
+    P = plate[..., :3]
+    R = P * (1 - a) + C[..., :3] * a
+    gR = R * grade_factor(R, st)[..., None]
+    gP = P * grade_factor(P, st)[..., None]
+    out = C.copy()
+    on = a[..., 0] > 0
+    under = plate[..., 3] >= 128
+    m = on & under
+    out[..., :3][m] = np.clip((gR[m] - gP[m] * (1 - a[m])) / a[m], 0, 255)
+    m = on & ~under
+    out[..., :3][m] = C[..., :3][m] * grade_factor(C[..., :3], st)[m][..., None]
+    return np.clip(out + 0.5, 0, 255).astype(np.uint8)
+
 # layouts whose new layers also ship a half size twin for the PHONE TIER (game/deviceTier.ts): the phone master's
 # textures are 2 texture px per master px and a phone tier screen draws at most 1.01 canvas px per master px (short
 # side <= 500 CSS px over the 740 master, renderer resolution capped at 1.5), so the half twin is still 1 : 1 there
@@ -300,7 +368,15 @@ def build(ui_dir, frame_spec, log=print):
     loops = load_loops(report, weights)
     fire_full = fire_plate(weights)
     checks = check_full(loops, weights, fire_full, log)
-    night_full = Image.open(PLATE['night']).convert('RGBA')
+    # THE CONTRAST GRADE, after the checks (which hold the ungraded stack against gears_sync_r1's own composites): the day
+    # and night loops are solved for their graded plate; the plates and the rests are graded below as they are opened
+    if GRADE['on']:
+        plate_full = {st: np.asarray(Image.open(PLATE[st]).convert('RGBA')).astype(np.float64)[Y0:Y1] for st in ('day', 'night')}
+        for key in list(loops):
+            if key[0] != 'fire' and key[1] in GRADE['parts']:
+                loops[key] = grade_cell(loops[key], plate_full[key[0]], key[0])
+        log(f"  grade: crush {GRADE['crush']} below lo {GRADE['lo']} .. hi {GRADE['hi']} of the plate's median luminance (day {grade_anchor('day'):.1f}, night {grade_anchor('night'):.1f}); loops graded {GRADE['parts']}, the other loops, the chains ({GRADE['chains']}) and the fire layers untouched")
+    night_full = grade_image(Image.open(PLATE['night']).convert('RGBA'), 'night')
     shadow_a = np.asarray(Image.open(SHADOW).convert('RGBA'))[..., 3]
     white = np.full(shadow_a.shape + (4,), 255, np.uint8)
     white[..., 3] = shadow_a
@@ -312,7 +388,8 @@ def build(ui_dir, frame_spec, log=print):
         x0, y0, x1, y1 = report['boxes_render_px'][f'{g}_{s}']
         kept[(g, s)] = (max(x0, int(xs.min())), max(y0, int(ys.min()) + Y0), min(x1, int(xs.max()) + 1), min(y1, int(ys.max()) + 1 + Y0))
     spec = {'source': 'export_v5n_nofinials (gears_sync_r1 + relight_r1 methods, board v5n)', 'frames': N, 'trimPx': TRIM_PX, 'featherPx': FEATHER_PX, 'parts': [f'{g}_{s}' for g, s in PARTS],
-            'loop': {f'{g}_{s}': FRAMES[g] for g, s in PARTS}, 'checks': checks, 'layouts': {}}
+            'loop': {f'{g}_{s}': FRAMES[g] for g, s in PARTS}, 'checks': checks,
+            'grade': {**GRADE, 'parts': list(GRADE['parts']), 'median': {st: round(grade_anchor(st), 2) for st in ('day', 'night')}, 'fire': 'untouched'} if GRADE['on'] else {'on': False}, 'layouts': {}}
     for kind, fs in frame_spec.items():
         (cx, cy), (cw, ch), (tw, th) = fs['crop'], fs['size'], fs['tex']
         sx, sy = tw / cw, th / ch
@@ -321,8 +398,8 @@ def build(ui_dir, frame_spec, log=print):
         out = {'tiers': {}}
         # ---- the plates: night at the day plate's size, fire at half of it (opaque: it is added)
         night = night_full.crop(fbox).resize((tw, th), Image.LANCZOS)
-        plates = {'day': Image.open(PLATE['day']).convert('RGBA').crop(fbox).resize((tw, th), Image.LANCZOS), 'night': night}
-        rests = {st: Image.open(REST[st]).convert('RGBA').crop(fbox).resize((tw, th), Image.LANCZOS) for st in ('day', 'night')}
+        plates = {'day': grade_image(Image.open(PLATE['day']).convert('RGBA'), 'day').crop(fbox).resize((tw, th), Image.LANCZOS), 'night': night}
+        rests = {st: grade_image(Image.open(REST[st]).convert('RGBA'), st).crop(fbox).resize((tw, th), Image.LANCZOS) for st in ('day', 'night')}
         night.save(os.path.join(ui_dir, f'board-frame-night-{kind}.webp'), 'WEBP', quality=Q_PLATE, method=6, alpha_quality=100)
         ftw, fth = math.ceil(tw * FIRE_SCALE), math.ceil(th * FIRE_SCALE)
         fire = Image.fromarray(fire_full, 'RGB').crop(fbox).resize((ftw, fth), Image.LANCZOS)

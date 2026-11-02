@@ -106,3 +106,24 @@ export const stagingFlare: boolean | null = (() => {
 	const raw = new URLSearchParams(window.location.search).get('flare');
 	return raw === '1' ? true : raw === '0' ? false : null;
 })();
+
+// ---- THE CHAIN HAUL AND THE GEARS ON A SPIN (CHAIN_BOW.haul*, CHAIN_GUST.press; Corey 2026-11-01: "Some easy wins we could get
+// is on Spin, where the gears and the chains move, increase the movement, of the chains and the gears") -------------------
+// `?haulLinks=<n>` the links one press hauls (the gears turn n loops), `?haulMs=<ms>` how long the haul takes (style ms),
+// `?haulOver=<s>` the backOut overshoot (svelte's backOut is s 1.70158; 0 = no overshoot), `?spinLean=<share of a kick>` a
+// chain lean on every press (0 = none), on a staging build or the dev server, so the four can be tried side by side from
+// feedback/scene-quick-wins-2026-11-01/haul-sliders.html without a rebuild. Without them each keeps its constant: Corey's
+// picks of 2026-11-01 (4 links, 1280 ms, overshoot 1.2, lean 0.25). Never in a production build (STAGING_TOOLS is a constant
+// false there and the bundler drops the reads).
+export const HAUL_LINKS_RANGE = { min: 0.25, max: 6 } as const;
+export const HAUL_MS_RANGE = { min: 100, max: 5000 } as const;
+export const HAUL_OVER_RANGE = { min: 0, max: 6 } as const;
+export const SPIN_LEAN_RANGE = { min: 0, max: 1 } as const;
+/** `?haulLinks=` (null: none, CHAIN_BOW.haulLinks) */
+export const stagingHaulLinks: number | null = rangedKnob('haulLinks', HAUL_LINKS_RANGE);
+/** `?haulMs=` (null: none, CHAIN_BOW.haulMs) */
+export const stagingHaulMs: number | null = rangedKnob('haulMs', HAUL_MS_RANGE);
+/** `?haulOver=` (null: none, CHAIN_BOW.haulEasing) */
+export const stagingHaulOver: number | null = rangedKnob('haulOver', HAUL_OVER_RANGE);
+/** `?spinLean=` (null: none, CHAIN_GUST.press.strength) */
+export const stagingSpinLean: number | null = rangedKnob('spinLean', SPIN_LEAN_RANGE);

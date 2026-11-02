@@ -10,7 +10,7 @@ import type { Bet } from './typesBookEvent';
 import { playBet, convertTorResumableBet } from './utils';
 import { stateGameDerived } from './stateGame.svelte';
 import { eventEmitter } from './eventEmitter';
-import { chainHaulPress } from './featureFx';
+import { chainHaulPress, chainGust } from './featureFx';
 import { CHAIN_BOW } from './constants';
 import { creatureRoundRequest } from './creatureLoad';
 import { hudWinPress } from './hudWin.svelte';
@@ -48,6 +48,8 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		// THE CHAIN HAUL (CHAIN_BOW.haulOnSpin): every spin press hauls the board's chain loop one link down
 		// (components/BoardFrame.svelte draws it), a press, the space bar and an autoplay spin alike
 		if (CHAIN_BOW.haulOnSpin) chainHaulPress(Math.max(0.2, stateGameDerived.timeScale()));
+		// THE PRESS LEAN (CHAIN_GUST.press, 2026-11-01): off at strength 0, a candidate on Corey's haul slider page
+		if (CHAIN_BOW.haulOnSpin) chainGust('press', Math.max(0.2, stateGameDerived.timeScale()));
 		// THE HUD WIN (Corey 2026-10-21): every spin's press clears it, by hand, the space bar or Autoplay ("it should clear
 		// after a winning round when the spin button is hit"); Autoplay waits for the win to be seen first (AUTOPLAY_WIN_SEEN)
 		hudWinPress();

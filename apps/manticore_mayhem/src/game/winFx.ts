@@ -50,6 +50,18 @@ export const winFxStats = {
 	burstPeak: 0,
 	burstDropped: 0,
 	shakes: 0,
+	/** frame brightenings cued (WIN_FX.bright) */
+	brights: 0,
+};
+
+/** THE FRAME BRIGHTENING (WIN_FX.bright, 1.0.05 row 13): the board face's additive plate. The engine lights it at the
+ *  first pop of a step paying bright.fromX or more (`t0` REAL ms, -1 = dark; `peak` the plate's top alpha);
+ *  components/BoardCells.svelte draws it for bright.ms and puts t0 back to -1. Never awaited. */
+export const boardBright = { t0: -1, peak: 0 };
+export const cueBoardBright = (peak: number) => {
+	boardBright.t0 = performance.now();
+	boardBright.peak = peak;
+	winFxStats.brights += 1;
 };
 
 /** ask for one symbol's burst; `ts` the style rate at the call (lives are style ms, divided by it) */

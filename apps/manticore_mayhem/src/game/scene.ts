@@ -839,6 +839,9 @@ export class SceneView {
 		const lag = CHAIN_GUST.sceneLagMs;
 		const live = this.gustLive;
 		let p = 0;
+		// REPLACE, NOT ADD (Corey 2026-11-02: "Replace on the chain lean/kick, yes"): a drop-in's gust starting while the press
+		// lean is in flight throws the lean away here too: its pulse, the lagged gust drive and each chain's own swing
+		let replace = false;
 		for (let i = live.length - 1; i >= 0; i -= 1) {
 			const g = live[i];
 			const start = gustStart(g, lag);
@@ -852,8 +855,23 @@ export class SceneView {
 				this.gustUpTo = start;
 				this.gustStartAt = now;
 				this.aim(g.sourceX);
+				if (g.kind !== 'press') replace = true;
 			}
 			p += gustPulse(g, lag, CHAIN_GUST.unitPx.scene, now);
+		}
+		if (replace) {
+			for (let i = live.length - 1; i >= 0; i -= 1) {
+				if (live[i].kind !== 'press') continue;
+				live[i] = live[live.length - 1];
+				live.length -= 1;
+			}
+			p = 0;
+			for (const g of live) p += gustPulse(g, lag, CHAIN_GUST.unitPx.scene, now);
+			this.g = 0;
+			for (let i = 0; i < 2; i += 1) {
+				const c = this.chains[SIDES[i]];
+				c.x = c.v = c.xl = c.b = c.bv = 0;
+			}
 		}
 		this.gustRaw = p;
 		this.gustAt = now;

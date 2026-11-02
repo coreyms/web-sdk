@@ -91,7 +91,9 @@ SRC_DEFAULT = Path.home() / "Desktop" / "Manticore Mayhem" / "images" / "ui"
 # texture px per ship px, by atlas group and tier
 TIERS = {
     # plaque 2 (was 3/2): Corey 2026-10-17 10:41 "Yes sharper plaque", for 1920-class DPR 2 desktops (+116 KB, +5.1 MB GPU)
-    "": {"plaque": Fraction(2), "fx": Fraction(3, 2), "glint": Fraction(1), "text": Fraction(3, 2)},
+    # plaque 3 (was 2): Corey's standing 3x density rule (2026-10-28): 3 texture px per CSS px at 1440 x 900 (0.844 CSS px per
+    # ship px). Needs the 4x cut-outs (--drop ... --layered 4x, the v8 drop of 2026-11-01): a 2x set cannot feed it
+    "": {"plaque": Fraction(3), "fx": Fraction(3, 2), "glint": Fraction(1), "text": Fraction(3, 2)},
     # plaque 3/2 (was 1): Corey 2026-10-17 11:01, phones on the 2x/3x iPhone caps drew the plaque magnified (1.24 device px per texel at 3x)
     "-half": {"plaque": Fraction(3, 2), "fx": Fraction(1), "glint": Fraction(3, 4), "text": Fraction(1)},
     # TEST ONLY (--tiers ...,mid): not built by default, not loaded by the game
@@ -462,7 +464,9 @@ def main() -> None:
         if L["type"] == "static":
             layers_out.append({"name": n, "type": "static", "frame": f"stg_{n}"})
             rect(n, [L["pos"][0], L["pos"][1], pw / TS, ph / TS])
-            art_boxes.append([L["pos"][0] + xs.min() / TS, L["pos"][1] + ys.min() / TS, L["pos"][0] + (xs.max() + 1) / TS, L["pos"][1] + (ys.max() + 1) / TS])
+            # an empty layer (v8, 2026-11-01: the centre head's wings and front pieces are gone, their 6 layers kept empty
+            # so the 15-layer contract holds) adds nothing to the art box
+            if len(xs): art_boxes.append([L["pos"][0] + xs.min() / TS, L["pos"][1] + ys.min() / TS, L["pos"][0] + (xs.max() + 1) / TS, L["pos"][1] + (ys.max() + 1) / TS])
             continue
         G = by[L["share"]] if "share" in L else L  # the back sheets draw the front sheet's geometry
         nv = len(G["uvs"]) // 2
@@ -476,7 +480,7 @@ def main() -> None:
         # at the bind pose a mover's texture is a plain translation of its cut-out: its solid art joins the art box
         o = np.array(L["bind"], np.float64).reshape(-1, 2) - np.array(L["uvs"], np.float64).reshape(-1, 2) / TS
         assert np.abs(o - o.mean(0)).max() < 0.01, n
-        art_boxes.append([o[0, 0] + xs.min() / TS, o[0, 1] + ys.min() / TS, o[0, 0] + (xs.max() + 1) / TS, o[0, 1] + (ys.max() + 1) / TS])
+        if len(xs): art_boxes.append([o[0, 0] + xs.min() / TS, o[0, 1] + ys.min() / TS, o[0, 0] + (xs.max() + 1) / TS, o[0, 1] + (ys.max() + 1) / TS])
         uv = np.array(L["uvs"], np.float64).reshape(-1, 2) / [pw, ph]
         idle = np.array(L["frames"]["idle_all"], np.float64)
         assert idle.shape == (106, nv * 2) and np.abs(idle[105] - idle[0]).max() == 0  # frame 105 is frame 0

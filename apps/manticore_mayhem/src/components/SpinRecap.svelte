@@ -81,7 +81,13 @@
 
 	onMount(() => {
 		let down: { x: number; y: number; t: number; inBox: boolean } | null = null;
-		const canvasOf = () => context.stateApp.pixiApplication?.canvas as HTMLCanvasElement | undefined;
+		// the Application exists before its init() resolves, and Pixi's `app.canvas` is `this.renderer.canvas`: a press
+		// on the loading screen under load (the intermittent probe pageerror "Cannot read properties of undefined
+		// (reading 'canvas')", traced 2026-11-02 to this onUp) reached it with no renderer yet. No renderer, no canvas.
+		const canvasOf = () => {
+			const app = context.stateApp.pixiApplication;
+			return app?.renderer ? (app.canvas as HTMLCanvasElement) : undefined;
+		};
 		const onDown = (e: PointerEvent) => {
 			const inBox = !!box && box.contains(e.target as Node);
 			down = { x: e.clientX, y: e.clientY, t: performance.now(), inBox };

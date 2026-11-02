@@ -37,7 +37,7 @@ export const kickClank = (why: string): boolean => {
 };
 
 /** a gust has been pushed: its rattle when the board's chains start to lean, `startAt` (performance.now() ms) */
-export const gustRattle = (kind: 'plaque' | 'logo' | 'tier', startAt: number): void => {
+export const gustRattle = (kind: 'plaque' | 'logo' | 'tier' | 'press', startAt: number): void => {
 	const name = CHAIN_SOUND.gust[kind];
 	if (!name) return;
 	setTimeout(() => ask(name, kind), Math.max(0, startAt - performance.now()));

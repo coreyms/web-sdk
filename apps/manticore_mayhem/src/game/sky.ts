@@ -856,7 +856,8 @@ export class SkyView {
 
 	/** one kind's rows of frames (<prefix>_<row>_<frame>.png: the bats' sheet has the birds' rows) and its pool */
 	private buildFlyers(flyers: Flyers, rows: PIXI.Texture[][], prefix: string, tex: Textures): void {
-		const spec = SCENE_SPEC.sky.birds;
+		// each kind's own rows and frames per row (2026-11-01: the birds' original 8-frame sheet, the bats' 16-frame one)
+		const spec = prefix === 'bird' ? SCENE_SPEC.sky.birds : SCENE_SPEC.sky.bats;
 		for (let r = 0; r < spec.rows; r += 1) {
 			const row: PIXI.Texture[] = [];
 			for (let k = 0; k < spec.framesPerRow; k += 1) {

@@ -657,9 +657,9 @@ export const BOARD_ART = {
 			0.4688
 		],
 		"s": [
-			-0.3672,
-			-0.4609,
-			0.3672,
+			-0.4453,
+			-0.4688,
+			0.4375,
 			0.4688
 		],
 		"w": [
@@ -745,6 +745,22 @@ export const BOARD_ART = {
 				"turned_max": 36.0
 			}
 		},
+		"grade": {
+			"on": true,
+			"crush": 0.72,
+			"lo": 0.41,
+			"hi": 0.9,
+			"parts": [
+				"wheel",
+				"pinion"
+			],
+			"chains": false,
+			"median": {
+				"day": 107.34,
+				"night": 29.53
+			},
+			"fire": "untouched"
+		},
 		"layouts": {
 			"landscape": {
 				"tiers": {
@@ -756,7 +772,7 @@ export const BOARD_ART = {
 							],
 							"cells": 101,
 							"residentMB": 9.7,
-							"bytes": 1003876
+							"bytes": 1037280
 						},
 						"night": {
 							"size": [
@@ -765,7 +781,7 @@ export const BOARD_ART = {
 							],
 							"cells": 200,
 							"residentMB": 17.86,
-							"bytes": 1070505
+							"bytes": 1077967
 						},
 						"cellsMB": {
 							"day": 8.42,
@@ -910,7 +926,7 @@ export const BOARD_ART = {
 							],
 							"cells": 101,
 							"residentMB": 5.79,
-							"bytes": 821280
+							"bytes": 844782
 						},
 						"night": {
 							"size": [
@@ -919,7 +935,7 @@ export const BOARD_ART = {
 							],
 							"cells": 200,
 							"residentMB": 10.85,
-							"bytes": 864389
+							"bytes": 868743
 						},
 						"cellsMB": {
 							"day": 5.01,
@@ -1064,7 +1080,7 @@ export const BOARD_ART = {
 							],
 							"cells": 101,
 							"residentMB": 8.24,
-							"bytes": 1036685
+							"bytes": 1065587
 						},
 						"night": {
 							"size": [
@@ -1073,7 +1089,7 @@ export const BOARD_ART = {
 							],
 							"cells": 200,
 							"residentMB": 15.55,
-							"bytes": 1078073
+							"bytes": 1082247
 						},
 						"cellsMB": {
 							"day": 7.2,
@@ -1094,7 +1110,7 @@ export const BOARD_ART = {
 							],
 							"cells": 101,
 							"residentMB": 2.47,
-							"bytes": 403496
+							"bytes": 411520
 						},
 						"night": {
 							"size": [
@@ -1103,7 +1119,7 @@ export const BOARD_ART = {
 							],
 							"cells": 200,
 							"residentMB": 4.04,
-							"bytes": 435212
+							"bytes": 435708
 						},
 						"cellsMB": {
 							"day": 1.8,

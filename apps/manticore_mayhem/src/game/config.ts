@@ -11,7 +11,7 @@ export default {
 	// winning cluster, the free-spins rescue swipe, Free Spins 10x / Super 25x floors (freeSpinsMinWin / superMinWin)
 	mathVersion: '2026.10.18',
 	providerName: 'polymath_games',
-	gameName: 'Manticore Mayhem',
+	gameName: 'Manticore Unleashed',
 	gameID: 'manticore_mayhem',
 	rtp: 0.967,
 	numReels: 8,

@@ -81,7 +81,7 @@
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { dotTexture, glowTexture, innerGlowTexture, DOT_PX, GLOW_PX, winRaysTexture, coreTexture, emberTexture, WIN_RAYS_PX, CORE_PX, EMBER_W } from '../game/fxTexture';
 	import { takeSparkles, seeded, sparkleStats, motionLog, type Burst } from '../game/sparkles';
-	import { winFx, shineCells, takeWinBursts, winFxStats, type ShineCell, type WinBurst } from '../game/winFx';
+	import { winFx, shineCells, takeWinBursts, winFxStats, boardBright, type ShineCell, type WinBurst } from '../game/winFx';
 	import { enableMipmaps, mipLevels } from '../game/mipmaps';
 	import { boardExit, boardExitPressing, plateGhosts, type Cell } from '../game/stateGame.svelte';
 	import { BOARD_EXIT, ANTICIPATION_TEASE, CLUSTER, STING, SCATTER_STING, GRAVITY_DROP, FALL_CUT, WIN_FX } from '../game/constants';
@@ -1234,9 +1234,21 @@
 	emberLayer.blendMode = 'add';
 	const embers: Ember[] = [];
 	const freeEmbers: Ember[] = [];
+	// THE FRAME BRIGHTENING (WIN_FX.bright, 1.0.05 row 13): one additive plate the size of the board over the tiles (the
+	// board is GRID x GRID cells of SYMBOL_SIZE), lit by the engine (winFx boardBright) for bright.ms REAL ms at the first
+	// pop of a step paying bright.fromX or more. A sprite's alpha and tint: no filter, no new texture.
+	const brightPlate = new PIXI.Sprite(PIXI.Texture.WHITE);
+	brightPlate.position.set(0, 0);
+	brightPlate.setSize(Math.round(Math.sqrt(CELL_COUNT)) * SYMBOL_SIZE, Math.round(Math.sqrt(CELL_COUNT)) * SYMBOL_SIZE);
+	brightPlate.blendMode = 'add';
+	brightPlate.tint = WIN_FX.bright.tint;
+	brightPlate.zIndex = 11.5;
+	brightPlate.eventMode = 'none';
+	brightPlate.visible = false;
 	if (NEW_FX) {
 		parent.addToParent(burstLayer);
 		parent.addToParent(emberLayer);
+		parent.addToParent(brightPlate);
 		for (let i = 0; i < BR.maxCells; i += 1) {
 			const rays = new PIXI.Sprite(winRaysTexture());
 			const core = new PIXI.Sprite(coreTexture());
@@ -1331,6 +1343,18 @@
 	const envelope = (v: number, inShare: number, pow = 2) => (v < inShare ? v / inShare : (1 - (v - inShare) / (1 - inShare)) ** pow);
 	let emberWarm = 3;
 	const tickWinFx = (now: number) => {
+		// THE FRAME BRIGHTENING (winFx boardBright): the plate's alpha this frame, up to the peak at peakAt of ms, then down
+		if (boardBright.t0 >= 0) {
+			const BB = WIN_FX.bright;
+			const u = (now - boardBright.t0) / Math.max(1, BB.ms);
+			if (u >= 1) {
+				boardBright.t0 = -1;
+				brightPlate.visible = false;
+			} else {
+				brightPlate.alpha = boardBright.peak * (u < BB.peakAt ? u / BB.peakAt : (1 - u) / (1 - BB.peakAt));
+				brightPlate.visible = true;
+			}
+		} else if (brightPlate.visible) brightPlate.visible = false;
 		const fresh = takeWinBursts();
 		for (let i = 0; i < fresh.length; i += 1) spawnWin(fresh[i]);
 		// the particle pipe compiles on its first render: at mount, not at the first pop (as the sparkles do)

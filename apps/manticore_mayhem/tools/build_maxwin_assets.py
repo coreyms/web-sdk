@@ -3,7 +3,8 @@
 
 The win plaque's two looks (tools/build_plaque_text.py), baked BIG enough to fill a screen, since the plaque's
 own atlases are cut for a plaque (its MAX WIN title is 528 px wide, its digits 84 px tall):
-  titles   Macondo Swash Caps, POLISHED GOLD with the additive ember halo: MAYHEM, UNLEASHED, MAX WIN
+  titles   Macondo Swash Caps, POLISHED GOLD with the additive ember halo: MANTICORE, UNLEASHED, MAX WIN
+           (the first line read MAYHEM up to 1.0.04; MANTICORE UNLEASHED, Corey 2026-11-01)
   glyphs   Rakkas, FORGED: what an amount and a multiple can show (build_plaque_text.LABEL_CHARS: every currency
            mark of utils-shared/amount.ts, an unknown currency's upper case code, digits, separators and "x")
 
@@ -46,7 +47,9 @@ TITLE_EM = 330
 GLYPH_EM = 240  # the amount's cap about 160 px full tier
 # name -> (text, base gold, ember halo strength). MAX WIN is the plaque's own win_max recipe.
 TITLES = {
-    "mw_mayhem": ("MAYHEM", (242, 194, 92), 0.42),
+    # MANTICORE UNLEASHED, Corey 2026-11-01 (the game resubmits under that name): the first line read MAYHEM up to
+    # 1.0.04. The key stays mw_mayhem (constants MAX_WIN.titleInk, the screen's slots and the probes all name it).
+    "mw_mayhem": ("MANTICORE", (242, 194, 92), 0.42),
     "mw_unleashed": ("UNLEASHED", (242, 194, 92), 0.42),
     "mw_max": ("MAX WIN", (250, 214, 120), 0.5),
 }

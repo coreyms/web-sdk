@@ -182,6 +182,8 @@
 				count: () => gustFx.count,
 				constants: () => JSON.parse(JSON.stringify(CHAIN_GUST)),
 				enable: (on: boolean) => (gustFx.on = !!on),
+				/** these kinds are pushed at strength 0 (still a gust: the replace fires), nothing else changes: a probe's baseline */
+				mute: (kinds: ChainGustKind[]) => (gustFx.muted = new Set(kinds)),
 				push: (kind: ChainGustKind, sourceX: number | null = null) => chainGust(kind, Math.max(0.2, context.stateGameDerived.timeScale()), sourceX),
 			},
 		});

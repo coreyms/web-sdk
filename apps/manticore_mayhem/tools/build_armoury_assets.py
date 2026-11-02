@@ -86,7 +86,11 @@ HERO_FOR = {
 # the crown "looks good"; round 1's straight C1 read olive-khaki under the low-key EPIC light, so round 2 lifts the gold's
 # value and saturation and leans its ember-lit shadows warm, hue 40 to 46), red gems kept by their ID
 # (official/H1/script/armoury/grade_crown_r2.py; graded_r1/flat.png = graded r0c10 cropped as check2.py)
-SOURCE_OVERRIDES = {'standard': os.path.join(HEROES, HERO_FOR['standard'], 'graded_r1'),
+# standard, since 2026-11-01 (Corey, the armoury-fs card: "Item 5 looks good"): the FS War Standard, standard_fs/
+# (_work/scripts/render_standard_fs.py on the saved standard.blend: the same pose, camera orbit, lights and canvas, the
+# sun relief flattened and painted the flag's red, "FS" Cinzel 900 ivory as the board symbol), graded by the same
+# armoury grade into standard_fs/graded_r1 (scripts/grade_pack.py). The sun standard's frames stay in standard/graded_r1.
+SOURCE_OVERRIDES = {'standard': os.path.join(HEROES, 'standard_fs', 'graded_r1'),
                     'dagger': os.path.join(HEROES, HERO_FOR['dagger'], 'graded_r1'),
                     'seal': os.path.join(HEROES, HERO_FOR['seal'], 'graded_r1'),
                     'crown': os.path.join(HEROES, HERO_FOR['crown'], 'graded_r1')}

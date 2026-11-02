@@ -11,7 +11,7 @@
 
 import { CELL_COUNT, CHAIN_GUST, FOREGROUND_KICK } from './constants';
 import { gustRattle } from './chainSound';
-import { STAGING_TOOLS, perfMark } from './staging';
+import { STAGING_TOOLS, perfMark, stagingSpinLean } from './staging';
 
 /** THE KICK HOOK. The board's current screen-kick offset in BOARD px (board space, before the
  *  board's layout scale), written by whichever feature is kicking (swipe, roar) and applied to the
@@ -136,7 +136,7 @@ export const chainHaulPress = (rate: number) => {
 
 // ---- the chain gusts (CHAIN_GUST): the air a drop-in displaces reaching the chains ----------------
 
-export type ChainGustKind = 'plaque' | 'logo' | 'tier';
+export type ChainGustKind = 'plaque' | 'logo' | 'tier' | 'press';
 /** one gust: performance.now() of the landing (`t0`, later than the push when the landing is still to come), the
  *  turbo scale at the push, its strength (a share of one kick) and the landing's centre in CANVAS px (null = the
  *  board's centre: left chains lean left, right chains right) */
@@ -144,16 +144,20 @@ export type ChainGust = { kind: ChainGustKind; t0: number; rate: number; strengt
 /** pending and running gusts. components/BoardFrame.svelte and game/scene.ts each keep their own cursor on
  *  `count` (every gust ever pushed), so a trimmed head never hides a new gust; neither one ever splices this list.
  *  `on`: the DEV A / B switch (__manticore.gust.enable), true in production. */
-export const gustFx = { gusts: [] as ChainGust[], count: 0, on: true };
+export const gustFx = { gusts: [] as ChainGust[], count: 0, on: true, /** DEV (tools/manticore/chain_gust_probe.js, 2026-11-02): kinds pushed at strength 0, no rattle, no record, so a baseline keeps the press lean and the replace */ muted: new Set<ChainGustKind>() };
 /** push one. Callers guard stateGame.skipping themselves (featureFx must not import stateGame). `leadMs`: the
  *  landing is this many real ms after now (the logo's letters set down partway into its entrance). */
 export const chainGust = (kind: ChainGustKind, rate: number, sourceX: number | null = null, leadMs = 0) => {
 	const g = CHAIN_GUST[kind];
-	if (!CHAIN_GUST.enabled || !gustFx.on || g.strength <= 0) return;
-	const gust: ChainGust = { kind, t0: performance.now() + Math.max(0, leadMs), rate: Math.max(0.2, rate), strength: Math.min(g.strength, CHAIN_GUST.maxStrength), sourceX };
+	// the press lean's strength can come from the ?spinLean= knob on the dev server or a staging build (game/staging.ts)
+	const strength = kind === 'press' && stagingSpinLean !== null ? stagingSpinLean : g.strength;
+	const muted = import.meta.env.DEV && gustFx.muted.has(kind);
+	if (!CHAIN_GUST.enabled || !gustFx.on || (strength <= 0 && !muted)) return;
+	const gust: ChainGust = { kind, t0: performance.now() + Math.max(0, leadMs), rate: Math.max(0.2, rate), strength: muted ? 0 : Math.min(strength, CHAIN_GUST.maxStrength), sourceX };
 	gustFx.gusts.push(gust);
 	gustFx.count += 1;
 	if (gustFx.gusts.length > 32) gustFx.gusts.splice(0, 16);
+	if (muted) return;
 	// THE CHAIN SOUND of this gust (constants CHAIN_SOUND: the plaque's and the logo's rattle, nothing for a tier),
 	// once, when the board's chains start to lean
 	gustRattle(kind, gustStart(gust, 0));

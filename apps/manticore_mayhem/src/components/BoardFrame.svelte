@@ -56,8 +56,9 @@
 	import { layoutKind, type LayoutKind } from '../game/layoutSpec';
 	import { BOARD_ART } from '../game/boardArtSpec';
 	import { boardRegistration, chainBow } from '../game/boardArt';
-	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, CHAIN_GUST, FRAME_ART, FRAME_RELIGHT, PLAYGROUND_PX, SCENE, SYMBOL_SIZE } from '../game/constants';
+	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, CHAIN_GUST, FRAME_ART, FRAME_RELIGHT, PLAYGROUND_PX, SCENE, SYMBOL_SIZE, backOutWith } from '../game/constants';
 	import { boardKick, chainFx, gustFx, gustPulse, gustStart, shoveForeground, type ChainGust } from '../game/featureFx';
+	import { stagingHaulLinks, stagingHaulMs, stagingHaulOver } from '../game/staging';
 	import { sceneLight } from '../game/scene';
 	import { loadFrameNightLate } from '../game/deferredLoad';
 	import { boardPlateSlot, boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
@@ -257,6 +258,14 @@
 		}
 		setUvs();
 	};
+	/** THE HAUL'S NUMBERS: CHAIN_BOW's, or the ?haulLinks= ?haulMs= ?haulOver= knobs on the dev server and a staging build
+	 *  (game/staging.ts; Corey's slider page, 2026-11-01). backOutWith(s) is svelte's backOut with its overshoot s a parameter. */
+	const HAUL = {
+		links: stagingHaulLinks ?? CHAIN_BOW.haulLinks,
+		ms: stagingHaulMs ?? CHAIN_BOW.haulMs,
+		easing: stagingHaulOver === null ? CHAIN_BOW.haulEasing : backOutWith(stagingHaulOver),
+		overshoot: stagingHaulOver ?? CHAIN_BOW.haulOvershoot,
+	};
 	/** the haul offset in LINKS (accumulated, modulo one tile = 2 links) and the presses still hauling */
 	const haul = { base: 0, offset: 0, live: [] as { t0: number; rate: number }[], seen: 0, last: NaN };
 	/** the uvs for the current haul offset: v - offset / 2 (one link is half the two-link tile), so the chain
@@ -371,13 +380,13 @@
 		let moving = 0;
 		for (let i = haul.live.length - 1; i >= 0; i -= 1) {
 			const p = haul.live[i];
-			const u = clamp01(((now - p.t0) * p.rate - CHAIN_BOW.haulDelayMs) / Math.max(CHAIN_BOW.haulMs, 1));
+			const u = clamp01(((now - p.t0) * p.rate - CHAIN_BOW.haulDelayMs) / Math.max(HAUL.ms, 1));
 			if (u >= 1) {
-				haul.base = (haul.base + CHAIN_BOW.haulLinks) % 2;
+				haul.base = (haul.base + HAUL.links) % 2;
 				haul.live.splice(i, 1);
 				continue;
 			}
-			moving += CHAIN_BOW.haulLinks * CHAIN_BOW.haulEasing(u);
+			moving += HAUL.links * HAUL.easing(u);
 		}
 		haul.offset = haul.base + moving;
 		return haul.offset !== haul.last;
@@ -512,6 +521,10 @@
 		for (let i = list.length - fresh; i < list.length; i += 1) gustLive.push(list[i]);
 		gust.seen = gustFx.count;
 		let k = 0;
+		// REPLACE, NOT ADD (Corey 2026-11-02: "Replace on the chain lean/kick, yes"): a drop-in's gust (the plaque's, the logo's, a
+		// tier's) starting while the press lean is still in flight throws the lean away, pulse and spring both, so the drop-in's
+		// lean plays as designed on a chain at rest instead of on top of the press's
+		let replace = false;
 		for (let i = gustLive.length - 1; i >= 0; i -= 1) {
 			const g = gustLive[i];
 			const start = gustStart(g, 0);
@@ -525,8 +538,19 @@
 				gust.upTo = start;
 				gust.startAt = now;
 				aim(g.sourceX);
+				if (g.kind !== 'press') replace = true;
 			}
 			k += gustPulse(g, 0, CHAIN_GUST.unitPx.board, now);
+		}
+		if (replace) {
+			for (let i = gustLive.length - 1; i >= 0; i -= 1) {
+				if (gustLive[i].kind !== 'press') continue;
+				gustLive[i] = gustLive[gustLive.length - 1];
+				gustLive.length -= 1;
+			}
+			k = 0;
+			for (const g of gustLive) k += gustPulse(g, 0, CHAIN_GUST.unitPx.board, now);
+			gust.kl = gust.d = gust.v = 0;
 		}
 		gust.k = k;
 		gust.at = now;
@@ -811,7 +835,7 @@
 						tile: { tex: BOARD_ART.chains[k].tex, periodPx: BOARD_ART.chains[k].periodPx, phasePx: BOARD_ART.chains[k].phasePx, clip: BOARD_ART.chains[k].clip },
 						addressMode: strips.L.mesh.texture?.source?.addressMode ?? null,
 						uv0: SIDES.map((side) => Number((strips[side].mesh.geometry.getBuffer('aUV').data as Float32Array)[1].toFixed(4))),
-						constants: { links: CHAIN_BOW.haulLinks, delayMs: CHAIN_BOW.haulDelayMs, ms: CHAIN_BOW.haulMs, on: CHAIN_BOW.haulOnSpin },
+						constants: { links: HAUL.links, delayMs: CHAIN_BOW.haulDelayMs, ms: HAUL.ms, overshoot: HAUL.overshoot, on: CHAIN_BOW.haulOnSpin },
 					},
 					chains: chainOut,
 					zOrder: parent.parent.children.map((c) => (c === under ? 'frame+backing' : c === chains ? 'chains' : c === boardNode ? 'board' : c.label || 'other') + '@' + c.zIndex),

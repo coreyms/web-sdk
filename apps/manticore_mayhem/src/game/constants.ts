@@ -514,7 +514,13 @@ export const CLUSTER = {
 	holdMs: 800,
 	/** non-winners dim to this while the win set is presented (ONCE per win set, not per cluster) */
 	dimAlpha: 0.5,
-	dimMs: 35,
+	/** THE DIM FADES (1.0.05 ledger row 15; asset grade #13, the board dim at motion 4: "Snaps in 35 ms (a cut, not a
+	 *  fade)"; Corey 2026-11-01 "Yes, let's do it" to the quick-fix list): the non-winners darken over dimMs style ms on a
+	 *  quadOut and come back over dimOutMs alongside the refill. Both were 35. The depths (WIN_DIM, Corey's 2026-10-24
+	 *  picks) are untouched, and neither fade is awaited: the first readout's rise no longer waits for the dim
+	 *  (it used to be max(winRiseMs, dimMs)), so no step is longer. */
+	dimMs: 180,
+	dimOutMs: 250,
 	/** the winners of the next cascade glow for this long as they land (presentation only) */
 	auraMs: 230,
 	/** the removal pop: grow a hair, then shrink away to nothing */
@@ -557,6 +563,20 @@ export const WIN_DIM = {
 /** the dim level for a win set paying `xBet` times the bet (WIN_DIM.curve) */
 export const winDimFor = (xBet: number): number => {
 	const c = WIN_DIM.curve;
+	if (xBet <= c[0][0]) return c[0][1];
+	for (let i = 1; i < c.length; i += 1) {
+		if (xBet <= c[i][0]) {
+			const [x0, y0] = c[i - 1];
+			const [x1, y1] = c[i];
+			return y0 + ((y1 - y0) * (xBet - x0)) / (x1 - x0);
+		}
+	}
+	return c[c.length - 1][1];
+};
+/** the board kick's amplitude (board px) for a cascade step paying `xBet` times the bet (WIN_FX.shake.byWin, the same
+ *  straight lines held at the ends as winDimFor) */
+export const shakeAmpFor = (xBet: number): number => {
+	const c = WIN_FX.shake.byWin;
 	if (xBet <= c[0][0]) return c[0][1];
 	for (let i = 1; i < c.length; i += 1) {
 		if (xBet <= c[i][0]) {
@@ -743,8 +763,34 @@ export const WIN_FX = {
 	embers: { count: 16, countPhone: 10, sizePx: 22, spreadCells: 1.3, lift: 0.35, gravity: 0.9, lifeMs: 1000, whiten: 0.5, flicker: 0.25, maxCells: CELL_COUNT },
 	/** THE SHAKE: a cluster of at least minCluster symbols moves the board (featureFx.boardKick, board px) as its first
 	 *  symbol pops: a decaying wobble of ampPx board px (about 1.5 to 2 screen px on a 1440 x 900 desktop, 1 to 1.5 on
-	 *  a phone) at hz (style time) over ms; the y wobble is yShare of the x one, a quarter period behind */
-	shake: { minCluster: 15, ampPx: 3.5, hz: 17, ms: 320, yShare: 0.6 },
+	 *  a phone) at hz (style time) over ms; the y wobble is yShare of the x one, a quarter period behind.
+	 *  THE KICK FOLLOWS THE WIN (1.0.05 ledger row 13; asset grade #15, the win impact at motion 4: "between a 0.2x and a
+	 *  3x win the board's reaction is the same"; Corey 2026-11-01 "Yes, let's do it" to the quick-fix list): a step kicks
+	 *  when one of its clusters has minCluster cells (15 -> 8) OR the step's own win (the book's wins of that cascade, in
+	 *  bet multiples) is kickFromX or more, and its amplitude is read off `byWin` (pairs [x bet, board px], straight
+	 *  lines between, held at the ends; shakeAmpFor below) in place of the fixed ampPx: about 1.5 screen px at 1x, 3 at
+	 *  5x, 5 at 20x on a 1440 x 900 desktop (the board draws at about 0.5 screen px per board px there). ampPx is the
+	 *  'old' look's and the fallback. */
+	shake: {
+		minCluster: 8,
+		kickFromX: 1,
+		ampPx: 3.5,
+		hz: 17,
+		ms: 320,
+		yShare: 0.6,
+		byWin: [
+			[0.2, 1.5],
+			[1, 3],
+			[5, 6],
+			[20, 10],
+		] as readonly (readonly [number, number])[],
+	},
+	/** THE FRAME BRIGHTENING (1.0.05 ledger row 13, the same grade and the same "Yes, let's do it"): on the first pop of a
+	 *  step whose win is fromX or more, the whole board face (every cell, the dimmed ones too) brightens for `ms` REAL ms
+	 *  (so it shows at every turbo level): one additive white plate over the tiles (components/BoardCells.svelte,
+	 *  tinted `tint`, a sprite, never a filter), its alpha up to `peak` at fromX and `peakMax` at peakMaxX (straight line
+	 *  between), reached at peakAt of ms and gone at the end. Nothing is awaited. */
+	bright: { fromX: 2, ms: 60, peak: 0.18, peakMax: 0.34, peakMaxX: 20, peakAt: 0.3, tint: 0xfff1d6 },
 	/** THE END OF A WIN LEANS TO ITS SYMBOL'S COLOUR (1.0.04; harsh review 2026-10-20 design N2, "Every win still ends in
 	 *  the same code burst: a scale-up flash and a white four-point sparkle star"; Corey 2026-10-21 wants "just a slight
 	 *  tint": that star and flash toward the winning symbol's own colour, a white core kept so it still reads as a
@@ -953,25 +999,46 @@ export const PLAQUE_CELEBRATE = {
  *  tokens in ui/ChromeStyles.svelte. */
 export const AUTOPLAY_COLOURS = { on: '#5f9149', stop: '#e32400' } as const;
 
+/** THE GOLD STREAK TO HUD WIN, BIGGER (1.0.05 ledger row 14; asset grade #6, the streak at motion 4: "A small dot with a
+ *  short trail over 400 ms: easy to miss"; Corey 2026-11-01 "Yes, let's do it" to the quick-fix list). The flight is
+ *  600 style ms (was 400) and the 200 ms came out of the pause before the lift (toHudDelayMs 250 -> 50), so the count's
+ *  end to the HUD's write is the 800 style ms it was and no round is longer (plaque_clear_probe's lift + flight check
+ *  reads the new flightMs). The head is bigger (headR 0.09 -> 0.14, haloR 0.27 -> 0.4, the trail 14 -> 18 dots); it sheds
+ *  `sparks` (fxTexture glintTexture, the four-point glint, additive, headColor) one every sparks.everyMs REAL ms of the
+ *  flight, each at the path's point then, scattered sparks.spread of the dark field's height off it, sparks.r of that
+ *  height across, turning sparks.spin radians a second, up over the first third of sparks.lifeMs and gone at its end;
+ *  and `coins` medallions (the turning Wild, COIN_FLIP's frames, the flat W.png until that sheet is in) trail the head
+ *  by coins.lag of the flight each, coins.r of the field's height across (shrinking to coins.endScale of it at the WIN),
+ *  turning coins.turns turns over the flight, coins.spread off the path, fading over the last coins.fadeShare of their
+ *  flight so they vanish into the WIN. The landing is brighter: the pulse behind the WIN runs pulseMs 380 -> 550 (the
+ *  HUD count's own 550, AUTOPLAY_WIN_SEEN.countMs) at pulseAlpha 0.75 -> 1, with a hot headColor core `flash` over the
+ *  WIN's box for flash.ms real ms at flash.alpha. Every sprite is pooled once on the first move in the one streak layer
+ *  (the coins first, normal blend; then the additive dots, sparks, pulse and flash: two batches, no filter, no mask).
+ *  The HUD WIN count itself is untouched. */
 export const PLAQUE_STREAK = {
 	queueWaitMaxMs: 1200,
-	toHudDelayMs: 250,
+	toHudDelayMs: 50,
 	liftMs: 150,
 	liftScale: 1.15,
-	flightMs: 400,
+	flightMs: 600,
 	flightMinRealMs: 160,
 	arc: 0.35,
 	rise: 0.25,
-	trail: 14,
+	trail: 18,
 	trailStepMs: 14,
-	trailFade: 0.82,
-	headR: 0.09,
-	haloR: 0.27,
+	trailFade: 0.84,
+	headR: 0.14,
+	haloR: 0.4,
 	headColor: 0xfff0cd,
 	haloColor: 0xffb946,
-	pulseMs: 380,
-	pulseAlpha: 0.75,
+	pulseMs: 550,
+	pulseAlpha: 1,
 	pulseColor: 0xffc45a,
+	// (tuned by eye on the 2026-11-01 captures: sparks r 0.11 -> 0.18 and spread 0.3 -> 0.45, coins r 0.3 -> 0.6, or
+	// neither read at the phone's size, where the field is about 50 CSS px tall)
+	sparks: { count: 28, everyMs: 20, lifeMs: 420, r: 0.18, spread: 0.45, spin: 5 },
+	coins: { count: 4, lag: 0.07, r: 0.6, endScale: 0.45, turns: 2.5, spread: 0.32, fadeShare: 0.25 },
+	flash: { ms: 160, alpha: 0.85 },
 };
 
 /** THE WIN RECAP STAYS (1.0.04; Corey 2026-10-20: "On regular spins (not free spins), let's leave the text if there was
@@ -1425,6 +1492,8 @@ export const ROAR_FX = {
 //   point   anchor(s) + kick + (D - kick) bow(s), D = (0.6 d, vertical d),
 //           bow(s) = sin(pi s) (1 - s) + bottomAllowance s
 // Times are style time, divided by stateGameDerived.timeScale() at runtime.
+/** svelte's backOut with its overshoot `s` a parameter (1.70158 is backOut itself; 0 = no overshoot) */
+export const backOutWith = (s: number) => (t: number) => --t * t * ((s + 1) * t + s) + 1;
 export const CHAIN_BOW = {
 	endsFollowFrame: true,
 	gain: 10,
@@ -1440,10 +1509,16 @@ export const CHAIN_BOW = {
 	// spin press, after haulDelayMs, the texture scrolls DOWN by haulLinks link pitches over haulMs with
 	// haulEasing (accumulating, modulo the tile). The bow displacement above is independent of it.
 	haulOnSpin: true,
-	haulLinks: 1,
+	// Corey's pick on the haul slider page, 2026-11-01 (feedback/scene-quick-wins-2026-11-01/haul-sliders.html; the ?haulLinks=
+	// ?haulMs= ?haulOver= ?spinLean= knobs of game/staging.ts drive the dev server), after "Some easy wins we could get is on
+	// Spin, where the gears and the chains move, increase the movement, of the chains and the gears": FOUR links a press over
+	// the same 1280 ms (four times the travel at four times the speed; was 1), the gears turning four loops with it
+	// (FRAME_RELIGHT.gears), and a gentler overshoot (haulOvershoot 1.2 against svelte's backOut 1.70158: backOutWith).
+	haulLinks: 4,
 	haulDelayMs: 80,
 	haulMs: 1280,
-	haulEasing: backOut,
+	haulOvershoot: 1.2,
+	haulEasing: backOutWith(1.2),
 };
 
 // ---- The chain gusts (Corey 2026-10-10: "a timed reaction like the wind from the drop ins is pushing them") ----
@@ -1476,6 +1551,10 @@ export const CHAIN_GUST = {
 	/** landFrame: the entrance frame (30 fps, from LOGO.entranceDelayMs) where the letters set down */
 	logo: { strength: 0.33, delayMs: 70, landFrame: 8, fromLogo: true },
 	tier: { strength: 0.17, delayMs: 50 },
+	/** THE PRESS LEAN (Corey's pick on the haul slider page, 2026-11-01, ?spinLean=0.25): every spin press (and a free spin's
+	 *  reveal) also leans the chains like a plaque landing, a quarter of a claw-swipe kick, delayMs after the press; the
+	 *  courtyard's chains take it too, as every gust. No rattle (CHAIN_SOUND.gust.press). */
+	press: { strength: 0.25, delayMs: 80 },
 } as const;
 
 /** the flat backing behind the cell wells and the tiles, under the board kick: covers the frame's
@@ -2911,7 +2990,13 @@ export const SKY = {
 		speed: 121.2,
 		speedByDepth: [0.2, 0.57],
 		jitter: 0.8,
-		alpha: [0.11, 0.68],
+		// DARKER (Corey 2026-11-01: "Can we just darken the birds in game, so they don't appear transparent?"): the crows
+		// were drawn at 0.11 (far) .. 0.68 (near) opacity by depth, so even a near flock was a third see-through. Now
+		// 0.85 .. 1: the near rows (depth over farBelow) at 0.9 to 1, the far row keeps a small fade (0.85 to 0.9). The
+		// sheet's pixels are black already and the layer is tinted by the scene's dim, so no tint is needed.
+		alpha: [0.85, 1],
+		// 15 again (2026-11-01 evening, Corey: "The crows look really bad still. Let's revert to the original crows
+		// shapes"): the original 8-frame sheet at its original rate. The bats' sheet has 16 frames at 30 (below).
 		flapFps: 15,
 		bob: 7.5,
 		bobRate: 1.1,
@@ -2948,7 +3033,8 @@ export const SKY = {
 		speedByDepth: [0.5, 1],
 		jitter: 0.6,
 		alpha: [0.84, 1],
-		flapFps: 15,
+		// 15 -> 30 with the 16-frame sheet (2026-11-01, see the birds' note): the flap is still his 0.533 s
+		flapFps: 30,
 		bob: 11,
 		bobRate: 8,
 		flutter: 20.5,
@@ -2962,25 +3048,27 @@ export const SKY = {
 		flutterBySize: true,
 		// THE FLAP-TIMED BOB (Build B2, 2026-10-14; Corey: "Yes go with the build on the flap timed bob and glides, I trust
 		// you", values mine, judged by him on a clip: images/sky_r6). The bob is no longer on bobRate's clock: it follows
-		// each bat's own wing cycle (8 frames a flap at flapFps 15, so one bob per 0.53 s). In the sheet the wings rise
-		// over frames 0 to 7 (the silhouette's weight climbs from low to high) and beat down in the swap from 7 back to 0.
-		// The body LIFTS over `rise` of the cycle centred on `downAt` (a position in frames: 0 is that swap, 0.25 a
-		// quarter frame after it) and SINKS over the rest, eased at both ends; the swing is still +-bob x its size / near.
-		// rise 0.35 = a quick lift over 2.8 frames and a slower sink over 5.2, the power stroke and the recovery. The
+		// each bat's own wing cycle (one bob per flap, 0.533 s). THE 16-FRAME SHEET (2026-11-01, tools/build_sky_flyers.py):
+		// frame 0 is the top of the stroke, the wings beat DOWN over frames 0 to 7 and come back up over 7 to 16 (= 0).
+		// The body LIFTS over `rise` of the cycle centred on `downAt` (a position in frames: 3.5 is the middle of the
+		// downstroke, so the lift spans it) and SINKS over the rest, eased at both ends; the swing is still +-bob x its
+		// size / near. rise 0.35 = a quick lift over 5.6 frames and a slower sink over 10.4, the power stroke and the
+		// recovery (the same shares of the flap as before: 2.8 and 5.2 of the old 8). The
 		// flutter (above, by size) stays on its own clock on top, but at `flutter` x its height while flapping: at its full
 		// 20.5 (about 4 wobbles a second, up to twice the bob) it drowned the beat, so a bat bobbed in time with its wings
 		// in one flap and against them in the next (sky_r6/NOTES.md). 1 gives today's whole flutter back; the 20.5 above
 		// and its scaling by size are unchanged. bobRate now drives only that flutter.
-		flapBob: { downAt: 0.25, rise: 0.35, flutter: 0.4 },
+		flapBob: { downAt: 3.5, rise: 0.35, flutter: 0.4 },
 		// THE GLIDES: every so often a bat holds its wings spread. Each bat has its own schedule (its first glide firstS
 		// after it takes off, then everyS after the last one ends, each a fresh random), so a flock never glides together.
 		// A glide that is due waits for its row's `frame` to come up in the cycle (at most one flap, 0.53 s), then holds
 		// that frame for holdS: the bob stands still (its wing cycle is held, so its height is held), the flutter eases
 		// out over easeS, the bat sinks sinkPx x its size / near (smoothly, eased at both ends), then it flaps on from
 		// the same frame, the flutter eases back in over easeS and the sink climbs back over recoverS (keep recoverS under everyS[0]). frame: per row of the sheet, the
-		// frame with the wings out level (rows 0 and 1: frame 5, row 2: frame 7, the small row 3: frame 4). The gap rule
-		// counts the sink in each bat's envelope (game/sky.ts near), so it holds as before.
-		glide: { firstS: [0.6, 8], everyS: [3, 8], holdS: [0.5, 1.2], frame: [5, 5, 7, 4], sinkPx: 14, easeS: 0.18, recoverS: 1.4 },
+		// frame with the wings out level and fully spread: in the 16-frame sheet (2026-11-01) frame 3 of every row, on
+		// the way down (on the way up a bat folds its wings; the old sheet's 5, 5, 7, 4 were its level frames). The gap
+		// rule counts the sink in each bat's envelope (game/sky.ts near), so it holds as before.
+		glide: { firstS: [0.6, 8], everyS: [3, 8], holdS: [0.5, 1.2], frame: [3, 3, 3, 3], sinkPx: 14, easeS: 0.18, recoverS: 1.4 },
 		band: { y0: 0, y1: 261 },
 		farBelow: 0.59,
 		formation: 'scattered',
@@ -3178,7 +3266,7 @@ export const FIRE_SOUND = {
 export const CHAIN_SOUND = {
 	kickThresholdPx: 1.5,
 	kickMinGapMs: 800,
-	gust: { plaque: 'sfx_chain_light', logo: 'sfx_chain_light_logo', tier: null },
+	gust: { plaque: 'sfx_chain_light', logo: 'sfx_chain_light_logo', tier: null, press: null },
 } as const;
 
 // ---- Symbol art ---------------------------------------------------------------------------------
@@ -3568,11 +3656,11 @@ export const MAX_WIN = {
 	outRevealMs: 500,
 	/** the roar where he stands, with the dim (his clip, sfx_roar_win since 2026-10-18) */
 	roarAt: 3000,
-	/** MAYHEM UNLEASHED slams in: the roar's mouth is open by then (roar clip f18 of 53 at 30 fps) */
+	/** MANTICORE UNLEASHED slams in: the roar's mouth is open by then (roar clip f18 of 53 at 30 fps) */
 	unleashedAt: 3600,
-	/** UNLEASHED lands this long after MAYHEM */
+	/** UNLEASHED lands this long after MANTICORE */
 	unleashedStaggerMs: 140,
-	/** MAX WIN slams on the track's swell; MAYHEM UNLEASHED recedes behind it */
+	/** MAX WIN slams on the track's swell; MANTICORE UNLEASHED recedes behind it */
 	slamAt: 10250,
 	/** the slam: a title punches in from slamFrom x its size to 1 over slamMs (an overshoot ease), alpha in over slamFadeMs */
 	slamMs: 340,
@@ -3585,7 +3673,7 @@ export const MAX_WIN = {
 	amountAt: 260,
 	amountFadeMs: 320,
 	recedeMs: 520,
-	/** MAYHEM UNLEASHED's alpha once receded */
+	/** MANTICORE UNLEASHED's alpha once receded */
 	recedeAlpha: 0.9,
 	/** bgm_maxwin's length (music.json duration). Only the FALLBACK timer uses it: a real 'ended' always wins */
 	trackMs: 30000,
@@ -3597,7 +3685,7 @@ export const MAX_WIN = {
 	slamSound: 'sfx_plaque_land',
 	/** Title and amount slots per LayoutKind, in that kind's MASTER px from its centre: `*Cap` are cap heights,
 	 *  `*Width` shrink-to-fit caps, `*Y` fractions of the master height. `mayhem*` / `unleashed*` are the
-	 *  two lines of MAYHEM UNLEASHED; `recede*` where that pair sits (its centre) and its scale once MAX WIN is on it.
+	 *  two lines of MANTICORE UNLEASHED; `recede*` where that pair sits (its centre) and its scale once MAX WIN is on it.
 	 *  ACROSS, every line is centred on the SCREEN's centre by its visible ink (Corey 2026-10-17 15:34, "Screen, not
 	 *  board"): the master's centre is the canvas centre, and titleInk / glyphInk below take each line's ink to it.
 	 *  (Up to then the landscape and phone lines sat on x 0.46 / 0.47 of the master, left of centre to dodge him.)
@@ -3606,7 +3694,12 @@ export const MAX_WIN = {
 	 *  in feedback/maxwin_nudge_r1). Everywhere else he stands where the scene puts him. Landscape 16 right and 28 down
 	 *  (16:9 desktops had the N on his wing, 662 to 1,466 px2; 0 after, his box still inside the screen); phone sideways
 	 *  has no room to his right, so its MAX WIN cap went 112 -> 96 instead (124 and 224 px2 -> 0); portrait 40 down
-	 *  (UNLEASHED on him 24 and 142 px2 -> 0). 0 overlap in all 14 measured layouts. */
+	 *  (UNLEASHED on him 24 and 142 px2 -> 0). 0 overlap in all 14 measured layouts.
+	 *  MANTICORE UNLEASHED, Corey 2026-11-01: the first line reads MANTICORE (2,002 title px wide to MAYHEM's 1,475;
+	 *  UNLEASHED is 1,906). Re-measured in feedback/maxwin-title-2026-11-02 over the same 14 layouts: landscape and
+	 *  phone keep their caps (MANTICORE 804 and 874 master px, inside lineWidth); portrait's lineCap went 46 -> 43 so
+	 *  BOTH lines draw at one cap (at 46 MANTICORE alone would shrink to fit lineWidth 380, a cap 2 px under
+	 *  UNLEASHED's); the Y fractions hold. Still 0 overlap on him at the slam and the gate in all 14. */
 	layout: {
 		landscape: {
 			lineCap: 92, lineWidth: 1040, mayhemY: 0.36, unleashedY: 0.53,
@@ -3625,7 +3718,7 @@ export const MAX_WIN = {
 			creatureX: 0, creatureY: 0,
 		},
 		portrait: {
-			lineCap: 46, lineWidth: 380, mayhemY: 0.43, unleashedY: 0.52,
+			lineCap: 43, lineWidth: 380, mayhemY: 0.43, unleashedY: 0.52, // lineCap 46 -> 43: MANTICORE UNLEASHED, Corey 2026-11-01
 			recedeScale: 0.55, recedeY: 0.1,
 			maxCap: 52, maxWidth: 384, maxY: 0.5,
 			amountCap: 32, amountWidth: 372, amountY: 0.6,

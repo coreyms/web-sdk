@@ -76,8 +76,10 @@
 	import { getContext } from '../game/context';
 	import { layoutKind, portraitShippedK } from '../game/layoutSpec';
 	import { boardRegistration } from '../game/boardArt';
-	import { BOARD_PLAQUE, FRAME_ART, PLAQUE_BADGE, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_FLAGS, PLAQUE_HOLD, PLAQUE_RECAP, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
+	import { BOARD_PLAQUE, FRAME_ART, MAX_WIN, PLAQUE_BADGE, PLAQUE_CLEARS, PLAQUE_FIELD, PLAQUE_FLAGS, PLAQUE_HOLD, PLAQUE_RECAP, PLAQUE_STREAK, SPIN_TOTAL, TIMINGS, type PlaqueClearsLayout } from '../game/constants';
 	import { plaqueGlowTexture } from '../game/plaqueGlow';
+	import { glintTexture } from '../game/fxTexture';
+	import { coinFlipFrame, coinFlipFrames } from '../game/coinFlip';
 	import { teaseNow } from '../game/teaseState';
 	import { recap, recapLineOn } from '../game/recap.svelte';
 	import { plaqueTap } from '../game/plaqueTap';
@@ -2122,6 +2124,21 @@
 	type Dot = { core: PIXI.Sprite; halo: PIXI.Sprite };
 	const dots: Dot[] = [];
 	let pulse: PIXI.Sprite | null = null;
+	/** the hot core over the WIN at the arrival (PLAQUE_STREAK.flash) */
+	let flash: PIXI.Sprite | null = null;
+	// THE SPARKLE TRAIL AND THE COINS (PLAQUE_STREAK.sparks / coins, 1.0.05 row 14): pooled once with the dots. Each spark's
+	// and coin's scatter off the path is rolled here from a fixed seed, so every flight has the same shape (a probe can
+	// replay it) and nothing is rolled per frame. The coins go under the light (addChildAt 0, normal blend); the sparks are
+	// additive glints (fxTexture glintTexture) in the head's colour.
+	type Spark = { s: PIXI.Sprite; ox: number; oy: number; rot: number; spin: number };
+	type Coin = { s: PIXI.Sprite; ox: number; oy: number; phase: number; flat: PIXI.Texture };
+	const sparks: Spark[] = [];
+	const coins: Coin[] = [];
+	let rollSeed = 48271;
+	const roll = () => {
+		rollSeed = (rollSeed * 1103515245 + 12345) & 0x7fffffff;
+		return rollSeed / 0x7fffffff;
+	};
 	const dotSprite = (tint: number) => {
 		const sp = new PIXI.Sprite(plaqueGlowTexture());
 		sp.anchor.set(0.5);
@@ -2132,9 +2149,34 @@
 		return sp;
 	};
 	const ensureDots = () => {
-		if (dots.length) return;
-		for (let i = 0; i <= PLAQUE_STREAK.trail; i += 1) dots.push({ halo: dotSprite(PLAQUE_STREAK.haloColor), core: dotSprite(PLAQUE_STREAK.headColor) });
-		pulse = dotSprite(PLAQUE_STREAK.pulseColor);
+		if (!dots.length) {
+			for (let i = 0; i <= PLAQUE_STREAK.trail; i += 1) dots.push({ halo: dotSprite(PLAQUE_STREAK.haloColor), core: dotSprite(PLAQUE_STREAK.headColor) });
+			for (let i = 0; i < PLAQUE_STREAK.sparks.count; i += 1) {
+				const s = new PIXI.Sprite(glintTexture());
+				s.anchor.set(0.5);
+				s.blendMode = 'add';
+				s.tint = PLAQUE_STREAK.headColor;
+				s.visible = false;
+				streakLayer.addChild(s);
+				sparks.push({ s, ox: (roll() - 0.5) * 2, oy: (roll() - 0.5) * 2, rot: roll() * Math.PI, spin: (roll() < 0.5 ? -1 : 1) * (0.6 + 0.8 * roll()) });
+			}
+			pulse = dotSprite(PLAQUE_STREAK.pulseColor);
+			flash = dotSprite(PLAQUE_STREAK.headColor);
+		}
+		// the coins: the Wild medallion (the board's own atlas, resident with the symbols; MAX_WIN.rain.texture is its
+		// key); tried again on a later move if that atlas was not in yet
+		if (!coins.length) {
+			const flat = (context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined)?.[MAX_WIN.rain.texture];
+			if (flat) {
+				for (let i = 0; i < PLAQUE_STREAK.coins.count; i += 1) {
+					const s = new PIXI.Sprite(flat);
+					s.anchor.set(0.5);
+					s.visible = false;
+					streakLayer.addChildAt(s, 0);
+					coins.push({ s, ox: (roll() - 0.5) * 2, oy: (roll() - 0.5) * 2, phase: roll(), flat });
+				}
+			}
+		}
 	};
 	/** a soft dot of radius r (root units) at (x, y), strength a (the texture spans 2 radii each side) */
 	const putDot = (sp: PIXI.Sprite, x: number, y: number, r: number, a: number) => {
@@ -2192,6 +2234,58 @@
 			if (d.halo.visible) d.halo.visible = false;
 			if (d.core.visible) d.core.visible = false;
 		}
+		// THE SPARKLE TRAIL (PLAQUE_STREAK.sparks): spark k is shed k x everyMs real ms into the flight at the path's point
+		// then, and lives lifeMs where it was (it may finish after the arrival, while the pulse runs)
+		const SP = PLAQUE_STREAK.sparks;
+		const elf = el - move.lift;
+		const flown = move.has && move.fly > 0 && (move.phase === 'fly' || (move.phase === 'none' && move.pulseT0 >= 0));
+		for (let k = 0; k < sparks.length; k += 1) {
+			const sk = sparks[k];
+			const born = k * SP.everyMs;
+			const age = elf - born;
+			if (!flown || born >= move.fly || age < 0 || age >= SP.lifeMs) {
+				if (sk.s.visible) sk.s.visible = false;
+				continue;
+			}
+			const v = age / SP.lifeMs;
+			const p = bezier(sineInOut(born / move.fly));
+			const r = move.r * SP.r * (1 - 0.6 * v);
+			sk.s.position.set(p.x + sk.ox * SP.spread * move.r, p.y + sk.oy * SP.spread * move.r);
+			sk.s.width = sk.s.height = 2 * r;
+			sk.s.rotation = sk.rot + (sk.spin * SP.spin * age) / 1000;
+			sk.s.alpha = v < 0.33 ? v / 0.33 : 1 - (v - 0.33) / 0.67;
+			sk.s.visible = true;
+		}
+		// THE COINS (PLAQUE_STREAK.coins): coin j leaves (j + 1) x lag of the flight after the head and lands with it,
+		// turning (COIN_FLIP's frames once the sheet is in, the flat tile's cosine width until then), off the path by its
+		// own scatter in the middle of the flight, on it at both ends, shrinking toward the WIN and fading into it
+		const CO = PLAQUE_STREAK.coins;
+		const frames = coinFlipFrames();
+		for (let j = 0; j < coins.length; j += 1) {
+			const c = coins[j];
+			const lag = (j + 1) * CO.lag * move.fly;
+			const u = (elf - lag) / Math.max(1, move.fly - lag);
+			if (!(move.phase === 'fly' && move.has) || u < 0 || u >= 1) {
+				if (c.s.visible) c.s.visible = false;
+				continue;
+			}
+			const p = bezier(sineInOut(u));
+			const off = CO.spread * move.r * Math.sin(Math.PI * u);
+			const size = move.r * CO.r * (1 - (1 - CO.endScale) * u);
+			const turn = CO.turns * u + c.phase;
+			if (frames) {
+				const f = coinFlipFrame(frames, turn);
+				if (c.s.texture !== f) c.s.texture = f;
+				c.s.width = size;
+			} else {
+				if (c.s.texture !== c.flat) c.s.texture = c.flat;
+				c.s.width = Math.max(0.08, Math.abs(Math.cos(turn * Math.PI * 2))) * size;
+			}
+			c.s.height = size;
+			c.s.position.set(p.x + c.ox * off, p.y + c.oy * off);
+			c.s.alpha = u > 1 - CO.fadeShare ? (1 - u) / CO.fadeShare : 1;
+			c.s.visible = true;
+		}
 		if (pulse) {
 			if (move.pulseT0 >= 0) {
 				const u = (now - move.pulseT0) / move.pulseMs;
@@ -2207,6 +2301,17 @@
 					pulse.visible = true;
 				}
 			} else pulse.visible = false;
+		}
+		// THE LANDING FLASH (PLAQUE_STREAK.flash): a hot core in the head's colour over the WIN's box, real ms from the arrival
+		if (flash) {
+			const uf = move.pulseT0 >= 0 ? (now - move.pulseT0) / Math.max(1, PLAQUE_STREAK.flash.ms) : 1;
+			if (uf < 1) {
+				flash.position.set(move.to.x, move.to.y);
+				flash.width = 2.4 * move.hud.w * (0.8 + 0.4 * uf);
+				flash.height = 3 * move.hud.h * (0.8 + 0.4 * uf);
+				flash.alpha = PLAQUE_STREAK.flash.alpha * (1 - uf) * (1 - uf);
+				flash.visible = true;
+			} else if (flash.visible) flash.visible = false;
 		}
 	};
 
@@ -2496,6 +2601,10 @@
 					held,
 					holds: holdLog.map((e) => ({ ...e })),
 					drawn: dots.filter((d) => d.core.visible).length,
+					/** (1.0.05 row 14) the sparks and the coins drawn now, and whether the coins have their turning sheet */
+					sparks: sparks.filter((k) => k.s.visible).length,
+					coins: coins.filter((c) => c.s.visible).length,
+					coinSheet: !!coinFlipFrames(),
 					constants: { ...PLAQUE_STREAK },
 				}),
 				/** a forced figure string (null: the game's own again) */

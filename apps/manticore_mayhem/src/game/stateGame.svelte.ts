@@ -10,7 +10,7 @@ import { boardPlacement, layoutKind } from './layoutSpec';
 import { winLevelMap } from './winLevelMap';
 import { layoutNumerals } from './numeralLayout';
 import { spawnSparkles } from './sparkles';
-import { winFx, shineCells, spawnWinBurst, popPose, sweepAt, darkShine, POP_AT, winFxStats, type ShineCell, type PopPose } from './winFx';
+import { winFx, shineCells, spawnWinBurst, popPose, sweepAt, darkShine, POP_AT, winFxStats, cueBoardBright, type ShineCell, type PopPose } from './winFx';
 import { boardKick, swipeFx, roarFx, stingFx, clearStingFx, triggerFx, clearTriggerFx, fxStamp, type FxRecord } from './featureFx';
 import { cueWellSting, cueWellSwipe, cueWellTile, cueWellWin, clearWellCues } from './wellsFx';
 import { kickClank } from './chainSound';
@@ -31,6 +31,7 @@ import {
 	BOARD_EXIT,
 	CLUSTER,
 	winDimFor,
+	shakeAmpFor,
 	READOUT,
 	CLUSTER_LABEL,
 	LABEL_PLACE,
@@ -1254,6 +1255,12 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	// the look, once for the whole set (WIN_FX; DEV ?winfx=old keeps the shrink, the square flash and the dots)
 	const fxNew = winFx.style === 'new';
 	const removeMs = Math.max(fxNew ? WIN_FX.pop.removeMs : CLUSTER.removeMs, 1);
+	// the step's own win in bet multiples (book units: 100 = 1x): the dim's depth (WIN_DIM), the kick's amplitude and gate
+	// (WIN_FX.shake) and the frame brightening (WIN_FX.bright) all read it
+	const stepX = wins.reduce((a, w) => a + w.total, 0) / 100;
+	const shakeAmp = fxNew ? shakeAmpFor(stepX) : WIN_FX.shake.ampPx;
+	/** WIN_FX.bright: the step's first pop (style ms), -1 = no brightening */
+	let tBright = -1;
 	const at = new Map<CellIndex, Cell>();
 	for (const c of stateGame.cells) if (c.state !== 'removing') at.set(cellOf(c.reel, c.row), c);
 	const allWinners = new Set<CellIndex>();
@@ -1357,7 +1364,8 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		// cells to glow, and its host's own cells decide its aura, so taking remnants in never moves the host's start
 		const aura = CLUSTER.auraMs > 0 && !remnant && own[i].some((index) => !lastAura.has(index)) ? CLUSTER.auraMs : 0;
 		let t = tc + aura;
-		const rise = Math.max(CLUSTER.winRiseMs, i === 0 ? CLUSTER.dimMs : 0, 1);
+		// (the first readout's rise used to wait for the dim's 35 ms; the dim fades over CLUSTER.dimMs now, never awaited)
+		const rise = Math.max(CLUSTER.winRiseMs, 1);
 		const raw = spec.mult ? READOUT.rawMs : 0;
 		const slam = raw > 0 ? READOUT.slamMs : 0;
 		const count = READOUT.countMs;
@@ -1399,7 +1407,11 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			rippleLog.push(rippleDev);
 			if (rippleLog.length > 60) rippleLog.splice(0, 30);
 		}
-		const tShake = fxNew && members.length >= WIN_FX.shake.minCluster ? (onePop ? t + clipFull : tReadoutDone - (t - tCells)) + POP_AT * removeMs : -1;
+		// this cluster's first pop (style ms): the kick (WIN_FX.shake: a cluster of minCluster cells, or a step paying
+		// kickFromX or more) and the step's frame brightening (WIN_FX.bright, the earliest pop of a step over fromX)
+		const tPop = (onePop ? t + clipFull : tReadoutDone - (t - tCells)) + POP_AT * removeMs;
+		const tShake = fxNew && members.length > 0 && (members.length >= WIN_FX.shake.minCluster || stepX >= WIN_FX.shake.kickFromX) ? tPop : -1;
+		if (fxNew && members.length > 0 && stepX >= WIN_FX.bright.fromX && (tBright < 0 || tPop < tBright)) tBright = tPop;
 		tRem = Math.max(tRem, tRemEnd);
 		readoutDone[i] = tReadoutDone;
 		const start = tc;
@@ -1455,7 +1467,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	});
 	const dimT0 = clusters[0].t;
 	// THE DIM FOLLOWS THE WIN (WIN_DIM): the level by this set's own total, in bet multiples (book units: 100 = 1x)
-	const dimTo = winDimFor(wins.reduce((a, w) => a + w.total, 0) / 100);
+	const dimTo = winDimFor(stepX);
 	const dimmed: Cell[] = [];
 	for (const c of stateGame.cells) if (!allWinners.has(cellOf(c.reel, c.row)) && c.state !== 'removing') dimmed.push(c);
 	for (const cl of clusters) for (const m of cl.members) m.cell.state = 'win';
@@ -1470,6 +1482,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 		}
 	}
 	const shaken = new Set<number>();
+	let brightDone = tBright < 0;
 	const lifeReal = SPARKLE.lifeMs / ts();
 
 	// ---- sample ----
@@ -1477,7 +1490,9 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	const owedAccent = { asked: false }; // this set's catch-up accent (skipAccent)
 	const sample = (now: number) => {
 		// the dim, once, for the whole set: a darkening (the dim rule), never alpha
-		const dk = clamp01((now - dimT0) / Math.max(CLUSTER.dimMs, 1));
+		// (a quadOut fade over CLUSTER.dimMs since 1.0.05 row 15; it was a 35 ms cut)
+		const dkl = clamp01((now - dimT0) / Math.max(CLUSTER.dimMs, 1));
+		const dk = dkl * (2 - dkl);
 		if (now >= dimT0) for (const c of dimmed) c.dim = 1 - (1 - dimTo) * dk;
 
 		let listChanged = false;
@@ -1594,13 +1609,20 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 				}
 				const d = (1 - el / K.ms) ** 2;
 				const ph = (2 * Math.PI * K.hz * el) / 1000;
-				kx += K.ampPx * d * Math.sin(ph);
-				ky += K.ampPx * K.yShare * d * Math.sin(ph * 1.3);
+				kx += shakeAmp * d * Math.sin(ph);
+				ky += shakeAmp * K.yShare * d * Math.sin(ph * 1.3);
 			}
 			if (on || shakeOwned) {
 				boardKick.x = kx;
 				boardKick.y = ky;
 				shakeOwned = on;
+			}
+			// WIN_FX.bright: the frame brightening at the step's first pop, once (BoardCells draws it, real ms)
+			if (!brightDone && now >= tBright) {
+				brightDone = true;
+				const B = WIN_FX.bright;
+				const share = clamp01((stepX - B.fromX) / Math.max(1e-6, B.peakMaxX - B.fromX));
+				if (!stateGame.skipping) cueBoardBright(B.peak + (B.peakMax - B.peak) * share);
 			}
 		}
 		if (listChanged) {
@@ -1698,7 +1720,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 	if (stateGame.skipping || !alive(id)) {
 		for (const c of stateGame.cells) c.dim = 1;
 	} else {
-		void raf(CLUSTER.dimMs, (t) => {
+		void raf(CLUSTER.dimOutMs, (t) => {
 			if (!alive(id)) return;
 			const map = liveById();
 			for (const idm of dimmedIds) {

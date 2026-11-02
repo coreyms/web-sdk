@@ -17,8 +17,8 @@
 	//                plaque leaves; the manticore is LIFTED over the dim where he stands (game/creature.ts
 	//                creatureFront.lift: his scene's twin root moves to this screen's own host, same pixels) and ROARS
 	//                (his roar clip and sfx_roar, as the book's roar plays them); the Wild Medallions start to fall
-	//   unleashedAt  MAYHEM UNLEASHED slams in, large
-	//   slamAt       the track's swell: MAX WIN slams over it, MAYHEM UNLEASHED recedes and shrinks above it, the
+	//   unleashedAt  MANTICORE UNLEASHED slams in, large
+	//   slamAt       the track's swell: MAX WIN slams over it, MANTICORE UNLEASHED recedes and shrinks above it, the
 	//                payout and the multiple read underneath, the rain is a downpour
 	//   ~26 s        the track's fade: the rain thins with it
 	//   30 s         the track ENDS: the gate (with a trackMs + gatePad fallback for a muted or blocked audio context),
@@ -32,9 +32,9 @@
 	//                music and the scene to keep it in sync?"): the first press before slamAt (once the plaque's count is
 	//                done) jumps the whole screen to the slam: the clock moves to slamAt (game/maxWin.svelte.ts
 	//                maxWinJump), bgm_maxwin is seeked to the same ms, the stages not yet run run at once (the dim, the
-	//                HUD's deep hide, the plaque leaving, him lifted), MAYHEM UNLEASHED is in its slammed pose, the rain at
+	//                HUD's deep hide, the plaque leaving, him lifted), MANTICORE UNLEASHED is in its slammed pose, the rain at
 	//                the slam's density, and MAX WIN slams with its thump. What the jump passed is not played late: his
-	//                roar (beat and sfx_roar_win) and MAYHEM UNLEASHED's thump are skipped when the jump passed them, so no
+	//                roar (beat and sfx_roar_win) and MANTICORE UNLEASHED's thump are skipped when the jump passed them, so no
 	//                sound piles up on the slam and none plays twice. From the slam it is the slam reached normally: PRESS
 	//                ANYWHERE, a second press out. A track that cannot be seeked: the scene still jumps and the fallback
 	//                gate is re-based on the new clock
@@ -87,7 +87,7 @@
 	/** the titles, in master px from the master's centre */
 	const titles = new PIXI.Container();
 	titles.label = 'maxwin-titles';
-	/** MAYHEM over UNLEASHED: the pair recedes as one */
+	/** MANTICORE over UNLEASHED: the pair recedes as one */
 	const pair = new PIXI.Container();
 	const slot = () => new PIXI.Container();
 	const mayhemSlot = slot();
@@ -361,7 +361,7 @@
 			sound('sfx_roar_win'); // the win roar (Corey 2026-10-18: his normal roar only for his roar move)
 		} else mark('roar passed');
 
-		// ---- MAYHEM UNLEASHED ----
+		// ---- MANTICORE UNLEASHED ----
 		await waitUntil(Math.max(MAX_WIN.unleashedAt, dimmedAt + (MAX_WIN.unleashedAt - MAX_WIN.dimAt)));
 		maxWinState.phase = 'unleashed';
 		if (!jumped) {

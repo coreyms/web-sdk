@@ -116,7 +116,10 @@ WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} writte
 #   painted light) and the static tile still from graded_r1/tile/ (TILE_OVERRIDES). Since 2026-10-29 the FS War Standard
 #   (Cinzel 900 "FS" painted into a flattened cloth, the sun emblem gone; Corey 2026-10-29 "9px", the S 9 px right of the
 #   F so they do not touch): clips and tile from drafts/fs-2026-10-28/delivery_s9/ (masters graded and lit at 1.5x the
-#   512 framing, which process() fits at any size)
+#   512 framing, which process() fits at any size). Since 2026-11-01 delivery_s9b/: the same frames with the win's
+#   painted burst held off the word (Corey 2026-11-01, the "yellow tear" between the F and the S on his phone: the
+#   burst's core and rays were painted at the old sun centre, which sits in the gap between the letters); the idle, the
+#   landing and the tile are delivery_s9's bytes
 #   M1 M2 M3 L4 L3: the symbol recolour (an Engine.io developer's "too much yellow"; Corey 2026-10-22 "Go"): each of the
 #   five now has its own colour (helmet crimson, dagger teal, chalice blue, seal green, key violet), graded per frame from
 #   the masters with ID masks (images/symbol_recolour_r1/official/<CODE>/NOTES.md); clips and tile from graded_r1/. The
@@ -128,7 +131,7 @@ WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} writte
 RECOLOUR_R1 = {"M1": "M1_persian-helmet", "M2": "M2_persian-dagger", "M3": "M3_royal-chalice",
                "L4": "L4_royal-seal", "L3": "L3_ancient-key",
                "L2": "L2_bull-skull", "H1": "H1_ancient-crown"}
-FS_DELIVERY = os.path.join(SYMBOLS_DIR, "S_war-standard", "drafts", "fs-2026-10-28", "delivery_s9")
+FS_DELIVERY = os.path.join(SYMBOLS_DIR, "S_war-standard", "drafts", "fs-2026-10-28", "delivery_s9b")
 SOURCE_OVERRIDES = {"S": os.path.join(FS_DELIVERY, "masters"),
                     **{c: os.path.join(SYMBOLS_DIR, d, "graded_r1") for c, d in RECOLOUR_R1.items()}}
 TILE_OVERRIDES = {"S": os.path.join(FS_DELIVERY, "tile", "s.webp"),

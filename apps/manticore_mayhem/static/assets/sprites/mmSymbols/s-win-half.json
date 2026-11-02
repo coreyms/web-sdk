@@ -916,7 +916,7 @@
   "fps": 30,
   "encoding": "q85",
   "fit": {
-   "source": "S_war-standard/drafts/fs-2026-10-28/delivery_s9/masters/win",
+   "source": "S_war-standard/drafts/fs-2026-10-28/delivery_s9b/masters/win",
    "sourcePx": 768,
    "box512": [
     79.073,
@@ -982,6 +982,6 @@
     "spriteFrac": 0.8083999999999999
    }
   },
-  "pngHash": "7c47d503"
+  "pngHash": "8413a73e"
  }
 }

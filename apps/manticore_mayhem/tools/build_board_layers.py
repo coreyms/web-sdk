@@ -648,12 +648,14 @@ def main():
             # the pixels: the D1 plate for the frame, and the chains lit three times. Each relit layer's alpha is the
             # locked layer's (relight_r1 NOTES departure 1; the plate's only behind the turning parts), so the period and
             # the phase measured on the locked chains above hold for all three sets
-            frame_px = Image.open(board_relight.PLATE['day']).convert('RGBA')
+            # THE CONTRAST GRADE (board_relight.GRADE, Corey 2026-11-01): the plate; the chains only if GRADE['chains'] (off since his
+            # look at the card the same evening: "The chain looked better beforehand")
+            frame_px = board_relight.grade_image(Image.open(board_relight.PLATE['day']).convert('RGBA'), 'day')
             run_sets = []
             for name in board_relight.SETS:
                 lit = Image.open(board_relight.CHAINS[name]).convert('RGBA')
                 assert lit.split()[-1].tobytes() == chains.split()[-1].tobytes(), f'{name} chains: alpha is not the locked layer\'s'
-                run_sets.append((name, chain_runs(lit, cam)[0]))
+                run_sets.append((name, chain_runs(board_relight.grade_image(lit, name) if board_relight.GRADE['chains'] else lit, cam)[0]))
             print(f'relight: frame pixels from {os.path.relpath(board_relight.PLATE["day"], _D)}, chain sets {[n for n, _ in run_sets]}')
         fbox = crop_box(frame.split()[-1].getbbox(), frame.size)
         half = chains.size[0] // 2
