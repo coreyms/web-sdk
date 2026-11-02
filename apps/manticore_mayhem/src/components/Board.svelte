@@ -45,7 +45,7 @@
 	import ClawSwipe from './ClawSwipe.svelte';
 	import { fxLog, boardKick, swipeFx, gustFx, chainGust, type ChainGustKind } from '../game/featureFx';
 	import BoardCells from './BoardCells.svelte';
-	import { revealTease, plateLog, boardExit } from '../game/stateGame.svelte';
+	import { revealTease, plateLog, refillHoldLog, boardExit } from '../game/stateGame.svelte';
 	import { BOARD_EXIT, CHAIN_GUST, DROP, winDimFor } from '../game/constants';
 
 	const context = getContext();
@@ -129,6 +129,8 @@
 			/** the plates' live state (value, the count-over's from / progress, the pop) and every plate change played */
 			platesState: () => context.stateGameDerived.platesRaw(),
 			plateLog: () => plateLog.slice(),
+			/** THE x128 REFILL HOLD (1.0.05, TILE_FLARE refillHoldMs): every hold applied to a column's refill, style ms */
+			refillHoldLog: () => refillHoldLog.slice(),
 			/** every sting beat played on this page, oldest first: { phase, kind, center, at } */
 			stings: () => stingLog.slice(),
 			/** the Mystery outcome of the round being played, null outside a Mystery book */

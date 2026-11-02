@@ -8,7 +8,7 @@
 // dropped, the queue never holds more than WELLS_FX.cueMax, and the callers never cue while skipping.
 import { WELLS_FX } from './constants';
 
-export type WellsCueKind = 'light' | 'double' | 'win' | 'swipe' | 'sting';
+export type WellsCueKind = 'light' | 'double' | 'win' | 'swipe' | 'sting' | 'flare';
 export type WellsCue = {
 	kind: WellsCueKind;
 	/** performance.now() the beat starts (the sting's: its hit) */
@@ -24,7 +24,7 @@ export type WellsCue = {
 export const wellsFx = {
 	cues: [] as WellsCue[],
 	/** DEV probe: cues made since boot, per kind */
-	count: { light: 0, double: 0, win: 0, swipe: 0, sting: 0 } as Record<WellsCueKind, number>,
+	count: { light: 0, double: 0, win: 0, swipe: 0, sting: 0, flare: 0 } as Record<WellsCueKind, number>,
 };
 
 const cue = (
@@ -54,6 +54,9 @@ export const cueWellSwipe = (rows: number[], rate: number) =>
 export const cueWellSting = (cell: number, at: number, rate: number, kind: string) => {
 	if (kind !== 'scatter') cue('sting', at, rate, [cell]);
 };
+/** a tile's count-over lands on a milestone whose flare rings the veins (TILE_FLARE veinRing, x128): the wells ring outward
+ *  from `cell` from `at` (game/tileFlare.ts cueTileFlare; never on a skip, the plate pump finishes those without a cue) */
+export const cueWellFlare = (cell: number, at: number, rate: number) => cue('flare', at, rate, [cell]);
 /** a skip, a new round: nothing queued may play */
 export const clearWellCues = () => {
 	wellsFx.cues.length = 0;

@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { TILE_FLARE } from './constants';
 import { stagingFlare } from './staging';
 import { eventEmitter } from './eventEmitter';
+import { cueWellFlare } from './wellsFx';
 
 // THE TILE MILESTONE FLARE (constants TILE_FLARE, Corey 2026-10-23; OFF by default, `?flare=1` on staging / dev).
 // stateGame's plate pump calls cueTileFlare as a tile's count-over lands on x64 or x128; BoardCells takes the queue
@@ -38,6 +39,8 @@ export const cueTileFlare = (cell: number, value: number, step: number, rate: nu
 	queue.push({ cell, value, step, rate, t0: performance.now() });
 	if (queue.length > TILE_FLARE.pool * 2) queue.splice(0, queue.length - TILE_FLARE.pool * 2);
 	tileFlareStats.cues += 1;
+	// THE VEIN RING (1.0.05, milestones[].veinRing, x128): the wells ring outward from the cell with the flare
+	if (TILE_FLARE.milestones[value].veinRing) cueWellFlare(cell, performance.now(), rate);
 	let ring = 0;
 	if (step !== lastRingStep) {
 		lastRingStep = step;
@@ -122,10 +125,11 @@ const flareAtlas = (): Atlas => {
 		const r = Math.hypot(x - G / 2, y - G / 2) / (G / 2);
 		return r >= 1 ? 0 : (1 - r) ** 2.2;
 	});
-	// RING: a thin bright band at 0.88 of the radius with a faint inner haze, at (G, 2G)
+	// RING: a bright band at 0.88 of the radius with a faint inner haze, at (G, 2G). The band's width is
+	// TILE_FLARE.ringBand of the radius (1.0.05: 0.05 drew about 3 screen px at 1.8 cells and did not read in the captures)
 	pixels(G, 2 * G, G, (x, y) => {
 		const r = Math.hypot(x - G / 2, y - G / 2) / (G / 2);
-		const band = Math.exp(-(((r - 0.88) / 0.05) ** 2));
+		const band = Math.exp(-(((r - 0.88) / TILE_FLARE.ringBand) ** 2));
 		const haze = r < 0.88 ? 0.18 * (r / 0.88) ** 3 : 0;
 		return r >= 0.995 ? 0 : band + haze;
 	});
@@ -197,10 +201,10 @@ export const createFlarePool = () => {
 	/** the popped numbers (BoardCells moves a tile's number row in here for its pop, over the flare) */
 	const nums = new PIXI.Container({ label: 'tile-flare-nums' });
 	layer.addChild(fx, nums);
-	const sprite = (tex: PIXI.Texture, tint: number) => {
+	const sprite = (tex: PIXI.Texture, tint: number, blend: PIXI.BLEND_MODES = 'add') => {
 		const s = new PIXI.Sprite(tex);
 		s.anchor.set(0.5);
-		s.blendMode = 'add';
+		s.blendMode = blend;
 		s.tint = tint;
 		s.visible = false;
 		return s;
@@ -214,7 +218,7 @@ export const createFlarePool = () => {
 			bloom: sprite(A.bloom, P.bloom),
 			core: sprite(A.core, P.core),
 			rays: sprite(A.rays[0], P.rays),
-			ring: sprite(A.ring, P.ring),
+			ring: sprite(A.ring, P.ring, TILE_FLARE.ringBlend),
 			sparks: Array.from({ length: TILE_FLARE.sparks }, () => sprite(A.spark, P.spark)),
 			live: false,
 			t0: 0,
@@ -260,7 +264,8 @@ export const createFlarePool = () => {
 		f.t0 = now;
 		f.rate = Math.max(0.2, rate);
 		f.ms = Math.max(1, m.ms);
-		f.ringA = m.ring;
+		// the ring's own brightness (1.0.05: split from `ring`, the sound's level)
+		f.ringA = m.ringAlpha;
 		f.bw = bw;
 		f.bh = bh;
 		f.cs = (bw + bh) / 2;
@@ -291,11 +296,12 @@ export const createFlarePool = () => {
 			if (!f.live) continue;
 			const t = (now - f.t0) * f.rate;
 			const dur = f.ms;
-			if (t > dur * 1.2) {
+			if (t > Math.max(dur * 1.2, 30 + TILE_FLARE.ringMs)) {
 				end(f);
 				continue;
 			}
 			const { cs, R } = f;
+			// past its own life (the ring may still be spreading) the flare's other layers are out
 			// the cell's own edge lights first
 			const eA = t < 50 ? t / 50 : 1 - clamp01((t - 50) / (dur * 0.55));
 			if (put(f.edge, 0.95 * Math.max(0, eA) ** 1.3)) f.edge.scale.set((f.bw * 1.02) / EDGE_W, (f.bh * 1.02) / EDGE_W);
@@ -315,9 +321,10 @@ export const createFlarePool = () => {
 				sz(f.rays, RAYS_W, R * 1.55);
 				f.rays.rotation = 0.18 * (t / dur);
 			}
-			// the ring (its brightness is the milestone's `ring`)
-			const e = clamp01((t - 30) / (dur * 0.95));
-			if (put(f.ring, f.ringA > 0 && t > 30 ? f.ringA * (1 - e) ** 1.6 * clamp01((t - 30) / 60) : 0)) sz(f.ring, G, R * (0.42 + easeOutCubic(e)));
+			// the ring (1.0.05: its brightness is the milestone's `ringAlpha`, its spread TILE_FLARE.ringFrom -> ringReach cells
+			// over ringMs after the first 30 ms, fading as it goes; it used to be the sound's level over 0.42 -> 1.42 flare radii)
+			const e = clamp01((t - 30) / TILE_FLARE.ringMs);
+			if (put(f.ring, f.ringA > 0 && t > 30 ? f.ringA * (1 - e) ** TILE_FLARE.ringFade * clamp01((t - 30) / 60) : 0)) sz(f.ring, G, cs * (TILE_FLARE.ringFrom + (TILE_FLARE.ringReach - TILE_FLARE.ringFrom) * easeOutCubic(e)));
 			// the sparks
 			const se = clamp01(t / (dur * 1.1));
 			const sA = se < 1 ? (1 - se) ** 1.3 * clamp01(t / 40) : 0;

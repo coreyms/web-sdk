@@ -1257,8 +1257,11 @@ export const FRAME_RELIGHT = {
 // retired): a translucent rounded fill and a bright border in one colour per value, and a large "x<value>"
 // from the numerals atlas with a soft glow, at numberAlphaUnderSymbol while a symbol covers it and 1 when it
 // is exposed. On a clear: the reveal pop (revealPopScale over revealPopMs) and, changeDelayMs after the
-// symbol has left, the value COUNTS over (the old number shrinks away over the first 45 % with quadIn, the
-// new one grows in with backOut) over changeMs while the plate colour lerps old -> new (quadOut).
+// symbol has left, the value COUNTS over, over changeMs. Since 1.0.05 the count-over is a light-up from the edges in
+// with the number landing (0 -> x2) or the old number out and the new one slamming in with a flash and a squash (a
+// doubling), the colour landing over colorMs: the light* / land* / slam* / squash* / centreFill block below. Up to
+// 1.0.04 the old number shrank away over the first 45 % (quadIn) and the new one grew in (backOut) while the colour
+// lerped over the whole count.
 // Drawn by components/BoardCells.svelte; the timing is stateGame's (plateChange). px are playground px
 // (x PLAYGROUND_PX at draw time); ms are style time.
 export const MULT_PLATE = {
@@ -1298,6 +1301,40 @@ export const MULT_PLATE = {
 	changeStyle: 'count' as const,
 	changeMs: 600,
 	changeDelayMs: 100,
+	// ---- THE LIGHT-UP AND THE DOUBLING (1.0.05; asset grades #24 + #23, both motion 4: the tile "appears with a black
+	// hole in its centre for about 200 ms, then the number grows from a dot", the doubling is "a 600 ms shrink-out and
+	// grow-in with a dark middle, a blink, and dozens of tiles do it each free spin"; Corey 2026-11-01 "Okay, just launch
+	// it after this agent finishes" to the quick-fix list, its row 1). Every ms below is style time INSIDE the count-over
+	// (changeMs), so turbo divides it with the count; the count-over's length, its delay, the colour ladder and the tile's
+	// material are untouched. Drawn by BoardCells syncPlates on the sprites the tile already has; nothing new is made.
+	/** A LIGHT-UP (0 -> x2) lights the tile FROM ITS EDGES IN: the inner glow's alpha 0 -> 1 and the whole tile
+	 *  lightScaleFrom -> lightOvershoot -> 1 over lightMs */
+	lightMs: 180,
+	lightScaleFrom: 0.85,
+	lightOvershoot: 1.04,
+	/** ... while the number LANDS: landFrom -> landDip -> 1 over landMs, fading in over its first landFadeMs */
+	landMs: 260,
+	landFrom: 1.45,
+	landDip: 0.95,
+	landFadeMs: 80,
+	/** A DOUBLING: the old number grows to oldOutScale and fades over oldOutMs while the new one SLAMS IN from slamFrom to 1
+	 *  over slamMs; as it lands, a one-frame white flash on the tile (flashMs at flashAlpha, the tile's own box) and the
+	 *  tile squashes squashFrom -> squashTo -> 1 over squashMs. The tile stays lit throughout (the inner glow never dips) */
+	oldOutMs: 120,
+	oldOutScale: 1.15,
+	slamMs: 140,
+	slamFrom: 1.6,
+	flashMs: 34,
+	flashAlpha: 0.55,
+	squashMs: 160,
+	squashFrom: 0.94,
+	squashTo: 1.04,
+	/** the plate's colour now lands with the squash: old -> new over colorMs (quadOut; it used to take the whole changeMs) */
+	colorMs: 300,
+	/** THE CENTRE FILL (the grader: "keep a dim tier-coloured fill in the tile centre while the number is absent, so there
+	 *  is never a black hole"): the tile's box filled in the level colour at this alpha, shown only as much as the number is
+	 *  NOT (it goes as the number comes), so a resting tile looks exactly as it did */
+	centreFillAlpha: 0.35,
 };
 /** the plate colour for a value: the log2 ramp's nearest step, clamped to x2..x256. Corey 2026-10-07: x128 is
  *  pale gold and white is kept for x256 (the math's ladder caps at 128 today, so white is headroom). */
@@ -1321,11 +1358,33 @@ export const TILE_FLARE = {
 	/** per milestone. x64 is Corey's numbers from the mockup (flare 0.80x the cell for 300 ms, pop 1.25x over 210 ms, ring
 	 *  0.05); x128 is the starting point "stronger for 128" (1.00x for 380 ms, 1.40x over 270 ms, ring 0.15), judged in
 	 *  clips. `size` is the flare's reach as a share of the cell, `ms` its life, `pop` the number's peak scale over
-	 *  `popMs`, `ring` the ring's brightness AND the ring sound's level (the brief: "at the given brightness as its level") */
+	 *  `popMs`, `ring` the RING SOUND'S level (it used to be the ring's brightness too).
+	 *  THE RING SPLIT FROM THE SOUND (1.0.05; asset grade #72 at 5 / 5: "the ring is near invisible (0.05 / 0.15) because
+	 *  its brightness and the ring sound level are one number"; Corey 2026-11-01 "Okay, just launch it after this agent
+	 *  finishes" to the quick-fix list, its row 4): `ringAlpha` is the ring's own brightness, drawn from ringFrom to
+	 *  ringReach cells across over ringMs (below). `veinRing`: the wells' veins ring outward from the cell too (WELLS_FX.flare,
+	 *  the sting's spread), so the neighbours flare: x128 only. `refillHoldMs`: the cell's column waits this much longer
+	 *  before its refill falls (stateGame dropFill), so the settled number is seen before a symbol covers it; presentation
+	 *  only, the book's fill and order untouched: x128 only */
 	milestones: {
-		64: { size: 0.8, ms: 300, pop: 1.25, popMs: 210, ring: 0.05 },
-		128: { size: 1.0, ms: 380, pop: 1.4, popMs: 270, ring: 0.15 },
-	} as Record<number, { size: number; ms: number; pop: number; popMs: number; ring: number }>,
+		64: { size: 0.8, ms: 300, pop: 1.25, popMs: 210, ring: 0.05, ringAlpha: 0.5, veinRing: false, refillHoldMs: 0 },
+		128: { size: 1.0, ms: 380, pop: 1.4, popMs: 270, ring: 0.15, ringAlpha: 0.7, veinRing: true, refillHoldMs: 180 },
+	} as Record<number, { size: number; ms: number; pop: number; popMs: number; ring: number; ringAlpha: number; veinRing: boolean; refillHoldMs: number }>,
+	/** the ring's spread (the grader: "expanding to 1.8 cells over 350 ms"): the ring sprite's width in cells, from
+	 *  ringFrom to ringReach over ringMs (cubic out) after the flare's first 30 ms, fading as it goes. The ring texture's
+	 *  bright band sits at 0.88 of the sprite's radius. A flare lives at least 30 + ringMs so the ring finishes */
+	ringFrom: 0.5,
+	ringReach: 1.8,
+	ringMs: 350,
+	/** the ring's blend: 'normal', tuned by eye on the 2026-11-02 captures: an additive ring over x64 / x128 tiles (already
+	 *  pale gold and cream) saturated to white and could not be told from them; drawn normally in its deeper gold (the
+	 *  palette's `ring`, was the pale ffe7a3) it reads over the lit tiles and the dark wells alike. The other layers stay additive */
+	ringBlend: 'normal' as 'normal' | 'add',
+	/** the ring's band width (a share of its radius, in the flare's own code-drawn atlas) and its fade power over ringMs:
+	 *  tuned by eye on the same captures (2026-11-02). The old 0.05 band and power 1.6 left a 3 px line at about 0.3 alpha
+	 *  by the time it was a cell and a half across; 0.11 and 0.8 keep it a readable gold band until it reaches 1.8 cells */
+	ringBand: 0.11,
+	ringFade: 0.8,
 	/** the ring: an existing metallic cue, nothing new in the sprite (the 22 ms sfx_tile_double tick is too short to ring) */
 	ringSound: 'sfx_plaque_land' as const,
 	/** when the flare fires, as a share of the count-over (MULT_PLATE.changeMs): 0.45 = the moment the new number starts
@@ -1334,7 +1393,7 @@ export const TILE_FLARE = {
 	 *  the pop rides on the number's own grow-in */
 	atChange: 0.45,
 	/** the mockup's gold, per layer (the tile's own colours and material stay as they are) */
-	palette: { edge: 0xffb52e, bloom: 0xffa526, rays: 0xffd45c, ring: 0xffe7a3, spark: 0xfff4d6, core: 0xfff7e6 },
+	palette: { edge: 0xffb52e, bloom: 0xffa526, rays: 0xffd45c, ring: 0xffb93a, spark: 0xfff4d6, core: 0xfff7e6 },
 	/** the pop lifts the number's alpha from the tile's 0.65 to full at the pop's peak (the mockup's lift) */
 	popLift: true,
 	/** flares alive at once: a whole board (every cell can reach a milestone in one step) */
@@ -1596,9 +1655,13 @@ export const WELLS = {
  *  and the fire's warmth by fire x night. cueMax / cueMaxAgeMs: the cue queue's bound and the age past which a cue
  *  that was never read (a hidden tab) is dropped instead of played late. */
 export const WELLS_FX = {
-	tint: { light: 0xffa63c, double: 0xffc860, win: 0xffb852, swipe: 0xff6a24, sting: 0xff8a2e, power: 0xff9a3a },
+	tint: { light: 0xffa63c, double: 0xffc860, win: 0xffb852, swipe: 0xff6a24, sting: 0xff8a2e, power: 0xff9a3a, flare: 0xffd66a },
 	light: { peak: 0.85, inMs: 380, holdMs: 120, outMs: 900 },
 	double: { peak: 1, inMs: 420, holdMs: 180, outMs: 1100 },
+	/** THE MILESTONE'S VEIN RING (1.0.05, TILE_FLARE veinRing, asset grade #72; Corey 2026-11-01 "Okay, just launch it
+	 *  after this agent finishes"): an x128 landing rings the wells outward from its cell the way a sting does (the
+	 *  sting's reach 2 and falloff 0.55, a slower step so the ring reads), in the flare's gold */
+	flare: { peak: 0.95, inMs: 120, holdMs: 140, outMs: 900, stepMs: 70, reach: 2, falloff: 0.55 },
 	win: { peak: 0.8, inMs: 170, holdMs: 260, outMs: 700, stepMs: 55 },
 	/** swipe: sweepMs in step with the four claws drawing on right to left (claw-swipe r3: the last claw starts at 60
 	 *  ms and is half drawn by 90; 150 in r1 / r2, 240 with the old tears). The tiles' own light-ups follow the

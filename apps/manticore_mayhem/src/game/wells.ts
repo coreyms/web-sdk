@@ -303,8 +303,9 @@ export const createWells = (renderer: () => PIXI.Renderer | undefined): Wells =>
 					);
 			return;
 		}
-		// the sting: the struck cell at the hit, then ring by ring outward
-		const S = WELLS_FX.sting;
+		// the sting: the struck cell at the hit, then ring by ring outward (the milestone's vein ring, 'flare', spreads the
+		// same way from the x128 tile: WELLS_FX.flare)
+		const S = c.kind === 'flare' ? WELLS_FX.flare : WELLS_FX.sting;
 		const cell = c.cells[0];
 		const r0 = cell % GRID;
 		const c0 = Math.floor(cell / GRID);
@@ -316,7 +317,7 @@ export const createWells = (renderer: () => PIXI.Renderer | undefined): Wells =>
 				const d = Math.max(Math.abs(dc), Math.abs(dr));
 				add(
 					reel * GRID + row,
-					'sting',
+					c.kind,
 					c.at + (d * S.stepMs) / c.rate,
 					c.rate,
 					Math.pow(S.falloff, d),

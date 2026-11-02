@@ -1917,6 +1917,32 @@ export const applyTiles = async (entries: TileEntry[], _id: number, delayMs: num
 	for (const [cell, value] of entries) plateReveal(cell, value, delayMs);
 };
 
+/** THE x128 REFILL HOLD (1.0.05, TILE_FLARE.milestones[].refillHoldMs; asset grade #72: "the refill covers the x128
+ *  almost at once"; Corey 2026-11-01 "Okay, just launch it after this agent finishes"): the style ms a column's refill
+ *  waits on top of its stagger when one of its tiles is counting over to a milestone that asks for a hold (the job is in
+ *  flight, or queued and not yet started). Every job of the column waits the same, so its stack never overtakes itself.
+ *  Presentation only: the book's fill and order are untouched; a skip finishes the drop at once as before. */
+/** DEV probe log: every refill hold applied (the column and its style ms) */
+export const refillHoldLog: { reel: number; hold: number; at: number }[] = [];
+const refillHold = (reel: number): number => {
+	if (!tileFlareOn) return 0;
+	let hold = 0;
+	for (const j of plateJobs) {
+		if (reelOf(j.cell) !== reel) continue;
+		const tile = stateGame.tiles[j.cell];
+		if (!tile) continue;
+		const to = j.started ? (j.change ? tile.value : 0) : (j.to ?? 0);
+		const m = TILE_FLARE.milestones[to];
+		if (!m || !m.refillHoldMs) continue;
+		if (j.started ? tile.from < to : tile.value < to) hold = Math.max(hold, m.refillHoldMs);
+	}
+	if (import.meta.env.DEV && hold) {
+		refillHoldLog.push({ reel, hold, at: performance.now() });
+		if (refillHoldLog.length > 400) refillHoldLog.splice(0, 200);
+	}
+	return hold;
+};
+
 /** survivors fall into the gaps and `fill` drops in from above, per column, top-down. `aura` is the
  *  next cascade's winners (cellIndex, on the FILLED board): the ones that move glow as they land, the
  *  ones already in place glow when the last moving winner lands, so the cluster lights up whole. */
@@ -1928,6 +1954,8 @@ export const dropFill = async (fill: Fill, id: number, aura?: Set<CellIndex>) =>
 	for (let reel = 0; reel < GRID; reel += 1) {
 		const survivors = columnCells(reel);
 		const incoming = fill[reel] ?? [];
+		// the x128 refill hold (above): this column's start, stagger plus hold
+		const start = reel * DROP.columnStaggerMs + refillHold(reel);
 		// the finished column, top-down: the new symbols first, then whatever survived. A book's
 		// fill always refills the column to GRID; if it ever did not, the shortfall hangs from the
 		// TOP so the survivors keep sitting on the floor (settleBoard enforces the same rule).
@@ -1940,7 +1968,7 @@ export const dropFill = async (fill: Fill, id: number, aura?: Set<CellIndex>) =>
 			const fromY = stackedAbove(i, incoming.length);
 			const cell = makeCell(name, reel, row, fromY);
 			added.push(cell);
-			const job: DropJob = { cellId: cell.id, fromY, toY: row, delay: reel * DROP.columnStaggerMs, dur: dropDuration(row - fromY), aura: aura?.has(cellOf(reel, row)) ?? false };
+			const job: DropJob = { cellId: cell.id, fromY, toY: row, delay: start, dur: dropDuration(row - fromY), aura: aura?.has(cellOf(reel, row)) ?? false };
 			if (job.aura) lastWinnerLanding = Math.max(lastWinnerLanding, job.delay + job.dur);
 			plan.push(job);
 		});
@@ -1953,7 +1981,7 @@ export const dropFill = async (fill: Fill, id: number, aura?: Set<CellIndex>) =>
 			}
 			const fromY = cell.y;
 			cell.row = row;
-			const job: DropJob = { cellId: cell.id, fromY, toY: row, delay: reel * DROP.columnStaggerMs, dur: dropDuration(row - fromY), aura: wins };
+			const job: DropJob = { cellId: cell.id, fromY, toY: row, delay: start, dur: dropDuration(row - fromY), aura: wins };
 			if (job.aura) lastWinnerLanding = Math.max(lastWinnerLanding, job.delay + job.dur);
 			plan.push(job);
 		});

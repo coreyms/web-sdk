@@ -70,7 +70,7 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { quadOut, quadIn, backOut } from 'svelte/easing';
+	import { quadOut, quadIn, quadInOut } from 'svelte/easing';
 
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, CELL_FILL, SYMBOL_FIT, CELL_COUNT, GRID, MULT_PLATE, PLAYGROUND_PX, plateColor, SPARKLE, AURA_COLOR, SHEET_FPS, SHEET_IDLE_TURBO, SYMBOL_IDLE_REST, WIN_SHEET, SYMBOL_PLACE, POP_TOP, SYMBOL_POPS, SYMBOL_RIM, BOARD_SIZES, reelOf, rowOf, symbolAnim, symbolScale } from '../game/constants';
@@ -831,7 +831,10 @@
 	const coverDim = new Float32Array(CELL_COUNT);
 
 	type Row = { c: PIXI.Container; out: PIXI.Container; face: PIXI.Container; text: string; w: number; h: number; track: number; scale: number; alpha: number; tint: number; ftint: number };
-	type Plate = { root: PIXI.Container; g: PIXI.Graphics; inner: PIXI.Sprite; glow: PIXI.Sprite; old: Row; cur: Row; value: number; from: number; tint: number; glowTint: number; numAlpha: number; shown: boolean; ghost: boolean };
+	/** rootScale / innerAlpha / fillAlpha / flashOn: what the light-up and the doubling (MULT_PLATE light* / slam* / squash* /
+	 *  centreFillAlpha, 1.0.05) last wrote to the root's scale, the inner glow's alpha and the box fill, so a frame that
+	 *  changes nothing writes nothing */
+	type Plate = { root: PIXI.Container; g: PIXI.Graphics; inner: PIXI.Sprite; glow: PIXI.Sprite; old: Row; cur: Row; value: number; from: number; tint: number; glowTint: number; numAlpha: number; shown: boolean; ghost: boolean; rootScale: number; innerAlpha: number; fillAlpha: number; flashOn: boolean };
 	const plates: (Plate | null)[] = Array(CELL_COUNT).fill(null);
 	const glyphPool: PIXI.Sprite[] = [];
 	const row = (): Row => {
@@ -850,13 +853,17 @@
 		const h = b[k + 3] - b[k + 1];
 		p.root.position.set((b[k] + b[k + 2]) / 2, (b[k + 1] + b[k + 3]) / 2);
 		p.g.clear();
-		if (MULT_PLATE.fillAlpha > 0) p.g.rect(-w / 2, -h / 2, w, h).fill({ color: 0xffffff, alpha: MULT_PLATE.fillAlpha });
+		// THE BOX (1.0.05): the box is drawn white at full alpha whenever the resting fill, the centre fill or the doubling's
+		// flash can use it; its alpha per frame is the Graphics' own (syncPlates), at rest MULT_PLATE.fillAlpha (0: hidden)
+		if (MULT_PLATE.fillAlpha > 0 || MULT_PLATE.centreFillAlpha > 0 || MULT_PLATE.flashAlpha > 0) p.g.rect(-w / 2, -h / 2, w, h).fill({ color: 0xffffff, alpha: 1 });
 		if (MULT_PLATE.borderAlpha > 0 && TILE_BORDER > 0) {
 			const W = Math.min(TILE_BORDER, w / 2 - 0.5);
 			const R = MULT_PLATE.cornerPx * PER_MASTER;
 			p.g.rect(-w / 2, -h / 2, w, h).fill({ color: 0xffffff, alpha: MULT_PLATE.borderAlpha });
 			p.g.roundRect(-w / 2 + W, -h / 2 + W, w - 2 * W, h - 2 * W, R).cut();
 		}
+		p.g.alpha = MULT_PLATE.fillAlpha;
+		p.fillAlpha = MULT_PLATE.fillAlpha;
 		p.g.visible = MULT_PLATE.fillAlpha > 0 || MULT_PLATE.borderAlpha > 0;
 		p.inner.setSize(w, h);
 	};
@@ -876,7 +883,7 @@
 		const cur = row();
 		root.addChild(g, inner, glow, old.c, cur.c);
 		plateLayer.addChild(root);
-		p = { root, g, inner, glow, old, cur, value: -1, from: -1, tint: -1, glowTint: -1, numAlpha: NaN, shown: true, ghost: false };
+		p = { root, g, inner, glow, old, cur, value: -1, from: -1, tint: -1, glowTint: -1, numAlpha: NaN, shown: true, ghost: false, rootScale: 1, innerAlpha: MULT_PLATE.innerGlowAlpha, fillAlpha: 0, flashOn: false };
 		placePlate(p, index);
 		plates[index] = p;
 		return p;
@@ -994,35 +1001,96 @@
 				p.ghost = false;
 				p.root.visible = true;
 				p.root.scale.set(1);
+				p.rootScale = 1;
 			}
 			const chg = tile.chg;
 			const from = chg < 1 ? tile.from : 0;
 			if (!setRow(p.cur, `x${value}`, tex)) continue; // the atlas is not in yet: next frame
 			if (from && !setRow(p.old, `x${from}`, tex)) continue;
 			const dim = covered[i] ? coverDim[i] : 1;
-			// the colour lerps old -> new over the count (quadOut); the reveal pop scales the number
-			const col = from ? mixColor(plateColor(from), plateColor(value), quadOut(chg)) : plateColor(value);
+			const P = MULT_PLATE;
+			/** style ms into the count-over */
+			const el = chg * P.changeMs;
+			// the colour lerps old -> new over colorMs (quadOut; 1.0.05: it was the whole count); a light-up is its colour at once
+			const col = from ? mixColor(plateColor(from), plateColor(value), quadOut(Math.min(1, el / P.colorMs))) : plateColor(value);
 			const tint = darken(col, dim);
 			if (tint !== p.tint) {
 				p.tint = tint;
 				p.g.tint = tint;
 				p.inner.tint = tint;
 			}
-			const pop = tile.pop < 1 ? 1 + (MULT_PLATE.revealPopScale - 1) * Math.sin(Math.PI * tile.pop) : 1;
-			const numA = covered[i] ? MULT_PLATE.numberAlphaUnderSymbol : MULT_PLATE.numberAlphaEmpty;
-			// COUNT: the old number shrinks away over the first 45 % (quadIn), the new one grows in (backOut)
+			const numA = covered[i] ? P.numberAlphaUnderSymbol : P.numberAlphaEmpty;
+			// THE LIGHT-UP AND THE DOUBLING (MULT_PLATE light* / land* / slam* / squash* / centreFillAlpha, 1.0.05; asset grades
+			// #24 + #23). A light-up: the tile from its edges in (the inner glow's alpha and the tile's scale) while the number
+			// lands. A doubling: the old number up and out, the new one slamming in, a one-frame flash and the tile's squash as
+			// it lands; the tile lit throughout. The centre fill shows only as much as no number does: never a hole. A plain
+			// re-exposure (the symbol left, the value unchanged) keeps the reveal pop.
 			let oldScale = 0;
-			let curScale = pop;
-			if (chg < 1) {
-				if (chg < 0.45 && from) {
-					oldScale = (1 - quadIn(chg / 0.45)) * pop;
-					curScale = 0;
-				} else curScale = Math.max(0.01, backOut(Math.max(0, (chg - 0.45) / 0.55))) * pop;
+			let oldA = 0;
+			let curScale = 1;
+			let curA = numA;
+			let glowA = 1;
+			let rootScale = 1;
+			let fillA = 0;
+			let flash = false;
+			if (chg < 1 && !from) {
+				const u = Math.min(1, el / P.lightMs);
+				glowA = quadOut(u);
+				rootScale = u < 0.6 ? P.lightScaleFrom + (P.lightOvershoot - P.lightScaleFrom) * quadOut(u / 0.6) : P.lightOvershoot + (1 - P.lightOvershoot) * quadInOut((u - 0.6) / 0.4);
+				const v = Math.min(1, el / P.landMs);
+				curScale = v < 0.7 ? P.landFrom + (P.landDip - P.landFrom) * quadIn(v / 0.7) : P.landDip + (1 - P.landDip) * quadOut((v - 0.7) / 0.3);
+				const fade = Math.min(1, el / P.landFadeMs);
+				curA = numA * fade;
+				fillA = P.centreFillAlpha * (1 - fade);
+			} else if (chg < 1) {
+				if (el < P.oldOutMs) {
+					const u = el / P.oldOutMs;
+					oldScale = 1 + (P.oldOutScale - 1) * quadOut(u);
+					oldA = numA * (1 - u);
+				}
+				if (el < P.slamMs) {
+					const u = el / P.slamMs;
+					curScale = P.slamFrom + (1 - P.slamFrom) * quadIn(u);
+					curA = numA * Math.min(1, u / 0.5);
+				} else {
+					const s = el - P.slamMs;
+					// at least this frame's own style time, so the flash is one whole frame at every turbo level (super
+					// turbo's 4x would otherwise step over a 34 ms window)
+					flash = s < Math.max(P.flashMs, dtStyle);
+					if (s < P.squashMs) {
+						const u = s / P.squashMs;
+						rootScale = u < 0.5 ? P.squashFrom + (P.squashTo - P.squashFrom) * quadOut(u / 0.5) : P.squashTo + (1 - P.squashTo) * quadInOut((u - 0.5) / 0.5);
+					}
+				}
+				fillA = P.centreFillAlpha * Math.max(0, 1 - Math.max(oldA, curA) / numA);
+			} else if (tile.pop < 1) {
+				curScale = 1 + (P.revealPopScale - 1) * Math.sin(Math.PI * tile.pop);
+			}
+			if (rootScale !== p.rootScale) {
+				p.rootScale = rootScale;
+				p.root.scale.set(rootScale);
+			}
+			const ga = P.innerGlowAlpha * glowA;
+			if (ga !== p.innerAlpha) {
+				p.innerAlpha = ga;
+				p.inner.alpha = ga;
+				p.inner.visible = ga > 0.002;
+			}
+			// the box: the centre fill in the level colour, or the flash frame in white (the box's tint is the plate's
+			// otherwise, which the plate probe reads); hidden when neither shows
+			const fa = flash ? P.flashAlpha : fillA;
+			if (flash !== p.flashOn) {
+				p.flashOn = flash;
+				p.g.tint = flash ? darken(0xffffff, dim) : tint;
+			}
+			if (fa !== p.fillAlpha) {
+				p.fillAlpha = fa;
+				p.g.alpha = fa;
+				p.g.visible = fa > 0.002 || P.borderAlpha > 0;
 			}
 			// THE TILE MILESTONE FLARE'S POP (TILE_FLARE): the number scales up and back over popMs, lifted to full alpha, its
 			// row moved over the frame (into the flare layer) for the pop and home after; a symbol landing on the tile, a new
 			// count-over or the value leaving ends it at once (never a value over a symbol)
-			let curA = numA;
 			if (popOn[i]) {
 				const u = ((now - popT0[i]) * popRate[i]) / popMs[i];
 				if (u >= 1 || covered[i] || value !== popVal[i] || !flarePool) {
@@ -1036,11 +1104,11 @@
 					p.cur.c.position.set(p.root.x, p.root.y);
 				}
 			}
-			showRow(p.old, oldScale, oldScale > 0 ? numA * Math.min(1, oldScale / pop) : 0, col, dim);
+			showRow(p.old, oldScale, oldA, col, dim);
 			showRow(p.cur, curScale, curA, col, dim);
-			// the glow hugs whichever number is showing
-			const shown = oldScale > 0 ? p.old : p.cur;
-			const gs = oldScale > 0 ? oldScale : curScale;
+			// the glow hugs whichever number shows more
+			const shown = oldA > curA ? p.old : p.cur;
+			const gs = oldA > curA ? oldScale : curScale;
 			p.glow.visible = MULT_PLATE.numberGlowPx > 0 && gs > 0.01;
 			if (p.glow.visible) {
 				p.glow.setSize((shown.w + 2 * GLOW) * gs, (shown.h + 2 * GLOW) * gs);
