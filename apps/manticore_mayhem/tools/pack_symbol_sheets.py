@@ -98,7 +98,11 @@ CLIPS = {
     "L1": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
     "L2": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
     "L3": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
-    "W": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
+    # W: THE GOLDEN W replaces the lion medallion (Corey 2026-11-02: the Golden Regal W, r4 paint, 1.20 tall, the dark
+    # ruby gem at rest; the clips "D2, I2b, W2" with W2's coverage fixed as W3; on the final set "W's look good"): the
+    # landing D2b (a rock, no squash), the gem's breath I2b, the two-wave win W3 (canvas 1.0: nothing leaves the cell).
+    # Read from golden_w_r3/ (SOURCE_OVERRIDES below); the medallion's animation/drop_r2, idle_r2, win stay as they were
+    "W": {"drop": "drop_r3", "idle": "idle_r3", "win": "win_r3"},
     "S": {"drop": "drop_r2", "idle": "idle_r2", "win": "win"},
     # REVISION 2 (2026-10-19, Stake's "The symbols are poorly animated"; Corey 10:11 "The crown looks much better"): the
     # readable landing and idle, and a WIN clip of its own (NOTES.md "Revision 2" in the symbol's animation folder)
@@ -131,10 +135,15 @@ WIN_CANVAS_JSON = "canvas.json"  # in the win folder: {"scale": 1.5, ...} writte
 RECOLOUR_R1 = {"M1": "M1_persian-helmet", "M2": "M2_persian-dagger", "M3": "M3_royal-chalice",
                "L4": "L4_royal-seal", "L3": "L3_ancient-key",
                "L2": "L2_bull-skull", "H1": "H1_ancient-crown"}
+#   W: the Golden W (2026-11-02, CLIPS "W" above): W_lion-sun-medallion/golden_w_r3/, the 512 masters of
+#   drafts/golden_regal_w_2026-11-02/final_r3/ copied unchanged (drop_r3/ idle_r3/ win_r3/), its unstyled 256 tile
+#   (tile/w.webp) and the 1024 still the fit is derived from (still/W_still_1024.png = tools/render_symbols/out/render/
+#   W.png; fit.json W 87 %, the art 237 x 186 of the 256 cell). The medallion's handoff tile is not read any more
 FS_DELIVERY = os.path.join(SYMBOLS_DIR, "S_war-standard", "drafts", "fs-2026-10-28", "delivery_s9b")
-SOURCE_OVERRIDES = {"S": os.path.join(FS_DELIVERY, "masters"),
+GOLDEN_W = os.path.join(SYMBOLS_DIR, "W_lion-sun-medallion", "golden_w_r3")
+SOURCE_OVERRIDES = {"S": os.path.join(FS_DELIVERY, "masters"), "W": GOLDEN_W,
                     **{c: os.path.join(SYMBOLS_DIR, d, "graded_r1") for c, d in RECOLOUR_R1.items()}}
-TILE_OVERRIDES = {"S": os.path.join(FS_DELIVERY, "tile", "s.webp"),
+TILE_OVERRIDES = {"S": os.path.join(FS_DELIVERY, "tile", "s.webp"), "W": os.path.join(GOLDEN_W, "tile", "w.webp"),
                   **{c: os.path.join(SYMBOLS_DIR, d, "graded_r1", "tile", c.lower() + ".webp") for c, d in RECOLOUR_R1.items()}}
 FRAME_RE = re.compile(r"^(?:[A-Za-z0-9]+_(?:drop|idle|win)(?:_r\d+)?_)?\d{3,4}\.png$")
 
@@ -660,7 +669,8 @@ def verify_win(code, line):
         drop = sheet_frames(f"{c}-drop{suffix}")
         names = list(win)
         w0 = win[names[0]]
-        cv = doc["meta"]["canvas"]
+        # a win on the plain cell (canvas 1.0, the Golden W) writes no canvas meta
+        cv = doc["meta"].get("canvas", {"scale": 1.0, "cellPx": px, "px": px})
         tag = "win" + suffix
         line[tag + "_n"] = len(names)
         line[tag + "_canvas"] = cv

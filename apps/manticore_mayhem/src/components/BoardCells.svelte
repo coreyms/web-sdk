@@ -286,6 +286,9 @@
 	const MODE_DROP = 1;
 	const MODE_IDLE = 2;
 	const MODE_WIN = 3;
+	/** SYMBOL_ANIM stingReverse (the Golden W): the win sheet played backwards from the sting's flip */
+	const MODE_STING = 4;
+	const MODE_NAMES = ['static', 'drop', 'idle', 'win', 'sting'];
 
 	// what a sprite was last given, so an unchanged field is never re-assigned (a Pixi transform
 	// setter marks the render group dirty even when the value is the same)
@@ -298,6 +301,8 @@
 		/** WIN_SHEET: the last Cell.winAt seen; the canvas scale of the texture picked this tick (1 but for a win frame) and
 		 *  of the size last applied */
 		winAt: number; cs: number; csDrawn: number;
+		/** SYMBOL_ANIM stingReverse: the last Cell.stingAt seen */
+		stingAt: number;
 		/** WIN_FX: the shine group this tile holds while it shines (null otherwise) */
 		sh: Shine | null;
 	};
@@ -315,7 +320,7 @@
 		g.zIndex = -1;
 		g.visible = false;
 		cellLayer.addChild(g);
-		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, k: 1, pdx: 0, pdy: 0, top: 0, fall: false, pop: false, rowZ: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1, winAt: 0, cs: 1, csDrawn: 1, sh: null };
+		return { s, g, gen: -1, name: '', tex: null, y: NaN, sx: NaN, sy: NaN, a: NaN, tint: -1, z: -1, glow: 0, gc: AURA_COLOR, rot: 0, k: 1, pdx: 0, pdy: 0, top: 0, fall: false, pop: false, rowZ: 0, mode: MODE_STATIC, clock: 0, landAt: 0, landing: false, frame: -1, winAt: 0, cs: 1, csDrawn: 1, stingAt: 0, sh: null };
 	};
 	const live = new Map<number, Slot>(); // cell id -> its sprite
 	const free: Slot[] = [];
@@ -372,6 +377,7 @@
 			sl.frame = -1;
 			sl.landAt = c.landAt; // a landing before the sheets arrived is never replayed late
 			sl.winAt = c.winAt; // nor a win
+			sl.stingAt = c.stingAt; // nor a sting
 			return fallback;
 		}
 		// THE WIN SHEET (WIN_SHEET): from frame 0 at the cluster's presentation (a new Cell.winAt), in style time, held on its
@@ -382,8 +388,11 @@
 			if (c.winAt !== sl.winAt) {
 				sl.winAt = c.winAt;
 				if (c.winAt > 0 && winning) {
+					// a stung W still playing its win backwards (MODE_STING below): the win takes over from the frame on show,
+					// the same picture, so it never steps back to the rest and floods again
+					const from = sl.mode === MODE_STING && sl.frame > 0 ? sl.frame * FRAME_MS : 0;
 					sl.mode = MODE_WIN;
-					sl.clock = Math.max(0, (now - c.winAt) * rate);
+					sl.clock = from + Math.max(0, (now - c.winAt) * rate);
 					sl.landing = false;
 					freshWin = true;
 				}
@@ -404,6 +413,40 @@
 				sl.frame = -1;
 			}
 		} else if (c.winAt !== sl.winAt) sl.winAt = c.winAt;
+		// THE STING'S W (SYMBOL_ANIM stingReverse; Corey 2026-11-02, "for the sting, it should actually use the animation in
+		// reverse from the win"): from the flip (a new Cell.stingAt) the win sheet BACKWARDS, its last frame first, at
+		// SHEET_FPS in style time like the win, through the sting's pop (never frozen for it), ending on win frame 0 = the
+		// rest = idle frame 0, then the idle from its rest. Nothing waits for it; a move (a fall, a removal) drops it to the
+		// static frame like any clip, and a win takes over from the frame on show (above)
+		let freshSting = false;
+		if (c.stingAt !== sl.stingAt) {
+			sl.stingAt = c.stingAt;
+			if (c.stingAt > 0 && sheet.win && symbolAnim(c.name).stingReverse) {
+				sl.mode = MODE_STING;
+				sl.clock = Math.max(0, (now - c.stingAt) * rate);
+				sl.landing = false;
+				freshSting = true;
+			}
+		}
+		if (sl.mode === MODE_STING) {
+			const still = c.dx === 0 && c.rot === 0 && c.state !== 'removing' && Math.abs(c.y - c.row) < 1e-4;
+			if (still && sheet.win) {
+				if (!freshSting) sl.clock += dtStyle;
+				const last = sheet.win.length - 1;
+				const f = Math.floor(sl.clock / FRAME_MS);
+				if (f <= last) {
+					sl.frame = last - f;
+					sl.cs = sheet.winScale;
+					return sheet.win[sl.frame];
+				}
+				// over, on the rest: the idle from its rest (idle frame 0 is the same picture)
+				sl.mode = MODE_IDLE;
+				sl.clock = 0;
+			} else {
+				sl.mode = MODE_STATIC;
+				sl.frame = -1;
+			}
+		}
 		let fresh = false;
 		if (c.landAt !== sl.landAt) {
 			// a new landing contact: the drop sheet starts on the contact frame
@@ -644,6 +687,8 @@
 			sl.frame = -1;
 			// 0, not c.winAt: a tile that first shows mid-win picks its win frame up from the clock
 			sl.winAt = 0;
+			// a sting is never replayed on a tile that first shows after it
+			sl.stingAt = c.stingAt;
 			sl.cs = sl.csDrawn = 1;
 			sl.s.x = NaN;
 			sl.pop = false;
@@ -1735,7 +1780,7 @@
 							const sl = live.get(c.id);
 							return {
 								id: c.id, name: c.name, reel: c.reel, row: c.row, y: c.y, sx: c.scaleX, sy: c.scaleY, landAt: c.landAt, state: c.state,
-								mode: sl ? ['static', 'drop', 'idle', 'win'][sl.mode] : 'none', frame: sl?.frame ?? -1, clock: sl?.clock ?? 0,
+								mode: sl ? MODE_NAMES[sl.mode] : 'none', stingAt: c.stingAt, frame: sl?.frame ?? -1, clock: sl?.clock ?? 0,
 								texW: sl?.tex?.orig.width ?? 0, texLabel: sl?.tex?.label ?? null,
 								/** WIN_SHEET: the cluster's presentation time, the drawn canvas scale, the sprite's board px size, rotation */
 								winAt: c.winAt, cs: sl?.csDrawn ?? 1, w: sl?.s.width ?? 0, h: sl?.s.height ?? 0, rot: c.rot, alpha: c.alpha,
@@ -1764,7 +1809,7 @@
 					let shine = 0;
 					if (sl.sh) for (let k = 0; k < SH_N; k += 1) shine = Math.max(shine, sl.sh.alpha[k]);
 					const fx = shineCells.get(c.id);
-					out.push({ id: c.id, name: c.name, reel: c.reel, row: c.row, state: c.state, winAt: c.winAt, mode: ['static', 'drop', 'idle', 'win'][sl.mode], frame: sl.frame, tex: sl.tex?.label ?? null, texW: sl.tex?.orig.width ?? 0, cs: sl.csDrawn, sx: c.scaleX, rot: c.rot, drawn: sl.s.width / (SIZE * sl.k), shine, a1: fx?.a ?? 0, a2: fx?.a2 ?? 0, pulse: fx?.pulse ?? 1 });
+					out.push({ id: c.id, name: c.name, reel: c.reel, row: c.row, state: c.state, winAt: c.winAt, mode: MODE_NAMES[sl.mode], frame: sl.frame, tex: sl.tex?.label ?? null, texW: sl.tex?.orig.width ?? 0, cs: sl.csDrawn, sx: c.scaleX, rot: c.rot, drawn: sl.s.width / (SIZE * sl.k), shine, a1: fx?.a ?? 0, a2: fx?.a2 ?? 0, pulse: fx?.pulse ?? 1 });
 				}
 				return { tick: now, rate, cells: out };
 			};

@@ -112,6 +112,9 @@ export type Cell = {
 	/** performance.now() of the moment this cell's cluster was presented (presentWinSet; 0 = never won): BoardCells plays
 	 *  the symbol's win sheet from it (constants WIN_SHEET). Written once per win, never per frame. */
 	winAt: number;
+	/** performance.now() of the sting's flip that last turned this cell into its symbol (flipCells; 0 = never): BoardCells
+	 *  plays a stingReverse symbol's win sheet backwards from it (constants SYMBOL_ANIM). Written once per flip. */
+	stingAt: number;
 	/** WIN_SHEET.trigger: this scatter is playing (or holding) its win sheet for the trigger pulse, outside any cluster win;
 	 *  set by scatterTrigger, cleared by releaseTriggerWins */
 	triggerWin: boolean;
@@ -162,6 +165,7 @@ const makeCell = (name: SymbolName, reel: number, row: number, y = row): Cell =>
 	glowColor: AURA_COLOR,
 	landAt: 0,
 	winAt: 0,
+	stingAt: 0,
 	triggerWin: false,
 	state: 'static',
 });
@@ -2013,12 +2017,17 @@ const cellIdsAt = (cells: CellIndex[]) => {
 
 type StingKindName = 'normal' | 'big' | 'super' | 'scatter';
 
-/** turn the listed cells into `symbol` (the book's change, applied exactly as written) */
+/** turn the listed cells into `symbol` (the book's change, applied exactly as written); the flip's time goes on each
+ *  cell (Cell.stingAt) for a symbol whose sting plays its win backwards (SYMBOL_ANIM stingReverse: the Golden W), never
+ *  on a skip (the board lands on its rest) */
 const flipCells = (targetIds: number[], symbol: SymbolName) => {
 	const map = liveById();
+	const at = !stateGame.skipping && symbolAnim(symbol).stingReverse ? performance.now() : 0;
 	for (const cellId of targetIds) {
 		const cell = map.get(cellId);
-		if (cell) cell.name = symbol;
+		if (!cell) continue;
+		cell.name = symbol;
+		if (at) cell.stingAt = at;
 	}
 };
 

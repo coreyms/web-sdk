@@ -383,12 +383,21 @@ export const FALL_CUT: { edge: 'opening' | 'centre' | 'outer'; offsetPx: number 
  *  only the identity check). idle: whether a moving idle loop exists; without one the cell rests on
  *  its last drop frame (every symbol has one since revision 2, 2026-10-19; L3 had none and L2's was a still). The frame COUNT always comes from the
  *  loaded sheet, never from here. */
-export type SymbolAnim = { squash: number; dropFrom: number; idle: boolean };
-export const SYMBOL_ANIM_DEFAULT: SymbolAnim = { squash: GRAVITY_DROP.squash, dropFrom: 0, idle: true };
+/** stingReverse: a sting that turns a cell into this symbol plays its WIN sheet backwards once from the flip (its last
+ *  frame first, at SHEET_FPS in style time, through the sting's pop), ending on win frame 0 = the rest = idle frame 0,
+ *  then rests and idles as usual. Nothing waits for it (components/BoardCells.svelte MODE_STING). A win that starts
+ *  while it is still playing takes over from the frame on show (the same picture), so the W never steps. */
+export type SymbolAnim = { squash: number; dropFrom: number; idle: boolean; stingReverse: boolean };
+export const SYMBOL_ANIM_DEFAULT: SymbolAnim = { squash: GRAVITY_DROP.squash, dropFrom: 0, idle: true, stingReverse: false };
 export const SYMBOL_ANIM: Partial<Record<string, Partial<SymbolAnim>>> = {
 	L4: { squash: 0 },
 	S: { dropFrom: 6 },
 	L3: { dropFrom: 1 },
+	// THE GOLDEN W (Corey 2026-11-02, the new Wild; picks "D2, I2b, W2", W2 fixed as W3; "W's look good"). squash 0: the
+	// W is rigid metal and its landing D2b carries its own rock, so the sprite never squashes it. stingReverse: Corey
+	// 2026-11-02, "for the sting, it should actually use the animation in reverse from the win". The idle keeps the
+	// game's rest (SYMBOL_IDLE_REST 7 to 19 s, then one loop)
+	W: { squash: 0, stingReverse: true },
 };
 const symbolAnimCache = new Map<string, SymbolAnim>();
 /** cached per name: safe to call every frame (no allocation after the first call) */
