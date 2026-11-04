@@ -32,8 +32,9 @@ pixel is drawn at 0.55 (1280 wide at DPR 1) to about 1.3 device px (1920 at DPR 
 it at 0.6 to 0.95. FULL ships the cut-outs, veins, titles and glyphs at 1.5x, PHONE at 1x. The glint slices are soft
 highlights and the known hog (14 tall slices, 1.05 megapixels at 1x, 3 to 17 % filled, so a bbox trim gains nothing):
 1x on FULL, 0.75x on PHONE, in their own atlas without a mip chain. Titles are baked at 3x of a 52.7 px cap and drawn
-smaller (cap 50 / 32 / 36): each ships at the tier scale of its DRAWN size. The glyph atlas ships at the tier scale of
-the largest use (the 64 px amount). Lids and embers are tiny and ship at 2x on both tiers (an ember is never drawn above
+smaller (cap 50 / 32 / 36): each ships at the tier scale of its DRAWN size. The glyph atlas ships at its own tier scale
+("glyphs": 3 full, 2 phone since 2026-11-03, so the count-up digits match the plaque) of the largest use (the 64 px
+amount). Lids and embers are tiny and ship at 2x on both tiers (an ember is never drawn above
 its native size), the vein wash and the slab mask (soft shapes) at 0.5x.
 
 GRADE (GRADE below, Corey 2026-10-09: "reds washed out, border dull and faded, blacks need to be darker"; candidate D of
@@ -64,6 +65,9 @@ Everything else (the text, the grade) is --src's. A rebuild from a new drop is o
 plaque-text.json's (on 2026-10-17 the working folder's plaque-text.json carried two unshipped intro lines).
 --layered 2x|4x: which cut-out set of the drop (default 2x). The plaque tiers resample from either; a 4x source makes
 the same rects, motion and stinger.json (sizes / uvs are x 2 of the 2x set's, pos / bind / tracks the same).
+--art x0,y0,x1,y1: pin the art box (ship px) that the layout fits between the chains, instead of the measured one.
+The v9d plaque (2026-11-03) ships with --art 22.25,27.5,923.75,502.5: its Meshy creatures measure 34.25 at the top, and
+Corey asked to keep the plaque's current box (v9b card, 2026-11-02).
 --plaque-scale X: TEST ONLY (a trial build into --out-dir): the FULL tier's plaque cut-outs at X texture px per ship px
 instead of TIERS[""]["plaque"] (1.5), e.g. 2 or 3 from the 4x set. The game ships 1.5.
 """
@@ -93,11 +97,14 @@ TIERS = {
     # plaque 2 (was 3/2): Corey 2026-10-17 10:41 "Yes sharper plaque", for 1920-class DPR 2 desktops (+116 KB, +5.1 MB GPU)
     # plaque 3 (was 2): Corey's standing 3x density rule (2026-10-28): 3 texture px per CSS px at 1440 x 900 (0.844 CSS px per
     # ship px). Needs the 4x cut-outs (--drop ... --layered 4x, the v8 drop of 2026-11-01): a 2x set cannot feed it
-    "": {"plaque": Fraction(3), "fx": Fraction(3, 2), "glint": Fraction(1), "text": Fraction(3, 2)},
+    # glyphs 3 (was the "text" 3/2, half the plaque's 3): the count-up amount digits, Corey's 3x rule (density items 2-5,
+    # 2026-11-03: "Let's do item 2 to 5"); the glyph source is at 3x of the 64 px amount (em 192), so 3 is its native size
+    "": {"plaque": Fraction(3), "fx": Fraction(3, 2), "glint": Fraction(1), "text": Fraction(3, 2), "glyphs": Fraction(3)},
     # plaque 3/2 (was 1): Corey 2026-10-17 11:01, phones on the 2x/3x iPhone caps drew the plaque magnified (1.24 device px per texel at 3x)
-    "-half": {"plaque": Fraction(3, 2), "fx": Fraction(1), "glint": Fraction(3, 4), "text": Fraction(1)},
+    # glyphs 2 (was the "text" 1): the digits at least the plaque's own 3/2 at rest and about 3 per CSS px at the count pulse
+    "-half": {"plaque": Fraction(3, 2), "fx": Fraction(1), "glint": Fraction(3, 4), "text": Fraction(1), "glyphs": Fraction(2)},
     # TEST ONLY (--tiers ...,mid): not built by default, not loaded by the game
-    "-mid": {"plaque": Fraction(5, 4), "fx": Fraction(5, 4), "glint": Fraction(3, 4), "text": Fraction(5, 4)},
+    "-mid": {"plaque": Fraction(5, 4), "fx": Fraction(5, 4), "glint": Fraction(3, 4), "text": Fraction(5, 4), "glyphs": Fraction(5, 4)},
 }
 TIER_FLAGS = {"full": "", "half": "-half", "mid": "-mid"}
 TIER_LABELS = {"": "FULL tier", "-half": "PHONE tier", "-mid": "MID tier (test, not loaded by the game)"}
@@ -365,6 +372,7 @@ def main() -> None:
     ap.add_argument("--drop", type=Path, help="a Rig delivery folder: its stinger_*_layered_2x/ and stinger_*_fx/ are read instead of --src's")
     ap.add_argument("--layered", choices=("2x", "4x"), default="2x", help="with --drop: the 2x cut-outs (default, what ships) or the 4x set")
     ap.add_argument("--keep-shipped-copy", action="store_true", help="the intro / wrap up copy from the stinger.json already in --out-dir, not plaque-text.json")
+    ap.add_argument("--art", help="x0,y0,x1,y1 ship px: pin stinger.json's art box instead of measuring it from the cut-outs (the v9d plaque, 2026-11-03: Corey on v9b \"keep the plaque's current art box\", so the layout stays [22.25, 27.5, 923.75, 502.5] while the Meshy creatures are lower)")
     ap.add_argument("--plaque-scale", type=Fraction, help="TEST ONLY: the FULL tier's plaque texture px per ship px (ships 2)")
     args = ap.parse_args()
     OUT = args.out_dir
@@ -588,7 +596,7 @@ def main() -> None:
                 g = load(TA / "titles" / f"{name}_glow.png")
                 assert (g.shape[1], g.shape[0]) == (T["glow"]["w"], T["glow"]["h"]), name
                 titles.append((f"stg_title_{name}_glow", resample(g, max(1, round(g.shape[1] * f / 2)), max(1, round(g.shape[0] * f / 2)))))  # a soft halo: half scale
-        f = t["text"] * GLYPH_FULL / text["text"]["em"]
+        f = t["glyphs"] * GLYPH_FULL / text["text"]["em"]  # the glyph atlas has its own tier scale ("glyphs"); titles keep "text"
         assert f.denominator in (1, 2, 3, 6) or t is TIERS["-mid"], f  # whole pixels on the shipped tiers
         for ch, g in text["text"]["glyphs"].items():
             if not g.get("frame"):
@@ -660,7 +668,7 @@ def main() -> None:
         "note": "GENERATED by tools/build_stinger_assets.py from the approved plaque sources: do not edit, rerun the tool. Ship px of the 946 x 532 frame.",
         "frame": lay["frame"],
         # the bind pose art's box (all 15 cut-outs, alpha above one half): what the layout fits between the chains
-        "art": [r3(min(b[0] for b in art_boxes)), r3(min(b[1] for b in art_boxes)), r3(max(b[2] for b in art_boxes)), r3(max(b[3] for b in art_boxes))],
+        "art": [r3(float(v)) for v in args.art.split(",")] if args.art else [r3(min(b[0] for b in art_boxes)), r3(min(b[1] for b in art_boxes)), r3(max(b[2] for b in art_boxes)), r3(max(b[3] for b in art_boxes))],
         "fps": lay["fps"],
         "tiers": [n.lower() for n in TIER_NAMES],
         "motion": {"idleFrames": 105, "tierFrames": 22, "landFrames": 31, "landIdleStart": 75, "layers": layers_out},

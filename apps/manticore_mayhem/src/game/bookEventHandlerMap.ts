@@ -624,7 +624,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	// ---- swipe: the paw clears a band of three rows (the book's `rows`) ---------------------------
 	// SWIPE_FX: four claws rake the band right to left, the band's tiles light behind them, the impact flashes it and
 	// the board kicks; at SWIPE_FX.exitAtMs the band's symbols leave while the claws' scars fade
-	// (scatters survive the paw: they are not in `removed`); the swipe's tiles pop as the symbols
+	// (scatters and, since math 2026.11.02, wilds survive the paw: they are not in `removed`, Corey 2026-11-02: "they should persist the claw swipe ... What I was looking for is for it to keep the wilds";
+	// a kept wild's tile is in `tiles`, so its plate plays with the band below); the swipe's tiles pop as the symbols
 	// start to leave, and the refill drops once they are gone.
 	swipe: async (bookEvent: BookEventOfType<'swipe'>, { bookEvents }: BookEventContext) => {
 		const id = newRun();

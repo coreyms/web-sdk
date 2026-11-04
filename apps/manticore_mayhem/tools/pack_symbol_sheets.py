@@ -1,7 +1,7 @@
 """Pack the Manticore Mayhem symbol animation sheets and the real static symbol atlas.
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/pack_symbol_sheets.py [--only H1,L4] [--no-sheets]
-                                                                                           [--no-atlas] [--no-tiles] [--full-only] [--verify]
+                                                                                           [--no-atlas] [--no-tiles] [--full-only | --half-only] [--half-px 192] [--verify]
                                                                                            [--style outline|outline-pop|outline-pop-rim --out-dir <dir>]
 
 Sources (read only, never written):
@@ -20,7 +20,7 @@ Sources (read only, never written):
 
 Outputs (static/assets):
   sprites/mmSymbols/<code>-drop.json|webp, <code>-idle.json|webp        256 px cells, frames <code>-drop-000 ...
-  sprites/mmSymbols/<code>-drop-half.json|webp, <code>-idle-half...     128 px twins for the phone tier
+  sprites/mmSymbols/<code>-drop-half.json|webp, <code>-idle-half...     128 px twins for the phone tier (--half-px 192: the candidate)
   sprites/mmSymbols/<code>-win.json|webp, <code>-win-half...            the win clip (only symbols with one): cells of
                                                                          scale x 256 (384 / 192 px for 1.5), the same fit,
                                                                          scale and style per pixel as the drop, so the
@@ -41,7 +41,7 @@ drop cell of the same source frame). --verify measures it (frame 0 centre vs dro
 Frame file names vary per folder; Finder duplicates ("0001 2.png") are skipped.
 
 --style <name> (EXPERIMENT, 2026-10-07): post-process every frame and atlas tile in the 256 px cell space after the
-fit, before packing (presets in STYLES). The -half twins are then the styled 256 cell LANCZOS to 128 (not one resample
+fit, before packing (presets in STYLES). The -half twins are then the styled 256 cell LANCZOS to HALF (not one resample
 from 512), so the outline scales with the art. Writes to --out-dir (default static/assets/sprites/mmSymbols-trial/
 <style>/) with the shipped file names; the shipped mmSymbols/ set, sheet_fit.json and the paytable tiles are not
 touched (tiles are skipped). Without --style the run writes the SHIPPED set in SHIP_STYLE (outline-pop since
@@ -71,9 +71,17 @@ HANDOFF_TILES = os.path.join(WORK, "handoff", "assets", "tiles")
 SYMBOLS_DIR = os.path.join(WORK, "images", "symbols")
 
 CELL = 256
-HALF = 128
+# THE PHONE TIER's cell (the "-half" files keep their names): 128 ships. --half-px 192 (2026-11-03, the density audit's
+# item 4, Corey "Let's do item 2 to 5") builds the 192 px candidate: the 256 px styled cell LANCZOS to 192, the json meta
+# "scale" 0.75 so every texture keeps its 256 logical size and nothing in the game moves. It is NOT shipped: the phone
+# tier already holds 337 to 357 MB of textures (390 x 844 / 844 x 390 @3) against the ~375 MB iPhone 11 tab crash of
+# 2026-09-17, and 192 px cells add 115 MB (manticore-changes-1.0.05.md, the density row)
+HALF = int(sys.argv[sys.argv.index("--half-px") + 1]) if "--half-px" in sys.argv else 128
+HALF_SCALE = HALF / CELL
 COLS = 8
 HALF_TIER = "--full-only" not in sys.argv  # --full-only: rebuild the 256 px sheets, leave the -half twins as they are
+FULL_TIER = "--half-only" not in sys.argv  # --half-only: rebuild the phone tier only (sheets and atlas), the 256 px files untouched
+assert HALF_TIER or FULL_TIER, "--full-only and --half-only together build nothing"
 MAX_SHEET = 4096
 FPS = 30
 PAD = 512  # transparent margin around a source frame so a crop box may run past its edge
@@ -310,8 +318,8 @@ def stylize(im, cfg=None, code=None):
 
 
 def half_of(styled):
-    """the half tier of a styled cell (256 -> 128, a win cell 384 -> 192)"""
-    return styled.resize((styled.width // 2, styled.height // 2), Image.LANCZOS)
+    """the phone tier of a styled cell (256 -> HALF: 128, a win cell 384 -> 192; with --half-px 192, 192 and 288)"""
+    return styled.resize((styled.width * HALF // CELL, styled.height * HALF // CELL), Image.LANCZOS)
 
 
 def symbol_dir(code):
@@ -530,7 +538,7 @@ def pack(name, frames, px, clip, meta_extra, full_tier=None, lossy=False):
     full_tier = (px == CELL) if full_tier is None else full_tier
     enc = save_webp(sheet, os.path.join(SPRITES, name + ".webp"), full_tier=full_tier, lossy=lossy)
     meta = {"image": name + ".webp", "format": "RGBA8888", "size": {"w": sheet.width, "h": sheet.height},
-            "scale": "1" if full_tier else "0.5", "fps": FPS, "encoding": enc}
+            "scale": "1" if full_tier else f"{HALF_SCALE:g}", "fps": FPS, "encoding": enc}
     meta.update(meta_extra)
     if STYLE:
         meta["style"] = {"name": STYLE_NAME, **STYLE}
@@ -580,8 +588,9 @@ def build_sheets(geo, only):
             else:
                 meta_full = meta_half = fit_meta
             lossy = bool(clips.get("win"))  # R2_QUALITY
-            r1 = pack(base, full, px_full, clip, meta_full, full_tier=True, lossy=lossy)
+            r1 = pack(base, full, px_full, clip, meta_full, full_tier=True, lossy=lossy) if FULL_TIER else None
             r2 = pack(base + "-half", half, px_half, clip, meta_half, full_tier=False, lossy=lossy) if HALF_TIER else r1
+            r1 = r1 or r2
             report[base] = (r1, r2)
             print(f"{base}: {r1['frames']} frames, {r1['cells']} unique cells, {r1['size']} {r1['encoding']}"
                   f" | half {r2['size']} {r2['encoding']}")
@@ -602,10 +611,24 @@ def build_atlas():
         full.paste(mp.mult_overlay(m), (r["x"], r["y"]))
     r = doc["frames"]["cell.png"]["frame"]
     full.paste(mp.cell_well(), (r["x"], r["y"]))
+    full_doc = doc
     for suffix, px in (("", CELL), ("-half", HALF)):
+        if (px == CELL and not FULL_TIER) or (px != CELL and not HALF_TIER):
+            continue
         jp = os.path.join(SPRITES, f"mmSymbols{suffix}.json")
         doc = json.load(open(os.path.join(SPRITES_IN, f"mmSymbols{suffix}.json")))
-        sheet = full if px == CELL else full.resize((full.width // 2, full.height // 2), Image.LANCZOS)
+        sheet = full if px == CELL else full.resize((full.width * HALF // CELL, full.height * HALF // CELL), Image.LANCZOS)
+        if px != CELL:
+            # the phone atlas is the full one's layout at HALF / CELL (HALF may be 192 since 2026-11-03, so it is re-laid
+            # from the full json rather than read from the shipped 128 px one)
+            sc = lambda v: v * HALF // CELL
+            for name, f in full_doc["frames"].items():
+                r = f["frame"]
+                doc["frames"][name] = {**f, "frame": {"x": sc(r["x"]), "y": sc(r["y"]), "w": sc(r["w"]), "h": sc(r["h"])},
+                                       "spriteSourceSize": {"x": 0, "y": 0, "w": sc(r["w"]), "h": sc(r["h"])},
+                                       "sourceSize": {"w": sc(r["w"]), "h": sc(r["h"])}}
+            doc["meta"]["size"] = {"w": sheet.width, "h": sheet.height}
+            doc["meta"]["scale"] = f"{HALF_SCALE:g}"
         assert sheet.size == (doc["meta"]["size"]["w"], doc["meta"]["size"]["h"])
         for code in CODES:
             fr = doc["frames"][f"{code}.png"]["frame"]
@@ -826,7 +849,7 @@ def main():
         assert os.path.realpath(SPRITES) != os.path.realpath(SPRITES_IN), "a style build never writes the shipped set"
         print(f"style {STYLE_NAME} -> {SPRITES}")
     os.makedirs(SPRITES, exist_ok=True)
-    if "--no-tiles" not in sys.argv and not TRIAL:
+    if "--no-tiles" not in sys.argv and not TRIAL and FULL_TIER:
         build_tiles()
     if "--no-atlas" not in sys.argv:
         build_atlas()

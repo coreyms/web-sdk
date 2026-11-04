@@ -50,20 +50,20 @@ export const BOARD_PLAQUE_SPEC = {
 			},
 			"tex": {
 				"plaque": [
-					620,
-					123
+					1012,
+					200
 				],
 				"fire": [
-					310,
-					62
+					506,
+					100
 				],
 				"shadow": [
-					313,
-					65
+					510,
+					105
 				],
 				"crest": [
-					71,
-					65
+					116,
+					106
 				]
 			},
 			"scaleAboutAnchor": 1.0,

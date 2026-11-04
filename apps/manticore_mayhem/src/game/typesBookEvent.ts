@@ -57,7 +57,8 @@ type BookEventSwipe = {
 	index: number;
 	type: 'swipe';
 	rows: number[];
-	/** cleared cells — scatters survive the paw and are not listed */
+	/** cleared cells: scatters and wilds survive the paw and are not listed (wilds since math 2026.11.02, Corey 2026-11-02: "they should persist the claw swipe ... What I was looking for is for it to keep the wilds").
+	 *  A kept wild's cell can still be in `tiles`: the tiles step on the band minus scatters. */
 	removed: CellIndex[];
 	tiles: TileEntry[];
 	fill: Fill;

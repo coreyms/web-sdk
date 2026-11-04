@@ -372,11 +372,13 @@ const assets = {
 	//                              (FRAME_NIGHT_LATE): game/deferredLoad.ts loadFrameNightLate fetches a layout's set
 	//                              the first time the game is turned to it. Until a set is in, that layout's frame
 	//                              keeps its day light in every mode, as it always did, and fades to night when it lands.
-	// The PHONE master's new layers have a half size twin for the phone tier (game/deviceTier.ts): its textures are 2
-	// texture px per master px, and a phone tier screen draws at most 1.01 canvas px per master px (short side <= 500
-	// CSS px over the 740 master, at the 1.5 resolution cap), so the twin is still 1 : 1 there at a quarter of the memory.
+	// The PHONE master's day gears, night plate, night + fire loops and night plaque load their FULL files on the phone
+	// tier too since 2026-11-03 (the density audit's item 3; Corey "Let's do item 2 to 5"): since 2026-10-17 a phone draws
+	// at a renderer resolution of up to 3, so the -half twins (board-gears-phone-half, board-gears-night-phone-half,
+	// board-frame-night-phone-half, board-plaque-night-phone-half; still in static/, loaded by nothing) gave 1.68 texture px
+	// per CSS px next to the 3.36 of the day plate on a sideways 956 x 440 phone. Cost: about +25 MB of GPU memory there.
 	boardGears_landscape: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-landscape.json', import.meta.url).href), preload: atBoot('landscape') },
-	boardGears_phone: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/board-gears-phone.json', import.meta.url).href), stamp(new URL('../../assets/ui/board-gears-phone-half.json', import.meta.url).href)), preload: atBoot('phone') },
+	boardGears_phone: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-phone.json', import.meta.url).href), preload: atBoot('phone') },
 	boardGears_portrait: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-portrait.json', import.meta.url).href), preload: atBoot('portrait') },
 	// THE SPIN AMOUNT PLAQUE (images/spin_amount_final/SPEC.md, components/BoardPlaque.svelte): per layout the day plaque, its
 	// shadow and the crest ride with the frame (the boot layout's preload); the night, fire and crest night / fire join the
@@ -395,7 +397,7 @@ const assets = {
 	boardPlaqueFire_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-fire-landscape.webp', import.meta.url).href), preload: false },
 	boardPlaqueCrestNight_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-night-landscape.webp', import.meta.url).href), preload: false },
 	boardPlaqueCrestFire_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-fire-landscape.webp', import.meta.url).href), preload: false },
-	boardPlaqueNight_phone: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-plaque-night-phone.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-plaque-night-phone-half.webp', import.meta.url).href)), preload: false },
+	boardPlaqueNight_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-night-phone.webp', import.meta.url).href), preload: false },
 	boardPlaqueFire_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-fire-phone.webp', import.meta.url).href), preload: false },
 	boardPlaqueCrestNight_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-night-phone.webp', import.meta.url).href), preload: false },
 	boardPlaqueCrestFire_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-plaque-crest-fire-phone.webp', import.meta.url).href), preload: false },
@@ -408,13 +410,13 @@ const assets = {
 	plaqueFlags: { type: 'sprites', src: stamp(new URL('../../assets/ui/plaque-flags.json', import.meta.url).href), preload: true },
 	plaqueNumerals: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/plaque-numerals/plaque-numerals.json', import.meta.url).href), stamp(new URL('../../assets/ui/plaque-numerals/plaque-numerals-half.json', import.meta.url).href)), preload: true },
 	boardFrameNight_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-night-landscape.webp', import.meta.url).href), preload: false },
-	boardFrameNight_phone: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-frame-night-phone.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-frame-night-phone-half.webp', import.meta.url).href)), preload: false },
+	boardFrameNight_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-night-phone.webp', import.meta.url).href), preload: false },
 	boardFrameNight_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-night-portrait.webp', import.meta.url).href), preload: false },
 	boardFrameFire_landscape: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-fire-landscape.webp', import.meta.url).href), preload: false },
 	boardFrameFire_phone: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-fire-phone.webp', import.meta.url).href), preload: false },
 	boardFrameFire_portrait: { type: 'sprite', src: stamp(new URL('../../assets/ui/board-frame-fire-portrait.webp', import.meta.url).href), preload: false },
 	boardGearsNight_landscape: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-night-landscape.json', import.meta.url).href), preload: false },
-	boardGearsNight_phone: { type: 'sprites', src: tiered(stamp(new URL('../../assets/ui/board-gears-night-phone.json', import.meta.url).href), stamp(new URL('../../assets/ui/board-gears-night-phone-half.json', import.meta.url).href)), preload: false },
+	boardGearsNight_phone: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-night-phone.json', import.meta.url).href), preload: false },
 	boardGearsNight_portrait: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-night-portrait.json', import.meta.url).href), preload: false },
 	// THE PLACEHOLDER BACKGROUND IS GONE (2026-10-28; Corey: "Oh those shouldn't be in the game at all anymore"). The
 	// three crops of the older citadel painting (backgrounds/base-<landscape|phone|portrait>.webp, 89 to 341 KB; the

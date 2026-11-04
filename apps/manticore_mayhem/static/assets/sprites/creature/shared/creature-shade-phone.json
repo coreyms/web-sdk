@@ -2,17 +2,17 @@
  "frames": {
   "creature_shade_idle_000": {
    "frame": {
-    "x": 252,
-    "y": 84,
-    "w": 25,
+    "x": 513,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -22,17 +22,17 @@
   },
   "creature_shade_idle_001": {
    "frame": {
-    "x": 279,
-    "y": 84,
-    "w": 25,
+    "x": 539,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -42,17 +42,17 @@
   },
   "creature_shade_idle_002": {
    "frame": {
-    "x": 306,
-    "y": 84,
-    "w": 25,
+    "x": 565,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -62,17 +62,17 @@
   },
   "creature_shade_idle_003": {
    "frame": {
-    "x": 333,
-    "y": 84,
-    "w": 25,
+    "x": 591,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -82,17 +82,17 @@
   },
   "creature_shade_idle_004": {
    "frame": {
-    "x": 360,
-    "y": 84,
-    "w": 25,
+    "x": 617,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -102,17 +102,17 @@
   },
   "creature_shade_idle_005": {
    "frame": {
-    "x": 387,
-    "y": 84,
-    "w": 25,
+    "x": 643,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -122,17 +122,17 @@
   },
   "creature_shade_idle_006": {
    "frame": {
-    "x": 414,
-    "y": 84,
-    "w": 25,
+    "x": 669,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -142,17 +142,17 @@
   },
   "creature_shade_idle_007": {
    "frame": {
-    "x": 441,
-    "y": 84,
-    "w": 25,
+    "x": 695,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -162,17 +162,17 @@
   },
   "creature_shade_idle_008": {
    "frame": {
-    "x": 87,
-    "y": 21,
-    "w": 26,
+    "x": 721,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -182,17 +182,17 @@
   },
   "creature_shade_idle_009": {
    "frame": {
-    "x": 468,
-    "y": 84,
-    "w": 25,
+    "x": 747,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -202,17 +202,17 @@
   },
   "creature_shade_idle_010": {
    "frame": {
-    "x": 115,
-    "y": 21,
-    "w": 26,
+    "x": 773,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -222,17 +222,17 @@
   },
   "creature_shade_idle_011": {
    "frame": {
-    "x": 143,
+    "x": 1170,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -242,17 +242,17 @@
   },
   "creature_shade_idle_012": {
    "frame": {
-    "x": 171,
+    "x": 1195,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -262,17 +262,17 @@
   },
   "creature_shade_idle_013": {
    "frame": {
-    "x": 199,
+    "x": 1220,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -282,17 +282,17 @@
   },
   "creature_shade_idle_014": {
    "frame": {
-    "x": 227,
+    "x": 1245,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -302,17 +302,17 @@
   },
   "creature_shade_idle_015": {
    "frame": {
-    "x": 255,
+    "x": 1270,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -322,17 +322,17 @@
   },
   "creature_shade_idle_016": {
    "frame": {
-    "x": 283,
+    "x": 1295,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -342,17 +342,17 @@
   },
   "creature_shade_idle_017": {
    "frame": {
-    "x": 311,
+    "x": 1320,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -362,17 +362,17 @@
   },
   "creature_shade_idle_018": {
    "frame": {
-    "x": 339,
-    "y": 21,
-    "w": 26,
+    "x": 799,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -382,17 +382,17 @@
   },
   "creature_shade_idle_019": {
    "frame": {
-    "x": 367,
-    "y": 21,
-    "w": 26,
+    "x": 825,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -402,17 +402,17 @@
   },
   "creature_shade_idle_020": {
    "frame": {
-    "x": 395,
-    "y": 21,
-    "w": 26,
+    "x": 851,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -422,17 +422,17 @@
   },
   "creature_shade_idle_021": {
    "frame": {
-    "x": 423,
-    "y": 21,
-    "w": 26,
+    "x": 877,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -442,17 +442,17 @@
   },
   "creature_shade_idle_022": {
    "frame": {
-    "x": 451,
-    "y": 21,
-    "w": 26,
+    "x": 903,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -462,17 +462,17 @@
   },
   "creature_shade_idle_023": {
    "frame": {
-    "x": 479,
+    "x": 1345,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -482,17 +482,17 @@
   },
   "creature_shade_idle_024": {
    "frame": {
-    "x": 507,
+    "x": 1370,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -502,17 +502,17 @@
   },
   "creature_shade_idle_025": {
    "frame": {
-    "x": 535,
+    "x": 1395,
     "y": 21,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -522,17 +522,17 @@
   },
   "creature_shade_idle_026": {
    "frame": {
-    "x": 0,
-    "y": 42,
-    "w": 26,
+    "x": 1420,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -542,17 +542,17 @@
   },
   "creature_shade_idle_027": {
    "frame": {
-    "x": 28,
-    "y": 42,
-    "w": 26,
+    "x": 1445,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -562,17 +562,17 @@
   },
   "creature_shade_idle_028": {
    "frame": {
-    "x": 56,
-    "y": 42,
-    "w": 26,
+    "x": 1470,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -582,17 +582,17 @@
   },
   "creature_shade_idle_029": {
    "frame": {
-    "x": 84,
-    "y": 42,
-    "w": 26,
+    "x": 929,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -602,17 +602,17 @@
   },
   "creature_shade_idle_030": {
    "frame": {
-    "x": 112,
-    "y": 42,
-    "w": 26,
+    "x": 955,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -622,17 +622,17 @@
   },
   "creature_shade_idle_031": {
    "frame": {
-    "x": 140,
-    "y": 42,
-    "w": 26,
+    "x": 981,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -642,17 +642,17 @@
   },
   "creature_shade_idle_032": {
    "frame": {
-    "x": 495,
-    "y": 84,
-    "w": 25,
+    "x": 1007,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -662,17 +662,17 @@
   },
   "creature_shade_idle_033": {
    "frame": {
-    "x": 522,
-    "y": 84,
-    "w": 25,
+    "x": 1033,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -682,17 +682,17 @@
   },
   "creature_shade_idle_034": {
    "frame": {
-    "x": 0,
-    "y": 105,
-    "w": 25,
+    "x": 1059,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -702,17 +702,17 @@
   },
   "creature_shade_idle_035": {
    "frame": {
-    "x": 27,
-    "y": 105,
-    "w": 25,
+    "x": 1085,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -722,17 +722,17 @@
   },
   "creature_shade_idle_036": {
    "frame": {
-    "x": 54,
-    "y": 105,
-    "w": 25,
+    "x": 1111,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -742,17 +742,17 @@
   },
   "creature_shade_idle_037": {
    "frame": {
-    "x": 81,
-    "y": 105,
-    "w": 25,
+    "x": 1137,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -762,17 +762,17 @@
   },
   "creature_shade_idle_038": {
    "frame": {
-    "x": 108,
-    "y": 105,
-    "w": 25,
+    "x": 1163,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -782,17 +782,17 @@
   },
   "creature_shade_idle_039": {
    "frame": {
-    "x": 135,
-    "y": 105,
-    "w": 25,
+    "x": 1189,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -802,17 +802,17 @@
   },
   "creature_shade_idle_040": {
    "frame": {
-    "x": 162,
-    "y": 105,
-    "w": 25,
+    "x": 1215,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -822,17 +822,17 @@
   },
   "creature_shade_idle_041": {
    "frame": {
-    "x": 189,
-    "y": 105,
-    "w": 25,
+    "x": 1241,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -842,17 +842,17 @@
   },
   "creature_shade_idle_042": {
    "frame": {
-    "x": 216,
-    "y": 105,
-    "w": 25,
+    "x": 1267,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -862,17 +862,17 @@
   },
   "creature_shade_idle_043": {
    "frame": {
-    "x": 243,
-    "y": 105,
-    "w": 25,
+    "x": 1293,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -882,17 +882,17 @@
   },
   "creature_shade_idle_044": {
    "frame": {
-    "x": 270,
-    "y": 105,
-    "w": 25,
+    "x": 1319,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -902,17 +902,17 @@
   },
   "creature_shade_idle_045": {
    "frame": {
-    "x": 297,
-    "y": 105,
-    "w": 25,
+    "x": 1345,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -922,17 +922,17 @@
   },
   "creature_shade_idle_046": {
    "frame": {
-    "x": 324,
-    "y": 105,
-    "w": 25,
+    "x": 1371,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -942,17 +942,17 @@
   },
   "creature_shade_idle_047": {
    "frame": {
-    "x": 351,
-    "y": 105,
-    "w": 25,
+    "x": 1397,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -962,17 +962,17 @@
   },
   "creature_shade_idle_048": {
    "frame": {
-    "x": 378,
-    "y": 105,
-    "w": 25,
+    "x": 1423,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -982,17 +982,17 @@
   },
   "creature_shade_idle_049": {
    "frame": {
-    "x": 405,
-    "y": 105,
-    "w": 25,
+    "x": 1449,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1002,17 +1002,17 @@
   },
   "creature_shade_idle_050": {
    "frame": {
-    "x": 432,
-    "y": 105,
-    "w": 25,
+    "x": 1475,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1022,17 +1022,17 @@
   },
   "creature_shade_idle_051": {
    "frame": {
-    "x": 459,
-    "y": 105,
-    "w": 25,
+    "x": 1501,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1042,17 +1042,17 @@
   },
   "creature_shade_idle_052": {
    "frame": {
-    "x": 486,
-    "y": 105,
-    "w": 25,
+    "x": 1527,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1062,17 +1062,17 @@
   },
   "creature_shade_idle_053": {
    "frame": {
-    "x": 513,
-    "y": 105,
-    "w": 25,
+    "x": 1553,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1082,17 +1082,17 @@
   },
   "creature_shade_swipe_000": {
    "frame": {
-    "x": 540,
-    "y": 105,
-    "w": 25,
+    "x": 513,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1102,17 +1102,17 @@
   },
   "creature_shade_swipe_001": {
    "frame": {
-    "x": 0,
-    "y": 126,
-    "w": 25,
+    "x": 1579,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1122,17 +1122,17 @@
   },
   "creature_shade_swipe_002": {
    "frame": {
-    "x": 27,
-    "y": 126,
-    "w": 25,
+    "x": 1605,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1142,17 +1142,17 @@
   },
   "creature_shade_swipe_003": {
    "frame": {
-    "x": 54,
-    "y": 126,
-    "w": 25,
+    "x": 1631,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1162,17 +1162,17 @@
   },
   "creature_shade_swipe_004": {
    "frame": {
-    "x": 81,
-    "y": 126,
-    "w": 25,
+    "x": 1657,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1182,17 +1182,17 @@
   },
   "creature_shade_swipe_005": {
    "frame": {
-    "x": 168,
-    "y": 42,
-    "w": 26,
+    "x": 1683,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1202,17 +1202,17 @@
   },
   "creature_shade_swipe_006": {
    "frame": {
-    "x": 290,
-    "y": 231,
-    "w": 26,
+    "x": 2858,
+    "y": 21,
+    "w": 24,
     "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 14
    },
    "sourceSize": {
@@ -1222,17 +1222,17 @@
   },
   "creature_shade_swipe_007": {
    "frame": {
-    "x": 0,
-    "y": 231,
-    "w": 27,
+    "x": 2884,
+    "y": 21,
+    "w": 24,
     "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 44,
     "y": 77,
-    "w": 27,
+    "w": 24,
     "h": 14
    },
    "sourceSize": {
@@ -1242,17 +1242,17 @@
   },
   "creature_shade_swipe_008": {
    "frame": {
-    "x": 29,
-    "y": 231,
-    "w": 27,
+    "x": 2936,
+    "y": 21,
+    "w": 23,
     "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 45,
     "y": 77,
-    "w": 27,
+    "w": 23,
     "h": 14
    },
    "sourceSize": {
@@ -1262,17 +1262,17 @@
   },
   "creature_shade_swipe_009": {
    "frame": {
-    "x": 58,
-    "y": 231,
-    "w": 27,
+    "x": 3011,
+    "y": 21,
+    "w": 22,
     "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 46,
     "y": 77,
-    "w": 27,
+    "w": 22,
     "h": 14
    },
    "sourceSize": {
@@ -1282,17 +1282,17 @@
   },
   "creature_shade_swipe_010": {
    "frame": {
-    "x": 87,
-    "y": 231,
-    "w": 27,
+    "x": 3035,
+    "y": 21,
+    "w": 22,
     "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 46,
     "y": 77,
-    "w": 27,
+    "w": 22,
     "h": 14
    },
    "sourceSize": {
@@ -1302,17 +1302,17 @@
   },
   "creature_shade_swipe_011": {
    "frame": {
-    "x": 116,
-    "y": 231,
-    "w": 27,
+    "x": 2961,
+    "y": 21,
+    "w": 23,
     "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 45,
     "y": 77,
-    "w": 27,
+    "w": 23,
     "h": 14
    },
    "sourceSize": {
@@ -1322,17 +1322,17 @@
   },
   "creature_shade_swipe_012": {
    "frame": {
-    "x": 145,
-    "y": 231,
-    "w": 27,
+    "x": 2986,
+    "y": 21,
+    "w": 23,
     "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 45,
     "y": 77,
-    "w": 27,
+    "w": 23,
     "h": 14
    },
    "sourceSize": {
@@ -1342,17 +1342,17 @@
   },
   "creature_shade_swipe_013": {
    "frame": {
-    "x": 318,
-    "y": 231,
-    "w": 26,
+    "x": 2910,
+    "y": 21,
+    "w": 24,
     "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 14
    },
    "sourceSize": {
@@ -1362,8 +1362,8 @@
   },
   "creature_shade_swipe_014": {
    "frame": {
-    "x": 346,
-    "y": 231,
+    "x": 2746,
+    "y": 21,
     "w": 26,
     "h": 14
    },
@@ -1382,18 +1382,18 @@
   },
   "creature_shade_swipe_015": {
    "frame": {
-    "x": 374,
-    "y": 231,
+    "x": 3059,
+    "y": 21,
     "w": 26,
-    "h": 14
+    "h": 13
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 42,
-    "y": 77,
+    "y": 78,
     "w": 26,
-    "h": 14
+    "h": 13
    },
    "sourceSize": {
     "w": 108,
@@ -1402,8 +1402,8 @@
   },
   "creature_shade_swipe_016": {
    "frame": {
-    "x": 402,
-    "y": 231,
+    "x": 2774,
+    "y": 21,
     "w": 26,
     "h": 14
    },
@@ -1422,8 +1422,8 @@
   },
   "creature_shade_swipe_017": {
    "frame": {
-    "x": 430,
-    "y": 231,
+    "x": 2802,
+    "y": 21,
     "w": 26,
     "h": 14
    },
@@ -1442,8 +1442,8 @@
   },
   "creature_shade_swipe_018": {
    "frame": {
-    "x": 458,
-    "y": 231,
+    "x": 2830,
+    "y": 21,
     "w": 26,
     "h": 14
    },
@@ -1462,8 +1462,8 @@
   },
   "creature_shade_swipe_019": {
    "frame": {
-    "x": 174,
-    "y": 231,
+    "x": 2630,
+    "y": 21,
     "w": 27,
     "h": 14
    },
@@ -1482,8 +1482,8 @@
   },
   "creature_shade_swipe_020": {
    "frame": {
-    "x": 203,
-    "y": 231,
+    "x": 2659,
+    "y": 21,
     "w": 27,
     "h": 14
    },
@@ -1502,8 +1502,8 @@
   },
   "creature_shade_swipe_021": {
    "frame": {
-    "x": 232,
-    "y": 231,
+    "x": 2688,
+    "y": 21,
     "w": 27,
     "h": 14
    },
@@ -1522,8 +1522,8 @@
   },
   "creature_shade_swipe_022": {
    "frame": {
-    "x": 261,
-    "y": 231,
+    "x": 2717,
+    "y": 21,
     "w": 27,
     "h": 14
    },
@@ -1542,18 +1542,18 @@
   },
   "creature_shade_swipe_023": {
    "frame": {
-    "x": 525,
-    "y": 210,
+    "x": 2600,
+    "y": 21,
     "w": 28,
-    "h": 15
+    "h": 14
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 40,
-    "y": 77,
+    "y": 78,
     "w": 28,
-    "h": 15
+    "h": 14
    },
    "sourceSize": {
     "w": 108,
@@ -1562,18 +1562,18 @@
   },
   "creature_shade_swipe_024": {
    "frame": {
-    "x": 498,
-    "y": 210,
+    "x": 2573,
+    "y": 21,
     "w": 25,
-    "h": 17
+    "h": 16
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 42,
-    "y": 77,
+    "y": 78,
     "w": 25,
-    "h": 17
+    "h": 16
    },
    "sourceSize": {
     "w": 108,
@@ -1582,18 +1582,18 @@
   },
   "creature_shade_swipe_025": {
    "frame": {
-    "x": 135,
-    "y": 210,
+    "x": 2547,
+    "y": 21,
     "w": 24,
-    "h": 19
+    "h": 18
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 43,
-    "y": 77,
+    "y": 78,
     "w": 24,
-    "h": 19
+    "h": 18
    },
    "sourceSize": {
     "w": 108,
@@ -1602,8 +1602,8 @@
   },
   "creature_shade_swipe_026": {
    "frame": {
-    "x": 108,
-    "y": 126,
+    "x": 0,
+    "y": 0,
     "w": 25,
     "h": 19
    },
@@ -1622,17 +1622,17 @@
   },
   "creature_shade_swipe_027": {
    "frame": {
-    "x": 135,
-    "y": 126,
-    "w": 25,
+    "x": 1709,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1642,17 +1642,17 @@
   },
   "creature_shade_swipe_028": {
    "frame": {
-    "x": 196,
-    "y": 42,
-    "w": 26,
+    "x": 1735,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1662,17 +1662,17 @@
   },
   "creature_shade_swipe_029": {
    "frame": {
-    "x": 224,
-    "y": 42,
-    "w": 26,
+    "x": 1761,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1682,17 +1682,17 @@
   },
   "creature_shade_swipe_030": {
    "frame": {
-    "x": 252,
-    "y": 42,
-    "w": 26,
+    "x": 1787,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1702,17 +1702,17 @@
   },
   "creature_shade_swipe_031": {
    "frame": {
-    "x": 162,
-    "y": 126,
-    "w": 25,
+    "x": 1813,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1722,17 +1722,17 @@
   },
   "creature_shade_swipe_032": {
    "frame": {
-    "x": 189,
-    "y": 126,
-    "w": 25,
+    "x": 1839,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1742,17 +1742,17 @@
   },
   "creature_shade_swipe_033": {
    "frame": {
-    "x": 216,
-    "y": 126,
-    "w": 25,
+    "x": 1865,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1762,17 +1762,17 @@
   },
   "creature_shade_swipe_034": {
    "frame": {
-    "x": 243,
-    "y": 126,
-    "w": 25,
+    "x": 1891,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1782,17 +1782,17 @@
   },
   "creature_shade_swipe_035": {
    "frame": {
-    "x": 270,
-    "y": 126,
-    "w": 25,
+    "x": 513,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1802,17 +1802,17 @@
   },
   "creature_shade_roar_000": {
    "frame": {
-    "x": 297,
-    "y": 126,
-    "w": 25,
+    "x": 513,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1822,17 +1822,17 @@
   },
   "creature_shade_roar_001": {
    "frame": {
-    "x": 324,
-    "y": 126,
-    "w": 25,
+    "x": 1917,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1842,17 +1842,17 @@
   },
   "creature_shade_roar_002": {
    "frame": {
-    "x": 351,
-    "y": 126,
-    "w": 25,
+    "x": 1943,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1862,17 +1862,17 @@
   },
   "creature_shade_roar_003": {
    "frame": {
-    "x": 378,
-    "y": 126,
-    "w": 25,
+    "x": 1969,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1882,17 +1882,17 @@
   },
   "creature_shade_roar_004": {
    "frame": {
-    "x": 405,
-    "y": 126,
-    "w": 25,
+    "x": 1995,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1902,17 +1902,17 @@
   },
   "creature_shade_roar_005": {
    "frame": {
-    "x": 432,
-    "y": 126,
-    "w": 25,
+    "x": 2021,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -1922,17 +1922,17 @@
   },
   "creature_shade_roar_006": {
    "frame": {
-    "x": 280,
-    "y": 42,
-    "w": 26,
+    "x": 2170,
+    "y": 21,
+    "w": 22,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 46,
     "y": 77,
-    "w": 26,
+    "w": 22,
     "h": 19
    },
    "sourceSize": {
@@ -1942,17 +1942,17 @@
   },
   "creature_shade_roar_007": {
    "frame": {
-    "x": 459,
-    "y": 126,
-    "w": 25,
+    "x": 2194,
+    "y": 21,
+    "w": 22,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 46,
     "y": 77,
-    "w": 25,
+    "w": 22,
     "h": 19
    },
    "sourceSize": {
@@ -1962,17 +1962,17 @@
   },
   "creature_shade_roar_008": {
    "frame": {
-    "x": 308,
-    "y": 42,
-    "w": 26,
+    "x": 2218,
+    "y": 21,
+    "w": 22,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 46,
     "y": 77,
-    "w": 26,
+    "w": 22,
     "h": 19
    },
    "sourceSize": {
@@ -1982,17 +1982,17 @@
   },
   "creature_shade_roar_009": {
    "frame": {
-    "x": 336,
-    "y": 42,
-    "w": 26,
+    "x": 2047,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2002,17 +2002,17 @@
   },
   "creature_shade_roar_010": {
    "frame": {
-    "x": 364,
-    "y": 42,
-    "w": 26,
+    "x": 1495,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2022,17 +2022,17 @@
   },
   "creature_shade_roar_011": {
    "frame": {
-    "x": 392,
-    "y": 42,
-    "w": 26,
+    "x": 1520,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2042,17 +2042,17 @@
   },
   "creature_shade_roar_012": {
    "frame": {
-    "x": 420,
-    "y": 42,
-    "w": 26,
+    "x": 1545,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2062,17 +2062,17 @@
   },
   "creature_shade_roar_013": {
    "frame": {
-    "x": 0,
-    "y": 0,
-    "w": 27,
+    "x": 1570,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 45,
     "y": 77,
-    "w": 27,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2082,17 +2082,17 @@
   },
   "creature_shade_roar_014": {
    "frame": {
-    "x": 29,
-    "y": 0,
-    "w": 27,
+    "x": 1595,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 45,
     "y": 77,
-    "w": 27,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2102,17 +2102,17 @@
   },
   "creature_shade_roar_015": {
    "frame": {
-    "x": 448,
-    "y": 42,
-    "w": 26,
+    "x": 1620,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2122,17 +2122,17 @@
   },
   "creature_shade_roar_016": {
    "frame": {
-    "x": 476,
-    "y": 42,
-    "w": 26,
+    "x": 1645,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2142,17 +2142,17 @@
   },
   "creature_shade_roar_017": {
    "frame": {
-    "x": 504,
-    "y": 42,
-    "w": 26,
+    "x": 1670,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2162,17 +2162,17 @@
   },
   "creature_shade_roar_018": {
    "frame": {
-    "x": 532,
-    "y": 42,
-    "w": 26,
+    "x": 2073,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2182,17 +2182,17 @@
   },
   "creature_shade_roar_019": {
    "frame": {
-    "x": 0,
-    "y": 63,
-    "w": 26,
+    "x": 2099,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2202,17 +2202,17 @@
   },
   "creature_shade_roar_020": {
    "frame": {
-    "x": 28,
-    "y": 63,
-    "w": 26,
+    "x": 2125,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2222,17 +2222,17 @@
   },
   "creature_shade_roar_021": {
    "frame": {
-    "x": 56,
-    "y": 63,
-    "w": 26,
+    "x": 2151,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2242,17 +2242,17 @@
   },
   "creature_shade_roar_022": {
    "frame": {
-    "x": 84,
-    "y": 63,
-    "w": 26,
+    "x": 2177,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2262,17 +2262,17 @@
   },
   "creature_shade_roar_023": {
    "frame": {
-    "x": 112,
-    "y": 63,
-    "w": 26,
+    "x": 2203,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2282,17 +2282,17 @@
   },
   "creature_shade_roar_024": {
    "frame": {
-    "x": 140,
-    "y": 63,
-    "w": 26,
+    "x": 1695,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2302,17 +2302,17 @@
   },
   "creature_shade_roar_025": {
    "frame": {
-    "x": 168,
-    "y": 63,
-    "w": 26,
+    "x": 1720,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2322,17 +2322,17 @@
   },
   "creature_shade_roar_026": {
    "frame": {
-    "x": 196,
-    "y": 63,
-    "w": 26,
+    "x": 1745,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2342,17 +2342,17 @@
   },
   "creature_shade_roar_027": {
    "frame": {
-    "x": 224,
-    "y": 63,
-    "w": 26,
+    "x": 1770,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2362,17 +2362,17 @@
   },
   "creature_shade_roar_028": {
    "frame": {
-    "x": 252,
-    "y": 63,
-    "w": 26,
+    "x": 1795,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2382,17 +2382,17 @@
   },
   "creature_shade_roar_029": {
    "frame": {
-    "x": 280,
-    "y": 63,
-    "w": 26,
+    "x": 1820,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2402,17 +2402,17 @@
   },
   "creature_shade_roar_030": {
    "frame": {
-    "x": 308,
-    "y": 63,
-    "w": 26,
+    "x": 1845,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2422,17 +2422,17 @@
   },
   "creature_shade_roar_031": {
    "frame": {
-    "x": 336,
-    "y": 63,
-    "w": 26,
+    "x": 1870,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -2442,17 +2442,17 @@
   },
   "creature_shade_roar_032": {
    "frame": {
-    "x": 364,
-    "y": 63,
-    "w": 26,
+    "x": 2229,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2462,17 +2462,17 @@
   },
   "creature_shade_roar_033": {
    "frame": {
-    "x": 392,
-    "y": 63,
-    "w": 26,
+    "x": 2255,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2482,17 +2482,17 @@
   },
   "creature_shade_roar_034": {
    "frame": {
-    "x": 420,
-    "y": 63,
-    "w": 26,
+    "x": 2281,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2502,17 +2502,17 @@
   },
   "creature_shade_roar_035": {
    "frame": {
-    "x": 486,
-    "y": 126,
-    "w": 25,
+    "x": 2307,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2522,17 +2522,17 @@
   },
   "creature_shade_roar_036": {
    "frame": {
-    "x": 513,
-    "y": 126,
-    "w": 25,
+    "x": 2333,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2542,17 +2542,17 @@
   },
   "creature_shade_roar_037": {
    "frame": {
-    "x": 540,
-    "y": 126,
-    "w": 25,
+    "x": 2359,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2562,17 +2562,17 @@
   },
   "creature_shade_roar_038": {
    "frame": {
-    "x": 0,
-    "y": 147,
-    "w": 25,
+    "x": 2385,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2582,17 +2582,17 @@
   },
   "creature_shade_roar_039": {
    "frame": {
-    "x": 27,
-    "y": 147,
-    "w": 25,
+    "x": 2411,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2602,17 +2602,17 @@
   },
   "creature_shade_roar_040": {
    "frame": {
-    "x": 54,
-    "y": 147,
-    "w": 25,
+    "x": 2437,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2622,17 +2622,17 @@
   },
   "creature_shade_roar_041": {
    "frame": {
-    "x": 81,
-    "y": 147,
-    "w": 25,
+    "x": 2463,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2642,17 +2642,17 @@
   },
   "creature_shade_roar_042": {
    "frame": {
-    "x": 108,
-    "y": 147,
-    "w": 25,
+    "x": 2489,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2662,17 +2662,17 @@
   },
   "creature_shade_roar_043": {
    "frame": {
-    "x": 135,
-    "y": 147,
-    "w": 25,
+    "x": 2515,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2682,17 +2682,17 @@
   },
   "creature_shade_roar_044": {
    "frame": {
-    "x": 162,
-    "y": 147,
-    "w": 25,
+    "x": 2541,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2702,17 +2702,17 @@
   },
   "creature_shade_roar_045": {
    "frame": {
-    "x": 189,
-    "y": 147,
-    "w": 25,
+    "x": 2567,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2722,17 +2722,17 @@
   },
   "creature_shade_roar_046": {
    "frame": {
-    "x": 216,
-    "y": 147,
-    "w": 25,
+    "x": 2593,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2742,17 +2742,17 @@
   },
   "creature_shade_roar_047": {
    "frame": {
-    "x": 243,
-    "y": 147,
-    "w": 25,
+    "x": 2619,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2762,17 +2762,17 @@
   },
   "creature_shade_roar_048": {
    "frame": {
-    "x": 270,
-    "y": 147,
-    "w": 25,
+    "x": 2645,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2782,17 +2782,17 @@
   },
   "creature_shade_roar_049": {
    "frame": {
-    "x": 297,
-    "y": 147,
-    "w": 25,
+    "x": 2671,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2802,17 +2802,17 @@
   },
   "creature_shade_roar_050": {
    "frame": {
-    "x": 324,
-    "y": 147,
-    "w": 25,
+    "x": 2697,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2822,17 +2822,17 @@
   },
   "creature_shade_roar_051": {
    "frame": {
-    "x": 351,
-    "y": 147,
-    "w": 25,
+    "x": 2723,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2842,8 +2842,28 @@
   },
   "creature_shade_roar_052": {
    "frame": {
-    "x": 378,
-    "y": 147,
+    "x": 2749,
+    "y": 0,
+    "w": 24,
+    "h": 19
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 44,
+    "y": 77,
+    "w": 24,
+    "h": 19
+   },
+   "sourceSize": {
+    "w": 108,
+    "h": 108
+   }
+  },
+  "creature_shade_sting_hit_000": {
+   "frame": {
+    "x": 27,
+    "y": 0,
     "w": 25,
     "h": 19
    },
@@ -2860,39 +2880,19 @@
     "h": 108
    }
   },
-  "creature_shade_sting_hit_000": {
-   "frame": {
-    "x": 58,
-    "y": 0,
-    "w": 27,
-    "h": 19
-   },
-   "rotated": false,
-   "trimmed": true,
-   "spriteSourceSize": {
-    "x": 41,
-    "y": 77,
-    "w": 27,
-    "h": 19
-   },
-   "sourceSize": {
-    "w": 108,
-    "h": 108
-   }
-  },
   "creature_shade_sting_hit_001": {
    "frame": {
-    "x": 87,
+    "x": 54,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -2902,17 +2902,17 @@
   },
   "creature_shade_sting_hit_002": {
    "frame": {
-    "x": 448,
-    "y": 63,
-    "w": 26,
+    "x": 2775,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -2922,17 +2922,17 @@
   },
   "creature_shade_sting_hit_003": {
    "frame": {
-    "x": 116,
+    "x": 81,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -2942,18 +2942,18 @@
   },
   "creature_shade_sting_hit_004": {
    "frame": {
-    "x": 385,
-    "y": 210,
+    "x": 2242,
+    "y": 21,
     "w": 27,
-    "h": 17
+    "h": 18
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 41,
-    "y": 79,
+    "y": 78,
     "w": 27,
-    "h": 17
+    "h": 18
    },
    "sourceSize": {
     "w": 108,
@@ -2962,18 +2962,18 @@
   },
   "creature_shade_sting_hit_005": {
    "frame": {
-    "x": 414,
-    "y": 210,
+    "x": 2271,
+    "y": 21,
     "w": 26,
-    "h": 17
+    "h": 18
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 42,
-    "y": 79,
+    "y": 78,
     "w": 26,
-    "h": 17
+    "h": 18
    },
    "sourceSize": {
     "w": 108,
@@ -2982,18 +2982,18 @@
   },
   "creature_shade_sting_hit_006": {
    "frame": {
-    "x": 442,
-    "y": 210,
+    "x": 2299,
+    "y": 21,
     "w": 26,
-    "h": 17
+    "h": 18
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 42,
-    "y": 79,
+    "y": 78,
     "w": 26,
-    "h": 17
+    "h": 18
    },
    "sourceSize": {
     "w": 108,
@@ -3002,8 +3002,8 @@
   },
   "creature_shade_sting_hit_007": {
    "frame": {
-    "x": 245,
-    "y": 210,
+    "x": 2327,
+    "y": 21,
     "w": 26,
     "h": 18
    },
@@ -3022,28 +3022,8 @@
   },
   "creature_shade_sting_hit_008": {
    "frame": {
-    "x": 470,
-    "y": 210,
-    "w": 26,
-    "h": 17
-   },
-   "rotated": false,
-   "trimmed": true,
-   "spriteSourceSize": {
-    "x": 42,
-    "y": 79,
-    "w": 26,
-    "h": 17
-   },
-   "sourceSize": {
-    "w": 108,
-    "h": 108
-   }
-  },
-  "creature_shade_sting_hit_009": {
-   "frame": {
-    "x": 273,
-    "y": 210,
+    "x": 2355,
+    "y": 21,
     "w": 26,
     "h": 18
    },
@@ -3053,6 +3033,26 @@
     "x": 42,
     "y": 78,
     "w": 26,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 108,
+    "h": 108
+   }
+  },
+  "creature_shade_sting_hit_009": {
+   "frame": {
+    "x": 2439,
+    "y": 21,
+    "w": 25,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 43,
+    "y": 78,
+    "w": 25,
     "h": 18
    },
    "sourceSize": {
@@ -3062,17 +3062,17 @@
   },
   "creature_shade_sting_hit_010": {
    "frame": {
-    "x": 301,
-    "y": 210,
-    "w": 26,
+    "x": 2466,
+    "y": 21,
+    "w": 25,
     "h": 18
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 43,
     "y": 78,
-    "w": 26,
+    "w": 25,
     "h": 18
    },
    "sourceSize": {
@@ -3082,17 +3082,17 @@
   },
   "creature_shade_sting_hit_011": {
    "frame": {
-    "x": 329,
-    "y": 210,
-    "w": 26,
+    "x": 2493,
+    "y": 21,
+    "w": 25,
     "h": 18
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 43,
     "y": 78,
-    "w": 26,
+    "w": 25,
     "h": 18
    },
    "sourceSize": {
@@ -3102,17 +3102,17 @@
   },
   "creature_shade_sting_hit_012": {
    "frame": {
-    "x": 476,
-    "y": 63,
-    "w": 26,
+    "x": 2801,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3122,17 +3122,17 @@
   },
   "creature_shade_sting_hit_013": {
    "frame": {
-    "x": 504,
-    "y": 63,
-    "w": 26,
+    "x": 2827,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3142,17 +3142,17 @@
   },
   "creature_shade_sting_hit_014": {
    "frame": {
-    "x": 532,
-    "y": 63,
-    "w": 26,
+    "x": 2853,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3162,17 +3162,17 @@
   },
   "creature_shade_sting_hit_015": {
    "frame": {
-    "x": 405,
-    "y": 147,
-    "w": 25,
+    "x": 2879,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3182,17 +3182,17 @@
   },
   "creature_shade_sting_hit_016": {
    "frame": {
-    "x": 432,
-    "y": 147,
-    "w": 25,
+    "x": 2905,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3202,17 +3202,17 @@
   },
   "creature_shade_sting_hit_017": {
    "frame": {
-    "x": 459,
-    "y": 147,
-    "w": 25,
+    "x": 2931,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3222,8 +3222,8 @@
   },
   "creature_shade_sting_recrouch_000": {
    "frame": {
-    "x": 357,
-    "y": 210,
+    "x": 2383,
+    "y": 21,
     "w": 26,
     "h": 18
    },
@@ -3242,17 +3242,17 @@
   },
   "creature_shade_sting_recrouch_001": {
    "frame": {
-    "x": 187,
-    "y": 210,
-    "w": 27,
+    "x": 2411,
+    "y": 21,
+    "w": 26,
     "h": 18
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 42,
     "y": 78,
-    "w": 27,
+    "w": 26,
     "h": 18
    },
    "sourceSize": {
@@ -3262,17 +3262,17 @@
   },
   "creature_shade_sting_recrouch_002": {
    "frame": {
-    "x": 216,
-    "y": 210,
-    "w": 27,
+    "x": 2520,
+    "y": 21,
+    "w": 25,
     "h": 18
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 78,
-    "w": 27,
+    "w": 25,
     "h": 18
    },
    "sourceSize": {
@@ -3282,17 +3282,17 @@
   },
   "creature_shade_sting_recrouch_003": {
    "frame": {
-    "x": 145,
+    "x": 2957,
     "y": 0,
-    "w": 27,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 44,
     "y": 77,
-    "w": 27,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3302,17 +3302,17 @@
   },
   "creature_shade_sting_recrouch_004": {
    "frame": {
-    "x": 174,
+    "x": 108,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3322,17 +3322,17 @@
   },
   "creature_shade_sting_recrouch_005": {
    "frame": {
-    "x": 203,
+    "x": 135,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3342,17 +3342,17 @@
   },
   "creature_shade_sting_recrouch_006": {
    "frame": {
-    "x": 232,
+    "x": 162,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3362,17 +3362,17 @@
   },
   "creature_shade_charge_in_000": {
    "frame": {
-    "x": 459,
-    "y": 147,
-    "w": 25,
+    "x": 2931,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3382,17 +3382,17 @@
   },
   "creature_shade_charge_in_001": {
    "frame": {
-    "x": 486,
-    "y": 147,
-    "w": 25,
+    "x": 2983,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3402,17 +3402,17 @@
   },
   "creature_shade_charge_in_002": {
    "frame": {
-    "x": 513,
-    "y": 147,
-    "w": 25,
+    "x": 3009,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3422,17 +3422,17 @@
   },
   "creature_shade_charge_in_003": {
    "frame": {
-    "x": 0,
-    "y": 84,
-    "w": 26,
+    "x": 3035,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3442,17 +3442,17 @@
   },
   "creature_shade_charge_in_004": {
    "frame": {
-    "x": 28,
-    "y": 84,
-    "w": 26,
+    "x": 3061,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3462,17 +3462,17 @@
   },
   "creature_shade_charge_in_005": {
    "frame": {
-    "x": 261,
+    "x": 189,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3482,17 +3482,17 @@
   },
   "creature_shade_charge_loop_000": {
    "frame": {
-    "x": 290,
+    "x": 216,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3502,17 +3502,17 @@
   },
   "creature_shade_charge_loop_001": {
    "frame": {
-    "x": 319,
+    "x": 243,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3522,17 +3522,17 @@
   },
   "creature_shade_charge_loop_002": {
    "frame": {
-    "x": 348,
+    "x": 270,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3542,17 +3542,17 @@
   },
   "creature_shade_charge_loop_003": {
    "frame": {
-    "x": 377,
+    "x": 297,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3562,17 +3562,17 @@
   },
   "creature_shade_charge_loop_004": {
    "frame": {
-    "x": 406,
+    "x": 324,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3582,17 +3582,17 @@
   },
   "creature_shade_charge_loop_005": {
    "frame": {
-    "x": 435,
+    "x": 351,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3602,17 +3602,17 @@
   },
   "creature_shade_charge_loop_006": {
    "frame": {
-    "x": 464,
+    "x": 378,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3622,17 +3622,17 @@
   },
   "creature_shade_charge_loop_007": {
    "frame": {
-    "x": 493,
+    "x": 405,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3642,17 +3642,17 @@
   },
   "creature_shade_charge_loop_008": {
    "frame": {
-    "x": 522,
+    "x": 432,
     "y": 0,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3662,17 +3662,17 @@
   },
   "creature_shade_charge_loop_009": {
    "frame": {
-    "x": 0,
-    "y": 21,
-    "w": 27,
+    "x": 459,
+    "y": 0,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3682,17 +3682,17 @@
   },
   "creature_shade_charge_loop_010": {
    "frame": {
-    "x": 29,
-    "y": 21,
-    "w": 27,
+    "x": 486,
+    "y": 0,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3702,17 +3702,17 @@
   },
   "creature_shade_charge_loop_011": {
    "frame": {
-    "x": 58,
-    "y": 21,
-    "w": 27,
+    "x": 162,
+    "y": 0,
+    "w": 25,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 41,
+    "x": 43,
     "y": 77,
-    "w": 27,
+    "w": 25,
     "h": 19
    },
    "sourceSize": {
@@ -3722,17 +3722,17 @@
   },
   "creature_shade_snarl_000": {
    "frame": {
-    "x": 252,
-    "y": 84,
-    "w": 25,
+    "x": 513,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3742,17 +3742,17 @@
   },
   "creature_shade_snarl_001": {
    "frame": {
-    "x": 540,
-    "y": 147,
-    "w": 25,
+    "x": 0,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3762,17 +3762,17 @@
   },
   "creature_shade_snarl_002": {
    "frame": {
-    "x": 0,
-    "y": 168,
-    "w": 25,
+    "x": 26,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3782,17 +3782,17 @@
   },
   "creature_shade_snarl_003": {
    "frame": {
-    "x": 27,
-    "y": 168,
-    "w": 25,
+    "x": 52,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3802,17 +3802,17 @@
   },
   "creature_shade_snarl_004": {
    "frame": {
-    "x": 54,
-    "y": 168,
-    "w": 25,
+    "x": 78,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3822,17 +3822,17 @@
   },
   "creature_shade_snarl_005": {
    "frame": {
-    "x": 81,
-    "y": 168,
-    "w": 25,
+    "x": 104,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3842,17 +3842,17 @@
   },
   "creature_shade_snarl_006": {
    "frame": {
-    "x": 108,
-    "y": 168,
-    "w": 25,
+    "x": 130,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3862,17 +3862,17 @@
   },
   "creature_shade_snarl_007": {
    "frame": {
-    "x": 135,
-    "y": 168,
-    "w": 25,
+    "x": 156,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3882,17 +3882,17 @@
   },
   "creature_shade_snarl_008": {
    "frame": {
-    "x": 162,
-    "y": 168,
-    "w": 25,
+    "x": 182,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3902,17 +3902,17 @@
   },
   "creature_shade_snarl_009": {
    "frame": {
-    "x": 189,
-    "y": 168,
-    "w": 25,
+    "x": 208,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3922,17 +3922,17 @@
   },
   "creature_shade_snarl_010": {
    "frame": {
-    "x": 216,
-    "y": 168,
-    "w": 25,
+    "x": 234,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3942,17 +3942,17 @@
   },
   "creature_shade_snarl_011": {
    "frame": {
-    "x": 243,
-    "y": 168,
-    "w": 25,
+    "x": 260,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -3962,17 +3962,17 @@
   },
   "creature_shade_snarl_012": {
    "frame": {
-    "x": 270,
-    "y": 168,
-    "w": 25,
+    "x": 1895,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -3982,17 +3982,17 @@
   },
   "creature_shade_snarl_013": {
    "frame": {
-    "x": 297,
-    "y": 168,
-    "w": 25,
+    "x": 1920,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4002,17 +4002,17 @@
   },
   "creature_shade_snarl_014": {
    "frame": {
-    "x": 324,
-    "y": 168,
-    "w": 25,
+    "x": 286,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4022,17 +4022,17 @@
   },
   "creature_shade_snarl_015": {
    "frame": {
-    "x": 351,
-    "y": 168,
-    "w": 25,
+    "x": 1945,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4042,17 +4042,17 @@
   },
   "creature_shade_snarl_016": {
    "frame": {
-    "x": 378,
-    "y": 168,
-    "w": 25,
+    "x": 1970,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4062,17 +4062,17 @@
   },
   "creature_shade_snarl_017": {
    "frame": {
-    "x": 405,
-    "y": 168,
-    "w": 25,
+    "x": 1995,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4082,17 +4082,17 @@
   },
   "creature_shade_snarl_018": {
    "frame": {
-    "x": 432,
-    "y": 168,
-    "w": 25,
+    "x": 2020,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4102,17 +4102,17 @@
   },
   "creature_shade_snarl_019": {
    "frame": {
-    "x": 459,
-    "y": 168,
-    "w": 25,
+    "x": 2045,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4122,17 +4122,17 @@
   },
   "creature_shade_snarl_020": {
    "frame": {
-    "x": 486,
-    "y": 168,
-    "w": 25,
+    "x": 312,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4142,17 +4142,17 @@
   },
   "creature_shade_snarl_021": {
    "frame": {
-    "x": 513,
-    "y": 168,
-    "w": 25,
+    "x": 338,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4162,17 +4162,17 @@
   },
   "creature_shade_snarl_022": {
    "frame": {
-    "x": 540,
-    "y": 168,
-    "w": 25,
+    "x": 364,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4182,17 +4182,17 @@
   },
   "creature_shade_snarl_023": {
    "frame": {
-    "x": 252,
-    "y": 84,
-    "w": 25,
+    "x": 513,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4202,17 +4202,17 @@
   },
   "creature_shade_growl_000": {
    "frame": {
-    "x": 252,
-    "y": 84,
-    "w": 25,
+    "x": 513,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4222,17 +4222,17 @@
   },
   "creature_shade_growl_001": {
    "frame": {
-    "x": 0,
-    "y": 189,
-    "w": 25,
+    "x": 390,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4242,17 +4242,17 @@
   },
   "creature_shade_growl_002": {
    "frame": {
-    "x": 27,
-    "y": 189,
-    "w": 25,
+    "x": 416,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4262,17 +4262,17 @@
   },
   "creature_shade_growl_003": {
    "frame": {
-    "x": 54,
-    "y": 189,
-    "w": 25,
+    "x": 442,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4282,17 +4282,17 @@
   },
   "creature_shade_growl_004": {
    "frame": {
-    "x": 81,
-    "y": 189,
-    "w": 25,
+    "x": 468,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4302,17 +4302,17 @@
   },
   "creature_shade_growl_005": {
    "frame": {
-    "x": 108,
-    "y": 189,
-    "w": 25,
+    "x": 494,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4322,17 +4322,17 @@
   },
   "creature_shade_growl_006": {
    "frame": {
-    "x": 135,
-    "y": 189,
-    "w": 25,
+    "x": 520,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4342,17 +4342,17 @@
   },
   "creature_shade_growl_007": {
    "frame": {
-    "x": 162,
-    "y": 189,
-    "w": 25,
+    "x": 546,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4362,17 +4362,17 @@
   },
   "creature_shade_growl_008": {
    "frame": {
-    "x": 189,
-    "y": 189,
-    "w": 25,
+    "x": 572,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4382,17 +4382,17 @@
   },
   "creature_shade_growl_009": {
    "frame": {
-    "x": 216,
-    "y": 189,
-    "w": 25,
+    "x": 598,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4402,17 +4402,17 @@
   },
   "creature_shade_growl_010": {
    "frame": {
-    "x": 243,
-    "y": 189,
-    "w": 25,
+    "x": 624,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4422,17 +4422,17 @@
   },
   "creature_shade_growl_011": {
    "frame": {
-    "x": 56,
-    "y": 84,
-    "w": 26,
+    "x": 650,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4442,17 +4442,17 @@
   },
   "creature_shade_growl_012": {
    "frame": {
-    "x": 84,
-    "y": 84,
-    "w": 26,
+    "x": 676,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4462,17 +4462,17 @@
   },
   "creature_shade_growl_013": {
    "frame": {
-    "x": 112,
-    "y": 84,
-    "w": 26,
+    "x": 702,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4482,17 +4482,17 @@
   },
   "creature_shade_growl_014": {
    "frame": {
-    "x": 140,
-    "y": 84,
-    "w": 26,
+    "x": 728,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4502,17 +4502,17 @@
   },
   "creature_shade_growl_015": {
    "frame": {
-    "x": 168,
-    "y": 84,
-    "w": 26,
+    "x": 754,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4522,17 +4522,17 @@
   },
   "creature_shade_growl_016": {
    "frame": {
-    "x": 196,
-    "y": 84,
-    "w": 26,
+    "x": 2070,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 45,
     "y": 77,
-    "w": 26,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4542,17 +4542,17 @@
   },
   "creature_shade_growl_017": {
    "frame": {
-    "x": 224,
-    "y": 84,
-    "w": 26,
+    "x": 780,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 42,
+    "x": 44,
     "y": 77,
-    "w": 26,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4562,17 +4562,17 @@
   },
   "creature_shade_growl_018": {
    "frame": {
-    "x": 270,
-    "y": 189,
-    "w": 25,
+    "x": 806,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4582,17 +4582,17 @@
   },
   "creature_shade_growl_019": {
    "frame": {
-    "x": 297,
-    "y": 189,
-    "w": 25,
+    "x": 832,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4602,17 +4602,17 @@
   },
   "creature_shade_growl_020": {
    "frame": {
-    "x": 324,
-    "y": 189,
-    "w": 25,
+    "x": 858,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4622,17 +4622,17 @@
   },
   "creature_shade_growl_021": {
    "frame": {
-    "x": 351,
-    "y": 189,
-    "w": 25,
+    "x": 884,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4642,8 +4642,8 @@
   },
   "creature_shade_growl_022": {
    "frame": {
-    "x": 161,
-    "y": 210,
+    "x": 910,
+    "y": 21,
     "w": 24,
     "h": 19
    },
@@ -4662,17 +4662,17 @@
   },
   "creature_shade_growl_023": {
    "frame": {
-    "x": 378,
-    "y": 189,
-    "w": 25,
+    "x": 936,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4682,17 +4682,17 @@
   },
   "creature_shade_growl_024": {
    "frame": {
-    "x": 405,
-    "y": 189,
-    "w": 25,
+    "x": 962,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4702,17 +4702,17 @@
   },
   "creature_shade_growl_025": {
    "frame": {
-    "x": 432,
-    "y": 189,
-    "w": 25,
+    "x": 988,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4722,17 +4722,17 @@
   },
   "creature_shade_growl_026": {
    "frame": {
-    "x": 459,
-    "y": 189,
-    "w": 25,
+    "x": 1014,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4742,17 +4742,17 @@
   },
   "creature_shade_growl_027": {
    "frame": {
-    "x": 486,
-    "y": 189,
-    "w": 25,
+    "x": 1040,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4762,17 +4762,17 @@
   },
   "creature_shade_growl_028": {
    "frame": {
-    "x": 513,
-    "y": 189,
-    "w": 25,
+    "x": 2095,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4782,17 +4782,17 @@
   },
   "creature_shade_growl_029": {
    "frame": {
-    "x": 540,
-    "y": 189,
-    "w": 25,
+    "x": 2120,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4802,17 +4802,17 @@
   },
   "creature_shade_growl_030": {
    "frame": {
-    "x": 0,
-    "y": 210,
-    "w": 25,
+    "x": 2145,
+    "y": 21,
+    "w": 23,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 45,
     "y": 77,
-    "w": 25,
+    "w": 23,
     "h": 19
    },
    "sourceSize": {
@@ -4822,17 +4822,17 @@
   },
   "creature_shade_growl_031": {
    "frame": {
-    "x": 27,
-    "y": 210,
-    "w": 25,
+    "x": 1066,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4842,17 +4842,17 @@
   },
   "creature_shade_growl_032": {
    "frame": {
-    "x": 54,
-    "y": 210,
-    "w": 25,
+    "x": 1092,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4862,17 +4862,17 @@
   },
   "creature_shade_growl_033": {
    "frame": {
-    "x": 81,
-    "y": 210,
-    "w": 25,
+    "x": 1118,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4882,17 +4882,17 @@
   },
   "creature_shade_growl_034": {
    "frame": {
-    "x": 108,
-    "y": 210,
-    "w": 25,
+    "x": 1144,
+    "y": 21,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4902,17 +4902,17 @@
   },
   "creature_shade_growl_035": {
    "frame": {
-    "x": 252,
-    "y": 84,
-    "w": 25,
+    "x": 513,
+    "y": 0,
+    "w": 24,
     "h": 19
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 43,
+    "x": 44,
     "y": 77,
-    "w": 25,
+    "w": 24,
     "h": 19
    },
    "sourceSize": {
@@ -4925,10 +4925,10 @@
   "image": "creature-shade-phone.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 567,
-   "h": 247
+   "w": 3087,
+   "h": 42
   },
   "scale": "1",
-  "pngHash": "e11b3174"
+  "pngHash": "95d3fd6c"
  }
 }

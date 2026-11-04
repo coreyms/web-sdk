@@ -4,9 +4,9 @@
 // 1024 canvas; tiers.<tier>.canvas is that canvas in texels, and every atlas frame's sourceSize is it.
 export const CREATURE_SPEC = {
 	"source": {
-		"day": "drop-4 (day look; mane R12b / C7g (mt_08_mane_r12b), final wings E1 + L1 (viewer-right wing re-attached, viewer-left wing lowered; WingBreath x4), ManeDyn rev 3 one-shots, framing C5; drop 4: roar v3 (53 frames, longer settle) + sting_recrouch (10th clip))",
-		"super": "drop-4-super (super = night + 0.70 x fire x (1.0,1.0,1.0), composited offline in linear light, premultiplied, alpha = max; mane R12b / C7g (mt_08_mane_r12b), final wings E1 + L1 (viewer-right wing re-attached, viewer-left wing lowered; WingBreath x4), ManeDyn rev 3 one-shots, framing C5; drop 4: roar v3 (53 frames, longer settle) + sting_recrouch (10th clip))",
-		"epic": "drop-5-epic (epic = night + 1.00 x fire x (1.0,0.7,0.5) + 3.50 x rim_fire x (1.0,0.42,0.1) (rim light, drop 5), composited offline in linear light, premultiplied, alpha = max; mane R12b / C7g (mt_08_mane_r12b), final wings E1 + L1 (viewer-right wing re-attached, viewer-left wing lowered; WingBreath x4), ManeDyn rev 3 one-shots, framing C5; drop 4: roar v3 (53 frames, longer settle) + sting_recrouch (10th clip); drop 5: epic fire rim light (A3))"
+		"day": "drop-7 (day look; mane M8 (Corey's fitted Meshy mane ManeM8 with his 42 added strands, ManeLock_m8b crimson, head / neck2 / neck1 / chest weights, mane_m8_r4), tail as shipped (tailB_pewter), final wings E1 + L1, framing C5; roar v3 + sting_recrouch as drop 4; epic with the drop-5 fire rim (A3))",
+		"super": "drop-7-super (super = night + 0.70 x fire x (1.0,1.0,1.0), composited offline in linear light, premultiplied, alpha = max; mane M8 (Corey's fitted Meshy mane ManeM8 with his 42 added strands, ManeLock_m8b crimson, head / neck2 / neck1 / chest weights, mane_m8_r4), tail as shipped (tailB_pewter), final wings E1 + L1, framing C5; roar v3 + sting_recrouch as drop 4; epic with the drop-5 fire rim (A3))",
+		"epic": "drop-7-epic (epic = night + 1.00 x fire x (1.0,0.7,0.5) + 3.50 x rim_fire x (1.0,0.42,0.1) (rim light, drop 5), composited offline in linear light, premultiplied, alpha = max; mane M8 (Corey's fitted Meshy mane ManeM8 with his 42 added strands, ManeLock_m8b crimson, head / neck2 / neck1 / chest weights, mane_m8_r4), tail as shipped (tailB_pewter), final wings E1 + L1, framing C5; roar v3 + sting_recrouch as drop 4; epic with the drop-5 fire rim (A3))"
 	},
 	"canvas": [
 		1024,
@@ -414,8 +414,8 @@ export const CREATURE_SPEC = {
 					{
 						"file": "shared/creature-glow.json",
 						"sheet": [
-							698,
-							1529
+							1533,
+							660
 						]
 					}
 				],
@@ -423,8 +423,8 @@ export const CREATURE_SPEC = {
 					{
 						"file": "shared/creature-shadow.json",
 						"sheet": [
-							2698,
-							463
+							2848,
+							427
 						]
 					}
 				]
@@ -696,8 +696,8 @@ export const CREATURE_SPEC = {
 					{
 						"file": "shared/creature-glow-phone.json",
 						"sheet": [
-							459,
-							1040
+							1054,
+							450
 						]
 					}
 				],
@@ -705,8 +705,8 @@ export const CREATURE_SPEC = {
 					{
 						"file": "shared/creature-shadow-phone.json",
 						"sheet": [
-							1827,
-							321
+							2880,
+							199
 						]
 					}
 				]

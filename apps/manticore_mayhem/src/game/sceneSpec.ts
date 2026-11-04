@@ -201,7 +201,7 @@ export const SCENE_SPEC = {
 		],
 		"skyline": [
 			74,
-			393
+			392
 		],
 		"wisps": 6,
 		"wisp": [
