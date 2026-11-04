@@ -327,7 +327,7 @@ export class SceneView {
 		this.setValues(this.cur, 'base', SCENE.dim.base, false);
 		// portrait: no knockers, no chains
 		this.chains = this.hasChains ? this.buildChains(tier) : (null as unknown as Record<'L' | 'R', Chain>);
-		if (this.hasChains) for (const side of SIDES) this.pivotPts[side].set(SCENE_SPEC.points[side].pivot[0], SCENE_SPEC.points[side].pivot[1]);
+		if (this.hasChains) for (const side of SIDES) this.pivotPts[side].set(SCENE_SPEC.tiers[tier].points[side].pivot[0], SCENE_SPEC.tiers[tier].points[side].pivot[1]);
 		if (this.hasChains) fg.addChild(this.sets[0], this.sets[1]);
 	}
 
@@ -337,7 +337,8 @@ export class SceneView {
 		const S = SCENE.chain.swag;
 		const chains = {} as Record<'L' | 'R', Chain>;
 		for (const side of SIDES) {
-			const p = SCENE_SPEC.points[side];
+			// the points are the tier's own (2026-11-04, B4: the phone tier has its own geometry, the 8 % push)
+			const p = SCENE_SPEC.tiers[tier].points[side];
 			const lengthPx = p.hangEnd[1] - p.pivot[1];
 			const periodMs = H.periodMsPerRootPx * Math.sqrt(lengthPx) * H[side].period;
 			const hang = strip(boxes[`hang_${side}`], cuts(boxes[`hang_${side}`], p.hangHook[1], p.hangEnd[1], H.segments));
@@ -946,7 +947,7 @@ export class SceneView {
 	hookOnScreen(side: 'L' | 'R') {
 		const ch = this.chains[side];
 		const set = this.sets[1].visible && !this.sets[0].visible ? 1 : 0;
-		const p = SCENE_SPEC.points[side];
+		const p = SCENE_SPEC.tiers[this.tier].points[side];
 		const ring = ch.ring[set];
 		// the hook in the ring sprite's local px: texture px from its anchor
 		const k = ring.scale.x || 1;
@@ -985,7 +986,7 @@ export class SceneView {
 			const hv = ch.hang.meshes[set].vertices as Float32Array;
 			const sv = ch.swag.meshes[set].vertices as Float32Array;
 			const last = (ch.hang.rows - 1) * 4;
-			const p = SCENE_SPEC.points[side];
+			const p = SCENE_SPEC.tiers[this.tier].points[side];
 			// the swag strip at the hook's own height, between the two rows round it
 			const rowAt = (y: number) => {
 				for (let r = 0; r < ch.swag.rows - 1; r += 1) {

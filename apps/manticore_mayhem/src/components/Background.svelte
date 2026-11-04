@@ -46,7 +46,7 @@
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
 	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
-	import { creature, creatureDocked, creatureFront, creaturePlaceFor, type CreaturePlace } from '../game/creature';
+	import { creature, creatureDocked, creatureFront, creaturePlaceFor, desktopFloorRow, type CreaturePlace } from '../game/creature';
 	import { boardRegistration } from '../game/boardArt';
 	import { portraitOptions } from '../game/portraitOptions.svelte';
 	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog } from '../game/creatureLoad';
@@ -327,9 +327,10 @@
 		const aspect = canvas.width / Math.max(canvas.height, 1);
 		const base = creaturePlaceFor(spot, aspect);
 		// THE DESKTOP FLOOR (constants CREATURE.desktopFloor): below 16:9 his feet go on the board row his feet stand on at
-		// 16:9 (the courtyard floor), x and scale stay the spot line's; 16:9 and wider keep place.desktop as it is
+		// 16:9 (the courtyard floor), x and scale stay the spot line's; 16:9 and wider keep place.desktop as it is. The row
+		// follows the screen's shape (game/creature.ts desktopFloorRow, creature_b4_place_v2 2026-11-04)
 		if (spot === 'desktop' && which === 'landscape' && aspect < CREATURE.desktopWide.aspect) {
-			return creatureDocked(base, 1, dockEdge(CREATURE.desktopFloor.row, 'landscape'), dockFit('landscape'), CREATURE_SPEC.feetRow);
+			return creatureDocked(base, 1, dockEdge(desktopFloorRow(aspect), 'landscape'), dockFit('landscape'), CREATURE_SPEC.feetRow);
 		}
 		const key = portraitOptions.creature;
 		// the portrait PHONE and, since layout_1610_r2 (Corey 2026-10-17 21:42), the portrait TABLET take the dock
@@ -482,7 +483,7 @@
 									? null
 									: Object.fromEntries(
 											(['L', 'R'] as const).map((side) => {
-												const p = SCENE_SPEC.points[side];
+												const p = SCENE_SPEC.tiers[view.tier].points[side];
 												const hook = view.hookOnScreen(side);
 												return [side, { pivot: ptFore(view, p.pivot[0], p.pivot[1]), ringHook: hook.ring, swagTop: hook.swag, gap: Number(Math.hypot(hook.ring.x - hook.swag.x, hook.ring.y - hook.swag.y).toFixed(3)), swagPin: ptFore(view, p.swagPin[0], p.swagPin[1]) }];
 											}),

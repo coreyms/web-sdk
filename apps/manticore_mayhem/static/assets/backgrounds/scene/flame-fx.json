@@ -2,7 +2,7 @@
  "frames": {
   "flame_ember": {
    "frame": {
-    "x": 365,
+    "x": 373,
     "y": 109,
     "w": 32,
     "h": 32
@@ -24,7 +24,7 @@
    "frame": {
     "x": 1,
     "y": 1,
-    "w": 362,
+    "w": 370,
     "h": 34
    },
    "rotated": false,
@@ -32,11 +32,11 @@
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 362,
+    "w": 370,
     "h": 34
    },
    "sourceSize": {
-    "w": 362,
+    "w": 370,
     "h": 34
    }
   },
@@ -44,7 +44,7 @@
    "frame": {
     "x": 1,
     "y": 37,
-    "w": 362,
+    "w": 370,
     "h": 34
    },
    "rotated": false,
@@ -52,11 +52,11 @@
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 362,
+    "w": 370,
     "h": 34
    },
    "sourceSize": {
-    "w": 362,
+    "w": 370,
     "h": 34
    }
   },
@@ -64,7 +64,7 @@
    "frame": {
     "x": 1,
     "y": 73,
-    "w": 362,
+    "w": 370,
     "h": 34
    },
    "rotated": false,
@@ -72,11 +72,11 @@
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 362,
+    "w": 370,
     "h": 34
    },
    "sourceSize": {
-    "w": 362,
+    "w": 370,
     "h": 34
    }
   },
@@ -84,7 +84,7 @@
    "frame": {
     "x": 1,
     "y": 109,
-    "w": 362,
+    "w": 370,
     "h": 34
    },
    "rotated": false,
@@ -92,11 +92,11 @@
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 362,
+    "w": 370,
     "h": 34
    },
    "sourceSize": {
-    "w": 362,
+    "w": 370,
     "h": 34
    }
   },
@@ -104,7 +104,7 @@
    "frame": {
     "x": 1,
     "y": 145,
-    "w": 181,
+    "w": 185,
     "h": 17
    },
    "rotated": false,
@@ -112,19 +112,19 @@
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 181,
+    "w": 185,
     "h": 17
    },
    "sourceSize": {
-    "w": 181,
+    "w": 185,
     "h": 17
    }
   },
   "flame_rimfire_R": {
    "frame": {
-    "x": 184,
+    "x": 188,
     "y": 145,
-    "w": 181,
+    "w": 185,
     "h": 17
    },
    "rotated": false,
@@ -132,11 +132,11 @@
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 181,
+    "w": 185,
     "h": 17
    },
    "sourceSize": {
-    "w": 181,
+    "w": 185,
     "h": 17
    }
   }
@@ -145,10 +145,10 @@
   "image": "flame-fx.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 399,
+   "w": 407,
    "h": 164
   },
   "scale": "1",
-  "pngHash": "52766c95"
+  "pngHash": "2f692f17"
  }
 }

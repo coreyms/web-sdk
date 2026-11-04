@@ -111,7 +111,7 @@ export class FlameView {
 		});
 		const E = FLAMES.embers;
 		SIDES.forEach((side, n) => {
-			const [x, y] = FLAMES.bowls[side];
+			const [x, y] = FLAMES.bowls[tier][side];
 			const node = new PIXI.Container();
 			node.position.set(x, y);
 			if (n === 1 && FLAMES.twin.mirror) node.scale.x = -1;

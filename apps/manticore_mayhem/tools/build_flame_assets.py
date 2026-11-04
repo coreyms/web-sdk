@@ -12,7 +12,10 @@ DROP (read only, never written) is the flame agent's delivery, for example
   <clip>/frame_NNNN.png     the loose frames, the whole canvas, straight alpha, from 0001
   <clip>.json / .png        the delivery's own atlas: NOT used (repacked here, tighter, per tier)
 --scene (read only; default the folder SCENE_SPEC.source names under .../scene_blockout/lookdev): day_base_<W>.png and
-night_base_<W>.png, the foreground the bowls are in. Only the RIM LINE is measured from them.
+night_base_<W>.png, the foreground the bowls are in, at the frame's size. Only the RIM LINE is measured from them.
+--phone-scene (read only; default --scene): the same for the phone tier when it has its OWN geometry (2026-11-04, B4: the
+phone tier is the 8 % push, the full tier the 6 %): its bowls are BOWLS_PHONE and its rim line is its own, so the spec's
+bowls and rim are per tier (FLAME_SPEC.tiers.<tier>.bowls / .rim).
 
 Outputs, two tiers like the scene's (full = the frame's own size, phone = PHONE_WIDTH wide):
   static/assets/backgrounds/scene/flame-<base|super|epic>[-phone].json|webp   one atlas per clip, frames
@@ -32,8 +35,8 @@ Outputs, two tiers like the scene's (full = the frame's own size, phone = PHONE_
 THE RIM LINE (rim_line below). The camera is level with the bowls, so a bowl's opening is not seen: its rim is one line,
 the top silhouette of the rim slab, and the flame comes up from behind it. Per bowl that line is measured from the
 foreground SOURCE: where open sky is behind the rim, the alpha edge, to a fraction of a pixel; where the wall is behind
-it (the outer part of each rim), the first row that leaves the flat wall above it, the same in the day and the night
-render. A tilted half ellipse is fitted through both (the rim is a level circle seen off the camera's axis), outliers
+it (the outer part of each rim), by WALL_RULE: the first row that leaves the flat wall above it (knocker_r4), or since B4
+the rim's top edge under the pier band's shadow line (see WALL_RULE), the same in the day and the night render. A tilted half ellipse is fitted through both (the rim is a level circle seen off the camera's axis), outliers
 dropped, the sky side weighted double. The bowl's centre is the middle of the rim slab's ends.
 THE CUT. Everything of a flame under that line is inside the bowl, so the occluder is simply the foreground again from
 the line down, RIM_DEPTH px, over the rim's span: drawn over the flame it hides the flame's base behind the rim and the bead
@@ -75,9 +78,22 @@ PAD = 2  # transparent px round every frame in a sheet
 # each bowl's rim slab in the frame (px): its two ends, read once from the foreground. The INNER end (toward the board)
 # has open sky beyond it and is an alpha edge, which the tool checks to RIM_END_TOL px (the end is rounded); the OUTER end has the wall
 # behind it and was read off the art at 4x (338.5 on the left, its mirror on the right). The centre is their middle.
-BOWLS = {'L': (338.5, 696.0), 'R': (1864.0, 2221.5)}
+# B4 (2026-11-04, Corey: "Yes to the night version scene", wiring "Yes"): the braziers moved out with the push. Full tier
+# (d6, 6 %): the inner ends where the slab face's alpha crosses half, read the way 696.0 reads on knocker_r4 (695.77
+# there, +0.23); the outer ends read off the art at 8x against r4's 338.5 / 2221.5, both pairs mirrored about the middle.
+# Centres 368.75 / 2191.25, 148.5 px out from knocker_r4's 517.25 / 2042.75. Phone tier (p8, 8 %): centres 319.5 / 2240.5,
+# 197.75 px out. knocker_r4's: {'L': (338.5, 696.0), 'R': (1864.0, 2221.5)}, the phone tier the same.
+BOWLS = {'L': (186.0, 551.5), 'R': (2008.5, 2374.0)}
+BOWLS_PHONE = {'L': (135.5, 503.5), 'R': (2056.5, 2424.5)}
 RIM_END_TOL = 2.5
 RIM_ROWS = (700, 740)  # the rows the rim's top edge is looked for in
+# WHERE THE WALL IS BEHIND THE RIM, how its top is found. 'flat' (knocker_r4): plain wall over the rim, so the first row
+# that leaves the flat wall above it in both renders. 'shadow' (B4, 2026-11-04): the pushed out pier's bottom band now
+# sits on the rim's outer half, its molding ending 2 or 3 px over the rim, and 'flat' latched on to the band (the fit
+# tilted 7.9 px per 100 px); so the darkest row in SHADOW_ROWS (the band's shadow line on the rim) and then the row where
+# the column has climbed half way from it to the rim's face, to a fraction of a px, in the day and the night render
+WALL_RULE = 'shadow'
+SHADOW_ROWS = (708, 718)
 SLAB_ROWS = (738, 744)  # rows through the rim slab's face, where the inner end is checked
 # the cut reaches this far under the rim line at the bowl's centre: the TUCK and half as much again (room for a larger
 # draw scale in the game's constants; tools/manticore/flame_probe.js holds the two together). No deeper: nothing of a
@@ -121,12 +137,12 @@ def rim_model(x: np.ndarray, c: float, a: float, p) -> np.ndarray:
     return p[0] + p[1] * (x - c) + p[2] * (1 - np.sqrt(1 - u * u)) + p[3] * u ** 4
 
 
-def rim_line(fore: dict, side: str) -> dict:
+def rim_line(fore: dict, side: str, bowls: dict) -> dict:
     """one bowl's rim: its centre, half width and the fitted top edge (see THE RIM LINE above)"""
     y0, y1 = RIM_ROWS
     alpha = fore['day'][..., 3]
     lum = {st: fore[st][..., :3] @ [0.299, 0.587, 0.114] for st in SETS}
-    x0, x1 = BOWLS[side]
+    x0, x1 = bowls[side]
     c, a = (x0 + x1) / 2, (x1 - x0) / 2
     # the inner end against the alpha: the slab's face is opaque up to it and open sky is beyond
     face = alpha[SLAB_ROWS[0]:SLAB_ROWS[1]].min(0) > 128
@@ -145,7 +161,7 @@ def rim_line(fore: dict, side: str) -> dict:
             r = int(np.argmax(col >= 128))
             if 4 < r < y1 - y0 - 2:
                 pts.append((x, y0 + r - col[r - 1] / 255.0, 1.0))
-        elif col[:10].min() > 250:  # the wall behind it
+        elif col[:10].min() > 250 and WALL_RULE == 'flat':  # the wall behind it
             rows = []
             for st, thr in (('day', 6.0), ('night', 2.5)):
                 v = lum[st][y0:y1, x - 2:x + 3].mean(1)
@@ -154,6 +170,21 @@ def rim_line(fore: dict, side: str) -> dict:
                 if both.any():
                     rows.append(int(np.argmax(both)) + y0)
             if len(rows) == 2 and abs(rows[0] - rows[1]) <= 2:
+                pts.append((x, sum(rows) / 2, 0.5))
+        elif col[:10].min() > 250:  # WALL_RULE 'shadow': the pier's band on the rim, its shadow line just above it
+            rows = []
+            s0, s1 = SHADOW_ROWS
+            for st in SETS:
+                v = lum[st][s0:s1 + 7, x - 2:x + 3].mean(1)
+                k = int(np.argmin(v[:s1 - s0]))
+                lo, hi = v[k], float(np.median(v[k + 2:k + 7]))
+                if hi - lo < 4:
+                    break
+                j = k + 1
+                while j < len(v) - 1 and v[j] < lo + 0.5 * (hi - lo):
+                    j += 1
+                rows.append(s0 + j - 1 + (lo + 0.5 * (hi - lo) - v[j - 1]) / max(v[j] - v[j - 1], 1e-6) + 0.5)
+            if len(rows) == 2 and abs(rows[0] - rows[1]) <= 1.5:
                 pts.append((x, sum(rows) / 2, 0.5))
     if len(pts) < 150:
         die(f'bowl {side}: only {len(pts)} columns of rim found: check BOWLS / RIM_ROWS')
@@ -261,11 +292,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('drop', help='the flame delivery folder (meta.json, <clip>/frame_NNNN.png)')
     ap.add_argument('--scene', default=None, help='the landscape scene folder with day_base_<W>.png and night_base_<W>.png')
-    ap.add_argument('--out', default=None, help='write the files here instead of static/assets/backgrounds/scene (a dry run: the spec is then not written)')
+    ap.add_argument('--phone-scene', default=None, help='the phone tier\'s own scene folder (its own geometry; its bowls are BOWLS_PHONE)')
+    ap.add_argument('--out', default=None, help='write the files and flameSpec.ts here instead of the game (a dry run: the game\'s spec is not touched)')
+    ap.add_argument('--fore', default=None, help='read the shipped foregrounds and fire pass from here instead of the game (a dry run of both tools: build_scene_assets.py --out)')
     ap.add_argument('--check', default=None, help='a folder for the rim check images (the cut over magenta, 4x)')
     args = ap.parse_args()
     drop = os.path.abspath(os.path.expanduser(args.drop))
-    shipped = OUT
+    shipped = os.path.abspath(os.path.expanduser(args.fore)) if args.fore else OUT
     if args.out:
         OUT = os.path.abspath(os.path.expanduser(args.out))
     os.makedirs(OUT, exist_ok=True)
@@ -276,28 +309,44 @@ def main():
     for clip in CLIPS:
         if f'flame_{clip}' not in meta:
             die(f'meta.json has no flame_{clip}')
-    print(f'drop {drop}\nscene {src}\nframe {FW} x {FH}')
+    phone_src = os.path.abspath(os.path.expanduser(args.phone_scene)) if args.phone_scene else src
+    print(f'drop {drop}\nscene {src}' + (f'\nphone scene {phone_src}' if phone_src != src else '') + f'\nframe {FW} x {FH}')
 
-    # ---- the rim line, from the foreground source ----------------------------------------------------------------------
-    fore_src = {}
-    for st in SETS:
-        path = os.path.join(src, f'{st}_base_{FW}.png')
-        if not os.path.isfile(path):
-            die(f'{path} not found')
-        fore_src[st] = np.asarray(Image.open(path).convert('RGBA')).astype(np.float64)
-    rims = {side: rim_line(fore_src, side) for side in SIDES}
-    mirror = abs(rims['L']['c'] + rims['R']['c'] - FW)
-    print(f'  the two bowls mirror each other about the frame\'s middle within {mirror:.2f} px')
+    # ---- the rim line, from the foreground source, per tier ------------------------------------------------------------
+    def read_fore(folder: str) -> dict:
+        out = {}
+        for st in SETS:
+            path = os.path.join(folder, f'{st}_base_{FW}.png')
+            if not os.path.isfile(path):
+                die(f'{path} not found')
+            out[st] = np.asarray(Image.open(path).convert('RGBA')).astype(np.float64)
+        return out
+
+    tier_src = {'full': (src, BOWLS), 'phone': (phone_src, BOWLS_PHONE if phone_src != src else BOWLS)}
+    fore_srcs, rims_t = {}, {}
+    for tier, (folder, bowls) in tier_src.items():
+        if tier == 'phone' and folder == src:
+            fore_srcs[tier], rims_t[tier] = fore_srcs['full'], rims_t['full']
+            continue
+        print(f'  {tier} tier, {os.path.basename(folder)}:')
+        fore_srcs[tier] = read_fore(folder)
+        rims_t[tier] = {side: rim_line(fore_srcs[tier], side, bowls) for side in SIDES}
+        mirror = abs(rims_t[tier]['L']['c'] + rims_t[tier]['R']['c'] - FW)
+        print(f'  the two bowls mirror each other about the frame\'s middle within {mirror:.2f} px')
+
+    def bowls_of(rims: dict) -> dict:
+        return {side: [round(rims[side]['c'], 2), round(float(rim_model(np.array([rims[side]['c']]), rims[side]['c'], rims[side]['a'], rims[side]['p'])[0]), 2)] for side in SIDES}
+
+    def rim_of(rims: dict) -> dict:
+        return {side: {'c': round(rims[side]['c'], 2), 'a': round(rims[side]['a'], 2), 'p': [round(v, 5) for v in rims[side]['p']]} for side in SIDES}
 
     tiers = {'full': FW, 'phone': PHONE_WIDTH}
     spec = {
         'source': os.path.basename(drop),
         'scene': scene['source'],
         'frame': [FW, FH],
-        # per bowl: its centre, and the rim line's height there (the flame's anchor goes on this point)
-        'bowls': {side: [round(rims[side]['c'], 2), round(float(rim_model(np.array([rims[side]['c']]), rims[side]['c'], rims[side]['a'], rims[side]['p'])[0]), 2)] for side in SIDES},
-        # the rim line: y(x) = p0 + p1 (x - c) + p2 (1 - sqrt(1 - u^2)) + p3 u^4, u = (x - c) / a
-        'rim': {side: {'c': round(rims[side]['c'], 2), 'a': round(rims[side]['a'], 2), 'p': [round(v, 5) for v in rims[side]['p']]} for side in SIDES},
+        # per tier (tiers.<tier>.bowls / .rim): per bowl its centre, and the rim line's height there (the flame's anchor
+        # goes on this point); the rim line: y(x) = p0 + p1 (x - c) + p2 (1 - sqrt(1 - u^2)) + p3 u^4, u = (x - c) / a
         'rimDepth': RIM_DEPTH,
         'clips': {},
         'ember': EMBER_PX,
@@ -308,7 +357,8 @@ def main():
     for tier, width in tiers.items():
         s = width / FW
         suffix = '' if tier == 'full' else f'-{tier}'
-        tier_spec = {'clips': {}, 'boxes': {}, 'fireBoxes': {}}
+        rims = rims_t[tier]
+        tier_spec = {'bowls': bowls_of(rims), 'rim': rim_of(rims), 'clips': {}, 'boxes': {}, 'fireBoxes': {}}
         for clip in CLIPS:
             entry, row, union = build_clip(drop, clip, meta[f'flame_{clip}'], s, suffix)
             tier_spec['clips'][clip] = entry
@@ -429,8 +479,7 @@ def main():
                     both.paste(bg, (0, cell.size[1]))
                     both.resize((both.size[0] * 4, both.size[1] * 4), Image.NEAREST).save(os.path.join(os.path.expanduser(args.check), f'rim_cut_{side}_{st}.png'))
 
-    # ---- the clips' own numbers, and the checks against the cut ----------------------------------------------------------
-    alpha_day = fore_src['day'][..., 3]
+    # ---- the clips' own numbers, and the checks against the cut (each tier's own bowls) ---------------------------------
     for clip in CLIPS:
         m = meta[f'flame_{clip}']
         cw, ch = m['canvas']
@@ -450,23 +499,27 @@ def main():
               f'{down:.0f} under it (the cut is {RIM_DEPTH} deep), {(ax - xs.min()) * scale:.0f} left and {(xs.max() + 1 - ax) * scale:.0f} right')
         if down > RIM_DEPTH - 2:
             die(f'flame_{clip} reaches {down:.0f} px under the rim line at draw scale {scale}: raise RIM_DEPTH')
-        for side in SIDES:
-            r = rims[side]
-            cx, cy = spec['bowls'][side]
-            uu = u[:, ::-1] if side == 'R' else u
-            axm = cw - ax if side == 'R' else ax
-            yy, xx = np.nonzero(uu)
-            fx = cx + (xx + 0.5 - axm) * scale
-            fy = cy + (yy + 0.5 - ay) * scale
-            # 3 px: the fitted line is within 1.5 px of the true outline, whose own soft row is one more (where the
-            # outline is lower than the line the cut has nothing solid to take, and the flame rightly shows down to it)
-            under = fy > rim_model(fx, r['c'], r['a'], r['p']) + 3
-            ix, iy = np.clip(fx.astype(int), 0, FW - 1), np.clip(fy.astype(int), 0, FH - 1)
-            # anything less than an all but solid foreground pixel there would let the flame show through
-            bare = under & ((alpha_day[iy, ix] < NEAR_SOLID) | (np.abs(fx - r['c']) > r['a'] + SIDE_MARGIN))
-            print(f'    bowl {side}: {int(under.sum())} px of it more than 3 px under the rim line, {int(bare.sum())} of them over a foreground pixel that is not all but solid, or outside the cut')
-            if bare.any():
-                die(f'flame_{clip} at bowl {side}: {int(bare.sum())} px under the rim line would show beside the bowl')
+        for tier in tiers:
+            if tier == 'phone' and tier_src['phone'][0] == src:
+                  continue
+            alpha_day = fore_srcs[tier]['day'][..., 3]
+            for side in SIDES:
+                r = rims_t[tier][side]
+                cx, cy = spec['tiers'][tier]['bowls'][side]
+                uu = u[:, ::-1] if side == 'R' else u
+                axm = cw - ax if side == 'R' else ax
+                yy, xx = np.nonzero(uu)
+                fx = cx + (xx + 0.5 - axm) * scale
+                fy = cy + (yy + 0.5 - ay) * scale
+                # 3 px: the fitted line is within 1.5 px of the true outline, whose own soft row is one more (where the
+                # outline is lower than the line the cut has nothing solid to take, and the flame rightly shows down to it)
+                under = fy > rim_model(fx, r['c'], r['a'], r['p']) + 3
+                ix, iy = np.clip(fx.astype(int), 0, FW - 1), np.clip(fy.astype(int), 0, FH - 1)
+                # anything less than an all but solid foreground pixel there would let the flame show through
+                bare = under & ((alpha_day[iy, ix] < NEAR_SOLID) | (np.abs(fx - r['c']) > r['a'] + SIDE_MARGIN))
+                print(f'    {tier} bowl {side}: {int(under.sum())} px of it more than 3 px under the rim line, {int(bare.sum())} of them over a foreground pixel that is not all but solid, or outside the cut')
+                if bare.any():
+                    die(f'flame_{clip} at bowl {side}: {int(bare.sum())} px under the rim line would show beside the bowl')
 
     print('\nfile'.ljust(42) + 'KiB'.rjust(9) + '   texture'.ljust(16) + 'GPU MB (w x h x 4)')
     for name, nbytes, w, h in report:
@@ -479,16 +532,15 @@ def main():
               f'deferred (super, epic) {sum(r[1] for r in later) / 1024:.0f} KiB, {sum(r[2] * r[3] * 4 for r in later) / 1e6:.2f} MB; '
               f'all resident {sum(r[2] * r[3] * 4 for r in mine) / 1e6:.2f} MB')
 
-    if args.out:
-        print(f'\n--out: {os.path.relpath(SPEC, APP)} NOT written; the spec would be\n' + json.dumps(spec)[:600] + ' ...')
-        return
+    spec_out = os.path.join(OUT, 'flameSpec.ts') if args.out else SPEC
     header = (
         '// GENERATED by tools/build_flame_assets.py from the flame delivery\'s meta.json and frames and the scene\'s foreground:\n'
         '// do not edit by hand, rerun the tool when either changes. Every number is in px of the scene\'s FRAME (top-left\n'
         '// origin) unless it says canvas px (a clip\'s own canvas at the full tier).\n'
-        '//   bowls   per side the bowl\'s centre and the rim line\'s height there: the flame\'s anchor goes on this point.\n'
-        '//   rim     the rim line (the top silhouette of the rim slab): y(x) = p0 + p1 (x - c) + p2 (1 - sqrt(1 - u^2)) + p3 u^4,\n'
-        '//           u = (x - c) / a, for |x - c| < a.\n'
+        '//   tiers.<tier>.bowls  per side the bowl\'s centre and the rim line\'s height there: the flame\'s anchor goes on this\n'
+        '//           point (per tier since 2026-11-04: B4\'s phone tier has its own geometry, the 8 % push).\n'
+        '//   tiers.<tier>.rim  the rim line (the top silhouette of the rim slab): y(x) = p0 + p1 (x - c) + p2 (1 - sqrt(1 - u^2))\n'
+        '//           + p3 u^4, u = (x - c) / a, for |x - c| < a.\n'
         '//   clips   frames, fps, canvas, anchor (canvas px from the top-left) and drawScale as DELIVERED (the game\'s own\n'
         '//           numbers are constants FLAMES; tools/manticore/flame_probe.js holds the two together); reach: over every\n'
         '//           frame, canvas px from the anchor, how far any pixel goes (upSolid: at half opacity or more).\n'
@@ -497,8 +549,8 @@ def main():
         '//           flame_rimfire_<side>: on the fire pass\'s own, coarser texels, so a little larger). rimDepth: how far under\n'
         '//           the rim line the cut reaches. ember: the dot\'s cell at the full tier.\n'
     )
-    open(SPEC, 'w').write(header + 'export const FLAME_SPEC = ' + json.dumps(spec, indent='\t') + ' as const;\n')
-    print(f'wrote {os.path.relpath(SPEC, APP)}')
+    open(spec_out, 'w').write(header + 'export const FLAME_SPEC = ' + json.dumps(spec, indent='\t') + ' as const;\n')
+    print(f'wrote {os.path.relpath(spec_out, APP)}' + (' (--out: the game\'s spec is not touched)' if args.out else ''))
 
 
 if __name__ == '__main__':

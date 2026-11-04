@@ -3211,9 +3211,12 @@ export const SKY = {
 // the foreground and the fire light pass and under the chains; each flame's base is hidden behind its bowl by a RIM
 // OCCLUDER cut from the foreground art (no mask, no filter). Every px is a px of the scene's 2560 x 1440 frame unless
 // it says canvas px (a clip's own canvas), every ms REAL time at every turbo level; it never pauses.
-//   bowls     per side the flame's anchor point: the bowl's centre on the rim line (game/flameSpec.ts `bowls`, measured
-//             from the foreground by the tool: the rim slab runs x 338.5 .. 696 on the left and mirrors on the right;
-//             its top silhouette is at y 715.7 at the centre).
+//   bowls     PER TIER, per side the flame's anchor point: the bowl's centre on the rim line (game/flameSpec.ts
+//             tiers.<tier>.bowls, measured from the foreground by the tool). B4 (2026-11-04; Corey of the masters: "Yes
+//             to the night version scene", and of the wiring: "Yes"): the braziers moved out with the push, so each
+//             tier has its own. Full tier (d6, the 6 % push): the rim slab runs x 186 .. 551.5 on the left and mirrors
+//             on the right, centres 148.5 px out from knocker_r4's 517.25 / 2042.75. Phone tier (p8, the 8 % push):
+//             x 135.5 .. 503.5, 197.75 px out. The rim's top silhouette is at y 715.9 at the centre (715.7 before).
 //   clips     as delivered (flames-drop-1 meta.json): the canvas and the anchor in canvas px (on the rim line at the
 //             bowl's centre; the art runs about 10% of its height under it, behind the rim), fps, frames, and the draw
 //             scale, each its own constant.
@@ -3252,7 +3255,7 @@ export const FLAMES = {
 	 *  more than maxStepMs */
 	intervalMs: 33,
 	maxStepMs: 100,
-	bowls: { L: [517.25, 715.7], R: [2042.75, 715.7] },
+	bowls: { full: { L: [368.75, 715.86], R: [2191.25, 715.94] }, phone: { L: [319.5, 715.89], R: [2240.5, 715.88] } },
 	clips: {
 		base: { canvas: [256, 256], anchor: [128, 224], fps: 15, frames: 32, drawScale: 0.85 },
 		super: { canvas: [320, 448], anchor: [160, 400], fps: 30, frames: 64, drawScale: 1 },
@@ -3462,7 +3465,16 @@ export const CREATURE = {
 	place: {
 		// DESKTOP, 16:9 and wider (2026-10-16, THE BIGGER BOARD, layoutSpec LANDSCAPE_BOARD; was { x 2089.9, y 1213.3,
 		// scale 0.96 } beside the k 1 board): see desktopTall below for the rule and the numbers.
-		desktop: { x: 2180, y: 1213.3, scale: 0.86, layer: 'front' },
+		// creature_b4_place_v2 (Corey 2026-11-04, with the B4 courtyard: "2.9% for desktop works, but creature needs to
+		// move down and to the right. It's okay if the wing is off the screen a little bit."): option A3's size (0.885,
+		// +2.9 %) with his feet 39.7 scene px lower, on board row 1820.0 at 1920 x 1080 (CREATURE.desktopFloor.tallRow),
+		// 28 render rows (16 CSS px at 1920) under the board art's bottom edge (row 1792), so he stands on the courtyard
+		// floor in front of the board's base, not on it. Right only 2 px of A3's 2186: his left paw's claws end 5 CSS px left
+		// of the [Auto / Turbo] column, so any more puts them under the Autoplay button in his idle (2200: 297 CSS px2, 2214:
+		// 933 at 1920 x 1080; feedback/creature-b4-place-2026-11-04/NOTES_v2.md). Idle: no button but Play, as before (more
+		// of his right paw under it: 5520 CSS px2, was 3535); on the sting's strike (sting_hit f7) his left claws go under
+		// Autoplay's corner for a frame or two (up to 827 CSS px2). Was { x 2180, y 1213.3, scale 0.86 }.
+		desktop: { x: 2188, y: 1253.0, scale: 0.885, layer: 'front' },
 		phoneSideways: { x: 2249.3, y: 1157.2, scale: 0.97, layer: 'behind' },
 		portraitPhone: { x: 1039.9, y: 1001.6, scale: 0.77, layer: 'behind' },
 		portraitTablet: { x: 1210, y: 905, scale: 0.58, layer: 'behind', shadow: false },
@@ -3494,8 +3506,15 @@ export const CREATURE = {
 	 *  both paws left of the Replay / Turbo column, 7 CSS px clear of the cells at 1440 x 900. Below 16:10 there is not
 	 *  room for that, so the line runs on through desktopNarrow, where that column stands BETWEEN his paws (his right paw
 	 *  under the Play button, as on 16:9).
-	 *  (desktopTall.y is the line's old number and only counts if the floor dock is taken out.) */
-	desktopTall: { aspect: 1.6, x: 2074, y: 1150, scale: 0.62 },
+	 *  (desktopTall.y is the line's old number and only counts if the floor dock is taken out.)
+	 *  creature_b4_place_v2 (Corey 2026-11-04: "for 16:10 12% works if we do the same movement down and to the right, so
+	 *  it's feet don't look like it's sitting on top of the board."): option C12's size and x ({ x 2104, scale 0.6944 },
+	 *  +12 %; was { x 2074, scale 0.62 }) with his feet on desktopFloor.tallRow (row 1820, as on 16:9) instead of C12's
+	 *  raised row. x is as far right as it can go: the cells hold his left wing 5.5 CSS px clear at 1440 x 900 on the
+	 *  left, and on the right at this size and this low there is no x that keeps his left paw off the Autoplay button:
+	 *  in his idle its claws go some 9 CSS px under that button's left edge (430 CSS px2 at 1440 x 900; 2116: 778).
+	 *  Corey's call on the card (feedback/creature-b4-place-2026-11-04/NOTES_v2.md). desktopNarrow is untouched. */
+	desktopTall: { aspect: 1.6, x: 2104, y: 1150, scale: 0.6944 },
 	/** layout_1610_r2: the line's points below 16:10, in falling aspect, held at desktopMinAspect: 3:2 (1500 x 1000: 7 to
 	 *  10 CSS px clear of the cells, no button but Play) and 4:3 (1024 x 768, 1366 x 1024: 6 to 7 px). */
 	desktopNarrow: [
@@ -3512,8 +3531,13 @@ export const CREATURE = {
 	 *  (1766.4, measured at 1920 x 1080; 1766.3 to 1766.9 from 2560 x 1440 to 1024 x 576): the courtyard floor in front
 	 *  of the board's feet, as on 16:9, on every narrower desktop screen. x and scale stay the spot line's
 	 *  (desktopTall, desktopNarrow above). The same rule as the portrait dock (game/creature.ts creatureDocked, his feet row on the
-	 *  board row instead of his claw). 16:9 and wider keep place.desktop untouched. */
-	desktopFloor: { row: 1766.4 },
+	 *  board row instead of his claw). 16:9 and wider keep place.desktop untouched.
+	 *  creature_b4_place_v2 (Corey 2026-11-04, place.desktop and desktopTall above): THE FLOOR ROW FOLLOWS THE SCREEN'S
+	 *  SHAPE like the spot line, piece by piece (game/creature.ts desktopFloorRow): `tallRow` from 16:9 down to
+	 *  desktopTall.aspect (16:10), the row place.desktop's new feet stand on at 1920 x 1080 (1820.0), so the dock meets the
+	 *  16:9 spot; then the straight line to `row` at desktopNarrow[0].aspect (3:2); `row` (1766.4, as since layout_1610_r2)
+	 *  at 3:2 and narrower, so the desktopNarrow points and the sideways tablet stand where they did. */
+	desktopFloor: { row: 1766.4, tallRow: 1820 },
 	/** THE PORTRAIT PHONE DOCK (branch portrait-glow-r1, OPTIONS for Corey; 2026-10-17 11:36 "we need to reposition the
 	 *  manticore on portrait mode", 11:38 "The ideal mark point for the manticore would be so the bottom of his claw shows
 	 *  at the end of a swipe motion. Then align that point with the top of the board, so it stays the same on different

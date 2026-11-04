@@ -562,18 +562,21 @@ def sky_totals(report: list):
               f'{sum(r[1] for r in later) / 1024:.0f} KiB, {sum(r[2] * r[3] * 4 for r in later) / 1e6:.2f} MB')
 
 
-def build_landscape(args) -> tuple[dict, list]:
-    """the landscape / phone sideways scene from SRC: the 14 files, and the spec block"""
-    src = os.path.abspath(os.path.expanduser(args.src))
-    fallback = os.path.abspath(os.path.expanduser(args.fallback)) if args.fallback else None
-
+def read_landscape_source(src: str, fallback: str | None) -> dict:
+    """one landscape scene folder (chain_layers.json, the bases, the fire pass, sprites/): everything a tier is cut from.
+    chain_layers.json `frame` is the SOURCE's size and every number in it is in source px; `scale` (default 1) is source
+    px per px of the game's frame (2026-11-04, B4: the desktop master is rendered at 2.25 x the 2560 frame). Returns the
+    game frame, the order, the points in GAME FRAME px and the boxes, sprites and big layers in source px."""
     layers_path = os.path.join(src, 'chain_layers.json')
     if not os.path.isfile(layers_path):
         die(f'no chain_layers.json in {src}')
     layers = json.load(open(layers_path))
-    FW, FH = layers['frame']
-    tiers = {'full': FW, 'phone': PHONE_WIDTH}
-    print(f'source {src}\nframe {FW} x {FH}')
+    SW, SH = layers['frame']
+    K = float(layers.get('scale', 1))
+    FW, FH = round(SW / K), round(SH / K)
+    if abs(FW * K - SW) > 1e-6 or abs(FH * K - SH) > 1e-6:
+        die(f'{layers_path}: frame {SW} x {SH} at scale {K} is not a whole game frame')
+    print(f'source {src}\nsource frame {SW} x {SH}' + (f', scale {K:g} (game frame {FW} x {FH})' if K != 1 else ''))
 
     # ---- the draw order of the moving pieces, as the scene agent lists it ------------------------------------------
     order = []
@@ -600,7 +603,7 @@ def build_landscape(args) -> tuple[dict, list]:
             name = next((t for t in theirs if t in pts), None)
             if name is None:
                 die(f'points_{side} has none of {" / ".join(theirs)}')
-            points[side][ours] = [float(pts[name][0]), float(pts[name][1])]
+            points[side][ours] = [round(float(pts[name][0]) / K, 2), round(float(pts[name][1]) / K, 2)]
         for piece in PIECES:
             entry = layers.get(f'{piece}_{side}')
             if not entry or 'box_x0y0x1y1' not in entry:
@@ -631,62 +634,91 @@ def build_landscape(args) -> tuple[dict, list]:
                     die(f'{os.path.basename(hits[0])} is {im.size}, its box in chain_layers.json is {(x1 - x0, y1 - y0)}')
                 sprites[f'{piece}_{side}_{st}'] = im
 
-    # ---- the swag pins, from the day sprites (see PIN_ALPHA) -------------------------------------------------------
+    # ---- the swag pins, from the day sprites (see PIN_ALPHA; the gap is PIN_GAP rows of the game frame) -------------
     for side in SIDES:
         x0, y0, _, _ = boxes[f'swag_{side}']
         alpha = np.asarray(sprites[f'swag_{side}_day'])[..., 3] > PIN_ALPHA
         rows = np.nonzero(alpha.any(1))[0]
         last = rows[0]
         for r in rows[1:]:
-            if r - last > PIN_GAP:
+            if r - last > PIN_GAP * K:
                 break
             last = r
         xs = np.nonzero(alpha[last])[0]
-        points[side]['swagPin'] = [round(float(x0 + xs.mean()), 1), float(y0 + last)]
+        points[side]['swagPin'] = [round(float(x0 + xs.mean()) / K, 1), round(float(y0 + last) / K, 1)]
         below = int((rows > last).sum())
         print(f'  swag {side}: pinned at {points[side]["swagPin"]} (the json\'s lowest visible point {points[side]["swagEnd"]}'
-              + (f', {below} rows show again under the pin and stay still)' if below else ')'))
+              + (f', {below} source rows show again under the pin and stay still)' if below else ')'))
 
     # ---- the big layers --------------------------------------------------------------------------------------------
     # a round that re-rendered only the chains keeps its bases and fire pass in the folder its json reuses sprites from
     if not fallback and len(shared) == 1:
         fallback = shared.pop()
-    fore = {st: Image.open(find(src, fallback, f'{st}_base_{FW}.png')).convert('RGBA') for st in SETS}
+    fore = {st: Image.open(find(src, fallback, f'{st}_base_{SW}.png')).convert('RGBA') for st in SETS}
     for st, im in fore.items():
-        if im.size != (FW, FH):
-            die(f'{st} base is {im.size}, the frame is {(FW, FH)}')
-    fire_src = Image.open(find(src, fallback, f'fire_pass_{FW}.png', f'fire_pass_{FW // 2}.png')).convert('RGBA')
+        if im.size != (SW, SH):
+            die(f'{st} base is {im.size}, the source frame is {(SW, SH)}')
+    fire_src = Image.open(find(src, fallback, f'fire_pass_{SW}.png', f'fire_pass_{SW // 2}.png')).convert('RGBA')
     # on black: the additive blend adds exactly rgb x alpha, which is what the scene agent's composites add
     fire_black = Image.new('RGBA', fire_src.size, (0, 0, 0, 255))
     fire_black.alpha_composite(fire_src)
-    fire_black = fire_black.convert('RGB')
-    back_names = {'day': 'backdropv2_2560_digital-art-4x.png', 'night': 'backdrop_night_2560_digital-art-4x.png'}
-    back = {st: Image.open(find(os.path.expanduser(args.backdrops), None, name)).convert('RGB') for st, name in back_names.items()}
+    return {'name': os.path.basename(src), 'K': K, 'source_frame': (SW, SH), 'frame': (FW, FH), 'order': order, 'points': points,
+            'boxes': boxes, 'sprites': sprites, 'fore': fore, 'fire_black': fire_black.convert('RGB')}
+
+
+def build_landscape(args, kept: dict | None) -> tuple[dict, list, list | None]:
+    """the landscape / phone sideways scene: the foregrounds, the fire pass and the chain atlas per tier, the backdrops
+    and the sky set unless --keep-backdrops, and the spec block. The full tier is cut from SRC; the phone tier from
+    --phone-src when given (2026-11-04, B4: the phone tier has its OWN geometry, the 8 % push, so its points and boxes
+    are its own: SCENE_SPEC.tiers.<tier>.points), else from SRC as well."""
+    src = os.path.abspath(os.path.expanduser(args.src))
+    fallback = os.path.abspath(os.path.expanduser(args.fallback)) if args.fallback else None
+    full = read_landscape_source(src, fallback)
+    phone = read_landscape_source(os.path.abspath(os.path.expanduser(args.phone_src)), None) if args.phone_src else full
+    FW, FH = full['frame']
+    if phone['frame'] != full['frame']:
+        die(f'--phone-src: its game frame {phone["frame"]} is not SRC\'s {full["frame"]}')
+    if phone['order'] != full['order']:
+        die(f'--phone-src: its draw order {phone["order"]} is not SRC\'s {full["order"]}')
+    tiers = {'full': (FW, full), 'phone': (PHONE_WIDTH, phone)}
+
+    if args.keep_backdrops:
+        if kept is None:
+            die('--keep-backdrops needs the landscape block of sceneSpec.ts on disk (its sky entries are kept)')
+        if list(kept['frame']) != [FW, FH]:
+            die(f'--keep-backdrops: the kept block\'s frame {kept["frame"]} is not this source\'s {[FW, FH]}')
+        back = None
+    else:
+        back_names = {'day': 'backdropv2_2560_digital-art-4x.png', 'night': 'backdrop_night_2560_digital-art-4x.png'}
+        back = {st: Image.open(find(os.path.expanduser(args.backdrops), None, name)).convert('RGB') for st, name in back_names.items()}
 
     spec = {
-        'source': os.path.basename(src),
+        'source': full['name'] if phone is full else f'{full["name"]} + {phone["name"]} (phone)',
         'frame': [FW, FH],
-        'order': order,
-        'points': points,
+        'order': full['order'],
         'tiers': {},
     }
     report: list[tuple[str, int, int, int]] = []  # name, bytes, w, h
 
-    for tier, width in tiers.items():
-        s = width / FW
-        size = (width, round(FH * s))
+    for tier, (width, S) in tiers.items():
+        SW, SH = S['source_frame']
+        K = S['K']
+        s = width / SW            # texels per source px
+        sf = width / FW           # texels per game frame px
+        size = (width, round(FH * sf))
         fire_size = (round(size[0] * FIRE_SHARE), round(size[1] * FIRE_SHARE))
         suffix = '' if tier == 'full' else f'-{tier}'
         for st in SETS:
-            # the painting is a pixel taller than the frame: fitted to it, as in the scene agent's composites
-            b = back[st].resize(size, Image.LANCZOS)
-            name = f'backdrop-{st}{suffix}.webp'
-            report.append((name, save_webp(b, name, Q_BACKDROP), *size))
-            report_band(name, b, 'Q_BACKDROP')
-            f = resize_rgba(fore[st], size)
+            if back is not None:
+                # the painting is a pixel taller than the frame: fitted to it, as in the scene agent's composites
+                b = back[st].resize(size, Image.LANCZOS)
+                name = f'backdrop-{st}{suffix}.webp'
+                report.append((name, save_webp(b, name, Q_BACKDROP), *size))
+                report_band(name, b, 'Q_BACKDROP')
+            f = resize_rgba(S['fore'][st], size)
             name = f'fore-{st}{suffix}.webp'
             report.append((name, save_webp(f, name, Q_FORE, alpha_quality=100), *size))
-        fp = fire_black.resize(fire_size, Image.LANCZOS)
+        fp = S['fire_black'].resize(fire_size, Image.LANCZOS)
         name = f'fire{suffix}.webp'
         report.append((name, save_webp(fp, name, Q_FIRE), *fire_size))
         # printed only: the pass is dim render noise over black, which the encoder smooths (looked at 4x gain, 2026-10-10:
@@ -694,12 +726,16 @@ def build_landscape(args) -> tuple[dict, list]:
         report_band(name, fp, None)
 
         # the sprites on this tier's texel grid: the box grown to whole texels plus the margin, mapped back to the frame
+        boxes = S['boxes']
+        sprites = S['sprites']
         tier_boxes = {}
+        src_boxes = {}
         cells: dict[str, Image.Image] = {}
         for key, (x0, y0, x1, y1) in boxes.items():
             t0x, t0y = int(np.floor(x0 * s)) - SPRITE_MARGIN, int(np.floor(y0 * s)) - SPRITE_MARGIN
             t1x, t1y = int(np.ceil(x1 * s)) + SPRITE_MARGIN, int(np.ceil(y1 * s)) + SPRITE_MARGIN
-            tier_boxes[key] = [round(v / s, 4) for v in (t0x, t0y, t1x, t1y)]
+            src_boxes[key] = [v / s for v in (t0x, t0y, t1x, t1y)]
+            tier_boxes[key] = [round(v / sf, 4) for v in (t0x, t0y, t1x, t1y)]
             ox, oy = int(np.floor(t0x / s)) - 4, int(np.floor(t0y / s)) - 4
             cw, ch = int(np.ceil(t1x / s)) + 4 - ox, int(np.ceil(t1y / s)) + 4 - oy
             for st in SETS:
@@ -741,17 +777,25 @@ def build_landscape(args) -> tuple[dict, list]:
             x0, y0, x1, y1 = boxes[key]
             w, h = cells[n].size
             cell = got_atlas.crop((px, py, px + w, py + h))
-            b = tier_boxes[key]
+            b = src_boxes[key]
             # back onto the source sprite's own pixels: its box inside the cell, in this tier's texels
             back_at = cell.convert('RGBa').resize((x1 - x0, y1 - y0), Image.BILINEAR, box=((x0 - b[0]) * s, (y0 - b[1]) * s, (x1 - b[0]) * s, (y1 - b[1]) * s))
             want = sprites[n]
             d = np.abs(np.asarray(back_at).astype(float) - np.asarray(want.convert('RGBa')).astype(float)).mean()
             worst = max(worst, d)
-        print(f'  chains{suffix}: atlas {aw} x {ah}, {len(names)} frames, laid back over the frame the worst sprite differs by a mean of {worst:.2f} of 255')
-        spec['tiers'][tier] = {'size': list(size), 'fire': list(fire_size), 'boxes': tier_boxes}
+        print(f'  chains{suffix}: atlas {aw} x {ah}, {len(names)} frames from {S["name"]}, laid back over the frame the worst sprite differs by a mean of {worst:.2f} of 255')
+        spec['tiers'][tier] = {'source': S['name'], 'size': list(size), 'fire': list(fire_size), 'points': S['points'], 'boxes': tier_boxes}
 
+    if back is None:
+        # --keep-backdrops: the sky's block and each tier's ridge / sky texture sizes as they are on disk
+        spec['sky'] = kept['sky']
+        for tier in tiers:
+            for k in ('ridge', 'sky'):
+                spec['tiers'][tier][k] = kept['tiers'][tier][k]
+        print('  --keep-backdrops: the backdrops, the ridge cut-outs and the sky set not written; their spec entries kept')
+        return spec, report, None
     frame_back = {st: back[st].resize((FW, FH), Image.LANCZOS) for st in SETS}
-    spec['sky'], sky_tiers, sky_report = build_sky(args, FW, FH, frame_back, tiers)
+    spec['sky'], sky_tiers, sky_report = build_sky(args, FW, FH, frame_back, {tier: width for tier, (width, _) in tiers.items()})
     for tier in tiers:
         spec['tiers'][tier].update(sky_tiers[tier])
     return spec, report, sky_report
@@ -996,18 +1040,22 @@ def sunset_fore_mask(A: np.ndarray) -> np.ndarray:
 
 def build_sunset_fore() -> list:
     """--sunset-fore: THE SUNSET ON THE COURTYARD's overlay, both tiers of the landscape scene, from the SHIPPED day
-    foreground (fore-day.webp, fore-day-phone.webp), so run it after any rebuild of those. Nothing else is written."""
+    foreground (fore-day.webp, fore-day-phone.webp), so run it after any rebuild of those. Nothing else is written.
+    Each tier's mask is made from THAT tier's own day foreground (2026-11-04, B4: the phone tier has its own geometry, the
+    8 % push, so the full tier's mask no longer fits it): the phone foreground's alpha is enlarged to the frame, the mask
+    made there with the same numbers, then resampled to the tier and held inside the tier's own alpha."""
     report: list[tuple[str, int, int, int]] = []
     full = os.path.join(OUT, 'fore-day.webp')
     if not os.path.isfile(full):
         die('--sunset-fore: fore-day.webp is not built yet (build the landscape folder first)')
-    A = np.asarray(Image.open(full).convert('RGBA')).astype(np.float32)[..., 3] / 255
-    FH, FW = A.shape
-    m = sunset_fore_mask(A)
-    print(f'sunset foreground overlay from {os.path.relpath(full, APP)} ({FW} x {FH})')
+    FW, FH = Image.open(full).size
+    print(f'sunset foreground overlay from {os.path.relpath(full, APP)} ({FW} x {FH}) and its phone twin')
     for tier, suffix in (('full', ''), ('phone', '-phone')):
         day = Image.open(os.path.join(OUT, f'fore-day{suffix}.webp')).convert('RGBA')
         size = day.size
+        a_tier = day.getchannel('A')
+        A = np.asarray(a_tier if size == (FW, FH) else a_tier.resize((FW, FH), Image.LANCZOS)).astype(np.float32) / 255
+        m = sunset_fore_mask(A)
         a8 = Image.fromarray((m * 255).round().astype(np.uint8))
         if size != (FW, FH):
             # resampled, then held inside this tier's own foreground alpha, so the linear sample never reaches the sky
@@ -1052,7 +1100,17 @@ def main():
     ap.add_argument('--bats', default=BATS_SRC, help='the folder with bats.json and bats.webp (the same tool; the birds\' rows in number and length)')
     ap.add_argument('--sunset', nargs='?', const=SUNSET_SRC, default=None, help='build the Bonus\'s sunset backdrop in both scenes from this folder (default: the sunset_sky_2026-10-23 folder)')
     ap.add_argument('--sunset-fore', action='store_true', help='build the Bonus\'s foreground overlay (THE SUNSET ON THE COURTYARD, landscape scene, both tiers) from the shipped day foreground')
+    ap.add_argument('--phone-src', default=None, help='with SRC: the phone tier\'s own landscape scene folder (its own geometry; default SRC)')
+    ap.add_argument('--keep-backdrops', action='store_true', help='with SRC: write only the foregrounds, the fire pass and the chain atlas; the backdrops, the ridge cut-outs and the sky set stay as they are on disk')
+    ap.add_argument('--out', default=None, help='write every file and sceneSpec.ts here instead of the game (a dry run; the spec on disk is still read)')
     args = ap.parse_args()
+    global OUT
+    spec_out = SPEC
+    if args.out:
+        OUT = os.path.abspath(os.path.expanduser(args.out))
+        spec_out = os.path.join(OUT, 'sceneSpec.ts')
+    if (args.phone_src or args.keep_backdrops) and not args.src:
+        die('--phone-src and --keep-backdrops go with the landscape folder SRC')
     if not args.src and not args.portrait and not args.sky and not args.portrait_sky and not args.sunset and not args.sunset_fore:
         die('nothing to build: give the landscape folder, --portrait DIR, --sky, --portrait-sky DIR, --sunset, --sunset-fore, or more than one')
     os.makedirs(OUT, exist_ok=True)
@@ -1067,7 +1125,7 @@ def main():
     reports = []
     sky_report = None
     if args.src:
-        wide, report, sky_report = build_landscape(args)
+        wide, report, sky_report = build_landscape(args, wide)
         reports.append((report, 'landscape'))
     elif args.sky:
         if wide is None:
@@ -1088,10 +1146,11 @@ def main():
         '// GENERATED by tools/build_scene_assets.py from the scene deliverables\' chain_layers.json (landscape and phone\n'
         '// sideways) and portrait_layers.json (portrait): do not edit by hand, rerun the tool when the scene renders change.\n'
         '// Every number is in px of that scene\'s FRAME (top-left origin).\n'
-        '// SCENE_SPEC  points: per side the knocker\'s mouth pivot, where the hanging chain and the swag hook on the ring,\n'
-        '//   the hanging chain\'s free end, the swag\'s lowest visible point (swagEnd) and its PIN, where it goes behind the\n'
-        '//   bowl rim (read from the sprite). tiers: the texture sizes and each sprite\'s box (its atlas frame\n'
-        '//   scene_<piece>_<side>_<set> covers exactly this box).\n'
+        '// SCENE_SPEC  tiers: per tier its source, the texture sizes, the points and each sprite\'s box (its atlas frame\n'
+        '//   scene_<piece>_<side>_<set> covers exactly this box). points (per tier since 2026-11-04: B4\'s phone tier has its\n'
+        '//   own geometry, the 8 % push): per side the knocker\'s mouth pivot, where the hanging chain and the swag hook on\n'
+        '//   the ring, the hanging chain\'s free end, the swag\'s lowest visible point (swagEnd) and its PIN, where it goes\n'
+        '//   behind the bowl rim (read from the sprite).\n'
         '//   sky: the ambient sky (game/sky.ts). ridge: the skyline cut-out\'s box; skyline: the highest and lowest row any\n'
         '//   sky reaches down to; wisp / fog: a cloud and a mist cell\'s size at scale 1 (atlas frames sky_wisp_<k>,\n'
         '//   sky_fog_<k>); birds / bats: each atlas\'s rows and frames per row (bird_<row>_<frame>.png, bat_<row>_<frame>.png; 2026-11-01: the birds are the original 8-frame crows, the bats their own 16-frame sheet). tiers.<tier>.ridge / sky: texture sizes.\n'
@@ -1101,10 +1160,10 @@ def main():
         '//   bats: SCENE_SPEC.sky has their cells); tiers.<tier>.ridge: the cut-out\'s texture size.\n'
         '// components/Background.svelte and game/scene.ts draw from both.\n'
     )
-    open(SPEC, 'w').write(header + 'export const SCENE_SPEC = ' + json.dumps(wide, indent='\t') + ' as const;\n\n'
+    open(spec_out, 'w').write(header + 'export const SCENE_SPEC = ' + json.dumps(wide, indent='\t') + ' as const;\n\n'
                           + 'export const SCENE_SPEC_PORTRAIT = ' + json.dumps(tall, indent='\t') + ' as const;\n')
     kept = '' if args.src and args.portrait else ' (the portrait block kept as it was' + (', but for its sky)' if args.portrait_sky else ')') if args.src or (args.sky and not args.portrait) else ' (the landscape block kept as it was' + (', but for its sky)' if args.sky else ')')
-    print(f'wrote {os.path.relpath(SPEC, APP)}{kept}')
+    print(f'wrote {os.path.relpath(spec_out, APP)}{kept}')
     for report, what in reports:
         totals(report, what)
     if sky_report:

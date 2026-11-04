@@ -99,6 +99,17 @@ export const creaturePlaceFor = (spot: CreatureSpot, aspect: number): CreaturePl
 	const lerp = (u: number, v: number) => u + (v - u) * t;
 	return { ...p, x: lerp(lo.x, hi.x), y: lerp(lo.y, hi.y), scale: lerp(lo.scale, hi.scale) };
 };
+/** THE DESKTOP FLOOR ROW for the canvas's shape (constants CREATURE.desktopFloor; creature_b4_place_v2, Corey
+ *  2026-11-04): the board art row his feet go on below 16:9. tallRow from 16:9 to CREATURE.desktopTall.aspect (16:10),
+ *  the straight line from there to row at CREATURE.desktopNarrow[0].aspect (3:2), row at 3:2 and narrower. */
+export const desktopFloorRow = (aspect: number): number => {
+	const F = CREATURE.desktopFloor;
+	const hi = CREATURE.desktopTall.aspect;
+	const lo = CREATURE.desktopNarrow[0].aspect;
+	if (aspect >= hi) return F.tallRow;
+	if (aspect <= lo) return F.row;
+	return F.row + ((F.tallRow - F.row) * (aspect - lo)) / (hi - lo);
+};
 /** THE PORTRAIT PHONE DOCK (constants CREATURE.portraitDock; branch portrait-glow-r1, options for Corey): the spot's
  *  place with its scale times `size` and its y moved so that his claw point (the striking claw's lowest point at the end
  *  of the swipe) lands on the canvas row `edgeY` (a board edge). `fit`: where his parent is at rest (no kick), canvas px
