@@ -14,14 +14,14 @@
 		| { type: 'boardDriveIn'; board: BoardSymbols }
 		/** the sticky columns standing at the start of a spin, exactly (none in the base game) */
 		| { type: 'boardHeld'; held: HeldColumn[] }
-		/** the reindeer runs and darts into its target; resolves at the impact */
+		/** the reindeer runs along the snow above the board, turns down into its target's reel and runs into the target;
+		 *  resolves at the impact */
 		| { type: 'boardStrike'; strike: StrikeSpec }
 		/** the struck car's cell becomes the crash cloud Wild */
 		| { type: 'boardGrandmaWild'; cell: number; multiplier: number }
-		/** the red box grows to a column Wild and its character steps in; fromCell null = it starts whole */
-		| { type: 'boardColumnWild'; reel: number; tier: ColumnTier; multiplier: number; sticky: boolean; fromCell: number | null }
-		/** a held column's number doubles */
-		| { type: 'boardCrossing'; reel: number; to: number }
+		/** the red box grows to a column Wild and its character steps in; fromCell null = it starts whole. joinAdd: a
+		 *  Grandma Wild's multiplier joining the column's number (0 = none) */
+		| { type: 'boardColumnWild'; reel: number; tier: ColumnTier; multiplier: number; sticky: boolean; fromCell: number | null; joinAdd: number }
 		/** show the winning lines and the amount; resolves when the hold is over */
 		| { type: 'boardWinShow'; wins: LineWinSpec[]; amountText: string; multiplier: number }
 		| { type: 'boardWinClear' }
@@ -49,6 +49,7 @@
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
 	import { clipMemory, setClipUploader, setClipView } from '../game/road/columnClips';
+	import { perfMarks } from '../game/staging';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -63,7 +64,7 @@
 	road.setBoard(stateGame.board);
 	road.onLaneStop = () => context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop' });
 	// the features' beats, voiced with BORROWED Manticore sounds until this game has its own
-	road.features.onBeat = (kind) => context.eventEmitter.broadcast({ type: 'soundOnce', name: kind === 'crossing' ? 'sfx_tile_double' : kind === 'column' ? 'sfx_sting_big_hit' : 'sfx_sting_hit' });
+	road.features.onBeat = (kind) => context.eventEmitter.broadcast({ type: 'soundOnce', name: kind === 'column' ? 'sfx_sting_big_hit' : 'sfx_sting_hit' });
 	parent.addToParent(road.root);
 
 	// the road in the layout: road px -> master units (layoutSpec ROAD_LAYOUT) -> canvas px (the main layout's fit).
@@ -75,6 +76,7 @@
 		const masterLeft = main.x - (main.width * main.scale) / 2;
 		const masterTop = main.y - (main.height * main.scale) / 2;
 		road.layoutKind = kind; // the stoplights hang by their own numbers per layout (constants STOPLIGHT)
+		road.features.layoutKind = kind; // and the reindeer runs at its own height in the snow per layout (STRIKE.snow)
 		road.root.scale.set(place.scale * main.scale);
 		road.root.position.set(masterLeft + place.x * main.scale, masterTop + place.y * main.scale);
 	});
@@ -125,11 +127,8 @@
 		boardGrandmaWild: async ({ cell, multiplier }) => {
 			await road.features.grandmaWild(cell, multiplier);
 		},
-		boardColumnWild: async ({ reel, tier, multiplier, sticky, fromCell }) => {
-			await road.features.columnWild(reel, tier, multiplier, sticky, fromCell);
-		},
-		boardCrossing: async ({ reel, to }) => {
-			await road.features.crossing(reel, to);
+		boardColumnWild: async ({ reel, tier, multiplier, sticky, fromCell, joinAdd }) => {
+			await road.features.columnWild(reel, tier, multiplier, sticky, fromCell, joinAdd);
 		},
 		boardWinShow: async ({ wins, amountText, multiplier }) => {
 			await road.showWin(wins, amountText, LINE_WIN.holdMs * (LINE_WIN.holdShare[stateGame.turboLevel] ?? 1), multiplier);
@@ -183,6 +182,18 @@
 			signal: (...color: ['red' | 'amber' | 'green' | null] | []) => road.forceSignal(color.length ? color[0] : undefined),
 			/** the column characters' pictures that are loaded now, and what they weigh on the GPU */
 			clipMemory: () => clipMemory(),
+			/** the staging readout's labels as they stand, oldest first, with performance.now() (the probes read the upload
+			 *  queue's spread from them: `upload:<tier>:<clip>:<sheet>`) */
+			perfMarks: () => {
+				const m = perfMarks;
+				if (!m) return [];
+				const out: { name: string; at: number }[] = [];
+				for (let i = 0; i < m.slots; i++) {
+					const k = (m.next + i) % m.slots;
+					if (m.name[k]) out.push({ name: m.name[k], at: Math.round(m.at[k]) });
+				}
+				return out;
+			},
 		});
 	}
 </script>

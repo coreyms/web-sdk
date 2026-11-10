@@ -5,10 +5,12 @@
 //     moment the book arrives, game/utils.ts, so the pictures are usually in before the strike reaches its target);
 //   - the entrance is let go as soon as it has played;
 //   - idle and win are let go when no column of that tier is left on the board.
-// Each sheet is at most 2048 px on a side and is handed to the GPU one at a time before it is first drawn, so no
-// frame of play pays for a big upload. Never a blob: URL and never a worker (the platform's policy has no blob:).
+// Each sheet is at most 2048 px on a side and is handed to the GPU before it is first drawn, through ONE upload queue
+// (below): one sheet at a time, entrance first, never two in a frame and never in the frames of an impact unless a
+// column is waiting on that very picture. Never a blob: URL and never a worker (the platform's policy has no blob:).
 import * as PIXI from 'pixi.js';
 
+import { COLUMN } from '../constants';
 import { COLUMN_CLIPS } from '../columnClipSpec';
 import { stamp } from '../assets';
 import { PHONE_TIER, forcedResolutionCap } from '../deviceTier';
@@ -89,6 +91,69 @@ export const setClipUploader = (fn: typeof uploader) => {
 	uploader = fn;
 };
 
+// ---- THE UPLOAD QUEUE (Corey's iPhone ?perf=1 runs, 2026-11-10) ------------------------------------------------------
+// FACT from three runs: a steady 58 Hz, but a cluster of 50 to 87 ms frames the first time a column lands, marked
+// "load:reindeer:reveal load:reindeer:win load:reindeer:idle" in the same or neighboring frames: a tier's three clips
+// landed together and went to the GPU together (each ~1900 px sheet is about 14 MB to upload). So every sheet waits
+// its turn here:
+//   - one sheet at a time, and at least COLUMN.upload.gapMs (and a whole frame) after the one before;
+//   - the most urgent first: a picture a column is waiting on now, then the entrance (it shows first), the cloud
+//     still, then idle and win, each in the order asked;
+//   - not in the frames of an impact (the reindeer's run down, the box landing and growing: the road's features say
+//     when, setUploadGate), unless a column is waiting on that very picture, and never held back more than
+//     COLUMN.upload.quietMaxMs.
+// The fetch itself still starts the moment the book arrives (preloadForEvents): only the hand-over to the GPU waits.
+type UploadJob = { label: string; prio: number; seq: number; texture: PIXI.Texture; needNow: () => boolean; resolve: () => void };
+const PRIORITY: Record<ClipName | 'backdrop', number> = { reveal: 0, backdrop: 1, idle: 2, win: 3 };
+const queue: UploadJob[] = [];
+let pumping = false;
+let seq = 0;
+let lastUploadEnd = -Infinity;
+/** set by the road's features (game/road/roadFeatures.ts): are these the frames of an impact, and is a column waiting
+ *  on this tier's clip right now? */
+let gate: { quiet: () => boolean; needNow: (tier: ColumnTier, name: ClipName) => boolean } = { quiet: () => false, needNow: () => false };
+export const setUploadGate = (g: typeof gate) => {
+	gate = g;
+};
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+/** hand a texture to the GPU in its turn; resolves when it is up (at once with no renderer: it uploads on first draw) */
+const queueUpload = (label: string, prio: number, texture: PIXI.Texture, needNow: () => boolean): Promise<void> =>
+	new Promise<void>((resolve) => {
+		if (!uploader || typeof requestAnimationFrame === 'undefined') return resolve();
+		queue.push({ label, prio, seq: seq++, texture, needNow, resolve });
+		void pump();
+	});
+
+const pump = async () => {
+	if (pumping) return;
+	pumping = true;
+	try {
+		while (queue.length) {
+			queue.sort((a, b) => Number(b.needNow()) - Number(a.needNow()) || a.prio - b.prio || a.seq - b.seq);
+			const job = queue[0];
+			const U = COLUMN.upload;
+			const heldFrom = performance.now();
+			// its turn: the gap after the last upload, and out of an impact's frames (unless it is needed now)
+			while (!job.needNow() && (performance.now() - lastUploadEnd < U.gapMs || (gate.quiet() && performance.now() - heldFrom < U.quietMaxMs))) await nextFrame();
+			queue.shift();
+			// the staging readout's label: a long frame right after this is this sheet's upload
+			if (STAGING_TOOLS) perfMark(`upload:${job.label}`);
+			try {
+				await uploader?.(job.texture);
+			} catch {
+				/* it uploads on its first draw instead */
+			}
+			lastUploadEnd = performance.now();
+			job.resolve();
+			// never two in one frame
+			await nextFrame();
+		}
+	} finally {
+		pumping = false;
+	}
+};
+
 /** a clip being let go: a new load of the same clip waits for it (loading a sheet while it is being unloaded would
  *  hand back a picture that is destroyed a moment later) */
 const letting = new Map<string, Promise<void>>();
@@ -99,12 +164,13 @@ const loadOne = async (tier: ColumnTier, name: ClipName, entry: Entry): Promise<
 	const tierSpec = spec.tiers[pickSize().size];
 	const textures: PIXI.Texture[] = [];
 	try {
-		for (const sheet of tierSpec.sheets) {
+		for (const [n, sheet] of tierSpec.sheets.entries()) {
 			const url = stamp(`/assets/${sheet.file}`);
 			const base = (await PIXI.Assets.load(url)) as PIXI.Texture;
 			entry.urls.push(url);
 			entry.sources.push(base.source);
-			if (uploader) await uploader(base);
+			// to the GPU in its turn (the queue above): the clip is handed out only when every sheet is up
+			await queueUpload(`${tier}:${name}:${n + 1}/${tierSpec.sheets.length}`, PRIORITY[name], base, () => gate.needNow(tier, name));
 			for (let i = 0; i < sheet.frames; i++) {
 				const fx = (i % tierSpec.columns) * (tierSpec.frameWidth + tierSpec.gap);
 				const fy = Math.floor(i / tierSpec.columns) * (tierSpec.frameHeight + tierSpec.gap);
@@ -195,7 +261,8 @@ export const loadBackdrop = (): Promise<PIXI.Texture | null> => {
 	backdropLoading ??= (async () => {
 		try {
 			const texture = (await PIXI.Assets.load(stamp(`/assets/${COLUMN_CLIPS.backdrop.tiers[pickSize().size].file}`))) as PIXI.Texture;
-			if (uploader) await uploader(texture);
+			// needed with the entrance's first frame: wanted now whenever a column waits on any entrance
+			await queueUpload('backdrop', PRIORITY.backdrop, texture, () => (['reindeer', 'santa', 'grandma'] as ColumnTier[]).some((t) => gate.needNow(t, 'reveal')));
 			backdrop = texture;
 			return texture;
 		} catch (error) {

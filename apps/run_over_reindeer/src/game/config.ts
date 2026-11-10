@@ -2,10 +2,11 @@
 // Nothing here is used to COMPUTE an outcome: the books do that. It feeds the paytable page, the rules copy,
 // the payline pictures and the fallback mode prices (the RGS's authenticate values always win).
 //
-// The rules are What-if 4 variant E (Corey 2026-11-09), contract version 2026-11-09b. No books are published yet,
+// The rules are What-if 4 variant E (Corey 2026-11-09) with variant F + C on top (Corey 2026-11-10: no crossing, higher
+// bonus round column starts), contract version 2026-11-10a. No books are published yet,
 // and the mode keys for the three Ante levels are this frontend's guess (the math has base, bonus and super so far).
 export default {
-	mathVersion: 'whatif4-E-2026.11.09b',
+	mathVersion: 'variantF-C-2026.11.10a',
 	providerName: 'polymath_games',
 	gameName: 'Run Over Reindeer',
 	gameID: 'run_over_reindeer',
@@ -47,7 +48,7 @@ export default {
 	// pay order, best first (the paytable page)
 	payOrder: ['H1', 'H2', 'H3', 'H4', 'L1', 'L2', 'L3', 'L4', 'L5'],
 	carSymbols: ['H1', 'H2', 'H3', 'H4'],
-	// THE 12 PAYLINES (contract 2026-11-09b): the row on each reel, 0 = the top lane. Lines 1-10, 19 and 20 of the
+	// THE 12 PAYLINES (contract 2026-11-10a, unchanged since 2026-11-09b): the row on each reel, 0 = the top lane. Lines 1-10, 19 and 20 of the
 	// first 20 line set; 11-18 were removed (Corey 2026-11-09). A win's `line` is 1-based into this list. Everything
 	// that shows lines (the board, Game Info) reads this list, so its length is never written anywhere else.
 	paylines: [
@@ -65,10 +66,14 @@ export default {
 		grandmaWild: { base: [2, 10], freeSpins: [3, 100], super: [5, 100] },
 		column: {
 			base: { reindeer: [3, 8], santa: [10, 20], grandma: [40, 75] },
-			freeSpins: { reindeer: [2, 4], santa: [5, 10], grandma: [10, 20] },
-			super: { reindeer: [2, 3], santa: [4, 6], grandma: [8, 10] },
+			// variant F + C (Corey's pick, 2026-11-10): the usual range, and a rare big start (Santa 30x on 23% of Santa
+			// columns, Grandma 50x on 33% of Grandma columns)
+			freeSpins: { reindeer: [2, 4], santa: [6, 10], grandma: [12, 20] },
+			super: { reindeer: [4, 8], santa: [10, 15], grandma: [20, 30] },
 		},
-		/** a crossing doubles a held column up to this, and no bonus round column exceeds it */
+		/** the rare big starts in a bonus round (both kinds of round) */
+		bonusRare: { santa: 30, grandma: 50 },
+		/** no bonus round column exceeds this; a held column keeps the multiplier it landed with (no crossing) */
 		bonusColumnCap: 50,
 	},
 	paddingReels: {

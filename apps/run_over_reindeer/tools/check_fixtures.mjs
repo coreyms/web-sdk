@@ -16,6 +16,11 @@ const fail = (round, message) => {
 	console.error(`FAIL ${round.name}: ${message}`);
 };
 
+// contract 2026-11-10a: what the board relies on, and what is gone
+const OLD_STRIKE_FIELDS = ['side', 'runRow', 'dart', 'passes'];
+const OLD_COLUMN_FIELDS = ['grandmaCell', 'grandmaWalksOut', 'grandmaAdd'];
+const KNOWN = ['reveal', 'strike', 'grandmaWild', 'columnWild', 'winInfo', 'setTotalWin', 'freeSpinTrigger', 'freeSpinRetrigger', 'floorTopUp', 'freeSpinEnd', 'wincap', 'finalWin'];
+
 let books = 0;
 let wins = 0;
 const seen = {};
@@ -24,9 +29,38 @@ for (const round of SHOWCASE_ROUNDS) {
 	books += 1;
 	let total = 0;
 	let free = 0;
+	/** a held column's multiplier as it landed: it may never change in the round (no crossing) */
+	const landed = new Map();
+	/** this spin's strikes so far, for the order check (Grandma first, then Santa, each left to right) */
+	let spinStrikes = [];
 	round.events.forEach((event, i) => {
 		seen[event.type] = (seen[event.type] ?? 0) + 1;
 		if (event.index !== i) fail(round, `event ${i} has index ${event.index}`);
+		if (!KNOWN.includes(event.type)) fail(round, `event ${i} is a ${event.type}, which the 2026-11-10a contract does not have`);
+		if (event.type === 'reveal') spinStrikes = [];
+		if (event.type === 'strike') {
+			for (const f of OLD_STRIKE_FIELDS) if (f in event) fail(round, `strike ${i} still has ${f}`);
+			if (event.reel !== Math.floor(event.cell / ROWS)) fail(round, `strike ${i}: reel ${event.reel} is not cell ${event.cell} // 4`);
+			const key = (e) => (e.target === 'grandmaCar' ? 0 : 1) * 100 + e.cell;
+			const last = spinStrikes[spinStrikes.length - 1];
+			if (last && key(last) > key(event)) fail(round, `strike ${i} (${event.target} cell ${event.cell}) comes after ${last.target} cell ${last.cell}: not Grandma first, then Santa, left to right`);
+			spinStrikes.push(event);
+		}
+		if (event.type === 'columnWild') {
+			for (const f of OLD_COLUMN_FIELDS) if (f in event) fail(round, `columnWild ${i} still has ${f}`);
+			if (event.grandma) {
+				if (event.tier !== 'grandma') fail(round, `columnWild ${i}: a grandma object on a ${event.tier} column`);
+				if (Math.floor(event.grandma.cell / ROWS) !== event.reel) fail(round, `columnWild ${i}: Grandma's cell ${event.grandma.cell} is not in reel ${event.reel}`);
+				if (!event.grandma.wasWild && event.grandma.add !== 0) fail(round, `columnWild ${i}: a Grandma car adds ${event.grandma.add}`);
+			}
+			if (event.sticky) landed.set(event.reel, event.multiplier);
+		}
+		if (event.type === 'reveal') {
+			for (const h of event.held ?? []) {
+				if (landed.has(h.reel) && landed.get(h.reel) !== h.multiplier) fail(round, `reveal ${i}: held column ${h.reel} is ${h.multiplier}x, it landed with ${landed.get(h.reel)}x`);
+				if (!landed.has(h.reel)) landed.set(h.reel, h.multiplier);
+			}
+		}
 		if (event.type === 'reveal') {
 			if (event.board.length !== 5 || event.board.some((reel) => reel.length !== ROWS)) fail(round, 'a board is not 5 reels of 4');
 			for (const reel of event.board) for (const s of reel) if (!(s in config.symbols)) fail(round, `unknown symbol ${s}`);

@@ -1,5 +1,5 @@
 // THE FIXTURE RGS (dev server and PUBLIC_STAGING=1 builds, never production): answers the game's own RGS requests inside the page from REAL books of the math's
-// engine (showcaseBooks.ts, copied from math-sdk/games/run_over_reindeer/fixtures by tools/import_fixtures.mjs), so
+// engine (showcaseBooks.ts, copied from math-sdk/games/run_over_reindeer/fixtures_2026-11-10a by tools/import_fixtures.mjs), so
 // the game plays end to end with no server: Authenticate, /wallet/play, the book events through
 // game/bookEventHandlerMap.ts, /wallet/end-round. It is the SAME path the real game uses; only the far end of the
 // request is here instead of on a server.
@@ -31,8 +31,8 @@ export const FIXTURE_ROUNDS: FixtureRound[] = SHOWCASE_ROUNDS.map((r) => ({
  *  walks through that buy's books. */
 export const FIXTURE_ORDER: Record<'base' | 'bonus' | 'super', string[]> = {
 	base: ['no_win_1', 'plain_line_win', 'base_grandma_strike', 'no_win_2', 'base_one_column', 'tier_santa', 'plain_line_win', 'tier_grandma', 'base_two_columns', 'no_win_1', 'base_three_columns', 'natural_free_spins', 'no_win_2', 'floor_top_up', 'natural_super', 'floor_top_up_super'],
-	bonus: ['one_crossing', 'retrigger', 'two_crossings', 'three_columns_free_spins', 'grandma_100x'],
-	super: ['super_typical', 'crossing_to_cap50', 'max_win'],
+	bonus: ['grandma_3x', 'retrigger', 'grandma_red_box', 'three_columns_free_spins', 'column_30x', 'column_50x', 'grandma_100x', 'wild_line_then_scatter'],
+	super: ['super_typical', 'multi_reel_strikes', 'wild_line_three_columns_scatter', 'max_win'],
 };
 
 const RESUME_KEY = 'reindeer.fixture.resume';

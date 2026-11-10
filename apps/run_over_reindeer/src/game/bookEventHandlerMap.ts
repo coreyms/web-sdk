@@ -1,7 +1,7 @@
 // THE ONE PLACE A ROUND IS PLAYED: one handler per book event type, called in book order (utils-book).
 // The frontend never computes an outcome. A handler shows what its event says and nothing else: which cell was
-// struck, from which tunnel, which tier stepped out, which multiplier, what a line paid, what a top-up added.
-// Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-09b.
+// struck, which tier stepped out, which multiplier, what a line paid, what a top-up added.
+// Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-10a.
 import { stateBet, stateBetDerived } from 'state-shared';
 import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 import { waitForTimeout } from 'utils-shared/wait';
@@ -37,17 +37,6 @@ export const dismissRoundCard = () => {
 	done?.();
 };
 
-/** the events that follow `bookEvent` up to the next one that is not of `type` (a strike's own crossings) */
-const following = <T extends BookEvent['type']>(bookEvents: BookEvent[], bookEvent: BookEvent, type: T) => {
-	const out: BookEventOfType<T>[] = [];
-	for (let i = bookEvents.indexOf(bookEvent) + 1; i < bookEvents.length; i++) {
-		const next = bookEvents[i];
-		if (next.type !== type) break;
-		out.push(next as BookEventOfType<T>);
-	}
-	return out;
-};
-
 /** the feature trigger's own state, with nothing shown (a live trigger, and a resumed round's rebuild) */
 const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	stateGame.bonusMode = bookEvent.bonusType === 'super' ? 'super' : 'bonus';
@@ -75,20 +64,18 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	// ---- the reindeer strike ----
+	// Played in the book's order, never sorted here: the book writes the Grandma strikes first, then the Santa strikes,
+	// each left to right. Nothing on the board depends on that order (the columns draw reel 1 on top whatever order
+	// they arrive in), so a book in any order would still show correctly.
 	strike: async (bookEvent: BookEventOfType<'strike'>, { bookEvents }: BookEventContext) => {
-		// the crossings this strike makes are written right after it; the board shows each as the reindeer passes
-		const crossings = following(bookEvents, bookEvent, 'crossing').map((c) => ({ reel: c.reel, to: c.to }));
 		// a Santa strike's column comes next: its entrance pictures may have been let go since the last one of its tier
 		const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
-		if (next?.type === 'columnWild') void loadClip(next.tier, 'reveal');
-		await eventEmitter.broadcastAsync({
-			type: 'boardStrike',
-			strike: { cell: bookEvent.cell, side: bookEvent.side, runRow: bookEvent.runRow, passes: bookEvent.passes, crossings },
-		});
-	},
-	crossing: async (bookEvent: BookEventOfType<'crossing'>) => {
-		// shown as the reindeer passed (the strike handler); this waits out the beat, or shows it if it was not
-		await eventEmitter.broadcastAsync({ type: 'boardCrossing', reel: bookEvent.reel, to: bookEvent.to });
+		const column = next?.type === 'columnWild' && next.reel === bookEvent.reel ? next : null;
+		if (column) void loadClip(column.tier, 'reveal');
+		// a Grandma car in the struck Santa reel is not struck: she gets a red box as the reindeer comes down, and the
+		// column then grows over it (Corey 2026-11-10). A Grandma already Wild has her own box already.
+		const markCell = column?.grandma && !column.grandma.wasWild ? column.grandma.cell : null;
+		await eventEmitter.broadcastAsync({ type: 'boardStrike', strike: { cell: bookEvent.cell, markCell } });
 	},
 	grandmaWild: async (bookEvent: BookEventOfType<'grandmaWild'>) => {
 		await eventEmitter.broadcastAsync({ type: 'boardGrandmaWild', cell: bookEvent.cell, multiplier: bookEvent.multiplier });
@@ -104,6 +91,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			multiplier: bookEvent.multiplier,
 			sticky: bookEvent.sticky,
 			fromCell,
+			// a Grandma Wild already standing in the reel adds her multiplier: the number shows the column's own first,
+			// then the sum (`multiplier` already holds it). Never happens under variant F.
+			joinAdd: bookEvent.grandma?.wasWild ? bookEvent.grandma.add : 0,
 		});
 	},
 

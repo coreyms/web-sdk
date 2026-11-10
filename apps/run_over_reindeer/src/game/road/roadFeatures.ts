@@ -1,9 +1,10 @@
-// THE FEATURES ON THE ROAD: the reindeer's strike, the Grandma Wild (the crash cloud in one cell), the red box, and
-// the full column Wilds with their three characters and their multipliers.
+// THE FEATURES ON THE ROAD: the reindeer's strike (its run in the snow above the board and its turn down into the
+// target), the Grandma Wild (the crash cloud in one cell), the red box, and the full column Wilds with their three
+// characters and their multipliers.
 //
 // Everything here is drawn in road px inside the road board's own container (game/road/roadBoard.ts adds the two
 // layers and ticks this from its own update), and everything it shows was said by a book event: which cell, which
-// tunnel, which lane, which tier, which multiplier. Nothing is rolled or chosen here.
+// tier, which multiplier. Nothing is rolled or chosen here; the reindeer's path is fixed presentation (STRIKE).
 //
 // No filter, mask or shader. The red box is plain colored quads. The cloud is "revealed" as the box grows by moving
 // a texture's frame (a crop of the picture), and it stays inside the box because the entrance frames were cut to the
@@ -11,7 +12,8 @@
 // the neighboring cells (spill over).
 //
 // THE DRAW ORDER (Corey 2026-11-10), bottom to top, each its own layer across ALL columns:
-//   back     each column's still cloud, and its entrance while the moving cloud is still in the frame
+//   back     the red box on a Grandma car in a struck Santa reel (under the column, which grows over it), each column's
+//            still cloud, and its entrance while the moving cloud is still in the frame
 //   boxes    the red frames (outer frame only: no lines between the rows)
 //   cells    the Grandma Wild cells (cloud, frame, WILD and number)
 //   bodies   the characters with their spill over, reel 1 on top, then reel 2, down to reel 5 at the back,
@@ -20,16 +22,16 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { CLOUD_CELL, COLUMN, RED_BOX, ROAD, STRIKE } from '../constants';
+import { CLOUD_CELL, COLUMN, RED_BOX, STRIKE } from '../constants';
+import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
-import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, type Clip } from './columnClips';
+import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
 
 const ROWS = ROAD_ART.board.rows;
 const PITCH = ROAD_ART.board.pitch;
 const LINES = ROAD_ART.laneLines;
 const BOARD_X = ROAD_ART.board.x;
-const MOUTH_L = ROAD_ART.covers.left.mouth;
-const MOUTH_R = ROAD_ART.covers.right.mouth;
+const IMAGE_W = ROAD_ART.image.width;
 const COLUMN_TOP = LINES[0];
 const COLUMN_H = LINES[ROWS] - LINES[0];
 
@@ -148,31 +150,48 @@ type Column = {
 	t0: number;
 	/** the struck row the box grows from, or -1 (a column that starts whole: Super's opening column) */
 	fromRow: number;
-	/** crossing beat: when it began and what the number becomes at its peak */
-	beatAt: number | null;
-	beatTo: number;
 	labelShown: boolean;
+	/** a Grandma Wild's multiplier joining the number (0 = none): the number shows multiplier - joinAdd first */
+	joinAdd: number;
 	frame: number;
 	/** its entrance has played: the entrance's pictures may go as soon as it draws its idle */
 	dropReveal: boolean;
 };
 
+/** the running reindeer: along the snow, the hold, the turn, down the screen. Times on the road's clock from t0. */
 type Runner = {
 	sprite: PIXI.Sprite;
 	t0: number;
-	runMs: number;
-	fromX: number;
-	toX: number;
-	runY: number;
-	toY: number;
+	/** which way it runs along the snow (1 = left to right) */
 	dir: 1 | -1;
-	done: boolean;
-	beats: { at: number; reel: number; to: number; fired: boolean }[];
+	fromX: number;
+	/** the target reel's centre: where it stops, turns and runs down */
+	toX: number;
+	/** its feet in the snow, and its middle at the impact */
+	feetY: number;
+	impactY: number;
+	snowScale: number;
+	alongMs: number;
+	downMs: number;
+	/** a Grandma car to box as it starts down (a struck Santa reel), or null */
+	markCell: number | null;
+	marked: boolean;
 };
 
 type Waiter = { at: number; resolve: () => void };
 
-export type StrikeSpec = { cell: number; side: 'left' | 'right'; runRow: number; passes: number[]; crossings: { reel: number; to: number }[] };
+/** what the board needs for a strike: the target cell, and the Grandma car to box in the same reel (or null) */
+export type StrikeSpec = { cell: number; markCell: number | null };
+
+/** the runner's speed along the snow: steady, then braking to a stop over the last `brake` share. 0 to 1 in, 0 to 1 out. */
+const braking = (u: number, brake: number) => {
+	const b = Math.max(0, Math.min(1, brake));
+	const a = 1 - b;
+	const v = 1 / (a + b / 2);
+	if (u <= a || b === 0) return Math.min(1, v * u);
+	const w = u - a;
+	return Math.min(1, v * a + v * (w - (w * w) / (2 * b)));
+};
 
 export class RoadFeatures {
 	/** boxes, clouds, characters and their numbers: over the traffic */
@@ -188,50 +207,86 @@ export class RoadFeatures {
 	private clouds: CloudCell[] = [];
 	private columns: Column[] = [];
 	private runner: Runner | null = null;
+	/** the red boxes on Grandma cars in struck Santa reels, until their column covers them */
+	private marks: { cell: number; box: RedBox }[] = [];
 	private waiters: Waiter[] = [];
 	private clock = 0;
 	private destroyed = false;
 
 	/** the road board hides or shows the symbol standing in a cell (the cloud and the column cover them) */
 	hideCell: (cell: number, hidden: boolean) => void = () => {};
-	/** a beat the handlers voice: the reindeer's impact, a crossing's doubling */
-	onBeat: ((kind: 'impact' | 'crossing' | 'column') => void) | null = null;
+	/** a beat the handlers voice: the reindeer's impact, a column's box */
+	onBeat: ((kind: 'impact' | 'column') => void) | null = null;
+	/** the layout the road is drawn in (components/Board.svelte sets it): the run height in the snow is per layout */
+	layoutKind: LayoutKind = 'landscape';
 
 	constructor(private readonly tex: Tex) {
 		this.layer.addChild(this.backLayer, this.boxLayer, this.cellLayer, this.bodyLayer, this.numberLayer);
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
+		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
+		// for a picture a column is waiting on
+		setUploadGate({
+			quiet: () => this.impactFrames(),
+			needNow: (tier, name) => this.columns.some((c) => c.tier === tier && (name === 'reveal' ? c.phase === 'wait' : name === 'idle' ? c.phase === 'idle' && !getClip(tier, 'idle') : false)),
+		});
+	}
+
+	/** THE FRAMES OF AN IMPACT, kept clear of GPU uploads: the reindeer's run down and its fade into the cloud, a Grandma
+	 *  Wild's pop, and a column's box landing and growing */
+	private impactFrames(): boolean {
+		const r = this.runner;
+		if (r && this.clock - r.t0 >= r.alongMs + STRIKE.holdMs + STRIKE.turnMs) return true;
+		if (this.clouds.some((c) => c.leaving === null && this.clock - c.t0 < CLOUD_CELL.popMs + 60)) return true;
+		return this.columns.some((c) => c.phase === 'wait' || c.phase === 'impact' || c.phase === 'grow');
 	}
 
 	// ---- the strike ----------------------------------------------------------------------------------------------------
-	/** THE REINDEER RUNS (the PLACEHOLDER picture on the real path): out of the book's tunnel, along the book's lane,
-	 *  then the dart into the target's lane. Resolves at the impact. Crossings are shown as it passes their columns. */
+	/** THE REINDEER RUNS (the PLACEHOLDER picture; constants STRIKE): in at one end of the snow bank above the road,
+	 *  along it to the target's reel, a hold there, the turn, and straight down the screen into the target cell.
+	 *  Resolves at the impact. */
 	strike(spec: StrikeSpec): Promise<void> {
-		const dir: 1 | -1 = spec.side === 'left' ? 1 : -1;
-		const frame = dir > 0 ? 'reindeer_run' : 'reindeer_run_L';
-		const texture = this.tex(frame);
-		const size = ROAD_ART.symbols.reindeer_run;
-		const k = STRIKE.scale;
 		const target = cellRect(spec.cell);
-		const half = (size.width * k) / 2;
-		const fromX = dir > 0 ? MOUTH_L - half - 30 : MOUTH_R + half + 30;
-		const toX = target.x + target.w / 2 - dir * STRIKE.stopShort;
-		const runMs = Math.max(STRIKE.runMinMs, Math.min(STRIKE.runMaxMs, (Math.abs(toX - fromX) / STRIKE.runSpeed) * 1000));
+		const reel = Math.floor(spec.cell / ROWS);
+		const toX = target.x + target.w / 2;
+		// which end of the snow bank it comes in at (STRIKE.entry)
+		const nearLeft = reel < 2;
+		const entry = STRIKE.entry;
+		const fromLeft = entry === 'left' ? true : entry === 'right' ? false : entry === 'near' ? nearLeft : !nearLeft;
+		const dir: 1 | -1 = fromLeft ? 1 : -1;
+		const snow = STRIKE.snow[this.layoutKind] ?? STRIKE.snow.landscape;
+		const size = ROAD_ART.symbols.reindeer_run;
+		const half = (size.width * Math.max(snow.scale, STRIKE.roadScale)) / 2;
+		const fromX = fromLeft ? -half - STRIKE.enterPad : IMAGE_W + half + STRIKE.enterPad;
+		const alongMs = Math.max(STRIKE.runMinMs, Math.min(STRIKE.runMaxMs, (Math.abs(toX - fromX) / STRIKE.runSpeed) * 1000));
+		const impactY = target.y + target.h * STRIKE.impactAt;
+		const startMid = snow.feetY - (size.height * snow.scale) / 2;
+		const downMs = Math.max(STRIKE.downMinMs, Math.min(STRIKE.downMaxMs, (Math.abs(impactY - startMid) / STRIKE.downSpeed) * 1000));
 		if (this.runner) this.runner.sprite.destroy();
-		const sprite = new PIXI.Sprite(texture ?? PIXI.Texture.EMPTY);
-		sprite.anchor.set(0.5, 1);
-		sprite.width = size.width * k;
-		sprite.height = size.height * k;
+		const sprite = new PIXI.Sprite(this.tex(fromLeft ? 'reindeer_run' : 'reindeer_run_L') ?? PIXI.Texture.EMPTY);
+		// about its middle, so the turn leans it about its middle
+		sprite.anchor.set(0.5);
 		sprite.visible = false;
 		this.runnerLayer.addChild(sprite);
 		const t0 = this.clock + STRIKE.leadInMs;
-		// each crossing shows when the runner is level with that column
-		const beats = spec.crossings.map((c) => {
-			const cx = BOARD_X + (c.reel + 0.5) * PITCH;
-			const u = Math.max(0, Math.min(1, (cx - fromX) / (toX - fromX)));
-			return { at: t0 + u * runMs, reel: c.reel, to: c.to, fired: false };
-		});
-		this.runner = { sprite, t0, runMs, fromX, toX, runY: LINES[spec.runRow + 1] - 4, toY: target.y + target.h - 4, dir, done: false, beats };
-		return this.wait(t0 + runMs);
+		this.runner = { sprite, t0, dir, fromX, toX, feetY: snow.feetY, impactY, snowScale: snow.scale, alongMs, downMs, markCell: spec.markCell, marked: false };
+		return this.wait(t0 + alongMs + STRIKE.holdMs + STRIKE.turnMs + downMs);
+	}
+
+	/** the red box on a Grandma car in a struck Santa reel: under the column, which grows over it (Corey 2026-11-10) */
+	private markCell(cell: number) {
+		const box = new RedBox();
+		const b = inset(cellRect(cell));
+		box.set(b.x, b.y, b.w, b.h);
+		this.backLayer.addChild(box.root);
+		this.marks.push({ cell, box });
+	}
+
+	private dropMarks(reel: number | null) {
+		for (const m of [...this.marks]) {
+			if (reel !== null && Math.floor(m.cell / ROWS) !== reel) continue;
+			m.box.root.destroy({ children: true });
+			this.marks = this.marks.filter((x) => x !== m);
+		}
 	}
 
 	// ---- the Grandma Wild ------------------------------------------------------------------------------------------------
@@ -266,7 +321,7 @@ export class RoadFeatures {
 	}
 
 	// ---- the column Wild ---------------------------------------------------------------------------------------------------
-	private makeColumn(reel: number, tier: ColumnTier, multiplier: number, sticky: boolean): Column {
+	private makeColumn(reel: number, tier: ColumnTier, multiplier: number, sticky: boolean, joinAdd = 0): Column {
 		const back = new PIXI.Container();
 		const backdrop = new PIXI.Sprite();
 		const cloud = new PIXI.Sprite();
@@ -274,7 +329,7 @@ export class RoadFeatures {
 		const body = new PIXI.Sprite();
 		const box = new RedBox();
 		const label = new NumberLabel(this.tex, COLUMN.numberHeight, COLUMN.numberTint);
-		label.set(`${multiplier}x`);
+		label.set(`${multiplier - joinAdd}x`);
 		label.root.visible = false;
 		backdrop.visible = false;
 		cloud.visible = false;
@@ -287,7 +342,7 @@ export class RoadFeatures {
 		this.boxLayer.addChild(box.root);
 		this.numberLayer.addChild(label.root);
 		void loadBackdrop();
-		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, fromRow: -1, beatAt: null, beatTo: multiplier, labelShown: false, frame: -1, dropReveal: false };
+		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false };
 		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - COLUMN.numberUp);
 		this.columns.push(column);
 		return column;
@@ -295,10 +350,10 @@ export class RoadFeatures {
 
 	/** THE RED BOX GROWS to a full column: the cloud on the struck cell, the box to four rows, the cloud clearing as
 	 *  the tier's character steps in, then its idle. Resolves when the character stands. `fromCell` null = it starts
-	 *  whole (Super's opening column). */
-	async columnWild(reel: number, tier: ColumnTier, multiplier: number, sticky: boolean, fromCell: number | null): Promise<void> {
+	 *  whole (Super's opening column). `joinAdd`: a Grandma Wild's multiplier joining the number (0 = none). */
+	async columnWild(reel: number, tier: ColumnTier, multiplier: number, sticky: boolean, fromCell: number | null, joinAdd = 0): Promise<void> {
 		this.removeColumn(reel, true);
-		const column = this.makeColumn(reel, tier, multiplier, sticky);
+		const column = this.makeColumn(reel, tier, multiplier, sticky, joinAdd);
 		column.fromRow = fromCell === null ? -1 : fromCell % ROWS;
 		// 'wait': the box stands on the struck cell with the cell cloud until the tier's pictures are in. They usually are
 		// (they started loading when the book arrived). A late or failed load never holds the round longer than
@@ -311,37 +366,26 @@ export class RoadFeatures {
 		if (this.destroyed || !this.columns.includes(column) || column.phase !== 'wait') return;
 		column.phase = 'impact';
 		column.t0 = this.clock;
-		await this.wait(this.clock + COLUMN.impactMs + COLUMN.growMs + (reveal ? (reveal.textures.length / reveal.fps) * 1000 : 200));
-	}
-
-	/** a crossing: the number of a held column doubles with a beat (a strike that already showed it leaves it alone) */
-	crossing(reel: number, to: number): Promise<void> {
-		const column = this.columns.find((c) => c.reel === reel);
-		if (!column) return Promise.resolve();
-		if (column.multiplier === to && column.beatAt === null) return Promise.resolve();
-		if (column.beatAt === null) this.startBeat(column, to);
-		return this.wait((column.beatAt ?? this.clock) + COLUMN.crossingMs);
-	}
-
-	private startBeat(column: Column, to: number) {
-		column.beatAt = this.clock;
-		column.beatTo = to;
-		this.onBeat?.('crossing');
+		const entrance = reveal ? (reveal.textures.length / reveal.fps) * 1000 : 200;
+		// a joining Grandma Wild's sum shows after the column's own number (never under variant F)
+		const join = joinAdd > 0 ? Math.max(0, entrance * COLUMN.numberAt + COLUMN.joinMs - entrance) : 0;
+		await this.wait(this.clock + COLUMN.impactMs + COLUMN.growMs + entrance + join);
 	}
 
 	/** make the board's sticky columns exactly this list, with no entrance (the start of each free spin; a resume or a
-	 *  replay builds its columns from this alone). Columns not in it, and every cloud cell, leave. */
+	 *  replay builds its columns from this alone). Columns not in it, and every cloud cell, leave. A column that stands
+	 *  keeps the number it landed with: nothing changes a held column's multiplier (Corey 2026-11-10: "I don't think
+	 *  the column wilds should ever multiply from their original set value"; the book repeats it unchanged). */
 	syncHeld(held: HeldColumn[]) {
 		for (const cloud of this.clouds) if (cloud.leaving === null) cloud.leaving = this.clock;
+		this.dropMarks(null);
 		for (const column of [...this.columns]) {
 			const want = held.find((h) => h.reel === column.reel);
 			if (!want || want.tier !== column.tier) this.removeColumn(column.reel, false);
 			else {
 				column.sticky = true;
-				if (column.beatAt === null && column.multiplier !== want.multiplier) {
-					column.multiplier = want.multiplier;
-					column.label.set(`${want.multiplier}x`);
-				}
+				// a book that disagrees is a fault in the book; it is said in DEV and the number on screen stays
+				if (import.meta.env.DEV && want.multiplier !== column.multiplier) console.warn(`[reindeer] held column ${column.reel}: the book says ${want.multiplier}x, it landed with ${column.multiplier}x`);
 			}
 		}
 		for (const h of held) {
@@ -409,19 +453,15 @@ export class RoadFeatures {
 		if (!r) return;
 		const t = this.clock - r.t0;
 		if (t < 0) return;
-		for (const beat of r.beats) {
-			if (beat.fired || this.clock < beat.at) continue;
-			beat.fired = true;
-			const column = this.columns.find((c) => c.reel === beat.reel);
-			if (column && column.beatAt === null) this.startBeat(column, beat.to);
-		}
 		const s = r.sprite;
-		if (t >= r.runMs) {
+		const size = ROAD_ART.symbols.reindeer_run;
+		const holdAt = r.alongMs;
+		const turnAt = holdAt + STRIKE.holdMs;
+		const downAt = turnAt + STRIKE.turnMs;
+		const impactAt = downAt + r.downMs;
+		if (t >= impactAt) {
 			// the impact: it is gone into the cloud
-			if (!r.done) {
-				r.done = true;
-			}
-			const u = (t - r.runMs) / STRIKE.fadeMs;
+			const u = (t - impactAt) / STRIKE.fadeMs;
 			s.alpha = Math.max(0, 1 - u);
 			if (u >= 1) {
 				s.destroy();
@@ -430,19 +470,49 @@ export class RoadFeatures {
 			return;
 		}
 		s.visible = true;
-		const u = t / r.runMs;
-		s.x = r.fromX + (r.toX - r.fromX) * u;
-		// the dart: the last dartMs carry it from its lane into the target's lane, quickening
-		const dartFrom = Math.max(0, r.runMs - STRIKE.dartMs);
-		const d = t <= dartFrom ? 0 : (t - dartFrom) / Math.max(1, r.runMs - dartFrom);
-		const hop = d > 0 ? 0 : Math.abs(Math.sin((t / 1000) * Math.PI * STRIKE.hopsPerSecond)) * STRIKE.hopPx;
-		s.y = r.runY + (r.toY - r.runY) * d * d - hop;
-		// its own tunnel's shadow, like the traffic
-		const insideMouth = Math.min(s.x - MOUTH_L, MOUTH_R - s.x);
-		const sh = ROAD.tunnelShade;
-		const b = Math.max(0, Math.min(1, (insideMouth - sh.from) / Math.max(1, sh.to - sh.from)));
-		const v = Math.round((sh.dark + (1 - sh.dark) * b) * 255);
-		s.tint = (v << 16) | (v << 8) | v;
+		let k = r.snowScale;
+		let sx = 1;
+		let sy = 1;
+		let x = r.toX;
+		let rotation = 0;
+		let mid: number;
+		const snowMid = r.feetY - (size.height * r.snowScale) / 2;
+		if (t < holdAt) {
+			// along the snow, cantering, braking into the stop above the target's reel
+			const u = t / Math.max(1, r.alongMs);
+			x = r.fromX + (r.toX - r.fromX) * braking(u, STRIKE.brakeShare);
+			const hop = Math.abs(Math.sin((t / 1000) * Math.PI * STRIKE.hopsPerSecond)) * STRIKE.hopPx * (r.snowScale / STRIKE.roadScale) * (1 - u * u);
+			mid = snowMid - hop;
+		} else if (t < turnAt) {
+			// the anticipation: it stands over the reel and crouches, feet planted
+			const u = (t - holdAt) / Math.max(1, STRIKE.holdMs);
+			sy = 1 - (1 - STRIKE.crouch) * Math.sin(Math.PI * 0.5 * Math.min(1, u * 1.6));
+			sx = 1 + (1 - sy) * 0.5;
+			mid = r.feetY - (size.height * r.snowScale * sy) / 2;
+		} else if (t < downAt) {
+			// the turn: it leans head down about its middle, coming out of the crouch
+			const u = (t - turnAt) / Math.max(1, STRIKE.turnMs);
+			const e = 1 - (1 - u) * (1 - u);
+			rotation = r.dir * ((STRIKE.downAngle * Math.PI) / 180) * e;
+			sy = STRIKE.crouch + (1 - STRIKE.crouch) * e;
+			sx = 1 + (1 - sy) * 0.5;
+			mid = snowMid;
+		} else {
+			// down the screen, quickening, growing to its road size as it comes toward us
+			if (!r.marked) {
+				r.marked = true;
+				if (r.markCell !== null) this.markCell(r.markCell);
+			}
+			const u = (t - downAt) / Math.max(1, r.downMs);
+			const e = u * u;
+			rotation = r.dir * ((STRIKE.downAngle * Math.PI) / 180);
+			k = r.snowScale + (STRIKE.roadScale - r.snowScale) * e;
+			mid = snowMid + (r.impactY - snowMid) * e;
+		}
+		s.rotation = rotation;
+		s.width = size.width * k * sx;
+		s.height = size.height * k * sy;
+		s.position.set(x, mid);
 	}
 
 	private updateClouds() {
@@ -592,6 +662,10 @@ export class RoadFeatures {
 				for (let row = 0; row < ROWS; row++) if (LINES[row + 1] > y && LINES[row] < y + h) this.hideCell(column.reel * ROWS + row, true);
 			}
 			if (column.phase === 'grow' && t >= COLUMN.impactMs + COLUMN.growMs) {
+				// the column's cloud now covers the whole reel: a Grandma car's red box under it goes, and a Grandma Wild
+				// standing in the reel (never under variant F) gives way to the column, her number joining its own
+				this.dropMarks(column.reel);
+				for (const c of this.clouds) if (Math.floor(c.cell / ROWS) === column.reel && c.leaving === null) c.leaving = this.clock;
 				column.phase = 'enter';
 				column.t0 = this.clock;
 				column.cloud.visible = false;
@@ -634,6 +708,7 @@ export class RoadFeatures {
 				column.label.root.visible = true;
 				column.label.root.scale.set(1.5);
 			}
+			this.joinNumber(column, t - length * COLUMN.numberAt);
 			if (t >= length) {
 				column.phase = 'idle';
 				column.t0 = this.clock;
@@ -668,29 +743,34 @@ export class RoadFeatures {
 			}
 		}
 
-		// the number: settles from its pop, and swells on a crossing, changing at the top of the swell
+		// a join still due when the entrance ended (a short entrance) shows now
+		if (column.joinAdd > 0 && column.phase !== 'enter') this.joinNumber(column, Infinity);
+		// the number settles from its pop; it never changes once it stands
 		const label = column.label.root;
-		let scale = label.scale.x + (1 - label.scale.x) * 0.2;
-		if (column.beatAt !== null) {
-			const u = (this.clock - column.beatAt) / COLUMN.crossingMs;
-			if (u >= 0.4 && column.multiplier !== column.beatTo) {
-				column.multiplier = column.beatTo;
-				column.label.set(`${column.beatTo}x`);
-			}
-			if (u >= 1) {
-				column.beatAt = null;
-				column.label.set(`${column.multiplier}x`, COLUMN.numberHeight, COLUMN.numberTint);
-			} else {
-				scale = 1 + (COLUMN.crossingScale - 1) * Math.sin(Math.PI * Math.min(1, u));
-				column.label.set(`${column.multiplier}x`, COLUMN.numberHeight, u > 0.25 && u < 0.75 ? COLUMN.crossingTint : COLUMN.numberTint);
-			}
-		}
-		label.scale.set(scale);
+		label.scale.set(label.scale.x + (1 - label.scale.x) * 0.2);
+	}
+
+	/** a Grandma Wild's multiplier joining the column's number, joinMs after it popped in: the sum, with a second pop */
+	private joinNumber(column: Column, sincePop: number) {
+		if (column.joinAdd <= 0 || !column.labelShown || sincePop < COLUMN.joinMs) return;
+		column.joinAdd = 0;
+		column.label.set(`${column.multiplier}x`);
+		column.label.root.scale.set(1.5);
 	}
 
 	private wait(at: number): Promise<void> {
 		if (this.destroyed) return Promise.resolve();
 		return new Promise<void>((resolve) => this.waiters.push({ at, resolve }));
+	}
+
+	/** where the runner is in its strike (dev hook and the probes) */
+	private runnerPhase(r: Runner): 'wait' | 'along' | 'hold' | 'turn' | 'down' | 'impact' {
+		const t = this.clock - r.t0;
+		if (t < 0) return 'wait';
+		if (t < r.alongMs) return 'along';
+		if (t < r.alongMs + STRIKE.holdMs) return 'hold';
+		if (t < r.alongMs + STRIKE.holdMs + STRIKE.turnMs) return 'turn';
+		return t < r.alongMs + STRIKE.holdMs + STRIKE.turnMs + r.downMs ? 'down' : 'impact';
 	}
 
 	/** what stands on the road (dev hook and the probes) */
@@ -700,7 +780,9 @@ export class RoadFeatures {
 			// the characters as they are drawn, back to front (reel numbers from 0)
 			bodyOrder: this.bodyLayer.children.map((b) => this.reelOfBody(b)),
 			clouds: this.clouds.filter((c) => c.leaving === null).map((c) => c.cell),
-			runner: !!this.runner,
+			runner: this.runner ? { phase: this.runnerPhase(this.runner), x: Math.round(this.runner.sprite.x), y: Math.round(this.runner.sprite.y), rotation: +this.runner.sprite.rotation.toFixed(2) } : null,
+			/** the red boxes on Grandma cars in struck Santa reels */
+			marks: this.marks.map((m) => m.cell),
 		};
 	}
 

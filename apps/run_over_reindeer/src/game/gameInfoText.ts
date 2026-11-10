@@ -1,5 +1,5 @@
 // GAME INFO'S COPY (ui/GameInfoModal.svelte). Written from the settled rules (docs/run-over-reindeer-spec.md "Math
-// direction settled" and "What-if 4, variant E accepted", contract 2026-11-09b). No books are published yet: every
+// direction settled" and "What-if 4, variant E accepted", contract 2026-11-10a). No books are published yet: every
 // rate, floor and multiplier range here must be read again against the published math before a submission.
 //
 // Social mode: no gambling vocabulary on stake.us (soc(standard, social)). `**text**` marks bold runs.
@@ -34,6 +34,7 @@ export const MODE_NAMES: Record<string, string> = {
 
 const G = config.multipliers.grandmaWild;
 const C = config.multipliers.column;
+const R = config.multipliers.bonusRare;
 
 export const gameInfoText = () => ({
 	paytable: {
@@ -54,10 +55,10 @@ export const gameInfoText = () => ({
 			'Choose a bet with the minus and plus buttons, then press **Spin**. Traffic drives in from the tunnels: the top two lanes run left to right and the bottom two run right to left. When it stops, every line is checked.',
 			'Choose a play amount with the minus and plus buttons, then press **Play**. Traffic drives in from the tunnels: the top two lanes run left to right and the bottom two run right to left. When it stops, every line is checked.',
 		),
-		`**Reindeer strikes.** After the traffic stops a reindeer can run down the road and crash into a symbol. If it hits **Grandma's Car**, that one cell becomes a Wild with a multiplier (${G.base[0]}x to ${G.base[1]}x in the base game, up to ${G.freeSpins[1]}x in a bonus round) for that spin only. If it hits **Santa's Sleigh**, the whole column becomes a Wild with a multiplier of its own.`,
+		`**Reindeer strikes.** After the traffic stops a reindeer can run along the snow above the road, turn and charge down into a symbol. If it hits **Grandma's Car**, that one cell becomes a Wild with a multiplier (${G.base[0]}x to ${G.base[1]}x in the base game, up to ${G.freeSpins[1]}x in a bonus round) for that spin only. If it hits **Santa's Sleigh**, the whole column becomes a Wild with a multiplier of its own.`,
 		`**Column Wilds.** Who steps out of the smoke tells you the size of the multiplier: the Reindeer is the lowest (${C.base.reindeer[0]}x to ${C.base.reindeer[1]}x in the base game), Santa is in the middle (${C.base.santa[0]}x to ${C.base.santa[1]}x) and Grandma is the highest (${C.base.grandma[0]}x to ${C.base.grandma[1]}x). In the base game a column Wild lasts for that spin.`,
 		`**Multipliers add up.** When more than one multiplier Wild is part of the same winning line, their multipliers are added together and the line ${soc('pays', 'wins')} that many times over. A plain sleigh adds nothing.`,
-		`**Bonus rounds.** In Free Spins and Super Free Spins every column Wild stays for the rest of the round and keeps its multiplier. Column Wilds start smaller there (Reindeer ${C.freeSpins.reindeer[0]}x to ${C.freeSpins.reindeer[1]}x, Santa ${C.freeSpins.santa[0]}x to ${C.freeSpins.santa[1]}x, Grandma ${C.freeSpins.grandma[0]}x to ${C.freeSpins.grandma[1]}x in Free Spins) and grow: a reindeer that runs past a column Wild on its way to Grandma's Car **doubles** that column's multiplier, up to ${config.multipliers.bonusColumnCap}x. 3 Presents during a round add ${config.retriggerSpins} more spins.`,
+		`**Bonus rounds.** In Free Spins and Super Free Spins every column Wild stays for the rest of the round and keeps the multiplier it landed with. In Free Spins the Reindeer is ${C.freeSpins.reindeer[0]}x to ${C.freeSpins.reindeer[1]}x, Santa ${C.freeSpins.santa[0]}x to ${C.freeSpins.santa[1]}x and Grandma ${C.freeSpins.grandma[0]}x to ${C.freeSpins.grandma[1]}x; in Super Free Spins the Reindeer is ${C.super.reindeer[0]}x to ${C.super.reindeer[1]}x, Santa ${C.super.santa[0]}x to ${C.super.santa[1]}x and Grandma ${C.super.grandma[0]}x to ${C.super.grandma[1]}x. Now and then Santa steps out at **${R.santa}x** and Grandma at **${R.grandma}x**. 3 Presents during a round add ${config.retriggerSpins} more spins.`,
 		`The most a round can ${soc('pay', 'win')} is **${CAP}x**. When a round reaches it, the round ends there.`,
 	],
 	modes: {
@@ -91,7 +92,7 @@ export const gameInfoText = () => ({
 				mech: [
 					'Every column Wild stays for the rest of the round and keeps its multiplier.',
 					'Every round has at least one column Wild.',
-					`A reindeer running past a column Wild doubles it, up to ${config.multipliers.bonusColumnCap}x.`,
+					`Column Wilds from ${C.freeSpins.reindeer[0]}x up to ${R.grandma}x.`,
 					`3 Presents add ${config.retriggerSpins} spins.`,
 					soc(`A round triggered by Presents pays at least ${config.floors.naturalFreeSpins}x the bet: if its spins total less, the difference is added at the end.`, `A round triggered by Presents wins at least ${config.floors.naturalFreeSpins}x the play amount: if its spins total less, the difference is added at the end.`),
 				],

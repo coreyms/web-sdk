@@ -107,28 +107,69 @@ export const STOPLIGHT = {
 	},
 };
 
-// ---- THE REINDEER STRIKE (second pass; game/road/roadFeatures.ts) -------------------------------------------------------
-// After the lanes settle the reindeer comes out of a tunnel, runs along a lane and darts into its target (the book
-// says which tunnel, which lane, which way it darts and which columns it passes). All times are on the road's clock,
-// so turbo shortens them and a slam stop runs them 3x faster. The runner is still the tagged PLACEHOLDER picture.
+// ---- THE REINDEER STRIKE (third pass; game/road/roadFeatures.ts) ------------------------------------------------------
+// Corey 2026-11-10: "the reindeer would enter from above the board running parallel in the snow then turn downward when
+// it's going to strike something. This gives us some player anticipation." So, after the lanes settle: it comes in
+// at one end of the snow bank above the road, runs along it, brakes to a stop above the target's reel, holds there a
+// moment (the anticipation), turns, and runs straight down the screen into the target cell: the impact. The book says
+// only which cell; the path is the game's. All times are on the road's clock, so turbo shortens them and a slam stop
+// runs them 3x faster. The runner is still the tagged PLACEHOLDER side view (the rig's run, turn and down-the-screen
+// clips come later): the turn is that picture leaning head down, and it grows as it runs down toward us.
+export type SnowRun = {
+	/** where its feet run along the snow, road px from the picture's top (the lane lines are 167 to 851) */
+	feetY: number;
+	/** its size in the snow, on top of the built size (190 road px tall) */
+	scale: number;
+};
 export const STRIKE = {
 	/** the pause after the lanes settle (or after the strike before) */
 	leadInMs: 90,
-	/** how fast it runs, road px per second, and the least and most its run may take */
-	runSpeed: 2700,
-	runMinMs: 300,
-	runMaxMs: 620,
-	/** the dart from its lane into the target's lane (the last stretch of the run, as long as this) */
-	dartMs: 130,
-	/** it stops this many road px short of the target's centre: the impact */
-	stopShort: 70,
-	/** its canter: hops this high, this many a second */
+	/** WHICH END IT ENTERS AT: 'far' = the end farther from the target's reel (it passes the most of the board, so
+	 *  the player watches for where it turns; the middle reel counts as nearer the right, so it comes from the left),
+	 *  'near' the nearer end, or always 'left' / 'right' */
+	entry: 'far' as 'far' | 'near' | 'left' | 'right',
+	/** THE RUN HEIGHT IN THE SNOW, per layout. How much snow each screen shows above the top lane (lane line 167):
+	 *    landscape  since the desktop road was shrunk 11% for it (Corey 2026-11-10; game/layoutSpec.ts ROAD_LAYOUT):
+	 *               from the top bar's lower edge (road y -25) to the lane, 192 road px, and the title sign covers the
+	 *               middle three reels down to road y 28. Feet on the shoulder above the top lane at 0.72 of the built
+	 *               size (137 road px, 88 master units tall; at the road's own 0.85 it would run into the sign), so only its
+	 *               antler tips pass behind the sign. (Before the shrink: 95 road px of snow, half size, legs only
+	 *               under the sign.)
+	 *    phone      from the screen's top (road y -62) to the lane: 229 road px, nothing over it.
+	 *    portrait   the whole snow field under the title: over 500 road px. */
+	snow: {
+		landscape: { feetY: 150, scale: 0.72 } as SnowRun,
+		phone: { feetY: 100, scale: 0.8 } as SnowRun,
+		portrait: { feetY: 70, scale: 0.85 } as SnowRun,
+	},
+	/** it starts this many road px outside the picture's edge, under the rock or off the screen */
+	enterPad: 30,
+	/** ALONG THE SNOW: road px per second, and the least and most the run may take */
+	runSpeed: 2800,
+	runMinMs: 260,
+	runMaxMs: 480,
+	/** the last share of the run brakes to a stop above the target's reel (0 = no braking, a hard stop) */
+	brakeShare: 0.3,
+	/** THE ANTICIPATION: it stands above the target's reel this long before it turns, crouching to this height */
+	holdMs: 140,
+	crouch: 0.9,
+	/** THE TURN: it leans head down to this many degrees over this long (90 = pointing straight down the screen) */
+	turnMs: 90,
+	downAngle: 90,
+	/** DOWN THE SCREEN: road px per second, and the least and most the run down may take. It quickens as it goes. */
+	downSpeed: 2600,
+	downMinMs: 130,
+	downMaxMs: 280,
+	/** the impact: when its middle reaches this far down the target cell (0 top, 1 bottom) */
+	impactAt: 0.5,
+	/** its size on the road at the impact, on top of the built size; it grows to this from its snow size on the way
+	 *  down (it is coming toward us) */
+	roadScale: 0.85,
+	/** its canter in the snow: hops this high (at road size; smaller in the snow), this many a second */
 	hopPx: 14,
 	hopsPerSecond: 4.5,
 	/** the runner fades out over this long after the impact */
 	fadeMs: 120,
-	/** the size of the runner on top of the built size (190 road px tall) */
-	scale: 0.85,
 };
 
 // ---- THE GRANDMA WILD: the crash cloud in one cell, for one spin (Corey 2026-11-04 and 2026-11-09) ---------------------
@@ -149,6 +190,9 @@ export const CLOUD_CELL = {
 };
 
 // ---- THE RED BOX (drawn by the game: plain colored quads, no picture) ---------------------------------------------------
+// The same box, in the same red, frames the Grandma Wild's cell, a column Wild, and the Grandma car standing in a struck
+// Santa reel (Corey 2026-11-10: "we could draw a red box around the grandma when it happens though, that gets covered by
+// the santa strike column wild"): it comes on as the reindeer starts down, and the column's cloud grows over it.
 export const RED_BOX = {
 	color: 0xd6162c,
 	/** the frame's thickness and the dark line around it, road px */
@@ -180,14 +224,17 @@ export const COLUMN = {
 	numberTint: 0xffd400,
 	/** it pops in when the entrance is this far along (0 to 1) */
 	numberAt: 0.55,
-	/** A CROSSING: the number swells to this size and back over beatMs, changing at the top of the swell, in this color */
-	crossingScale: 1.7,
-	crossingMs: 420,
-	crossingTint: 0xffffff,
+	/** a Grandma Wild already standing in the reel adds her multiplier (EVENT_SCHEMA 2026-11-10a; never under variant
+	 *  F): the column's own number pops in first, and the sum takes its place this long after, with a second pop */
+	joinMs: 420,
 	/** a column not held leaves (the press, the end of a round) over this long */
 	leaveMs: 160,
 	/** how long the handler waits for a tier's pictures before it goes on without them (real ms) */
 	loadWaitMs: 4000,
+	/** THE UPLOAD QUEUE for the characters' sheets (game/road/columnClips.ts; Corey's iPhone runs 2026-11-10 showed a
+	 *  tier's three clips going to the GPU in the same frames): one sheet at a time, at least gapMs apart (real ms), and
+	 *  kept out of an impact's frames for at most quietMaxMs, unless a column is waiting on that very picture */
+	upload: { gapMs: 120, quietMaxMs: 1200 },
 };
 
 // ---- THE BONUS ROUND'S CARDS AND BEATS (ui/RoundCard.svelte, game/bookEventHandlerMap.ts) -----------------------------

@@ -57,15 +57,21 @@ export const setPortraitViewportSource = (source: () => PortraitViewport) => {
 // ---- THE ROAD'S PLACE PER LAYOUT ----------------------------------------------------------------------------------------
 // width: the background picture's width in master units (so one road px is width / 1536 master units).
 // centreX / centreY: where the picture's centre sits in the master.
-//   landscape  the picture covers the 16:9 master's height with a hair to spare (736 of 720), so its top and bottom
-//              edges are off the screen; the lanes run y 104 to 596, clear of the HUD's bottom row (top 610). The board
-//              is 898 of the 1280 wide. Left and right of the picture is flat snow (the desktop overpass art is not made).
+//   landscape  SHRUNK 11% FOR THE REINDEER'S RUN (Corey 2026-11-10, "Yes... don't worry about the title sign yet,
+//              since that's just a placeholder, but it looks pretty good"): the picture is 982 wide (was 1104), centred
+//              across as before. ALL the freed height went above the road: the bottom lane line stays at y 596, clear of
+//              the HUD's bottom row (top 610), exactly where it was, and the top lane line comes down from y 104 to 159.
+//              So the snow above the road is 123 master units tall under the top bar (was 68), 89 of them under the
+//              title sign: the band the reindeer runs in (constants STRIKE.snow.landscape). The board is 799 of the
+//              1280 wide (was 898). Left and right of the picture is the dark rock (ROAD.rock); the picture's own bottom
+//              edge (y 707) is under the HUD's bottom bed.
 //   phone      the board stands between the HUD's two side columns (340 master units each): the five columns span
 //              340 to 1140 exactly, the portals stand under the columns' inner edges.
 //   portrait   the picture spans the screen's width (see roadPlacement), centred in the band between the title and
 //              the BALANCE row.
 export const ROAD_LAYOUT = {
-	landscape: { width: 1104, centreX: 640, centreY: 352 },
+	// centreY: the picture's top at 596 - 851 x (982 / 1536) = 51.9 (the bottom lane line on 596), plus half its height
+	landscape: { width: 982, centreX: 640, centreY: 379.3 },
 	phone: { width: 983, centreX: 740, centreY: 368 },
 	portrait: {
 		/** the picture is never drawn wider than this (tablets), master units */
@@ -115,17 +121,15 @@ export const boardRect = (kind: LayoutKind) => {
 };
 
 // ---- THE HUD'S READOUT ROW (desktop) --------------------------------------------------------------------------------------
-/** the landscape HUD's readout row (BALANCE / WIN / SPIN) is keyed to the board's edges, but never closer than this
- *  to the button clusters (master units), as in Manticore: left = the [Feature, Menu] cluster's right edge + 20;
- *  right = the [Auto / Turbo, Spin] cluster's left edge - 16. */
+/** the landscape HUD's readout row (BALANCE / WIN / SPIN), as in Manticore: never closer than this to the button
+ *  clusters (master units): left = the [Feature, Menu] cluster's right edge + 20; right = the [Auto / Turbo, Spin]
+ *  cluster's left edge - 16. */
 export const TRIO_CLEAR = { left: 234, right: 1026 };
 
-export const landscapeTrioSpan = () => {
-	const a = boardRect('landscape');
-	const x0 = Math.max(a.x, TRIO_CLEAR.left);
-	const x1 = Math.min(a.right, TRIO_CLEAR.right);
-	return { x: x0, width: x1 - x0 };
-};
+/** The row spans exactly TRIO_CLEAR. It was keyed to the board's edges held inside these limits, and the board (190 to
+ *  1088 before the 2026-11-10 shrink) was wider than them on both sides, so it always came out 234 to 1026. The shrunk
+ *  board (240 to 1039) would have moved its left end by 6: the HUD stays exactly where it was instead. */
+export const landscapeTrioSpan = () => ({ x: TRIO_CLEAR.left, width: TRIO_CLEAR.right - TRIO_CLEAR.left });
 
 /** THE PHONE HUD'S SIDE COLUMNS (phone held sideways): the HTML chrome keeps its title, the BALANCE / WIN / SPIN
  *  stack and the button clusters inside a column this wide at each end of the 1480 master. */
