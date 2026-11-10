@@ -4,13 +4,30 @@ import { eventEmitter } from './eventEmitter';
 import type { Bet, BookEventOfType } from './typesBookEvent';
 import { bookEventHandlerMap } from './bookEventHandlerMap';
 import { hudWinRoundStart } from './hudWin.svelte';
+import { preloadForEvents } from './road/columnClips';
+import { STAGING_TOOLS, perfMark } from './staging';
 
-export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEventHandlerMap });
+// STAGING READOUT ONLY (game/staging.ts perfMark): each book event leaves its type as a label, so a long frame
+// can be traced to the step of the round it fell in. A production build uses the map as it is.
+const markedHandlerMap = (): typeof bookEventHandlerMap => {
+	const out: Record<string, unknown> = {};
+	for (const [type, handler] of Object.entries(bookEventHandlerMap as Record<string, (...args: unknown[]) => unknown>)) {
+		out[type] = (...args: unknown[]) => {
+			perfMark(`book:${type}`);
+			return handler(...args);
+		};
+	}
+	return out as typeof bookEventHandlerMap;
+};
+
+export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEventHandlerMap: STAGING_TOOLS ? markedHandlerMap() : bookEventHandlerMap });
 
 /** play one round's book, event by event, in book order */
 export const playBet = async (bet: Bet) => {
 	// a fresh WIN (game/hudWin.svelte.ts)
 	hudWinRoundStart();
+	// the column characters this book calls for start loading now, well before its first strike reaches its target
+	preloadForEvents(bet.state);
 	await playBookEvents(bet.state);
 	eventEmitter.broadcast({ type: 'stopButtonEnable' });
 };

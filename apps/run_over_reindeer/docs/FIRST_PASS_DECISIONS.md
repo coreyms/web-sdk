@@ -1,5 +1,8 @@
 # Run Over Reindeer: first pass decisions (2026-11-09)
 
+SECOND PASS NOTE (2026-11-10): sections 6 (the feature menu's numbers), 8 (placeholders), 10 (hand-written fixture
+rounds) and the line count of 20 are replaced by `SECOND_PASS_DECISIONS.md`. The rest still holds.
+
 Every decision the build agent took for the first pass, one line each, with where to change it. Corey said the
 agent decides and he tweaks later, so nothing here is locked. Paths are inside `web-sdk/apps/run_over_reindeer/`.
 

@@ -73,6 +73,10 @@ const forcedCap = (): number | null => {
  *  probe or a tester can A / B caps on the same build. */
 export const renderResolutionCap = (): number => forcedCap() ?? DEVICE_CAP;
 
+/** the `?rescap=<n>` in force (held to RESCAP_RANGE), or null: none, or a production build. The column characters'
+ *  sheets follow it too (game/road/columnClips.ts picks the density, docs/COLUMN_DENSITY_TEST.md). */
+export const forcedResolutionCap = (): number | null => forcedCap();
+
 /** THE RENDERER'S RESOLUTION for a window of this CSS size: the device's density under the cap, and off the phone
  *  tier also under the pixel ceiling (constants RENDER_MAX_PIXELS), never under 1. A forced `?rescap=` is taken as
  *  it is (no ceiling). components/Game.svelte applies it; the label atlas pick in game/assets.ts reads the same. */

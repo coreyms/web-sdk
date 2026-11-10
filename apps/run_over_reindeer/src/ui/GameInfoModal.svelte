@@ -1,6 +1,6 @@
 <script lang="ts">
 	// GAME INFO, full screen on the house panel surface (the Manticore Mayhem page's shell and styles, with this
-	// game's sections): the paytable with the real symbol pictures, the 20 lines, how to play, the modes, the max win
+	// game's sections): the paytable with the real symbol pictures, the lines, how to play, the modes, the max win
 	// and RTP, the legal block. The copy is game/gameInfoText.ts (a first draft from the spec).
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
@@ -109,7 +109,7 @@
 	const statSize = $derived(dense ? 15 : 17);
 	const payFont = $derived(dense ? 13 : 16);
 	// the 20 line pictures: how many to a row
-	const lineCols = $derived(narrow ? 4 : 10);
+	const lineCols = $derived(narrow ? 4 : 6);
 </script>
 
 {#snippet rich(text: string)}{#each runs(text) as r}{#if r.b}<strong>{r.t}</strong>{:else}{r.t}{/if}{/each}{/snippet}
@@ -314,7 +314,7 @@
 	.x:hover {
 		background: var(--ui-glass-well-2);
 	}
-	/* tab strip: underlined text, gold on the active one — eleven fit in one row on desktop, scroll on portrait */
+	/* tab strip: underlined text, gold on the active one: eleven fit in one row on desktop, scroll on portrait */
 	.tabs {
 		display: flex;
 		gap: 2px;
@@ -417,7 +417,7 @@
 		margin-top: 4px;
 	}
 	/* rows / cards: hairline boxes on the glass */
-	/* cells sized up 2026-09-15 (Corey): 64px tiles, larger names and pays — the 44px thumbnails
+	/* cells sized up 2026-09-15 (Corey): 64px tiles, larger names and pays: the 44px thumbnails
 	   read as coloured squares in the approval review */
 	.row {
 		display: flex;

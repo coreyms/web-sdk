@@ -25,7 +25,11 @@ const refreshBalance = async () => {
 };
 
 const primaryMachines = createPrimaryMachines<Bet>({
-	onResumeGameActive: (betToResume) => convertTorResumableBet(betToResume),
+	onResumeGameActive: (betToResume) => {
+		// a round left open is being played on: the board is busy until its finalWin, as for a round just started
+		stateGame.busy = true;
+		return convertTorResumableBet(betToResume);
+	},
 	onResumeGameInactive: (betToResume) => {
 		// snap the board to where the last round left it, with no motion
 		const lastReveal = _.findLast(betToResume.state, (bookEvent) => bookEvent?.type === 'reveal');

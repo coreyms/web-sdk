@@ -23,7 +23,7 @@ export const STAGING_MARKERS = [
 	'ROR_STAGING_BUILD', // game/staging.ts: window.__rorBuild
 	'__rorBuild',
 	'rescap', // game/deviceTier.ts: the resolution cap override's query parameter
-	// (Manticore's ?perf=1 readout is not in this app yet; when it is ported, its markers go back in this list)
+	'ROR_FIXTURE_RGS', // fixtures/fixtureRgs.ts: the showcase rounds answered in the page (dev and staging only since 2026-11-10)
 ];
 /** strings that must be in NO build, production or staging: dev server only code (a staging build is not expected to
  *  carry them, so --expect-staging does not ask for them) */

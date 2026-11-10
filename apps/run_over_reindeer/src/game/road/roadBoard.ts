@@ -6,8 +6,9 @@
 // "comes out of the tunnels" because the two portal strips cut from the background are drawn over it, and it
 // darkens near them by a plain sprite tint.
 //
-// Layers, back to front: the background, the four lanes (top lane first, so lower lanes draw in front), the line
-// win overlay, the placeholder reindeer, the two stoplights, the rock beside the picture and the tunnel portals.
+// Layers, back to front: the background, the four lanes (top lane first, so lower lanes draw in front), the features
+// (cloud cells, red boxes, column characters), the line win overlay, the running reindeer, the two stoplights, the
+// rock beside the picture and the tunnel portals.
 //
 // What is on the board only ever comes from the caller (the book event handlers): setBoard / driveIn take the
 // book's board as it is. The one place a random number is used is the make-believe "through traffic" that may pass
@@ -18,6 +19,7 @@ import { ROAD_ART } from '../roadArtSpec';
 import { LINE_WIN, ROAD, STOPLIGHT, motionFor, type RoadMotion } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
+import { NumberLabel, RoadFeatures } from './roadFeatures';
 
 const COLS = ROAD_ART.board.columns;
 const ROWS = ROAD_ART.board.rows;
@@ -118,8 +120,9 @@ export class RoadBoard {
 	private readonly winLayer = new PIXI.Container();
 	private readonly winLines = new PIXI.Graphics();
 	private winAmount: PIXI.Text | null = null;
-	private readonly deerLayer = new PIXI.Container();
-	private deer: { sprite: PIXI.Sprite; t0: number; row: number; dir: 1 | -1 } | null = null;
+	private winMult: NumberLabel | null = null;
+	/** the strike, the cloud cells and the column Wilds (game/road/roadFeatures.ts) */
+	readonly features: RoadFeatures;
 	private readonly lightLayer = new PIXI.Container();
 	private readonly lights: Stoplight[] = [];
 	/** THE SIGNAL's clock marks: a spin is under way from the press until every lane is home; per lane, when its
@@ -137,6 +140,8 @@ export class RoadBoard {
 	 *  (read off the symbols themselves, not off the schedule), and per light when its red came on */
 	private laneStoppedReal: number[] = [0, 0, 0, 0];
 	private laneStoppedCount: number[] = [0, 0, 0, 0];
+	/** how many symbols park in each lane this spin (5, less the column Wilds standing in it) */
+	private laneParked: number[] = [COLS, COLS, COLS, COLS];
 	/** DEV: hold the lights on one color (or dark) whatever the board does; undefined = follow the board */
 	private signalForced: SignalColor | null | undefined = undefined;
 	/** the layout the road is drawn in (components/Board.svelte sets it): the stoplights' place is per layout */
@@ -154,8 +159,10 @@ export class RoadBoard {
 	/** per lane: when its incoming convoy is home (board clock) */
 	private laneHomeAt: number[] = [0, 0, 0, 0];
 	private laneStopSoundAt: (number | null)[] = [null, null, null, null];
-	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean } | null = null;
+	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean } | null = null;
 	private destroyed = false;
+	/** how many symbols the board on the road parks (20, less four for every column Wild standing) */
+	private parked = COLS * ROWS;
 
 	/** a lane's front car has stopped (the handler plays the stop sound) */
 	onLaneStop: ((lane: number) => void) | null = null;
@@ -176,10 +183,15 @@ export class RoadBoard {
 			this.lanes.push(lane);
 			this.root.addChild(lane);
 		}
+		// the cloud cells, the red boxes and the column characters stand over the traffic and under the line win
+		this.features = new RoadFeatures(tex);
+		this.features.hideCell = (cell, hidden) => this.setCellHidden(cell, hidden);
+		this.root.addChild(this.features.layer);
 		this.winLayer.addChild(this.winLines);
 		this.winLayer.visible = false;
 		this.root.addChild(this.winLayer);
-		this.root.addChild(this.deerLayer);
+		// the running reindeer, over the line win too
+		this.root.addChild(this.features.runnerLayer);
 		this.root.addChild(this.lightLayer);
 		this.buildLights();
 
@@ -240,10 +252,26 @@ export class RoadBoard {
 		car.sprite.visible = false;
 	}
 
+	/** a cell's parked symbol is covered by a cloud or a column (it is not drawn, and does not come back by itself) */
+	private setCellHidden(cell: number, hidden: boolean) {
+		const col = Math.floor(cell / ROWS);
+		const lane = cell % ROWS;
+		for (const car of this.cars) {
+			if (car.phase !== 'rest' || car.col !== col || car.lane !== lane) continue;
+			car.sprite.visible = !hidden;
+		}
+	}
+
 	/** the x a symbol is hidden at on the side it enters from (`enter`) or leaves by */
 	private hiddenX(car: Car, enter: boolean): number {
 		const fromLeft = car.dir > 0 ? enter : !enter;
 		return fromLeft ? MOUTH_L - car.halfW - HIDE_PAD : MOUTH_R + car.halfW + HIDE_PAD;
+	}
+
+	/** does a symbol park in this cell? Not where a column Wild stands, and the two feature Wilds are never traffic. */
+	private parks(board: Board, col: number, row: number): boolean {
+		const symbol = board[col][row];
+		return symbol !== 'CW' && symbol !== 'GW' && !this.features.hasColumn(col);
 	}
 
 	/** put a board up as it is, at rest (boot, a resumed round, a failed play) */
@@ -253,15 +281,19 @@ export class RoadBoard {
 		this.waiting = null;
 		this.spinActive = false; // stopped: the signal is red
 		this.clearWin();
+		let parked = 0;
 		for (let col = 0; col < COLS; col++) {
 			for (let row = 0; row < ROWS; row++) {
+				if (!this.parks(board, col, row)) continue;
 				const car = this.take(row, board[col][row]);
 				car.phase = 'rest';
 				car.col = col;
 				car.restX = columnX(col);
 				car.sprite.x = car.restX;
+				parked += 1;
 			}
 		}
+		this.parked = parked;
 		this.paint();
 	}
 
@@ -302,6 +334,7 @@ export class RoadBoard {
 		this.outAt = null;
 		const brakeDist = (m.cruise * m.in.brakeMs) / 2000;
 		let allHome = start;
+		let parked = 0;
 		m.laneOrder.forEach((lane, k) => {
 			const dir = ROAD.laneDirection[lane];
 			let t0 = start + k * m.in.laneStaggerMs;
@@ -311,8 +344,17 @@ export class RoadBoard {
 			}
 			// the convoy, front car first: the front car is the one whose column is farthest from the entry
 			const order = Array.from({ length: COLS }, (_, i) => (dir > 0 ? COLS - 1 - i : i));
-			let leadStop = 0;
+			// The lane's time is set by its FRONT place (the column farthest from the entry), whether or not a symbol parks
+			// there: a held column Wild in the lane leaves the other symbols' places and times exactly as they were.
+			const hiddenAt = (halfW: number) => (dir > 0 ? MOUTH_L - halfW - HIDE_PAD : MOUTH_R + halfW + HIDE_PAD);
+			const stopFor = (halfW: number, overshoot: number) => {
+				const s0 = Math.abs(columnX(order[0]) + dir * overshoot - hiddenAt(halfW));
+				return t0 + m.in.brakeMs + (Math.max(0, s0 - brakeDist) / m.cruise) * 1000;
+			};
+			let leadStop = stopFor(PITCH * 0.46, m.in.overshootPx);
+			let count = 0;
 			order.forEach((col, i) => {
+				if (!this.parks(board, col, lane)) return;
 				const car = this.take(lane, board[col][lane]);
 				const stiff = CARS.includes(car.symbol as SymbolName) ? 1 : m.in.stiffShare;
 				car.phase = 'in';
@@ -321,15 +363,15 @@ export class RoadBoard {
 				car.restX = columnX(col);
 				car.overshoot = m.in.overshootPx * stiff;
 				car.dive = (m.in.diveDeg * stiff * Math.PI) / 180;
-				if (i === 0) {
-					const s0 = Math.abs(car.restX + dir * car.overshoot - this.hiddenX(car, true));
-					leadStop = t0 + m.in.brakeMs + (Math.max(0, s0 - brakeDist) / m.cruise) * 1000;
-				}
+				if (i === 0) leadStop = stopFor(car.halfW, car.overshoot);
 				car.stopAt = leadStop + i * m.in.carStaggerMs;
 				car.sprite.x = this.hiddenX(car, true);
 				car.sprite.visible = false;
+				count += 1;
 			});
-			this.laneStopSoundAt[lane] = leadStop;
+			this.laneParked[lane] = count;
+			parked += count;
+			this.laneStopSoundAt[lane] = count > 0 ? leadStop : null;
 			// THE SIGNAL: this lane's front symbol starts to brake here (amber); its last symbol reaches its stop point
 			// here (red: the start of the brake bounce, not the end of it)
 			this.laneBrakeAt[lane] = leadStop - m.in.brakeMs;
@@ -337,6 +379,7 @@ export class RoadBoard {
 			this.laneHomeAt[lane] = leadStop + (COLS - 1) * m.in.carStaggerMs + m.in.settleMs;
 			allHome = Math.max(allHome, this.laneHomeAt[lane]);
 		});
+		this.parked = parked;
 		return this.wait(allHome + 20, 'board');
 	}
 
@@ -353,7 +396,7 @@ export class RoadBoard {
 
 	// ---- the line win ------------------------------------------------------------------------------------------------
 	/** show every winning line together with the amount; resolves when the hold is over */
-	showWin(wins: LineWinSpec[], amountText: string, holdMs: number): Promise<void> {
+	showWin(wins: LineWinSpec[], amountText: string, holdMs: number, multiplier = 1): Promise<void> {
 		const cells = new Set<number>();
 		for (const w of wins) for (const c of w.cells) cells.add(c);
 		for (const car of this.cars) {
@@ -400,10 +443,35 @@ export class RoadBoard {
 		const half = this.winAmount.width / 2 + 20;
 		const x = first ? columnX(Math.floor(mid / ROWS)) : ROAD_ART.image.width / 2;
 		this.winAmount.position.set(Math.min(MOUTH_R - half, Math.max(MOUTH_L + half, x)), first ? laneMidY(mid % ROWS) : ROAD_ART.image.height / 2);
+		// a win through multiplier Wilds says so: "x35" over the amount (the highest multiplier among the winning lines)
+		if (!this.winMult) {
+			this.winMult = new NumberLabel(this.tex, LINE_WIN.multHeight, LINE_WIN.multTint);
+			this.winLayer.addChild(this.winMult.root);
+		}
+		this.winMult.root.visible = multiplier > 1;
+		if (multiplier > 1) {
+			this.winMult.set(`x${multiplier}`, LINE_WIN.multHeight, LINE_WIN.multTint);
+			this.winMult.root.position.set(this.winAmount.x, this.winAmount.y - LINE_WIN.multUp);
+		}
+		// the columns a winning line runs through play their win clip
+		const reels = new Set<number>();
+		for (const w of wins) for (const c of w.cells) reels.add(Math.floor(c / ROWS));
+		this.features.winColumns([...reels]);
 		this.winLayer.alpha = 1;
 		this.winLayer.visible = true;
-		this.win = { t0: this.winClock, holdMs, fadeAt: this.winClock + holdMs, active: true };
+		// a line win dims the symbols that are not part of it; a plain message over the board (no cells) dims nothing
+		this.win = { t0: this.winClock, holdMs, fadeAt: this.winClock + holdMs, active: true, dim: wins.length > 0 };
 		return this.wait(this.winClock + holdMs, 'win');
+	}
+
+	/** pulse some cells with no line and no amount (the scatters of a trigger); resolves after `ms` */
+	pulseCells(cells: number[], ms: number): Promise<void> {
+		return this.showWin(cells.map((cell) => ({ cells: [cell], line: 1 })), '', ms);
+	}
+
+	/** a short line over the middle of the board (a retrigger's "+3 FREE SPINS"); resolves after `ms` */
+	message(text: string, ms: number): Promise<void> {
+		return this.showWin([], text, ms);
 	}
 
 	/** take the win picture down (the lines and the amount fade, the symbols come back to full brightness) */
@@ -533,25 +601,6 @@ export class RoadBoard {
 		this.signalForced = color;
 	}
 
-	// ---- the placeholder reindeer (dev hook only until the strike events are built) ------------------------------------
-	/** run the PLACEHOLDER reindeer along a lane's lower line, in that lane's direction. Not tied to any book event. */
-	runReindeer(row: number) {
-		const texture = this.tex('reindeer_run');
-		if (!texture) return;
-		const r = Math.max(0, Math.min(ROWS - 1, Math.round(row)));
-		const dir = ROAD.laneDirection[r];
-		if (this.deer) this.deer.sprite.destroy();
-		const sprite = new PIXI.Sprite(texture);
-		sprite.anchor.set(0.5, 1);
-		const size = ROAD_ART.symbols.reindeer_run;
-		const k = size.width / texture.width;
-		// the reference picture faces right
-		sprite.scale.set(k * dir, k);
-		sprite.y = LINES[r + 1];
-		this.deerLayer.addChild(sprite);
-		this.deer = { sprite, t0: this.clock, row: r, dir };
-	}
-
 	// ---- the frame -------------------------------------------------------------------------------------------------------
 	/** advance by `dtMs` of real time. `rate` is the board clock's speed (turbo, a slam stop); `hurry` also speeds the win hold. */
 	update(dtMs: number, rate: number, hurry = 1) {
@@ -611,7 +660,7 @@ export class RoadBoard {
 					if (!car.stopped) {
 						// DEV readout: this symbol is at its stop point now (snapshot().signalTiming)
 						car.stopped = true;
-						if (++this.laneStoppedCount[car.lane] === COLS) this.laneStoppedReal[car.lane] = performance.now();
+						if (++this.laneStoppedCount[car.lane] === this.laneParked[car.lane]) this.laneStoppedReal[car.lane] = performance.now();
 					}
 					const u = -left / m.in.settleMs;
 					if (u >= 1) {
@@ -638,7 +687,7 @@ export class RoadBoard {
 		}
 
 		this.updateWin();
-		this.updateDeer(now);
+		this.features.update(now);
 		this.updateLights(dt);
 		this.paint();
 
@@ -668,7 +717,7 @@ export class RoadBoard {
 			for (const car of this.cars) {
 				if (car.phase !== 'rest') continue;
 				car.sprite.scale.set(car.baseScale * (car.winning ? k : 1));
-				const want = car.winning ? 1 : LINE_WIN.dim;
+				const want = car.winning || !win.dim ? 1 : LINE_WIN.dim;
 				car.bright += (want - car.bright) * 0.25;
 			}
 			if (t >= win.holdMs) win.active = false;
@@ -687,22 +736,6 @@ export class RoadBoard {
 				this.winLayer.visible = false;
 				this.win = null;
 			}
-		}
-	}
-
-	private updateDeer(now: number) {
-		const d = this.deer;
-		if (!d) return;
-		const tau = (now - d.t0) / 1000;
-		const half = ROAD_ART.symbols.reindeer_run.width / 2 + HIDE_PAD;
-		const from = d.dir > 0 ? MOUTH_L - half : MOUTH_R + half;
-		d.sprite.x = from + d.dir * 1500 * tau;
-		// a canter: a small hop twice a second
-		d.sprite.y = LINES[d.row + 1] - Math.abs(Math.sin(tau * Math.PI * 4)) * 14;
-		const gone = d.dir > 0 ? d.sprite.x > MOUTH_R + half : d.sprite.x < MOUTH_L - half;
-		if (gone) {
-			d.sprite.destroy();
-			this.deer = null;
 		}
 	}
 
@@ -731,7 +764,7 @@ export class RoadBoard {
 	// ---- readouts ----------------------------------------------------------------------------------------------------------
 	/** every symbol is parked on its mark and nothing is in flight */
 	get atRest(): boolean {
-		return this.cars.every((c) => c.phase === 'free' || c.phase === 'rest') && this.cars.filter((c) => c.phase === 'rest').length === COLS * ROWS;
+		return this.cars.every((c) => c.phase === 'free' || c.phase === 'rest') && this.cars.filter((c) => c.phase === 'rest').length === this.parked;
 	}
 
 	/** what is drawn where, for the dev hook and the probes: board[reel][row] of the parked symbols, and how far each is off its mark */
@@ -745,9 +778,10 @@ export class RoadBoard {
 		}
 		const phases: Record<string, number> = {};
 		for (const car of this.cars) phases[car.phase] = (phases[car.phase] ?? 0) + 1;
-		return { board, maxDrift, phases, sprites: this.cars.length, clock: Math.round(this.clock), atRest: this.atRest, winShowing: !!this.win?.active, signals: this.lights.map((l) => l.showing),
+		return { board, maxDrift, phases, sprites: this.cars.length, clock: Math.round(this.clock), atRest: this.atRest, winShowing: !!this.win?.active, features: this.features.snapshot(),
+			signals: this.lights.map((l) => l.showing),
 			// per lane: every one of its symbols has reached its stop point (read off the symbols)
-			lanesStopped: this.laneStoppedCount.map((n) => n === COLS),
+			lanesStopped: this.laneStoppedCount.map((n, lane) => n === this.laneParked[lane]),
 			// per light: ms from its two lanes' last symbol reaching its stop point to its red coming on (the last spin).
 			// Negative = the red led the stop by that much.
 			signalTiming: this.lights.map((l) => {
@@ -761,6 +795,7 @@ export class RoadBoard {
 		this.destroyed = true;
 		for (const w of this.waiters) w.resolve();
 		this.waiters = [];
+		this.features.destroy();
 		this.root.destroy({ children: true });
 	}
 }

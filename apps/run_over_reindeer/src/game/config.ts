@@ -2,10 +2,10 @@
 // Nothing here is used to COMPUTE an outcome: the books do that. It feeds the paytable page, the rules copy,
 // the payline pictures and the fallback mode prices (the RGS's authenticate values always win).
 //
-// FIRST PASS: the math is not final. The three and four of a kind pays are the sim's proposal, the mode keys
-// for the three Ante levels are this frontend's guess (the math has base, bonus and super so far).
+// The rules are What-if 4 variant E (Corey 2026-11-09), contract version 2026-11-09b. No books are published yet,
+// and the mode keys for the three Ante levels are this frontend's guess (the math has base, bonus and super so far).
 export default {
-	mathVersion: 'first-sim-2026.11.09',
+	mathVersion: 'whatif4-E-2026.11.09b',
 	providerName: 'polymath_games',
 	gameName: 'Run Over Reindeer',
 	gameID: 'run_over_reindeer',
@@ -38,7 +38,8 @@ export default {
 		L5: { name: '10', tier: 'LOW', paytable: [0.1, 0.3, 1.0] },
 		W: { name: "Santa's Sleigh Wild", tier: 'WILD', paytable: [1.5, 5.0, 25.0] },
 		S: { name: 'Present Scatter', tier: 'SCATTER', paytable: null },
-		// feature symbols the books can put on a board (not presented in the first pass, drawn as the sleigh Wild)
+		// the two feature Wilds a book can put on a board: GW a Grandma crash Wild (one cell, one spin), CW a cell of a
+		// full column Wild. Neither has a symbol picture: the road draws the cloud cell and the column character.
 		GW: { name: 'Grandma Wild', tier: 'WILD', paytable: null },
 		CW: { name: 'Column Wild', tier: 'WILD', paytable: null },
 	},
@@ -46,19 +47,30 @@ export default {
 	// pay order, best first (the paytable page)
 	payOrder: ['H1', 'H2', 'H3', 'H4', 'L1', 'L2', 'L3', 'L4', 'L5'],
 	carSymbols: ['H1', 'H2', 'H3', 'H4'],
-	// 20 fixed paylines: the row on each reel, 0 = the top lane (ror_rules.py PAYLINES)
+	// THE 12 PAYLINES (contract 2026-11-09b): the row on each reel, 0 = the top lane. Lines 1-10, 19 and 20 of the
+	// first 20 line set; 11-18 were removed (Corey 2026-11-09). A win's `line` is 1-based into this list. Everything
+	// that shows lines (the board, Game Info) reads this list, so its length is never written anywhere else.
 	paylines: [
 		[0, 0, 0, 0, 0], [1, 1, 1, 1, 1], [2, 2, 2, 2, 2], [3, 3, 3, 3, 3],
 		[0, 1, 2, 1, 0], [3, 2, 1, 2, 3], [1, 2, 3, 2, 1], [2, 1, 0, 1, 2],
-		[0, 0, 1, 0, 0], [3, 3, 2, 3, 3], [1, 0, 0, 0, 1], [2, 3, 3, 3, 2],
-		[0, 1, 1, 1, 0], [3, 2, 2, 2, 3], [1, 1, 0, 1, 1], [2, 2, 3, 2, 2],
-		[1, 2, 2, 2, 1], [2, 1, 1, 1, 2], [0, 1, 0, 1, 0], [3, 2, 3, 2, 3],
+		[0, 0, 1, 0, 0], [3, 3, 2, 3, 3], [0, 1, 0, 1, 0], [3, 2, 3, 2, 3],
 	],
 	freeSpins: 10,
 	retriggerSpins: 3,
-	// floors on a round's total, in base bet multiples (ror_rules.py FLOOR_*): the books meet them, the frontend only states them
-	floors: { naturalFreeSpins: 30, naturalSuper: 150, boughtSuper: 20 },
-	wildCap: 100,
+	// floors on a bonus round's own total, in base bet multiples. The BOOKS meet them (a natural round under its floor
+	// carries a floorTopUp event; a bought Super is drawn to its minimum); the frontend only states them.
+	floors: { naturalFreeSpins: 10, naturalSuper: 50, boughtSuper: 20 },
+	// what the Wild multipliers can be, for the rules page only (EVENT_SCHEMA.md; the books carry the real values)
+	multipliers: {
+		grandmaWild: { base: [2, 10], freeSpins: [3, 100], super: [5, 100] },
+		column: {
+			base: { reindeer: [3, 8], santa: [10, 20], grandma: [40, 75] },
+			freeSpins: { reindeer: [2, 4], santa: [5, 10], grandma: [10, 20] },
+			super: { reindeer: [2, 3], santa: [4, 6], grandma: [8, 10] },
+		},
+		/** a crossing doubles a held column up to this, and no bonus round column exceeds it */
+		bonusColumnCap: 50,
+	},
 	paddingReels: {
 		basegame: '',
 		freegame: '',

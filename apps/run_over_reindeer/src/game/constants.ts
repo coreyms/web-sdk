@@ -107,6 +107,105 @@ export const STOPLIGHT = {
 	},
 };
 
+// ---- THE REINDEER STRIKE (second pass; game/road/roadFeatures.ts) -------------------------------------------------------
+// After the lanes settle the reindeer comes out of a tunnel, runs along a lane and darts into its target (the book
+// says which tunnel, which lane, which way it darts and which columns it passes). All times are on the road's clock,
+// so turbo shortens them and a slam stop runs them 3x faster. The runner is still the tagged PLACEHOLDER picture.
+export const STRIKE = {
+	/** the pause after the lanes settle (or after the strike before) */
+	leadInMs: 90,
+	/** how fast it runs, road px per second, and the least and most its run may take */
+	runSpeed: 2700,
+	runMinMs: 300,
+	runMaxMs: 620,
+	/** the dart from its lane into the target's lane (the last stretch of the run, as long as this) */
+	dartMs: 130,
+	/** it stops this many road px short of the target's centre: the impact */
+	stopShort: 70,
+	/** its canter: hops this high, this many a second */
+	hopPx: 14,
+	hopsPerSecond: 4.5,
+	/** the runner fades out over this long after the impact */
+	fadeMs: 120,
+	/** the size of the runner on top of the built size (190 road px tall) */
+	scale: 0.85,
+};
+
+// ---- THE GRANDMA WILD: the crash cloud in one cell, for one spin (Corey 2026-11-04 and 2026-11-09) ---------------------
+export const CLOUD_CELL = {
+	/** the cloud pops in from this size over popMs, with a small overshoot */
+	popFrom: 0.5,
+	popMs: 170,
+	popOver: 1.08,
+	/** WILD sits this far down the cell (0 top, 1 bottom) and is this tall, road px */
+	wordY: 0.3,
+	wordHeight: 44,
+	/** the multiplier under it: this far down the cell, this tall, in this color (the atlas digits are white: tinted) */
+	numberY: 0.7,
+	numberHeight: 64,
+	numberTint: 0xffd400,
+	/** the handler waits this long on the cloud before the next event */
+	holdMs: 240,
+};
+
+// ---- THE RED BOX (drawn by the game: plain colored quads, no picture) ---------------------------------------------------
+export const RED_BOX = {
+	color: 0xd6162c,
+	/** the frame's thickness and the dark line around it, road px */
+	width: 9,
+	edge: 3,
+	edgeColor: 0x101216,
+	/** the box stands this far inside the cell's own edges, road px */
+	inset: 4,
+};
+
+// ---- THE COLUMN WILD (the three characters; game/road/roadFeatures.ts, tools/build_columns.py) --------------------------
+export const COLUMN = {
+	/** the box holds on the struck cell with the cell cloud this long */
+	impactMs: 110,
+	/** then grows to the four rows over this long */
+	growMs: 210,
+	/** THE STILL CLOUD behind a standing column (Corey 2026-11-10): the color it is multiplied by. 0xffffff is the
+	 *  cloud as drawn (white). The entrance clips' own cloud turns a dusky blue gray as it thins (measured on its last
+	 *  cloud frames: reindeer 152,168,172, Santa 180,194,195, Grandma 130,160,175), so the still takes that tone and the
+	 *  moving cloud hands over to it with no change of color. With 0xffffff the box dips to gray and comes back white.
+	 *  Corey 2026-11-10 on the dusky 0xa3b6bd: "Can we go with an inbetween of the blue gray and white? The blue gray
+	 *  is too dark to me." 0xd1dbde is the midpoint of the two. */
+	backdropTint: 0xd1dbde,
+	/** each character's size on top of the built size (1 = four lanes tall as drawn), about the column's foot */
+	tierScale: { reindeer: 1, santa: 1, grandma: 1 } as Record<'reindeer' | 'santa' | 'grandma', number>,
+	/** the multiplier on the column: its centre this far up from the column's foot, this tall, this color */
+	numberUp: 58,
+	numberHeight: 74,
+	numberTint: 0xffd400,
+	/** it pops in when the entrance is this far along (0 to 1) */
+	numberAt: 0.55,
+	/** A CROSSING: the number swells to this size and back over beatMs, changing at the top of the swell, in this color */
+	crossingScale: 1.7,
+	crossingMs: 420,
+	crossingTint: 0xffffff,
+	/** a column not held leaves (the press, the end of a round) over this long */
+	leaveMs: 160,
+	/** how long the handler waits for a tier's pictures before it goes on without them (real ms) */
+	loadWaitMs: 4000,
+};
+
+// ---- THE BONUS ROUND'S CARDS AND BEATS (ui/RoundCard.svelte, game/bookEventHandlerMap.ts) -----------------------------
+export const ROUND = {
+	/** the scatters pulse this long before the intro card */
+	triggerPulseMs: 900,
+	/** a card continues by itself after this long (a press continues at once); shorter when autoplay runs the bonuses */
+	introAutoMs: 4000,
+	outroAutoMs: 6000,
+	autoplayMs: 1400,
+	/** a card takes no press for its first moment (a spin press must not skip it) */
+	armMs: 450,
+	/** the +3 line of a retrigger shows this long */
+	retriggerMs: 1100,
+	/** the pause between two free spins */
+	betweenSpinsMs: 160,
+};
+
 // ---- THE HUD'S DARK BEDS (components/HudBeds.svelte) -------------------------------------------------------------------
 // The house HUD is white and gold ink made for a dark scene; on snow it cannot be read. Until the scene art gives
 // it dark ground of its own, the canvas lays a flat dark bed under each HUD zone that would otherwise sit on snow:
@@ -235,13 +334,18 @@ export const LINE_WIN = {
 	amountFill: 0xffffff,
 	amountStroke: 0x101216,
 	amountStrokeWidth: 12,
+	/** a win through multiplier Wilds shows the multiplier over the amount ("x35": the highest of the winning lines),
+	 *  atlas digits this tall and this color, this far above the amount's centre */
+	multHeight: 58,
+	multTint: 0xffd400,
+	multUp: 78,
 	/** the amount pops in from this size over popMs */
 	popFrom: 0.6,
 	popMs: 180,
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, stoplight: STOPLIGHT, hudBed: HUD_BED };
+export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

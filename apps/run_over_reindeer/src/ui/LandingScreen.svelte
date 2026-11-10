@@ -109,7 +109,7 @@
 
 	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
 		<!-- the title in the HUD's own title box, so it does not move when the game opens -->
-		<div class="title" style:left="{title.x}px" style:top="{title.y}px"><TitleSign width={title.width} height={title.height} lines={title.lines} /></div>
+		<div class="title" style:left="{title.x}px" style:top="{title.y}px"><TitleSign width={title.width} height={title.height} lines={title.lines} title /></div>
 
 		<div class="gate" style:bottom="{SZ.bottom}px">
 			{#if assetsFailed}

@@ -1,9 +1,6 @@
-// GAME INFO'S COPY (ui/GameInfoModal.svelte). FIRST DRAFT, written from the spec (docs/run-over-reindeer-spec.md,
-// the 2026-11-04 design and the 2026-11-09 math answers) before the math is final: every rate, floor and
-// multiplier range here must be read again against the published math before a submission.
-//
-// The first pass plays only spins and line wins. The feature rules below describe the game as specified, so the
-// page already has its shape; they are not played by this build yet.
+// GAME INFO'S COPY (ui/GameInfoModal.svelte). Written from the settled rules (docs/run-over-reindeer-spec.md "Math
+// direction settled" and "What-if 4, variant E accepted", contract 2026-11-09b). No books are published yet: every
+// rate, floor and multiplier range here must be read again against the published math before a submission.
 //
 // Social mode: no gambling vocabulary on stake.us (soc(standard, social)). `**text**` marks bold runs.
 import config from './config';
@@ -35,70 +32,84 @@ export const MODE_NAMES: Record<string, string> = {
 	super: 'Super Free Spins',
 };
 
+const G = config.multipliers.grandmaWild;
+const C = config.multipliers.column;
+
 export const gameInfoText = () => ({
 	paytable: {
 		intro: soc(
 			`Wins pay on **${config.paylines.length} fixed lines**, from the leftmost column to the right, for 3, 4 or 5 matching symbols in a row. Amounts are shown for the current bet.`,
-			`Wins pay on **${config.paylines.length} fixed lines**, from the leftmost column to the right, for 3, 4 or 5 matching symbols in a row. Amounts are multiples of the play amount.`,
+			`Wins land on **${config.paylines.length} fixed lines**, from the leftmost column to the right, for 3, 4 or 5 matching symbols in a row. Amounts are multiples of the play amount.`,
 		),
 		specials: 'Special symbols',
-		wild: "**Santa's Sleigh is Wild**: it stands in for every paying symbol. A line of only Wilds pays as Grandma's Car.",
-		scatter: `**The Present is the Scatter.** 3 Presents award ${SPINS} Free Spins and 4 or more award ${SPINS} Super Free Spins. It pays nothing by itself and lands at most once per column.`,
+		wild: soc("**Santa's Sleigh is Wild**: it stands in for every paying symbol. A line of only Wilds pays as Grandma's Car.", "**Santa's Sleigh is Wild**: it stands in for every regular symbol. A line of only Wilds wins as Grandma's Car."),
+		scatter: `**The Present is the Scatter.** 3 Presents award ${SPINS} Free Spins and 4 or more award ${SPINS} Super Free Spins. It ${soc('pays', 'wins')} nothing by itself, lands at most once per column and never in a column Wild.`,
 		kinds: { 3: '3', 4: '4', 5: '5' } as Record<number, string>,
 	},
 	lines: {
-		intro: 'The 20 lines. Each one runs left to right across the five columns, one lane per column.',
+		intro: `The ${config.paylines.length} lines. Each one runs left to right across the five columns, one lane per column.`,
 	},
 	howTo: [
 		soc(
 			'Choose a bet with the minus and plus buttons, then press **Spin**. Traffic drives in from the tunnels: the top two lanes run left to right and the bottom two run right to left. When it stops, every line is checked.',
 			'Choose a play amount with the minus and plus buttons, then press **Play**. Traffic drives in from the tunnels: the top two lanes run left to right and the bottom two run right to left. When it stops, every line is checked.',
 		),
-		'**Reindeer strikes.** A reindeer can run down the road and crash into a symbol. If it hits **Grandma\'s Car**, the car becomes a Wild with a multiplier from 3x to 100x. If it hits **Santa\'s Sleigh**, the whole column becomes a Wild with its own multiplier.',
-		'**Multipliers add up.** When more than one multiplier Wild is part of the same winning line, their multipliers are added together and the line pays that many times over.',
-		`**Free Spins.** Wilds made in a bonus round stay where they are for the rest of the round. 3 Presents during the round add ${config.retriggerSpins} more spins.`,
-		`The most a round can pay is **${CAP}x**. When a round reaches it, the round ends there.`,
+		`**Reindeer strikes.** After the traffic stops a reindeer can run down the road and crash into a symbol. If it hits **Grandma's Car**, that one cell becomes a Wild with a multiplier (${G.base[0]}x to ${G.base[1]}x in the base game, up to ${G.freeSpins[1]}x in a bonus round) for that spin only. If it hits **Santa's Sleigh**, the whole column becomes a Wild with a multiplier of its own.`,
+		`**Column Wilds.** Who steps out of the smoke tells you the size of the multiplier: the Reindeer is the lowest (${C.base.reindeer[0]}x to ${C.base.reindeer[1]}x in the base game), Santa is in the middle (${C.base.santa[0]}x to ${C.base.santa[1]}x) and Grandma is the highest (${C.base.grandma[0]}x to ${C.base.grandma[1]}x). In the base game a column Wild lasts for that spin.`,
+		`**Multipliers add up.** When more than one multiplier Wild is part of the same winning line, their multipliers are added together and the line ${soc('pays', 'wins')} that many times over. A plain sleigh adds nothing.`,
+		`**Bonus rounds.** In Free Spins and Super Free Spins every column Wild stays for the rest of the round and keeps its multiplier. Column Wilds start smaller there (Reindeer ${C.freeSpins.reindeer[0]}x to ${C.freeSpins.reindeer[1]}x, Santa ${C.freeSpins.santa[0]}x to ${C.freeSpins.santa[1]}x, Grandma ${C.freeSpins.grandma[0]}x to ${C.freeSpins.grandma[1]}x in Free Spins) and grow: a reindeer that runs past a column Wild on its way to Grandma's Car **doubles** that column's multiplier, up to ${config.multipliers.bonusColumnCap}x. 3 Presents during a round add ${config.retriggerSpins} more spins.`,
+		`The most a round can ${soc('pay', 'win')} is **${CAP}x**. When a round reaches it, the round ends there.`,
 	],
 	modes: {
 		intro: [soc('Each mode has its own published return to player. A bought round plays by the same rules as one that triggers by itself.', 'Each mode has its own published return to player. A round you start from the menu plays by the same rules as one that triggers by itself.')],
 		labels: { enter: 'HOW TO ENTER', spins: 'WHAT YOU GET', mech: 'HOW IT PLAYS' },
-		stats: { price: soc('PRICE', 'COST'), priceUnit: soc('x bet', 'x play'), rtp: 'RTP', maxWin: 'MAX WIN', thisMode: soc('this price', 'this cost') },
+		stats: { price: soc('PRICE', 'EACH ROUND'), priceUnit: soc('x bet', 'x play'), rtp: 'RTP', maxWin: 'MAX WIN', thisMode: soc('this price', 'this mode') },
 		cards: {
 			base: {
 				enter: 'The normal game.',
 				spins: 'One spin per press.',
-				mech: ['Reindeer strikes can happen on any spin. Wilds made in the base game last for that spin only.', `3 Presents award Free Spins, 4 or more award Super Free Spins.`],
+				mech: ['Reindeer strikes can happen on any spin. Wilds made in the base game last for that spin only.', '3 Presents award Free Spins, 4 or more award Super Free Spins.'],
 			},
 			ante_2: {
 				enter: soc('The Ante card in the feature menu, slider at 2x.', 'The Ante card in the feature menu, slider at 2x.'),
-				spins: soc('Every spin costs 2x the bet.', 'Every play costs 2x the play amount.'),
+				spins: soc('Every spin costs 2x the bet.', 'Every play is 2x the play amount.'),
 				mech: ['Free Spins and Super Free Spins trigger more often than in the base game.', 'Stays on until you switch it off.'],
 			},
 			ante_4: {
 				enter: 'The Ante card in the feature menu, slider at 4x.',
-				spins: soc('Every spin costs 4x the bet.', 'Every play costs 4x the play amount.'),
+				spins: soc('Every spin costs 4x the bet.', 'Every play is 4x the play amount.'),
 				mech: ['Bonus rounds trigger more often again, Super Free Spins most of all.', 'Stays on until you switch it off.'],
 			},
 			ante_10: {
 				enter: 'The Ante card in the feature menu, slider at 10x.',
-				spins: soc('Every spin costs 10x the bet.', 'Every play costs 10x the play amount.'),
+				spins: soc('Every spin costs 10x the bet.', 'Every play is 10x the play amount.'),
 				mech: ['The most frequent bonus rounds of the three levels.', 'Stays on until you switch it off.'],
 			},
 			bonus: {
 				enter: soc('3 Presents, or buy it from the feature menu.', '3 Presents, or start it from the feature menu.'),
 				spins: `${SPINS} free spins.`,
-				mech: ['Every Wild that is made stays for the rest of the round.', 'Every round has at least one full column Wild.', `3 Presents add ${config.retriggerSpins} spins.`],
+				mech: [
+					'Every column Wild stays for the rest of the round and keeps its multiplier.',
+					'Every round has at least one column Wild.',
+					`A reindeer running past a column Wild doubles it, up to ${config.multipliers.bonusColumnCap}x.`,
+					`3 Presents add ${config.retriggerSpins} spins.`,
+					soc(`A round triggered by Presents pays at least ${config.floors.naturalFreeSpins}x the bet: if its spins total less, the difference is added at the end.`, `A round triggered by Presents wins at least ${config.floors.naturalFreeSpins}x the play amount: if its spins total less, the difference is added at the end.`),
+				],
 			},
 			super: {
 				enter: soc('4 or more Presents, or buy it from the feature menu.', '4 or more Presents, or start it from the feature menu.'),
 				spins: `${SPINS} super free spins.`,
-				mech: ['Starts with one full column Wild already in place.', 'More reindeer strikes, and the multipliers skip their lowest values.', soc(`A bought round pays at least ${config.floors.boughtSuper}x the bet.`, `A round started from the menu pays at least ${config.floors.boughtSuper}x the play amount.`)],
+				mech: [
+					'Starts with one column Wild already in place.',
+					`More strikes on Grandma's Car, with multipliers from ${G.super[0]}x.`,
+					soc(`A round triggered by Presents pays at least ${config.floors.naturalSuper}x the bet, with the difference added at the end if needed. A bought round pays at least ${config.floors.boughtSuper}x the bet.`, `A round triggered by Presents wins at least ${config.floors.naturalSuper}x the play amount, with the difference added at the end if needed. A round started from the menu wins at least ${config.floors.boughtSuper}x the play amount.`),
+				],
 			},
 		} as Record<string, { enter: string; spins: string; mech: string[] }>,
 	},
 	maxWin: {
 		unit: soc('the bet', 'the play amount'),
-		text: soc(`The maximum win is **${CAP}x the bet** in every mode. A round that reaches it ends at once and pays exactly that.`, `The maximum win is **${CAP}x the play amount** in every mode. A round that reaches it ends at once and pays exactly that.`),
+		text: soc(`The maximum win is **${CAP}x the bet** in every mode. A round that reaches it ends at once and pays exactly that.`, `The maximum win is **${CAP}x the play amount** in every mode. A round that reaches it ends at once and wins exactly that.`),
 		rtpHead: 'Return to player',
 		rtp: 'The theoretical return to player of each mode, over a very large number of rounds.',
 	},

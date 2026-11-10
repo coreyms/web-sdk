@@ -1,30 +1,63 @@
 // THE ONE PLACE A ROUND IS PLAYED: one handler per book event type, called in book order (utils-book).
-// The frontend never computes an outcome. A handler shows what its event says and nothing else.
-//
-// FIRST PASS: the reveal (the traffic spin), the line wins and the totals are presented. The feature events
-// (strike, crossing, grandmaWild, columnWild, the free spin events, wincap) have handlers so a real book plays
-// through to its finalWin, but they draw nothing yet: each is marked NOT PRESENTED below.
+// The frontend never computes an outcome. A handler shows what its event says and nothing else: which cell was
+// struck, from which tunnel, which tier stepped out, which multiplier, what a line paid, what a top-up added.
+// Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-09b.
 import { stateBet, stateBetDerived } from 'state-shared';
 import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 import { waitForTimeout } from 'utils-shared/wait';
 import type { BookEventHandlerMap } from 'utils-book';
 
 import { eventEmitter } from './eventEmitter';
-import { LINE_WIN } from './constants';
+import { LINE_WIN, ROUND } from './constants';
 import { setHudWin } from './hudWin.svelte';
 import { playBookEvent } from './utils';
-import { stateGame } from './stateGame.svelte';
+import { boardRate, stateGame, type RoundCard } from './stateGame.svelte';
+import { loadClip } from './road/columnClips';
 import type { Board } from './types';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 
-/** DEV: the feature events a book carried that this build does not draw yet (window.__reindeer.notPresented()) */
-const notPresented: Record<string, number> = {};
-const skip = (type: string) => {
-	notPresented[type] = (notPresented[type] ?? 0) + 1;
+const ROWS = 4;
+
+/** a pause on the road's own pace: shorter at turbo, shorter still under a slam stop */
+const pace = (ms: number) => waitForTimeout(Math.max(1, ms / boardRate()));
+
+/** put one of the bonus round's cards up and wait for it to be dismissed (ui/RoundCard.svelte resolves it) */
+let cardDone: (() => void) | null = null;
+const showCard = async (card: RoundCard) => {
+	eventEmitter.broadcast({ type: 'uiHide' });
+	stateGame.roundCard = card;
+	await new Promise<void>((resolve) => (cardDone = resolve));
+	stateGame.roundCard = null;
+	eventEmitter.broadcast({ type: 'uiShow' });
 };
-if (import.meta.env.DEV && typeof window !== 'undefined') {
-	Object.assign(((window as unknown as { __reindeer?: Record<string, unknown> }).__reindeer ??= {}), { notPresented: () => ({ ...notPresented }) });
-}
+/** ui/RoundCard.svelte: the card was pressed, or its time ran out */
+export const dismissRoundCard = () => {
+	const done = cardDone;
+	cardDone = null;
+	done?.();
+};
+
+/** the events that follow `bookEvent` up to the next one that is not of `type` (a strike's own crossings) */
+const following = <T extends BookEvent['type']>(bookEvents: BookEvent[], bookEvent: BookEvent, type: T) => {
+	const out: BookEventOfType<T>[] = [];
+	for (let i = bookEvents.indexOf(bookEvent) + 1; i < bookEvents.length; i++) {
+		const next = bookEvents[i];
+		if (next.type !== type) break;
+		out.push(next as BookEventOfType<T>);
+	}
+	return out;
+};
+
+/** the feature trigger's own state, with nothing shown (a live trigger, and a resumed round's rebuild) */
+const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
+	stateGame.bonusMode = bookEvent.bonusType === 'super' ? 'super' : 'bonus';
+	stateGame.gameType = 'freegame';
+	stateGame.totalFs = bookEvent.totalFs;
+	stateGame.spinsPlayed = 0;
+	stateGame.topUp = null;
+	stateGame.capped = false;
+	eventEmitter.broadcast({ type: 'soundMusic', name: stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus' });
+};
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	reveal: async (bookEvent: BookEventOfType<'reveal'>) => {
@@ -33,8 +66,45 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (bookEvent.totalFs !== undefined) stateGame.totalFs = bookEvent.totalFs;
 		const board = bookEvent.board.map((reel) => [...reel]) as Board;
 		stateGame.board = board;
+		if (bookEvent.gameType === 'freegame') await pace(ROUND.betweenSpinsMs);
+		// the sticky columns this spin starts with, exactly as the book lists them; every cloud cell and every column
+		// that is not held leaves here (a replay or a resume builds its columns from this list alone)
+		eventEmitter.broadcast({ type: 'boardHeld', held: bookEvent.held ?? [] });
 		// the traffic spin: resolves when every symbol has settled on its mark
 		await eventEmitter.broadcastAsync({ type: 'boardDriveIn', board });
+	},
+
+	// ---- the reindeer strike ----
+	strike: async (bookEvent: BookEventOfType<'strike'>, { bookEvents }: BookEventContext) => {
+		// the crossings this strike makes are written right after it; the board shows each as the reindeer passes
+		const crossings = following(bookEvents, bookEvent, 'crossing').map((c) => ({ reel: c.reel, to: c.to }));
+		// a Santa strike's column comes next: its entrance pictures may have been let go since the last one of its tier
+		const next = bookEvents[bookEvents.indexOf(bookEvent) + 1];
+		if (next?.type === 'columnWild') void loadClip(next.tier, 'reveal');
+		await eventEmitter.broadcastAsync({
+			type: 'boardStrike',
+			strike: { cell: bookEvent.cell, side: bookEvent.side, runRow: bookEvent.runRow, passes: bookEvent.passes, crossings },
+		});
+	},
+	crossing: async (bookEvent: BookEventOfType<'crossing'>) => {
+		// shown as the reindeer passed (the strike handler); this waits out the beat, or shows it if it was not
+		await eventEmitter.broadcastAsync({ type: 'boardCrossing', reel: bookEvent.reel, to: bookEvent.to });
+	},
+	grandmaWild: async (bookEvent: BookEventOfType<'grandmaWild'>) => {
+		await eventEmitter.broadcastAsync({ type: 'boardGrandmaWild', cell: bookEvent.cell, multiplier: bookEvent.multiplier });
+	},
+	columnWild: async (bookEvent: BookEventOfType<'columnWild'>, { bookEvents }: BookEventContext) => {
+		// the cell the box grows from is the strike's target (the event before); Super's opening column has none
+		const before = bookEvents[bookEvents.indexOf(bookEvent) - 1];
+		const fromCell = !bookEvent.start && before?.type === 'strike' && Math.floor(before.cell / ROWS) === bookEvent.reel ? before.cell : null;
+		await eventEmitter.broadcastAsync({
+			type: 'boardColumnWild',
+			reel: bookEvent.reel,
+			tier: bookEvent.tier,
+			multiplier: bookEvent.multiplier,
+			sticky: bookEvent.sticky,
+			fromCell,
+		});
 	},
 
 	winInfo: async (bookEvent: BookEventOfType<'winInfo'>) => {
@@ -42,12 +112,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		await waitForTimeout(LINE_WIN.leadInMs);
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cluster_remove' });
 		// the HUD's WIN counts up to the spin's amount while the lines show (the base game's round total is the spin's;
-		// the free spins' running total arrives with setTotalWin)
+		// a free spin's running total arrives with setTotalWin)
 		if (stateGame.gameType === 'basegame') setHudWin(bookEvent.totalWin);
+		// the multiplier shown over the amount is the book's own, the highest among the winning lines
+		const multiplier = bookEvent.wins.reduce((most, win) => Math.max(most, win.multiplier), 1);
 		await eventEmitter.broadcastAsync({
 			type: 'boardWinShow',
 			wins: bookEvent.wins.map((win) => ({ cells: win.cells, line: win.line })),
 			amountText: bookEventAmountToCurrencyString(bookEvent.totalWin),
+			multiplier,
 		});
 		eventEmitter.broadcast({ type: 'boardWinClear' });
 	},
@@ -56,40 +129,60 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		setHudWin(bookEvent.amount);
 	},
 
-	// ---- NOT PRESENTED in the first pass (the reindeer strikes, the Wilds, the bonus rounds) ----
-	strike: async () => skip('strike'),
-	crossing: async () => skip('crossing'),
-	grandmaWild: async () => skip('grandmaWild'),
-	columnWild: async () => skip('columnWild'),
+	// ---- the bonus rounds ----
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
-		skip('freeSpinTrigger');
-		stateGame.bonusMode = bookEvent.bonusType === 'super' ? 'super' : 'bonus';
-		stateGame.totalFs = bookEvent.totalFs;
+		eventEmitter.broadcast({ type: 'soundOnce', name: bookEvent.bonusType === 'super' ? 'sfx_bonus_trigger_super' : 'sfx_bonus_trigger_free' });
+		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs });
+		enterBonus(bookEvent);
+		await showCard({ kind: 'intro', bonus: stateGame.bonusMode ?? 'bonus', spins: bookEvent.totalFs });
 	},
 	freeSpinRetrigger: async (bookEvent: BookEventOfType<'freeSpinRetrigger'>) => {
-		skip('freeSpinRetrigger');
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_bonus_trigger_free' });
+		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs * 0.6 });
 		stateGame.totalFs = bookEvent.totalFs;
+		await eventEmitter.broadcastAsync({ type: 'boardMessage', text: `+${bookEvent.added} FREE SPINS`, ms: ROUND.retriggerMs });
 	},
-	freeSpinEnd: async () => {
-		skip('freeSpinEnd');
+	floorTopUp: async (bookEvent: BookEventOfType<'floorTopUp'>) => {
+		// said plainly on the wrap-up card as part of the final win; the HUD's WIN takes it with the setTotalWin after
+		stateGame.topUp = { floor: bookEvent.floor, featureWin: bookEvent.featureWin, amount: bookEvent.amount };
+	},
+	wincap: async () => {
+		stateGame.capped = true;
+	},
+	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>, { bookEvents }: BookEventContext) => {
+		// the book writes wincap AFTER freeSpinEnd: the card needs to know now
+		const capped = stateGame.capped || bookEvents.slice(bookEvents.indexOf(bookEvent) + 1).some((e) => e.type === 'wincap');
+		await pace(350);
+		await showCard({
+			kind: 'outro',
+			bonus: stateGame.bonusMode ?? 'bonus',
+			amount: bookEvent.amount,
+			topUp: stateGame.topUp ? { floor: stateGame.topUp.floor, amount: stateGame.topUp.amount } : null,
+			capped,
+		});
 		stateGame.gameType = 'basegame';
 		stateGame.bonusMode = null;
 		stateGame.totalFs = 0;
 		stateGame.spinsPlayed = 0;
+		stateGame.topUp = null;
+		eventEmitter.broadcast({ type: 'soundMusic', name: 'bgm_base' });
 	},
-	wincap: async () => skip('wincap'),
 
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
 		// finalWin is the LAST event of every book. A bought feature plays ONE round: back to the base game, so the
 		// next feature round is a fresh choice and a fresh confirmation (Stake review rule, as in the other games).
 		if (stateBetDerived.activeBetMode()?.type === 'buy') stateBet.activeBetModeKey = 'BASE';
 		setHudWin(bookEvent.amount);
+		stateGame.capped = false;
 		stateGame.busy = false;
 	},
 
-	// frontend-only (resume): rebuild the session state an interrupted round had reached, silently
+	// frontend-only (resume): rebuild the session state an interrupted round had reached, with nothing shown. The
+	// sticky columns are NOT rebuilt here: the next reveal's `held` list draws them.
 	createBonusSnapshot: async (bookEvent: BookEventOfType<'createBonusSnapshot'>) => {
 		const { bookEvents } = bookEvent;
+		const trigger = bookEvents.find((e) => e.type === 'freeSpinTrigger');
+		if (trigger && trigger.type === 'freeSpinTrigger') enterBonus(trigger);
 		const last = [...bookEvents].reverse().find((e) => e.type === 'setTotalWin');
 		if (last) await playBookEvent(last, { bookEvents });
 	},

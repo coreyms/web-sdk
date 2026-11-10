@@ -79,7 +79,13 @@ SIGN_SOURCES = {
     "L4": "sign_J_v2.png",
     "L5": "speed_limit_10_v3.png",
 }
-SLEIGH_SOURCE = "santa_sleigh_v6_2runners.png"
+# The Wild's sleigh (Corey 2026-11-10): the cleaned side panel ("The side painting went perfect"), the far runner
+# set back behind the body (variant A: "A"), and the bigger WILD lettering ("the bigger wild is the right choice").
+# The left-facing picture has its own files so the word is never mirrored. SLEIGH_SCALE_REF is the old source: its
+# painted width still sets the scale, so the body is drawn exactly the size it was.
+SLEIGH_SOURCE = {"R": "sleigh_clean/santa_sleigh_v8_clean_a.png", "L": "sleigh_clean/santa_sleigh_v8_clean_a_L.png"}
+SLEIGH_WILD = {"R": "sleigh_clean/wild_layer_v1_a.png", "L": "sleigh_clean/wild_layer_v1_a_L.png"}
+SLEIGH_SCALE_REF = "santa_sleigh_v6_2runners.png"
 REINDEER_SOURCE = "reindeer_run_ref_v2.png"
 
 SNOW = (233, 240, 253)
@@ -298,13 +304,14 @@ def gather_symbols(scale):
         out[code] = resize(im, k * scale)
         notes[code] = f"{SIGN_SOURCES[code]} (draft), {round(SIGN_AREA[code] * 100)}% of the A's painted area"
 
-    # Santa's sleigh, the natural Wild: the empty sleigh still with a WILD tag (Santa's seated layer is not composited yet)
-    sleigh = trim(Image.open(os.path.join(MOCK, SLEIGH_SOURCE)).convert("RGBA"))
-    sleigh = resize(sleigh, SLEIGH_WIDTH / sleigh.width * 4)  # tag drawn at 4 px per road px, then to scale
-    # one picture per driving direction (the source faces right): mirrored first, tagged after, so WILD always reads
-    for d, im in (("R", sleigh), ("L", sleigh.transpose(Image.FLIP_LEFT_RIGHT))):
-        out[f"W_{d}"] = resize(label_strip(im.copy(), "WILD", fill=(255, 255, 255), ink=(200, 16, 46)), scale / 4)
-    notes["W"] = f"{SLEIGH_SOURCE} with a WILD tag (no Santa in it yet)"
+    # Santa's sleigh, the natural Wild: the clean sleigh with its WILD lettering layer (Santa's seated layer is not
+    # composited yet). One picture per driving direction, each from its own files (see SLEIGH_SOURCE).
+    k = SLEIGH_WIDTH / trim(Image.open(os.path.join(MOCK, SLEIGH_SCALE_REF)).convert("RGBA")).width
+    for d in ("R", "L"):
+        im = Image.open(os.path.join(MOCK, SLEIGH_SOURCE[d])).convert("RGBA")
+        im.alpha_composite(Image.open(os.path.join(MOCK, SLEIGH_WILD[d])).convert("RGBA"))
+        out[f"W_{d}"] = resize(trim(im), k * scale)
+    notes["W"] = f"{SLEIGH_SOURCE['R']} + {SLEIGH_WILD['R']} (and the _L pair); no Santa in it yet"
 
     present = make_present(PRESENT_HEIGHT * 4)
     present = label_strip(present, "PLACEHOLDER")
@@ -313,8 +320,9 @@ def gather_symbols(scale):
 
     deer = trim(Image.open(os.path.join(MOCK, REINDEER_SOURCE)).convert("RGBA"))
     deer = resize(deer, REINDEER_HEIGHT / deer.height * 4)
-    deer = label_strip(deer, "PLACEHOLDER")
-    out["reindeer_run"] = resize(deer, scale / 4)
+    # one picture per running direction (the source faces right): mirrored first, tagged after, so the tag reads
+    out["reindeer_run"] = resize(label_strip(deer.copy(), "PLACEHOLDER"), scale / 4)
+    out["reindeer_run_L"] = resize(label_strip(deer.transpose(Image.FLIP_LEFT_RIGHT), "PLACEHOLDER"), scale / 4)
     notes["reindeer_run"] = f"PLACEHOLDER: {REINDEER_SOURCE} (a still, not the run cycle), tagged"
     return out, notes
 
@@ -409,6 +417,74 @@ def gather_stoplight(scale):
     return out, info
 
 
+# ---- the crash cloud cell and the number glyphs (second pass) ------------------------------------------------------
+CLOUD_SOURCE = "crash_cloud_box_v3.png"  # the locked cloud still, on green
+# the part of the still used for ONE cell (a Grandma Wild): a band across the cloud at the cell's own shape, source px
+CLOUD_CELL_BAND = (96, 520, 904)  # x0, y0, x1; the height follows from the cell's shape
+NUMBER_CAP_HEIGHT = 72  # road px: the digits' height at the built size (the column's multiplier is drawn about this tall)
+WILD_CAP_HEIGHT = 40
+
+
+def key_green(im):
+    """Lift a drawing off its flat green ground: alpha from how much greener a pixel is than it is red or blue,
+    and the green pulled out of the soft edge so no green rim is left."""
+    a = np.asarray(im.convert("RGB")).astype(np.float32)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    spill = g - np.maximum(r, b)
+    alpha = 1.0 - np.clip((spill - 30.0) / 70.0, 0.0, 1.0)
+    g = np.where(spill > 0, np.maximum(r, b) + spill * alpha * 0.2, g)
+    out = np.dstack([r, g, b, alpha * 255.0])
+    return Image.fromarray(np.clip(out, 0, 255).round().astype(np.uint8), "RGBA")
+
+
+def gather_feature_art(scale, lane_height):
+    """cloud_cell, the digits num_0 .. num_9 and num_x, and word_wild, at `scale` atlas px per road px."""
+    out = {}
+    # the cloud for one cell: the same shape as a cell (one column wide, one lane tall)
+    still = key_green(Image.open(os.path.join(MOCK, CLOUD_SOURCE)))
+    x0, y0, x1 = CLOUD_CELL_BAND
+    band_h = round((x1 - x0) * lane_height / COLUMN_PITCH)
+    cell = still.crop((x0, y0, x1, y0 + band_h))
+    out["cloud_cell"] = resize(cell, COLUMN_PITCH * scale / cell.width)
+
+    # the digits: Overpass Heavy, white with a dark outline (the game tints the white)
+    ss = 2  # drawn at twice the size, then brought down
+    px = round(NUMBER_CAP_HEIGHT * scale * ss / 0.72)  # Overpass capitals are about 0.72 of the em
+    f = font("heavy", px)
+    stroke = max(2, round(px * 0.085))
+    probe = ImageDraw.Draw(Image.new("RGBA", (8, 8)))
+    boxes = {ch: probe.textbbox((0, 0), ch, font=f, stroke_width=stroke) for ch in "0123456789x"}
+    top = min(b[1] for b in boxes.values())
+    bottom = max(b[3] for b in boxes.values())
+    info = {}
+    for ch in "0123456789x":
+        b = boxes[ch]
+        w = b[2] - b[0]  # each glyph on its own width (these numbers are set once, they do not tick)
+        im = Image.new("RGBA", (w, bottom - top), (0, 0, 0, 0))
+        ImageDraw.Draw(im).text(((w - (b[2] - b[0])) // 2 - b[0], -top), ch, font=f, fill=(255, 255, 255, 255), stroke_width=stroke, stroke_fill=(16, 18, 22, 255))
+        small = im.resize((max(1, round(w / ss)), max(1, round((bottom - top) / ss))), Image.LANCZOS)
+        out[f"num_{ch}"] = small
+        info[ch] = round(small.width / scale, 2)
+    # the word WILD in its own colors: red letters, a white rim, a dark edge
+    px = round(WILD_CAP_HEIGHT * scale * ss / 0.72)
+    f = font("heavy", px)
+    outer, inner = max(3, round(px * 0.16)), max(2, round(px * 0.09))
+    b = probe.textbbox((0, 0), "WILD", font=f, stroke_width=outer)
+    im = Image.new("RGBA", (b[2] - b[0], b[3] - b[1]), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.text((-b[0], -b[1]), "WILD", font=f, fill=(16, 18, 22, 255), stroke_width=outer, stroke_fill=(16, 18, 22, 255))
+    d.text((-b[0], -b[1]), "WILD", font=f, fill=(255, 255, 255, 255), stroke_width=inner, stroke_fill=(255, 255, 255, 255))
+    d.text((-b[0], -b[1]), "WILD", font=f, fill=(214, 22, 44, 255))
+    out["word_wild"] = im.resize((max(1, round(im.width / ss)), max(1, round(im.height / ss))), Image.LANCZOS)
+    spec = {
+        "cloudCell": {"width": COLUMN_PITCH, "height": round(out["cloud_cell"].height / scale, 2)},
+        # the digits' drawn height and each glyph's width, road px at the built size
+        "numbers": {"height": round(out["num_0"].height / scale, 2), "widths": info},
+        "wordWild": {"width": round(out["word_wild"].width / scale, 2), "height": round(out["word_wild"].height / scale, 2)},
+    }
+    return out, spec
+
+
 def pack(pictures, max_width):
     """Shelf pack, tallest first, 2 px gutters. Returns (sheet, frames)."""
     gap = 2
@@ -449,6 +525,9 @@ def build_symbols(spec):
         pictures, notes = gather_symbols(scale)
         lights, light_info = gather_stoplight(scale)
         pictures.update(lights)
+        lanes = spec["laneLines"]
+        feature, feature_info = gather_feature_art(scale, (lanes[-1] - lanes[0]) / ROWS)
+        pictures.update(feature)
         sheet, frames = pack(pictures, 2048 if tier == "full" else 1024)
         stem = "symbols" if tier == "full" else "symbols-phone"
         sheet.save(os.path.join(OUT, "symbols", f"{stem}.webp"), lossless=True, method=6)
@@ -459,9 +538,10 @@ def build_symbols(spec):
         print(f"  {stem}: {sheet.width} x {sheet.height}, {len(frames)} frames")
         if tier == "full":
             spec["stoplight"] = light_info
+            spec["feature"] = feature_info
             for name, im in pictures.items():
-                if name.startswith("stoplight"):
-                    continue  # placed by its own numbers (spec.stoplight), and never on the rules page
+                if name.startswith(("stoplight", "num_", "word_", "cloud_")):
+                    continue  # placed by their own numbers (spec.stoplight, spec.feature), never on the rules page
                 sizes[name] = {"width": round(im.width / scale, 1), "height": round(im.height / scale, 1)}
                 # the rules page pictures: 2 px per road px is plenty for a 60 px table cell at 3x
                 small = resize(im, 2 / scale)

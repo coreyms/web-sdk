@@ -1,81 +1,75 @@
-// Checks the hand-written fixture rounds (src/fixtures/fixtureRounds.ts) against the game's own tables
-// (src/game/config.ts: the 20 paylines and the paytable), so a typo cannot leave a round whose picture and payout
-// disagree. A DEV TOOL: it is not part of the game, and the game never works a win out for itself.
+// @ts-nocheck (a plain node script; the app type check should not read it)
+// Checks the fixture books (src/fixtures/showcaseBooks.ts, real books copied from the math) against what the
+// FRONTEND believes: the 12 paylines and the paytable in src/game/config.ts, and the order of events the handlers
+// expect. A DEV TOOL: it is not part of the game, and the game never works a win out for itself. It exists to catch
+// the frontend's copy of the lines or the pays drifting from the contract.
 //
 // Run from the app folder:   node --experimental-strip-types tools/check_fixtures.mjs
-//
-// For every round it works out the line wins of each revealed board (left to right from the first reel, the
-// sleigh W standing in for any paying symbol, a line of only Wilds paying as the top symbol) and compares them
-// with the round's winInfo, its setTotalWin, its finalWin and its payoutMultiplier.
 import config from '../src/game/config.ts';
-import { FIXTURE_ORDER, FIXTURE_ROUNDS } from '../src/fixtures/fixtureRounds.ts';
+import { SHOWCASE_ROUNDS } from '../src/fixtures/showcaseBooks.ts';
 
 const ROWS = 4;
-const WILDS = new Set(['W', 'GW', 'CW']);
 const KIND_INDEX = { 3: 0, 4: 1, 5: 2 };
-
-const lineWins = (board) => {
-	const wins = [];
-	config.paylines.forEach((rows, i) => {
-		const symbols = rows.map((row, reel) => board[reel][row]);
-		const first = symbols.find((s) => !WILDS.has(s));
-		const target = first ?? 'W';
-		if (target === 'S') return;
-		let n = 0;
-		while (n < symbols.length && (symbols[n] === target || WILDS.has(symbols[n]))) n += 1;
-		if (n < 3) return;
-		const pays = config.symbols[target]?.paytable;
-		if (!pays) return;
-		wins.push({ symbol: target, kind: n, line: i + 1, win: Math.round(pays[KIND_INDEX[n]] * 100), cells: rows.slice(0, n).map((row, reel) => reel * ROWS + row) });
-	});
-	return wins;
-};
-
-const key = (w) => `${w.line}:${w.symbol}x${w.kind}=${w.win}@${[...w.cells].sort((a, b) => a - b).join(',')}`;
 let failed = 0;
 const fail = (round, message) => {
 	failed += 1;
 	console.error(`FAIL ${round.name}: ${message}`);
 };
 
-for (const round of FIXTURE_ROUNDS) {
+let books = 0;
+let wins = 0;
+const seen = {};
+for (const round of SHOWCASE_ROUNDS) {
+	if (!round.events) continue;
+	books += 1;
 	let total = 0;
-	let board = null;
-	let shown = null;
+	let free = 0;
 	round.events.forEach((event, i) => {
+		seen[event.type] = (seen[event.type] ?? 0) + 1;
 		if (event.index !== i) fail(round, `event ${i} has index ${event.index}`);
 		if (event.type === 'reveal') {
-			if (board && !shown && lineWins(board).length) fail(round, 'a winning board has no winInfo');
-			board = event.board;
-			shown = null;
-			if (board.length !== 5 || board.some((reel) => reel.length !== ROWS)) fail(round, 'the board is not 5 reels of 4');
-			for (const reel of board) for (const s of reel) if (!(s in config.symbols)) fail(round, `unknown symbol ${s}`);
-			for (const reel of board) if (reel.filter((s) => s === 'S').length > 1) fail(round, 'two scatters on one reel');
+			if (event.board.length !== 5 || event.board.some((reel) => reel.length !== ROWS)) fail(round, 'a board is not 5 reels of 4');
+			for (const reel of event.board) for (const s of reel) if (!(s in config.symbols)) fail(round, `unknown symbol ${s}`);
+			for (const h of event.held ?? []) if (event.board[h.reel].some((s) => s !== 'CW')) fail(round, `held column ${h.reel} is not four CW on the board`);
 		} else if (event.type === 'winInfo') {
-			shown = event;
-			const want = lineWins(board).map(key).sort();
-			const got = event.wins.map(key).sort();
-			if (JSON.stringify(want) !== JSON.stringify(got)) fail(round, `winInfo does not match the board\n  board says ${want.join(' | ') || 'no win'}\n  book says  ${got.join(' | ')}`);
-			// no multiplier Wild exists in these rounds (a plain sleigh adds nothing), so every line's multiplier is 1
-			for (const w of event.wins) if (w.multiplier !== 1) fail(round, `line ${w.line} has multiplier ${w.multiplier}, expected 1`);
-			const sum = event.wins.reduce((n, w) => n + w.win, 0);
+			let sum = 0;
+			for (const w of event.wins) {
+				wins += 1;
+				const line = config.paylines[w.line - 1];
+				if (!line) {
+					fail(round, `line ${w.line} is not one of the ${config.paylines.length} lines`);
+					continue;
+				}
+				const cells = line.slice(0, w.kind).map((row, reel) => reel * ROWS + row);
+				if (JSON.stringify(cells) !== JSON.stringify(w.cells)) fail(round, `line ${w.line} x${w.kind}: the book's cells ${w.cells} are not the frontend's line ${cells}`);
+				const pays = config.symbols[w.symbol]?.paytable;
+				const want = pays ? Math.round(pays[KIND_INDEX[w.kind]] * 100 * w.multiplier) : null;
+				if (want === null || Math.abs(want - w.win) > 1) fail(round, `line ${w.line}: ${w.symbol} x${w.kind} at x${w.multiplier} pays ${w.win}, the frontend's paytable says ${want}`);
+				sum += w.win;
+			}
 			if (sum !== event.totalWin) fail(round, `winInfo totalWin ${event.totalWin} is not the sum of its wins ${sum}`);
 			total += event.totalWin;
+			if (round.events.slice(0, i).some((e) => e.type === 'freeSpinTrigger')) free += event.totalWin;
+		} else if (event.type === 'floorTopUp') {
+			if (event.featureWin + event.amount !== event.floor) fail(round, `top-up ${event.amount} does not bring ${event.featureWin} to the floor ${event.floor}`);
+			total += event.amount;
+			free += event.amount;
 		} else if (event.type === 'setTotalWin') {
-			if (event.amount !== total) fail(round, `setTotalWin ${event.amount}, running total ${total}`);
+			if (event.amount !== Math.min(total, config.maxWin * 100)) fail(round, `setTotalWin ${event.amount}, running total ${total}`);
+		} else if (event.type === 'freeSpinEnd') {
+			if (event.amount !== Math.min(free, config.maxWin * 100)) fail(round, `freeSpinEnd ${event.amount}, the free spins' own total ${free}`);
 		} else if (event.type === 'finalWin') {
 			if (i !== round.events.length - 1) fail(round, 'finalWin is not the last event');
-			if (event.amount !== total) fail(round, `finalWin ${event.amount}, round total ${total}`);
+			if (event.amount !== Math.min(total, config.maxWin * 100)) fail(round, `finalWin ${event.amount}, round total ${total}`);
+			if (Math.round(round.payoutMultiplier * 100) !== event.amount) fail(round, `payoutMultiplier ${round.payoutMultiplier} but finalWin is ${event.amount}`);
+		} else if (event.type === 'columnWild' && !event.start) {
+			const before = round.events[i - 1];
+			if (before?.type !== 'strike' || before.target !== 'santaSleigh' || Math.floor(before.cell / ROWS) !== event.reel) fail(round, `columnWild at event ${i} does not follow a Santa strike in its own reel`);
 		}
 	});
-	if (board && !shown && lineWins(board).length) fail(round, `the board wins (${lineWins(board).map(key).join(' | ')}) but the book has no winInfo`);
-	if (Math.round(round.payoutMultiplier * 100) !== total) fail(round, `payoutMultiplier ${round.payoutMultiplier} but the events total ${total / 100}x`);
-	if (round.events.at(-1)?.type !== 'finalWin') fail(round, 'the book does not end with finalWin');
 }
-for (const name of FIXTURE_ORDER) if (!FIXTURE_ROUNDS.some((r) => r.name === name)) (failed += 1), console.error(`FAIL order: no round named ${name}`);
-
 if (failed) {
 	console.error(`${failed} problem(s)`);
 	process.exit(1);
 }
-console.log(`fixtures ok: ${FIXTURE_ROUNDS.length} rounds, ${FIXTURE_ROUNDS.filter((r) => r.payoutMultiplier > 0).length} with a win`);
+console.log(`fixtures ok: ${books} real books, ${wins} line wins on the frontend's ${config.paylines.length} lines; events seen ${JSON.stringify(seen)}`);

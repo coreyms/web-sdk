@@ -1,18 +1,34 @@
 <script lang="ts" module>
 	import type { Board as BoardSymbols } from '../game/types';
 	import type { LineWinSpec } from '../game/road/roadBoard';
+	import type { StrikeSpec } from '../game/road/roadFeatures';
+	import type { ColumnTier, HeldColumn } from '../game/typesBookEvent';
 
 	// what the book event handlers ask of the board (game/bookEventHandlerMap.ts, game/actor.ts)
 	export type EmitterEventBoard =
 		/** put a board up at rest, no motion (boot, a resumed round, a failed play) */
 		| { type: 'boardSnap'; board: BoardSymbols }
-		/** the press: the old board drives away */
+		/** the press: the old board drives away, and every cloud and column of the spin before leaves */
 		| { type: 'boardDriveOut' }
 		/** the book's board drives in; resolves when every symbol has settled */
 		| { type: 'boardDriveIn'; board: BoardSymbols }
+		/** the sticky columns standing at the start of a spin, exactly (none in the base game) */
+		| { type: 'boardHeld'; held: HeldColumn[] }
+		/** the reindeer runs and darts into its target; resolves at the impact */
+		| { type: 'boardStrike'; strike: StrikeSpec }
+		/** the struck car's cell becomes the crash cloud Wild */
+		| { type: 'boardGrandmaWild'; cell: number; multiplier: number }
+		/** the red box grows to a column Wild and its character steps in; fromCell null = it starts whole */
+		| { type: 'boardColumnWild'; reel: number; tier: ColumnTier; multiplier: number; sticky: boolean; fromCell: number | null }
+		/** a held column's number doubles */
+		| { type: 'boardCrossing'; reel: number; to: number }
 		/** show the winning lines and the amount; resolves when the hold is over */
-		| { type: 'boardWinShow'; wins: LineWinSpec[]; amountText: string }
+		| { type: 'boardWinShow'; wins: LineWinSpec[]; amountText: string; multiplier: number }
 		| { type: 'boardWinClear' }
+		/** pulse cells with no line (the scatters of a trigger); resolves after ms */
+		| { type: 'boardPulse'; cells: number[]; ms: number }
+		/** a short line over the board; resolves after ms */
+		| { type: 'boardMessage'; text: string; ms: number }
 		/** a tap on the board during a live spin (ui/controls.svelte.ts hurries it) */
 		| { type: 'boardTap' };
 </script>
@@ -32,6 +48,7 @@
 	import { ROAD_ART } from '../game/roadArtSpec';
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
+	import { clipMemory, setClipUploader, setClipView } from '../game/road/columnClips';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -45,6 +62,8 @@
 	const road = new RoadBoard(tex, { road: loaded.road, tunnelLeft: loaded.tunnelLeft, tunnelRight: loaded.tunnelRight });
 	road.setBoard(stateGame.board);
 	road.onLaneStop = () => context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop' });
+	// the features' beats, voiced with BORROWED Manticore sounds until this game has its own
+	road.features.onBeat = (kind) => context.eventEmitter.broadcast({ type: 'soundOnce', name: kind === 'crossing' ? 'sfx_tile_double' : kind === 'column' ? 'sfx_sting_big_hit' : 'sfx_sting_hit' });
 	parent.addToParent(road.root);
 
 	// the road in the layout: road px -> master units (layoutSpec ROAD_LAYOUT) -> canvas px (the main layout's fit).
@@ -67,6 +86,13 @@
 
 	onMount(() => {
 		const app = context.stateApp.pixiApplication;
+		// a column character's sheet goes to the GPU when it has loaded, not on the frame it is first drawn
+		setClipUploader(app ? (texture) => app.renderer.prepare.upload(texture) : null);
+		// the staging switch `?rescap=` picks the characters' sheet density from the road's on-screen scale (CSS px per
+		// road px) and the GPU's largest texture side (game/road/columnClips.ts); read when a column first loads
+		const renderer = app?.renderer as unknown as { gl?: WebGLRenderingContext; gpu?: { device?: { limits?: { maxTextureDimension2D?: number } } } } | undefined;
+		const maxTextureSize = renderer?.gl ? Number(renderer.gl.getParameter(renderer.gl.MAX_TEXTURE_SIZE)) || 0 : (renderer?.gpu?.device?.limits?.maxTextureDimension2D ?? 0);
+		setClipView(() => ({ cssPerRoad: place.scale * main.scale, maxTextureSize }));
 		// the desktop atlas is drawn well under its own size on a small window: a mip chain keeps it clean (house rule).
 		// The phone atlas draws near 1:1 and stays out.
 		if (!PHONE_TIER) enableMipmaps(tex('H1_R')?.source, app?.renderer as PIXI.Renderer | undefined);
@@ -80,15 +106,43 @@
 	});
 
 	context.eventEmitter.subscribeOnMount({
-		boardSnap: ({ board }) => road.setBoard(board),
-		boardDriveOut: () => road.driveOut(stateGame.turboLevel),
+		boardSnap: ({ board }) => {
+			road.features.clearAll();
+			road.setBoard(board);
+		},
+		boardDriveOut: () => {
+			road.features.clearAll();
+			road.driveOut(stateGame.turboLevel);
+		},
 		boardDriveIn: async ({ board }) => {
 			await road.driveIn(board, stateGame.turboLevel);
 		},
-		boardWinShow: async ({ wins, amountText }) => {
-			await road.showWin(wins, amountText, LINE_WIN.holdMs * (LINE_WIN.holdShare[stateGame.turboLevel] ?? 1));
+		boardHeld: ({ held }) => road.features.syncHeld(held),
+		boardStrike: async ({ strike }) => {
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_swipe' });
+			await road.features.strike(strike);
+		},
+		boardGrandmaWild: async ({ cell, multiplier }) => {
+			await road.features.grandmaWild(cell, multiplier);
+		},
+		boardColumnWild: async ({ reel, tier, multiplier, sticky, fromCell }) => {
+			await road.features.columnWild(reel, tier, multiplier, sticky, fromCell);
+		},
+		boardCrossing: async ({ reel, to }) => {
+			await road.features.crossing(reel, to);
+		},
+		boardWinShow: async ({ wins, amountText, multiplier }) => {
+			await road.showWin(wins, amountText, LINE_WIN.holdMs * (LINE_WIN.holdShare[stateGame.turboLevel] ?? 1), multiplier);
 		},
 		boardWinClear: () => road.clearWin(),
+		boardPulse: async ({ cells, ms }) => {
+			await road.pulseCells(cells, ms);
+			road.clearWin();
+		},
+		boardMessage: async ({ text, ms }) => {
+			await road.message(text, ms);
+			road.clearWin();
+		},
 	});
 
 	// THE DEV HOOK (house rule: one object on the window per game, extended and never replaced; the probes read it)
@@ -127,8 +181,8 @@
 			setBoard: (board: BoardSymbols) => road.setBoard(board),
 			/** hold both stoplights on 'red', 'amber' or 'green', or dark (null); no argument hands them back to the board */
 			signal: (...color: ['red' | 'amber' | 'green' | null] | []) => road.forceSignal(color.length ? color[0] : undefined),
-			/** PLACEHOLDER reindeer: run it along lane `row` (0 = top). Not tied to a book event yet. */
-			runReindeer: (row = 1) => road.runReindeer(row),
+			/** the column characters' pictures that are loaded now, and what they weigh on the GPU */
+			clipMemory: () => clipMemory(),
 		});
 	}
 </script>

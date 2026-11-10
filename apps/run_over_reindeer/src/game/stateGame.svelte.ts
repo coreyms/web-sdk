@@ -17,6 +17,11 @@ export const LANDING_BOARD: Board = [
 	['L2', 'H4', 'L4', 'H1'],
 ];
 
+/** the bonus round's two cards. Amounts are book amounts (cents of the bet). */
+export type RoundCard =
+	| { kind: 'intro'; bonus: 'bonus' | 'super'; spins: number }
+	| { kind: 'outro'; bonus: 'bonus' | 'super'; amount: number; topUp: null | { floor: number; amount: number }; capped: boolean };
+
 /** a configured autoplay run waiting on the spin button (built in AutoplayModal, consumed on start) */
 export type AutoLoadout = {
 	count: number; // Infinity allowed
@@ -32,11 +37,17 @@ export const stateGame = $state({
 	board: LANDING_BOARD.map((reel) => [...reel]) as Board,
 	/** a round is being presented */
 	busy: false,
-	/** free spins: the round's length and how many spins are done (the feature events are not presented yet) */
+	/** free spins: the round's length and how many spins are done (the book's fs / totalFs) */
 	totalFs: 0,
 	spinsPlayed: 0,
-	/** which bonus round is running, for the music (not presented yet) */
+	/** which bonus round is running */
 	bonusMode: null as null | 'bonus' | 'super',
+	/** the bonus round's card that is up now (ui/RoundCard.svelte draws it), null when none is */
+	roundCard: null as null | RoundCard,
+	/** a natural round's floor top-up, kept from its event until the wrap-up card has shown it */
+	topUp: null as null | { floor: number; featureWin: number; amount: number },
+	/** the round reached the 7,777x cap (the wrap-up card says so) */
+	capped: false,
 	scatterCounter: 0,
 
 	// ---- the house HUD's fields (ui/controls.svelte.ts), as in Manticore Mayhem ----
@@ -51,7 +62,7 @@ export const stateGame = $state({
 	autoLoadout: null as AutoLoadout | null,
 	autoStopOnFreeGames: true,
 	autoPlayBonuses: false,
-	/** how many press-to-continue screens are up (Space belongs to them). None exist in the first pass. */
+	/** how many press-to-continue screens are up (Space belongs to them): the bonus round's cards */
 	pressGates: 0,
 	/** a win screen is up (none in the first pass: line wins show on the board itself) */
 	winShowing: false,

@@ -26,6 +26,7 @@
 	import Board from './Board.svelte';
 	import HudBeds from './HudBeds.svelte';
 	import Chrome from '../ui/Chrome.svelte';
+	import RoundCard from '../ui/RoundCard.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
 
 	const context = getContext();
@@ -185,6 +186,8 @@
 <!-- HTML chrome: control bar, feature menu, bet picker, game info. Always the top layer (house rule). -->
 {#if !redirecting}
 	<Chrome />
+	<!-- the bonus round's intro and wrap-up cards (keyed, so each card mounts fresh with its own press gate) -->
+	{#if context.stateGame.roundCard}{#key context.stateGame.roundCard}<RoundCard card={context.stateGame.roundCard} />{/key}{/if}
 	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
 		<LandingScreen onpress={() => (landingPressed = true)} />
 	{/if}

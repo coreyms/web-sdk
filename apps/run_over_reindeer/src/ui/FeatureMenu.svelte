@@ -4,7 +4,8 @@
 	//   SUPER FREE SPINS   the 300x buy
 	//   ANTE               ONE card with a three stop slider (2x, 4x, 10x): each stop is its own math mode
 	// Each card carries three or four short odds rows; the Ante card's rows change with the slider. Copy and rows
-	// come from game/featureMenuData.ts (the rows are DUMMY numbers in the first pass and the menu says so).
+	// come from game/featureMenuData.ts (the rows are the simulation's figures, marked provisional there and in a
+	// line under the cards, until real books exist).
 	//
 	// What a press does (the house flow, ui/controls.svelte.ts):
 	//   BUY        arms the feature on the Spin button for ONE round. Nothing is charged and nothing plays until the
@@ -21,7 +22,7 @@
 	import BetAdjuster from './BetAdjuster.svelte';
 	import Icon from './Icon.svelte';
 	import { ANTE_KEYS, modeCost } from '../game/betModeMeta';
-	import { ANTE_ODDS, BUY_ODDS, FEATURE_MENU_TEXT as T, ODDS_ARE_DUMMY, type OddsRow } from '../game/featureMenuData';
+	import { ANTE_ODDS, BUY_ODDS, FEATURE_MENU_TEXT as T, MAX_WIN_NOTE, ODDS_ARE_PROVISIONAL, type OddsRow } from '../game/featureMenuData';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { controls, master, scale, left, top }: Props = $props();
@@ -35,8 +36,9 @@
 	const row = $derived(vw >= 640 && vw > vh);
 	// a short screen (a phone held sideways) or a small upright phone: tighter type
 	const tight = $derived(row ? vh < 480 : vh < 700);
-	// the smallest upright phones (360 x 640): one more notch tighter
-	const tiny = $derived(!row && vh < 660);
+	// small upright phones (375 x 667 and under): one more notch tighter, so the odds rows and the
+	// footnote under the cards all fit without touching
+	const tiny = $derived(!row && vh < 700);
 	// "three or four short odds rows": four where there is room, three on a small upright phone (the modal never scrolls)
 	const oddsShown = $derived(!row && vh < 740 ? 3 : 4);
 
@@ -169,7 +171,7 @@
 				</div>
 			</div>
 
-			{#if ODDS_ARE_DUMMY}<div class="dummy" data-dummy-odds>{T.dummyNote}</div>{/if}
+			<div class="foot" data-menu-foot><span>{MAX_WIN_NOTE.label}: <b class="slot-num">{MAX_WIN_NOTE.value}</b>.</span>{#if ODDS_ARE_PROVISIONAL}<span data-provisional-odds>{' ' + T.provisionalNote}</span>{/if}</div>
 		</div>
 	</div>
 </ModalShell>
@@ -297,6 +299,10 @@
 		}
 		.panel.tiny .stop {
 			min-height: 22px;
+		}
+		/* the odds rows sit closer so the footnote clears the last card */
+		.panel.tiny .odd {
+			padding: 0.12em 0;
 		}
 	}
 	.x {
@@ -531,11 +537,13 @@
 	.stop.live {
 		box-shadow: inset 0 0 0 1.5px var(--accent);
 	}
-	.dummy {
+	.foot {
 		text-align: center;
-		font-size: 0.85em;
-		font-weight: 700;
-		letter-spacing: 0.04em;
-		color: var(--ui-amber);
+		font-size: 0.82em;
+		line-height: 1.3;
+		color: var(--ui-ink-2);
+	}
+	.foot b {
+		color: var(--ink);
 	}
 </style>

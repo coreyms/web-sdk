@@ -418,6 +418,32 @@ export const ROAD_ART = {
 			"green": "#34ee68"
 		}
 	},
+	"feature": {
+		"cloudCell": {
+			"width": 250,
+			"height": 171.25
+		},
+		"numbers": {
+			"height": 89.38,
+			"widths": {
+				"0": 83.75,
+				"1": 58.44,
+				"2": 78.12,
+				"3": 76.88,
+				"4": 82.5,
+				"5": 77.5,
+				"6": 79.38,
+				"7": 71.25,
+				"8": 80.62,
+				"9": 79.38,
+				"x": 77.5
+			}
+		},
+		"wordWild": {
+			"width": 154.69,
+			"height": 56.88
+		}
+	},
 	"symbols": {
 		"H1_R": {
 			"width": 212.2,
@@ -472,18 +498,22 @@ export const ROAD_ART = {
 			"height": 146.6
 		},
 		"W_R": {
-			"width": 205.0,
-			"height": 147.5
+			"width": 201.6,
+			"height": 146.9
 		},
 		"W_L": {
-			"width": 205.0,
-			"height": 147.5
+			"width": 201.6,
+			"height": 146.9
 		},
 		"S": {
 			"width": 135.6,
 			"height": 141.6
 		},
 		"reindeer_run": {
+			"width": 171.2,
+			"height": 190.0
+		},
+		"reindeer_run_L": {
 			"width": 171.2,
 			"height": 190.0
 		}
@@ -498,7 +528,7 @@ export const ROAD_ART = {
 		"L3": "sign_Q_v2.png (draft), 90% of the A's painted area",
 		"L4": "sign_J_v2.png (draft), 85% of the A's painted area",
 		"L5": "speed_limit_10_v3.png (draft), 80% of the A's painted area",
-		"W": "santa_sleigh_v6_2runners.png with a WILD tag (no Santa in it yet)",
+		"W": "sleigh_clean/santa_sleigh_v8_clean_a.png + sleigh_clean/wild_layer_v1_a.png (and the _L pair); no Santa in it yet",
 		"S": "PLACEHOLDER drawn by tools/build_assets.py (turquoise and white box, FS)",
 		"reindeer_run": "PLACEHOLDER: reindeer_run_ref_v2.png (a still, not the run cycle), tagged"
 	},
