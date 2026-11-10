@@ -1,0 +1,8 @@
+Copyright 2016 Red Hat, Inc.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is available with a FAQ at: https://openfontlicense.org
+
+The font files in this folder are Overpass v3.0.5 (Red Hat), converted from the installed .otf files to .woff2 by
+tools/build_assets.py with no change to the outlines. Check this notice against the release's own OFL.txt before
+the game ships.
