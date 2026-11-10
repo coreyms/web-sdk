@@ -111,8 +111,9 @@ export const imageOfSheet = (jsonUrl: string, image: string): string => {
 export type StripSheet = { sheet: PIXI.Spritesheet; source: StripSource };
 /** the renderer takes strip uploads: WebGL 2 (its texSubImage2D of a band from a typed array) */
 export const canStrip = (renderer: PIXI.Renderer | undefined): boolean => (renderer as unknown as { gl?: unknown } | undefined)?.gl instanceof WebGL2RenderingContext;
-/** one sheet the strip way, not yet uploaded (null: load it the old way) */
-export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | undefined): Promise<StripSheet | null> => {
+/** one sheet the strip way, not yet uploaded (null: load it the old way). `bands`: how many it goes up in (drop 8: the
+ *  win clips' sheets take CREATURE.wins.bands, the rest CREATURE.upload.bands) */
+export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | undefined, bands: number = CREATURE.upload.bands): Promise<StripSheet | null> => {
 	if (!wanted() || !canStrip(renderer)) return null;
 	try {
 		const res = await fetch(url);
@@ -123,7 +124,7 @@ export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | unde
 		const pic = await decode(imageOfSheet(url, data.meta.image));
 		if (!pic) return null;
 		const source = new StripSource({
-			resource: { px: new Uint8Array(pic.buf), band: 0, rows: Math.ceil(pic.h / CREATURE.upload.bands) },
+			resource: { px: new Uint8Array(pic.buf), band: 0, rows: Math.ceil(pic.h / Math.max(1, bands)) },
 			width: pic.w,
 			height: pic.h,
 			resolution: 1,
@@ -139,8 +140,9 @@ export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | unde
 	}
 };
 
-/** its bands up, one per animation frame (resolves when the last is up, or at once without a renderer) */
-export const uploadStrips = async (renderer: PIXI.Renderer | undefined, source: StripSource): Promise<void> => {
+/** its bands up, one per animation frame (resolves when the last is up, or at once without a renderer). `hold`: awaited
+ *  before each band after the first (drop 8: THE QUIET, game/creatureLoad.ts, no band during a win plaque's impact) */
+export const uploadStrips = async (renderer: PIXI.Renderer | undefined, source: StripSource, hold?: () => Promise<void>): Promise<void> => {
 	// (WebGL only: the uploader writes through gl; a WebGPU renderer never gets here, see canStrip)
 	const sys = renderer?.texture as unknown as { _uploads?: Record<string, unknown>; initSource: (s: PIXI.TextureSource) => void } | undefined;
 	if (!sys?._uploads) return;
@@ -149,6 +151,7 @@ export const uploadStrips = async (renderer: PIXI.Renderer | undefined, source: 
 	sys.initSource(source);
 	while (!source.done && !source.destroyed) {
 		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		if (hold) await hold();
 		if (!source.destroyed) source.update();
 	}
 };

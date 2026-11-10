@@ -2,18 +2,18 @@
  "frames": {
   "creature_epic_charge_loop_000": {
    "frame": {
-    "x": 0,
+    "x": 331,
     "y": 0,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 40,
-    "y": 49,
+    "y": 42,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "sourceSize": {
     "w": 432,
@@ -22,18 +22,18 @@
   },
   "creature_epic_charge_loop_001": {
    "frame": {
-    "x": 331,
+    "x": 662,
     "y": 0,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 40,
-    "y": 49,
+    "y": 42,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "sourceSize": {
     "w": 432,
@@ -43,17 +43,17 @@
   "creature_epic_charge_loop_002": {
    "frame": {
     "x": 0,
-    "y": 1080,
+    "y": 368,
     "w": 329,
-    "h": 357
+    "h": 365
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 40,
-    "y": 50,
+    "y": 42,
     "w": 329,
-    "h": 357
+    "h": 365
    },
    "sourceSize": {
     "w": 432,
@@ -62,18 +62,18 @@
   },
   "creature_epic_charge_loop_003": {
    "frame": {
-    "x": 331,
-    "y": 1080,
-    "w": 329,
-    "h": 357
+    "x": 0,
+    "y": 1102,
+    "w": 330,
+    "h": 364
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 40,
-    "y": 50,
-    "w": 329,
-    "h": 357
+    "x": 39,
+    "y": 43,
+    "w": 330,
+    "h": 364
    },
    "sourceSize": {
     "w": 432,
@@ -82,18 +82,18 @@
   },
   "creature_epic_charge_loop_004": {
    "frame": {
-    "x": 0,
-    "y": 360,
+    "x": 331,
+    "y": 368,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 39,
-    "y": 49,
+    "y": 42,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "sourceSize": {
     "w": 432,
@@ -102,18 +102,18 @@
   },
   "creature_epic_charge_loop_005": {
    "frame": {
-    "x": 331,
-    "y": 360,
+    "x": 662,
+    "y": 368,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 39,
-    "y": 49,
+    "y": 42,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "sourceSize": {
     "w": 432,
@@ -123,17 +123,17 @@
   "creature_epic_charge_loop_006": {
    "frame": {
     "x": 0,
-    "y": 1439,
+    "y": 735,
     "w": 329,
-    "h": 357
+    "h": 365
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 40,
-    "y": 50,
+    "y": 42,
     "w": 329,
-    "h": 357
+    "h": 365
    },
    "sourceSize": {
     "w": 432,
@@ -142,18 +142,18 @@
   },
   "creature_epic_charge_loop_007": {
    "frame": {
-    "x": 331,
-    "y": 1439,
+    "x": 332,
+    "y": 1102,
     "w": 329,
-    "h": 357
+    "h": 364
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 40,
-    "y": 50,
+    "y": 43,
     "w": 329,
-    "h": 357
+    "h": 364
    },
    "sourceSize": {
     "w": 432,
@@ -162,18 +162,18 @@
   },
   "creature_epic_charge_loop_008": {
    "frame": {
-    "x": 0,
-    "y": 720,
+    "x": 331,
+    "y": 735,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 40,
-    "y": 49,
+    "y": 42,
     "w": 329,
-    "h": 358
+    "h": 365
    },
    "sourceSize": {
     "w": 432,
@@ -182,18 +182,18 @@
   },
   "creature_epic_charge_loop_009": {
    "frame": {
-    "x": 331,
-    "y": 720,
+    "x": 0,
+    "y": 0,
     "w": 329,
-    "h": 358
+    "h": 366
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 40,
-    "y": 49,
+    "y": 41,
     "w": 329,
-    "h": 358
+    "h": 366
    },
    "sourceSize": {
     "w": 432,
@@ -202,18 +202,18 @@
   },
   "creature_epic_charge_loop_010": {
    "frame": {
-    "x": 0,
-    "y": 1798,
+    "x": 662,
+    "y": 735,
     "w": 329,
-    "h": 357
+    "h": 365
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 39,
-    "y": 50,
+    "y": 42,
     "w": 329,
-    "h": 357
+    "h": 365
    },
    "sourceSize": {
     "w": 432,
@@ -222,18 +222,18 @@
   },
   "creature_epic_charge_loop_011": {
    "frame": {
-    "x": 331,
-    "y": 1798,
+    "x": 663,
+    "y": 1102,
     "w": 329,
-    "h": 357
+    "h": 364
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 39,
-    "y": 50,
+    "y": 43,
     "w": 329,
-    "h": 357
+    "h": 364
    },
    "sourceSize": {
     "w": 432,
@@ -245,10 +245,10 @@
   "image": "creature-epic-charge_loop-phone.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 662,
-   "h": 2157
+   "w": 994,
+   "h": 1468
   },
   "scale": "1",
-  "pngHash": "1f14005f"
+  "pngHash": "9738d135"
  }
 }

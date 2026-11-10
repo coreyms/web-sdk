@@ -24,15 +24,15 @@
    "frame": {
     "x": 0,
     "y": 534,
-    "w": 140,
+    "w": 139,
     "h": 33
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 4,
+    "x": 5,
     "y": 121,
-    "w": 140,
+    "w": 139,
     "h": 33
    },
    "sourceSize": {
@@ -49,6 +49,6 @@
    "h": 567
   },
   "scale": "1",
-  "pngHash": "d88c024a"
+  "pngHash": "49872953"
  }
 }

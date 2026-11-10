@@ -1756,7 +1756,7 @@ export const STING = {
 // (STING.hitAt), the trail arrives on that beat; a big / super trail arrives on the strike beat (the charge's end,
 // where the hit sound lands) and the cells flip on theirs. r2: the trail leaves on sting_hit's hold frame (flightMs).
 //   tail      tips: the barb's point per clip frame, rig px of the 1024 canvas (frame 1 first). hold: the strike pose
-//             (sting_hit f6), used when the frame on show has no entry (idle, a clip whose sheet is not in).
+//             (sting_hit f11 since drop 8; f6 before), used when the frame on show has no entry (idle, a clip whose sheet is not in).
 //             fallback: board cells (x right, y down from the board's top left) when he is not on screen at all: the
 //             old origin, 1.5 cells right of the board and 1.2 above it
 //   trail     the strike: a tapered ribbon (a baked texture per look on a mesh rewritten each frame, the claw's
@@ -1770,6 +1770,9 @@ export const STING = {
 //             bottom of the strike (tips: y 451, the lowest of the clip; f7 is the same), and its head flies into the
 //             cell in this many style ms. Before f6 there is no line at all. The creature starts sting_hit this much
 //             earlier than r1 (game/creature.ts strikeLead), so f6 lands one flight before the tail's beat, and the
+//             (DROP 8: the hold is sting_hit f11, the barb's contact after the snap, and the trail leaves there; the wind-up
+//             to it is 10 frames, 333 ms, so a normal sting's strike is planned from the cue that reads it ahead,
+//             game/creature.ts cueBeat)
 //             board's beats stay put: a normal's flip and an impact, a big / super centre's impact on the strike beat
 //             and its hit sound, the shape's flip hitAt x bigHitMs after it. A scatter keeps r1's timing (its locked
 //             hit is 240 ms, the flip 173 ms in: no room for the 167 ms wind-up and a flight before it)
@@ -1815,13 +1818,24 @@ type StingLookSpec = {
 };
 export const STING_FX = {
 	tail: {
+		// DROP 8 (sting v3, kp_v7, Corey 2026-11-09: "The sting is fine now"): the rig's FINAL table, sting_fx_tail_drop8A_FINAL
+		// (rig-review/2026-11-09/drop-8-sting-fx): the tailC barb tip (vertex 87281) projected through the deformed mesh on
+		// the C5 camera, 1024 canvas rig px, frame 1 first, checked on the final day frames (the tip within 0.86 px of an
+		// opaque pixel on every frame). sting_hit 36 frames, its hold f11 (the barb at its contact, raised 46 px by the tail
+		// and wing fix: drop 7's hold was f6 at [190, 451]); sting_recrouch 12 frames, following f11; charge_loop V3 (the
+		// one third tremble). These replace the rig's PROPOSAL values (sting_fx_tail_v3final_PROPOSAL)
 		tips: {
-			charge_in: [[408, 170], [398, 187], [390, 166], [381, 162], [366, 168], [358, 184]],
-			charge_loop: [[358, 184], [357, 184], [355, 186], [366, 168], [357, 181], [355, 166], [354, 186], [368, 168], [360, 184], [355, 184], [362, 168], [357, 187]],
-			sting_hit: [[357, 181], [373, 272], [432, 390], [371, 379], [261, 318], [190, 451], [187, 451], [192, 250], [237, 208], [277, 190], [307, 179], [336, 170], [358, 166], [370, 187], [389, 170], [400, 168], [405, 171], [403, 170]],
-			sting_recrouch: [[190, 248], [248, 166], [294, 138], [331, 149], [355, 162], [355, 187], [357, 187]],
+			charge_in: [[384, 118], [381, 113], [373, 110], [363, 108], [355, 108], [351, 107]],
+			charge_loop: [[351, 105], [351, 104], [350, 106], [350, 107], [349, 105], [348, 104], [348, 106], [352, 107], [352, 105], [349, 104], [347, 106], [348, 107]],
+			sting_hit: [[350, 106], [350, 125], [350, 141], [350, 150], [350, 158], [327, 201], [276, 281], [261, 372], [243, 376], [232, 381], [222, 383], [221, 384], [219, 387], [220, 387], [225, 365], [229, 317], [235, 271], [245, 230], [257, 199], [269, 174], [282, 151], [297, 132], [311, 117], [322, 107], [328, 102], [331, 100], [332, 98], [336, 95], [342, 93], [351, 94], [362, 98], [371, 103], [378, 109], [382, 114], [384, 117], [384, 117]],
+			sting_recrouch: [[222, 363], [225, 359], [232, 356], [244, 332], [255, 285], [265, 244], [274, 211], [287, 179], [311, 143], [337, 119], [348, 109], [349, 107]],
 		} as Record<string, readonly (readonly [number, number])[]>,
-		hold: [190, 451] as const,
+		hold: [222, 383] as const,
+		/** THE SCATTER ENTRY (the same FINAL table's entryFrames, ruled 2026-11-09): a scatter sting's sting_hit starts on this
+		 *  frame, the deepest cockback, so its hold f11 lands (11 - 5) x 33.3 = 200 ms later, inside the locked 240 ms hit
+		 *  (game/creature.ts strikeLead). Measured on the day frames: the cut from charge_loop f12 to sting_hit f5 changes
+		 *  10.2 % of the outline, under the clip's own largest step (13.9 %) */
+		entryFrames: { scatter: 5 },
 		fallback: { x: 9.5, y: -1.2 },
 	},
 	trail: { segments: 22, bend: 0.2, length: 1, ease: 2.2, widthCells: 0.6, tailWidth: 0.1, taper: 1.1, headCells: 0.62, headGlowCells: 1.5, headAlpha: 1, collapseMs: 90 },
@@ -2457,6 +2471,10 @@ export const PLAQUE_ESCALATION = {
 	epic: { roarDelayMs: 120 },
 } as const;
 
+// ---- DROP 8 (2026-11-10): the moves below are now his own win clips, by the tier's name (win_big at BIG, win_super at
+// SUPER, win_mega at MEGA, win_epic_in / loop / out at EPIC, also on a TOTAL WIN at that tier), each with the voice the
+// tier had (the snarl take, a growl take, the MEGA roar; Epic's sfx_roar_win stays the plaque's). The flex is retired
+// (the rig's plan: win_super replaces it). The text below is the 2026-10-23 design they replace.
 // ---- THE MANTICORE CELEBRATES THE WIN (advisor 2026-10-23, "Path to 3 stars" item 1; Corey 2026-10-23: "1. Agreed.",
 // yes to new roar takes; game/creature.ts cheer, components/StingerPlaque.svelte cheer) ------------------------------
 // The one moment every reviewer reaches, a Big Win, had the plaque celebrating and the creature standing still beside it.
@@ -2482,16 +2500,23 @@ export const PLAQUE_ESCALATION = {
 // 2026-10-16): the feature intro plaque never cheers. He takes a cheer only from his idle loop with nothing cued.
 export const PLAQUE_CHEER = {
 	on: true,
-	/** the move per STINGER_TIERS index (big, super, mega); epic and max keep their own */
-	moves: ['snarl', 'flex', 'roar'] as readonly ('snarl' | 'flex' | 'roar')[],
+	/** the move per STINGER_TIERS index (big, super, mega): drop 8's win clips (they replace the snarl, the flex and the
+	 *  roar move); epic: `epic`; max keeps its own */
+	moves: ['win_big', 'win_super', 'win_mega'] as readonly ('win_big' | 'win_super' | 'win_mega')[],
+	/** EPIC (drop 8, Corey 2026-11-09): win_epic_in, then win_epic_loop for as long as the plaque is up, then win_epic_out
+	 *  (the deeper dip exit) back to idle, the tail glow over all three; sfx_roar_win stays the plaque's own */
+	epic: 'win_epic' as const,
+	/** each move's voice, as the tier had it before drop 8: the snarl take at BIG, a growl take at SUPER, THE MEGA ROAR at
+	 *  MEGA (roarSound); played on the clip's first frame like the moves they replace */
+	voices: { win_big: 'snarl', win_super: 'growl', win_mega: 'roar', win_epic: null } as const,
 	/** real ms after the final tier's landing (or the impact of a win that stays BIG) */
 	delayMs: 140,
-	flex: { peakFrame: 12, holdMs: 260, backRate: 1 },
 	roarSound: 'sfx_manticore_roar_win_1',
 	/** real ms from a cheer's start before his idle roll may play a snarl or growl again (the poke's own quiet,
 	 *  CREATURE.poke.rollQuietMs, is 5400): one voice per celebration, not a snarl on top of it */
 	rollQuietMs: 6000,
 } as const;
+export type CheerMove = (typeof PLAQUE_CHEER.moves)[number] | typeof PLAQUE_CHEER.epic;
 
 // ---- THE PLAQUE'S BACKGROUND GLOW (branch portrait-glow-r1, OPTIONS for Corey) -------------------------------------
 // Corey 2026-10-17: "we should add some background glow to the stinger so it doesn't blend with the board so much"
@@ -3397,6 +3422,11 @@ export const CHAIN_SOUND = {
 //             its lowest) is where the trail leaves and the hit lands one flight later; a scatter's as r1
 //   sting     the board's own beats the strike is timed from, style ms: where a normal and a scatter sting's cell flips
 //             in its beat, the scatter run's first hold, the two charge lengths (all read from STING / SCATTER_STING)
+//             DROP 8 (2026-11-10, measured on the rig's day frames at 256 px, outline change of the alpha masks): sting_recrouch
+//             is 12 frames and follows sting_hit's hold f11 (12.8 % to its f1); its f12 hands over to charge_loop f1 at
+//             2.3 %. strikeFromFrame 10: the cut from recrouch f10 to sting_hit f1 is 3.3 % (f9 8.0 %, f11 2.1 %, f12 2.2 %),
+//             drop 7's f5 was 3.9 %. crouchUpFrame 25: no charge_loop frame is near the sting's way up until sting_hit f24
+//             (8.7 %); f26 is the closest, 7.7 % (f25 7.8 %, f27 8.3 %). The drop 4 notes below are kept for the record.
 //   recrouch  BETWEEN TWO STINGS of a run (drop 4): the rig's sting_recrouch follows sting_hit's hold frame f6 (the tail
 //             whips back: 24 % of the outline, the size of sting_hit's own step out of its hold) and its f7 is
 //             charge_loop f12's outline exactly, so it hands over to charge_loop f1 as the loop's own seam (2.6 %). The
@@ -3445,7 +3475,24 @@ export const CHAIN_SOUND = {
 //             1024 canvas about the feet point (x, y pairs; y up is negative), head, mane, shoulders and front legs,
 //             no wings, no tail, the gap between the forelegs left out. It never takes a tap on the board's opening
 //             (that stays the board's: game/boardTap.ts) and lies under every HTML control.
-//   snarlOdds, growlOdds   rolled once at each idle loop restart, snarl first, never both, plain Math.random
+//   snarlOdds, growlOdds, idleLookOdds   rolled once at each idle loop restart, snarl first, then growl, then the look
+//             round (idle_look, drop 8: 36 frames, no voice; 1 in 50 as the rig's final render plan sets it), never two,
+//             plain Math.random
+//   wins      THE WIN CLIPS (drop 8; Corey 2026-11-09: on demand "if we can load on demand without messing up or
+//             stuttering on iPhone and desktop", otherwise up front). win_big, win_mega, win_super and win_epic_in / loop /
+//             out are their own load group (game/creatureLoad.ts creatureWins) and the Epic tail glow its own atlas
+//             (shared/creature-glow-wins).
+//               onDemand  THE ONE SWITCH. true: a round's book names the clips its win plaques will ask for (the final
+//                         tier of each, in the look that will be on show) and only those load, as the book arrives; they
+//                         are let go once the round has played out and he no longer draws them. false: the whole group
+//                         loads up front, after his alternates, with the rest of the look, and stays
+//               bands     a win sheet goes up in this many bands, one per animation frame (the look's other sheets: 8,
+//                         CREATURE.upload.bands): half the upload per frame of the other sheets
+//               quiet     no sheet of his goes to the GPU while a win plaque drops in and lands (showMs at most from its
+//                         show, impactMs after its impact) nor for tierMs after a tier lands on it
+//               epicLoopMaxMs   the Epic's loop never runs longer than this without its plaque's end (a safety)
+//             NOT LOADED IN TIME: he keeps idling (never a missing creature); the cheer waits for its clip while the
+//             plaque is up and plays if it lands in time, and the plaque plays as ever
 //   breath    one quiet breath sound per idle loop, the two takes in turn, stopped when anything else of his starts
 //   voice     the snarl and the growl only (the breaths are left alone): never the same take twice in a row per sound,
 //             and each play at a random playback rate from rateMin to rateMax (pitch and length move together, about
@@ -3633,8 +3680,8 @@ export const CREATURE = {
 		chargeMs: STING.chargeMs,
 		superChargeMs: STING.superChargeMs,
 	},
-	recrouch: { strikeFromFrame: 5 },
-	crouchUpFrame: 13,
+	recrouch: { strikeFromFrame: 10 },
+	crouchUpFrame: 25,
 	glow: { strength: 1, fadeMs: 100 },
 	glowPhase: true,
 	glowAim: { maxRate: 0.12, minFrames: 12, exitFrames: [12, 1], edge: 0.05, landFrames: 2, tickDecay: 0.9, tickCapMs: 100 },
@@ -3647,6 +3694,8 @@ export const CREATURE = {
 	},
 	snarlOdds: 1 / 20,
 	growlOdds: 1 / 30,
+	idleLookOdds: 1 / 50,
+	wins: { onDemand: true, bands: 16, quiet: { showMs: 1500, impactMs: 300, tierMs: 250 }, epicLoopMaxMs: 15000 },
 	breath: true,
 	voice: { rateMin: 0.95, rateMax: 1.05 },
 	/** the floor shadow's strength (the Rig's rendered shadow pass is pure black, alpha up to 254): Corey 2026-10-17 13:20

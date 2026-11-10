@@ -1,0 +1,854 @@
+{
+ "frames": {
+  "creature_day_win_super_000": {
+   "frame": {
+    "x": 490,
+    "y": 0,
+    "w": 487,
+    "h": 532
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 70,
+    "w": 487,
+    "h": 532
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_001": {
+   "frame": {
+    "x": 1488,
+    "y": 534,
+    "w": 487,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 71,
+    "w": 487,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_002": {
+   "frame": {
+    "x": 0,
+    "y": 1067,
+    "w": 486,
+    "h": 530
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 72,
+    "w": 486,
+    "h": 530
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_003": {
+   "frame": {
+    "x": 1005,
+    "y": 1067,
+    "w": 485,
+    "h": 529
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 73,
+    "w": 485,
+    "h": 529
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_004": {
+   "frame": {
+    "x": 2009,
+    "y": 1067,
+    "w": 484,
+    "h": 527
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 75,
+    "w": 484,
+    "h": 527
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_005": {
+   "frame": {
+    "x": 1034,
+    "y": 2653,
+    "w": 483,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 78,
+    "w": 483,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_006": {
+   "frame": {
+    "x": 0,
+    "y": 3179,
+    "w": 481,
+    "h": 522
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 60,
+    "y": 80,
+    "w": 481,
+    "h": 522
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_007": {
+   "frame": {
+    "x": 1474,
+    "y": 3179,
+    "w": 480,
+    "h": 519
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 60,
+    "y": 83,
+    "w": 480,
+    "h": 519
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_008": {
+   "frame": {
+    "x": 1956,
+    "y": 3179,
+    "w": 480,
+    "h": 518
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 60,
+    "y": 84,
+    "w": 480,
+    "h": 518
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_009": {
+   "frame": {
+    "x": 2438,
+    "y": 3179,
+    "w": 479,
+    "h": 517
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 60,
+    "y": 85,
+    "w": 479,
+    "h": 517
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_010": {
+   "frame": {
+    "x": 983,
+    "y": 3179,
+    "w": 489,
+    "h": 519
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 56,
+    "y": 83,
+    "w": 489,
+    "h": 519
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_011": {
+   "frame": {
+    "x": 483,
+    "y": 3179,
+    "w": 498,
+    "h": 521
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 52,
+    "y": 81,
+    "w": 498,
+    "h": 521
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_012": {
+   "frame": {
+    "x": 2553,
+    "y": 2653,
+    "w": 508,
+    "h": 522
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 80,
+    "w": 508,
+    "h": 522
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_013": {
+   "frame": {
+    "x": 1519,
+    "y": 2653,
+    "w": 515,
+    "h": 523
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 79,
+    "w": 515,
+    "h": 523
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_014": {
+   "frame": {
+    "x": 2036,
+    "y": 2653,
+    "w": 515,
+    "h": 523
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 79,
+    "w": 515,
+    "h": 523
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_015": {
+   "frame": {
+    "x": 1034,
+    "y": 1599,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_016": {
+   "frame": {
+    "x": 1551,
+    "y": 1599,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_017": {
+   "frame": {
+    "x": 2068,
+    "y": 1599,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_018": {
+   "frame": {
+    "x": 2585,
+    "y": 1599,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_019": {
+   "frame": {
+    "x": 0,
+    "y": 2127,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_020": {
+   "frame": {
+    "x": 517,
+    "y": 2127,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_021": {
+   "frame": {
+    "x": 1034,
+    "y": 2127,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_022": {
+   "frame": {
+    "x": 1551,
+    "y": 2127,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_023": {
+   "frame": {
+    "x": 2068,
+    "y": 2127,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_024": {
+   "frame": {
+    "x": 2585,
+    "y": 2127,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_025": {
+   "frame": {
+    "x": 0,
+    "y": 2653,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_026": {
+   "frame": {
+    "x": 517,
+    "y": 2653,
+    "w": 515,
+    "h": 524
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 78,
+    "w": 515,
+    "h": 524
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_027": {
+   "frame": {
+    "x": 517,
+    "y": 1599,
+    "w": 515,
+    "h": 525
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 77,
+    "w": 515,
+    "h": 525
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_028": {
+   "frame": {
+    "x": 2495,
+    "y": 1067,
+    "w": 515,
+    "h": 526
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 76,
+    "w": 515,
+    "h": 526
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_029": {
+   "frame": {
+    "x": 0,
+    "y": 1599,
+    "w": 515,
+    "h": 526
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 76,
+    "w": 515,
+    "h": 526
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_030": {
+   "frame": {
+    "x": 1492,
+    "y": 1067,
+    "w": 515,
+    "h": 528
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 74,
+    "w": 515,
+    "h": 528
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_031": {
+   "frame": {
+    "x": 488,
+    "y": 1067,
+    "w": 515,
+    "h": 529
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 73,
+    "w": 515,
+    "h": 529
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_032": {
+   "frame": {
+    "x": 1977,
+    "y": 534,
+    "w": 515,
+    "h": 530
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 72,
+    "w": 515,
+    "h": 530
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_033": {
+   "frame": {
+    "x": 2494,
+    "y": 534,
+    "w": 515,
+    "h": 530
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 72,
+    "w": 515,
+    "h": 530
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_034": {
+   "frame": {
+    "x": 1468,
+    "y": 0,
+    "w": 515,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 48,
+    "y": 71,
+    "w": 515,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_035": {
+   "frame": {
+    "x": 1985,
+    "y": 0,
+    "w": 514,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 49,
+    "y": 71,
+    "w": 514,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_036": {
+   "frame": {
+    "x": 2501,
+    "y": 0,
+    "w": 509,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 52,
+    "y": 71,
+    "w": 509,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_037": {
+   "frame": {
+    "x": 0,
+    "y": 534,
+    "w": 499,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 55,
+    "y": 71,
+    "w": 499,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_038": {
+   "frame": {
+    "x": 501,
+    "y": 534,
+    "w": 493,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 57,
+    "y": 71,
+    "w": 493,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_039": {
+   "frame": {
+    "x": 996,
+    "y": 534,
+    "w": 490,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 58,
+    "y": 71,
+    "w": 490,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_040": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 488,
+    "h": 532
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 58,
+    "y": 70,
+    "w": 488,
+    "h": 532
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_win_super_041": {
+   "frame": {
+    "x": 979,
+    "y": 0,
+    "w": 487,
+    "h": 532
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 70,
+    "w": 487,
+    "h": 532
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  }
+ },
+ "meta": {
+  "image": "creature-day-win_super.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 3102,
+   "h": 3703
+  },
+  "scale": "1",
+  "pngHash": "e793c441"
+ }
+}

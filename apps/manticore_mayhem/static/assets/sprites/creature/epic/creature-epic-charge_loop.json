@@ -5,15 +5,15 @@
     "x": 0,
     "y": 0,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 60,
-    "y": 74,
+    "y": 63,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "sourceSize": {
     "w": 640,
@@ -25,15 +25,15 @@
     "x": 487,
     "y": 0,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 61,
-    "y": 74,
+    "y": 63,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "sourceSize": {
     "w": 640,
@@ -43,17 +43,17 @@
   "creature_epic_charge_loop_002": {
    "frame": {
     "x": 0,
-    "y": 1590,
+    "y": 1623,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 61,
-    "y": 76,
+    "y": 64,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "sourceSize": {
     "w": 640,
@@ -63,17 +63,17 @@
   "creature_epic_charge_loop_003": {
    "frame": {
     "x": 487,
-    "y": 1590,
+    "y": 1623,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 60,
-    "y": 76,
+    "y": 64,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "sourceSize": {
     "w": 640,
@@ -83,17 +83,17 @@
   "creature_epic_charge_loop_004": {
    "frame": {
     "x": 0,
-    "y": 530,
+    "y": 541,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 59,
-    "y": 74,
+    "y": 63,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "sourceSize": {
     "w": 640,
@@ -103,17 +103,17 @@
   "creature_epic_charge_loop_005": {
    "frame": {
     "x": 487,
-    "y": 530,
+    "y": 541,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 59,
-    "y": 74,
+    "y": 63,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "sourceSize": {
     "w": 640,
@@ -123,17 +123,17 @@
   "creature_epic_charge_loop_006": {
    "frame": {
     "x": 0,
-    "y": 2118,
+    "y": 2163,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 60,
-    "y": 76,
+    "y": 64,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "sourceSize": {
     "w": 640,
@@ -143,17 +143,17 @@
   "creature_epic_charge_loop_007": {
    "frame": {
     "x": 487,
-    "y": 2118,
+    "y": 2163,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 61,
-    "y": 76,
+    "y": 64,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "sourceSize": {
     "w": 640,
@@ -163,17 +163,17 @@
   "creature_epic_charge_loop_008": {
    "frame": {
     "x": 0,
-    "y": 1060,
+    "y": 1082,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 61,
-    "y": 74,
+    "y": 63,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "sourceSize": {
     "w": 640,
@@ -183,17 +183,17 @@
   "creature_epic_charge_loop_009": {
    "frame": {
     "x": 487,
-    "y": 1060,
+    "y": 1082,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 60,
-    "y": 74,
+    "y": 63,
     "w": 485,
-    "h": 528
+    "h": 539
    },
    "sourceSize": {
     "w": 640,
@@ -203,17 +203,17 @@
   "creature_epic_charge_loop_010": {
    "frame": {
     "x": 0,
-    "y": 2646,
+    "y": 2703,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 59,
-    "y": 76,
+    "y": 64,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "sourceSize": {
     "w": 640,
@@ -223,17 +223,17 @@
   "creature_epic_charge_loop_011": {
    "frame": {
     "x": 487,
-    "y": 2646,
+    "y": 2703,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 59,
-    "y": 76,
+    "y": 64,
     "w": 485,
-    "h": 526
+    "h": 538
    },
    "sourceSize": {
     "w": 640,
@@ -246,9 +246,9 @@
   "format": "RGBA8888",
   "size": {
    "w": 974,
-   "h": 3174
+   "h": 3243
   },
   "scale": "1",
-  "pngHash": "7099cb6e"
+  "pngHash": "ec7abb5b"
  }
 }

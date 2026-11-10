@@ -3,7 +3,7 @@
   "creature_day_snarl_000": {
    "frame": {
     "x": 0,
-    "y": 0,
+    "y": 1072,
     "w": 487,
     "h": 532
    },
@@ -22,18 +22,18 @@
   },
   "creature_day_snarl_001": {
    "frame": {
-    "x": 489,
-    "y": 0,
+    "x": 0,
+    "y": 2139,
     "w": 487,
-    "h": 532
+    "h": 531
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 59,
-    "y": 70,
+    "x": 58,
+    "y": 71,
     "w": 487,
-    "h": 532
+    "h": 531
    },
    "sourceSize": {
     "w": 640,
@@ -42,18 +42,18 @@
   },
   "creature_day_snarl_002": {
    "frame": {
-    "x": 978,
-    "y": 0,
-    "w": 487,
-    "h": 532
+    "x": 976,
+    "y": 2139,
+    "w": 484,
+    "h": 531
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 59,
-    "y": 70,
-    "w": 487,
-    "h": 532
+    "y": 71,
+    "w": 484,
+    "h": 531
    },
    "sourceSize": {
     "w": 640,
@@ -62,17 +62,17 @@
   },
   "creature_day_snarl_003": {
    "frame": {
-    "x": 2934,
-    "y": 0,
-    "w": 488,
+    "x": 1462,
+    "y": 2139,
+    "w": 483,
     "h": 531
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
+    "x": 59,
     "y": 71,
-    "w": 488,
+    "w": 483,
     "h": 531
    },
    "sourceSize": {
@@ -82,9 +82,9 @@
   },
   "creature_day_snarl_004": {
    "frame": {
-    "x": 3424,
-    "y": 0,
-    "w": 488,
+    "x": 489,
+    "y": 2139,
+    "w": 485,
     "h": 531
    },
    "rotated": false,
@@ -92,7 +92,7 @@
    "spriteSourceSize": {
     "x": 58,
     "y": 71,
-    "w": 488,
+    "w": 485,
     "h": 531
    },
    "sourceSize": {
@@ -102,18 +102,18 @@
   },
   "creature_day_snarl_005": {
    "frame": {
-    "x": 1956,
-    "y": 1067,
-    "w": 487,
-    "h": 530
+    "x": 1030,
+    "y": 2672,
+    "w": 493,
+    "h": 529
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 72,
-    "w": 487,
-    "h": 530
+    "x": 54,
+    "y": 73,
+    "w": 493,
+    "h": 529
    },
    "sourceSize": {
     "w": 640,
@@ -122,18 +122,18 @@
   },
   "creature_day_snarl_006": {
    "frame": {
-    "x": 3423,
-    "y": 1067,
-    "w": 487,
-    "h": 528
+    "x": 2034,
+    "y": 2672,
+    "w": 501,
+    "h": 526
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 74,
-    "w": 487,
-    "h": 528
+    "x": 51,
+    "y": 76,
+    "w": 501,
+    "h": 526
    },
    "sourceSize": {
     "w": 640,
@@ -142,18 +142,18 @@
   },
   "creature_day_snarl_007": {
    "frame": {
-    "x": 2934,
-    "y": 1067,
-    "w": 487,
-    "h": 529
+    "x": 1525,
+    "y": 2672,
+    "w": 507,
+    "h": 526
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 73,
-    "w": 487,
-    "h": 529
+    "x": 49,
+    "y": 76,
+    "w": 507,
+    "h": 526
    },
    "sourceSize": {
     "w": 640,
@@ -162,17 +162,17 @@
   },
   "creature_day_snarl_008": {
    "frame": {
-    "x": 2445,
-    "y": 1067,
-    "w": 487,
+    "x": 517,
+    "y": 2672,
+    "w": 511,
     "h": 530
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
+    "x": 49,
     "y": 72,
-    "w": 487,
+    "w": 511,
     "h": 530
    },
    "sourceSize": {
@@ -182,18 +182,18 @@
   },
   "creature_day_snarl_009": {
    "frame": {
-    "x": 1470,
-    "y": 534,
-    "w": 487,
-    "h": 531
+    "x": 516,
+    "y": 0,
+    "w": 513,
+    "h": 535
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "x": 48,
+    "y": 67,
+    "w": 513,
+    "h": 535
    },
    "sourceSize": {
     "w": 640,
@@ -202,18 +202,18 @@
   },
   "creature_day_snarl_010": {
    "frame": {
-    "x": 1959,
-    "y": 534,
-    "w": 487,
-    "h": 531
+    "x": 0,
+    "y": 0,
+    "w": 514,
+    "h": 536
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "x": 48,
+    "y": 66,
+    "w": 514,
+    "h": 536
    },
    "sourceSize": {
     "w": 640,
@@ -222,18 +222,18 @@
   },
   "creature_day_snarl_011": {
    "frame": {
-    "x": 2448,
-    "y": 534,
-    "w": 487,
-    "h": 531
+    "x": 0,
+    "y": 538,
+    "w": 515,
+    "h": 532
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "x": 47,
+    "y": 70,
+    "w": 515,
+    "h": 532
    },
    "sourceSize": {
     "w": 640,
@@ -242,18 +242,18 @@
   },
   "creature_day_snarl_012": {
    "frame": {
-    "x": 2937,
-    "y": 534,
-    "w": 487,
-    "h": 531
+    "x": 1947,
+    "y": 2139,
+    "w": 515,
+    "h": 530
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "x": 47,
+    "y": 72,
+    "w": 515,
+    "h": 530
    },
    "sourceSize": {
     "w": 640,
@@ -262,18 +262,18 @@
   },
   "creature_day_snarl_013": {
    "frame": {
-    "x": 3426,
-    "y": 534,
-    "w": 487,
-    "h": 531
+    "x": 0,
+    "y": 2672,
+    "w": 515,
+    "h": 530
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "x": 47,
+    "y": 72,
+    "w": 515,
+    "h": 530
    },
    "sourceSize": {
     "w": 640,
@@ -282,17 +282,17 @@
   },
   "creature_day_snarl_014": {
    "frame": {
-    "x": 0,
-    "y": 1067,
-    "w": 487,
+    "x": 1467,
+    "y": 1072,
+    "w": 514,
     "h": 531
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
+    "x": 47,
     "y": 71,
-    "w": 487,
+    "w": 514,
     "h": 531
    },
    "sourceSize": {
@@ -302,18 +302,18 @@
   },
   "creature_day_snarl_015": {
    "frame": {
-    "x": 489,
-    "y": 1067,
-    "w": 487,
-    "h": 531
+    "x": 517,
+    "y": 538,
+    "w": 513,
+    "h": 532
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "x": 47,
+    "y": 70,
+    "w": 513,
+    "h": 532
    },
    "sourceSize": {
     "w": 640,
@@ -322,18 +322,18 @@
   },
   "creature_day_snarl_016": {
    "frame": {
-    "x": 978,
-    "y": 1067,
-    "w": 487,
-    "h": 531
+    "x": 1031,
+    "y": 0,
+    "w": 511,
+    "h": 533
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "x": 48,
+    "y": 69,
+    "w": 511,
+    "h": 533
    },
    "sourceSize": {
     "w": 640,
@@ -342,18 +342,18 @@
   },
   "creature_day_snarl_017": {
    "frame": {
-    "x": 0,
-    "y": 534,
-    "w": 488,
-    "h": 531
+    "x": 1544,
+    "y": 0,
+    "w": 511,
+    "h": 533
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 488,
-    "h": 531
+    "x": 48,
+    "y": 69,
+    "w": 511,
+    "h": 533
    },
    "sourceSize": {
     "w": 640,
@@ -362,18 +362,18 @@
   },
   "creature_day_snarl_018": {
    "frame": {
-    "x": 490,
-    "y": 534,
-    "w": 488,
-    "h": 531
+    "x": 2057,
+    "y": 0,
+    "w": 508,
+    "h": 533
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 488,
-    "h": 531
+    "x": 49,
+    "y": 69,
+    "w": 508,
+    "h": 533
    },
    "sourceSize": {
     "w": 640,
@@ -382,18 +382,18 @@
   },
   "creature_day_snarl_019": {
    "frame": {
-    "x": 980,
-    "y": 534,
-    "w": 488,
-    "h": 531
+    "x": 1032,
+    "y": 538,
+    "w": 507,
+    "h": 532
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 58,
-    "y": 71,
-    "w": 488,
-    "h": 531
+    "x": 49,
+    "y": 70,
+    "w": 507,
+    "h": 532
    },
    "sourceSize": {
     "w": 640,
@@ -402,18 +402,18 @@
   },
   "creature_day_snarl_020": {
    "frame": {
-    "x": 1467,
-    "y": 1067,
-    "w": 487,
-    "h": 531
+    "x": 1541,
+    "y": 538,
+    "w": 504,
+    "h": 532
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 59,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "x": 51,
+    "y": 70,
+    "w": 504,
+    "h": 532
    },
    "sourceSize": {
     "w": 640,
@@ -422,17 +422,17 @@
   },
   "creature_day_snarl_021": {
    "frame": {
-    "x": 1467,
-    "y": 0,
-    "w": 487,
+    "x": 2047,
+    "y": 538,
+    "w": 502,
     "h": 532
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
-    "x": 59,
+    "x": 52,
     "y": 70,
-    "w": 487,
+    "w": 502,
     "h": 532
    },
    "sourceSize": {
@@ -442,8 +442,128 @@
   },
   "creature_day_snarl_022": {
    "frame": {
-    "x": 1956,
-    "y": 0,
+    "x": 1983,
+    "y": 1072,
+    "w": 499,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 54,
+    "y": 71,
+    "w": 499,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_snarl_023": {
+   "frame": {
+    "x": 0,
+    "y": 1606,
+    "w": 496,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 56,
+    "y": 71,
+    "w": 496,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_snarl_024": {
+   "frame": {
+    "x": 498,
+    "y": 1606,
+    "w": 492,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 58,
+    "y": 71,
+    "w": 492,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_snarl_025": {
+   "frame": {
+    "x": 992,
+    "y": 1606,
+    "w": 490,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 71,
+    "w": 490,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_snarl_026": {
+   "frame": {
+    "x": 1484,
+    "y": 1606,
+    "w": 488,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 60,
+    "y": 71,
+    "w": 488,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_snarl_027": {
+   "frame": {
+    "x": 1974,
+    "y": 1606,
+    "w": 488,
+    "h": 531
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 59,
+    "y": 71,
+    "w": 488,
+    "h": 531
+   },
+   "sourceSize": {
+    "w": 640,
+    "h": 640
+   }
+  },
+  "creature_day_snarl_028": {
+   "frame": {
+    "x": 489,
+    "y": 1072,
     "w": 487,
     "h": 532
    },
@@ -460,10 +580,10 @@
     "h": 640
    }
   },
-  "creature_day_snarl_023": {
+  "creature_day_snarl_029": {
    "frame": {
-    "x": 2445,
-    "y": 0,
+    "x": 978,
+    "y": 1072,
     "w": 487,
     "h": 532
    },
@@ -485,10 +605,10 @@
   "image": "creature-day-snarl.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 3915,
-   "h": 1600
+   "w": 2567,
+   "h": 3204
   },
   "scale": "1",
-  "pngHash": "e6c8d8b2"
+  "pngHash": "b337917b"
  }
 }

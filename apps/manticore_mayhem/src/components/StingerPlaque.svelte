@@ -1,4 +1,5 @@
 <script lang="ts" module>
+	import type { CheerMove } from '../game/constants';
 	import type { StingerShow } from '../game/stinger/view';
 	import type { StingerMode, StingerTier } from '../game/stinger/types';
 
@@ -51,7 +52,9 @@
 	export type EmitterEventPlaque =
 		| { type: 'plaqueFire'; on: boolean }
 		/** THE CHEER (constants PLAQUE_CHEER): the creature's one move for this plaque's tier (components/Background.svelte) */
-		| { type: 'plaqueCheer'; move: 'snarl' | 'flex' | 'roar' };
+		| { type: 'plaqueCheer'; move: CheerMove }
+		/** ...and the plaque has gone: a cheer still waiting for its clip is dropped, the Epic's loop goes on to its way out */
+		| { type: 'plaqueCheerEnd' };
 </script>
 
 <script lang="ts">
@@ -85,7 +88,8 @@
 	import { STINGER_DATA_URLS } from '../game/assets';
 	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 
-	import { MAX_WIN, PLAQUE_CELEBRATE, PLAQUE_CHEER, PLAQUE_ESCALATION, STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP, PLAQUE_GLOW, type PlaqueGlowKey } from '../game/constants';
+	import { CREATURE, MAX_WIN, PLAQUE_CELEBRATE, PLAQUE_CHEER, PLAQUE_ESCALATION, STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP, PLAQUE_GLOW, type PlaqueGlowKey } from '../game/constants';
+	import { creatureUploadQuiet } from '../game/creatureLoad';
 	import { beamTexture } from '../game/beamTexture';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { boardKick, chainGust } from '../game/featureFx';
@@ -279,6 +283,8 @@
 			// the chains lean from the tier's punch a beat later (CHAIN_GUST.tier), never while skipping
 			if (!context.stateGame.skipping) chainGust('tier', Math.max(0.2, context.stateGameDerived.timeScale()));
 			log({ type: 'tier', tier: STINGER_TIERS[index], el, amount, skipped: c.skipped });
+			// THE QUIET: nor just after a tier lands on it
+			creatureUploadQuiet(CREATURE.wins.quiet.tierMs);
 			// THE BOARD PLAQUE'S WORD (PLAQUE_CELEBRATE): this tier's bar now, its title's punch when the view has set it
 			if (celebrating && plaqueCelebrate.on) {
 				const now = performance.now();
@@ -316,7 +322,8 @@
 		// a superseded or ended screen releases the wait early: no roar then
 		void until(at).then(() => {
 			if (mine !== screenNo || !ticking || view.phase === 'exit' || view.clock < at || context.stateGame.skipping) return;
-			context.eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
+			// DROP 8: his Epic win clips (in, the loop while this plaque is up, out), not the roar move (PLAQUE_CHEER.epic)
+			if (PLAQUE_CHEER.on) context.eventEmitter.broadcast({ type: 'plaqueCheer', move: PLAQUE_CHEER.epic });
 			// the win roar, its own sound (Corey 2026-10-18: his normal roar only for his roar move)
 			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar_win', forcePlay: true });
 			log({ type: 'roar' });
@@ -338,8 +345,9 @@
 		void until(at).then(() => {
 			if (mine !== screenNo || pressed === mine || !ticking || view.phase === 'exit' || view.clock < at || context.stateGame.skipping) return;
 			if (epic) {
-				// a TOTAL WIN at EPIC: Epic's own win roar, as epicStep plays it (the braziers keep the mode's clip here)
-				context.eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
+				// a TOTAL WIN at EPIC: Epic's own win roar and his Epic win clips, as epicStep plays them (the braziers keep the
+				// mode's clip here)
+				context.eventEmitter.broadcast({ type: 'plaqueCheer', move: PLAQUE_CHEER.epic });
 				context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar_win', forcePlay: true });
 				log({ type: 'roar', tier: STINGER_TIERS[tier] });
 				return;
@@ -365,6 +373,8 @@
 			if (landSound >= 0) tierSound(landSound);
 			landSound = -1;
 			log({ type: 'impact', tier: STINGER_TIERS[view.tier] });
+			// ...nor for a moment after it lands (this ends the drop's window)
+			creatureUploadQuiet(CREATURE.wins.quiet.impactMs, true);
 			// THE CHEER (PLAQUE_CHEER): a win that stays BIG cheers on the impact; a TOTAL WIN wrap up on its total's tier
 			if (view.screen === 'win' && count && count.cap === 0) cheer(0);
 			else if (view.screen === 'wrap' && wrapCheer >= 0) cheer(wrapCheer);
@@ -409,6 +419,7 @@
 		context.stateApp.pixiApplication?.ticker.remove(tick);
 		endKick();
 		fire(false);
+		context.eventEmitter.broadcast({ type: 'plaqueCheerEnd' });
 		release();
 		if (plaqueCelebrate.on && plaqueCelebrate.hideAt < 0) plaqueCelebrate.hideAt = performance.now();
 		const g = gone;
@@ -433,6 +444,8 @@
 		celebrating = PLAQUE_CELEBRATE.on && (o.screen === 'win' || (o.screen === 'wrap' && !!o.ladderTitle));
 		if (PLAQUE_CELEBRATE.on) celebrateShow(celebrating, performance.now());
 		landSound = sound;
+		// THE QUIET (constants CREATURE.wins.quiet): none of the creature's sheets goes to the GPU while it drops in
+		creatureUploadQuiet(CREATURE.wins.quiet.showMs);
 		log({ type: 'show', tier: o.tier });
 		start();
 	};
@@ -457,6 +470,7 @@
 		setAmount: (amount, target) => view.setAmountText(format(amount, target), undefined, target === undefined ? undefined : format(target)),
 		hide: () => {
 			view.hide();
+			context.eventEmitter.broadcast({ type: 'plaqueCheerEnd' });
 			if (plaqueCelebrate.on && plaqueCelebrate.hideAt < 0) plaqueCelebrate.hideAt = performance.now();
 			log({ type: 'hide' });
 		},
@@ -511,6 +525,7 @@
 				if (!ticking || view.phase === 'hidden') return resolve();
 				gone.push(resolve);
 				view.hide();
+				context.eventEmitter.broadcast({ type: 'plaqueCheerEnd' });
 				if (plaqueCelebrate.on && plaqueCelebrate.hideAt < 0) plaqueCelebrate.hideAt = performance.now();
 				log({ type: 'hide' });
 			}),

@@ -3,7 +3,7 @@
   "creature_day_charge_in_000": {
    "frame": {
     "x": 0,
-    "y": 1071,
+    "y": 2692,
     "w": 487,
     "h": 532
    },
@@ -23,7 +23,7 @@
   "creature_day_charge_in_001": {
    "frame": {
     "x": 0,
-    "y": 0,
+    "y": 2156,
     "w": 487,
     "h": 534
    },
@@ -43,17 +43,17 @@
   "creature_day_charge_in_002": {
    "frame": {
     "x": 0,
-    "y": 536,
+    "y": 1618,
     "w": 487,
-    "h": 533
+    "h": 536
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 59,
-    "y": 69,
+    "y": 66,
     "w": 487,
-    "h": 533
+    "h": 536
    },
    "sourceSize": {
     "w": 640,
@@ -63,17 +63,17 @@
   "creature_day_charge_in_003": {
    "frame": {
     "x": 0,
-    "y": 1605,
-    "w": 487,
-    "h": 531
+    "y": 540,
+    "w": 486,
+    "h": 537
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 59,
-    "y": 71,
-    "w": 487,
-    "h": 531
+    "y": 65,
+    "w": 486,
+    "h": 537
    },
    "sourceSize": {
     "w": 640,
@@ -83,17 +83,17 @@
   "creature_day_charge_in_004": {
    "frame": {
     "x": 0,
-    "y": 2138,
+    "y": 1079,
     "w": 486,
-    "h": 529
+    "h": 537
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 59,
-    "y": 73,
+    "y": 65,
     "w": 486,
-    "h": 529
+    "h": 537
    },
    "sourceSize": {
     "w": 640,
@@ -103,17 +103,17 @@
   "creature_day_charge_in_005": {
    "frame": {
     "x": 0,
-    "y": 2669,
+    "y": 0,
     "w": 485,
-    "h": 528
+    "h": 538
    },
    "rotated": false,
    "trimmed": true,
    "spriteSourceSize": {
     "x": 60,
-    "y": 74,
+    "y": 64,
     "w": 485,
-    "h": 528
+    "h": 538
    },
    "sourceSize": {
     "w": 640,
@@ -126,9 +126,9 @@
   "format": "RGBA8888",
   "size": {
    "w": 489,
-   "h": 3199
+   "h": 3226
   },
   "scale": "1",
-  "pngHash": "831072a8"
+  "pngHash": "2343cb73"
  }
 }

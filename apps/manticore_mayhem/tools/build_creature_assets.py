@@ -82,6 +82,31 @@ DAY look's masters and the shadow pass, at the shadow atlas's quarter canvas (it
   --only-shade          build ONLY shared/creature-shade[-phone] into --out/shared and write nothing else (no report, no
                         spec, no other atlas): safe to point --out at static/assets/sprites/creature. Needs the day look.
 
+DROP 8 (2026-11-10): THE WINS PACK. The rig delivered drop 8 in two parts on two share days: phase A (drop-8*, 2026-11-09:
+the 13 clips that are not the super / epic wins, and the glow add-on drop-8-glow-addon) and phase B (drop-8-wins*,
+2026-11-10: win_super, win_epic_in, win_epic_loop, win_epic_out, and its own glow add-on drop-8-glow-addon-wins with the three
+epic tail glows). Their meta.json files agree on canvas, feetRow, contactX, fps and shadow (checked), so they build as one
+set with one spec:
+  --extra-drops <folder> --extra-drop drop-8-wins [--extra-addon <folder>]
+                        the second pack's clips are merged after the first pack's in every look (a clip in both packs is an
+                        error), each body clip and its shadow read from its own pack's folder. The second add-on's overlays go
+                        into a glow atlas OF THEIR OWN, shared/creature-glow-wins[-phone] (frame names as every add-on overlay,
+                        creature_glow_<body clip>_<NNN>), so the game can load them with the win clips and let them go with
+                        them (spec tiers.<tier>.shared.glowWins; spec.parts.wins.overlays lists the second add-on's
+                        overlays; spec.parts.wins.clips every body clip named win_*, from either pack). The shadow and shade atlases stay ONE each, every clip's frames in them, as before.
+  --pages-standalone    a clip too big for one 4096 sheet is written as pages WITHOUT related_multi_packs: each page is a
+                        sheet of its own (game/creatureLoad.ts loads every page of a clip as a sheet and joins their frames),
+                        so every page takes the worker decode and the strip upload (game/stripUpload.ts refuses a multipack)
+The shipped drop 8 set is rebuilt with:
+  /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_creature_assets.py \\
+      --drops /Volumes/manticore/rig-review/2026-11-09 --drop drop-8 --looks day,super,epic \\
+      --addon /Volumes/manticore/rig-review/2026-11-09/drop-8-glow-addon \\
+      --extra-drops /Volumes/manticore/rig-review/2026-11-10 --extra-drop drop-8-wins \\
+      --extra-addon /Volumes/manticore/rig-review/2026-11-10/drop-8-glow-addon-wins \\
+      --pages-standalone --shade --jobs 3 --out <scratch folder>
+  then copy <out>/{day,super,epic,shared} into static/assets/sprites/creature and <out>/creatureSpec.ts into src/game, and
+  run tools/build_creature_still.py.
+
 WHAT IS CHECKED AND PRINTED: every clip's frame count against meta.json and that its frames are contiguous; no sheet
 over 4096; duplicate frames inside a clip are stored once (two names, one rectangle); each shipped webp against the
 frames handed to the encoder (premultiplied, mean and worst of 255); totals per look and tier.
@@ -108,7 +133,7 @@ Image.MAX_IMAGE_PIXELS = None
 
 LOOK_SUFFIX = {'day': '', 'night': '-night', 'super': '-super', 'epic': '-epic'}
 LOOKS: dict[str, str] = {}  # look -> folder name, filled from --drop
-CLIP_FACTS = ('frames', 'holdFrame', 'returnsTo', 'returnsToFrame', 'startsFrom', 'follows', 'followsFrame', 'overlay', 'overlayOf', 'overlayFrames', 'gainBaked')
+CLIP_FACTS = ('frames', 'holdFrame', 'returnsTo', 'returnsToFrame', 'startsFrom', 'follows', 'followsFrame', 'overlay', 'overlayOf', 'overlayStart', 'overlayFrames', 'gainBaked')
 Q_CREATURE = 85   # the look atlases (Corey 2026-10-15, A1; was 90 = build_flame_assets.py Q_FLAME)
 A_CREATURE = 70   # their alpha_quality (Corey 2026-10-15, A1; was 100)
 Q_GLOW, A_GLOW = 90, 100  # the shared additive glow atlas keeps the old settings (not part of A1's samples)
@@ -353,7 +378,7 @@ def build_atlas(job: dict) -> dict:
                 atlas.save(path, 'WEBP', quality=q, method=6, alpha_quality=aq)
             meta = {'image': image, 'format': 'RGBA8888', 'size': {'w': aw, 'h': ah}, 'scale': '1',
                     'pngHash': hashlib.md5(open(path, 'rb').read()).hexdigest()[:8]}
-            if len(pages) > 1:
+            if len(pages) > 1 and not job.get('standalone'):
                 meta['related_multi_packs'] = [f + '.json' for f in files if f != base]
             jpath = os.path.join(job['out'], base + '.json')
             open(jpath, 'w').write(json.dumps({'frames': frames, 'meta': meta}, indent=1) + '\n')
@@ -384,7 +409,15 @@ def main():
     ap.add_argument('--report-only', action='store_true', help='pack and count, write no image')
     ap.add_argument('--shade', action='store_true', help='also build the back-feet shade atlas shared/creature-shade[-phone]')
     ap.add_argument('--only-shade', action='store_true', help='build ONLY shared/creature-shade[-phone] and write nothing else')
+    ap.add_argument('--extra-drops', default='', help='drop 8: the folder that holds a second pack (drop-8-wins, drop-8-wins-night, ...)')
+    ap.add_argument('--extra-drop', default='', help='the second pack\'s day look folder name (drop-8-wins)')
+    ap.add_argument('--extra-addon', default='', help='the second pack\'s glow add-on: packed as its own atlas, shared/creature-glow-wins')
+    ap.add_argument('--pages-standalone', action='store_true', help='a clip over one sheet is written as standalone pages (no related_multi_packs)')
     args = ap.parse_args()
+    if bool(args.extra_drops) != bool(args.extra_drop):
+        die('--extra-drops and --extra-drop go together')
+    if args.extra_addon and not args.extra_drop:
+        die('--extra-addon needs --extra-drops / --extra-drop')
     looks = [l for l in args.looks.split(',') if l]
     LOOKS.update({l: args.drop + sfx for l, sfx in LOOK_SUFFIX.items()})
     clip_size = {}
@@ -425,6 +458,38 @@ def main():
                 die(f'{theirs} is not {folder}/meta.json + meta_addon.json')
         if metas[l][1].get('look') != l:
             die(f"{folder}/meta.json says look {metas[l][1].get('look')}, expected {l}")
+    # where each clip's atlases are read from, per look (the second pack's clips from its own folders)
+    clip_folder: dict[str, dict[str, str]] = {l: {c: metas[l][0] for c in metas[l][1]['clips']} for l in looks}
+    extra_clips: list[str] = []
+    extra_overlays: list[str] = []
+    if args.extra_drop:
+        extra_add = json.load(open(os.path.join(os.path.expanduser(args.extra_addon), 'meta_addon.json')))['clips'] if args.extra_addon else {}
+        for l in looks:
+            folder = os.path.join(os.path.expanduser(args.extra_drops), args.extra_drop + LOOK_SUFFIX[l])
+            if not os.path.isfile(os.path.join(folder, 'meta.json')):
+                die(f'{folder}/meta.json is missing')
+            em = json.load(open(os.path.join(folder, 'meta.json')))
+            if em.get('look') != l:
+                die(f"{folder}/meta.json says look {em.get('look')}, expected {l}")
+            for k in ('canvas', 'feetRow', 'contactX', 'fps', 'shadow'):
+                if em[k] != metas[l][1][k]:
+                    die(f'{folder}/meta.json {k} {em[k]} differs from the first pack ({metas[l][1][k]})')
+            if args.extra_addon:
+                theirs = os.path.join(os.path.expanduser(args.extra_addon), 'meta', l, 'meta.json')
+                if os.path.isfile(theirs):
+                    t = json.load(open(theirs))
+                    if t['clips'] != {**em['clips'], **extra_add} or {k: v for k, v in t.items() if k != 'clips'} != {k: v for k, v in em.items() if k != 'clips'}:
+                        die(f'{theirs} is not {folder}/meta.json + meta_addon.json')
+            for c, v in list(em['clips'].items()) + list(extra_add.items()):
+                if c in metas[l][1]['clips']:
+                    die(f'{c} is in both packs ({l})')
+                metas[l][1]['clips'][c] = v
+                clip_folder[l][c] = os.path.expanduser(args.extra_addon) if c in extra_add else folder
+            if l == looks[0]:
+                extra_clips = [c for c in em['clips'] if not em['clips'][c].get('overlay')]
+                extra_overlays = list(extra_add)
+                if any(em['clips'][c].get('overlay') for c in em['clips']):
+                    die(f'{folder}: an overlay clip inside the second pack itself (only its add-on is known)')
     first = metas[looks[0]][1]
     canvas = tuple(first['canvas'])
     if canvas[0] != canvas[1]:
@@ -462,9 +527,11 @@ def main():
     # the shared files must be the same bytes in every look given
     shared_src = metas[looks[0]][0]
     addon_clips = set(json.load(open(os.path.join(os.path.expanduser(args.addon), 'meta_addon.json')))['clips']) if args.addon else set()
-    src_of = lambda c: os.path.expanduser(args.addon) if c in addon_clips else shared_src
-    for c in [c for c in overlays if c not in addon_clips] + [f'{c}_shadow' for c in shadowed]:
-        hashes = {l: md5(os.path.join(metas[l][0], f'{c}.png')) for l in looks}
+    day_of = lambda c: clip_folder[looks[0]][c]  # the clip's folder of the first look (its shadow is that pack's day pass)
+    src_of = lambda c: os.path.expanduser(args.addon) if c in addon_clips else day_of(c) if c in extra_overlays else shared_src
+    for c in [c for c in overlays if c not in addon_clips and c not in extra_overlays] + [f'{c}_shadow' for c in shadowed]:
+        base = c[:-len('_shadow')] if c.endswith('_shadow') and c not in clips else c
+        hashes = {l: md5(os.path.join(clip_folder[l][base], f'{c}.png')) for l in looks}
         if len(set(hashes.values())) != 1:
             die(f'{c}.png differs between looks {hashes}: it cannot be shared, give it a per look atlas')
     print(f'shared across {", ".join(looks)} (same bytes in every look): {", ".join(overlays)} and {len(shadowed)} shadow atlases')
@@ -477,13 +544,13 @@ def main():
         idle = read_clip(day, clips['idle']['atlas'], clips['idle']['frames'], 'idle/frame_{n:04d}.png')
         frames = []
         for c in shadowed:
-            body = held(c, read_clip(day, clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png'))
-            shad = held(c, read_clip(shared_src, clips[c]['shadowAtlas'], clips[c]['frames'], c + '/frame_{n:04d}_shadow.png'))
+            body = held(c, read_clip(clip_folder['day'][c], clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png'))
+            shad = held(c, read_clip(day_of(c), clips[c]['shadowAtlas'], clips[c]['frames'], c + '/frame_{n:04d}_shadow.png'))
             for n, ((png, e), (spng, se)) in enumerate(zip(body, shad)):
                 frames.append((f'creature_shade_{c}_{n:03d}', {'png': png, 'entry': e, 'spng': spng, 'sentry': se, 'idle': idle, 'idle_folder': day}, None))
         t = round(tiers[tier] * SHADE['share'])
         return {'key': [tier, 'shared', 'shade'], 'out': os.path.join(out, 'shared'), 'base': f'creature-shade{suffix}', 'frames': frames, 'shade': True,
-                'canvas': canvas, 'scanvas': scanvas, 'size': (t, t), 'lossless': True, 'report_only': args.report_only}
+                'canvas': canvas, 'scanvas': scanvas, 'size': (t, t), 'lossless': True, 'report_only': args.report_only, 'standalone': args.pages_standalone}
 
     if args.only_shade:
         os.makedirs(os.path.join(out, 'shared'), exist_ok=True)
@@ -503,29 +570,32 @@ def main():
             folder = metas[l][0]
             os.makedirs(os.path.join(out, l), exist_ok=True)
             for c in ([] if args.only_shared else colour):
-                src = held(c, read_clip(folder, clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png'))
+                src = held(c, read_clip(clip_folder[l][c], clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png'))
                 t = clip_size.get(c, tiers)[tier]
                 jobs.append({'key': [tier, l, c], 'out': os.path.join(out, l), 'base': f'creature-{l}-{c}{suffix}',
                              'frames': [(f'creature_{l}_{c}_{n:03d}', png, e) for n, (png, e) in enumerate(src)],
-                             'canvas': canvas, 'size': (t, t), 'lossless': False, 'report_only': args.report_only})
+                             'canvas': canvas, 'size': (t, t), 'lossless': False, 'report_only': args.report_only, 'standalone': args.pages_standalone})
         t = tiers[tier]
         os.makedirs(os.path.join(out, 'shared'), exist_ok=True)
-        gframes = []
-        for c in overlays:
-            if clips[c].get('overlay') != 'additive':
-                die(f'{c}: overlay {clips[c].get("overlay")} (only additive is known)')
-            src = read_clip(src_of(c), clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png')
-            # charge_glow keeps the names the game already reads; any other overlay is named for the body clip under it
-            stem = 'creature_glow' if c == 'charge_glow' else f"creature_glow_{clips[c]['overlayOf']}"
-            gframes += [(f'{stem}_{n:03d}', png, e) for n, (png, e) in enumerate(src)]
-        jobs.append({'key': [tier, 'shared', 'glow'], 'out': os.path.join(out, 'shared'), 'base': f'creature-glow{suffix}', 'frames': gframes,
-                     'canvas': canvas, 'size': (t, t), 'lossless': False, 'quality': (Q_GLOW, A_GLOW), 'report_only': args.report_only})
+        for kind, members, base in (('glow', [c for c in overlays if c not in extra_overlays], 'creature-glow'), ('glowWins', extra_overlays, 'creature-glow-wins')):
+            if not members:
+                continue
+            gframes = []
+            for c in members:
+                if clips[c].get('overlay') != 'additive':
+                    die(f'{c}: overlay {clips[c].get("overlay")} (only additive is known)')
+                src = read_clip(src_of(c), clips[c]['atlas'], clips[c]['frames'], c + '/frame_{n:04d}.png')
+                # charge_glow keeps the names the game already reads; any other overlay is named for the body clip under it
+                stem = 'creature_glow' if c == 'charge_glow' else f"creature_glow_{clips[c]['overlayOf']}"
+                gframes += [(f'{stem}_{n:03d}', png, e) for n, (png, e) in enumerate(src)]
+            jobs.append({'key': [tier, 'shared', kind], 'out': os.path.join(out, 'shared'), 'base': f'{base}{suffix}', 'frames': gframes,
+                         'canvas': canvas, 'size': (t, t), 'lossless': False, 'quality': (Q_GLOW, A_GLOW), 'report_only': args.report_only, 'standalone': args.pages_standalone})
         frames = []
         for c in shadowed:
-            src = held(c, read_clip(shared_src, clips[c]['shadowAtlas'], clips[c]['frames'], c + '/frame_{n:04d}_shadow.png'))
+            src = held(c, read_clip(day_of(c), clips[c]['shadowAtlas'], clips[c]['frames'], c + '/frame_{n:04d}_shadow.png'))
             frames += [(f'creature_shadow_{c}_{n:03d}', png, e) for n, (png, e) in enumerate(src)]
         jobs.append({'key': [tier, 'shared', 'shadow'], 'out': os.path.join(out, 'shared'), 'base': f'creature-shadow{suffix}', 'frames': frames,
-                     'canvas': scanvas, 'size': (t // 4, t // 4), 'lossless': True, 'report_only': args.report_only})
+                     'canvas': scanvas, 'size': (t // 4, t // 4), 'lossless': True, 'report_only': args.report_only, 'standalone': args.pages_standalone})
 
     # the biggest first, so the pool's tail is short
     jobs.sort(key=lambda j: -len(j['frames']) * j['size'][0] ** 2)
@@ -551,8 +621,9 @@ def main():
         'source': {l: metas[l][1].get('drop', LOOKS[l]) for l in looks},
         'canvas': list(canvas), 'feetRow': first['feetRow'], 'feetCol': canvas[0] // 2, 'contactX': first['contactX'], 'fps': first['fps'],
         'shadow': {'canvasShare': 0.25, 'scale': first['shadow']['scale']},
-        'clips': {c: {k: v[k] for k in ('frames', 'loop', 'holdFrame', 'returnsTo', 'returnsToFrame', 'startsFrom', 'follows', 'followsFrame', 'overlay', 'overlayOf', 'overlayFrames', 'gain', 'gainBaked') if k in v} | {'shadow': c in shadowed} for c, v in clips.items()},
+        'clips': {c: {k: v[k] for k in ('frames', 'loop', 'holdFrame', 'returnsTo', 'returnsToFrame', 'startsFrom', 'follows', 'followsFrame', 'overlay', 'overlayOf', 'overlayStart', 'overlayFrames', 'gain', 'gainBaked') if k in v} | {'shadow': c in shadowed} for c, v in clips.items()},
         'looks': looks,
+        **({'parts': {'wins': {'clips': [c for c in colour if c.startswith('win_')], 'overlays': extra_overlays}}} if args.extra_drop else {}),
         **({'held': {c: {'from': v[0], 'every': v[1]} for c, v in thin.items()}} if thin else {}),
         'frameName': {'colour': 'creature_<look>_<clip>_<NNN>', 'shadow': 'creature_shadow_<clip>_<NNN>', 'glow': 'creature_glow_<NNN>', 'glowOver': 'creature_glow_<body clip>_<NNN>'},
         'glow': {c: ('creature_glow' if c == 'charge_glow' else f"creature_glow_{clips[c]['overlayOf']}") for c in overlays},
@@ -565,14 +636,15 @@ def main():
         if clip_size:
             T['clipCanvas'] = {c: [v[tier], v[tier]] for c, v in clip_size.items()}
         R = report['tiers'][tier] = {'canvas': t, 'looks': {}, 'shared': {}}
-        for c in ['glow', 'shadow'] + (['shade'] if args.shade else []):
+        for c in ['glow'] + (['glowWins'] if extra_overlays else []) + ['shadow'] + (['shade'] if args.shade else []):
             r = by[(tier, 'shared', c)]
             T['shared'][c] = [{'file': f"shared/{x['file']}.json", 'sheet': x['sheet']} for x in r['sheets']]
             R['shared'][c] = r['sheets']
         for l in looks:
             T['looks'][l] = {c: [{'file': f"{l}/{x['file']}.json", 'sheet': x['sheet']} for x in by[(tier, l, c)]['sheets']] for c in colour}
             rows = [x for c in colour for x in by[(tier, l, c)]['sheets']]
-            R['looks'][l] = {'sheets': len(rows), 'gpuBytes': sum(x['gpuBytes'] for x in rows), 'downloadBytes': sum(x.get('webpBytes', 0) + x.get('jsonBytes', 0) for x in rows),
+            wrows = [x for c in colour if c.startswith('win_') for x in by[(tier, l, c)]['sheets']]
+            R['looks'][l] = {'sheets': len(rows), 'winsGpuBytes': sum(x['gpuBytes'] for x in wrows), 'winsSheets': len(wrows), 'gpuBytes': sum(x['gpuBytes'] for x in rows), 'downloadBytes': sum(x.get('webpBytes', 0) + x.get('jsonBytes', 0) for x in rows),
                              'clips': {c: by[(tier, l, c)]['sheets'] for c in colour}}
         srows = [x for v in R['shared'].values() for x in v]
         R['sharedTotal'] = {'sheets': len(srows), 'gpuBytes': sum(x['gpuBytes'] for x in srows), 'downloadBytes': sum(x.get('webpBytes', 0) + x.get('jsonBytes', 0) for x in srows)}
@@ -589,11 +661,15 @@ def main():
     for tier, _ in TIERS:
         R = report['tiers'][tier]
         st = R['sharedTotal']
+        if extra_overlays:
+            gw = R['shared']['glowWins']
+            print(f"{tier} tier: of the shared set, the wins glow {len(gw)} sheets, {sum(x['gpuBytes'] for x in gw) / 1e6:.1f} MB GPU")
         print(f"{tier} tier, canvas {R['canvas']} px: shared (shadows + glow) {st['sheets']} sheets, {st['downloadBytes'] / 1e6:.2f} MB download, {st['gpuBytes'] / 1e6:.1f} MB ({st['gpuBytes'] / 2**20:.1f} MiB) on the GPU")
         for l in looks:
             x = R['looks'][l]
             g = x['gpuBytes'] + st['gpuBytes']
-            print(f"  {l:6s} {x['sheets']} sheets, {x['downloadBytes'] / 1e6:.2f} MB download, {x['gpuBytes'] / 1e6:.1f} MB GPU; with the shared set {g / 1e6:.1f} MB ({g / 2**20:.1f} MiB)")
+            print(f"  {l:6s} {x['sheets']} sheets, {x['downloadBytes'] / 1e6:.2f} MB download, {x['gpuBytes'] / 1e6:.1f} MB GPU; with the shared set {g / 1e6:.1f} MB ({g / 2**20:.1f} MiB)"
+                  + (f"; of it the win clips {x['winsSheets']} sheets {x['winsGpuBytes'] / 1e6:.1f} MB" if extra_clips else ''))
 
 
 if __name__ == '__main__':

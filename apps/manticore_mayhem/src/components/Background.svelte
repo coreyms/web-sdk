@@ -45,14 +45,14 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
+	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CheerMove, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
 	import { creature, creatureDocked, creatureFront, creaturePlaceFor, desktopFloorRow, type CreaturePlace } from '../game/creature';
 	import { boardRegistration } from '../game/boardArt';
 	import { portraitOptions } from '../game/portraitOptions.svelte';
-	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog } from '../game/creatureLoad';
+	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog, creatureWinsAsk, creatureWinsOfBookPreview, creatureWinsRelease } from '../game/creatureLoad';
 	import { stateBet } from 'state-shared';
 	import { CREATURE_SPEC } from '../game/creatureSpec';
-	import type { CreatureClip } from '../game/creatureAssets';
+	import type { CreatureClip, CreatureWinClip } from '../game/creatureAssets';
 	import { bootCreatureShade, setCreatureShade } from '../game/creatureShade';
 	import type { SoundEffectName } from '../game/sound';
 	import { boardKick, foregroundKick, shoveForeground } from '../game/featureFx';
@@ -387,6 +387,8 @@
 		stingBeat: ({ phase, kind, more }) => creature.stingBeat(phase, kind, !!more),
 		// THE CHEER (constants PLAQUE_CHEER, components/StingerPlaque.svelte): the win plaque's tier asks for his move
 		plaqueCheer: ({ move }) => void creature.cheer(move),
+		// ...and its plaque has gone (drop 8: a cheer waiting for its clip is dropped, the Epic's loop goes on to its way out)
+		plaqueCheerEnd: () => creature.cheerEnd(),
 		creatureCue: ({ what, inMs, kind }) => {
 			if (what === 'swipe') creature.cueSwipe(inMs);
 			else if (what === 'growl') creature.growl();
@@ -800,7 +802,16 @@
 					 *  game): changes of look at chosen moments, with no round (creature_probe.js HANDOVER) */
 					mode: (f: keyof typeof CREATURE.looks) => creature.mode(f),
 					/** the next idle loop restart plays this alternate (or none) instead of rolling */
-					forceRoll: (what: 'snarl' | 'growl' | 'none' | null) => (creature.forceRoll = what),
+					forceRoll: (what: 'snarl' | 'growl' | 'idle_look' | 'none' | null) => (creature.forceRoll = what),
+					/** THE WIN CLIPS (drop 8, constants CREATURE.wins): ask for them by hand for the look on show (all of them by
+					 *  default), as a round's book does; let them go as a round's end does; resolve when the wins line is done */
+					loadWins: (clips?: CreatureWinClip[]) => creatureWinsAsk(clips),
+					releaseWins: () => creatureWinsRelease(),
+					/** what a book's events would ask for (game/creatureLoad.ts winsOfBook), nothing loaded */
+					winsOfBook: (events: { type: string }[]) => creatureWinsOfBookPreview(events),
+					/** a win plaque's cheer and its end, by hand (the plaque's own events) */
+					cheer: (move: CheerMove) => creature.cheer(move),
+					cheerEnd: () => creature.cheerEnd(),
 					growl: () => creature.growl(),
 					/** the voice's own picker, asked `n` times in a row (no sound is played): the takes and rates it would use */
 					voicePicks: (clip: 'snarl' | 'growl', n: number) => Array.from({ length: n }, () => creature.pickVoice(clip)),

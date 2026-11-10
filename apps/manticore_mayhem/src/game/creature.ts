@@ -32,11 +32,16 @@
 //               scatter sting has no glow at all. A lit strike leaves the crouch only on loop f12 or f1 (CREATURE.glowPhase,
 //               glowAim; a strike due on a frame just short of f12 waits one display frame for it: THE LANDING)
 //   snarl, growl   idle alternates in REAL time; the growl also answers a Mystery that awarded nothing
-//   CHEER     (constants PLAQUE_CHEER, 2026-10-23) the win plaque's tier: at BIG and SUPER the FLEX, the swipe's own
-//             wind-up played to its peak (PLAQUE_CHEER.flex.peakFrame), held, and played back down to idle frame 1 (no
-//             strike, so no claw lands on a board with no tears) with one of the two growl takes; at MEGA the roar clip
-//             with the MEGA roar (sfx_manticore_roar_win_1). Both in REAL time (the plaque's count is, at every turbo).
+//   CHEER     (constants PLAQUE_CHEER; drop 8, 2026-11-10) the win plaque's FINAL tier plays his own win clip: win_big
+//             at BIG (with a snarl take), win_super at SUPER (a growl take; it retires the flex), win_mega at MEGA (THE
+//             MEGA roar), and at EPIC win_epic_in, then win_epic_loop for as long as the plaque is up, then win_epic_out
+//             back to idle (cheerEnd: the plaque leaves; out f1 is loop f1, so it starts where the loop would wrap), the
+//             tail glow over all three (the shared glowWins atlas). All in REAL time (the plaque's count is, at every
+//             turbo), each from idle frame 1 (every win clip starts and ends on it: measured 0.0 % on the day frames).
 //             Asked once per plaque and never during SKIP TO RESULT (canPlay); a board action that comes due cuts it.
+//             NOT IN YET (the win clips load on demand, constants CREATURE.wins): he keeps idling; the cheer waits for its
+//             clip while the plaque is up (pending, onWantWins asks the loader for it) and starts if it lands in time.
+//   idle_look (drop 8) the third idle alternate, CREATURE.idleLookOdds, real time, no voice
 //   POKE      a tap or click on his body while he and the game are idle plays a random snarl or growl (never the
 //             roar; the voice's own no repeat and rate rules), then a short cooldown; the idle roll stays quiet for a
 //             while after it. His hit area (CREATURE.poke.area) is a tight polygon about his body that never covers
@@ -67,12 +72,12 @@
 // House rules: no filters, shaders or masks; a frame is a swap between resident textures; a tick allocates nothing.
 import * as PIXI from 'pixi.js';
 
-import { CREATURE, CREATURE_LIFT, CREATURE_SHADE, PLAQUE_CHEER, STING_FX, type CreatureShadeMode, type CreatureSpot } from './constants';
+import { CREATURE, CREATURE_LIFT, CREATURE_SHADE, PLAQUE_CHEER, STING_FX, type CheerMove, type CreatureShadeMode, type CreatureSpot } from './constants';
 import { CREATURE_SPEC } from './creatureSpec';
-import { CREATURE_CLIPS, type CreatureClip, type CreatureLook } from './creatureAssets';
+import { CREATURE_CLIPS, type CreatureClip, type CreatureLook, type CreatureWinClip } from './creatureAssets';
 
 type Frames = PIXI.Texture[];
-type CueKind = 'swipe' | 'roar' | 'charge' | 'growl' | 'snarl' | 'flex' | 'cheer';
+type CueKind = 'swipe' | 'roar' | 'charge' | 'growl' | 'win';
 type PokeClip = 'snarl' | 'growl';
 type StingKind = 'normal' | 'big' | 'super' | 'scatter';
 export type CreatureLayer = 'front' | 'behind';
@@ -141,8 +146,22 @@ const N = Object.fromEntries(CREATURE_CLIPS.map((c) => [c, SPEC.clips[c].frames]
 const HOLD: Partial<Record<CreatureClip, number>> = { swipe: SPEC.clips.swipe.holdFrame, sting_hit: SPEC.clips.sting_hit.holdFrame };
 /** clip ms from a clip's first frame to the start of its hold frame */
 const WINDUP = { swipe: (SPEC.clips.swipe.holdFrame - 1) * FRAME_MS, sting_hit: (SPEC.clips.sting_hit.holdFrame - 1) * FRAME_MS };
+/** THE SCATTER ENTRY (drop 8, constants STING_FX.tail.entryFrames): clip ms into sting_hit a scatter's strike starts at */
+const SCATTER_ENTRY = (STING_FX.tail.entryFrames.scatter - 1) * FRAME_MS;
 const CHARGE_IN_MS = N.charge_in * FRAME_MS;
-const REAL_CLIPS: readonly CreatureClip[] = ['snarl', 'growl'];
+const REAL_CLIPS: readonly CreatureClip[] = ['snarl', 'growl', 'idle_look'];
+const EPIC_CLIPS: readonly CreatureWinClip[] = ['win_epic_in', 'win_epic_loop', 'win_epic_out'];
+/** the clips a cheer move plays */
+const clipsOfMove = (move: CheerMove): readonly CreatureWinClip[] => (move === 'win_epic' ? EPIC_CLIPS : [move]);
+/** THE OVERLAYS (the shared glow atlases): per body clip, the spec's overlay clip lying over it and the body frame its
+ *  first frame lies over (overlayFrames[0]: win_epic_in's starts at f20, every other at f1) */
+const OVERLAY = Object.fromEntries(
+	Object.entries(SPEC.clips)
+		.filter(([, v]) => 'overlayOf' in v)
+		.map(([k, v]) => [(v as { overlayOf: string }).overlayOf, { clip: k as keyof typeof SPEC.clips, start: ((v as { overlayFrames?: readonly number[] }).overlayFrames ?? [1])[0] }]),
+) as Partial<Record<CreatureClip, { clip: keyof typeof SPEC.clips; start: number }>>;
+/** the frame-name prefix of an overlay clip in its atlas (spec.glow) */
+const GLOW_PREFIX = SPEC.glow as Record<string, string>;
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 type Run = {
@@ -165,10 +184,10 @@ type Run = {
 	lit: boolean;
 	/** it was started early by a cue and the board's beat has not confirmed it yet */
 	cued: boolean;
-	/** THE CHEER (PLAQUE_CHEER): the swipe clip played as the flex (up to the peak, held, back down), not as a strike */
-	flex: boolean;
 	/** the clip runs in REAL time (a cheer), whatever the turbo */
 	real: boolean;
+	/** sting_hit only: started by a strike planned AHEAD of its beat (cueBeat, drop 8), the beat not in yet */
+	ahead: boolean;
 };
 
 export class Creature {
@@ -199,13 +218,17 @@ export class Creature {
 	onLookFree: ((look: CreatureLook) => void) | null = null;
 	/** ...and a look is the one on show (the first one, or the crossover to it is over) */
 	onLookOn: ((look: CreatureLook) => void) | null = null;
+	/** ...and a cheer needs win clips that are not in (game/creatureLoad.ts: they load now, on demand) */
+	onWantWins: ((look: CreatureLook, clips: readonly CreatureWinClip[]) => void) | null = null;
 
 	// ---- the textures (resident; arrays by frame, built once per sheet) ----
 	private readonly looks: Partial<Record<CreatureLook, Partial<Record<CreatureClip, Frames>>>> = {};
 	private readonly shadows: Partial<Record<CreatureClip, Frames>> = {};
 	private glowFrames: Frames | null = null;
-	/** the glow that stays on the tail through a lit strike: over sting_hit f1..f9 and sting_recrouch f1..f3 */
-	private readonly glowOver: { sting_hit: Frames | null; sting_recrouch: Frames | null } = { sting_hit: null, sting_recrouch: null };
+	/** the glow that stays on the tail through a lit strike (over sting_hit f1..f14 and sting_recrouch f1..f3 since drop 8),
+	 *  and THE EPIC WIN'S TAIL GLOW (drop 8, the glowWins atlas: over win_epic_in f20..f40, win_epic_loop, win_epic_out
+	 *  f1..f6). Indexed by body clip; frame k of it lies over the body frame OVERLAY[clip].start + k */
+	private readonly glowOver: Partial<Record<CreatureClip, Frames | null>> = {};
 
 	// ---- the look ----
 	/** the look on show (null: nothing yet), the one fading in, and the one the mode asks for */
@@ -231,10 +254,17 @@ export class Creature {
 	private state: 'hidden' | 'still' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
 	private idleT0 = 0;
 	private idleFrame = 1;
-	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, flex: false, real: false };
+	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false };
 	private rush = { from: 1, to: 1, t0: 0 };
-	/** what starts when the rush ends, or at `at` (real ms: the clip's first frame). strikeAt: swipe only */
-	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean } | null = null;
+	/** what starts when the rush ends, or at `at` (real ms: the clip's first frame). strikeAt: swipe only; move: a cheer's */
+	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean; move?: CheerMove } | null = null;
+	/** THE CHEER WAITING FOR ITS CLIP (drop 8, win clips on demand): asked while its sheets were not in; it starts when they
+	 *  are (he is idle, nothing cued) unless its plaque has gone (cheerEnd) first */
+	private pendingCheer: CheerMove | null = null;
+	/** THE EPIC's way out: its plaque has gone (cheerEnd), so the loop goes on to win_epic_out at its next wrap */
+	private epicEnd = false;
+	/** real ms the Epic's loop started (CREATURE.wins.epicLoopMaxMs) */
+	private epicLoopAt = 0;
 	/** a swipe read ahead while a sting is still his to play: it becomes the cue once that strike has landed */
 	private swipeNext: { at: number; strikeAt: number } | null = null;
 	/** the crouch: its loop clock (clip ms), whether stings are still coming, the strike that is planned (the real time
@@ -250,7 +280,9 @@ export class Creature {
 	/** the longest recent display frame, real ms (CREATURE.glowAim.tickDecay / tickCapMs) */
 	private tickMs = 0;
 	private stinging = false;
-	private hit: { start: number; more: boolean; lit: boolean } | null = null;
+	/** entry: clip ms into sting_hit the strike starts at (a scatter's SCATTER_ENTRY, else 0); ahead: planned from the
+	 *  cue that read the sting ahead, before its beat came (cueBeat) */
+	private hit: { start: number; more: boolean; lit: boolean; entry: number; ahead?: boolean } | null = null;
 	private lastBeat = 0;
 	private glowT0 = 0;
 	private glowT1 = 0;
@@ -277,9 +309,9 @@ export class Creature {
 
 	// ---- DEV / probe ----
 	readonly log: { t: number; what: string; clip?: string; frame?: number; info?: unknown }[] = [];
-	counters = { swaps: 0, ticks: 0, rolls: 0, snarls: 0, growls: 0, cheers: 0, skipped: 0, rescued: 0, sounds: 0, pokes: 0, pokeRefused: 0 };
+	counters = { swaps: 0, ticks: 0, rolls: 0, snarls: 0, growls: 0, looks: 0, cheers: 0, skipped: 0, rescued: 0, sounds: 0, pokes: 0, pokeRefused: 0 };
 	/** DEV: the roll's two draws (null: Math.random) so a probe can force an alternate */
-	forceRoll: 'snarl' | 'growl' | 'none' | null = null;
+	forceRoll: 'snarl' | 'growl' | 'idle_look' | 'none' | null = null;
 	/** the crouch phase before a lit strike (constants CREATURE.glowPhase; DEV A / B) */
 	glowPhase: boolean = CREATURE.glowPhase;
 
@@ -382,7 +414,27 @@ export class Creature {
 		return out;
 	}
 	/** the shadow atlas (every clip) or the glow atlas */
-	setShared(kind: 'shadow' | 'glow' | 'shade', tex: Record<string, PIXI.Texture>): boolean {
+	setShared(kind: 'shadow' | 'glow' | 'shade' | 'glowWins', tex: Record<string, PIXI.Texture> | null): boolean {
+		if (kind === 'glowWins') {
+			// THE EPIC WIN'S TAIL GLOW (drop 8): its own atlas, in and out with the Epic clips (null: let go, game/creatureLoad.ts;
+			// the glow sprite lets go of its frame too, shown or not: a hidden sprite still holds the last frame it drew)
+			const was = this.glowOver.win_epic_loop?.[0]?.source;
+			if (!tex && was && this.glow.texture.source === was) {
+				this.glow.visible = false;
+				this.glow.texture = PIXI.Texture.EMPTY;
+			}
+			for (const clip of EPIC_CLIPS) {
+				const o = OVERLAY[clip];
+				this.glowOver[clip] = tex && o ? Creature.frames(tex, GLOW_PREFIX[o.clip], SPEC.clips[o.clip].frames) : null;
+			}
+			if (!tex && this.glowClip && EPIC_CLIPS.includes(this.glowClip as CreatureWinClip)) {
+				this.glow.visible = false;
+				this.glow.texture = PIXI.Texture.EMPTY;
+				this.glowClip = null;
+			}
+			return !!this.glowOver.win_epic_loop;
+		}
+		if (!tex) return false;
 		if (kind === 'shade') return this.setShade(tex);
 		if (kind === 'glow') {
 			this.glowFrames = Creature.frames(tex, SPEC.glow.charge_glow, SPEC.clips.charge_glow.frames);
@@ -466,7 +518,8 @@ export class Creature {
 			const source = sprite.texture === PIXI.Texture.EMPTY ? null : sprite.texture.source;
 			if (!source) continue;
 			for (const clip of CREATURE_CLIPS) {
-				if (sheets[clip]?.[0].source !== source) continue;
+				// (any page of it: a clip can be more than one sheet since drop 8)
+				if (!sheets[clip]?.some((t) => t.source === source)) continue;
 				sprite.texture = PIXI.Texture.EMPTY;
 				this.drawnFrame = 0; // whatever look is on show draws its frame again on the next tick
 				this.counters.rescued += 1;
@@ -474,6 +527,33 @@ export class Creature {
 				break;
 			}
 		}
+	}
+	/** ONE CLIP of a look is about to be destroyed (a win clip let go after its round, game/creatureLoad.ts releaseWins):
+	 *  forget it; the loader only asks once `holds` says he does not draw it, so no sprite holds it (checked all the same) */
+	forgetClip(look: CreatureLook, clip: CreatureClip): void {
+		const f = this.looks[look]?.[clip];
+		if (!f) return;
+		delete this.looks[look]![clip];
+		const sources = new Set(f.map((t) => t.source));
+		for (const sprite of [...this.colour, ...this.lift]) {
+			if (sprite.texture === PIXI.Texture.EMPTY || !sources.has(sprite.texture.source)) continue;
+			sprite.texture = PIXI.Texture.EMPTY;
+			this.drawnFrame = 0;
+			this.counters.rescued += 1;
+			this.note('rescued', { look, clip });
+		}
+		this.note('forgetClip', { look, clip });
+	}
+	/** he draws this clip now or is about to (cued, waiting for it, or inside the Epic's in / loop / out): not to be let go */
+	holds(clip: CreatureClip): boolean {
+		const epic = EPIC_CLIPS.includes(clip as CreatureWinClip);
+		const inClip = this.state === 'clip' && (this.run.clip === clip || (epic && EPIC_CLIPS.includes(this.run.clip as CreatureWinClip)));
+		const asked = (m: CheerMove | null | undefined) => !!m && clipsOfMove(m).includes(clip as CreatureWinClip);
+		return inClip || this.drawnClip === clip || asked(this.cue?.move) || asked(this.pendingCheer);
+	}
+	/** the Epic's tail glow is on show or about to be */
+	holdsWinGlow(): boolean {
+		return EPIC_CLIPS.some((c) => this.holds(c)) || (!!this.glowClip && EPIC_CLIPS.includes(this.glowClip as CreatureWinClip));
 	}
 	/** he draws this look now, is crossing over to it, or the mode asks for it: the loader must not let it go */
 	uses(look: CreatureLook): boolean {
@@ -488,7 +568,15 @@ export class Creature {
 		if (this.shadows.idle) out.push({ name: 'shared/shadow', source: this.shadows.idle[0].source });
 		if (this.shadeFrames.idle) out.push({ name: 'shared/shade', source: this.shadeFrames.idle[0].source });
 		if (this.glowFrames) out.push({ name: 'shared/glow', source: this.glowFrames[0].source });
-		for (const look of Object.keys(this.looks) as CreatureLook[]) for (const clip of CREATURE_CLIPS) if (this.looks[look]![clip]) out.push({ name: `${look}/${clip}`, source: this.looks[look]![clip]![0].source });
+		if (this.glowOver.win_epic_loop) out.push({ name: 'shared/glowWins', source: this.glowOver.win_epic_loop[0].source });
+		// (every page of a clip: drop 8's win_mega is two sheets at 640)
+		for (const look of Object.keys(this.looks) as CreatureLook[])
+			for (const clip of CREATURE_CLIPS) {
+				const f = this.looks[look]![clip];
+				if (!f) continue;
+				const pages = [...new Set(f.map((t) => t.source))];
+				pages.forEach((source, i) => out.push({ name: `${look}/${clip}${pages.length > 1 ? `#${i + 1}` : ''}`, source }));
+			}
 		return out;
 	}
 
@@ -599,9 +687,8 @@ export class Creature {
 		return !!this.look && this.has(this.look, clip) && !!this.shadows[clip] && (!this.next || this.fadeAt < 0 || this.has(this.next, clip));
 	}
 	/** a cue's action can be drawn NOW. Asked when it starts: the look may have changed since the cue was made */
-	private fireable(kind: CueKind): boolean {
-		if (kind === 'flex') return this.drawable('swipe');
-		if (kind === 'cheer') return this.drawable('roar');
+	private fireable(kind: CueKind, move?: CheerMove): boolean {
+		if (kind === 'win') return !!move && this.cheerReady(move);
 		return kind === 'charge' ? this.drawable('charge_in') && this.drawable('charge_loop') && this.drawable('sting_hit') && this.drawable('sting_recrouch') : this.drawable(kind);
 	}
 	/** a cue whose action cannot be drawn is not played (and with a charge goes the strike planned on it) */
@@ -624,7 +711,7 @@ export class Creature {
 		// seen striking before the tears, and a beat that comes early costs a wind-up frame, not a late claw.
 		const at = now + etaStyleMs / ts - WINDUP.swipe / ts;
 		const strikeAt = now + etaStyleMs / ts + CREATURE.cueBiasMs;
-		if (this.state === 'clip' && this.run.clip === 'swipe' && !this.run.flex && this.run.hold === 0) {
+		if (this.state === 'clip' && this.run.clip === 'swipe' && this.run.hold === 0) {
 			// a closer estimate for the swipe already winding up: move the anchor
 			this.run.strikeAt = strikeAt;
 			return;
@@ -646,20 +733,25 @@ export class Creature {
 			if (kind === 'scatter') return;
 			const lead = kind === 'normal' ? (CREATURE.sting.normalHitMs - this.strikeLead(kind) - CHARGE_IN_MS) / ts : 0;
 			this.cue = { kind: 'charge', at: beat + lead, strikeAt: 0 };
+			// DROP 8: a normal sting's wind-up (10 frames to the hold f11, + the flight) is longer than its beat's lead to the
+			// flip, so its strike is planned from here, ahead of the beat: the cockback plays whole and the hold lands where
+			// the trail leaves. The beat itself (stingBeat) then only confirms it, or moves it to the beat's own time
+			if (kind === 'normal') this.hit = { start: beat + (CREATURE.sting.normalHitMs - this.strikeLead(kind)) / ts, more: false, lit: false, entry: 0, ahead: true };
 		}
 		if (this.cue) this.note('cue', { kind: this.cue.kind, inMs: this.cue.at - now });
 	}
 	/** style ms before the tail's beat that sting_hit starts: its wind-up, plus (sting r2) the trail's flight for a
 	 *  normal, big or super one, so its hold frame (the barb at its lowest) is where the trail leaves */
 	private strikeLead(kind: StingKind): number {
-		return CREATURE.strikeLead ? WINDUP.sting_hit + (kind === 'scatter' ? 0 : STING_FX.flightMs) : 0;
+		// (a scatter's strike enters at STING_FX.tail.entryFrames.scatter, drop 8: its wind-up is the rest to the hold)
+		return CREATURE.strikeLead ? (kind === 'scatter' ? WINDUP.sting_hit - SCATTER_ENTRY : WINDUP.sting_hit + STING_FX.flightMs) : 0;
 	}
 	/** the board's own beat (the featureBeat broadcast) */
 	beat(what: 'swipe' | 'roar'): void {
 		const now = performance.now();
 		if (what === 'swipe') {
 			if (!this.canPlay('swipe')) return this.miss('swipe');
-			if (this.state === 'clip' && this.run.clip === 'swipe' && !this.run.flex) {
+			if (this.state === 'clip' && this.run.clip === 'swipe') {
 				// the tears are here. Still winding up: the strike lands now. Already holding: the hold counts from here
 				if (this.run.hold === 0) this.run.strikeAt = now;
 				this.run.beatAt = now;
@@ -707,7 +799,7 @@ export class Creature {
 		if (phase === 'charge') {
 			// big / super: the crouch for the whole charge, the glow over it, the strike on the charge's end
 			const end = now + (kind === 'super' ? S.superChargeMs : S.chargeMs) / ts;
-			this.hit = { start: end - lead, more, lit: true };
+			this.hit = { start: end - lead, more, lit: true, entry: 0 };
 			this.glowT1 = end - lead;
 			this.glowT0 = this.state === 'crouch' ? now : -1; // -1: from the first frame of the loop
 			if (!this.down() && this.cue?.kind !== 'charge') this.cue = { kind: 'charge', at: now, strikeAt: 0 };
@@ -717,11 +809,19 @@ export class Creature {
 		}
 		// strike: a normal or scatter hit lands partway into its beat; a big / super strike is NOW
 		if (kind === 'big' || kind === 'super') {
-			if (!(this.state === 'clip' && this.run.clip === 'sting_hit')) this.hit = { start: now - lead, more, lit: true };
+			if (!(this.state === 'clip' && this.run.clip === 'sting_hit')) this.hit = { start: now - lead, more, lit: true, entry: 0 };
 			else this.run.toCrouch = more;
 		} else {
 			const hitStart = now + (kind === 'scatter' ? S.scatterHitMs : S.normalHitMs) / ts - lead;
-			this.hit = { start: hitStart, more, lit: false };
+			if (this.state === 'clip' && this.run.clip === 'sting_hit' && this.run.ahead && this.run.hold < 2) {
+				// THE STRIKE PLANNED AHEAD (cueBeat, drop 8) is under way: this beat confirms it
+				this.run.ahead = false;
+				this.run.toCrouch = more;
+				this.stinging = more;
+				this.note('sting', { phase, kind, more, ahead: true });
+				return;
+			}
+			this.hit = { start: hitStart, more, lit: false, entry: kind === 'scatter' ? SCATTER_ENTRY : 0 };
 			// not down yet (no cue came): whatever is left of charge_in before the strike must start
 			if (!this.down() && this.cue?.kind !== 'charge') this.cue = { kind: 'charge', at: Math.max(now, hitStart - CHARGE_IN_MS / ts), strikeAt: 0 };
 		}
@@ -732,26 +832,49 @@ export class Creature {
 		if (!this.canPlay('growl') || this.state !== 'idle' || this.cue) return;
 		this.cue = { kind: 'growl', at: performance.now(), strikeAt: 0 };
 	}
-	/** THE CHEER (constants PLAQUE_CHEER): the win plaque's tier asks for the snarl (BIG), the flex (SUPER) or the roar
-	 *  (MEGA). Only from his idle loop with nothing cued (a board action always wins), never while skipping (canPlay).
-	 *  False: not taken */
-	cheer(move: 'snarl' | 'flex' | 'roar'): boolean {
-		const clip = move === 'snarl' ? 'snarl' : move === 'flex' ? 'swipe' : 'roar';
-		if (!this.canPlay(clip)) {
+	/** every clip of the move can be drawn now (the Epic also waits for its tail glow: it is never played unlit) */
+	private cheerReady(move: CheerMove): boolean {
+		return clipsOfMove(move).every((c) => this.drawable(c)) && (move !== 'win_epic' || !!this.glowOver.win_epic_loop);
+	}
+	/** THE CHEER (constants PLAQUE_CHEER; drop 8): the win plaque's final tier asks for win_big (BIG), win_super (SUPER),
+	 *  win_mega (MEGA) or the Epic's in / loop / out. Only from his idle loop with nothing cued (a board action always wins),
+	 *  never while skipping. A move whose clips are not in yet WAITS (pendingCheer: he keeps idling, the loader is asked
+	 *  for them) and starts when they land, unless the plaque has gone first (cheerEnd). False: not started now */
+	cheer(move: CheerMove, now: number = performance.now()): boolean {
+		const clip = clipsOfMove(move)[0];
+		if (!this.enabled || !this.placed || this.veiled || this.state === 'hidden' || this.env.skipping()) {
 			this.miss(`cheer:${move}`);
 			return false;
 		}
+		if (!this.cheerReady(move)) {
+			// NOT IN YET: he keeps idling; it plays if its clips land while the plaque is up
+			if (this.pendingCheer !== move) this.note('cheer', { move, waiting: true });
+			this.pendingCheer = move;
+			const look = this.look;
+			if (look) this.onWantWins?.(look, clipsOfMove(move));
+			if (this.next) this.onWantWins?.(this.next, clipsOfMove(move));
+			return false;
+		}
 		if (this.state !== 'idle' || this.cue || this.swipeNext) {
+			this.pendingCheer = null;
 			this.miss(`cheer:${move}:busy`);
 			return false;
 		}
-		const now = performance.now();
-		this.cue = { kind: move === 'snarl' ? 'snarl' : move === 'flex' ? 'flex' : 'cheer', at: now, strikeAt: 0 };
+		this.pendingCheer = null;
+		this.epicEnd = false;
+		this.cue = { kind: 'win', at: now, strikeAt: 0, move };
 		// no snarl or growl straight after it (PLAQUE_CHEER.rollQuietMs, from the move's start)
 		this.rollQuietUntil = Math.max(this.rollQuietUntil, now + PLAQUE_CHEER.rollQuietMs);
 		this.counters.cheers += 1;
-		this.note('cheer', { move });
+		this.note('cheer', { move, clip });
 		return true;
+	}
+	/** THE PLAQUE HAS GONE (components/StingerPlaque.svelte plaqueCheerEnd): a cheer still waiting for its clip is dropped,
+	 *  and the Epic's loop goes on to win_epic_out at its next wrap */
+	cheerEnd(): void {
+		if (this.pendingCheer) this.note('cheer', { move: this.pendingCheer, dropped: true });
+		this.pendingCheer = null;
+		this.epicEnd = true;
 	}
 	private miss(what: string): void {
 		this.counters.skipped += 1;
@@ -793,8 +916,8 @@ export class Creature {
 		r.toCrouch = false;
 		r.lit = false;
 		r.cued = false;
-		r.flex = false;
 		r.real = false;
+		r.ahead = false;
 		this.state = 'clip';
 		this.glowA = 0;
 		this.note('start', { clip, offset: Math.round(offset) });
@@ -828,7 +951,7 @@ export class Creature {
 		const c = this.cue!;
 		this.cue = null;
 		if (c.kind === 'charge' && this.down()) return false;
-		if (!this.fireable(c.kind)) {
+		if (!this.fireable(c.kind, c.move)) {
 			this.refuse(c.kind, now);
 			return false;
 		}
@@ -841,19 +964,19 @@ export class Creature {
 			this.start('roar', now, c.ahead ? late * ts : 0);
 			this.run.cued = !!c.ahead;
 		} else if (c.kind === 'growl') this.start('growl', now, 0);
-		// the BIG cheer: the idle snarl, in real time (an idle alternate), its own voice from start() (pickVoice('snarl'))
-		else if (c.kind === 'snarl') this.start('snarl', now, 0);
-		else if (c.kind === 'flex') {
-			this.start('swipe', now, 0);
-			this.run.flex = true;
+		else if (c.kind === 'win') {
+			// THE CHEER (drop 8): his win clip from its frame 1 (= idle f1), in real time, with the tier's voice on it
+			const move = c.move!;
+			this.start(clipsOfMove(move)[0], now, 0);
 			this.run.real = true;
-			const voice = this.pickVoice('growl');
-			this.note('voice', voice);
-			this.say(voice.name, voice.rate);
-		} else if (c.kind === 'cheer') {
-			this.start('roar', now, 0);
-			this.run.real = true;
-			this.say(PLAQUE_CHEER.roarSound);
+			this.epicEnd = false;
+			const v = PLAQUE_CHEER.voices[move];
+			if (v === 'roar') this.say(PLAQUE_CHEER.roarSound);
+			else if (v) {
+				const voice = this.pickVoice(v);
+				this.note('voice', voice);
+				this.say(voice.name, voice.rate);
+			}
 		} else if (this.hit && this.hit.start - now < CHARGE_IN_MS / ts) {
 			this.lastBeat = now;
 			// less time than charge_in is long before the strike must start: its last frames only
@@ -887,6 +1010,10 @@ export class Creature {
 		if (import.meta.env.DEV && this.pin) {
 			// DEV (`__manticore.creature.pin`): one frame of a clip held still, for the placement stills; nothing else runs
 			this.tickLook(now, on, dt);
+			// (a clip with a glow overlay shows it at full on the frames it covers: the stills of the lit strike and the Epic)
+			const o = OVERLAY[this.pin.clip];
+			const k = o ? this.pin.frame - o.start : -1;
+			this.glowA = o && k >= 0 && k < SPEC.clips[o.clip].frames ? CREATURE.glow.strength : 0;
 			this.draw(this.pin.clip, this.pin.frame);
 			this.syncLift();
 			return;
@@ -897,6 +1024,7 @@ export class Creature {
 			if (this.state !== 'idle') this.toIdle(now);
 			this.cue = null;
 			this.swipeNext = null;
+			this.pendingCheer = null;
 			this.quiet();
 		}
 		this.tickLook(now, on, dt);
@@ -915,6 +1043,8 @@ export class Creature {
 		let clip: CreatureClip = 'idle';
 		let frame = 1;
 		if (this.state === 'idle') {
+			// a cheer waiting for its clip (drop 8, on demand): it is in now
+			if (this.pendingCheer && !this.cue && !this.swipeNext && this.cheerReady(this.pendingCheer)) this.cheer(this.pendingCheer, now);
 			const f = Math.floor(((now - this.idleT0) * FPS) / 1000);
 			frame = (f % N.idle) + 1;
 			if (frame < this.idleFrame || this.idleFrame === 0) {
@@ -927,7 +1057,7 @@ export class Creature {
 				const c = this.cue;
 				const free = frame <= CREATURE.rushFreeFrames + 1 || frame > N.idle - CREATURE.rushFreeFrames;
 				const rushMs = free ? 0 : CREATURE.rushMs / ts;
-				if (now >= c.at - rushMs && !this.fireable(c.kind)) {
+				if (now >= c.at - rushMs && !this.fireable(c.kind, c.move)) {
 					// (no rush towards an action that will not be played)
 					this.refuse(c.kind, now);
 				} else if (now >= c.at - rushMs) {
@@ -961,16 +1091,9 @@ export class Creature {
 		if (this.state === 'clip') {
 			const r = this.run;
 			// another action's first frame is due: cut to it (never before a strike of this one has landed)
-			const striking = !r.flex && (r.clip === 'swipe' || r.clip === 'sting_hit') && r.hold < 2;
+			const striking = (r.clip === 'swipe' || r.clip === 'sting_hit') && r.hold < 2;
 			if (this.cue && now >= this.cue.at && !striking && r.clip !== 'charge_in' && r.clip !== 'sting_recrouch' && !this.hit) this.fire(now, now - this.cue.at);
-			if (r.flex) {
-				// THE FLEX (PLAQUE_CHEER.flex): up the wind-up to its peak frame, held, back down to frame 1, in real time
-				const F = PLAQUE_CHEER.flex;
-				const up = (F.peakFrame - 1) * FRAME_MS;
-				const el = now - r.startAt;
-				r.t = el < up ? el : el < up + F.holdMs ? up : Math.max(0, up - (el - up - F.holdMs) * F.backRate);
-				if (el >= up + F.holdMs + up / F.backRate) r.hold = 2;
-			} else if (r.clip === 'swipe' && r.hold < 2) {
+			if (r.clip === 'swipe' && r.hold < 2) {
 				// ANCHORED: the wind-up is read backwards from the strike; then the strike pose is held until the board's
 				// beat (+ holdMs), or beatWaitMs if no beat comes
 				if (r.hold === 0) {
@@ -1010,7 +1133,6 @@ export class Creature {
 			else if (clip === 'sting_hit' && r.hold === 2 && this.hit && now >= this.hit.start) this.strike(now);
 			else if (clip === 'sting_hit' && r.toCrouch && r.hold === 2) this.recrouch(now);
 			else if (clip === 'sting_recrouch' && this.hit && now >= this.hit.start && frame >= CREATURE.recrouch.strikeFromFrame) this.strike(now);
-			else if (r.flex && r.hold === 2) this.toIdle(now);
 			else if (frame > N[clip]) {
 				if (clip === 'charge_in') {
 					this.toCrouch(this.crouchPhase(now));
@@ -1020,6 +1142,17 @@ export class Creature {
 					this.toCrouch(SPEC.clips.sting_recrouch.returnsToFrame);
 					this.crouchT += r.t - N.sting_recrouch * FRAME_MS;
 					this.aimCrouch(now);
+				} else if (clip === 'win_epic_in' || clip === 'win_epic_loop') {
+					// THE EPIC (drop 8): in, then the loop while the plaque is up, then out at the loop's wrap (out f1 IS loop
+					// f1); its plaque gone before the in has ended, the in goes straight on to out (in f40 to loop f1: 2.6 %)
+					const over = r.t - N[clip] * FRAME_MS;
+					const out = this.epicEnd || (clip === 'win_epic_loop' && now - this.epicLoopAt > CREATURE.wins.epicLoopMaxMs);
+					if (clip === 'win_epic_loop' && !out) r.t = over;
+					else {
+						if (!out) this.epicLoopAt = now;
+						this.start(out ? 'win_epic_out' : 'win_epic_loop', now, over);
+						this.run.real = true;
+					}
 				} else {
 					const over = r.t - N[clip] * FRAME_MS;
 					this.toIdle(now);
@@ -1078,7 +1211,7 @@ export class Creature {
 					? clamp01((now - this.glowT0) / (this.glowT1 - this.glowT0))
 					: 0
 				: this.state === 'clip'
-					? this.litAlpha()
+					? this.litAlpha() || this.epicAlpha()
 					: 0;
 		this.draw(clip, frame);
 		this.syncLift();
@@ -1228,9 +1361,11 @@ export class Creature {
 		const h = this.hit!;
 		this.hit = null;
 		const ts = Math.max(0.2, this.env.ts());
-		this.start('sting_hit', now, Math.min((now - h.start) * ts, WINDUP.sting_hit));
+		// (a scatter's strike enters at its entry frame, drop 8; a late one that much further in, never past the hold)
+		this.start('sting_hit', now, Math.min(h.entry + (now - h.start) * ts, WINDUP.sting_hit));
 		this.crouchRate = 1;
 		this.landing = false;
+		this.run.ahead = !!h.ahead;
 		this.run.toCrouch = h.more;
 		this.run.lit = h.lit && !!this.glowOver.sting_hit;
 		this.stinging = h.more;
@@ -1251,12 +1386,22 @@ export class Creature {
 		const r = this.run;
 		if (!r.lit) return 0;
 		if (r.clip === 'sting_hit') {
-			const from = HOLD.sting_hit! * FRAME_MS; // the start of f7
-			if (r.hold < 2 || r.t < from || r.toCrouch) return CREATURE.glow.strength; // f1..f6, the hold included
+			const from = HOLD.sting_hit! * FRAME_MS; // the start of the frame after the hold (f12 since drop 8)
+			if (r.hold < 2 || r.t < from || r.toCrouch) return CREATURE.glow.strength; // f1 to the hold, the hold included
 			return Creature.fade(SPEC.clips.sting_hit_glow.gain, HOLD.sting_hit!, r.t - from);
 		}
 		if (r.clip === 'sting_recrouch') return Creature.fade(SPEC.clips.sting_recrouch_glow.gain, 0, r.t);
 		return 0;
+	}
+	/** THE EPIC WIN'S TAIL GLOW (drop 8): over the frames its overlay covers, the rig's gain for that frame (1 on every
+	 *  frame: the pulse is baked into the render, gainBaked false with a flat hint), 0 elsewhere */
+	private epicAlpha(): number {
+		const r = this.run;
+		const o = OVERLAY[r.clip];
+		if (!o || !this.glowOver[r.clip] || !EPIC_CLIPS.includes(r.clip as CreatureWinClip)) return 0;
+		const k = r.frame - o.start;
+		const gain = (SPEC.clips[o.clip] as { gain?: readonly number[] }).gain;
+		return k >= 0 && k < SPEC.clips[o.clip].frames ? CREATURE.glow.strength * (gain?.[k] ?? 1) : 0;
 	}
 	/** gain[first..] are the hint's values at each fading frame's START; between them a straight line, after the last
 	 *  one a straight line to 0 over one more frame. `t`: clip ms since the fade began */
@@ -1337,11 +1482,11 @@ export class Creature {
 		if (this.cue || this.stinging || this.next || now < this.rollQuietUntil) return false;
 		this.counters.rolls += 1;
 		const forced = this.forceRoll;
-		const pick = forced ? (forced === 'none' ? null : forced) : Math.random() < CREATURE.snarlOdds ? 'snarl' : Math.random() < CREATURE.growlOdds ? 'growl' : null;
+		const pick = forced ? (forced === 'none' ? null : forced) : Math.random() < CREATURE.snarlOdds ? 'snarl' : Math.random() < CREATURE.growlOdds ? 'growl' : Math.random() < CREATURE.idleLookOdds ? 'idle_look' : null;
 		this.note('roll', { forced, pick });
 		if (!pick || !this.canPlay(pick)) return false;
 		if (forced) this.forceRoll = null;
-		this.counters[pick === 'snarl' ? 'snarls' : 'growls'] += 1;
+		this.counters[pick === 'snarl' ? 'snarls' : pick === 'growl' ? 'growls' : 'looks'] += 1;
 		this.start(pick, now, 0);
 		return true;
 	}
@@ -1385,10 +1530,11 @@ export class Creature {
 	/** a swap between resident textures, only when the frame changed */
 	private draw(clip: CreatureClip, frame: number): void {
 		const look = this.looks[this.look!];
-		// the glow: the frame set of the body clip, the body's frame (no glow frame under sting_hit f10+ or
-		// sting_recrouch f4+: no glow). Set BEFORE the early return: a glow that comes on mid frame gets its own frame
-		const over = clip === 'charge_loop' ? this.glowFrames : clip === 'sting_hit' ? this.glowOver.sting_hit : clip === 'sting_recrouch' ? this.glowOver.sting_recrouch : null;
-		const gt = this.glowA > 0 ? over?.[frame - 1] : undefined;
+		// the glow: the frame set of the body clip, the body's frame less where its overlay starts (OVERLAY: win_epic_in's
+		// at f20, every other at f1; no glow frame past an overlay's end, sting_hit f15+ or sting_recrouch f4+ since drop 8).
+		// Set BEFORE the early return: a glow that comes on mid frame gets its own frame
+		const over = clip === 'charge_loop' ? this.glowFrames : this.glowOver[clip];
+		const gt = this.glowA > 0 ? over?.[frame - (OVERLAY[clip]?.start ?? 1)] : undefined;
 		if (this.glow.visible !== !!gt) this.glow.visible = !!gt;
 		if (gt && this.glow.alpha !== this.glowA) this.glow.alpha = this.glowA;
 		if (gt && this.glow.texture !== gt) this.glow.texture = gt;
@@ -1478,7 +1624,8 @@ export class Creature {
 				glow: !!this.glowFrames,
 				shade: !!this.shadeFrames.idle,
 				shadowFrames: CREATURE_CLIPS.reduce((n, c) => n + (this.shadows[c]?.length ?? 0), 0),
-				glowFrames: { charge_loop: this.glowFrames?.length ?? 0, sting_hit: this.glowOver.sting_hit?.length ?? 0, sting_recrouch: this.glowOver.sting_recrouch?.length ?? 0 },
+				glowFrames: { charge_loop: this.glowFrames?.length ?? 0, sting_hit: this.glowOver.sting_hit?.length ?? 0, sting_recrouch: this.glowOver.sting_recrouch?.length ?? 0, win_epic_in: this.glowOver.win_epic_in?.length ?? 0, win_epic_loop: this.glowOver.win_epic_loop?.length ?? 0, win_epic_out: this.glowOver.win_epic_out?.length ?? 0 },
+				pendingCheer: this.pendingCheer,
 			},
 			counters: { ...this.counters },
 			layer: this.bodyNode.parent?.label ?? null,

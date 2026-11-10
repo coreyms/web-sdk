@@ -4,9 +4,9 @@
 // 1024 canvas; tiers.<tier>.canvas is that canvas in texels, and every atlas frame's sourceSize is it.
 export const CREATURE_SPEC = {
 	"source": {
-		"day": "drop-7 (day look; mane M8 (Corey's fitted Meshy mane ManeM8 with his 42 added strands, ManeLock_m8b crimson, head / neck2 / neck1 / chest weights, mane_m8_r4), tail as shipped (tailB_pewter), final wings E1 + L1, framing C5; roar v3 + sting_recrouch as drop 4; epic with the drop-5 fire rim (A3))",
-		"super": "drop-7-super (super = night + 0.70 x fire x (1.0,1.0,1.0), composited offline in linear light, premultiplied, alpha = max; mane M8 (Corey's fitted Meshy mane ManeM8 with his 42 added strands, ManeLock_m8b crimson, head / neck2 / neck1 / chest weights, mane_m8_r4), tail as shipped (tailB_pewter), final wings E1 + L1, framing C5; roar v3 + sting_recrouch as drop 4; epic with the drop-5 fire rim (A3))",
-		"epic": "drop-7-epic (epic = night + 1.00 x fire x (1.0,0.7,0.5) + 3.50 x rim_fire x (1.0,0.42,0.1) (rim light, drop 5), composited offline in linear light, premultiplied, alpha = max; mane M8 (Corey's fitted Meshy mane ManeM8 with his 42 added strands, ManeLock_m8b crimson, head / neck2 / neck1 / chest weights, mane_m8_r4), tail as shipped (tailB_pewter), final wings E1 + L1, framing C5; roar v3 + sting_recrouch as drop 4; epic with the drop-5 fire rim (A3))"
+		"day": "drop-8 phase A (day look; drop 8 phase A: final rig tailC_v3 + wings5 (lip_curl in the rig), ManeM8 ManeLock_m8b, tailC rendered (tailB hidden), C5; idle, idle_look, swipe (wings5), roar v4, snarl v2, growl v2, charge_in, charge_loop V3, charge_glow, sting kp_v7 (hold 11), win_big, win_mega v2)",
+		"super": "drop-8 phase A-super (super = night + 0.70 x fire x (1.0,1.0,1.0), composited offline in linear light, premultiplied, alpha = max; drop 8 phase A: final rig tailC_v3 + wings5 (lip_curl in the rig), ManeM8 ManeLock_m8b, tailC rendered (tailB hidden), C5; idle, idle_look, swipe (wings5), roar v4, snarl v2, growl v2, charge_in, charge_loop V3, charge_glow, sting kp_v7 (hold 11), win_big, win_mega v2)",
+		"epic": "drop-8 phase A-epic (epic = night + 1.00 x fire x (1.0,0.7,0.5) + 3.50 x rim_fire x (1.0,0.42,0.1) (rim light, drop 5), composited offline in linear light, premultiplied, alpha = max; drop 8 phase A: final rig tailC_v3 + wings5 (lip_curl in the rig), ManeM8 ManeLock_m8b, tailC rendered (tailB hidden), C5; idle, idle_look, swipe (wings5), roar v4, snarl v2, growl v2, charge_in, charge_loop V3, charge_glow, sting kp_v7 (hold 11), win_big, win_mega v2)"
 	},
 	"canvas": [
 		1024,
@@ -29,6 +29,12 @@ export const CREATURE_SPEC = {
 			"loop": true,
 			"shadow": true
 		},
+		"idle_look": {
+			"frames": 36,
+			"loop": false,
+			"returnsTo": "idle",
+			"shadow": true
+		},
 		"swipe": {
 			"frames": 36,
 			"loop": false,
@@ -42,21 +48,16 @@ export const CREATURE_SPEC = {
 			"returnsTo": "idle",
 			"shadow": true
 		},
-		"sting_hit": {
-			"frames": 18,
+		"snarl": {
+			"frames": 30,
 			"loop": false,
-			"holdFrame": 6,
 			"returnsTo": "idle",
-			"startsFrom": "charge_loop",
 			"shadow": true
 		},
-		"sting_recrouch": {
-			"frames": 7,
+		"growl": {
+			"frames": 36,
 			"loop": false,
-			"returnsTo": "charge_loop",
-			"returnsToFrame": 1,
-			"follows": "sting_hit",
-			"followsFrame": 6,
+			"returnsTo": "idle",
 			"shadow": true
 		},
 		"charge_in": {
@@ -78,16 +79,21 @@ export const CREATURE_SPEC = {
 			"shadow": false
 		},
 		"sting_hit_glow": {
-			"frames": 9,
+			"frames": 14,
 			"loop": false,
-			"holdFrame": 6,
+			"holdFrame": 11,
 			"overlay": "additive",
 			"overlayOf": "sting_hit",
 			"overlayFrames": [
 				1,
-				9
+				14
 			],
 			"gain": [
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
 				1.0,
 				1.0,
 				1.0,
@@ -118,17 +124,146 @@ export const CREATURE_SPEC = {
 			"gainBaked": false,
 			"shadow": false
 		},
-		"snarl": {
-			"frames": 24,
+		"sting_hit": {
+			"frames": 36,
+			"loop": false,
+			"holdFrame": 11,
+			"returnsTo": "idle",
+			"startsFrom": "charge_loop",
+			"shadow": true
+		},
+		"sting_recrouch": {
+			"frames": 12,
+			"loop": false,
+			"returnsTo": "charge_loop",
+			"returnsToFrame": 1,
+			"follows": "sting_hit",
+			"followsFrame": 11,
+			"shadow": true
+		},
+		"win_big": {
+			"frames": 30,
 			"loop": false,
 			"returnsTo": "idle",
 			"shadow": true
 		},
-		"growl": {
-			"frames": 36,
+		"win_mega": {
+			"frames": 60,
 			"loop": false,
 			"returnsTo": "idle",
 			"shadow": true
+		},
+		"win_super": {
+			"frames": 42,
+			"loop": false,
+			"returnsTo": "idle",
+			"shadow": true
+		},
+		"win_epic_in": {
+			"frames": 40,
+			"loop": false,
+			"returnsTo": "win_epic_loop",
+			"shadow": true
+		},
+		"win_epic_loop": {
+			"frames": 16,
+			"loop": true,
+			"shadow": true
+		},
+		"win_epic_out": {
+			"frames": 30,
+			"loop": false,
+			"returnsTo": "idle",
+			"startsFrom": "win_epic_loop",
+			"shadow": true
+		},
+		"win_epic_in_glow": {
+			"frames": 21,
+			"loop": false,
+			"overlay": "additive",
+			"overlayOf": "win_epic_in",
+			"overlayStart": 20,
+			"overlayFrames": [
+				20,
+				40
+			],
+			"gain": [
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0
+			],
+			"gainBaked": false,
+			"shadow": false
+		},
+		"win_epic_loop_glow": {
+			"frames": 16,
+			"loop": true,
+			"overlay": "additive",
+			"overlayOf": "win_epic_loop",
+			"overlayStart": 1,
+			"overlayFrames": [
+				1,
+				16
+			],
+			"gain": [
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0
+			],
+			"gainBaked": false,
+			"shadow": false
+		},
+		"win_epic_out_glow": {
+			"frames": 6,
+			"loop": false,
+			"overlay": "additive",
+			"overlayOf": "win_epic_out",
+			"overlayStart": 1,
+			"overlayFrames": [
+				1,
+				6
+			],
+			"gain": [
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0,
+				1.0
+			],
+			"gainBaked": false,
+			"shadow": false
 		}
 	},
 	"looks": [
@@ -136,6 +271,23 @@ export const CREATURE_SPEC = {
 		"super",
 		"epic"
 	],
+	"parts": {
+		"wins": {
+			"clips": [
+				"win_big",
+				"win_mega",
+				"win_super",
+				"win_epic_in",
+				"win_epic_loop",
+				"win_epic_out"
+			],
+			"overlays": [
+				"win_epic_in_glow",
+				"win_epic_loop_glow",
+				"win_epic_out_glow"
+			]
+		}
+	},
 	"frameName": {
 		"colour": "creature_<look>_<clip>_<NNN>",
 		"shadow": "creature_shadow_<clip>_<NNN>",
@@ -145,7 +297,10 @@ export const CREATURE_SPEC = {
 	"glow": {
 		"charge_glow": "creature_glow",
 		"sting_hit_glow": "creature_glow_sting_hit",
-		"sting_recrouch_glow": "creature_glow_sting_recrouch"
+		"sting_recrouch_glow": "creature_glow_sting_recrouch",
+		"win_epic_in_glow": "creature_glow_win_epic_in",
+		"win_epic_loop_glow": "creature_glow_win_epic_loop",
+		"win_epic_out_glow": "creature_glow_win_epic_out"
 	},
 	"tiers": {
 		"full": {
@@ -164,8 +319,17 @@ export const CREATURE_SPEC = {
 						{
 							"file": "day/creature-day-idle.json",
 							"sheet": [
-								4003,
-								3728
+								4010,
+								3729
+							]
+						}
+					],
+					"idle_look": [
+						{
+							"file": "day/creature-day-idle_look.json",
+							"sheet": [
+								3050,
+								3223
 							]
 						}
 					],
@@ -173,8 +337,8 @@ export const CREATURE_SPEC = {
 						{
 							"file": "day/creature-day-swipe.json",
 							"sheet": [
-								3533,
-								2640
+								3587,
+								2644
 							]
 						}
 					],
@@ -182,26 +346,26 @@ export const CREATURE_SPEC = {
 						{
 							"file": "day/creature-day-roar.json",
 							"sheet": [
-								3876,
-								3713
+								4026,
+								3745
 							]
 						}
 					],
-					"sting_hit": [
+					"snarl": [
 						{
-							"file": "day/creature-day-sting_hit.json",
+							"file": "day/creature-day-snarl.json",
 							"sheet": [
-								1507,
-								3079
+								2567,
+								3204
 							]
 						}
 					],
-					"sting_recrouch": [
+					"growl": [
 						{
-							"file": "day/creature-day-sting_recrouch.json",
+							"file": "day/creature-day-growl.json",
 							"sheet": [
-								500,
-								3650
+								3043,
+								3166
 							]
 						}
 					],
@@ -210,7 +374,7 @@ export const CREATURE_SPEC = {
 							"file": "day/creature-day-charge_in.json",
 							"sheet": [
 								489,
-								3199
+								3226
 							]
 						}
 					],
@@ -219,25 +383,86 @@ export const CREATURE_SPEC = {
 							"file": "day/creature-day-charge_loop.json",
 							"sheet": [
 								974,
-								3174
+								3243
 							]
 						}
 					],
-					"snarl": [
+					"sting_hit": [
 						{
-							"file": "day/creature-day-snarl.json",
+							"file": "day/creature-day-sting_hit.json",
 							"sheet": [
-								3915,
-								1600
+								3060,
+								3084
 							]
 						}
 					],
-					"growl": [
+					"sting_recrouch": [
 						{
-							"file": "day/creature-day-growl.json",
+							"file": "day/creature-day-sting_recrouch.json",
 							"sheet": [
-								2934,
-								3198
+								1004,
+								2985
+							]
+						}
+					],
+					"win_big": [
+						{
+							"file": "day/creature-day-win_big.json",
+							"sheet": [
+								2523,
+								3202
+							]
+						}
+					],
+					"win_mega": [
+						{
+							"file": "day/creature-day-win_mega-1.json",
+							"sheet": [
+								3039,
+								2684
+							]
+						},
+						{
+							"file": "day/creature-day-win_mega-2.json",
+							"sheet": [
+								2548,
+								3210
+							]
+						}
+					],
+					"win_super": [
+						{
+							"file": "day/creature-day-win_super.json",
+							"sheet": [
+								3102,
+								3703
+							]
+						}
+					],
+					"win_epic_in": [
+						{
+							"file": "day/creature-day-win_epic_in.json",
+							"sheet": [
+								4041,
+								2574
+							]
+						}
+					],
+					"win_epic_loop": [
+						{
+							"file": "day/creature-day-win_epic_loop.json",
+							"sheet": [
+								2068,
+								2114
+							]
+						}
+					],
+					"win_epic_out": [
+						{
+							"file": "day/creature-day-win_epic_out.json",
+							"sheet": [
+								3020,
+								2650
 							]
 						}
 					]
@@ -247,8 +472,17 @@ export const CREATURE_SPEC = {
 						{
 							"file": "super/creature-super-idle.json",
 							"sheet": [
-								4003,
-								3728
+								4010,
+								3729
+							]
+						}
+					],
+					"idle_look": [
+						{
+							"file": "super/creature-super-idle_look.json",
+							"sheet": [
+								3050,
+								3223
 							]
 						}
 					],
@@ -256,8 +490,8 @@ export const CREATURE_SPEC = {
 						{
 							"file": "super/creature-super-swipe.json",
 							"sheet": [
-								3533,
-								2640
+								3587,
+								2644
 							]
 						}
 					],
@@ -265,26 +499,26 @@ export const CREATURE_SPEC = {
 						{
 							"file": "super/creature-super-roar.json",
 							"sheet": [
-								3876,
-								3713
+								4026,
+								3745
 							]
 						}
 					],
-					"sting_hit": [
+					"snarl": [
 						{
-							"file": "super/creature-super-sting_hit.json",
+							"file": "super/creature-super-snarl.json",
 							"sheet": [
-								1507,
-								3079
+								2567,
+								3204
 							]
 						}
 					],
-					"sting_recrouch": [
+					"growl": [
 						{
-							"file": "super/creature-super-sting_recrouch.json",
+							"file": "super/creature-super-growl.json",
 							"sheet": [
-								500,
-								3650
+								3043,
+								3166
 							]
 						}
 					],
@@ -293,7 +527,7 @@ export const CREATURE_SPEC = {
 							"file": "super/creature-super-charge_in.json",
 							"sheet": [
 								489,
-								3199
+								3226
 							]
 						}
 					],
@@ -302,25 +536,86 @@ export const CREATURE_SPEC = {
 							"file": "super/creature-super-charge_loop.json",
 							"sheet": [
 								974,
-								3174
+								3243
 							]
 						}
 					],
-					"snarl": [
+					"sting_hit": [
 						{
-							"file": "super/creature-super-snarl.json",
+							"file": "super/creature-super-sting_hit.json",
 							"sheet": [
-								3915,
-								1600
+								3060,
+								3084
 							]
 						}
 					],
-					"growl": [
+					"sting_recrouch": [
 						{
-							"file": "super/creature-super-growl.json",
+							"file": "super/creature-super-sting_recrouch.json",
 							"sheet": [
-								2934,
-								3198
+								1004,
+								2985
+							]
+						}
+					],
+					"win_big": [
+						{
+							"file": "super/creature-super-win_big.json",
+							"sheet": [
+								2523,
+								3202
+							]
+						}
+					],
+					"win_mega": [
+						{
+							"file": "super/creature-super-win_mega-1.json",
+							"sheet": [
+								3039,
+								2684
+							]
+						},
+						{
+							"file": "super/creature-super-win_mega-2.json",
+							"sheet": [
+								2548,
+								3210
+							]
+						}
+					],
+					"win_super": [
+						{
+							"file": "super/creature-super-win_super.json",
+							"sheet": [
+								3102,
+								3703
+							]
+						}
+					],
+					"win_epic_in": [
+						{
+							"file": "super/creature-super-win_epic_in.json",
+							"sheet": [
+								4041,
+								2574
+							]
+						}
+					],
+					"win_epic_loop": [
+						{
+							"file": "super/creature-super-win_epic_loop.json",
+							"sheet": [
+								2068,
+								2114
+							]
+						}
+					],
+					"win_epic_out": [
+						{
+							"file": "super/creature-super-win_epic_out.json",
+							"sheet": [
+								3020,
+								2650
 							]
 						}
 					]
@@ -330,8 +625,17 @@ export const CREATURE_SPEC = {
 						{
 							"file": "epic/creature-epic-idle.json",
 							"sheet": [
-								4003,
-								3728
+								4010,
+								3729
+							]
+						}
+					],
+					"idle_look": [
+						{
+							"file": "epic/creature-epic-idle_look.json",
+							"sheet": [
+								3050,
+								3223
 							]
 						}
 					],
@@ -339,8 +643,8 @@ export const CREATURE_SPEC = {
 						{
 							"file": "epic/creature-epic-swipe.json",
 							"sheet": [
-								3533,
-								2640
+								3587,
+								2644
 							]
 						}
 					],
@@ -348,26 +652,26 @@ export const CREATURE_SPEC = {
 						{
 							"file": "epic/creature-epic-roar.json",
 							"sheet": [
-								3876,
-								3713
+								4026,
+								3745
 							]
 						}
 					],
-					"sting_hit": [
+					"snarl": [
 						{
-							"file": "epic/creature-epic-sting_hit.json",
+							"file": "epic/creature-epic-snarl.json",
 							"sheet": [
-								1507,
-								3079
+								2567,
+								3204
 							]
 						}
 					],
-					"sting_recrouch": [
+					"growl": [
 						{
-							"file": "epic/creature-epic-sting_recrouch.json",
+							"file": "epic/creature-epic-growl.json",
 							"sheet": [
-								500,
-								3650
+								3043,
+								3166
 							]
 						}
 					],
@@ -376,7 +680,7 @@ export const CREATURE_SPEC = {
 							"file": "epic/creature-epic-charge_in.json",
 							"sheet": [
 								489,
-								3199
+								3226
 							]
 						}
 					],
@@ -385,25 +689,86 @@ export const CREATURE_SPEC = {
 							"file": "epic/creature-epic-charge_loop.json",
 							"sheet": [
 								974,
-								3174
+								3243
 							]
 						}
 					],
-					"snarl": [
+					"sting_hit": [
 						{
-							"file": "epic/creature-epic-snarl.json",
+							"file": "epic/creature-epic-sting_hit.json",
 							"sheet": [
-								3915,
-								1600
+								3060,
+								3084
 							]
 						}
 					],
-					"growl": [
+					"sting_recrouch": [
 						{
-							"file": "epic/creature-epic-growl.json",
+							"file": "epic/creature-epic-sting_recrouch.json",
 							"sheet": [
-								2934,
-								3198
+								1004,
+								2985
+							]
+						}
+					],
+					"win_big": [
+						{
+							"file": "epic/creature-epic-win_big.json",
+							"sheet": [
+								2523,
+								3202
+							]
+						}
+					],
+					"win_mega": [
+						{
+							"file": "epic/creature-epic-win_mega-1.json",
+							"sheet": [
+								3039,
+								2684
+							]
+						},
+						{
+							"file": "epic/creature-epic-win_mega-2.json",
+							"sheet": [
+								2548,
+								3210
+							]
+						}
+					],
+					"win_super": [
+						{
+							"file": "epic/creature-epic-win_super.json",
+							"sheet": [
+								3102,
+								3703
+							]
+						}
+					],
+					"win_epic_in": [
+						{
+							"file": "epic/creature-epic-win_epic_in.json",
+							"sheet": [
+								4041,
+								2574
+							]
+						}
+					],
+					"win_epic_loop": [
+						{
+							"file": "epic/creature-epic-win_epic_loop.json",
+							"sheet": [
+								2068,
+								2114
+							]
+						}
+					],
+					"win_epic_out": [
+						{
+							"file": "epic/creature-epic-win_epic_out.json",
+							"sheet": [
+								3020,
+								2650
 							]
 						}
 					]
@@ -414,8 +779,17 @@ export const CREATURE_SPEC = {
 					{
 						"file": "shared/creature-glow.json",
 						"sheet": [
-							1533,
-							660
+							1885,
+							650
+						]
+					}
+				],
+				"glowWins": [
+					{
+						"file": "shared/creature-glow-wins.json",
+						"sheet": [
+							913,
+							1444
 						]
 					}
 				],
@@ -423,8 +797,17 @@ export const CREATURE_SPEC = {
 					{
 						"file": "shared/creature-shadow.json",
 						"sheet": [
-							2848,
-							427
+							3311,
+							821
+						]
+					}
+				],
+				"shade": [
+					{
+						"file": "shared/creature-shade.json",
+						"sheet": [
+							1232,
+							442
 						]
 					}
 				]
@@ -446,8 +829,17 @@ export const CREATURE_SPEC = {
 						{
 							"file": "day/creature-day-idle-phone.json",
 							"sheet": [
-								3098,
+								3113,
 								2172
+							]
+						}
+					],
+					"idle_look": [
+						{
+							"file": "day/creature-day-idle_look-phone.json",
+							"sheet": [
+								3101,
+								1460
 							]
 						}
 					],
@@ -455,8 +847,8 @@ export const CREATURE_SPEC = {
 						{
 							"file": "day/creature-day-swipe-phone.json",
 							"sheet": [
-								3984,
-								1078
+								3982,
+								1080
 							]
 						}
 					],
@@ -464,26 +856,26 @@ export const CREATURE_SPEC = {
 						{
 							"file": "day/creature-day-roar-phone.json",
 							"sheet": [
-								1992,
-								3241
+								3137,
+								2180
 							]
 						}
 					],
-					"sting_hit": [
+					"snarl": [
 						{
-							"file": "day/creature-day-sting_hit-phone.json",
+							"file": "day/creature-day-snarl-phone.json",
 							"sheet": [
-								690,
-								3090
+								3487,
+								1089
 							]
 						}
 					],
-					"sting_recrouch": [
+					"growl": [
 						{
-							"file": "day/creature-day-sting_recrouch-phone.json",
+							"file": "day/creature-day-growl-phone.json",
 							"sheet": [
-								339,
-								2479
+								3090,
+								1435
 							]
 						}
 					],
@@ -492,7 +884,7 @@ export const CREATURE_SPEC = {
 							"file": "day/creature-day-charge_in-phone.json",
 							"sheet": [
 								332,
-								2173
+								2190
 							]
 						}
 					],
@@ -500,26 +892,80 @@ export const CREATURE_SPEC = {
 						{
 							"file": "day/creature-day-charge_loop-phone.json",
 							"sheet": [
-								662,
-								2157
+								994,
+								1468
 							]
 						}
 					],
-					"snarl": [
+					"sting_hit": [
 						{
-							"file": "day/creature-day-snarl-phone.json",
+							"file": "day/creature-day-sting_hit-phone.json",
 							"sheet": [
-								3994,
-								724
+								1386,
+								3127
 							]
 						}
 					],
-					"growl": [
+					"sting_recrouch": [
 						{
-							"file": "day/creature-day-growl-phone.json",
+							"file": "day/creature-day-sting_recrouch-phone.json",
 							"sheet": [
-								1328,
-								3254
+								342,
+								4019
+							]
+						}
+					],
+					"win_big": [
+						{
+							"file": "day/creature-day-win_big-phone.json",
+							"sheet": [
+								3412,
+								1089
+							]
+						}
+					],
+					"win_mega": [
+						{
+							"file": "day/creature-day-win_mega-phone.json",
+							"sheet": [
+								3449,
+								2186
+							]
+						}
+					],
+					"win_super": [
+						{
+							"file": "day/creature-day-win_super-phone.json",
+							"sheet": [
+								2106,
+								2513
+							]
+						}
+					],
+					"win_epic_in": [
+						{
+							"file": "day/creature-day-win_epic_in-phone.json",
+							"sheet": [
+								1720,
+								2778
+							]
+						}
+					],
+					"win_epic_loop": [
+						{
+							"file": "day/creature-day-win_epic_loop-phone.json",
+							"sheet": [
+								704,
+								2868
+							]
+						}
+					],
+					"win_epic_out": [
+						{
+							"file": "day/creature-day-win_epic_out-phone.json",
+							"sheet": [
+								3400,
+								1080
 							]
 						}
 					]
@@ -529,8 +975,17 @@ export const CREATURE_SPEC = {
 						{
 							"file": "super/creature-super-idle-phone.json",
 							"sheet": [
-								3098,
+								3113,
 								2172
+							]
+						}
+					],
+					"idle_look": [
+						{
+							"file": "super/creature-super-idle_look-phone.json",
+							"sheet": [
+								3101,
+								1460
 							]
 						}
 					],
@@ -538,8 +993,8 @@ export const CREATURE_SPEC = {
 						{
 							"file": "super/creature-super-swipe-phone.json",
 							"sheet": [
-								3984,
-								1078
+								3982,
+								1080
 							]
 						}
 					],
@@ -547,26 +1002,26 @@ export const CREATURE_SPEC = {
 						{
 							"file": "super/creature-super-roar-phone.json",
 							"sheet": [
-								1992,
-								3241
+								3137,
+								2180
 							]
 						}
 					],
-					"sting_hit": [
+					"snarl": [
 						{
-							"file": "super/creature-super-sting_hit-phone.json",
+							"file": "super/creature-super-snarl-phone.json",
 							"sheet": [
-								690,
-								3090
+								3487,
+								1089
 							]
 						}
 					],
-					"sting_recrouch": [
+					"growl": [
 						{
-							"file": "super/creature-super-sting_recrouch-phone.json",
+							"file": "super/creature-super-growl-phone.json",
 							"sheet": [
-								339,
-								2479
+								3090,
+								1435
 							]
 						}
 					],
@@ -575,7 +1030,7 @@ export const CREATURE_SPEC = {
 							"file": "super/creature-super-charge_in-phone.json",
 							"sheet": [
 								332,
-								2173
+								2190
 							]
 						}
 					],
@@ -583,26 +1038,80 @@ export const CREATURE_SPEC = {
 						{
 							"file": "super/creature-super-charge_loop-phone.json",
 							"sheet": [
-								662,
-								2157
+								994,
+								1468
 							]
 						}
 					],
-					"snarl": [
+					"sting_hit": [
 						{
-							"file": "super/creature-super-snarl-phone.json",
+							"file": "super/creature-super-sting_hit-phone.json",
 							"sheet": [
-								3994,
-								724
+								1386,
+								3127
 							]
 						}
 					],
-					"growl": [
+					"sting_recrouch": [
 						{
-							"file": "super/creature-super-growl-phone.json",
+							"file": "super/creature-super-sting_recrouch-phone.json",
 							"sheet": [
-								1328,
-								3254
+								342,
+								4019
+							]
+						}
+					],
+					"win_big": [
+						{
+							"file": "super/creature-super-win_big-phone.json",
+							"sheet": [
+								3412,
+								1089
+							]
+						}
+					],
+					"win_mega": [
+						{
+							"file": "super/creature-super-win_mega-phone.json",
+							"sheet": [
+								3449,
+								2186
+							]
+						}
+					],
+					"win_super": [
+						{
+							"file": "super/creature-super-win_super-phone.json",
+							"sheet": [
+								2106,
+								2513
+							]
+						}
+					],
+					"win_epic_in": [
+						{
+							"file": "super/creature-super-win_epic_in-phone.json",
+							"sheet": [
+								1720,
+								2778
+							]
+						}
+					],
+					"win_epic_loop": [
+						{
+							"file": "super/creature-super-win_epic_loop-phone.json",
+							"sheet": [
+								704,
+								2868
+							]
+						}
+					],
+					"win_epic_out": [
+						{
+							"file": "super/creature-super-win_epic_out-phone.json",
+							"sheet": [
+								3400,
+								1080
 							]
 						}
 					]
@@ -612,8 +1121,17 @@ export const CREATURE_SPEC = {
 						{
 							"file": "epic/creature-epic-idle-phone.json",
 							"sheet": [
-								3098,
+								3113,
 								2172
+							]
+						}
+					],
+					"idle_look": [
+						{
+							"file": "epic/creature-epic-idle_look-phone.json",
+							"sheet": [
+								3101,
+								1460
 							]
 						}
 					],
@@ -621,8 +1139,8 @@ export const CREATURE_SPEC = {
 						{
 							"file": "epic/creature-epic-swipe-phone.json",
 							"sheet": [
-								3984,
-								1078
+								3982,
+								1080
 							]
 						}
 					],
@@ -630,26 +1148,26 @@ export const CREATURE_SPEC = {
 						{
 							"file": "epic/creature-epic-roar-phone.json",
 							"sheet": [
-								1992,
-								3241
+								3137,
+								2180
 							]
 						}
 					],
-					"sting_hit": [
+					"snarl": [
 						{
-							"file": "epic/creature-epic-sting_hit-phone.json",
+							"file": "epic/creature-epic-snarl-phone.json",
 							"sheet": [
-								690,
-								3090
+								3487,
+								1089
 							]
 						}
 					],
-					"sting_recrouch": [
+					"growl": [
 						{
-							"file": "epic/creature-epic-sting_recrouch-phone.json",
+							"file": "epic/creature-epic-growl-phone.json",
 							"sheet": [
-								339,
-								2479
+								3090,
+								1435
 							]
 						}
 					],
@@ -658,7 +1176,7 @@ export const CREATURE_SPEC = {
 							"file": "epic/creature-epic-charge_in-phone.json",
 							"sheet": [
 								332,
-								2173
+								2190
 							]
 						}
 					],
@@ -666,26 +1184,80 @@ export const CREATURE_SPEC = {
 						{
 							"file": "epic/creature-epic-charge_loop-phone.json",
 							"sheet": [
-								662,
-								2157
+								994,
+								1468
 							]
 						}
 					],
-					"snarl": [
+					"sting_hit": [
 						{
-							"file": "epic/creature-epic-snarl-phone.json",
+							"file": "epic/creature-epic-sting_hit-phone.json",
 							"sheet": [
-								3994,
-								724
+								1386,
+								3127
 							]
 						}
 					],
-					"growl": [
+					"sting_recrouch": [
 						{
-							"file": "epic/creature-epic-growl-phone.json",
+							"file": "epic/creature-epic-sting_recrouch-phone.json",
 							"sheet": [
-								1328,
-								3254
+								342,
+								4019
+							]
+						}
+					],
+					"win_big": [
+						{
+							"file": "epic/creature-epic-win_big-phone.json",
+							"sheet": [
+								3412,
+								1089
+							]
+						}
+					],
+					"win_mega": [
+						{
+							"file": "epic/creature-epic-win_mega-phone.json",
+							"sheet": [
+								3449,
+								2186
+							]
+						}
+					],
+					"win_super": [
+						{
+							"file": "epic/creature-epic-win_super-phone.json",
+							"sheet": [
+								2106,
+								2513
+							]
+						}
+					],
+					"win_epic_in": [
+						{
+							"file": "epic/creature-epic-win_epic_in-phone.json",
+							"sheet": [
+								1720,
+								2778
+							]
+						}
+					],
+					"win_epic_loop": [
+						{
+							"file": "epic/creature-epic-win_epic_loop-phone.json",
+							"sheet": [
+								704,
+								2868
+							]
+						}
+					],
+					"win_epic_out": [
+						{
+							"file": "epic/creature-epic-win_epic_out-phone.json",
+							"sheet": [
+								3400,
+								1080
 							]
 						}
 					]
@@ -696,8 +1268,17 @@ export const CREATURE_SPEC = {
 					{
 						"file": "shared/creature-glow-phone.json",
 						"sheet": [
-							1054,
-							450
+							1288,
+							439
+						]
+					}
+				],
+				"glowWins": [
+					{
+						"file": "shared/creature-glow-wins-phone.json",
+						"sheet": [
+							610,
+							982
 						]
 					}
 				],
@@ -705,8 +1286,17 @@ export const CREATURE_SPEC = {
 					{
 						"file": "shared/creature-shadow-phone.json",
 						"sheet": [
-							2880,
-							199
+							3970,
+							325
+						]
+					}
+				],
+				"shade": [
+					{
+						"file": "shared/creature-shade-phone.json",
+						"sheet": [
+							806,
+							331
 						]
 					}
 				]

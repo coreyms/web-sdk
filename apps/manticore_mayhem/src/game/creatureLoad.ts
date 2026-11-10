@@ -16,7 +16,19 @@
 //   creatureIdle   the idle sheet and, once, the shadows of every clip      -> he shows (or the change of look starts)
 //   creatureActs   swipe, roar, charge_in, charge_loop, sting_hit, sting_recrouch (last: only ever played inside a
 //                  sting run, and no sting is played until it is in) and, once, the glow atlas
-//   creatureAlts   snarl, growl
+//   creatureAlts   snarl, growl, idle_look (drop 8)
+//   creatureWins   THE WIN CLIPS (drop 8): win_big, win_mega, win_super, win_epic_in / loop / out and, once, the Epic tail
+//                  glow atlas. ON DEMAND (constants CREATURE.wins.onDemand, the one switch): the run does not fetch them;
+//                  a round's book names the clips its win plaques will ask for (creatureBookArrived, winsOfBook: the
+//                  final tier of each plaque, in the look that will be on show) and only those load, one sheet at a time
+//                  as every other sheet (the upload turn, the strips, CREATURE.wins.bands bands), then they are let go
+//                  once the round has played out and he no longer draws them (releaseWins). A clip not in when its plaque
+//                  asks: he keeps idling (game/creature.ts cheer). Off: the group loads up front after his alternates,
+//                  like any other, and stays.
+//   THE QUIET (constants CREATURE.wins.quiet): no sheet of his goes to the GPU while a win plaque drops in and lands, nor
+//   just after a tier lands on it (components/StingerPlaque.svelte, creatureUploadQuiet)
+//   PAGES (drop 8): a clip too big for one sheet is built as standalone pages; each page loads as a sheet of its own and
+//   their frames are joined (CREATURE_FILES lists every clip's pages)
 // Until an action's sheet is in, that action is simply not played. On a change of mode the old look keeps playing
 // until the new one's idle sheet is uploaded, the two cross over (game/creature.ts), and the old look is then
 // UNLOADED (PIXI.Assets.unload: its GPU copies and its decoded pictures both go; the files stay in the HTTP cache,
@@ -55,9 +67,11 @@
 //                  and the two cross over when its idle sheet is up, exactly as before
 import * as PIXI from 'pixi.js';
 
-import { CREATURE } from './constants';
+import { CREATURE, PLAQUE_CHEER } from './constants';
 import { creature } from './creature';
-import { CREATURE_FILES, CREATURE_SHARED, type CreatureClip, type CreatureLook } from './creatureAssets';
+import { CREATURE_FILES, CREATURE_SHARED, CREATURE_WIN_CLIPS, type CreatureClip, type CreatureLook, type CreatureWinClip } from './creatureAssets';
+import { getFeatureSpinWinLevelData, getWinLevelDataByBookEventAmount, winLevelMap, type WinLevel } from './winLevelMap';
+import type { BonusMode } from './types';
 import { imageOfSheet, loadStripSheet, uploadStrips, type StripSheet } from './stripUpload';
 
 type GroupLog = Record<string, { start: number; end: number; keys: number; failed: number }>;
@@ -67,13 +81,16 @@ const GROUPS: { name: string; clips: CreatureClip[]; shared: (keyof typeof CREAT
 	// (the shade, the back-feet shade's atlas, only while its option B is on: constants CREATURE_SHADE, sharedWanted())
 	{ name: 'creatureIdle', clips: ['idle'], shared: ['shadow', 'shade'] },
 	{ name: 'creatureActs', clips: ['swipe', 'roar', 'charge_in', 'charge_loop', 'sting_hit', 'sting_recrouch'], shared: ['glow'] },
-	{ name: 'creatureAlts', clips: ['snarl', 'growl'], shared: [] },
+	{ name: 'creatureAlts', clips: ['snarl', 'growl', 'idle_look'], shared: [] },
+	// (on demand, constants CREATURE.wins.onDemand: the run stops before this group, see THE WIN CLIPS below)
+	{ name: 'creatureWins', clips: [...CREATURE_WIN_CLIPS], shared: ['glowWins'] },
 ];
+const EPIC_CLIPS: readonly CreatureWinClip[] = ['win_epic_in', 'win_epic_loop', 'win_epic_out'];
 
 /** the renderer, for the one upload per sheet (components/Background.svelte sets it) */
 export const creatureLoader = { renderer: null as null | (() => PIXI.Renderer | undefined) };
 /** DEV / probe: every load, upload and unload, oldest first */
-export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept'; look: string; file: string; ms?: number }[] = [];
+export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept' | 'wins' | 'release'; look: string; file: string; ms?: number }[] = [];
 const note = (what: (typeof creatureLoadLog)[number]['what'], look: string, file: string, ms?: number) => {
 	if (!import.meta.env.DEV) return;
 	creatureLoadLog.push({ t: performance.now(), what, look, file, ms });
@@ -114,6 +131,18 @@ let letRestGo = () => {};
 let turn: Promise<void> = Promise.resolve();
 let lastTurnEnd = 0;
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** THE QUIET (constants CREATURE.wins.quiet): no upload of his starts, and no band of one goes up, before this
+ *  (performance.now() ms) */
+let quietUntil = 0;
+/** a win plaque's drop and impact, or a tier landing on it (components/StingerPlaque.svelte): no sheet of his goes to
+ *  the GPU for `ms` from now. `replace`: this window ends the one before it (the impact ends the drop's) */
+export const creatureUploadQuiet = (ms: number, replace = false): void => {
+	const until = performance.now() + ms;
+	quietUntil = replace ? until : Math.max(quietUntil, until);
+};
+const quiet = async () => {
+	while (performance.now() < quietUntil) await wait(Math.min(50, quietUntil - performance.now() + 1));
+};
 /** waits for this one's turn (`needNow` is asked again while it waits: the mode may start asking for the look); call the
  *  returned function when the upload is done */
 const takeTurn = async (needNow: () => boolean): Promise<() => void> => {
@@ -131,6 +160,7 @@ const takeTurn = async (needNow: () => boolean): Promise<() => void> => {
 	while (ahead && !needNow()) await wait(U.pollMs);
 	const gap = lastTurnEnd + U.gapMs - performance.now();
 	if (gap > 0 && !needNow()) await wait(gap);
+	if (!needNow()) await quiet();
 	return () => {
 		done();
 		free();
@@ -152,14 +182,25 @@ const unloadSheet = async (url: string): Promise<void> => {
 	made.sheet.destroy(true);
 };
 
-const fetchSheet = async (url: string, look: string, needNow: () => boolean = () => false): Promise<Sheet | null> => {
+/** THE MEASURES (drop 8): every sheet's upload is a performance measure `creature upload <file>`, and a win clip's whole
+ *  load `creature wins <look> <clip>`, so a device's own timeline (Safari's Web Inspector, Chrome's Performance panel)
+ *  shows them on staging and in production alike. Nothing is kept here: the browser's own buffer holds them */
+const measure = (name: string, start: number): void => {
+	try {
+		performance.measure(name, { start, end: performance.now() });
+	} catch {
+		/* no User Timing level 3: nothing to show */
+	}
+};
+
+const fetchSheet = async (url: string, look: string, needNow: () => boolean = () => false, bands: number = CREATURE.upload.bands): Promise<Sheet | null> => {
 	const t0 = performance.now();
 	let end: (() => void) | null = null;
 	const file = url.split('/').pop()!.split('?')[0];
 	try {
 		// THE STRIP PATH first; null: this browser, this renderer or this sheet takes Pixi's path below
 		let own = stripSheets.get(url);
-		if (!own) stripSheets.set(url, (own = { sheet: loadStripSheet(url, creatureLoader.renderer?.()), up: null }));
+		if (!own) stripSheets.set(url, (own = { sheet: loadStripSheet(url, creatureLoader.renderer?.(), bands), up: null }));
 		const made = await own.sheet;
 		if (made && !made.source.destroyed) {
 			note('load', look, `${file} (strips)`, performance.now() - t0);
@@ -170,8 +211,9 @@ const fetchSheet = async (url: string, look: string, needNow: () => boolean = ()
 						const done = await takeTurn(needNow);
 						const t1 = performance.now();
 						try {
-							await uploadStrips(creatureLoader.renderer?.(), made.source);
+							await uploadStrips(creatureLoader.renderer?.(), made.source, needNow() ? undefined : quiet);
 							note('upload', look, `${file} (strips)`, performance.now() - t1);
+							measure(`creature upload ${file}`, t1);
 						} finally {
 							done();
 						}
@@ -190,6 +232,7 @@ const fetchSheet = async (url: string, look: string, needNow: () => boolean = ()
 		const t1 = performance.now();
 		await creatureLoader.renderer?.()?.prepare?.upload(first.source);
 		note('upload', look, url.split('/').pop()!.split('?')[0], performance.now() - t1);
+		measure(`creature upload ${file}`, t1);
 		return sheet;
 	} catch {
 		note('failed', look, url.split('/').pop()!.split('?')[0]);
@@ -199,17 +242,32 @@ const fetchSheet = async (url: string, look: string, needNow: () => boolean = ()
 	}
 };
 
+/** one clip of a look: every page of it fetched and uploaded (one sheet at a time, as ever) and their frames joined.
+ *  Each page's URL goes into `urls` (the run's: what is destroyed when the look is let go). Null when a page failed */
+const fetchClip = async (look: CreatureLook, clip: CreatureClip, urls: string[], needNow: () => boolean, bands?: number): Promise<Sheet | null> => {
+	const textures: Record<string, PIXI.Texture> = {};
+	for (const url of CREATURE_FILES[look][clip]) {
+		if (!urls.includes(url)) urls.push(url);
+		const sheet = await fetchSheet(url, look, needNow, bands);
+		if (!sheet) return null;
+		Object.assign(textures, sheet.textures);
+	}
+	return { textures };
+};
+
 /** let a look go: its run ends, he forgets its textures, and its files go to the trash (destroyed by `sweep`) */
 const unload = (look: CreatureLook): void => {
 	const run = runs[look];
 	if (!run) return;
 	delete runs[look];
+	delete wins[look];
 	creature.forget(look);
 	// (a run held behind the symbols is let out of its hold: it sees it is no longer the look's run and ends)
 	run.drop();
 	const bin = (trash[look] ??= { urls: [], ends: [], busy: null, sweeping: false });
 	for (const url of run.urls) if (!bin.urls.includes(url)) bin.urls.push(url);
-	bin.ends.push(run.done);
+	// (a win clip loading on demand for it is not part of the run: the wins line ends first, too)
+	bin.ends.push(run.done, winChain);
 	if (!bin.sweeping) void sweep(look);
 };
 
@@ -269,6 +327,11 @@ const load = (look: CreatureLook) => {
 		const busy = trash[look]?.busy;
 		if (busy) await busy;
 		for (const group of GROUPS) {
+			// THE WIN CLIPS ON DEMAND: the run ends here; the round's book asks for what it needs (THE WIN CLIPS below)
+			if (group.name === 'creatureWins' && CREATURE.wins.onDemand) {
+				winsOpen(look);
+				return;
+			}
 			const first = !groupLog?.[group.name];
 			const kinds = group.shared.filter(sharedWanted);
 			const log = first && groupLog ? (groupLog[group.name] = { start: performance.now(), end: 0, keys: group.clips.length + kinds.length, failed: 0 }) : null;
@@ -287,9 +350,7 @@ const load = (look: CreatureLook) => {
 					unload(look);
 					return;
 				}
-				const url = CREATURE_FILES[look][clip];
-				if (!urls.includes(url)) urls.push(url);
-				const sheet = await fetchSheet(url, look, needNow);
+				const sheet = await fetchClip(look, clip, urls, needNow, group.name === 'creatureWins' ? CREATURE.wins.bands : undefined);
 				if (!mine()) return;
 				if (!sheet || !creature.setClip(look, clip, sheet.textures)) {
 					if (log) log.failed += 1;
@@ -370,10 +431,186 @@ export const releaseCreatureRest = (): Promise<void> => {
 	return (runs[creature.wanted]?.done ?? Promise.resolve()).catch(() => {});
 };
 
+// ---- THE WIN CLIPS (drop 8; constants CREATURE.wins, PLAQUE_CHEER; see the header) ----------------------------------
+type BookLike = { type: string; bonus?: string; amount?: number; spinWin?: number; winLevel?: number };
+type WinState = { open: boolean; want: CreatureWinClip[]; loaded: Map<CreatureWinClip, readonly string[]> };
+/** per look: the run has reached its win group (open), the clips the current round asks for, the clips that are in */
+const wins: Partial<Record<CreatureLook, WinState>> = {};
+const winsOf = (look: CreatureLook): WinState => (wins[look] ??= { open: false, want: [], loaded: new Map() });
+/** every wins job (loads and releases, every look, and the shared tail glow) runs in this one line, one after another */
+let winChain: Promise<void> = Promise.resolve();
+const winJob = (job: () => Promise<void>): Promise<void> => (winChain = winChain.then(job).catch(() => {}));
+/** STINGER_TIERS index of EPIC (big, super, mega, epic, max: game/stinger/types.ts) */
+const EPIC_TIER = 3;
+/** the clips a plaque whose count STOPS at this tier asks for (MAX: none, the Max Win screen has its own) */
+const clipsOfTier = (tier: number): CreatureWinClip[] => (tier >= 0 && tier < PLAQUE_CHEER.moves.length ? [PLAQUE_CHEER.moves[tier]] : tier === EPIC_TIER ? [...EPIC_CLIPS] : []);
+/** WHAT A BOOK WILL ASK FOR: every win plaque of the round, read ahead the way the handlers will show it
+ *  (game/bookEventHandlerMap.ts setTotalWin and freeSpinEnd): a base game win by its amount, a free spin's own win (the
+ *  cascade's spinWin before it) on its feature's ladder, the TOTAL WIN wrap up by its winLevel (in the feature's look
+ *  and in the base look: he can be in either then); nothing after the book's wincap. Each plaque's FINAL tier, in the
+ *  look that will be on show. Presentation only: it decides what is loaded, nothing else */
+const winsOfBook = (events: readonly BookLike[]): Partial<Record<CreatureLook, CreatureWinClip[]>> => {
+	const out: Partial<Record<CreatureLook, CreatureWinClip[]>> = {};
+	const add = (look: CreatureLook, tier: number) => {
+		const list = (out[look] ??= []);
+		for (const c of clipsOfTier(tier)) if (!list.includes(c)) list.push(c);
+	};
+	const base = CREATURE.looks.base as CreatureLook;
+	let look: CreatureLook = creature.wanted;
+	let mode: BonusMode | null = null;
+	let spinWin = 0;
+	let capped = false;
+	for (const e of events) {
+		if (e.type === 'bonusStart') {
+			mode = (e.bonus ?? null) as BonusMode | null;
+			look = (CREATURE.looks as Record<string, CreatureLook>)[String(e.bonus)] ?? look;
+		} else if (e.type === 'cascade') spinWin = e.spinWin ?? 0;
+		else if (e.type === 'reveal') spinWin = 0;
+		else if (e.type === 'wincap') capped = true;
+		else if (e.type === 'setTotalWin') {
+			const amount = mode ? spinWin : (e.amount ?? 0);
+			spinWin = 0;
+			if (capped || amount <= 0) continue;
+			const data = mode ? getFeatureSpinWinLevelData({ bookEventAmount: amount, mode }) : getWinLevelDataByBookEventAmount({ bookEventAmount: amount });
+			if (data && data.type === 'big') add(look, data.level - 6);
+		} else if (e.type === 'freeSpinEnd') {
+			const level = winLevelMap[e.winLevel as WinLevel]?.level ?? 0;
+			if (!capped && level >= 6) {
+				add(look, Math.min(EPIC_TIER, level - 6));
+				add(base, Math.min(EPIC_TIER, level - 6));
+			}
+			mode = null;
+			look = base;
+		}
+	}
+	return out;
+};
+/** the round's book is in: each look's wanted win clips are this book's (on demand only) */
+const creatureWinsOfBook = (events: readonly BookLike[]): void => {
+	if (!CREATURE.wins.onDemand) return;
+	const want = winsOfBook(events);
+	for (const look of new Set([...(Object.keys(wins) as CreatureLook[]), ...(Object.keys(want) as CreatureLook[])])) {
+		winsOf(look).want = want[look] ?? [];
+		if (want[look]?.length) void drainWins(look);
+	}
+	if (import.meta.env.DEV) note('wins', 'book', JSON.stringify(want));
+};
+/** a cheer asked for clips nobody read ahead (game/creature.ts cheer): they load now, if there is still time */
+const creatureWinsNeed = (look: CreatureLook, clips: readonly CreatureWinClip[]): void => {
+	if (!CREATURE.wins.onDemand) return;
+	const ws = winsOf(look);
+	for (const c of clips) if (!ws.want.includes(c)) ws.want.push(c);
+	void drainWins(look);
+};
+creature.onWantWins = creatureWinsNeed;
+/** the look's run has reached its win group: what is wanted loads from now on */
+const winsOpen = (look: CreatureLook): void => {
+	winsOf(look).open = true;
+	void drainWins(look);
+};
+/** load what the look's round wants and is not in: the Epic tail glow first (small, and the Epic waits for it), then
+ *  each clip in the order its plaques come, every page one sheet at a time through the upload turn, CREATURE.wins.bands
+ *  bands a sheet. Its pages go into the run's own list at once, so a look let go meanwhile takes them to the trash */
+const drainWins = (look: CreatureLook): Promise<void> =>
+	winJob(async () => {
+		const ws = wins[look];
+		const run = runs[look];
+		if (!ws || !ws.open || !run) return;
+		if (ws.want.some((c) => EPIC_CLIPS.includes(c)) && !shared.glowWins) {
+			const t0 = performance.now();
+			if (await loadCreatureShared('glowWins')) measure('creature wins shared glowWins', t0);
+		}
+		for (const clip of [...ws.want]) {
+			if (ws.loaded.has(clip) || !ws.want.includes(clip)) continue;
+			if (runs[look] !== run || !creature.uses(look)) return;
+			const t0 = performance.now();
+			const sheet = await fetchClip(look, clip, run.urls, () => false, CREATURE.wins.bands);
+			if (runs[look] !== run) return;
+			if (!sheet || !creature.setClip(look, clip, sheet.textures)) {
+				note('failed', look, clip);
+				continue;
+			}
+			ws.loaded.set(clip, CREATURE_FILES[look][clip]);
+			measure(`creature wins ${look} ${clip}`, t0);
+			note('wins', look, clip, performance.now() - t0);
+		}
+	});
+/** the round has played out: nothing is wanted any more, and what is in is let go as soon as he no longer draws it */
+const releaseWins = (): void => {
+	if (!CREATURE.wins.onDemand) return;
+	for (const ws of Object.values(wins)) if (ws) ws.want = [];
+	void winJob(sweepWins);
+};
+let sweepLater: ReturnType<typeof setTimeout> | null = null;
+/** let go of every win clip in that no look wants and he does not draw, and of the tail glow once no Epic clip is in;
+ *  what he still draws is looked at again a little later. One clip at a time: he forgets it (no sprite is left holding
+ *  it), the renderer's upload queue is let empty, then its pages are destroyed (WHO OWNS A LOOK'S FILES) */
+const sweepWins = async (): Promise<void> => {
+	let left = 0;
+	for (const look of Object.keys(wins) as CreatureLook[]) {
+		const ws = wins[look];
+		const run = runs[look];
+		if (!ws || !run) continue;
+		for (const [clip, urls] of [...ws.loaded]) {
+			if (ws.want.includes(clip)) continue;
+			if (creature.holds(clip)) {
+				left += 1;
+				continue;
+			}
+			ws.loaded.delete(clip);
+			creature.forgetClip(look, clip);
+			for (const url of urls) {
+				const i = run.urls.indexOf(url);
+				if (i >= 0) run.urls.splice(i, 1);
+			}
+			await creatureLoader.renderer?.()?.prepare?.upload();
+			for (const url of urls) await unloadSheet(url).catch(() => {});
+			note('release', look, clip);
+		}
+	}
+	const epicIn = Object.values(wins).some((ws) => !!ws && (EPIC_CLIPS.some((c) => ws.loaded.has(c)) || ws.want.some((c) => EPIC_CLIPS.includes(c))));
+	if (shared.glowWins && !epicIn) {
+		if (creature.holdsWinGlow()) left += 1;
+		else {
+			creature.setShared('glowWins', null);
+			shared.glowWins = false;
+			delete sharedLoads.glowWins;
+			await creatureLoader.renderer?.()?.prepare?.upload();
+			await unloadSheet(CREATURE_SHARED.glowWins).catch(() => {});
+			note('release', 'shared', 'glowWins');
+		}
+	}
+	if (left && !sweepLater) {
+		sweepLater = setTimeout(() => {
+			sweepLater = null;
+			void winJob(sweepWins);
+		}, 300);
+	}
+};
+/** DEV / probe: ask for win clips by hand for the look on show (all of them by default), as a book would */
+export const creatureWinsAsk = (clips: readonly CreatureWinClip[] = CREATURE_WIN_CLIPS): Promise<void> => {
+	const look = creature.look ?? creature.wanted;
+	creatureWinsNeed(look, clips);
+	return winChain;
+};
+/** DEV / probe: what a book would ask for (winsOfBook), loading nothing */
+export const creatureWinsOfBookPreview = (events: readonly BookLike[]) => winsOfBook(events);
+/** DEV / probe: let the win clips go as a round's end does */
+export const creatureWinsRelease = (): Promise<void> => {
+	releaseWins();
+	return winChain;
+};
+const winsState = () => ({
+	onDemand: CREATURE.wins.onDemand,
+	glow: !!shared.glowWins,
+	looks: Object.fromEntries(Object.entries(wins).map(([look, ws]) => [look, { open: ws!.open, want: [...ws!.want], loaded: [...ws!.loaded.keys()] }])),
+});
+
 // ---- EARLY: the look of a feature that is coming (see the header) ---------------------------------------------------
 /** the round's book is in (game/utils.ts playBet): the look of its feature, if it has one, loads now */
-export const creatureBookArrived = (events: readonly { type: string; bonus?: string }[]): void => {
+export const creatureBookArrived = (events: readonly BookLike[]): void => {
 	creatureRoundRequest(false);
+	creatureWinsOfBook(events);
 	if (!CREATURE.lookLoad.early) return;
 	const start = events.find((e) => e.type === 'bonusStart');
 	const look = start ? (CREATURE.looks as Record<string, CreatureLook>)[String(start.bonus)] : undefined;
@@ -383,6 +620,7 @@ export const creatureBookArrived = (events: readonly { type: string; bonus?: str
  *  second condition */
 export const creatureBookDone = (): void => {
 	creature.prepare('book', null);
+	releaseWins();
 	creatureRoundSettled();
 };
 /** the armed mode changed (components/Background.svelte): a Super or Epic buy's look loads now, a disarmed one is let go */
@@ -460,21 +698,22 @@ const prefetchLooks = async () => {
 		for (const group of GROUPS) {
 			if (!(CREATURE.lookLoad.prefetchGroups as readonly string[]).includes(group.name)) continue;
 			for (const clip of group.clips) {
-				const url = CREATURE_FILES[look][clip];
-				// a look loaded already (on show, or loading) has its files in: nothing to fetch
-				if (runs[look]) {
-					if (import.meta.env.DEV) P.files.push({ url, look, start: performance.now(), end: performance.now(), bytes: 0, ok: true, skipped: true });
-					continue;
+				for (const url of CREATURE_FILES[look][clip]) {
+					// a look loaded already (on show, or loading) has its files in: nothing to fetch
+					if (runs[look]) {
+						if (import.meta.env.DEV) P.files.push({ url, look, start: performance.now(), end: performance.now(), bytes: 0, ok: true, skipped: true });
+						continue;
+					}
+					const body = await fetchToCache(url, look, true);
+					if (body === null) continue;
+					let image = '';
+					try {
+						image = String((JSON.parse(body) as { meta?: { image?: string } }).meta?.image ?? '');
+					} catch {
+						/* not a sheet: nothing more to fetch */
+					}
+					if (image) await fetchToCache(imageOfSheet(url, image), look, false);
 				}
-				const body = await fetchToCache(url, look, true);
-				if (body === null) continue;
-				let image = '';
-				try {
-					image = String((JSON.parse(body) as { meta?: { image?: string } }).meta?.image ?? '');
-				} catch {
-					/* not a sheet: nothing more to fetch */
-				}
-				if (image) await fetchToCache(imageOfSheet(url, image), look, false);
 			}
 		}
 	}
@@ -482,4 +721,4 @@ const prefetchLooks = async () => {
 };
 
 /** DEV / probe: what is loaded, per look */
-export const creatureLoadState = () => ({ booted, held: !!rest, prepared: creature.prepared, shared: { ...shared }, looks: Object.fromEntries(Object.entries(runs).map(([look, run]) => [look, run!.urls.length])), trash: Object.fromEntries(Object.entries(trash).map(([look, bin]) => [look, bin!.urls.length])) });
+export const creatureLoadState = () => ({ booted, held: !!rest, prepared: creature.prepared, shared: { ...shared }, wins: winsState(), looks: Object.fromEntries(Object.entries(runs).map(([look, run]) => [look, run!.urls.length])), trash: Object.fromEntries(Object.entries(trash).map(([look, bin]) => [look, bin!.urls.length])) });
