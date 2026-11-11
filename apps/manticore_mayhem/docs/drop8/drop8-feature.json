@@ -1,0 +1,1243 @@
+{
+ "taken": "2026-11-10T23:38:01.292Z",
+ "modes": [
+  "SUPER"
+ ],
+ "layouts": {
+  "desktop1920-SUPER": {
+   "done": true,
+   "handShot": true,
+   "lastEnd": 20971.799999713898,
+   "lastEndSeen": 1794353996482,
+   "reloaded": true,
+   "round": {
+    "ok": true,
+    "payout": 162.6,
+    "payoutMatch": null,
+    "wrapLevel": 7
+   },
+   "log": [
+    {
+     "t": 3577,
+     "what": "cheer",
+     "clip": "idle",
+     "frame": 35,
+     "info": {
+      "move": "win_super",
+      "waiting": true
+     }
+    },
+    {
+     "t": 4075,
+     "what": "cheer",
+     "clip": "idle",
+     "frame": 50,
+     "info": {
+      "move": "win_super",
+      "clip": "win_super"
+     }
+    },
+    {
+     "t": 4176,
+     "what": "start",
+     "clip": "win_super",
+     "frame": 54,
+     "info": {
+      "clip": "win_super",
+      "offset": 0
+     }
+    },
+    {
+     "t": 4694,
+     "what": "voiced",
+     "clip": "win_super",
+     "frame": 15,
+     "info": {
+      "name": "sfx_manticore_growl_1",
+      "clip": "win_super",
+      "frame": 16,
+      "t": 517
+     }
+    },
+    {
+     "t": 8793,
+     "what": "cheer",
+     "clip": "idle",
+     "frame": 43,
+     "info": {
+      "move": "win_super",
+      "clip": "win_super"
+     }
+    },
+    {
+     "t": 8909,
+     "what": "start",
+     "clip": "win_super",
+     "frame": 53,
+     "info": {
+      "clip": "win_super",
+      "offset": 0
+     }
+    },
+    {
+     "t": 9408,
+     "what": "voiced",
+     "clip": "win_super",
+     "frame": 15,
+     "info": {
+      "name": "sfx_manticore_growl_2",
+      "clip": "win_super",
+      "frame": 15,
+      "t": 499
+     }
+    },
+    {
+     "t": 17057,
+     "what": "want",
+     "clip": "idle",
+     "frame": 41,
+     "info": "day"
+    },
+    {
+     "t": 17059,
+     "what": "fade",
+     "clip": "idle",
+     "frame": 0,
+     "info": {
+      "from": "super",
+      "to": "day"
+     }
+    },
+    {
+     "t": 17666,
+     "what": "look",
+     "clip": "idle",
+     "frame": 0,
+     "info": {
+      "from": "super",
+      "to": "day"
+     }
+    }
+   ],
+   "loads": [
+    {
+     "t": 4060,
+     "what": "wins",
+     "look": "super",
+     "file": "win_super"
+    },
+    {
+     "t": 17056,
+     "what": "wins",
+     "look": "handOver",
+     "file": "0 ms"
+    },
+    {
+     "t": 17664,
+     "what": "release",
+     "look": "super",
+     "file": "win_super"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-idle.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-swipe.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-roar.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-charge_in.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-charge_loop.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-sting_hit.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-sting_recrouch.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-snarl.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-growl.json"
+    },
+    {
+     "t": 17668,
+     "what": "unload",
+     "look": "super",
+     "file": "creature-super-idle_look.json"
+    }
+   ],
+   "timeline": [
+    {
+     "t": 4,
+     "look": "day",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "basegame",
+     "idle": true,
+     "scene": "landscape",
+     "family": "base",
+     "plaque": null,
+     "wins": {
+      "day": 0
+     }
+    },
+    {
+     "t": 227,
+     "look": "day",
+     "next": null,
+     "clip": "idle",
+     "frame": 7,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "base",
+     "plaque": null,
+     "wins": {
+      "day": 0,
+      "super": 0
+     }
+    },
+    {
+     "t": 7467,
+     "look": "day",
+     "next": "super",
+     "clip": "idle",
+     "frame": 8,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": null,
+     "wins": {
+      "day": 0,
+      "super": 0
+     }
+    },
+    {
+     "t": 8138,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 29,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": null,
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 8873,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 51,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:show",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 9096,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 3,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:impact",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 9914,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 28,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:hide",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 10061,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 32,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 11985,
+     "look": "super",
+     "next": null,
+     "clip": "sting_hit",
+     "frame": 5,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 12351,
+     "look": "super",
+     "next": null,
+     "clip": "sting_recrouch",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 12646,
+     "look": "super",
+     "next": null,
+     "clip": "sting_hit",
+     "frame": 7,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 12939,
+     "look": "super",
+     "next": null,
+     "clip": "sting_recrouch",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 13238,
+     "look": "super",
+     "next": null,
+     "clip": "sting_hit",
+     "frame": 7,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 13312,
+     "look": "super",
+     "next": null,
+     "clip": "sting_hit",
+     "frame": 9,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 13828,
+     "look": "super",
+     "next": null,
+     "clip": "sting_hit",
+     "frame": 20,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 2
+     }
+    },
+    {
+     "t": 14422,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 2
+     }
+    },
+    {
+     "t": 14944,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 17,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 3
+     }
+    },
+    {
+     "t": 15463,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 33,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 4
+     }
+    },
+    {
+     "t": 16060,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 51,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 5
+     }
+    },
+    {
+     "t": 16578,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 12,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 18819,
+     "look": "super",
+     "next": null,
+     "clip": "swipe",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 20246,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 26254,
+     "look": "super",
+     "next": null,
+     "clip": "swipe",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 27589,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 51226,
+     "look": "super",
+     "next": null,
+     "clip": "roar",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 53012,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 54130,
+     "look": "super",
+     "next": null,
+     "clip": "swipe",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 55472,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 62378,
+     "look": "super",
+     "next": null,
+     "clip": "roar",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 64176,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 65139,
+     "look": "super",
+     "next": null,
+     "clip": "swipe",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 66562,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 72570,
+     "look": "super",
+     "next": null,
+     "clip": "swipe",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 73977,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "intro:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 79305,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 54,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:show",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 79604,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 9,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:impact",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 79752,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 13,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:countStart",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 80347,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 31,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:tier",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 80495,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 38,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:cheer",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 80645,
+     "look": "super",
+     "next": null,
+     "clip": "win_super",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:cheer",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 81996,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:cheer",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 83720,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 52,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:countEnd",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 84907,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 34,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:hide",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 85132,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 41,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:gone",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": 85279,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 45,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "wrap:show",
+     "wins": {
+      "super": 6
+     }
+    },
+    {
+     "t": -1419,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 46,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": null,
+     "wins": {}
+    },
+    {
+     "t": -532,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 20,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": null,
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 2455,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:show",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 2679,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 8,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:impact",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 2829,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 13,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:countStart",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 3431,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 31,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:tier",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 3579,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 35,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:cheer",
+     "wins": {
+      "super": 0
+     }
+    },
+    {
+     "t": 4094,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 51,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:cheer",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 4244,
+     "look": "super",
+     "next": null,
+     "clip": "win_super",
+     "frame": 2,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:cheer",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 5596,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:cheer",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 6847,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 38,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:countEnd",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 8034,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 20,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:hide",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 8257,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 27,
+     "gt": "freegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "win:gone",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 8406,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 31,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "wrap:show",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 8698,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 40,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "wrap:impact",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 8847,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 47,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "wrap:cheer",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 8919,
+     "look": "super",
+     "next": null,
+     "clip": "win_super",
+     "frame": 1,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "wrap:cheer",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 10332,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 1,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "wrap:cheer",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 12813,
+     "look": "super",
+     "next": null,
+     "clip": "idle",
+     "frame": 22,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "super",
+     "plaque": "wrap:countEnd",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 17061,
+     "look": "super",
+     "next": "day",
+     "clip": "idle",
+     "frame": 41,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "base",
+     "plaque": "wrap:hide",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 17284,
+     "look": "super",
+     "next": "day",
+     "clip": "idle",
+     "frame": 47,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "base",
+     "plaque": "wrap:gone",
+     "wins": {
+      "super": 1
+     }
+    },
+    {
+     "t": 17669,
+     "look": "day",
+     "next": null,
+     "clip": "idle",
+     "frame": 5,
+     "gt": "basegame",
+     "idle": false,
+     "scene": "landscape",
+     "family": "base",
+     "plaque": "wrap:gone",
+     "wins": {}
+    },
+    {
+     "t": 17801,
+     "look": "day",
+     "next": null,
+     "clip": "idle",
+     "frame": 9,
+     "gt": "basegame",
+     "idle": true,
+     "scene": "landscape",
+     "family": "base",
+     "plaque": "wrap:gone",
+     "wins": {}
+    },
+    {
+     "t": 21450,
+     "look": "day",
+     "next": null,
+     "clip": "idle",
+     "frame": 10,
+     "gt": "basegame",
+     "idle": true,
+     "scene": "landscape",
+     "family": "base",
+     "plaque": "wrap:gone",
+     "wins": {
+      "day": 0
+     }
+    }
+   ],
+   "hiddenSamples": 0,
+   "mem": 355.4
+  },
+  "desktop1920": {
+   "flags": [],
+   "errors": []
+  }
+ }
+}

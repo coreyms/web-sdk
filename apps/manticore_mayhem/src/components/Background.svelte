@@ -45,7 +45,7 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CheerMove, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
+	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAQUE_CHEER, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CheerMove, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
 	import { creature, creatureDocked, creatureFront, creaturePlaceFor, desktopFloorRow, type CreaturePlace } from '../game/creature';
 	import { boardRegistration } from '../game/boardArt';
 	import { portraitOptions } from '../game/portraitOptions.svelte';
@@ -77,7 +77,7 @@
 	// (night, the fire braziers, his night or fire look) from the beat on, in front of the player, before the intro plaque;
 	// a Bonus beat its warm day (BONUS_WARMTH, TRIGGER_BEAT.relightBonus)
 	const family = $derived(
-		context.stateGame.gameType !== 'freegame' && !context.stateGame.relightAhead
+		context.stateGame.gameType !== 'freegame' && !context.stateGame.relightAhead && !context.stateGame.lookHold
 			? 'base'
 			: context.stateGame.bonusMode === 'epic'
 				? 'epic'
@@ -85,7 +85,9 @@
 					? 'super'
 					: 'bonus',
 	);
-	const wash = $derived(context.stateGame.gameType === 'freegame' ? BACKGROUND_WASH.freegame : BACKGROUND_WASH.base);
+	// (the feature's wash and dim hold through its TOTAL WIN with its scene: stateGame.lookHold)
+	const featureLit = $derived(context.stateGame.gameType === 'freegame' || context.stateGame.lookHold);
+	const wash = $derived(featureLit ? BACKGROUND_WASH.freegame : BACKGROUND_WASH.base);
 
 	// ---- the courtyard scenes ---------------------------------------------------------------------
 	const LAYOUTS = ['landscape', 'portrait'] as const;
@@ -103,7 +105,7 @@
 
 	/** the scene this layout draws */
 	const which: SceneLayout = $derived(kind === 'portrait' ? 'portrait' : 'landscape');
-	const dim = $derived(context.stateGame.gameType === 'freegame' ? SCENE.dim.freegame : SCENE.dim.base);
+	const dim = $derived(featureLit ? SCENE.dim.freegame : SCENE.dim.base);
 	const ready = $state({ landscape: { day: false, night: false, sunset: false, flames: false, sky: false }, portrait: { day: false, night: false, sunset: false, flames: false, sky: false } });
 	/** this layout's scene has its day files */
 	const sceneOn = $derived(ready[which].day);
@@ -386,7 +388,13 @@
 		},
 		stingBeat: ({ phase, kind, more }) => creature.stingBeat(phase, kind, !!more),
 		// THE CHEER (constants PLAQUE_CHEER, components/StingerPlaque.svelte): the win plaque's tier asks for his move
-		plaqueCheer: ({ move }) => void creature.cheer(move),
+		plaqueCheer: ({ move }) => {
+			// EPIC's sfx_roar_win plays on his clip's accent frame (PLAQUE_CHEER.accentFrame); when his clip cannot start now
+			// (not in yet, or he is busy) the plaque's roar plays at once as before, and a cheer that starts later is silent
+			if (creature.cheer(move) || move !== PLAQUE_CHEER.epic) return;
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar_win', forcePlay: true });
+			creature.cheerVoicedWithout();
+		},
 		// ...and its plaque has gone (drop 8: a cheer waiting for its clip is dropped, the Epic's loop goes on to its way out)
 		plaqueCheerEnd: () => creature.cheerEnd(),
 		creatureCue: ({ what, inMs, kind }) => {
@@ -812,6 +820,8 @@
 					/** a win plaque's cheer and its end, by hand (the plaque's own events) */
 					cheer: (move: CheerMove) => creature.cheer(move),
 					cheerEnd: () => creature.cheerEnd(),
+					/** PLAQUE_CHEER (the voices' accent frames and the takes' onsets) */
+					cheerConstants: () => JSON.parse(JSON.stringify(PLAQUE_CHEER)),
 					growl: () => creature.growl(),
 					/** the voice's own picker, asked `n` times in a row (no sound is played): the takes and rates it would use */
 					voicePicks: (clip: 'snarl' | 'growl', n: number) => Array.from({ length: n }, () => creature.pickVoice(clip)),

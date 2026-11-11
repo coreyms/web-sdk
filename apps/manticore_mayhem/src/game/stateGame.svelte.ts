@@ -206,6 +206,11 @@ export const stateGame = $state({
 	 *  relights the scene until the feature's own gameType takes over at the beat's end. components/Background.svelte
 	 *  draws the feature's scene (bonusMode's) while it is set, so the relight plays in front of the player */
 	relightAhead: false,
+	/** THE FEATURE'S LOOK THROUGH ITS TOTAL WIN (Corey 2026-11-10, "A"): set by freeSpinEnd before the game type goes back
+	 *  to the base game, let go once the wrap up has hidden and the creature is ready to cross with the scene. While it
+	 *  is set components/Background.svelte keeps the feature's scene, frame look, flames, fire loop, wash, dim and
+	 *  creature look (bonusMode's), then everything goes back to the base look in one hand-over. finalWin clears it */
+	lookHold: false,
 	/** the Mystery outcome of the round being played, null outside a Mystery book. Presentation
 	 *  never branches on it (the spin plays itself out); it is a DEV / probe read only. */
 	mysteryOutcome: null as MysteryOutcome | null,

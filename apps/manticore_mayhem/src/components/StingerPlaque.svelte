@@ -323,9 +323,10 @@
 		void until(at).then(() => {
 			if (mine !== screenNo || !ticking || view.phase === 'exit' || view.clock < at || context.stateGame.skipping) return;
 			// DROP 8: his Epic win clips (in, the loop while this plaque is up, out), not the roar move (PLAQUE_CHEER.epic)
+			// the win roar, its own sound (Corey 2026-10-18: his normal roar only for his roar move), on his clip's accent
+			// frame since 2026-11-10 (components/Background.svelte plays it here at once when his clip cannot start)
 			if (PLAQUE_CHEER.on) context.eventEmitter.broadcast({ type: 'plaqueCheer', move: PLAQUE_CHEER.epic });
-			// the win roar, its own sound (Corey 2026-10-18: his normal roar only for his roar move)
-			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar_win', forcePlay: true });
+			else context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar_win', forcePlay: true });
 			log({ type: 'roar' });
 		});
 	};
@@ -347,8 +348,8 @@
 			if (epic) {
 				// a TOTAL WIN at EPIC: Epic's own win roar and his Epic win clips, as epicStep plays them (the braziers keep the
 				// mode's clip here)
+				// (its sfx_roar_win on his clip's accent frame, or at once when his clip cannot start: Background.svelte)
 				context.eventEmitter.broadcast({ type: 'plaqueCheer', move: PLAQUE_CHEER.epic });
-				context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar_win', forcePlay: true });
 				log({ type: 'roar', tier: STINGER_TIERS[tier] });
 				return;
 			}

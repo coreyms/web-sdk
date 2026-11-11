@@ -36,6 +36,10 @@ for (const rel of [
 	...symbolSheets,
 	'ui/numerals/numerals.json', // stencil amount glyphs
 	'ui/numerals/plate-numerals.json', // the multiplier plates' Barlow Condensed glyphs
+	// the board plaque's flag row (tools/build_plaque_flags.py; 2026-11-10: its webp was rebuilt with the FS War Standard
+	// while its json stayed byte for byte the same, so without this the picture kept the old URL and an immutable cache
+	// kept the old sun standard)
+	'ui/plaque-flags.json',
 ]) {
 	const jsonPath = join(ASSETS, rel);
 	const meta = JSON.parse(readFileSync(jsonPath, 'utf8'));

@@ -226,3 +226,100 @@ b. New: `docs/DROP8_WIRING.md`, `docs/drop8/` (46 stills, two screens, drop8-ver
    `/Users/corey/Projects/stake-engine/tools/manticore/creature_reach.js` and `drop8_verify.js`.
 c. Changed outside the app: `tools/manticore/creature_probe.js` (drop 8 constants, the CHEER section),
    `docs/reviews/manticore-changes-1.0.05.md` (row 29).
+
+## 12. Corey's answers of 2026-11-10 (on top of web-sdk 50f0b02)
+
+a. **The voices on the mouth** ("Yes move it"). `PLAQUE_CHEER.accentFrame` (the render plan's accent frames: win_big f7,
+   win_super f17, the S-a2 accent given as f16 to f18, win_mega f12, win_epic_in f22) and `PLAQUE_CHEER.onsetMs` (each
+   take's onset, measured on the shipped sounds.ogg: its loudness first at half its peak). Each voice now starts at
+   (accent frame - 1) x 33.3 ms less its take's onset, in clip ms, so the onset lands on the accent frame. No sound file
+   changed. Measured in the cheer probe (the clip ms at which the voice was asked):
+
+| tier | voice | before | now |
+|---|---|---|---|
+| BIG | snarl take 1 / 2 (onset 27 / 22 ms) | 0 ms (win_big f1) | 173 / 178 ms (asked at 183 to 185) |
+| SUPER | growl take 1 / 2 (onset 31 / 40 ms) | 0 ms (win_super f1) | 502 / 493 ms (asked at 500 and 515) |
+| MEGA | sfx_manticore_roar_win_1 (onset 3 ms) | 0 ms (win_mega f1) | 364 ms (asked at 366 to 368) |
+| EPIC | sfx_roar_win (onset 180 ms) | the plaque's Epic beat, the moment win_epic_in was asked (0 ms of the clip, or up to one rush, 100 ms, before it) | 520 ms into win_epic_in (asked at 532 / 533) |
+
+   Epic's sfx_roar_win is now his clip's: when his clip cannot start at that moment (not in, or he is busy) the plaque's
+   roar plays at once, as before, and a cheer that starts later is silent (components/Background.svelte). A TOTAL WIN at
+   EPIC the same.
+b. **Win clips in free games** ("Keep for now, but we probably shouldn't do the unloading in free games"). Base game:
+   released after each round, as before. A feature book: its look takes the WHOLE win group (the tiers the book names
+   first, then the rest) and keeps it until the book has played out, its TOTAL WIN included (released at the book's
+   end, then the look itself goes with the change back). Measured in a SUPER buy: all six clips in by 3.3 s into the
+   feature, none let go until the wrap up had gone. Held through a feature, per look: **595.2 MB on desktop and tablet,
+   306.0 MB on the phone** (the feature look with every win clip); at the hand back to the base look about 60 MB more for
+   the few hundred ms the base look's idle and the feature look are both in.
+c. **The TOTAL WIN in the feature's look** ("A"). game/bookEventHandlerMap.ts freeSpinEnd holds his look
+   (`creatureLookHold`, game/creature.ts holdLook) from just before the game type goes back to the base game until the
+   wrap up has hidden; then the base look loads and he crosses over once he is back in his idle. The book's end lets the
+   hold go whatever path the round took. The win clips for the TOTAL WIN are now read ahead in the feature's look only.
+   **The scene does not wait**: as before, the courtyard, the board frame and the braziers go back to the day set when
+   the wrap up starts (the scene's family follows the game type), so through the TOTAL WIN he is the SUPER (night) or
+   EPIC (fire) manticore against the day courtyard: noticeably darker than the scene around him. Stills:
+   `docs/drop8/feature-desktop1920-wrap.jpg` (the TOTAL WIN, win_super in the super look) and `-after.jpg` (the day look
+   back). The scene's timing was not changed. Desktop SUPER buy: the wrap up's SUPER played win_super in the super look,
+   the day look took over 1.6 s after the wrap up had gone. Phone SUPER buy: the wrap up's cheer was not taken (he was
+   in an idle growl roll when it came: the long-standing "only from his idle loop" rule); the look handed back the same.
+d. idle_look 1 in 50 and the later stings from about f6: unchanged, as ruled.
+e. **The plaque's flags.** In the game (BASE book 14259, scatters landed) the three landed flags show the FS standard
+   with its laurel at desktop 1920 x 1080 and on the portrait phone; the level banners (FS, SUPER, EPIC) are unchanged
+   (`docs/drop8/flags-desktop1920-14259.jpg`, `-row.jpg`, `flags-portraitPhone-14259.jpg`; Super Ante's banners were not
+   looked at). **The stamp did NOT update on build**: plaque-flags.json was byte for byte the same and has no baked
+   picture hash, and the picture is fetched with the json's stamp, so the new webp kept the old URL (an immutable cache
+   would have kept the sun standard). Fixed: scripts/stamp-assets.mjs now bakes its picture hash into plaque-flags.json
+   (as it does for the symbol atlases); the json's stamp went 49c83d3c -> d0dfb357. The same gap remains on
+   ui/plaque-numerals/plaque-numerals[-half].json (not changed).
+
+## 13. Where the OLD sun War Standard still is (nothing deleted or rebuilt)
+
+| file | what | referenced | in the production build | still |
+|---|---|---|---|---|
+| static/assets/ui/intro/card-scatters.mp4 | the landing screen's "scatters" feature card clip: the old sun standards on the board (and the old WILD coin) | yes: game/introCards.ts, boot.svelte.ts (preloaded in the splash), assetStamp.ts | yes | docs/drop8/old-standard/card-scatters-4s.jpg |
+| static/assets/ui/intro/card-scatters-poster.jpg | its poster frame, the same board | yes, the same | yes | old-standard/card-scatters-poster.jpg |
+| static/assets/ui/intro/card-features.mp4 | the "features" card clip: old sun standards in its later shots (and the old WILD coin) | yes, the same | yes | old-standard/card-features-4.5s.jpg, -7.5s.jpg |
+| tools/render_symbols/out/render/S.png, out/tiles/s.png | the old renderer's S output | no (gitignored, local only) | no | old-standard/render_symbols-out-*.jpg |
+| tools/render_symbols/out-pre-rebake-20261006/render/S.png, tiles/s.png | an older copy of the same | no (gitignored) | no | (the same picture) |
+
+a. Clean (checked frame by frame, every sixth frame of each sheet): the S symbol atlases s-idle / s-drop / s-win and
+   their -half copies, S.png in mmSymbols and mmSymbols-half, tiles/s.webp, the Armoury's hero / turn / grid standard
+   images and the rebuilt plaque-flags.webp all show the FS standard; no old frame left in them. Game info, the symbol
+   popup and the tease draw from those atlases.
+b. These are not old-standard files but the same intro clips also show the old Wild coin with "WILD" on it
+   (card-clusters.mp4 and card-features.mp4 as well), which change log row 20 took out of the game elsewhere.
+c. The intro clips are video: a replacement means new captures, not a rebuild.
+
+## 14. The whole scene holds through the TOTAL WIN (Corey 2026-11-10, "A", after the night manticore on the day courtyard)
+
+a. Replaces 12 c's creature-only hold. `stateGame.lookHold` is set by freeSpinEnd just before the game type goes back
+   to the base game and is let go once the wrap up has hidden (`freeSpinOutroHide`) and he is ready to cross (in his idle
+   with his base look's idle sheet in, `creatureHandOverReady`, at most `CREATURE.handOverWaitMs` 2.5 s). While it is set
+   components/Background.svelte keeps the feature's `family` and its free game wash and dim, so the backdrop, the
+   sunset / night / fire passes, the board frame's night and fire layers, the board plaque's look, the flame bowls, the
+   fire loop and the creature all stay in the feature's look; at the release they all go back on the same frame over
+   the scene's own crossfade (SCENE.crossfadeMs, his lookFadeMs is the same). finalWin clears it whatever path the round
+   took. His base look's idle sheet loads during the wrap up (`creatureHandOverPrepare`: +59.8 MB on either tier while
+   the wrap up is on show), so nothing loads at the hand-over. The creature-only hold (game/creature.ts holdLook, the
+   `creatureLookHold` event) is removed.
+b. Every feature (Bonus Free Spins, Super, Epic), bought or natural: the hold is in freeSpinEnd, which every feature
+   ends with. A capped feature's MAX WIN wrap up holds the same way until it has hidden.
+c. **What moved in time**: the scene's change back to the base look moved from the wrap up's show to its hide, by the
+   time the wrap up is on screen (measured 7.6 s Bonus, 8.6 s Super on desktop; 7.6 s / 7.6 s on the phone; it includes
+   the player's press). The fire loop now plays on through the TOTAL WIN and fades with the scene at the hand-over
+   (before, it faded as the wrap up began). Nothing else moved: the plaque, its sounds, the count-up and the HUD as
+   before.
+d. **The first base game spin**: not blocked longer. The wait for him to be ready was 0 ms in all five runs (he is back
+   in his idle by the time the TOTAL WIN has been pressed away); it can only be longer if he is still in a win clip
+   when the wrap up hides, at most 2.5 s, and the transition and uiShow come after it as before.
+e. **Resume**: a SUPER round reloaded while its TOTAL WIN was up came back in the super look, replayed the wrap up in
+   it (win_super played) and handed over to the day look on one frame as above (`resume-desktop1920-SUPER-*.jpg`).
+f. Verified (`tools/manticore/drop8_feature.js`, idle alternates held off with forceRoll 'none' so the cheer is never
+   lost to a growl roll; `docs/drop8/drop8-wrap2.json`): Bonus and Super buys at 1920 x 1080 and on the portrait phone.
+   In each the TOTAL WIN played his clip in the feature's look (desktop Bonus win_big, Super win_super; phone Bonus
+   win_super, Super win_big), the scene stayed in the feature's look (`family` bonus / super) until the wrap up hid, then
+   scene and creature changed in the same sample. Stills `wrap2-<layout>-<mode>-plaque / -handover / -after.jpg` (a
+   Bonus feature has no creature hand-over: his look is the day one in both; its scene goes sunset to day).
+   creature_probe ONLY=cheer 14 / 0; production build and bundle check PASS.
+g. Not verified: an EPIC feature end (the same code path); real devices.

@@ -474,10 +474,15 @@ const winsOfBook = (events: readonly BookLike[]): Partial<Record<CreatureLook, C
 			const data = mode ? getFeatureSpinWinLevelData({ bookEventAmount: amount, mode }) : getWinLevelDataByBookEventAmount({ bookEventAmount: amount });
 			if (data && data.type === 'big') add(look, data.level - 6);
 		} else if (e.type === 'freeSpinEnd') {
+			// the TOTAL WIN plays in the FEATURE's look (game/creature.ts holdLook, Corey 2026-11-10 "A")
 			const level = winLevelMap[e.winLevel as WinLevel]?.level ?? 0;
-			if (!capped && level >= 6) {
-				add(look, Math.min(EPIC_TIER, level - 6));
-				add(base, Math.min(EPIC_TIER, level - 6));
+			if (!capped && level >= 6) add(look, Math.min(EPIC_TIER, level - 6));
+			// IN FREE GAMES EVERY TIER (Corey 2026-11-10: "we probably shouldn't do the unloading in free games"): the
+			// feature's look takes the whole win group, the tiers this book names first, and keeps it until the book is
+			// over (its TOTAL WIN included: the release is the book's end, creatureBookDone)
+			for (const c of CREATURE_WIN_CLIPS) {
+				const list = (out[look] ??= []);
+				if (!list.includes(c)) list.push(c);
 			}
 			mode = null;
 			look = base;
@@ -587,6 +592,21 @@ const sweepWins = async (): Promise<void> => {
 		}, 300);
 	}
 };
+// ---- THE HAND-OVER AT A FEATURE'S END (Corey 2026-11-10, "A"; game/bookEventHandlerMap.ts freeSpinEnd) ------------
+/** the wrap up starts: his base look loads now (its idle sheet), ahead of the hand-over, as a look ahead of its mode */
+export const creatureHandOverPrepare = (): void => {
+	const base = CREATURE.looks.base as CreatureLook;
+	if (creature.wanted !== base) creature.prepare('book', base);
+};
+/** resolves once he can cross to the base look on the very frame the scene does: in his idle (or not drawn at all) with
+ *  the base look's idle sheet in; at most CREATURE.handOverWaitMs, then at once whatever he is doing (never rejects) */
+export const creatureHandOverReady = async (): Promise<void> => {
+	const base = CREATURE.looks.base as CreatureLook;
+	const t0 = performance.now();
+	while (!creature.readyToCross(base) && performance.now() - t0 < CREATURE.handOverWaitMs) await wait(50);
+	if (import.meta.env.DEV) note('wins', 'handOver', `${Math.round(performance.now() - t0)} ms`, performance.now() - t0);
+};
+
 /** DEV / probe: ask for win clips by hand for the look on show (all of them by default), as a book would */
 export const creatureWinsAsk = (clips: readonly CreatureWinClip[] = CREATURE_WIN_CLIPS): Promise<void> => {
 	const look = creature.look ?? creature.wanted;

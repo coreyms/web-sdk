@@ -188,6 +188,8 @@ type Run = {
 	real: boolean;
 	/** sting_hit only: started by a strike planned AHEAD of its beat (cueBeat, drop 8), the beat not in yet */
 	ahead: boolean;
+	/** a cheer's voice, played when the clip reaches `atMs` clip ms (its take's onset on the accent frame, PLAQUE_CHEER) */
+	voice: { name: string; rate?: number; atMs: number } | null;
 };
 
 export class Creature {
@@ -254,7 +256,7 @@ export class Creature {
 	private state: 'hidden' | 'still' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
 	private idleT0 = 0;
 	private idleFrame = 1;
-	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false };
+	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false, voice: null };
 	private rush = { from: 1, to: 1, t0: 0 };
 	/** what starts when the rush ends, or at `at` (real ms: the clip's first frame). strikeAt: swipe only; move: a cheer's */
 	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean; move?: CheerMove } | null = null;
@@ -265,6 +267,8 @@ export class Creature {
 	private epicEnd = false;
 	/** real ms the Epic's loop started (CREATURE.wins.epicLoopMaxMs) */
 	private epicLoopAt = 0;
+	/** the waiting cheer's voice was played without him (components/Background.svelte: Epic's sfx_roar_win); none later */
+	private cheerVoiced = false;
 	/** a swipe read ahead while a sting is still his to play: it becomes the cue once that strike has landed */
 	private swipeNext: { at: number; strikeAt: number } | null = null;
 	/** the crouch: its loop clock (clip ms), whether stings are still coming, the strike that is planned (the real time
@@ -592,6 +596,17 @@ export class Creature {
 		if (this.ahead.buy === look) this.ahead.buy = null;
 		if (look !== this.look || this.next) this.onWantLook?.(look);
 	}
+	/** he can cross to `look` now, on the very frame the scene does: nothing of his to finish (his idle loop, his still, or
+	 *  not drawn) and that look's idle sheet in (or it is on show already). game/creatureLoad.ts creatureHandOverReady */
+	readyToCross(look: CreatureLook): boolean {
+		if (!this.enabled || !this.placed || this.state === 'hidden' || !this.look) return true;
+		if (this.look === look) return true;
+		return (this.state === 'idle' || this.state === 'still') && !this.cue && !this.pendingCheer && this.has(look, 'idle') && !!this.shadows.idle;
+	}
+	/** a waiting cheer's voice has been played without him (Epic's sfx_roar_win by the plaque): it starts silent */
+	cheerVoicedWithout(): void {
+		if (this.pendingCheer) this.cheerVoiced = true;
+	}
 	get wanted(): CreatureLook {
 		return this.want;
 	}
@@ -874,6 +889,7 @@ export class Creature {
 	cheerEnd(): void {
 		if (this.pendingCheer) this.note('cheer', { move: this.pendingCheer, dropped: true });
 		this.pendingCheer = null;
+		if (!this.cue || this.cue.kind !== 'win') this.cheerVoiced = false;
 		this.epicEnd = true;
 	}
 	private miss(what: string): void {
@@ -918,6 +934,7 @@ export class Creature {
 		r.cued = false;
 		r.real = false;
 		r.ahead = false;
+		r.voice = null;
 		this.state = 'clip';
 		this.glowA = 0;
 		this.note('start', { clip, offset: Math.round(offset) });
@@ -970,12 +987,15 @@ export class Creature {
 			this.start(clipsOfMove(move)[0], now, 0);
 			this.run.real = true;
 			this.epicEnd = false;
-			const v = PLAQUE_CHEER.voices[move];
-			if (v === 'roar') this.say(PLAQUE_CHEER.roarSound);
-			else if (v) {
-				const voice = this.pickVoice(v);
-				this.note('voice', voice);
-				this.say(voice.name, voice.rate);
+			// THE VOICE ON THE MOUTH (PLAQUE_CHEER.accentFrame / onsetMs): it starts so its onset lands on the accent frame
+			// (a cheer whose voice was played already, while it waited for its clip, has none)
+			const v = this.cheerVoiced ? null : PLAQUE_CHEER.voices[move];
+			this.cheerVoiced = false;
+			const voice = v === 'roar' ? { name: PLAQUE_CHEER.roarSound, rate: undefined } : v === 'snarl' || v === 'growl' ? this.pickVoice(v) : v ? { name: v, rate: undefined } : null;
+			if (voice) {
+				const atMs = Math.max(0, (PLAQUE_CHEER.accentFrame[move] - 1) * FRAME_MS - (PLAQUE_CHEER.onsetMs[voice.name] ?? 0));
+				this.run.voice = { name: voice.name, rate: voice.rate, atMs };
+				this.note('voice', { ...voice, atMs: Math.round(atMs) });
 			}
 		} else if (this.hit && this.hit.start - now < CHARGE_IN_MS / ts) {
 			this.lastBeat = now;
@@ -1129,6 +1149,11 @@ export class Creature {
 			}
 			clip = r.clip;
 			frame = Math.floor(r.t / FRAME_MS) + 1;
+			if (r.voice && r.t >= r.voice.atMs) {
+				this.say(r.voice.name, r.voice.rate);
+				this.note('voiced', { name: r.voice.name, clip, frame, t: Math.round(r.t) });
+				r.voice = null;
+			}
 			if (clip === 'charge_in' && this.hit && now >= this.hit.start) this.strike(now);
 			else if (clip === 'sting_hit' && r.hold === 2 && this.hit && now >= this.hit.start) this.strike(now);
 			else if (clip === 'sting_hit' && r.toCrouch && r.hold === 2) this.recrouch(now);

@@ -9,6 +9,7 @@ import { stateBet, stateBetDerived } from 'state-shared';
 import { eventEmitter } from './eventEmitter';
 import type { MusicName, SoundEffectName } from './sound';
 import { playBookEvent } from './utils';
+import { creatureHandOverPrepare, creatureHandOverReady } from './creatureLoad';
 import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { getWinLevelDataByBookEventAmount, getFeatureSpinWinLevelData, featureSpinStages } from './winLevelMap';
 import {
@@ -912,6 +913,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// lists; the wrap-up's round total also holds a natural trigger's base win); the plaque offers the recap after it
 		recapFeatureEnd(bookEvent.amount);
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
+		// THE FEATURE'S LOOK THROUGH ITS TOTAL WIN (Corey 2026-11-10, "A"): the scene, the frame, the flames and the creature
+		// keep the feature's look through the wrap up (stateGame.lookHold, components/Background.svelte) and go back to the
+		// base look together once it has gone; the creature's base look loads meanwhile so nothing loads at the hand-over
+		stateGame.lookHold = true;
+		creatureHandOverPrepare();
 		stateGame.gameType = 'basegame';
 		eventEmitter.broadcast({ type: 'spinWinHide' });
 		// A CAPPED ROUND (the book's `wincap` came before this): the wrap up is the MAX WIN screen. Same plaque,
@@ -932,6 +938,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (capped) await maxWinScreen();
 		winLevelSoundsStop({ keepUi: true });
 		eventEmitter.broadcast({ type: 'freeSpinOutroHide' });
+		// THE HAND-OVER: once he is back in his idle with his base look in (at most CREATURE.handOverWaitMs; at once when
+		// he already is), scene and creature cross to the base look on the same frame, over the same crossfade
+		await creatureHandOverReady();
+		stateGame.lookHold = false;
 		await eventEmitter.broadcastAsync({ type: 'transition' });
 		stateGame.bonusMode = null;
 		stateGame.tileCap = 64;
@@ -968,6 +978,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.busy = false;
 		stateGame.spinWin = 0;
 		stateGame.relightAhead = false;
+		stateGame.lookHold = false;
 		// the round's end: a base spin's held win recap stays (PLAQUE_HOLD), the rest as before
 		eventEmitter.broadcast({ type: 'spinWinHide', roundEnd: true });
 		eventEmitter.broadcast({ type: 'modePlaqueHide' });

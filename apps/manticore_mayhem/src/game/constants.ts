@@ -2508,7 +2508,16 @@ export const PLAQUE_CHEER = {
 	epic: 'win_epic' as const,
 	/** each move's voice, as the tier had it before drop 8: the snarl take at BIG, a growl take at SUPER, THE MEGA ROAR at
 	 *  MEGA (roarSound); played on the clip's first frame like the moves they replace */
-	voices: { win_big: 'snarl', win_super: 'growl', win_mega: 'roar', win_epic: null } as const,
+	voices: { win_big: 'snarl', win_super: 'growl', win_mega: 'roar', win_epic: 'sfx_roar_win' } as const,
+	/** THE VOICE ON THE MOUTH (Corey 2026-11-10: "Yes move it"): each move's voice starts so that its take's onset lands on
+	 *  the clip's accent frame, the rig's final render plan (FINAL_RENDER_PLAN.md 1.3 and 5.3): win_big f7, win_super f17
+	 *  (the S-a2 accent, f16 to f18), win_mega f12, win_epic_in f22. Epic's sfx_roar_win moves with it from the plaque to
+	 *  his clip (the plaque still plays it at once when his clip cannot play: components/Background.svelte). Until then
+	 *  every voice started on the clip's f1 and sfx_roar_win on the plaque's Epic beat */
+	accentFrame: { win_big: 7, win_super: 17, win_mega: 12, win_epic: 22 } as const,
+	/** each take's onset, ms into it (its loudness envelope first at half its peak, 10 ms RMS, measured on the shipped
+	 *  sounds.ogg 2026-11-10); the take starts this much before the accent frame */
+	onsetMs: { sfx_manticore_snarl_1: 27, sfx_manticore_snarl_2: 22, sfx_manticore_growl_1: 31, sfx_manticore_growl_2: 40, sfx_manticore_roar_win_1: 3, sfx_roar_win: 180 } as Record<string, number>,
 	/** real ms after the final tier's landing (or the impact of a win that stays BIG) */
 	delayMs: 140,
 	roarSound: 'sfx_manticore_roar_win_1',
@@ -3695,6 +3704,10 @@ export const CREATURE = {
 	snarlOdds: 1 / 20,
 	growlOdds: 1 / 30,
 	idleLookOdds: 1 / 50,
+	/** THE HAND-OVER AT A FEATURE'S END (Corey 2026-11-10, "A"): the longest the base game waits, after the TOTAL WIN has
+	 *  hidden, for him to be back in his idle with his base look in, so that scene and creature cross on one frame
+	 *  (game/creatureLoad.ts creatureHandOverReady); 0 when he already is */
+	handOverWaitMs: 2500,
 	wins: { onDemand: true, bands: 16, quiet: { showMs: 1500, impactMs: 300, tierMs: 250 }, epicLoopMaxMs: 15000 },
 	breath: true,
 	voice: { rateMin: 0.95, rateMax: 1.05 },
