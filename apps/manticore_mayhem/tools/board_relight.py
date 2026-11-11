@@ -52,17 +52,20 @@ from scipy import ndimage
 # plates and the shipped frame files were v5m composites made outside this tool (export_v5m_emblem/NOTES.md).
 DRAFTS = os.path.expanduser('~/Desktop/Manticore Mayhem/images/board/drafts')
 V5N = os.path.expanduser('~/Desktop/Manticore Mayhem/images/board/export_v5n_nofinials')
-GEARS = os.path.join(V5N, 'gears')                     # gears_sync_r1's layout: sheets/full2048, work/layers_report.json, work/comp
-GEAR_RENDERS = os.path.join(V5N, 'renders')            # <rig>/<group>_<pose>.png: each group alone, for the trim
+# board_v6 (frame_v6_shapr_2026-11-10 STEP 3): every source below is the v6 export (same layout, board_v6_* names); the v5n
+# paths above are kept for the record. STEP 4 (2026-11-11): the approved look and box move, work/step4/export
+V6 = '/Users/corey/Desktop/Manticore Mayhem/images/board/frame_v6_shapr_2026-11-10/work/step4/export'
+GEARS = os.path.join(V6, 'gears')                     # gears_sync_r1's layout: sheets/full2048, work/layers_report.json, work/comp
+GEAR_RENDERS = os.path.join(V6, 'renders')            # <rig>/<group>_<pose>.png: each group alone, for the trim
 RELIGHT = os.path.join(DRAFTS, 'relight_r1', 'full')   # the chains and the contact shadow (the finials touch neither)
-REST = {st: os.path.join(V5N, 'relight', rig, f'board_v5n_{rig}_frame.png') for st, rig in (('day', 'D1'), ('night', 'night'), ('fire', 'fire'))}
-LOCKED = os.path.join(V5N, 'relight', 'board_v5n_locked_frame.png')
-PLATE = {'day': os.path.join(V5N, 'sources', 'board_v5n_D1_plate.png'), 'night': os.path.join(V5N, 'sources', 'board_v5n_night_plate.png'),
-         'fire': os.path.join(V5N, 'sources', 'board_v5n_fire_plate_on_black.png')}
-FIRE_REST = os.path.join(V5N, 'sources', 'board_v5n_fire_frame_on_black.png')
-SHADOW = os.path.join(RELIGHT, 'shadow', 'board_v5l_contact_shadow.png')
-CHAINS = {'day': os.path.join(RELIGHT, 'D1', 'board_v5l_D1_chains.png'), 'night': os.path.join(RELIGHT, 'night', 'board_v5l_night_chains.png'),
-          'fire': os.path.join(RELIGHT, 'fire', 'board_v5l_fire_chains.png')}
+REST = {st: os.path.join(V6, 'relight', rig, f'board_v6_{rig}_frame.png') for st, rig in (('day', 'D1'), ('night', 'night'), ('fire', 'fire'))}
+LOCKED = os.path.join(V6, 'relight', 'board_v6_locked_frame.png')
+PLATE = {'day': os.path.join(V6, 'gears', 'plate', 'board_v6_D1_plate.png'), 'night': os.path.join(V6, 'gears', 'plate', 'board_v6_night_plate.png'),
+         'fire': os.path.join(V6, 'gears', 'plate', 'board_v6_fire_plate_on_black.png')}
+FIRE_REST = os.path.join(V6, 'relight', 'fire', 'board_v6_fire_frame_on_black.png')
+SHADOW = os.path.join(V6, 'shadow', 'board_v6_contact_shadow.png')
+CHAINS = {'day': os.path.join(V6, 'chains', 'D1', 'board_v6_D1_chains.png'), 'night': os.path.join(V6, 'chains', 'night', 'board_v6_night_chains.png'),
+          'fire': os.path.join(V6, 'chains', 'fire', 'board_v6_fire_chains.png')}
 RIG = {'day': 'D1', 'night': 'night', 'fire': 'fire'}
 SETS = ('day', 'night', 'fire')
 # the gear zone of the render (gears_sync_r1 gs_common.BORDER_ROWS) and the loop (N frames a link; the end gear's 72
@@ -78,6 +81,7 @@ FEATHER_PX = 6
 # from a texture at SHADOW_SCALE of the plate's (it is a blur), white with alpha so its colour is the sprite's tint
 SHADOW_BOX = (0, 1690, 2048, 1935)
 SHADOW_SCALE = 0.5
+EDGE_PAD = 8   # render px of nothing round each loop strip before a cell is resampled (board_v6: the wheel touches the canvas edge)
 FIRE_SCALE = 0.5
 PAD = 2
 Q_PLATE = 85
@@ -279,9 +283,16 @@ def rest_outline(plate, rest, cells, boxes):
     the rest picture's, and where a cell had nothing there it takes the rest picture's colour. plate, rest: RGBA
     images at texture size (rest = the relight's own frame layer, alpha = the locked alpha); cells: {part: RGBA image}
     of frame 0, changed in place; boxes: {part: texture box}. Returns (px changed, px still off by more than 1 level)."""
-    P = np.asarray(plate).astype(np.float64)
-    T = np.asarray(rest).astype(np.float64)
-    arr = {p: np.asarray(c).astype(np.float64) for p, c in cells.items()}
+    E = EDGE_PAD   # board_v6: a cell box may reach a few texture px past the plate's edge (the wheel at the canvas edge):
+    # the plate and the rest picture are padded with nothing and every box moved by E, so the slices stay whole.
+    # STEP 4: as far as any box reaches (a cell's trim margin can pass the plate's edge by more than EDGE_PAD); padded,
+    # never clipped
+    ph, pw = np.asarray(plate).shape[:2]
+    E = max(E, *(max(-b[0], -b[1], b[2] - pw, b[3] - ph) for b in boxes.values()))
+    P = np.pad(np.asarray(plate).astype(np.float64), ((E, E), (E, E), (0, 0)))
+    T = np.pad(np.asarray(rest).astype(np.float64), ((E, E), (E, E), (0, 0)))
+    boxes = {p: (b[0] + E, b[1] + E, b[2] + E, b[3] + E) for p, b in boxes.items()}
+    arr = {p: np.asarray(c).astype(np.float64).copy() for p, c in cells.items()}
     h, w = P.shape[:2]
     alpha = np.zeros((len(arr), h, w))
     for i, p in enumerate(arr):
@@ -434,7 +445,13 @@ def build(ui_dir, frame_spec, log=print):
                     rbox = (cx + t0x / sx, cy + t0y / sy - Y0, cx + t1x / sx, cy + t1y / sy - Y0)
                     for k in range(FRAMES[g]):
                         a = loops[(st, g, s, k)]
-                        im = Image.fromarray(a, 'RGB' if st == 'fire' else 'RGBA').resize(size, Image.LANCZOS, box=rbox)
+                        # board_v6: the chain wheel reaches the canvas edge, so a box rounded out to whole texture px can
+                        # reach a little past the strip; the strip is padded with nothing (transparent / black) for that
+                        # STEP 4: padded as far as the box reaches, never clipped
+                        ep = int(math.ceil(max(EDGE_PAD, -rbox[0], -rbox[1], rbox[2] - a.shape[1], rbox[3] - a.shape[0])))
+                        a = np.pad(a, ((ep, ep), (ep, ep), (0, 0)))
+                        pb = (rbox[0] + ep, rbox[1] + ep, rbox[2] + ep, rbox[3] + ep)
+                        im = Image.fromarray(a, 'RGB' if st == 'fire' else 'RGBA').resize(size, Image.LANCZOS, box=pb)
                         cells[st].append((f'boardGear_{kind}_{st}_{g}_{s}_{k:02d}', im.convert('RGBA')))
                 if div == 1 and st != 'fire':
                     zero = {f'{g}_{s}': next(c for n, c in cells[st] if n == f'boardGear_{kind}_{st}_{g}_{s}_00') for g, s in PARTS}

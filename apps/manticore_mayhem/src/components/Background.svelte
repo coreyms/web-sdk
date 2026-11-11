@@ -410,7 +410,9 @@
 	// and straight out again). Nothing is asked before the sprite has loaded.
 	let fireSkipped = false;
 	$effect(() => {
-		const want = family === 'super' || family === 'epic' ? family : null;
+		// Corey 2026-11-11: "Stop it when the total win starts". The scene and its flames hold through the feature's
+		// TOTAL WIN (stateGame.lookHold), the fire loop does not: it fades out as the wrap up begins.
+		const want = !context.stateGame.lookHold && (family === 'super' || family === 'epic') ? family : null;
 		const skipping = context.stateGame.skipping;
 		const loaded = sound.loadStatus === 'loaded';
 		untrack(() => {

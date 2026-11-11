@@ -86,7 +86,14 @@ TILT_DEG = 4
 # three top rail spikes (black iron clamps with lugs, four hex bolts each, a bearing barrel under each spike, lighter
 # spike undersides). Opening, cell mask, art box and both layers' alpha are v5j's and the camera json is byte-identical,
 # so no layout number changes and the chain tiles come out the same; only the frame's colour differs, in the top rail.
-RENDERS = {0: 'board_v4d', 4: 'board_v5l'}
+# board_v6 (frame_v6_shapr_2026-11-10 STEP 3, Corey 2026-11-10 "we can rig in the board frame overnight"): Corey's Shapr3D frame,
+# route b, the 227.1 mm 21 tooth chain wheel, chains 31 mm out; renders and scripts in the Desktop folder's
+# images/board/frame_v6_shapr_2026-11-10 (NOTES.md, STEP 3). board_v5l stays the registration source (see PIN below).
+# STEP 4 (Corey 2026-11-11, approved: the B1 day look, the night and fire looks, "Yes, looks much better" for the boxes):
+# the top housings 22.5 mm in, a 16 tooth 176.6 mm chain wheel (45 degrees a link, in the loop renders; no game number),
+# the chains 6.52 mm out (x -+851.52 mm); the export is work/step4/export. The PIN stays: the true chain positions would
+# change the portrait chain fit and the plaque width (NOTES.md, STEP 4).
+RENDERS = {0: 'board_v4d', 4: 'board_v6'}
 TAG = RENDERS[TILT_DEG]
 # --tag <render tag> overrides it (dry runs of a variant, e.g. board_v4g_uz with --no-frame --no-bg)
 import sys as _sys
@@ -94,7 +101,7 @@ if '--tag' in _sys.argv:
     TAG = _sys.argv[_sys.argv.index('--tag') + 1]
 _D = os.path.join(DESK, 'board/drafts')
 # a tag whose render set is not loose in drafts/ (the v5 rounds each keep theirs in <round>/full)
-TAG_DIR = {'board_v5j': 'gears_r5/full', 'board_v5l': 'bracket_r7/full'}
+TAG_DIR = {'board_v5j': 'gears_r5/full', 'board_v5l': 'bracket_r7/full', 'board_v6': '/Users/corey/Desktop/Manticore Mayhem/images/board/frame_v6_shapr_2026-11-10/work/step4/export/locked'}
 _T = os.path.join(_D, TAG_DIR.get(TAG, ''))
 _pick = lambda *names: next((os.path.join(_T, n) for n in names if os.path.exists(os.path.join(_T, n))), os.path.join(_T, names[-1]))
 # the grid steel (Corey 2026-10-06 21:33: B read teal over black): 'neutral' = textures_v4f/neutral, 'blue' = B.
@@ -109,7 +116,7 @@ PREV_CAMERA = os.path.join(DESK, 'board/drafts/board_v4j_camera.json')  # the pr
 SRC_BG = os.path.join(DESK, 'submission/final/tile-bg.jpg')
 # THE RELIGHT (board_v5l, Corey 2026-10-11: "D1", "Super and Epic look good", the contact shadow "Yes"; the gears "Looks
 # great"). The locked render above keeps giving every number; the exported pixels are relight_r1's and gears_sync_r1's.
-RELIT = TAG == 'board_v5l'
+RELIT = TAG in ('board_v5l', 'board_v6')
 if RELIT:
     _sys.path.insert(0, HERE)
     _sys.dont_write_bytecode = True
@@ -132,7 +139,12 @@ ART_FIT = {'landscape': {'x0': 340.0, 'x1': 940.0, 'top': 38.0}}
 # 4 render px narrower (and 121 shorter), so fitting ITS box to 340 .. 940 would scale the lattice up by 0.2 % and
 # move every cell. The landscape scale and origin therefore stay those of the v4l box: the cells stay put and the v5j
 # art spans x 340.92 .. 939.69 (centre 640.31) from y 38 to 572.22 (v4l: 340 .. 940, bottom 609.24).
-FIT_ART = {'landscape': (43, 46, 2004, 1913)} if TAG.startswith('board_v5') else {}
+FIT_ART = {'landscape': (43, 46, 2004, 1913)} if TAG.startswith(('board_v5', 'board_v6')) else {}
+# PIN (board_v6): the layout's registration inputs stay board_v5l's locked render (its frame + chain alpha box and its chain
+# pivots), so no cell, no art rect and no chain-fit layout moves; only the textures (cut from the new pixels' own alpha box)
+# and the chain strips' anchors are the new render's
+PIN = TAG == 'board_v6'
+LOCK_DIR = os.path.join(_D, 'bracket_r7/full')
 # portrait: the chain centrelines (mean of each run's top pivot and bottom anchor, render px) at x0 / x1 of the 412
 # master; the art then sits in the band band_top .. hud_top (tagline band bottom 150, the BALANCE / BET row's
 # content top 688, measured in the running game at 360 / 390 / 430 wide) with the dead space split above : below =
@@ -228,7 +240,7 @@ LEANED_BOX = {'L': (120, 240, 240, 350), 'R': (2048 - 240, 240, 2048 - 120, 350)
 # v5j and v5l have no housing json of their own: their housings and chain run are v4l's (the frame layer's alpha in the chain
 # columns is compared with v4l's round both clip rows at build time, housing_check()), so they take v4l's
 # clip rows. What is NEW in front of the top housing is the chain wheel, which is in the frame layer and above the lip.
-HOUSED = TAG.startswith(('board_v4j', 'board_v4k', 'board_v4l', 'board_v5'))
+HOUSED = TAG.startswith(('board_v4j', 'board_v4k', 'board_v4l', 'board_v5', 'board_v6'))
 HOUSING_JSON = os.path.join(_T, f'{TAG}_housing.json')
 HOUSING_REF = 'board_v4l'
 if HOUSED and not os.path.exists(HOUSING_JSON):
@@ -446,6 +458,14 @@ def main():
     chains_a = Image.open(SRC_CHAINS).split()[-1]
     fb, cb = frame_a.getbbox(), chains_a.getbbox()
     art = (min(fb[0], cb[0]), min(fb[1], cb[1]), max(fb[2], cb[2]), max(fb[3], cb[3]))
+    art_pixels = art
+    lock_cam = cam
+    if PIN:  # the registration's art box and chain pivots: board_v5l's locked set
+        lfb = Image.open(os.path.join(LOCK_DIR, 'board_v5l_frame.png')).split()[-1].getbbox()
+        lcb = Image.open(os.path.join(LOCK_DIR, 'board_v5l_chains.png')).split()[-1].getbbox()
+        art = (min(lfb[0], lcb[0]), min(lfb[1], lcb[1]), max(lfb[2], lcb[2]), max(lfb[3], lcb[3]))
+        lock_cam = json.load(open(os.path.join(LOCK_DIR, 'board_v5l_camera.json')))
+        print(f'  PIN: registration art box {art} and chain pivots from board_v5l; the new pixels\' box is {art_pixels}')
     art_w, art_h = art[2] - art[0], art[3] - art[1]
 
     # the inner bars as projected: vertical bars at the mid-height row, horizontal bars at x = 0 (v4f writes them;
@@ -467,17 +487,17 @@ def main():
     # top line is still virtual (inside the top rail). The SIDE bars' rivets (rows 1..7) bind the column 0 / 7 cells
     # like any inner rivet; the bottom bar's rivets (and the corners) belong with the bottom outer bar that row 7 is
     # already allowed to hang over (rails=False below), so they count only in the rows 0 / 7 overhang report
-    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l', 'board_v5'))
+    outer_rivets = TAG.startswith(('board_v4g', 'board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l', 'board_v5', 'board_v6'))
     rivet_at = (lambda r, c: 0 < r < 8) if outer_rivets else (lambda r, c: 0 < r < 8 and 0 < c < 8)
     # v4h: the opening is SQUARE, so rows 0 / 7 no longer hang over the top / bottom outer bars: they are held to them
     # like every other bar (HOLD_ROWS: rails=True in the solve), and every crossing counts as a rivet: the bottom bar's
     # real rivets and the top line's (v4h: the copper bar clips under the top rail, a rivet as their stand-in; v4i: the
     # real top bar's rivets, the clips are gone)
-    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l', 'board_v5'))
+    HOLD_ROWS = TAG.startswith(('board_v4h', 'board_v4i', 'board_v4j', 'board_v4k', 'board_v4l', 'board_v5', 'board_v6'))
     if HOLD_ROWS:
         rivet_at = lambda r, c: True
     # v4k: the lattice has NO rivets (the crossing is the two bars, already in the opening's bar-radius inset)
-    RIVETLESS = TAG.startswith(('board_v4k', 'board_v4l', 'board_v5'))
+    RIVETLESS = TAG.startswith(('board_v4k', 'board_v4l', 'board_v5', 'board_v6'))
     if RIVETLESS:
         rivet_at = lambda r, c: False
 
@@ -489,7 +509,7 @@ def main():
             cell = dict(PHONE_CELL)
         elif kind in CHAIN_FIT:
             fit = CHAIN_FIT[kind]
-            ch = cam['chains']
+            ch = lock_cam['chains']
             cl = (ch['L']['top_pivot_px'][0] + ch['L']['bottom_anchor_px'][0]) / 2
             cr = (ch['R']['top_pivot_px'][0] + ch['R']['bottom_anchor_px'][0]) / 2
             m = (fit['x1'] - fit['x0']) / (cr - cl)
@@ -711,6 +731,15 @@ def main():
                 return [round(tx + (bx - tx) * (y - ty) / (by - ty), 3), y]
             anchors = {sd: {'top': on_run(sd, CHAIN_CLIP[0]), 'bottom': on_run(sd, CHAIN_CLIP[1])} for sd in ('L', 'R')}
             print('  anchors at the housings:', json.dumps(anchors))
+        fit_anchors = anchors
+        if PIN:
+            lch = lock_cam['chains']
+            lclip = tuple(json.load(open(os.path.join(_D, f'{HOUSING_REF}_housing.json')))['chain_clip'])
+            def on_lock(sd, y):
+                (tx, ty), (bx, by) = lch[sd]['top_pivot_px'], lch[sd]['bottom_anchor_px']
+                return [round(tx + (bx - tx) * (y - ty) / (by - ty), 3), y]
+            fit_anchors = {sd: {'top': on_lock(sd, lclip[0]), 'bottom': on_lock(sd, lclip[1])} for sd in ('L', 'R')}
+            print('  fit anchors (board_v5l):', json.dumps(fit_anchors))
         spec = {
             'source': TAG,
             'tiltDeg': TILT_DEG,
@@ -722,6 +751,10 @@ def main():
             'frame': frame_spec,
             'chains': chain_spec,
             'anchors': anchors,
+            # the anchors the layout rules measure (layoutSpec chainSpanOf): board_v5l's when PIN, else the same as anchors
+            'fitAnchors': fit_anchors,
+            # the new pixels' frame + chains alpha box (render px; `art` above is the registration's box)
+            'artPixels': list(art_pixels),
             'grid': DEFAULT_GRID,
             # every bar axis as projected: vertical bars (x) at the mid-height row, horizontal bars (y) at x = 0,
             # outer bars included (index 0 and 8); radii at the board centre

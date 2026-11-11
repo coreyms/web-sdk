@@ -294,7 +294,9 @@ export const registrationOf = (f: FrameRect) => {
 /** the distance between the two chain centrelines (mean of each run's top pivot and bottom anchor) */
 const chainSpanOf = (f: FrameRect) => {
 	const r = registrationOf(f);
-	const a = BOARD_ART.anchors;
+	// the LAYOUT's chain pivots (board_v6, 2026-11-10: the chains are drawn 31 mm further out, at BOARD_ART.anchors, but the
+	// portrait fit, the board size variants and the win plaque's width keep measuring the locked board_v5l run)
+	const a = BOARD_ART.fitAnchors ?? BOARD_ART.anchors;
 	const mid = (s: 'L' | 'R') => r.map((a[s].top[0] + a[s].bottom[0]) / 2, 0).x;
 	return mid('R') - mid('L');
 };
