@@ -1,0 +1,1223 @@
+/* THE HUD'S LOOK (HUD round 5, "Drop 6", approved 2026-11-12): the mockup's CSS (images/hud_round5_2026-11-12/concepts
+     u1.js), every colour through ui/hudTheme.ts's tokens. Painted glass only: translucent fills, 1 px gradient edges,
+     inset highlights, box-shadow. No backdrop-filter, no CSS filter, no mask, no blend mode. Every number is a mock px:
+     the planes (.hudp) are drawn in mock px and scaled as a whole (ui/hud/hudLayout.ts). Animations are transform and
+     opacity only. */
+.hudp {
+	--k: 52px;
+	--lab: rgba(var(--hud-label-rgb), 0.74);
+	position: absolute;
+	left: 0;
+	top: 0;
+	transform-origin: 0 0;
+	pointer-events: none;
+	font-family: var(--hud-font);
+	font-weight: 900;
+	color: rgb(var(--hud-ink-rgb));
+	-webkit-font-smoothing: antialiased;
+}
+.hudp.v-tablet {
+	--k: 50px;
+}
+.hudp.v-portrait,
+.hudp.v-landscape {
+	--k: 44px;
+}
+.hudp * {
+	box-sizing: border-box;
+}
+/* a grouping wrapper with no box of its own (the old row names the probes and THE ARMOURY still find) */
+.hudp .dc {
+	display: contents;
+}
+.hudp button,
+.hudp input,
+.hudp .mp {
+	pointer-events: auto;
+}
+.hudp button:disabled {
+	cursor: default;
+}
+.hudp > *,
+.hudp .abs,
+.hudp .sk,
+.hudp .key,
+.hudp .fbtn,
+.hudp .spin,
+.hudp .stat,
+.hudp .shadow,
+.hudp .mp {
+	position: absolute;
+}
+.hudp svg.ol {
+	position: absolute;
+	left: 0;
+	top: 0;
+	overflow: visible;
+	pointer-events: none;
+}
+.hudp .shadow {
+	position: absolute;
+	border-radius: 50%;
+	background: radial-gradient(closest-side, rgba(var(--hud-shadow-rgb), 0.6), rgba(var(--hud-shadow-rgb), 0.3) 55%, rgba(var(--hud-shadow-rgb), 0));
+	pointer-events: none;
+}
+/* whatever a menu covers on a phone fades out under it (sizes and positions never change) */
+.hudp .uc {
+	transition: opacity 0.2s;
+}
+.hudp.menu-open .uc {
+	opacity: 0 !important;
+	pointer-events: none !important;
+}
+.hudp.menu-open .uc * {
+	pointer-events: none !important;
+}
+/* the touch target: a transparent ::after grows a small key to --hit (44 CSS px in mock px) without moving it. It sits
+   UNDER every drawn control (z-index -1 in the plane), so where a grown area meets a neighbour, the neighbour's own
+   box takes the press (the small screens, where the grown areas reach past the mock's spacing) */
+.hudp .hit::after {
+	content: '';
+	position: absolute;
+	inset: min(-4px, calc((100% - var(--hit, 44px)) / 2));
+	border-radius: 999px;
+	z-index: -1;
+}
+/* portrait: the minus and plus grow up and out, hardly down (Auto and Turbo are under them) */
+.hudp.v-portrait .sk.hit::after {
+	inset: min(-4px, calc(32px - var(--hit, 44px))) min(-4px, calc((100% - var(--hit, 44px)) / 2)) -4px;
+}
+
+/* ---- readouts: fixed boxes sized for the longest numbers, so a win lights up in place and nothing reflows ---- */
+.hudp .stat {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: transparent;
+	line-height: 1;
+	border-radius: 999px;
+	white-space: nowrap;
+	font: inherit;
+	color: inherit;
+	text-align: center;
+	contain: layout paint style;
+	pointer-events: none;
+	opacity: 1;
+}
+.hudp .stat.press {
+	pointer-events: auto;
+	cursor: pointer;
+}
+.hudp .stat:disabled {
+	opacity: 1;
+	cursor: default;
+}
+.hudp .stat .lbw {
+	font-size: 9px;
+	letter-spacing: 0.24em;
+	margin-right: -0.24em;
+	color: var(--lab);
+}
+.hudp .stat .value {
+	font-size: 19px;
+	letter-spacing: 0;
+	color: rgb(var(--hud-ink-rgb));
+	text-shadow: 0 1px 2px rgba(var(--hud-shadow-rgb), 0.8);
+	font-variant-numeric: tabular-nums;
+}
+.hudp .stat.win .value {
+	font-size: 22px;
+}
+/* FREE SPINS before WIN (a word space of its own: the label itself stays WIN) */
+.hudp .stat .pre {
+	margin-right: 0.5em;
+}
+.hudp .stat.win .lbw {
+	color: rgba(var(--hud-label-warm-rgb), 0.86);
+}
+.hudp .stat.win {
+	transition: background-color 0.25s, box-shadow 0.25s;
+}
+.hudp .stat.win.is-lit {
+	background: radial-gradient(ellipse 72% 120% at 50% 100%, rgba(var(--hud-accent-rgb), 0.55), rgba(var(--hud-accent-rgb), 0.14) 58%, rgba(var(--hud-accent-rgb), 0) 82%);
+	box-shadow: inset 0 -1px 0 rgba(var(--hud-accent-hi-rgb), 0.6), inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.06);
+}
+.hudp .stat.win.is-lit .lbw {
+	color: rgb(var(--hud-accent-hi-rgb));
+}
+.hudp .stat.win.is-lit .value {
+	color: rgb(var(--hud-accent-cream-rgb));
+	text-shadow: 0 0 12px rgba(var(--hud-accent-rgb), 0.85), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.7);
+}
+.hudp .stat.win.is-big {
+	background: linear-gradient(180deg, rgba(var(--hud-accent-hi-rgb), 0.32), rgba(var(--hud-accent-rgb), 0.12)), radial-gradient(ellipse 80% 140% at 50% 100%, rgba(var(--hud-accent-rgb), 0.7), rgba(var(--hud-accent-rgb), 0) 80%);
+	box-shadow: inset 0 0 0 1px rgba(var(--hud-accent-hi-rgb), 0.55), 0 0 22px rgba(var(--hud-accent-rgb), 0.35);
+}
+.hudp .stat.win.is-big .value {
+	color: rgb(var(--hud-accent-cream-rgb));
+	text-shadow: 0 0 14px rgba(var(--hud-accent-hi-rgb), 0.95), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.6);
+}
+.hudp .stat.win.fsw .lbw {
+	letter-spacing: 0.16em;
+	margin-right: -0.16em;
+}
+.hudp .stat.amt.is-locked {
+	opacity: var(--hud-locked-a);
+}
+.hudp .stat.amt.ante .lbw {
+	color: rgb(var(--hud-accent-hi-rgb));
+}
+.hudp .stat.amt.ante .value {
+	color: rgb(var(--hud-accent-ink-rgb));
+	text-shadow: 0 0 8px rgba(var(--hud-accent-rgb), 0.45), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.8);
+}
+.hudp .stat.amt.sante .lbw {
+	letter-spacing: 0.14em;
+	margin-right: -0.14em;
+}
+.hudp .stat.amt.sante .value {
+	text-shadow: 0 0 10px rgba(var(--hud-accent-hi-rgb), 0.7), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.8);
+}
+.hudp .hl {
+	display: block;
+	width: 1px;
+	height: 28px;
+	background: linear-gradient(rgba(var(--hud-ink-rgb), 0), rgba(var(--hud-ink-rgb), 0.26), rgba(var(--hud-ink-rgb), 0));
+	pointer-events: none;
+}
+.hudp .hl.wn {
+	height: 34px;
+	background: linear-gradient(rgba(var(--hud-accent-hi-rgb), 0), rgba(var(--hud-accent-hi-rgb), 0.62), rgba(var(--hud-accent-hi-rgb), 0));
+}
+.hudp .hl.hz {
+	width: auto;
+	height: 1px;
+	background: linear-gradient(90deg, rgba(var(--hud-ink-rgb), 0), rgba(var(--hud-ink-rgb), 0.24), rgba(var(--hud-ink-rgb), 0));
+}
+
+/* ---- plain text readouts (portrait): a small word over the number, a text shadow, no glass ---- */
+.hudp .stat.pt {
+	gap: 3px;
+	border-radius: 0;
+	text-shadow: 0 1px 2px rgba(var(--hud-shadow-rgb), 0.95), 0 0 7px rgba(var(--hud-shadow-rgb), 0.75), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9);
+}
+.hudp .stat.pt.l {
+	align-items: flex-start;
+	text-align: left;
+}
+.hudp .stat.pt.r {
+	align-items: flex-end;
+	text-align: right;
+}
+.hudp .stat.pt .lbw {
+	font-size: 8px;
+	letter-spacing: 0.22em;
+	color: rgba(var(--hud-label-warm-rgb), 0.9);
+}
+.hudp .stat.pt.l .lbw {
+	margin-left: 1px;
+	margin-right: 0;
+}
+.hudp .stat.pt.r .lbw {
+	margin-right: -0.22em;
+}
+.hudp .stat.pt .value,
+.hudp .stat.pt.win .value {
+	font-size: 15px;
+	text-shadow: inherit;
+}
+.hudp .stat.pt.win.is-lit,
+.hudp .stat.pt.win.is-big {
+	background: none;
+	box-shadow: none;
+}
+.hudp .stat.pt.win.is-lit .value,
+.hudp .stat.pt.win.is-big .value {
+	color: rgb(var(--hud-accent-ink-rgb));
+	text-shadow: 0 0 9px rgba(var(--hud-accent-rgb), 0.95), 0 0 18px rgba(var(--hud-accent-rgb), 0.5), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.95), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9);
+}
+.hudp .stat.pt.amt.ante .value {
+	text-shadow: 0 0 8px rgba(var(--hud-accent-rgb), 0.6), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.95), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9);
+}
+.hudp .stat.pt.amt.sante .lbw {
+	letter-spacing: 0.16em;
+	margin-right: -0.16em;
+}
+
+/* ---- landscape: the capsule's readouts ---- */
+.hudp .stat.lc {
+	gap: 3px;
+	border-radius: 6px;
+}
+.hudp .stat.lc .lbw {
+	font-size: 7.5px;
+	color: rgba(var(--hud-label-warm-rgb), 0.9);
+}
+.hudp .stat.lc .value,
+.hudp .stat.lc.win .value {
+	font-size: 15px;
+}
+.hudp .stat.lc.win.is-lit,
+.hudp .stat.lc.win.is-big {
+	background: none;
+	box-shadow: none;
+}
+.hudp .stat.lc.win.is-lit .value,
+.hudp .stat.lc.win.is-big .value {
+	color: rgb(var(--hud-accent-ink-rgb));
+	text-shadow: 0 0 10px rgba(var(--hud-accent-rgb), 0.95), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.95);
+}
+.hudp .stat.lc.win.fsw .lbw {
+	letter-spacing: 0.14em;
+}
+.hudp .stat.lc.amt .value {
+	font-size: 14px;
+}
+.hudp .stat.lc.amt .lbw {
+	font-size: 7px;
+	letter-spacing: 0.2em;
+	margin-right: -0.2em;
+}
+.hudp .stat.lc.amt.sante .lbw {
+	letter-spacing: 0.1em;
+	margin-right: -0.1em;
+}
+
+/* ---- glass buttons: painted fill, per-side 1 px border (white top, gold bottom), soft top highlight ---- */
+.hudp .gl {
+	font: inherit;
+	padding: 0;
+	margin: 0;
+	border: 1px solid;
+	border-color: rgba(var(--hud-ink-rgb), 0.38) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-accent-rgb), 0.44);
+	background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.17), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.38);
+	color: rgba(var(--hud-ink-rgb), 0.94);
+	box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+	transition: background-color 0.16s, border-color 0.16s, transform 0.12s, box-shadow 0.16s, opacity 0.2s, color 0.16s;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp .gl:hover:not(:disabled) {
+		background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.3), rgba(var(--hud-ink-rgb), 0.09) 78%), rgba(var(--hud-key-rgb), 0.32);
+		border-color: rgba(var(--hud-ink-rgb), 0.64) rgba(var(--hud-ink-rgb), 0.24) rgba(var(--hud-accent-hi-rgb), 0.78);
+		color: rgb(var(--hud-ink-rgb));
+		box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.18), 0 0 14px rgba(var(--hud-accent-rgb), 0.18), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+	}
+}
+.hudp .gl:active:not(:disabled) {
+	transform: scale(0.94);
+	background: rgba(var(--hud-key-rgb), 0.5);
+	border-color: rgba(var(--hud-accent-hi-rgb), 0.6) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-ink-rgb), 0.16);
+	box-shadow: inset 0 2px 6px rgba(var(--hud-shadow-rgb), 0.7);
+}
+.hudp .gl:focus-visible,
+.hudp .fbtn:focus-visible,
+.hudp .spin:focus-visible {
+	outline: 1.5px solid rgb(var(--hud-accent-hi-rgb));
+	outline-offset: 3px;
+}
+.hudp .gl:disabled {
+	opacity: var(--hud-disabled-a);
+}
+.hudp .ic {
+	display: block;
+	width: 18px;
+	height: 18px;
+}
+/* free-standing glass (no dock behind it): a deeper fill and a floor shadow */
+.hudp .gl.fs {
+	background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.18), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.62);
+	box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.12), 0 6px 12px rgba(var(--hud-shadow-rgb), 0.5), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.5);
+}
+.hudp .gl.fs:disabled {
+	opacity: 0.42;
+}
+
+/* ---- the round key: one fixed circle, icon above a tiny word ---- */
+.hudp .key {
+	display: block;
+	width: var(--k);
+	height: var(--k);
+	border-radius: 50%;
+}
+.hudp .key .ic {
+	position: absolute;
+	left: 50%;
+	top: calc(var(--k) * 0.16);
+	width: calc(var(--k) * 0.34);
+	height: calc(var(--k) * 0.34);
+	margin-left: calc(var(--k) * -0.17);
+}
+.hudp .key .kl {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: calc(var(--k) * 0.58);
+	font-size: 9px;
+	line-height: 1;
+	letter-spacing: 0.1em;
+	text-indent: 0.1em;
+	text-align: center;
+	color: var(--lab);
+}
+.hudp .key .lv {
+	position: absolute;
+	left: 50%;
+	top: calc(var(--k) * 0.765);
+	display: flex;
+	gap: 3px;
+	transform: translateX(-50%);
+}
+.hudp .key .lv i {
+	display: block;
+	width: 7px;
+	height: 3px;
+	border-radius: 1px;
+	background: rgba(var(--hud-ink-rgb), 0.34);
+	box-shadow: 0 0 0 0.5px rgba(var(--hud-shadow-rgb), 0.35);
+	transition: background-color 0.2s, box-shadow 0.2s;
+}
+.hudp .key.turbo .ic {
+	top: calc(var(--k) * 0.11);
+}
+.hudp .key.turbo .kl {
+	top: calc(var(--k) * 0.5);
+}
+.hudp.v-portrait .key .kl {
+	font-size: 8px;
+}
+.hudp.v-portrait .key .lv {
+	gap: 2px;
+}
+.hudp.v-portrait .key .lv i {
+	width: 5px;
+	height: 2.5px;
+}
+.hudp .turbo[data-l='0'] .lv i:nth-child(1) {
+	background: rgba(var(--hud-ink-rgb), 0.85);
+}
+.hudp .turbo[data-l='1'] .lv i:nth-child(-n + 2) {
+	background: rgb(var(--hud-accent-rgb));
+}
+.hudp .turbo[data-l='1'] .ic,
+.hudp .turbo[data-l='1'] .kl,
+.hudp .turbo[data-l='2'] .ic,
+.hudp .turbo[data-l='2'] .kl {
+	color: rgb(var(--hud-accent-hi-rgb));
+}
+.hudp .turbo[data-l='2'] .lv i {
+	background: rgb(var(--hud-accent-hi-rgb));
+	box-shadow: 0 0 5px rgba(var(--hud-accent-rgb), 0.8);
+}
+.hudp .turbo[data-l='2'] .bolt {
+	fill: rgb(var(--hud-accent-hi-rgb));
+	fill-opacity: 0.35;
+}
+.hudp .turbo[data-l='2'] {
+	border-color: rgba(var(--hud-accent-cream-rgb), 0.7) rgba(var(--hud-accent-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.7);
+}
+.hudp .auto.is-on,
+.hudp .menuk.is-active {
+	border-color: rgba(var(--hud-accent-ink-rgb), 0.78) rgba(var(--hud-accent-rgb), 0.36) rgba(var(--hud-accent-rgb), 0.75);
+	background: radial-gradient(ellipse 90% 90% at 50% 100%, rgba(var(--hud-accent-rgb), 0.36), rgba(var(--hud-accent-rgb), 0.06) 75%), rgba(var(--hud-key-rgb), 0.5);
+	box-shadow: inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.2), 0 0 12px rgba(var(--hud-accent-rgb), 0.28), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+}
+.hudp .auto.is-on .ic,
+.hudp .auto.is-on .kl,
+.hudp .menuk.is-active .ic,
+.hudp .menuk.is-active .kl {
+	color: rgb(var(--hud-accent-hi-rgb));
+}
+/* a run live: the arrow turns (a transform on the svg box: compositor only) */
+.hudp .auto.is-run .ic {
+	animation: hud-turn 2.4s linear infinite;
+}
+
+/* landscape keys: icon only, 34 px free-standing, 32 px inside the top-right capsule */
+.hudp .key.ln {
+	--k: 34px;
+}
+.hudp .key.ln.q {
+	--k: 32px;
+}
+.hudp .key.ln .kl {
+	display: none;
+}
+.hudp .key.ln .ic {
+	top: 50%;
+	width: 17px;
+	height: 17px;
+	margin: -8.5px 0 0 -8.5px;
+}
+.hudp .key.ln.turbo .ic {
+	width: 15px;
+	height: 15px;
+	margin: -10.5px 0 0 -7.5px;
+}
+.hudp .key.ln .lv {
+	top: auto;
+	bottom: 5px;
+	gap: 2px;
+}
+.hudp .key.ln .lv i {
+	width: 4px;
+	height: 2px;
+}
+
+/* ---- stepper keys ---- */
+.hudp .sk {
+	display: grid;
+	place-items: center;
+	border-radius: 50%;
+}
+.hudp .sk .ic {
+	width: 47%;
+	height: 47%;
+}
+
+/* ---- SKIP: a small glass capsule ---- */
+.hudp .pill {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	width: 100%;
+	height: 100%;
+	padding: 0 12px 0 10px;
+	border-radius: 999px;
+	font-size: 11px;
+	letter-spacing: 0.18em;
+	line-height: 1;
+	white-space: nowrap;
+}
+.hudp .pill .ic {
+	width: 14px;
+	height: 14px;
+}
+.hudp .pill span {
+	margin-right: -0.18em;
+}
+.hudp.v-portrait .pill,
+.hudp.v-landscape .pill {
+	font-size: 10px;
+	gap: 6px;
+}
+
+/* ---- the feature button: hero-class ember pill (big screens) or ember circle (phones) ---- */
+.hudp .fbtn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 9px;
+	height: var(--k);
+	padding: 0 12px;
+	margin: 0;
+	border-radius: 999px;
+	border: 1px solid;
+	border-color: rgba(var(--hud-feature-rim-rgb), 0.62) rgba(var(--hud-feature-rgb), 0.42) rgba(var(--hud-accent-rgb), 0.55);
+	color: rgb(var(--hud-ink-rgb));
+	font: inherit;
+	cursor: pointer;
+	background: radial-gradient(ellipse 60% 130% at 18% 50%, rgba(var(--hud-feature-hi-rgb), 0.6), rgba(var(--hud-feature-rgb), 0) 72%), linear-gradient(180deg, rgba(var(--hud-feature-deep-1-rgb), 0.76), rgba(var(--hud-feature-deep-2-rgb), 0.82));
+	box-shadow: inset 0 0 16px rgba(var(--hud-feature-rgb), 0.5), inset 0 2px 5px rgba(var(--hud-shadow-rgb), 0.5), inset 0 1px 0 rgba(var(--hud-feature-rim-rgb), 0.3), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+	transition: border-color 0.16s, transform 0.12s, box-shadow 0.2s, opacity 0.2s;
+	-webkit-tap-highlight-color: transparent;
+}
+.hudp .fbtn .ic {
+	width: 19px;
+	height: 19px;
+	color: var(--hud-feature-ink);
+	flex: none;
+}
+.hudp .fbtn .lb {
+	display: block;
+	font-size: 11.5px;
+	letter-spacing: 0.2em;
+	margin-right: -0.2em;
+	text-shadow: 0 1px 2px rgba(var(--hud-shadow-rgb), 0.7);
+	white-space: nowrap;
+	line-height: 1;
+}
+.hudp .fbtn .lb.two {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 3px;
+	font-size: 10.5px;
+}
+.hudp .fbtn .lb.two b {
+	font-weight: inherit;
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp .fbtn:hover:not(:disabled):not(.ante) {
+		border-color: rgba(var(--hud-feature-rim-rgb), 0.9) rgba(var(--hud-feature-hi-rgb), 0.6) rgba(var(--hud-accent-hi-rgb), 0.8);
+		box-shadow: inset 0 0 20px rgba(var(--hud-feature-hi-rgb), 0.6), inset 0 1px 0 rgba(var(--hud-feature-rim-rgb), 0.4), 0 0 18px rgba(var(--hud-feature-rgb), 0.35), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+	}
+}
+.hudp .fbtn:active:not(:disabled) {
+	transform: scale(0.95);
+}
+.hudp .fbtn:disabled {
+	opacity: 0.4;
+	cursor: default;
+	border-color: rgba(var(--hud-ink-rgb), 0.22) rgba(var(--hud-ink-rgb), 0.1) rgba(var(--hud-ink-rgb), 0.16);
+	background: linear-gradient(180deg, rgba(var(--hud-key-rgb), 0.66), rgba(var(--hud-key-rgb), 0.76));
+	box-shadow: inset 0 2px 5px rgba(var(--hud-shadow-rgb), 0.5);
+}
+/* a mode ON (Ante, an armed buy): a gold rim and a soft gold glow in place of the ember; Super Ante a step hotter */
+.hudp .fbtn.ante {
+	border-color: var(--hud-feature-on-rim) rgba(var(--hud-accent-rgb), 0.75) rgb(var(--hud-accent-rgb));
+	background: radial-gradient(ellipse 70% 140% at 18% 50%, rgba(var(--hud-accent-hi-rgb), 0.46), rgba(var(--hud-accent-rgb), 0) 74%), linear-gradient(180deg, rgba(var(--hud-feature-on-deep-1-rgb), 0.82), rgba(var(--hud-feature-on-deep-2-rgb), 0.88));
+	box-shadow: inset 0 0 14px rgba(var(--hud-accent-rgb), 0.32), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.42), 0 0 14px rgba(var(--hud-accent-rgb), 0.38), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+}
+.hudp .fbtn.ante .ic {
+	color: rgb(var(--hud-accent-ink-rgb));
+}
+.hudp .fbtn.ante .lb {
+	color: rgb(var(--hud-accent-cream-rgb));
+}
+.hudp .fbtn.sante {
+	border-color: rgb(var(--hud-accent-cream-rgb)) rgb(var(--hud-accent-hi-rgb)) rgb(var(--hud-accent-rgb));
+	background: radial-gradient(ellipse 100% 150% at 30% 50%, rgba(var(--hud-accent-hi-rgb), 0.6), rgba(var(--hud-accent-rgb), 0.08) 80%), linear-gradient(180deg, rgba(var(--hud-feature-on-deep-1-rgb), 0.9), rgba(var(--hud-feature-on-deep-2-rgb), 0.9));
+	box-shadow: inset 0 0 18px rgba(var(--hud-accent-hi-rgb), 0.45), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.55), 0 0 0 2px rgba(var(--hud-feature-on-deep-2-rgb), 0.92), 0 0 0 3px rgb(var(--hud-accent-hi-rgb)), 0 0 24px rgba(var(--hud-accent-hi-rgb), 0.55), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+}
+.hudp .fbtn.sante .ic {
+	color: rgb(var(--hud-accent-cream-rgb));
+}
+.hudp .fbtn.circ {
+	display: block;
+	padding: 0;
+	border-radius: 50%;
+	background: radial-gradient(circle at 50% 32%, rgba(var(--hud-feature-hi-rgb), 0.58), rgba(var(--hud-feature-rgb), 0.08) 70%), linear-gradient(180deg, rgba(var(--hud-feature-deep-1-rgb), 0.8), rgba(var(--hud-feature-deep-2-rgb), 0.86));
+}
+.hudp .fbtn.circ.ante {
+	background: radial-gradient(circle at 50% 32%, rgba(var(--hud-accent-hi-rgb), 0.5), rgba(var(--hud-accent-rgb), 0.06) 70%), linear-gradient(180deg, rgba(var(--hud-feature-on-deep-1-rgb), 0.84), rgba(var(--hud-feature-on-deep-2-rgb), 0.9));
+}
+.hudp .fbtn.circ.sante {
+	background: radial-gradient(circle at 50% 36%, rgba(var(--hud-accent-hi-rgb), 0.66), rgba(var(--hud-accent-rgb), 0.1) 75%), linear-gradient(180deg, rgba(var(--hud-feature-on-deep-1-rgb), 0.88), rgba(var(--hud-feature-on-deep-2-rgb), 0.92));
+}
+.hudp .fbtn.circ:disabled {
+	background: linear-gradient(180deg, rgba(var(--hud-key-rgb), 0.66), rgba(var(--hud-key-rgb), 0.76));
+}
+.hudp .fbtn.circ .ic {
+	position: absolute;
+	left: 50%;
+	top: 8px;
+	width: 18px;
+	height: 18px;
+	margin-left: -9px;
+}
+.hudp .fbtn.circ .lb {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 30px;
+	font-size: 6.5px;
+	letter-spacing: 0.08em;
+	text-indent: 0.08em;
+	margin: 0;
+	text-align: center;
+	color: var(--hud-feature-ink);
+}
+.hudp .fbtn.circ.ante .ic {
+	top: 7px;
+}
+.hudp .fbtn.circ.ante .lb {
+	top: 28px;
+	font-size: 7.5px;
+	letter-spacing: 0.14em;
+	text-indent: 0.14em;
+	color: rgb(var(--hud-accent-cream-rgb));
+}
+.hudp .fbtn.circ .lb.two {
+	top: 26px;
+	align-items: center;
+	gap: 1.5px;
+	font-size: 6.5px;
+	letter-spacing: 0.1em;
+}
+.hudp .fbtn.circ.sante .ic {
+	top: 5px;
+	width: 17px;
+	height: 17px;
+	margin-left: -8.5px;
+}
+/* landscape: a 34 px circle, icon only; with a mode on the word takes the icon's place */
+.hudp .fbtn.circ.ln .ic {
+	top: 50%;
+	width: 17px;
+	height: 17px;
+	margin: -8.5px 0 0 -8.5px;
+}
+.hudp .fbtn.circ.ln .lb {
+	display: none;
+}
+.hudp .fbtn.circ.ln.ante .ic {
+	display: none;
+}
+.hudp .fbtn.circ.ln.ante .lb {
+	display: block;
+	top: 50%;
+	margin-top: -4px;
+	font-size: 8px;
+	letter-spacing: 0.06em;
+	text-indent: 0.06em;
+}
+.hudp .fbtn.circ.ln.ante .lb.long {
+	font-size: 6px;
+	margin-top: -3px;
+	letter-spacing: 0.02em;
+	text-indent: 0.02em;
+}
+.hudp .fbtn.circ.ln.sante .lb.two {
+	display: flex;
+	margin-top: -7px;
+	font-size: 6.5px;
+	letter-spacing: 0.06em;
+	gap: 1.5px;
+}
+.hudp.v-tablet .fbtn {
+	padding: 0 9px;
+	gap: 6px;
+}
+.hudp.v-tablet .fbtn .ic {
+	width: 17px;
+	height: 17px;
+}
+.hudp.v-tablet .fbtn .lb {
+	font-size: 10px;
+	letter-spacing: 0.14em;
+	margin-right: -0.14em;
+}
+.hudp.v-tablet .fbtn .lb.two {
+	font-size: 9.5px;
+}
+.hudp.v-tablet .stat .value {
+	font-size: 18px;
+}
+.hudp.v-tablet .stat.win .value {
+	font-size: 20px;
+}
+
+/* ---- Spin: the hero circle, brighter glass, gold ring ---- */
+.hudp .spin {
+	display: grid;
+	place-items: center;
+	padding: 0;
+	margin: 0;
+	border-radius: 50%;
+	border: 1px solid;
+	border-color: var(--hud-spin-rim-top) var(--hud-spin-rim-side) var(--hud-spin-rim-bottom);
+	color: rgb(var(--hud-ink-rgb));
+	font: inherit;
+	cursor: pointer;
+	background: radial-gradient(circle at 50% 14%, rgba(var(--hud-accent-cream-rgb), 0.42), rgba(var(--hud-accent-cream-rgb), 0) 50%), radial-gradient(circle at 50% 120%, rgba(var(--hud-accent-rgb), 0.28), rgba(var(--hud-accent-rgb), 0) 55%), radial-gradient(circle at 50% 58%, rgba(var(--hud-spin-core-rgb), 0.92), rgba(var(--hud-spin-deep-rgb), 0.94) 82%);
+	box-shadow: 0 10px 22px rgba(var(--hud-shadow-rgb), 0.55), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.5), inset 0 0 18px rgba(var(--hud-accent-rgb), 0.18), inset 0 -6px 14px rgba(var(--hud-shadow-rgb), 0.35);
+	transition: transform 0.14s, box-shadow 0.2s, border-color 0.2s, opacity 0.2s;
+	-webkit-tap-highlight-color: transparent;
+}
+.hudp.v-portrait .spin {
+	box-shadow: 0 8px 16px rgba(var(--hud-shadow-rgb), 0.5), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.5), inset 0 0 18px rgba(var(--hud-accent-rgb), 0.18), inset 0 -6px 14px rgba(var(--hud-shadow-rgb), 0.35);
+}
+.hudp .spin .ring {
+	position: absolute;
+	left: 2px;
+	top: 2px;
+	width: calc(100% - 4px);
+	height: calc(100% - 4px);
+	transform: rotate(-90deg);
+	overflow: visible;
+	pointer-events: none;
+}
+.hudp .spin .trk {
+	fill: none;
+	stroke: rgba(var(--hud-ink-rgb), 0.1);
+	stroke-width: 1.2;
+}
+.hudp .spin .arc {
+	fill: none;
+	stroke: rgb(var(--hud-accent-hi-rgb));
+	stroke-width: 2.2;
+	stroke-linecap: round;
+}
+.hudp .spin .arc.dash {
+	stroke-width: 1.4;
+	stroke-dasharray: 3 5.03;
+	stroke-linecap: butt;
+	opacity: 0.85;
+}
+.hudp .spin .ring.rot {
+	animation: hud-rot 1.1s linear infinite;
+}
+.hudp .spin .in {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+	pointer-events: none;
+}
+.hudp .spin .pl {
+	width: calc(var(--d) * 0.36);
+	height: calc(var(--d) * 0.36);
+	margin-left: calc(var(--d) * 0.04);
+	color: rgb(var(--hud-ink-rgb));
+	transition: transform 0.18s;
+}
+.hudp .spin .pl.sm {
+	width: calc(var(--d) * 0.17);
+	height: calc(var(--d) * 0.17);
+	margin-left: calc(var(--d) * 0.02);
+	margin-bottom: calc(var(--d) * 0.03);
+}
+.hudp .spin .sq {
+	width: calc(var(--d) * 0.25);
+	height: calc(var(--d) * 0.25);
+	border-radius: calc(var(--d) * 0.03);
+	background: rgb(var(--hud-ink-rgb));
+}
+.hudp .spin .sqs {
+	width: calc(var(--d) * 0.1);
+	height: calc(var(--d) * 0.1);
+	border-radius: 1.5px;
+	background: rgba(var(--hud-ink-rgb), 0.9);
+	margin-bottom: calc(var(--d) * 0.04);
+}
+.hudp .spin .cnt {
+	font-size: calc(var(--d) * 0.31);
+	text-shadow: 0 1px 3px rgba(var(--hud-shadow-rgb), 0.6);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.hudp .spin .cnt.long {
+	font-size: calc(var(--d) * 0.24);
+}
+.hudp .spin .cnt .inf {
+	display: block;
+	width: calc(var(--d) * 0.36);
+	height: calc(var(--d) * 0.17);
+}
+.hudp .spin .sub {
+	font-size: max(8px, calc(var(--d) * 0.1));
+	letter-spacing: 0.2em;
+	margin-right: -0.2em;
+	margin-top: calc(var(--d) * 0.05);
+	color: rgb(var(--hud-accent-hi-rgb));
+	white-space: nowrap;
+}
+.hudp .spin .word {
+	font-size: max(9px, calc(var(--d) * 0.12));
+	letter-spacing: 0.14em;
+	margin-right: -0.14em;
+	color: rgb(var(--hud-accent-hi-rgb));
+	white-space: nowrap;
+}
+.hudp .spin .price {
+	margin-top: calc(var(--d) * 0.04);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.hudp .spin.m-feature .cnt {
+	font-size: calc(var(--d) * 0.4);
+}
+.hudp .spin.m-armed,
+.hudp .spin.m-loaded {
+	border-color: var(--hud-feature-on-rim) rgb(var(--hud-accent-rgb)) rgb(var(--hud-accent-hi-rgb));
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp .spin:hover:not(:disabled) {
+		border-color: rgb(var(--hud-accent-cream-rgb)) var(--hud-spin-rim-side) rgb(var(--hud-accent-hi-rgb));
+		box-shadow: 0 10px 22px rgba(var(--hud-shadow-rgb), 0.55), 0 0 0 5px rgba(var(--hud-accent-rgb), 0.14), 0 0 28px rgba(var(--hud-accent-rgb), 0.42), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.6), inset 0 0 22px rgba(var(--hud-accent-rgb), 0.28);
+	}
+	.hudp .spin:hover:not(:disabled) .pl {
+		transform: scale(1.07);
+	}
+}
+.hudp .spin:active:not(:disabled) {
+	transform: scale(0.95);
+	box-shadow: 0 4px 10px rgba(var(--hud-shadow-rgb), 0.6), inset 0 4px 12px rgba(var(--hud-shadow-rgb), 0.7), inset 0 0 18px rgba(var(--hud-accent-rgb), 0.22);
+}
+.hudp .spin:disabled {
+	cursor: default;
+	opacity: 1;
+	border-color: rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-ink-rgb), 0.22);
+	background: radial-gradient(circle at 50% 60%, rgba(var(--hud-spin-core-rgb), 0.7), rgba(var(--hud-spin-deep-rgb), 0.9) 80%);
+	box-shadow: 0 8px 18px rgba(var(--hud-shadow-rgb), 0.45);
+}
+.hudp .spin:disabled .pl,
+.hudp .spin:disabled .sq {
+	opacity: 0.3;
+}
+.hudp .spin.m-feature:disabled,
+.hudp .spin.m-auto:disabled {
+	border-color: var(--hud-spin-rim-top) var(--hud-spin-rim-side) var(--hud-spin-rim-bottom);
+}
+.hudp .spinring {
+	position: absolute;
+	border-radius: 50%;
+	pointer-events: none;
+}
+
+/* ---- the win streak along a top edge (a transform + opacity sweep, never a stroke animation) ---- */
+.hudp .sweep {
+	position: absolute;
+	height: 6px;
+	overflow: hidden;
+	pointer-events: none;
+}
+.hudp .sweep i {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 120px;
+	height: 6px;
+	opacity: 0;
+	background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--hud-accent-cream-rgb), 0.95), rgba(var(--hud-accent-hi-rgb), 0.4) 40%, rgba(var(--hud-accent-hi-rgb), 0) 70%);
+}
+.hudp .sweep.go i {
+	animation: hud-sweep 1.5s cubic-bezier(0.45, 0.05, 0.4, 1) 0.1s 1 both;
+}
+
+/* ---- the help menu panel: glass with a small tail pointing at the Menu key ---- */
+.hudp .mp {
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(8px);
+	transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.2, 0.85, 0.25, 1), visibility 0s linear 0.3s;
+}
+.hudp .mp.up {
+	transform: translateY(-8px);
+}
+.hudp .mp.is-open {
+	opacity: 1;
+	visibility: visible;
+	transform: none;
+	transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+.hudp .mpsh {
+	position: absolute;
+	left: 0;
+	width: 100%;
+	border-radius: var(--hud-radius-panel);
+	box-shadow: 0 18px 38px rgba(var(--hud-shadow-rgb), 0.55), 0 4px 10px rgba(var(--hud-shadow-rgb), 0.35);
+}
+.hudp .mpg {
+	position: absolute;
+	left: 0;
+	top: 0;
+	overflow: visible;
+}
+.hudp .mpc {
+	position: absolute;
+	left: 0;
+	width: 100%;
+	padding: 12px 14px;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+}
+.hudp .mp .info-row {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 11px;
+	width: 100%;
+	height: 44px;
+	flex: none;
+	padding: 0 14px;
+	border-radius: 999px;
+	font-size: 11px;
+	letter-spacing: 0.2em;
+	line-height: 1;
+}
+.hudp .mp .info-row .ic {
+	width: 17px;
+	height: 17px;
+	color: rgb(var(--hud-accent-hi-rgb));
+}
+.hudp .mp .info-row .it {
+	flex: 1;
+	text-align: left;
+	white-space: nowrap;
+}
+.hudp .mp .info-row .chv {
+	width: 14px;
+	height: 14px;
+	color: rgb(var(--hud-accent-hi-rgb));
+	opacity: 0.8;
+}
+.hudp .vrow {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: 44px;
+	flex: none;
+}
+.hudp .mk {
+	position: relative;
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+}
+.hudp .mk .ic {
+	width: 18px;
+	height: 18px;
+}
+.hudp .mk.is-muted {
+	color: rgb(var(--hud-feature-rim-rgb));
+	border-color: rgba(var(--hud-feature-rim-rgb), 0.45) rgba(var(--hud-feature-rgb), 0.3) rgba(var(--hud-feature-rgb), 0.5);
+}
+.hudp .vs {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 1px;
+	height: 44px;
+	cursor: pointer;
+}
+.hudp .vt {
+	font-size: 9px;
+	letter-spacing: 0.24em;
+	line-height: 1;
+	color: var(--lab);
+	padding-left: 1px;
+}
+.hudp .vn {
+	flex: none;
+	width: 26px;
+	text-align: right;
+	font-size: 13px;
+	line-height: 1;
+	font-variant-numeric: tabular-nums;
+	text-shadow: 0 1px 2px rgba(var(--hud-shadow-rgb), 0.8);
+}
+.hudp .vrow .mk.is-muted ~ .vn,
+.hudp .vrow .mk.is-muted ~ .vs .vt {
+	color: rgba(var(--hud-ink-rgb), 0.42);
+}
+.hudp .vs input {
+	-webkit-appearance: none;
+	appearance: none;
+	display: block;
+	width: 100%;
+	height: 28px;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	cursor: pointer;
+	--fill: calc(8px + (100% - 16px) * var(--f) / 100);
+}
+.hudp .vs input:focus {
+	outline: none;
+}
+.hudp .vs input::-webkit-slider-runnable-track {
+	height: 3px;
+	border-radius: 2px;
+	background: linear-gradient(90deg, rgb(var(--hud-accent-deep-rgb)) 0, rgb(var(--hud-accent-hi-rgb)) var(--fill), rgba(var(--hud-ink-rgb), 0.18) var(--fill), rgba(var(--hud-ink-rgb), 0.18) 100%);
+	box-shadow: inset 0 1px 1px rgba(var(--hud-shadow-rgb), 0.5);
+}
+.hudp .vs input::-moz-range-track {
+	height: 3px;
+	border-radius: 2px;
+	background: rgba(var(--hud-ink-rgb), 0.18);
+}
+.hudp .vs input::-moz-range-progress {
+	height: 3px;
+	border-radius: 2px;
+	background: linear-gradient(90deg, rgb(var(--hud-accent-deep-rgb)), rgb(var(--hud-accent-hi-rgb)));
+}
+.hudp .vs input::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 18px;
+	height: 18px;
+	margin-top: -7.5px;
+	border-radius: 50%;
+	border: 1px solid;
+	border-color: rgba(var(--hud-ink-rgb), 0.8) rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.8);
+	background: radial-gradient(circle at 50% 22%, rgba(var(--hud-ink-rgb), 0.6), rgba(var(--hud-ink-rgb), 0.08) 68%), rgba(var(--hud-glass-top-rgb), 0.92);
+	box-shadow: 0 2px 5px rgba(var(--hud-shadow-rgb), 0.65), 0 0 8px rgba(var(--hud-accent-rgb), 0.28), inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.4);
+}
+.hudp .vs input::-moz-range-thumb {
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	border: 1px solid;
+	border-color: rgba(var(--hud-ink-rgb), 0.8) rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.8);
+	background: radial-gradient(circle at 50% 22%, rgba(var(--hud-ink-rgb), 0.6), rgba(var(--hud-ink-rgb), 0.08) 68%), rgba(var(--hud-glass-top-rgb), 0.92);
+	box-shadow: 0 2px 5px rgba(var(--hud-shadow-rgb), 0.65), 0 0 8px rgba(var(--hud-accent-rgb), 0.28);
+}
+.hudp .vs input:focus-visible::-webkit-slider-thumb {
+	border-color: rgb(var(--hud-ink-rgb)) rgba(var(--hud-ink-rgb), 0.5) rgb(var(--hud-accent-hi-rgb));
+	box-shadow: 0 2px 5px rgba(var(--hud-shadow-rgb), 0.6), 0 0 0 4px rgba(var(--hud-accent-rgb), 0.18), 0 0 12px rgba(var(--hud-accent-rgb), 0.5);
+}
+/* operator readouts (RTP, NET, TIME): a hairline-topped strip */
+.hudp .mp .session {
+	display: flex;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 2px 10px;
+	padding: 6px 4px 0;
+	border-top: 1px solid rgba(var(--hud-ink-rgb), 0.08);
+	font-size: 9px;
+	letter-spacing: 0.14em;
+	line-height: 1.2;
+}
+.hudp .mp .session .sk2 {
+	color: var(--lab);
+	margin-right: 5px;
+}
+.hudp .mp .session .neg {
+	color: rgb(var(--hud-feature-rim-rgb));
+}
+.hudp .mp .session .pos {
+	color: rgb(var(--hud-accent-hi-rgb));
+}
+/* the narrow tablet panel */
+.hudp .mp.nar .mpc {
+	padding: 10px 11px;
+}
+.hudp .mp.nar .info-row {
+	height: 36px;
+	gap: 8px;
+	padding: 0 11px;
+	font-size: 10px;
+	letter-spacing: 0.15em;
+}
+.hudp .mp.nar .info-row .ic {
+	width: 15px;
+	height: 15px;
+}
+.hudp .mp.nar .vrow,
+.hudp .mp.nar .vs {
+	gap: 8px;
+	height: 40px;
+}
+.hudp .mp.nar .vs {
+	gap: 1px;
+}
+.hudp .mp.nar .mk {
+	width: 36px;
+	height: 36px;
+}
+.hudp .mp.nar .mk .ic {
+	width: 16px;
+	height: 16px;
+}
+.hudp .mp.nar .vt {
+	font-size: 8px;
+	letter-spacing: 0.2em;
+}
+.hudp .mp.nar .vn {
+	width: 20px;
+	font-size: 11px;
+}
+.hudp .mp.nar .vs input {
+	height: 24px;
+}
+/* the small landscape panel */
+.hudp .mp.pls .mpc {
+	padding: 5px 7px 6px;
+}
+.hudp .mp.pls .info-row {
+	height: 28px;
+	padding: 0 9px;
+	gap: 6px;
+	font-size: 9px;
+	letter-spacing: 0.12em;
+}
+.hudp .mp.pls .info-row .ic {
+	width: 14px;
+	height: 14px;
+}
+.hudp .mp.pls .info-row .chv {
+	width: 11px;
+	height: 11px;
+}
+.hudp .mp.pls .hl.hz {
+	display: none;
+}
+.hudp .mp.pls .vrow,
+.hudp .mp.pls .vs {
+	height: 36px;
+}
+.hudp .mp.pls .vrow {
+	gap: 5px;
+}
+.hudp .mp.pls .vs {
+	gap: 0;
+}
+.hudp .mp.pls .mk {
+	width: 30px;
+	height: 30px;
+}
+.hudp .mp.pls .mk .ic {
+	width: 15px;
+	height: 15px;
+}
+.hudp .mp.pls .vt {
+	font-size: 7px;
+	letter-spacing: 0.14em;
+}
+.hudp .mp.pls .vs input {
+	height: 24px;
+}
+.hudp .mp.pls .vs input::-webkit-slider-thumb {
+	width: 16px;
+	height: 16px;
+	margin-top: -6.5px;
+}
+.hudp .mp.pls .vn {
+	width: 17px;
+	font-size: 10.5px;
+}
+.hudp .mp.pls .session {
+	font-size: 7px;
+	padding-top: 3px;
+}
+
+@keyframes hud-rot {
+	to {
+		transform: rotate(270deg);
+	}
+}
+@keyframes hud-turn {
+	to {
+		transform: rotate(360deg);
+	}
+}
+@keyframes hud-sweep {
+	0% {
+		transform: translateX(-120px);
+		opacity: 0;
+	}
+	15% {
+		opacity: 1;
+	}
+	85% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateX(var(--sweep-w, 600px));
+		opacity: 0;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.hudp *,
+	.hudp {
+		animation: none !important;
+	}
+}

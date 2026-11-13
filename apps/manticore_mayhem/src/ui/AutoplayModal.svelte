@@ -19,7 +19,7 @@
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import { modeChipData } from '../game/modeChipData';
-	import { fitFont } from '../game/textFit';
+	import { fitFont, UI_TEXT_FACE } from '../game/textFit';
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import BetAdjuster from './BetAdjuster.svelte';
@@ -29,6 +29,8 @@
 	const { controls, master, scale, left, top, compact = false }: Props = $props();
 	// compact covers phone-sideways (1480×740) and portrait (412×760); only portrait is narrow
 	const portrait = $derived(master.width < master.height);
+	// HUD round 5 ("Drop 6"): the phone held sideways splits the menu into two columns (the mockup's wide, low panel)
+	const wide = $derived(compact && !portrait);
 	// ModalShell's frame is the VIEWPORT now (Stake review FIX 5), so the sheet sizes itself against
 	// real CSS px: `tiny` is Stake's Popout S band (400×225), where the sheet scrolls and the
 	// secondary lines step aside so the numbers stay legible.
@@ -63,34 +65,33 @@
 	});
 	const advSummary = $derived.by(() => {
 		const parts: string[] = [];
-		parts.push(lossMult !== null ? `Loss limit ${lossMult}×` : 'Loss limit off');
-		parts.push(winMult !== null ? `Win limit ${winMult}×` : 'Win limit off');
+		parts.push(lossMult !== null ? `Loss limit ${lossMult}x` : 'Loss limit off');
+		parts.push(winMult !== null ? `Win limit ${winMult}x` : 'Win limit off');
 		if (stopFreeOn) parts.push('Stops on free games');
 		else if (autoBonuses) parts.push('Bonuses autoplay');
 		else parts.push('Bonuses wait for a press');
-		return parts.join(' · ');
+		return parts.join(', ');
 	});
 
 	const perSpin = $derived(controls.playCost());
 	const pill = $derived(modeChipData() ?? { label: 'BASE GAME', cost: numberToCurrencyString(perSpin), unit: soc('/ SPIN', '/ PLAY') });
-	const countText = (c: number) => (c === Infinity ? '∞' : `${c}`);
+	const countText = (c: number) => (c === Infinity ? 'until stopped' : `${c}`);
 	// Every amount on this sheet is the FULL currency string — Stake's review (2026-09-20) bars
 	// K/M abbreviation on any bet-level readout. The long ones are fitted, not abbreviated:
 	// the grand total shrinks to a floor (it is the number the player is deciding on, so it never
 	// disappears), and the per-count sub-line under a chip drops when it cannot be fitted — that
 	// same number is one tap away on the chip's own total row.
-	const totalText = $derived(count === Infinity ? '∞' : numberToCurrencyString(count * perSpin));
+	const totalText = $derived(count === Infinity ? 'UNTIL STOPPED' : numberToCurrencyString(count * perSpin));
 	const perSpinText = $derived(numberToCurrencyString(perSpin));
 	// chip cell width, mirroring the CSS: panel width − padding − 3 gaps, over 4 columns, less the
 	// chip's own side padding
-	const panelW = $derived(Math.min(portrait ? 380 : 420, vw * 0.94));
-	const chipW = $derived((panelW - 2 * (portrait ? 16 : 18) - 3 * 8) / 4 - 8);
-	// 9.5 px is the hide threshold: a per-count total either reads or it steps aside — it is
-	// never shrunk into illegibility and never ellipsised.
-	const subFont = (text: string) => fitFont({ text, nominal: 10, box: chipW, minScale: 0.95, weight: 600, letterSpacing: 0 });
+	const panelW = $derived(wide ? Math.min(560, vw * 0.94) : Math.min(portrait ? 412 : 480, vw * (portrait ? 1 : 0.94)));
+	// (HUD round 5: the chips in the panel's glass, the two-column phone panel's half width)
+	const chipW = $derived(wide ? ((panelW - 32 - 18) / 2 - 3 * 6) / 4 - 6 : (panelW - 2 * (portrait ? 14 : 20) - 3 * 8) / 4 - 6);
+	const subFont = (text: string) => fitFont({ text, nominal: wide ? 8 : 9, box: chipW, minScale: 0.9, weight: 900, letterSpacing: 0, face: UI_TEXT_FACE });
 	// the total row: label + value share the row, so the value gets a little over half of it
-	const totalBox = $derived(panelW - 2 * (portrait ? 16 : 18) - 24 - 12);
-	const totalFont = $derived(fitFont({ text: totalText, nominal: 20, box: totalBox * 0.58, floor: 12 }) ?? 12);
+	const totalBox = $derived(wide ? (panelW - 50) / 2 - 4 : panelW - 2 * (portrait ? 14 : 20) - 4);
+	const totalFont = $derived(fitFont({ text: totalText, nominal: wide ? 17 : portrait ? 18 : 20, box: totalBox * 0.58, floor: 12, weight: 900, face: UI_TEXT_FACE }) ?? 12);
 	// HEAD: the mode pill carries a price, so it is never clipped — and the AUTOPLAY title is never
 	// truncated either (review 2026-09-20). When the two cannot share the row the pill drops to its
 	// own line under the title. A canvas estimate of the three boxes ran ~23 px pessimistic and
@@ -127,21 +128,22 @@
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.55)" zIndex={3}>
 	<div class="center" style:gap="{compact ? 10 : 14}px">
-		<div class="panel am-glass" class:compact class:portrait class:tiny onclick={(e) => e.stopPropagation()} role="presentation">
+		<div class="panel am-glass" class:compact class:portrait class:wide class:tiny onclick={(e) => e.stopPropagation()} role="presentation">
 			<div class="head" class:stacked={!headFits} bind:this={headEl}>
 				<div class="title am-stencil" bind:this={titleEl}>AUTOPLAY</div>
-				<div class="pill" bind:this={pillEl}><span class="mode">{shortMode(pill.label)}</span><span class="dot">·</span><span class="slot-num cost">{pill.cost}</span><span class="per">{pill.unit}</span></div>
-				<button class="slot-btn x" bind:this={xEl} onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
+				<div class="pill" bind:this={pillEl}><span class="mode">{shortMode(pill.label)}</span><i class="dot"></i><span class="slot-num cost">{pill.cost}</span><span class="per">{pill.unit}</span></div>
+				<button class="slot-btn hg x" bind:this={xEl} onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
 			</div>
 
+			<div class="cols"><div class="c1">
 			<div class="sec">
 				<div class="sec-label"><h3>Number of spins</h3><span class="hint">selecting only previews, nothing starts</span></div>
 				<div class="chips four">
 					{#each COUNTS as c (c)}
 						{@const sub = c === Infinity ? 'until stopped' : numberToCurrencyString(c * perSpin)}
 						{@const sf = subFont(sub)}
-						<button class="slot-btn chip" class:on={count === c} onclick={() => (controls.sound('soundPressSub'), (count = c))}>
-							<span class="slot-num big">{countText(c)}</span>
+						<button class="slot-btn hg chip" class:on={count === c} onclick={() => (controls.sound('soundPressSub'), (count = c))}>
+							<span class="slot-num big">{#if c === Infinity}<svg class="inf" viewBox="0 0 34 16" aria-label="until stopped"><path d="M17 8C14.2 4.4 11.9 2.6 9 2.6a5.4 5.4 0 0 0 0 10.8c2.9 0 5.2-1.8 8-5.4s5.1-5.4 8-5.4a5.4 5.4 0 0 1 0 10.8c-2.9 0-5.2-1.8-8-5.4z" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" /></svg>{:else}{countText(c)}{/if}</span>
 							{#if sf !== null}<span class="slot-num sub" style:font-size="{sf}px">{sub}</span>{/if}
 						</button>
 					{/each}
@@ -150,11 +152,12 @@
 
 			<div class="total">
 				<span class="k">{soc('TOTAL BET AMOUNT', 'TOTAL PLAY AMOUNT')}</span>
-				<span class="v-wrap"><span class="slot-num v" style:font-size="{totalFont}px">{totalText}</span><span class="slot-num math">{count === Infinity ? 'until stopped' : `${count} × ${perSpinText}`}</span></span>
+				<span class="v-wrap"><span class="slot-num v" style:font-size="{totalFont}px">{totalText}</span><span class="slot-num math">{count === Infinity ? 'until stopped' : `${count} x ${perSpinText}`}</span></span>
 			</div>
+			</div><div class="c2">
 
 			<div class="fold" class:open={advanced}>
-				<button class="slot-btn fold-row" onclick={() => { controls.sound('soundPressSub'); advanced = !advanced; }} aria-expanded={advanced}>
+				<button class="slot-btn hg fold-row" onclick={() => { controls.sound('soundPressSub'); advanced = !advanced; }} aria-expanded={advanced}>
 					<span class="fold-k">Stop options</span>
 					<span class="fold-sum">{advSummary}</span>
 					<span class="chev" class:down={advanced}><Icon name="chevronRight" s={16} /></span>
@@ -166,8 +169,8 @@
 							<div class="sec-label"><h3>Stop on loss</h3><span class="hint">run stops if net loss reaches this</span></div>
 							<div class="chips six">
 								{#each LIMITS as m (m)}
-									<button class="slot-btn lim" class:on={lossMult === m} class:off={m === null} onclick={() => (controls.sound('soundPressSub'), (lossMult = m))}>
-										<span class="slot-num">{m === null ? 'OFF' : `${m}×`}</span>
+									<button class="slot-btn hg lim" class:on={lossMult === m} class:off={m === null} onclick={() => (controls.sound('soundPressSub'), (lossMult = m))}>
+										<span class="slot-num">{m === null ? 'OFF' : `${m}x`}</span>
 									</button>
 								{/each}
 							</div>
@@ -177,21 +180,21 @@
 							<div class="sec-label"><h3>Stop on single win</h3><span class="hint">run stops if one spin wins this much</span></div>
 							<div class="chips six">
 								{#each LIMITS as m (m)}
-									<button class="slot-btn lim" class:on={winMult === m} class:off={m === null} onclick={() => (controls.sound('soundPressSub'), (winMult = m))}>
-										<span class="slot-num">{m === null ? 'OFF' : `${m}×`}</span>
+									<button class="slot-btn hg lim" class:on={winMult === m} class:off={m === null} onclick={() => (controls.sound('soundPressSub'), (winMult = m))}>
+										<span class="slot-num">{m === null ? 'OFF' : `${m}x`}</span>
 									</button>
 								{/each}
 							</div>
 						</div>
 
-						<button class="slot-btn toggle" class:on={stopFreeOn} disabled={armed} onclick={() => { controls.sound('soundPressSub'); stopFree = !stopFree; if (stopFree) autoBonuses = false; }} role="switch" aria-checked={stopFreeOn}>
+						<button class="slot-btn hg toggle" class:on={stopFreeOn} disabled={armed} onclick={() => { controls.sound('soundPressSub'); stopFree = !stopFree; if (stopFree) autoBonuses = false; }} role="switch" aria-checked={stopFreeOn}>
 							<span class="t-text">
 								<span class="t-main">Stop on Free Games</span>
 								<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable: every spin already plays the loaded feature' : 'Autoplay ends when a feature triggers (it still plays out)'}</span>
 							</span>
 							<span class="knob"></span>
 						</button>
-						<button class="slot-btn toggle" class:on={autoBonuses && !stopFreeOn} disabled={stopFreeOn} onclick={() => (controls.sound('soundPressSub'), (autoBonuses = !autoBonuses))} role="switch" aria-checked={autoBonuses && !stopFreeOn}>
+						<button class="slot-btn hg toggle" class:on={autoBonuses && !stopFreeOn} disabled={stopFreeOn} onclick={() => (controls.sound('soundPressSub'), (autoBonuses = !autoBonuses))} role="switch" aria-checked={autoBonuses && !stopFreeOn}>
 							<span class="t-text">
 								<span class="t-main">Autoplay Bonuses</span>
 								<span class="t-sub" class:warn={stopFreeOn}>{stopFreeOn ? 'Unavailable: turn off Stop on Free Games first' : 'Feature screens continue on their own while autoplay runs'}</span>
@@ -202,14 +205,15 @@
 				{/if}
 			</div>
 
-			<button class="slot-btn go" onclick={load}>
-				LOAD <span class="slot-num n">{countText(count)}</span> AUTO SPINS{#if count !== Infinity}&nbsp;·&nbsp;<span class="slot-num n">{totalText}</span>{/if}
+			<button class="slot-btn hg go" onclick={load}>
+				{#if count === Infinity}LOAD AUTO SPINS{:else}LOAD <span class="slot-num n">{countText(count)}</span> AUTO SPINS<i class="dot"></i><span class="slot-num n mv">{totalText}</span>{/if}
 			</button>
 			<div class="cap">Loads to the Spin button. Pressing Spin starts the run; pressing again stops it.</div>
 			{#if hasLoadout}
 				<!-- a run already parked on the Spin button: LOAD above replaces it, this clears it -->
-				<button class="slot-btn unload" onclick={() => { controls.sound('soundPressSub'); controls.clearAutoplay(); close(); }}>UNLOAD CURRENT AUTO SPINS</button>
+				<button class="slot-btn hg unload" onclick={() => { controls.sound('soundPressSub'); controls.clearAutoplay(); close(); }}>UNLOAD CURRENT AUTO SPINS</button>
 			{/if}
+			</div></div>
 		</div>
 		<div class="stepper" onclick={(e) => e.stopPropagation()} role="presentation">
 			<BetAdjuster {controls} {compact} pressSound="soundPressSub" />
@@ -218,6 +222,11 @@
 </ModalShell>
 
 <style>
+	/* THE AUTOPLAY MENU in the HUD's glass (HUD round 5, "Drop 6", 2026-11-12): the panel frame is ChromeStyles .am-glass
+	   (the HUD's obsidian glass); every part inside wears the HUD's own pieces: glass chips with the 1 px white-top /
+	   gold-bottom edge, a gold rim on the chosen one, the Spin's gold-edged glass for LOAD, glass toggles. Every colour is
+	   a ui/hudTheme.ts token. Content and behaviour as before. Desktop and tablet: a panel over the board; portrait: a sheet
+	   from the bottom (the bet stepper over it); phone sideways: a wide, low panel in two columns. */
 	.center {
 		position: absolute;
 		inset: 0;
@@ -228,16 +237,13 @@
 		padding: 6px;
 		box-sizing: border-box;
 		pointer-events: none;
+		font-family: var(--hud-font);
 	}
 	.stepper {
 		pointer-events: auto;
 	}
-
-	/* ── the glass sheet (surface from .am-glass) ── */
-	/* viewport-sized (FIX 5): the sheet fills what the window gives it and scrolls inside itself
-	   rather than shrinking with a master transform */
 	.panel {
-		width: 420px;
+		width: 480px;
 		max-width: 94vw;
 		max-height: 86vh;
 		box-sizing: border-box;
@@ -246,16 +252,34 @@
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		padding: 16px 18px 18px;
+		padding: 16px 20px 16px;
 		overflow-y: auto;
 		overflow-x: hidden;
 		scrollbar-width: none;
+		--lab: rgba(var(--hud-label-rgb), 0.74);
 	}
 	.panel::-webkit-scrollbar {
 		display: none;
 	}
-	.panel > * {
+	.panel::before {
+		content: '';
+		position: absolute;
+		left: 24px;
+		right: 24px;
+		top: 2px;
+		height: 1px;
+		background: linear-gradient(90deg, rgba(var(--hud-ink-rgb), 0), rgba(var(--hud-ink-rgb), 0.34), rgba(var(--hud-ink-rgb), 0));
+		pointer-events: none;
+	}
+	.panel > *,
+	.c1 > *,
+	.c2 > * {
 		min-width: 0;
+	}
+	.cols,
+	.c1,
+	.c2 {
+		display: contents;
 	}
 	.head {
 		display: flex;
@@ -266,15 +290,14 @@
 	.head > * {
 		min-width: 0;
 	}
-	/* Neither the title nor the price pill may be truncated (Stake review 2026-09-20): when they
-	   cannot share the row the head restacks, title + close on top and the pill on its own line. */
 	.title {
 		flex: 0 0 auto;
-		font-size: 18px;
-		/* the display face (ChromeStyles --ui-font-display, review D10): Cinzel 700 with the wide tracking */
-		font-weight: var(--ui-display-weight);
-		letter-spacing: var(--ui-display-track-wide);
-		color: var(--ui-ink);
+		font-family: var(--hud-font-title);
+		font-size: 21px;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		color: rgb(var(--hud-accent-hi-rgb));
+		text-shadow: 0 1px 2px rgba(var(--hud-shadow-rgb), 0.7);
 		white-space: nowrap;
 	}
 	.head.stacked {
@@ -296,45 +319,76 @@
 	}
 	.pill {
 		display: inline-flex;
-		align-items: baseline;
-		gap: 5px;
+		align-items: center;
+		gap: 6px;
+		height: 24px;
 		border-radius: 999px;
-		padding: 7px 10px;
-		border: 1px solid var(--ui-rule-2);
-		color: var(--ui-ink-2);
+		padding: 0 11px;
+		border: 1px solid;
+		border-color: rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-ink-rgb), 0.1) rgba(var(--hud-accent-rgb), 0.4);
+		background: rgba(var(--hud-ink-rgb), 0.05);
+		color: rgba(var(--hud-label-warm-rgb), 0.9);
 		flex: 0 0 auto;
-		font-size: 10.5px;
-		font-weight: 700;
-		letter-spacing: 1.6px;
+		font-size: 9.5px;
+		font-weight: 900;
+		letter-spacing: 0.14em;
 		white-space: nowrap;
 	}
-	.pill .dot {
-		opacity: 0.5;
+	.dot {
+		flex: none;
+		display: inline-block;
+		width: 4px;
+		height: 4px;
+		border-radius: 50%;
+		background: rgb(var(--hud-accent-hi-rgb));
 	}
 	.pill .cost {
-		color: var(--ui-gold);
-		font-weight: 600;
-		letter-spacing: 0;
-		font-size: 11.5px;
+		font-family: var(--hud-font);
+		color: rgb(var(--hud-accent-hi-rgb));
+		letter-spacing: 0.04em;
+	}
+	.pill .per {
+		letter-spacing: 0.1em;
+	}
+	/* glass pieces: the HUD key's fill and per-side edge */
+	.x,
+	.chip,
+	.lim,
+	.fold-row {
+		border: 1px solid;
+		border-color: rgba(var(--hud-ink-rgb), 0.38) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-accent-rgb), 0.44);
+		background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.17), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.38);
+		color: rgba(var(--hud-ink-rgb), 0.94);
+		box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+		transition: border-color 0.16s, box-shadow 0.16s, transform 0.12s;
+	}
+	@media (hover: hover) and (pointer: fine) {
+		.x:hover,
+		.chip:hover:not(.on),
+		.lim:hover:not(.on),
+		.fold-row:hover {
+			border-color: rgba(var(--hud-ink-rgb), 0.64) rgba(var(--hud-ink-rgb), 0.24) rgba(var(--hud-accent-hi-rgb), 0.78);
+			box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.18), 0 0 14px rgba(var(--hud-accent-rgb), 0.18), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+		}
+	}
+	.x:active,
+	.chip:active,
+	.lim:active {
+		transform: scale(0.96);
 	}
 	.x {
 		flex: 0 0 auto;
-		width: 34px;
-		height: 34px;
-		border-radius: 9px;
-		background: var(--ui-glass-well);
-		color: var(--ui-ink);
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
-	.x:hover {
-		background: var(--ui-glass-well-2);
-	}
 	.sec {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: 8px;
 	}
 	.sec-label {
 		display: flex;
@@ -344,17 +398,18 @@
 	}
 	.sec-label h3 {
 		margin: 0;
-		font-size: 10.5px;
-		font-weight: 800;
-		letter-spacing: 2.2px;
-		color: var(--ui-ink-2);
+		font-size: 9px;
+		font-weight: 900;
+		letter-spacing: 0.24em;
+		color: var(--lab);
 		text-transform: uppercase;
 		white-space: nowrap;
 	}
 	.hint {
-		font-size: 11px;
-		font-weight: 500;
-		color: var(--ui-ink-3);
+		font-size: 10px;
+		font-weight: 900;
+		letter-spacing: 0.02em;
+		color: rgba(var(--hud-label-rgb), 0.5);
 		text-align: right;
 	}
 	.chips {
@@ -368,127 +423,141 @@
 		grid-template-columns: repeat(6, 1fr);
 		gap: 6px;
 	}
-	/* count chip: value over its total; the chosen one is the sheet's one gold fill */
 	.chip {
 		min-width: 0;
+		height: 54px;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 4px;
-		padding: 9px 4px 7px;
-		border-radius: 10px;
-		background: var(--ui-glass-well);
-		border: 1px solid var(--ui-rule-2);
-		color: var(--ui-ink);
+		justify-content: center;
+		gap: 5px;
+		padding: 0 4px;
+		border-radius: var(--hud-radius-chip);
 	}
 	.chip .big {
-		font-size: 17px;
-		font-weight: 700;
+		display: flex;
+		align-items: center;
+		height: 18px;
+		font-family: var(--hud-font);
+		font-size: 18px;
+		font-weight: 900;
 		line-height: 1;
 	}
-	/* no ellipsis: the per-count total is an amount, so it is fitted or dropped, never truncated */
+	.chip .big .inf {
+		display: block;
+		width: 30px;
+		height: 15px;
+	}
 	.chip .sub {
-		font-size: 10px;
-		color: var(--ui-ink-3);
+		font-family: var(--hud-font);
+		font-weight: 900;
+		font-size: 9px;
+		letter-spacing: 0.03em;
+		color: rgba(var(--hud-label-rgb), 0.64);
 		white-space: nowrap;
 		max-width: 100%;
 	}
-	.chip.on {
-		background: var(--ui-gold);
-		border-color: var(--ui-gold);
-		color: var(--ui-gold-ink);
+	/* the chosen one: a gold rim and warmer glass (no solid fill: the HUD's chosen state) */
+	.chip.on,
+	.lim.on {
+		border-color: var(--hud-feature-on-rim) rgba(var(--hud-accent-rgb), 0.62) rgb(var(--hud-accent-rgb));
+		background: radial-gradient(ellipse 90% 100% at 50% 0%, rgba(var(--hud-accent-cream-rgb), 0.32), rgba(var(--hud-ink-rgb), 0.06) 76%), rgba(var(--hud-feature-on-deep-1-rgb), 0.6);
+		box-shadow: inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.32), 0 0 14px rgba(var(--hud-accent-rgb), 0.32), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+		color: rgb(var(--hud-ink-rgb));
 	}
 	.chip.on .sub {
-		color: rgba(27, 18, 4, 0.65);
+		color: rgb(var(--hud-accent-hi-rgb));
 	}
-	/* limit chip: white when chosen, red when the chosen one is OFF */
 	.lim {
 		min-width: 0;
-		padding: 7px 2px;
-		border-radius: 8px;
-		background: var(--ui-glass-well);
-		border: 1px solid var(--ui-rule-2);
-		color: var(--ui-ink);
-		font-size: 12px;
-		font-weight: 600;
+		height: 32px;
+		padding: 0 2px;
+		border-radius: 999px;
+		font-family: var(--hud-font);
+		font-size: 11px;
+		font-weight: 900;
+		letter-spacing: 0.06em;
 		text-align: center;
 	}
-	.lim.on {
-		background: var(--ui-ink);
-		border-color: var(--ui-ink);
-		color: #101014;
-	}
-	.lim.on.off {
-		background: var(--ui-red);
-		border-color: var(--ui-red);
-		color: #fff;
+	.lim .slot-num {
+		font-family: var(--hud-font);
 	}
 	.total {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: space-between;
-		align-items: baseline;
-		gap: 12px;
-		border: 1px dashed var(--ui-rule-2);
-		border-radius: 10px;
-		padding: 10px 12px;
+		align-items: center;
+		gap: 10px;
+		padding: 12px 2px;
+		border-top: 1px solid rgba(var(--hud-ink-rgb), 0.08);
+		border-bottom: 1px solid rgba(var(--hud-ink-rgb), 0.08);
 	}
 	.total .k {
-		font-size: 10.5px;
-		font-weight: 800;
-		letter-spacing: 2.2px;
-		color: var(--ui-ink-2);
+		font-size: 9.5px;
+		font-weight: 900;
+		letter-spacing: 0.2em;
+		color: var(--lab);
 		white-space: nowrap;
 	}
-	/* the "25 x GC 1,000,000" derivation wraps under the total rather than being clipped: it is
-	   an amount, and an amount is never truncated (Stake review 2026-09-20) */
 	.v-wrap {
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: wrap-reverse;
 		justify-content: flex-end;
 		align-items: baseline;
-		gap: 8px;
+		gap: 9px;
 		white-space: nowrap;
 	}
+	.v-wrap .v {
+		order: 2;
+	}
 	.total .v {
+		font-family: var(--hud-font);
 		font-size: 20px;
-		font-weight: 700;
-		color: var(--ui-ink);
+		font-weight: 900;
+		color: rgb(var(--hud-ink-rgb));
 	}
 	.total .math {
-		font-size: 11px;
-		color: var(--ui-ink-3);
+		font-family: var(--hud-font);
+		font-weight: 900;
+		font-size: 10px;
+		letter-spacing: 0.04em;
+		color: rgba(var(--hud-label-rgb), 0.6);
 	}
-	/* the stop-options fold */
 	.fold {
-		border: 1px solid var(--ui-rule);
-		border-radius: 10px;
+		display: flex;
+		flex-direction: column;
 	}
 	.fold-row {
 		width: 100%;
-		background: transparent;
+		min-height: 46px;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
-		padding: 10px 12px;
+		gap: 10px;
+		padding: 0 14px 0 16px;
+		border-radius: var(--hud-radius-chip);
 		text-align: left;
-		color: var(--ui-ink);
+	}
+	.fold.open .fold-row {
+		border-color: rgba(var(--hud-accent-ink-rgb), 0.6) rgba(var(--hud-accent-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.6);
 	}
 	.fold-row > * {
 		min-width: 0;
 	}
 	.fold-k {
-		font-size: 10.5px;
-		font-weight: 800;
-		letter-spacing: 2.2px;
+		font-size: 11px;
+		font-weight: 900;
+		letter-spacing: 0.18em;
 		text-transform: uppercase;
 		white-space: nowrap;
 	}
 	.fold-sum {
 		flex: 1;
-		font-size: 11px;
-		color: var(--ui-ink-3);
+		font-size: 10.5px;
+		font-weight: 900;
+		letter-spacing: 0.02em;
+		color: rgba(var(--hud-label-rgb), 0.62);
+		text-align: right;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -496,29 +565,31 @@
 	.chev {
 		flex: 0 0 auto;
 		display: inline-flex;
-		color: var(--ui-ink-2);
+		color: rgb(var(--hud-accent-hi-rgb));
+		transform: rotate(90deg);
 		transition: transform 0.2s ease;
 	}
 	.chev.down {
-		transform: rotate(90deg);
+		transform: rotate(-90deg);
 	}
 	.fold-body {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		padding: 4px 12px 10px;
-		border-top: 1px solid var(--ui-rule);
+		padding: 12px 2px 2px;
 	}
 	.toggle {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 10px;
-		background: transparent;
-		color: var(--ui-ink);
+		gap: 12px;
+		min-height: 44px;
+		padding: 0 2px;
+		background: none;
+		border-bottom: 1px solid rgba(var(--hud-ink-rgb), 0.08);
+		color: rgb(var(--hud-ink-rgb));
 		text-align: left;
 		min-width: 0;
-		min-height: 32px;
 	}
 	.toggle:disabled {
 		opacity: 0.55;
@@ -526,103 +597,215 @@
 	.t-text {
 		display: flex;
 		flex-direction: column;
-		gap: 1px;
+		gap: 2px;
 		min-width: 0;
 	}
 	.t-main {
-		font-size: 12.5px;
-		font-weight: 700;
+		font-size: 12px;
+		font-weight: 900;
+		letter-spacing: 0.03em;
 	}
 	.t-sub {
-		font-size: 11px;
-		font-weight: 500;
+		font-size: 10px;
+		font-weight: 900;
 		line-height: 1.35;
-		color: var(--ui-ink-3);
+		letter-spacing: 0.01em;
+		color: rgba(var(--hud-label-rgb), 0.5);
 		text-wrap: pretty;
 	}
 	.t-sub.warn {
-		color: #ff8a70;
+		color: rgb(var(--hud-feature-rim-rgb));
 	}
 	.knob {
 		flex: 0 0 auto;
-		width: 44px;
-		height: 24px;
-		border-radius: 12px;
-		background: rgba(255, 255, 255, 0.16);
 		position: relative;
+		width: 46px;
+		height: 26px;
+		border-radius: 999px;
+		border: 1px solid;
+		border-color: rgba(var(--hud-ink-rgb), 0.28) rgba(var(--hud-ink-rgb), 0.1) rgba(var(--hud-accent-rgb), 0.34);
+		background: rgba(var(--hud-glass-bottom-rgb), 0.62);
+		box-shadow: inset 0 2px 4px rgba(var(--hud-shadow-rgb), 0.6);
+		transition: background-color 0.2s, border-color 0.2s;
 	}
 	.knob::after {
 		content: '';
 		position: absolute;
-		top: 3px;
-		left: 3px;
-		width: 18px;
-		height: 18px;
+		top: 2px;
+		left: 2px;
+		width: 20px;
+		height: 20px;
 		border-radius: 50%;
-		background: #fff;
-		transition: left 0.15s;
+		box-sizing: border-box;
+		border: 1px solid;
+		border-color: rgba(var(--hud-ink-rgb), 0.8) rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.8);
+		background: radial-gradient(circle at 50% 22%, rgba(var(--hud-ink-rgb), 0.6), rgba(var(--hud-ink-rgb), 0.08) 68%), rgba(var(--hud-glass-top-rgb), 0.92);
+		box-shadow: 0 2px 4px rgba(var(--hud-shadow-rgb), 0.6), inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.4);
+		transition: transform 0.2s;
 	}
-	/* on: the game's gold, not Angry Mantis's lime (Corey 2026-10-17 20:27, the menus in the Manticore palette) */
 	.toggle.on .knob {
-		background: var(--ui-gold);
+		border-color: rgba(var(--hud-accent-ink-rgb), 0.75) rgba(var(--hud-accent-rgb), 0.5) rgba(var(--hud-accent-rgb), 0.8);
+		background: linear-gradient(90deg, rgba(var(--hud-accent-deep-rgb), 0.75), rgba(var(--hud-accent-rgb), 0.6));
+		box-shadow: inset 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4), 0 0 10px rgba(var(--hud-accent-rgb), 0.3);
 	}
 	.toggle.on .knob::after {
-		left: 23px;
+		transform: translateX(20px);
 	}
-	/* LOAD: the one gold button; UNLOAD takes the same slot in red */
+	/* LOAD: the Spin's gold-edged glass, wide; UNLOAD a small ember capsule */
 	.go {
-		border-radius: 12px;
-		padding: 16px;
-		font-size: 15px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 11px;
+		width: 100%;
+		min-height: 52px;
+		padding: 0 18px;
+		border-radius: 999px;
+		border: 1px solid;
+		border-color: var(--hud-spin-rim-top) var(--hud-spin-rim-side) var(--hud-spin-rim-bottom);
+		color: rgb(var(--hud-ink-rgb));
+		font-size: 13.5px;
 		font-weight: 900;
-		letter-spacing: 2.5px;
-		color: var(--ui-gold-ink);
-		background: var(--ui-gold);
-		box-shadow: 0 4px 0 #b8961f, 0 10px 24px rgba(0, 0, 0, 0.5);
+		letter-spacing: 0.14em;
+		white-space: nowrap;
+		background: radial-gradient(ellipse 70% 120% at 50% 0%, rgba(var(--hud-accent-cream-rgb), 0.3), rgba(var(--hud-accent-cream-rgb), 0) 62%), radial-gradient(ellipse 70% 100% at 50% 130%, rgba(var(--hud-accent-rgb), 0.36), rgba(var(--hud-accent-rgb), 0) 70%), linear-gradient(180deg, rgba(var(--hud-spin-core-rgb), 0.94), rgba(var(--hud-spin-deep-rgb), 0.95));
+		box-shadow: inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.5), inset 0 0 16px rgba(var(--hud-accent-rgb), 0.16), 0 0 18px rgba(var(--hud-accent-rgb), 0.2), 0 6px 14px rgba(var(--hud-shadow-rgb), 0.5);
+		transition: transform 0.12s, box-shadow 0.2s;
 	}
 	.go:active {
-		transform: translateY(2px);
-		box-shadow: 0 2px 0 #b8961f;
+		transform: scale(0.98);
 	}
 	.go .n {
-		letter-spacing: 0;
-		font-weight: 700;
+		font-family: var(--hud-font);
+		letter-spacing: 0.04em;
+	}
+	.go .mv {
+		color: rgb(var(--hud-accent-hi-rgb));
+	}
+	.go .dot {
+		width: 5px;
+		height: 5px;
 	}
 	.unload {
 		align-self: center;
-		border-radius: 8px;
-		padding: 8px 14px;
-		font-size: 11px;
-		font-weight: 800;
-		letter-spacing: 1.5px;
-		color: #fff;
-		background: var(--ui-red);
-		margin-top: -4px;
+		height: 34px;
+		border-radius: 999px;
+		padding: 0 16px;
+		border: 1px solid;
+		border-color: rgba(var(--hud-feature-rim-rgb), 0.62) rgba(var(--hud-feature-rgb), 0.42) rgba(var(--hud-accent-rgb), 0.55);
+		background: linear-gradient(180deg, rgba(var(--hud-feature-deep-1-rgb), 0.8), rgba(var(--hud-feature-deep-2-rgb), 0.86));
+		box-shadow: inset 0 0 12px rgba(var(--hud-feature-rgb), 0.45);
+		font-size: 10.5px;
+		font-weight: 900;
+		letter-spacing: 0.14em;
+		color: rgb(var(--hud-ink-rgb));
+		margin-top: -2px;
 	}
 	/* the footer line steps aside while the fold is open: the 720-tall landscape master has no room for both */
 	.fold.open ~ .cap {
 		display: none;
 	}
 	.cap {
+		margin: -2px 4px 0;
 		text-align: center;
-		font-size: 11px;
-		font-weight: 500;
-		color: var(--ui-ink-3);
-		margin-top: -4px;
+		font-size: 10px;
+		font-weight: 900;
+		line-height: 1.45;
+		letter-spacing: 0.02em;
+		color: rgba(var(--hud-label-rgb), 0.6);
 	}
 
-	/* ── compact (phone sideways): the 740-tall master has room, only the gaps tighten ── */
+	/* ── compact (phone sideways and portrait): the gaps tighten ── */
 	.compact {
 		gap: 10px;
 	}
 
-	/* ── tiny (Stake Popout S, 400x225): the sheet has to be a reading surface in 225 px of
-	      height. Gaps close up, the explanatory lines step aside, the sheet scrolls. Type sizes
-	      stay where they are — the numbers are the point. ── */
+	/* ── phone sideways: wide and low, two columns (the head across both) ── */
+	.wide {
+		width: 560px;
+		padding: 10px 16px 12px;
+		border-radius: 18px;
+		gap: 6px;
+	}
+	.wide .cols {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 18px;
+		align-items: start;
+	}
+	.wide .c1,
+	.wide .c2 {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		min-width: 0;
+	}
+	.wide .chips.four {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+	.wide .chip .sub {
+		letter-spacing: 0;
+	}
+	.wide .title {
+		font-size: 17px;
+	}
+	.wide .pill {
+		height: 22px;
+		font-size: 8.5px;
+		padding: 0 9px;
+	}
+	.wide .x {
+		width: 32px;
+		height: 32px;
+	}
+	.wide .hint,
+	.wide .t-sub:not(.warn) {
+		display: none;
+	}
+	.wide .chips.four {
+		gap: 6px;
+	}
+	.wide .chip {
+		height: 42px;
+		border-radius: 12px;
+		gap: 4px;
+	}
+	.wide .chip .big {
+		font-size: 15px;
+		height: 15px;
+	}
+	.wide .total {
+		padding: 9px 2px;
+	}
+	.wide .total .v {
+		font-size: 17px;
+	}
+	.wide .fold-row {
+		min-height: 38px;
+		border-radius: 12px;
+		padding: 0 10px 0 12px;
+	}
+	.wide .lim {
+		height: 26px;
+		font-size: 9.5px;
+		letter-spacing: 0;
+	}
+	.wide .toggle {
+		min-height: 32px;
+	}
+	.wide .go {
+		min-height: 40px;
+		font-size: 11px;
+		letter-spacing: 0.12em;
+	}
+	.wide .cap {
+		font-size: 8.5px;
+	}
+
+	/* ── tiny (Stake Popout S, 400x225): the explanatory lines step aside, the sheet scrolls ── */
 	.tiny {
 		gap: 7px;
 		padding: 10px 12px 12px;
-		/* the bet stepper shares the window under the sheet, so the sheet takes two thirds of it */
 		max-height: 68vh;
 	}
 	.tiny .hint,
@@ -632,25 +815,34 @@
 	}
 	.tiny .title {
 		font-size: 15px;
-		letter-spacing: var(--ui-display-track);
 	}
 	.tiny .chip {
-		padding: 6px 3px 5px;
+		height: 40px;
 	}
 	.tiny .go {
-		padding: 11px;
-		font-size: 13px;
+		min-height: 40px;
+		font-size: 12px;
 	}
 	.tiny .x {
-		width: 28px;
-		height: 28px;
+		width: 30px;
+		height: 30px;
 	}
 
-	/* ── portrait: the expanded sheet fits above the stepper with no scroll ── */
+	/* ── portrait: a sheet that rises from the bottom, the bet stepper over it; no scroll ── */
+	.center:has(.portrait) {
+		justify-content: flex-end;
+		padding-bottom: 0;
+	}
+	.center:has(.portrait) .stepper {
+		order: -1;
+	}
 	.portrait {
-		width: 380px;
-		padding: 14px 16px 16px;
+		width: 100%;
+		max-width: 412px;
+		padding: 14px 14px max(16px, env(safe-area-inset-bottom, 0px));
 		gap: 10px;
+		border-radius: 22px 22px 0 0;
+		border-bottom: 0;
 	}
 	.portrait .hint,
 	.portrait .t-sub,
@@ -660,26 +852,47 @@
 	.portrait .t-sub.warn {
 		display: block; /* an unavailable toggle still says why */
 	}
+	.portrait .title {
+		font-size: 17px;
+		letter-spacing: 0.06em;
+	}
+	.portrait .pill {
+		font-size: 8.5px;
+		letter-spacing: 0.1em;
+		padding: 0 9px;
+	}
+	.portrait .chips.four {
+		gap: 7px;
+	}
 	.portrait .chip {
-		padding: 7px 4px 6px;
+		height: 50px;
+	}
+	.portrait .chip .big {
+		font-size: 16px;
 	}
 	.portrait .chips.six {
 		gap: 5px;
 	}
-	/* touch: 40px chips and close on a phone (the 412 master lands at ~0.95 CSS px per unit) */
+	/* touch: 40 px limit chips and close on a phone */
 	.portrait .lim {
-		padding: 11px 0;
-		font-size: 11.5px;
+		height: 40px;
+		font-size: 10px;
 	}
 	.portrait .x {
 		width: 40px;
 		height: 40px;
 	}
 	.portrait .total {
-		padding: 8px 12px;
+		padding: 10px 2px;
 	}
-	.portrait .fold-body {
-		gap: 10px;
-		padding-bottom: 10px;
+	.portrait .total .v {
+		font-size: 18px;
+	}
+	.portrait .fold-row {
+		min-height: 44px;
+	}
+	.portrait .go {
+		min-height: 50px;
+		font-size: 12.5px;
 	}
 </style>

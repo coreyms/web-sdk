@@ -11,6 +11,8 @@
 	import { ARMOURY } from '../game/constants';
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
+	import HudStyles from './hud/HudStyles.svelte';
+	import { hudFrame, readSafeInsets } from './hud/hudLayout';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
 	import ChromePhone from './ChromePhone.svelte';
@@ -55,6 +57,14 @@
 	const vw = $derived(innerWidth.current ?? 1);
 	const vh = $derived(innerHeight.current ?? 1);
 	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+	// THE HUD (round 5, "Drop 6"): its planes, in the mockup's own px scaled by this same fit (ui/hud/hudLayout.ts). The
+	// safe-area insets are read on a resize or a rotation only.
+	const safe = $derived.by(() => {
+		void vw;
+		void vh;
+		return readSafeInsets();
+	});
+	const hud = $derived(hudFrame({ kind, phone, vw, vh, safe }));
 	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth }, ARMOURY.layout));
 	// the real HUD's BALANCE and bet row are lit above the tint in every layout but the desktop box scaled onto a phone
 	// sideways chrome (the small 16:9 frames): there the menu draws its own copies and the whole HUD stays under the tint
@@ -91,6 +101,7 @@
 </script>
 
 <ChromeStyles />
+<HudStyles />
 {#if !controls.isReplay() && !controls.jurisdiction().disabledSpacebar && stateModal.modal == null}<EnableSpaceHold />{/if}
 <!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–300×
      purchase behind the dialog, and with a parked autoplay loadout it starts the whole run.
@@ -130,11 +141,11 @@
 >
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px" style:--vp-extra-top="{extraTop}px">
 		{#if kind === 'landscape'}
-			<ChromeLandscape {controls} />
+			<ChromeLandscape {controls} {hud} />
 		{:else if kind === 'phone'}
-			<ChromePhone {controls} />
+			<ChromePhone {controls} {hud} />
 		{:else}
-			<ChromePortrait {controls} />
+			<ChromePortrait {controls} {hud} />
 		{/if}
 		<ArmouryTint {fitLeft} {top} {scale} {vw} {vh} />
 	</div>
@@ -170,88 +181,57 @@
 	   kept element can sit inside a row (the WIN cell in the landscape trio, Corey 2026-09-15: the
 	   wrap-up amount gets a second place to read it). */
 	.fit > :global(*),
-	:global(.hud-group > *) {
+	:global(.hud-group > *),
+	:global(.hud-group .dc > *) {
 		/* the 0.3 s delay is the RETURN only (below, the hide runs at once): a kept readout that
 		   slid to centre while the HUD was away moves back before its row-mates reappear */
 		transition: opacity 0.35s ease 0.3s;
 	}
 	.layer.hud-off .fit > :global(:not(.keep):not(.hud-group)),
-	.layer.hud-off :global(.hud-group > :not(.keep)) {
+	.layer.hud-off :global(.hud-group > :not(.keep)),
+	.layer.hud-off :global(.hud-group .dc > :not(.keep)) {
 		opacity: 0;
 		transition-delay: 0s;
 	}
 	/* uiHide({ deep: true }) — the max-win screen only: even the kept logo and WIN readout go, so
 	   the dimmed canvas carries THEY ATE EVERYTHING / MAX WIN alone (Corey 2026-09-15). */
 	.layer.hud-deep .fit > :global(*),
-	.layer.hud-deep :global(.hud-group > *) {
+	.layer.hud-deep :global(.hud-group > *),
+	.layer.hud-deep :global(.hud-group .dc > *) {
 		opacity: 0;
 	}
 	.modals {
 		z-index: 60;
 	}
-	/* THE LIT HUD under THE ARMOURY (spec 2.3). The tint (ArmouryTint, z 11, inside .fit) covers every HUD element; the
-	   pieces that stay lit (the BALANCE readout, the bet readout and its two steppers) are the real HUD's own elements,
-	   raised above it one by one (z 12), so the steppers are the real ones (rules, sounds, disabled states). Their row
-	   gives up its own stacking so its cells can be ordered alone. WIN, Spin, the feature button, autoplay and turbo
-	   stay under. The bet readout takes no pointer (it would open the bet picker, which would replace the menu). In
-	   confirm the lit pieces step back to 0.16 and take nothing; they come back over the cancel's 330 ms. Per chrome:
-	     landscape (desktop): the trio's BALANCE cell and its bet cell (minus, readout, plus)
-	     portrait (portrait phone, tablet): the .stats row (BALANCE, bet readout) and the grid's plus and minus
-	     phone (sideways): the column's BALANCE and its .spin-row (minus, readout, plus)
-	   Not lit on the phone chrome's small 16:9 frames (the desktop box scaled): the menu draws its own copies there. */
-	.layer.armoury-lit[data-chrome='landscape'] :global(.trio),
-	.layer.armoury-lit[data-chrome='portrait'] :global(.bar),
-	.layer.armoury-lit[data-chrome='phone'] :global(.stats) {
-		z-index: auto;
+	/* THE HUD'S TWO PLANES (ui/hud/hudLayout.ts): the base plane (the glass, the keys, WIN, Spin, the help menu) and over
+	   it the lit plane (BALANCE, the amount and its minus and plus). */
+	.fit > :global(.hudp[data-plane='base']) {
+		z-index: 2;
 	}
-	.layer.armoury-lit[data-chrome='landscape'] :global(.trio > .cell.left),
-	.layer.armoury-lit[data-chrome='landscape'] :global(.trio > .cell.right),
-	.layer.armoury-lit[data-chrome='portrait'] :global(.stats),
-	.layer.armoury-lit[data-chrome='portrait'] :global(.bar .grid > :nth-child(2)),
-	.layer.armoury-lit[data-chrome='portrait'] :global(.bar .grid > :nth-child(4)),
-	.layer.armoury-lit[data-chrome='phone'] :global(.stats > :first-child),
-	.layer.armoury-lit[data-chrome='phone'] :global(.stats > .spin-row) {
+	.fit > :global(.hudp[data-plane='lit']) {
+		z-index: 3;
+	}
+	/* THE LIT HUD under THE ARMOURY (spec 2.3). The tint (ArmouryTint, z 11, inside .fit) covers every HUD element; the
+	   lit plane (BALANCE, the amount and its minus and plus: the real HUD's own, so the steppers keep their rules, sounds
+	   and disabled states) is raised above it (z 12) in every layout but the phone chrome's small 16:9 frames, where the
+	   menu draws its own copies. WIN, Spin, the feature button, autoplay and turbo stay under. The amount readout takes no
+	   pointer (it would open the bet picker in the menu's place). In confirm the lit plane steps back to the dim and
+	   takes nothing; it comes back over the cancel's 330 ms. */
+	.layer.armoury-lit .fit > :global(.hudp[data-plane='lit']) {
 		z-index: 12;
 		transition: opacity var(--arm-back) var(--arm-ease);
 	}
-	.layer.armoury-lit[data-chrome='landscape'] :global(.trio > .cell.left),
-	.layer.armoury-lit[data-chrome='landscape'] :global(.trio > .cell.right),
-	.layer.armoury-lit[data-chrome='phone'] :global(.stats > :first-child),
-	.layer.armoury-lit[data-chrome='phone'] :global(.stats > .spin-row) {
-		position: relative;
-	}
-	.layer.armoury-lit[data-chrome='landscape'] :global(.trio .stat),
-	.layer.armoury-lit[data-chrome='portrait'] :global(.stats .stat),
-	.layer.armoury-lit[data-chrome='phone'] :global(.spin-row .stat) {
+	.layer.armoury-lit :global(.hudp[data-plane='lit'] .stat) {
 		pointer-events: none !important;
 	}
-	.layer.armoury-lit.armoury-confirm[data-chrome='landscape'] :global(.trio > .cell.left),
-	.layer.armoury-lit.armoury-confirm[data-chrome='landscape'] :global(.trio > .cell.right),
-	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.stats),
-	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.bar .grid > :nth-child(2)),
-	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.bar .grid > :nth-child(4)),
-	.layer.armoury-lit.armoury-confirm[data-chrome='phone'] :global(.stats > :first-child),
-	.layer.armoury-lit.armoury-confirm[data-chrome='phone'] :global(.stats > .spin-row) {
+	.layer.armoury-lit.armoury-confirm .fit > :global(.hudp[data-plane='lit']) {
 		opacity: var(--arm-dim);
 		transition: opacity var(--arm-step) var(--arm-ease);
 	}
-	/* the phone chrome's BALANCE is a TrioStat itself, whose own rule holds it at opacity 1 !important */
-	.layer.armoury-lit.armoury-confirm[data-chrome='phone'] :global(.stats > .stat:first-child) {
-		opacity: var(--arm-dim) !important;
-	}
-	.layer.armoury-lit.armoury-confirm[data-chrome='landscape'] :global(.trio > .cell *),
-	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.stats *),
-	.layer.armoury-lit.armoury-confirm[data-chrome='portrait'] :global(.bar .grid *),
-	.layer.armoury-lit.armoury-confirm[data-chrome='phone'] :global(.stats *) {
+	.layer.armoury-lit.armoury-confirm :global(.hudp[data-plane='lit'] *) {
 		pointer-events: none !important;
 	}
-	.layer.armoury-lit.armoury-closing[data-chrome='landscape'] :global(.trio > .cell.left),
-	.layer.armoury-lit.armoury-closing[data-chrome='landscape'] :global(.trio > .cell.right),
-	.layer.armoury-lit.armoury-closing[data-chrome='portrait'] :global(.stats),
-	.layer.armoury-lit.armoury-closing[data-chrome='portrait'] :global(.bar .grid > :nth-child(2)),
-	.layer.armoury-lit.armoury-closing[data-chrome='portrait'] :global(.bar .grid > :nth-child(4)),
-	.layer.armoury-lit.armoury-closing[data-chrome='phone'] :global(.stats > :first-child),
-	.layer.armoury-lit.armoury-closing[data-chrome='phone'] :global(.stats > .spin-row) {
+	.layer.armoury-lit.armoury-closing .fit > :global(.hudp[data-plane='lit']) {
 		transition: opacity var(--arm-close) linear;
 	}
 	/* a layout change with the menu open (rotation, resize): two frames with no transition anywhere in the HUD, so the lit

@@ -1,41 +1,53 @@
 <script lang="ts">
 	import { stamp } from '../game/assets';
 	import { getContext } from '../game/context';
-	// Portrait master (412×760): the stacked logo on top. Corey's 2026-09-06 layout for the foot of the
-	// page: BALANCE left above the bonus button, SPIN right above a 2×2 grid [Auto +][Turbo −] that
-	// spans the spin button's height exactly (36 + 6 + 36 = 78), the menu button top-aligned with the
-	// bonus button, and a small WIN centred between the two big buttons. The whole HUD anchors to the
-	// REAL viewport bottom (Chrome.svelte's --vp-extra-bottom): on a phone taller than the master it
-	// rides down into the letterbox instead of floating mid-screen.
+	// Portrait master (412x760): the stacked logo on top (unchanged).
+	// THE HUD (round 5, "Drop 6", Corey 2026-11-12): one glass bar low on the floor, as tall as its keys need, with the
+	// Spin set in its middle: the Spin stands about 39 % above the bar's top edge and drops 6 px below its bottom edge,
+	// the bar's border flowing round both arcs. ARMOURY and MENU on the left shoulder, AUTO and TURBO on the right.
+	// Over the left shoulder WIN above BALANCE; over the right the amount, with minus and plus under it at the far right
+	// (68 px clear of the Spin's edge on a 390 phone). The help menu rises over the left side, its tail on Menu; what it
+	// covers fades. Geometry: ui/hud/hudLayout.ts portraitGeo. The chrome spans the real viewport width; the HUD hangs
+	// from the viewport's bottom edge (a home-indicator band under it on a tall phone, as the mockup had).
 	import type { Controls } from './controls.svelte';
 	import { MASTER, isPhoneSizeType } from '../game/layoutSpec';
 	import { logoArtRect } from '../game/logo/layout';
 	import { logoState } from '../game/logo/state.svelte';
+	import { stateUi } from 'state-shared';
 	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
-	import TrioStat from './TrioStat.svelte';
-	import StepButton from './StepButton.svelte';
-	import BonusButton from './BonusButton.svelte';
-	import MenuButton from './MenuButton.svelte';
-	import AutoplayButton from './AutoplayButton.svelte';
-	import TurboButton from './TurboButton.svelte';
-	import SquareSpin from './SquareSpin.svelte';
-	import { replayState } from './replayState.svelte';
+	import { portraitGeo, outlineBead, type HudFrame } from './hud/hudLayout';
+	import { createHudState } from './hud/hudState';
+	import HudGlass from './hud/HudGlass.svelte';
+	import HudSweep from './hud/HudSweep.svelte';
+	import HudSpin from './hud/HudSpin.svelte';
+	import HudKey from './hud/HudKey.svelte';
+	import HudArmoury from './hud/HudArmoury.svelte';
+	import HudStep from './hud/HudStep.svelte';
+	import HudReadout from './hud/HudReadout.svelte';
+	import HudMenuPanel from './hud/HudMenuPanel.svelte';
 
-	type Props = { controls: Controls };
-	const { controls }: Props = $props();
+	type Props = { controls: Controls; hud: HudFrame };
+	const { controls, hud }: Props = $props();
+	const hs = createHudState(controls);
 	const replay = $derived(controls.isReplay());
-	const rh = $derived(replayState.hud);
+	const rh = $derived(hs.replay());
 	const context = getContext();
-	// THE LOGO (game/logo/layout.ts): on a phone the owner's own box, up in the left corner beside the creature (constants
-	// LOGO.portraitPhone); on a tablet the largest box between the clock row and the frame art's finials, centred
-	// (LOGO.portrait). It is the same box in the base game and in a feature: the SKIP button (components/SkipButton.svelte)
-	// stands top right, beside it, and nothing owns a band under it any more.
+	// THE LOGO (game/logo/layout.ts), exactly as before
 	const vw = $derived(context.stateLayoutDerived.canvasSizes().width / context.stateLayoutDerived.mainLayout().scale);
 	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
 	const logo = $derived(logoArtRect('portrait', vw, phone));
-	// the box's centre from the master's centre line; this frame's own centre line is the screen's
 	const logoDx = $derived(logo.x + logo.width / 2 - MASTER.portrait.width / 2);
+
+	const G = $derived(portraitGeo(hud, 0));
+	const outline = $derived(outlineBead(G.bar, G.n));
+	const ante = $derived(hs.anteLevel());
+	const lit = $derived(hs.winLit());
+	const amtLabel = $derived(rh ? rh.label : hs.amtLabel());
+	const amtValue = $derived(rh ? rh.total : controls.betText());
+	const plane = $derived(`width:${hud.W}px;height:${hud.H}px;transform:${hud.transform};--hit:${44 / hud.u}px`);
+	const at = (c: { cx: number; cy: number; d: number }) => ({ x: c.cx - c.d / 2, y: c.cy - c.d / 2, d: c.d });
+	const K = $derived({ arm: at(G.arm), menu: at(G.menu), auto: at(G.auto), turbo: at(G.turbo), minus: at(G.minus), plus: at(G.plus) });
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE UNLEASHED" />
@@ -46,33 +58,43 @@
 	     until the canvas has it, hidden from then on (logoState.canvas) -->
 	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Unleashed" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} calm /></span>
 </div>
-<!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
-<div class="stats">
-	{#if replay}{#if rh && !rh.isBase}<TrioStat label="BASE AMOUNT" value={rh.base} accent="#ffdc4a" align="left" maxWidth={180} />{:else}<div></div>{/if}{:else}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" align="left" maxWidth={180} />{/if}
-	<!-- REPLAY: the readout stays, a readout only (see ChromeLandscape.svelte) -->
-	{#if replay && rh}<TrioStat label={rh.label} value={rh.total} accent="#ffdc4a" size="lg" align="right" maxWidth={180} />{:else if !replay}<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="lg" align="right" maxWidth={180} onclick={controls.openDenom} disabled={controls.betDisabled()} />{/if}
+<div class="hudp hud-group v-portrait" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
+	<div class="shadow" style:left="{G.bar.x0 + 14}px" style:top="{G.bar.y1 - 14}px" style:width="{G.bar.x1 - G.bar.x0 - 28}px" style:height="28px"></div>
+	<HudGlass {outline} frame={{ x0: G.bar.x0, x1: G.bar.x1, y0: G.n.cy - G.n.R, y1: G.n.cy + (G.n.Rb ?? G.n.R), peak: 0.5 }} {ante} W={hud.W} H={hud.H} />
+	<HudSweep x0={outline.topStraight[0]} x1={G.bar.x1 - (G.bar.y1 - G.bar.y0) / 2} y={outline.topStraight[2]} {lit} />
+	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<HudArmoury {controls} x={K.arm.x} y={K.arm.y} w={K.arm.d} h={K.arm.d} shape="circ" />{/if}
+	<HudKey kind="menu" {controls} x={K.menu.x} y={K.menu.y} d={K.menu.d} />
+	{#if !replay && !controls.jurisdiction().disabledAutoplay}<HudKey kind="auto" {controls} x={K.auto.x} y={K.auto.y} d={K.auto.d} />{/if}
+	{#if !controls.jurisdiction().disabledTurbo}<HudKey kind="turbo" {controls} x={K.turbo.x} y={K.turbo.y} d={K.turbo.d} />{/if}
+	<HudSpin {controls} x={G.spin.x} y={G.spin.y} d={G.spin.d} />
+	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} x={G.win.x} y={G.win.y} w={G.win.w} nominal={15} cls="pt l win uc {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
+	<HudMenuPanel {controls} x={G.panel.x} y={G.panel.bottom - G.panel.h} W={G.panel.w} H={G.panel.h} tip={G.panel.tip} T={G.panel.tail} />
 </div>
 
-<!-- WIN is centred between the two BIG buttons (bonus right edge 82 .. spin left edge W−170), not
-     between the clusters: its centre is W/2 − 44, i.e. 50% of this bar (4..W−4) minus 44 -->
-<div class="bar hud-group">
-	<div class="cluster">
-		{#if !replay && !controls.jurisdiction().disabledBuyFeature}<BonusButton size={78} {controls} />{/if}
-		<MenuButton size={36} {controls} compact />
-	</div>
-	<div class="win keep">
-		<TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="sm" align="center" maxWidth={120} />
-	</div>
-	<div class="cluster">
-		<SquareSpin size={78} {controls} />
-		<div class="grid">
-			{#if !replay && !controls.jurisdiction().disabledAutoplay}<AutoplayButton size={36} {controls} compact />{:else}<div></div>{/if}
-			{#if !replay}<StepButton dir={1} size={36} {controls} />{:else}<div></div>{/if}
-			{#if !controls.jurisdiction().disabledTurbo}<TurboButton size={36} {controls} />{:else}<div></div>{/if}
-			{#if !replay}<StepButton dir={-1} size={36} {controls} />{:else}<div></div>{/if}
-		</div>
-	</div>
+<!-- what THE ARMOURY keeps lit above its tint: BALANCE, the amount, minus and plus (Chrome.svelte) -->
+<div class="hudp hud-group v-portrait stats" class:menu-open={stateUi.menuOpen} data-plane="lit" style={plane}>
+	{#if !replay}<HudReadout label="BALANCE" value={controls.balanceText()} x={G.bal.x} y={G.bal.y} w={G.bal.w} nominal={15} cls="pt l bal uc" hud="balance" lit />
+	{:else if rh && !rh.isBase}<HudReadout label="BASE AMOUNT" value={rh.base} x={G.bal.x} y={G.bal.y} w={G.bal.w} nominal={15} cls="pt l bal uc" hud="balance" lit />{/if}
+	{#if !replay || rh}
+		<HudReadout
+			label={amtLabel}
+			value={amtValue}
+			x={G.W - G.amt.right - G.amt.w}
+			y={G.amt.y}
+			w={G.amt.w}
+			nominal={15}
+			cls="pt r amt uc {!replay && hs.modeOn() ? 'ante' : ''} {ante === 2 ? 'sante' : ''} {!replay && controls.betDisabled() ? 'is-locked' : ''}"
+			onclick={replay ? undefined : controls.openDenom}
+			disabled={replay || controls.betDisabled()}
+			hud="amount"
+			lit
+		/>
+	{/if}
+	{#if !replay}
+		<HudStep dir={-1} {controls} x={K.minus.x} y={K.minus.y} d={K.minus.d} cls="fs uc" />
+		<HudStep dir={1} {controls} x={K.plus.x} y={K.plus.y} d={K.plus.d} cls="fs uc" />
+	{/if}
 </div>
 
 <style>
@@ -98,94 +120,5 @@
 		display: block;
 		width: 100%;
 		height: auto;
-	}
-	/* Foot of the page. `--vp-extra-bottom` (Chrome.svelte) is the letterbox below the master on
-	   tall phones, so these bottoms are measured from the REAL viewport edge; the host's safe-area
-	   inset (CSS px → master via the fit scale) keeps the row above the iOS home indicator. */
-	.stats {
-		position: absolute;
-		bottom: calc(100px - var(--vp-extra-bottom, 0px) + env(safe-area-inset-bottom, 0px) / var(--fit-scale, 1));
-		left: 8px; /* mirrors the right inset — the left cluster used to sit 24 in (Corey 2026-09-06: uneven) */
-		right: 8px;
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-end;
-		pointer-events: none;
-	}
-	.bar {
-		position: absolute;
-		bottom: calc(16px - var(--vp-extra-bottom, 0px) + env(safe-area-inset-bottom, 0px) / var(--fit-scale, 1));
-		left: 4px;
-		right: 4px;
-		display: flex;
-		align-items: flex-end;
-		justify-content: space-between;
-		z-index: 2;
-		pointer-events: none;
-	}
-	.win {
-		position: absolute;
-		left: calc(50% - 44px);
-		bottom: 4px;
-		transform: translateX(-50%);
-		display: flex;
-		justify-content: center;
-		transition: left 0.3s ease;
-	}
-	/* alone on the bonus intro / wrap-up (uiHide keeps it): its row-mate offset reads as parked
-	   off-centre once the buttons are gone, so it slides to the true centre and back as the HUD
-	   returns (Corey 2026-09-17; the HUD's fade-in waits for the slide, Chrome.svelte) */
-	:global(.layer.hud-off) .win {
-		left: 50%;
-	}
-	.cluster {
-		display: flex;
-		align-items: flex-start; /* menu top on the bonus top; the grid spans the spin height anyway */
-		gap: 8px;
-	}
-	.cluster:last-child {
-		gap: 10px;
-	}
-	.grid {
-		display: grid;
-		grid-template-columns: 36px 36px;
-		grid-template-rows: 36px 36px;
-		gap: 6px;
-	}
-	/* TAP TARGETS: at the worst documented fit (390px-wide phone → scale 412/390 ≈ 0.946) the 36px
-	   Menu/Auto/Turbo/−/+ buttons render ~34 CSS px, under the ≥44 CSS px rule. A transparent
-	   ::after (buttons are position:relative via .slot-btn) grows each hit box to ≥47 master px
-	   ≈ 44.5 CSS px without moving a pixel visually. Grid cells: the shared edges take half the
-	   6px gap, the outer edges the slack; the side facing the spin button only the 10px cluster gap
-	   (Spin is earlier in the DOM here, the grid cells win a contested overlap, so keep it clear). */
-	.grid :global(.slot-btn.chunky)::after {
-		content: '';
-		position: absolute;
-		inset: -3px;
-	}
-	.grid > :global(:nth-child(1) .slot-btn.chunky)::after,
-	.grid > :global(:nth-child(2) .slot-btn.chunky)::after {
-		top: -8px;
-	}
-	.grid > :global(:nth-child(3) .slot-btn.chunky)::after,
-	.grid > :global(:nth-child(4) .slot-btn.chunky)::after {
-		bottom: -8px;
-	}
-	.grid > :global(:nth-child(1) .slot-btn.chunky)::after,
-	.grid > :global(:nth-child(3) .slot-btn.chunky)::after {
-		left: -9px;
-	}
-	.grid > :global(:nth-child(2) .slot-btn.chunky)::after,
-	.grid > :global(:nth-child(4) .slot-btn.chunky)::after {
-		right: -8px;
-	}
-	/* menu: open on top and the right, the bonus side only the 8px cluster gap */
-	.cluster > :global(:last-child .slot-btn.chunky)::after {
-		content: '';
-		position: absolute;
-		top: -8px;
-		bottom: -8px;
-		left: -8px;
-		right: -10px;
 	}
 </style>

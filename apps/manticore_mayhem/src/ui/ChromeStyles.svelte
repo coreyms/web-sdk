@@ -4,6 +4,8 @@
 <script lang="ts">
 	// fonts live in fontFaces.ts so their URLs carry the ?v= cache-buster stamp
 	import './fontFaces';
+	// the HUD's theme tokens (--hud-*), used by the panel frame below
+	import './hudTheme';
 </script>
 
 <style lang="scss">
@@ -62,12 +64,18 @@
 			color: var(--ui-gold);
 			text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
 		}
+		/* THE PANEL FRAME (HUD round 5, "Drop 6", 2026-11-12): the HUD's obsidian painted glass (ui/hudTheme.ts tokens), so
+		   every panel that hangs off the HUD (Autoplay, the bet picker, the notices, the replay card) belongs to the HUD's
+		   family: a blue-black fill, a 1 px edge white along the top and gold along the bottom, a top highlight and a
+		   specular line. Was the flat black glass of 2026-09-09. Game Info keeps its own surface. */
 		.am-glass {
-			background: var(--ui-glass);
-			border: 1px solid var(--ui-glass-edge);
-			border-radius: 14px;
+			position: relative;
+			background: linear-gradient(180deg, rgba(var(--hud-glass-top-rgb), 0.975), rgba(var(--hud-glass-mid-rgb), 0.97) 50%, rgba(var(--hud-glass-bottom-rgb), 0.98));
+			border: 1px solid;
+			border-color: rgba(var(--hud-edge-top-rgb), 0.44) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-edge-bottom-rgb), 0.72);
+			border-radius: 20px;
 			color: var(--ui-ink);
-			box-shadow: 0 30px 70px rgba(0, 0, 0, 0.65), inset 0 1px 0 var(--ui-glass-hi);
+			box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 24px 48px rgba(var(--hud-shadow-rgb), 0.6), 0 4px 12px rgba(var(--hud-shadow-rgb), 0.4);
 		}
 		.am-ui * {
 			box-sizing: border-box;
@@ -116,10 +124,10 @@
 		   modals' buttons. Not a disabled one. Not the three that already had a hover of their own (the modals' close
 		   X, the bet picker's options, the menu's Game Info row). */
 		@media (hover: hover) and (pointer: fine) {
-			.slot-btn:hover:not(:disabled):not(.x):not(.opt):not(.info-row) {
+			.slot-btn:hover:not(:disabled):not(.x):not(.opt):not(.info-row):not(.hg) {
 				filter: var(--ui-hover-lift);
 			}
-			.slot-btn:active:not(:disabled):not(.x):not(.opt):not(.info-row) {
+			.slot-btn:active:not(:disabled):not(.x):not(.opt):not(.info-row):not(.hg) {
 				filter: var(--ui-press-lift);
 			}
 		}

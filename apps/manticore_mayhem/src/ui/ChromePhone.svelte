@@ -1,41 +1,46 @@
 <script lang="ts">
 	import { stamp } from '../game/assets';
-	import { getContext } from '../game/context';
-	// Phone-landscape master (1480×740): board centred and near full height, logo + tagline + the
-	// BALANCE/WIN/SPIN stack in the left column, button clusters in the bottom corners of both side
-	// columns. Corey's 2026-09-06 layout: the three readouts share one left edge with the logo column,
-	// SPIN reads larger, its − stepper sits outboard in the screen margin and its + after a fixed
-	// slot; the whole SPIN cluster hides during bonuses (bet locked, and the column belongs to Marky).
-	// Nothing chrome-side sits in the bottom ~40 master px: the master's bottom edge IS the phone's
-	// bottom edge (fit by height), and iOS draws the home indicator over the last ~21 CSS px (≈40
-	// master px at scale 0.527). env(safe-area-inset-bottom) is added on top wherever the host exposes
-	// it. The master scales HARD on real phones (844×390 → scale ≈0.527), so the 52px rail buttons
-	// render ~27 CSS px — the ≥44 CSS px touch-target rule is met by the transparent ::after hit
-	// extensions below, not by the visual size.
+	// Phone-landscape master (1480x740): board centred and near full height, logo top left (unchanged).
+	// THE HUD (round 5, "Drop 6", Corey 2026-11-12, the landscape of "Win Crown"): a compact glass capsule low in the left
+	// column with BALANCE, WIN and the amount between its minus and plus; ARMOURY and MENU (34 px circles, icon only)
+	// above it; the Spin low on the right over the creature's paws; AUTO and TURBO in a small capsule top right, SKIP
+	// squared under it at the same width (components/SkipButton.svelte). The help menu opens down over the capsule; what
+	// it covers fades. Geometry: ui/hud/hudLayout.ts landscapeGeo (anchored to the master, like the board and him).
 	import type { Controls } from './controls.svelte';
-	import { betSlotWidth } from './betStep';
 	import { logoArtRect } from '../game/logo/layout';
 	import { logoState } from '../game/logo/state.svelte';
+	import { stateUi } from 'state-shared';
 	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
-	import TrioStat from './TrioStat.svelte';
-	import StepButton from './StepButton.svelte';
-	import BonusButton from './BonusButton.svelte';
-	import MenuButton from './MenuButton.svelte';
-	import AutoplayButton from './AutoplayButton.svelte';
-	import TurboButton from './TurboButton.svelte';
-	import SquareSpin from './SquareSpin.svelte';
-	import { replayState } from './replayState.svelte';
+	import { landscapeGeo, outlineArch, type HudFrame } from './hud/hudLayout';
+	import { createHudState } from './hud/hudState';
+	import HudGlass from './hud/HudGlass.svelte';
+	import HudSweep from './hud/HudSweep.svelte';
+	import HudSpin from './hud/HudSpin.svelte';
+	import HudKey from './hud/HudKey.svelte';
+	import HudArmoury from './hud/HudArmoury.svelte';
+	import HudStep from './hud/HudStep.svelte';
+	import HudReadout from './hud/HudReadout.svelte';
+	import HudMenuPanel from './hud/HudMenuPanel.svelte';
 
-	type Props = { controls: Controls };
-	const { controls }: Props = $props();
+	type Props = { controls: Controls; hud: HudFrame };
+	const { controls, hud }: Props = $props();
+	const hs = createHudState(controls);
 	const replay = $derived(controls.isReplay());
-	const rh = $derived(replayState.hud);
-	const context = getContext();
-	const freegame = $derived(context.stateGame.gameType !== 'basegame');
-	// SPIN slot at the 'xl' digit height (26): widest price of the current mode, capped to the column
-	const slot = $derived(betSlotWidth(26, 200) + 6);
+	const rh = $derived(hs.replay());
 	const logo = logoArtRect('phone'); // the logo's art box (constants LOGO.phone)
+
+	const G = $derived(landscapeGeo(hud));
+	const capO = $derived(outlineArch(G.cap));
+	const kcO = $derived(outlineArch(G.kc));
+	const ante = $derived(hs.anteLevel());
+	const lit = $derived(hs.winLit());
+	const amtLabel = $derived(rh ? rh.label : hs.amtLabel());
+	const amtValue = $derived(rh ? rh.total : controls.betText());
+	const plane = $derived(`width:${hud.W}px;height:${hud.H}px;transform:${hud.transform};--hit:${44 / hud.u}px`);
+	const at = (c: { cx: number; cy: number; d: number }) => ({ x: c.cx - c.d / 2, y: c.cy - c.d / 2, d: c.d });
+	const K = $derived({ arm: at(G.arm), menu: at(G.menu), auto: at(G.auto), turbo: at(G.turbo), minus: at(G.minus), plus: at(G.plus) });
+	const ringR = $derived(G.n.r + 3.5);
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE UNLEASHED" />
@@ -44,40 +49,60 @@
 <!-- the stacked logo. THE CANVAS DRAWS IT (components/Logo.svelte, game/logo/still.ts: under the creature, with the
      shadow and the Shine); this <img> is the fallback until the canvas has it, and hidden from then on (logoState.canvas) -->
 <div class="logo" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Unleashed" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} calm /></div>
-<!-- no tagline in this game: the WIN UP TO 10,000x placeholder was dropped (Corey 2026-10-09) -->
 
-<!-- left-column stack under the tagline (see header); maxWidth auto-shrinks trillion-scale balances -->
-<div class="stats hud-group">
-	{#if !replay}<TrioStat label="BALANCE" value={controls.balanceText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />
-	{:else if rh && !rh.isBase}<TrioStat label="BASE AMOUNT" value={rh.base} accent="#ffdc4a" size="lg" align="left" maxWidth={240} />{/if}
-	<div class="keep" style="display: contents"><TrioStat label="WIN" value={controls.winText()} accent="#ffdc4a" size="lg" align="left" maxWidth={240} /></div>
-	<!-- REPLAY: the readout stays all round, free spins included, a readout only (see ChromeLandscape.svelte) -->
-	{#if replay && rh}
-		<div class="spin-row">
-			<TrioStat label={rh.label} value={rh.total} accent="#ffdc4a" size="xl" align="left" maxWidth={200} minWidth={slot} />
-		</div>
-	{:else if !freegame && !replay}
-		<div class="spin-row">
-			<div class="minus"><StepButton dir={-1} size={32} {controls} /></div>
-			<TrioStat label={controls.betLabel()} value={controls.betText()} accent="#ffdc4a" size="xl" align="left" maxWidth={200} minWidth={slot} onclick={controls.openDenom} disabled={controls.betDisabled()} />
-			<StepButton dir={1} size={32} {controls} />
-		</div>
-	{/if}
+<div class="hudp hud-group v-landscape" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
+	<div class="shadow" style:left="{G.cap.x0 + 14}px" style:top="{G.cap.y1 - 14}px" style:width="{G.cap.x1 - G.cap.x0 - 28}px" style:height="28px"></div>
+	<div class="shadow" style:left="{G.kc.x0 + 14}px" style:top="{G.kc.y1 - 14}px" style:width="{G.kc.x1 - G.kc.x0 - 28}px" style:height="28px"></div>
+	<div class="shadow" style:left="{G.n.cx - G.n.r + 4}px" style:top="{G.n.cy + G.n.r - 18}px" style:width="{2 * G.n.r - 8}px" style:height="26px"></div>
+	<HudGlass outline={capO} frame={{ x0: G.cap.x0, x1: G.cap.x1, y0: G.cap.y0, y1: G.cap.y1 }} {ante} W={hud.W} H={hud.H} />
+	<HudGlass outline={kcO} frame={{ x0: G.kc.x0, x1: G.kc.x1, y0: G.kc.y0, y1: G.kc.y1 }} W={hud.W} H={hud.H} />
+	<!-- the Spin's outer gold ring (painted, under the button) -->
+	<svg class="ol" width={hud.W} height={hud.H} viewBox="0 0 {hud.W} {hud.H}" aria-hidden="true">
+		<defs>
+			<linearGradient id="hudring" gradientUnits="userSpaceOnUse" x1="0" y1={G.n.cy - G.n.r - 4} x2="0" y2={G.n.cy + G.n.r + 4}>
+				<stop offset="0" style="stop-color:rgb(var(--hud-ink-rgb));stop-opacity:0" />
+				<stop offset=".45" style="stop-color:rgb(var(--hud-ink-rgb));stop-opacity:.18" />
+				<stop offset=".8" style="stop-color:rgb(var(--hud-accent-rgb));stop-opacity:.7" />
+				<stop offset="1" style="stop-color:rgb(var(--hud-accent-hi-rgb));stop-opacity:.9" />
+			</linearGradient>
+		</defs>
+		<circle cx={G.n.cx} cy={G.n.cy} r={ringR} fill="none" stroke="url(#hudring)" stroke-width="1" />
+	</svg>
+	<HudSweep x0={capO.topStraight[0]} x1={capO.topStraight[1]} y={capO.topStraight[2]} {lit} />
+	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<HudArmoury {controls} x={K.arm.x} y={K.arm.y} w={K.arm.d} h={K.arm.d} shape="ln" />{/if}
+	<HudKey kind="menu" {controls} x={K.menu.x} y={K.menu.y} d={K.menu.d} cls="ln fs" />
+	{#if !replay && !controls.jurisdiction().disabledAutoplay}<HudKey kind="auto" {controls} x={K.auto.x} y={K.auto.y} d={K.auto.d} cls="ln q" />{/if}
+	{#if !controls.jurisdiction().disabledTurbo}<HudKey kind="turbo" {controls} x={K.turbo.x} y={K.turbo.y} d={K.turbo.d} cls="ln q" />{/if}
+	<HudSpin {controls} x={G.spin.x} y={G.spin.y} d={G.spin.d} />
+	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} x={G.win.x} y={G.win.y} w={G.win.w} h={G.win.h} nominal={15} cls="lc win uc {hs.winPre() ? 'fsw' : ''} {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
+	<i class="hl hz uc" style:left="{G.hz.x}px" style:top="{G.hz.y}px" style:width="{G.hz.w}px"></i>
+	<HudMenuPanel {controls} x={G.panel.x} y={G.panel.top} W={G.panel.w} H={G.panel.h} tip={G.panel.tip} up cls="pls" />
 </div>
 
-<!-- [Bonus · Menu] bottom-left, bottoms aligned; [Auto/Turbo · Spin] bottom-right, the column
-     (52 + 12 + 52 = 116) spanning the spin button exactly -->
-<div class="cluster-left">
-	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<BonusButton size={116} {controls} />{/if}
-	<MenuButton size={52} {controls} compact />
-</div>
-
-<div class="cluster-right">
-	<div class="col">
-		{#if !replay && !controls.jurisdiction().disabledAutoplay}<AutoplayButton size={52} {controls} compact />{/if}
-		{#if !controls.jurisdiction().disabledTurbo}<TurboButton size={52} {controls} />{/if}
+<!-- what THE ARMOURY keeps lit above its tint: BALANCE and the amount row (Chrome.svelte) -->
+<div class="hudp hud-group v-landscape stats" class:menu-open={stateUi.menuOpen} data-plane="lit" style={plane}>
+	{#if !replay}<HudReadout label="BALANCE" value={controls.balanceText()} x={G.bal.x} y={G.bal.y} w={G.bal.w} h={G.bal.h} nominal={15} cls="lc bal uc" hud="balance" lit />
+	{:else if rh && !rh.isBase}<HudReadout label="BASE AMOUNT" value={rh.base} x={G.bal.x} y={G.bal.y} w={G.bal.w} h={G.bal.h} nominal={15} cls="lc bal uc" hud="balance" lit />{/if}
+	<div class="spin-row dc">
+		{#if !replay}<HudStep dir={-1} {controls} x={K.minus.x} y={K.minus.y} d={K.minus.d} cls="uc" />{/if}
+		{#if !replay || rh}
+			<HudReadout
+				label={amtLabel}
+				value={amtValue}
+				x={G.amt.x}
+				y={G.amt.y}
+				w={G.amt.w}
+				h={G.amt.h}
+				nominal={14}
+				cls="lc amt uc {!replay && hs.modeOn() ? 'ante' : ''} {ante === 2 ? 'sante' : ''} {!replay && controls.betDisabled() ? 'is-locked' : ''}"
+				onclick={replay ? undefined : controls.openDenom}
+				disabled={replay || controls.betDisabled()}
+				hud="amount"
+				lit
+			/>
+		{/if}
+		{#if !replay}<HudStep dir={1} {controls} x={K.plus.x} y={K.plus.y} d={K.plus.d} cls="uc" />{/if}
 	</div>
-	<SquareSpin size={116} {controls} />
 </div>
 
 <style>
@@ -94,99 +119,5 @@
 		display: block;
 		width: 100%;
 		height: auto;
-	}
-	/* Stats stack: left column under the tagline (tagline art 176 wide → 22 tall from 176, ends ≈ 198).
-	   One left edge for all three readouts — the logo column's edge, 50. */
-	.stats {
-		position: absolute;
-		top: 236px;
-		left: 50px;
-		width: 240px;
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 22px;
-		pointer-events: none;
-		z-index: 3;
-	}
-	.spin-row {
-		position: relative;
-		display: flex;
-		align-items: flex-end;
-		gap: 12px;
-	}
-	.spin-row :global(.slot-btn.chunky) {
-		margin-bottom: 2px;
-	}
-	/* − sits outboard, in the margin left of the column (x 2..34), centred on the amount */
-	.minus {
-		position: absolute;
-		left: -48px;
-		bottom: 0;
-	}
-	/* stepper hit boxes: 32 master px ≈ 17 CSS px at scale 0.527 — ::after grows each to ≥84 master */
-	.spin-row :global(.slot-btn.chunky)::after {
-		content: '';
-		position: absolute;
-		inset: -26px;
-	}
-	/* Clusters clear the home-indicator zone by a fixed 60 master px (≈32 CSS px at scale 0.527), plus
-	   the host's safe-area inset (in CSS px, so divided back into master units by the fit scale).
-	   Corey's 2026-09-06 layout sets them in from the master edges (78 / 79). */
-	.cluster-left {
-		position: absolute;
-		bottom: calc(60px + env(safe-area-inset-bottom, 0px) / var(--fit-scale, 1));
-		left: 78px;
-		display: flex;
-		align-items: flex-end; /* menu bottom on the bonus bottom */
-		gap: 10px;
-		pointer-events: none;
-		z-index: 2;
-	}
-	.cluster-right {
-		position: absolute;
-		bottom: calc(60px + env(safe-area-inset-bottom, 0px) / var(--fit-scale, 1));
-		right: 79px;
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		pointer-events: none;
-		z-index: 2;
-	}
-	.col {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-	}
-	/* TAP TARGETS: at the worst documented fit (844×390 → scale 0.527) the 52px Menu/Auto/Turbo
-	   buttons render ~27 CSS px. A transparent ::after (buttons are position:relative via .slot-btn)
-	   grows each hit box to 84 master px ≈ 44.3 CSS px without moving a pixel visually. Vertical:
-	   the outer edge takes the slack, the shared edge only half the 12px column gap, so the
-	   stacked pair never steal each other's taps. Horizontal: the open side gets -22px, the side
-	   facing the big Bonus/Spin button only the cluster gap (Spin is later in the DOM and would
-	   win any contested overlap). The lone menu button takes the slack on all open sides. */
-	.col :global(.slot-btn.chunky)::after {
-		content: '';
-		position: absolute;
-		top: -6px;
-		bottom: -6px;
-		left: -22px;
-		right: -12px;
-	}
-	.col > :global(.slot-btn.chunky:first-child)::after,
-	.col > :global(:first-child .slot-btn.chunky)::after {
-		top: -28px;
-	}
-	.col > :global(.slot-btn.chunky:last-child)::after,
-	.col > :global(:last-child .slot-btn.chunky)::after {
-		bottom: -28px;
-	}
-	.cluster-left > :global(:last-child .slot-btn.chunky)::after {
-		content: '';
-		position: absolute;
-		top: -32px;
-		bottom: -16px;
-		left: -10px;
-		right: -22px;
 	}
 </style>

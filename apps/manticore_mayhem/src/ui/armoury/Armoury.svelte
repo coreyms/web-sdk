@@ -618,21 +618,12 @@
 		if (frame.hudCopies) return { steppers: copyEl ? [...copyEl.querySelectorAll<HTMLButtonElement>('button.slot-btn')].filter((b) => !b.classList.contains('stat')) : [], keep: [] };
 		const fit = document.querySelector(HUD_FIT);
 		if (!fit) return { steppers: [], keep: [] };
-		const btn = (e: Element | null): HTMLButtonElement | null => (!e ? null : e instanceof HTMLButtonElement ? e : e.querySelector('button'));
-		let steppers: HTMLButtonElement[] = [];
-		let readouts: Element[] = [];
-		if (frame.layout === 'desktop') {
-			const cell = fit.querySelector('.trio > .cell.right');
-			steppers = cell ? [...cell.querySelectorAll<HTMLButtonElement>('button')].filter((b) => !b.closest('.spin-slot')) : [];
-			readouts = [...fit.querySelectorAll('.trio > .cell.left')];
-		} else if (frame.layout === 'sideways') {
-			const row = fit.querySelector('.stats > .spin-row');
-			steppers = row ? [...row.querySelectorAll<HTMLButtonElement>('button')].filter((b) => !b.classList.contains('stat')) : [];
-			readouts = [fit.querySelector('.stats > :first-child')].filter((e): e is Element => !!e);
-		} else {
-			steppers = [btn(fit.querySelector('.bar .grid > :nth-child(4)')), btn(fit.querySelector('.bar .grid > :nth-child(2)'))].filter((b): b is HTMLButtonElement => !!b);
-			readouts = [fit.querySelector('.stats > :first-child')].filter((e): e is Element => !!e);
-		}
+		// THE HUD (round 5, "Drop 6", 2026-11-12): in every layout the lit pieces are the HUD's lit plane (ui/hud/*,
+		// Chrome.svelte): BALANCE, the amount (no pointer) and the two steppers, minus first
+		const lit = fit.querySelector('.hudp[data-plane="lit"]');
+		const steppers = lit ? [...lit.querySelectorAll<HTMLButtonElement>('button[data-hud-step]')] : [];
+		// kept out of `inert`: the steppers and BALANCE (the amount readout between them goes inert, as before)
+		const readouts: Element[] = [fit.querySelector('[data-hud="balance"]')].filter((e): e is Element => !!e);
 		return { steppers, keep: [...steppers, ...readouts] };
 	};
 	/** the HUD's two bet steppers, or the menu's copies of them: the minus and the plus */
@@ -859,14 +850,17 @@
 		const fit = document.querySelector(HUD_FIT);
 		if (fit && !frame.hudCopies && frame.layout !== 'desktop') {
 			const r = (e: Element | null) => (e ? e.getBoundingClientRect() : null);
+			const lit = fit.querySelector('.hudp[data-plane="lit"]');
 			if (frame.layout === 'sideways') {
-				const parts = [...fit.querySelectorAll('.stats > *, .stats > .spin-row > *, .stats > .spin-row .minus > *')].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0);
+				// the HUD's capsule: the lit plane's readouts and steppers, and its BALANCE
+				const parts = lit ? [...lit.querySelectorAll('.stat, button')].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0) : [];
 				if (parts.length) a.hudRight = Math.max(...parts.map((b) => b.right));
-				const bal = r(fit.querySelector('.stats > :first-child'));
+				const bal = r(fit.querySelector('[data-hud="balance"]'));
 				if (bal && bal.width > 0) a.balance = { x: bal.left, y: bal.top };
 			} else {
-				const stats = r(fit.querySelector('.stats'));
-				if (stats && stats.height > 0) a.hudTop = stats.top;
+				// the HUD's top: its highest readout (WIN, BALANCE, the amount)
+				const tops = [...fit.querySelectorAll('.hudp .stat')].map((e) => e.getBoundingClientRect()).filter((b) => b.height > 0);
+				if (tops.length) a.hudTop = Math.min(...tops.map((b) => b.top));
 				const strips = [...fit.querySelectorAll('.strip')].map((e) => e.getBoundingClientRect()).filter((b) => b.height > 0);
 				if (strips.length) {
 					a.clockTop = Math.min(...strips.map((b) => b.top));

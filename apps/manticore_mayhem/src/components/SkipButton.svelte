@@ -20,16 +20,18 @@
 	// NOT WHERE THE OPERATOR FORBIDS IT: jurisdiction.disabledSlamstop or disabledTurbo (see `allowed` below).
 	// Touch and pointer only, no hotkey (the button is disabled while it is down, so a held Space never reaches it).
 	//
-	// House rules: no backdrop-filter, no mask; the fades are opacity; every number from layoutSpec / constants. (The one
-	// CSS filter on it is the HUD's shared mouse hover lift, ui/ChromeStyles.svelte.)
+	// House rules: no backdrop-filter, no mask, no filter; the fades are opacity; the place is ui/hud/hudLayout.ts, the look the
+	// HUD glass (ui/hud/HudStyles.svelte, ui/hudTheme.ts).
 	import { onDestroy } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 
 	import { getContext } from '../game/context';
 	import { featureSpinsLive, skipAllowed } from '../game/stateGame.svelte';
-	import { isPhoneSizeType, layoutKind, skipButtonRect, skipPromptRect, skipSpot } from '../game/layoutSpec';
+	import { isPhoneSizeType, layoutKind, SKIP, type CssRect } from '../game/layoutSpec';
 	import { SKIP_HUD } from '../game/constants';
-	import Icon from '../ui/Icon.svelte';
+	import { hudSkipRect, readSafeInsets } from '../ui/hud/hudLayout';
+	import '../ui/hudTheme';
+	import HudIcon from '../ui/hud/HudIcon.svelte';
 
 	const context = getContext();
 	const sg = context.stateGame;
@@ -39,14 +41,21 @@
 	const allowed = $derived(skipAllowed());
 	const up = $derived(allowed && featureSpinsLive() && !sg.skipping && sg.fs >= 1 && !sg.plaque && sg.pressGates === 0 && !sg.winShowing);
 
-	// ---- where: the button's box by the layout rule, the prompt's box beside it ----
-	const spot = $derived(skipSpot(layoutKind(context.stateLayoutDerived.layoutType()), isPhoneSizeType(context.stateLayoutDerived.canvasSizeType())));
+	// ---- where (HUD round 5, "Drop 6", 2026-11-12): the HUD's own rule (ui/hud/hudLayout.ts hudSkipRect): a small glass
+	// capsule. Desktop, wide, tablet: right of the plaque, just over the dock; portrait phone: top right under the clock
+	// row; landscape phone: squared under the Auto and Turbo capsule, its width. Its prompt opens UNDER it where there is
+	// room (the phones) and over it otherwise (the big screens: under it is the dock). ----
+	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
+	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
 	const view = $derived({ width: innerWidth.current ?? 1, height: innerHeight.current ?? 1 });
-	const box = $derived(skipButtonRect(spot, view));
-	/** the Play button's size on this screen, CSS px (the button is that wide) */
-	const play = $derived(box.width);
-	// THE BRONZE PLATE (2026-10-15, ui/ChromeStyles.svelte .am-plate.half): the Play button's plate, bezel and rivets
-	// at the Play button's size in CSS px (--plate-s), its corner radius halved with its height
+	const safe = $derived.by(() => {
+		void view;
+		return readSafeInsets();
+	});
+	const hb = $derived(hudSkipRect({ kind, phone, vw: view.width, vh: view.height, safe }));
+	const box = $derived({ x: hb.x, y: hb.y, width: hb.width, height: hb.height });
+	/** the size the prompt is drawn at: the old rule took shares of the Play button (78..116 master px); here a 92 px Spin's */
+	const play = $derived(92 * hb.u);
 	const hit = $derived(Math.max(0, (SKIP_HUD.minHitCss - box.height) / 2));
 	const P = SKIP_HUD.prompt;
 	const ask = $derived.by(() => {
@@ -56,8 +65,17 @@
 		const pad = Math.max(P.pad.min, play * P.pad.share);
 		const gap = Math.max(P.gap.min, play * P.gap.share);
 		const size = { width: buttonW * 2 + gap + pad * 2, height: pad * 2 + font * P.line + gap + buttonH };
-		return { buttonW, buttonH, font, pad, gap, rect: skipPromptRect(spot, box, size, P.gapCss, view) };
+		return { buttonW, buttonH, font, pad, gap, rect: promptRect(box, size, P.gapCss) };
 	});
+	const promptRect = (b: CssRect, size: { width: number; height: number }, g: number): CssRect => {
+		const E = SKIP.edgeCss;
+		const below = hb.variant === 'portrait' || hb.variant === 'landscape';
+		const fits = b.y + b.height + g + size.height <= view.height - E;
+		const y = below && fits ? b.y + b.height + g : b.y - g - size.height;
+		const x = b.x + b.width - size.width;
+		const hold = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
+		return { x: hold(x, E, view.width - E - size.width), y: hold(y, E, view.height - E - size.height), ...size };
+	};
 
 	// ---- the prompt ----
 	let open = $state(false);
@@ -103,23 +121,20 @@
 
 {#if allowed}
 <div class="am-ui skip-layer" bind:this={root} style:--in="{SKIP_HUD.inMs}ms" style:--out="{SKIP_HUD.outMs}ms">
+	<div class="hudp skiproot v-{hb.variant}" style:transform="scale({hb.u})" style:width="{box.width / hb.u}px" style:height="{box.height / hb.u}px" style:left="{box.x}px" style:top="{box.y}px">
 	<button
-		class="slot-btn skip am-plate half"
+		class="slot-btn hg gl fs pill skip"
 		class:up
 		data-skip="button"
 		disabled={!up}
 		onclick={press}
 		aria-label="Skip to result"
 		aria-expanded={open}
-		style:left="{box.x}px"
-		style:top="{box.y}px"
-		style:width="{box.width}px"
-		style:height="{box.height}px"
-		style:--plate-s="{play}px"
-		style:--hit="-{hit}px"
+		style:--hit="-{hit / hb.u}px"
 	>
-		<Icon name="skip" s={box.height * SKIP_HUD.glyphShare} />
+		<HudIcon name="skip" /><span>SKIP</span>
 	</button>
+	</div>
 	{#if open && up}
 		<div
 			class="ask"
@@ -136,8 +151,8 @@
 		>
 			<span class="q" style:line-height={P.line}>Skip to result?</span>
 			<div class="row" style:gap="{ask.gap}px" style:height="{ask.buttonH}px">
-				<button class="slot-btn yes" data-skip="yes" onclick={yes}>Yes</button>
-				<button class="slot-btn no" data-skip="no" onclick={close}>No</button>
+				<button class="slot-btn hg yes" data-skip="yes" onclick={yes}>Yes</button>
+				<button class="slot-btn hg no" data-skip="no" onclick={close}>No</button>
 			</div>
 		</div>
 	{/if}
@@ -153,28 +168,29 @@
 		pointer-events: none;
 		overflow: hidden;
 	}
-	.skip {
+	.skiproot {
 		position: absolute;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		transform-origin: 0 0;
+	}
+	.skiproot .skip {
+		position: absolute;
+		left: 0;
+		top: 0;
 		opacity: 0;
 		pointer-events: none;
-		transition: opacity var(--out) ease, transform 0.08s ease, filter var(--ui-hover-ms) ease;
+		transition: opacity var(--out) ease, transform 0.12s ease;
 	}
-	.skip.up {
+	.skiproot .skip.up {
 		opacity: 1;
 		pointer-events: auto;
-		transition: opacity var(--in) ease, transform 0.08s ease, filter var(--ui-hover-ms) ease;
+		transition: opacity var(--in) ease, transform 0.12s ease;
 	}
-	.skip:disabled {
-		opacity: 0;
+	/* down (disabled): gone, whatever the HUD glass's own disabled look says */
+	.skiproot .skip:not(.up),
+	.skiproot .skip:disabled {
+		opacity: 0 !important;
+		pointer-events: none;
 		cursor: default;
-		/* disabled here only means gone: the glyph keeps the plate's ink through the fade out */
-		color: var(--plate-ink);
-	}
-	.skip:active:not(:disabled) {
-		transform: translateY(1px);
 	}
 	/* the touch target, grown to SKIP_HUD.minHitCss without moving a pixel */
 	.skip::after {
@@ -182,23 +198,18 @@
 		position: absolute;
 		inset: var(--hit, 0px) 0;
 	}
-	/* the bronze plate's glass and bezel (ChromeStyles.svelte .am-plate, 2026-10-15), with no backdrop-filter. (The
-	   bezel is drawn inside the box as inset bands, not a border, so Yes and No keep their whole size.) */
+	/* the HUD's panel glass (ChromeStyles .am-glass, ui/hudTheme.ts tokens), no backdrop-filter */
 	.ask {
 		position: absolute;
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
-		background: linear-gradient(180deg, rgba(36, 25, 15, 0.86), rgba(12, 9, 6, 0.92));
-		border-radius: 8px;
-		box-shadow:
-			0 10px 24px rgba(0, 0, 0, 0.55),
-			inset 0 2px 0 var(--plate-bronze-1),
-			inset -2px 0 0 var(--plate-bronze-2),
-			inset 0 -2px 0 var(--plate-bronze-3),
-			inset 2px 0 0 var(--plate-bronze-4),
-			inset 0 0 0 3px rgba(0, 0, 0, 0.6);
-		color: var(--ui-ink);
+		background: linear-gradient(180deg, rgba(var(--hud-glass-top-rgb), 0.96), rgba(var(--hud-glass-bottom-rgb), 0.97));
+		border-radius: 14px;
+		/* the 1 px edge drawn as inset shadows (white top, gold bottom), so Yes and No keep the whole height */
+		box-shadow: inset 0 1px 0 rgba(var(--hud-edge-top-rgb), 0.44), inset 0 -1px 0 rgba(var(--hud-edge-bottom-rgb), 0.72), inset 1px 0 0 rgba(var(--hud-ink-rgb), 0.12), inset -1px 0 0 rgba(var(--hud-ink-rgb), 0.12), 0 14px 30px rgba(var(--hud-shadow-rgb), 0.55);
+		color: rgb(var(--hud-ink-rgb));
+		font-family: var(--hud-font);
 		pointer-events: auto;
 	}
 	.q {
@@ -218,19 +229,25 @@
 		height: 100%;
 		border-radius: 8px;
 		font-size: 1em;
-		font-weight: 800;
-		letter-spacing: 0.04em;
-		transition: transform 0.08s ease, filter var(--ui-hover-ms) ease;
+		font-family: var(--hud-font);
+		font-weight: 900;
+		letter-spacing: 0.08em;
+		transition: transform 0.08s ease;
 	}
 	.yes {
-		background: linear-gradient(180deg, #ffe98a, #e5b82e);
-		color: var(--ui-gold-ink);
-		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+		border-radius: 999px;
+		border: 1px solid;
+		border-color: var(--hud-spin-rim-top) var(--hud-spin-rim-side) var(--hud-spin-rim-bottom);
+		background: radial-gradient(ellipse 70% 120% at 50% 0%, rgba(var(--hud-accent-cream-rgb), 0.3), rgba(var(--hud-accent-cream-rgb), 0) 62%), linear-gradient(180deg, rgba(var(--hud-spin-core-rgb), 0.94), rgba(var(--hud-spin-deep-rgb), 0.95));
+		color: rgb(var(--hud-accent-hi-rgb));
+		box-shadow: inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.5), 0 0 14px rgba(var(--hud-accent-rgb), 0.2);
 	}
 	.no {
-		background: rgba(255, 230, 190, 0.08);
-		color: var(--ui-ink);
-		box-shadow: inset 0 0 0 1px var(--plate-bronze-2);
+		border-radius: 999px;
+		border: 1px solid;
+		border-color: rgba(var(--hud-ink-rgb), 0.38) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-accent-rgb), 0.44);
+		background: rgba(var(--hud-key-rgb), 0.5);
+		color: rgb(var(--hud-ink-rgb));
 	}
 	.yes:active,
 	.no:active {
