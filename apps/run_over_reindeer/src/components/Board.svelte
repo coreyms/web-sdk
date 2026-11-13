@@ -47,8 +47,10 @@
 	import { enableMipmaps } from '../game/mipmaps';
 	import { ROAD_ART } from '../game/roadArtSpec';
 	import { RoadBoard } from '../game/road/roadBoard';
+	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
 	import { clipMemory, setClipUploader, setClipView } from '../game/road/columnClips';
+	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { perfMarks } from '../game/staging';
 
 	const context = getContext();
@@ -98,6 +100,10 @@
 		// the desktop atlas is drawn well under its own size on a small window: a mip chain keeps it clean (house rule).
 		// The phone atlas draws near 1:1 and stays out.
 		if (!PHONE_TIER) enableMipmaps(tex('H1_R')?.source, app?.renderer as PIXI.Renderer | undefined);
+		// THE REINDEER'S RUN VIEWS (game/road/reindeerRun.ts): loaded in the background from now on, never holding up the
+		// preload; the desktop sheets are drawn well under their 3x size on most screens, so they get a mip chain too
+		if (!PHONE_TIER) setRunMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
+		void loadRunViews();
 		const tick = (ticker: PIXI.Ticker) => road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
 		app?.ticker.add(tick);
 		return () => {
@@ -182,6 +188,12 @@
 			signal: (...color: ['red' | 'amber' | 'green' | null] | []) => road.forceSignal(color.length ? color[0] : undefined),
 			/** the column characters' pictures that are loaded now, and what they weigh on the GPU */
 			clipMemory: () => clipMemory(),
+			/** the reindeer's run views: loaded or not, their sheets, what they weigh on the GPU */
+			runMemory: () => runMemory(),
+			/** run a strike into a cell by hand (no book, no sound): __reindeer.strike(cell). Resolves at the impact. */
+			strike: (cell: number) => road.features.strike({ cell, markCell: null }),
+			/** the run's plan along the snow for a distance (road px), a diagonal and a fixed start pose (stage 2; null = free) */
+			planRun: (distance: number, diagonal: number, startPose: number | null = null, maxFactor?: number) => planRun(distance, diagonal, startPose, maxFactor),
 			/** the staging readout's labels as they stand, oldest first, with performance.now() (the probes read the upload
 			 *  queue's spread from them: `upload:<tier>:<clip>:<sheet>`) */
 			perfMarks: () => {

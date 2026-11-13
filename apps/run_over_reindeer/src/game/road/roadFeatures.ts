@@ -26,6 +26,8 @@ import { CLOUD_CELL, COLUMN, RED_BOX, STRIKE } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
 import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
+import { REINDEER_RUN } from '../reindeerRunSpec';
+import { awaitRunViews, runBox, runFrame, type RunView } from './reindeerRun';
 
 const ROWS = ROAD_ART.board.rows;
 const PITCH = ROAD_ART.board.pitch;
@@ -158,40 +160,108 @@ type Column = {
 	dropReveal: boolean;
 };
 
-/** the running reindeer: along the snow, the hold, the turn, down the screen. Times on the road's clock from t0. */
+/** the running reindeer (constants STRIKE, game/road/reindeerRun.ts): the side run in the snow, one pose of S, the
+ *  diagonal in Q, one pose of M, the run down the reel in C. It is counted in POSES of the 16 pose run cycle (a float:
+ *  pose 3.4 shows pose index 3, 0.4 of the way to the next place); positions are its FEET (the views' anchor), road px. */
 type Runner = {
 	sprite: PIXI.Sprite;
+	/** the road clock when it sets off (after the lead in) */
 	t0: number;
-	/** which way it runs along the snow (1 = left to right) */
+	/** the pose drawn now (from the time since t0; a protected pose may hold it back for one frame) */
+	pose: number;
+	/** the pose index drawn last (-1 before the first), and this frame's protected pose: how late it is drawn, ms of the
+	 *  road clock behind its own time (null when this frame shows the pose its time asks for) */
+	shown: number;
+	late: number | null;
+	/** which way it runs along the snow (1 = left to right; -1 is the same views mirrored) */
 	dir: 1 | -1;
-	fromX: number;
-	/** the target reel's centre: where it stops, turns and runs down */
+	/** the target reel's centre: where the run down starts and ends */
 	toX: number;
-	/** its feet in the snow, and its middle at the impact */
+	/** its feet in the snow */
 	feetY: number;
-	impactY: number;
 	snowScale: number;
-	alongMs: number;
-	downMs: number;
+	/** poses of the side run and of the diagonal; the poses along the snow in all (R, one S, Q, one M); the run down */
+	nR: number;
+	nQ: number;
+	nAlong: number;
+	nC: number;
+	/** the stride (1 to 16) of its first pose: (7 - nAlong) mod 16, so the run down starts on pose 7 */
+	s0: number;
+	/** the side run's step against runSpeed / strideFps (1 = as tuned) */
+	factor: number;
+	/** its feet at each pose boundary along the snow, 0 .. nAlong (the last is the top of the run down) */
+	path: { x: number; y: number }[];
+	/** its feet at the impact (its middle at STRIKE.impactAt of the target cell, at the road scale) */
+	impactFeetY: number;
+	/** the road clock at the impact (null until then) */
+	impactAt: number | null;
+	resolve: () => void;
+	/** the run views were not in: the placeholder picture stands in for every view */
+	placeholder: boolean;
+	/** what it drew last (the probes' per-frame log) */
+	view: RunView;
+	stride: number;
+	scale: number;
 	/** a Grandma car to box as it starts down (a struck Santa reel), or null */
 	markCell: number | null;
 	marked: boolean;
+};
+
+/** a turned view's step on the screen: which way it runs (dx across, dy down, per unit of ground step) and how long
+ *  its step looks against the side run's (the ground step seen from the camera at STRIKE.cameraDeg above the ground) */
+const viewStep = (view: RunView) => {
+	const turn = (runBox(view).turnDeg * Math.PI) / 180;
+	const lift = Math.sin((STRIKE.cameraDeg * Math.PI) / 180);
+	const across = Math.cos(turn);
+	const down = Math.sin(turn) * lift;
+	return { dx: across, dy: down, length: Math.hypot(across, down) };
+};
+
+/** the C poses the sheets carry in a row from pose 7 (7 to 16, 1, 2: 12). The run down never runs past them. */
+const C_SAFE = (() => {
+	const packed = new Set<number>(REINDEER_RUN.views.C.strides as readonly number[]);
+	let n = 0;
+	while (n < 16 && packed.has(((6 + n) % 16) + 1)) n++;
+	return n;
+})();
+
+export type RunPlan = { nR: number; nQ: number; nAlong: number; s0: number; step: number; factor: number };
+
+/** THE PLAN OF THE RUN ALONG THE SNOW (a pure function; the strike uses it, the probe checks it). `distance`: road px
+ *  across from where it sets off to the target reel's centre. `startPose` null: free start (stage 1: it comes in from
+ *  off the screen, so it starts on whatever pose the (7 - n) rule asks for; the step is trimmed by under 1 / (2 n)).
+ *  `startPose` a number (stage 2: the take-off clip hands over on that pose): the side run's poses are chosen so that n
+ *  = (7 - startPose) mod 16, and the step is scaled by `factor` to fit the distance; null when no such n is within
+ *  maxFactor of the tuned step. */
+export const planRun = (distance: number, diagonal: number, startPose: number | null = null, maxFactor = STRIKE.startFactorMax): RunPlan | null => {
+	const S = viewStep('S');
+	const Q = viewStep('Q');
+	const M = viewStep('M');
+	const step0 = STRIKE.runSpeed / STRIKE.strideFps;
+	const nQ = Math.max(1, Math.round(diagonal / (step0 * Q.length)));
+	const across = S.dx + nQ * Q.dx + M.dx;
+	const make = (nR: number) => {
+		const step = distance / (nR + across);
+		const nAlong = nR + nQ + 2;
+		return { nR, nQ, nAlong, s0: ((((7 - nAlong - 1) % 16) + 16) % 16) + 1, step, factor: step / step0 };
+	};
+	if (startPose === null) return make(Math.max(1, Math.round(distance / step0 - across)));
+	// n = nR + nQ + 2 must be (7 - startPose) mod 16: the side run's pose counts that do it, nearest the tuned step first
+	const want = (((7 - startPose - nQ - 2) % 16) + 16) % 16;
+	const ideal = distance / step0 - across;
+	let best: RunPlan | null = null;
+	for (let nR = want === 0 ? 16 : want; nR <= ideal * (1 + maxFactor) + 32; nR += 16) {
+		const plan = make(nR);
+		if (!best || Math.abs(plan.factor - 1) < Math.abs(best.factor - 1)) best = plan;
+	}
+	if (best && best.s0 !== (((startPose - 1) % 16) + 16) % 16 + 1) throw new Error('planRun: the start pose rule broke');
+	return best && Math.abs(best.factor - 1) <= maxFactor + 1e-9 ? best : null;
 };
 
 type Waiter = { at: number; resolve: () => void };
 
 /** what the board needs for a strike: the target cell, and the Grandma car to box in the same reel (or null) */
 export type StrikeSpec = { cell: number; markCell: number | null };
-
-/** the runner's speed along the snow: steady, then braking to a stop over the last `brake` share. 0 to 1 in, 0 to 1 out. */
-const braking = (u: number, brake: number) => {
-	const b = Math.max(0, Math.min(1, brake));
-	const a = 1 - b;
-	const v = 1 / (a + b / 2);
-	if (u <= a || b === 0) return Math.min(1, v * u);
-	const w = u - a;
-	return Math.min(1, v * a + v * (w - (w * w) / (2 * b)));
-};
 
 export class RoadFeatures {
 	/** boxes, clouds, characters and their numbers: over the traffic */
@@ -235,16 +305,19 @@ export class RoadFeatures {
 	 *  Wild's pop, and a column's box landing and growing */
 	private impactFrames(): boolean {
 		const r = this.runner;
-		if (r && this.clock - r.t0 >= r.alongMs + STRIKE.holdMs + STRIKE.turnMs) return true;
+		if (r && (r.pose >= r.nAlong || r.impactAt !== null)) return true;
 		if (this.clouds.some((c) => c.leaving === null && this.clock - c.t0 < CLOUD_CELL.popMs + 60)) return true;
 		return this.columns.some((c) => c.phase === 'wait' || c.phase === 'impact' || c.phase === 'grow');
 	}
 
 	// ---- the strike ----------------------------------------------------------------------------------------------------
-	/** THE REINDEER RUNS (the PLACEHOLDER picture; constants STRIKE): in at one end of the snow bank above the road,
-	 *  along it to the target's reel, a hold there, the turn, and straight down the screen into the target cell.
-	 *  Resolves at the impact. */
-	strike(spec: StrikeSpec): Promise<void> {
+	/** THE REINDEER RUNS (constants STRIKE; the rig's run views, game/road/reindeerRun.ts): in at one end of the snow
+	 *  bank above the road, side on along it, one frame of S, the diagonal in Q, one frame of M, and straight down the
+	 *  target's reel in C into the target cell. No stop on the way. Resolves at the impact. */
+	async strike(spec: StrikeSpec): Promise<void> {
+		// the run views load in the background from the moment the board is up: a strike waits a moment for them at most
+		const ready = await awaitRunViews(STRIKE.loadWaitMs);
+		if (this.destroyed) return;
 		const target = cellRect(spec.cell);
 		const reel = Math.floor(spec.cell / ROWS);
 		const toX = target.x + target.w / 2;
@@ -254,22 +327,48 @@ export class RoadFeatures {
 		const fromLeft = entry === 'left' ? true : entry === 'right' ? false : entry === 'near' ? nearLeft : !nearLeft;
 		const dir: 1 | -1 = fromLeft ? 1 : -1;
 		const snow = STRIKE.snow[this.layoutKind] ?? STRIKE.snow.landscape;
-		const size = ROAD_ART.symbols.reindeer_run;
-		const half = (size.width * Math.max(snow.scale, STRIKE.roadScale)) / 2;
+		const side = runBox('R');
+		const half = (side.width * Math.max(snow.scale, STRIKE.roadScale)) / 2;
 		const fromX = fromLeft ? -half - STRIKE.enterPad : IMAGE_W + half + STRIKE.enterPad;
-		const alongMs = Math.max(STRIKE.runMinMs, Math.min(STRIKE.runMaxMs, (Math.abs(toX - fromX) / STRIKE.runSpeed) * 1000));
-		const impactY = target.y + target.h * STRIKE.impactAt;
-		const startMid = snow.feetY - (size.height * snow.scale) / 2;
-		const downMs = Math.max(STRIKE.downMinMs, Math.min(STRIKE.downMaxMs, (Math.abs(impactY - startMid) / STRIKE.downSpeed) * 1000));
-		if (this.runner) this.runner.sprite.destroy();
-		const sprite = new PIXI.Sprite(this.tex(fromLeft ? 'reindeer_run' : 'reindeer_run_L') ?? PIXI.Texture.EMPTY);
-		// about its middle, so the turn leans it about its middle
-		sprite.anchor.set(0.5);
+
+		// THE POSES ALONG THE SNOW (planRun): the diagonal in whole poses of Q, the side run the rest of the way, its step
+		// trimmed so the turn ends exactly over the target reel's centre
+		const distance = Math.abs(toX - fromX);
+		const plan = (STRIKE.startPose !== null ? planRun(distance, snow.diagonal, STRIKE.startPose) : null) ?? (planRun(distance, snow.diagonal) as RunPlan);
+		const { nR, nQ, nAlong, s0, step } = plan;
+		const S = viewStep('S');
+		const Q = viewStep('Q');
+		const M = viewStep('M');
+		const path: { x: number; y: number }[] = [{ x: fromX, y: snow.feetY }];
+		const go = (dx: number, dy: number) => {
+			const p = path[path.length - 1];
+			path.push({ x: p.x + dir * dx * step, y: p.y + dy * step });
+		};
+		for (let i = 0; i < nR; i++) go(1, 0);
+		go(S.dx, S.dy);
+		for (let i = 0; i < nQ; i++) go(Q.dx, Q.dy);
+		go(M.dx, M.dy);
+		path[path.length - 1].x = toX; // (it is there already, to the rounding)
+
+		// THE RUN DOWN: from the turn's end to the impact, whole poses at downSpeed / downStrideFps (trimmed to fit),
+		// never more than the C poses packed from pose 7 on
+		const down = runBox('C');
+		const impactFeetY = target.y + target.h * STRIKE.impactAt + (down.height * down.anchorY * STRIKE.roadScale) / 2;
+		const top = path[nAlong].y;
+		const downStep = STRIKE.downSpeed / STRIKE.downStrideFps;
+		const nC = Math.max(1, Math.min(C_SAFE, Math.round(Math.max(0, impactFeetY - top) / downStep)));
+
+		if (this.runner) {
+			this.runner.sprite.destroy();
+			this.runner.resolve();
+		}
+		const sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
 		sprite.visible = false;
 		this.runnerLayer.addChild(sprite);
 		const t0 = this.clock + STRIKE.leadInMs;
-		this.runner = { sprite, t0, dir, fromX, toX, feetY: snow.feetY, impactY, snowScale: snow.scale, alongMs, downMs, markCell: spec.markCell, marked: false };
-		return this.wait(t0 + alongMs + STRIKE.holdMs + STRIKE.turnMs + downMs);
+		return new Promise<void>((resolve) => {
+			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir, toX, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC, s0, factor: plan.factor, path, impactFeetY: Math.max(impactFeetY, top), impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false };
+		});
 	}
 
 	/** the red box on a Grandma car in a struck Santa reel: under the column, which grows over it (Corey 2026-11-10) */
@@ -448,20 +547,19 @@ export class RoadFeatures {
 		}
 	}
 
+	/** the road clock ms (from t0) a pose index starts at: strideFps poses a second along the snow, downStrideFps down */
+	private poseTime(r: Runner, index: number): number {
+		const along = (Math.min(index, r.nAlong) * 1000) / STRIKE.strideFps;
+		return index <= r.nAlong ? along : along + ((index - r.nAlong) * 1000) / STRIKE.downStrideFps;
+	}
+
 	private updateRunner() {
 		const r = this.runner;
 		if (!r) return;
-		const t = this.clock - r.t0;
-		if (t < 0) return;
 		const s = r.sprite;
-		const size = ROAD_ART.symbols.reindeer_run;
-		const holdAt = r.alongMs;
-		const turnAt = holdAt + STRIKE.holdMs;
-		const downAt = turnAt + STRIKE.turnMs;
-		const impactAt = downAt + r.downMs;
-		if (t >= impactAt) {
-			// the impact: it is gone into the cloud
-			const u = (t - impactAt) / STRIKE.fadeMs;
+		if (r.impactAt !== null) {
+			// the impact: it is gone into the cloud, fading on the pose it struck with
+			const u = (this.clock - r.impactAt) / STRIKE.fadeMs;
 			s.alpha = Math.max(0, 1 - u);
 			if (u >= 1) {
 				s.destroy();
@@ -469,50 +567,94 @@ export class RoadFeatures {
 			}
 			return;
 		}
-		s.visible = true;
-		let k = r.snowScale;
-		let sx = 1;
-		let sy = 1;
-		let x = r.toX;
-		let rotation = 0;
-		let mid: number;
-		const snowMid = r.feetY - (size.height * r.snowScale) / 2;
-		if (t < holdAt) {
-			// along the snow, cantering, braking into the stop above the target's reel
-			const u = t / Math.max(1, r.alongMs);
-			x = r.fromX + (r.toX - r.fromX) * braking(u, STRIKE.brakeShare);
-			const hop = Math.abs(Math.sin((t / 1000) * Math.PI * STRIKE.hopsPerSecond)) * STRIKE.hopPx * (r.snowScale / STRIKE.roadScale) * (1 - u * u);
-			mid = snowMid - hop;
-		} else if (t < turnAt) {
-			// the anticipation: it stands over the reel and crouches, feet planted
-			const u = (t - holdAt) / Math.max(1, STRIKE.holdMs);
-			sy = 1 - (1 - STRIKE.crouch) * Math.sin(Math.PI * 0.5 * Math.min(1, u * 1.6));
-			sx = 1 + (1 - sy) * 0.5;
-			mid = r.feetY - (size.height * r.snowScale * sy) / 2;
-		} else if (t < downAt) {
-			// the turn: it leans head down about its middle, coming out of the crouch
-			const u = (t - turnAt) / Math.max(1, STRIKE.turnMs);
-			const e = 1 - (1 - u) * (1 - u);
-			rotation = r.dir * ((STRIKE.downAngle * Math.PI) / 180) * e;
-			sy = STRIKE.crouch + (1 - STRIKE.crouch) * e;
-			sx = 1 + (1 - sy) * 0.5;
-			mid = snowMid;
+		if (this.clock < r.t0) return;
+		// THE STRIKE RUNS ON TIME (Corey 2026-11-12: slow screens skip poses so the strike always takes the same time):
+		// the pose and the body's place both come from the road clock since t0, so a slow screen, a dropped frame, turbo
+		// or a slam stop skip poses and keep the strike's length. Three poses are never skipped: the one S pose, the one
+		// M pose and the first C pose (the safe start). A frame that would jump over one draws it instead (a little
+		// late: under one frame), and the next frame catches up with the time.
+		const e = this.clock - r.t0;
+		const end = r.nAlong + r.nC;
+		const keys = [r.nR, r.nR + 1 + r.nQ, r.nAlong];
+		const missed = keys.find((k) => r.shown < k);
+		let pose: number;
+		r.late = null;
+		if (e >= this.poseTime(r, end)) {
+			// THE IMPACT, on time. Drawn on the run down's last pose, or on a protected pose not drawn yet (a very slow
+			// screen that jumped from before it straight past the impact)
+			pose = missed !== undefined ? missed : end - 1e-6;
+			if (missed !== undefined) r.late = e - this.poseTime(r, missed);
+			r.impactAt = this.clock;
 		} else {
-			// down the screen, quickening, growing to its road size as it comes toward us
-			if (!r.marked) {
-				r.marked = true;
-				if (r.markCell !== null) this.markCell(r.markCell);
+			const along = (this.poseTime(r, r.nAlong));
+			pose = e < along ? (e * STRIKE.strideFps) / 1000 : r.nAlong + ((e - along) * STRIKE.downStrideFps) / 1000;
+			const index = Math.floor(pose + 1e-9);
+			const skipped = keys.find((k) => r.shown < k && index > k);
+			if (skipped !== undefined) {
+				pose = skipped;
+				r.late = e - this.poseTime(r, skipped);
 			}
-			const u = (t - downAt) / Math.max(1, r.downMs);
-			const e = u * u;
-			rotation = r.dir * ((STRIKE.downAngle * Math.PI) / 180);
-			k = r.snowScale + (STRIKE.roadScale - r.snowScale) * e;
-			mid = snowMid + (r.impactY - snowMid) * e;
 		}
-		s.rotation = rotation;
-		s.width = size.width * k * sx;
-		s.height = size.height * k * sy;
-		s.position.set(x, mid);
+		r.pose = pose;
+		r.shown = Math.floor(pose + 1e-9);
+		if (pose >= r.nAlong && !r.marked) {
+			// it starts down the reel: a Grandma car in the struck Santa reel gets its red box
+			r.marked = true;
+			if (r.markCell !== null) this.markCell(r.markCell);
+		}
+		this.placeRunner(r, pose);
+		if (r.impactAt !== null) r.resolve();
+	}
+
+	/** the runner at `pose`: which view, which stride, where its feet are, how big */
+	private placeRunner(r: Runner, pose: number) {
+		const s = r.sprite;
+		// one stride pose per pose, counted on through every change of view (the same index the time path drew: a pose
+		// a hair under a whole number from the floating point counts as that number)
+		const index = Math.floor(pose + 1e-9);
+		const view: RunView = index < r.nR ? 'R' : index === r.nR ? 'S' : index < r.nR + 1 + r.nQ ? 'Q' : index === r.nR + 1 + r.nQ ? 'M' : 'C';
+		const stride = ((r.s0 - 1 + index) % 16) + 1;
+		let x: number;
+		let y: number;
+		if (pose < r.nAlong) {
+			// along the snow: steady along the path, pose boundary to pose boundary
+			const a = r.path[index];
+			const b = r.path[index + 1];
+			const u = pose - index;
+			x = a.x + (b.x - a.x) * u;
+			y = a.y + (b.y - a.y) * u;
+		} else {
+			// down the reel, steady
+			const top = r.path[r.nAlong].y;
+			const u = Math.min(1, (pose - r.nAlong) / r.nC);
+			x = r.toX;
+			y = top + (r.impactFeetY - top) * u;
+		}
+		// its size: the snow size along the snow; once it turns toward us it grows with how far down the screen it has
+		// come, to the road size at the impact
+		const reach = Math.max(1, r.impactFeetY - r.feetY);
+		const k = view === 'R' ? r.snowScale : r.snowScale + (STRIKE.roadScale - r.snowScale) * Math.max(0, Math.min(1, (y - r.feetY) / reach));
+		s.visible = true;
+		s.position.set(x, y);
+		const got = r.placeholder ? null : runFrame(view, stride);
+		if (got) {
+			const box = runBox(view);
+			if (s.texture !== got.texture) s.texture = got.texture;
+			s.anchor.set(box.anchorX, box.anchorY);
+			// mirrored about its feet for the run from the right (the anchor's x mirrors with it)
+			s.scale.set((r.dir * box.width * k) / got.texture.orig.width, (box.height * k) / got.texture.orig.height);
+		} else {
+			// the placeholder still (the run views did not load in time): standing on its feet, one picture per side
+			const size = ROAD_ART.symbols.reindeer_run;
+			const tex = this.tex(r.dir === 1 ? 'reindeer_run' : 'reindeer_run_L') ?? PIXI.Texture.EMPTY;
+			if (s.texture !== tex) s.texture = tex;
+			s.anchor.set(0.5, 1);
+			s.width = size.width * k;
+			s.height = size.height * k;
+		}
+		r.view = view;
+		r.stride = stride;
+		r.scale = k;
 	}
 
 	private updateClouds() {
@@ -764,13 +906,11 @@ export class RoadFeatures {
 	}
 
 	/** where the runner is in its strike (dev hook and the probes) */
-	private runnerPhase(r: Runner): 'wait' | 'along' | 'hold' | 'turn' | 'down' | 'impact' {
-		const t = this.clock - r.t0;
-		if (t < 0) return 'wait';
-		if (t < r.alongMs) return 'along';
-		if (t < r.alongMs + STRIKE.holdMs) return 'hold';
-		if (t < r.alongMs + STRIKE.holdMs + STRIKE.turnMs) return 'turn';
-		return t < r.alongMs + STRIKE.holdMs + STRIKE.turnMs + r.downMs ? 'down' : 'impact';
+	private runnerPhase(r: Runner): 'wait' | 'along' | 'turn' | 'down' | 'impact' {
+		if (r.impactAt !== null) return 'impact';
+		if (this.clock < r.t0 || r.shown < 0) return 'wait';
+		if (r.pose < r.nR) return 'along';
+		return r.pose < r.nAlong ? 'turn' : 'down';
 	}
 
 	/** what stands on the road (dev hook and the probes) */
@@ -780,14 +920,38 @@ export class RoadFeatures {
 			// the characters as they are drawn, back to front (reel numbers from 0)
 			bodyOrder: this.bodyLayer.children.map((b) => this.reelOfBody(b)),
 			clouds: this.clouds.filter((c) => c.leaving === null).map((c) => c.cell),
-			runner: this.runner ? { phase: this.runnerPhase(this.runner), x: Math.round(this.runner.sprite.x), y: Math.round(this.runner.sprite.y), rotation: +this.runner.sprite.rotation.toFixed(2) } : null,
+			runner: this.runner ? this.runnerSnapshot(this.runner) : null,
 			/** the red boxes on Grandma cars in struck Santa reels */
 			marks: this.marks.map((m) => m.cell),
 		};
 	}
 
+	/** the runner as drawn (the probes' per-frame log): its view and stride, its feet in road px, its size on top of the
+	 *  built size, and whether it is the mirrored run (from the right) */
+	private runnerSnapshot(r: Runner) {
+		const s = r.sprite;
+		return {
+			phase: this.runnerPhase(r),
+			view: r.placeholder ? 'placeholder' : r.view,
+			stride: r.stride,
+			x: Math.round(s.x * 100) / 100,
+			y: Math.round(s.y * 100) / 100,
+			scale: Math.round(r.scale * 10000) / 10000,
+			mirrored: s.scale.x < 0,
+			alpha: Math.round(s.alpha * 100) / 100,
+			rotation: 0,
+			pose: Math.round(r.pose * 1000) / 1000,
+			index: r.shown,
+			late: r.late === null ? null : Math.round(r.late * 100) / 100,
+			poses: { side: r.nR, diagonal: r.nQ, along: r.nAlong, down: r.nC, firstStride: r.s0, factor: Math.round(r.factor * 10000) / 10000 },
+			toX: r.toX,
+			impactFeetY: Math.round(r.impactFeetY * 100) / 100,
+		};
+	}
+
 	destroy() {
 		this.destroyed = true;
+		this.runner?.resolve();
 		for (const w of this.waiters) w.resolve();
 		this.waiters = [];
 	}

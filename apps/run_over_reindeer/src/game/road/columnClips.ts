@@ -125,6 +125,10 @@ const queueUpload = (label: string, prio: number, texture: PIXI.Texture, needNow
 		void pump();
 	});
 
+/** THE REINDEER'S RUN VIEWS (game/road/reindeerRun.ts) go to the GPU through this same queue, after every column
+ *  picture (priority 4), unless a strike is waiting on them */
+export const queueRunUpload = (label: string, texture: PIXI.Texture, needNow: () => boolean): Promise<void> => queueUpload(label, 4, texture, needNow);
+
 const pump = async () => {
 	if (pumping) return;
 	pumping = true;

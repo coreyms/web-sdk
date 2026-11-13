@@ -597,7 +597,154 @@ def write_spec(spec):
     print(f"  wrote {os.path.relpath(path, APP)}")
 
 
+# ---- the reindeer's run views (the strike, stage 1; Corey 2026-11-12) ---------------------------------------------------
+# The rig's export of 2026-11-11 (DELIVERY_NOTE.md beside it): five views of one 16 frame run cycle, turned 0 / 20 / 40 /
+# 60 / 80 degrees toward the camera (R side, S, Q diagonal, M, C straight down), native 1536 renders, straight alpha with
+# the glow baked in, one fixed box and one anchor (the feet point) per view. Frame k is the same moment of the stride in
+# every view. The walk, its start and stop and the sniff loop are stage 2 and are not packed here.
+RUN_SOURCE = os.path.join(SRC, "animation", "export_2026-11-11", "reindeer")
+RUN_VIEWS = ("R", "S", "Q", "M", "C")
+# The strides each view can show. The game starts the snow run on stride (7 - n) mod 16, n = the frames before the run
+# down (DELIVERY_NOTE.md), so the run down always starts on stride 7 and the one frame of M before it is always stride 6.
+# The run down is at most STRIKE.downMaxMs (280 ms, 9 frames): strides 7 to 16 and 1, 2 cover 12 frames, and C's
+# lone-hoof frames 3 to 6 are never packed. R, S and Q keep all 16: the side run's length changes with the target reel,
+# and S and Q move with the diagonal's length, a tunable in the game (STRIKE.snow[layout].diagonal).
+RUN_STRIDES = {
+    "R": list(range(1, 17)),
+    "S": list(range(1, 17)),
+    "Q": list(range(1, 17)),
+    "M": [6],
+    "C": list(range(7, 17)) + [1, 2],
+}
+# House rule: 3 physical px per CSS px at the largest draw size. CSS px per road px at that size, per asset tier:
+#   full   a 1920 x 1080 desktop draws the road at 1.5 x 982 / 1536 = 0.959 CSS px per road px (game/layoutSpec.ts
+#          ROAD_LAYOUT.landscape since the 2026-11-10 shrink); a portrait tablet draws it smaller
+#   phone  a phone held sideways (956 x 440 at most) at about 0.39; upright about 0.29
+RUN_CSS_PER_ROAD = {"full": 1.5 * 982 / 1536, "phone": 0.39}
+# The largest the game ever draws each view, on top of its built height (constants STRIKE): R and S run in the snow
+# (snow scale: 0.72 on the desktop, 0.8 on a phone held sideways; the portrait 0.85 is drawn on a much smaller road),
+# Q, M and C grow toward the road scale 0.85 as they come down the screen.
+RUN_DRAW_SCALE = {
+    "full": {"R": 0.72, "S": 0.72, "Q": 0.85, "M": 0.85, "C": 0.85},
+    "phone": {"R": 0.8, "S": 0.8, "Q": 0.85, "M": 0.85, "C": 0.85},
+}
+RUN_SHEET_MAX = 2048
+RUN_WEBP = dict(quality=90, alpha_quality=90, method=6)
+
+
+def build_reindeer_run():
+    """The run views' sheets (static/assets/reindeer/run-<tier>-<n>.webp) and src/game/reindeerRunSpec.ts.
+
+    Each frame is resized as its whole box (so every frame of a view keeps one scale and one anchor), then trimmed to
+    its ink; the spec gives each frame's place on its sheet and its trim offset inside the box, so the game builds
+    Pixi textures with orig = the box and the anchor (the feet point) stays exact."""
+    out_dir = os.path.join(OUT, "reindeer")
+    os.makedirs(out_dir, exist_ok=True)
+    manifests = {v: json.load(open(os.path.join(RUN_SOURCE, f"run_{v}.json"))) for v in RUN_VIEWS}
+    index = json.load(open(os.path.join(RUN_SOURCE, "index.json")))
+    road_per_frame = index["road_px_per_frame_px"]
+    spec = {
+        "source": "animation/export_2026-11-11/reindeer (rig reindeer-rig, 2026-11-11)",
+        "fps": manifests["R"]["fps"],
+        "stride": 16,
+        "roadPxPerFramePx": road_per_frame,
+        "views": {},
+        "tiers": {},
+    }
+    for v, m in manifests.items():
+        spec["views"][v] = {
+            "turnDeg": m.get("turn_deg", 0),
+            "frameW": m["frame_w"],
+            "frameH": m["frame_h"],
+            "anchorX": m["anchor_px"][0],
+            "anchorY": m["anchor_px"][1],
+            "strides": RUN_STRIDES[v],
+        }
+    for tier in ("full", "phone"):
+        pictures = {}
+        boxes = {}
+        density = {}
+        for v in RUN_VIEWS:
+            m = manifests[v]
+            # sheet px per frame px
+            d = 3 * RUN_CSS_PER_ROAD[tier] * RUN_DRAW_SCALE[tier][v] * road_per_frame
+            bw, bh = round(m["frame_w"] * d), round(m["frame_h"] * d)
+            density[v] = round(d, 4)
+            boxes[v] = (bw, bh)
+            for s in RUN_STRIDES[v]:
+                im = Image.open(os.path.join(RUN_SOURCE, f"run_{v}", f"{s:04d}.png")).convert("RGBA")
+                if im.size != (m["frame_w"], m["frame_h"]):
+                    sys.exit(f"build_assets: run_{v} frame {s} is {im.size}, the manifest says {m['frame_w']} x {m['frame_h']}")
+                # premultiplied resample of the whole box to (bw, bh), as resize() does (no dark fringes)
+                arr = np.asarray(im).astype(np.float32) / 255.0
+                arr[..., :3] *= arr[..., 3:4]
+                pm = Image.fromarray((arr * 255).round().astype(np.uint8), "RGBA").resize((bw, bh), Image.LANCZOS)
+                o = np.asarray(pm).astype(np.float32) / 255.0
+                alpha = np.clip(o[..., 3:4], 1e-6, 1)
+                o[..., :3] = np.clip(o[..., :3] / alpha, 0, 1)
+                small = Image.fromarray((o * 255).round().astype(np.uint8), "RGBA")
+                a = np.asarray(small)[..., 3]
+                ys, xs = np.where(a > 1)
+                x0, y0, x1, y1 = int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+                pictures[(v, s)] = (small.crop((x0, y0, x1, y1)), x0, y0)
+        # shelf pack onto sheets of at most RUN_SHEET_MAX a side, tallest first, 2 px gutters
+        gap = 2
+        order = sorted(pictures.items(), key=lambda kv: (-kv[1][0].height, kv[0]))
+        sheets = []  # each: {"place": {key: (x, y)}, "w": .., "h": ..}
+        cur = {"place": {}, "w": 0, "h": 0}
+        x = y = shelf = 0
+        for key, (im, _, _) in order:
+            if x and x + im.width > RUN_SHEET_MAX:
+                x = 0
+                y += shelf + gap
+                shelf = 0
+            if y + im.height > RUN_SHEET_MAX:
+                sheets.append(cur)
+                cur = {"place": {}, "w": 0, "h": 0}
+                x = y = shelf = 0
+            cur["place"][key] = (x, y)
+            cur["w"] = max(cur["w"], x + im.width)
+            cur["h"] = max(cur["h"], y + im.height)
+            x += im.width + gap
+            shelf = max(shelf, im.height)
+        sheets.append(cur)
+        files = []
+        frames = {v: {} for v in RUN_VIEWS}
+        for n, sh in enumerate(sheets):
+            page = Image.new("RGBA", (sh["w"], sh["h"]), (0, 0, 0, 0))
+            for key, (px, py) in sh["place"].items():
+                im, ox, oy = pictures[key]
+                page.paste(im, (px, py))
+                v, s = key
+                frames[v][str(s)] = {"sheet": n, "x": px, "y": py, "w": im.width, "h": im.height, "ox": ox, "oy": oy}
+            name = f"run-{tier}-{n}.webp"
+            path = os.path.join(out_dir, name)
+            page.save(path, **RUN_WEBP)
+            files.append({"file": f"reindeer/{name}", "width": sh["w"], "height": sh["h"]})
+            print(f"  reindeer {name}: {sh['w']} x {sh['h']}, {len(sh['place'])} frames, {os.path.getsize(path) // 1024} KB")
+        gpu = sum(f["width"] * f["height"] * 4 for f in files) / 1048576
+        spec["tiers"][tier] = {
+            "density": density,
+            "boxes": {v: {"w": b[0], "h": b[1]} for v, b in boxes.items()},
+            "sheets": files,
+            "frames": frames,
+            "gpuMb": round(gpu, 1),
+        }
+        print(f"  reindeer {tier}: {len(files)} sheets, {gpu:.1f} MB on the GPU (no mip chain)")
+    path = os.path.join(APP, "src", "game", "reindeerRunSpec.ts")
+    with open(path, "w") as fh:
+        fh.write("// AUTO-GENERATED by tools/build_assets.py (build_reindeer_run) from the rig's export. Do not edit: change the tool and\n")
+        fh.write("// run it again. Frame px are the rig's 1536 render; sheet px are this tier's pages; road px = frame px x roadPxPerFramePx.\n")
+        fh.write(f"export const REINDEER_RUN = {json.dumps(spec, indent=chr(9))} as const;\n")
+    print(f"  wrote {os.path.relpath(path, APP)}")
+
+
 def main():
+    if sys.argv[1:] == ["reindeer"]:
+        # the run views alone (the rest of the art is untouched)
+        print("reindeer run views")
+        build_reindeer_run()
+        return
     spec = {}
     print("road")
     build_road(spec)
@@ -606,6 +753,8 @@ def main():
     print("fonts")
     build_fonts(spec)
     write_spec(spec)
+    print("reindeer run views")
+    build_reindeer_run()
 
 
 if __name__ == "__main__":

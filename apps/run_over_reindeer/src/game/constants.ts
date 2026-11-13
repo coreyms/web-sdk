@@ -107,19 +107,32 @@ export const STOPLIGHT = {
 	},
 };
 
-// ---- THE REINDEER STRIKE (third pass; game/road/roadFeatures.ts) ------------------------------------------------------
+// ---- THE REINDEER STRIKE (stage 1 of the rig's run, Corey 2026-11-12; game/road/roadFeatures.ts) -------------------
 // Corey 2026-11-10: "the reindeer would enter from above the board running parallel in the snow then turn downward when
-// it's going to strike something. This gives us some player anticipation." So, after the lanes settle: it comes in
-// at one end of the snow bank above the road, runs along it, brakes to a stop above the target's reel, holds there a
-// moment (the anticipation), turns, and runs straight down the screen into the target cell: the impact. The book says
-// only which cell; the path is the game's. All times are on the road's clock, so turbo shortens them and a slam stop
-// runs them 3x faster. The runner is still the tagged PLACEHOLDER side view (the rig's run, turn and down-the-screen
-// clips come later): the turn is that picture leaning head down, and it grows as it runs down toward us.
+// it's going to strike something. This gives us some player anticipation." Stage 1 (2026-11-12) draws it with the rig's
+// rendered run views (game/road/reindeerRun.ts): it comes in at one end of the snow bank above the road running side on
+// (run_R), turns with ONE frame of run_S (20 degrees toward us), runs a short diagonal in run_Q (40 degrees), ONE frame
+// of run_M (60 degrees), then runs straight down the target's reel in run_C (80 degrees) into the target cell: the
+// impact. No stop and no hold before the turn (Corey: "No stop"). The other side is the same views mirrored.
+// THE MIDDLE PATH (Corey 2026-11-12, against the feet sliding): a slower snow run and a faster leg cycle. The run is
+// counted in POSES of the 16 pose cycle, strideFps poses a second. TIME BASED (Corey 2026-11-12: "yes" to slow screens
+// skipping poses so the strike always takes the same time): the pose and the body's place both come from the road
+// clock, so at 60 Hz each frame shows the next pose, at 120 Hz each pose stays up for two frames, and a 30 Hz screen,
+// a dropped frame, turbo or a slam stop skip poses and keep the strike's length (turbo 1.7 and the slam's 3x shorten
+// it by their rate). Never skipped: the one S pose, the one M pose and the first C pose; a frame that would jump over
+// one draws it a little late instead and the next frame catches up. The
+// snow run starts on pose (7 - n) mod 16, n = the POSES before the run down, so the run down always starts on pose 7 and
+// lands on the right foot (the rig's delivery note), and C never shows its lone-hoof poses 3 to 6. The book says only
+// which cell; the path is the game's.
 export type SnowRun = {
 	/** where its feet run along the snow, road px from the picture's top (the lane lines are 167 to 851) */
 	feetY: number;
-	/** its size in the snow, on top of the built size (190 road px tall) */
+	/** its size in the snow, on top of the built size (the side run's tallest outline is 190 road px) */
 	scale: number;
+	/** THE DIAGONAL (Corey: "Leave it tunable for the game"): how long it runs in run_Q, road px along its path on the
+	 *  screen. It is rounded to whole poses (at least one): at runSpeed / strideFps one pose of Q is about 20 road px on
+	 *  the screen, so 80 is 4 poses. The turn (S, the Q poses, M) drops the feet about 56 road px at the defaults. */
+	diagonal: number;
 };
 export const STRIKE = {
 	/** the pause after the lanes settle (or after the strike before) */
@@ -133,43 +146,54 @@ export const STRIKE = {
 	 *               from the top bar's lower edge (road y -25) to the lane, 192 road px, and the title sign covers the
 	 *               middle three reels down to road y 28. Feet on the shoulder above the top lane at 0.72 of the built
 	 *               size (137 road px, 88 master units tall; at the road's own 0.85 it would run into the sign), so only its
-	 *               antler tips pass behind the sign. (Before the shrink: 95 road px of snow, half size, legs only
-	 *               under the sign.)
+	 *               antler tips pass behind the sign. Only 17 road px of snow lie under its feet, so the turn ends
+	 *               over the top lane: at the defaults its feet are about 56 road px down, 39 into the top lane (171
+	 *               tall), when the run down starts.
 	 *    phone      from the screen's top (road y -62) to the lane: 229 road px, nothing over it.
 	 *    portrait   the whole snow field under the title: over 500 road px. */
 	snow: {
-		landscape: { feetY: 150, scale: 0.72 } as SnowRun,
-		phone: { feetY: 100, scale: 0.8 } as SnowRun,
-		portrait: { feetY: 70, scale: 0.85 } as SnowRun,
+		landscape: { feetY: 150, scale: 0.72, diagonal: 80 } as SnowRun,
+		phone: { feetY: 100, scale: 0.8, diagonal: 80 } as SnowRun,
+		portrait: { feetY: 70, scale: 0.85, diagonal: 80 } as SnowRun,
 	},
 	/** it starts this many road px outside the picture's edge, under the rock or off the screen */
 	enterPad: 30,
-	/** ALONG THE SNOW: road px per second, and the least and most the run may take */
-	runSpeed: 2800,
-	runMinMs: 260,
-	runMaxMs: 480,
-	/** the last share of the run brakes to a stop above the target's reel (0 = no braking, a hard stop) */
-	brakeShare: 0.3,
-	/** THE ANTICIPATION: it stands above the target's reel this long before it turns, crouching to this height */
-	holdMs: 140,
-	crouch: 0.9,
-	/** THE TURN: it leans head down to this many degrees over this long (90 = pointing straight down the screen) */
-	turnMs: 90,
-	downAngle: 90,
-	/** DOWN THE SCREEN: road px per second, and the least and most the run down may take. It quickens as it goes. */
+	/** ALONG THE SNOW (the side run, the turn and the diagonal): road px per second on the ground, and the leg cycle's
+	 *  poses per second. The middle path (2026-11-12, measured from the rig's frames: the side run's one grounded pose,
+	 *  pose 1, sweeps its hoof back 71.9 frame px per pose): at 1400 and 60 the body moves 2.44x the hoof's sweep on the
+	 *  desktop (snow scale 0.72), 2.20x on a phone held sideways, 2.07x in portrait, and the farthest reel's side run
+	 *  takes 0.93 s (the nearest 0.57 s). The other two compromises: 1150 (2.01x, 1.13 s) and 1600 (2.79x, 0.82 s). Both
+	 *  aims at once (2x and under 0.9 s) would need about 76 poses a second, more than a 60 Hz screen can show without
+	 *  skipping poses. The side run's step is trimmed (under 2%) so the turn ends exactly over the target's reel. */
+	runSpeed: 1400,
+	strideFps: 60,
+	/** THE CAMERA's angle above the ground, degrees (the spec: a three-quarter overhead camera, about 35 to 45). It sets
+	 *  which way each turned view runs on the screen and how much shorter its step looks: S runs 13 degrees below the
+	 *  horizontal, Q 28 and M 48, at 0.96, 0.87 and 0.75 of the side run's step. */
+	cameraDeg: 40,
+	/** DOWN THE SCREEN (run_C): road px per second, steady (no stop, no quickening), and its own poses per second. The
+	 *  run down is a whole number of poses, at least 1 and at most the C poses packed from pose 7 on (12: poses 7 to 16,
+	 *  1, 2; tools/build_assets.py RUN_STRIDES), its step trimmed to fit; at 2600 and 42 the longest run down (the
+	 *  bottom lane in portrait) is just 12. C's grounded hooves hardly move on the screen (they plant toward the camera),
+	 *  so no speed keeps them from sliding there. */
 	downSpeed: 2600,
-	downMinMs: 130,
-	downMaxMs: 280,
+	downStrideFps: 42,
 	/** the impact: when its middle reaches this far down the target cell (0 top, 1 bottom) */
 	impactAt: 0.5,
-	/** its size on the road at the impact, on top of the built size; it grows to this from its snow size on the way
-	 *  down (it is coming toward us) */
+	/** its size on the road at the impact, on top of the built size; it grows to this from its snow size as it comes
+	 *  down the screen (it is coming toward us) */
 	roadScale: 0.85,
-	/** its canter in the snow: hops this high (at road size; smaller in the snow), this many a second */
-	hopPx: 14,
-	hopsPerSecond: 4.5,
 	/** the runner fades out over this long after the impact */
 	fadeMs: 120,
+	/** a strike waits this long at most for the run views to finish loading (they start when the board is up), then
+	 *  runs with the placeholder picture */
+	loadWaitMs: 1500,
+	/** STAGE 2, NOT WIRED (null = off): the pose the snow run must start on (the rig's take-off clip ends on run_R pose
+	 *  3, so the run goes on from pose 4). With a fixed start the run cannot pick its first pose, so the side run's speed
+	 *  is scaled by up to startFactorMax (either way) until the poses before the run down fit the (7 - n) rule
+	 *  (game/road/roadFeatures.ts planRun). A distance it cannot fit falls back to the free start. */
+	startPose: null as number | null,
+	startFactorMax: 0.12,
 };
 
 // ---- THE GRANDMA WILD: the crash cloud in one cell, for one spin (Corey 2026-11-04 and 2026-11-09) ---------------------
