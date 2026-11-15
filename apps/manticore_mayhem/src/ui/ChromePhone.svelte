@@ -15,7 +15,6 @@
 	import { landscapeGeo, outlineArch, type HudFrame } from './hud/hudLayout';
 	import { createHudState } from './hud/hudState';
 	import HudGlass from './hud/HudGlass.svelte';
-	import HudSweep from './hud/HudSweep.svelte';
 	import HudSpin from './hud/HudSpin.svelte';
 	import HudKey from './hud/HudKey.svelte';
 	import HudArmoury from './hud/HudArmoury.svelte';
@@ -68,7 +67,6 @@
 		</defs>
 		<circle cx={G.n.cx} cy={G.n.cy} r={ringR} fill="none" stroke="url(#hudring)" stroke-width="1" />
 	</svg>
-	<HudSweep x0={capO.topStraight[0]} x1={capO.topStraight[1]} y={capO.topStraight[2]} {lit} />
 	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<HudArmoury {controls} x={K.arm.x} y={K.arm.y} w={K.arm.d} h={K.arm.d} shape="ln" />{/if}
 	<HudKey kind="menu" {controls} x={K.menu.x} y={K.menu.y} d={K.menu.d} cls="ln fs" />
 	{#if !replay && !controls.jurisdiction().disabledAutoplay}<HudKey kind="auto" {controls} x={K.auto.x} y={K.auto.y} d={K.auto.d} cls="ln q" />{/if}

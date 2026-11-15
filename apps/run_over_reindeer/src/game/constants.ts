@@ -229,10 +229,20 @@ export const RED_BOX = {
 
 // ---- THE COLUMN WILD (the three characters; game/road/roadFeatures.ts, tools/build_columns.py) --------------------------
 export const COLUMN = {
-	/** the box holds on the struck cell with the cell cloud this long */
-	impactMs: 110,
-	/** then grows to the four rows over this long */
-	growMs: 210,
+	/** THE STRUCK CELL FIRST (Corey 2026-11-13: "draw the square box slower, put the crash cloud in the square box,
+	 *  then let it grow from there. SO the player can see exactly what cell started the transition"): the box is traced
+	 *  around the struck cell over boxDrawMs (from its top left corner, clockwise) with the symbol still showing, then
+	 *  the crash cloud pops inside it over cloudPopMs. impactMs is the whole time on the struck cell (trace, pop, hold). */
+	boxDrawMs: 260,
+	cloudPopMs: 170,
+	cloudPopFrom: 0.5,
+	cloudPopOver: 1.04,
+	impactMs: 610,
+	/** then the box grows from that cell to the four rows over this long */
+	growMs: 420,
+	/** a column with no struck cell (Super's opening column) keeps the short times: there is no cell to point at */
+	wholeImpactMs: 110,
+	wholeGrowMs: 210,
 	/** THE STILL CLOUD behind a standing column (Corey 2026-11-10): the color it is multiplied by. 0xffffff is the
 	 *  cloud as drawn (white). The entrance clips' own cloud turns a dusky blue gray as it thins (measured on its last
 	 *  cloud frames: reindeer 152,168,172, Santa 180,194,195, Grandma 130,160,175), so the still takes that tone and the

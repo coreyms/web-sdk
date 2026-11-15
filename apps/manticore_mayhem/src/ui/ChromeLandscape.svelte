@@ -18,7 +18,6 @@
 	import { desktopGeo, outlineTerm, type HudFrame } from './hud/hudLayout';
 	import { createHudState } from './hud/hudState';
 	import HudGlass from './hud/HudGlass.svelte';
-	import HudSweep from './hud/HudSweep.svelte';
 	import HudSpin from './hud/HudSpin.svelte';
 	import HudKey from './hud/HudKey.svelte';
 	import HudArmoury from './hud/HudArmoury.svelte';
@@ -60,7 +59,6 @@
 <div class="hudp hud-group v-{hud.variant}" data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.x0 + 14}px" style:top="{G.y1 - 14}px" style:width="{G.xr - G.x0 - 28}px" style:height="28px"></div>
 	<HudGlass {outline} frame={{ x0: G.x0, x1: G.xr, y0: G.n.cy - G.n.R, y1: G.y1, peak: (G.c - G.x0) / (G.xr - G.x0) }} {ante} W={hud.W} H={hud.H} />
-	<HudSweep x0={outline.topStraight[0]} x1={outline.topStraight[1]} y={outline.topStraight[2]} {lit} />
 	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<HudArmoury {controls} x={G.arm.x} y={G.arm.y} w={G.arm.w} h={G.arm.h} shape="pill" />{/if}
 	<HudKey kind="menu" {controls} x={G.menu.x} y={G.menu.y} d={G.menu.d} />
 	{#each G.hl as h, i (i)}<i class="hl" class:wn={h.wn} style:left="{h.x}px" style:top="{h.y}px"></i>{/each}

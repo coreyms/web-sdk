@@ -40,10 +40,12 @@
 		hud?: string;
 		lit?: boolean;
 		keep?: boolean;
+		/** the room the fit leaves beside the number (mock px; the round 6 portrait boxes are sized to the number itself) */
+		pad?: number;
 	};
-	const { label, value, pre = '', x, y, w, h, cls = '', nominal, onclick, disabled = false, ariaLabel, hud, lit = false, keep = false }: Props = $props();
+	const { label, value, pre = '', x, y, w, h, cls = '', nominal, onclick, disabled = false, ariaLabel, hud, lit = false, keep = false, pad = 12 }: Props = $props();
 	const interactive = $derived(!!onclick && !disabled);
-	const font = $derived(fitted(value, nominal, w - 12));
+	const font = $derived(fitted(value, nominal, w - pad));
 </script>
 
 <button

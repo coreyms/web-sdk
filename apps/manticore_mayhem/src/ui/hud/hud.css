@@ -83,10 +83,6 @@
 	border-radius: 999px;
 	z-index: -1;
 }
-/* portrait: the minus and plus grow up and out, hardly down (Auto and Turbo are under them) */
-.hudp.v-portrait .sk.hit::after {
-	inset: min(-4px, calc(32px - var(--hit, 44px))) min(-4px, calc((100% - var(--hit, 44px)) / 2)) -4px;
-}
 
 /* ---- readouts: fixed boxes sized for the longest numbers, so a win lights up in place and nothing reflows ---- */
 .hudp .stat {
@@ -249,6 +245,28 @@
 	letter-spacing: 0.16em;
 	margin-right: -0.16em;
 }
+/* round 6 (portrait): each word sits 1 px over its number; the sizes are the row's own (ui/hud/hudLayout.ts ROW6,
+   set on the plane as --lb, --num, --lg by ChromePortrait) */
+.hudp .stat.pt.r6 {
+	gap: var(--lg, 1px);
+	justify-content: flex-start;
+}
+.hudp .stat.pt.r6 .lbw {
+	font-size: var(--lb, 8px);
+	line-height: 1;
+	letter-spacing: 0.2em;
+}
+.hudp .stat.pt.r6.r .lbw {
+	margin-right: -0.2em;
+}
+.hudp .stat.pt.r6.amt.sante .lbw {
+	letter-spacing: 0.16em;
+	margin-right: -0.16em;
+}
+.hudp .stat.pt.r6 .value {
+	font-size: var(--num, 15px);
+	line-height: 1;
+}
 
 /* ---- landscape: the capsule's readouts ---- */
 .hudp .stat.lc {
@@ -390,8 +408,13 @@
 .hudp .key.turbo .kl {
 	top: calc(var(--k) * 0.5);
 }
+/* portrait (round 6): the word is 18 % of the key's height, as on the round 5 keys (8 px on 44) */
 .hudp.v-portrait .key .kl {
-	font-size: 8px;
+	font-size: calc(var(--k) * 0.18);
+	top: calc(var(--k) * 0.6);
+}
+.hudp.v-portrait .key.turbo .kl {
+	top: calc(var(--k) * 0.52);
 }
 .hudp.v-portrait .key .lv {
 	gap: 2px;
@@ -649,6 +672,45 @@
 	height: 17px;
 	margin-left: -8.5px;
 }
+/* portrait (round 6): a small wide pill, the icon over the word; the word is 18 % of the pill's height (ANTE a step
+   larger, SUPER over ANTE at the base size), placed from the pill's middle so every height of the row reads the same */
+.hudp .fbtn.circ.wide {
+	border-radius: 999px;
+}
+.hudp .fbtn.circ.wide .ic {
+	top: calc(50% - 15px);
+	width: 17px;
+	height: 17px;
+	margin-left: -8.5px;
+}
+.hudp .fbtn.circ.wide .lb {
+	top: calc(50% + 5px);
+	font-size: calc(var(--k) * 0.18);
+	letter-spacing: 0.1em;
+	text-indent: 0.1em;
+}
+.hudp .fbtn.circ.wide.ante .lb {
+	top: calc(50% + 4px);
+	font-size: calc(var(--k) * 0.2077);
+	letter-spacing: 0.16em;
+	text-indent: 0.16em;
+}
+.hudp .fbtn.circ.wide .lb.two {
+	top: calc(50% + 2px);
+	gap: 1.5px;
+	font-size: calc(var(--k) * 0.18);
+	letter-spacing: 0.12em;
+	text-indent: 0.12em;
+}
+.hudp .fbtn.circ.wide.sante .ic {
+	top: calc(50% - 16px);
+	width: 13px;
+	height: 13px;
+	margin-left: -6.5px;
+}
+.hudp .fbtn.circ.wide.sante .lb.two {
+	top: calc(50% - 2px);
+}
 /* landscape: a 34 px circle, icon only; with a mode on the word takes the icon's place */
 .hudp .fbtn.circ.ln .ic {
 	top: 50%;
@@ -753,8 +815,52 @@
 	stroke-linecap: butt;
 	opacity: 0.85;
 }
-.hudp .spin .ring.rot {
-	animation: hud-rot 1.1s linear infinite;
+/* THE COMET (round 6, motion C "Flip"): while a round plays, three arcs at 1, .45 and .18 a short way apart run the
+   ring (a fading tail). Its own svg, so the turn is one transform on one box; it fades in and out (opacity) and keeps
+   turning while it fades (HudSpin keeps .turn a moment past the round) */
+.hudp .spin .comet {
+	position: absolute;
+	left: 2px;
+	top: 2px;
+	width: calc(100% - 4px);
+	height: calc(100% - 4px);
+	transform: rotate(-90deg);
+	overflow: visible;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+.hudp .spin .comet.on {
+	opacity: 1;
+}
+.hudp .spin .comet.turn {
+	animation: hud-rot 1s linear infinite;
+}
+.hudp .spin .comet .arc {
+	stroke-dasharray: 30 289.03;
+}
+.hudp .spin .comet .a2 {
+	opacity: 0.45;
+}
+.hudp .spin .comet .a3 {
+	opacity: 0.18;
+}
+/* the free-spins ring moves smoothly by a short slider arc that turns (a transform) out from under the arc's end, or
+   back under it (HudSpin) */
+.hudp .spin .ring.slide.go {
+	transition: transform 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+/* the press: one soft ring opens out of the rim (at the press only; nothing flashes or pops when the round ends) */
+.hudp .spin .halo {
+	position: absolute;
+	inset: -1px;
+	border-radius: 50%;
+	border: 1.5px solid rgb(var(--hud-accent-hi-rgb));
+	opacity: 0;
+	pointer-events: none;
+}
+.hudp .spin.tap .halo {
+	animation: hud-tap 0.34s cubic-bezier(0.2, 0.7, 0.3, 1) 1;
 }
 .hudp .spin .in {
 	position: relative;
@@ -778,11 +884,59 @@
 	margin-left: calc(var(--d) * 0.02);
 	margin-bottom: calc(var(--d) * 0.03);
 }
-.hudp .spin .sq {
-	width: calc(var(--d) * 0.25);
-	height: calc(var(--d) * 0.25);
-	border-radius: calc(var(--d) * 0.03);
+/* PLAY AND STOP (motion C "Flip", flat 2D): the play triangle folds shut to a line (scaleY 1 to 0, 150 ms ease-in),
+   then the stop square opens out of the line (scaleY 0 to 1, 210 ms with a small overshoot); the reverse when the
+   round ends. Stop pressed: the glyph dims and shrinks until the round ends. */
+.hudp .spin .gy {
+	position: relative;
+	display: block;
+	width: calc(var(--d) * 0.42);
+	height: calc(var(--d) * 0.42);
+	transition: opacity 0.12s, transform 0.12s;
+}
+.hudp .spin .gy .f1,
+.hudp .spin .gy .f2 {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	display: grid;
+	place-items: center;
+}
+.hudp .spin .gy .pl {
+	width: 86%;
+	height: 86%;
+	margin-left: calc(var(--d) * 0.04);
+}
+.hudp .spin .gy .sq {
+	display: block;
+	width: 56%;
+	height: 56%;
+	border-radius: 11%;
 	background: rgb(var(--hud-ink-rgb));
+}
+.hudp .spin .f1 {
+	transform: scaleY(1);
+	transition: transform 0.21s cubic-bezier(0.25, 1.45, 0.5, 1) 0.15s;
+}
+.hudp .spin .f2 {
+	transform: scaleY(0);
+	transition: transform 0.15s cubic-bezier(0.55, 0, 0.9, 0.5);
+}
+.hudp .spin[data-st='run'] .f1,
+.hudp .spin[data-st='halt'] .f1 {
+	transform: scaleY(0);
+	transition: transform 0.15s cubic-bezier(0.55, 0, 0.9, 0.5);
+}
+.hudp .spin[data-st='run'] .f2,
+.hudp .spin[data-st='halt'] .f2 {
+	transform: scaleY(1);
+	transition: transform 0.21s cubic-bezier(0.25, 1.45, 0.5, 1) 0.15s;
+}
+.hudp .spin[data-st='halt'] .gy {
+	opacity: 0.5;
+	transform: scale(0.84);
 }
 .hudp .spin .sqs {
 	width: calc(var(--d) * 0.1);
@@ -791,7 +945,24 @@
 	background: rgba(var(--hud-ink-rgb), 0.9);
 	margin-bottom: calc(var(--d) * 0.04);
 }
+/* a count that changes slides: the old one up and out, the new one up from below (transform and opacity) */
+.hudp .spin .cw {
+	position: relative;
+	display: block;
+}
+.hudp .spin .cnt.old {
+	position: absolute;
+	left: -60px;
+	right: -60px;
+	top: 0;
+	text-align: center;
+	animation: hud-cnt-out 0.13s ease-in forwards;
+}
+.hudp .spin .cnt.slide {
+	animation: hud-cnt-in 0.13s ease-in 0.14s backwards;
+}
 .hudp .spin .cnt {
+	display: block;
 	font-size: calc(var(--d) * 0.31);
 	text-shadow: 0 1px 3px rgba(var(--hud-shadow-rgb), 0.6);
 	font-variant-numeric: tabular-nums;
@@ -837,7 +1008,7 @@
 		border-color: rgb(var(--hud-accent-cream-rgb)) var(--hud-spin-rim-side) rgb(var(--hud-accent-hi-rgb));
 		box-shadow: 0 10px 22px rgba(var(--hud-shadow-rgb), 0.55), 0 0 0 5px rgba(var(--hud-accent-rgb), 0.14), 0 0 28px rgba(var(--hud-accent-rgb), 0.42), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.6), inset 0 0 22px rgba(var(--hud-accent-rgb), 0.28);
 	}
-	.hudp .spin:hover:not(:disabled) .pl {
+	.hudp .spin:hover:not(:disabled) .gy {
 		transform: scale(1.07);
 	}
 }
@@ -845,15 +1016,18 @@
 	transform: scale(0.95);
 	box-shadow: 0 4px 10px rgba(var(--hud-shadow-rgb), 0.6), inset 0 4px 12px rgba(var(--hud-shadow-rgb), 0.7), inset 0 0 18px rgba(var(--hud-accent-rgb), 0.22);
 }
-.hudp .spin:disabled {
+.hudp .spin:disabled:not([data-st='halt']) {
 	cursor: default;
 	opacity: 1;
 	border-color: rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-ink-rgb), 0.22);
 	background: radial-gradient(circle at 50% 60%, rgba(var(--hud-spin-core-rgb), 0.7), rgba(var(--hud-spin-deep-rgb), 0.9) 80%);
 	box-shadow: 0 8px 18px rgba(var(--hud-shadow-rgb), 0.45);
 }
-.hudp .spin:disabled .pl,
-.hudp .spin:disabled .sq {
+.hudp .spin:disabled {
+	cursor: default;
+}
+.hudp .spin:disabled:not([data-st='halt']) .pl,
+.hudp .spin:disabled:not([data-st='halt']) .sq {
 	opacity: 0.3;
 }
 .hudp .spin.m-feature:disabled,
@@ -866,24 +1040,11 @@
 	pointer-events: none;
 }
 
-/* ---- the win streak along a top edge (a transform + opacity sweep, never a stroke animation) ---- */
-.hudp .sweep {
+/* the bar's box (portrait): no paint, for the probes */
+.hudp .barbox {
 	position: absolute;
-	height: 6px;
-	overflow: hidden;
 	pointer-events: none;
-}
-.hudp .sweep i {
-	position: absolute;
-	left: 0;
-	top: 0;
-	width: 120px;
-	height: 6px;
-	opacity: 0;
-	background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--hud-accent-cream-rgb), 0.95), rgba(var(--hud-accent-hi-rgb), 0.4) 40%, rgba(var(--hud-accent-hi-rgb), 0) 70%);
-}
-.hudp .sweep.go i {
-	animation: hud-sweep 1.5s cubic-bezier(0.45, 0.05, 0.4, 1) 0.1s 1 both;
+	visibility: hidden;
 }
 
 /* ---- the help menu panel: glass with a small tail pointing at the Menu key ---- */
@@ -1199,19 +1360,25 @@
 		transform: rotate(360deg);
 	}
 }
-@keyframes hud-sweep {
+@keyframes hud-tap {
 	0% {
-		transform: translateX(-120px);
-		opacity: 0;
-	}
-	15% {
-		opacity: 1;
-	}
-	85% {
-		opacity: 1;
+		opacity: 0.5;
+		transform: scale(0.96);
 	}
 	100% {
-		transform: translateX(var(--sweep-w, 600px));
+		opacity: 0;
+		transform: scale(1.12);
+	}
+}
+@keyframes hud-cnt-out {
+	to {
+		transform: translateY(-38%);
+		opacity: 0;
+	}
+}
+@keyframes hud-cnt-in {
+	from {
+		transform: translateY(38%);
 		opacity: 0;
 	}
 }
@@ -1219,5 +1386,8 @@
 	.hudp *,
 	.hudp {
 		animation: none !important;
+	}
+	.hudp .spin .cnt.old {
+		display: none;
 	}
 }

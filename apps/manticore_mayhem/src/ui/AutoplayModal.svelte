@@ -216,7 +216,7 @@
 			</div></div>
 		</div>
 		<div class="stepper" onclick={(e) => e.stopPropagation()} role="presentation">
-			<BetAdjuster {controls} {compact} pressSound="soundPressSub" />
+			<BetAdjuster {controls} {compact} pressSound="soundPressSub" glass />
 		</div>
 	</div>
 </ModalShell>

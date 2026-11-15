@@ -192,6 +192,9 @@
 			runMemory: () => runMemory(),
 			/** run a strike into a cell by hand (no book, no sound): __reindeer.strike(cell). Resolves at the impact. */
 			strike: (cell: number) => road.features.strike({ cell, markCell: null }),
+			/** stand a column Wild by hand from a struck cell (no book, no sound), and read its box and clouds as drawn */
+			column: (reel: number, tier: 'reindeer' | 'santa' | 'grandma', multiplier: number, fromCell: number | null) => road.features.columnWild(reel, tier, multiplier, false, fromCell),
+			columnTrace: (reel: number) => road.features.columnTrace(reel),
 			/** the run's plan along the snow for a distance (road px), a diagonal and a fixed start pose (stage 2; null = free) */
 			planRun: (distance: number, diagonal: number, startPose: number | null = null, maxFactor?: number) => planRun(distance, diagonal, startPose, maxFactor),
 			/** the staging readout's labels as they stand, oldest first, with performance.now() (the probes read the upload

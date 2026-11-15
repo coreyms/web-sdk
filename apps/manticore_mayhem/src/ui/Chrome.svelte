@@ -12,7 +12,7 @@
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
 	import HudStyles from './hud/HudStyles.svelte';
-	import { hudFrame, readSafeInsets } from './hud/hudLayout';
+	import { hudFrame, readSafeInsets, portraitBoardBottoms } from './hud/hudLayout';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
 	import ChromePhone from './ChromePhone.svelte';
@@ -65,6 +65,11 @@
 		return readSafeInsets();
 	});
 	const hud = $derived(hudFrame({ kind, phone, vw, vh, safe }));
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		// house rule: extend __manticore, never a new global (tools/manticore/hud_probe.js reads the HUD's scale, the
+		// portrait row's t and the plaque box the rule placed it under)
+		((window as any).__manticore ??= {}).hudFrame = () => ({ variant: hud.variant, u: hud.u, t: hud.t, gap: hud.gap, plaque: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null });
+	}
 	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth }, ARMOURY.layout));
 	// the real HUD's BALANCE and bet row are lit above the tint in every layout but the desktop box scaled onto a phone
 	// sideways chrome (the small 16:9 frames): there the menu draws its own copies and the whole HUD stays under the tint

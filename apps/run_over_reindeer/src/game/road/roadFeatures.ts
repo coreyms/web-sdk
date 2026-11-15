@@ -97,25 +97,41 @@ class RedBox {
 		for (let i = 0; i < 4; i++) this.sides.push(quad(RED_BOX.color));
 	}
 
-	/** lay the box around a rectangle (road px) */
-	set(x: number, y: number, w: number, h: number) {
+	/** the red lines as laid: top, bottom, left, right; a line not yet traced has no length (the probes read them) */
+	lines() {
+		return this.sides.map((q) => ({ y: q.y, width: q.visible ? q.width : 0, height: q.visible ? q.height : 0 }));
+	}
+
+	/** lay the box around a rectangle (road px). `drawn` (0 to 1) is how much of it has been traced: from the top left
+	 *  corner along the top, down the right side, back along the bottom and up the left side. 1 = the whole box. */
+	set(x: number, y: number, w: number, h: number, drawn = 1) {
 		const frame = (list: PIXI.Sprite[], t: number, grow: number) => {
 			const x0 = x - grow;
 			const y0 = y - grow;
 			const ww = w + 2 * grow;
 			const hh = h + 2 * grow;
+			const d = Math.max(0, Math.min(1, drawn)) * 2 * (ww + hh);
+			const part = (from: number, length: number) => Math.max(0, Math.min(length, d - from));
+			const top = part(0, ww);
+			const right = part(ww, hh);
+			const bottom = part(ww + hh, ww);
+			const leftSide = part(2 * ww + hh, hh);
 			list[0].position.set(x0, y0);
-			list[0].width = ww;
+			list[0].width = top;
 			list[0].height = t;
-			list[1].position.set(x0, y0 + hh - t);
-			list[1].width = ww;
+			list[0].visible = top > 0;
+			list[1].position.set(x0 + ww - bottom, y0 + hh - t);
+			list[1].width = bottom;
 			list[1].height = t;
-			list[2].position.set(x0, y0);
+			list[1].visible = bottom > 0;
+			list[2].position.set(x0, y0 + hh - leftSide);
 			list[2].width = t;
-			list[2].height = hh;
+			list[2].height = leftSide;
+			list[2].visible = leftSide > 0;
 			list[3].position.set(x0 + ww - t, y0);
 			list[3].width = t;
-			list[3].height = hh;
+			list[3].height = right;
+			list[3].visible = right > 0;
 		};
 		frame(this.outer, RED_BOX.width + 2 * RED_BOX.edge, RED_BOX.edge);
 		frame(this.sides, RED_BOX.width, 0);
@@ -150,6 +166,10 @@ type Column = {
 	/** impact (box on the struck cell), grow, enter (the entrance clip), idle, win (the win clip once), leave */
 	phase: 'wait' | 'impact' | 'grow' | 'enter' | 'idle' | 'win' | 'leave';
 	t0: number;
+	/** when the box began to be traced around the struck cell, and this column's times on the cell and growing */
+	boxT0: number;
+	impactMs: number;
+	growMs: number;
 	/** the struck row the box grows from, or -1 (a column that starts whole: Super's opening column) */
 	fromRow: number;
 	labelShown: boolean;
@@ -441,7 +461,7 @@ export class RoadFeatures {
 		this.boxLayer.addChild(box.root);
 		this.numberLayer.addChild(label.root);
 		void loadBackdrop();
-		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false };
+		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false };
 		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - COLUMN.numberUp);
 		this.columns.push(column);
 		return column;
@@ -454,6 +474,10 @@ export class RoadFeatures {
 		this.removeColumn(reel, true);
 		const column = this.makeColumn(reel, tier, multiplier, sticky, joinAdd);
 		column.fromRow = fromCell === null ? -1 : fromCell % ROWS;
+		if (column.fromRow >= 0) {
+			column.impactMs = COLUMN.impactMs;
+			column.growMs = COLUMN.growMs;
+		}
 		// 'wait': the box stands on the struck cell with the cell cloud until the tier's pictures are in. They usually are
 		// (they started loading when the book arrived). A late or failed load never holds the round longer than
 		// loadWaitMs: the column then stands as its box and its number.
@@ -463,12 +487,13 @@ export class RoadFeatures {
 		void loadClip(tier, 'idle');
 		const reveal = await wait(loadClip(tier, 'reveal'));
 		if (this.destroyed || !this.columns.includes(column) || column.phase !== 'wait') return;
+		// the time on the struck cell counts from the first stroke of the box, not from the pictures' arrival
 		column.phase = 'impact';
-		column.t0 = this.clock;
+		column.t0 = column.boxT0;
 		const entrance = reveal ? (reveal.textures.length / reveal.fps) * 1000 : 200;
 		// a joining Grandma Wild's sum shows after the column's own number (never under variant F)
 		const join = joinAdd > 0 ? Math.max(0, entrance * COLUMN.numberAt + COLUMN.joinMs - entrance) : 0;
-		await this.wait(this.clock + COLUMN.impactMs + COLUMN.growMs + entrance + join);
+		await this.wait(column.t0 + column.impactMs + column.growMs + entrance + join);
 	}
 
 	/** make the board's sticky columns exactly this list, with no entrance (the start of each free spin; a resume or a
@@ -759,22 +784,29 @@ export class RoadFeatures {
 			// the box: on the struck cell, then growing to the four rows (from the middle when there is no struck cell)
 			const from = column.fromRow >= 0 ? inset(cellRect(column.reel * ROWS + column.fromRow)) : { x: full.x, y: full.y + full.h / 2 - 4, w: full.w, h: 8 };
 			let g = 0;
-			if (column.phase === 'impact' && t >= COLUMN.impactMs) {
+			if (column.phase === 'impact' && t >= column.impactMs) {
 				column.phase = 'grow';
 			}
 			if (column.phase === 'grow') {
-				const u = Math.min(1, (t - COLUMN.impactMs) / COLUMN.growMs);
+				const u = Math.min(1, (t - column.impactMs) / column.growMs);
 				g = 1 - (1 - u) * (1 - u);
 			}
 			const y = from.y + (full.y - from.y) * g;
 			const h = from.h + (full.h - from.h) * g;
-			column.box.set(full.x, y, full.w, h);
-			// the cloud in the box: the cell cloud at the impact, then the entrance's own first frame cropped to the box
-			column.cellCloud.visible = column.phase !== 'grow' && column.fromRow >= 0;
+			// the box is traced around the struck cell first, the symbol still showing under it
+			const sinceBox = this.clock - column.boxT0;
+			column.box.set(full.x, y, full.w, h, column.fromRow >= 0 ? sinceBox / COLUMN.boxDrawMs : 1);
+			// the cloud in the box: the cell cloud pops in once the box is whole, then the entrance's own first frame
+			// cropped to the box as it grows
+			const sincePop = sinceBox - COLUMN.boxDrawMs;
+			column.cellCloud.visible = column.phase !== 'grow' && column.fromRow >= 0 && sincePop >= 0;
 			if (column.cellCloud.visible) {
-				column.cellCloud.position.set(from.x, from.y);
-				column.cellCloud.width = from.w;
-				column.cellCloud.height = from.h;
+				const u = Math.min(1, sincePop / COLUMN.cloudPopMs);
+				const over = COLUMN.cloudPopOver;
+				const k = u < 0.7 ? COLUMN.cloudPopFrom + (over - COLUMN.cloudPopFrom) * (u / 0.7) : over + (1 - over) * ((u - 0.7) / 0.3);
+				column.cellCloud.position.set(from.x + (from.w * (1 - k)) / 2, from.y + (from.h * (1 - k)) / 2);
+				column.cellCloud.width = from.w * k;
+				column.cellCloud.height = from.h * k;
 				this.hideCell(column.reel * ROWS + column.fromRow, true);
 			}
 			// (the entrance's pictures can be gone: then the box grows empty and nothing stale is drawn)
@@ -803,7 +835,7 @@ export class RoadFeatures {
 				// the symbols under the box as it passes them
 				for (let row = 0; row < ROWS; row++) if (LINES[row + 1] > y && LINES[row] < y + h) this.hideCell(column.reel * ROWS + row, true);
 			}
-			if (column.phase === 'grow' && t >= COLUMN.impactMs + COLUMN.growMs) {
+			if (column.phase === 'grow' && t >= column.impactMs + column.growMs) {
 				// the column's cloud now covers the whole reel: a Grandma car's red box under it goes, and a Grandma Wild
 				// standing in the reel (never under variant F) gives way to the column, her number joining its own
 				this.dropMarks(column.reel);
@@ -914,6 +946,14 @@ export class RoadFeatures {
 	}
 
 	/** what stands on the road (dev hook and the probes) */
+	/** a column's box and clouds as drawn, road px (the probes' per-frame log of the struck cell, the pop and the growth) */
+	columnTrace(reel: number) {
+		const c = this.columns.find((x) => x.reel === reel && x.phase !== 'leave');
+		if (!c) return null;
+		const [top, bottom, left, right] = c.box.lines();
+		return { ms: this.clock - c.boxT0, phase: c.phase, top: top.width, right: right.height, bottom: bottom.width, left: left.height, boxY: top.y, boxBottom: bottom.y + bottom.height, cellCloud: c.cellCloud.visible ? c.cellCloud.width : 0, growCloud: c.cloud.visible ? c.cloud.height : 0 };
+	}
+
 	snapshot() {
 		return {
 			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => ({ reel: c.reel, tier: c.tier, multiplier: c.multiplier, sticky: c.sticky, phase: c.phase, drawn: c.body.visible, backdrop: c.backdrop.visible, over: c.body.parent === this.bodyLayer })),

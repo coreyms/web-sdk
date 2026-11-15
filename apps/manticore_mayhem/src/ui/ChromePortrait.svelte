@@ -2,13 +2,14 @@
 	import { stamp } from '../game/assets';
 	import { getContext } from '../game/context';
 	// Portrait master (412x760): the stacked logo on top (unchanged).
-	// THE HUD (round 5, "Drop 6", Corey 2026-11-12): one glass bar low on the floor, as tall as its keys need, with the
-	// Spin set in its middle: the Spin stands about 39 % above the bar's top edge and drops 6 px below its bottom edge,
-	// the bar's border flowing round both arcs. ARMOURY and MENU on the left shoulder, AUTO and TURBO on the right.
-	// Over the left shoulder WIN above BALANCE; over the right the amount, with minus and plus under it at the far right
-	// (68 px clear of the Spin's edge on a 390 phone). The help menu rises over the left side, its tail on Menu; what it
-	// covers fades. Geometry: ui/hud/hudLayout.ts portraitGeo. The chrome spans the real viewport width; the HUD hangs
-	// from the viewport's bottom edge (a home-indicator band under it on a tall phone, as the mockup had).
+	// THE HUD (round 6, "Row of Seven", Corey 2026-11-13): one glass bar low on the floor with the Spin set in its middle
+	// (its border flowing round the Spin's upper and lower arcs) and ONE row inside it: the ARMOURY as a wide pill, MENU
+	// right beside it, AUTO next to the Spin on its left, the Spin, TURBO next to the Spin on its right, a gap, then minus
+	// and plus at the right end. Turbo always sits between the Spin and minus (Corey: minus and plus never next to the
+	// Spin). Above the bar, WIN over BALANCE at the left (each word 1 px over its number, BALANCE ending just above the
+	// bar) and the amount at the right, right above the bar. The help menu rises over the left side, its tail on Menu;
+	// what it covers fades. Geometry: ui/hud/hudLayout.ts portraitGeo (the short and tall mock rows, and the rule between
+	// them). The chrome spans the real viewport width; the HUD hangs from the viewport's bottom edge.
 	import type { Controls } from './controls.svelte';
 	import { MASTER, isPhoneSizeType } from '../game/layoutSpec';
 	import { logoArtRect } from '../game/logo/layout';
@@ -19,7 +20,6 @@
 	import { portraitGeo, outlineBead, type HudFrame } from './hud/hudLayout';
 	import { createHudState } from './hud/hudState';
 	import HudGlass from './hud/HudGlass.svelte';
-	import HudSweep from './hud/HudSweep.svelte';
 	import HudSpin from './hud/HudSpin.svelte';
 	import HudKey from './hud/HudKey.svelte';
 	import HudArmoury from './hud/HudArmoury.svelte';
@@ -45,9 +45,10 @@
 	const lit = $derived(hs.winLit());
 	const amtLabel = $derived(rh ? rh.label : hs.amtLabel());
 	const amtValue = $derived(rh ? rh.total : controls.betText());
-	const plane = $derived(`width:${hud.W}px;height:${hud.H}px;transform:${hud.transform};--hit:${44 / hud.u}px`);
+	// the readouts' type (mock px, the row's own sizes) rides on the plane as custom properties (hud.css .stat.pt.r6)
+	const plane = $derived(`width:${hud.W}px;height:${hud.H}px;transform:${hud.transform};--hit:${44 / hud.u}px;--lb:${G.type.lb}px;--num:${G.type.num}px;--lg:${G.type.lg}px`);
 	const at = (c: { cx: number; cy: number; d: number }) => ({ x: c.cx - c.d / 2, y: c.cy - c.d / 2, d: c.d });
-	const K = $derived({ arm: at(G.arm), menu: at(G.menu), auto: at(G.auto), turbo: at(G.turbo), minus: at(G.minus), plus: at(G.plus) });
+	const K = $derived({ menu: at(G.menu), auto: at(G.auto), turbo: at(G.turbo), minus: at(G.minus), plus: at(G.plus) });
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE UNLEASHED" />
@@ -62,20 +63,22 @@
 <div class="hudp hud-group v-portrait" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.bar.x0 + 14}px" style:top="{G.bar.y1 - 14}px" style:width="{G.bar.x1 - G.bar.x0 - 28}px" style:height="28px"></div>
 	<HudGlass {outline} frame={{ x0: G.bar.x0, x1: G.bar.x1, y0: G.n.cy - G.n.R, y1: G.n.cy + (G.n.Rb ?? G.n.R), peak: 0.5 }} {ante} W={hud.W} H={hud.H} />
-	<HudSweep x0={outline.topStraight[0]} x1={G.bar.x1 - (G.bar.y1 - G.bar.y0) / 2} y={outline.topStraight[2]} {lit} />
-	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<HudArmoury {controls} x={K.arm.x} y={K.arm.y} w={K.arm.d} h={K.arm.d} shape="circ" />{/if}
+	<!-- the bar's box, for the probes (no paint) -->
+	<div class="barbox" data-hud="bar" style:left="{G.bar.x0}px" style:top="{G.bar.y0}px" style:width="{G.bar.x1 - G.bar.x0}px" style:height="{G.bar.y1 - G.bar.y0}px"></div>
+	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<HudArmoury {controls} x={G.arm.x} y={G.arm.y} w={G.arm.w} h={G.arm.h} shape="wide" />{/if}
 	<HudKey kind="menu" {controls} x={K.menu.x} y={K.menu.y} d={K.menu.d} />
 	{#if !replay && !controls.jurisdiction().disabledAutoplay}<HudKey kind="auto" {controls} x={K.auto.x} y={K.auto.y} d={K.auto.d} />{/if}
 	{#if !controls.jurisdiction().disabledTurbo}<HudKey kind="turbo" {controls} x={K.turbo.x} y={K.turbo.y} d={K.turbo.d} />{/if}
 	<HudSpin {controls} x={G.spin.x} y={G.spin.y} d={G.spin.d} />
-	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} x={G.win.x} y={G.win.y} w={G.win.w} nominal={15} cls="pt l win uc {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
+	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} x={G.win.x} y={G.win.y} w={G.win.w} h={G.win.h} nominal={G.type.num} pad={0} cls="pt r6 l win uc {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
 	<HudMenuPanel {controls} x={G.panel.x} y={G.panel.bottom - G.panel.h} W={G.panel.w} H={G.panel.h} tip={G.panel.tip} T={G.panel.tail} />
 </div>
 
-<!-- what THE ARMOURY keeps lit above its tint: BALANCE, the amount, minus and plus (Chrome.svelte) -->
+<!-- what THE ARMOURY keeps lit above its tint: BALANCE, the amount, minus and plus (Chrome.svelte); minus and plus sit
+     inside the bar, so this plane draws them over the glass of the plane above -->
 <div class="hudp hud-group v-portrait stats" class:menu-open={stateUi.menuOpen} data-plane="lit" style={plane}>
-	{#if !replay}<HudReadout label="BALANCE" value={controls.balanceText()} x={G.bal.x} y={G.bal.y} w={G.bal.w} nominal={15} cls="pt l bal uc" hud="balance" lit />
-	{:else if rh && !rh.isBase}<HudReadout label="BASE AMOUNT" value={rh.base} x={G.bal.x} y={G.bal.y} w={G.bal.w} nominal={15} cls="pt l bal uc" hud="balance" lit />{/if}
+	{#if !replay}<HudReadout label="BALANCE" value={controls.balanceText()} x={G.bal.x} y={G.bal.y} w={G.bal.w} h={G.bal.h} nominal={G.type.num} pad={0} cls="pt r6 l bal uc" hud="balance" lit />
+	{:else if rh && !rh.isBase}<HudReadout label="BASE AMOUNT" value={rh.base} x={G.bal.x} y={G.bal.y} w={G.bal.w} h={G.bal.h} nominal={G.type.num} pad={0} cls="pt r6 l bal uc" hud="balance" lit />{/if}
 	{#if !replay || rh}
 		<HudReadout
 			label={amtLabel}
@@ -83,8 +86,10 @@
 			x={G.W - G.amt.right - G.amt.w}
 			y={G.amt.y}
 			w={G.amt.w}
-			nominal={15}
-			cls="pt r amt uc {!replay && hs.modeOn() ? 'ante' : ''} {ante === 2 ? 'sante' : ''} {!replay && controls.betDisabled() ? 'is-locked' : ''}"
+			h={G.amt.h}
+			nominal={G.type.num}
+			pad={0}
+			cls="pt r6 r amt uc {!replay && hs.modeOn() ? 'ante' : ''} {ante === 2 ? 'sante' : ''} {!replay && controls.betDisabled() ? 'is-locked' : ''}"
 			onclick={replay ? undefined : controls.openDenom}
 			disabled={replay || controls.betDisabled()}
 			hud="amount"
@@ -92,8 +97,8 @@
 		/>
 	{/if}
 	{#if !replay}
-		<HudStep dir={-1} {controls} x={K.minus.x} y={K.minus.y} d={K.minus.d} cls="fs uc" />
-		<HudStep dir={1} {controls} x={K.plus.x} y={K.plus.y} d={K.plus.d} cls="fs uc" />
+		<HudStep dir={-1} {controls} x={K.minus.x} y={K.minus.y} d={K.minus.d} cls="inb uc" />
+		<HudStep dir={1} {controls} x={K.plus.x} y={K.plus.y} d={K.plus.d} cls="inb uc" />
 	{/if}
 </div>
 

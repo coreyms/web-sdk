@@ -1,7 +1,7 @@
 <script lang="ts">
-	// THE FEATURE BUTTON (Drop 6, the second hero): an ember pill on the big screens, an ember circle on the phones (34 px
-	// and icon only on the landscape phone). Its press is controls.bonusPress, unchanged (it opens THE ARMOURY; with a
-	// mode on, on that mode). With a mode ON it turns gold and says the mode's name, never changing size:
+	// THE FEATURE BUTTON (Drop 6, the second hero): an ember pill on the big screens, an ember circle on the landscape
+	// phone (34 px, icon only) and, on the portrait phone (round 6), a small wide pill with its icon over its word. Its
+	// press is controls.bonusPress, unchanged (it opens THE ARMOURY; with a mode on, on that mode). With a mode ON it turns gold and says the mode's name, never changing size:
 	//   Ante, an armed buy (BONUS, SUPER, EPIC, MYSTERY)  gold rim and glow, the name
 	//   Super Ante                                         a step hotter: a double rim, SUPER over ANTE
 	// Disabled whenever controls.bonusDisabled() says (a spin, free spins, a held round).
@@ -13,7 +13,7 @@
 	import { HUD_CONFIG } from '../hudTheme';
 	import HudIcon from './HudIcon.svelte';
 
-	type Props = { controls: Controls; x: number; y: number; w: number; h: number; shape: 'pill' | 'circ' | 'ln'; cls?: string };
+	type Props = { controls: Controls; x: number; y: number; w: number; h: number; shape: 'pill' | 'circ' | 'ln' | 'wide'; cls?: string };
 	const { controls, x, y, w, h, shape, cls = '' }: Props = $props();
 
 	const onLabel = $derived(controls.anteActive() ? modeShortLabel(stateBet.activeBetModeKey) : controls.armedLabel());
@@ -25,7 +25,7 @@
 
 <button
 	type="button"
-	class="slot-btn hg fbtn fb hit {shape === 'pill' ? '' : 'circ'} {shape === 'ln' ? 'ln gl-fs' : ''} {cls}"
+	class="slot-btn hg fbtn fb hit {shape === 'pill' ? '' : 'circ'} {shape === 'ln' ? 'ln gl-fs' : ''} {shape === 'wide' ? 'wide' : ''} {cls}"
 	class:ante={on}
 	class:sante
 	style:left="{x}px"

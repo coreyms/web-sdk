@@ -1,4 +1,5 @@
-// THE HUD'S GEOMETRY (HUD round 5, "Drop 6": Desktop/u1.js in images/hud_round5_2026-11-12, approved 2026-11-12).
+// THE HUD'S GEOMETRY (HUD round 5, "Drop 6": Desktop/u1.js in images/hud_round5_2026-11-12, approved 2026-11-12; the
+// portrait phone row is HUD round 6, "Row of Seven": concepts/r6.js in images/hud_round6_2026-11-13, approved 2026-11-13).
 //
 // UNITS. The mockup was drawn in CSS px on five stills: portrait 390 x 844, landscape phone 844 x 390, tablet 1180 x
 // 820, desktop 1440 x 810, wide 1920 x 810. Here those numbers are "mock px", kept verbatim, and the HUD is drawn in
@@ -8,8 +9,9 @@
 //   desktop   u = fit / 1.125    (the 1280 x 720 master shown at 1440 x 810); wide is the same rule (W = 1920)
 //   tablet    u = fit / 0.921875 (the master at 1180 x 820) - the desktop layout on a screen that draws the master
 //             smaller than 1:1 (fit < 1): bigger keys and a wider dock, so the controls keep their touch size
-//   portrait  u = fit / 0.946602 (the 412 master at 390 px wide); on a portrait TABLET u is capped so the Spin stays
-//             under the spin amount plaque and the readouts under the frame art (the board is bigger there)
+//   portrait  a phone: u = vw / 390 (round 6: the row is sized by the screen's width, see ROW6); a portrait TABLET keeps
+//             u = fit / 0.946602 (the 412 master at 390 px wide), capped so the Spin stays under the spin amount plaque
+//             and the readouts under the frame art (the board is bigger there)
 //   landscape u = fit / 0.527027 (the 1480 x 740 phone master at 390 px high); anchored to the master like the board
 // Bottom rows are anchored to the viewport's bottom edge, the desktop dock to its centre line (the WIN readout's
 // centre IS the screen's centre), portrait keys to its side edges. Pure functions: the chromes, the SKIP button and
@@ -38,23 +40,55 @@ export const chromeFit = (kind: LayoutKind, vw: number, vh: number) => {
 export const hudVariant = (kind: LayoutKind, scale: number): HudVariant =>
 	kind === 'portrait' ? 'portrait' : kind === 'phone' ? 'landscape' : scale < 1 ? 'tablet' : 'desktop';
 
-// ---- the portrait stack, mock px above the Spin's bottom edge (u1 portrait: Spin bottom 808 on the 844 still) ----
+// ---- the portrait row (HUD round 6, "Row of Seven", approved 2026-11-13: images/hud_round6_2026-11-13/concepts/r6.js) ----
+// One row inside the glass bar: the Armoury (a wide pill), Menu, Auto | Spin | Turbo, a gap, minus and plus. WIN over
+// BALANCE at the left above the bar, the amount at the right above the bar. The mock draws it twice on a 390 px wide
+// phone: SHORT (390 x 620, iPhone Safari with its bars, 66 px under the plaque) and TALL (390 x 844, full screen). Here
+// both are re-measured up from the Spin's bottom edge (sb), x from the left edge (Armoury, Menu), from the center line
+// (Auto, Turbo: cx -/+ autoDx) or from the right edge (minus, plus: W - x).
+//
+// THE RULE BETWEEN THEM (hudFrame): on a phone the HUD is sized by the screen's WIDTH (u = vw / 390, so the plane is
+// always 390 mock px wide and both mock stills land on their own pixels), and t (0 = short, 1 = tall) is the largest
+// value whose layout fits under the spin amount plaque: every number is interpolated linearly between the two mock
+// tables, and "fits" means the Spin's top is not above the plaque's shadow box and neither readout column meets the
+// plaque's box (its x extent too: on the short screen WIN and BALANCE sit BESIDE the plaque). t moves smoothly with
+// the screen's height, so a height between the two mock heights gets an in-between row. A tall phone (19.5:9, a home
+// indicator band under the Spin) gives part of its band before t moves and the rest only once t is 0. Only when even
+// t = 0 does not fit (a phone shorter than the short mock for its width) does the whole row scale down, never under
+// uMinPhone.
+export const ROW6 = {
+	short: { spinD: 64, R: 33.5, Rb: 32, f: 6, barTop: 40, barBottom: 3, keyUp: 21.5, armX: 10, armW: 68.5, armH: 34, menuX: 100.5, kM: 34, autoDx: 55.5, kA: 34, minusR: 73, plusR: 27, skD: 34, m: 9, lb: 7, num: 12.5, lg: 1, bg: 2, stackUp: 41.5, panelUp: 6, tail: 22 },
+	tall: { spinD: 86, R: 45, Rb: 43, f: 8, barTop: 54, barBottom: 6, keyUp: 30, armX: 10, armW: 55, armH: 40, menuX: 87, kM: 34, autoDx: 68, kA: 36, minusR: 73, plusR: 27, skD: 34, m: 12, lb: 8, num: 17, lg: 1, bg: 3, stackUp: 57, panelUp: 10, tail: 26 },
+};
+export type Row6 = typeof ROW6.short;
+/** the row at t (0 short .. 1 tall), every number interpolated */
+export const row6 = (t: number): Row6 => {
+	const a = ROW6.short as Record<string, number>;
+	const b = ROW6.tall as Record<string, number>;
+	const o: Record<string, number> = {};
+	for (const k of Object.keys(a)) o[k] = r2(a[k] + (b[k] - a[k]) * t);
+	return o as Row6;
+};
+/** the readouts' fixed widths: the longest amounts (BALANCE $9,999,999.99, WIN $1,250,000.00, the amount $1,000.00) at
+ *  the number's type size, in ems of the HUD's number face (Outfit 900, tabular figures; measured in the game) */
+const VALUE_EM = { long: 6.83, amt: 4.77 };
+export const row6Widths = (num: number) => ({ col: Math.ceil(VALUE_EM.long * num), amt: Math.ceil(VALUE_EM.amt * num) });
+
+// ---- the portrait band (gap = mock px under the Spin's bottom edge) ----
 export const PORTRAIT = {
-	/** the gap under the Spin: the mock's (36 = its 34 px home-indicator band + 2) on a tall phone, less elsewhere */
+	/** the band under the Spin: the tall mock's (36 = its 34 px home-indicator band + 2) on a tall phone, the short
+	 *  mock's 4 on a shorter one, more on a tablet */
 	gapTall: 36,
-	gapShort: 10,
+	gapShort: 4,
 	gapTablet: 14,
 	/** a phone at least this tall for its width has a home indicator (every 19.5:9 phone) */
 	tallRatio: 1.9,
-	spinD: 92,
-	/** the stack above the Spin's bottom: Spin top 92, WIN label top 118 */
-	winTop: 118,
-	balTop: 88,
-	stepY: 75,
-	keyY: 31,
-	barTop: 56,
-	barBottom: 6,
-	spinCy: 46,
+	/** a tall phone's band first gives down to gapMin (the tall row kept), then the row steps toward the short one,
+	 *  then (the short row still too tall) the band gives the rest of the way to gapShort */
+	gapMin: 30,
+	/** CSS px: the Spin's top may meet the plaque's shadow box (the short mock puts it there); the readouts keep this */
+	spinClear: 0,
+	readClear: 0.5,
 	/** portrait tablet: the Spin this far under the plaque, the readouts this far under the art (CSS px) */
 	plaqueClear: 8,
 	plaqueShadowCss: 3.5,
@@ -62,25 +96,44 @@ export const PORTRAIT = {
 	/** never smaller than this on a tablet, on a phone */
 	uMin: 0.8,
 	uMinPhone: 0.68,
-	/** the readouts may sit this much under the mock's place (mock px; BALANCE then still clears the bar) */
-	readDropMax: 4,
-	/** a tall phone's band under the Spin gives up to this much (it keeps gapMin) */
-	gapMin: 30,
+	/** the mock's phone width */
+	mockW: 390,
 };
 
-/** the spin amount plaque's bottom (its soft shadow's, the lowest thing it draws) and the frame art's bottom on a portrait
+/** the spin amount plaque's box (its soft shadow's, the lowest thing it draws) and the frame art's bottom on a portrait
  *  screen, CSS px: the board's own numbers (game/layoutSpec.ts frameFor, the plaque spec components/BoardPlaque.svelte
- *  picks: the tablet numbers once the shipped growth is past 1) */
+ *  picks: the tablet numbers once the shipped growth is past 1). The plaque is centered on the screen. */
 export const portraitBoardBottoms = (vw: number, vh: number) => {
 	const f = chromeFit('portrait', vw, vh);
 	const vwm = vw / f.scale;
 	const art = frameArtRect('portrait', vwm);
 	const reg = registrationOf(frameFor('portrait', vwm));
-	const box = BOARD_PLAQUE_SPEC.layouts[portraitShippedK(vwm) > 1 ? 'portraitTablet' : 'portrait'].render.plaqueBox as readonly number[];
+	const spec = BOARD_PLAQUE_SPEC.layouts[portraitShippedK(vwm) > 1 ? 'portraitTablet' : 'portrait'].render;
+	const box = spec.plaqueBox as readonly number[];
+	const shadow = spec.shadowBox as readonly number[];
 	const plaque = art.bottom + (box[1] + box[3] - BOARD_ART.art[3]) * reg.m;
-	// the plaque's soft shadow as drawn reaches PORTRAIT.plaqueShadowCss under its plate (2.7 CSS px measured at 390 x 844;
-	// the spec's shadowBox is the padded sprite, about 6 px)
-	return { art: f.top + art.bottom * f.scale, plaque: f.top + plaque * f.scale + PORTRAIT.plaqueShadowCss };
+	const shadowBottom = art.bottom + (shadow[1] + shadow[3] - BOARD_ART.art[3]) * reg.m;
+	const half = (shadow[2] / 2) * reg.m * f.scale;
+	// plaque: the plate's bottom + PORTRAIT.plaqueShadowCss (the tablet rule, measured at 390 x 844); shadow: the shadow
+	// sprite's own box (what the board draws lowest and widest, and what the probes hold the HUD off), for the phone row
+	return {
+		art: f.top + art.bottom * f.scale,
+		plaque: f.top + plaque * f.scale + PORTRAIT.plaqueShadowCss,
+		shadow: { x0: vw / 2 - half, x1: vw / 2 + half, y1: f.top + shadowBottom * f.scale },
+	};
+};
+
+/** does the round 6 row at t fit under the plaque? (mock px; pl = the plaque's box in mock px) */
+const row6Fits = (t: number, W: number, H: number, gap: number, pl: { x0: number; x1: number; y1: number }, clearSpin: number, clearRead: number) => {
+	const S = row6(t);
+	const sb = H - gap;
+	if (sb - S.spinD < pl.y1 + clearSpin) return false;
+	const bh = S.lb + S.lg + S.num;
+	const stackBottom = sb - S.stackUp;
+	const w = row6Widths(S.num);
+	const colTop = stackBottom - 2 * bh - S.bg;
+	const meets = (x0: number, x1: number, y0: number) => y0 < pl.y1 + clearRead && x1 > pl.x0 - clearRead && x0 < pl.x1 + clearRead;
+	return !meets(S.m, S.m + w.col, colTop) && !meets(W - S.m - w.amt, W - S.m, stackBottom - bh);
 };
 
 /** what a chrome needs to draw its planes: the variant, u, the plane in mock px, the plane's transform inside .fit */
@@ -90,35 +143,81 @@ export const hudFrame = (v: HudView) => {
 	let u = fit.scale / MOCK_K[variant];
 	const safe = v.safe ?? { t: 0, r: 0, b: 0, l: 0 };
 	let gap = 0;
-	/** portrait: how far the readouts (WIN, BALANCE, the amount) sit under the mock's place, to clear the plaque */
-	let drop = 0;
+	/** portrait: the row between the short (0) and the tall (1) mock layouts */
+	let t = 1;
 	if (variant === 'portrait') {
 		const P = PORTRAIT;
 		const B = portraitBoardBottoms(v.vw, v.vh);
-		gap = v.phone ? (v.vh / v.vw >= P.tallRatio ? P.gapTall : P.gapShort) : P.gapTablet;
-		gap = Math.max(gap, safe.b / u + 2);
 		if (!v.phone) {
-			const room = Math.min((v.vh - B.plaque - P.plaqueClear) / (gap + P.spinD), (v.vh - B.art - P.artClear) / (gap + P.winTop));
+			// a portrait tablet: the tall row, scaled as before so the Spin stays under the plaque and the readouts
+			// under the frame art
+			const S = ROW6.tall;
+			gap = Math.max(P.gapTablet, safe.b / u + 2);
+			const winTop = S.stackUp + 2 * (S.lb + S.lg + S.num) + S.bg;
+			const room = Math.min((v.vh - B.plaque - P.plaqueClear) / (gap + S.spinD), (v.vh - B.art - P.artClear) / (gap + winTop));
 			u = Math.max(P.uMin, Math.min(u, room));
 		} else {
-			// THE PLAQUE (Drop 6 puts WIN's label on the plaque's lower edge, at 390 x 844): the readouts keep 1 CSS px under
-			// the plaque's shadow. They drop up to readDropMax mock px first (the stack still clears the bar), then a tall
-			// phone's home-indicator band gives up to gapGive, then the HUD scales down; the Spin always stays plaqueClear
-			// under it
-			const need = (B.plaque + 1 - (v.vh - (gap + P.winTop) * u)) / u;
-			drop = Math.min(Math.max(0, need), P.readDropMax);
-			const give = Math.min(Math.max(0, need - drop), Math.max(0, gap - P.gapMin));
-			gap -= give;
-			const roomRead = (v.vh - B.plaque - 1) / (gap + P.winTop - drop);
-			const roomSpin = (v.vh - B.plaque - P.plaqueClear) / (gap + P.spinD);
-			u = Math.max(P.uMinPhone, Math.min(u, roomRead, roomSpin));
+			u = v.vw / P.mockW;
+			const tall = v.vh / v.vw >= P.tallRatio;
+			const gapAt = (uu: number, g: number) => Math.max(g, safe.b / uu + 2);
+			const plAt = (uu: number) => ({ x0: B.shadow.x0 / uu, x1: B.shadow.x1 / uu, y1: B.shadow.y1 / uu });
+			const fits = (tt: number, uu: number, g: number) => row6Fits(tt, v.vw / uu, v.vh / uu, g, plAt(uu), P.spinClear / uu, P.readClear / uu);
+			/** the largest t that fits (0 if none does: the caller checks) */
+			const solveT = (uu: number, g: number) => {
+				if (fits(1, uu, g)) return 1;
+				let lo = 0;
+				let hi = 1;
+				for (let i = 0; i < 14; i++) {
+					const mid = (lo + hi) / 2;
+					if (fits(mid, uu, g)) lo = mid;
+					else hi = mid;
+				}
+				return lo;
+			};
+			gap = gapAt(u, tall ? P.gapTall : P.gapShort);
+			// a tall phone's band gives first (it keeps gapMin)
+			if (tall && !fits(1, u, gap)) {
+				const gMin = gapAt(u, P.gapMin);
+				let lo = gMin;
+				let hi = gap;
+				if (fits(1, u, gMin)) {
+					for (let i = 0; i < 12; i++) {
+						const mid = (lo + hi) / 2;
+						if (fits(1, u, mid)) lo = mid;
+						else hi = mid;
+					}
+					gap = lo;
+				} else gap = gMin;
+			}
+			t = solveT(u, gap);
+			// even the short row does not fit: a tall phone's band gives the rest of the way (down to the short mock's),
+			// then the whole row scales down (never under uMinPhone). Each step starts where the one before ended, so the
+			// row changes smoothly with the screen's height.
+			if (t === 0 && !fits(0, u, gap)) {
+				const gShort = gapAt(u, P.gapShort);
+				if (tall && fits(0, u, gShort)) {
+					let lo = gShort;
+					let hi = gap;
+					for (let i = 0; i < 12; i++) {
+						const mid = (lo + hi) / 2;
+						if (fits(0, u, mid)) lo = mid;
+						else hi = mid;
+					}
+					gap = lo;
+				} else {
+					let uu = u;
+					while (uu > P.uMinPhone && !fits(0, uu, gapAt(uu, P.gapShort))) uu = Math.max(P.uMinPhone, uu - 0.005);
+					u = uu;
+					gap = gapAt(u, P.gapShort);
+				}
+			}
 		}
 	}
 	const W = v.vw / u;
 	const H = v.vh / u;
 	// the plane's top left is the viewport's; inside .fit (master px, origin at fitLeft / top) that is -fitLeft / scale
 	const transform = `translate(${-fit.fitLeft / fit.scale}px, ${-fit.top / fit.scale}px) scale(${u / fit.scale})`;
-	return { variant, u, W, H, gap, drop, fit, transform, safe };
+	return { variant, u, W, H, gap, t, fit, transform, safe };
 };
 export type HudFrame = ReturnType<typeof hudFrame>;
 
@@ -195,36 +294,38 @@ export const desktopGeo = (f: HudFrame, artLeftMock: number) => {
 	};
 };
 
-// ---- portrait (Win over Balance, Drop 6) ----
+// ---- portrait (round 6: one row of seven, WIN over BALANCE and the amount above the bar) ----
 export const portraitGeo = (f: HudFrame, stripBottomMock: number) => {
-	const P = PORTRAIT;
+	const S = row6(f.t);
 	const W = f.W;
 	const sb = f.H - f.gap;
 	const cx = W / 2;
-	const n: Circle = { cx, cy: sb - P.spinCy, r: P.spinD / 2, R: 48, Rb: 46, f: 8 };
-	const keyY = sb - P.keyY;
-	// the outer keys on the edges as on the mock (44 in), the inner ones the mock's share of the way to the Spin's edge
-	const armX = 44;
-	const menuX = armX + 0.5905 * (cx - n.r - armX);
-	const bar = { x0: 8, x1: W - 8, y0: sb - P.barTop, y1: sb - P.barBottom };
-	const m = 12;
-	const panelBottom = n.cy - n.r - 8;
+	const r = S.spinD / 2;
+	const n: Circle = { cx, cy: sb - r, r, R: S.R, Rb: S.Rb, f: S.f };
+	const keyY = sb - S.keyUp;
+	const bar = { x0: 6, x1: W - 6, y0: sb - S.barTop, y1: sb - S.barBottom };
+	// the readouts: a small word 1 px over its number; BALANCE ends just above the bar, WIN tight over it
+	const bh = S.lb + S.lg + S.num;
+	const stackBottom = sb - S.stackUp;
+	const w = row6Widths(S.num);
+	// the help panel's body ends just above the Spin's top; its tail reaches down toward Menu
 	const pw = 300;
-	const pl = Math.max(8, Math.min(W - 8 - pw, menuX - 54));
+	const pl = Math.max(8, Math.min(W - 8 - pw, S.menuX - 84));
 	return {
-		W, sb, n, bar, keyY, m,
-		arm: { cx: armX, cy: keyY, d: 48 },
-		menu: { cx: menuX, cy: keyY, d: 44 },
-		auto: { cx: W - menuX, cy: keyY, d: 44 },
-		turbo: { cx: W - armX, cy: keyY, d: 44 },
-		spin: { x: cx - n.r, y: n.cy - n.r, d: P.spinD },
-		win: { x: m, y: sb - P.winTop + f.drop, w: 170 },
-		bal: { x: m, y: sb - P.balTop + f.drop, w: 170 },
-		amt: { right: m, y: sb - P.winTop + f.drop, w: 130 },
-		minus: { cx: W - 70, cy: sb - P.stepY + f.drop, d: 28 },
-		plus: { cx: W - 26, cy: sb - P.stepY + f.drop, d: 28 },
+		W, sb, n, bar, keyY, S,
+		type: { lb: S.lb, num: S.num, lg: S.lg },
+		arm: { x: S.armX, y: keyY - S.armH / 2, w: S.armW, h: S.armH },
+		menu: { cx: S.menuX, cy: keyY, d: S.kM },
+		auto: { cx: cx - S.autoDx, cy: keyY, d: S.kA },
+		turbo: { cx: cx + S.autoDx, cy: keyY, d: S.kA },
+		minus: { cx: W - S.minusR, cy: keyY, d: S.skD },
+		plus: { cx: W - S.plusR, cy: keyY, d: S.skD },
+		spin: { x: cx - r, y: n.cy - r, d: S.spinD },
+		win: { x: S.m, y: stackBottom - 2 * bh - S.bg, w: w.col, h: bh },
+		bal: { x: S.m, y: stackBottom - bh, w: w.col, h: bh },
+		amt: { right: S.m, y: stackBottom - bh, w: w.amt, h: bh },
 		skip: { x: W - 8 - 76, y: stripBottomMock + 7, w: 76, h: 30 },
-		panel: { x: pl, w: pw, h: 176, tail: 26, bottom: panelBottom, tip: menuX - pl },
+		panel: { x: pl, w: pw, h: 176, tail: S.tail, bottom: n.cy - r - S.panelUp, tip: S.menuX - pl },
 	};
 };
 
