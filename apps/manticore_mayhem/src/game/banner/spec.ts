@@ -69,8 +69,10 @@ export const BANNER = {
 		D: { count: { cy: 172, cap: 105, maxWidth: 230 }, amount: { cy: 322, cap: 84, maxWidth: 512 }, line: { cy: 432, cap: 22, maxWidth: 520 } },
 		P: { count: { cy: 164.7, cap: 100.9, maxWidth: 230 }, amount: { cy: 310.5, cap: 87.9, maxWidth: 507 }, line: { cy: 422.6, cap: 23.4, maxWidth: 522 } },
 	},
-	/** what each tier's light makes of the baked letters (compose.py letter_tint): the live glyphs take the same */
-	glyphTint: { fs: 0xfffcf9, super: 0x95b0e5, epic: 0xefebef } as Record<BannerTier, number>,
+	/** what each tier's light makes of the baked letters (compose.py letter_tint): the live glyphs take the same. Super
+	 *  (oxblood, gold, 2026-11-15) takes a warm ivory 0xf2ede6, as in the stills Corey picked (its letter_tint ratio read
+	 *  blue gray); the blue's was 0x95b0e5 */
+	glyphTint: { fs: 0xfffcf9, super: 0xf2ede6, epic: 0xefebef } as Record<BannerTier, number>,
 } as const;
 
 // the files (literal URLs: Vite rewrites only `new URL('...', import.meta.url)` written out)
@@ -87,9 +89,10 @@ const P = {
 export const BANNER_TEXTURES: Record<BannerClass, Record<BannerTier, Record<BannerContent, string>>> = { D, P };
 /** THE BANNER'S OWN COUNT AND AMOUNT GLYPHS (Fix 2, 2026-11-15; tools/war_banner/build_banner_glyphs.py): the plaque's
  *  glyphs under their own frame names at the density of the banner's largest draw, per texture class (D digits cap 280,
- *  the rest 224: 2 px per CSS px on a 1920 x 1080 desktop; P 174 / 151: the phone cloth's own density). Loaded with each
- *  screen's cloth and unloaded with it. Mipmaps on D (a tablet draws it at 0.7 and a long amount shrinks to 0.67); P is
- *  never drawn below 0.6 of its size, so it has none. */
+ *  the rest 224: 2 px per CSS px on a 1920 x 1080 desktop; P 214 / 186: the largest P draw at resolution 3, the cloth
+ *  just under 420 CSS px wide; was 174 / 151 until 2026-11-15, which a 440 wide iPhone upscaled 1.05x). Loaded with
+ *  each screen's cloth and unloaded with it. Mipmaps on D (a tablet draws it at 0.7 and a long amount shrinks to 0.67);
+ *  none on P (a mip blend would soften the count at 0.76, its 390 portrait draw). */
 export const BANNER_GLYPHS: Record<BannerClass, { url: string; mips: boolean }> = {
 	D: { url: stamp(new URL('../../../assets/ui/banner/banner-glyphs-D.json', import.meta.url).href), mips: true },
 	P: { url: stamp(new URL('../../../assets/ui/banner/banner-glyphs-P.json', import.meta.url).href), mips: false },

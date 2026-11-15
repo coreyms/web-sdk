@@ -7,7 +7,8 @@
 //   - a landing peek: a book with two presents and no trigger. Each present plays the peek once, from its stop point
 //     (its 11 slots, o01 .. c09), and never the full open
 //   - the peek does not lengthen the spin: the same book with the peek switched off (__reindeer.tune.present.peek.on)
-//     comes to rest and ends on the same board clock, frame for frame
+//     has the same drive in schedule (to 0.5 ms), comes to rest and ends within one 33 ms step of it (the convoy sets
+//     off on or off the step grid by the fetch's real time), with the same gap from rest to the round's end
 //   - a trigger (the natural_free_spins book): the trigger's presents, and only they, play the full open (open, hold,
 //     close) with the light on; the open's sheets are in for it and let go after it (presentMemory), the peek's stay
 //   - no page errors (the Pixi 8 "reading 'addressModeU'" one included) and no console errors
@@ -117,6 +118,24 @@ async function playStepped(p, { frames = null, maxSteps = 900, stopWhen = null }
 	return { log, tIn, tRest, tDone, spin, trace: await R(p, () => window.__reindeer.presentTrace()) };
 }
 
+/** the clip's own table: one row per video frame (30 fps, frame n = the n-th picture of the clip), each present's
+ *  numbers at that frame's board clock */
+function videoTable(shots, trace, title) {
+	const rows = [`# ${title}`, '', 'One row per frame of the mp4 (30 fps). ms: from the clip\'s first frame. Per present (cell): the delivered frame of that 30 fps slot (src), the frame drawn (shown; a dropped frame shows its nearest kept neighbour, "still" the closed picture), the lid lift (units; the pop tops out at 0.61), the lid tilt back (deg) and the light\'s level (glow, 0 to 1). A dash: that present is closed and still.', ''];
+	const cells = [...new Set(trace.map((r) => r.cell))].sort((a, b) => a - b);
+	rows.push(`| frame | ms | ${cells.map((c) => `cell ${c}: clip part slot src > shown, lift, tilt, glow`).join(' | ')} |`);
+	rows.push(`|---|---|${cells.map(() => '---').join('|')}|`);
+	const t0 = shots[0]?.clock ?? 0;
+	shots.forEach((sh, n) => {
+		const at = trace.filter((r) => Math.abs(r.t - sh.clock) < 0.6);
+		rows.push(`| ${n} | ${Math.round(sh.clock - t0)} | ${cells.map((c) => {
+			const r = at.find((x) => x.cell === c);
+			return r ? `${r.kind} ${r.part} ${r.slot} ${r.src} > ${r.show}, ${r.lift.toFixed(3)}, ${r.pitch.toFixed(1)}, ${r.glow.toFixed(2)}` : '-';
+		}).join(' | ')} |`);
+	});
+	return rows.join('\n') + '\n';
+}
+
 function table(trace, t0, title) {
 	const rows = [`# ${title}`, '', 'Board clock ms from the first present frame; one row per present per 30 fps frame. lift: the delivered lid lift (units, 0.61 at the pop\'s peak); tilt: the lid\'s pitch back (deg); glow: the light\'s level (0 to 1); src: the delivered frame of that 30 fps slot; shown: the frame drawn (a dropped frame shows its nearest kept neighbour).', '', '| ms | cell | clip | part | slot | src | shown | lift | tilt | glow |', '|---|---|---|---|---|---|---|---|---|---|'];
 	for (const r of trace) rows.push(`| ${Math.round(r.t - t0)} | ${r.cell} | ${r.kind} | ${r.part} | ${r.slot} | ${r.src} | ${r.show} | ${r.lift.toFixed(3)} | ${r.pitch.toFixed(1)} | ${r.glow.toFixed(2)} |`);
@@ -128,7 +147,7 @@ async function stills(p, S, tag) {
 	const board = [['L4', 'H3', 'L2', 'H2'], ['L3', 'H2', 'L1', 'L5'], ['L3', 'L5', 'S', 'H4'], ['H4', 'L2', 'L3', 'L4'], ['H3', 'L1', 'L4', 'H1']];
 	await R(p, (b) => window.__reindeer.setBoard(b), board);
 	await R(p, () => window.__reindeer.clock(0));
-	await R(p, () => window.__reindeer.step(STEP, 2));
+	await R(p, (ms) => window.__reindeer.step(ms, 2), STEP);
 	const lay = await R(p, () => window.__reindeer.boardLayout().css);
 	const cw = lay.width / 5;
 	const ch = lay.height / 4;
@@ -171,12 +190,16 @@ async function runSize(browser, S, report) {
 	const shotsPeek = FRAMES && S.frames && OUT ? join(OUT, `frames_peek_${S.vp.width}x${S.vp.height}`) : null;
 	if (shotsPeek) mkdirSync(shotsPeek, { recursive: true });
 	let firstPeek = null;
+	const peekShots = [];
 	const on = await playStepped(p, {
 		frames: shotsPeek
 			? async (i, s) => {
 					const busy = s.presents.some((x) => x.busy);
 					if (busy && firstPeek === null) firstPeek = i;
-					if (firstPeek !== null || s.inPhase > 0) await p.screenshot({ path: join(shotsPeek, `f${String(i).padStart(4, '0')}.png`) });
+					if (firstPeek !== null || s.inPhase > 0) {
+						await p.screenshot({ path: join(shotsPeek, `f${String(i).padStart(4, '0')}.png`) });
+						peekShots.push({ file: `f${String(i).padStart(4, '0')}.png`, clock: s.clock });
+					}
 				}
 			: null,
 	});
@@ -200,6 +223,7 @@ async function runSize(browser, S, report) {
 	check(Math.abs(dOn.schedule - dOff.schedule) < 0.5 && Math.abs(dOn.rest - dOff.rest) < STEP + 1 && Math.abs(dOn.done - dOff.done) < STEP + 1 && Math.abs(dOn.done - dOn.rest - (dOff.done - dOff.rest)) <= 1, `${name}: the peek does not lengthen the spin (drive in ${dOn.schedule} vs ${dOff.schedule} ms with the peek off; seen at rest ${dOn.rest} vs ${dOff.rest}, round over ${dOn.done} vs ${dOff.done} ms after the convoy set off)`, { on: dOn, off: dOff });
 	out.peek = { slots: 11, framesPerPresent: perCell[PEEK_CELLS[0]].length, shown: [...new Set(peeks.map((r) => r.show))], spinWithPeek: dOn, spinWithoutPeek: dOff };
 	if (OUT) writeFileSync(join(OUT, `peek_${S.vp.width}x${S.vp.height}.md`), table(peeks, peeks[0]?.t ?? 0, `Peek on landing, ${name}`));
+	if (shotsPeek) writeFileSync(join(OUT, `clip_peek_${S.vp.width}x${S.vp.height}.md`), videoTable(peekShots, on.trace, `Clip: a book with two presents landing (peek), ${name}`));
 	await R(p, () => window.__reindeer.clock(1));
 
 	// ---- the trigger ----
@@ -209,6 +233,7 @@ async function runSize(browser, S, report) {
 	let peak = null;
 	let openStarted = false;
 	let after = null;
+	const trigShots = [];
 	const trig = await playStepped(p, {
 		maxSteps: 400,
 		frames: async (i, s) => {
@@ -216,7 +241,10 @@ async function runSize(browser, S, report) {
 			if (!peak || m.totalMb > peak.totalMb) peak = m;
 			const busy = s.presents.some((x) => x.opening);
 			if (busy) openStarted = true;
-			if (shotsTrig && (s.presents.some((x) => x.busy) || openStarted)) await p.screenshot({ path: join(shotsTrig, `f${String(i).padStart(4, '0')}.png`) });
+			if (shotsTrig && (s.presents.some((x) => x.busy) || openStarted)) {
+				await p.screenshot({ path: join(shotsTrig, `f${String(i).padStart(4, '0')}.png`) });
+				trigShots.push({ file: `f${String(i).padStart(4, '0')}.png`, clock: s.clock });
+			}
 		},
 		stopWhen: async (s) => openStarted && !s.presents.some((x) => x.busy),
 	});
@@ -238,6 +266,7 @@ async function runSize(browser, S, report) {
 	check(after && after.open.sheets.length === 0 && !after.open.loaded && after.peek.loaded, `${name}: after the trigger the open's sheets are let go, the peek's stay`, after);
 	out.trigger = { cells, rowsPerPresent: full.length, srcSlots: [...new Set(full.map((r) => r.src))].length, shownFrames: [...new Set(full.map((r) => r.show))].length, peakMemory: peak, afterMemory: after };
 	if (OUT) writeFileSync(join(OUT, `trigger_${S.vp.width}x${S.vp.height}.md`), table(tOpen, tOpen[0]?.t ?? 0, `Trigger (natural_free_spins), ${name}`));
+	if (shotsTrig) writeFileSync(join(OUT, `clip_trigger_${S.vp.width}x${S.vp.height}.md`), videoTable(trigShots, trig.trace, `Clip: the trigger book (natural_free_spins): the presents land, then the full open, ${name}`));
 
 	if (STILLS && OUT && S.frames) {
 		// a fresh page with the board at rest (the intro card is up on this one)

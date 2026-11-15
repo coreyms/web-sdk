@@ -487,8 +487,8 @@ def build(evidence=None):
         print(f"  {tier} {fname}: {box[2] - box[0]} x {box[3] - box[1]}, {os.path.getsize(os.path.join(OUT, fname)) // 1024} KB")
         print(f"  {tier}: GPU peek {tier_spec['gpu']['peek']} MB, open {tier_spec['gpu']['open']} MB, both {tier_spec['gpu']['both']} MB (x 4/3 with a mip chain)")
         spec["tiers"][tier] = tier_spec
-        if evidence and tier == "full":
-            write_evidence(evidence, tier_spec, spec)
+    if evidence:
+        write_evidence(evidence, spec)
     # this tool's own sheets from an earlier run that this run did not write (a page count that went down)
     written = {os.path.basename(sh["file"]) for t in spec["tiers"].values() for sh in t["sheets"]} | {os.path.basename(t["still"]["file"]) for t in spec["tiers"].values()}
     for name in os.listdir(OUT):
@@ -513,13 +513,21 @@ def build(evidence=None):
     print("  shared body:", json.dumps(report["shared"]))
 
 
-def write_evidence(folder, tier_spec, spec):
-    """the trimmed set for compare.html: the sheets copied beside it and a script with the pieces and clips"""
-    os.makedirs(os.path.join(folder, "trimmed"), exist_ok=True)
-    for s in tier_spec["sheets"]:
-        src = os.path.join(APP, "static", "assets", s["file"])
-        Image.open(src).save(os.path.join(folder, "trimmed", os.path.basename(s["file"]).replace(".webp", ".png")))
-    data = {"density": tier_spec["density"], "canvas": tier_spec["canvas"], "sheets": [os.path.basename(s["file"]).replace(".webp", ".png") for s in tier_spec["sheets"]], "pieces": tier_spec["pieces"], "frames": {t: {"back": f["back"], "front": f["front"]} for t, f in spec["frames"].items()}, "clips": spec["clips"]}
+def write_evidence(folder, spec):
+    """the trimmed set for compare.html: every tier's sheets and still beside it (as PNG, decoded from the game's webp,
+    so the page shows exactly what the game draws) and a script with the pieces, frames and clips"""
+    data = {"fps": FPS, "anchor": spec["anchor"], "light": None, "frames": {}, "clips": spec["clips"], "tiers": {}}
+    for t, f in spec["frames"].items():
+        data["frames"][t] = {"back": f["back"], "front": f["front"], "inside": f["inside"]}
+    for tier, ts in spec["tiers"].items():
+        d = os.path.join(folder, "trimmed", tier)
+        os.makedirs(d, exist_ok=True)
+        files = []
+        for sh in ts["sheets"] + [ts["still"]]:
+            name = os.path.basename(sh["file"]).replace(".webp", ".png")
+            Image.open(os.path.join(APP, "static", "assets", sh["file"])).save(os.path.join(d, name))
+            files.append(f"trimmed/{tier}/{name}")
+        data["tiers"][tier] = {"density": ts["density"], "canvas": ts["canvas"], "sheets": files[:-1], "still": {**ts["still"], "file": files[-1]}, "pieces": ts["pieces"]}
     with open(os.path.join(folder, "trimmed", "present_trim.js"), "w") as fh:
         fh.write("window.PRESENT_TRIM = " + json.dumps(data) + ";\n")
 

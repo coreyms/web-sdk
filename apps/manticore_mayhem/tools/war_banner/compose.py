@@ -105,6 +105,15 @@ def main(var, tier, content):
         ivory = np.stack([ndimage.map_coordinates(col[..., c], [my, mx], order=1, mode="nearest") for c in range(3)], -1)
         lhalo = ndimage.gaussian_filter(letters, 4.0 * S / 2048)
         acc = acc * (1 - letters[..., None] * 0.85) + ivory * 0.97 * letters[..., None] * 0.85 + (lhalo * (1 - letters))[..., None] * ember * 0.16
+    elif tier in LIFT:
+        # SUPER (oxblood, gold; 2026-11-15): the gold thread and the cloth lifted by their own albedo under the night rig,
+        # the letters held ivory (super_look_r1/_work/build.py, the stills Corey picked)
+        lf = LIFT[tier]
+        metal = ndimage.map_coordinates(msk[..., 0], [my, mx], order=1, mode="nearest")
+        alb = np.stack([ndimage.map_coordinates(col[..., c], [my, mx], order=1, mode="nearest") for c in range(3)], -1)
+        acc += (metal * (1 - letters))[..., None] * alb * lf["trim"]
+        acc += ((1 - metal) * (1 - letters))[..., None] * alb * lf["cloth"]
+        acc = acc * (1 - letters[..., None] * 0.85) + alb * 0.97 * letters[..., None] * 0.85
     acc = np.clip(acc, 0, 1)
     # the live glyphs' tint: what this tier's light makes of the baked letters (their lit colour over their albedo)
     alb_l = np.stack([ndimage.map_coordinates(col[..., c], [my, mx], order=1, mode="nearest") for c in range(3)], -1)

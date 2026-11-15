@@ -386,7 +386,9 @@ export class PresentActor {
 			}
 			slot = CLIPS.peek[Math.max(0, index)];
 			part = 'peek';
-			glow = PRESENT.peek.glint * Math.min(1, slot.lift / FULL_LIFT);
+			// the glint: the light follows the lid (up for two frames) and lingers a few frames as it shuts
+			const raw = (i: number) => (i >= 0 ? Math.min(1, CLIPS.peek[i].lift / FULL_LIFT) : 0);
+			glow = PRESENT.peek.glint * Math.max(raw(index), 0.75 * raw(index - 1), 0.5 * raw(index - 2), 0.25 * raw(index - 3));
 		} else {
 			if (el < OPEN_MS) {
 				index = Math.max(0, Math.floor(el / FRAME_MS));

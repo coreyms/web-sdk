@@ -9,7 +9,11 @@ currency's upper case code), the same forged Rakkas (tools/build_plaque_text.py 
 Rakkas lacks), rendered 4x and reduced, at the density of its largest draw:
 
   class  digits cap   others cap   largest draw it covers
-  P      174 px       151 px       the phone cloth's own density (1.72 texture px per design px: 3.2x of a 390 portrait)
+  P      214 px       186 px       the largest P draw at resolution 3: the class ends where the cloth is 420 CSS px wide
+                                   (frontScale 0.7047), so the count's cap is at most 71.1 CSS px (213.3 device px) and the
+                                   amount's 61.9 (185.8). Was 174 / 151 (the 390 portrait's 3.2x) until 2026-11-15: the
+                                   count was upscaled 1.05x on a 440 x 956 iPhone and 1.11x in its landscape (Corey's
+                                   iPhone: "the number 8/10 here on the intro screen banners is also blurry")
   D      280 px       224 px       2 px per CSS px on a 1920 x 1080 desktop (count 140 CSS px, amount 112)
 
 Digits are larger than the rest because only they appear in the spin count (cap 105 design px against the amount's 84).
@@ -45,7 +49,7 @@ STINGER = APP / "static" / "assets" / "ui" / "stinger" / "stinger.json"
 # currency's upper case CODE, GC / SC with its space; the label atlas's own list, LABEL_CHARS, less x and the times sign)
 CHARS = "0123456789.,-/'ABCDEFGHIJKLMNOPQRSTUVWXYZhkprsz$€£¥₹₽₱₩₫₺₦₡₨₵₪łجم"
 CAP = 128  # the plaque glyphs' cap in their em 192 px
-CLASSES = {"D": {"digits": 280, "others": 224}, "P": {"digits": 174, "others": 151}}
+CLASSES = {"D": {"digits": 280, "others": 224}, "P": {"digits": 214, "others": 186}}
 SS = 4  # rendered at 4x the plaque's em, then reduced
 QUALITY = 92
 

@@ -33,7 +33,8 @@ const FRAME_MS = 1000 / 60;
 export const BANNER_TIPS: readonly (readonly [number, number])[] = [
 	[26.67, 529.18], [94.85, 539.63], [157.72, 588.09], [226.46, 594.54], [298.0, 653.0], [369.54, 594.54], [438.28, 588.09], [501.15, 539.63], [569.33, 529.18],
 ];
-const CORE_COLOR: Record<BannerTier, number> = { fs: 0x3a0a06, super: 0x0b0d2a, epic: 0x0d0c10 };
+// (Super 2026-11-15: the oxblood cloth's dark, cloth_lo x 0.45; the blue's was 0x0b0d2a)
+const CORE_COLOR: Record<BannerTier, number> = { fs: 0x3a0a06, super: 0x1e040a, epic: 0x0d0c10 };
 
 type Phase = 'hidden' | 'entry' | 'unroll' | 'hold' | 'rollup' | 'retreat';
 

@@ -35,7 +35,17 @@ REST_FRAME = 230
 # ---- Epic, the game build's fix: a brighter cloth (still a cool near black, no red to go brown under the braziers) and
 # ivory letters that stay ivory to their foot (the mockup's ran ivory to ember and read copper)
 _cfg2.TIERS["epic"].update(cloth=(58, 53, 66), cloth_lo=(28, 25, 33), letter=(255, 248, 234), letter_lo=(244, 228, 204))
+# ---- Super, 2026-11-15 (Corey: "the Blue doesn't really fit the game", picked option 1 "Oxblood, gold" from the stills in
+# super_look_r1, FIX2_NOTES.md section D): an oxblood cloth (the helmet's wine wrap, m1) with crown gold trim and laurel
+# (h1), ivory letters held ivory as Epic's are, no ember glow. Exactly super_look_r1/_work/options.py OPTIONS["superA"].
+# The blue (navy 30 34 104, gray trim 214 206 176) is archived in ~/Desktop/_archive/manticore-super-banner-blue-2026-11-15.
+_cfg2.TIERS["super"].update(cloth=(116, 20, 40), cloth_lo=(66, 9, 22), trim=(250, 212, 104), trim_dk=(156, 106, 30),
+                            stitch=(58, 8, 18), outline=(26, 8, 10), laurel=(244, 200, 92), laurel_dk=(134, 88, 20),
+                            letter=(250, 244, 230), letter_lo=(236, 224, 200), glow=0.0)
 TIERS = _cfg2.TIERS
+# compose.py's lifts for Super (its night rig alone leaves the deep cloth at about a third and dims the gold thread): the
+# thread (mask metal) lifted by 0.30 of its albedo, the cloth by 0.35, the letters held ivory (Epic's hold, no halo)
+LIFT = {"super": dict(trim=0.30, cloth=0.35)}
 
 # ---- the scene light per tier: each layer is a render of the cloth under the board frame's own rig (blib TIER_LOOK: D1,
 # night and fire are the frame plates' rigs), the day and night layers graded like the plates (the Stinger grade), summed

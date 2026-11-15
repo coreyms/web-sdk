@@ -317,8 +317,9 @@ export const PRESENT = {
 	/** THE LANDING PEEK, from the moment a present's lane brings it to its stop point: the open's squash and first 8 road
 	 *  px of lift, then the close's fall, squash and bounce (presentSpec clips.peek, 367 ms at the board's pace). It
 	 *  never holds anything up: nothing waits for it. glint: the light's strength while the lid is up (of the full
-	 *  light), rayLength: its rays' length (of the full rays), stars: how many of the full open's stars it shows. */
-	peek: { on: true, glint: 0.5, rayLength: 0.5, stars: 0 },
+	 *  light; it lingers three frames as the lid shuts), rayLength: its rays' length (of the full rays), stars: how many
+	 *  of the full open's burst stars it shows. */
+	peek: { on: true, glint: 0.8, rayLength: 0.6, stars: 3 },
 	/** THE TRIGGER: every present of the trigger plays the whole open with the light, holds the open pose this long
 	 *  (board clock ms), then plays the whole close, before the intro card (game/bookEventHandlerMap.ts) */
 	holdMs: 450,
