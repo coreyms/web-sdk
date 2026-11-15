@@ -2,11 +2,14 @@
 	import { soc } from '../game/social';
 	import { betStepTarget } from './betStep';
 	import type { Controls } from './controls.svelte';
+	import HudIcon from './hud/HudIcon.svelte';
 
 	// pressSound: the autoplay card voices its own buttons with the sub click; elsewhere the arrows
 	// keep the general click (setBet's own)
-	type Props = { controls: Controls; compact?: boolean; pressSound?: 'soundPressGeneral' | 'soundPressSub' };
-	const { controls, compact = false, pressSound = 'soundPressGeneral' }: Props = $props();
+	// glass: the HUD's round glass minus and plus keys (HUD round 6: the Autoplay menu's stepper matches the HUD's own);
+	// the denomination card keeps its square paper keys
+	type Props = { controls: Controls; compact?: boolean; pressSound?: 'soundPressGeneral' | 'soundPressSub'; glass?: boolean };
+	const { controls, compact = false, pressSound = 'soundPressGeneral', glass = false }: Props = $props();
 	const btn = $derived(compact ? 38 : 46);
 	// Same label rule as the HUD readout (controls.betLabel): a bought feature names the mode, everything
 	// else reads SPIN / PLAY. Ante is announced by this component's own tag above the number.
@@ -23,13 +26,21 @@
 </script>
 
 <div class="adj" style:padding={compact ? '8px 14px' : '10px 18px'}>
-	<button class="slot-btn arrow" disabled={stepTarget(-1) === undefined} onclick={() => step(-1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Decrease bet', 'Decrease play amount')}>−</button>
+	{#if glass}
+		<button class="slot-btn sk" disabled={stepTarget(-1) === undefined} onclick={() => step(-1)} style:width="{btn}px" style:height="{btn}px" aria-label={soc('Decrease bet', 'Decrease play amount')}><HudIcon name="minus" /></button>
+	{:else}
+		<button class="slot-btn arrow" disabled={stepTarget(-1) === undefined} onclick={() => step(-1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Decrease bet', 'Decrease play amount')}>−</button>
+	{/if}
 	<button class="slot-btn mid" onclick={() => controls.openDenom()} style:min-width="{compact ? 120 : 150}px">
 		{#if controls.anteActive()}<span class="ante" style:font-size="{compact ? 9 : 10}px">{soc('ANTE BET', 'ANTE MODE')}</span>{/if}
 		<span class="lbl" style:font-size="{compact ? 10 : 11}px">{label}</span>
 		<span class="slot-num val" style:font-size="{compact ? 18 : 22}px">{controls.betText()}</span>
 	</button>
-	<button class="slot-btn arrow" disabled={stepTarget(1) === undefined} onclick={() => step(1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Increase bet', 'Increase play amount')}>+</button>
+	{#if glass}
+		<button class="slot-btn sk" disabled={stepTarget(1) === undefined} onclick={() => step(1)} style:width="{btn}px" style:height="{btn}px" aria-label={soc('Increase bet', 'Increase play amount')}><HudIcon name="plus" /></button>
+	{:else}
+		<button class="slot-btn arrow" disabled={stepTarget(1) === undefined} onclick={() => step(1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Increase bet', 'Increase play amount')}>+</button>
+	{/if}
 </div>
 
 <style>
@@ -56,6 +67,45 @@
 		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 		color: rgba(255, 255, 255, 0.25);
 		opacity: 1;
+	}
+	/* the HUD's round glass key (ui/hud/hud.css .gl.sk, the same tokens): painted fill, white top / gold bottom edge */
+	.sk {
+		display: grid;
+		place-items: center;
+		padding: 0;
+		border-radius: 50%;
+		border: 1px solid;
+		border-color: rgba(var(--hud-ink-rgb), 0.38) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-edge-key-rgb), 0.44);
+		background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.17), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.38);
+		color: rgba(var(--hud-ink-rgb), 0.94);
+		box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+		transition: border-color 0.16s, transform 0.12s, box-shadow 0.16s, opacity 0.2s, color 0.16s;
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.sk :global(.ic) {
+		display: block;
+		width: 47%;
+		height: 47%;
+	}
+	@media (hover: hover) and (pointer: fine) {
+		.sk:hover:not(:disabled) {
+			border-color: rgba(var(--hud-ink-rgb), 0.64) rgba(var(--hud-ink-rgb), 0.24) rgba(var(--hud-accent-hi-rgb), 0.78);
+			color: rgb(var(--hud-ink-rgb));
+			box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.18), 0 0 14px rgba(var(--hud-accent-rgb), 0.18), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+		}
+	}
+	.sk:active:not(:disabled) {
+		transform: scale(0.94);
+		box-shadow: inset 0 2px 6px rgba(var(--hud-shadow-rgb), 0.7);
+	}
+	.sk:focus-visible {
+		outline: 1.5px solid rgb(var(--hud-accent-hi-rgb));
+		outline-offset: 3px;
+	}
+	.sk:disabled {
+		opacity: var(--hud-disabled-a);
+		cursor: default;
 	}
 	.mid {
 		background: transparent;

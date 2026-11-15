@@ -50,20 +50,20 @@ export const BOARD_PLAQUE_SPEC = {
 			},
 			"tex": {
 				"plaque": [
-					1012,
-					200
+					1144,
+					226
 				],
 				"fire": [
-					506,
-					100
+					572,
+					113
 				],
 				"shadow": [
-					510,
-					105
+					577,
+					119
 				],
 				"crest": [
-					116,
-					106
+					132,
+					120
 				]
 			},
 			"scaleAboutAnchor": 1.0,
@@ -231,20 +231,20 @@ export const BOARD_PLAQUE_SPEC = {
 			},
 			"tex": {
 				"plaque": [
-					648,
-					127
+					1268,
+					248
 				],
 				"fire": [
-					324,
-					64
+					634,
+					124
 				],
 				"shadow": [
-					327,
-					67
+					640,
+					130
 				],
 				"crest": [
-					73,
-					67
+					142,
+					130
 				]
 			},
 			"scaleAboutAnchor": 1.0,
@@ -412,20 +412,20 @@ export const BOARD_PLAQUE_SPEC = {
 			},
 			"tex": {
 				"plaque": [
-					648,
-					127
+					1268,
+					248
 				],
 				"fire": [
-					324,
-					64
+					634,
+					124
 				],
 				"shadow": [
-					327,
-					67
+					640,
+					130
 				],
 				"crest": [
-					73,
-					67
+					142,
+					130
 				]
 			},
 			"scaleAboutAnchor": 0.68,
@@ -594,24 +594,24 @@ export const BOARD_PLAQUE_SPEC = {
 			},
 			"tex": {
 				"plaque": [
-					612,
-					106
+					672,
+					116
 				],
 				"fire": [
-					306,
-					53
+					336,
+					58
 				],
 				"shadow": [
-					306,
-					54
+					336,
+					59
 				],
 				"crest": [
-					59,
-					57
+					64,
+					62
 				],
 				"nightHalf": [
-					306,
-					53
+					336,
+					58
 				]
 			},
 			"scaleAboutAnchor": 1.0,

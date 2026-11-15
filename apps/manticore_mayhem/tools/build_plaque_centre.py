@@ -1,4 +1,9 @@
-"""THE PLAQUE'S DARKER CENTRE (1.0.04; images/plaque_r5 PLAN.md "The centre colour", option A; Corey 2026-10-20 approved
+"""RETIRED 2026-11-15 (Fix 2, Task F): the board plaque is now the rebuilt P2 art (images/board_plaque_rebuild_2026-11-15,
+wired over static/assets/ui/board-plaque-*; the pre-P2 files are in ~/Desktop/_archive/manticore-board-plaque-pre-P2-2026-11-15).
+Its field is already at the new frame feet's value: DO NOT RUN this script on it (it re-makes the OLD art from
+images/spin_amount_final and would darken and replace the new face). No build step calls it. Kept for the record.
+
+THE PLAQUE'S DARKER CENTRE (1.0.04; images/plaque_r5 PLAN.md "The centre colour", option A; Corey 2026-10-20 approved
 the plaque storyboard with centre A). Re-makes the DAY plaque art of every layout with its dark field taken to the board
 frame's feet: #302516, the feet panel's own value in the frame art (on screen #241b0f against the feet's #23190e).
 

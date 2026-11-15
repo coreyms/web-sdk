@@ -30,7 +30,9 @@
 		/** a short line over the board; resolves after ms */
 		| { type: 'boardMessage'; text: string; ms: number }
 		/** a tap on the board during a live spin (ui/controls.svelte.ts hurries it) */
-		| { type: 'boardTap' };
+		| { type: 'boardTap' }
+		/** the landing screen is going (under the fade's black): its posed board goes, the first board comes up */
+		| { type: 'boardLandingEnd' };
 </script>
 
 <script lang="ts">
@@ -39,6 +41,7 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
+	import { stateUrlDerived } from 'state-shared';
 
 	import { getContext } from '../game/context';
 	import { layoutKind, roadPlacement, boardRect, MASTER } from '../game/layoutSpec';
@@ -49,9 +52,12 @@
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
-	import { clipMemory, setClipUploader, setClipView } from '../game/road/columnClips';
+	import { clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
+	import { loadPresent, presentMemory, presentTrace, setPresentMipmapper } from '../game/road/present';
 	import { perfMarks } from '../game/staging';
+	import { COLUMN_CLIPS } from '../game/columnClipSpec';
+	import { LANDING_POSE, landingColumns } from '../game/landingBoard';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -67,7 +73,20 @@
 	road.onLaneStop = () => context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop' });
 	// the features' beats, voiced with BORROWED Manticore sounds until this game has its own
 	road.features.onBeat = (kind) => context.eventEmitter.broadcast({ type: 'soundOnce', name: kind === 'column' ? 'sfx_sting_big_hit' : 'sfx_sting_hit' });
+	// the target crosshair (constants CROSSHAIR): nothing of it shows under SKIP TO RESULT. Its beats (hop, drop, lock,
+	// morph) are road.features.onCrosshair, left unset until the game has its own sounds.
+	road.features.crosshairOff = () => stateGame.skipping;
 	parent.addToParent(road.root);
+
+	// THE LANDING BOARD (game/landingBoard.ts): while the landing screen is up the road shows the posed, still board (the
+	// side reels' symbols, the three column Wilds with their top multipliers, the dim). It goes at boardLandingEnd, under
+	// the fade's black, before the first board or a resumed round is put up. A replay has no landing.
+	const landingSheet = loaded.landingStills;
+	if (context.stateLayout.showLoadingScreen && !stateUrlDerived.replay() && landingSheet) {
+		road.setBoard(LANDING_POSE);
+		road.features.showLanding(landingSheet, COLUMN_CLIPS.landing.tiers[PHONE_TIER ? 'phone' : 'full'].frames, landingColumns());
+		road.setLandingDim(true);
+	}
 
 	// the road in the layout: road px -> master units (layoutSpec ROAD_LAYOUT) -> canvas px (the main layout's fit).
 	// Derived from the window on every change, never cached (the house rule: this is why rotation survives).
@@ -92,6 +111,14 @@
 		const app = context.stateApp.pixiApplication;
 		// a column character's sheet goes to the GPU when it has loaded, not on the frame it is first drawn
 		setClipUploader(app ? (texture) => app.renderer.prepare.upload(texture) : null);
+		// before a character's sheet is unloaded, every batch is rebuilt (game/road/columnClips.ts release): toggling an
+		// empty child's visibility marks the render group's structure as changed, through Pixi's own public setter
+		const rebatchNudge = new PIXI.Container();
+		road.root.addChild(rebatchNudge);
+		setClipRebatch(() => {
+			rebatchNudge.visible = false;
+			rebatchNudge.visible = true;
+		});
 		// the staging switch `?rescap=` picks the characters' sheet density from the road's on-screen scale (CSS px per
 		// road px) and the GPU's largest texture side (game/road/columnClips.ts); read when a column first loads
 		const renderer = app?.renderer as unknown as { gl?: WebGLRenderingContext; gpu?: { device?: { limits?: { maxTextureDimension2D?: number } } } } | undefined;
@@ -100,10 +127,16 @@
 		// the desktop atlas is drawn well under its own size on a small window: a mip chain keeps it clean (house rule).
 		// The phone atlas draws near 1:1 and stays out.
 		if (!PHONE_TIER) enableMipmaps(tex('H1_R')?.source, app?.renderer as PIXI.Renderer | undefined);
+		// the present's still sheet (game/assets.ts presentStill) is drawn as small as the atlas: the same chain
+		if (!PHONE_TIER) enableMipmaps(tex('presentStill')?.source, app?.renderer as PIXI.Renderer | undefined);
 		// THE REINDEER'S RUN VIEWS (game/road/reindeerRun.ts): loaded in the background from now on, never holding up the
 		// preload; the desktop sheets are drawn well under their 3x size on most screens, so they get a mip chain too
 		if (!PHONE_TIER) setRunMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
 		void loadRunViews();
+		// THE PRESENT'S PEEK (game/road/present.ts): its sheet loads in the background from now on, after everything else in
+		// the upload queue; a present that lands before it is in stays still. Desktop sheets get a mip chain.
+		if (!PHONE_TIER) setPresentMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
+		void loadPresent('peek');
 		const tick = (ticker: PIXI.Ticker) => road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
 		app?.ticker.add(tick);
 		return () => {
@@ -114,6 +147,11 @@
 	});
 
 	context.eventEmitter.subscribeOnMount({
+		boardLandingEnd: () => {
+			road.features.endLanding();
+			road.setLandingDim(false);
+			road.setBoard(stateGame.board);
+		},
 		boardSnap: ({ board }) => {
 			road.features.clearAll();
 			road.setBoard(board);
@@ -141,7 +179,11 @@
 		},
 		boardWinClear: () => road.clearWin(),
 		boardPulse: async ({ cells, ms }) => {
-			await road.pulseCells(cells, ms);
+			// THE PRESENTS OF A TRIGGER play their full open with the light (game/road/present.ts), the other symbols dimmed
+			// for as long; without the open's pictures in time they pulse as before
+			if (await road.presentsReady()) {
+				await Promise.all([road.openPresents(cells), road.pulseCells(cells, Math.max(ms, road.presentShowMs() / boardRate()))]);
+			} else await road.pulseCells(cells, ms);
 			road.clearWin();
 		},
 		boardMessage: async ({ text, ms }) => {
@@ -190,11 +232,44 @@
 			clipMemory: () => clipMemory(),
 			/** the reindeer's run views: loaded or not, their sheets, what they weigh on the GPU */
 			runMemory: () => runMemory(),
+			/** THE SCATTER PRESENT: its sheets loaded now and their GPU weight; the per-frame trace of its animations
+			 *  (clear = true empties it); the full open by hand on the board as it stands (no book, no sound) */
+			presentMemory: () => presentMemory(),
+			presentTrace: (clear = false) => presentTrace(clear),
+			presentLoad: (group: 'peek' | 'open') => loadPresent(group),
+			presentPeek: (cell: number) => road.peekPresentAt(cell),
+			presentOpen: async (cells: number[]) => {
+				if (!(await road.presentsReady())) return false;
+				return road.openPresents(cells);
+			},
 			/** run a strike into a cell by hand (no book, no sound): __reindeer.strike(cell). Resolves at the impact. */
 			strike: (cell: number) => road.features.strike({ cell, markCell: null }),
 			/** stand a column Wild by hand from a struck cell (no book, no sound), and read its box and clouds as drawn */
 			column: (reel: number, tier: 'reindeer' | 'santa' | 'grandma', multiplier: number, fromCell: number | null) => road.features.columnWild(reel, tier, multiplier, false, fromCell),
 			columnTrace: (reel: number) => road.features.columnTrace(reel),
+			/** THE TARGET CROSSHAIR on a posed board (no book, no sound): `cells` the valid targets to pose (Grandma's car or
+			 *  Santa's sleigh, `kinds` per cell, default H1 for the first and alternating), `target` the struck one (the first
+			 *  by default), `follow` then plays the Wild the book would (a Grandma Wild, or a Santa column from the cell).
+			 *  Every other cell gets a plain symbol. Resolves at the impact (or when the Wild stands, with follow). */
+			crosshairStrike: async (opts: { cells: number[]; target?: number; kinds?: ('H1' | 'W')[]; follow?: boolean; poseOnly?: boolean }) => {
+				const FILL = ['L1', 'H2', 'L3', 'H3', 'L5', 'H4', 'L2', 'L4'] as const;
+				const board = Array.from({ length: 5 }, (_, reel) => Array.from({ length: 4 }, (_, row) => FILL[(reel * 3 + row * 5) % FILL.length])) as unknown as BoardSymbols;
+				opts.cells.forEach((cell, i) => (board[Math.floor(cell / 4)][cell % 4] = opts.kinds?.[i] ?? (i % 2 ? 'W' : 'H1')));
+				const target = opts.target ?? opts.cells[0];
+				road.features.clearAll();
+				stateGame.board = board;
+				road.setBoard(board);
+				if (opts.poseOnly) return;
+				await road.features.strike({ cell: target, markCell: null });
+				if (!opts.follow) return;
+				if (board[Math.floor(target / 4)][target % 4] === 'W') await road.features.columnWild(Math.floor(target / 4), 'santa', 20, false, target);
+				else await road.features.grandmaWild(target, 10);
+			},
+			/** the crosshair's per-frame trace since its strike began: time, centre, width, state, the cell it is on or
+			 *  heading to, the target, candidates left, the reindeer's feet x and phase, the other symbols' brightness */
+			crosshairTrace: () => road.features.crosshairTrace(),
+			/** the live turbo level, by hand (the probes' turbo runs): 0, 1 or 2 */
+			turbo: (level: 0 | 1 | 2) => (stateGame.turboLevel = level),
 			/** the run's plan along the snow for a distance (road px), a diagonal and a fixed start pose (stage 2; null = free) */
 			planRun: (distance: number, diagonal: number, startPose: number | null = null, maxFactor?: number) => planRun(distance, diagonal, startPose, maxFactor),
 			/** the staging readout's labels as they stand, oldest first, with performance.now() (the probes read the upload

@@ -7,6 +7,8 @@ Only the cloud still behind a standing column (a few seconds, the sheets are lef
     nice -n 19 math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_columns.py --backdrop
 Only some densities, added to what is there (the others' files and spec entries are left alone):
     nice -n 19 math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_columns.py --tiers d150,d215
+Only the landing screen's stills (one small sheet per tier, added to the spec that is there; a whole build makes them too):
+    nice -n 19 math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_columns.py --landing
 
 Sources (read only, never changed): ~/Desktop/Run Over Reindeer/animation/<clip>/<keyed folder>/, 97 keyed frames
 of 1920 x 3408 at 24 fps per clip: entrance (reveal), idle and win for the reindeer, Santa and Grandma columns.
@@ -19,6 +21,8 @@ Writes inside this app:
   static/assets/columns/<tier>-<clip>-d150-<n>.webp     1.5 px per road px  } only for the staging switch
   static/assets/columns/<tier>-<clip>-d215-<n>.webp     2.15 px per road px } `?rescap=` (COLUMN_DENSITY_TEST.md)
   static/assets/columns/cloud-backdrop[-phone|-d150|-d215].webp   the still cloud behind a standing column
+  static/assets/columns/landing-stills[-phone].webp     the landing screen's posed columns: the cloud still and one
+                                                        hand-picked idle frame of each character (LANDING below)
   src/game/columnClipSpec.ts                            what the game needs to place and play them (generated)
 
 HOW A FRAME SITS ON THE BOARD. The clips were drawn 9:16; a column on the board is one column wide (250 road px) and
@@ -90,6 +94,17 @@ SOURCES = {
 }
 # the still cloud behind a standing column: which entrance and which source frame (1-based), see the note above
 BACKDROP = {"tier": "grandma", "frame": 37, "fill": (244, 247, 252)}
+# THE LANDING SCREEN'S STILLS (Corey 2026-11-15, the landing mock V2): the three characters stand still on the landing
+# board, one idle frame each, picked by hand from the 32 the idle clip keeps (0-based in the clip): where the pose reads
+# best. The multiplier covers the same share of the feet on every idle frame (the feet do not move in the idle: 0.225
+# of the reindeer's feet, 0.32 of Santa's, 0.31 to 0.32 of Grandma's), so it did not decide the pick.
+#   reindeer 6   the antler lights lit, the smirk to the front
+#   santa    4   facing front, arms akimbo (8 to 15 look aside)
+#   grandma  0   facing front with her smile (the least covered frame, with 11)
+# Packed on one small sheet per tier with the cloud still, so the landing loads ONE file, at the density the game draws
+# the clips at (desktop 1.0 px per road px, phones 0.7): the same picture on the landing as in play, and 60 percent of the bytes
+# of 1.5 (160 KB against 266 KB on the desktop, measured 2026-11-15).
+LANDING = {"frames": {"reindeer": 6, "santa": 4, "grandma": 0}, "tiers": {"full": 1.0, "phone": 0.7}}
 # which source frames are kept (1-based) and how fast they play
 PICK = {
     "idle": {"frames": list(range(1, 97, 3)), "fps": 8, "loop": True},
@@ -183,10 +198,8 @@ def write_spec(spec):
         fh.write(f"export const COLUMN_CLIPS = {json.dumps(spec, indent=chr(9))} as const;\n")
 
 
-def build_backdrop(sizes=None, part=None):
-    """The still cloud behind a standing column, one small picture per tier. Returns its part of the spec.
-    `sizes`: only these densities (the others in `part`, the spec already there, are kept as they are)."""
-    sizes = list(TIER_SCALE) if sizes is None else sizes
+def backdrop_flat():
+    """The still cloud's picture, cut to the column and made opaque (source px), and how much of the column it covers."""
     folder = SOURCES[BACKDROP["tier"]]["reveal"]
     files = sorted(glob.glob(os.path.join(SRC, folder, "*.png")))
     if len(files) != 97:
@@ -202,6 +215,62 @@ def build_backdrop(sizes=None, part=None):
     # fully opaque: the few clear pixels of the scalloped foot take the cloud's own white
     flat = Image.new("RGBA", box.size, BACKDROP["fill"] + (255,))
     flat.alpha_composite(box)
+    return flat, cover
+
+
+def build_landing(spec):
+    """The landing screen's sheets (LANDING): the cloud still, then the three picked idle frames, left to right with a
+    2 px gap. Each idle frame is cut with its clip's own box (read back from the spec), so it sits exactly where the
+    clip's frames sit. Returns the spec's `landing` part."""
+    flat, _ = backdrop_flat()
+    gap = 2
+    part = {"frames": dict(LANDING["frames"]), "tiers": {}}
+    sources = {}
+    for tier, k in LANDING["frames"].items():
+        clip = spec["clips"][tier]["idle"]
+        folder = SOURCES[tier]["idle"]
+        files = sorted(glob.glob(os.path.join(SRC, folder, "*.png")))
+        n = PICK["idle"]["frames"][k]
+        im = fetch(files[n - 1])
+        # the clip's box back from its placement (source px, on the 8 px grid it was made on)
+        x0 = (clip["x"] + (FRAME_W * ROAD_PER_SRC - COLUMN_W) / 2) / ROAD_PER_SRC
+        y0 = clip["y"] / ROAD_PER_SRC
+        snap = lambda v: int(round(v / 8) * 8)
+        box = (snap(x0), snap(y0), snap(x0 + clip["width"] / ROAD_PER_SRC), snap(y0 + clip["height"] / ROAD_PER_SRC))
+        sources[tier] = (im, box)
+    for size, px in LANDING["tiers"].items():
+        pieces = [("backdrop", flat.resize((round(COLUMN_W * px), round(COLUMN_H * px)), Image.LANCZOS, reducing_gap=2.0))]
+        pieces += [(tier, scaled(im, box, px)) for tier, (im, box) in sources.items()]
+        w = sum(p.width for _, p in pieces) + gap * (len(pieces) - 1)
+        h = max(p.height for _, p in pieces)
+        sheet = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        frames, x = {}, 0
+        for name, p in pieces:
+            sheet.paste(p, (x, 0))
+            frames[name] = {"x": x, "y": 0, "width": p.width, "height": p.height}
+            x += p.width + gap
+        name = "landing-stills" + ("" if size == "full" else f"-{size}") + ".webp"
+        path = os.path.join(OUT, name)
+        sheet.save(path, **WEBP)
+        part["tiers"][size] = {"file": f"columns/{name}", "width": w, "height": h, "pxPerRoad": px, "frames": frames}
+        print(f"  landing stills {size}: {w} x {h}, {w * h * 4 / 1048576:.2f} MB on the GPU, {os.path.getsize(path) / 1024:.0f} KB file", flush=True)
+    return part
+
+
+def landing_only():
+    """--landing: build the landing screen's stills alone and add them to the spec that is already there."""
+    os.makedirs(OUT, exist_ok=True)
+    spec = read_spec()
+    spec["landing"] = build_landing(spec)
+    write_spec(spec)
+
+
+def build_backdrop(sizes=None, part=None):
+    """The still cloud behind a standing column, one small picture per tier. Returns its part of the spec.
+    `sizes`: only these densities (the others in `part`, the spec already there, are kept as they are)."""
+    sizes = list(TIER_SCALE) if sizes is None else sizes
+    folder = SOURCES[BACKDROP["tier"]]["reveal"]
+    flat, cover = backdrop_flat()
     part = part or {"source": f"{folder} frame {BACKDROP['frame']}", "width": COLUMN_W, "height": COLUMN_H, "tiers": {}}
     for size in sizes:
         px = TIER_SCALE[size]
@@ -231,6 +300,8 @@ def read_spec():
 def main():
     if "--backdrop" in sys.argv:
         return backdrop_only()
+    if "--landing" in sys.argv:
+        return landing_only()
     os.makedirs(OUT, exist_ok=True)
     # --tiers d150,d215: build only these densities and add them to the spec that is already there. The other
     # densities' files and spec entries are left exactly as they are; a clip whose placement no longer matches the
@@ -314,6 +385,9 @@ def main():
         sys.exit(1)
 
     spec["backdrop"] = build_backdrop(sizes, None if only is None else spec["backdrop"])
+    # a whole build cleared the folder: the landing stills are made again (a --tiers build leaves them as they are)
+    if only is None:
+        spec["landing"] = build_landing(spec)
     write_spec(spec)
 
     print("\nclip                     tier   frames  frame px    sheets  GPU MB  file MB")

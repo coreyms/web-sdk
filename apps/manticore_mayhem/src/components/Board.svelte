@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import type { StingKind } from '../game/typesBookEvent';
+	import type { SoundEffectName } from '../game/sound';
 
 	export type FeatureBeat = 'swipe' | 'roar';
 
@@ -9,7 +10,9 @@
 		/** a tap or click on the board's opening (components/BoardTap.svelte): ui/controls.svelte.ts hurries a live spin */
 		| { type: 'boardTap' }
 		/** a manticore set piece is playing; milestone 1 uses it for the board-side flash only */
-		| { type: 'featureBeat'; beat: FeatureBeat; rows: number[] }
+		/** `voice` (Fix 2, 2026-11-15): the beat's sound, played by components/Background.svelte only when the creature
+		 *  plays the beat (or is not on screen): never his roar's sound over him standing still */
+		| { type: 'featureBeat'; beat: FeatureBeat; rows: number[]; voice?: SoundEffectName }
 		/** one beat of a sting, for the rig slot (components/Sting.svelte). `phase` is the beat
 		 *  itself — `wait` the scatter sting's disappointment hold, `charge` the big / super
 		 *  wind-up, `strike` the hit — and `kind` is the book's, never re-derived.

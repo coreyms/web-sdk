@@ -75,7 +75,7 @@
 	import { loadStingerData } from '../game/stinger/data';
 	import { PlaqueFont } from '../game/stinger/text';
 	import { STINGER_TIERS } from '../game/stinger/types';
-	import { BANNER, BANNER_TEXTURES, bannerTierOf, type BannerClass, type BannerContent, type BannerTier } from '../game/banner/spec';
+	import { BANNER, BANNER_GLYPHS, BANNER_TEXTURES, bannerTierOf, type BannerClass, type BannerContent, type BannerTier } from '../game/banner/spec';
 	import { loadBannerMotion } from '../game/banner/motion';
 	import { BannerView } from '../game/banner/view';
 
@@ -118,15 +118,81 @@
 	});
 
 	// ---- the one resident cloth texture --------------------------------------------------------------------------
-	type Res = { key: string; url: string; cls: BannerClass; tier: BannerTier; content: BannerContent; promise: Promise<PIXI.Texture | null>; tex: PIXI.Texture | null; inUse: boolean };
+	type Res = { key: string; url: string; cls: BannerClass; tier: BannerTier; content: BannerContent; promise: Promise<PIXI.Texture | null>; tex: PIXI.Texture | null; inUse: boolean; glyphs: Record<string, PIXI.Texture> | null; held: boolean };
 	let res: Res | null = null;
 	/** DEV: every load / unload with its time */
 	const texLog: { what: 'load' | 'ready' | 'unload' | 'failed'; key: string; at: number; ms?: number }[] = [];
 	const renderer = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
+	// THE BANNER'S OWN COUNT AND AMOUNT GLYPHS (Fix 2, 2026-11-15; game/banner/spec.ts BANNER_GLYPHS): one sheet per texture
+	// class, loaded with each screen's cloth and let go with it. Counted per class: the next screen's cloth can be loading
+	// (the TOTAL WIN's from the last spin) while the one before is still up, and both name the same sheet
+	// THE LET GO IS DEFERRED AND CAN BE TAKEN BACK (Fix 2): a screen's cloth is often let go and the next one's asked for
+	// in the same tick (the intro's at its end, the TOTAL WIN's at once under SKIP TO RESULT). The sheet is then kept
+	// (its count goes back up before the deferred let go looks), and a sheet asked for while its unload is on its way
+	// is loaded again only after that unload: Pixi's cache would otherwise hand back the sheet being destroyed (the
+	// "Cannot read properties of null (reading 'addressModeU')" page error at its upload)
+	const glyphRefs: Partial<Record<BannerClass, { n: number; promise: Promise<Record<string, PIXI.Texture> | null> }>> = {};
+	const glyphGone: Partial<Record<BannerClass, Promise<unknown>>> = {};
+	const glyphsLoad = (cls: BannerClass): Promise<Record<string, PIXI.Texture> | null> => {
+		const have = glyphRefs[cls];
+		if (have) {
+			have.n += 1;
+			return have.promise;
+		}
+		const { url, mips } = BANNER_GLYPHS[cls];
+		const t0 = performance.now();
+		texLog.push({ what: 'load', key: `glyphs-${cls}`, at: t0 });
+		const promise = (glyphGone[cls] ?? Promise.resolve())
+			.then(() => PIXI.Assets.load(url) as Promise<PIXI.Spritesheet>)
+			.then(async (sheet) => {
+				const source = Object.values(sheet.textures)[0]?.source;
+				const rd = renderer();
+				if (source && mips) enableMipmaps(source, rd);
+				if (source && rd) await rd.prepare?.upload([source]);
+				texLog.push({ what: 'ready', key: `glyphs-${cls}`, at: performance.now(), ms: Number((performance.now() - t0).toFixed(1)) });
+				return sheet.textures as Record<string, PIXI.Texture>;
+			})
+			.catch((error) => {
+				// the plaque's glyphs draw the count and the amount instead (softer, never missing)
+				texLog.push({ what: 'failed', key: `glyphs-${cls}`, at: performance.now() });
+				console.warn('[manticore] the war banner glyphs failed to load; the plaque glyphs stand in', cls, error);
+				return null;
+			});
+		glyphRefs[cls] = { n: 1, promise };
+		return promise;
+	};
+	const glyphsFree = (cls: BannerClass) => {
+		const have = glyphRefs[cls];
+		if (!have || --have.n > 0) return;
+		glyphGone[cls] = have.promise.then(async (tex) => {
+			// (after this task: a screen asking for it in the same tick has taken it back)
+			await new Promise((r) => setTimeout(r, 0));
+			if (glyphRefs[cls] !== have || have.n > 0) return;
+			delete glyphRefs[cls];
+			// (nothing may draw from it when it goes: the view is handed back to the plaque's atlas first)
+			const source = tex ? Object.values(tex)[0]?.source : null;
+			if (source && view.glyphsInUse === source) view.glyphsHome();
+			texLog.push({ what: 'unload', key: `glyphs-${cls}`, at: performance.now() });
+			await PIXI.Assets.unload(BANNER_GLYPHS[cls].url).catch(() => {});
+		});
+	};
+	/** a screen's hold on its glyph sheet goes (once) */
+	const freeGlyphsOf = (r: Res) => {
+		if (!r.held) return;
+		r.held = false;
+		glyphsFree(r.cls);
+	};
+	/** a cloth's unload on its way, by url (the same rule as the glyphs: asked for again, it loads after it) */
+	const clothGone = new Map<string, Promise<unknown>>();
 	const unload = (r: Res) => {
 		if (res === r) res = null;
 		texLog.push({ what: 'unload', key: r.key, at: performance.now() });
-		void r.promise.then(() => PIXI.Assets.unload(r.url).catch(() => {}));
+		const gone = r.promise.then(() => PIXI.Assets.unload(r.url).catch(() => {}));
+		clothGone.set(r.url, gone);
+		void gone.then(() => {
+			if (clothGone.get(r.url) === gone) clothGone.delete(r.url);
+		});
+		freeGlyphsOf(r);
 	};
 	const load = (tier: BannerTier, content: BannerContent, cls: BannerClass = wantCls): Promise<PIXI.Texture | null> => {
 		const key = `${cls}-${tier}-${content}`;
@@ -135,14 +201,18 @@
 		const url = BANNER_TEXTURES[cls][tier][content];
 		const t0 = performance.now();
 		texLog.push({ what: 'load', key, at: t0 });
-		const r: Res = { key, url, cls, tier, content, tex: null, inUse: false, promise: Promise.resolve(null) };
-		r.promise = (PIXI.Assets.load(url) as Promise<PIXI.Texture>)
+		const r: Res = { key, url, cls, tier, content, tex: null, inUse: false, promise: Promise.resolve(null), glyphs: null, held: true };
+		const glyphs = glyphsLoad(cls).then((g) => (r.glyphs = g));
+		r.promise = (clothGone.get(url) ?? Promise.resolve())
+			.then(() => PIXI.Assets.load(url) as Promise<PIXI.Texture>)
 			.then(async (tex) => {
 				const rd = renderer();
 				// mipmaps on (the rule lines shimmer without, mockup round 1), built once at the upload; the upload now,
 				// never at the first draw
 				enableMipmaps(tex.source, rd);
 				if (rd) await rd.prepare?.upload([tex.source]);
+				// (the screen waits for its glyphs too: they load beside the cloth and are a quarter of its size or less)
+				await glyphs;
 				r.tex = tex;
 				texLog.push({ what: 'ready', key, at: performance.now(), ms: Number((performance.now() - t0).toFixed(1)) });
 				return tex;
@@ -151,6 +221,7 @@
 				texLog.push({ what: 'failed', key, at: performance.now() });
 				console.error('[manticore] the war banner texture failed to load', key, error);
 				if (res === r) res = null;
+				freeGlyphsOf(r);
 				return null;
 			});
 		res = r;
@@ -340,7 +411,7 @@
 		landSound = sound;
 		if (res) res.inUse = true;
 		view.attachBack(bannerBackSlot.current);
-		view.show({ tier, content, cls, texture: tex, glyphTint: BANNER.glyphTint[tier] });
+		view.show({ tier, content, cls, texture: tex, glyphTint: BANNER.glyphTint[tier], glyphs: res && res.cls === cls ? res.glyphs : null });
 		// the board plaque does not celebrate the intro or the TOTAL WIN (the plaque's own rule)
 		celebrateShow(false, performance.now());
 		creatureUploadQuiet(CREATURE.wins.quiet.showMs);

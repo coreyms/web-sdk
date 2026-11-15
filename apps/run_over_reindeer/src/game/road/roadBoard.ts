@@ -16,10 +16,11 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { LINE_WIN, ROAD, STOPLIGHT, motionFor, type RoadMotion } from '../constants';
+import { LANDING_DIM, LINE_WIN, ROAD, STOPLIGHT, motionFor, type RoadMotion } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
 import { NumberLabel, RoadFeatures } from './roadFeatures';
+import { PRESENT_LOOK, PresentActor, presentOpenMs, presentStillTexture, presentsReadyForOpen, presentTriggerPlayed } from './present';
 
 const COLS = ROAD_ART.board.columns;
 const ROWS = ROAD_ART.board.rows;
@@ -31,6 +32,9 @@ const MOUTH_R = ROAD_ART.covers.right.mouth;
 const HIDE_PAD = 40;
 
 const CARS: SymbolName[] = ['H1', 'H2', 'H3', 'H4'];
+/** THE VALID STRIKE TARGETS (the book's grandmaCar and santaSleigh): the target crosshair hops between these, and the
+ *  other symbols fade while it is up (constants CROSSHAIR) */
+const TARGETS: SymbolName[] = ['H1', 'W'];
 /** symbols with a picture per driving direction (lettering and tags are never mirrored) */
 const DIRECTIONAL: SymbolName[] = [...CARS, 'W', 'GW', 'CW'];
 /** through traffic is picked from these (decoration only) */
@@ -77,6 +81,9 @@ type Car = {
 	tintNow: number;
 	/** in: it has reached its stop point (the brake bounce follows) */
 	stopped: boolean;
+	/** THE SCATTER PRESENT's animation (game/road/present.ts): made the first time this sprite's present animates, kept
+	 *  with the sprite (it is drawn just after it in its lane) */
+	present: PresentActor | null;
 };
 
 export type SignalColor = 'red' | 'amber' | 'green';
@@ -164,6 +171,13 @@ export class RoadBoard {
 	/** how many symbols the board on the road parks (20, less four for every column Wild standing) */
 	private parked = COLS * ROWS;
 
+	/** the present's still picture (game/road/present.ts), null when its sheet did not load (the S then draws empty) */
+	private readonly presentStill: PIXI.Texture | null;
+
+	/** THE LANDING DIM (constants LANDING_DIM): the road band outside reels 2 to 4, under the features (so the characters'
+	 *  spill stays bright), and over the tunnel portals for the part of the band they cover. Null when off. */
+	private landingDim: PIXI.Container[] | null = null;
+
 	/** a lane's front car has stopped (the handler plays the stop sound) */
 	onLaneStop: ((lane: number) => void) | null = null;
 
@@ -171,6 +185,7 @@ export class RoadBoard {
 		private readonly tex: TextureLookup,
 		textures: { road?: PIXI.Texture; tunnelLeft?: PIXI.Texture; tunnelRight?: PIXI.Texture },
 	) {
+		this.presentStill = presentStillTexture(tex('presentStill'));
 		const img = ROAD_ART.image;
 		if (textures.road) {
 			const bg = new PIXI.Sprite(textures.road);
@@ -186,6 +201,13 @@ export class RoadBoard {
 		// the cloud cells, the red boxes and the column characters stand over the traffic and under the line win
 		this.features = new RoadFeatures(tex);
 		this.features.hideCell = (cell, hidden) => this.setCellHidden(cell, hidden);
+		// the crosshair's candidates: the valid targets parked and shown now; and the board as text for its seed
+		this.features.targetCells = () => this.cars.filter((c) => c.phase === 'rest' && c.sprite.visible && c.symbol !== null && TARGETS.includes(c.symbol)).map((c) => c.col * ROWS + c.lane);
+		this.features.boardText = () => {
+			const cells: string[] = Array.from({ length: COLS * ROWS }, () => '-');
+			for (const c of this.cars) if (c.phase === 'rest' && c.symbol) cells[c.col * ROWS + c.lane] = c.symbol;
+			return cells.join(',');
+		};
 		this.root.addChild(this.features.layer);
 		this.winLayer.addChild(this.winLines);
 		this.winLayer.visible = false;
@@ -220,15 +242,26 @@ export class RoadBoard {
 		if (!car) {
 			const sprite = new PIXI.Sprite();
 			sprite.anchor.set(0.5, 1);
-			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff, stopped: false };
+			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff, stopped: false, present: null };
 			this.cars.push(car);
 		}
+		this.stopPresent(car);
 		const frame = frameFor(symbol, dir);
-		const texture = this.tex(frame) ?? PIXI.Texture.EMPTY;
 		const size = (ROAD_ART.symbols as Record<string, { width: number; height: number }>)[frame];
 		const want = (size?.width ?? PITCH * 0.8) * (ROAD.symbolScale[symbol] ?? 1);
-		car.sprite.texture = texture;
-		car.baseScale = texture.width > 0 ? want / texture.width : 1;
+		const still = symbol === 'S' ? this.presentStill : null;
+		if (still) {
+			// THE PRESENT, closed and still: its own sheet, drawn by the same anchor and scale as its animation frames
+			// (game/road/present.ts), so a peek starts and ends on the very picture
+			car.sprite.texture = still;
+			car.sprite.anchor.set(PRESENT_LOOK.anchorX, PRESENT_LOOK.anchorY);
+			car.baseScale = PRESENT_LOOK.scale * (ROAD.symbolScale.S ?? 1);
+		} else {
+			const texture = this.tex(frame) ?? PIXI.Texture.EMPTY;
+			car.sprite.texture = texture;
+			car.sprite.anchor.set(0.5, 1);
+			car.baseScale = texture.width > 0 ? want / texture.width : 1;
+		}
 		car.sprite.scale.set(car.baseScale);
 		car.sprite.rotation = 0;
 		car.sprite.y = laneSitY(lane);
@@ -247,9 +280,72 @@ export class RoadBoard {
 	}
 
 	private free(car: Car) {
+		this.stopPresent(car);
 		car.phase = 'free';
 		car.symbol = null;
 		car.sprite.visible = false;
+	}
+
+	// ---- the scatter present (game/road/present.ts) ------------------------------------------------------------------
+	/** a present's animation stops and its still picture draws again */
+	private stopPresent(car: Car) {
+		car.present?.reset();
+		car.sprite.renderable = true;
+	}
+
+	/** the present's actor, in its lane just after its sprite (so it draws exactly where the sprite would) */
+	private presentOf(car: Car): PresentActor {
+		const actor = (car.present ??= new PresentActor());
+		const lane = this.lanes[car.lane];
+		if (actor.root.parent !== lane || lane.getChildIndex(actor.root) !== lane.getChildIndex(car.sprite) + 1) {
+			actor.root.removeFromParent();
+			lane.addChildAt(actor.root, lane.getChildIndex(car.sprite) + 1);
+		}
+		actor.cell = car.col * ROWS + car.lane;
+		return actor;
+	}
+
+	/** THE PEEK: a present has reached its stop point (`at`, board clock) */
+	private peekPresent(car: Car, at: number) {
+		this.presentOf(car).peek(at);
+	}
+
+	/** DEV: the peek on a present parked in a cell, from now (the probe's stills) */
+	peekPresentAt(cell: number): boolean {
+		const car = this.cars.find((c) => c.phase === 'rest' && c.symbol === 'S' && c.col * ROWS + c.lane === cell);
+		return car ? this.presentOf(car).peek(this.clock) : false;
+	}
+
+	/** every present animating: follows its sprite, shows its frame and light */
+	private updatePresents(now: number) {
+		for (const car of this.cars) {
+			const actor = car.present;
+			if (!actor || !actor.busy) continue;
+			if (!actor.update(now, car.sprite, car.baseScale)) car.sprite.renderable = true;
+		}
+	}
+
+	/** the open's pictures are in (waits for them at most PRESENT.loadWaitMs); false: the trigger pulses as before */
+	presentsReady(): Promise<boolean> {
+		return presentsReadyForOpen();
+	}
+
+	/** THE TRIGGER: the presents parked in these cells play the full open (game/road/present.ts). Resolves when they
+	 *  are closed again. Call it once presentsReady() said yes. */
+	async openPresents(cells: number[]): Promise<boolean> {
+		const shows: Promise<void>[] = [];
+		for (const car of this.cars) {
+			if (car.phase !== 'rest' || car.symbol !== 'S' || !cells.includes(car.col * ROWS + car.lane)) continue;
+			shows.push(this.presentOf(car).open(this.clock));
+		}
+		await Promise.all(shows);
+		presentTriggerPlayed();
+		return shows.length > 0;
+	}
+
+	/** how long the presents' show of a trigger runs, board clock ms (Board.svelte holds the board's dim that long) */
+	presentShowMs(): number {
+		return presentOpenMs();
 	}
 
 	/** a cell's parked symbol is covered by a cloud or a column (it is not drawn, and does not come back by itself) */
@@ -661,6 +757,8 @@ export class RoadBoard {
 						// DEV readout: this symbol is at its stop point now (snapshot().signalTiming)
 						car.stopped = true;
 						if (++this.laneStoppedCount[car.lane] === this.laneParked[car.lane]) this.laneStoppedReal[car.lane] = performance.now();
+						// a present has landed: its peek starts from its stop point
+						if (car.symbol === 'S') this.peekPresent(car, car.stopAt);
 					}
 					const u = -left / m.in.settleMs;
 					if (u >= 1) {
@@ -690,6 +788,7 @@ export class RoadBoard {
 		this.features.update(now);
 		this.updateLights(dt);
 		this.paint();
+		this.updatePresents(now);
 
 		if (this.waiters.length) {
 			const due = this.waiters.filter((x) => (x.clock === 'board' ? this.clock : this.winClock) >= x.at);
@@ -716,7 +815,8 @@ export class RoadBoard {
 			const k = 1 + (LINE_WIN.pulseScale - 1) * swell * swell;
 			for (const car of this.cars) {
 				if (car.phase !== 'rest') continue;
-				car.sprite.scale.set(car.baseScale * (car.winning ? k : 1));
+				// a present playing its trigger show does not swell (its open is the show)
+				car.sprite.scale.set(car.baseScale * (car.winning && !car.present?.opening ? k : 1));
 				const want = car.winning || !win.dim ? 1 : LINE_WIN.dim;
 				car.bright += (want - car.bright) * 0.25;
 			}
@@ -742,11 +842,14 @@ export class RoadBoard {
 	/** the tunnel shadow and the win dim, as each sprite's tint (written only when it changes) */
 	private paint() {
 		const sh = ROAD.tunnelShade;
+		// the target crosshair's fade: every symbol that is not a valid target, while it is up (1 = none)
+		const others = this.features.otherSymbolsBrightness();
 		for (const car of this.cars) {
 			if (car.phase === 'free' || !car.sprite.visible) continue;
 			const inside = Math.min(car.sprite.x - MOUTH_L, MOUTH_R - car.sprite.x);
 			const u = Math.max(0, Math.min(1, (inside - sh.from) / Math.max(1, sh.to - sh.from)));
-			const b = (sh.dark + (1 - sh.dark) * u * u * (3 - 2 * u)) * car.bright;
+			const focus = others < 1 && !(car.symbol && TARGETS.includes(car.symbol)) ? others : 1;
+			const b = (sh.dark + (1 - sh.dark) * u * u * (3 - 2 * u)) * car.bright * focus;
 			const v = Math.max(0, Math.min(255, Math.round(b * 255)));
 			const tint = (v << 16) | (v << 8) | v;
 			if (tint !== car.tintNow) {
@@ -759,6 +862,64 @@ export class RoadBoard {
 	private wait(at: number, clock: 'board' | 'win'): Promise<void> {
 		if (this.destroyed) return Promise.resolve();
 		return new Promise<void>((resolve) => this.waiters.push({ at, clock, resolve }));
+	}
+
+	/** the landing board's dim on the road band outside the three posed columns, on or off */
+	setLandingDim(on: boolean) {
+		if (!on) {
+			for (const c of this.landingDim ?? []) c.destroy({ children: true });
+			this.landingDim = null;
+			return;
+		}
+		if (this.landingDim) return;
+		const D = LANDING_DIM;
+		const lane = (LINES[ROWS] - LINES[0]) / ROWS;
+		const top = LINES[0] - D.above * lane;
+		const bottom = LINES[ROWS] + D.below * lane;
+		const alpha = 1 - D.brightness;
+		const under = new PIXI.Container();
+		const over = new PIXI.Container();
+		// the band in pieces, each piece's outer edges (the band's top and bottom) in `steps` strips of falling alpha (a
+		// soft edge with no blur). `soft`: which of its own edges are the band's.
+		const piece = (parent: PIXI.Container, x0: number, x1: number, y0: number, y1: number, softTop: boolean, softBottom: boolean) => {
+			if (x1 <= x0 || y1 <= y0) return;
+			const f = D.feather;
+			const quad = (a0: number, a1: number, a: number) => {
+				const q = new PIXI.Sprite(PIXI.Texture.WHITE);
+				q.tint = 0x000000;
+				q.alpha = a;
+				q.position.set(x0, a0);
+				q.width = x1 - x0;
+				q.height = a1 - a0;
+				parent.addChild(q);
+			};
+			const t = softTop ? y0 + f / 2 : y0;
+			const b = softBottom ? y1 - f / 2 : y1;
+			quad(t, b, alpha);
+			for (let i = 0; i < D.steps; i++) {
+				const a = (alpha * (i + 0.5)) / D.steps;
+				const h = f / D.steps;
+				if (softTop) quad(y0 - f / 2 + i * h, y0 - f / 2 + (i + 1) * h, a);
+				if (softBottom) quad(y1 + f / 2 - (i + 1) * h, y1 + f / 2 - i * h, a);
+			}
+		};
+		const left = ROAD_ART.covers.left;
+		const right = ROAD_ART.covers.right;
+		const stageL = ROAD_ART.board.x + PITCH;
+		const stageR = ROAD_ART.board.x + 4 * PITCH;
+		const imgW = ROAD_ART.image.width;
+		// beside the three columns, the band's whole height; over and under them, only the snow and the shoulder outside
+		// the columns' own box (the characters draw over it, so what spills above stays bright)
+		piece(under, left.x + left.width, stageL, top, bottom, true, true);
+		piece(under, stageR, right.x, top, bottom, true, true);
+		piece(under, stageL, stageR, top, LINES[0], true, false);
+		piece(under, stageL, stageR, LINES[ROWS], bottom, false, true);
+		piece(over, 0, left.x + left.width, top, bottom, true, true);
+		piece(over, right.x, imgW, top, bottom, true, true);
+		// under: right over the lanes, under the features; over: on top of the portals
+		this.root.addChildAt(under, this.root.getChildIndex(this.features.layer));
+		this.root.addChild(over);
+		this.landingDim = [under, over];
 	}
 
 	// ---- readouts ----------------------------------------------------------------------------------------------------------
@@ -779,6 +940,12 @@ export class RoadBoard {
 		const phases: Record<string, number> = {};
 		for (const car of this.cars) phases[car.phase] = (phases[car.phase] ?? 0) + 1;
 		return { board, maxDrift, phases, sprites: this.cars.length, clock: Math.round(this.clock), atRest: this.atRest, winShowing: !!this.win?.active, features: this.features.snapshot(),
+			// the last drive in's schedule (board clock): when its traffic set off, when its last lane is home
+			spin: { convoyAt: Number.isFinite(this.convoyAt) ? Math.round(this.convoyAt * 10) / 10 : null, homeAt: Math.round(Math.max(...this.laneHomeAt) * 10) / 10 },
+			// the presents on the road: where, whether animating, and what is drawn (the still S or the present's pieces)
+			presents: this.cars
+				.filter((c) => c.symbol === 'S' && c.phase !== 'free')
+				.map((c) => ({ cell: c.col * ROWS + c.lane, phase: c.phase, busy: !!c.present?.busy, opening: !!c.present?.opening, stillDrawn: c.sprite.renderable && c.sprite.visible, texture: c.sprite.texture?.label ?? null, frame: c.sprite.texture ? { w: c.sprite.texture.frame.width, h: c.sprite.texture.frame.height } : null })),
 			signals: this.lights.map((l) => l.showing),
 			// per lane: every one of its symbols has reached its stop point (read off the symbols)
 			lanesStopped: this.laneStoppedCount.map((n, lane) => n === this.laneParked[lane]),

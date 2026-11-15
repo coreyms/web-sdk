@@ -507,7 +507,7 @@ export const ROAD_ART = {
 		},
 		"S": {
 			"width": 135.6,
-			"height": 141.6
+			"height": 152.2
 		},
 		"reindeer_run": {
 			"width": 171.2,
@@ -529,7 +529,7 @@ export const ROAD_ART = {
 		"L4": "sign_J_v2.png (draft), 85% of the A's painted area",
 		"L5": "speed_limit_10_v3.png (draft), 80% of the A's painted area",
 		"W": "sleigh_clean/santa_sleigh_v8_clean_a.png + sleigh_clean/wild_layer_v1_a.png (and the _L pair); no Santa in it yet",
-		"S": "PLACEHOLDER drawn by tools/build_assets.py (turquoise and white box, FS)",
+		"S": "the 3D present, closed (scatter_present_3d_r1_2026-11-15 open_00; its animation: tools/build_present.py)",
 		"reindeer_run": "PLACEHOLDER: reindeer_run_ref_v2.png (a still, not the run cycle), tagged"
 	},
 	"atlasScale": {

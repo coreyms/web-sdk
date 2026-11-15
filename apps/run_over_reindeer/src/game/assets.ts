@@ -24,13 +24,24 @@ export const stamp = (href: string): string => {
 const tiered = (full: string, phone: string): string => (PHONE_TIER ? phone : full);
 
 const assets = {
-	// the symbol atlas (tools/build_assets.py): the four cars in both directions, the five signs, the sleigh Wild,
-	// the placeholder present and the placeholder reindeer
+	// the symbol atlas (tools/build_assets.py): the four cars in both directions, the five signs, the sleigh Wild and
+	// the placeholder reindeer
 	symbols: {
 		type: 'sprites',
 		src: tiered(
 			stamp(new URL('../../assets/symbols/symbols.json', import.meta.url).href),
 			stamp(new URL('../../assets/symbols/symbols-phone.json', import.meta.url).href),
+		),
+		preload: true,
+	},
+	// THE PRESENT, closed and still (the scatter; tools/build_present.py): its own small sheet at the density and anchor of
+	// its animation frames (game/road/present.ts), so the still and the first frame of a peek are one picture. The peek's
+	// and the open's sheets are not here: they load after the board is up and for a book with a trigger.
+	presentStill: {
+		type: 'sprite',
+		src: tiered(
+			stamp(new URL('../../assets/present/present-full-still.webp', import.meta.url).href),
+			stamp(new URL('../../assets/present/present-phone-still.webp', import.meta.url).href),
 		),
 		preload: true,
 	},
@@ -48,6 +59,17 @@ const assets = {
 	tunnelRight: {
 		type: 'sprite',
 		src: stamp(new URL('../../assets/road/tunnel-right.webp', import.meta.url).href),
+		preload: true,
+	},
+	// THE LANDING SCREEN'S POSED COLUMNS (ui/LandingScreen.svelte, game/landingBoard.ts): one small sheet with the cloud
+	// still and one picked idle frame of each column character (tools/build_columns.py --landing), so the landing board
+	// stands without the idle clips (those still load only when a book calls for a tier)
+	landingStills: {
+		type: 'sprite',
+		src: tiered(
+			stamp(new URL('../../assets/columns/landing-stills.webp', import.meta.url).href),
+			stamp(new URL('../../assets/columns/landing-stills-phone.webp', import.meta.url).href),
+		),
 		preload: true,
 	},
 	// BORROWED from Manticore Mayhem as stand-ins (the sprite and the music are its files, byte for byte)

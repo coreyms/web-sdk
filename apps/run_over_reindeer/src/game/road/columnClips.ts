@@ -129,6 +129,10 @@ const queueUpload = (label: string, prio: number, texture: PIXI.Texture, needNow
  *  picture (priority 4), unless a strike is waiting on them */
 export const queueRunUpload = (label: string, texture: PIXI.Texture, needNow: () => boolean): Promise<void> => queueUpload(label, 4, texture, needNow);
 
+/** THE SCATTER PRESENT'S SHEETS (game/road/present.ts) go to the GPU through this same queue: the full open's sheets
+ *  for a book with a trigger at priority 1 (with the cloud still), the landing peek's at 5 (after everything else) */
+export const queuePresentUpload = (label: string, prio: number, texture: PIXI.Texture, needNow: () => boolean): Promise<void> => queueUpload(label, prio, texture, needNow);
+
 const pump = async () => {
 	if (pumping) return;
 	pumping = true;
@@ -203,10 +207,12 @@ export const loadClip = (tier: ColumnTier, name: ClipName): Promise<Clip | null>
 	if (entry.loading) return entry.loading;
 	const e = entry;
 	const loading = loadOne(tier, name, e).then(async (clip) => {
-		// let go while it was loading: its pictures go again, and whoever asks next loads it fresh
+		// let go while it was loading: its pictures go again, and whoever asks next loads it fresh. releaseClip has
+		// already put this let-go in `letting` (it waits for this very promise), so it is released here directly: going
+		// through letGo would wait on itself.
 		if (entries.get(k) !== e) {
 			e.clip = clip;
-			await letGo(k, e);
+			await release(e);
 			return null;
 		}
 		e.clip = clip;
@@ -221,8 +227,26 @@ export const loadClip = (tier: ColumnTier, name: ClipName): Promise<Clip | null>
 /** the clip if it is in, else null (never waits) */
 export const getClip = (tier: ColumnTier, name: ClipName): Clip | null => entries.get(key(tier, name))?.clip ?? null;
 
+/** set by components/Board.svelte: makes the renderer rebuild its batches on the next frame (see release) */
+let rebatch: (() => void) | null = null;
+export const setClipRebatch = (fn: typeof rebatch) => {
+	rebatch = fn;
+};
+
 const release = async (entry: Entry) => {
 	for (const t of entry.clip?.textures ?? []) t.destroy(false);
+	// NO BATCH MAY STILL LIST A SHEET WHEN IT IS UNLOADED (2026-11-15, the hud_probe's "Cannot read properties of null
+	// (reading 'addressModeU')"). Pixi 8 keeps every texture a batch was built with until that batch is rebuilt, and when
+	// a sprite changes to a frame on a sheet the same batch already holds, it swaps the frame in place with no rebuild
+	// (Batcher.checkAndUpdateTexture). So a column's body that went from its entrance's last frame to an idle frame, with
+	// another column of the tier already idle in that batch, left the entrance sheet in the batch's list, unused; the
+	// entrance was then let go, and the next frame bound every texture of that batch, the unloaded sheet too. Measured:
+	// no sprite held the sheet when it went. So: ask for a rebuild, let a frame render with it, then unload.
+	if (entry.urls.length && rebatch && typeof requestAnimationFrame !== 'undefined') {
+		rebatch();
+		await nextFrame();
+		await nextFrame();
+	}
 	for (const url of entry.urls) {
 		try {
 			await PIXI.Assets.unload(url);
@@ -231,6 +255,16 @@ const release = async (entry: Entry) => {
 		}
 	}
 	entry.clip = null;
+};
+
+/** the same safe let-go for any other sheet (game/road/present.ts): every batch rebuilt and two frames rendered with
+ *  the new batches before the caller unloads (see release) */
+export const rebatchBeforeUnload = async (): Promise<void> => {
+	if (rebatch && typeof requestAnimationFrame !== 'undefined') {
+		rebatch();
+		await nextFrame();
+		await nextFrame();
+	}
 };
 
 const letGo = (k: string, entry: Entry): Promise<void> => {
@@ -248,8 +282,26 @@ export const releaseClip = (tier: ColumnTier, name: ClipName) => {
 	const entry = entries.get(k);
 	if (!entry) return;
 	entries.delete(k);
-	// one still loading lets itself go when its load lands (loadClip)
-	if (!entry.loading) void letGo(k, entry);
+	if (!entry.loading) {
+		void letGo(k, entry);
+		return;
+	}
+	// ONE STILL LOADING lets itself go when its load lands (loadClip). Until then a new load of the same clip must wait
+	// too (2026-11-15, the hud_probe's "Cannot read properties of null (reading 'addressModeU')"): PIXI.Assets hands a
+	// second load of a URL the same texture as the first, so a fresh load started now would get the very sheets this
+	// one is about to unload, and draw them destroyed. So the wait goes in `letting` now, not when the load lands.
+	const loading = entry.loading;
+	const before = letting.get(k) ?? Promise.resolve();
+	const p: Promise<void> = before
+		.then(() => loading)
+		.then(
+			() => undefined,
+			() => undefined,
+		)
+		.finally(() => {
+			if (letting.get(k) === p) letting.delete(k);
+		});
+	letting.set(k, p);
 };
 
 // ---- THE CLOUD BEHIND A STANDING COLUMN ---------------------------------------------------------------------------------

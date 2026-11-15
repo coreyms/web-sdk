@@ -90,7 +90,7 @@ const EPIC_CLIPS: readonly CreatureWinClip[] = ['win_epic_in', 'win_epic_loop', 
 /** the renderer, for the one upload per sheet (components/Background.svelte sets it) */
 export const creatureLoader = { renderer: null as null | (() => PIXI.Renderer | undefined) };
 /** DEV / probe: every load, upload and unload, oldest first */
-export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept' | 'wins' | 'release'; look: string; file: string; ms?: number }[] = [];
+export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept' | 'wins' | 'release' | 'entryRoar'; look: string; file: string; ms?: number }[] = [];
 const note = (what: (typeof creatureLoadLog)[number]['what'], look: string, file: string, ms?: number) => {
 	if (!import.meta.env.DEV) return;
 	creatureLoadLog.push({ t: performance.now(), what, look, file, ms });
@@ -98,6 +98,8 @@ const note = (what: (typeof creatureLoadLog)[number]['what'], look: string, file
 };
 
 let booted = false;
+/** the look whose roar loads with its idle sheet: the round's book starts a feature in it (THE ENTRY ROAR) */
+let entryRoarFor: CreatureLook | null = null;
 let groupLog: GroupLog | null = null;
 const shared: Partial<Record<keyof typeof CREATURE_SHARED, boolean>> = {};
 /** a shared sheet on its way or in (one fetch however many runs, or the DEV shade switch, ask; a failure may be asked again) */
@@ -113,7 +115,7 @@ export const loadCreatureShared = (kind: keyof typeof CREATURE_SHARED, needNow: 
 		return false;
 	})());
 /** per look: the run that is loading it (a look let go mid load is dropped by its run), and the files it holds */
-const runs: Partial<Record<CreatureLook, { id: number; done: Promise<void>; idle: Promise<void>; held: Promise<void>; drop: () => void; urls: string[]; go: () => void; on: () => void }>> = {};
+const runs: Partial<Record<CreatureLook, { id: number; done: Promise<void>; idle: Promise<void>; held: Promise<void>; drop: () => void; urls: string[]; go: () => void; on: () => void; book: () => void }>> = {};
 let serial = 0;
 /** per look: the files of runs that were let go, waiting to be destroyed; the runs that must end first; the one
  *  destroy in flight; whether its sweeper is at work (see WHO OWNS A LOOK'S FILES) */
@@ -311,12 +313,16 @@ const load = (look: CreatureLook) => {
 	let drop = () => {};
 	let go = () => {};
 	let on = () => {};
+	let book = () => {};
 	const dropped = new Promise<void>((resolve) => (drop = resolve));
 	/** the mode asks for this look (at once for the look of the mode; for a look loaded ahead, when its mode comes) */
 	const wanted = new Promise<void>((resolve) => (go = resolve));
 	/** he shows this look (the crossover to it is over, or it is his first) */
 	const shown = new Promise<void>((resolve) => (on = resolve));
-	const entry = { id, done: Promise.resolve(), idle: new Promise<void>((resolve) => (idleIn = resolve)), held: new Promise<void>((resolve) => (heldIn = resolve)), drop, urls, go, on };
+	/** the round's book names this look (its feature's trigger beat is coming): THE ENTRY ROAR below */
+	const named = new Promise<void>((resolve) => (book = resolve));
+	const entry = { id, done: Promise.resolve(), idle: new Promise<void>((resolve) => (idleIn = resolve)), held: new Promise<void>((resolve) => (heldIn = resolve)), drop, urls, go, on, book };
+	if (entryRoarFor === look) book();
 	if (creature.wanted === look) go();
 	if (creature.look === look) on();
 	// (listed BEFORE the first line of the run: with the shared sheets already in, it reaches mine() without a wait)
@@ -344,6 +350,8 @@ const load = (look: CreatureLook) => {
 			}
 			for (const clip of group.clips) {
 				if (!mine()) return;
+				// (the entry roar, loaded ahead with the idle sheet)
+				if (creature.has(look, clip)) continue;
 				// a look that is not on show, not crossing over and not wanted any more is not worth another sheet
 				if (!creature.uses(look)) {
 					note('dropped', look, clip);
@@ -373,6 +381,21 @@ const load = (look: CreatureLook) => {
 				// waits until the crossover to it is over and the old look is let go (2026-10-14: so two looks' sheets
 				// on the GPU are never more than the old look's and the new one's idle sheet; nothing of the new look but
 				// its idle loop can be played before the crossover ends anyway)
+				// THE ENTRY ROAR (Fix 2, 2026-11-15; constants CREATURE.entryRoarAhead): a look the round's book names (a Super
+				// or Epic is coming, from the base game or a buy) loads its roar sheet now as well, so the trigger beat's
+				// roar, 20 ms after the relight starts his crossover to it, is drawn by both looks (game/creature.ts beat).
+				// One sheet more beside the look on show, from the book's arrival to the crossover's end; it is the roar
+				// the look's attacks would load next anyway (the attacks group below skips a clip that is in)
+				if (CREATURE.entryRoarAhead && creature.look !== look) {
+					await Promise.race([wanted, dropped, named]);
+					if (!mine()) return;
+					if (entryRoarFor === look && !creature.has(look, 'roar') && creature.uses(look)) {
+						const sheet = await fetchClip(look, 'roar', urls, () => false);
+						if (!mine()) return;
+						if (sheet) creature.setClip(look, 'roar', sheet.textures);
+						note('entryRoar', look, sheet ? 'in' : 'failed');
+					}
+				}
 				await Promise.race([wanted, dropped]);
 				if (!mine()) return;
 				if (creature.look !== look) await Promise.race([shown, dropped]);
@@ -634,11 +657,16 @@ export const creatureBookArrived = (events: readonly BookLike[]): void => {
 	if (!CREATURE.lookLoad.early) return;
 	const start = events.find((e) => e.type === 'bonusStart');
 	const look = start ? (CREATURE.looks as Record<string, CreatureLook>)[String(start.bonus)] : undefined;
+	// THE ENTRY ROAR is for a feature's trigger beat only (not the base look named ahead at a feature's end)
+	entryRoarFor = look && look !== creature.wanted ? look : null;
 	creature.prepare('book', look ?? null);
+	// (a look already loading ahead for an armed buy: its run hears that the book names it, THE ENTRY ROAR)
+	if (entryRoarFor) runs[entryRoarFor]?.book();
 };
 /** the round's book has played out (its feature with it): nothing is coming any more; the first settles the prefetch's
  *  second condition */
 export const creatureBookDone = (): void => {
+	entryRoarFor = null;
 	creature.prepare('book', null);
 	releaseWins();
 	creatureRoundSettled();

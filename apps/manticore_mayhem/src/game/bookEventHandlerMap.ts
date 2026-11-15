@@ -786,10 +786,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			const rec = fxRecord('trigger', { bonus: bookEvent.bonus, cells: cells.slice(), turbo: stateGame.turboLevel, relit, ahead });
 			await triggerBeat(cells, relit ? TRIGGER_BEAT.msRelit : TRIGGER_BEAT.ms, newRun(), {
 				rec,
-				onRoar: () => {
-					eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [] });
-					eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar', forcePlay: true });
-				},
+				// his roar and its sound together (Fix 2, 2026-11-15): components/Background.svelte plays sfx_roar when he
+				// roars (or is not on screen), never over him standing still
+				onRoar: () => eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [], voice: 'sfx_roar' }),
 				onRelight: ahead ? () => (stateGame.relightAhead = true) : undefined,
 			});
 			fxStamp(rec, 'end');

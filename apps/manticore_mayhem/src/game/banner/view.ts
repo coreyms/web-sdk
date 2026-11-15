@@ -46,12 +46,15 @@ class GlyphMesh {
 	count = 0;
 	text = '';
 	width = 0;
+	/** the atlas it was built with (the plaque's): what `atlas(null)` goes back to */
+	private home: { frames: PIXI.Texture[]; texture: PIXI.Texture };
 	constructor(
 		private font: PlaqueFont,
 		private frames: PIXI.Texture[],
 		texture: PIXI.Texture,
 		private capacity: number,
 	) {
+		this.home = { frames, texture };
 		this.run = new GlyphRun(capacity);
 		this.box = new Float32Array(capacity * 4);
 		const indices = new Uint32Array(capacity * 6);
@@ -89,6 +92,21 @@ class GlyphMesh {
 			uvs.set([u0, v0, u1, v0, u1, v1, u0, v1], g * 8);
 		}
 		this.mesh.geometry.getBuffer('aUV').update();
+	}
+	/** draw from another atlas holding the same frame names (the banner's own glyphs, Fix 2), or back to the plaque's
+	 *  (null). Takes effect from the next set(); a frame the atlas lacks draws nothing */
+	atlas(frames: PIXI.Texture[] | null, texture: PIXI.Texture | null): void {
+		this.frames = frames ?? this.home.frames;
+		this.mesh.texture = texture ?? this.home.texture;
+	}
+	/** DEV (Fix 2 density table): the row's cap height in material px as laid out, and in the atlas's own pixels */
+	density(): { capMaterial: number; srcCapPx: number } | null {
+		if (!this.count) return null;
+		const t = this.frames[this.run.frame[0]];
+		const metricH = this.run.h[0] / this.run.scale;
+		if (!t || !metricH) return null;
+		const px = (t.frame.height * t.source.pixelHeight) / Math.max(1, t.source.height);
+		return { capMaterial: this.font.cap * this.run.scale, srcCapPx: (this.font.cap * px) / metricH };
 	}
 }
 
@@ -220,6 +238,7 @@ export class BannerView {
 		this.cloth.autoUpdate = false;
 		this.cloth.visible = false;
 		// the glyph atlas: one source; a full-source texture for the meshes, the frames for their uvs
+		this.glyphNames = font.frames.slice();
 		const frames = font.frames.map((f) => atlas[f] ?? PIXI.Texture.EMPTY);
 		const source = frames.find((t) => t !== PIXI.Texture.EMPTY)?.source;
 		const tex = source ? new PIXI.Texture({ source }) : PIXI.Texture.EMPTY;
@@ -250,9 +269,38 @@ export class BannerView {
 		if (slot && this.back.parent !== slot) slot.addChild(this.back);
 	}
 
-	/** a new screen with its cloth texture (already loaded and on the GPU) */
-	show(o: { tier: BannerTier; content: BannerContent; cls: BannerClass; texture: PIXI.Texture; glyphTint: number }): void {
+	/** the frame names of the plaque's glyph atlas, in PlaqueFont order (the banner's own atlas is looked up by them) */
+	private glyphNames: string[] = [];
+	/** the banner's own glyph atlas the count and the amount draw from now (null: the plaque's) */
+	private glyphTex: PIXI.Texture | null = null;
+	private glyphSource: PIXI.TextureSource | null = null;
+	/** the source of the banner glyphs in use (WarBanner unloads a sheet only once nothing draws from it) */
+	get glyphsInUse(): PIXI.TextureSource | null {
+		return this.glyphSource;
+	}
+	/** back to the plaque's atlas (before the banner's own glyph sheet is unloaded) */
+	glyphsHome(): void {
+		if (!this.texts) return;
+		this.texts.count.atlas(null, null);
+		this.texts.amount.atlas(null, null);
+		this.glyphTex?.destroy(false);
+		this.glyphTex = null;
+		this.glyphSource = null;
+	}
+	/** a new screen with its cloth texture (already loaded and on the GPU) and its own count / amount glyphs (Fix 2;
+	 *  null: the plaque's atlas). The IN n ... line always draws from the plaque's (it is drawn smaller than that) */
+	show(o: { tier: BannerTier; content: BannerContent; cls: BannerClass; texture: PIXI.Texture; glyphTint: number; glyphs?: Record<string, PIXI.Texture> | null }): void {
 		if (!this.m || !this.cloth || !this.texts) return;
+		this.glyphsHome();
+		const sheet = o.glyphs ?? null;
+		const frames = sheet ? this.glyphNames.map((n) => sheet[n] ?? PIXI.Texture.EMPTY) : null;
+		const source = frames?.find((t) => t !== PIXI.Texture.EMPTY)?.source;
+		if (source && frames) {
+			this.glyphTex = new PIXI.Texture({ source });
+			this.glyphSource = source;
+			this.texts.count.atlas(frames, this.glyphTex);
+			this.texts.amount.atlas(frames, this.glyphTex);
+		}
 		this.tier = o.tier;
 		this.content = o.content;
 		this.cls = o.cls;
@@ -640,7 +688,21 @@ export class BannerView {
 			return { x0, x1, materialWidth: g.width, text: g.text, boxCenterCanvas: this.frontX + ((bl + br) / 2) * k, clothCenterCanvas: this.frontX + cc * k, clothMidCanvas: this.frontX + ((el + er) / 2) * k, inkCenterCanvas: this.frontX + ((x0 + x1) / 2) * k };
 		})();
 		const c = (q: { x: number; y: number } | null) => (q ? toCanvas(q.x, q.y) : null);
+		// DEV (Fix 2): each live row's cap height as drawn (CSS px through this frame's cloth, at the row's centre) and the
+		// cap height its atlas holds (texture px)
+		const density = (which: 'count' | 'amount' | 'line') => {
+			const g = this.texts?.[which];
+			const d = g && clothOn ? g.density() : null;
+			if (!d) return null;
+			const cy = BANNER.live[this.cls][which].cy;
+			const a = { x: 0, y: 0 };
+			const b = { x: 0, y: 0 };
+			this.mapMaterial(BANNER.width / 2, cy - d.capMaterial / 2, a);
+			this.mapMaterial(BANNER.width / 2, cy + d.capMaterial / 2, b);
+			return { text: g!.text, capMaterial: Number(d.capMaterial.toFixed(2)), capCss: Number((Math.hypot(b.x - a.x, b.y - a.y) * this.frontScale).toFixed(2)), srcCapPx: Number(d.srcCapPx.toFixed(1)) };
+		};
 		return {
+			glyphDensity: { count: density('count'), amount: density('amount'), line: density('line') },
 			phase: this.phase,
 			t: Number(this.t.toFixed(2)),
 			exitT: Number(this.exitT.toFixed(2)),

@@ -5,6 +5,7 @@ import type { Bet, BookEventOfType } from './typesBookEvent';
 import { bookEventHandlerMap } from './bookEventHandlerMap';
 import { hudWinRoundStart } from './hudWin.svelte';
 import { preloadForEvents } from './road/columnClips';
+import { presentsForBook } from './road/present';
 import { STAGING_TOOLS, perfMark } from './staging';
 
 // STAGING READOUT ONLY (game/staging.ts perfMark): each book event leaves its type as a label, so a long frame
@@ -28,6 +29,8 @@ export const playBet = async (bet: Bet) => {
 	hudWinRoundStart();
 	// the column characters this book calls for start loading now, well before its first strike reaches its target
 	preloadForEvents(bet.state);
+	// a book with a trigger: the presents' full open starts loading now (game/road/present.ts); one without lets it go
+	presentsForBook(bet.state);
 	await playBookEvents(bet.state);
 	eventEmitter.broadcast({ type: 'stopButtonEnable' });
 };

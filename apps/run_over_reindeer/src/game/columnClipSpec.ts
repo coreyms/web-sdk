@@ -1509,5 +1509,78 @@ export const COLUMN_CLIPS = {
 				"height": 1471
 			}
 		}
+	},
+	"landing": {
+		"frames": {
+			"reindeer": 6,
+			"santa": 4,
+			"grandma": 0
+		},
+		"tiers": {
+			"full": {
+				"file": "columns/landing-stills.webp",
+				"width": 1201,
+				"height": 684,
+				"pxPerRoad": 1.0,
+				"frames": {
+					"backdrop": {
+						"x": 0,
+						"y": 0,
+						"width": 250,
+						"height": 684
+					},
+					"reindeer": {
+						"x": 252,
+						"y": 0,
+						"width": 300,
+						"height": 684
+					},
+					"santa": {
+						"x": 554,
+						"y": 0,
+						"width": 337,
+						"height": 684
+					},
+					"grandma": {
+						"x": 893,
+						"y": 0,
+						"width": 308,
+						"height": 499
+					}
+				}
+			},
+			"phone": {
+				"file": "columns/landing-stills-phone.webp",
+				"width": 843,
+				"height": 479,
+				"pxPerRoad": 0.7,
+				"frames": {
+					"backdrop": {
+						"x": 0,
+						"y": 0,
+						"width": 175,
+						"height": 479
+					},
+					"reindeer": {
+						"x": 177,
+						"y": 0,
+						"width": 210,
+						"height": 479
+					},
+					"santa": {
+						"x": 389,
+						"y": 0,
+						"width": 236,
+						"height": 479
+					},
+					"grandma": {
+						"x": 627,
+						"y": 0,
+						"width": 216,
+						"height": 350
+					}
+				}
+			}
+		}
 	}
 } as const;

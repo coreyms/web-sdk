@@ -22,12 +22,14 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { CLOUD_CELL, COLUMN, RED_BOX, STRIKE } from '../constants';
+import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, STRIKE } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
 import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
+import { COLUMN_CLIPS } from '../columnClipSpec';
 import { REINDEER_RUN } from '../reindeerRunSpec';
 import { awaitRunViews, runBox, runFrame, type RunView } from './reindeerRun';
+import { CrosshairArt, easeOut, hashText, planCrosshair, sample, type CrosshairPlan, type CrosshairState, type Rect } from './crosshair';
 
 const ROWS = ROAD_ART.board.rows;
 const PITCH = ROAD_ART.board.pitch;
@@ -145,7 +147,28 @@ const cellRect = (cell: number) => {
 };
 const inset = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + RED_BOX.inset, y: r.y + RED_BOX.inset, w: r.w - 2 * RED_BOX.inset, h: r.h - 2 * RED_BOX.inset });
 
-type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; t0: number; leaving: number | null };
+type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: RedBox; t0: number; leaving: number | null };
+
+/** the target crosshair of the strike under way (constants CROSSHAIR, game/road/crosshair.ts) */
+type Crosshair = {
+	plan: CrosshairPlan;
+	art: CrosshairArt;
+	/** the road clock when it showed */
+	start: number;
+	/** the crash: when its frame began to close onto the red box (null before), and over how long */
+	morphAt: number | null;
+	morphMs: number;
+	/** where it stood at the crash: its frame and its arm length */
+	morphFrom: { rect: Rect; arm: number } | null;
+	/** the leg of the plan drawn last (the hop and lock beats), the candidates already dropped */
+	leg: number;
+	dropped: Set<number>;
+	/** as drawn now (the probes' trace) */
+	state: CrosshairState;
+	on: number;
+	scale: number;
+	rect: Rect;
+};
 
 type Column = {
 	reel: number;
@@ -168,6 +191,10 @@ type Column = {
 	t0: number;
 	/** when the box began to be traced around the struck cell, and this column's times on the cell and growing */
 	boxT0: number;
+	/** the crosshair closes onto this column's box (its draw-on is the crosshair's morph): the box shows once it is done */
+	xhBox: boolean;
+	/** a landing board column (showLanding): one still frame and the cloud still from the landing sheet, never a clip */
+	still: { clip: Clip; backdrop: PIXI.Texture } | null;
 	impactMs: number;
 	growMs: number;
 	/** the struck row the box grows from, or -1 (a column that starts whole: Super's opening column) */
@@ -292,6 +319,8 @@ export class RoadFeatures {
 	private readonly cellLayer = new PIXI.Container();
 	private readonly bodyLayer = new PIXI.Container();
 	private readonly numberLayer = new PIXI.Container();
+	/** the target crosshair: over every box, cloud and column of the features (under the running reindeer) */
+	private readonly crosshairLayer = new PIXI.Container();
 	/** the running reindeer: over the line win as well */
 	readonly runnerLayer = new PIXI.Container();
 	private clouds: CloudCell[] = [];
@@ -302,6 +331,24 @@ export class RoadFeatures {
 	private waiters: Waiter[] = [];
 	private clock = 0;
 	private destroyed = false;
+	/** THE TARGET CROSSHAIR (constants CROSSHAIR): the one up now, the fade of the other symbols (0 to 1, linear on the
+	 *  road clock; drawn eased), the strikes so far this spin (the seed), and the per-frame trace (dev hook, probes) */
+	private xh: Crosshair | null = null;
+	private xhFade = 0;
+	private xhFadeClock = 0;
+	private strikesThisSpin = 0;
+	private xhTrace: Record<string, unknown>[] = [];
+	private xhInfo: Record<string, unknown> | null = null;
+
+	/** the road board says which cells hold a valid target now (a parked Grandma's car or Santa's sleigh, shown), and
+	 *  the board as text (the crosshair's seed) */
+	targetCells: () => number[] = () => [];
+	boardText: () => string = () => '';
+	/** true while nothing of the strike's lead in may show (SKIP TO RESULT; there is none in this pass) */
+	crosshairOff: () => boolean = () => false;
+	/** THE CROSSHAIR'S BEATS, for the sounds to come (none wired yet): a hop lands on a cell, a candidate drops, the
+	 *  lock, the morph into the red box at the crash */
+	onCrosshair: ((beat: 'hop' | 'drop' | 'lock' | 'morph', cell: number) => void) | null = null;
 
 	/** the road board hides or shows the symbol standing in a cell (the cloud and the column cover them) */
 	hideCell: (cell: number, hidden: boolean) => void = () => {};
@@ -311,7 +358,7 @@ export class RoadFeatures {
 	layoutKind: LayoutKind = 'landscape';
 
 	constructor(private readonly tex: Tex) {
-		this.layer.addChild(this.backLayer, this.boxLayer, this.cellLayer, this.bodyLayer, this.numberLayer);
+		this.layer.addChild(this.backLayer, this.boxLayer, this.cellLayer, this.bodyLayer, this.numberLayer, this.crosshairLayer);
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
 		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
 		// for a picture a column is waiting on
@@ -385,7 +432,11 @@ export class RoadFeatures {
 		const sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
 		sprite.visible = false;
 		this.runnerLayer.addChild(sprite);
-		const t0 = this.clock + STRIKE.leadInMs;
+		// THE TARGET CROSSHAIR hops for its lead in before the reindeer sets off (CROSSHAIR.leadMs on the road clock)
+		const crosshair = CROSSHAIR.on && !this.crosshairOff();
+		const t0 = this.clock + (crosshair ? Math.max(STRIKE.leadInMs, CROSSHAIR.leadMs) : STRIKE.leadInMs);
+		this.endCrosshair();
+		if (crosshair) this.startCrosshair(spec.cell, t0, dir, path, nR);
 		return new Promise<void>((resolve) => {
 			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir, toX, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC, s0, factor: plan.factor, path, impactFeetY: Math.max(impactFeetY, top), impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false };
 		});
@@ -406,6 +457,184 @@ export class RoadFeatures {
 			m.box.root.destroy({ children: true });
 			this.marks = this.marks.filter((x) => x !== m);
 		}
+	}
+
+	// ---- the target crosshair (constants CROSSHAIR, game/road/crosshair.ts) ----------------------------------------------
+	/** the candidates now: every valid target shown on the board, less the reels a column stands in and the cells a
+	 *  Grandma Wild's cloud covers (struck this spin); the book's target always among them */
+	private candidates(target: number): number[] {
+		const struck = new Set(this.clouds.filter((c) => c.leaving === null).map((c) => c.cell));
+		const cells = this.targetCells().filter((c) => !struck.has(c) && !this.hasColumn(Math.floor(c / ROWS)));
+		if (!cells.includes(target)) cells.push(target);
+		return [...new Set(cells)].sort((a, b) => a - b);
+	}
+
+	/** the plan for this strike: when the reindeer has run past each candidate's reel (from its path along the snow) */
+	private startCrosshair(target: number, t0: number, dir: 1 | -1, path: { x: number; y: number }[], nR: number) {
+		const cells = this.candidates(target);
+		const turnAt = t0 + (nR * 1000) / STRIKE.strideFps;
+		const targetReel = Math.floor(target / ROWS);
+		const dropAt: Record<number, number> = {};
+		for (const cell of cells) {
+			const reel = Math.floor(cell / ROWS);
+			dropAt[cell] = turnAt;
+			if (reel === targetReel) continue;
+			// the line its feet cross: passAt of the way across the reel, in the way it runs
+			const line = BOARD_X + (dir === 1 ? reel + CROSSHAIR.passAt : reel + 1 - CROSSHAIR.passAt) * PITCH;
+			for (let i = 0; i < Math.min(nR, path.length - 1); i++) {
+				const a = path[i].x;
+				const b = path[i + 1].x;
+				if ((b - line) * dir < 0 || (a - line) * dir > 0) continue;
+				const pose = i + (b === a ? 0 : (line - a) / (b - a));
+				dropAt[cell] = Math.min(turnAt, t0 + (pose * 1000) / STRIKE.strideFps);
+				break;
+			}
+		}
+		const centre = (cell: number) => {
+			const r = cellRect(cell);
+			return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+		};
+		const seed = hashText(`${this.boardText()}|${target}|${this.strikesThisSpin++}`);
+		const plan = planCrosshair(cells, target, centre, this.clock, turnAt, dropAt, seed);
+		const art = new CrosshairArt();
+		art.root.alpha = 0;
+		this.crosshairLayer.addChild(art.root);
+		const rect = inset(cellRect(target));
+		this.xh = { plan, art, start: this.clock, morphAt: null, morphMs: CROSSHAIR.morphMs, morphFrom: null, leg: -1, dropped: new Set(), state: 'hop', on: target, scale: 1, rect };
+		this.xhTrace = [];
+		const rel = (t: number) => (Number.isFinite(t) ? Math.round((t - this.clock) * 10) / 10 : null);
+		this.xhInfo = { target, cells, seed, runAt: rel(t0), turnAt: rel(turnAt), lockAt: rel(plan.lockAt), dropAt: Object.fromEntries(Object.entries(plan.dropAt).map(([c, t]) => [c, rel(t)])), hops: plan.legs.filter((l) => l.kind === 'dwell').map((l) => (l.kind === 'dwell' ? l.cell : -1)) };
+	}
+
+	/** the crash: it closes onto the red box at the cell's edge (a Wild made right after takes it over: its own time) */
+	private crosshairCrash() {
+		const x = this.xh;
+		if (!x || x.morphAt !== null) return;
+		x.morphAt = this.clock;
+		x.morphFrom = { rect: { ...x.rect }, arm: CROSSHAIR.armFrac * Math.min(x.rect.w, x.rect.h) };
+		x.state = 'morph';
+		this.onCrosshair?.('morph', x.plan.target);
+	}
+
+	/** is the crosshair standing on this cell, not yet done closing onto its box? */
+	private crosshairOn(cell: number): boolean {
+		return !!this.xh && this.xh.plan.target === cell;
+	}
+
+	private endCrosshair() {
+		if (!this.xh) return;
+		this.xh.art.root.destroy({ children: true });
+		this.xh = null;
+	}
+
+	/** how dim the symbols that are not a valid target are drawn now (1 = full; the road board's paint multiplies) */
+	otherSymbolsBrightness(): number {
+		if (this.xhFade <= 0) return 1;
+		const u = this.xhFade;
+		return 1 - (1 - CROSSHAIR.fade) * (u * u * (3 - 2 * u));
+	}
+
+	private updateCrosshair() {
+		const now = this.clock;
+		const x = this.xh;
+		// the fade: in while it is up, out from the crash (linear on the road clock, eased where it is drawn)
+		const dt = Math.max(0, now - this.xhFadeClock);
+		this.xhFadeClock = now;
+		const up = !!x && x.morphAt === null;
+		this.xhFade = up ? Math.min(1, this.xhFade + dt / CROSSHAIR.fadeInMs) : Math.max(0, this.xhFade - dt / CROSSHAIR.fadeOutMs);
+		if (!x) return;
+		const C = CROSSHAIR;
+		let rect: Rect;
+		let arm: number;
+		let armH: number;
+		let tick: number;
+		if (x.morphAt === null) {
+			const s = sample(x.plan, now, (cell) => inset(cellRect(cell)));
+			// the beats: a hop lands, the lock (the sounds to come)
+			const leg = x.plan.legs.indexOf(s.leg);
+			if (leg !== x.leg) {
+				if (s.leg.kind === 'dwell' && leg > 0) this.onCrosshair?.(s.leg.final ? 'lock' : 'hop', s.leg.cell);
+				else if (s.leg.kind === 'dwell' && s.leg.final) this.onCrosshair?.('lock', s.leg.cell);
+				x.leg = leg;
+			}
+			const locked = s.state === 'locked';
+			for (const cell of x.plan.cells) {
+				if (cell === x.plan.target || x.dropped.has(cell)) continue;
+				if (locked || now >= x.plan.dropAt[cell]) {
+					x.dropped.add(cell);
+					this.onCrosshair?.('drop', cell);
+				}
+			}
+			let k: number;
+			if (s.state === 'glide') k = C.moveScale;
+			else if (locked) k = C.moveScale + (C.lockScale - C.moveScale) * easeOut((now - x.plan.lockAt) / C.lockMs);
+			else k = C.moveScale + (C.dwellScale - C.moveScale) * easeOut(s.sinceArrive / C.settleMs);
+			// it shows: bigger and fading in
+			const a = easeOut((now - x.start) / C.appearMs);
+			k *= C.appearScale + (1 - C.appearScale) * a;
+			x.art.root.alpha = a;
+			const r = s.rect;
+			rect = { x: r.x + (r.w * (1 - k)) / 2, y: r.y + (r.h * (1 - k)) / 2, w: r.w * k, h: r.h * k };
+			arm = C.armFrac * Math.min(rect.w, rect.h);
+			armH = arm;
+			tick = C.tickPx;
+			x.state = s.state;
+			x.on = s.cell;
+			x.scale = k;
+		} else {
+			// THE MORPH: the frame closes onto the red box at the cell's edge, the arms run out to whole sides, the ticks
+			// pull in
+			const u = (now - x.morphAt) / Math.max(1, x.morphMs);
+			const e = easeOut(u);
+			const from = x.morphFrom ?? { rect: x.rect, arm: C.armFrac * Math.min(x.rect.w, x.rect.h) };
+			const to = inset(cellRect(x.plan.target));
+			rect = { x: from.rect.x + (to.x - from.rect.x) * e, y: from.rect.y + (to.y - from.rect.y) * e, w: from.rect.w + (to.w - from.rect.w) * e, h: from.rect.h + (to.h - from.rect.h) * e };
+			arm = from.arm + (rect.w / 2 - from.arm) * e;
+			armH = from.arm + (rect.h / 2 - from.arm) * e;
+			tick = C.tickPx * (1 - e);
+			x.art.root.alpha = 1;
+			x.state = 'morph';
+			x.scale = to.w > 0 ? rect.w / to.w : 1;
+			if (u >= 1) {
+				this.trace(x, rect);
+				// done: the Wild's own box (in the same place) shows from here
+				this.endCrosshair();
+				return;
+			}
+		}
+		x.rect = rect;
+		x.art.set(rect, arm, armH, tick);
+		this.trace(x, rect);
+	}
+
+	/** one row of the per-frame trace (dev hook __reindeer.crosshairTrace, the crosshair probe) */
+	private trace(x: Crosshair, rect: Rect) {
+		if (!import.meta.env.DEV || this.xhTrace.length > 6000) return;
+		const now = this.clock;
+		// one row per step of the board clock (a frozen clock still ticks the road every frame: no repeated rows)
+		const last = this.xhTrace[this.xhTrace.length - 1];
+		if (last && last.t === Math.round((now - x.start) * 10) / 10 && last.state === x.state) return;
+		const left = x.state === 'locked' || x.state === 'morph' ? 1 : x.plan.cells.filter((c) => c === x.plan.target || !x.dropped.has(c)).length;
+		const r = this.runner;
+		const round = (v: number) => Math.round(v * 10) / 10;
+		this.xhTrace.push({
+			t: round(now - x.start),
+			x: round(rect.x + rect.w / 2),
+			y: round(rect.y + rect.h / 2),
+			w: round(rect.w),
+			state: x.state,
+			on: x.on,
+			target: x.plan.target,
+			left,
+			rx: r && r.sprite.visible ? round(r.sprite.x) : null,
+			phase: r ? this.runnerPhase(r) : null,
+			fade: Math.round(this.otherSymbolsBrightness() * 1000) / 1000,
+		});
+	}
+
+	/** the crosshair's per-frame trace since the strike started, and its plan (dev hook) */
+	crosshairTrace() {
+		return { rows: this.xhTrace, plan: this.xhInfo, live: this.xh ? this.xh.state : 'off' };
 	}
 
 	// ---- the Grandma Wild ------------------------------------------------------------------------------------------------
@@ -433,14 +662,17 @@ export class RoadFeatures {
 		root.addChild(cloud, box.root, word, label.root);
 		root.scale.set(CLOUD_CELL.popFrom);
 		this.cellLayer.addChild(root);
-		this.clouds.push({ cell, root, cloud, t0: this.clock, leaving: null });
+		this.clouds.push({ cell, root, cloud, box, t0: this.clock, leaving: null });
+		// the crosshair on this cell closes onto her box while her cloud pops (the box shows when it is done)
+		if (this.xh && this.xh.plan.target === cell && this.xh.morphAt !== null) this.xh.morphMs = CLOUD_CELL.popMs;
+		box.root.visible = !this.crosshairOn(cell);
 		this.hideCell(cell, true);
 		this.onBeat?.('impact');
 		return this.wait(this.clock + CLOUD_CELL.holdMs);
 	}
 
 	// ---- the column Wild ---------------------------------------------------------------------------------------------------
-	private makeColumn(reel: number, tier: ColumnTier, multiplier: number, sticky: boolean, joinAdd = 0): Column {
+	private makeColumn(reel: number, tier: ColumnTier, multiplier: number, sticky: boolean, joinAdd = 0, pictures = true): Column {
 		const back = new PIXI.Container();
 		const backdrop = new PIXI.Sprite();
 		const cloud = new PIXI.Sprite();
@@ -460,8 +692,8 @@ export class RoadFeatures {
 		this.backLayer.addChild(back);
 		this.boxLayer.addChild(box.root);
 		this.numberLayer.addChild(label.root);
-		void loadBackdrop();
-		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false };
+		if (pictures) void loadBackdrop();
+		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null };
 		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - COLUMN.numberUp);
 		this.columns.push(column);
 		return column;
@@ -477,6 +709,12 @@ export class RoadFeatures {
 		if (column.fromRow >= 0) {
 			column.impactMs = COLUMN.impactMs;
 			column.growMs = COLUMN.growMs;
+		}
+		// the crosshair on the struck cell IS the box's draw-on now: it closes onto the box over boxDrawMs, and the
+		// cloud pops on its old beat
+		if (fromCell !== null && this.xh && this.xh.plan.target === fromCell && this.xh.morphAt !== null) {
+			this.xh.morphMs = COLUMN.boxDrawMs;
+			column.xhBox = true;
 		}
 		// 'wait': the box stands on the struck cell with the cell cloud until the tier's pictures are in. They usually are
 		// (they started loading when the book arrived). A late or failed load never holds the round longer than
@@ -501,6 +739,9 @@ export class RoadFeatures {
 	 *  keeps the number it landed with: nothing changes a held column's multiplier (Corey 2026-11-10: "I don't think
 	 *  the column wilds should ever multiply from their original set value"; the book repeats it unchanged). */
 	syncHeld(held: HeldColumn[]) {
+		// a new spin: the crosshair's seed counts its strikes from here
+		this.strikesThisSpin = 0;
+		this.endCrosshair();
 		for (const cloud of this.clouds) if (cloud.leaving === null) cloud.leaving = this.clock;
 		this.dropMarks(null);
 		for (const column of [...this.columns]) {
@@ -523,6 +764,43 @@ export class RoadFeatures {
 			void loadClip(h.tier, 'win');
 			for (let row = 0; row < ROWS; row++) this.hideCell(h.reel * ROWS + row, true);
 		}
+	}
+
+	// ---- the landing board (game/landingBoard.ts) ----------------------------------------------------------------------
+	/** THE LANDING BOARD'S COLUMNS: standing and still, from the landing sheet (one picked idle frame per character and
+	 *  the cloud still; tools/build_columns.py --landing), their numbers up. Nothing of them loads a clip. */
+	showLanding(sheet: PIXI.Texture, frames: Record<string, { x: number; y: number; width: number; height: number }>, columns: { reel: number; tier: ColumnTier; multiplier: number }[]) {
+		const cut = (f: { x: number; y: number; width: number; height: number }) => new PIXI.Texture({ source: sheet.source, frame: new PIXI.Rectangle(f.x, f.y, f.width, f.height) });
+		const backdrop = cut(frames.backdrop);
+		for (const { reel, tier, multiplier } of columns) {
+			const f = frames[tier];
+			if (!f) continue;
+			this.removeColumn(reel, true);
+			const column = this.makeColumn(reel, tier, multiplier, false, 0, false);
+			const spec = COLUMN_CLIPS.clips[tier].idle;
+			column.still = { clip: { textures: [cut(f)], fps: 1, loop: true, x: spec.x, y: spec.y, width: spec.width, height: spec.height, cloudFrames: 0 }, backdrop };
+			column.phase = 'idle';
+			column.t0 = this.clock;
+			column.labelShown = true;
+			column.label.root.visible = true;
+		}
+	}
+
+	/** the landing is over: its columns go at once (no fade, nothing left behind), before the first board is put up */
+	endLanding() {
+		const textures = new Set<PIXI.Texture>();
+		for (const column of [...this.columns]) {
+			if (!column.still) continue;
+			for (let row = 0; row < ROWS; row++) this.hideCell(column.reel * ROWS + row, false);
+			textures.add(column.still.backdrop);
+			for (const t of column.still.clip.textures) textures.add(t);
+			column.body.texture = PIXI.Texture.EMPTY;
+			column.backdrop.texture = PIXI.Texture.EMPTY;
+			this.destroyColumn(column);
+			this.columns = this.columns.filter((c) => c !== column);
+		}
+		// the frames only (the sheet itself is the preload's)
+		for (const t of textures) t.destroy(false);
 	}
 
 	/** the press: the spin before is over, so every cloud cell and every column leaves */
@@ -561,6 +839,7 @@ export class RoadFeatures {
 		if (this.destroyed) return;
 		this.clock = clock;
 		this.updateRunner();
+		this.updateCrosshair();
 		this.updateClouds();
 		for (const column of [...this.columns]) this.updateColumn(column);
 		if (this.waiters.length) {
@@ -610,6 +889,7 @@ export class RoadFeatures {
 			pose = missed !== undefined ? missed : end - 1e-6;
 			if (missed !== undefined) r.late = e - this.poseTime(r, missed);
 			r.impactAt = this.clock;
+			this.crosshairCrash();
 		} else {
 			const along = (this.poseTime(r, r.nAlong));
 			pose = e < along ? (e * STRIKE.strideFps) / 1000 : r.nAlong + ((e - along) * STRIKE.downStrideFps) / 1000;
@@ -695,6 +975,7 @@ export class RoadFeatures {
 				continue;
 			}
 			const u = Math.min(1, (this.clock - c.t0) / CLOUD_CELL.popMs);
+			if (!c.box.root.visible && !this.crosshairOn(c.cell)) c.box.root.visible = true;
 			// out past its size, then back onto it
 			const over = CLOUD_CELL.popOver;
 			const k = u < 0.7 ? CLOUD_CELL.popFrom + (over - CLOUD_CELL.popFrom) * (u / 0.7) : over + (1 - over) * ((u - 0.7) / 0.3);
@@ -761,7 +1042,7 @@ export class RoadFeatures {
 		const left = BOARD_X + column.reel * PITCH;
 		const full = inset({ x: left, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
 		const reveal = getClip(column.tier, 'reveal');
-		const idle = getClip(column.tier, 'idle');
+		const idle = column.still?.clip ?? getClip(column.tier, 'idle');
 
 		if (column.phase === 'leave') {
 			const u = t / COLUMN.leaveMs;
@@ -795,7 +1076,8 @@ export class RoadFeatures {
 			const h = from.h + (full.h - from.h) * g;
 			// the box is traced around the struck cell first, the symbol still showing under it
 			const sinceBox = this.clock - column.boxT0;
-			column.box.set(full.x, y, full.w, h, column.fromRow >= 0 ? sinceBox / COLUMN.boxDrawMs : 1);
+			const cell = column.reel * ROWS + column.fromRow;
+			column.box.set(full.x, y, full.w, h, column.fromRow < 0 ? 1 : column.xhBox ? (this.crosshairOn(cell) ? 0 : 1) : sinceBox / COLUMN.boxDrawMs);
 			// the cloud in the box: the cell cloud pops in once the box is whole, then the entrance's own first frame
 			// cropped to the box as it grows
 			const sincePop = sinceBox - COLUMN.boxDrawMs;
@@ -854,7 +1136,7 @@ export class RoadFeatures {
 		// THE STILL CLOUD, wall to wall inside the frame, from the first frame of the entrance to the column's last. The
 		// entrance's own first frames are a full cloud over it, so it is first seen as that moving cloud thins: the
 		// hand-over is the clip's own fade, with no cut.
-		const still = getBackdrop();
+		const still = column.still?.backdrop ?? getBackdrop();
 		if (still) {
 			const backdrop = column.backdrop;
 			if (backdrop.texture !== still) backdrop.texture = still;

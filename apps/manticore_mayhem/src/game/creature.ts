@@ -259,7 +259,7 @@ export class Creature {
 	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false, voice: null };
 	private rush = { from: 1, to: 1, t0: 0 };
 	/** what starts when the rush ends, or at `at` (real ms: the clip's first frame). strikeAt: swipe only; move: a cheer's */
-	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean; move?: CheerMove } | null = null;
+	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean; move?: CheerMove; holdFade?: boolean } | null = null;
 	/** THE CHEER WAITING FOR ITS CLIP (drop 8, win clips on demand): asked while its sheets were not in; it starts when they
 	 *  are (he is idle, nothing cued) unless its plaque has gone (cheerEnd) first */
 	private pendingCheer: CheerMove | null = null;
@@ -611,6 +611,10 @@ export class Creature {
 		return this.want;
 	}
 	/** the look loaded ahead of its mode (null: none) */
+	/** the look the round's book says is coming (loaded ahead for it; null: none) */
+	get bookAhead(): CreatureLook | null {
+		return this.ahead.book;
+	}
 	get prepared(): CreatureLook | null {
 		return this.ahead.book ?? this.ahead.buy;
 	}
@@ -761,11 +765,16 @@ export class Creature {
 		// (a scatter's strike enters at STING_FX.tail.entryFrames.scatter, drop 8: its wind-up is the rest to the hold)
 		return CREATURE.strikeLead ? (kind === 'scatter' ? WINDUP.sting_hit - SCATTER_ENTRY : WINDUP.sting_hit + STING_FX.flightMs) : 0;
 	}
-	/** the board's own beat (the featureBeat broadcast) */
-	beat(what: 'swipe' | 'roar'): void {
+	/** the board's own beat (the featureBeat broadcast). True when he plays it, or is not on screen to be seen not
+	 *  playing it (hidden, veiled, switched off, SKIP TO RESULT); false when he stands there and it is not played (its
+	 *  sheet is not in): the caller then leaves the beat's voice out (the trigger beat's sfx_roar, Fix 2 2026-11-15) */
+	beat(what: 'swipe' | 'roar'): boolean {
 		const now = performance.now();
 		if (what === 'swipe') {
-			if (!this.canPlay('swipe')) return this.miss('swipe');
+			if (!this.canPlay('swipe')) {
+				this.miss('swipe');
+				return !this.onScreen();
+			}
 			if (this.state === 'clip' && this.run.clip === 'swipe') {
 				// the tears are here. Still winding up: the strike lands now. Already holding: the hold counts from here
 				if (this.run.hold === 0) this.run.strikeAt = now;
@@ -773,7 +782,7 @@ export class Creature {
 				this.swipeNext = null;
 				this.run.cued = false;
 				this.note('beat', { what, frame: this.run.frame });
-				return;
+				return true;
 			}
 			// no lead at all (nothing cued it, or a sting was still striking): the strike pose at once
 			this.cue = null;
@@ -782,18 +791,49 @@ export class Creature {
 			this.run.startAt = now - 1;
 			this.run.beatAt = now;
 			this.note('beat', { what, late: true });
-			return;
+			return true;
 		}
-		if (!this.canPlay('roar')) return this.miss('roar');
+		// THE ROAR ON A CHANGE OF LOOK (Fix 2, 2026-11-15; Corey: "Epic Entry, we play the roar sound but the Manticore
+		// stays still during it"). The Super / Epic trigger beat relights the scene at TRIGGER_BEAT.relightAt and roars
+		// 20 ms later, so his crossover to the feature's look has just started (or is about to) when the roar comes. A
+		// clip plays inside a crossover only when BOTH looks have it (drawable); the incoming look's roar sheet is loaded
+		// ahead with its idle sheet (game/creatureLoad.ts THE ENTRY ROAR), and then he roars as the looks cross. When it
+		// is not in, he roars in the look on show and the crossover waits for the roar's end (holdFade: a crossover no
+		// more than CREATURE.roarHoldFadeMs old is taken back, its alpha then at most a fifth)
+		const hold = this.roarHold(now);
+		if (!hold && !this.canPlay('roar')) {
+			this.miss('roar');
+			return !this.onScreen();
+		}
+		if (hold && this.fadeAt >= 0) {
+			this.note('fadeHeld', { from: this.look, to: this.next, ms: Math.round(now - this.fadeAt) });
+			this.fadeAt = -1;
+			this.colour[1].visible = false;
+			this.colour[1].alpha = 0;
+			this.drawnFrame = 0;
+		}
 		if (this.state === 'clip' && this.run.clip === 'roar' && this.run.cued) {
 			this.run.cued = false;
 			this.note('beat', { what, frame: this.run.frame });
-			return;
+			return true;
 		}
 		// read ahead and already rushing to it: it starts when the rush ends
 		if (this.cue?.kind === 'roar' && this.cue.ahead) this.cue.ahead = false;
 		else this.cue = { kind: 'roar', at: now, strikeAt: 0 };
-		this.note('beat', { what });
+		if (hold) this.cue.holdFade = true;
+		this.note('beat', { what, hold });
+		return true;
+	}
+	/** he is drawn and acting (the beats' sounds then follow what he does) */
+	private onScreen(): boolean {
+		return this.enabled && this.placed && !this.veiled && this.state !== 'hidden' && !!this.look && !this.env.skipping();
+	}
+	/** the roar can be played in the look on show if the crossover to the next look waits for it: the next look has no
+	 *  roar sheet, the look on show has, and the crossover has not started or started at most roarHoldFadeMs ago */
+	private roarHold(now: number): boolean {
+		if (!this.next || !this.look || !this.onScreen()) return false;
+		if (this.has(this.next, 'roar') || !this.has(this.look, 'roar') || !this.shadows.roar) return false;
+		return this.fadeAt < 0 || now - this.fadeAt <= CREATURE.roarHoldFadeMs;
 	}
 	/** a sting's beat (the stingBeat broadcast). `more`: another sting of this run follows this one */
 	stingBeat(phase: 'charge' | 'wait' | 'strike', kind: StingKind, more: boolean): void {
@@ -1540,7 +1580,8 @@ export class Creature {
 		if (this.bodyNode.alpha !== a) this.bodyNode.alpha = this.shadowNode.alpha = a;
 		if (!this.next) return;
 		if (this.fadeAt < 0) {
-			if (this.state !== 'idle') return;
+			// (a roar that holds the crossover back: it starts after it, from his idle loop)
+			if (this.state !== 'idle' || this.cue?.holdFade) return;
 			this.fadeAt = now;
 			this.colour[1].visible = true;
 			this.colour[1].alpha = 0;

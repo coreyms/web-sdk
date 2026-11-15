@@ -134,6 +134,8 @@
 	let snapping = $state(false);
 	/** the confirm card's buttons are still boxes; their faces turn about the card's centre (design px, per face) */
 	let faceOrigin = $state({ confirm: '0px 0px', cancel: '0px 0px' });
+	/** CONFIRM's top in the framed card (design px; null: the foot of the card, as sideways), CONFIRM_PLACE */
+	let keysTop = $state<number | null>(null);
 
 	let trayEl = $state<HTMLDivElement>();
 	let hdrInEl = $state<HTMLElement>();
@@ -552,6 +554,47 @@
 		};
 		faceOrigin = { confirm: at(fc), cancel: at(fx) };
 	};
+	// THE CONFIRM CARD'S KEYS (Fix 2, 2026-11-15, Corey's mock A). Cancel is the round ruby close key on the frame's top
+	// right corner, centred on the frame's large corner diamond (CARD_DIAMOND: measured on the frame art, both of its
+	// files, as fractions of the card; the art fills the card at 100% x 100%, so the fractions hold on every layout and
+	// card scale). CONFIRM sits centred between the text's last line and the black panel's foot ornament, never on it:
+	// its bottom at least CARD_ORNAMENT.gap design px over the ornament's apex. Sideways (the tray's slab, no frame
+	// art) CONFIRM stays at the slab's foot and the close key sits in the slab's top right corner.
+	const CARD_DIAMOND = { x: 725.6 / 768, y: 50.5 / 1152 };
+	const CARD_ORNAMENT = { top: 1000 / 1152, gap: 10 };
+	const placeKeys = () => {
+		const card = cardEl;
+		const what = card?.querySelector<HTMLElement>('.c-what');
+		if (!card || !what || !confirmBtn || frame.layout === 'sideways') {
+			keysTop = null;
+			return;
+		}
+		let y = 0;
+		for (let e: HTMLElement | null = what; e && e !== card; e = e.offsetParent as HTMLElement | null) y += e.offsetTop;
+		const textBottom = y + what.offsetHeight;
+		const h = confirmBtn.offsetHeight;
+		const limit = card.offsetHeight * CARD_ORNAMENT.top - CARD_ORNAMENT.gap;
+		keysTop = Math.round(Math.min(limit - h, (textBottom + limit - h) / 2) * 10) / 10;
+	};
+	// placed again whenever the card's text or size can have changed (the mode, the layout, the rows, the fonts)
+	$effect(() => {
+		void mode.id;
+		void cardStyle;
+		void frame.layout;
+		void confirmRows;
+		void touch;
+		tick().then(() => {
+			placeKeys();
+			tick().then(measureFaces);
+		});
+	});
+	onMount(() => {
+		void document.fonts?.ready.then(() => {
+			placeKeys();
+			tick().then(measureFaces);
+		});
+	});
+	const keysStyle = $derived(keysTop === null ? undefined : `top:${keysTop}px;bottom:auto`);
 	const activate = () => {
 		if (phase !== 'open' || confirm) return false;
 		// allowed during the open and during a swap: every piece lands where it belongs first (spec 5.6)
@@ -1114,6 +1157,8 @@
 		};
 		const hook = {
 			state: () => ({
+				/** Fix 2: the frame's corner diamond and the foot ornament's apex (fractions of the card), CONFIRM's top */
+				cardMarks: { diamond: CARD_DIAMOND, ornamentTop: CARD_ORNAMENT.top, ornamentGap: CARD_ORNAMENT.gap, keysTop },
 				phase,
 				open: phase === 'open',
 				layout: frame.layout,
@@ -1201,8 +1246,8 @@
 					cardFace: confirm ? q('.card-mv') : null,
 					confirmBtn: confirm ? q('.c-confirm') : null,
 					confirmFace: confirm ? q('.c-confirm .face') : null,
-					cancel: confirm ? q('.cancel') : null,
-					cancelFace: confirm ? q('.cancel .face') : null,
+					cancel: confirm ? q('.c-x') : null,
+					cancelFace: confirm ? q('.c-x .face') : null,
 				};
 			},
 			constants: () => ARMOURY,
@@ -1288,6 +1333,7 @@
 			style:--side-edge={touch ? `${sideEdge.toFixed(1)}px` : null}
 			style:--side-top={touch ? `${(da.safe.top + SIDE_TOP).toFixed(1)}px` : null}
 			style:--hit={touch ? `${da.minHit.toFixed(1)}px` : null}
+			style:--xhit={touch ? null : `${(44 / frame.u).toFixed(1)}px`}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="arm-name"
@@ -1484,10 +1530,13 @@
 					</div>
 					<div class="c-flash" class:on={flash}></div>
 				</div>
-				<div class="c-keys">
+				<div class="c-keys" style={keysStyle}>
 					<button type="button" class="btn lift c-confirm" bind:this={confirmBtn} onclick={doConfirm}><span class="face cf" style:transform-origin={faceOrigin.confirm}>{TX.button.confirm}</span></button>
-					<button type="button" class="cancel" bind:this={cancelBtn} onclick={cancel}><span class="face cf" style:transform-origin={faceOrigin.cancel}>{TX.button.cancel}</span></button>
 				</div>
+				<!-- Cancel (Fix 2): the round close key on the frame's corner diamond; after CONFIRM in the focus order, as Cancel was -->
+				<button type="button" class="c-x lift" bind:this={cancelBtn} onclick={cancel} aria-label={TX.button.cancel} style:left="{(CARD_DIAMOND.x * 100).toFixed(3)}%" style:top="{(CARD_DIAMOND.y * 100).toFixed(3)}%">
+					<span class="face cf" style:transform-origin={faceOrigin.cancel}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.6 7.6 16.4 16.4 M16.4 7.6 7.6 16.4" /></svg></span>
+				</button>
 			</div>
 		</div>
 	{/key}
@@ -1655,12 +1704,12 @@
 		.lift:not(:disabled):active {
 			translate: 0 2px;
 		}
-		.cancel:hover {
-			opacity: 1;
+		.c-x:hover > .face::before {
+			opacity: 0.16;
 		}
-		.cancel:active {
-			opacity: 1;
-			translate: 0 2px;
+		.c-x:active > .face::before {
+			opacity: 0.34;
+			transition-duration: 30ms;
 		}
 		.tray:has(.tile:hover) .tf::after {
 			opacity: 0.45;
@@ -2490,24 +2539,70 @@
 			visibility 0s linear var(--guard-ms),
 			translate 60ms linear;
 	}
-	.cancel {
-		margin: 2px auto 0;
-		padding: 2px 10px;
+	/* THE CLOSE KEY (Fix 2, mock A): a ruby disc, 34 design px on the 366 px card (9.29 % of the card's width, so it
+	   scales with the card), its centre on the frame's corner diamond (left / top from CARD_DIAMOND; the negative margins
+	   are half its size, so its layout box, which the face origin is measured from, is where it is drawn). No filters:
+	   the gloss, the gold ring's dark outer line and the drop shadow are gradients and box shadows */
+	.c-x {
+		position: absolute;
+		width: 9.29%;
+		aspect-ratio: 1;
+		margin: -4.645% 0 0 -4.645%;
+		padding: 0;
 		border: 0;
+		border-radius: 50%;
 		background: none;
-		font-family: var(--ui);
-		font-size: 18px;
-		font-weight: 500;
-		color: var(--cream);
-		text-decoration: underline;
-		text-underline-offset: 4px;
-		opacity: 0.85;
-		transition:
-			opacity 100ms linear,
-			translate 60ms linear;
+		pointer-events: none;
 	}
-	.cancel .face {
+	.arm.confirm .c-x {
+		pointer-events: auto;
+	}
+	.c-x .face {
+		position: absolute;
+		inset: 0;
 		display: block;
+		box-sizing: border-box;
+		border-radius: 50%;
+		border: 2px solid #d9b25a;
+		background: radial-gradient(circle at 34% 30%, #ff5a3c 0%, #e32400 36%, #8e1200 74%, #5a0a00 100%);
+		box-shadow:
+			0 0 0 1px rgba(26, 10, 4, 0.9),
+			0 3px 6px rgba(0, 0, 0, 0.55),
+			inset 0 2px 2px rgba(255, 214, 180, 0.45),
+			inset 0 -2px 3px rgba(40, 0, 0, 0.5);
+	}
+	.c-x .face::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background: var(--white);
+		opacity: 0;
+		transition: opacity 100ms linear;
+		pointer-events: none;
+	}
+	.c-x svg {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+	.c-x path {
+		fill: none;
+		stroke: #fff4e0;
+		stroke-width: 2.6;
+		stroke-linecap: round;
+	}
+	/* its touch target: at least 44 CSS px on every layout (--xhit: 44 CSS px in the desktop box's px; touch: --hit, which
+	   a scaled card grows), a clear square round its middle, nothing moves */
+	.c-x::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: max(100%, var(--xhit, var(--hit, 44px)));
+		height: max(100%, var(--xhit, var(--hit, 44px)));
+		transform: translate(-50%, -50%);
 	}
 	.c-flash {
 		position: absolute;
@@ -2574,8 +2669,7 @@
 	/* touch hit boxes: at least 44 CSS px (--hit is that in design px), grown by a clear ::after, nothing moves */
 	.arm.touch .close::after,
 	.arm.touch .cta::after,
-	.arm.touch .c-confirm::after,
-	.arm.touch .cancel::after {
+	.arm.touch .c-confirm::after {
 		content: '';
 		position: absolute;
 		left: 50%;
@@ -2927,14 +3021,6 @@
 		font-size: 14px;
 		line-height: 19px;
 	}
-	/* Cancel: 16 px text in a 44 px tall hit box that reaches down into the frame's foot */
-	.arm.touch .cancel {
-		position: relative;
-		margin: 0 auto -12px;
-		padding: 12px 28px;
-		font-size: 16px;
-		line-height: 20px;
-	}
 
 	/* ── TABLET PORTRAIT (page.css 399-420): the phone's pieces; the tray one row (PER SPIN 190 wide), all six tiles 76
 	   high with the picture on top, the group sub lines dropped; the name under the clock strip; content capped at 720 ── */
@@ -3068,8 +3154,8 @@
 	.arm.lay-sideways .card-mv {
 		position: relative;
 		inset: auto;
-		/* room for CONFIRM (6 over it, 44) and Cancel (5 over it, 44) and the 2 under: 101 */
-		padding-bottom: 101px;
+		/* room for CONFIRM (6 over it, 44) and the 2 under: 52 (Cancel is the close key in the corner since Fix 2) */
+		padding-bottom: 52px;
 		background: linear-gradient(180deg, var(--tray-hi), var(--tray-lo));
 		border-top: 2px solid var(--brass-lo);
 		border-bottom: 2px solid var(--brass-lo);
@@ -3098,8 +3184,13 @@
 	.arm.lay-sideways .c-confirm {
 		height: 44px;
 	}
-	.arm.lay-sideways .cancel {
-		margin: 0 auto;
+	/* the slab has no frame art: the close key sits in its top right corner, 34 px */
+	.arm.lay-sideways .c-x {
+		left: auto !important;
+		top: 8px !important;
+		right: 8px;
+		width: 34px;
+		margin: 0;
 	}
 	.arm.lay-sideways .c-flash {
 		inset: -3px;

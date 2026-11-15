@@ -56,7 +56,10 @@
 	const box = $derived({ x: hb.x, y: hb.y, width: hb.width, height: hb.height });
 	/** the size the prompt is drawn at: the old rule took shares of the Play button (78..116 master px); here a 92 px Spin's */
 	const play = $derived(92 * hb.u);
-	const hit = $derived(Math.max(0, (SKIP_HUD.minHitCss - box.height) / 2));
+	// THE TOUCH TARGET (Fix 2, 2026-11-15): its height in the button's own (scaled) px, so that on screen it is
+	// SKIP_HUD.minHitCss whatever the scale and the button's border (no more: the prompt opens 6 px under the button);
+	// the drawn button does not move
+	const hitH = $derived(SKIP_HUD.minHitCss / hb.u);
 	const P = SKIP_HUD.prompt;
 	const ask = $derived.by(() => {
 		const buttonW = Math.max(P.button.minW, play * P.button.w);
@@ -130,7 +133,7 @@
 		onclick={press}
 		aria-label="Skip to result"
 		aria-expanded={open}
-		style:--hit="-{hit / hb.u}px"
+		style:--hit-h="{hitH}px"
 	>
 		<HudIcon name="skip" /><span>SKIP</span>
 	</button>
@@ -192,11 +195,16 @@
 		pointer-events: none;
 		cursor: default;
 	}
-	/* the touch target, grown to SKIP_HUD.minHitCss without moving a pixel */
+	/* the touch target, grown to SKIP_HUD.minHitCss without moving a pixel: centred on the button, at least its height
+	   (Fix 2: it was the padding box grown by (44 - height) / 2, which the border left at 42.75 px) */
 	.skip::after {
 		content: '';
 		position: absolute;
-		inset: var(--hit, 0px) 0;
+		left: 0;
+		right: 0;
+		top: 50%;
+		height: max(100%, var(--hit-h, 0px));
+		transform: translateY(-50%);
 	}
 	/* the HUD's panel glass (ChromeStyles .am-glass, ui/hudTheme.ts tokens), no backdrop-filter */
 	.ask {

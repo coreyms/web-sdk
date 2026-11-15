@@ -85,6 +85,15 @@ const P = {
 	epic: { intro: stamp(new URL('../../../assets/ui/banner/banner-P-epic-intro.webp', import.meta.url).href), total: stamp(new URL('../../../assets/ui/banner/banner-P-epic-total.webp', import.meta.url).href) },
 };
 export const BANNER_TEXTURES: Record<BannerClass, Record<BannerTier, Record<BannerContent, string>>> = { D, P };
+/** THE BANNER'S OWN COUNT AND AMOUNT GLYPHS (Fix 2, 2026-11-15; tools/war_banner/build_banner_glyphs.py): the plaque's
+ *  glyphs under their own frame names at the density of the banner's largest draw, per texture class (D digits cap 280,
+ *  the rest 224: 2 px per CSS px on a 1920 x 1080 desktop; P 174 / 151: the phone cloth's own density). Loaded with each
+ *  screen's cloth and unloaded with it. Mipmaps on D (a tablet draws it at 0.7 and a long amount shrinks to 0.67); P is
+ *  never drawn below 0.6 of its size, so it has none. */
+export const BANNER_GLYPHS: Record<BannerClass, { url: string; mips: boolean }> = {
+	D: { url: stamp(new URL('../../../assets/ui/banner/banner-glyphs-D.json', import.meta.url).href), mips: true },
+	P: { url: stamp(new URL('../../../assets/ui/banner/banner-glyphs-P.json', import.meta.url).href), mips: false },
+};
 export const BANNER_MOTION_URLS = {
 	json: stamp(new URL('../../../assets/ui/banner/banner-motion.json', import.meta.url).href),
 	bin: stamp(new URL('../../../assets/ui/banner/banner-motion.bin', import.meta.url).href),

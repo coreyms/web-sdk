@@ -22,7 +22,7 @@ export const { stateLayout, stateLayoutDerived } = createLayout({
 setPortraitViewportSource(() => {
 	const scale = stateLayoutDerived.mainLayout().scale;
 	const canvas = stateLayoutDerived.canvasSizes();
-	return { masterWidth: canvas.width / scale, masterHeight: canvas.height / scale };
+	return { masterWidth: canvas.width / scale, masterHeight: canvas.height / scale, vw: canvas.width, vh: canvas.height };
 });
 
 // THE TALLER DESKTOP SCREENS (layoutSpec LANDSCAPE_TALL): the HUD's bottom row reads the master height the screen

@@ -3,13 +3,15 @@
 	// the Pixi MainContainer does, so HTML and canvas coordinates line up. Fades on uiHide / uiShow.
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { EnableSpaceHold, OnHotkey } from 'components-shared';
-	import { stateModal } from 'state-shared';
+	import { stateModal, stateBet } from 'state-shared';
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { MASTER, layoutKind, landscapeExtraY } from '../game/layoutSpec';
+	import { MASTER, layoutKind, isPhoneSizeType, landscapeExtraY } from '../game/layoutSpec';
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
+	import HudStyles from './hud/HudStyles.svelte';
+	import { hudFrame, readSafeInsets, portraitBoardBottoms } from './hud/hudLayout';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
 	import ChromePhone from './ChromePhone.svelte';
@@ -44,6 +46,32 @@
 	// ...and its top row (the clock strip) rides UP by the same, to the screen's top edge
 	const extraTop = $derived(kind === 'landscape' ? extraBottom : 0);
 
+	// THE HUD (the house HUD, Manticore's round 5 "Drop 6" and round 6, this game's "Frost" theme): its planes, in the
+	// mockup's own px scaled by this same fit (ui/hud/hudLayout.ts). The safe-area insets are read on a resize or a
+	// rotation only.
+	const vw = $derived(innerWidth.current ?? 1);
+	const vh = $derived(innerHeight.current ?? 1);
+	const phone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+	const safe = $derived.by(() => {
+		void vw;
+		void vh;
+		return readSafeInsets();
+	});
+	const hud = $derived(hudFrame({ kind, phone, vw, vh, safe }));
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		// house rule: extend __reindeer, never a new global (tools/hud_probe.mjs reads the HUD's scale, the portrait row's
+		// t and the board box the rule placed it under, and drives the game through these)
+		((window as any).__reindeer ??= {}).hud = {
+			frame: () => ({ variant: hud.variant, u: hud.u, t: hud.t, gap: hud.gap, board: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null }),
+			idle: () => context.stateXstateDerived.isIdle(),
+			gates: () => context.stateGame.pressGates,
+			win: () => stateBet.winBookEventAmount,
+			mode: () => stateBet.activeBetModeKey,
+			setMode: (key: string) => (stateBet.activeBetModeKey = key),
+			emit: (event: any) => context.eventEmitter.broadcast(event),
+		};
+	}
+
 	let show = $state(true);
 	// the max-win screen's DEEP hide: fades even the `keep` elements (logo, WIN readout). Set
 	// outside the `if (show)` guard below — the max flow hides the HUD at the win plate and only
@@ -72,6 +100,7 @@
 </script>
 
 <ChromeStyles />
+<HudStyles />
 {#if !controls.isReplay() && !controls.jurisdiction().disabledSpacebar && stateModal.modal == null}<EnableSpaceHold />{/if}
 <!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–300×
      purchase behind the dialog, and with a parked autoplay loadout it starts the whole run.
@@ -92,11 +121,11 @@
 <div class="am-ui layer" class:hidden={context.stateLayout.showLoadingScreen || stateModal.modal != null} class:hud-off={!show} class:hud-deep={!show && deep} data-chrome={kind}>
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px" style:--vp-extra-top="{extraTop}px">
 		{#if kind === 'landscape'}
-			<ChromeLandscape {controls} />
+			<ChromeLandscape {controls} {hud} />
 		{:else if kind === 'phone'}
-			<ChromePhone {controls} />
+			<ChromePhone {controls} {hud} />
 		{:else}
-			<ChromePortrait {controls} />
+			<ChromePortrait {controls} {hud} />
 		{/if}
 	</div>
 </div>
@@ -132,24 +161,35 @@
 	   kept element can sit inside a row (the WIN cell in the landscape trio, Corey 2026-09-15: the
 	   wrap-up amount gets a second place to read it). */
 	.fit > :global(*),
-	:global(.hud-group > *) {
+	:global(.hud-group > *),
+	:global(.hud-group .dc > *) {
 		/* the 0.3 s delay is the RETURN only (below, the hide runs at once): a kept readout that
 		   slid to centre while the HUD was away moves back before its row-mates reappear */
 		transition: opacity 0.35s ease 0.3s;
 	}
 	.layer.hud-off .fit > :global(:not(.keep):not(.hud-group)),
-	.layer.hud-off :global(.hud-group > :not(.keep)) {
+	.layer.hud-off :global(.hud-group > :not(.keep)),
+	.layer.hud-off :global(.hud-group .dc > :not(.keep)) {
 		opacity: 0;
 		transition-delay: 0s;
 	}
 	/* uiHide({ deep: true }) — the max-win screen only: even the kept logo and WIN readout go, so
 	   the dimmed canvas carries THEY ATE EVERYTHING / MAX WIN alone (Corey 2026-09-15). */
 	.layer.hud-deep .fit > :global(*),
-	.layer.hud-deep :global(.hud-group > *) {
+	.layer.hud-deep :global(.hud-group > *),
+	.layer.hud-deep :global(.hud-group .dc > *) {
 		opacity: 0;
 	}
 	.modals {
 		z-index: 60;
+	}
+	/* THE HUD'S TWO PLANES (ui/hud/hudLayout.ts): the base plane (the glass, the keys, WIN, Spin, the help menu) and over
+	   it the lit plane (BALANCE, the amount and its minus and plus). */
+	.fit > :global(.hudp[data-plane='base']) {
+		z-index: 2;
+	}
+	.fit > :global(.hudp[data-plane='lit']) {
+		z-index: 3;
 	}
 	.fit {
 		position: absolute;

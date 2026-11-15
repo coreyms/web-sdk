@@ -171,6 +171,8 @@
 			<LoadingScreen
 				play={landingPressed}
 				onloaded={() => {
+					// under the fade's black: the landing's posed board goes before anything of the game shows
+					context.eventEmitter.broadcast({ type: 'boardLandingEnd' });
 					context.stateLayout.showLoadingScreen = false;
 					warmGpu();
 				}}

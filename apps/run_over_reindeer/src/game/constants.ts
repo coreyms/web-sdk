@@ -227,6 +227,108 @@ export const RED_BOX = {
 	inset: 4,
 };
 
+// ---- THE TARGET CROSSHAIR (Corey 2026-11-15, a prototype; game/road/crosshair.ts, game/road/roadFeatures.ts) -------
+// Corey: "a fast moving but large Crosshair before the Reindeer's run starts, it should bounce around over Grandma's and
+// wilds only, but move like a mouse cursor quickly between them, like it's selecting randomly but quickly ... stay
+// locked on it until the crash then, it should transform to be the red border ... if it already passed a column, we
+// should no longer be selecting that ... locked in at the time of the turn towards the board ... slightly fade the
+// other symbols ... if there is only one potential target, the crosshair should just stay locked there the entire time."
+//   THE CANDIDATES  every Grandma's car (H1) and Santa's sleigh (W) parked on the board when the strike starts, less the
+//                   cells already struck this spin (a Grandma Wild's cloud, a column Wild's reel). The book's target is
+//                   always one of them.
+//   THE HOPS        from the strike's start (leadMs before the reindeer sets off) it glides from candidate to candidate
+//                   (an eased glide with a slight bow, never a jump), resting a moment on each, in an order drawn from
+//                   a seed of the board and the strike's place in the spin: a replay of the same book shows the same hops.
+//   THE NARROWING   once he is running, a candidate drops out when he has run past its reel (passAt), and every other
+//                   one at the turn; the target never drops. It is on the target for good by lockLeadMs before the turn
+//                   (his first S pose) at the latest, and stays until the crash. Two candidates in the target's reel:
+//                   both stay in the running until the lock, which takes the true one.
+//   THE CRASH       its frame closes onto the red box at the cell's edge and the tick marks pull in, over the time the
+//                   box's own draw-on took (a column: COLUMN.boxDrawMs, the cloud then pops on its old beat; a Grandma
+//                   Wild: CLOUD_CELL.popMs, while her cloud pops inside it). A Grandma car boxed in a struck Santa reel
+//                   keeps her own box as before.
+//   THE FADE        while it is up every symbol that is not a candidate kind is drawn at `fade` brightness (a tint),
+//                   eased in and out; back to full at the crash. fade 1 switches it off.
+// All times are road clock ms: turbo and a slam stop shorten them with the run. Several strikes in a spin: each runs its
+// own. No sound yet: the named beats are hop, drop, lock and morph (RoadFeatures.onCrosshair).
+// Sizes, road px (a cell is 250 x 164 to 178; its red box 242 x 156 to 170): while gliding the frame is moveScale of the
+// red box (about 334 x 223), resting dwellScale (about 315 x 211), locked lockScale (about 276 x 185), then 1.
+export const CROSSHAIR = {
+	/** false = no crosshair at all (the strike and the red box exactly as before) */
+	on: true,
+	/** how long it hops before the reindeer sets off (in place of STRIKE.leadInMs, when it is longer) */
+	leadMs: 420,
+	/** it shows over appearMs, from appearScale times its size, fading in */
+	appearMs: 90,
+	appearScale: 1.25,
+	/** a glide between two cells: glideBaseMs plus glidePerPx per road px of distance, at most glideMaxMs (one reel
+	 *  across is about 90 ms, the whole board about 160 ms); smootherstep eased, bowed off the line by up to `bow` of
+	 *  the distance */
+	glideBaseMs: 68,
+	glidePerPx: 0.09,
+	glideMaxMs: 170,
+	bow: 0.07,
+	/** the rest on each cell, a seeded draw between these */
+	dwellMinMs: 55,
+	dwellMaxMs: 110,
+	/** the frame's size on top of the red box's: gliding, resting (eased to over settleMs), locked (over lockMs) */
+	moveScale: 1.38,
+	dwellScale: 1.3,
+	settleMs: 70,
+	lockScale: 1.14,
+	lockMs: 150,
+	/** the corner brackets' arms, a share of the frame's shorter side; the tick marks, road px inward */
+	armFrac: 0.26,
+	tickPx: 30,
+	/** locked at the latest this long before the turn starts */
+	lockLeadMs: 40,
+	/** a candidate drops when the reindeer's feet are this far across its reel (0.5 its centre, 1 its far edge) */
+	passAt: 1,
+	/** the morph when no Wild takes it over (the dev strike hook alone) */
+	morphMs: 220,
+	/** THE FADE: the brightness of every symbol that is not a candidate kind while it is up (1 = off), eased in over
+	 *  fadeInMs and back over fadeOutMs from the crash */
+	fade: 0.6,
+	fadeInMs: 160,
+	fadeOutMs: 200,
+};
+
+// ---- THE LANDING BOARD (Corey 2026-11-15: the landing mock V2, without its UP TO; game/landingBoard.ts) ----------------
+// Behind the landing screen the board stands posed and still: reels 1 and 5 hold the eight ordinary symbols once each,
+// reels 2, 3 and 4 the Reindeer, Santa and Grandma column Wilds on one picked idle frame with their top multipliers
+// (read from game/config.ts, never typed). The road band outside the three columns is softly dimmed, as V2 had it:
+// plain dark quads (no filter), over the side reels' symbols and under the characters, so their spill stays bright.
+// The mock also took a quarter of the color out; a quad cannot desaturate, so only the brightness is kept.
+export const LANDING_DIM = {
+	/** the brightness kept on the dimmed road band (1 = no dim) */
+	brightness: 0.66,
+	/** the band: from this many lanes above the top lane line to this many lanes under the bottom one */
+	above: 0.42,
+	below: 0.12,
+	/** its top and bottom edges fade out over this many road px, in `steps` strips */
+	feather: 18,
+	steps: 4,
+};
+
+// ---- THE SCATTER PRESENT (game/road/present.ts, tools/build_present.py; the 3D present Corey approved 2026-11-15) -------
+// Corey: "Only when enough presents land to trigger free spins, maybe a minor open and hide each time one lands with a
+// jiggle". Closed and still otherwise (the still is the symbol atlas's S).
+export const PRESENT = {
+	/** THE LANDING PEEK, from the moment a present's lane brings it to its stop point: the open's squash and first 8 road
+	 *  px of lift, then the close's fall, squash and bounce (presentSpec clips.peek, 367 ms at the board's pace). It
+	 *  never holds anything up: nothing waits for it. glint: the light's strength while the lid is up (of the full
+	 *  light), rayLength: its rays' length (of the full rays), stars: how many of the full open's stars it shows. */
+	peek: { on: true, glint: 0.5, rayLength: 0.5, stars: 0 },
+	/** THE TRIGGER: every present of the trigger plays the whole open with the light, holds the open pose this long
+	 *  (board clock ms), then plays the whole close, before the intro card (game/bookEventHandlerMap.ts) */
+	holdMs: 450,
+	/** the trigger waits at most this long (real ms) for the open's sheets; without them the presents pulse as before */
+	loadWaitMs: 1500,
+	/** the light, as the demo page draws it: 11 rays, a bloom, 18 four-point stars (8 burst with the pop, the rest
+	 *  trickle up while it is open) */
+	light: { rays: 11, stars: 18, bloom: 0.45 },
+};
+
 // ---- THE COLUMN WILD (the three characters; game/road/roadFeatures.ts, tools/build_columns.py) --------------------------
 export const COLUMN = {
 	/** THE STRUCK CELL FIRST (Corey 2026-11-13: "draw the square box slower, put the crash cloud in the square box,
@@ -303,6 +405,9 @@ export const HUD_BED = {
 	top: { landscape: 36, portrait: 34 },
 	/** the bottom bar's upper edge, with no letterbox (it rides down with the HUD on a taller screen) */
 	bottom: { landscape: 604, portrait: 606 },
+	/** the glass HUD (ui/hud): the bottom bed's top edge stays at least this far (CSS px) over the HUD's own top, rising
+	 *  above `bottom` where the HUD stands higher (components/HudBeds.svelte; never above the board's bottom edge) */
+	hudPad: 8,
 };
 
 // ---- the spin: traffic ----------------------------------------------------------------------------------------------
@@ -426,7 +531,7 @@ export const LINE_WIN = {
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED };
+export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

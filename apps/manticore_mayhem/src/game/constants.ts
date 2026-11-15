@@ -3718,6 +3718,13 @@ export const CREATURE = {
 	crouchTimeoutMs: 3000,
 	cueBiasMs: 34,
 	cueBeatBiasMs: 17,
+	/** THE ROAR ON A CHANGE OF LOOK (Fix 2, 2026-11-15; game/creature.ts beat): when the incoming look's roar sheet is not
+	 *  in, a crossover at most this old (ms of lookFadeMs 600, so its alpha is at most 0.2) is taken back and waits for
+	 *  the roar's end; an older one refuses the roar (and the trigger beat then leaves its sfx_roar out) */
+	roarHoldFadeMs: 120,
+	/** THE ENTRY ROAR (game/creatureLoad.ts): a look named by the round's book loads its roar sheet with its idle sheet,
+	 *  so he roars in the feature's look as the trigger beat relights the scene. false = only its idle sheet, as before */
+	entryRoarAhead: true,
 } as const;
 /** which of CREATURE.place a layout takes */
 export type CreatureSpot = keyof typeof CREATURE.place;

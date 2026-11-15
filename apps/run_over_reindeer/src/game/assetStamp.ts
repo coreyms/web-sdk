@@ -68,6 +68,8 @@ export default {
 	"columns/grandma-win-d215-8.webp": "23d988ca",
 	"columns/grandma-win-d215-9.webp": "922cab31",
 	"columns/grandma-win-phone-0.webp": "f96d0f1d",
+	"columns/landing-stills-phone.webp": "b5b5119e",
+	"columns/landing-stills.webp": "7052cc57",
 	"columns/reindeer-idle-0.webp": "8cbeaba9",
 	"columns/reindeer-idle-1.webp": "a30ff164",
 	"columns/reindeer-idle-2.webp": "b7fd52ef",
@@ -207,6 +209,17 @@ export default {
 	"fonts/ui/Outfit-Variable.woff2": "623d408f",
 	"fonts/ui/OutfitText-Variable.woff2": "e1523f3a",
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
+	"present/present-full-open-0.webp": "85588170",
+	"present/present-full-open-1.webp": "caebfab5",
+	"present/present-full-open-2.webp": "f19d3f63",
+	"present/present-full-open-3.webp": "9eb8a227",
+	"present/present-full-peek-0.webp": "f1ac2142",
+	"present/present-full-peek-1.webp": "97839e50",
+	"present/present-full-still.webp": "e848cdb6",
+	"present/present-phone-open-0.webp": "fdf97163",
+	"present/present-phone-open-1.webp": "50ccc0b7",
+	"present/present-phone-peek-0.webp": "7fabc6b2",
+	"present/present-phone-still.webp": "c9432a8b",
 	"reindeer/run-full-0.webp": "f2533972",
 	"reindeer/run-full-1.webp": "2e704c36",
 	"reindeer/run-full-2.webp": "9cac42b7",
@@ -228,15 +241,15 @@ export default {
 	"symbols/single/L3.webp": "c4177535",
 	"symbols/single/L4.webp": "9ed24ce2",
 	"symbols/single/L5.webp": "2f2d8dd5",
-	"symbols/single/S.webp": "bba34f9f",
+	"symbols/single/S.webp": "16153822",
 	"symbols/single/W_L.webp": "de883aad",
 	"symbols/single/W_R.webp": "d6ac8d4f",
 	"symbols/single/reindeer_run.webp": "61d4e10f",
 	"symbols/single/reindeer_run_L.webp": "8b1bcb94",
-	"symbols/symbols-phone.json": "67630d77",
-	"symbols/symbols-phone.webp": "ab067ef5",
-	"symbols/symbols.json": "2a0703a7",
-	"symbols/symbols.webp": "5b0e0c50"
+	"symbols/symbols-phone.json": "0c4d5c50",
+	"symbols/symbols-phone.webp": "4af52050",
+	"symbols/symbols.json": "82972c35",
+	"symbols/symbols.webp": "e42fbb6d"
 } as const;
 
 export const fileBytes = {
@@ -308,6 +321,8 @@ export const fileBytes = {
 	"columns/grandma-win-d215-8.webp": 244720,
 	"columns/grandma-win-d215-9.webp": 179800,
 	"columns/grandma-win-phone-0.webp": 613388,
+	"columns/landing-stills-phone.webp": 101508,
+	"columns/landing-stills.webp": 163746,
 	"columns/reindeer-idle-0.webp": 549054,
 	"columns/reindeer-idle-1.webp": 560452,
 	"columns/reindeer-idle-2.webp": 375342,
@@ -447,6 +462,17 @@ export const fileBytes = {
 	"fonts/ui/Outfit-Variable.woff2": 13704,
 	"fonts/ui/OutfitText-Variable.woff2": 45164,
 	"fonts/ui/Sora-Variable.woff2": 14980,
+	"present/present-full-open-0.webp": 128524,
+	"present/present-full-open-1.webp": 133580,
+	"present/present-full-open-2.webp": 110366,
+	"present/present-full-open-3.webp": 72826,
+	"present/present-full-peek-0.webp": 152828,
+	"present/present-full-peek-1.webp": 122818,
+	"present/present-full-still.webp": 32386,
+	"present/present-phone-open-0.webp": 123232,
+	"present/present-phone-open-1.webp": 52500,
+	"present/present-phone-peek-0.webp": 107746,
+	"present/present-phone-still.webp": 13028,
 	"reindeer/run-full-0.webp": 710062,
 	"reindeer/run-full-1.webp": 769318,
 	"reindeer/run-full-2.webp": 807480,
@@ -468,15 +494,15 @@ export const fileBytes = {
 	"symbols/single/L3.webp": 24206,
 	"symbols/single/L4.webp": 17502,
 	"symbols/single/L5.webp": 19096,
-	"symbols/single/S.webp": 10794,
+	"symbols/single/S.webp": 21890,
 	"symbols/single/W_L.webp": 33182,
 	"symbols/single/W_R.webp": 32870,
 	"symbols/single/reindeer_run.webp": 48996,
 	"symbols/single/reindeer_run_L.webp": 48790,
-	"symbols/symbols-phone.json": 939808,
-	"symbols/symbols-phone.webp": 930016,
-	"symbols/symbols.json": 4608676,
-	"symbols/symbols.webp": 4598814
+	"symbols/symbols-phone.json": 926605,
+	"symbols/symbols-phone.webp": 917078,
+	"symbols/symbols.json": 4573822,
+	"symbols/symbols.webp": 4564226
 } as const;
 
 export const landingSizes = {
@@ -485,4 +511,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-heavy.woff2": 35400
 } as const;
 
-export const bootSizes = {"landing":64084,"preload":4919706,"audio":1229274} as const;
+export const bootSizes = {"landing":64084,"preload":5080984,"audio":1229274} as const;

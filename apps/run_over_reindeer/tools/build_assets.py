@@ -54,7 +54,12 @@ CAR_MAX_WIDTH = 230
 SIGN_A_HEIGHT = 160
 SIGN_AREA = {"L1": 1.00, "L2": 0.95, "L3": 0.90, "L4": 0.85, "L5": 0.80}
 SLEIGH_WIDTH = 205
-PRESENT_HEIGHT = 150
+PRESENT_HEIGHT = 150  # the closed present's height the 3D frames were rendered to (150 road px at 3.2 px each)
+# THE PRESENT (the scatter): the approved Blender build's rest frame, 3.2 px per road px, and its ink box (centre x 320,
+# ink down to the edge at y 754: the animation's anchor)
+PRESENT_STILL = os.path.join(SRC, "scatter_present_3d_r1_2026-11-15", "frames", "painted", "open", "open_00.png")
+PRESENT_STILL_BOX = (103, 267, 537, 754)
+PRESENT_DENSITY = 3.2
 REINDEER_HEIGHT = 190
 
 # Atlas pixels per road px. House rule: 3 physical px per CSS px at the largest draw size.
@@ -64,7 +69,7 @@ ATLAS_SCALE = {"full": 3.2, "phone": 1.2}
 
 # Frame names are the contract with the game (src/game/config.ts): H1 Grandma's car, H2 station wagon, H3 OH-KAY van,
 # H4 police car (the order of the lower three is still open in the spec), L1-L5 the signs A K Q J 10, W Santa's
-# sleigh, S the present. Cars and the sleigh have one frame per driving direction: _R for the top two lanes (left to
+# sleigh, S the present (the 3D present's rest frame). Cars and the sleigh have one frame per driving direction: _R for the top two lanes (left to
 # right) and _L for the bottom two (right to left), so lettering and tags are never mirrored.
 CAR_SOURCES = {
     "H1": ("renders_v7/final/grandma_{d}.png", "Grandma's car, render v7"),
@@ -245,39 +250,6 @@ def label_strip(im, text, fill=(255, 235, 59), ink=(20, 20, 24)):
     return im
 
 
-def make_present(px):
-    """PLACEHOLDER scatter: a turquoise and white wrapped box with FS on it (the spec's colors), tagged."""
-    s = 4  # supersample
-    w = h = px * s
-    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    teal, white, ink = (0, 191, 196, 255), (250, 252, 255, 255), (18, 22, 30, 255)
-    line = max(6, w // 40)
-    # box
-    bx0, by0, bx1, by1 = int(w * 0.10), int(h * 0.36), int(w * 0.90), int(h * 0.97)
-    d.rounded_rectangle((bx0, by0, bx1, by1), radius=w // 24, fill=teal, outline=ink, width=line)
-    for i in range(1, 8, 2):
-        x = bx0 + (bx1 - bx0) * i // 8
-        d.rectangle((x - w // 36, by0 + line, x + w // 36, by1 - line), fill=white)
-    # lid
-    lx0, ly0, lx1, ly1 = int(w * 0.05), int(h * 0.22), int(w * 0.95), int(h * 0.40)
-    d.rounded_rectangle((lx0, ly0, lx1, ly1), radius=w // 30, fill=white, outline=ink, width=line)
-    # bow
-    cx = w // 2
-    for sx in (-1, 1):
-        d.ellipse((cx + sx * w * 0.02 - (w * 0.20 if sx < 0 else 0), h * 0.03, cx + sx * w * 0.02 + (w * 0.20 if sx > 0 else 0), h * 0.24), fill=teal, outline=ink, width=line)
-    d.ellipse((cx - w * 0.06, h * 0.12, cx + w * 0.06, h * 0.26), fill=white, outline=ink, width=line)
-    # FS plate
-    f = font("heavy", int(h * 0.30))
-    box = d.textbbox((0, 0), "FS", font=f)
-    tw, th = box[2] - box[0], box[3] - box[1]
-    px0, py0 = cx - tw // 2 - w // 30, int(h * 0.50)
-    d.rounded_rectangle((px0, py0, px0 + tw + w // 15, py0 + th + h // 14), radius=w // 40, fill=white, outline=ink, width=line)
-    d.text((px0 + w // 30 - box[0], py0 + h // 28 - box[1]), "FS", font=f, fill=ink)
-    im = im.resize((px, px), Image.LANCZOS)
-    return trim(im)
-
-
 def gather_symbols(scale):
     """name -> RGBA picture at `scale` atlas px per road px, trimmed to its alpha box."""
     out = {}
@@ -313,10 +285,12 @@ def gather_symbols(scale):
         out[f"W_{d}"] = resize(trim(im), k * scale)
     notes["W"] = f"{SLEIGH_SOURCE['R']} + {SLEIGH_WILD['R']} (and the _L pair); no Santa in it yet"
 
-    present = make_present(PRESENT_HEIGHT * 4)
-    present = label_strip(present, "PLACEHOLDER")
-    out["S"] = resize(present, scale / 4)
-    notes["S"] = "PLACEHOLDER drawn by tools/build_assets.py (turquoise and white box, FS)"
+    # the present, closed and still: the approved 3D present's rest frame (Corey 2026-11-15), cut to its ink box, which
+    # is centred on its anchor (x 320) and ends on it (y 754). Its size and the rules page picture only: build_symbols
+    # leaves it out of the atlas (the game draws it from tools/build_present.py's still sheet)
+    still = Image.open(PRESENT_STILL).convert("RGBA").crop(PRESENT_STILL_BOX)
+    out["S"] = resize(still, scale / PRESENT_DENSITY)
+    notes["S"] = "the 3D present, closed (scatter_present_3d_r1_2026-11-15 open_00; its animation: tools/build_present.py)"
 
     deer = trim(Image.open(os.path.join(MOCK, REINDEER_SOURCE)).convert("RGBA"))
     deer = resize(deer, REINDEER_HEIGHT / deer.height * 4)
@@ -528,7 +502,10 @@ def build_symbols(spec):
         lanes = spec["laneLines"]
         feature, feature_info = gather_feature_art(scale, (lanes[-1] - lanes[0]) / ROWS)
         pictures.update(feature)
-        sheet, frames = pack(pictures, 2048 if tier == "full" else 1024)
+        # the present's still is NOT in the atlas: the game draws it from the present's own still sheet
+        # (tools/build_present.py), at the same density and anchor as its animation frames; it is gathered here for its
+        # size in roadArtSpec and its picture on the rules page
+        sheet, frames = pack({k: v for k, v in pictures.items() if k != "S"}, 2048 if tier == "full" else 1024)
         stem = "symbols" if tier == "full" else "symbols-phone"
         sheet.save(os.path.join(OUT, "symbols", f"{stem}.webp"), lossless=True, method=6)
         meta = {"frames": frames, "meta": {"image": f"{stem}.webp", "format": "RGBA8888", "size": {"w": sheet.width, "h": sheet.height}, "scale": "1"}}

@@ -7,6 +7,7 @@
 // background, the lanes, the symbols and the tunnel portals. Each layout says only how wide that picture is drawn
 // in master units and where its centre sits (ROAD_LAYOUT, roadPlacement). Nothing else about the board is per layout.
 import { ROAD_ART } from './roadArtSpec';
+import { portraitHudTop } from '../ui/hud/hudLayout';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -48,7 +49,7 @@ export const landscapeExtraY = (masterHeight: number | null = landscapeViewport?
 
 /** the live portrait viewport: the master width and height the screen shows (the 412 x 760 master plus the side
  *  room of a tablet and the letterbox the HUD rides down into). game/stateLayout.ts sets the source. */
-export type PortraitViewport = { masterWidth: number; masterHeight: number };
+export type PortraitViewport = { masterWidth: number; masterHeight: number; vw?: number; vh?: number };
 let portraitViewport: (() => PortraitViewport) | null = null;
 export const setPortraitViewportSource = (source: () => PortraitViewport) => {
 	portraitViewport = source;
@@ -68,7 +69,14 @@ export const setPortraitViewportSource = (source: () => PortraitViewport) => {
 //   phone      the board stands between the HUD's two side columns (340 master units each): the five columns span
 //              340 to 1140 exactly, the portals stand under the columns' inner edges.
 //   portrait   the picture spans the screen's width (see roadPlacement), centred in the band between the title and
-//              the BALANCE row.
+//              the BALANCE row as it was placed for the old HUD; then LOWERED toward the glass HUD (Corey 2026-11-15, on
+//              a mock with the road 95 px lower at 390 x 844, 23 px over the HUD: "Move it down about half of that
+//              distance. We'll come up with things to fill the spaces later."). THE RULE, every portrait size: the gap
+//              under the picture is midway between the centred place's gap and `hudClear` (sitting just above the HUD),
+//              measured to the HUD's real top (the higher of its dark bed's top edge and its highest readout or key,
+//              ui/hud/hudLayout.ts portraitHudTop). Where the centred gap is already hudClear or less (no spare snow) the
+//              road stays where it was. The HUD itself is laid out against the CENTRED board (portraitBoardBottoms), so
+//              the road moving never changes the HUD. At 390 x 844 it comes down 46 CSS px (gap 114 -> 68).
 export const ROAD_LAYOUT = {
 	// centreY: the picture's top at 596 - 851 x (982 / 1536) = 51.9 (the bottom lane line on 596), plus half its height
 	landscape: { width: 982, centreX: 640, centreY: 379.3 },
@@ -81,23 +89,38 @@ export const ROAD_LAYOUT = {
 		hudTop: 622,
 		/** where the road's centre sits in that band, 0 = top, 1 = bottom */
 		bandShare: 0.47,
+		/** THE LOWERING (the rule above): the gap a road just above the HUD would keep, master units (the mock's 23 CSS px
+		 *  at 390 wide), and how much of the way from the centred gap to it the road comes down (0.5 = midway) */
+		hudClear: 24,
+		lower: 0.5,
 	},
 };
 
 /** where the road picture is drawn for a layout: `scale` master units per road px, and the master position of the
- *  picture's top left corner. Reactive: a $derived that calls it follows a resize (the viewport sources). */
-export const roadPlacement = (kind: LayoutKind) => {
+ *  picture's top left corner. Reactive: a $derived that calls it follows a resize (the viewport sources). `view` (the
+ *  portrait viewport in master units) is for a caller that places the HUD for a screen size of its own (ui/hud/
+ *  hudLayout.ts, a pure function of the viewport); without it the live viewport is read, as before. */
+export const roadPlacement = (kind: LayoutKind, view?: PortraitViewport, centred = false) => {
 	const img = ROAD_ART.image;
 	let width: number;
 	let cx: number;
 	let cy: number;
 	if (kind === 'portrait') {
 		const P = ROAD_LAYOUT.portrait;
-		const view = portraitViewport?.() ?? { masterWidth: MASTER.portrait.width, masterHeight: MASTER.portrait.height };
-		width = Math.min(Math.max(view.masterWidth, MASTER.portrait.width), P.maxWidth);
+		const v = view ?? portraitViewport?.() ?? { masterWidth: MASTER.portrait.width, masterHeight: MASTER.portrait.height };
+		width = Math.min(Math.max(v.masterWidth, MASTER.portrait.width), P.maxWidth);
 		cx = MASTER.portrait.width / 2;
-		const hudTop = P.hudTop + Math.max(0, (view.masterHeight - MASTER.portrait.height) / 2);
+		const hudTop = P.hudTop + Math.max(0, (v.masterHeight - MASTER.portrait.height) / 2);
 		cy = P.bandTop + (hudTop - P.bandTop) * P.bandShare;
+		// THE LOWERING toward the glass HUD (`centred`: the place before it, which the HUD is laid out against)
+		if (!centred && v.vw && v.vh) {
+			const fit = Math.min(v.vw / MASTER.portrait.width, v.vh / MASTER.portrait.height);
+			const top = (v.vh - MASTER.portrait.height * fit) / 2;
+			const hud = portraitHudTop(v.vw, v.vh);
+			const pictureBottom = top + (cy + (img.height * (width / img.width)) / 2) * fit;
+			const gap = (hud - pictureBottom) / fit;
+			if (Number.isFinite(gap) && gap > P.hudClear) cy += (gap - P.hudClear) * P.lower;
+		}
 	} else {
 		const L = ROAD_LAYOUT[kind];
 		width = L.width;
@@ -109,8 +132,8 @@ export const roadPlacement = (kind: LayoutKind) => {
 };
 
 /** the five columns' rectangle (lane 1's top line to lane 4's bottom line) in master units */
-export const boardRect = (kind: LayoutKind) => {
-	const p = roadPlacement(kind);
+export const boardRect = (kind: LayoutKind, view?: PortraitViewport, centred = false) => {
+	const p = roadPlacement(kind, view, centred);
 	const b = ROAD_ART.board;
 	const lines = ROAD_ART.laneLines;
 	const x = p.x + b.x * p.scale;
