@@ -57,11 +57,11 @@
 	import { BOARD_ART } from '../game/boardArtSpec';
 	import { boardRegistration, chainBow } from '../game/boardArt';
 	import { BOARD_BACKING, BOARD_SIZES, CHAIN_BOW, CHAIN_GUST, FRAME_ART, FRAME_RELIGHT, PLAYGROUND_PX, SCENE, SYMBOL_SIZE, backOutWith } from '../game/constants';
-	import { boardKick, chainFx, gustFx, gustPulse, gustStart, shoveForeground, type ChainGust } from '../game/featureFx';
+	import { boardKick, chainFx, gustFx, gustPulse, gustStart, runEase, shoveForeground, type ChainGust, type ChainRun } from '../game/featureFx';
 	import { stagingHaulLinks, stagingHaulMs, stagingHaulOver } from '../game/staging';
 	import { sceneLight } from '../game/scene';
 	import { loadFrameNightLate } from '../game/deferredLoad';
-	import { boardPlateSlot, boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
+	import { bannerBackSlot, boardPlateSlot, boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -114,8 +114,12 @@
 	// must be above the fire plate or the rail's glow would add over it), master units like the frame
 	const plaqueSlot = new PIXI.Container({ label: 'board-plaque' });
 	boardPlaqueSlot.current = plaqueSlot;
-	under.addChild(shadowSprite, shadowDaySprite, backing, plateSlot, frameSprite, gearBox.day, nightSprite, fireSprite, gearBox.night, gearBox.fire, plaqueSlot);
-	const UNDER_NAMES = new Map<PIXI.Container, string>([[shadowSprite, 'shadow'], [shadowDaySprite, 'shadow-day2'], [backing, 'backing'], [plateSlot, 'plates'], [frameSprite, 'frame'], [gearBox.day, 'gears-day'], [nightSprite, 'frame-night'], [fireSprite, 'frame-fire'], [gearBox.night, 'gears-night'], [gearBox.fire, 'gears-fire'], [plaqueSlot, 'plaque']]);
+	// THE WAR STANDARD's roll while it is behind the top rail (components/WarBanner.svelte): over the tiles, under the day
+	// plate and every frame layer, so the frame hides it (z order, no mask) until it is swapped over the frame
+	const bannerBack = new PIXI.Container({ label: 'banner-back' });
+	bannerBackSlot.current = bannerBack;
+	under.addChild(shadowSprite, shadowDaySprite, backing, plateSlot, bannerBack, frameSprite, gearBox.day, nightSprite, fireSprite, gearBox.night, gearBox.fire, plaqueSlot);
+	const UNDER_NAMES = new Map<PIXI.Container, string>([[shadowSprite, 'shadow'], [shadowDaySprite, 'shadow-day2'], [backing, 'backing'], [plateSlot, 'plates'], [bannerBack, 'banner-back'], [frameSprite, 'frame'], [gearBox.day, 'gears-day'], [nightSprite, 'frame-night'], [fireSprite, 'frame-fire'], [gearBox.night, 'gears-night'], [gearBox.fire, 'gears-fire'], [plaqueSlot, 'plaque']]);
 
 	const chains = new PIXI.Container({ zIndex: 1 });
 	const SIDES = ['L', 'R'] as const;
@@ -266,8 +270,12 @@
 		easing: stagingHaulOver === null ? CHAIN_BOW.haulEasing : backOutWith(stagingHaulOver),
 		overshoot: stagingHaulOver ?? CHAIN_BOW.haulOvershoot,
 	};
-	/** the haul offset in LINKS (accumulated, modulo one tile = 2 links) and the presses still hauling */
-	const haul = { base: 0, offset: 0, live: [] as { t0: number; rate: number }[], seen: 0, last: NaN };
+	/** the haul offset in LINKS (accumulated, modulo one tile = 2 links) and the presses still hauling. `target`: where
+	 *  every haul taken so far ends (modulo the tile); `runs` the War Standard's own hauls still moving (featureFx.chainRun) */
+	const haul = { base: 0, offset: 0, live: [] as { t0: number; rate: number; links: number }[], seen: 0, last: NaN, target: 0, runs: [] as (ChainRun & { taken: number })[], runSeen: 0 };
+	const mod2 = (x: number) => ((x % 2) + 2) % 2;
+	/** DEV: the War Standard's runs as taken (tools/manticore/banner_probe.js) */
+	const runLog: { t0: number; links: number; ms: number; ease: string }[] = [];
 	/** the uvs for the current haul offset: v - offset / 2 (one link is half the two-link tile), so the chain
 	 *  moves DOWN the screen as the offset grows */
 	const setUvs = () => {
@@ -376,17 +384,49 @@
 	const tickHaul = (now: number) => {
 		const presses = chainFx.presses;
 		if (haul.seen > presses.length) haul.seen = presses.length; // the bus trimmed its head
-		while (haul.seen < presses.length) haul.live.push(presses[haul.seen++]);
+		// a press hauls HAUL.links, ending on a whole link (a War Standard scatter nudge can leave the chain part way
+		// into a link: the next press takes it on to the whole one, so the gears come to rest on frame 0 again)
+		while (haul.seen < presses.length) {
+			const p = presses[haul.seen++];
+			const links = Math.round(haul.target) + HAUL.links - haul.target;
+			haul.target = mod2(haul.target + links);
+			haul.live.push({ t0: p.t0, rate: p.rate, links });
+		}
+		// THE WAR STANDARD's runs (featureFx.chainRun): the nudges, the trigger run, the run back
+		const fresh = Math.min(chainFx.runCount - haul.runSeen, chainFx.runs.length);
+		for (let i = chainFx.runs.length - fresh; i < chainFx.runs.length; i += 1) {
+			const r = chainFx.runs[i];
+			const links = r.toWhole !== undefined ? Math.ceil(haul.target + r.toWhole - 1e-6) - haul.target : r.links;
+			haul.target = mod2(haul.target + links);
+			haul.runs.push({ ...r, taken: links });
+			if (import.meta.env.DEV) {
+				runLog.push({ t0: r.t0, links: Number(links.toFixed(5)), ms: r.ms, ease: r.ease });
+				if (runLog.length > 40) runLog.splice(0, 20);
+			}
+		}
+		haul.runSeen = chainFx.runCount;
 		let moving = 0;
 		for (let i = haul.live.length - 1; i >= 0; i -= 1) {
 			const p = haul.live[i];
 			const u = clamp01(((now - p.t0) * p.rate - CHAIN_BOW.haulDelayMs) / Math.max(HAUL.ms, 1));
 			if (u >= 1) {
-				haul.base = (haul.base + HAUL.links) % 2;
+				haul.base = mod2(haul.base + p.links);
 				haul.live.splice(i, 1);
 				continue;
 			}
-			moving += HAUL.links * HAUL.easing(u);
+			moving += p.links * HAUL.easing(u);
+		}
+		for (let i = haul.runs.length - 1; i >= 0; i -= 1) {
+			const r = haul.runs[i];
+			if (now < r.t0) continue;
+			const u = r.ms > 0 ? clamp01((now - r.t0) / r.ms) : 1;
+			if (u >= 1) {
+				haul.base = mod2(haul.base + r.taken);
+				haul.runs.splice(i, 1);
+				continue;
+			}
+			const e = r.ease === 'backOut' ? HAUL.easing(u) : r.ease === 'run' ? runEase(u, (r.rampMs ?? 0) / r.ms, (r.easeMs ?? 0) / r.ms) : 0.5 - 0.5 * Math.cos(Math.PI * u);
+			moving += r.taken * e;
 		}
 		haul.offset = haul.base + moving;
 		return haul.offset !== haul.last;
@@ -857,7 +897,7 @@
 						if (f !== gear.frame % table![i].length) inStep = false;
 					});
 				}
-				return { t: performance.now(), offset: haul.offset, base: haul.base, live: haul.live.length, presses: chainFx.presses.length, uv0: (strips.L.mesh.geometry.getBuffer('aUV').data as Float32Array)[1], frame: gear.frame, drawn: gear.shown, shown, inStep, swaps: gear.swaps, night: lit.night, fire: lit.fire, fireTint: lit.fireTint, nightTint: lit.nightTint, nightSet, sn: sceneLight.night, sf: sceneLight.fire, kick: boardKick.y };
+				return { t: performance.now(), offset: haul.offset, base: haul.base, target: haul.target, runs: haul.runs.length, runLog: runLog.slice(), live: haul.live.length, presses: chainFx.presses.length, uv0: (strips.L.mesh.geometry.getBuffer('aUV').data as Float32Array)[1], frame: gear.frame, drawn: gear.shown, shown, inStep, swaps: gear.swaps, night: lit.night, fire: lit.fire, fireTint: lit.fireTint, nightTint: lit.nightTint, nightSet, sn: sceneLight.night, sf: sceneLight.fire, kick: boardKick.y };
 			},
 			configurable: true,
 			enumerable: true,

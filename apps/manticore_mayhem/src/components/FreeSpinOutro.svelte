@@ -32,6 +32,7 @@
 	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { WIN_TIER_SOUND, WIN_TIER_STAGES_END_FEATURE, winLevelMap } from '../game/winLevelMap';
 	import { stingerPlaque } from './StingerPlaque.svelte';
+	import { warBanner } from './WarBanner.svelte';
 	import CountUpText from './CountUpText.svelte';
 	import ArtAmount from './ArtAmount.svelte';
 	import PressToContinue from './PressToContinue.svelte';
@@ -45,6 +46,10 @@
 	let resolveGate: (() => void) | null = $state(null);
 	// the plaque is carrying this wrap-up (nothing of the plain screen is drawn), and its amount is still counting
 	let viaPlaque = $state(false);
+	// THE WAR STANDARD BANNER (components/WarBanner.svelte, 2026-11-14) carries the TOTAL WIN wrap up: `viaBanner` it can,
+	// `onBanner` it is up now. A capped round's MAX WIN wrap up stays on the plaque (its win ladder titles, as before).
+	let viaBanner = $state(false);
+	let onBanner = $state(false);
 	let counting = $state(false);
 	// the plain fallback's title word
 	let maxWin = $state(false);
@@ -63,7 +68,8 @@
 			await awaitPlaqueAssets();
 			// the line needs the session's recap (bonusEnd wrote it just before this)
 			viaPlaque = !!context.stateGame.sessionRecap && !!stingerPlaque.flow?.ready();
-			if (viaPlaque) return;
+			viaBanner = !!context.stateGame.sessionRecap && !!warBanner.flow?.ready();
+			if (viaPlaque || viaBanner) return;
 			show = true;
 			await dim.set(0.68);
 		},
@@ -74,7 +80,35 @@
 			const big = winLevelData.type === 'big';
 			const tier = big ? Math.max(0, WIN_TIER_STAGES_END_FEATURE.findIndex((s) => s.alias === winLevelData.alias)) : 0;
 			const session = context.stateGame.sessionRecap;
+			const banner = warBanner.flow;
+			if (viaBanner && banner && session && !capped) {
+				counting = true;
+				onBanner = true;
+				const shown = await banner.wrap({
+					amount,
+					tier,
+					mode: session.mode,
+					spins: session.spinsPlayed,
+					durationMs: Math.max(STINGER_PLAQUE.wrapMinCountMs, winLevelData.presentDuration / context.stateGameDerived.timeScale()),
+					sound: big,
+				});
+				if (shown) {
+					counting = false;
+					await banner.lineIn();
+					if (autoBonusesRunning()) await waitForTimeout(STINGER_PLAQUE.wrapAutoHoldMs);
+					if (!autoBonusesRunning()) await waitForResolve((resolve) => (resolveGate = resolve));
+					return;
+				}
+				// the cloth could not be shown: the plaque (or the plain screen) as before
+				onBanner = false;
+				counting = false;
+			}
 			const flow = stingerPlaque.flow;
+			if (!viaPlaque && !onBanner && !show) {
+				// the banner could not carry it and the plaque was not ready: the plain screen
+				show = true;
+				void dim.set(0.68);
+			}
 			if (viaPlaque && flow && session) {
 				counting = true;
 				await flow.wrap({
@@ -107,6 +141,14 @@
 		},
 		freeSpinOutroHide: async () => {
 			dismiss();
+			if (onBanner) {
+				counting = false;
+				await warBanner.flow?.hide();
+				onBanner = false;
+				viaBanner = false;
+				viaPlaque = false;
+				return;
+			}
 			if (viaPlaque) {
 				counting = false;
 				await stingerPlaque.flow?.hide();
@@ -140,5 +182,5 @@
 
 <!-- a press while the plaque counts lands the amount; once it has landed, the press continues -->
 {#if counting || resolveGate}
-	<PressToContinue showText={!!resolveGate} onpress={() => (counting ? stingerPlaque.flow?.skip() : dismiss())} />
+	<PressToContinue showText={!!resolveGate} onpress={() => (counting ? (onBanner ? warBanner.flow?.skip() : stingerPlaque.flow?.skip()) : dismiss())} />
 {/if}

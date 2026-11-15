@@ -46,7 +46,8 @@ import {
 import { motionLog } from './sparkles';
 import { stateXstateDerived } from './stateXstate';
 import { maxWinArm, maxWinPrefetch, maxWinReset, maxWinState } from './maxWin.svelte';
-import { fxRecord, fxStamp, chainHaulPress, chainGust } from './featureFx';
+import { fxRecord, fxStamp, chainHaulPress, chainGust, chainRun } from './featureFx';
+import { BANNER } from './banner/spec';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { CellIndex } from './types';
 import { setHudWin } from './hudWin.svelte';
@@ -121,6 +122,14 @@ const scatterLand = (cell: number, id: number) => {
 	eventEmitter.broadcast({ type: 'soundScatterCounterIncrease' });
 	// the STANDARD scatter landing beat: the ring + its glow (SCATTER_STING.landMs) and the tint flash
 	scatterRing(cell);
+	// THE WAR STANDARD's NUDGES (game/banner/spec.ts BANNER.chains, approved mockup 2026-11-13): the first three scatters
+	// of a base game spin haul the board's chains 3, 6 and 10 desktop px (the press's own backOut 1.2, 420 ms), the frame
+	// reacting; the trigger run with the banner takes the haul on to a whole link (the gears' rest picture)
+	const nudge = BANNER.chains.nudgePx[stateGame.scatterCells.length - 1];
+	if (nudge && stateGame.gameType === 'basegame' && !stateGame.skipping) {
+		const rate = Math.max(0.2, stateGameDerived.timeScale());
+		chainRun({ links: nudge / BANNER.chains.linkDesign, ms: BANNER.chains.nudgeMs / rate, ease: 'backOut' }, BANNER.chains.nudgeDelayMs / rate);
+	}
 	void flashCells([cell], STING.scatterColor, TIMINGS.scatterFlashMs, id);
 };
 

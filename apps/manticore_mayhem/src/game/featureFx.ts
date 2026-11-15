@@ -128,10 +128,41 @@ export const clearTriggerFx = () => {
  *  Written by game/actor.ts onNewGameStart (a manual press, the space bar or an autoplay spin). */
 export const chainFx = {
 	presses: [] as { t0: number; rate: number }[],
+	/** THE WAR STANDARD's hauls (game/banner/spec.ts BANNER.chains): the scatter nudges, the trigger run with the
+	 *  banner's entry and the run back on its exit. `count` = every run ever pushed (BoardFrame keeps a cursor on it). */
+	runs: [] as ChainRun[],
+	runCount: 0,
 };
 export const chainHaulPress = (rate: number) => {
 	chainFx.presses.push({ t0: performance.now(), rate });
 	if (chainFx.presses.length > 32) chainFx.presses.splice(0, 16);
+};
+/** one haul of its own: `links` over `ms` (real ms, already divided by the turbo rate) from t0 with its easing:
+ *  'backOut' the press's own (CHAIN_BOW.haulEasing), 'run' a ramp up, a steady run and an ease out (the banner's
+ *  trigger run), 'inOut' a sine in and out (the run back). `toWhole`: the run's links are taken when it starts, at
+ *  least this many and on to the next whole link of the haul's total (the gears' rest picture is frame 0). ms 0 = a jump. */
+export type ChainRun = { t0: number; links: number; ms: number; ease: 'backOut' | 'run' | 'inOut'; toWhole?: number; rampMs?: number; easeMs?: number };
+export const chainRun = (run: Omit<ChainRun, 't0'>, delayMs = 0) => {
+	chainFx.runs.push({ ...run, t0: performance.now() + Math.max(0, delayMs) });
+	chainFx.runCount += 1;
+	if (chainFx.runs.length > 32) chainFx.runs.splice(0, 16);
+};
+/** the 'run' easing: distance share at u (0 .. 1) for a velocity that ramps up linearly over `ramp` of the run, holds,
+ *  then eases out (a half cosine) over the last `ease` of it */
+export const runEase = (u: number, ramp: number, ease: number): number => {
+	const a = Math.max(1e-6, ramp);
+	const b = Math.max(1e-6, ease);
+	const total = a / 2 + (1 - a - b) + b / 2;
+	if (u <= 0) return 0;
+	if (u >= 1) return 1;
+	let d: number;
+	if (u < a) d = (u * u) / (2 * a);
+	else if (u < 1 - b) d = a / 2 + (u - a);
+	else {
+		const w = (u - (1 - b)) / b;
+		d = a / 2 + (1 - a - b) + (b / 2) * (w + Math.sin(Math.PI * w) / Math.PI);
+	}
+	return d / total;
 };
 
 // ---- the chain gusts (CHAIN_GUST): the air a drop-in displaces reaching the chains ----------------

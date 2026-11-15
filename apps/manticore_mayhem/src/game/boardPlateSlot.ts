@@ -10,6 +10,10 @@ import type * as PIXI from 'pixi.js';
 // plaque's day / night / fire layers follow the frame's exactly without computing it twice.
 export const boardPlateSlot: { current: PIXI.Container | null } = { current: null };
 export const boardPlaqueSlot: { current: PIXI.Container | null } = { current: null };
+/** THE WAR STANDARD's roll while it is behind the top rail (components/WarBanner.svelte, game/banner/view.ts): over the
+ *  tiles, UNDER the day plate, so the frame hides it by z order (no mask); the roll is swapped over the frame at the
+ *  top of its arc. Master units, the frame's kick included. */
+export const bannerBackSlot: { current: PIXI.Container | null } = { current: null };
 export const frameLight = { night: 0, fire: 0, nightTint: 0xffffff, fireTint: 0, shadowTint: 0xffffff, nightSet: false, seq: 0 };
 
 /** THE CUT LAYER'S TEASE SLOT (FALL_CUT, Corey 2026-10-15): a container inside BoardCells' cut layer, in board units,

@@ -1,0 +1,566 @@
+<script lang="ts" module>
+	import type { StingerMode } from '../game/stinger/types';
+
+	/**
+	 * THE WAR STANDARD BANNER's flow (approved 2026-11-13, game build 2026-11-14): what ModePlaque (the feature intro) and
+	 * FreeSpinOutro (the TOTAL WIN wrap up) ask of the banner. They keep their events, their press gates and their state
+	 * flags exactly as they were with the plaque; the banner only draws, paces the count and plays the screen's cues.
+	 * A Max Win wrap up (the win ladder's titles) stays on the animated plaque (components/StingerPlaque.svelte).
+	 */
+	export type WarBannerFlow = {
+		/** the motion and the glyph atlas are in */
+		ready: () => boolean;
+		/** the baked rules say the book's tile cap (the spin count is drawn live, any count reads right) */
+		introMatches: (mode: StingerMode, tileCap: number) => boolean;
+		/** the feature intro: resolves once the press gate may open (true), or false at once when the cloth could not be
+		 *  shown (its texture failed): the caller keeps its plaque / plain screen */
+		intro: (o: { mode: StingerMode; totalFs: number }) => Promise<boolean>;
+		/** the wrap up: TOTAL WIN, the count of the book's amount, resolves when the count has landed (true), or false at
+		 *  once when the cloth could not be shown. `tier` = the total's own tier (its clip on the impact when `sound`) */
+		wrap: (o: { amount: number; tier: number; mode: StingerMode; spins: number; durationMs: number; sound: boolean }) => Promise<boolean>;
+		/** resolves once the IN n ... line has faded in */
+		lineIn: () => Promise<void>;
+		/** a press while the amount counts (or the cloth still unrolls): straight to the hung banner, the final amount */
+		skip: () => void;
+		counting: () => boolean;
+		/** the exit: resolves when the cloth is rolled up (the roll's retreat and the light's fade go on after) */
+		hide: () => Promise<void>;
+	};
+
+	export const warBanner: { flow: WarBannerFlow | null } = { flow: null };
+</script>
+
+<script lang="ts">
+	// THE WAR STANDARD BANNER (game/banner/: spec.ts the numbers, view.ts the drawing, motion.ts the baked cloth;
+	// tools/war_banner/ the bake; images/war_banner_2026-11-13/game_build/WIRING_NOTES.md).
+	//
+	// ALWAYS MOUNTED, between StingerPlaque and Win in Game.svelte (the old plaque's place in the z order: over the board,
+	// its readouts and the plaques; under the win screen, the press prompts' text, the transition and the HTML HUD). Its
+	// roll goes UNDER the frame plate while it is behind the rail (BoardFrame's bannerBackSlot). The ticker callback runs
+	// only while a banner is up.
+	//
+	// TEXTURES: one cloth texture (a tier and a screen, D desktop / tablet 2048 or P phone 1024, mipmapped) is resident at
+	// a time, loaded on demand and unloaded when its screen has gone: the intro's from the feature's start (bonusStart
+	// sets the mode, the trigger beat plays meanwhile), the TOTAL WIN's from the feature's last spin (or its end).
+	//
+	// CUES (the old plaque's, at the same moments relative to the screen appearing, measured from the show):
+	//   impact      the old plaque landed at 250 ms; the roll lands on the pole at 300 ms: sfx_plaque_land there (and a
+	//               TOTAL WIN's tier clip, as before), 50 ms later than before. No board kick and no chain gust: the
+	//               chains run with the banner instead (the trigger run).
+	//   count       a TOTAL WIN's amount counts from 400 ms (the old 250 + 150), the house pacing, sfx_money_counter
+	//               while it runs (game/stinger/count.ts, the same pacer)
+	//   gate        the intro's press gate opens at 1100 ms (the plaque's rows were in at 830 ms; the cloth is unrolled
+	//               at 950 and settled at 1200); the wrap up's after the count and its line, as before
+	//   exit        the roll up (about 300 ms) where the plaque lifted out in 200; hide() resolves at its end
+	import * as PIXI from 'pixi.js';
+	import { onMount, untrack } from 'svelte';
+	import { getContextParent } from 'pixi-svelte';
+	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { stateBet } from 'state-shared';
+	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
+
+	import { getContext } from '../game/context';
+	import { STINGER_DATA_URLS } from '../game/assets';
+	import { BONUS_MODE_LABEL, PLAQUE_CHEER, PLAQUE_ESCALATION, CREATURE } from '../game/constants';
+	import { layoutKind } from '../game/layoutSpec';
+	import { boardRegistration } from '../game/boardArt';
+	import { bannerBackSlot, frameLight } from '../game/boardPlateSlot';
+	import { creatureUploadQuiet } from '../game/creatureLoad';
+	import { enableMipmaps } from '../game/mipmaps';
+	import { chainRun } from '../game/featureFx';
+	import { STAGING_TOOLS, perfMark } from '../game/staging';
+	import { celebrateShow } from '../game/plaqueCelebrate';
+	import { WIN_TIER_SOUND, WIN_TIER_STAGES_END_FEATURE, winLevelMap } from '../game/winLevelMap';
+	import { stagedAmountAt, stagedSegments, stagedTotal } from '../game/stinger/count';
+	import { loadStingerData } from '../game/stinger/data';
+	import { PlaqueFont } from '../game/stinger/text';
+	import { STINGER_TIERS } from '../game/stinger/types';
+	import { BANNER, BANNER_TEXTURES, bannerTierOf, type BannerClass, type BannerContent, type BannerTier } from '../game/banner/spec';
+	import { loadBannerMotion } from '../game/banner/motion';
+	import { BannerView } from '../game/banner/view';
+
+	const context = getContext();
+	const view = new BannerView();
+	getContextParent().addToParent(view.front);
+
+	let built = $state(false);
+	let font: PlaqueFont | null = null;
+	let motionReady = $state(false);
+	let fontReady = $state(false);
+	/** the texture class the layout wants now (D / P) */
+	let wantCls: BannerClass = 'D';
+
+	// ---- build: the motion, the plaque's font (its JSON is cached by the plaque) and the glyph atlas ---------------
+	let motion: Awaited<ReturnType<typeof loadBannerMotion>> | null = null;
+	$effect(() => {
+		const atlas = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
+		if (built || !motionReady || !fontReady || !font || !motion) return;
+		if (!atlas?.[font.frames[0]]) return;
+		view.build(motion, font, atlas);
+		built = true;
+		if (STAGING_TOOLS) perfMark('banner:built');
+	});
+
+	// ---- placement: the pole on the frame's registration, re-derived on every resize -------------------------------
+	$effect(() => {
+		const kind = layoutKind(context.stateLayoutDerived.layoutType());
+		const master = context.stateLayoutDerived.mainLayout();
+		const canvas = context.stateLayoutDerived.canvasSizes();
+		const vw = canvas.width / master.scale;
+		const reg = boardRegistration(kind, vw);
+		const pole = reg.map(BANNER.poleX, BANNER.poleY);
+		const masterPerDesign = reg.m * BANNER.renderPerDesign;
+		const fx = master.x + (pole.x - master.width / 2) * master.scale;
+		const fy = master.y + (pole.y - master.height / 2) * master.scale;
+		const scale = masterPerDesign * master.scale;
+		view.place(fx, fy, scale, canvas.width, canvas.height, pole.x, pole.y, masterPerDesign);
+		wantCls = BANNER.width * scale < BANNER.phoneBelowCss ? 'P' : 'D';
+	});
+
+	// ---- the one resident cloth texture --------------------------------------------------------------------------
+	type Res = { key: string; url: string; cls: BannerClass; tier: BannerTier; content: BannerContent; promise: Promise<PIXI.Texture | null>; tex: PIXI.Texture | null; inUse: boolean };
+	let res: Res | null = null;
+	/** DEV: every load / unload with its time */
+	const texLog: { what: 'load' | 'ready' | 'unload' | 'failed'; key: string; at: number; ms?: number }[] = [];
+	const renderer = () => context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
+	const unload = (r: Res) => {
+		if (res === r) res = null;
+		texLog.push({ what: 'unload', key: r.key, at: performance.now() });
+		void r.promise.then(() => PIXI.Assets.unload(r.url).catch(() => {}));
+	};
+	const load = (tier: BannerTier, content: BannerContent, cls: BannerClass = wantCls): Promise<PIXI.Texture | null> => {
+		const key = `${cls}-${tier}-${content}`;
+		if (res && res.key === key) return res.promise;
+		if (res && !res.inUse) unload(res);
+		const url = BANNER_TEXTURES[cls][tier][content];
+		const t0 = performance.now();
+		texLog.push({ what: 'load', key, at: t0 });
+		const r: Res = { key, url, cls, tier, content, tex: null, inUse: false, promise: Promise.resolve(null) };
+		r.promise = (PIXI.Assets.load(url) as Promise<PIXI.Texture>)
+			.then(async (tex) => {
+				const rd = renderer();
+				// mipmaps on (the rule lines shimmer without, mockup round 1), built once at the upload; the upload now,
+				// never at the first draw
+				enableMipmaps(tex.source, rd);
+				if (rd) await rd.prepare?.upload([tex.source]);
+				r.tex = tex;
+				texLog.push({ what: 'ready', key, at: performance.now(), ms: Number((performance.now() - t0).toFixed(1)) });
+				return tex;
+			})
+			.catch((error) => {
+				texLog.push({ what: 'failed', key, at: performance.now() });
+				console.error('[manticore] the war banner texture failed to load', key, error);
+				if (res === r) res = null;
+				return null;
+			});
+		res = r;
+		return r.promise;
+	};
+	/** the screen's texture, waiting at most `ms` for it */
+	const texFor = async (tier: BannerTier, content: BannerContent, ms = 4000): Promise<{ tex: PIXI.Texture; cls: BannerClass } | null> => {
+		const p = load(tier, content, res && res.tier === tier && res.content === content ? res.cls : wantCls);
+		const tex = await Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+		return tex && res ? { tex, cls: res.cls } : null;
+	};
+
+	// PRELOAD: the intro's cloth from the feature's start, the TOTAL WIN's from its last spin (or its end)
+	$effect(() => {
+		const sg = context.stateGame;
+		const mode = sg.bonusMode as StingerMode | null;
+		const gt = sg.gameType;
+		const last = sg.fs >= sg.totalFs && sg.totalFs > 0;
+		const recap = !!sg.sessionRecap;
+		const ok = built;
+		untrack(() => {
+			if (!ok || !mode || ticking) return;
+			if (gt === 'basegame' && !recap && !sg.lookHold) void load(bannerTierOf(mode), 'intro');
+			else if (gt === 'freegame' && (last || recap)) void load(bannerTierOf(mode), 'total');
+		});
+	});
+
+	// ---- the screen -------------------------------------------------------------------------------------------------
+	let ticking = false;
+	/** real ms since show (never jumps; the view's own clock jumps on a cut) */
+	let clock = 0;
+	let frameMs = 0;
+	let screenNo = 0;
+	let impactDone = false;
+	let landSound = -1;
+	let wrapCheer = -1;
+	let pressed = -1;
+	let cheered = -1;
+	let waiters: { at: number; resolve: () => void }[] = [];
+	let rolled: (() => void)[] = [];
+	type Count = { segs: ReturnType<typeof stagedSegments>; total: number; target: number; fit: string; el: number; started: boolean; skipped: boolean; done: () => void };
+	let count: Count | null = null;
+	/** the line's fade: starts lineDelayMs after the count lands */
+	let lineT0 = Infinity;
+	let gateAt = Infinity;
+
+	type Beat = { type: string; at: number; clock: number; t: number; screen: string; tier: string; amount?: number; skipped?: boolean };
+	const beats: Beat[] = [];
+	const log = (type: string, extra: Partial<Beat> = {}) => {
+		if (STAGING_TOOLS) perfMark(`banner:${type}`);
+		if (!import.meta.env.DEV) return;
+		beats.push({ type, at: performance.now(), clock: Number(clock.toFixed(1)), t: Number(view.t.toFixed(1)), screen: view.content, tier: view.tier, ...extra });
+		if (beats.length > 400) beats.splice(0, 200);
+	};
+	/** DEV: per frame records while `recording` (tools/manticore/banner_probe.js) */
+	let recording = false;
+	let frames: Record<string, unknown>[] = [];
+
+	const tierSound = (index: number) => context.eventEmitter.broadcast({ type: 'soundOnce', name: WIN_TIER_SOUND[index], forcePlay: true });
+	let countLoopOn = false;
+	const countLoop = (on: boolean) => {
+		if (on === countLoopOn) return;
+		countLoopOn = on;
+		context.eventEmitter.broadcast({ type: on ? 'soundLoop' : 'soundStop', name: 'sfx_money_counter' });
+	};
+	const format = (amount: number, target?: number) => bookEventAmountToCurrencyString(amount, target === undefined ? undefined : { fractionDigitsOfBookAmount: target });
+	const fast = () => context.stateGame.skipping || context.stateGameDerived.timeScale() > 1.001;
+	const EPIC = STINGER_TIERS.indexOf('epic');
+
+	const impact = () => {
+		if (impactDone) return;
+		impactDone = true;
+		// THE LANDING THUMP (sfx_plaque_land): the roll lands on the pole; a TOTAL WIN's tier clip with it, as on the plaque
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_plaque_land', forcePlay: true });
+		if (landSound >= 0) tierSound(landSound);
+		landSound = -1;
+		creatureUploadQuiet(CREATURE.wins.quiet.impactMs, true);
+		log('impact');
+		if (view.content === 'total' && wrapCheer >= 0) cheer(wrapCheer);
+	};
+	// THE CHEER on a TOTAL WIN (PLAQUE_CHEER): the total's own tier, as the plaque does it
+	const cheer = (tier: number) => {
+		if (!PLAQUE_CHEER.on || cheered === screenNo || pressed === screenNo || context.stateGame.skipping) return;
+		cheered = screenNo;
+		const mine = screenNo;
+		const epic = tier === EPIC;
+		const at = clock + (epic ? PLAQUE_ESCALATION.epic.roarDelayMs : PLAQUE_CHEER.delayMs);
+		void until(at).then(() => {
+			if (mine !== screenNo || pressed === mine || !ticking || view.phase === 'rollup' || view.phase === 'retreat' || clock < at || context.stateGame.skipping) return;
+			if (epic) {
+				context.eventEmitter.broadcast({ type: 'plaqueCheer', move: PLAQUE_CHEER.epic });
+				log('roar');
+				return;
+			}
+			const move = PLAQUE_CHEER.moves[tier];
+			if (!move) return;
+			context.eventEmitter.broadcast({ type: 'plaqueCheer', move });
+			log('cheer');
+		});
+	};
+
+	const until = (at: number) => new Promise<void>((resolve) => waiters.push({ at, resolve }));
+
+	const stepCount = (c: Count, dt: number) => {
+		if (!c.started) {
+			if (clock < BANNER.timing.countStartMs && view.cutAt < 0) return;
+			c.started = true;
+			log('countStart');
+		} else c.el += dt;
+		const ended = c.skipped || c.el >= c.total;
+		countLoop(!ended);
+		const amount = ended ? c.target : stagedAmountAt(c.segs, c.el);
+		// CENTRED THROUGH THE COUNT (Corey 2026-11-14: "must stay centered through the count up like it already did on the
+		// stinger"): tabular digits (no jitter frame to frame), the row centred on its own width (re-centred as a digit is
+		// added), its size fixed from the first frame by the final amount (`fit`)
+		view.setText('amount', format(amount, c.target), { tabular: true, fit: c.fit });
+		if (!ended) return;
+		count = null;
+		lineT0 = clock + BANNER.timing.lineDelayMs;
+		log('countEnd', { amount: c.target, skipped: c.skipped });
+		c.done();
+	};
+
+	const tick = (ticker: PIXI.Ticker) => {
+		const dt = Math.min(ticker.deltaMS, 100);
+		frameMs = ticker.deltaMS;
+		clock += dt;
+		const alive = view.tick(dt);
+		if (!impactDone && (view.t >= BANNER.timing.entryMs || view.cutAt >= 0) && view.phase !== 'rollup' && view.phase !== 'retreat') impact();
+		if (count) stepCount(count, dt);
+		if (lineT0 !== Infinity) view.setLineAlpha(Math.min(1, Math.max(0, (clock - lineT0) / BANNER.timing.lineFadeMs)));
+		if (waiters.length) {
+			const due = waiters.filter((w) => w.at <= clock);
+			if (due.length) {
+				waiters = waiters.filter((w) => w.at > clock);
+				for (const w of due) w.resolve();
+			}
+		}
+		if (rolled.length && view.rolledUp) {
+			const r = rolled;
+			rolled = [];
+			log('rolledUp');
+			for (const resolve of r) resolve();
+		}
+		if (recording) frames.push({ clock: Number(clock.toFixed(2)), dt: Number(dt.toFixed(2)), ...view.state(), haul: (window as any).__manticore?.frameGears?.offset ?? null, gear: (window as any).__manticore?.frameGears?.frame ?? null });
+		if (!alive) stop();
+	};
+	const start = () => {
+		if (ticking) return;
+		ticking = true;
+		context.stateApp.pixiApplication?.ticker.add(tick, undefined, PIXI.UPDATE_PRIORITY.NORMAL);
+	};
+	const release = () => {
+		const c = count;
+		count = null;
+		countLoop(false);
+		c?.done();
+		const w = waiters;
+		waiters = [];
+		for (const x of w) x.resolve();
+		const r = rolled;
+		rolled = [];
+		for (const x of r) x();
+	};
+	const stop = () => {
+		if (!ticking) return;
+		ticking = false;
+		context.stateApp.pixiApplication?.ticker.remove(tick);
+		context.eventEmitter.broadcast({ type: 'plaqueCheerEnd' });
+		release();
+		log('gone');
+		// the screen has gone: its cloth leaves the GPU (one resident at a time; the next screen's loads on its own cue)
+		if (res && res.inUse) {
+			res.inUse = false;
+			unload(res);
+		}
+	};
+
+	const begin = (tier: BannerTier, content: BannerContent, cls: BannerClass, tex: PIXI.Texture, sound: number) => {
+		release();
+		screenNo += 1;
+		wrapCheer = -1;
+		clock = 0;
+		impactDone = false;
+		lineT0 = Infinity;
+		gateAt = Infinity;
+		landSound = sound;
+		if (res) res.inUse = true;
+		view.attachBack(bannerBackSlot.current);
+		view.show({ tier, content, cls, texture: tex, glyphTint: BANNER.glyphTint[tier] });
+		// the board plaque does not celebrate the intro or the TOTAL WIN (the plaque's own rule)
+		celebrateShow(false, performance.now());
+		creatureUploadQuiet(CREATURE.wins.quiet.showMs);
+		log('show');
+		start();
+		const C = BANNER.chains;
+		if (fast()) {
+			view.cut();
+			log('cut');
+			// the chains jump to their end offset
+			chainRun({ links: 0, ms: 0, ease: 'run', toWhole: C.runMinLinks });
+		} else chainRun({ links: 0, ms: C.runMs, ease: 'run', toWhole: C.runMinLinks, rampMs: C.runRampMs, easeMs: C.runEaseMs });
+	};
+
+	const tileCapOk = (mode: StingerMode, tileCap: number) => BANNER.tileCap[mode] === tileCap;
+
+	const flow: WarBannerFlow = {
+		ready: () => built,
+		introMatches: (mode, tileCap) => built && tileCapOk(mode, tileCap),
+		intro: async ({ mode, totalFs }) => {
+			if (!built) return false;
+			const tier = bannerTierOf(mode);
+			const got = await texFor(tier, 'intro');
+			if (!got) return false;
+			begin(tier, 'intro', got.cls, got.tex, -1);
+			view.setText('count', `${totalFs}`);
+			gateAt = view.cutAt >= 0 ? 0 : BANNER.timing.introGateMs;
+			await until(gateAt);
+			log('gate');
+			return true;
+		},
+		wrap: async ({ amount, tier, mode, spins, durationMs, sound }) => {
+			if (!built) return false;
+			const bt = bannerTierOf(mode);
+			const got = await texFor(bt, 'total');
+			if (!got) return false;
+			begin(bt, 'total', got.cls, got.tex, sound ? Math.max(0, Math.min(WIN_TIER_SOUND.length - 1, tier)) : -1);
+			wrapCheer = sound ? Math.min(EPIC, tier) : -1;
+			view.setText('line', `IN ${spins} ${BONUS_MODE_LABEL[mode]}`);
+			view.setLineAlpha(0);
+			const bars = WIN_TIER_STAGES_END_FEATURE.slice(1).map((s) => s.xBet * BOOK_AMOUNT_MULTIPLIER);
+			const fit = format(amount, amount);
+			view.setText('amount', format(0, amount), { tabular: true, fit });
+			await new Promise<void>((done) => {
+				const segs = stagedSegments(amount, durationMs, bars);
+				count = { segs, total: stagedTotal(segs), target: amount, fit, el: 0, started: false, skipped: false, done };
+			});
+			return true;
+		},
+		lineIn: async () => {
+			if (!ticking || view.content !== 'total' || lineT0 === Infinity) return;
+			await until(lineT0 + BANNER.timing.lineFadeMs);
+		},
+		skip: () => {
+			pressed = screenNo;
+			if (view.phase === 'entry' || view.phase === 'unroll') {
+				view.cut();
+				log('cut');
+			}
+			if (count) count.skipped = true;
+		},
+		counting: () => !!count,
+		hide: () =>
+			new Promise<void>((resolve) => {
+				if (!ticking || view.phase === 'hidden') return resolve();
+				count = null;
+				countLoop(false);
+				const instant = fast();
+				context.eventEmitter.broadcast({ type: 'plaqueCheerEnd' });
+				chainRun({ links: BANNER.chains.backLinks, ms: instant ? 0 : BANNER.chains.backMs, ease: 'inOut' });
+				log('hide', { skipped: instant });
+				if (instant) {
+					view.hide(true);
+					stop();
+					return resolve();
+				}
+				rolled.push(resolve);
+				view.hide();
+			}),
+	};
+
+	onMount(() => {
+		warBanner.flow = flow;
+		loadBannerMotion()
+			.then((m) => {
+				motion = m;
+				motionReady = true;
+			})
+			.catch((error) => console.error('[manticore] the war banner motion failed to load', error));
+		loadStingerData(STINGER_DATA_URLS)
+			.then((d) => {
+				font = new PlaqueFont(d.json);
+				fontReady = true;
+			})
+			.catch((error) => console.error('[manticore] the war banner font failed to load', error));
+
+		// ---- DEV hook: __manticore.banner (tools/manticore/banner_probe.js) ---------------------------------------
+		if (import.meta.env.DEV && typeof window !== 'undefined') {
+			const waitFor = async (cond: () => boolean, ms: number) => {
+				const t0 = performance.now();
+				while (!cond() && performance.now() - t0 < ms) await new Promise((r) => setTimeout(r, 50));
+				return cond();
+			};
+			/** THE TIER'S SCENE for a forced screen: the feature's look held as a TOTAL WIN holds it (stateGame.lookHold) */
+			const lookOn = async (mode: StingerMode) => {
+				context.stateGame.bonusMode = mode;
+				context.stateGame.lookHold = true;
+				if (mode !== 'bonus') await waitFor(() => frameLight.nightSet && frameLight.night >= 0.999, 12000);
+				else await new Promise((r) => setTimeout(r, 900));
+			};
+			const lookOff = () => {
+				context.stateGame.lookHold = false;
+				context.stateGame.bonusMode = null;
+			};
+			let forcing: Promise<void> | null = null;
+			Object.assign(((window as any).__manticore ??= {}), {
+				banner: {
+					flow,
+					state: () => ({
+						built,
+						ticking,
+						clock: Number(clock.toFixed(1)),
+						frameMs: Number(frameMs.toFixed(2)),
+						gateAt,
+						counting: !!count,
+						wantCls,
+						resident: res ? { key: res.key, ready: !!res.tex, inUse: res.inUse, w: res.tex?.source.pixelWidth ?? 0, h: res.tex?.source.pixelHeight ?? 0, mips: res.tex?.source.mipLevelCount ?? 0 } : null,
+						/** every banner texture the renderer holds now (uid:label:file:w x h) */
+						gpu: (((renderer() as any)?.texture?.managedTextures ?? []) as PIXI.TextureSource[])
+							.map((s) => `${s.uid}:${(s.resource as { src?: string } | null)?.src?.split('/').pop()?.split('?')[0] ?? s.label ?? ''}:${s.pixelWidth}x${s.pixelHeight}`)
+							.filter((x) => x.includes('banner-')),
+						view: view.state(),
+					}),
+					log: () => beats.slice(),
+					texLog: () => texLog.slice(),
+					/** per frame records (every tick of the banner's ticker) between record(true) and record(false) */
+					record: (on: boolean) => {
+						recording = on;
+						if (on) frames = [];
+						return frames.length;
+					},
+					frames: (from = 0) => frames.slice(from),
+					/** THE REAL SCREENS, FORCED: the tier's scene (the look held), then the real events ModePlaque and FreeSpinOutro
+					 *  answer (their gates, their press handling); the HUD leaves and comes back as in a round. `screen` 'intro' |
+					 *  'wrap'; amount = a book amount (default 1250 x); `currency` swaps stateBet.currency for this screen only. */
+					force: (o: { screen: 'intro' | 'wrap'; mode: StingerMode; amount?: number; spins?: number; level?: number; currency?: string; capped?: boolean; turbo?: 0 | 1 | 2; bet?: number }) => {
+						if (forcing) return false;
+						const emitter = context.eventEmitter;
+						forcing = (async () => {
+							const was = stateBet.currency;
+							const wasBet = stateBet.wageredBetAmount;
+							const wasTurbo = context.stateGame.turboLevel;
+							if (o.currency) stateBet.currency = o.currency;
+							if (o.bet) stateBet.wageredBetAmount = o.bet;
+							try {
+								await emitter.broadcastAsync({ type: 'uiHide' });
+								await lookOn(o.mode);
+								// a turbo level for this screen only (the feature's own turbo: the wrap up meets it; the intro never does
+								// in a round, every feature starts at normal speed)
+								if (o.turbo !== undefined) context.stateGameDerived.setTurboLevel(o.turbo);
+								if (o.screen === 'intro') {
+									const totalFs = o.spins ?? { bonus: 8, super: 10, epic: 12 }[o.mode];
+									await emitter.broadcastAsync({
+										type: 'modePlaqueShow',
+										title: BONUS_MODE_LABEL[o.mode],
+										sub: `${totalFs} SPINS`,
+										gated: true,
+										intro: { mode: o.mode, totalFs, tileCap: BANNER.tileCap[o.mode] },
+									});
+								} else {
+									const amount = o.amount ?? 1250 * BOOK_AMOUNT_MULTIPLIER;
+									context.stateGame.sessionRecap = { mode: o.mode, spinsPlayed: o.spins ?? 8, totalSessionWin: amount };
+									await emitter.broadcastAsync({ type: 'freeSpinOutroShow' });
+									await emitter.broadcastAsync({ type: 'freeSpinOutroCountUp', amount, winLevelData: winLevelMap[(o.level ?? 9) as keyof typeof winLevelMap], capped: !!o.capped });
+									emitter.broadcast({ type: 'freeSpinOutroHide' });
+									await waitFor(() => !ticking, 3000);
+									context.stateGame.sessionRecap = null;
+								}
+								lookOff();
+								await emitter.broadcastAsync({ type: 'uiShow' });
+							} finally {
+								if (o.currency) stateBet.currency = was;
+								if (o.bet) stateBet.wageredBetAmount = wasBet;
+								if (o.turbo !== undefined) context.stateGameDerived.setTurboLevel(wasTurbo as 0 | 1 | 2);
+								forcing = null;
+							}
+						})();
+						return true;
+					},
+					forcing: () => !!forcing,
+					/** the amount's fit for a currency and a book amount, without a screen: the string, its laid out width and the
+					 *  row's maxWidth (material px, the cloth's inner width) */
+					fit: (currency: string, amount: number, bet?: number) => {
+						const was = stateBet.currency;
+						const wasBet = stateBet.wageredBetAmount;
+						stateBet.currency = currency;
+						if (bet) stateBet.wageredBetAmount = bet;
+						try {
+							const text = format(amount, amount);
+							const L = BANNER.live[view.cls].amount;
+							const em = (L.cap * (font?.em ?? 192)) / (font?.cap ?? 128);
+							const run = font ? font.layout(text, em, new (class { count = 0; width = 0; scale = 1; frame = new Int16Array(64); x = new Float32Array(64); y = new Float32Array(64); w = new Float32Array(64); h = new Float32Array(64); capacity = 64; })() as any, { maxWidth: L.maxWidth, tabular: true }) : null;
+							return { text, missing: font?.missing(text) ?? '', width: run?.width ?? 0, maxWidth: L.maxWidth, shrunk: run ? run.scale < em / (font!.em) - 1e-9 : false, scale: run?.scale ?? 0 };
+						} finally {
+							stateBet.currency = was;
+							stateBet.wageredBetAmount = wasBet;
+						}
+					},
+					/** load a screen's texture now (the preload, by hand) */
+					load: (mode: StingerMode, content: BannerContent) => load(bannerTierOf(mode), content).then((t) => !!t),
+				},
+			});
+		}
+		return () => {
+			stop();
+			if (warBanner.flow === flow) warBanner.flow = null;
+			if (res) unload(res);
+			if (import.meta.env.DEV && typeof window !== 'undefined') delete (window as any).__manticore?.banner;
+			for (const child of view.front.removeChildren()) child.destroy({ children: true });
+			view.back.destroy({ children: true });
+		};
+	});
+</script>

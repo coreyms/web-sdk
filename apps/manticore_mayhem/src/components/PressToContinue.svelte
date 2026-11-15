@@ -40,14 +40,19 @@
 	// PROMPT_BOARD_ROW, PROMPT_IN_ROW) with the hard drop shadow the board's readouts use, and no veil.
 	const PROMPT_SHADOW = { dx: 0.05, dy: 0.06, tint: 0x0a0b0d };
 	const overBoard = $derived(kind === 'landscape' && !props.atHudBand);
-	const onPlaque = $derived(overBoard && plaquePromptReady.ready);
+	// ON THE PLAQUE ON EVERY LAYOUT (Corey 2026-11-14, the War Standard fix: "PRESS ANYWHERE TO CONTINUE must sit ON the
+	// plaque, as it does on desktop"): the portrait phone and tablet and the landscape phone hand the line to the board
+	// plaque too (its text window, fitted per layout by BoardPlaque's placePrompt). The max win's band keeps its own line.
+	// `overBoard` stays the desktop's fallback styling (over the board's bottom row) while the plaque cannot draw it.
+	const plaqueWanted = $derived(!props.atHudBand);
+	const onPlaque = $derived(plaqueWanted && plaquePromptReady.ready);
 	const shadow = $derived(overBoard ? PROMPT_SHADOW : undefined);
 	const rowRect = $derived(overBoard ? boardRowRect(kind, PROMPT_BOARD_ROW) : null);
 	const fitWidth = $derived(rowRect ? Math.min(slot.width, rowRect.width * PROMPT_IN_ROW) : slot.width);
 	// the plaque's count of desktop prompts up (a counter: gates can overlap during transitions; the cleanup keeps it
 	// balanced on hide, unmount and a change of layout)
 	$effect(() => {
-		if (!props.showText || !overBoard) return;
+		if (!props.showText || !plaqueWanted) return;
 		plaquePrompt.count += 1;
 		return () => {
 			plaquePrompt.count -= 1;
@@ -77,6 +82,14 @@
 		const m = ((window as any).__manticore ??= {});
 		m.__prompts = (m.__prompts ?? 0) + 1;
 		m.pressPrompts ??= () => m.__prompts ?? 0;
+		// the line's box in canvas px (its cap centre and cap height; null when the desktop board plaque draws it:
+		// __manticore.plaque().prompt then), for tools/manticore/banner_probe.js's clearance check
+		m.pressPromptBox = () => {
+			if (onPlaque) return null;
+			const master = context.stateLayoutDerived.mainLayout();
+			const cy = slot.y - slot.height * 0.5;
+			return { cy: master.y + (cy - master.height / 2) * master.scale, cap: slot.height * 0.42 * master.scale, width: fitWidth * master.scale };
+		};
 		return () => (m.__prompts -= 1);
 	});
 
@@ -84,7 +97,7 @@
 	// the blink, handed to the plaque while the line is there (a plain number its tick reads)
 	$effect(() => {
 		const a = blink.current;
-		if (props.showText && overBoard) plaquePrompt.alpha = a;
+		if (props.showText && plaqueWanted) plaquePrompt.alpha = a;
 	});
 	let alive = true;
 	onMount(() => {

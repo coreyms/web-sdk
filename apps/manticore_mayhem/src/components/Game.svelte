@@ -42,6 +42,7 @@
 	import StingerPlaque from './StingerPlaque.svelte';
 	import Win from './Win.svelte';
 	import FreeSpinOutro from './FreeSpinOutro.svelte';
+	import WarBanner from './WarBanner.svelte';
 	import MaxWinCinematic from './MaxWinCinematic.svelte';
 	import Transition from './Transition.svelte';
 	import Logo from './Logo.svelte';
@@ -272,6 +273,10 @@
 			<!-- the animated win plaque: the Big Win and above screen, the feature intro and the wrap up
 			     (driven by Win / ModePlaque / FreeSpinOutro through StingerPlaque.svelte's `stingerPlaque.flow`) -->
 			<StingerPlaque />
+			<!-- THE WAR STANDARD BANNER (components/WarBanner.svelte): the feature intro and the TOTAL WIN wrap up, unrolled
+			     from the frame's pole (driven by ModePlaque / FreeSpinOutro through `warBanner.flow`); its roll goes under
+			     the frame plate while it is behind the rail (BoardFrame's bannerBackSlot) -->
+			<WarBanner />
 			<Win />
 			<FreeSpinOutro />
 			<!-- THE MAX WIN SCREEN (components/MaxWinCinematic.svelte): over the board, the plaques and the win screens, its

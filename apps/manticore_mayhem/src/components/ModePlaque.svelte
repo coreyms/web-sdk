@@ -34,6 +34,7 @@
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { stingerPlaque } from './StingerPlaque.svelte';
+	import { warBanner } from './WarBanner.svelte';
 	import ArtAmount from './ArtAmount.svelte';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -70,6 +71,21 @@
 			context.stateGame.plaque = { title: event.title, sub: event.sub };
 			if (event.intro && event.gated) {
 				await awaitPlaqueAssets();
+				// THE WAR STANDARD BANNER (components/WarBanner.svelte, 2026-11-14): the feature intro unrolls from the frame's
+				// pole; the same gate as before (a press, or the hold while auto bonuses run). Its spin count is drawn live,
+				// its rules are baked: a book whose tile cap they do not say keeps the plaque or the plain plate below.
+				const banner = warBanner.flow;
+				if (banner?.ready() && banner.introMatches(event.intro.mode, event.intro.tileCap)) {
+					const shown = await banner.intro({ mode: event.intro.mode, totalFs: event.intro.totalFs });
+					if (shown) {
+						if (!autoBonusesRunning()) await waitForResolve((resolve) => (resolveGate = resolve));
+						else await waitForTimeout(event.holdMs ?? TIMINGS.plaqueHoldMs);
+						resolveGate = null;
+						await banner.hide();
+						context.stateGame.plaque = null;
+						return;
+					}
+				}
 				const flow = stingerPlaque.flow;
 				const says = !!flow?.ready() && flow.introMatches(event.intro.mode, event.intro.totalFs, event.intro.tileCap);
 				if (flow && says) {
