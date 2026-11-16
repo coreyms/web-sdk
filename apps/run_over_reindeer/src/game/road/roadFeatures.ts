@@ -224,6 +224,8 @@ type Column = {
 	 *  snort's roll) with the t0 it was counted from */
 	crashVoiced: boolean;
 	stepVoiced: boolean;
+	/** its win clip's sound has played (reset each time the clip starts) */
+	winVoiced: boolean;
 	enterCloud: boolean;
 	idleLoop: number;
 	idleT0: number;
@@ -845,7 +847,7 @@ export class RoadFeatures {
 		this.boxLayer.addChild(box.root);
 		this.numberLayer.addChild(label.root);
 		if (pictures) void loadBackdrop();
-		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null };
+		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, winVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null };
 		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - COLUMN.numberUp);
 		this.columns.push(column);
 		return column;
@@ -983,6 +985,7 @@ export class RoadFeatures {
 			}
 			column.phase = 'win';
 			column.t0 = this.clock;
+			column.winVoiced = false;
 		}
 	}
 
@@ -1335,6 +1338,9 @@ export class RoadFeatures {
 			let g = 0;
 			if (column.phase === 'impact' && t >= column.impactMs) {
 				column.phase = 'grow';
+				// THE BOX STARTS TO GROW up the reel: its riser (constants REINDEER_SOUND grow)
+				this.sounds.mark('grow', `reel ${column.reel}`);
+				this.sounds.cue('grow', `reel ${column.reel}`);
 			}
 			if (column.phase === 'grow') {
 				const u = Math.min(1, (t - column.impactMs) / column.growMs);
@@ -1432,11 +1438,12 @@ export class RoadFeatures {
 				const frame = Math.min(frames - 1, Math.floor((t / 1000) * reveal.fps));
 				this.placeBody(column, reveal, frame);
 				column.enterCloud = frame < reveal.cloudFrames;
-				if (column.tier === 'reindeer' && !column.stepVoiced && frame >= REINDEER_SOUND.columnIn.frame) {
-					// his first hoof plants: the entrance's first footstep
+				if (!column.stepVoiced && frame >= REINDEER_SOUND.columnIn.frame[column.tier]) {
+					// the character stands in full color out of the cloud: the reindeer's first hoof, Santa's heavy steps,
+					// Grandma's cane (constants REINDEER_SOUND column in)
 					column.stepVoiced = true;
-					this.sounds.mark('footfall', `reel ${column.reel} frame ${frame}`);
-					this.sounds.cue('columnIn', `reel ${column.reel}`);
+					this.sounds.mark('footfall', `reel ${column.reel} ${column.tier} frame ${frame}`);
+					this.sounds.cue(column.tier === 'santa' ? 'santaIn' : column.tier === 'grandma' ? 'grandmaIn' : 'columnIn', `reel ${column.reel}`);
 				}
 				// while the cloud is still in the frame the box stands OVER it (the cloud is inside the box); once the
 				// character stands alone it moves up among the characters (still under the frame)
@@ -1457,6 +1464,11 @@ export class RoadFeatures {
 				column.enterCloud = false;
 				// the entrance's pictures can go once this column is drawing its idle (below)
 				column.dropReveal = true;
+				// a sticky column (free spins, Super) stands to stay: it settles in (constants REINDEER_SOUND sticky)
+				if (column.sticky) {
+					this.sounds.mark('sticky', `reel ${column.reel}`);
+					this.sounds.cue('sticky', `reel ${column.reel}`);
+				}
 			}
 		} else if (column.phase === 'win') {
 			const win = getClip(column.tier, 'win');
@@ -1465,6 +1477,11 @@ export class RoadFeatures {
 				column.phase = 'idle';
 				column.t0 = this.clock;
 			} else {
+				if (!column.winVoiced) {
+					// the win clip's first frame: the character's own win sound (constants REINDEER_SOUND column win)
+					column.winVoiced = true;
+					this.sounds.columnWin(column.tier, column.reel);
+				}
 				this.bodyOver(column, true);
 				this.placeBody(column, win, Math.min(win.textures.length - 1, Math.floor((t / 1000) * win.fps)));
 			}

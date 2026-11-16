@@ -3,10 +3,13 @@
 // the payline pictures and the fallback mode prices (the RGS's authenticate values always win).
 //
 // The rules are What-if 4 variant E (Corey 2026-11-09) with variant F + C on top (Corey 2026-11-10: no crossing, higher
-// bonus round column starts), contract version 2026-11-10a. No books are published yet,
-// and the mode keys for the three Ante levels are this frontend's guess (the math has base, bonus and super so far).
+// bonus round column starts), contract version 2026-11-15a: the math build of 2026-11-15 (math-sdk/games/run_over_reindeer/
+// results/build_2026-11-15/BUILD_REPORT.md, final section): the P1 paytable (five pays lifted onto Stake's 0.1x grid),
+// no strike on a Grandma car with a sleigh standing above it in its reel, the bought Super's 20x minimum. Its books are
+// built and pass every Stake check; they are not uploaded. The three Ante mode keys are ante_2, ante_4 and ante_10 (the
+// math's own).
 export default {
-	mathVersion: 'variantF-C-2026.11.10a',
+	mathVersion: 'variantF-C-P1-2026.11.15',
 	providerName: 'polymath_games',
 	gameName: 'Run Over Reindeer',
 	gameID: 'run_over_reindeer',
@@ -30,12 +33,12 @@ export default {
 	symbols: {
 		H1: { name: "Grandma's Car", tier: 'PREMIUM', paytable: [1.5, 5.0, 25.0] },
 		H2: { name: 'Station Wagon', tier: 'HIGH', paytable: [1.0, 2.5, 10.0] },
-		H3: { name: 'OH-KAY Van', tier: 'HIGH', paytable: [0.75, 2.0, 7.5] },
+		H3: { name: 'OH-KAY Van', tier: 'HIGH', paytable: [0.8, 2.0, 7.5] },
 		H4: { name: 'Police Car', tier: 'HIGH', paytable: [0.5, 1.5, 5.0] },
-		L1: { name: 'A', tier: 'LOW', paytable: [0.3, 0.75, 2.5] },
-		L2: { name: 'K', tier: 'LOW', paytable: [0.25, 0.6, 2.0] },
+		L1: { name: 'A', tier: 'LOW', paytable: [0.3, 0.8, 2.5] },
+		L2: { name: 'K', tier: 'LOW', paytable: [0.3, 0.6, 2.0] },
 		L3: { name: 'Q', tier: 'LOW', paytable: [0.2, 0.5, 1.5] },
-		L4: { name: 'J', tier: 'LOW', paytable: [0.15, 0.4, 1.25] },
+		L4: { name: 'J', tier: 'LOW', paytable: [0.2, 0.4, 1.3] },
 		L5: { name: '10', tier: 'LOW', paytable: [0.1, 0.3, 1.0] },
 		W: { name: "Santa's Sleigh Wild", tier: 'WILD', paytable: [1.5, 5.0, 25.0] },
 		S: { name: 'Present Scatter', tier: 'SCATTER', paytable: null },

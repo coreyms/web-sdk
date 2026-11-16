@@ -268,6 +268,9 @@ async function boot(browser, engine) {
 async function wrapOf(p, iphone, track) {
 	const manifest = await p.evaluate(async () => (await (await fetch('./assets/audio/music.json', { cache: 'no-store' })).json()).tracks);
 	const t = manifest[track];
+	// (round 3: the road's ambience, an effects loop under the base game, plays through Howler's master too: held off,
+	// so the capture is the music alone)
+	await p.evaluate(() => window.__reindeer.ambienceHold?.(true));
 	await p.evaluate((name) => window.__reindeer.musicPlay(name), track);
 	await sleep(400);
 	// the file the stream plays (the loop decodes the same one)

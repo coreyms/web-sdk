@@ -16,13 +16,14 @@ const fail = (round, message) => {
 	console.error(`FAIL ${round.name}: ${message}`);
 };
 
-// contract 2026-11-10a: what the board relies on, and what is gone
+// contract 2026-11-15a (2026-11-10a plus winInfo capped): what the board relies on, and what is gone
 const OLD_STRIKE_FIELDS = ['side', 'runRow', 'dart', 'passes'];
 const OLD_COLUMN_FIELDS = ['grandmaCell', 'grandmaWalksOut', 'grandmaAdd'];
 const KNOWN = ['reveal', 'strike', 'grandmaWild', 'columnWild', 'winInfo', 'setTotalWin', 'freeSpinTrigger', 'freeSpinRetrigger', 'floorTopUp', 'freeSpinEnd', 'wincap', 'finalWin'];
 
 let books = 0;
 let wins = 0;
+let capped = 0;
 const seen = {};
 for (const round of SHOWCASE_ROUNDS) {
 	if (!round.events) continue;
@@ -36,7 +37,7 @@ for (const round of SHOWCASE_ROUNDS) {
 	round.events.forEach((event, i) => {
 		seen[event.type] = (seen[event.type] ?? 0) + 1;
 		if (event.index !== i) fail(round, `event ${i} has index ${event.index}`);
-		if (!KNOWN.includes(event.type)) fail(round, `event ${i} is a ${event.type}, which the 2026-11-10a contract does not have`);
+		if (!KNOWN.includes(event.type)) fail(round, `event ${i} is a ${event.type}, which the 2026-11-15a contract does not have`);
 		if (event.type === 'reveal') spinStrikes = [];
 		if (event.type === 'strike') {
 			for (const f of OLD_STRIKE_FIELDS) if (f in event) fail(round, `strike ${i} still has ${f}`);
@@ -81,7 +82,13 @@ for (const round of SHOWCASE_ROUNDS) {
 				if (want === null || Math.abs(want - w.win) > 1) fail(round, `line ${w.line}: ${w.symbol} x${w.kind} at x${w.multiplier} pays ${w.win}, the frontend's paytable says ${want}`);
 				sum += w.win;
 			}
-			if (sum !== event.totalWin) fail(round, `winInfo totalWin ${event.totalWin} is not the sum of its wins ${sum}`);
+			// contract 2026-11-15a: the spin that reaches the cap says `capped: true`, and its totalWin (what is awarded)
+			// is less than its lines' sum; every other spin's totalWin is the sum
+			if (event.capped === true) {
+				if (!(event.totalWin <= sum)) fail(round, `capped winInfo totalWin ${event.totalWin} is more than its wins ${sum}`);
+				capped += 1;
+			} else if ('capped' in event && event.capped !== false) fail(round, `winInfo capped is ${JSON.stringify(event.capped)}`);
+			else if (sum !== event.totalWin) fail(round, `winInfo totalWin ${event.totalWin} is not the sum of its wins ${sum}`);
 			total += event.totalWin;
 			if (round.events.slice(0, i).some((e) => e.type === 'freeSpinTrigger')) free += event.totalWin;
 		} else if (event.type === 'floorTopUp') {
@@ -106,4 +113,4 @@ if (failed) {
 	console.error(`${failed} problem(s)`);
 	process.exit(1);
 }
-console.log(`fixtures ok: ${books} real books, ${wins} line wins on the frontend's ${config.paylines.length} lines; events seen ${JSON.stringify(seen)}`);
+console.log(`fixtures ok: ${books} real books, ${wins} line wins (${capped} capped spin(s)) on the frontend's ${config.paylines.length} lines; events seen ${JSON.stringify(seen)}`);

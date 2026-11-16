@@ -1,10 +1,12 @@
 // THE FEATURE MENU'S COPY AND ITS ODDS ROWS, in one file (ui/FeatureMenu.svelte draws it).
 //
-// PROVISIONAL NUMBERS. The odds rows are the simulation's figures for the settled rules (What-if 4 variant E, Corey
-// 2026-11-09), not yet a published set of books: trigger rates per mode, the Super buy's 20x minimum, the max win
-// odds. ODDS_ARE_PROVISIONAL stays true until real books exist and these rows have been read off them; while it is
-// true the menu carries a small line saying the figures come from the simulation. Rows a figure does not exist for
-// yet (how often a bought round pays more than it cost) are simply not shown.
+// THE ODDS ROWS, read off the math build of 2026-11-15 (results/build_2026-11-15/BUILD_REPORT.md, "Final numbers per
+// mode": the shaped lookup tables of the production books, P1 paytable), rounded to whole numbers: base game Free Spins
+// 1 in 212.7 and Super 1 in 2,127; Ante 2x 1 in 76.4 / 1,000; Ante 4x 1 in 42.6 / 250; Ante 10x 1 in 51.4 / 40; the max
+// win in the base game 1 in 2.97 million; the bought Super's 20x minimum. ODDS_ARE_PROVISIONAL stays true until Corey
+// has looked at the build and the books are published (the menu carries a small line saying the figures come from the
+// simulation while it is true). Rows a figure does not exist for yet (how often a bought round pays more than it cost)
+// are simply not shown.
 //
 // Prices are NOT here: they come from the RGS (game/betModeMeta.ts modeCost), never from this file.
 import { soc } from './social';
@@ -47,17 +49,17 @@ export const FEATURE_MENU_TEXT = {
 };
 
 // ---- the odds rows (PROVISIONAL: see the top of the file) -----------------------------------------------------------
-const MAX_WIN_ROW: OddsRow = { label: 'Max win 7,777x, base game', value: '1 in 2.77 million' };
+const MAX_WIN_ROW: OddsRow = { label: 'Max win 7,777x, base game', value: '1 in 2.97 million' };
 
 export const BUY_ODDS: Record<'BONUS' | 'SUPER', OddsRow[]> = {
 	BONUS: [
 		{ label: 'Free spins', value: '10' },
-		{ label: 'In the base game', value: '1 in 211' },
+		{ label: 'In the base game', value: '1 in 213' },
 		{ label: 'Max win', value: '7,777x' },
 	],
 	SUPER: [
 		{ label: 'Free spins', value: '10' },
-		{ label: 'In the base game', value: '1 in 2,110' },
+		{ label: 'In the base game', value: '1 in 2,127' },
 		{ label: 'Guaranteed minimum', value: '20x' },
 		{ label: 'Max win', value: '7,777x' },
 	],
@@ -66,19 +68,19 @@ export const BUY_ODDS: Record<'BONUS' | 'SUPER', OddsRow[]> = {
 /** the Ante card's rows per slider stop, keyed by the mode key (game/betModeMeta.ts ANTE_KEYS) */
 export const ANTE_ODDS: Record<string, OddsRow[]> = {
 	ANTE_2: [
-		{ label: 'Free Spins', value: '1 in 74' },
+		{ label: 'Free Spins', value: '1 in 76' },
 		{ label: 'Super Free Spins', value: '1 in 1,000' },
-		{ label: 'Base game, no Ante', value: '1 in 211 / 2,110' },
+		{ label: 'Base game, no Ante', value: '1 in 213 / 2,127' },
 	],
 	ANTE_4: [
-		{ label: 'Free Spins', value: '1 in 41' },
+		{ label: 'Free Spins', value: '1 in 43' },
 		{ label: 'Super Free Spins', value: '1 in 250' },
-		{ label: 'Base game, no Ante', value: '1 in 211 / 2,110' },
+		{ label: 'Base game, no Ante', value: '1 in 213 / 2,127' },
 	],
 	ANTE_10: [
-		{ label: 'Free Spins', value: '1 in 45' },
+		{ label: 'Free Spins', value: '1 in 51' },
 		{ label: 'Super Free Spins', value: '1 in 40' },
-		{ label: 'Base game, no Ante', value: '1 in 211 / 2,110' },
+		{ label: 'Base game, no Ante', value: '1 in 213 / 2,127' },
 	],
 };
 

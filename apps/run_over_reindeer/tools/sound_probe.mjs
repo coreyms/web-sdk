@@ -27,6 +27,17 @@
 // on a trigger (the frame the first lid leaves its box), and that no borrowed Manticore sound plays in a moment that
 // has its own now. New cases: santa (a Santa column, normal speed), grandmacol (a Grandma column, turbo 2), trigger (a
 // natural Free Spins round, normal speed).
+// ROUND 3 (2026-11-16, judge3 below): the column box's growth (sfx_column_grow on the frame the grow begins), Santa's and
+// Grandma's entrances (on their entrance frame, like the reindeer's), each column character's win clip (one sound per
+// tier per frame, on the clip's first frame), a sticky column settling in (free spins and Super: one per sticky column,
+// on its idle's first frame), the bonus round cards (in on the frame the card mounts, out on the frame it goes, the
+// top-up with the wrap-up card that says so), the line show ONCE PER LINE on the frame each line starts to light (the
+// Christmas lights stagger), the present pop on the open's FIRST frame, and the road's ambience (amb_road: on under the
+// base game, faded out on the frame a feature's music takes over, back with the base music, never two at once). New
+// cases: santa1, santa2, santaslam, grandma0, grandma1, grandmaslam (the entrances, the grow and the win clips at every
+// speed and a slam stop), three0, three2, threeslam (a twelve line win at normal, turbo 2 and a slam stop), floortop (a
+// natural Free Spins round topped up to its minimum, turbo 1), supertop (a bought Super topped up to its 20x minimum,
+// turbo 2).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 OUT=<dir> [ONLY=idle,slam] \
 //     [SIZES=desk,phone] node tools/sound_probe.mjs
 // The browser runs with --mute-audio: the game plays its sounds, nothing reaches the speakers.
@@ -59,7 +70,12 @@ const HOP_SEMIS = [0, 1.5, -1, 2, -2, 0.5, -1.5, 1];
 const DART_PEAK = 330;
 const HOP_AUDIBLE = 30;
 const OURS2 = ['sfx_traffic_roll', ...REEL_STOPS, 'sfx_stoplight_change', 'sfx_target_hop', 'sfx_target_drop', 'sfx_target_lock', 'sfx_reindeer_dart', 'sfx_redbox', ...new Set(Object.values(WIN_BY_SYMBOL)), 'sfx_line_show', ...Object.values(STAMPS), 'sfx_present_pop'];
-const OURS = [...OURS1, ...OURS2];
+// round 3's (2026-11-16)
+const ENTRANCE = { reindeer: 'sfx_column_reindeer_in', santa: 'sfx_column_santa_in', grandma: 'sfx_column_grandma_in' };
+const COLUMN_WIN = { reindeer: 'sfx_column_win_reindeer', santa: 'sfx_column_win_santa', grandma: 'sfx_column_win_grandma' };
+const CARDS = ['sfx_card_in', 'sfx_card_out', 'sfx_topup'];
+const OURS3 = ['sfx_column_grow', ENTRANCE.santa, ENTRANCE.grandma, ...Object.values(COLUMN_WIN), 'sfx_sticky_set', ...CARDS, 'amb_road'];
+const OURS = [...OURS1, ...OURS2, ...OURS3];
 // the borrowed Manticore sounds whose moments have this game's own now: none of them may play
 const REPLACED = ['sfx_reel_stop', 'sfx_reel_spin', 'sfx_cluster_remove', 'sfx_swipe', 'sfx_sting_hit'];
 // the house standards, the same in every game
@@ -76,6 +92,18 @@ const CASES = [
 	{ id: 'santa', book: 'tier_santa', turbo: 0, snort: 'never' },
 	{ id: 'grandmacol', book: 'tier_grandma', turbo: 2, snort: 'never' },
 	{ id: 'trigger', book: 'natural_free_spins', turbo: 0, snort: 'never', maxMs: 300000 },
+	// round 3's
+	{ id: 'santa1', book: 'tier_santa', turbo: 1, snort: 'never' },
+	{ id: 'santa2', book: 'tier_santa', turbo: 2, snort: 'never' },
+	{ id: 'santaslam', book: 'tier_santa', turbo: 0, snort: 'never', slam: true },
+	{ id: 'grandma0', book: 'tier_grandma', turbo: 0, snort: 'never' },
+	{ id: 'grandma1', book: 'tier_grandma', turbo: 1, snort: 'never' },
+	{ id: 'grandmaslam', book: 'tier_grandma', turbo: 0, snort: 'never', slam: true },
+	{ id: 'three0', book: 'base_three_columns', turbo: 0, snort: 'never' },
+	{ id: 'three2', book: 'base_three_columns', turbo: 2, snort: 'never' },
+	{ id: 'threeslam', book: 'base_three_columns', turbo: 0, snort: 'never', slam: true },
+	{ id: 'floortop', book: 'floor_top_up', turbo: 1, snort: 'never', maxMs: 300000 },
+	{ id: 'supertop', book: 'super_floor_top_up', turbo: 2, snort: 'never', maxMs: 300000 },
 ].filter((c) => !ONLY.length || ONLY.includes(c.id));
 const SIZES = [
 	{ name: 'desk1440x900', key: 'desk', vp: { width: 1440, height: 900 }, dpr: 1, phone: false },
@@ -148,7 +176,7 @@ async function runCase(p, S, C) {
 	}
 	const settled = await settle(p, S, C.maxMs);
 	await sleep(700); // the cloud loop's round end fade (300 ms) and its stop
-	const roundEnd = await p.evaluate(() => ({ t: performance.now(), frame: window.__reindeer.frame(), playing: window.__reindeer.soundTap().playing, state: window.__reindeer.roadSoundState() }));
+	const roundEnd = await p.evaluate(() => ({ t: performance.now(), frame: window.__reindeer.frame(), playing: window.__reindeer.soundTap().playing, state: window.__reindeer.roadSoundState(), ambience: window.__reindeer.ambience?.() ?? null }));
 	if (C.idle) await sleep(IDLE_MS);
 	const out = await p.evaluate(() => ({ road: window.__reindeer.roadSounds(), tap: window.__reindeer.soundTap(), t0: window.__caseT0, now: performance.now(), frame: window.__reindeer.frame() }));
 	// the book itself (the dev server serves the fixture module): what the line win sounds are checked against
@@ -263,7 +291,7 @@ function judge(tag, C, R) {
 		if (s) row('sfx_grandma_wild', s, endOf(s)?.t ?? null, 'her pop settled, red box shows', w);
 	});
 	// the reindeer column's entrance
-	const feet = M.filter((e) => e.what === 'footfall');
+	const feet = M.filter((e) => e.what === 'footfall' && /reindeer/.test(e.detail ?? ''));
 	const ins = ours.filter((e) => e.name === 'sfx_column_reindeer_in');
 	check(ins.length === feet.length, `${tag}: one entrance sound per reindeer column entrance (${ins.length} for ${feet.length})`);
 	feet.forEach((f, i) => {
@@ -313,7 +341,10 @@ function judge(tag, C, R) {
 	// (two lights can change a moment apart: the stoplight's own overlap is reported by judge2, not counted here)
 	// and the crosshair's hops overlap only by their silent tails at turbo (the hop is 77 ms long and 40 dB down by 30 ms;
 	// at turbo the hops come 70 to 100 ms apart): judge2 checks they start at least HOP_AUDIBLE ms apart instead
-	const ourDoubles2 = ourDoubles.filter((d) => !d.startsWith('sfx_stoplight_change') && !d.startsWith('sfx_target_hop'));
+	// (round 3: each line's own line show may overlap the one before at turbo 2 and in a slam stop's hurry: the lines start
+	// 147 ms apart there and the line show is 197 ms long; judge3 checks one per line on its frame. The ambience is checked
+	// in judge3 too: one at a time.)
+	const ourDoubles2 = ourDoubles.filter((d) => !d.startsWith('sfx_stoplight_change') && !d.startsWith('sfx_target_hop') && !d.startsWith('sfx_line_show') && !d.startsWith('amb_road'));
 	check(ourDoubles2.length === 0, `${tag}: none of the game's own sounds plays twice at once`, ourDoubles2);
 	if (ourDoubles2.length < ourDoubles.length) console.log(`  INFO ${tag}: stoplight changes overlapping (two lights a moment apart): ${ourDoubles.length - ourDoubles2.length}`);
 	if (doubles.length > ourDoubles.length) console.log(`  INFO ${tag}: borrowed sounds overlapping themselves: ${doubles.filter((d) => !ourDoubles.includes(d)).join(', ')}`);
@@ -321,6 +352,7 @@ function judge(tag, C, R) {
 	const others = [...new Set(plays.filter((e) => !OURS.includes(e.name)).map((e) => e.name))];
 	const rows2 = judge2(tag, C, R);
 	rows.push(...rows2);
+	rows.push(...judge3(tag, C, R));
 	console.log(`  INFO ${tag}: borrowed sounds this round: ${others.join(', ') || 'none'}`);
 	rows.sort((a, b) => (Number(a.start) || 0) - (Number(b.start) || 0));
 	return { rows, others };
@@ -526,8 +558,12 @@ function judge2(tag, C, R) {
 	lids.forEach((e) => {
 		const pl = take('sfx_present_pop', e.frame);
 		const fan = plays.filter((x) => /^sfx_bonus_trigger_/.test(x.name) && x.t <= e.t).pop();
-		check(!!pl, `${tag}: the present pop on the frame the first lid leaves its box (${e.detail}, frame ${e.frame})`);
-		row('sfx_present_pop', pl, e, `first lid leaves its box (${e.detail}); ${fan ? r1(e.t - fan.t) : '-'} ms after the open started`);
+		// round 3: on the open's FIRST frame (the pop is 170 ms into the file)
+		// (the first frame DRAWN of the open: on a slow headless frame the open can already be past its slot 0 when it is
+		// first drawn; never as late as the lid's frame, 3)
+		const slot = Number(/open frame (\d+)/.exec(e.detail ?? '')?.[1]);
+		check(!!pl && slot < 3, `${tag}: the present pop on the open's first frame drawn (${e.detail}, frame ${e.frame})`);
+		row('sfx_present_pop', pl, e, `the open's first frame (${e.detail})`);
 	});
 	check(plays.filter((e) => e.name === 'sfx_present_pop').length === lids.length, `${tag}: no present pop without a lid (${lids.length})`);
 
@@ -536,6 +572,138 @@ function judge2(tag, C, R) {
 	check(replaced.length === 0, `${tag}: no replaced Manticore sound plays (${REPLACED.join(', ')})`, replaced.map((e) => `${e.name} @${at(e)}`));
 	const borrowed = [...new Set(plays.filter((e) => !OURS.includes(e.name) && !STANDARD.test(e.name)).map((e) => e.name))];
 	console.log(`  INFO ${tag}: still borrowed from Manticore this round: ${borrowed.join(', ') || 'none'}`);
+	return rows;
+}
+
+/** ROUND 3's sounds (see the header): rows for the case's table, checks counted */
+function judge3(tag, C, R) {
+	const t0 = R.t0;
+	const M = R.road.filter((e) => e.kind === 'moment');
+	const tap = R.tap.log;
+	const plays = tap.filter((e) => e.what === 'play');
+	const used = new Set();
+	const rows = [];
+	const at = (e) => r1(e.t - t0);
+	const take = (name, frame) => {
+		const p = plays.find((x) => x.name === name && x.frame === frame && !used.has(x));
+		if (p) used.add(p);
+		return p;
+	};
+	const named = (what) => M.filter((e) => e.what === what);
+	const spinStarts = named('trafficStart').map((e) => e.t);
+	const rowsUntil = (C.id === 'trigger' || C.id === 'floortop' || C.id === 'supertop') && spinStarts.length > 2 ? spinStarts[2] : Infinity;
+	const row = (sound, play, ev, label) => (ev && ev.t >= rowsUntil) || rows.push({ sound, start: play ? at(play) : 'MISSING', stop: '', event: ev ? `${label} (frame ${ev.frame})` : label, offset: play && ev ? r1(play.t - ev.t) : '', frames: play && ev ? play.frame - ev.frame : '' });
+	const book = R.book ?? [];
+
+	// THE BOX GROWS
+	const grows = named('grow');
+	grows.forEach((e) => {
+		const pl = take('sfx_column_grow', e.frame);
+		check(!!pl, `${tag}: the box grows (${e.detail}): sfx_column_grow on that frame (${e.frame})`);
+		row('sfx_column_grow', pl, e, `the red box starts to grow, ${e.detail}`);
+	});
+	const columns = book.filter((e) => e.type === 'columnWild').length;
+	check(grows.length === columns, `${tag}: one grow per column Wild in the book (${grows.length} for ${columns})`);
+	check(plays.filter((e) => e.name === 'sfx_column_grow').length === grows.length, `${tag}: no grow sound without a grow`);
+
+	// SANTA'S AND GRANDMA'S ENTRANCES (the reindeer's is round 1's check)
+	for (const tier of ['santa', 'grandma']) {
+		const feet = named('footfall').filter((e) => new RegExp(tier).test(e.detail ?? ''));
+		feet.forEach((e) => {
+			const pl = take(ENTRANCE[tier], e.frame);
+			check(!!pl, `${tag}: the ${tier} column's entrance (${e.detail}): ${ENTRANCE[tier]} on that frame (${e.frame})`);
+			row(ENTRANCE[tier], pl, e, `${tier} stands out of the cloud, ${e.detail}`);
+		});
+		const want = book.filter((e) => e.type === 'columnWild' && e.tier === tier).length;
+		check(feet.length === want, `${tag}: one ${tier} entrance per ${tier} column in the book (${feet.length} for ${want})`);
+		check(plays.filter((e) => e.name === ENTRANCE[tier]).length === feet.length, `${tag}: no ${tier} entrance sound without its entrance`);
+	}
+
+	// THE COLUMN WIN CLIPS: one sound per tier per frame
+	const wins = named('columnWin');
+	const winKeys = [...new Set(wins.map((e) => `${e.frame}:${/(reindeer|santa|grandma)/.exec(e.detail)?.[1]}`))];
+	winKeys.forEach((k) => {
+		const [frame, tier] = k.split(':');
+		const e = wins.find((x) => String(x.frame) === frame && x.detail.includes(tier));
+		const pl = take(COLUMN_WIN[tier], Number(frame));
+		check(!!pl, `${tag}: a ${tier} column's win clip (${e.detail}): ${COLUMN_WIN[tier]} on its first frame (${frame})`);
+		row(COLUMN_WIN[tier], pl, e, `${tier} win clip's first frame, ${e.detail}`);
+	});
+	check(plays.filter((e) => Object.values(COLUMN_WIN).includes(e.name)).length === winKeys.length, `${tag}: one column win sound per tier per frame a win clip starts (${winKeys.length}; ${wins.length} clip(s))`);
+
+	// A STICKY COLUMN SETTLES IN
+	const stickies = named('sticky');
+	stickies.forEach((e) => {
+		const pl = take('sfx_sticky_set', e.frame);
+		check(!!pl, `${tag}: a sticky column stands (${e.detail}): sfx_sticky_set on its idle's first frame (${e.frame})`);
+		row('sfx_sticky_set', pl, e, `a sticky column's idle begins, ${e.detail}`);
+	});
+	const stickyWant = book.filter((e) => e.type === 'columnWild' && e.sticky).length;
+	check(stickies.length === stickyWant, `${tag}: one settle per sticky column in the book (${stickies.length} for ${stickyWant}; none in the base game)`);
+	check(plays.filter((e) => e.name === 'sfx_sticky_set').length === stickies.length, `${tag}: no sticky sound without a sticky column`);
+
+	// THE LINE SHOW, ONCE PER LINE
+	const lines = named('lines');
+	const shows = named('lineShow');
+	const infos = book.filter((e) => e.type === 'winInfo' && e.wins.length);
+	lines.forEach((e, i) => {
+		const next = lines[i + 1]?.t ?? Infinity;
+		const mine = shows.filter((x) => x.t >= e.t && x.t < next);
+		const n = infos[i]?.wins.filter((w) => w.cells.length >= 2).length ?? 0;
+		check(mine.length === n, `${tag}: win ${i + 1}: ${n} line(s), ${mine.length} line show moment(s)`);
+		check(mine[0]?.frame === e.frame, `${tag}: win ${i + 1}: the first line's line show on the lines' frame (${mine[0]?.frame} vs ${e.frame})`);
+		mine.forEach((x, k) => {
+			const pl = take('sfx_line_show', x.frame);
+			check(!!pl, `${tag}: win ${i + 1} line ${k + 1}: sfx_line_show on the frame it starts to light (${x.frame})`);
+			if (k < 3) row('sfx_line_show', pl, x, `win ${i + 1} ${x.detail} starts to light`);
+		});
+	});
+	check(plays.filter((e) => e.name === 'sfx_line_show').length === shows.length, `${tag}: one line show per line lit (${shows.length})`);
+
+	// THE CARDS
+	const cards = named('card');
+	cards.forEach((e) => {
+		const name = /^(sfx_\w+)/.exec(e.detail)?.[1];
+		const pl = take(name, e.frame);
+		check(!!pl, `${tag}: card moment (${e.detail}): ${name} on that frame (${e.frame})`);
+		row(name, pl, e, `card ${e.detail.replace(/^sfx_\w+ /, '')} ${name === 'sfx_card_out' ? 'goes' : 'comes up'}`);
+	});
+	const nCards = book.filter((e) => e.type === 'freeSpinTrigger' || e.type === 'freeSpinEnd').length;
+	const tops = book.filter((e) => e.type === 'floorTopUp').length;
+	check(cards.filter((e) => e.detail.startsWith('sfx_card_in')).length === nCards && cards.filter((e) => e.detail.startsWith('sfx_card_out')).length === nCards, `${tag}: a card in and a card out for each of the book's ${nCards} card(s)`);
+	check(cards.filter((e) => e.detail.startsWith('sfx_topup')).length === tops, `${tag}: a top-up beat for each of the book's ${tops} top-up(s), with its wrap-up card`);
+	if (tops) {
+		const tIn = cards.find((e) => e.detail.startsWith('sfx_topup'));
+		const cIn = cards.find((e) => e.detail.startsWith('sfx_card_in outro'));
+		check(!!tIn && !!cIn && tIn.frame === cIn.frame, `${tag}: the top-up on the wrap-up card's frame (${tIn?.frame} vs ${cIn?.frame})`);
+	}
+	check(plays.filter((e) => CARDS.includes(e.name)).length === cards.length, `${tag}: no card sound without its card`);
+
+	// THE ROAD'S AMBIENCE
+	const amb = named('ambience');
+	const music = named('music');
+	const ambPlays = plays.filter((e) => e.name === 'amb_road');
+	const features = book.some((e) => e.type === 'freeSpinTrigger');
+	if (!features) {
+		check(amb.length === 0 && ambPlays.length === 0, `${tag}: the ambience runs on through a base game round (no start, no stop)`);
+		check(R.roundEnd.ambience?.playing === true, `${tag}: the ambience is playing at the round's end`, R.roundEnd.ambience);
+	} else {
+		const off = amb.find((e) => e.detail === 'off');
+		const on = amb.find((e) => e.detail === 'on' && off && e.t > off.t);
+		const toBonus = music.find((e) => e.detail !== 'bgm_base');
+		const toBase = music.find((e) => e.detail === 'bgm_base' && toBonus && e.t > toBonus.t);
+		check(!!off && !!toBonus && off.frame === toBonus.frame, `${tag}: the ambience fades out on the frame the feature's music takes over (${off?.frame} vs ${toBonus?.frame})`);
+		const fade = off ? tap.find((e) => e.what === 'fade' && e.name === 'amb_road' && e.t >= off.t - 1) : null;
+		const stop = off ? tap.find((e) => e.what === 'stop' && e.name === 'amb_road' && e.t >= off.t - 1) : null;
+		check(!!fade && fade.frame === off.frame, `${tag}: its fade out starts on that frame (${fade?.frame}; ${fade?.detail})`);
+		check(!!stop && stop.t - off.t < 600 + 120, `${tag}: and it stops when the fade is done (${r1(stop ? stop.t - off.t : null)} ms)`);
+		const during = ambPlays.filter((e) => off && toBase && e.t > off.t && e.t < toBase.t - 1);
+		check(during.length === 0, `${tag}: no ambience during the feature`);
+		check(!!on && !!toBase && on.frame === toBase.frame && ambPlays.some((e) => e.frame === on.frame), `${tag}: it comes back on the frame the base music does (${on?.frame} vs ${toBase?.frame})`);
+		if (off) rows.push({ sound: 'amb_road fade out', start: fade ? at(fade) : 'MISSING', stop: stop ? at(stop) : '', event: `${toBonus?.detail} takes over (frame ${toBonus?.frame})`, offset: fade && toBonus ? r1(fade.t - toBonus.t) : '', frames: fade && toBonus ? fade.frame - toBonus.frame : '' });
+		if (on) rows.push({ sound: 'amb_road', start: at(ambPlays.find((e) => e.frame === on.frame) ?? on), stop: '', event: `bgm_base back (frame ${toBase?.frame})`, offset: '', frames: '' });
+		check(R.roundEnd.ambience?.playing === true, `${tag}: the ambience is playing at the round's end`, R.roundEnd.ambience);
+	}
 	return rows;
 }
 

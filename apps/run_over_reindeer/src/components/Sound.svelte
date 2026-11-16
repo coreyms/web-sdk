@@ -24,9 +24,10 @@
 </script>
 
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 
 	import { getContext } from '../game/context';
+	import { REINDEER_SOUND } from '../game/constants';
 	import { stateSound, stateSoundDerived } from 'state-shared';
 
 	const context = getContext();
@@ -97,6 +98,56 @@
 			localStorage.setItem(STORE, JSON.stringify(data));
 		} catch {}
 	});
+
+	// THE ROAD'S AMBIENCE (constants REINDEER_SOUND ambience, round 3): amb_road, a 10 s loop in the effects sprite, quiet
+	// under the base game. On from the moment the sprite is in (a loop asked before that is dropped, never queued), faded
+	// in; when a feature's music takes over from the base music (stateGame.bonusMode) it fades out and stops, and it comes
+	// back with the base music after the wrap-up card. One play at a time: a start while it is on does nothing.
+	const AMB = REINDEER_SOUND.ambience;
+	let ambOn = false;
+	/** DEV: held off (the music loop probe measures the music alone at Howler's master) */
+	let ambHeld = $state(false);
+	let ambStop: ReturnType<typeof setTimeout> | null = null;
+	const ambience = (want: boolean) => {
+		if (want === ambOn) return;
+		ambOn = want;
+		const name = AMB.name as SoundEffectName;
+		// DEV: the moment, for the sound probe (window.__reindeer.markMoment, components/Board.svelte)
+		if (import.meta.env.DEV) (window as unknown as { __reindeer?: { markMoment?: (what: string, detail?: string) => void } }).__reindeer?.markMoment?.('ambience', want ? 'on' : 'off');
+		if (want) {
+			if (ambStop) {
+				clearTimeout(ambStop);
+				ambStop = null;
+				sound.stop({ name });
+			}
+			sound.players.loop.play({ name });
+			void sound.fade({ name, from: 0, to: 1, duration: AMB.inMs });
+		} else {
+			void sound.fade({ name, from: 1, to: 0, duration: AMB.outMs });
+			ambStop = setTimeout(() => {
+				ambStop = null;
+				sound.stop({ name });
+			}, AMB.outMs + 20);
+		}
+	};
+	$effect(() => {
+		const want = !ambHeld && sound.loadStatus === 'loaded' && context.stateGame.bonusMode === null;
+		untrack(() => ambience(want));
+	});
+	onMount(() => () => {
+		if (ambStop) clearTimeout(ambStop);
+		sound.stop({ name: AMB.name as SoundEffectName });
+	});
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		Object.assign(((window as unknown as { __reindeer?: Record<string, unknown> }).__reindeer ??= {}), {
+			/** DEV / the sound probe: whether the road's ambience is meant to be on */
+			ambienceHold: (held: boolean) => (ambHeld = held),
+			ambience: () => {
+				const howl = sound.players?.loop?.howl as unknown as { _sounds?: { _sprite: string; _paused: boolean }[] } | undefined;
+				return { on: ambOn, stopping: ambStop !== null, playing: !!howl?._sounds?.some((sd) => sd._sprite === AMB.name && !sd._paused) };
+			},
+		});
+	}
 
 	// The base loop starts with the game. BORROWED: every track and effect is Manticore Mayhem's, as a stand-in.
 	onMount(() => {

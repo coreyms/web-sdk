@@ -20,10 +20,12 @@ import { LANDING_DIM, LINE_WIN, REINDEER_SOUND, ROAD, STOPLIGHT, motionFor, type
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
 import { NumberLabel, RoadFeatures } from './roadFeatures';
-import { PRESENT_LID_FRAME, PRESENT_LOOK, PresentActor, presentOpenMs, presentStillTexture, presentsReadyForOpen, presentTriggerPlayed } from './present';
+import { PRESENT_LOOK, PresentActor, presentOpenMs, presentStillTexture, presentsReadyForOpen, presentTriggerPlayed } from './present';
 import { castShadow, makeShadow, shadowStrength } from './shadows';
 import { PoliceLightBar } from './policeLights';
 import { VanWinFx } from './vanWin';
+import { WinLights, type LightLine } from './winLights';
+import { PHONE_TIER } from '../deviceTier';
 
 const COLS = ROAD_ART.board.columns;
 const ROWS = ROAD_ART.board.rows;
@@ -127,7 +129,8 @@ const mouthAt = (side: 'left' | 'right', y: number): number => {
 
 type Waiter = { at: number; clock: 'board' | 'win'; resolve: () => void };
 
-export type LineWinSpec = { cells: number[]; line: number };
+/** a winning line: its cells, its payline; the symbol it pays and its own amount (the Christmas lights, LINE_WIN lights) */
+export type LineWinSpec = { cells: number[]; line: number; symbol?: string; amountText?: string };
 
 export class RoadBoard {
 	readonly root = new PIXI.Container();
@@ -143,6 +146,14 @@ export class RoadBoard {
 	private readonly winLines = new PIXI.Graphics();
 	private winAmount: PIXI.Text | null = null;
 	private winMult: NumberLabel | null = null;
+	/** THE CHRISTMAS LIGHTS (game/road/winLights.ts), made at the first win; null until then */
+	private winFx: WinLights | null = null;
+	private lightsOn = false;
+	/** the total's x multiplier is wanted (it shows with the total) */
+	private winMultWanted = false;
+	/** each light line's start (win clock ms into the win), and how many of them have sounded */
+	private lineStarts: number[] = [];
+	private linesVoiced = 0;
 	/** the strike, the cloud cells and the column Wilds (game/road/roadFeatures.ts) */
 	readonly features: RoadFeatures;
 	private readonly lightLayer = new PIXI.Container();
@@ -187,7 +198,8 @@ export class RoadBoard {
 	private reelStopAt: (number | null)[] = [null, null, null, null, null];
 	private trafficFading = false;
 	private popWanted = false;
-	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean } | null = null;
+	/** the win showing: its start (win clock), its whole length, when the total pops in (ms into the win) */
+	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean; totalAt: number } | null = null;
 	private destroyed = false;
 	/** how many symbols the board on the road parks (20, less four for every column Wild standing) */
 	private parked = COLS * ROWS;
@@ -352,7 +364,9 @@ export class RoadBoard {
 			const actor = car.present;
 			if (!actor || !actor.busy) continue;
 			if (!actor.update(now, car.sprite, car.baseScale)) car.sprite.renderable = true;
-			if (this.popWanted && actor.openSlot >= PRESENT_LID_FRAME) {
+			// the pop starts on the open's first frame (round 3; its own pop is 170 ms into the file, so it lands just after
+			// the lid leaves the box at PRESENT_LID_FRAME)
+			if (this.popWanted && actor.openSlot >= REINDEER_SOUND.presentPopFrame) {
 				this.popWanted = false;
 				this.features.sounds.mark('lid', `cell ${actor.cell} open frame ${actor.openSlot}`);
 				this.features.sounds.cue('present', `cell ${actor.cell}`);
@@ -373,7 +387,7 @@ export class RoadBoard {
 			if (car.phase !== 'rest' || car.symbol !== 'S' || !cells.includes(car.col * ROWS + car.lane)) continue;
 			shows.push(this.presentOf(car).open(this.clock));
 		}
-		// ONE pop for the trigger, on the frame the first lid leaves its box (updatePresents)
+		// ONE pop for the trigger, on the open's first frame (updatePresents)
 		this.popWanted = shows.length > 0;
 		await Promise.all(shows);
 		this.popWanted = false;
@@ -540,8 +554,13 @@ export class RoadBoard {
 	}
 
 	// ---- the line win ------------------------------------------------------------------------------------------------
-	/** show every winning line together with the amount; resolves when the hold is over */
-	showWin(wins: LineWinSpec[], amountText: string, holdMs: number, multiplier = 1): Promise<void> {
+	/** show a win: THE CHRISTMAS LIGHTS (constants LINE_WIN lights), each winning line a wire of lights drawn in one after
+	 *  another with its own amount as it completes, then the total as before; or (lights off, a trigger's pulse, a
+	 *  message) every line at once with the total. `pace` is the turbo level's share of every time (LINE_WIN.holdShare);
+	 *  `capped` (a max win spin): no line's own amount (the lines pay more than is awarded), only the total. Resolves
+	 *  when the hold after the total is over. */
+	showWin(wins: LineWinSpec[], amountText: string, holdMs: number, multiplier = 1, opts: { pace?: number; capped?: boolean } = {}): Promise<void> {
+		const pace = opts.pace ?? 1;
 		const cells = new Set<number>();
 		for (const w of wins) for (const c of w.cells) cells.add(c);
 		for (const car of this.cars) {
@@ -550,22 +569,52 @@ export class RoadBoard {
 		}
 		const g = this.winLines;
 		g.clear();
-		// the probe's moment: the winning lines show on the next frame drawn (their sounds are the handler's, the same tick)
-		const lineCount = wins.filter((w) => w.cells.length >= 2).length;
-		if (lineCount) this.features.sounds.mark('lines', `${lineCount} line(s)`);
-		wins.forEach((w) => {
-			if (w.cells.length < 2) return;
-			const pts = [...w.cells].sort((a, b) => a - b).map((c) => ({ x: columnX(Math.floor(c / ROWS)), y: laneMidY(c % ROWS) }));
-			const color = LINE_WIN.lineColors[(Math.max(1, w.line) - 1) % LINE_WIN.lineColors.length];
-			for (const [width, col] of [
-				[LINE_WIN.lineWidth + 2 * LINE_WIN.lineEdge, 0x101216],
-				[LINE_WIN.lineWidth, color],
-			] as const) {
-				g.moveTo(pts[0].x, pts[0].y);
-				for (let p = 1; p < pts.length; p++) g.lineTo(pts[p].x, pts[p].y);
-				g.stroke({ width, color: col, alpha: LINE_WIN.lineAlpha, cap: 'round', join: 'round' });
+		const drawn = wins.filter((w) => w.cells.length >= 2);
+		this.lightsOn = LINE_WIN.lights.on && drawn.length > 0;
+		this.lineStarts = [];
+		this.linesVoiced = 0;
+		let totalAt = 0;
+		if (this.lightsOn) {
+			if (!this.winFx) {
+				this.winFx = new WinLights(this.tex('winLights'), PHONE_TIER ? 'phone' : 'full');
+				this.winLayer.addChildAt(this.winFx.root, 0);
 			}
-		});
+			const lines: LightLine[] = drawn.map((w) => {
+				const sorted = [...w.cells].sort((a, b) => a - b);
+				const points = sorted.map((c) => ({ x: columnX(Math.floor(c / ROWS)), y: laneMidY(c % ROWS) }));
+				// its amount's places, best first: the top edge of each of its symbols from the middle one outward, then the
+				// lane line under each
+				const order = sorted.map((_, i) => i).sort((a, b) => Math.abs(a - (sorted.length - 1) / 2) - Math.abs(b - (sorted.length - 1) / 2) || a - b);
+				const x = (c: number) => Math.min(MOUTH_R - 90, Math.max(MOUTH_L + 90, columnX(Math.floor(c / ROWS))));
+				const slots = [...order.map((i) => ({ x: x(sorted[i]), y: LINES[sorted[i] % ROWS] - 4 })), ...order.map((i) => ({ x: x(sorted[i]), y: LINES[(sorted[i] % ROWS) + 1] - 4 }))];
+				return { points, symbol: w.symbol ?? 'L5', amountText: w.amountText ?? '', slots };
+			});
+			this.winFx.set(lines, pace, drawn.length > 1 && !opts.capped);
+			this.lineStarts = lines.map((_, k) => k * LINE_WIN.lights.staggerMs * pace);
+			totalAt = this.winFx.linesDoneMs() + (drawn.length > 1 ? LINE_WIN.lights.amount.holdMs * pace : 0);
+		} else {
+			this.winFx?.hide();
+			wins.forEach((w) => {
+				if (w.cells.length < 2) return;
+				const pts = [...w.cells].sort((a, b) => a - b).map((c) => ({ x: columnX(Math.floor(c / ROWS)), y: laneMidY(c % ROWS) }));
+				const color = LINE_WIN.lineColors[(Math.max(1, w.line) - 1) % LINE_WIN.lineColors.length];
+				for (const [width, col] of [
+					[LINE_WIN.lineWidth + 2 * LINE_WIN.lineEdge, 0x101216],
+					[LINE_WIN.lineWidth, color],
+				] as const) {
+					g.moveTo(pts[0].x, pts[0].y);
+					for (let p = 1; p < pts.length; p++) g.lineTo(pts[p].x, pts[p].y);
+					g.stroke({ width, color: col, alpha: LINE_WIN.lineAlpha, cap: 'round', join: 'round' });
+				}
+			});
+		}
+		// the probe's moment: the winning lines show (the first starts on the next frame drawn; their symbol's sound is the
+		// handler's, the same tick); THE LINE SHOW sounds once per line as it lights (constants REINDEER_SOUND lines): the
+		// first now, the others as each starts (updateWin). All at once (lights off): once.
+		if (drawn.length) {
+			this.features.sounds.mark('lines', `${drawn.length} line(s)`);
+			this.voiceLine(0);
+		}
 		// the amount, on the middle of the first line
 		if (!this.winAmount) {
 			this.winAmount = new PIXI.Text({
@@ -587,6 +636,8 @@ export class RoadBoard {
 		const mid = sorted[Math.floor(sorted.length / 2)] ?? 0;
 		this.winAmount.style.fontSize = LINE_WIN.amountSize;
 		this.winAmount.text = amountText;
+		this.winAmount.visible = totalAt <= 0;
+		this.winAmount.scale.set(LINE_WIN.popFrom);
 		// kept inside the picture: a long amount on an outer column is pulled toward the middle
 		const half = this.winAmount.width / 2 + 20;
 		const x = first ? columnX(Math.floor(mid / ROWS)) : ROAD_ART.image.width / 2;
@@ -596,11 +647,12 @@ export class RoadBoard {
 			this.winMult = new NumberLabel(this.tex, LINE_WIN.multHeight, LINE_WIN.multTint);
 			this.winLayer.addChild(this.winMult.root);
 		}
-		this.winMult.root.visible = multiplier > 1;
+		this.winMult.root.visible = multiplier > 1 && totalAt <= 0;
 		if (multiplier > 1) {
 			this.winMult.set(`x${multiplier}`, LINE_WIN.multHeight, LINE_WIN.multTint);
 			this.winMult.root.position.set(this.winAmount.x, this.winAmount.y - LINE_WIN.multUp);
 		}
+		this.winMultWanted = multiplier > 1;
 		// the columns a winning line runs through play their win clip
 		const reels = new Set<number>();
 		for (const w of wins) for (const c of w.cells) reels.add(Math.floor(c / ROWS));
@@ -608,8 +660,50 @@ export class RoadBoard {
 		this.winLayer.alpha = 1;
 		this.winLayer.visible = true;
 		// a line win dims the symbols that are not part of it; a plain message over the board (no cells) dims nothing
-		this.win = { t0: this.winClock, holdMs, fadeAt: this.winClock + holdMs, active: true, dim: wins.length > 0 };
-		return this.wait(this.winClock + holdMs, 'win');
+		const length = totalAt + holdMs;
+		this.win = { t0: this.winClock, holdMs: length, fadeAt: this.winClock + length, active: true, dim: wins.length > 0, totalAt };
+		if (this.lightsOn) this.winFx!.update(0);
+		return this.wait(this.winClock + length, 'win');
+	}
+
+	/** THE LINE SHOWS (constants REINDEER_SOUND lines): each light line after the first sounds on the frame it starts to
+	 *  light, after the features' update (so the sounds' log has this frame's number) */
+	private updateLineShows() {
+		const win = this.win;
+		if (!win || !win.active || !this.lightsOn) return;
+		const t = this.winClock - win.t0;
+		while (this.linesVoiced < this.lineStarts.length && t >= this.lineStarts[this.linesVoiced]) this.voiceLine(this.linesVoiced);
+	}
+
+	/** a light line's line show: line `k` (0-based) has started to light */
+	private voiceLine(k: number) {
+		this.linesVoiced = k + 1;
+		const n = Math.max(1, this.lineStarts.length);
+		this.features.sounds.mark('lineShow', `line ${k + 1} of ${n}`);
+		this.features.sounds.playNamed(REINDEER_SOUND.lineShow, `line ${k + 1} of ${n}`);
+	}
+
+	/** DEV / probes: draw the win's lights or not (the win and its clock go on as they are) */
+	devWinLightsShown(on: boolean) {
+		if (this.winFx && this.lightsOn) this.winFx.root.visible = on;
+	}
+
+	/** DEV / probes: the lights as drawn (each line's draw fraction, bulbs lit, amount), and the total */
+	winLightsSnapshot() {
+		const win = this.win;
+		return {
+			ms: win ? Math.round((this.winClock - win.t0) * 10) / 10 : null,
+			active: !!win?.active,
+			visible: this.winLayer.visible && this.winLayer.alpha > 0,
+			alpha: Math.round(this.winLayer.alpha * 100) / 100,
+			totalAt: win ? Math.round(win.totalAt * 10) / 10 : null,
+			total: this.winAmount ? { text: this.winAmount.text, shown: this.winAmount.visible && this.winLayer.visible, scale: Math.round(this.winAmount.scale.x * 1000) / 1000 } : null,
+			mult: this.winMult ? this.winMult.root.visible && this.winLayer.visible : false,
+			lines: this.winFx?.snapshot() ?? [],
+			sprites: this.winFx?.spriteCount() ?? 0,
+			lightsOn: this.lightsOn,
+			linesVoiced: this.linesVoiced,
+		};
 	}
 
 	/** THE POLICE LIGHTS (constants POLICE_LIGHTS): every police car in the win showing now flashes, on the win's clock
@@ -917,6 +1011,7 @@ export class RoadBoard {
 		this.features.update(now);
 		this.updateLights(dt);
 		this.updateReelStops(now, rate);
+		this.updateLineShows();
 		this.updateVans();
 		this.paint();
 		this.updatePolice();
@@ -964,12 +1059,21 @@ export class RoadBoard {
 		if (!win) return;
 		const t = this.winClock - win.t0;
 		if (win.active) {
+			// the light lines, and each one's line show as it starts; the line amounts fade as the total comes
+			if (this.lightsOn && this.winFx) {
+				if (t >= win.totalAt) this.winFx.fadeAmounts(win.totalAt);
+				this.winFx.update(t);
+			}
+			// the total pops in at totalAt (at once when there are no light lines)
+			const since = t - win.totalAt;
 			const amount = this.winAmount;
 			if (amount) {
-				const u = Math.min(1, t / LINE_WIN.popMs);
+				amount.visible = since >= 0;
+				const u = Math.min(1, Math.max(0, since) / LINE_WIN.popMs);
 				const e = 1 - (1 - u) * (1 - u);
 				amount.scale.set(LINE_WIN.popFrom + (1 - LINE_WIN.popFrom) * e);
 			}
+			if (this.winMult) this.winMult.root.visible = this.winMultWanted && since >= 0;
 			const u = Math.min(1, t / Math.max(1, win.holdMs));
 			const swell = Math.sin(Math.PI * LINE_WIN.pulses * u);
 			const k = 1 + (LINE_WIN.pulseScale - 1) * swell * swell;
@@ -994,6 +1098,8 @@ export class RoadBoard {
 			}
 			if (settled) {
 				this.winLayer.visible = false;
+				this.winFx?.hide();
+				this.lightsOn = false;
 				this.win = null;
 			}
 		}

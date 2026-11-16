@@ -53,6 +53,13 @@ const assets = {
 		src: tiered(stamp(new URL('../../assets/road/van-puff.webp', import.meta.url).href), stamp(new URL('../../assets/road/van-puff-phone.webp', import.meta.url).href)),
 		preload: true,
 	},
+	// THE CHRISTMAS LIGHTS WIN LINES (tools/build_win_lights.py, game/road/winLights.ts): one white bulb and one soft glow
+	// on one small sheet, tinted per line in the game, a few KB
+	winLights: {
+		type: 'sprite',
+		src: tiered(stamp(new URL('../../assets/road/win-lights.webp', import.meta.url).href), stamp(new URL('../../assets/road/win-lights-phone.webp', import.meta.url).href)),
+		preload: true,
+	},
 	// the locked board background and the two tunnel portals cut from it (drawn over the traffic)
 	road: {
 		type: 'sprite',

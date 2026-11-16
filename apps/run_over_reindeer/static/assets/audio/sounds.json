@@ -115,23 +115,23 @@
 		],
 		"sfx_win_big": [
 			53416,
-			1300
+			1480
 		],
 		"sfx_win_super": [
-			55716,
-			1300
+			55896,
+			1480
 		],
 		"sfx_win_mega": [
-			58016,
-			1300
+			58376,
+			1480
 		],
 		"sfx_win_epic": [
-			60316,
-			1300
+			60856,
+			1480
 		],
 		"sfx_win_max": [
-			62616,
-			1300
+			63336,
+			1480
 		],
 		"sfx_mystery_tease": [
 			970,
@@ -142,233 +142,287 @@
 			50
 		],
 		"sfx_scatter_land_6": [
-			64916,
+			65816,
 			470
 		],
 		"sfx_chain_heavy": [
-			66385,
+			67285,
 			1145
 		],
 		"sfx_chain_light": [
-			68531,
+			69431,
 			528
 		],
 		"sfx_chain_light_logo": [
-			68531,
+			69431,
 			528
 		],
 		"sfx_fire_super": [
-			70060,
+			70960,
 			6000,
 			true
 		],
 		"sfx_fire_epic": [
-			77060,
+			77960,
 			6000,
 			true
 		],
 		"sfx_manticore_breath_1": [
-			84060,
+			84960,
 			1800
 		],
 		"sfx_manticore_breath_2": [
-			86860,
+			87760,
 			1800
 		],
 		"sfx_manticore_snarl_1": [
-			89660,
+			90560,
 			662
 		],
 		"sfx_manticore_snarl_2": [
-			91322,
+			92222,
 			691
 		],
 		"sfx_manticore_growl_1": [
-			93014,
+			93914,
 			1166
 		],
 		"sfx_manticore_growl_2": [
-			95180,
+			96080,
 			1213
 		],
 		"sfx_plaque_land": [
-			97393,
+			98293,
 			554
 		],
 		"sfx_clear_l1": [
-			98947,
+			99847,
 			500
 		],
 		"sfx_clear_l2": [
-			100446,
+			101346,
 			465
 		],
 		"sfx_clear_l3": [
-			101911,
+			102811,
 			483
 		],
 		"sfx_clear_l4": [
-			103394,
+			104294,
 			491
 		],
 		"sfx_clear_m1": [
-			104885,
+			105785,
 			517
 		],
 		"sfx_clear_m2": [
-			106402,
+			107302,
 			508
 		],
 		"sfx_clear_m3": [
-			107910,
+			108810,
 			498
 		],
 		"sfx_clear_h1": [
-			109408,
+			110308,
 			435
 		],
 		"sfx_manticore_roar_win_1": [
-			110843,
+			111743,
 			1600
 		],
 		"sfx_reindeer_idle_snort": [
-			113443,
+			114343,
 			600
 		],
 		"sfx_reindeer_alert": [
-			115043,
+			115943,
 			600
 		],
 		"sfx_reindeer_run": [
-			116650,
+			117550,
 			1200,
 			true
 		],
 		"sfx_crash": [
-			118850,
+			119750,
 			933
 		],
 		"sfx_reindeer_turn": [
-			120783,
+			121683,
 			250
 		],
 		"sfx_crash_cloud": [
-			122040,
+			122940,
 			4000,
 			true
 		],
 		"sfx_grandma_wild": [
-			127040,
+			127940,
 			593
 		],
 		"sfx_column_reindeer_in": [
-			128633,
+			129533,
 			1234
 		],
 		"sfx_traffic_roll": [
-			130870,
+			131770,
 			2000,
 			true
 		],
 		"sfx_lane_stop_1": [
-			133870,
+			134770,
 			454
 		],
 		"sfx_lane_stop_2": [
-			135324,
+			136224,
 			454
 		],
 		"sfx_lane_stop_3": [
-			136778,
+			137678,
 			454
 		],
 		"sfx_lane_stop_4": [
-			138232,
+			139132,
 			454
 		],
 		"sfx_lane_stop_5": [
-			139686,
+			140586,
 			454
 		],
 		"sfx_stoplight_change": [
-			141140,
+			142040,
 			256
 		],
 		"sfx_target_hop": [
-			142397,
+			143297,
 			77
 		],
 		"sfx_target_drop": [
-			143474,
+			144374,
 			97
 		],
 		"sfx_target_lock": [
-			144571,
+			145471,
 			342
 		],
 		"sfx_reindeer_dart": [
-			145913,
+			146813,
 			476
 		],
 		"sfx_redbox": [
-			147389,
+			148289,
 			244
 		],
 		"sfx_win_h1_grandma": [
-			148634,
+			149534,
 			800
 		],
 		"sfx_win_h2_wagon": [
-			150434,
+			151334,
 			600
 		],
 		"sfx_win_h3_van": [
-			152034,
+			152934,
 			600
 		],
 		"sfx_win_h4_police": [
-			153634,
+			154534,
 			680
 		],
 		"sfx_win_low_1": [
-			155314,
+			156214,
 			480
 		],
 		"sfx_win_low_2": [
-			156794,
+			157694,
 			480
 		],
 		"sfx_win_low_3": [
-			158274,
+			159174,
 			480
 		],
 		"sfx_win_low_4": [
-			159754,
+			160654,
 			480
 		],
 		"sfx_win_low_5": [
-			161234,
+			162134,
 			480
 		],
 		"sfx_line_show": [
-			162714,
+			163614,
 			197
 		],
 		"sfx_multiplier_land_small": [
-			163911,
+			164811,
 			456
 		],
 		"sfx_multiplier_land_mid": [
-			165367,
+			166267,
 			456
 		],
 		"sfx_multiplier_land_high": [
-			166823,
+			167723,
 			456
 		],
 		"sfx_present_pop": [
-			168279,
+			169179,
 			800
+		],
+		"sfx_wild_double": [
+			170979,
+			480
+		],
+		"sfx_column_grow": [
+			172459,
+			600
+		],
+		"sfx_column_santa_in": [
+			174059,
+			1298
+		],
+		"sfx_column_grandma_in": [
+			176357,
+			1317
+		],
+		"sfx_column_win_reindeer": [
+			178674,
+			1000
+		],
+		"sfx_column_win_santa": [
+			180674,
+			1000
+		],
+		"sfx_column_win_grandma": [
+			182674,
+			1000
+		],
+		"sfx_scatter_tease": [
+			184680,
+			2000,
+			true
+		],
+		"sfx_sticky_set": [
+			187680,
+			480
+		],
+		"sfx_topup": [
+			189160,
+			800
+		],
+		"sfx_card_in": [
+			190960,
+			484
+		],
+		"sfx_card_out": [
+			192444,
+			496
+		],
+		"amb_road": [
+			193950,
+			10000,
+			true
 		]
 	},
 	"config": {
@@ -644,10 +698,49 @@
 		},
 		"sfx_present_pop": {
 			"volume": 1
+		},
+		"sfx_wild_double": {
+			"volume": 1
+		},
+		"sfx_column_grow": {
+			"volume": 1
+		},
+		"sfx_column_santa_in": {
+			"volume": 1
+		},
+		"sfx_column_grandma_in": {
+			"volume": 1
+		},
+		"sfx_column_win_reindeer": {
+			"volume": 1
+		},
+		"sfx_column_win_santa": {
+			"volume": 1
+		},
+		"sfx_column_win_grandma": {
+			"volume": 1
+		},
+		"sfx_scatter_tease": {
+			"volume": 1
+		},
+		"sfx_sticky_set": {
+			"volume": 1
+		},
+		"sfx_topup": {
+			"volume": 1
+		},
+		"sfx_card_in": {
+			"volume": 1
+		},
+		"sfx_card_out": {
+			"volume": 1
+		},
+		"amb_road": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=ef2252bb",
-		"./assets/audio/sounds.m4a?v=2001377f"
+		"./assets/audio/sounds.ogg?v=5ebac61a",
+		"./assets/audio/sounds.m4a?v=e0254133"
 	]
 }

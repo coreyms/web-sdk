@@ -111,7 +111,24 @@ export type SoundEffectName =
 	| 'sfx_multiplier_land_small'
 	| 'sfx_multiplier_land_mid'
 	| 'sfx_multiplier_land_high'
-	| 'sfx_present_pop';
+	| 'sfx_present_pop'
+	// round 3 (Corey's finals 2026-11-15): the column's growth, entrances and win clips, the bonus round's cards and top-up,
+	// the road's ambience (constants REINDEER_SOUND). sfx_wild_double and sfx_scatter_tease are in the sprite with no
+	// moment in the game to play them (Desktop .../pass3_2026-11-16/NOTES.md); the tier family (sfx_win_big ... _max,
+	// above) replaced Manticore's clips in place and has no tier moment yet either.
+	| 'sfx_wild_double'
+	| 'sfx_column_grow'
+	| 'sfx_column_santa_in'
+	| 'sfx_column_grandma_in'
+	| 'sfx_column_win_reindeer'
+	| 'sfx_column_win_santa'
+	| 'sfx_column_win_grandma'
+	| 'sfx_scatter_tease'
+	| 'sfx_sticky_set'
+	| 'sfx_topup'
+	| 'sfx_card_in'
+	| 'sfx_card_out'
+	| 'amb_road';
 
 export type SoundName = MusicName | SoundEffectName;
 
@@ -276,6 +293,8 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 					return rate(...(a as []));
 				};
 				howl.on('end', (id: number) => push('end', id));
+				// what was already sounding when the tap went in (the road's ambience starts as the sprite lands): named
+				for (const sd of (howl as unknown as { _sounds?: { _id: number; _sprite: string; _paused: boolean }[] })._sounds ?? []) if (!sd._paused && sd._sprite) names.set(sd._id, sd._sprite);
 				howl.__tap = { log, names };
 			}
 			const tap = howl.__tap;

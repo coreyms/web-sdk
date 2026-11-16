@@ -2,7 +2,7 @@ import type { BetType } from 'rgs-requests';
 
 import type { SymbolName, GameType, CellIndex } from './types';
 
-// One-to-one with math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, "Contract version 2026-11-10a" (variant F + C).
+// One-to-one with math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, "Contract version 2026-11-15a" (variant F + C; 2026-11-15a added winInfo capped).
 // Keep them in step: the schema is the contract, this file is only its TypeScript shadow.
 //
 // The contract's rule: every strike, target cell, multiplier, column tier and top-up is decided in the book. The
@@ -44,7 +44,11 @@ type BookEventReveal = {
 type BookEventWinInfo = {
 	index: number;
 	type: 'winInfo';
+	/** what this spin awards: on the spin that reaches the 7,777x cap, the cap less the round's total before it */
 	totalWin: number;
+	/** contract 2026-11-15a: true only on the spin that reaches the cap, where the lines' own pays add up to more than
+	 *  totalWin (what is awarded). The game then shows no line's own amount, only totalWin. */
+	capped?: boolean;
 	wins: {
 		/** the paying symbol (W for a line of Wilds only, which pays as Grandma's car) */
 		symbol: SymbolName;

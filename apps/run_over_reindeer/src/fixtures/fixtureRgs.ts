@@ -31,8 +31,10 @@ export const FIXTURE_ROUNDS: FixtureRound[] = SHOWCASE_ROUNDS.map((r) => ({
  *  walks through that buy's books. */
 export const FIXTURE_ORDER: Record<'base' | 'bonus' | 'super', string[]> = {
 	base: ['no_win_1', 'plain_line_win', 'base_grandma_strike', 'no_win_2', 'base_one_column', 'tier_santa', 'plain_line_win', 'tier_grandma', 'base_two_columns', 'no_win_1', 'base_three_columns', 'natural_free_spins', 'no_win_2', 'floor_top_up', 'natural_super', 'floor_top_up_super'],
-	bonus: ['grandma_3x', 'retrigger', 'grandma_red_box', 'three_columns_free_spins', 'column_30x', 'column_50x', 'grandma_100x', 'wild_line_then_scatter'],
-	super: ['super_typical', 'multi_reel_strikes', 'wild_line_three_columns_scatter', 'max_win'],
+	// (fixtures_2026-11-15b's two new rounds at the end: a Grandma strike with a sleigh standing in its reel, and a bought
+	// Super topped up to its 20x minimum)
+	bonus: ['grandma_3x', 'retrigger', 'grandma_red_box', 'three_columns_free_spins', 'column_30x', 'column_50x', 'grandma_100x', 'wild_line_then_scatter', 'grandma_strike_sleigh_on_reel'],
+	super: ['super_typical', 'multi_reel_strikes', 'wild_line_three_columns_scatter', 'max_win', 'super_floor_top_up'],
 };
 
 const RESUME_KEY = 'reindeer.fixture.resume';

@@ -23,7 +23,7 @@
 		 *  Grandma Wild's multiplier joining the column's number (0 = none) */
 		| { type: 'boardColumnWild'; reel: number; tier: ColumnTier; multiplier: number; sticky: boolean; fromCell: number | null; joinAdd: number }
 		/** show the winning lines and the amount; resolves when the hold is over */
-		| { type: 'boardWinShow'; wins: LineWinSpec[]; amountText: string; multiplier: number }
+		| { type: 'boardWinShow'; wins: LineWinSpec[]; amountText: string; multiplier: number; capped?: boolean }
 		| { type: 'boardWinClear' }
 		/** pulse cells with no line (the scatters of a trigger); resolves after ms */
 		| { type: 'boardPulse'; cells: number[]; ms: number }
@@ -191,8 +191,10 @@
 		boardColumnWild: async ({ reel, tier, multiplier, sticky, fromCell, joinAdd }) => {
 			await road.features.columnWild(reel, tier, multiplier, sticky, fromCell, joinAdd);
 		},
-		boardWinShow: async ({ wins, amountText, multiplier }) => {
-			await road.showWin(wins, amountText, LINE_WIN.holdMs * (LINE_WIN.holdShare[stateGame.turboLevel] ?? 1), multiplier);
+		boardWinShow: async ({ wins, amountText, multiplier, capped }) => {
+			// every time of the win (the lights' stagger and draw, the hold after the total) is this share at the turbo level
+			const pace = LINE_WIN.holdShare[stateGame.turboLevel] ?? 1;
+			await road.showWin(wins, amountText, LINE_WIN.holdMs * pace, multiplier, { pace, capped });
 		},
 		boardWinClear: () => road.clearWin(),
 		boardPulse: async ({ cells, ms }) => {
@@ -258,6 +260,14 @@
 			police: () => road.policeSnapshot(),
 			/** THE VANS' WIN as drawn (game/road/vanWin.ts; the numbers are tune.vanWin) */
 			vans: () => road.vanSnapshot(),
+			/** THE CHRISTMAS LIGHTS WIN LINES as drawn (game/road/winLights.ts; the numbers are tune.lineWin.lights): each line's
+			 *  start, draw fraction, bulbs lit, palette, own amount (its box), and the total */
+			winLights: () => road.winLightsSnapshot(),
+			/** the lights drawn or not, the win itself untouched (the probe's cost: the same frozen frame with and without) */
+			winLightsShown: (on: boolean) => road.devWinLightsShown(on),
+			/** an animation moment from outside the road (the bonus round cards, the ambience) into the road's sound log, on
+			 *  the board's current frame (the sound probe sets it against the sound's own play) */
+			markMoment: (what: string, detail?: string) => road.features.sounds.mark(what, detail),
 			roadSprites: () => {
 				let sprites = 0;
 				let shadows = 0;

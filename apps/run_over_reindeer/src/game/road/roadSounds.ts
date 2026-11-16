@@ -1,7 +1,9 @@
 // THE ROAD'S OWN SOUNDS (constants REINDEER_SOUND has the rules and the numbers): the reindeer's alert, run loop and
 // turn, the crash, the crash cloud's loop, the Grandma Wild, the reindeer column's entrance and his idle snort; since
 // round 2 also the spin (the traffic loop, the five reel stops, the stoplights), the target crosshair (hop, drop, lock,
-// the red box), his dart, a column's multiplier stamp and the presents' pop (game/road/roadBoard.ts cues the spin's).
+// the red box), his dart, a column's multiplier stamp and the presents' pop (game/road/roadBoard.ts cues the spin's);
+// since round 3 the column's growth, Santa's and Grandma's entrances, each character's win clip, a sticky column
+// settling in, and the line show once per line as it lights (game/road/roadBoard.ts).
 // game/road/roadFeatures.ts says WHEN, from the frame the animation reaches the moment (the road clock, so turbo and a
 // slam stop move a sound with its picture); this file says WHAT plays and keeps the two loops honest: each is started
 // once, stopped on the frame its picture ends, and never left running.
@@ -20,7 +22,7 @@ export type RoadSoundEnv = {
 	roundLive: () => boolean;
 };
 
-type Cue = 'alert' | 'turn' | 'crash' | 'grandmaWild' | 'columnIn' | 'snort' | 'dart' | 'present';
+type Cue = 'alert' | 'turn' | 'crash' | 'grandmaWild' | 'columnIn' | 'snort' | 'dart' | 'present' | 'grow' | 'santaIn' | 'grandmaIn' | 'sticky';
 
 /** DEV / probe (window.__reindeer.roadSounds): every animation moment and every sound asked, with the board's frame */
 export type RoadSoundEntry = { t: number; frame: number; clock: number; kind: 'moment' | 'sound'; what: string; detail?: string };
@@ -47,6 +49,8 @@ export class RoadSounds {
 	private dropFrame = -1;
 	private lockFrame = -1;
 	private lightFrame = -1;
+	/** the frame each tier's column win sound last played */
+	private winFrame: Record<string, number> = {};
 	private log: RoadSoundEntry[] = [];
 
 	/** the board's frame begins (roadFeatures.update) */
@@ -118,6 +122,15 @@ export class RoadSounds {
 			this.lockFrame = this.frameNo;
 			this.playNamed(N.lock, `cell ${cell}`);
 		} else this.playNamed(N.redbox, `cell ${cell}`);
+	}
+
+	/** a column character's win clip starts on this frame: its tier's win sound, once a frame per tier (two reindeer
+	 *  columns in one win play one sound, not the same one twice at once) */
+	columnWin(tier: 'reindeer' | 'santa' | 'grandma', reel: number) {
+		this.mark('columnWin', `reel ${reel} ${tier}`);
+		if (this.winFrame[tier] === this.frameNo) return;
+		this.winFrame[tier] = this.frameNo;
+		this.playNamed(REINDEER_SOUND.columnWin[tier], `reel ${reel}`);
 	}
 
 	/** a stoplight changed color on this frame (once a frame, however many changed) */

@@ -1,6 +1,7 @@
 // GAME INFO'S COPY (ui/GameInfoModal.svelte). Written from the settled rules (docs/run-over-reindeer-spec.md "Math
-// direction settled" and "What-if 4, variant E accepted", contract 2026-11-10a). No books are published yet: every
-// rate, floor and multiplier range here must be read again against the published math before a submission.
+// direction settled" and "What-if 4, variant E accepted"), read again on 2026-11-16 against the math build of 2026-11-15
+// (contract 2026-11-15a, the P1 paytable: results/build_2026-11-15/BUILD_REPORT.md). Every rate, floor and multiplier
+// range here comes from game/config.ts; the paytable page takes the pays from there too. The text quotes no odds.
 //
 // Social mode: no gambling vocabulary on stake.us (soc(standard, social)). `**text**` marks bold runs.
 import config from './config';

@@ -1,7 +1,7 @@
 // THE ONE PLACE A ROUND IS PLAYED: one handler per book event type, called in book order (utils-book).
 // The frontend never computes an outcome. A handler shows what its event says and nothing else: which cell was
 // struck, which tier stepped out, which multiplier, what a line paid, what a top-up added.
-// Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-10a.
+// Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-15a (2026-11-10a plus winInfo capped, the clear path rule and the bought Super's floor).
 import { stateBet, stateBetDerived } from 'state-shared';
 import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 import { waitForTimeout } from 'utils-shared/wait';
@@ -19,6 +19,11 @@ import type { Board } from './types';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 
 const ROWS = 4;
+
+/** DEV: a moment into the road's sound log (the sound probe: the music's hand-over, against the road's ambience) */
+const devMark = (what: string, detail?: string) => {
+	if (import.meta.env.DEV) (globalThis as unknown as { __reindeer?: { markMoment?: (what: string, detail?: string) => void } }).__reindeer?.markMoment?.(what, detail);
+};
 
 /** a pause on the road's own pace: shorter at turbo, shorter still under a slam stop */
 const pace = (ms: number) => waitForTimeout(Math.max(1, ms / boardRate()));
@@ -48,6 +53,7 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	stateGame.topUp = null;
 	stateGame.capped = false;
 	eventEmitter.broadcast({ type: 'soundMusic', name: stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus' });
+	devMark('music', stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus');
 };
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
@@ -112,17 +118,21 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const best = bookEvent.wins.reduce((a, w) => (rank(w.symbol) < rank(a) ? w.symbol : a), bookEvent.wins[0].symbol as string);
 		const symbolSound = REINDEER_SOUND.winBySymbol[best];
 		if (symbolSound) eventEmitter.broadcast({ type: 'soundOnce', name: symbolSound as SoundEffectName });
-		eventEmitter.broadcast({ type: 'soundOnce', name: REINDEER_SOUND.lineShow as SoundEffectName });
+		// (sfx_line_show: once per line as it lights since round 3, the road's own cue, game/road/roadBoard.ts)
 		// the HUD's WIN counts up to the spin's amount while the lines show (the base game's round total is the spin's;
 		// a free spin's running total arrives with setTotalWin)
 		if (stateGame.gameType === 'basegame') setHudWin(bookEvent.totalWin);
 		// the multiplier shown over the amount is the book's own, the highest among the winning lines
 		const multiplier = bookEvent.wins.reduce((most, win) => Math.max(most, win.multiplier), 1);
+		// THE CHRISTMAS LIGHTS (constants LINE_WIN lights): each line lights in the book's order with its own amount (the
+		// book's line pay), then the total. On the spin that reaches the cap (capped: the book's totalWin is what is
+		// awarded, less than the lines' pays) no line's own amount shows: only the total, the awarded amount.
 		await eventEmitter.broadcastAsync({
 			type: 'boardWinShow',
-			wins: bookEvent.wins.map((win) => ({ cells: win.cells, line: win.line })),
+			wins: bookEvent.wins.map((win) => ({ cells: win.cells, line: win.line, symbol: win.symbol, amountText: bookEventAmountToCurrencyString(win.win) })),
 			amountText: bookEventAmountToCurrencyString(bookEvent.totalWin),
 			multiplier,
+			capped: bookEvent.capped === true,
 		});
 		eventEmitter.broadcast({ type: 'boardWinClear' });
 	},
@@ -168,6 +178,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.spinsPlayed = 0;
 		stateGame.topUp = null;
 		eventEmitter.broadcast({ type: 'soundMusic', name: 'bgm_base' });
+		devMark('music', 'bgm_base');
 	},
 
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {

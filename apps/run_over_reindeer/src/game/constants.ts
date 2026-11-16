@@ -551,6 +551,58 @@ export const LINE_WIN = {
 	/** the amount pops in from this size over popMs */
 	popFrom: 0.6,
 	popMs: 180,
+	/** THE CHRISTMAS LIGHTS (Corey 2026-11-15: "2. Christmas Lights, this looks great", the win line mock's style 2;
+	 *  game/road/winLights.ts, tools/build_win_lights.py). Each winning line is a dark green wire with a dark outline,
+	 *  strung from winning symbol to winning symbol and sagging between them like a hung wire, drawn in along the line
+	 *  over drawMs; bulbs hang from it every `bulb.spacing` road px and light one after another as the wire reaches them,
+	 *  then twinkle in a chase while the line is held. THE STAGGER ("I like the staggering on the win lines, with the
+	 *  amounts showing up with the win lines"): the lines start staggerMs apart in the book's order, each line's own
+	 *  amount pops in as its wire is complete, then the total shows as before (its pop, the x multiplier, the hold). A
+	 *  one line win's own amount IS the total, so it shows once, as the total. Angry Mantis lights its combos 220 ms
+	 *  apart and keeps every amount floating over its own cluster (no total over the board); Manticore's fast wave
+	 *  starts its clusters 135 ms apart; these lines go slower, 420 ms ("420 is fine"), because each one draws for
+	 *  620 ms and is read on its own. Every time here is real ms at normal speed and is multiplied by holdShare for
+	 *  the turbo level (and run 3x by a slam stop's hurry, the win clock). Plain sprites only: tinted quads of Pixi's
+	 *  white texture for the wire, one bulb and one glow picture for the lights; no filter, mask, shader or blur. */
+	lights: {
+		/** false: the old straight lines, all at once */
+		on: true,
+		staggerMs: 420,
+		drawMs: 620,
+		/** each span between two winning symbols droops this many road px at its middle */
+		sag: 38,
+		/** the wire, road px: its outline's full width, its core's, and how finely a span is cut into straight quads */
+		wire: { outline: 14, core: 6, outlineColor: 0x0b0c0f, coreColor: 0x1f5c36, segmentsPerSpan: 14 },
+		/** a bulb every `spacing` road px along the wire from `first`; it pops up from popFrom over popMs as the wire
+		 *  reaches it; a bulb not lit in the chase is its color times `dim`. `scale`: its drawn size, a share of the
+		 *  sheet's largest draw (winLightsSpec.ts pop) */
+		bulb: { spacing: 74, first: 36, popFrom: 0.5, popMs: 110, dim: 0.68, scale: 1 / 1.18 },
+		/** the glow under a lit bulb, added (its alpha lit and in the chase's off beat) */
+		glow: { alpha: 0.7, dimAlpha: 0.16, scale: 1 / 1.18 },
+		/** after the wire is drawn: one bulb in `cycle` is lit, the light steps along every stepMs */
+		chase: { stepMs: 140, cycle: 3 },
+		/** a line's own amount: Overpass Heavy, gold with the dark edge, this cap size in road px; it pops in when its line
+		 *  is complete, swelling by `swell` over popMs, on a winning symbol's top edge (the middle one first; another if
+		 *  it would touch an amount already up). When the total comes they fade over fadeMs. The total comes holdMs after
+		 *  the last line's amount. */
+		amount: { size: 52, fill: 0xffd400, stroke: 0x101216, strokeWidth: 10, popMs: 160, swell: 0.35, pad: 6, holdMs: 320, fadeMs: 160 },
+		/** THE BULB COLORS, by the symbol the line pays (Corey: "different color lights, maybe that align with the types of
+		 *  symbols they are clearing"), cycled along the wire. Sampled from the art where it has the color (the van's
+		 *  light blue, Grandma's purple and gold, the sleigh's red and gold, the signs'): the wagon's tree green is its
+		 *  needles' hue (#2b6800 in the art) at a lit bulb's brightness, its lighter green the wagon's own body (#98a862) */
+		palettes: {
+			H4: [0xf21c1c, 0xffffff, 0x2a5cff],
+			H3: [0x91d1f8, 0xffffff, 0xffd400],
+			H2: [0x5ad800, 0x98a862, 0xffffff],
+			H1: [0xb12bd3, 0xffffff, 0xfcc920],
+			W: [0xef2e2c, 0xfab717, 0xffffff],
+			L1: [0xc5f803, 0xffffff],
+			L2: [0xfb5601, 0xffffff],
+			L3: [0xfccd02, 0xffffff],
+			L4: [0xf80290, 0xffffff],
+			L5: [0xffffff, 0xb8c2cc],
+		} as Record<string, number[]>,
+	},
 };
 
 // ---- THE REINDEER'S OWN SOUNDS (Corey's picks 2026-11-15; game/road/roadSounds.ts plays them) -------------------------
@@ -593,6 +645,12 @@ export const REINDEER_SOUND = {
 		dart: 'sfx_reindeer_dart',
 		redbox: 'sfx_redbox',
 		present: 'sfx_present_pop',
+		// round 3 (Corey's finals 2026-11-15, wired 2026-11-16): the column's growth and its other two characters, a free
+		// spins column settling in to stay
+		grow: 'sfx_column_grow',
+		santaIn: 'sfx_column_santa_in',
+		grandmaIn: 'sfx_column_grandma_in',
+		sticky: 'sfx_sticky_set',
 	},
 	// ---- ROUND 2 (2026-11-15). The same rule: each one cued from the frame its picture reaches the moment.
 	//   traffic    sfx_traffic_roll, a 2.0 s loop: from the press (the board pulls away) through the wait for the book and
@@ -624,7 +682,30 @@ export const REINDEER_SOUND = {
 	//   present    sfx_present_pop, a trigger's presents: ONE play, on the frame the first present's lid leaves the box
 	//              (the open's first frame with any lift, game/road/present.ts PRESENT_LID_FRAME: frame 3, 100 ms into
 	//              the open at normal speed). Corey's file builds for 170 ms before its pop, so the pop itself is heard
-	//              170 ms after that frame (the round 2 notes have the numbers).
+	//              170 ms after that frame (the round 2 notes have the numbers). ROUND 3: on the open's FIRST frame instead
+	//              (`presentPopFrame`, Corey: yes), so the pop itself lands about 170 ms into the open (the lid lifts at
+	//              100 ms, the stars burst from 120 ms).
+	// ---- ROUND 3 (2026-11-16). The same rule again; game/road/roadSounds.ts and game/road/roadFeatures.ts cue them.
+	//   grow       sfx_column_grow, the red box starts growing up the reel (the frame its 'grow' begins; Super's opening
+	//              column too, whose box grows from the middle). In the sprite from its right channel only (the
+	//              builder's ROR_SOURCE_CHANNEL: its two channels partly cancel in a downmix).
+	//   column in  each character's entrance on frame `columnIn.frame[tier]` of its 16: the first frame it stands in full
+	//              color out of the cloud's silhouette. The reindeer's first hoof (round 1), Santa's heavy steps (his
+	//              hmph, 800 ms into the file, then lands on his hands-on-hips pose, frames 13 to 15), Grandma's cane
+	//              taps (her cackle, 610 ms in, while she walks out, frames 12 to 15).
+	//   column win sfx_column_win_<tier>, a column character's win clip: on its first frame (a line win runs through the
+	//              reel and the clip is in; no clip, no win pose, no sound)
+	//   sticky     sfx_sticky_set, a STICKY column (free spins and Super) has finished its entrance and stands: the frame
+	//              its idle begins. A base game column (it leaves at the next press) plays none.
+	//   cards      sfx_card_in on the frame a bonus round card comes up (its pop starts), sfx_card_out on the frame it
+	//              goes (it has no exit animation); sfx_topup with the wrap-up card when it says the round was topped up
+	//              to its minimum (ui/RoundCard.svelte)
+	//   lines      sfx_line_show ONCE PER LINE, on the frame that line starts to light (the lines light one after another,
+	//              constants LINE_WIN lights); the symbol's own sound stays one per win, with the first line
+	//   ambience   amb_road, a 10.000 s loop in the sprite (the house pattern for an effects loop: the traffic, the cloud,
+	//              Manticore's fire loops), on under the base game from the moment the sprite is in, faded out when a
+	//              feature's music takes over (the base music does the same) and back with the base music
+	//              (components/Sound.svelte)
 	/** the hop's pitch, semitones, by its number in the strike (1st hop the first entry; it cycles) */
 	hopSemitones: [0, 1.5, -1, 2, -2, 0.5, -1.5, 1],
 	dart: { peakMs: 330 },
@@ -660,7 +741,15 @@ export const REINDEER_SOUND = {
 	stopFadeMs: 8,
 	/** the cloud loop at the end of a round, real ms */
 	roundEndFadeMs: 300,
-	columnIn: { frame: 5 },
+	columnIn: { frame: { reindeer: 5, santa: 5, grandma: 5 } as Record<'reindeer' | 'santa' | 'grandma', number> },
+	/** the present's pop starts on this frame of the open (0 = its first; round 2 started it on PRESENT_LID_FRAME, 3) */
+	presentPopFrame: 0,
+	/** a column character's win clip, by tier */
+	columnWin: { reindeer: 'sfx_column_win_reindeer', santa: 'sfx_column_win_santa', grandma: 'sfx_column_win_grandma' } as Record<'reindeer' | 'santa' | 'grandma', string>,
+	/** the bonus round cards (ui/RoundCard.svelte) */
+	cards: { in: 'sfx_card_in', out: 'sfx_card_out', topUp: 'sfx_topup' },
+	/** the road's ambience under the base game: faded in over inMs when it starts, out over outMs when a feature starts */
+	ambience: { name: 'amb_road', inMs: 1200, outMs: 600 },
 	snort: {
 		/** the chance at each restart of the reindeer's idle loop (4 s at normal speed): about once every 24 s per column */
 		odds: 1 / 6,

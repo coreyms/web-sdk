@@ -3,13 +3,14 @@
 	// the house panel surface (black glass, Overpass headings), over the board; the HUD steps aside while one is up.
 	// The handlers put a card in stateGame.roundCard and wait (game/bookEventHandlerMap.ts showCard); a press anywhere,
 	// Space or Enter, or the card's own time running out, dismisses it. Every amount on it is the book's.
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { stateBet } from 'state-shared';
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
 	import config from '../game/config';
-	import { ROUND } from '../game/constants';
+	import { REINDEER_SOUND, ROUND } from '../game/constants';
+	import type { SoundEffectName } from '../game/sound';
 	import { soc } from '../game/social';
 	import { dismissRoundCard } from '../game/bookEventHandlerMap';
 	import type { RoundCard } from '../game/stateGame.svelte';
@@ -30,7 +31,20 @@
 		if (armed) dismissRoundCard();
 	};
 
+	/** a card's sound, through the game's own sound events (the effects volume and mute apply) */
+	// (the card's kind read once, at mount: when the card goes, its prop already reads the cleared state)
+	const kind: RoundCard['kind'] = untrack(() => card.kind);
+	const voice = (name: string) => {
+		// DEV: the moment, for the sound probe (window.__reindeer.markMoment, components/Board.svelte)
+		if (import.meta.env.DEV) (window as unknown as { __reindeer?: { markMoment?: (what: string, detail?: string) => void } }).__reindeer?.markMoment?.('card', `${name} ${kind}`);
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: name as SoundEffectName });
+	};
+
 	onMount(() => {
+		// THE CARD'S SOUNDS (constants REINDEER_SOUND cards): it comes up on this frame (its pop starts with the mount), and
+		// a wrap-up that says the round was topped up to its minimum has the top-up beat with it
+		voice(REINDEER_SOUND.cards.in);
+		if (card.kind === 'outro' && card.topUp) voice(REINDEER_SOUND.cards.topUp);
 		// Space belongs to the card while it is up (ui/Chrome.svelte holds its own Space hotkey off)
 		context.stateGame.pressGates += 1;
 		const arm = setTimeout(() => (armed = true), ROUND.armMs);
@@ -50,6 +64,8 @@
 			clearTimeout(timer);
 			window.removeEventListener('keydown', key);
 			context.stateGame.pressGates = Math.max(0, context.stateGame.pressGates - 1);
+			// it goes on this frame (no exit animation)
+			voice(REINDEER_SOUND.cards.out);
 		};
 	});
 
