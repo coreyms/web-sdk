@@ -251,9 +251,13 @@
 			runMemory: () => runMemory(),
 			/** THE SCATTER PRESENT: its sheets loaded now and their GPU weight; the per-frame trace of its animations
 			 *  (clear = true empties it); the full open by hand on the board as it stands (no book, no sound) */
-			/** THE CONTACT SHADOWS as drawn (game/road/shadows.ts; the strength is tune.shadow), and what the road draws:
+			/** THE CAST SHADOWS as drawn (game/road/shadows.ts; the numbers are tune.shadow), and what the road draws:
 			 *  every sprite shown (visible all the way up and renderable), and how many of them are shadows */
 			shadows: () => road.shadowSnapshot(),
+			/** THE POLICE CARS' LIGHT BARS as drawn (game/road/policeLights.ts; the numbers are tune.policeLights) */
+			police: () => road.policeSnapshot(),
+			/** THE VANS' WIN as drawn (game/road/vanWin.ts; the numbers are tune.vanWin) */
+			vans: () => road.vanSnapshot(),
 			roadSprites: () => {
 				let sprites = 0;
 				let shadows = 0;

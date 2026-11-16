@@ -157,7 +157,8 @@ async function runCase(p, S, C) {
 		window.__reindeer.turbo(0);
 		window.__reindeer.forceSnort(null);
 	});
-	return { ...out, settled, roundEnd, slammed };
+	const cutTurn = await p.evaluate(() => !!window.__reindeer.tune.sound.cutTurn);
+	return { ...out, settled, roundEnd, slammed, cutTurn };
 }
 
 const r1 = (v) => (v === null || v === undefined ? '' : Math.round(v * 10) / 10);
@@ -205,10 +206,19 @@ function judge(tag, C, R) {
 		check(!!stop && stop.frame - turn.frame <= 1, `${tag}: strike ${i + 1}: the Howl stops it within one frame of the turn (${stop ? stop.frame - turn.frame : '-'} frame, ${r1(stop ? stop.t - turn.t : null)} ms)`);
 		row('sfx_reindeer_run', run, stop ? stop.t : null, 'set off (first R pose)', o);
 		rows.push({ sound: '  run loop stop', start: r1((fade ?? stop).t - t0), stop: r1(stop?.t - t0), event: `turn (frame ${turn.frame})`, offset: r1((fade ?? stop).t - turn.t), frames: (fade ?? stop).frame - turn.frame });
-		const ts = turnSounds[i];
-		check(!!ts && ts.frame === turn.frame, `${tag}: strike ${i + 1}: the turn sound on the turn's frame (${ts?.frame} vs ${turn.frame})`);
+		const ts = turnSounds.find((x) => x.frame === turn.frame);
+		check(!!ts, `${tag}: strike ${i + 1}: the turn sound on the turn's frame (${turnSounds.map((x) => x.frame).join(',')} vs ${turn.frame})`);
 		if (ts) row('sfx_reindeer_turn', ts, endOf(ts)?.t ?? null, 'turn (S pose)', turn);
 	});
+	// THE LAST CUT (round 2 of the shadows: he runs down the gap between the traffic, then cuts into the target): one cut
+	// per strike that reached its run down; the turn sound plays on it only when REINDEER_SOUND.cutTurn is on (off by
+	// default: the cut is inside the dart's whoosh)
+	const cuts = M.filter((e) => e.what === 'cut');
+	const downs = M.filter((e) => e.what === 'down');
+	check(cuts.length === downs.length, `${tag}: one last cut per run down (${cuts.length} for ${downs.length})`);
+	const cutTurn = !!R.cutTurn;
+	check(turnSounds.length === turns.length + (cutTurn ? cuts.length : 0), `${tag}: turn sounds: ${turnSounds.length} for ${turns.length} turn(s)${cutTurn ? ` and ${cuts.length} cut(s)` : ' (none on the cut: cutTurn off)'}`);
+	if (cutTurn) cuts.forEach((c, i) => check(turnSounds.some((x) => x.frame === c.frame), `${tag}: cut ${i + 1}: the turn sound on the cut's frame (${c.frame})`));
 	const leftRun = R.roundEnd.playing.filter((x) => LOOPS.has(x.name));
 	check(!R.roundEnd.playing.some((x) => x.name === 'sfx_reindeer_run') && !R.roundEnd.state.run, `${tag}: no run loop at the round's end`, R.roundEnd);
 	check(!R.roundEnd.playing.some((x) => x.name === 'sfx_crash_cloud') || true, `${tag}: (cloud loop at the round's end: ${leftRun.map((x) => x.name).join(',') || 'none'}, it fades over 300 ms)`);

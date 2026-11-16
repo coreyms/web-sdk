@@ -1,80 +1,109 @@
-// THE CONTACT SHADOWS (Corey 2026-11-15; constants SHADOW, tools/build_shadows.py made the texture and
-// game/shadowSpec.ts): one soft ellipse texture, stretched to each thing's footprint as measured from its art.
+// THE CAST SHADOWS (Corey 2026-11-15, round 2; constants SHADOW): every thing on the road throws its own silhouette on
+// the ground, away from the camera and well to the left, from one light for the whole scene.
 //
-// Every shadow is a plain sprite with alpha (normal blend), so it batches with the symbol atlas in the same draw call.
-// Nothing here allocates per frame: a sprite is made once with its owner and only moved, sized and faded after.
-//   - a symbol on the road: its own frame's shadow, drawn in the road's ground layer under every lane
-//     (game/road/roadBoard.ts), following its sprite's x and the win pulse's scale, hidden with it
-//   - a column character: at its feet, between the column's cloud and its red frame (game/road/roadFeatures.ts)
-//   - the running reindeer: on the ground under him, per view and per stride, smaller and lighter while his feet are
-//     off the ground; drawn just under him and over the traffic he crosses (game/road/roadFeatures.ts)
+// The shadow is a TWIN of its owner: a plain sprite with the very texture, frame and anchor its owner draws this
+// frame, tinted near black, at SHADOW.alpha. It is pinned at the owner's ground contact point (its anchor: the bottom
+// of the tyres, the sleigh's runners, a sign's post, the present's base, the reindeer's feet point), keeps the owner's
+// width (and its mirror), is flattened to SHADOW.length of the owner's height and leaned SHADOW.angle toward the left
+// by a skew. So it is the shape of the car or sign, lying on the road, touching it where it touches the ground.
+// No new texture (the twin shares the owner's), no filter, mask, shader or blur; it follows an animated frame for
+// free, and it batches with its owner's texture in the same draw call.
+//
+// Where they lie (the draw order):
+//   - a symbol on the road (and through traffic) and the running reindeer: the road's ground layer, under all four
+//     lanes (game/road/roadBoard.ts), so no shadow is ever drawn over a symbol; it shows on the road in the gaps
+//   - a column character: on its column's cloud, behind it and under the red frame (game/road/roadFeatures.ts). The
+//     cloud stands in the reel like a wall behind the character, so there the same light throws the twin up and to the
+//     left onto it (a plain offset, no lean), cropped to the inside of the box by its texture frame (a crop, not a mask)
+// Nothing allocates per frame: a twin is made once with its owner and only re-pointed, moved and faded.
 import * as PIXI from 'pixi.js';
 
 import { SHADOW } from '../constants';
-import { SHADOW_ART } from '../shadowSpec';
-import type { RunView } from './reindeerRun';
 
-export type ShadowShape = { readonly width: number; readonly height: number; readonly dx: number; readonly dy: number; readonly alpha: number };
+/** the darkest a shadow is drawn now (0 when they are off) */
+export const shadowStrength = (): number => (SHADOW.on ? Math.max(0, Math.min(1, SHADOW.alpha)) : 0);
 
-const SYMBOLS = SHADOW_ART.symbols as unknown as Record<string, ShadowShape>;
-const COLUMNS = SHADOW_ART.columns as unknown as Record<string, ShadowShape>;
-const RUN = SHADOW_ART.run;
-const RUN_VIEWS = RUN.views as unknown as Record<RunView, { width: number; height: number; dx: number; dy: number }>;
-const RUN_LIFT = RUN.lift as unknown as Record<RunView, Record<string, number>>;
-
-/** the darkest point of a shadow now (0 when they are off) */
-export const shadowStrength = (): number => (SHADOW.on ? (SHADOW.alpha[SHADOW.strength] ?? 0) : 0);
-
-/** a symbol frame's shadow (frameFor's name: H1_R, L3, S...), or null for a frame with none */
-export const symbolShadow = (frame: string): ShadowShape | null => SYMBOLS[frame] ?? null;
-
-/** a column character's shadow at its feet */
-export const columnShadow = (tier: string): ShadowShape | null => COLUMNS[tier] ?? null;
-
-/** a shadow sprite (hidden until placed); `texture` null draws nothing */
-export const makeShadow = (texture: PIXI.Texture | null | undefined): PIXI.Sprite => {
-	const s = new PIXI.Sprite(texture ?? PIXI.Texture.EMPTY);
-	s.anchor.set(0.5);
+/** a shadow sprite (hidden until placed) */
+export const makeShadow = (): PIXI.Sprite => {
+	const s = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	s.tint = SHADOW.tint;
 	s.visible = false;
 	s.label = 'shadow';
 	return s;
 };
 
-/** put a shadow's centre at (x, y), w x h road px, at `alpha` (0 hides it) */
-export const placeShadow = (s: PIXI.Sprite, x: number, y: number, w: number, h: number, alpha: number) => {
-	const t = s.texture;
-	if (alpha <= 0.002 || t.width <= 1 || w <= 0 || h <= 0) {
-		s.visible = false;
+const hasPicture = (t: PIXI.Texture | null | undefined): t is PIXI.Texture => !!t && t !== PIXI.Texture.EMPTY && !t.destroyed && t.width > 1;
+
+/** THE CAST: `s` becomes the shadow of a sprite drawing `texture` with anchor (ax, ay) at (x, y) and scale (sx, sy):
+ *  pinned at that anchor (the owner's ground point), flattened and leaned by SHADOW.length and SHADOW.angle. `alpha`
+ *  0 (or no picture) hides it. Never copies a rotation: the ground does not tilt. */
+export const castShadow = (s: PIXI.Sprite, texture: PIXI.Texture | null | undefined, ax: number, ay: number, x: number, y: number, sx: number, sy: number, alpha: number) => {
+	if (alpha <= 0.002 || !hasPicture(texture)) {
+		if (s.visible) s.visible = false;
 		return;
 	}
+	if (s.texture !== texture) s.texture = texture;
+	if (s.anchor.x !== ax || s.anchor.y !== ay) s.anchor.set(ax, ay);
 	if (s.tint !== SHADOW.tint) s.tint = SHADOW.tint;
-	s.visible = true;
 	s.position.set(x, y);
-	s.scale.set(w / t.width, h / t.height);
+	// local (0, -h) (the owner's top) lands at (-sin(angle), -cos(angle)) x h x length from the ground point
+	s.scale.set(sx, sy * SHADOW.length);
+	const lean = (SHADOW.angle * Math.PI) / 180;
+	if (s.skew.x !== lean || s.skew.y !== 0) s.skew.set(lean, 0);
 	s.alpha = alpha;
+	s.visible = true;
 };
 
-/** THE REINDEER'S SHADOW for a view and stride: where its centre is from his feet point (road px, already mirrored by
- *  `dir`), its size and its alpha share, from his draw scale `k`. Written into `out` (no allocation). */
-export type RunShadow = { x: number; y: number; w: number; h: number; share: number; lift: number };
-/** `along`: how far he is (0 to 1) from this stride's pose to the next one's: his foot height is eased between the two
- *  measured poses (when the view has the next one), so the shadow breathes with the stride instead of jumping */
-export const runShadow = (view: RunView, stride: number | null, k: number, dir: 1 | -1, out: RunShadow, along = 0): RunShadow => {
-	const v = RUN_VIEWS[view];
-	const table = RUN_LIFT[view];
-	const here = stride === null ? 0 : (table?.[String(stride)] ?? 0);
-	const next = stride === null ? undefined : table?.[String((stride % 16) + 1)];
-	const lift = next === undefined ? here : here + (next - here) * Math.max(0, Math.min(1, along));
-	const u = Math.min(1, Math.max(0, lift) / RUN.liftFull);
-	const shrink = 1 - RUN.shrink * u;
-	const road = RUN.roadPxPerFramePx * k;
-	out.x = dir * v.dx * road;
-	// the centre stays on the ground: only its size and darkness answer his feet
-	out.y = v.dy * road;
-	out.w = v.width * road * shrink;
-	out.h = v.height * road * shrink;
-	out.share = RUN.alpha * (1 - RUN.fade * u);
-	out.lift = lift;
-	return out;
+/** where a cast shadow's owner's top lands, from its ground point, per road px of the owner's height (the probes and
+ *  the notes): x to the left (negative), y up (negative) */
+export const castReach = () => {
+	const lean = (SHADOW.angle * Math.PI) / 180;
+	return { x: -Math.sin(lean) * SHADOW.length, y: -Math.cos(lean) * SHADOW.length };
+};
+
+/** a box in road px */
+export type ShadowBox = { x: number; y: number; w: number; h: number };
+
+/** THE COLUMN CHARACTER'S SHADOW on its cloud: the twin of `body` (a sprite with anchor 0, drawn at its x, y, width,
+ *  height from a plain frame of a sheet) moved by SHADOW.column (dx, dy), cropped to `box` by its own texture's frame.
+ *  `tex` is the shadow's own dynamic texture (made on the first call, kept by the caller, re-pointed after); returns it. */
+export const dropShadow = (s: PIXI.Sprite, tex: PIXI.Texture | null, body: PIXI.Sprite, box: ShadowBox, alpha: number): PIXI.Texture | null => {
+	const src = body.texture;
+	if (alpha <= 0.002 || !hasPicture(src) || body.width <= 0 || body.height <= 0) {
+		if (s.visible) s.visible = false;
+		return tex;
+	}
+	const C = SHADOW.column;
+	const x0s = body.x + C.dx;
+	const y0s = body.y + C.dy;
+	const x0 = Math.max(x0s, box.x);
+	const x1 = Math.min(x0s + body.width, box.x + box.w);
+	const y0 = Math.max(y0s, box.y);
+	const y1 = Math.min(y0s + body.height, box.y + box.h);
+	if (x1 - x0 < 1 || y1 - y0 < 1) {
+		if (s.visible) s.visible = false;
+		return tex;
+	}
+	const f = src.frame;
+	const perX = f.width / body.width;
+	const perY = f.height / body.height;
+	// dynamic: the sprite follows a texture whose frame changes when the texture says so (the column cloud's crop does
+	// the same)
+	tex ??= new PIXI.Texture({ source: src.source, frame: f.clone(), dynamic: true });
+	if (tex.source !== src.source) tex.source = src.source;
+	tex.frame.x = f.x + (x0 - x0s) * perX;
+	tex.frame.y = f.y + (y0 - y0s) * perY;
+	tex.frame.width = Math.max(1, (x1 - x0) * perX);
+	tex.frame.height = Math.max(1, (y1 - y0) * perY);
+	tex.update();
+	if (s.texture !== tex) s.texture = tex;
+	if (s.anchor.x !== 0 || s.anchor.y !== 0) s.anchor.set(0, 0);
+	if (s.skew.x !== 0) s.skew.set(0, 0);
+	if (s.tint !== SHADOW.tint) s.tint = SHADOW.tint;
+	s.position.set(x0, y0);
+	s.width = x1 - x0;
+	s.height = y1 - y0;
+	s.alpha = alpha;
+	s.visible = true;
+	return tex;
 };

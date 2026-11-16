@@ -7,6 +7,11 @@
 //   - poses shown in order, never one skipped (each frame the stride stays or goes +1 mod 16)
 //   - S and M are exactly one pose each, the run down starts on pose 7, C never shows poses 3 to 6
 //   - the first pose follows (7 - n) mod 16 with n counted in poses; the run ends on the target reel's centre
+//   - ROUND 2 (2026-11-15, the run between the traffic): the run down (C) is on the gap at the edge of the target's
+//     reel (the side he comes from, or the inner side for an outer reel), the last cut is Q poses running toward the
+//     reel's centre (mirrored when that is against his way along the snow), and the time from the set off to the
+//     impact is the straight path's (planStrike's keepMs; only an entry from the near side into an outer reel may run
+//     longer, reported, not a fault: the game's own entry is 'far')
 //   - the slide ratio on every grounded pose shown (body advance per pose against the rig's hoof sweep for that pose)
 // It also runs one strike at 120 Hz and at 30 Hz (no skipped pose, and how long it takes), checks the stage 2 rule
 // (planRun from a fixed start pose: a unit-style scan of every distance), and reads the run views' GPU memory. With
@@ -29,6 +34,14 @@ const STRIP = process.env.STRIP || '';
 const K = 0.18465;
 const BOARD_X = 142;
 const LANE_TOP = 167;
+const PITCH = 250;
+/** the gap rule (game/road/roadFeatures.ts strikeGapX), written out again here */
+const gapFor = (reel, side) => {
+	let edge = side === 'left' ? reel : reel + 1;
+	if (edge <= 0) edge = 1;
+	if (edge >= 5) edge = 4;
+	return BOARD_X + edge * PITCH;
+};
 
 // THE RIG'S HOOF SWEEP on the ground, frame px per pose, backward along each view's screen direction (measured from the
 // export's frames: dark hoof blobs within 15 frame px of the view's ground line, tracked pose to pose, central difference)
@@ -80,12 +93,12 @@ const runStrike = async (page, { cell, side, hz = 60 }) =>
 					if (impactFrame === null) {
 						impactFrame = frames;
 						// the impact frame's own pose (a protected pose may be drawn on it)
-						rows.push({ f: frames, impact: true, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, scale: r.scale, mirrored: r.mirrored, toX: r.toX, poses: r.poses, impactFeetY: r.impactFeetY });
+						rows.push({ f: frames, impact: true, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, scale: r.scale, mirrored: r.mirrored, toX: r.toX, gapX: r.gapX, cutDir: r.cutDir, impactMs: r.impactMs, keepMs: r.keepMs, kept: r.kept, poses: r.poses, impactFeetY: r.impactFeetY });
 					}
 					if (r.alpha <= 0) break;
 					continue;
 				}
-				rows.push({ f: frames, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, scale: r.scale, mirrored: r.mirrored, toX: r.toX, poses: r.poses, impactFeetY: r.impactFeetY });
+				rows.push({ f: frames, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, scale: r.scale, mirrored: r.mirrored, toX: r.toX, gapX: r.gapX, cutDir: r.cutDir, impactMs: r.impactMs, keepMs: r.keepMs, kept: r.kept, poses: r.poses, impactFeetY: r.impactFeetY });
 			}
 			for (let i = 0; i < 10 && !done; i++) {
 				h.step(50, 1);
@@ -95,7 +108,9 @@ const runStrike = async (page, { cell, side, hz = 60 }) =>
 			await p;
 			// road ms from the strike's call to the impact frame
 			const lead = h.tune.strike.leadInMs - step / 2;
-			return { rows, impactFrame, impactMs: impactFrame === null ? null : lead + impactFrame * step, layout: h.boardLayout() };
+			// the set off: the lead in (the crosshair's when it is on, as h.strike runs it)
+			const setOff = Math.max(h.tune.strike.leadInMs, h.tune.crosshair.on ? h.tune.crosshair.leadMs : 0);
+			return { rows, impactFrame, impactMs: impactFrame === null ? null : lead + impactFrame * step, setOff, layout: h.boardLayout() };
 		},
 		{ cell, side, hz },
 	);
@@ -121,7 +136,7 @@ const analyse = (rows, { side, cell, strict = true }) => {
 		if (!poses.length || poses[poses.length - 1].idx !== idx) poses.push({ ...r, idx });
 	}
 	const order = poses.map((p) => p.view).join('');
-	if (!(strict ? /^R+SQ+MC+$/ : /^R*SQ*MC+$/).test(order)) issues.push(`view order ${order}`);
+	if (!(strict ? /^R+SQ+MC+Q+$/ : /^R*SQ*MC+Q+$/).test(order)) issues.push(`view order ${order}`);
 	const count = (v) => poses.filter((p) => p.view === v).length;
 	if (count('S') !== 1) issues.push(`S poses ${count('S')}`);
 	if (count('M') !== 1) issues.push(`M poses ${count('M')}`);
@@ -130,7 +145,7 @@ const analyse = (rows, { side, cell, strict = true }) => {
 	if (!firstC || firstC.stride !== 7 || firstC.idx !== rows[0].poses.along) issues.push(`run down starts on pose ${firstC?.stride}`);
 	// the protected poses' lateness (ms of the road clock behind their own time; 0 when drawn on time)
 	const lateOf = (idx) => Math.max(0, ...rows.filter((r) => r.index === idx).slice(0, 1).map((r) => r.late ?? 0));
-	const prot = { S: lateOf(rows[0].poses.side), M: lateOf(rows[0].poses.side + 1 + rows[0].poses.diagonal), C: lateOf(rows[0].poses.along) };
+	const prot = { S: lateOf(rows[0].poses.side), M: lateOf(rows[0].poses.side + 1 + rows[0].poses.diagonal), C: lateOf(rows[0].poses.along), cut: lateOf(rows[0].poses.along + rows[0].poses.down) };
 	const end = rows[rows.length - 1];
 	if (Math.abs(end.x - end.toX) > 0.01) issues.push(`ends ${end.x - end.toX} off the reel centre`);
 	const lone = poses.filter((p) => p.view === 'C' && p.stride >= 3 && p.stride <= 6).length;
@@ -138,8 +153,23 @@ const analyse = (rows, { side, cell, strict = true }) => {
 	const P = rows[0].poses;
 	const expectStart = ((((7 - P.along - 1) % 16) + 16) % 16) + 1;
 	if (strict && poses[0].stride !== expectStart) issues.push(`first pose ${poses[0].stride}, the rule says ${expectStart}`);
-	if (!rows.every((r) => r.mirrored === (side === 'right'))) issues.push('mirror flag wrong');
-	if (rows.filter((r) => r.view === 'C').some((r) => Math.abs(r.x - r.toX) > 0.01)) issues.push('C off the reel centre');
+	// THE GAP AND THE CUT: C straight down the gap; the cut (every pose from along + down on) in Q, mirrored by its own
+	// way; everything before it mirrored by the entry side
+	const P0 = rows[0].poses;
+	const cutAt = P0.along + P0.down;
+	const reel = Math.floor(cell / 4);
+	const gap = gapFor(reel, side);
+	if (Math.abs(rows[0].gapX - gap) > 0.01) issues.push(`gap ${rows[0].gapX}, the rule says ${gap}`);
+	if (rows.filter((r) => r.view === 'C').some((r) => Math.abs(r.x - gap) > 0.01)) issues.push('C off the gap');
+	const cutDir = rows[0].toX >= gap ? 1 : -1;
+	if (rows[0].cutDir !== cutDir) issues.push(`cut runs ${rows[0].cutDir}, should run ${cutDir}`);
+	if (!rows.every((r) => r.mirrored === (r.index >= cutAt ? cutDir === -1 : side === 'right'))) issues.push('mirror flag wrong');
+	if (rows.filter((r) => r.index >= cutAt).some((r) => r.view !== 'Q')) issues.push('the cut is not all Q');
+	// the cut moves toward the reel's centre and down, steadily
+	const cutRows = rows.filter((r) => r.index >= cutAt);
+	for (let k = 1; k < cutRows.length; k++) if ((cutRows[k].x - cutRows[k - 1].x) * cutDir < -0.01 || cutRows[k].y < cutRows[k - 1].y - 0.01) issues.push(`the cut goes back at frame ${cutRows[k].f}`);
+	// (a 60 Hz screen or faster shows the cut on two frames or more; a 20 or 30 Hz one may show only its protected pose)
+	if (cutRows.length < (strict ? 2 : 1)) issues.push(`the cut shows on ${cutRows.length} frame(s)`);
 	// body advance per pose: the feet's travel from one pose's first frame to the next (road px)
 	const adv = [];
 	for (let k = 1; k < poses.length; k++) {
@@ -169,6 +199,12 @@ const analyse = (rows, { side, cell, strict = true }) => {
 		slide,
 		turnTopFeetY: firstC ? firstC.y : null,
 		late: prot,
+		gapX: rows[0].gapX,
+		cutFrames: cutRows.length,
+		downFrames: rows.filter((r) => r.view === 'C').length,
+		plannedMs: rows[0].impactMs,
+		keepMs: rows[0].keepMs,
+		kept: rows[0].kept,
 		skipped: skips,
 		renderFrames: rows.length,
 		issues,
@@ -199,6 +235,13 @@ const main = async () => {
 							const r = await runStrike(page, { cell, side });
 							const a = analyse(r.rows, { side, cell });
 							a.impactMs = r.impactMs;
+							// THE TIME KEPT: the impact frame is the first 60 Hz frame at or after the set off plus the plan's time,
+							// and the plan's time is the straight path's (the old one) whenever the gap is on his side
+							const due = r.setOff + a.plannedMs;
+							if (!(r.impactMs >= due - 1e-6 && r.impactMs < due + 1000 / 60 + 1e-6)) a.issues.push(`impact at ${r.impactMs.toFixed(1)} ms, due ${due.toFixed(1)}`);
+							const ownSide = gapFor(reel, side) === BOARD_X + (side === 'left' ? reel : reel + 1) * PITCH;
+							if (ownSide && (!a.kept || Math.abs(a.plannedMs - a.keepMs) > 0.01)) a.issues.push(`time not kept: ${a.plannedMs} ms against the straight path's ${a.keepMs}`);
+							a.ownSide = ownSide;
 							a.rows = r.rows.map(({ f, pose, index, view, stride, x, y, scale, mirrored, late, impact }) => ({ f, pose, index, view, stride, x, y, scale, mirrored, late, impact }));
 							out.strikes.push(a);
 							// THE SAME STRIKE AT 30, 20 AND 120 Hz (the board's update stepped at that frame interval: the very
@@ -344,24 +387,25 @@ const main = async () => {
 									if (r.phase === 'impact') {
 										if (impactAt === null) {
 											impactAt = t;
-											rows.push({ t: t - t0, impact: true, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, toX: r.toX, mirrored: r.mirrored, poses: r.poses });
+											rows.push({ t: t - t0, impact: true, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, toX: r.toX, gapX: r.gapX, cutDir: r.cutDir, impactMs: r.impactMs, keepMs: r.keepMs, kept: r.kept, mirrored: r.mirrored, poses: r.poses });
 										}
 										return;
 									}
-									rows.push({ t: t - t0, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, toX: r.toX, mirrored: r.mirrored, poses: r.poses });
+									rows.push({ t: t - t0, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, toX: r.toX, gapX: r.gapX, cutDir: r.cutDir, impactMs: r.impactMs, keepMs: r.keepMs, kept: r.kept, mirrored: r.mirrored, poses: r.poses });
 								};
 								await h.strike(cell);
 								await new Promise((r) => setTimeout(r, 300));
 								window.__afterFrame = null;
 								const gaps = rows.slice(1).map((r, i) => r.t - rows[i].t);
-								return { rows, impactMs: impactAt === null ? null : impactAt - t0, worstGap: Math.max(...gaps), meanGap: gaps.reduce((a, b) => a + b, 0) / gaps.length };
+								const setOff = Math.max(h.tune.strike.leadInMs, h.tune.crosshair.on ? h.tune.crosshair.leadMs : 0);
+								return { rows, setOff, impactMs: impactAt === null ? null : impactAt - t0, worstGap: Math.max(...gaps), meanGap: gaps.reduce((a, b) => a + b, 0) / gaps.length };
 							},
 							{ cell, side },
 						);
 						const a = analyse(run.rows, { side, cell, strict: false });
 						const P = run.rows[0].poses;
 						// the time it should take: the lead in, the poses along the snow, the run down
-						const want = 90 + (P.along * 1000) / 60 + (P.down * 1000) / 42;
+						const want = run.setOff + run.rows[0].impactMs;
 						runs.push({ side, reel: reel + 1, impactMs: +run.impactMs.toFixed(1), wantMs: +want.toFixed(1), diffMs: +(run.impactMs - want).toFixed(1), meanGap: +run.meanGap.toFixed(1), worstGap: +run.worstGap.toFixed(1), late: a.late, skipped: a.skipped, order: a.order, issues: a.issues });
 					}
 			report.real.push({ hz, ready, runs });
@@ -434,7 +478,7 @@ const main = async () => {
 		console.log(`${L.name} (${L.kind}): ready ${L.ready}; run views ${JSON.stringify(L.memory)}`);
 		for (const s of L.strikes) {
 			const worst = Math.max(...s.slide.filter((x) => x.ratio !== null && x.view !== 'C').map((x) => x.ratio), 0);
-			console.log(`  ${s.side.padEnd(5)} reel ${s.reel} row ${s.row}: ${s.order} poses ${s.strideSeq} | side ${s.sideStep?.toFixed(2)}/pose, down ${s.downStep?.toFixed(2)}/pose | worst grounded slide R/S/Q/M ${worst} | impact ${Math.round(s.impactMs)} ms | ${s.issues.length ? 'ISSUES ' + s.issues.join('; ') : 'ok'}`);
+			console.log(`  ${s.side.padEnd(5)} reel ${s.reel} row ${s.row}: ${s.order} poses ${s.strideSeq} | side ${s.sideStep?.toFixed(2)}/pose, down ${s.downStep?.toFixed(2)}/pose | gap ${s.gapX} (${s.ownSide ? 'his side' : 'inner'}), down ${s.downFrames} frames, cut ${s.cutFrames} frames | worst grounded slide R/S/Q/M ${worst} | run ${s.plannedMs} ms, straight path ${s.keepMs} ms${s.kept ? ' (kept)' : ' (NOT kept)'} | impact ${Math.round(s.impactMs)} ms | ${s.issues.length ? 'ISSUES ' + s.issues.join('; ') : 'ok'}`);
 		}
 		console.log('  refresh:', JSON.stringify(L.refresh));
 		console.log('  stage2:', JSON.stringify(L.stage2));
@@ -445,8 +489,12 @@ const main = async () => {
 			const xs = L.strikes.map((st) => st.rates[hz]);
 			const bad = xs.filter((x) => x.issues.length);
 			const lateMax = (k) => Math.max(...xs.map((x) => x.late[k])).toFixed(1);
-			console.log(`${L.name} ${hz} Hz: ${xs.length} strikes, ${bad.length} with issues${bad.length ? ' ' + JSON.stringify(bad[0].issues) : ''}; duration diff ${Math.min(...xs.map((x) => x.diffMs)).toFixed(1)} .. ${Math.max(...xs.map((x) => x.diffMs)).toFixed(1)} ms; late S ${lateMax('S')} M ${lateMax('M')} C ${lateMax('C')} ms; skipped up to ${Math.max(...xs.map((x) => x.skipped))}`);
+			console.log(`${L.name} ${hz} Hz: ${xs.length} strikes, ${bad.length} with issues${bad.length ? ' ' + JSON.stringify(bad[0].issues) : ''}; duration diff ${Math.min(...xs.map((x) => x.diffMs)).toFixed(1)} .. ${Math.max(...xs.map((x) => x.diffMs)).toFixed(1)} ms; late S ${lateMax('S')} M ${lateMax('M')} C ${lateMax('C')} cut ${lateMax('cut')} ms; skipped up to ${Math.max(...xs.map((x) => x.skipped))}`);
 		}
+	const all = report.layouts.flatMap((L) => L.strikes.flatMap((s) => [s.issues, ...Object.values(s.rates || {}).map((x) => x.issues)]));
+	const realAll = (report.real || []).flatMap((R) => R.runs.map((x) => x.issues));
+	const bad = [...all, ...realAll].filter((x) => x.length).length;
+	console.log(`\nSTRIKES: ${all.length + realAll.length - bad} without issues, ${bad} with issues (stepped at 60, 30, 20 and 120 Hz, and the real ticker)`);
 	for (const R of report.real || []) console.log(`REAL ${R.hz} Hz ready ${R.ready}: ` + R.runs.map((x) => `${x.side[0]}${x.reel} ${x.impactMs}/${x.wantMs} (gap ${x.meanGap}/${x.worstGap}) late ${x.late.S.toFixed(0)}/${x.late.M.toFixed(0)}/${x.late.C.toFixed(0)}${x.issues.length ? ' ISSUES ' + x.issues.join(';') : ''}`).join(' | '));
 	if (report.strip) console.log('strip:', report.strip.strikes.map((s) => `${s.side} ${s.shots.length} poses`).join(', '));
 };

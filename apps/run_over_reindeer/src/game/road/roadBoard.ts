@@ -6,7 +6,7 @@
 // "comes out of the tunnels" because the two portal strips cut from the background are drawn over it, and it
 // darkens near them by a plain sprite tint.
 //
-// Layers, back to front: the background, the ground (every symbol's contact shadow, game/road/shadows.ts), the four lanes (top lane first, so lower lanes draw in front), the features
+// Layers, back to front: the background, the ground (every symbol's cast shadow and the running reindeer's, game/road/shadows.ts), the four lanes (top lane first, so lower lanes draw in front), the features
 // (cloud cells, red boxes, column characters), the line win overlay, the running reindeer, the two stoplights, the
 // rock beside the picture and the tunnel portals.
 //
@@ -21,7 +21,9 @@ import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
 import { NumberLabel, RoadFeatures } from './roadFeatures';
 import { PRESENT_LID_FRAME, PRESENT_LOOK, PresentActor, presentOpenMs, presentStillTexture, presentsReadyForOpen, presentTriggerPlayed } from './present';
-import { makeShadow, placeShadow, shadowStrength, symbolShadow, type ShadowShape } from './shadows';
+import { castShadow, makeShadow, shadowStrength } from './shadows';
+import { PoliceLightBar } from './policeLights';
+import { VanWinFx } from './vanWin';
 
 const COLS = ROAD_ART.board.columns;
 const ROWS = ROAD_ART.board.rows;
@@ -85,9 +87,12 @@ type Car = {
 	/** THE SCATTER PRESENT's animation (game/road/present.ts): made the first time this sprite's present animates, kept
 	 *  with the sprite (it is drawn just after it in its lane) */
 	present: PresentActor | null;
-	/** ITS CONTACT SHADOW (game/road/shadows.ts): made with the car, in the ground layer; its frame's shape */
+	/** ITS CAST SHADOW (game/road/shadows.ts): its twin, made with the car, in the ground layer */
 	shadow: PIXI.Sprite;
-	shade: ShadowShape | null;
+	/** A POLICE CAR'S LIGHT BAR (game/road/policeLights.ts): made the first time this sprite wins as a police car */
+	lights: PoliceLightBar | null;
+	/** THE VAN'S WIN (game/road/vanWin.ts): made the first time this sprite wins as the van */
+	van: VanWinFx | null;
 };
 
 export type SignalColor = 'red' | 'amber' | 'green';
@@ -127,11 +132,14 @@ export type LineWinSpec = { cells: number[]; line: number };
 export class RoadBoard {
 	readonly root = new PIXI.Container();
 	private readonly lanes: PIXI.Container[] = [];
-	/** THE GROUND: every contact shadow, under every lane (a car in a lower lane draws over the shadow above it) */
+	/** THE GROUND: every cast shadow (the symbols' and the running reindeer's), under every lane, so no shadow is ever
+	 *  drawn over a symbol */
 	private readonly ground = new PIXI.Container();
-	private readonly shadowTex: PIXI.Texture | null;
 	private readonly cars: Car[] = [];
 	private readonly winLayer = new PIXI.Container();
+	/** THE WIN EFFECTS: the police cars' lights (game/road/policeLights.ts), the van's flashlight and backfire
+	 *  (game/road/vanWin.ts): over every lane, under the features and the line win */
+	private readonly policeLayer = new PIXI.Container();
 	private readonly winLines = new PIXI.Graphics();
 	private winAmount: PIXI.Text | null = null;
 	private winMult: NumberLabel | null = null;
@@ -199,7 +207,6 @@ export class RoadBoard {
 		textures: { road?: PIXI.Texture; tunnelLeft?: PIXI.Texture; tunnelRight?: PIXI.Texture },
 	) {
 		this.presentStill = presentStillTexture(tex('presentStill'));
-		this.shadowTex = tex('shadow') ?? null;
 		const img = ROAD_ART.image;
 		if (textures.road) {
 			const bg = new PIXI.Sprite(textures.road);
@@ -213,8 +220,11 @@ export class RoadBoard {
 			this.lanes.push(lane);
 			this.root.addChild(lane);
 		}
+		this.root.addChild(this.policeLayer);
 		// the cloud cells, the red boxes and the column characters stand over the traffic and under the line win
 		this.features = new RoadFeatures(tex);
+		// the running reindeer's shadow lies on the ground with the traffic's (under every lane)
+		this.ground.addChild(this.features.groundLayer);
 		this.features.hideCell = (cell, hidden) => this.setCellHidden(cell, hidden);
 		// the crosshair's candidates: the valid targets parked and shown now; and the board as text for its seed
 		this.features.targetCells = () => this.cars.filter((c) => c.phase === 'rest' && c.sprite.visible && c.symbol !== null && TARGETS.includes(c.symbol)).map((c) => c.col * ROWS + c.lane);
@@ -257,14 +267,13 @@ export class RoadBoard {
 		if (!car) {
 			const sprite = new PIXI.Sprite();
 			sprite.anchor.set(0.5, 1);
-			const shadow = makeShadow(this.shadowTex);
+			const shadow = makeShadow();
 			this.ground.addChild(shadow);
-			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff, stopped: false, present: null, shadow, shade: null };
+			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, shadow, lights: null, van: null };
 			this.cars.push(car);
 		}
 		this.stopPresent(car);
 		const frame = frameFor(symbol, dir);
-		car.shade = symbolShadow(frame);
 		const size = (ROAD_ART.symbols as Record<string, { width: number; height: number }>)[frame];
 		const want = (size?.width ?? PITCH * 0.8) * (ROAD.symbolScale[symbol] ?? 1);
 		const still = symbol === 'S' ? this.presentStill : null;
@@ -303,6 +312,8 @@ export class RoadBoard {
 		car.symbol = null;
 		car.sprite.visible = false;
 		car.shadow.visible = false;
+		car.lights?.off();
+		car.van?.off(car.sprite, car.restX, laneSitY(car.lane));
 	}
 
 	// ---- the scatter present (game/road/present.ts) ------------------------------------------------------------------
@@ -601,6 +612,74 @@ export class RoadBoard {
 		return this.wait(this.winClock + holdMs, 'win');
 	}
 
+	/** THE POLICE LIGHTS (constants POLICE_LIGHTS): every police car in the win showing now flashes, on the win's clock
+	 *  (so all of them in phase), at its win pulse; every other one is dark, and all of them are dark the frame the win's
+	 *  hold ends or it is cleared */
+	private updatePolice() {
+		const win = this.win;
+		const live = !!win && win.active && win.dim;
+		for (const car of this.cars) {
+			const police = car.symbol === 'H4' && car.phase === 'rest' && car.winning && car.sprite.visible;
+			if (!live || !police) {
+				car.lights?.off();
+				continue;
+			}
+			if (!car.lights) {
+				const glow = this.tex('stoplight_glow');
+				if (!glow) continue;
+				car.lights = new PoliceLightBar(this.policeLayer, glow);
+			}
+			const frame = frameFor('H4', car.dir);
+			const art = (ROAD_ART.symbols as Record<string, { width: number; height: number }>)[frame];
+			const t = car.sprite.texture;
+			// road px per built road px: the symbol's own scale with its win pulse
+			const k = art && t.height > 0 ? (Math.abs(car.sprite.scale.y) * t.height) / art.height : 1;
+			car.lights.draw(frame, car.sprite.x, car.sprite.y, k, this.winClock - win!.t0);
+		}
+	}
+
+	/** THE VAN'S WIN (constants VAN_WIN): every van in the win showing now lurches, backfires, then rocks with its
+	 *  flashlight, on the win's clock; every other one is still, and all of them are still and dark (back on their mark,
+	 *  upright) the frame the win's hold ends or it is cleared. Before paint, so the shadows see it (they keep to the
+	 *  mark: placeShadows). */
+	private updateVans() {
+		const win = this.win;
+		const live = !!win && win.active && win.dim;
+		for (const car of this.cars) {
+			const van = car.symbol === 'H3' && car.phase === 'rest' && car.winning && car.sprite.visible;
+			if (!live || !van) {
+				if (car.van && car.phase === 'rest') car.van.off(car.sprite, car.restX, laneSitY(car.lane));
+				else car.van?.off(null, 0, 0);
+				continue;
+			}
+			if (!car.van) {
+				const glow = this.tex('stoplight_glow');
+				if (!glow) continue;
+				car.van = new VanWinFx(this.policeLayer, glow, this.tex('vanPuff') ?? null);
+			}
+			const frame = frameFor('H3', car.dir);
+			const art = (ROAD_ART.symbols as Record<string, { width: number; height: number }>)[frame];
+			const t = car.sprite.texture;
+			const k = art && t.height > 0 ? (Math.abs(car.sprite.scale.y) * t.height) / art.height : 1;
+			car.van.draw(car.sprite, frame, car.restX, laneSitY(car.lane), k, this.winClock - win!.t0);
+		}
+	}
+
+	/** DEV / probes: every van's win as drawn (cell, winning, its phase, the body's squat and lean, the brightest glow's x
+	 *  and alpha, the puffs' alpha) */
+	vanSnapshot() {
+		return this.cars
+			.filter((c) => c.symbol === 'H3' && c.phase !== 'free')
+			.map((c) => ({ cell: c.phase === 'rest' ? c.col * ROWS + c.lane : null, dir: c.dir, winning: c.winning, ...(c.van?.last ?? { phase: 'off', squat: 0, lean: 0, bounce: 1, glowX: 0, glowAlpha: 0, puffAlpha: 0, glows: 0, puffs: 0, fit: true }), rotation: c.sprite.rotation, skew: c.sprite.skew.x, x: Math.round(c.sprite.x * 100) / 100, y: Math.round(c.sprite.y * 100) / 100, restX: c.restX, sitY: laneSitY(c.lane), winMs: this.win ? Math.round((this.winClock - this.win.t0) * 10) / 10 : null, winActive: !!this.win?.active }));
+	}
+
+	/** DEV / probes: every police car's light bar as drawn (cell, winning, the lit lens, its level) */
+	policeSnapshot() {
+		return this.cars
+			.filter((c) => c.symbol === 'H4' && c.phase !== 'free')
+			.map((c) => ({ cell: c.phase === 'rest' ? c.col * ROWS + c.lane : null, dir: c.dir, winning: c.winning, lit: c.lights?.lit ?? null, level: Math.round((c.lights?.level ?? 0) * 1000) / 1000, winMs: this.win ? Math.round((this.winClock - this.win.t0) * 10) / 10 : null, winActive: !!this.win?.active }));
+	}
+
 	/** pulse some cells with no line and no amount (the scatters of a trigger); resolves after `ms` */
 	pulseCells(cells: number[], ms: number): Promise<void> {
 		return this.showWin(cells.map((cell) => ({ cells: [cell], line: 1 })), '', ms);
@@ -615,6 +694,10 @@ export class RoadBoard {
 	clearWin() {
 		for (const car of this.cars) car.winning = false;
 		if (this.win) this.win.active = false;
+		for (const car of this.cars) {
+			car.lights?.off();
+			if (car.phase === 'rest') car.van?.off(car.sprite, car.restX, laneSitY(car.lane));
+		}
 	}
 
 	// ---- the stoplights (constants STOPLIGHT) -----------------------------------------------------------------------------
@@ -834,7 +917,9 @@ export class RoadBoard {
 		this.features.update(now);
 		this.updateLights(dt);
 		this.updateReelStops(now, rate);
+		this.updateVans();
 		this.paint();
+		this.updatePolice();
 		this.updatePresents(now);
 
 		if (this.waiters.length) {
@@ -935,20 +1020,27 @@ export class RoadBoard {
 		this.placeShadows();
 	}
 
-	/** THE CONTACT SHADOWS (constants SHADOW, game/road/shadows.ts): each symbol's on the ground under it, on its x and at
-	 *  its win pulse's scale (about its anchor, as the sprite), never tilted by the drive's dive (the ground does not
-	 *  tilt); gone with it (free, hidden in a tunnel, under a cloud or a column) */
+	/** THE CAST SHADOWS (constants SHADOW, game/road/shadows.ts): each symbol's twin on the ground, pinned at its ground
+	 *  point (the sprite's anchor), on its x and at its win pulse's scale, never tilted by the drive's dive (the ground
+	 *  does not tilt); gone with it (free, hidden in a tunnel, under a cloud or a column). A present playing its peek or
+	 *  open throws its still picture's shadow (the box stays on the ground). Near a tunnel mouth it fades with the
+	 *  tunnel's own shade (ROAD.tunnelShade): there is no sun in a tunnel. */
 	private placeShadows() {
 		const k = shadowStrength();
+		const sh = ROAD.tunnelShade;
 		for (const car of this.cars) {
-			const sh = car.shadow;
-			const shade = car.shade;
-			if (car.phase === 'free' || !car.sprite.visible || !shade || k <= 0) {
-				if (sh.visible) sh.visible = false;
+			const s = car.shadow;
+			const o = car.sprite;
+			if (car.phase === 'free' || !o.visible || k <= 0) {
+				if (s.visible) s.visible = false;
 				continue;
 			}
-			const pulse = car.baseScale > 0 ? car.sprite.scale.y / car.baseScale : 1;
-			placeShadow(sh, car.sprite.x + shade.dx * pulse, car.sprite.y + shade.dy * pulse, shade.width * pulse, shade.height * pulse, k * shade.alpha);
+			const inside = Math.min(o.x - MOUTH_L, MOUTH_R - o.x);
+			const u = Math.max(0, Math.min(1, (inside - sh.from) / Math.max(1, sh.to - sh.from)));
+			// a parked symbol's twin keeps to its mark (the van's win moves the van on its springs, not its shadow)
+			const gx = car.phase === 'rest' ? car.restX : o.x;
+			const gy = car.phase === 'rest' ? laneSitY(car.lane) : o.y;
+			castShadow(s, o.texture, o.anchor.x, o.anchor.y, gx, gy, o.scale.x, o.scale.y, k * u * u * (3 - 2 * u));
 		}
 	}
 
@@ -1051,21 +1143,40 @@ export class RoadBoard {
 		};
 	}
 
-	/** THE CONTACT SHADOWS as drawn (dev hook, tools/shadow_probe.mjs): every symbol's (with its owner's place and
-	 *  whether it is drawn), the features' (columns, the runner), and the ground layer's sprites */
+	/** THE CAST SHADOWS as drawn (dev hook, tools/shadow_probe.mjs): every symbol's twin against its owner (texture,
+	 *  anchor, place, scale, rotation and the twin's lean and alpha), the features' (columns, the runner), and the
+	 *  ground layer's sprites */
 	shadowSnapshot() {
+		const r2 = (v: number) => Math.round(v * 100) / 100;
 		const cars = this.cars
 			.filter((c) => c.phase !== 'free' || c.shadow.visible)
 			.map((c) => {
 				const s = c.shadow;
+				const o = c.sprite;
 				return {
 					phase: c.phase, symbol: c.symbol, cell: c.phase === 'rest' ? c.col * ROWS + c.lane : null, lane: c.lane, frame: c.symbol ? frameFor(c.symbol, c.dir) : null,
-					ownerX: Math.round(c.sprite.x * 100) / 100, ownerY: Math.round(c.sprite.y * 100) / 100, ownerVisible: c.sprite.visible,
-					visible: s.visible, x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100, w: Math.round(s.scale.x * s.texture.width * 100) / 100, h: Math.round(s.scale.y * s.texture.height * 100) / 100, alpha: Math.round(s.alpha * 1000) / 1000,
-					shape: c.shade,
+					ownerX: r2(o.x), ownerY: r2(o.y), ownerVisible: o.visible, ownerScaleX: Math.round(o.scale.x * 10000) / 10000, ownerScaleY: Math.round(o.scale.y * 10000) / 10000, ownerAnchor: [o.anchor.x, o.anchor.y], ownerRotation: o.rotation, ownerTexture: o.texture?.label ?? null, ownerTextureUid: o.texture?.uid ?? -1,
+					visible: s.visible, x: r2(s.x), y: r2(s.y), scaleX: Math.round(s.scale.x * 10000) / 10000, scaleY: Math.round(s.scale.y * 10000) / 10000, skewX: s.skew.x, skewY: s.skew.y, rotation: s.rotation, anchor: [s.anchor.x, s.anchor.y], sameTexture: s.texture === o.texture, alpha: Math.round(s.alpha * 1000) / 1000, tint: s.tint,
+					// the owner's picture height (road px, at its scale) and the parent the twin lies in
+					ownerHeight: r2(o.texture ? o.texture.height * Math.abs(o.scale.y) : 0), ownerWidth: r2(o.texture ? o.texture.width * Math.abs(o.scale.x) : 0), inGround: s.parent === this.ground,
+					// the owner's picture as drawn (its trim inside its canvas: the present's still sits in a bigger canvas), road
+					// px from its anchor
+					ownerArt: (() => {
+						const t = o.texture;
+						if (!t) return null;
+						const tr = t.trim;
+						const x0 = tr ? tr.x : 0;
+						const y0 = tr ? tr.y : 0;
+						const w = tr ? tr.width : t.orig.width;
+						const h = tr ? tr.height : t.orig.height;
+						return { x0: r2((x0 - o.anchor.x * t.orig.width) * Math.abs(o.scale.x)), y0: r2((y0 - o.anchor.y * t.orig.height) * Math.abs(o.scale.y)), w: r2(w * Math.abs(o.scale.x)), h: r2(h * Math.abs(o.scale.y)) };
+					})(),
 				};
 			});
-		return { strength: shadowStrength(), texture: this.shadowTex ? { w: this.shadowTex.width, h: this.shadowTex.height, source: `${this.shadowTex.source.pixelWidth}x${this.shadowTex.source.pixelHeight}` } : null, cars, groundSprites: this.ground.children.length, features: this.features.shadowSnapshot() };
+		// the lanes' index in the root against the ground's (the ground must be under every lane)
+		const groundIndex = this.root.getChildIndex(this.ground);
+		const lanesAbove = this.lanes.every((l) => this.root.getChildIndex(l) > groundIndex);
+		return { strength: shadowStrength(), cars, groundSprites: this.ground.children.length - 1 + this.features.groundLayer.children.length, lanesAbove, features: this.features.shadowSnapshot() };
 	}
 
 	destroy() {

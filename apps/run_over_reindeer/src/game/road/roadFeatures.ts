@@ -1,5 +1,5 @@
-// THE FEATURES ON THE ROAD: the reindeer's strike (its run in the snow above the board and its turn down into the
-// target), the Grandma Wild (the crash cloud in one cell), the red box, and the full column Wilds with their three
+// THE FEATURES ON THE ROAD: the reindeer's strike (its run in the snow above the board, its turn down the gap between
+// two reels and its last diagonal cut into the target), the Grandma Wild (the crash cloud in one cell), the red box, and the full column Wilds with their three
 // characters and their multipliers.
 //
 // Everything here is drawn in road px inside the road board's own container (game/road/roadBoard.ts adds the two
@@ -8,18 +8,20 @@
 //
 // No filter, mask or shader. The red box is plain colored quads. The cloud is "revealed" as the box grows by moving
 // a texture's frame (a crop of the picture), and it stays inside the box because the entrance frames were cut to the
-// column's width offline (tools/build_columns.py). The character is never cropped: it draws over the box and over
-// the neighboring cells (spill over).
+// column's width offline (tools/build_columns.py). The character is cropped the same way to its box's outer edge, and
+// its red frame is drawn over it (since 2026-11-15; it used to spill over the box and the neighboring cells).
 //
-// THE DRAW ORDER (Corey 2026-11-10), bottom to top, each its own layer across ALL columns:
+// THE DRAW ORDER (Corey 2026-11-10; the characters under the frames since 2026-11-15), bottom to top, each its own
+// layer across ALL columns:
 //   back     the red box on a Grandma car in a struck Santa reel (under the column, which grows over it), each column's
-//            still cloud, and its entrance while the moving cloud is still in the frame
-//   feet     each column character's contact shadow (constants SHADOW): on the cloud floor, under its red frame
-//   boxes    the red frames (outer frame only: no lines between the rows)
+//            still cloud, its character's cast shadow on that cloud (constants SHADOW), and its entrance while the
+//            moving cloud is still in the frame
+//   bodies   the characters, each cropped to its own box by its texture's frame (Corey 2026-11-15: "the animation
+//            bleeds outside the column boxes ... I'd like their feet to be behind the borders ... the same for the top
+//            border": no spill over any more)
+//   boxes    the red frames (outer frame only: no lines between the rows), over the characters on all four sides
 //   cells    the Grandma Wild cells (cloud, frame, WILD and number)
-//   bodies   the characters with their spill over, reel 1 on top, then reel 2, down to reel 5 at the back,
-//            whatever order they arrived in
-//   numbers  every column's multiplier, over every character, so no neighbor's elbow can cover one
+//   numbers  every column's multiplier, over everything
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
@@ -32,9 +34,10 @@ import { REINDEER_RUN } from '../reindeerRunSpec';
 import { awaitRunViews, runBox, runFrame, type RunView } from './reindeerRun';
 import { CrosshairArt, easeOut, hashText, planCrosshair, sample, type CrosshairPlan, type CrosshairState, type Rect } from './crosshair';
 import { RoadSounds } from './roadSounds';
-import { columnShadow, makeShadow, placeShadow, runShadow, shadowStrength, type RunShadow, type ShadowShape } from './shadows';
+import { castShadow, dropShadow, makeShadow, shadowStrength } from './shadows';
 
 const ROWS = ROAD_ART.board.rows;
+const COLS = ROAD_ART.board.columns;
 const PITCH = ROAD_ART.board.pitch;
 const LINES = ROAD_ART.laneLines;
 const BOARD_X = ROAD_ART.board.x;
@@ -108,8 +111,10 @@ class RedBox {
 	}
 
 	/** lay the box around a rectangle (road px). `drawn` (0 to 1) is how much of it has been traced: from the top left
-	 *  corner along the top, down the right side, back along the bottom and up the left side. 1 = the whole box. */
-	set(x: number, y: number, w: number, h: number, drawn = 1) {
+	 *  corner along the top, down the right side, back along the bottom and up the left side. 1 = the whole box.
+	 *  `width`: the red band's thickness inside the rectangle (RED_BOX.width; a full column's is COLUMN.frameWidth). The
+	 *  dark line around it is RED_BOX.edge either side, so the outer edge stays where it was whatever the width. */
+	set(x: number, y: number, w: number, h: number, drawn = 1, width = RED_BOX.width) {
 		const frame = (list: PIXI.Sprite[], t: number, grow: number) => {
 			const x0 = x - grow;
 			const y0 = y - grow;
@@ -138,8 +143,8 @@ class RedBox {
 			list[3].height = right;
 			list[3].visible = right > 0;
 		};
-		frame(this.outer, RED_BOX.width + 2 * RED_BOX.edge, RED_BOX.edge);
-		frame(this.sides, RED_BOX.width, 0);
+		frame(this.outer, width + 2 * RED_BOX.edge, RED_BOX.edge);
+		frame(this.sides, width, 0);
 	}
 }
 
@@ -149,6 +154,11 @@ const cellRect = (cell: number) => {
 	return { x: BOARD_X + reel * PITCH, y: LINES[row], w: PITCH, h: LINES[row + 1] - LINES[row] };
 };
 const inset = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + RED_BOX.inset, y: r.y + RED_BOX.inset, w: r.w - 2 * RED_BOX.inset, h: r.h - 2 * RED_BOX.inset });
+/** a full column's box to the outside of its dark outer line (road px): nothing of its character draws past it */
+const columnOuter = (reel: number) => {
+	const r = inset({ x: BOARD_X + reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
+	return { x: r.x - RED_BOX.edge, y: r.y - RED_BOX.edge, w: r.w + 2 * RED_BOX.edge, h: r.h + 2 * RED_BOX.edge };
+};
 
 /** voiced: its crash has played (its first frame); wildVoiced: the Grandma Wild's sound (its pop settled) */
 type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: RedBox; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean };
@@ -217,15 +227,19 @@ type Column = {
 	enterCloud: boolean;
 	idleLoop: number;
 	idleT0: number;
-	/** ITS CONTACT SHADOW at the character's feet (constants SHADOW), and when it began to show (NaN: not yet) */
+	/** ITS CAST SHADOW on the column's cloud (constants SHADOW): the character's twin, its own cropped texture (made on
+	 *  first use), and when it began to show (NaN: not yet) */
 	foot: PIXI.Sprite;
-	footShape: ShadowShape | null;
+	footTex: PIXI.Texture | null;
 	footT0: number;
+	/** the character's own cropped texture (placeBody: its clip frame cut to the box), made on first use */
+	bodyTex: PIXI.Texture | null;
 };
 
 /** the running reindeer (constants STRIKE, game/road/reindeerRun.ts): the side run in the snow, one pose of S, the
- *  diagonal in Q, one pose of M, the run down the reel in C. It is counted in POSES of the 16 pose run cycle (a float:
- *  pose 3.4 shows pose index 3, 0.4 of the way to the next place); positions are its FEET (the views' anchor), road px. */
+ *  diagonal in Q, one pose of M, the run down the GAP beside the target's reel in C, and the last diagonal cut into the
+ *  target in Q (planStrike). It is counted in POSES of the 16 pose run cycle (a float: pose 3.4 shows pose index 3, 0.4
+ *  of the way to the next place); positions are its FEET (the views' anchor), road px. */
 type Runner = {
 	sprite: PIXI.Sprite;
 	/** the road clock when it sets off (after the lead in) */
@@ -238,22 +252,29 @@ type Runner = {
 	late: number | null;
 	/** which way it runs along the snow (1 = left to right; -1 is the same views mirrored) */
 	dir: 1 | -1;
-	/** the target reel's centre: where the run down starts and ends */
+	/** the target reel's centre (the impact), and the gap it runs down (a reel's edge) */
 	toX: number;
+	gapX: number;
+	/** which way the last cut runs (toward the target's centre; mirrored views for -1) */
+	cutDir: 1 | -1;
 	/** its feet in the snow */
 	feetY: number;
 	snowScale: number;
-	/** poses of the side run and of the diagonal; the poses along the snow in all (R, one S, Q, one M); the run down */
+	/** poses of the side run and of the diagonal; the poses along the snow in all (R, one S, Q, one M); the run down the
+	 *  gap (C); the last cut (Q) */
 	nR: number;
 	nQ: number;
 	nAlong: number;
 	nC: number;
+	nCut: number;
 	/** the stride (1 to 16) of its first pose: (7 - nAlong) mod 16, so the run down starts on pose 7 */
 	s0: number;
 	/** the side run's step against runSpeed / strideFps (1 = as tuned) */
 	factor: number;
-	/** its feet at each pose boundary along the snow, 0 .. nAlong (the last is the top of the run down) */
+	/** its feet at each pose boundary, 0 .. nAlong + nC + nCut (the last is the impact point), and the road clock ms
+	 *  from t0 at each (planStrike) */
 	path: { x: number; y: number }[];
+	times: number[];
 	/** its feet at the impact (its middle at STRIKE.impactAt of the target cell, at the road scale) */
 	impactFeetY: number;
 	/** the road clock at the impact (null until then) */
@@ -268,15 +289,19 @@ type Runner = {
 	/** a Grandma car to box as it starts down (a struck Santa reel), or null */
 	markCell: number | null;
 	marked: boolean;
-	/** THE SOUNDS (game/road/roadSounds.ts): the strike's first frame (the alert), the set off (the run loop), the turn */
+	/** THE SOUNDS (game/road/roadSounds.ts): the strike's first frame (the alert), the set off (the run loop), the turn,
+	 *  the last cut */
 	alerted: boolean;
 	setOff: boolean;
 	turned: boolean;
+	cut: boolean;
 	/** the dart's whoosh has been cued (REINDEER_SOUND dart) */
 	darted: boolean;
-	/** HIS CONTACT SHADOW on the ground under him (constants SHADOW), and its numbers as drawn last (the probes) */
+	/** HIS CAST SHADOW (constants SHADOW): his twin, on the road's ground under the traffic */
 	shadow: PIXI.Sprite;
-	shade: RunShadow;
+	/** the plan's numbers for the probes: the old straight path's time to the impact (kept), and whether it was kept */
+	keepMs: number;
+	kept: boolean;
 };
 
 /** a turned view's step on the screen: which way it runs (dx across, dy down, per unit of ground step) and how long
@@ -330,6 +355,112 @@ export const planRun = (distance: number, diagonal: number, startPose: number | 
 	return best && Math.abs(best.factor - 1) <= maxFactor + 1e-9 ? best : null;
 };
 
+/** THE GAP HE RUNS DOWN (Corey 2026-11-15: "the reindeer should probably run between the traffic and take another
+ *  diagonal turn at the very end to get to the strike point"): the edge of the target's reel on the side he comes from
+ *  (he reaches it first, and the last cut then runs on the way he was going), or the reel's inner edge when that side
+ *  is the board's outer edge (reel 1 from the left, reel 5 from the right: the road's shoulder by the tunnel). At the
+ *  default entry ('far': reels 1 and 2 from the right, 3 to 5 from the left) that is always the gap nearer the
+ *  board's centre. Returns its x, road px. */
+export const strikeGapX = (reel: number, dir: 1 | -1): number => {
+	let edge = dir === 1 ? reel : reel + 1;
+	if (edge <= 0) edge = 1;
+	if (edge >= COLS) edge = COLS - 1;
+	return BOARD_X + edge * PITCH;
+};
+
+export type StrikePlan = {
+	plan: RunPlan;
+	gapX: number;
+	cutDir: 1 | -1;
+	nC: number;
+	nCut: number;
+	/** feet at every pose boundary (0 .. nAlong + nC + nCut) and the ms from the set off at each */
+	path: { x: number; y: number }[];
+	times: number[];
+	impactFeetY: number;
+	/** the straight path's time to the impact (before round 2: the turn over the reel's centre and straight down it),
+	 *  and whether the new path keeps it exactly */
+	keepMs: number;
+	kept: boolean;
+	/** screen speed of the run down and the cut, road px per second */
+	downSpeed: number;
+};
+
+/** THE WHOLE PATH OF A STRIKE (a pure function; the strike uses it, the probes check it): from `fromX` (off the board's
+ *  edge, feet at snow.feetY) to the target cell `target` in reel `toX`. Along the snow as planRun says, but its turn ends
+ *  over the GAP (strikeGapX); then straight down the gap in C, then the last cut in Q (the only view the rig rendered
+ *  with every pose that runs that way: M has one pose) on its own screen direction to the impact point: the target
+ *  reel's centre, its middle at STRIKE.impactAt of the cell. THE TIME IS KEPT: from the set off to the impact it takes
+ *  exactly what the straight path (the turn over the reel's centre, straight down it) took, so every frame cued sound
+ *  lands where it did. The time left after the snow run is shared by the run down and the cut at one screen speed;
+ *  no pose is shorter than 1000 / STRIKE.cut.maxPoseFps ms (a 60 Hz screen shows every one); only a path that cannot
+ *  fit (an entry from the near side into an outer reel's inner gap) runs longer, and says so (kept false). */
+export const planStrike = (fromX: number, toX: number, gapX: number, snow: { feetY: number; diagonal: number }, target: { y: number; h: number }, startPose: number | null = STRIKE.startPose): StrikePlan => {
+	const S = viewStep('S');
+	const Q = viewStep('Q');
+	const M = viewStep('M');
+	const C = runBox('C');
+	const QB = runBox('Q');
+	const downStep = STRIKE.downSpeed / STRIKE.downStrideFps;
+	const dir: 1 | -1 = gapX >= fromX ? 1 : -1;
+	const centre = target.y + target.h * STRIKE.impactAt;
+	// THE STRAIGHT PATH'S TIME (the one kept): planRun to the reel's centre, then whole C poses straight down at
+	// downSpeed / downStrideFps, as before round 2
+	const old = planRun(Math.abs(toX - fromX), snow.diagonal) as RunPlan;
+	const oldTop = snow.feetY + (S.dy + old.nQ * Q.dy + M.dy) * old.step;
+	const oldImpact = Math.max(centre + (C.height * C.anchorY * STRIKE.roadScale) / 2, oldTop);
+	const oldNC = Math.max(1, Math.min(C_SAFE, Math.round(Math.max(0, oldImpact - oldTop) / downStep)));
+	const keepMs = (old.nAlong * 1000) / STRIKE.strideFps + (oldNC * 1000) / STRIKE.downStrideFps;
+
+	// ALONG THE SNOW to the gap
+	const distance = Math.abs(gapX - fromX);
+	const plan = (startPose !== null ? planRun(distance, snow.diagonal, startPose) : null) ?? (planRun(distance, snow.diagonal) as RunPlan);
+	const { nR, nQ, nAlong, step } = plan;
+	const path: { x: number; y: number }[] = [{ x: fromX, y: snow.feetY }];
+	const go = (dx: number, dy: number) => {
+		const p = path[path.length - 1];
+		path.push({ x: p.x + dir * dx * step, y: p.y + dy * step });
+	};
+	for (let i = 0; i < nR; i++) go(1, 0);
+	go(S.dx, S.dy);
+	for (let i = 0; i < nQ; i++) go(Q.dx, Q.dy);
+	go(M.dx, M.dy);
+	path[path.length - 1].x = gapX; // (it is there already, to the rounding)
+	const top = path[nAlong].y;
+
+	// THE LAST CUT: from the gap to the reel's centre along Q's own screen direction; THE RUN DOWN the gap before it
+	const cutDir: 1 | -1 = toX >= gapX ? 1 : -1;
+	const across = Math.abs(toX - gapX);
+	const cutDrop = (across * Q.dy) / Q.dx;
+	const cutLen = (across * Q.length) / Q.dx;
+	const impactFeetY = Math.max(centre + (QB.height * QB.anchorY * STRIKE.roadScale) / 2, top + cutDrop);
+	const cutTop = impactFeetY - cutDrop;
+	const dC = Math.max(0, cutTop - top);
+	const nCut = Math.max(STRIKE.cut.minPoses, Math.round(cutLen / downStep));
+	let nC = Math.max(1, Math.min(C_SAFE, Math.round(dC / downStep)));
+	// THE TIME: what the straight path took, less the snow run; one screen speed for both legs, no pose under minPose
+	const alongMs = (nAlong * 1000) / STRIKE.strideFps;
+	const minPose = 1000 / STRIKE.cut.maxPoseFps;
+	let rest = keepMs - alongMs;
+	const len = dC + cutLen;
+	const share = (rest * dC) / Math.max(1e-9, len);
+	// a run down too short in time for its poses: fewer poses (never under 1)
+	nC = Math.max(1, Math.min(nC, Math.floor(share / minPose + 1e-9)));
+	const tC = Math.max(nC * minPose, share);
+	let tCut = rest - tC;
+	if (tCut < nCut * minPose) tCut = nCut * minPose;
+	const kept = Math.abs(tC + tCut - rest) < 1e-6;
+	rest = tC + tCut;
+	for (let i = 1; i <= nC; i++) path.push({ x: gapX, y: top + (dC * i) / nC });
+	for (let i = 1; i <= nCut; i++) path.push({ x: gapX + (cutDir * across * i) / nCut, y: cutTop + (cutDrop * i) / nCut });
+	path[path.length - 1] = { x: toX, y: impactFeetY };
+	const times: number[] = [];
+	for (let i = 0; i <= nAlong; i++) times.push((i * 1000) / STRIKE.strideFps);
+	for (let i = 1; i <= nC; i++) times.push(alongMs + (tC * i) / nC);
+	for (let i = 1; i <= nCut; i++) times.push(alongMs + tC + (tCut * i) / nCut);
+	return { plan, gapX, cutDir, nC, nCut, path, times, impactFeetY, keepMs, kept, downSpeed: (len / Math.max(1e-9, rest)) * 1000 };
+};
+
 type Waiter = { at: number; resolve: () => void };
 
 /** what the board needs for a strike: the target cell, and the Grandma car to box in the same reel (or null) */
@@ -343,11 +474,9 @@ export class RoadFeatures {
 	private readonly boxLayer = new PIXI.Container();
 	private readonly cellLayer = new PIXI.Container();
 	private readonly bodyLayer = new PIXI.Container();
-	/** the column characters' contact shadows: over their clouds, under the red frames and the characters */
-	private readonly footLayer = new PIXI.Container();
-	/** the running reindeer's contact shadow: the first thing in the runner's layer, so it lies over the traffic he runs
-	 *  across (he is drawn over it: the ground at his feet is in front of the symbols) and under him */
-	private readonly runnerShadowLayer = new PIXI.Container();
+	/** THE RUNNING REINDEER'S CAST SHADOW: on the road's ground, under every lane (game/road/roadBoard.ts puts this layer
+	 *  in its ground), so it never lies over a symbol */
+	readonly groundLayer = new PIXI.Container();
 	private readonly numberLayer = new PIXI.Container();
 	/** the target crosshair: over every box, cloud and column of the features (under the running reindeer) */
 	private readonly crosshairLayer = new PIXI.Container();
@@ -397,8 +526,7 @@ export class RoadFeatures {
 	layoutKind: LayoutKind = 'landscape';
 
 	constructor(private readonly tex: Tex) {
-		this.layer.addChild(this.backLayer, this.footLayer, this.boxLayer, this.cellLayer, this.bodyLayer, this.numberLayer, this.crosshairLayer);
-		this.runnerLayer.addChild(this.runnerShadowLayer);
+		this.layer.addChild(this.backLayer, this.bodyLayer, this.boxLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
 		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
 		// for a picture a column is waiting on
@@ -419,8 +547,9 @@ export class RoadFeatures {
 
 	// ---- the strike ----------------------------------------------------------------------------------------------------
 	/** THE REINDEER RUNS (constants STRIKE; the rig's run views, game/road/reindeerRun.ts): in at one end of the snow
-	 *  bank above the road, side on along it, one frame of S, the diagonal in Q, one frame of M, and straight down the
-	 *  target's reel in C into the target cell. No stop on the way. Resolves at the impact. */
+	 *  bank above the road, side on along it, one frame of S, the diagonal in Q, one frame of M, straight down the gap
+	 *  beside the target's reel in C (between the traffic), and the last diagonal cut in Q into the target cell
+	 *  (planStrike). No stop on the way. Resolves at the impact. */
 	async strike(spec: StrikeSpec): Promise<void> {
 		// the run views load in the background from the moment the board is up: a strike waits a moment for them at most
 		const ready = await awaitRunViews(STRIKE.loadWaitMs);
@@ -437,33 +566,10 @@ export class RoadFeatures {
 		const side = runBox('R');
 		const half = (side.width * Math.max(snow.scale, STRIKE.roadScale)) / 2;
 		const fromX = fromLeft ? -half - STRIKE.enterPad : IMAGE_W + half + STRIKE.enterPad;
-
-		// THE POSES ALONG THE SNOW (planRun): the diagonal in whole poses of Q, the side run the rest of the way, its step
-		// trimmed so the turn ends exactly over the target reel's centre
-		const distance = Math.abs(toX - fromX);
-		const plan = (STRIKE.startPose !== null ? planRun(distance, snow.diagonal, STRIKE.startPose) : null) ?? (planRun(distance, snow.diagonal) as RunPlan);
-		const { nR, nQ, nAlong, s0, step } = plan;
-		const S = viewStep('S');
-		const Q = viewStep('Q');
-		const M = viewStep('M');
-		const path: { x: number; y: number }[] = [{ x: fromX, y: snow.feetY }];
-		const go = (dx: number, dy: number) => {
-			const p = path[path.length - 1];
-			path.push({ x: p.x + dir * dx * step, y: p.y + dy * step });
-		};
-		for (let i = 0; i < nR; i++) go(1, 0);
-		go(S.dx, S.dy);
-		for (let i = 0; i < nQ; i++) go(Q.dx, Q.dy);
-		go(M.dx, M.dy);
-		path[path.length - 1].x = toX; // (it is there already, to the rounding)
-
-		// THE RUN DOWN: from the turn's end to the impact, whole poses at downSpeed / downStrideFps (trimmed to fit),
-		// never more than the C poses packed from pose 7 on
-		const down = runBox('C');
-		const impactFeetY = target.y + target.h * STRIKE.impactAt + (down.height * down.anchorY * STRIKE.roadScale) / 2;
-		const top = path[nAlong].y;
-		const downStep = STRIKE.downSpeed / STRIKE.downStrideFps;
-		const nC = Math.max(1, Math.min(C_SAFE, Math.round(Math.max(0, impactFeetY - top) / downStep)));
+		// THE PATH (planStrike): along the snow (the turn ending over the gap), down the gap, the cut into the target
+		const gapX = strikeGapX(reel, dir);
+		const P = planStrike(fromX, toX, gapX, snow, target);
+		const { nR, nQ, nAlong, s0 } = P.plan;
 
 		if (this.runner) {
 			this.runner.sprite.destroy();
@@ -474,15 +580,15 @@ export class RoadFeatures {
 		const sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
 		sprite.visible = false;
 		this.runnerLayer.addChild(sprite);
-		const shadow = makeShadow(this.tex('shadow'));
-		this.runnerShadowLayer.addChild(shadow);
+		const shadow = makeShadow();
+		this.groundLayer.addChild(shadow);
 		// THE TARGET CROSSHAIR hops for its lead in before the reindeer sets off (CROSSHAIR.leadMs on the road clock)
 		const crosshair = CROSSHAIR.on && !this.crosshairOff();
 		const t0 = this.clock + (crosshair ? Math.max(STRIKE.leadInMs, CROSSHAIR.leadMs) : STRIKE.leadInMs);
 		this.endCrosshair();
-		if (crosshair) this.startCrosshair(spec.cell, t0, dir, path, nR);
+		if (crosshair) this.startCrosshair(spec.cell, t0, dir, P.path, nR);
 		return new Promise<void>((resolve) => {
-			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir, toX, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC, s0, factor: plan.factor, path, impactFeetY: Math.max(impactFeetY, top), impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, darted: false, shadow, shade: { x: 0, y: 0, w: 0, h: 0, share: 0, lift: 0 } };
+			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir, toX, gapX, cutDir: P.cutDir, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC: P.nC, nCut: P.nCut, s0, factor: P.plan.factor, path: P.path, times: P.times, impactFeetY: P.impactFeetY, impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, cut: false, darted: false, shadow, keepMs: P.keepMs, kept: P.kept };
 		});
 	}
 
@@ -730,16 +836,16 @@ export class RoadFeatures {
 		cloud.visible = false;
 		cellCloud.visible = false;
 		body.visible = false;
-		// the clouds inside the box, the box over them, the character over the box (it may spill), its number on top:
+		// the clouds inside the box, the character over them (cropped to the box), the box over it, its number on top:
 		// each in its own layer, so the order holds across neighboring columns too
-		back.addChild(backdrop, cellCloud, cloud, body);
+		// its cast shadow on the cloud: over the clouds, under the character (and under the red frame, a layer up)
+		const foot = makeShadow();
+		back.addChild(backdrop, cellCloud, cloud, foot, body);
 		this.backLayer.addChild(back);
-		const foot = makeShadow(this.tex('shadow'));
-		this.footLayer.addChild(foot);
 		this.boxLayer.addChild(box.root);
 		this.numberLayer.addChild(label.root);
 		if (pictures) void loadBackdrop();
-		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, enterCloud: false, idleLoop: -1, idleT0: NaN, foot, footShape: columnShadow(tier), footT0: NaN };
+		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null };
 		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - COLUMN.numberUp);
 		this.columns.push(column);
 		return column;
@@ -844,6 +950,8 @@ export class RoadFeatures {
 			textures.add(column.still.backdrop);
 			for (const t of column.still.clip.textures) textures.add(t);
 			column.body.texture = PIXI.Texture.EMPTY;
+			column.bodyTex?.destroy(false);
+			column.bodyTex = null;
 			column.backdrop.texture = PIXI.Texture.EMPTY;
 			this.destroyColumn(column);
 			this.columns = this.columns.filter((c) => c !== column);
@@ -910,10 +1018,18 @@ export class RoadFeatures {
 		}
 	}
 
-	/** the road clock ms (from t0) a pose index starts at: strideFps poses a second along the snow, downStrideFps down */
+	/** the road clock ms (from t0) a pose index starts at (planStrike's times: strideFps poses a second along the snow,
+	 *  then the run down and the cut at the pace that keeps the strike's length) */
 	private poseTime(r: Runner, index: number): number {
-		const along = (Math.min(index, r.nAlong) * 1000) / STRIKE.strideFps;
-		return index <= r.nAlong ? along : along + ((index - r.nAlong) * 1000) / STRIKE.downStrideFps;
+		return r.times[Math.max(0, Math.min(index, r.times.length - 1))];
+	}
+
+	/** the pose (a float) at `e` ms from t0 */
+	private poseAt(r: Runner, e: number): number {
+		const t = r.times;
+		let i = 0;
+		while (i < t.length - 2 && e >= t[i + 1]) i++;
+		return i + Math.max(0, (e - t[i]) / Math.max(1e-9, t[i + 1] - t[i]));
 	}
 
 	private updateRunner() {
@@ -942,25 +1058,28 @@ export class RoadFeatures {
 		if (this.clock < r.t0) return;
 		// THE STRIKE RUNS ON TIME (Corey 2026-11-12: slow screens skip poses so the strike always takes the same time):
 		// the pose and the body's place both come from the road clock since t0, so a slow screen, a dropped frame, turbo
-		// or a slam stop skip poses and keep the strike's length. Three poses are never skipped: the one S pose, the one
-		// M pose and the first C pose (the safe start). A frame that would jump over one draws it instead (a little
-		// late: under one frame), and the next frame catches up with the time.
+		// or a slam stop skip poses and keep the strike's length. Four poses are never skipped: the one S pose, the one
+		// M pose, the first C pose (the safe start) and the first pose of the last cut. A frame that would jump over one
+		// draws it instead (a little late: under one frame), and the next frame catches up with the time.
 		const e = this.clock - r.t0;
-		const end = r.nAlong + r.nC;
-		const keys = [r.nR, r.nR + 1 + r.nQ, r.nAlong];
+		const end = r.nAlong + r.nC + r.nCut;
+		const cutAt = r.nAlong + r.nC;
+		const keys = [r.nR, r.nR + 1 + r.nQ, r.nAlong, cutAt];
 		const missed = keys.find((k) => r.shown < k);
 		let pose: number;
 		r.late = null;
 		if (e >= this.poseTime(r, end)) {
-			// THE IMPACT, on time. Drawn on the run down's last pose, or on a protected pose not drawn yet (a very slow
-			// screen that jumped from before it straight past the impact)
-			pose = missed !== undefined ? missed : end - 1e-6;
+			// THE IMPACT, on time. Drawn on the cut's last pose, or on a protected pose not drawn yet (a very slow screen
+			// that jumped from before it straight past the impact)
+			// (a missed run down or cut pose is not drawn late on the impact frame: the impact is always at the target, in
+			// the cut's view; only a very slow screen that jumped over the turn itself draws S or M there, as before)
+			const late = missed !== undefined && missed < r.nAlong ? missed : undefined;
+			pose = late !== undefined ? late : end - 1e-6;
 			if (missed !== undefined) r.late = e - this.poseTime(r, missed);
 			r.impactAt = this.clock;
 			this.crosshairCrash();
 		} else {
-			const along = (this.poseTime(r, r.nAlong));
-			pose = e < along ? (e * STRIKE.strideFps) / 1000 : r.nAlong + ((e - along) * STRIKE.downStrideFps) / 1000;
+			pose = this.poseAt(r, e);
 			const index = Math.floor(pose + 1e-9);
 			const skipped = keys.find((k) => r.shown < k && index > k);
 			if (skipped !== undefined) {
@@ -993,13 +1112,19 @@ export class RoadFeatures {
 				this.sounds.cue('dart');
 			}
 		}
-		if (r.impactAt === this.clock) this.sounds.mark('impact', `pose ${r.shown}`);
 		if (pose >= r.nAlong && !r.marked) {
-			// it starts down the reel: a Grandma car in the struck Santa reel gets its red box
+			// it starts down the gap: a Grandma car in the struck Santa reel gets its red box
 			r.marked = true;
-			this.sounds.mark('down', `pose ${r.shown}, ${r.nC} poses down`);
+			this.sounds.mark('down', `pose ${r.shown}, ${r.nC} poses down the gap at x ${Math.round(r.gapX)}, then ${r.nCut} in the cut`);
 			if (r.markCell !== null) this.markCell(r.markCell);
 		}
+		if (!r.cut && r.shown >= cutAt) {
+			// THE LAST CUT (its first Q pose drawn now): the turn sound again (REINDEER_SOUND.cutTurn)
+			r.cut = true;
+			this.sounds.mark('cut', `pose ${r.shown}`);
+			if (REINDEER_SOUND.cutTurn) this.sounds.cue('turn', 'the last cut');
+		}
+		if (r.impactAt === this.clock) this.sounds.mark('impact', `pose ${r.shown}`);
 		this.placeRunner(r, pose);
 		if (r.impactAt !== null) r.resolve();
 	}
@@ -1010,24 +1135,19 @@ export class RoadFeatures {
 		// one stride pose per pose, counted on through every change of view (the same index the time path drew: a pose
 		// a hair under a whole number from the floating point counts as that number)
 		const index = Math.floor(pose + 1e-9);
-		const view: RunView = index < r.nR ? 'R' : index === r.nR ? 'S' : index < r.nR + 1 + r.nQ ? 'Q' : index === r.nR + 1 + r.nQ ? 'M' : 'C';
+		const cutAt = r.nAlong + r.nC;
+		const view: RunView = index < r.nR ? 'R' : index === r.nR ? 'S' : index < r.nR + 1 + r.nQ ? 'Q' : index === r.nR + 1 + r.nQ ? 'M' : index < cutAt ? 'C' : 'Q';
 		const stride = ((r.s0 - 1 + index) % 16) + 1;
-		let x: number;
-		let y: number;
-		if (pose < r.nAlong) {
-			// along the snow: steady along the path, pose boundary to pose boundary
-			const a = r.path[index];
-			const b = r.path[index + 1];
-			const u = pose - index;
-			x = a.x + (b.x - a.x) * u;
-			y = a.y + (b.y - a.y) * u;
-		} else {
-			// down the reel, steady
-			const top = r.path[r.nAlong].y;
-			const u = Math.min(1, (pose - r.nAlong) / r.nC);
-			x = r.toX;
-			y = top + (r.impactFeetY - top) * u;
-		}
+		// steady along the path, pose boundary to pose boundary (the snow run, the run down the gap and the cut alike)
+		const last = r.path.length - 1;
+		const i = Math.max(0, Math.min(index, last - 1));
+		const a = r.path[i];
+		const b = r.path[i + 1];
+		const u = Math.max(0, Math.min(1, pose - i));
+		const x = a.x + (b.x - a.x) * u;
+		const y = a.y + (b.y - a.y) * u;
+		// the cut runs toward the target's centre: mirrored when that is against the way it came along the snow
+		const facing = index >= cutAt ? r.cutDir : r.dir;
 		// its size: the snow size along the snow; once it turns toward us it grows with how far down the screen it has
 		// come, to the road size at the impact
 		const reach = Math.max(1, r.impactFeetY - r.feetY);
@@ -1039,12 +1159,12 @@ export class RoadFeatures {
 			const box = runBox(view);
 			if (s.texture !== got.texture) s.texture = got.texture;
 			s.anchor.set(box.anchorX, box.anchorY);
-			// mirrored about its feet for the run from the right (the anchor's x mirrors with it)
-			s.scale.set((r.dir * box.width * k) / got.texture.orig.width, (box.height * k) / got.texture.orig.height);
+			// mirrored about its feet for a run to the left (the anchor's x mirrors with it)
+			s.scale.set((facing * box.width * k) / got.texture.orig.width, (box.height * k) / got.texture.orig.height);
 		} else {
 			// the placeholder still (the run views did not load in time): standing on its feet, one picture per side
 			const size = ROAD_ART.symbols.reindeer_run;
-			const tex = this.tex(r.dir === 1 ? 'reindeer_run' : 'reindeer_run_L') ?? PIXI.Texture.EMPTY;
+			const tex = this.tex(facing === 1 ? 'reindeer_run' : 'reindeer_run_L') ?? PIXI.Texture.EMPTY;
 			if (s.texture !== tex) s.texture = tex;
 			s.anchor.set(0.5, 1);
 			s.width = size.width * k;
@@ -1053,18 +1173,15 @@ export class RoadFeatures {
 		r.view = view;
 		r.stride = stride;
 		r.scale = k;
-		// (along the snow the pose runs on between whole poses; down the reel too; a protected pose held late counts as whole)
-		runShadow(view, got ? stride : null, k, r.dir, r.shade, r.late === null ? pose - index : 0);
 		this.placeRunnerShadow(r);
 	}
 
-	/** HIS SHADOW (constants SHADOW): on the ground at his feet point (the sprite's anchor, which keeps to the ground
-	 *  while the picture's hooves leave it), smaller and lighter while they are up, faded with him */
+	/** HIS SHADOW (constants SHADOW): his twin on the road's ground (under the traffic), pinned at his feet point (the
+	 *  sprite's anchor), the same view, stride and mirror as he is drawn, faded with him */
 	private placeRunnerShadow(r: Runner) {
 		const k = SHADOW.runner ? shadowStrength() : 0;
 		const s = r.sprite;
-		const d = r.shade;
-		placeShadow(r.shadow, s.x + d.x, s.y + d.y, d.w, d.h, s.visible ? k * d.share * s.alpha : 0);
+		castShadow(r.shadow, s.texture, s.anchor.x, s.anchor.y, s.x, s.y, s.scale.x, s.scale.y, s.visible ? k * s.alpha : 0);
 	}
 
 	private updateClouds() {
@@ -1101,7 +1218,8 @@ export class RoadFeatures {
 	}
 
 	/** where the character draws: under its red frame while the entrance's cloud is still in the picture (the cloud
-	 *  belongs inside the box), or up among the characters, over every frame, once it stands alone (spill over) */
+	 *  belongs inside the box), or up among the characters once it stands alone (still under every frame: the frames'
+	 *  layer is over the characters' since 2026-11-15) */
 	private bodyOver(column: Column, over: boolean) {
 		const parent = over ? this.bodyLayer : column.back;
 		if (column.body.parent === parent) return;
@@ -1135,9 +1253,16 @@ export class RoadFeatures {
 		column.back.destroy({ children: true });
 		column.box.root.destroy({ children: true });
 		column.label.root.destroy({ children: true });
-		column.foot.destroy();
+		column.footTex?.destroy(false);
+		column.footTex = null;
+		column.bodyTex?.destroy(false);
+		column.bodyTex = null;
 	}
 
+	/** THE CHARACTER IN ITS BOX (Corey 2026-11-15: "the animation bleeds outside the column boxes ... I'd like their feet
+	 *  to be behind the borders ... the same for the top border"): the clip's frame, drawn at the column's size, cropped
+	 *  by its own texture's frame to the box's outer edge (a crop, not a mask: the column cloud's own technique), and
+	 *  drawn UNDER the red frame, which covers the cut on all four sides (feet, antlers, hat, elbows and cane). */
 	private placeBody(column: Column, clip: Clip, frame: number) {
 		const k = COLUMN.tierScale[column.tier] ?? 1;
 		const left = BOARD_X + column.reel * PITCH;
@@ -1145,13 +1270,36 @@ export class RoadFeatures {
 		const footX = left + PITCH / 2;
 		const footY = COLUMN_TOP + COLUMN_H;
 		const body = column.body;
-		if (column.frame !== frame || body.texture !== clip.textures[frame]) {
-			body.texture = clip.textures[frame] ?? PIXI.Texture.EMPTY;
-			column.frame = frame;
+		const src = clip.textures[frame];
+		column.frame = frame;
+		const bx = footX + (clip.x - PITCH / 2) * k;
+		const by = footY + (clip.y - COLUMN_H) * k;
+		const bw = clip.width * k;
+		const bh = clip.height * k;
+		const o = columnOuter(column.reel);
+		const x0 = Math.max(bx, o.x);
+		const x1 = Math.min(bx + bw, o.x + o.w);
+		const y0 = Math.max(by, o.y);
+		const y1 = Math.min(by + bh, o.y + o.h);
+		if (!src || src.destroyed || x1 - x0 < 1 || y1 - y0 < 1) {
+			body.visible = false;
+			return;
 		}
-		body.width = clip.width * k;
-		body.height = clip.height * k;
-		body.position.set(footX + (clip.x - PITCH / 2) * k, footY + (clip.y - COLUMN_H) * k);
+		const f = src.frame;
+		const perX = f.width / bw;
+		const perY = f.height / bh;
+		// dynamic: the sprite follows a texture whose frame changes when the texture says so
+		const tex = (column.bodyTex ??= new PIXI.Texture({ source: src.source, frame: f.clone(), dynamic: true }));
+		if (tex.source !== src.source) tex.source = src.source;
+		tex.frame.x = f.x + (x0 - bx) * perX;
+		tex.frame.y = f.y + (y0 - by) * perY;
+		tex.frame.width = Math.max(1, (x1 - x0) * perX);
+		tex.frame.height = Math.max(1, (y1 - y0) * perY);
+		tex.update();
+		if (body.texture !== tex) body.texture = tex;
+		body.position.set(x0, y0);
+		body.width = x1 - x0;
+		body.height = y1 - y0;
 		body.visible = true;
 	}
 
@@ -1164,7 +1312,8 @@ export class RoadFeatures {
 
 		if (column.phase === 'leave') {
 			const u = t / COLUMN.leaveMs;
-			this.placeFoot(column, Math.max(0, 1 - u));
+			// (its shadow is in the column's back layer: it fades with it)
+			this.placeFoot(column);
 			this.fadeColumn(column, Math.max(0, 1 - u));
 			if (u >= 1) {
 				for (let row = 0; row < ROWS; row++) this.hideCell(column.reel * ROWS + row, false);
@@ -1196,7 +1345,9 @@ export class RoadFeatures {
 			// the box is traced around the struck cell first, the symbol still showing under it
 			const sinceBox = this.clock - column.boxT0;
 			const cell = column.reel * ROWS + column.fromRow;
-			column.box.set(full.x, y, full.w, h, column.fromRow < 0 ? 1 : column.xhBox ? (this.crosshairOn(cell) ? 0 : 1) : sinceBox / COLUMN.boxDrawMs);
+			// the band thickens from the cell box's to the full column's as it grows (the crosshair closes onto the cell's)
+			const band = RED_BOX.width + (COLUMN.frameWidth - RED_BOX.width) * g;
+			column.box.set(full.x, y, full.w, h, column.fromRow < 0 ? 1 : column.xhBox ? (this.crosshairOn(cell) ? 0 : 1) : sinceBox / COLUMN.boxDrawMs, band);
 			// the cloud in the box: the cell cloud pops in once the box is whole, then the entrance's own first frame
 			// cropped to the box as it grows
 			const sincePop = sinceBox - COLUMN.boxDrawMs;
@@ -1257,7 +1408,7 @@ export class RoadFeatures {
 			return;
 		}
 
-		column.box.set(full.x, full.y, full.w, full.h);
+		column.box.set(full.x, full.y, full.w, full.h, 1, COLUMN.frameWidth);
 		column.cellCloud.visible = false;
 		column.cloud.visible = false;
 		// THE STILL CLOUD, wall to wall inside the frame, from the first frame of the entrance to the column's last. The
@@ -1288,7 +1439,7 @@ export class RoadFeatures {
 					this.sounds.cue('columnIn', `reel ${column.reel}`);
 				}
 				// while the cloud is still in the frame the box stands OVER it (the cloud is inside the box); once the
-				// character stands alone it draws over the box (spill over)
+				// character stands alone it moves up among the characters (still under the frame)
 				this.bodyOver(column, frame >= reveal.cloudFrames);
 			} else {
 				column.body.visible = false;
@@ -1352,26 +1503,25 @@ export class RoadFeatures {
 		// the number settles from its pop; it never changes once it stands
 		const label = column.label.root;
 		label.scale.set(label.scale.x + (1 - label.scale.x) * 0.2);
-		this.placeFoot(column, 1);
+		this.placeFoot(column);
 	}
 
-	/** A COLUMN CHARACTER'S SHADOW (constants SHADOW): at its feet once it stands clear of the entrance's cloud (it is
-	 *  drawn among the characters then), coming in over columnInMs; `fade` is the column's own leave */
-	private placeFoot(column: Column, fade: number) {
-		const shape = column.footShape;
-		const k = SHADOW.columns ? shadowStrength() : 0;
+	/** A COLUMN CHARACTER'S SHADOW (constants SHADOW column): its twin thrown up and to the left onto the column's cloud,
+	 *  cropped to the inside of the box, once the character stands clear of the entrance's cloud (it is drawn among the
+	 *  characters then), coming in over columnInMs. It lies in the column's back layer, so a leave fades it with the
+	 *  column. */
+	private placeFoot(column: Column) {
+		const k = SHADOW.columns && SHADOW.on ? Math.max(0, Math.min(1, SHADOW.column.alpha)) : 0;
 		const standing = column.body.visible && column.body.parent === this.bodyLayer && column.phase !== 'wait';
-		if (!shape || k <= 0 || (!standing && column.phase !== 'leave')) {
+		if (k <= 0 || (!standing && column.phase !== 'leave') || !column.body.visible) {
 			column.foot.visible = false;
 			column.footT0 = NaN;
 			return;
 		}
 		if (Number.isNaN(column.footT0)) column.footT0 = this.clock;
 		const ramp = Math.min(1, (this.clock - column.footT0) / Math.max(1, SHADOW.columnInMs));
-		const tier = COLUMN.tierScale[column.tier] ?? 1;
-		const footX = BOARD_X + (column.reel + 0.5) * PITCH;
-		const footY = COLUMN_TOP + COLUMN_H;
-		placeShadow(column.foot, footX + shape.dx * tier, footY + shape.dy * tier, shape.width * tier, shape.height * tier, k * shape.alpha * ramp * fade);
+		const box = inset({ x: BOARD_X + column.reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
+		column.footTex = dropShadow(column.foot, column.footTex, column.body, box, k * ramp);
 	}
 
 	/** a Grandma Wild's multiplier joining the column's number, joinMs after it popped in: the sum, with a second pop */
@@ -1397,11 +1547,11 @@ export class RoadFeatures {
 	}
 
 	/** where the runner is in its strike (dev hook and the probes) */
-	private runnerPhase(r: Runner): 'wait' | 'along' | 'turn' | 'down' | 'impact' {
+	private runnerPhase(r: Runner): 'wait' | 'along' | 'turn' | 'down' | 'cut' | 'impact' {
 		if (r.impactAt !== null) return 'impact';
 		if (this.clock < r.t0 || r.shown < 0) return 'wait';
 		if (r.pose < r.nR) return 'along';
-		return r.pose < r.nAlong ? 'turn' : 'down';
+		return r.pose < r.nAlong ? 'turn' : r.shown < r.nAlong + r.nC ? 'down' : 'cut';
 	}
 
 	/** what stands on the road (dev hook and the probes) */
@@ -1442,21 +1592,47 @@ export class RoadFeatures {
 			pose: Math.round(r.pose * 1000) / 1000,
 			index: r.shown,
 			late: r.late === null ? null : Math.round(r.late * 100) / 100,
-			poses: { side: r.nR, diagonal: r.nQ, along: r.nAlong, down: r.nC, firstStride: r.s0, factor: Math.round(r.factor * 10000) / 10000 },
+			poses: { side: r.nR, diagonal: r.nQ, along: r.nAlong, down: r.nC, cut: r.nCut, firstStride: r.s0, factor: Math.round(r.factor * 10000) / 10000 },
 			toX: r.toX,
+			gapX: r.gapX,
+			cutDir: r.cutDir,
+			/** ms from the set off to the impact as planned, the straight path's (kept), and whether it is kept */
+			impactMs: Math.round(r.times[r.times.length - 1] * 100) / 100,
+			/** road clock ms since the set off (negative in the lead in) */
+			elapsedMs: Math.round((this.clock - r.t0) * 100) / 100,
+			keepMs: Math.round(r.keepMs * 100) / 100,
+			kept: r.kept,
 			impactFeetY: Math.round(r.impactFeetY * 100) / 100,
 		};
 	}
 
-	/** THE CONTACT SHADOWS of the features as drawn (dev hook, tools/shadow_probe.mjs): each column character's, and the
-	 *  running reindeer's with his feet point, view, stride and foot height */
+	/** THE CAST SHADOWS of the features as drawn (dev hook, tools/shadow_probe.mjs): each column character's twin on its
+	 *  cloud against the character and the box, and the running reindeer's twin against him */
 	shadowSnapshot() {
-		const sh = (s: PIXI.Sprite) => ({ visible: s.visible && !s.destroyed, x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100, w: s.destroyed ? 0 : Math.round(s.scale.x * s.texture.width * 100) / 100, h: s.destroyed ? 0 : Math.round(s.scale.y * s.texture.height * 100) / 100, alpha: Math.round(s.alpha * 1000) / 1000 });
+		const r2 = (v: number) => Math.round(v * 100) / 100;
 		const r = this.runner;
 		return {
-			columns: this.columns.map((c) => ({ reel: c.reel, tier: c.tier, phase: c.phase, bodyVisible: c.body.visible, footX: BOARD_X + (c.reel + 0.5) * PITCH, footY: COLUMN_TOP + COLUMN_H, ...sh(c.foot) })),
-			runner: r ? { phase: this.runnerPhase(r), view: r.placeholder ? 'placeholder' : r.view, stride: r.stride, feetX: Math.round(r.sprite.x * 100) / 100, feetY: Math.round(r.sprite.y * 100) / 100, scale: Math.round(r.scale * 10000) / 10000, spriteVisible: r.sprite.visible, spriteAlpha: Math.round(r.sprite.alpha * 1000) / 1000, lift: r.shade.lift, liftRoad: Math.round(r.shade.lift * REINDEER_RUN.roadPxPerFramePx * r.scale * 100) / 100, shadow: sh(r.shadow) } : null,
-			layers: { runner: this.runnerShadowLayer.children.length, feet: this.footLayer.children.length },
+			columns: this.columns.map((c) => {
+				const f = c.foot;
+				const box = inset({ x: BOARD_X + c.reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
+				return {
+					reel: c.reel, tier: c.tier, phase: c.phase, bodyVisible: c.body.visible, bodyOver: c.body.parent === this.bodyLayer,
+					body: { x: r2(c.body.x), y: r2(c.body.y), w: r2(c.body.width), h: r2(c.body.height), source: c.body.texture?.source?.uid ?? -1, frame: c.body.texture ? { x: c.body.texture.frame.x, y: c.body.texture.frame.y, w: c.body.texture.frame.width, h: c.body.texture.frame.height } : null },
+					box: { x: box.x, y: box.y, w: box.w, h: box.h },
+					visible: f.visible && !f.destroyed, x: r2(f.x), y: r2(f.y), w: r2(f.width), h: r2(f.height), alpha: Math.round(f.alpha * 1000) / 1000, backAlpha: Math.round(c.back.alpha * 1000) / 1000,
+					source: f.texture?.source?.uid ?? -1, frame: f.texture ? { x: r2(f.texture.frame.x), y: r2(f.texture.frame.y), w: r2(f.texture.frame.width), h: r2(f.texture.frame.height) } : null,
+					// it lies on its own cloud: between the backdrop and the character, in the column's back layer
+					inBack: f.parent === c.back && c.back.getChildIndex(f) > c.back.getChildIndex(c.backdrop),
+				};
+			}),
+			runner: r
+				? {
+						phase: this.runnerPhase(r), view: r.placeholder ? 'placeholder' : r.view, stride: r.stride, feetX: r2(r.sprite.x), feetY: r2(r.sprite.y), scale: Math.round(r.scale * 10000) / 10000, spriteVisible: r.sprite.visible, spriteAlpha: Math.round(r.sprite.alpha * 1000) / 1000,
+						spriteScaleX: Math.round(r.sprite.scale.x * 10000) / 10000, spriteScaleY: Math.round(r.sprite.scale.y * 10000) / 10000, anchor: [r.sprite.anchor.x, r.sprite.anchor.y], textureHeight: r.sprite.texture?.height ?? 0, gapX: r.gapX, toX: r.toX,
+						shadow: { visible: r.shadow.visible && !r.shadow.destroyed, x: r2(r.shadow.x), y: r2(r.shadow.y), scaleX: Math.round(r.shadow.scale.x * 10000) / 10000, scaleY: Math.round(r.shadow.scale.y * 10000) / 10000, skewX: r.shadow.skew.x, anchor: [r.shadow.anchor.x, r.shadow.anchor.y], sameTexture: r.shadow.texture === r.sprite.texture, alpha: Math.round(r.shadow.alpha * 1000) / 1000, inGround: r.shadow.parent === this.groundLayer },
+					}
+				: null,
+			layers: { runner: this.groundLayer.children.length, runnerLayer: this.runnerLayer.children.length, feet: this.columns.filter((c) => c.foot.visible).length },
 		};
 	}
 

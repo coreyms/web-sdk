@@ -45,11 +45,12 @@ const assets = {
 		),
 		preload: true,
 	},
-	// THE CONTACT SHADOW (tools/build_shadows.py, game/road/shadows.ts): one small soft ellipse, stretched under every
-	// symbol, column character and the running reindeer (a few KB; batched beside the symbol atlas)
-	shadow: {
+	// (THE CAST SHADOWS, game/road/shadows.ts, have no texture of their own since round 2: each is a twin of its owner's
+	// picture. Round 1's ellipse, road/shadow.webp and shadow-phone.webp from tools/build_shadows.py, is no longer loaded.)
+	// THE VAN'S BACKFIRE PUFF (tools/build_van_win.py, game/road/vanWin.ts): one small cartoon smoke puff, a few KB
+	vanPuff: {
 		type: 'sprite',
-		src: tiered(stamp(new URL('../../assets/road/shadow.webp', import.meta.url).href), stamp(new URL('../../assets/road/shadow-phone.webp', import.meta.url).href)),
+		src: tiered(stamp(new URL('../../assets/road/van-puff.webp', import.meta.url).href), stamp(new URL('../../assets/road/van-puff-phone.webp', import.meta.url).href)),
 		preload: true,
 	},
 	// the locked board background and the two tunnel portals cut from it (drawn over the traffic)

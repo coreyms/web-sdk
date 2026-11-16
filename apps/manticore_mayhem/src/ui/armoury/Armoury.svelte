@@ -578,6 +578,11 @@
 	};
 	// placed again whenever the card's text or size can have changed (the mode, the layout, the rows, the fonts)
 	$effect(() => {
+		// only while the menu is mounted (there is no card to place before): reading confirmRows measures its rows in
+		// Cinzel, and at boot that asked for Cinzel inside pixi-svelte's document.fonts.ready wait, so the Pixi start and
+		// PRESS ANYWHERE waited on it, for good on a hung request (landing_probe "card files held", 2026-11-15; the same
+		// trap as 716147c). Cinzel is asked for after the Pixi preload (game/boot.svelte.ts) or when the menu opens
+		if (phase === 'closed' && !warm) return;
 		void mode.id;
 		void cardStyle;
 		void frame.layout;

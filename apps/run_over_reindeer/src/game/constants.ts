@@ -112,8 +112,11 @@ export const STOPLIGHT = {
 // it's going to strike something. This gives us some player anticipation." Stage 1 (2026-11-12) draws it with the rig's
 // rendered run views (game/road/reindeerRun.ts): it comes in at one end of the snow bank above the road running side on
 // (run_R), turns with ONE frame of run_S (20 degrees toward us), runs a short diagonal in run_Q (40 degrees), ONE frame
-// of run_M (60 degrees), then runs straight down the target's reel in run_C (80 degrees) into the target cell: the
-// impact. No stop and no hold before the turn (Corey: "No stop"). The other side is the same views mirrored.
+// of run_M (60 degrees), then runs straight down in run_C (80 degrees) into the target cell: the impact. No stop and
+// no hold before the turn (Corey: "No stop"). The other side is the same views mirrored.
+// SINCE 2026-11-15 (Corey: "the reindeer should probably run between the traffic and take another diagonal turn at the
+// very end to get to the strike point"): the turn ends over the GAP beside the target's reel, the run down in C goes
+// between the traffic, and a last diagonal cut in run_Q takes him into the target (STRIKE.cut), in the same time.
 // THE MIDDLE PATH (Corey 2026-11-12, against the feet sliding): a slower snow run and a faster leg cycle. The run is
 // counted in POSES of the 16 pose cycle, strideFps poses a second. TIME BASED (Corey 2026-11-12: "yes" to slow screens
 // skipping poses so the strike always takes the same time): the pose and the body's place both come from the road
@@ -178,6 +181,15 @@ export const STRIKE = {
 	 *  so no speed keeps them from sliding there. */
 	downSpeed: 2600,
 	downStrideFps: 42,
+	/** THE GAP AND THE LAST CUT (Corey 2026-11-15: "the reindeer should probably run between the traffic and take another
+	 *  diagonal turn at the very end to get to the strike point"; game/road/roadFeatures.ts planStrike, strikeGapX): the
+	 *  turn ends over the gap at the edge of the target's reel on the side he comes from (an outer reel's outer edge is
+	 *  the shoulder: its inner gap then), he runs straight down the gap in C, then cuts diagonally into the target in Q,
+	 *  the rig's 40 degree view (M, the 60 degree one, has only one pose; nothing was rendered for this). The time from
+	 *  the set off to the impact is what the straight path took (the sounds land where they did); the run down and the
+	 *  cut share what is left after the snow run at one screen speed. The cut is at least minPoses poses (about one per
+	 *  downSpeed / downStrideFps road px of it), and no pose of either is shorter than 1000 / maxPoseFps ms. */
+	cut: { minPoses: 2, maxPoseFps: 48 },
 	/** the impact: when its middle reaches this far down the target cell (0 top, 1 bottom) */
 	impactAt: 0.5,
 	/** its size on the road at the impact, on top of the built size; it grows to this from its snow size as it comes
@@ -353,6 +365,16 @@ export const COLUMN = {
 	 *  Corey 2026-11-10 on the dusky 0xa3b6bd: "Can we go with an inbetween of the blue gray and white? The blue gray
 	 *  is too dark to me." 0xd1dbde is the midpoint of the two. */
 	backdropTint: 0xd1dbde,
+	/** THE FULL COLUMN'S FRAME (Corey 2026-11-15: "on the full column wilds, the animation bleeds outside the column
+	 *  boxes, widening the border should be enough to solve this. Also on the bottom of the full column wilds, I'd like
+	 *  their feet to be behind the borders. We should do the same for the top border as well"). The characters now draw
+	 *  UNDER the red frame on all four sides, each cropped to the box's outer edge (game/road/roadFeatures.ts placeBody),
+	 *  and the full column's red band is this thick, road px (the cell box and the Grandma Wild's stay RED_BOX.width, 9;
+	 *  the band thickens from 9 as the box grows). The dark line either side is RED_BOX.edge as before, and the outer edge
+	 *  does not move: it widens inward. Measured over every packed frame (tools: the round 2 notes), the art reaches up to
+	 *  69 road px past the box's sides (Santa's elbows and hat, Grandma's cane, the reindeer's lights and win kick) and 1
+	 *  px past the top and bottom, so no frame width could hide it alone: the crop does, and the frame covers the cut. */
+	frameWidth: 13,
 	/** each character's size on top of the built size (1 = four lanes tall as drawn), about the column's foot */
 	tierScale: { reindeer: 1, santa: 1, grandma: 1 } as Record<'reindeer' | 'santa' | 'grandma', number>,
 	/** the multiplier on the column: its centre this far up from the column's foot, this tall, this color */
@@ -606,6 +628,11 @@ export const REINDEER_SOUND = {
 	/** the hop's pitch, semitones, by its number in the strike (1st hop the first entry; it cycles) */
 	hopSemitones: [0, 1.5, -1, 2, -2, 0.5, -1.5, 1],
 	dart: { peakMs: 330 },
+	/** THE LAST CUT (STRIKE.cut, round 2 of the shadows): true plays the turn sound again on the cut's first frame (his
+	 *  second turn, into the target). Off: the cut comes 90 to 400 ms before the impact, inside the dart's whoosh (it
+	 *  starts 330 ms before the impact and peaks on it), and on a top row strike it would start while the first turn's
+	 *  250 ms sound is still playing (the same sound twice at once) */
+	cutTurn: false,
 	/** THE MULTIPLIER BANDS (the game's config multipliers): every base game column tier falls in its own band (reindeer
 	 *  3-8 small, Santa 10-20 mid, Grandma 40-75 high); bonus columns 2-30 and the rare 30 and 50 starts spread over
 	 *  the three */
@@ -643,29 +670,96 @@ export const REINDEER_SOUND = {
 	},
 };
 
-// ---- THE CONTACT SHADOWS (Corey 2026-11-15; game/road/shadows.ts, tools/build_shadows.py) ----------------------------
-// A soft dark ellipse on the road under every symbol, under each column character's feet and under the running
-// reindeer: one small texture stretched to each one's footprint (measured from the art, game/shadowSpec.ts), drawn
-// under the traffic. Plain sprites with alpha: no filter, mask or shader.
+// ---- THE CAST SHADOWS (Corey 2026-11-15, round 2; game/road/shadows.ts) ---------------------------------------------
+// Corey on round 1's soft ellipses: "These shadows should be the shape of the vehicles and signs probably going towards
+// up back, but strong shift to the left so it's more visible." So every symbol, the through traffic, the three column
+// characters and the running reindeer throw their own silhouette: a twin of the owner's own picture, near black,
+// pinned where the owner touches the ground, flattened and leaned up and to the left. One light for the whole scene.
+// Drawn under every lane (never over a symbol), so they show on the road in the gaps. Plain sprites: tint, alpha, skew
+// and scale only. No filter, mask, shader or blur, and no texture of their own.
 export const SHADOW = {
 	/** draw them at all */
-	on: false,
-	/** COREY'S PICK of two strengths: 'light' (the default) or 'firm' */
-	strength: 'light' as 'light' | 'firm',
-	/** the darkest point of a shadow per strength (its centre's alpha; each shadow's own share on top, shadowSpec.ts) */
-	alpha: { light: 0.5, firm: 0.75 },
+	on: true,
+	/** THE LIGHT: the shadow leans this many degrees off straight up the screen, toward the left (0 = straight up, away
+	 *  from the camera; 90 = flat along the road to the left) */
+	angle: 64,
+	/** how long it is: the owner's top lands this share of the owner's own height away from its ground point, along the
+	 *  lean (so at 64 degrees and 1 a car's roof shadow lands 0.9 of its height to the left and 0.44 up) */
+	length: 1,
+	/** how dark: the twin's alpha. The asphalt is near black already (about rgb 50 56 64): 0.8 takes it to about 10 11 13,
+	 *  which reads as a clear dark shape at phone size; round 1's 0.75 was the centre of a soft ellipse, and tiny */
+	alpha: 0.8,
 	/** their color: a cold near black (the HUD's shadow color), so on the snow they read blue grey, not dirty */
 	tint: 0x020812,
-	/** the column characters get one at their feet (on the cloud floor of their box, under its red frame) */
+	/** THE COLUMN CHARACTERS: the column's cloud stands in the reel like a wall behind them, so the same light throws
+	 *  their twin onto it up and to the left by (dx, dy) road px, cropped to the inside of the red box. On the light
+	 *  cloud it needs less alpha to read as strongly. */
+	column: { dx: -30, dy: -16, alpha: 0.32 },
+	/** the column characters get one */
 	columns: true,
-	/** the running reindeer gets one, shrinking and lightening with his feet off the ground (shadowSpec.ts run.lift) */
+	/** the running reindeer gets one, on the road under the traffic, all the way to the impact */
 	runner: true,
 	/** a column's shadow comes in over this long once its character stands clear of the entrance's cloud, ms */
 	columnInMs: 160,
 };
 
+// ---- THE POLICE CAR'S LIGHT BAR (Corey 2026-11-15; game/road/policeLights.ts, tools/build_police_lights.py) -----------
+// "We should do the Police car light ups for when there is a win with them in code." While a line win through a police
+// car (H4) shows, its red and blue lenses flash in turn, in step with sfx_win_h4_police (680 ms: two siren whoops, each
+// rising 600 to 1440 Hz, starting 50 and 410 ms in: one every 360 ms). So the lens changes every halfMs from onsetMs
+// after the lines show (the sound's own frame): red with each whoop, blue between them, and on in that rhythm for the
+// whole win hold. The stoplights' soft blob, tinted and added (no new texture, no filter). Times are the win clock's
+// (real ms; a slam stop hurries it).
+export const POLICE_LIGHTS = {
+	/** false = the police cars stay dark in a win */
+	on: true,
+	/** the first lens lights this long after the lines show (the sound's first whoop) */
+	onsetMs: 50,
+	/** each lens's turn: half the whoop period (360 ms) */
+	halfMs: 180,
+	/** a lens comes up over attackMs and eases down by `fade` of its brightness by the end of its turn */
+	attackMs: 25,
+	fade: 0.45,
+	/** the lens colors (the glow and the spill) */
+	tint: { red: 0xff1a1a, blue: 0x2a62ff } as Record<'red' | 'blue', number>,
+	/** the hot core on the lens: this many times the lens's measured size, this bright, nearly white with its color */
+	core: { size: 1.7, alpha: 0.9, tint: { red: 0xffb8a8, blue: 0xb8d4ff } as Record<'red' | 'blue', number> },
+	/** the colored glow around the lens, road px wide at the car's built size (squash: its height against its width) */
+	glow: { size: 150, squash: 0.85, alpha: 1 },
+	/** the faint wide spill on the roof and the road beside the car */
+	spill: { size: 320, squash: 0.6, alpha: 0.4 },
+};
+
+// ---- THE VAN'S WIN (Corey 2026-11-15; game/road/vanWin.ts, tools/build_van_win.py) -------------------------------------
+// While a line win through the van (H3) shows: first THE LURCH AND THE BACKFIRE for lurchMs (the length of
+// sfx_win_h3_van's body: a steady 300 ms burst from its first frame, then a 300 ms tail 30 dB down), then THE ROCKING
+// AND THE FLASHLIGHT for the rest of the win. Times on the win clock (real ms; a slam stop hurries it), from the frame
+// the lines show (the sound's own frame). Sizes in road px at the van's built size.
+export const VAN_WIN = {
+	/** false = the van does nothing in a win */
+	on: true,
+	/** the lurch and the backfire, then the rocking and the flashlight */
+	lurchMs: 300,
+	/** THE LURCH: a damped spring. The nose lifts about the rear wheel by up to squatDeg (the rear squats), the body
+	 *  jolts forward by up to joltPx; one bounce back (periodMs) and it settles (decayMs) */
+	lurch: { squatDeg: 2.4, joltPx: 5, periodMs: 280, decayMs: 120 },
+	/** THE BACKFIRE: one puff from the exhaust at each of these ms */
+	puffs: [20, 140],
+	/** each puff: its width (road px) grows from `from` to `to` times `size` over lifeMs while it drifts `back` road px
+	 *  backward (it starts `out` behind the bumper) and `rise` up; it comes in over inMs and fades out */
+	puff: { size: 40, from: 0.45, to: 1.2, lifeMs: 620, back: 46, out: 6, rise: 40, inMs: 50, alpha: 1 },
+	/** THE ROCKING: a lean (skew) up to leanDeg and a bounce of the body's height, about the wheel line, period
+	 *  periodMs, coming in over rampMs */
+	rock: { leanDeg: 2.2, bounce: 0.018, periodMs: 520, rampMs: 140 },
+	/** THE FLASHLIGHT: warm, added; a beam `width` (a share of the slots) wide sweeps across the windows' slots and back
+	 *  every sweepMs and flickers (down by up to `flicker`, a new draw every flickerMs). fill: each glow's width against
+	 *  twice the glass's depth at its slot: the soft blob's outer quarter is all but clear, so 1.25 keeps its visible
+	 *  light on the glass (the van probe checks it against the measured depth) */
+	light: { tint: 0xfff0c8, alpha: 1, width: 0.34, sweepMs: 900, flicker: 0.35, flickerMs: 60, fill: 1.25 },
+};
+
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW };
+export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */
