@@ -24,6 +24,8 @@ export const STAGING_MARKERS = [
 	'__rorBuild',
 	'rescap', // game/deviceTier.ts: the resolution cap override's query parameter
 	'ROR_FIXTURE_RGS', // fixtures/fixtureRgs.ts: the showcase rounds answered in the page (dev and staging only since 2026-11-10)
+	'ROR_TUNE_PANEL', // staging/tune/mountTune.ts: the `?tune=1` tuning panel's host (dev and staging only since 2026-11-16)
+	'ror-tune-panel', // the same host's DOM id (a second trace, in case the marker string is ever renamed)
 ];
 /** strings that must be in NO build, production or staging: dev server only code (a staging build is not expected to
  *  carry them, so --expect-staging does not ask for them) */

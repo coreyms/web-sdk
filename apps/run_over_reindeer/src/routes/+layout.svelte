@@ -35,6 +35,11 @@
 	if (STAGING_TOOLS && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('perf') === '1') {
 		void import('../staging/mountPerf').then((m) => m.mountPerfReadout());
 	}
+	// STAGING ONLY, the same way: `?tune=1` (or `?tune=<group>`) mounts the tuning panel (src/staging/tune/; ROR_TUNE_PANEL).
+	if (STAGING_TOOLS && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tune')) {
+		const tune = new URLSearchParams(window.location.search).get('tune');
+		void import('../staging/tune/mountTune').then((m) => m.mountTunePanel(tune === '1' ? null : tune));
+	}
 
 	setContext();
 
