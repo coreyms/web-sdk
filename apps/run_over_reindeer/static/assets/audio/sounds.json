@@ -370,57 +370,53 @@
 			169179,
 			800
 		],
-		"sfx_wild_double": [
-			170979,
-			480
-		],
 		"sfx_column_grow": [
-			172459,
+			170979,
 			600
 		],
 		"sfx_column_santa_in": [
-			174059,
+			172579,
 			1298
 		],
 		"sfx_column_grandma_in": [
-			176357,
+			174877,
 			1317
 		],
 		"sfx_column_win_reindeer": [
-			178674,
+			177194,
 			1000
 		],
 		"sfx_column_win_santa": [
-			180674,
+			179194,
 			1000
 		],
 		"sfx_column_win_grandma": [
-			182674,
+			181194,
 			1000
 		],
 		"sfx_scatter_tease": [
-			184680,
+			183200,
 			2000,
 			true
 		],
 		"sfx_sticky_set": [
-			187680,
+			186200,
 			480
 		],
 		"sfx_topup": [
-			189160,
+			187680,
 			800
 		],
 		"sfx_card_in": [
-			190960,
+			189480,
 			484
 		],
 		"sfx_card_out": [
-			192444,
+			190964,
 			496
 		],
 		"amb_road": [
-			193950,
+			192470,
 			10000,
 			true
 		]
@@ -699,9 +695,6 @@
 		"sfx_present_pop": {
 			"volume": 1
 		},
-		"sfx_wild_double": {
-			"volume": 1
-		},
 		"sfx_column_grow": {
 			"volume": 1
 		},
@@ -740,7 +733,7 @@
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=5ebac61a",
-		"./assets/audio/sounds.m4a?v=e0254133"
+		"./assets/audio/sounds.ogg?v=b34fa424",
+		"./assets/audio/sounds.m4a?v=88dd8db5"
 	]
 }

@@ -1,0 +1,453 @@
+{
+ "frames": {
+  "grandma_idle_0": {
+   "frame": {
+    "x": 0,
+    "y": 69,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_1": {
+   "frame": {
+    "x": 83,
+    "y": 69,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_2": {
+   "frame": {
+    "x": 0,
+    "y": 123,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_3": {
+   "frame": {
+    "x": 83,
+    "y": 123,
+    "w": 80,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 80,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 80,
+    "h": 52
+   }
+  },
+  "grandma_idle_4": {
+   "frame": {
+    "x": 0,
+    "y": 177,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_5": {
+   "frame": {
+    "x": 83,
+    "y": 177,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_6": {
+   "frame": {
+    "x": 0,
+    "y": 231,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_7": {
+   "frame": {
+    "x": 83,
+    "y": 231,
+    "w": 82,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 82,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 82,
+    "h": 52
+   }
+  },
+  "grandma_idle_8": {
+   "frame": {
+    "x": 0,
+    "y": 285,
+    "w": 82,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 82,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 82,
+    "h": 52
+   }
+  },
+  "grandma_idle_9": {
+   "frame": {
+    "x": 84,
+    "y": 285,
+    "w": 82,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 82,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 82,
+    "h": 52
+   }
+  },
+  "grandma_idle_10": {
+   "frame": {
+    "x": 0,
+    "y": 339,
+    "w": 82,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 82,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 82,
+    "h": 52
+   }
+  },
+  "grandma_idle_11": {
+   "frame": {
+    "x": 0,
+    "y": 609,
+    "w": 82,
+    "h": 51
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 82,
+    "h": 51
+   },
+   "sourceSize": {
+    "w": 82,
+    "h": 51
+   }
+  },
+  "grandma_idle_12": {
+   "frame": {
+    "x": 84,
+    "y": 339,
+    "w": 71,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 71,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 71,
+    "h": 52
+   }
+  },
+  "grandma_idle_13": {
+   "frame": {
+    "x": 0,
+    "y": 393,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_14": {
+   "frame": {
+    "x": 83,
+    "y": 393,
+    "w": 82,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 82,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 82,
+    "h": 52
+   }
+  },
+  "grandma_idle_15": {
+   "frame": {
+    "x": 0,
+    "y": 447,
+    "w": 82,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 82,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 82,
+    "h": 52
+   }
+  },
+  "grandma_idle_16": {
+   "frame": {
+    "x": 84,
+    "y": 447,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_17": {
+   "frame": {
+    "x": 0,
+    "y": 501,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_18": {
+   "frame": {
+    "x": 83,
+    "y": 501,
+    "w": 80,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 80,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 80,
+    "h": 52
+   }
+  },
+  "grandma_idle_19": {
+   "frame": {
+    "x": 0,
+    "y": 555,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_idle_20": {
+   "frame": {
+    "x": 83,
+    "y": 555,
+    "w": 81,
+    "h": 52
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 81,
+    "h": 52
+   },
+   "sourceSize": {
+    "w": 81,
+    "h": 52
+   }
+  },
+  "grandma_body": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 100,
+    "h": 67
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 100,
+    "h": 67
+   },
+   "sourceSize": {
+    "w": 100,
+    "h": 67
+   }
+  }
+ },
+ "meta": {
+  "image": "grandma-idle-phone.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 168,
+   "h": 660
+  },
+  "scale": "1"
+ }
+}

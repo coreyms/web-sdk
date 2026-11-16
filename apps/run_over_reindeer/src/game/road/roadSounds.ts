@@ -20,6 +20,10 @@ export type RoadSoundEnv = {
 	stop: (name: string) => void;
 	/** the round is being played (a base game cloud stands after it until the next press: its loop does not) */
 	roundLive: () => boolean;
+	/** a loop's playback rate (the tease's step at three seen) */
+	rate?: (name: string, rate: number) => void;
+	/** SKIP TO RESULT is on (the tease's loop stops) */
+	skipping?: () => boolean;
 };
 
 type Cue = 'alert' | 'turn' | 'crash' | 'grandmaWild' | 'columnIn' | 'snort' | 'dart' | 'present' | 'grow' | 'santaIn' | 'grandmaIn' | 'sticky';
@@ -44,6 +48,8 @@ export class RoadSounds {
 	private quietUntil = -Infinity;
 	private snortOn = 0;
 	private trafficOn = false;
+	/** THE SCATTER TEASE's loop (constants REINDEER_SOUND tease) is on */
+	private teaseOn = false;
 	/** the crosshair's hops this strike (the hop's rate), and the frames a drop, a lock and a light change last sounded */
 	private hops = 0;
 	private dropFrame = -1;
@@ -188,6 +194,27 @@ export class RoadSounds {
 		this.trafficStop(why);
 	}
 
+	/** THE SCATTER TEASE (constants REINDEER_SOUND tease, LANE_FLOW): the loop from the frame the tease begins */
+	teaseStart() {
+		if (this.teaseOn) return;
+		this.teaseOn = true;
+		this.startLoop(REINDEER_SOUND.tease.name);
+	}
+
+	/** three seen: the same loop steps up (its rate), no restart */
+	teaseStep(rate: number) {
+		if (!this.teaseOn) return;
+		this.note('sound', REINDEER_SOUND.tease.name, `rate ${rate.toFixed(4)}`);
+		this.env.rate?.(REINDEER_SOUND.tease.name, rate);
+	}
+
+	/** the tease is over (decided, the last car seen, a slam stop, a skip, the board going): a fade, then the stop */
+	teaseStop(why: string, ms: number) {
+		if (!this.teaseOn) return;
+		this.teaseOn = false;
+		this.fadeStop(REINDEER_SOUND.tease.name, Math.max(REINDEER_SOUND.stopFadeMs, Math.round(ms)), why);
+	}
+
 	/** he sets off along the snow */
 	runStart() {
 		if (this.runOn) return;
@@ -217,6 +244,7 @@ export class RoadSounds {
 	stopAll() {
 		this.runStop('board gone');
 		this.trafficStop('board gone');
+		this.teaseStop('board gone', REINDEER_SOUND.stopFadeMs);
 		if (this.cloudOn) {
 			this.cloudOn = false;
 			this.fadeStop(N.cloud, REINDEER_SOUND.stopFadeMs, 'board gone');
@@ -261,6 +289,6 @@ export class RoadSounds {
 
 	/** DEV: which loops it holds on */
 	state() {
-		return { run: this.runOn, cloud: this.cloudOn, traffic: this.trafficOn, pending: [...this.pending.keys()] };
+		return { run: this.runOn, cloud: this.cloudOn, traffic: this.trafficOn, tease: this.teaseOn, pending: [...this.pending.keys()] };
 	}
 }

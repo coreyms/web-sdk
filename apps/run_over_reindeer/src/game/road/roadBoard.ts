@@ -16,7 +16,7 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { LANDING_DIM, LINE_WIN, REINDEER_SOUND, ROAD, SEATED, STOPLIGHT, WAGON_TREE, motionFor, type RoadMotion } from '../constants';
+import { LANDING_DIM, LANE_FLOW, LINE_WIN, REINDEER_SOUND, ROAD, SEATED, STOPLIGHT, WAGON_TREE, motionFor, type RoadMotion } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
 import { NumberLabel, RoadFeatures } from './roadFeatures';
@@ -27,6 +27,9 @@ import { VanWinFx } from './vanWin';
 import { WinLights, lightsSchedule, type LightLine } from './winLights';
 import { WagonTree, type TreeFrame } from './wagonTree';
 import { SeatedDriver, type SeatFrame } from './seated';
+import { BrakeLightPair, type BrakeState } from './brakeLights';
+import { releaseAllSeatClips, seatClip, type SeatChar, type SeatClip } from './seatedClips';
+import { flowLevel, flowParams, planFlow, type FlowCar, type FlowPlan } from './laneFlow';
 import { PHONE_TIER } from '../deviceTier';
 
 const COLS = ROAD_ART.board.columns;
@@ -79,6 +82,10 @@ type Car = {
 	t0: number;
 	/** in: when it stops, and the numbers of that stop */
 	stopAt: number;
+	/** in (LANE_FLOW): when it leaves the tunnel (board clock), its cruise speed (road px per s) and its brake (ms) */
+	rel: number;
+	v: number;
+	b: number;
 	overshoot: number;
 	dive: number;
 	m: RoadMotion | null;
@@ -104,6 +111,25 @@ type Car = {
 	seated: SeatedDriver | null;
 	/** the rider's silhouette above the vehicle (the tree's, the driver's), cast with the vehicle's shadow */
 	riderShadow: PIXI.Sprite;
+	/** THE BRAKE LIGHTS (game/road/brakeLights.ts): made the first time this slot shows a car (H1 to H4) */
+	brake: BrakeLightPair | null;
+};
+
+/** THE DRIVE IN'S PLAN (constants LANE_FLOW, game/road/laneFlow.ts) as the road plays it: the plan (ms from `start`, the
+ *  board clock of its first release), each lane's releases (board clock), and the tease's sound as played */
+type Flow = {
+	start: number;
+	plan: FlowPlan;
+	level: 0 | 1 | 2;
+	free: boolean;
+	laneRel: number[][];
+	soundOn: boolean;
+	soundDone: boolean;
+	stepped: boolean;
+	seenMarked: number;
+	cut: boolean;
+	/** DEV: performance.now() of the press, and when the board came to rest (the spin's length) */
+	pressReal: number;
 };
 
 /** the asset tier the riders' sheets come in */
@@ -123,6 +149,8 @@ type Stoplight = {
 	lanes: number[];
 	lens: Record<SignalColor, { lit: PIXI.Sprite; glow: PIXI.Sprite | null; alpha: number }>;
 	showing: SignalColor | null;
+	/** the tease drives it now (constants STOPLIGHT.tease): its changes are silent and instant */
+	teasing: boolean;
 	/** DEV readout: performance.now() when its red last came on */
 	redOnReal: number;
 };
@@ -157,6 +185,24 @@ export class RoadBoard {
 	/** THE WIN EFFECTS: the police cars' lights (game/road/policeLights.ts), the van's flashlight and backfire
 	 *  (game/road/vanWin.ts): over every lane, under the features and the line win */
 	private readonly policeLayer = new PIXI.Container();
+	/** THE BRAKE LIGHTS (game/road/brakeLights.ts, constants BRAKE_LIGHTS) */
+	private readonly brakeLayer = new PIXI.Container();
+	/** THE SEATED DRIVERS' ANIMATIONS in this frame (game/road/seatedClips.ts): per character, the idle and the win if in */
+	/** DEV: the seated idle's clock by hand (ms), null = performance.now() */
+	seatTime: number | null = null;
+	private seatClips: Record<SeatChar, { idle: SeatClip | null; win: SeatClip | null }> = { grandma: { idle: null, win: null }, santa: { idle: null, win: null } };
+	/** THE DRIVE IN'S PLAN (constants LANE_FLOW): the last drive in's, null before the first or after a board put up */
+	private flow: Flow | null = null;
+	/** the drive in's waiter (a slam stop's cut brings it forward) */
+	private driveWaiter: Waiter | null = null;
+	/** the board clock when the slam stop's hurry began (a cut applies to the spin it began in) */
+	private hurryFrom = -Infinity;
+	/** this spin's stops were cut together (a slam stop): they sound once, by the turbo 2 rule */
+	private cutOneMoment = false;
+	/** DEV: the spin's length (press to rest, real ms) of the last drive ins */
+	private spinLog: { pressReal: number; restReal: number | null; pressClock: number; startClock: number; restClock: number | null; level: number; scatters: number; factor: number; teaseFrom: number | null; end: number; cut: boolean }[] = [];
+	private pressReal = 0;
+	private pressClock = 0;
 	private readonly winLines = new PIXI.Graphics();
 	private winAmount: PIXI.Text | null = null;
 	private winMult: NumberLabel | null = null;
@@ -215,6 +261,8 @@ export class RoadBoard {
 	 *  trigger's pop still to come (the frame the first present's lid leaves the box) */
 	private reelStopAt: (number | null)[] = [null, null, null, null, null];
 	private trafficFading = false;
+	/** a stop sound has played this spin (the traffic's fade may begin once every car is out) */
+	private stopsBegun = false;
 	/** this spin drove in at turbo 2: its reel stops are one moment and sound once (RoadSounds.reelStop) */
 	private reelStopTurbo2 = false;
 	private popWanted = false;
@@ -254,6 +302,8 @@ export class RoadBoard {
 			this.lanes.push(lane);
 			this.root.addChild(lane);
 		}
+		// the brake lights over every lane (one batch for all of them), under the win effects
+		this.root.addChild(this.brakeLayer);
 		this.root.addChild(this.policeLayer);
 		// the cloud cells, the red boxes and the column characters stand over the traffic and under the line win
 		this.features = new RoadFeatures(tex);
@@ -308,7 +358,7 @@ export class RoadBoard {
 			// (its own label: the probes count the vehicles' twins by 'shadow')
 			riderShadow.label = 'riderShadow';
 			this.ground.addChild(riderShadow);
-			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, shadow, lights: null, van: null, tree: null, seated: null, riderShadow };
+			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, rel: -Infinity, v: 0, b: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, shadow, lights: null, van: null, tree: null, seated: null, riderShadow, brake: null };
 			this.cars.push(car);
 		}
 		this.stopPresent(car);
@@ -341,6 +391,8 @@ export class RoadBoard {
 		car.bright = 1;
 		car.stopped = false;
 		car.m = null;
+		car.rel = -Infinity;
+		car.brake?.off();
 		if (car.sprite.parent !== this.lanes[lane]) this.lanes[lane].addChild(car.sprite);
 		// a new vehicle in this slot: its riders hang still
 		car.tree?.reset();
@@ -356,6 +408,7 @@ export class RoadBoard {
 		car.shadow.visible = false;
 		car.lights?.off();
 		car.van?.off(car.sprite, car.restX, laneSitY(car.lane));
+		car.brake?.off();
 		this.syncRiders(car);
 	}
 
@@ -470,6 +523,8 @@ export class RoadBoard {
 		this.spinActive = false; // stopped: the signal is red
 		this.reelStopAt = this.reelStopAt.map(() => null);
 		this.features.sounds.trafficStop('board put up as it is');
+		this.features.sounds.teaseStop('board put up as it is', REINDEER_SOUND.stopFadeMs);
+		this.flow = null;
 		this.clearWin();
 		let parked = 0;
 		for (let col = 0; col < COLS; col++) {
@@ -502,6 +557,11 @@ export class RoadBoard {
 		// THE TRAFFIC: on from the press (and from each later spin's pull away) until the last reel stops
 		this.reelStopAt = this.reelStopAt.map(() => null);
 		this.trafficFading = false;
+		this.stopsBegun = false;
+		this.features.sounds.teaseStop('the board pulls away', REINDEER_SOUND.stopFadeMs);
+		this.flow = null;
+		this.pressReal = performance.now();
+		this.pressClock = this.clock;
 		this.features.sounds.trafficStart('the board pulls away');
 		m.laneOrder.forEach((lane, k) => {
 			const dir = ROAD.laneDirection[lane];
@@ -517,8 +577,10 @@ export class RoadBoard {
 		this.waiting = { m, next: m.laneOrder.map((_, k) => first + k * m.in.laneStaggerMs) };
 	}
 
-	/** THE BOOK'S BOARD drives in, lane by lane. Resolves when the last symbol has settled on its mark. */
-	driveIn(board: Board, level: 0 | 1 | 2): Promise<void> {
+	/** THE BOOK'S BOARD drives in, lane by lane (constants LANE_FLOW: the lanes 100 ms apart, the lead car of each lane
+	 *  first, the scatter tease). Resolves when the last symbol has settled on its mark. `free`: a feature round's spin
+	 *  (three scatters decide: the retrigger); `tease`: a tease is allowed (false: a feature that has had its one). */
+	driveIn(board: Board, level: 0 | 1 | 2, opts: { free?: boolean; tease?: boolean } = {}): Promise<void> {
 		const m = motionFor(level);
 		// a board that never drove out (a round's later spins, a resume) pulls away first
 		if (this.cars.some((c) => c.phase === 'rest')) this.driveOut(level);
@@ -526,28 +588,48 @@ export class RoadBoard {
 		const start = Math.max(this.clock, (this.outAt ?? this.clock) + m.in.delayMs);
 		this.convoyAt = start;
 		this.outAt = null;
-		const brakeDist = (m.cruise * m.in.brakeMs) / 2000;
+		this.flow = null;
+		this.cutOneMoment = false;
 		let allHome = start;
 		let parked = 0;
 		const reelStop: (number | null)[] = Array.from({ length: COLS }, () => null);
-		m.laneOrder.forEach((lane, k) => {
+		const laneSound: (number | null)[] = [null, null, null, null];
+		const hiddenAt = (dir: number, halfW: number) => (dir > 0 ? MOUTH_L - halfW - HIDE_PAD : MOUTH_R + halfW + HIDE_PAD);
+		// every place of every lane, the lead first (the lead is the column farthest from the entry)
+		const placesOf = (lane: number) => {
 			const dir = ROAD.laneDirection[lane];
-			let t0 = start + k * m.in.laneStaggerMs;
+			return Array.from({ length: COLS }, (_, i) => (dir > 0 ? COLS - 1 - i : i));
+		};
+		// THE PLAN (LANE_FLOW on): the release times, the drives and the tease; a car per place that parks
+		let plan: FlowPlan | null = null;
+		const planned = new Map<string, FlowPlan['cars'][number]>();
+		if (LANE_FLOW.on) {
+			const input: FlowCar[] = [];
+			for (const lane of m.laneOrder) placesOf(lane).forEach((col, k) => this.parks(board, col, lane) && input.push({ lane, k, scatter: board[col][lane] === 'S' }));
+			// no tease in a spin that drives in already hurried (a slam stop earlier in the round)
+			const tease = (opts.tease ?? true) && !this.hurrying;
+			plan = planFlow(input, flowParams(level, { free: !!opts.free, tease, budgetMs: LANE_FLOW.capMs - m.in.delayMs - m.in.settleMs }));
+			for (const c of plan.cars) planned.set(`${c.lane}:${c.k}`, c);
+		}
+		const laneRel: number[][] = [[], [], [], []];
+		m.laneOrder.forEach((lane, laneK) => {
+			const dir = ROAD.laneDirection[lane];
+			let t0 = start + laneK * m.in.laneStaggerMs;
 			for (let n = 0; n < m.through.perLane; n++) {
 				this.spawnThrough(lane, t0, m);
 				t0 += m.through.gapMs;
 			}
-			// the convoy, front car first: the front car is the one whose column is farthest from the entry
-			const order = Array.from({ length: COLS }, (_, i) => (dir > 0 ? COLS - 1 - i : i));
-			// The lane's time is set by its FRONT place (the column farthest from the entry), whether or not a symbol parks
-			// there: a held column Wild in the lane leaves the other symbols' places and times exactly as they were.
-			const hiddenAt = (halfW: number) => (dir > 0 ? MOUTH_L - halfW - HIDE_PAD : MOUTH_R + halfW + HIDE_PAD);
+			const order = placesOf(lane);
+			// THE OLD CONVOY (LANE_FLOW off): the lane's time is set by its FRONT place, cruise speed, then the brake
+			const brakeDist = (m.cruise * m.in.brakeMs) / 2000;
 			const stopFor = (halfW: number, overshoot: number) => {
-				const s0 = Math.abs(columnX(order[0]) + dir * overshoot - hiddenAt(halfW));
+				const s0 = Math.abs(columnX(order[0]) + dir * overshoot - hiddenAt(dir, halfW));
 				return t0 + m.in.brakeMs + (Math.max(0, s0 - brakeDist) / m.cruise) * 1000;
 			};
 			let leadStop = stopFor(PITCH * 0.46, m.in.overshootPx);
 			let count = 0;
+			let laneStop = -Infinity;
+			let laneBrake = Infinity;
 			order.forEach((col, i) => {
 				if (!this.parks(board, col, lane)) return;
 				const car = this.take(lane, board[col][lane]);
@@ -558,40 +640,123 @@ export class RoadBoard {
 				car.restX = columnX(col);
 				car.overshoot = m.in.overshootPx * stiff;
 				car.dive = (m.in.diveDeg * stiff * Math.PI) / 180;
-				if (i === 0) leadStop = stopFor(car.halfW, car.overshoot);
-				car.stopAt = leadStop + i * m.in.carStaggerMs;
-				// this reel's stop sound: when its last car reaches its stop point
+				const from = this.hiddenX(car, true);
+				const dist = Math.abs(car.restX + dir * car.overshoot - from);
+				const p = planned.get(`${lane}:${i}`);
+				if (plan && p) {
+					// its own drive: cruise, then the brake over its last b ms (constants LANE_FLOW), arriving at p.arr
+					car.rel = start + p.rel;
+					car.stopAt = start + p.arr;
+					car.b = Math.min(LANE_FLOW.brakeMs, LANE_FLOW.brakeShareMax * p.dur);
+					car.v = dist / Math.max(0.001, (p.dur - car.b / 2) / 1000);
+					laneRel[lane].push(car.rel);
+				} else {
+					if (i === 0) leadStop = stopFor(car.halfW, car.overshoot);
+					car.stopAt = leadStop + i * m.in.carStaggerMs;
+					car.v = m.cruise;
+					car.b = m.in.brakeMs;
+					car.rel = car.stopAt - m.in.brakeMs - (Math.max(0, dist - brakeDist) / m.cruise) * 1000;
+				}
+				laneStop = Math.max(laneStop, car.stopAt);
+				laneBrake = Math.min(laneBrake, car.stopAt - car.b);
+				// this reel's stop: when its last car reaches its stop point
 				reelStop[col] = Math.max(reelStop[col] ?? -Infinity, car.stopAt);
-				car.sprite.x = this.hiddenX(car, true);
+				car.sprite.x = from;
 				car.sprite.visible = false;
 				count += 1;
 			});
+			if (!plan) {
+				laneStop = leadStop + (COLS - 1) * m.in.carStaggerMs;
+				laneBrake = leadStop - m.in.brakeMs;
+			} else if (count === 0) {
+				laneStop = start;
+				laneBrake = start;
+			}
 			this.laneParked[lane] = count;
 			parked += count;
-			this.laneStopSoundAt[lane] = count > 0 ? leadStop : null;
-			// THE SIGNAL: this lane's front symbol starts to brake here (amber); its last symbol reaches its stop point
-			// here (red: the start of the brake bounce, not the end of it)
-			this.laneBrakeAt[lane] = leadStop - m.in.brakeMs;
-			this.laneStopAt[lane] = leadStop + (COLS - 1) * m.in.carStaggerMs;
-			this.laneHomeAt[lane] = leadStop + (COLS - 1) * m.in.carStaggerMs + m.in.settleMs;
+			this.laneStopSoundAt[lane] = count > 0 ? (plan ? laneStop : leadStop) : null;
+			laneSound[lane] = count > 0 ? laneStop : null;
+			// THE SIGNAL: this lane's first symbol starts to brake here (amber); its last symbol reaches its stop point here
+			// (red: the start of the brake bounce, not the end of it)
+			this.laneBrakeAt[lane] = laneBrake;
+			this.laneStopAt[lane] = laneStop;
+			this.laneHomeAt[lane] = laneStop + m.in.settleMs;
 			allHome = Math.max(allHome, this.laneHomeAt[lane]);
 		});
 		this.parked = parked;
-		// the stop SOUNDS go left to right at normal speed and turbo 1 (constants REINDEER_SOUND reel stop, pass 5): a reel
-		// planned a few ms before the reel to its left sounds with it instead (at turbo 1 reels 1 and 2 are about 9 ms apart)
-		if (level < 2) {
-			let prev = -Infinity;
-			for (let col = 0; col < COLS; col++) {
-				const at = reelStop[col];
-				if (at === null) continue;
-				if (at < prev) reelStop[col] = prev;
-				prev = reelStop[col] as number;
+		if (plan) {
+			// ONE STOP SOUND PER LANE (constants REINDEER_SOUND reelStops, pass 7), top lane first: never before the lane
+			// above it below turbo 2
+			if (level < 2) {
+				let prev = -Infinity;
+				for (let lane = 0; lane < ROWS; lane++) {
+					const at = laneSound[lane];
+					if (at === null) continue;
+					if (at < prev) laneSound[lane] = prev;
+					prev = laneSound[lane] as number;
+				}
 			}
+			this.reelStopAt = laneSound;
+			this.flow = { start, plan, level, free: !!opts.free, laneRel, soundOn: false, soundDone: false, stepped: false, seenMarked: 0, cut: false, pressReal: this.pressReal };
+			this.spinLog.push({ pressReal: this.pressReal, restReal: null, pressClock: this.pressClock, startClock: start, restClock: null, level, scatters: plan.seen.length, factor: plan.factor, teaseFrom: plan.teaseFrom, end: plan.end, cut: false });
+			if (this.spinLog.length > 40) this.spinLog.shift();
+			this.features.sounds.mark('flowPlan', `${plan.cars.length} cars, ${plan.seen.length} scatter(s), tease ${plan.teaseFrom === null ? 'none' : Math.round(plan.teaseFrom)}, end ${Math.round(plan.end)}, factor ${plan.factor.toFixed(3)}`);
+		} else {
+			// the stop SOUNDS go left to right at normal speed and turbo 1 (constants REINDEER_SOUND reel stop, pass 5): a
+			// reel planned a few ms before the reel to its left sounds with it instead
+			if (level < 2) {
+				let prev = -Infinity;
+				for (let col = 0; col < COLS; col++) {
+					const at = reelStop[col];
+					if (at === null) continue;
+					if (at < prev) reelStop[col] = prev;
+					prev = reelStop[col] as number;
+				}
+			}
+			this.reelStopAt = reelStop;
 		}
-		this.reelStopAt = reelStop;
 		this.reelStopTurbo2 = level === 2;
 		this.trafficFading = false;
-		return this.wait(allHome + 20, 'board');
+		this.stopsBegun = false;
+		const waiter: Waiter = { at: allHome + 20, clock: 'board', resolve: () => {} };
+		const done = this.destroyed ? Promise.resolve() : new Promise<void>((resolve) => (waiter.resolve = resolve));
+		if (!this.destroyed) this.waiters.push(waiter);
+		this.driveWaiter = waiter;
+		// A SLAM STOP pressed during this spin before its board drove in: straight to the stopped board, no tease
+		if (this.hurrying && this.hurryFrom >= this.spinStartAt) this.slamCut();
+		return done;
+	}
+
+	/** THE SLAM STOP'S CUT (constants LANE_FLOW): every car still driving in or in the tunnel is at its stop point now
+	 *  (its rock back follows on the hurried clock), the tease is over, the lanes' stops sound once */
+	private slamCut() {
+		const now = this.clock;
+		let any = false;
+		for (const car of this.cars) {
+			if (car.phase !== 'in' || car.stopAt <= now) continue;
+			car.rel = Math.min(car.rel, now);
+			car.stopAt = now;
+			any = true;
+		}
+		if (!any || !LANE_FLOW.on) return;
+		let home = now;
+		for (let lane = 0; lane < ROWS; lane++) {
+			this.laneStopAt[lane] = Math.min(this.laneStopAt[lane], now);
+			this.laneBrakeAt[lane] = Math.min(this.laneBrakeAt[lane], now);
+			const m = this.cars.find((c) => c.lane === lane && c.m)?.m ?? motionFor(0);
+			this.laneHomeAt[lane] = Math.min(this.laneHomeAt[lane], now + m.in.settleMs);
+			home = Math.max(home, this.laneHomeAt[lane]);
+			if (this.reelStopAt[lane] !== null && this.reelStopAt[lane]! > now) this.reelStopAt[lane] = now;
+		}
+		this.cutOneMoment = true;
+		if (this.driveWaiter) this.driveWaiter.at = Math.min(this.driveWaiter.at, home + 20);
+		if (this.flow) {
+			this.flow.cut = true;
+			const last = this.spinLog[this.spinLog.length - 1];
+			if (last) last.cut = true;
+		}
+		this.features.sounds.mark('slamCut', 'the drive in cut to the stopped board');
+		this.features.sounds.teaseStop('slam stop', REINDEER_SOUND.stopFadeMs);
 	}
 
 	private spawnThrough(lane: number, at: number, m: RoadMotion) {
@@ -901,7 +1066,7 @@ export class RoadBoard {
 				lens[color] = { lit, glow, alpha: 0 };
 			}
 			this.lightLayer.addChild(root);
-			this.lights.push({ root, side, lanes: side > 0 ? [0, 1] : [2, 3], lens, showing: null, redOnReal: 0 });
+			this.lights.push({ root, side, lanes: side > 0 ? [0, 1] : [2, 3], lens, showing: null, teasing: false, redOnReal: 0 });
 		}
 	}
 
@@ -912,6 +1077,9 @@ export class RoadBoard {
 		if (!this.spinActive) return 'red';
 		// a slam stop: red at once
 		if (STOPLIGHT.slamRed && this.hurrying) return 'red';
+		// THE TEASE (constants STOPLIGHT.tease): while this light's lanes still have cars in the tunnel
+		const tease = this.teaseSignal(light);
+		if (tease !== undefined) return tease;
 		// the lanes it answers to: its own two, or the whole board (constants STOPLIGHT.follow)
 		const F = STOPLIGHT.follow;
 		let stop = -Infinity;
@@ -938,6 +1106,23 @@ export class RoadBoard {
 		return this.clock >= amberAt ? 'amber' : 'green';
 	}
 
+	/** the tease's color for a light now (undefined: not teasing; null: a flash's dark beat). Sets light.teasing. */
+	private teaseSignal(light: Stoplight): SignalColor | null | undefined {
+		light.teasing = false;
+		const f = this.flow;
+		if (!f || f.cut || f.plan.teaseFrom === null) return undefined;
+		const t = this.clock - f.start;
+		const lv = flowLevel(f.plan.seen, t, f.plan.decideAt);
+		if (lv !== 1 && lv !== 2) return undefined;
+		const rels = [...f.laneRel[light.lanes[0]], ...f.laneRel[light.lanes[1]]];
+		if (!rels.some((r) => r > this.clock)) return undefined;
+		light.teasing = true;
+		const T = STOPLIGHT.tease;
+		if (rels.some((r) => r <= this.clock && this.clock - r < T.greenMs)) return 'green';
+		if (lv === 1) return Math.floor(t / Math.max(1, T.flashMs)) % 2 === 0 ? 'amber' : null;
+		return Math.floor(t / Math.max(1, T.alternateMs)) % 2 === 0 ? 'red' : 'amber';
+	}
+
 	private updateLights(dtMs: number) {
 		if (!this.lights.length) return;
 		// for the signal the spin is over once every lane's last symbol is at its stop point
@@ -959,10 +1144,15 @@ export class RoadBoard {
 			light.root.scale.set(-light.side * k, k);
 			// + tilt turns the lens edge toward the middle of the road: for both lights that is against the clock on screen
 			light.root.rotation = (-place.tilt * Math.PI) / 180;
+			const wasTeasing = light.teasing;
+			light.teasing = false;
 			const want = this.signalFor(light);
 			if (want === 'red' && light.showing !== 'red') light.redOnReal = performance.now(); // DEV readout
-			// a light changing color (not its first color, not a dark light): its sound, once for the frame below
-			if (light.showing !== null && want !== null && want !== light.showing) changed.push(`${top ? 'top' : 'bottom'} ${light.showing}>${want}`);
+			// a light changing color (not its first color, not a dark light): its sound, once for the frame below. The
+			// tease's flashing is silent (it has its own sound); with releaseSound a release's green sounds.
+			const teaseChange = light.teasing || wasTeasing;
+			const voiced = !teaseChange || (STOPLIGHT.tease.releaseSound && light.teasing && want === 'green');
+			if (light.showing !== null && want !== null && want !== light.showing && voiced) changed.push(`${top ? 'top' : 'bottom'} ${light.showing}>${want}`);
 			light.showing = want;
 			const size = STOPLIGHT.glow.size;
 			for (const color of SIGNAL_COLORS) {
@@ -970,7 +1160,7 @@ export class RoadBoard {
 				const target = want === color ? 1 : 0;
 				// RED IS INSTANT (Corey: "turn Red as soon as the symbols stop"): on, and the others off, in this frame.
 				// Green and amber fade over fadeMs.
-				if (want === 'red') l.alpha = target;
+				if (want === 'red' || light.teasing) l.alpha = target;
 				else if (l.alpha !== target) l.alpha = target > l.alpha ? Math.min(1, l.alpha + step) : Math.max(0, l.alpha - step);
 				l.lit.alpha = l.alpha;
 				if (l.glow) {
@@ -996,6 +1186,12 @@ export class RoadBoard {
 		const dt = Math.min(dtMs, 100); // a tab that slept does not teleport the traffic
 		this.clock += dt * rate;
 		this.winClock += dt * hurry;
+		// A SLAM STOP during a live drive in cuts straight to the stopped board (constants LANE_FLOW)
+		if (hurry > 1 && !this.hurrying) {
+			this.hurrying = true;
+			this.hurryFrom = this.clock;
+			this.slamCut();
+		}
 		this.hurrying = hurry > 1;
 		const now = this.clock;
 
@@ -1035,10 +1231,16 @@ export class RoadBoard {
 				}
 			} else if (car.phase === 'in' && m) {
 				const left = car.stopAt - now; // ms until it stops
-				if (left > 0) {
-					const brake = m.in.brakeMs;
-					// distance still to go to the stop point: a constant deceleration over the brake time, cruise before it
-					const dist = left <= brake ? (m.cruise * left * left) / (2000 * brake) : (m.cruise * brake) / 2000 + (m.cruise * (left - brake)) / 1000;
+				if (now < car.rel) {
+					// still in the tunnel (LANE_FLOW: the tunnel holds it until its release)
+					s.x = this.hiddenX(car, true);
+					s.rotation = 0;
+					s.visible = false;
+				} else if (left > 0) {
+					const brake = car.b;
+					// distance still to go to the stop point: a constant deceleration over the brake time, its own cruise
+					// speed before it (constants LANE_FLOW: each car's drive takes its planned time)
+					const dist = left <= brake ? (car.v * left * left) / (2000 * brake) : (car.v * brake) / 2000 + (car.v * (left - brake)) / 1000;
 					s.x = car.restX + car.dir * (car.overshoot - dist);
 					const p = left <= brake ? 1 - left / brake : 0;
 					s.rotation = car.dir * car.dive * p * p;
@@ -1079,14 +1281,18 @@ export class RoadBoard {
 		this.updateWin();
 		this.features.rate = rate;
 		this.features.update(now);
+		this.updateTease(now);
 		this.updateLights(dt);
 		this.updateReelStops(now, rate);
 		this.updateLineShows();
 		this.updateVans();
 		this.stepRiders(now, dt * rate);
+		this.updateSeatClips();
 		this.paint();
+		this.updateBrakes(dt);
 		this.updatePolice();
 		this.updatePresents(now);
+		this.noteRest();
 
 		if (this.waiters.length) {
 			const due = this.waiters.filter((x) => (x.clock === 'board' ? this.clock : this.winClock) >= x.at);
@@ -1097,6 +1303,120 @@ export class RoadBoard {
 		}
 	}
 
+	/** THE TEASE'S SOUND AND MOMENTS (constants REINDEER_SOUND tease, LANE_FLOW): each scatter as it is seen (a moment
+	 *  for the probes), the loop from the tease's start, its step at three seen, its end */
+	private updateTease(now: number) {
+		const f = this.flow;
+		if (!f) return;
+		const t = now - f.start;
+		const S = this.features.sounds;
+		while (f.seenMarked < f.plan.seen.length && t >= f.plan.seen[f.seenMarked]) {
+			f.seenMarked += 1;
+			S.mark('scatterSeen', `${f.seenMarked} of ${f.plan.seen.length}`);
+		}
+		if (f.cut) return;
+		const P = f.plan;
+		if (P.teaseFrom === null || P.teaseEnd === null) return;
+		if (!f.soundOn && !f.soundDone && t >= P.teaseFrom && t < P.teaseEnd) {
+			f.soundOn = true;
+			S.mark('teaseStart', `two seen, ${P.cars.filter((c) => c.rel > t).length} car(s) to come`);
+			S.teaseStart();
+		}
+		if (f.soundOn && !f.stepped && P.threeFrom !== null && t >= P.threeFrom && t < P.teaseEnd) {
+			f.stepped = true;
+			S.mark('teaseThree', 'three seen');
+			S.teaseStep(REINDEER_SOUND.tease.rateAtThree);
+		}
+		if (f.soundOn && t >= P.teaseEnd) {
+			f.soundOn = false;
+			f.soundDone = true;
+			const decided = P.seen.length >= P.decideAt && P.seen[P.decideAt - 1] <= P.teaseEnd + 0.01;
+			S.mark('teaseEnd', decided ? 'the deciding scatter seen' : 'the last car seen');
+			S.teaseStop(decided ? 'decided' : 'the last car seen', REINDEER_SOUND.tease.fadeMs);
+		}
+		// SKIP TO RESULT: the tease's loop never plays on under it
+		if (f.soundOn && S.env.skipping?.()) {
+			f.soundOn = false;
+			f.soundDone = true;
+			S.teaseStop('skip to result', REINDEER_SOUND.stopFadeMs);
+		}
+	}
+
+	/** THE BRAKE LIGHTS (constants BRAKE_LIGHTS): every car's, from what it is doing now */
+	private updateBrakes(dtMs: number) {
+		const glow = this.tex('stoplight_glow');
+		if (!glow) return;
+		const now = this.clock;
+		for (const car of this.cars) {
+			const isCar = car.symbol !== null && CARS.includes(car.symbol);
+			if (!isCar || car.phase === 'free') {
+				if (car.brake?.shown || car.brake?.level) car.brake.off();
+				continue;
+			}
+			let state: BrakeState = 'off';
+			if (car.phase === 'rest') state = 'stopped';
+			else if (car.phase === 'in') state = now >= car.stopAt ? 'stopped' : now >= car.stopAt - car.b && now >= car.rel ? 'brake' : 'off';
+			const pair = (car.brake ??= new BrakeLightPair(this.brakeLayer, glow));
+			pair.draw(car.sprite, frameFor(car.symbol!, car.dir), this.builtK(car), (car.tintNow & 0xff) / 255, state, dtMs);
+		}
+	}
+
+	/** DEV: the spin's length, the frame the board is at rest after a drive in */
+	private noteRest() {
+		const last = this.spinLog[this.spinLog.length - 1];
+		if (last && last.restReal === null && this.flow && this.atRest) {
+			last.restReal = performance.now();
+			last.restClock = this.clock;
+		}
+	}
+
+	/** DEV / probes: the clock and the stoplights only (read every frame by the lane stagger probe) */
+	flowLite() {
+		return { clock: Math.round(this.clock * 10) / 10, lights: this.lights.map((l) => ({ lanes: l.lanes, showing: l.showing, teasing: l.teasing })) };
+	}
+
+	/** DEV / probes: the last drive in's plan as the road plays it (board clock ms from its start), and the spins' lengths */
+	flowSnapshot() {
+		const f = this.flow;
+		const r1 = (v: number | null) => (v === null ? null : Math.round(v * 10) / 10);
+		return {
+			on: LANE_FLOW.on,
+			clock: r1(this.clock),
+			plan: f
+				? {
+						start: r1(f.start),
+						clockNow: r1(this.clock),
+						level: f.level,
+						free: f.free,
+						cut: f.cut,
+						decideAt: f.plan.decideAt,
+						factor: Math.round(f.plan.factor * 10000) / 10000,
+						seen: f.plan.seen.map(r1),
+						teaseFrom: r1(f.plan.teaseFrom),
+						threeFrom: r1(f.plan.threeFrom),
+						teaseEnd: r1(f.plan.teaseEnd),
+						end: r1(f.plan.end),
+						firstRelease: r1(f.plan.firstRelease),
+						lastRelease: r1(f.plan.lastRelease),
+						held: f.plan.held,
+						cars: f.plan.cars.map((c) => ({ lane: c.lane, k: c.k, scatter: c.scatter, nr: r1(c.nr), rel: r1(c.rel), dur: r1(c.dur), arr: r1(c.arr), level: c.level })),
+						sound: { on: f.soundOn, done: f.soundDone, stepped: f.stepped },
+					}
+				: null,
+			// the spin's length: from the press to the board at rest, on the board clock (ms at normal speed) and in real ms
+			spins: this.spinLog.map((x) => ({ ...x, boardMs: x.restClock === null ? null : Math.round(x.restClock - x.pressClock), realMs: x.restReal === null ? null : Math.round(x.restReal - x.pressReal) })),
+			lights: this.lights.map((l) => ({ lanes: l.lanes, showing: l.showing, teasing: l.teasing })),
+		};
+	}
+
+	/** DEV / probes: every symbol on the road: its phase, x, its brake state, level and lamps drawn */
+	brakeSnapshot() {
+		// (every symbol on the road: the signs and the sleigh carry no lights, state 'off')
+		return this.cars
+			.filter((c) => c.phase !== 'free' && c.symbol !== null)
+			.map((c) => ({ symbol: c.symbol, frame: frameFor(c.symbol!, c.dir), lane: c.lane, col: c.col, phase: c.phase, x: Math.round(c.sprite.x * 100) / 100, visible: c.sprite.visible, rotation: c.sprite.rotation, state: c.brake?.state ?? 'off', level: Math.round((c.brake?.level ?? 0) * 1000) / 1000, shown: !!c.brake?.shown, at: c.brake?.at ?? [], rel: c.rel, stopAt: c.stopAt, b: c.b, v: Math.round(c.v) }));
+	}
+
 	/** THE REEL STOPS (constants REINDEER_SOUND reel stop): each reel's own on the frame its last car reaches its stop
 	 *  point, after the features' update (so the sounds' log has this frame's number). The traffic fades from the first
 	 *  one over the time left to the last (real ms at this frame's rate) and is done at the last. */
@@ -1104,25 +1424,28 @@ export class RoadBoard {
 		let fired = false;
 		let left = 0;
 		let last = -Infinity;
-		for (let col = 0; col < COLS; col++) {
+		for (let col = 0; col < this.reelStopAt.length; col++) {
 			const at = this.reelStopAt[col];
-			if (at === null) continue;
+			if (at == null) continue;
 			if (now >= at) {
 				this.reelStopAt[col] = null;
 				fired = true;
-				this.features.sounds.mark('reelStop', `reel ${col + 1}`);
-				this.features.sounds.reelStop(col, this.reelStopTurbo2);
+				this.features.sounds.mark('reelStop', this.flow ? `lane ${col + 1}` : `reel ${col + 1}`);
+				this.features.sounds.reelStop(col, this.reelStopTurbo2 || this.cutOneMoment);
 			} else {
 				left += 1;
 				last = Math.max(last, at);
 			}
 		}
-		if (!fired) return;
-		if (left === 0) this.features.sounds.trafficDone('the last reel stopped');
-		else if (!this.trafficFading) {
+		// THE TRAFFIC'S FADE (LANE_FLOW): never before the last car has left the tunnel (a tease keeps the traffic rolling)
+		const lastRelease = this.flow && !this.flow.cut ? this.flow.start + this.flow.plan.lastRelease : -Infinity;
+		if (left === 0) {
+			if (fired) this.features.sounds.trafficDone('the last lane stopped');
+		} else if ((fired || this.stopsBegun) && !this.trafficFading && now >= lastRelease) {
 			this.trafficFading = true;
-			this.features.sounds.trafficStop('the first reel stopped', (last - now) / Math.max(0.001, rate));
+			this.features.sounds.trafficStop(this.flow ? 'the first lane stopped and every car is out' : 'the first reel stopped', (last - now) / Math.max(0.001, rate));
 		}
+		if (fired) this.stopsBegun = true;
 	}
 
 	private updateWin() {
@@ -1266,9 +1589,14 @@ export class RoadBoard {
 		}
 		if (car.phase === 'in') {
 			const left = car.stopAt - t;
+			if (t < car.rel) {
+				// in the tunnel: at its release point, moving at its cruise speed from then (no jolt at the mouth)
+				const dist = (car.v * car.b) / 2000 + (car.v * (car.stopAt - car.rel - car.b)) / 1000 + (car.v * (car.rel - t)) / 1000;
+				return car.restX + car.dir * (car.overshoot - dist);
+			}
 			if (left > 0) {
-				const brake = m.in.brakeMs;
-				const dist = left <= brake ? (m.cruise * left * left) / (2000 * brake) : (m.cruise * brake) / 2000 + (m.cruise * (left - brake)) / 1000;
+				const brake = car.b;
+				const dist = left <= brake ? (car.v * left * left) / (2000 * brake) : (car.v * brake) / 2000 + (car.v * (left - brake)) / 1000;
 				return car.restX + car.dir * (car.overshoot - dist);
 			}
 			const u = -left / m.in.settleMs;
@@ -1334,10 +1662,51 @@ export class RoadBoard {
 				this.placeRider(car, seat.root);
 				// the win pulse's swell (0 to 1) from the sprite's own scale: the bob rides it
 				const pulse = car.phase === 'rest' && car.winning && car.baseScale > 0 ? (Math.abs(s.scale.y) / car.baseScale - 1) / Math.max(1e-6, LINE_WIN.pulseScale - 1) : 0;
-				seat.draw(pulse);
+				// THE ANIMATION (constants SEATED.clips): the win reaction while a win runs through it (once), else the idle
+				// while it stands at rest, else the still
+				const clips = this.seatClips[car.symbol === 'H1' ? 'grandma' : 'santa'];
+				// (once started the reaction plays to its end while the vehicle stands, even past a short win's hold)
+				const inWin = car.phase === 'rest' && car.winning && !!this.win?.active;
+				if (car.phase !== 'rest') seat.winT0 = null;
+				let clip: SeatClip | null = null;
+				let ms = 0;
+				if ((inWin || seat.winT0 !== null) && clips.win) {
+					seat.winT0 ??= this.winClock;
+					ms = this.winClock - seat.winT0;
+					if (ms < clips.win.lengthMs) clip = clips.win;
+					else if (!inWin) seat.winT0 = null;
+				}
+				if (!clip && car.phase === 'rest' && clips.idle) {
+					clip = clips.idle;
+					// each slot its own place in the loop, so a board of drivers does not move as one
+					ms = (this.seatTime ?? performance.now()) + this.cars.indexOf(car) * 1370;
+				}
+				seat.draw(pulse, clip, ms);
 			} else seat.root.visible = false;
 		} else if (car.seated && car.seated.root.visible) car.seated.root.visible = false;
 		if (!wantTree && !wantSeat && car.riderShadow.visible) car.riderShadow.visible = false;
+	}
+
+	/** THE SEATED DRIVERS' ANIMATIONS: which sheets are wanted this frame (game/road/seatedClips.ts loads and lets go) */
+	private updateSeatClips() {
+		const want: Record<SeatChar, { idle: boolean; win: boolean }> = { grandma: { idle: false, win: false }, santa: { idle: false, win: false } };
+		const winLive = !!this.win?.active;
+		for (const car of this.cars) {
+			if (car.phase !== 'rest' || !car.symbol || !SEATS.includes(car.symbol) || !car.sprite.visible) continue;
+			const c: SeatChar = car.symbol === 'H1' ? 'grandma' : 'santa';
+			want[c].idle = true;
+			if ((car.winning && winLive) || car.seated?.winT0 != null) want[c].win = true;
+		}
+		const now = performance.now();
+		for (const c of ['grandma', 'santa'] as SeatChar[]) {
+			const before = this.seatClips[c];
+			const idle = seatClip(c, 'idle', TIER, want[c].idle && SEATED.on, now);
+			const win = seatClip(c, 'win', TIER, want[c].win && SEATED.on, now);
+			// a sheet let go this frame: every driver of the character back to the still now (drawn or not), so nothing
+			// holds its textures when they are destroyed
+			if ((before.idle && !idle) || (before.win && !win)) for (const car of this.cars) if (car.seated && car.seated.last.character === c) car.seated.resetAnim();
+			this.seatClips[c] = { idle, win };
+		}
 	}
 
 	/** DEV / probes: every wagon's tree as drawn (cell, phase, direction, whether it shows, sits right after its wagon in
@@ -1377,6 +1746,11 @@ export class RoadBoard {
 					layered: !!root && root.parent === lane && lane.getChildIndex(root) === lane.getChildIndex(c.sprite) + 1 && root.getChildIndex(d!.figure) < root.getChildIndex(d!.front) && d!.figure.visible && d!.front.visible,
 					follows: !!root && Math.abs(root.x - c.sprite.x) < 1e-6 && Math.abs(root.y - c.sprite.y) < 1e-6 && root.rotation === c.sprite.rotation && Math.abs(root.scale.y - this.builtK(c)) < 1e-6 && root.tint === c.sprite.tint,
 					...(d?.last ?? { leanDeg: 0, bob: 0, x: 0, y: 0, scale: 1, character: '' }),
+					// (a driver not drawn this frame shows nothing)
+					anim: d && d.root.visible ? d.anim : { clip: 'still', frame: -1 },
+					headShown: !!d && d.patch.visible && d.root.visible,
+					headLayered: !!d && d.root.getChildIndex(d.figure) < d.root.getChildIndex(d.patch) && d.root.getChildIndex(d.patch) < d.root.getChildIndex(d.front),
+					headFollows: !!d && (!d.patch.visible || (d.patch.x === d.figure.x && d.patch.y === d.figure.y && d.patch.rotation === d.figure.rotation && Math.sign(d.patch.scale.x) === Math.sign(d.figure.scale.x))),
 					shadow: c.riderShadow.visible,
 				};
 			});
@@ -1534,6 +1908,7 @@ export class RoadBoard {
 
 	destroy() {
 		this.destroyed = true;
+		releaseAllSeatClips();
 		for (const w of this.waiters) w.resolve();
 		this.waiters = [];
 		this.features.destroy();

@@ -170,6 +170,7 @@
 		{#if context.stateLayout.showLoadingScreen}
 			<LoadingScreen
 				play={landingPressed}
+				led={boot.ledSign}
 				onloaded={() => {
 					// under the fade's black: the landing's posed board goes before anything of the game shows
 					context.eventEmitter.broadcast({ type: 'boardLandingEnd' });

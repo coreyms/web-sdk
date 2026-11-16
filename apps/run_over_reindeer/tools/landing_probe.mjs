@@ -1,17 +1,25 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// THE LANDING PROBE (the landing board, Corey 2026-11-15: the mock V2 without UP TO; game/landingBoard.ts). At each size:
-//   - behind PRESS ANYWHERE the road shows the posed board: reels 1 and 5 the eight ordinary symbols once each, reels
-//     2, 3 and 4 the Reindeer, Santa and Grandma columns standing (drawn, with their cloud still) at the top multipliers
-//     the math config gives, and nothing moving (the board clock's columns hold one frame)
-//   - after the press the first board is the normal one (LANDING_BOARD) with no column left, from the first frame the
-//     landing is gone
+// THE LANDING PROBE. Pass 7 (Corey 2026-11-16): the press screen after the studio splash is the LED BILLBOARD
+// (led_billboard_r2_2026-11-16; constants LED_SIGN, game/landing/ledSign.ts), and the posed board (the landing mock V2, game/
+// landingBoard.ts) is the FIRST BOARD after the press. At each size:
+//   - PRESS ANYWHERE is reached (the press gate's rules: the billboard's ticker shows it, the HTML line steps aside)
+//   - behind the billboard the road shows the posed board: reels 1 and 5 the eight ordinary symbols once each, reels 2, 3
+//     and 4 the Reindeer, Santa and Grandma columns standing at the top multipliers the math config gives, nothing moving
+//   - the billboard: its dots (desktop 362 x 143 and a 362 x 11 ticker, 2.49 CSS px; the other sizes from the page's
+//     rules), its face centred on the board, its snow cap under the title sign, its housing above the screen's foot,
+//     held sideways clear of both HUD columns; the three screens cycle (each captured, with 4x crops of its words); its
+//     first screen's figure is the max win from game/config.ts
+//   - the press powers it down: the game's chrome is up by the hand over, the sign is gone and unloaded after
+//   - the first board after the press is the posed board, at rest; the first spin's press takes its columns away
 //   - a resumed round (the fixture RGS's resume: a free spin with a held column) comes back with its own column only
+//   - the billboard's cost per content step on a phone profile with the CPU throttled 4x (CDP), its GPU bytes, the bytes
+//     it adds to the press gate
 //   - no page errors
-// With OUT=<dir> it saves the landing and the board after the press at each size (phones at device pixel ratio 3,
-// desktop at 2) and writes the preload bytes before and after the landing sheet (bytes.json).
-//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [OUT=<dir>] node tools/landing_probe.mjs
-// Uses the dev server that is already running (it never starts one). One headless browser, closed at the end. Take the
-// shared browser lock around it (mkdir /tmp/hud_mock_shot.lock ... rmdir).
+// With OUT=<dir> it saves each screen at each size (phones at device pixel ratio 3, desktop at 2, 1920x1080 at 1), 4x crops
+// of the face, the exit, the board after the press, and bytes.json.
+//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [OUT=<dir>] [ONLY=desktop,...] node tools/landing_probe.mjs
+// Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Take
+// the shared browser lock around it (mkdir /tmp/hud_mock_shot.lock ... rmdir).
 import { createRequire } from 'node:module';
 import { mkdirSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -22,36 +30,45 @@ const { chromium } = require('playwright');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const OUT = process.env.OUT || '';
+const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 const ASSETS = join(dirname(fileURLToPath(import.meta.url)), '..', 'static', 'assets');
 if (OUT) mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// dots: the page's grid where the face keeps the page's size (null: worked out from the layout's rule, checked loosely)
 const SIZES = [
-	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 2, phone: false },
-	{ name: 'landscape', vp: { width: 844, height: 390 }, dpr: 3, phone: true },
-	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true, resume: true },
-	{ name: 'short', vp: { width: 390, height: 620 }, dpr: 3, phone: true },
-];
+	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, dots: [362, 143], pitch: 2.49 },
+	{ name: 'wide', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, dots: [362, 143], pitch: 3.31 },
+	{ name: 'landscape', vp: { width: 844, height: 390 }, dpr: 3, phone: true, hudColumns: true },
+	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true, resume: true, dots: [257, 221], throttle: true },
+	{ name: 'short', vp: { width: 390, height: 620 }, dpr: 3, phone: true, dots: [257, 167] },
+	{ name: 'phone402', vp: { width: 402, height: 874 }, dpr: 3, phone: true },
+].filter((s) => !ONLY.length || ONLY.includes(s.name));
 const POSE_SIDES = { 0: ['H2', 'L1', 'H4', 'L3'], 4: ['L2', 'H3', 'L4', 'L5'] };
-const LANDING_BOARD = [
+const NEXT = [
 	['L5', 'H4', 'L2', 'H3'],
 	['H2', 'L3', 'W', 'L1'],
 	['L4', 'H1', 'L5', 'H2'],
-	['H3', 'L1', 'S', 'L3'],
+	['H3', 'L1', 'L4', 'L3'],
 	['L2', 'H4', 'L4', 'H1'],
 ];
 
 let pass = 0;
 let fail = 0;
+const fails = [];
 const check = (ok, msg, detail) => {
 	if (ok) pass += 1;
-	else fail += 1;
-	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : ''}`);
+	else {
+		fail += 1;
+		fails.push(msg);
+	}
+	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 700)) : ''}`);
 };
 
+const srcOf = (rel) => readFileSync(join(ASSETS, '..', '..', 'src', rel), 'utf8');
 /** the top multipliers as the game's config states them (game/config.ts), read here independently of the game */
 const tops = () => {
-	const src = readFileSync(join(ASSETS, '..', '..', 'src', 'game', 'config.ts'), 'utf8');
+	const src = srcOf('game/config.ts');
 	const block = src.slice(src.indexOf('multipliers: {'), src.indexOf('bonusColumnCap'));
 	const top = {};
 	for (const tier of ['reindeer', 'santa', 'grandma']) {
@@ -61,6 +78,7 @@ const tops = () => {
 	}
 	return top;
 };
+const maxWin = () => Number(/maxWin: (\d+)/.exec(srcOf('game/config.ts'))[1]);
 
 async function open(browser, S, ctx = null) {
 	ctx ??= await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr, isMobile: S.phone, hasTouch: S.phone });
@@ -75,39 +93,32 @@ async function open(browser, S, ctx = null) {
 
 async function waitPress(p) {
 	for (let i = 0; i < 300; i++) {
-		const ok = await p.evaluate(() => !!document.querySelector('.landing .pressText') && !!window.__reindeer?.road).catch(() => false);
+		const ok = await p.evaluate(() => !!document.querySelector('.landing') && !!window.__reindeer?.road && !!window.__reindeer?.led?.()?.ready).catch(() => false);
 		if (ok) return true;
 		await sleep(400);
 	}
 	return false;
 }
 
-async function pressAndWatch(p, S) {
-	await p.mouse.click(S.vp.width / 2, S.vp.height / 2);
-	// the first frames with the landing gone: the posed board must already be gone
-	const seen = [];
-	for (let i = 0; i < 200; i++) {
-		const st = await p.evaluate(() => ({ landing: !!document.querySelector('.landing'), cols: window.__reindeer.road().features.columns.length, board: window.__reindeer.road().board }));
-		if (!st.landing) {
-			seen.push(st);
-			if (seen.length >= 3) break;
-		}
-		await sleep(30);
-	}
-	return seen;
+/** the face's box in device px of a screenshot, recorded next to it (the evidence's 4x crops are cut from it) */
+async function crop4x(file, box, dpr, out) {
+	writeFileSync(out, JSON.stringify({ file, box, dpr, scale: 4 / dpr }));
 }
 
 (async () => {
 	const TOP = tops();
-	console.log('top multipliers from game/config.ts:', JSON.stringify(TOP));
-	const browser = await chromium.launch();
+	const MAX = `${maxWin().toLocaleString('en-US')}X`;
+	console.log('top multipliers from game/config.ts:', JSON.stringify(TOP), 'max win', MAX);
+	const browser = await chromium.launch({ args: ['--mute-audio'] });
+	const costs = {};
 	try {
 		for (const S of SIZES) {
 			const { ctx, p, errs } = await open(browser, S);
+			const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
 			try {
 				await p.goto(`${APP}/?lang=en&sessionID=land${S.name}${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
-				check(await waitPress(p), `${S.name}: PRESS ANYWHERE reached`);
-				await sleep(1200);
+				check(await waitPress(p), `${tag}: PRESS ANYWHERE reached (the billboard's ticker is up)`);
+				await sleep(1000);
 				const a = await p.evaluate(() => window.__reindeer.road());
 				const cols = a.features.columns;
 				const want = [
@@ -115,31 +126,131 @@ async function pressAndWatch(p, S) {
 					{ reel: 2, tier: 'santa' },
 					{ reel: 3, tier: 'grandma' },
 				];
-				check(cols.length === 3 && want.every((w) => cols.some((c) => c.reel === w.reel && c.tier === w.tier && c.multiplier === TOP[w.tier])), `${S.name}: reels 2, 3, 4 hold the Reindeer ${TOP.reindeer}x, Santa ${TOP.santa}x and Grandma ${TOP.grandma}x columns`, cols);
-				check(cols.every((c) => c.drawn && c.backdrop && c.phase === 'idle'), `${S.name}: each column drawn with its cloud still`, cols);
-				check([0, 4].every((r) => JSON.stringify(a.board[r]) === JSON.stringify(POSE_SIDES[r])) && [1, 2, 3].every((r) => a.board[r].every((x) => x === null)), `${S.name}: reels 1 and 5 hold the eight ordinary symbols once each, nothing parks under the columns`, a.board);
-				const words = await p.evaluate(() => document.querySelector('.landing')?.innerText ?? '');
-				check(!/UP\s*TO/i.test(words), `${S.name}: no UP TO anywhere on the landing`);
-				// still: two looks a second apart, nothing moved (the columns, the symbols on their marks)
-				const b = await p.evaluate(() => window.__reindeer.road());
-				check(a.maxDrift === 0 && b.maxDrift === 0 && JSON.stringify(a.features.columns) === JSON.stringify(b.features.columns), `${S.name}: nothing on the board moves`);
-				if (OUT) await p.screenshot({ path: join(OUT, `landing_${S.vp.width}x${S.vp.height}.png`) });
-				const seen = await pressAndWatch(p, S);
-				check(seen.length > 0 && seen.every((s) => s.cols === 0), `${S.name}: from the first frame without the landing, no column is left`, seen.slice(0, 2));
-				check(seen.length > 0 && JSON.stringify(seen[0].board) === JSON.stringify(LANDING_BOARD), `${S.name}: the first board is the normal one`, seen[0]?.board);
-				await sleep(1500);
+				check(cols.length === 3 && want.every((w) => cols.some((c) => c.reel === w.reel && c.tier === w.tier && c.multiplier === TOP[w.tier])), `${tag}: behind the sign reels 2, 3, 4 hold the Reindeer ${TOP.reindeer}x, Santa ${TOP.santa}x and Grandma ${TOP.grandma}x columns`, cols);
+				check([0, 4].every((r) => JSON.stringify(a.board[r]) === JSON.stringify(POSE_SIDES[r])) && [1, 2, 3].every((r) => a.board[r].every((x) => x === null)), `${tag}: reels 1 and 5 hold the eight ordinary symbols once each`, a.board);
+				const html = await p.evaluate(() => ({ text: document.querySelector('.landing')?.innerText ?? '', press: !!document.querySelector('.landing .pressText') }));
+				check(!html.press, `${tag}: the HTML press line steps aside for the ticker`);
+				// THE SIGN
+				const L = await p.evaluate(() => ({ led: window.__reindeer.led(), board: window.__reindeer.boardLayout().css, title: document.querySelector('[data-title-sign], .landing .title')?.getBoundingClientRect().toJSON() ?? null }));
+				const g = L.led;
+				if (S.dots) check(g.face.dotsW === S.dots[0] && Math.abs(g.face.dotsH - S.dots[1]) <= 1 && g.ticker.dotsW === S.dots[0] && g.ticker.dotsH === 11, `${tag}: the face ${g.face.dotsW} x ${g.face.dotsH} dots, the ticker ${g.ticker.dotsW} x ${g.ticker.dotsH} (the page: ${S.dots.join(' x ')}, ${S.dots[0]} x 11)`, g);
+				else check(g.face.dotsW >= 200 && g.face.dotsH >= 100 && g.ticker.dotsH === 11, `${tag}: the face ${g.face.dotsW} x ${g.face.dotsH} dots, the ticker ${g.ticker.dotsW} x 11`, g);
+				if (S.pitch) check(Math.abs(g.pitch - S.pitch) < 0.02, `${tag}: the dot pitch ${g.pitch} CSS px (the page: ${S.pitch})`);
+				const boardMid = L.board.y + L.board.height / 2;
+				const faceMid = g.face.y + g.face.h / 2;
+				check(Math.abs(faceMid - boardMid) <= 1 && Math.abs(g.face.x + g.face.w / 2 - (L.board.x + L.board.width / 2)) <= 1, `${tag}: the face is centred on the board (face centre ${faceMid.toFixed(1)}, board centre ${boardMid.toFixed(1)})`);
+				// (held sideways the title stands in the left HUD column, beside the sign: only an overlap across counts)
+				const across = L.title && L.title.right > g.housing.x && L.title.left < g.housing.x + g.housing.w;
+				check(!across || g.housing.y >= L.title.bottom + 2, `${tag}: the snow cap (top ${g.housing.y}) stays under the title sign (bottom ${L.title?.bottom?.toFixed(1)}${across ? '' : ', beside it'})`, L.title);
+				check(g.housing.bottom <= S.vp.height - 8 && g.housing.x >= 0 && g.housing.x + g.housing.w <= S.vp.width, `${tag}: the housing stands inside the screen, its foot ${g.housing.bottom} above the drift (${S.vp.height})`);
+				check(g.signAlpha === 1 && Math.abs(g.dimAlpha - 0.66) < 0.01 && g.mode === 'live', `${tag}: the sign lit over the 0.66 dim`);
+				// THE THREE SCREENS (each frozen mid hold), the ticker, the words
+				const shots = [];
+				for (const [i, t] of [[0, 1.6], [1, 3.9 + 2.6], [2, 7.8 + 2.6]]) {
+					await p.evaluate((t) => window.__reindeer.ledFreeze(t), t);
+					await sleep(400);
+					const sn = await p.evaluate(() => window.__reindeer.led());
+					check(sn.screen === i, `${tag}: screen ${i + 1} shows at ${t} s`, sn.screen);
+					if (OUT) {
+						const file = join(OUT, `screen${i + 1}_${S.name}_${S.vp.width}x${S.vp.height}.png`);
+						await p.screenshot({ path: file });
+						const face = { x: Math.round(g.face.x * S.dpr), y: Math.round(g.face.y * S.dpr), w: Math.round(g.face.w * S.dpr), h: Math.round((g.ticker.y + g.ticker.h - g.face.y) * S.dpr) };
+						await crop4x(file, face, S.dpr, file.replace('.png', '.crop.json'));
+						shots.push(file);
+					}
+				}
+				await p.evaluate(() => window.__reindeer.ledFreeze(null));
+				// the words the sign draws: from the constants and the config, no banned word, no symbol character
+				const words = srcOf('game/constants.ts');
+				const textBlock = words.slice(words.indexOf('text: {', words.indexOf('export const LED_SIGN')), words.indexOf('layout: {', words.indexOf('export const LED_SIGN')));
+				const strs = [...textBlock.matchAll(/'([^']*)'|"([^"]*)"/g)].map((m) => m[1] ?? m[2]);
+				check(strs.length === 8 && strs.every((x) => /^[A-Z0-9 ,'X.]+$/.test(x)) && !strs.some((x) => /\b(BET|BUY|CASH|MONEY|PAID|CREDIT|GAMBLE|WAGER|STAKE)\b/.test(x)), `${tag}: the sign's words are plain capitals, none of the restricted words (${strs.join(' / ')})`, strs);
+				check(MAX === '7,777X', `${tag}: screen 1's figure is the max win from game/config.ts (${MAX})`);
+				// THE COST on the phone profile, the CPU throttled 4x
+				if (S.throttle) {
+					const cdp = await ctx.newCDPSession(p);
+					await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+					const sample = await p.evaluate(async () => {
+						const out = [];
+						const frames = [];
+						let last = performance.now();
+						let steps0 = window.__reindeer.led().cost.steps;
+						const t0 = performance.now();
+						await new Promise((res) => {
+							const tick = () => {
+								const now = performance.now();
+								frames.push(now - last);
+								last = now;
+								const c = window.__reindeer.led().cost;
+								out.push(c.drawMs);
+								if (now - t0 > 4000) res();
+								else requestAnimationFrame(tick);
+							};
+							requestAnimationFrame(tick);
+						});
+						const steps = window.__reindeer.led().cost.steps - steps0;
+						const sorted = [...frames].sort((a, b) => a - b);
+						return { drawMsAvg: out.reduce((a, b) => a + b, 0) / out.length, drawMsMax: Math.max(...out), steps, frameMsMedian: sorted[Math.floor(sorted.length / 2)], frameMsP95: sorted[Math.floor(sorted.length * 0.95)], frames: frames.length, gpuBytes: window.__reindeer.led().gpuBytes, uploadBytes: window.__reindeer.led().cost.uploadBytes };
+					});
+					await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+					costs[S.name] = sample;
+					console.log(`  ${tag} cost, CPU 4x throttled: ${JSON.stringify(sample)}`);
+					check(sample.drawMsAvg < 8, `${tag}: a content step costs ${sample.drawMsAvg.toFixed(2)} ms on average (max ${sample.drawMsMax.toFixed(2)}) with the CPU throttled 4x, ${sample.steps} steps in 4 s`);
+				} else costs[S.name] = { gpuBytes: g.gpuBytes, uploadBytes: g.cost.uploadBytes, drawMs: g.cost.drawMs };
+				// THE PRESS
+				await p.mouse.click(S.vp.width / 2, S.vp.height / 2);
+				await sleep(320);
+				const mid = await p.evaluate(() => window.__reindeer.led());
+				check(!!mid && mid.mode === 'exit', `${tag}: the press powers the sign down`, mid);
+				if (OUT) await p.screenshot({ path: join(OUT, `exit_${S.name}_${S.vp.width}x${S.vp.height}.png`) });
+				let gone = null;
+				for (let i = 0; i < 60; i++) {
+					gone = await p.evaluate(() => ({ led: window.__reindeer.led(), landing: !!document.querySelector('.landing'), chrome: !!document.querySelector('.am-ui:not(.hidden)') }));
+					if (!gone.led && !gone.landing) break;
+					await sleep(100);
+				}
+				check(!gone.led && !gone.landing && gone.chrome, `${tag}: the sign is gone and unloaded, the landing screen gone, the game's chrome up`, gone);
+				await sleep(600);
 				const c = await p.evaluate(() => window.__reindeer.road());
-				check(c.features.columns.length === 0 && c.atRest, `${S.name}: at rest on the first board, no column`);
-				if (OUT) await p.screenshot({ path: join(OUT, `after_press_${S.vp.width}x${S.vp.height}.png`) });
+				check(c.features.columns.length === 3 && c.atRest && [0, 4].every((r) => JSON.stringify(c.board[r]) === JSON.stringify(POSE_SIDES[r])), `${tag}: the first board after the press is the posed board (${c.features.columns.length} columns), at rest`, c.features.columns);
+				if (OUT) await p.screenshot({ path: join(OUT, `after_press_${S.name}_${S.vp.width}x${S.vp.height}.png`) });
+				if (S.hudColumns) {
+					const hud = await p.evaluate(() => {
+						const left = [];
+						const right = [];
+						for (const el of document.querySelectorAll('.am-ui *')) {
+							const r = el.getBoundingClientRect();
+							const cs = getComputedStyle(el);
+							if (r.width < 2 || r.height < 2 || r.width > 500 || cs.visibility === 'hidden' || cs.display === 'none') continue;
+							if (r.right < window.innerWidth / 2) left.push(r.right);
+							else if (r.left > window.innerWidth / 2) right.push(r.left);
+						}
+						return { left: Math.max(...left), right: Math.min(...right) };
+					});
+					check(g.housing.x >= hud.left && g.housing.x + g.housing.w <= hud.right, `${tag}: held sideways the housing (${g.housing.x.toFixed(1)} to ${(g.housing.x + g.housing.w).toFixed(1)}) clears both HUD columns (${hud.left.toFixed(1)}, ${hud.right.toFixed(1)})`, hud);
+				}
+				// the first spin's press takes the posed columns away
+				await p.evaluate((b) => {
+					const h = window.__reindeer;
+					h.fixtures.queue([{ index: 0, type: 'reveal', gameType: 'basegame', board: b }, { index: 1, type: 'finalWin', amount: 0 }], 0);
+				}, NEXT);
+				await p.click('.hudp button.spin');
+				let after = null;
+				for (let i = 0; i < 80; i++) {
+					await sleep(150);
+					after = await p.evaluate(() => ({ rest: window.__reindeer.atRest(), cols: window.__reindeer.road().features.columns.length }));
+					if (after.rest && after.cols === 0) break;
+				}
+				check(after.rest && after.cols === 0, `${tag}: the first spin's press takes the posed columns away`, after);
 
 				if (S.resume) {
 					// a round left open: the free spin with a held reindeer column on reel 4 (natural_free_spins event 9)
 					await p.evaluate(() => window.__reindeer.fixtures.resume('natural_free_spins', 9));
 					await sleep(1500);
-					check(await waitPress(p), `${S.name} resume: PRESS ANYWHERE reached after the reload`);
+					check(await waitPress(p), `${tag} resume: PRESS ANYWHERE reached after the reload`);
 					await sleep(800);
 					const r0 = await p.evaluate(() => window.__reindeer.road().features.columns.map((x) => `${x.reel}:${x.tier}:${x.multiplier}`));
-					check(r0.length === 3, `${S.name} resume: the landing shows the posed board first (${r0.join(' ')})`);
+					check(r0.length === 3, `${tag} resume: the press screen shows the posed board first (${r0.join(' ')})`);
 					await p.mouse.click(S.vp.width / 2, S.vp.height / 2);
 					let r = null;
 					for (let i = 0; i < 200; i++) {
@@ -150,36 +261,32 @@ async function pressAndWatch(p, S) {
 						}
 						await sleep(100);
 					}
-					check(!!r && r.cols.length === 1 && r.cols[0] === '3:reindeer:4', `${S.name} resume: the resumed free spin stands its own held column only (${r?.cols.join(' ')})`, r);
+					check(!!r && r.cols.length === 1 && r.cols[0] === '3:reindeer:4', `${tag} resume: the resumed free spin stands its own held column only (${r?.cols.join(' ')})`, r);
 					if (OUT) await p.screenshot({ path: join(OUT, `resume_${S.vp.width}x${S.vp.height}.png`) });
 				}
 			} catch (e) {
-				check(false, `${S.name}: ran to the end`, String(e).slice(0, 300));
+				check(false, `${tag}: ran to the end`, String(e).slice(0, 300));
 			} finally {
 				const e = errs.filter((x) => !/favicon/.test(x));
-				check(e.length === 0, `${S.name}: no page errors`, e.slice(0, 4));
+				check(e.length === 0, `${tag}: no page errors`, e.slice(0, 4));
 				await ctx.close();
 			}
 		}
 	} finally {
 		await browser.close();
 	}
-	// the preload's bytes before and after the landing sheet (the loading bar's own count: game/assets.ts preload: true)
+	// the press gate's bytes: the preload (the loading bar's own count) and what the billboard adds
 	const size = (rel) => statSync(join(ASSETS, rel)).size;
 	const atlasImage = (json) => join(dirname(json), JSON.parse(readFileSync(join(ASSETS, json), 'utf8')).meta.image.split('?')[0]);
 	const sets = {
-		desktop: ['symbols/symbols.json', atlasImage('symbols/symbols.json'), 'road/road.webp', 'road/tunnel-left.webp', 'road/tunnel-right.webp', 'audio/sounds.json', 'audio/music.json'],
-		phone: ['symbols/symbols-phone.json', atlasImage('symbols/symbols-phone.json'), 'road/road.webp', 'road/tunnel-left.webp', 'road/tunnel-right.webp', 'audio/sounds.json', 'audio/music.json'],
+		desktop: ['symbols/symbols.json', atlasImage('symbols/symbols.json'), 'road/road.webp', 'road/tunnel-left.webp', 'road/tunnel-right.webp', 'columns/landing-stills.webp', 'audio/sounds.json', 'audio/music.json'],
+		phone: ['symbols/symbols-phone.json', atlasImage('symbols/symbols-phone.json'), 'road/road.webp', 'road/tunnel-left.webp', 'road/tunnel-right.webp', 'columns/landing-stills-phone.webp', 'audio/sounds.json', 'audio/music.json'],
 	};
-	const audio = size('audio/sounds.ogg') + size('audio/music/bgm_base.ogg');
-	const bytes = {};
-	for (const [tier, files] of Object.entries(sets)) {
-		const before = files.reduce((n, f) => n + size(f), 0);
-		const sheet = size(tier === 'desktop' ? 'columns/landing-stills.webp' : 'columns/landing-stills-phone.webp');
-		bytes[tier] = { preloadBefore: before, landingSheet: sheet, preloadAfter: before + sheet, audioToo: audio, percentOfPreload: Math.round((sheet / before) * 1000) / 10, percentOfGate: Math.round((sheet / (before + audio)) * 1000) / 10 };
-	}
+	const bytes = { ledArt: size('landing/led-art.webp'), costs };
+	for (const [tier, files] of Object.entries(sets)) bytes[tier] = { preloadImagesAndManifests: files.reduce((n, f) => n + size(f), 0), ledArtShare: Math.round((size('landing/led-art.webp') / files.reduce((n, f) => n + size(f), 0)) * 1000) / 10 };
 	console.log('bytes:', JSON.stringify(bytes));
 	if (OUT) writeFileSync(join(OUT, 'bytes.json'), JSON.stringify(bytes, null, 1));
 	console.log(`\nlanding_probe: ${pass} pass, ${fail} fail`);
+	for (const f of fails) console.log('  FAIL: ' + f);
 	process.exit(fail ? 1 : 0);
 })();

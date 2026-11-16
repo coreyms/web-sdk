@@ -70,6 +70,8 @@ export const stateGame = $state({
 	plaque: null as null | { title: string; sub: string },
 	/** SKIP TO RESULT is running (no skip in the first pass) */
 	skipping: false,
+	/** this feature round has had its one scatter tease (constants LANE_FLOW tease.oncePerFeature) */
+	featureTeased: false,
 });
 
 /** the board clock's rate right now: the turbo level's own rate, times the hurry of a slam stop */

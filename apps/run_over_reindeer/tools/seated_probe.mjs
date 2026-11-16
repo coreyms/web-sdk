@@ -16,6 +16,9 @@
 //   - nothing left: no driver or driver shadow drawn without its vehicle on any frame (strayRiders = 0), and after the round
 //   - the cost on a full board: draw calls and road sprites with the drivers and without; the seated sheet's GPU weight
 //     against the phone budget (4 MB for both characters together); no page errors, no console errors
+//   - PASS 7, THE ANIMATIONS: the idle at rest (head layered between the body and the front layer, on the figure's
+//     transform), the win reaction on the winning drivers only, the still in motion, every seated animation loaded at
+//     once within 6 MB desktop and 3 MB phone, the win sheets let go after
 // With OUT=<dir>: seated_table_<size>.md (one Grandma car's and one sleigh's lean across the stop and the pull-away).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [OUT=<dir>] [ONLY=desktop,portrait] \
 //     node tools/seated_probe.mjs
@@ -159,8 +162,57 @@ try {
 		console.log(`  ${S.name} cost, a board with ${want.length} seated vehicles: ${on.calls} draw calls per frame with the drivers, ${off.calls} without; road sprites ${on.sprites.sprites} with, ${off.sprites.sprites} without; the seated sheet ${JSON.stringify(mem.seated)}`);
 		T.check(on.calls - off.calls <= 2, `${S.name}: ${want.length} drivers add ${on.sprites.sprites - off.sprites.sprites} sprites and ${Math.round((on.calls - off.calls) * 100) / 100} draw calls per frame`);
 		T.check(!!mem.seated && (!S.phone || mem.seated.mb <= PHONE_BUDGET_MB), `${S.name}: the seated sheet ${mem.seated?.w} x ${mem.seated?.h}, ${mem.seated?.mb} MB on the GPU${mem.seated?.mips ? ' with its mips' : ''}${S.phone ? ` (phone budget ${PHONE_BUDGET_MB} MB for both characters)` : ''}`);
+		// 6. THE ANIMATIONS (pass 7, Corey: "Not staying with the stills"; game/road/seatedClips.ts, constants SEATED.clips):
+		// the idle on every driver at rest, the head layered between the still's body and the front layer and on the
+		// figure's transform; only the idles loaded at rest; a win through Grandma and Santa loads and plays the win
+		// reaction on the winning drivers only; in motion the still; the GPU memory of every seated animation loaded at once
+		// within the budget (desktop 6 MB, phone 3 MB); the win sheets let go after the win
+		const BUDGET = S.phone ? 3 : 6;
+		const tier = S.phone ? 'phone' : 'full';
+		await R(p, (b) => {
+			const h = window.__reindeer;
+			h.clock(1);
+			h.setBoard(b);
+		}, LAND);
+		let idle = [];
+		for (let i = 0; i < 60; i++) {
+			await sleep(250);
+			idle = await R(p, () => window.__reindeer.seated());
+			if (idle.length && idle.every((d) => d.anim.clip === 'idle')) break;
+		}
+		T.check(idle.length === want.length && idle.every((d) => d.anim.clip === 'idle' && d.headShown && d.headLayered && d.headFollows && d.layered), `${S.name}: at rest every one of the ${want.length} drivers plays its idle: the head between the still's body and the front layer, on the figure's transform`, idle.map((d) => [d.cell, d.anim, d.headShown, d.headLayered, d.headFollows]));
+		const fA = idle.map((d) => d.anim.frame);
+		await sleep(900);
+		const fB = (await R(p, () => window.__reindeer.seated())).map((d) => d.anim.frame);
+		T.check(fA.some((f, i) => f !== fB[i]), `${S.name}: the idle runs (frames ${fA.join(',')} then ${fB.join(',')})`);
+		const memRest = await R(p, () => window.__reindeer.seatClipMemory());
+		T.check(memRest.clips[`grandma:idle:${tier}`]?.state === 'ready' && memRest.clips[`santa:idle:${tier}`]?.state === 'ready' && !Object.entries(memRest.clips).some(([k, v]) => k.includes(':win:') && v.state !== 'none'), `${S.name}: at rest only the two idles are loaded (${memRest.mb} MB)`, memRest);
+		let most = memRest.mb;
+		const animRows = await stepRound(p, {
+			book: book(LAND, [{ type: 'winInfo', totalWin: 100, wins: [{ symbol: 'H1', kind: 4, line: 1, win: 100, multiplier: 1, cells: WIN_CELLS }] }, { type: 'setTotalWin', amount: 100 }]),
+			read: (h) => ({ seated: h.seated(), mem: h.seatClipMemory().mb, win: h.road().winShowing }),
+		});
+		most = Math.max(most, ...animRows.map((r) => r.sample.mem));
+		const winning = animRows.filter((r) => r.sample.win);
+		const winDrivers = winning.flatMap((r) => r.sample.seated.filter((d) => WIN_CELLS.includes(d.cell)));
+		T.check(winDrivers.some((d) => d.anim.clip === 'win' && d.character === 'grandma') && winDrivers.some((d) => d.anim.clip === 'win' && d.character === 'santa'), `${S.name}: the win reaction plays on the winning Grandma and Santa (${winDrivers.filter((d) => d.anim.clip === 'win').length} driver frames)`);
+		// (once started the reaction plays to its end while the vehicle stands, past a short win's hold)
+		T.check(animRows.every((r) => r.sample.seated.every((d) => d.anim.clip !== 'win' || WIN_CELLS.includes(d.cell))), `${S.name}: never a win reaction on a driver not in the win`);
+		const firstWin = animRows.findIndex((r) => r.sample.seated.some((d) => d.anim.clip === 'win'));
+		T.check(firstWin < 0 || animRows[firstWin].sample.win, `${S.name}: the reaction starts during the win`);
+		T.check(animRows.every((r) => r.sample.seated.every((d) => d.phase === 'rest' || d.anim.clip === 'still')), `${S.name}: a driver in motion shows the still (its lean in code)`);
+		T.check(animRows.every((r) => r.sample.seated.every((d) => !d.headShown || (d.headLayered && d.headFollows && d.shown))), `${S.name}: on every frame the head is layered and follows, and never shows without its driver`);
+		T.check(most <= BUDGET, `${S.name}: every seated animation loaded at once: ${most} MB on the GPU at most (budget ${BUDGET})`);
+		// (the reaction plays to its 4.0 s end past a short win, then its sheet is let go winKeepMs later)
+		let memAfter = null;
+		for (let i = 0; i < 40; i++) {
+			await sleep(250);
+			memAfter = await R(p, () => window.__reindeer.seatClipMemory());
+			if (!Object.entries(memAfter.clips).some(([k, v]) => k.includes(':win:') && v.state !== 'none')) break;
+		}
+		T.check(!Object.entries(memAfter.clips).some(([k, v]) => k.includes(':win:') && v.state !== 'none'), `${S.name}: the win sheets are let go after the win (${memAfter.mb} MB loaded after)`, memAfter);
 		T.check(errs.length === 0, `${S.name}: no page errors, no console errors`, errs);
-		result[S.name] = { tune, fwd, back, bobIn, cost: { on, off }, mem };
+		result[S.name] = { tune, fwd, back, bobIn, cost: { on, off }, mem, anim: { rest: memRest, most, after: memAfter } };
 		await ctx.close();
 	}
 } finally {

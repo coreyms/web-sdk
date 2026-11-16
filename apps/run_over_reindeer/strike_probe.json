@@ -1,5 +1,5 @@
 {
- "at": "2026-11-16T18:07:52.604Z",
+ "at": "2026-11-16T22:53:51.715Z",
  "sweep": {
   "R": {
    "1": 71.9
@@ -27131,83 +27131,89 @@
     {
      "side": "left",
      "reel": 1,
-     "impactMs": 884.8,
+     "impactMs": 1740.3,
      "wantMs": 882.5,
-     "diffMs": 2.3,
-     "meanGap": 16,
-     "worstGap": 16.8,
+     "diffMs": 857.8,
+     "meanGap": 30.7,
+     "worstGap": 371.6,
      "late": {
       "S": 0,
       "M": 0,
       "C": 0,
       "cut": 0
      },
-     "skipped": 0,
-     "order": "RRRRRRRRRRRRRRRRRRSQQQQMCQQ",
+     "skipped": 1,
+     "order": "RRRRRRRRRRRRRSQQQQMCQQ",
      "issues": []
     },
     {
      "side": "left",
      "reel": 3,
-     "impactMs": 1129.1,
+     "impactMs": 7967.7,
      "wantMs": 1134.3,
-     "diffMs": -5.2,
-     "meanGap": 16,
-     "worstGap": 17.3,
+     "diffMs": 6833.4,
+     "meanGap": 215.6,
+     "worstGap": 6856.7,
      "late": {
       "S": 0,
-      "M": 0,
+      "M": 73.33,
       "C": 0,
       "cut": 0
      },
-     "skipped": 0,
-     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQQMCQQ",
-     "issues": []
+     "skipped": 2,
+     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQMQ",
+     "issues": [
+      "view order RRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQMQ",
+      "run down starts on pose undefined"
+     ]
     },
     {
      "side": "left",
      "reel": 5,
-     "impactMs": 1486.1,
+     "impactMs": 15035.1,
      "wantMs": 1501,
-     "diffMs": -14.9,
-     "meanGap": 16,
-     "worstGap": 17.2,
+     "diffMs": 13534.1,
+     "meanGap": 256.4,
+     "worstGap": 13579.9,
      "late": {
       "S": 0,
-      "M": 0,
+      "M": 75.23,
       "C": 0,
       "cut": 0
      },
-     "skipped": 0,
-     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQQMCQQ",
-     "issues": []
+     "skipped": 3,
+     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQMQ",
+     "issues": [
+      "view order RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQMQ",
+      "run down starts on pose undefined"
+     ]
     },
     {
      "side": "right",
      "reel": 1,
-     "impactMs": 1492.5,
+     "impactMs": 14355.1,
      "wantMs": 1501,
-     "diffMs": -8.5,
-     "meanGap": 16,
-     "worstGap": 17.1,
+     "diffMs": 12854.1,
+     "meanGap": 240.3,
+     "worstGap": 12788.8,
      "late": {
       "S": 0,
-      "M": 0,
-      "C": 0,
+      "M": 59.53,
+      "C": 53.57,
       "cut": 0
      },
-     "skipped": 0,
-     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQQMCQQ",
+     "skipped": 1,
+     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQMCQQ",
      "issues": []
     },
     {
      "side": "right",
      "reel": 3,
-     "impactMs": 1125.8,
+     "impactMs": 1133.5,
      "wantMs": 1134.3,
-     "diffMs": -8.5,
+     "diffMs": -0.8,
      "meanGap": 16,
-     "worstGap": 17.4,
+     "worstGap": 17.6,
      "late": {
       "S": 0,
       "M": 0,
@@ -27221,11 +27227,11 @@
     {
      "side": "right",
      "reel": 5,
-     "impactMs": 888.9,
+     "impactMs": 1392.6,
      "wantMs": 882.5,
-     "diffMs": 6.4,
+     "diffMs": 510.1,
      "meanGap": 16,
-     "worstGap": 16.5,
+     "worstGap": 17.2,
      "late": {
       "S": 0,
       "M": 0,
@@ -27245,68 +27251,50 @@
     {
      "side": "left",
      "reel": 1,
-     "impactMs": 883.4,
+     "impactMs": 882.7,
      "wantMs": 882.5,
-     "diffMs": 0.9,
+     "diffMs": 0.2,
      "meanGap": 33,
-     "worstGap": 35.3,
+     "worstGap": 51.7,
      "late": {
-      "S": 32.7,
-      "M": 0,
-      "C": 31.5,
+      "S": 0,
+      "M": 20.97,
+      "C": 37.2,
       "cut": 0
      },
-     "skipped": 9,
-     "order": "RRRRRRRRRRSQMCQ",
+     "skipped": 11,
+     "order": "RRRRRRRRRSQQMCQ",
      "issues": []
     },
     {
      "side": "left",
      "reel": 3,
-     "impactMs": 1144.3,
+     "impactMs": 3130.8,
      "wantMs": 1134.3,
-     "diffMs": 10,
-     "meanGap": 33,
-     "worstGap": 35.2,
+     "diffMs": 1996.5,
+     "meanGap": 142.8,
+     "worstGap": 1572.3,
      "late": {
-      "S": 19.27,
+      "S": 22.47,
       "M": 0,
       "C": 0,
       "cut": 0
      },
-     "skipped": 16,
-     "order": "RRRRRRRRRRRRRRRSQMCQQ",
+     "skipped": 15,
+     "order": "RRRRRRRRRRRRRSQQMCQQ",
      "issues": []
     },
     {
      "side": "left",
      "reel": 5,
-     "impactMs": 1506.4,
+     "impactMs": 6912.3,
      "wantMs": 1501,
-     "diffMs": 5.5,
-     "meanGap": 33,
-     "worstGap": 34.4,
+     "diffMs": 5411.3,
+     "meanGap": 209,
+     "worstGap": 5487.1,
      "late": {
       "S": 0,
-      "M": 0,
-      "C": 0,
-      "cut": 0
-     },
-     "skipped": 27,
-     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRSQQMCQQ",
-     "issues": []
-    },
-    {
-     "side": "right",
-     "reel": 1,
-     "impactMs": 1503.6,
-     "wantMs": 1501,
-     "diffMs": 2.6,
-     "meanGap": 33,
-     "worstGap": 35.3,
-     "late": {
-      "S": 0,
-      "M": 0,
+      "M": 28.33,
       "C": 0,
       "cut": 0
      },
@@ -27316,38 +27304,56 @@
     },
     {
      "side": "right",
-     "reel": 3,
-     "impactMs": 1136.4,
-     "wantMs": 1134.3,
-     "diffMs": 2.1,
+     "reel": 1,
+     "impactMs": 2152.6,
+     "wantMs": 1501,
+     "diffMs": 651.7,
      "meanGap": 33,
-     "worstGap": 35.4,
+     "worstGap": 33.8,
      "late": {
-      "S": 19.87,
+      "S": 0,
+      "M": 30.33,
+      "C": 0,
+      "cut": 0
+     },
+     "skipped": 25,
+     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRSQQMCQQ",
+     "issues": []
+    },
+    {
+     "side": "right",
+     "reel": 3,
+     "impactMs": 2495.1,
+     "wantMs": 1134.3,
+     "diffMs": 1360.8,
+     "meanGap": 75.9,
+     "worstGap": 890.9,
+     "late": {
+      "S": 17.37,
       "M": 0,
       "C": 0,
       "cut": 0
      },
-     "skipped": 16,
-     "order": "RRRRRRRRRRRRRRRSQMCQQ",
+     "skipped": 14,
+     "order": "RRRRRRRRRRRRRSQMCQQ",
      "issues": []
     },
     {
      "side": "right",
      "reel": 5,
-     "impactMs": 878.6,
+     "impactMs": 6392.4,
      "wantMs": 882.5,
-     "diffMs": -3.9,
-     "meanGap": 32.9,
-     "worstGap": 34.5,
+     "diffMs": 5509.9,
+     "meanGap": 497.7,
+     "worstGap": 5038.5,
      "late": {
-      "S": 0,
-      "M": 23.07,
-      "C": 39.2,
-      "cut": 0
+      "S": 84.7,
+      "M": 0,
+      "C": 0,
+      "cut": 33.17
      },
-     "skipped": 12,
-     "order": "RRRRRRRRRSQQMCQ",
+     "skipped": 7,
+     "order": "RRRRRRRRSMCQQ",
      "issues": []
     }
    ]
@@ -27359,14 +27365,14 @@
     {
      "side": "left",
      "reel": 1,
-     "impactMs": 890.5,
+     "impactMs": 883,
      "wantMs": 882.5,
-     "diffMs": 8,
-     "meanGap": 50.1,
-     "worstGap": 52,
+     "diffMs": 0.5,
+     "meanGap": 49.9,
+     "worstGap": 50.6,
      "late": {
-      "S": 27.8,
-      "M": 45.17,
+      "S": 30.6,
+      "M": 46.07,
       "C": 0,
       "cut": 0
      },
@@ -27380,16 +27386,16 @@
     {
      "side": "left",
      "reel": 3,
-     "impactMs": 1138.4,
+     "impactMs": 1143,
      "wantMs": 1134.3,
-     "diffMs": 4.1,
+     "diffMs": 8.7,
      "meanGap": 50,
-     "worstGap": 51.7,
+     "worstGap": 51.2,
      "late": {
-      "S": 46.37,
+      "S": 45.57,
       "M": 0,
-      "C": 46.47,
-      "cut": 52.63
+      "C": 46.57,
+      "cut": 51.03
      },
      "skipped": 10,
      "order": "RRRRRRRRRRSMCQQ",
@@ -27398,77 +27404,74 @@
     {
      "side": "left",
      "reel": 5,
-     "impactMs": 1540,
+     "impactMs": 1742.8,
      "wantMs": 1501,
-     "diffMs": 39,
-     "meanGap": 50,
-     "worstGap": 51.6,
+     "diffMs": 241.9,
+     "meanGap": 61.9,
+     "worstGap": 339.8,
      "late": {
-      "S": 45.97,
-      "M": 0,
-      "C": 0,
-      "cut": 0
+      "S": 0,
+      "M": 22.83,
+      "C": 56.77,
+      "cut": 57.74
      },
      "skipped": 17,
-     "order": "RRRRRRRRRRRRRRRRRSMCQQ",
+     "order": "RRRRRRRRRRRRRRRRSQMCQQ",
      "issues": []
     },
     {
      "side": "right",
      "reel": 1,
-     "impactMs": 1531.4,
+     "impactMs": 5336.3,
      "wantMs": 1501,
-     "diffMs": 30.5,
-     "meanGap": 50,
-     "worstGap": 52.3,
+     "diffMs": 3835.4,
+     "meanGap": 245,
+     "worstGap": 3067.5,
      "late": {
-      "S": 45.77,
-      "M": 0,
-      "C": 0,
-      "cut": 0
+      "S": 29.67,
+      "M": 46.03,
+      "C": 80.07,
+      "cut": 80.69
      },
-     "skipped": 17,
-     "order": "RRRRRRRRRRRRRRRRRSMCQQ",
+     "skipped": 16,
+     "order": "RRRRRRRRRRRRRRRSQMCQQ",
      "issues": []
     },
     {
      "side": "right",
      "reel": 3,
-     "impactMs": 1137.3,
+     "impactMs": 2642.8,
      "wantMs": 1134.3,
-     "diffMs": 3,
-     "meanGap": 50.1,
-     "worstGap": 52.3,
+     "diffMs": 1508.5,
+     "meanGap": 50,
+     "worstGap": 50.8,
      "late": {
-      "S": 44.67,
-      "M": 0,
-      "C": 46.47,
-      "cut": 52.79
+      "S": 0,
+      "M": 18.73,
+      "C": 52.77,
+      "cut": 58.59
      },
-     "skipped": 10,
-     "order": "RRRRRRRRRRSMCQQ",
+     "skipped": 11,
+     "order": "RRRRRRRRRSQMCQQ",
      "issues": []
     },
     {
      "side": "right",
      "reel": 5,
-     "impactMs": 894.7,
+     "impactMs": 4742.3,
      "wantMs": 882.5,
-     "diffMs": 12.2,
-     "meanGap": 50.2,
-     "worstGap": 52.3,
+     "diffMs": 3859.8,
+     "meanGap": 149.9,
+     "worstGap": 847.5,
      "late": {
-      "S": 29.9,
-      "M": 44.47,
-      "C": 0,
+      "S": 48.8,
+      "M": 18.27,
+      "C": 51.5,
       "cut": 0
      },
-     "skipped": 8,
-     "order": "RRRRRRSQMQ",
-     "issues": [
-      "view order RRRRRRSQMQ",
-      "run down starts on pose undefined"
-     ]
+     "skipped": 7,
+     "order": "RRRRRSMCQ",
+     "issues": []
     }
    ]
   },
@@ -27479,34 +27482,34 @@
     {
      "side": "left",
      "reel": 1,
-     "impactMs": 882,
+     "impactMs": 2274.7,
      "wantMs": 882.5,
-     "diffMs": -0.5,
-     "meanGap": 8,
-     "worstGap": 10.1,
+     "diffMs": 1392.2,
+     "meanGap": 74.3,
+     "worstGap": 1010.4,
      "late": {
-      "S": 0,
-      "M": 0,
-      "C": 0,
-      "cut": 0
+      "S": 29.1,
+      "M": 46.87,
+      "C": 33.5,
+      "cut": 21.87
      },
-     "skipped": 0,
-     "order": "RRRRRRRRRRRRRRRRRRSQQQQMCQQ",
+     "skipped": 3,
+     "order": "RRRRRRRRRSQMCQQ",
      "issues": []
     },
     {
      "side": "left",
      "reel": 3,
-     "impactMs": 1128.1,
+     "impactMs": 12622.8,
      "wantMs": 1134.3,
-     "diffMs": -6.2,
-     "meanGap": 8,
-     "worstGap": 9,
+     "diffMs": 11488.5,
+     "meanGap": 156.5,
+     "worstGap": 11433.5,
      "late": {
       "S": 0,
       "M": 0,
       "C": 0,
-      "cut": 0
+      "cut": 85.63
      },
      "skipped": 0,
      "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQQMCQQ",
@@ -27515,15 +27518,15 @@
     {
      "side": "left",
      "reel": 5,
-     "impactMs": 1502.6,
+     "impactMs": 25606,
      "wantMs": 1501,
-     "diffMs": 1.6,
-     "meanGap": 8,
-     "worstGap": 10.1,
+     "diffMs": 24105,
+     "meanGap": 217.1,
+     "worstGap": 23839,
      "late": {
       "S": 0,
-      "M": 0,
-      "C": 0,
+      "M": 84.03,
+      "C": 74.67,
       "cut": 0
      },
      "skipped": 0,
@@ -27533,47 +27536,47 @@
     {
      "side": "right",
      "reel": 1,
-     "impactMs": 1499.9,
+     "impactMs": 26426.7,
      "wantMs": 1501,
-     "diffMs": -1,
-     "meanGap": 8,
-     "worstGap": 9.1,
+     "diffMs": 24925.7,
+     "meanGap": 257.5,
+     "worstGap": 24369.6,
      "late": {
-      "S": 0,
-      "M": 0,
-      "C": 0,
+      "S": 32.97,
+      "M": 87.73,
+      "C": 75.17,
       "cut": 0
      },
-     "skipped": 0,
-     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQQMCQQ",
+     "skipped": 3,
+     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQMCQQ",
      "issues": []
     },
     {
      "side": "right",
      "reel": 3,
-     "impactMs": 1131.3,
+     "impactMs": 26158.1,
      "wantMs": 1134.3,
-     "diffMs": -3,
-     "meanGap": 8,
-     "worstGap": 10.1,
+     "diffMs": 25023.8,
+     "meanGap": 367.7,
+     "worstGap": 24747,
      "late": {
       "S": 0,
-      "M": 0,
-      "C": 0,
+      "M": 64.43,
+      "C": 52.27,
       "cut": 0
      },
-     "skipped": 0,
-     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQQQMCQQ",
+     "skipped": 1,
+     "order": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRSQQMCQQ",
      "issues": []
     },
     {
      "side": "right",
      "reel": 5,
-     "impactMs": 883.8,
+     "impactMs": 885.6,
      "wantMs": 882.5,
-     "diffMs": 1.3,
+     "diffMs": 3.1,
      "meanGap": 8,
-     "worstGap": 10.1,
+     "worstGap": 9.2,
      "late": {
       "S": 0,
       "M": 0,

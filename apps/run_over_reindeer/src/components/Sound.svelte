@@ -18,6 +18,8 @@
 		| { type: 'soundLoop'; name: SoundEffectName }
 		| { type: 'soundStop'; name: SoundName }
 		| { type: 'soundFade'; name: SoundName; from: number; to: number; duration: number }
+		// a playing loop's rate (the scatter tease's step at three seen, game/road/roadSounds.ts)
+		| { type: 'soundRate'; name: SoundEffectName; rate: number }
 		| { type: 'soundScatterCounterIncrease' }
 		| { type: 'soundScatterCounterClear' }
 		| { type: 'soundDuck'; level: number }; // music multiplier 0..1 (win presentations)
@@ -67,6 +69,7 @@
 			if (rate !== undefined) sound.players.once.rate({ name, rate });
 		},
 		soundStop: ({ name }) => sound.stop({ name }),
+		soundRate: ({ name, rate }) => sound.players.loop.rate({ name, rate }),
 		soundFade: async ({ name, duration, from, to }) => await sound.fade({ name, duration, from, to }), // prettier-ignore
 		soundDuck: ({ level }) => sound.players?.music?.volume(stateSoundDerived.volumeMusic() * level),
 	});

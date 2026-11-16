@@ -101,6 +101,14 @@ const assets = {
 		),
 		preload: true,
 	},
+	// THE LED BILLBOARD'S PICTURES (tools/build_led_art.py, game/landing/ledSign.ts): one small sheet the press screen's
+	// screens are drawn from on a 2D canvas (never drawn by Pixi itself, so never sent to the GPU); unloaded once the game
+	// is entered
+	ledArt: {
+		type: 'sprite',
+		src: stamp(new URL('../../assets/landing/led-art.webp', import.meta.url).href),
+		preload: true,
+	},
 	// BORROWED from Manticore Mayhem as stand-ins (the sprite and the music are its files, byte for byte)
 	sound: {
 		type: 'audio',
@@ -116,3 +124,17 @@ const assets = {
 } as const;
 
 export default assets;
+
+/** THE SEATED DRIVERS' ANIMATIONS (tools/build_seated_clips.py, game/road/seatedClips.ts): not in the manifest (never
+ *  preloaded); each sheet loads when it is needed and is let go after */
+const SEAT_CLIP_URLS = {
+	'grandma:idle:full': new URL('../../assets/riders/clips/grandma-idle.json', import.meta.url).href,
+	'grandma:idle:phone': new URL('../../assets/riders/clips/grandma-idle-phone.json', import.meta.url).href,
+	'grandma:win:full': new URL('../../assets/riders/clips/grandma-win.json', import.meta.url).href,
+	'grandma:win:phone': new URL('../../assets/riders/clips/grandma-win-phone.json', import.meta.url).href,
+	'santa:idle:full': new URL('../../assets/riders/clips/santa-idle.json', import.meta.url).href,
+	'santa:idle:phone': new URL('../../assets/riders/clips/santa-idle-phone.json', import.meta.url).href,
+	'santa:win:full': new URL('../../assets/riders/clips/santa-win.json', import.meta.url).href,
+	'santa:win:phone': new URL('../../assets/riders/clips/santa-win-phone.json', import.meta.url).href,
+} as Record<string, string>;
+export const seatedClipUrl = (character: string, clip: string, tier: 'full' | 'phone'): string => stamp(SEAT_CLIP_URLS[`${character}:${clip}:${tier}`]);

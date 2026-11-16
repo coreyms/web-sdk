@@ -17,6 +17,7 @@ import * as PIXI from 'pixi.js';
 import { SEATED } from '../constants';
 import { SEATED_ART } from '../seatedSpec';
 import { RiderSpring, STEP_MS } from './riderSpring';
+import { seatFrame, type SeatClip } from './seatedClips';
 
 type Box = { x: number; y: number; w: number; h: number };
 export type SeatFrame = 'H1_R' | 'H1_L' | 'W_R' | 'W_L';
@@ -33,6 +34,15 @@ export class SeatedDriver {
 	readonly root = new PIXI.Container();
 	readonly figure = new PIXI.Sprite();
 	readonly front = new PIXI.Sprite();
+	/** THE ANIMATION'S HEAD (pass 7, game/road/seatedClips.ts): drawn over the body (the figure sprite then shows the still
+	 *  with its head cut away), with the figure's own transform */
+	readonly patch = new PIXI.Sprite();
+	/** the win clip's start (win clock ms) while it plays for this vehicle, null otherwise */
+	winT0: number | null = null;
+	/** what it shows (the probes): 'still', or the clip and its kept frame */
+	anim: { clip: 'still' | 'idle' | 'win'; frame: number } = { clip: 'still', frame: -1 };
+	private stillTex: PIXI.Texture | null = null;
+	private stillAnchor: [number, number] = [0.5, 0.5];
 	readonly lean = new RiderSpring();
 	frame: SeatFrame | null = null;
 	private dir = 1;
@@ -47,7 +57,9 @@ export class SeatedDriver {
 		this.root.label = 'seated';
 		this.figure.label = 'seatedDriver';
 		this.front.label = 'seatedFront';
-		this.root.addChild(this.figure, this.front);
+		this.patch.label = 'seatedHead';
+		this.patch.visible = false;
+		this.root.addChild(this.figure, this.patch, this.front);
 	}
 
 	setFrame(frame: SeatFrame): boolean {
@@ -61,6 +73,8 @@ export class SeatedDriver {
 		const c = charArt(f.character).tiers[this.tier];
 		this.figure.texture = fig;
 		this.figure.anchor.set(c.anchor[0], c.anchor[1]);
+		this.stillTex = fig;
+		this.stillAnchor = [c.anchor[0], c.anchor[1]];
 		const b = f.tiers[this.tier].front;
 		this.front.texture = front;
 		this.front.position.set(b.x, b.y);
@@ -72,6 +86,18 @@ export class SeatedDriver {
 
 	reset() {
 		this.lean.reset();
+	}
+
+	/** back to the still, letting go of any animation's textures (its sheet is being unloaded) */
+	resetAnim() {
+		this.winT0 = null;
+		if (this.stillTex && this.figure.texture !== this.stillTex) {
+			this.figure.texture = this.stillTex;
+			this.figure.anchor.set(this.stillAnchor[0], this.stillAnchor[1]);
+		}
+		this.patch.visible = false;
+		this.patch.texture = PIXI.Texture.EMPTY;
+		this.anim = { clip: 'still', frame: -1 };
 	}
 
 	step(now: number, dtMs: number, accelAt: (t: number) => number) {
@@ -89,20 +115,49 @@ export class SeatedDriver {
 		return { x: f.at[0] + p.dx, y: f.at[1] + p.dy, height: f.height * p.scale, f, p };
 	}
 
-	/** the driver at the spring's lean and `pulse` (0 to 1: the win pulse's swell) */
-	draw(pulse: number) {
+	/** the driver at the spring's lean and `pulse` (0 to 1: the win pulse's swell); `clip` the animation to show and `ms`
+	 *  into it (null: the still) */
+	draw(pulse: number, clip: SeatClip | null = null, ms = 0) {
 		if (!this.frame) return;
 		const { x, y, height, f } = this.place();
 		const c = charArt(f.character);
 		const t = c.tiers[this.tier];
-		const tex = this.figure.texture;
-		const s = (height / c.height) * (t.width / Math.max(1, tex.width));
+		const still = this.stillTex ?? this.figure.texture;
+		// the still's own size sets the scale (the body and the head are cut from the same picture, in its fractions)
+		const s = (height / c.height) * (t.width / Math.max(1, still.width));
 		const bob = SEATED.bob.px * Math.max(0, Math.min(1, pulse));
-		this.figure.position.set(x, y - bob);
-		this.figure.scale.set(f.mirror ? -s : s, s);
 		const leanDeg = this.lean.b;
 		const share = SEATED.leanShare[f.character] ?? 1;
-		this.figure.rotation = (this.dir * leanDeg * share * Math.PI) / 180;
+		const rot = (this.dir * leanDeg * share * Math.PI) / 180;
+		const [ax, ay] = this.stillAnchor;
+		if (clip && still) {
+			// THE BODY: the still with its head cut away (its rows from rect[1]), at the still's own density
+			const b = clip.body;
+			if (this.figure.texture !== b.tex) this.figure.texture = b.tex;
+			this.figure.anchor.set(ax, (ay - b.rect[1]) / b.rect[3]);
+			// THE HEAD: the kept frame, a rect of the still's picture at its own (lower) density
+			const { frame } = seatFrame(clip, ms);
+			const fr = clip.frames[frame];
+			if (this.patch.texture !== fr.tex) this.patch.texture = fr.tex;
+			const [fx, fy, fw, fh] = fr.rect;
+			this.patch.anchor.set((ax - fx) / fw, (ay - fy) / fh);
+			const sx = (fw * still.width * s) / Math.max(1, fr.tex.width);
+			const sy = (fh * still.height * s) / Math.max(1, fr.tex.height);
+			this.patch.scale.set(f.mirror ? -sx : sx, sy);
+			this.patch.position.set(x, y - bob);
+			this.patch.rotation = rot;
+			this.patch.visible = true;
+			this.figure.scale.set(f.mirror ? -s * (still.width / b.tex.width) : s * (still.width / b.tex.width), s * ((b.rect[3] * still.height) / b.tex.height));
+			this.anim = { clip: clip.clip, frame };
+		} else {
+			if (this.figure.texture !== still) this.figure.texture = still;
+			this.figure.anchor.set(ax, ay);
+			this.figure.scale.set(f.mirror ? -s : s, s);
+			this.patch.visible = false;
+			this.anim = { clip: 'still', frame: -1 };
+		}
+		this.figure.position.set(x, y - bob);
+		this.figure.rotation = rot;
 		this.last = { leanDeg: Math.round(leanDeg * 1000) / 1000, bob: Math.round(bob * 1000) / 1000, x, y, scale: height / f.height, character: f.character };
 	}
 

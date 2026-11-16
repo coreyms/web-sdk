@@ -54,6 +54,10 @@ export const boot = $state({
 	landingMounted: false,
 	/** the shell splash has faded out */
 	splashOut: false,
+	/** THE LED BILLBOARD stands on the press screen (components/Board.svelte): the HTML press line steps aside for its ticker */
+	ledSign: false,
+	/** the press gate is open (ui/LandingScreen.svelte's own rule): the billboard's ticker says PRESS ANYWHERE TO CONTINUE */
+	pressReady: false,
 });
 
 if (typeof window !== 'undefined') {

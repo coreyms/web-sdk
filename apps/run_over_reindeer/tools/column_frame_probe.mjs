@@ -69,6 +69,9 @@ async function boot(browser, S, dpr) {
 	await p.goto(`${APP}/?lang=en&sessionID=colframe${S.name}${dpr}${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
 	for (let i = 0; i < 160; i++) {
 		const ok = await p.evaluate(() => !!(window.__reindeer?.atRest?.() && window.__reindeer.hud && !document.querySelector('.landing'))).catch(() => false);
+		// (pass 7: the first board keeps the posed columns until the first spin; this probe stands its own columns, so the
+		// posed ones go first, as the landing's end used to take them)
+		if (ok) await p.evaluate(() => window.__reindeer.setBoard(window.__reindeer.board())).catch(() => {});
 		if (ok) break;
 		if (i % 2 === 1) await p.mouse.click(S.vp.width / 2, S.vp.height / 2).catch(() => {});
 		await sleep(600);

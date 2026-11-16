@@ -113,10 +113,9 @@ export type SoundEffectName =
 	| 'sfx_multiplier_land_high'
 	| 'sfx_present_pop'
 	// round 3 (Corey's finals 2026-11-15): the column's growth, entrances and win clips, the bonus round's cards and top-up,
-	// the road's ambience (constants REINDEER_SOUND). sfx_wild_double and sfx_scatter_tease are in the sprite with no
-	// moment in the game to play them (Desktop .../pass3_2026-11-16/NOTES.md); the tier family (sfx_win_big ... _max,
-	// above) replaced Manticore's clips in place and has no tier moment yet either.
-	| 'sfx_wild_double'
+	// the road's ambience (constants REINDEER_SOUND). sfx_scatter_tease plays the scatter tease since pass 7 (constants
+	// LANE_FLOW); sfx_wild_double is left out of the sprite (pass 7, Corey: no doubling moment; its source stays on disk);
+	// the tier family (sfx_win_big ... _max, above) replaced Manticore's clips in place and has no tier moment yet.
 	| 'sfx_column_grow'
 	| 'sfx_column_santa_in'
 	| 'sfx_column_grandma_in'

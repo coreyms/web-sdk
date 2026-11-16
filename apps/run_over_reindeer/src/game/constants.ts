@@ -90,6 +90,13 @@ export const STOPLIGHT = {
 	minShowMs: 60,
 	/** a slam stop (a Spin press or a board tap during a live spin) turns both lights red at once */
 	slamRed: true,
+	/** THE TEASE (constants LANE_FLOW; Corey 2026-11-16, two lights, "the narrow gap between lanes allow us to use one
+	 *  stoplight per direction without really having to change the stop light logic"). While a light's lanes still
+	 *  have cars in the tunnel: two seen, its amber FLASHES (on and off every flashMs); three seen, it ALTERNATES red
+	 *  and amber, faster (every alternateMs); each release from its lanes shows green for greenMs. Once its lanes have
+	 *  let every car out, the stop behavior above as always (amber, the red leading the stop). Road clock ms. The
+	 *  tease's flashing is silent (it has its own sound); releaseSound: the light's change sound on each green. */
+	tease: { flashMs: 260, alternateMs: 150, greenMs: 160, releaseSound: false },
 	/** green and amber fade in and out over this long, real ms. RED never fades: it is on, and the others off, in one
 	 *  frame. */
 	fadeMs: 80,
@@ -322,6 +329,57 @@ export const LANDING_DIM = {
 	steps: 4,
 };
 
+// ---- THE LED BILLBOARD PRESS SCREEN (Corey 2026-11-16, led_billboard_r2_2026-11-16: "That looks amazing"; position on
+// round 2: "Yes position is correct"; "Dissolve."; game/landing/ledSign.ts, ledScreens.ts, tools/build_led_art.py) -------
+// The screen after the studio splash: the first board stands dimmed behind a roadside LED billboard whose three screens
+// cycle (the max win; Santa's sleigh struck; Grandma's car struck), and its ticker says PRESS ANYWHERE TO CONTINUE once
+// the game may be entered (the press gate's rules are ui/LandingScreen.svelte's, unchanged). The press powers it down and
+// the game is there. LANDING_DIM above is no longer used on this screen (the sign's own dim covers it).
+//   layout  per layout, the page's numbers. 'master' units scale with the game (desktop and a phone held sideways: the
+//           page's 1440x900 numbers / 1.125, its 844x390 ones / 0.527); 'css' are CSS px (an upright phone, where the page
+//           ties the face to the screen's width: 28 px margins, never wider than boardShare of the board, its height
+//           between faceH at 620 px tall and faceHTall at 844). The face is centred on the board. pitch: the page's base
+//           dot pitch, divided by `density` (Corey's 1.25: desktop 362 x 143 dots, a 362 x 11 ticker, 2.49 CSS px).
+//   phone   held sideways: the page's face (540 CSS px at 844x390: 1025 master units) overlapped the left HUD column by
+//           about 20 px (its NOTES). Measured in the game at 844x390: the left column's inner edge at 185 CSS px, the
+//           right one's at 697, the board's centre at 422. faceW 820 (432 CSS px, 277 dots) leaves the housing 8 px
+//           clear of the left column (tools/landing_probe.mjs checks it after the press)
+export type LedLayout = { unit: 'master' | 'css'; faceW: number; faceH: number; pitch: number; frame: number; ol: number; pole: number; drift: number; cap: number; margin: number; boardShare: number; faceHTall: number; driftTall: number };
+export const LED_SIGN = {
+	/** false = the old press screen (the HTML line over the posed board) */
+	on: true,
+	density: 1.25,
+	tickerDots: 11,
+	/** the dots' content is redrawn and sent to the GPU this many times a second (an LED controller's refresh) */
+	fps: 30,
+	/** each screen holds holdS, then dissolves into the next over transS (the page's 3.5 and 0.4 s) */
+	holdS: 3.5,
+	transS: 0.4,
+	/** the halo's strength (the half size picture added over the face) */
+	halo: 0.3,
+	dim: { color: '#040811', alpha: 0.66 },
+	/** the grille's tile: cells x cells holes, cellPx each (one canvas, mipmapped) */
+	grille: { cells: 16, cellPx: 16 },
+	/** THE PRESS (the page's power down): a flicker, the dots out by dotsOutMs, the game's chrome comes up at handOverMs,
+	 *  and the sign sinks (sinkShare of the screen's height) and fades from signFromMs to signToMs, then it is unloaded */
+	exit: { flickerMs: 160, dotsOutMs: 560, handOverMs: 640, signFromMs: 640, signToMs: 1240, sinkShare: 0.04 },
+	text: {
+		winTop: 'WIN UP TO',
+		sleighHead: "REINDEER HITS SANTA'S SLEIGH",
+		sleighBody: 'THE WHOLE COLUMN TURNS WILD WITH A MULTIPLIER',
+		sleighMult: '10X',
+		carHead: "REINDEER HITS GRANDMA'S CAR",
+		carBody: 'HER CAR TURNS WILD WITH A MULTIPLIER',
+		carMult: '5X',
+		ticker: 'PRESS ANYWHERE TO CONTINUE',
+	},
+	layout: {
+		landscape: { unit: 'master', faceW: 800, faceH: 316.44, pitch: 2.7556, frame: 19.56, ol: 4.44, pole: 26.67, drift: 48, cap: 30.2, margin: 0, boardShare: 1, faceHTall: 0, driftTall: 0 } as LedLayout,
+		phone: { unit: 'master', faceW: 820, faceH: 387, pitch: 3.7, frame: 22.77, ol: 5.69, pole: 28.46, drift: 41.75, cap: 32.26, margin: 0, boardShare: 1, faceHTall: 0, driftTall: 0 } as LedLayout,
+		portrait: { unit: 'css', faceW: 334, faceH: 218, pitch: 1.62, frame: 12, ol: 3, pole: 17, drift: 30, cap: 17, margin: 28, boardShare: 1.2, faceHTall: 288, driftTall: 34 } as LedLayout,
+	},
+};
+
 // ---- THE SCATTER PRESENT (game/road/present.ts, tools/build_present.py; the 3D present Corey approved 2026-11-15) -------
 // Corey: "Only when enough presents land to trigger free spins, maybe a minor open and hide each time one lands with a
 // jiggle". Closed and still otherwise (the still is the symbol atlas's S).
@@ -509,6 +567,58 @@ export const ROAD_MOTION = {
 	hurryRate: 3,
 	/** the fastest the board's clock ever runs, whatever is stacked */
 	maxRate: 6,
+};
+
+// ---- LANE BY LANE TRAFFIC AND THE SCATTER TEASE (Corey 2026-11-16; game/road/laneFlow.ts, game/road/roadBoard.ts) ------
+// Corey's page lane_stagger_mock_2026-11-16.html, whose schedule() this follows, and his numbers read back from it:
+// "lane gap 100 ms, drive-in 680 ms, car gap 70 ms, car gap at two seen 360 ms, car gap at three seen 390 ms, clear gap
+// 60 ms, 2 stoplights". His words: "we know when we have 2, 3, and 4 scatters before populating the board ... I would
+// take this and do the anticipation based off of the reveals of the scatters to the player. Not stopping anticipation
+// on 3, because we are still waiting on a possible Super. I also want it looking like actual traffic still."
+//   NORMAL FLOW  the four lanes start laneGapMs apart, top lane first. In a lane the LEAD car (the one going farthest)
+//                leaves the tunnel first and the others follow carGapMs apart. The lead takes driveInMs from the tunnel
+//                to its spot; a car with less far to go takes driveInMs x (shortShare + (1 - shortShare) x its share
+//                of the distance), its share (5 - k) / 5 for the k-th car of the lane (the page's 0.55 + 0.45 x share).
+//                Each car cruises, then brakes over its last brakeMs (at most brakeShareMax of its drive) into its
+//                spot, as the traffic always has (nose down, the rock back: ROAD_MOTION in).
+//   SEEN         a scatter counts as seen seenMs after its car leaves the tunnel (clear of the mouth), not when it stops.
+//   THE TEASE    from the moment two are seen, each next release (in the normal release order across the lanes) comes
+//                at least twoGapMs after the one before; from three seen (Free Spins decided, Super still open) at
+//                least threeGapMs. Once the deciding scatter is seen (the fourth in the base game: Super; the third in a
+//                feature, where three is the most the math can show: the retrigger) the rest clear through clearGapMs
+//                apart. A car already on the road never slows or waits: only the tunnels hold cars back. It runs
+//                whenever two are showing and cars remain, whether or not the spin ends up paying.
+//   THE CAP      the tease gaps are compressed in proportion when a spin would take longer than capMs from the press to
+//                the board at rest (the book in on time: ROAD_MOTION in.delayMs, then the drive in and its settle).
+// Every time is on the road's own clock (turbo runs it faster: ROAD_MOTION turbo1 / turbo2 rate). The turbo levels
+// below scale the gaps as the old lane and car staggers were scaled (90 / 130 and 55 / 72 at turbo 1; 0 and 26 / 72 at
+// turbo 2); at turbo 2 the tease gaps are halved again (turbo2Tease 'half'; 'drop' = no tease at turbo 2). A slam stop
+// cuts a live drive in straight to the stopped board (no tease); a spin driving in already hurried has no tease.
+export type LaneFlowLevel = { laneGapMs: number; carGapMs: number; clearGapMs: number };
+export const LANE_FLOW = {
+	/** false = the old convoys (ROAD_MOTION in.laneStaggerMs / carStaggerMs), no tease */
+	on: true,
+	driveInMs: 680,
+	shortShare: 0.55,
+	/** the brake at the end of each car's drive, ms (at most brakeShareMax of the drive) */
+	brakeMs: 270,
+	brakeShareMax: 0.8,
+	seenMs: 110,
+	normal: { laneGapMs: 100, carGapMs: 70, clearGapMs: 60 } as LaneFlowLevel,
+	turbo1: { laneGapMs: 69, carGapMs: 53, clearGapMs: 46 } as LaneFlowLevel,
+	turbo2: { laneGapMs: 0, carGapMs: 25, clearGapMs: 22 } as LaneFlowLevel,
+	tease: {
+		/** false = never a tease (the clear after the deciding scatter still runs) */
+		on: true,
+		twoGapMs: 360,
+		threeGapMs: 390,
+		/** at turbo 2: 'half' halves both tease gaps, 'drop' runs no tease */
+		turbo2: 'half' as 'half' | 'drop',
+		/** in Free Spins and Super: at most one tease per feature round */
+		oncePerFeature: true,
+	},
+	/** the press to the board at rest, road clock ms, never more than this at normal speed: the tease gaps give way */
+	capMs: 6500,
 };
 
 /** the motion numbers for a turbo level: the base set with that level's overrides laid over it */
@@ -752,8 +862,18 @@ export const REINDEER_SOUND = {
 	 *  3-8 small, Santa 10-20 mid, Grandma 40-75 high); bonus columns 2-30 and the rare 30 and 50 starts spread over
 	 *  the three */
 	stamp: { mid: 10, high: 30, names: { small: 'sfx_multiplier_land_small', mid: 'sfx_multiplier_land_mid', high: 'sfx_multiplier_land_high' } },
-	/** one per reel, reel 1 first */
+	/** PASS 7 (2026-11-16, LANE_FLOW): ONE STOP SOUND PER LANE, lane 1 (the top) to lane 4, on the frame that lane's last
+	 *  car reaches its stop point, sfx_lane_stop_1..4 (rising a semitone each). With the lanes 100 ms apart a lane's five
+	 *  cars stop within about 35 ms, and every reel's last car is in the bottom lane, so the five reels would stop within
+	 *  about 35 ms of each other: five sounds in a flam. The turbo 2 rule below is kept (one sound per spin), and a slam
+	 *  stop's cut (every lane at once) sounds once by the same rule. (sfx_lane_stop_5 stays in the sprite, unused.) */
 	reelStops: ['sfx_lane_stop_1', 'sfx_lane_stop_2', 'sfx_lane_stop_3', 'sfx_lane_stop_4', 'sfx_lane_stop_5'],
+	/** THE SCATTER TEASE (constants LANE_FLOW): sfx_scatter_tease, a 2.0 s loop, from the frame the tease begins (the
+	 *  second scatter seen with cars still in the tunnels). At three seen (Free Spins decided, Super still open) the same
+	 *  loop steps up: its rate goes to `rateAtThree` (+2 semitones, faster), no restart, no gap. It stops with a
+	 *  fadeMs fade when the tease is over (the deciding scatter seen, or the last car seen), at once (8 ms) on a slam
+	 *  stop's cut, under SKIP TO RESULT and when the board goes. */
+	tease: { name: 'sfx_scatter_tease', rateAtThree: 1.122, fadeMs: 140 },
 	/** TURBO 2's reel stop (pass 5): a reel's stop within gapMs (real ms) of the last reel stop sound is silent (the five
 	 *  land within about 20 ms, so one sound per spin), and one still sounding from the spin before (Super's spins come
 	 *  about 450 ms apart, the sound is 454 ms) is stopped as the next starts, so it never plays twice at once */
@@ -935,6 +1055,12 @@ export const SEATED = {
 	bob: { px: 3.5 },
 	/** the driver's silhouette above the vehicle joins its cast shadow */
 	shadow: true,
+	/** THE ANIMATIONS (pass 7, Corey: "Not staying with the stills"; tools/build_seated_clips.py, game/road/seatedClips.ts):
+	 *  an idle (a 4.0 s loop at 6 fps) while the vehicle stands at rest, a win reaction (4.0 s at 8 fps, once) when a line
+	 *  win runs through it, the head an animated patch over the still's body. Each sheet loads when needed: the idle while
+	 *  a vehicle of its character is at rest (kept idleKeepMs after the last one left), the win when a win with it starts
+	 *  (let go winKeepMs after). on: false = the stills only, as before. */
+	clips: { on: true, idleKeepMs: 20000, winKeepMs: 600 },
 	place: {
 		// (pass 6: Grandma 12 road px higher and 6 percent larger, fists on the rim; Santa 16 back, centered in the
 		// sleigh: baked into tools/seated_split.json, so these stay 0)
@@ -945,8 +1071,29 @@ export const SEATED = {
 	} as Record<string, { dx: number; dy: number; scale: number }>,
 };
 
+// ---- THE BRAKE LIGHTS (Corey 2026-11-16: "we need to give the different cars brake lights in code when they are slowing
+// down and stopped"; game/road/brakeLights.ts, tools/build_brake_lights.py, game/brakeLightSpec.ts) --------------------
+// Grandma's car, the wagon, the van and the police car (not the sleigh, not the signs) light their rear lamps: BRIGHT
+// while braking into the spot, DIM while stopped (the rock back and at rest), OFF while cruising in and pulling away.
+// Each lamp is the stoplights' soft blob, tinted and added (no filter), with a small hot core; both follow the car's
+// place, dive, win pulse, brightness (the tunnel's shade, the win's dim) and hide with it. Sizes road px at the built
+// size. The art shows one lamp per side (the near one); the second is the far lamp, peeking at the rear edge.
+export const BRAKE_LIGHTS = {
+	on: true,
+	tint: 0xff2a1a,
+	coreTint: 0xffc2b0,
+	/** the glow's width per lamp size (road px), its squash (height against width) */
+	glow: { size: 46, squash: 0.85 },
+	core: { size: 15 },
+	/** brightness while braking and while stopped (0..1), and how fast it changes (ms to full) */
+	brake: 1,
+	stopped: 0.42,
+	attackMs: 40,
+	releaseMs: 160,
+};
+
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED };
+export const TUNE = { laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

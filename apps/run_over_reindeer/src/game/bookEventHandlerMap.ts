@@ -52,6 +52,7 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	stateGame.spinsPlayed = 0;
 	stateGame.topUp = null;
 	stateGame.capped = false;
+	stateGame.featureTeased = false;
 	eventEmitter.broadcast({ type: 'soundMusic', name: stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus' });
 	devMark('music', stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus');
 };
@@ -177,6 +178,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.totalFs = 0;
 		stateGame.spinsPlayed = 0;
 		stateGame.topUp = null;
+		stateGame.featureTeased = false;
 		eventEmitter.broadcast({ type: 'soundMusic', name: 'bgm_base' });
 		devMark('music', 'bgm_base');
 	},

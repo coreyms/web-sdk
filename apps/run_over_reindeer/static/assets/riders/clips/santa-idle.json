@@ -1,0 +1,413 @@
+{
+ "frames": {
+  "santa_idle_0": {
+   "frame": {
+    "x": 311,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_1": {
+   "frame": {
+    "x": 434,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_2": {
+   "frame": {
+    "x": 557,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_3": {
+   "frame": {
+    "x": 680,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_4": {
+   "frame": {
+    "x": 803,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_5": {
+   "frame": {
+    "x": 0,
+    "y": 156,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_6": {
+   "frame": {
+    "x": 123,
+    "y": 156,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_7": {
+   "frame": {
+    "x": 246,
+    "y": 156,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_8": {
+   "frame": {
+    "x": 369,
+    "y": 156,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_9": {
+   "frame": {
+    "x": 492,
+    "y": 156,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_idle_10": {
+   "frame": {
+    "x": 615,
+    "y": 156,
+    "w": 122,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 122,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 122,
+    "h": 115
+   }
+  },
+  "santa_idle_11": {
+   "frame": {
+    "x": 739,
+    "y": 156,
+    "w": 123,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 123,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 123,
+    "h": 115
+   }
+  },
+  "santa_idle_12": {
+   "frame": {
+    "x": 0,
+    "y": 273,
+    "w": 123,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 123,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 123,
+    "h": 115
+   }
+  },
+  "santa_idle_13": {
+   "frame": {
+    "x": 125,
+    "y": 273,
+    "w": 123,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 123,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 123,
+    "h": 115
+   }
+  },
+  "santa_idle_14": {
+   "frame": {
+    "x": 250,
+    "y": 273,
+    "w": 124,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 124,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 124,
+    "h": 115
+   }
+  },
+  "santa_idle_15": {
+   "frame": {
+    "x": 376,
+    "y": 273,
+    "w": 123,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 123,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 123,
+    "h": 115
+   }
+  },
+  "santa_idle_16": {
+   "frame": {
+    "x": 501,
+    "y": 273,
+    "w": 122,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 122,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 122,
+    "h": 115
+   }
+  },
+  "santa_idle_17": {
+   "frame": {
+    "x": 625,
+    "y": 273,
+    "w": 122,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 122,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 122,
+    "h": 115
+   }
+  },
+  "santa_idle_18": {
+   "frame": {
+    "x": 749,
+    "y": 273,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_body": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 309,
+    "h": 154
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 309,
+    "h": 154
+   },
+   "sourceSize": {
+    "w": 309,
+    "h": 154
+   }
+  }
+ },
+ "meta": {
+  "image": "santa-idle.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 926,
+   "h": 388
+  },
+  "scale": "1"
+ }
+}

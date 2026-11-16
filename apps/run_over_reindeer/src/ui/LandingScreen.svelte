@@ -85,6 +85,10 @@
 		return () => clearTimeout(id);
 	});
 	const ready = $derived(context.stateApp.preLoaded && fontsReady && (audioReady || stalled) && boot.splashOut);
+	// THE LED BILLBOARD's ticker (components/Board.svelte, game/landing/ledSign.ts) shows PRESS ANYWHERE from the same moment
+	$effect(() => {
+		boot.pressReady = ready;
+	});
 
 	const GATE = { landscape: { barW: 420, barH: 18, press: 20, pct: 11.5, bottom: 26 }, portrait: { barW: 280, barH: 18, press: 17, pct: 10.5, bottom: 40 }, phone: { barW: 520, barH: 14, press: 30, pct: 17.5, bottom: 34 } } as const;
 	const SZ = $derived(GATE[kind]);
@@ -111,7 +115,7 @@
 		<!-- the title in the HUD's own title box, so it does not move when the game opens -->
 		<div class="title" style:left="{title.x}px" style:top="{title.y}px"><TitleSign width={title.width} height={title.height} lines={title.lines} title /></div>
 
-		<div class="gate" style:bottom="{SZ.bottom}px">
+		<div class="gate" class:empty={ready && boot.ledSign && !assetsFailed} style:bottom="{SZ.bottom}px">
 			{#if assetsFailed}
 				<!-- same display style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
 				<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM. TAP TO RETRY</div>
@@ -125,7 +129,8 @@
 					<div class="gk" class:on={lit > 0 && lit < SEG} style:transform="translateX({litPct}%)"><b></b></div>
 				</div>
 				<div class="pct" style:font-size="{SZ.pct}px">{loadingLabel} {progress}%</div>
-			{:else}
+			{:else if !boot.ledSign}
+				<!-- (with the LED billboard up, its ticker says it: game/landing/ledSign.ts) -->
 				<div class="pressText" style:font-size="{SZ.press}px">PRESS ANYWHERE TO CONTINUE</div>
 			{/if}
 		</div>
@@ -182,6 +187,9 @@
 		background: var(--ui-glass);
 		border: 1px solid var(--ui-glass-edge);
 		z-index: 5;
+	}
+	.gate.empty {
+		display: none;
 	}
 	/* THE SPLASH'S SEGMENTED BAR (src/app.html #am-splash .gbar): the same segments, shine and spark in this
 	   screen's master px, lit in the game's accent. Only transform and opacity animate. */

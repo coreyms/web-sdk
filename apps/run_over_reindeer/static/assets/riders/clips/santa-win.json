@@ -1,0 +1,593 @@
+{
+ "frames": {
+  "santa_win_0": {
+   "frame": {
+    "x": 311,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_win_1": {
+   "frame": {
+    "x": 0,
+    "y": 156,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_win_2": {
+   "frame": {
+    "x": 123,
+    "y": 156,
+    "w": 123,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 123,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 123,
+    "h": 115
+   }
+  },
+  "santa_win_3": {
+   "frame": {
+    "x": 248,
+    "y": 156,
+    "w": 120,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 120,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 120,
+    "h": 115
+   }
+  },
+  "santa_win_4": {
+   "frame": {
+    "x": 370,
+    "y": 156,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_5": {
+   "frame": {
+    "x": 121,
+    "y": 857,
+    "w": 119,
+    "h": 113
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 119,
+    "h": 113
+   },
+   "sourceSize": {
+    "w": 119,
+    "h": 113
+   }
+  },
+  "santa_win_6": {
+   "frame": {
+    "x": 0,
+    "y": 273,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_7": {
+   "frame": {
+    "x": 369,
+    "y": 624,
+    "w": 119,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 119,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 119,
+    "h": 114
+   }
+  },
+  "santa_win_8": {
+   "frame": {
+    "x": 0,
+    "y": 741,
+    "w": 118,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 114
+   }
+  },
+  "santa_win_9": {
+   "frame": {
+    "x": 120,
+    "y": 273,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_10": {
+   "frame": {
+    "x": 242,
+    "y": 857,
+    "w": 119,
+    "h": 113
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 119,
+    "h": 113
+   },
+   "sourceSize": {
+    "w": 119,
+    "h": 113
+   }
+  },
+  "santa_win_11": {
+   "frame": {
+    "x": 240,
+    "y": 273,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_12": {
+   "frame": {
+    "x": 120,
+    "y": 741,
+    "w": 119,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 119,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 119,
+    "h": 114
+   }
+  },
+  "santa_win_13": {
+   "frame": {
+    "x": 360,
+    "y": 273,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_14": {
+   "frame": {
+    "x": 0,
+    "y": 390,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_15": {
+   "frame": {
+    "x": 241,
+    "y": 741,
+    "w": 119,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 119,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 119,
+    "h": 114
+   }
+  },
+  "santa_win_16": {
+   "frame": {
+    "x": 120,
+    "y": 390,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_17": {
+   "frame": {
+    "x": 362,
+    "y": 741,
+    "w": 119,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 119,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 119,
+    "h": 114
+   }
+  },
+  "santa_win_18": {
+   "frame": {
+    "x": 0,
+    "y": 857,
+    "w": 119,
+    "h": 114
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 119,
+    "h": 114
+   },
+   "sourceSize": {
+    "w": 119,
+    "h": 114
+   }
+  },
+  "santa_win_19": {
+   "frame": {
+    "x": 240,
+    "y": 390,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_20": {
+   "frame": {
+    "x": 360,
+    "y": 390,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_21": {
+   "frame": {
+    "x": 0,
+    "y": 507,
+    "w": 119,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 119,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 119,
+    "h": 115
+   }
+  },
+  "santa_win_22": {
+   "frame": {
+    "x": 121,
+    "y": 507,
+    "w": 124,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 124,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 124,
+    "h": 115
+   }
+  },
+  "santa_win_23": {
+   "frame": {
+    "x": 247,
+    "y": 507,
+    "w": 122,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 122,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 122,
+    "h": 115
+   }
+  },
+  "santa_win_24": {
+   "frame": {
+    "x": 371,
+    "y": 507,
+    "w": 118,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 118,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 118,
+    "h": 115
+   }
+  },
+  "santa_win_25": {
+   "frame": {
+    "x": 0,
+    "y": 624,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_win_26": {
+   "frame": {
+    "x": 123,
+    "y": 624,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_win_27": {
+   "frame": {
+    "x": 246,
+    "y": 624,
+    "w": 121,
+    "h": 115
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 121,
+    "h": 115
+   },
+   "sourceSize": {
+    "w": 121,
+    "h": 115
+   }
+  },
+  "santa_body": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 309,
+    "h": 154
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 309,
+    "h": 154
+   },
+   "sourceSize": {
+    "w": 309,
+    "h": 154
+   }
+  }
+ },
+ "meta": {
+  "image": "santa-win.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 491,
+   "h": 971
+  },
+  "scale": "1"
+ }
+}

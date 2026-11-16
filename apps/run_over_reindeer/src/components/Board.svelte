@@ -31,8 +31,10 @@
 		| { type: 'boardMessage'; text: string; ms: number }
 		/** a tap on the board during a live spin (ui/controls.svelte.ts hurries it) */
 		| { type: 'boardTap' }
-		/** the landing screen is going (under the fade's black): its posed board goes, the first board comes up */
-		| { type: 'boardLandingEnd' };
+		/** the landing screen is going: the posed board stays as the first board (a resumed round puts its own up) */
+		| { type: 'boardLandingEnd' }
+		/** the press on the LED billboard: it powers down; resolves when the game's chrome may come up */
+		| { type: 'boardLandingPress' };
 </script>
 
 <script lang="ts">
@@ -41,11 +43,17 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { stateUrlDerived } from 'state-shared';
+	import { stateBet, stateUrlDerived } from 'state-shared';
 
 	import { getContext } from '../game/context';
 	import { layoutKind, roadPlacement, boardRect, MASTER } from '../game/layoutSpec';
-	import { LINE_WIN, ROAD_MOTION, TUNE } from '../game/constants';
+	import { LANE_FLOW, LED_SIGN, LINE_WIN, ROAD_MOTION, TUNE } from '../game/constants';
+	import config from '../game/config';
+	import { boot } from '../game/boot.svelte';
+	import { LedSign, ledGeometry } from '../game/landing/ledSign';
+	import { setLedArt, type LedText } from '../game/landing/ledScreens';
+	import { LED_ART } from '../game/ledArtSpec';
+	import { seatClipMemory, setSeatUploader } from '../game/road/seatedClips';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { ROAD_ART } from '../game/roadArtSpec';
@@ -74,9 +82,10 @@
 	// (a lane's stop no longer sounds: since round 2, 2026-11-15, each REEL has its own stop, sfx_lane_stop_1..5, cued by
 	// the road itself as that reel's last car stops, game/road/roadBoard.ts updateReelStops; the borrowed sfx_reel_stop
 	// that played here once per lane is gone)
-	// the features' beats, voiced with BORROWED Manticore sounds until this game has its own: since 2026-11-15 only a
-	// column with no strike behind it (Super's opening column) sends one
-	road.features.onBeat = (kind) => context.eventEmitter.broadcast({ type: 'soundOnce', name: kind === 'column' ? 'sfx_sting_big_hit' : 'sfx_sting_hit' });
+	// the features' beats: since 2026-11-15 only a column with no strike behind it (Super's opening column) sends one, and
+	// since pass 7 (2026-11-16, Corey: "Yes") it plays nothing: the borrowed Manticore sting is gone, the column grow
+	// (sfx_column_grow, game/road/roadSounds.ts) voices that box
+	road.features.onBeat = null;
 	// THE ROAD'S OWN SOUNDS (game/road/roadSounds.ts, constants REINDEER_SOUND): the reindeer's alert, run and turn, the
 	// crash and its cloud, the Grandma Wild, the reindeer column's entrance and his idle snort, cued from the frames. Through
 	// the game's sound events (components/Sound.svelte), so the effects volume, mute and SKIP TO RESULT apply. A one-shot
@@ -87,6 +96,8 @@
 		fade: (name, from, to, ms) => context.eventEmitter.broadcast({ type: 'soundFade', name: name as SoundEffectName, from, to, duration: ms }),
 		stop: (name) => context.eventEmitter.broadcast({ type: 'soundStop', name: name as SoundEffectName }),
 		roundLive: () => stateGame.busy,
+		rate: (name, rate) => context.eventEmitter.broadcast({ type: 'soundRate', name: name as SoundEffectName, rate }),
+		skipping: () => stateGame.skipping,
 	};
 	// the target crosshair (constants CROSSHAIR): nothing of it shows under SKIP TO RESULT. Its beats (hop, drop, lock,
 	// morph) are voiced by the road's own sounds since round 2 (2026-11-15): RoadSounds.crosshair.
@@ -94,14 +105,52 @@
 	road.features.onCrosshair = (beat, cell) => road.features.sounds.crosshair(beat, cell);
 	parent.addToParent(road.root);
 
-	// THE LANDING BOARD (game/landingBoard.ts): while the landing screen is up the road shows the posed, still board (the
-	// side reels' symbols, the three column Wilds with their top multipliers, the dim). It goes at boardLandingEnd, under
-	// the fade's black, before the first board or a resumed round is put up. A replay has no landing.
+	// THE FIRST BOARD (game/landingBoard.ts; Corey 2026-11-16: the pattern "was meant for after" the press screen): the
+	// posed, still board (the side reels' symbols, the three column Wilds with their top multipliers) stands from the
+	// start, dimmed behind the LED billboard while the press screen is up, and stays as the board at rest before the first
+	// spin, whose press takes its columns away. A resumed round puts its own board up instead. A replay has no landing.
 	const landingSheet = loaded.landingStills;
-	if (context.stateLayout.showLoadingScreen && !stateUrlDerived.replay() && landingSheet) {
+	const landing = context.stateLayout.showLoadingScreen && !stateUrlDerived.replay();
+	if (landing && landingSheet) {
 		road.setBoard(LANDING_POSE);
 		road.features.showLanding(landingSheet, COLUMN_CLIPS.landing.tiers[PHONE_TIER ? 'phone' : 'full'].frames, landingColumns());
-		road.setLandingDim(true);
+		if (!LED_SIGN.on) road.setLandingDim(true);
+	}
+	// once the first board's columns have left (the first spin's press), their sheet leaves the GPU
+	road.features.onLandingGone = () => landingSheet?.source.unload();
+
+	// THE LED BILLBOARD PRESS SCREEN (constants LED_SIGN, game/landing/ledSign.ts): over the dimmed first board, from the
+	// moment the board is up; its ticker says PRESS ANYWHERE once the press gate is open (boot.pressReady). Unloaded once
+	// the game is entered (the sign, its canvases and textures, its pictures' file).
+	const ledText = (): LedText => {
+		const T = LED_SIGN.text;
+		return {
+			win: { top: T.winTop, num: `${config.maxWin.toLocaleString('en-US')}X` },
+			sleigh: { head: T.sleighHead, body: T.sleighBody, mult: T.sleighMult },
+			car: { head: T.carHead, body: T.carBody, mult: T.carMult, bodyScales: [2, 1] },
+			ticker: T.ticker,
+		};
+	};
+	let led: LedSign | null = null;
+	if (landing && LED_SIGN.on) {
+		const art = loaded.ledArt;
+		const image = art?.source?.resource as CanvasImageSource | undefined;
+		setLedArt(image ? { image, frames: LED_ART.frames } : null);
+		led = new LedSign(ledText());
+		parent.addToParent(led.root);
+		boot.ledSign = true;
+		led.onGone = () => {
+			const sign = led;
+			led = null;
+			boot.ledSign = false;
+			setLedArt(null);
+			// hidden this frame (the sign's root is invisible now), destroyed two frames later: a texture destroyed in the
+			// frame it was last batched takes the render loop down (the column sheets' rule, game/road/columnClips.ts)
+			requestAnimationFrame(() => requestAnimationFrame(() => sign?.destroy()));
+			// the pictures' file goes with it (it was never sent to the GPU: only drawn on the sign's canvases)
+			const src = (context.stateApp.assets as Record<string, { src: string }> | undefined)?.ledArt?.src;
+			if (src) void PIXI.Assets.unload(src).catch(() => {});
+		};
 	}
 
 	// the road in the layout: road px -> master units (layoutSpec ROAD_LAYOUT) -> canvas px (the main layout's fit).
@@ -116,6 +165,12 @@
 		road.features.layoutKind = kind; // and the reindeer runs at its own height in the snow per layout (STRIKE.snow)
 		road.root.scale.set(place.scale * main.scale);
 		road.root.position.set(masterLeft + place.x * main.scale, masterTop + place.y * main.scale);
+		// the billboard: centred on the board, sized per layout (canvas CSS px)
+		if (led) {
+			const r = boardRect(kind);
+			const canvas = context.stateLayoutDerived.canvasSizes();
+			led.layout(ledGeometry(kind, canvas.width, canvas.height, main.scale, { x: masterLeft + r.x * main.scale, y: masterTop + r.y * main.scale, w: r.width * main.scale, h: r.height * main.scale }));
+		}
 	});
 
 	// the board's tap area: a tap during a live spin hurries it, as the Spin press does (ui/controls.svelte.ts boardTap)
@@ -127,6 +182,8 @@
 		const app = context.stateApp.pixiApplication;
 		// a column character's sheet goes to the GPU when it has loaded, not on the frame it is first drawn
 		setClipUploader(app ? (texture) => app.renderer.prepare.upload(texture) : null);
+		// the seated drivers' animation sheets the same way (game/road/seatedClips.ts)
+		setSeatUploader(app ? (texture) => app.renderer.prepare.upload(texture) : null);
 		// before a character's sheet is unloaded, every batch is rebuilt (game/road/columnClips.ts release): toggling an
 		// empty child's visibility marks the render group's structure as changed, through Pixi's own public setter
 		const rebatchNudge = new PIXI.Container();
@@ -156,20 +213,32 @@
 		// the upload queue; a present that lands before it is in stays still. Desktop sheets get a mip chain.
 		if (!PHONE_TIER) setPresentMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
 		void loadPresent('peek');
-		const tick = (ticker: PIXI.Ticker) => road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
+		const tick = (ticker: PIXI.Ticker) => {
+			road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
+			led?.update(ticker.deltaMS, boot.pressReady);
+		};
 		app?.ticker.add(tick);
 		return () => {
 			// Equivalent to onDestroy(); Leave this comment for searching.
 			app?.ticker.remove(tick);
+			led?.destroy();
+			led = null;
 			road.destroy();
 		};
 	});
 
 	context.eventEmitter.subscribeOnMount({
+		boardLandingPress: async () => {
+			await led?.exit();
+		},
 		boardLandingEnd: () => {
-			road.features.endLanding();
 			road.setLandingDim(false);
-			road.setBoard(stateGame.board);
+			// the posed board stays as the first board (its columns leave at the first spin's press); a round to resume
+			// (or the old press screen) puts its own board up as before
+			if (!LED_SIGN.on || stateBet.betToResume?.active) {
+				road.features.endLanding();
+				road.setBoard(stateGame.board);
+			}
 		},
 		boardSnap: ({ board }) => {
 			road.features.clearAll();
@@ -180,7 +249,13 @@
 			road.driveOut(stateGame.turboLevel);
 		},
 		boardDriveIn: async ({ board }) => {
-			await road.driveIn(board, stateGame.turboLevel);
+			// THE TEASE (constants LANE_FLOW): a feature round's spin decides at three (the retrigger), and has at most one
+			// tease per feature round
+			const free = stateGame.gameType === 'freegame';
+			const tease = !free || !LANE_FLOW.tease.oncePerFeature || !stateGame.featureTeased;
+			const drive = road.driveIn(board, stateGame.turboLevel, { free, tease });
+			if (free && road.flowSnapshot().plan?.teaseFrom != null) stateGame.featureTeased = true;
+			await drive;
 		},
 		boardHeld: ({ held }) => road.features.syncHeld(held),
 		boardStrike: async ({ strike }) => {
@@ -249,7 +324,11 @@
 				return road.snapshot();
 			},
 			/** put any board up at rest: __reindeer.setBoard([[...4 symbols] x 5 reels]) */
-			setBoard: (board: BoardSymbols) => road.setBoard(board),
+			setBoard: (board: BoardSymbols) => {
+				// (the first board's posed columns go first: a board put up by hand stands alone)
+				road.features.endLanding();
+				road.setBoard(board);
+			},
 			/** hold both stoplights on 'red', 'amber' or 'green', or dark (null); no argument hands them back to the board */
 			signal: (...color: ['red' | 'amber' | 'green' | null] | []) => road.forceSignal(color.length ? color[0] : undefined),
 			/** the column characters' pictures that are loaded now, and what they weigh on the GPU */
@@ -258,6 +337,23 @@
 			runMemory: () => runMemory(),
 			/** THE SCATTER PRESENT: its sheets loaded now and their GPU weight; the per-frame trace of its animations
 			 *  (clear = true empties it); the full open by hand on the board as it stands (no book, no sound) */
+			/** LANE BY LANE TRAFFIC AND THE TEASE (constants LANE_FLOW): the last drive in's plan as played, the spins'
+			 *  lengths, the lights; THE BRAKE LIGHTS per car (constants BRAKE_LIGHTS) */
+			flow: () => road.flowSnapshot(),
+			/** the lights and the clock only (the lane stagger probe reads it every frame) */
+			flowLite: () => road.flowLite(),
+			/** THE LED BILLBOARD as drawn (game/landing/ledSign.ts): its place, dots, screen, mode, cost; freeze(t) holds its
+			 *  screens' time at t s (null runs it again) */
+			led: () => led?.snapshot() ?? null,
+			ledFreeze: (t: number | null) => led?.freeze(t),
+			/** the sign driven by hand (on), and stepped `ms` at a time (the evidence's frame by frame clips) */
+			ledManual: (on: boolean) => led && (led.manual = on),
+			ledStep: (ms: number) => led?.step(ms, boot.pressReady),
+			/** the seated drivers' idle on a clock of the caller's (ms; null: real time), for frame by frame captures */
+			seatTime: (ms: number | null) => (road.seatTime = ms),
+			brakes: () => road.brakeSnapshot(),
+			/** SKIP TO RESULT on or off by hand (the lane stagger probe: the tease's loop stops under it) */
+			skip: (on: boolean) => (stateGame.skipping = !!on),
 			/** THE CAST SHADOWS as drawn (game/road/shadows.ts; the numbers are tune.shadow), and what the road draws:
 			 *  every sprite shown (visible all the way up and renderable), and how many of them are shadows */
 			shadows: () => road.shadowSnapshot(),
@@ -271,6 +367,8 @@
 			seated: () => road.seatedSnapshot(),
 			/** riders (trees, drivers) or their shadows drawn without their vehicle: always 0 */
 			strayRiders: () => road.strayRiders(),
+			/** THE SEATED DRIVERS' ANIMATIONS: the sheets loaded now and their GPU MB (game/road/seatedClips.ts) */
+			seatClipMemory: () => seatClipMemory(),
 			/** the riders' sheets as loaded: their size and GPU weight (mips counted when the sheet has them) */
 			riderMemory: () => {
 				const out: Record<string, { w: number; h: number; mips: boolean; mb: number }> = {};
@@ -320,9 +418,15 @@
 			frame: () => road.features.frameNo,
 			forceSnort: (mode: 'always' | 'never' | null) => (road.features.sounds.forceSnort = mode),
 			/** run a strike into a cell by hand (no book; its own sounds play, game/road/roadSounds.ts): __reindeer.strike(cell). Resolves at the impact. */
-			strike: (cell: number) => road.features.strike({ cell, markCell: null }),
+			strike: (cell: number) => {
+				road.features.endLanding();
+				return road.features.strike({ cell, markCell: null });
+			},
 			/** stand a column Wild by hand from a struck cell (no book, no sound), and read its box and clouds as drawn */
-			column: (reel: number, tier: 'reindeer' | 'santa' | 'grandma', multiplier: number, fromCell: number | null) => road.features.columnWild(reel, tier, multiplier, false, fromCell),
+			column: (reel: number, tier: 'reindeer' | 'santa' | 'grandma', multiplier: number, fromCell: number | null) => {
+				road.features.endLanding();
+				return road.features.columnWild(reel, tier, multiplier, false, fromCell);
+			},
 			columnTrace: (reel: number) => road.features.columnTrace(reel),
 			/** THE TARGET CROSSHAIR on a posed board (no book; the road's own sounds play, except the cloud loop, which needs a live round): `cells` the valid targets to pose (Grandma's car or
 			 *  Santa's sleigh, `kinds` per cell, default H1 for the first and alternating), `target` the struck one (the first
@@ -333,6 +437,7 @@
 				const board = Array.from({ length: 5 }, (_, reel) => Array.from({ length: 4 }, (_, row) => FILL[(reel * 3 + row * 5) % FILL.length])) as unknown as BoardSymbols;
 				opts.cells.forEach((cell, i) => (board[Math.floor(cell / 4)][cell % 4] = opts.kinds?.[i] ?? (i % 2 ? 'W' : 'H1')));
 				const target = opts.target ?? opts.cells[0];
+				road.features.endLanding();
 				road.features.clearAll();
 				stateGame.board = board;
 				road.setBoard(board);

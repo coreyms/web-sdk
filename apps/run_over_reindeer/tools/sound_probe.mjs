@@ -422,7 +422,9 @@ function judge2(tag, C, R) {
 		if (mine.length) {
 			const first = mine[0];
 			const last = mine[mine.length - 1];
-			check(!!fade && fade.frame === first.frame, `${tag}: spin ${i + 1}: its fade starts on the first reel's stop frame (${fade?.frame} vs ${first.frame}; ${fade?.detail})`);
+			// pass 7 (constants LANE_FLOW): the fade starts on the first lane's stop frame, or later when a car is still in a
+			// tunnel then (a scatter tease: it starts the frame the last car is out), never after the last stop
+			check(!!fade && fade.frame >= first.frame && fade.frame <= last.frame, `${tag}: spin ${i + 1}: its fade starts from the first lane's stop frame on (${fade?.frame} vs ${first.frame} to ${last.frame}; ${fade?.detail})`);
 			// the fade is planned to end on the last reel's stop point; the stop comes at that planned moment (a timer) or on the
 			// first board frame from then. That moment falls after the frame BEFORE the one that shows the reel stopped (the
 			// reel is marked on the first frame at or past it), so: never before its fade's planned end (no cut), never on an
@@ -452,7 +454,8 @@ function judge2(tag, C, R) {
 	let lastSounded = null;
 	let wanted = 0;
 	stops.forEach((e) => {
-		const k = Number(/reel (\d)/.exec(e.detail)?.[1]);
+		// pass 7: one stop per LANE (constants REINDEER_SOUND reelStops), lane 1 at the top: sfx_lane_stop_<lane>
+		const k = Number(/(?:reel|lane) (\d)/.exec(e.detail)?.[1]);
 		const s = spinStarts.filter((t) => t <= e.t).length;
 		if (s !== spin) {
 			if (order.length) orders.push(order);
@@ -489,7 +492,7 @@ function judge2(tag, C, R) {
 		}
 	}
 	console.log(`  INFO ${tag}: reel stop order per spin: ${orders.map((o) => o.join('')).join(' ')}`);
-	if (C.id !== 'trigger' && C.turbo < 2) check(orders.every((o) => o.join('') === [...o].sort().join('')), `${tag}: the reels stop left to right (${orders.map((o) => o.join('')).join(' ')})`);
+	if (C.id !== 'trigger' && C.turbo < 2) check(orders.every((o) => o.join('') === [...o].sort().join('')), `${tag}: the lanes stop top to bottom (${orders.map((o) => o.join('')).join(' ')})`);
 
 	// THE STOPLIGHTS
 	const lights = named('stoplight');

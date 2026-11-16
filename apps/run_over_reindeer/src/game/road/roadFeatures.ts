@@ -524,6 +524,8 @@ export class RoadFeatures {
 	 *  and a Grandma Wild are voiced by the crash, the cloud and their own sounds, `sounds` below). 'impact' is no
 	 *  longer sent (sfx_crash took its place, 2026-11-15). */
 	onBeat: ((kind: 'impact' | 'column') => void) | null = null;
+	/** the first board's posed columns (showLanding) have all left: their sheet may leave the GPU (components/Board.svelte) */
+	onLandingGone: (() => void) | null = null;
 	/** THE ROAD'S OWN SOUNDS (constants REINDEER_SOUND): cued from the frames below; components/Board.svelte hands it
 	 *  the game's sound events */
 	readonly sounds = new RoadSounds();
@@ -968,6 +970,7 @@ export class RoadFeatures {
 		}
 		// the frames only (the sheet itself is the preload's)
 		for (const t of textures) t.destroy(false);
+		if (textures.size) this.onLandingGone?.();
 	}
 
 	/** the press: the spin before is over, so every cloud cell and every column leaves */
@@ -1337,6 +1340,17 @@ export class RoadFeatures {
 				for (let row = 0; row < ROWS; row++) this.hideCell(column.reel * ROWS + row, false);
 				this.destroyColumn(column);
 				this.columns = this.columns.filter((c) => c !== column);
+				// a posed column of the first board: its frames go with it (the sheet itself is the preload's), and once
+				// the last one has gone its sheet may leave the GPU
+				if (column.still) {
+					for (const t of column.still.clip.textures) t.destroy(false);
+					if (!this.columns.some((c) => c.still)) {
+						// (the cloud still's frame is shared by the three: it goes with the last)
+						column.still.backdrop.destroy(false);
+						this.onLandingGone?.();
+					}
+					return;
+				}
 				// the tier's pictures go with its last column, unless the book being played still calls for the tier
 				if (!this.columns.some((c) => c.tier === column.tier) && !isWanted(column.tier)) {
 					releaseClip(column.tier, 'idle');
