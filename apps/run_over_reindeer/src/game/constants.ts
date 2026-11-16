@@ -531,8 +531,141 @@ export const LINE_WIN = {
 	popMs: 180,
 };
 
+// ---- THE REINDEER'S OWN SOUNDS (Corey's picks 2026-11-15; game/road/roadSounds.ts plays them) -------------------------
+// Each sound is cued by the frame of the animation it belongs to, on the road clock, so turbo and a slam stop move it
+// with the picture (the sounds themselves always play at their own speed). The sprite keys are in
+// tools/build_audiosprite.py ROR_EVENTS, their levels in ROR_SOURCE_GAIN_DB there. Every other effect the game plays
+// is still a borrowed Manticore one (since round 2: the bonus trigger stings and Super's opening column box), or a
+// house standard (the UI keys).
+//   alert      sfx_reindeer_alert, on the strike's first frame: the crosshair's first frame (it starts hunting)
+//   run        sfx_reindeer_run, a 1.2 s loop: from the frame he sets off along the snow to the frame of his turn toward
+//              the board (the S pose), where it stops (or the impact, if that came first); never left on otherwise
+//   turn       sfx_reindeer_turn, on the turn's frame, as the run loop stops (the run does not resume: ASSET_LIST.md)
+//   crash      sfx_crash, on the crash cloud's first frame: a Grandma Wild's cloud (the frame after the impact), or a
+//              struck Santa reel's cell cloud (it pops COLUMN.boxDrawMs after the impact, once the box is traced)
+//   cloud      sfx_crash_cloud, a 4.0 s loop while a crash cloud shows (a Grandma Wild's cloud cell until it has left, a
+//              struck column's cloud until its entrance's cloud frames are over); it stops on the frame the last one
+//              clears, and at the latest when the round ends (a base game Grandma cloud stands until the next press)
+//   grandmaWild  sfx_grandma_wild, when her cloud's pop has settled and her red box shows (CLOUD_CELL.popMs)
+//   columnIn   sfx_column_reindeer_in, the reindeer column's entrance: its first footstep (at 0 ms in the file) on the
+//              entrance frame where his first hoof plants (frame `frame`, 0-based, of the 16 kept; frame 7 is the second)
+//   snort      sfx_reindeer_idle_snort, now and then while a reindeer column stands in its idle: rolled at each restart
+//              of the idle loop, never during a strike or a column's arrival, at least minGapMs apart
+// A stop is a stopFadeMs fade to silence then the stop, so a loop cut mid waveform does not click.
+export const REINDEER_SOUND = {
+	names: {
+		alert: 'sfx_reindeer_alert',
+		run: 'sfx_reindeer_run',
+		turn: 'sfx_reindeer_turn',
+		crash: 'sfx_crash',
+		cloud: 'sfx_crash_cloud',
+		grandmaWild: 'sfx_grandma_wild',
+		columnIn: 'sfx_column_reindeer_in',
+		snort: 'sfx_reindeer_idle_snort',
+		// round 2 (Corey's picks 2026-11-15, the audition page): the spin, the target and the multiplier stamp
+		traffic: 'sfx_traffic_roll',
+		stoplight: 'sfx_stoplight_change',
+		hop: 'sfx_target_hop',
+		drop: 'sfx_target_drop',
+		lock: 'sfx_target_lock',
+		dart: 'sfx_reindeer_dart',
+		redbox: 'sfx_redbox',
+		present: 'sfx_present_pop',
+	},
+	// ---- ROUND 2 (2026-11-15). The same rule: each one cued from the frame its picture reaches the moment.
+	//   traffic    sfx_traffic_roll, a 2.0 s loop: from the press (the board pulls away) through the wait for the book and
+	//              the drive in; it fades from the frame the first reel's cars stop, over the time left to the last
+	//              reel's stop, and is stopped there. Never left on: a board put up as it is (a resume, a failed play)
+	//              and the board going stop it too.
+	//   reel stop  sfx_lane_stop_1..5, one per REEL, reel 1 to reel 5 (rising a semitone each), on the frame that reel's
+	//              last car reaches its stop point (the start of its rock back, the moment the red light answers to). The
+	//              road has four lanes and five reels; at normal speed and turbo 1 the reels finish left to right, at
+	//              turbo 2 (all lanes at once) the middle reel finishes first and the outer pairs together. A reel a
+	//              column Wild holds has no cars, so no stop. Replaces the borrowed sfx_reel_stop (once per lane).
+	//   stoplight  sfx_stoplight_change, on the frame a light changes color (green at the press, amber, red), once per
+	//              frame however many lights change in it (the two go green together; red comes to the top light a
+	//              moment before the bottom one)
+	//   hop        sfx_target_hop, each crosshair hop (it lands on the next candidate), at a playback rate that steps
+	//              through `hopSemitones` by the hop's number in the strike (deterministic: the probe checks it)
+	//   drop       sfx_target_drop, a candidate drops out; once per frame however many drop in it, and not on the lock's
+	//              frame (the candidates left all drop as it locks: the lock voices them)
+	//   lock       sfx_target_lock, the crosshair locks on the target
+	//   dart       sfx_reindeer_dart, his dash into the target: started `dart.peakMs` (real ms) before the impact frame, so
+	//              the whoosh's loudest moment lands on the impact (the file builds for 330 ms first), never before he sets
+	//              off; a frame late at most (it is cued on the first frame within peakMs of the impact)
+	//   redbox     sfx_redbox, the crash: the frame the crosshair starts closing onto the red box (the impact frame);
+	//              kept under the crash in the sprite (-6 dB on Corey's file)
+	//   stamp      sfx_multiplier_land_small / _mid / _high, a column Wild's number stamping on (its pop, COLUMN.numberAt
+	//              of the entrance), by its value: small under `stamp.mid`, mid under `stamp.high`, high from it. A
+	//              Grandma Wild's number has no stamp of its own (it comes in with her cloud, voiced by the crash and
+	//              sfx_grandma_wild), so it plays none.
+	//   present    sfx_present_pop, a trigger's presents: ONE play, on the frame the first present's lid leaves the box
+	//              (the open's first frame with any lift, game/road/present.ts PRESENT_LID_FRAME: frame 3, 100 ms into
+	//              the open at normal speed). Corey's file builds for 170 ms before its pop, so the pop itself is heard
+	//              170 ms after that frame (the round 2 notes have the numbers).
+	/** the hop's pitch, semitones, by its number in the strike (1st hop the first entry; it cycles) */
+	hopSemitones: [0, 1.5, -1, 2, -2, 0.5, -1.5, 1],
+	dart: { peakMs: 330 },
+	/** THE MULTIPLIER BANDS (the game's config multipliers): every base game column tier falls in its own band (reindeer
+	 *  3-8 small, Santa 10-20 mid, Grandma 40-75 high); bonus columns 2-30 and the rare 30 and 50 starts spread over
+	 *  the three */
+	stamp: { mid: 10, high: 30, names: { small: 'sfx_multiplier_land_small', mid: 'sfx_multiplier_land_mid', high: 'sfx_multiplier_land_high' } },
+	/** one per reel, reel 1 first */
+	reelStops: ['sfx_lane_stop_1', 'sfx_lane_stop_2', 'sfx_lane_stop_3', 'sfx_lane_stop_4', 'sfx_lane_stop_5'],
+	/** THE LINE WIN (game/bookEventHandlerMap.ts winInfo): one symbol's own sound for the whole win, as the one borrowed
+	 *  sfx_cluster_remove was before it: the best paying symbol among the winning lines (W, a line of Wilds only, pays
+	 *  as Grandma's car), with sfx_line_show under it, on the frame the lines show. The road signs go lowest to
+	 *  highest: 10 (L5) is sfx_win_low_1, A (L1) is sfx_win_low_5. */
+	lineShow: 'sfx_line_show',
+	winBySymbol: {
+		H1: 'sfx_win_h1_grandma',
+		W: 'sfx_win_h1_grandma',
+		H2: 'sfx_win_h2_wagon',
+		H3: 'sfx_win_h3_van',
+		H4: 'sfx_win_h4_police',
+		L1: 'sfx_win_low_5',
+		L2: 'sfx_win_low_4',
+		L3: 'sfx_win_low_3',
+		L4: 'sfx_win_low_2',
+		L5: 'sfx_win_low_1',
+	} as Record<string, string>,
+	/** a loop or a cut one-shot fades to silence over this long, real ms, then stops */
+	stopFadeMs: 8,
+	/** the cloud loop at the end of a round, real ms */
+	roundEndFadeMs: 300,
+	columnIn: { frame: 5 },
+	snort: {
+		/** the chance at each restart of the reindeer's idle loop (4 s at normal speed): about once every 24 s per column */
+		odds: 1 / 6,
+		/** real ms between two snorts at least, and after a strike or a column's arrival */
+		minGapMs: 10000,
+		quietMs: 1200,
+	},
+};
+
+// ---- THE CONTACT SHADOWS (Corey 2026-11-15; game/road/shadows.ts, tools/build_shadows.py) ----------------------------
+// A soft dark ellipse on the road under every symbol, under each column character's feet and under the running
+// reindeer: one small texture stretched to each one's footprint (measured from the art, game/shadowSpec.ts), drawn
+// under the traffic. Plain sprites with alpha: no filter, mask or shader.
+export const SHADOW = {
+	/** draw them at all */
+	on: false,
+	/** COREY'S PICK of two strengths: 'light' (the default) or 'firm' */
+	strength: 'light' as 'light' | 'firm',
+	/** the darkest point of a shadow per strength (its centre's alpha; each shadow's own share on top, shadowSpec.ts) */
+	alpha: { light: 0.5, firm: 0.75 },
+	/** their color: a cold near black (the HUD's shadow color), so on the snow they read blue grey, not dirty */
+	tint: 0x020812,
+	/** the column characters get one at their feet (on the cloud floor of their box, under its red frame) */
+	columns: true,
+	/** the running reindeer gets one, shrinking and lightening with his feet off the ground (shadowSpec.ts run.lift) */
+	runner: true,
+	/** a column's shadow comes in over this long once its character stands clear of the entrance's cloud, ms */
+	columnInMs: 160,
+};
+
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT };
+export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

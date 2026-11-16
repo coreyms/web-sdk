@@ -14,6 +14,7 @@
 // THE DRAW ORDER (Corey 2026-11-10), bottom to top, each its own layer across ALL columns:
 //   back     the red box on a Grandma car in a struck Santa reel (under the column, which grows over it), each column's
 //            still cloud, and its entrance while the moving cloud is still in the frame
+//   feet     each column character's contact shadow (constants SHADOW): on the cloud floor, under its red frame
 //   boxes    the red frames (outer frame only: no lines between the rows)
 //   cells    the Grandma Wild cells (cloud, frame, WILD and number)
 //   bodies   the characters with their spill over, reel 1 on top, then reel 2, down to reel 5 at the back,
@@ -22,7 +23,7 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, STRIKE } from '../constants';
+import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, REINDEER_SOUND, SHADOW, STRIKE } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
 import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
@@ -30,6 +31,8 @@ import { COLUMN_CLIPS } from '../columnClipSpec';
 import { REINDEER_RUN } from '../reindeerRunSpec';
 import { awaitRunViews, runBox, runFrame, type RunView } from './reindeerRun';
 import { CrosshairArt, easeOut, hashText, planCrosshair, sample, type CrosshairPlan, type CrosshairState, type Rect } from './crosshair';
+import { RoadSounds } from './roadSounds';
+import { columnShadow, makeShadow, placeShadow, runShadow, shadowStrength, type RunShadow, type ShadowShape } from './shadows';
 
 const ROWS = ROAD_ART.board.rows;
 const PITCH = ROAD_ART.board.pitch;
@@ -147,7 +150,8 @@ const cellRect = (cell: number) => {
 };
 const inset = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + RED_BOX.inset, y: r.y + RED_BOX.inset, w: r.w - 2 * RED_BOX.inset, h: r.h - 2 * RED_BOX.inset });
 
-type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: RedBox; t0: number; leaving: number | null };
+/** voiced: its crash has played (its first frame); wildVoiced: the Grandma Wild's sound (its pop settled) */
+type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: RedBox; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean };
 
 /** the target crosshair of the strike under way (constants CROSSHAIR, game/road/crosshair.ts) */
 type Crosshair = {
@@ -205,6 +209,18 @@ type Column = {
 	frame: number;
 	/** its entrance has played: the entrance's pictures may go as soon as it draws its idle */
 	dropReveal: boolean;
+	/** THE SOUNDS (game/road/roadSounds.ts): its crash has played (the cell cloud's first frame), its entrance's
+	 *  footstep has played, its entrance frame shows the cloud still filling the box, and its idle loop's count (the
+	 *  snort's roll) with the t0 it was counted from */
+	crashVoiced: boolean;
+	stepVoiced: boolean;
+	enterCloud: boolean;
+	idleLoop: number;
+	idleT0: number;
+	/** ITS CONTACT SHADOW at the character's feet (constants SHADOW), and when it began to show (NaN: not yet) */
+	foot: PIXI.Sprite;
+	footShape: ShadowShape | null;
+	footT0: number;
 };
 
 /** the running reindeer (constants STRIKE, game/road/reindeerRun.ts): the side run in the snow, one pose of S, the
@@ -252,6 +268,15 @@ type Runner = {
 	/** a Grandma car to box as it starts down (a struck Santa reel), or null */
 	markCell: number | null;
 	marked: boolean;
+	/** THE SOUNDS (game/road/roadSounds.ts): the strike's first frame (the alert), the set off (the run loop), the turn */
+	alerted: boolean;
+	setOff: boolean;
+	turned: boolean;
+	/** the dart's whoosh has been cued (REINDEER_SOUND dart) */
+	darted: boolean;
+	/** HIS CONTACT SHADOW on the ground under him (constants SHADOW), and its numbers as drawn last (the probes) */
+	shadow: PIXI.Sprite;
+	shade: RunShadow;
 };
 
 /** a turned view's step on the screen: which way it runs (dx across, dy down, per unit of ground step) and how long
@@ -318,6 +343,11 @@ export class RoadFeatures {
 	private readonly boxLayer = new PIXI.Container();
 	private readonly cellLayer = new PIXI.Container();
 	private readonly bodyLayer = new PIXI.Container();
+	/** the column characters' contact shadows: over their clouds, under the red frames and the characters */
+	private readonly footLayer = new PIXI.Container();
+	/** the running reindeer's contact shadow: the first thing in the runner's layer, so it lies over the traffic he runs
+	 *  across (he is drawn over it: the ground at his feet is in front of the symbols) and under him */
+	private readonly runnerShadowLayer = new PIXI.Container();
 	private readonly numberLayer = new PIXI.Container();
 	/** the target crosshair: over every box, cloud and column of the features (under the running reindeer) */
 	private readonly crosshairLayer = new PIXI.Container();
@@ -352,13 +382,23 @@ export class RoadFeatures {
 
 	/** the road board hides or shows the symbol standing in a cell (the cloud and the column cover them) */
 	hideCell: (cell: number, hidden: boolean) => void = () => {};
-	/** a beat the handlers voice: the reindeer's impact, a column's box */
+	/** a beat the handlers voice: a column's box when no strike made it (Super's opening column; a struck reel's column
+	 *  and a Grandma Wild are voiced by the crash, the cloud and their own sounds, `sounds` below). 'impact' is no
+	 *  longer sent (sfx_crash took its place, 2026-11-15). */
 	onBeat: ((kind: 'impact' | 'column') => void) | null = null;
+	/** THE ROAD'S OWN SOUNDS (constants REINDEER_SOUND): cued from the frames below; components/Board.svelte hands it
+	 *  the game's sound events */
+	readonly sounds = new RoadSounds();
+	/** the board's frames so far (the sounds' log, the probes) */
+	frameNo = 0;
+	/** the board clock's rate this frame (turbo, a slam stop; game/road/roadBoard.ts sets it): the dart's lead is real ms */
+	rate = 1;
 	/** the layout the road is drawn in (components/Board.svelte sets it): the run height in the snow is per layout */
 	layoutKind: LayoutKind = 'landscape';
 
 	constructor(private readonly tex: Tex) {
-		this.layer.addChild(this.backLayer, this.boxLayer, this.cellLayer, this.bodyLayer, this.numberLayer, this.crosshairLayer);
+		this.layer.addChild(this.backLayer, this.footLayer, this.boxLayer, this.cellLayer, this.bodyLayer, this.numberLayer, this.crosshairLayer);
+		this.runnerLayer.addChild(this.runnerShadowLayer);
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
 		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
 		// for a picture a column is waiting on
@@ -427,18 +467,22 @@ export class RoadFeatures {
 
 		if (this.runner) {
 			this.runner.sprite.destroy();
+			this.runner.shadow.destroy();
 			this.runner.resolve();
+			this.sounds.runStop('strike replaced');
 		}
 		const sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
 		sprite.visible = false;
 		this.runnerLayer.addChild(sprite);
+		const shadow = makeShadow(this.tex('shadow'));
+		this.runnerShadowLayer.addChild(shadow);
 		// THE TARGET CROSSHAIR hops for its lead in before the reindeer sets off (CROSSHAIR.leadMs on the road clock)
 		const crosshair = CROSSHAIR.on && !this.crosshairOff();
 		const t0 = this.clock + (crosshair ? Math.max(STRIKE.leadInMs, CROSSHAIR.leadMs) : STRIKE.leadInMs);
 		this.endCrosshair();
 		if (crosshair) this.startCrosshair(spec.cell, t0, dir, path, nR);
 		return new Promise<void>((resolve) => {
-			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir, toX, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC, s0, factor: plan.factor, path, impactFeetY: Math.max(impactFeetY, top), impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false };
+			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir, toX, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC, s0, factor: plan.factor, path, impactFeetY: Math.max(impactFeetY, top), impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, darted: false, shadow, shade: { x: 0, y: 0, w: 0, h: 0, share: 0, lift: 0 } };
 		});
 	}
 
@@ -662,12 +706,12 @@ export class RoadFeatures {
 		root.addChild(cloud, box.root, word, label.root);
 		root.scale.set(CLOUD_CELL.popFrom);
 		this.cellLayer.addChild(root);
-		this.clouds.push({ cell, root, cloud, box, t0: this.clock, leaving: null });
+		this.clouds.push({ cell, root, cloud, box, t0: this.clock, leaving: null, voiced: false, wildVoiced: false });
 		// the crosshair on this cell closes onto her box while her cloud pops (the box shows when it is done)
 		if (this.xh && this.xh.plan.target === cell && this.xh.morphAt !== null) this.xh.morphMs = CLOUD_CELL.popMs;
 		box.root.visible = !this.crosshairOn(cell);
 		this.hideCell(cell, true);
-		this.onBeat?.('impact');
+		// (its crash, cloud loop and Wild sound are cued from its frames: updateClouds)
 		return this.wait(this.clock + CLOUD_CELL.holdMs);
 	}
 
@@ -690,10 +734,12 @@ export class RoadFeatures {
 		// each in its own layer, so the order holds across neighboring columns too
 		back.addChild(backdrop, cellCloud, cloud, body);
 		this.backLayer.addChild(back);
+		const foot = makeShadow(this.tex('shadow'));
+		this.footLayer.addChild(foot);
 		this.boxLayer.addChild(box.root);
 		this.numberLayer.addChild(label.root);
 		if (pictures) void loadBackdrop();
-		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null };
+		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, enterCloud: false, idleLoop: -1, idleT0: NaN, foot, footShape: columnShadow(tier), footT0: NaN };
 		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - COLUMN.numberUp);
 		this.columns.push(column);
 		return column;
@@ -720,7 +766,9 @@ export class RoadFeatures {
 		// (they started loading when the book arrived). A late or failed load never holds the round longer than
 		// loadWaitMs: the column then stands as its box and its number.
 		column.phase = 'wait';
-		this.onBeat?.('column');
+		// a struck reel's column is voiced by the crash on its cell cloud's first frame (updateColumn); only a column with
+		// no strike behind it keeps the box beat
+		if (fromCell === null) this.onBeat?.('column');
 		const wait = <T>(p: Promise<T>) => Promise.race([p, new Promise<null>((resolve) => setTimeout(() => resolve(null), COLUMN.loadWaitMs))]);
 		void loadClip(tier, 'idle');
 		const reveal = await wait(loadClip(tier, 'reveal'));
@@ -741,6 +789,7 @@ export class RoadFeatures {
 	syncHeld(held: HeldColumn[]) {
 		// a new spin: the crosshair's seed counts its strikes from here
 		this.strikesThisSpin = 0;
+		this.sounds.runStop('new spin');
 		this.endCrosshair();
 		for (const cloud of this.clouds) if (cloud.leaving === null) cloud.leaving = this.clock;
 		this.dropMarks(null);
@@ -838,10 +887,20 @@ export class RoadFeatures {
 	update(clock: number) {
 		if (this.destroyed) return;
 		this.clock = clock;
+		this.frameNo += 1;
+		this.sounds.beginFrame(this.frameNo, clock);
 		this.updateRunner();
 		this.updateCrosshair();
 		this.updateClouds();
 		for (const column of [...this.columns]) this.updateColumn(column);
+		// THE CRASH CLOUDS on screen this frame (the cloud loop), and whether a strike or a column's arrival is going on
+		// (no idle snort then): a Grandma Wild's cloud cell, standing or leaving; a struck reel's column from its cell
+		// cloud's pop to the end of its entrance's cloud frames
+		const struck = this.columns.filter((c) => c.fromRow >= 0 && !c.still && (c.cellCloud.visible || c.cloud.visible || c.enterCloud));
+		const standing = this.clouds.filter((c) => c.leaving === null).length + struck.filter((c) => c.phase !== 'leave').length;
+		const leaving = this.clouds.length + struck.length - standing;
+		const arriving = this.columns.some((c) => c.phase === 'wait' || c.phase === 'impact' || c.phase === 'grow' || c.phase === 'enter');
+		this.sounds.endFrame(standing, leaving, this.runner !== null || this.xh !== null || arriving);
 		if (this.waiters.length) {
 			const due = this.waiters.filter((w) => clock >= w.at);
 			if (due.length) {
@@ -865,11 +924,20 @@ export class RoadFeatures {
 			// the impact: it is gone into the cloud, fading on the pose it struck with
 			const u = (this.clock - r.impactAt) / STRIKE.fadeMs;
 			s.alpha = Math.max(0, 1 - u);
+			// his shadow fades with him
+			this.placeRunnerShadow(r);
 			if (u >= 1) {
 				s.destroy();
+				r.shadow.destroy();
 				this.runner = null;
 			}
 			return;
+		}
+		if (!r.alerted) {
+			// THE STRIKE'S FIRST FRAME: the crosshair's first frame (updateCrosshair, just after), he has seen a target
+			r.alerted = true;
+			this.sounds.mark('strike', `target ${this.xh?.plan.target ?? '-'}`);
+			this.sounds.cue('alert');
 		}
 		if (this.clock < r.t0) return;
 		// THE STRIKE RUNS ON TIME (Corey 2026-11-12: slow screens skip poses so the strike always takes the same time):
@@ -902,9 +970,34 @@ export class RoadFeatures {
 		}
 		r.pose = pose;
 		r.shown = Math.floor(pose + 1e-9);
+		if (!r.setOff) {
+			// he sets off along the snow: the run loop, for the side run only
+			r.setOff = true;
+			this.sounds.mark('setOff', `nR ${r.nR}`);
+			if (r.shown < r.nR) this.sounds.runStart();
+		}
+		if (!r.turned && (r.shown >= r.nR || r.impactAt !== null)) {
+			// THE TURN toward the board (the S pose drawn now): the run loop stops on this frame and the turn plays
+			r.turned = true;
+			this.sounds.mark('turn', `pose ${r.shown}`);
+			this.sounds.runStop('turn');
+			this.sounds.cue('turn');
+		}
+		if (!r.darted) {
+			// THE DART (REINDEER_SOUND dart): the whoosh starts peakMs real ms before the impact, so its loudest moment lands
+			// on it (the impact's own frame at the latest)
+			const left = (r.t0 + this.poseTime(r, end) - this.clock) / Math.max(0.001, this.rate);
+			if (left <= REINDEER_SOUND.dart.peakMs || r.impactAt !== null) {
+				r.darted = true;
+				this.sounds.mark('dart', `${Math.round(left)} ms before the impact, pose ${r.shown}`);
+				this.sounds.cue('dart');
+			}
+		}
+		if (r.impactAt === this.clock) this.sounds.mark('impact', `pose ${r.shown}`);
 		if (pose >= r.nAlong && !r.marked) {
 			// it starts down the reel: a Grandma car in the struck Santa reel gets its red box
 			r.marked = true;
+			this.sounds.mark('down', `pose ${r.shown}, ${r.nC} poses down`);
 			if (r.markCell !== null) this.markCell(r.markCell);
 		}
 		this.placeRunner(r, pose);
@@ -960,6 +1053,18 @@ export class RoadFeatures {
 		r.view = view;
 		r.stride = stride;
 		r.scale = k;
+		// (along the snow the pose runs on between whole poses; down the reel too; a protected pose held late counts as whole)
+		runShadow(view, got ? stride : null, k, r.dir, r.shade, r.late === null ? pose - index : 0);
+		this.placeRunnerShadow(r);
+	}
+
+	/** HIS SHADOW (constants SHADOW): on the ground at his feet point (the sprite's anchor, which keeps to the ground
+	 *  while the picture's hooves leave it), smaller and lighter while they are up, faded with him */
+	private placeRunnerShadow(r: Runner) {
+		const k = SHADOW.runner ? shadowStrength() : 0;
+		const s = r.sprite;
+		const d = r.shade;
+		placeShadow(r.shadow, s.x + d.x, s.y + d.y, d.w, d.h, s.visible ? k * d.share * s.alpha : 0);
 	}
 
 	private updateClouds() {
@@ -975,6 +1080,18 @@ export class RoadFeatures {
 				continue;
 			}
 			const u = Math.min(1, (this.clock - c.t0) / CLOUD_CELL.popMs);
+			if (!c.voiced) {
+				// THE CLOUD'S FIRST FRAME: the crash
+				c.voiced = true;
+				this.sounds.mark('cloud', `grandma cell ${c.cell}`);
+				this.sounds.cue('crash', `cell ${c.cell}`);
+			}
+			if (!c.wildVoiced && u >= 1) {
+				// her pop has settled and her red box shows: she has turned Wild
+				c.wildVoiced = true;
+				this.sounds.mark('wild', `cell ${c.cell}`);
+				this.sounds.cue('grandmaWild', `cell ${c.cell}`);
+			}
 			if (!c.box.root.visible && !this.crosshairOn(c.cell)) c.box.root.visible = true;
 			// out past its size, then back onto it
 			const over = CLOUD_CELL.popOver;
@@ -1018,6 +1135,7 @@ export class RoadFeatures {
 		column.back.destroy({ children: true });
 		column.box.root.destroy({ children: true });
 		column.label.root.destroy({ children: true });
+		column.foot.destroy();
 	}
 
 	private placeBody(column: Column, clip: Clip, frame: number) {
@@ -1046,6 +1164,7 @@ export class RoadFeatures {
 
 		if (column.phase === 'leave') {
 			const u = t / COLUMN.leaveMs;
+			this.placeFoot(column, Math.max(0, 1 - u));
 			this.fadeColumn(column, Math.max(0, 1 - u));
 			if (u >= 1) {
 				for (let row = 0; row < ROWS; row++) this.hideCell(column.reel * ROWS + row, false);
@@ -1082,6 +1201,12 @@ export class RoadFeatures {
 			// cropped to the box as it grows
 			const sincePop = sinceBox - COLUMN.boxDrawMs;
 			column.cellCloud.visible = column.phase !== 'grow' && column.fromRow >= 0 && sincePop >= 0;
+			if (column.cellCloud.visible && !column.crashVoiced) {
+				// THE CELL CLOUD'S FIRST FRAME (it pops once the box is traced): the crash
+				column.crashVoiced = true;
+				this.sounds.mark('cloud', `column reel ${column.reel}`);
+				this.sounds.cue('crash', `reel ${column.reel}`);
+			}
 			if (column.cellCloud.visible) {
 				const u = Math.min(1, sincePop / COLUMN.cloudPopMs);
 				const over = COLUMN.cloudPopOver;
@@ -1125,6 +1250,8 @@ export class RoadFeatures {
 				column.phase = 'enter';
 				column.t0 = this.clock;
 				column.cloud.visible = false;
+				// the entrance's first frame is all cloud: the crash cloud carries on through this hand-over (its loop with it)
+				column.enterCloud = !!reveal && reveal.cloudFrames > 0;
 				for (let row = 0; row < ROWS; row++) this.hideCell(column.reel * ROWS + row, true);
 			}
 			return;
@@ -1153,6 +1280,13 @@ export class RoadFeatures {
 			if (reveal) {
 				const frame = Math.min(frames - 1, Math.floor((t / 1000) * reveal.fps));
 				this.placeBody(column, reveal, frame);
+				column.enterCloud = frame < reveal.cloudFrames;
+				if (column.tier === 'reindeer' && !column.stepVoiced && frame >= REINDEER_SOUND.columnIn.frame) {
+					// his first hoof plants: the entrance's first footstep
+					column.stepVoiced = true;
+					this.sounds.mark('footfall', `reel ${column.reel} frame ${frame}`);
+					this.sounds.cue('columnIn', `reel ${column.reel}`);
+				}
 				// while the cloud is still in the frame the box stands OVER it (the cloud is inside the box); once the
 				// character stands alone it draws over the box (spill over)
 				this.bodyOver(column, frame >= reveal.cloudFrames);
@@ -1163,11 +1297,13 @@ export class RoadFeatures {
 				column.labelShown = true;
 				column.label.root.visible = true;
 				column.label.root.scale.set(1.5);
+				this.stamp(column, column.multiplier - column.joinAdd);
 			}
 			this.joinNumber(column, t - length * COLUMN.numberAt);
 			if (t >= length) {
 				column.phase = 'idle';
 				column.t0 = this.clock;
+				column.enterCloud = false;
 				// the entrance's pictures can go once this column is drawing its idle (below)
 				column.dropReveal = true;
 			}
@@ -1187,6 +1323,18 @@ export class RoadFeatures {
 			const frame = Math.floor((t / 1000) * idle.fps + column.reel * 5) % idle.textures.length;
 			this.bodyOver(column, true);
 			this.placeBody(column, idle, frame);
+			if (column.tier === 'reindeer' && !column.still) {
+				// the idle loop restarts (not its first frame after an entrance or a win): the snort's roll
+				const loop = Math.floor(((t / 1000) * idle.fps + column.reel * 5) / idle.textures.length);
+				if (column.idleT0 !== column.t0) {
+					column.idleT0 = column.t0;
+					column.idleLoop = loop;
+				} else if (loop !== column.idleLoop) {
+					column.idleLoop = loop;
+					this.sounds.mark('idleWrap', `reel ${column.reel}`);
+					this.sounds.idleWrap(column.reel);
+				}
+			}
 			if (column.dropReveal) {
 				// nothing of this column draws the entrance any more: its cloud crop goes, and the entrance's sheets with it
 				// unless another column of the tier is still on its way in
@@ -1204,6 +1352,26 @@ export class RoadFeatures {
 		// the number settles from its pop; it never changes once it stands
 		const label = column.label.root;
 		label.scale.set(label.scale.x + (1 - label.scale.x) * 0.2);
+		this.placeFoot(column, 1);
+	}
+
+	/** A COLUMN CHARACTER'S SHADOW (constants SHADOW): at its feet once it stands clear of the entrance's cloud (it is
+	 *  drawn among the characters then), coming in over columnInMs; `fade` is the column's own leave */
+	private placeFoot(column: Column, fade: number) {
+		const shape = column.footShape;
+		const k = SHADOW.columns ? shadowStrength() : 0;
+		const standing = column.body.visible && column.body.parent === this.bodyLayer && column.phase !== 'wait';
+		if (!shape || k <= 0 || (!standing && column.phase !== 'leave')) {
+			column.foot.visible = false;
+			column.footT0 = NaN;
+			return;
+		}
+		if (Number.isNaN(column.footT0)) column.footT0 = this.clock;
+		const ramp = Math.min(1, (this.clock - column.footT0) / Math.max(1, SHADOW.columnInMs));
+		const tier = COLUMN.tierScale[column.tier] ?? 1;
+		const footX = BOARD_X + (column.reel + 0.5) * PITCH;
+		const footY = COLUMN_TOP + COLUMN_H;
+		placeShadow(column.foot, footX + shape.dx * tier, footY + shape.dy * tier, shape.width * tier, shape.height * tier, k * shape.alpha * ramp * fade);
 	}
 
 	/** a Grandma Wild's multiplier joining the column's number, joinMs after it popped in: the sum, with a second pop */
@@ -1212,6 +1380,15 @@ export class RoadFeatures {
 		column.joinAdd = 0;
 		column.label.set(`${column.multiplier}x`);
 		column.label.root.scale.set(1.5);
+		this.stamp(column, column.multiplier);
+	}
+
+	/** a column's number stamps on (its pop): the multiplier stamp of its band (REINDEER_SOUND stamp) */
+	private stamp(column: Column, value: number) {
+		const S = REINDEER_SOUND.stamp;
+		const band = value >= S.high ? 'high' : value >= S.mid ? 'mid' : 'small';
+		this.sounds.mark('stamp', `reel ${column.reel} ${value}x ${band}`);
+		this.sounds.playNamed(S.names[band], `reel ${column.reel} ${value}x`);
 	}
 
 	private wait(at: number): Promise<void> {
@@ -1271,8 +1448,21 @@ export class RoadFeatures {
 		};
 	}
 
+	/** THE CONTACT SHADOWS of the features as drawn (dev hook, tools/shadow_probe.mjs): each column character's, and the
+	 *  running reindeer's with his feet point, view, stride and foot height */
+	shadowSnapshot() {
+		const sh = (s: PIXI.Sprite) => ({ visible: s.visible && !s.destroyed, x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100, w: s.destroyed ? 0 : Math.round(s.scale.x * s.texture.width * 100) / 100, h: s.destroyed ? 0 : Math.round(s.scale.y * s.texture.height * 100) / 100, alpha: Math.round(s.alpha * 1000) / 1000 });
+		const r = this.runner;
+		return {
+			columns: this.columns.map((c) => ({ reel: c.reel, tier: c.tier, phase: c.phase, bodyVisible: c.body.visible, footX: BOARD_X + (c.reel + 0.5) * PITCH, footY: COLUMN_TOP + COLUMN_H, ...sh(c.foot) })),
+			runner: r ? { phase: this.runnerPhase(r), view: r.placeholder ? 'placeholder' : r.view, stride: r.stride, feetX: Math.round(r.sprite.x * 100) / 100, feetY: Math.round(r.sprite.y * 100) / 100, scale: Math.round(r.scale * 10000) / 10000, spriteVisible: r.sprite.visible, spriteAlpha: Math.round(r.sprite.alpha * 1000) / 1000, lift: r.shade.lift, liftRoad: Math.round(r.shade.lift * REINDEER_RUN.roadPxPerFramePx * r.scale * 100) / 100, shadow: sh(r.shadow) } : null,
+			layers: { runner: this.runnerShadowLayer.children.length, feet: this.footLayer.children.length },
+		};
+	}
+
 	destroy() {
 		this.destroyed = true;
+		this.sounds.stopAll();
 		this.runner?.resolve();
 		for (const w of this.waiters) w.resolve();
 		this.waiters = [];

@@ -6,7 +6,7 @@
 // "comes out of the tunnels" because the two portal strips cut from the background are drawn over it, and it
 // darkens near them by a plain sprite tint.
 //
-// Layers, back to front: the background, the four lanes (top lane first, so lower lanes draw in front), the features
+// Layers, back to front: the background, the ground (every symbol's contact shadow, game/road/shadows.ts), the four lanes (top lane first, so lower lanes draw in front), the features
 // (cloud cells, red boxes, column characters), the line win overlay, the running reindeer, the two stoplights, the
 // rock beside the picture and the tunnel portals.
 //
@@ -16,11 +16,12 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { LANDING_DIM, LINE_WIN, ROAD, STOPLIGHT, motionFor, type RoadMotion } from '../constants';
+import { LANDING_DIM, LINE_WIN, REINDEER_SOUND, ROAD, STOPLIGHT, motionFor, type RoadMotion } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
 import { NumberLabel, RoadFeatures } from './roadFeatures';
-import { PRESENT_LOOK, PresentActor, presentOpenMs, presentStillTexture, presentsReadyForOpen, presentTriggerPlayed } from './present';
+import { PRESENT_LID_FRAME, PRESENT_LOOK, PresentActor, presentOpenMs, presentStillTexture, presentsReadyForOpen, presentTriggerPlayed } from './present';
+import { makeShadow, placeShadow, shadowStrength, symbolShadow, type ShadowShape } from './shadows';
 
 const COLS = ROAD_ART.board.columns;
 const ROWS = ROAD_ART.board.rows;
@@ -84,6 +85,9 @@ type Car = {
 	/** THE SCATTER PRESENT's animation (game/road/present.ts): made the first time this sprite's present animates, kept
 	 *  with the sprite (it is drawn just after it in its lane) */
 	present: PresentActor | null;
+	/** ITS CONTACT SHADOW (game/road/shadows.ts): made with the car, in the ground layer; its frame's shape */
+	shadow: PIXI.Sprite;
+	shade: ShadowShape | null;
 };
 
 export type SignalColor = 'red' | 'amber' | 'green';
@@ -123,6 +127,9 @@ export type LineWinSpec = { cells: number[]; line: number };
 export class RoadBoard {
 	readonly root = new PIXI.Container();
 	private readonly lanes: PIXI.Container[] = [];
+	/** THE GROUND: every contact shadow, under every lane (a car in a lower lane draws over the shadow above it) */
+	private readonly ground = new PIXI.Container();
+	private readonly shadowTex: PIXI.Texture | null;
 	private readonly cars: Car[] = [];
 	private readonly winLayer = new PIXI.Container();
 	private readonly winLines = new PIXI.Graphics();
@@ -166,6 +173,12 @@ export class RoadBoard {
 	/** per lane: when its incoming convoy is home (board clock) */
 	private laneHomeAt: number[] = [0, 0, 0, 0];
 	private laneStopSoundAt: (number | null)[] = [null, null, null, null];
+	/** THE SPIN'S SOUNDS (constants REINDEER_SOUND, round 2): per reel, when its last car reaches its stop point (board
+	 *  clock; null once sounded, or for a reel no car drives into), whether the traffic's fade has begun, and a
+	 *  trigger's pop still to come (the frame the first present's lid leaves the box) */
+	private reelStopAt: (number | null)[] = [null, null, null, null, null];
+	private trafficFading = false;
+	private popWanted = false;
 	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean } | null = null;
 	private destroyed = false;
 	/** how many symbols the board on the road parks (20, less four for every column Wild standing) */
@@ -186,6 +199,7 @@ export class RoadBoard {
 		textures: { road?: PIXI.Texture; tunnelLeft?: PIXI.Texture; tunnelRight?: PIXI.Texture },
 	) {
 		this.presentStill = presentStillTexture(tex('presentStill'));
+		this.shadowTex = tex('shadow') ?? null;
 		const img = ROAD_ART.image;
 		if (textures.road) {
 			const bg = new PIXI.Sprite(textures.road);
@@ -193,6 +207,7 @@ export class RoadBoard {
 			bg.height = img.height;
 			this.root.addChild(bg);
 		}
+		this.root.addChild(this.ground);
 		for (let row = 0; row < ROWS; row++) {
 			const lane = new PIXI.Container();
 			this.lanes.push(lane);
@@ -242,11 +257,14 @@ export class RoadBoard {
 		if (!car) {
 			const sprite = new PIXI.Sprite();
 			sprite.anchor.set(0.5, 1);
-			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff, stopped: false, present: null };
+			const shadow = makeShadow(this.shadowTex);
+			this.ground.addChild(shadow);
+			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff, stopped: false, present: null, shadow, shade: null };
 			this.cars.push(car);
 		}
 		this.stopPresent(car);
 		const frame = frameFor(symbol, dir);
+		car.shade = symbolShadow(frame);
 		const size = (ROAD_ART.symbols as Record<string, { width: number; height: number }>)[frame];
 		const want = (size?.width ?? PITCH * 0.8) * (ROAD.symbolScale[symbol] ?? 1);
 		const still = symbol === 'S' ? this.presentStill : null;
@@ -284,6 +302,7 @@ export class RoadBoard {
 		car.phase = 'free';
 		car.symbol = null;
 		car.sprite.visible = false;
+		car.shadow.visible = false;
 	}
 
 	// ---- the scatter present (game/road/present.ts) ------------------------------------------------------------------
@@ -322,6 +341,11 @@ export class RoadBoard {
 			const actor = car.present;
 			if (!actor || !actor.busy) continue;
 			if (!actor.update(now, car.sprite, car.baseScale)) car.sprite.renderable = true;
+			if (this.popWanted && actor.openSlot >= PRESENT_LID_FRAME) {
+				this.popWanted = false;
+				this.features.sounds.mark('lid', `cell ${actor.cell} open frame ${actor.openSlot}`);
+				this.features.sounds.cue('present', `cell ${actor.cell}`);
+			}
 		}
 	}
 
@@ -338,7 +362,10 @@ export class RoadBoard {
 			if (car.phase !== 'rest' || car.symbol !== 'S' || !cells.includes(car.col * ROWS + car.lane)) continue;
 			shows.push(this.presentOf(car).open(this.clock));
 		}
+		// ONE pop for the trigger, on the frame the first lid leaves its box (updatePresents)
+		this.popWanted = shows.length > 0;
 		await Promise.all(shows);
+		this.popWanted = false;
 		presentTriggerPlayed();
 		return shows.length > 0;
 	}
@@ -376,6 +403,8 @@ export class RoadBoard {
 		this.outAt = null;
 		this.waiting = null;
 		this.spinActive = false; // stopped: the signal is red
+		this.reelStopAt = this.reelStopAt.map(() => null);
+		this.features.sounds.trafficStop('board put up as it is');
 		this.clearWin();
 		let parked = 0;
 		for (let col = 0; col < COLS; col++) {
@@ -405,6 +434,10 @@ export class RoadBoard {
 		this.laneBrakeAt = [Infinity, Infinity, Infinity, Infinity];
 		this.laneStopAt = [Infinity, Infinity, Infinity, Infinity];
 		this.laneStoppedCount = [0, 0, 0, 0];
+		// THE TRAFFIC: on from the press (and from each later spin's pull away) until the last reel stops
+		this.reelStopAt = this.reelStopAt.map(() => null);
+		this.trafficFading = false;
+		this.features.sounds.trafficStart('the board pulls away');
 		m.laneOrder.forEach((lane, k) => {
 			const dir = ROAD.laneDirection[lane];
 			const resting = this.cars.filter((c) => c.phase === 'rest' && c.lane === lane).sort((a, b) => (b.restX - a.restX) * dir);
@@ -431,6 +464,7 @@ export class RoadBoard {
 		const brakeDist = (m.cruise * m.in.brakeMs) / 2000;
 		let allHome = start;
 		let parked = 0;
+		const reelStop: (number | null)[] = Array.from({ length: COLS }, () => null);
 		m.laneOrder.forEach((lane, k) => {
 			const dir = ROAD.laneDirection[lane];
 			let t0 = start + k * m.in.laneStaggerMs;
@@ -461,6 +495,8 @@ export class RoadBoard {
 				car.dive = (m.in.diveDeg * stiff * Math.PI) / 180;
 				if (i === 0) leadStop = stopFor(car.halfW, car.overshoot);
 				car.stopAt = leadStop + i * m.in.carStaggerMs;
+				// this reel's stop sound: when its last car reaches its stop point
+				reelStop[col] = Math.max(reelStop[col] ?? -Infinity, car.stopAt);
 				car.sprite.x = this.hiddenX(car, true);
 				car.sprite.visible = false;
 				count += 1;
@@ -476,6 +512,8 @@ export class RoadBoard {
 			allHome = Math.max(allHome, this.laneHomeAt[lane]);
 		});
 		this.parked = parked;
+		this.reelStopAt = reelStop;
+		this.trafficFading = false;
 		return this.wait(allHome + 20, 'board');
 	}
 
@@ -501,6 +539,9 @@ export class RoadBoard {
 		}
 		const g = this.winLines;
 		g.clear();
+		// the probe's moment: the winning lines show on the next frame drawn (their sounds are the handler's, the same tick)
+		const lineCount = wins.filter((w) => w.cells.length >= 2).length;
+		if (lineCount) this.features.sounds.mark('lines', `${lineCount} line(s)`);
 		wins.forEach((w) => {
 			if (w.cells.length < 2) return;
 			const pts = [...w.cells].sort((a, b) => a - b).map((c) => ({ x: columnX(Math.floor(c / ROWS)), y: laneMidY(c % ROWS) }));
@@ -660,6 +701,7 @@ export class RoadBoard {
 		const k = (place.height * lane) / (art.housing.y1 - art.housing.y0);
 		const step = STOPLIGHT.fadeMs > 0 ? dtMs / STOPLIGHT.fadeMs : 1;
 		this.lightLayer.visible = STOPLIGHT.show;
+		const changed: string[] = [];
 		for (const light of this.lights) {
 			// placed every frame from the tuning numbers (a handful of writes), so a change in the console shows at once
 			const top = light.side > 0;
@@ -672,6 +714,8 @@ export class RoadBoard {
 			light.root.rotation = (-place.tilt * Math.PI) / 180;
 			const want = this.signalFor(light);
 			if (want === 'red' && light.showing !== 'red') light.redOnReal = performance.now(); // DEV readout
+			// a light changing color (not its first color, not a dark light): its sound, once for the frame below
+			if (light.showing !== null && want !== null && want !== light.showing) changed.push(`${top ? 'top' : 'bottom'} ${light.showing}>${want}`);
 			light.showing = want;
 			const size = STOPLIGHT.glow.size;
 			for (const color of SIGNAL_COLORS) {
@@ -690,6 +734,7 @@ export class RoadBoard {
 				}
 			}
 		}
+		if (changed.length) this.features.sounds.stoplight(changed.join(', '));
 	}
 
 	/** DEV: hold both lights on a color, or dark (null); call with no argument to hand them back to the board */
@@ -785,8 +830,10 @@ export class RoadBoard {
 		}
 
 		this.updateWin();
+		this.features.rate = rate;
 		this.features.update(now);
 		this.updateLights(dt);
+		this.updateReelStops(now, rate);
 		this.paint();
 		this.updatePresents(now);
 
@@ -796,6 +843,34 @@ export class RoadBoard {
 				this.waiters = this.waiters.filter((x) => !due.includes(x));
 				for (const x of due) x.resolve();
 			}
+		}
+	}
+
+	/** THE REEL STOPS (constants REINDEER_SOUND reel stop): each reel's own on the frame its last car reaches its stop
+	 *  point, after the features' update (so the sounds' log has this frame's number). The traffic fades from the first
+	 *  one over the time left to the last (real ms at this frame's rate) and is done at the last. */
+	private updateReelStops(now: number, rate: number) {
+		let fired = false;
+		let left = 0;
+		let last = -Infinity;
+		for (let col = 0; col < COLS; col++) {
+			const at = this.reelStopAt[col];
+			if (at === null) continue;
+			if (now >= at) {
+				this.reelStopAt[col] = null;
+				fired = true;
+				this.features.sounds.mark('reelStop', `reel ${col + 1}`);
+				this.features.sounds.playNamed(REINDEER_SOUND.reelStops[col], `reel ${col + 1}`);
+			} else {
+				left += 1;
+				last = Math.max(last, at);
+			}
+		}
+		if (!fired) return;
+		if (left === 0) this.features.sounds.trafficDone('the last reel stopped');
+		else if (!this.trafficFading) {
+			this.trafficFading = true;
+			this.features.sounds.trafficStop('the first reel stopped', (last - now) / Math.max(0.001, rate));
 		}
 	}
 
@@ -856,6 +931,24 @@ export class RoadBoard {
 				car.tintNow = tint;
 				car.sprite.tint = tint;
 			}
+		}
+		this.placeShadows();
+	}
+
+	/** THE CONTACT SHADOWS (constants SHADOW, game/road/shadows.ts): each symbol's on the ground under it, on its x and at
+	 *  its win pulse's scale (about its anchor, as the sprite), never tilted by the drive's dive (the ground does not
+	 *  tilt); gone with it (free, hidden in a tunnel, under a cloud or a column) */
+	private placeShadows() {
+		const k = shadowStrength();
+		for (const car of this.cars) {
+			const sh = car.shadow;
+			const shade = car.shade;
+			if (car.phase === 'free' || !car.sprite.visible || !shade || k <= 0) {
+				if (sh.visible) sh.visible = false;
+				continue;
+			}
+			const pulse = car.baseScale > 0 ? car.sprite.scale.y / car.baseScale : 1;
+			placeShadow(sh, car.sprite.x + shade.dx * pulse, car.sprite.y + shade.dy * pulse, shade.width * pulse, shade.height * pulse, k * shade.alpha);
 		}
 	}
 
@@ -956,6 +1049,23 @@ export class RoadBoard {
 				return { lanes: l.lanes, stoppedAt: Math.round(stopped * 10) / 10, redAt: Math.round(l.redOnReal * 10) / 10, gapMs: Math.round((l.redOnReal - stopped) * 10) / 10 };
 			}),
 		};
+	}
+
+	/** THE CONTACT SHADOWS as drawn (dev hook, tools/shadow_probe.mjs): every symbol's (with its owner's place and
+	 *  whether it is drawn), the features' (columns, the runner), and the ground layer's sprites */
+	shadowSnapshot() {
+		const cars = this.cars
+			.filter((c) => c.phase !== 'free' || c.shadow.visible)
+			.map((c) => {
+				const s = c.shadow;
+				return {
+					phase: c.phase, symbol: c.symbol, cell: c.phase === 'rest' ? c.col * ROWS + c.lane : null, lane: c.lane, frame: c.symbol ? frameFor(c.symbol, c.dir) : null,
+					ownerX: Math.round(c.sprite.x * 100) / 100, ownerY: Math.round(c.sprite.y * 100) / 100, ownerVisible: c.sprite.visible,
+					visible: s.visible, x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100, w: Math.round(s.scale.x * s.texture.width * 100) / 100, h: Math.round(s.scale.y * s.texture.height * 100) / 100, alpha: Math.round(s.alpha * 1000) / 1000,
+					shape: c.shade,
+				};
+			});
+		return { strength: shadowStrength(), texture: this.shadowTex ? { w: this.shadowTex.width, h: this.shadowTex.height, source: `${this.shadowTex.source.pixelWidth}x${this.shadowTex.source.pixelHeight}` } : null, cars, groundSprites: this.ground.children.length, features: this.features.shadowSnapshot() };
 	}
 
 	destroy() {

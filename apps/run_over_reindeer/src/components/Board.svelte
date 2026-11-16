@@ -56,6 +56,7 @@
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { loadPresent, presentMemory, presentTrace, setPresentMipmapper } from '../game/road/present';
 	import { perfMarks } from '../game/staging';
+	import type { SoundEffectName } from '../game/sound';
 	import { COLUMN_CLIPS } from '../game/columnClipSpec';
 	import { LANDING_POSE, landingColumns } from '../game/landingBoard';
 
@@ -70,12 +71,27 @@
 	const tex = (frame: string) => loaded[frame];
 	const road = new RoadBoard(tex, { road: loaded.road, tunnelLeft: loaded.tunnelLeft, tunnelRight: loaded.tunnelRight });
 	road.setBoard(stateGame.board);
-	road.onLaneStop = () => context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop' });
-	// the features' beats, voiced with BORROWED Manticore sounds until this game has its own
+	// (a lane's stop no longer sounds: since round 2, 2026-11-15, each REEL has its own stop, sfx_lane_stop_1..5, cued by
+	// the road itself as that reel's last car stops, game/road/roadBoard.ts updateReelStops; the borrowed sfx_reel_stop
+	// that played here once per lane is gone)
+	// the features' beats, voiced with BORROWED Manticore sounds until this game has its own: since 2026-11-15 only a
+	// column with no strike behind it (Super's opening column) sends one
 	road.features.onBeat = (kind) => context.eventEmitter.broadcast({ type: 'soundOnce', name: kind === 'column' ? 'sfx_sting_big_hit' : 'sfx_sting_hit' });
+	// THE ROAD'S OWN SOUNDS (game/road/roadSounds.ts, constants REINDEER_SOUND): the reindeer's alert, run and turn, the
+	// crash and its cloud, the Grandma Wild, the reindeer column's entrance and his idle snort, cued from the frames. Through
+	// the game's sound events (components/Sound.svelte), so the effects volume, mute and SKIP TO RESULT apply. A one-shot
+	// always plays (forcePlay: the next strike's alert never waits for the last one's to end).
+	road.features.sounds.env = {
+		play: (name, rate) => context.eventEmitter.broadcast({ type: 'soundOnce', name: name as SoundEffectName, forcePlay: true, rate }),
+		loop: (name) => context.eventEmitter.broadcast({ type: 'soundLoop', name: name as SoundEffectName }),
+		fade: (name, from, to, ms) => context.eventEmitter.broadcast({ type: 'soundFade', name: name as SoundEffectName, from, to, duration: ms }),
+		stop: (name) => context.eventEmitter.broadcast({ type: 'soundStop', name: name as SoundEffectName }),
+		roundLive: () => stateGame.busy,
+	};
 	// the target crosshair (constants CROSSHAIR): nothing of it shows under SKIP TO RESULT. Its beats (hop, drop, lock,
-	// morph) are road.features.onCrosshair, left unset until the game has its own sounds.
+	// morph) are voiced by the road's own sounds since round 2 (2026-11-15): RoadSounds.crosshair.
 	road.features.crosshairOff = () => stateGame.skipping;
+	road.features.onCrosshair = (beat, cell) => road.features.sounds.crosshair(beat, cell);
 	parent.addToParent(road.root);
 
 	// THE LANDING BOARD (game/landingBoard.ts): while the landing screen is up the road shows the posed, still board (the
@@ -165,7 +181,8 @@
 		},
 		boardHeld: ({ held }) => road.features.syncHeld(held),
 		boardStrike: async ({ strike }) => {
-			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_swipe' });
+			// (its sounds come from its frames: the alert on its first, roadFeatures.updateRunner; the borrowed sfx_swipe
+			// that stood here until 2026-11-15 is gone)
 			await road.features.strike(strike);
 		},
 		boardGrandmaWild: async ({ cell, multiplier }) => {
@@ -234,6 +251,23 @@
 			runMemory: () => runMemory(),
 			/** THE SCATTER PRESENT: its sheets loaded now and their GPU weight; the per-frame trace of its animations
 			 *  (clear = true empties it); the full open by hand on the board as it stands (no book, no sound) */
+			/** THE CONTACT SHADOWS as drawn (game/road/shadows.ts; the strength is tune.shadow), and what the road draws:
+			 *  every sprite shown (visible all the way up and renderable), and how many of them are shadows */
+			shadows: () => road.shadowSnapshot(),
+			roadSprites: () => {
+				let sprites = 0;
+				let shadows = 0;
+				const walk = (node: PIXI.Container) => {
+					if (!node.visible || node.alpha <= 0) return;
+					if (node instanceof PIXI.Sprite && node.renderable && node.texture && node.texture !== PIXI.Texture.EMPTY) {
+						sprites += 1;
+						if (node.label === 'shadow') shadows += 1;
+					}
+					for (const child of node.children) walk(child as PIXI.Container);
+				};
+				walk(road.root);
+				return { sprites, shadows };
+			},
 			presentMemory: () => presentMemory(),
 			presentTrace: (clear = false) => presentTrace(clear),
 			presentLoad: (group: 'peek' | 'open') => loadPresent(group),
@@ -242,12 +276,19 @@
 				if (!(await road.presentsReady())) return false;
 				return road.openPresents(cells);
 			},
-			/** run a strike into a cell by hand (no book, no sound): __reindeer.strike(cell). Resolves at the impact. */
+			/** THE ROAD'S SOUNDS (game/road/roadSounds.ts): its log of animation moments and sounds asked (clear = true
+			 *  empties it), the loops it holds on, the board's frame count, and the snort's roll forced ('always' / 'never')
+			 *  or back to its odds (null) */
+			roadSounds: (clear = false) => road.features.sounds.trace(clear),
+			roadSoundState: () => road.features.sounds.state(),
+			frame: () => road.features.frameNo,
+			forceSnort: (mode: 'always' | 'never' | null) => (road.features.sounds.forceSnort = mode),
+			/** run a strike into a cell by hand (no book; its own sounds play, game/road/roadSounds.ts): __reindeer.strike(cell). Resolves at the impact. */
 			strike: (cell: number) => road.features.strike({ cell, markCell: null }),
 			/** stand a column Wild by hand from a struck cell (no book, no sound), and read its box and clouds as drawn */
 			column: (reel: number, tier: 'reindeer' | 'santa' | 'grandma', multiplier: number, fromCell: number | null) => road.features.columnWild(reel, tier, multiplier, false, fromCell),
 			columnTrace: (reel: number) => road.features.columnTrace(reel),
-			/** THE TARGET CROSSHAIR on a posed board (no book, no sound): `cells` the valid targets to pose (Grandma's car or
+			/** THE TARGET CROSSHAIR on a posed board (no book; the road's own sounds play, except the cloud loop, which needs a live round): `cells` the valid targets to pose (Grandma's car or
 			 *  Santa's sleigh, `kinds` per cell, default H1 for the first and alternating), `target` the struck one (the first
 			 *  by default), `follow` then plays the Wild the book would (a Grandma Wild, or a Santa column from the cell).
 			 *  Every other cell gets a plain symbol. Resolves at the impact (or when the Wild stands, with follow). */

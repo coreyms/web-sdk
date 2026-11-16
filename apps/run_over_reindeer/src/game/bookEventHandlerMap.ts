@@ -8,7 +8,9 @@ import { waitForTimeout } from 'utils-shared/wait';
 import type { BookEventHandlerMap } from 'utils-book';
 
 import { eventEmitter } from './eventEmitter';
-import { LINE_WIN, ROUND } from './constants';
+import { LINE_WIN, REINDEER_SOUND, ROUND } from './constants';
+import config from './config';
+import type { SoundEffectName } from './sound';
 import { setHudWin } from './hudWin.svelte';
 import { playBookEvent } from './utils';
 import { boardRate, stateGame, type RoundCard } from './stateGame.svelte';
@@ -100,7 +102,17 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	winInfo: async (bookEvent: BookEventOfType<'winInfo'>) => {
 		if (!bookEvent.wins.length) return;
 		await waitForTimeout(LINE_WIN.leadInMs);
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cluster_remove' });
+		// THE LINE WIN'S SOUND (constants REINDEER_SOUND winBySymbol, round 2): ONE symbol sound for the whole win, as the
+		// one borrowed sfx_cluster_remove before it, the best paying symbol among the lines (W pays as Grandma's car), and
+		// the line show under it, on the frame the lines show (boardWinShow, just below, in this same tick)
+		const rank = (symbol: string) => {
+			const i = (config.payOrder as readonly string[]).indexOf(symbol === 'W' ? 'H1' : symbol);
+			return i < 0 ? Infinity : i;
+		};
+		const best = bookEvent.wins.reduce((a, w) => (rank(w.symbol) < rank(a) ? w.symbol : a), bookEvent.wins[0].symbol as string);
+		const symbolSound = REINDEER_SOUND.winBySymbol[best];
+		if (symbolSound) eventEmitter.broadcast({ type: 'soundOnce', name: symbolSound as SoundEffectName });
+		eventEmitter.broadcast({ type: 'soundOnce', name: REINDEER_SOUND.lineShow as SoundEffectName });
 		// the HUD's WIN counts up to the spin's amount while the lines show (the base game's round total is the spin's;
 		// a free spin's running total arrives with setTotalWin)
 		if (stateGame.gameType === 'basegame') setHudWin(bookEvent.totalWin);

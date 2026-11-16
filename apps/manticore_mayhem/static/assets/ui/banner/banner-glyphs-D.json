@@ -1309,10 +1309,11 @@
    "h": 1917
   },
   "scale": "1",
-  "pngHash": "49cbc538",
+  "pngHash": "2cce92e7",
   "caps": {
    "digits": 280,
    "others": 224
-  }
+  },
+  "look": "count3"
  }
 }

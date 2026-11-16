@@ -63,6 +63,9 @@ export const presentStillTexture = (sheet: PIXI.Texture | undefined): PIXI.Textu
 export const PEEK_MS = CLIPS.peek.length * FRAME_MS;
 const OPEN_MS = CLIPS.open.length * FRAME_MS;
 const CLOSE_MS = CLIPS.close.length * FRAME_MS;
+/** THE LID LEAVES THE BOX: the open's first frame with any lift (frames 0 to 2 are the squash); the presents' pop sound
+ *  plays on it (game/road/roadBoard.ts, constants REINDEER_SOUND present) */
+export const PRESENT_LID_FRAME = Math.max(0, CLIPS.open.findIndex((s) => s.lift > 0));
 /** the whole trigger show for a present starting now: open, hold, close */
 export const presentOpenMs = () => OPEN_MS + PRESENT.holdMs + CLOSE_MS;
 
@@ -275,6 +278,9 @@ export class PresentActor {
 	private holds = new Set<Group>();
 	/** the cell it was started in (the trace) */
 	cell = -1;
+	/** the full open's frame drawn on the last update (its hold and close count as past the open's last), -1 when no
+	 *  full open is showing (the pop sound reads it) */
+	openSlot = -1;
 	private tracedAt = NaN;
 
 	constructor() {
@@ -352,6 +358,7 @@ export class PresentActor {
 	reset() {
 		const a = this.anim;
 		this.anim = null;
+		this.openSlot = -1;
 		this.root.visible = false;
 		this.shownTag = '';
 		for (const s of [this.back, ...this.front]) s.texture = PIXI.Texture.EMPTY;
@@ -408,6 +415,7 @@ export class PresentActor {
 			}
 			glow = Math.min(1, slot.lift / FULL_LIFT);
 		}
+		this.openSlot = a.kind !== 'open' ? -1 : part === 'open' ? index : CLIPS.open.length;
 		if (!frameReady(slot.show)) {
 			// its pictures went missing (never expected): the still picture, nothing held up
 			this.reset();

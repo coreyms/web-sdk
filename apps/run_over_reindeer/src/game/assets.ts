@@ -45,6 +45,13 @@ const assets = {
 		),
 		preload: true,
 	},
+	// THE CONTACT SHADOW (tools/build_shadows.py, game/road/shadows.ts): one small soft ellipse, stretched under every
+	// symbol, column character and the running reindeer (a few KB; batched beside the symbol atlas)
+	shadow: {
+		type: 'sprite',
+		src: tiered(stamp(new URL('../../assets/road/shadow.webp', import.meta.url).href), stamp(new URL('../../assets/road/shadow-phone.webp', import.meta.url).href)),
+		preload: true,
+	},
 	// the locked board background and the two tunnel portals cut from it (drawn over the traffic)
 	road: {
 		type: 'sprite',

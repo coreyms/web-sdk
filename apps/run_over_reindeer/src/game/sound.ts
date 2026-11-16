@@ -3,11 +3,14 @@ import { createSound, supportsAudioFormat, type MusicManifest } from 'utils-soun
 import assets from './assets';
 import { fileBytes } from './assetStamp';
 
-// BORROWED SOUND (first pass): static/assets/audio is Manticore Mayhem's effects sprite and music, byte for byte, as
-// stand-ins until Run Over Reindeer has its own. The names below are therefore Manticore's (its creature, its
-// tiles); this game plays only a handful of them (components/Sound.svelte, game/bookEventHandlerMap.ts,
-// components/Board.svelte: the UI clicks, sfx_reel_stop, sfx_cluster_remove, bgm_base). MusicName lives in
-// music.json (one streamed file per track); every SoundEffectName lives in the sounds.json audiosprite.
+// BORROWED SOUND (first pass): static/assets/audio is Manticore Mayhem's effects sprite and music as stand-ins until Run
+// Over Reindeer has its own. Since 2026-11-15 the sprite is built for this game (tools/build_audiosprite.py --game
+// run_over_reindeer): every Manticore clip exactly where it was, then this game's own after them (the last group of
+// names below, played by game/road/roadSounds.ts and game/bookEventHandlerMap.ts). The other names are Manticore's (its
+// creature, its tiles); this game plays only a handful of them (components/Sound.svelte, game/bookEventHandlerMap.ts,
+// components/Board.svelte: the UI clicks, the bonus triggers, sfx_sting_big_hit; sfx_reel_stop and sfx_cluster_remove
+// gave way to this game's own in round 2, 2026-11-15). MusicName lives in music.json (one
+// streamed file per track); every SoundEffectName lives in the sounds.json audiosprite.
 export type MusicName = 'bgm_base' | 'bgm_bonus' | 'bgm_super' | 'bgm_epic' | 'bgm_maxwin';
 
 export type SoundEffectName =
@@ -72,7 +75,43 @@ export type SoundEffectName =
 	// THE MEGA ROAR (constants PLAQUE_CHEER, Corey's pick 2026-10-23): his roar move when a win plaque stops on MEGA
 	| 'sfx_manticore_roar_win_1'
 	// the win plaque's landing thump (components/StingerPlaque.svelte, 2026-10-15): every impact, under a tier's stab
-	| 'sfx_plaque_land';
+	| 'sfx_plaque_land'
+	// RUN OVER REINDEER'S OWN (Corey's picks 2026-11-15; constants REINDEER_SOUND, game/road/roadSounds.ts)
+	| 'sfx_reindeer_idle_snort'
+	| 'sfx_reindeer_alert'
+	| 'sfx_reindeer_run'
+	| 'sfx_crash'
+	| 'sfx_reindeer_turn'
+	| 'sfx_crash_cloud'
+	| 'sfx_grandma_wild'
+	| 'sfx_column_reindeer_in'
+	// round 2 (Corey's picks 2026-11-15): the spin, the target crosshair, the dart, the line wins, the stamps, the present
+	| 'sfx_traffic_roll'
+	| 'sfx_lane_stop_1'
+	| 'sfx_lane_stop_2'
+	| 'sfx_lane_stop_3'
+	| 'sfx_lane_stop_4'
+	| 'sfx_lane_stop_5'
+	| 'sfx_stoplight_change'
+	| 'sfx_target_hop'
+	| 'sfx_target_drop'
+	| 'sfx_target_lock'
+	| 'sfx_reindeer_dart'
+	| 'sfx_redbox'
+	| 'sfx_win_h1_grandma'
+	| 'sfx_win_h2_wagon'
+	| 'sfx_win_h3_van'
+	| 'sfx_win_h4_police'
+	| 'sfx_win_low_1'
+	| 'sfx_win_low_2'
+	| 'sfx_win_low_3'
+	| 'sfx_win_low_4'
+	| 'sfx_win_low_5'
+	| 'sfx_line_show'
+	| 'sfx_multiplier_land_small'
+	| 'sfx_multiplier_land_mid'
+	| 'sfx_multiplier_land_high'
+	| 'sfx_present_pop';
 
 export type SoundName = MusicName | SoundEffectName;
 
@@ -177,13 +216,16 @@ const loadMusicManifest = async () => {
 			track.src = order.map((i) => track.src![i]);
 		}
 	}
-	// THE GAPLESS BASE LOOP ON iPHONE (2026-10-23, Corey: "I'd like to make an attempt at fixing the iPhone loop before
-	// Monday, the other background music doesn't need to loop"). WebKit leaves a pause at every wrap of a looping media
-	// element, so on Apple touch devices bgm_base, and only bgm_base, is handed from its stream to a decoded Web Audio
-	// loop once it plays (utils-sound createMusic.svelte.ts, BUFFERED LOOPS). Every other track, and every track on
-	// desktop and Android, streams as before. The iPhone file is the 60 s mono .m4a (tools/build_audiosprite.py): its
-	// decoded copy is about 11.5 MB at 48 kHz.
-	sound.loadMusic(holdSideTracks(manifest), { bufferedLoops: PREFERS_AAC ? ['bgm_base'] : [] });
+	// THE GAPLESS LOOPS (Manticore's method, utils-sound createMusic.svelte.ts BUFFERED LOOPS: each named loop starts on
+	// its stream, and once it plays and the context runs the same stamped file is fetched, decoded into one AudioBuffer
+	// and handed over to a Web Audio loop with a 40 ms crossfade; never a blob: URL). Manticore names only its iPhone
+	// base. Run Over Reindeer names ALL THREE of its loops, on EVERY platform (round 2, 2026-11-15): Corey approved each
+	// as a clean join by ear, and streamed they were not clean anywhere but the iPhone base (measured in round 1: on the
+	// iPhone path the Free Spins wrap repeated about 1.1 s, WebKit bug 230553; desktop Chromium left 14 to 69 ms of
+	// silence at every wrap of all three). Only the track playing holds a decoded copy, and it goes when another starts:
+	// iPhone (mono .m4a, 48 kHz) base 6.1 MB, Free Spins 4.6 MB, Super 3.1 MB; desktop and Android (stereo .ogg) about
+	// 12.3, 9.2 and 6.1 MB at 48 kHz (11.3, 8.5, 5.6 at 44.1). A browser that cannot decode the file keeps streaming.
+	sound.loadMusic(holdSideTracks(manifest), { bufferedLoops: ['bgm_base', 'bgm_bonus', 'bgm_super'] });
 };
 
 // DEV only (compiled out of every build): musicDiag is the menu readout line
@@ -194,8 +236,67 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 		musicDiag: () => sound.diag(),
 		musicLoop: () => (sound.players.music as unknown as { loopState?: unknown }).loopState ?? null,
 		musicPlay: (name: MusicName) => sound.players.music.play({ name }),
+		/** THE EFFECTS TAP (the sound probe): from the first call, every play, stop, fade, rate and end on the effects sprite's
+		 *  Howl, with performance.now() and the board's frame (__reindeer.frame), oldest first; clear = true empties it.
+		 *  `playing` lists the sprite names sounding now. Null until the sprite has loaded. */
+		soundTap: (clear = false) => {
+			const howl = sound.players?.once?.howl as unknown as TappedHowl | undefined;
+			if (!howl || howl.state() !== 'loaded') return null;
+			if (!howl.__tap) {
+				const log: TapEntry[] = [];
+				const names = new Map<number, string>();
+				const frame = () => Number((window as unknown as { __reindeer?: { frame?: () => number } }).__reindeer?.frame?.() ?? -1);
+				const push = (what: TapEntry['what'], id: number, name?: string, detail?: string) => {
+					log.push({ t: performance.now(), frame: frame(), what, id, name: name ?? names.get(id) ?? '?', detail });
+					if (log.length > 6000) log.splice(0, 3000);
+				};
+				const play = howl.play.bind(howl);
+				const stop = howl.stop.bind(howl);
+				const fade = howl.fade.bind(howl);
+				const rate = howl.rate.bind(howl);
+				howl.play = (sprite?: string | number, internal?: boolean) => {
+					const id = play(sprite, internal);
+					if (typeof sprite === 'string' && typeof id === 'number') {
+						names.set(id, sprite);
+						push('play', id, sprite);
+					}
+					return id;
+				};
+				howl.stop = (id?: number, internal?: boolean) => {
+					if (typeof id === 'number' && howl.playing(id)) push('stop', id);
+					return stop(id, internal);
+				};
+				howl.fade = (from: number, to: number, len: number, id?: number) => {
+					if (typeof id === 'number') push('fade', id, undefined, `${from.toFixed(2)}>${to.toFixed(2)} ${len}ms`);
+					return fade(from, to, len, id);
+				};
+				// a play's own rate (the crosshair's hops): logged as `rate <value>` against its play id
+				howl.rate = (...a: unknown[]) => {
+					if (typeof a[0] === 'number' && typeof a[1] === 'number') push('rate', a[1], undefined, `${a[0]}`);
+					return rate(...(a as []));
+				};
+				howl.on('end', (id: number) => push('end', id));
+				howl.__tap = { log, names };
+			}
+			const tap = howl.__tap;
+			const out = tap.log.slice();
+			if (clear) tap.log.length = 0;
+			const playing = [...tap.names.entries()].filter(([id]) => howl.playing(id)).map(([id, name]) => ({ id, name }));
+			return { log: out, playing };
+		},
 	});
 }
+type TapEntry = { t: number; frame: number; what: 'play' | 'stop' | 'fade' | 'end' | 'rate'; id: number; name: string; detail?: string };
+type TappedHowl = {
+	state: () => string;
+	playing: (id?: number) => boolean;
+	play: (sprite?: string | number, internal?: boolean) => number;
+	stop: (id?: number, internal?: boolean) => unknown;
+	fade: (from: number, to: number, len: number, id?: number) => unknown;
+	rate: (...a: unknown[]) => unknown;
+	on: (event: string, fn: (id: number) => void) => unknown;
+	__tap?: { log: TapEntry[]; names: Map<number, string> };
+};
 
 // ── the music's side tracks wait until the audio the landing screen gates on is in (the house rule, from Manticore) ──
 // The shared player (utils-sound createMusic, left alone) starts buffering every track it can list 3 s after the music
