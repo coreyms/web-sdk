@@ -847,8 +847,56 @@ export const VAN_WIN = {
 	light: { tint: 0xfff0c8, alpha: 1, width: 0.34, sweepMs: 900, flicker: 0.35, flickerMs: 60, fill: 1.25 },
 };
 
+// ---- THE CHRISTMAS TREE ON THE STATION WAGON (Corey 2026-11-16: "Yes this one looks good."; game/road/wagonTree.ts,
+// tools/build_wagon_tree.py, the round 4 art and its NOTES.md) ---------------------------------------------------------
+// Every wagon (H2) carries the tree tied to its roof rack, both directions, parked and in through traffic. Over the wagon:
+// the tree, the front rail, the ropes. The tree is cut into vertical strips (no mesh in the game; no filter, shader or
+// mask) and bent by TWO DAMPED SPRINGS driven by the wagon's own forward acceleration on the board's clock (so turbo and a
+// slam stop run the same motion faster). Corey: "Only the tip of the tree that hangs over the windshield should have the
+// aggressive dip, the rest of it should move a little, not a lot." So:
+//   tip   past the first rope, weighted ((x - rope) / (tip - rope))^2.2: dips hard on a stop, lifts on a pull-away
+//   body  between the ropes (a half sine, 0 under each rope), and a small seesaw behind the last rope
+// Nothing moves under a rope; the ropes and the rail never move. Target = acceleration (road px/s^2) x gain, clamped; the
+// travel is the spring's (peak about 11.3 road px at the tip, 1.2 for the body, with the game's own BASE_MOTION).
+export const WAGON_TREE = {
+	/** false = the wagons drive without the tree */
+	on: true,
+	/** false = the tree rides stiff (no bend) */
+	bend: true,
+	tip: { freqHz: 2.8, damping: 0.4, gain: 0.00105, clamp: 9 },
+	body: { freqHz: 3.6, damping: 0.5, gain: 0.00012, clamp: 1, shift: 0.5 },
+	/** the tree's and the ropes' silhouette above the roof joins the wagon's cast shadow */
+	shadow: true,
+};
+
+// ---- THE SEATED DRIVERS (Corey 2026-11-16; game/road/seated.ts, tools/build_seated.py, tools/seated_split.json) -------
+// Grandma at the wheel of every Grandma car (H1) and Santa in every sleigh (W), both directions, drawn between the
+// vehicle (its own sprite, the back layer) and its near door or sleigh wall (the front layer, cut from the same sprite by
+// script), so the door covers them from the waist down. The locked stills, resampled only; the left facing vehicles draw
+// them mirrored. Code motion only: a LEAN about the hip (back on a pull-away, forward on a stop: a damped spring on the
+// vehicle's forward acceleration, as the wagon's tree) and a BOB up with the win pulse. They go with their vehicle:
+// hidden in a tunnel, under a cloud or a column, struck, retired. place: Corey's live nudges per vehicle frame, on top of
+// the built placement (dx, dy road px; scale x the built height). After nudging, paste the numbers into
+// tools/seated_split.json and run tools/build_seated.py so the front layer and the shadow silhouette are cut for them.
+export const SEATED = {
+	/** false = the vehicles drive empty, as before */
+	on: true,
+	/** the lean: + leans forward on a stop (deg at the target), back on a pull-away */
+	lean: { freqHz: 2.4, damping: 0.45, gainDeg: 0.0004, clampDeg: 3.5 },
+	/** the win bob: up this many road px at the top of each win pulse */
+	bob: { px: 3.5 },
+	/** the driver's silhouette above the vehicle joins its cast shadow */
+	shadow: true,
+	place: {
+		H1_R: { dx: 0, dy: 0, scale: 1 },
+		H1_L: { dx: 0, dy: 0, scale: 1 },
+		W_R: { dx: 0, dy: 0, scale: 1 },
+		W_L: { dx: 0, dy: 0, scale: 1 },
+	} as Record<string, { dx: number; dy: number; scale: number }>,
+};
+
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN };
+export const TUNE = { road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

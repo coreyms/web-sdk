@@ -16,7 +16,7 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { LANDING_DIM, LINE_WIN, REINDEER_SOUND, ROAD, STOPLIGHT, motionFor, type RoadMotion } from '../constants';
+import { LANDING_DIM, LINE_WIN, REINDEER_SOUND, ROAD, SEATED, STOPLIGHT, WAGON_TREE, motionFor, type RoadMotion } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
 import { NumberLabel, RoadFeatures } from './roadFeatures';
@@ -25,6 +25,8 @@ import { castShadow, makeShadow, shadowStrength } from './shadows';
 import { PoliceLightBar } from './policeLights';
 import { VanWinFx } from './vanWin';
 import { WinLights, type LightLine } from './winLights';
+import { WagonTree, type TreeFrame } from './wagonTree';
+import { SeatedDriver, type SeatFrame } from './seated';
 import { PHONE_TIER } from '../deviceTier';
 
 const COLS = ROAD_ART.board.columns;
@@ -95,7 +97,19 @@ type Car = {
 	lights: PoliceLightBar | null;
 	/** THE VAN'S WIN (game/road/vanWin.ts): made the first time this sprite wins as the van */
 	van: VanWinFx | null;
+	/** THE RIDERS, each made the first time this slot draws its vehicle and kept with it, in its lane just after the
+	 *  sprite and given the sprite's transform, tint and visibility every frame (syncRiders): THE WAGON'S TREE
+	 *  (game/road/wagonTree.ts) and THE SEATED DRIVER (game/road/seated.ts) */
+	tree: WagonTree | null;
+	seated: SeatedDriver | null;
+	/** the rider's silhouette above the vehicle (the tree's, the driver's), cast with the vehicle's shadow */
+	riderShadow: PIXI.Sprite;
 };
+
+/** the asset tier the riders' sheets come in */
+const TIER: 'full' | 'phone' = PHONE_TIER ? 'phone' : 'full';
+/** the vehicles that carry a seated driver */
+const SEATS: SymbolName[] = ['H1', 'W'];
 
 export type SignalColor = 'red' | 'amber' | 'green';
 const SIGNAL_COLORS: SignalColor[] = ['red', 'amber', 'green'];
@@ -281,7 +295,12 @@ export class RoadBoard {
 			sprite.anchor.set(0.5, 1);
 			const shadow = makeShadow();
 			this.ground.addChild(shadow);
-			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, shadow, lights: null, van: null };
+			// the rider's shadow silhouette (the tree's, the driver's) lies right over the vehicle's own twin
+			const riderShadow = makeShadow();
+			// (its own label: the probes count the vehicles' twins by 'shadow')
+			riderShadow.label = 'riderShadow';
+			this.ground.addChild(riderShadow);
+			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, shadow, lights: null, van: null, tree: null, seated: null, riderShadow };
 			this.cars.push(car);
 		}
 		this.stopPresent(car);
@@ -315,6 +334,9 @@ export class RoadBoard {
 		car.stopped = false;
 		car.m = null;
 		if (car.sprite.parent !== this.lanes[lane]) this.lanes[lane].addChild(car.sprite);
+		// a new vehicle in this slot: its riders hang still
+		car.tree?.reset();
+		car.seated?.reset();
 		return car;
 	}
 
@@ -326,6 +348,7 @@ export class RoadBoard {
 		car.shadow.visible = false;
 		car.lights?.off();
 		car.van?.off(car.sprite, car.restX, laneSitY(car.lane));
+		this.syncRiders(car);
 	}
 
 	// ---- the scatter present (game/road/present.ts) ------------------------------------------------------------------
@@ -407,6 +430,9 @@ export class RoadBoard {
 		for (const car of this.cars) {
 			if (car.phase !== 'rest' || car.col !== col || car.lane !== lane) continue;
 			car.sprite.visible = !hidden;
+			// its riders go (or come back) with it on this very frame, and their shadow
+			this.syncRiders(car);
+			if (hidden) car.riderShadow.visible = false;
 		}
 	}
 
@@ -1013,6 +1039,7 @@ export class RoadBoard {
 		this.updateReelStops(now, rate);
 		this.updateLineShows();
 		this.updateVans();
+		this.stepRiders(now, dt * rate);
 		this.paint();
 		this.updatePolice();
 		this.updatePresents(now);
@@ -1123,6 +1150,7 @@ export class RoadBoard {
 				car.sprite.tint = tint;
 			}
 		}
+		for (const car of this.cars) this.syncRiders(car);
 		this.placeShadows();
 	}
 
@@ -1147,7 +1175,177 @@ export class RoadBoard {
 			const gx = car.phase === 'rest' ? car.restX : o.x;
 			const gy = car.phase === 'rest' ? laneSitY(car.lane) : o.y;
 			castShadow(s, o.texture, o.anchor.x, o.anchor.y, gx, gy, o.scale.x, o.scale.y, k * u * u * (3 - 2 * u));
+			// the rider's silhouette above the vehicle (its picture less the vehicle's, cut by the build): the same cast, so
+			// the two twins make one shape and are never doubled where they meet
+			const rs = car.riderShadow;
+			const rider = car.symbol === 'H2' ? car.tree : car.symbol && SEATS.includes(car.symbol) ? car.seated : null;
+			const on = car.symbol === 'H2' ? WAGON_TREE.shadow : SEATED.shadow;
+			const art = rider && rider.root.visible && on ? rider.shadowArt() : null;
+			const t = art?.texture;
+			if (!art || !t || t.width <= 1 || art.box.w <= 0 || art.box.h <= 0) {
+				if (rs.visible) rs.visible = false;
+				continue;
+			}
+			const kk = this.builtK(car);
+			castShadow(rs, t, -art.box.x / art.box.w, -art.box.y / art.box.h, gx, gy, (kk * art.box.w) / t.width, (kk * art.box.h) / t.height, k * u * u * (3 - 2 * u));
 		}
+	}
+
+	// ---- the riders (the wagon's tree, the seated drivers) -------------------------------------------------------------
+	/** road px per built road px of a vehicle's sprite now (its symbol scale with its win pulse) */
+	private builtK(car: Car): number {
+		const s = car.sprite;
+		const art = car.symbol ? (ROAD_ART.symbols as Record<string, { width: number; height: number }>)[frameFor(car.symbol, car.dir)] : undefined;
+		const t = s.texture;
+		return art && t && t.height > 0 ? (Math.abs(s.scale.y) * t.height) / art.height : 1;
+	}
+
+	/** where the car's motion puts it at board time `t` (the update loop's own formulas, without their side effects) */
+	private posAt(car: Car, t: number): number {
+		const m = car.m;
+		if (!m) return car.sprite.x;
+		if (car.phase === 'out') {
+			const tau = (t - car.t0) / 1000;
+			if (tau <= 0) return car.x0;
+			const cap = m.out.maxSpeed / m.out.accel;
+			const dist = tau <= cap ? 0.5 * m.out.accel * tau * tau : 0.5 * m.out.accel * cap * cap + m.out.maxSpeed * (tau - cap);
+			return car.x0 + car.dir * dist;
+		}
+		if (car.phase === 'through') {
+			// it comes out of the tunnel already at cruise (never a jump from standing)
+			return car.x0 + car.dir * m.cruise * ((t - car.t0) / 1000);
+		}
+		if (car.phase === 'in') {
+			const left = car.stopAt - t;
+			if (left > 0) {
+				const brake = m.in.brakeMs;
+				const dist = left <= brake ? (m.cruise * left * left) / (2000 * brake) : (m.cruise * brake) / 2000 + (m.cruise * (left - brake)) / 1000;
+				return car.restX + car.dir * (car.overshoot - dist);
+			}
+			const u = -left / m.in.settleMs;
+			if (u >= 1) return car.restX;
+			const g = Math.exp(-4 * u) * Math.cos(2 * Math.PI * m.in.settleSwings * u) * (1 - u);
+			return car.restX + car.dir * car.overshoot * g;
+		}
+		return car.phase === 'rest' ? car.restX : car.sprite.x;
+	}
+
+	/** the car's forward acceleration (road px per s^2 of board time) at board time `t` */
+	private accelAt(car: Car, t: number): number {
+		if (car.phase === 'rest' || car.phase === 'free' || !car.m) return 0;
+		const h = 4;
+		const a = (this.posAt(car, t + h) - 2 * this.posAt(car, t) + this.posAt(car, t - h)) / ((h / 1000) * (h / 1000));
+		return car.dir * a;
+	}
+
+	/** the riders' springs, on the board's clock (`dtMs` board ms this frame) */
+	private stepRiders(now: number, dtMs: number) {
+		if (dtMs <= 0) return;
+		for (const car of this.cars) {
+			if (car.phase === 'free' || !car.symbol) continue;
+			if (car.symbol === 'H2' && car.tree) car.tree.step(now, dtMs, (t) => this.accelAt(car, t));
+			else if (SEATS.includes(car.symbol) && car.seated) car.seated.step(now, dtMs, (t) => this.accelAt(car, t));
+		}
+	}
+
+	/** a rider's root in its car's lane, just after the car's sprite, with the sprite's transform, tint and visibility */
+	private placeRider(car: Car, root: PIXI.Container) {
+		const lane = this.lanes[car.lane];
+		const s = car.sprite;
+		if (root.parent !== lane || lane.getChildIndex(root) !== lane.getChildIndex(s) + 1) {
+			root.removeFromParent();
+			lane.addChildAt(root, lane.getChildIndex(s) + 1);
+		}
+		const k = this.builtK(car);
+		root.position.set(s.x, s.y);
+		root.rotation = s.rotation;
+		if (root.skew.x !== s.skew.x || root.skew.y !== s.skew.y) root.skew.set(s.skew.x, s.skew.y);
+		root.scale.set(k * Math.sign(s.scale.x || 1), k * Math.sign(s.scale.y || 1));
+		if (root.tint !== s.tint) root.tint = s.tint;
+		root.alpha = s.alpha;
+		root.visible = true;
+	}
+
+	/** THE RIDERS FOLLOW THEIR CAR: shown only while it is (not free, visible, renderable) and only on their own symbol */
+	private syncRiders(car: Car) {
+		const s = car.sprite;
+		const shown = car.phase !== 'free' && s.visible && s.renderable && car.symbol !== null;
+		const wantTree = shown && WAGON_TREE.on && car.symbol === 'H2';
+		const wantSeat = shown && SEATED.on && car.symbol !== null && SEATS.includes(car.symbol);
+		if (wantTree) {
+			const tree = (car.tree ??= new WagonTree(this.tex, TIER));
+			if (tree.setFrame(frameFor('H2', car.dir) as TreeFrame)) {
+				this.placeRider(car, tree.root);
+				tree.draw();
+			} else tree.root.visible = false;
+		} else if (car.tree && car.tree.root.visible) car.tree.root.visible = false;
+		if (wantSeat) {
+			const seat = (car.seated ??= new SeatedDriver(this.tex, TIER));
+			if (seat.setFrame(frameFor(car.symbol!, car.dir) as SeatFrame)) {
+				this.placeRider(car, seat.root);
+				// the win pulse's swell (0 to 1) from the sprite's own scale: the bob rides it
+				const pulse = car.phase === 'rest' && car.winning && car.baseScale > 0 ? (Math.abs(s.scale.y) / car.baseScale - 1) / Math.max(1e-6, LINE_WIN.pulseScale - 1) : 0;
+				seat.draw(pulse);
+			} else seat.root.visible = false;
+		} else if (car.seated && car.seated.root.visible) car.seated.root.visible = false;
+		if (!wantTree && !wantSeat && car.riderShadow.visible) car.riderShadow.visible = false;
+	}
+
+	/** DEV / probes: every wagon's tree as drawn (cell, phase, direction, whether it shows, sits right after its wagon in
+	 *  the lane, follows the wagon's transform and tint; the springs' values and the travel drawn at the tip, the body,
+	 *  under the ropes; its shadow) */
+	treeSnapshot() {
+		const r3 = (v: number) => Math.round(v * 1000) / 1000;
+		return this.cars
+			.filter((c) => c.symbol === 'H2' && c.phase !== 'free')
+			.map((c) => {
+				const t = c.tree;
+				const lane = this.lanes[c.lane];
+				const root = t?.root;
+				return {
+					slot: this.cars.indexOf(c), cell: c.phase === 'rest' ? c.col * ROWS + c.lane : null, phase: c.phase, dir: c.dir, lane: c.lane, carVisible: c.sprite.visible && c.sprite.renderable, x: r3(c.sprite.x),
+					shown: !!root && root.visible && root.parent === lane, frame: t?.frame ?? null,
+					afterSprite: !!root && root.parent === lane && lane.getChildIndex(root) === lane.getChildIndex(c.sprite) + 1,
+					follows: !!root && Math.abs(root.x - c.sprite.x) < 1e-6 && Math.abs(root.y - c.sprite.y) < 1e-6 && root.rotation === c.sprite.rotation && Math.abs(root.scale.y - this.builtK(c)) < 1e-6 && root.tint === c.sprite.tint,
+					tip: r3(t?.tip.b ?? 0), body: r3(t?.body.b ?? 0), ...(t?.last ?? { tipDy: 0, bodyDy: 0, ropeDy: 0, strips: 0 }),
+					shadow: c.riderShadow.visible, carShadow: c.shadow.visible,
+				};
+			});
+	}
+
+	/** DEV / probes: every seated driver as drawn (cell, phase, direction, its vehicle's symbol, shown, the layer order:
+	 *  vehicle sprite, then the root right after it with the driver before the front layer; its lean and bob) */
+	seatedSnapshot() {
+		return this.cars
+			.filter((c) => c.symbol !== null && SEATS.includes(c.symbol) && c.phase !== 'free')
+			.map((c) => {
+				const d = c.seated;
+				const lane = this.lanes[c.lane];
+				const root = d?.root;
+				return {
+					slot: this.cars.indexOf(c), carX: Math.round(c.sprite.x * 100) / 100, cell: c.phase === 'rest' ? c.col * ROWS + c.lane : null, phase: c.phase, dir: c.dir, symbol: c.symbol, lane: c.lane, carVisible: c.sprite.visible && c.sprite.renderable, winning: c.winning,
+					shown: !!root && root.visible && root.parent === lane, frame: d?.frame ?? null,
+					layered: !!root && root.parent === lane && lane.getChildIndex(root) === lane.getChildIndex(c.sprite) + 1 && root.getChildIndex(d!.figure) < root.getChildIndex(d!.front) && d!.figure.visible && d!.front.visible,
+					follows: !!root && Math.abs(root.x - c.sprite.x) < 1e-6 && Math.abs(root.y - c.sprite.y) < 1e-6 && root.rotation === c.sprite.rotation && Math.abs(root.scale.y - this.builtK(c)) < 1e-6 && root.tint === c.sprite.tint,
+					...(d?.last ?? { leanDeg: 0, bob: 0, x: 0, y: 0, scale: 1, character: '' }),
+					shadow: c.riderShadow.visible,
+				};
+			});
+	}
+
+	/** DEV / probes: riders drawn now whose car is not (free, hidden, another symbol), and rider shadows left on: always 0 */
+	strayRiders(): number {
+		let n = 0;
+		for (const lane of this.lanes) {
+			for (const child of lane.children) {
+				if ((child.label !== 'wagonTree' && child.label !== 'seated') || !child.visible) continue;
+				const owner = this.cars.find((c) => c.tree?.root === child || c.seated?.root === child);
+				const ok = !!owner && owner.phase !== 'free' && owner.sprite.visible && owner.sprite.renderable && (child.label === 'wagonTree' ? owner.symbol === 'H2' : owner.symbol !== null && SEATS.includes(owner.symbol));
+				if (!ok) n += 1;
+			}
+		}
+		for (const c of this.cars) if (c.riderShadow.visible && (c.phase === 'free' || !c.sprite.visible)) n += 1;
+		return n;
 	}
 
 	private wait(at: number, clock: 'board' | 'win'): Promise<void> {

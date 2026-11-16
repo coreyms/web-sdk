@@ -1,0 +1,173 @@
+{
+ "frames": {
+  "H2_R_tree": {
+   "frame": {
+    "x": 1333,
+    "y": 0,
+    "w": 576,
+    "h": 148
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 576,
+    "h": 148
+   },
+   "sourceSize": {
+    "w": 576,
+    "h": 148
+   }
+  },
+  "H2_R_rail": {
+   "frame": {
+    "x": 952,
+    "y": 158,
+    "w": 463,
+    "h": 26
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 463,
+    "h": 26
+   },
+   "sourceSize": {
+    "w": 463,
+    "h": 26
+   }
+  },
+  "H2_R_ropes": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 376,
+    "h": 156
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 376,
+    "h": 156
+   },
+   "sourceSize": {
+    "w": 376,
+    "h": 156
+   }
+  },
+  "H2_R_treeshadow": {
+   "frame": {
+    "x": 477,
+    "y": 158,
+    "w": 473,
+    "h": 67
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 473,
+    "h": 67
+   },
+   "sourceSize": {
+    "w": 473,
+    "h": 67
+   }
+  },
+  "H2_L_tree": {
+   "frame": {
+    "x": 756,
+    "y": 0,
+    "w": 575,
+    "h": 149
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 575,
+    "h": 149
+   },
+   "sourceSize": {
+    "w": 575,
+    "h": 149
+   }
+  },
+  "H2_L_rail": {
+   "frame": {
+    "x": 1417,
+    "y": 158,
+    "w": 465,
+    "h": 26
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 465,
+    "h": 26
+   },
+   "sourceSize": {
+    "w": 465,
+    "h": 26
+   }
+  },
+  "H2_L_ropes": {
+   "frame": {
+    "x": 378,
+    "y": 0,
+    "w": 376,
+    "h": 156
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 376,
+    "h": 156
+   },
+   "sourceSize": {
+    "w": 376,
+    "h": 156
+   }
+  },
+  "H2_L_treeshadow": {
+   "frame": {
+    "x": 0,
+    "y": 158,
+    "w": 475,
+    "h": 77
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 475,
+    "h": 77
+   },
+   "sourceSize": {
+    "w": 475,
+    "h": 77
+   }
+  }
+ },
+ "meta": {
+  "image": "wagon-tree.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 1911,
+   "h": 235
+  },
+  "scale": "1"
+ }
+}

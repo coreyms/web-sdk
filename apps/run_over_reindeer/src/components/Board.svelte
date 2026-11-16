@@ -145,6 +145,9 @@
 		if (!PHONE_TIER) enableMipmaps(tex('H1_R')?.source, app?.renderer as PIXI.Renderer | undefined);
 		// the present's still sheet (game/assets.ts presentStill) is drawn as small as the atlas: the same chain
 		if (!PHONE_TIER) enableMipmaps(tex('presentStill')?.source, app?.renderer as PIXI.Renderer | undefined);
+		// the wagon's tree and the seated drivers' sheets (game/road/wagonTree.ts, seated.ts) are drawn as small: the same
+		if (!PHONE_TIER) enableMipmaps(tex('H2_R_tree')?.source, app?.renderer as PIXI.Renderer | undefined);
+		if (!PHONE_TIER) enableMipmaps(tex('seat_grandma')?.source, app?.renderer as PIXI.Renderer | undefined);
 		// THE REINDEER'S RUN VIEWS (game/road/reindeerRun.ts): loaded in the background from now on, never holding up the
 		// preload; the desktop sheets are drawn well under their 3x size on most screens, so they get a mip chain too
 		if (!PHONE_TIER) setRunMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
@@ -260,6 +263,23 @@
 			police: () => road.policeSnapshot(),
 			/** THE VANS' WIN as drawn (game/road/vanWin.ts; the numbers are tune.vanWin) */
 			vans: () => road.vanSnapshot(),
+			/** THE WAGONS' CHRISTMAS TREE as drawn (game/road/wagonTree.ts; the numbers are tune.wagonTree) */
+			trees: () => road.treeSnapshot(),
+			/** THE SEATED DRIVERS as drawn (game/road/seated.ts; the numbers are tune.seated, the placement tune.seated.place) */
+			seated: () => road.seatedSnapshot(),
+			/** riders (trees, drivers) or their shadows drawn without their vehicle: always 0 */
+			strayRiders: () => road.strayRiders(),
+			/** the riders' sheets as loaded: their size and GPU weight (mips counted when the sheet has them) */
+			riderMemory: () => {
+				const out: Record<string, { w: number; h: number; mips: boolean; mb: number }> = {};
+				for (const [name, frame] of [['wagonTree', 'H2_R_tree'], ['seated', 'seat_grandma']] as const) {
+					const src = tex(frame)?.source;
+					if (!src) continue;
+					const mips = !!src.autoGenerateMipmaps;
+					out[name] = { w: src.pixelWidth, h: src.pixelHeight, mips, mb: Math.round(((src.pixelWidth * src.pixelHeight * 4 * (mips ? 4 / 3 : 1)) / 1048576) * 1000) / 1000 };
+				}
+				return out;
+			},
 			/** THE CHRISTMAS LIGHTS WIN LINES as drawn (game/road/winLights.ts; the numbers are tune.lineWin.lights): each line's
 			 *  start, draw fraction, bulbs lit, palette, own amount (its box), and the total */
 			winLights: () => road.winLightsSnapshot(),

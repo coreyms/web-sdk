@@ -1,0 +1,44 @@
+{
+	"_about": [
+		"THE SEATED DRIVERS' SPLIT (tools/build_seated.py reads it; hand set, 2026-11-16). Per vehicle frame:",
+		"cut: the near door's top edge (Grandma's car) or the near sleigh wall's rim (the sleigh), a polyline in DESKTOP ATLAS PX of the frame",
+		"  (3.2 px per road px, its top left corner); the front layer is the vehicle's own pixels below this line, inside its x span, for",
+		"  band road px down (deep enough to cover the driver's hidden part at every lean). The phone tier uses the same line in road px.",
+		"snap: [x0, x1] desktop px: between them each column's cut moves to the top of the dark ink line within snapPx of the hand line",
+		"  (so the door's or the rim's outline belongs to the front layer); dark = the ink's brightness limit.",
+		"figure: where the driver's locked still sits. pivot: the still's hip point (its own px, the 1254 canvas); at: road px from the",
+		"  vehicle's anchor (the frame's bottom centre) where the pivot lands; height: the still's trimmed height in road px; keep: road px",
+		"  of the still kept below the pivot (the rest is hidden by the front layer at every lean and never packed). mirror: the left",
+		"  facing frames draw the same picture mirrored (the figures have no lettering)."
+	],
+	"band": 8,
+	"snapPx": 7,
+	"dark": 70,
+	"frames": {
+		"H1_R": {
+			"character": "grandma",
+			"cut": [[118, 206], [150, 219], [190, 229], [230, 236], [249, 236], [252, 232], [394, 230], [400, 230]],
+			"snap": [253, 392],
+			"figure": { "pivot": [430, 880], "at": [-42, -56], "height": 118, "keep": 16, "mirror": false }
+		},
+		"H1_L": {
+			"character": "grandma",
+			"cut": [[276, 230], [300, 231], [428, 233], [431, 236], [450, 236], [490, 229], [530, 219], [562, 206]],
+			"snap": [278, 426],
+			"figure": { "pivot": [430, 880], "at": [42, -53], "height": 118, "keep": 16, "mirror": true }
+		},
+		"W_R": {
+			"character": "santa",
+			"cut": [[30, 214], [60, 226], [100, 233], [140, 241], [170, 252], [200, 276], [220, 290], [240, 296], [300, 298], [400, 298], [460, 296], [480, 290], [500, 272], [520, 256], [540, 248], [560, 244]],
+			"snap": [40, 545],
+			"figure": { "pivot": [520, 980], "at": [8, -51], "height": 128, "keep": 16, "mirror": false }
+		},
+		"W_L": {
+			"character": "santa",
+			"cut": [[85, 244], [105, 248], [125, 256], [145, 272], [165, 290], [185, 296], [245, 298], [345, 298], [405, 296], [425, 290], [445, 276], [475, 252], [505, 241], [545, 233], [585, 226], [615, 214]],
+			"snap": [100, 605],
+			"figure": { "pivot": [520, 980], "at": [-8, -51], "height": 128, "keep": 16, "mirror": true }
+		}
+	},
+	"floorMargin": 8
+}

@@ -1,0 +1,213 @@
+{
+ "frames": {
+  "seat_grandma": {
+   "frame": {
+    "x": 118,
+    "y": 0,
+    "w": 94,
+    "h": 118
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 94,
+    "h": 118
+   },
+   "sourceSize": {
+    "w": 94,
+    "h": 118
+   }
+  },
+  "seat_santa": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 116,
+    "h": 139
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 116,
+    "h": 139
+   },
+   "sourceSize": {
+    "w": 116,
+    "h": 139
+   }
+  },
+  "H1_R_front": {
+   "frame": {
+    "x": 109,
+    "y": 273,
+    "w": 105,
+    "h": 42
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 105,
+    "h": 42
+   },
+   "sourceSize": {
+    "w": 105,
+    "h": 42
+   }
+  },
+  "H1_R_seatshadow": {
+   "frame": {
+    "x": 134,
+    "y": 320,
+    "w": 65,
+    "h": 23
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 65,
+    "h": 23
+   },
+   "sourceSize": {
+    "w": 65,
+    "h": 23
+   }
+  },
+  "H1_L_front": {
+   "frame": {
+    "x": 0,
+    "y": 273,
+    "w": 107,
+    "h": 45
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 107,
+    "h": 45
+   },
+   "sourceSize": {
+    "w": 107,
+    "h": 45
+   }
+  },
+  "H1_L_seatshadow": {
+   "frame": {
+    "x": 0,
+    "y": 348,
+    "w": 56,
+    "h": 19
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 56,
+    "h": 19
+   },
+   "sourceSize": {
+    "w": 56,
+    "h": 19
+   }
+  },
+  "W_R_front": {
+   "frame": {
+    "x": 0,
+    "y": 141,
+    "w": 199,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 199,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 199,
+    "h": 64
+   }
+  },
+  "W_R_seatshadow": {
+   "frame": {
+    "x": 0,
+    "y": 320,
+    "w": 65,
+    "h": 26
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 65,
+    "h": 26
+   },
+   "sourceSize": {
+    "w": 65,
+    "h": 26
+   }
+  },
+  "W_L_front": {
+   "frame": {
+    "x": 0,
+    "y": 207,
+    "w": 199,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 199,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 199,
+    "h": 64
+   }
+  },
+  "W_L_seatshadow": {
+   "frame": {
+    "x": 67,
+    "y": 320,
+    "w": 65,
+    "h": 26
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 65,
+    "h": 26
+   },
+   "sourceSize": {
+    "w": 65,
+    "h": 26
+   }
+  }
+ },
+ "meta": {
+  "image": "seated-phone.webp",
+  "format": "RGBA8888",
+  "size": {
+   "w": 216,
+   "h": 367
+  },
+  "scale": "1"
+ }
+}

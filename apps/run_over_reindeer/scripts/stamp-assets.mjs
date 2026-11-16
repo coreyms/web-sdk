@@ -22,6 +22,11 @@ const strip = (ref) => ref.split('?')[0];
 for (const rel of [
 	'symbols/symbols.json',
 	'symbols/symbols-phone.json', // phone asset tier (game/deviceTier.ts)
+	// the wagon's tree and the seated drivers (tools/build_wagon_tree.py, tools/build_seated.py)
+	'riders/wagon-tree.json',
+	'riders/wagon-tree-phone.json',
+	'riders/seated.json',
+	'riders/seated-phone.json',
 ]) {
 	const jsonPath = join(ASSETS, rel);
 	const meta = JSON.parse(readFileSync(jsonPath, 'utf8'));
