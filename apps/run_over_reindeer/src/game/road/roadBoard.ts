@@ -24,7 +24,7 @@ import { PRESENT_LOOK, PresentActor, presentOpenMs, presentStillTexture, present
 import { castShadow, makeShadow, shadowStrength } from './shadows';
 import { PoliceLightBar } from './policeLights';
 import { VanWinFx } from './vanWin';
-import { WinLights, type LightLine } from './winLights';
+import { WinLights, lightsSchedule, type LightLine } from './winLights';
 import { WagonTree, type TreeFrame } from './wagonTree';
 import { SeatedDriver, type SeatFrame } from './seated';
 import { PHONE_TIER } from '../deviceTier';
@@ -167,6 +167,10 @@ export class RoadBoard {
 	private winMultWanted = false;
 	/** each light line's start (win clock ms into the win), and how many of them have sounded */
 	private lineStarts: number[] = [];
+	/** each light line's cells, in the lights' order: a winning symbol pulses only while a line through it is up */
+	private lineCells: Set<number>[] = [];
+	/** the last line show sounds until this performance.now() (one voice over the accelerating lines) */
+	private lineShowUntil = 0;
 	private linesVoiced = 0;
 	/** the strike, the cloud cells and the column Wilds (game/road/roadFeatures.ts) */
 	readonly features: RoadFeatures;
@@ -620,6 +624,7 @@ export class RoadBoard {
 		const drawn = wins.filter((w) => w.cells.length >= 2);
 		this.lightsOn = LINE_WIN.lights.on && drawn.length > 0;
 		this.lineStarts = [];
+		this.lineCells = [];
 		this.linesVoiced = 0;
 		let totalAt = 0;
 		if (this.lightsOn) {
@@ -638,8 +643,10 @@ export class RoadBoard {
 				return { points, symbol: w.symbol ?? 'L5', amountText: w.amountText ?? '', slots };
 			});
 			this.winFx.set(lines, pace, drawn.length > 1 && !opts.capped);
-			this.lineStarts = lines.map((_, k) => k * LINE_WIN.lights.staggerMs * pace);
-			totalAt = this.winFx.linesDoneMs() + (drawn.length > 1 ? LINE_WIN.lights.amount.holdMs * pace : 0);
+			this.lineStarts = lightsSchedule(lines.length, pace).starts;
+			// the total follows when the last light is down (a one line win: as its line is strung, its amount the total)
+			totalAt = this.winFx.linesDoneMs();
+			this.lineCells = drawn.map((w) => new Set(w.cells));
 		} else {
 			this.winFx?.hide();
 			wins.forEach((w) => {
@@ -727,8 +734,14 @@ export class RoadBoard {
 	private voiceLine(k: number) {
 		this.linesVoiced = k + 1;
 		const n = Math.max(1, this.lineStarts.length);
+		// over the accelerating lines (constants LINE_WIN lights sound): each a little faster than the last, and one voice
+		const S = LINE_WIN.lights.sound;
+		const rate = Math.min(S.rateMax, 1 + S.rateStep * k);
+		const now = performance.now();
+		if (S.oneVoice && k > 0 && now < this.lineShowUntil) this.features.sounds.stopNamed(REINDEER_SOUND.lineShow, `line ${k + 1} of ${n} starts`);
+		this.lineShowUntil = now + S.lengthMs / rate;
 		this.features.sounds.mark('lineShow', `line ${k + 1} of ${n}`);
-		this.features.sounds.playNamed(REINDEER_SOUND.lineShow, `line ${k + 1} of ${n}`);
+		this.features.sounds.playNamed(REINDEER_SOUND.lineShow, `line ${k + 1} of ${n}`, rate);
 	}
 
 	/** DEV / probes: draw the win's lights or not (the win and its clock go on as they are) */
@@ -751,6 +764,9 @@ export class RoadBoard {
 			sprites: this.winFx?.spriteCount() ?? 0,
 			lightsOn: this.lightsOn,
 			linesVoiced: this.linesVoiced,
+			/** the cells whose symbol is swollen by the win pulse now */
+			pulsing: this.cars.filter((c) => c.phase === 'rest' && c.baseScale > 0 && Math.abs(c.sprite.scale.y) > c.baseScale * 1.0005).map((c) => c.col * ROWS + c.lane),
+			lineCells: this.lineCells.map((c) => [...c]),
 		};
 	}
 
@@ -1116,7 +1132,6 @@ export class RoadBoard {
 		if (win.active) {
 			// the light lines, and each one's line show as it starts; the line amounts fade as the total comes
 			if (this.lightsOn && this.winFx) {
-				if (t >= win.totalAt) this.winFx.fadeAmounts(win.totalAt);
 				this.winFx.update(t);
 			}
 			// the total pops in at totalAt (at once when there are no light lines)
@@ -1135,7 +1150,13 @@ export class RoadBoard {
 			for (const car of this.cars) {
 				if (car.phase !== 'rest') continue;
 				// a present playing its trigger show does not swell (its open is the show)
-				car.sprite.scale.set(car.baseScale * (car.winning && !car.present?.opening ? k : 1));
+				// with the lights, only while a line through it is up (and under the total only if pulseWithTotal)
+				let pulse = car.winning && !car.present?.opening;
+				if (pulse && this.lightsOn && this.winFx && this.lineCells.length) {
+					const cell = car.col * ROWS + car.lane;
+					pulse = this.lineCells.some((c, i) => c.has(cell) && this.winFx!.lineUp(i, t)) || (LINE_WIN.lights.pulseWithTotal && t >= win.totalAt);
+				}
+				car.sprite.scale.set(car.baseScale * (pulse ? k : 1));
 				const want = car.winning || !win.dim ? 1 : LINE_WIN.dim;
 				car.bright += (want - car.bright) * 0.25;
 			}

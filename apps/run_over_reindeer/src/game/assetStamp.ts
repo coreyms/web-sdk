@@ -225,10 +225,10 @@ export default {
 	"reindeer/run-full-2.webp": "9cac42b7",
 	"reindeer/run-full-3.webp": "558c65e2",
 	"reindeer/run-phone-0.webp": "1ec4d7f1",
-	"riders/seated-phone.json": "c4510073",
-	"riders/seated-phone.webp": "7f68a39c",
-	"riders/seated.json": "fb540aa4",
-	"riders/seated.webp": "902dd1bb",
+	"riders/seated-phone.json": "13ddb1c9",
+	"riders/seated-phone.webp": "19b1e7fc",
+	"riders/seated.json": "96851a4c",
+	"riders/seated.webp": "b6863207",
 	"riders/wagon-tree-phone.json": "f1c343b2",
 	"riders/wagon-tree-phone.webp": "7f3c49a0",
 	"riders/wagon-tree.json": "c4ab0161",
@@ -492,10 +492,10 @@ export const fileBytes = {
 	"reindeer/run-full-2.webp": 807480,
 	"reindeer/run-full-3.webp": 366226,
 	"reindeer/run-phone-0.webp": 903830,
-	"riders/seated-phone.json": 76468,
-	"riders/seated-phone.webp": 73604,
-	"riders/seated.json": 357878,
-	"riders/seated.webp": 354992,
+	"riders/seated-phone.json": 75558,
+	"riders/seated-phone.webp": 72692,
+	"riders/seated.json": 350148,
+	"riders/seated.webp": 347262,
 	"riders/wagon-tree-phone.json": 48501,
 	"riders/wagon-tree-phone.webp": 46176,
 	"riders/wagon-tree.json": 217447,
@@ -539,4 +539,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-heavy.woff2": 35400
 } as const;
 
-export const bootSizes = {"landing":64084,"preload":5682170,"audio":1471462} as const;
+export const bootSizes = {"landing":64084,"preload":5674440,"audio":1471462} as const;

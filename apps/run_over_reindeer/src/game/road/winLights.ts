@@ -2,9 +2,10 @@
 //
 // Each winning line is a hung wire of Christmas lights: a dark green wire with a dark outline from winning symbol to
 // winning symbol, drooping between them, drawn in along the line; bulbs hang from it and light one after another as the
-// wire reaches them, then twinkle in a chase while the line is held. The lines start one after another (staggerMs), and
-// each line's own amount pops in on a winning symbol's top edge as its wire is complete. game/road/roadBoard.ts owns the
-// win (its clock, the total, the hold, the fade) and calls set / update / hide.
+// wire reaches them, then twinkle in a chase while the line is held. The lines start one after another, faster and
+// faster (lightsSchedule: staggerMs, then each gap gapRatio times the one before, each line's draw in step), and each
+// line's own amount pops in on a winning symbol's top edge as its wire is complete. game/road/roadBoard.ts owns the win
+// (its clock, the total, the hold, the fade) and calls set / update / hide.
 //
 // Plain sprites only, all made once per line slot and reused (nothing is allocated per frame): the wire is two layers
 // of tinted quads of Pixi's own white texture (every outline under every core, so the joins are clean), the bulbs and
@@ -36,6 +37,11 @@ type Slot = {
 	used: boolean;
 	start: number;
 	draw: number;
+	/** the turbo level's share of every time (the bulbs' pop, the chase, the amount's pop scale by it, not by the draw) */
+	pace: number;
+	/** ms into the line it starts coming down (Infinity: stays up), and how long that takes */
+	off: number;
+	down: number;
 	/** sampled wire: x, y and the length along it at each point */
 	px: Float32Array;
 	py: Float32Array;
@@ -50,6 +56,8 @@ type Slot = {
 	bx: Float32Array;
 	by: Float32Array;
 	bAt: Float32Array;
+	/** per bulb: its place along the wire (road px), for the take-down */
+	bArc: Float32Array;
 	bLit: number[];
 	bDim: number[];
 	nb: number;
@@ -67,6 +75,45 @@ const darken = (c: number, k: number) => (Math.round(((c >> 16) & 255) * k) << 1
 const easeOut3 = (u: number) => 1 - (1 - u) * (1 - u) * (1 - u);
 const clamp01 = (u: number) => (u < 0 ? 0 : u > 1 ? 1 : u);
 
+export type LightsPlan = {
+	/** per line, ms into the win: it starts stringing, how long it strings, fully strung, starts coming down, gone */
+	starts: number[];
+	draws: number[];
+	full: number[];
+	off: number[];
+	end: number[];
+	/** the last light is down (the total comes then) */
+	linesEnd: number;
+};
+
+/** THE LINE SCHEDULE (constants LINE_WIN lights; Corey's timing page win_line_timing.html, its schedule()): every
+ *  line's start, stringing, fully lit, coming down and gone, ms into the win at `pace` (the turbo level's share). Read
+ *  from the tunables on every call (live tunable). `keepOne`: a one line win's line stays up until the win goes. */
+export function lightsSchedule(n: number, pace = 1, keepOne = true): LightsPlan {
+	const r = L.gapRatio;
+	const starts: number[] = [];
+	const draws: number[] = [];
+	const full: number[] = [];
+	let t = 0;
+	for (let i = 0; i < n; i++) {
+		starts.push(t);
+		draws.push(Math.max(Math.min(L.drawFloorMs, L.drawMs), L.drawMs * Math.pow(r, i)));
+		full.push(starts[i] + draws[i]);
+		t += Math.max(L.gapFloorMs, L.staggerMs * Math.pow(r, i));
+	}
+	const last = n ? Math.max(...full) : 0;
+	const off: number[] = [];
+	const end: number[] = [];
+	for (let i = 0; i < n; i++) {
+		const o = n === 1 && keepOne ? Infinity : L.downMode === 'end' ? last + L.stayLitMs : L.downMode === 'next' && i < n - 1 ? Math.max(full[i], starts[i + 1]) : full[i] + L.stayLitMs;
+		off.push(o);
+		end.push(o + L.takeDownMs);
+	}
+	const sc = (a: number[]) => a.map((v) => v * pace);
+	const ends = sc(end);
+	return { starts: sc(starts), draws: sc(draws).map((v) => Math.max(1, v)), full: sc(full), off: sc(off), end: ends, linesEnd: n === 1 && keepOne ? full[0] * pace : n ? Math.max(...ends) : 0 };
+}
+
 export class WinLights {
 	readonly root = new PIXI.Container();
 	private readonly wireLayer = new PIXI.Container();
@@ -76,10 +123,8 @@ export class WinLights {
 	private readonly slots: Slot[] = [];
 	private readonly bulbTex: PIXI.Texture | null;
 	private readonly glowTex: PIXI.Texture | null;
-	/** the amounts fade from this win clock time (the total arrives); Infinity: not yet */
-	private fadeAt = Infinity;
-	private fadeMs = 1;
 	private active = 0;
+	private plan: LightsPlan = lightsSchedule(0);
 
 	constructor(sheet: PIXI.Texture | undefined, tier: 'full' | 'phone') {
 		this.root.label = 'winLights';
@@ -97,15 +142,17 @@ export class WinLights {
 	set(lines: LightLine[], pace: number, amounts: boolean) {
 		this.hide();
 		this.active = Math.min(lines.length, MAX_LINES);
-		this.fadeAt = Infinity;
-		this.fadeMs = Math.max(1, L.amount.fadeMs * pace);
 		const placed: { x: number; y: number; w: number; h: number }[] = [];
+		const plan = (this.plan = lightsSchedule(this.active, pace));
 		for (let k = 0; k < this.active; k++) {
 			const line = lines[k];
 			const s = this.slot(k);
 			s.used = true;
-			s.start = k * L.staggerMs * pace;
-			s.draw = Math.max(1, L.drawMs * pace);
+			s.start = plan.starts[k];
+			s.draw = plan.draws[k];
+			s.off = plan.off[k] - plan.starts[k];
+			s.down = Math.max(1, L.takeDownMs * pace);
+			s.pace = pace;
 			s.symbol = line.symbol;
 			s.palette = L.palettes[line.symbol] ?? L.palettes.L5;
 			this.sample(s, line.points);
@@ -128,16 +175,20 @@ export class WinLights {
 		this.root.visible = this.active > 0;
 	}
 
-	/** when the last line's amount is up (ms into the win): its total comes holdMs later */
+	/** the last light is down (ms into the win; a one line win: its line strung): the total comes then */
 	linesDoneMs(): number {
-		if (!this.active) return 0;
-		const last = this.slots[this.active - 1];
-		return last.start + last.draw;
+		return this.active ? this.plan.linesEnd : 0;
 	}
 
-	/** the total has arrived at win clock `t` (ms into the win): the line amounts fade */
-	fadeAmounts(t: number) {
-		if (this.fadeAt === Infinity) this.fadeAt = t;
+	/** the win's schedule as set (the probes, the symbols' pulse) */
+	schedule(): LightsPlan {
+		return this.plan;
+	}
+
+	/** is line `k` up (stringing, lit or coming down) at win clock `t` */
+	lineUp(k: number, t: number): boolean {
+		const p = this.plan;
+		return k < this.active && t >= p.starts[k] && t < p.end[k];
 	}
 
 	/** the win's clock: `t` ms into the win */
@@ -146,30 +197,37 @@ export class WinLights {
 		const G = L.glow;
 		const C = L.chase;
 		const A = L.amount;
-		const fade = this.fadeAt === Infinity ? 1 : 1 - clamp01((t - this.fadeAt) / this.fadeMs);
 		for (let k = 0; k < this.active; k++) {
 			const s = this.slots[k];
 			const local = t - s.start;
 			const u = clamp01(local / s.draw);
-			const head = local < 0 ? -1 : easeOut3(u) * s.total;
+			// COMING DOWN: the wire retracts from its start toward its end (the tail), the bulbs behind it go out, its
+			// amount fades with it; gone once the tail is at the end
+			const downU = local >= s.off ? clamp01((local - s.off) / s.down) : 0;
+			const gone = local >= s.off + s.down;
+			const tail = easeOut3(downU) * s.total;
+			const head = local < 0 || gone ? -1 : easeOut3(u) * s.total;
+			const fade = 1 - easeOut3(downU);
 			s.frac = local < 0 ? 0 : Math.round(u * 1000) / 1000;
-			// THE WIRE: every quad wholly behind the head, the one it is in cut at the head
+			// THE WIRE: every quad between the tail and the head, the ones they are in cut at them
 			const segs = s.n - 1;
 			for (let j = 0; j < segs; j++) {
 				const o = s.outline[j];
 				const c = s.core[j];
 				const a0 = s.len[j];
-				if (head <= a0) {
+				const a1 = s.len[j + 1];
+				if (head <= a0 || tail >= a1) {
 					o.visible = false;
 					c.visible = false;
 					continue;
 				}
-				const a1 = s.len[j + 1];
-				const f = head >= a1 ? 1 : (head - a0) / Math.max(1e-6, a1 - a0);
-				const x0 = s.px[j];
-				const y0 = s.py[j];
-				const dx = (s.px[j + 1] - x0) * f;
-				const dy = (s.py[j + 1] - y0) * f;
+				const span = Math.max(1e-6, a1 - a0);
+				const f0 = tail <= a0 ? 0 : (tail - a0) / span;
+				const f1 = head >= a1 ? 1 : (head - a0) / span;
+				const x0 = s.px[j] + (s.px[j + 1] - s.px[j]) * f0;
+				const y0 = s.py[j] + (s.py[j + 1] - s.py[j]) * f0;
+				const dx = (s.px[j + 1] - s.px[j]) * (f1 - f0);
+				const dy = (s.py[j + 1] - s.py[j]) * (f1 - f0);
 				const seg = Math.hypot(dx, dy);
 				const rot = Math.atan2(dy, dx);
 				// each quad runs on past its end by half the wire's width, so a bend has no notch
@@ -178,19 +236,19 @@ export class WinLights {
 			}
 			// THE BULBS: each lights (pops up) the moment the wire reaches it; in the chase one in `cycle` is lit
 			const drawn = local >= s.draw;
-			const step = drawn ? Math.floor((local - s.draw) / Math.max(1, C.stepMs * (s.draw / L.drawMs))) : 0;
+			const step = drawn ? Math.floor((local - s.draw) / Math.max(1, C.stepMs * s.pace)) : 0;
 			let lit = 0;
 			for (let b = 0; b < s.nb; b++) {
 				const bulb = s.bulbs[b];
 				const glow = s.glows[b];
 				const since = local - s.bAt[b];
-				if (local < 0 || since < 0 || head < 0) {
+				if (local < 0 || since < 0 || head < 0 || s.bArc[b] < tail) {
 					bulb.visible = false;
 					glow.visible = false;
 					continue;
 				}
 				lit += 1;
-				const p = clamp01(since / Math.max(1, B.popMs * (s.draw / L.drawMs)));
+				const p = clamp01(since / Math.max(1, B.popMs * s.pace));
 				// out past its size and back (a back-out ease), from popFrom
 				const back = 1 + 2.2 * Math.pow(p - 1, 3) + 1.2 * Math.pow(p - 1, 2);
 				const k2 = B.popFrom + (1 - B.popFrom) * back;
@@ -207,11 +265,11 @@ export class WinLights {
 			// THE LINE'S OWN AMOUNT: pops in as its wire is complete, swelling once; fades as the total arrives
 			const a = s.amount;
 			if (a && s.rect) {
-				const show = local >= s.draw && fade > 0;
+				const show = local >= s.draw && !gone && fade > 0;
 				a.visible = show;
 				s.amountShown = show;
 				if (show) {
-					const q = clamp01((local - s.draw) / Math.max(1, A.popMs * (s.draw / L.drawMs)));
+					const q = clamp01((local - s.draw) / Math.max(1, A.popMs * s.pace));
 					a.scale.set(1 + A.swell * Math.sin(q * Math.PI));
 					a.alpha = fade;
 				}
@@ -234,7 +292,6 @@ export class WinLights {
 			s.frac = 0;
 		}
 		this.active = 0;
-		this.fadeAt = Infinity;
 		this.root.visible = false;
 	}
 
@@ -245,6 +302,9 @@ export class WinLights {
 			symbol: s.symbol,
 			start: Math.round(s.start * 10) / 10,
 			drawMs: Math.round(s.draw * 10) / 10,
+			offMs: Number.isFinite(s.off) ? Math.round((s.start + s.off) * 10) / 10 : null,
+			endMs: Number.isFinite(s.off) ? Math.round((s.start + s.off + s.down) * 10) / 10 : null,
+			up: s.lit > 0 || s.outline.some((o) => o.visible),
 			frac: s.frac,
 			bulbs: s.nb,
 			lit: s.lit,
@@ -322,8 +382,8 @@ export class WinLights {
 			this.bulbLayer.addChild(...bulbs);
 			const n = segs + 1;
 			this.slots.push({
-				used: false, start: 0, draw: 1, px: new Float32Array(n), py: new Float32Array(n), len: new Float32Array(n), n: 0, total: 0,
-				outline, core, bulbs, glows, bx: new Float32Array(most), by: new Float32Array(most), bAt: new Float32Array(most),
+				used: false, start: 0, draw: 1, pace: 1, off: Infinity, down: 1, px: new Float32Array(n), py: new Float32Array(n), len: new Float32Array(n), n: 0, total: 0,
+				outline, core, bulbs, glows, bx: new Float32Array(most), by: new Float32Array(most), bAt: new Float32Array(most), bArc: new Float32Array(most),
 				bLit: new Array(most).fill(0xffffff), bDim: new Array(most).fill(0x666666), nb: 0, amount: null, amountShown: false, rect: null, symbol: '', palette: [], lit: 0, frac: 0,
 			});
 		}
@@ -371,6 +431,7 @@ export class WinLights {
 			s.by[nb] = s.py[seg] + (s.py[seg + 1] - s.py[seg]) * f;
 			// head = easeOut3(u) * total reaches `at` when u = 1 - cbrt(1 - at / total)
 			s.bAt[nb] = (1 - Math.cbrt(1 - at / s.total)) * s.draw;
+			s.bArc[nb] = at;
 			const color = s.palette[nb % s.palette.length];
 			s.bLit[nb] = color;
 			s.bDim[nb] = darken(color, B.dim);

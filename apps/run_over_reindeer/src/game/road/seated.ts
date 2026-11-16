@@ -101,7 +101,8 @@ export class SeatedDriver {
 		this.figure.position.set(x, y - bob);
 		this.figure.scale.set(f.mirror ? -s : s, s);
 		const leanDeg = this.lean.b;
-		this.figure.rotation = (this.dir * leanDeg * Math.PI) / 180;
+		const share = SEATED.leanShare[f.character] ?? 1;
+		this.figure.rotation = (this.dir * leanDeg * share * Math.PI) / 180;
 		this.last = { leanDeg: Math.round(leanDeg * 1000) / 1000, bob: Math.round(bob * 1000) / 1000, x, y, scale: height / f.height, character: f.character };
 	}
 

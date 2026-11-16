@@ -108,6 +108,12 @@ export class RoadSounds {
 		this.env.play(name, rate);
 	}
 
+	/** stop every play of a sprite name now (the line show's one voice, roadBoard.voiceLine) */
+	stopNamed(name: string, detail?: string) {
+		this.note('sound', name, `stop${detail ? ': ' + detail : ''}`);
+		this.env.stop(name);
+	}
+
 	/** A REEL'S STOP (roadBoard.updateReelStops), its own sound on this frame. At turbo 2 (`turbo2`) the five stops are one
 	 *  moment: a stop within REINDEER_SOUND.reelStopTurbo2.gapMs of the last one sounded is silent, and the last one, if it
 	 *  is still sounding (the spin before's), is stopped as this one starts: one at a time */

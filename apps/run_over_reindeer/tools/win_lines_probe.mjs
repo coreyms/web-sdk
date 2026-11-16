@@ -4,7 +4,16 @@
 // different paying symbols), and three palette boards that between them pay on every symbol (H1 to H4, a line of Wilds
 // only, the five signs). At desktop 1440x900 and phone 390x844, the board clock frozen once the traffic has stopped and
 // stepped one 60 Hz frame at a time through the whole win:
-//   - the lines start staggerMs apart (x holdShare at turbo 1 and 2), in the book's order, each drawn in over drawMs
+//   - THE LINE SCHEDULE (pass 6, Corey 2026-11-16; his timing page's schedule()): line i starts after gaps of staggerMs,
+//     then each gapRatio times the one before (never under gapFloorMs), strings over drawMs x gapRatio^i (never under
+//     drawFloorMs), comes down by downMode ('next', 'hold', 'end'; stayLitMs) over takeDownMs and is then gone; every
+//     time x holdShare at turbo 1 and 2. Worked out here from the tunables on their own (sched below), so the checks
+//     follow whatever numbers he picks; never more lines up at once than the schedule has; a symbol pulses only while
+//     a line through it is up; the total when the last light is down
+//   - a twelve line win from the fixtures (base_two_columns: two Wild columns, 12 lines) at normal speed and with a slam
+//   - the line show's rate rises rateStep per line up to rateMax (the Howl's own rate per play), and in real time at
+//     turbo 2 (the twelve line fixture, the clock not stepped) no line show overlaps the one before: each has ended or
+//     was stopped as the next started
 //   - each line's own amount appears on the frame its line completes (a one line win: none, its total is the amount),
 //     and no two amounts touch; the total follows (its pop) and the line amounts fade
 //   - each line's bulbs light one after another (never fewer than the frame before while it draws) in the palette of the
@@ -171,7 +180,7 @@ async function playWin(p, S, bookEvents, { turbo = 0, slamAt = null, frames = nu
 		await sleep(10);
 	}
 	await R(p, () => window.__reindeer.clock(0));
-	for (let i = 0; i < 300; i++) {
+	for (let i = 0; i < 1500; i++) {
 		if (await R(p, (ms) => (window.__reindeer.roadSounds().some((e) => e.what === 'lines') ? true : (window.__reindeer.step(ms, 1), false)), FRAME)) break;
 		await sleep(0);
 	}
@@ -197,7 +206,7 @@ async function playWin(p, S, bookEvents, { turbo = 0, slamAt = null, frames = nu
 	}
 	const log = await R(p, () => ({ road: window.__reindeer.roadSounds(), tap: window.__reindeer.soundTap?.() ?? null }));
 	await R(p, () => window.__reindeer.clock(1));
-	for (let i = 0; i < 80; i++) {
+	for (let i = 0; i < 200; i++) {
 		if (await R(p, () => window.__reindeer.atRest() && window.__reindeer.hud.idle())) break;
 		await sleep(150);
 	}
@@ -207,6 +216,35 @@ async function playWin(p, S, bookEvents, { turbo = 0, slamAt = null, frames = nu
 	return { rows, log, after, slammed };
 }
 
+/** THE SCHEDULE from the tunables (Corey's timing page win_line_timing.html, its schedule(), written out here on its
+ *  own, not read from the app): per line its start, string time, fully strung, coming down and gone, ms at `share`; a
+ *  one line win's line stays up (its amount is the total, which comes as it is strung) */
+const sched = (T, n, share) => {
+	const X = T.lights;
+	const r = X.gapRatio;
+	const s = [];
+	const d = [];
+	const full = [];
+	let t = 0;
+	for (let i = 0; i < n; i++) {
+		s[i] = t;
+		d[i] = Math.max(Math.min(X.drawFloorMs, X.drawMs), X.drawMs * Math.pow(r, i));
+		full[i] = s[i] + d[i];
+		t += Math.max(X.gapFloorMs, X.staggerMs * Math.pow(r, i));
+	}
+	const last = Math.max(0, ...full);
+	const off = [];
+	const end = [];
+	for (let i = 0; i < n; i++) {
+		off[i] = n === 1 ? Infinity : X.downMode === 'end' ? last + X.stayLitMs : X.downMode === 'next' && i < n - 1 ? Math.max(full[i], s[i + 1]) : full[i] + X.stayLitMs;
+		end[i] = off[i] + X.takeDownMs;
+	}
+	const k = (a) => a.map((v) => v * share);
+	const E = k(end);
+	return { starts: k(s), draws: k(d), full: k(full), off: k(off), end: E, linesEnd: n === 1 ? full[0] * share : Math.max(0, ...E), done: Math.max(0, ...k(full)) };
+};
+/** how many lines the schedule has up at win time t */
+const upAt = (P, t) => P.starts.filter((v, i) => t >= v && t < P.end[i]).length;
 const r1 = (v) => (v === null || v === undefined ? '' : Math.round(v * 10) / 10);
 
 /** the checks every played win gets */
@@ -217,12 +255,11 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 	check(live.length > 10, `${tag}: the win ran ${live.length} frames`);
 	const L = live[live.length - 1]?.lines ?? [];
 	check(L.length === n, `${tag}: ${n} light line(s) drawn (${L.length})`);
-	const stagger = T.lights.staggerMs * share;
-	const draw = T.lights.drawMs * share;
-	// starts staggerMs apart, in the book's order, each with its symbol
+	const plan = sched(T, n, share);
+	// the accelerating starts, in the book's order, each with its symbol
 	L.forEach((l, k) => {
-		check(Math.abs(l.start - k * stagger) < 0.6, `${tag}: line ${k + 1} (${l.symbol}) starts at ${l.start} ms (want ${r1(k * stagger)}: ${T.lights.staggerMs} x ${share} apart)`);
-		check(Math.abs(l.drawMs - draw) < 0.6, `${tag}: line ${k + 1} draws over ${l.drawMs} ms (want ${r1(draw)})`);
+		check(Math.abs(l.start - plan.starts[k]) < 0.6, `${tag}: line ${k + 1} (${l.symbol}) starts at ${l.start} ms (want ${r1(plan.starts[k])}${k > 0 ? `, ${r1(plan.starts[k] - plan.starts[k - 1])} after the last` : ''})`);
+		check(Math.abs(l.drawMs - plan.draws[k]) < 0.6, `${tag}: line ${k + 1} draws over ${l.drawMs} ms (want ${r1(plan.draws[k])})`);
 		check(l.symbol === info.wins[k].symbol, `${tag}: line ${k + 1} pays ${info.wins[k].symbol} (${l.symbol})`);
 		const want = (T.lights.palettes[l.symbol] ?? []).map((c) => c.toString(16).padStart(6, '0'));
 		const tints = l.litTints;
@@ -243,16 +280,25 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 				if (l.frac < 1 && l.lit < before.lit) litMono = false;
 			}
 			if (startFrame === null && l.frac > 0) startFrame = r;
-			if (doneFrame === null && l.frac >= 1) doneFrame = r;
+			// (complete: the frame its own amount pops, or with no amount its draw fraction reaching 1; the readout's
+			// fraction is rounded, so a frame that lands within a rounding of the end, 499.99 of 500 ms, shows 1 while the
+			// line is not quite done: the next frame is the one)
+			if (doneFrame === null && l.frac >= 1 && (!l.amount || l.amount.shown || Math.abs(r.ms - (r.lines[k].start + r.lines[k].drawMs)) > 0.05)) doneFrame = r;
 			before = l;
 		}
 		check(mono && litMono, `${tag}: line ${k + 1}: its wire only draws forward, its bulbs only light up while it draws`);
-		const st = k * stagger;
+		const st = plan.starts[k];
+		const draw = plan.draws[k];
 		const prevOf = (r) => live[live.indexOf(r) - 1];
 		check(!!startFrame && startFrame.ms >= st - 0.01 && (!prevOf(startFrame) || prevOf(startFrame).ms < st + 0.01 || k === 0), `${tag}: line ${k + 1} first drawn on the first frame at or after ${r1(st)} ms (frame at ${startFrame?.ms} ms)`);
-		check(!!doneFrame && doneFrame.ms >= st + draw - 0.01 && (!prevOf(doneFrame) || prevOf(doneFrame).ms < st + draw), `${tag}: line ${k + 1} complete on the first frame at or after ${r1(st + draw)} ms (${doneFrame?.ms})`);
-		const lastLit = live.filter((r) => r.lines[k] && r.lines[k].frac >= 1).map((r) => r.lines[k].lit)[0];
-		check(lastLit === live[live.length - 1].lines[k].bulbs, `${tag}: line ${k + 1}: every bulb lit once its wire is complete (${lastLit} of ${live[live.length - 1].lines[k].bulbs})`);
+		check(!!doneFrame && doneFrame.ms >= st + draw - 0.01 && (!prevOf(doneFrame) || prevOf(doneFrame).ms < st + draw + 0.05), `${tag}: line ${k + 1} complete on the first frame at or after ${r1(st + draw)} ms (${doneFrame?.ms})`);
+		// every bulb lit once its wire is complete (on a frame before it starts coming down; a line that comes down the
+		// moment it is strung has none, and its most lit is checked instead)
+		const nb = live[live.length - 1].lines[k].bulbs;
+		const litFrames = live.filter((r) => r.lines[k] && r.lines[k].frac >= 1 && r.ms < plan.off[k]);
+		const most = Math.max(0, ...live.filter((r) => r.lines[k]).map((r) => r.lines[k].lit));
+		if (litFrames.length) check(litFrames[0].lines[k].lit === nb, `${tag}: line ${k + 1}: every bulb lit once its wire is complete (${litFrames[0].lines[k].lit} of ${nb})`);
+		else check(most >= nb - 2, `${tag}: line ${k + 1} comes down as it is strung: at most ${most} of ${nb} bulbs lit at once`);
 		// its own amount
 		const amt = (r) => r.lines[k]?.amount;
 		const firstShown = live.find((r) => amt(r)?.shown);
@@ -272,16 +318,35 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 			}
 		check(rects.length === n && touching === 0, `${tag}: the ${rects.length} line amounts do not touch (${touching} pair(s) overlap)`, rects);
 	}
-	// the total: at totalAt, after the last line (and the amounts' hold)
+	// each line comes down when the schedule says (downMode) and is gone after the take-down; never more lines up at
+	// once than the schedule has up
+	L.forEach((l, k) => {
+		if (n === 1) check(l.offMs === null, `${tag}: a one line win's line stays up (off ${l.offMs})`);
+		else check(Math.abs(l.offMs - plan.off[k]) < 0.6 && Math.abs(l.endMs - plan.end[k]) < 0.6, `${tag}: line ${k + 1} comes down at ${l.offMs} ms and is gone at ${l.endMs} (want ${r1(plan.off[k])} / ${r1(plan.end[k])}, ${T.lights.downMode})`);
+		if (n > 1) {
+			const lateUp = live.filter((r) => r.ms >= plan.end[k] - 0.01 && r.lines[k] && (r.lines[k].sprites > 0 || r.lines[k].amount?.shown));
+			const downing = live.filter((r) => r.ms > plan.off[k] + 0.01 && r.ms < plan.end[k] - 0.01 && r.lines[k]);
+			const shrinks = downing.every((r, i) => i === 0 || r.lines[k].lit <= downing[i - 1].lines[k].lit);
+			check(lateUp.length === 0 && shrinks, `${tag}: line ${k + 1} is down: nothing of it (wire, bulbs, amount) from ${r1(plan.end[k])} ms (${lateUp.length} frames with some), its bulbs going out while it comes down`);
+		}
+	});
+	let tooMany = 0;
+	let peak = 0;
+	for (const r of live) {
+		const up = r.lines.filter((l) => l.sprites > 0 || l.amount?.shown).length;
+		peak = Math.max(peak, up);
+		if (up > upAt(plan, r.ms)) tooMany += 1;
+	}
+	check(tooMany === 0, `${tag}: never more lines up than the schedule has (${tooMany} frames over; peak ${peak} at once)`);
+	// a winning symbol pulses only while a line through it is up
+	const strayPulse = live.filter((r) => (r.pulsing ?? []).some((cell) => !(r.lineCells ?? []).some((cells, i) => cells.includes(cell) && r.ms >= plan.starts[i] - 0.05 && r.ms < plan.end[i] + 0.05) && !(T.lights.pulseWithTotal && r.ms >= r.totalAt)));
+	check(strayPulse.length === 0, `${tag}: a symbol pulses only while a line through it is up (${strayPulse.length} frames with a stray pulse)`, strayPulse.slice(0, 2).map((r) => ({ ms: r.ms, pulsing: r.pulsing })));
+	// the total: when the last light is down
 	const totalAt = live[0].totalAt;
-	const wantTotal = (n - 1) * stagger + draw + (n > 1 ? T.lights.amount.holdMs * share : 0);
+	const wantTotal = plan.linesEnd;
 	check(Math.abs(totalAt - wantTotal) < 0.6, `${tag}: the total comes at ${totalAt} ms (want ${r1(wantTotal)})`);
 	const tFirst = live.find((r) => r.total?.shown);
 	check(!!tFirst && tFirst.ms >= totalAt - 0.01 && live.filter((r) => r.ms < totalAt - 0.01).every((r) => !r.total?.shown), `${tag}: the total is not up before ${totalAt} ms, and is from ${tFirst?.ms}`);
-	if (expectAmounts) {
-		const late = live.filter((r) => r.ms > totalAt + T.lights.amount.fadeMs * share + 20 && r.lines.some((l) => l.amount?.shown));
-		check(late.length === 0, `${tag}: the line amounts have faded ${r1(T.lights.amount.fadeMs * share)} ms after the total`);
-	}
 	// gone after
 	const end = W.rows[W.rows.length - 1];
 	check(!end.visible && !W.after.visible && W.after.sprites === 0 && !W.after.total?.shown, `${tag}: after the win nothing of it is on screen (lights ${W.after.sprites} sprites, visible ${W.after.visible}, total ${W.after.total?.shown})`, W.after);
@@ -295,18 +360,23 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 		if (k > 0) {
 			const at = W.rows.find((r) => r.frame === m.frame);
 			const prev = W.rows.find((r) => r.frame === m.frame - 1);
-			check(!!at && at.ms >= k * stagger - 0.01 && (!prev || prev.ms < k * stagger), `${tag}: line ${k + 1}'s line show on the first frame at or after its start (${at?.ms} ms, the frame before ${prev?.ms})`);
+			check(!!at && at.ms >= plan.starts[k] - 0.01 && (!prev || prev.ms < plan.starts[k]), `${tag}: line ${k + 1}'s line show on the first frame at or after its start (${at?.ms} ms, the frame before ${prev?.ms})`);
 		}
+		// its own rate, rising per line (the Howl's rate for this play id)
+		const S = T.lights.sound;
+		const want = Math.min(S.rateMax, 1 + S.rateStep * k);
+		const rt = pl ? (W.log.tap?.log ?? []).find((e) => e.what === 'rate' && e.id === pl.id) : null;
+		check(!!rt && Math.abs(Number(rt.detail) - want) < 1e-6, `${tag}: line ${k + 1}'s line show at rate ${rt?.detail} (want ${want.toFixed(2)})`);
 	});
 }
 
 const md = (tag, W) => {
 	const n = Math.max(...W.rows.map((r) => r.lines?.length ?? 0));
-	const head = ['frame', 'win ms', ...Array.from({ length: n }, (_, k) => `line ${k + 1} drawn`), ...Array.from({ length: n }, (_, k) => `line ${k + 1} bulbs lit`), ...Array.from({ length: n }, (_, k) => `line ${k + 1} amount`), 'total', 'lights sprites'];
+	const head = ['frame', 'win ms', ...Array.from({ length: n }, (_, k) => `line ${k + 1} drawn`), ...Array.from({ length: n }, (_, k) => `line ${k + 1} bulbs lit`), ...Array.from({ length: n }, (_, k) => `line ${k + 1} amount`), 'lines up', 'total', 'lights sprites'];
 	const out = [`# ${tag}: per frame (the board clock stepped at 60 Hz from the frame the lines show)`, '', `| ${head.join(' | ')} |`, `|${head.map(() => '---:').join('|')}|`];
 	for (const r of W.rows) {
 		const L = r.lines ?? [];
-		out.push(`| ${r.i} | ${r.ms ?? '-'} | ${Array.from({ length: n }, (_, k) => L[k]?.frac ?? '-').join(' | ')} | ${Array.from({ length: n }, (_, k) => (L[k] ? `${L[k].lit}/${L[k].bulbs}` : '-')).join(' | ')} | ${Array.from({ length: n }, (_, k) => (L[k]?.amount ? (L[k].amount.shown ? `${L[k].amount.text} (${L[k].amount.alpha})` : '-') : 'none')).join(' | ')} | ${r.total?.shown ? `${r.total.text} x${r.total.scale}` : '-'} | ${r.sprites} |`);
+		out.push(`| ${r.i} | ${r.ms ?? '-'} | ${Array.from({ length: n }, (_, k) => L[k]?.frac ?? '-').join(' | ')} | ${Array.from({ length: n }, (_, k) => (L[k] ? `${L[k].lit}/${L[k].bulbs}` : '-')).join(' | ')} | ${Array.from({ length: n }, (_, k) => (L[k]?.amount ? (L[k].amount.shown ? `${L[k].amount.text} (${L[k].amount.alpha})` : '-') : 'none')).join(' | ')} | ${L.filter((l) => l.sprites > 0 || l.amount?.shown).length} | ${r.total?.shown ? `${r.total.text} x${r.total.scale}` : '-'} | ${r.sprites} |`);
 	}
 	return out.join('\n') + '\n';
 };
@@ -349,9 +419,60 @@ try {
 		check(!sEnd.visible && !slam.after.visible && slam.after.sprites === 0 && !slam.after.total?.shown, `${S.name} slam: nothing of the win left on screen after it`, slam.after);
 		if (OUT) writeFileSync(join(OUT, `table_three_slam_${S.name}.md`), md(`${S.name} three lines, slam stop at frame ${slamAt}`, slam));
 
-		// THE COST: a three line win frozen in its chase (every line drawn, the amounts up), lights on and off
+		// TWELVE LINES: the fixtures' longest line win (base_two_columns, a real book: two Wild columns, 12 lines), normal
+		// speed, then a slam as its fourth line starts
+		const twelveBook = await R(p, async () => (await import('/src/fixtures/showcaseBooks.ts')).SHOWCASE_ROUNDS.find((r) => r.name === 'base_two_columns').events);
+		const twelveN = twelveBook.find((e) => e.type === 'winInfo').wins.length;
+		check(twelveN === 12, `${S.name}: base_two_columns pays ${twelveN} lines`);
+		const twelve = await playWin(p, S, twelveBook, { frames: dir('twelve'), clip });
+		judge(`${S.name} twelve lines`, twelve, T, 1, twelveBook, { expectAmounts: true });
+		if (OUT) writeFileSync(join(OUT, `table_twelve_${S.name}.md`), md(`${S.name} twelve lines (base_two_columns), normal speed`, twelve));
+		const slam12At = Math.ceil((sched(T, 4, 1).starts[3] + 10) / FRAME);
+		const slam12 = await playWin(p, S, twelveBook, { slamAt: slam12At, clip });
+		const e12 = slam12.rows[slam12.rows.length - 1];
+		check(slam12.slammed && !e12.visible && !slam12.after.visible && slam12.after.sprites === 0 && !slam12.after.total?.shown, `${S.name} twelve lines slam at frame ${slam12At}: nothing of the win left on screen after it`, slam12.after);
+		// THE LINE SHOW IN REAL TIME at turbo 2 (the clock not stepped): one voice at a time
+		{
+			await R(p, ({ book }) => {
+				const h = window.__reindeer;
+				h.clock(1);
+				h.turbo(2);
+				h.roadSounds(true);
+				h.soundTap?.(true);
+				h.fixtures.queue(book, 1.5);
+			}, { book: twelveBook });
+			await p.click('.hudp button.spin');
+			await sleep(1500);
+			for (let i = 0; i < 120; i++) {
+				if (await R(p, () => window.__reindeer.atRest() && window.__reindeer.hud.idle() && window.__reindeer.roadSounds().some((e) => e.what === 'lines'))) break;
+				await sleep(150);
+			}
+			const tap = (await R(p, () => window.__reindeer.soundTap?.()))?.log ?? [];
+			await R(p, () => window.__reindeer.turbo(0));
+			const shows = tap.filter((e) => e.what === 'play' && e.name === 'sfx_line_show');
+			const S2 = T.lights.sound;
+			let overlaps = 0;
+			let stops = 0;
+			const gaps = [];
+			for (let k = 1; k < shows.length; k++) {
+				const a = shows[k - 1];
+				const b = shows[k];
+				const rate = Math.min(S2.rateMax, 1 + S2.rateStep * (k - 1));
+				const ends = a.t + S2.lengthMs / rate;
+				const cut = tap.find((e) => (e.what === 'stop' || e.what === 'end') && e.id === a.id && e.t <= b.t + 1);
+				if (cut?.what === 'stop') stops += 1;
+				if (!cut && ends > b.t + 2) overlaps += 1;
+				gaps.push(Math.round(b.t - a.t));
+			}
+			check(shows.length === 12 && overlaps === 0, `${S.name} twelve lines turbo 2 in real time: ${shows.length} line shows, none over the one before (${stops} stopped as the next started; real gaps ${gaps.join(' ')} ms)`);
+		}
+
+		// THE COST: a three line win frozen in its chase (every line drawn, the amounts up), lights on and off. Every
+		// line up at once (downMode 'end' for this one win, put back after): the most a three line win can draw
 		await R(p, ({ book }) => {
 			const h = window.__reindeer;
+			h.__mode = h.tune.lineWin.lights.downMode;
+			h.tune.lineWin.lights.downMode = 'end';
 			h.roadSounds(true);
 			h.fixtures.queue(book, 1.5);
 		}, { book: BOOKS.three });
@@ -365,7 +486,7 @@ try {
 			if (await R(p, (ms) => (window.__reindeer.roadSounds().some((e) => e.what === 'lines') ? true : (window.__reindeer.step(ms, 1), false)), FRAME)) break;
 			await sleep(0);
 		}
-		await R(p, (n) => window.__reindeer.step(1000 / 60, n), Math.ceil((2 * T.lights.staggerMs + T.lights.drawMs + 60) / FRAME));
+		await R(p, (n) => window.__reindeer.step(1000 / 60, n), Math.ceil((sched(T, 3, 1).done + 60) / FRAME));
 		const read = () =>
 			R(p, async () => {
 				const b = { ...window.__dc };
@@ -377,6 +498,7 @@ try {
 		await R(p, () => window.__reindeer.winLightsShown(false));
 		const off = await read();
 		await R(p, () => window.__reindeer.winLightsShown(true));
+		await R(p, () => (window.__reindeer.tune.lineWin.lights.downMode = window.__reindeer.__mode));
 		const cost = { callsOn: on.callsPerFrame, callsOff: off.callsPerFrame, roadSpritesOn: on.sprites, roadSpritesOff: off.sprites, lightsSprites: on.w.sprites, perLine: on.w.lines.map((l) => ({ symbol: l.symbol, bulbs: l.bulbs, sprites: l.sprites })) };
 		console.log(`  ${S.name} cost (three lines, frozen in the chase): draw calls per frame ${cost.callsOn} with the lights, ${cost.callsOff} without; road sprites ${cost.roadSpritesOn} with, ${cost.roadSpritesOff} without (the lights: ${cost.lightsSprites})`);
 		check(on.w.lines.length === 3 && on.w.lines.every((l) => l.frac >= 1), `${S.name}: frozen with all three lines drawn for the cost`, on.w.lines.map((l) => l.frac));
@@ -395,6 +517,8 @@ try {
 			const bk = BOOKS[name];
 			await R(still.p, ({ book }) => {
 				const h = window.__reindeer;
+				// every line of the board up at once for its still (downMode 'end'; this page only makes stills)
+				h.tune.lineWin.lights.downMode = 'end';
 				h.clock(1);
 				h.roadSounds(true);
 				h.fixtures.queue(book, 1.5);
@@ -411,7 +535,7 @@ try {
 			}
 			const nLines = bk.find((e) => e.type === 'winInfo').wins.length;
 			// all drawn, during the drawing's last moment (every bulb fully lit, before the chase dims two in three)
-			await R(still.p, (n) => window.__reindeer.step(1000 / 60, n), Math.floor(((nLines - 1) * T.lights.staggerMs + T.lights.drawMs - 30) / FRAME));
+			await R(still.p, (n) => window.__reindeer.step(1000 / 60, n), Math.floor((sched(T, nLines, 1).done - 30) / FRAME));
 			const w = await R(still.p, () => window.__reindeer.winLights());
 			const info = bk.find((e) => e.type === 'winInfo');
 			w.lines.forEach((l, k) => {

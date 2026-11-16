@@ -222,6 +222,8 @@
 			tuneJson: () => JSON.stringify(TUNE, null, '\t'),
 			/** what the road is drawing: board[reel][row], drift off the marks, sprites by phase */
 			road: () => road.snapshot(),
+			/** the road board itself (pass 6 probes: the column frame, the seated crops, the shadow sheet); DEV only */
+			roadBoard: () => road,
 			atRest: () => road.atRest && !stateGame.busy,
 			board: () => stateGame.board.map((reel) => [...reel]),
 			gameType: () => stateGame.gameType,

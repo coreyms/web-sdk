@@ -16,10 +16,14 @@
 //   back     the red box on a Grandma car in a struck Santa reel (under the column, which grows over it), each column's
 //            still cloud, its character's cast shadow on that cloud (constants SHADOW), and its entrance while the
 //            moving cloud is still in the frame
-//   bodies   the characters, each cropped to its own box by its texture's frame (Corey 2026-11-15: "the animation
-//            bleeds outside the column boxes ... I'd like their feet to be behind the borders ... the same for the top
-//            border": no spill over any more)
-//   boxes    the red frames (outer frame only: no lines between the rows), over the characters on all four sides
+//   right    each full column's RIGHT band (its red and its dark line), under the characters (Corey 2026-11-16: "keep
+//            the left, top, bottom border as a character boundary, but let them overlap on the right borders")
+//   bodies   the characters, each cropped to its own box by its texture's frame at the left, top and bottom (Corey
+//            2026-11-15: "I'd like their feet to be behind the borders ... the same for the top border"), not on the
+//            right once it stands clear of its entrance's cloud: there it draws over its right band and on past the box
+//   boxes    the red frames (outer frame only: no lines between the rows), over the characters at the left, top and
+//            bottom (a cell box: on all four sides). The top and bottom bands run the full width, so they keep the
+//            corners over the right band
 //   cells    the Grandma Wild cells (cloud, frame, WILD and number)
 //   numbers  every column's multiplier, over everything
 import * as PIXI from 'pixi.js';
@@ -93,16 +97,19 @@ class RedBox {
 	readonly root = new PIXI.Container();
 	private readonly outer: PIXI.Sprite[] = [];
 	private readonly sides: PIXI.Sprite[] = [];
-	constructor() {
-		const quad = (tint: number, alpha = 1) => {
+	/** `splitRight` (a full column): the right band (its dark line and its red) is in its own container, rightRoot, for
+	 *  a layer under the characters; the other three stay in root */
+	readonly rightRoot: PIXI.Container | null;
+	constructor(splitRight = false) {
+		this.rightRoot = splitRight ? new PIXI.Container() : null;
+		const quad = (tint: number, right: boolean) => {
 			const s = new PIXI.Sprite(PIXI.Texture.WHITE);
 			s.tint = tint;
-			s.alpha = alpha;
-			this.root.addChild(s);
+			(right && this.rightRoot ? this.rightRoot : this.root).addChild(s);
 			return s;
 		};
-		for (let i = 0; i < 4; i++) this.outer.push(quad(RED_BOX.edgeColor));
-		for (let i = 0; i < 4; i++) this.sides.push(quad(RED_BOX.color));
+		for (let i = 0; i < 4; i++) this.outer.push(quad(RED_BOX.edgeColor, i === 3));
+		for (let i = 0; i < 4; i++) this.sides.push(quad(RED_BOX.color, i === 3));
 	}
 
 	/** the red lines as laid: top, bottom, left, right; a line not yet traced has no length (the probes read them) */
@@ -154,11 +161,9 @@ const cellRect = (cell: number) => {
 	return { x: BOARD_X + reel * PITCH, y: LINES[row], w: PITCH, h: LINES[row + 1] - LINES[row] };
 };
 const inset = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + RED_BOX.inset, y: r.y + RED_BOX.inset, w: r.w - 2 * RED_BOX.inset, h: r.h - 2 * RED_BOX.inset });
-/** a full column's box to the outside of its dark outer line (road px): nothing of its character draws past it */
-const columnOuter = (reel: number) => {
-	const r = inset({ x: BOARD_X + reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
-	return { x: r.x - RED_BOX.edge, y: r.y - RED_BOX.edge, w: r.w + 2 * RED_BOX.edge, h: r.h + 2 * RED_BOX.edge };
-};
+/** where a full column's pictures are cut: the inside of its frame's dark outer line (its red band's outer edge), so the
+ *  cut lies under the band and no filtered edge texel reaches past the dark line at any render resolution */
+const columnInside = (reel: number) => inset({ x: BOARD_X + reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
 
 /** voiced: its crash has played (its first frame); wildVoiced: the Grandma Wild's sound (its pop settled) */
 type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: RedBox; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean };
@@ -476,6 +481,8 @@ export class RoadFeatures {
 	private readonly boxLayer = new PIXI.Container();
 	private readonly cellLayer = new PIXI.Container();
 	private readonly bodyLayer = new PIXI.Container();
+	/** the full columns' right bands, under the characters (RedBox splitRight) */
+	private readonly rightBandLayer = new PIXI.Container();
 	/** THE RUNNING REINDEER'S CAST SHADOW: on the road's ground, under every lane (game/road/roadBoard.ts puts this layer
 	 *  in its ground), so it never lies over a symbol */
 	readonly groundLayer = new PIXI.Container();
@@ -528,7 +535,7 @@ export class RoadFeatures {
 	layoutKind: LayoutKind = 'landscape';
 
 	constructor(private readonly tex: Tex) {
-		this.layer.addChild(this.backLayer, this.bodyLayer, this.boxLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
+		this.layer.addChild(this.backLayer, this.rightBandLayer, this.bodyLayer, this.boxLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
 		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
 		// for a picture a column is waiting on
@@ -830,7 +837,7 @@ export class RoadFeatures {
 		const cloud = new PIXI.Sprite();
 		const cellCloud = new PIXI.Sprite(this.tex('cloud_cell') ?? PIXI.Texture.EMPTY);
 		const body = new PIXI.Sprite();
-		const box = new RedBox();
+		const box = new RedBox(true);
 		const label = new NumberLabel(this.tex, COLUMN.numberHeight, COLUMN.numberTint);
 		label.set(`${multiplier - joinAdd}x`);
 		label.root.visible = false;
@@ -845,6 +852,7 @@ export class RoadFeatures {
 		back.addChild(backdrop, cellCloud, cloud, foot, body);
 		this.backLayer.addChild(back);
 		this.boxLayer.addChild(box.root);
+		this.rightBandLayer.addChild(box.rightRoot!);
 		this.numberLayer.addChild(label.root);
 		if (pictures) void loadBackdrop();
 		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, winVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null };
@@ -1245,6 +1253,7 @@ export class RoadFeatures {
 	private fadeColumn(column: Column, alpha: number) {
 		column.back.alpha = alpha;
 		column.box.root.alpha = alpha;
+		if (column.box.rightRoot) column.box.rightRoot.alpha = alpha;
 		column.body.alpha = alpha;
 		column.label.root.alpha = alpha;
 	}
@@ -1255,6 +1264,7 @@ export class RoadFeatures {
 		column.back.addChild(column.body);
 		column.back.destroy({ children: true });
 		column.box.root.destroy({ children: true });
+		column.box.rightRoot?.destroy({ children: true });
 		column.label.root.destroy({ children: true });
 		column.footTex?.destroy(false);
 		column.footTex = null;
@@ -1265,8 +1275,13 @@ export class RoadFeatures {
 	/** THE CHARACTER IN ITS BOX (Corey 2026-11-15: "the animation bleeds outside the column boxes ... I'd like their feet
 	 *  to be behind the borders ... the same for the top border"): the clip's frame, drawn at the column's size, cropped
 	 *  by its own texture's frame to the box's outer edge (a crop, not a mask: the column cloud's own technique), and
-	 *  drawn UNDER the red frame, which covers the cut on all four sides (feet, antlers, hat, elbows and cane). */
-	private placeBody(column: Column, clip: Clip, frame: number) {
+	 *  drawn UNDER the red frame, which covers the cut (feet, antlers, hat). THE RIGHT BORDER (Corey 2026-11-16: "let them
+	 *  overlap on the right borders"): `rightFree` (it stands clear of its entrance's cloud: the rest of the entrance,
+	 *  its idle and its win) leaves the right side uncut, so an elbow, the cane or an antler draws over the right band
+	 *  (a layer under the characters) and on past the box; while its cloud is in the picture it is cut there too, so
+	 *  no cloud ever passes the frame. Every cut is inside the frame's dark line (RED_BOX.edge in from its outer edge),
+	 *  so no filtered edge texel can show outside it at any render resolution. */
+	private placeBody(column: Column, clip: Clip, frame: number, rightFree = true) {
 		const k = COLUMN.tierScale[column.tier] ?? 1;
 		const left = BOARD_X + column.reel * PITCH;
 		// scaled about the middle of the column's foot
@@ -1279,9 +1294,9 @@ export class RoadFeatures {
 		const by = footY + (clip.y - COLUMN_H) * k;
 		const bw = clip.width * k;
 		const bh = clip.height * k;
-		const o = columnOuter(column.reel);
+		const o = columnInside(column.reel);
 		const x0 = Math.max(bx, o.x);
-		const x1 = Math.min(bx + bw, o.x + o.w);
+		const x1 = rightFree ? bx + bw : Math.min(bx + bw, o.x + o.w);
 		const y0 = Math.max(by, o.y);
 		const y1 = Math.min(by + bh, o.y + o.h);
 		if (!src || src.destroyed || x1 - x0 < 1 || y1 - y0 < 1) {
@@ -1384,16 +1399,22 @@ export class RoadFeatures {
 					column.cloud.texture = column.cloudTex;
 				}
 				// the part of the picture that falls inside the box, by moving the texture's frame (a crop, not a mask)
+				// (and cut at the sides to the inside of the frame's dark line: the entrance's pictures are wider than the
+				// column, and their edges showed as a pale line outside the frame, Corey 2026-11-16)
 				const perRoad = first.frame.height / reveal.height;
+				const perX = first.frame.width / reveal.width;
 				const top = Math.max(0, y - (COLUMN_TOP + reveal.y));
 				const shown = Math.min(reveal.height - top, h);
-				column.cloudTex.frame.x = first.frame.x;
-				column.cloudTex.frame.width = first.frame.width;
+				const cut = columnInside(column.reel);
+				const cx0 = Math.max(left + reveal.x, cut.x);
+				const cx1 = Math.min(left + reveal.x + reveal.width, cut.x + cut.w);
+				column.cloudTex.frame.x = first.frame.x + (cx0 - (left + reveal.x)) * perX;
+				column.cloudTex.frame.width = Math.max(1, (cx1 - cx0) * perX);
 				column.cloudTex.frame.y = first.frame.y + top * perRoad;
 				column.cloudTex.frame.height = Math.max(1, shown * perRoad);
 				column.cloudTex.update();
-				column.cloud.position.set(left + reveal.x, COLUMN_TOP + reveal.y + top);
-				column.cloud.width = reveal.width;
+				column.cloud.position.set(cx0, COLUMN_TOP + reveal.y + top);
+				column.cloud.width = Math.max(1, cx1 - cx0);
 				column.cloud.height = Math.max(1, shown);
 				column.cloud.visible = true;
 				// the symbols under the box as it passes them
@@ -1436,7 +1457,7 @@ export class RoadFeatures {
 			const length = reveal ? (frames / reveal.fps) * 1000 : 200;
 			if (reveal) {
 				const frame = Math.min(frames - 1, Math.floor((t / 1000) * reveal.fps));
-				this.placeBody(column, reveal, frame);
+				this.placeBody(column, reveal, frame, frame >= reveal.cloudFrames);
 				column.enterCloud = frame < reveal.cloudFrames;
 				if (!column.stepVoiced && frame >= REINDEER_SOUND.columnIn.frame[column.tier]) {
 					// the character stands in full color out of the cloud: the reindeer's first hoof, Santa's heavy steps,

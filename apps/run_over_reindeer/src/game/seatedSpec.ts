@@ -11,22 +11,22 @@ export const SEATED_ART = {
 			"mirror": false,
 			"at": [
 				-42,
-				-56
+				-68
 			],
-			"height": 118,
+			"height": 125,
 			"tiers": {
 				"full": {
 					"front": {
 						"x": -69.223,
 						"y": -66.237,
 						"w": 88.443,
-						"h": 34.368
+						"h": 22.183
 					},
 					"shadow": {
-						"x": -54.534,
-						"y": -138.411,
-						"w": 52.816,
-						"h": 19.371
+						"x": -62.972,
+						"y": -155.595,
+						"w": 65.941,
+						"h": 36.556
 					}
 				},
 				"phone": {
@@ -34,13 +34,13 @@ export const SEATED_ART = {
 						"x": -68.653,
 						"y": -66.548,
 						"w": 87.376,
-						"h": 34.938
+						"h": 22.46
 					},
 					"shadow": {
-						"x": -54.506,
-						"y": -138.087,
-						"w": 54.09,
-						"h": 19.132
+						"x": -62.828,
+						"y": -154.724,
+						"w": 66.573,
+						"h": 35.769
 					}
 				}
 			},
@@ -196,22 +196,22 @@ export const SEATED_ART = {
 			"mirror": true,
 			"at": [
 				42,
-				-53
+				-65
 			],
-			"height": 118,
+			"height": 125,
 			"tiers": {
 				"full": {
 					"front": {
 						"x": -19.845,
 						"y": -66.237,
 						"w": 89.693,
-						"h": 37.18
+						"h": 25.308
 					},
 					"shadow": {
-						"x": 2.969,
-						"y": -135.599,
-						"w": 46.878,
-						"h": 16.559
+						"x": -2.969,
+						"y": -152.471,
+						"w": 64.379,
+						"h": 33.431
 					}
 				},
 				"phone": {
@@ -219,13 +219,13 @@ export const SEATED_ART = {
 						"x": -19.556,
 						"y": -66.548,
 						"w": 89.041,
-						"h": 37.433
+						"h": 25.787
 					},
 					"shadow": {
-						"x": 2.913,
-						"y": -134.759,
-						"w": 46.601,
-						"h": 15.805
+						"x": -3.745,
+						"y": -151.396,
+						"w": 65.74,
+						"h": 32.442
 					}
 				}
 			},
@@ -380,7 +380,7 @@ export const SEATED_ART = {
 			"character": "santa",
 			"mirror": false,
 			"at": [
-				8,
+				-8,
 				-51
 			],
 			"height": 128,
@@ -393,10 +393,10 @@ export const SEATED_ART = {
 						"h": 53.134
 					},
 					"shadow": {
-						"x": -21.723,
+						"x": -34.85,
 						"y": -150.651,
-						"w": 52.822,
-						"h": 20.629
+						"w": 50.009,
+						"h": 20.941
 					}
 				},
 				"phone": {
@@ -407,9 +407,9 @@ export const SEATED_ART = {
 						"h": 53.418
 					},
 					"shadow": {
-						"x": -22.493,
+						"x": -34.988,
 						"y": -150.239,
-						"w": 54.149,
+						"w": 50.817,
 						"h": 21.701
 					}
 				}
@@ -689,7 +689,7 @@ export const SEATED_ART = {
 			"character": "santa",
 			"mirror": true,
 			"at": [
-				-8,
+				8,
 				-51
 			],
 			"height": 128,
@@ -702,10 +702,10 @@ export const SEATED_ART = {
 						"h": 53.134
 					},
 					"shadow": {
-						"x": -31.1,
+						"x": -15.159,
 						"y": -150.651,
-						"w": 52.822,
-						"h": 20.629
+						"w": 50.009,
+						"h": 20.941
 					}
 				},
 				"phone": {
@@ -716,9 +716,9 @@ export const SEATED_ART = {
 						"h": 53.418
 					},
 					"shadow": {
-						"x": -31.656,
+						"x": -15.828,
 						"y": -150.239,
-						"w": 54.149,
+						"w": 50.817,
 						"h": 21.701
 					}
 				}
@@ -997,32 +997,32 @@ export const SEATED_ART = {
 	},
 	"characters": {
 		"grandma": {
-			"height": 118,
+			"height": 125,
 			"keep": 16,
 			"still": "references/mockups/grandma_car_seated_v4.png",
 			"tiers": {
 				"full": {
 					"anchor": [
 						0.26521,
-						0.83784
+						0.84518
 					],
-					"width": 78.438,
-					"height": 98.75,
+					"width": 83.125,
+					"height": 103.75,
 					"px": [
-						251,
-						316
+						266,
+						332
 					]
 				},
 				"phone": {
 					"anchor": [
 						0.26521,
-						0.83784
+						0.84518
 					],
-					"width": 78.333,
-					"height": 98.333,
+					"width": 83.333,
+					"height": 103.333,
 					"px": [
-						94,
-						118
+						100,
+						124
 					]
 				}
 			}
@@ -1062,41 +1062,41 @@ export const SEATED_ART = {
 	"tiers": {
 		"full": {
 			"sheet": "riders/seated.webp",
-			"w": 574,
-			"h": 959,
-			"gpuMb": 2.1,
+			"w": 579,
+			"h": 986,
+			"gpuMb": 2.178,
 			"px": {
-				"seat_grandma": 79316,
+				"seat_grandma": 88312,
 				"seat_santa": 114639,
-				"H1_R_front": 31130,
-				"H1_R_seatshadow": 10478,
-				"H1_L_front": 34153,
-				"H1_L_seatshadow": 7950,
+				"H1_R_front": 20093,
+				"H1_R_seatshadow": 24687,
+				"H1_L_front": 23247,
+				"H1_L_seatshadow": 22042,
 				"W_R_front": 90270,
-				"W_R_seatshadow": 11154,
+				"W_R_seatshadow": 10720,
 				"W_L_front": 90270,
-				"W_L_seatshadow": 11154
+				"W_L_seatshadow": 10720
 			},
-			"bytes": 354992
+			"bytes": 347262
 		},
 		"phone": {
 			"sheet": "riders/seated-phone.webp",
-			"w": 216,
-			"h": 367,
-			"gpuMb": 0.302,
+			"w": 220,
+			"h": 377,
+			"gpuMb": 0.316,
 			"px": {
-				"seat_grandma": 11092,
+				"seat_grandma": 12400,
 				"seat_santa": 16124,
-				"H1_R_front": 4410,
-				"H1_R_seatshadow": 1495,
-				"H1_L_front": 4815,
-				"H1_L_seatshadow": 1064,
+				"H1_R_front": 2835,
+				"H1_R_seatshadow": 3440,
+				"H1_L_front": 3317,
+				"H1_L_seatshadow": 3081,
 				"W_R_front": 12736,
-				"W_R_seatshadow": 1690,
+				"W_R_seatshadow": 1586,
 				"W_L_front": 12736,
-				"W_L_seatshadow": 1690
+				"W_L_seatshadow": 1586
 			},
-			"bytes": 73604
+			"bytes": 72692
 		}
 	},
 	"split": {
@@ -1118,7 +1118,7 @@ export const SEATED_ART = {
 		},
 		"W_R": {
 			"full": {
-				"maxLeakAlpha": 0.0078
+				"maxLeakAlpha": 0.0117
 			},
 			"phone": {
 				"maxLeakAlpha": 0.0078
@@ -1126,10 +1126,10 @@ export const SEATED_ART = {
 		},
 		"W_L": {
 			"full": {
-				"maxLeakAlpha": 0.0078
+				"maxLeakAlpha": 0.0117
 			},
 			"phone": {
-				"maxLeakAlpha": 0.0078
+				"maxLeakAlpha": 0.0117
 			}
 		}
 	},
@@ -1139,48 +1139,48 @@ export const SEATED_ART = {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 32.48,
-					"12fps": 15.77,
-					"8fps": 11.07,
-					"perFrameKB": 342.9
+					"24fps": 36.05,
+					"12fps": 17.47,
+					"8fps": 12.31,
+					"perFrameKB": 380.6
 				},
 				"phone": {
-					"24fps": 4.58,
-					"12fps": 2.22,
-					"8fps": 1.56,
-					"perFrameKB": 48.3
+					"24fps": 5.08,
+					"12fps": 2.46,
+					"8fps": 1.73,
+					"perFrameKB": 53.6
 				}
 			},
 			"win": {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 38.75,
-					"12fps": 18.73,
-					"8fps": 13.24,
-					"perFrameKB": 409.1
+					"24fps": 43.1,
+					"12fps": 20.83,
+					"8fps": 14.72,
+					"perFrameKB": 455.0
 				},
 				"phone": {
-					"24fps": 5.46,
-					"12fps": 2.64,
-					"8fps": 1.86,
-					"perFrameKB": 57.6
+					"24fps": 6.08,
+					"12fps": 2.94,
+					"8fps": 2.07,
+					"perFrameKB": 64.1
 				}
 			},
 			"drivein": {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 30.43,
-					"12fps": 14.89,
-					"8fps": 10.28,
-					"perFrameKB": 321.3
+					"24fps": 33.84,
+					"12fps": 16.55,
+					"8fps": 11.43,
+					"perFrameKB": 357.2
 				},
 				"phone": {
-					"24fps": 4.28,
-					"12fps": 2.09,
-					"8fps": 1.44,
-					"perFrameKB": 45.1
+					"24fps": 4.76,
+					"12fps": 2.33,
+					"8fps": 1.61,
+					"perFrameKB": 50.3
 				}
 			}
 		},

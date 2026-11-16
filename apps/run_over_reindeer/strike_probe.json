@@ -1,5 +1,5 @@
 {
- "at": "2026-11-16T09:52:33.130Z",
+ "at": "2026-11-16T18:07:52.604Z",
  "sweep": {
   "R": {
    "1": 71.9
@@ -27131,11 +27131,11 @@
     {
      "side": "left",
      "reel": 1,
-     "impactMs": 886.9,
+     "impactMs": 884.8,
      "wantMs": 882.5,
-     "diffMs": 4.4,
+     "diffMs": 2.3,
      "meanGap": 16,
-     "worstGap": 17.4,
+     "worstGap": 16.8,
      "late": {
       "S": 0,
       "M": 0,
@@ -27149,11 +27149,11 @@
     {
      "side": "left",
      "reel": 3,
-     "impactMs": 1129,
+     "impactMs": 1129.1,
      "wantMs": 1134.3,
-     "diffMs": -5.3,
+     "diffMs": -5.2,
      "meanGap": 16,
-     "worstGap": 18.2,
+     "worstGap": 17.3,
      "late": {
       "S": 0,
       "M": 0,
@@ -27167,11 +27167,11 @@
     {
      "side": "left",
      "reel": 5,
-     "impactMs": 1495.1,
+     "impactMs": 1486.1,
      "wantMs": 1501,
-     "diffMs": -5.8,
+     "diffMs": -14.9,
      "meanGap": 16,
-     "worstGap": 18.2,
+     "worstGap": 17.2,
      "late": {
       "S": 0,
       "M": 0,
@@ -27185,11 +27185,11 @@
     {
      "side": "right",
      "reel": 1,
-     "impactMs": 1492.7,
+     "impactMs": 1492.5,
      "wantMs": 1501,
-     "diffMs": -8.2,
+     "diffMs": -8.5,
      "meanGap": 16,
-     "worstGap": 18.1,
+     "worstGap": 17.1,
      "late": {
       "S": 0,
       "M": 0,
@@ -27203,11 +27203,11 @@
     {
      "side": "right",
      "reel": 3,
-     "impactMs": 1121.4,
+     "impactMs": 1125.8,
      "wantMs": 1134.3,
-     "diffMs": -12.9,
+     "diffMs": -8.5,
      "meanGap": 16,
-     "worstGap": 18.2,
+     "worstGap": 17.4,
      "late": {
       "S": 0,
       "M": 0,
@@ -27221,11 +27221,11 @@
     {
      "side": "right",
      "reel": 5,
-     "impactMs": 888,
+     "impactMs": 888.9,
      "wantMs": 882.5,
-     "diffMs": 5.5,
+     "diffMs": 6.4,
      "meanGap": 16,
-     "worstGap": 17.3,
+     "worstGap": 16.5,
      "late": {
       "S": 0,
       "M": 0,
@@ -27245,31 +27245,31 @@
     {
      "side": "left",
      "reel": 1,
-     "impactMs": 886.4,
+     "impactMs": 883.4,
      "wantMs": 882.5,
-     "diffMs": 3.9,
+     "diffMs": 0.9,
      "meanGap": 33,
-     "worstGap": 39.4,
+     "worstGap": 35.3,
      "late": {
-      "S": 0,
-      "M": 21.57,
-      "C": 37.4,
+      "S": 32.7,
+      "M": 0,
+      "C": 31.5,
       "cut": 0
      },
-     "skipped": 12,
-     "order": "RRRRRRRRRSQQMCQ",
+     "skipped": 9,
+     "order": "RRRRRRRRRRSQMCQ",
      "issues": []
     },
     {
      "side": "left",
      "reel": 3,
-     "impactMs": 1136,
+     "impactMs": 1144.3,
      "wantMs": 1134.3,
-     "diffMs": 1.7,
+     "diffMs": 10,
      "meanGap": 33,
-     "worstGap": 34.4,
+     "worstGap": 35.2,
      "late": {
-      "S": 21.77,
+      "S": 19.27,
       "M": 0,
       "C": 0,
       "cut": 0
@@ -27281,11 +27281,11 @@
     {
      "side": "left",
      "reel": 5,
-     "impactMs": 1506.9,
+     "impactMs": 1506.4,
      "wantMs": 1501,
-     "diffMs": 6,
+     "diffMs": 5.5,
      "meanGap": 33,
-     "worstGap": 34.2,
+     "worstGap": 34.4,
      "late": {
       "S": 0,
       "M": 0,
@@ -27299,14 +27299,14 @@
     {
      "side": "right",
      "reel": 1,
-     "impactMs": 1494.6,
+     "impactMs": 1503.6,
      "wantMs": 1501,
-     "diffMs": -6.4,
-     "meanGap": 32.9,
-     "worstGap": 34.5,
+     "diffMs": 2.6,
+     "meanGap": 33,
+     "worstGap": 35.3,
      "late": {
       "S": 0,
-      "M": 17.03,
+      "M": 0,
       "C": 0,
       "cut": 0
      },
@@ -27317,13 +27317,13 @@
     {
      "side": "right",
      "reel": 3,
-     "impactMs": 1144.1,
+     "impactMs": 1136.4,
      "wantMs": 1134.3,
-     "diffMs": 9.8,
-     "meanGap": 33.1,
+     "diffMs": 2.1,
+     "meanGap": 33,
      "worstGap": 35.4,
      "late": {
-      "S": 21.77,
+      "S": 19.87,
       "M": 0,
       "C": 0,
       "cut": 0
@@ -27335,15 +27335,15 @@
     {
      "side": "right",
      "reel": 5,
-     "impactMs": 880.1,
+     "impactMs": 878.6,
      "wantMs": 882.5,
-     "diffMs": -2.4,
-     "meanGap": 33,
-     "worstGap": 34.4,
+     "diffMs": -3.9,
+     "meanGap": 32.9,
+     "worstGap": 34.5,
      "late": {
       "S": 0,
-      "M": 23.27,
-      "C": 39,
+      "M": 23.07,
+      "C": 39.2,
       "cut": 0
      },
      "skipped": 12,
@@ -27359,14 +27359,14 @@
     {
      "side": "left",
      "reel": 1,
-     "impactMs": 896.6,
+     "impactMs": 890.5,
      "wantMs": 882.5,
-     "diffMs": 14.1,
-     "meanGap": 50,
-     "worstGap": 50.8,
+     "diffMs": 8,
+     "meanGap": 50.1,
+     "worstGap": 52,
      "late": {
-      "S": 30.5,
-      "M": 46.77,
+      "S": 27.8,
+      "M": 45.17,
       "C": 0,
       "cut": 0
      },
@@ -27380,16 +27380,16 @@
     {
      "side": "left",
      "reel": 3,
-     "impactMs": 1141.2,
+     "impactMs": 1138.4,
      "wantMs": 1134.3,
-     "diffMs": 6.9,
-     "meanGap": 50.1,
-     "worstGap": 51.5,
+     "diffMs": 4.1,
+     "meanGap": 50,
+     "worstGap": 51.7,
      "late": {
-      "S": 46.07,
+      "S": 46.37,
       "M": 0,
-      "C": 45.97,
-      "cut": 52.73
+      "C": 46.47,
+      "cut": 52.63
      },
      "skipped": 10,
      "order": "RRRRRRRRRRSMCQQ",
@@ -27398,11 +27398,11 @@
     {
      "side": "left",
      "reel": 5,
-     "impactMs": 1540.2,
+     "impactMs": 1540,
      "wantMs": 1501,
-     "diffMs": 39.3,
+     "diffMs": 39,
      "meanGap": 50,
-     "worstGap": 51.5,
+     "worstGap": 51.6,
      "late": {
       "S": 45.97,
       "M": 0,
@@ -27416,13 +27416,13 @@
     {
      "side": "right",
      "reel": 1,
-     "impactMs": 1491.5,
+     "impactMs": 1531.4,
      "wantMs": 1501,
-     "diffMs": -9.5,
+     "diffMs": 30.5,
      "meanGap": 50,
-     "worstGap": 51.3,
+     "worstGap": 52.3,
      "late": {
-      "S": 47.77,
+      "S": 45.77,
       "M": 0,
       "C": 0,
       "cut": 0
@@ -27434,16 +27434,16 @@
     {
      "side": "right",
      "reel": 3,
-     "impactMs": 1134.2,
+     "impactMs": 1137.3,
      "wantMs": 1134.3,
-     "diffMs": -0.1,
+     "diffMs": 3,
      "meanGap": 50.1,
-     "worstGap": 51.7,
+     "worstGap": 52.3,
      "late": {
-      "S": 47.77,
+      "S": 44.67,
       "M": 0,
-      "C": 47.17,
-      "cut": 52.99
+      "C": 46.47,
+      "cut": 52.79
      },
      "skipped": 10,
      "order": "RRRRRRRRRRSMCQQ",
@@ -27452,14 +27452,14 @@
     {
      "side": "right",
      "reel": 5,
-     "impactMs": 894.4,
+     "impactMs": 894.7,
      "wantMs": 882.5,
-     "diffMs": 11.9,
-     "meanGap": 50.1,
-     "worstGap": 51.6,
+     "diffMs": 12.2,
+     "meanGap": 50.2,
+     "worstGap": 52.3,
      "late": {
-      "S": 30.4,
-      "M": 46.67,
+      "S": 29.9,
+      "M": 44.47,
       "C": 0,
       "cut": 0
      },
@@ -27479,11 +27479,11 @@
     {
      "side": "left",
      "reel": 1,
-     "impactMs": 881.9,
+     "impactMs": 882,
      "wantMs": 882.5,
-     "diffMs": -0.6,
+     "diffMs": -0.5,
      "meanGap": 8,
-     "worstGap": 10.2,
+     "worstGap": 10.1,
      "late": {
       "S": 0,
       "M": 0,
@@ -27501,7 +27501,7 @@
      "wantMs": 1134.3,
      "diffMs": -6.2,
      "meanGap": 8,
-     "worstGap": 10.4,
+     "worstGap": 9,
      "late": {
       "S": 0,
       "M": 0,
@@ -27515,11 +27515,11 @@
     {
      "side": "left",
      "reel": 5,
-     "impactMs": 1497.3,
+     "impactMs": 1502.6,
      "wantMs": 1501,
-     "diffMs": -3.6,
+     "diffMs": 1.6,
      "meanGap": 8,
-     "worstGap": 10.2,
+     "worstGap": 10.1,
      "late": {
       "S": 0,
       "M": 0,
@@ -27533,11 +27533,11 @@
     {
      "side": "right",
      "reel": 1,
-     "impactMs": 1495.8,
+     "impactMs": 1499.9,
      "wantMs": 1501,
-     "diffMs": -5.1,
+     "diffMs": -1,
      "meanGap": 8,
-     "worstGap": 10.2,
+     "worstGap": 9.1,
      "late": {
       "S": 0,
       "M": 0,
@@ -27551,9 +27551,9 @@
     {
      "side": "right",
      "reel": 3,
-     "impactMs": 1133.9,
+     "impactMs": 1131.3,
      "wantMs": 1134.3,
-     "diffMs": -0.4,
+     "diffMs": -3,
      "meanGap": 8,
      "worstGap": 10.1,
      "late": {
@@ -27569,11 +27569,11 @@
     {
      "side": "right",
      "reel": 5,
-     "impactMs": 881.2,
+     "impactMs": 883.8,
      "wantMs": 882.5,
-     "diffMs": -1.3,
+     "diffMs": 1.3,
      "meanGap": 8,
-     "worstGap": 10.3,
+     "worstGap": 10.1,
      "late": {
       "S": 0,
       "M": 0,

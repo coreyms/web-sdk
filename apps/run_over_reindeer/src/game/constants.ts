@@ -567,8 +567,37 @@ export const LINE_WIN = {
 	lights: {
 		/** false: the old straight lines, all at once */
 		on: true,
-		staggerMs: 420,
-		drawMs: 620,
+		/** THE LINE SCHEDULE (Corey 2026-11-16: "I would add acceleration to these hits, progressively for each one", and
+		 *  "we should also remove them, there is no need for them all to be up at once"; his timing page
+		 *  win_line_timing.html, whose schedule() this follows: game/road/winLights.ts lightsSchedule). Each line has three
+		 *  phases: STRINGING (its wire draws in, bulbs lighting as it reaches them), LIT (the chase), COMING DOWN (the
+		 *  lights go out and the wire retracts from the line's start toward its end over takeDownMs, its amount fading
+		 *  with it). Line i starts at the sum of the gaps before it: the first gap staggerMs, each next gap gapRatio times
+		 *  the one before, never under gapFloorMs. Line i strings over drawMs x gapRatio^i, never under drawFloorMs.
+		 *  WHEN A LINE COMES DOWN (downMode): 'next' as the next line starts, never before it is fully strung (the last
+		 *  line stays lit stayLitMs); 'hold' (his pick) each after its own stayLitMs; 'end' all together stayLitMs after
+		 *  the last is strung. The total follows when the last light is down. A one line win keeps its line up with the total (its
+		 *  amount is the total) until the win goes. All real ms at normal speed, times holdShare for the turbo level (a
+		 *  slam's hurry runs the win clock 3x). Every number here is live (TUNE.lineWin.lights): read when a win starts. */
+		//   Corey's numbers (2026-11-16, read back from the page): "first gap 470 ms, acceleration 60%, shortest gap 220 ms,
+		//   string 500 to 450 ms, stay lit 1000 ms, take down 650 ms, each holds": gaps 470, 282, then 220; strings 500,
+		//   then 450
+		staggerMs: 470,
+		gapRatio: 0.6,
+		gapFloorMs: 220,
+		drawMs: 500,
+		drawFloorMs: 450,
+		stayLitMs: 1000,
+		takeDownMs: 650,
+		downMode: 'hold' as 'next' | 'hold' | 'end',
+		/** a winning symbol pulses only while a line through it is up; true: they also pulse under the total after the
+		 *  lines (the old way) */
+		pulseWithTotal: false,
+		/** THE LINE SHOW over the accelerating lines (constants REINDEER_SOUND lineShow): each line's play is rateStep
+		 *  faster than the one before (a play's own rate, as the crosshair's hops; no filter), up to rateMax; and when a
+		 *  line starts while the last line's show is still sounding (lengthMs of the clip, shortened by its rate: at turbo,
+		 *  and in a slam's hurry) that one is stopped as this one starts, so one voice only */
+		sound: { rateStep: 0.03, rateMax: 1.3, lengthMs: 197, oneVoice: true },
 		/** each span between two winning symbols droops this many road px at its middle */
 		sag: 38,
 		/** the wire, road px: its outline's full width, its core's, and how finely a span is cut into straight quads */
@@ -583,9 +612,8 @@ export const LINE_WIN = {
 		chase: { stepMs: 140, cycle: 3 },
 		/** a line's own amount: Overpass Heavy, gold with the dark edge, this cap size in road px; it pops in when its line
 		 *  is complete, swelling by `swell` over popMs, on a winning symbol's top edge (the middle one first; another if
-		 *  it would touch an amount already up). When the total comes they fade over fadeMs. The total comes holdMs after
-		 *  the last line's amount. */
-		amount: { size: 52, fill: 0xffd400, stroke: 0x101216, strokeWidth: 10, popMs: 160, swell: 0.35, pad: 6, holdMs: 320, fadeMs: 160 },
+		 *  it would touch an amount already up). It fades as its line comes down (the line schedule above). */
+		amount: { size: 52, fill: 0xffd400, stroke: 0x101216, strokeWidth: 10, popMs: 160, swell: 0.35, pad: 6 },
 		/** THE BULB COLORS, by the symbol the line pays (Corey: "different color lights, maybe that align with the types of
 		 *  symbols they are clearing"), cycled along the wire. Sampled from the art where it has the color (the van's
 		 *  light blue, Grandma's purple and gold, the sleigh's red and gold, the signs'): the wagon's tree green is its
@@ -782,14 +810,18 @@ export const SHADOW = {
 	/** draw them at all */
 	on: true,
 	/** THE LIGHT: the shadow leans this many degrees off straight up the screen, toward the left (0 = straight up, away
-	 *  from the camera; 90 = flat along the road to the left) */
-	angle: 64,
+	 *  from the camera; 90 = flat along the road to the left). PASS 6 (Corey 2026-11-16: "it should go higher up ... the
+	 *  amount to the left seems appropriate"): the top of a thing used to land 0.90 of its height to the left and 0.44
+	 *  up (64 degrees, length 1); it now lands at the same 0.90 to the left and 0.78 up: angle atan(0.90 / 0.78) = 49,
+	 *  length hypot(0.90, 0.78) = 1.19 (re-derived, not scaled) */
+	angle: 49,
 	/** how long it is: the owner's top lands this share of the owner's own height away from its ground point, along the
-	 *  lean (so at 64 degrees and 1 a car's roof shadow lands 0.9 of its height to the left and 0.44 up) */
-	length: 1,
-	/** how dark: the twin's alpha. The asphalt is near black already (about rgb 50 56 64): 0.8 takes it to about 10 11 13,
-	 *  which reads as a clear dark shape at phone size; round 1's 0.75 was the centre of a soft ellipse, and tiny */
-	alpha: 0.8,
+	 *  lean (at 49 degrees and 1.19: 0.90 of its height to the left and 0.78 up) */
+	length: 1.19,
+	/** how dark: the twin's alpha. The asphalt is about rgb 50 56 64. PASS 6 ("now it's too dark"): 0.8 took it to
+	 *  about 10 11 13; the candidates were 0.45, 0.55 and 0.65 (the sheet in pass6_2026-11-16/shadows/); 0.55, the
+	 *  middle one, takes it to about 23 25 29 */
+	alpha: 0.55,
 	/** their color: a cold near black (the HUD's shadow color), so on the snow they read blue grey, not dirty */
 	tint: 0x020812,
 	/** THE COLUMN CHARACTERS: the column's cloud stands in the reel like a wall behind them, so the same light throws
@@ -895,11 +927,17 @@ export const SEATED = {
 	on: true,
 	/** the lean: + leans forward on a stop (deg at the target), back on a pull-away */
 	lean: { freqHz: 2.4, damping: 0.45, gainDeg: 0.0004, clampDeg: 3.5 },
+	/** the share of that lean each driver takes (pass 6, Corey 2026-11-16: Grandma's fists stay on the wheel): she turns
+	 *  about her hip, and her fists are about 60 road px from it, so the full 4.2 degrees moved them 4.4 road px off the
+	 *  rim; at 0.3 they move about 1.3 (the wheel's rim is about 4 road px thick). Santa has nothing to hold. */
+	leanShare: { grandma: 0.3, santa: 1 } as Record<string, number>,
 	/** the win bob: up this many road px at the top of each win pulse */
 	bob: { px: 3.5 },
 	/** the driver's silhouette above the vehicle joins its cast shadow */
 	shadow: true,
 	place: {
+		// (pass 6: Grandma 12 road px higher and 6 percent larger, fists on the rim; Santa 16 back, centered in the
+		// sleigh: baked into tools/seated_split.json, so these stay 0)
 		H1_R: { dx: 0, dy: 0, scale: 1 },
 		H1_L: { dx: 0, dy: 0, scale: 1 },
 		W_R: { dx: 0, dy: 0, scale: 1 },
