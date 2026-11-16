@@ -202,10 +202,10 @@
 		boardWinClear: () => road.clearWin(),
 		boardPulse: async ({ cells, ms }) => {
 			// THE PRESENTS OF A TRIGGER play their full open with the light (game/road/present.ts), the other symbols dimmed
-			// for as long; without the open's pictures in time they pulse as before
+			// for as long; without the open's pictures in time they pulse as before (with the pop on the pulse's first frame)
 			if (await road.presentsReady()) {
 				await Promise.all([road.openPresents(cells), road.pulseCells(cells, Math.max(ms, road.presentShowMs() / boardRate()))]);
-			} else await road.pulseCells(cells, ms);
+			} else await road.pulseCells(cells, ms, true); // (the presents' pop on the pulse's first frame, as on the open's)
 			road.clearWin();
 		},
 		boardMessage: async ({ text, ms }) => {

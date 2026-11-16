@@ -211,7 +211,11 @@ export class RoadBoard {
 	 *  trigger's pop still to come (the frame the first present's lid leaves the box) */
 	private reelStopAt: (number | null)[] = [null, null, null, null, null];
 	private trafficFading = false;
+	/** this spin drove in at turbo 2: its reel stops are one moment and sound once (RoadSounds.reelStop) */
+	private reelStopTurbo2 = false;
 	private popWanted = false;
+	/** a trigger's pop on its pulse's first frame (the open's pictures were not in time) */
+	private pulsePopWanted = false;
 	/** the win showing: its start (win clock), its whole length, when the total pops in (ms into the win) */
 	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean; totalAt: number } | null = null;
 	private destroyed = false;
@@ -383,6 +387,12 @@ export class RoadBoard {
 
 	/** every present animating: follows its sprite, shows its frame and light */
 	private updatePresents(now: number) {
+		// a trigger whose open's pictures were not in time pulses instead: its pop on the pulse's first frame (pass 5)
+		if (this.pulsePopWanted && this.win?.active) {
+			this.pulsePopWanted = false;
+			this.features.sounds.mark('lid', 'pulse first frame (the open did not load in time)');
+			this.features.sounds.cue('present', 'pulse');
+		}
 		for (const car of this.cars) {
 			const actor = car.present;
 			if (!actor || !actor.busy) continue;
@@ -563,7 +573,19 @@ export class RoadBoard {
 			allHome = Math.max(allHome, this.laneHomeAt[lane]);
 		});
 		this.parked = parked;
+		// the stop SOUNDS go left to right at normal speed and turbo 1 (constants REINDEER_SOUND reel stop, pass 5): a reel
+		// planned a few ms before the reel to its left sounds with it instead (at turbo 1 reels 1 and 2 are about 9 ms apart)
+		if (level < 2) {
+			let prev = -Infinity;
+			for (let col = 0; col < COLS; col++) {
+				const at = reelStop[col];
+				if (at === null) continue;
+				if (at < prev) reelStop[col] = prev;
+				prev = reelStop[col] as number;
+			}
+		}
 		this.reelStopAt = reelStop;
+		this.reelStopTurbo2 = level === 2;
 		this.trafficFading = false;
 		return this.wait(allHome + 20, 'board');
 	}
@@ -800,9 +822,15 @@ export class RoadBoard {
 			.map((c) => ({ cell: c.phase === 'rest' ? c.col * ROWS + c.lane : null, dir: c.dir, winning: c.winning, lit: c.lights?.lit ?? null, level: Math.round((c.lights?.level ?? 0) * 1000) / 1000, winMs: this.win ? Math.round((this.winClock - this.win.t0) * 10) / 10 : null, winActive: !!this.win?.active }));
 	}
 
-	/** pulse some cells with no line and no amount (the scatters of a trigger); resolves after `ms` */
-	pulseCells(cells: number[], ms: number): Promise<void> {
-		return this.showWin(cells.map((cell) => ({ cells: [cell], line: 1 })), '', ms);
+	/** pulse some cells with no line and no amount (the scatters of a trigger); resolves after `ms`. `presentPop`: this
+	 *  pulse is a trigger's whole show (the open's pictures were not in time), so the presents' pop comes on its first
+	 *  frame, as it would on the open's */
+	pulseCells(cells: number[], ms: number, presentPop = false): Promise<void> {
+		const shown = this.showWin(cells.map((cell) => ({ cells: [cell], line: 1 })), '', ms);
+		this.pulsePopWanted = presentPop && cells.length > 0;
+		return shown.finally(() => {
+			this.pulsePopWanted = false;
+		});
 	}
 
 	/** a short line over the middle of the board (a retrigger's "+3 FREE SPINS"); resolves after `ms` */
@@ -1067,7 +1095,7 @@ export class RoadBoard {
 				this.reelStopAt[col] = null;
 				fired = true;
 				this.features.sounds.mark('reelStop', `reel ${col + 1}`);
-				this.features.sounds.playNamed(REINDEER_SOUND.reelStops[col], `reel ${col + 1}`);
+				this.features.sounds.reelStop(col, this.reelStopTurbo2);
 			} else {
 				left += 1;
 				last = Math.max(last, at);

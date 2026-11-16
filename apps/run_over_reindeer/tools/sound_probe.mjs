@@ -38,14 +38,23 @@
 // speed and a slam stop), three0, three2, threeslam (a twelve line win at normal, turbo 2 and a slam stop), floortop (a
 // natural Free Spins round topped up to its minimum, turbo 1), supertop (a bought Super topped up to its 20x minimum,
 // turbo 2).
+// PASS 5 (2026-11-16): a one-shot's span ends at its own length in the sprite at the latest (Howler's 'end' is a timer that a
+// busy page fires late; the audio itself stops at the sprite's end); at turbo 2 the reels' stops are one moment and get ONE
+// sound (constants REINDEER_SOUND.reelStopTurbo2): a stop within its gapMs of the last one played is silent, and one still
+// sounding from the spin before is stopped as the next starts; the traffic's stop is checked against the frames (never before
+// its fade's planned end, never before the frame before the last reel's, the frame the reel's stop point fell after); the
+// present pop against the present's own trace (on the open's first DRAWN frame, whichever of its slots that frame shows),
+// or, when the open's pictures were not in time, on the trigger pulse's first frame. PRESENT_WAIT_MS=0 sets the trigger's
+// wait for the open's pictures (constants PRESENT.loadWaitMs) for the run, to make that fallback happen on purpose.
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 OUT=<dir> [ONLY=idle,slam] \
 //     [SIZES=desk,phone] node tools/sound_probe.mjs
 // The browser runs with --mute-audio: the game plays its sounds, nothing reaches the speakers.
 // Uses the dev server that is already running (it never starts one). One headless browser, closed at the end. Take the
 // shared browser lock around it (mkdir /tmp/hud_mock_shot.lock ... rmdir).
 import { createRequire } from 'node:module';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -55,6 +64,7 @@ const OUT = process.env.OUT || '';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 const SIZES_ONLY = (process.env.SIZES || '').split(',').filter(Boolean);
 const IDLE_MS = Number(process.env.IDLE_MS || 15000);
+const PRESENT_WAIT_MS = process.env.PRESENT_WAIT_MS === undefined ? null : Number(process.env.PRESENT_WAIT_MS);
 if (OUT) mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FRAME = 1000 / 60;
@@ -82,6 +92,8 @@ const REPLACED = ['sfx_reel_stop', 'sfx_reel_spin', 'sfx_cluster_remove', 'sfx_s
 const STANDARD = /^sfx_(ui_|scatter_land_|bonus_confirm|money_counter)/;
 // the sprite's lengths, ms (sounds.json)
 const LEN = { sfx_reindeer_alert: 600, sfx_reindeer_run: 1200, sfx_reindeer_turn: 250, sfx_crash: 933, sfx_crash_cloud: 4000, sfx_grandma_wild: 593, sfx_column_reindeer_in: 1234, sfx_reindeer_idle_snort: 600, sfx_traffic_roll: 2000, sfx_stoplight_change: 256, sfx_target_hop: 77, sfx_target_drop: 97, sfx_target_lock: 342, sfx_reindeer_dart: 476, sfx_redbox: 244, sfx_line_show: 197, sfx_present_pop: 800 };
+// every one-shot's own length in the sprite (static/assets/audio/sounds.json): no play of it sounds longer
+const SPRITE_LEN = Object.fromEntries(Object.entries(JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'static', 'assets', 'audio', 'sounds.json'), 'utf8')).sprite).filter(([, v]) => !v[2]).map(([k, v]) => [k, v[1]]));
 
 const CASES = [
 	{ id: 'idle', book: 'base_one_column', turbo: 0, snort: 'always', idle: true },
@@ -138,9 +150,16 @@ async function boot(browser, S) {
 	return { ctx, p, errs };
 }
 
-async function settle(p, S, maxMs = 90000) {
+async function settle(p, S, maxMs = 90000, opens = null) {
 	const t0 = Date.now();
+	let traced = Date.now();
 	for (;;) {
+		// the presents' open rows (game/road/present.ts trace, kept to 4000 rows, a few hundred a second at most): taken
+		// every 2 s, so none is lost (and the page is not asked more often than that: a busier page fires its timers late)
+		if (opens && Date.now() - traced >= 2000) {
+			traced = Date.now();
+			opens.push(...((await p.evaluate(() => window.__reindeer.presentTrace(true).filter((r) => r.kind === 'open')).catch(() => [])) ?? []));
+		}
 		const st = await p.evaluate(() => ({ g: window.__reindeer.hud.gates(), idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest() })).catch(() => null);
 		if (st && st.g > 0) {
 			await p.mouse.click(S.vp.width / 2, S.vp.height * 0.4).catch(() => {});
@@ -155,14 +174,17 @@ async function settle(p, S, maxMs = 90000) {
 
 /** one case: returns both logs, with times in ms from the case's start */
 async function runCase(p, S, C) {
-	await p.evaluate((c) => {
+	await p.evaluate(([c, wait]) => {
+		if (wait !== null) window.__reindeer.tune.present.loadWaitMs = wait;
 		window.__reindeer.turbo(c.turbo);
 		window.__reindeer.forceSnort(c.snort);
 		window.__reindeer.roadSounds(true);
 		window.__reindeer.soundTap(true);
 		window.__reindeer.fixtures.next(c.book);
+		window.__reindeer.presentTrace(true);
 		window.__caseT0 = performance.now();
-	}, C);
+	}, [C, PRESENT_WAIT_MS]);
+	const opens = [];
 	await p.click('.hudp button.spin');
 	let slammed = null;
 	if (C.slam) {
@@ -174,7 +196,8 @@ async function runCase(p, S, C) {
 			} else await sleep(15);
 		}
 	}
-	const settled = await settle(p, S, C.maxMs);
+	const settled = await settle(p, S, C.maxMs, opens);
+	opens.push(...((await p.evaluate(() => window.__reindeer.presentTrace(true).filter((r) => r.kind === 'open'))) ?? []));
 	await sleep(700); // the cloud loop's round end fade (300 ms) and its stop
 	const roundEnd = await p.evaluate(() => ({ t: performance.now(), frame: window.__reindeer.frame(), playing: window.__reindeer.soundTap().playing, state: window.__reindeer.roadSoundState(), ambience: window.__reindeer.ambience?.() ?? null }));
 	if (C.idle) await sleep(IDLE_MS);
@@ -186,7 +209,8 @@ async function runCase(p, S, C) {
 		window.__reindeer.forceSnort(null);
 	});
 	const cutTurn = await p.evaluate(() => !!window.__reindeer.tune.sound.cutTurn);
-	return { ...out, settled, roundEnd, slammed, cutTurn };
+	const thinGap = await p.evaluate(() => window.__reindeer.tune.sound.reelStopTurbo2?.gapMs ?? null);
+	return { ...out, settled, roundEnd, slammed, cutTurn, opens, thinGap };
 }
 
 const r1 = (v) => (v === null || v === undefined ? '' : Math.round(v * 10) / 10);
@@ -330,7 +354,9 @@ function judge(tag, C, R) {
 			.filter((e) => e.name === name)
 			.map((e) => {
 				const end = endOf(e);
-				return [e.t, end ? end.t : LOOPS.has(name) ? R.now : e.t + (LEN[name] ?? 1000)];
+				// a one-shot sounds its sprite's length at most (at rate 1): Howler's 'end' is a timer, late on a busy page
+				const own = !LOOPS.has(name) && SPRITE_LEN[name] && !tap.some((x) => x.what === 'rate' && x.id === e.id) ? e.t + SPRITE_LEN[name] : Infinity;
+				return [e.t, Math.min(own, end ? end.t : LOOPS.has(name) ? R.now : e.t + (LEN[name] ?? 1000))];
 			});
 	const doubles = [];
 	for (const name of new Set(plays.map((e) => e.name))) {
@@ -397,8 +423,15 @@ function judge2(tag, C, R) {
 			const first = mine[0];
 			const last = mine[mine.length - 1];
 			check(!!fade && fade.frame === first.frame, `${tag}: spin ${i + 1}: its fade starts on the first reel's stop frame (${fade?.frame} vs ${first.frame}; ${fade?.detail})`);
-			// the fade is planned to end on the last reel's stop; the stop lands on the first board frame from then
-			check(!!stop && stop.t - last.t <= 2.5 * 40 && stop.t - last.t >= -40, `${tag}: spin ${i + 1}: stopped by the last reel's stop (${r1(stop ? stop.t - last.t : null)} ms after it)`);
+			// the fade is planned to end on the last reel's stop point; the stop comes at that planned moment (a timer) or on the
+			// first board frame from then. That moment falls after the frame BEFORE the one that shows the reel stopped (the
+			// reel is marked on the first frame at or past it), so: never before its fade's planned end (no cut), never on an
+			// earlier frame than the one before the last reel's, and not left on (pass 5: the frames here run 40 to 60 ms, so
+			// the old fixed 40 ms window failed whenever the reel's frame was a long one)
+			const fadeMs = Number(/(\d+(?:\.\d+)?)ms/.exec(fade?.detail ?? '')?.[1] ?? NaN);
+			const plannedEnd = fade ? fade.t + fadeMs : NaN;
+			const okStop = !!stop && stop.t - last.t <= 2.5 * 40 && (!Number.isFinite(plannedEnd) || stop.t >= plannedEnd - 1) && stop.frame >= last.frame - 1;
+			check(okStop, `${tag}: spin ${i + 1}: stopped by the last reel's stop (${r1(stop ? stop.t - last.t : null)} ms after it, ${stop ? stop.frame - last.frame : '?'} frames; ${r1(stop ? stop.t - plannedEnd : null)} ms after its fade's planned end)`);
 			if (show(T)) {
 				row('sfx_traffic_roll', T, st, 'press / pull away');
 				rows.push({ sound: `  traffic fade (${fade?.detail ?? '-'})`, start: fade ? at(fade) : '', stop: stop ? at(stop) : '', event: `first reel stop (frame ${first.frame})`, offset: fade ? r1(fade.t - first.t) : '', frames: fade ? fade.frame - first.frame : '' });
@@ -412,6 +445,12 @@ function judge2(tag, C, R) {
 	let order = [];
 	let spin = -1;
 	const orders = [];
+	// pass 5: at turbo 2 the reels' stops are one moment (all five within about 20 ms): one sound for it. A stop within the
+	// game's gapMs of the last one played is silent (constants REINDEER_SOUND.reelStopTurbo2)
+	const thin = C.turbo === 2;
+	if (thin) check(Number.isFinite(R.thinGap) && R.thinGap > 0, `${tag}: the game's turbo 2 reel stop gap (${R.thinGap} ms)`);
+	let lastSounded = null;
+	let wanted = 0;
 	stops.forEach((e) => {
 		const k = Number(/reel (\d)/.exec(e.detail)?.[1]);
 		const s = spinStarts.filter((t) => t <= e.t).length;
@@ -421,13 +460,34 @@ function judge2(tag, C, R) {
 			spin = s;
 		}
 		order.push(k);
+		if (thin && lastSounded && e.t - lastSounded.t < R.thinGap) {
+			const any = plays.find((x) => REEL_STOPS.includes(x.name) && x.frame === e.frame && !used.has(x));
+			check(!any, `${tag}: reel ${k} stop at turbo 2, ${r1(e.t - lastSounded.t)} ms after the one sounded: silent (frame ${e.frame})`, any?.name);
+			if (show(e)) rows.push({ sound: `  (sfx_lane_stop_${k} silent)`, start: '', stop: '', event: `reel ${k} last car at its stop point (frame ${e.frame}), ${r1(e.t - lastSounded.t)} ms after the one sounded`, offset: '', frames: '' });
+			return;
+		}
+		wanted += 1;
+		lastSounded = e;
 		const pl = take(`sfx_lane_stop_${k}`, e.frame);
 		check(!!pl, `${tag}: reel ${k} stop: sfx_lane_stop_${k} on its stop frame (${e.frame})`);
 		if (show(e)) row(`sfx_lane_stop_${k}`, pl, e, `reel ${k} last car at its stop point`);
 	});
 	if (order.length) orders.push(order);
 	const laneStops = plays.filter((e) => REEL_STOPS.includes(e.name));
-	check(laneStops.length === stops.length, `${tag}: no reel stop sound without its reel's stop (${laneStops.length} for ${stops.length})`);
+	check(laneStops.length === wanted, `${tag}: no reel stop sound without its reel's stop (${laneStops.length} for ${wanted} sounded of ${stops.length} stops)`);
+	if (thin) {
+		// one at a time: every reel stop sound starts at least gapMs after the one before, and one still sounding (its sprite
+		// length) when the next starts was stopped on that play's frame
+		for (let i = 1; i < laneStops.length; i++) {
+			const a = laneStops[i - 1];
+			const b = laneStops[i];
+			check(b.t - a.t >= R.thinGap - 1, `${tag}: turbo 2 reel stop sounds ${i} and ${i + 1} at least ${R.thinGap} ms apart (${r1(b.t - a.t)})`);
+			if (a.t + (SPRITE_LEN[a.name] ?? 0) > b.t) {
+				const cut = tap.find((x) => x.what === 'stop' && x.id === a.id && x.t <= b.t + 1);
+				check(!!cut && cut.frame === b.frame, `${tag}: ${a.name} still sounding as ${b.name} starts (${r1(b.t - a.t)} ms later): stopped on its frame (${cut?.frame} vs ${b.frame})`);
+			}
+		}
+	}
 	console.log(`  INFO ${tag}: reel stop order per spin: ${orders.map((o) => o.join('')).join(' ')}`);
 	if (C.id !== 'trigger' && C.turbo < 2) check(orders.every((o) => o.join('') === [...o].sort().join('')), `${tag}: the reels stop left to right (${orders.map((o) => o.join('')).join(' ')})`);
 
@@ -558,11 +618,21 @@ function judge2(tag, C, R) {
 	lids.forEach((e) => {
 		const pl = take('sfx_present_pop', e.frame);
 		const fan = plays.filter((x) => /^sfx_bonus_trigger_/.test(x.name) && x.t <= e.t).pop();
-		// round 3: on the open's FIRST frame (the pop is 170 ms into the file)
-		// (the first frame DRAWN of the open: on a slow headless frame the open can already be past its slot 0 when it is
-		// first drawn; never as late as the lid's frame, 3)
-		const slot = Number(/open frame (\d+)/.exec(e.detail ?? '')?.[1]);
-		check(!!pl && slot < 3, `${tag}: the present pop on the open's first frame drawn (${e.detail}, frame ${e.frame})`);
+		// round 3: on the open's FIRST frame (the pop is 170 ms into the file). Pass 5: the first frame DRAWN of the open, read
+		// off the present's own trace (one row per board step it draws): a frame at turbo can cover several of its 33 ms
+		// slots, so the first one drawn may be past slot 0 (here a 40 ms frame at turbo 2 is three), but no open frame of
+		// that present is drawn before the pop's. Without the open's pictures in time the trigger pulses instead, and the pop
+		// comes on the pulse's first frame (no open drawn at all).
+		const cell = Number(/cell (\d+)/.exec(e.detail ?? '')?.[1]);
+		if (/pulse/.test(e.detail ?? '')) {
+			const drawn = R.opens.filter((r) => r.t > e.clock - 200 && r.t < e.clock + 3000);
+			console.log(`  INFO ${tag}: the open's pictures were not in time: the trigger pulsed (${e.detail})`);
+			check(!!pl && drawn.length === 0, `${tag}: the present pop on the trigger pulse's first frame, no open drawn (${e.detail}, frame ${e.frame})`);
+		} else {
+			const first = R.opens.filter((r) => r.cell === cell && r.t > e.clock - 1000 && r.t <= e.clock + 0.15).sort((a, b) => a.t - b.t)[0];
+			const slot = Number(/open frame (\d+)/.exec(e.detail ?? '')?.[1]);
+			check(!!pl && !!first && Math.abs(first.t - e.clock) <= 0.15 && first.slot === slot, `${tag}: the present pop on the open's first frame drawn (${e.detail}, frame ${e.frame}; first open row at clock ${first?.t} slot ${first?.slot}, pop at ${e.clock})`);
+		}
 		row('sfx_present_pop', pl, e, `the open's first frame (${e.detail})`);
 	});
 	check(plays.filter((e) => e.name === 'sfx_present_pop').length === lids.length, `${tag}: no present pop without a lid (${lids.length})`);

@@ -662,6 +662,12 @@ export const REINDEER_SOUND = {
 	//              road has four lanes and five reels; at normal speed and turbo 1 the reels finish left to right, at
 	//              turbo 2 (all lanes at once) the middle reel finishes first and the outer pairs together. A reel a
 	//              column Wild holds has no cars, so no stop. Replaces the borrowed sfx_reel_stop (once per lane).
+	//              PASS 5 (2026-11-16): at normal speed and turbo 1 a reel's stop SOUND never comes before the one of
+	//              the reel to its left (at turbo 1 reels 1 and 2 are planned about 9 ms apart, and a wide or narrow
+	//              front car could put reel 2 a few ms first): it waits those few ms, so the order is always left to
+	//              right. At turbo 2 the five stops are one moment (all within about 20 ms): ONE sound for it, the
+	//              first reel to stop (`reelStopTurbo2`), as the house thins its reel stop at turbo (Angry Mantis plays
+	//              its reel stop once while it is still sounding at turbo; Manticore once per board).
 	//   stoplight  sfx_stoplight_change, on the frame a light changes color (green at the press, amber, red), once per
 	//              frame however many lights change in it (the two go green together; red comes to the top light a
 	//              moment before the bottom one)
@@ -720,6 +726,10 @@ export const REINDEER_SOUND = {
 	stamp: { mid: 10, high: 30, names: { small: 'sfx_multiplier_land_small', mid: 'sfx_multiplier_land_mid', high: 'sfx_multiplier_land_high' } },
 	/** one per reel, reel 1 first */
 	reelStops: ['sfx_lane_stop_1', 'sfx_lane_stop_2', 'sfx_lane_stop_3', 'sfx_lane_stop_4', 'sfx_lane_stop_5'],
+	/** TURBO 2's reel stop (pass 5): a reel's stop within gapMs (real ms) of the last reel stop sound is silent (the five
+	 *  land within about 20 ms, so one sound per spin), and one still sounding from the spin before (Super's spins come
+	 *  about 450 ms apart, the sound is 454 ms) is stopped as the next starts, so it never plays twice at once */
+	reelStopTurbo2: { gapMs: 100 },
 	/** THE LINE WIN (game/bookEventHandlerMap.ts winInfo): one symbol's own sound for the whole win, as the one borrowed
 	 *  sfx_cluster_remove was before it: the best paying symbol among the winning lines (W, a line of Wilds only, pays
 	 *  as Grandma's car), with sfx_line_show under it, on the frame the lines show. The road signs go lowest to
@@ -742,7 +752,9 @@ export const REINDEER_SOUND = {
 	/** the cloud loop at the end of a round, real ms */
 	roundEndFadeMs: 300,
 	columnIn: { frame: { reindeer: 5, santa: 5, grandma: 5 } as Record<'reindeer' | 'santa' | 'grandma', number> },
-	/** the present's pop starts on this frame of the open (0 = its first; round 2 started it on PRESENT_LID_FRAME, 3) */
+	/** the present's pop starts on this frame of the open (0 = its first; round 2 started it on PRESENT_LID_FRAME, 3): on
+	 *  the first frame the open DRAWS, whichever of its slots that is on a slow frame. Pass 5: when the open's pictures
+	 *  are not in time and the trigger pulses instead, the pop comes on the pulse's first frame */
 	presentPopFrame: 0,
 	/** a column character's win clip, by tier */
 	columnWin: { reindeer: 'sfx_column_win_reindeer', santa: 'sfx_column_win_santa', grandma: 'sfx_column_win_grandma' } as Record<'reindeer' | 'santa' | 'grandma', string>,

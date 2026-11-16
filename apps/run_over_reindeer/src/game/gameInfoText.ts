@@ -40,7 +40,7 @@ const R = config.multipliers.bonusRare;
 export const gameInfoText = () => ({
 	paytable: {
 		intro: soc(
-			`Wins pay on **${config.paylines.length} fixed lines**, from the leftmost column to the right, for 3, 4 or 5 matching symbols in a row. Amounts are shown for the current bet.`,
+			`Wins pay on **${config.paylines.length} fixed lines**, from the leftmost column to the right, for 3, 4 or 5 matching symbols in a row. Amounts are shown for the current play amount.`,
 			`Wins land on **${config.paylines.length} fixed lines**, from the leftmost column to the right, for 3, 4 or 5 matching symbols in a row. Amounts are multiples of the play amount.`,
 		),
 		specials: 'Special symbols',

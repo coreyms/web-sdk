@@ -49,6 +49,9 @@ export class RoadSounds {
 	private dropFrame = -1;
 	private lockFrame = -1;
 	private lightFrame = -1;
+	/** the last reel stop sound: when (performance.now) and which */
+	private reelStopT = -Infinity;
+	private reelStopName = '';
 	/** the frame each tier's column win sound last played */
 	private winFrame: Record<string, number> = {};
 	private log: RoadSoundEntry[] = [];
@@ -103,6 +106,22 @@ export class RoadSounds {
 	playNamed(name: string, detail?: string, rate?: number) {
 		this.note('sound', name, rate !== undefined && rate !== 1 ? `${detail ?? ''} rate ${rate.toFixed(4)}`.trim() : detail);
 		this.env.play(name, rate);
+	}
+
+	/** A REEL'S STOP (roadBoard.updateReelStops), its own sound on this frame. At turbo 2 (`turbo2`) the five stops are one
+	 *  moment: a stop within REINDEER_SOUND.reelStopTurbo2.gapMs of the last one sounded is silent, and the last one, if it
+	 *  is still sounding (the spin before's), is stopped as this one starts: one at a time */
+	reelStop(reel: number, turbo2: boolean) {
+		const name = REINDEER_SOUND.reelStops[reel];
+		const now = performance.now();
+		if (turbo2) {
+			if (now - this.reelStopT < REINDEER_SOUND.reelStopTurbo2.gapMs) return;
+			// (a play that has already ended is gone from the player: stopping it does nothing)
+			if (this.reelStopName) this.env.stop(this.reelStopName);
+		}
+		this.reelStopT = now;
+		this.reelStopName = name;
+		this.playNamed(name, `reel ${reel + 1}`);
 	}
 
 	/** THE TARGET CROSSHAIR'S BEATS (RoadFeatures.onCrosshair): each hop at its own rate, a drop once a frame and never on

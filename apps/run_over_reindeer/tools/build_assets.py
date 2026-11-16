@@ -11,7 +11,10 @@ It only READS the sources (the Desktop folder and ~/Library/Fonts) and writes in
   static/assets/symbols/symbols.json + .webp         the symbol atlas, desktop tier (ATLAS_SCALE.full px per road px);
                                                      it also carries the stoplight's frames (gather_stoplight)
   static/assets/symbols/symbols-phone.json + .webp   the phone tier twin (ATLAS_SCALE.phone px per road px)
-  static/assets/symbols/single/<frame>.webp          one small picture per symbol for the HTML rules page
+  static/assets/symbols/single/<frame>.webp          one small picture per symbol for the HTML rules page (the
+                                                     vehicles empty: run tools/build_rules_pictures.py after it, and
+                                                     after build_seated.py / build_wagon_tree.py, for H1_R, H2_R and
+                                                     W_R with their riders as the board draws them)
   static/assets/fonts/overpass/*.woff2               Overpass Regular, Bold, ExtraBold and Heavy
   src/game/roadArtSpec.ts                            the measured numbers the game places things by (generated)
 
