@@ -1,0 +1,642 @@
+// @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// THE SCENE SWAP PROBE (2026-11-17; game/scene/sceneSwap.ts, game/scenePresets.ts snowDay / snowNight / snowSuper). At
+// 1440 x 900, 844 x 390 and 390 x 844 (the phone sizes on the phone asset tier), with the dev fixtures:
+//   - THE FIRST LOAD: the day snow shows, and no piece of either night scene is asked of the network (or held) before the
+//     first press
+//   - A FIXTURE FREE SPINS ROUND (natural_free_spins) and A SUPER ROUND (natural_super): the scene in each phase (the base
+//     spin: day; the free spins: snowNight / snowSuper, on the Pixi side and the DOM side; after the round: day again); the
+//     swap in starts only once the entry scene's back board is seated (the change is under the board and the dim); the swap
+//     back starts after the Total Win is dismissed
+//   - NO MISSING TEXTURE, NO HARD POP: each fade is held as it starts and stepped 50 ms at a time with everything else
+//     frozen (the road's clock, the scoreboard, the logo's lamps, the drivers' idle), the HTML hidden and nothing drawn but
+//     the scene, the dim and the LED board's snow cover (__reindeer.sceneOnly: a driver's idle clip that comes in, a light
+//     or an LED dot is not the fade's): every scene sprite
+//     shown has a texture, and no step changes a pixel by much more than its share of the whole change (a piece appearing,
+//     vanishing or missing for a frame changes its pixels by all of it in one step: STEP below). How far each frame is from
+//     the plain mix of the first and the last is printed too (the layers fade one by one, so where soft edged pieces lie
+//     on each other the middle frames are not exactly that mix: continuous, not a pop)
+//   - GPU MEMORY (the renderer's own list of textures on the GPU): never more than two scenes' pieces at once, the lazy
+//     (night) pieces within LIMIT.lazyMB, the scene pieces within the day's + LIMIT.lazyMB; after the swap back the night
+//     pieces are gone (unloaded) within 2 s; the totals before, during and after are printed
+//   - CONTRAST in each scene (the day at rest, each night between free spins, everything frozen): the HUD's numbers and the
+//     top line with the clock at least 4.5:1, the HUD's labels and the top line's name 3:1. Measured on the rendered page: the
+//     element shot with its ink and again with its ink made transparent (its halo kept); on the pixels the ink changes, the
+//     ratio of the two luminances (the ink against what is directly behind its strokes: the scene, the glass, its own
+//     halo), the median. The ratio with no halo is printed beside it.
+//   - desktop also: a second Free Spins round after the night pieces were let go (they load again, from the browser's
+//     cache: the load and upload times and the longest frame printed beside the first's), and A RESUMED ROUND inside each
+//     bonus (fixtures.resume at a free spin's reveal): it comes up in its night scene, and back to day when it ends
+//   - no page errors
+//   CAP=<dir>: also saves the stills for the sheet (each scene, HUD up, the LED strip idle) as <size>_<preset>.png
+//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,side,portrait] [SECTIONS=rounds,again,resume] node tools/scene_swap_probe.mjs
+// Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
+// through tools/browser_lock.sh (the game lane); a turn is 15 minutes, so one size per turn with ONLY= if needed.
+import { createRequire } from 'node:module';
+import { writeFileSync, mkdirSync } from 'node:fs';
+
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const { PNG } = require('playwright-core/lib/utilsBundle');
+
+const APP = process.env.APP || 'http://localhost:3014';
+const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
+const SECTIONS = (process.env.SECTIONS || 'rounds,again,resume').split(',');
+const SEC = (s) => SECTIONS.includes(s);
+const CAP = process.env.CAP || '';
+if (CAP) mkdirSync(CAP, { recursive: true });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** THE LIMITS (MB of GPU texture memory, RGBA, no mips: every scene piece is drawn near its own size) */
+const LIMIT = { lazyMB: 25, scenes: 2, unloadMs: 2000 };
+/** A STEP'S CHANGE: a pixel jumps when one 50 ms step changes it by more than `k` times its share of the fade's whole
+ *  change (its share of the fade's time; the fade is smoothed, its steepest part 1.5 times the mean) plus `levels`; at
+ *  most `share` of the pixels may */
+const STEP = { k: 4, levels: 12, share: 0.0005 };
+const CONTRAST = { number: 4.5, label: 3 };
+
+const SIZES = [
+	{ name: 'desktop', vp: { width: 1440, height: 900 }, phone: false, extra: true },
+	{ name: 'side', vp: { width: 844, height: 390 }, phone: true },
+	{ name: 'portrait', vp: { width: 390, height: 844 }, phone: true },
+].filter((s) => !ONLY.length || ONLY.includes(s.name));
+
+let pass = 0;
+let fail = 0;
+const fails = [];
+const check = (ok, msg, detail) => {
+	if (ok) pass += 1;
+	else {
+		fail += 1;
+		fails.push(msg);
+	}
+	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 900)) : ''}`);
+};
+const info = (msg) => console.log(`  INFO ${msg}`);
+const R = (p, fn, arg) => p.evaluate(fn, arg);
+const r1 = (v) => Math.round(v * 10) / 10;
+const r2 = (v) => Math.round(v * 100) / 100;
+const NIGHT = /scene\/snow-(night|super)-/;
+
+async function boot(browser, S, { reuse = null } = {}) {
+	const ctx = reuse?.ctx ?? (await browser.newContext({ viewport: S.vp, deviceScaleFactor: 1, isMobile: S.phone, hasTouch: S.phone }));
+	const p = reuse?.p ?? (await ctx.newPage());
+	const errs = reuse?.errs ?? [];
+	const net = reuse?.net ?? [];
+	if (!reuse) {
+		p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+		p.on('console', (m) => {
+			if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 200));
+		});
+		p.on('request', (q) => {
+			if (NIGHT.test(q.url())) net.push({ at: Date.now(), url: q.url().split('/assets/').pop() });
+		});
+		// the frame clock (the longest frame around a swap's upload)
+		await p.addInitScript(() => {
+			const F = (window.__frames = { t: new Float64Array(6000), n: 0 });
+			let last = 0;
+			const tick = (t) => {
+				if (last) {
+					F.t[F.n % 6000] = t;
+					F.n += 1;
+				}
+				last = t;
+				requestAnimationFrame(tick);
+			};
+			requestAnimationFrame(tick);
+		});
+		await p.goto(`${APP}/?lang=en&sessionID=swap${S.name}${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
+	}
+	for (let i = 0; i < 220; i++) {
+		const ok = await p.evaluate(() => !!(window.__reindeer?.atRest?.() && window.__reindeer.hud && !document.querySelector('.landing') && window.__reindeer.sceneSwap && window.__reindeer.scoreboard?.())).catch(() => false);
+		if (ok) break;
+		if (i % 2 === 1) await p.mouse.click(S.vp.width / 2, S.vp.height / 2).catch(() => {});
+		await sleep(600);
+	}
+	await sleep(900);
+	return { ctx, p, errs, net };
+}
+
+/** the swap and the GPU as they are now */
+const swapNow = (p) =>
+	R(p, () => {
+		const s = window.__reindeer.sceneSwap();
+		const gpu = window.__reindeer.gpuTextures();
+		const scenes = new Set();
+		for (const [key, v] of Object.entries(s.pieces)) if (v.gpu) scenes.add(key.startsWith('night') ? 'snowNight' : key.startsWith('super') ? 'snowSuper' : 'snowDay');
+		const sb = window.__reindeer.scoreboard();
+		return {
+			shown: s.shown,
+			want: s.want,
+			dom: s.dom,
+			fade: s.fade,
+			starting: s.starting,
+			skins: s.skins,
+			sceneGpuMB: s.sceneGpuMB,
+			lazyGpuMB: s.lazyGpuMB,
+			lazyKeys: Object.entries(s.pieces)
+				.filter(([, v]) => v.lazy)
+				.map(([k]) => k),
+			scenesOnGpu: [...scenes],
+			gpuMB: gpu.mb,
+			gameType: window.__reindeer.gameType(),
+			card: sb.card,
+			show: sb.show ? { kind: sb.show.kind, t: sb.show.t, phase: sb.show.phase, seatedAt: sb.show.seatedAt } : null,
+			idle: window.__reindeer.hud.idle(),
+			rest: window.__reindeer.atRest(),
+			hudOff: !!document.querySelector('.am-ui.layer.hud-off'),
+			log: s.log,
+		};
+	});
+
+/** everything that moves on its own held still (the road's clock, the scoreboard, the logo's lamps, the drivers' idle) */
+const freeze = (p, on) =>
+	R(p, (on) => {
+		const r = window.__reindeer;
+		r.clock(on ? 0 : 1);
+		r.scoreboardManual(on);
+		r.seatTime(on ? 0 : null);
+		if (on) r.logoHold(r.scene().logo?.lamps?.ms ?? 5000);
+		else r.logoHold(null);
+	}, on);
+
+// ---- the plain mix ----------------------------------------------------------------------------------------------------
+const lum = (r, g, b) => {
+	const c = (v) => {
+		v /= 255;
+		return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+	};
+	return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(b);
+};
+const mixResidual = (a, b, f, alpha) => {
+	const n = f.data.length / 4;
+	const hist = new Uint32Array(256);
+	let big = 0;
+	let most = 0;
+	for (let i = 0; i < f.data.length; i += 4) {
+		let d = 0;
+		for (let c = 0; c < 3; c++) d = Math.max(d, Math.abs(f.data[i + c] - (a.data[i + c] * (1 - alpha) + b.data[i + c] * alpha)));
+		const k = Math.min(255, Math.round(d));
+		hist[k] += 1;
+		if (k > 24) big += 1;
+		if (k > most) most = k;
+	}
+	let acc = 0;
+	let p995 = 0;
+	for (let k = 0; k < 256; k++) {
+		acc += hist[k];
+		if (acc >= n * 0.995) {
+			p995 = k;
+			break;
+		}
+	}
+	return { p995, bigShare: big / n, most };
+};
+/** the change from the first frame to the last (mean levels): a fade that changed nothing is no test */
+const meanDiff = (a, b) => {
+	let s = 0;
+	for (let i = 0; i < a.data.length; i += 4) s += Math.abs(a.data[i] - b.data[i]) + Math.abs(a.data[i + 1] - b.data[i + 1]) + Math.abs(a.data[i + 2] - b.data[i + 2]);
+	return s / (a.data.length / 4) / 3;
+};
+
+/** the HTML over the canvas hidden (the fade's check is the canvas's; the DOM side has its own CSS transition, and the
+ *  HUD may come back while the fade is held) */
+const hideDom = (p, on) =>
+	R(p, (on) => {
+		let el = document.getElementById('swap-probe-hide');
+		if (on && !el) {
+			el = document.createElement('style');
+			el.id = 'swap-probe-hide';
+			el.textContent = '.am-ui, [data-top-line] { visibility: hidden !important; }';
+			document.head.appendChild(el);
+		}
+		if (!on && el) el.remove();
+	}, on);
+
+/** a fade held at its start: step it 50 ms at a time, everything else frozen and the HTML hidden; every frame checked */
+async function stepFade(p, S, tag) {
+	const out = { frames: 0, missing: 0, jumps: null, mix: null, change: 0 };
+	await freeze(p, true);
+	await hideDom(p, true);
+	await R(p, () => window.__reindeer.sceneOnly(true));
+	await sleep(300);
+	const shot = async () => PNG.sync.read(await p.screenshot());
+	const frames = [];
+	let f = await R(p, () => window.__reindeer.sceneSwap().fade);
+	const total = f ? f.ms + f.tail : 1;
+	const sprites0 = await R(p, () => window.__reindeer.sceneSprites());
+	out.missing += sprites0.missing;
+	frames.push({ t: f?.t ?? 0, alpha: f?.alpha ?? 0, png: await shot() });
+	for (let i = 0; i < 20 && f; i++) {
+		f = await R(p, () => window.__reindeer.sceneSwapStep(50));
+		await R(p, () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+		const sp = await R(p, () => window.__reindeer.sceneSprites());
+		out.missing += sp.missing;
+		frames.push({ t: f ? f.t : total, alpha: f ? f.alpha : 1, png: await shot() });
+	}
+	const a = frames[0].png;
+	const b = frames[frames.length - 1].png;
+	out.change = r1(meanDiff(a, b));
+	const W = a.width;
+	const n = a.data.length / 4;
+	// the whole change per pixel
+	const T = new Float32Array(n);
+	for (let i = 0; i < n; i++) {
+		const j = i * 4;
+		T[i] = Math.max(Math.abs(a.data[j] - b.data[j]), Math.abs(a.data[j + 1] - b.data[j + 1]), Math.abs(a.data[j + 2] - b.data[j + 2]));
+	}
+	let worst = { share: 0, step: 0, box: null };
+	for (let k = 1; k < frames.length; k++) {
+		const dp = Math.max(0, (frames[k].t - frames[k - 1].t) / total);
+		const f0 = frames[k - 1].png.data;
+		const f1 = frames[k].png.data;
+		let jumps = 0;
+		let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+		for (let i = 0; i < n; i++) {
+			const j = i * 4;
+			const d = Math.max(Math.abs(f1[j] - f0[j]), Math.abs(f1[j + 1] - f0[j + 1]), Math.abs(f1[j + 2] - f0[j + 2]));
+			if (d > STEP.k * dp * T[i] + STEP.levels) {
+				jumps += 1;
+				const x = i % W;
+				const y = (i / W) | 0;
+				if (x < x0) x0 = x;
+				if (y < y0) y0 = y;
+				if (x > x1) x1 = x;
+				if (y > y1) y1 = y;
+			}
+		}
+		if (jumps / n > worst.share) worst = { share: Math.round((jumps / n) * 100000) / 100000, step: k, box: jumps ? [x0, y0, x1, y1] : null };
+	}
+	out.jumps = worst;
+	// the frames either side of the worst step, cropped round what jumped (CAP only: to see what it was)
+	if (CAP && worst.box) {
+		const [x0, y0, x1, y1] = worst.box;
+		const pad = 24;
+		const cx = Math.max(0, x0 - pad);
+		const cy = Math.max(0, y0 - pad);
+		const cw = Math.min(W - cx, x1 - x0 + 2 * pad);
+		const ch = Math.min(a.height - cy, y1 - y0 + 2 * pad);
+		for (const k of [worst.step - 1, worst.step]) {
+			const src = frames[k].png;
+			const crop = new PNG({ width: cw, height: ch });
+			for (let y = 0; y < ch; y++) src.data.copy(crop.data, y * cw * 4, ((cy + y) * W + cx) * 4, ((cy + y) * W + cx + cw) * 4);
+			writeFileSync(`${CAP}/jump_${tag.replace(/[^a-z0-9]+/gi, '_')}_step${k}.png`, PNG.sync.write(crop));
+		}
+	}
+	for (const fr of frames.slice(1, -1)) {
+		const m = mixResidual(a, b, fr.png, fr.alpha);
+		if (!out.mix || m.p995 > out.mix.p995) out.mix = { p995: m.p995, most: m.most, alpha: fr.alpha };
+	}
+	out.frames = frames.length;
+	await R(p, () => window.__reindeer.sceneOnly(false));
+	await hideDom(p, false);
+	await freeze(p, false);
+	check(out.missing === 0, `${tag}: every scene sprite shown has its texture on all ${out.frames} stepped frames`, out);
+	check(out.change > 2 && out.jumps.share <= STEP.share, `${tag}: no hard pop over ${out.frames - 1} steps of 50 ms (pixels that jump in one step: ${out.jumps.share} at worst; the fade changes ${out.change} levels on average)`, out);
+	info(`${tag}: furthest from the plain mix: p99.5 ${out.mix?.p995} levels (most ${out.mix?.most}) at alpha ${out.mix?.alpha}`);
+	return out;
+}
+
+// ---- contrast ----------------------------------------------------------------------------------------------------------
+const TARGETS = () => {
+	const out = [];
+	const opac = (el) => {
+		let o = 1;
+		for (let e = el; e && e !== document.documentElement; e = e.parentElement) {
+			const cs = getComputedStyle(e);
+			if (cs.display === 'none' || cs.visibility === 'hidden') return 0;
+			o *= Number(cs.opacity);
+		}
+		return o;
+	};
+	const add = (el, kind, what) => {
+		const b = el.getBoundingClientRect();
+		const text = (el.textContent || '').trim();
+		if (!text || b.width < 2 || b.height < 2 || b.right < 0 || b.bottom < 0 || b.left > innerWidth || b.top > innerHeight) return;
+		if (opac(el) < 0.95) return;
+		el.setAttribute('data-contrast-id', String(out.length));
+		out.push({ id: out.length, kind, what, text: text.slice(0, 24), box: { x: b.x, y: b.y, w: b.width, h: b.height } });
+	};
+	for (const el of document.querySelectorAll('[data-top-line]')) add(el, /\d/.test(el.textContent || '') ? 'number' : 'label', 'top line');
+	for (const el of document.querySelectorAll('.hudp .stat .value')) add(el, 'number', 'readout');
+	for (const el of document.querySelectorAll('.hudp .stat .label')) add(el, 'label', 'readout word');
+	for (const el of document.querySelectorAll('.hudp .kl')) add(el, 'label', 'key word');
+	for (const el of document.querySelectorAll('.hudp .fb .lb')) add(el, 'label', 'feature word');
+	return out;
+};
+async function contrast(p, S, preset, { frozen = false, turbo = 0 } = {}) {
+	if (!frozen) await freeze(p, true);
+	// the keys in their resting state (a turbo level lights the TURBO word in the accent red, the same in every scene)
+	await R(p, () => window.__reindeer.turbo(0));
+	await sleep(250);
+	const targets = await R(p, TARGETS);
+	const rows = [];
+	for (const t of targets) {
+		const clip = { x: Math.max(0, Math.floor(t.box.x) - 2), y: Math.max(0, Math.floor(t.box.y) - 2), width: Math.ceil(t.box.w) + 4, height: Math.ceil(t.box.h) + 4 };
+		if (clip.x + clip.width > S.vp.width) clip.width = S.vp.width - clip.x;
+		if (clip.y + clip.height > S.vp.height) clip.height = S.vp.height - clip.y;
+		const style = (mode) =>
+			R(
+				p,
+				({ id, mode }) => {
+					const el = document.querySelector(`[data-contrast-id="${id}"]`);
+					if (!el) return;
+					// the element's own inline style (the top line's ink and halo are inline) is kept and put back exactly
+					if (el.dataset.swapStyle === undefined) el.dataset.swapStyle = el.getAttribute('style') ?? '';
+					el.setAttribute('style', el.dataset.swapStyle);
+					if (mode === 'restore') {
+						if (el.dataset.swapStyle) el.setAttribute('style', el.dataset.swapStyle);
+						else el.removeAttribute('style');
+						delete el.dataset.swapStyle;
+						return;
+					}
+					el.style.setProperty('transition', 'none', 'important');
+					if (mode !== 'ink') el.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
+					if (mode === 'bare') el.style.setProperty('text-shadow', 'none', 'important');
+					return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+				},
+				{ id: t.id, mode },
+			);
+		await style('ink');
+		const A = PNG.sync.read(await p.screenshot({ clip }));
+		await style('halo');
+		const B = PNG.sync.read(await p.screenshot({ clip }));
+		await style('bare');
+		const C = PNG.sync.read(await p.screenshot({ clip }));
+		await style('restore');
+		const n = A.data.length / 4;
+		const LA = new Float64Array(n);
+		const LB = new Float64Array(n);
+		const LC = new Float64Array(n);
+		let maxD = 0;
+		for (let i = 0; i < n; i++) {
+			LA[i] = lum(A.data[i * 4], A.data[i * 4 + 1], A.data[i * 4 + 2]);
+			LB[i] = lum(B.data[i * 4], B.data[i * 4 + 1], B.data[i * 4 + 2]);
+			LC[i] = lum(C.data[i * 4], C.data[i * 4 + 1], C.data[i * 4 + 2]);
+			maxD = Math.max(maxD, Math.abs(LA[i] - LB[i]));
+		}
+		const ratios = [];
+		const bare = [];
+		for (let i = 0; i < n; i++) {
+			if (Math.abs(LA[i] - LB[i]) < 0.5 * maxD) continue;
+			ratios.push((Math.max(LA[i], LB[i]) + 0.05) / (Math.min(LA[i], LB[i]) + 0.05));
+			bare.push((Math.max(LA[i], LC[i]) + 0.05) / (Math.min(LA[i], LC[i]) + 0.05));
+		}
+		const med = (v) => (v.length ? v.sort((a, b) => a - b)[Math.floor(v.length / 2)] : 0);
+		rows.push({ ...t, ratio: r2(med(ratios)), bare: r2(med(bare)), px: ratios.length });
+	}
+	await R(p, (t) => window.__reindeer.turbo(t), turbo);
+	if (!frozen) await freeze(p, false);
+	const tag = `${S.name} ${preset}`;
+	check(rows.length >= 4, `${tag}: contrast measured on ${rows.length} HUD and top line texts`, rows.map((r) => r.text));
+	for (const r of rows) {
+		const need = CONTRAST[r.kind];
+		check(r.ratio >= need, `${tag}: ${r.what} "${r.text}" ${r.ratio}:1 (needs ${need}:1 as a ${r.kind}; no halo ${r.bare}:1)`, r);
+	}
+	return rows;
+}
+
+/** a still for the sheet (CAP): the scene as it is now, the HUD up, everything frozen */
+async function still(p, S, preset, { frozen = false } = {}) {
+	if (!CAP) return;
+	if (!frozen) await freeze(p, true);
+	await sleep(500);
+	writeFileSync(`${CAP}/${S.name}_${preset}.png`, await p.screenshot());
+	if (!frozen) await freeze(p, false);
+}
+
+/** frames (ms) between two performance.now() times */
+const frameStats = (p, from, to) =>
+	R(
+		p,
+		({ from, to }) => {
+			const F = window.__frames;
+			const ts = [];
+			for (let i = Math.max(0, F.n - 6000); i < F.n; i++) ts.push(F.t[i % 6000]);
+			const dts = [];
+			for (let i = 1; i < ts.length; i++) if (ts[i] >= from && ts[i] <= to) dts.push(ts[i] - ts[i - 1]);
+			dts.sort((a, b) => a - b);
+			return { n: dts.length, median: dts.length ? Math.round(dts[Math.floor(dts.length / 2)]) : null, max: dts.length ? Math.round(dts[dts.length - 1]) : null };
+		},
+		{ from, to },
+	);
+
+const logTimes = (log, what) => log.filter((l) => l.what === what);
+
+/** a quiet moment in the bonus, caught in the page on the frame it happens (the probe's polling would miss the short ones):
+ *  a free spin's cars parked, no card, no fade, no message on the strip, the HUD back for a second: everything is frozen
+ *  there and window.__swapQuiet says so */
+const armQuiet = (p, night) =>
+	R(p, (night) => {
+		window.__swapQuiet = null;
+		let hudSince = 0;
+		const look = (t) => {
+			const r = window.__reindeer;
+			if (!r || window.__swapQuiet) return;
+			const s = r.sceneSwap();
+			const sb = r.scoreboard();
+			const hudOff = !!document.querySelector('.am-ui.layer.hud-off');
+			if (hudOff || r.gameType() !== 'freegame') hudSince = t;
+			// (no reindeer running, no crosshair, no win lines: the board idle between spins)
+			const rb = r.roadBoard();
+			const idleBoard = rb.atRest && !rb.features.runner && !rb.features.crosshairLayer.children.some((c) => c.visible && c.alpha > 0.01) && !rb.winLayer.visible;
+			if (r.gameType() === 'freegame' && !sb.card && !sb.show && !s.fade && s.shown === night && s.dom === night && !hudOff && t - hudSince > 1000 && idleBoard) {
+				r.clock(0);
+				r.scoreboardManual(true);
+				r.seatTime(0);
+				r.logoHold(r.scene().logo?.lamps?.ms ?? 5000);
+				window.__swapQuiet = { night, at: t };
+				return;
+			}
+			requestAnimationFrame(look);
+		};
+		requestAnimationFrame(look);
+	}, night);
+
+async function roundChecks(p, S, fixture, night, opts = {}) {
+	const tag = `${S.name} ${fixture}`;
+	// the round, each held fade stepped as it starts
+	const res = await bonusRoundWithSteps(p, S, fixture, night, opts);
+	const { seen } = res;
+	if (opts.contrastToo !== false) check(!!seen.contrast, `${tag}: a quiet moment between free spins was found for the contrast and the still`);
+	check(res.backDone, `${tag}: the round plays through and the game comes back to rest in the day snow (${Math.round(seen.ms / 1000)} s)`, { final: seen.final, phases: seen.phasesList });
+	const base = [...(seen.phasesList['base spin'] ?? []), ...(seen.phasesList['base after'] ?? [])];
+	check(base.length > 0 && base.every((v) => v === 'snowDay/snowDay'), `${tag}: the base spin before the trigger and the base game after the swap back are in the day snow (${[...new Set(base)].join(', ')})`, seen.phasesList);
+	const fs = seen.phasesList['free spins'] ?? [];
+	check(fs.length > 0 && !seen.wrongInBonus, `${tag}: every free spin on the road is in ${night}, the Pixi scene and the DOM side (${fs.join(', ')})`, seen.wrongInBonus);
+	const fi = seen.fadeIn;
+	check(!!fi && fi.to === night && (fi.card === 'fs' || fi.card === 'sfs') && fi.show && fi.show.t >= fi.show.seatedAt, `${tag}: the swap in starts behind the entry scene, its back board seated (card ${fi?.card}, ${fi?.show?.t} ms into it, seated at ${fi?.show?.seatedAt})`, fi);
+	const fb = seen.fadeBack;
+	check(!!fb && fb.card === null && fb.gameType === 'basegame', `${tag}: the swap back starts after the Total Win is dismissed (card ${fb?.card}, ${fb?.gameType})`, fb);
+	check(seen.maxScenes <= LIMIT.scenes && !seen.scenesBad, `${tag}: never more than ${LIMIT.scenes} scenes' pieces on the GPU (most ${seen.maxScenes})`, seen.scenesBad);
+	check(seen.maxLazy <= LIMIT.lazyMB, `${tag}: the night pieces on the GPU at most ${seen.maxLazy} MB (limit ${LIMIT.lazyMB})`);
+	check(!!seen.unloadedAt && seen.unloadedAt - seen.endAt <= LIMIT.unloadMs, `${tag}: after the swap back the night pieces are let go (${seen.unloadedAt ? seen.unloadedAt - seen.endAt : 'never'} ms after the fade's end)`);
+	const log = seen.final.log;
+	const L = (w) => logTimes(log, w).map((l) => `${l.what} ${l.detail ?? ''}`.trim());
+	info(`${tag}: GPU scene ${seen.maxScene} MB at most (night ${seen.maxLazy}), all textures ${seen.maxGpu} MB at most, ${seen.final.gpuMB} MB after; swap log: ${[...L('loaded'), ...L('upload')].join('; ')}`);
+	return seen;
+}
+
+/** the round with each held fade stepped as it appears */
+async function bonusRoundWithSteps(p, S, fixture, night, { contrastToo = true, stillToo = true } = {}) {
+	const tag = `${S.name} ${fixture}`;
+	await R(p, () => {
+		window.__reindeer.turbo(2);
+		window.__reindeer.sceneSwapHold(true);
+	});
+	await R(p, (n) => window.__reindeer.fixtures.next(n), fixture);
+	const t0 = Date.now();
+	const pressAt = Date.now();
+	await p.click('.hudp button.spin');
+	const seen = { pressAt, phases: {}, maxLazy: 0, maxScene: 0, maxGpu: 0, maxScenes: 0, scenesBad: null, fadeIn: null, fadeBack: null, contrast: null, endAt: null, unloadedAt: null, wrongInBonus: null, frames: null, steps: [] };
+	let stepped = 0;
+	let backDone = false;
+	let armed = false;
+	while (Date.now() - t0 < 300000) {
+		const s = await swapNow(p);
+		seen.maxLazy = Math.max(seen.maxLazy, s.lazyGpuMB);
+		seen.maxScene = Math.max(seen.maxScene, s.sceneGpuMB);
+		seen.maxGpu = Math.max(seen.maxGpu, s.gpuMB);
+		seen.maxScenes = Math.max(seen.maxScenes, s.scenesOnGpu.length);
+		if (s.scenesOnGpu.length > LIMIT.scenes && !seen.scenesBad) seen.scenesBad = s.scenesOnGpu;
+		const phase = s.gameType === 'freegame' ? (s.card ? `card:${s.card}` : 'free spins') : s.card ? `card:${s.card}` : stepped === 0 ? 'base spin' : stepped === 2 && !s.fade ? 'base after' : 'swapping back';
+		(seen.phases[phase] ??= new Set()).add(`${s.shown}/${s.dom}`);
+		if (s.gameType === 'freegame' && !s.card && !s.fade && stepped >= 1 && (s.shown !== night || s.dom !== night) && !seen.wrongInBonus) seen.wrongInBonus = { shown: s.shown, dom: s.dom };
+		if (s.fade && stepped === 0) {
+			seen.fadeIn = { to: s.fade.to, card: s.card, show: s.show, at: Date.now() - t0 };
+			// the longest frame from the load's end through the upload to the fade's start (the upload is not held)
+			const fadeAt = logTimes(s.log, 'fade').pop()?.at ?? 0;
+			const loadedAt = logTimes(s.log, 'loaded').pop()?.at ?? fadeAt - 500;
+			seen.frames = await frameStats(p, loadedAt, fadeAt + 50);
+			seen.steps.push(await stepFade(p, S, `${tag}: swap in to ${night}`));
+			stepped = 1;
+			continue;
+		}
+		if (s.fade && stepped === 1 && s.fade.to === 'snowDay') {
+			seen.fadeBack = { card: s.card, show: s.show, gameType: s.gameType, at: Date.now() - t0 };
+			seen.steps.push(await stepFade(p, S, `${tag}: swap back to snowDay`));
+			stepped = 2;
+			continue;
+		}
+		if (contrastToo && !seen.contrast && stepped === 1 && !armed && s.gameType === 'freegame') {
+			armed = true;
+			await armQuiet(p, night);
+		}
+		if (armed && !seen.contrast && (await R(p, () => !!window.__swapQuiet))) {
+			if (stillToo) await still(p, S, night, { frozen: true });
+			seen.contrast = await contrast(p, S, night, { frozen: true, turbo: 2 });
+			await freeze(p, false);
+			continue;
+		}
+		if (stepped === 2 && !seen.endAt && !s.fade) seen.endAt = Date.now();
+		if (seen.endAt && !seen.unloadedAt && s.lazyGpuMB === 0 && !s.lazyKeys.length) seen.unloadedAt = Date.now();
+		if (stepped === 2 && s.idle && s.rest && !s.card && s.gameType === 'basegame' && seen.unloadedAt) {
+			backDone = true;
+			break;
+		}
+		await sleep(60);
+	}
+	await R(p, () => window.__reindeer.sceneSwapHold(false));
+	seen.ms = Date.now() - t0;
+	seen.final = await swapNow(p);
+	seen.phasesList = Object.fromEntries(Object.entries(seen.phases).map(([k, v]) => [k, [...v]]));
+	return { seen, backDone, stepped };
+}
+
+/** a round left open inside a bonus: the page reloads and resumes it; it must come up in its night and end in the day */
+async function resumed(browser, S, fixture, event, night) {
+	const tag = `${S.name} resume ${fixture} at event ${event}`;
+	const b = await boot(browser, S);
+	const { p } = b;
+	await R(p, ({ n, e }) => window.__reindeer.fixtures.resume(n, e), { n: fixture, e: event }).catch(() => {});
+	await sleep(1500);
+	await p.waitForLoadState('domcontentloaded').catch(() => {});
+	// up: the dev hook there and the press screen pressed (the resumed round is busy, so not "at rest")
+	for (let i = 0; i < 200; i++) {
+		const up = await p.evaluate(() => !!(window.__reindeer?.sceneSwap && window.__reindeer.hud && !document.querySelector('.landing') && !window.__reindeer.led?.())).catch(() => false);
+		if (up) break;
+		if (i % 2 === 1) await p.mouse.click(S.vp.width / 2, S.vp.height / 2).catch(() => {});
+		await sleep(600);
+	}
+	const r = b;
+	const t0 = Date.now();
+	let first = null;
+	let nightAt = null;
+	let backAt = null;
+	while (Date.now() - t0 < 240000) {
+		const s = await swapNow(p).catch(() => null);
+		if (!s) {
+			await sleep(200);
+			continue;
+		}
+		if (!first) first = s;
+		if (!nightAt && s.shown === night && s.dom === night && !s.fade) nightAt = Date.now() - t0;
+		if (nightAt && s.shown === 'snowDay' && !s.fade && s.gameType === 'basegame' && s.idle && s.rest && !s.card) {
+			backAt = Date.now() - t0;
+			break;
+		}
+		if (!nightAt && Date.now() - t0 > 30000) break;
+		await R(p, () => window.__reindeer.turbo(2)).catch(() => {});
+		await sleep(150);
+	}
+	check(!!nightAt && !!first && first.want === night && (first.shown === night || first.fade?.to === night || first.starting === night), `${tag}: the resumed round comes up in ${night}: asked for before the press screen ended, ${first?.shown === night ? 'already showing' : 'on its way in'} when the game was up (fully in ${nightAt} ms after)`, first);
+	check(!!backAt, `${tag}: and the day snow comes back when it ends (${backAt} ms)`);
+	check(r.errs.length === 0, `${tag}: no page errors`, r.errs);
+	await b.ctx.close();
+}
+
+const browser = await chromium.launch({ args: ['--mute-audio'] });
+const report = {};
+try {
+	for (const S of SIZES) {
+		console.log(`--- ${S.name} ${S.vp.width}x${S.vp.height}`);
+		const b = await boot(browser, S);
+		const { p, errs, net } = b;
+		const rep = (report[S.name] = {});
+		if (SEC('rounds') || SEC('again')) {
+			// THE FIRST LOAD
+			const s0 = await swapNow(p);
+			rep.before = { sceneGpuMB: s0.sceneGpuMB, gpuMB: s0.gpuMB };
+			check(s0.shown === 'snowDay' && s0.dom === 'snowDay' && s0.skins.join() === 'snowDay', `${S.name}: the game comes up in the day snow (${s0.shown}/${s0.dom}, skins ${s0.skins})`, s0);
+			check(net.length === 0 && s0.lazyKeys.filter((k) => /^(night|super)/.test(k)).length === 0, `${S.name}: no night piece is asked for or held before the first press (${net.length} requests)`, net);
+			info(`${S.name}: before the first press: scene ${s0.sceneGpuMB} MB on the GPU, all textures ${s0.gpuMB} MB`);
+			await still(p, S, 'snowDay');
+			rep.contrastDay = await contrast(p, S, 'snowDay');
+			// THE TWO ROUNDS
+			for (const [fixture, night] of [
+				['natural_free_spins', 'snowNight'],
+				['natural_super', 'snowSuper'],
+			]) {
+				const pressAt = Date.now();
+				const seen = await roundChecks(p, S, fixture, night);
+				const mine = night === 'snowNight' ? 'snow-night-' : 'snow-super-';
+				const own = net.filter((n) => n.url.includes(mine));
+				check(own.length > 0 && own.every((n) => n.at >= pressAt), `${S.name} ${fixture}: its night pieces were asked for only after this round's press (${own.length} requests)`, own.filter((n) => n.at < pressAt));
+				rep[fixture] = { maxScene: seen.maxScene, maxLazy: seen.maxLazy, maxGpu: seen.maxGpu, after: seen.final.gpuMB, afterScene: seen.final.sceneGpuMB, frames: seen.frames, log: seen.final.log.slice(-12) };
+				info(`${S.name} ${fixture}: frames from the load's end to the fade's start: ${JSON.stringify(seen.frames)}`);
+			}
+			// AGAIN (desktop): a second Free Spins round after its pieces were let go
+			if (S.extra && SEC('again')) {
+				const seen = await roundChecks(p, S, 'natural_free_spins', 'snowNight', { contrastToo: false, stillToo: false });
+				rep.again = { maxScene: seen.maxScene, frames: seen.frames, log: seen.final.log.slice(-12) };
+				const loads = logTimes(seen.final.log, 'loaded').map((l) => l.detail);
+				info(`${S.name} second Free Spins round: ${loads.slice(-1)}; upload ${logTimes(seen.final.log, 'upload').slice(-2)[0]?.detail}; frames ${JSON.stringify(seen.frames)} (first round ${JSON.stringify(rep.natural_free_spins?.frames)})`);
+			}
+			const after = await swapNow(p);
+			rep.after = { sceneGpuMB: after.sceneGpuMB, gpuMB: after.gpuMB };
+			check(after.sceneGpuMB <= s0.sceneGpuMB + 0.01 && after.lazyGpuMB === 0, `${S.name}: after the bonus rounds the scene holds what it held before the first press (${after.sceneGpuMB} MB, was ${s0.sceneGpuMB})`, after);
+			info(`${S.name}: GPU all textures: before ${s0.gpuMB} MB, after ${after.gpuMB} MB`);
+		}
+		check(errs.length === 0, `${S.name}: no page errors`, errs);
+		await b.ctx.close();
+		if (S.extra && SEC('resume')) {
+			await resumed(browser, S, 'natural_free_spins', 9, 'snowNight');
+			await resumed(browser, S, 'natural_super', 8, 'snowSuper');
+		}
+	}
+} finally {
+	await browser.close();
+}
+if (CAP) writeFileSync(`${CAP}/scene_swap_probe.json`, JSON.stringify(report, null, 1));
+console.log(`\n${pass} pass, ${fail} fail`);
+for (const f of fails) console.log(`  FAIL ${f}`);
+process.exit(fail ? 1 : 0);

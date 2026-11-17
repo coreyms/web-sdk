@@ -23,6 +23,32 @@ export const stamp = (href: string): string => {
 /** the upright phone's forest (game/scenePresets.ts snowDay forest) */
 export const FOREST_URL = stamp(new URL('../../assets/scene/snow-day-forest.webp', import.meta.url).href);
 
+/** THE SCENE'S LAZY PIECES (scene swap, 2026-11-17; game/scene/sceneSwap.ts): never in the first load before the first
+ *  press. The two night scenes (tools/build_scene.py: the Free Spins and Super kits) load when a round's book holds a
+ *  trigger (or a resumed round is inside a bonus), go to the GPU as the cross-fade starts and are let go after the swap
+ *  back; the day forest off the phone tier loads the first time an upright phone layout shows. By asset key. */
+export const SCENE_LAZY_URLS: Record<string, string> = {
+	sceneForest: FOREST_URL,
+	nightField: stamp(new URL('../../assets/scene/snow-night-field.webp', import.meta.url).href),
+	nightBandTop: stamp(new URL('../../assets/scene/snow-night-band-top.webp', import.meta.url).href),
+	nightBandBottom: stamp(new URL('../../assets/scene/snow-night-band-bottom.webp', import.meta.url).href),
+	nightEndLeft: stamp(new URL('../../assets/scene/snow-night-end-left.webp', import.meta.url).href),
+	nightEndRight: stamp(new URL('../../assets/scene/snow-night-end-right.webp', import.meta.url).href),
+	nightForest: stamp(new URL('../../assets/scene/snow-night-forest.webp', import.meta.url).href),
+	nightRoad: stamp(new URL('../../assets/scene/snow-night-road.webp', import.meta.url).href),
+	nightTunnelLeft: stamp(new URL('../../assets/scene/snow-night-tunnel-left.webp', import.meta.url).href),
+	nightTunnelRight: stamp(new URL('../../assets/scene/snow-night-tunnel-right.webp', import.meta.url).href),
+	superField: stamp(new URL('../../assets/scene/snow-super-field.webp', import.meta.url).href),
+	superBandTop: stamp(new URL('../../assets/scene/snow-super-band-top.webp', import.meta.url).href),
+	superBandBottom: stamp(new URL('../../assets/scene/snow-super-band-bottom.webp', import.meta.url).href),
+	superEndLeft: stamp(new URL('../../assets/scene/snow-super-end-left.webp', import.meta.url).href),
+	superEndRight: stamp(new URL('../../assets/scene/snow-super-end-right.webp', import.meta.url).href),
+	superForest: stamp(new URL('../../assets/scene/snow-super-forest.webp', import.meta.url).href),
+	superRoad: stamp(new URL('../../assets/scene/snow-super-road.webp', import.meta.url).href),
+	superTunnelLeft: stamp(new URL('../../assets/scene/snow-super-tunnel-left.webp', import.meta.url).href),
+	superTunnelRight: stamp(new URL('../../assets/scene/snow-super-tunnel-right.webp', import.meta.url).href),
+};
+
 /** the phone asset tier's twin of a file (game/deviceTier.ts PHONE_TIER: a constant, chosen once before any texture loads) */
 const tiered = (full: string, phone: string): string => (PHONE_TIER ? phone : full);
 

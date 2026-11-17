@@ -78,9 +78,13 @@ export class LogoSign {
 			glow.anchor.set(0.5);
 			glow.blendMode = 'add';
 			glow.tint = LOGO_SIGN.lamps.glowTint;
-			this.body.addChild(lit, glow);
 			this.lamps.push({ side, lit, glow });
 		}
+		// BOTH GLASSES, THEN BOTH GLOWS (2026-11-17): the two lit patches batch with the base (normal blend) and the two
+		// glows with each other (add), two blend changes fewer than glass, glow, glass, glow. The same picture: each glow
+		// disc lies clear of the other lamp's patch (and of the other glow) at any glow size the panel allows, so the order
+		// of a normal and an added sprite that never overlap changes no pixel.
+		this.body.addChild(...this.lamps.map((l) => l.lit), ...this.lamps.map((l) => l.glow));
 		this.place({ x: 0, y: 0, width: ART.size[0], height: ART.size[1] });
 		this.update(0);
 	}

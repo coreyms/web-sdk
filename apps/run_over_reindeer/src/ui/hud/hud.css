@@ -5,7 +5,8 @@
      opacity only. */
 .hudp {
 	--k: 52px;
-	--lab: rgba(var(--hud-label-rgb), 0.74);
+	/* the small words' strength is the scene's (ui/hudTheme.ts HUD_GLASS label-a; Manticore 0.74) */
+	--lab: rgba(var(--hud-label-rgb), var(--hud-label-a, 0.74));
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -149,7 +150,8 @@
 }
 .hudp .stat.win.is-lit .value {
 	color: rgb(var(--hud-win-cream-rgb));
-	text-shadow: 0 0 12px rgba(var(--hud-win-rgb), 0.85), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.7);
+	/* the dark under-glow's strength is the scene's (ui/hudTheme.ts HUD_GLASS win-shadow-a; Manticore 0.7) */
+	text-shadow: 0 0 12px rgba(var(--hud-win-rgb), 0.85), 0 1px 2px rgba(var(--hud-shadow-rgb), var(--hud-win-shadow-a, 0.7));
 }
 .hudp .stat.win.is-big {
 	background: linear-gradient(180deg, rgba(var(--hud-win-hi-rgb), 0.32), rgba(var(--hud-win-rgb), 0.12)), radial-gradient(ellipse 80% 140% at 50% 100%, rgba(var(--hud-win-rgb), 0.7), rgba(var(--hud-win-rgb), 0) 80%);
@@ -204,6 +206,14 @@
 	/* the ink and the shadow are the scene's (ui/hudTheme.ts HUD_READOUT_INK: light over a dark scene, dark over snow) */
 	color: rgb(var(--hud-pt-ink-rgb));
 	text-shadow: var(--hud-pt-shadow);
+}
+/* THE SCENE SWAP (game/stateScene.svelte.ts setScenePreset): while a swap runs the readouts' ink and halo change with the
+   scene's cross-fade (only then: a lit WIN changes at once the rest of the time) */
+:root[data-scene-fade] .hudp .stat.pt .lbw,
+:root[data-scene-fade] .hudp .stat.pt .value {
+	transition:
+		color var(--scene-fade-ms, 400ms) linear,
+		text-shadow var(--scene-fade-ms, 400ms) linear;
 }
 .hudp .stat.pt.l {
 	align-items: flex-start;

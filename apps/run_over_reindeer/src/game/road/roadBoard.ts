@@ -294,20 +294,11 @@ export class RoadBoard {
 	/** a lane's front car has stopped (the handler plays the stop sound) */
 	onLaneStop: ((lane: number) => void) | null = null;
 
-	constructor(
-		private readonly tex: TextureLookup,
-		textures: { road?: PIXI.Texture; tunnelLeft?: PIXI.Texture; tunnelRight?: PIXI.Texture },
-	) {
+	constructor(private readonly tex: TextureLookup) {
 		this.presentStill = presentStillTexture(tex('presentStill'));
-		const img = ROAD_ART.image;
-		// THE SCENE (scene pass 9, game/scene/sceneLayers.ts): the field under the picture, the bands and the forest over it
-		this.root.addChild(this.scene.field);
-		if (textures.road) {
-			const bg = new PIXI.Sprite(textures.road);
-			bg.width = img.width;
-			bg.height = img.height;
-			this.root.addChild(bg);
-		}
+		// THE SCENE (scene pass 9, game/scene/sceneLayers.ts): the field under the picture, the picture (since the scene
+		// swap, 2026-11-17, the preset's own: the night scenes re-colour it), the bands and the forest over it
+		this.root.addChild(this.scene.field, this.scene.picture);
 		this.root.addChild(this.scene.bands, this.scene.forest);
 		this.root.addChild(this.ground);
 		this.root.addChild(this.brakeBackLayer);
@@ -342,16 +333,8 @@ export class RoadBoard {
 		// pixels over the traffic that has driven past the picture's edge. Only seen where the screen is wider than the
 		// picture, and then it is the same snow as under it.
 		this.root.addChild(this.scene.cover);
-		for (const side of ['left', 'right'] as const) {
-			const t = side === 'left' ? textures.tunnelLeft : textures.tunnelRight;
-			if (!t) continue;
-			const c = ROAD_ART.covers[side];
-			const cover = new PIXI.Sprite(t);
-			cover.position.set(c.x, c.y);
-			cover.width = c.width;
-			cover.height = c.height;
-			this.root.addChild(cover);
-		}
+		// the tunnel portal strips (the preset's own since the scene swap: game/scene/sceneLayers.ts tunnels)
+		this.root.addChild(this.scene.tunnels);
 		// the painted tunnel ends over the portal strips (their caps lie on the stone), then the running reindeer over
 		// everything of the road and the ends: he runs in on the snow from past the screen's edge (scene pass 9; until then
 		// he was drawn under the stoplights and the rock and came out from under the rock)

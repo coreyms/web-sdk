@@ -1140,6 +1140,13 @@ export const SCENE = {
 	 *  always stays at least `topSpare` road px above the screen's top (the trees run off the top), and its bottom never
 	 *  more than `maxBelow` into the picture's top margin. */
 	forest: { anchors: [{ snow: 764, bottom: -36 }, { snow: 1416, bottom: -384 }], topSpare: 8, maxBelow: 60 },
+	/** THE SCENE SWAP (2026-11-17, game/scene/sceneSwap.ts): the day snow in the base game, the night in Free Spins, the
+	 *  deep night in Super Free Spins. `fadeMs`: the plain alpha cross-fade's length (the top line and the HUD's ink take
+	 *  the same time); `tailShare`: then the outgoing scene fades out under the incoming one over this share of fadeMs
+	 *  (only the soft edges of its pieces still show by then: without it they would vanish in one frame); `unload`: the
+	 *  night pieces leave the GPU and memory after the swap back (they load again at the next bonus: the second load
+	 *  comes from the browser's cache) */
+	swap: { fadeMs: 400, tailShare: 0.25, unload: true },
 };
 
 // ---- THE BILLBOARD LOGO (scene pass 9: the LOCKED yellow billboard, tools/build_scene.py, game/scene/logoSign.ts) -------

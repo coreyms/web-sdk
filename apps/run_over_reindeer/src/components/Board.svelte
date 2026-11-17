@@ -55,9 +55,10 @@
 	import { getContext } from '../game/context';
 	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass } from '../game/layoutSpec';
 	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, ROAD_MOTION, STRIKE, TUNE, motionFor } from '../game/constants';
-	import { FOREST_URL } from '../game/assets';
-	import { stateScene } from '../game/stateScene.svelte';
+	import { sceneHooks, stateScene } from '../game/stateScene.svelte';
+	import { presetForMode, type ScenePreset } from '../game/scenePresets';
 	import { LogoSign } from '../game/scene/logoSign';
+	import { SceneSwap } from '../game/scene/sceneSwap';
 	import config from '../game/config';
 	import { boot } from '../game/boot.svelte';
 	import { LedSign, ledGeometry } from '../game/landing/ledSign';
@@ -93,7 +94,7 @@
 
 	const loaded = context.stateApp.loadedAssets as Record<string, PIXI.Texture | undefined>;
 	const tex = (frame: string) => loaded[frame];
-	const road = new RoadBoard(tex, { road: loaded.road, tunnelLeft: loaded.tunnelLeft, tunnelRight: loaded.tunnelRight });
+	const road = new RoadBoard(tex);
 	road.setBoard(stateGame.board);
 	// (a lane's stop no longer sounds: since round 2, 2026-11-15, each REEL has its own stop, sfx_lane_stop_1..5, cued by
 	// the road itself as that reel's last car stops, game/road/roadBoard.ts updateReelStops; the borrowed sfx_reel_stop
@@ -214,14 +215,76 @@
 	if (logo) parent.addToParent(logo.root);
 	if (!led) scoreboardOverLogo();
 
-	// THE SCENE PRESET (game/stateScene.svelte.ts): its pieces by asset key; the forest off the phone tier loads the first
-	// time an upright phone layout shows (it is in the phone tier's preload)
-	const lazy: Record<string, PIXI.Texture> = {};
-	let forestLoading = false;
-	const sceneTex = (key: string) => loaded[key] ?? lazy[key] ?? null;
-	$effect(() => {
-		road.scene.setPreset(stateScene.preset, sceneTex);
+	// THE SCENE PRESET AND ITS SWAP (game/stateScene.svelte.ts, game/scene/sceneSwap.ts): its pieces by asset key (the day
+	// snow in the manifest; the night scenes and the day forest off the phone tier load lazily). The scene follows the
+	// round's mode; the swap in waits for the LED back board's entry scene to be seated over the dimmed scene, the swap back
+	// starts once the mode is the base game again (after the Total Win is dismissed). A plain alpha cross-fade.
+	/** the screen as the last layout saw it, and the LED scoreboard's place (its snow cover is re-cut when the pieces change) */
+	let sceneView: { kind: typeof kind; uprightPhone: boolean } | null = null;
+	let boardGeo: ReturnType<typeof scoreboardGeometry> | null = null;
+	const swap = new SceneSwap({
+		loaded,
+		layers: road.scene,
+		view: () => sceneView,
+		upload: (t) => context.stateApp.pixiApplication?.renderer.prepare.upload(t),
+		gate: (to) => to === 'snowDay' || !scoreboard || !scoreboard.entryRising(),
+		onPieces: () => cutCover(),
+		onFade: (a, out) => scoreboard?.setCoverFade(a, out),
 	});
+	const sceneTex = swap.tex;
+	sceneHooks.prefetch = (name) => void swap.prefetch(name);
+	// A ROUND LEFT OPEN INSIDE A BONUS (the session's resumed bet): its scene is asked for from the moment the bet is known,
+	// so its pieces load behind the press screen and the resumed free spins come up in their night; the round's own mode
+	// takes over once its snapshot has rebuilt it (game/bookEventHandlerMap.ts createBonusSnapshot)
+	const resumedMode = (): 'bonus' | 'super' | null => {
+		const bet = stateBet.betToResume as { active?: boolean; event?: string | number; state?: { type: string; bonusType?: string }[] } | null;
+		if (!bet?.active || !Array.isArray(bet.state)) return null;
+		const at = Number(bet.event ?? 0);
+		let mode: 'bonus' | 'super' | null = null;
+		bet.state.forEach((e, i) => {
+			if (i >= at) return;
+			if (e.type === 'freeSpinTrigger') mode = e.bonusType === 'super' ? 'super' : 'bonus';
+			if (e.type === 'freeSpinEnd') mode = null;
+		});
+		return mode;
+	};
+	let resumeHeld = true;
+	$effect(() => {
+		const mode = stateGame.bonusMode;
+		const resumed = resumeHeld ? resumedMode() : null;
+		if (mode) resumeHeld = false;
+		stateScene.want = presetForMode(mode ?? resumed);
+	});
+	/** THE LED SCOREBOARD'S SNOW COVER from a preset's pieces: the field tile, the road picture, the bottom band, and the
+	 *  painted ends where the layout shows them (road px) */
+	const coverPieces = (P: ScenePreset, layout: typeof kind): CoverPiece[] => {
+		const pieces: CoverPiece[] = [];
+		if (!P.boardCover) return pieces;
+		const A = SCENE_ART[P.kit];
+		const field = sceneTex(P.boardCover.field);
+		const band = P.boardCover.band ? sceneTex(P.boardCover.band) : null;
+		const picture = sceneTex(P.picture.road);
+		const F = A.field.road;
+		if (field) pieces.push({ tex: field, x: F[0], y: F[1], w: F[2], h: F[3], tile: true });
+		if (picture) pieces.push({ tex: picture, x: 0, y: 0, w: ROAD_ART.image.width, h: ROAD_ART.image.height });
+		const B = A.bandBottom.road;
+		if (band) pieces.push({ tex: band, x: B[0], y: B[1], w: B[2], h: B[3] });
+		if (P.ends && P.ends.layouts.includes(layout))
+			for (const [key, R] of [
+				[P.ends.left, A.endLeft.road],
+				[P.ends.right, A.endRight.road],
+			] as const) {
+				const t = sceneTex(key);
+				if (t) pieces.push({ tex: t, x: R[0], y: R[1], w: R[2], h: R[3] });
+			}
+		return pieces;
+	};
+	/** the cover cut for the scenes on screen now: the showing one, and the incoming one while the scene cross-fades */
+	const cutCover = () => {
+		if (!scoreboard || !boardGeo || !sceneView) return;
+		const [shown, incoming] = road.scene.presets();
+		scoreboard.layout(boardGeo, shown ? coverPieces(shown, sceneView.kind) : [], incoming ? coverPieces(incoming, sceneView.kind) : null);
+	};
 
 	// the road in the layout: road px -> master units (layoutSpec ROAD_LAYOUT) -> canvas px (the main layout's fit).
 	// Derived from the window on every change, never cached (the house rule: this is why rotation survives).
@@ -245,18 +308,12 @@
 		const rect = { left: -ox / k, top: -oy / k, right: (canvasSize.width - ox) / k, bottom: (canvasSize.height - oy) / k };
 		const uprightPhone = kind === 'portrait' && isPhoneSizeType(context.stateLayoutDerived.canvasSizeType());
 		const feetY = (STRIKE.snow[kind] ?? STRIKE.snow.landscape).feetY;
+		sceneView = { kind, uprightPhone };
 		road.scene.layout({ kind, uprightPhone, rect, feetY });
 		road.features.screenEdges = { left: rect.left, right: rect.right };
-		const forestKey = stateScene.preset.forest;
-		if (uprightPhone && forestKey && !sceneTex(forestKey) && !forestLoading) {
-			forestLoading = true;
-			void PIXI.Assets.load<PIXI.Texture>(FOREST_URL)
-				.then((t) => {
-					lazy[forestKey] = t;
-					road.scene.refresh();
-				})
-				.catch(() => {});
-		}
+		// a piece this layout draws that is not in yet (the forest on a desktop browser narrowed to an upright phone, a
+		// night scene's ends after a rotation): loaded now, drawn when in
+		swap.layoutChanged();
 		// the billboard logo, by its class's rule (layoutSpec logoBox), in the road's px
 		if (logo) {
 			const extraTop = kind === 'landscape' ? landscapeExtraY(canvasSize.height / main.scale) : 0;
@@ -270,27 +327,8 @@
 		// cut from (the preset's boardCover: the field tile, the road picture, the bottom band, and the painted ends where the
 		// layout shows them), road px
 		if (scoreboard) {
-			const geo = scoreboardGeometry(kind, canvasSize.width, canvasSize.height, main, place, isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
-			const P = stateScene.preset;
-			const pieces: CoverPiece[] = [];
-			if (P.boardCover) {
-				const field = sceneTex(P.boardCover.field);
-				const band = P.boardCover.band ? sceneTex(P.boardCover.band) : null;
-				const F = SCENE_ART.snowDay.field.road;
-				if (field) pieces.push({ tex: field, x: F[0], y: F[1], w: F[2], h: F[3], tile: true });
-				if (loaded.road) pieces.push({ tex: loaded.road, x: 0, y: 0, w: ROAD_ART.image.width, h: ROAD_ART.image.height });
-				const B = SCENE_ART.snowDay.bandBottom.road;
-				if (band) pieces.push({ tex: band, x: B[0], y: B[1], w: B[2], h: B[3] });
-				if (P.ends && P.ends.layouts.includes(kind))
-					for (const [key, R] of [
-						[P.ends.left, SCENE_ART.snowDay.endLeft.road],
-						[P.ends.right, SCENE_ART.snowDay.endRight.road],
-					] as const) {
-						const t = sceneTex(key);
-						if (t) pieces.push({ tex: t, x: R[0], y: R[1], w: R[2], h: R[3] });
-					}
-			}
-			scoreboard.layout(geo, pieces);
+			boardGeo = scoreboardGeometry(kind, canvasSize.width, canvasSize.height, main, place, isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+			cutCover();
 		}
 		// the billboard: centred on the board, sized per layout (canvas CSS px)
 		if (led) {
@@ -344,6 +382,8 @@
 			road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
 			led?.update(ticker.deltaMS, boot.pressReady);
 			logo?.update(ticker.deltaMS);
+			// THE SCENE SWAP (real ms: the cross-fade keeps its own time, as the logo does)
+			swap.update(ticker.deltaMS);
 			if (scoreboard) {
 				const free = stateGame.gameType === 'freegame';
 				if (!free) fsDone = 0;
@@ -485,6 +525,47 @@
 					picture: { x: ox, y: oy, width: 1536 * k, height: 1024 * k, k },
 					logo: b ? { road: b, css: { x: ox + b.x * k, y: oy + b.y * k, width: b.width * k, height: b.height * k }, lamps: logo!.levels() } : null,
 				};
+			},
+			/** THE SCENE SWAP (game/scene/sceneSwap.ts): the preset shown, wanted and on the DOM side, the fade, the skins, every
+			 *  scene piece loaded (MB, on the GPU or not) and its log; `sceneWant(name)` asks for a preset by hand (as the tune
+			 *  panel's buttons); `gpuTextures()` every texture the renderer holds on the GPU (MB, mips counted) */
+			sceneSwap: () => swap.snapshot((src) => !!(context.stateApp.pixiApplication?.renderer as unknown as { texture?: { managedTextures?: PIXI.TextureSource[] } } | undefined)?.texture?.managedTextures?.includes(src)),
+			sceneWant: (name: 'snowDay' | 'snowNight' | 'snowSuper') => (stateScene.want = name),
+			/** hold a swap's fade where it is once it starts (on), and move it by hand (the probe steps it frame by frame) */
+			sceneSwapHold: (on: boolean) => (swap.hold = !!on),
+			sceneSwapStep: (ms: number) => {
+				swap.step(ms);
+				return swap.snapshot(() => false).fade;
+			},
+			/** the scene alone (on): nothing of the road but its scene layers, no logo, no LED faces (the dim and the snow cover
+			 *  stay); off puts everything back as it was. The scene swap probe steps a fade so, with nothing else in the frame. */
+			sceneOnly: (on: boolean) => {
+				const keep = new Set<PIXI.Container>([road.scene.field, road.scene.picture, road.scene.bands, road.scene.forest, road.scene.cover, road.scene.tunnels, road.scene.ends]);
+				for (const c of road.root.children) if (!keep.has(c)) c.renderable = !on;
+				if (logo) logo.root.renderable = !on;
+				scoreboard?.devSceneOnly(on);
+			},
+			/** every sprite the scene layers show now: those with no texture to draw (an empty or destroyed one) are counted */
+			sceneSprites: () => {
+				let shown = 0;
+				let missing = 0;
+				const walk = (node: PIXI.Container) => {
+					if (!node.visible || node.alpha <= 0) return;
+					if (node instanceof PIXI.Sprite) {
+						shown += 1;
+						const t = node.texture;
+						if (!t || t === PIXI.Texture.EMPTY || t.destroyed || !t.source || t.source.destroyed) missing += 1;
+					}
+					for (const child of node.children) walk(child as PIXI.Container);
+				};
+				for (const c of [road.scene.field, road.scene.picture, road.scene.bands, road.scene.forest, road.scene.cover, road.scene.tunnels, road.scene.ends]) walk(c);
+				return { shown, missing };
+			},
+			gpuTextures: () => {
+				const list = (context.stateApp.pixiApplication?.renderer as unknown as { texture?: { managedTextures?: PIXI.TextureSource[] } } | undefined)?.texture?.managedTextures ?? [];
+				let bytes = 0;
+				for (const src of list) bytes += src.pixelWidth * src.pixelHeight * 4 * (src.autoGenerateMipmaps ? 4 / 3 : 1);
+				return { count: list.length, mb: Math.round((bytes / 1048576) * 100) / 100 };
 			},
 			logoHold: (ms: number | null) => {
 				if (logo) logo.hold = ms;

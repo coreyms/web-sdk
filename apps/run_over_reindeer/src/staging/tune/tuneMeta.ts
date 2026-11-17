@@ -10,6 +10,7 @@
 //   reload  read once when the board or the scene is built: a reload resets it, so it cannot be tried here
 //   unknown not checked value by value: try a spin; if it does not show, it is read at build time
 import { scoreboardDev } from '../../game/scoreboard/scoreboard';
+import { sceneDev } from '../../game/stateScene.svelte';
 
 export type When = 'live' | 'spin' | 'win' | 'resize' | 'reload' | 'unknown';
 
@@ -34,7 +35,7 @@ export type Meta = {
 };
 
 /** the groups first in the panel (the ones being tuned now), then the rest of TUNE in its own order */
-export const GROUP_ORDER = ['ledBoard', 'logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
+export const GROUP_ORDER = ['scene', 'ledBoard', 'logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
 
 export const GROUP_META: Record<string, { label: string; when: When }> = {
 	shadow: { label: 'Shadows', when: 'live' },
@@ -46,7 +47,8 @@ export const GROUP_META: Record<string, { label: string; when: When }> = {
 	hudBed: { label: 'HUD beds', when: 'resize' },
 	// scene pass 9: the lamps are read every frame (game/scene/logoSign.ts); the places on the next layout pass
 	logoSign: { label: 'Billboard logo', when: 'live' },
-	scene: { label: 'Scene (forest, edge cover)', when: 'resize' },
+	// the scene swap (2026-11-17): the three presets by hand, the cross-fade's length (read when a swap starts)
+	scene: { label: 'Scene (the day, Free Spins and Super scenes; forest, edge cover)', when: 'resize' },
 	// the LED scoreboard (game/scoreboard/): the rise, the timings and the cartoon are read every frame or at a show's
 	// start; the strip's place rules on the next layout pass
 	ledBoard: { label: 'LED board', when: 'live' },
@@ -60,6 +62,13 @@ const round2 = (v: number) => Math.round(v * 100) / 100;
 const demoWin = (x: number) => (sb() ? void sb()!.win({ x, amount: round2(x * scoreboardDev.bet()), bet: scoreboardDev.bet(), fmt: scoreboardDev.fmt, rate: 1, auto: false }) : 'no scoreboard on this page');
 const demoCard = (kind: 'fs' | 'sfs' | 'total') => (sb() ? void sb()!.card({ kind, spins: 10, amount: kind === 'total' ? round2(248.5 * scoreboardDev.bet()) : 0, fmt: scoreboardDev.fmt, rate: 1 }) : 'no scoreboard on this page');
 export const GROUP_ACTIONS: Record<string, Action[]> = {
+	// THE SCENE SWAP (game/scene/sceneSwap.ts): the scene cross-fades to the preset asked (its pieces load first if they are
+	// not in); the next change of the round's mode (a bonus starting or ending) asks for its own scene again
+	scene: [
+		{ label: 'Day snow (base game)', run: () => void sceneDev.show('snowDay') },
+		{ label: 'Night snow (Free Spins)', run: () => void sceneDev.show('snowNight') },
+		{ label: 'Deep night (Super Free Spins)', run: () => void sceneDev.show('snowSuper') },
+	],
 	ledBoard: [
 		{ label: 'Raise the board', run: () => (sb() ? void sb()!.raise() : 'no scoreboard on this page') },
 		{ label: 'Lower the board', run: () => (sb() ? void sb()!.lower() : 'no scoreboard on this page') },
@@ -128,6 +137,10 @@ export const META: Record<string, Meta> = {
 	'road.symbolScale.*': { min: 0.5, max: 1.5, step: 0.01 },
 	'road.sitAboveLine': { when: 'spin' },
 
+	'scene.swap': { when: 'live' },
+	'scene.swap.fadeMs': { ...ms(2000, 'cross-fade'), when: 'live' },
+	'scene.swap.tailShare': { label: 'then the outgoing scene fades out over (share of the cross-fade)', min: 0, max: 1, step: 0.05, when: 'live' },
+	'scene.swap.unload': { label: 'let the night pieces go after the swap back', when: 'live' },
 	'logoSign.place': { when: 'resize' },
 	'logoSign.place.*.cx': { min: -600, max: 600, step: 1, unit: 'road px' },
 	'logoSign.place.*.foot': { min: -400, max: 600, step: 1, unit: 'road px' },

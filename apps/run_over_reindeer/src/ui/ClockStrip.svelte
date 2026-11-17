@@ -17,7 +17,7 @@
 	const hhmm = $derived(`${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`);
 </script>
 
-<div class="strip" style:color={tone.ink} style:text-shadow={tone.halo} style:left={side === 'left' ? '14px' : 'auto'} style:right={side === 'right' ? '14px' : 'auto'}>
+<div class="strip" data-top-line style:color={tone.ink} style:text-shadow={tone.halo} style:left={side === 'left' ? '14px' : 'auto'} style:right={side === 'right' ? '14px' : 'auto'}>
 	{#if clock}{hhmm}&nbsp;&nbsp;&nbsp;{/if}{text}
 </div>
 
@@ -35,5 +35,11 @@
 		pointer-events: none;
 		white-space: pre;
 		z-index: 10;
+	}
+	/* THE SCENE SWAP (game/stateScene.svelte.ts setScenePreset): the ink and the halo change with the scene's cross-fade */
+	:global(:root[data-scene-fade]) .strip {
+		transition:
+			color var(--scene-fade-ms, 400ms) linear,
+			text-shadow var(--scene-fade-ms, 400ms) linear;
 	}
 </style>

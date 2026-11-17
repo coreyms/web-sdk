@@ -17,6 +17,14 @@ and writes inside this app:
   src/game/sceneArtSpec.ts              (generated) every piece's file, size and road px place; the sign's frames
 
 The ends ship at their source density (1.41 px per road px, Corey's approval 2026-11-16), trimmed to their alpha box.
+
+THE NIGHT KITS (scene swap, 2026-11-17): the Free Spins and Super Free Spins night snow, built the same way, read only:
+  ~/Desktop/Run Over Reindeer/scene_kit_snow_bonus_S2_r2_2026-11-16/pieces/   (preset snowNight, files scene/snow-night-*)
+  ~/Desktop/Run Over Reindeer/scene_kit_snow_super_S1_r2_2026-11-16/pieces/   (preset snowSuper, files scene/snow-super-*)
+Each has the day kit's pieces (field tile, bands, ends: same sizes, same alpha, same road px places, checked here) and three
+more: its own road picture (the day picture re-coloured: q92 like road/road.webp), its two portal strips (lossless with the
+day strips' exact alpha, like road/tunnel-*.webp) and its upright phone forest (q80 like the day forest). Nothing in them is
+repainted here: crops and format only.
 Run with the math env's Python (Pillow, numpy):
     math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_scene.py
 """
@@ -34,6 +42,12 @@ DESK = os.path.expanduser("~/Desktop/Run Over Reindeer")
 KIT = os.path.join(DESK, "snow_scene_kit_r1_2026-11-16", "pieces")
 FOREST = os.path.join(DESK, "treeline_r2_2026-11-16", "forest_A.png")
 LOGO = os.path.join(DESK, "billboard_logo_r2_2026-11-15")
+# the night kits: preset name -> (kit folder, file prefix)
+NIGHT_KITS = {
+    "snowNight": (os.path.join(DESK, "scene_kit_snow_bonus_S2_r2_2026-11-16", "pieces"), "snow-night"),
+    "snowSuper": (os.path.join(DESK, "scene_kit_snow_super_S1_r2_2026-11-16", "pieces"), "snow-super"),
+}
+ROAD_DIR = os.path.join(APP, "static", "assets", "road")
 
 OPAQUE = dict(quality=92, method=6)  # as road.webp (tools/build_assets.py)
 ALPHA = dict(quality=90, alpha_quality=100, method=6)  # lossy color, exact alpha
@@ -99,6 +113,48 @@ def build_kit():
     forest = Image.open(FOREST).convert("RGBA")
     # its road size is set by the layout (full width, game/scenePresets.ts); here only its pixels and aspect
     pieces["forest"] = {"file": "scene/snow-day-forest.webp", "px": list(forest.size), "aspect": round(forest.size[1] / forest.size[0], 5), "bytes": save(forest, "snow-day-forest.webp", FOREST_OPTS)}
+    return pieces
+
+
+def build_night(day, kit, prefix):
+    """one night kit: the day kit's pieces at the day's sizes and places (alpha checked equal), its road picture, its two
+    portal strips and its forest"""
+    pieces = {}
+    field = Image.open(os.path.join(kit, "field_tile.png")).convert("RGB")
+    assert list(field.size) == day["field"]["px"], ("field", field.size)
+    name = f"{prefix}-field.webp"
+    pieces["field"] = {**day["field"], "file": f"scene/{name}", "bytes": save(field, name, OPAQUE)}
+    for key, src, tag in (("bandTop", "band_top.png", "band-top"), ("bandBottom", "band_bottom.png", "band-bottom")):
+        im = Image.open(os.path.join(kit, src)).convert("RGBA")
+        ref = np.asarray(Image.open(os.path.join(KIT, src)).convert("RGBA"))[..., 3]
+        assert list(im.size) == day[key]["px"] and np.array_equal(np.asarray(im)[..., 3], ref), (key, "alpha or size differs from the day kit")
+        name = f"{prefix}-{tag}.webp"
+        pieces[key] = {**day[key], "file": f"scene/{name}", "bytes": save(im, name, ALPHA)}
+    for key, src, tag in (("endLeft", "end_left.png", "end-left"), ("endRight", "end_right.png", "end-right")):
+        im = np.asarray(Image.open(os.path.join(kit, src)).convert("RGBA"))
+        ref = np.asarray(Image.open(os.path.join(KIT, src)).convert("RGBA"))[..., 3]
+        assert np.array_equal(im[..., 3], ref), (key, "alpha differs from the day kit")
+        x0, y0, x1, y1 = alpha_box(im)
+        assert [x1 - x0, y1 - y0] == day[key]["px"], (key, "alpha box differs")
+        name = f"{prefix}-{tag}.webp"
+        pieces[key] = {**day[key], "file": f"scene/{name}", "bytes": save(Image.fromarray(im[y0:y1, x0:x1].copy(), "RGBA"), name, ALPHA)}
+    forest = Image.open(os.path.join(kit, "forest_phone.png")).convert("RGBA")
+    assert list(forest.size) == day["forest"]["px"], ("forest", forest.size)
+    name = f"{prefix}-forest.webp"
+    pieces["forest"] = {**day["forest"], "file": f"scene/{name}", "bytes": save(forest, name, FOREST_OPTS)}
+    # the road picture (opaque, as road/road.webp) and the portal strips (lossless, the day strips' exact alpha)
+    road = Image.open(os.path.join(kit, "road.png")).convert("RGB")
+    assert road.size == (1536, 1024), road.size
+    name = f"{prefix}-road.webp"
+    road.save(os.path.join(OUT, name), quality=92, method=6)
+    pieces["road"] = {"file": f"scene/{name}", "px": list(road.size), "road": [0, 0, 1536, 1024], "bytes": os.path.getsize(os.path.join(OUT, name))}
+    for key, side in (("tunnelLeft", "left"), ("tunnelRight", "right")):
+        im = np.asarray(Image.open(os.path.join(kit, f"tunnel_{side}.png")).convert("RGBA"))
+        ref = np.asarray(Image.open(os.path.join(ROAD_DIR, f"tunnel-{side}.webp")).convert("RGBA"))
+        assert im.shape == ref.shape and np.array_equal(im[..., 3], ref[..., 3]), (key, "the strip's alpha differs from road/tunnel-*.webp")
+        name = f"{prefix}-tunnel-{side}.webp"
+        Image.fromarray(im, "RGBA").save(os.path.join(OUT, name), lossless=True, method=6)
+        pieces[key] = {"file": f"scene/{name}", "px": [im.shape[1], im.shape[0]], "bytes": os.path.getsize(os.path.join(OUT, name))}
     return pieces
 
 
@@ -186,11 +242,16 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     kit = build_kit()
     sign = build_sign()
-    spec = {"units": "road px: pixels of the 1536 x 1024 road picture, (0, 0) its top left corner", "snowDay": kit, "logoSign": sign}
+    spec = {"units": "road px: pixels of the 1536 x 1024 road picture, (0, 0) its top left corner", "snowDay": kit}
+    for preset, (folder, prefix) in NIGHT_KITS.items():
+        spec[preset] = build_night(kit, folder, prefix)
+        for k, v in spec[preset].items():
+            print(f"{preset} {k}: {v['px']} {v['bytes']} bytes")
+    spec["logoSign"] = sign
     body = json.dumps(spec, indent="\t")
     with open(SPEC, "w") as f:
         f.write("// AUTO-GENERATED by tools/build_scene.py. Do not edit: change the tool and run it again.\n")
-        f.write("// The scene's pieces (the snow scene kit, the forest) with their files, pixel sizes and road px places\n")
+        f.write("// The scene's pieces (the day snow kit and the two night kits, the forests, the night road pictures and portal strips) with their files, pixel sizes and road px places\n")
         f.write("// ([x, y, width, height]), and the billboard logo's sheet (its frames in sheet px, per asset tier).\n")
         f.write(f"export const SCENE_ART = {body} as const;\n")
     for k, v in kit.items():

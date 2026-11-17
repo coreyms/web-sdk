@@ -14,6 +14,8 @@ import type { SoundEffectName } from './sound';
 import { setHudWin } from './hudWin.svelte';
 import { playBookEvent } from './utils';
 import { boardRate, stateGame, type RoundCard } from './stateGame.svelte';
+import { sceneHooks } from './stateScene.svelte';
+import { presetForMode } from './scenePresets';
 import { loadClip } from './road/columnClips';
 import type { Board } from './types';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
@@ -69,7 +71,13 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 };
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
-	reveal: async (bookEvent: BookEventOfType<'reveal'>) => {
+	reveal: async (bookEvent: BookEventOfType<'reveal'>, context: BookEventContext) => {
+		// THE SCENE SWAP (game/scene/sceneSwap.ts): a base spin whose book holds a trigger starts loading its night scene now,
+		// so it is in by the time the entry scene's back board is seated (nothing waits on it)
+		if (bookEvent.gameType === 'basegame') {
+			const trigger = (context?.bookEvents ?? []).find((e) => e.type === 'freeSpinTrigger');
+			if (trigger && trigger.type === 'freeSpinTrigger') sceneHooks.prefetch(presetForMode(trigger.bonusType === 'super' ? 'super' : 'bonus'));
+		}
 		stateGame.gameType = bookEvent.gameType;
 		if (bookEvent.fs !== undefined) stateGame.spinsPlayed = Math.max(0, bookEvent.fs - 1);
 		if (bookEvent.totalFs !== undefined) stateGame.totalFs = bookEvent.totalFs;

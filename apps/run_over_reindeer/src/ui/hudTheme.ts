@@ -22,6 +22,9 @@ export const HUD_THEME: Record<string, string> = {
 	'ink-rgb': '255, 255, 255',
 	/** the small spaced words over the numbers (BALANCE, SPIN) and under the keys: icy blue */
 	'label-rgb': '166, 216, 255',
+	/** NEW (Manticore 0.74, written in its hud.css): the small words' strength (BALANCE, WIN, SPIN, MENU, AUTO, TURBO).
+	 *  A scene's glass sets it (HUD_GLASS below) */
+	'label-a': '0.74',
 	/** the second label (WIN, the portrait and sideways words): a paler ice */
 	'label-warm-rgb': '200, 232, 255',
 	/** text shadows and drop shadows: a cold near black */
@@ -46,6 +49,8 @@ export const HUD_THEME: Record<string, string> = {
 	'win-ink-rgb': '255, 244, 214',
 	/** NEW (Manticore '255, 243, 210', its accent-cream-rgb): a lit WIN's number on the desktop dock */
 	'win-cream-rgb': '255, 246, 222',
+	/** NEW (Manticore 0.7, written in its hud.css): the dark under-glow of that number. A scene's glass sets it (HUD_GLASS) */
+	'win-shadow-a': '0.7',
 
 	// ---- the upright phone's plain-text readouts (WIN, BALANCE, the amount: hud.css .stat.pt), NEW (Manticore: its ink,
 	// its label-warm and its shadow, as the rules had them). These defaults are the 'light' set of HUD_READOUT_INK below:
@@ -136,10 +141,13 @@ export const HUD_THEME: Record<string, string> = {
 
 /** THE GLASS, per scene (game/scenePresets.ts hudGlass): the dock's, the capsules' and the key bar's fill. 'ice' is the
  *  theme as drawn for a dark scene (the values above); 'deep' (scene pass 9, Corey's pick on the wider scene r2 mock:
- *  "deeper glass") takes the theme's own menu-panel blues at about 0.8, so the HUD reads on white snow. No backdrop. */
+ *  "deeper glass") takes the theme's own menu-panel blues at about 0.8, so the HUD reads on white snow. No backdrop.
+ *  The scene swap (2026-11-17): the deeper glass's small words at 0.9 (was the theme's 0.74), so AUTO and TURBO on their
+ *  keys read 3:1 or more over every scene (they measured 2.97:1 on the day snow at 0.74), and a lit WIN's dark
+ *  under-glow at 0.95 (was 0.7), so its number reads 4.5:1 over its own gold glow (4.44:1 at 0.7 on the Free Spins night). */
 export const HUD_GLASS = {
-	ice: { 'glass-top-rgb': '206, 232, 255', 'glass-mid-rgb': '163, 201, 238', 'glass-bottom-rgb': '120, 170, 220', 'glass-top-a': '0.17', 'glass-mid-a': '0.13', 'glass-bottom-a': '0.11' },
-	deep: { 'glass-top-rgb': '38, 60, 88', 'glass-mid-rgb': '30, 48, 72', 'glass-bottom-rgb': '20, 33, 52', 'glass-top-a': '0.8', 'glass-mid-a': '0.78', 'glass-bottom-a': '0.76' },
+	ice: { 'glass-top-rgb': '206, 232, 255', 'glass-mid-rgb': '163, 201, 238', 'glass-bottom-rgb': '120, 170, 220', 'glass-top-a': '0.17', 'glass-mid-a': '0.13', 'glass-bottom-a': '0.11', 'label-a': '0.74', 'win-shadow-a': '0.7' },
+	deep: { 'glass-top-rgb': '38, 60, 88', 'glass-mid-rgb': '30, 48, 72', 'glass-bottom-rgb': '20, 33, 52', 'glass-top-a': '0.8', 'glass-mid-a': '0.78', 'glass-bottom-a': '0.76', 'label-a': '0.9', 'win-shadow-a': '0.95' },
 } as const satisfies Record<string, Record<string, string>>;
 
 /** THE UPRIGHT PHONE'S READOUT INK, per scene (game/scenePresets.ts readoutInk): 'light' over a dark scene (the values
@@ -153,6 +161,20 @@ export const HUD_READOUT_INK = {
 		'pt-shadow': HUD_THEME['pt-shadow'],
 		'pt-win-ink-rgb': HUD_THEME['pt-win-ink-rgb'],
 		'pt-win-shadow': HUD_THEME['pt-win-shadow'],
+		'pt-win-label-rgb': HUD_THEME['pt-win-label-rgb'],
+		'pt-ante-ink-rgb': HUD_THEME['pt-ante-ink-rgb'],
+		'pt-ante-label-rgb': HUD_THEME['pt-ante-label-rgb'],
+		'pt-ante-shadow': HUD_THEME['pt-ante-shadow'],
+	},
+	/** the night scenes (the scene swap, 2026-11-17): the light set, with a lit WIN's number held a step darker round its
+	 *  strokes (its gold glow a little softer, a 1 px dark rim added), so it reads 4.5:1 on the blue snow (4.49:1 with the
+	 *  light set's own glow on the Free Spins night) */
+	night: {
+		'pt-ink-rgb': HUD_THEME['pt-ink-rgb'],
+		'pt-label-rgb': HUD_THEME['pt-label-rgb'],
+		'pt-shadow': HUD_THEME['pt-shadow'],
+		'pt-win-ink-rgb': HUD_THEME['pt-win-ink-rgb'],
+		'pt-win-shadow': '0 0 9px rgba(255, 231, 166, 0.85), 0 0 18px rgba(255, 231, 166, 0.5), 0 1px 2px rgba(2, 8, 18, 0.95), 0 0 2px rgba(2, 8, 18, 0.95), 0 0 1px rgba(2, 8, 18, 0.95)',
 		'pt-win-label-rgb': HUD_THEME['pt-win-label-rgb'],
 		'pt-ante-ink-rgb': HUD_THEME['pt-ante-ink-rgb'],
 		'pt-ante-label-rgb': HUD_THEME['pt-ante-label-rgb'],

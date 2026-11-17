@@ -6,31 +6,31 @@
 //
 // Draw order (the kit's, snow_scene_kit_r1 NOTES section 6), bottom to top:
 //   field     the tile repeated over every road px the screen shows (under the road picture)
+//   picture   the road picture itself (scene swap: each preset has its own; the night kits re-colour it)
 //   bands     over the road picture's own plain margins at its top and bottom
 //   forest    an upright phone only: full width, behind and above the billboard (constants SCENE.forest)
 //   ...       the road's own ground, traffic, features, win, stoplights
 //   cover     the field's pixels again, beside the picture, over the traffic that has driven past its edge (where the
 //             rock hid it before: constants SCENE.edgeCoverBelowFeet)
-//   ...       the tunnel portal strips
+//   tunnels   the two tunnel portal strips cut from the picture (drawn over the traffic; each preset has its own)
 //   ends      the two painted tunnel ends (desktop, tablet, phone held sideways)
 //   ...       the running reindeer (over the ends), then the billboard (game/scene/logoSign.ts, its own container)
+//
+// THE CROSS-FADE (scene swap, 2026-11-17; game/scene/sceneSwap.ts): each preset on screen is a SKIN, one container of
+// its own in every layer above. One skin normally; during a swap the incoming skin sits over the outgoing one in every
+// layer and its alpha runs 0 to 1 (a plain alpha cross-fade: the outgoing stays whole under it); then the outgoing skin's
+// own alpha runs 1 to 0 over a short tail (where a soft edged piece of each lies on the other, the outgoing edge would
+// otherwise vanish in one frame), and it is hidden and let go two frames later. No filter, no mask, no render texture.
 import * as PIXI from 'pixi.js';
 
 import { SCENE } from '../constants';
 import { SCENE_ART } from '../sceneArtSpec';
+import { ROAD_ART } from '../roadArtSpec';
 import type { LayoutKind } from '../layoutSpec';
 import type { ScenePreset } from '../scenePresets';
 
 const IMG = { width: 1536, height: 1024 };
 const TILE = { width: SCENE_ART.snowDay.field.road[2], height: SCENE_ART.snowDay.field.road[3] };
-
-/** where a piece of the kit goes, road px [x, y, width, height] (tools/build_scene.py), by its asset key */
-const KIT_PLACE: Record<string, readonly number[]> = {
-	sceneBandTop: SCENE_ART.snowDay.bandTop.road,
-	sceneBandBottom: SCENE_ART.snowDay.bandBottom.road,
-	sceneEndLeft: SCENE_ART.snowDay.endLeft.road,
-	sceneEndRight: SCENE_ART.snowDay.endRight.road,
-};
 const FOREST_ASPECT = SCENE_ART.snowDay.forest.aspect;
 
 /** the part of the road's plane the screen shows, road px */
@@ -53,62 +53,114 @@ export const forestBottom = (rect: RoadRect, width: number): number => {
 	return bottom;
 };
 
+/** the asset keys a preset draws on this view (the forest only on an upright phone, the ends only where its layouts
+ *  show them): what a swap must have loaded before it starts */
+export const keysFor = (P: ScenePreset, view: { kind: LayoutKind; uprightPhone: boolean } | null): string[] => {
+	const keys = [P.field, P.picture.road, P.picture.tunnelLeft, P.picture.tunnelRight];
+	if (P.bands) keys.push(P.bands.top, P.bands.bottom);
+	if (P.ends && (!view || P.ends.layouts.includes(view.kind))) keys.push(P.ends.left, P.ends.right);
+	if (P.forest && view?.uprightPhone) keys.push(P.forest);
+	return keys;
+};
+
+/** one preset on screen: its own container in every layer, its sprites, its alpha */
+type Skin = {
+	preset: ScenePreset;
+	field: PIXI.Container;
+	picture: PIXI.Container;
+	bands: PIXI.Container;
+	forest: PIXI.Container;
+	cover: PIXI.Container;
+	tunnels: PIXI.Container;
+	ends: PIXI.Container;
+	fieldPool: PIXI.Sprite[];
+	coverPool: PIXI.Sprite[];
+	/** the field tile's sub-frames for the cover's first row (cut once per tile row offset) */
+	rowFrames: Map<string, PIXI.Texture>;
+	forestSprite: PIXI.Sprite | null;
+	/** the keys its fixed pieces (picture, bands, ends) were built with, so a piece that came in late is added */
+	built: Set<string>;
+	alpha: number;
+};
+const PARTS = ['field', 'picture', 'bands', 'forest', 'cover', 'tunnels', 'ends'] as const;
+
 export class SceneLayers {
 	readonly field = new PIXI.Container();
+	readonly picture = new PIXI.Container();
 	readonly bands = new PIXI.Container();
 	readonly forest = new PIXI.Container();
 	readonly cover = new PIXI.Container();
+	readonly tunnels = new PIXI.Container();
 	readonly ends = new PIXI.Container();
 
-	private preset: ScenePreset | null = null;
 	private tex: SceneTextures = () => null;
 	private view: SceneView | null = null;
-	private readonly fieldPool: PIXI.Sprite[] = [];
-	private readonly coverPool: PIXI.Sprite[] = [];
-	/** the field tile's sub-frames for the cover's first row (cut once per tile row offset) */
-	private readonly rowFrames = new Map<string, PIXI.Texture>();
-	private forestSprite: PIXI.Sprite | null = null;
-	/** what the last layout drew, for the probes and the dev hook */
-	last: { fieldSprites: number; coverSprites: number; forest: { x: number; y: number; width: number; height: number } | null; ends: boolean } = { fieldSprites: 0, coverSprites: 0, forest: null, ends: false };
+	/** the skins on screen: [the one showing] or, during a swap, [outgoing, incoming] */
+	private skins: Skin[] = [];
+	/** what the last layout drew (the skin showing), for the probes and the dev hook */
+	last: { fieldSprites: number; coverSprites: number; forest: { x: number; y: number; width: number; height: number } | null; ends: boolean; skins: string[]; fade: number | null } = {
+		fieldSprites: 0,
+		coverSprites: 0,
+		forest: null,
+		ends: false,
+		skins: [],
+		fade: null,
+	};
 
 	constructor() {
-		for (const c of [this.field, this.bands, this.forest, this.cover, this.ends]) c.eventMode = 'none';
+		for (const name of PARTS) this[name].eventMode = 'none';
 	}
 
-	/** THE SWAP POINT on the Pixi side: draw this preset's pieces (textures by asset key) */
+	/** the presets on screen now (the outgoing first during a swap) */
+	presets(): ScenePreset[] {
+		return this.skins.map((s) => s.preset);
+	}
+	fading(): boolean {
+		return this.skins.length > 1;
+	}
+
+	/** THE SWAP POINT on the Pixi side, at once (the boot's preset; a swap with no time): draw this preset's pieces */
 	setPreset(preset: ScenePreset, tex: SceneTextures) {
-		this.preset = preset;
 		this.tex = tex;
-		this.bands.removeChildren().forEach((c) => c.destroy());
-		this.ends.removeChildren().forEach((c) => c.destroy());
-		for (const t of this.rowFrames.values()) t.destroy();
-		this.rowFrames.clear();
-		for (const s of this.fieldPool) s.texture = PIXI.Texture.EMPTY;
-		for (const s of this.coverPool) s.texture = PIXI.Texture.EMPTY;
-		this.forestSprite?.destroy();
-		this.forestSprite = null;
-		const piece = (key: string) => {
-			const t = tex(key);
-			const p = KIT_PLACE[key];
-			if (!t || !p) return null;
-			const s = new PIXI.Sprite(t);
-			s.position.set(p[0], p[1]);
-			s.width = p[2];
-			s.height = p[3];
-			return s;
-		};
-		if (preset.bands) for (const key of [preset.bands.top, preset.bands.bottom]) {
-			const s = piece(key);
-			if (s) this.bands.addChild(s);
-		}
-		if (preset.ends) for (const key of [preset.ends.left, preset.ends.right]) {
-			const s = piece(key);
-			if (s) this.ends.addChild(s);
-		}
+		for (const s of this.skins.splice(0)) this.retire(s);
+		this.skins.push(this.makeSkin(preset, 1));
 		if (this.view) this.layout(this.view);
 	}
 
-	/** a lazy piece has come in (the forest on a desktop browser narrowed to a phone): draw it */
+	/** THE CROSS-FADE's start: the incoming preset over the one showing, at alpha 0 (setFade runs it, endFade ends it) */
+	beginFade(preset: ScenePreset, tex: SceneTextures) {
+		this.tex = tex;
+		// a swap asked during a swap: the one fading in is taken as shown (sceneSwap never asks this, the panel might)
+		while (this.skins.length > 1) this.retire(this.skins.shift()!);
+		this.skins.push(this.makeSkin(preset, 0));
+		if (this.view) this.layout(this.view);
+		this.last.fade = 0;
+	}
+	/** the incoming skin's alpha (0..1) */
+	setFade(alpha: number) {
+		const s = this.skins[1];
+		if (!s) return;
+		s.alpha = alpha;
+		for (const name of PARTS) s[name].alpha = alpha;
+		this.last.fade = alpha;
+	}
+	/** the outgoing skin's alpha (1..0: the tail after the incoming one is whole) */
+	setOutgoing(alpha: number) {
+		const s = this.skins.length > 1 ? this.skins[0] : null;
+		if (!s) return;
+		s.alpha = alpha;
+		for (const name of PARTS) s[name].alpha = alpha;
+	}
+	/** the incoming skin is the scene now: the outgoing one is hidden and let go two frames later */
+	endFade() {
+		if (this.skins.length < 2) return;
+		this.setFade(1);
+		this.retire(this.skins.shift()!);
+		this.last.fade = null;
+		this.last.skins = this.skins.map((s) => s.preset.name);
+	}
+
+	/** a lazy piece has come in (the forest on a desktop browser narrowed to a phone, an end after a rotation): draw it */
 	refresh() {
 		if (this.view) this.layout(this.view);
 	}
@@ -116,8 +168,74 @@ export class SceneLayers {
 	/** lay the scene out for the screen as it is now (components/Board.svelte, on every layout change) */
 	layout(view: SceneView) {
 		this.view = view;
-		const P = this.preset;
-		const fieldTex = P ? this.tex(P.field) : null;
+		this.skins.forEach((s, i) => this.layoutSkin(s, view, i === this.skins.length - 1));
+		this.last.skins = this.skins.map((s) => s.preset.name);
+	}
+
+	private makeSkin(preset: ScenePreset, alpha: number): Skin {
+		const s: Skin = {
+			preset,
+			field: new PIXI.Container(),
+			picture: new PIXI.Container(),
+			bands: new PIXI.Container(),
+			forest: new PIXI.Container(),
+			cover: new PIXI.Container(),
+			tunnels: new PIXI.Container(),
+			ends: new PIXI.Container(),
+			fieldPool: [],
+			coverPool: [],
+			rowFrames: new Map(),
+			forestSprite: null,
+			built: new Set(),
+			alpha,
+		};
+		for (const name of PARTS) {
+			s[name].eventMode = 'none';
+			s[name].alpha = alpha;
+			s[name].label = `scene:${preset.name}:${name}`;
+			this[name].addChild(s[name]);
+		}
+		this.buildPieces(s);
+		return s;
+	}
+
+	/** the skin's fixed pieces (picture, tunnels, bands, ends), each added once its texture is in */
+	private buildPieces(s: Skin) {
+		const P = s.preset;
+		const A = SCENE_ART[P.kit];
+		// (a left piece goes under its right twin whatever order they came in: index 0)
+		const piece = (parent: PIXI.Container, key: string, p: readonly number[], first = false) => {
+			if (s.built.has(key)) return;
+			const t = this.tex(key);
+			if (!t) return;
+			s.built.add(key);
+			const sp = new PIXI.Sprite(t);
+			sp.eventMode = 'none';
+			sp.position.set(p[0], p[1]);
+			sp.width = p[2];
+			sp.height = p[3];
+			if (first) parent.addChildAt(sp, 0);
+			else parent.addChild(sp);
+		};
+		piece(s.picture, P.picture.road, [0, 0, IMG.width, IMG.height]);
+		const L = ROAD_ART.covers.left;
+		const R = ROAD_ART.covers.right;
+		piece(s.tunnels, P.picture.tunnelLeft, [L.x, L.y, L.width, L.height], true);
+		piece(s.tunnels, P.picture.tunnelRight, [R.x, R.y, R.width, R.height]);
+		if (P.bands) {
+			piece(s.bands, P.bands.top, A.bandTop.road);
+			piece(s.bands, P.bands.bottom, A.bandBottom.road);
+		}
+		if (P.ends) {
+			piece(s.ends, P.ends.left, A.endLeft.road, true);
+			piece(s.ends, P.ends.right, A.endRight.road);
+		}
+	}
+
+	private layoutSkin(s: Skin, view: SceneView, top: boolean) {
+		this.buildPieces(s);
+		const P = s.preset;
+		const fieldTex = this.tex(P.field);
 		const r = view.rect;
 		// THE FIELD: whole tiles on the tile's own period, from the tile at or before the screen's top left
 		let n = 0;
@@ -126,22 +244,21 @@ export class SceneLayers {
 			const j0 = Math.floor(r.top / TILE.height);
 			for (let j = j0; j * TILE.height < r.bottom; j++) {
 				for (let i = i0; i * TILE.width < r.right; i++) {
-					const s = this.sprite(this.fieldPool, this.field, n++);
-					s.texture = fieldTex;
-					s.position.set(i * TILE.width, j * TILE.height);
-					s.width = TILE.width;
-					s.height = TILE.height;
+					const sp = this.sprite(s.fieldPool, s.field, n++);
+					sp.texture = fieldTex;
+					sp.position.set(i * TILE.width, j * TILE.height);
+					sp.width = TILE.width;
+					sp.height = TILE.height;
 				}
 			}
 		}
-		for (let k = n; k < this.fieldPool.length; k++) this.fieldPool[k].visible = false;
-		this.last.fieldSprites = n;
+		for (let k = n; k < s.fieldPool.length; k++) s.fieldPool[k].visible = false;
 
 		// THE COVER beside the picture: the same tiles over the traffic, from just under the reindeer's feet line down
 		let m = 0;
 		if (fieldTex) {
-			const top = view.feetY + SCENE.edgeCoverBelowFeet;
-			const j0 = Math.floor(top / TILE.height);
+			const coverTop = view.feetY + SCENE.edgeCoverBelowFeet;
+			const j0 = Math.floor(coverTop / TILE.height);
 			for (const side of [-1, 1] as const) {
 				const iFrom = side < 0 ? Math.floor(r.left / TILE.width) : Math.floor(IMG.width / TILE.width);
 				const iTo = side < 0 ? -1 : Math.floor((r.right - 1e-6) / TILE.width);
@@ -149,47 +266,50 @@ export class SceneLayers {
 				if (side < 0 && r.left >= -0.5) continue;
 				if (side > 0 && r.right <= IMG.width + 0.5) continue;
 				for (let j = j0; j * TILE.height < r.bottom; j++) {
-					const y0 = Math.max(j * TILE.height, top);
+					const y0 = Math.max(j * TILE.height, coverTop);
 					const cut = y0 - j * TILE.height;
 					for (let i = iFrom; i <= iTo; i++) {
-						const s = this.sprite(this.coverPool, this.cover, m++);
-						s.texture = cut > 0 ? this.rowFrame(fieldTex, cut) : fieldTex;
-						s.position.set(i * TILE.width, y0);
-						s.width = TILE.width;
-						s.height = TILE.height - cut;
+						const sp = this.sprite(s.coverPool, s.cover, m++);
+						sp.texture = cut > 0 ? this.rowFrame(s, fieldTex, cut) : fieldTex;
+						sp.position.set(i * TILE.width, y0);
+						sp.width = TILE.width;
+						sp.height = TILE.height - cut;
 					}
 				}
 			}
 		}
-		for (let k = m; k < this.coverPool.length; k++) this.coverPool[k].visible = false;
-		this.last.coverSprites = m;
+		for (let k = m; k < s.coverPool.length; k++) s.coverPool[k].visible = false;
 
 		// THE ENDS: on the layouts the preset names
-		const ends = !!P?.ends && P.ends.layouts.includes(view.kind);
-		this.ends.visible = ends;
-		this.last.ends = ends;
+		const ends = !!P.ends && P.ends.layouts.includes(view.kind);
+		s.ends.visible = ends;
 
 		// THE FOREST: an upright phone only
-		const forestKey = P?.forest ?? null;
-		const forestTex = forestKey && view.uprightPhone ? this.tex(forestKey) : null;
+		const forestTex = P.forest && view.uprightPhone ? this.tex(P.forest) : null;
+		let forest: SceneLayers['last']['forest'] = null;
 		if (forestTex) {
-			if (!this.forestSprite) {
-				this.forestSprite = new PIXI.Sprite(forestTex);
-				this.forest.addChild(this.forestSprite);
+			if (!s.forestSprite) {
+				s.forestSprite = new PIXI.Sprite(forestTex);
+				s.forestSprite.eventMode = 'none';
+				s.forest.addChild(s.forestSprite);
 			}
-			this.forestSprite.texture = forestTex;
+			s.forestSprite.texture = forestTex;
 			const width = Math.max(IMG.width, r.right - r.left);
 			const height = width * FOREST_ASPECT;
 			const bottom = forestBottom(r, width);
 			const x = IMG.width / 2 - width / 2;
-			this.forestSprite.position.set(x, bottom - height);
-			this.forestSprite.width = width;
-			this.forestSprite.height = height;
-			this.forest.visible = true;
-			this.last.forest = { x, y: bottom - height, width, height };
-		} else {
-			this.forest.visible = false;
-			this.last.forest = null;
+			s.forestSprite.position.set(x, bottom - height);
+			s.forestSprite.width = width;
+			s.forestSprite.height = height;
+			s.forest.visible = true;
+			forest = { x, y: bottom - height, width, height };
+		} else s.forest.visible = false;
+
+		if (top) {
+			this.last.fieldSprites = n;
+			this.last.coverSprites = m;
+			this.last.ends = ends;
+			this.last.forest = forest;
 		}
 	}
 
@@ -206,20 +326,35 @@ export class SceneLayers {
 	}
 
 	/** the field tile from road y `cut` down (the cover's first row starts mid tile) */
-	private rowFrame(tex: PIXI.Texture, cut: number): PIXI.Texture {
+	private rowFrame(s: Skin, tex: PIXI.Texture, cut: number): PIXI.Texture {
 		const key = cut.toFixed(2);
-		let t = this.rowFrames.get(key);
-		if (!t) {
+		let t = s.rowFrames.get(key);
+		if (!t || t.source !== tex.source) {
 			const k = tex.source.height / TILE.height;
 			t = new PIXI.Texture({ source: tex.source, frame: new PIXI.Rectangle(0, cut * k, tex.source.width, (TILE.height - cut) * k) });
-			this.rowFrames.set(key, t);
+			s.rowFrames.set(key, t);
 		}
 		return t;
 	}
 
+	/** a skin leaves: hidden now, its containers and sub-frames destroyed two frames later (a texture destroyed in the
+	 *  frame it was last batched takes the render loop down: the column sheets' rule, game/road/columnClips.ts) */
+	private retire(s: Skin) {
+		for (const name of PARTS) s[name].visible = false;
+		const go = () => {
+			for (const name of PARTS) if (!s[name].destroyed) s[name].destroy({ children: true });
+			for (const t of s.rowFrames.values()) t.destroy();
+			s.rowFrames.clear();
+		};
+		if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(go));
+		else go();
+	}
+
 	destroy() {
-		for (const t of this.rowFrames.values()) t.destroy();
-		this.rowFrames.clear();
-		for (const c of [this.field, this.bands, this.forest, this.cover, this.ends]) c.destroy({ children: true });
+		for (const s of this.skins.splice(0)) {
+			for (const t of s.rowFrames.values()) t.destroy();
+			s.rowFrames.clear();
+		}
+		for (const name of PARTS) this[name].destroy({ children: true });
 	}
 }
