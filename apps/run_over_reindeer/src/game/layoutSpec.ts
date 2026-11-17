@@ -8,6 +8,8 @@
 // in master units and where its centre sits (ROAD_LAYOUT, roadPlacement). Nothing else about the board is per layout.
 import { ROAD_ART } from './roadArtSpec';
 import { portraitHudTop } from '../ui/hud/hudLayout';
+import { LOGO_SIGN, type LogoPlace } from './constants';
+import { SCENE_ART } from './sceneArtSpec';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -158,10 +160,40 @@ export const landscapeTrioSpan = () => ({ x: TRIO_CLEAR.left, width: TRIO_CLEAR.
  *  stack and the button clusters inside a column this wide at each end of the 1480 master. */
 export const PHONE_SIDE_COLUMN = 340;
 
-// ---- THE TITLE (placeholder: a highway sign drawn in CSS, ui/TitleSign.svelte) ----------------------------------------------
-// The box the title sign is fitted into, master units. Portrait centres on the screen's centre line.
-export const TITLE: Record<LayoutKind, { x: number; y: number; width: number; height: number; lines: 1 | 2 }> = {
+// ---- THE ROUND COUNTER (the green name plate's highway sign, ui/TitleSign.svelte, now shown only in a bonus round) ------------
+// Scene pass 9: the billboard logo (logoBox below) took the name; the highway sign stays only for the bonus round's name and
+// "3 OF 10". The box it is fitted into, master units: desktop top center as before; a phone held sideways under the
+// billboard in the left column (over the FAST LANE and MENU keys); upright at the right of the billboard (`right`: the
+// box is measured from the screen's right edge, the portrait chrome spanning the real viewport width).
+export const TITLE: Record<LayoutKind, { x: number; y: number; width: number; height: number; lines: 1 | 2; right?: boolean }> = {
 	landscape: { x: 440, y: 20, width: 400, height: 50, lines: 1 },
-	phone: { x: 34, y: 50, width: 204, height: 96, lines: 2 },
-	portrait: { x: 96, y: 44, width: 220, height: 92, lines: 2 },
+	phone: { x: 30, y: 302, width: 214, height: 80, lines: 2 },
+	portrait: { x: 12, y: 44, width: 196, height: 84, lines: 2, right: true },
+};
+
+// ---- THE BILLBOARD LOGO'S PLACE (constants LOGO_SIGN.place; game/scene/logoSign.ts) -----------------------------------------
+export type LogoClass = 'desktop' | 'tablet' | 'phone' | 'portrait';
+/** the logo's layout class: a landscape screen narrower than 3:2 is a tablet (it keeps its top line under the master) */
+export const logoClass = (kind: LayoutKind, vw: number, vh: number): LogoClass => (kind === 'landscape' ? (vw / vh < LANDSCAPE_TALL.minAspect ? 'tablet' : 'desktop') : kind);
+
+/** THE RULE, one per class (constants LOGO_SIGN.place): the sign's box in road px from the road picture's top left corner.
+ *  `road` is roadPlacement's result (master units per road px and the picture's corner in master units), `fit` the CSS px
+ *  per master unit, `masterLeft` the master's left edge in CSS px, `extraTop` the master units the desktop top line rides
+ *  up (ui/Chrome.svelte --vp-extra-top). The clock strip's top sits 10 master units under the master's top, less extraTop. */
+export const logoBox = (cls: LogoClass, road: { scale: number; x: number; y: number }, fit: number, masterLeft: number, extraTop: number) => {
+	const P: LogoPlace = LOGO_SIGN.place[cls];
+	const aspect = SCENE_ART.logoSign.aspect;
+	let width = P.width;
+	let height = width * aspect;
+	if (P.topGap !== undefined) {
+		const top = (10 - extraTop + P.topGap - road.y) / road.scale;
+		height = Math.max(40, P.foot - top);
+		width = height / aspect;
+	}
+	let x = P.cx - width / 2;
+	const y = P.foot - height;
+	const k = road.scale * fit; // CSS px per road px
+	const left = masterLeft + (road.x + x * road.scale) * fit;
+	if (left < LOGO_SIGN.place.minLeft) x += (LOGO_SIGN.place.minLeft - left) / k;
+	return { x, y, width, height };
 };

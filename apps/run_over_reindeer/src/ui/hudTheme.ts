@@ -47,6 +47,22 @@ export const HUD_THEME: Record<string, string> = {
 	/** NEW (Manticore '255, 243, 210', its accent-cream-rgb): a lit WIN's number on the desktop dock */
 	'win-cream-rgb': '255, 246, 222',
 
+	// ---- the upright phone's plain-text readouts (WIN, BALANCE, the amount: hud.css .stat.pt), NEW (Manticore: its ink,
+	// its label-warm and its shadow, as the rules had them). These defaults are the 'light' set of HUD_READOUT_INK below:
+	// a scene preset swaps them (game/scenePresets.ts readoutInk) ----
+	'pt-ink-rgb': '255, 255, 255',
+	'pt-label-rgb': '200, 232, 255',
+	'pt-shadow': '0 1px 2px rgba(2, 8, 18, 0.95), 0 0 7px rgba(2, 8, 18, 0.75), 0 0 2px rgba(2, 8, 18, 0.9)',
+	/** a lit WIN's number and its glow */
+	'pt-win-ink-rgb': '255, 244, 214',
+	'pt-win-shadow': '0 0 9px rgba(255, 231, 166, 0.95), 0 0 18px rgba(255, 231, 166, 0.5), 0 1px 2px rgba(2, 8, 18, 0.95), 0 0 2px rgba(2, 8, 18, 0.9)',
+	/** a lit WIN's word (Manticore: its win-hi) */
+	'pt-win-label-rgb': '255, 231, 166',
+	/** an Ante amount, and its word (Manticore: its accent-ink and accent-hi) */
+	'pt-ante-ink-rgb': '255, 214, 214',
+	'pt-ante-label-rgb': '255, 106, 106',
+	'pt-ante-shadow': '0 0 8px rgba(232, 51, 61, 0.6), 0 1px 2px rgba(2, 8, 18, 0.95), 0 0 2px rgba(2, 8, 18, 0.9)',
+
 	// ---- painted glass: pale cold blue-white at low strength, so the dark bed shows through like ice over it ----
 	/** dock fill, top / middle / bottom of its vertical gradient, and their alphas */
 	'glass-top-rgb': '206, 232, 255',
@@ -118,6 +134,43 @@ export const HUD_THEME: Record<string, string> = {
 	'radius-chip': '14px',
 };
 
+/** THE GLASS, per scene (game/scenePresets.ts hudGlass): the dock's, the capsules' and the key bar's fill. 'ice' is the
+ *  theme as drawn for a dark scene (the values above); 'deep' (scene pass 9, Corey's pick on the wider scene r2 mock:
+ *  "deeper glass") takes the theme's own menu-panel blues at about 0.8, so the HUD reads on white snow. No backdrop. */
+export const HUD_GLASS = {
+	ice: { 'glass-top-rgb': '206, 232, 255', 'glass-mid-rgb': '163, 201, 238', 'glass-bottom-rgb': '120, 170, 220', 'glass-top-a': '0.17', 'glass-mid-a': '0.13', 'glass-bottom-a': '0.11' },
+	deep: { 'glass-top-rgb': '38, 60, 88', 'glass-mid-rgb': '30, 48, 72', 'glass-bottom-rgb': '20, 33, 52', 'glass-top-a': '0.8', 'glass-mid-a': '0.78', 'glass-bottom-a': '0.76' },
+} as const satisfies Record<string, Record<string, string>>;
+
+/** THE UPRIGHT PHONE'S READOUT INK, per scene (game/scenePresets.ts readoutInk): 'light' over a dark scene (the values
+ *  above), 'dark' over snow (scene pass 9, from the snow portrait r1 mock: the numbers in the picture's near black ink,
+ *  the small words in a dark slate blue, a 1 px white under-glow instead of the dark shadow; a lit WIN keeps the ink and
+ *  gets a warm gold glow, an Ante amount a deep red) */
+export const HUD_READOUT_INK = {
+	light: {
+		'pt-ink-rgb': HUD_THEME['pt-ink-rgb'],
+		'pt-label-rgb': HUD_THEME['pt-label-rgb'],
+		'pt-shadow': HUD_THEME['pt-shadow'],
+		'pt-win-ink-rgb': HUD_THEME['pt-win-ink-rgb'],
+		'pt-win-shadow': HUD_THEME['pt-win-shadow'],
+		'pt-win-label-rgb': HUD_THEME['pt-win-label-rgb'],
+		'pt-ante-ink-rgb': HUD_THEME['pt-ante-ink-rgb'],
+		'pt-ante-label-rgb': HUD_THEME['pt-ante-label-rgb'],
+		'pt-ante-shadow': HUD_THEME['pt-ante-shadow'],
+	},
+	dark: {
+		'pt-ink-rgb': '24, 26, 33',
+		'pt-label-rgb': '44, 62, 92',
+		'pt-shadow': '0 1px 0 rgba(255, 255, 255, 0.6)',
+		'pt-win-ink-rgb': '24, 26, 33',
+		'pt-win-shadow': '0 0 7px rgba(255, 196, 64, 0.95), 0 0 14px rgba(255, 196, 64, 0.6), 0 1px 0 rgba(255, 255, 255, 0.6)',
+		'pt-win-label-rgb': '122, 78, 8',
+		'pt-ante-ink-rgb': '156, 20, 32',
+		'pt-ante-label-rgb': '156, 20, 32',
+		'pt-ante-shadow': '0 1px 0 rgba(255, 255, 255, 0.6)',
+	},
+} as const satisfies Record<string, Record<string, string>>;
+
 /** THE PER-GAME WORDS AND GLYPH: the feature button's name and its icon (24 x 24, 2 px line, squared caps, drawn in
  *  currentColor). */
 export const HUD_CONFIG = {
@@ -129,13 +182,29 @@ export const HUD_CONFIG = {
 	topAnteKey: 'ANTE_10',
 };
 
-export const hudThemeCss = () => `:root{${Object.entries(HUD_THEME)
+/** the theme as one :root block, with a scene's tokens laid over it (applyHudScene) */
+let sceneTokens: Record<string, string> = {};
+export const hudThemeCss = () => `:root{${Object.entries({ ...HUD_THEME, ...sceneTokens })
 	.map(([k, v]) => `--hud-${k}:${v};`)
 	.join('')}}`;
 
-if (typeof document !== 'undefined' && !document.getElementById('hud-theme')) {
-	const el = document.createElement('style');
-	el.id = 'hud-theme';
-	el.textContent = hudThemeCss();
-	document.head.appendChild(el);
-}
+const themeElement = () => {
+	if (typeof document === 'undefined') return null;
+	let el = document.getElementById('hud-theme');
+	if (!el) {
+		el = document.createElement('style');
+		el.id = 'hud-theme';
+		el.textContent = hudThemeCss();
+		document.head.appendChild(el);
+	}
+	return el;
+};
+themeElement();
+
+/** THE SCENE'S HUD TOKENS (game/stateScene.svelte.ts setScenePreset): the glass and the upright readouts' ink for the
+ *  scene now showing, written into the one theme block (theme values only: nothing about the HUD's shape changes) */
+export const applyHudScene = (glass: keyof typeof HUD_GLASS, ink: keyof typeof HUD_READOUT_INK) => {
+	sceneTokens = { ...HUD_GLASS[glass], ...HUD_READOUT_INK[ink] };
+	const el = themeElement();
+	if (el) el.textContent = hudThemeCss();
+};

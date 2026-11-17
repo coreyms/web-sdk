@@ -4,20 +4,20 @@
    "frame": {
     "x": 118,
     "y": 0,
-    "w": 100,
-    "h": 124
+    "w": 98,
+    "h": 122
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 100,
-    "h": 124
+    "w": 98,
+    "h": 122
    },
    "sourceSize": {
-    "w": 100,
-    "h": 124
+    "w": 98,
+    "h": 122
    }
   },
   "seat_santa": {
@@ -25,7 +25,7 @@
     "x": 0,
     "y": 0,
     "w": 116,
-    "h": 139
+    "h": 146
    },
    "rotated": false,
    "trimmed": false,
@@ -33,19 +33,19 @@
     "x": 0,
     "y": 0,
     "w": 116,
-    "h": 139
+    "h": 146
    },
    "sourceSize": {
     "w": 116,
-    "h": 139
+    "h": 146
    }
   },
   "H1_R_front": {
    "frame": {
-    "x": 109,
-    "y": 318,
+    "x": 0,
+    "y": 354,
     "w": 105,
-    "h": 27
+    "h": 21
    },
    "rotated": false,
    "trimmed": false,
@@ -53,39 +53,39 @@
     "x": 0,
     "y": 0,
     "w": 105,
-    "h": 27
+    "h": 21
    },
    "sourceSize": {
     "w": 105,
-    "h": 27
+    "h": 21
    }
   },
   "H1_R_seatshadow": {
    "frame": {
     "x": 0,
-    "y": 273,
-    "w": 80,
-    "h": 43
+    "y": 148,
+    "w": 79,
+    "h": 52
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 80,
-    "h": 43
+    "w": 79,
+    "h": 52
    },
    "sourceSize": {
-    "w": 80,
-    "h": 43
+    "w": 79,
+    "h": 52
    }
   },
   "H1_L_front": {
    "frame": {
-    "x": 0,
-    "y": 318,
+    "x": 107,
+    "y": 354,
     "w": 107,
-    "h": 31
+    "h": 21
    },
    "rotated": false,
    "trimmed": false,
@@ -93,19 +93,19 @@
     "x": 0,
     "y": 0,
     "w": 107,
-    "h": 31
+    "h": 21
    },
    "sourceSize": {
     "w": 107,
-    "h": 31
+    "h": 21
    }
   },
   "H1_L_seatshadow": {
    "frame": {
-    "x": 82,
-    "y": 273,
+    "x": 81,
+    "y": 148,
     "w": 79,
-    "h": 39
+    "h": 49
    },
    "rotated": false,
    "trimmed": false,
@@ -113,19 +113,19 @@
     "x": 0,
     "y": 0,
     "w": 79,
-    "h": 39
+    "h": 49
    },
    "sourceSize": {
     "w": 79,
-    "h": 39
+    "h": 49
    }
   },
   "W_R_front": {
    "frame": {
     "x": 0,
-    "y": 141,
+    "y": 202,
     "w": 199,
-    "h": 64
+    "h": 49
    },
    "rotated": false,
    "trimmed": false,
@@ -133,39 +133,39 @@
     "x": 0,
     "y": 0,
     "w": 199,
-    "h": 64
+    "h": 49
    },
    "sourceSize": {
     "w": 199,
-    "h": 64
+    "h": 49
    }
   },
   "W_R_seatshadow": {
    "frame": {
     "x": 0,
-    "y": 351,
-    "w": 61,
-    "h": 26
+    "y": 304,
+    "w": 84,
+    "h": 48
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 61,
-    "h": 26
+    "w": 84,
+    "h": 48
    },
    "sourceSize": {
-    "w": 61,
-    "h": 26
+    "w": 84,
+    "h": 48
    }
   },
   "W_L_front": {
    "frame": {
     "x": 0,
-    "y": 207,
+    "y": 253,
     "w": 199,
-    "h": 64
+    "h": 49
    },
    "rotated": false,
    "trimmed": false,
@@ -173,31 +173,31 @@
     "x": 0,
     "y": 0,
     "w": 199,
-    "h": 64
+    "h": 49
    },
    "sourceSize": {
     "w": 199,
-    "h": 64
+    "h": 49
    }
   },
   "W_L_seatshadow": {
    "frame": {
-    "x": 63,
-    "y": 351,
-    "w": 61,
-    "h": 26
+    "x": 86,
+    "y": 304,
+    "w": 84,
+    "h": 48
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 61,
-    "h": 26
+    "w": 84,
+    "h": 48
    },
    "sourceSize": {
-    "w": 61,
-    "h": 26
+    "w": 84,
+    "h": 48
    }
   }
  },
@@ -205,10 +205,10 @@
   "image": "seated-phone.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 220,
-   "h": 377
+   "w": 218,
+   "h": 375
   },
   "scale": "1",
-  "pngHash": "19b1e7fc"
+  "pngHash": "78f3047b"
  }
 }

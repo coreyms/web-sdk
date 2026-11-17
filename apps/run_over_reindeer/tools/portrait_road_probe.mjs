@@ -67,7 +67,9 @@ const r1 = (v) => Math.round(v * 10) / 10;
 				const k = L.css.pitch / 250; // CSS px per road px
 				const top = (sel) => document.querySelector(sel)?.getBoundingClientRect().top ?? Infinity;
 				const hudEls = Math.min(top('.hudp [data-hud="win"]'), top('.hudp [data-hud="amount"]'), top('.hudp button.spin'), top('.hudp [data-hud="balance"]'));
-				const title = document.querySelector('[data-title-sign]')?.getBoundingClientRect();
+				// the title: the billboard logo in the canvas since scene pass 9
+				const lg = window.__reindeer.scene?.()?.logo?.css;
+				const title = lg ? { bottom: lg.y + lg.height } : document.querySelector('[data-title-sign]')?.getBoundingClientRect();
 				return { kind: L.kind, boardTop: L.css.y, boardBottom: L.css.y + L.css.height, picTop: L.css.y - 167 * k, picBottom: L.css.y + (1024 - 167) * k, hudEls, titleBottom: title ? title.bottom : null, vw: innerWidth, vh: innerHeight };
 			});
 			const scale = Math.min(m.vw / 412, m.vh / 760);

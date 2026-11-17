@@ -4,20 +4,20 @@
    "frame": {
     "x": 311,
     "y": 0,
-    "w": 266,
-    "h": 332
+    "w": 260,
+    "h": 326
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 266,
-    "h": 332
+    "w": 260,
+    "h": 326
    },
    "sourceSize": {
-    "w": 266,
-    "h": 332
+    "w": 260,
+    "h": 326
    }
   },
   "seat_santa": {
@@ -25,7 +25,7 @@
     "x": 0,
     "y": 0,
     "w": 309,
-    "h": 371
+    "h": 390
    },
    "rotated": false,
    "trimmed": false,
@@ -33,19 +33,19 @@
     "x": 0,
     "y": 0,
     "w": 309,
-    "h": 371
+    "h": 390
    },
    "sourceSize": {
     "w": 309,
-    "h": 371
+    "h": 390
    }
   },
   "H1_R_front": {
    "frame": {
-    "x": 289,
-    "y": 836,
+    "x": 0,
+    "y": 927,
     "w": 283,
-    "h": 71
+    "h": 56
    },
    "rotated": false,
    "trimmed": false,
@@ -53,39 +53,39 @@
     "x": 0,
     "y": 0,
     "w": 283,
-    "h": 71
+    "h": 56
    },
    "sourceSize": {
     "w": 283,
-    "h": 71
+    "h": 56
    }
   },
   "H1_R_seatshadow": {
    "frame": {
     "x": 0,
-    "y": 717,
-    "w": 211,
-    "h": 117
+    "y": 392,
+    "w": 209,
+    "h": 141
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 211,
-    "h": 117
+    "w": 209,
+    "h": 141
    },
    "sourceSize": {
-    "w": 211,
-    "h": 117
+    "w": 209,
+    "h": 141
    }
   },
   "H1_L_front": {
    "frame": {
-    "x": 0,
-    "y": 836,
+    "x": 285,
+    "y": 927,
     "w": 287,
-    "h": 81
+    "h": 56
    },
    "rotated": false,
    "trimmed": false,
@@ -93,39 +93,39 @@
     "x": 0,
     "y": 0,
     "w": 287,
-    "h": 81
+    "h": 56
    },
    "sourceSize": {
     "w": 287,
-    "h": 81
+    "h": 56
    }
   },
   "H1_L_seatshadow": {
    "frame": {
-    "x": 213,
-    "y": 717,
-    "w": 206,
-    "h": 107
+    "x": 211,
+    "y": 392,
+    "w": 209,
+    "h": 132
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 206,
-    "h": 107
+    "w": 209,
+    "h": 132
    },
    "sourceSize": {
-    "w": 206,
-    "h": 107
+    "w": 209,
+    "h": 132
    }
   },
   "W_R_front": {
    "frame": {
     "x": 0,
-    "y": 373,
+    "y": 535,
     "w": 531,
-    "h": 170
+    "h": 130
    },
    "rotated": false,
    "trimmed": false,
@@ -133,39 +133,39 @@
     "x": 0,
     "y": 0,
     "w": 531,
-    "h": 170
+    "h": 130
    },
    "sourceSize": {
     "w": 531,
-    "h": 170
+    "h": 130
    }
   },
   "W_R_seatshadow": {
    "frame": {
     "x": 0,
-    "y": 919,
-    "w": 160,
-    "h": 67
+    "y": 799,
+    "w": 222,
+    "h": 126
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 160,
-    "h": 67
+    "w": 222,
+    "h": 126
    },
    "sourceSize": {
-    "w": 160,
-    "h": 67
+    "w": 222,
+    "h": 126
    }
   },
   "W_L_front": {
    "frame": {
     "x": 0,
-    "y": 545,
+    "y": 667,
     "w": 531,
-    "h": 170
+    "h": 130
    },
    "rotated": false,
    "trimmed": false,
@@ -173,31 +173,31 @@
     "x": 0,
     "y": 0,
     "w": 531,
-    "h": 170
+    "h": 130
    },
    "sourceSize": {
     "w": 531,
-    "h": 170
+    "h": 130
    }
   },
   "W_L_seatshadow": {
    "frame": {
-    "x": 162,
-    "y": 919,
-    "w": 160,
-    "h": 67
+    "x": 224,
+    "y": 799,
+    "w": 222,
+    "h": 126
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 160,
-    "h": 67
+    "w": 222,
+    "h": 126
    },
    "sourceSize": {
-    "w": 160,
-    "h": 67
+    "w": 222,
+    "h": 126
    }
   }
  },
@@ -205,10 +205,10 @@
   "image": "seated.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 579,
-   "h": 986
+   "w": 574,
+   "h": 983
   },
   "scale": "1",
-  "pngHash": "b6863207"
+  "pngHash": "7f9ea72a"
  }
 }

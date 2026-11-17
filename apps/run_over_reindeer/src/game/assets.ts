@@ -20,6 +20,9 @@ export const stamp = (href: string): string => {
 	return v ? `${base}?v=${v}` : base;
 };
 
+/** the upright phone's forest (game/scenePresets.ts snowDay forest) */
+export const FOREST_URL = stamp(new URL('../../assets/scene/snow-day-forest.webp', import.meta.url).href);
+
 /** the phone asset tier's twin of a file (game/deviceTier.ts PHONE_TIER: a constant, chosen once before any texture loads) */
 const tiered = (full: string, phone: string): string => (PHONE_TIER ? phone : full);
 
@@ -90,6 +93,23 @@ const assets = {
 		src: stamp(new URL('../../assets/road/tunnel-right.webp', import.meta.url).href),
 		preload: true,
 	},
+	// THE SCENE (scene pass 9: tools/build_scene.py, game/scenePresets.ts snowDay, game/scene/sceneLayers.ts): the snow
+	// scene kit's field tile (repeated under everything), its two bands over the picture's top and bottom margins, and
+	// the two painted tunnel ends (at their source density, 1.41 px per road px)
+	sceneField: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-field.webp', import.meta.url).href), preload: true },
+	sceneBandTop: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-band-top.webp', import.meta.url).href), preload: true },
+	sceneBandBottom: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-band-bottom.webp', import.meta.url).href), preload: true },
+	sceneEndLeft: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-end-left.webp', import.meta.url).href), preload: true },
+	sceneEndRight: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-end-right.webp', import.meta.url).href), preload: true },
+	// THE BILLBOARD LOGO (game/scene/logoSign.ts): the sign with its lamps dark, the lamps' lit glass, a glow; one sheet
+	logoSign: {
+		type: 'sprite',
+		src: tiered(stamp(new URL('../../assets/scene/logo-sign.webp', import.meta.url).href), stamp(new URL('../../assets/scene/logo-sign-phone.webp', import.meta.url).href)),
+		preload: true,
+	},
+	// (THE FOREST, upright phones only, is in the preload on the phone tier only: below. Elsewhere it loads the first time
+	// an upright phone layout shows, components/Board.svelte.)
+	...(PHONE_TIER ? { sceneForest: { type: 'sprite' as const, src: FOREST_URL, preload: true as const } } : {}),
 	// THE LANDING SCREEN'S POSED COLUMNS (ui/LandingScreen.svelte, game/landingBoard.ts): one small sheet with the cloud
 	// still and one picked idle frame of each column character (tools/build_columns.py --landing), so the landing board
 	// stands without the idle clips (those still load only when a book calls for a tier)

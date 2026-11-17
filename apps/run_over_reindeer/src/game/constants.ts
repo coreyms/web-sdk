@@ -23,8 +23,9 @@ export const ROAD = {
 	tunnelShade: { from: -110, to: 200, dark: 0.08 },
 	/** the scene's flat snow color around the background picture (sampled from its corners) */
 	snow: 0xe9f0fd,
-	/** THE ROCK THE TUNNELS RUN INTO: left and right of the picture the scene is this dark, flat color (the hillside
-	 *  over the tunnels), not snow. Traffic that has driven past the picture's edge is under it, the stone portals have
+	/** (NOT DRAWN since scene pass 9, 2026-11-16: the snow runs on past the picture, game/scene/sceneLayers.ts; kept for a
+	 *  scene preset that wants it.) THE ROCK THE TUNNELS RUN INTO: left and right of the picture the scene is this dark,
+	 *  flat color (the hillside over the tunnels), not snow. Traffic that has driven past the picture's edge is under it, the stone portals have
 	 *  something to stand in, and on a phone held sideways it is the dark ground the house HUD's two side columns need. */
 	rock: 0x15171d,
 };
@@ -166,8 +167,13 @@ export const STRIKE = {
 		phone: { feetY: 100, scale: 0.8, diagonal: 80 } as SnowRun,
 		portrait: { feetY: 70, scale: 0.85, diagonal: 80 } as SnowRun,
 	},
-	/** it starts this many road px outside the picture's edge, under the rock or off the screen */
+	/** it starts this many road px outside the picture's edge, or (scene pass 9: the rock is gone, the snow runs on) just
+	 *  outside the screen's edge where the screen shows more than that, so it never pops up on the open snow */
 	enterPad: 30,
+	/** scene pass 9: start past the SCREEN's edge where the screen shows snow beyond the picture (the run is then longer:
+	 *  about 0.17 s on a 16:9 or 16:10 desktop, 0.35 s held sideways on a phone, 0.4 s at 21:9); false = the old start,
+	 *  30 road px outside the picture, where he now appears on the open snow */
+	enterFromScreen: true,
 	/** ALONG THE SNOW (the side run, the turn and the diagonal): road px per second on the ground, and the leg cycle's
 	 *  poses per second. The middle path (2026-11-12, measured from the rig's frames: the side run's one grounded pose,
 	 *  pose 1, sweeps its hoof back 71.9 frame px per pose): at 1400 and 60 the body moves 2.44x the hoof's sweep on the
@@ -1072,7 +1078,9 @@ export const SEATED = {
 	clips: { on: true, idleKeepMs: 20000, winKeepMs: 600 },
 	place: {
 		// (pass 6: Grandma 12 road px higher and 6 percent larger, fists on the rim; Santa 16 back, centered in the
-		// sleigh: baked into tools/seated_split.json, so these stay 0)
+		// sleigh: baked into tools/seated_split.json, so these stay 0. Scene pass 9, 2026-11-16: Corey's live nudges from
+		// staging, H1_R dx +2 dy -9.5 scale 0.98 and W_R dx +21 dy -18.5, with the left frames mirrored (dx sign flipped),
+		// baked into tools/seated_split.json the same way)
 		H1_R: { dx: 0, dy: 0, scale: 1 },
 		H1_L: { dx: 0, dy: 0, scale: 1 },
 		W_R: { dx: 0, dy: 0, scale: 1 },
@@ -1114,8 +1122,73 @@ export const BRAKE_LIGHTS = {
 	farOffset: { H1: [-0.5, -27.5], H2: [-1.5, -32], H3: [1.5, -52.5], H4: [0.5, -18] } as Record<string, [number, number]>,
 };
 
+// ---- THE SCENE (scene pass 9, Corey 2026-11-16; game/scenePresets.ts, game/scene/sceneLayers.ts) -----------------------
+// The snow runs edge to edge on every layout: the kit's field tile repeats under everything, its bands hide the road
+// picture's straight top and bottom edges, the two painted ends sit on the tunnels (desktop, tablet, phone held sideways),
+// and on an upright phone the evergreen forest stands behind and above the billboard. WHICH pieces is the scene preset's
+// (game/scenePresets.ts, one preset now: snowDay); WHERE the layout-dependent ones go is here. Road px.
+export const SCENE = {
+	/** THE EDGE COVER: where the dark rock once hid the traffic that has driven past the picture's left or right edge, the
+	 *  field's own pixels are laid over the traffic there (the same tile at the same phase, so it cannot be seen). It
+	 *  starts this many road px under the reindeer's feet line of the layout (STRIKE.snow) so his shadow, which falls up
+	 *  and to the left of his feet, stays on the snow. */
+	edgeCoverBelowFeet: 6,
+	/** THE FOREST on an upright phone: full width, running off the top of the screen. Its bottom edge (road px from the
+	 *  picture's top, negative = above it) follows the snow there is above the picture (road px from the screen's top to
+	 *  the picture's top): Corey's two placements, 390 x 620 (764 road px of snow, bottom 36 road px above the picture:
+	 *  y 185 CSS) and 390 x 844 (1416 of snow, bottom 384 above: y 262 CSS), straight between them and beyond. Its top
+	 *  always stays at least `topSpare` road px above the screen's top (the trees run off the top), and its bottom never
+	 *  more than `maxBelow` into the picture's top margin. */
+	forest: { anchors: [{ snow: 764, bottom: -36 }, { snow: 1416, bottom: -384 }], topSpare: 8, maxBelow: 60 },
+};
+
+// ---- THE BILLBOARD LOGO (scene pass 9: the LOCKED yellow billboard, tools/build_scene.py, game/scene/logoSign.ts) -------
+// It replaces the green name plate. Its lamps start dark and come on one after the other, then blink at a calm rate: the
+// sign's picture with both lamps dark is the base, and each lamp's lit glass (a patch cut from the locked art) fades in
+// over it with a soft glow. Times are real ms (the sign keeps its own time, not the board's).
+//   PLACE per layout class (game/layoutSpec.ts logoBox), pinned to the road picture's top left corner so it scales with
+//   the scene: `cx` the sign's center line and `foot` its bottom edge (the snow mound's foot), road px from that corner,
+//   and `width` road px. The desktop class (a landscape screen 3:2 and wider) instead takes its height from `topGap`
+//   master units under the top line's top down to the foot (so a 16:10 screen, which shows more snow above the road,
+//   gets a bigger sign, as Corey placed it); `minLeft` keeps it that many CSS px inside the screen's left edge.
+export type LogoPlace = { cx: number; foot: number; width: number; topGap?: number };
+export const LOGO_SIGN = {
+	place: {
+		/** 1280 x 720, 1440 x 900, 1920 x 1080, 2560 x 1080: Corey's first three (the 21:9 one he placed bigger, farther out) */
+		desktop: { cx: -54, foot: 258.7, width: 290, topGap: 20 } as LogoPlace,
+		/** 1024 x 768, 1366 x 1024 (a landscape screen narrower than 3:2) */
+		tablet: { cx: -64, foot: 240, width: 305 } as LogoPlace,
+		/** a phone held sideways (844 x 390): in the left HUD column, over the BALANCE capsule's keys */
+		phone: { cx: -198.6, foot: 394.8, width: 379.5 } as LogoPlace,
+		/** upright (390 x 844, 390 x 620): top left over the snow (and the forest), its foot just above the road picture */
+		portrait: { cx: 286.4, foot: -86.7, width: 494 } as LogoPlace,
+		minLeft: 4,
+	},
+	lamps: {
+		/** both lamps dark from the sign's first frame for this long */
+		darkMs: 700,
+		/** then the left lamp comes on, and the right one this much later */
+		stepMs: 380,
+		/** both lit for this long before the blink starts */
+		holdMs: 1600,
+		/** THE BLINK: one lamp's whole cycle, and the share of it the lamp is lit */
+		periodMs: 2400,
+		litShare: 0.5,
+		/** where the right lamp's cycle starts, as a share of the period: 0.5 alternate, 0.25 a chase, 0 together */
+		rightPhase: 0.5,
+		/** each change of a lamp fades over this long (smooth in and out) */
+		fadeMs: 200,
+		/** the soft glow over a lit lamp (added, tinted): its strength, its diameter in lens radii, its color */
+		glowAlpha: 0.55,
+		glowSize: 3.4,
+		glowTint: 0xffb03c,
+		/** a dark lamp keeps this much of its lit glass (0 = the dark picture's glass exactly) */
+		darkFloor: 0,
+	},
+};
+
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED };
+export const TUNE = { laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

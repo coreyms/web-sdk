@@ -5,7 +5,7 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -13,11 +13,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_1": {
@@ -25,7 +25,7 @@
     "x": 79,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -33,11 +33,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_2": {
@@ -45,7 +45,7 @@
     "x": 158,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -53,11 +53,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_3": {
@@ -65,7 +65,7 @@
     "x": 237,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -73,11 +73,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_4": {
@@ -85,7 +85,7 @@
     "x": 316,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -93,11 +93,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_5": {
@@ -105,7 +105,7 @@
     "x": 395,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -113,11 +113,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_6": {
@@ -125,7 +125,7 @@
     "x": 474,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -133,11 +133,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_7": {
@@ -145,7 +145,7 @@
     "x": 553,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -153,11 +153,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_8": {
@@ -165,7 +165,7 @@
     "x": 632,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -173,11 +173,11 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_9": {
@@ -185,7 +185,7 @@
     "x": 711,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -193,39 +193,39 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_10": {
    "frame": {
     "x": 790,
     "y": 0,
-    "w": 77,
-    "h": 72
+    "w": 78,
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 77,
-    "h": 72
+    "w": 78,
+    "h": 76
    },
    "sourceSize": {
-    "w": 77,
-    "h": 72
+    "w": 78,
+    "h": 76
    }
   },
   "santa_idle_11": {
    "frame": {
-    "x": 869,
+    "x": 870,
     "y": 0,
     "w": 78,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -233,19 +233,19 @@
     "x": 0,
     "y": 0,
     "w": 78,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 78,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_12": {
    "frame": {
-    "x": 949,
+    "x": 950,
     "y": 0,
     "w": 79,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -253,19 +253,19 @@
     "x": 0,
     "y": 0,
     "w": 79,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 79,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_13": {
    "frame": {
-    "x": 1030,
+    "x": 1031,
     "y": 0,
     "w": 79,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -273,19 +273,19 @@
     "x": 0,
     "y": 0,
     "w": 79,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 79,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_14": {
    "frame": {
-    "x": 1111,
+    "x": 1112,
     "y": 0,
     "w": 79,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -293,19 +293,19 @@
     "x": 0,
     "y": 0,
     "w": 79,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 79,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_15": {
    "frame": {
-    "x": 1192,
+    "x": 1193,
     "y": 0,
     "w": 78,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -313,19 +313,19 @@
     "x": 0,
     "y": 0,
     "w": 78,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 78,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_16": {
    "frame": {
-    "x": 1272,
+    "x": 1273,
     "y": 0,
     "w": 78,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -333,19 +333,19 @@
     "x": 0,
     "y": 0,
     "w": 78,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 78,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_17": {
    "frame": {
-    "x": 1352,
+    "x": 1353,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -353,19 +353,19 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_idle_18": {
    "frame": {
-    "x": 1431,
+    "x": 1432,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "rotated": false,
    "trimmed": false,
@@ -373,19 +373,19 @@
     "x": 0,
     "y": 0,
     "w": 77,
-    "h": 72
+    "h": 76
    },
    "sourceSize": {
     "w": 77,
-    "h": 72
+    "h": 76
    }
   },
   "santa_body": {
    "frame": {
-    "x": 1510,
+    "x": 1511,
     "y": 0,
     "w": 116,
-    "h": 58
+    "h": 61
    },
    "rotated": false,
    "trimmed": false,
@@ -393,11 +393,11 @@
     "x": 0,
     "y": 0,
     "w": 116,
-    "h": 58
+    "h": 61
    },
    "sourceSize": {
     "w": 116,
-    "h": 58
+    "h": 61
    }
   }
  },
@@ -405,8 +405,8 @@
   "image": "santa-idle-phone.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 1628,
-   "h": 72
+   "w": 1629,
+   "h": 76
   },
   "scale": "1"
  }

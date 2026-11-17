@@ -3,501 +3,501 @@
   "grandma_idle_0": {
    "frame": {
     "x": 0,
-    "y": 180,
-    "w": 130,
-    "h": 83
+    "y": 177,
+    "w": 127,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    },
    "sourceSize": {
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    }
   },
   "grandma_idle_1": {
    "frame": {
-    "x": 132,
-    "y": 180,
-    "w": 130,
-    "h": 83
+    "x": 129,
+    "y": 177,
+    "w": 127,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    },
    "sourceSize": {
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    }
   },
   "grandma_idle_2": {
    "frame": {
     "x": 0,
-    "y": 265,
-    "w": 129,
-    "h": 83
+    "y": 260,
+    "w": 126,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 129,
-    "h": 83
+    "w": 126,
+    "h": 81
    },
    "sourceSize": {
-    "w": 129,
-    "h": 83
+    "w": 126,
+    "h": 81
    }
   },
   "grandma_idle_3": {
    "frame": {
-    "x": 131,
-    "y": 265,
-    "w": 128,
-    "h": 83
+    "x": 128,
+    "y": 260,
+    "w": 123,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 128,
-    "h": 83
+    "w": 123,
+    "h": 81
    },
    "sourceSize": {
-    "w": 128,
-    "h": 83
+    "w": 123,
+    "h": 81
    }
   },
   "grandma_idle_4": {
    "frame": {
     "x": 0,
-    "y": 350,
-    "w": 121,
-    "h": 83
+    "y": 343,
+    "w": 106,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 121,
-    "h": 83
+    "w": 106,
+    "h": 81
    },
    "sourceSize": {
-    "w": 121,
-    "h": 83
+    "w": 106,
+    "h": 81
    }
   },
   "grandma_idle_5": {
    "frame": {
-    "x": 123,
-    "y": 350,
-    "w": 108,
-    "h": 83
+    "x": 108,
+    "y": 343,
+    "w": 106,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 108,
-    "h": 83
+    "w": 106,
+    "h": 81
    },
    "sourceSize": {
-    "w": 108,
-    "h": 83
+    "w": 106,
+    "h": 81
    }
   },
   "grandma_idle_6": {
    "frame": {
     "x": 0,
-    "y": 435,
-    "w": 108,
-    "h": 83
+    "y": 426,
+    "w": 106,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 108,
-    "h": 83
+    "w": 106,
+    "h": 81
    },
    "sourceSize": {
-    "w": 108,
-    "h": 83
+    "w": 106,
+    "h": 81
    }
   },
   "grandma_idle_7": {
    "frame": {
-    "x": 110,
-    "y": 435,
-    "w": 129,
-    "h": 83
+    "x": 108,
+    "y": 426,
+    "w": 126,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 129,
-    "h": 83
+    "w": 126,
+    "h": 81
    },
    "sourceSize": {
-    "w": 129,
-    "h": 83
+    "w": 126,
+    "h": 81
    }
   },
   "grandma_idle_8": {
    "frame": {
     "x": 0,
-    "y": 520,
-    "w": 130,
-    "h": 83
+    "y": 509,
+    "w": 127,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    },
    "sourceSize": {
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    }
   },
   "grandma_idle_9": {
    "frame": {
-    "x": 132,
-    "y": 520,
-    "w": 130,
-    "h": 83
+    "x": 129,
+    "y": 509,
+    "w": 127,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    },
    "sourceSize": {
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    }
   },
   "grandma_idle_10": {
    "frame": {
     "x": 0,
-    "y": 605,
-    "w": 131,
-    "h": 83
+    "y": 592,
+    "w": 127,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 131,
-    "h": 83
+    "w": 127,
+    "h": 81
    },
    "sourceSize": {
-    "w": 131,
-    "h": 83
+    "w": 127,
+    "h": 81
    }
   },
   "grandma_idle_11": {
    "frame": {
-    "x": 133,
-    "y": 605,
-    "w": 131,
-    "h": 83
+    "x": 129,
+    "y": 592,
+    "w": 127,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 131,
-    "h": 83
+    "w": 127,
+    "h": 81
    },
    "sourceSize": {
-    "w": 131,
-    "h": 83
+    "w": 127,
+    "h": 81
    }
   },
   "grandma_idle_12": {
    "frame": {
     "x": 0,
-    "y": 690,
-    "w": 131,
-    "h": 83
+    "y": 675,
+    "w": 128,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 131,
-    "h": 83
+    "w": 128,
+    "h": 81
    },
    "sourceSize": {
-    "w": 131,
-    "h": 83
+    "w": 128,
+    "h": 81
    }
   },
   "grandma_idle_13": {
    "frame": {
-    "x": 132,
-    "y": 1115,
-    "w": 131,
-    "h": 80
+    "x": 128,
+    "y": 1090,
+    "w": 128,
+    "h": 79
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 131,
-    "h": 80
+    "w": 128,
+    "h": 79
    },
    "sourceSize": {
-    "w": 131,
-    "h": 80
+    "w": 128,
+    "h": 79
    }
   },
   "grandma_idle_14": {
    "frame": {
-    "x": 133,
-    "y": 690,
-    "w": 112,
-    "h": 83
+    "x": 130,
+    "y": 675,
+    "w": 110,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 112,
-    "h": 83
+    "w": 110,
+    "h": 81
    },
    "sourceSize": {
-    "w": 112,
-    "h": 83
+    "w": 110,
+    "h": 81
    }
   },
   "grandma_idle_15": {
    "frame": {
     "x": 0,
-    "y": 775,
-    "w": 129,
-    "h": 83
+    "y": 758,
+    "w": 126,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 129,
-    "h": 83
+    "w": 126,
+    "h": 81
    },
    "sourceSize": {
-    "w": 129,
-    "h": 83
+    "w": 126,
+    "h": 81
    }
   },
   "grandma_idle_16": {
    "frame": {
-    "x": 131,
-    "y": 775,
-    "w": 131,
-    "h": 83
+    "x": 128,
+    "y": 758,
+    "w": 128,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 131,
-    "h": 83
+    "w": 128,
+    "h": 81
    },
    "sourceSize": {
-    "w": 131,
-    "h": 83
+    "w": 128,
+    "h": 81
    }
   },
   "grandma_idle_17": {
    "frame": {
     "x": 0,
-    "y": 860,
-    "w": 131,
-    "h": 83
+    "y": 841,
+    "w": 127,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 131,
-    "h": 83
+    "w": 127,
+    "h": 81
    },
    "sourceSize": {
-    "w": 131,
-    "h": 83
+    "w": 127,
+    "h": 81
    }
   },
   "grandma_idle_18": {
    "frame": {
-    "x": 133,
-    "y": 860,
-    "w": 130,
-    "h": 83
+    "x": 129,
+    "y": 841,
+    "w": 127,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    },
    "sourceSize": {
-    "w": 130,
-    "h": 83
+    "w": 127,
+    "h": 81
    }
   },
   "grandma_idle_19": {
    "frame": {
     "x": 0,
-    "y": 945,
-    "w": 129,
-    "h": 83
+    "y": 924,
+    "w": 125,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 129,
-    "h": 83
+    "w": 125,
+    "h": 81
    },
    "sourceSize": {
-    "w": 129,
-    "h": 83
+    "w": 125,
+    "h": 81
    }
   },
   "grandma_idle_20": {
    "frame": {
-    "x": 131,
-    "y": 945,
-    "w": 127,
-    "h": 83
+    "x": 127,
+    "y": 924,
+    "w": 106,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 127,
-    "h": 83
+    "w": 106,
+    "h": 81
    },
    "sourceSize": {
-    "w": 127,
-    "h": 83
+    "w": 106,
+    "h": 81
    }
   },
   "grandma_idle_21": {
    "frame": {
     "x": 0,
-    "y": 1030,
-    "w": 121,
-    "h": 83
+    "y": 1007,
+    "w": 106,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 121,
-    "h": 83
+    "w": 106,
+    "h": 81
    },
    "sourceSize": {
-    "w": 121,
-    "h": 83
+    "w": 106,
+    "h": 81
    }
   },
   "grandma_idle_22": {
    "frame": {
-    "x": 123,
-    "y": 1030,
-    "w": 122,
-    "h": 83
+    "x": 108,
+    "y": 1007,
+    "w": 106,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 122,
-    "h": 83
+    "w": 106,
+    "h": 81
    },
    "sourceSize": {
-    "w": 122,
-    "h": 83
+    "w": 106,
+    "h": 81
    }
   },
   "grandma_idle_23": {
    "frame": {
     "x": 0,
-    "y": 1115,
-    "w": 130,
-    "h": 83
+    "y": 1090,
+    "w": 126,
+    "h": 81
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 130,
-    "h": 83
+    "w": 126,
+    "h": 81
    },
    "sourceSize": {
-    "w": 130,
-    "h": 83
+    "w": 126,
+    "h": 81
    }
   },
   "grandma_body": {
    "frame": {
     "x": 0,
     "y": 0,
-    "w": 266,
-    "h": 178
+    "w": 260,
+    "h": 175
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 266,
-    "h": 178
+    "w": 260,
+    "h": 175
    },
    "sourceSize": {
-    "w": 266,
-    "h": 178
+    "w": 260,
+    "h": 175
    }
   }
  },
@@ -505,8 +505,8 @@
   "image": "grandma-idle.webp",
   "format": "RGBA8888",
   "size": {
-   "w": 268,
-   "h": 1198
+   "w": 262,
+   "h": 1171
   },
   "scale": "1"
  }

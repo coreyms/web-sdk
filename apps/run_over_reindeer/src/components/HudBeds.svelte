@@ -5,12 +5,15 @@
 	// THE GLASS HUD (ui/hud, 2026-11-15): the bottom bed's top edge is HUD_BED.bottom as before, or higher where the
 	// HUD's own top (its highest readout, the Spin's top, the bar) comes within HUD_BED.hudPad CSS px of it, so every
 	// readout and key stands on the bed; never above the board's bottom edge.
+	// SCENE PASS 9: off with the snow scene (game/scenePresets.ts hudBeds false): the deeper glass and the dark readouts
+	// read on the snow itself. The rule stays for a scene preset that wants beds.
 	import { Rectangle } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
 	import { HUD_BED } from '../game/constants';
 	import { MASTER, layoutKind, landscapeExtraY, boardRect, isPhoneSizeType } from '../game/layoutSpec';
 	import { hudFrame, portraitGeo, desktopGeo, readSafeInsets } from '../ui/hud/hudLayout';
+	import { stateScene } from '../game/stateScene.svelte';
 
 	const context = getContext();
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
@@ -41,7 +44,7 @@
 	const line = $derived(Math.max(1, HUD_BED.edgeWidth * main.scale));
 </script>
 
-{#if kind !== 'phone'}
+{#if kind !== 'phone' && stateScene.preset.hudBeds}
 	<Rectangle x={0} y={0} width={canvas.width} height={Math.max(0, topEdge)} backgroundColor={HUD_BED.color} />
 	<Rectangle x={0} y={topEdge - line} width={canvas.width} height={line} backgroundColor={HUD_BED.edge} />
 	<Rectangle x={0} y={bottomEdge} width={canvas.width} height={Math.max(0, canvas.height - bottomEdge)} backgroundColor={HUD_BED.color} />

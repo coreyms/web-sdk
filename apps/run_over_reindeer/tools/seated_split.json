@@ -11,6 +11,7 @@
 		"  of the still kept below the pivot (the rest is hidden by the front layer at every lean and never packed). mirror: the left",
 		"  facing frames draw the same picture mirrored (the figures have no lettering)."
 	],
+	"_pass9": "scene pass 9 (2026-11-16): Corey's live nudges baked in: H1_R dx +2 dy -9.5 scale 0.98, W_R dx +21 dy -18.5, the left frames mirrored (dx sign flipped: their built x is the right frame's mirrored); Santa's keep 16 -> 22 road px, so the still's lower edge stays under the sleigh rim (6 road px at rest) at the win bob (3.5) and the lean now that he sits 18.5 higher (22, not more: every seated animation loaded at once stays inside the 6 MB desktop budget)",
 	"band": 8,
 	"snapPx": 7,
 	"dark": 70,
@@ -19,25 +20,25 @@
 			"character": "grandma",
 			"cut": [[118, 206], [150, 219], [190, 229], [230, 236], [249, 236], [252, 232], [394, 230], [400, 230]],
 			"snap": [253, 392],
-			"figure": { "pivot": [430, 880], "at": [-42, -68], "height": 125, "keep": 16, "mirror": false }
+			"figure": { "pivot": [430, 880], "at": [-40, -77.5], "height": 122.5, "keep": 16, "mirror": false }
 		},
 		"H1_L": {
 			"character": "grandma",
 			"cut": [[276, 230], [300, 231], [428, 233], [431, 236], [450, 236], [490, 229], [530, 219], [562, 206]],
 			"snap": [278, 426],
-			"figure": { "pivot": [430, 880], "at": [42, -65], "height": 125, "keep": 16, "mirror": true }
+			"figure": { "pivot": [430, 880], "at": [40, -74.5], "height": 122.5, "keep": 16, "mirror": true }
 		},
 		"W_R": {
 			"character": "santa",
 			"cut": [[30, 214], [60, 226], [100, 233], [140, 241], [170, 252], [200, 276], [220, 290], [240, 296], [300, 298], [400, 298], [460, 296], [480, 290], [500, 272], [520, 256], [540, 248], [560, 244]],
 			"snap": [40, 545],
-			"figure": { "pivot": [520, 980], "at": [-8, -51], "height": 128, "keep": 16, "mirror": false }
+			"figure": { "pivot": [520, 980], "at": [13, -69.5], "height": 128, "keep": 22, "mirror": false }
 		},
 		"W_L": {
 			"character": "santa",
 			"cut": [[85, 244], [105, 248], [125, 256], [145, 272], [165, 290], [185, 296], [245, 298], [345, 298], [405, 296], [425, 290], [445, 276], [475, 252], [505, 241], [545, 233], [585, 226], [615, 214]],
 			"snap": [100, 605],
-			"figure": { "pivot": [520, 980], "at": [8, -51], "height": 128, "keep": 16, "mirror": true }
+			"figure": { "pivot": [520, 980], "at": [-13, -69.5], "height": 128, "keep": 22, "mirror": true }
 		}
 	},
 	"floorMargin": 8

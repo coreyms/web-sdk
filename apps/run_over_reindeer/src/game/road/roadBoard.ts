@@ -6,9 +6,11 @@
 // "comes out of the tunnels" because the two portal strips cut from the background are drawn over it, and it
 // darkens near them by a plain sprite tint.
 //
-// Layers, back to front: the background, the ground (every symbol's cast shadow and the running reindeer's, game/road/shadows.ts), the four lanes (top lane first, so lower lanes draw in front), the features
-// (cloud cells, red boxes, column characters), the line win overlay, the running reindeer, the two stoplights, the
-// rock beside the picture and the tunnel portals.
+// Layers, back to front: the scene's field (game/scene/sceneLayers.ts), the background, the scene's bands and forest, the
+// ground (every symbol's cast shadow and the running reindeer's, game/road/shadows.ts), the four lanes (top lane first, so
+// lower lanes draw in front), the features (cloud cells, red boxes, column characters), the line win overlay, the two
+// stoplights, the scene's edge cover beside the picture (where the rock was until scene pass 9), the tunnel portals, the
+// scene's painted tunnel ends and the running reindeer.
 //
 // What is on the board only ever comes from the caller (the book event handlers): setBoard / driveIn take the
 // book's board as it is. The one place a random number is used is the make-believe "through traffic" that may pass
@@ -28,6 +30,7 @@ import { WinLights, lightsSchedule, type LightLine } from './winLights';
 import { WagonTree, type TreeFrame } from './wagonTree';
 import { SeatedDriver, type SeatFrame } from './seated';
 import { BrakeLightPair, type BrakeState } from './brakeLights';
+import { SceneLayers } from '../scene/sceneLayers';
 import { releaseAllSeatClips, seatClip, type SeatChar, type SeatClip } from './seatedClips';
 import { flowLevel, flowParams, planFlow, type FlowCar, type FlowPlan } from './laneFlow';
 import { PHONE_TIER } from '../deviceTier';
@@ -278,6 +281,9 @@ export class RoadBoard {
 	/** how many symbols the board on the road parks (20, less four for every column Wild standing) */
 	private parked = COLS * ROWS;
 
+	/** THE SCENE AROUND THE ROAD (game/scene/sceneLayers.ts): its layers sit in this container's draw order */
+	readonly scene = new SceneLayers();
+
 	/** the present's still picture (game/road/present.ts), null when its sheet did not load (the S then draws empty) */
 	private readonly presentStill: PIXI.Texture | null;
 
@@ -294,12 +300,15 @@ export class RoadBoard {
 	) {
 		this.presentStill = presentStillTexture(tex('presentStill'));
 		const img = ROAD_ART.image;
+		// THE SCENE (scene pass 9, game/scene/sceneLayers.ts): the field under the picture, the bands and the forest over it
+		this.root.addChild(this.scene.field);
 		if (textures.road) {
 			const bg = new PIXI.Sprite(textures.road);
 			bg.width = img.width;
 			bg.height = img.height;
 			this.root.addChild(bg);
 		}
+		this.root.addChild(this.scene.bands, this.scene.forest);
 		this.root.addChild(this.ground);
 		this.root.addChild(this.brakeBackLayer);
 		for (let row = 0; row < ROWS; row++) {
@@ -326,17 +335,13 @@ export class RoadBoard {
 		this.winLayer.addChild(this.winLines);
 		this.winLayer.visible = false;
 		this.root.addChild(this.winLayer);
-		// the running reindeer, over the line win too
-		this.root.addChild(this.features.runnerLayer);
 		this.root.addChild(this.lightLayer);
 		this.buildLights();
 
-		// THE ROCK beside the picture (ROAD.rock): the hillside the tunnels run into. Traffic that has driven past the
-		// picture's edge is under it. Only seen where the screen is wider than the picture.
-		const rock = new PIXI.Graphics();
-		rock.rect(-1200, -600, 1200, img.height + 1200).fill(ROAD.rock);
-		rock.rect(img.width, -600, 1200, img.height + 1200).fill(ROAD.rock);
-		this.root.addChild(rock);
+		// THE EDGE COVER beside the picture (scene pass 9: where the dark rock, ROAD.rock, stood until then): the field's own
+		// pixels over the traffic that has driven past the picture's edge. Only seen where the screen is wider than the
+		// picture, and then it is the same snow as under it.
+		this.root.addChild(this.scene.cover);
 		for (const side of ['left', 'right'] as const) {
 			const t = side === 'left' ? textures.tunnelLeft : textures.tunnelRight;
 			if (!t) continue;
@@ -347,6 +352,11 @@ export class RoadBoard {
 			cover.height = c.height;
 			this.root.addChild(cover);
 		}
+		// the painted tunnel ends over the portal strips (their caps lie on the stone), then the running reindeer over
+		// everything of the road and the ends: he runs in on the snow from past the screen's edge (scene pass 9; until then
+		// he was drawn under the stoplights and the rock and came out from under the rock)
+		this.root.addChild(this.scene.ends);
+		this.root.addChild(this.features.runnerLayer);
 	}
 
 	// ---- cars ------------------------------------------------------------------------------------------------------
@@ -1935,6 +1945,7 @@ export class RoadBoard {
 		for (const w of this.waiters) w.resolve();
 		this.waiters = [];
 		this.features.destroy();
+		this.scene.destroy();
 		this.root.destroy({ children: true });
 	}
 }

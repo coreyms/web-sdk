@@ -201,7 +201,9 @@
 .hudp .stat.pt {
 	gap: 3px;
 	border-radius: 0;
-	text-shadow: 0 1px 2px rgba(var(--hud-shadow-rgb), 0.95), 0 0 7px rgba(var(--hud-shadow-rgb), 0.75), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9);
+	/* the ink and the shadow are the scene's (ui/hudTheme.ts HUD_READOUT_INK: light over a dark scene, dark over snow) */
+	color: rgb(var(--hud-pt-ink-rgb));
+	text-shadow: var(--hud-pt-shadow);
 }
 .hudp .stat.pt.l {
 	align-items: flex-start;
@@ -214,7 +216,7 @@
 .hudp .stat.pt .lbw {
 	font-size: 8px;
 	letter-spacing: 0.22em;
-	color: rgba(var(--hud-label-warm-rgb), 0.9);
+	color: rgba(var(--hud-pt-label-rgb), 0.9);
 }
 .hudp .stat.pt.l .lbw {
 	margin-left: 1px;
@@ -226,6 +228,7 @@
 .hudp .stat.pt .value,
 .hudp .stat.pt.win .value {
 	font-size: 15px;
+	color: inherit;
 	text-shadow: inherit;
 }
 .hudp .stat.pt.win.is-lit,
@@ -235,11 +238,19 @@
 }
 .hudp .stat.pt.win.is-lit .value,
 .hudp .stat.pt.win.is-big .value {
-	color: rgb(var(--hud-win-ink-rgb));
-	text-shadow: 0 0 9px rgba(var(--hud-win-rgb), 0.95), 0 0 18px rgba(var(--hud-win-rgb), 0.5), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.95), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9);
+	color: rgb(var(--hud-pt-win-ink-rgb));
+	text-shadow: var(--hud-pt-win-shadow);
 }
 .hudp .stat.pt.amt.ante .value {
-	text-shadow: 0 0 8px rgba(var(--hud-accent-rgb), 0.6), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.95), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9);
+	color: rgb(var(--hud-pt-ante-ink-rgb));
+	text-shadow: var(--hud-pt-ante-shadow);
+}
+.hudp .stat.pt.win.is-lit .lbw,
+.hudp .stat.pt.win.is-big .lbw {
+	color: rgb(var(--hud-pt-win-label-rgb));
+}
+.hudp .stat.pt.amt.ante .lbw {
+	color: rgb(var(--hud-pt-ante-label-rgb));
 }
 .hudp .stat.pt.amt.sante .lbw {
 	letter-spacing: 0.16em;

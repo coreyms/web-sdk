@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Portrait master (412x760): the title sign on top (unchanged).
+	// Portrait master (412x760): the billboard logo top left (in the canvas: game/scene/logoSign.ts).
 	// THE HUD (the house HUD: Manticore's HUD round 6, "Row of Seven", Corey 2026-11-13, in this game's "Frost" theme):
 	// one glass bar low on the floor with the Spin set in its middle (its border flowing round the Spin's upper and lower
 	// arcs) and ONE row inside it: FAST LANE as a wide pill, MENU right beside it, AUTO next to the Spin on its left, the
@@ -10,8 +10,9 @@
 	// portraitGeo (the short and tall mock rows, and the rule between them, held under this game's board). The chrome
 	// spans the real viewport width; the HUD hangs from the viewport's bottom edge.
 	import type { Controls } from './controls.svelte';
-	import { TITLE } from '../game/layoutSpec';
+	import { TITLE, isPhoneSizeType } from '../game/layoutSpec';
 	import { stateUi } from 'state-shared';
+	import { getContext } from '../game/context';
 	import TitleSign from './TitleSign.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import { portraitGeo, outlineBead, type HudFrame } from './hud/hudLayout';
@@ -29,7 +30,10 @@
 	const hs = createHudState(controls);
 	const replay = $derived(controls.isReplay());
 	const rh = $derived(hs.replay());
-	const title = TITLE.portrait; // the title's box (layoutSpec TITLE), centered on the screen's center line
+	const title = TITLE.portrait; // the round counter's box (layoutSpec TITLE), from the screen's right edge
+	// an upright phone (not a tablet): the top line sits over the forest (game/scenePresets.ts topText.forest)
+	const context = getContext();
+	const uprightPhone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
 
 	const G = $derived(portraitGeo(hud, 0));
 	const outline = $derived(outlineBead(G.bar, G.n));
@@ -43,11 +47,13 @@
 	const K = $derived({ menu: at(G.menu), auto: at(G.auto), turbo: at(G.turbo), minus: at(G.minus), plus: at(G.plus) });
 </script>
 
-<ClockStrip side="left" clock text="RUN OVER REINDEER" />
-<ClockStrip side="right" text="POLYMATH GAMES" />
+<ClockStrip side="left" clock text="RUN OVER REINDEER" forest={uprightPhone} />
+<ClockStrip side="right" text="POLYMATH GAMES" forest={uprightPhone} />
 
-<!-- THE TITLE (placeholder sign, ui/TitleSign.svelte), kept up through every presentation -->
-<div class="top keep" style:top="{title.y}px"><TitleSign width={title.width} height={title.height} lines={title.lines} /></div>
+<!-- THE NAME is the billboard logo in the canvas, top left (game/scene/logoSign.ts, scene pass 9); the highway sign shows only
+     in a bonus round, with its counter, at the right of the billboard (ui/TitleSign.svelte roundOnly), kept up through every
+     presentation -->
+<div class="top keep" style:top="{title.y}px" style:right="{title.x}px" style:width="{title.width}px"><TitleSign width={title.width} height={title.height} lines={title.lines} roundOnly /></div>
 
 <div class="hudp hud-group v-portrait" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.bar.x0 + 14}px" style:top="{G.bar.y1 - 14}px" style:width="{G.bar.x1 - G.bar.x0 - 28}px" style:height="28px"></div>
@@ -92,11 +98,9 @@
 </div>
 
 <style>
-	/* top comes from the layout rule (inline: layoutSpec TITLE); this frame's center line is the screen's */
+	/* top, right and width come from the layout rule (inline: layoutSpec TITLE); this frame spans the screen's width */
 	.top {
 		position: absolute;
-		left: 12px;
-		right: 12px;
 		display: flex;
 		justify-content: center;
 		align-items: center;

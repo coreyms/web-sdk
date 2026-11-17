@@ -46,8 +46,11 @@
 	import { stateBet, stateUrlDerived } from 'state-shared';
 
 	import { getContext } from '../game/context';
-	import { layoutKind, roadPlacement, boardRect, MASTER } from '../game/layoutSpec';
-	import { LANE_FLOW, LED_SIGN, LINE_WIN, ROAD_MOTION, TUNE } from '../game/constants';
+	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass } from '../game/layoutSpec';
+	import { LANE_FLOW, LED_SIGN, LINE_WIN, ROAD_MOTION, STRIKE, TUNE } from '../game/constants';
+	import { FOREST_URL } from '../game/assets';
+	import { stateScene } from '../game/stateScene.svelte';
+	import { LogoSign } from '../game/scene/logoSign';
 	import config from '../game/config';
 	import { boot } from '../game/boot.svelte';
 	import { LedSign, ledGeometry } from '../game/landing/ledSign';
@@ -153,6 +156,20 @@
 		};
 	}
 
+	// THE BILLBOARD LOGO (game/scene/logoSign.ts, constants LOGO_SIGN): over the road and over the press screen's dim (the
+	// green plate stood over both as HTML), placed with the road (its own container, the road's transform)
+	const logo = loaded.logoSign ? new LogoSign(loaded.logoSign, PHONE_TIER ? 'phone' : 'full') : null;
+	if (logo) parent.addToParent(logo.root);
+
+	// THE SCENE PRESET (game/stateScene.svelte.ts): its pieces by asset key; the forest off the phone tier loads the first
+	// time an upright phone layout shows (it is in the phone tier's preload)
+	const lazy: Record<string, PIXI.Texture> = {};
+	let forestLoading = false;
+	const sceneTex = (key: string) => loaded[key] ?? lazy[key] ?? null;
+	$effect(() => {
+		road.scene.setPreset(stateScene.preset, sceneTex);
+	});
+
 	// the road in the layout: road px -> master units (layoutSpec ROAD_LAYOUT) -> canvas px (the main layout's fit).
 	// Derived from the window on every change, never cached (the house rule: this is why rotation survives).
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
@@ -165,6 +182,34 @@
 		road.features.layoutKind = kind; // and the reindeer runs at its own height in the snow per layout (STRIKE.snow)
 		road.root.scale.set(place.scale * main.scale);
 		road.root.position.set(masterLeft + place.x * main.scale, masterTop + place.y * main.scale);
+		// THE SCENE: the part of the road's plane the canvas shows, in road px
+		const canvasSize = context.stateLayoutDerived.canvasSizes();
+		const k = place.scale * main.scale;
+		const ox = masterLeft + place.x * main.scale;
+		const oy = masterTop + place.y * main.scale;
+		const rect = { left: -ox / k, top: -oy / k, right: (canvasSize.width - ox) / k, bottom: (canvasSize.height - oy) / k };
+		const uprightPhone = kind === 'portrait' && isPhoneSizeType(context.stateLayoutDerived.canvasSizeType());
+		const feetY = (STRIKE.snow[kind] ?? STRIKE.snow.landscape).feetY;
+		road.scene.layout({ kind, uprightPhone, rect, feetY });
+		road.features.screenEdges = { left: rect.left, right: rect.right };
+		const forestKey = stateScene.preset.forest;
+		if (uprightPhone && forestKey && !sceneTex(forestKey) && !forestLoading) {
+			forestLoading = true;
+			void PIXI.Assets.load<PIXI.Texture>(FOREST_URL)
+				.then((t) => {
+					lazy[forestKey] = t;
+					road.scene.refresh();
+				})
+				.catch(() => {});
+		}
+		// the billboard logo, by its class's rule (layoutSpec logoBox), in the road's px
+		if (logo) {
+			const extraTop = kind === 'landscape' ? landscapeExtraY(canvasSize.height / main.scale) : 0;
+			const box = logoBox(logoClass(kind, canvasSize.width, canvasSize.height), place, main.scale, masterLeft, extraTop);
+			logo.root.scale.set(k);
+			logo.root.position.set(ox, oy);
+			logo.place(box);
+		}
 		// the billboard: centred on the board, sized per layout (canvas CSS px)
 		if (led) {
 			const r = boardRect(kind);
@@ -216,6 +261,7 @@
 		const tick = (ticker: PIXI.Ticker) => {
 			road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
 			led?.update(ticker.deltaMS, boot.pressReady);
+			logo?.update(ticker.deltaMS);
 		};
 		app?.ticker.add(tick);
 		return () => {
@@ -223,6 +269,7 @@
 			app?.ticker.remove(tick);
 			led?.destroy();
 			led = null;
+			logo?.destroy();
 			road.destroy();
 		};
 	});
@@ -303,6 +350,26 @@
 			board: () => stateGame.board.map((reel) => [...reel]),
 			gameType: () => stateGame.gameType,
 			/** the layout in use and where the board's cells are, master units and CSS px */
+			/** THE SCENE (scene pass 9): the preset, what the scene layers drew, the billboard's box (road px and CSS px) and its
+			 *  lamps; `logoHold(ms)` freezes the lamps' time (null runs it again) */
+			scene: () => {
+				const masterLeft = main.x - (main.width * main.scale) / 2;
+				const masterTop = main.y - (main.height * main.scale) / 2;
+				const k = place.scale * main.scale;
+				const ox = masterLeft + place.x * main.scale;
+				const oy = masterTop + place.y * main.scale;
+				const b = logo?.box ?? null;
+				return {
+					preset: stateScene.preset.name,
+					layers: road.scene.last,
+					picture: { x: ox, y: oy, width: 1536 * k, height: 1024 * k, k },
+					logo: b ? { road: b, css: { x: ox + b.x * k, y: oy + b.y * k, width: b.width * k, height: b.height * k }, lamps: logo!.levels() } : null,
+				};
+			},
+			logoHold: (ms: number | null) => {
+				if (logo) logo.hold = ms;
+				return logo?.levels() ?? null;
+			},
 			boardLayout: () => {
 				const r = boardRect(kind);
 				const masterLeft = main.x - (main.width * main.scale) / 2;

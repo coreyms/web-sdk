@@ -10,23 +10,23 @@ export const SEATED_ART = {
 			"character": "grandma",
 			"mirror": false,
 			"at": [
-				-42,
-				-68
+				-40,
+				-77.5
 			],
-			"height": 125,
+			"height": 122.5,
 			"tiers": {
 				"full": {
 					"front": {
 						"x": -69.223,
 						"y": -66.237,
 						"w": 88.443,
-						"h": 22.183
+						"h": 17.497
 					},
 					"shadow": {
-						"x": -62.972,
-						"y": -155.595,
-						"w": 65.941,
-						"h": 36.556
+						"x": -61.41,
+						"y": -163.094,
+						"w": 65.316,
+						"h": 44.054
 					}
 				},
 				"phone": {
@@ -34,13 +34,13 @@ export const SEATED_ART = {
 						"x": -68.653,
 						"y": -66.548,
 						"w": 87.376,
-						"h": 22.46
+						"h": 17.469
 					},
 					"shadow": {
-						"x": -62.828,
-						"y": -154.724,
-						"w": 66.573,
-						"h": 35.769
+						"x": -61.164,
+						"y": -162.21,
+						"w": 65.74,
+						"h": 43.256
 					}
 				}
 			},
@@ -195,23 +195,23 @@ export const SEATED_ART = {
 			"character": "grandma",
 			"mirror": true,
 			"at": [
-				42,
-				-65
+				40,
+				-74.5
 			],
-			"height": 125,
+			"height": 122.5,
 			"tiers": {
 				"full": {
 					"front": {
 						"x": -19.845,
 						"y": -66.237,
 						"w": 89.693,
-						"h": 25.308
+						"h": 17.497
 					},
 					"shadow": {
-						"x": -2.969,
-						"y": -152.471,
-						"w": 64.379,
-						"h": 33.431
+						"x": -3.906,
+						"y": -160.282,
+						"w": 65.316,
+						"h": 41.242
 					}
 				},
 				"phone": {
@@ -219,13 +219,13 @@ export const SEATED_ART = {
 						"x": -19.556,
 						"y": -66.548,
 						"w": 89.041,
-						"h": 25.787
+						"h": 17.469
 					},
 					"shadow": {
-						"x": -3.745,
-						"y": -151.396,
+						"x": -4.577,
+						"y": -159.715,
 						"w": 65.74,
-						"h": 32.442
+						"h": 40.761
 					}
 				}
 			},
@@ -380,8 +380,8 @@ export const SEATED_ART = {
 			"character": "santa",
 			"mirror": false,
 			"at": [
-				-8,
-				-51
+				13,
+				-69.5
 			],
 			"height": 128,
 			"tiers": {
@@ -390,13 +390,13 @@ export const SEATED_ART = {
 						"x": -91.423,
 						"y": -80.014,
 						"w": 165.968,
-						"h": 53.134
+						"h": 40.632
 					},
 					"shadow": {
-						"x": -34.85,
-						"y": -150.651,
-						"w": 50.009,
-						"h": 20.941
+						"x": -29.224,
+						"y": -169.091,
+						"w": 69.388,
+						"h": 39.382
 					}
 				},
 				"phone": {
@@ -404,13 +404,13 @@ export const SEATED_ART = {
 						"x": -91.636,
 						"y": -80.127,
 						"w": 165.779,
-						"h": 53.418
+						"h": 40.898
 					},
 					"shadow": {
-						"x": -34.988,
-						"y": -150.239,
-						"w": 50.817,
-						"h": 21.701
+						"x": -29.157,
+						"y": -168.601,
+						"w": 69.977,
+						"h": 40.064
 					}
 				}
 			},
@@ -689,8 +689,8 @@ export const SEATED_ART = {
 			"character": "santa",
 			"mirror": true,
 			"at": [
-				8,
-				-51
+				-13,
+				-69.5
 			],
 			"height": 128,
 			"tiers": {
@@ -699,13 +699,13 @@ export const SEATED_ART = {
 						"x": -74.233,
 						"y": -80.014,
 						"w": 165.968,
-						"h": 53.134
+						"h": 40.632
 					},
 					"shadow": {
-						"x": -15.159,
-						"y": -150.651,
-						"w": 50.009,
-						"h": 20.941
+						"x": -40.164,
+						"y": -169.091,
+						"w": 69.388,
+						"h": 39.382
 					}
 				},
 				"phone": {
@@ -713,13 +713,13 @@ export const SEATED_ART = {
 						"x": -74.142,
 						"y": -80.127,
 						"w": 165.779,
-						"h": 53.418
+						"h": 40.898
 					},
 					"shadow": {
-						"x": -15.828,
-						"y": -150.239,
-						"w": 50.817,
-						"h": 21.701
+						"x": -40.82,
+						"y": -168.601,
+						"w": 69.977,
+						"h": 40.064
 					}
 				}
 			},
@@ -997,63 +997,63 @@ export const SEATED_ART = {
 	},
 	"characters": {
 		"grandma": {
-			"height": 125,
+			"height": 122.5,
 			"keep": 16,
 			"still": "references/mockups/grandma_car_seated_v4.png",
 			"tiers": {
 				"full": {
 					"anchor": [
 						0.26521,
-						0.84518
+						0.84272
 					],
-					"width": 83.125,
-					"height": 103.75,
+					"width": 81.25,
+					"height": 101.875,
 					"px": [
-						266,
-						332
+						260,
+						326
 					]
 				},
 				"phone": {
 					"anchor": [
 						0.26521,
-						0.84518
+						0.84272
 					],
-					"width": 83.333,
-					"height": 103.333,
+					"width": 81.667,
+					"height": 101.667,
 					"px": [
-						100,
-						124
+						98,
+						122
 					]
 				}
 			}
 		},
 		"santa": {
 			"height": 128,
-			"keep": 16,
+			"keep": 22,
 			"still": "references/mockups/santa_sleigh_seated_v13.png",
 			"tiers": {
 				"full": {
 					"anchor": [
 						0.4391,
-						0.86121
+						0.81895
 					],
 					"width": 96.562,
-					"height": 115.938,
+					"height": 121.875,
 					"px": [
 						309,
-						371
+						390
 					]
 				},
 				"phone": {
 					"anchor": [
 						0.4391,
-						0.86121
+						0.81895
 					],
 					"width": 96.667,
-					"height": 115.833,
+					"height": 121.667,
 					"px": [
 						116,
-						139
+						146
 					]
 				}
 			}
@@ -1062,41 +1062,41 @@ export const SEATED_ART = {
 	"tiers": {
 		"full": {
 			"sheet": "riders/seated.webp",
-			"w": 579,
-			"h": 986,
-			"gpuMb": 2.178,
+			"w": 574,
+			"h": 983,
+			"gpuMb": 2.152,
 			"px": {
-				"seat_grandma": 88312,
-				"seat_santa": 114639,
-				"H1_R_front": 20093,
-				"H1_R_seatshadow": 24687,
-				"H1_L_front": 23247,
-				"H1_L_seatshadow": 22042,
-				"W_R_front": 90270,
-				"W_R_seatshadow": 10720,
-				"W_L_front": 90270,
-				"W_L_seatshadow": 10720
+				"seat_grandma": 84760,
+				"seat_santa": 120510,
+				"H1_R_front": 15848,
+				"H1_R_seatshadow": 29469,
+				"H1_L_front": 16072,
+				"H1_L_seatshadow": 27588,
+				"W_R_front": 69030,
+				"W_R_seatshadow": 27972,
+				"W_L_front": 69030,
+				"W_L_seatshadow": 27972
 			},
-			"bytes": 347262
+			"bytes": 301800
 		},
 		"phone": {
 			"sheet": "riders/seated-phone.webp",
-			"w": 220,
-			"h": 377,
-			"gpuMb": 0.316,
+			"w": 218,
+			"h": 375,
+			"gpuMb": 0.312,
 			"px": {
-				"seat_grandma": 12400,
-				"seat_santa": 16124,
-				"H1_R_front": 2835,
-				"H1_R_seatshadow": 3440,
-				"H1_L_front": 3317,
-				"H1_L_seatshadow": 3081,
-				"W_R_front": 12736,
-				"W_R_seatshadow": 1586,
-				"W_L_front": 12736,
-				"W_L_seatshadow": 1586
+				"seat_grandma": 11956,
+				"seat_santa": 16936,
+				"H1_R_front": 2205,
+				"H1_R_seatshadow": 4108,
+				"H1_L_front": 2247,
+				"H1_L_seatshadow": 3871,
+				"W_R_front": 9751,
+				"W_R_seatshadow": 4032,
+				"W_L_front": 9751,
+				"W_L_seatshadow": 4032
 			},
-			"bytes": 72692
+			"bytes": 63264
 		}
 	},
 	"split": {
@@ -1118,7 +1118,7 @@ export const SEATED_ART = {
 		},
 		"W_R": {
 			"full": {
-				"maxLeakAlpha": 0.0117
+				"maxLeakAlpha": 0.0078
 			},
 			"phone": {
 				"maxLeakAlpha": 0.0078
@@ -1126,10 +1126,10 @@ export const SEATED_ART = {
 		},
 		"W_L": {
 			"full": {
-				"maxLeakAlpha": 0.0117
+				"maxLeakAlpha": 0.0078
 			},
 			"phone": {
-				"maxLeakAlpha": 0.0117
+				"maxLeakAlpha": 0.0078
 			}
 		}
 	},
@@ -1139,48 +1139,48 @@ export const SEATED_ART = {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 36.05,
-					"12fps": 17.47,
-					"8fps": 12.31,
-					"perFrameKB": 380.6
+					"24fps": 34.83,
+					"12fps": 16.91,
+					"8fps": 11.87,
+					"perFrameKB": 367.7
 				},
 				"phone": {
-					"24fps": 5.08,
-					"12fps": 2.46,
-					"8fps": 1.73,
-					"perFrameKB": 53.6
+					"24fps": 4.91,
+					"12fps": 2.38,
+					"8fps": 1.67,
+					"perFrameKB": 51.8
 				}
 			},
 			"win": {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 43.1,
-					"12fps": 20.83,
-					"8fps": 14.72,
-					"perFrameKB": 455.0
+					"24fps": 41.59,
+					"12fps": 20.1,
+					"8fps": 14.21,
+					"perFrameKB": 439.1
 				},
 				"phone": {
-					"24fps": 6.08,
-					"12fps": 2.94,
-					"8fps": 2.07,
-					"perFrameKB": 64.1
+					"24fps": 5.86,
+					"12fps": 2.83,
+					"8fps": 2.0,
+					"perFrameKB": 61.8
 				}
 			},
 			"drivein": {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 33.84,
-					"12fps": 16.55,
-					"8fps": 11.43,
-					"perFrameKB": 357.2
+					"24fps": 32.61,
+					"12fps": 15.95,
+					"8fps": 11.01,
+					"perFrameKB": 344.3
 				},
 				"phone": {
-					"24fps": 4.76,
-					"12fps": 2.33,
-					"8fps": 1.61,
-					"perFrameKB": 50.3
+					"24fps": 4.59,
+					"12fps": 2.25,
+					"8fps": 1.55,
+					"perFrameKB": 48.5
 				}
 			}
 		},
@@ -1189,48 +1189,48 @@ export const SEATED_ART = {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 43.25,
-					"12fps": 21.84,
-					"8fps": 14.71,
-					"perFrameKB": 456.5
+					"24fps": 45.45,
+					"12fps": 22.96,
+					"8fps": 15.46,
+					"perFrameKB": 479.8
 				},
 				"phone": {
-					"24fps": 6.07,
-					"12fps": 3.06,
-					"8fps": 2.06,
-					"perFrameKB": 64.1
+					"24fps": 6.39,
+					"12fps": 3.23,
+					"8fps": 2.17,
+					"perFrameKB": 67.5
 				}
 			},
 			"win": {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 44.56,
-					"12fps": 22.5,
-					"8fps": 15.15,
-					"perFrameKB": 470.4
+					"24fps": 46.87,
+					"12fps": 23.66,
+					"8fps": 15.93,
+					"perFrameKB": 494.7
 				},
 				"phone": {
-					"24fps": 6.27,
-					"12fps": 3.16,
-					"8fps": 2.13,
-					"perFrameKB": 66.1
+					"24fps": 6.59,
+					"12fps": 3.33,
+					"8fps": 2.24,
+					"perFrameKB": 69.5
 				}
 			},
 			"drivein": {
 				"frames": 97,
 				"fps": 24,
 				"full": {
-					"24fps": 39.84,
-					"12fps": 20.01,
-					"8fps": 13.52,
-					"perFrameKB": 420.5
+					"24fps": 41.88,
+					"12fps": 21.04,
+					"8fps": 14.21,
+					"perFrameKB": 442.2
 				},
 				"phone": {
-					"24fps": 5.6,
-					"12fps": 2.81,
-					"8fps": 1.9,
-					"perFrameKB": 59.2
+					"24fps": 5.89,
+					"12fps": 2.96,
+					"8fps": 2.0,
+					"perFrameKB": 62.2
 				}
 			}
 		}

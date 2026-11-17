@@ -535,6 +535,9 @@ export class RoadFeatures {
 	rate = 1;
 	/** the layout the road is drawn in (components/Board.svelte sets it): the run height in the snow is per layout */
 	layoutKind: LayoutKind = 'landscape';
+	/** the screen's left and right edges in road px (components/Board.svelte sets them): with the snow running on past the
+	 *  picture (scene pass 9) the reindeer starts just outside the screen, never on the open snow */
+	screenEdges: { left: number; right: number } | null = null;
 
 	constructor(private readonly tex: Tex) {
 		this.layer.addChild(this.backLayer, this.rightBandLayer, this.bodyLayer, this.boxLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
@@ -576,7 +579,8 @@ export class RoadFeatures {
 		const snow = STRIKE.snow[this.layoutKind] ?? STRIKE.snow.landscape;
 		const side = runBox('R');
 		const half = (side.width * Math.max(snow.scale, STRIKE.roadScale)) / 2;
-		const fromX = fromLeft ? -half - STRIKE.enterPad : IMAGE_W + half + STRIKE.enterPad;
+		const edge = STRIKE.enterFromScreen ? this.screenEdges : null;
+		const fromX = fromLeft ? Math.min(-half - STRIKE.enterPad, (edge?.left ?? 0) - half - STRIKE.enterPad) : Math.max(IMAGE_W + half + STRIKE.enterPad, (edge?.right ?? IMAGE_W) + half + STRIKE.enterPad);
 		// THE PATH (planStrike): along the snow (the turn ending over the gap), down the gap, the cut into the target
 		const gapX = strikeGapX(reel, dir);
 		const P = planStrike(fromX, toX, gapX, snow, target);

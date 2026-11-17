@@ -6,6 +6,7 @@
 //     amount readouts; on the touch sizes each control's hit area (its box grown by its transparent ::after) is at least
 //     44 x 44 CSS px
 //   · no control and no readout overlaps the board (the five columns, __reindeer.boardLayout().css), the title sign
+//     (the billboard logo, __reindeer.scene().logo.css, since scene pass 9), the bonus round's counter sign
 //     ([data-title-sign]) or the reindeer's run band (the snow above the top lane, across the road picture's width: where
 //     it runs before it turns down a reel, which is the board)
 //   · the stepper keys never neighbour the Spin: their hit areas do not touch the Spin's, and the clear gap between
@@ -159,11 +160,16 @@ const scene = (p) =>
 		const L = window.__reindeer.boardLayout();
 		const c = L.css;
 		const k = c.width / 1250;
-		const t = document.querySelector('[data-title-sign]')?.getBoundingClientRect();
+		// the title: the billboard logo in the canvas since scene pass 9 (__reindeer.scene().logo.css); the highway sign
+		// ([data-title-sign]) now shows only in a bonus round, with its counter, and is checked as its own box
+		const lg = window.__reindeer.scene?.()?.logo?.css;
+		const t = lg ? { left: lg.x, top: lg.y, right: lg.x + lg.width, bottom: lg.y + lg.height } : null;
+		const rs = document.querySelector('[data-title-sign]')?.getBoundingClientRect();
 		return {
 			kind: L.kind,
 			board: { x0: c.x, y0: c.y, x1: c.x + c.width, y1: c.y + c.height },
 			title: t ? { x0: t.left, y0: t.top, x1: t.right, y1: t.bottom } : null,
+			round: rs ? { x0: rs.left, y0: rs.top, x1: rs.right, y1: rs.bottom } : null,
 			run: { x0: c.x - 142 * k, x1: c.x + (1536 - 142) * k, y0: 0, y1: c.y },
 		};
 	});
@@ -239,7 +245,7 @@ async function runSize(browser, S) {
 	});
 	if (bar) things['portrait bar'] = bar;
 	for (const [k, v] of Object.entries(things)) {
-		for (const [what, rect] of Object.entries({ board: sc.board, 'title sign': sc.title, "reindeer's run band": sc.run })) {
+		for (const [what, rect] of Object.entries({ board: sc.board, 'title sign': sc.title, 'round counter sign': sc.round, "reindeer's run band": sc.run })) {
 			if (rect && inter(v, rect) > 0.5) hits.push(`${k} on the ${what} (${r1(inter(v, rect))} px2)`);
 		}
 	}

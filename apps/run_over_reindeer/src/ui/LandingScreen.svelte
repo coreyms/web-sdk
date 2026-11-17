@@ -1,5 +1,5 @@
 <script lang="ts">
-	// THE LANDING SCREEN (HTML over the canvas): the title, the loading bar that carries on from the shell splash,
+	// THE LANDING SCREEN (HTML over the canvas): the loading bar that carries on from the shell splash,
 	// then PRESS ANYWHERE. The road itself is drawn behind it by the canvas as soon as the Pixi preload is in
 	// (components/Game.svelte). No explainer cards yet: they come with the features they explain.
 	import { onMount, untrack } from 'svelte';
@@ -7,10 +7,9 @@
 
 	import { getContext } from '../game/context';
 	import { boot, releaseSplash, splashShare } from '../game/boot.svelte';
-	import { MASTER, TITLE, layoutKind } from '../game/layoutSpec';
+	import { MASTER, layoutKind } from '../game/layoutSpec';
 	import { LOAD_GATE } from '../game/constants';
 	import { sound } from '../game/sound';
-	import TitleSign from './TitleSign.svelte';
 
 	type Props = { onpress: () => void };
 	const props: Props = $props();
@@ -42,7 +41,6 @@
 	const scale = $derived(Math.min((innerWidth.current ?? 1) / master.width, (innerHeight.current ?? 1) / master.height));
 	const left = $derived(((innerWidth.current ?? 1) - master.width * scale) / 2);
 	const top = $derived(((innerHeight.current ?? 1) - master.height * scale) / 2);
-	const title = $derived(TITLE[kind]);
 
 	// ONE loading scale across the splash and this screen: the bar starts where the splash's stopped and the audio
 	// carries it to 100
@@ -112,8 +110,8 @@
 	<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>
 
 	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
-		<!-- the title in the HUD's own title box, so it does not move when the game opens -->
-		<div class="title" style:left="{title.x}px" style:top="{title.y}px"><TitleSign width={title.width} height={title.height} lines={title.lines} title /></div>
+		<!-- (the title is the billboard logo in the canvas, over the press screen's dim, game/scene/logoSign.ts: it stands in the
+		     same place when the game opens. The green name plate that stood here is switched off, scene pass 9.) -->
 
 		<div class="gate" class:empty={ready && boot.ledSign && !assetsFailed} style:bottom="{SZ.bottom}px">
 			{#if assetsFailed}
@@ -169,9 +167,6 @@
 		transform-origin: top left;
 		pointer-events: none;
 		z-index: 2;
-	}
-	.title {
-		position: absolute;
 	}
 	/* the gate stands on the one panel surface (black glass), so it reads over snow and road alike */
 	.gate {

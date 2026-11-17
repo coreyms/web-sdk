@@ -32,7 +32,7 @@ export type Meta = {
 };
 
 /** the groups first in the panel (the ones being tuned now), then the rest of TUNE in its own order */
-export const GROUP_ORDER = ['shadow', 'seated', 'lineWin', 'motion'];
+export const GROUP_ORDER = ['logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
 
 export const GROUP_META: Record<string, { label: string; when: When }> = {
 	shadow: { label: 'Shadows', when: 'live' },
@@ -42,6 +42,9 @@ export const GROUP_META: Record<string, { label: string; when: When }> = {
 	road: { label: 'Road', when: 'unknown' },
 	stoplight: { label: 'Stoplights', when: 'live' },
 	hudBed: { label: 'HUD beds', when: 'resize' },
+	// scene pass 9: the lamps are read every frame (game/scene/logoSign.ts); the places on the next layout pass
+	logoSign: { label: 'Billboard logo', when: 'live' },
+	scene: { label: 'Scene (forest, edge cover)', when: 'resize' },
 };
 
 const ms = (max: number, label?: string): Meta => ({ min: 0, max, step: 10, unit: 'ms', label });
@@ -91,6 +94,21 @@ export const META: Record<string, Meta> = {
 	'road.symbolScale.*': { min: 0.5, max: 1.5, step: 0.01 },
 	'road.sitAboveLine': { when: 'spin' },
 
+	'logoSign.place': { when: 'resize' },
+	'logoSign.place.*.cx': { min: -600, max: 600, step: 1, unit: 'road px' },
+	'logoSign.place.*.foot': { min: -400, max: 600, step: 1, unit: 'road px' },
+	'logoSign.place.*.width': { min: 120, max: 700, step: 1, unit: 'road px' },
+	'logoSign.place.*.topGap': { min: 0, max: 80, step: 1, unit: 'master' },
+	'logoSign.lamps.darkMs': ms(3000, 'dark at the start'),
+	'logoSign.lamps.stepMs': ms(2000, 'second lamp on after'),
+	'logoSign.lamps.holdMs': ms(5000, 'both lit before the blink'),
+	'logoSign.lamps.periodMs': { label: 'blink period', min: 400, max: 6000, step: 50, unit: 'ms' },
+	'logoSign.lamps.litShare': { label: 'lit share of the period', min: 0.1, max: 0.9, step: 0.01 },
+	'logoSign.lamps.rightPhase': { label: 'right lamp phase (0.5 alternate, 0.25 chase, 0 together)', min: 0, max: 1, step: 0.05 },
+	'logoSign.lamps.fadeMs': ms(800, 'fade'),
+	'logoSign.lamps.glowAlpha': { label: 'glow strength', min: 0, max: 1, step: 0.01 },
+	'logoSign.lamps.glowSize': { label: 'glow size (lens radii)', min: 1, max: 6, step: 0.1 },
+	'logoSign.lamps.darkFloor': { label: 'dark lamp keeps', min: 0, max: 1, step: 0.01 },
 	'stoplight.follow.*': { options: ['board', 'pair'] },
 	'stoplight.amberFrom': { options: ['afterGreen', 'beforeRed', 'brake'] },
 	'strike.entry': { options: ['far', 'near', 'left', 'right'] },

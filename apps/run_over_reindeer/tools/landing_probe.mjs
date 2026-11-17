@@ -6,7 +6,7 @@
 //   - behind the billboard the road shows the posed board: reels 1 and 5 the eight ordinary symbols once each, reels 2, 3
 //     and 4 the Reindeer, Santa and Grandma columns standing at the top multipliers the math config gives, nothing moving
 //   - the billboard: its dots (desktop 362 x 143 and a 362 x 11 ticker, 2.49 CSS px; the other sizes from the page's
-//     rules), its face centred on the board, its snow cap under the title sign, its housing above the screen's foot,
+//     rules), its face centred on the board, its snow cap under the title sign (the billboard logo since scene pass 9), its housing above the screen's foot,
 //     held sideways clear of both HUD columns; the three screens cycle (each captured, with 4x crops of its words); its
 //     first screen's figure is the max win from game/config.ts
 //   - the press powers it down: the game's chrome is up by the hand over, the sign is gone and unloaded after
@@ -131,7 +131,7 @@ async function crop4x(file, box, dpr, out) {
 				const html = await p.evaluate(() => ({ text: document.querySelector('.landing')?.innerText ?? '', press: !!document.querySelector('.landing .pressText') }));
 				check(!html.press, `${tag}: the HTML press line steps aside for the ticker`);
 				// THE SIGN
-				const L = await p.evaluate(() => ({ led: window.__reindeer.led(), board: window.__reindeer.boardLayout().css, title: document.querySelector('[data-title-sign], .landing .title')?.getBoundingClientRect().toJSON() ?? null }));
+				const L = await p.evaluate(() => ({ led: window.__reindeer.led(), board: window.__reindeer.boardLayout().css, title: (() => { const c = window.__reindeer.scene?.()?.logo?.css; return c ? { left: c.x, top: c.y, right: c.x + c.width, bottom: c.y + c.height } : (document.querySelector('[data-title-sign], .landing .title')?.getBoundingClientRect().toJSON() ?? null); })() }));
 				const g = L.led;
 				if (S.dots) check(g.face.dotsW === S.dots[0] && Math.abs(g.face.dotsH - S.dots[1]) <= 1 && g.ticker.dotsW === S.dots[0] && g.ticker.dotsH === 11, `${tag}: the face ${g.face.dotsW} x ${g.face.dotsH} dots, the ticker ${g.ticker.dotsW} x ${g.ticker.dotsH} (the page: ${S.dots.join(' x ')}, ${S.dots[0]} x 11)`, g);
 				else check(g.face.dotsW >= 200 && g.face.dotsH >= 100 && g.ticker.dotsH === 11, `${tag}: the face ${g.face.dotsW} x ${g.face.dotsH} dots, the ticker ${g.ticker.dotsW} x 11`, g);
