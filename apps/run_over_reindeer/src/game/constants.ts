@@ -1187,8 +1187,84 @@ export const LOGO_SIGN = {
 	},
 };
 
+// ---- THE LED SCOREBOARD (Corey 2026-11-16, bigwin_led_r3_2026-11-16 "r3b": approved from the live mock; part A,
+// 2026-11-17; game/scoreboard/) ------------------------------------------------------------------------------------------
+// A one-row LED STRIP under the road, always on and always lit, and a separate LED BACK BOARD hidden behind it that rises
+// and seats its bottom rail under the strip's snow cap, so the two read as one scoreboard (Mega, Epic, Max; part B adds the
+// entries and the Total Win). Both faces are drawn live on small CPU canvases at ONE PIXEL PER DOT and shown through the dot
+// grille like the press screen's billboard (no filter, shader, mask, backdrop-filter or blob: URL). Decoration only: it
+// shows the book's amounts, and its race draws from its own random source.
+//   STRIP PLACE, one centred rule per layout class (the mock's NOTES section 1), CSS px:
+//     desktop / tablet  width = `width` x the road picture (roadW road px), centred on the window; top = the bottom lane
+//                       line + `topShare` of the snow band from it down to the dock's top edge; height = the smaller of
+//                       heightRoad road px and `heightShare` of that band
+//     portrait (upright phone)  width = `width` x the screen, centred; top = the road's bottom edge (the picture's snow
+//                       edge, road y `roadY`); height = `heightShare` of the band down to the HUD's top (its highest
+//                       readout or key)
+//     phone (held sideways)  width = `width` x the road between the tunnel walls (lanesW road px), centred on the road;
+//                       top = the road's bottom edge (the asphalt's, road y `roadY`) + `pad`; height = `heightShare` of the
+//                       band down to the screen's bottom
+//   The road's bottom edges are the mock's by-eye reads put in road px (they land on its 390 x 844 and 844 x 390 numbers).
+//   THE BACK BOARD: the strip's width, frame, dot pitch and bezel; its housing `backShare` of the room above the strip
+//   (desktop, tablet, sideways: up to the board's top; upright: up to the top line's bottom edge).
+export type StripRule = { width: number; topShare: number; heightRoad: number; heightShare: number; roadY: number; pad: number; lanesW: number; backShare: number };
+export const LED_BOARD = {
+	/** false: no scoreboard at all (no strip, no back board; wins show only on the road as before) */
+	on: true,
+	/** the dots' content is redrawn and sent to the GPU this many times a second (an LED controller's refresh) */
+	fps: 30,
+	/** the halo's strength (the half size picture added over the face) */
+	halo: 0.3,
+	strip: {
+		desktop: { width: 0.62, topShare: 0.15, heightRoad: 125, heightShare: 0.85, roadY: 851, pad: 0, lanesW: 1535, backShare: 0.778 } as StripRule,
+		portrait: { width: 0.9, topShare: 0, heightRoad: 0, heightShare: 0.75, roadY: 948, pad: 0, lanesW: 0, backShare: 0.52 } as StripRule,
+		phone: { width: 0.86, topShare: 0, heightRoad: 0, heightShare: 0.72, roadY: 874, pad: 1, lanesW: 1349, backShare: 0.894 } as StripRule,
+		/** the strip's own switch from one line to the next (a scan to a message, a dissolve back to the cartoons), ms */
+		switchMs: 150,
+		dissolveMs: 400,
+		/** a strip-only win leaves over this long after its hold */
+		dimOutMs: 320,
+	},
+	/** THE RISE, style C (Corey's r3b pick): rises past its seat (`overshoot`, the ease's back amount) and drops into place
+	 *  with one small bounce (bouncePx x the board's size, bounceMs); lowering: a little hop up (hopPx), then it drops. The
+	 *  back board starts backAtMs after the show; its face powers on (a scan line) as it seats, and powers down over
+	 *  powerDownMs before it lowers over lowerMs. Real ms. */
+	rise: { backAtMs: 60, riseMs: 560, overshoot: 2.2, bouncePx: 3, bounceMs: 220, hopPx: 8, powerDownMs: 250, lowerMs: 460, scanMs: 200 },
+	/** the scene's dim while the back board is up (the mock's 0.42 x 0.8), in and out */
+	dim: { alpha: 0.336, inMs: 260, outMs: 320, color: 0x040811 },
+	/** THE LADDER, in multiples of the play amount; the back board comes up from tier `backFromTier` (2 = Mega) */
+	tiers: [
+		{ key: 'big', title: 'BIG WIN', bar: 15 },
+		{ key: 'super', title: 'SUPER WIN', bar: 30 },
+		{ key: 'mega', title: 'MEGA WIN', bar: 60 },
+		{ key: 'epic', title: 'EPIC WIN', bar: 150 },
+		{ key: 'max', title: 'MAX WIN', bar: 7777 },
+	],
+	backFromTier: 2,
+	/** THE HOUSE PACER (the Angry Mantis rule): the count's length by the FINAL tier (normal speed; a turbo level divides
+	 *  it by its rate), each bar crossed min(barShare of it, barMaxMs), the final tier at least finalMinShare; the hold after
+	 *  it lands (holdAutoMs in autoplay) */
+	pace: { countMs: [3000, 4000, 5000, 6000, 7000], barShare: 0.15, barMaxMs: 900, finalMinShare: 0.4, holdMs: 1200, holdAutoMs: 400 },
+	/** a SMALL win (under the Big bar) on the strip: WIN and the amount count over countMs, then the reindeer hops across
+	 *  for the rest of holdMs (never waited for) */
+	small: { countMs: 1000, holdMs: 1500 },
+	/** the tier change's left to right sweep and the number's flash, ms */
+	sweepMs: 400,
+	pulseMs: 350,
+	/** THE IDLE CARTOONS on the strip: 'auto' plays the six in turn; a name plays that one over and over (the tune panel) */
+	cartoon: 'auto' as 'auto' | 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race',
+	/** THE GRANDMA GAG (Corey's line, exactly): when the reindeer strikes a Grandma, for gagMs on the strip, cut short by a
+	 *  new spin or a win message on the strip. Its beats: the first part pulses, the bump, then the rest marches in. */
+	gag: { on: true, ms: 5000, first: 'Oooh..', second: 'Grandma Got Run Over', third: 'by a Reindeer?', firstMs: 900, bumpMs: 900, secondMs: 1600 },
+	/** THE RACE (decoration only, its own random source; game/scoreboard/race.ts): the odds of each result, the run and the
+	 *  result card's length, the winner's lead at the line (a share of the track) */
+	race: { odds: { reindeer: 0.45, police: 0.45, tie: 0.1 }, runMs: 3200, cardMs: 2600, finishGap: 0.035 },
+	/** in a bonus round, a reindeer dashes across the strip's counter after each spin */
+	dashMs: 1300,
+};
+
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN };
+export const TUNE = { ledBoard: LED_BOARD, laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

@@ -15,6 +15,10 @@
 //   readoutInk    the upright phone's plain-text readouts (WIN, BALANCE, the amount: ui/hudTheme.ts HUD_READOUT_INK),
 //                 'light' over a dark scene or 'dark' over snow
 //   hudBeds       the flat dark beds under the HUD (components/HudBeds.svelte): off where the scene reads on its own
+//   boardCover    THE LED SCOREBOARD'S FOREGROUND SNOW (game/scoreboard/scoreboard.ts): the scene's pieces the cover that
+//                 hides the lowered back board is cut from, where they lie (the field tile, the road picture under it, the
+//                 bottom band over it), so it matches the scene pixel for pixel; null = no cover (the board then shows
+//                 under the strip when it is down)
 // The asset keys are game/assets.ts keys; their road px places are tools/build_scene.py's (game/sceneArtSpec.ts).
 import type { LayoutKind } from './layoutSpec';
 
@@ -29,6 +33,7 @@ export type ScenePreset = {
 	hudGlass: 'ice' | 'deep';
 	readoutInk: 'light' | 'dark';
 	hudBeds: boolean;
+	boardCover: { field: string; band: string | null } | null;
 };
 
 export const SCENE_PRESETS = {
@@ -48,6 +53,7 @@ export const SCENE_PRESETS = {
 		hudGlass: 'deep',
 		readoutInk: 'dark',
 		hudBeds: false,
+		boardCover: { field: 'sceneField', band: 'sceneBandBottom' },
 	},
 } satisfies Record<string, ScenePreset>;
 

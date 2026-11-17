@@ -9,6 +9,8 @@
 //   resize  read by the HUD beds' layout: shows on the next resize or rotation, or after a reload
 //   reload  read once when the board or the scene is built: a reload resets it, so it cannot be tried here
 //   unknown not checked value by value: try a spin; if it does not show, it is read at build time
+import { scoreboardDev } from '../../game/scoreboard/scoreboard';
+
 export type When = 'live' | 'spin' | 'win' | 'resize' | 'reload' | 'unknown';
 
 export const WHEN_LABEL: Record<When, string> = {
@@ -32,7 +34,7 @@ export type Meta = {
 };
 
 /** the groups first in the panel (the ones being tuned now), then the rest of TUNE in its own order */
-export const GROUP_ORDER = ['logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
+export const GROUP_ORDER = ['ledBoard', 'logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
 
 export const GROUP_META: Record<string, { label: string; when: When }> = {
 	shadow: { label: 'Shadows', when: 'live' },
@@ -45,6 +47,27 @@ export const GROUP_META: Record<string, { label: string; when: When }> = {
 	// scene pass 9: the lamps are read every frame (game/scene/logoSign.ts); the places on the next layout pass
 	logoSign: { label: 'Billboard logo', when: 'live' },
 	scene: { label: 'Scene (forest, edge cover)', when: 'resize' },
+	// the LED scoreboard (game/scoreboard/): the rise, the timings and the cartoon are read every frame or at a show's
+	// start; the strip's place rules on the next layout pass
+	ledBoard: { label: 'LED board', when: 'live' },
+};
+
+/** A GROUP'S BUTTONS (shown under its Reset group): things to play now, not values. The LED board's go through
+ *  game/scoreboard/scoreboard.ts scoreboardDev, which a staging build has too (the window dev hook is the dev server's only). */
+export type Action = { label: string; run: () => string | void };
+const sb = () => scoreboardDev.board;
+export const GROUP_ACTIONS: Record<string, Action[]> = {
+	ledBoard: [
+		{ label: 'Raise the board', run: () => (sb() ? void sb()!.raise() : 'no scoreboard on this page') },
+		{ label: 'Lower the board', run: () => (sb() ? void sb()!.lower() : 'no scoreboard on this page') },
+		{ label: 'Play the Grandma gag', run: () => (sb() ? void sb()!.gag() : 'no scoreboard on this page') },
+		{ label: 'Play the race', run: () => (sb() ? void sb()!.race(null) : 'no scoreboard on this page') },
+		{ label: 'Race: reindeer wins', run: () => void sb()?.race('reindeer') },
+		{ label: 'Race: police car wins', run: () => void sb()?.race('police') },
+		{ label: 'Race: tie', run: () => void sb()?.race('tie') },
+		{ label: 'Big win (21.85x)', run: () => void sb()?.win({ x: 21.85, amount: 21.85 * scoreboardDev.bet(), bet: scoreboardDev.bet(), fmt: scoreboardDev.fmt, rate: 1, auto: false }) },
+		{ label: 'Small win (3.4x)', run: () => void sb()?.win({ x: 3.4, amount: 3.4 * scoreboardDev.bet(), bet: scoreboardDev.bet(), fmt: scoreboardDev.fmt, rate: 1, auto: false }) },
+	],
 };
 
 const ms = (max: number, label?: string): Meta => ({ min: 0, max, step: 10, unit: 'ms', label });
@@ -109,6 +132,44 @@ export const META: Record<string, Meta> = {
 	'logoSign.lamps.glowAlpha': { label: 'glow strength', min: 0, max: 1, step: 0.01 },
 	'logoSign.lamps.glowSize': { label: 'glow size (lens radii)', min: 1, max: 6, step: 0.1 },
 	'logoSign.lamps.darkFloor': { label: 'dark lamp keeps', min: 0, max: 1, step: 0.01 },
+	'ledBoard.on': { when: 'reload' },
+	'ledBoard.cartoon': { label: 'idle cartoon (auto: all six in turn)', options: ['auto', 'trot', 'parade', 'plow', 'sleigh', 'peek', 'race'] },
+	'ledBoard.fps': { label: 'dot refresh', min: 10, max: 60, step: 1, unit: 'per s' },
+	'ledBoard.strip': { when: 'resize' },
+	'ledBoard.strip.desktop': { label: 'Strip: desktop and tablet' },
+	'ledBoard.strip.portrait': { label: 'Strip: upright phone' },
+	'ledBoard.strip.phone': { label: 'Strip: phone held sideways' },
+	'ledBoard.strip.*.width': { label: 'width factor', min: 0.3, max: 1, step: 0.01 },
+	'ledBoard.strip.*.topShare': { label: 'top (share of the band)', min: 0, max: 0.6, step: 0.01 },
+	'ledBoard.strip.*.heightShare': { label: 'height (share of the band)', min: 0.3, max: 1, step: 0.01 },
+	'ledBoard.strip.*.heightRoad': { label: 'height cap', min: 0, max: 250, step: 1, unit: 'road px' },
+	'ledBoard.strip.*.roadY': { label: "the road's bottom edge", min: 800, max: 1024, step: 1, unit: 'road px' },
+	'ledBoard.strip.*.lanesW': { label: 'width basis', min: 0, max: 1536, step: 1, unit: 'road px' },
+	'ledBoard.strip.*.backShare': { label: 'back board height (share of the room)', min: 0.2, max: 1.5, step: 0.01 },
+	'ledBoard.strip.*.pad': { min: -10, max: 10, step: 0.5, unit: 'CSS px' },
+	'ledBoard.strip.switchMs': { when: 'live' },
+	'ledBoard.strip.dissolveMs': { when: 'live' },
+	'ledBoard.strip.dimOutMs': { when: 'win' },
+	'ledBoard.rise': { label: 'Rise (style C)', when: 'win' },
+	'ledBoard.rise.backAtMs': ms(400, 'starts after'),
+	'ledBoard.rise.riseMs': ms(1500, 'rise'),
+	'ledBoard.rise.overshoot': { label: 'overshoot (ease back amount)', min: 0, max: 5, step: 0.1 },
+	'ledBoard.rise.bouncePx': { label: 'bounce', min: 0, max: 12, step: 0.5, unit: 'px at a 420 px board' },
+	'ledBoard.rise.bounceMs': ms(600, 'bounce'),
+	'ledBoard.rise.hopPx': { label: 'hop before lowering', min: 0, max: 20, step: 0.5, unit: 'px at a 420 px board' },
+	'ledBoard.rise.powerDownMs': ms(800, 'power down'),
+	'ledBoard.rise.lowerMs': ms(1500, 'lower'),
+	'ledBoard.rise.scanMs': ms(800, 'power on scan'),
+	'ledBoard.tiers': { when: 'win' },
+	'ledBoard.pace': { label: 'The count (house pacer)', when: 'win' },
+	'ledBoard.pace.countMs.*': ms(12000),
+	'ledBoard.pace.holdMs': ms(4000, 'hold'),
+	'ledBoard.pace.holdAutoMs': ms(4000, 'hold in autoplay'),
+	'ledBoard.small': { label: 'Small win', when: 'win' },
+	'ledBoard.gag': { label: 'Grandma gag', when: 'live' },
+	'ledBoard.gag.ms': ms(10000, 'length'),
+	'ledBoard.race': { label: 'Race', when: 'live' },
+	'ledBoard.race.odds.*': { min: 0, max: 1, step: 0.01 },
 	'stoplight.follow.*': { options: ['board', 'pair'] },
 	'stoplight.amberFrom': { options: ['afterGreen', 'beforeRed', 'brake'] },
 	'strike.entry': { options: ['far', 'near', 'left', 'right'] },

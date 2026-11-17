@@ -267,6 +267,7 @@ export default {
 	"scene/snow-day-end-right.webp": "5d28bb6f",
 	"scene/snow-day-field.webp": "17a2b200",
 	"scene/snow-day-forest.webp": "a9eac362",
+	"scoreboard/scoreboard-art.webp": "0c974a48",
 	"symbols/single/H1_L.webp": "0a0b23ba",
 	"symbols/single/H1_R.webp": "3a8ac4fc",
 	"symbols/single/H2_L.webp": "10f999b2",
@@ -559,6 +560,7 @@ export const fileBytes = {
 	"scene/snow-day-end-right.webp": 71594,
 	"scene/snow-day-field.webp": 27902,
 	"scene/snow-day-forest.webp": 215676,
+	"scoreboard/scoreboard-art.webp": 115272,
 	"symbols/single/H1_L.webp": 28124,
 	"symbols/single/H1_R.webp": 34898,
 	"symbols/single/H2_L.webp": 30550,
@@ -589,4 +591,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-heavy.woff2": 35400
 } as const;
 
-export const bootSizes = {"landing":64084,"preload":6084769,"audio":1464467} as const;
+export const bootSizes = {"landing":64084,"preload":6200041,"audio":1464467} as const;

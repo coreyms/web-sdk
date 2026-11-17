@@ -129,6 +129,14 @@ const assets = {
 		src: stamp(new URL('../../assets/landing/led-art.webp', import.meta.url).href),
 		preload: true,
 	},
+	// THE LED SCOREBOARD'S PICTURES (tools/build_scoreboard_art.py, game/scoreboard/): one small sheet the strip's cartoons and
+	// the back board are drawn from on 2D canvases at one pixel per dot (never drawn by Pixi itself, so never sent to the GPU).
+	// The strip is always on, so it is in the main load (about 115 KB).
+	scoreboardArt: {
+		type: 'sprite',
+		src: stamp(new URL('../../assets/scoreboard/scoreboard-art.webp', import.meta.url).href),
+		preload: true,
+	},
 	// BORROWED from Manticore Mayhem as stand-ins (the sprite and the music are its files, byte for byte)
 	sound: {
 		type: 'audio',

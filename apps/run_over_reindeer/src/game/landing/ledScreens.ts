@@ -64,6 +64,35 @@ const FONT: Record<string, string[]> = {
 	"'": ['#', '#', '.', '.', '.', '.', '.'],
 	'.': ['.', '.', '.', '.', '.', '.', '#'],
 	' ': ['...', '...', '...', '...', '...', '...', '...'],
+	// the LED scoreboard's own (game/scoreboard/, bigwin_led_r3): the question mark and a lower case set in the same 7 row
+	// cell (x height 5 rows; the y's tail stays inside the cell, as on a 5 x 7 LED sign), for the Grandma line's mixed case
+	'?': ['.###.', '#...#', '....#', '...#.', '..#..', '.....', '..#..'],
+	a: ['.....', '.....', '.###.', '....#', '.####', '#...#', '.####'],
+	b: ['#....', '#....', '####.', '#...#', '#...#', '#...#', '####.'],
+	c: ['.....', '.....', '.###.', '#....', '#....', '#...#', '.###.'],
+	d: ['....#', '....#', '.####', '#...#', '#...#', '#...#', '.####'],
+	e: ['.....', '.....', '.###.', '#...#', '#####', '#....', '.###.'],
+	f: ['..##.', '.#..#', '.#...', '###..', '.#...', '.#...', '.#...'],
+	g: ['.....', '.####', '#...#', '#...#', '.####', '....#', '.###.'],
+	h: ['#....', '#....', '#.##.', '##..#', '#...#', '#...#', '#...#'],
+	i: ['.#.', '...', '##.', '.#.', '.#.', '.#.', '###'],
+	j: ['...#', '....', '..##', '...#', '...#', '#..#', '.##.'],
+	k: ['#....', '#....', '#..#.', '#.#..', '##...', '#.#..', '#..#.'],
+	l: ['##.', '.#.', '.#.', '.#.', '.#.', '.#.', '###'],
+	m: ['.....', '.....', '##.#.', '#.#.#', '#.#.#', '#...#', '#...#'],
+	n: ['.....', '.....', '#.##.', '##..#', '#...#', '#...#', '#...#'],
+	o: ['.....', '.....', '.###.', '#...#', '#...#', '#...#', '.###.'],
+	p: ['.....', '####.', '#...#', '#...#', '####.', '#....', '#....'],
+	q: ['.....', '.####', '#...#', '#...#', '.####', '....#', '....#'],
+	r: ['.....', '.....', '#.##.', '##..#', '#....', '#....', '#....'],
+	s: ['.....', '.....', '.####', '#....', '.###.', '....#', '####.'],
+	t: ['.#...', '.#...', '###..', '.#...', '.#...', '.#..#', '..##.'],
+	u: ['.....', '.....', '#...#', '#...#', '#...#', '#..##', '.##.#'],
+	v: ['.....', '.....', '#...#', '#...#', '#...#', '.#.#.', '..#..'],
+	w: ['.....', '.....', '#...#', '#...#', '#.#.#', '#.#.#', '.#.#.'],
+	x: ['.....', '.....', '#...#', '.#.#.', '..#..', '.#.#.', '#...#'],
+	y: ['.....', '.....', '#...#', '#...#', '.####', '....#', '.###.'],
+	z: ['.....', '.....', '#####', '...#.', '..#..', '.#...', '#####'],
 };
 
 function grid1(str: string): Grid {
@@ -177,7 +206,7 @@ function textMask(str: string, s: number): Cv {
 	return m;
 }
 const twCache = new Map<string, number>();
-const textW = (str: string, s: number): number => {
+export const textW = (str: string, s: number): number => {
 	const key = str + '|' + s;
 	let w = twCache.get(key);
 	if (w === undefined) {
@@ -189,8 +218,8 @@ const textW = (str: string, s: number): number => {
 // a solid colour line is drawn once and kept (only the gold figure is recoloured every step: its shine moves)
 const solidCache = new Map<string, Cv>();
 let tmp: Cv | null = null;
-type Fill = string | ((t: Ctx, w: number, h: number) => CanvasGradient | string);
-function drawText(g: Ctx, str: string, x: number, y: number, s: number, fill: Fill, post?: ((t: Ctx, w: number, h: number) => void) | null) {
+export type Fill = string | ((t: Ctx, w: number, h: number) => CanvasGradient | string);
+export function drawText(g: Ctx, str: string, x: number, y: number, s: number, fill: Fill, post?: ((t: Ctx, w: number, h: number) => void) | null) {
 	const m = textMask(str, s);
 	if (typeof fill === 'string' && !post) {
 		const key = `${str}|${s}|${fill}`;

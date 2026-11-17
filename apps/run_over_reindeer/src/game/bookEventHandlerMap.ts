@@ -3,12 +3,12 @@
 // struck, which tier stepped out, which multiplier, what a line paid, what a top-up added.
 // Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-15a (2026-11-10a plus winInfo capped, the clear path rule and the bought Super's floor).
 import { stateBet, stateBetDerived } from 'state-shared';
-import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString } from 'utils-shared/amount';
 import { waitForTimeout } from 'utils-shared/wait';
 import type { BookEventHandlerMap } from 'utils-book';
 
 import { eventEmitter } from './eventEmitter';
-import { LINE_WIN, REINDEER_SOUND, ROUND } from './constants';
+import { LED_BOARD, LINE_WIN, REINDEER_SOUND, ROUND } from './constants';
 import config from './config';
 import type { SoundEffectName } from './sound';
 import { setHudWin } from './hudWin.svelte';
@@ -125,6 +125,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (stateGame.gameType === 'basegame') setHudWin(bookEvent.totalWin);
 		// the multiplier shown over the amount is the book's own, the highest among the winning lines
 		const multiplier = bookEvent.wins.reduce((most, win) => Math.max(most, win.multiplier), 1);
+		// THE LED SCOREBOARD (game/scoreboard/, constants LED_BOARD): a base game spin's win of the Big bar (15x) or more is
+		// counted on the strip, or on the back board from Mega up, AFTER its lines, and the round waits for it (a press lands
+		// the count, a second ends the hold). Anything smaller, and every free spin's win, is the strip's small message: WIN
+		// and the amount, started with the lines and never waited for (the bonus round's total is the wrap-up card's).
+		const big = stateGame.gameType === 'basegame' && bookEventAmountToBetAmountMultiplier(bookEvent.totalWin) >= LED_BOARD.tiers[0].bar;
+		if (!big) eventEmitter.broadcast({ type: 'boardScoreboardWin', amount: bookEvent.totalWin, small: true });
 		// THE CHRISTMAS LIGHTS (constants LINE_WIN lights): each line lights in the book's order with its own amount (the
 		// book's line pay), then the total. On the spin that reaches the cap (capped: the book's totalWin is what is
 		// awarded, less than the lines' pays) no line's own amount shows: only the total, the awarded amount.
@@ -136,6 +142,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			capped: bookEvent.capped === true,
 		});
 		eventEmitter.broadcast({ type: 'boardWinClear' });
+		if (big) await eventEmitter.broadcastAsync({ type: 'boardScoreboardWin', amount: bookEvent.totalWin });
 	},
 
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {

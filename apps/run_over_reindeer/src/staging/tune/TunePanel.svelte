@@ -10,7 +10,7 @@
 	import { onMount } from 'svelte';
 
 	import { TUNE } from '../../game/constants';
-	import { GROUP_META, GROUP_ORDER, WHEN_LABEL, isColor, metaFor, rangeFor, whenFor, type Meta, type When } from './tuneMeta';
+	import { GROUP_ACTIONS, GROUP_META, GROUP_ORDER, WHEN_LABEL, isColor, metaFor, rangeFor, whenFor, type Meta, type When } from './tuneMeta';
 
 	type Props = { group: string | null };
 	const { group: startGroup }: Props = $props();
@@ -130,6 +130,12 @@
 		replayMsg = !f ? 'no fixture rounds on this page' : !last ? 'no round played yet' : `${f.next(last.name)}: press Spin`;
 	};
 
+	let actionMsg = $state<Record<string, string>>({});
+	const act = (key: string, a: { label: string; run: () => string | void }) => {
+		const r = a.run();
+		actionMsg[key] = r ? `${a.label}: ${r}` : `${a.label}: playing`;
+	};
+
 	let copyMsg = $state('');
 	let area = $state<HTMLTextAreaElement | null>(null);
 	const copy = async () => {
@@ -228,6 +234,12 @@
 						{#if opened[g.key]}
 							<div class="rows">
 								<div class="actions"><button class="small" onclick={() => resetLeaves(g.leaves)} disabled={!changedIn(g)}>Reset group</button></div>
+								{#if GROUP_ACTIONS[g.key]}
+									<div class="actions">
+										{#each GROUP_ACTIONS[g.key] as a (a.label)}<button class="small" onclick={() => act(g.key, a)}>{a.label}</button>{/each}
+										<span class="msg">{actionMsg[g.key] ?? ''}</span>
+									</div>
+								{/if}
 								{#each g.blocks as b (b.id)}
 									{#if b.title}<div class="sub">{b.title}</div>{/if}
 									{#each b.leaves as l (l.id)}

@@ -34,7 +34,10 @@
 		/** the landing screen is going: the posed board stays as the first board (a resumed round puts its own up) */
 		| { type: 'boardLandingEnd' }
 		/** the press on the LED billboard: it powers down; resolves when the game's chrome may come up */
-		| { type: 'boardLandingPress' };
+		| { type: 'boardLandingPress' }
+		/** THE LED SCOREBOARD (game/scoreboard/): a win of `amount` (book amount) on the strip and the back board. A small win
+		 *  (under the Big bar, or `small`) resolves at once; a Big win and up resolves when its hold is over */
+		| { type: 'boardScoreboardWin'; amount: number; small?: boolean };
 </script>
 
 <script lang="ts">
@@ -47,7 +50,7 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass } from '../game/layoutSpec';
-	import { LANE_FLOW, LED_SIGN, LINE_WIN, ROAD_MOTION, STRIKE, TUNE } from '../game/constants';
+	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, ROAD_MOTION, STRIKE, TUNE, motionFor } from '../game/constants';
 	import { FOREST_URL } from '../game/assets';
 	import { stateScene } from '../game/stateScene.svelte';
 	import { LogoSign } from '../game/scene/logoSign';
@@ -70,6 +73,12 @@
 	import type { SoundEffectName } from '../game/sound';
 	import { COLUMN_CLIPS } from '../game/columnClipSpec';
 	import { LANDING_POSE, landingColumns } from '../game/landingBoard';
+	import { Scoreboard, scoreboardDev, type CoverPiece } from '../game/scoreboard/scoreboard';
+	import { scoreboardGeometry } from '../game/scoreboard/layout';
+	import { setScoreboardArt } from '../game/scoreboard/scoreboardDraw';
+	import { raceTally, raceTrace, newRace, reseedRace } from '../game/scoreboard/race';
+	import { SCENE_ART } from '../game/sceneArtSpec';
+	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -107,6 +116,33 @@
 	road.features.crosshairOff = () => stateGame.skipping;
 	road.features.onCrosshair = (beat, cell) => road.features.sounds.crosshair(beat, cell);
 	parent.addToParent(road.root);
+
+	// THE LED SCOREBOARD (constants LED_BOARD, game/scoreboard/scoreboard.ts): the strip under the road and the back board
+	// that rises behind it. Added here, under the press screen's billboard and its dim (the strip is part of the scene);
+	// once the press screen has gone it is moved over the billboard logo (the back board covers the logo's foot on an
+	// upright phone, as the mock draws it, and the logo dims with the scene while the back board is up).
+	const scoreboard = LED_BOARD.on ? new Scoreboard() : null;
+	if (scoreboard) {
+		const sheet = loaded.scoreboardArt?.source?.resource as CanvasImageSource | undefined;
+		setScoreboardArt(sheet ?? null);
+		parent.addToParent(scoreboard.root);
+		scoreboard.onPress = () => {
+			if (scoreboard.busy()) scoreboard.skip();
+		};
+	}
+	/** the LED amount: the play currency's number as the HUD writes it, its digits pinned to the final amount, with no
+	 *  currency mark (the LED font has digits, the comma and the point only) */
+	const ledAmount = (final: number) => (v: number) => numberToCurrencyString(v, { fractionDigitsOf: final }).replace(/[^0-9.,]/g, '');
+	scoreboardDev.bet = () => bookEventAmountToNormalisedAmount(100);
+	scoreboardDev.fmt = (v: number) => numberToCurrencyString(v).replace(/[^0-9.,]/g, '');
+	/** the scoreboard over the logo (see above) */
+	const scoreboardOverLogo = () => {
+		const p = logo?.root.parent;
+		if (!scoreboard || !logo || !p || scoreboard.root.parent !== p) return;
+		p.setChildIndex(scoreboard.root, p.getChildIndex(logo.root));
+	};
+	/** free spins played or playing in this bonus round (the strip's counter: the spins left after the one on the road) */
+	let fsDone = 0;
 
 	// THE FIRST BOARD (game/landingBoard.ts; Corey 2026-11-16: the pattern "was meant for after" the press screen): the
 	// posed, still board (the side reels' symbols, the three column Wilds with their top multipliers) stands from the
@@ -146,6 +182,7 @@
 			const sign = led;
 			led = null;
 			boot.ledSign = false;
+			scoreboardOverLogo();
 			setLedArt(null);
 			// hidden this frame (the sign's root is invisible now), destroyed two frames later: a texture destroyed in the
 			// frame it was last batched takes the render loop down (the column sheets' rule, game/road/columnClips.ts)
@@ -160,6 +197,7 @@
 	// green plate stood over both as HTML), placed with the road (its own container, the road's transform)
 	const logo = loaded.logoSign ? new LogoSign(loaded.logoSign, PHONE_TIER ? 'phone' : 'full') : null;
 	if (logo) parent.addToParent(logo.root);
+	if (!led) scoreboardOverLogo();
 
 	// THE SCENE PRESET (game/stateScene.svelte.ts): its pieces by asset key; the forest off the phone tier loads the first
 	// time an upright phone layout shows (it is in the phone tier's preload)
@@ -209,6 +247,32 @@
 			logo.root.scale.set(k);
 			logo.root.position.set(ox, oy);
 			logo.place(box);
+		}
+		// THE LED SCOREBOARD: its rule per layout class (game/scoreboard/layout.ts), and the scene pieces its foreground snow is
+		// cut from (the preset's boardCover: the field tile, the road picture, the bottom band, and the painted ends where the
+		// layout shows them), road px
+		if (scoreboard) {
+			const geo = scoreboardGeometry(kind, canvasSize.width, canvasSize.height, main, place, isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+			const P = stateScene.preset;
+			const pieces: CoverPiece[] = [];
+			if (P.boardCover) {
+				const field = sceneTex(P.boardCover.field);
+				const band = P.boardCover.band ? sceneTex(P.boardCover.band) : null;
+				const F = SCENE_ART.snowDay.field.road;
+				if (field) pieces.push({ tex: field, x: F[0], y: F[1], w: F[2], h: F[3], tile: true });
+				if (loaded.road) pieces.push({ tex: loaded.road, x: 0, y: 0, w: ROAD_ART.image.width, h: ROAD_ART.image.height });
+				const B = SCENE_ART.snowDay.bandBottom.road;
+				if (band) pieces.push({ tex: band, x: B[0], y: B[1], w: B[2], h: B[3] });
+				if (P.ends && P.ends.layouts.includes(kind))
+					for (const [key, R] of [
+						[P.ends.left, SCENE_ART.snowDay.endLeft.road],
+						[P.ends.right, SCENE_ART.snowDay.endRight.road],
+					] as const) {
+						const t = sceneTex(key);
+						if (t) pieces.push({ tex: t, x: R[0], y: R[1], w: R[2], h: R[3] });
+					}
+			}
+			scoreboard.layout(geo, pieces);
 		}
 		// the billboard: centred on the board, sized per layout (canvas CSS px)
 		if (led) {
@@ -262,6 +326,14 @@
 			road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
 			led?.update(ticker.deltaMS, boot.pressReady);
 			logo?.update(ticker.deltaMS);
+			if (scoreboard) {
+				const free = stateGame.gameType === 'freegame';
+				if (!free) fsDone = 0;
+				scoreboard.update(ticker.deltaMS, { free, left: Math.max(0, stateGame.totalFs - fsDone) });
+				// the HUD's WIN lights a step brighter and a board tap leaves the spin alone while a big win counts or holds
+				const busy = scoreboard.busy();
+				if (stateGame.winShowing !== busy) stateGame.winShowing = busy;
+			}
 		};
 		app?.ticker.add(tick);
 		return () => {
@@ -270,6 +342,7 @@
 			led?.destroy();
 			led = null;
 			logo?.destroy();
+			scoreboard?.destroy();
 			road.destroy();
 		};
 	});
@@ -294,6 +367,8 @@
 		boardDriveOut: () => {
 			road.features.clearAll();
 			road.driveOut(stateGame.turboLevel);
+			// a new spin's press cuts the Grandma gag and a small win on the strip short
+			scoreboard?.spinPress();
 		},
 		boardDriveIn: async ({ board }) => {
 			// THE TEASE (constants LANE_FLOW): a feature round's spin decides at three (the retrigger), and has at most one
@@ -301,6 +376,7 @@
 			const free = stateGame.gameType === 'freegame';
 			const tease = !free || !LANE_FLOW.tease.oncePerFeature || !stateGame.featureTeased;
 			const drive = road.driveIn(board, stateGame.turboLevel, { free, tease });
+			if (free) fsDone = stateGame.spinsPlayed + 1;
 			if (free && road.flowSnapshot().plan?.teaseFrom != null) stateGame.featureTeased = true;
 			await drive;
 		},
@@ -309,6 +385,9 @@
 			// (its sounds come from its frames: the alert on its first, roadFeatures.updateRunner; the borrowed sfx_swipe
 			// that stood here until 2026-11-15 is gone)
 			await road.features.strike(strike);
+			// THE GRANDMA GAG (constants LED_BOARD.gag): the reindeer has struck a Grandma's car
+			const struck = stateGame.board[Math.floor(strike.cell / 4)]?.[strike.cell % 4];
+			if (struck === 'H1') scoreboard?.gag();
 		},
 		boardGrandmaWild: async ({ cell, multiplier }) => {
 			await road.features.grandmaWild(cell, multiplier);
@@ -329,6 +408,16 @@
 				await Promise.all([road.openPresents(cells), road.pulseCells(cells, Math.max(ms, road.presentShowMs() / boardRate()))]);
 			} else await road.pulseCells(cells, ms, true); // (the presents' pop on the pulse's first frame, as on the open's)
 			road.clearWin();
+		},
+		boardScoreboardWin: async ({ amount, small }) => {
+			if (!scoreboard || amount <= 0) return;
+			const value = bookEventAmountToNormalisedAmount(amount);
+			const auto = stateBet.autoSpinsCounter > 0;
+			await scoreboard.win({ x: bookEventAmountToBetAmountMultiplier(amount), amount: value, bet: bookEventAmountToNormalisedAmount(100), fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate, auto, small });
+		},
+		// a Spin press while a big win counts or holds (the slam stop's event): lands the count, or ends the hold
+		stopButtonClick: () => {
+			if (scoreboard?.busy()) scoreboard.skip();
 		},
 		boardMessage: async ({ text, ms }) => {
 			await road.message(text, ms);
@@ -416,6 +505,29 @@
 			/** the sign driven by hand (on), and stepped `ms` at a time (the evidence's frame by frame clips) */
 			ledManual: (on: boolean) => led && (led.manual = on),
 			ledStep: (ms: number) => led?.step(ms, boot.pressReady),
+			/** THE LED SCOREBOARD (game/scoreboard/): what it draws and where; a win by hand (x play multiples; no book, nothing
+			 *  waits on it unless awaited); the gag; the race (its own random source: tally n seeded runs, trace one); skip;
+			 *  driven by hand (manual, then step ms at a time); raise / lower the back board (a demo win that holds) */
+			scoreboard: () => scoreboard?.snapshot() ?? null,
+			scoreboardWin: (x: number, opts: { auto?: boolean; rate?: number; small?: boolean } = {}) => {
+				if (!scoreboard) return null;
+				const bet = bookEventAmountToNormalisedAmount(100);
+				const value = Math.round(x * bet * 100) / 100;
+				return scoreboard.win({ x, amount: value, bet, fmt: ledAmount(value), rate: opts.rate ?? 1, auto: !!opts.auto, small: opts.small });
+			},
+			scoreboardGag: () => scoreboard?.gag(),
+			scoreboardSkip: () => scoreboard?.skip() ?? false,
+			scoreboardManual: (on: boolean) => scoreboard && (scoreboard.manual = !!on),
+			scoreboardStep: (ms: number, n = 1) => {
+				for (let i = 0; i < n; i++) scoreboard?.step(ms);
+				return scoreboard?.snapshot() ?? null;
+			},
+			scoreboardRaise: (x?: number) => scoreboard?.raise(x),
+			scoreboardLower: () => scoreboard?.lower(),
+			scoreboardRace: (force: 'reindeer' | 'police' | 'tie' | null = null) => scoreboard?.race(force),
+			raceTally: (seed: number, n: number) => raceTally(seed, n),
+			raceTrace: (force: 'reindeer' | 'police' | 'tie' | null = null) => raceTrace(newRace(force)),
+			raceSeed: (seed: number) => reseedRace(seed),
 			/** the seated drivers' idle on a clock of the caller's (ms; null: real time), for frame by frame captures */
 			seatTime: (ms: number | null) => (road.seatTime = ms),
 			brakes: () => road.brakeSnapshot(),
