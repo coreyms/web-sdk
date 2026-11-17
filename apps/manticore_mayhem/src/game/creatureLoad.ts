@@ -248,8 +248,13 @@ const fetchSheet = async (url: string, look: string, needNow: () => boolean = ()
  *  Each page's URL goes into `urls` (the run's: what is destroyed when the look is let go). Null when a page failed */
 const fetchClip = async (look: CreatureLook, clip: CreatureClip, urls: string[], needNow: () => boolean, bands?: number): Promise<Sheet | null> => {
 	const textures: Record<string, PIXI.Texture> = {};
-	for (const url of CREATURE_FILES[look][clip]) {
-		if (!urls.includes(url)) urls.push(url);
+	const pages = CREATURE_FILES[look][clip];
+	// EVERY PAGE IS LISTED BEFORE THE FIRST IS FETCHED (2026-11-16): a look let go while page 1 is on its way takes the run's
+	// list to the trash as it stands, and this loop still fetches the pages after it. Listed one at a time, page 2 of a
+	// two-page clip went up AFTER the trash was filled, into a run nobody swept, and stayed on the GPU (creature_probe LOOK
+	// SUPER "win pages left creature-super-win_mega-2.json"; reproduced by holding page 1 on the wire across a change of look)
+	for (const url of pages) if (!urls.includes(url)) urls.push(url);
+	for (const url of pages) {
 		const sheet = await fetchSheet(url, look, needNow, bands);
 		if (!sheet) return null;
 		Object.assign(textures, sheet.textures);
