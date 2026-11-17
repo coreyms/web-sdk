@@ -157,6 +157,9 @@ export const INTRO_LOGO: Record<LayoutKind, { w: number; cx: number; cy: number 
 /** the tablet's height per px of width (static/assets/ui/logo-tablet.webp, LOGO.art): the cards' band starts under its
  *  own bottom edge (since 2026-11-17: the old stacked logo's box was 17 % taller, and the band followed that) */
 const LOGO_ASPECT = LOGO.art.height / LOGO.art.width;
+/** THE LANDING LOGO'S CAP (constants LOGO.landingMaxCss): no wider than that many CSS px, same centre and aspect. The
+ *  cards' band keeps the uncapped box (they do not move); only the drawn logo is held. */
+const capLogo = (logo: { w: number; cx: number; cy: number }, scale: number) => (logo.w * scale > LOGO.landingMaxCss ? { ...logo, w: LOGO.landingMaxCss / scale } : logo);
 
 /** how the cards stand: `row` three across; `stack` one at a time under the logo (upright screens);
  *  `side` one at a time beside the logo (sideways screens too low for a row) */
@@ -216,7 +219,7 @@ export const introPlacement = (kind: LayoutKind, viewportWidth: number, viewport
 		return {
 			mode: 'row', scale, left, top, cardW: w3, cardH: w3 / C.aspect,
 			slots: [-1, 0, 1].map((k) => ({ x: cx + k * (w3 + C.rowGap), y: bandCy })),
-			logo, gateCx: cx, dots: null,
+			logo: capLogo(logo, scale), gateCx: cx, dots: null,
 		};
 	}
 
@@ -227,7 +230,7 @@ export const introPlacement = (kind: LayoutKind, viewportWidth: number, viewport
 		return {
 			mode: 'stack', scale, left, top, cardW: w1, cardH: h1,
 			slots: [0, 1, 2].map(() => ({ x: cx, y })),
-			logo, gateCx: cx, dots: { x: cx, y: y + h1 / 2 + C.dotsStrip / 2, vertical: false },
+			logo: capLogo(logo, scale), gateCx: cx, dots: { x: cx, y: y + h1 / 2 + C.dotsStrip / 2, vertical: false },
 		};
 	}
 
@@ -240,7 +243,7 @@ export const introPlacement = (kind: LayoutKind, viewportWidth: number, viewport
 	return {
 		mode: 'side', scale, left, top, cardW: w1, cardH: w1 / C.aspect,
 		slots: [0, 1, 2].map(() => ({ x: cardCx, y: cy })),
-		logo: { w: S.logoWidth, cx: columnCx, cy: S.logoCy },
+		logo: capLogo({ w: S.logoWidth, cx: columnCx, cy: S.logoCy }, scale),
 		gateCx: columnCx,
 		dots: { x: cardCx + w1 / 2 + S.dots / 2, y: cy, vertical: true },
 	};

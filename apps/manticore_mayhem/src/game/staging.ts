@@ -119,3 +119,45 @@ export const stagingHaulMs: number | null = rangedKnob('haulMs', HAUL_MS_RANGE);
 export const stagingHaulOver: number | null = rangedKnob('haulOver', HAUL_OVER_RANGE);
 /** `?spinLean=` (null: none, CHAIN_GUST.press.strength) */
 export const stagingSpinLean: number | null = rangedKnob('spinLean', SPIN_LEAN_RANGE);
+
+// ---- THE LOGO'S GROOVE TRACE (constants LOGO.trace, game/logo/trace.ts; Corey 2026-11-17) -----------------------------
+// The mock's four numbers per style, so the look can be tried on a phone without a rebuild, in the mock's read-back order
+// (speed art px/s, trail art px, brightness, pause s): `?traceIdle=3000,880,1.68,1.6` (style 1, the idle spark),
+// `?traceEvent=3000,370,0.5,2.5` (style 2, the tease and the feature entry), `?traceWin=1570,650,2,2.8` (style 3, the win
+// screen's TOP tier). `?traceLevels=1,1.4,1.8` the feature entry's brightness for Free Spins, Super, Epic;
+// `?traceTiers=0.35,0.5,0.68,0.85,1` the win tiers' brightness (BIG .. MAX) as shares of the top; `?traceGain=1.8` the light
+// pass's overall gain (LOGO.trace.passGain); `?trace=0` no trace.
+// An empty or bad entry keeps its constant (`?traceIdle=,,1.2` changes only the brightness). Each is held to its range.
+// Never in a production build (STAGING_TOOLS is a constant false there and the bundler drops the reads).
+export const TRACE_STYLE_RANGES = [
+	{ min: 60, max: 6000 },
+	{ min: 10, max: 2000 },
+	{ min: 0, max: 4 },
+	{ min: 0, max: 12 },
+] as const;
+export const TRACE_SHARE_RANGE = { min: 0, max: 3 } as const;
+const listKnob = (name: string, ranges: readonly { min: number; max: number }[]): (number | null)[] | null => {
+	if (!STAGING_TOOLS || typeof window === 'undefined') return null;
+	const raw = new URLSearchParams(window.location.search).get(name);
+	if (raw === null || raw.trim() === '') return null;
+	return raw.split(',').slice(0, ranges.length).map((s, i) => {
+		const n = Number(s);
+		if (s.trim() === '' || !Number.isFinite(n)) return null;
+		return Math.min(ranges[i].max, Math.max(ranges[i].min, n));
+	});
+};
+/** `?trace=0` turns the trace off, `?trace=1` on (null: LOGO.trace.on) */
+export const stagingTrace: boolean | null = (() => {
+	if (!STAGING_TOOLS || typeof window === 'undefined') return null;
+	const raw = new URLSearchParams(window.location.search).get('trace');
+	return raw === '1' ? true : raw === '0' ? false : null;
+})();
+/** `?traceIdle=` / `?traceEvent=` / `?traceWin=`: [speed, trail, brightness, pause], null entries keep the constant */
+export const stagingTraceIdle = listKnob('traceIdle', TRACE_STYLE_RANGES);
+export const stagingTraceEvent = listKnob('traceEvent', TRACE_STYLE_RANGES);
+export const stagingTraceWin = listKnob('traceWin', TRACE_STYLE_RANGES);
+/** `?traceGain=` the light pass's gain (LOGO.trace.passGain), held to 0 .. 4 (null: none) */
+export const stagingTraceGain: number | null = rangedKnob('traceGain', { min: 0, max: 4 });
+/** `?traceLevels=` [Free Spins, Super, Epic] brightness gains; `?traceTiers=` [BIG .. MAX] brightness shares */
+export const stagingTraceLevels = listKnob('traceLevels', [TRACE_SHARE_RANGE, TRACE_SHARE_RANGE, TRACE_SHARE_RANGE]);
+export const stagingTraceTiers = listKnob('traceTiers', [TRACE_SHARE_RANGE, TRACE_SHARE_RANGE, TRACE_SHARE_RANGE, TRACE_SHARE_RANGE, TRACE_SHARE_RANGE]);

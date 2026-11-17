@@ -72,6 +72,7 @@ import {
 	SPIN_TOTAL,
 	PLAQUE_STREAK,
 } from './constants';
+import { logoTrace } from './logo/trace';
 
 // ================================================================================================
 // Every state change the player sees comes from THIS file, and every one of them comes from a book
@@ -759,6 +760,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// pulse this round has already played it (playTriggerSfx), so it is never heard twice
 		if (!triggerSfxPlayed) eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND_MAP[bookEvent.bonus] });
 		triggerSfxPlayed = false;
+		// THE LOGO'S GROOVE TRACE (game/logo/trace.ts): the fill completes on the feature entry, brighter for Super and Epic
+		logoTrace.event(bookEvent.bonus);
 		stateGame.bonusMode = bookEvent.bonus;
 		stateGame.tileCap = bookEvent.tileCap;
 		stateGame.totalFs = bookEvent.totalFs;

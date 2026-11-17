@@ -47,7 +47,8 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 		return fit(left, top, width);
 	}
 	if (phone) {
-		const { cx, cy, width } = LOGO.portraitPhone;
+		const { cx, cy } = LOGO.portraitPhone;
+		const width = portraitOptions.logoWidth ?? LOGO.portraitPhone.width;
 		const height = width / ASPECT;
 		const view = portraitViewportNow();
 		if (portraitOptions.logo === 'edge' && view) {
