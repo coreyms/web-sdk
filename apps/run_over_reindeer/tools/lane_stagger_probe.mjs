@@ -23,6 +23,9 @@
 //     normal; after SKIP TO RESULT the next spin normal; autoplay at turbo 1 teasing each spin with nothing left over
 //   - THE CAP: a tease that would take the spin past capMs is compressed so the press to rest is at most capMs
 //   - A FEATURE ROUND: a free spin decides at three (the retrigger) and teases at most once per round
+//   - A SLAM IN A BONUS ROUND (2026-11-17): a board tap in free spin 2 of a Free Spins and a Super round, at normal speed
+//     and turbo 1, cuts that spin only; free spin 3 runs with no hurry, its full normal length (as free spin 1, the same
+//     board) and its lane stops sound; the round ends at rest
 //   - THE BRAKE LIGHTS: every car (H1 to H4) off while it cruises in, bright while it brakes, dim while stopped and at
 //     rest, off as it pulls away; drawn only while the car is; never on a sleigh or a sign
 // With OUT=<dir>: table.md (each case's spin length and release times at normal speed and both turbo levels), and with
@@ -39,7 +42,7 @@ const CLIPS = process.env.CLIPS === '1' || process.env.CLIPSONLY === '1';
 /** only the clips (no checks) */
 const CLIPSONLY = process.env.CLIPSONLY === '1';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-/** SECTIONS=plans,slam,skip,autoplay,feature picks the sections (default all) */
+/** SECTIONS=plans,slam,skip,autoplay,feature,bonusSlam picks the sections (default all) */
 const SECTIONS = (process.env.SECTIONS || '').split(',').filter(Boolean);
 const SEC = (name) => !SECTIONS.length || SECTIONS.includes(name);
 if (OUT) mkdirSync(OUT, { recursive: true });
@@ -132,6 +135,9 @@ const browser = await chromium.launch({ args: ['--mute-audio'] });
 try {
 	for (const S of CLIPSONLY ? [] : SIZES) {
 		const { p, errs } = await boot(browser, S, 'lanes');
+		// (2026-11-17: with no autoplay the bonus intro waits for the player's press; this probe's bonus rounds are played
+		// through without one, so the intro continues by itself after its 4 s here, as it did before)
+		await R(p, () => (window.__reindeer.tune.round.introWaitsForPress = false));
 		console.log(`-- ${S.name} ${S.vp.width}x${S.vp.height}`);
 		const tune = await R(p, () => JSON.parse(JSON.stringify({ flow: window.__reindeer.tune.laneFlow, light: window.__reindeer.tune.stoplight.tease, brake: window.__reindeer.tune.brakeLights, sound: window.__reindeer.tune.sound.tease, motion: window.__reindeer.tune.motion })));
 		T.check(tune.flow.normal.laneGapMs === PAGE.gap && tune.flow.driveInMs === PAGE.travel && tune.flow.normal.carGapMs === PAGE.car && tune.flow.tease.twoGapMs === PAGE.t1 && tune.flow.tease.threeGapMs === PAGE.t2 && tune.flow.normal.clearGapMs === PAGE.clear && tune.flow.seenMs === PAGE.seen, `${S.name}: the game's numbers are Corey's (lane gap 100, drive in 680, car gap 70, two seen 360, three seen 390, clear 60, seen 110)`, tune.flow);
@@ -512,6 +518,72 @@ try {
 		}
 
 		// 9. A FEATURE ROUND: decides at three, at most one tease per round
+		// 11. A SLAM IN A BONUS ROUND HURRIES ITS OWN SPIN ONLY (2026-11-17, Corey: "if you click on the board during free
+		// spins, or super free spins all of the free spins are speed up, instead of the current spin only"): in a Free
+		// Spins round and a Super round, at normal speed and at turbo 1, a board tap in free spin 2 cuts that spin; free
+		// spin 3 (the same board as free spin 1) then runs its whole normal length with no hurry, its lane stops sound as
+		// free spin 1's did, and the round ends at rest
+		if (S.name === 'desktop' && SEC('bonusSlam')) {
+			const plain = boardOf([], 21);
+			// (BONUSTURBO=0 or 1 plays that turbo level's two rounds only: four rounds take longer than one lock turn)
+			const BT = process.env.BONUSTURBO;
+			for (const [bonusType, turbo] of [['freespins', 0], ['super', 0], ['freespins', 1], ['super', 1]].filter(([, t]) => BT === undefined || String(t) === BT)) {
+				const tag = `${S.name}: ${bonusType === 'super' ? 'Super' : 'Free Spins'} at turbo ${turbo}, a board tap in free spin 2`;
+				const ev = [
+					{ type: 'reveal', gameType: 'basegame', board: boardOf([[0, 1], [1, 3], [2, 2]], 20) },
+					{ type: 'freeSpinTrigger', totalFs: 3, cells: [1 * 4 + 0, 3 * 4 + 1, 2 * 4 + 2], bonusType },
+					{ type: 'reveal', gameType: 'freegame', board: plain, fs: 1, totalFs: 3, held: [] },
+					{ type: 'reveal', gameType: 'freegame', board: boardOf([], 22), fs: 2, totalFs: 3, held: [] },
+					{ type: 'reveal', gameType: 'freegame', board: plain, fs: 3, totalFs: 3, held: [] },
+					{ type: 'freeSpinEnd', amount: 0 },
+					{ type: 'setTotalWin', amount: 0 },
+					{ type: 'finalWin', amount: 0 },
+				].map((e, i) => ({ index: i, ...e }));
+				await R(p, () => window.__reindeer.roadSounds(true));
+				const bl = await R(p, () => window.__reindeer.boardLayout().css);
+				let tapped = null;
+				let fs2At = null;
+				// (the free spin under way: stateGame.spinsPlayed is set at each free spin's reveal; the road's spin log keeps 40)
+				const rows = await stepRound(p, {
+					book: ev,
+					turbo,
+					maxFrames: 5000,
+					read: (h) => ({ fs: h.freeSpinNow(), hurry: h.hurryLevel(), clock: h.road().clock }),
+					onFrame: async (i, s) => {
+						if (tapped !== null || s.sample.fs !== 2) return;
+						fs2At ??= s.sample.clock;
+						const f = await R(p, () => window.__reindeer.flow().plan);
+						if (!f || f.cut || f.start < fs2At || s.sample.clock - f.start < 150) return;
+						tapped = i;
+						await p.mouse.click(bl.x + bl.width / 2, bl.y + bl.height / 2);
+					},
+				});
+				const fl = await R(p, () => window.__reindeer.flow());
+				const log = await R(p, () => window.__reindeer.roadSounds());
+				// the round's four drive ins: the trigger spin, free spins 1, 2 and 3
+				const sp = fl.spins.slice(-4);
+				const stopsIn = (x) => (x ? log.filter((e) => e.kind === 'sound' && /^sfx_lane_stop_/.test(e.what) && e.clock >= x.startClock - 1 && e.clock <= (x.restClock ?? Infinity) + 1).length : -1);
+				const s1 = sp[1];
+				const s3 = sp[3];
+				// each free spin's own frames from its drive in to its rest, on the board clock
+				const lenOf = (fs, x) => (x && x.restClock !== null ? rows.filter((r) => r.sample.fs === fs && r.sample.clock >= x.startClock && r.sample.clock <= x.restClock).length : -1);
+				const len1 = lenOf(1, s1);
+				const len3 = lenOf(3, s3);
+				const f1 = rows.filter((r) => r.sample.fs === 1).length;
+				const hurry3 = rows.filter((r) => r.sample.fs === 3).map((r) => r.sample.hurry);
+				const f3 = hurry3.length;
+				T.check(tapped !== null && sp.length === 4 && sp[2].cut && !sp[1].cut && !sp[3].cut, `${tag}: the tap cut free spin 2 only (cuts: ${sp.map((x) => x.cut).join(' ')})`, { tapped, sp: sp.map((x) => [x.cut, x.level]) });
+				T.check(f3 > 0 && hurry3.length > 0 && hurry3.every((h) => h === 0), `${tag}: free spin 3 runs with no hurry on any of its ${hurry3.length} frames`, [...new Set(hurry3)]);
+				T.check(len1 > 0 && len3 > 0 && Math.abs(len3 - len1) <= 2 && s3.level === turbo, `${tag}: free spin 3 takes its full normal length: ${len3} frames from its drive in to its rest, as free spin 1 (same board) took ${len1} (turbo level ${s3?.level})`, { len1, len3, f1 });
+				const st1 = stopsIn(s1);
+				const st3 = stopsIn(s3);
+				T.check(st1 > 0 && st3 === st1, `${tag}: free spin 3's lane stops sound as free spin 1's did (${st3} and ${st1})`, { st1, st3 });
+				T.check(await R(p, () => window.__reindeer.atRest() && window.__reindeer.hud.idle()), `${tag}: the round ended at rest`);
+				await R(p, () => window.__reindeer.clock(1));
+				await sleep(800);
+			}
+		}
+
 		if (S.name === 'desktop' && SEC('feature')) {
 			const two = boardOf(CASES.miss, 5);
 			const two2 = boardOf(CASES.top2, 6);

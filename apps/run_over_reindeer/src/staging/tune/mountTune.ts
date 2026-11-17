@@ -1,7 +1,8 @@
 // Mounts the tuning panel (`?tune=1`, or `?tune=<group>` to open one group) on document.body, outside the game's own
 // tree. Imported dynamically, and only behind STAGING_TOOLS, from routes/+layout.svelte: a production bundle has
 // neither this file nor the panel (scripts/check-production-bundle.mjs fails a build that carries ROR_TUNE_PANEL).
-// Nothing here is stored or sent anywhere: a reload brings back the defaults of game/constants.ts.
+// Nothing is sent anywhere. Since 2026-11-17 the panel REMEMBERS its changed values across a reload (tuneStore.ts, one
+// localStorage key, staging only): routes/+layout.svelte applies them before the board is built.
 import { mount } from 'svelte';
 
 import TunePanel from './TunePanel.svelte';

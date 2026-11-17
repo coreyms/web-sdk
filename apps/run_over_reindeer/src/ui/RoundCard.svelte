@@ -9,7 +9,7 @@
 
 	import { getContext } from '../game/context';
 	import config from '../game/config';
-	import { REINDEER_SOUND, ROUND } from '../game/constants';
+	import { INTRO_LINE, REINDEER_SOUND, ROUND } from '../game/constants';
 	import type { SoundEffectName } from '../game/sound';
 	import { soc } from '../game/social';
 	import { dismissRoundCard } from '../game/bookEventHandlerMap';
@@ -22,10 +22,7 @@
 
 	const NAME = { bonus: 'FREE SPINS', super: 'SUPER FREE SPINS' } as const;
 	const ACCENT = { bonus: '#19d3da', super: '#ff5a6e' } as const;
-	const INTRO_LINE = {
-		bonus: 'Every column Wild stays for the whole round and keeps its multiplier.',
-		super: 'The round starts with a column Wild in place. Column Wilds stay and keep their multipliers.',
-	} as const;
+	// (the intro's sentence lives in game/constants.ts INTRO_LINE: the LED strip scrolls the same words)
 
 	let armed = $state(false);
 	// ON THE LED BACK BOARD (card.board, constants LED_BOARD.cards; part B): the board's scene is the card. A press before
@@ -56,8 +53,15 @@
 		const arm = setTimeout(() => (armed = true), ROUND.armMs);
 		// it continues by itself: sooner when a running autoplay is set to play the bonuses through
 		const auto = context.stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0;
+		// (2026-11-17, Corey: "Free Spin Entry does not wait for Press for Continue (without Autoplay even running)"): the
+		// intro's own 4 s timer continued it by itself. With no autoplay running the intro now waits for the press
+		// (ROUND.introWaitsForPress); in autoplay it keeps the old timing (1.4 s with the bonuses played through, else 4 s)
+		// (a wrap-up that carries a line, a top-up or the cap, waits too since 2026-11-17, ROUND.lineOutroWaitsForPress: its
+		// line scrolls on the LED strip from the moment the amount lands and needs about 10 s to pass once)
+		const lined = card.kind === 'outro' && (!!card.topUp || card.capped) && ROUND.lineOutroWaitsForPress;
+		const waits = (card.kind === 'intro' || lined) && !(stateBet.autoSpinsCounter > 0) && ROUND.introWaitsForPress;
 		const ms = auto ? ROUND.autoplayMs : card.kind === 'intro' ? ROUND.introAutoMs : ROUND.outroAutoMs;
-		const timer = setTimeout(dismissRoundCard, ms);
+		const timer = waits ? undefined : setTimeout(dismissRoundCard, ms);
 		const key = (e: KeyboardEvent) => {
 			if (e.code === 'Space' || e.code === 'Enter') {
 				e.preventDefault();

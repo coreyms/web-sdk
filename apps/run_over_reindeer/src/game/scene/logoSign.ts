@@ -130,6 +130,41 @@ export class LogoSign {
 		return { ms: Math.round(t), left: lampLevel('left', t), right: lampLevel('right', t) };
 	}
 
+	/** THE SIGN'S VISIBLE FOOT (2026-11-17, the press screen on an upright phone rests the sign on the billboard's snow cap):
+	 *  per column of the base picture, its lowest visible pixel's bottom edge as a share of the picture's height (NaN where
+	 *  the column is empty), alpha 16 and up as the landing probe reads it. Read once from the sheet (a CPU canvas the size
+	 *  of the base frame, then dropped); null when the sheet's pixels cannot be read. */
+	private footCache: Float32Array | null = null;
+	footShares(): Float32Array | null {
+		if (this.footCache) return this.footCache;
+		const tex = this.base.texture;
+		const res = tex.source.resource as CanvasImageSource | undefined;
+		if (!res) return null;
+		const f = tex.frame;
+		const w = Math.max(1, Math.round(f.width));
+		const h = Math.max(1, Math.round(f.height));
+		try {
+			const c = document.createElement('canvas');
+			c.width = w;
+			c.height = h;
+			const g = c.getContext('2d', { willReadFrequently: true });
+			if (!g) return null;
+			g.drawImage(res, -Math.round(f.x), -Math.round(f.y));
+			const d = g.getImageData(0, 0, w, h).data;
+			const out = new Float32Array(w);
+			for (let x = 0; x < w; x++) {
+				let low = h - 1;
+				while (low >= 0 && d[(low * w + x) * 4 + 3] < 16) low--;
+				out[x] = low < 0 ? NaN : (low + 1) / h;
+			}
+			c.width = c.height = 1;
+			this.footCache = out;
+			return out;
+		} catch {
+			return null;
+		}
+	}
+
 	destroy() {
 		this.root.destroy({ children: true });
 		for (const f of this.frames) f.destroy();

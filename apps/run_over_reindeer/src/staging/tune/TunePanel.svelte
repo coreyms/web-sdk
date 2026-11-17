@@ -3,13 +3,16 @@
 	// routes/+layout.svelte imports it behind STAGING_TOOLS, scripts/check-production-bundle.mjs fails a production build
 	// that carries ROR_TUNE_PANEL). An HTML box over the game, not Pixi. It lists TUNE (game/constants.ts) by reflection
 	// and writes straight into that live object, the same one the dev hook hands out as window.__reindeer.tune; the
-	// labels, ranges and "when it shows" notes come from tuneMeta.ts. Nothing is stored or sent: a reload brings back the
-	// defaults. The "changed values" box is the read back: one line per value that differs from its default.
+	// labels, ranges and "when it shows" notes come from tuneMeta.ts. Nothing is sent. Since 2026-11-17 the changed values
+	// are REMEMBERED across a reload (tuneStore.ts, one localStorage key, applied by routes/+layout.svelte before the board
+	// is built, so the 'applies after a reload' values can be tried); "Reset all to defaults" clears them and reloads. The
+	// "changed values" box is the read back: one line per value that differs from its default.
 	//
 	// STYLES: mountTune.ts injects them (a Svelte <style> block would be extracted into the shared stylesheet).
 	import { onMount } from 'svelte';
 
 	import { TUNE } from '../../game/constants';
+	import { rememberedApplied, tuneDefaults, writeRemembered } from './tuneStore';
 	import { GROUP_ACTIONS, GROUP_META, GROUP_ORDER, WHEN_LABEL, isColor, metaFor, rangeFor, whenFor, type Meta, type When } from './tuneMeta';
 	import RoamEditor from './RoamEditor.svelte';
 
@@ -29,8 +32,8 @@
 		if (isBranch(parent)) parent[path[path.length - 1]] = v;
 	};
 
-	/** the defaults, as the page loaded them (before any change from here or the console) */
-	const DEFAULTS = clone(TUNE) as Record<string, unknown>;
+	/** the defaults, as the page loaded them (before the remembered values and any change from here or the console) */
+	const DEFAULTS = (tuneDefaults() ?? clone(TUNE)) as Record<string, unknown>;
 
 	const kindOf = (path: string[], v: unknown, meta: Meta): Kind => {
 		if (meta.options) return 'select';
@@ -94,6 +97,15 @@
 
 	const resetLeaves = (leaves: Leaf[]) => {
 		for (const l of leaves) if (vals[l.id] !== l.def) write(l, l.def);
+	};
+	// THE MEMORY: every change is kept (the values that differ from their defaults), and comes back after a reload
+	$effect(() => {
+		writeRemembered(Object.fromEntries(changed.map((l) => [l.id, vals[l.id]])));
+	});
+	const remembered = rememberedApplied();
+	const resetAndReload = () => {
+		writeRemembered({});
+		location.reload();
 	};
 
 	// ---- inputs ----------------------------------------------------------------------------------------------------
@@ -217,13 +229,14 @@
 			</div>
 			<div class="scroll">
 				<div class="changes">
-					<div><b>Changed values</b> <span class="msg">({changed.length}; a reload restores every default)</span></div>
+					<div><b>Changed values</b> <span class="msg">({changed.length}, remembered across a reload; {remembered} came back with this page)</span></div>
 					{#if changed.length}
 						<textarea bind:this={area} readonly rows={Math.min(8, changed.length + 1)} value={changedText}></textarea>
 					{/if}
 					<div class="actions">
 						<button class="small" onclick={copy} disabled={!changed.length}>Copy</button>
 						<button class="small" onclick={() => resetLeaves(allLeaves)} disabled={!changed.length}>Reset all</button>
+						<button class="small" onclick={resetAndReload}>Reset all to defaults (and reload)</button>
 						{#if hasReplay}<button class="small" onclick={replayLast}>Queue the last round again</button>{/if}
 						<span class="msg">{copyMsg || replayMsg}</span>
 					</div>
@@ -252,6 +265,7 @@
 											<span class="k">
 												{l.meta.label ?? l.path[l.path.length - 1]}{#if l.meta.unit}<span class="u">{` ${l.meta.unit}`}</span>{/if}
 												{#if l.when !== g.when}<span class="when" class:reload={l.when === 'reload'}>{` ${WHEN_LABEL[l.when]}`}</span>{/if}
+												{#if vals[l.id] !== l.def}<button class="small" onclick={() => write(l, l.def)} aria-label="reset {l.id}">reset</button>{/if}
 											</span>
 											{#if l.kind === 'bool'}
 												<button class="sw" class:on={vals[l.id] === true} onclick={() => write(l, !vals[l.id])} aria-label={l.id} aria-pressed={vals[l.id] === true}></button>

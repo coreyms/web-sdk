@@ -53,7 +53,7 @@
 <!-- THE NAME is the billboard logo in the canvas, top left (game/scene/logoSign.ts, scene pass 9); the highway sign shows only
      in a bonus round, with its counter, at the right of the billboard (ui/TitleSign.svelte roundOnly), kept up through every
      presentation -->
-<div class="top keep" style:top="{title.y}px" style:right="{title.x}px" style:width="{title.width}px"><TitleSign width={title.width} height={title.height} lines={title.lines} roundOnly /></div>
+<div class="top keep" style:top="{title.y}px" style:right="{title.x}px" style:width="{title.width}px"><TitleSign width={title.width} height={title.height} lines={title.lines} roundOnly plate="portrait" /></div>
 
 <div class="hudp hud-group v-portrait" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.bar.x0 + 14}px" style:top="{G.bar.y1 - 14}px" style:width="{G.bar.x1 - G.bar.x0 - 28}px" style:height="28px"></div>

@@ -16,7 +16,7 @@
 		| { type: 'boardHeld'; held: HeldColumn[] }
 		/** the reindeer runs along the snow above the board, turns down into its target's reel and runs into the target;
 		 *  resolves at the impact */
-		| { type: 'boardStrike'; strike: StrikeSpec }
+		| { type: 'boardStrike'; strike: StrikeSpec; gag?: boolean }
 		/** the struck car's cell becomes the crash cloud Wild */
 		| { type: 'boardGrandmaWild'; cell: number; multiplier: number }
 		/** the red box grows to a column Wild and its character steps in; fromCell null = it starts whole. joinAdd: a
@@ -40,7 +40,7 @@
 		| { type: 'boardScoreboardWin'; amount: number; small?: boolean }
 		/** PART B: a bonus round card on the back board (the Free Spins or Super entry with the spins it awards, the Total Win
 		 *  with the book's amount); it waits until boardScoreboardCardEnd (the HTML card keeps the round and the press) */
-		| { type: 'boardScoreboardCard'; kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number }
+		| { type: 'boardScoreboardCard'; kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; topUp?: { floor: number; amount: number } | null; capped?: boolean }
 		| { type: 'boardScoreboardCardEnd' };
 </script>
 
@@ -54,7 +54,7 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass, TITLE } from '../game/layoutSpec';
-	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, ROAD_MOTION, STRIKE, TUNE, motionFor } from '../game/constants';
+	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, LOGO_SIGN, ROAD_MOTION, STRIKE, TUNE, motionFor } from '../game/constants';
 	import { sceneHooks, setSceneChoice, stateScene } from '../game/stateScene.svelte';
 	import { homePreset, presetForMode, type ScenePreset, type ScenePresetName } from '../game/scenePresets';
 	import { setFor, type SceneChoice } from '../game/sceneChoice';
@@ -62,7 +62,7 @@
 	import { SceneSwap } from '../game/scene/sceneSwap';
 	import config from '../game/config';
 	import { boot } from '../game/boot.svelte';
-	import { LedSign, ledGeometry } from '../game/landing/ledSign';
+	import { LedSign, capTopProfile, ledGeometry } from '../game/landing/ledSign';
 	import { setLedArt, type LedText } from '../game/landing/ledScreens';
 	import { LED_ART } from '../game/ledArtSpec';
 	import { seatClipMemory, setSeatUploader } from '../game/road/seatedClips';
@@ -87,7 +87,7 @@
 	import { setScoreboardArt } from '../game/scoreboard/scoreboardDraw';
 	import { raceTally, raceTrace, newRace, reseedRace } from '../game/scoreboard/race';
 	import { SCENE_ART } from '../game/sceneArtSpec';
-	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -143,15 +143,34 @@
 		};
 		// THE TIER SOUNDS (constants LED_BOARD.tierSounds, part B): one as the count reaches each tier (a skip: the final
 		// tier's only), through the road's sound log and the game's sound events (the effects volume, mute and SKIP TO RESULT)
-		scoreboard.onTier = (tier) => {
+		// (2026-11-17, approved: the tier sounds no longer pile up as a win climbs) a tier's sound fades the one before it out
+		// over LED_BOARD.tierSounds.fadeMs as it starts, through the road's fade (the game's soundFade, then soundStop)
+		// (only within one win: a new win's first tier never fades the last win's)
+		let lastTier: { name: string; at: number; show: number } | null = null;
+		scoreboard.onTier = (tier, show) => {
 			const T = LED_BOARD.tierSounds;
 			const name = T.on ? T.names[tier] : null;
-			if (name) road.features.sounds.playNamed(name, `scoreboard tier ${tier}`);
+			if (!name) return;
+			if (lastTier && lastTier.show === show.id && lastTier.name !== name && performance.now() - lastTier.at < T.lengthMs) road.features.sounds.fadeNamed(lastTier.name, T.fadeMs, `the next tier's sound (${name})`);
+			road.features.sounds.playNamed(name, `scoreboard tier ${tier}`);
+			lastTier = { name, at: performance.now(), show: show.id };
 		};
 	}
 	/** where the layout put the road and the logo (the shake moves them from here, game/scoreboard/show.ts shakeAt) */
 	let roadBaseY = 0;
 	let logoBaseY = 0;
+	/** THE SIGN ON THE PRESS SCREEN (2026-11-17, Corey approved: on an upright phone the sign's foot rests on the billboard's
+	 *  snow cap): the rule's box (layoutSpec logoBox), the lift the press screen asks for (road px, negative = up) and the
+	 *  lift drawn now; once the press screen has gone the lift eases back to 0 over LOGO_SIGN.pressLiftBackMs */
+	/** DEV: the Grandma gags asked by strikes (the LED probe's gag rule) */
+	let devGags = 0;
+	let logoHome: { x: number; y: number; width: number; height: number } | null = null;
+	let logoLiftWant = 0;
+	let logoLift = 0;
+	let logoLiftFrom: number | null = null;
+	const placeLogo = () => {
+		if (logo && logoHome) logo.place({ ...logoHome, y: logoHome.y + logoLift });
+	};
 	let shookY = 0;
 	/** the LED amount: the play currency's number as the HUD writes it, its digits pinned to the final amount, with no
 	 *  currency mark (the LED font has digits, the comma and the point only) */
@@ -205,6 +224,8 @@
 			const sign = led;
 			led = null;
 			boot.ledSign = false;
+			// the sign goes back to its in-game place (eased in the tick)
+			logoLiftWant = 0;
 			scoreboardOverLogo();
 			setLedArt(null);
 			// hidden this frame (the sign's root is invisible now), destroyed two frames later: a texture destroyed in the
@@ -351,7 +372,8 @@
 			logo.root.scale.set(k);
 			logo.root.position.set(ox, oy);
 			logoBaseY = oy;
-			logo.place(box);
+			logoHome = box;
+			placeLogo();
 		}
 		// THE LED SCOREBOARD: its rule per layout class (game/scoreboard/layout.ts), and the scene pieces its foreground snow is
 		// cut from (the preset's boardCover: the field tile, the road picture, the bottom band, and the painted ends where the
@@ -364,7 +386,30 @@
 		if (led) {
 			const r = boardRect(kind);
 			const canvas = context.stateLayoutDerived.canvasSizes();
-			led.layout(ledGeometry(kind, canvas.width, canvas.height, main.scale, { x: masterLeft + r.x * main.scale, y: masterTop + r.y * main.scale, w: r.width * main.scale, h: r.height * main.scale }));
+			const lg = ledGeometry(kind, canvas.width, canvas.height, main.scale, { x: masterLeft + r.x * main.scale, y: masterTop + r.y * main.scale, w: r.width * main.scale, h: r.height * main.scale });
+			led.layout(lg);
+			// THE SIGN ON THE CAP (upright phones, the press screen only): the sign rests on the cap's drawn top (ledSign
+			// capTopProfile): column by column, its lowest visible pixel against the cap's top under it, the deepest of them
+			// put pressCapOverlap CSS px into the cap, wherever the rule put the sign; other layouts keep the rule's place
+			logoLiftWant = 0;
+			const F = logo && logoHome && kind === 'portrait' ? logo.footShares() : null;
+			if (F && logoHome) {
+				const cap = capTopProfile(lg);
+				const bx = ox + logoHome.x * k;
+				const by = oy + logoHome.y * k;
+				const bw = logoHome.width * k;
+				const bh = logoHome.height * k;
+				let deepest = -Infinity;
+				for (let i = 0; i < F.length; i++) {
+					if (Number.isNaN(F[i])) continue;
+					const j = Math.round(bx + ((i + 0.5) / F.length) * bw - cap.x0);
+					if (j < 0 || j >= cap.ys.length) continue;
+					deepest = Math.max(deepest, by + F[i] * bh - cap.ys[j]);
+				}
+				if (Number.isFinite(deepest)) logoLiftWant = (LOGO_SIGN.pressCapOverlap - deepest) / k;
+			}
+			logoLift = logoLiftWant;
+			placeLogo();
 		}
 	});
 
@@ -461,6 +506,14 @@
 			road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
 			led?.update(ticker.deltaMS, boot.pressReady);
 			logo?.update(ticker.deltaMS);
+			// the sign easing back from its press screen place (a straight move, real ms)
+			if (logoLift !== logoLiftWant) {
+				logoLiftFrom ??= logoLift;
+				const step = (Math.abs(logoLiftFrom - logoLiftWant) * ticker.deltaMS) / Math.max(1, LOGO_SIGN.pressLiftBackMs);
+				logoLift = Math.abs(logoLiftWant - logoLift) <= step ? logoLiftWant : logoLift + Math.sign(logoLiftWant - logoLift) * step;
+				if (logoLift === logoLiftWant) logoLiftFrom = null;
+				placeLogo();
+			}
 			// THE SCENE SETTING, then THE SCENE SWAP (real ms: the cross-fade keeps its own time, as the logo does)
 			takeSceneSet();
 			swap.update(ticker.deltaMS);
@@ -526,13 +579,16 @@
 			await drive;
 		},
 		boardHeld: ({ held }) => road.features.syncHeld(held),
-		boardStrike: async ({ strike }) => {
+		boardStrike: async ({ strike, gag }) => {
 			// (its sounds come from its frames: the alert on its first, roadFeatures.updateRunner; the borrowed sfx_swipe
 			// that stood here until 2026-11-15 is gone)
 			await road.features.strike(strike);
-			// THE GRANDMA GAG (constants LED_BOARD.gag): the reindeer has struck a Grandma's car
-			const struck = stateGame.board[Math.floor(strike.cell / 4)]?.[strike.cell % 4];
-			if (struck === 'H1') scoreboard?.gag();
+			// THE GRANDMA GAG (constants LED_BOARD.gag): the reindeer has struck a Grandma's car and the book's rule says it
+			// plays (game/bookEventHandlerMap.ts strike: the base game always; a bonus round's first, or a paying spin's)
+			if (gag) {
+				devGags += 1;
+				scoreboard?.gag();
+			}
 		},
 		boardGrandmaWild: async ({ cell, multiplier }) => {
 			await road.features.grandmaWild(cell, multiplier);
@@ -560,10 +616,17 @@
 			const auto = stateBet.autoSpinsCounter > 0;
 			await scoreboard.win({ x: bookEventAmountToBetAmountMultiplier(amount), amount: value, bet: bookEventAmountToNormalisedAmount(100), fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate, auto, small });
 		},
-		boardScoreboardCard: ({ kind, spins, amount }) => {
+		boardScoreboardCard: ({ kind, spins, amount, topUp, capped }) => {
 			if (!scoreboard) return;
 			const value = bookEventAmountToNormalisedAmount(amount);
-			scoreboard.card({ kind, spins, amount: value, fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate });
+			const fmt = ledAmount(value);
+			// a wrap-up's own lines, word for word as the HTML card said them (ui/RoundCard.svelte), for the strip: the cap (the
+			// card's social wording on every build: the board shows no betting words) and the top-up, its amount from the book
+			// as the card wrote it (bookEventAmountToCurrencyString)
+			const lines: string[] = [];
+			if (capped) lines.push(`${config.maxWin.toLocaleString('en-US')}x the play amount, the most a round can award.`);
+			if (topUp) lines.push(`Includes ${bookEventAmountToCurrencyString(topUp.amount)} added to bring this round up to its ${topUp.floor / 100}x minimum.`);
+			scoreboard.card({ kind, spins, amount: value, fmt, rate: motionFor(stateGame.turboLevel).rate, title: capped ? 'MAX WIN' : null, line: lines.length ? lines.join('  ') : null });
 		},
 		boardScoreboardCardEnd: () => scoreboard?.endCard(),
 		// a Spin press while a big win counts or holds (the slam stop's event): lands the count, or ends the hold
@@ -720,10 +783,10 @@
 			},
 			scoreboardRaise: (x?: number) => scoreboard?.raise(x),
 			/** PART B: a bonus round card's scene by hand (kind fs, sfs or total; no HTML card: press or end it by hand) */
-			scoreboardCard: (kind: 'fs' | 'sfs' | 'total', opts: { spins?: number; x?: number; rate?: number } = {}) => {
+			scoreboardCard: (kind: 'fs' | 'sfs' | 'total', opts: { spins?: number; x?: number; rate?: number; line?: string; title?: string } = {}) => {
 				if (!scoreboard) return;
 				const value = Math.round((opts.x ?? 248.5) * bookEventAmountToNormalisedAmount(100) * 100) / 100;
-				scoreboard.card({ kind, spins: opts.spins ?? 10, amount: value, fmt: ledAmount(value), rate: opts.rate ?? 1 });
+				scoreboard.card({ kind, spins: opts.spins ?? 10, amount: value, fmt: ledAmount(value), rate: opts.rate ?? 1, line: opts.line ?? null, title: opts.title ?? null });
 			},
 			scoreboardCardPress: () => scoreboard?.cardPress() ?? false,
 			scoreboardFace: (which: 'strip' | 'back') => scoreboard?.faceStats(which) ?? null,
@@ -738,6 +801,17 @@
 			brakes: () => road.brakeSnapshot(),
 			/** SKIP TO RESULT on or off by hand (the lane stagger probe: the tease's loop stops under it) */
 			skip: (on: boolean) => (stateGame.skipping = !!on),
+			/** a slam stop's hurry now (0 = none), and the free spin under way (1-based; 0 outside a bonus round) */
+			hurryLevel: () => stateGame.hurryLevel,
+			/** a book amount in the play's currency units, as the HTML cards showed it (the LED probe's Total Win check) */
+			bookAmount: (a: number) => bookEventAmountToNormalisedAmount(a),
+			freeSpinNow: () => (stateGame.gameType === 'freegame' ? stateGame.spinsPlayed + 1 : 0),
+			/** the Grandma gags strikes have asked for since the last clear (the book's rule, bookEventHandlerMap strike) */
+			gagsAsked: (clear = false) => {
+				const n = devGags;
+				if (clear) devGags = 0;
+				return n;
+			},
 			/** THE CAST SHADOWS as drawn (game/road/shadows.ts; the numbers are tune.shadow), and what the road draws:
 			 *  every sprite shown (visible all the way up and renderable), and how many of them are shadows */
 			shadows: () => road.shadowSnapshot(),

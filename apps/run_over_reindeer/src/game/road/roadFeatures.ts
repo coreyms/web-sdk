@@ -16,14 +16,22 @@
 //   back     the red box on a Grandma car in a struck Santa reel (under the column, which grows over it), each column's
 //            still cloud, its character's cast shadow on that cloud (constants SHADOW), and its entrance while the
 //            moving cloud is still in the frame
-//   right    each full column's RIGHT band (its red and its dark line), under the characters (Corey 2026-11-16: "keep
-//            the left, top, bottom border as a character boundary, but let them overlap on the right borders")
-//   bodies   the characters, each cropped to its own box by its texture's frame at the left, top and bottom (Corey
-//            2026-11-15: "I'd like their feet to be behind the borders ... the same for the top border"), not on the
-//            right once it stands clear of its entrance's cloud: there it draws over its right band and on past the box
-//   boxes    the red frames (outer frame only: no lines between the rows), over the characters at the left, top and
-//            bottom (a cell box: on all four sides). The top and bottom bands run the full width, so they keep the
-//            corners over the right band
+//   stacks   one per reel, reel 5 at the back and reel 1 on top, each (bottom to top):
+//              right  the full column's RIGHT band (its red and its dark lines), under its character (Corey 2026-11-16:
+//                     "keep the left, top, bottom border as a character boundary, but let them overlap on the right
+//                     borders")
+//              body   the character, cropped to its own box by its texture's frame at the left, top and bottom (Corey
+//                     2026-11-15: "I'd like their feet to be behind the borders ... the same for the top border"), not
+//                     on the right once it stands clear of its entrance's cloud: there it draws over its right band and
+//                     on past the box
+//              left   the full column's LEFT band, over its own character
+//            so a character that spills past its right band draws over the left band (and the character) of the
+//            column to its right (Corey 2026-11-17: "the characters spill over should be left to right, so Santa's
+//            Elbow here should be above the left hand border from the Reindeer column")
+//   rails    the full columns' top and bottom bands, over every character. A rail's dark quad stops at its red's inner
+//            edge and its inner dark line runs between the two side bands' reds only, so each frame draws as one clean
+//            rectangle with its sides in other layers (until 2026-11-17 a full width inner line lay across the right
+//            band's red as a notch at its top and bottom)
 //   cells    the Grandma Wild cells (cloud, frame, WILD and number)
 //   numbers  every column's multiplier, over everything
 import * as PIXI from 'pixi.js';
@@ -99,19 +107,27 @@ class RedBox {
 	readonly root = new PIXI.Container();
 	private readonly outer: PIXI.Sprite[] = [];
 	private readonly sides: PIXI.Sprite[] = [];
-	/** `splitRight` (a full column): the right band (its dark line and its red) is in its own container, rightRoot, for
-	 *  a layer under the characters; the other three stay in root */
+	/** `split` (a full column): the right band (its dark lines and its red) is in rightRoot, a layer under its own
+	 *  character; the left band in leftRoot, over its own character but under the character of the column to its left;
+	 *  root keeps the top and bottom bands (the rails), over every character */
 	readonly rightRoot: PIXI.Container | null;
-	constructor(splitRight = false) {
-		this.rightRoot = splitRight ? new PIXI.Container() : null;
-		const quad = (tint: number, right: boolean) => {
+	readonly leftRoot: PIXI.Container | null;
+	/** split only: the rails' inner dark lines, run between the two side bands' reds (top, bottom). A rail's dark quad
+	 *  stops at its red's inner edge, so no dark line of a rail ever lies across a side band's red: the side bands are
+	 *  in other layers, and a full width inner line drew over them as a notch at each inner corner (2026-11-17) */
+	private readonly inner: PIXI.Sprite[] = [];
+	constructor(split = false) {
+		this.rightRoot = split ? new PIXI.Container() : null;
+		this.leftRoot = split ? new PIXI.Container() : null;
+		const quad = (tint: number, side: number) => {
 			const s = new PIXI.Sprite(PIXI.Texture.WHITE);
 			s.tint = tint;
-			(right && this.rightRoot ? this.rightRoot : this.root).addChild(s);
+			(side === 3 && this.rightRoot ? this.rightRoot : side === 2 && this.leftRoot ? this.leftRoot : this.root).addChild(s);
 			return s;
 		};
-		for (let i = 0; i < 4; i++) this.outer.push(quad(RED_BOX.edgeColor, i === 3));
-		for (let i = 0; i < 4; i++) this.sides.push(quad(RED_BOX.color, i === 3));
+		for (let i = 0; i < 4; i++) this.outer.push(quad(RED_BOX.edgeColor, i));
+		for (let i = 0; i < 4; i++) this.sides.push(quad(RED_BOX.color, i));
+		if (split) for (let i = 0; i < 2; i++) this.inner.push(quad(RED_BOX.edgeColor, i));
 	}
 
 	/** the red lines as laid: top, bottom, left, right; a line not yet traced has no length (the probes read them) */
@@ -151,9 +167,39 @@ class RedBox {
 			list[3].width = t;
 			list[3].height = right;
 			list[3].visible = right > 0;
+			return { top, bottom };
 		};
-		frame(this.outer, width + 2 * RED_BOX.edge, RED_BOX.edge);
+		const traced = frame(this.outer, width + 2 * RED_BOX.edge, RED_BOX.edge);
 		frame(this.sides, width, 0);
+		if (!this.inner.length) return;
+		// SPLIT: each rail's dark quad covers its outer line and the red only (the red lies over it); its inner dark line
+		// is its own quad, from the left band's red to the right band's red, cut to the part of the rail traced so far
+		const e = RED_BOX.edge;
+		const [oTop, oBottom] = this.outer;
+		oTop.height = e + width;
+		oBottom.y = y + h - width;
+		oBottom.height = width + e;
+		const x0 = x - e;
+		const ww = w + 2 * e;
+		const a = x + width;
+		const b = x + w - width;
+		const topEnd = Math.min(b, x0 + traced.top);
+		const bottomStart = Math.max(a, x0 + ww - traced.bottom);
+		const [iTop, iBottom] = this.inner;
+		iTop.position.set(a, y + width);
+		iTop.width = Math.max(0, topEnd - a);
+		iTop.height = e;
+		iTop.visible = iTop.width > 0;
+		iBottom.position.set(bottomStart, y + h - width - e);
+		iBottom.width = Math.max(0, b - bottomStart);
+		iBottom.height = e;
+		iBottom.visible = iBottom.width > 0;
+	}
+
+	/** split only, the probes: the box's quads as drawn (road px), by part */
+	parts() {
+		const q = (s: PIXI.Sprite) => (s.visible ? { x: s.x, y: s.y, w: s.width, h: s.height } : null);
+		return { outer: this.outer.map(q), sides: this.sides.map(q), inner: this.inner.map(q) };
 	}
 }
 
@@ -558,11 +604,14 @@ export class RoadFeatures {
 	readonly layer = new PIXI.Container();
 	// the draw order, bottom to top (the note at the top of this file)
 	private readonly backLayer = new PIXI.Container();
-	private readonly boxLayer = new PIXI.Container();
 	private readonly cellLayer = new PIXI.Container();
-	private readonly bodyLayer = new PIXI.Container();
-	/** the full columns' right bands, under the characters (RedBox splitRight) */
-	private readonly rightBandLayer = new PIXI.Container();
+	/** THE STANDING COLUMNS, one stack per reel (its right band, its character, its left band), the stacks right to
+	 *  left so each reel's stack is over the one to its right (2026-11-17, Corey: "the characters spill over should be
+	 *  left to right, so Santa's Elbow here should be above the left hand border from the Reindeer column") */
+	private readonly stackLayer = new PIXI.Container();
+	private readonly stacks: { root: PIXI.Container; right: PIXI.Container; body: PIXI.Container; left: PIXI.Container }[] = [];
+	/** the full columns' top and bottom bands (the rails), over every character */
+	private readonly railLayer = new PIXI.Container();
 	/** THE RUNNING REINDEER'S CAST SHADOW: on the road's ground, under every lane (game/road/roadBoard.ts puts this layer
 	 *  in its ground), so it never lies over a symbol */
 	readonly groundLayer = new PIXI.Container();
@@ -625,7 +674,14 @@ export class RoadFeatures {
 	screenEdges: { left: number; right: number } | null = null;
 
 	constructor(private readonly tex: Tex) {
-		this.layer.addChild(this.backLayer, this.rightBandLayer, this.bodyLayer, this.boxLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
+		for (let reel = 0; reel < COLS; reel++) {
+			const s = { root: new PIXI.Container(), right: new PIXI.Container(), body: new PIXI.Container(), left: new PIXI.Container() };
+			s.root.addChild(s.right, s.body, s.left);
+			this.stacks.push(s);
+		}
+		// reel 5 at the back, reel 1 on top
+		for (let reel = COLS - 1; reel >= 0; reel--) this.stackLayer.addChild(this.stacks[reel].root);
+		this.layer.addChild(this.backLayer, this.stackLayer, this.railLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
 		this.runnerLayer.addChild(this.roam.shadow, this.roam.sprite);
 		roamDev.roam = this.roam;
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
@@ -921,9 +977,10 @@ export class RoadFeatures {
 		const r = cellRect(cell);
 		const root = new PIXI.Container();
 		root.position.set(r.x + r.w / 2, r.y + r.h / 2);
-		const cloud = new PIXI.Sprite(this.tex('cloud_cell') ?? PIXI.Texture.EMPTY);
 		const box = new RedBox();
 		const b = inset(r);
+		// (2026-11-17: the smoke fills the box edge to edge, its picture's opaque core cropped to the box: cellCloudTex)
+		const cloud = new PIXI.Sprite(this.cellCloudTex(b.w, b.h));
 		cloud.anchor.set(0.5);
 		cloud.width = b.w;
 		cloud.height = b.h;
@@ -965,13 +1022,15 @@ export class RoadFeatures {
 		cellCloud.visible = false;
 		body.visible = false;
 		// the clouds inside the box, the character over them (cropped to the box), the box over it, its number on top:
-		// each in its own layer, so the order holds across neighboring columns too
+		// the clouds in the back layer, the side bands in the reel's own stack (the character goes between them when it
+		// stands), the rails and the number in layers over every column
 		// its cast shadow on the cloud: over the clouds, under the character (and under the red frame, a layer up)
 		const foot = makeShadow();
 		back.addChild(backdrop, cellCloud, cloud, foot, body);
 		this.backLayer.addChild(back);
-		this.boxLayer.addChild(box.root);
-		this.rightBandLayer.addChild(box.rightRoot!);
+		this.railLayer.addChild(box.root);
+		this.stacks[reel].right.addChild(box.rightRoot!);
+		this.stacks[reel].left.addChild(box.leftRoot!);
 		this.numberLayer.addChild(label.root);
 		if (pictures) void loadBackdrop();
 		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, winVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null };
@@ -1355,31 +1414,30 @@ export class RoadFeatures {
 	}
 
 	/** where the character draws: under its red frame while the entrance's cloud is still in the picture (the cloud
-	 *  belongs inside the box), or up among the characters once it stands alone (still under every frame: the frames'
-	 *  layer is over the characters' since 2026-11-15) */
+	 *  belongs inside the box), or up in its reel's stack once it stands alone: over its own right band, under its own
+	 *  left band and the rails, and over everything of the reels to its right (the stacks are in reel order, reel 1 on
+	 *  top; never a zIndex: Pixi turns sorting on for the parent of any child given one) */
 	private bodyOver(column: Column, over: boolean) {
-		const parent = over ? this.bodyLayer : column.back;
+		const parent = over ? this.stacks[column.reel].body : column.back;
 		if (column.body.parent === parent) return;
-		if (!over) {
-			parent.addChild(column.body);
-			return;
-		}
-		// among the characters: reel 1 on top, reel 5 at the back. The layer is kept in that order by where each one is
-		// put in (never a zIndex: Pixi turns sorting on for the parent of any child given one, which would also re-sort
-		// the column's own clouds).
-		const behind = this.bodyLayer.children.filter((child) => this.reelOfBody(child) > column.reel).length;
-		this.bodyLayer.addChildAt(column.body, behind);
+		parent.addChild(column.body);
+	}
+
+	/** the character stands in its reel's stack (not in its back layer under the frame) */
+	private standing(column: Column) {
+		return column.body.parent === this.stacks[column.reel].body;
 	}
 
 	private reelOfBody(body: PIXI.ContainerChild): number {
 		return this.columns.find((c) => c.body === body)?.reel ?? -1;
 	}
 
-	/** a leaving column fades as one: its four parts live in four layers */
+	/** a leaving column fades as one: its five parts live in five layers */
 	private fadeColumn(column: Column, alpha: number) {
 		column.back.alpha = alpha;
 		column.box.root.alpha = alpha;
 		if (column.box.rightRoot) column.box.rightRoot.alpha = alpha;
+		if (column.box.leftRoot) column.box.leftRoot.alpha = alpha;
 		column.body.alpha = alpha;
 		column.label.root.alpha = alpha;
 	}
@@ -1391,6 +1449,7 @@ export class RoadFeatures {
 		column.back.destroy({ children: true });
 		column.box.root.destroy({ children: true });
 		column.box.rightRoot?.destroy({ children: true });
+		column.box.leftRoot?.destroy({ children: true });
 		column.label.root.destroy({ children: true });
 		column.footTex?.destroy(false);
 		column.footTex = null;
@@ -1520,6 +1579,8 @@ export class RoadFeatures {
 				const u = Math.min(1, sincePop / COLUMN.cloudPopMs);
 				const over = COLUMN.cloudPopOver;
 				const k = u < 0.7 ? COLUMN.cloudPopFrom + (over - COLUMN.cloudPopFrom) * (u / 0.7) : over + (1 - over) * ((u - 0.7) / 0.3);
+				const ct = this.cellCloudTex(from.w, from.h);
+				if (column.cellCloud.texture !== ct) column.cellCloud.texture = ct;
 				column.cellCloud.position.set(from.x + (from.w * (1 - k)) / 2, from.y + (from.h * (1 - k)) / 2);
 				column.cellCloud.width = from.w * k;
 				column.cellCloud.height = from.h * k;
@@ -1568,6 +1629,12 @@ export class RoadFeatures {
 				// the entrance's first frame is all cloud: the crash cloud carries on through this hand-over (its loop with it)
 				column.enterCloud = !!reveal && reveal.cloudFrames > 0;
 				for (let row = 0; row < ROWS; row++) this.hideCell(column.reel * ROWS + row, true);
+				// THE HAND-OVER IN ONE FRAME (2026-11-17, Corey: "the video disappears in one of them, which looks like a big
+				// glitch"): the moving cloud has just been hidden, so the entrance (its still cloud and its first frame) is
+				// drawn on THIS frame too. It used to return here and draw it on the next, leaving one frame with nothing
+				// inside the frame but the bare road, at every column's arrival (seen when that frame was shown: most often
+				// at turbo, where the arrival has fewer frames).
+				this.updateColumn(column);
 			}
 			return;
 		}
@@ -1687,7 +1754,7 @@ export class RoadFeatures {
 	 *  column. */
 	private placeFoot(column: Column) {
 		const k = SHADOW.columns && SHADOW.on ? Math.max(0, Math.min(1, SHADOW.column.alpha)) : 0;
-		const standing = column.body.visible && column.body.parent === this.bodyLayer && column.phase !== 'wait';
+		const standing = column.body.visible && this.standing(column) && column.phase !== 'wait';
 		if (k <= 0 || (!standing && column.phase !== 'leave') || !column.body.visible) {
 			column.foot.visible = false;
 			column.footT0 = NaN;
@@ -1740,9 +1807,9 @@ export class RoadFeatures {
 
 	snapshot() {
 		return {
-			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => ({ reel: c.reel, tier: c.tier, multiplier: c.multiplier, sticky: c.sticky, phase: c.phase, drawn: c.body.visible, backdrop: c.backdrop.visible, over: c.body.parent === this.bodyLayer })),
+			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => ({ reel: c.reel, tier: c.tier, multiplier: c.multiplier, sticky: c.sticky, phase: c.phase, drawn: c.body.visible, backdrop: c.backdrop.visible, over: this.standing(c) })),
 			// the characters as they are drawn, back to front (reel numbers from 0)
-			bodyOrder: this.bodyLayer.children.map((b) => this.reelOfBody(b)),
+			bodyOrder: [...this.stacks].reverse().flatMap((s) => s.body.children.map((b) => this.reelOfBody(b))),
 			clouds: this.clouds.filter((c) => c.leaving === null).map((c) => c.cell),
 			runner: this.runner ? this.runnerSnapshot(this.runner) : null,
 			/** the roaming reindeer (game/road/roam.ts) */
@@ -1800,7 +1867,7 @@ export class RoadFeatures {
 				const f = c.foot;
 				const box = inset({ x: BOARD_X + c.reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
 				return {
-					reel: c.reel, tier: c.tier, phase: c.phase, bodyVisible: c.body.visible, bodyOver: c.body.parent === this.bodyLayer,
+					reel: c.reel, tier: c.tier, phase: c.phase, bodyVisible: c.body.visible, bodyOver: this.standing(c),
 					body: { x: r2(c.body.x), y: r2(c.body.y), w: r2(c.body.width), h: r2(c.body.height), source: c.body.texture?.source?.uid ?? -1, frame: c.body.texture ? { x: c.body.texture.frame.x, y: c.body.texture.frame.y, w: c.body.texture.frame.width, h: c.body.texture.frame.height } : null },
 					box: { x: box.x, y: box.y, w: box.w, h: box.h },
 					visible: f.visible && !f.destroyed, x: r2(f.x), y: r2(f.y), w: r2(f.width), h: r2(f.height), alpha: Math.round(f.alpha * 1000) / 1000, backAlpha: Math.round(c.back.alpha * 1000) / 1000,
@@ -1820,8 +1887,35 @@ export class RoadFeatures {
 		};
 	}
 
+	/** THE SMOKE OF ONE CELL, EDGE TO EDGE (2026-11-17, Corey: "can we extend the smoke image to the full width of the
+	 *  border? Then crop it at the Border boundaries?"): the cell cloud's picture has open sides (its smoke stops short of
+	 *  the frame, its debris pokes out), so the box shows the picture's opaque core only, cropped by the texture's frame (a
+	 *  crop, not a mask) to the box's own shape and scaled to fill it: the smoke reaches the red band on every side, and
+	 *  nothing passes the box (the red band is drawn over the crop's edge). CLOUD_CELL.core: the core's inset share of the
+	 *  picture each side, measured on the atlas (99.9% opaque inside). One texture per box shape, kept. */
+	private cellTex = new Map<string, PIXI.Texture>();
+	private cellCloudTex(w: number, h: number): PIXI.Texture {
+		const base = this.tex('cloud_cell');
+		if (!base) return PIXI.Texture.EMPTY;
+		const A = w / Math.max(1, h);
+		const C = CLOUD_CELL.core;
+		const key = `${A.toFixed(3)}|${C.x}|${C.y}`;
+		let t = this.cellTex.get(key);
+		if (t) return t;
+		const f = base.frame;
+		const maxW = f.width * (1 - 2 * C.x);
+		const maxH = f.height * (1 - 2 * C.y);
+		const fw = Math.min(maxW, maxH * A);
+		const fh = fw / A;
+		t = new PIXI.Texture({ source: base.source, frame: new PIXI.Rectangle(f.x + (f.width - fw) / 2, f.y + (f.height - fh) / 2, fw, fh) });
+		this.cellTex.set(key, t);
+		return t;
+	}
+
 	destroy() {
 		this.destroyed = true;
+		for (const t of this.cellTex.values()) t.destroy(false);
+		this.cellTex.clear();
 		this.sounds.stopAll();
 		this.runner?.resolve();
 		for (const w of this.waiters) w.resolve();

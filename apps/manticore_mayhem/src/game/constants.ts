@@ -2698,7 +2698,12 @@ export const LOGO = {
 	// "10 to 15 px more gap"): width 243 (was 257.5), the same centre height and left wing tip, so its lower right
 	// corner comes in and up off his wing: at 390 x 844 the closest drawn pixels go from -2.1 (touching) to +10.5 CSS px (440 x 700: -8.4 to +5.4)
 	// THE TABLET (2026-11-17): the same box, the tablet centred in it by width (79.6 high at 243 wide, the old box 96.0).
-	portraitPhone: { cx: 138.7, cy: 100.7, width: 243 },
+	// 2026-11-17, later (Corey approved "about 236"): width 240 (was 243), the left edge kept (the EDGE default) and the same
+	// centre height, so at 440 x 700 the creature's roar frame (f30) clears the logo by 4.0 CSS px (it was 1.9). Measured with
+	// logo_probe's own row by row gap (2 px columns): 243 1.9, 242 2.4, 241.5 3.2, 241 3.0, 240.5 2.8, 240 4.0, 236 8.2; the
+	// steps are the measure's 2 px columns, so 240 is the largest width that passes with a margin over them. At 390 x 844 the
+	// least gap is 19.6 (the roar), at 360 x 640 31.1 (his idle f23).
+	portraitPhone: { cx: 138.7, cy: 100.7, width: 240 },
 	/** THE PORTRAIT PHONE LOGO ON THE LEFT EDGE (branch portrait-glow-r1, OPTION for Corey, 2026-10-17 11:42: "move that
 	 *  logo in portrait mode close to the left edge and anchor it there maybe the point of the left wings widest stretch
 	 *  point plus 2 pixels for spacing"). The box keeps portraitPhone's width and centre y; only x moves, so that the
@@ -2715,6 +2720,10 @@ export const LOGO = {
 	/** the landing screen's logo (ui/LandingScreen.svelte): the art's width and centre per master, above the cards (the
 	 *  cards' band starts under the tablet's own bottom edge, game/introCards.ts) */
 	landing: { landscape: { width: 380, cx: 640, cy: 92 }, phone: { width: 380, cx: 740, cy: 92 }, portrait: { width: 348, cx: 206, cy: 110 } },
+	/** THE LANDING LOGO'S CAP, CSS px (Corey 2026-11-17): the tablet is 1893 px wide, so at 2560 x 1440 the 380 master px
+	 *  (760 CSS px) drew it at 2.49 device px per file px; held to 631 CSS px it stays at 3 (1893 / 631) on a 1x screen.
+	 *  The same centre and aspect; the cards do not move (game/introCards.ts capLogo). */
+	landingMaxCss: 631,
 
 	// ---- the canvas logo --------------------------------------------------------------------------
 	/** the logo fades with the HUD's kept elements (a modal, the max win screen): Chrome.svelte's 350 ms */
@@ -2728,6 +2737,105 @@ export const LOGO = {
 	still: {
 		shadow: { landscape: { dy: 4, blur: 8, alpha: 0.7 }, phone: { dy: 4, blur: 8, alpha: 0.7 }, portrait: { dy: 3, blur: 6, alpha: 0.6 } },
 		shadowBakeWidth: 256,
+	},
+
+	// ---- THE GROOVE TRACE (game/logo/trace.ts; Corey's picks of 2026-11-17 from the mock
+	// images/logo_tablet_r1_2026-11-16/logo_groove_trace_open_me.html, its read-back numbers below as he copied them) ----
+	// Light runs only along the tablet's carved grooves and border paths (game/logo/grooves.json, art px); the lettering is
+	// never lit. Three styles, one light strip: every groove point has a brightness, and one shared 8 KB texture turns it
+	// into the glow's cross-section and colour (the mock's three stacked strokes), drawn additively in chunks.
+	//   idle     style 1, the border spark with its chaser: always, while the logo is shown
+	//   event    style 2, the grooves fill from the lions inward: it GROWS through a scatter tease (the anticipation) and
+	//            holds; complete on the feature entry, then drains; a failed tease drains back. Brighter for Super, Epic
+	//   bigWin   style 3, the ember breath with runners, for the win screen's count (Big Win and up), one step per tier
+	// A staging build or the dev server takes `?trace=0`, `?traceIdle=`, `?traceEvent=`, `?traceWin=` (speed, trail,
+	// brightness, pause, as the mock's read-back), `?traceLevels=`, `?traceTiers=` and `?traceGain=` (game/staging.ts).
+	trace: {
+		on: true,
+		/** the glow's cross-section, the mock's three strokes: [width in art px, its floor in CSS px, alpha per unit of
+		 *  brightness, core colour]. On the game's sizes (140 to 760 CSS px wide) the CSS floors decide every width. */
+		layers: [
+			[11, 5, 0.06, false],
+			[4.6, 2.2, 0.2, false],
+			[1.7, 0.9, 0.85, true],
+		] as readonly (readonly [number, number, number, boolean])[],
+		/** the ember: the glow colour, and the core is mixed this far towards white */
+		color: 0xff741c,
+		coreMix: 0.55,
+		/** the strip's half width beyond the widest layer, CSS px (its soft edge) */
+		edgeCss: 0.75,
+		/** the brightest a point is drawn (higher saturates); the texture's u runs 0 .. this on a square root scale */
+		maxBrightness: 6,
+		/** THE LIGHT PASS's gain on every brightness (game/logo/trace.ts): the mock's canvas strokes add up where they overlap
+		 *  (its 6-segment chunks in every meander key, and the 40 % of each run the walk retraces), the game's pass does not
+		 *  (a union, so no white specks); this brings the mock's strength back. Measured 2026-11-17 as the light added per
+		 *  CSS px^2 over the logo, the fill at its hold (Corey's style 2 numbers): the mock's 230 CSS px view 85.5, the game at
+		 *  1440 x 900 (218 CSS px) 54.4 at gain 1, 96.4 at 2: 1.8 matches. A staging build takes `?traceGain=`. */
+		passGain: 1.8,
+		/** points per draw chunk (one draw call each; a chunk with no light is not drawn) */
+		chunkPoints: 1024,
+		/** how quickly one style hands over to another, ms (no pop: the spark dims while it runs on) */
+		fadeMs: 450,
+		/** STYLE 1, the border spark: {"style":1,"speed":3000,"trail":880,"brightness":1.68,"color":"ember","pause":1.6}.
+		 *  speed art px a second, trail art px, pause s between laps. The chaser runs max(chaserMinLag, trail x chaserLag)
+		 *  behind with trail x chaserTrail at chaserGain; the head's last headPx are headBoost brighter. */
+		idle: { speed: 3000, trail: 880, brightness: 1.68, pause: 1.6, trailPow: 1.6, headPx: 14, headBoost: 1.6, chaserLag: 1.6, chaserMinLag: 220, chaserTrail: 0.7, chaserGain: 0.65 },
+		/** STYLE 2, the fill: {"style":2,"speed":3000,"trail":370,"brightness":0.5,"color":"ember","pause":2.5}. speed art px a
+		 *  second, trail = the brighter leading edge, art px; pause = s after the drain before the idle spark's next lap.
+		 *  The wave from the lions runs at speed x wave. A filled point is base + lead x (its leading edge) bright. */
+		event: {
+			speed: 3000,
+			trail: 370,
+			brightness: 0.5,
+			pause: 2.5,
+			wave: 1.1,
+			base: 0.62,
+			lead: 0.9,
+			shimmer: 0.1,
+			/** THE ANTICIPATION (the scatter tease, game/teaseState.ts): the share of the full fill reached. `start` as the tease
+			 *  begins, plus `columns` spread over its held columns as each holds and falls, plus `perScatter` for each War
+			 *  Standard after the third (a tease's or a scatter sting's); never past `max`. The trigger pulse takes it to
+			 *  `trigger`; the feature entry to complete. It only grows, and holds where it is. */
+			tease: { start: 0.25, columns: 0.35, perScatter: 0.15, max: 0.85, trigger: 0.92 },
+			/** THE FEATURE ENTRY by the game's own feature names (BonusMode: bonus = Free Spins, super = Super Free Spins,
+			 *  epic = Epic Free Spins): brightness x gain, the full fill held holdS seconds, the leading edge lead (as above),
+			 *  the fill speed x speed, the hold's shimmer */
+			levels: {
+				bonus: { gain: 1, holdS: 1.4, lead: 0.9, speed: 1, shimmer: 0.1 },
+				super: { gain: 1.4, holdS: 1.7, lead: 1.1, speed: 1.15, shimmer: 0.14 },
+				epic: { gain: 1.8, holdS: 2.0, lead: 1.3, speed: 1.3, shimmer: 0.18 },
+			},
+		},
+		/** STYLE 3, the ember breath: {"style":3,"speed":1570,"trail":650,"brightness":2,"color":"ember","pause":2.8}, Corey's
+		 *  numbers for the TOP tier. speed = a runner's art px a second, trail art px, pause = the mean s between runners.
+		 *  Every groove breathes at breathBase + breathAmp x b^2 (b a wave of breathS seconds, breathWave art px long, moving
+		 *  out from the lions); a runner is brightness x runnerGain, a burst runner x burstGain at x burstSpeed. */
+		bigWin: {
+			speed: 1570,
+			trail: 650,
+			brightness: 2,
+			pause: 2.8,
+			breathS: 5.5,
+			breathWave: 900,
+			breathBase: 0.1,
+			breathAmp: 0.32,
+			runnerGain: 1.1,
+			burstGain: 1.5,
+			burstSpeed: 2.4,
+			runnerMinLen: 120,
+			/** the fade out after the win screen, ms (then the idle spark's next lap) */
+			outMs: 900,
+			/** THE TIERS (the win screen's: 0 BIG, 1 SUPER, 2 MEGA, 3 EPIC, 4 MAX), each a share of the numbers above:
+			 *  brightness, runner speed, the gap between runners (x pause) and the runners burst on that tier's landing */
+			tiers: {
+				brightness: [0.35, 0.5, 0.68, 0.85, 1],
+				speed: [0.64, 0.73, 0.82, 0.91, 1],
+				gap: [1.8, 1.5, 1.3, 1.15, 1],
+				burst: [0, 2, 3, 5, 8],
+			},
+			/** a tier's brightness is reached over this, ms */
+			stepMs: 500,
+		},
 	},
 } as const;
 
@@ -3736,7 +3844,10 @@ export const TILE_VALUES = [2, 4, 8, 16, 32, 64, 128] as const;
 // own sound, the first at +10 semitones (tools/build_audiosprite.py MM_EVENTS). Until then the sixth
 // landing replayed the fifth. THE 8 SCATTER EPIC (math 2026.10.13, Corey's decision): a feature never
 // triggers on 7, and 8 (one in every column) is only ever an Epic's forced first board, on the reveal or
-// with 5 or 6 of them stung in; its 7th and 8th landings replay the sixth (Math.min below), no new sound.
+// with 5 or 6 of them stung in; its 7th and 8th landings replayed the sixth until 2026-11-17.
+// THE MARIMBA FAMILY (Corey 2026-11-17, approved as the new standard for his games): eight landings, a G major scale
+// G4 to G5 on a marimba knock, 0.40 s each (tools/build_audiosprite.py MM_SCATTER_FAMILY). The Nth landing of a spin
+// plays landing N for N = 1..8, so the 7th and 8th of an 8 scatter Epic have their own (the 8th is the octave, home).
 export const SCATTER_LAND_SOUND_MAP = {
 	1: 'sfx_scatter_land_1',
 	2: 'sfx_scatter_land_2',
@@ -3744,9 +3855,11 @@ export const SCATTER_LAND_SOUND_MAP = {
 	4: 'sfx_scatter_land_4',
 	5: 'sfx_scatter_land_5',
 	6: 'sfx_scatter_land_6',
+	7: 'sfx_scatter_land_7',
+	8: 'sfx_scatter_land_8',
 } as const;
 /** the last rung of the scatter landing ladder */
-export const SCATTER_LAND_SOUNDS = 6;
+export const SCATTER_LAND_SOUNDS = 8;
 
 /** the feature-entry fanfare, keyed by the tier that was opened */
 export const BONUS_TRIGGER_SOUND_MAP = {

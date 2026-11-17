@@ -21,6 +21,9 @@ export type SoundEffectName =
 	| 'sfx_scatter_land_4'
 	| 'sfx_scatter_land_5'
 	| 'sfx_scatter_land_6'
+	// the marimba family (2026-11-17, tools/build_audiosprite.py MM_SCATTER_FAMILY): eight landings, the 7th and 8th new
+	| 'sfx_scatter_land_7'
+	| 'sfx_scatter_land_8'
 	| 'sfx_ui_button'
 	| 'sfx_ui_spin'
 	| 'sfx_ui_bonus'

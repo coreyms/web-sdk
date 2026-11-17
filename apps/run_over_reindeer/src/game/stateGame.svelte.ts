@@ -73,6 +73,8 @@ export const stateGame = $state({
 	skipping: false,
 	/** this feature round has had its one scatter tease (constants LANE_FLOW tease.oncePerFeature) */
 	featureTeased: false,
+	/** the Grandma strikes so far in this bonus round (the Grandma gag plays on the first, later only on a paying spin) */
+	bonusGrandmaStrikes: 0,
 });
 
 /** the board clock's rate right now: the turbo level's own rate, times the hurry of a slam stop */

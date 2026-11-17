@@ -8,9 +8,13 @@
 	// in play and the round's length as the book gives them (they grow by 3 on a retrigger). The landing screen
 	// passes `title` so it always shows the name.
 	import { stateGame } from '../game/stateGame.svelte';
+	import { ROUND } from '../game/constants';
 
-	type Props = { width: number; height: number; lines?: 1 | 2; title?: boolean; roundOnly?: boolean };
-	const { width, height, lines = 2, title = false, roundOnly = false }: Props = $props();
+	// `plate`: the chrome's layout class; its bonus counter plate shows only where ROUND.counterPlate says so (all off since
+	// 2026-11-17: the LED strip shows the spins left)
+	type Props = { width: number; height: number; lines?: 1 | 2; title?: boolean; roundOnly?: boolean; plate?: 'landscape' | 'portrait' | 'phone' };
+	const { width, height, lines = 2, title = false, roundOnly = false, plate }: Props = $props();
+	const plateOn = $derived(!plate || ROUND.counterPlate[plate]);
 	const round = $derived(!title && stateGame.gameType === 'freegame' && stateGame.totalFs > 0);
 	const top = $derived(round ? (stateGame.bonusMode === 'super' ? 'SUPER SPINS' : 'FREE SPINS') : 'RUN OVER');
 	// spinsPlayed counts finished spins: the one in play is the next
@@ -19,7 +23,7 @@
 	const size = $derived(lines === 1 ? Math.min(height * 0.5, width / 10.4) : Math.min(height * 0.33, width / 5.6));
 </script>
 
-{#if round || !roundOnly}
+{#if (round || !roundOnly) && plateOn}
 <div class="sign" class:one={lines === 1} class:round class:super={round && stateGame.bonusMode === 'super'} data-title-sign style:width="{width}px" style:height="{height}px" style:font-size="{size}px" role="img" aria-label={round ? `${top} ${bottom}` : 'Run Over Reindeer'}>
 	{#if lines === 1}
 		<span>{top} {bottom}</span>

@@ -116,6 +116,12 @@ export class RoadSounds {
 		this.env.play(name, rate);
 	}
 
+	/** fade every play of a sprite name out over `ms`, then stop it (the LED board's tier sounds: the one before a new tier's
+	 *  start, 2026-11-17) */
+	fadeNamed(name: string, ms: number, why: string) {
+		this.fadeStop(name, Math.max(1, Math.round(ms)), why);
+	}
+
 	/** stop every play of a sprite name now (the line show's one voice, roadBoard.voiceLine) */
 	stopNamed(name: string, detail?: string) {
 		this.note('sound', name, `stop${detail ? ': ' + detail : ''}`);
