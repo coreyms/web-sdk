@@ -58,6 +58,8 @@ export class RoadSounds {
 	/** the last reel stop sound: when (performance.now) and which */
 	private reelStopT = -Infinity;
 	private reelStopName = '';
+	/** the board frame a slam stop's cut sounded its one stop on */
+	private cutFrame = -1;
 	/** the frame each tier's column win sound last played */
 	private winFrame: Record<string, number> = {};
 	private log: RoadSoundEntry[] = [];
@@ -122,11 +124,17 @@ export class RoadSounds {
 
 	/** A REEL'S STOP (roadBoard.updateReelStops), its own sound on this frame. At turbo 2 (`turbo2`) the five stops are one
 	 *  moment: a stop within REINDEER_SOUND.reelStopTurbo2.gapMs of the last one sounded is silent, and the last one, if it
-	 *  is still sounding (the spin before's), is stopped as this one starts: one at a time */
-	reelStop(reel: number, turbo2: boolean) {
+	 *  is still sounding (the spin before's), is stopped as this one starts: one at a time. On a slam stop's cut (`cut`)
+	 *  every lane still to stop stops on one board frame and they sound once, the first of them: keyed to that frame, not
+	 *  to real time, so a lane that stopped just before the press (under gapMs of real time earlier: a quick press, or a
+	 *  fast stepped clock) never silences the cut's stop */
+	reelStop(reel: number, turbo2: boolean, cut = false) {
 		const name = REINDEER_SOUND.reelStops[reel];
 		const now = performance.now();
-		if (turbo2) {
+		if (cut) {
+			if (this.cutFrame === this.frameNo) return;
+			this.cutFrame = this.frameNo;
+		} else if (turbo2) {
 			if (now - this.reelStopT < REINDEER_SOUND.reelStopTurbo2.gapMs) return;
 			// (a play that has already ended is gone from the player: stopping it does nothing)
 			if (this.reelStopName) this.env.stop(this.reelStopName);

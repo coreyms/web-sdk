@@ -39,6 +39,9 @@ const CLIPS = process.env.CLIPS === '1' || process.env.CLIPSONLY === '1';
 /** only the clips (no checks) */
 const CLIPSONLY = process.env.CLIPSONLY === '1';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
+/** SECTIONS=plans,slam,skip,autoplay,feature picks the sections (default all) */
+const SECTIONS = (process.env.SECTIONS || '').split(',').filter(Boolean);
+const SEC = (name) => !SECTIONS.length || SECTIONS.includes(name);
 if (OUT) mkdirSync(OUT, { recursive: true });
 const SIZES = SIZES_ALL.filter((s) => (ONLY.length ? ONLY.includes(s.name) : s.name !== 'short'));
 const RATE = [1, 1.7, 2.6];
@@ -136,7 +139,7 @@ try {
 		// every case at normal speed on the desktop; the turbo levels and the phone the cases that differ (none, a tease
 		// that misses, three, four, the cap)
 		const casesFor = (level) => (S.name === 'desktop' && level === 0 ? Object.keys(CASES) : S.name === 'desktop' ? ['none', 'miss', 'top3', 'sup', 'cap'] : ['none', 'miss', 'fs']);
-		for (const level of levels) {
+		for (const level of SEC('plans') ? levels : []) {
 			const L = level === 2 ? tune.flow.turbo2 : level === 1 ? tune.flow.turbo1 : tune.flow.normal;
 			const half = level === 2 && tune.flow.tease.turbo2 === 'half' ? 0.5 : 1;
 			const P = { gap: L.laneGapMs, travel: tune.flow.driveInMs, car: L.carGapMs, t1: tune.flow.tease.twoGapMs * half, t2: tune.flow.tease.threeGapMs * half, clear: L.clearGapMs, seen: tune.flow.seenMs };
@@ -162,7 +165,10 @@ try {
 				const byKey = new Map(ref.cars.map((q) => [`${q.l}:${q.k}`, q]));
 				const bad = plan.cars.filter((c) => {
 					const q = byKey.get(`${c.lane}:${c.k}`);
-					return !q || Math.abs(q.rel - c.rel) > 0.2 || Math.abs(q.dur - c.dur) > 0.2 || q.fs !== c.scatter;
+					// (a capped plan is compared through the snapshot's factor, rounded to 4 places: on a release near 5 s that is
+					// up to 0.25 ms, so 1 ms there)
+					const tol = capped ? 1 : 0.2;
+					return !q || Math.abs(q.rel - c.rel) > tol || Math.abs(q.dur - c.dur) > tol || q.fs !== c.scatter;
 				});
 				T.check(plan.cars.length === 20 && bad.length === 0, `${tag}: all 20 releases and drives match the page's schedule()${capped ? ` (capped, factor ${plan.factor})` : ''}`, bad.slice(0, 3).map((c) => ({ c, page: byKey.get(`${c.lane}:${c.k}`) })));
 				T.check(JSON.stringify(plan.seen) === JSON.stringify(ref.seen.map((x) => Math.round(x * 10) / 10)), `${tag}: the scatters are seen at ${plan.seen.join(', ') || 'none'} ms, as the page sees them`, { game: plan.seen, page: ref.seen });
@@ -287,7 +293,7 @@ try {
 		// following) and at the fastest moment (in the frame a car is released). After it: every car at its spot, the brake
 		// lights stopped, both stoplights red and not teasing, the tease loop stopped and not held, one stop sound, the
 		// round goes on (the trigger, the free spins) and the next spin is a normal one (its own tease, no cut)
-		{
+		if (SEC('slam')) {
 			const trig = [[0, 1], [1, 3], [2, 2]];
 			const fsBook = [
 				{ type: 'reveal', gameType: 'basegame', board: boardOf(trig, 9) },
@@ -305,11 +311,28 @@ try {
 				// the press lands before the next step, which releases a car: that car is released and stopped in one frame
 				{ name: 'the fastest moment (a car released in the slam frame)', book: book(boardOf(CASES.miss, 13)), release: true, when: (f, t) => f.teaseFrom !== null && t > f.teaseFrom && f.cars.some((c) => c.rel > t && c.rel <= t + FRAME) },
 			];
-			for (const SL of SLAMS) {
-				const tag = `${S.name}: slam at ${SL.name}`;
+			// THE SLOW REAL CLOCK (2026-11-16, the probe host's steady fails): the board clock is stepped by hand, but the game
+			// keys a few things to real time (performance.now: the one moment stop sound's gap, the fades). A host that steps
+			// fast puts many board frames in a few real ms, a slow one the other way round, so each slam is played twice: as
+			// the host steps, and with the page's real clock run at 1/50 (performance.now shimmed for that round only), which
+			// on any machine is a host that steps 50 times faster, and the Linux probe host's result on the Mac
+			const slowReal = (on) =>
+				R(p, (on) => {
+					const P = performance;
+					P.__realNow ??= P.now.bind(P);
+					window.__slowReal = on ? { base: P.__realNow(), k: 0.02 } : null;
+					P.now = () => {
+						const q = window.__slowReal;
+						return q ? q.base + (P.__realNow() - q.base) * q.k : P.__realNow();
+					};
+				}, on);
+			for (const SL of SLAMS.flatMap((x) => [x, { ...x, slow: true }])) {
+				const tag = `${S.name}: slam at ${SL.name}${SL.slow ? ', the real clock at 1/50' : ''}`;
+				await slowReal(!!SL.slow);
 				await R(p, () => window.__reindeer.roadSounds(true));
 				let slamAt = null;
 				let releasedAt = null;
+				const t0 = Date.now();
 				const rows = await stepRound(p, {
 					book: SL.book,
 					read: READ,
@@ -326,6 +349,8 @@ try {
 						}
 					},
 				});
+				await slowReal(false);
+				console.log(`   (${tag}: ${rows.length} stepped frames in ${Date.now() - t0} real ms)`);
 				const log = await R(p, () => window.__reindeer.roadSounds());
 				const fl = await R(p, () => window.__reindeer.flow());
 				const st = await R(p, () => window.__reindeer.roadSoundState());
@@ -338,8 +363,9 @@ try {
 				const restI = rows.findIndex((r) => slamAt !== null && r.i > slamAt && (restAt !== null ? r.sample.clock >= restAt : r.idle));
 				const after = rows.filter((r) => slamAt !== null && r.i > slamAt && (restI < 0 || r.i <= rows[restI].i));
 				T.check(after.length > 0 && restI > 0, `${tag}: ${after.length} frame(s) sampled from the press to the board at rest`, { slamAt, restI });
-				// (the board before's cars pulling away, phase 'out', are not this spin's)
-				const badCars = after.flatMap((r) => r.sample.cars.filter((c) => c[2] !== 'out' && !(c[2] === 'rest' || (c[2] === 'in' && c[4]))).map((c) => ({ i: r.i, c })));
+				// (the board before's cars pulling away, phase 'out', and the through traffic that crossed while the book was
+				// awaited, phase 'through', are not this spin's)
+				const badCars = after.flatMap((r) => r.sample.cars.filter((c) => c[2] !== 'out' && c[2] !== 'through' && !(c[2] === 'rest' || (c[2] === 'in' && c[4]))).map((c) => ({ i: r.i, c })));
 				T.check(after.length > 0 && badCars.length === 0, `${tag}: from the cut every car stands at its spot (none left in the tunnel or on its way)`, badCars.slice(0, 3));
 				const isCar = (c) => ['H1', 'H2', 'H3', 'H4'].includes(c[8]);
 				const restRow = restI > 0 ? rows[restI].sample : null;
@@ -350,7 +376,9 @@ try {
 				T.check(!st.tease, `${tag}: the tease loop is not held after the round`, st);
 				const restClock = restRow ? restRow.clock : Infinity;
 				const stopsAfter = log.filter((e) => e.kind === 'sound' && /^sfx_lane_stop_/.test(e.what) && cut && e.clock >= cut.clock && e.clock <= restClock);
-				T.check(stopsAfter.length === 1, `${tag}: the cut's stops sound once (${stopsAfter.length})`, stopsAfter);
+				// (on a fail: every stop of the cut spin with its real ms (t) and board clock, and the cut's)
+				const spinStops = log.filter((e) => e.kind === 'sound' && /^sfx_lane_stop_/.test(e.what) && e.clock <= restClock).map((e) => [e.what, e.clock, Math.round(e.t)]);
+				T.check(stopsAfter.length === 1, `${tag}: the cut's stops sound once (${stopsAfter.length})`, { stopsAfter, spinStops, cut: cut && [cut.clock, Math.round(cut.t)], reelStops: log.filter((e) => e.what === 'reelStop').map((e) => [e.detail, e.clock, Math.round(e.t)]) });
 				if (SL.release) {
 					const keys = new Set(releasedAt ?? []);
 					const tr = rows.find((r) => r.i === slamAt + 1);
@@ -374,7 +402,7 @@ try {
 		}
 
 		// 8. SKIP TO RESULT during a tease: the loop stops
-		{
+		if (SEC('skip')) {
 			await R(p, () => window.__reindeer.roadSounds(true));
 			let skipped = false;
 			await stepRound(p, {
@@ -402,18 +430,26 @@ try {
 		}
 
 		// 8b. AUTOPLAY AT TURBO 1 through teasing spins (pass 8), in real time: every spin teases on its own (no hurry and
-		// no tease left over from the one before), and after the run nothing is held (the loop off, the lights still)
-		if (S.name === 'desktop') {
+		// no tease left over from the one before), and after the run nothing is held (the loop off, the lights still).
+		// The Stop autoplay press is also the slam stop of the spin it lands in (controls.svelte.ts spin()), so WHERE it
+		// lands decides the last spin's tease: pressed before that spin's tease began, the cut comes first and that spin
+		// never starts its loop (right: a slam before the tease has no tease); pressed in its tease, it starts and the cut
+		// stops it. Which one happened used to depend on the host's speed (the probe host pressed early, the Mac late), so
+		// both are played on purpose: 'early' freezes the board clock on the third play and presses then, 'late' presses
+		// once the third spin's tease has begun. One loop start and one stop for each tease that began.
+		for (const mode of S.name === 'desktop' && SEC('autoplay') ? ['early', 'late'] : []) {
+			const tagA = `${S.name}: autoplay at turbo 1 (Stop pressed ${mode === 'early' ? 'before' : 'in'} the last spin's tease)`;
 			await R(p, () => {
 				const h = window.__reindeer;
 				h.clock(1);
 				h.turbo(1);
 				h.roadSounds(true);
-				if (h.fixtures.latency !== undefined) h.fixtures.latency = 0;
+				h.fixtures.latency(0);
 			});
 			const queueOne = (salt) => R(p, (b) => window.__reindeer.fixtures.queue(b, 0), book(boardOf(CASES.miss, salt)));
 			const before = (await R(p, () => window.__reindeer.fixtures.log().plays.length)) ?? 0;
-			const spinsBefore = (await R(p, () => window.__reindeer.flow().spins.length)) ?? 0;
+			// (the spin log keeps the last 40: this run's spins are the ones pressed from this board clock on)
+			const clockBefore = await R(p, () => window.__reindeer.flow().clock);
 			await queueOne(20);
 			await p.click('.hudp button[aria-label="Autoplay"]');
 			await sleep(700);
@@ -431,38 +467,52 @@ try {
 			let played = 0;
 			const t0 = Date.now();
 			while (played < 3 && Date.now() - t0 < 60000) {
-				const n = ((await R(p, () => window.__reindeer.fixtures.log().plays.length)) ?? 0) - before;
+				// ('early': the board clock stops in the same page turn that sees the third play, so its tease cannot begin)
+				const n = ((await R(p, ({ early, before }) => {
+					const h = window.__reindeer;
+					const k = h.fixtures.log().plays.length;
+					if (early && k - before >= 3) h.clock(0);
+					return k;
+				}, { early: mode === 'early', before })) ?? 0) - before;
 				if (n > played) {
 					played = n;
 					if (played < 3) await queueOne(20 + played);
 				}
-				await sleep(60);
+				await sleep(20);
 			}
-			// stop the run, then wait for the round to end at rest
+			if (mode === 'late')
+				for (let i = 0; i < 400; i++) {
+					if ((await R(p, () => window.__reindeer.roadSounds().filter((e) => e.what === 'teaseStart').length)) >= 3) break;
+					await sleep(20);
+				}
+			// stop the run (the board clock goes again after the press in 'early'), then wait for the round to end at rest
 			if (await R(p, () => document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay')) await p.click('.hudp button.spin').catch(() => {});
+			await sleep(300);
+			await R(p, () => window.__reindeer.clock(1));
 			for (let i = 0; i < 300; i++) {
 				const st = await R(p, () => ({ idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), auto: document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay' }));
 				if (st.idle && st.rest && !st.auto) break;
 				await sleep(150);
 			}
 			const fl = await R(p, () => window.__reindeer.flow());
-			const spins = fl.spins.slice(spinsBefore);
+			const spins = fl.spins.filter((x) => x.pressClock >= clockBefore);
 			const st = await R(p, () => window.__reindeer.roadSoundState());
 			const lite = await R(p, () => ({ lights: window.__reindeer.flowLite().lights.map((l) => [l.showing, l.teasing]), cars: window.__reindeer.brakes().map((b) => b.phase) }));
 			const log = await R(p, () => window.__reindeer.roadSounds());
-			T.check(started && spins.length >= 3, `${S.name}: autoplay at turbo 1 ran ${spins.length} spin(s)`, { started, played });
-			// (the Stop autoplay press is also the slam stop of the spin it lands in, by design: controls.svelte.ts spin(), so
-			// the LAST spin may be cut; every one before it must not be)
-			T.check(spins.length >= 3 && spins.every((x, i) => x.teaseFrom !== null && x.level === 1 && (!x.cut || i === spins.length - 1)), `${S.name}: autoplay at turbo 1: every spin teased on its own, none cut or hurried but the one the Stop press landed in`, spins.map((x) => [x.level, x.teaseFrom, x.cut]));
+			T.check(started && spins.length >= 3, `${tagA}: ran ${spins.length} spin(s)`, { started, played });
+			T.check(spins.length >= 3 && spins.every((x, i) => x.teaseFrom !== null && x.level === 1 && (!x.cut || i === spins.length - 1)), `${tagA}: every spin planned its own tease, none cut or hurried but the one the Stop press landed in`, spins.map((x) => [x.level, x.teaseFrom, x.cut]));
+			const begun = log.filter((e) => e.what === 'teaseStart').length;
 			const starts = log.filter((e) => e.what === 'sfx_scatter_tease' && /loop start/.test(e.detail || '')).length;
 			const stops = log.filter((e) => e.what === 'sfx_scatter_tease' && /stop/.test(e.detail || '')).length;
-			T.check(starts === spins.length && stops === spins.length && !st.tease, `${S.name}: autoplay at turbo 1: one tease loop started and stopped per spin (${starts} / ${stops}), none held after`, st);
-			T.check(lite.lights.every((l) => !l[1]) && lite.cars.every((ph) => ph === 'rest'), `${S.name}: autoplay at turbo 1: after the run every car parked, no light teasing`, lite);
+			const want = mode === 'early' ? spins.length - 1 : spins.length;
+			T.check(spins.length >= 3 && spins.at(-1).cut && begun === want, `${tagA}: the last spin cut, ${begun} of ${spins.length} teases begun (${want} wanted)`, { begun, cut: spins.map((x) => x.cut) });
+			T.check(starts === begun && stops === begun && !st.tease, `${tagA}: one tease loop started and stopped per tease begun (${starts} / ${stops} for ${begun}), none held after`, { st, tease: log.filter((e) => e.what === 'sfx_scatter_tease' || /^tease|slamCut/.test(e.what)).map((e) => [e.what, e.detail, e.clock]) });
+			T.check(lite.lights.every((l) => !l[1]) && lite.cars.every((ph) => ph === 'rest'), `${tagA}: after the run every car parked, no light teasing`, lite);
 			await R(p, () => window.__reindeer.turbo(0));
 		}
 
 		// 9. A FEATURE ROUND: decides at three, at most one tease per round
-		if (S.name === 'desktop') {
+		if (S.name === 'desktop' && SEC('feature')) {
 			const two = boardOf(CASES.miss, 5);
 			const two2 = boardOf(CASES.top2, 6);
 			const three = boardOf(CASES.fs, 7);
