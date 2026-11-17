@@ -10,7 +10,7 @@
 //   - THE PICTURE (pixels: a screenshot with the shadows off against one with them on, compared in the page): the art
 //     of every symbol is untouched (no shadow over a symbol), and each symbol's shadow darkens a real patch of road
 //     beside it (its area in CSS px and how much darker it is: the "does it read" numbers)
-//   - the WebGL draw calls per frame with the shadows off and on (no extra draw call)
+//   - the WebGL draw calls per frame with the shadows off and on (no extra draw call; the billboard's lamps held lit)
 //   - three columns standing: each character's twin lies on its own cloud (in its column's back layer, over the
 //     backdrop, under the character and the red frame), moved by SHADOW.column, cropped to the inside of the box, from
 //     the very sheet the character draws; they leave with their columns
@@ -251,9 +251,15 @@ async function stills(p, S, out) {
 	// (pass 8) the seated drivers' idle animations (pass 7: Santa's and Grandma's heads) run on performance.now(): held on
 	// one moment (the dev hook seatTime) and the board clock frozen for the two pictures, so they compare the same
 	// animation frame (a moved head is not a shadow over the art)
+	// (scene pass 9 fix, 2026-11-17) the billboard's lamps blink on real time, and a lit lamp costs draw calls of its own
+	// (its glass and its added glow: 9 calls a frame with both dark, 10 one lit, 12 both): held lit for the two windows, so
+	// the off and on counts compare the same frame and not two moments of the blink
 	await R(p, () => {
-		window.__reindeer.seatTime(1000);
-		window.__reindeer.clock(0);
+		const h = window.__reindeer;
+		h.seatTime(1000);
+		h.clock(0);
+		const L = h.tune.logoSign?.lamps;
+		if (h.logoHold && L) h.logoHold(L.darkMs + L.stepMs + L.fadeMs + 50);
 	});
 	for (const mode of ['off', 'on']) {
 		await setShadows(p, mode === 'on');
@@ -275,6 +281,7 @@ async function stills(p, S, out) {
 	await R(p, () => {
 		window.__reindeer.clock(1);
 		window.__reindeer.seatTime(null);
+		window.__reindeer.logoHold?.(null);
 	});
 	const pix = await R(p, PIXELS, { off: shots.off, on: shots.on, dpr: S.dpr });
 	const art = pix.filter((x) => x.artMax > 3);

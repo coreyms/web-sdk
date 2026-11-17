@@ -5,7 +5,8 @@
 // board's clock and steps it one 60 Hz render frame at a time, logging per frame: the pose count, the view (R S Q M C),
 // the stride pose, the feet x / y (road px), the draw scale and whether the picture is mirrored. Then it checks:
 //   - poses shown in order, never one skipped (each frame the stride stays or goes +1 mod 16)
-//   - S and M are exactly one pose each, the run down starts on pose 7, C never shows poses 3 to 6
+//   - S and M are exactly one pose each, the run down starts on pose 7, C never shows poses 3 to 6 (below 60 Hz the run
+//     down may be absent only when the frame after M is the impact's: no frame was drawn that could show it)
 //   - the first pose follows (7 - n) mod 16 with n counted in poses; the run ends on the target reel's centre
 //   - ROUND 2 (2026-11-15, the run between the traffic): the run down (C) is on the gap at the edge of the target's
 //     reel (the side he comes from, or the inner side for an outer reel), the last cut is Q poses running toward the
@@ -136,13 +137,19 @@ const analyse = (rows, { side, cell, strict = true }) => {
 		if (!poses.length || poses[poses.length - 1].idx !== idx) poses.push({ ...r, idx });
 	}
 	const order = poses.map((p) => p.view).join('');
-	if (!(strict ? /^R+SQ+MC+Q+$/ : /^R*SQ*MC+Q+$/).test(order)) issues.push(`view order ${order}`);
+	// (scene pass 9 fix, 2026-11-17) below 60 Hz the run down may be missing on one case only: the M pose was drawn
+	// late and the very next drawn frame is already the impact's (the game's rule, roadFeatures.ts updateRunner: the
+	// impact is on time, at the target, in the cut's view; a missed run down is not drawn late on the impact frame). No
+	// frame was drawn on which the run down could have shown, so nothing was skipped that a screen at that rate could draw.
+	const lastM = rows.map((r) => r.view).lastIndexOf('M');
+	const noRoomForC = !strict && !rows.some((r) => r.view === 'C') && lastM >= 0 && !!rows[lastM + 1]?.impact;
+	if (!(strict ? /^R+SQ+MC+Q+$/ : noRoomForC ? /^R*SQ*MQ+$/ : /^R*SQ*MC+Q+$/).test(order)) issues.push(`view order ${order}`);
 	const count = (v) => poses.filter((p) => p.view === v).length;
 	if (count('S') !== 1) issues.push(`S poses ${count('S')}`);
 	if (count('M') !== 1) issues.push(`M poses ${count('M')}`);
 	if (strict) for (let k = 1; k < poses.length; k++) if (poses[k].idx !== poses[k - 1].idx + 1) issues.push(`pose index ${poses[k - 1].idx} -> ${poses[k].idx}`);
 	const firstC = poses.find((p) => p.view === 'C');
-	if (!firstC || firstC.stride !== 7 || firstC.idx !== rows[0].poses.along) issues.push(`run down starts on pose ${firstC?.stride}`);
+	if (!noRoomForC && (!firstC || firstC.stride !== 7 || firstC.idx !== rows[0].poses.along)) issues.push(`run down starts on pose ${firstC?.stride}`);
 	// the protected poses' lateness (ms of the road clock behind their own time; 0 when drawn on time)
 	const lateOf = (idx) => Math.max(0, ...rows.filter((r) => r.index === idx).slice(0, 1).map((r) => r.late ?? 0));
 	const prot = { S: lateOf(rows[0].poses.side), M: lateOf(rows[0].poses.side + 1 + rows[0].poses.diagonal), C: lateOf(rows[0].poses.along), cut: lateOf(rows[0].poses.along + rows[0].poses.down) };
@@ -206,6 +213,7 @@ const analyse = (rows, { side, cell, strict = true }) => {
 		keepMs: rows[0].keepMs,
 		kept: rows[0].kept,
 		skipped: skips,
+		noRoomForC,
 		renderFrames: rows.length,
 		issues,
 	};
@@ -254,7 +262,7 @@ const main = async () => {
 								const dd = q.impactMs - r.impactMs;
 								if (Math.abs(dd) > Math.max(frame, 1000 / 60) + 1e-6) b.issues.push(`duration ${q.impactMs.toFixed(1)} against ${r.impactMs.toFixed(1)} at 60 Hz`);
 								for (const [k, v] of Object.entries(b.late)) if (v > 2 * frame) b.issues.push(`${k} drawn ${v.toFixed(1)} ms late`);
-								a.rates[hz] = { impactMs: +q.impactMs.toFixed(2), diffMs: +dd.toFixed(2), frameMs: +frame.toFixed(2), late: b.late, skipped: b.skipped, order: b.order, issues: b.issues };
+								a.rates[hz] = { impactMs: +q.impactMs.toFixed(2), diffMs: +dd.toFixed(2), frameMs: +frame.toFixed(2), late: b.late, skipped: b.skipped, order: b.order, noRoomForC: b.noRoomForC, issues: b.issues };
 							}
 						}
 				// the far side strike into the top row at the default entry ('far'): reel 5 comes from the left
@@ -489,7 +497,7 @@ const main = async () => {
 			const xs = L.strikes.map((st) => st.rates[hz]);
 			const bad = xs.filter((x) => x.issues.length);
 			const lateMax = (k) => Math.max(...xs.map((x) => x.late[k])).toFixed(1);
-			console.log(`${L.name} ${hz} Hz: ${xs.length} strikes, ${bad.length} with issues${bad.length ? ' ' + JSON.stringify(bad[0].issues) : ''}; duration diff ${Math.min(...xs.map((x) => x.diffMs)).toFixed(1)} .. ${Math.max(...xs.map((x) => x.diffMs)).toFixed(1)} ms; late S ${lateMax('S')} M ${lateMax('M')} C ${lateMax('C')} cut ${lateMax('cut')} ms; skipped up to ${Math.max(...xs.map((x) => x.skipped))}`);
+			console.log(`${L.name} ${hz} Hz: ${xs.length} strikes, ${bad.length} with issues${bad.length ? ' ' + JSON.stringify(bad[0].issues) : ''}; duration diff ${Math.min(...xs.map((x) => x.diffMs)).toFixed(1)} .. ${Math.max(...xs.map((x) => x.diffMs)).toFixed(1)} ms; late S ${lateMax('S')} M ${lateMax('M')} C ${lateMax('C')} cut ${lateMax('cut')} ms; skipped up to ${Math.max(...xs.map((x) => x.skipped))}; no frame for the run down (M, then the impact's frame) ${xs.filter((x) => x.noRoomForC).length}`);
 		}
 	const all = report.layouts.flatMap((L) => L.strikes.flatMap((s) => [s.issues, ...Object.values(s.rates || {}).map((x) => x.issues)]));
 	const realAll = (report.real || []).flatMap((R) => R.runs.map((x) => x.issues));
