@@ -88,14 +88,6 @@ export const stagingTeaseHoldMs: number | null = holdS === null ? null : Math.ro
 /** `?fall=` (null: none) */
 export const stagingTeaseFall: number | null = rangedKnob('fall', TEASE_FALL_RANGE);
 
-// ---- THE PHONE LOGO'S SHINE (LOGO.still.shine; Corey 2026-10-20, the glints "pretty aggressive" on the phone) ---------
-// `?glint=<n>` scales the still logo's Shine opacity (the phone and tablet logo; the desktop's animated logo is untouched)
-// on a staging build or the dev server, held to GLINT_RANGE (default 1 = the constant), so values can be tried on a phone
-// without a rebuild. Never in a production build.
-export const GLINT_RANGE = { min: 0, max: 2 } as const;
-/** `?glint=` (null: none, 1) */
-export const stagingGlint: number | null = rangedKnob('glint', GLINT_RANGE);
-
 // ---- THE TILE MILESTONE FLARE (TILE_FLARE.enabled; Corey 2026-10-23, "I need to see it against the regular animations") ----
 // `?flare=1` turns the flare on and `?flare=0` off on a staging build or the dev server, whatever TILE_FLARE.enabled says,
 // so it can be played beside the regular animations without a rebuild. Never in a production build (STAGING_TOOLS is a

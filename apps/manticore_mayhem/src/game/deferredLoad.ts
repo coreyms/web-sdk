@@ -25,7 +25,7 @@
 //   creatureActs   his attacks (swipe, roar, the sting run) and the glow; BESIDE the scene groups below when
 //           LOAD_GATE.sceneBesideAttacks (his sheets go one at a time, each decoded and uploaded before the next is asked
 //           for, and the scene's files fill the pipe in those gaps), else strictly before them
-//   scatter (the cheaper variant only), night, frameNight, sunset, flameSuper, flameEpic, logo (fallback), labels   game/assets.ts
+//   scatter (the cheaper variant only), night, frameNight, sunset, flameSuper, flameEpic, labels   game/assets.ts
 //           DEFERRED_ORDER, one after another
 //   creatureAlts   his snarl and growl, held until the above are in (constants CREATURE.restHeldAfter)
 // The shared loader then runs its batch as before: Pixi's cache answers at once for everything loaded here,
@@ -34,15 +34,13 @@
 //   armoury   LAST, once stateApp.loaded is set (components/Game.svelte): THE ARMOURY's menu core, the feature menu's
 //           small HTML pictures (game/armouryLoad.ts; logged here as deferredLog.groups.armoury). Not Pixi assets.
 //           The symbol pay popup's ten tile pictures (components/SymbolPopup.svelte) are asked for at that same moment.
-// The canvas logo (desktop tier) is not in either part: loadLogoEarly starts it when the preload ends, beside the audio.
 import * as PIXI from 'pixi.js';
 
-import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, GATE_ORDER, LOGO_DATA_URLS, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS, gateFileBytes } from './assets';
+import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, GATE_ORDER, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS, gateFileBytes } from './assets';
 import { fileBytes } from './assetStamp';
 import { markPlaqueAssetsReady } from './assetGate';
 import { loadCreatureBoot, releaseCreatureRest } from './creatureLoad';
 import { loadGate as gateState, markGateSettled } from './loadGate.svelte';
-import { loadLogoData } from './logo/data';
 import { loadStingerData } from './stinger/data';
 import { STAGING_TOOLS, perfMark } from './staging';
 import { LOAD_GATE } from './constants';
@@ -136,9 +134,9 @@ const bytesOfUrl = (url: string): number => {
 
 const loadGroup = async (app: AppState, name: string, keys: string[], opts: GroupOptions = {}) => {
 	const table = assets as unknown as Record<string, Entry>;
-	if (!keys.length) return; // the logo group on the phone tier
+	if (!keys.length) return; // an empty group (the cheaper variant's scatter sheets while they are in the gate)
 	const log = (deferredLog.groups[name] = { start: performance.now(), end: 0, keys: keys.length, failed: 0 });
-	const data = name === 'plaque' ? loadStingerData(STINGER_DATA_URLS) : name === 'logo' ? loadLogoData(LOGO_DATA_URLS) : null;
+	const data = name === 'plaque' ? loadStingerData(STINGER_DATA_URLS) : null;
 	const extra = data
 		? data.then(
 				() => {
@@ -221,19 +219,7 @@ export const loadGate = (app: AppState, audioReady: () => boolean): Promise<void
 	return gate;
 };
 
-// THE LOGO DOES NOT WAIT FOR THE DEFERRED PHASE (desktop tier). Its entrance plays when the game first shows,
-// and the deferred phase only starts once the audio is in, which is also the moment the landing screen can be
-// pressed: a quick press beat the logo every time, even on a local server. So its one atlas and two data files
-// (0.35 MB) start when the Pixi preload ends (components/Game.svelte), beside the audio's 1.1 MB. It gates
-// nothing: if the press still comes first the chrome's still stands in and the canvas logo takes over without
-// an entrance (components/Logo.svelte). The ordered phase below then finds the group done.
-let logoEarly: Promise<void> | null = null;
-export const loadLogoEarly = (app: AppState): Promise<void> => {
-	const keys = DEFERRED_ORDER.find((g) => g.name === 'logo')?.keys ?? [];
-	logoEarly ??= loadGroup(app, 'logo', keys).catch(() => {});
-	return logoEarly;
-};
-const runGroup = (app: AppState, g: Group): Promise<void> => (g.name === 'logo' && logoEarly ? logoEarly : loadGroup(app, g.name, g.keys));
+const runGroup = (app: AppState, g: Group): Promise<void> => loadGroup(app, g.name, g.keys);
 /** DEV, the probe only (`?creaturehold=1`): his attacks and alternates stay held until __manticore.creatureRestRelease(),
  *  so the probe can ask him for an attack while only his idle sheet is in (game/creatureLoad.ts holds after his idle
  *  group then, not after his attacks) */

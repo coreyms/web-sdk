@@ -28,8 +28,8 @@
 	// from the frame art (tools/build_board_layers.py erase_leaned_links): the loop runs straight up to the
 	// bracket's underside (clip[0]) and down to the plinth's shackle (clip[1]), where the strip is cut.
 	//
-	// THE GUSTS (CHAIN_GUST, Corey 2026-10-10): the air of a drop-in (the win plaque's slam, a count-up passing a tier,
-	// the logo's entrance) leans the runs away from where it landed. A second scalar spring (`gust`) beside the kick's,
+	// THE GUSTS (CHAIN_GUST, Corey 2026-10-10): the air of a drop-in (the win plaque's slam, a count-up passing a tier)
+	// leans the runs away from where it landed. A second scalar spring (`gust`) beside the kick's,
 	// with the same CHAIN_BOW constants and step so the chain's own weight reads the same, but in REAL time (it is air)
 	// and driven by the sum of the gusts' half-sine pulses (game/featureFx.ts gustFx, read through a cursor like the
 	// haul's presses). It moves the vertices only, sideways and opposite on the two runs, never the frame or the ends.
@@ -544,7 +544,7 @@
 	/** a run's sideways travel per px of the gust spring: the kick's own travel per px of `bow` (D = (0.6 d, vertical d)) */
 	const GUST_TRAVEL = Math.hypot(0.6, CHAIN_BOW.vertical);
 	const gp = new PIXI.Point();
-	/** each run leans away from the landing: from the board's centre (null), or from a canvas x (the logo) */
+	/** each run leans away from the landing: from the board's centre (null), or from a canvas x (none pushes one since the old logo's entrance went) */
 	const aim = (sourceX: number | null) => {
 		if (sourceX === null) {
 			gust.dirL = -1;
@@ -561,7 +561,7 @@
 		for (let i = list.length - fresh; i < list.length; i += 1) gustLive.push(list[i]);
 		gust.seen = gustFx.count;
 		let k = 0;
-		// REPLACE, NOT ADD (Corey 2026-11-02: "Replace on the chain lean/kick, yes"): a drop-in's gust (the plaque's, the logo's, a
+		// REPLACE, NOT ADD (Corey 2026-11-02: "Replace on the chain lean/kick, yes"): a drop-in's gust (the plaque's, a
 		// tier's) starting while the press lean is still in flight throws the lean away, pulse and spring both, so the drop-in's
 		// lean plays as designed on a chain at rest instead of on top of the press's
 		let replace = false;

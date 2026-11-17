@@ -148,14 +148,14 @@ export const introGateTop = (kind: LayoutKind) => {
 	return MASTER[kind].height - g.pad - tall;
 };
 
-/** logo width + centre (master px): the stacked logo, centred above the cards (constants LOGO.landing) */
+/** logo width + centre (master px): the tablet, centred above the cards (constants LOGO.landing) */
 export const INTRO_LOGO: Record<LayoutKind, { w: number; cx: number; cy: number }> = {
 	landscape: { w: LOGO.landing.landscape.width, cx: LOGO.landing.landscape.cx, cy: LOGO.landing.landscape.cy },
 	phone: { w: LOGO.landing.phone.width, cx: LOGO.landing.phone.cx, cy: LOGO.landing.phone.cy },
 	portrait: { w: LOGO.landing.portrait.width, cx: LOGO.landing.portrait.cx, cy: LOGO.landing.portrait.cy },
 };
-export const INTRO_LOGO_SHINE_MS = 4500; // the sweep's idle period (Corey: shine, 4.5 s)
-/** the stacked logo picture's height per px of width (static/assets/ui/logo-stacked.webp is 1190 x 470, the art box of LOGO.art) */
+/** the tablet's height per px of width (static/assets/ui/logo-tablet.webp, LOGO.art): the cards' band starts under its
+ *  own bottom edge (since 2026-11-17: the old stacked logo's box was 17 % taller, and the band followed that) */
 const LOGO_ASPECT = LOGO.art.height / LOGO.art.width;
 
 /** how the cards stand: `row` three across; `stack` one at a time under the logo (upright screens);
