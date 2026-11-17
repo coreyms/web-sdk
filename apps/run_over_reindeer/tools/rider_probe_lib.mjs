@@ -88,7 +88,9 @@ export async function stepRound(p, { book, turbo = 0, read, frames = null, clip 
 	await R(p, ({ book, turbo }) => {
 		const h = window.__reindeer;
 		h.turbo(turbo);
-		if (h.fixtures.latency !== undefined) h.fixtures.latency = 0;
+		// (latency is a function: assigning 0 to it left the fixtures' 120 real ms wait on, which a fast host steps through
+		// as many board frames and a slow one as none, so the book came at a host dependent board time)
+		if (typeof h.fixtures.latency === 'function') h.fixtures.latency(0);
 		h.fixtures.queue(book, 0);
 		h.clock(0);
 	}, { book, turbo });

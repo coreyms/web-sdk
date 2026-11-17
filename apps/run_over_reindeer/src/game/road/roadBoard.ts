@@ -1464,7 +1464,7 @@ export class RoadBoard {
 				this.reelStopAt[col] = null;
 				fired = true;
 				this.features.sounds.mark('reelStop', this.flow ? `lane ${col + 1}` : `reel ${col + 1}`);
-				this.features.sounds.reelStop(col, this.reelStopTurbo2 || this.cutOneMoment);
+				this.features.sounds.reelStop(col, this.reelStopTurbo2, this.cutOneMoment);
 			} else {
 				left += 1;
 				last = Math.max(last, at);
