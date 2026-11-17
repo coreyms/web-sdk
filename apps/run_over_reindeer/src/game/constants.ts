@@ -619,6 +619,8 @@ export const LANE_FLOW = {
 	},
 	/** the press to the board at rest, road clock ms, never more than this at normal speed: the tease gaps give way */
 	capMs: 6500,
+	/** what the cap keeps back for the frame the rest is seen on and the last settle's rounding (road clock ms) */
+	capPadMs: 40,
 };
 
 /** the motion numbers for a turbo level: the base set with that level's overrides laid over it */
@@ -874,6 +876,13 @@ export const REINDEER_SOUND = {
 	 *  fadeMs fade when the tease is over (the deciding scatter seen, or the last car seen), at once (8 ms) on a slam
 	 *  stop's cut, under SKIP TO RESULT and when the board goes. */
 	tease: { name: 'sfx_scatter_tease', rateAtThree: 1.122, fadeMs: 140 },
+	/** THE HOUSE SCATTER LANDINGS (pass 8, Corey: "use the same sounds as Angry Mantis and Manticore Unleashed for Scatter
+	 *  and Entry sounds"): the house family, the same files as Angry Mantis and Manticore (the sprite's house set), one per
+	 *  scatter on the frame it is SEEN (LANE_FLOW seenMs after its car leaves the tunnel, the tease's own moment): the
+	 *  spin's 1st scatter names[0], the 2nd names[1] and so on, rising (the base game shows at most 5, a free spin 3). A
+	 *  slam stop's cut sounds the ones not yet played ONCE together: the rung of the spin's whole count, on the cut's
+	 *  frame. Dropped under SKIP TO RESULT (components/Sound.svelte drops every one-shot then). */
+	scatterLand: { names: ['sfx_scatter_land_1', 'sfx_scatter_land_2', 'sfx_scatter_land_3', 'sfx_scatter_land_4', 'sfx_scatter_land_5'] },
 	/** TURBO 2's reel stop (pass 5): a reel's stop within gapMs (real ms) of the last reel stop sound is silent (the five
 	 *  land within about 20 ms, so one sound per spin), and one still sounding from the spin before (Super's spins come
 	 *  about 450 ms apart, the sound is 454 ms) is stopped as the next starts, so it never plays twice at once */
@@ -1082,14 +1091,27 @@ export const BRAKE_LIGHTS = {
 	on: true,
 	tint: 0xff2a1a,
 	coreTint: 0xffc2b0,
-	/** the glow's width per lamp size (road px), its squash (height against width) */
+	/** the glow's width per lamp (road px), its squash (height against width). Corey's tuned numbers (pass 8,
+	 *  brake_light_halo_mock_2026-11-16.html read back): glow 46, squash 85%, core 15 */
 	glow: { size: 46, squash: 0.85 },
 	core: { size: 15 },
-	/** brightness while braking and while stopped (0..1), and how fast it changes (ms to full) */
-	brake: 1,
-	stopped: 0.42,
+	/** THE HALO (pass 8, Corey: "if the bracklights had some halo glow effect, it would still work to look like brake
+	 *  lights on grandma's car"): a soft red blob behind each lamp, the same glow texture tinted and added (no filter,
+	 *  shader, mask or blur). size road px wide, squash its height against its width (the page's 0.8); brake / stopped
+	 *  its alpha while braking and while stopped. The far lamp's halo is drawn UNDER the car (over its cast shadow), so the body covers its forward half. */
+	halo: { size: 122, squash: 0.8, brake: 0.38, stopped: 0.16 },
+	/** the lamp's brightness while braking and while stopped (0..1; the same since pass 8: the halo carries the
+	 *  difference), and how fast lamp and halo change (ms to full) */
+	brake: 0.41,
+	stopped: 0.41,
 	attackMs: 40,
 	releaseMs: 160,
+	/** the far lamp (and its halo) at this share of the near lamp's strength */
+	farShare: 0.76,
+	/** the far lamp's move from game/brakeLightSpec.ts (Corey's, road px at the symbol's built size, x right and y down
+	 *  for the RIGHT-facing frame; the left-facing frame takes x mirrored). Kept here, beside the generated spec, so a
+	 *  rebuild of the spec keeps them. The near lamps stay where the spec has them. */
+	farOffset: { H1: [-0.5, -27.5], H2: [-1.5, -32], H3: [1.5, -52.5], H4: [0.5, -18] } as Record<string, [number, number]>,
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */

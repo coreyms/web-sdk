@@ -208,6 +208,13 @@ export class RoadSounds {
 		this.env.rate?.(REINDEER_SOUND.tease.name, rate);
 	}
 
+	/** THE HOUSE SCATTER LANDING (constants REINDEER_SOUND scatterLand): the `n`th scatter of the spin, its rung (the
+	 *  family's last for any past it) */
+	scatterLand(n: number, detail: string) {
+		const names = REINDEER_SOUND.scatterLand.names;
+		this.playNamed(names[Math.max(0, Math.min(names.length, n) - 1)], detail);
+	}
+
 	/** the tease is over (decided, the last car seen, a slam stop, a skip, the board going): a fade, then the stop */
 	teaseStop(why: string, ms: number) {
 		if (!this.teaseOn) return;

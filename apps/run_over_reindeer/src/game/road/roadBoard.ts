@@ -127,6 +127,8 @@ type Flow = {
 	soundDone: boolean;
 	stepped: boolean;
 	seenMarked: number;
+	/** the scatters whose landing sound has played (REINDEER_SOUND.scatterLand) */
+	landSounded: number;
 	cut: boolean;
 	/** DEV: performance.now() of the press, and when the board came to rest (the spin's length) */
 	pressReal: number;
@@ -187,6 +189,8 @@ export class RoadBoard {
 	private readonly policeLayer = new PIXI.Container();
 	/** THE BRAKE LIGHTS (game/road/brakeLights.ts, constants BRAKE_LIGHTS) */
 	private readonly brakeLayer = new PIXI.Container();
+	/** the far lamps' halos (constants BRAKE_LIGHTS.halo): over the ground's cast shadows, under every lane */
+	private readonly brakeBackLayer = new PIXI.Container();
 	/** THE SEATED DRIVERS' ANIMATIONS in this frame (game/road/seatedClips.ts): per character, the idle and the win if in */
 	/** DEV: the seated idle's clock by hand (ms), null = performance.now() */
 	seatTime: number | null = null;
@@ -297,6 +301,7 @@ export class RoadBoard {
 			this.root.addChild(bg);
 		}
 		this.root.addChild(this.ground);
+		this.root.addChild(this.brakeBackLayer);
 		for (let row = 0; row < ROWS; row++) {
 			const lane = new PIXI.Container();
 			this.lanes.push(lane);
@@ -608,7 +613,11 @@ export class RoadBoard {
 			for (const lane of m.laneOrder) placesOf(lane).forEach((col, k) => this.parks(board, col, lane) && input.push({ lane, k, scatter: board[col][lane] === 'S' }));
 			// no tease in a spin that drives in already hurried (a slam stop earlier in the round)
 			const tease = (opts.tease ?? true) && !this.hurrying;
-			plan = planFlow(input, flowParams(level, { free: !!opts.free, tease, budgetMs: LANE_FLOW.capMs - m.in.delayMs - m.in.settleMs }));
+			// THE CAP is from the PRESS to the board at rest (pass 8): the time already gone since the press (the pull away's
+			// delay and the wait for the book: `start` is when this drive in begins), the last car's settle after its stop,
+			// and the frame the rest is seen on all come out of capMs before the release schedule gets the rest
+			const lead = Math.max(m.in.delayMs, start - this.pressClock);
+			plan = planFlow(input, flowParams(level, { free: !!opts.free, tease, budgetMs: LANE_FLOW.capMs - lead - m.in.settleMs - LANE_FLOW.capPadMs }));
 			for (const c of plan.cars) planned.set(`${c.lane}:${c.k}`, c);
 		}
 		const laneRel: number[][] = [[], [], [], []];
@@ -697,7 +706,7 @@ export class RoadBoard {
 				}
 			}
 			this.reelStopAt = laneSound;
-			this.flow = { start, plan, level, free: !!opts.free, laneRel, soundOn: false, soundDone: false, stepped: false, seenMarked: 0, cut: false, pressReal: this.pressReal };
+			this.flow = { start, plan, level, free: !!opts.free, laneRel, soundOn: false, soundDone: false, stepped: false, seenMarked: 0, landSounded: 0, cut: false, pressReal: this.pressReal };
 			this.spinLog.push({ pressReal: this.pressReal, restReal: null, pressClock: this.pressClock, startClock: start, restClock: null, level, scatters: plan.seen.length, factor: plan.factor, teaseFrom: plan.teaseFrom, end: plan.end, cut: false });
 			if (this.spinLog.length > 40) this.spinLog.shift();
 			this.features.sounds.mark('flowPlan', `${plan.cars.length} cars, ${plan.seen.length} scatter(s), tease ${plan.teaseFrom === null ? 'none' : Math.round(plan.teaseFrom)}, end ${Math.round(plan.end)}, factor ${plan.factor.toFixed(3)}`);
@@ -757,6 +766,14 @@ export class RoadBoard {
 		}
 		this.features.sounds.mark('slamCut', 'the drive in cut to the stopped board');
 		this.features.sounds.teaseStop('slam stop', REINDEER_SOUND.stopFadeMs);
+		// the scatters not yet seen are on the board now: their landings sound ONCE together, the rung of the whole count
+		const f = this.flow;
+		if (f && f.landSounded < f.plan.seen.length) {
+			const n = f.plan.seen.length;
+			const unplayed = n - f.landSounded;
+			f.landSounded = n;
+			this.features.sounds.scatterLand(n, `slam stop, ${unplayed} not yet played, once together`);
+		}
 	}
 
 	private spawnThrough(lane: number, at: number, m: RoadMotion) {
@@ -1313,6 +1330,12 @@ export class RoadBoard {
 		while (f.seenMarked < f.plan.seen.length && t >= f.plan.seen[f.seenMarked]) {
 			f.seenMarked += 1;
 			S.mark('scatterSeen', `${f.seenMarked} of ${f.plan.seen.length}`);
+			// THE HOUSE SCATTER LANDING (REINDEER_SOUND.scatterLand): its rung on the frame it is seen (after a cut the later
+			// planned moments stay silent: the cut sounded them)
+			if (!f.cut && f.landSounded < f.seenMarked) {
+				f.landSounded = f.seenMarked;
+				S.scatterLand(f.seenMarked, `seen, ${f.seenMarked} of ${f.plan.seen.length}`);
+			}
 		}
 		if (f.cut) return;
 		const P = f.plan;
@@ -1356,7 +1379,7 @@ export class RoadBoard {
 			let state: BrakeState = 'off';
 			if (car.phase === 'rest') state = 'stopped';
 			else if (car.phase === 'in') state = now >= car.stopAt ? 'stopped' : now >= car.stopAt - car.b && now >= car.rel ? 'brake' : 'off';
-			const pair = (car.brake ??= new BrakeLightPair(this.brakeLayer, glow));
+			const pair = (car.brake ??= new BrakeLightPair(this.brakeLayer, glow, this.brakeBackLayer));
 			pair.draw(car.sprite, frameFor(car.symbol!, car.dir), this.builtK(car), (car.tintNow & 0xff) / 255, state, dtMs);
 		}
 	}

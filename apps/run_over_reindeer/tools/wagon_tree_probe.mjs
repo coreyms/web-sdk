@@ -38,7 +38,7 @@ const NEXT = [['L1', 'L2', 'L3', 'L4'], ['L5', 'L1', 'L2', 'L3'], ['L4', 'L5', '
 // a Santa column over reel 2 with two wagons in it (cells 9 and 10)
 const COLUMN = [['L1', 'L2', 'L3', 'L4'], ['L5', 'L1', 'L2', 'L3'], ['W', 'H2', 'H2', 'L2'], ['L3', 'L4', 'L5', 'L1'], ['L2', 'H2', 'L4', 'L5']];
 const book = (board, extra = []) => [{ index: 0, type: 'reveal', gameType: 'basegame', board }, ...extra.map((e, i) => ({ index: i + 1, ...e })), { index: extra.length + 1, type: 'finalWin', amount: 0 }];
-const READ = (h) => ({ trees: h.trees(), stray: h.strayRiders(), phases: h.road().phases });
+const READ = (h) => ({ trees: h.trees(), stray: h.strayRiders(), phases: h.road().phases, brakes: h.brakes().filter((b) => b.symbol === 'H2' && b.phase === 'rest').map((b) => ({ lane: b.lane, col: b.col, v: b.v, b: b.b })) });
 
 const T = tally();
 const browser = await chromium.launch({ args: ['--mute-audio'] });
@@ -48,6 +48,7 @@ try {
 		const { ctx, p, errs } = await boot(browser, S, 'tree');
 		console.log(`-- ${S.name} ${S.vp.width}x${S.vp.height}`);
 		const tune = await R(p, () => JSON.parse(JSON.stringify(window.__reindeer.tune.wagonTree)));
+		const motion = await R(p, () => JSON.parse(JSON.stringify(window.__reindeer.tune.motion.base)));
 
 		// 1. THE POSED BOARD
 		await R(p, (b) => window.__reindeer.setBoard(b), LAND);
@@ -96,7 +97,8 @@ try {
 				if (t.phase === phase) live.add(t.slot);
 				else if (t.phase !== 'rest') live.delete(t.slot);
 				if (!live.has(t.slot)) continue;
-				const e = m.get(t.slot) ?? { min: 0, max: 0, body: 0, rope: 0, dir: t.dir };
+				const e = m.get(t.slot) ?? { min: 0, max: 0, body: 0, rope: 0, dir: t.dir, cell: null };
+				if (t.cell !== null) e.cell = t.cell;
 				e.min = Math.min(e.min, t.tipDy);
 				e.max = Math.max(e.max, t.tipDy);
 				e.body = Math.max(e.body, Math.abs(t.bodyDy));
@@ -107,7 +109,24 @@ try {
 		};
 		const stops = per(land, 'in');
 		const pulls = per(pull, 'out');
-		T.check(stops.length === wagons.length && stops.every((e) => e.max >= TIP_RANGE[0] && e.max <= TIP_RANGE[1]), `${S.name}: on the stop every wagon's tip dips ${stops.map((e) => e.max.toFixed(1)).join(', ')} road px (in ${TIP_RANGE.join(' to ')})`, stops);
+		// THE STOP'S DIP FOLLOWS THE CAR'S BRAKE (pass 8): with lane by lane traffic (constants LANE_FLOW) each car brakes
+		// from its own cruise speed v over its own b ms, a constant deceleration v x 1000 / b (road px/s^2), so a car with
+		// less far to go brakes more gently and its tree dips less. The tip's spring is linear up to its clamp (target =
+		// min(decel x gain, clamp)) and every brake pulse here is the same length (b = brakeMs), so its peak scales with
+		// that target. The old floor (TIP_RANGE[0]) was set on the convoy, every car braking at cruise x 1000 / brakeMs; each
+		// wagon's floor is that floor scaled by its own target against the convoy's. The upper bound stays.
+		const atRest = land.at(-1).sample.brakes;
+		const target = (decel) => Math.min(decel * tune.tip.gain, tune.tip.clamp);
+		const convoy = target((motion.cruise * 1000) / motion.in.brakeMs);
+		for (const e of stops) {
+			const car = atRest.find((b) => b.lane * 1 + b.col * 4 === e.cell);
+			e.decel = car ? Math.round((car.v * 1000) / car.b) : null;
+			e.floor = car ? Math.round(TIP_RANGE[0] * (target(e.decel) / convoy) * 100) / 100 : TIP_RANGE[0];
+			e.perTarget = car ? Math.round((e.max / target(e.decel)) * 100) / 100 : null;
+		}
+		T.check(stops.length === wagons.length && stops.every((e) => e.max >= e.floor && e.max <= TIP_RANGE[1]), `${S.name}: on the stop every wagon's tip dips ${stops.map((e) => `${e.max.toFixed(1)} (floor ${e.floor})`).join(', ')} road px (its floor from its own brake, at most ${TIP_RANGE[1]})`, stops);
+		const ratios = stops.map((e) => e.perTarget).filter((x) => x !== null);
+		T.check(ratios.length === stops.length && Math.max(...ratios) / Math.min(...ratios) <= 1.25, `${S.name}: each dip follows its car's deceleration (dip per spring target ${ratios.join(', ')}: within 25 percent of each other)`, stops.map((e) => ({ cell: e.cell, dip: e.max, decel: e.decel })));
 		T.check(pulls.length >= wagons.length && pulls.every((e) => -e.min >= TIP_RANGE[0] && -e.min <= TIP_RANGE[1]), `${S.name}: on the pull-away every wagon's tip lifts ${pulls.map((e) => (-e.min).toFixed(1)).join(', ')} road px (in ${TIP_RANGE.join(' to ')})`, pulls);
 		const bodyMax = Math.max(...stops.map((e) => e.body), ...pulls.map((e) => e.body));
 		const ropeMax = Math.max(...stops.map((e) => e.rope), ...pulls.map((e) => e.rope));

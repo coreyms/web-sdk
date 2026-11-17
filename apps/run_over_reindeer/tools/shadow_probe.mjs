@@ -248,6 +248,13 @@ async function stills(p, S, out) {
 	check(c.lanesAbove, `${S.name}: the ground layer (every twin) is under all four lanes`);
 	const modes = {};
 	const shots = {};
+	// (pass 8) the seated drivers' idle animations (pass 7: Santa's and Grandma's heads) run on performance.now(): held on
+	// one moment (the dev hook seatTime) and the board clock frozen for the two pictures, so they compare the same
+	// animation frame (a moved head is not a shadow over the art)
+	await R(p, () => {
+		window.__reindeer.seatTime(1000);
+		window.__reindeer.clock(0);
+	});
 	for (const mode of ['off', 'on']) {
 		await setShadows(p, mode === 'on');
 		const stats = await R(p, async () => {
@@ -265,6 +272,10 @@ async function stills(p, S, out) {
 	check(modes.on.sprites.shadows === 20 && modes.off.sprites.shadows === 0, `${S.name}: twins drawn: off 0, on 20`, modes);
 	check(modes.on.callsPerFrame <= modes.off.callsPerFrame + 0.01, `${S.name}: no extra draw call for the shadows (off ${modes.off.callsPerFrame}, on ${modes.on.callsPerFrame} per frame)`, modes);
 	// THE PICTURE
+	await R(p, () => {
+		window.__reindeer.clock(1);
+		window.__reindeer.seatTime(null);
+	});
 	const pix = await R(p, PIXELS, { off: shots.off, on: shots.on, dpr: S.dpr });
 	const art = pix.filter((x) => x.artMax > 3);
 	check(pix.length === 20 && art.length === 0, `${S.name}: no shadow is drawn over any symbol's art (its middle unchanged by the shadows, to 3 levels)`, art);

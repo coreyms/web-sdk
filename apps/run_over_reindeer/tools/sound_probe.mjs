@@ -46,6 +46,10 @@
 // present pop against the present's own trace (on the open's first DRAWN frame, whichever of its slots that frame shows),
 // or, when the open's pictures were not in time, on the trigger pulse's first frame. PRESENT_WAIT_MS=0 sets the trigger's
 // wait for the open's pictures (constants PRESENT.loadWaitMs) for the run, to make that fallback happen on purpose.
+// PASS 8 (2026-11-16, judgeScatter): the house scatter landings (sfx_scatter_land_1..5, the Angry Mantis / Manticore family)
+// on posed boards: one per scatter on the frame it is seen, rising with the count, at normal speed and both turbo levels;
+// a slam stop's cut sounds the ones not yet played once together (the whole count's rung), none after it. Cases scat0,
+// scat1, scat2, scatslam.
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 OUT=<dir> [ONLY=idle,slam] \
 //     [SIZES=desk,phone] node tools/sound_probe.mjs
 // The browser runs with --mute-audio: the game plays its sounds, nothing reaches the speakers.
@@ -95,6 +99,16 @@ const LEN = { sfx_reindeer_alert: 600, sfx_reindeer_run: 1200, sfx_reindeer_turn
 // every one-shot's own length in the sprite (static/assets/audio/sounds.json): no play of it sounds longer
 const SPRITE_LEN = Object.fromEntries(Object.entries(JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'static', 'assets', 'audio', 'sounds.json'), 'utf8')).sprite).filter(([, v]) => !v[2]).map(([k, v]) => [k, v[1]]));
 
+// PASS 8: posed scatter boards (the lane stagger probe's own): [lane (row), reel]; a base game book with no win
+const SCAT = { sup: [[0, 1], [1, 3], [2, 2], [3, 0]], five: [[0, 1], [1, 3], [2, 2], [3, 0], [3, 4]] };
+const SCAT_FILL = ['L1', 'H1', 'L2', 'H2', 'L3', 'H3', 'L4', 'H4', 'L5', 'W'];
+const SCAT_BOOK = (scat) => {
+	const board = Array.from({ length: 5 }, (_, reel) => Array.from({ length: 4 }, (_, row) => SCAT_FILL[(reel * 7 + row * 3 + reel * row) % SCAT_FILL.length]));
+	for (const [row, reel] of scat) board[reel][row] = 'S';
+	return [{ index: 0, type: 'reveal', gameType: 'basegame', board }, { index: 1, type: 'finalWin', amount: 0 }];
+};
+const LAND = (n) => `sfx_scatter_land_${Math.min(5, n)}`;
+
 const CASES = [
 	{ id: 'idle', book: 'base_one_column', turbo: 0, snort: 'always', idle: true },
 	{ id: 'normal', book: 'base_grandma_strike', turbo: 0, snort: 'always' },
@@ -116,6 +130,11 @@ const CASES = [
 	{ id: 'threeslam', book: 'base_three_columns', turbo: 0, snort: 'never', slam: true },
 	{ id: 'floortop', book: 'floor_top_up', turbo: 1, snort: 'never', maxMs: 300000 },
 	{ id: 'supertop', book: 'super_floor_top_up', turbo: 2, snort: 'never', maxMs: 300000 },
+	// PASS 8 (2026-11-16): the house scatter landings on posed boards (presentation only), judged by judgeScatter alone
+	{ id: 'scat0', posed: SCAT_BOOK(SCAT.five), turbo: 0, snort: 'never', scatter: true },
+	{ id: 'scat1', posed: SCAT_BOOK(SCAT.sup), turbo: 1, snort: 'never', scatter: true },
+	{ id: 'scat2', posed: SCAT_BOOK(SCAT.sup), turbo: 2, snort: 'never', scatter: true },
+	{ id: 'scatslam', posed: SCAT_BOOK(SCAT.sup), turbo: 0, snort: 'never', scatter: true, slam: true, slamOn: 'teaseStart' },
 ].filter((c) => !ONLY.length || ONLY.includes(c.id));
 const SIZES = [
 	{ name: 'desk1440x900', key: 'desk', vp: { width: 1440, height: 900 }, dpr: 1, phone: false },
@@ -180,7 +199,10 @@ async function runCase(p, S, C) {
 		window.__reindeer.forceSnort(c.snort);
 		window.__reindeer.roadSounds(true);
 		window.__reindeer.soundTap(true);
-		window.__reindeer.fixtures.next(c.book);
+		if (c.posed) {
+			if (window.__reindeer.fixtures.latency !== undefined) window.__reindeer.fixtures.latency = 0;
+			window.__reindeer.fixtures.queue(c.posed, 0);
+		} else window.__reindeer.fixtures.next(c.book);
 		window.__reindeer.presentTrace(true);
 		window.__caseT0 = performance.now();
 	}, [C, PRESENT_WAIT_MS]);
@@ -189,7 +211,8 @@ async function runCase(p, S, C) {
 	let slammed = null;
 	if (C.slam) {
 		for (let i = 0; i < 400 && !slammed; i++) {
-			const set = await p.evaluate(() => window.__reindeer.roadSounds().some((e) => e.what === 'setOff'));
+			// (a posed scatter case slams on its tease's start: slamOn names the moment)
+			const set = await p.evaluate((what) => window.__reindeer.roadSounds().some((e) => e.what === what), C.slamOn ?? 'setOff');
 			if (set) {
 				await p.click('.hudp button.spin').catch(() => {});
 				slammed = await p.evaluate(() => ({ t: performance.now(), frame: window.__reindeer.frame() }));
@@ -203,7 +226,7 @@ async function runCase(p, S, C) {
 	if (C.idle) await sleep(IDLE_MS);
 	const out = await p.evaluate(() => ({ road: window.__reindeer.roadSounds(), tap: window.__reindeer.soundTap(), t0: window.__caseT0, now: performance.now(), frame: window.__reindeer.frame() }));
 	// the book itself (the dev server serves the fixture module): what the line win sounds are checked against
-	out.book = await p.evaluate(async (name) => (await import('/src/fixtures/fixtureRgs.ts')).FIXTURE_ROUNDS.find((r) => r.name === name)?.events ?? null, C.book).catch(() => null);
+	out.book = C.posed ?? (await p.evaluate(async (name) => (await import('/src/fixtures/fixtureRgs.ts')).FIXTURE_ROUNDS.find((r) => r.name === name)?.events ?? null, C.book).catch(() => null));
 	await p.evaluate(() => {
 		window.__reindeer.turbo(0);
 		window.__reindeer.forceSnort(null);
@@ -780,6 +803,44 @@ function judge3(tag, C, R) {
 	return rows;
 }
 
+/** PASS 8: THE HOUSE SCATTER LANDINGS (constants REINDEER_SOUND scatterLand): sfx_scatter_land_<n> (n = the spin's count,
+ *  capped at the family's 5th) on the frame each scatter is SEEN (roadBoard's scatterSeen moment, seenMs after its car
+ *  leaves the tunnel), at every turbo level; on a slam stop's cut the ones not yet played sound ONCE together: the
+ *  rung of the spin's whole count, on the cut's frame, and none after it. Checked in the Howl's own log (the tap). */
+function judgeScatter(tag, C, R) {
+	const t0 = R.t0;
+	const M = R.road.filter((e) => e.kind === 'moment');
+	const plays = R.tap.log.filter((e) => e.what === 'play');
+	const lands = plays.filter((e) => /^sfx_scatter_land_/.test(e.name));
+	const seen = M.filter((e) => e.what === 'scatterSeen');
+	const cut = M.find((e) => e.what === 'slamCut');
+	const total = C.posed[0].board.flat().filter((x) => x === 'S').length;
+	const rows = [];
+	const at = (e) => r1(e.t - t0);
+	check(R.settled, `${tag}: the round played to its end`);
+	check(seen.length === total, `${tag}: all ${total} scatters seen (${seen.length})`);
+	const before = cut ? seen.filter((e) => e.frame < cut.frame) : seen;
+	before.forEach((e, i) => {
+		const pl = lands.find((x) => x.frame === e.frame && x.name === LAND(i + 1));
+		check(!!pl, `${tag}: scatter ${i + 1} seen (frame ${e.frame}): ${LAND(i + 1)} on that frame`, lands.map((x) => [x.name, x.frame]));
+		rows.push({ sound: LAND(i + 1), start: pl ? at(pl) : 'MISSING', stop: '', event: `scatter ${i + 1} seen (frame ${e.frame})`, offset: pl ? r1(pl.t - e.t) : '', frames: pl ? pl.frame - e.frame : '' });
+	});
+	if (C.slam) {
+		check(!!cut && !!R.slammed, `${tag}: the slam stop cut the drive in (frame ${cut?.frame})`);
+		const unplayed = total - before.length;
+		const onCut = cut ? lands.filter((x) => x.frame === cut.frame) : [];
+		check(unplayed > 0 ? onCut.length === 1 && onCut[0].name === LAND(total) : onCut.length === 0, `${tag}: the cut: ${unplayed} not yet played sound once together as ${LAND(total)} on the cut's frame (${onCut.map((x) => x.name).join(', ') || 'none'})`);
+		if (cut) rows.push({ sound: onCut.map((x) => x.name).join(', ') || '(none)', start: onCut[0] ? at(onCut[0]) : '', stop: '', event: `slam cut (frame ${cut.frame}), ${unplayed} unplayed`, offset: '', frames: '' });
+		check(cut && lands.filter((x) => x.frame > cut.frame).length === 0, `${tag}: no landing sound after the cut (the later scatters' planned seen moments stay silent)`);
+		check(lands.length === before.length + (unplayed > 0 ? 1 : 0), `${tag}: ${lands.length} landing sound(s) in all`);
+	} else check(lands.length === total, `${tag}: one landing sound per scatter (${lands.length} for ${total})`);
+	// the tease's loop and the landings: never stopped or restarted by one (one loop start, its stop once)
+	const tease = R.tap.log.filter((e) => e.name === 'sfx_scatter_tease');
+	check(tease.filter((e) => e.what === 'play').length <= 1, `${tag}: the tease loop starts once, landings or not`, tease.map((e) => [e.what, e.frame]));
+	check(!(R.roundEnd.playing ?? []).some((x) => x.name === 'sfx_scatter_tease'), `${tag}: no tease loop sounding at the round's end`, R.roundEnd.playing);
+	return { rows, others: [] };
+}
+
 const table = (rows) => '| sound | start ms | stop ms | animation event | offset ms | frames |\n|---|---:|---:|---|---:|---:|\n' + rows.map((r) => `| ${r.sound} | ${r.start} | ${r.stop} | ${r.event} | ${r.offset} | ${r.frames} |`).join('\n');
 
 (async () => {
@@ -793,7 +854,7 @@ const table = (rows) => '| sound | start ms | stop ms | animation event | offset
 			for (const C of CASES) {
 				const tag = `${C.id} ${S.name}`;
 				const R = await runCase(p, S, C);
-				const { rows, others } = judge(tag, C, R);
+				const { rows, others } = C.scatter ? judgeScatter(tag, C, R) : judge(tag, C, R);
 				all[tag] = { rows, others, roundEnd: R.roundEnd, slammed: R.slammed };
 				console.log(`\n${tag}\n${table(rows)}\n`);
 				if (OUT) writeFileSync(join(OUT, `case_${C.id}_${S.name}.md`), `# ${tag} (${C.book}, turbo ${C.turbo}${C.slam ? ', slam stop' : ''})\n\nTimes are ms from the Spin press; offset = sound minus its animation event (real ms); frames = the board's frames between them.\n\n${table(rows)}\n\nBorrowed sounds in this round: ${others.join(', ') || 'none'}\n`);
