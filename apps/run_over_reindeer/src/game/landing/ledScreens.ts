@@ -63,6 +63,8 @@ const FONT: Record<string, string[]> = {
 	',': ['..', '..', '..', '..', '..', '.#', '#.'],
 	"'": ['#', '#', '.', '.', '.', '.', '.'],
 	'.': ['.', '.', '.', '.', '.', '.', '#'],
+	// (2026-11-17: the wrap-up's top-up line on the strip carries the amount as the card writes it)
+	$: ['..#..', '.####', '#.#..', '.###.', '..#.#', '####.', '..#..'],
 	' ': ['...', '...', '...', '...', '...', '...', '...'],
 	// the LED scoreboard's own (game/scoreboard/, bigwin_led_r3): the question mark and a lower case set in the same 7 row
 	// cell (x height 5 rows; the y's tail stays inside the cell, as on a 5 x 7 LED sign), for the Grandma line's mixed case
@@ -214,6 +216,34 @@ export const textW = (str: string, s: number): number => {
 		twCache.set(key, w);
 	}
 	return w;
+};
+/** the gap between two letters as the whole word's mask sets them (a dot scale's), and where a letter's own mask (drawn
+ *  alone) starts in it: the 5 x 7 font (1 and 2) puts one dot scale between cells; the heavy face (3 and up) a gap of
+ *  0.45 of the scale between glyph advances, each mask padded 1 dot either side */
+export const letterGap = (s: number): number => (s >= 3 ? Math.max(1, Math.round(s * 0.45)) - 2 : s);
+const inkCache = new Map<string, { l: number; r: number; t: number; b: number }>();
+/** the lit part of a line's mask: its first and last lit column (r exclusive) and row (b exclusive); all 0 when unlit */
+export const textInk = (str: string, s: number): { l: number; r: number; t: number; b: number } => {
+	const key = str + '|' + s;
+	let k = inkCache.get(key);
+	if (k) return k;
+	const m = textMask(str, s);
+	const d = m.ctx.getImageData(0, 0, m.width, m.height).data;
+	let l = m.width;
+	let r = 0;
+	let t = m.height;
+	let b = 0;
+	for (let y = 0; y < m.height; y++)
+		for (let x = 0; x < m.width; x++)
+			if (d[(y * m.width + x) * 4 + 3] > 40) {
+				if (x < l) l = x;
+				if (x + 1 > r) r = x + 1;
+				if (y < t) t = y;
+				if (y + 1 > b) b = y + 1;
+			}
+	k = r > l ? { l, r, t, b } : { l: 0, r: 0, t: 0, b: 0 };
+	inkCache.set(key, k);
+	return k;
 };
 // a solid colour line is drawn once and kept (only the gold figure is recoloured every step: its shine moves)
 const solidCache = new Map<string, Cv>();

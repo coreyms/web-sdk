@@ -93,6 +93,11 @@ export const scoreboardGeometry = (kind: LayoutKind, vw: number, vh: number, mai
 		const right = G.kc.x0 * f0.u;
 		dim = { x: left, y: 0, w: right - left, h: vh };
 	}
+	// THE DIM COVERS THE WHOLE SCREEN (2026-11-17, Corey: "the background fading is cut off, not covering the entire
+	// screen"; this replaces the mock's rule above, which left the top line, the dock and the HUD columns out): edge to
+	// edge, past each edge by a few px. It is the scoreboard's lowest piece, so the back board and the strip stay over it;
+	// the HUD's readouts and keys are HTML over the canvas and are never under it.
+	dim = { x: -4, y: -4, w: vw + 8, h: vh + 8 };
 	// the dot pitch: the press screen's billboard's (its layout's base pitch over LED_SIGN.density)
 	const LL = LED_SIGN.layout[kind];
 	const pitch0 = (LL.pitch * (LL.unit === 'master' ? main.scale : 1)) / LED_SIGN.density;

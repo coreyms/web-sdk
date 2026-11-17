@@ -55,6 +55,10 @@ export type Show = {
 	sceneAt: number;
 	pressLineAt: number | null;
 	spins: number;
+	/** a Total Win's own title (MAX WIN on a capped round) and the line the strip scrolls once it waits (a top-up, the cap;
+	 *  the HTML card's lines, 2026-11-17), null: TOTAL WIN, none */
+	title: string | null;
+	line: string | null;
 };
 /** the three bonus round cards on the back board */
 export const isCard = (s: Show | null): boolean => !!s && (s.kind === 'fs' || s.kind === 'sfs' || s.kind === 'total');
@@ -125,6 +129,8 @@ export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: nu
 		sceneAt: contentAt,
 		pressLineAt: null,
 		spins: 0,
+		title: null,
+		line: null,
 	};
 	if (small) {
 		s.countEnd = s.countStart + L.small.countMs;
@@ -160,7 +166,7 @@ export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: nu
 /** A BONUS ROUND CARD on the back board (part B): the Free Spins entry, the Super entry (`spins` awarded) or the Total Win
  *  (`amount`, counted linearly over LED_BOARD.scenes.totalCountMs divided by the turbo level's rate). It rises as a Mega
  *  win does and waits: the card's own press ends it (endShow), never a timer of its own. */
-export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number }): Show => {
+export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null }): Show => {
 	const L = LED_BOARD;
 	const S = L.scenes;
 	const contentAt = L.rise.backAtMs + L.rise.riseMs;
@@ -190,10 +196,13 @@ export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; am
 		sceneAt: contentAt,
 		pressLineAt: null,
 		spins: o.spins,
+		title: o.title ?? null,
+		line: o.line ?? null,
 	};
 	if (o.kind === 'total') {
 		s.countEnd = contentAt + S.totalCountMs / Math.max(0.2, o.rate);
-		s.pressLineAt = s.countEnd + S.totalPressAfterMs;
+		// (a wrap-up with its own line, a top-up or the cap: the line and the press line come as the amount lands)
+		s.pressLineAt = s.countEnd + (s.line ? 0 : S.totalPressAfterMs);
 	} else s.pressLineAt = contentAt + (o.kind === 'sfs' ? S.sfsPressMs : S.fsPressMs);
 	return s;
 };

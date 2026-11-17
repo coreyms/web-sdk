@@ -6,7 +6,9 @@
 //   - behind the billboard the road shows the posed board: reels 1 and 5 the eight ordinary symbols once each, reels 2, 3
 //     and 4 the Reindeer, Santa and Grandma columns standing at the top multipliers the math config gives, nothing moving
 //   - the billboard: its dots (desktop 362 x 143 and a 362 x 11 ticker, 2.49 CSS px; the other sizes from the page's
-//     rules), its face centred on the board, its snow cap under the title sign (the billboard logo since scene pass 9: its visible art, not its box), its housing above the screen's foot,
+//     rules), its face centred on the board, its snow cap under the title sign (the billboard logo since scene pass 9: its visible art, not its box; on
+//     an upright phone since 2026-11-17 the sign rests on the cap, its lowest visible pixels 0 to 2 px into the cap's drawn top, and is back at its own
+//     place in the game), its housing above the screen's foot,
 //     held sideways clear of both HUD columns; the three screens cycle (each captured, with 4x crops of its words); its
 //     first screen's figure is the max win from game/config.ts
 //   - the press powers it down: the game's chrome is up by the hand over, the sign is gone and unloaded after
@@ -40,9 +42,9 @@ const SIZES = [
 	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, dots: [362, 143], pitch: 2.49 },
 	{ name: 'wide', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, dots: [362, 143], pitch: 3.31 },
 	{ name: 'landscape', vp: { width: 844, height: 390 }, dpr: 3, phone: true, hudColumns: true },
-	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true, resume: true, dots: [257, 221], throttle: true },
-	{ name: 'short', vp: { width: 390, height: 620 }, dpr: 3, phone: true, dots: [257, 167] },
-	{ name: 'phone402', vp: { width: 402, height: 874 }, dpr: 3, phone: true },
+	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true, resume: true, dots: [257, 221], throttle: true, upright: true },
+	{ name: 'short', vp: { width: 390, height: 620 }, dpr: 3, phone: true, dots: [257, 167], upright: true },
+	{ name: 'phone402', vp: { width: 402, height: 874 }, dpr: 3, phone: true, upright: true },
 ].filter((s) => !ONLY.length || ONLY.includes(s.name));
 const POSE_SIDES = { 0: ['H2', 'L1', 'H4', 'L3'], 4: ['L2', 'H3', 'L4', 'L5'] };
 const NEXT = [
@@ -210,7 +212,21 @@ async function crop4x(file, box, dpr, out) {
 					const r1 = (v) => (v === null ? 'none' : v.toFixed(1));
 					const vis = art.box;
 					console.log(`  ${tag}: the logo's visible art ${r1(vis.left)}..${r1(vis.right)} x ${r1(vis.top)}..${r1(vis.bottom)} (box ${L.title.left.toFixed(1)}..${L.title.right.toFixed(1)} x ${L.title.top.toFixed(1)}..${L.title.bottom.toFixed(1)}); the cap ${capL.toFixed(1)}..${capR.toFixed(1)}, top ${g.housing.y}; art over the cap's width ${low === null ? 'none (beside it, ' + (capL - vis.right).toFixed(1) + ' px clear)' : `x ${r1(overL)}..${r1(overR)}, its lowest pixel ${r1(low)}: ${(low - g.housing.y).toFixed(1)} px into the cap`}`);
-					check(low === null || g.housing.y >= low + 2, `${tag}: the snow cap (top ${g.housing.y}) stays under the title sign's visible art (${low === null ? `beside it, its art ends at x ${r1(vis.right)}, the cap starts at ${capL.toFixed(1)}` : `its lowest visible pixel over the cap ${r1(low)}`})`, { art: vis, cap: [capL, capR], box: L.title });
+					// (2026-11-17, Corey approved) on an upright phone the sign RESTS on the cap: its lowest visible pixel over the cap's
+					// width 0 to 2 px into the cap's top, no gap; elsewhere it stays clear of the cap as before
+					// (judged column by column against the cap's DRAWN top, the billboard's capTop profile: its scalloped outline)
+					if (S.upright) {
+						let deep = null;
+						const T = g.capTop;
+						art.bottoms.forEach((b, i) => {
+							if (b === null || !T) return;
+							const j = Math.round(art.x + (i + 0.5) * art.sx - T.x0);
+							if (j < 0 || j >= T.ys.length) return;
+							deep = deep === null ? b - T.ys[j] : Math.max(deep, b - T.ys[j]);
+						});
+						check(deep !== null && deep >= 0 && deep <= 2, `${tag}: the title sign rests on the snow cap: its lowest visible pixels ${deep === null ? 'nowhere over the cap' : deep.toFixed(2) + ' px into the cap\'s drawn top at the deepest'} (0 to 2 wanted; ${low === null ? '' : (low - g.housing.y).toFixed(1) + ' px past the cap\'s nominal top ' + g.housing.y})`, { art: vis, cap: [capL, capR], box: L.title });
+					}
+					else check(low === null || g.housing.y >= low + 2, `${tag}: the snow cap (top ${g.housing.y}) stays under the title sign's visible art (${low === null ? `beside it, its art ends at x ${r1(vis.right)}, the cap starts at ${capL.toFixed(1)}` : `its lowest visible pixel over the cap ${r1(low)}`})`, { art: vis, cap: [capL, capR], box: L.title });
 				} else {
 					const across = L.title && L.title.right > g.housing.x && L.title.left < g.housing.x + g.housing.w;
 					check(!across || g.housing.y >= L.title.bottom + 2, `${tag}: the snow cap (top ${g.housing.y}) stays under the title sign (bottom ${L.title?.bottom?.toFixed(1)}${across ? '' : ', beside it'})`, art?.error ?? L.title);
@@ -287,6 +303,12 @@ async function crop4x(file, box, dpr, out) {
 				const c = await p.evaluate(() => window.__reindeer.road());
 				check(c.features.columns.length === 3 && c.atRest && [0, 4].every((r) => JSON.stringify(c.board[r]) === JSON.stringify(POSE_SIDES[r])), `${tag}: the first board after the press is the posed board (${c.features.columns.length} columns), at rest`, c.features.columns);
 				if (OUT) await p.screenshot({ path: join(OUT, `after_press_${S.name}_${S.vp.width}x${S.vp.height}.png`) });
+				// the sign is back at its in-game place once the press screen has gone (an upright phone's rests on the cap
+				// only on the press screen): its box's foot on the rule's (tune.logoSign.place.<class>.foot, road px)
+				if (S.upright) {
+					const back = await p.evaluate(() => ({ box: window.__reindeer.scene?.()?.logo?.road ?? null, foot: window.__reindeer.tune.logoSign.place.portrait.foot }));
+					check(!!back.box && Math.abs(back.box.y + back.box.height - back.foot) < 0.01, `${tag}: in the game the sign is back at its own place (foot ${back.box ? (back.box.y + back.box.height).toFixed(2) : 'none'} road px, the rule's ${back.foot})`, back);
+				}
 				if (S.hudColumns) {
 					const hud = await p.evaluate(() => {
 						const left = [];

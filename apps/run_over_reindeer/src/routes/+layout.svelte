@@ -8,6 +8,8 @@
 	import { boot, startLandingPreload, releaseSplash } from '../game/boot.svelte';
 	import { installFixtureRgs } from '../fixtures/fixtureRgs';
 	import { STAGING_TOOLS } from '../game/staging';
+	import { TUNE } from '../game/constants';
+	import { applyRememberedTune } from '../staging/tune/tuneStore';
 
 	import messagesMap from '../i18n/messagesMap';
 
@@ -38,6 +40,9 @@
 	// STAGING ONLY, the same way: `?tune=1` (or `?tune=<group>`) mounts the tuning panel (src/staging/tune/; ROR_TUNE_PANEL).
 	if (STAGING_TOOLS && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tune')) {
 		const tune = new URLSearchParams(window.location.search).get('tune');
+		// the values the panel remembers (staging/tune/tuneStore.ts), into TUNE now: before the board and the scene are
+		// built, so a value read once at build time ('applies after a reload') takes effect
+		applyRememberedTune(TUNE as unknown as Record<string, unknown>);
 		void import('../staging/tune/mountTune').then((m) => m.mountTunePanel(tune === '1' ? null : tune));
 	}
 

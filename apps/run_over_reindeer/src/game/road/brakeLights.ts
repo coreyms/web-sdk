@@ -75,7 +75,8 @@ export class BrakeLightPair {
 		this.haloLevel = ease(this.haloLevel, !B.on ? 0 : state === 'brake' ? H.brake : state === 'stopped' ? H.stopped : 0);
 		const lamps = (BRAKE_LAMPS as unknown as Record<string, { near: Lamp; far: Lamp }>)[frame];
 		const a = this.level * bright;
-		const hA = this.haloLevel * bright;
+		// (2026-11-17: the halo's strength multiplies both states' alpha, BRAKE_LIGHTS.halo.strength)
+		const hA = Math.min(1, this.haloLevel * bright * H.strength);
 		if (!lamps || !s.visible || !s.renderable || (a <= 0.004 && hA <= 0.004)) {
 			this.hide();
 			this.at = [];
@@ -114,7 +115,7 @@ export class BrakeLightPair {
 			sp.halo.position.set(x, y);
 			sp.halo.height = hw * H.squash;
 			sp.halo.rotation = s.rotation;
-			if (sp.halo.tint !== B.tint) sp.halo.tint = B.tint;
+			if (sp.halo.tint !== H.tint) sp.halo.tint = H.tint;
 			sp.halo.alpha = hA * share;
 			sp.halo.visible = hA * share > 0.004;
 			sp.glow.visible = sp.core.visible = a * share > 0.004;

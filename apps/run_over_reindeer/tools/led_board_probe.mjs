@@ -27,12 +27,20 @@
 //   - THE WIN SCENES: Mega (the traffic jam), Epic (the honk meter), Max (the race in the bottom band): each tier's moment and
 //     sound ONCE, in order (asked of the road's sound log, and reaching the effects sprite when it is in); a skip during the rise
 //     plays only the final tier's sound, a skip in the count the tiers reached plus the final; Mega and up shake
-//   - THE GAG'S RULE: a small win waits for the gag and shows after it; a Big message cuts it; a Mega (the back board) leaves it
+//   - THE GAG'S RULE: a small win waits for the gag and shows after it; a Big message cuts it; a Mega (the back board) cuts it
+//     (since 2026-11-17: never with the back board up, and none starts while a card is up)
 //     on the strip; in a real Grandma strike round the gag is no longer cut by the round's own small win
 //   - THE CHASE AS RUNS draws the same picture as dot by dot (the face's pixels hashed both ways), and its cost both ways
+//   - THE GAG'S RULE (2026-11-17): base_grandma_strike's base game strike plays the gag; in floor_top_up's free spins the
+//     first Grandma strike (no win) plays it, a later one on a paying spin plays it, a later one with no win does not
+//   - THE ENTRY'S SENTENCE (scenes, 2026-11-17): while an entry waits, the intro card's sentence (constants INTRO_LINE,
+//     the same words the HTML card shows) scrolls on the strip and the press line is never more than 3 s away
+//   - THE TITLES (section titles, every size, 2026-11-17): BIG to MAX WIN, FREE SPINS and TOTAL WIN centered on the back
+//     board's face by their drawn dots within half a dot, 4 dots clear of each side, the bounce inside the top; again with
+//     the class's size knob at 2 and 0.3
 //   - REAL ROUNDS: natural_free_spins (the entry on the board, a press lands it, a press continues; the Total Win on the board),
 //     floor_top_up (its wrap-up keeps the HTML card: the top-up line); autoplay's tier sounds once per tier per round
-//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards] node tools/led_board_probe.mjs
+//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane).
 import { createRequire } from 'node:module';
@@ -46,8 +54,14 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'rule,rise,gag,race,round,scenes,cards').split(',');
+const SECTIONS = (process.env.SECTIONS || 'rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard').split(',');
 const SEC = (s) => SECTIONS.includes(s);
+// the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
+const INTRO = (() => {
+	const c = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'game', 'constants.ts'), 'utf8');
+	const m = /export const INTRO_LINE = \{\s*bonus: '([^']*)',\s*super: '([^']*)',/.exec(c);
+	return m ? { bonus: m[1], super: m[2] } : { bonus: '', super: '' };
+})();
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -57,7 +71,7 @@ const SIZES = [
 	{ name: 'wide', vp: { width: 1920, height: 1080 }, phone: false, cls: 'desktop', mock: { w: 912, h: 80, x: 504, y: 905 } },
 	{ name: 'side', vp: { width: 844, height: 390 }, phone: true, cls: 'phone', mock: { w: 391, h: 53, x: 227, y: 317 }, rise: true },
 	{ name: 'portrait', vp: { width: 390, height: 844 }, phone: true, cls: 'portrait', mock: { w: 351, h: 71, x: 19.5, y: 600 }, rise: true, throttle: true, scenes: true },
-	{ name: 'short', vp: { width: 390, height: 620 }, phone: true, cls: 'portrait', mock: { w: 351, h: 58, x: 19.5, y: 430 } },
+	{ name: 'short', vp: { width: 390, height: 620 }, phone: true, cls: 'portrait', mock: { w: 351, h: 58, x: 19.5, y: 430 }, acceptRuleH: true },
 ].filter((s) => !ONLY.length || ONLY.includes(s.name));
 
 let pass = 0;
@@ -150,7 +164,10 @@ async function sizeChecks(p, S, memory) {
 		const near = (a, b, tol = 0.6) => Math.abs(a - b) <= tol;
 		check(near(st.w, E.w) && near(st.x, E.x) && near(st.y, E.y) && near(st.h, E.h), `${tag}: the strip ${r1(st.w)} x ${r1(st.h)} at ${r1(st.x)}, ${r1(st.y)} follows its class's rule (${r1(E.w)} x ${r1(E.h)} at ${r1(E.x)}, ${r1(E.y)})`, { st, E });
 		check(Math.abs(st.x + st.w / 2 - (S.cls === 'phone' ? E.x + E.w / 2 : S.vp.width / 2)) <= 0.6, `${tag}: the strip is centred (${S.cls === 'phone' ? 'on the road' : 'on the window'})`);
-		const M = S.mock;
+		// (390 x 620: Corey accepted the game's own strip height on 2026-11-17, 6.1 px under the mock's by-eye 58: the
+		// expected height there is the game's rule, E.h, and the strip must stand between the road's edge and the HUD)
+		const M = S.acceptRuleH ? { ...S.mock, h: E.h } : S.mock;
+		if (S.acceptRuleH) check(st.y >= E.y - 0.6 && st.housingBottom <= E.hud + 0.5, `${tag}: the strip stands between the road's edge (${r1(E.y)}) and the HUD's top (${r1(E.hud)}): ${r1(st.y)} to ${r1(st.housingBottom)}`);
 		const dm = { w: r1(st.w - M.w), x: r1(st.x - M.x), y: r1(st.y - M.y), h: r1(st.h - M.h) };
 		check(Math.abs(dm.w) <= 6 && Math.abs(dm.x) <= 6 && Math.abs(dm.y) <= 6 && Math.abs(dm.h) <= 6, `${tag}: against the mock's own numbers (${M.w} x ${M.h} at ${M.x}, ${M.y}): w ${dm.w}, x ${dm.x}, y ${dm.y}, h ${dm.h} (within 6 px: the mock read the road's edges by eye)`, dm);
 		check(st.housingBottom <= E.hud + 0.5, `${tag}: the strip ends (${st.housingBottom}) above the HUD's top (${r1(E.hud)})`);
@@ -304,7 +321,8 @@ async function scenes(p, S) {
 	/** the tier sounds asked since the last clear (the road's sound log), and those that reached the effects sprite (null: not in) */
 	const tierSounds = async () => {
 		const o = await R(p, () => ({ road: window.__reindeer.roadSounds(true), tap: window.__reindeer.soundTap?.(true) ?? null }));
-		return { asked: o.road.filter((e) => e.kind === 'sound' && TIER_SFX.test(e.what)).map((e) => e.what), played: o.tap ? o.tap.log.filter((e) => e.what === 'play' && TIER_SFX.test(e.name)).map((e) => e.name) : null };
+		// (a tier sound's fade out, 2026-11-17, is noted in the same log as a "stop": not a sound asked)
+		return { asked: o.road.filter((e) => e.kind === 'sound' && TIER_SFX.test(e.what) && !/^stop/.test(e.detail || '')).map((e) => e.what), played: o.tap ? o.tap.log.filter((e) => e.what === 'play' && TIER_SFX.test(e.name)).map((e) => e.name) : null };
 	};
 	const roadY = () => R(p, () => window.__reindeer.roadBoard().root.y);
 	await R(p, () => {
@@ -344,6 +362,32 @@ async function scenes(p, S) {
 		const waitsAt = rows.find((r) => r.phase === 'waits')?.t;
 		check(rows.some((r) => r.phase === 'rising') && rows.some((r) => r.phase === 'show') && Math.abs(waitsAt - (C + press)) <= 10, `${tag}: the ${kind === 'fs' ? 'Free Spins' : 'Super'} entry rises, plays its scene and waits for the press from ${waitsAt} ms (rule ${C + press})`, rows.filter((r, i) => i % 40 === 0));
 		check(lit && lit.lit > lit.dots * 0.03 && rows[rows.length - 1].card === kind && /^show/.test(rows[rows.length - 1].stripKey), `${tag}: its back board face is lit (${lit?.lit} of ${lit?.dots} dots) and the strip carries its line (${rows[rows.length - 1].stripKey})`, lit);
+		// THE ENTRY'S SENTENCE (2026-11-17): while it waits, the intro card's sentence scrolls on the strip, the press line
+		// never more than about 3 s away; sampled every 100 ms for 8 s of the wait
+		{
+			const want = INTRO[kind === 'sfs' ? 'super' : 'bonus'];
+			const waitRows = await R(p, () => {
+				const out = [];
+				for (let i = 0; i < 80; i++) {
+					window.__reindeer.scoreboardStep(100);
+					const f = window.__reindeer.scoreboardFace('strip');
+					out.push(f?.entryWait ?? null);
+				}
+				return out;
+			});
+			const drawn = waitRows.filter(Boolean);
+			const sentences = [...new Set(drawn.map((w) => w.sentence))];
+			let gap = 0;
+			let worst = 0;
+			for (const w of waitRows) {
+				gap = w && w.press ? 0 : gap + 100;
+				worst = Math.max(worst, gap);
+			}
+			const xs = drawn.filter((w) => w.sentenceX !== null).map((w) => w.sentenceX);
+			const card = readFileSync(join(SRC, 'ui', 'RoundCard.svelte'), 'utf8');
+			check(/import \{ INTRO_LINE[,} ]/.test(card) && card.includes('{INTRO_LINE[card.bonus]}') && want.length > 20, `${tag}: the HTML intro card and the strip take the sentence from the one place (constants INTRO_LINE)`);
+			check(drawn.length === waitRows.length && sentences.length === 1 && sentences[0] === want && worst <= 3000 && new Set(xs).size > 10, `${tag}: while the ${kind} entry waits the strip scrolls "${sentences[0]}" (${drawn[0]?.mode}, size ${drawn[0]?.size}, ${new Set(xs).size} places in 8 s) and the press line is never more than ${worst} ms away (within 3000)`, { want, sentences, worst, mode: drawn[0]?.mode });
+		}
 		if (kind === 'sfs') {
 			const sh = rows.filter((r) => r.t >= C && r.t < C + 480).map((r) => Math.abs(r.shake));
 			const moved = Math.abs((await roadY()) - base);
@@ -397,7 +441,7 @@ async function scenes(p, S) {
 			let race = null;
 			for (let i = 0; i < 1200; i++) {
 				const q = window.__reindeer.scoreboardStep(10);
-				const s = { t: q.show?.t ?? -1, phase: q.show?.phase ?? 'none', tier: q.show?.tier ?? -1, shake: q.shake, fired: q.show?.fired ?? null, countEnd: q.show?.countEnd, events: q.show?.events, maxRace: q.show?.maxRace ?? null };
+				const s = { t: q.show?.t ?? -1, phase: q.show?.phase ?? 'none', tier: q.show?.tier ?? -1, shake: q.shake, fired: q.show?.fired ?? null, countStart: q.show?.countStart, countEnd: q.show?.countEnd, events: q.show?.events, maxRace: q.show?.maxRace ?? null, raceAt: q.show?.maxRaceAt ?? null };
 				rows.push(s);
 				if (!mid && s.tier === final && (s.phase === 'count' || s.phase === 'hold')) mid = window.__reindeer.scoreboardFace('back');
 				if (s.maxRace) race = s.maxRace;
@@ -406,6 +450,19 @@ async function scenes(p, S) {
 			return { rows, mid, race };
 		}, final);
 		const fired = rows.filter((r) => r.fired).pop()?.fired ?? [];
+		// (2026-11-17) EACH TIER'S SOUND FADES THE ONE BEFORE: as the next tier's starts the one before is faded out over at
+		// most 200 ms (the road's log: its stop note, within 50 real ms of the next one's play)
+		{
+			const L = await R(p, () => window.__reindeer.roadSounds());
+			const plays = L.filter((e) => e.kind === 'sound' && TIER_SFX.test(e.what) && /scoreboard tier/.test(e.detail || ''));
+			const pairs = plays.slice(1).map((e, i) => {
+				const prev = plays[i];
+				const st = L.find((x) => x.what === prev.what && /^stop \(the next tier/.test(x.detail || '') && Math.abs(x.t - e.t) < 50);
+				const ms = st ? Number(/, (\d+) ms fade/.exec(st.detail)?.[1]) : null;
+				return { prev: prev.what, next: e.what, fade: ms };
+			});
+			check(pairs.length === final && pairs.every((x) => x.fade !== null && x.fade <= 200), `${tag}: ${what}: as each tier's sound starts the one before fades out within 200 ms (${pairs.map((x) => `${x.prev} ${x.fade} ms`).join(', ')})`, pairs);
+		}
 		const want = Array.from({ length: final + 1 }, (_, i) => i);
 		const snd = await tierSounds();
 		const events = rows.find((r) => r.events?.length === final + 1)?.events ?? [];
@@ -417,7 +474,18 @@ async function scenes(p, S) {
 		check(mid && mid.lit > mid.dots * 0.05, `${tag}: ${what}: the back board's scene is lit at its tier (${mid?.lit} of ${mid?.dots} dots)`, mid);
 		const sh = want.filter((t) => t >= 2).map((t) => r1(shakeAt(t)));
 		check(sh.every((v) => v > 1) && shakeAt(0) === 0, `${tag}: ${what}: Mega and up shake as they are reached (${sh.join(', ')} px), Big does not`, sh);
-		if (final === 4) check(!!race, `${tag}: the Max scene runs the race in its bottom band (this run: ${race})`);
+		if (final === 4) {
+			check(!!race, `${tag}: the Max scene runs the race in its bottom band (this run: ${race})`);
+			// (2026-11-17) THE RACE OVER THE WHOLE COUNT: under way early in the count, at the finish line as the count lands
+			const cs = rows.find((r) => r.countStart !== undefined)?.countStart;
+			const ce = rows.filter((r) => r.countEnd !== undefined).at(-1)?.countEnd;
+			const early = rows.find((r) => cs !== undefined && r.t >= cs + (ce - cs) * 0.15 && r.t < cs + (ce - cs) * 0.3);
+			const mid = rows.find((r) => r.t >= cs + (ce - cs) * 0.5);
+			// (the face is drawn at its own refresh, LED_BOARD.fps: read a step or two after the landing)
+			const land = rows.find((r) => r.t >= ce + 80);
+			const before = rows.filter((r) => r.t < ce).at(-1);
+			check(!!early && early.raceAt > 0 && early.raceAt < 0.4 && mid.raceAt > 0.4 && mid.raceAt < 0.6 && before.raceAt < 1 && land.raceAt === 1, `${tag}: the race starts with the count and runs the whole of it (${early?.raceAt?.toFixed(3)} of its run 15 to 30% into the count, ${mid?.raceAt?.toFixed(3)} at half, ${before?.raceAt?.toFixed(3)} just before the landing, ${land?.raceAt} just after it lands)`, { cs, ce, early, mid, land });
+		}
 	}
 	// a skip during the rise plays only the final tier's sound; a skip in the count, the tiers reached and the final
 	for (const [at, want] of [
@@ -431,6 +499,17 @@ async function scenes(p, S) {
 		const rows = await run(at, 6000);
 		const snd = await tierSounds();
 		check(rows[rows.length - 1].phase === 'none' && snd.asked.join() === want.join(), `${tag}: a skip ${at} ms into a Mega win sounds ${snd.asked.join(', ') || 'nothing'} (want ${want.join(', ')})`, snd);
+	}
+
+	// a skip in a Max count lands it, and the race jumps to its finish line
+	{
+		await R(p, () => void window.__reindeer.scoreboardWin(7777));
+		await run(0, 2500);
+		const pre = await R(p, () => window.__reindeer.scoreboardStep(10).show);
+		await R(p, () => window.__reindeer.scoreboardSkip());
+		const post = await R(p, () => window.__reindeer.scoreboardStep(80).show);
+		await run(0, 9000);
+		check(pre && pre.phase === 'count' && pre.maxRaceAt > 0 && pre.maxRaceAt < 1 && post && post.maxRaceAt === 1, `${tag}: a skip during the Max count lands it and the race jumps to its finish (${pre?.maxRaceAt?.toFixed(3)} of its run before, ${post?.maxRaceAt} after)`, { pre: pre && { phase: pre.phase, at: pre.maxRaceAt }, post: post && { phase: post.phase, at: post.maxRaceAt } });
 	}
 
 	// ---- THE CHASE AS RUNS draws the same picture as dot by dot ----
@@ -474,9 +553,104 @@ async function scenes(p, S) {
 	await step(200, 2);
 	await R(p, () => void window.__reindeer.scoreboardWin(98.75));
 	const g2 = await R(p, () => window.__reindeer.scoreboardStep(1000));
-	check(!!g2.gag && g2.show?.kind === 'win' && g2.show.arrive, `${tag}: a Mega win (the back board) leaves the gag playing on the strip (the mock's rule)`, { gag: g2.gag, show: g2.show?.kind });
+	// (2026-11-17: the gag never plays with the back board up; it used to keep playing under a Mega, the mock's rule)
+	check(!g2.gag && g2.show?.kind === 'win' && g2.show.arrive, `${tag}: a Mega win (the back board) cuts the gag`, { gag: g2.gag, show: g2.show?.kind });
 	await R(p, () => window.__reindeer.scoreboardSkip());
 	await run(0, 4000);
+	// and none starts while a card is up
+	await R(p, () => window.__reindeer.scoreboardCard('total', { x: 248.5 }));
+	await run(0, 1500);
+	await R(p, () => window.__reindeer.scoreboardGag());
+	const g3 = await R(p, () => window.__reindeer.scoreboardStep(100));
+	check(!g3.gag && g3.show?.kind === 'total', `${tag}: no gag starts while the Total Win is up`, { gag: g3.gag, show: g3.show?.kind });
+	await R(p, () => {
+		window.__reindeer.scoreboardCardEnd();
+		window.__reindeer.scoreboardLower();
+	});
+	await run(0, 3000);
+	await R(p, () => window.__reindeer.scoreboardManual(false));
+}
+
+// ---- THE BACK BOARD'S TITLES AND AMOUNTS (2026-11-17): every title (BIG to MAX WIN, FREE SPINS, SUPER over the Super
+// entry's number, TOTAL WIN) and every amount (the win's count, the entries' number, the Total Win) centered on the face by
+// its drawn dots within 1 dot (the bouncing letters at rest), its margins equal, a title 4 dots or more clear of each side
+// and its bounce inside the top, at every size; again with the class's size knob at 2 and 0.3, and the gap and bounce knobs
+// at their ends. The amounts are judged at rest (a win's hold, a card waiting for its press).
+const TITLE_MARGIN = 4;
+async function titles(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await R(p, () => window.__reindeer.scoreboardManual(true));
+	const cls = await R(p, () => window.__reindeer.scoreboard().cls);
+	const knob = cls === 'tablet' ? 'desktop' : cls;
+	/** start a scene and step it to its end, every title and amount on the back board at each step */
+	const sample = (start, ms) =>
+		R(p, ([start, ms]) => {
+			eval(start);
+			const out = [];
+			for (let t = 0; t < ms; t += 10) {
+				const q = window.__reindeer.scoreboardStep(10);
+				const f = window.__reindeer.scoreboardFace('back');
+				if (q.show && f?.titles) for (const r of f.titles) out.push({ sceneT: q.show.sceneT, t: q.show.t, phase: q.show.phase, ...r, W: f.W, H: f.H });
+				if (!q.show && t > 500) break;
+			}
+			window.__reindeer.scoreboardCardEnd();
+			window.__reindeer.scoreboardLower();
+			for (let t = 0; t < 3000; t += 10) window.__reindeer.scoreboardStep(10);
+			return out;
+		}, [start, ms]);
+	const scenes = [
+		['void window.__reindeer.scoreboardWin(98.75)', 9000],
+		['void window.__reindeer.scoreboardWin(312.45)', 10000],
+		['void window.__reindeer.scoreboardWin(7777)', 11000],
+		["window.__reindeer.scoreboardCard('fs')", 4000],
+		["window.__reindeer.scoreboardCard('sfs')", 4500],
+		["window.__reindeer.scoreboardCard('total', { x: 248.5 })", 4500],
+	];
+	const judge = (rows) => {
+		const by = new Map();
+		for (const r of rows) {
+			// at rest: TOTAL WIN after its drop, SUPER after its march, every amount in a hold or a wait (HERE WE GO, which
+			// marches in and fades, is not a title at rest)
+			if (r.kind === 'title' && r.str === 'TOTAL WIN' && r.sceneT < 350) continue;
+			if (r.kind === 'title' && r.str === 'SUPER' && r.sceneT < 2100) continue;
+			if (r.kind === 'title' && r.str === 'HERE WE GO') continue;
+			if (r.kind === 'amount' && r.phase !== 'hold' && r.phase !== 'waits') continue;
+			const key = `${r.kind}:${r.kind === 'amount' ? 'amount' : r.str}`;
+			if (!by.has(key)) by.set(key, []);
+			by.get(key).push(r);
+		}
+		const out = [];
+		for (const [key, list] of by) {
+			const W = list[0].W;
+			const off = Math.max(...list.map((r) => Math.abs((r.x0 + r.x1) / 2 - W / 2)));
+			const left = Math.min(...list.map((r) => r.x0));
+			const right = W - Math.max(...list.map((r) => r.x1));
+			const top = Math.min(...list.map((r) => r.y0 - r.lift));
+			out.push({ key, str: list[0].str, kind: list[0].kind, W, H: list[0].H, ts: list[0].ts, off: r1(off), left, right, top, n: list.length });
+		}
+		return out;
+	};
+	const ok = (x) => x.off <= 1 && Math.abs(x.left - x.right) <= 2 && x.top >= 1 && (x.kind === 'title' ? x.left >= TITLE_MARGIN && x.right >= TITLE_MARGIN : x.left >= 2 && x.right >= 2);
+	const all = [];
+	for (const [start, ms] of scenes) all.push(...judge(await sample(start, ms)));
+	const want = ['BIG WIN', 'SUPER WIN', 'MEGA WIN', 'EPIC WIN', 'MAX WIN', 'FREE SPINS', 'SUPER', 'TOTAL WIN'];
+	const seen = new Set(all.filter((x) => x.kind === 'title').map((x) => x.str));
+	check(want.every((w) => seen.has(w)) && all.some((x) => x.kind === 'amount'), `${tag}: every back board title and amount drawn and measured (${[...seen].join(', ')}; ${all.filter((x) => x.kind === 'amount').length} amount groups)`);
+	for (const x of all) check(ok(x), `${tag}: ${x.kind === 'title' ? x.str : `the amount (${x.str})`} (size ${x.ts}) centered on the ${x.W} x ${x.H} face within ${x.off} dots (1 wanted), ${x.left} and ${x.right} dots clear left and right, ${x.top} dots under the top${x.kind === 'title' ? ' with its bounce' : ''}`, x);
+	console.log(`  ${tag} titles and amounts (class ${knob}): ${all.map((x) => `${x.kind === 'amount' ? 'amount ' + x.str : x.str} s${x.ts} off ${x.off} L${x.left} R${x.right} T${x.top}`).join('; ')}`);
+	// the taste knobs at their ends: still centered and inside the face
+	for (const [label, set, reset] of [
+		[`the ${knob} title size at 2`, `window.__reindeer.tune.ledBoard.titles.${knob}.size = 2`, `window.__reindeer.tune.ledBoard.titles.${knob}.size = 1`],
+		[`the ${knob} title size at 0.3`, `window.__reindeer.tune.ledBoard.titles.${knob}.size = 0.3`, `window.__reindeer.tune.ledBoard.titles.${knob}.size = 1`],
+		['the gap at 20 dots and the bounce at 2', 'window.__reindeer.tune.ledBoard.titles.gap = 20; window.__reindeer.tune.ledBoard.titles.bounce = 2', 'window.__reindeer.tune.ledBoard.titles.gap = 0; window.__reindeer.tune.ledBoard.titles.bounce = 1'],
+	]) {
+		await p.evaluate(set);
+		const rows = [];
+		for (const [start, ms] of [scenes[0], scenes[3], scenes[5]]) rows.push(...judge(await sample(start, ms)));
+		await p.evaluate(reset);
+		const bad = rows.filter((x) => !ok(x));
+		check(rows.length >= 4 && bad.length === 0, `${tag}: ${label}: every title and amount centered and inside the face (${rows.map((x) => `${x.kind === 'amount' ? 'amount' : x.str} s${x.ts} off ${x.off} L${x.left} R${x.right} T${x.top}`).join(', ')})`, bad);
+	}
 	await R(p, () => window.__reindeer.scoreboardManual(false));
 }
 
@@ -488,49 +662,179 @@ const cardNow = (p) =>
 	});
 
 // ---- PART B: THE CARDS IN REAL BONUS ROUNDS (desktop) ----
-async function cards(p, S) {
-	const tag = `${S.name}`;
+// the showcase books as the fixtures hand them over (src/fixtures/showcaseBooks.ts): one round's events by its key
+const BOOKS = (() => {
+	const t = readFileSync(join(SRC, 'fixtures', 'showcaseBooks.ts'), 'utf8');
+	const a = t.indexOf('SHOWCASE_ROUNDS = ') + 18;
+	return JSON.parse(t.slice(a, t.lastIndexOf('] as unknown') + 1));
+})();
+const bookOf = (name) => {
+	const r = BOOKS.find((x) => x.name === name);
+	return r?.events ?? BOOKS.find((x) => x.name === r?.sameBookAs)?.events ?? [];
+};
+
+async function cards(p, S, full) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
 	await R(p, () => window.__reindeer.turbo(0));
-	// natural_free_spins: the entry on the board; a press after 1.2 s lands it, the next continues; the Total Win on the board
-	const seen = { intro: null, landed: null, outro: null, outroHtml: null };
-	let pressed = 0;
-	let introAt = 0;
+	// (2026-11-17) natural_free_spins with no autoplay: THE ENTRY WAITS for the press (Corey: "Free Spin Entry does not wait
+	// for Press for Continue"): untouched for 5.5 s it is still up and waiting; one press then continues; its Total Win plays
+	// on the back board (Corey: "the Wrap up total was shown on the plain old card") and lands on the book's own wrap-up
+	// amount, the one the old HTML card showed (freeSpinEnd's, the free spins' total; the HUD's WIN is the round's)
+	const seen = { intro: null, waited: null, after: null, outro: null, outroHtml: false, landed: null };
+	let introAt = null;
+	let pressed = false;
 	const a = await playRound(p, 'natural_free_spins', {
 		limit: 240000,
 		during: async (s, ms) => {
 			const c = await cardNow(p);
-			if (c.card === 'fs' || c.card === 'sfs') {
-				if (!seen.intro) {
-					seen.intro = c;
+			if ((c.card === 'fs' || c.card === 'sfs') && !pressed) {
+				if (introAt === null) {
 					introAt = ms;
+					seen.intro = c;
 				}
-				if (pressed === 0 && ms - introAt > 1200) {
-					pressed = 1;
+				if (ms - introAt >= 5500) {
+					seen.waited = { ...c, after: ms - introAt };
+					pressed = true;
 					await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3);
-					await sleep(120);
-					seen.landed = await cardNow(p);
-				} else if (pressed === 1 && ms - introAt > 1900) {
-					pressed = 2;
-					await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3);
+					await sleep(500);
+					seen.after = await cardNow(p);
 				}
 			}
-			if (c.card === 'total' && !seen.outro) seen.outro = c;
+			if (c.card === 'total') {
+				seen.outro ??= c;
+				if (await R(p, () => !!document.querySelector('.am-ui.wrap [data-round-card="outro"]'))) seen.outroHtml = true;
+				const sh = await R(p, () => window.__reindeer.scoreboard().show);
+				// (landed: the count has reached its end; the last such reading is kept)
+				if (sh && sh.kind === 'total' && sh.t >= sh.countEnd) seen.landed = sh;
+				seen.totalSeen = sh ? { phase: sh.phase, t: sh.t, countEnd: sh.countEnd, amount: sh.amount } : seen.totalSeen;
+			}
 		},
 	});
 	check(!!seen.intro && seen.intro.board === 'intro' && !seen.intro.html, `${tag}: natural_free_spins: the entry plays on the back board (${seen.intro?.card}), the HTML card draws nothing`, seen.intro);
-	check(!!seen.landed && seen.landed.card === seen.intro?.card && seen.landed.phase === 'waits' && seen.landed.sceneT >= 2200, `${tag}: a press 1.2 s into the entry lands it on its READY beat (scene at ${seen.landed?.sceneT} ms), the card stays; the next press continues`, seen.landed);
-	check(!!seen.outro && seen.outro.board === 'outro' && a.ok, `${tag}: its Total Win plays on the back board and the round comes back to rest (${a.ms} ms)`, { outro: seen.outro, last: a.seen.slice(-3) });
-	// floor_top_up: the wrap-up says the top-up, so it keeps the HTML card
-	let outroHtml = null;
+	check(!!seen.waited && (seen.waited.card === 'fs' || seen.waited.card === 'sfs') && seen.waited.phase === 'waits' && seen.waited.after >= 5000, `${tag}: with no autoplay the entry waits for the press: ${seen.waited ? Math.round(seen.waited.after) : 'none'} ms untouched and still up (${seen.waited?.phase})`, seen.waited);
+	check(!!seen.after && seen.after.card !== 'fs' && seen.after.card !== 'sfs', `${tag}: one press then continues (the card after it: ${seen.after?.card ?? 'none'})`, seen.after);
+	check(!!seen.outro && seen.outro.board === 'outro' && !seen.outroHtml && a.ok, `${tag}: its Total Win plays on the back board, not the HTML card, and the round comes back to rest (${a.ms} ms)`, { outro: seen.outro, html: seen.outroHtml, last: a.seen.slice(-3) });
+	const ev = bookOf('natural_free_spins');
+	const fsEnd = ev.find((e) => e.type === 'freeSpinEnd')?.amount;
+	const fin = ev.find((e) => e.type === 'finalWin')?.amount;
+	const want = await R(p, (a) => window.__reindeer.bookAmount(a), fsEnd);
+	const got = seen.landed ? Number(String(seen.landed.amount).replace(/,/g, '')) : NaN;
+	check(Math.abs(got - want) < 0.005, `${tag}: the Total Win lands on ${seen.landed?.amount}, the book's wrap-up amount (freeSpinEnd ${fsEnd} = ${want}) the old card showed; the HUD's WIN is the round's (finalWin ${fin}, with the trigger spin's own win)`, { landed: seen.landed, last: seen.totalSeen, fsEnd, want });
+	if (!full) return;
+	// THE GRANDMA GAG'S RULE (2026-11-17, Corey: "let's only do the Grandma Got Run Over by a Reindeer in regular games, and
+	// free spins only on the first strike or when it results in a win"): every Grandma strike's ruling (the book handler's
+	// mark) and every gag the strikes asked for (the dev hook's count)
+	await R(p, () => {
+		window.__reindeer.gagsAsked(true);
+		window.__reindeer.roadSounds(true);
+	});
+	const strikes = [];
+	const drainStrikes = async () => {
+		const log = await R(p, () => window.__reindeer.roadSounds(true));
+		for (const e of log) if (e.what === 'grandmaStrike') strikes.push(e.detail);
+	};
+	const base = await playRound(p, 'base_grandma_strike', { limit: 60000, during: drainStrikes });
+	await drainStrikes();
+	const baseCalls = await R(p, () => window.__reindeer.gagsAsked(true));
+	check(base.ok && strikes.length === 1 && / gag true$/.test(strikes[0]) && /^basegame/.test(strikes[0]) && baseCalls === 1, `${tag}: base_grandma_strike: a base game Grandma strike plays the gag (${strikes.join('; ')}; gags asked ${baseCalls})`, { strikes, baseCalls });
+	strikes.length = 0;
+	// floor_top_up: its free spins hold three Grandma strikes (the round's first on a spin with no win, a later one on a
+	// paying spin, a later one with no win); its wrap-up (a top-up) plays on the back board since 2026-11-17, its top-up line
+	// scrolled on the strip, no HTML card
+	let fIntro = null;
+	let fPressed = 0;
+	const top = { board: false, html: false, line: null, lineAt: 0, pressed: false, waited: false };
 	const b = await playRound(p, 'floor_top_up', {
 		limit: 240000,
-		during: async () => {
-			if (outroHtml) return;
-			const c = await R(p, () => ({ outro: !!document.querySelector('[data-round-card="outro"]'), html: !!document.querySelector('.am-ui.wrap [data-round-card="outro"]'), topUp: !!document.querySelector('[data-top-up]'), board: window.__reindeer.scoreboard().card }));
-			if (c.outro) outroHtml = c;
+		during: async (s, ms) => {
+			await drainStrikes();
+			const c = await cardNow(p);
+			if (c.card === 'fs' || c.card === 'sfs') {
+				fIntro ??= ms;
+				if (fPressed < 2 && ms - fIntro > 1500 + fPressed * 800) {
+					fPressed += 1;
+					await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3);
+				}
+			}
+			if (c.card === 'total') {
+				top.board = true;
+				if (await R(p, () => !!document.querySelector('.am-ui.wrap [data-round-card="outro"]') || !!document.querySelector('[data-top-up]'))) top.html = true;
+				const w = await R(p, () => window.__reindeer.scoreboardFace('strip')?.entryWait?.sentence ?? null);
+				if (w && !top.line) {
+					top.line = w;
+					top.lineAt = ms;
+				}
+				// (the wrap-up with a line waits for the press with no autoplay: pressed 3 s after its line came)
+				if (top.line && !top.pressed && ms - top.lineAt > 3000) {
+					top.pressed = true;
+					top.waited = (await cardNow(p)).card === 'total';
+					await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3);
+				}
+			}
 		},
 	});
-	check(!!outroHtml && outroHtml.html && outroHtml.topUp && outroHtml.board === null && b.ok, `${tag}: floor_top_up: the wrap-up with its top-up line keeps the HTML card (no board scene) and the round ends`, outroHtml);
+	check(top.board && !top.html && !!top.line && /^Includes \$[0-9.,]+ added to bring this round up to its [0-9.]+x minimum\.$/.test(top.line) && top.waited && b.ok, `${tag}: floor_top_up: the wrap-up plays on the back board with its top-up line on the strip ("${top.line}"), no HTML card, it waits for the press, and the round ends`, top);
+	await drainStrikes();
+	const fsCalls = await R(p, () => window.__reindeer.gagsAsked(true));
+	const rulings = strikes.map((x) => / gag (true|false)$/.exec(x)?.[1]);
+	check(strikes.length === 3 && strikes.every((x) => /^freegame/.test(x)) && rulings.join() === 'true,true,false' && fsCalls === 2, `${tag}: floor_top_up's free spins: the first Grandma strike plays the gag, a later one on a paying spin plays it, a later one on a spin with no win does not (${strikes.join('; ')}; gags asked ${fsCalls})`, { strikes, fsCalls });
+}
+
+// ---- THE RACE'S RESULT CARDS (2026-11-17, Corey: the picture sat behind the words): REINDEER, POLICE CAR and the TIE, the
+// pictures' columns and the words' lit columns never meet, all inside the strip
+async function raceCards(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await R(p, () => window.__reindeer.scoreboardManual(true));
+	for (const force of ['reindeer', 'police', 'tie']) {
+		const got = await R(p, (force) => {
+			const h = window.__reindeer;
+			h.scoreboardRace(force);
+			const R0 = h.tune.ledBoard.race.runMs;
+			const seen = [];
+			for (let t = 0; t < R0 + 150 + 2400; t += 50) {
+				h.scoreboardStep(50);
+				const f = h.scoreboardFace('strip');
+				if (f?.raceCard && (force !== 'tie' || f.raceCard.words === 'TIE')) seen.push({ ...f.raceCard, W: f.W, H: f.H });
+			}
+			return seen;
+		}, force);
+		const bad = got.filter((c) => c.pics.some(([a, b]) => !(b <= c.text[0] || c.text[1] <= a)) || c.pics.some(([a, b]) => a < 1 || b > c.W - 1) || c.text[0] < 1 || c.text[1] > c.W - 1);
+		const c = got[0];
+		check(got.length > 0 && bad.length === 0, `${tag}: the ${force} result card: picture${c?.pics.length > 1 ? 's' : ''} ${c ? c.pics.map(([a, b]) => `${a} to ${b}`).join(' and ') : 'none'}, the words "${c?.words}" ${c ? `${c.text[0]} to ${c.text[1]}` : ''} on the ${c?.W} dot strip: never over each other (${got.length} steps)`, bad.slice(0, 2));
+	}
+	await R(p, () => window.__reindeer.scoreboardManual(false));
+}
+
+// ---- THE DIM (2026-11-17, Corey: "the background fading is cut off, not covering the entire screen"): with the back board
+// up the scene is dimmed edge to edge: the top band, the bottom band and the far left and right are darker than with the
+// dim off
+async function dimCheck(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	const W = S.vp.width;
+	const H = S.vp.height;
+	const regions = { top: { x: W * 0.3, y: 2, w: W * 0.4, h: 8 }, bottom: { x: W * 0.3, y: H - 10, w: W * 0.4, h: 8 }, left: { x: 2, y: H * 0.35, w: 8, h: H * 0.2 }, right: { x: W - 10, y: H * 0.35, w: 8, h: H * 0.2 } };
+	const mean = (png) => {
+		let t = 0;
+		for (let i = 0; i < png.data.length; i += 4) t += png.data[i] + png.data[i + 1] + png.data[i + 2];
+		return t / (png.data.length / 4) / 3;
+	};
+	await R(p, () => window.__reindeer.scoreboardManual(true));
+	await R(p, () => void window.__reindeer.scoreboardWin(98.75));
+	await R(p, () => window.__reindeer.scoreboardStep(10, 150));
+	const on = {};
+	for (const [k, r] of Object.entries(regions)) on[k] = mean(await grab(p, r));
+	const alpha = await R(p, () => window.__reindeer.tune.ledBoard.dim.alpha);
+	await R(p, () => (window.__reindeer.tune.ledBoard.dim.alpha = 0));
+	await R(p, () => window.__reindeer.scoreboardStep(10, 60));
+	const off = {};
+	for (const [k, r] of Object.entries(regions)) off[k] = mean(await grab(p, r));
+	await R(p, (a) => (window.__reindeer.tune.ledBoard.dim.alpha = a), alpha);
+	const rect = await R(p, () => window.__reindeer.scoreboard().dim.rect);
+	await R(p, () => window.__reindeer.scoreboardSkip());
+	await R(p, () => window.__reindeer.scoreboardStep(10, 600));
+	await R(p, () => window.__reindeer.scoreboardManual(false));
+	const ratio = Object.fromEntries(Object.keys(regions).map((k) => [k, Math.round((on[k] / Math.max(1, off[k])) * 100) / 100]));
+	check(rect && rect.x <= 0 && rect.y <= 0 && rect.x + rect.w >= W && rect.y + rect.h >= H && Object.values(ratio).every((v) => v <= 0.85), `${tag}: with the back board up the dim covers the whole screen (${JSON.stringify(rect)}): top, bottom, left and right at ${Object.values(ratio).join(', ')} of their undimmed brightness (0.85 or less wanted)`, { on, off, rect });
 }
 
 async function flows(p, S, errs) {
@@ -699,7 +1003,7 @@ async function flows(p, S, errs) {
 		check(stopped && end.idle && end.rest && !end.show, `${tag}: autoplay at turbo 2 ran ${end.plays - plays0} Mega rounds and came back to rest when stopped`, end);
 		check(list.length >= 2 && list.every((x) => x.hold === 400 && Math.abs(x.count - 5000 / 2.6) < 30), `${tag}: in autoplay each win holds 400 ms and counts at the turbo rate (${list.map((x) => `${Math.round(x.count)} ms + ${x.hold}`).join(', ')}; 5000 / 2.6 = ${Math.round(5000 / 2.6)})`, list);
 // part B: the tier sounds at turbo 2 in autoplay, once per tier per round (asked of the road's sound log)
-const asked = (await R(p, () => window.__reindeer.roadSounds())).filter((e) => e.kind === 'sound' && /^sfx_win_(big|super|mega|epic|max)$/.test(e.what));
+const asked = (await R(p, () => window.__reindeer.roadSounds())).filter((e) => e.kind === 'sound' && /^sfx_win_(big|super|mega|epic|max)$/.test(e.what) && !/^stop/.test(e.detail || ''));
 const firedAll = [...shows.values()].reduce((a, x) => a + x.fired.length, 0);
 check(list.length >= 2 && list.every((x) => x.fired.join() === '0,1,2') && asked.length === firedAll, `${tag}: autoplay at turbo 2: each Mega round sounds Big, Super and Mega once (${asked.length} tier sounds for ${shows.size} wins: ${[...shows.values()].map((x) => x.fired.join('')).join(' ')})`, { asked: asked.map((e) => e.what), fired: [...shows.values()].map((x) => x.fired) });
 		await R(p, () => window.__reindeer.turbo(0));
@@ -716,7 +1020,11 @@ check(list.length >= 2 && list.every((x) => x.fired.join() === '0,1,2') && asked
 			try {
 				await sizeChecks(p, S, memory);
 				if (S.scenes && SEC('scenes')) await scenes(p, S);
-				if (S.flows && SEC('cards')) await cards(p, S);
+				if (SEC('titles')) await titles(p, S);
+				if (SEC('dim') && ['desktop', 'side', 'portrait'].includes(S.name)) await dimCheck(p, S);
+				if (SEC('raceCard')) await raceCards(p, S);
+				if (SEC('cards') && ['side', 'portrait'].includes(S.name)) await cards(p, S, false);
+				if (S.flows && SEC('cards')) await cards(p, S, true);
 				if (S.flows) await flows(p, S, errs);
 				else check(errs.length === 0, `${S.name}: no page errors`, errs);
 			} catch (e) {

@@ -46,7 +46,7 @@
 
 <!-- THE NAME is the billboard logo in the canvas (game/scene/logoSign.ts, scene pass 9); the highway sign here shows only in
      a bonus round, with its counter (ui/TitleSign.svelte roundOnly), kept up through every presentation -->
-<div class="logo keep" style:left="{title.x}px" style:top="calc({title.y}px - var(--vp-extra-top, 0px))"><TitleSign width={title.width} height={title.height} lines={title.lines} roundOnly /></div>
+<div class="logo keep" style:left="{title.x}px" style:top="calc({title.y}px - var(--vp-extra-top, 0px))"><TitleSign width={title.width} height={title.height} lines={title.lines} roundOnly plate="landscape" /></div>
 
 <!-- the dock: glass, keys, WIN and Spin -->
 <div class="hudp hud-group v-{hud.variant}" data-plane="base" style={plane}>

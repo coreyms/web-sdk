@@ -85,6 +85,49 @@ const rnd = (i: number) => {
 	const x = Math.sin((i * 3.7 + 11) * 127.1 + 311.7) * 43758.5453;
 	return x - Math.floor(x);
 };
+
+/** THE SNOW CAP'S DRAWN TOP (2026-11-17; the press screen rests the billboard logo on it, components/Board.svelte): the
+ *  top edge of the cap's outline as drawHousing draws it (its scalloped curve, less half its outline's width), one value
+ *  per CSS px column from `x0` (the cap's left end) on. The same curves as drawHousing's cap(0). */
+export const capTopProfile = (G: LedGeometry): { x0: number; ys: Float32Array } => {
+	const Hs = G.housing;
+	const f = G.frame;
+	const capH = G.cap;
+	const x0 = Hs.x - f * 0.5;
+	const x1 = Hs.x + Hs.w + f * 0.5;
+	const baseY = Hs.y + f * 0.2;
+	const segs: number[][] = [];
+	let px = x0;
+	let py = baseY;
+	const q = (cx: number, cy: number, ex: number, ey: number) => {
+		segs.push([px, py, cx, cy, ex, ey]);
+		px = ex;
+		py = ey;
+	};
+	q(x0 - capH * 0.15, Hs.y - capH * 0.35, x0 + capH * 0.5, Hs.y - capH * 0.55);
+	const n = Math.max(4, Math.round((x1 - x0 - capH) / (capH * 2.2)));
+	const bw = (x1 - x0 - capH) / n;
+	for (let i = 0; i < n; i++) {
+		const xa = x0 + capH * 0.5 + bw * i;
+		q(xa + bw / 2, Hs.y - capH * (0.95 + rnd(i + 7) * 0.35), xa + bw, Hs.y - capH * (0.5 + rnd(i + 21) * 0.15));
+	}
+	q(x1 + capH * 0.15, Hs.y - capH * 0.3, x1, baseY);
+	const w = Math.ceil(x1 - x0) + 1;
+	const ys = new Float32Array(w).fill(Infinity);
+	for (const [ax, ay, cx, cy, ex, ey] of segs)
+		for (let k = 0; k <= 64; k++) {
+			const t = k / 64;
+			const u = 1 - t;
+			const x = u * u * ax + 2 * u * t * cx + t * t * ex;
+			const y = u * u * ay + 2 * u * t * cy + t * t * ey;
+			const i = Math.round(x - x0);
+			if (i >= 0 && i < w && y < ys[i]) ys[i] = y;
+		}
+	// (a column no sample fell in takes its neighbor's)
+	for (let i = 1; i < w; i++) if (!Number.isFinite(ys[i])) ys[i] = ys[i - 1];
+	for (let i = 0; i < w; i++) ys[i] -= G.ol / 2;
+	return { x0, ys };
+};
 const col = (hex: string) => Number.parseInt(hex.slice(1), 16);
 
 export class LedSign {
@@ -452,6 +495,8 @@ export class LedSign {
 			face: g ? { x: r(g.face.x), y: r(g.face.y), w: r(g.face.w), h: r(g.face.h), dotsW: g.face.dotsW, dotsH: g.face.dotsH } : null,
 			ticker: g ? { x: r(g.ticker.x), y: r(g.ticker.y), w: r(g.ticker.w), h: r(g.ticker.h), dotsW: g.ticker.dotsW, dotsH: g.ticker.dotsH } : null,
 			housing: g ? { x: r(g.housing.x), y: r(g.housing.y - g.cap), w: r(g.housing.w), h: r(g.housing.h + g.cap), bottom: r(g.housing.y + g.housing.h) } : null,
+			/** the cap's drawn top per CSS px column from x0 (capTopProfile) */
+			capTop: g ? (() => { const c = capTopProfile(g); return { x0: r(c.x0), ys: [...c.ys].map(r) }; })() : null,
 			pitch: g ? r(g.pitch) : null,
 			signAlpha: r(this.sign.alpha),
 			dimAlpha: r(this.dim.alpha),

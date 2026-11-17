@@ -236,6 +236,9 @@ export const CLOUD_CELL = {
 	numberTint: 0xffd400,
 	/** the handler waits this long on the cloud before the next event */
 	holdMs: 240,
+	/** THE SMOKE EDGE TO EDGE (2026-11-17): the picture's opaque core, as a share of its width (x) and height (y) cut off
+	 *  each side (measured on both atlas tiers: 99.9% opaque inside); the box shows that core, cropped to its shape */
+	core: { x: 0.105, y: 0.112 },
 };
 
 // ---- THE RED BOX (drawn by the game: plain colored quads, no picture) ---------------------------------------------------
@@ -468,6 +471,16 @@ export const ROUND = {
 	introAutoMs: 4000,
 	outroAutoMs: 6000,
 	autoplayMs: 1400,
+	/** THE BONUS COUNTER PLATES (the blue FREE SPINS 1 OF 10 and red SUPER SPINS signs, ui/TitleSign.svelte) per layout
+	 *  class: off since 2026-11-17 (Corey: "Those signs in the upper right should be removed"; the LED strip shows the
+	 *  spins left). true shows that class's plate again. Read when the chrome mounts. */
+	counterPlate: { landscape: false, portrait: false, phone: false },
+	/** the intro waits for the player's press when no autoplay is running (2026-11-17); false: it continues after
+	 *  introAutoMs as before (the probes that play a bonus round through without pressing set it) */
+	introWaitsForPress: true,
+	/** a wrap-up that carries a line (a top-up, the cap) waits for the press too with no autoplay (its line scrolls on the
+	 *  LED strip), as long as introWaitsForPress is on */
+	lineOutroWaitsForPress: true,
 	/** a card takes no press for its first moment (a spin press must not skip it) */
 	armMs: 450,
 	/** the +3 line of a retrigger shows this long */
@@ -475,6 +488,12 @@ export const ROUND = {
 	/** the pause between two free spins */
 	betweenSpinsMs: 160,
 };
+/** THE INTRO CARD'S SENTENCE, per bonus round (ui/RoundCard.svelte's HTML card, and the LED strip under the back board while
+ *  the entry waits for the press: game/scoreboard/scoreboardDraw.ts showRibbon). One place, so the two never differ. */
+export const INTRO_LINE = {
+	bonus: 'Every column Wild stays for the whole round and keeps its multiplier.',
+	super: 'The round starts with a column Wild in place. Column Wilds stay and keep their multipliers.',
+} as const;
 
 // ---- THE HUD'S DARK BEDS (components/HudBeds.svelte) -------------------------------------------------------------------
 // The house HUD is white and gold ink made for a dark scene; on snow it cannot be read. Until the scene art gives
@@ -1106,8 +1125,10 @@ export const BRAKE_LIGHTS = {
 	/** THE HALO (pass 8, Corey: "if the bracklights had some halo glow effect, it would still work to look like brake
 	 *  lights on grandma's car"): a soft red blob behind each lamp, the same glow texture tinted and added (no filter,
 	 *  shader, mask or blur). size road px wide, squash its height against its width (the page's 0.8); brake / stopped
-	 *  its alpha while braking and while stopped. The far lamp's halo is drawn UNDER the car (over its cast shadow), so the body covers its forward half. */
-	halo: { size: 122, squash: 0.8, brake: 0.38, stopped: 0.16 },
+	 *  its alpha while braking and while stopped. The far lamp's halo is drawn UNDER the car (over its cast shadow), so the body covers its forward half.
+	 *  2026-11-17 (Corey: "we may need to adjust the brightness on the halos"): `strength` multiplies both alphas (1 = the
+	 *  pass 8 look; 1.7 since: braking 0.65, stopped 0.27), `tint` the halo's own color (the lamp's red by default). */
+	halo: { size: 122, squash: 0.8, brake: 0.38, stopped: 0.16, strength: 1.7, tint: 0xff2a1a },
 	/** the lamp's brightness while braking and while stopped (0..1; the same since pass 8: the halo carries the
 	 *  difference), and how fast lamp and halo change (ms to full) */
 	brake: 0.41,
@@ -1171,6 +1192,12 @@ export const LOGO_SIGN = {
 		portrait: { cx: 286.4, foot: -86.7, width: 494 } as LogoPlace,
 		minLeft: 4,
 	},
+	/** THE PRESS SCREEN ON AN UPRIGHT PHONE (2026-11-17, Corey approved): the sign is moved up or down from its place so its
+	 *  lowest visible pixel over the LED billboard's snow cap sits this many CSS px into the cap's top (0 to 2: resting on
+	 *  it, no gap); once the press screen has gone it moves back to its place over pressLiftBackMs (real ms). The in-game
+	 *  place and the other layouts are the rule's above. */
+	pressCapOverlap: 1,
+	pressLiftBackMs: 350,
 	lamps: {
 		/** both lamps dark from the sign's first frame for this long */
 		darkMs: 700,
@@ -1268,6 +1295,9 @@ export const LED_BOARD = {
 	race: { odds: { reindeer: 0.45, police: 0.45, tie: 0.1 }, runMs: 3200, cardMs: 2600, finishGap: 0.035 },
 	/** in a bonus round, a reindeer dashes across the strip's counter after each spin */
 	dashMs: 1300,
+	/** THE SPINS LEFT DURING A MESSAGE (2026-11-17): in a bonus round a strip message (a small win, the gag) shows the
+	 *  counter for the last counterMs of every cycleMs it plays, so the spins left are never off the strip for long */
+	counterBreak: { on: true, cycleMs: 3600, counterMs: 1200 },
 	// ---- PART B (2026-11-17): the staged back board scenes, the tier sounds, the shakes ----
 	/** THE BONUS ROUND'S CARDS: 'board' plays the Free Spins entry, the Super entry and the Total Win on the back board (the
 	 *  mock's scenes, the press line on the strip; the HTML card keeps its press, its timers and its sounds but draws nothing);
@@ -1278,13 +1308,31 @@ export const LED_BOARD = {
 	 *  letters on the back board (the mock's wave); the entries' press line and READY beat (ms of the scene), the Total Win's
 	 *  count (a turbo level divides it, as the win count) and its press line after the landing */
 	scenes: { band: 0.22, bounceTitle: true, fsPressMs: 2300, sfsPressMs: 2900, fsReadyMs: 2200, sfsReadyMs: 2800, totalCountMs: 3000, totalPressAfterMs: 300 },
+	/** THE ENTRY'S SENTENCE ON THE STRIP (2026-11-17; the HTML intro card's line, INTRO_LINE, exactly): while a Free Spins or
+	 *  Super entry waits for the press, the strip scrolls the sentence (charsPerSec, about 6 dots a letter at the font's size)
+	 *  on its top row with PRESS ANYWHERE TO CONTINUE under it, so the press line is never off the strip. A strip too short
+	 *  for two rows alternates: one pass of the sentence, then the press line for pressMs. */
+	entryLine: { on: true, charsPerSec: 9, pressMs: 1600 },
+	/** THE BACK BOARD'S TITLES (BIG to MAX WIN, FREE SPINS, TOTAL WIN; 2026-11-17): matters of taste only (every title and
+	 *  amount is centered on its drawn dots by the code): per layout class (desktop and tablet, a phone held sideways, an
+	 *  upright phone) the title's size (x the dot scale the layout picks; never wider than the face less its margins);
+	 *  `gap` dots added between a title and its amount (or number); `bounce` the bouncing letters' lift (x 1.6 dot scales).
+	 *  1, 0 and 1 are the look before the knobs. All live. */
+	titles: {
+		desktop: { size: 1 },
+		phone: { size: 1 },
+		portrait: { size: 1 },
+		gap: 0,
+		bounce: 1,
+	},
 	/** THE SHAKES (the mock's shakeAt): at Mega, Epic and Max (amp per tier) the road, the logo and the back board shake (px x
 	 *  the back board's size, a sine every periodMs dying over decayMs, for ms); at every tier change after Big a small jolt
 	 *  (joltPx over joltMs); the Super entry shakes once as its scene starts (superEntryAmp). A strip win shakes the strip. */
 	shake: { on: true, px: 7, amp: [0, 0, 1, 1.35, 1.7], ms: 480, periodMs: 75, decayMs: 120, joltPx: 3, joltMs: 190, superEntryAmp: 1.6 },
 	/** THE TIER SOUNDS (the five sfx_win_* in the sprite): one as the count reaches each tier; a skip plays only the final
-	 *  tier's (through the game's sound events: the effects volume, mute and SKIP TO RESULT apply) */
-	tierSounds: { on: true, names: ['sfx_win_big', 'sfx_win_super', 'sfx_win_mega', 'sfx_win_epic', 'sfx_win_max'] },
+	 *  tier's (through the game's sound events: the effects volume, mute and SKIP TO RESULT apply). Since 2026-11-17 a tier's
+	 *  sound fades the one before out over fadeMs as it starts (only one that started under lengthMs ago: each is 1.48 s) */
+	tierSounds: { on: true, names: ['sfx_win_big', 'sfx_win_super', 'sfx_win_mega', 'sfx_win_epic', 'sfx_win_max'], fadeMs: 150, lengthMs: 1500 },
 	/** the chase borders drawn as runs of one color (the same dots, fewer calls); off draws them dot by dot (the probe
 	 *  compares the two pictures) */
 	fastChase: true,

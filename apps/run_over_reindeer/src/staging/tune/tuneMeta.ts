@@ -7,7 +7,8 @@
 //   spin    read when a spin starts or a symbol is put on a car (motionFor at the drive out and the drive in)
 //   win     read when a win starts (game/road/winLights.ts lightsSchedule, roadBoard showWin)
 //   resize  read by the HUD beds' layout: shows on the next resize or rotation, or after a reload
-//   reload  read once when the board or the scene is built: a reload resets it, so it cannot be tried here
+//   reload  read once when the board or the scene is built: the panel remembers it (tuneStore.ts), so it applies after
+//           a reload
 //   unknown not checked value by value: try a spin; if it does not show, it is read at build time
 import { scoreboardDev } from '../../game/scoreboard/scoreboard';
 import { sceneDev } from '../../game/stateScene.svelte';
@@ -19,7 +20,7 @@ export const WHEN_LABEL: Record<When, string> = {
 	spin: 'applies on the next spin',
 	win: 'applies on the next win',
 	resize: 'applies on a resize or rotation',
-	reload: 'needs a reload (cannot be tried here)',
+	reload: 'applies after a reload (remembered)',
 	unknown: 'not checked: spin to see it',
 };
 
@@ -147,6 +148,8 @@ export const META: Record<string, Meta> = {
 	'scene.swap.tailShare': { label: 'then the outgoing scene fades out over (share of the cross-fade)', min: 0, max: 1, step: 0.05, when: 'live' },
 	'scene.swap.unload': { label: 'let the night pieces go after the swap back', when: 'live' },
 	'logoSign.place': { when: 'resize' },
+	'logoSign.pressCapOverlap': { label: 'press screen, upright phone: the sign into the LED cap', min: -10, max: 10, step: 0.5, unit: 'CSS px', when: 'resize' },
+	'logoSign.pressLiftBackMs': ms(1500, 'press screen: the sign back to its place over'),
 	'logoSign.place.*.cx': { min: -600, max: 600, step: 1, unit: 'road px' },
 	'logoSign.place.*.foot': { min: -400, max: 600, step: 1, unit: 'road px' },
 	'logoSign.place.*.width': { min: 120, max: 700, step: 1, unit: 'road px' },
@@ -210,6 +213,17 @@ export const META: Record<string, Meta> = {
 	'ledBoard.scenes.sfsReadyMs': ms(6000, 'Super entry: a press jumps to'),
 	'ledBoard.scenes.totalCountMs': { ...ms(10000, 'Total Win: count'), when: 'win' },
 	'ledBoard.scenes.totalPressAfterMs': { ...ms(2000, 'Total Win: press line after the landing'), when: 'win' },
+	// 2026-11-17: the entry's sentence on the strip, the back board's titles per layout class
+	'ledBoard.entryLine': { label: "Entry sentence on the strip (the intro card's line while the entry waits)", when: 'live' },
+	'ledBoard.entryLine.charsPerSec': { label: 'scroll speed', min: 3, max: 30, step: 0.5, unit: 'letters per s' },
+	'ledBoard.entryLine.pressMs': ms(4000, 'short strip only: press line between passes'),
+	'ledBoard.titles': { label: 'Back board titles (BIG to MAX WIN, FREE SPINS, TOTAL WIN; always centered by the code)', when: 'live' },
+	'ledBoard.titles.desktop': { label: 'Titles: desktop and tablet' },
+	'ledBoard.titles.phone': { label: 'Titles: phone held sideways' },
+	'ledBoard.titles.portrait': { label: 'Titles: upright phone' },
+	'ledBoard.titles.*.size': { label: 'title size (x the size the layout picks; kept inside the board)', min: 0.3, max: 2, step: 0.05 },
+	'ledBoard.titles.gap': { label: 'gap between a title and its amount', min: -6, max: 20, step: 1, unit: 'dots' },
+	'ledBoard.titles.bounce': { label: 'bounce strength (x the bouncing letters\' lift)', min: 0, max: 2, step: 0.05 },
 	'ledBoard.shake': { label: 'Shakes', when: 'live' },
 	'ledBoard.shake.px': { label: 'size', min: 0, max: 20, step: 0.5, unit: 'px at a 420 px board' },
 	'ledBoard.shake.amp.*': { min: 0, max: 3, step: 0.05 },
@@ -220,7 +234,14 @@ export const META: Record<string, Meta> = {
 	'ledBoard.shake.joltMs': ms(600, 'jolt length'),
 	'ledBoard.shake.superEntryAmp': { label: 'Super entry shake', min: 0, max: 3, step: 0.05 },
 	'ledBoard.tierSounds': { label: 'Tier sounds', when: 'win' },
+	'ledBoard.tierSounds.fadeMs': ms(600, "the tier before's sound fades out over"),
+	'ledBoard.tierSounds.lengthMs': ms(3000, 'a tier sound is still playing for'),
 	'ledBoard.fastChase': { label: 'chase borders as runs (same dots, cheaper)' },
+	'brakeLights.halo.size': { label: 'halo size', min: 40, max: 260, step: 1, unit: 'road px' },
+	'brakeLights.halo.brake': { label: 'halo alpha while braking', min: 0, max: 1, step: 0.01 },
+	'brakeLights.halo.stopped': { label: 'halo alpha while stopped', min: 0, max: 1, step: 0.01 },
+	'brakeLights.halo.strength': { label: 'halo brightness (x both alphas)', min: 0, max: 3, step: 0.05 },
+	'brakeLights.halo.tint': { label: 'halo color' },
 	'stoplight.follow.*': { options: ['board', 'pair'] },
 	'stoplight.amberFrom': { options: ['afterGreen', 'beforeRed', 'brake'] },
 	'strike.entry': { options: ['far', 'near', 'left', 'right'] },

@@ -11,8 +11,8 @@
 //                staged scenes (the Free Spins and Super entries, the Total Win, the Mega, Epic and Max bottom bands) and the
 //                strip's line while a card is up, from the mock's r3b scene code
 import { SCOREBOARD_ART } from '../scoreboardArtSpec';
-import { LED_FONT, drawText, mk, textW, type Cv } from '../landing/ledScreens';
-import { LED_BOARD } from '../constants';
+import { LED_FONT, drawText, letterGap, mk, textInk, textW, type Cv } from '../landing/ledScreens';
+import { INTRO_LINE, LED_BOARD } from '../constants';
 import { amountNow, tierNow, type Show } from './show';
 import { newRace, raceProgress, type Race } from './race';
 
@@ -238,6 +238,160 @@ function drawTitle(g: Ctx, str: string, cx: number, y: number, s: number, style:
 }
 
 // ---- LED PICTURE HELPERS -------------------------------------------------------------------------------------------------
+// ---- THE BACK BOARD'S TITLES (2026-11-17): set by their drawn dots, the tune knobs per layout class -------------------------
+// Measured on 2026-11-17 (column_border_fix NOTES): the bouncing and the marching letters are set one by one a whole dot
+// scale apart (plus the 2 dot pad of each letter's mask from the 3x size up), but they were centered on the width of the
+// word's own mask, which sets them only 0.45 of a scale apart: the drawn word was wider than the width it was centered on
+// and ran 12 to 16 dots off to the right (MEGA WIN on an upright phone to the board's right edge, SUPER WIN past it). Each
+// title is now centered on its lit dots as drawn; its letters keep their spacing where the title fits the face less its
+// margins, and close up (down to the word's own gap, no further) only as far as it takes to fit.
+export type BoardClass = 'desktop' | 'phone' | 'portrait';
+let boardClass: BoardClass = 'desktop';
+/** the layout class the back board is drawn for (game/scoreboard/scoreboard.ts layout; a tablet takes the desktop's) */
+export const setBoardClass = (cls: string) => {
+	boardClass = cls === 'phone' ? 'phone' : cls === 'portrait' ? 'portrait' : 'desktop';
+};
+const titleKnobs = () => LED_BOARD.titles[boardClass];
+/** the dots added between a title and its amount, and the bounce's strength (LED_BOARD.titles, live) */
+const titleGapKnob = () => Math.round(LED_BOARD.titles.gap);
+const bounceK = () => Math.max(0, LED_BOARD.titles.bounce);
+/** the dots kept clear between a title's lit dots and the face's left and right edges (the chase border and two dots) */
+const TITLE_MARGIN = 4;
+/** a line set letter by letter `gap` dots apart (each letter's mask at its own width): its letters' places from the first
+ *  mask's start, and its lit dots' left edge, width, top and bottom from there */
+const setLine = (str: string, s: number, gap: number) => {
+	const xs: number[] = [];
+	let x = 0;
+	let l = Infinity;
+	let r = -Infinity;
+	let t = Infinity;
+	let b = -Infinity;
+	for (const ch of str) {
+		xs.push(x);
+		if (ch !== ' ') {
+			const k = textInk(ch, s);
+			if (k.r > k.l) {
+				l = Math.min(l, x + k.l);
+				r = Math.max(r, x + k.r);
+				t = Math.min(t, k.t);
+				b = Math.max(b, k.b);
+			}
+		}
+		x += textW(ch, s) + gap;
+	}
+	return r > l ? { xs, l, w: r - l, t, b } : { xs, l: 0, w: 0, t: 0, b: 0 };
+};
+/** the title's letter gap on a face W dots wide: the look's own (a whole dot scale between the letters' masks) where it
+ *  fits inside the margins, else closed up just enough, never closer than the word's own mask sets them (letterGap) */
+const titleGap = (str: string, s: number, W: number) => {
+	const tight = letterGap(s);
+	for (let gap = s; gap > tight; gap--) if (setLine(str, s, gap).w <= W - 2 * TITLE_MARGIN) return gap;
+	return tight;
+};
+/** the line's lit width (at its closest letter gap: what a size must fit) */
+const lineInk = (str: string, s: number) => setLine(str, s, letterGap(s));
+/** a title's dot scale with the size knob: the layout's pick x the knob, never wider than the face less its margins nor
+ *  taller than `maxH` dots (the bounce's lift is above the title, inside the face: titleLift) */
+function titleScale(str: string, base: number, W: number, maxH: number) {
+	let ts = Math.max(1, Math.round(base * titleKnobs().size));
+	while (ts > 1 && (lineInk(str, ts).w > W - 2 * TITLE_MARGIN || 7 * ts > maxH)) ts--;
+	return ts;
+}
+/** how high a bouncing letter lifts (dots) */
+const titleLift = (ts: number) => Math.round(ts * 1.6 * bounceK());
+/** THE WORDS AND FIGURES AS DRAWN, per face canvas, this step (the probes: scoreboard faceStats): each title's and each
+ *  amount's lit box at rest, the bounce's lift; `before`: where the lit middle would have been by the placement before
+ *  2026-11-17 (the amounts: centred on their glyph cells, not their dots) */
+export type TitleRec = { kind: 'title' | 'amount'; str: string; x0: number; x1: number; y0: number; y1: number; lift: number; ts: number; before?: number };
+const titleRec = new WeakMap<object, TitleRec[]>();
+const noteRec = (canvas: object, r: TitleRec) => {
+	let list = titleRec.get(canvas);
+	if (!list) titleRec.set(canvas, (list = []));
+	list.push(r);
+};
+/** the last title drawn on a face this step */
+export const titleOf = (canvas: object): TitleRec | null => titleRec.get(canvas)?.filter((r) => r.kind === 'title').at(-1) ?? null;
+/** every title and amount drawn on a face this step */
+export const titlesOf = (canvas: object): TitleRec[] => titleRec.get(canvas) ?? [];
+/** a face's records go at the start of its step (the title, the entry's wait: entryWaitOf) */
+export const clearTitle = (canvas: object) => {
+	titleRec.delete(canvas);
+	entryWaitRec.delete(canvas);
+	raceCardRec.delete(canvas);
+};
+/** THE BACK BOARD'S TITLE: centered on its lit dots about cx, set letter by letter; `bounce` (the show's clock, or null)
+ *  bobs the letters in a wave (the mock's bounceTitle; LED_BOARD.titles.bounce its strength), `march` (the scene's clock,
+ *  or null) drops them in one after another (marchAt) */
+function boardTitle(g: Ctx, str: string, cx: number, y: number, ts: number, style: string, opts: { bounce?: number | null; march?: { t: number; dropH: number; stepMs: number; landMs: number } | null; word?: boolean } = {}) {
+	// (`word`: a title always drawn as one word, FREE SPINS and TOTAL WIN, keeps the word's own letter gap)
+	const ink = setLine(str, ts, opts.word ? letterGap(ts) : titleGap(str, ts, g.canvas.width));
+	const x0 = Math.round(cx - ink.w / 2) - ink.l;
+	const yy = Math.round(y);
+	const lift = ts * 1.6 * bounceK();
+	const op = g.globalCompositeOperation;
+	if (style === 'cut') g.globalCompositeOperation = 'destination-out';
+	[...str].forEach((ch, i) => {
+		let dy = 0;
+		let shown = true;
+		if (opts.bounce !== undefined && opts.bounce !== null) dy = Math.round(Math.max(0, Math.sin(opts.bounce / 160 - i * 0.55)) * -lift);
+		if (opts.march) {
+			const M = opts.march;
+			const lt = M.t - i * M.stepMs;
+			shown = lt > 0;
+			dy = lt < M.landMs ? -Math.round((1 - ease(lt / M.landMs)) * M.dropH) : lt < M.landMs + 120 ? Math.round(Math.sin(((lt - M.landMs) / 120) * Math.PI) * ts) : 0;
+		}
+		if (shown && ch !== ' ') drawText(g, ch, x0 + ink.xs[i], yy + dy, ts, style === 'cut' ? '#000' : style);
+	});
+	g.globalCompositeOperation = op;
+	noteRec(g.canvas, { kind: 'title', str, x0: x0 + ink.l, x1: x0 + ink.l + ink.w, y0: yy + ink.t, y1: yy + ink.b, lift: opts.bounce !== undefined && opts.bounce !== null ? titleLift(ts) : 0, ts });
+}
+
+// ---- THE AMOUNTS BY THEIR DOTS (2026-11-17): a row's lit columns from its glyphs' own lit columns -----------------------------
+const glyphInk = new Map<string, { l: number; r: number }>();
+const inkOfGlyph = (ch: string, cap: number) => {
+	const key = ch + '|' + cap;
+	let k = glyphInk.get(key);
+	if (k) return k;
+	const c = vglyph(ch, cap).c;
+	const d = c.ctx.getImageData(0, 0, c.width, c.height).data;
+	let l = c.width;
+	let r = 0;
+	for (let y = 0; y < c.height; y++)
+		for (let x = 0; x < c.width; x++)
+			if (d[(y * c.width + x) * 4 + 3] > 40) {
+				if (x < l) l = x;
+				if (x + 1 > r) r = x + 1;
+			}
+	k = r > l ? { l, r } : { l: 0, r: 0 };
+	glyphInk.set(key, k);
+	return k;
+};
+/** a row's lit columns from where drawRow starts it (drawRow's own placing of each glyph) */
+function rowInk(str: string, cap: number) {
+	const ri = rowInfo(str, cap);
+	let cx = 0;
+	let l = Infinity;
+	let r = -Infinity;
+	[...str].forEach((ch, i) => {
+		const gl = vglyph(ch, cap);
+		const at = Math.round(cx + (ri.cells[i] - gl.adv) / 2) - 1;
+		const k = inkOfGlyph(ch, cap);
+		if (k.r > k.l) {
+			l = Math.min(l, at + k.l);
+			r = Math.max(r, at + k.r);
+		}
+		cx += ri.cells[i] + ri.sp;
+	});
+	return r > l ? { l, r } : { l: 0, r: ri.w };
+}
+/** the x to start a row at so its lit dots are centered on cx; with its record for the probes */
+function centeredRow(g: Ctx, str: string, cx: number, y: number, cap: number, beforeX: number | null) {
+	const k = rowInk(str, cap);
+	const x = Math.round(cx - (k.l + k.r) / 2);
+	noteRec(g.canvas, { kind: 'amount', str, x0: x + k.l, x1: x + k.r, y0: Math.round(y), y1: Math.round(y) + cap, lift: 0, ts: cap, before: beforeX === null ? undefined : Math.round(beforeX) + (k.l + k.r) / 2 });
+	return x;
+}
+
 const BULBS = ['#ff3a2e', '#36ff74', '#ffd23a', '#4aa8ff'];
 function bulb(g: Ctx, x: number, y: number, col: string, on: boolean) {
 	g.globalAlpha = on ? 1 : 0.22;
@@ -430,8 +584,8 @@ const LOOK: Look[] = [
 // ---- THE WIN'S PLACE ON A FACE (cached): stacked (title over amount), one row, or a two line tag (a short strip) ------------
 type WinLay = { stacked: boolean; tag?: boolean; m: number; ts: number; titleX?: number; titleY: number; numX?: number; numW?: number; numY: number; cap: number; cx?: number };
 const wlCache = new Map<string, WinLay>();
-function winLayout(W: number, H: number, finalStr: string, titles: string[]): WinLay {
-	const key = W + 'x' + H + '|' + finalStr + '|' + titles.join(',');
+function winLayout(W: number, H: number, finalStr: string, titles: string[], size = 1, extraGap = 0, liftK = 0): WinLay {
+	const key = W + 'x' + H + '|' + finalStr + '|' + titles.join(',') + '|' + size + '|' + extraGap + '|' + liftK;
 	let r = wlCache.get(key);
 	if (r) return r;
 	const m = H >= 30 ? 4 : 2;
@@ -443,11 +597,18 @@ function winLayout(W: number, H: number, finalStr: string, titles: string[]): Wi
 				ts = s;
 				break;
 			}
+		// the back board's size knob (LED_BOARD.titles; 1 = the pick above), the widest title kept inside the margins
+		if (size !== 1) {
+			ts = Math.max(1, Math.round(ts * size));
+			while (ts > 1 && (Math.max(...titles.map((x) => lineInk(x, ts).w)) > W - 2 * TITLE_MARGIN || 7 * ts > H * 0.4)) ts--;
+		}
 		const tH = 7 * ts;
-		const gap = Math.max(2, Math.round(H * 0.06));
+		const gap = Math.max(1, Math.max(2, Math.round(H * 0.06)) + extraGap);
 		const cap = fitCap(finalStr, W - 2 * m - 8, Math.min(H - 2 * m - tH - gap - 3, H * 0.5));
 		const bh = tH + gap + cap;
-		const y0 = Math.round((H - bh) / 2);
+		// (the bouncing letters' lift stays inside the face's top: 2026-11-17)
+		const yc = Math.round((H - bh) / 2);
+		const y0 = liftK > 0 ? Math.max(yc, Math.round(ts * 1.6 * liftK) + 2) : yc;
 		stacked = { stacked: true, m, ts, titleY: y0, numY: y0 + tH + gap, cap, cx: W / 2 };
 	}
 	let row: WinLay | null = null;
@@ -510,25 +671,20 @@ function slideAt(s: Show, lay: WinLay) {
 
 // ---- THE WIN (one face: the strip's line or the back board) -------------------------------------------------------------------
 /** the win's place: on the back board (part B) the number keeps above the scene's bottom band (the mock's winLay) */
-const winLay = (W: number, H: number, s: Show, back: boolean) => winLayout(W, back ? H - Math.round(H * LED_BOARD.scenes.band) : H, s.finalStr, titles());
-/** ballpark block letters: each letter bobs in turn, a wave running along the word (the mock's bounceTitle) */
-function bounceTitle(g: Ctx, str: string, cx: number, y: number, ts: number, style: string, t: number) {
-	const total = textW(str, ts);
-	let x = cx - total / 2;
-	[...str].forEach((ch, i) => {
-		const w = textW(ch, ts);
-		const dy = Math.round(Math.max(0, Math.sin(t / 160 - i * 0.55)) * -ts * 1.6);
-		drawTitle(g, ch, x + w / 2, y + dy, ts, style);
-		x += w + ts;
-	});
+const winLay = (W: number, H: number, s: Show, back: boolean) => winLayout(W, back ? H - Math.round(H * LED_BOARD.scenes.band) : H, s.finalStr, titles(), back ? titleKnobs().size : 1, back ? titleGapKnob() : 0, back ? bounceK() : 0);
+/** ballpark block letters: each letter bobs in turn, a wave running along the word (the mock's bounceTitle); since
+ *  2026-11-17 set by boardTitle (the word's own letter gap, centered on its drawn dots, the class's knobs) */
+function bounceTitle(g: Ctx, str: string, cx: number, y: number, ts: number, style: string, t: number | null) {
+	boardTitle(g, str, cx, y, ts, style, { bounce: t });
 }
 function drawWinScene(g: Ctx, W: number, H: number, s: Show, tier: number, str: string, slide: number, pulse: number, back = false) {
 	const look = LOOK[tier];
 	look.bg(g, W, H, s.t);
 	const lay = winLay(W, H, s, back);
 	const title = LED_BOARD.tiers[tier].title;
-	// the strip: the plain title; the back board: the mock's bouncing block letters (LED_BOARD.scenes.bounceTitle)
-	if (lay.stacked && back && LED_BOARD.scenes.bounceTitle) bounceTitle(g, title, lay.cx!, lay.titleY, lay.ts, look.title, s.t);
+	// the strip: the plain title; the back board: the mock's bouncing block letters (LED_BOARD.scenes.bounceTitle), set by
+	// their drawn dots with the class's knobs (LED_BOARD.titles)
+	if (back && !lay.tag) bounceTitle(g, title, lay.stacked ? lay.cx! : lay.titleX!, lay.titleY, lay.ts, look.title, lay.stacked && LED_BOARD.scenes.bounceTitle ? s.t : null);
 	else if (lay.stacked) drawTitle(g, title, lay.cx!, lay.titleY, lay.ts, look.title);
 	else drawLayTitle(g, lay, title, look.title, W);
 	if (tier === 4 && pulse > 0) {
@@ -537,7 +693,13 @@ function drawWinScene(g: Ctx, W: number, H: number, s: Show, tier: number, str: 
 		g.fillRect(0, 0, W, H);
 		g.globalCompositeOperation = 'source-over';
 	}
-	drawRow(g, str, numX(lay, W, str, slide), lay.numY, lay.cap, look.num, pulse);
+	// the back board's amount centered on its lit dots (2026-11-17; the strip keeps its placing)
+	let nx = numX(lay, W, str, slide);
+	if (back && lay.stacked) {
+		const k = rowInk(str, lay.cap);
+		nx = clamp(centeredRow(g, str, W / 2 + slide, lay.numY, lay.cap, nx), lay.m + 1 - k.l, W - lay.m - 1 - k.r);
+	}
+	drawRow(g, str, nx, lay.numY, lay.cap, look.num, pulse);
 }
 /** a win's face at its time: the tier's look, the title, the counting amount; at a tier change the new tier sweeps in
  *  from the left behind a bright edge. `back`: the back board's (the number above the scene's bottom band). */
@@ -683,11 +845,24 @@ function drawRace(g: Ctx, race: Race, t: number, x0: number, W: number, yB: numb
 	return finishX;
 }
 /** the result card: WINNER with the winner's dot portrait and a flashing border; a tie is PHOTO FINISH, then TIE */
+/** THE RACE'S RESULT CARD AS LAID OUT (the probes): each picture's and the words' columns on the strip, in dots */
+export type RaceCardRec = { outcome: string; pics: [number, number][]; text: [number, number] | null; words: string };
+const raceCardRec = new WeakMap<object, RaceCardRec>();
+export const raceCardOf = (canvas: object): RaceCardRec | null => raceCardRec.get(canvas) ?? null;
+const spriteW = (name: ArtName, h: number) => {
+	const [sw, sh] = size(name, null);
+	return Math.max(1, Math.round((h * sw) / sh));
+};
+/** the result card (2026-11-17, Corey: the picture sat behind the words): the picture to one side and the words beside it,
+ *  never over each other, laid out from the pictures' real widths; on a short or narrow strip the picture shrinks first,
+ *  then the words shorten (REINDEER WINNER, POLICE CAR WINNER, then the name alone, then POLICE) */
 function raceCard(g: Ctx, race: Race, W: number, H: number, ct: number) {
 	g.clearRect(0, 0, W, H);
 	chaseBorder(g, W, H, ct, race.outcome === 'tie' ? ['#ffffff', '#202020'] : ['#ffd23a', '#ff3a2e'], 1, 3);
 	const s = H >= 22 ? 2 : 1;
-	const ph = Math.round(H * 0.82);
+	const M = 4;
+	const GAP = 6;
+	const inkOf = (str: string, z: number) => textInk(str, z);
 	if (race.outcome === 'tie') {
 		if (ct < 900) {
 			if (Math.floor(ct / 120) % 2) {
@@ -696,33 +871,71 @@ function raceCard(g: Ctx, race: Race, W: number, H: number, ct: number) {
 				g.fillRect(1, 1, W - 2, H - 2);
 				g.globalAlpha = 1;
 			}
+			const k = inkOf('PHOTO FINISH', s);
 			drawTitle(g, 'PHOTO FINISH', W / 2, Math.round((H - 7 * s) / 2), s, '#ffffff');
-		} else {
-			const tw = textW('TIE', s);
-			const tot = ph * 1.1 + 8 + tw + 8 + ph * 1.6;
-			const x = Math.round((W - tot) / 2);
-			sprite(g, 'reindeer_col', x, H - 2, ph);
-			drawTitle(g, 'TIE', x + ph * 1.1 + 8 + tw / 2, Math.round((H - 7 * s) / 2), s, '#ffd23a');
-			sprite(g, 'H4', x + ph * 1.1 + 16 + tw, H - 2, ph * 0.8, true);
+			const x0 = Math.round(W / 2 - textW('PHOTO FINISH', s) / 2);
+			raceCardRec.set(g.canvas, { outcome: 'tie', pics: [], text: [x0 + k.l, x0 + k.r], words: 'PHOTO FINISH' });
+			return;
 		}
+		// the reindeer, TIE, the police car: each its own column
+		let ph = Math.round(H * 0.82);
+		const tw = textW('TIE', s);
+		const widths = () => [spriteW('reindeer_col', ph), spriteW('H4', ph * 0.8)];
+		while (ph > 5 && widths()[0] + GAP + tw + GAP + widths()[1] > W - 2 * M) ph--;
+		const [rw, cw] = widths();
+		const x = Math.round((W - (rw + GAP + tw + GAP + cw)) / 2);
+		sprite(g, 'reindeer_col', x, H - 2, ph);
+		const tx = x + rw + GAP;
+		drawText(g, 'TIE', tx, Math.round((H - 7 * s) / 2), s, '#ffd23a');
+		sprite(g, 'H4', tx + tw + GAP, H - 2, ph * 0.8, true);
+		const k = inkOf('TIE', s);
+		raceCardRec.set(g.canvas, { outcome: 'tie', pics: [[x, x + rw], [tx + tw + GAP, tx + tw + GAP + cw]], text: [tx + k.l, tx + k.r], words: 'TIE' });
 		return;
 	}
-	const name = race.outcome === 'reindeer' ? 'REINDEER' : 'POLICE CAR';
+	const reindeer = race.outcome === 'reindeer';
+	const name = reindeer ? 'REINDEER' : 'POLICE CAR';
 	const line = 'WINNER';
-	const tw = Math.max(textW(name, 1), textW(line, s));
-	const portW = race.outcome === 'reindeer' ? ph * 0.6 : ph * 1.6;
-	const tot = portW + 10 + tw;
-	const x = Math.round((W - tot) / 2);
+	const pic: ArtName = reindeer ? 'reindeer_col' : 'H4';
+	const picH = (ph: number) => (reindeer ? ph : ph * 0.75);
+	// the words: two rows (WINNER over the name) on a tall strip, one row on a short one, shortened until they fit
+	const two = H >= 22;
+	const rows = two ? [[line, s], [name, 1]] : [[`${name} ${line}`, 1]];
+	const widthOf = (r: (string | number)[][]) => Math.max(...r.map(([w, z]) => textW(w as string, z as number)));
+	let ph = Math.round(H * 0.82);
+	const minPh = Math.max(6, Math.round(H * 0.45));
+	let words = rows;
+	const fits = (r: (string | number)[][], h: number) => spriteW(pic, picH(h)) + GAP + widthOf(r) <= W - 2 * M;
+	while (ph > minPh && !fits(words, ph)) ph--;
+	if (!fits(words, ph)) {
+		const shorter: (string | number)[][][] = two ? [[[line, 1], [name, 1]], [[name, 1]], [[reindeer ? 'REINDEER' : 'POLICE', 1]]] : [[[name, 1]], [[reindeer ? 'REINDEER' : 'POLICE', 1]]];
+		for (const r of shorter) {
+			words = r;
+			if (fits(words, ph)) break;
+		}
+	}
+	while (ph > 5 && !fits(words, ph)) ph--;
+	const pw = spriteW(pic, picH(ph));
+	const tw = widthOf(words);
+	const x = Math.round((W - (pw + GAP + tw)) / 2);
 	const bob = Math.round(Math.abs(Math.sin(ct / 180)) * -2);
-	if (race.outcome === 'reindeer') sprite(g, 'reindeer_col', x, H - 2 + bob, ph);
-	else sprite(g, 'H4', x, H - 2 + bob, ph * 0.75, true);
-	const tx = x + portW + 10 + tw / 2;
-	if (H >= 22) {
-		const blockH = 7 * s + 3 + 7;
-		const y0 = Math.round((H - blockH) / 2);
-		if (Math.floor(ct / 250) % 4 !== 3) drawTitle(g, line, tx, y0, s, '#ffd23a');
-		drawTitle(g, name, tx, y0 + 7 * s + 3, 1, '#ffffff');
-	} else drawTitle(g, name + ' ' + line, W / 2 + portW / 2, Math.round((H - 7) / 2), 1, '#ffd23a');
+	sprite(g, pic, x, H - 2 + bob, picH(ph), !reindeer);
+	const tx = x + pw + GAP;
+	const blockH = words.reduce((a, [, z]) => a + 7 * (z as number), 0) + 3 * (words.length - 1);
+	let y = Math.round((H - blockH) / 2);
+	let l = Infinity;
+	let r = -Infinity;
+	words.forEach(([w, z], i) => {
+		const str = w as string;
+		const zz = z as number;
+		const wx = Math.round(tx + (tw - textW(str, zz)) / 2);
+		const blink = i === 0 && words.length > 1 && Math.floor(ct / 250) % 4 === 3;
+		if (!blink) drawText(g, str, wx, y, zz, i === 0 ? '#ffd23a' : '#ffffff');
+		const k = inkOf(str, zz);
+		l = Math.min(l, wx + k.l);
+		r = Math.max(r, wx + k.r);
+		y += 7 * zz + 3;
+	});
+	raceCardRec.set(g.canvas, { outcome: race.outcome, pics: [[x, x + pw]], text: [l, r], words: words.map(([w]) => w).join(' / ') });
 }
 
 // ---- THE SIX IDLE CARTOONS (the mock's, each a pure function of its own time; the race keeps its run in `race`) ---------------
@@ -980,23 +1193,18 @@ function fitScale(str: string, maxW: number, maxH: number, list: number[]) {
 }
 /** block letters drop in one after another and bounce once (ballpark marching letters) */
 function marchAt(g: Ctx, str: string, cx: number, y: number, s: number, t: number, col: string, dropH: number) {
-	let x = Math.round(cx - textW(str, s) / 2);
-	[...str].forEach((ch, i) => {
-		const w = textW(ch, s);
-		const lt = t - i * 55;
-		if (lt > 0) {
-			const dy = lt < 170 ? -Math.round((1 - ease(lt / 170)) * dropH) : lt < 290 ? Math.round(Math.sin(((lt - 170) / 120) * Math.PI) * s) : 0;
-			drawText(g, ch, x, y + dy, s, col);
-		}
-		x += w + s;
-	});
+	// (2026-11-17: by its drawn dots with the word's own letter gap and the class's offset, boardTitle; the record it leaves
+	// is written over by the scene's title, drawn after it)
+	boardTitle(g, str, cx, y, s, col, { march: { t, dropH, stepMs: 55, landMs: 170 } });
 }
 /** a number slams in: drawn larger and shrinking to its size in 160 ms, with a white flash on impact */
 function slamRow(g: Ctx, str: string, cx: number, y: number, cap: number, t: number, style: string) {
 	const k = t < 160 ? 1 + 0.6 * (1 - ease(t / 160)) : 1;
 	const c = Math.round(cap * k);
 	const w = rowInfo(str, c).w;
-	drawRow(g, str, cx - w / 2, y - (c - cap) / 2, c, style, t < 300 ? 1 - t / 300 : 0);
+	// (centered on its lit dots since 2026-11-17)
+	const x = centeredRow(g, str, cx, y - (c - cap) / 2, c, cx - w / 2);
+	drawRow(g, str, x, y - (c - cap) / 2, c, style, t < 300 ? 1 - t / 300 : 0);
 }
 function flash(g: Ctx, W: number, H: number, t: number, len: number) {
 	if (t < 0 || t >= len) return;
@@ -1056,13 +1264,14 @@ function trafficBand(g: Ctx, W: number, yB: number, h: number, t: number) {
 
 /** the entries' place: the count about half the face, the title under it; for Super, SUPER over it */
 function entryNumberLayout(W: number, H: number, num: string, title: string, topWord: string | null) {
-	const tts = fitScale(title, W - 12, H * 0.14, [4, 3, 2, 1]);
+	const tts = titleScale(title, fitScale(title, W - 12, H * 0.14, [4, 3, 2, 1]), W, H * 0.3);
 	const sts = topWord ? fitScale(topWord, W - 12, H * 0.16, [6, 5, 4, 3, 2]) : 0;
 	const topH = topWord ? 7 * sts + Math.max(5, Math.round(H * 0.05)) : 0;
-	const cap = fitCap(num, W * 0.5, Math.min(H * 0.5, H - topH - 7 * tts - 14));
-	const blockH = topH + cap + 5 + 7 * tts;
+	const G = Math.max(-3, titleGapKnob());
+	const cap = fitCap(num, W * 0.5, Math.min(H * 0.5, H - topH - 7 * tts - 14 - Math.max(0, G)));
+	const blockH = topH + cap + 5 + G + 7 * tts;
 	const y0 = Math.round((H - blockH) / 2);
-	return { tts, sts, cap, topY: y0, numY: y0 + topH, titleY: y0 + topH + cap + 5 };
+	return { tts, sts, cap, topY: y0, numY: y0 + topH, titleY: y0 + topH + cap + 5 + G };
 }
 /** the scene's own clock (ms) */
 const sceneT = (s: Show) => s.t - s.sceneAt;
@@ -1136,7 +1345,7 @@ export function showEntryScene(F: Face, s: Show) {
 				}
 			}
 			slamRow(g, num, W / 2, lay.numY, lay.cap, lt, '#ffffff');
-			if (lt > 120) drawTitle(g, 'FREE SPINS', W / 2, lay.titleY, lay.tts, '#7cc4ff');
+			if (lt > 120) boardTitle(g, 'FREE SPINS', W / 2, lay.titleY, lay.tts, '#7cc4ff', { word: true });
 			flash(g, W, H, lt, 160);
 			if (lt > 500) {
 				const p = ((lt - 500) % 2600) / 2600;
@@ -1183,7 +1392,7 @@ export function showEntryScene(F: Face, s: Show) {
 		gallop(g, x + sx + 1, yb, h * 0.95, s.t);
 	}
 	if (t >= 1500) marchAt(g, 'SUPER', W / 2, lay.topY, lay.sts, t - 1500, '#ffd23a', H * 0.3);
-	if (t >= 1950) drawTitle(g, 'FREE SPINS', W / 2, lay.titleY, lay.tts, '#ff6a4a');
+	if (t >= 1950) boardTitle(g, 'FREE SPINS', W / 2, lay.titleY, lay.tts, '#ff6a4a', { word: true });
 	if (t >= 2300) {
 		slamRow(g, num, W / 2, lay.numY, lay.cap, t - 2300, 'gold');
 		flash(g, W, H, t - 2300, 160);
@@ -1211,17 +1420,22 @@ export function showTotalScene(F: Face, s: Show) {
 	const counting = s.t < landAt;
 	const step = Math.floor(s.t / (counting ? 50 : 120));
 	perimeterDots(g, pts, on, (i) => (Math.floor((i + step) / 3) % 2 ? '#ffd23a' : '#36ff74'));
-	const tts = fitScale('TOTAL WIN', W - 16, Hm * 0.2, [5, 4, 3, 2, 1]);
+	// (a capped round's wrap-up says MAX WIN, as the HTML card did)
+	const title = s.title ?? 'TOTAL WIN';
+	const tts = titleScale(title, fitScale(title, W - 16, Hm * 0.2, [5, 4, 3, 2, 1]), W, Hm * 0.4);
 	const cap = fitCap(s.finalStr, W - 16, Math.min(Hm * 0.55, Hm - 7 * tts - 12));
-	const y0 = Math.round((Hm - (7 * tts + 6 + cap)) / 2) + 2;
+	const G = Math.max(-3, titleGapKnob());
+	const y0 = Math.round((Hm - (7 * tts + 6 + G + cap)) / 2) + 2;
 	const dropT = clamp(t / 300, 0, 1);
-	drawTitle(g, 'TOTAL WIN', W / 2, Math.round(y0 - (1 - ease(dropT)) * H * 0.3), tts, '#ffffff');
+	boardTitle(g, title, W / 2, Math.round(y0 - (1 - ease(dropT)) * H * 0.3), tts, '#ffffff', { word: true });
 	const str = s.fmt(amountNow(s));
 	const w = rowInfo(str, cap).w;
 	const since = s.t - landAt;
 	const landed = since >= 0;
 	const blinkOff = landed && since < 900 && Math.floor(since / 150) % 2 === 1;
-	if (!blinkOff) drawRow(g, str, (W - w) / 2, y0 + 7 * tts + 6, cap, 'gold', landed ? clamp(1 - since / 400, 0, 1) : 0);
+	// (centered on its lit dots since 2026-11-17)
+	const ax = centeredRow(g, str, W / 2, y0 + 7 * tts + 6 + G, cap, (W - w) / 2);
+	if (!blinkOff) drawRow(g, str, ax, y0 + 7 * tts + 6 + G, cap, 'gold', landed ? clamp(1 - since / 400, 0, 1) : 0);
 	if (landed) cornerFireworks(g, W, H, since, ['#ffd23a', '#ffffff', '#36ff74', '#ff3a2e'], Hm);
 	// the bottom band: Grandma's car bouncing, the police car with its lights going, the reindeer clapping
 	const ch = Math.round(band * 0.85);
@@ -1251,12 +1465,14 @@ export function winBand(F: Face, s: Show) {
 	const lay = winLay(W, H, s, true);
 	const since = s.t - s.countEnd;
 	const landed = since >= 0;
+	// a Max win's band is the race for the whole count (2026-11-17, below), not the jam or the honk meter on its way up
+	const maxShow = s.finalTier === 4;
 	if (tier === 2) {
 		cornerFireworks(g, W, H, s.t, ['#ff3a2e', '#ffd23a', '#ffffff'], lay.numY);
-		trafficBand(g, W, yb, Math.round(band * 0.75), s.t);
+		if (!maxShow) trafficBand(g, W, yb, Math.round(band * 0.75), s.t);
 	}
-	if (tier === 3) {
-		cornerFireworks(g, W, H, s.t, BULBS, lay.numY);
+	if (tier === 3) cornerFireworks(g, W, H, s.t, BULBS, lay.numY);
+	if (tier === 3 && !maxShow) {
 		const frac = clamp(amountNow(s) / s.amount, 0, 1);
 		const y = H - band + 4;
 		const x0 = 6;
@@ -1273,17 +1489,21 @@ export function winBand(F: Face, s: Show) {
 			drawText(g, 'HONK HONK', W - 6 - textW('HONK HONK', z), y, z, '#ff3a2e');
 		}
 	}
-	if (tier === 4) {
-		// the race routine (as on the strip) along the hazard band, one run after another, each its own draw
+	if (maxShow && s.t >= s.countStart) {
+		// THE RACE OVER THE WHOLE COUNT (2026-11-17, approved; it used to run only in the 1.2 s hold): one run (the race
+		// routine, as on the strip, its own seeded source), started as the count starts, its time the count's share of the
+		// run, so it crosses the finish line as the count lands (a skip lands the count: the race jumps to its finish);
+		// after the landing its result line blinks
 		const R = LED_BOARD.race;
 		const h = Math.round(band * 0.7);
-		const cyc = R.runMs + 1600;
-		const n = Math.floor(s.t / cyc);
-		const rt = s.t - n * cyc;
+		const n = 0;
+		const len = s.countEnd - s.countStart;
+		const rt = s.t >= s.countEnd ? R.runMs + (s.t - s.countEnd) : len > 0 ? clamp((s.t - s.countStart) / len, 0, 1) * R.runMs : R.runMs;
 		let runs = maxRaces.get(s);
 		if (!runs) maxRaces.set(s, (runs = new Map()));
 		let race = runs.get(n);
 		if (!race) runs.set(n, (race = newRace()));
+		raceAt.set(s, Math.min(1, rt / R.runMs));
 		drawRace(g, race, rt, 2, W - 4, yb - Math.max(2, Math.round(H * 0.1)) + 2, h);
 		if (rt > R.runMs && Math.floor(rt / 200) % 2) {
 			const msg = race.outcome === 'tie' ? 'PHOTO FINISH  TIE' : (race.outcome === 'reindeer' ? 'REINDEER' : 'POLICE CAR') + ' WINS';
@@ -1292,12 +1512,77 @@ export function winBand(F: Face, s: Show) {
 	}
 	if (landed && tier >= 2) cornerFireworks(g, W, H, since, ['#ffffff', '#ffd23a'], H * 0.9);
 }
+/** the Max scene's race time now, a share of its run (1 = at the finish line; the probe) */
+const raceAt = new WeakMap<Show, number>();
+export const maxRaceAtOf = (s: Show): number | null => raceAt.get(s) ?? null;
 /** the Max scene's race now (the probe and the dev hook read it) */
 export const maxRaceOf = (s: Show): Race | null => {
 	const runs = maxRaces.get(s);
 	if (!runs || !runs.size) return null;
 	return runs.get(Math.max(...runs.keys())) ?? null;
 };
+
+const PRESS_LINE = 'PRESS ANYWHERE TO CONTINUE';
+/** THE ENTRY'S WAIT ON THE STRIP (2026-11-17, constants LED_BOARD.entryLine): the intro card's sentence (INTRO_LINE, its
+ *  words exactly) scrolls along the top row and PRESS ANYWHERE TO CONTINUE pulses under it; a strip too short for two rows
+ *  shows one pass of the sentence, then the press line for pressMs, and again. The sentence's copies follow each other a
+ *  quarter of the strip apart. Returns what is on the strip (the probe). */
+export type EntryWaitInfo = { mode: 'rows' | 'alternate'; size: number; sentence: string; sentenceX: number | null; press: boolean; pressX: number | null; sentenceY: number; pressY: number };
+const entryWaitRec = new WeakMap<object, EntryWaitInfo>();
+export const entryWaitOf = (canvas: object): EntryWaitInfo | null => entryWaitRec.get(canvas) ?? null;
+function entryWait(g: Ctx, W: number, H: number, s: Show, sentence: string, col: string) {
+	const E = LED_BOARD.entryLine;
+	const dt = s.t - (s.pressLineAt ?? s.t);
+	// TWO ROWS inside the one dot chase border: the press line at the size it has always had on this strip (2 when it fits
+	// the width, else 1), the sentence over it as large as the height allows (never smaller than the press line), a gap of
+	// one dot scale between them; a 15 or 16 dot strip lays both at 1 over the border
+	const zp = textW(PRESS_LINE, 2) <= W - 6 && H >= 15 ? 2 : 1;
+	const fits = (zs: number) => 7 * zs + zs + 7 * zp + 2 <= H;
+	const zs = [2, 1].find((k) => k >= zp && fits(k)) ?? (H >= 15 ? 1 : 0);
+	const pulse = 0.6 + 0.4 * Math.abs(Math.sin(s.t / 380));
+	const pressAt = (k: number, y: number) => {
+		const pw = textW(PRESS_LINE, k);
+		const x = pw <= W - 4 ? (W - pw) / 2 : W - ((dt * 0.03 * k) % (pw + W));
+		g.globalAlpha = pulse;
+		drawText(g, PRESS_LINE, x, y, k, '#ffe7b0');
+		g.globalAlpha = 1;
+		return Math.round(x);
+	};
+	if (zs > 0) {
+		const zq = zs === 1 && !fits(1) ? 1 : zp;
+		const block = 7 * zs + zs + 7 * zq;
+		const y1 = H >= block + 2 ? 1 + Math.floor((H - 2 - block) / 2) : Math.floor((H - block) / 2);
+		const y2 = y1 + 8 * zs;
+		const tw = textW(sentence, zs);
+		const v = (E.charsPerSec * 6 * zs) / 1000;
+		const gap = Math.max(24, Math.round(W / 4));
+		const P = tw + gap;
+		const x = Math.round(W - ((dt * v) % P));
+		drawText(g, sentence, x, y1, zs, col);
+		// the copy before it, still leaving at the left (none before the first pass)
+		if (dt * v >= P && x - P + tw > 0) drawText(g, sentence, x - P, y1, zs, col);
+		const px = pressAt(zq, y2);
+		entryWaitRec.set(g.canvas, { mode: 'rows', size: zs, sentence, sentenceX: x, press: true, pressX: px, sentenceY: y1, pressY: y2 });
+		return;
+	}
+	// one row: a pass of the sentence, then the press line
+	const k = 1;
+	const y = Math.round((H - 7) / 2);
+	const tw = textW(sentence, k);
+	// (no faster than the strip's own pace, but a pass never longer than 3 s, so the press line comes round in time)
+	const v = Math.max((E.charsPerSec * 6) / 1000, (tw + W) / 3000);
+	const pass = (tw + W) / v;
+	const cyc = pass + E.pressMs;
+	const u = dt % cyc;
+	if (u < pass) {
+		const x = Math.round(W - u * v);
+		drawText(g, sentence, x, y, k, col);
+		entryWaitRec.set(g.canvas, { mode: 'alternate', size: k, sentence, sentenceX: x, press: false, pressX: null, sentenceY: y, pressY: y });
+	} else {
+		const px = pressAt(k, y);
+		entryWaitRec.set(g.canvas, { mode: 'alternate', size: k, sentence, sentenceX: null, press: true, pressX: px, sentenceY: y, pressY: y });
+	}
+}
 
 /** THE STRIP'S LINE WHILE A CARD IS UP (the mock's showRibbon): the entries march the spins awarded along the ribbon, the
  *  Total Win counts, and once the card waits PRESS ANYWHERE TO CONTINUE pulses (it scrolls when it does not fit) */
@@ -1309,6 +1594,9 @@ export function showRibbon(F: Face, s: Show) {
 	if (s.t < s.contentAt) return;
 	if (s.pressLineAt !== null && s.t >= s.pressLineAt && s.t < s.exitAt) {
 		chaseBorder(g, W, H, s.t, ['#ffe7b0', '#202020'], 1, 3);
+		if ((s.kind === 'fs' || s.kind === 'sfs') && LED_BOARD.entryLine.on) return entryWait(g, W, H, s, INTRO_LINE[s.kind === 'sfs' ? 'super' : 'bonus'], s.kind === 'sfs' ? '#ffd23a' : '#ffffff');
+		// a wrap-up's own line (a top-up, the cap: the HTML card's words) the same way, once the Total Win waits
+		if (s.kind === 'total' && s.line) return entryWait(g, W, H, s, s.line, '#ffd23a');
 		const str = 'PRESS ANYWHERE TO CONTINUE';
 		const sz = textW(str, 2) <= W - 6 && H >= 15 ? 2 : 1;
 		g.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(s.t / 380));
@@ -1318,10 +1606,11 @@ export function showRibbon(F: Face, s: Show) {
 		return;
 	}
 	if (s.kind === 'total') {
-		const lay = winLayout(W, H, s.finalStr, ['TOTAL WIN']);
+		const tl = s.title ?? 'TOTAL WIN';
+		const lay = winLayout(W, H, s.finalStr, [tl]);
 		const str = s.fmt(amountNow(s));
 		chaseBorder(g, W, H, s.t, ['#36ff74', '#ff3a2e'], 1, 3);
-		drawLayTitle(g, lay, 'TOTAL WIN', '#ffffff', W);
+		drawLayTitle(g, lay, tl, '#ffffff', W);
 		drawRow(g, str, numX(lay, W, str, 0), lay.numY, lay.cap, 'gold', 0);
 		return;
 	}

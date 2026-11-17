@@ -36,13 +36,15 @@ const showCard = async (card: RoundCard) => {
 	eventEmitter.broadcast({ type: 'uiHide' });
 	// THE CARD ON THE LED BACK BOARD (constants LED_BOARD.cards, part B): the Free Spins entry, the Super entry and the Total
 	// Win play as the board's staged scenes, with the press line on the strip; the HTML card keeps the press, its timers and
-	// its sounds and draws nothing. A wrap-up that says a top-up or the cap keeps the HTML card (its lines say so plainly).
-	const board = LED_BOARD.on && LED_BOARD.cards === 'board' && !(card.kind === 'outro' && (card.topUp || card.capped));
+	// its sounds and draws nothing. Since 2026-11-17 a wrap-up that says a top-up or the cap plays on the board too, its line
+	// scrolled on the strip (Corey: "the Wrap up total was shown on the plain old card, not the billboard": his round was
+	// one of these, the only wrap-ups that kept the HTML card)
+	const board = LED_BOARD.on && LED_BOARD.cards === 'board';
 	if (board)
 		eventEmitter.broadcast(
 			card.kind === 'intro'
 				? { type: 'boardScoreboardCard', kind: card.bonus === 'super' ? 'sfs' : 'fs', spins: card.spins, amount: 0 }
-				: { type: 'boardScoreboardCard', kind: 'total', spins: 0, amount: card.amount },
+				: { type: 'boardScoreboardCard', kind: 'total', spins: 0, amount: card.amount, topUp: card.topUp ?? null, capped: !!card.capped },
 		);
 	stateGame.roundCard = board ? { ...card, board: true } : card;
 	await new Promise<void>((resolve) => (cardDone = resolve));
@@ -57,6 +59,16 @@ export const dismissRoundCard = () => {
 	done?.();
 };
 
+/** the spin of the event at `from` pays: its own winInfo (between `from` and the next reveal) awards more than zero */
+const spinPays = (bookEvents: BookEvent[], from: number): boolean => {
+	for (let i = from + 1; i < bookEvents.length; i++) {
+		const e = bookEvents[i];
+		if (e.type === 'reveal') return false;
+		if (e.type === 'winInfo') return e.totalWin > 0;
+	}
+	return false;
+};
+
 /** the feature trigger's own state, with nothing shown (a live trigger, and a resumed round's rebuild) */
 const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	stateGame.bonusMode = bookEvent.bonusType === 'super' ? 'super' : 'bonus';
@@ -66,6 +78,7 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	stateGame.topUp = null;
 	stateGame.capped = false;
 	stateGame.featureTeased = false;
+	stateGame.bonusGrandmaStrikes = 0;
 	eventEmitter.broadcast({ type: 'soundMusic', name: stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus' });
 	devMark('music', stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus');
 };
@@ -78,6 +91,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			const trigger = (context?.bookEvents ?? []).find((e) => e.type === 'freeSpinTrigger');
 			if (trigger && trigger.type === 'freeSpinTrigger') sceneHooks.prefetch(presetForMode(trigger.bonusType === 'super' ? 'super' : 'bonus', stateScene.set));
 		}
+		// A SLAM STOP HURRIES ITS OWN SPIN ONLY (2026-11-17, Corey: "if you click on the board during free spins, or super
+		// free spins all of the free spins are speed up, instead of the current spin only"). The slam (ui/controls.svelte.ts
+		// stopButtonClick) sets the hurry and takes the stop for the rest of the round, and only the round's end
+		// (utils.ts playBet: stopButtonEnable) gave them back; a bonus round is one round, so a slam in one free spin
+		// hurried every free spin after it and no later press could slam again. Each free spin's start now ends the spin
+		// before's slam the same way (the hurry off, the stop open again); the player's Turbo setting and autoplay are
+		// not touched (stopButtonEnable resets only the slam's own non-persistent flag).
+		if (bookEvent.gameType === 'freegame') eventEmitter.broadcast({ type: 'stopButtonEnable' });
 		stateGame.gameType = bookEvent.gameType;
 		if (bookEvent.fs !== undefined) stateGame.spinsPlayed = Math.max(0, bookEvent.fs - 1);
 		if (bookEvent.totalFs !== undefined) stateGame.totalFs = bookEvent.totalFs;
@@ -103,7 +124,22 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// a Grandma car in the struck Santa reel is not struck: she gets a red box as the reindeer comes down, and the
 		// column then grows over it (Corey 2026-11-10). A Grandma already Wild has her own box already.
 		const markCell = column?.grandma && !column.grandma.wasWild ? column.grandma.cell : null;
-		await eventEmitter.broadcastAsync({ type: 'boardStrike', strike: { cell: bookEvent.cell, markCell } });
+		// THE GRANDMA GAG'S RULE (constants LED_BOARD.gag; Corey 2026-11-17: "let's only do the Grandma Got Run Over by a
+		// Reindeer in regular games, and free spins only on the first strike or when it results in a win"): a Grandma strike
+		// in the base game always; in a bonus round only its first Grandma strike, or a later one whose spin pays (the
+		// spin's own winInfo in the book, totalWin above zero; nothing is worked out here)
+		const struck = stateGame.board[Math.floor(bookEvent.cell / ROWS)]?.[bookEvent.cell % ROWS];
+		let gag = false;
+		if (struck === 'H1') {
+			if (stateGame.gameType !== 'freegame') gag = true;
+			else {
+				const first = stateGame.bonusGrandmaStrikes === 0;
+				stateGame.bonusGrandmaStrikes += 1;
+				gag = first || spinPays(bookEvents, bookEvents.indexOf(bookEvent));
+			}
+			devMark('grandmaStrike', `${stateGame.gameType} cell ${bookEvent.cell} strike ${stateGame.bonusGrandmaStrikes} gag ${gag}`);
+		}
+		await eventEmitter.broadcastAsync({ type: 'boardStrike', strike: { cell: bookEvent.cell, markCell }, gag });
 	},
 	grandmaWild: async (bookEvent: BookEventOfType<'grandmaWild'>) => {
 		await eventEmitter.broadcastAsync({ type: 'boardGrandmaWild', cell: bookEvent.cell, multiplier: bookEvent.multiplier });
@@ -205,6 +241,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.spinsPlayed = 0;
 		stateGame.topUp = null;
 		stateGame.featureTeased = false;
+		stateGame.bonusGrandmaStrikes = 0;
 		eventEmitter.broadcast({ type: 'soundMusic', name: 'bgm_base' });
 		devMark('music', 'bgm_base');
 	},
