@@ -1,4 +1,5 @@
-// THE FEATURE MENU'S COPY AND ITS ODDS ROWS, in one file (ui/FeatureMenu.svelte draws it).
+// THE FEATURE MENU'S COPY AND ITS ODDS ROWS, in one file (ui/FeatureMenu.svelte draws it: THE FAST LANE, the
+// redesign of 2026-11-17 on the Armoury's structure; FAST_LANE_TEXT below holds its new words).
 //
 // THE ODDS ROWS, read off the math build of 2026-11-15 (results/build_2026-11-15/BUILD_REPORT.md, "Final numbers per
 // mode": the shaped lookup tables of the production books, P1 paytable), rounded to whole numbers: base game Free Spins
@@ -46,6 +47,54 @@ export const FEATURE_MENU_TEXT = {
 	unload: 'UNLOAD',
 	perSpin: soc('PER SPIN', 'PER PLAY'),
 	total: 'TOTAL',
+};
+
+// ---- THE FAST LANE's own words (the approved mock of 2026-11-17, fast_lane_menu_2026-11-17/mock/template.html) -------
+// Written once for both sessions: none of them uses a word a social session forbids, so no soc() pair is needed.
+// {name} {amount} are filled in by ui/FeatureMenu.svelte; ** marks a bold run.
+export const FAST_LANE_TEXT = {
+	balance: 'BALANCE',
+	amount: 'PLAY AMOUNT',
+	lower: 'Lower the play amount',
+	raise: 'Raise the play amount',
+	/** the tray's two groups: the Ante (per spin) and the two features */
+	perSpinNote: 'stays on until switched off',
+	features: 'FEATURES',
+	featuresNote: 'one round, one amount',
+	/** the plate's small line over the mode's name (the Ante's is FEATURE_MENU_TEXT.perSpin + this) */
+	kickAnteTail: ' MODE',
+	kickFeature: 'FEATURE',
+	ante: 'ANTE',
+	/** the three lines on the Ante's sign: ANTE / PLAY / the level's multiple */
+	signTop: 'ANTE',
+	signMid: 'PLAY',
+	level: 'LEVEL',
+	levelGroup: 'Ante level',
+	/** the plate's line under the name, per mode (the Ante's per level: its top level says what it is for) */
+	say: {
+		BONUS: '**10 free spins**. Column Wilds stay on the road and **keep their multipliers**.',
+		SUPER: '**10 free spins** that start with a **full column Wild** in place.',
+		ANTE_2: 'Raise the play amount per spin for **more bonus rounds**.',
+		ANTE_4: 'Raise the play amount per spin for **more bonus rounds**.',
+		ANTE_10: 'Raise the play amount per spin for **far more Super Free Spins**.',
+	} as Record<string, string>,
+	/** the line that takes the say line's place once a mode is on, or right after it was switched off */
+	anteOn: '**ON.** Active now. Every spin uses **{amount}** until you switch it off.',
+	loaded: '**LOADED.** The next press of Spin uses **{amount}** and plays one round.',
+	anteOff: '**{name}** is off. Every spin uses **{amount}** again.',
+	unloaded: '**{name}** is unloaded. Nothing was used.',
+	low: 'Balance too low at this play amount',
+	/** the confirm card */
+	confirmTitle: 'Confirm {name}',
+	everySpin: 'EVERY SPIN',
+	confirmAnte: 'Switches **{name}** on. Every spin uses **{amount}** until you switch it off here.',
+	confirmFeature: 'Loads **{name}** onto the Spin button. Nothing happens until you press **Spin**, and that press plays **one feature round**.',
+	cancel: 'Cancel',
+	confirm: 'CONFIRM',
+	/** a tile's spoken name: "FREE SPINS, feature, 100 times the play amount, loaded" */
+	tileFeature: 'feature',
+	tileAnte: 'per spin mode',
+	timesAmount: 'times the play amount',
 };
 
 // ---- the odds rows (PROVISIONAL: see the top of the file) -----------------------------------------------------------
