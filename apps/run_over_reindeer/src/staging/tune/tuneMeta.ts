@@ -35,9 +35,12 @@ export type Meta = {
 };
 
 /** the groups first in the panel (the ones being tuned now), then the rest of TUNE in its own order */
-export const GROUP_ORDER = ['scene', 'ledBoard', 'logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
+export const GROUP_ORDER = ['roam', 'scene', 'ledBoard', 'logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
 
 export const GROUP_META: Record<string, { label: string; when: When }> = {
+	// the roaming reindeer (2026-11-17, game/road/roam.ts): his pace and idle times are read every frame; the path editor
+	// (RoamEditor.svelte) is drawn in this group
+	roam: { label: 'Reindeer path', when: 'live' },
 	shadow: { label: 'Shadows', when: 'live' },
 	seated: { label: 'Seated drivers', when: 'live' },
 	lineWin: { label: 'Win lines', when: 'win' },
@@ -224,6 +227,14 @@ export const META: Record<string, Meta> = {
 	'stoplight.follow.*': { options: ['board', 'pair'] },
 	'stoplight.amberFrom': { options: ['afterGreen', 'beforeRed', 'brake'] },
 	'strike.entry': { options: ['far', 'near', 'left', 'right'] },
+	'strike.roam': { label: 'roaming reindeer (off: every strike from off the screen, as before)', when: 'live' },
+	'roam.walkPace': { label: 'walking speed (x the rig\'s own walk)', min: 0.3, max: 3, step: 0.05 },
+	'roam.walkInPace': { label: 'walking in speed (x the rig\'s own walk)', min: 0.3, max: 4, step: 0.05 },
+	'roam.idleMinMs': { ...ms(15000, 'idle at a waypoint: at least') },
+	'roam.idleMaxMs': { ...ms(30000, 'idle at a waypoint: at most') },
+	'roam.walkInDelayMs': { ...ms(5000, 'walk in after the last strike by') },
+	'roam.minRunShare': { label: 'a late run: sped up to at most 1 / this', min: 0.3, max: 1, step: 0.05 },
+	'roam.seed': { label: 'wander seed', min: 0, max: 99999999, step: 1, when: 'reload' },
 };
 
 const matches = (pattern: string, path: string[]) => {

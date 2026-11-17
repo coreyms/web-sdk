@@ -2,6 +2,7 @@
 // The frontend never computes an outcome. A handler shows what its event says and nothing else: which cell was
 // struck, which tier stepped out, which multiplier, what a line paid, what a top-up added.
 // Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-15a (2026-11-10a plus winInfo capped, the clear path rule and the bought Super's floor).
+import { strikePlace } from './strikeOrder';
 import { stateBet, stateBetDerived } from 'state-shared';
 import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString } from 'utils-shared/amount';
 import { waitForTimeout } from 'utils-shared/wait';
@@ -103,7 +104,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// a Grandma car in the struck Santa reel is not struck: she gets a red box as the reindeer comes down, and the
 		// column then grows over it (Corey 2026-11-10). A Grandma already Wild has her own box already.
 		const markCell = column?.grandma && !column.grandma.wasWild ? column.grandma.cell : null;
-		await eventEmitter.broadcastAsync({ type: 'boardStrike', strike: { cell: bookEvent.cell, markCell } });
+		// THE ROAMING REINDEER (constants STRIKE.roam): the first strike of the spin (since its reveal) is his, and a new one
+		// walks in after the last. Presentation only: which reindeer runs never changes what the book says.
+		const { first, last } = strikePlace(bookEvents, bookEvents.indexOf(bookEvent));
+		await eventEmitter.broadcastAsync({ type: 'boardStrike', strike: { cell: bookEvent.cell, markCell, first, last } });
 	},
 	grandmaWild: async (bookEvent: BookEventOfType<'grandmaWild'>) => {
 		await eventEmitter.broadcastAsync({ type: 'boardGrandmaWild', cell: bookEvent.cell, multiplier: bookEvent.multiplier });

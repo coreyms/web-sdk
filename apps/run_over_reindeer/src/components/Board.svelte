@@ -53,7 +53,7 @@
 	import { stateBet, stateUrlDerived } from 'state-shared';
 
 	import { getContext } from '../game/context';
-	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass } from '../game/layoutSpec';
+	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass, TITLE } from '../game/layoutSpec';
 	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, ROAD_MOTION, STRIKE, TUNE, motionFor } from '../game/constants';
 	import { sceneHooks, setSceneChoice, stateScene } from '../game/stateScene.svelte';
 	import { homePreset, presetForMode, type ScenePreset, type ScenePresetName } from '../game/scenePresets';
@@ -74,6 +74,9 @@
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
 	import { clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
+	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
+	import { roamDev, type RoamZone } from '../game/road/roam';
+	import { ROAM_EDIT, ROAM_PATHS, ROAM_PATHS_DEFAULT } from '../game/roamPaths';
 	import { loadPresent, presentMemory, presentTrace, setPresentMipmapper } from '../game/road/present';
 	import { perfMarks } from '../game/staging';
 	import type { SoundEffectName } from '../game/sound';
@@ -96,6 +99,9 @@
 	const loaded = context.stateApp.loadedAssets as Record<string, PIXI.Texture | undefined>;
 	const tex = (frame: string) => loaded[frame];
 	const road = new RoadBoard(tex);
+	/** the asphalt's band in road px (the road picture's own: from under its top snow rim to its bottom rim): the roaming
+	 *  reindeer's feet never go there */
+	const ROAM_ROAD = { top: 120, bottom: 905 };
 	road.setBoard(stateGame.board);
 	// (a lane's stop no longer sounds: since round 2, 2026-11-15, each REEL has its own stop, sfx_lane_stop_1..5, cued by
 	// the road itself as that reel's last car stops, game/road/roadBoard.ts updateReelStops; the borrowed sfx_reel_stop
@@ -332,6 +338,9 @@
 		sceneView = { kind, uprightPhone };
 		road.scene.layout({ kind, uprightPhone, rect, feetY });
 		road.features.screenEdges = { left: rect.left, right: rect.right };
+		// the roaming reindeer's path is fractions of the picture and of this (game/roamPaths.ts)
+		road.features.screenRect = rect;
+		roamView = { kind, k, ox, oy, rect };
 		// a piece this layout draws that is not in yet (the forest on a desktop browser narrowed to an upright phone, a
 		// night scene's ends after a rotation): loaded now, drawn when in
 		swap.layoutChanged();
@@ -358,6 +367,46 @@
 			led.layout(ledGeometry(kind, canvas.width, canvas.height, main.scale, { x: masterLeft + r.x * main.scale, y: masterTop + r.y * main.scale, w: r.width * main.scale, h: r.height * main.scale }));
 		}
 	});
+
+	// THE ROAMING REINDEER'S VIEW AND ZONES (game/road/roam.ts roamDev): the staging path editor and the probes draw and
+	// check the path in CSS px; the zones are where he must never be (the road, the HUD, the LED strip, the logo, the bonus
+	// round's counter plate, the top line). Read on demand only, never per frame.
+	let roamView: { kind: typeof kind; k: number; ox: number; oy: number; rect: { left: number; top: number; right: number; bottom: number } } | null = null;
+	roamDev.view = () => roamView;
+	const roamZones = (): RoamZone[] => {
+		const out: RoamZone[] = [];
+		const v = roamView;
+		if (!v || typeof document === 'undefined') return out;
+		const add = (name: string, x0: number, y0: number, x1: number, y1: number) => {
+			if (x1 - x0 > 0.5 && y1 - y0 > 0.5) out.push({ name, x0, y0, x1, y1 });
+		};
+		const el = (name: string, e: Element) => {
+			// shown: laid out and not hidden (the menu's closed rows are visibility: hidden, which their children inherit)
+			if (getComputedStyle(e).visibility === 'hidden') return;
+			const b = e.getBoundingClientRect();
+			add(name, b.left, b.top, b.right, b.bottom);
+		};
+		// the road: the asphalt between the trench's two snow rims, the picture's whole width (his feet never on it)
+		add('road', v.ox, v.oy + ROAM_ROAD.top * v.k, v.ox + ROAD_ART.image.width * v.k, v.oy + ROAM_ROAD.bottom * v.k);
+		document.querySelectorAll('.hudp button, .hudp [data-hud]').forEach((e) => el('hud', e));
+		document.querySelectorAll('[data-top-line]').forEach((e) => el('top line', e));
+		document.querySelectorAll('[data-title-sign]').forEach((e) => el('counter plate', e));
+		// the counter plate's box when no bonus round shows it (layoutSpec TITLE in the chrome's master units)
+		const canvas = context.stateLayoutDerived.canvasSizes();
+		const fit = main.scale;
+		const masterLeft = main.x - (main.width * main.scale) / 2;
+		const masterTop = main.y - (main.height * main.scale) / 2;
+		const T = TITLE[kind];
+		const extraTop = kind === 'landscape' ? landscapeExtraY(canvas.height / main.scale) : 0;
+		const tx0 = T.right ? canvas.width - (T.x + T.width) * fit : masterLeft + T.x * fit;
+		const ty0 = masterTop + (T.y - extraTop) * fit;
+		add('counter plate', tx0, ty0, tx0 + T.width * fit, ty0 + T.height * fit);
+		if (logo?.box) add('logo', v.ox + logo.box.x * v.k, v.oy + logo.box.y * v.k, v.ox + (logo.box.x + logo.box.width) * v.k, v.oy + (logo.box.y + logo.box.height) * v.k);
+		const strip = scoreboard?.snapshot().strip;
+		if (strip) add('LED strip', strip.x, strip.capTop, strip.x + strip.w, strip.housingBottom);
+		return out;
+	};
+	roamDev.zones = roamZones;
 
 	// the board's tap area: a tap during a live spin hurries it, as the Spin press does (ui/controls.svelte.ts boardTap)
 	road.root.eventMode = 'static';
@@ -394,7 +443,16 @@
 		// THE REINDEER'S RUN VIEWS (game/road/reindeerRun.ts): loaded in the background from now on, never holding up the
 		// preload; the desktop sheets are drawn well under their 3x size on most screens, so they get a mip chain too
 		if (!PHONE_TIER) setRunMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
-		void loadRunViews();
+		// THE ROAMING REINDEER'S FRAMES (game/road/roamFrames.ts): after the run views, the same way (STRIKE.roam), and only
+		// once the press screen has gone and the GPU warm-up that follows it is done (components/Game.svelte warmGpu hands
+		// every texture on the stage to the GPU, the press screen's among them, which are destroyed as it leaves: a long
+		// upload ahead of them in that queue would let one be destroyed before its turn)
+		if (!PHONE_TIER) setRoamMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
+		const roamLoad = () => {
+			if (led) setTimeout(roamLoad, 500);
+			else setTimeout(() => STRIKE.roam && void loadRoamFrames(), 1500);
+		};
+		void loadRunViews().then(roamLoad);
 		// THE PRESENT'S PEEK (game/road/present.ts): its sheet loads in the background from now on, after everything else in
 		// the upload queue; a present that lands before it is in stays still. Desktop sheets get a mip chain.
 		if (!PHONE_TIER) setPresentMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
@@ -747,6 +805,29 @@
 			strike: (cell: number) => {
 				road.features.endLanding();
 				return road.features.strike({ cell, markCell: null });
+			},
+			/** THE ROAMING REINDEER (game/road/roam.ts): what he is doing and where, his path as resolved; a strike by hand as
+			 *  the first of a spin (his, when he is on the screen) and the last (a new one walks in after it); his sheets'
+			 *  GPU weight; the zones he must keep out of (CSS px); the paths (live, editable) and their defaults; reseed his
+			 *  wander; stand him at a waypoint now; walk a new one in; a bonus round's counter plate shown by hand */
+			roam: () => road.features.roam.snapshot(),
+			roamStrike: (cell: number, opts: { first?: boolean; last?: boolean } = {}) => {
+				road.features.endLanding();
+				return road.features.strike({ cell, markCell: null, first: opts.first ?? true, last: opts.last ?? true });
+			},
+			roamMemory: () => roamMemory(),
+			roamZones: () => roamZones(),
+			roamView: () => roamView,
+			roamPaths: () => ROAM_PATHS,
+			roamPathsDefault: () => ROAM_PATHS_DEFAULT,
+			roamEdited: () => ROAM_EDIT.version++,
+			roamReseed: (seed: number) => road.features.roam.reseed(seed),
+			roamPlace: () => road.features.roam.placeNow(),
+			roamAt: (i: number) => road.features.roam.standAt(i),
+			roamWalkIn: (delayMs = 0) => road.features.roam.walkInSoon(delayMs),
+			roundSign: (on: boolean) => {
+				stateGame.gameType = on ? 'freegame' : 'basegame';
+				stateGame.totalFs = on ? 10 : 0;
 			},
 			/** stand a column Wild by hand from a struck cell (no book, no sound), and read its box and clouds as drawn */
 			column: (reel: number, tier: 'reindeer' | 'santa' | 'grandma', multiplier: number, fromCell: number | null) => {

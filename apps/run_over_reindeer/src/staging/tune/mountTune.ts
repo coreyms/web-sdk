@@ -42,6 +42,20 @@ const STYLES = `
 .ror-tune .changes textarea { width: 100%; min-height: 54px; background: #10141a; color: #e8ecf2; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 4px; font: 11px/1.4 ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; resize: vertical; }
 .ror-tune .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; align-items: center; }
 .ror-tune .msg { opacity: 0.8; }
+.ror-tune .roam-ed { margin: 6px 0; padding: 6px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 6px; }
+.ror-tune .roam-ed textarea { width: 100%; background: #10141a; color: #e8ecf2; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 4px; font: 10px/1.35 ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; resize: vertical; }
+.ror-tune .roam-overlay { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+.ror-tune .roam-overlay svg { position: absolute; left: 0; top: 0; }
+.ror-tune .roam-overlay .zone { fill: rgba(214, 22, 44, 0.22); stroke: rgba(214, 22, 44, 0.85); stroke-width: 1; }
+.ror-tune .roam-overlay .zt { fill: #fff; font: 10px -apple-system, system-ui, sans-serif; paint-order: stroke; stroke: rgba(0, 0, 0, 0.7); stroke-width: 2px; }
+.ror-tune .roam-overlay .path { fill: none; stroke: #e8c14a; stroke-width: 3; }
+.ror-tune .roam-overlay .enter { stroke: #e8c14a; stroke-width: 2; stroke-dasharray: 6 5; }
+.ror-tune .roam-overlay .body { fill: rgba(232, 193, 74, 0.1); stroke: rgba(232, 193, 74, 0.7); stroke-width: 1; stroke-dasharray: 3 3; }
+.ror-tune .roam-overlay .body.picked { fill: rgba(95, 208, 138, 0.15); stroke: #5fd08a; }
+.ror-tune .roam-overlay .me { fill: #5fd08a; stroke: #10141a; stroke-width: 1.5; }
+.ror-tune .roam-overlay .wp { position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; background: #e8c14a; color: #10141a; border: 2px solid #10141a; font-weight: 700; pointer-events: auto; touch-action: none; cursor: grab; padding: 0; }
+.ror-tune .roam-overlay .wp.picked { background: #5fd08a; }
+.ror-tune .roam-overlay .wp.enter { background: #fff; width: 34px; }
 `;
 
 let mounted = false;

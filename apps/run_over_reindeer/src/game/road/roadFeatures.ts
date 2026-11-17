@@ -29,7 +29,7 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, REINDEER_SOUND, SHADOW, STRIKE } from '../constants';
+import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, REINDEER_SOUND, ROAM, SHADOW, STRIKE } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
 import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
@@ -39,6 +39,8 @@ import { awaitRunViews, runBox, runFrame, type RunView } from './reindeerRun';
 import { CrosshairArt, easeOut, hashText, planCrosshair, sample, type CrosshairPlan, type CrosshairState, type Rect } from './crosshair';
 import { RoadSounds } from './roadSounds';
 import { castShadow, dropShadow, makeShadow, shadowStrength } from './shadows';
+import { Roam, roamDev } from './roam';
+import type { RoadRect } from '../roamPaths';
 
 const ROWS = ROAD_ART.board.rows;
 const COLS = ROAD_ART.board.columns;
@@ -309,6 +311,17 @@ type Runner = {
 	/** the plan's numbers for the probes: the old straight path's time to the impact (kept), and whether it was kept */
 	keepMs: number;
 	kept: boolean;
+	/** THE ROAMING REINDEER'S STRIKE (STRIKE.roam, game/road/roam.ts): made by the one standing on the screen. preN poses
+	 *  of a side run back out first (facing preDir; 0 when the turn fits from where he stands); the off-screen strike's
+	 *  own time to the impact (todayMs, from its set off) and how much later than its set off this one sets off (waitMs;
+	 *  negative: the start of his run is cut) */
+	roam: boolean;
+	preN: number;
+	preDir: 1 | -1;
+	todayMs: number;
+	waitMs: number;
+	/** the last strike of its spin (the book): the next roaming reindeer walks in after its impact */
+	last: boolean;
 };
 
 /** a turned view's step on the screen: which way it runs (dx across, dy down, per unit of ground step) and how long
@@ -468,10 +481,77 @@ export const planStrike = (fromX: number, toX: number, gapX: number, snow: { fee
 	return { plan, gapX, cutDir, nC, nCut, path, times, impactFeetY, keepMs, kept, downSpeed: (len / Math.max(1e-9, rest)) * 1000 };
 };
 
+/** THE ROAMING REINDEER'S STRIKE (a pure function; the strike uses it, the probes check it): from where he stands
+ *  (`spot`, feet in road px) toward the target. He runs toward the board from his path's side (`sideDir`; the other way
+ *  when the turn does not fit from his spot that way); where neither fits (he stands over the target's reel), he first
+ *  runs back out (preN side run poses, facing preDir) to where it does. His feet come from his own height to the run's
+ *  over the side run. Everything from the turn on is planStrike's. THE IMPACT IS NEVER LATER THAN THE STRIKE FROM OFF
+ *  THE SCREEN (`todayMs` from its set off): he waits (waitMs) and sets off so that it lands exactly then; a run that
+ *  would take longer has its side run sped up (to 1 / ROAM.minRunShare at most), and then its start cut (waitMs < 0). */
+export const planRoamStrike = (spot: { x: number; y: number }, reel: number, toX: number, target: { y: number; h: number }, snow: { feetY: number; diagonal: number }, sideDir: 1 | -1, todayMs: number) => {
+	const S = viewStep('S');
+	const Q = viewStep('Q');
+	const M = viewStep('M');
+	const step0 = STRIKE.runSpeed / STRIKE.strideFps;
+	const nQ = Math.max(1, Math.round(snow.diagonal / (step0 * Q.length)));
+	// one side run pose and the turn: the least room the plan needs before the gap
+	const minRun = step0 * (1 + S.dx + nQ * Q.dx + M.dx);
+	let dir = sideDir;
+	let gapX = strikeGapX(reel, dir);
+	let fromX = spot.x;
+	let pre = false;
+	if ((gapX - fromX) * dir < minRun) {
+		const d2 = -sideDir as 1 | -1;
+		const g2 = strikeGapX(reel, d2);
+		if ((g2 - fromX) * d2 >= minRun) {
+			dir = d2;
+			gapX = g2;
+		} else {
+			pre = true;
+			fromX = gapX - dir * minRun * 1.5;
+		}
+	}
+	const P = planStrike(fromX, toX, gapX, snow, target);
+	let path = P.path.map((p) => ({ ...p }));
+	let times = [...P.times];
+	let nPre = 0;
+	let preDir: 1 | -1 = dir;
+	if (pre) {
+		const dist = Math.hypot(fromX - spot.x, snow.feetY - spot.y);
+		nPre = Math.max(1, Math.round(dist / step0));
+		preDir = fromX >= spot.x ? 1 : -1;
+		const lead: { x: number; y: number }[] = [];
+		for (let i = 0; i < nPre; i++) lead.push({ x: spot.x + ((fromX - spot.x) * i) / nPre, y: spot.y + ((snow.feetY - spot.y) * i) / nPre });
+		const preMs = (nPre * 1000) / STRIKE.strideFps;
+		path = [...lead, ...path];
+		times = [...lead.map((_, i) => (i * 1000) / STRIKE.strideFps), ...times.map((t) => t + preMs)];
+	} else {
+		const nR = P.plan.nR;
+		for (let i = 0; i <= nR; i++) path[i].y += (spot.y - snow.feetY) * (1 - i / nR);
+	}
+	const nR = nPre + P.plan.nR;
+	const nAlong = nPre + P.plan.nAlong;
+	const s0 = ((((7 - nAlong - 1) % 16) + 16) % 16) + 1;
+	const ownMs = times[times.length - 1];
+	let waitMs = todayMs - ownMs;
+	let runShare = 1;
+	if (waitMs < 0) {
+		// too far: the side run (and the run back out) faster, then its start cut
+		const tR = times[nR];
+		runShare = Math.max(ROAM.minRunShare, Math.min(1, (tR + waitMs) / Math.max(1e-9, tR)));
+		const cut = tR * (1 - runShare);
+		times = times.map((t, i) => (i <= nR ? t * runShare : t - cut));
+		waitMs = Math.min(0, todayMs - times[times.length - 1]);
+	}
+	return { P, dir, gapX, path, times, nR, nAlong, nPre, preDir, s0, waitMs, ownMs, runShare };
+};
+
 type Waiter = { at: number; resolve: () => void };
 
 /** what the board needs for a strike: the target cell, and the Grandma car to box in the same reel (or null) */
-export type StrikeSpec = { cell: number; markCell: number | null };
+/** `first` / `last`: the first / the last strike of its spin (game/bookEventHandlerMap.ts); the roaming reindeer makes the
+ *  first, and a new one walks in after the last. A strike by hand (dev hook) has neither: it runs from off the screen. */
+export type StrikeSpec = { cell: number; markCell: number | null; first?: boolean; last?: boolean };
 
 export class RoadFeatures {
 	/** boxes, clouds, characters and their numbers: over the traffic */
@@ -491,6 +571,11 @@ export class RoadFeatures {
 	private readonly crosshairLayer = new PIXI.Container();
 	/** the running reindeer: over the line win as well */
 	readonly runnerLayer = new PIXI.Container();
+	/** THE ROAMING REINDEER (STRIKE.roam, game/road/roam.ts): on the snow outside the tunnel between spins, drawn under the
+	 *  running one in the same layer */
+	readonly roam = new Roam();
+	/** the screen in road px (components/Board.svelte): the roaming reindeer's path is fractions of it and the picture */
+	screenRect: RoadRect | null = null;
 	private clouds: CloudCell[] = [];
 	private columns: Column[] = [];
 	private runner: Runner | null = null;
@@ -541,6 +626,8 @@ export class RoadFeatures {
 
 	constructor(private readonly tex: Tex) {
 		this.layer.addChild(this.backLayer, this.rightBandLayer, this.bodyLayer, this.boxLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
+		this.runnerLayer.addChild(this.roam.shadow, this.roam.sprite);
+		roamDev.roam = this.roam;
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
 		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
 		// for a picture a column is waiting on
@@ -584,7 +671,23 @@ export class RoadFeatures {
 		// THE PATH (planStrike): along the snow (the turn ending over the gap), down the gap, the cut into the target
 		const gapX = strikeGapX(reel, dir);
 		const P = planStrike(fromX, toX, gapX, snow, target);
-		const { nR, nQ, nAlong, s0 } = P.plan;
+		const { nQ } = P.plan;
+		let { nR, nAlong, s0 } = P.plan;
+		const todayMs = P.times[P.times.length - 1];
+		// THE ROAMING REINDEER (STRIKE.roam): the first strike of a spin is his when he is on the screen; one still walking
+		// in from past the edge gives way to the strike from off the screen (a new one walks in after the spin)
+		const spot = STRIKE.roam && spec.first ? this.roam.standing() : null;
+		if (STRIKE.roam && spec.first && !spot) this.roam.leave();
+		const R = spot ? planRoamStrike(spot, reel, toX, target, snow, this.roam.path().side === 'left' ? 1 : -1, todayMs) : null;
+		const runDir = R ? R.dir : dir;
+		const path = R ? R.path : P.path;
+		const times = R ? R.times : P.times;
+		if (R) {
+			nR = R.nR;
+			nAlong = R.nAlong;
+			s0 = R.s0;
+		}
+		const plan = R ? R.P : P;
 
 		if (this.runner) {
 			this.runner.sprite.destroy();
@@ -599,11 +702,14 @@ export class RoadFeatures {
 		this.groundLayer.addChild(shadow);
 		// THE TARGET CROSSHAIR hops for its lead in before the reindeer sets off (CROSSHAIR.leadMs on the road clock)
 		const crosshair = CROSSHAIR.on && !this.crosshairOff();
-		const t0 = this.clock + (crosshair ? Math.max(STRIKE.leadInMs, CROSSHAIR.leadMs) : STRIKE.leadInMs);
+		const lead = this.clock + (crosshair ? Math.max(STRIKE.leadInMs, CROSSHAIR.leadMs) : STRIKE.leadInMs);
+		// his set off: the off-screen strike's, or later so that his impact lands exactly when its would (planRoamStrike)
+		const t0 = R ? lead + R.waitMs : lead;
+		if (R) this.roam.alert(R.nPre ? R.preDir : R.dir, t0);
 		this.endCrosshair();
-		if (crosshair) this.startCrosshair(spec.cell, t0, dir, P.path, nR);
+		if (crosshair) this.startCrosshair(spec.cell, t0, runDir, path, nR, R ? times : null);
 		return new Promise<void>((resolve) => {
-			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir, toX, gapX, cutDir: P.cutDir, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC: P.nC, nCut: P.nCut, s0, factor: P.plan.factor, path: P.path, times: P.times, impactFeetY: P.impactFeetY, impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, cut: false, darted: false, shadow, keepMs: P.keepMs, kept: P.kept };
+			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir: runDir, toX, gapX: R ? R.gapX : gapX, cutDir: plan.cutDir, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC: plan.nC, nCut: plan.nCut, s0, factor: plan.plan.factor, path, times, impactFeetY: plan.impactFeetY, impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, cut: false, darted: false, shadow, keepMs: plan.keepMs, kept: plan.kept, roam: !!R, preN: R ? R.nPre : 0, preDir: R ? R.preDir : dir, todayMs, waitMs: R ? R.waitMs : 0, last: !!spec.last };
 		});
 	}
 
@@ -635,9 +741,16 @@ export class RoadFeatures {
 	}
 
 	/** the plan for this strike: when the reindeer has run past each candidate's reel (from its path along the snow) */
-	private startCrosshair(target: number, t0: number, dir: 1 | -1, path: { x: number; y: number }[], nR: number) {
+	private startCrosshair(target: number, t0: number, dir: 1 | -1, path: { x: number; y: number }[], nR: number, times: number[] | null = null) {
 		const cells = this.candidates(target);
-		const turnAt = t0 + (nR * 1000) / STRIKE.strideFps;
+		// (a roaming reindeer's run has its own times: his side run may be sped up; the strike from off the screen keeps
+		// strideFps poses a second, exactly as before)
+		const at = (pose: number) => {
+			if (!times) return (pose * 1000) / STRIKE.strideFps;
+			const i = Math.max(0, Math.min(times.length - 2, Math.floor(pose)));
+			return times[i] + (times[i + 1] - times[i]) * (pose - i);
+		};
+		const turnAt = t0 + at(nR);
 		const targetReel = Math.floor(target / ROWS);
 		const dropAt: Record<number, number> = {};
 		for (const cell of cells) {
@@ -651,7 +764,7 @@ export class RoadFeatures {
 				const b = path[i + 1].x;
 				if ((b - line) * dir < 0 || (a - line) * dir > 0) continue;
 				const pose = i + (b === a ? 0 : (line - a) / (b - a));
-				dropAt[cell] = Math.min(turnAt, t0 + (pose * 1000) / STRIKE.strideFps);
+				dropAt[cell] = Math.min(turnAt, t0 + at(pose));
 				break;
 			}
 		}
@@ -1016,6 +1129,9 @@ export class RoadFeatures {
 		this.frameNo += 1;
 		this.sounds.beginFrame(this.frameNo, clock);
 		this.updateRunner();
+		// the roaming reindeer after the runner: the frame his run sets off he is gone and the runner shows
+		this.roam.setView(this.layoutKind, this.screenRect);
+		this.roam.update(clock);
 		this.updateCrosshair();
 		this.updateClouds();
 		for (const column of [...this.columns]) this.updateColumn(column);
@@ -1096,6 +1212,8 @@ export class RoadFeatures {
 			if (missed !== undefined) r.late = e - this.poseTime(r, missed);
 			r.impactAt = this.clock;
 			this.crosshairCrash();
+			// the spin's last strike: a new roaming reindeer walks in a moment after it (never waited on)
+			if (r.last && STRIKE.roam && this.roam.state === 'none') this.roam.walkInAt = this.clock + ROAM.walkInDelayMs;
 		} else {
 			pose = this.poseAt(r, e);
 			const index = Math.floor(pose + 1e-9);
@@ -1165,7 +1283,8 @@ export class RoadFeatures {
 		const x = a.x + (b.x - a.x) * u;
 		const y = a.y + (b.y - a.y) * u;
 		// the cut runs toward the target's centre: mirrored when that is against the way it came along the snow
-		const facing = index >= cutAt ? r.cutDir : r.dir;
+		// (a roaming reindeer that first runs back out faces that way until his own turn back toward the board)
+		const facing = index >= cutAt ? r.cutDir : index < r.preN ? r.preDir : r.dir;
 		// its size: the snow size along the snow; once it turns toward us it grows with how far down the screen it has
 		// come, to the road size at the impact
 		const reach = Math.max(1, r.impactFeetY - r.feetY);
@@ -1626,6 +1745,8 @@ export class RoadFeatures {
 			bodyOrder: this.bodyLayer.children.map((b) => this.reelOfBody(b)),
 			clouds: this.clouds.filter((c) => c.leaving === null).map((c) => c.cell),
 			runner: this.runner ? this.runnerSnapshot(this.runner) : null,
+			/** the roaming reindeer (game/road/roam.ts) */
+			roam: this.roam.snapshot(),
 			/** the red boxes on Grandma cars in struck Santa reels */
 			marks: this.marks.map((m) => m.cell),
 		};
@@ -1659,6 +1780,13 @@ export class RoadFeatures {
 			keepMs: Math.round(r.keepMs * 100) / 100,
 			kept: r.kept,
 			impactFeetY: Math.round(r.impactFeetY * 100) / 100,
+			/** the roaming reindeer's strike: his own, the run back out, the off-screen strike's time, his wait */
+			roam: r.roam,
+			pre: r.preN,
+			todayMs: Math.round(r.todayMs * 100) / 100,
+			waitMs: Math.round(r.waitMs * 100) / 100,
+			startX: Math.round(r.path[0].x * 100) / 100,
+			startY: Math.round(r.path[0].y * 100) / 100,
 		};
 	}
 

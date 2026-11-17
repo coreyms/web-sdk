@@ -174,6 +174,12 @@ export const STRIKE = {
 	 *  about 0.17 s on a 16:9 or 16:10 desktop, 0.35 s held sideways on a phone, 0.4 s at 21:9); false = the old start,
 	 *  30 road px outside the picture, where he now appears on the open snow */
 	enterFromScreen: true,
+	/** THE ROAMING REINDEER (2026-11-17; game/road/roam.ts, ROAM below, game/roamPaths.ts): one reindeer stays on the
+	 *  screen between spins, wandering its path and sniffing; the first strike of a spin is his, from where he stands
+	 *  (its impact never later than the strike from off the screen would land); every later strike of the spin comes
+	 *  from off the screen; after the spin a new one walks in. false = no roaming reindeer: every strike exactly as
+	 *  before. */
+	roam: true,
 	/** ALONG THE SNOW (the side run, the turn and the diagonal): road px per second on the ground, and the leg cycle's
 	 *  poses per second. The middle path (2026-11-12, measured from the rig's frames: the side run's one grounded pose,
 	 *  pose 1, sweeps its hoof back 71.9 frame px per pose): at 1400 and 60 the body moves 2.44x the hoof's sweep on the
@@ -219,6 +225,28 @@ export const STRIKE = {
 	 *  (game/road/roadFeatures.ts planRun). A distance it cannot fit falls back to the free start. */
 	startPose: null as number | null,
 	startFactorMax: 0.12,
+};
+
+// ---- THE ROAMING REINDEER's pace and timing (STRIKE.roam; game/road/roam.ts; the paths are game/roamPaths.ts) ----------
+// The tune panel's "Reindeer path" group (staging) edits these and the paths themselves. Board clock ms (turbo and a slam
+// stop hurry them).
+export const ROAM = {
+	/** walking along the path, against the rig's own walk (1 = the hooves grip at the walk's rendered speed: about 19
+	 *  road px a second at the desktop's snow size) */
+	walkPace: 1.2,
+	/** the walk in from past the screen's edge after a spin's strikes, against the rig's own walk */
+	walkInPace: 2.5,
+	/** how long he sniffs at a waypoint before walking on: a seeded draw between these; he sets off when the sniff loop
+	 *  (3.3 s) is back on the stand */
+	idleMinMs: 2500,
+	idleMaxMs: 7000,
+	/** the new one starts walking in this long after the spin's last strike's impact */
+	walkInDelayMs: 900,
+	/** a strike from where he stands that would land later than the strike from off the screen: his side run is sped up
+	 *  to at most 1 / minRunShare, and only then is its start cut (the impact is never later) */
+	minRunShare: 0.6,
+	/** the wander's seeded choices (which waypoint, how long he sniffs) */
+	seed: 20261117,
 };
 
 // ---- THE GRANDMA WILD: the crash cloud in one cell, for one spin (Corey 2026-11-04 and 2026-11-09) ---------------------
@@ -1291,7 +1319,7 @@ export const LED_BOARD = {
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { ledBoard: LED_BOARD, laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN };
+export const TUNE = { ledBoard: LED_BOARD, laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, roam: ROAM, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */
