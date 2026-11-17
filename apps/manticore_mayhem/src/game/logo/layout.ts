@@ -1,7 +1,9 @@
-// WHERE THE LOGO SITS: one rule per layout, in master units, for the box of the logo's ART (the still's own
-// box, wing tip to wing tip). The HTML chrome sizes its <img> to this box (ui/Chrome*.svelte) and the canvas
-// logo maps the same art box of its frame onto it (components/Logo.svelte), so the two are the same picture
-// in the same place. Numbers in constants LOGO.
+// WHERE THE LOGO SITS: one rule per layout, in master units, for the box of the logo's ART (the tablet's own
+// picture, game/logo/still.ts). The HTML chrome sizes its <img> to this box (ui/Chrome*.svelte) and the canvas
+// draws the still in it (components/Logo.svelte), so the two are the same picture in the same place. Numbers in
+// constants LOGO.
+// THE TABLET (2026-11-17): each rule still makes the old stacked logo's box (LOGO.boxAspect, 2380 x 940), and the
+// tablet fills that box by width, centred in its height (`fit`). Where a rule is set by its centre the two agree.
 import { CREATURE, LOGO } from '../constants';
 import { CREATURE_SPEC } from '../creatureSpec';
 import { SCENE_SPEC_PORTRAIT } from '../sceneSpec';
@@ -12,6 +14,12 @@ import { safeInsetLeftCss } from '../safeInset';
 export type LogoRect = { x: number; y: number; width: number; height: number };
 
 const ASPECT = LOGO.art.width / LOGO.art.height;
+const BOX_ASPECT = LOGO.boxAspect;
+/** the tablet in a rule's box: its width, centred in the box's height */
+const fit = (x: number, y: number, width: number): LogoRect => {
+	const height = width / ASPECT;
+	return { x, y: y + (width / BOX_ASPECT - height) / 2, width, height };
+};
 
 /**
  * The art box for a layout. Portrait: `viewportMasterWidth` is the real viewport's width in master units (the frame
@@ -28,7 +36,7 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 			const T = LOGO.landscapeTall;
 			const post = registrationOf(frameFor('landscape')).map(T.postRender, 0).x;
 			const width = Math.max(post - 2 * T.gap, 1);
-			return { x: T.gap, y: T.top - extra, width, height: width / ASPECT };
+			return fit(T.gap, T.top - extra, width);
 		}
 		const { cx, cy, width } = LOGO.landscape;
 		const height = width / ASPECT;
@@ -36,18 +44,18 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 	}
 	if (kind === 'phone') {
 		const { left, top, width } = LOGO.phone;
-		return { x: left, y: top, width, height: width / ASPECT };
+		return fit(left, top, width);
 	}
 	if (phone) {
 		const { cx, cy, width } = LOGO.portraitPhone;
 		const height = width / ASPECT;
 		const view = portraitViewportNow();
 		if (portraitOptions.logo === 'edge' && view) {
-			// THE LEFT EDGE OPTION (constants LOGO.portraitPhoneEdge): the left wing's tip edgeCss CSS px (plus the safe area)
+			// THE LEFT EDGE OPTION (constants LOGO.portraitPhoneEdge): the art's leftmost drawn column edgeCss CSS px (plus the safe area)
 			// in from the screen's left edge. The screen's left edge is half the viewport's width left of the master's centre.
 			const E = LOGO.portraitPhoneEdge;
 			const vw = Math.max(viewportMasterWidth ?? MASTER.portrait.width, 1);
-			const tip = (E.wingTipArt * width) / LOGO.art.width;
+			const tip = (E.leftEdgeArt * width) / LOGO.art.width;
 			const x = MASTER.portrait.width / 2 - vw / 2 + (E.edgeCss + safeInsetLeftCss()) / view.cssPerMaster - tip;
 			return { x, y: cy - height / 2, width, height };
 		}
@@ -58,7 +66,7 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 	// centred on the screen, so its right edge is half its width from the centre line: clear of the SKIP button
 	const T = SKIP.slots.portraitTablet;
 	const clear = 2 * (Math.max(viewportMasterWidth ?? MASTER.portrait.width, MASTER.portrait.width) / 2 - T.right - T.play - P.skipGap);
-	let width = Math.max(Math.min(P.maxWidth, band * ASPECT, clear), 1);
+	let width = Math.max(Math.min(P.maxWidth, band * BOX_ASPECT, clear), 1);
 	let x = (MASTER.portrait.width - width) / 2;
 	// clear of the creature (constants LOGO.portraitTabletClear): his leftmost drawn point on this screen, through his
 	// spot and the portrait scene's cover fit, in this rule's x (master units from the 412 master's left edge)
@@ -79,10 +87,4 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 	}
 	const height = width / ASPECT;
 	return { x, y: P.top + (band - height) / 2, width, height };
-};
-
-/** the canvas logo's frame for an art box: where the frame's origin goes and master units per ship px */
-export const logoFramePlacement = (art: readonly number[], rect: LogoRect) => {
-	const scale = rect.width / art[2];
-	return { x: rect.x - art[0] * scale, y: rect.y - art[1] * scale, scale };
 };

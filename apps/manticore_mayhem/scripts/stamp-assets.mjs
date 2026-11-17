@@ -135,8 +135,9 @@ const CARDS = [
 	'ui/intro/card-features.mp4',
 ];
 const LANDING = [
-	'ui/logo-stacked.webp',
-	'ui/logo-stacked-glint.webp', // the letters-only mask of the logo's glint (ui/Shine.svelte)
+	// the logo, one file per tier (game/assets.ts LOGO_STILL_PATH): game/boot.svelte.ts leaves the other tier's out of the total
+	'ui/logo-tablet.webp',
+	'ui/logo-tablet-phone.webp',
 	'fonts/ui/Outfit-Variable.woff2',
 	'fonts/ui/Sora-Variable.woff2',
 	...CARDS,

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { stamp } from '../game/assets';
+	import { LOGO_STILL_PATH, stamp } from '../game/assets';
 	// Desktop / landscape master (1280x720), and the same layout on wide screens and landscape tablets.
 	// THE HUD (round 5, "Drop 6", Corey 2026-11-12): Side Stepper's one obsidian glass dock on the floor band, in this
 	// order: ARMOURY, MENU | BALANCE | WIN | minus, the amount, plus | AUTO, TURBO, Spin (the dock's right end IS the
@@ -10,11 +10,9 @@
 	// The clock strip and the logo fallback are exactly as before.
 	import type { Controls } from './controls.svelte';
 	import { frameArtRect } from '../game/layoutSpec';
-	import { PHONE_TIER } from '../game/deviceTier';
 	import { logoArtRect } from '../game/logo/layout';
 	import { logoState } from '../game/logo/state.svelte';
 	import ClockStrip from './ClockStrip.svelte';
-	import Shine from './Shine.svelte';
 	import { desktopGeo, outlineTerm, type HudFrame } from './hud/hudLayout';
 	import { createHudState } from './hud/hudState';
 	import HudGlass from './hud/HudGlass.svelte';
@@ -50,9 +48,9 @@
 
 <!-- THE LOGO. The canvas draws it in this same box in every tier (components/Logo.svelte: animated on the desktop
      tier, the still of game/logo/still.ts otherwise, both under the creature). This <img> is only the fallback until
-     the canvas has it (logoState.canvas hides it, Shine and all). -->
+     the canvas has it (logoState.canvas hides it). -->
 <div class="logo keep" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px">
-	<img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Unleashed" draggable="false" />{#if PHONE_TIER}<Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} calm />{/if}
+	<img src={stamp(`/assets/${LOGO_STILL_PATH}`)} alt="Manticore Unleashed" draggable="false" />
 </div>
 
 <!-- the dock: glass, keys, WIN and Spin (under THE ARMOURY's tint) -->

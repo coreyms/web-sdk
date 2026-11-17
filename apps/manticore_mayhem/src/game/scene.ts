@@ -880,7 +880,7 @@ export class SceneView {
 	}
 
 	/** each chain leans away from the landing: from the screen's centre line (null: left left, right right), or from
-	 *  a canvas x (the logo), by where its knocker's mouth is on the canvas now */
+	 *  a canvas x (none pushes one since the old logo's entrance went, 2026-11-17), by where its knocker's mouth is on the canvas now */
 	private aim(sourceX: number | null): void {
 		if (sourceX === null) {
 			this.dirL = -1;

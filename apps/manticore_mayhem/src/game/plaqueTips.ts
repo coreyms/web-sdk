@@ -92,9 +92,12 @@ export const PLAQUE_TIPS = {
 	 *  (so the half size tier, or any size the art is drawn at, gives the same line) and goes through the layout's
 	 *  plaque box and homography (game/plaqueTips.ts slantEdges), so the cut sits on the art on every layout. The
 	 *  portrait tablet layout draws the portrait art */
+	// (2026-11-16: landscape and portrait measured again on the P2 art, the board plaque rebuilt in eec069c: the gold line's
+	// inner side at half its rise, a line fitted over every art row of the field. The left edges had sat 0.4 to 0.8 art px
+	// inside it, which with the 0.5 inset read 1.13 CSS px at 2560 x 1440 in plaque_tips_probe. Phone: within 0.2, kept)
 	edges: {
-		landscape: { tex: [620, 123], top: 27, bottom: 93, left: [60.9, 36.8], right: [559.8, 584.1] },
-		portrait: { tex: [648, 127], top: 27, bottom: 97, left: [64.1, 38.1], right: [584.7, 610.9] },
+		landscape: { tex: [620, 123], top: 27, bottom: 93, left: [60.4, 36.24], right: [560.13, 584.25] },
+		portrait: { tex: [648, 127], top: 27, bottom: 97, left: [63.51, 37.31], right: [584.92, 611.09] },
 		phone: { tex: [612, 106], top: 20, bottom: 84, left: [39.5, 24.1], right: [572.2, 587.9] },
 	} as Record<string, PlaqueEdgeArt>,
 	/** the cut sits this many art px inside each measured edge, so no letter pixel ever lands on the gold line itself */

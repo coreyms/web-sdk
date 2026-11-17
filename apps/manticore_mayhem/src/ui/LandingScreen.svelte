@@ -27,14 +27,13 @@
 	import { getContext } from '../game/context';
 	import { boot, cardClip, cardClipInfo, cardsLate, dropCardHolder, releaseSplash, splashShare } from '../game/boot.svelte';
 	import { MASTER, layoutKind } from '../game/layoutSpec';
-	import { GATE_BYTES, stamp } from '../game/assets';
+	import { GATE_BYTES, LOGO_STILL_PATH, stamp } from '../game/assets';
 	import { bootSizes } from '../game/assetStamp';
 	import { loadGate } from '../game/loadGate.svelte';
 	import { sound } from '../game/sound';
-	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, INTRO_LOGO_SHINE_MS, LANDING_BAR, introGatePctSize, introPlacement } from '../game/introCards';
+	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, LANDING_BAR, introGatePctSize, introPlacement } from '../game/introCards';
 	import { INTRO_BODY_FIT, LOAD_GATE } from '../game/constants';
 	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, introBodyRuns, introSceneIndexAt } from '../game/introCardText';
-	import Shine from './Shine.svelte';
 
 	type Props = { onpress: () => void };
 	const props: Props = $props();
@@ -158,7 +157,7 @@
 
 	// per-kind sizing of the gate (master units)
 	const SZ = $derived(INTRO_GATE[kind]);
-	const logoSrc = $derived(stamp('/assets/ui/logo-stacked.webp'));
+	const logoSrc = stamp(`/assets/${LOGO_STILL_PATH}`);
 	const logo = $derived(place.logo);
 
 	// ---- the cards -------------------------------------------------------------------------------
@@ -507,8 +506,8 @@
 				{/if}
 			</div>
 		{/if}
-		<span class="shine-host logo" style:width="{logo.w}px" style:left="{logo.cx - logo.w / 2}px" style:top="{logo.cy}px">
-			<img src={logoSrc} alt="Manticore Unleashed" width={logo.w} draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} idleMs={INTRO_LOGO_SHINE_MS} />
+		<span class="logo-host logo" style:width="{logo.w}px" style:left="{logo.cx - logo.w / 2}px" style:top="{logo.cy}px">
+			<img src={logoSrc} alt="Manticore Unleashed" width={logo.w} draggable="false" />
 		</span>
 
 		<div class="gate" style:padding="{SZ.pad}px" style:transform="translateX({place.gateCx - master.width / 2}px)">
@@ -749,12 +748,12 @@
 	.dots button.on i {
 		background: #e9c46a;
 	}
-	.shine-host {
+	.logo-host {
 		position: relative;
 		display: block;
 		filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.7));
 	}
-	.shine-host img {
+	.logo-host img {
 		display: block;
 		width: 100%;
 		height: auto;

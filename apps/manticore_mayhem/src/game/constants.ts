@@ -691,7 +691,7 @@ export const SPARKLE = {
  *  shrink, the white square flash and the 2.5 px dots), which stays selectable for comparison: DEV `?winfx=old`
  *  (game/winFx.ts). Per winning symbol, all in STYLE ms (divided by the turbo scale; a skip spawns nothing):
  *    rise    the same 1.13 grow over CLUSTER.winRiseMs, then a slow breath (`breathe`) while the readout is up
- *    shine   a slanted light band sweeps across the symbol (the logo's Shine, LOGO.still.shine: the symbol's own
+ *    shine   a slanted light band sweeps across the symbol (as the old stacked logo's Shine did, until 2026-11-17: the symbol's own
  *            frame cut into strips, each strip an additive copy whose opacity is the band; no mask, no filter), once
  *            as the cluster starts and again, softer, as its count lands
  *    pop     replaces the shrink: squash wide and short with a slight twist (the symbol heats up), pop out bigger
@@ -1590,7 +1590,7 @@ export const CHAIN_BOW = {
 };
 
 // ---- The chain gusts (Corey 2026-10-10: "a timed reaction like the wind from the drop ins is pushing them") ----
-// A drop-in (the win plaque's slam, the logo's entrance, a count-up passing a tier) displaces air that reaches the
+// A drop-in (the win plaque's slam, a count-up passing a tier) displaces air that reaches the
 // chains a beat later: the board's own chains (components/BoardFrame.svelte) and the courtyard's (game/scene.ts)
 // lean away from where it landed, smoothly, then swing back and settle. Never a board shake: the kick path is
 // untouched and the gust adds to it. The pulse is one half sine of `ms`, REAL time at every turbo level (it is
@@ -1602,8 +1602,8 @@ export const CHAIN_BOW = {
 // The board's runs take the gust sideways at the kick's own travel per px of the spring (hypot(0.6, CHAIN_BOW
 // .vertical)), plus `vertical` x the spring downwards, so a strength reads as the same share of a kick's travel.
 // Direction: away from the landing. `sourceX` null (the plaque and the tier, centred on the board): left chains
-// lean left, right chains right. The logo lands high in the left column: with logo.fromLogo each chain leans
-// away from the logo's centre (the courtyard's left chain left, the rest right); false = the centre rule.
+// lean left, right chains right; a gust pushed with a canvas x leans each chain away from that x.
+// (The old stacked logo's entrance pushed one too, from its centre: gone with its wings, 2026-11-17.)
 export const CHAIN_GUST = {
 	enabled: true,
 	ms: 260,
@@ -1616,8 +1616,6 @@ export const CHAIN_GUST = {
 	/** no gust is ever stronger than a kick, whatever the values below say */
 	maxStrength: 1,
 	plaque: { strength: 0.5, delayMs: 70 },
-	/** landFrame: the entrance frame (30 fps, from LOGO.entranceDelayMs) where the letters set down */
-	logo: { strength: 0.33, delayMs: 70, landFrame: 8, fromLogo: true },
 	tier: { strength: 0.17, delayMs: 50 },
 	/** THE PRESS LEAN (Corey's pick on the haul slider page, 2026-11-01, ?spinLean=0.25): every spin press (and a free spin's
 	 *  reveal) also leans the chains like a plaque landing, a quarter of a claw-swipe kick, delayMs after the press; the
@@ -2615,15 +2613,16 @@ export const FOREGROUND_KICK = {
 } as const;
 
 // ---- The logo (components/Logo.svelte, game/logo/, the HTML chromes) --------------------------------
-// ONE stacked logo with wings in every layout (Corey 2026-10-09). Two ways of drawing it, by device tier:
-//   phone tier   a static HTML <img> in the chrome (ui/Chrome*.svelte) with the house Shine glint. The chrome
-//                is drawn at the screen's own density while the canvas is capped at 1.5, and the breathing is
-//                about 2.5 CSS px of tip travel at phone size: not worth a vertex upload.
-//   desktop      the animated logo in the canvas, on the landscape master only: entrance, idle breathe, glint,
-//                flare, from the layered data (static/assets/ui/logo/, tools/build_logo_assets.py). The same
-//                <img> stands in until that data is in, and in the other two layouts.
-// Both are placed by ONE rule per layout (game/logo/layout.ts): the box of the logo's ART in master px. Every
-// number runs in REAL time at every turbo level.
+// THE CITADEL TABLET (Corey 2026-11-16, images/logo_tablet_r1_2026-11-16, take A; wired 2026-11-17): one still picture
+// in every layout and tier, drawn in the canvas under the creature (game/logo/still.ts) with the chrome's <img> as the
+// fallback. It replaced the stacked logo with wings (2026-10-09 to 2026-11-16): its animated wings, its glint and the
+// chain gust of its entrance are gone (Corey: "No glinting on the lettering"). A groove line trace comes in a later pass
+// (game/logo/grooves.json, art px; it attaches to LogoStill.trace).
+// Every layout keeps the old logo's box rule (its width and its centre) and the tablet fills it by width, centred: the
+// tablet is wider for its height (3.05 against 2.53), so it is 17 % lower than the old box, with the same gap above and
+// below it inside that box.
+// Both the canvas and the chrome are placed by ONE rule per layout (game/logo/layout.ts): the box of the logo's ART in
+// master px.
 /** THE INTRO CARDS' BODY SHRINK TO FIT (ui/LandingScreen.svelte, 2026-10-15). On Linux Chromium (the decimus probe host)
  *  Sora sets wider than on a Mac or an iPhone, and the scatters card's body wrapped to 5 lines in a zone that holds about
  *  4.5 (8 to 9 CSS px over at 1440 x 900, 1280 x 720, 390 x 844, 360 x 640; the clusters card at 768 x 1024): the zone
@@ -2634,8 +2633,13 @@ export const FOREGROUND_KICK = {
 export const INTRO_BODY_FIT = { stepPx: 0.25, floor: 0.85, slackPx: 0.5 } as const;
 
 export const LOGO = {
-	/** the static still's art box, px (tools/build_logo_assets.py prints it): only its aspect is used */
-	art: { width: 2380, height: 940 },
+	/** the tablet's own size, px (static/assets/ui/logo-tablet.webp, tools/build_logo_tablet.py; the phone tier's copy is
+	 *  1280 x 419 of the same picture): the box's aspect, and the units of the groove trace (game/logo/grooves.json) */
+	art: { width: 1893, height: 620 },
+	/** THE BOX RULE's aspect (game/logo/layout.ts): the old stacked logo's art box, 2380 x 940, wing tip to wing tip. Every
+	 *  layout's box below is still that box (its width, its place, its height where a rule is anchored to its top or
+	 *  limited by a band); the tablet fills it by width, centred in its height. */
+	boxAspect: 2380 / 940,
 	/** LANDSCAPE master (1280 x 720): the art's width and centre. Centred between the screen's left edge and the
 	 *  board frame's visible post (the frame art starts at 340, its solid post at 352: midpoint 176), and high
 	 *  in the column (Corey 2026-10-10: up, clear of the scene's chains; it may cover the lion knocker's head).
@@ -2643,19 +2647,21 @@ export const LOGO = {
 	 *  2026-10-16, THE BIGGER BOARD (layoutSpec LANDSCAPE_BOARD): the same rule. The post is now at 285.0 (render x 82.2
 	 *  of the board art: 378.27 + (82.2 - 329.571) x 0.377077), so the box runs from 26 to 259.0, 26 clear of the
 	 *  screen's left edge and of the post: width 233.0 (0.777 of 300), centre 142.5; its top stays at 46.76, under the
-	 *  clock strip (centre y 46.76 + 92.02 / 2). It was { cx: 176, cy: 106, width: 300 }. */
+	 *  clock strip (centre y 46.76 + 92.02 / 2). It was { cx: 176, cy: 106, width: 300 }.
+	 *  THE TABLET (2026-11-17) is 76.3 high in that box, centred: its top at 54.6, 7.9 under the box's top. */
 	landscape: { cx: 142.5, cy: 92.77, width: 233 },
 	/** THE TALLER DESKTOP SCREENS (layout_1610_r1, layoutSpec LANDSCAPE_TALL): below 16:9 the board is bigger and its post
 	 *  further left (render x `postRender` of the board art through the board's own registration: 245.5 at 16:10, 219.0
 	 *  at 3:2), so the box follows the same rule: `gap` clear of the screen's left edge and of the post, its top `top`
 	 *  under the clock strip's row, as at 16:9; the strip rides up to the screen's top edge there (ui/ClockStrip.svelte,
 	 *  --vp-extra-top) and the box with it (top - extra). Width 193.5 at 16:10 (218 CSS px at 1440 x 900, was 262),
-	 *  167.0 at 3:2. 16:9 and wider keep `landscape` above. */
+	 *  167.0 at 3:2. 16:9 and wider keep `landscape` above. The tablet is centred in that box's height (boxAspect), as at
+	 *  16:9: its top 6.5 under `top` at 16:10, 5.6 at 3:2. */
 	landscapeTall: { postRender: 82.2, gap: 26, top: 46.76 },
 	/** PHONE SIDEWAYS master (1480 x 740): the left column, from the clock strip's left edge to the board art's
 	 *  post (293), above the BALANCE readout (236). */
 	phone: { left: 16, top: 46, width: 274 },
-	/** PORTRAIT master (412 x 760, wider on wide screens): the largest box of the art's aspect inside the band
+	/** PORTRAIT master (412 x 760, wider on wide screens): the largest box of the box rule's aspect (boxAspect) inside the band
 	 *  from `top` (the clock row ends at 25) down to `gapAbove` over the frame art's finial tips (226.4, or 207.5
 	 *  where the frame has grown on a wide screen: board_v5j with its base on v4l's, 2026-10-11; 198.8 / 176.6 with
 	 *  v4l), no wider than maxWidth, centred in that band and on the screen. At 226.4 the box is maxWidth wide (as it
@@ -2664,7 +2670,8 @@ export const LOGO = {
 	 *  348 at 768 x 1024. `skipGap`: on a narrow tablet the box is also kept this far left of the SKIP button (layoutSpec
 	 *  SKIP), which stands beside the logo's upper right; at 768 x 1024 that allows 369, so the 348 stands.
 	 *  THE LOGO STAYS WHERE IT IS IN A FEATURE (Corey 2026-10-12: its step back to centre 206, 71, width 202.6 above the
-	 *  old SKIP TO RESULT plate is gone, phone and tablet). */
+	 *  old SKIP TO RESULT plate is gone, phone and tablet).
+	 *  THE TABLET (2026-11-17) is centred in that box: 114.0 high at 348 wide, its top 11.7 under the box's. */
 	portrait: { top: 31, gapAbove: 8, maxWidth: 348, skipGap: 8 },
 	/** THE TABLET LOGO CLEAR OF THE CREATURE (layout_1610_r1; the harsh re-review of 2026-10-17: at 1024 x 1366 his wing
 	 *  lay on the logo's right wing and the M of MAYHEM; Corey 2026-10-17 20:27: "Needs to be fixed"). On a portrait
@@ -2678,7 +2685,9 @@ export const LOGO = {
 	 *             and every attack (swipe, roar, sting_hit, sting_recrouch, charge_in, charge_loop), every frame: 80.0
 	 *             (idle f23, his left wing), measured at 1024 x 1366 and 768 x 1024 (feedback/layout_1610_r1/rig_probe.js).
 	 *             Through his spot (CREATURE.place.portraitTablet) and the portrait scene's cover fit (SCENE_SPEC_PORTRAIT
-	 *             .frame); the foreground's oversize (about 1 %) and the feature kicks (a few px) are inside `gapCss`. */
+	 *             .frame); the foreground's oversize (about 1 %) and the feature kicks (a few px) are inside `gapCss`.
+	 *  THE TABLET (2026-11-17): the rule is on the box's right edge, and the tablet's drawn right edge is 9 art px (0.5 %)
+	 *  inside it, so the gap holds as it did for the old logo's right wing tip. */
 	portraitTabletClear: { leftRig: 80, gapCss: 16, edgeCss: 16 },
 	/** PORTRAIT PHONE (the layout system's size class, short side at most 480 CSS px: layoutSpec isPhoneSizeType), the
 	 *  owner's own box (Corey 2026-10-12 22:11, placement playground v3): up in the left corner, clear of the creature
@@ -2688,65 +2697,37 @@ export const LOGO = {
 	// 1.0.04 (harsh review 2026-10-20 design N8, "the creature's left wing touches the logo's right wing", Corey 2026-10-21
 	// "10 to 15 px more gap"): width 243 (was 257.5), the same centre height and left wing tip, so its lower right
 	// corner comes in and up off his wing: at 390 x 844 the closest drawn pixels go from -2.1 (touching) to +10.5 CSS px (440 x 700: -8.4 to +5.4)
+	// THE TABLET (2026-11-17): the same box, the tablet centred in it by width (79.6 high at 243 wide, the old box 96.0).
 	portraitPhone: { cx: 138.7, cy: 100.7, width: 243 },
 	/** THE PORTRAIT PHONE LOGO ON THE LEFT EDGE (branch portrait-glow-r1, OPTION for Corey, 2026-10-17 11:42: "move that
 	 *  logo in portrait mode close to the left edge and anchor it there maybe the point of the left wings widest stretch
 	 *  point plus 2 pixels for spacing"). The box keeps portraitPhone's width and centre y; only x moves, so that the
-	 *  left wing's tip sits `edgeCss` CSS px from the screen's left edge plus env(safe-area-inset-left).
-	 *    wingTipArt  the leftmost opaque point of the art (logo-stacked.webp, 1200 x 474, alpha > 32): column 0, rows 365
-	 *                to 392, the left wing's tip (alpha up to 90 there). The still is trimmed to its own alpha box, so the
-	 *                tip IS the box's left edge. In art px of LOGO.art's width (0 = the box's left edge). The portrait
-	 *                logo is that still (game/logo/still.ts), never the animated one: no widest frame to measure.
+	 *  art's leftmost drawn point sits `edgeCss` CSS px from the screen's left edge plus env(safe-area-inset-left).
+	 *    leftEdgeArt  the leftmost drawn column of the art (alpha > 32), in art px of LOGO.art's width (0 = the box's left
+	 *                 edge). The old stacked logo's was its left wing's tip, column 0. THE TABLET (2026-11-17): its left
+	 *                 rim, column 8 of 1893 (the file keeps an 8 px transparent margin), so the box starts 1 CSS px left
+	 *                 of the edgeCss line on a 390 wide phone.
 	 *  options: 'current' (portraitPhone's centre, the look before 2026-10-17) | 'edge' (the default). DEV switch `__manticore.logoPlace('current' |
 	 *  'edge')` (components/Logo.svelte). Portrait phone only.
 	 *  THE DEFAULT IS 'edge' since Corey 2026-10-17 13:02: "Yes, Logo on left edge looks proper for placement."
 	 *  'current' stays as a DEV option; back to the old place: default 'current'. */
-	portraitPhoneEdge: { wingTipArt: 0, edgeCss: 2, default: 'edge' as 'current' | 'edge' },
-	/** the landing screen's logo (ui/LandingScreen.svelte): the art's width and centre per master, above the cards */
+	portraitPhoneEdge: { leftEdgeArt: 8, edgeCss: 2, default: 'edge' as 'current' | 'edge' },
+	/** the landing screen's logo (ui/LandingScreen.svelte): the art's width and centre per master, above the cards (the
+	 *  cards' band starts under the tablet's own bottom edge, game/introCards.ts) */
 	landing: { landscape: { width: 380, cx: 640, cy: 92 }, phone: { width: 380, cx: 740, cy: 92 }, portrait: { width: 348, cx: 206, cy: 110 } },
 
 	// ---- the canvas logo --------------------------------------------------------------------------
-	/** the wing vertices are rewritten at most this often (30 a second: every second frame at 60 Hz) */
-	vertexIntervalMs: 1000 / 30,
-	/** a frame that comes this much early still counts (60 Hz frames arrive 15 to 18 ms apart, not 16.7) */
-	vertexSlackMs: 4,
-	/** the entrance starts this long after the game first shows (the HUD is fading in) */
-	entranceDelayMs: 150,
-	/** the entrance's glint: gold from this entrance frame, the red sweep later (frames of 1 / 30 s) */
-	entranceGlint: { atFrame: 24, gold: { frames: 18, peak: 0.9 }, red: { delayFrames: 7, frames: 16, peak: 0.6 } },
-	/** the idle glint: once per breath (135 frames, 4.5 s), when the idle passes this frame, only at rest */
-	idleGlint: { atFrame: 30, gold: { frames: 24, peak: 0.7 }, red: { delayFrames: 11, frames: 21, peak: 0.45 } },
-	/** the flare's glint, from the flare's own frames */
-	flareGlint: { atFrame: 4, gold: { frames: 11, peak: 1 }, red: { delayFrames: 4, frames: 10, peak: 0.65 } },
-	/** A FLARE ON A WIN: when a spin's total is final (spinWinFinal) and it is at least this many times the bet.
-	 *  One per spin, never while SKIP TO RESULT runs, never while a flare or the entrance is running, and no
-	 *  sooner than flareMinGapMs after the last one started (turbo and autoplay must not strobe it). */
-	flareMinXBet: 1,
-	flareMinGapMs: 2500,
 	/** the logo fades with the HUD's kept elements (a modal, the max win screen): Chrome.svelte's 350 ms */
 	fadeMs: 350,
-	/** the data came in after the game showed: the canvas logo takes over from the still on its bind pose and
-	 *  eases into the breathing over this much rest */
-	takeoverBlendMs: 600,
-	/** mip chain on the atlas (drawn at 0.3 to 0.9 of its size), as the plaque's full tier has */
+	/** a mip chain on the still (drawn at 0.14 to 0.4 of its size in the canvas) */
 	mipmaps: true,
 
 	// ---- the still, in the canvas (game/logo/still.ts; 2026-10-13: every logo is in the canvas, under the creature) ----
-	/** the still's drop shadow per master, master px: what the chrome's <img> wore as a CSS drop-shadow (offset down,
-	 *  blur radius, opacity). Baked once into a texture `shadowBakeWidth` px of art wide (no filters in the canvas).
-	 *  THE SHINE (ui/Shine.svelte's numbers): the glint texture in `strips` vertical strips; a white band `band` art
-	 *  widths wide (a triangle, `peak` at its centre) whose centre runs from `from` to `to` art widths; every idleMs a
-	 *  sweep of idleSweepMs at idleOpacity (ramped in and out over idleRampMs), and on a spin press a full one over
-	 *  bigMs (ease out, opacity up to 1 by bigRampAt of it, then down to 0). */
+	/** the still's drop shadow per master, master px: what the chrome's <img> wears as a CSS drop-shadow (offset down,
+	 *  blur radius, opacity). Baked once into a texture `shadowBakeWidth` px of art wide (no filters in the canvas). */
 	still: {
 		shadow: { landscape: { dy: 4, blur: 8, alpha: 0.7 }, phone: { dy: 4, blur: 8, alpha: 0.7 }, portrait: { dy: 3, blur: 6, alpha: 0.6 } },
 		shadowBakeWidth: 256,
-		/** CALMER ON THE PHONE (1.0.04, Corey 2026-10-20: "Can we work on the current logo's glint's they are pretty
-		 *  aggressive" ... "the desktop looks good in the current state, it's the phone that looks aggressive"): the idle
-		 *  sweep every 12 s (was 5 s) at opacity 0.2 (was 0.4), and no full sweep on a spin press (`press`, was on). The
-		 *  desktop's animated logo is unchanged. The staging switch `?glint=` (0 to 2, game/staging.ts) scales its opacity.
-		 *  The chrome's HTML <img> fallback (ui/Shine.svelte in ui/Chrome*.svelte) follows the same numbers. */
-		shine: { strips: 40, band: 0.9, from: -0.9, to: 1.9, peak: 0.95, idleMs: 12000, idleSweepMs: 800, idleRampMs: 100, idleOpacity: 0.2, bigMs: 520, bigRampAt: 0.15, press: false },
 	},
 } as const;
 
@@ -3359,7 +3340,8 @@ export const FIRE_SOUND = {
 
 // ---- The chain sounds (game/chainSound.ts; sprite entries by tools/build_audiosprite.py MM_EVENTS) ----------------
 // Corey's mapping (2026-10-11): a feature's BOARD KICK (the claw swipe's, the roar's) plays the heavy clank; the WIN
-// PLAQUE dropping in plays the light rattle; the LOGO landing the light rattle, quieter; a win TIER landing nothing
+// PLAQUE dropping in plays the light rattle; a win TIER landing nothing (the old logo's entrance had the light rattle,
+// quieter: sfx_chain_light_logo, still in the sprite, unused since its wings went on 2026-11-17)
 // (each tier has its own sound). The LEVELS are in the sprite (build_audiosprite.py MM_SOURCE_GAIN_DB and
 // MM_ALIAS_VOLUME): the clank 8 dB under sfx_cluster_remove, the plaque's rattle 10 dB under, the logo's 16, each
 // measured on the clip's loudest 50 ms.
@@ -3375,7 +3357,7 @@ export const FIRE_SOUND = {
 export const CHAIN_SOUND = {
 	kickThresholdPx: 1.5,
 	kickMinGapMs: 800,
-	gust: { plaque: 'sfx_chain_light', logo: 'sfx_chain_light_logo', tier: null, press: null },
+	gust: { plaque: 'sfx_chain_light', tier: null, press: null },
 } as const;
 
 // ---- Symbol art ---------------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { stamp } from '../game/assets';
+	import { LOGO_STILL_PATH, stamp } from '../game/assets';
 	import { getContext } from '../game/context';
-	// Portrait master (412x760): the stacked logo on top (unchanged).
+	// Portrait master (412x760): the logo (the tablet) on top.
 	// THE HUD (round 6, "Row of Seven", Corey 2026-11-13): one glass bar low on the floor with the Spin set in its middle
 	// (its border flowing round the Spin's upper and lower arcs) and ONE row inside it: the ARMOURY as a wide pill, MENU
 	// right beside it, AUTO next to the Spin on its left, the Spin, TURBO next to the Spin on its right, a gap, then minus
@@ -15,7 +15,6 @@
 	import { logoArtRect } from '../game/logo/layout';
 	import { logoState } from '../game/logo/state.svelte';
 	import { stateUi } from 'state-shared';
-	import Shine from './Shine.svelte';
 	import ClockStrip from './ClockStrip.svelte';
 	import { portraitGeo, outlineBead, type HudFrame } from './hud/hudLayout';
 	import { createHudState } from './hud/hudState';
@@ -57,7 +56,7 @@
 <div class="top keep" style:top="{logo.y}px" style:transform="translateX({logoDx}px)">
 	<!-- THE CANVAS DRAWS THE LOGO (components/Logo.svelte, game/logo/still.ts: under the creature); this is the fallback
 	     until the canvas has it, hidden from then on (logoState.canvas) -->
-	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><img src={stamp('/assets/ui/logo-stacked.webp')} alt="Manticore Unleashed" draggable="false" /><Shine src={stamp('/assets/ui/logo-stacked-glint.webp')} calm /></span>
+	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><img src={stamp(`/assets/${LOGO_STILL_PATH}`)} alt="Manticore Unleashed" draggable="false" /></span>
 </div>
 
 <div class="hudp hud-group v-portrait" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>

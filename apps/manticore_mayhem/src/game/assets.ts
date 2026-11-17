@@ -562,16 +562,11 @@ const assets = {
 		src: tiered(stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten.json', import.meta.url).href), stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten-half.json', import.meta.url).href)),
 		preload: false,
 	},
-	// THE CANVAS LOGO (components/Logo.svelte, tools/build_logo_assets.py): one atlas with the wings, the letters,
-	// both shadows and the 18 glint slices. Desktop tier only (the phone tier's logo is the chrome's <img>: the
-	// entry is removed below). Never gates the landing screen: it starts when the preload ends (game/deferredLoad.ts
-	// loadLogoEarly) and the still stands in until it lands (game/logo/state.svelte.ts).
-	// THE LOGO'S STILL, DRAWN IN THE CANVAS (game/logo/still.ts; 2026-10-13: the logo is under the creature in every
-	// layout, so it can no longer be the chrome's <img>). Every tier, at boot: the landing screen has already fetched
-	// both files (the same stamped URLs), so this is a cache hit and one decode. The glint is the Shine's letter mask.
-	logoStill: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-stacked.webp', import.meta.url).href), preload: true },
-	logoGlint: { type: 'sprite', src: stamp(new URL('../../assets/ui/logo-stacked-glint.webp', import.meta.url).href), preload: true },
-	logoAtlas: { type: 'sprites', src: stamp(new URL('../../assets/ui/logo/logo.json', import.meta.url).href), preload: false },
+	// THE LOGO (game/logo/still.ts, components/Logo.svelte; the Citadel Tablet since 2026-11-17, tools/build_logo_tablet.py):
+	// one still, drawn in the canvas under the creature in every layout. Every tier, at boot: the landing screen has
+	// already fetched it (the same stamped URL, LOGO_STILL_URL), so this is a cache hit and one decode. The phone tier
+	// takes the 1280 px copy (3 device px per CSS px at its largest draw, the portrait landing screen).
+	logoStill: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/logo-tablet.webp', import.meta.url).href), stamp(new URL('../../assets/ui/logo-tablet-phone.webp', import.meta.url).href)), preload: true },
 	// THE CREATURE'S STILL (first-minute plan D, constants CREATURE.restHeldAfter; tools/build_creature_still.py): his idle
 	// loop's first frame and its shadow, one small atlas per tier (45 KB, 25 KB on the phone tier), in the FIRST download
 	// so he stands in the courtyard from the game's first frame (game/creature.ts setStill, components/Background.svelte).
@@ -605,13 +600,9 @@ export const STINGER_DATA_URLS = {
 	bin: stamp(new URL('../../assets/ui/stinger/stinger-motion.bin', import.meta.url).href),
 };
 
-// the canvas logo's runtime data (game/logo/data.ts fetches both itself: topology + int16 vertex tracks)
-export const LOGO_DATA_URLS = {
-	json: stamp(new URL('../../assets/ui/logo/logo-data.json', import.meta.url).href),
-	bin: stamp(new URL('../../assets/ui/logo/logo-motion.bin', import.meta.url).href),
-};
-// the phone tier never draws the canvas logo: nothing downloads or decodes its atlas there
-if (PHONE_TIER) delete (assets as unknown as Record<string, unknown>).logoAtlas;
+/** THE LOGO's file for this tier, as a static path (the chromes' <img>, the landing screen and game/boot.svelte.ts's
+ *  landing phase all ask for this one, so the canvas's logoStill above is the same request) */
+export const LOGO_STILL_PATH = PHONE_TIER ? 'ui/logo-tablet-phone.webp' : 'ui/logo-tablet.webp';
 // the bright titles (looks 2 and 3, game/stinger/bigTitle.ts) replace every one of the plaque's own baked titles: their
 // atlas is not loaded then (full tier 268 KB / 3.78 MB on the GPU with mips, phone 159 KB / 1.73 MB)
 if (titleVariant() >= 2) delete (assets as unknown as Record<string, unknown>).stingerTitles;
@@ -739,8 +730,6 @@ if (phoneOnlyScreen()) {
 //   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips (game/flames.ts; 0.68 and 1.14 MB, 0.50 and
 //           0.89 MB on the phone tier; none when the game booted in portrait), one group each so each is uploaded by
 //           itself when it lands: until then that mode's braziers keep the base clip burning.
-//   logo    the canvas logo's atlas, with its tracks (desktop tier only, 0.35 MB). Normally in long before this
-//           (deferredLoad.ts loadLogoEarly starts it when the preload ends); here it is the fallback
 //   labels  the cluster label caps that were not preloaded (the one this screen needs already is; these
 //           are for a resize or a rotation: 0.5 MB)
 const deferredKeys = (prefix: string) =>
@@ -749,7 +738,7 @@ const deferredKeys = (prefix: string) =>
 		.map(([key]) => key);
 const SCATTER_SHEETS = ['mmDrop_s', 'mmIdle_s', 'mmWin_s'];
 const notScatter = (keys: string[]) => (LOAD_GATE.scatter ? keys : keys.filter((key) => !SCATTER_SHEETS.includes(key)));
-export type LoadGroupName = 'plaque' | 'drop' | 'idle' | 'win' | 'scatter' | 'night' | 'frameNight' | 'sunset' | 'flameSuper' | 'flameEpic' | 'logo' | 'labels';
+export type LoadGroupName = 'plaque' | 'drop' | 'idle' | 'win' | 'scatter' | 'night' | 'frameNight' | 'sunset' | 'flameSuper' | 'flameEpic' | 'labels';
 export const GATE_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	{ name: 'plaque', keys: deferredKeys('stinger') },
 	{ name: 'drop', keys: notScatter(deferredKeys('mmDrop_')) },
@@ -764,7 +753,6 @@ export const DEFERRED_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	{ name: 'sunset', keys: [...SCENE_KEYS[SCENE_AT_BOOT].sunset] },
 	{ name: 'flameSuper', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(0, 1) },
 	{ name: 'flameEpic', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(1) },
-	{ name: 'logo', keys: deferredKeys('logoAtlas') },
 	{ name: 'labels', keys: deferredKeys('labelGlyphs') },
 ];
 /** the plaque cannot build without ALL of these (they publish together or not at all) */

@@ -756,7 +756,7 @@ h</s></b></i></em></div>
 				     - a render-blocking <link rel=stylesheet> would hold the splash's first paint
 				       hostage to a 52 KB file;
 				     - url() inside a CSS custom property resolves against the STYLESHEET's URL in
-				       Chrome, not the document's. ui/Shine.svelte passes the logo/tagline image in as
+				       Chrome, not the document's. ui/Shine.svelte (gone since 2026-11-17) passed the logo/tagline image in as
 				       a custom property, so from /_app/immutable/assets/bundle.css those became
 				       /_app/immutable/assets/assets/ui/logo-wide.webp — three 404s and no glint
 				       (caught on the first production probe, 2026-09-15). Inline, the base is the

@@ -512,7 +512,7 @@
 		return sheet.idle[sl.frame];
 	};
 
-	// ---- THE WIN SHINE (WIN_FX.shine): the logo's Shine on a symbol. A group per shining tile: the tile's OWN current
+	// ---- THE WIN SHINE (WIN_FX.shine): the old stacked logo's Shine, on a symbol. A group per shining tile: the tile's OWN current
 	// frame (the frozen sheet frame while it wins, the atlas frame while it pops) cut into cols x rows strips, each an
 	// additive copy whose opacity is the band; the heat (the pop) is one more additive copy of the whole frame. The
 	// strips' textures are the group's own, made once with the group and only re-pointed (source + frame,

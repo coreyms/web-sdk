@@ -15,12 +15,12 @@
 	import { IS_SOCIAL } from '../game/social';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
-	import { loadDeferredInOrder, loadGate, loadLogoEarly } from '../game/deferredLoad';
+	import { loadDeferredInOrder, loadGate } from '../game/deferredLoad';
 	import { gateSettled, loadGate as gateState } from '../game/loadGate.svelte';
 	import { loadArmouryCore } from '../game/armouryLoad';
 	import { loadCoinFlip } from '../game/coinFlip';
 	import { creatureDeferredDone } from '../game/creatureLoad';
-	import { PHONE_TIER, renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
+	import { renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
 	import { releaseMusicSideTracks, sound, startSoundPreload } from '../game/sound';
@@ -85,8 +85,6 @@
 		// THE GATE (first-minute plan D, constants LOAD_GATE): the win plaque and the symbols' sheets, from the moment the audio
 		// is in, and PRESS ANYWHERE waits for them, up to the cap (ui/LandingScreen.svelte; game/deferredLoad.ts loadGate)
 		if (context.stateApp.preLoaded) void loadGate(context.stateApp, () => sound.isReady);
-		// the canvas logo's 0.35 MB starts here too, so its entrance is ready for the first show (game/deferredLoad.ts)
-		if (context.stateApp.preLoaded && !PHONE_TIER) void loadLogoEarly(context.stateApp);
 	});
 	// the music's side tracks buffer only once the gate is in (game/sound.ts)
 	void gateSettled.then(releaseMusicSideTracks);
