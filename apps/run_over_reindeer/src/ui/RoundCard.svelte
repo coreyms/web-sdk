@@ -13,6 +13,7 @@
 	import type { SoundEffectName } from '../game/sound';
 	import { soc } from '../game/social';
 	import { dismissRoundCard } from '../game/bookEventHandlerMap';
+	import { scoreboardDev } from '../game/scoreboard/scoreboard';
 	import type { RoundCard } from '../game/stateGame.svelte';
 
 	type Props = { card: RoundCard };
@@ -27,8 +28,13 @@
 	} as const;
 
 	let armed = $state(false);
+	// ON THE LED BACK BOARD (card.board, constants LED_BOARD.cards; part B): the board's scene is the card. A press before
+	// its press line lands the scene (the entry's READY beat, the Total Win's count) and the card stays; the next continues.
+	const board = untrack(() => !!card.board);
 	const press = () => {
-		if (armed) dismissRoundCard();
+		if (!armed) return;
+		if (board && scoreboardDev.board?.cardPress()) return;
+		dismissRoundCard();
 	};
 
 	/** a card's sound, through the game's own sound events (the effects volume and mute apply) */
@@ -73,8 +79,8 @@
 	const floorText = (floor: number) => `${floor / 100}x`;
 </script>
 
-<button class="am-ui catch" onclick={press} aria-label="Continue"></button>
-<div class="am-ui wrap">
+<button class="am-ui catch" class:board onclick={press} aria-label="Continue"></button>
+{#if board}<div class="board-card" data-round-card={card.kind} data-round-board></div>{:else}<div class="am-ui wrap">
 	<div class="card am-glass" data-round-card={card.kind} style:--accent={ACCENT[card.bonus]}>
 		{#if card.kind === 'intro'}
 			<div class="name am-stencil">{NAME[card.bonus]}</div>
@@ -93,7 +99,7 @@
 		{/if}
 		<div class="prompt">PRESS ANYWHERE TO CONTINUE</div>
 	</div>
-</div>
+</div>{/if}
 
 <style>
 	.catch {
@@ -105,6 +111,14 @@
 		background: rgba(6, 8, 14, 0.42);
 		cursor: pointer;
 		animation: round-card-in 0.2s ease both;
+	}
+	/* on the LED back board: the board dims the scene itself; the catch only takes the press */
+	.catch.board {
+		background: transparent;
+		animation: none;
+	}
+	.board-card {
+		display: none;
 	}
 	.wrap {
 		position: fixed;

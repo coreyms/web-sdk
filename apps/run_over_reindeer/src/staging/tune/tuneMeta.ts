@@ -56,6 +56,9 @@ export const GROUP_META: Record<string, { label: string; when: When }> = {
  *  game/scoreboard/scoreboard.ts scoreboardDev, which a staging build has too (the window dev hook is the dev server's only). */
 export type Action = { label: string; run: () => string | void };
 const sb = () => scoreboardDev.board;
+const round2 = (v: number) => Math.round(v * 100) / 100;
+const demoWin = (x: number) => (sb() ? void sb()!.win({ x, amount: round2(x * scoreboardDev.bet()), bet: scoreboardDev.bet(), fmt: scoreboardDev.fmt, rate: 1, auto: false }) : 'no scoreboard on this page');
+const demoCard = (kind: 'fs' | 'sfs' | 'total') => (sb() ? void sb()!.card({ kind, spins: 10, amount: kind === 'total' ? round2(248.5 * scoreboardDev.bet()) : 0, fmt: scoreboardDev.fmt, rate: 1 }) : 'no scoreboard on this page');
 export const GROUP_ACTIONS: Record<string, Action[]> = {
 	ledBoard: [
 		{ label: 'Raise the board', run: () => (sb() ? void sb()!.raise() : 'no scoreboard on this page') },
@@ -67,6 +70,14 @@ export const GROUP_ACTIONS: Record<string, Action[]> = {
 		{ label: 'Race: tie', run: () => void sb()?.race('tie') },
 		{ label: 'Big win (21.85x)', run: () => void sb()?.win({ x: 21.85, amount: 21.85 * scoreboardDev.bet(), bet: scoreboardDev.bet(), fmt: scoreboardDev.fmt, rate: 1, auto: false }) },
 		{ label: 'Small win (3.4x)', run: () => void sb()?.win({ x: 3.4, amount: 3.4 * scoreboardDev.bet(), bet: scoreboardDev.bet(), fmt: scoreboardDev.fmt, rate: 1, auto: false }) },
+		// part B: the staged scenes (a win by hand lowers by itself; a card scene waits for Press the card or Lower the board)
+		{ label: 'Mega scene (98.75x)', run: () => demoWin(98.75) },
+		{ label: 'Epic scene (312.45x)', run: () => demoWin(312.45) },
+		{ label: 'Max scene (7,777x)', run: () => demoWin(7777) },
+		{ label: 'Free Spins entry', run: () => demoCard('fs') },
+		{ label: 'Super entry', run: () => demoCard('sfs') },
+		{ label: 'Total Win (248.50x)', run: () => demoCard('total') },
+		{ label: 'Press the card (land, then continue)', run: () => (sb() ? void (sb()!.cardPress() || sb()!.endCard()) : 'no scoreboard on this page') },
 	],
 };
 
@@ -170,6 +181,28 @@ export const META: Record<string, Meta> = {
 	'ledBoard.gag.ms': ms(10000, 'length'),
 	'ledBoard.race': { label: 'Race', when: 'live' },
 	'ledBoard.race.odds.*': { min: 0, max: 1, step: 0.01 },
+	// part B: the staged scenes, the cards, the shakes, the tier sounds
+	'ledBoard.cards': { label: 'bonus round cards (board: the LED scenes, card: the HTML card)', options: ['board', 'card'], when: 'win' },
+	'ledBoard.scenes': { label: 'Staged scenes', when: 'live' },
+	'ledBoard.scenes.band': { label: 'win scenes: bottom band (share of the face)', min: 0.1, max: 0.4, step: 0.01 },
+	'ledBoard.scenes.bounceTitle': { label: 'win scenes: bouncing title letters' },
+	'ledBoard.scenes.fsPressMs': ms(6000, 'Free Spins entry: press line after'),
+	'ledBoard.scenes.sfsPressMs': ms(6000, 'Super entry: press line after'),
+	'ledBoard.scenes.fsReadyMs': ms(6000, 'Free Spins entry: a press jumps to'),
+	'ledBoard.scenes.sfsReadyMs': ms(6000, 'Super entry: a press jumps to'),
+	'ledBoard.scenes.totalCountMs': { ...ms(10000, 'Total Win: count'), when: 'win' },
+	'ledBoard.scenes.totalPressAfterMs': { ...ms(2000, 'Total Win: press line after the landing'), when: 'win' },
+	'ledBoard.shake': { label: 'Shakes', when: 'live' },
+	'ledBoard.shake.px': { label: 'size', min: 0, max: 20, step: 0.5, unit: 'px at a 420 px board' },
+	'ledBoard.shake.amp.*': { min: 0, max: 3, step: 0.05 },
+	'ledBoard.shake.ms': ms(1500, 'length'),
+	'ledBoard.shake.periodMs': ms(300, 'period'),
+	'ledBoard.shake.decayMs': ms(1000, 'dies over'),
+	'ledBoard.shake.joltPx': { label: 'tier change jolt', min: 0, max: 12, step: 0.5, unit: 'px at a 420 px board' },
+	'ledBoard.shake.joltMs': ms(600, 'jolt length'),
+	'ledBoard.shake.superEntryAmp': { label: 'Super entry shake', min: 0, max: 3, step: 0.05 },
+	'ledBoard.tierSounds': { label: 'Tier sounds', when: 'win' },
+	'ledBoard.fastChase': { label: 'chase borders as runs (same dots, cheaper)' },
 	'stoplight.follow.*': { options: ['board', 'pair'] },
 	'stoplight.amberFrom': { options: ['afterGreen', 'beforeRed', 'brake'] },
 	'strike.entry': { options: ['far', 'near', 'left', 'right'] },

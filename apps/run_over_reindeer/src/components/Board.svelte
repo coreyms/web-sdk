@@ -37,7 +37,11 @@
 		| { type: 'boardLandingPress' }
 		/** THE LED SCOREBOARD (game/scoreboard/): a win of `amount` (book amount) on the strip and the back board. A small win
 		 *  (under the Big bar, or `small`) resolves at once; a Big win and up resolves when its hold is over */
-		| { type: 'boardScoreboardWin'; amount: number; small?: boolean };
+		| { type: 'boardScoreboardWin'; amount: number; small?: boolean }
+		/** PART B: a bonus round card on the back board (the Free Spins or Super entry with the spins it awards, the Total Win
+		 *  with the book's amount); it waits until boardScoreboardCardEnd (the HTML card keeps the round and the press) */
+		| { type: 'boardScoreboardCard'; kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number }
+		| { type: 'boardScoreboardCardEnd' };
 </script>
 
 <script lang="ts">
@@ -129,7 +133,18 @@
 		scoreboard.onPress = () => {
 			if (scoreboard.busy()) scoreboard.skip();
 		};
+		// THE TIER SOUNDS (constants LED_BOARD.tierSounds, part B): one as the count reaches each tier (a skip: the final
+		// tier's only), through the road's sound log and the game's sound events (the effects volume, mute and SKIP TO RESULT)
+		scoreboard.onTier = (tier) => {
+			const T = LED_BOARD.tierSounds;
+			const name = T.on ? T.names[tier] : null;
+			if (name) road.features.sounds.playNamed(name, `scoreboard tier ${tier}`);
+		};
 	}
+	/** where the layout put the road and the logo (the shake moves them from here, game/scoreboard/show.ts shakeAt) */
+	let roadBaseY = 0;
+	let logoBaseY = 0;
+	let shookY = 0;
 	/** the LED amount: the play currency's number as the HUD writes it, its digits pinned to the final amount, with no
 	 *  currency mark (the LED font has digits, the comma and the point only) */
 	const ledAmount = (final: number) => (v: number) => numberToCurrencyString(v, { fractionDigitsOf: final }).replace(/[^0-9.,]/g, '');
@@ -220,6 +235,8 @@
 		road.features.layoutKind = kind; // and the reindeer runs at its own height in the snow per layout (STRIKE.snow)
 		road.root.scale.set(place.scale * main.scale);
 		road.root.position.set(masterLeft + place.x * main.scale, masterTop + place.y * main.scale);
+		roadBaseY = road.root.y;
+		shookY = 0;
 		// THE SCENE: the part of the road's plane the canvas shows, in road px
 		const canvasSize = context.stateLayoutDerived.canvasSizes();
 		const k = place.scale * main.scale;
@@ -246,6 +263,7 @@
 			const box = logoBox(logoClass(kind, canvasSize.width, canvasSize.height), place, main.scale, masterLeft, extraTop);
 			logo.root.scale.set(k);
 			logo.root.position.set(ox, oy);
+			logoBaseY = oy;
 			logo.place(box);
 		}
 		// THE LED SCOREBOARD: its rule per layout class (game/scoreboard/layout.ts), and the scene pieces its foreground snow is
@@ -333,6 +351,13 @@
 				// the HUD's WIN lights a step brighter and a board tap leaves the spin alone while a big win counts or holds
 				const busy = scoreboard.busy();
 				if (stateGame.winShowing !== busy) stateGame.winShowing = busy;
+				// THE SHAKE (part B): the road and the logo move with the scoreboard's shake (the snow cover and the board inside)
+				const dy = scoreboard.shakeY;
+				if (dy !== shookY) {
+					shookY = dy;
+					road.root.y = roadBaseY + dy;
+					if (logo) logo.root.y = logoBaseY + dy;
+				}
 			}
 		};
 		app?.ticker.add(tick);
@@ -415,6 +440,12 @@
 			const auto = stateBet.autoSpinsCounter > 0;
 			await scoreboard.win({ x: bookEventAmountToBetAmountMultiplier(amount), amount: value, bet: bookEventAmountToNormalisedAmount(100), fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate, auto, small });
 		},
+		boardScoreboardCard: ({ kind, spins, amount }) => {
+			if (!scoreboard) return;
+			const value = bookEventAmountToNormalisedAmount(amount);
+			scoreboard.card({ kind, spins, amount: value, fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate });
+		},
+		boardScoreboardCardEnd: () => scoreboard?.endCard(),
 		// a Spin press while a big win counts or holds (the slam stop's event): lands the count, or ends the hold
 		stopButtonClick: () => {
 			if (scoreboard?.busy()) scoreboard.skip();
@@ -523,6 +554,15 @@
 				return scoreboard?.snapshot() ?? null;
 			},
 			scoreboardRaise: (x?: number) => scoreboard?.raise(x),
+			/** PART B: a bonus round card's scene by hand (kind fs, sfs or total; no HTML card: press or end it by hand) */
+			scoreboardCard: (kind: 'fs' | 'sfs' | 'total', opts: { spins?: number; x?: number; rate?: number } = {}) => {
+				if (!scoreboard) return;
+				const value = Math.round((opts.x ?? 248.5) * bookEventAmountToNormalisedAmount(100) * 100) / 100;
+				scoreboard.card({ kind, spins: opts.spins ?? 10, amount: value, fmt: ledAmount(value), rate: opts.rate ?? 1 });
+			},
+			scoreboardCardPress: () => scoreboard?.cardPress() ?? false,
+			scoreboardFace: (which: 'strip' | 'back') => scoreboard?.faceStats(which) ?? null,
+			scoreboardCardEnd: () => scoreboard?.endCard(),
 			scoreboardLower: () => scoreboard?.lower(),
 			scoreboardRace: (force: 'reindeer' | 'police' | 'tie' | null = null) => scoreboard?.race(force),
 			raceTally: (seed: number, n: number) => raceTally(seed, n),

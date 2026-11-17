@@ -19,8 +19,9 @@ export const LANDING_BOARD: Board = [
 
 /** the bonus round's two cards. Amounts are book amounts (cents of the bet). */
 export type RoundCard =
-	| { kind: 'intro'; bonus: 'bonus' | 'super'; spins: number }
-	| { kind: 'outro'; bonus: 'bonus' | 'super'; amount: number; topUp: null | { floor: number; amount: number }; capped: boolean };
+	| { kind: 'intro'; bonus: 'bonus' | 'super'; spins: number; board?: boolean }
+	| { kind: 'outro'; bonus: 'bonus' | 'super'; amount: number; topUp: null | { floor: number; amount: number }; capped: boolean; board?: boolean };
+// (board: the card plays on the LED back board, game/scoreboard/; the HTML card keeps its press and draws nothing)
 
 /** a configured autoplay run waiting on the spin button (built in AutoplayModal, consumed on start) */
 export type AutoLoadout = {

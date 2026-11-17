@@ -18,15 +18,17 @@
 //                    the face with NEAREST sampling (a dot is a block) and re-sent to the GPU at LED_BOARD.fps; one shared
 //                    grille tile of round soft holes (mipmapped) laid over it, one hole per dot; the same picture at half
 //                    size, linear, ADDED faintly over it (the LED glow); a static glass sheen
-// Part B (the staged scenes, the beacons, the diamond, the entries and the Total Win, the tier sounds) hooks in at
-// `backProgram` (what the back board's face draws), `onTier` and `onBeat` below, and the show kinds in show.ts.
+// PART B (2026-11-17): the back board's staged scenes (scoreboardDraw.ts backScene: the Free Spins and Super entries, the Total
+// Win, Mega's jam, Epic's honk meter, Max's race), the bonus round's cards on the back board (card(), cardPress()), the tier
+// sounds through `onTier` (each tier once), the shakes (shakeY: Board moves the road and the logo by it), and the Grandma
+// gag's rule (only a Big or higher message cuts it; a small win waits for it to end).
 import * as PIXI from 'pixi.js';
 
 import { LED_BOARD } from '../constants';
 import { C, mk, shimmer, type Cv } from '../landing/ledScreens';
 import { type ScoreboardGeo, type Rect } from './layout';
-import { CARTOONS, countBorder, dissolveFace, gagWordsAt, makeFaceCanvases, powerOffFace, scanReveal, showCartoon, showCounter, showGag, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
-import { amountNow, backOffset, brightOf, dimAlpha, endShow, newShow, phaseOf, seatedAt, skipShow, tierNow, type Show } from './show';
+import { CARTOONS, backScene, dissolveFace, gagWordsAt, makeFaceCanvases, maxRaceOf, powerOffFace, scanReveal, showCartoon, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
+import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 
 const col = (hex: string) => Number.parseInt(hex.slice(1), 16);
@@ -56,6 +58,8 @@ export type CoverPiece = { tex: PIXI.Texture; x: number; y: number; w: number; h
 export type ScoreboardEnv = { free: boolean; left: number };
 
 export type WinRequest = { x: number; amount: number; bet: number; fmt: (v: number) => string; rate: number; auto: boolean; small?: boolean };
+/** a bonus round card on the back board: the entries (`spins` awarded) and the Total Win (`amount`, the currency's units) */
+export type CardRequest = { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number };
 
 /** THE TUNE PANEL'S AND THE DEV HOOK'S WAY IN (staging builds too: the panel cannot reach the DEV-only window hook) */
 export const scoreboardDev: { board: Scoreboard | null; bet: () => number; fmt: (v: number) => string } = { board: null, bet: () => 1, fmt: (v) => v.toFixed(2) };
@@ -84,6 +88,11 @@ export class Scoreboard {
 	/** the show on the strip (and the back board when it arrives), and the one still lowering the back board */
 	private show: Show | null = null;
 	private lowering: Show | null = null;
+	/** a small win that waits for the Grandma gag to end (part B: only a Big or higher message cuts the gag) */
+	private pendingSmall: Show | null = null;
+	/** THE SHAKE now (CSS px): the board moves the road and the logo by it (Board.svelte); the back board or the strip
+	 *  moves with them here */
+	shakeY = 0;
 	private waits = new Map<number, { resolve: () => void; timer: ReturnType<typeof setTimeout> }>();
 	/** the Grandma gag's start (clock ms), null when none */
 	private gagAt: number | null = null;
@@ -103,15 +112,12 @@ export class Scoreboard {
 	/** readouts for the dev hook and the probe */
 	cost = { drawMs: 0, steps: 0, uploadBytes: 0 };
 	private log: { at: number; what: string; detail?: string }[] = [];
-	/** PART B HOOKS: called on each tier the count reaches (tier, show), and on a show's beats ('rise', 'seated', 'land',
-	 *  'exit', 'lowered') */
+	/** called once on each tier the count reaches (tier, show; a skip's final tier too: the tier sounds), and on a show's
+	 *  beats ('start', 'gone') */
 	onTier: ((tier: number, show: Show) => void) | null = null;
 	onBeat: ((beat: string, show: Show) => void) | null = null;
-	/** the back board's face program (part B replaces it with the staged scenes): draws face F for show s */
-	backProgram: (F: Face, s: Show) => void = (F, s) => {
-		showWin(F, s);
-		countBorder(F, s);
-	};
+	/** the back board's face program: the staged scene of the show (part B, scoreboardDraw.ts backScene) */
+	backProgram: (F: Face, s: Show) => void = backScene;
 	/** the catcher's press (Board wires it to the skip) */
 	onPress: (() => void) | null = null;
 
@@ -383,6 +389,17 @@ export class Scoreboard {
 		});
 	}
 	private start(s: Show) {
+		// THE GAG'S RULE (part B): a small win message waits while the Grandma gag plays, and shows once it has ended
+		if (s.kind === 'small' && this.gagOn()) {
+			if (this.pendingSmall) this.mark('small', 'dropped: a newer small win');
+			this.pendingSmall = s;
+			this.mark('small', 'waits for the gag');
+			return;
+		}
+		if (this.pendingSmall) {
+			this.mark('small', `dropped: ${s.kind} ${s.final}`);
+			this.pendingSmall = null;
+		}
 		const old = this.show;
 		if (old) {
 			endShow(old);
@@ -395,7 +412,7 @@ export class Scoreboard {
 			const D = this.geo ? this.downD() : 0;
 			s.fromD = owner ? Math.max(-D, Math.min(D, backOffset(owner, D, this.geo?.back.sc ?? 1))) : D;
 			this.lowering = null;
-		} else this.cutGag('a win on the strip'); // a win message on the strip cuts the Grandma gag short
+		} else if (s.kind === 'win') this.cutGag('a win on the strip'); // a Big or Super message on the strip cuts the gag short
 		this.show = s;
 		this.mark('show', `${s.kind} ${s.final} ${s.arrive ? 'back' : 'strip'}`);
 		this.onBeat?.('start', s);
@@ -423,6 +440,10 @@ export class Scoreboard {
 	/** A NEW SPIN'S PRESS: the Grandma gag and a small win are cut short (a big win is never up at a press: it holds the round) */
 	spinPress() {
 		this.cutGag('a new spin');
+		if (this.pendingSmall) {
+			this.pendingSmall = null;
+			this.mark('small', 'dropped: a new spin');
+		}
 		const s = this.show;
 		if (s && s.kind === 'small') {
 			endShow(s);
@@ -430,7 +451,38 @@ export class Scoreboard {
 		}
 	}
 
+	// ---- THE BONUS ROUND'S CARDS ON THE BACK BOARD (part B) ----------------------------------------------------------------------
+	/** the Free Spins entry, the Super entry or the Total Win rises and waits; the card's own press lands it (cardPress) and
+	 *  its dismissal ends it (endCard). Nothing waits on the board: the card (ui/RoundCard.svelte) keeps the round. */
+	card(o: CardRequest) {
+		if (!LED_BOARD.on) return;
+		this.start(newCardShow(o));
+	}
+	/** a press on the card: true when it landed the scene (the card stays up), false when the press should continue */
+	cardPress(): boolean {
+		const s = this.show;
+		if (!s || !isCard(s)) return false;
+		const ok = landCard(s);
+		if (ok) this.mark('land', `${s.kind} at ${Math.round(s.t)}`);
+		return ok;
+	}
+	/** the card was dismissed: the board powers down and lowers */
+	endCard() {
+		const s = this.show;
+		if (!s || !isCard(s)) return;
+		endShow(s);
+		this.mark('card', `${s.kind} ends at ${Math.round(s.t)}`);
+	}
+	/** the card up now (its kind), for the HTML card and the probe */
+	cardUp(): string | null {
+		const s = this.show;
+		return s && isCard(s) && s.t < s.exitAt ? s.kind : null;
+	}
+
 	// ---- THE GRANDMA GAG ----------------------------------------------------------------------------------------------------------
+	private gagOn() {
+		return this.gagAt !== null && this.clock - this.gagAt < LED_BOARD.gag.ms;
+	}
 	gag() {
 		if (!LED_BOARD.on || !LED_BOARD.gag.on) return;
 		this.gagAt = this.clock;
@@ -441,12 +493,22 @@ export class Scoreboard {
 		if (this.clock - this.gagAt < LED_BOARD.gag.ms) this.mark('gag', `cut: ${why}`);
 		this.gagAt = null;
 	}
+	/** the small win that waited for the gag starts now, from its own beginning */
+	private startPending() {
+		const s = this.pendingSmall;
+		if (!s) return;
+		this.pendingSmall = null;
+		s.t = 0;
+		this.mark('small', 'after the gag');
+		this.start(s);
+	}
 	private gagT(): number | null {
 		if (this.gagAt === null) return null;
 		const t = this.clock - this.gagAt;
 		if (t >= LED_BOARD.gag.ms) {
 			this.gagAt = null;
 			this.mark('gag', 'end');
+			this.startPending();
 			return null;
 		}
 		return t;
@@ -501,9 +563,17 @@ export class Scoreboard {
 			this.left = env.left;
 			this.leftAt = this.clock;
 		}
+		// the gag's end (a small win waiting for it starts on this step, not on the next drawn one)
+		if (this.pendingSmall && !this.gagOn()) this.gagT();
 		const s = this.show;
 		if (s) {
-			for (const e of s.events) if (e.at <= s.t && e.at > s.t - dt) this.onTier?.(e.tier, s);
+			// each tier's moment once, on the step the count reaches it (a skip's final tier lands at the skip's moment)
+			for (const e of s.events)
+				if (e.at <= s.t && !s.fired.has(e.tier)) {
+					s.fired.add(e.tier);
+					this.mark('tier', `${e.tier} at ${Math.round(s.t)}`);
+					this.onTier?.(e.tier, s);
+				}
 			if (s.t >= s.exitAt) this.release(s.id);
 			if (s.t >= s.end) {
 				this.onBeat?.('gone', s);
@@ -535,7 +605,15 @@ export class Scoreboard {
 		const D = this.downD();
 		const bs = this.backShow();
 		const y = bs ? backOffset(bs, D, g.back.sc) : D;
-		this.backRoot.y = y;
+		// THE SHAKE (the mock's shakeAt): a back board show shakes the road, the logo and the back board, the strip stays; a
+		// strip win shakes the road and the strip. The snow cover moves with the road (it is cut from the road's pictures).
+		const cur = this.show;
+		const sh = cur && cur.t < cur.end ? shakeAt(cur, cur.arrive ? g.back.sc : (g.f / 22) * 1.6) : 0;
+		this.shakeY = Math.abs(sh) < 0.05 ? 0 : sh;
+		this.backRoot.y = y + (cur?.arrive && bs === cur ? this.shakeY : 0);
+		this.stripRoot.y = cur && !cur.arrive ? this.shakeY : 0;
+		this.coverA.y = g.road.oy + this.shakeY;
+		this.coverB.y = g.road.oy + this.shakeY;
 		this.backRoot.visible = !!bs && y < D - 0.25;
 		const da = dimAlpha(bs);
 		this.dim.alpha = da;
@@ -564,7 +642,8 @@ export class Scoreboard {
 		} else if (s && !exited) {
 			// a strip win, or the strip's own line while the back board is up (the tier and the counting amount; blank while
 			// the board rises, as the mock's ribbon)
-			if (s.arrive && s.t < s.contentAt) F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
+			if (isCard(s)) showRibbon(F, s);
+			else if (s.arrive && s.t < s.contentAt) F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
 			else if (s.kind === 'small') showSmall(F, s);
 			else {
 				showWin(F, s);
@@ -662,6 +741,20 @@ export class Scoreboard {
 		const grille = Math.round(this.grilleTex.source.pixelWidth * this.grilleTex.source.pixelHeight * 4 * (4 / 3));
 		return face(this.strip) + face(this.back) + grille + 32 * 32 * 4;
 	}
+	/** DEV / probe: a face's picture as drawn on the last step: its lit dots and a hash of its pixels */
+	faceStats(which: 'strip' | 'back') {
+		const G = which === 'strip' ? this.strip : this.back;
+		if (!G) return null;
+		const F = G.F;
+		const d = F.out.ctx.getImageData(0, 0, F.dotsW, F.dotsH).data;
+		let lit = 0;
+		let h = 2166136261;
+		for (let i = 0; i < d.length; i++) {
+			if ((i & 3) === 3 && d[i] > 40) lit += 1;
+			h = Math.imul(h ^ d[i], 16777619);
+		}
+		return { lit, dots: F.dotsW * F.dotsH, hash: (h >>> 0).toString(16) };
+	}
 	snapshot() {
 		const g = this.geo;
 		const r = (v: number) => Math.round(v * 100) / 100;
@@ -691,7 +784,10 @@ export class Scoreboard {
 				: null,
 			dim: { alpha: r(this.dim.alpha), rect: g?.dim ?? null },
 			hudTop: g ? r(g.hudTop) : null,
-			show: s ? { id: s.id, kind: s.kind, final: s.final, finalTier: s.finalTier, arrive: s.arrive, t: Math.round(s.t), phase: phaseOf(s), tier: tierNow(s), amount: s.fmt(amountNow(s)), finalStr: s.finalStr, countStart: Math.round(s.countStart), countEnd: Math.round(s.countEnd), exitAt: Math.round(s.exitAt), end: Math.round(s.end), skipped: s.skipped, seatedAt: seatedAt(), events: s.events.map((e) => ({ ...e, at: Math.round(e.at) })) } : null,
+			show: s ? { id: s.id, kind: s.kind, final: s.final, finalTier: s.finalTier, arrive: s.arrive, t: Math.round(s.t), phase: phaseOf(s), tier: tierNow(s), amount: s.fmt(amountNow(s)), finalStr: s.finalStr, countStart: Math.round(s.countStart), countEnd: Math.round(s.countEnd), exitAt: Math.round(s.exitAt), end: Math.round(s.end), skipped: s.skipped, seatedAt: seatedAt(), events: s.events.map((e) => ({ ...e, at: Math.round(e.at) })), fired: [...s.fired], sceneT: Math.round(s.t - s.sceneAt), pressLineAt: s.pressLineAt === null ? null : Math.round(s.pressLineAt), spins: s.spins, maxRace: maxRaceOf(s)?.outcome ?? null } : null,
+			pendingSmall: !!this.pendingSmall,
+			shake: r(this.shakeY),
+			card: this.cardUp(),
 			lowering: this.lowering ? { id: this.lowering.id, t: Math.round(this.lowering.t), phase: phaseOf(this.lowering) } : null,
 			backOwner: bs?.id ?? null,
 			busy: this.busy(),

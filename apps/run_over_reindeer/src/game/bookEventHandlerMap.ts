@@ -32,9 +32,20 @@ const pace = (ms: number) => waitForTimeout(Math.max(1, ms / boardRate()));
 let cardDone: (() => void) | null = null;
 const showCard = async (card: RoundCard) => {
 	eventEmitter.broadcast({ type: 'uiHide' });
-	stateGame.roundCard = card;
+	// THE CARD ON THE LED BACK BOARD (constants LED_BOARD.cards, part B): the Free Spins entry, the Super entry and the Total
+	// Win play as the board's staged scenes, with the press line on the strip; the HTML card keeps the press, its timers and
+	// its sounds and draws nothing. A wrap-up that says a top-up or the cap keeps the HTML card (its lines say so plainly).
+	const board = LED_BOARD.on && LED_BOARD.cards === 'board' && !(card.kind === 'outro' && (card.topUp || card.capped));
+	if (board)
+		eventEmitter.broadcast(
+			card.kind === 'intro'
+				? { type: 'boardScoreboardCard', kind: card.bonus === 'super' ? 'sfs' : 'fs', spins: card.spins, amount: 0 }
+				: { type: 'boardScoreboardCard', kind: 'total', spins: 0, amount: card.amount },
+		);
+	stateGame.roundCard = board ? { ...card, board: true } : card;
 	await new Promise<void>((resolve) => (cardDone = resolve));
 	stateGame.roundCard = null;
+	if (board) eventEmitter.broadcast({ type: 'boardScoreboardCardEnd' });
 	eventEmitter.broadcast({ type: 'uiShow' });
 };
 /** ui/RoundCard.svelte: the card was pressed, or its time ran out */

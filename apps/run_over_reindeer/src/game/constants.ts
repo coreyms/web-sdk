@@ -1261,6 +1261,26 @@ export const LED_BOARD = {
 	race: { odds: { reindeer: 0.45, police: 0.45, tie: 0.1 }, runMs: 3200, cardMs: 2600, finishGap: 0.035 },
 	/** in a bonus round, a reindeer dashes across the strip's counter after each spin */
 	dashMs: 1300,
+	// ---- PART B (2026-11-17): the staged back board scenes, the tier sounds, the shakes ----
+	/** THE BONUS ROUND'S CARDS: 'board' plays the Free Spins entry, the Super entry and the Total Win on the back board (the
+	 *  mock's scenes, the press line on the strip; the HTML card keeps its press, its timers and its sounds but draws nothing);
+	 *  'card' keeps the HTML card as before. A wrap-up with a top-up or a cap always keeps the HTML card (its lines say so). */
+	cards: 'board' as 'board' | 'card',
+	/** THE STAGED SCENES (the mock's r3b scenes; their beats are its drawing code): the share of the back board's face kept
+	 *  under the number for the win scenes' bottom band (Mega's jam, Epic's honk meter, Max's race); the title's bouncing block
+	 *  letters on the back board (the mock's wave); the entries' press line and READY beat (ms of the scene), the Total Win's
+	 *  count (a turbo level divides it, as the win count) and its press line after the landing */
+	scenes: { band: 0.22, bounceTitle: true, fsPressMs: 2300, sfsPressMs: 2900, fsReadyMs: 2200, sfsReadyMs: 2800, totalCountMs: 3000, totalPressAfterMs: 300 },
+	/** THE SHAKES (the mock's shakeAt): at Mega, Epic and Max (amp per tier) the road, the logo and the back board shake (px x
+	 *  the back board's size, a sine every periodMs dying over decayMs, for ms); at every tier change after Big a small jolt
+	 *  (joltPx over joltMs); the Super entry shakes once as its scene starts (superEntryAmp). A strip win shakes the strip. */
+	shake: { on: true, px: 7, amp: [0, 0, 1, 1.35, 1.7], ms: 480, periodMs: 75, decayMs: 120, joltPx: 3, joltMs: 190, superEntryAmp: 1.6 },
+	/** THE TIER SOUNDS (the five sfx_win_* in the sprite): one as the count reaches each tier; a skip plays only the final
+	 *  tier's (through the game's sound events: the effects volume, mute and SKIP TO RESULT apply) */
+	tierSounds: { on: true, names: ['sfx_win_big', 'sfx_win_super', 'sfx_win_mega', 'sfx_win_epic', 'sfx_win_max'] },
+	/** the chase borders drawn as runs of one color (the same dots, fewer calls); off draws them dot by dot (the probe
+	 *  compares the two pictures) */
+	fastChase: true,
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */

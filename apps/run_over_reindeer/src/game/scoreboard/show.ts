@@ -16,7 +16,9 @@
 import { LED_BOARD } from '../constants';
 
 export type Seg = { to: number; ms: number };
-export type ShowKind = 'win' | 'small';
+/** win: a Big win and up; small: under the Big bar; fs, sfs: the Free Spins and the Super entries; total: the bonus round's
+ *  Total Win (part B: the three bonus round cards on the back board, they wait for a press) */
+export type ShowKind = 'win' | 'small' | 'fs' | 'sfs' | 'total';
 export type Show = {
 	id: number;
 	kind: ShowKind;
@@ -46,7 +48,16 @@ export type Show = {
 	hold: number;
 	/** the back board's offset when this show took it over (a rise that starts while the last one still lowers) */
 	fromD: number | null;
+	/** the tiers whose moment has been played (onTier: each once, a skip's final tier too) */
+	fired: Set<number>;
+	/** PART B, the cards: the scene's own clock starts here (show ms; a press before the press line moves it on to the
+	 *  READY beat), the strip's press line from pressLineAt (null: none), the spins the entry awards */
+	sceneAt: number;
+	pressLineAt: number | null;
+	spins: number;
 };
+/** the three bonus round cards on the back board */
+export const isCard = (s: Show | null): boolean => !!s && (s.kind === 'fs' || s.kind === 'sfs' || s.kind === 'total');
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
@@ -110,6 +121,10 @@ export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: nu
 		skipped: false,
 		hold: o.auto ? L.pace.holdAutoMs : L.pace.holdMs,
 		fromD: null,
+		fired: new Set(),
+		sceneAt: contentAt,
+		pressLineAt: null,
+		spins: 0,
 	};
 	if (small) {
 		s.countEnd = s.countStart + L.small.countMs;
@@ -142,10 +157,92 @@ export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: nu
 	return s;
 };
 
+/** A BONUS ROUND CARD on the back board (part B): the Free Spins entry, the Super entry (`spins` awarded) or the Total Win
+ *  (`amount`, counted linearly over LED_BOARD.scenes.totalCountMs divided by the turbo level's rate). It rises as a Mega
+ *  win does and waits: the card's own press ends it (endShow), never a timer of its own. */
+export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number }): Show => {
+	const L = LED_BOARD;
+	const S = L.scenes;
+	const contentAt = L.rise.backAtMs + L.rise.riseMs;
+	const s: Show = {
+		id: ++SHOW_ID,
+		kind: o.kind,
+		final: -1,
+		arrive: true,
+		t: 0,
+		amount: o.amount,
+		finalStr: o.fmt(o.amount),
+		fmt: o.fmt,
+		bars: [],
+		segs: [],
+		contentAt,
+		countStart: contentAt,
+		countEnd: contentAt,
+		events: [],
+		finalTier: -1,
+		exitAt: 1e12,
+		end: 1e12,
+		widen: [],
+		skipped: false,
+		hold: 0,
+		fromD: null,
+		fired: new Set(),
+		sceneAt: contentAt,
+		pressLineAt: null,
+		spins: o.spins,
+	};
+	if (o.kind === 'total') {
+		s.countEnd = contentAt + S.totalCountMs / Math.max(0.2, o.rate);
+		s.pressLineAt = s.countEnd + S.totalPressAfterMs;
+	} else s.pressLineAt = contentAt + (o.kind === 'sfs' ? S.sfsPressMs : S.fsPressMs);
+	return s;
+};
+/** A PRESS ON A CARD (part B; the house skip, as a win's): before the press line it LANDS the scene (an entry jumps to its
+ *  READY beat with the press line up, the Total Win's count lands), and returns true; once landed it returns false (the
+ *  press continues: the card is dismissed). */
+export const landCard = (s: Show): boolean => {
+	if (!isCard(s) || s.t >= s.exitAt) return false;
+	const S = LED_BOARD.scenes;
+	if (s.kind === 'total') {
+		if (s.t >= s.countEnd) return false;
+		const at = Math.max(s.t, s.countStart);
+		s.skipped = true;
+		s.countEnd = at;
+		s.pressLineAt = at + S.totalPressAfterMs;
+		return true;
+	}
+	if (s.pressLineAt === null || s.t >= s.pressLineAt) return false;
+	const ready = s.kind === 'sfs' ? S.sfsReadyMs : S.fsReadyMs;
+	s.skipped = true;
+	s.sceneAt = Math.min(s.sceneAt, s.t - ready);
+	s.pressLineAt = s.t;
+	return true;
+};
+
+/** THE SHAKE now (CSS px, the mock's shakeAt): Mega, Epic and Max shake as their tier is reached (a skip's final tier too),
+ *  every tier change after Big jolts, the Super entry shakes as its scene starts. `sc` is the board's size factor. */
+export const shakeAt = (s: Show | null, sc: number): number => {
+	const K = LED_BOARD.shake;
+	if (!s || !K.on) return 0;
+	let dy = 0;
+	const hit = (at: number, amp: number) => {
+		const dt = s.t - at;
+		if (dt >= 0 && dt < K.ms) dy += amp * K.px * sc * Math.sin((dt / K.periodMs) * Math.PI * 2) * Math.exp(-dt / K.decayMs);
+	};
+	for (const e of s.events) {
+		if (e.tier >= 2) hit(e.at, K.amp[e.tier] ?? 0);
+		const dt = s.t - e.at;
+		if (e.tier > 0 && dt >= 0 && dt < K.joltMs) dy += K.joltPx * sc * Math.sin((dt / K.joltMs) * Math.PI);
+	}
+	if (s.kind === 'sfs') hit(s.contentAt, K.superEntryAmp);
+	return dy;
+};
+
 /** the amount shown now */
 export const amountNow = (s: Show): number => {
 	if (s.t >= s.countEnd) return s.amount;
-	if (s.kind === 'small') return s.amount * clamp((s.t - s.countStart) / Math.max(1, s.countEnd - s.countStart), 0, 1);
+	if (s.kind === 'fs' || s.kind === 'sfs') return 0;
+	if (s.kind === 'small' || s.kind === 'total') return s.amount * clamp((s.t - s.countStart) / Math.max(1, s.countEnd - s.countStart), 0, 1);
 	return amountAtCount(s.segs, s.t - s.countStart);
 };
 /** the tier shown now (-1 before the count) */
@@ -158,7 +255,7 @@ export const tierNow = (s: Show): number => {
 /** THE SKIP: while it counts, the amount and the final tier land at once (one beat); during the hold, the hold ends.
  *  Returns whether it took. */
 export const skipShow = (s: Show): boolean => {
-	if (s.kind === 'small') return false;
+	if (s.kind !== 'win') return false;
 	const L = LED_BOARD;
 	const tail = s.arrive ? L.rise.powerDownMs + L.rise.lowerMs : L.strip.dimOutMs;
 	if (s.t < s.countEnd) {
@@ -195,6 +292,11 @@ export const endShow = (s: Show) => {
 export const phaseOf = (s: Show | null): string => {
 	if (!s) return 'idle';
 	if (s.t < s.contentAt) return s.arrive ? 'rising' : 'switching';
+	if (isCard(s)) {
+		if (s.t >= s.exitAt) return s.t < s.end ? 'lowering' : 'gone';
+		if (s.t < s.countEnd) return 'count';
+		return s.pressLineAt !== null && s.t >= s.pressLineAt ? 'waits' : 'show';
+	}
 	if (s.t < s.countEnd) return 'count';
 	if (s.t < s.exitAt) return 'hold';
 	if (s.t < s.end) return s.arrive ? 'lowering' : 'leaving';
