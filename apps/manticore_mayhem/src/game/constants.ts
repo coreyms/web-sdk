@@ -3861,12 +3861,10 @@ export const SCATTER_LAND_SOUND_MAP = {
 /** the last rung of the scatter landing ladder */
 export const SCATTER_LAND_SOUNDS = 8;
 
-/** the feature-entry fanfare, keyed by the tier that was opened */
-export const BONUS_TRIGGER_SOUND_MAP = {
-	bonus: 'sfx_bonus_trigger_free',
-	super: 'sfx_bonus_trigger_super',
-	epic: 'sfx_bonus_trigger_feast',
-} as const;
+/** the trigger's success sound, ONE for every tier (Corey 2026-11-17, "option 1"): the marimba family's success, 1.35 s
+ *  (tools/build_audiosprite.py MM_SCATTER_SUCCESS). It replaced the three house bonus-confirm fanfares, one per tier
+ *  (sfx_bonus_trigger_free / _super / _feast, which are no longer in Manticore's sprite). */
+export const BONUS_TRIGGER_SOUND = 'sfx_scatter_success' as const;
 
 export const BONUS_MODE_LABEL = {
 	bonus: 'FREE SPINS',
