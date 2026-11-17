@@ -7,7 +7,9 @@
 
 	import { getContext } from '../game/context';
 	import { boot, releaseSplash, splashShare } from '../game/boot.svelte';
-	import { MASTER, layoutKind } from '../game/layoutSpec';
+	import { MASTER, isPhoneSizeType, layoutKind } from '../game/layoutSpec';
+	import { hudFrame, readSafeInsets } from './hud/hudLayout';
+	import SceneSwitch from './hud/SceneSwitch.svelte';
 	import { LOAD_GATE } from '../game/constants';
 	import { sound } from '../game/sound';
 
@@ -91,6 +93,22 @@
 	const GATE = { landscape: { barW: 420, barH: 18, press: 20, pct: 11.5, bottom: 26 }, portrait: { barW: 280, barH: 18, press: 17, pct: 10.5, bottom: 40 }, phone: { barW: 520, barH: 14, press: 30, pct: 17.5, bottom: 34 } } as const;
 	const SZ = $derived(GATE[kind]);
 
+	// THE SCENE SWITCH (dark mode, 2026-11-17): the help menu's Scene row (ui/hud/SceneSwitch.svelte) in a small menu panel
+	// of its own, at the screen's bottom left corner (the snow beside the LED billboard; on an upright phone under it), in
+	// the HUD's own mock px scaled as the HUD is (ui/hud/hudLayout.ts hudFrame), so it is the size the menu's row is. Up
+	// from the first frame; a press on it is not the continue press.
+	const pickHud = $derived(hudFrame({ kind, phone: isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()), vw: innerWidth.current ?? 1, vh: innerHeight.current ?? 1, safe: readSafeInsets() }));
+	const PICK = { desktop: { w: 236, h: 70, cls: '' }, tablet: { w: 200, h: 64, cls: 'nar' }, portrait: { w: 236, h: 70, cls: '' }, landscape: { w: 196, h: 64, cls: 'nar' } } as const;
+	const pick = $derived(PICK[pickHud.variant]);
+	const pickGap = 10;
+	const pickPlace = $derived.by(() => {
+		const u = pickHud.u;
+		const safe = readSafeInsets();
+		const x = Math.max(pickGap * u, safe.l + 6);
+		const y = (innerHeight.current ?? 1) - pick.h * u - Math.max(pickGap * u, safe.b + 6);
+		return { x, y, u };
+	});
+
 	const press = () => {
 		// same tap target serves both states: while assets are missing it retries instead of entering
 		if (assetsFailed) {
@@ -108,6 +126,14 @@
 <div class="landing" class:pressed>
 	<!-- full-screen continue target -->
 	<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>
+
+	<div class="hudp scene-pick" style:transform="translate({pickPlace.x}px, {pickPlace.y}px) scale({pickPlace.u})" style:width="{pick.w}px" style:height="{pick.h}px">
+		<div class="mp is-open {pick.cls}" style:left="0px" style:top="0px" style:width="{pick.w}px" style:height="{pick.h}px">
+			<div class="mpsh" style:top="0px" style:height="{pick.h}px"></div>
+			<div class="spf"></div>
+			<div class="mpc" style:top="0px" style:height="{pick.h}px"><SceneSwitch /></div>
+		</div>
+	</div>
 
 	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({left}px, {top}px) scale({scale})">
 		<!-- (the title is the billboard logo in the canvas, over the press screen's dim, game/scene/logoSign.ts: it stands in the
@@ -159,6 +185,19 @@
 	}
 	.press-target:disabled {
 		cursor: default;
+	}
+	/* the Scene switch's panel: over the continue target, the menu panel's glass (its fill and edge tokens, ui/hudTheme.ts) */
+	.scene-pick {
+		z-index: 3;
+	}
+	.spf {
+		position: absolute;
+		inset: 0;
+		border-radius: var(--hud-radius-panel);
+		border: 1px solid;
+		border-color: rgba(var(--hud-edge-top-rgb), 0.55) rgba(var(--hud-edge-top-rgb), 0.12) rgba(var(--hud-edge-bottom-rgb), 0.8);
+		background: linear-gradient(rgba(var(--hud-panel-top-rgb), var(--hud-panel-top-a)), rgba(var(--hud-panel-mid-rgb), var(--hud-panel-mid-a)) 50%, rgba(var(--hud-panel-bottom-rgb), var(--hud-panel-bottom-a)));
+		box-shadow: inset 0 1px 0 rgba(var(--hud-edge-top-rgb), 0.25);
 	}
 	.fit {
 		position: absolute;

@@ -28,7 +28,17 @@
 //     bonus (fixtures.resume at a free spin's reveal): it comes up in its night scene, and back to day when it ends
 //   - no page errors
 //   CAP=<dir>: also saves the stills for the sheet (each scene, HUD up, the LED strip idle) as <size>_<preset>.png
-//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,side,portrait] [SECTIONS=rounds,again,resume] node tools/scene_swap_probe.mjs
+//   SET=grass (dark mode, 2026-11-17): every check above on the Dark set (grassDay, grassNight, grassSuper: the player's Scene
+//     setting stored as Dark before the page first loads), and no piece of the snow set asked for at all
+//   SECTIONS=setting (dark mode): THE SCENE SETTING (game/sceneChoice.ts, ui/hud/SceneSwitch.svelte) at each size: a fresh
+//     profile comes up in Snow with Snow checked on the press screen's switch and nothing of the grass set asked for; the
+//     switch on the press screen is on screen, uncovered and pressable, and Dark cross-fades to grassDay there and lets the
+//     snow set go (at most two scenes on the GPU on every sample); in the game the menu's switch (the same checks) changes
+//     the set at once at rest both ways; Dark is remembered across a reload (the reload boots in grassDay and asks nothing of
+//     the snow set); Auto follows an emulated dark and light color scheme, changed while the game is at rest; desktop also:
+//     a change asked during a Free Spins round waits through the round (never during its entry or Total Win) and is taken
+//     up after it. CAP: stills of the switch in the menu and on the press screen
+//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [SET=grass] [ONLY=desktop,side,portrait] [SECTIONS=rounds,again,resume,setting] node tools/scene_swap_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane); a turn is 15 minutes, so one size per turn with ONLY= if needed.
 import { createRequire } from 'node:module';
@@ -75,13 +85,35 @@ const info = (msg) => console.log(`  INFO ${msg}`);
 const R = (p, fn, arg) => p.evaluate(fn, arg);
 const r1 = (v) => Math.round(v * 10) / 10;
 const r2 = (v) => Math.round(v * 100) / 100;
-const NIGHT = /scene\/snow-(night|super)-/;
+// THE SET UNDER TEST (SET=grass: the Dark set) and the files of its bonus scenes and of the other set
+const SET = process.env.SET === 'grass' ? 'grass' : 'snow';
+const SC = SET === 'grass' ? { day: 'grassDay', bonus: 'grassNight', super: 'grassSuper', file: { bonus: 'grass-night-', super: 'grass-super-' } } : { day: 'snowDay', bonus: 'snowNight', super: 'snowSuper', file: { bonus: 'snow-night-', super: 'snow-super-' } };
+const NIGHT = SET === 'grass' ? /scene\/grass-(night|super)-/ : /scene\/snow-(night|super)-/;
+/** the other set's files (never asked for in a run of one set) */
+const SNOW_FILES = /scene\/snow-|road\/road\.webp|road\/tunnel-(left|right)\.webp/;
+const GRASS_FILES = /scene\/grass-/;
+const OTHER = SET === 'grass' ? SNOW_FILES : GRASS_FILES;
+const STORE = 'run_over_reindeer.scene';
 
-async function boot(browser, S, { reuse = null } = {}) {
-	const ctx = reuse?.ctx ?? (await browser.newContext({ viewport: S.vp, deviceScaleFactor: 1, isMobile: S.phone, hasTouch: S.phone }));
+async function boot(browser, S, { reuse = null, choice = SET === 'grass' ? 'dark' : null, scheme = 'light', press = true } = {}) {
+	const ctx = reuse?.ctx ?? (await browser.newContext({ viewport: S.vp, deviceScaleFactor: 1, isMobile: S.phone, hasTouch: S.phone, colorScheme: scheme }));
+	// the Scene setting as stored on the device before the first load (only where nothing is stored yet: a reload keeps
+	// what the page itself stored)
+	if (!reuse && choice)
+		await ctx.addInitScript(
+			({ k, v }) => {
+				try {
+					if (!localStorage.getItem(k)) localStorage.setItem(k, v);
+				} catch {}
+			},
+			{ k: STORE, v: choice },
+		);
 	const p = reuse?.p ?? (await ctx.newPage());
 	const errs = reuse?.errs ?? [];
 	const net = reuse?.net ?? [];
+	/** every scene file of either set asked for (the setting's checks), and the other set's (one set's run) */
+	const files = reuse?.files ?? [];
+	const other = reuse?.other ?? [];
 	if (!reuse) {
 		p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
 		p.on('console', (m) => {
@@ -89,6 +121,8 @@ async function boot(browser, S, { reuse = null } = {}) {
 		});
 		p.on('request', (q) => {
 			if (NIGHT.test(q.url())) net.push({ at: Date.now(), url: q.url().split('/assets/').pop() });
+			if (OTHER.test(q.url())) other.push({ at: Date.now(), url: q.url().split('/assets/').pop() });
+			if (SNOW_FILES.test(q.url()) || GRASS_FILES.test(q.url())) files.push({ at: Date.now(), url: q.url().split('/assets/').pop() });
 		});
 		// the frame clock (the longest frame around a swap's upload)
 		await p.addInitScript(() => {
@@ -106,6 +140,12 @@ async function boot(browser, S, { reuse = null } = {}) {
 		});
 		await p.goto(`${APP}/?lang=en&sessionID=swap${S.name}${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
 	}
+	if (press) await enter(p, S);
+	return { ctx, p, errs, net, files, other };
+}
+
+/** past the press screen to the game at rest */
+async function enter(p, S) {
 	for (let i = 0; i < 220; i++) {
 		const ok = await p.evaluate(() => !!(window.__reindeer?.atRest?.() && window.__reindeer.hud && !document.querySelector('.landing') && window.__reindeer.sceneSwap && window.__reindeer.scoreboard?.())).catch(() => false);
 		if (ok) break;
@@ -113,7 +153,6 @@ async function boot(browser, S, { reuse = null } = {}) {
 		await sleep(600);
 	}
 	await sleep(900);
-	return { ctx, p, errs, net };
 }
 
 /** the swap and the GPU as they are now */
@@ -122,12 +161,15 @@ const swapNow = (p) =>
 		const s = window.__reindeer.sceneSwap();
 		const gpu = window.__reindeer.gpuTextures();
 		const scenes = new Set();
-		for (const [key, v] of Object.entries(s.pieces)) if (v.gpu) scenes.add(key.startsWith('night') ? 'snowNight' : key.startsWith('super') ? 'snowSuper' : 'snowDay');
+		for (const v of Object.values(s.pieces)) if (v.gpu) scenes.add(v.preset);
 		const sb = window.__reindeer.scoreboard();
 		return {
 			shown: s.shown,
 			want: s.want,
 			dom: s.dom,
+			set: s.set,
+			choice: s.choice,
+			loadedPresets: [...new Set(Object.values(s.pieces).map((v) => v.preset))],
 			fade: s.fade,
 			starting: s.starting,
 			skins: s.skins,
@@ -458,9 +500,9 @@ async function roundChecks(p, S, fixture, night, opts = {}) {
 	const res = await bonusRoundWithSteps(p, S, fixture, night, opts);
 	const { seen } = res;
 	if (opts.contrastToo !== false) check(!!seen.contrast, `${tag}: a quiet moment between free spins was found for the contrast and the still`);
-	check(res.backDone, `${tag}: the round plays through and the game comes back to rest in the day snow (${Math.round(seen.ms / 1000)} s)`, { final: seen.final, phases: seen.phasesList });
+	check(res.backDone, `${tag}: the round plays through and the game comes back to rest in ${SC.day} (${Math.round(seen.ms / 1000)} s)`, { final: seen.final, phases: seen.phasesList });
 	const base = [...(seen.phasesList['base spin'] ?? []), ...(seen.phasesList['base after'] ?? [])];
-	check(base.length > 0 && base.every((v) => v === 'snowDay/snowDay'), `${tag}: the base spin before the trigger and the base game after the swap back are in the day snow (${[...new Set(base)].join(', ')})`, seen.phasesList);
+	check(base.length > 0 && base.every((v) => v === `${SC.day}/${SC.day}`), `${tag}: the base spin before the trigger and the base game after the swap back are in ${SC.day} (${[...new Set(base)].join(', ')})`, seen.phasesList);
 	const fs = seen.phasesList['free spins'] ?? [];
 	check(fs.length > 0 && !seen.wrongInBonus, `${tag}: every free spin on the road is in ${night}, the Pixi scene and the DOM side (${fs.join(', ')})`, seen.wrongInBonus);
 	const fi = seen.fadeIn;
@@ -511,9 +553,9 @@ async function bonusRoundWithSteps(p, S, fixture, night, { contrastToo = true, s
 			stepped = 1;
 			continue;
 		}
-		if (s.fade && stepped === 1 && s.fade.to === 'snowDay') {
+		if (s.fade && stepped === 1 && s.fade.to === SC.day) {
 			seen.fadeBack = { card: s.card, show: s.show, gameType: s.gameType, at: Date.now() - t0 };
-			seen.steps.push(await stepFade(p, S, `${tag}: swap back to snowDay`));
+			seen.steps.push(await stepFade(p, S, `${tag}: swap back to ${SC.day}`));
 			stepped = 2;
 			continue;
 		}
@@ -570,7 +612,7 @@ async function resumed(browser, S, fixture, event, night) {
 		}
 		if (!first) first = s;
 		if (!nightAt && s.shown === night && s.dom === night && !s.fade) nightAt = Date.now() - t0;
-		if (nightAt && s.shown === 'snowDay' && !s.fade && s.gameType === 'basegame' && s.idle && s.rest && !s.card) {
+		if (nightAt && s.shown === SC.day && !s.fade && s.gameType === 'basegame' && s.idle && s.rest && !s.card) {
 			backAt = Date.now() - t0;
 			break;
 		}
@@ -579,9 +621,175 @@ async function resumed(browser, S, fixture, event, night) {
 		await sleep(150);
 	}
 	check(!!nightAt && !!first && first.want === night && (first.shown === night || first.fade?.to === night || first.starting === night), `${tag}: the resumed round comes up in ${night}: asked for before the press screen ended, ${first?.shown === night ? 'already showing' : 'on its way in'} when the game was up (fully in ${nightAt} ms after)`, first);
-	check(!!backAt, `${tag}: and the day snow comes back when it ends (${backAt} ms)`);
+	check(!!backAt, `${tag}: and ${SC.day} comes back when it ends (${backAt} ms)`);
 	check(r.errs.length === 0, `${tag}: no page errors`, r.errs);
 	await b.ctx.close();
+}
+
+
+// ---- THE SCENE SETTING (dark mode) -------------------------------------------------------------------------------------
+const waitFor = async (p, fn, ms, arg) => {
+	const t0 = Date.now();
+	while (Date.now() - t0 < ms) {
+		if (await p.evaluate(fn, arg).catch(() => false)) return Date.now() - t0;
+		await sleep(150);
+	}
+	return null;
+};
+/** the switch under `root` as drawn: its words, the choice checked, each key's box, on screen and uncovered at its middle */
+const switchState = (p, root) =>
+	R(
+		p,
+		(root) => {
+			const el = document.querySelector(`${root} [data-scene-switch]`);
+			if (!el) return null;
+			const word = el.querySelector('.vt')?.textContent?.trim() ?? '';
+			const keys = [...el.querySelectorAll('[data-scene-choice]')].map((b) => {
+				const r = b.getBoundingClientRect();
+				const x = r.x + r.width / 2;
+				const y = r.y + r.height / 2;
+				const top = document.elementFromPoint(x, y);
+				return {
+					id: b.dataset.sceneChoice,
+					text: (b.textContent || '').trim(),
+					checked: b.getAttribute('aria-checked') === 'true',
+					box: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+					onScreen: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
+					uncovered: !!top && (top === b || b.contains(top)),
+					opacity: Number(getComputedStyle(el.closest('.mp') ?? el).opacity),
+				};
+			});
+			return { word, labels: [word, ...keys.map((k) => k.text)], checked: keys.find((k) => k.checked)?.id ?? null, keys };
+		},
+		root,
+	);
+const reach = (sw, tag) => {
+	check(!!sw && sw.labels.join('|') === 'Scene|Auto|Snow|Dark', `${tag}: the switch reads ${sw?.labels.join(', ')}`, sw);
+	const bad = (sw?.keys ?? []).filter((k) => !k.onScreen || !k.uncovered || k.box.w < 20 || k.box.h < 16 || k.opacity < 0.95);
+	check(!!sw && sw.keys.length === 3 && bad.length === 0, `${tag}: its three keys are on screen, uncovered and at least 20 x 16 CSS px (${(sw?.keys ?? []).map((k) => `${k.id} ${k.box.w}x${k.box.h}`).join(', ')})`, bad);
+};
+/** a press on a key, then the scene watched until it shows `target` whole (and the old set is let go) */
+async function pressAndWatch(p, sel, target) {
+	const t0 = Date.now();
+	await p.click(sel);
+	let maxScenes = 0;
+	let s = null;
+	let inAt = null;
+	while (Date.now() - t0 < 12000) {
+		s = await swapNow(p);
+		maxScenes = Math.max(maxScenes, s.scenesOnGpu.length);
+		if (!inAt && s.shown === target && s.dom === target && !s.fade) inAt = Date.now() - t0;
+		if (inAt && Date.now() - t0 > inAt + 800) break;
+		await sleep(100);
+	}
+	const set = target.startsWith('grass') ? 'grass' : 'snow';
+	const left = s.loadedPresets.filter((n) => !n.startsWith(set));
+	return { inAt, maxScenes, final: s, left, gpu: { scene: s.sceneGpuMB, all: s.gpuMB } };
+}
+const storeNow = (p) => R(p, (k) => { try { return localStorage.getItem(k); } catch { return 'no storage'; } }, STORE);
+const setWatch = (tag, r, target) => {
+	check(r.inAt !== null, `${tag}: the scene cross-fades to ${target} (whole ${r.inAt} ms after the press)`, r.final);
+	check(r.maxScenes <= LIMIT.scenes, `${tag}: never more than ${LIMIT.scenes} scenes on the GPU on the way (most ${r.maxScenes})`);
+	check(r.left.length === 0, `${tag}: the other set is let go (still held: ${r.left.join(', ') || 'nothing'}; scene ${r.gpu.scene} MB on the GPU)`, r.final);
+};
+
+async function settingChecks(browser, S, report) {
+	const tag = `${S.name} setting`;
+	const rep = ((report[S.name] ??= {}).setting = {});
+	// A FRESH PROFILE: Snow, nothing of the grass set
+	const b = await boot(browser, S, { choice: null, press: false });
+	const { p } = b;
+	await waitFor(p, () => !!(document.querySelector('.landing [data-scene-switch]') && window.__reindeer?.sceneSwap && window.__reindeer.led?.()), 90000);
+	await sleep(2500);
+	let s = await swapNow(p);
+	let sw = await switchState(p, '.landing');
+	check(s.choice === 'snow' && s.set === 'snow' && s.shown === 'snowDay' && sw?.checked === 'snow', `${tag}: a fresh profile comes up in Snow (choice ${s.choice}, set ${s.set}, ${s.shown}; the press screen's switch shows ${sw?.checked})`, { s, sw });
+	check(b.files.filter((f) => GRASS_FILES.test(f.url)).length === 0, `${tag}: nothing of the grass set asked for on a fresh profile`, b.files.filter((f) => GRASS_FILES.test(f.url)));
+	rep.freshGpu = { scene: s.sceneGpuMB, all: s.gpuMB };
+	// THE PRESS SCREEN'S SWITCH
+	reach(sw, `${tag} press screen`);
+	let r = await pressAndWatch(p, '.landing [data-scene-choice="dark"]', 'grassDay');
+	setWatch(`${tag} press screen Dark`, r, 'grassDay');
+	rep.pressDark = r.gpu;
+	sw = await switchState(p, '.landing');
+	check(sw?.checked === 'dark' && (await storeNow(p)) === 'dark' && (await R(p, () => !!document.querySelector('.landing'))), `${tag} press screen: Dark checked and stored, the press screen still up (the press on the switch is not the continue press)`, sw);
+	if (CAP) writeFileSync(`${CAP}/${S.name}_switch_intro.png`, await p.screenshot());
+	// IN THE GAME: the menu's switch
+	await enter(p, S);
+	await p.click('[data-hud="menu-key"]');
+	await sleep(700);
+	const MENU = '[role="dialog"][aria-label="Menu"].is-open';
+	sw = await switchState(p, MENU);
+	reach(sw, `${tag} menu`);
+	check(sw?.checked === 'dark', `${tag} menu: Dark checked (${sw?.checked})`);
+	if (CAP) writeFileSync(`${CAP}/${S.name}_switch_menu.png`, await p.screenshot());
+	r = await pressAndWatch(p, `${MENU} [data-scene-choice="snow"]`, 'snowDay');
+	setWatch(`${tag} menu Snow`, r, 'snowDay');
+	rep.menuSnow = r.gpu;
+	r = await pressAndWatch(p, `${MENU} [data-scene-choice="dark"]`, 'grassDay');
+	setWatch(`${tag} menu Dark`, r, 'grassDay');
+	rep.menuDark = r.gpu;
+	await p.click('[data-hud="menu-key"]').catch(() => {});
+	await sleep(400);
+	// REMEMBERED ACROSS A RELOAD
+	b.files.length = 0;
+	await p.reload({ waitUntil: 'domcontentloaded' });
+	await waitFor(p, () => !!(window.__reindeer?.sceneSwap && document.querySelector('.landing [data-scene-switch]')), 90000);
+	await sleep(2500);
+	s = await swapNow(p);
+	sw = await switchState(p, '.landing');
+	const snowAsked = b.files.filter((f) => SNOW_FILES.test(f.url));
+	check(s.choice === 'dark' && s.set === 'grass' && s.shown === 'grassDay' && s.dom === 'grassDay' && sw?.checked === 'dark', `${tag}: Dark is remembered across a reload (choice ${s.choice}, ${s.shown}; the switch shows ${sw?.checked})`, s);
+	check(snowAsked.length === 0 && s.loadedPresets.every((n) => n === 'grassDay'), `${tag}: the reload asks nothing of the snow set (${snowAsked.length} requests; held: ${s.loadedPresets})`, snowAsked);
+	rep.reloadGpu = { scene: s.sceneGpuMB, all: s.gpuMB };
+	info(`${tag}: Dark boot before the first press: scene ${s.sceneGpuMB} MB on the GPU, all textures ${s.gpuMB} MB`);
+	check(b.errs.length === 0, `${tag}: no page errors`, b.errs);
+	await b.ctx.close();
+
+	// AUTO follows the device's color scheme
+	const a = await boot(browser, S, { choice: 'auto', scheme: 'dark' });
+	s = await swapNow(a.p);
+	check(s.choice === 'auto' && s.set === 'grass' && s.shown === 'grassDay', `${tag} Auto: a dark device comes up in the Dark set (${s.shown})`, s);
+	await a.p.emulateMedia({ colorScheme: 'light' });
+	let at = await waitFor(a.p, () => { const x = window.__reindeer.sceneSwap(); return x.shown === 'snowDay' && !x.fade; }, 12000);
+	check(at !== null, `${tag} Auto: the device turned light at rest: the snow set cross-fades in (${at} ms)`, await swapNow(a.p));
+	await a.p.emulateMedia({ colorScheme: 'dark' });
+	at = await waitFor(a.p, () => { const x = window.__reindeer.sceneSwap(); return x.shown === 'grassDay' && !x.fade; }, 12000);
+	check(at !== null, `${tag} Auto: and dark again: the Dark set comes back (${at} ms)`, await swapNow(a.p));
+	// A CHANGE ASKED DURING A ROUND (desktop): it waits for the round's end, never in its entry or Total Win
+	if (S.extra) {
+		await R(a.p, () => window.__reindeer.turbo(2));
+		await R(a.p, (n) => window.__reindeer.fixtures.next(n), 'natural_free_spins');
+		await a.p.click('.hudp button.spin');
+		const askAt = await waitFor(a.p, () => window.__reindeer.gameType() === 'freegame' || !!window.__reindeer.scoreboard()?.card, 60000);
+		await R(a.p, () => window.__reindeer.sceneChoice('snow'));
+		await a.p.emulateMedia({ colorScheme: 'light' });
+		const t0 = Date.now();
+		let early = null;
+		let tookAt = null;
+		let waits = new Set();
+		let maxScenes = 0;
+		while (Date.now() - t0 < 240000) {
+			const x = await swapNow(a.p);
+			const st = await R(a.p, () => window.__reindeer.sceneSetting());
+			maxScenes = Math.max(maxScenes, x.scenesOnGpu.length);
+			if (st.wait) waits.add(st.wait);
+			const roundOn = x.gameType === 'freegame' || !!x.card || !!x.show || !x.idle;
+			if (x.set === 'snow' && !tookAt) {
+				tookAt = Date.now() - t0;
+				if (roundOn) early = { gameType: x.gameType, card: x.card, show: x.show, idle: x.idle };
+			}
+			if (x.set === 'grass' && x.fade && x.fade.to.startsWith('snow')) early ??= { fadeToSnowInGrassSet: x.fade };
+			if (tookAt && x.shown === 'snowDay' && !x.fade && x.idle) break;
+			await R(a.p, () => window.__reindeer.turbo(2)).catch(() => {});
+			await sleep(120);
+		}
+		check(askAt !== null && tookAt !== null && !early, `${tag}: Snow asked during a Free Spins round is taken up only after the round (${tookAt} ms after the ask; waited for: ${[...waits].join(', ')})`, early);
+		const fin = await swapNow(a.p);
+		check(fin.shown === 'snowDay' && maxScenes <= LIMIT.scenes && fin.loadedPresets.every((n) => n.startsWith('snow')), `${tag}: then the snow set shows and the Dark set is let go (most ${maxScenes} scenes on the GPU; held: ${fin.loadedPresets})`, fin);
+	}
+	check(a.errs.length === 0, `${tag} Auto: no page errors`, a.errs);
+	await a.ctx.close();
 }
 
 const browser = await chromium.launch({ args: ['--mute-audio'] });
@@ -589,26 +797,26 @@ const report = {};
 try {
 	for (const S of SIZES) {
 		console.log(`--- ${S.name} ${S.vp.width}x${S.vp.height}`);
-		const b = await boot(browser, S);
-		const { p, errs, net } = b;
 		const rep = (report[S.name] = {});
 		if (SEC('rounds') || SEC('again')) {
+			const b = await boot(browser, S);
+			const { p, errs, net } = b;
 			// THE FIRST LOAD
 			const s0 = await swapNow(p);
 			rep.before = { sceneGpuMB: s0.sceneGpuMB, gpuMB: s0.gpuMB };
-			check(s0.shown === 'snowDay' && s0.dom === 'snowDay' && s0.skins.join() === 'snowDay', `${S.name}: the game comes up in the day snow (${s0.shown}/${s0.dom}, skins ${s0.skins})`, s0);
-			check(net.length === 0 && s0.lazyKeys.filter((k) => /^(night|super)/.test(k)).length === 0, `${S.name}: no night piece is asked for or held before the first press (${net.length} requests)`, net);
+			check(s0.shown === SC.day && s0.dom === SC.day && s0.skins.join() === SC.day, `${S.name}: the game comes up in ${SC.day} (${s0.shown}/${s0.dom}, skins ${s0.skins})`, s0);
+			check(net.length === 0 && s0.loadedPresets.every((n) => n === SC.day), `${S.name}: no bonus scene piece is asked for or held before the first press (${net.length} requests; held: ${s0.loadedPresets})`, net);
 			info(`${S.name}: before the first press: scene ${s0.sceneGpuMB} MB on the GPU, all textures ${s0.gpuMB} MB`);
-			await still(p, S, 'snowDay');
-			rep.contrastDay = await contrast(p, S, 'snowDay');
+			await still(p, S, SC.day);
+			rep.contrastDay = await contrast(p, S, SC.day);
 			// THE TWO ROUNDS
 			for (const [fixture, night] of [
-				['natural_free_spins', 'snowNight'],
-				['natural_super', 'snowSuper'],
+				['natural_free_spins', SC.bonus],
+				['natural_super', SC.super],
 			]) {
 				const pressAt = Date.now();
 				const seen = await roundChecks(p, S, fixture, night);
-				const mine = night === 'snowNight' ? 'snow-night-' : 'snow-super-';
+				const mine = night === SC.bonus ? SC.file.bonus : SC.file.super;
 				const own = net.filter((n) => n.url.includes(mine));
 				check(own.length > 0 && own.every((n) => n.at >= pressAt), `${S.name} ${fixture}: its night pieces were asked for only after this round's press (${own.length} requests)`, own.filter((n) => n.at < pressAt));
 				rep[fixture] = { maxScene: seen.maxScene, maxLazy: seen.maxLazy, maxGpu: seen.maxGpu, after: seen.final.gpuMB, afterScene: seen.final.sceneGpuMB, frames: seen.frames, log: seen.final.log.slice(-12) };
@@ -616,7 +824,7 @@ try {
 			}
 			// AGAIN (desktop): a second Free Spins round after its pieces were let go
 			if (S.extra && SEC('again')) {
-				const seen = await roundChecks(p, S, 'natural_free_spins', 'snowNight', { contrastToo: false, stillToo: false });
+				const seen = await roundChecks(p, S, 'natural_free_spins', SC.bonus, { contrastToo: false, stillToo: false });
 				rep.again = { maxScene: seen.maxScene, frames: seen.frames, log: seen.final.log.slice(-12) };
 				const loads = logTimes(seen.final.log, 'loaded').map((l) => l.detail);
 				info(`${S.name} second Free Spins round: ${loads.slice(-1)}; upload ${logTimes(seen.final.log, 'upload').slice(-2)[0]?.detail}; frames ${JSON.stringify(seen.frames)} (first round ${JSON.stringify(rep.natural_free_spins?.frames)})`);
@@ -625,12 +833,14 @@ try {
 			rep.after = { sceneGpuMB: after.sceneGpuMB, gpuMB: after.gpuMB };
 			check(after.sceneGpuMB <= s0.sceneGpuMB + 0.01 && after.lazyGpuMB === 0, `${S.name}: after the bonus rounds the scene holds what it held before the first press (${after.sceneGpuMB} MB, was ${s0.sceneGpuMB})`, after);
 			info(`${S.name}: GPU all textures: before ${s0.gpuMB} MB, after ${after.gpuMB} MB`);
+			check(b.other.length === 0, `${S.name}: nothing of the other set asked for in the whole run (${b.other.length} requests)`, b.other);
+			check(errs.length === 0, `${S.name}: no page errors`, errs);
+			await b.ctx.close();
 		}
-		check(errs.length === 0, `${S.name}: no page errors`, errs);
-		await b.ctx.close();
+		if (SEC('setting')) await settingChecks(browser, S, report);
 		if (S.extra && SEC('resume')) {
-			await resumed(browser, S, 'natural_free_spins', 9, 'snowNight');
-			await resumed(browser, S, 'natural_super', 8, 'snowSuper');
+			await resumed(browser, S, 'natural_free_spins', 9, SC.bonus);
+			await resumed(browser, S, 'natural_super', 8, SC.super);
 		}
 	}
 } finally {

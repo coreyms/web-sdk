@@ -55,8 +55,9 @@
 	import { getContext } from '../game/context';
 	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass } from '../game/layoutSpec';
 	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, ROAD_MOTION, STRIKE, TUNE, motionFor } from '../game/constants';
-	import { sceneHooks, stateScene } from '../game/stateScene.svelte';
-	import { presetForMode, type ScenePreset } from '../game/scenePresets';
+	import { sceneHooks, setSceneChoice, stateScene } from '../game/stateScene.svelte';
+	import { homePreset, presetForMode, type ScenePreset, type ScenePresetName } from '../game/scenePresets';
+	import { setFor, type SceneChoice } from '../game/sceneChoice';
 	import { LogoSign } from '../game/scene/logoSign';
 	import { SceneSwap } from '../game/scene/sceneSwap';
 	import config from '../game/config';
@@ -215,8 +216,9 @@
 	if (logo) parent.addToParent(logo.root);
 	if (!led) scoreboardOverLogo();
 
-	// THE SCENE PRESET AND ITS SWAP (game/stateScene.svelte.ts, game/scene/sceneSwap.ts): its pieces by asset key (the day
-	// snow in the manifest; the night scenes and the day forest off the phone tier load lazily). The scene follows the
+	// THE SCENE PRESET AND ITS SWAP (game/stateScene.svelte.ts, game/scene/sceneSwap.ts): its pieces by asset key (the base
+	// scene of the set the Scene setting asks for in the manifest; every other scene and the upright forest off the phone
+	// tier load lazily, game/assets.ts SCENE_LAZY_URLS). The scene follows the
 	// round's mode; the swap in waits for the LED back board's entry scene to be seated over the dimmed scene, the swap back
 	// starts once the mode is the base game again (after the Total Win is dismissed). A plain alpha cross-fade.
 	/** the screen as the last layout saw it, and the LED scoreboard's place (its snow cover is re-cut when the pieces change) */
@@ -227,7 +229,7 @@
 		layers: road.scene,
 		view: () => sceneView,
 		upload: (t) => context.stateApp.pixiApplication?.renderer.prepare.upload(t),
-		gate: (to) => to === 'snowDay' || !scoreboard || !scoreboard.entryRising(),
+		gate: (to) => to === homePreset(stateScene.set) || !scoreboard || !scoreboard.entryRising(),
 		onPieces: () => cutCover(),
 		onFade: (a, out) => scoreboard?.setCoverFade(a, out),
 	});
@@ -253,8 +255,27 @@
 		const mode = stateGame.bonusMode;
 		const resumed = resumeHeld ? resumedMode() : null;
 		if (mode) resumeHeld = false;
-		stateScene.want = presetForMode(mode ?? resumed);
+		stateScene.want = presetForMode(mode ?? resumed, stateScene.set);
 	});
+	/** THE SCENE SETTING (dark mode, game/sceneChoice.ts): the set the player's choice means (Auto: the device's light or dark
+	 *  setting as it is now) is taken up only with the board at rest: no round running (a change during a round waits for
+	 *  its end), no bonus round (nor a resumed one waiting), no card, the LED back board down (never during a bonus entry or
+	 *  a Total Win scene) and the set's base scene settled on screen. Then `want` turns to the new set's base scene (the
+	 *  effect above) and the swap cross-fades to it as it does to a bonus scene; the old set is let go after the fade. */
+	/** why the set in use is not the one the setting asks for (null when it is, or when it was just taken up) */
+	let sceneSetWait: string | null = null;
+	const takeSceneSet = () => {
+		const target = setFor(stateScene.choice, stateScene.dark);
+		sceneSetWait = null;
+		if (target === stateScene.set) return;
+		if (stateGame.busy || !context.stateXstateDerived.isIdle()) sceneSetWait = 'a round is running';
+		else if (stateGame.bonusMode || stateGame.gameType === 'freegame') sceneSetWait = 'a bonus round';
+		else if (stateGame.roundCard) sceneSetWait = 'a card is up';
+		else if (scoreboard?.backBusy()) sceneSetWait = 'the LED back board is up';
+		else if (stateScene.want !== homePreset(stateScene.set) || !swap.settled()) sceneSetWait = 'the scene is changing';
+		if (sceneSetWait) return;
+		stateScene.set = target;
+	};
 	/** THE LED SCOREBOARD'S SNOW COVER from a preset's pieces: the field tile, the road picture, the bottom band, and the
 	 *  painted ends where the layout shows them (road px) */
 	const coverPieces = (P: ScenePreset, layout: typeof kind): CoverPiece[] => {
@@ -382,7 +403,8 @@
 			road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
 			led?.update(ticker.deltaMS, boot.pressReady);
 			logo?.update(ticker.deltaMS);
-			// THE SCENE SWAP (real ms: the cross-fade keeps its own time, as the logo does)
+			// THE SCENE SETTING, then THE SCENE SWAP (real ms: the cross-fade keeps its own time, as the logo does)
+			takeSceneSet();
 			swap.update(ticker.deltaMS);
 			if (scoreboard) {
 				const free = stateGame.gameType === 'freegame';
@@ -530,7 +552,11 @@
 			 *  scene piece loaded (MB, on the GPU or not) and its log; `sceneWant(name)` asks for a preset by hand (as the tune
 			 *  panel's buttons); `gpuTextures()` every texture the renderer holds on the GPU (MB, mips counted) */
 			sceneSwap: () => swap.snapshot((src) => !!(context.stateApp.pixiApplication?.renderer as unknown as { texture?: { managedTextures?: PIXI.TextureSource[] } } | undefined)?.texture?.managedTextures?.includes(src)),
-			sceneWant: (name: 'snowDay' | 'snowNight' | 'snowSuper') => (stateScene.want = name),
+			sceneWant: (name: ScenePresetName) => (stateScene.want = name),
+			/** THE SCENE SETTING (dark mode): the player's choice by hand, as the switch sets it ('auto', 'snow', 'dark'), and
+			 *  the setting as it stands (the choice, the device dark or not, the set in use) */
+			sceneChoice: (choice: SceneChoice) => setSceneChoice(choice),
+			sceneSetting: () => ({ choice: stateScene.choice, dark: stateScene.dark, set: stateScene.set, wait: sceneSetWait }),
 			/** hold a swap's fade where it is once it starts (on), and move it by hand (the probe steps it frame by frame) */
 			sceneSwapHold: (on: boolean) => (swap.hold = !!on),
 			sceneSwapStep: (ms: number) => {

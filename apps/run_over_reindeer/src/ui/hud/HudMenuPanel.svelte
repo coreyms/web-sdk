@@ -3,8 +3,9 @@
 </script>
 
 <script lang="ts">
-	// THE HELP MENU (Drop 6, "Bookends"): a glass panel with a small tail pointing at the Menu key: GAME INFO, then MUSIC
-	// and EFFECTS, each a mute key and a slider. Bound to the SDK's sound state exactly as the old popover was (the same
+	// THE HELP MENU (Drop 6, "Bookends"): a glass panel with a small tail pointing at the Menu key: GAME INFO, then SCENE
+	// (dark mode, 2026-11-17: Auto, Snow or Dark, ui/hud/SceneSwitch.svelte), then MUSIC and EFFECTS, each a mute key and a
+	// slider. Bound to the SDK's sound state exactly as the old popover was (the same
 	// mute memory, the same Game Info press), with the operator's readouts (RTP, NET, TIME) under the sliders where the
 	// jurisdiction asks for them. Always mounted, shown by stateUi.menuOpen (opacity and a short rise: no layout work).
 	// A tap anywhere else closes it; the Menu key itself toggles it.
@@ -15,6 +16,7 @@
 	import type { Controls } from '../controls.svelte';
 	import { panelPath } from './hudLayout';
 	import HudIcon from './HudIcon.svelte';
+	import SceneSwitch from './SceneSwitch.svelte';
 
 	type Props = { controls: Controls; x: number; y: number; W: number; H: number; tip: number; up?: boolean; T?: number; cls?: string };
 	const { controls, x, y, W, H, tip, up = false, T = 9, cls = '' }: Props = $props();
@@ -57,12 +59,18 @@
 		return hh > 0 ? `${hh}:${two(Math.floor((s % 3600) / 60))}:${two(s % 60)}` : `${two(Math.floor(s / 60))}:${two(s % 60)}`;
 	});
 
-	// the operator strip grows the panel AWAY from its tail, so the tail stays on the Menu key
-	const extra = $derived(showSession ? (cls === 'pls' ? 16 : 24) : 0);
+	// the operator strip and the Scene row grow the panel AWAY from its tail, so the tail stays on the Menu key. The small
+	// landscape panel has no height to spare (it hangs to the capsule's foot): its Scene row is a column of its own beside
+	// the others, the panel growing to the right instead
+	const col = $derived(cls === 'pls');
+	const SCENE_ROW = { nar: 44, '': 50 } as Record<string, number>;
+	const SCENE_COL = 66;
+	const extra = $derived((showSession ? (cls === 'pls' ? 16 : 24) : 0) + (col ? 0 : (SCENE_ROW[cls] ?? SCENE_ROW[''])));
+	const PW = $derived(col ? W + SCENE_COL : W);
 	const BH = $derived(H + extra);
 	const top = $derived(up ? y : y - extra);
 	const y0 = $derived(up ? T : 0);
-	const path = $derived(panelPath(W, BH, tip, up, T));
+	const path = $derived(panelPath(PW, BH, tip, up, T));
 
 	let el: HTMLDivElement | undefined = $state();
 	$effect(() => {
@@ -76,9 +84,9 @@
 	});
 </script>
 
-<div bind:this={el} class="mp {cls}" class:up class:is-open={stateUi.menuOpen} style:left="{x}px" style:top="{top}px" style:width="{W}px" style:height="{BH + T}px" role="dialog" aria-label="Menu" aria-hidden={!stateUi.menuOpen}>
+<div bind:this={el} class="mp {cls}" class:up class:is-open={stateUi.menuOpen} style:left="{x}px" style:top="{top}px" style:width="{PW}px" style:height="{BH + T}px" role="dialog" aria-label="Menu" aria-hidden={!stateUi.menuOpen}>
 	<div class="mpsh" style:top="{y0}px" style:height="{BH}px"></div>
-	<svg class="mpg" width={W} height={BH + T} viewBox="0 0 {W} {BH + T}" aria-hidden="true">
+	<svg class="mpg" width={PW} height={BH + T} viewBox="0 0 {PW} {BH + T}" aria-hidden="true">
 		<defs>
 			<linearGradient id="{id}f" gradientUnits="userSpaceOnUse" x1="0" y1={y0} x2="0" y2={y0 + BH}>
 				<stop offset="0" style="stop-color:rgb(var(--hud-panel-top-rgb));stop-opacity:var(--hud-panel-top-a)" />
@@ -98,13 +106,14 @@
 			</linearGradient>
 		</defs>
 		<path d={path} fill="url(#{id}f)" stroke="url(#{id}e)" stroke-width="1" />
-		<path d="M22 {y0 + 2.1} H{W - 22}" stroke="url(#{id}s)" stroke-width="1" />
+		<path d="M22 {y0 + 2.1} H{PW - 22}" stroke="url(#{id}s)" stroke-width="1" />
 	</svg>
-	<div class="mpc" style:top="{y0}px" style:height="{BH}px">
+	<div class="mpc" style:top="{y0}px" style:height="{BH}px" style:width="{W}px">
 		<button type="button" class="slot-btn hg gl info-row" onclick={controls.openGameInfo} aria-label="Game info">
 			<HudIcon name="info" /><span class="it">GAME INFO</span><HudIcon name="chev" cls="chv" />
 		</button>
 		<i class="hl hz" style="position:relative"></i>
+		{#if !col}<SceneSwitch />{/if}
 		<div class="vrow">
 			<button type="button" class="slot-btn hg gl mk" class:is-muted={stateSound.volumeValueMusic === 0} onclick={toggleMusic} aria-pressed={stateSound.volumeValueMusic === 0} aria-label="Mute music">
 				<HudIcon name={stateSound.volumeValueMusic === 0 ? 'musicOff' : 'music'} />
@@ -128,4 +137,8 @@
 			</div>
 		{/if}
 	</div>
+	{#if col}
+		<i class="hl mpx-l" style:left="{W}px" style:top="{y0 + 14}px" style:height="{BH - 28}px"></i>
+		<div class="mpx" style:left="{W}px" style:top="{y0}px" style:width="{SCENE_COL}px" style:height="{BH}px"><SceneSwitch cls="col" /></div>
+	{/if}
 </div>

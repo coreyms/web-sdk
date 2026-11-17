@@ -2,6 +2,9 @@
 // so the game can swap the whole look in one call (game/stateScene.svelte.ts setScenePreset). Three presets (scene swap,
 // 2026-11-17): the day snow of the base game, the moonlit night snow of Free Spins, the deep night of Super Free Spins
 // (the night kits S2 and S1 r2, tools/build_scene.py); the scene follows the round's mode (game/scene/sceneSwap.ts).
+// THE DARK SET (dark mode, 2026-11-17): three more, the grass kits G1, B2 and G2 r2 (grassDay, grassNight, grassSuper), the
+// set the player's Scene setting picks with Dark (game/sceneChoice.ts). Two sets of three: the round's mode picks the scene
+// inside the set in use (presetForMode), the same swap in either.
 //
 // A preset names:
 //   kit           its section of game/sceneArtSpec.ts (the pieces' files, sizes and road px places)
@@ -28,7 +31,7 @@ import type { LayoutKind } from './layoutSpec';
 export type TopText = { ink: string; halo: string };
 export type ScenePreset = {
 	name: string;
-	kit: 'snowDay' | 'snowNight' | 'snowSuper';
+	kit: 'snowDay' | 'snowNight' | 'snowSuper' | 'grassDay' | 'grassNight' | 'grassSuper';
 	picture: { road: string; tunnelLeft: string; tunnelRight: string };
 	field: string;
 	bands: { top: string; bottom: string } | null;
@@ -104,12 +107,82 @@ export const SCENE_PRESETS = {
 		hudBeds: false,
 		boardCover: { field: 'superField', band: 'superBandBottom' },
 	},
+	/** THE DARK SET'S BASE GAME (grass kit G1 r2: dark green grass with leftover snow on the verges and wall caps, the night
+	 *  road picture). The grass is dark everywhere, so the top line and the upright readouts take the night's light ink with
+	 *  the dark halo; the HUD keeps the deeper glass (the leftover snow patches under the dock are as white as the day's, and
+	 *  the pale glass would leave the white ink low over them). Its pieces are in the first load only on a Dark boot. */
+	grassDay: {
+		name: 'grassDay',
+		kit: 'grassDay',
+		picture: { road: 'grassRoad', tunnelLeft: 'grassTunnelLeft', tunnelRight: 'grassTunnelRight' },
+		field: 'grassField',
+		bands: { top: 'grassBandTop', bottom: 'grassBandBottom' },
+		ends: { left: 'grassEndLeft', right: 'grassEndRight', layouts: ['landscape', 'phone'] },
+		forest: 'grassForest',
+		topText: {
+			scene: { ink: '#ffffff', halo: NIGHT_HALO },
+			forest: { ink: '#ffffff', halo: NIGHT_HALO },
+		},
+		hudGlass: 'deep',
+		readoutInk: 'night',
+		hudBeds: false,
+		boardCover: { field: 'grassField', band: 'grassBandBottom' },
+	},
+	/** THE DARK SET'S FREE SPINS (grass kit B2 r2: the bonus grass, a warm glow at the tunnel mouths). As grassDay. */
+	grassNight: {
+		name: 'grassNight',
+		kit: 'grassNight',
+		picture: { road: 'grassNightRoad', tunnelLeft: 'grassNightTunnelLeft', tunnelRight: 'grassNightTunnelRight' },
+		field: 'grassNightField',
+		bands: { top: 'grassNightBandTop', bottom: 'grassNightBandBottom' },
+		ends: { left: 'grassNightEndLeft', right: 'grassNightEndRight', layouts: ['landscape', 'phone'] },
+		forest: 'grassNightForest',
+		topText: {
+			scene: { ink: '#ffffff', halo: NIGHT_HALO },
+			forest: { ink: '#ffffff', halo: NIGHT_HALO },
+		},
+		hudGlass: 'deep',
+		readoutInk: 'night',
+		hudBeds: false,
+		boardCover: { field: 'grassNightField', band: 'grassNightBandBottom' },
+	},
+	/** THE DARK SET'S SUPER FREE SPINS (grass kit G2 r2: the deepest night, amber pools along the walls). As grassDay. */
+	grassSuper: {
+		name: 'grassSuper',
+		kit: 'grassSuper',
+		picture: { road: 'grassSuperRoad', tunnelLeft: 'grassSuperTunnelLeft', tunnelRight: 'grassSuperTunnelRight' },
+		field: 'grassSuperField',
+		bands: { top: 'grassSuperBandTop', bottom: 'grassSuperBandBottom' },
+		ends: { left: 'grassSuperEndLeft', right: 'grassSuperEndRight', layouts: ['landscape', 'phone'] },
+		forest: 'grassSuperForest',
+		topText: {
+			scene: { ink: '#ffffff', halo: NIGHT_HALO },
+			forest: { ink: '#ffffff', halo: NIGHT_HALO },
+		},
+		hudGlass: 'deep',
+		readoutInk: 'night',
+		hudBeds: false,
+		boardCover: { field: 'grassSuperField', band: 'grassSuperBandBottom' },
+	},
 } satisfies Record<string, ScenePreset>;
 
 export type ScenePresetName = keyof typeof SCENE_PRESETS;
+export type SceneSetName = 'snow' | 'grass';
 
-/** the scene of a round's mode: the base game's day, the Free Spins night, the Super night */
-export const presetForMode = (mode: 'bonus' | 'super' | null | undefined): ScenePresetName => (mode === 'super' ? 'snowSuper' : mode === 'bonus' ? 'snowNight' : 'snowDay');
+/** THE TWO SETS: each set's scene for the base game, Free Spins and Super Free Spins */
+export const SCENE_SETS: Record<SceneSetName, { base: ScenePresetName; bonus: ScenePresetName; super: ScenePresetName }> = {
+	snow: { base: 'snowDay', bonus: 'snowNight', super: 'snowSuper' },
+	grass: { base: 'grassDay', bonus: 'grassNight', super: 'grassSuper' },
+};
+
+/** the scene of a round's mode in a set: the base game's, the Free Spins', the Super's */
+export const presetForMode = (mode: 'bonus' | 'super' | null | undefined, set: SceneSetName = 'snow'): ScenePresetName => SCENE_SETS[set][mode === 'super' ? 'super' : mode === 'bonus' ? 'bonus' : 'base'];
+
+/** a set's base game scene (the one a set is shown with at rest, kept through its bonus rounds) */
+export const homePreset = (set: SceneSetName): ScenePresetName => SCENE_SETS[set].base;
+
+/** the set a preset belongs to */
+export const setOfPreset = (name: ScenePresetName): SceneSetName => (name.startsWith('grass') ? 'grass' : 'snow');
 
 /** every asset key a preset draws with (its picture, field, bands, ends and forest) */
 export const presetKeys = (P: ScenePreset): string[] => [P.picture.road, P.picture.tunnelLeft, P.picture.tunnelRight, P.field, ...(P.bands ? [P.bands.top, P.bands.bottom] : []), ...(P.ends ? [P.ends.left, P.ends.right] : []), ...(P.forest ? [P.forest] : [])];

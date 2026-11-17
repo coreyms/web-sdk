@@ -520,6 +520,11 @@ export class Scoreboard {
 		const s = this.show;
 		return !!s && (s.kind === 'fs' || s.kind === 'sfs') && s.t < seatedAt();
 	}
+	/** THE SCENE SETTING'S GATE (dark mode, components/Board.svelte): the back board is up or on its way up or down (a bonus
+	 *  entry, a Total Win, a big win, the race): a change of the scene set waits until it is down */
+	backBusy(): boolean {
+		return !!this.backShow();
+	}
 	/** the card up now (its kind), for the HTML card and the probe */
 	cardUp(): string | null {
 		const s = this.show;

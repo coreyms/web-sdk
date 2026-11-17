@@ -48,7 +48,7 @@ export const GROUP_META: Record<string, { label: string; when: When }> = {
 	// scene pass 9: the lamps are read every frame (game/scene/logoSign.ts); the places on the next layout pass
 	logoSign: { label: 'Billboard logo', when: 'live' },
 	// the scene swap (2026-11-17): the three presets by hand, the cross-fade's length (read when a swap starts)
-	scene: { label: 'Scene (the day, Free Spins and Super scenes; forest, edge cover)', when: 'resize' },
+	scene: { label: 'Scene (the snow and the dark grass sets: day, Free Spins and Super; forest, edge cover)', when: 'resize' },
 	// the LED scoreboard (game/scoreboard/): the rise, the timings and the cartoon are read every frame or at a show's
 	// start; the strip's place rules on the next layout pass
 	ledBoard: { label: 'LED board', when: 'live' },
@@ -63,11 +63,16 @@ const demoWin = (x: number) => (sb() ? void sb()!.win({ x, amount: round2(x * sc
 const demoCard = (kind: 'fs' | 'sfs' | 'total') => (sb() ? void sb()!.card({ kind, spins: 10, amount: kind === 'total' ? round2(248.5 * scoreboardDev.bet()) : 0, fmt: scoreboardDev.fmt, rate: 1 }) : 'no scoreboard on this page');
 export const GROUP_ACTIONS: Record<string, Action[]> = {
 	// THE SCENE SWAP (game/scene/sceneSwap.ts): the scene cross-fades to the preset asked (its pieces load first if they are
-	// not in); the next change of the round's mode (a bonus starting or ending) asks for its own scene again
+	// not in); the next change of the round's mode (a bonus starting or ending) asks for its own scene again. The grass
+	// presets are the Dark set's (dark mode): a button shows one by hand without changing the player's Scene setting (the
+	// set in use stays loaded, as with the snow buttons: one bonus scene asked from another holds three for that one fade)
 	scene: [
 		{ label: 'Day snow (base game)', run: () => void sceneDev.show('snowDay') },
 		{ label: 'Night snow (Free Spins)', run: () => void sceneDev.show('snowNight') },
 		{ label: 'Deep night (Super Free Spins)', run: () => void sceneDev.show('snowSuper') },
+		{ label: 'Dark grass (base game)', run: () => void sceneDev.show('grassDay') },
+		{ label: 'Dark grass (Free Spins)', run: () => void sceneDev.show('grassNight') },
+		{ label: 'Dark grass (Super Free Spins)', run: () => void sceneDev.show('grassSuper') },
 	],
 	ledBoard: [
 		{ label: 'Raise the board', run: () => (sb() ? void sb()!.raise() : 'no scoreboard on this page') },

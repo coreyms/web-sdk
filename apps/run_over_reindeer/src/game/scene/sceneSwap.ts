@@ -15,14 +15,20 @@
 //            its setCoverFade) over SCENE.swap.fadeMs, smoothed: the incoming scene fades in over the outgoing one, then the
 //            outgoing one fades out under it over SCENE.swap.tailShare of that (only its soft edges still show by then); the
 //            DOM side (the top line, the HUD tokens) swaps at the fade's start with a CSS transition of fadeMs
-//   RELEASE  at the fade's end the outgoing skin is hidden and let go two frames later, then every lazy texture no scene on
-//            screen uses is unloaded (SCENE.swap.unload): the GPU holds the day snow alone again after a bonus
+//   RELEASE  at the fade's end the outgoing skin is hidden and let go two frames later, then every scene texture no scene on
+//            screen (or wanted next) uses and that is not the base scene of the set in use is unloaded (SCENE.swap.unload):
+//            the GPU holds the set's base scene alone again after a bonus
+//   SETS     (dark mode, 2026-11-17) two sets of three scenes, snow and grass (game/scenePresets.ts SCENE_SETS); the player's
+//            Scene setting picks one (game/sceneChoice.ts). Only the set in use is loaded: the first load holds its base scene
+//            (game/assets.ts), and a change of set (components/Board.svelte, only with the base scene settled on screen) is a
+//            swap from one base scene to the other, after which the old base scene is unloaded too, the first load's pieces
+//            included (they are released by their URL and dropped from the loaded list, so they load again if asked for)
 // Nothing here waits on a round or can hold one: a swap whose pieces are late simply starts later.
 import * as PIXI from 'pixi.js';
 
 import { SCENE } from '../constants';
 import { SCENE_LAZY_URLS } from '../assets';
-import { SCENE_PRESETS, presetKeys, type ScenePresetName } from '../scenePresets';
+import { SCENE_PRESETS, homePreset, presetKeys, setOfPreset, type ScenePresetName } from '../scenePresets';
 import { setScenePreset, stateScene } from '../stateScene.svelte';
 import { keysFor, type SceneLayers, type SceneView } from './sceneLayers';
 
@@ -51,8 +57,8 @@ export class SceneSwap {
 	/** the lazy textures in (by asset key) */
 	private readonly lazy: Record<string, PIXI.Texture> = {};
 	private readonly loading = new Map<string, Promise<PIXI.Texture | null>>();
-	/** the preset fully on screen (the outgoing one during a fade) */
-	shown: ScenePresetName = 'snowDay';
+	/** the preset fully on screen (the outgoing one during a fade): the base scene of the set the game boots with */
+	shown: ScenePresetName = homePreset(stateScene.set);
 	private fade: { to: ScenePresetName; t: number; ms: number; tail: number } | null = null;
 	/** a swap whose pieces are going to the GPU */
 	private starting: ScenePresetName | null = null;
@@ -117,6 +123,11 @@ export class SceneSwap {
 			this.env.layers.refresh();
 			this.env.onPieces();
 		});
+	}
+
+	/** the scene on screen is the one wanted, whole: no fade, nothing going up (a change of set may start only then) */
+	settled(): boolean {
+		return !this.fade && !this.starting && stateScene.want === this.shown;
 	}
 
 	/** DEV / probe: a fade that has started stays where it is until step() moves it (the probe's frame by frame look) */
@@ -186,19 +197,30 @@ export class SceneSwap {
 		this.env.onFade(0, 1);
 		this.env.onPieces();
 		this.mark('end', `${from} to ${f.to}`);
-		if (SCENE.swap.unload) this.release();
+		// a change of set always lets the old set go (only the set in use is loaded), whatever SCENE.swap.unload says
+		if (SCENE.swap.unload || setOfPreset(from) !== setOfPreset(f.to)) this.release();
 	}
 
-	/** every lazy texture no scene on screen (or wanted next) uses goes, two frames after it was last drawn */
+	/** every scene texture no scene on screen (or wanted next) uses goes, two frames after it was last drawn, except the base
+	 *  scene of the set in use (kept through its bonus rounds: it comes straight back after them). A lazy one is dropped from
+	 *  the lazy list; one of the first load (the boot set's base scene, after a change of set) from the loaded list. */
 	private release() {
-		const keep = new Set<string>([...presetKeys(SCENE_PRESETS[this.shown]), ...presetKeys(SCENE_PRESETS[stateScene.want])]);
+		const keep = new Set<string>([...presetKeys(SCENE_PRESETS[this.shown]), ...presetKeys(SCENE_PRESETS[stateScene.want]), ...presetKeys(SCENE_PRESETS[homePreset(stateScene.set)])]);
 		const gone: string[] = [];
-		for (const key of Object.keys(this.lazy)) {
-			if (keep.has(key)) continue;
+		const drop = (key: string) => {
 			const url = SCENE_LAZY_URLS[key];
-			delete this.lazy[key];
 			gone.push(key);
 			nextFrames(() => void PIXI.Assets.unload(url).catch(() => {}));
+		};
+		for (const key of Object.keys(this.lazy)) {
+			if (keep.has(key)) continue;
+			delete this.lazy[key];
+			drop(key);
+		}
+		for (const key of Object.keys(this.env.loaded)) {
+			if (keep.has(key) || !SCENE_LAZY_URLS[key] || !this.env.loaded[key]) continue;
+			delete this.env.loaded[key];
+			drop(key);
 		}
 		if (gone.length) this.mark('unload', gone.join(' '));
 	}
@@ -206,17 +228,20 @@ export class SceneSwap {
 	/** DEV / probe: the swap's state and the scene textures it holds (loaded, on the GPU, MB) */
 	snapshot(gpuHas: (s: PIXI.TextureSource) => boolean) {
 		const mb = (t: PIXI.Texture) => (t.source.pixelWidth * t.source.pixelHeight * 4) / 1048576;
-		const pieces: Record<string, { mb: number; gpu: boolean; lazy: boolean }> = {};
+		const pieces: Record<string, { mb: number; gpu: boolean; lazy: boolean; preset: ScenePresetName }> = {};
 		for (const name of Object.keys(SCENE_PRESETS) as ScenePresetName[])
 			for (const k of presetKeys(SCENE_PRESETS[name])) {
 				const t = this.tex(k);
-				if (t) pieces[k] = { mb: Math.round(mb(t) * 100) / 100, gpu: gpuHas(t.source), lazy: !!this.lazy[k] };
+				if (t) pieces[k] = { mb: Math.round(mb(t) * 100) / 100, gpu: gpuHas(t.source), lazy: !!this.lazy[k], preset: name };
 			}
 		const sum = (f: (p: { mb: number; gpu: boolean; lazy: boolean }) => boolean) => Math.round(Object.values(pieces).filter(f).reduce((a, p) => a + p.mb, 0) * 100) / 100;
 		return {
 			shown: this.shown,
 			want: stateScene.want,
 			dom: stateScene.preset.name,
+			set: stateScene.set,
+			choice: stateScene.choice,
+			dark: stateScene.dark,
 			fade: this.fade ? { to: this.fade.to, t: Math.round(this.fade.t), ms: this.fade.ms, tail: Math.round(this.fade.tail), alpha: Math.round((this.fade.ms > 0 ? smooth(this.fade.t / this.fade.ms) : 1) * 1000) / 1000 } : null,
 			hold: this.hold,
 			starting: this.starting,

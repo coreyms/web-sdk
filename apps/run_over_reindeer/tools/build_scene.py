@@ -25,9 +25,22 @@ Each has the day kit's pieces (field tile, bands, ends: same sizes, same alpha, 
 more: its own road picture (the day picture re-coloured: q92 like road/road.webp), its two portal strips (lossless with the
 day strips' exact alpha, like road/tunnel-*.webp) and its upright phone forest (q80 like the day forest). Nothing in them is
 repainted here: crops and format only.
+
+THE GRASS KITS (dark mode, 2026-11-17): the player's "Dark" scene set, base game, Free Spins and Super, built the same way as
+the night kits, read only:
+  ~/Desktop/Run Over Reindeer/scene_kit_grass_base_G1_r2_2026-11-16/snow<A|B>/pieces/    (preset grassDay, files scene/grass-day-*)
+  ~/Desktop/Run Over Reindeer/scene_kit_grass_bonus_B2_r2_2026-11-16/snow<A|B>/pieces/   (preset grassNight, scene/grass-night-*)
+  ~/Desktop/Run Over Reindeer/scene_kit_grass_super_G2_r2_2026-11-16/snow<A|B>/pieces/   (preset grassSuper, scene/grass-super-*)
+Each kit has two leftover snow candidates (snowA: drawn outlined patches; snowB: edges only); the owner has not picked one,
+so it is one argument: --grass-snow A (the default) or --grass-snow B. Same checks as the night kits, except the ends: the
+grass ends' alpha differs from the day ends' by a few edge pixels (the kit's own repaint), so for them the alpha BOX must
+equal the day's (the road px places hold) and the pixels that differ are counted and printed.
+--out DIR builds the grass kits alone into DIR (their webp files and grass_spec.json), never touching the game: the way
+to look at the other candidate without shipping it.
 Run with the math env's Python (Pillow, numpy):
-    math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_scene.py
+    math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_scene.py [--grass-snow A|B] [--out DIR]
 """
+import argparse
 import json
 import os
 
@@ -46,6 +59,12 @@ LOGO = os.path.join(DESK, "billboard_logo_r2_2026-11-15")
 NIGHT_KITS = {
     "snowNight": (os.path.join(DESK, "scene_kit_snow_bonus_S2_r2_2026-11-16", "pieces"), "snow-night"),
     "snowSuper": (os.path.join(DESK, "scene_kit_snow_super_S1_r2_2026-11-16", "pieces"), "snow-super"),
+}
+# the grass kits (dark mode): preset name -> (kit folder, file prefix); the snow candidate folder is chosen in main()
+GRASS_KITS = {
+    "grassDay": ("scene_kit_grass_base_G1_r2_2026-11-16", "grass-day"),
+    "grassNight": ("scene_kit_grass_bonus_B2_r2_2026-11-16", "grass-night"),
+    "grassSuper": ("scene_kit_grass_super_G2_r2_2026-11-16", "grass-super"),
 }
 ROAD_DIR = os.path.join(APP, "static", "assets", "road")
 
@@ -79,8 +98,8 @@ def alpha_box(rgba):
     return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
 
 
-def save(img, name, opts):
-    path = os.path.join(OUT, name)
+def save(img, name, opts, out=None):
+    path = os.path.join(out or OUT, name)
     img.save(path, **opts)
     return os.path.getsize(path)
 
@@ -116,46 +135,64 @@ def build_kit():
     return pieces
 
 
-def build_night(day, kit, prefix):
-    """one night kit: the day kit's pieces at the day's sizes and places (alpha checked equal), its road picture, its two
-    portal strips and its forest"""
+def build_night(day, kit, prefix, out=None, ends="exact"):
+    """one night (or grass) kit: the day kit's pieces at the day's sizes and places (alpha checked equal), its road picture,
+    its two portal strips and its forest. ends="box": the ends' alpha box must be the day's, their alpha may differ a little
+    (the grass kits' repaint; the differing pixels are counted). `out`: the folder written to (the game's by default)."""
+    dest = out or OUT
     pieces = {}
     field = Image.open(os.path.join(kit, "field_tile.png")).convert("RGB")
     assert list(field.size) == day["field"]["px"], ("field", field.size)
     name = f"{prefix}-field.webp"
-    pieces["field"] = {**day["field"], "file": f"scene/{name}", "bytes": save(field, name, OPAQUE)}
+    pieces["field"] = {**day["field"], "file": f"scene/{name}", "bytes": save(field, name, OPAQUE, dest)}
     for key, src, tag in (("bandTop", "band_top.png", "band-top"), ("bandBottom", "band_bottom.png", "band-bottom")):
         im = Image.open(os.path.join(kit, src)).convert("RGBA")
         ref = np.asarray(Image.open(os.path.join(KIT, src)).convert("RGBA"))[..., 3]
         assert list(im.size) == day[key]["px"] and np.array_equal(np.asarray(im)[..., 3], ref), (key, "alpha or size differs from the day kit")
         name = f"{prefix}-{tag}.webp"
-        pieces[key] = {**day[key], "file": f"scene/{name}", "bytes": save(im, name, ALPHA)}
+        pieces[key] = {**day[key], "file": f"scene/{name}", "bytes": save(im, name, ALPHA, dest)}
     for key, src, tag in (("endLeft", "end_left.png", "end-left"), ("endRight", "end_right.png", "end-right")):
         im = np.asarray(Image.open(os.path.join(kit, src)).convert("RGBA"))
         ref = np.asarray(Image.open(os.path.join(KIT, src)).convert("RGBA"))[..., 3]
-        assert np.array_equal(im[..., 3], ref), (key, "alpha differs from the day kit")
+        if ends == "exact":
+            assert np.array_equal(im[..., 3], ref), (key, "alpha differs from the day kit")
+        else:
+            assert im.shape[:2] == ref.shape and alpha_box(im) == alpha_box(np.dstack([ref] * 4)), (key, "the alpha box differs from the day kit's")
+            differ = int(np.count_nonzero(im[..., 3] != ref))
+            print(f"{prefix} {key}: alpha differs from the day end on {differ} px (box equal)")
         x0, y0, x1, y1 = alpha_box(im)
         assert [x1 - x0, y1 - y0] == day[key]["px"], (key, "alpha box differs")
         name = f"{prefix}-{tag}.webp"
-        pieces[key] = {**day[key], "file": f"scene/{name}", "bytes": save(Image.fromarray(im[y0:y1, x0:x1].copy(), "RGBA"), name, ALPHA)}
+        pieces[key] = {**day[key], "file": f"scene/{name}", "bytes": save(Image.fromarray(im[y0:y1, x0:x1].copy(), "RGBA"), name, ALPHA, dest)}
     forest = Image.open(os.path.join(kit, "forest_phone.png")).convert("RGBA")
     assert list(forest.size) == day["forest"]["px"], ("forest", forest.size)
     name = f"{prefix}-forest.webp"
-    pieces["forest"] = {**day["forest"], "file": f"scene/{name}", "bytes": save(forest, name, FOREST_OPTS)}
+    pieces["forest"] = {**day["forest"], "file": f"scene/{name}", "bytes": save(forest, name, FOREST_OPTS, dest)}
     # the road picture (opaque, as road/road.webp) and the portal strips (lossless, the day strips' exact alpha)
     road = Image.open(os.path.join(kit, "road.png")).convert("RGB")
     assert road.size == (1536, 1024), road.size
     name = f"{prefix}-road.webp"
-    road.save(os.path.join(OUT, name), quality=92, method=6)
-    pieces["road"] = {"file": f"scene/{name}", "px": list(road.size), "road": [0, 0, 1536, 1024], "bytes": os.path.getsize(os.path.join(OUT, name))}
+    road.save(os.path.join(dest, name), quality=92, method=6)
+    pieces["road"] = {"file": f"scene/{name}", "px": list(road.size), "road": [0, 0, 1536, 1024], "bytes": os.path.getsize(os.path.join(dest, name))}
     for key, side in (("tunnelLeft", "left"), ("tunnelRight", "right")):
         im = np.asarray(Image.open(os.path.join(kit, f"tunnel_{side}.png")).convert("RGBA"))
         ref = np.asarray(Image.open(os.path.join(ROAD_DIR, f"tunnel-{side}.webp")).convert("RGBA"))
         assert im.shape == ref.shape and np.array_equal(im[..., 3], ref[..., 3]), (key, "the strip's alpha differs from road/tunnel-*.webp")
         name = f"{prefix}-tunnel-{side}.webp"
-        Image.fromarray(im, "RGBA").save(os.path.join(OUT, name), lossless=True, method=6)
-        pieces[key] = {"file": f"scene/{name}", "px": [im.shape[1], im.shape[0]], "bytes": os.path.getsize(os.path.join(OUT, name))}
+        Image.fromarray(im, "RGBA").save(os.path.join(dest, name), lossless=True, method=6)
+        pieces[key] = {"file": f"scene/{name}", "px": [im.shape[1], im.shape[0]], "bytes": os.path.getsize(os.path.join(dest, name))}
     return pieces
+
+
+def build_grass(day, snow, out=None):
+    """the three grass kits with leftover snow candidate `snow` ('A' or 'B')"""
+    spec = {}
+    for preset, (folder, prefix) in GRASS_KITS.items():
+        kit = os.path.join(DESK, folder, f"snow{snow}", "pieces")
+        spec[preset] = build_night(day, kit, prefix, out, ends="box")
+        for k, v in spec[preset].items():
+            print(f"{preset} (snow {snow}) {k}: {v['px']} {v['bytes']} bytes")
+    return spec
 
 
 def build_sign():
@@ -239,6 +276,21 @@ def build_sign():
 
 
 def main():
+    ap = argparse.ArgumentParser(description="the scene's textures (see the docstring)")
+    ap.add_argument("--grass-snow", choices=["A", "B"], default="A", help="the grass kits' leftover snow candidate (default A)")
+    ap.add_argument("--out", default=None, help="build the grass kits alone into this folder (never the game's)")
+    args = ap.parse_args()
+    if args.out:
+        out = os.path.abspath(os.path.expanduser(args.out))
+        assert not out.startswith(os.path.abspath(APP)), "--out must be outside the game"
+        os.makedirs(out, exist_ok=True)
+        # the day kit's places only (the day files are not written: its pieces are read for their sizes and alpha)
+        day = day_places()
+        spec = build_grass(day, args.grass_snow, out)
+        with open(os.path.join(out, "grass_spec.json"), "w") as f:
+            json.dump({"snow": args.grass_snow, **spec}, f, indent="\t")
+        print(f"grass kits (snow {args.grass_snow}) written to {out}")
+        return
     os.makedirs(OUT, exist_ok=True)
     kit = build_kit()
     sign = build_sign()
@@ -247,16 +299,41 @@ def main():
         spec[preset] = build_night(kit, folder, prefix)
         for k, v in spec[preset].items():
             print(f"{preset} {k}: {v['px']} {v['bytes']} bytes")
+    spec.update(build_grass(kit, args.grass_snow))
+    spec["grassSnow"] = args.grass_snow
     spec["logoSign"] = sign
     body = json.dumps(spec, indent="\t")
     with open(SPEC, "w") as f:
         f.write("// AUTO-GENERATED by tools/build_scene.py. Do not edit: change the tool and run it again.\n")
-        f.write("// The scene's pieces (the day snow kit and the two night kits, the forests, the night road pictures and portal strips) with their files, pixel sizes and road px places\n")
-        f.write("// ([x, y, width, height]), and the billboard logo's sheet (its frames in sheet px, per asset tier).\n")
+        f.write("// The scene's pieces (the day snow kit, the two night kits and the three grass kits of the Dark set, the forests, the\n")
+        f.write("// road pictures and portal strips of every kit but the day's) with their files, pixel sizes and road px places\n")
+        f.write("// ([x, y, width, height]), the grass kits' leftover snow candidate (grassSnow) and the billboard logo's sheet (its\n")
+        f.write("// frames in sheet px, per asset tier).\n")
         f.write(f"export const SCENE_ART = {body} as const;\n")
     for k, v in kit.items():
         print(f"{k}: {v['px']} {v['bytes']} bytes")
     print(f"logo: {sign['tiers']} changed {sign['changedPixels']}")
+
+
+def day_places():
+    """the day kit's sizes and road px places as build_kit() finds them, without writing a file"""
+    place = json.load(open(os.path.join(KIT, "placements.json")))["pieces"]
+    day = {}
+    field = Image.open(os.path.join(KIT, "field_tile.png"))
+    day["field"] = {"px": list(field.size), "road": [0, 0, field.size[0], field.size[1]]}
+    for key, src, y in (("bandTop", "band_top.png", 0), ("bandBottom", "band_bottom.png", 948)):
+        im = Image.open(os.path.join(KIT, src))
+        day[key] = {"px": list(im.size), "road": [0, y, im.size[0], im.size[1]]}
+    for key, src in (("endLeft", "end_left.png"), ("endRight", "end_right.png")):
+        im = np.asarray(Image.open(os.path.join(KIT, src)).convert("RGBA"))
+        x0, y0, x1, y1 = alpha_box(im)
+        assert place[src]["alpha_box_px"] == [x0, y0, x1, y1]
+        k = 727.0 / im.shape[1]
+        ox, oy = (-567, -15) if key == "endLeft" else (1376, -15)
+        day[key] = {"px": [x1 - x0, y1 - y0], "road": [round(ox + x0 * k, 2), round(oy + y0 * k, 2), round((x1 - x0) * k, 2), round((y1 - y0) * k, 2)], "density": round(1 / k, 4)}
+    forest = Image.open(FOREST)
+    day["forest"] = {"px": list(forest.size), "aspect": round(forest.size[1] / forest.size[0], 5)}
+    return day
 
 
 if __name__ == "__main__":

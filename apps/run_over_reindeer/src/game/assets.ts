@@ -6,6 +6,7 @@
 import { loadTextures } from 'pixi.js';
 import stamps from './assetStamp';
 import { PHONE_TIER } from './deviceTier';
+import { BOOT_SCENE_SET } from './sceneChoice';
 
 // The texture loader's worker must be off: it builds the worker from an object URL, and the platform's content
 // security policy has no `blob:` source (house rule; the preload sits at about 40 percent forever otherwise).
@@ -23,11 +24,23 @@ export const stamp = (href: string): string => {
 /** the upright phone's forest (game/scenePresets.ts snowDay forest) */
 export const FOREST_URL = stamp(new URL('../../assets/scene/snow-day-forest.webp', import.meta.url).href);
 
-/** THE SCENE'S LAZY PIECES (scene swap, 2026-11-17; game/scene/sceneSwap.ts): never in the first load before the first
- *  press. The two night scenes (tools/build_scene.py: the Free Spins and Super kits) load when a round's book holds a
- *  trigger (or a resumed round is inside a bonus), go to the GPU as the cross-fade starts and are let go after the swap
- *  back; the day forest off the phone tier loads the first time an upright phone layout shows. By asset key. */
+/** THE SCENE'S PIECES BY ASSET KEY (scene swap 2026-11-17, dark mode 2026-11-17; game/scene/sceneSwap.ts loads, uploads and
+ *  lets go of them). Only the base scene of the set the player's Scene setting asks for is in the first load (game/
+ *  sceneChoice.ts BOOT_SCENE_SET: the snow set's day snow by default, the grass set's grassDay with Dark); every other scene
+ *  is never asked for before the first press. A bonus round's scene of the set in use loads when a round's book holds a
+ *  trigger (or a resumed round is inside a bonus), goes to the GPU as the cross-fade starts and is let go after the swap
+ *  back; a change of the Scene setting loads the other set's base scene and lets go of the old one after its cross-fade.
+ *  The upright forest off the phone tier loads the first time an upright phone layout shows. */
 export const SCENE_LAZY_URLS: Record<string, string> = {
+	// the snow set's base scene (in the first load on a Snow boot: the manifest below)
+	road: stamp(new URL('../../assets/road/road.webp', import.meta.url).href),
+	tunnelLeft: stamp(new URL('../../assets/road/tunnel-left.webp', import.meta.url).href),
+	tunnelRight: stamp(new URL('../../assets/road/tunnel-right.webp', import.meta.url).href),
+	sceneField: stamp(new URL('../../assets/scene/snow-day-field.webp', import.meta.url).href),
+	sceneBandTop: stamp(new URL('../../assets/scene/snow-day-band-top.webp', import.meta.url).href),
+	sceneBandBottom: stamp(new URL('../../assets/scene/snow-day-band-bottom.webp', import.meta.url).href),
+	sceneEndLeft: stamp(new URL('../../assets/scene/snow-day-end-left.webp', import.meta.url).href),
+	sceneEndRight: stamp(new URL('../../assets/scene/snow-day-end-right.webp', import.meta.url).href),
 	sceneForest: FOREST_URL,
 	nightField: stamp(new URL('../../assets/scene/snow-night-field.webp', import.meta.url).href),
 	nightBandTop: stamp(new URL('../../assets/scene/snow-night-band-top.webp', import.meta.url).href),
@@ -47,6 +60,42 @@ export const SCENE_LAZY_URLS: Record<string, string> = {
 	superRoad: stamp(new URL('../../assets/scene/snow-super-road.webp', import.meta.url).href),
 	superTunnelLeft: stamp(new URL('../../assets/scene/snow-super-tunnel-left.webp', import.meta.url).href),
 	superTunnelRight: stamp(new URL('../../assets/scene/snow-super-tunnel-right.webp', import.meta.url).href),
+	// THE GRASS SET (the Scene setting's Dark; tools/build_scene.py, the grass kits G1, B2 and G2 r2)
+	grassField: stamp(new URL('../../assets/scene/grass-day-field.webp', import.meta.url).href),
+	grassBandTop: stamp(new URL('../../assets/scene/grass-day-band-top.webp', import.meta.url).href),
+	grassBandBottom: stamp(new URL('../../assets/scene/grass-day-band-bottom.webp', import.meta.url).href),
+	grassEndLeft: stamp(new URL('../../assets/scene/grass-day-end-left.webp', import.meta.url).href),
+	grassEndRight: stamp(new URL('../../assets/scene/grass-day-end-right.webp', import.meta.url).href),
+	grassForest: stamp(new URL('../../assets/scene/grass-day-forest.webp', import.meta.url).href),
+	grassRoad: stamp(new URL('../../assets/scene/grass-day-road.webp', import.meta.url).href),
+	grassTunnelLeft: stamp(new URL('../../assets/scene/grass-day-tunnel-left.webp', import.meta.url).href),
+	grassTunnelRight: stamp(new URL('../../assets/scene/grass-day-tunnel-right.webp', import.meta.url).href),
+	grassNightField: stamp(new URL('../../assets/scene/grass-night-field.webp', import.meta.url).href),
+	grassNightBandTop: stamp(new URL('../../assets/scene/grass-night-band-top.webp', import.meta.url).href),
+	grassNightBandBottom: stamp(new URL('../../assets/scene/grass-night-band-bottom.webp', import.meta.url).href),
+	grassNightEndLeft: stamp(new URL('../../assets/scene/grass-night-end-left.webp', import.meta.url).href),
+	grassNightEndRight: stamp(new URL('../../assets/scene/grass-night-end-right.webp', import.meta.url).href),
+	grassNightForest: stamp(new URL('../../assets/scene/grass-night-forest.webp', import.meta.url).href),
+	grassNightRoad: stamp(new URL('../../assets/scene/grass-night-road.webp', import.meta.url).href),
+	grassNightTunnelLeft: stamp(new URL('../../assets/scene/grass-night-tunnel-left.webp', import.meta.url).href),
+	grassNightTunnelRight: stamp(new URL('../../assets/scene/grass-night-tunnel-right.webp', import.meta.url).href),
+	grassSuperField: stamp(new URL('../../assets/scene/grass-super-field.webp', import.meta.url).href),
+	grassSuperBandTop: stamp(new URL('../../assets/scene/grass-super-band-top.webp', import.meta.url).href),
+	grassSuperBandBottom: stamp(new URL('../../assets/scene/grass-super-band-bottom.webp', import.meta.url).href),
+	grassSuperEndLeft: stamp(new URL('../../assets/scene/grass-super-end-left.webp', import.meta.url).href),
+	grassSuperEndRight: stamp(new URL('../../assets/scene/grass-super-end-right.webp', import.meta.url).href),
+	grassSuperForest: stamp(new URL('../../assets/scene/grass-super-forest.webp', import.meta.url).href),
+	grassSuperRoad: stamp(new URL('../../assets/scene/grass-super-road.webp', import.meta.url).href),
+	grassSuperTunnelLeft: stamp(new URL('../../assets/scene/grass-super-tunnel-left.webp', import.meta.url).href),
+	grassSuperTunnelRight: stamp(new URL('../../assets/scene/grass-super-tunnel-right.webp', import.meta.url).href),
+};
+
+/** the grass set's base scene as first-load entries (a Dark boot): the pieces the snow set's entries below name, the grass
+ *  kit's (the upright forest only on the phone tier, as the snow's). Built from SCENE_LAZY_URLS, so the stamp script's
+ *  preload weight (scripts/stamp-assets.mjs) counts the snow set's: the two weigh about the same. */
+const grassBase = () => {
+	const keys = ['grassRoad', 'grassTunnelLeft', 'grassTunnelRight', 'grassField', 'grassBandTop', 'grassBandBottom', 'grassEndLeft', 'grassEndRight', ...(PHONE_TIER ? ['grassForest'] : [])];
+	return Object.fromEntries(keys.map((k) => [k, { type: 'sprite' as const, src: SCENE_LAZY_URLS[k], preload: true as const }]));
 };
 
 /** the phone asset tier's twin of a file (game/deviceTier.ts PHONE_TIER: a constant, chosen once before any texture loads) */
@@ -103,39 +152,44 @@ const assets = {
 		src: tiered(stamp(new URL('../../assets/road/win-lights.webp', import.meta.url).href), stamp(new URL('../../assets/road/win-lights-phone.webp', import.meta.url).href)),
 		preload: true,
 	},
-	// the locked board background and the two tunnel portals cut from it (drawn over the traffic)
-	road: {
-		type: 'sprite',
-		src: stamp(new URL('../../assets/road/road.webp', import.meta.url).href),
-		preload: true,
-	},
-	tunnelLeft: {
-		type: 'sprite',
-		src: stamp(new URL('../../assets/road/tunnel-left.webp', import.meta.url).href),
-		preload: true,
-	},
-	tunnelRight: {
-		type: 'sprite',
-		src: stamp(new URL('../../assets/road/tunnel-right.webp', import.meta.url).href),
-		preload: true,
-	},
-	// THE SCENE (scene pass 9: tools/build_scene.py, game/scenePresets.ts snowDay, game/scene/sceneLayers.ts): the snow
-	// scene kit's field tile (repeated under everything), its two bands over the picture's top and bottom margins, and
-	// the two painted tunnel ends (at their source density, 1.41 px per road px)
-	sceneField: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-field.webp', import.meta.url).href), preload: true },
-	sceneBandTop: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-band-top.webp', import.meta.url).href), preload: true },
-	sceneBandBottom: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-band-bottom.webp', import.meta.url).href), preload: true },
-	sceneEndLeft: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-end-left.webp', import.meta.url).href), preload: true },
-	sceneEndRight: { type: 'sprite', src: stamp(new URL('../../assets/scene/snow-day-end-right.webp', import.meta.url).href), preload: true },
+	// THE SCENE'S FIRST LOAD: the base scene of the set the Scene setting asks for (game/sceneChoice.ts BOOT_SCENE_SET), the
+	// other set never. The snow set: the locked board background and the two tunnel portals cut from it (drawn over the
+	// traffic), and (scene pass 9: tools/build_scene.py, game/scenePresets.ts snowDay, game/scene/sceneLayers.ts) the snow
+	// scene kit's field tile (repeated under everything), its two bands over the picture's top and bottom margins, and the
+	// two painted tunnel ends (at their source density, 1.41 px per road px). The grass set: the same pieces of grassDay.
+	...(BOOT_SCENE_SET === 'grass'
+		? grassBase()
+		: {
+				road: {
+					type: 'sprite' as const,
+					src: stamp(new URL('../../assets/road/road.webp', import.meta.url).href),
+					preload: true as const,
+				},
+				tunnelLeft: {
+					type: 'sprite' as const,
+					src: stamp(new URL('../../assets/road/tunnel-left.webp', import.meta.url).href),
+					preload: true as const,
+				},
+				tunnelRight: {
+					type: 'sprite' as const,
+					src: stamp(new URL('../../assets/road/tunnel-right.webp', import.meta.url).href),
+					preload: true as const,
+				},
+				sceneField: { type: 'sprite' as const, src: stamp(new URL('../../assets/scene/snow-day-field.webp', import.meta.url).href), preload: true as const },
+				sceneBandTop: { type: 'sprite' as const, src: stamp(new URL('../../assets/scene/snow-day-band-top.webp', import.meta.url).href), preload: true as const },
+				sceneBandBottom: { type: 'sprite' as const, src: stamp(new URL('../../assets/scene/snow-day-band-bottom.webp', import.meta.url).href), preload: true as const },
+				sceneEndLeft: { type: 'sprite' as const, src: stamp(new URL('../../assets/scene/snow-day-end-left.webp', import.meta.url).href), preload: true as const },
+				sceneEndRight: { type: 'sprite' as const, src: stamp(new URL('../../assets/scene/snow-day-end-right.webp', import.meta.url).href), preload: true as const },
+				// (THE FOREST, upright phones only, is in the preload on the phone tier only. Elsewhere it loads the first time
+				// an upright phone layout shows, game/scene/sceneSwap.ts layoutChanged.)
+				...(PHONE_TIER ? { sceneForest: { type: 'sprite' as const, src: FOREST_URL, preload: true as const } } : {}),
+			}),
 	// THE BILLBOARD LOGO (game/scene/logoSign.ts): the sign with its lamps dark, the lamps' lit glass, a glow; one sheet
 	logoSign: {
 		type: 'sprite',
 		src: tiered(stamp(new URL('../../assets/scene/logo-sign.webp', import.meta.url).href), stamp(new URL('../../assets/scene/logo-sign-phone.webp', import.meta.url).href)),
 		preload: true,
 	},
-	// (THE FOREST, upright phones only, is in the preload on the phone tier only: below. Elsewhere it loads the first time
-	// an upright phone layout shows, components/Board.svelte.)
-	...(PHONE_TIER ? { sceneForest: { type: 'sprite' as const, src: FOREST_URL, preload: true as const } } : {}),
 	// THE LANDING SCREEN'S POSED COLUMNS (ui/LandingScreen.svelte, game/landingBoard.ts): one small sheet with the cloud
 	// still and one picked idle frame of each column character (tools/build_columns.py --landing), so the landing board
 	// stands without the idle clips (those still load only when a book calls for a tier)
