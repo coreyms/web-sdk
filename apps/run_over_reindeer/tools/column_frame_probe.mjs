@@ -250,6 +250,14 @@ try {
 				await setInside(p, reel, true);
 				const diff = await R(p, STRIP_DIFF, { a, b, box: st.box, dpr, px: Math.max(2, dpr * 2), gap: 0 });
 				const pale = Object.entries(diff).filter(([, d]) => d.pale > 0);
+				// (2026-11-17) a pale strip keeps its own evidence: the two screenshots compared and the state, so a host that
+				// sees it (Linux headless, scene pass 9: desktop @3x grow end) can be checked against one that does not
+				if (pale.length && OUT) {
+					const base = join(OUT, `pale_${S.name}_${dpr}x_${name.replace(' ', '_')}`);
+					writeFileSync(`${base}_A.png`, Buffer.from(a, 'base64'));
+					writeFileSync(`${base}_B.png`, Buffer.from(b, 'base64'));
+					writeFileSync(`${base}.json`, JSON.stringify({ dpr, st, diff }, null, 1));
+				}
 				check(pale.length === 0, `${tag}: ${name}: nothing pale just outside the frame on any side (${Object.entries(diff).map(([k, d]) => `${k} ${d.pale}/${d.px} max ${d.max}`).join(', ')})`, { cloud: st.cloud, body: st.body, roadOuter: st.roadOuter });
 				if (st.cloud) check(st.cloud.x >= st.roadOuter.x - 0.01 && st.cloud.x1 <= st.roadOuter.x1 + 0.01, `${tag}: ${name}: the moving cloud inside the frame's outer edge (road x ${r1(st.cloud.x)} to ${r1(st.cloud.x1)}, frame ${r1(st.roadOuter.x)} to ${r1(st.roadOuter.x1)})`);
 				if (st.backdrop) check(st.backdrop.x >= st.roadOuter.x - 0.01 && st.backdrop.x1 <= st.roadOuter.x1 + 0.01, `${tag}: ${name}: the still cloud inside the frame's outer edge`);
