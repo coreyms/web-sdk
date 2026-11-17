@@ -112,10 +112,9 @@ const winLevelSoundsStop = ({ keepMusic = false, keepUi = false } = {}) => {
 };
 
 /** ONE scatter landing: it joins the running count (so 4 / 5 / 6 / 8 reads correctly before
- *  bonusStart, whether the scatter fell in or was stung in) and plays Angry Mantis's own ladder of
- *  scatter sounds, which carry over to Manticore UNCHANGED (Corey 2026-09-22), plus Manticore's own
- *  sixth for the sixth landing of a spin (2026-10-11; it was the fifth again until then). The 7th and
- *  8th landing of an 8 scatter Epic (math 2026.10.13) replay the sixth. */
+ *  bonusStart, whether the scatter fell in or was stung in) and plays the Nth sound of the marimba
+ *  scatter family for the Nth landing of the spin, N = 1..8 (Corey 2026-11-17; until then Angry
+ *  Mantis's five, Manticore's own sixth, and the sixth again for the 7th and 8th of an 8 scatter Epic). */
 const scatterLand = (cell: number, id: number) => {
 	stateGame.scatterCells = [...stateGame.scatterCells, cell];
 	const n = Math.min(SCATTER_LAND_SOUNDS, stateGame.scatterCells.length) as keyof typeof SCATTER_LAND_SOUND_MAP;

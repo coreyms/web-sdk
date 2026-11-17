@@ -3844,7 +3844,10 @@ export const TILE_VALUES = [2, 4, 8, 16, 32, 64, 128] as const;
 // own sound, the first at +10 semitones (tools/build_audiosprite.py MM_EVENTS). Until then the sixth
 // landing replayed the fifth. THE 8 SCATTER EPIC (math 2026.10.13, Corey's decision): a feature never
 // triggers on 7, and 8 (one in every column) is only ever an Epic's forced first board, on the reveal or
-// with 5 or 6 of them stung in; its 7th and 8th landings replay the sixth (Math.min below), no new sound.
+// with 5 or 6 of them stung in; its 7th and 8th landings replayed the sixth until 2026-11-17.
+// THE MARIMBA FAMILY (Corey 2026-11-17, approved as the new standard for his games): eight landings, a G major scale
+// G4 to G5 on a marimba knock, 0.40 s each (tools/build_audiosprite.py MM_SCATTER_FAMILY). The Nth landing of a spin
+// plays landing N for N = 1..8, so the 7th and 8th of an 8 scatter Epic have their own (the 8th is the octave, home).
 export const SCATTER_LAND_SOUND_MAP = {
 	1: 'sfx_scatter_land_1',
 	2: 'sfx_scatter_land_2',
@@ -3852,9 +3855,11 @@ export const SCATTER_LAND_SOUND_MAP = {
 	4: 'sfx_scatter_land_4',
 	5: 'sfx_scatter_land_5',
 	6: 'sfx_scatter_land_6',
+	7: 'sfx_scatter_land_7',
+	8: 'sfx_scatter_land_8',
 } as const;
 /** the last rung of the scatter landing ladder */
-export const SCATTER_LAND_SOUNDS = 6;
+export const SCATTER_LAND_SOUNDS = 8;
 
 /** the feature-entry fanfare, keyed by the tier that was opened */
 export const BONUS_TRIGGER_SOUND_MAP = {
