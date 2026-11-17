@@ -40,14 +40,16 @@ const H = ROAD_ART.image.height;
 export const ROAM_PATHS: Record<LayoutKind, RoamPath> = {
 	// desktop and tablet: the snow on the trench's top rim at the right and over the right tunnel's end, right of the bonus
 	// counter plate and under the top line (16:9 leaves only a little snow above the rim: the feet stay on the rim's snow)
+	// (2026-11-17, the owner: at 1920 x 1080 his head clears the top right line by 8 CSS px or more everywhere: the feet
+	// at road y 114.7 to 115.7, just above the asphalt's band, which starts at 120)
 	landscape: {
 		side: 'right',
-		enter: { ay: 'picture', y: 0.096 },
+		enter: { ay: 'picture', y: 0.112 },
 		points: [
-			{ ax: 'right', x: 0.45, ay: 'picture', y: 0.096 },
-			{ ax: 'picture', x: 0.938, ay: 'picture', y: 0.096 },
-			{ ax: 'picture', x: 0.86, ay: 'picture', y: 0.092 },
-			{ ax: 'picture', x: 0.782, ay: 'picture', y: 0.097 },
+			{ ax: 'right', x: 0.45, ay: 'picture', y: 0.112 },
+			{ ax: 'picture', x: 0.938, ay: 'picture', y: 0.112 },
+			{ ax: 'picture', x: 0.86, ay: 'picture', y: 0.113 },
+			{ ax: 'picture', x: 0.782, ay: 'picture', y: 0.112 },
 		],
 	},
 	// held sideways: the open snow right of the right tunnel, between the Auto / Turbo capsule and the Spin

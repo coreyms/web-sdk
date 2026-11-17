@@ -37,6 +37,8 @@ const SIZES = [
 	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 1, q: '', touch: false },
 	{ name: 'sideways', vp: { width: 844, height: 390 }, dpr: 2, q: '&tier=phone', touch: true },
 	{ name: 'upright', vp: { width: 390, height: 844 }, dpr: 2, q: '&tier=phone', touch: true },
+	// 1920 x 1080 desktop (16:9, the least snow above the rim): the zones and his head's clearance under the top line only
+	{ name: 'desktop1080', vp: { width: 1920, height: 1080 }, dpr: 1, q: '', touch: false, clearanceOnly: true },
 ];
 const PRESETS = ['snowDay', 'snowNight', 'snowSuper', 'grassDay', 'grassNight', 'grassSuper'];
 
@@ -224,6 +226,46 @@ async function runSize(browser, S) {
 	check(['road', 'hud', 'LED strip', 'logo', 'counter plate', 'top line'].every((n) => names.has(n)), `${name}: every forbidden zone measured (${[...names].join(', ')})`);
 	check(zc.hits.length === 0, `${name}: the default path (${geo.roam.points.length} waypoints, the walk in and every segment, sampled every CSS px) keeps his body off the HUD, LED strip, logo, counter plate and top line and his feet off the road`, zc.unique);
 	check(zc.off.length === 0, `${name}: every waypoint's body is wholly on the screen`, zc.off);
+	// HIS HEAD UNDER THE TOP LINE (the owner, 2026-11-17: at least 8 CSS px wherever his body is under a top line's text),
+	// at every waypoint and every CSS px of every segment and of the walk in
+	{
+		const lines = zones.filter((z) => z.name === 'top line');
+		const { k, ox, oy } = geo.view;
+		const sc = geo.roam.scale;
+		const B = geo.roam.box;
+		const side = Math.max(...Object.values(B).map((b) => Math.max(b.anchorX, 1 - b.anchorX) * b.width));
+		const height = Math.max(...Object.values(B).map((b) => b.anchorY * b.height));
+		let worst = Infinity;
+		let at = null;
+		const pts = [geo.roam.enter, ...geo.roam.points];
+		for (let i = 0; i + 1 < pts.length; i++) {
+			const a = pts[i];
+			const b = pts[i + 1];
+			const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * k));
+			for (let j = 0; j <= n; j++) {
+				const x = a.x + ((b.x - a.x) * j) / n;
+				const y = a.y + ((b.y - a.y) * j) / n;
+				const x0 = ox + (x - side * sc) * k;
+				const x1 = ox + (x + side * sc) * k;
+				const head = oy + (y - height * sc) * k;
+				for (const L of lines) {
+					if (x1 <= L.x0 || x0 >= L.x1) continue;
+					const gap = head - L.y1;
+					if (gap < worst) {
+						worst = gap;
+						at = { x: r1(x), y: r1(y), line: [L.x0, L.y0, L.x1, L.y1].map(r1) };
+					}
+				}
+			}
+		}
+		out.headClearance = worst === Infinity ? null : { px: r1(worst), at };
+		check(worst >= 8, `${name}: his head clears the top line by at least 8 CSS px along the whole path and the walk in (${worst === Infinity ? 'never under it' : `closest ${r1(worst)} px`})`, out.headClearance);
+	}
+	if (S.clearanceOnly) {
+		check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
+		await ctx.close();
+		return;
+	}
 	console.log(`  INFO ${name}: his body ${zc.bodyCss.w} x ${zc.bodyCss.h} CSS px; path ${JSON.stringify(geo.roam.points.map((q) => [r1(q.x), r1(q.y)]))} road px, walk in from ${JSON.stringify([r1(geo.roam.enter.x), r1(geo.roam.enter.y)])}`);
 
 	// ---- 5: every scene preset ----------------------------------------------------------------------------------------

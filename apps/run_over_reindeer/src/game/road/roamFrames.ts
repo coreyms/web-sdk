@@ -79,14 +79,27 @@ export const loadRoamFrames = (): Promise<boolean> => {
 
 export const roamFramesReady = (): boolean => textures !== null;
 
-/** the texture of a clip at a rig frame (1 based, a float): the packed frame at or before it */
+/** the texture of a clip at a rig frame (1 based, a float): the packed frame NEAREST the rig frame due (the sheets
+ *  carry every 4th or 6th rig frame; the rig's clock is the clip's own). A loop counts round its end (rig frame 39 of the
+ *  40 frame walk is as near its frame 1 as its 37), and a tie goes to the earlier frame. So the joins land on the
+ *  nearest packed frame: the start hands over to the walk at walk 39 (its packed 37), the stop ends on the stand. */
 export const roamTexture = (clip: RoamClip, rigFrame: number): PIXI.Texture | null => {
 	const list = textures?.[clip];
 	if (!list) return null;
-	const frames = REINDEER_ROAM.clips[clip].frames as readonly number[];
-	let i = 0;
-	while (i < frames.length - 1 && frames[i + 1] <= rigFrame + 1e-6) i++;
-	return list[i];
+	const c = REINDEER_ROAM.clips[clip];
+	const frames = c.frames as readonly number[];
+	const span = c.rigFrames;
+	let best = 0;
+	let bestD = Infinity;
+	for (let i = 0; i < frames.length; i++) {
+		let d = Math.abs(frames[i] - rigFrame);
+		if (c.loop) d = Math.min(d, span - d);
+		if (d < bestD - 1e-6) {
+			best = i;
+			bestD = d;
+		}
+	}
+	return list[best];
 };
 
 /** what the roam sheets weigh on the GPU, MB (dev hook and the notes) */

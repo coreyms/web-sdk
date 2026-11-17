@@ -7,10 +7,11 @@
 # Writes static/assets/reindeer/roam-<tier>-<n>.webp and src/game/reindeerRoamSpec.ts (generated). Pixel work only.
 #
 # WHAT IS PACKED (frames of the rig's 30 fps clips; the game plays them on the rig's own frame clock, game/road/roam.ts):
-#   walk        every 2nd frame of the 40 frame loop (15 fps): 1, 3 .. 39
-#   start       every 2nd frame of walk_start (1 .. 31): it ends on walk frame 38, the game goes on from walk 39
-#   stop        every 2nd frame of walk_stop (1 .. 35) and its last (36, the stand); its frame 1 follows walk frame 8
-#   sniff       every 3rd frame of the 100 frame idle loop (10 fps): 1, 4 .. 100; frame 1 is the stand
+#   walk        every 4th frame of the 40 frame loop (7.5 fps): 1, 5 .. 37
+#   start       every 4th frame of walk_start (1 .. 29): it ends on walk frame 38, the game goes on from walk 39
+#   stop        every 4th frame of walk_stop (1 .. 33) and its last (36, the stand); its frame 1 follows walk frame 8
+#   sniff       every 6th frame of the 100 frame idle loop (5 fps): 1, 7 .. 97; frame 1 is the stand
+# The game plays them on the rig's own 30 fps clock and shows the packed frame nearest the rig frame due.
 # Each frame is resized as its whole box at the strike's side run density (3 physical px per CSS px at the largest draw:
 # the same numbers as build_assets.py RUN_CSS_PER_ROAD and the R view's draw scale), then trimmed to its ink.
 import json
@@ -27,11 +28,14 @@ SRC = os.path.expanduser("~/Desktop/Run Over Reindeer")
 SOURCE = os.path.join(SRC, "animation", "export_2026-11-11", "reindeer")
 
 CLIPS = {
-    "walk": ("walk_R", list(range(1, 41, 2))),
-    "start": ("walk_start_R", list(range(1, 33, 2))),
-    "stop": ("walk_stop_R", list(range(1, 37, 2)) + [36]),
-    "sniff": ("sniff_loop_R", list(range(1, 101, 3))),
+    "walk": ("walk_R", list(range(1, 41, 4))),
+    "start": ("walk_start_R", list(range(1, 33, 4))),
+    "stop": ("walk_stop_R", list(range(1, 37, 4)) + [36]),
+    "sniff": ("sniff_loop_R", list(range(1, 101, 6))),
 }
+# (2026-11-17, the owner after a side by side: half the frames. The sheets' file names carry "roam2" so the first build's
+# roam-<tier>-<n>.webp stay on disk untouched; nothing references them any more.)
+SHEET_PREFIX = "roam2"
 # the same density rule as the run's side view (tools/build_assets.py RUN_CSS_PER_ROAD, RUN_DRAW_SCALE R)
 CSS_PER_ROAD = {"full": 1.5 * 982 / 1536, "phone": 0.39}
 DRAW_SCALE = {"full": 0.72, "phone": 0.8}
@@ -111,7 +115,7 @@ def main():
                 page.paste(im, (px, py))
                 name, f = key
                 frames_out[name][str(f)] = {"sheet": n, "x": px, "y": py, "w": im.width, "h": im.height, "ox": ox, "oy": oy}
-            fname = f"roam-{tier}-{n}.webp"
+            fname = f"{SHEET_PREFIX}-{tier}-{n}.webp"
             path = os.path.join(out_dir, fname)
             page.save(path, **WEBP)
             files.append({"file": f"reindeer/{fname}", "width": sh["w"], "height": sh["h"]})
