@@ -3060,10 +3060,25 @@ export const SCENE = {
 //   on     false gives today's Bonus exactly (nothing registered, loaded or drawn)
 //   alpha  the light strength the mockup's (c) used (its (d), the stronger one, was 0.85)
 //   color  the sunset backdrop's top band hue (median RGB 126 / 100 / 151, hue about 271) lifted to a light purple
+// THE FREE SPINS DUSK (2026-11-17, Corey: "Yes I like the 2 Blue Hour"; tools/build_sunset_dusk.py; mock
+// feedback/freespins_dusk_2026-11-17): the overlay's FILE is now the day courtyard re-graded to dusk (cool shadow, warm
+// highlights, the floor's sheen partly gold), its alpha the day file's, so it covers the day courtyard at full strength
+// and carries its own colour: alpha 1, colour white. BOTH scenes now (portrait-fore-sunset). Still the Bonus only, still
+// riding the sunset's crossfade. Was: alpha 0.5, colour 165 / 120 / 210 on a white mask, landscape only.
 export const SUNSET_FORE = {
 	on: true,
-	alpha: 0.5,
-	color: [165, 120, 210],
+	alpha: 1,
+	color: [255, 255, 255],
+} as const;
+
+// ---- THE FREE SPINS DUSK's sky numbers (2026-11-17; SKY.modes.bonus) ----------------------------------------------
+// The Bonus's clouds and canyon mist tinted for the blue hour (were THE WARM DAY's strong 1 / 0.8 / 0.56 and
+// 1 / 0.76 / 0.5, orange on a now violet sky). creatureTint: Corey has not decided (the mock asked: 0.80 / 0.80 / 0.96
+// on him in the Bonus); null = he keeps his day lighting. NOT WIRED: a number to judge later, nothing reads it yet.
+export const DUSK = {
+	clouds: [0.8, 0.68, 0.92],
+	fog: [0.7, 0.68, 0.95],
+	creatureTint: null as null | readonly [number, number, number],
 } as const;
 
 // ---- The ambient sky (game/sky.ts, drawn by game/scene.ts; assets by tools/build_scene_assets.py --sky) ----------
@@ -3178,7 +3193,8 @@ export const SKY = {
 	modes: {
 		base: { clouds: [1, 0.94, 0.82], cloudAlpha: 1, fog: [1, 0.9, 0.76], fogAlpha: 1, birds: 1, bats: 0, aurora: 0 },
 		// THE WARM DAY (BONUS_WARMTH, 2026-10-23): warmer clouds and mist, still the birds ("No bats, they don't fly in the daytime")
-		bonus: { clouds: WARM.clouds, cloudAlpha: 1, fog: WARM.fog, fogAlpha: 1, birds: 1, bats: 0, aurora: 0 },
+		// THE FREE SPINS DUSK (2026-11-17): the blue hour's clouds and mist (DUSK; THE WARM DAY's were warm orange)
+		bonus: { clouds: DUSK.clouds, cloudAlpha: 1, fog: DUSK.fog, fogAlpha: 1, birds: 1, bats: 0, aurora: 0 },
 		super: { clouds: [0.68, 0.8, 1], cloudAlpha: 0.7, fog: [0.55, 0.7, 1], fogAlpha: 1, birds: 0, bats: 1, aurora: 0 },
 		epic: { clouds: [0.72, 0.95, 0.82], cloudAlpha: 0.15, fog: [0.92, 0.95, 1], fogAlpha: 1, birds: 0, bats: 1, aurora: 1 },
 	},

@@ -681,6 +681,10 @@ export class SkyView {
 	readonly aurora = new PIXI.Container();
 	readonly clouds = new PIXI.Container();
 	readonly ridge = SETS.map(() => new PIXI.Sprite(PIXI.Texture.EMPTY));
+	/** THE FREE SPINS DUSK's cut-out (2026-11-17): the sunset painting's own skyline, over the day cut-out at the sunset's
+	 *  value (the day one does not fit that painting: its left peaks are taller). Rides the sunset group. */
+	readonly ridgeSunset = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	sunsetReady = false;
 	/** this scene's numbers (skyNumbers), its frame width, its cut-out's box and the cut-outs' asset key prefix */
 	readonly N: SkyNumbers;
 	private readonly FW: number;
@@ -730,14 +734,14 @@ export class SkyView {
 		this.batFlyers = new Flyers(this.N.bats, this.FW);
 		this.birds = this.birdFlyers.layer;
 		this.bats = this.batFlyers.layer;
-		this.layers = [this.aurora, this.clouds, this.ridge[0], this.ridge[1], this.birds, this.bats, this.fog];
-		const names = ['sky-aurora', 'sky-clouds', 'sky-ridge-day', 'sky-ridge-night', 'sky-birds', 'sky-bats', 'sky-fog'];
+		this.layers = [this.aurora, this.clouds, this.ridge[0], this.ridgeSunset, this.ridge[1], this.birds, this.bats, this.fog];
+		const names = ['sky-aurora', 'sky-clouds', 'sky-ridge-day', 'sky-ridge-sunset', 'sky-ridge-night', 'sky-birds', 'sky-bats', 'sky-fog'];
 		this.layers.forEach((layer, i) => {
 			layer.label = names[i];
 			layer.visible = false;
 		});
 		this.clouds.sortableChildren = true; // nearer clouds draw over farther ones
-		for (const sprite of this.ridge) sprite.position.set(this.box[0], this.box[1]);
+		for (const sprite of [...this.ridge, this.ridgeSunset]) sprite.position.set(this.box[0], this.box[1]);
 	}
 
 	/** the day files are in: the day cut-out, the wisp and fog atlas, the birds. Each part builds by itself; a part
@@ -759,6 +763,16 @@ export class SkyView {
 	/** nothing is left to come: both cut-outs, the atlas (clouds, fog, aurora), the birds and the bats are built */
 	get complete(): boolean {
 		return this.ridgeReady[0] && this.ridgeReady[1] && this.atlasReady && this.auroraReady && this.birdFlyers.ready && this.batFlyers.ready;
+	}
+
+	/** THE FREE SPINS DUSK's cut-out is in (the sunset group): true when it was set by this call */
+	setSunset(tex: Textures): boolean {
+		const texture = tex[`${this.prefix}_ridge_sunset`];
+		if (!texture || this.sunsetReady) return false;
+		this.ridgeSunset.texture = texture;
+		this.ridgeSunset.scale.set((this.box[2] - this.box[0]) / texture.width);
+		this.sunsetReady = true;
+		return true;
 	}
 
 	private setRidge(i: number, tex: Textures): void {
@@ -872,7 +886,7 @@ export class SkyView {
 
 	/** every texture source the sky draws from (the scene's one upload, and its release) */
 	sources(out: Set<PIXI.TextureSource>): void {
-		for (const s of this.ridge) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
+		for (const s of [...this.ridge, this.ridgeSunset]) if (s.texture !== PIXI.Texture.EMPTY) out.add(s.texture.source);
 		if (this.wisps.length) out.add(this.wisps[0].source);
 		if (this.birdRows.length) out.add(this.birdRows[0][0].source);
 		if (this.batRows.length) out.add(this.batRows[0][0].source);
@@ -907,18 +921,23 @@ export class SkyView {
 
 	/** the scene's look, on a change of mode and through its crossfade: night 0 .. 1 and which sets are drawn, the dim,
 	 *  and the mode's sky values (constants SKY.modes) already blended by the same crossfade */
-	look(night: number, dayOn: boolean, nightOn: boolean, dim: number, cr: number, cg: number, cb: number, cloudAlpha: number, fr: number, fg: number, fb: number, fogAlpha: number, birds: number, bats: number, aurora: number): void {
+	look(night: number, dayOn: boolean, nightOn: boolean, sunset: number, dim: number, cr: number, cg: number, cb: number, cloudAlpha: number, fr: number, fg: number, fb: number, fogAlpha: number, birds: number, bats: number, aurora: number): void {
 		this.night = night;
 		this.auroraLevel = aurora;
 		const show = !this.hidden;
 		const grey = rgb(dim, dim, dim);
 		// the cut-outs follow their backdrops exactly: same visibility, same alpha, same tint
-		this.ridge[0].visible = show && dayOn && this.ridgeReady[0];
+		// THE FREE SPINS DUSK: the sunset cut-out over the day one at the sunset painting's own value (`sunset`, 0 when that
+		// painting is not drawn), and the day one not drawn once it is covered, as the backdrops do
+		const dusk = this.sunsetReady ? sunset : 0;
+		this.ridgeSunset.visible = show && dayOn && dusk > 0;
+		this.ridgeSunset.alpha = dusk;
+		this.ridge[0].visible = show && dayOn && this.ridgeReady[0] && dusk < 1;
 		this.ridge[1].visible = show && nightOn && this.ridgeReady[1];
-		this.ridge[0].tint = this.ridge[1].tint = grey;
+		this.ridge[0].tint = this.ridge[1].tint = this.ridgeSunset.tint = grey;
 		this.ridge[1].alpha = night;
 		// clouds only where the cut-out of every backdrop being drawn is there to hide them behind the peaks
-		const covered = (!dayOn || this.ridgeReady[0]) && (!nightOn || this.ridgeReady[1]);
+		const covered = (!dayOn || this.ridgeReady[0] || dusk >= 1) && (!nightOn || this.ridgeReady[1]);
 		// the aurora the same: only behind the cut-outs, and only while it has a level (EPIC and its crossfades)
 		this.aurora.visible = show && this.auroraReady && covered && aurora > 0;
 		this.aurora.alpha = aurora;
@@ -1060,13 +1079,13 @@ export class SkyView {
 	state() {
 		const box = (s: PIXI.Sprite) => ({ x: s.x, y: s.y, w: Math.abs(s.width), h: Math.abs(s.height), alpha: s.alpha, visible: s.visible });
 		return {
-			ready: { ridgeDay: this.ridgeReady[0], ridgeNight: this.ridgeReady[1], atlas: this.atlasReady, aurora: this.auroraReady, birds: this.birdFlyers.ready, bats: this.batFlyers.ready },
+			ready: { ridgeDay: this.ridgeReady[0], ridgeNight: this.ridgeReady[1], ridgeSunset: this.sunsetReady, atlas: this.atlasReady, aurora: this.auroraReady, birds: this.birdFlyers.ready, bats: this.batFlyers.ready },
 			hidden: this.hidden,
 			frozen: this.frozen,
 			night: this.night,
 			layers: this.layers.map((l) => ({ name: l.label, visible: l.visible, alpha: l.alpha, tint: l.tint, children: l.children.length })),
 			layout: this.layout,
-			ridge: { box: this.box, textures: this.ridge.map((s) => [s.texture.width, s.texture.height]), drawn: this.ridge.map((s) => [s.x, s.y, s.width, s.height]) },
+			ridge: { box: this.box, textures: this.ridge.map((s) => [s.texture.width, s.texture.height]), drawn: this.ridge.map((s) => [s.x, s.y, s.width, s.height]), sunset: { texture: [this.ridgeSunset.texture.width, this.ridgeSunset.texture.height], drawn: [this.ridgeSunset.x, this.ridgeSunset.y, this.ridgeSunset.width, this.ridgeSunset.height], visible: this.ridgeSunset.visible, alpha: this.ridgeSunset.alpha } },
 			/** depth: what drives size, speed and opacity (two sets: 0 far, 1 near); roll: the cloud's own random roll,
 			 *  new at every wrap; set: 0 far, 1 near (by the cloud's place in the list); z: its draw order */
 			clouds: this.cloudList.map((c) => ({ ...box(c.s), depth: c.d, roll: c.t, set: c.near, z: c.s.zIndex, v: c.v, cell: c.k, scale: Math.abs(c.s.scale.x) / (SCENE_SPEC.sky.wisp[0] / c.s.texture.width) })),

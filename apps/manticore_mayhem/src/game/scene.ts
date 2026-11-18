@@ -294,7 +294,8 @@ export class SceneView {
 		this.fw = (layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).frame[0];
 		this.fh = (layout === 'landscape' ? SCENE_SPEC : SCENE_SPEC_PORTRAIT).frame[1];
 		this.prefix = layout === 'landscape' ? 'scene' : 'scenep';
-		this.sunsetFore = layout === 'landscape' && SUNSET_FORE.on ? new PIXI.Sprite(PIXI.Texture.EMPTY) : null;
+		// both scenes since THE FREE SPINS DUSK (2026-11-17: portrait-fore-sunset)
+		this.sunsetFore = SUNSET_FORE.on ? new PIXI.Sprite(PIXI.Texture.EMPTY) : null;
 		const root = this.root;
 		root.label = layout === 'landscape' ? 'scene' : 'scene-portrait';
 		root.visible = false;
@@ -439,15 +440,17 @@ export class SceneView {
 	 *  Returns true once nothing is left to come. */
 	setSunset(tex: Textures, now: number): boolean {
 		const want = this.sunsetFore !== null;
-		if (this.sunsetReady && (!want || this.sunsetForeReady)) return true;
+		if (this.sunsetReady && (!want || this.sunsetForeReady) && this.sky.sunsetReady) return true;
 		let changed = false;
+		// THE FREE SPINS DUSK's own skyline cut-out (2026-11-17): the sky draws it over the day one at the sunset's value
+		if (this.sky.setSunset(tex)) changed = true;
 		const backdrop = tex[`${this.prefix}_backdrop_sunset`];
 		if (!this.sunsetReady && backdrop) {
 			this.sunset.texture = backdrop;
 			this.sunset.scale.set(this.fw / backdrop.width);
 			this.sunsetReady = changed = true;
 		}
-		const overlay = want ? tex.scene_fore_sunset : undefined;
+		const overlay = want ? tex[`${this.prefix}_fore_sunset`] : undefined;
 		if (this.sunsetFore && !this.sunsetForeReady && overlay) {
 			this.sunsetFore.texture = overlay;
 			this.sunsetFore.scale.set(this.fw / overlay.width);
@@ -457,7 +460,7 @@ export class SceneView {
 			if (this.wantSunset) this.mode(this.family, this.to[DIM], now);
 			else this.apply();
 		}
-		return this.sunsetReady && (!want || this.sunsetForeReady);
+		return this.sunsetReady && (!want || this.sunsetForeReady) && this.sky.sunsetReady;
 	}
 
 	/** THE SKY's files that landed after their set did (the atlas, the birds and the bats are one copy for both scenes
@@ -725,12 +728,13 @@ export class SceneView {
 			const k = this.sunsetForeReady ? c[SUNSET_FORE_V] : 0;
 			sf.visible = this.fore[0].visible && k > 0;
 			sf.alpha = k * SUNSET_FORE.alpha;
-			sf.tint = rgb(dim * SF_COLOR[0], dim * SF_COLOR[1], dim * SF_COLOR[2]);
+			// (x the mode's foreground tint too, like the courtyard under it: 1 in the Bonus)
+			sf.tint = rgb(dim * c[FORE_TINT] * SF_COLOR[0], dim * c[FORE_TINT + 1] * SF_COLOR[1], dim * c[FORE_TINT + 2] * SF_COLOR[2]);
 		}
 		this.root.alpha = c[SHOW];
 		this.front.alpha = c[SHOW];
 		// the day cut-out (the ridge) goes with the day set's painting, sunrise or sunset alike
-		this.sky.look(night, this.backdrop[0].visible || this.sunset.visible, this.backdrop[1].visible, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS], c[BATS], c[AURORA]);
+		this.sky.look(night, this.backdrop[0].visible || this.sunset.visible, this.backdrop[1].visible, this.sunset.visible ? sunset : 0, dim, c[CLOUD_TINT], c[CLOUD_TINT + 1], c[CLOUD_TINT + 2], c[CLOUD_A], c[FOG_TINT], c[FOG_TINT + 1], c[FOG_TINT + 2], c[FOG_A], c[BIRDS], c[BATS], c[AURORA]);
 		this.flames?.look(c[FLAME_W], c[FLAME_W + 1], c[FLAME_W + 2], night, this.fore[0].visible, this.fore[1].visible, dim, fore, c[EMBERS], c[EMBER_TINT], c[EMBER_TINT + 1], c[EMBER_TINT + 2]);
 		this.applyFire();
 	}

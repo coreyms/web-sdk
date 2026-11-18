@@ -467,6 +467,11 @@ const assets = {
 	// own tiers (2560 x 1440 64 KB, 1600 x 900 37 KB). Rides the same deferred group as the sunset backdrop (SCENE_KEYS
 	// sunset). Landscape scene only: the portrait scene has none. SUNSET_FORE.on false takes it out below.
 	scene_fore_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/fore-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/fore-sunset-phone.webp', import.meta.url).href)), preload: false },
+	// THE FREE SPINS DUSK (2026-11-17, Corey: "Yes I like the 2 Blue Hour"; tools/build_sunset_dusk.py): the sunset's own
+	// skyline cut-out (the day one does not fit the sunset painting, whose left peaks are taller), drawn by the sky over the
+	// day cut-out at the sunset's value. Rides the sunset group like the backdrop. scene_fore_sunset above is since then the
+	// DAY courtyard re-graded (alpha the day file's), no longer a white mask (SUNSET_FORE).
+	scene_ridge_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/ridge-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/ridge-sunset-phone.webp', import.meta.url).href)), preload: false },
 	// THE PORTRAIT COURTYARD SCENE (the same components and tool, --portrait): its own 9:16 frame, 1440 x 2560 with a
 	// 900 x 1600 phone tier twin. Backdrop, foreground and fire pass; no atlas (nothing moves in portrait). The day set
 	// preloads when the game boots in PORTRAIT and the night set rides the deferred phase; booted in another layout,
@@ -479,6 +484,10 @@ const assets = {
 	// the portrait scene's SUNSET backdrop (the Bonus; see scene_backdrop_sunset): its sky extended above the painting the
 	// way the portrait day backdrop's is
 	scenep_backdrop_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-backdrop-sunset-phone.webp', import.meta.url).href)), preload: false },
+	// the portrait scene's FREE SPINS DUSK (2026-11-17, see scene_ridge_sunset): its own sunset cut-out and its re-graded
+	// courtyard (the portrait scene had no sunset courtyard before), both in the sunset group
+	scenep_ridge_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-ridge-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-ridge-sunset-phone.webp', import.meta.url).href)), preload: false },
+	scenep_fore_sunset: { type: 'sprite', src: tiered(stamp(new URL('../../assets/backgrounds/scene/portrait-fore-sunset.webp', import.meta.url).href), stamp(new URL('../../assets/backgrounds/scene/portrait-fore-sunset-phone.webp', import.meta.url).href)), preload: false },
 	// THE PORTRAIT SKY's own files (2026-10-12; game/sky.ts, constants SKY.portrait; tools/build_scene_assets.py
 	// --portrait-sky): only the skyline cut-outs of the portrait backdrops, day with the portrait day set, night with its
 	// night set. Its clouds, fog, aurora, birds and bats draw the landscape sky's sceneSky, sceneBirds and sceneBats.
@@ -651,11 +660,14 @@ const phoneOnlyScreen = (): boolean => {
 // left the game on 2026-10-28, see the note where their entries were. A turned game shows the flat sky colour under
 // its wash until the late scene's day set is in, or for good if its files fail.)
 export const SCENE_KEYS = {
-	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], sunset: SUNSET_FORE.on ? ['scene_backdrop_sunset', 'scene_fore_sunset'] : ['scene_backdrop_sunset'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
-	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire', 'scenep_ridge_day', 'sceneSky', 'sceneBirds'], night: ['scenep_backdrop_night', 'scenep_fore_night', 'scenep_ridge_night', 'sceneBats'], sunset: ['scenep_backdrop_sunset'], flames: [] },
+	landscape: { day: ['scene_backdrop_day', 'scene_fore_day', 'scene_fire', 'sceneChains', 'scene_ridge_day', 'sceneSky', 'sceneBirds', 'sceneFlameBase', 'sceneFlameFx'], night: ['scene_backdrop_night', 'scene_fore_night', 'scene_ridge_night', 'sceneBats'], sunset: SUNSET_FORE.on ? ['scene_backdrop_sunset', 'scene_ridge_sunset', 'scene_fore_sunset'] : ['scene_backdrop_sunset', 'scene_ridge_sunset'], flames: ['sceneFlameSuper', 'sceneFlameEpic'] },
+	portrait: { day: ['scenep_backdrop_day', 'scenep_fore_day', 'scenep_fire', 'scenep_ridge_day', 'sceneSky', 'sceneBirds'], night: ['scenep_backdrop_night', 'scenep_fore_night', 'scenep_ridge_night', 'sceneBats'], sunset: SUNSET_FORE.on ? ['scenep_backdrop_sunset', 'scenep_ridge_sunset', 'scenep_fore_sunset'] : ['scenep_backdrop_sunset', 'scenep_ridge_sunset'], flames: [] },
 } as const;
 // SUNSET_FORE.on false: the overlay is not registered at all (nothing fetches or decodes it; the Bonus is as before)
-if (!SUNSET_FORE.on) delete (assets as unknown as Record<string, unknown>).scene_fore_sunset;
+if (!SUNSET_FORE.on) {
+	delete (assets as unknown as Record<string, unknown>).scene_fore_sunset;
+	delete (assets as unknown as Record<string, unknown>).scenep_fore_sunset;
+}
 /** the keys BOTH scenes list (the sky's atlas, the birds, the bats): registered in every boot, fetched once, never late */
 export const SCENE_SHARED_KEYS: readonly string[] = [...SCENE_KEYS.portrait.day, ...SCENE_KEYS.portrait.night].filter((key) => ([...SCENE_KEYS.landscape.day, ...SCENE_KEYS.landscape.night] as string[]).includes(key));
 /** the scene the boot layout draws, and the one that waits */
