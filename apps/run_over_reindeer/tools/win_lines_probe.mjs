@@ -1,4 +1,8 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,fixtures/showcaseBooks.ts,game/road/roadSounds.ts,game/road/winLights.ts,game/sound.ts};
+// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.frame, __reindeer.hud
+// WATCHES: ; __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites, __reindeer.soundTap, __reindeer.step, __reindeer.tune
+// WATCHES: ; __reindeer.turbo, __reindeer.winLights, __reindeer.winLightsShown, LINE_WIN, sfx_line_show, .landing, .hudp, .spin
 // THE WIN LINES PROBE (the Christmas lights, Corey 2026-11-15; constants LINE_WIN lights, game/road/winLights.ts). Posed
 // books handed to the fixtures through the dev hook (presentation only, no math): a one line win, a three line win (three
 // different paying symbols), and three palette boards that between them pay on every symbol (H1 to H4, a line of Wilds

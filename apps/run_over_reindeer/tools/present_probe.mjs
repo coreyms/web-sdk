@@ -1,4 +1,9 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/presentSpec.ts,game/road/present.ts};
+// WATCHES: apps/run_over_reindeer/{static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
+// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.presentLoad
+// WATCHES: ; __reindeer.presentMemory, __reindeer.presentOpen, __reindeer.presentPeek, __reindeer.presentTrace, __reindeer.road
+// WATCHES: ; __reindeer.setBoard, __reindeer.step, __reindeer.tune, PRESENT, .landing
 // THE PRESENT PROBE (the scatter present, Corey 2026-11-15; game/road/present.ts, tools/build_present.py). From the
 // running game with its board clock frozen and stepped one 30 fps frame at a time (__reindeer.clock(0), step), at each
 // size:

@@ -1,4 +1,8 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadSounds.ts,game/road/vanWin.ts};
+// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.road
+// WATCHES: ; __reindeer.roadSounds, __reindeer.roadSprites, __reindeer.step, __reindeer.tune, __reindeer.turbo, __reindeer.vans, VAN_WIN
+// WATCHES: ; .landing, .hudp, .spin
 // THE VAN WIN PROBE (Corey 2026-11-15: the van, H3, lurches and backfires, then rocks with a flashlight in its windows
 // when it wins; constants VAN_WIN, game/road/vanWin.ts). A posed book (handed to the fixtures through the dev hook;
 // presentation only, no math): five vans, three of them in the one winning line (reel 1 second lane driving right, reels

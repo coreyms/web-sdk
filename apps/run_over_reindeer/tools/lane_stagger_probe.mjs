@@ -1,4 +1,11 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/brakeLights.ts,game/road/laneFlow.ts,game/road/roadBoard.ts,game/road/roadSounds.ts,game/stateGame.svelte.ts};
+// WATCHES: apps/run_over_reindeer/src/ui/controls.svelte.ts;
+// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.brakes, __reindeer.clock, __reindeer.fixtures, __reindeer.flow
+// WATCHES: ; __reindeer.flowLite, __reindeer.freeSpinNow, __reindeer.hud, __reindeer.hurryLevel, __reindeer.road, __reindeer.roadBoard
+// WATCHES: ; __reindeer.roadSoundState, __reindeer.roadSounds, __reindeer.skip, __reindeer.step, __reindeer.tune, __reindeer.turbo
+// WATCHES: ; BRAKE_LIGHTS, LANE_FLOW, REINDEER_SOUND.tease, ROUND, STOPLIGHT.tease, sfx_lane_stop_*, sfx_scatter_tease, sfx_stoplight_change
+// WATCHES: ; sfx_traffic_roll, .hudp, .spin, .am-ui, .layer, .modals, .go
 // THE LANE STAGGER PROBE (Corey 2026-11-16: lane by lane traffic, the scatter tease, the brake lights; constants
 // LANE_FLOW, STOPLIGHT.tease, REINDEER_SOUND.tease, BRAKE_LIGHTS; game/road/laneFlow.ts, roadBoard.ts, brakeLights.ts).
 // Posed books handed to the fixtures through the dev hook (presentation only, no math), the board clock frozen and

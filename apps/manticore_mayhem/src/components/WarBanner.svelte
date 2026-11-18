@@ -66,6 +66,7 @@
 	import { boardRegistration } from '../game/boardArt';
 	import { bannerBackSlot, frameLight } from '../game/boardPlateSlot';
 	import { creatureUploadQuiet } from '../game/creatureLoad';
+	import { creature } from '../game/creature';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { chainRun } from '../game/featureFx';
 	import { STAGING_TOOLS, perfMark } from '../game/staging';
@@ -350,6 +351,8 @@
 		frameMs = ticker.deltaMS;
 		clock += dt;
 		const alive = view.tick(dt);
+		// no random idle action of his starts while a TOTAL WIN is up (constants PLAQUE_CHEER.plaqueRollQuietMs)
+		if (view.content === 'total') creature.quietRolls(PLAQUE_CHEER.plaqueRollQuietMs);
 		if (!impactDone && (view.t >= BANNER.timing.entryMs || view.cutAt >= 0) && view.phase !== 'rollup' && view.phase !== 'retreat') impact();
 		if (count) stepCount(count, dt);
 		if (lineT0 !== Infinity) view.setLineAlpha(Math.min(1, Math.max(0, (clock - lineT0) / BANNER.timing.lineFadeMs)));

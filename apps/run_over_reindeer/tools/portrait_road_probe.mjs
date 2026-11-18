@@ -1,4 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{game/layoutSpec.ts,ui/hud/hudLayout.ts};
+// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.scene, HUD_BED, PORTRAIT, ROAD, ROAD_LAYOUT.portrait, data-hud
+// WATCHES: ; data-title-sign, .hudp, .landing
 // THE PORTRAIT ROAD PROBE (Job 4, Corey 2026-11-15: "Move it down about half of that distance"): at each portrait size
 // it measures, in CSS px, the road picture's top and bottom (from __reindeer.boardLayout()), the title sign's bottom,
 // and the HUD's real top (the higher of the dark bed's top edge and the HUD's highest readout or key), then the snow

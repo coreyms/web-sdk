@@ -1,4 +1,8 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,components/Sound.svelte,game/sound.ts};
+// WATCHES: apps/run_over_reindeer/static/assets/audio/music.json;
+// WATCHES: ; __reindeer.ambienceHold, __reindeer.atRest, __reindeer.fixtures, __reindeer.gameType, __reindeer.hud, __reindeer.musicLoop
+// WATCHES: ; __reindeer.musicPlay, ROUND, bgm_base, bgm_bonus, bgm_super, .landing, .hudp, .spin
 // THE MUSIC LOOP PROBE (Run Over Reindeer's own base, Free Spins and Super loops, wired 2026-11-15): the running game,
 // nothing patched in it. For each of bgm_base, bgm_bonus and bgm_super it lets the track wrap and MEASURES THE WRAP:
 // the game's music output is tapped (desktop Chromium: the track's own media element through a MediaElementSource;

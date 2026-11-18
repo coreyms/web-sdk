@@ -2527,6 +2527,10 @@ export const PLAQUE_CHEER = {
 	/** real ms from a cheer's start before his idle roll may play a snarl or growl again (the poke's own quiet,
 	 *  CREATURE.poke.rollQuietMs, is 5400): one voice per celebration, not a snarl on top of it */
 	rollQuietMs: 6000,
+	/** NO NEW IDLE ACTION WHILE A WIN PLAQUE IS UP (2026-11-17, game/creature.ts quietRolls): every frame of a screen that
+	 *  can cheer (the win plaque, the TOTAL WIN wrap up, the war banner's total) keeps his idle roll quiet this many real
+	 *  ms past it, so a snarl, growl or idle_look does not start just before a tier lands (he breathes instead) */
+	plaqueRollQuietMs: 400,
 } as const;
 export type CheerMove = (typeof PLAQUE_CHEER.moves)[number] | typeof PLAQUE_CHEER.epic;
 
@@ -3804,6 +3808,9 @@ export const CREATURE = {
 	 *  (game/creatureLoad.ts creatureHandOverReady); 0 when he already is */
 	handOverWaitMs: 2500,
 	wins: { onDemand: true, bands: 16, quiet: { showMs: 1500, impactMs: 300, tierMs: 250 }, epicLoopMaxMs: 15000 },
+	/** THE STUCK WATCHDOG (safety net, 2026-11-17; game/creature.ts unstick): real ms the frame on show may stay off the
+	 *  frame his state asks for (a frame that could not be drawn) before he is sent back to his idle loop */
+	stuckMs: 250,
 	breath: true,
 	voice: { rateMin: 0.95, rateMax: 1.05 },
 	/** the floor shadow's strength (the Rig's rendered shadow pass is pure black, alpha up to 254): Corey 2026-10-17 13:20

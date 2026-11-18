@@ -1,6 +1,12 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // (2026-11-17: with constants LED_SIGN.onBoard the press screen is the game's own expanded LED board; boardPress() below
 // checks it at every size and the billboard's checks are skipped. They still run with LED_SIGN.onBoard false.)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/assets.ts,game/config.ts,game/constants.ts,game/landing/ledScreens.ts,game/landing/ledSign.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts};
+// WATCHES: apps/run_over_reindeer/{static/assets/audio/music.json,static/assets/audio/sounds.json,static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
+// WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.led
+// WATCHES: ; __reindeer.ledFreeze, __reindeer.road, __reindeer.scene, __reindeer.tune, LED_SIGN, SCENE_ART, SCREENS, data-title-sign, .landing
+// WATCHES: ; .pressText, .title, .am-ui, .hidden, .hudp, .spin
 // THE LANDING PROBE. Pass 7 (Corey 2026-11-16): the press screen after the studio splash is the LED BILLBOARD
 // (led_billboard_r2_2026-11-16; constants LED_SIGN, game/landing/ledSign.ts), and the posed board (the landing mock V2, game/
 // landingBoard.ts) is the FIRST BOARD after the press. At each size:

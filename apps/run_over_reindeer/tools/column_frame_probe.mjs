@@ -1,4 +1,8 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/road/roadFeatures.ts};
+// WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.clock, __reindeer.frame, __reindeer.hud
+// WATCHES: ; __reindeer.roadBoard, __reindeer.setBoard, __reindeer.step, __reindeer.tune, __reindeer.turbo, COLUMN.loadWaitMs, COLUMN, RED_BOX
+// WATCHES: ; .landing
 // THE COLUMN FRAME PROBE (pass 6, Corey 2026-11-16; game/road/roadFeatures.ts, constants COLUMN, RED_BOX). A full column
 // Wild's red frame and what may pass it:
 //   - THE EDGES (Corey: "you can still see the white lines of the videos behind the border sides"): a strip of device

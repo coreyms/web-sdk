@@ -190,6 +190,8 @@ type Run = {
 	ahead: boolean;
 	/** a cheer's voice, played when the clip reaches `atMs` clip ms (its take's onset on the accent frame, PLAQUE_CHEER) */
 	voice: { name: string; rate?: number; atMs: number } | null;
+	/** a RANDOM IDLE ACTION (an idle roll's snarl, growl or idle_look, or a poke's): a win tier's cheer cuts it (cheer) */
+	filler: boolean;
 };
 
 export class Creature {
@@ -256,7 +258,7 @@ export class Creature {
 	private state: 'hidden' | 'still' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
 	private idleT0 = 0;
 	private idleFrame = 1;
-	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false, voice: null };
+	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false, voice: null, filler: false };
 	private rush = { from: 1, to: 1, t0: 0 };
 	/** what starts when the rush ends, or at `at` (real ms: the clip's first frame). strikeAt: swipe only; move: a cheer's */
 	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean; move?: CheerMove; holdFade?: boolean } | null = null;
@@ -301,6 +303,10 @@ export class Creature {
 	/** the glow's frame set and frame on show (DEV / probe) */
 	private glowClip: CreatureClip | null = null;
 	private glowFrame = 0;
+	/** THE STUCK WATCHDOG (unstick): real ms the frame on show first stayed off the frame his state asked for (-1: on it) */
+	private missSince = -1;
+	/** DEV only (`__manticore.creature.jam`): a clip's frame table taken out from under him, to test the watchdog */
+	private jammed: { look: CreatureLook; clip: CreatureClip; frames: Frames } | null = null;
 
 	// ---- the poke (CREATURE.poke) ----
 	/** his body's hit area, px of the rig's canvas about the feet point (the body node's own units) */
@@ -313,7 +319,7 @@ export class Creature {
 
 	// ---- DEV / probe ----
 	readonly log: { t: number; what: string; clip?: string; frame?: number; info?: unknown }[] = [];
-	counters = { swaps: 0, ticks: 0, rolls: 0, snarls: 0, growls: 0, looks: 0, cheers: 0, skipped: 0, rescued: 0, sounds: 0, pokes: 0, pokeRefused: 0 };
+	counters = { swaps: 0, ticks: 0, rolls: 0, snarls: 0, growls: 0, looks: 0, cheers: 0, skipped: 0, rescued: 0, sounds: 0, pokes: 0, pokeRefused: 0, unstuck: 0 };
 	/** DEV: the roll's two draws (null: Math.random) so a probe can force an alternate */
 	forceRoll: 'snarl' | 'growl' | 'idle_look' | 'none' | null = null;
 	/** the crouch phase before a lit strike (constants CREATURE.glowPhase; DEV A / B) */
@@ -910,11 +916,16 @@ export class Creature {
 			if (this.next) this.onWantWins?.(this.next, clipsOfMove(move));
 			return false;
 		}
-		if (this.state !== 'idle' || this.cue || this.swipeNext) {
+		// THE TIER WINS OVER IDLE FILLER (Corey 2026-11-17: "Yes on the Mega cheer being skipped when idle growl is
+		// playing"): a random idle action he is in (filler) is cut by the cheer's cue on the next tick, as a board action
+		// cuts it (tick: a cue due in a clip fires), its voice left to run as with any cut. Everything else still refuses:
+		// a cue or a swipe read ahead (a board action is coming), the rush to one, the crouch, any other clip
+		if ((this.state !== 'idle' && !this.filler()) || this.cue || this.swipeNext) {
 			this.pendingCheer = null;
 			this.miss(`cheer:${move}:busy`);
 			return false;
 		}
+		if (this.state === 'clip') this.note('cheer', { move, cuts: this.run.clip, frame: this.run.frame });
 		this.pendingCheer = null;
 		this.epicEnd = false;
 		this.cue = { kind: 'win', at: now, strikeAt: 0, move };
@@ -975,6 +986,7 @@ export class Creature {
 		r.real = false;
 		r.ahead = false;
 		r.voice = null;
+		r.filler = false;
 		this.state = 'clip';
 		this.glowA = 0;
 		this.note('start', { clip, offset: Math.round(offset) });
@@ -1089,6 +1101,7 @@ export class Creature {
 		}
 		this.tickLook(now, on, dt);
 		if (!on) {
+			this.missSince = -1;
 			this.swipeNext = null;
 			this.syncLift();
 			this.syncShade(now);
@@ -1100,11 +1113,11 @@ export class Creature {
 			this.swipeNext = null;
 		}
 
+		// a cheer waiting for its clip (drop 8, on demand): it is in now (from his idle loop, or over an idle filler it cuts)
+		if (this.pendingCheer && !this.cue && !this.swipeNext && (this.state === 'idle' || this.filler()) && this.cheerReady(this.pendingCheer)) this.cheer(this.pendingCheer, now);
 		let clip: CreatureClip = 'idle';
 		let frame = 1;
 		if (this.state === 'idle') {
-			// a cheer waiting for its clip (drop 8, on demand): it is in now
-			if (this.pendingCheer && !this.cue && !this.swipeNext && this.cheerReady(this.pendingCheer)) this.cheer(this.pendingCheer, now);
 			const f = Math.floor(((now - this.idleT0) * FPS) / 1000);
 			frame = (f % N.idle) + 1;
 			if (frame < this.idleFrame || this.idleFrame === 0) {
@@ -1279,9 +1292,54 @@ export class Creature {
 					? this.litAlpha() || this.epicAlpha()
 					: 0;
 		this.draw(clip, frame);
+		this.unstick(now, clip, frame);
 		this.syncLift();
 		this.syncShade(now);
 		this.tickPoke(now, on);
+	}
+
+	/** THE STUCK WATCHDOG (a SAFETY NET, 2026-11-17; Corey saw it once on staging in Epic free spins: after the MEGA roar he
+	 *  stood on a roar frame while the count went on, until the next spin cut him to idle; not reproduced, cause not
+	 *  confirmed: tools/manticore/creature_probe.js STUCK). draw() keeps the last frame whenever the frame his state asks
+	 *  for cannot be drawn (no texture for it, or no frame number at all), so his picture can stop while his state runs
+	 *  on. If it stays off for CREATURE.stuckMs he goes back to his idle loop, as the end of any clip sends him, keeping a
+	 *  cue that is still to come. In normal play it never fires (counters.unstuck, held to 0 by the probe). Allocates
+	 *  nothing but the DEV note. */
+	private unstick(now: number, clip: CreatureClip, frame: number): void {
+		if (clip === this.drawnClip && frame === this.drawnFrame) {
+			this.missSince = -1;
+			return;
+		}
+		if (this.missSince < 0) {
+			this.missSince = now;
+			return;
+		}
+		if (now - this.missSince < CREATURE.stuckMs) return;
+		this.counters.unstuck += 1;
+		this.note('unstuck', { state: this.state, clip, frame, shown: `${this.drawnClip}:${this.drawnFrame}`, ms: Math.round(now - this.missSince), run: this.run.clip, t: this.run.t, cue: this.cue?.kind ?? null });
+		// (an idle loop whose own sheet cannot be drawn has nowhere to go: looked at again a stuckMs later, noted again)
+		this.missSince = now;
+		if (this.state === 'idle') return;
+		this.toIdle(now);
+	}
+	/** DEV only (`__manticore.creature.jam`): take the frame table of the clip he is in out from under him (true), so its
+	 *  frames cannot be drawn, as if they had gone; false puts it back. The watchdog's own test (creature_probe STUCK) */
+	jam(on: boolean): string | null {
+		if (!import.meta.env.DEV) return null;
+		if (!on) {
+			const j = this.jammed;
+			this.jammed = null;
+			if (j && this.looks[j.look]) this.looks[j.look]![j.clip] ??= j.frames;
+			return j ? `${j.look}/${j.clip}` : null;
+		}
+		const look = this.look;
+		const clip = this.state === 'clip' ? this.run.clip : null;
+		const frames = look && clip ? this.looks[look]?.[clip] : undefined;
+		if (!look || !clip || !frames || this.jammed) return null;
+		this.jammed = { look, clip, frames };
+		delete this.looks[look]![clip];
+		this.note('jam', { look, clip, frame: this.drawnFrame });
+		return `${look}/${clip}`;
 	}
 
 	/** THE NIGHT LIFT (constants CREATURE_LIFT): each lift sprite shows its colour sprite's frame, at that look's `add` x
@@ -1523,6 +1581,7 @@ export class Creature {
 		this.rollQuietUntil = end + CREATURE.poke.rollQuietMs;
 		this.note('poke', { clip });
 		this.start(clip, now, 0);
+		this.run.filler = true;
 		this.tickPoke(now, true);
 		return true;
 	}
@@ -1553,6 +1612,26 @@ export class Creature {
 		if (forced) this.forceRoll = null;
 		this.counters[pick === 'snarl' ? 'snarls' : pick === 'growl' ? 'growls' : 'looks'] += 1;
 		this.start(pick, now, 0);
+		this.run.filler = true;
+		return true;
+	}
+	/** he is in a random idle action (an idle roll's or a poke's): a win tier's cheer may cut it */
+	private filler(): boolean {
+		return this.state === 'clip' && this.run.filler;
+	}
+	/** NO NEW IDLE ACTION WHILE A WIN PLAQUE IS UP (2026-11-17; components/StingerPlaque.svelte and WarBanner.svelte call
+	 *  it on every frame of a screen that can cheer): the idle roll stays quiet for `ms` from now (a breath instead) */
+	quietRolls(ms: number): void {
+		const until = performance.now() + ms;
+		if (until > this.rollQuietUntil) this.rollQuietUntil = until;
+	}
+	/** DEV only (`__manticore.creature.filler`): start an idle alternate NOW as the idle roll would (a filler), whatever the
+	 *  roll's odds and quiet, for the probe's cheer over filler test. False: not in his idle loop, or it cannot be drawn */
+	playFiller(pick: 'snarl' | 'growl' | 'idle_look'): boolean {
+		if (!import.meta.env.DEV || this.state !== 'idle' || this.cue || this.swipeNext || !this.canPlay(pick)) return false;
+		this.note('roll', { forced: 'filler', pick });
+		this.start(pick, performance.now(), 0);
+		this.run.filler = true;
 		return true;
 	}
 	private breathe(): void {

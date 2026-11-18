@@ -1,4 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadFeatures.ts}, apps/run_over_reindeer/strike_probe.json;
+// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.planRun, __reindeer.road, __reindeer.runMemory
+// WATCHES: ; __reindeer.step, __reindeer.strike, __reindeer.tune, ROUND, STRIKE
 // THE STRIKE PROBE (the rig's run views, the middle path of 2026-11-12): per-frame numbers for the reindeer's strike.
 //
 // For each layout and each strike (both entry sides, reels 1, 3 and 5, the top and the bottom row) it freezes the
