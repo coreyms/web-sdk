@@ -98,17 +98,17 @@ export const FAST_LANE_TEXT = {
 };
 
 // ---- the odds rows (PROVISIONAL: see the top of the file) -----------------------------------------------------------
-const MAX_WIN_ROW: OddsRow = { label: 'Max win 7,777x, base game', value: '1 in 2.97 million' };
+const MAX_WIN_ROW: OddsRow = { label: 'Max win 7,777x, base game', value: '~1 in 2.97 million' };
 
 export const BUY_ODDS: Record<'BONUS' | 'SUPER', OddsRow[]> = {
 	BONUS: [
 		{ label: 'Free spins', value: '10' },
-		{ label: 'In the base game', value: '1 in 213' },
+		{ label: 'In the base game', value: '~1 in 213' },
 		{ label: 'Max win', value: '7,777x' },
 	],
 	SUPER: [
 		{ label: 'Free spins', value: '10' },
-		{ label: 'In the base game', value: '1 in 2,127' },
+		{ label: 'In the base game', value: '~1 in 2,127' },
 		{ label: 'Guaranteed minimum', value: '20x' },
 		{ label: 'Max win', value: '7,777x' },
 	],
@@ -117,19 +117,19 @@ export const BUY_ODDS: Record<'BONUS' | 'SUPER', OddsRow[]> = {
 /** the Ante card's rows per slider stop, keyed by the mode key (game/betModeMeta.ts ANTE_KEYS) */
 export const ANTE_ODDS: Record<string, OddsRow[]> = {
 	ANTE_2: [
-		{ label: 'Free Spins', value: '1 in 76' },
-		{ label: 'Super Free Spins', value: '1 in 1,000' },
-		{ label: 'Base game, no Ante', value: '1 in 213 / 2,127' },
+		{ label: 'Free Spins', value: '~1 in 76' },
+		{ label: 'Super Free Spins', value: '~1 in 1,000' },
+		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,127' },
 	],
 	ANTE_4: [
-		{ label: 'Free Spins', value: '1 in 43' },
-		{ label: 'Super Free Spins', value: '1 in 250' },
-		{ label: 'Base game, no Ante', value: '1 in 213 / 2,127' },
+		{ label: 'Free Spins', value: '~1 in 43' },
+		{ label: 'Super Free Spins', value: '~1 in 250' },
+		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,127' },
 	],
 	ANTE_10: [
-		{ label: 'Free Spins', value: '1 in 51' },
-		{ label: 'Super Free Spins', value: '1 in 40' },
-		{ label: 'Base game, no Ante', value: '1 in 213 / 2,127' },
+		{ label: 'Free Spins', value: '~1 in 51' },
+		{ label: 'Super Free Spins', value: '~1 in 40' },
+		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,127' },
 	],
 };
 
