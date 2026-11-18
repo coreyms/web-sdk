@@ -50,11 +50,13 @@ const STYLES = `
 .ror-tune .roam-overlay .zone { fill: rgba(214, 22, 44, 0.22); stroke: rgba(214, 22, 44, 0.85); stroke-width: 1; }
 .ror-tune .roam-overlay .zt { fill: #fff; font: 10px -apple-system, system-ui, sans-serif; paint-order: stroke; stroke: rgba(0, 0, 0, 0.7); stroke-width: 2px; }
 .ror-tune .roam-overlay .path { fill: none; stroke: #e8c14a; stroke-width: 3; }
+.ror-tune .roam-overlay .area { fill: rgba(232, 193, 74, 0.2); stroke: #e8c14a; stroke-width: 2; }
+.ror-tune .roam-overlay .to { fill: #fff; stroke: #10141a; stroke-width: 1.5; }
 .ror-tune .roam-overlay .enter { stroke: #e8c14a; stroke-width: 2; stroke-dasharray: 6 5; }
 .ror-tune .roam-overlay .body { fill: rgba(232, 193, 74, 0.1); stroke: rgba(232, 193, 74, 0.7); stroke-width: 1; stroke-dasharray: 3 3; }
 .ror-tune .roam-overlay .body.picked { fill: rgba(95, 208, 138, 0.15); stroke: #5fd08a; }
 .ror-tune .roam-overlay .me { fill: #5fd08a; stroke: #10141a; stroke-width: 1.5; }
-.ror-tune .roam-overlay .wp { position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; background: #e8c14a; color: #10141a; border: 2px solid #10141a; font-weight: 700; pointer-events: auto; touch-action: none; cursor: grab; padding: 0; }
+.ror-tune .roam-overlay .wp { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: #e8c14a; color: #10141a; border: 2px solid #10141a; font-weight: 700; pointer-events: auto; touch-action: none; cursor: grab; padding: 0; }
 .ror-tune .roam-overlay .wp.picked { background: #5fd08a; }
 .ror-tune .roam-overlay .wp.enter { background: #fff; width: 34px; }
 `;

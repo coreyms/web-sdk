@@ -1,21 +1,24 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
-// Per size (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone) it checks the owner's rules:
-//   1  at rest one reindeer is on the screen, sniffing at a waypoint and walking the path (seeded: the same seed walks the
-//      same way), his feet always on the path's line
+// Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
+// (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
+//   1  at rest one reindeer is on the screen; he picks spots, walks (start, walk, stop) and sniffs; the same seed walks
+//      the same way; 45 s of his wander, every frame: his body clear of every keep-out zone and on the screen, every
+//      stop's feet inside the area
+//   5  the AREA: 300 seeded picks in a row and 60 walk in picks, each one's feet inside the area, his body clear of the
+//      road (feet), the HUD, the LED strip, the logo and the top line (his head 8 CSS px or more under it) and on the
+//      screen, the walk to it clear all the way; the walks' slopes (14 degrees at most unless relaxed) and lengths; no
+//      counter plate zone (gone from the game); in every scene preset he is drawn
 //   2  the first strike of a spin is his, from where he stands; he stands alert until his run sets off, then he is gone
 //      (no frame shows both or neither); its impact never lands later than the strike from off the screen, at 60, 30 and
 //      20 Hz and at both turbo levels (the table of both times is printed: STRIKE TIMING)
 //   3  a later strike of the spin comes from off the screen, and he does not come back for it
-//   4  after the spin's last strike a new one walks in from past the screen's edge to the first waypoint
-//   5  the default path's every waypoint and every segment (and the walk in) keep his body off the HUD, the LED strip,
-//      the logo, the bonus round's counter plate and the top line, and his feet off the road; in every scene preset he
-//      is drawn
+//   4  after the spin's last strike a new one walks in level from past the screen's edge to a spot of the area
 //   7  a strike while the new one is still past the edge comes from off the screen (he gives way); a strike while he is
-//      walking in on the screen is his, from where he is; a real spin with a strike is never longer with him than without
+//      walking in on the screen is his, from where he is; in the live spins every strike lands on time
 //   8  every fixture book (base and bonus): each spin (reveal to reveal) with strikes has exactly one first and one last
-//   the editor: the staging panel's Reindeer path group shows the path, a waypoint drags (mouse; touch on the phones),
-//      one is added and removed, and the read back is the live path as JSON
+//   the editor: the staging panel's Reindeer area group shows the area, a corner drags (mouse; touch on the phones), one
+//      is added and removed, and the read back is the live areas as JSON
 //   STRIKE.roam false: no roaming reindeer, and a spin's first strike is frame for frame the strike from off the screen
 //   a hidden tab: nothing moves; no page errors anywhere
 //
@@ -38,7 +41,7 @@ const SIZES = [
 	{ name: 'sideways', vp: { width: 844, height: 390 }, dpr: 2, q: '&tier=phone', touch: true },
 	{ name: 'upright', vp: { width: 390, height: 844 }, dpr: 2, q: '&tier=phone', touch: true },
 	// 1920 x 1080 desktop (16:9, the least snow above the rim): the zones and his head's clearance under the top line only
-	{ name: 'desktop1080', vp: { width: 1920, height: 1080 }, dpr: 1, q: '', touch: false, clearanceOnly: true },
+	{ name: 'desktop1080', vp: { width: 1920, height: 1080 }, dpr: 1, q: '', touch: false, areaOnly: true },
 ];
 const PRESETS = ['snowDay', 'snowNight', 'snowSuper', 'grassDay', 'grassNight', 'grassSuper'];
 
@@ -92,51 +95,43 @@ async function boot(browser, S, extra = '') {
 	return { ctx, p, errs, ready };
 }
 
-/** the default path's every point and segment against the zones (CSS px): his body (the widest of his clips, either
- *  facing) off every zone but the road, his feet (the bottom strip of his body) off the road */
-const zoneCheck = (geo, zones) => {
+/** HIS BODY in CSS px at feet (x, y) road px (the widest of his clips, either facing), and his feet's strip */
+const bodyOf = (geo) => {
 	const { k, ox, oy } = geo.view;
-	const s = geo.roam.scale * k;
-	const B = geo.roam.box;
-	let left = 0;
-	let right = 0;
-	let height = 0;
-	for (const c of ['walk', 'start', 'stop', 'sniff']) {
-		const b = B[c];
-		const side = Math.max(b.anchorX, 1 - b.anchorX) * b.width;
-		left = Math.max(left, side);
-		right = Math.max(right, side);
-		height = Math.max(height, b.anchorY * b.height);
-	}
-	const body = (x, y) => ({ x0: ox + (x - left * geo.roam.scale) * k, x1: ox + (x + right * geo.roam.scale) * k, y0: oy + (y - height * geo.roam.scale) * k, y1: oy + y * k });
+	const s = geo.roam.scale;
+	const side = geo.roam.reach.side * s;
+	const up = geo.roam.reach.up * s;
+	const body = (x, y) => ({ x0: ox + (x - side) * k, x1: ox + (x + side) * k, y0: oy + (y - up) * k, y1: oy + y * k });
 	const feet = (x, y) => {
 		const b = body(x, y);
 		return { x0: b.x0, x1: b.x1, y0: b.y1 - (b.y1 - b.y0) * 0.06, y1: b.y1 };
 	};
-	const hits = [];
-	const test = (x, y, where) => {
-		for (const z of zones) {
-			const a = z.name === 'road' ? inter(feet(x, y), z) : inter(body(x, y), z);
-			if (a > 0.5) hits.push(`${where}: ${z.name} ${r1(a)} px2 at road (${r1(x)}, ${r1(y)})`);
-		}
-	};
-	const pts = geo.roam.points;
-	pts.forEach((p, i) => test(p.x, p.y, `waypoint ${i + 1}`));
-	const seg = (a, b, where) => {
-		const len = Math.hypot(b.x - a.x, b.y - a.y) * k;
-		const n = Math.max(1, Math.ceil(len));
-		for (let i = 0; i <= n; i++) test(a.x + ((b.x - a.x) * i) / n, a.y + ((b.y - a.y) * i) / n, where);
-	};
-	seg(geo.roam.enter, pts[0], 'walk in');
-	for (let i = 0; i + 1 < pts.length; i++) seg(pts[i], pts[i + 1], `segment ${i + 1}-${i + 2}`);
-	// every waypoint's body wholly on the screen
-	const off = [];
-	pts.forEach((p, i) => {
-		const b = body(p.x, p.y);
-		if (b.x0 < -0.5 || b.y0 < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) off.push(`waypoint ${i + 1} ${JSON.stringify([b.x0, b.y0, b.x1, b.y1].map(r1))}`);
-	});
-	const unique = [...new Set(hits.map((h) => h.replace(/ at road.*$/, '').replace(/ [0-9.]+ px2/, '')))];
-	return { hits, unique, off, bodyCss: { w: r1((left + right) * s), h: r1(height * s) } };
+	return { body, feet, css: { w: r1(2 * side * k), h: r1(up * k) } };
+};
+/** what his body at (x, y) covers: zone names (the road by his feet), and 'screen' when it leaves the screen */
+const hitsAt = (geo, zones, x, y) => {
+	const B = bodyOf(geo);
+	const out = [];
+	for (const z of zones) if ((z.name === 'road' ? inter(B.feet(x, y), z) : inter(B.body(x, y), z)) > 0.5) out.push(z.name);
+	const b = B.body(x, y);
+	if (b.x0 < -0.5 || b.y0 < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) out.push('screen');
+	return out;
+};
+const inPoly = (x, y, P) => {
+	let c = false;
+	for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+		const a = P[i];
+		const b = P[j];
+		if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) c = !c;
+	}
+	return c;
+};
+/** his head's clearance under the top line's text (the zone is the text plus 8 CSS px), CSS px; Infinity when never under */
+const headClear = (geo, zones, x, y) => {
+	const b = bodyOf(geo).body(x, y);
+	let worst = Infinity;
+	for (const z of zones) if (z.name === 'top line' && b.x1 > z.x0 && b.x0 < z.x1) worst = Math.min(worst, b.y0 - (z.y1 - 8));
+	return worst;
 };
 
 /** step the board clock frame by frame (frozen clock): the per frame log of the roamer and the runner */
@@ -201,72 +196,117 @@ async function runSize(browser, S) {
 
 	// ---- 1: at rest -------------------------------------------------------------------------------------------------
 	const rest = await H(() => window.__reindeer.roam());
-	out.rest = { state: rest.state, at: rest.at, x: rest.x, y: rest.y, kind: rest.kind, points: rest.points, enter: rest.enter };
-	check(rest.on && rest.visible && rest.onScreen && ['idle', 'start', 'walk', 'stop'].includes(rest.state), `${name}: at rest one reindeer stands on the screen (${rest.state} at waypoint ${rest.at + 1})`, rest);
+	out.rest = { state: rest.state, x: rest.x, y: rest.y, kind: rest.kind, corners: rest.corners };
+	check(rest.on && rest.visible && rest.onScreen && ['idle', 'start', 'walk', 'stop'].includes(rest.state), `${name}: at rest one reindeer stands on the screen (${rest.state} at road (${r1(rest.x)}, ${r1(rest.y)}))`, rest);
 	const mem = await H(() => window.__reindeer.roamMemory());
 	out.memory = mem;
 	console.log(`  INFO ${name}: roam sheets ${mem.sheets.join(', ')} = ${mem.mb} MB (${mem.mipmapped ? `${mem.mbWithMips} MB with mips` : 'no mips'})`);
 
-	// ---- 5: the zones -----------------------------------------------------------------------------------------------
-	// the real counter plate (a bonus round's) measured too
-	const zones = await H(async () => {
-		const h = window.__reindeer;
-		h.roundSign(true);
-		await new Promise((r) => setTimeout(r, 300));
-		const z = h.roamZones();
-		h.roundSign(false);
-		await new Promise((r) => setTimeout(r, 100));
-		return z;
-	});
+	// ---- 5: the area and the zones -----------------------------------------------------------------------------------
+	const zones = await H(() => window.__reindeer.roamZones());
 	const geo = await H(() => ({ view: window.__reindeer.roamView(), roam: window.__reindeer.roam(), vp: { width: innerWidth, height: innerHeight } }));
-	const zc = zoneCheck(geo, zones);
 	out.zones = zones.map((z) => ({ name: z.name, box: [z.x0, z.y0, z.x1, z.y1].map(r1) }));
-	out.body = zc.bodyCss;
+	out.body = bodyOf(geo).css;
+	out.area = geo.roam.corners;
 	const names = new Set(zones.map((z) => z.name));
-	check(['road', 'hud', 'LED strip', 'logo', 'counter plate', 'top line'].every((n) => names.has(n)), `${name}: every forbidden zone measured (${[...names].join(', ')})`);
-	check(zc.hits.length === 0, `${name}: the default path (${geo.roam.points.length} waypoints, the walk in and every segment, sampled every CSS px) keeps his body off the HUD, LED strip, logo, counter plate and top line and his feet off the road`, zc.unique);
-	check(zc.off.length === 0, `${name}: every waypoint's body is wholly on the screen`, zc.off);
-	// HIS HEAD UNDER THE TOP LINE (the owner, 2026-11-17: at least 8 CSS px wherever his body is under a top line's text),
-	// at every waypoint and every CSS px of every segment and of the walk in
-	{
-		const lines = zones.filter((z) => z.name === 'top line');
-		const { k, ox, oy } = geo.view;
-		const sc = geo.roam.scale;
-		const B = geo.roam.box;
-		const side = Math.max(...Object.values(B).map((b) => Math.max(b.anchorX, 1 - b.anchorX) * b.width));
-		const height = Math.max(...Object.values(B).map((b) => b.anchorY * b.height));
-		let worst = Infinity;
-		let at = null;
-		const pts = [geo.roam.enter, ...geo.roam.points];
-		for (let i = 0; i + 1 < pts.length; i++) {
-			const a = pts[i];
-			const b = pts[i + 1];
-			const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * k));
-			for (let j = 0; j <= n; j++) {
-				const x = a.x + ((b.x - a.x) * j) / n;
-				const y = a.y + ((b.y - a.y) * j) / n;
-				const x0 = ox + (x - side * sc) * k;
-				const x1 = ox + (x + side * sc) * k;
-				const head = oy + (y - height * sc) * k;
-				for (const L of lines) {
-					if (x1 <= L.x0 || x0 >= L.x1) continue;
-					const gap = head - L.y1;
-					if (gap < worst) {
-						worst = gap;
-						at = { x: r1(x), y: r1(y), line: [L.x0, L.y0, L.x1, L.y1].map(r1) };
-					}
-				}
-			}
+	check(['road', 'hud', 'LED strip', 'logo', 'top line'].every((n) => names.has(n)) && !names.has('counter plate'), `${name}: the keep-out zones measured (${[...names].join(', ')}; no counter plate)`);
+	const picks = await H(() => window.__reindeer.roamPicks(300, 60, 9090));
+	const poly = geo.roam.corners;
+	const bad = [];
+	let level = 0;
+	let relaxed = 0;
+	let none = 0;
+	let worstHead = Infinity;
+	const lengths = [];
+	const W = geo.view.rect.right - geo.view.rect.left;
+	const tan = Math.tan((14 * Math.PI) / 180);
+	for (const q of picks) {
+		if (q.pass < 0) {
+			none++;
+			continue;
 		}
-		out.headClearance = worst === Infinity ? null : { px: r1(worst), at };
-		check(worst >= 8, `${name}: his head clears the top line by at least 8 CSS px along the whole path and the walk in (${worst === Infinity ? 'never under it' : `closest ${r1(worst)} px`})`, out.headClearance);
+		if (!inPoly(q.x, q.y, poly)) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) outside the area`);
+		const h0 = hitsAt(geo, zones, q.x, q.y);
+		if (h0.length) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) covers ${h0.join(', ')}`);
+		worstHead = Math.min(worstHead, headClear(geo, zones, q.x, q.y));
+		// the walk there (from the spot before, or level from past the screen's edge), every 4 road px
+		const n = Math.max(1, Math.ceil(Math.hypot(q.x - q.fromX, q.y - q.fromY) / 4));
+		for (let i = 1; i < n; i++) {
+			const x = q.fromX + ((q.x - q.fromX) * i) / n;
+			const y = q.fromY + ((q.y - q.fromY) * i) / n;
+			const hw = hitsAt(geo, zones, x, y).filter((z) => !(q.walkIn && z === 'screen'));
+			if (hw.length) {
+				bad.push(`the walk to (${r1(q.x)}, ${r1(q.y)}) covers ${hw.join(', ')} at (${r1(x)}, ${r1(y)})`);
+				break;
+			}
+			worstHead = Math.min(worstHead, headClear(geo, zones, x, y));
+		}
+		if (q.walkIn) {
+			if (Math.abs(q.y - q.fromY) > 1e-6) bad.push('a walk in that is not level');
+			continue;
+		}
+		const dx = q.x - q.fromX;
+		const dy = q.y - q.fromY;
+		if (q.pass === 0) {
+			level++;
+			if (Math.abs(dy) > Math.abs(dx) * tan + 1) bad.push(`a walk steeper than 14 degrees on pass 0 (${r1(dx)}, ${r1(dy)})`);
+			lengths.push(Math.hypot(dx, dy) / W);
+		} else relaxed++;
 	}
-	if (S.clearanceOnly) {
+	const hopsOk = lengths.every((l) => l >= 0.04 - 1e-6 && l <= 0.18 + 1e-6);
+	out.picks = { count: picks.length, level, relaxed, none, worstHeadPx: worstHead === Infinity ? null : r1(worstHead), minLen: lengths.length ? r1(Math.min(...lengths) * 1000) / 10 : null, maxLen: lengths.length ? r1(Math.max(...lengths) * 1000) / 10 : null };
+	check(bad.length === 0, `${name}: ${picks.length} seeded picks (300 in a row, 60 walk ins): every spot's feet inside the area, his body clear of every keep-out zone and on the screen, every walk there clear all the way, the walks in level`, bad.slice(0, 8));
+	check(level + relaxed + picks.filter((q) => q.walkIn && q.pass >= 0).length >= picks.length / 2, `${name}: he finds his next spot (${level} within 14 degrees, ${relaxed} with the rule relaxed, ${none} times none: he sniffs again)`, out.picks);
+	check(hopsOk, `${name}: the walks' lengths are 4 to 18 % of the screen's width (${out.picks.minLen} to ${out.picks.maxLen} %)`, out.picks);
+	check(worstHead >= 8 - 1e-6, `${name}: his head clears the top line by 8 CSS px or more at every spot and every walk (${worstHead === Infinity ? 'never under it' : `closest ${r1(worstHead)} px`})`, out.picks);
+	console.log(`  INFO ${name}: his body ${out.body.w} x ${out.body.h} CSS px; area ${poly.length} corners; pace ${geo.roam.pace} (walk in ${geo.roam.paceIn}) x the rig's walk = ${r1(((geo.roam.pace * 4.8169 * 0.18465 * geo.roam.scale * 30) / W) * 1000) / 10} % (walk in ${r1(((geo.roam.paceIn * 4.8169 * 0.18465 * geo.roam.scale * 30) / W) * 1000) / 10} %) of the screen's width a second`);
+
+	// ---- 1: the wander, seeded, every frame ---------------------------------------------------------------------------
+	const spot0 = picks.find((q) => !q.walkIn && q.pass >= 0) ?? { x: geo.roam.x, y: geo.roam.y };
+	const wander = async () =>
+		H(async (s0) => {
+			const h = window.__reindeer;
+			const R = h.roadBoard();
+			const F = R.features;
+			h.clock(0);
+			h.tune.strike.roam = true;
+			h.roamReseed(4242);
+			h.roamStandAt(s0.x, s0.y);
+			const trace = [];
+			const pos = [];
+			const stops = [];
+			const states = new Set();
+			for (let i = 0; i < 60 * 45; i++) {
+				R.update(1000 / 60, 1, 1);
+				const ro = F.roam;
+				states.add(ro.state);
+				pos.push([Math.round(ro.x * 100) / 100, Math.round(ro.y * 100) / 100]);
+				if (ro.state === 'idle' && (!stops.length || Math.hypot(stops[stops.length - 1][0] - ro.x, stops[stops.length - 1][1] - ro.y) > 0.5)) stops.push([ro.x, ro.y]);
+				if (i % 6 === 0) trace.push([ro.state, Math.round(ro.x * 100) / 100, Math.round(ro.y * 100) / 100, ro.clip, Math.round(ro.frame * 100) / 100]);
+			}
+			return { trace, pos, stops, states: [...states] };
+		}, spot0);
+	const w1 = await wander();
+	const w2 = await wander();
+	out.wander = { states: w1.states, stops: w1.stops.length };
+	check(w1.states.includes('idle') && w1.states.includes('walk') && w1.states.includes('start') && w1.states.includes('stop'), `${name}: in 45 s he sniffs and walks (start, walk, stop) from spot to spot (${w1.states.join(', ')})`, w1.states);
+	check(w1.stops.length >= 3, `${name}: he stops at ${w1.stops.length} different spots in 45 s`, w1.stops.length);
+	const offArea = w1.stops.filter(([x, y]) => !inPoly(x, y, poly));
+	check(offArea.length === 0, `${name}: every stop's feet are inside the area`, offArea.slice(0, 3));
+	const frameHits = [];
+	for (let i = 0; i < w1.pos.length && frameHits.length < 5; i++) {
+		const hz = hitsAt(geo, zones, w1.pos[i][0], w1.pos[i][1]);
+		if (hz.length) frameHits.push(`frame ${i}: ${hz.join(', ')} at (${w1.pos[i].join(', ')})`);
+	}
+	check(frameHits.length === 0, `${name}: every frame of the 45 s (${w1.pos.length}) his body is clear of every keep-out zone and on the screen`, frameHits);
+	const same = w1.trace.length === w2.trace.length && w1.trace.every((t, i) => t[0] === w2.trace[i][0] && t[3] === w2.trace[i][3] && Math.abs(t[1] - w2.trace[i][1]) < 0.1 && Math.abs(t[2] - w2.trace[i][2]) < 0.1 && Math.abs(t[4] - w2.trace[i][4]) < 0.1);
+	check(same, `${name}: the same seed walks the same way (seeded, no Math.random): ${w1.trace.length} samples match`);
+	if (S.areaOnly) {
+		await H(() => window.__reindeer.clock(1));
 		check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
 		await ctx.close();
 		return;
 	}
-	console.log(`  INFO ${name}: his body ${zc.bodyCss.w} x ${zc.bodyCss.h} CSS px; path ${JSON.stringify(geo.roam.points.map((q) => [r1(q.x), r1(q.y)]))} road px, walk in from ${JSON.stringify([r1(geo.roam.enter.x), r1(geo.roam.enter.y)])}`);
 
 	// ---- 5: every scene preset ----------------------------------------------------------------------------------------
 	const presets = [];
@@ -289,60 +329,12 @@ async function runSize(browser, S) {
 	out.presets = presets;
 	check(presets.every((q) => q.visible && q.onScreen && q.state !== 'none'), `${name}: he is drawn on the screen in all six scene presets`, presets);
 
-	// ---- 1: the wander, seeded --------------------------------------------------------------------------------------
-	const wander = async () =>
-		H(async () => {
-			const h = window.__reindeer;
-			const R = h.roadBoard();
-			const F = R.features;
-			h.clock(0);
-			h.tune.strike.roam = true;
-			h.roamReseed(4242);
-			h.roamAt(0);
-			const pts = h.roam().points;
-			const trace = [];
-			const states = new Set();
-			const visited = new Set([0]);
-			let offPath = 0;
-			let worst = 0;
-			for (let i = 0; i < 60 * 45; i++) {
-				R.update(1000 / 60, 1, 1);
-				const ro = F.roam;
-				states.add(ro.state);
-				if (ro.state === 'idle') visited.add(ro.at);
-				// distance from the path's polyline
-				let d = Infinity;
-				for (let j = 0; j + 1 < pts.length; j++) {
-					const a = pts[j];
-					const b = pts[j + 1];
-					const vx = b.x - a.x;
-					const vy = b.y - a.y;
-					const L = vx * vx + vy * vy;
-					const u = L ? Math.max(0, Math.min(1, ((ro.x - a.x) * vx + (ro.y - a.y) * vy) / L)) : 0;
-					d = Math.min(d, Math.hypot(a.x + vx * u - ro.x, a.y + vy * u - ro.y));
-				}
-				if (pts.length === 1) d = Math.hypot(pts[0].x - ro.x, pts[0].y - ro.y);
-				worst = Math.max(worst, d);
-				if (d > 0.6) offPath++;
-				if (i % 6 === 0) trace.push([ro.state, Math.round(ro.x * 100) / 100, Math.round(ro.y * 100) / 100, ro.clip, Math.round(ro.frame * 100) / 100]);
-			}
-			return { trace, states: [...states], visited: [...visited], offPath, worst };
-		});
-	const w1 = await wander();
-	const w2 = await wander();
-	out.wander = { states: w1.states, visited: w1.visited, worst: w1.worst };
-	check(w1.states.includes('idle') && w1.states.includes('walk') && w1.states.includes('start') && w1.states.includes('stop'), `${name}: in 45 s he sniffs at a waypoint and walks (start, walk, stop) to another (${w1.states.join(', ')})`, w1.states);
-	check(w1.visited.length >= 2, `${name}: he wanders to ${w1.visited.length} different waypoints`, w1.visited);
-	check(w1.offPath === 0, `${name}: his feet stay on the path's line (worst ${r1(w1.worst * 100) / 100} road px off)`, { offPath: w1.offPath, worst: w1.worst });
-	// (the same choices, the same moments; positions to 0.1 road px: the board clock's own float sums differ in the last
-	// digits between two runs that start at different clock values)
-	const same = w1.trace.length === w2.trace.length && w1.trace.every((t, i) => t[0] === w2.trace[i][0] && t[3] === w2.trace[i][3] && Math.abs(t[1] - w2.trace[i][1]) < 0.1 && Math.abs(t[2] - w2.trace[i][2]) < 0.1 && Math.abs(t[4] - w2.trace[i][4]) < 0.1);
-	check(same, `${name}: the same seed walks the same way (seeded, no Math.random): ${w1.trace.length} samples match`);
-
 	// ---- 2 and 7: his strike against the one from off the screen, per rate --------------------------------------------
 	const cells = [0, 8, 19];
 	const timing = [];
-	const wp = geo.roam.points.length;
+	// his spots for these strikes: the seeded picks' (a different one per case)
+	const spots = picks.filter((q) => !q.walkIn && q.pass >= 0);
+	let si = 0;
 	for (const cell of cells) {
 		for (const [hz, turbo, label] of [
 			[60, 0, '60 Hz'],
@@ -351,14 +343,14 @@ async function runSize(browser, S) {
 			[60, 1, '60 Hz turbo 1'],
 			[60, 2, '60 Hz turbo 2'],
 		]) {
-			const at = (cell / 4 + hz) % wp;
-			await H((i) => window.__reindeer.roamAt(i), Math.floor(at));
+			const at = spots[si++ % spots.length];
+			await H((q) => window.__reindeer.roamStandAt(q.x, q.y), at);
 			const today = await STEP_STRIKE(p, { cell, hz, turbo, plain: true });
-			await H((i) => window.__reindeer.roamAt(i), Math.floor(at));
+			await H((q) => window.__reindeer.roamStandAt(q.x, q.y), at);
 			const mine = await STEP_STRIKE(p, { cell, first: true, last: false, hz, turbo });
 			const fr = mine.firstRunner;
-			timing.push({ cell, rate: label, waypoint: Math.floor(at) + 1, todayMs: today.impactAt, roamMs: mine.impactAt, waitMs: fr?.waitMs, pre: fr?.pre, roam: fr?.roam });
-			const tag = `${name}: cell ${cell} (reel ${Math.floor(cell / 4) + 1}) at ${label}, from waypoint ${Math.floor(at) + 1}`;
+			timing.push({ cell, rate: label, spot: [r1(at.x), r1(at.y)], todayMs: today.impactAt, roamMs: mine.impactAt, waitMs: fr?.waitMs, pre: fr?.pre, roam: fr?.roam });
+			const tag = `${name}: cell ${cell} (reel ${Math.floor(cell / 4) + 1}) at ${label}, from road (${r1(at.x)}, ${r1(at.y)})`;
 			if (!fr?.roam) {
 				check(false, `${tag}: the first strike is his`, fr);
 				continue;
@@ -381,10 +373,10 @@ async function runSize(browser, S) {
 	}
 	out.timing = timing;
 	console.log(`  STRIKE TIMING ${name} (ms from the strike's start to the impact frame; off screen = today):`);
-	for (const t of timing) console.log(`    cell ${String(t.cell).padStart(2)} ${t.rate.padEnd(14)} wp ${t.waypoint}  today ${r1(t.todayMs)}  roam ${r1(t.roamMs)}  diff ${r1(t.roamMs - t.todayMs)}  wait ${r1(t.waitMs)}${t.pre ? `  run back out ${t.pre} poses` : ''}`);
+	for (const t of timing) console.log(`    cell ${String(t.cell).padStart(2)} ${t.rate.padEnd(14)} from ${JSON.stringify(t.spot).padEnd(16)} today ${r1(t.todayMs)}  roam ${r1(t.roamMs)}  diff ${r1(t.roamMs - t.todayMs)}  wait ${r1(t.waitMs)}${t.pre ? `  run back out ${t.pre} poses` : ''}`);
 
 	// ---- 3 and 4: a second strike from off the screen; the walk in after the last ------------------------------------
-	await H(() => window.__reindeer.roamAt(0));
+	await H((q) => window.__reindeer.roamStandAt(q.x, q.y), spots[0]);
 	const s1 = await STEP_STRIKE(p, { cell: 9, first: true, last: false });
 	const s2 = await STEP_STRIKE(p, { cell: 14, first: false, last: true });
 	const fr2 = s2.firstRunner;
@@ -411,17 +403,17 @@ async function runSize(browser, S) {
 			if (ro.state === 'enter' && entered === null) entered = { t, x: ro.x, y: ro.y };
 			if (ro.state === 'enter' && onAt === null && ro.standing()) onAt = t;
 			if (ro.counts.arrived > n0) {
-				arrived = { t, x: ro.x, y: ro.y, at: ro.at, state: ro.state };
+				arrived = { t, x: ro.x, y: ro.y, state: ro.state, enterY: entered ? entered.y : null };
 				break;
 			}
 			if (i % 30 === 0) log.push([Math.round(t), ro.state, Math.round(ro.x), Math.round(ro.y)]);
 		}
-		return { entered, onAt, arrived, rect, wp0: h.roam().points[0], log: log.slice(0, 8) };
+		return { entered, onAt, arrived, rect, log: log.slice(0, 8) };
 	});
 	out.walkIn = walkIn;
 	const enteredOff = walkIn.entered && (walkIn.entered.x < walkIn.rect.left || walkIn.entered.x > walkIn.rect.right);
 	check(!!walkIn.entered && enteredOff, `${name}: the new one starts walking in from past the screen's edge (road x ${walkIn.entered ? r1(walkIn.entered.x) : '-'})`, walkIn);
-	check(!!walkIn.arrived && walkIn.arrived.at === 0 && walkIn.arrived.state === 'idle' && Math.hypot(walkIn.arrived.x - walkIn.wp0.x, walkIn.arrived.y - walkIn.wp0.y) < 0.05, `${name}: he arrives at the first waypoint and sniffs (on the screen after ${walkIn.onAt ? r1(walkIn.onAt / 1000) : '-'} s, arrived after ${walkIn.arrived ? r1(walkIn.arrived.t / 1000) : '-'} s at the 1x board clock)`, walkIn);
+	check(!!walkIn.arrived && walkIn.arrived.state === 'idle' && inPoly(walkIn.arrived.x, walkIn.arrived.y, poly) && Math.abs(walkIn.arrived.y - walkIn.arrived.enterY) < 0.01, `${name}: he walks in level and stops at a spot of the area, sniffing (on the screen after ${walkIn.onAt ? r1(walkIn.onAt / 1000) : '-'} s, arrived after ${walkIn.arrived ? r1(walkIn.arrived.t / 1000) : '-'} s at the 1x board clock)`, walkIn);
 
 	// ---- 7: a strike before he is on the screen, and one while he walks in on it ---------------------------------------
 	const early = await H(async () => {
@@ -477,7 +469,7 @@ async function runSize(browser, S) {
 		const h = window.__reindeer;
 		const R = h.roadBoard();
 		const F = R.features;
-		h.roamAt(0);
+		h.roamPlace();
 		for (let i = 0; i < 30; i++) R.update(1000 / 60, 1, 1);
 		const a = [F.roam.x, F.roam.y, F.roam.frame, F.roam.state];
 		Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
@@ -497,7 +489,7 @@ async function runSize(browser, S) {
 				h.tune.strike.roam = roamOn;
 				h.clock(1);
 				const F = h.roadBoard().features;
-				if (roamOn) h.roamAt(0);
+				if (roamOn) h.roamPlace();
 				await new Promise((r) => setTimeout(r, 300));
 				h.fixtures.next(book);
 				const seen = [];
@@ -592,31 +584,31 @@ async function runSize(browser, S) {
 	const ed = await boot(browser, S, '&tune=roam');
 	const q = ed.p;
 	const E = (fn, arg) => q.evaluate(fn, arg);
-	// the panel docks on the side away from his path (it would cover the waypoints' handles)
+	// the panel docks on the side away from his area (it would cover the corners' handles)
 	await E(() => {
 		const side = window.__reindeer.roam().side;
 		document.querySelector(`.ror-tune [aria-label="Dock ${side === 'right' ? 'left' : 'right'}"]`)?.click();
 	});
 	await sleep(200);
-	await E(() => document.querySelector('[aria-label="Show the path over the game"]')?.click());
+	await E(() => document.querySelector('[aria-label="Show the area over the game"]')?.click());
 	await sleep(600);
-	const ov = await E(() => ({ handles: [...document.querySelectorAll('[data-roam-wp]')].map((b) => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }), enter: !!document.querySelector('[data-roam-enter]'), zones: document.querySelectorAll('[data-roam-overlay] rect.zone').length, json: document.querySelector('[data-roam-json]')?.value ?? '', path: window.__reindeer.roam().points }));
-	check(ov.handles.length === ov.path.length && ov.enter && ov.zones >= 5, `${name}: the editor shows the path over the game (${ov.handles.length} waypoints, the walk in, ${ov.zones} zones shaded)`, { handles: ov.handles.length, zones: ov.zones });
+	const ov = await E(() => ({ handles: [...document.querySelectorAll('[data-roam-wp]')].map((b) => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }), area: !!document.querySelector('[data-roam-area]'), zones: document.querySelectorAll('[data-roam-overlay] rect.zone').length, json: document.querySelector('[data-roam-json]')?.value ?? '', path: window.__reindeer.roam().corners }));
+	check(ov.handles.length === ov.path.length && ov.area && ov.zones >= 4, `${name}: the editor shows the area over the game (${ov.handles.length} corners, the area and ${ov.zones} zones shaded)`, { handles: ov.handles.length, zones: ov.zones });
 	let jsonOk = false;
 	try {
-		jsonOk = JSON.stringify(JSON.parse(ov.json)) === JSON.stringify(await E(() => window.__reindeer.roamPaths()));
+		jsonOk = JSON.stringify(JSON.parse(ov.json)) === JSON.stringify(await E(() => window.__reindeer.roamAreas()));
 	} catch {
 		jsonOk = false;
 	}
 	check(jsonOk, `${name}: the read back is the live paths as JSON`);
-	// drag waypoint 1 by (-24, +6) CSS px: mouse on the desktop, a finger on the phones; the panel hidden (the path stays)
+	// drag corner 1 by (-24, +6) CSS px: mouse on the desktop, a finger on the phones; the panel hidden (the path stays)
 	await E(() => document.querySelector('.ror-tune [aria-label="Collapse"]')?.click());
 	await sleep(300);
 	const h0 = await E(() => {
 		const b = document.querySelector('[data-roam-wp="0"]')?.getBoundingClientRect();
 		return b ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : { x: 0, y: 0 };
 	});
-	const before = await E(() => JSON.parse(JSON.stringify(window.__reindeer.roam().points[0])));
+	const before = await E(() => JSON.parse(JSON.stringify(window.__reindeer.roam().corners[0])));
 	if (S.touch) {
 		const cdp = await ed.ctx.newCDPSession(q);
 		const t = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
@@ -630,27 +622,27 @@ async function runSize(browser, S) {
 		await q.mouse.up();
 	}
 	await sleep(400);
-	const moved = await E(() => ({ p: window.__reindeer.roam().points[0], k: window.__reindeer.roamView().k, paths: window.__reindeer.roamPaths(), kind: window.__reindeer.roamView().kind }));
+	const moved = await E(() => ({ p: window.__reindeer.roam().corners[0], k: window.__reindeer.roamView().k, areas: window.__reindeer.roamAreas(), kind: window.__reindeer.roamView().kind }));
 	// the panel back open: its read back
 	await E(() => document.querySelector('.ror-tune [aria-label="Open the tuning panel"]')?.click());
 	await sleep(500);
 	moved.json = await E(() => document.querySelector('[data-roam-json]')?.value ?? '');
 	const dx = (moved.p.x - before.x) * moved.k;
 	const dy = (moved.p.y - before.y) * moved.k;
-	check(Math.abs(dx + 24) < 3 && Math.abs(dy - 6) < 3, `${name}: waypoint 1 drags with the ${S.touch ? 'finger' : 'mouse'} (moved ${r1(dx)}, ${r1(dy)} CSS px for -24, 6)`, { dx, dy });
+	check(Math.abs(dx + 24) < 3 && Math.abs(dy - 6) < 3, `${name}: corner 1 drags with the ${S.touch ? 'finger' : 'mouse'} (moved ${r1(dx)}, ${r1(dy)} CSS px for -24, 6)`, { dx, dy });
 	let readBack = null;
 	try {
 		readBack = JSON.parse(moved.json);
 	} catch {}
-	check(!!readBack && JSON.stringify(readBack[moved.kind].points[0]) === JSON.stringify(moved.paths[moved.kind].points[0]), `${name}: the read back follows the drag (${JSON.stringify(readBack?.[moved.kind]?.points?.[0])})`);
-	const n0 = moved.paths[moved.kind].points.length;
-	await E(() => [...document.querySelectorAll('.roam-ed button')].find((b) => b.textContent.startsWith('Add a waypoint'))?.click());
+	check(!!readBack && JSON.stringify(readBack[moved.kind].corners[0]) === JSON.stringify(moved.areas[moved.kind].corners[0]), `${name}: the read back follows the drag (${JSON.stringify(readBack?.[moved.kind]?.points?.[0])})`);
+	const n0 = moved.areas[moved.kind].corners.length;
+	await E(() => [...document.querySelectorAll('.roam-ed button')].find((b) => b.textContent.startsWith('Add a corner'))?.click());
 	await sleep(300);
-	const n1 = await E(() => ({ live: window.__reindeer.roam().points.length, handles: document.querySelectorAll('[data-roam-wp]').length }));
-	await E(() => [...document.querySelectorAll('.roam-ed button')].find((b) => b.textContent.startsWith('Remove waypoint'))?.click());
+	const n1 = await E(() => ({ live: window.__reindeer.roam().corners.length, handles: document.querySelectorAll('[data-roam-wp]').length }));
+	await E(() => [...document.querySelectorAll('.roam-ed button')].find((b) => b.textContent.startsWith('Remove corner'))?.click());
 	await sleep(300);
-	const n2 = await E(() => ({ live: window.__reindeer.roam().points.length, handles: document.querySelectorAll('[data-roam-wp]').length }));
-	check(n1.live === n0 + 1 && n1.handles === n0 + 1 && n2.live === n0 && n2.handles === n0, `${name}: a waypoint is added (${n0} to ${n1.live}) and removed (back to ${n2.live}); he walks the new path`, { n0, n1, n2 });
+	const n2 = await E(() => ({ live: window.__reindeer.roam().corners.length, handles: document.querySelectorAll('[data-roam-wp]').length }));
+	check(n1.live === n0 + 1 && n1.handles === n0 + 1 && n2.live === n0 && n2.handles === n0, `${name}: a corner is added (${n0} to ${n1.live}) and removed (back to ${n2.live}); he roams the new area`, { n0, n1, n2 });
 	errs.push(...ed.errs);
 	await ed.ctx.close();
 	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));

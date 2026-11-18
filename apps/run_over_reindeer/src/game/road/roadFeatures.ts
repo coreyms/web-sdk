@@ -734,7 +734,7 @@ export class RoadFeatures {
 		// in from past the edge gives way to the strike from off the screen (a new one walks in after the spin)
 		const spot = STRIKE.roam && spec.first ? this.roam.standing() : null;
 		if (STRIKE.roam && spec.first && !spot) this.roam.leave();
-		const R = spot ? planRoamStrike(spot, reel, toX, target, snow, this.roam.path().side === 'left' ? 1 : -1, todayMs) : null;
+		const R = spot ? planRoamStrike(spot, reel, toX, target, snow, this.roam.area().side === 'left' ? 1 : -1, todayMs) : null;
 		const runDir = R ? R.dir : dir;
 		const path = R ? R.path : P.path;
 		const times = R ? R.times : P.times;

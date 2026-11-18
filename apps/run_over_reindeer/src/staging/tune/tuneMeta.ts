@@ -39,9 +39,9 @@ export type Meta = {
 export const GROUP_ORDER = ['roam', 'scene', 'ledBoard', 'logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
 
 export const GROUP_META: Record<string, { label: string; when: When }> = {
-	// the roaming reindeer (2026-11-17, game/road/roam.ts): his pace and idle times are read every frame; the path editor
+	// the roaming reindeer (2026-11-17, game/road/roam.ts): his speed, stops and walks are read as he goes; the area editor
 	// (RoamEditor.svelte) is drawn in this group
-	roam: { label: 'Reindeer path', when: 'live' },
+	roam: { label: 'Reindeer area', when: 'live' },
 	shadow: { label: 'Shadows', when: 'live' },
 	seated: { label: 'Seated drivers', when: 'live' },
 	lineWin: { label: 'Win lines', when: 'win' },
@@ -249,13 +249,18 @@ export const META: Record<string, Meta> = {
 	'stoplight.amberFrom': { options: ['afterGreen', 'beforeRed', 'brake'] },
 	'strike.entry': { options: ['far', 'near', 'left', 'right'] },
 	'strike.roam': { label: 'roaming reindeer (off: every strike from off the screen, as before)', when: 'live' },
-	'roam.walkPace': { label: 'walking speed (x the rig\'s own walk)', min: 0.3, max: 3, step: 0.05 },
-	'roam.walkInPace': { label: 'walking in speed (x the rig\'s own walk)', min: 0.3, max: 4, step: 0.05 },
-	'roam.idleMinMs': { ...ms(15000, 'idle at a waypoint: at least') },
-	'roam.idleMaxMs': { ...ms(30000, 'idle at a waypoint: at most') },
+	'roam.walkSpeedPct': { label: 'walk speed (share of the screen width per second)', min: 0.5, max: 12, step: 0.1, unit: '%' },
+	'roam.maxPace': { label: 'walk: fastest stride (x the rig\'s own walk; the speed is held back to it)', min: 0.5, max: 5, step: 0.05 },
+	'roam.walkInMul': { label: 'walk in speed (x the walk speed)', min: 1, max: 5, step: 0.1 },
+	'roam.maxInPace': { label: 'walk in: fastest stride (x the rig\'s own walk)', min: 0.5, max: 6, step: 0.05 },
+	'roam.idleMinMs': { ...ms(15000, 'stop at a spot: at least') },
+	'roam.idleMaxMs': { ...ms(30000, 'stop at a spot: at most') },
+	'roam.hopMinPct': { label: 'walk length: at least (share of the screen width)', min: 0, max: 50, step: 0.5, unit: '%' },
+	'roam.hopMaxPct': { label: 'walk length: at most (share of the screen width)', min: 1, max: 100, step: 0.5, unit: '%' },
+	'roam.maxSlopeDeg': { label: 'steepest walk (degrees from level)', min: 0, max: 60, step: 1, unit: 'deg' },
 	'roam.walkInDelayMs': { ...ms(5000, 'walk in after the last strike by') },
 	'roam.minRunShare': { label: 'a late run: sped up to at most 1 / this', min: 0.3, max: 1, step: 0.05 },
-	'roam.seed': { label: 'wander seed', min: 0, max: 99999999, step: 1, when: 'reload' },
+	'roam.seed': { label: 'wander seed (0: a new one each page)', min: 0, max: 99999999, step: 1, when: 'reload' },
 };
 
 const matches = (pattern: string, path: string[]) => {

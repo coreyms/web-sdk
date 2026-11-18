@@ -213,7 +213,7 @@
 </script>
 
 <div class="ror-tune" style={place} onkeydown={stop} onkeyup={stop} onwheel={stop} role="presentation">
-	<!-- the reindeer path over the game (its group's Show switch): up whether the panel is open or not -->
+	<!-- the reindeer area over the game (its group's Show switch): up whether the panel is open or not -->
 	<RoamEditor part="overlay" />
 	{#if !open}
 		<button class="tab" onclick={tabClick} onpointerdown={(e) => down(e, true)} onpointermove={move} onpointerup={up} onpointercancel={up} aria-label="Open the tuning panel">
@@ -256,7 +256,7 @@
 										<span class="msg">{actionMsg[g.key] ?? ''}</span>
 									</div>
 								{/if}
-								<!-- the reindeer path's own editor (the path is not a TUNE value: game/roamPaths.ts) -->
+								<!-- the reindeer area's own editor (the area is not a TUNE value: game/roamPaths.ts) -->
 								{#if g.key === 'roam'}<RoamEditor part="controls" />{/if}
 								{#each g.blocks as b (b.id)}
 									{#if b.title}<div class="sub">{b.title}</div>{/if}

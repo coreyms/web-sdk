@@ -231,22 +231,32 @@ export const STRIKE = {
 // The tune panel's "Reindeer path" group (staging) edits these and the paths themselves. Board clock ms (turbo and a slam
 // stop hurry them).
 export const ROAM = {
-	/** walking along the path, against the rig's own walk (1 = the hooves grip at the walk's rendered speed: about 19
-	 *  road px a second at the desktop's snow size) */
-	walkPace: 1.2,
-	/** the walk in from past the screen's edge after a spin's strikes, against the rig's own walk */
-	walkInPace: 2.5,
-	/** how long he sniffs at a waypoint before walking on: a seeded draw between these; he sets off when the sniff loop
-	 *  (3.3 s) is back on the stand */
-	idleMinMs: 2500,
-	idleMaxMs: 7000,
+	/** THE WALK (Corey's mock, 2026-11-17): his speed as a share of the screen's width per second. His legs run at the rig's
+	 *  stride for that speed (the hooves never slide), so the speed is held back where the stride would be faster than
+	 *  maxPace times the rig's own walk (at 3.2 % that is the desktop and the phone held sideways: about 2.4 % and 2.1 %) */
+	walkSpeedPct: 3.2,
+	maxPace: 2.5,
+	/** the walk in after a spin's strikes: this many times the walk's speed, its stride held at maxInPace */
+	walkInMul: 2.5,
+	maxInPace: 4,
+	/** how long he stops at a spot (sniffing): a random draw between these. The sniff loop (3.3 s) is played whole, 1 to n
+	 *  times, at 0.67 to 1.5 times its pace to fit: a stop shorter than 2.2 s comes out at 2.2 s */
+	idleMinMs: 1500,
+	idleMaxMs: 5000,
+	/** how far one walk goes, shares of the screen's width (the mock's 4 % to 18 %) */
+	hopMinPct: 4,
+	hopMaxPct: 18,
+	/** THE STEEPEST WALK, degrees from level: his walk is drawn side on, so a steep one slides; a pick is turned down when
+	 *  it climbs or drops more than this (other heights are reached over several walks). With no spot found that way the
+	 *  rule is relaxed, then the walk's length: he never freezes */
+	maxSlopeDeg: 14,
 	/** the new one starts walking in this long after the spin's last strike's impact */
 	walkInDelayMs: 900,
 	/** a strike from where he stands that would land later than the strike from off the screen: his side run is sped up
 	 *  to at most 1 / minRunShare, and only then is its start cut (the impact is never later) */
 	minRunShare: 0.6,
-	/** the wander's seeded choices (which waypoint, how long he sniffs) */
-	seed: 20261117,
+	/** his random choices' seed: 0 = a new one every page (the game); a number repeats them (the probes) */
+	seed: 0,
 };
 
 // ---- THE GRANDMA WILD: the crash cloud in one cell, for one spin (Corey 2026-11-04 and 2026-11-09) ---------------------

@@ -1,34 +1,33 @@
-// THE ROAMING REINDEER'S PATHS (2026-11-17; game/road/roam.ts, constants ROAM). Corey: "the reindeer is supposed to end
-// up being on the screen ... A new reindeer should walk in towards the next spin and stay on the screen doing it's idle
-// stuff. So we need to set a path of where it can walk around."
+// THE ROAMING REINDEER'S AREAS (2026-11-17; game/road/roam.ts, constants ROAM). Corey, after the first build: "I was
+// kind of hoping not for a specific path the reindeer walks but an allowed to walk area where it randomly chooses where
+// to go in that area." Tuned in his mock (roam_2026-11-17/area_mock, corey_area_settings_2026-11-17.json).
 //
-// One path per layout class (landscape = desktop and tablet, phone = held sideways, portrait = upright). A path is the
-// strike side it lives on, the point it walks in from (just past that screen edge, at `enter`'s height), and its
-// waypoints in order: it walks only along the line through them (and from the entry point to the first one), idles at
-// a waypoint, and wanders to another one.
+// One AREA per layout class (landscape = desktop and tablet, phone = held sideways, portrait = upright): a polygon of the
+// spots his FEET may stand on. He picks a random spot inside it, walks there, sniffs a while and picks another. A spot is
+// never chosen where his body would cover a keep-out zone (the road under his feet, the HUD, the LED strip, the logo, the
+// top line) or leave the screen, nor one whose walk there would. `side` is the edge he walks in from and strikes from.
 //
-// THE POINTS ARE FRACTIONS OF STABLE ANCHORS, never raw pixels, so a path holds across screen sizes within its class:
+// THE CORNERS ARE FRACTIONS OF STABLE ANCHORS, never raw pixels, so an area holds across screen sizes within its class:
 //   x  'picture'  share of the road picture's width (0 its left edge, 1 its right edge)
 //      'left'     share of the room from the picture's left edge (0) out to the screen's left edge (1)
 //      'right'    share of the room from the picture's right edge (0) out to the screen's right edge (1)
 //   y  'picture'  share of the road picture's height (0 its top, 1 its bottom)
 //      'top'      share of the room from the picture's top (0) up to the screen's top (1)
 //      'bottom'   share of the room from the picture's bottom (0) down to the screen's bottom (1)
-// The staging tune panel's "Reindeer path" group edits these live and reads them back as JSON (src/staging/tune/).
-// tools/roam_probe.mjs checks the defaults' every point and segment against the HUD, the road, the LED strip, the logo,
-// the bonus counter plate and the top line at every probe size.
+// Corey's desktop (1440 x 900) and upright (390 x 844) corners were converted from his mock's screen fractions; the phone
+// held sideways is mine, in the same spirit (the open snow right of the right tunnel: the top has no room for his body).
+// The staging tune panel's "Reindeer area" group edits these live (src/staging/tune/RoamEditor.svelte).
 import { ROAD_ART } from './roadArtSpec';
 import type { LayoutKind } from './layoutSpec';
 
 export type RoamAnchorX = 'picture' | 'left' | 'right';
 export type RoamAnchorY = 'picture' | 'top' | 'bottom';
 export type RoamPoint = { ax: RoamAnchorX; x: number; ay: RoamAnchorY; y: number };
-export type RoamPath = {
-	/** the side it lives on and enters from: its strike starts toward the board from here */
+export type RoamArea = {
+	/** the side he walks in from (and strikes from) */
 	side: 'left' | 'right';
-	/** the height it walks in at (its x is just past the screen's edge on `side`) */
-	enter: { ay: RoamAnchorY; y: number };
-	points: RoamPoint[];
+	/** the polygon his feet stay inside, in order round its edge (3 corners or more) */
+	corners: RoamPoint[];
 };
 
 /** the screen in road px (components/Board.svelte: the part of the road's plane the canvas shows) */
@@ -37,47 +36,59 @@ export type RoadRect = { left: number; top: number; right: number; bottom: numbe
 const W = ROAD_ART.image.width;
 const H = ROAD_ART.image.height;
 
-export const ROAM_PATHS: Record<LayoutKind, RoamPath> = {
-	// desktop and tablet: the snow on the trench's top rim at the right and over the right tunnel's end, right of the bonus
-	// counter plate and under the top line (16:9 leaves only a little snow above the rim: the feet stay on the rim's snow)
-	// (2026-11-17, the owner: at 1920 x 1080 his head clears the top right line by 8 CSS px or more everywhere: the feet
-	// at road y 114.7 to 115.7, just above the asphalt's band, which starts at 120)
+export const ROAM_AREAS: Record<LayoutKind, RoamArea> = {
+	// Corey's: the whole top snow rim from 17 % to 99 % of the screen's width, and down the right side to 26 % of its height
 	landscape: {
 		side: 'right',
-		enter: { ay: 'picture', y: 0.112 },
-		points: [
-			{ ax: 'right', x: 0.45, ay: 'picture', y: 0.112 },
-			{ ax: 'picture', x: 0.938, ay: 'picture', y: 0.112 },
-			{ ax: 'picture', x: 0.86, ay: 'picture', y: 0.113 },
-			{ ax: 'picture', x: 0.782, ay: 'picture', y: 0.112 },
+		corners: [
+			{ ax: 'picture', x: 0.0752, ay: 'top', y: 0.4128 },
+			{ ax: 'picture', x: 0.9764, ay: 'top', y: 0.4137 },
+			{ ax: 'right', x: 0.9296, ay: 'top', y: 0.4328 },
+			{ ax: 'right', x: 0.8892, ay: 'picture', y: 0.1827 },
+			{ ax: 'right', x: 0.2251, ay: 'picture', y: 0.1025 },
+			{ ax: 'right', x: 0.0043, ay: 'picture', y: 0.0209 },
+			{ ax: 'picture', x: 0.9184, ay: 'picture', y: 0.0181 },
+			{ ax: 'picture', x: 0.8624, ay: 'picture', y: 0.0704 },
+			{ ax: 'picture', x: 0.7865, ay: 'picture', y: 0.0662 },
+			{ ax: 'picture', x: 0.6882, ay: 'picture', y: 0.0475 },
+			{ ax: 'picture', x: 0.5772, ay: 'picture', y: 0.0719 },
+			{ ax: 'picture', x: 0.4516, ay: 'picture', y: 0.051 },
+			{ ax: 'picture', x: 0.3659, ay: 'picture', y: 0.0772 },
+			{ ax: 'picture', x: 0.2662, ay: 'picture', y: 0.0614 },
+			{ ax: 'picture', x: 0.1713, ay: 'picture', y: 0.0679 },
+			{ ax: 'picture', x: 0.1167, ay: 'picture', y: 0.0502 },
 		],
 	},
-	// held sideways: the open snow right of the right tunnel, between the Auto / Turbo capsule and the Spin
+	// mine: the open snow right of the right tunnel, between the Auto / Turbo capsule and the Spin
 	phone: {
 		side: 'right',
-		enter: { ay: 'picture', y: 0.34 },
-		points: [
-			{ ax: 'right', x: 0.79, ay: 'picture', y: 0.34 },
-			{ ax: 'right', x: 0.52, ay: 'picture', y: 0.355 },
-			{ ax: 'right', x: 0.25, ay: 'picture', y: 0.34 },
+		corners: [
+			{ ax: 'right', x: 0.1455, ay: 'picture', y: 0.1643 },
+			{ ax: 'right', x: 0.9482, ay: 'picture', y: 0.1643 },
+			{ ax: 'right', x: 0.9482, ay: 'picture', y: 0.7515 },
+			{ ax: 'right', x: 0.1455, ay: 'picture', y: 0.7515 },
 		],
 	},
-	// upright: the snow above the road, right of the billboard logo, under the forest
+	// Corey's: the snow above the road under the forest, right of the logo
 	portrait: {
 		side: 'right',
-		enter: { ay: 'picture', y: -0.135 },
-		points: [
-			{ ax: 'picture', x: 0.9, ay: 'picture', y: -0.135 },
-			{ ax: 'picture', x: 0.72, ay: 'picture', y: -0.11 },
-			{ ax: 'picture', x: 0.54, ay: 'picture', y: -0.145 },
+		corners: [
+			{ ax: 'picture', x: 0.3612, ay: 'top', y: 0.276 },
+			{ ax: 'picture', x: 0.9964, ay: 'top', y: 0.2976 },
+			{ ax: 'picture', x: 0.9976, ay: 'picture', y: 0.0109 },
+			{ ax: 'picture', x: 0.9176, ay: 'picture', y: 0.0011 },
+			{ ax: 'picture', x: 0.8251, ay: 'picture', y: 0.0528 },
+			{ ax: 'picture', x: 0.1275, ay: 'picture', y: 0.0502 },
+			{ ax: 'picture', x: 0.097, ay: 'top', y: 0.0217 },
+			{ ax: 'picture', x: 0.3649, ay: 'top', y: 0.0231 },
 		],
 	},
 };
 
 /** the defaults as shipped (the editor's Reset and the probe's reference) */
-export const ROAM_PATHS_DEFAULT: Record<LayoutKind, RoamPath> = JSON.parse(JSON.stringify(ROAM_PATHS));
+export const ROAM_AREAS_DEFAULT: Record<LayoutKind, RoamArea> = JSON.parse(JSON.stringify(ROAM_AREAS));
 
-/** the paths' edit count: the editor bumps it after a change, the roamer re-reads its points when it moves */
+/** the areas' edit count: the editor bumps it after a change, the roamer re-reads its corners */
 export const ROAM_EDIT = { version: 0 };
 
 /** a point's x in road px for this screen */
@@ -119,4 +130,18 @@ export const roamPointAt = (x: number, y: number, r: RoadRect): RoamPoint => {
 		fy = (y - H) / (r.bottom - H);
 	}
 	return { ax, x: round(fx), ay, y: round(fy) };
+};
+
+/** an area read back from JSON (the editor's store or a paste): every class that is a well formed area is taken; anything
+ *  else (the old waypoint paths of the first build among them) is left out. Never throws. */
+export const roamAreasFrom = (raw: unknown): Partial<Record<LayoutKind, RoamArea>> => {
+	const out: Partial<Record<LayoutKind, RoamArea>> = {};
+	if (!raw || typeof raw !== 'object') return out;
+	for (const kind of ['landscape', 'phone', 'portrait'] as const) {
+		const a = (raw as Record<string, unknown>)[kind] as { side?: unknown; corners?: unknown } | undefined;
+		if (!a || (a.side !== 'left' && a.side !== 'right') || !Array.isArray(a.corners) || a.corners.length < 3) continue;
+		const ok = a.corners.every((c: { ax?: unknown; x?: unknown; ay?: unknown; y?: unknown }) => ['picture', 'left', 'right'].includes(c?.ax as string) && ['picture', 'top', 'bottom'].includes(c?.ay as string) && Number.isFinite(c?.x) && Number.isFinite(c?.y));
+		if (ok) out[kind] = { side: a.side, corners: (a.corners as RoamPoint[]).map((c) => ({ ax: c.ax, x: c.x, ay: c.ay, y: c.y })) };
+	}
+	return out;
 };

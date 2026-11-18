@@ -76,7 +76,7 @@
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
 	import { roamDev, type RoamZone } from '../game/road/roam';
-	import { ROAM_EDIT, ROAM_PATHS, ROAM_PATHS_DEFAULT } from '../game/roamPaths';
+	import { ROAM_AREAS, ROAM_AREAS_DEFAULT, ROAM_EDIT } from '../game/roamPaths';
 	import { loadPresent, presentMemory, presentTrace, setPresentMipmapper } from '../game/road/present';
 	import { perfMarks } from '../game/staging';
 	import type { SoundEffectName } from '../game/sound';
@@ -102,6 +102,8 @@
 	/** the asphalt's band in road px (the road picture's own: from under its top snow rim to its bottom rim): the roaming
 	 *  reindeer's feet never go there */
 	const ROAM_ROAD = { top: 120, bottom: 905 };
+	/** his head stays this many CSS px under the top line's text */
+	const ROAM_TOP_LINE_CLEAR = 8;
 	road.setBoard(stateGame.board);
 	// (a lane's stop no longer sounds: since round 2, 2026-11-15, each REEL has its own stop, sfx_lane_stop_1..5, cued by
 	// the road itself as that reel's last car stops, game/road/roadBoard.ts updateReelStops; the borrowed sfx_reel_stop
@@ -359,7 +361,7 @@
 		sceneView = { kind, uprightPhone };
 		road.scene.layout({ kind, uprightPhone, rect, feetY });
 		road.features.screenEdges = { left: rect.left, right: rect.right };
-		// the roaming reindeer's path is fractions of the picture and of this (game/roamPaths.ts)
+		// the roaming reindeer's area is fractions of the picture and of this (game/roamPaths.ts)
 		road.features.screenRect = rect;
 		roamView = { kind, k, ox, oy, rect };
 		// a piece this layout draws that is not in yet (the forest on a desktop browser narrowed to an upright phone, a
@@ -413,9 +415,9 @@
 		}
 	});
 
-	// THE ROAMING REINDEER'S VIEW AND ZONES (game/road/roam.ts roamDev): the staging path editor and the probes draw and
-	// check the path in CSS px; the zones are where he must never be (the road, the HUD, the LED strip, the logo, the bonus
-	// round's counter plate, the top line). Read on demand only, never per frame.
+	// THE ROAMING REINDEER'S VIEW AND ZONES (game/road/roam.ts roamDev): the staging area editor and the probes draw and
+	// check the area in CSS px; the zones are where his body must never be (the road under his feet, the HUD, the LED
+	// strip, the logo, the top line). Read when he picks a spot or the layout changes, never per frame.
 	let roamView: { kind: typeof kind; k: number; ox: number; oy: number; rect: { left: number; top: number; right: number; bottom: number } } | null = null;
 	roamDev.view = () => roamView;
 	const roamZones = (): RoamZone[] => {
@@ -434,18 +436,11 @@
 		// the road: the asphalt between the trench's two snow rims, the picture's whole width (his feet never on it)
 		add('road', v.ox, v.oy + ROAM_ROAD.top * v.k, v.ox + ROAD_ART.image.width * v.k, v.oy + ROAM_ROAD.bottom * v.k);
 		document.querySelectorAll('.hudp button, .hudp [data-hud]').forEach((e) => el('hud', e));
+		// the top line: and 8 CSS px under it (Corey 2026-11-17: his head clears it by 8 px or more)
+		const line0 = out.length;
 		document.querySelectorAll('[data-top-line]').forEach((e) => el('top line', e));
-		document.querySelectorAll('[data-title-sign]').forEach((e) => el('counter plate', e));
-		// the counter plate's box when no bonus round shows it (layoutSpec TITLE in the chrome's master units)
-		const canvas = context.stateLayoutDerived.canvasSizes();
-		const fit = main.scale;
-		const masterLeft = main.x - (main.width * main.scale) / 2;
-		const masterTop = main.y - (main.height * main.scale) / 2;
-		const T = TITLE[kind];
-		const extraTop = kind === 'landscape' ? landscapeExtraY(canvas.height / main.scale) : 0;
-		const tx0 = T.right ? canvas.width - (T.x + T.width) * fit : masterLeft + T.x * fit;
-		const ty0 = masterTop + (T.y - extraTop) * fit;
-		add('counter plate', tx0, ty0, tx0 + T.width * fit, ty0 + T.height * fit);
+		for (let i = line0; i < out.length; i++) out[i].y1 += ROAM_TOP_LINE_CLEAR;
+		// (the bonus round's counter plate is gone from the game since the 17 fixes: no zone for it)
 		if (logo?.box) add('logo', v.ox + logo.box.x * v.k, v.oy + logo.box.y * v.k, v.ox + (logo.box.x + logo.box.width) * v.k, v.oy + (logo.box.y + logo.box.height) * v.k);
 		const strip = scoreboard?.snapshot().strip;
 		if (strip) add('LED strip', strip.x, strip.capTop, strip.x + strip.w, strip.housingBottom);
@@ -880,10 +875,10 @@
 				road.features.endLanding();
 				return road.features.strike({ cell, markCell: null });
 			},
-			/** THE ROAMING REINDEER (game/road/roam.ts): what he is doing and where, his path as resolved; a strike by hand as
+			/** THE ROAMING REINDEER (game/road/roam.ts): what he is doing and where, his area as resolved; a strike by hand as
 			 *  the first of a spin (his, when he is on the screen) and the last (a new one walks in after it); his sheets'
-			 *  GPU weight; the zones he must keep out of (CSS px); the paths (live, editable) and their defaults; reseed his
-			 *  wander; stand him at a waypoint now; walk a new one in; a bonus round's counter plate shown by hand */
+			 *  GPU weight; the zones he must keep out of (CSS px); the areas (live, editable) and their defaults; a run of
+			 *  seeded picks (nothing moves); reseed him; stand him somewhere; walk a new one in; a bonus round's sign by hand */
 			roam: () => road.features.roam.snapshot(),
 			roamStrike: (cell: number, opts: { first?: boolean; last?: boolean } = {}) => {
 				road.features.endLanding();
@@ -892,12 +887,13 @@
 			roamMemory: () => roamMemory(),
 			roamZones: () => roamZones(),
 			roamView: () => roamView,
-			roamPaths: () => ROAM_PATHS,
-			roamPathsDefault: () => ROAM_PATHS_DEFAULT,
+			roamAreas: () => ROAM_AREAS,
+			roamAreasDefault: () => ROAM_AREAS_DEFAULT,
+			roamPicks: (count: number, walkIns: number, seed: number) => road.features.roam.devPicks(count, walkIns, seed),
 			roamEdited: () => ROAM_EDIT.version++,
 			roamReseed: (seed: number) => road.features.roam.reseed(seed),
 			roamPlace: () => road.features.roam.placeNow(),
-			roamAt: (i: number) => road.features.roam.standAt(i),
+			roamStandAt: (x: number, y: number) => road.features.roam.standAt(x, y),
 			roamWalkIn: (delayMs = 0) => road.features.roam.walkInSoon(delayMs),
 			roundSign: (on: boolean) => {
 				stateGame.gameType = on ? 'freegame' : 'basegame';
