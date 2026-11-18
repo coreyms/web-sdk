@@ -563,8 +563,7 @@ export default {
 	"ui/intro/card-frame.webp": "1a6d4da9",
 	"ui/intro/card-scatters-poster.jpg": "0b54638c",
 	"ui/intro/card-scatters.mp4": "1ee4c8fe",
-	"ui/intro/intro-maxline-m1.webp": "23b6078c",
-	"ui/intro/intro-maxline-m2.webp": "bfe5e997",
+	"ui/intro/intro-maxline.webp": "bbd96659",
 	"ui/intro/intro-slate.webp": "48bc92c3",
 	"ui/labels/label-glyphs-24.json": "5b228da9",
 	"ui/labels/label-glyphs-24.webp": "57fef2c1",
@@ -1181,8 +1180,7 @@ export const fileBytes = {
 	"ui/intro/card-frame.webp": 152008,
 	"ui/intro/card-scatters-poster.jpg": 68859,
 	"ui/intro/card-scatters.mp4": 531717,
-	"ui/intro/intro-maxline-m1.webp": 36458,
-	"ui/intro/intro-maxline-m2.webp": 28984,
+	"ui/intro/intro-maxline.webp": 25460,
 	"ui/intro/intro-slate.webp": 186208,
 	"ui/labels/label-glyphs-24.json": 67275,
 	"ui/labels/label-glyphs-24.webp": 59750,
@@ -1242,6 +1240,7 @@ export const landingSizes = {
 	"fonts/ui/Sora-Variable.woff2": 14980,
 	"ui/intro/card-frame.webp": 152008,
 	"ui/intro/intro-slate.webp": 186208,
+	"ui/intro/intro-maxline.webp": 25460,
 	"ui/intro/card-clusters-poster.jpg": 54358,
 	"ui/intro/card-scatters-poster.jpg": 68859,
 	"ui/intro/card-features-poster.jpg": 45859,
@@ -1253,4 +1252,4 @@ export const landingSizes = {
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":3106877,"preload":1412207,"audio":1176550} as const;
+export const bootSizes = {"landing":3132337,"preload":1412207,"audio":1176550} as const;

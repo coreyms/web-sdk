@@ -25,6 +25,8 @@ import { GATE_BYTES, LOGO_STILL_PATH, stamp } from './assets';
 import { landingSizes, bootSizes } from './assetStamp';
 import { INTRO_CARD_ASSETS } from './introCards';
 import { INTRO_CARD_TEXT } from './introCardText';
+import { INTRO_MAXLINE_ART } from './introMaxlineSpec';
+import { IS_SOCIAL } from './social';
 
 declare global {
 	interface Window {
@@ -83,8 +85,9 @@ const FONTS = [
 
 // ---- THE EXPLAINER CARDS' FILES (the same list as scripts/stamp-assets.mjs CARDS) ----
 const rel = (url: string) => url.replace(/^\/assets\//, '');
-// the slate's lettering atlas (intro cards round 3, 2026-11-18) with the frame: the cards fade in only once both are decoded
-const CARD_IMAGES = [rel(INTRO_CARD_ASSETS.frame), rel(INTRO_CARD_ASSETS.slate), ...INTRO_CARD_TEXT.map((c) => rel(INTRO_CARD_ASSETS.poster(c.key)))];
+// the slate's lettering atlas (intro cards round 3, 2026-11-18) and the max win line (introCards INTRO_MAXLINE, this wording's
+// art) with the frame: the cards fade in only once all three are decoded
+const CARD_IMAGES = [rel(INTRO_CARD_ASSETS.frame), rel(INTRO_CARD_ASSETS.slate), rel(INTRO_MAXLINE_ART[IS_SOCIAL ? 'social' : 'standard'].src), ...INTRO_CARD_TEXT.map((c) => rel(INTRO_CARD_ASSETS.poster(c.key)))];
 const CARD_FONT = { path: 'fonts/ui/Cinzel-Bold.woff2', spec: "700 40px 'Cinzel'" } as const;
 const CARD_CLIPS = INTRO_CARD_TEXT.map((c) => rel(INTRO_CARD_ASSETS.clip(c.key)));
 /** posters only, and no clip asked for, where the player asked for less motion; and a replay link shows no landing screen */

@@ -161,12 +161,3 @@ export const stagingTraceGain: number | null = rangedKnob('traceGain', { min: 0,
 /** `?traceLevels=` [Free Spins, Super, Epic] brightness gains; `?traceTiers=` [BIG .. MAX] brightness shares */
 export const stagingTraceLevels = listKnob('traceLevels', [TRACE_SHARE_RANGE, TRACE_SHARE_RANGE, TRACE_SHARE_RANGE]);
 export const stagingTraceTiers = listKnob('traceTiers', [TRACE_SHARE_RANGE, TRACE_SHARE_RANGE, TRACE_SHARE_RANGE, TRACE_SHARE_RANGE, TRACE_SHARE_RANGE]);
-
-// ---- THE MAX WIN LINE CANDIDATES (game/introCards.ts INTRO_MAXLINE; 2026-11-18, Corey "yes" to the max win on the intro) ----
-// `?maxline=1|2|3` shows one candidate on the landing screen, on a staging build or the dev server only; anything else
-// (or no switch, or a production build) shows none: the landing Corey approved.
-export const MAXLINE_CANDIDATE: 0 | 1 | 2 | 3 = (() => {
-	if (!STAGING_TOOLS || typeof window === 'undefined') return 0;
-	const n = Number(new URLSearchParams(window.location.search).get('maxline'));
-	return n === 1 || n === 2 || n === 3 ? n : 0;
-})();

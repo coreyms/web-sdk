@@ -128,6 +128,9 @@ const CARDS = [
 	'ui/intro/card-frame.webp',
 	// the slate's lettering (intro cards round 3, 2026-11-18: tools/build_intro_slate.py)
 	'ui/intro/intro-slate.webp',
+	// the max win line between the logo and the cards (2026-11-18, the same tool; a social wording of its own would add its
+	// intro-maxline-social.webp here)
+	'ui/intro/intro-maxline.webp',
 	'ui/intro/card-clusters-poster.jpg',
 	'ui/intro/card-scatters-poster.jpg',
 	'ui/intro/card-features-poster.jpg',

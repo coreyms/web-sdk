@@ -74,21 +74,20 @@ export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 	},
 ];
 
-/** THE MAX WIN LINE (back on the intro as candidates, 2026-11-18: Corey "yes"; it was the CLUSTERS clip's first scene line
- *  from 2026-10-23 until round 3 took the scene lines out, and stood over the gate from 2026-10-21 before that). The words
- *  are Corey's (2026-10-23: "WIN UP TO 10,000x YOUR PLAY AMOUNT"), "YOUR PLAY AMOUNT" in every mode (2026-10-22: "YOUR
- *  PLAY AMOUNT. Easier to maintain that way."); the number is the shipped math's (config.maxWin). The candidates draw it
- *  as image lettering baked from THIS table by tools/build_intro_slate.py (game/introMaxlineSpec.ts), DEV / staging only
- *  (?maxline=1|2|3, game/introCards.ts INTRO_MAXLINE); keep the two in the one-line form the tool reads. */
+/** THE MAX WIN LINE, between the logo and the cards (Corey 2026-11-18, of three candidates: "M3, but remove the "Your Play
+ *  Amount" ... part, just the gold WIN UP TO 10,000X is good"). It was the CLUSTERS clip's first scene line from 2026-10-23
+ *  until round 3 took the scene lines out, and stood over the gate from 2026-10-21 before that. The number is the shipped
+ *  math's (config.maxWin). game/introMaxlineSpec.ts is its image lettering, baked from THIS table by
+ *  tools/build_intro_slate.py: keep each wording in the one-line form the tool reads. */
 export const INTRO_MAX_WIN_WORDS = {
-	standard: { lead: 'WIN UP TO ', tail: ' YOUR PLAY AMOUNT' },
-	social: { lead: 'WIN UP TO ', tail: ' YOUR PLAY AMOUNT' },
+	standard: { lead: 'WIN UP TO ' },
+	social: { lead: 'WIN UP TO ' },
 } as const;
 export const INTRO_MAX_WIN = {
 	...soc(INTRO_MAX_WIN_WORDS.standard, INTRO_MAX_WIN_WORDS.social),
 	num: `${config.maxWin.toLocaleString('en-US')}x`,
 } as const;
-export const introMaxWinText = () => `${INTRO_MAX_WIN.lead}${INTRO_MAX_WIN.num}${INTRO_MAX_WIN.tail}`.trim();
+export const introMaxWinText = () => `${INTRO_MAX_WIN.lead}${INTRO_MAX_WIN.num}`.trim();
 
 /** THE TILES LIFT WITH THE CLIP (the mock's chipTick, kept from round 1): from `from` seconds into the CLUSTERS clip (its
  *  scene "A cluster on Multiplier Tiles wins its value times their sum. Then the tiles double", 12.567 to its end) the
