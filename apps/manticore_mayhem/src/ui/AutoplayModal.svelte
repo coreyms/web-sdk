@@ -37,6 +37,11 @@
 	const vw = $derived(innerWidth.current ?? 1280);
 	const vh = $derived(innerHeight.current ?? 720);
 	const tiny = $derived(vh < 300 || vw < 360);
+	// POPOUT S ONLY (harsh review 2026-11-17 m3): the two-column sideways sheet inside a window no wider than 480 and no
+	// taller than 300 CSS px (Stake's Popout S, 400x225). No phone (sideways ones are 568 wide and up, upright ones taller
+	// than 300), no 800x450 Popout L and no desktop can match it. Tighter gaps so the four chip columns hold "1000", the
+	// infinity sign and the price lines, and a two-line LOAD (the amount under the words)
+	const popS = $derived(wide && vw <= 480 && vh <= 300);
 	// the armed-mode pill reads "MYSTERY · $300.00 / SPIN", not "MYSTERY SPIN · $300.00 / SPIN":
 	// the mode word alone, since "/ SPIN" already says the rest and the long labels clipped the
 	// pill on phones (Corey 2026-09-15)
@@ -87,7 +92,7 @@
 	// chip's own side padding
 	const panelW = $derived(wide ? Math.min(560, vw * 0.94) : Math.min(portrait ? 412 : 480, vw * (portrait ? 1 : 0.94)));
 	// (HUD round 5: the chips in the panel's glass, the two-column phone panel's half width)
-	const chipW = $derived(wide ? ((panelW - 32 - 18) / 2 - 3 * 6) / 4 - 6 : (panelW - 2 * (portrait ? 14 : 20) - 3 * 8) / 4 - 6);
+	const chipW = $derived(popS ? ((panelW - 20 - 10) / 2 - 3 * 4) / 4 - 2 : wide ? ((panelW - 32 - 18) / 2 - 3 * 6) / 4 - 6 : (panelW - 2 * (portrait ? 14 : 20) - 3 * 8) / 4 - 6);
 	const subFont = (text: string) => fitFont({ text, nominal: wide ? 8 : 9, box: chipW, minScale: 0.9, weight: 900, letterSpacing: 0, face: UI_TEXT_FACE });
 	// the total row: label + value share the row, so the value gets a little over half of it
 	const totalBox = $derived(wide ? (panelW - 50) / 2 - 4 : panelW - 2 * (portrait ? 14 : 20) - 4);
@@ -128,7 +133,7 @@
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.55)" zIndex={3}>
 	<div class="center" style:gap="{compact ? 10 : 14}px">
-		<div class="panel am-glass" class:compact class:portrait class:wide class:tiny onclick={(e) => e.stopPropagation()} role="presentation">
+		<div class="panel am-glass" class:compact class:portrait class:wide class:tiny class:pops={popS} onclick={(e) => e.stopPropagation()} role="presentation">
 			<div class="head" class:stacked={!headFits} bind:this={headEl}>
 				<div class="title am-stencil" bind:this={titleEl}>AUTOPLAY</div>
 				<div class="pill" bind:this={pillEl}><span class="mode">{shortMode(pill.label)}</span><i class="dot"></i><span class="slot-num cost">{pill.cost}</span><span class="per">{pill.unit}</span></div>
@@ -826,6 +831,49 @@
 	.tiny .x {
 		width: 30px;
 		height: 30px;
+	}
+
+	/* ── Popout S only (400x225; popS above: wide, at most 480 x 300 CSS px, never a phone, 800x450 or a desktop) ──
+	   the panel padding and the gaps give the chips their room (a chip about 40 px: "1000" at 14 px, the 30 px infinity
+	   sign, "$1,000.00" at 7.2 px), and LOAD runs on two lines: the words, then the amount (no dot) */
+	.pops {
+		padding: 10px 10px 12px;
+	}
+	.pops .cols {
+		gap: 10px;
+	}
+	.pops .chips.four {
+		gap: 4px;
+	}
+	.pops .chip {
+		padding: 0 1px;
+	}
+	.pops .chip .big {
+		font-size: 14px;
+		height: 14px;
+	}
+	.pops .chips.six {
+		gap: 4px;
+	}
+	.pops .lim {
+		padding: 0 1px;
+	}
+	.pops .go {
+		flex-wrap: wrap;
+		align-content: center;
+		row-gap: 1px;
+		column-gap: 5px;
+		padding: 4px 8px;
+		font-size: 10px;
+		letter-spacing: 0.04em;
+		line-height: 1.2;
+	}
+	.pops .go .dot {
+		display: none;
+	}
+	.pops .go .mv {
+		flex: 0 0 100%;
+		text-align: center;
 	}
 
 	/* ── portrait: a sheet that rises from the bottom, the bet stepper over it; no scroll ── */

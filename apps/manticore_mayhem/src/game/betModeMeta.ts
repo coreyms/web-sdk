@@ -103,7 +103,7 @@ export const betModeMeta: BetModeMeta = {
 		assets: placeholderAssets,
 		text: {
 			title: soc('SUPER ANTE BET', 'SUPER ANTE MODE'),
-			description: `Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Super Free Spins land about 60 times as often as in the Base Game and Epic Free Spins about 55 times as often.`,
+			description: `Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Super Free Spins land about 65 times as often as in the Base Game and Epic Free Spins about 55 times as often.`,
 			dialog: soc(
 				`Ten times the bet. Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Stays active until you turn it off.`,
 				`Ten times the play amount. Regular Free Spins cannot trigger: 4 ${SCATTERS} award Super Free Spins instead. Stays active until you turn it off.`,

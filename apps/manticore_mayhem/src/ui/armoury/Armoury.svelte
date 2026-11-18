@@ -1531,7 +1531,7 @@
 								</div>
 							{/each}
 						</div>
-						<div class="c-what">{@render rich(mode.group === 'spin' ? anteConfirm(mode.id as 'ANTE' | 'SUPER_ANTE') : named(TX.confirmBuy, mode.id), '')}</div>
+						<div class="c-what" class:mystery={mode.id === 'MYSTERY'}>{@render rich(mode.group === 'spin' ? anteConfirm(mode.id as 'ANTE' | 'SUPER_ANTE') : named(mode.id === 'MYSTERY' ? TX.confirmMystery : TX.confirmBuy, mode.id), '')}</div>
 					</div>
 					<div class="c-flash" class:on={flash}></div>
 				</div>
@@ -3025,6 +3025,13 @@
 	.arm.touch .c-what {
 		font-size: 14px;
 		line-height: 19px;
+	}
+	/* the Mystery's longer closing lines (harsh review 2026-11-17 m7) run to five lines at 14 px on the 366 x 549 card
+	   (upright phone, tablet), and CONFIRM (placeKeys: never over the foot ornament) would sit 15 px over the last one;
+	   at 12.5 / 17 they take four (68 px) and CONFIRM clears them. The sideways slab grows with its text instead */
+	.arm.touch:not(.lay-sideways) .c-what.mystery {
+		font-size: 12.5px;
+		line-height: 17px;
 	}
 
 	/* ── TABLET PORTRAIT (page.css 399-420): the phone's pieces; the tray one row (PER SPIN 190 wide), all six tiles 76

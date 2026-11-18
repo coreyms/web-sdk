@@ -35,8 +35,11 @@ const MYSTERY_STINGS = { super: 2, epic: 3 }; // game_config.MYSTERY_STING_COUNT
 // today_vs_new_real_books.md): base Free Spins / Super / Epic 1 in 363 / 2,432 / 13,911; Ante 1 in 64 / 379 / 2,372,
 // which is 5.7x / 6.4x / 5.9x the base rate, so about six times on every tier; Super Ante Super 1 in 40 (60.8x base)
 // and Epic 1 in 259 (53.7x base). (2026.10.15: Ante 5x, Super Ante 51x / 46x.)
+// Re-measured 2026-11-17 on the PUBLISHED weighted tables (math-sdk library/publish_files, the 2026-11-03 books; harsh
+// review M5): base 1 in 361.1 / 2,544.9 / 13,891.9; Ante 1 in 63.3 / 388.2 / 2,383.0 (5.7x / 6.6x / 5.8x); Super Ante
+// Super 1 in 39.5 (64.4x; the review's criteria table 65.8x) and Epic 1 in 260.6 (53.3x). The Super rate was "about 60".
 const ANTE_RATE = 'about six times';
-const SUPER_ANTE_SUPER_RATE = 'about 60 times';
+const SUPER_ANTE_SUPER_RATE = 'about 65 times';
 const SUPER_ANTE_EPIC_RATE = 'about 55 times';
 // THE FEATURE FLOORS (math 2026.10.16): the free spins of a Free Spins round total at least config.freeSpinsMinWin and of
 // a Super round at least config.superMinWin, whatever started it (scatters, a buy, a Mystery: lowest live totals 10.0x
@@ -202,11 +205,8 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				keyboard: {
 					name: 'Keyboard',
 					text: [
-						j.disabledSpacebar
-							? ''
-							: ((x) => (x ? `Space bar plays a round. Hold it to keep playing (${x} ${x.includes(' and ') ? 'are' : 'is'} locked while it is held).` : 'Space bar plays a round. Hold it to keep playing.'))(
-									andList([!j.disabledTurbo ? 'Turbo' : '', !j.disabledAutoplay ? 'Autoplay' : ''].filter(Boolean)),
-								),
+						// one press, one round (harsh review 2026-11-17 M4): holding the key plays nothing more (ui/SpinHotkey.svelte)
+						j.disabledSpacebar ? '' : 'Space bar plays a round.',
 						'Escape closes any open window.',
 					]
 						.filter(Boolean)
@@ -410,10 +410,11 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 			// math 2026.10.16 (today_vs_new_real_books.md): a win on 44.2% of base spins (Ante 37.7%, Super Ante 41.6%); spins
 			// that win nothing 55.8% / 62.3% / 58.4%; more than half of the wins are under 1x the bet in all three; the
 			// feature rounds carry 43.6% / 79.8% / 95.1% of the RTP. "Wins are infrequent" (the 28% books) is no longer true
-			volatility: soc(
-				'Wins come often but are mostly small: many are smaller than the bet, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP.',
-				'Wins come often but are mostly small: many are smaller than the play amount, and more than half of Base Game spins still win nothing. Big wins are rare and can be very large. The free spin rounds carry a large share of the long-run RTP.',
-			),
+			// harsh review 2026-11-17 m5 (Corey's exact wording, one sentence for standard and social): "Wins come often but are
+			// mostly small" read as a contradiction of EXTREME; "Big wins are rare and can be very large" left (the new first
+			// sentence says it); the RTP share sentence kept (published tables 2026-11-17: features 43.7% of the base return)
+			volatility:
+				'Most of the return comes from rare, large wins. Small wins are common between them. The free spin rounds carry a large share of the long-run RTP.',
 		},
 		legal: {
 			disclaimer: DISCLAIMER,

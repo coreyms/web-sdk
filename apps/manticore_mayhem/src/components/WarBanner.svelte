@@ -134,6 +134,36 @@
 	// "Cannot read properties of null (reading 'addressModeU')" page error at its upload)
 	const glyphRefs: Partial<Record<BannerClass, { n: number; promise: Promise<Record<string, PIXI.Texture> | null> }>> = {};
 	const glyphGone: Partial<Record<BannerClass, Promise<unknown>>> = {};
+	// ONE CACHE KEY PER FRAME (harsh review 2026-11-17 m2, the 131 "[Cache] already has key: stg_g_*" warnings): these
+	// sheets carry the plaque glyph atlas's own frame names (stg_g_*), and PIXI.Assets.load of a spritesheet registers
+	// every frame name in Pixi's global Cache, so each banner sheet re-registered 65 names the resident plaque atlas
+	// (stinger-glyphs) already holds, and its unload then deleted those names from the Cache again. The sheet is now
+	// made here: its JSON fetched, its picture loaded through Assets (cached under its own URL only, the same URL Pixi's
+	// spritesheet loader asked for: the JSON's ?v= stamp copied on) and its frames cut by PIXI.Spritesheet.parse, which
+	// puts nothing in the Cache. The frames and the one texture are the same as before (no extra GPU copy).
+	const glyphSheets: Partial<Record<BannerClass, { sheet: PIXI.Spritesheet; image: string }>> = {};
+	const glyphSheetLoad = async (cls: BannerClass, url: string): Promise<PIXI.Spritesheet> => {
+		const got = await fetch(url);
+		if (!got.ok) throw new Error(`banner glyphs ${got.status}`);
+		const data = (await got.json()) as PIXI.SpritesheetData;
+		const json = new URL(url, location.href);
+		const img = new URL(data.meta.image ?? '', json);
+		img.search = json.search;
+		const image = img.href;
+		const tex = (await PIXI.Assets.load(image)) as PIXI.Texture;
+		const sheet = new PIXI.Spritesheet(tex, data);
+		await sheet.parse();
+		glyphSheets[cls] = { sheet, image };
+		return sheet;
+	};
+	/** the sheet's let go, in the order Pixi's own spritesheet unload uses: the picture (its GPU copy), then the frames */
+	const glyphSheetUnload = async (cls: BannerClass): Promise<void> => {
+		const have = glyphSheets[cls];
+		if (!have) return;
+		delete glyphSheets[cls];
+		await PIXI.Assets.unload(have.image);
+		have.sheet.destroy(false);
+	};
 	const glyphsLoad = (cls: BannerClass): Promise<Record<string, PIXI.Texture> | null> => {
 		const have = glyphRefs[cls];
 		if (have) {
@@ -144,7 +174,7 @@
 		const t0 = performance.now();
 		texLog.push({ what: 'load', key: `glyphs-${cls}`, at: t0 });
 		const promise = (glyphGone[cls] ?? Promise.resolve())
-			.then(() => PIXI.Assets.load(url) as Promise<PIXI.Spritesheet>)
+			.then(() => glyphSheetLoad(cls, url))
 			.then(async (sheet) => {
 				const source = Object.values(sheet.textures)[0]?.source;
 				const rd = renderer();
@@ -174,7 +204,7 @@
 			const source = tex ? Object.values(tex)[0]?.source : null;
 			if (source && view.glyphsInUse === source) view.glyphsHome();
 			texLog.push({ what: 'unload', key: `glyphs-${cls}`, at: performance.now() });
-			await PIXI.Assets.unload(BANNER_GLYPHS[cls].url).catch(() => {});
+			await glyphSheetUnload(cls).catch(() => {});
 		});
 	};
 	/** a screen's hold on its glyph sheet goes (once) */

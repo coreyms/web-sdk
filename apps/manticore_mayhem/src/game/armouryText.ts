@@ -89,6 +89,13 @@ export const ARMOURY_TEXT = {
 		'Loads **{name}** onto the Spin button. Nothing is charged until you press **Spin**, and that press plays **one feature round**.',
 		'Loads **{name}** onto the Spin button. Nothing happens until you press **Spin**, and that press plays **one feature round**.',
 	),
+	// THE MYSTERY'S CARD (harsh review 2026-11-17 m7, Corey's exact closing sentences): half of Mysteries award no
+	// feature, so its card does not end on "one feature round"; what comes before is confirmBuy's, word for word. The
+	// names are the rules' full names (the desktop card's odds line above it says "Super" and "Epic" for short)
+	confirmMystery: soc(
+		'Loads **{name}** onto the Spin button. Nothing is charged until you press **Spin**. That press plays **one Mystery spin**. It may award Super Free Spins, Epic Free Spins, or no feature.',
+		'Loads **{name}** onto the Spin button. Nothing happens until you press **Spin**. That press plays **one Mystery spin**. It may award Super Free Spins, Epic Free Spins, or no feature.',
+	),
 	confirmTitle: 'Confirm {name}',
 	aria: {
 		/** a tile's label: "EPIC, feature buy, 500 times the bet" (", on" appended when the mode is on) */
