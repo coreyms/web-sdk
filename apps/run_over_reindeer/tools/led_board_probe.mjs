@@ -54,7 +54,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard').split(',');
+const SECTIONS = (process.env.SECTIONS || 'rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -547,7 +547,9 @@ async function scenes(p, S) {
 	const rows = await run(0, 5000);
 	const shownAt = rows.findIndex((r) => r.phase !== 'none');
 	const log = await R(p, () => window.__reindeer.scoreboard().log.slice(-12));
-	check(g1.pendingSmall && g1.gag && !g1.show && shownAt > 0 && rows[shownAt].phase !== 'none' && log.some((l) => l.what === 'small' && /after the gag/.test(l.detail)) && !log.some((l) => l.what === 'gag' && /cut/.test(l.detail ?? '')), `${tag}: a small win waits while the gag plays (the gag uncut) and shows after it (${410 + shownAt * 10} ms after the gag started)`, { g1: { pending: g1.pendingSmall, gag: g1.gag }, log });
+	// (2026-11-17, the strip's priority order: the spin's win amount is above the Grandma line and nothing queues: the small
+	// win shows at once over the gag, which is not cut and keeps its own clock under it)
+	check(!g1.pendingSmall && g1.gag && g1.show?.kind === 'small' && g1.stripPick?.item === 'winAmount' && shownAt === 0 && !log.some((l) => l.what === 'gag' && /cut/.test(l.detail ?? '')), `${tag}: a small win shows at once over the gag (the gag uncut under it, nothing queued)`, { g1: { pending: g1.pendingSmall, gag: g1.gag, strip: g1.stripPick?.item }, log });
 	await run(0, 3000);
 	await R(p, () => window.__reindeer.scoreboardGag());
 	await step(200, 2);
@@ -744,6 +746,7 @@ async function cards(p, S, full) {
 	let fIntro = null;
 	let fPressed = 0;
 	const top = { board: false, html: false, line: null, lineAt: 0, pressed: false, waited: false };
+	await R(p, () => window.__reindeer.gagModes(true));
 	const b = await playRound(p, 'floor_top_up', {
 		limit: 240000,
 		during: async (s, ms) => {
@@ -778,6 +781,9 @@ async function cards(p, S, full) {
 	const fsCalls = await R(p, () => window.__reindeer.gagsAsked(true));
 	const rulings = strikes.map((x) => / gag (true|false)$/.exec(x)?.[1]);
 	check(strikes.length === 3 && strikes.every((x) => /^freegame/.test(x)) && rulings.join() === 'true,true,false' && fsCalls === 2, `${tag}: floor_top_up's free spins: the first Grandma strike plays the gag, a later one on a paying spin plays it, a later one on a spin with no win does not (${strikes.join('; ')}; gags asked ${fsCalls})`, { strikes, fsCalls });
+	// (2026-11-17) in a bonus round the gag is the short line, one screen
+	const fsModes = await R(p, () => window.__reindeer.gagModes(true));
+	check(fsModes.length === fsCalls && fsModes.every((m) => m === 'short'), `${tag}: floor_top_up's free spins: each gag is the short line (${fsModes.join(', ')})`, fsModes);
 }
 
 // ---- THE RACE'S RESULT CARDS (2026-11-17, Corey: the picture sat behind the words): REINDEER, POLICE CAR and the TIE, the
@@ -848,10 +854,13 @@ async function flows(p, S, errs) {
 		check(gagLine === 'Oooh.. Grandma Got Run Over by a Reindeer?', `${tag}: the gag's words are exactly Corey's line ("${gagLine}")`);
 		const titles = [...block.matchAll(/title: '([^']*)'/g)].map((m) => m[1]);
 		const draw = readFileSync(join(SRC, 'game', 'scoreboard', 'scoreboardDraw.ts'), 'utf8');
-		const drawn = [...draw.matchAll(/'([A-Z][A-Z ]+)'/g)].map((m) => m[1]).filter((x) => x.length > 1);
-		const words = [...titles, ...drawn, gagLine];
+		const draw2 = readFileSync(join(SRC, 'game', 'scoreboard', 'stripDraw.ts'), 'utf8');
+		const drawn = [...draw.matchAll(/'([A-Z][A-Z ]+)'/g), ...draw2.matchAll(/'([A-Z][A-Z ]+)'/g), ...draw2.matchAll(/`\$\{[^}]*\} ([A-Z]+) \$\{/g)].map((m) => m[1]).filter((x) => x.length > 1);
+		const shortLine = /short: \{ text: '([^']*)'/.exec(block)?.[1] ?? '';
+		check(shortLine === 'GRANDMA GOT RUN OVER!', `${tag}: the short Grandma line reads "${shortLine}"`);
+		const words = [...titles, ...drawn, gagLine, shortLine];
 		const banned = /\b(bets?|buy|buys|cash|money|paid|credits?|gamble|gambling|wager|wagers|stake)\b/i;
-		check(words.length > 8 && !words.some((w) => banned.test(w)) && words.every((w) => /^[A-Za-z0-9 .,?']+$/.test(w)), `${tag}: the scoreboard's words have none of the restricted words and no symbol characters (${[...new Set(words)].join(' / ')})`, words);
+		check(words.length > 8 && !words.some((w) => banned.test(w)) && words.every((w) => /^[A-Za-z0-9 .,?'!]+$/.test(w)), `${tag}: the scoreboard's words have none of the restricted words and no symbol characters (${[...new Set(words)].join(' / ')})`, words);
 
 		// the gag by hand: 5 s, its beats
 		await R(p, () => window.__reindeer.scoreboardManual(true));
@@ -894,9 +903,11 @@ async function flows(p, S, errs) {
 		const cut = c3.find((l) => l.what === 'gag' && /cut/.test(l.detail ?? ''));
 		const end = c3.find((l) => l.what === 'gag' && l.detail === 'end');
 		const waited = c3.find((l) => l.what === 'small' && /waits for the gag/.test(l.detail ?? ''));
-		const after = c3.find((l) => l.what === 'small' && /after the gag/.test(l.detail ?? ''));
+		const small = c3.find((l) => l.what === 'show' && /^small/.test(l.detail ?? ''));
 		check(g.ok && !!st, `${tag}: a real strike on a Grandma starts the gag (base_grandma_strike)`, c3);
-		check(!!st && !cut && !!end && end.at - st.at >= 4900 && !!waited && !!after && after.at >= end.at, `${tag}: in base_grandma_strike the gag plays its ${end && st ? end.at - st.at : '?'} ms, the round's small win waits and shows after it`, c3);
+		// (2026-11-17, the strip's priority order: the round's small win shows over the gag when it is due, nothing queues; the
+		// gag is not cut and ends at its own time)
+		check(!!st && !cut && !!end && end.at - st.at >= 4900 && !waited && (!small || small.at < end.at), `${tag}: in base_grandma_strike the gag runs its ${end && st ? end.at - st.at : '?'} ms uncut; the round's small win does not wait for it (${small ? `shown ${small.at - st.at} ms into the gag` : 'none'})`, c3);
 	}
 
 	// ---- THE RACE ----
@@ -1011,6 +1022,254 @@ check(list.length >= 2 && list.every((x) => x.fired.join() === '0,1,2') && asked
 	check(errs.length === 0, `${tag}: no page errors`, errs);
 }
 
+// ---- 2026-11-17: THE STRIP'S PRIORITY ORDER, THE SCATTER COUNT, THE SHORT GRANDMA LINE (constants LED_BOARD stripOrder,
+// scatterCount, gag.short, gagShortIn; game/scoreboard/stripArbiter.ts) ----
+const ORDER = 'entry,bigWin,scatter,winAmount,spinsLeft,gag,cartoon,race';
+async function stripOrder(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	const step = (ms, n = 1) => R(p, ([ms, n]) => window.__reindeer.scoreboardStep(ms, n), [ms, n]);
+	const it = (s) => s.stripPick?.item;
+	const logSince = async (at) => (await R(p, () => window.__reindeer.scoreboard().log)).filter((l) => l.at >= at);
+	const consts = readFileSync(join(SRC, 'game', 'constants.ts'), 'utf8');
+	const m = /stripOrder: \[([^\]]*)\]/.exec(consts);
+	const order = m ? [...m[1].matchAll(/'([a-zA-Z]+)'/g)].map((x) => x[1]).join() : '';
+	check(order === ORDER, `${tag}: the strip's order is data in constants LED_BOARD.stripOrder (${order})`);
+	await R(p, () => {
+		window.__reindeer.scoreboardManual(true);
+		window.__reindeer.scoreboardScatter(undefined);
+	});
+	await step(100, 40);
+	// 1. the spin's win amount over the Grandma line: at once, the gag not cut and not queued; the gag back after it while it is
+	// still in its time
+	let s0 = await step(0);
+	await R(p, () => window.__reindeer.scoreboardGag());
+	let s = await step(100, 3);
+	const g0 = it(s);
+	await R(p, () => void window.__reindeer.scoreboardWin(3.4));
+	s = await step(100, 2);
+	const a1 = { item: it(s), gag: s.stripPick.truth.gag, small: s.show?.kind };
+	s = await step(100, 28);
+	const a2 = { item: it(s), gag: s.gag?.words ?? null, show: s.show?.phase ?? null };
+	let L = await logSince(s0.clock);
+	check(g0 === 'gag' && a1.item === 'winAmount' && a1.gag && a2.item === 'gag' && !L.some((l) => l.what === 'gag' && /cut/.test(l.detail ?? '')) && !L.some((l) => /waits/.test(l.detail ?? '')), `${tag}: ORDER 4 over 6: a small win cuts the Grandma line at once (strip ${g0} then ${a1.item}, the gag still true under it) and nothing queues; when the win amount ends the gag shows again, still in its time (${a2.item}, "${a2.gag}")`, { g0, a1, a2, log: L.slice(-8) });
+	await step(100, 30);
+	// 2. a big win over the spin's win amount
+	s0 = await step(0);
+	await R(p, () => void window.__reindeer.scoreboardWin(3.4));
+	s = await step(100, 2);
+	const b1 = it(s);
+	await R(p, () => void window.__reindeer.scoreboardWin(21.85));
+	s = await step(100, 3);
+	check(b1 === 'winAmount' && it(s) === 'bigWin', `${tag}: ORDER 2 over 4: a Big win cuts the spin's win amount at once (${b1} then ${it(s)})`);
+	await R(p, () => window.__reindeer.scoreboardSkip());
+	await step(100, 2);
+	await R(p, () => window.__reindeer.scoreboardSkip());
+	await step(100, 40);
+	// 3. the bonus entry over everything; a lower item that comes while it is up is dropped (nothing queues)
+	s0 = await step(0);
+	await R(p, () => window.__reindeer.scoreboardCard('fs'));
+	s = await step(100, 12);
+	const c1 = it(s);
+	await R(p, () => void window.__reindeer.scoreboardWin(3.4));
+	await R(p, () => window.__reindeer.scoreboardGag());
+	await R(p, () => window.__reindeer.scoreboardScatter({ id: 7, count: 2, need: 3, live: true, hit: false, reached: 0 }));
+	s = await step(100, 3);
+	L = await logSince(s0.clock);
+	check(c1 === 'entry' && it(s) === 'entry' && s.show?.kind === 'fs' && L.some((l) => l.what === 'small' && /dropped/.test(l.detail ?? '')), `${tag}: ORDER 1: the bonus entry is never cut: a small win, the gag and a scatter count while it is up leave it on the strip (${it(s)}; the small win dropped)`, { c1, now: it(s), log: L.slice(-6) });
+	await R(p, () => {
+		window.__reindeer.scoreboardScatter(undefined);
+		window.__reindeer.scoreboardCardEnd();
+		window.__reindeer.scoreboardLower();
+	});
+	await step(100, 40);
+	// 4. the scatter count over the win amount and the gag; under a big win, and back when the big win ends (still true)
+	await R(p, () => window.__reindeer.scoreboardScatter({ id: 8, count: 2, need: 3, live: true, hit: false, reached: 0 }));
+	s = await step(100, 2);
+	const d0 = it(s);
+	await R(p, () => void window.__reindeer.scoreboardWin(3.4));
+	await R(p, () => window.__reindeer.scoreboardGag());
+	s = await step(100, 2);
+	const d1 = { item: it(s), small: s.stripPick.truth.winAmount, gag: s.stripPick.truth.gag };
+	await R(p, () => void window.__reindeer.scoreboardWin(21.85));
+	s = await step(100, 3);
+	const d2 = it(s);
+	await R(p, () => window.__reindeer.scoreboardSkip());
+	await step(100, 2);
+	await R(p, () => window.__reindeer.scoreboardSkip());
+	s = await step(100, 10);
+	const d3 = it(s);
+	check(d0 === 'scatter' && d1.item === 'scatter' && d1.small && d1.gag && d2 === 'bigWin' && d3 === 'scatter', `${tag}: ORDER 3: the scatter count over the win amount and the gag (${d0}, ${d1.item} with both true under it), under a Big win (${d2}), back when it ends (${d3})`, { d0, d1, d2, d3 });
+	// a trigger: the fireworks; then the entry takes over at once
+	await R(p, () => window.__reindeer.scoreboardScatter({ id: 8, count: 3, need: 4, live: false, hit: true, reached: 3 }));
+	s = await step(100, 2);
+	const e1 = { item: it(s), fw: s.scatter?.fireworks, words: s.scatter?.words };
+	await R(p, () => window.__reindeer.scoreboardCard('fs'));
+	s = await step(100, 1);
+	check(e1.item === 'scatter' && e1.fw && e1.words === '3 OF 3' && it(s) === 'entry', `${tag}: a trigger plays the fireworks over the count ("${e1.words}") and the bonus entry takes the strip at once by priority (${it(s)})`, { e1, now: it(s) });
+	await R(p, () => {
+		window.__reindeer.scoreboardScatter(undefined);
+		window.__reindeer.scoreboardCardEnd();
+		window.__reindeer.scoreboardLower();
+	});
+	await step(100, 40);
+	// 5. a bonus round: the spins left over the gag, the cartoons in their turn, the win amount over the spins left
+	await R(p, () => window.__reindeer.roundSign(true));
+	await sleep(120);
+	s = await step(100, 1);
+	const f0 = it(s);
+	await R(p, () => window.__reindeer.scoreboardGag());
+	s = await step(100, 3);
+	const f1 = { item: it(s), gag: s.stripPick.truth.gag };
+	const seq = [];
+	for (let i = 0; i < 90; i++) {
+		s = await step(100);
+		if (seq[seq.length - 1] !== it(s)) seq.push(it(s));
+	}
+	check(f0 === 'spinsLeft' && f1.item === 'spinsLeft' && f1.gag && seq.includes('gag') && seq.includes('cartoon') && seq.includes('spinsLeft'), `${tag}: ORDER 5 over 6 and 7: in a bonus round the spins left show as it starts and in their windows, over the gag (${f1.item} with the gag true under it); the gag and the cartoons show between (${seq.join(' > ')})`, { f0, f1, seq });
+	await R(p, () => void window.__reindeer.scoreboardWin(3.4));
+	s = await step(100, 2);
+	check(it(s) === 'winAmount', `${tag}: ORDER 4 over 5: a win amount in a bonus round shows over the spins left (${it(s)})`);
+	await step(100, 30);
+	// 6. the race only at true idle
+	await R(p, () => window.__reindeer.roundSign(false));
+	await sleep(120);
+	await step(100, 3);
+	await R(p, () => window.__reindeer.scoreboardRace('reindeer'));
+	s = await step(100, 3);
+	const r0 = it(s);
+	s0 = await step(0);
+	await R(p, () => window.__reindeer.roundSign(true));
+	await sleep(120);
+	s = await step(100, 3);
+	L = await logSince(s0.clock);
+	const r1x = it(s);
+	await R(p, () => window.__reindeer.roundSign(false));
+	await sleep(120);
+	s = await step(100, 3);
+	check(r0 === 'race' && r1x !== 'race' && s.cartoon.key !== 'race' && L.some((l) => l.what === 'race' && /skipped/.test(l.detail ?? '')), `${tag}: ORDER 8: the race plays at true idle (${r0}); away from it (a bonus round) it is cut and the cartoons go on (${r1x}, then ${s.cartoon.key})`, { r0, r1x, cartoon: s.cartoon, log: L.slice(-5) });
+	await step(100, 30);
+	// THE SHORT GRANDMA LINE by hand: one screen, its words, about 1.5 s
+	await R(p, () => window.__reindeer.scoreboardGag(true));
+	const beats = [];
+	for (let t = 0; t <= 1800; t += 100) {
+		const g = (await step(100)).gag;
+		beats.push(g ? `${g.short ? 'short' : 'full'}:${g.words}` : null);
+	}
+	const on = beats.filter(Boolean);
+	check(on.length >= 14 && on.length <= 15 && new Set(on).size === 1 && on[0] === 'short:GRANDMA GOT RUN OVER!' && beats[beats.length - 1] === null, `${tag}: the short Grandma line is ONE screen, "GRANDMA GOT RUN OVER!", for ${on.length * 100} ms`, beats);
+	const face = await R(p, () => {
+		window.__reindeer.scoreboardGag(true);
+		window.__reindeer.scoreboardStep(1000);
+		return window.__reindeer.scoreboardFace('strip');
+	});
+	check(face.lit > 40, `${tag}: the short line draws on the strip (${face.lit} lit dots of ${face.dots})`);
+	await step(100, 10);
+	await R(p, () => window.__reindeer.scoreboardManual(false));
+}
+
+/** THE SCATTER COUNT in real rounds: a posed miss (two presents early, no third), natural_free_spins and natural_super (a
+ *  trigger: fireworks, then the entry takes over). Every 25 ms: the strip's pick and the count */
+async function scatterRounds(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await R(p, () => window.__reindeer.turbo(0));
+	const watch = async (name, book, { untilEntry = false, limit = 30000 } = {}) => {
+		if (book) await R(p, (b) => window.__reindeer.fixtures.queue(b, 0), book);
+		else await R(p, (n) => window.__reindeer.fixtures.next(n), name);
+		const rows = [];
+		const t0 = Date.now();
+		await p.click('.hudp button.spin');
+		while (Date.now() - t0 < limit) {
+			const r = await R(p, () => {
+				const s = window.__reindeer.scoreboard();
+				return { item: s.stripPick?.item, sc: s.scatter, card: s.card, rest: window.__reindeer.atRest(), idle: window.__reindeer.hud.idle(), log: s.log.slice(-3) };
+			});
+			rows.push({ ms: Date.now() - t0, ...r });
+			if (untilEntry && r.card) break;
+			if (!untilEntry && r.idle && r.rest && Date.now() - t0 > 2500 && !r.sc) break;
+			await sleep(25);
+		}
+		const log = await R(p, () => window.__reindeer.scoreboard().log);
+		return { rows, log };
+	};
+	// the posed miss: the top lane's lead and second cars carry presents (seen first), nothing else
+	const dir = await R(p, () => window.__reindeer.tune.road.laneDirection);
+	const col = (lane, k) => (dir[lane] > 0 ? 4 - k : k);
+	const FILL = ['L1', 'H2', 'L3', 'H3', 'L5', 'H4', 'L2', 'L4'];
+	const board = Array.from({ length: 5 }, (_, reel) => Array.from({ length: 4 }, (_, row) => FILL[(reel * 3 + row * 5) % FILL.length]));
+	board[col(0, 0)][0] = 'S';
+	board[col(0, 1)][0] = 'S';
+	const miss = [
+		{ index: 0, type: 'reveal', gameType: 'basegame', board },
+		{ index: 1, type: 'setTotalWin', amount: 0 },
+		{ index: 2, type: 'finalWin', amount: 0 },
+	];
+	const M = await watch('miss', miss);
+	const live = M.rows.filter((r) => r.sc?.live);
+	const words = [...new Set(live.map((r) => r.sc.words))];
+	const fwM = M.rows.some((r) => r.sc?.fireworks);
+	const missLog = M.log.filter((l) => l.what === 'scatter');
+	check(live.length > 3 && live.every((r) => r.item === 'scatter') && words.join() === '2 OF 3', `${tag}: MISS: two presents seen with cars still to come: the strip shows the count "${words.join(', ')}" (${live.length} samples, strip ${[...new Set(live.map((r) => r.item))].join()})`, { words, n: live.length });
+	check(!fwM && missLog.some((l) => /^miss 2/.test(l.detail)) && M.rows[M.rows.length - 1].item !== 'scatter', `${tag}: MISS: it clears quietly when the last car is seen (no fireworks; ${missLog.map((l) => l.detail).join(', ')}; then ${M.rows[M.rows.length - 1].item})`, missLog);
+	// the hits
+	for (const name of ['natural_free_spins', 'natural_super']) {
+		const H = await watch(name, null, { untilEntry: true, limit: 40000 });
+		const hl = H.log.filter((l) => l.what === 'scatter').map((l) => l.detail);
+		const ticks = hl.filter((d) => /^tick/.test(d));
+		const fwRows = H.rows.filter((r) => r.sc?.fireworks);
+		const strip = [];
+		for (const r of H.rows) if (strip[strip.length - 1] !== r.item) strip.push(r.item);
+		const iFw = strip.indexOf('scatter');
+		check(hl.some((d) => /^count 2 of 3/.test(d)) && hl.some((d) => /^hit /.test(d)) && fwRows.length > 0 && fwRows.every((r) => r.item === 'scatter' || r.card), `${tag}: HIT ${name}: the count starts at 2 of 3, ticks up (${ticks.join(', ') || 'none'}), and the trigger plays its fireworks on the strip (${hl.join('; ')})`, { hl, strip });
+		check(iFw >= 0 && strip.slice(iFw).includes('entry') && H.rows[H.rows.length - 1].card, `${tag}: HIT ${name}: then the bonus entry takes the strip by priority (${strip.join(' > ')})`, strip);
+		// finish the round: press through the cards
+		for (let i = 0; i < 400; i++) {
+			const st = await R(p, () => ({ card: window.__reindeer.scoreboard().card, idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), html: !!document.querySelector('.round-card, .roundcard, [data-round-card]') }));
+			if (st.idle && st.rest && !st.card) break;
+			if (st.card) await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3).catch(() => {});
+			await sleep(400);
+		}
+	}
+	// nothing of the count on the back board: it is the strip's only (the back board is down through the count)
+	check(M.rows.every((r) => !r.card), `${tag}: the scatter count never uses the back board`);
+}
+
+/** THE SHORT GRANDMA LINE BY PLAY MODE (constants LED_BOARD.gagShortIn): manual base play the full line; turbo the short */
+async function gagModes(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await R(p, () => window.__reindeer.gagModes(true));
+	await R(p, () => window.__reindeer.turbo(0));
+	const a = await playRound(p, 'base_grandma_strike', { limit: 60000 });
+	const m0 = await R(p, () => window.__reindeer.gagModes(true));
+	await R(p, () => window.__reindeer.turbo(1));
+	const b = await playRound(p, 'base_grandma_strike', { limit: 60000 });
+	const m1 = await R(p, () => window.__reindeer.gagModes(true));
+	await R(p, () => window.__reindeer.turbo(0));
+	check(a.ok && b.ok && m0.join() === 'full' && m1.join() === 'short', `${tag}: base_grandma_strike in manual base play plays the full line (${m0.join()}), at turbo 1 the short one (${m1.join()})`, { m0, m1 });
+	// autoplay: two rounds of base_grandma_strike
+	await R(p, () => window.__reindeer.fixtures.next('base_grandma_strike', true));
+	await p.click('.hudp button[aria-label="Autoplay"]');
+	await sleep(700);
+	await p.click('.am-ui.layer.modals .go');
+	await sleep(700);
+	const plays0 = await R(p, () => window.__reindeer.fixtures.log().plays.length);
+	await p.click('.hudp button.spin');
+	const t0 = Date.now();
+	let stopped = false;
+	while (Date.now() - t0 < 120000) {
+		const st = await R(p, () => ({ plays: window.__reindeer.fixtures.log().plays.length, idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), auto: document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay' }));
+		if (!stopped && st.plays - plays0 >= 2) {
+			stopped = true;
+			await R(p, () => window.__reindeer.fixtures.clear());
+			await p.click('.hudp button.spin').catch(() => {});
+		}
+		if (stopped && st.idle && st.rest && !st.auto) break;
+		await sleep(150);
+	}
+	const m2 = await R(p, () => window.__reindeer.gagModes(true));
+	// (the round the Stop press lands in may be played as a manual round: its gag is the full one)
+	check(stopped && m2.length >= 1 && m2[0] === 'short', `${tag}: in autoplay the Grandma gag is the short line (${m2.join(', ')})`, m2);
+}
+
 (async () => {
 	const browser = await chromium.launch({ args: ['--mute-audio'] });
 	const memory = {};
@@ -1025,6 +1284,11 @@ check(list.length >= 2 && list.every((x) => x.fired.join() === '0,1,2') && asked
 				if (SEC('raceCard')) await raceCards(p, S);
 				if (SEC('cards') && ['side', 'portrait'].includes(S.name)) await cards(p, S, false);
 				if (S.flows && SEC('cards')) await cards(p, S, true);
+				// 2026-11-17: the strip's priority order and the short line by hand (desktop, upright), the scatter count in real
+				// rounds (desktop, upright), the short line by play mode (desktop)
+				if (SEC('strip') && ['desktop', 'portrait'].includes(S.name)) await stripOrder(p, S);
+				if (SEC('scatter') && ['desktop', 'portrait'].includes(S.name)) await scatterRounds(p, S);
+				if (SEC('gagModes') && S.flows) await gagModes(p, S);
 				if (S.flows) await flows(p, S, errs);
 				else check(errs.length === 0, `${S.name}: no page errors`, errs);
 			} catch (e) {

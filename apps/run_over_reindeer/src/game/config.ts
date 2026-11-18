@@ -61,6 +61,12 @@ export default {
 	],
 	freeSpins: 10,
 	retriggerSpins: 3,
+	// THE SCATTER TRIGGERS (math-sdk game_config.py freespin_triggers and anticipation_triggers, ror_rules.py scatter_count):
+	// the present counts that award something, lowest first (the base game: 3 Free Spins, 4 or more Super Free Spins; a bonus
+	// round: 3 the retrigger), and the count from which a spin is in anticipation (2 in both). The LED strip's scatter count
+	// reads them (game/road/roadBoard.ts scatterCount); nothing here decides an outcome.
+	scatterTriggers: { basegame: [3, 4], freegame: [3] },
+	anticipationAt: { basegame: 2, freegame: 2 },
 	// floors on a bonus round's own total, in base bet multiples. The BOOKS meet them (a natural round under its floor
 	// carries a floorTopUp event; a bought Super is drawn to its minimum); the frontend only states them.
 	floors: { naturalFreeSpins: 10, naturalSuper: 50, boughtSuper: 20 },

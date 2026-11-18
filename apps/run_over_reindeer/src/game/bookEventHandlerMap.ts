@@ -189,16 +189,22 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the count, a second ends the hold). Anything smaller, and every free spin's win, is the strip's small message: WIN
 		// and the amount, started with the lines and never waited for (the bonus round's total is the wrap-up card's).
 		const big = stateGame.gameType === 'basegame' && bookEventAmountToBetAmountMultiplier(bookEvent.totalWin) >= LED_BOARD.tiers[0].bar;
-		if (!big) eventEmitter.broadcast({ type: 'boardScoreboardWin', amount: bookEvent.totalWin, small: true });
+		// (LINE WINS, TREATMENT B, constants LINE_WIN slam: the small win's strip total comes when the lines say it is due,
+		// boardWinShow's stripTotal below; the old way it starts with the lines)
+		if (!big && !LINE_WIN.slam.on) eventEmitter.broadcast({ type: 'boardScoreboardWin', amount: bookEvent.totalWin, small: true });
 		// THE CHRISTMAS LIGHTS (constants LINE_WIN lights): each line lights in the book's order with its own amount (the
 		// book's line pay), then the total. On the spin that reaches the cap (capped: the book's totalWin is what is
 		// awarded, less than the lines' pays) no line's own amount shows: only the total, the awarded amount.
+		// TREATMENT B (constants LINE_WIN slam): each line's plain amount is its paytable win, the book's win over the line's
+		// own multiplier; the line's win shown after the slam is the book's own
 		await eventEmitter.broadcastAsync({
 			type: 'boardWinShow',
-			wins: bookEvent.wins.map((win) => ({ cells: win.cells, line: win.line, symbol: win.symbol, amountText: bookEventAmountToCurrencyString(win.win) })),
+			wins: bookEvent.wins.map((win) => ({ cells: win.cells, line: win.line, symbol: win.symbol, amountText: bookEventAmountToCurrencyString(win.win), plainText: bookEventAmountToCurrencyString(win.win / Math.max(1, win.multiplier)), multiplier: win.multiplier })),
 			amountText: bookEventAmountToCurrencyString(bookEvent.totalWin),
 			multiplier,
 			capped: bookEvent.capped === true,
+			stripTotal: !big && LINE_WIN.slam.on ? bookEvent.totalWin : null,
+			big,
 		});
 		eventEmitter.broadcast({ type: 'boardWinClear' });
 		if (big) await eventEmitter.broadcastAsync({ type: 'boardScoreboardWin', amount: bookEvent.totalWin });

@@ -15,8 +15,11 @@ import * as PIXI from 'pixi.js';
 
 import { LINE_WIN } from '../constants';
 import { WIN_LIGHTS_ART } from '../winLightsSpec';
+import { NumberLabel } from './roadFeatures';
 
 const L = LINE_WIN.lights;
+/** LINE WINS, TREATMENT B (constants LINE_WIN slam): the plain amount, its multiplier slamming in, the line's win */
+const X = LINE_WIN.slam;
 /** the most lines a win can have (config.paylines) */
 const MAX_LINES = 12;
 /** the most spans a line has (5 reels) */
@@ -27,8 +30,11 @@ export type LightLine = {
 	points: { x: number; y: number }[];
 	/** the symbol the line pays (W: Wilds only) */
 	symbol: string;
-	/** this line's own amount, or '' for none */
+	/** this line's own amount (its win, the book's), or '' for none */
 	amountText: string;
+	/** TREATMENT B: its plain amount (the paytable win: the book's win / multiplier) and its multiplier (1: none, no slam) */
+	plainText?: string;
+	multiplier?: number;
 	/** where its amount may go, best first: road px of a box's centre */
 	slots: { x: number; y: number }[];
 };
@@ -69,11 +75,38 @@ type Slot = {
 	/** DEV readout: the bulbs drawn now and the draw fraction */
 	lit: number;
 	frac: number;
+	/** TREATMENT B (LINE_WIN slam): the label's pieces, its beats' scale, its centre and widths, what it showed last frame */
+	lab: SlamLabel | null;
+	f: number;
+	multi: boolean;
+	cx: number;
+	cy: number;
+	wPlain: number;
+	wProd: number;
+	wBadge: number;
+	state: 'none' | 'plain' | 'side' | 'squash' | 'win';
 };
+
+/** one line's slam label: the plain amount and the line's win (each with its shadow), the multiplier and its two shadows */
+type SlamLabel = { root: PIXI.Container; plain: PIXI.Text; plainSh: PIXI.Text; win: PIXI.Text; winSh: PIXI.Text; badge: NumberLabel; badgeSh: NumberLabel[] };
+
+/** the slam's options for one win: the label scale (1, or the phone's), the phone rule, the road's inner edges and the top
+ *  lane line (road px) */
+export type SlamOpts = { scale: number; phone: boolean; left: number; right: number; topLine: number };
 
 const darken = (c: number, k: number) => (Math.round(((c >> 16) & 255) * k) << 16) | (Math.round(((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k);
 const easeOut3 = (u: number) => 1 - (1 - u) * (1 - u) * (1 - u);
 const clamp01 = (u: number) => (u < 0 ? 0 : u > 1 ? 1 : u);
+/** the slam's eases (the mock's, Manticore's readout): a back-in (it pulls back first) and a back-out (past, then back) */
+const backIn = (u: number) => u * u * (2.70158 * u - 1.70158);
+const backOut = (u: number) => {
+	const v = u - 1;
+	return v * v * (2.70158 * v + 1.70158) + 1;
+};
+const mixColor = (a: number, b: number, u: number) => {
+	const m = (sh: number) => Math.round(((a >> sh) & 255) + (((b >> sh) & 255) - ((a >> sh) & 255)) * u);
+	return (m(16) << 16) | (m(8) << 8) | m(0);
+};
 
 export type LightsPlan = {
 	/** per line, ms into the win: it starts stringing, how long it strings, fully strung, starts coming down, gone */
@@ -85,6 +118,75 @@ export type LightsPlan = {
 	/** the last light is down (the total comes then) */
 	linesEnd: number;
 };
+/** TREATMENT B's plan: the lights' plan with each line's beat scale (`f`, ms per nominal ms at a 1000 ms lit time, the
+ *  turbo level's share in it), when the strip's total comes and when the win ends (ms into the win) */
+export type SlamPlan = LightsPlan & { f: number[]; lits: number[]; totalAt: number; endAt: number; phone: boolean };
+
+/** the moment the line's win shows, nominal ms at a 1000 ms lit time (treatment B: plain, side, both, squash) */
+export const slamProductAt = () => X.beats.plain + X.beats.side + X.beats.both + X.beats.squash;
+
+/** TREATMENT B'S SCHEDULE (constants LINE_WIN slam; the mock's buildPlan): `n` lines at `pace` (the turbo level's share);
+ *  `phone` the upright phone's rule; `multi1` a one line win whose line has a multiplier (its strip total waits for the
+ *  slam). Read from the tunables on every call (live tunable). */
+export function slamSchedule(n: number, pace = 1, phone = false, multi1 = false): SlamPlan {
+	const P = X.phone;
+	const starts: number[] = [];
+	const draws: number[] = [];
+	const lits: number[] = [];
+	let fOver: number | null = null;
+	const usePhone = phone && P.on && n > 1;
+	if (usePhone) {
+		// THE PHONE RULE: at most maxUp amounts up at once (an amount is up from its line's full until downWindowMs into its
+		// take down): the lines' fulls g = (lit + window) / maxUp apart; the lines still end at today's line time LE (the
+		// first full at drawMs, the last line down by LE), so lit <= (LE - drawMs - (n - 1) window / maxUp) / (1 + (n - 1) /
+		// maxUp), and never more than perLineLitMs; the beats shrink with it, keeping readMs to read the line's win
+		const LE = lightsSchedule(n, 1, true).linesEnd;
+		const litMax = (LE - L.drawMs - ((n - 1) * P.downWindowMs) / P.maxUp) / (1 + (n - 1) / P.maxUp);
+		const lit = Math.max(1, Math.min(X.perLineLitMs, litMax));
+		const g = (lit + P.downWindowMs) / P.maxUp;
+		for (let i = 0; i < n; i++) {
+			const d = i === 0 ? L.drawMs : L.drawFloorMs;
+			starts.push(L.drawMs + i * g - d);
+			draws.push(d);
+			lits.push(lit);
+		}
+		fOver = Math.max(0.2, Math.min(X.perLineLitMs / 1000, (lit - P.readMs) / slamProductAt()));
+	} else {
+		let t = 0;
+		for (let i = 0; i < n; i++) {
+			starts.push(t);
+			draws.push(Math.max(Math.min(L.drawFloorMs, L.drawMs), L.drawMs * Math.pow(L.gapRatio, i)));
+			lits.push(X.perLineLitMs);
+			t += Math.max(L.gapFloorMs, L.staggerMs * Math.pow(L.gapRatio, i));
+		}
+	}
+	const plan: SlamPlan = { starts: [], draws: [], full: [], off: [], end: [], f: [], lits: [], linesEnd: 0, totalAt: 0, endAt: 0, phone: usePhone };
+	for (let i = 0; i < n; i++) {
+		const start = starts[i] * pace;
+		const draw = Math.max(1, draws[i] * pace);
+		const lit = lits[i] * pace;
+		plan.starts.push(start);
+		plan.draws.push(draw);
+		plan.full.push(start + draw);
+		plan.off.push(n === 1 ? Infinity : start + draw + lit);
+		plan.end.push(n === 1 ? Infinity : start + draw + lit + L.takeDownMs * pace);
+		plan.lits.push(lit);
+		plan.f.push(n === 1 ? pace : (fOver ?? lits[i] / 1000) * pace);
+	}
+	if (n === 1) {
+		// one line: it stays up, the strip's total comes as its slam lands (its amount's pop without one), the win ends when
+		// today's does
+		plan.totalAt = plan.full[0] + (multi1 ? slamProductAt() * plan.f[0] : L.amount.popMs * pace);
+		plan.endAt = plan.full[0] + LINE_WIN.holdMs * pace;
+		plan.linesEnd = plan.full[0];
+	} else if (n > 1) {
+		// the strip's total as the last line starts to come down, then the hold
+		plan.totalAt = Math.max(...plan.off);
+		plan.endAt = plan.totalAt + LINE_WIN.holdMs * pace;
+		plan.linesEnd = Math.max(...plan.end);
+	}
+	return plan;
+}
 
 /** THE LINE SCHEDULE (constants LINE_WIN lights; Corey's timing page win_line_timing.html, its schedule()): every
  *  line's start, stringing, fully lit, coming down and gone, ms into the win at `pace` (the turbo level's share). Read
@@ -125,8 +227,14 @@ export class WinLights {
 	private readonly glowTex: PIXI.Texture | null;
 	private active = 0;
 	private plan: LightsPlan = lightsSchedule(0);
+	/** TREATMENT B: the win's slam plan (null: the old way, each line's gold amount), its options */
+	private slam: SlamPlan | null = null;
+	private slamOpts: SlamOpts | null = null;
+	/** the atlas digits' lookup (the multiplier's NumberLabel) */
+	private readonly numTex: (frame: string) => PIXI.Texture | undefined;
 
-	constructor(sheet: PIXI.Texture | undefined, tier: 'full' | 'phone') {
+	constructor(sheet: PIXI.Texture | undefined, tier: 'full' | 'phone', numTex: (frame: string) => PIXI.Texture | undefined = () => undefined) {
+		this.numTex = numTex;
 		this.root.label = 'winLights';
 		this.glowLayer.blendMode = 'add';
 		this.root.addChild(this.wireLayer, this.glowLayer, this.bulbLayer, this.amountLayer);
@@ -139,11 +247,14 @@ export class WinLights {
 	/** the lines of a win, in the book's order; `pace` the turbo level's share of every time; `amounts` false shows no
 	 *  line's own amount (a one line win, whose amount is the total; a capped spin, whose lines pay more than is
 	 *  awarded) */
-	set(lines: LightLine[], pace: number, amounts: boolean) {
+	set(lines: LightLine[], pace: number, amounts: boolean, slam: SlamOpts | null = null) {
 		this.hide();
 		this.active = Math.min(lines.length, MAX_LINES);
 		const placed: { x: number; y: number; w: number; h: number }[] = [];
-		const plan = (this.plan = lightsSchedule(this.active, pace));
+		const timed: { r: { x: number; y: number; w: number; h: number }; from: number; to: number }[] = [];
+		this.slamOpts = slam && amounts ? slam : null;
+		this.slam = this.slamOpts ? slamSchedule(this.active, pace, this.slamOpts.phone, this.active === 1 && (lines[0]?.multiplier ?? 1) > 1) : null;
+		const plan = (this.plan = this.slam ?? lightsSchedule(this.active, pace));
 		for (let k = 0; k < this.active; k++) {
 			const line = lines[k];
 			const s = this.slot(k);
@@ -152,6 +263,9 @@ export class WinLights {
 			s.draw = plan.draws[k];
 			s.off = plan.off[k] - plan.starts[k];
 			s.down = Math.max(1, L.takeDownMs * pace);
+			s.f = this.slam ? this.slam.f[k] : pace;
+			s.multi = (line.multiplier ?? 1) > 1;
+			s.state = 'none';
 			s.pace = pace;
 			s.symbol = line.symbol;
 			s.palette = L.palettes[line.symbol] ?? L.palettes.L5;
@@ -159,7 +273,43 @@ export class WinLights {
 			this.hangBulbs(s);
 			s.amountShown = false;
 			s.rect = null;
-			if (amounts && line.amountText) {
+			if (this.slamOpts && line.amountText) {
+				// TREATMENT B: the label's widest state is its box (the plain amount and the multiplier side by side, or the line's
+				// win); only amounts up at the same time block a place (a line long gone does not push a later one off its symbol)
+				const o = this.slamOpts;
+				const lab = this.labelOf(s, o.scale);
+				const plainText = s.multi ? (line.plainText ?? line.amountText) : line.amountText;
+				this.setText(lab.plain, plainText);
+				this.setText(lab.plainSh, plainText);
+				this.setText(lab.win, line.amountText);
+				this.setText(lab.winSh, line.amountText);
+				const bh = this.badgeH(o.scale);
+				const multText = `x${line.multiplier ?? 1}`;
+				lab.badge.set(multText, bh, X.multTint);
+				lab.badgeSh.forEach((b) => b.set(multText, bh, 0x000000));
+				for (const t of [lab.plain, lab.win]) t.scale.set(1);
+				lab.badge.root.scale.set(1);
+				s.wPlain = lab.plain.width;
+				s.wProd = lab.win.width;
+				s.wBadge = s.multi ? lab.badge.root.width : 0;
+				const gap = X.gap * o.scale;
+				const w = s.multi ? Math.max(s.wProd, s.wPlain + gap + s.wBadge) : s.wProd;
+				const h = Math.max(lab.plain.height, lab.win.height);
+				const full = plan.full[k];
+				const until = plan.off[k] + (o.phone ? 0.3 : 1) * s.down;
+				const alive = timed.filter((q) => q.from < plan.off[k] + s.down && full < q.to).map((q) => q.r);
+				const slots = line.slots.map((c) => {
+					const x = Math.min(o.right - 40 - w / 2, Math.max(o.left + 40 + w / 2, c.x));
+					// THE PHONE: an amount on the top lane line comes down so its top stays under that line (the tunnel top)
+					const y = o.phone ? Math.max(c.y, o.topLine + X.phone.topClearRoad + h / 2) : c.y;
+					return { x, y };
+				});
+				s.rect = this.place(slots, w, h, alive);
+				timed.push({ r: s.rect, from: full, to: until });
+				s.cx = s.rect.x + w / 2;
+				s.cy = s.rect.y + h / 2;
+				lab.root.visible = false;
+			} else if (amounts && line.amountText) {
 				const a = this.amountOf(s);
 				a.text = line.amountText;
 				a.scale.set(1);
@@ -262,6 +412,11 @@ export class WinLights {
 				glow.alpha = on ? G.alpha : G.dimAlpha;
 			}
 			s.lit = lit;
+			// TREATMENT B: the plain amount, its multiplier slamming in, the line's win (LINE_WIN slam)
+			if (this.slam && s.lab && s.rect) {
+				this.drawSlam(s, local, gone ? 0 : fade);
+				continue;
+			}
 			// THE LINE'S OWN AMOUNT: pops in as its wire is complete, swelling once; fades as the total arrives
 			const a = s.amount;
 			if (a && s.rect) {
@@ -287,12 +442,165 @@ export class WinLights {
 			for (const b of s.bulbs) b.visible = false;
 			for (const g of s.glows) g.visible = false;
 			if (s.amount) s.amount.visible = false;
+			if (s.lab) s.lab.root.visible = false;
 			s.amountShown = false;
+			s.state = 'none';
 			s.lit = 0;
 			s.frac = 0;
 		}
 		this.active = 0;
+		this.slam = null;
+		this.slamOpts = null;
 		this.root.visible = false;
+	}
+
+	/** TREATMENT B's plan as set (null: the old way) */
+	slamPlan(): SlamPlan | null {
+		return this.slam;
+	}
+	/** ONE LINE'S SLAM at `local` ms into its line (the mock's drawLabel, treatment B): alone first, its multiplier pops in
+	 *  beside it, the two sit together, squash into each other (a back-in ease) and the line's win punches out, flashing
+	 *  halfway to yellow; a line with no multiplier shows its amount alone, swelling once. `fade` its line's take-down. */
+	private drawSlam(s: Slot, local: number, fade: number) {
+		const lab = s.lab!;
+		const a = local - s.draw;
+		const show = a >= 0 && fade > 0.001;
+		lab.root.visible = show;
+		s.amountShown = show;
+		if (!show) {
+			s.state = 'none';
+			return;
+		}
+		const st = X.strength;
+		const q = clamp01(a / Math.max(1, L.amount.popMs * s.pace));
+		const swell = 1 + L.amount.swell * Math.sin(q * Math.PI);
+		const cx = s.cx;
+		const cy = s.cy;
+		const sc = this.slamOpts?.scale ?? 1;
+		const plain = (x: number, sx: number, sy: number, alpha: number) => {
+			for (const t of [lab.plainSh, lab.plain]) {
+				t.visible = alpha > 0.001;
+				t.scale.set(sx, sy);
+				t.alpha = t === lab.plain ? alpha : alpha * X.shadow.alpha;
+			}
+			lab.plain.position.set(x, cy);
+			lab.plainSh.position.set(x, cy + X.shadow.dy * sc);
+		};
+		const win = (x: number, sx: number, sy: number, alpha: number, flash: number) => {
+			for (const t of [lab.winSh, lab.win]) {
+				t.visible = alpha > 0.001;
+				t.scale.set(sx, sy);
+				t.alpha = t === lab.win ? alpha : alpha * X.shadow.alpha;
+			}
+			lab.win.position.set(x, cy);
+			lab.winSh.position.set(x, cy + X.shadow.dy * sc);
+			lab.win.tint = flash > 0 ? mixColor(X.amountFill, X.flashTint, flash) : X.amountFill;
+		};
+		const badge = (x: number, sx: number, sy: number, alpha: number) => {
+			const on = alpha > 0.001;
+			lab.badge.root.visible = on;
+			lab.badge.root.position.set(x, cy);
+			lab.badge.root.scale.set(sx, sy);
+			lab.badge.root.alpha = alpha;
+			lab.badgeSh.forEach((b, i) => {
+				b.root.visible = on;
+				b.root.position.set(x, cy + X.shadow.drops[i] * sc);
+				b.root.scale.set(sx * X.shadow.grow[i], sy * X.shadow.grow[i]);
+				b.root.alpha = alpha * X.shadow.alphas[i];
+			});
+		};
+		if (!s.multi) {
+			plain(cx, 1, 1, 0);
+			badge(cx, 1, 1, 0);
+			win(cx, swell, swell, fade, 0);
+			s.state = 'win';
+			return;
+		}
+		const B = X.beats;
+		const f = s.f;
+		const t1 = B.plain * f;
+		const t2 = t1 + B.side * f;
+		const t3 = t2 + B.both * f;
+		const t4 = t3 + B.squash * f;
+		const gap = X.gap * sc;
+		const gw = s.wPlain + gap + s.wBadge;
+		const ax = cx - gw / 2 + s.wPlain / 2;
+		const bx = cx + gw / 2 - s.wBadge / 2;
+		if (a < t1) {
+			plain(cx, swell, swell, fade);
+			badge(bx, 1, 1, 0);
+			win(cx, 1, 1, 0, 0);
+			s.state = 'plain';
+		} else if (a < t3) {
+			const v = clamp01((a - t1) / Math.max(1, t2 - t1));
+			plain(cx + (ax - cx) * easeOut3(v), 1, 1, fade);
+			const k = 0.4 + 0.6 * backOut(v);
+			badge(bx, k, k, fade * clamp01(v * 3));
+			win(cx, 1, 1, 0, 0);
+			s.state = 'side';
+		} else if (a < t4) {
+			const v = clamp01((a - t3) / Math.max(1, t4 - t3));
+			const m = backIn(v);
+			const squ = 1 - (0.45 * st * 0.5 + 0.2) * clamp01(m);
+			plain(ax + (cx - s.wPlain * 0.18 - ax) * m, squ, 1 + (1 - squ) * 0.4, fade);
+			badge(bx + (cx + s.wBadge * 0.1 - bx) * m, 1 - 0.5 * clamp01(m), 1, fade * (1 - clamp01((v - 0.75) / 0.25)));
+			win(cx, 1, 1, 0, 0);
+			s.state = 'squash';
+		} else {
+			const v = clamp01((a - t4) / Math.max(1, B.pop * f));
+			const amp = 0.3 * st;
+			const e = Math.exp(-5 * v) * Math.cos(2.4 * Math.PI * v);
+			plain(cx, 1, 1, 0);
+			badge(cx, 1, 1, 0);
+			win(cx, 1 + amp * e, 1 - amp * 0.5 * e, fade, clamp01(1 - v * 3.5));
+			s.state = 'win';
+		}
+	}
+
+	/** the multiplier's height: its digit cap the amount's (the digit face is faceShare of the atlas frame) */
+	private badgeH(scale: number) {
+		return (X.capRatio * L.amount.size * scale) / X.faceShare;
+	}
+
+	private setText(t: PIXI.Text, text: string) {
+		if (t.text !== text) t.text = text;
+	}
+
+	/** a line's slam label, made the first time its slot is used, its sizes set for `scale` */
+	private labelOf(s: Slot, scale: number): SlamLabel {
+		const A = L.amount;
+		const size = A.size * scale;
+		const edge = A.strokeWidth * scale;
+		const style = (fill: number, stroke: number, width: number) => ({ fontFamily: 'Overpass, sans-serif', fontWeight: '900' as const, fontSize: size, fill, stroke: { color: stroke, width, join: 'round' as const }, align: 'center' as const });
+		if (!s.lab) {
+			const text = (fill: number, stroke: number, width: number) => {
+				const t = new PIXI.Text({ text: '', style: style(fill, stroke, width) });
+				t.anchor.set(0.5);
+				return t;
+			};
+			const h = this.badgeH(scale);
+			const lab: SlamLabel = {
+				root: new PIXI.Container(),
+				plain: text(X.amountFill, A.stroke, edge),
+				plainSh: text(0x000000, 0x000000, edge + X.shadow.extra * scale),
+				win: text(X.amountFill, A.stroke, edge),
+				winSh: text(0x000000, 0x000000, edge + X.shadow.extra * scale),
+				badge: new NumberLabel(this.numTex, h, X.multTint),
+				badgeSh: [new NumberLabel(this.numTex, h, 0x000000), new NumberLabel(this.numTex, h, 0x000000)],
+			};
+			// every shadow under every face
+			lab.root.addChild(lab.plainSh, lab.winSh, ...lab.badgeSh.map((b) => b.root), lab.plain, lab.win, lab.badge.root);
+			lab.root.visible = false;
+			this.amountLayer.addChild(lab.root);
+			s.lab = lab;
+		}
+		const lab = s.lab;
+		// (a resize to or from the phone's size: the sizes again)
+		if (lab.plain.style.fontSize !== size) {
+			for (const t of [lab.plain, lab.win]) t.style = style(X.amountFill, A.stroke, edge);
+			for (const t of [lab.plainSh, lab.winSh]) t.style = style(0x000000, 0x000000, edge + X.shadow.extra * scale);
+		}
+		return lab;
 	}
 
 	/** DEV / probes: each line as drawn now */
@@ -310,7 +618,26 @@ export class WinLights {
 			lit: s.lit,
 			litTints: s.bLit.slice(0, Math.min(s.nb, 6)).map((c) => c.toString(16).padStart(6, '0')),
 			palette: s.palette.map((c) => c.toString(16).padStart(6, '0')),
-			amount: s.amount && s.rect ? { text: s.amount.text, shown: s.amountShown, alpha: Math.round(s.amount.alpha * 100) / 100, rect: { x: Math.round(s.rect.x), y: Math.round(s.rect.y), w: Math.round(s.rect.w), h: Math.round(s.rect.h) } } : null,
+			amount:
+				s.lab && s.rect && this.slam
+					? {
+							// TREATMENT B: what the label shows now ('plain', 'side' and 'squash' the plain amount, 'win' the line's win), the
+							// text up now, the multiplier drawn or not, the plain and the line's win texts, its beats' scale and type size
+							text: s.state === 'win' ? s.lab.win.text : s.lab.plain.text,
+							shown: s.amountShown,
+							alpha: Math.round((s.state === 'win' ? s.lab.win.alpha : s.lab.plain.alpha) * 100) / 100,
+							rect: { x: Math.round(s.rect.x), y: Math.round(s.rect.y), w: Math.round(s.rect.w), h: Math.round(s.rect.h) },
+							state: s.state,
+							plain: s.lab.plain.text,
+							win: s.lab.win.text,
+							multiplier: s.multi && s.lab.badge.root.visible,
+							multi: s.multi,
+							f: Math.round(s.f * 1000) / 1000,
+							fontSize: s.lab.win.style.fontSize,
+						}
+					: s.amount && s.rect
+						? { text: s.amount.text, shown: s.amountShown, alpha: Math.round(s.amount.alpha * 100) / 100, rect: { x: Math.round(s.rect.x), y: Math.round(s.rect.y), w: Math.round(s.rect.w), h: Math.round(s.rect.h) } }
+						: null,
 			sprites: (s.outline.filter((o) => o.visible).length + s.core.filter((c) => c.visible).length + s.bulbs.filter((b) => b.visible).length + s.glows.filter((g) => g.visible).length),
 		}));
 	}
@@ -385,6 +712,7 @@ export class WinLights {
 				used: false, start: 0, draw: 1, pace: 1, off: Infinity, down: 1, px: new Float32Array(n), py: new Float32Array(n), len: new Float32Array(n), n: 0, total: 0,
 				outline, core, bulbs, glows, bx: new Float32Array(most), by: new Float32Array(most), bAt: new Float32Array(most), bArc: new Float32Array(most),
 				bLit: new Array(most).fill(0xffffff), bDim: new Array(most).fill(0x666666), nb: 0, amount: null, amountShown: false, rect: null, symbol: '', palette: [], lit: 0, frac: 0,
+				lab: null, f: 1, multi: false, cx: 0, cy: 0, wPlain: 0, wProd: 0, wBadge: 0, state: 'none',
 			});
 		}
 		return this.slots[k];

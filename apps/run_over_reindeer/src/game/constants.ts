@@ -796,6 +796,55 @@ export const LINE_WIN = {
 			L5: [0xffffff, 0xb8c2cc],
 		} as Record<string, number[]>,
 	},
+	/** LINE WINS, TREATMENT B (Corey 2026-11-17, approved from the live mock line_win_slam_mock_2026-11-17; game/road/winLights.ts).
+	 *  The old display read like "35x $399.50" and misled. Now each winning line shows its PLAIN amount (the paytable win, the
+	 *  book's win / multiplier) in white; then that line's own multiplier, in the column's yellow digits, pops in beside it, the
+	 *  two sit together, squash into each other, and the amount punches out as the line's win (the book's). A line with
+	 *  multiplier 1 shows its amount alone (no multiplier, no slam). No total over the board: the strip carries the spin's
+	 *  total, counting up, with no multiplier on it (a big win counts on the strip and the back board after the lines, as
+	 *  before). His settings, read back from the mock: {"treatment":"B","perLineLitMs":1250,"slamStrength":0.6,
+	 *  "lines":"staggered","stripTotal":"count","beatsAtNormalMs":{"plain":140,"side":160,"both":120,"squash":190,"pop":260}}.
+	 *    THE SCHEDULE  the lines start and string as the lights' schedule above; each stays lit perLineLitMs (not stayLitMs),
+	 *                  then comes down over takeDownMs. The strip's total comes as the last line starts to come down (one
+	 *                  line: as its slam lands, or its amount's pop without one) and holds holdMs; every time x holdShare at a
+	 *                  turbo level, and on the win clock (a slam stop's hurry runs it 3x). The beats scale with the lit time
+	 *                  (x perLineLitMs / 1000; a one line win at x1).
+	 *    THE PHONE     (the upright phone; the mock's round 2 phone rule) the amounts are sized so their digit cap is
+	 *                  phone.capPx CSS px, at most 3 are up at once (lines phone.capPx apart: (lit + 200) / 3), the lit time
+	 *                  shrinks so the lines still end at today's line time (the win lasts as long as today's), the beats
+	 *                  shrink with it keeping phone.readMs to read the line's win; an amount on the top lane line is nudged
+	 *                  down so its top stays phone.topClearRoad road px under that line (the tunnel top no longer clips it).
+	 *  Plain pictures only (Text, the atlas digits tinted, transforms and alpha): no filter, shader or mask. */
+	slam: {
+		/** false: the lines and the total over the board as before (the x multiplier over it) */
+		on: true,
+		treatment: 'B' as const,
+		perLineLitMs: 1250,
+		/** how hard the squash and the punch are (the mock's slider: 0 none, 1 full) */
+		strength: 0.6,
+		lines: 'staggered' as const,
+		/** the strip's total: 'count' counts up over stripCountMs (x holdShare), 'appear' shows it at once */
+		stripTotal: 'count' as 'count' | 'appear',
+		stripCountMs: 600,
+		/** the beats at a 1000 ms lit time, ms: the plain amount alone, the multiplier pops in beside it, the two together, the
+		 *  squash into each other, the line's win punching out */
+		beats: { plain: 140, side: 160, both: 120, squash: 190, pop: 260 },
+		/** the amount white with the game's dark edge (the lights' amount size and edge), the multiplier the column's yellow
+		 *  digits at the same cap height (the digit face is faceShare of the atlas frame), gap road px between them; at the
+		 *  punch the amount flashes halfway to yellow (flashTint) and back */
+		amountFill: 0xffffff,
+		multTint: 0xffd400,
+		flashTint: 0xffea80,
+		capRatio: 0.7,
+		faceShare: 228 / 286,
+		gap: 14,
+		/** the soft dark shadow under both (no blur): under the amount a wide dark stroke (extra road px wider than its edge)
+		 *  at `alpha`, dropped dy road px; under the multiplier two black copies of its digits, `grow` larger, at `alphas`,
+		 *  dropped `drops` road px */
+		shadow: { alpha: 0.3, extra: 16, dy: 6.5, grow: [1.12, 1.05], alphas: [0.22, 0.32], drops: [4, 3] },
+		/** maxUp amounts at once, an amount counting as up until downWindowMs into its take down (it is faint by then) */
+		phone: { on: true, capPx: 18, readMs: 350, topClearRoad: 10, maxUp: 3, downWindowMs: 200 },
+	},
 };
 
 // ---- THE REINDEER'S OWN SOUNDS (Corey's picks 2026-11-15; game/road/roadSounds.ts plays them) -------------------------
@@ -1317,7 +1366,11 @@ export const LED_BOARD = {
 	cartoon: 'auto' as 'auto' | 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race',
 	/** THE GRANDMA GAG (Corey's line, exactly): when the reindeer strikes a Grandma, for gagMs on the strip, cut short by a
 	 *  new spin or a win message on the strip. Its beats: the first part pulses, the bump, then the rest marches in. */
-	gag: { on: true, ms: 5000, first: 'Oooh..', second: 'Grandma Got Run Over', third: 'by a Reindeer?', firstMs: 900, bumpMs: 900, secondMs: 1600 },
+	gag: { on: true, ms: 5000, first: 'Oooh..', second: 'Grandma Got Run Over', third: 'by a Reindeer?', firstMs: 900, bumpMs: 900, secondMs: 1600, short: { text: 'GRANDMA GOT RUN OVER!', ms: 1500 } },
+	/** THE SHORT GRANDMA LINE (Corey 2026-11-17, approved): the full three screen line above plays only in manual base play; in
+	 *  autoplay, in a bonus round and at turbo 1 or 2 the gag is ONE screen, gag.short.text, for gag.short.ms. WHEN it fires is
+	 *  the book's rule as before (game/bookEventHandlerMap.ts strike); this only picks which line. */
+	gagShortIn: { auto: true, free: true, turbo: true },
 	/** THE RACE (decoration only, its own random source; game/scoreboard/race.ts): the odds of each result, the run and the
 	 *  result card's length, the winner's lead at the line (a share of the track) */
 	race: { odds: { reindeer: 0.45, police: 0.45, tie: 0.1 }, runMs: 3200, cardMs: 2600, finishGap: 0.035 },
@@ -1326,6 +1379,28 @@ export const LED_BOARD = {
 	/** THE SPINS LEFT DURING A MESSAGE (2026-11-17): in a bonus round a strip message (a small win, the gag) shows the
 	 *  counter for the last counterMs of every cycleMs it plays, so the spins left are never off the strip for long */
 	counterBreak: { on: true, cycleMs: 3600, counterMs: 1200 },
+	/** THE STRIP'S PRIORITY ORDER (Corey 2026-11-17, approved): ONE arbiter decides what the strip under the reels shows
+	 *  (game/scoreboard/stripArbiter.ts). Highest first: a higher item cuts a lower one at once, nothing queues, and when the
+	 *  higher one ends the strip shows whatever is highest and still true at that moment.
+	 *    entry      a bonus entry or the Total Win: its press line and its sentences (never cut or shortened)
+	 *    bigWin     the big win tiers (Big and Super on the strip; the strip's own line while Mega and up hold the back board)
+	 *    scatter    the scatter anticipation count, and its fireworks on a trigger (scatterCount below)
+	 *    winAmount  the spin's win amount (WIN and the amount, the line win's plain total)
+	 *    spinsLeft  a bonus round's spins left: for spinsLeftMs after the count changes, and the last counterMs of every
+	 *               cycleMs (counterBreak above) after that
+	 *    gag        the Grandma line
+	 *    cartoon    the idle cartoons (they also run in autoplay and in a bonus round)
+	 *    race       the race, only at true idle (the base game, no autoplay, nothing playing): elsewhere the cartoons skip it */
+	stripOrder: ['entry', 'bigWin', 'scatter', 'winAmount', 'spinsLeft', 'gag', 'cartoon', 'race'] as ('entry' | 'bigWin' | 'scatter' | 'winAmount' | 'spinsLeft' | 'gag' | 'cartoon' | 'race')[],
+	spinsLeftMs: 2000,
+	/** THE SCATTER ANTICIPATION COUNT (Corey 2026-11-17, approved: "Strip only, maybe show the scatter symbol animations, maybe
+	 *  some fireworks on the LED board when it hits successfully"). While a spin is in anticipation (config.anticipationAt
+	 *  presents seen, cars still to come, a trigger still possible: game/road/roadBoard.ts scatterCount) the strip shows the
+	 *  presents seen so far against the number needed (the next of config.scatterTriggers) as a row of present pictures and
+	 *  the count in words, "2 OF 3". Each new present pops in (popMs) with a ring of dots (tickMs). On a trigger: fireworks of
+	 *  dots over the count for fireworksMs (then the bonus entry takes over by priority); on a miss it clears quietly. Strip
+	 *  only: nothing on the back board. */
+	scatterCount: { on: true, popMs: 260, tickMs: 520, fireworksMs: 1700, dimAlpha: 0.28 },
 	// ---- PART B (2026-11-17): the staged back board scenes, the tier sounds, the shakes ----
 	/** THE BONUS ROUND'S CARDS: 'board' plays the Free Spins entry, the Super entry and the Total Win on the back board (the
 	 *  mock's scenes, the press line on the strip; the HTML card keeps its press, its timers and its sounds but draws nothing);

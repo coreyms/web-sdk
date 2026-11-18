@@ -39,6 +39,10 @@ const APP = process.env.APP || 'http://localhost:3014';
 const OUT = process.env.OUT || '';
 const VIDEO = process.env.VIDEO === '1';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
+// (2026-11-17) the cases in three parts, each inside one browser lock turn: a (one, three, treatment B's own wins), b (the
+// turbo levels and the slam stop), c (twelve lines, the cost, the palette stills)
+const PART = (process.env.PART || 'a,x,b,c').split(',');
+const part = (x) => PART.includes(x);
 if (OUT) mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FRAME = 1000 / 60;
@@ -69,6 +73,17 @@ const BOOKS = {
 			{ symbol: 'H1', kind: 4, line: 1, win: 500, multiplier: 1, cells: row(0, 4) },
 			{ symbol: 'H4', kind: 3, line: 2, win: 50, multiplier: 1, cells: row(1, 3) },
 			{ symbol: 'L1', kind: 5, line: 4, win: 250, multiplier: 1, cells: row(3, 5) },
+		],
+	),
+	// TREATMENT B (2026-11-17): three lines, the first and the third through a 5x Wild (posed: presentation only), the second
+	// plain (x1: no multiplier, no slam)
+	// (a small win in all, 9x: the strip counts its total)
+	mixed: book(
+		[['L4', 'H4', 'L3', 'L1'], ['L4', 'H4', 'L2', 'L1'], ['L4', 'H4', 'L5', 'L1'], ['H1', 'L3', 'L2', 'L1'], ['L2', 'L2', 'L5', 'L1']],
+		[
+			{ symbol: 'L4', kind: 3, line: 1, win: 100, multiplier: 5, cells: row(0, 3) },
+			{ symbol: 'H4', kind: 3, line: 2, win: 50, multiplier: 1, cells: row(1, 3) },
+			{ symbol: 'L1', kind: 5, line: 4, win: 750, multiplier: 3, cells: row(3, 5) },
 		],
 	),
 	// the palette boards: every paying symbol once
@@ -198,9 +213,10 @@ async function playWin(p, S, bookEvents, { turbo = 0, slamAt = null, frames = nu
 		const s = await R(p, (ms) => {
 			const h = window.__reindeer;
 			h.step(ms, 1);
-			return { frame: h.frame(), w: h.winLights() };
+			const b = h.scoreboard?.();
+			return { frame: h.frame(), w: h.winLights(), sb: b ? { kind: b.show?.kind ?? null, finalStr: b.show?.finalStr ?? null, item: b.stripPick?.item ?? null } : null };
 		}, FRAME);
-		rows.push({ i, frame: s.frame, ...s.w });
+		rows.push({ i, frame: s.frame, ...s.w, sb: s.sb });
 		if (frames) await p.screenshot({ path: join(frames, `f${String(i).padStart(4, '0')}.png`), ...(clip ? { clip } : {}) });
 		if (s.w.ms === null && !s.w.visible && i > 5) break;
 	}
@@ -243,19 +259,68 @@ const sched = (T, n, share) => {
 	const E = k(end);
 	return { starts: k(s), draws: k(d), full: k(full), off: k(off), end: E, linesEnd: n === 1 ? full[0] * share : Math.max(0, ...E), done: Math.max(0, ...k(full)) };
 };
+/** TREATMENT B'S SCHEDULE from the tunables (constants LINE_WIN slam; the mock's buildPlan, written out here on its own):
+ *  the lines start and string as the lights' schedule, each stays lit perLineLitMs, the beats scale by lit / 1000; the
+ *  upright phone keeps at most maxUp amounts up and ends the lines at today's line time; the strip's total as the last line
+ *  starts down (one line: as its slam lands, or its pop), the win holdMs after it */
+const slamSched = (T, n, share, phone, multi1) => {
+	const X = T.lights;
+	const Y = T.slam;
+	const P = Y.phone;
+	const prod = Y.beats.plain + Y.beats.side + Y.beats.both + Y.beats.squash;
+	const s = [];
+	const d = [];
+	const lits = [];
+	let fo = null;
+	if (phone && P.on && n > 1) {
+		const LE = sched(T, n, 1).linesEnd;
+		const litMax = (LE - X.drawMs - ((n - 1) * P.downWindowMs) / P.maxUp) / (1 + (n - 1) / P.maxUp);
+		const lit = Math.max(1, Math.min(Y.perLineLitMs, litMax));
+		const g = (lit + P.downWindowMs) / P.maxUp;
+		for (let i = 0; i < n; i++) {
+			d[i] = i === 0 ? X.drawMs : X.drawFloorMs;
+			s[i] = X.drawMs + i * g - d[i];
+			lits[i] = lit;
+		}
+		fo = Math.max(0.2, Math.min(Y.perLineLitMs / 1000, (lit - P.readMs) / prod));
+	} else {
+		let t = 0;
+		for (let i = 0; i < n; i++) {
+			s[i] = t;
+			d[i] = Math.max(Math.min(X.drawFloorMs, X.drawMs), X.drawMs * Math.pow(X.gapRatio, i));
+			lits[i] = Y.perLineLitMs;
+			t += Math.max(X.gapFloorMs, X.staggerMs * Math.pow(X.gapRatio, i));
+		}
+	}
+	const starts = s.map((v) => v * share);
+	const draws = d.map((v) => Math.max(1, v * share));
+	const full = starts.map((v, i) => v + draws[i]);
+	const off = full.map((v, i) => (n === 1 ? Infinity : v + lits[i] * share));
+	const end = off.map((v) => v + X.takeDownMs * share);
+	const f = lits.map((l) => (n === 1 ? share : (fo ?? l / 1000) * share));
+	const totalAt = n === 1 ? full[0] + (multi1 ? prod * f[0] : X.amount.popMs * share) : Math.max(...off);
+	const endAt = n === 1 ? full[0] + T.holdMs * share : totalAt + T.holdMs * share;
+	return { starts, draws, full, off, end, f, totalAt, endAt, linesEnd: n === 1 ? full[0] : Math.max(...end), done: Math.max(0, ...full), prod, slam: true };
+};
 /** how many lines the schedule has up at win time t */
+/** a planned time that falls on a 60 Hz frame within 0.1 ms (the phone rule's starts can): the readout rounds the win clock
+ *  to 0.1 ms and the app's summed clock may sit a hair either side, so either of the two frames there is right */
+const tie = (v) => Math.abs(v / FRAME - Math.round(v / FRAME)) * FRAME < 0.1;
 const upAt = (P, t) => P.starts.filter((v, i) => t >= v && t < P.end[i]).length;
 const r1 = (v) => (v === null || v === undefined ? '' : Math.round(v * 10) / 10);
 
 /** the checks every played win gets */
-function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
+function judge(tag, W, T, share, bookEvents, { expectAmounts, phone = false }) {
 	const info = bookEvents.find((e) => e.type === 'winInfo');
 	const n = info.wins.length;
 	const live = W.rows.filter((r) => r.active);
 	check(live.length > 10, `${tag}: the win ran ${live.length} frames`);
 	const L = live[live.length - 1]?.lines ?? [];
 	check(L.length === n, `${tag}: ${n} light line(s) drawn (${L.length})`);
-	const plan = sched(T, n, share);
+	// (2026-11-17, treatment B: every line its own amount, a one line win's too; the slam's own schedule)
+	const SL = !!T.slam?.on && !info.capped;
+	if (SL) expectAmounts = true;
+	const plan = SL ? slamSched(T, n, share, phone, n === 1 && info.wins[0].multiplier > 1) : sched(T, n, share);
 	// the accelerating starts, in the book's order, each with its symbol
 	L.forEach((l, k) => {
 		check(Math.abs(l.start - plan.starts[k]) < 0.6, `${tag}: line ${k + 1} (${l.symbol}) starts at ${l.start} ms (want ${r1(plan.starts[k])}${k > 0 ? `, ${r1(plan.starts[k] - plan.starts[k - 1])} after the last` : ''})`);
@@ -290,8 +355,8 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 		const st = plan.starts[k];
 		const draw = plan.draws[k];
 		const prevOf = (r) => live[live.indexOf(r) - 1];
-		check(!!startFrame && startFrame.ms >= st - 0.01 && (!prevOf(startFrame) || prevOf(startFrame).ms < st + 0.01 || k === 0), `${tag}: line ${k + 1} first drawn on the first frame at or after ${r1(st)} ms (frame at ${startFrame?.ms} ms)`);
-		check(!!doneFrame && doneFrame.ms >= st + draw - 0.01 && (!prevOf(doneFrame) || prevOf(doneFrame).ms < st + draw + 0.05), `${tag}: line ${k + 1} complete on the first frame at or after ${r1(st + draw)} ms (${doneFrame?.ms})`);
+		check(!!startFrame && startFrame.ms >= st - 0.06 && (!prevOf(startFrame) || prevOf(startFrame).ms < st + 0.01 || k === 0 || (tie(st) && prevOf(startFrame).ms >= st - 0.1)), `${tag}: line ${k + 1} first drawn on the first frame at or after ${r1(st)} ms (frame at ${startFrame?.ms} ms)`);
+		check(!!doneFrame && doneFrame.ms >= st + draw - 0.06 && (!prevOf(doneFrame) || prevOf(doneFrame).ms < st + draw + 0.05 || (tie(st + draw) && prevOf(doneFrame).ms >= st + draw - 0.1)), `${tag}: line ${k + 1} complete on the first frame at or after ${r1(st + draw)} ms (${doneFrame?.ms})`);
 		// every bulb lit once its wire is complete (on a frame before it starts coming down; a line that comes down the
 		// moment it is strung has none, and its most lit is checked instead)
 		const nb = live[live.length - 1].lines[k].bulbs;
@@ -306,15 +371,17 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 			check(!!firstShown && firstShown === doneFrame, `${tag}: line ${k + 1}'s own amount (${amt(live[live.length - 1])?.text}) appears on the frame its line completes (${firstShown?.ms} vs ${doneFrame?.ms})`);
 		} else check(!firstShown, `${tag}: line ${k + 1}: no amount of its own (${n === 1 ? 'one line: its amount is the total' : 'capped'})`);
 	}
-	// the amounts never touch
+	// the amounts never touch (treatment B: those up at the same time; an amount long gone does not block a place)
 	if (expectAmounts) {
 		const rects = L.map((l) => l.amount?.rect).filter(Boolean);
+		const upTo = (k) => (SL ? plan.off[k] + (phone ? 0.3 : 1) * (plan.end[k] - plan.off[k]) : Infinity);
 		let touching = 0;
 		for (let a = 0; a < rects.length; a++)
 			for (let b = a + 1; b < rects.length; b++) {
 				const A = rects[a];
 				const B = rects[b];
-				if (A.x < B.x + B.w && B.x < A.x + A.w && A.y < B.y + B.h && B.y < A.y + A.h) touching += 1;
+				const together = plan.full[a] < upTo(b) && plan.full[b] < upTo(a);
+				if (together && A.x < B.x + B.w && B.x < A.x + A.w && A.y < B.y + B.h && B.y < A.y + A.h) touching += 1;
 			}
 		check(rects.length === n && touching === 0, `${tag}: the ${rects.length} line amounts do not touch (${touching} pair(s) overlap)`, rects);
 	}
@@ -335,18 +402,21 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 	for (const r of live) {
 		const up = r.lines.filter((l) => l.sprites > 0 || l.amount?.shown).length;
 		peak = Math.max(peak, up);
-		if (up > upAt(plan, r.ms)) tooMany += 1;
+		if (up > upAt(plan, r.ms) && !plan.starts.some((v, i) => Math.abs(r.ms - v) < 0.1 || Math.abs(r.ms - plan.end[i]) < 0.1)) tooMany += 1;
 	}
 	check(tooMany === 0, `${tag}: never more lines up than the schedule has (${tooMany} frames over; peak ${peak} at once)`);
 	// a winning symbol pulses only while a line through it is up
 	const strayPulse = live.filter((r) => (r.pulsing ?? []).some((cell) => !(r.lineCells ?? []).some((cells, i) => cells.includes(cell) && r.ms >= plan.starts[i] - 0.05 && r.ms < plan.end[i] + 0.05) && !(T.lights.pulseWithTotal && r.ms >= r.totalAt)));
 	check(strayPulse.length === 0, `${tag}: a symbol pulses only while a line through it is up (${strayPulse.length} frames with a stray pulse)`, strayPulse.slice(0, 2).map((r) => ({ ms: r.ms, pulsing: r.pulsing })));
-	// the total: when the last light is down
+	// the total: when the last light is down (treatment B: due on the strip as the last line starts to come down; never over
+	// the board, never with a multiplier)
 	const totalAt = live[0].totalAt;
-	const wantTotal = plan.linesEnd;
+	const wantTotal = SL ? plan.totalAt : plan.linesEnd;
 	check(Math.abs(totalAt - wantTotal) < 0.6, `${tag}: the total comes at ${totalAt} ms (want ${r1(wantTotal)})`);
 	const tFirst = live.find((r) => r.total?.shown);
-	check(!!tFirst && tFirst.ms >= totalAt - 0.01 && live.filter((r) => r.ms < totalAt - 0.01).every((r) => !r.total?.shown), `${tag}: the total is not up before ${totalAt} ms, and is from ${tFirst?.ms}`);
+	if (SL) check(!tFirst && !live.some((r) => r.mult), `${tag}: no total and no multiplier over the board (treatment B: the strip carries the total)`);
+	else check(!!tFirst && tFirst.ms >= totalAt - 0.01 && live.filter((r) => r.ms < totalAt - 0.01).every((r) => !r.total?.shown), `${tag}: the total is not up before ${totalAt} ms, and is from ${tFirst?.ms}`);
+	if (SL) check(Math.abs(live[0].slam.length - plan.endAt) < 0.6 || live[0].slam.length <= plan.endAt, `${tag}: the win lasts ${live[0].slam.length} ms (the slam's own ${r1(plan.endAt)}; today's ${r1(sched(T, n, share).linesEnd + T.holdMs * share)})`);
 	// gone after
 	const end = W.rows[W.rows.length - 1];
 	check(!end.visible && !W.after.visible && W.after.sprites === 0 && !W.after.total?.shown, `${tag}: after the win nothing of it is on screen (lights ${W.after.sprites} sprites, visible ${W.after.visible}, total ${W.after.total?.shown})`, W.after);
@@ -360,7 +430,7 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 		if (k > 0) {
 			const at = W.rows.find((r) => r.frame === m.frame);
 			const prev = W.rows.find((r) => r.frame === m.frame - 1);
-			check(!!at && at.ms >= plan.starts[k] - 0.01 && (!prev || prev.ms < plan.starts[k]), `${tag}: line ${k + 1}'s line show on the first frame at or after its start (${at?.ms} ms, the frame before ${prev?.ms})`);
+			check(!!at && at.ms >= plan.starts[k] - 0.06 && (!prev || prev.ms < plan.starts[k] || (tie(plan.starts[k]) && prev.ms >= plan.starts[k] - 0.1)), `${tag}: line ${k + 1}'s line show on the first frame at or after its start (${at?.ms} ms, the frame before ${prev?.ms})`);
 		}
 		// its own rate, rising per line (the Howl's rate for this play id)
 		const S = T.lights.sound;
@@ -368,6 +438,65 @@ function judge(tag, W, T, share, bookEvents, { expectAmounts }) {
 		const rt = pl ? (W.log.tap?.log ?? []).find((e) => e.what === 'rate' && e.id === pl.id) : null;
 		check(!!rt && Math.abs(Number(rt.detail) - want) < 1e-6, `${tag}: line ${k + 1}'s line show at rate ${rt?.detail} (want ${want.toFixed(2)})`);
 	});
+}
+
+/** TREATMENT B's own checks (constants LINE_WIN slam): each line's PLAIN amount first (the book's win / its multiplier), the
+ *  multiplier beside it, the line's win only once the slam's beats are done, equal to the book's; a multiplier 1 line never
+ *  shows a multiplier or a slam; the strip's total due at totalAt, the book's total, no multiplier on it; on the upright
+ *  phone the top row's amounts inside the tunnel and their cap at phone.capPx CSS px */
+async function slamJudge(p, tag, W, T, share, bookEvents, { phone = false, big = false } = {}) {
+	const info = bookEvents.find((e) => e.type === 'winInfo');
+	const n = info.wins.length;
+	const live = W.rows.filter((r) => r.active);
+	const plan = slamSched(T, n, share, phone, n === 1 && info.wins[0].multiplier > 1);
+	const money = (str) => Number(String(str).replace(/[^0-9.]/g, ''));
+	const book = await R(p, (a) => a.map((v) => window.__reindeer.bookAmount(v)), [info.totalWin, ...info.wins.map((w) => w.win), ...info.wins.map((w) => w.win / Math.max(1, w.multiplier))]);
+	const bookTotal = book[0];
+	for (let k = 0; k < n; k++) {
+		const w = info.wins[k];
+		const multi = w.multiplier > 1;
+		const rows = live.filter((r) => r.lines[k]?.amount?.shown);
+		const first = rows[0]?.lines[k].amount;
+		const states = [...new Set(rows.map((r) => r.lines[k].amount.state))];
+		const winRows = rows.filter((r) => r.lines[k].amount.state === 'win');
+		const firstWin = winRows[0];
+		const last = rows[rows.length - 1]?.lines[k].amount;
+		const multRows = rows.filter((r) => r.lines[k].amount.multiplier);
+		if (multi) {
+			check(!!first && first.state === 'plain' && Math.abs(money(first.text) - book[1 + n + k]) < 0.005, `${tag}: line ${k + 1} (x${w.multiplier}) shows its PLAIN amount first (${first?.text}, the book's win / ${w.multiplier} = ${book[1 + n + k]})`, first);
+			const due = plan.full[k] + plan.prod * plan.f[k];
+			check(!!firstWin && firstWin.ms >= due - 0.05 && rows.filter((r) => r.ms < due - 0.05).every((r) => r.lines[k].amount.state !== 'win'), `${tag}: line ${k + 1}: its multiplier slams in and the line's win shows only once the beats are done (from ${firstWin?.ms} ms, due ${r1(due)}; states ${states.join(' > ')})`);
+			check(multRows.length > 0 && multRows.every((r) => ['side', 'squash'].includes(r.lines[k].amount.state)), `${tag}: line ${k + 1}: its x${w.multiplier} shows beside the amount only before the slam (${multRows.length} frames)`);
+		} else {
+			check(states.join() === 'win' && multRows.length === 0, `${tag}: line ${k + 1} (x1): its amount alone, no multiplier and no slam (states ${states.join(' > ')})`);
+		}
+		check(!!last && last.state === 'win' && Math.abs(money(last.text) - book[1 + k]) < 0.005 && last.win === last.text, `${tag}: line ${k + 1}: the final amount is the book's line win (${last?.text} = ${book[1 + k]})`, last);
+		check(first?.plain !== undefined && /^\$?[0-9.,]+$/.test(first.plain) && /^\$?[0-9.,]+$/.test(first.win), `${tag}: line ${k + 1}: its amounts carry no multiplier text ("${first?.plain}", "${first?.win}")`);
+	}
+	// the strip's total
+	const sb = W.rows.filter((r) => r.sb);
+	const smallRows = sb.filter((r) => r.sb.kind === 'small');
+	if (big) check(smallRows.length === 0, `${tag}: a big win: no win amount on the strip during the lines (the big count follows them)`);
+	else {
+		const s0 = smallRows[0];
+		// (the arbiter's pick is read off the strip's drawn steps, 30 a second: the first sample within 100 ms that has drawn it)
+		const picked = s0 ? smallRows.find((r) => r.ms <= s0.ms + 100 * share && r.sb.item === 'winAmount') : null;
+		check(!!s0 && s0.ms >= plan.totalAt - 0.05 && sb.filter((r) => r.ms < plan.totalAt - 0.05).every((r) => r.sb.kind !== 'small'), `${tag}: the strip's total comes as the last line starts down (from ${s0?.ms} ms, due ${r1(plan.totalAt)})`);
+		check(!!s0 && Math.abs(money(s0.sb.finalStr) - bookTotal) < 0.005 && /^[0-9.,]+$/.test(s0.sb.finalStr) && !!picked, `${tag}: the strip's total is the book's (${s0?.sb.finalStr} = ${bookTotal}), plain, with no multiplier on it (the strip shows ${picked?.sb.item ?? s0?.sb.item})`, s0?.sb);
+	}
+	// the upright phone: the amounts at phone.capPx, the top row inside the tunnel
+	if (phone) {
+		const lay = await R(p, async () => {
+			const A = (await import('/src/game/roadArtSpec.ts')).ROAD_ART;
+			return { top: A.laneLines[0], k: window.__reindeer.boardLayout().css.pitch / 250 };
+		});
+		const L = live[live.length - 1].lines;
+		const fs = L[0]?.amount?.fontSize ?? 0;
+		const cap = T.slam.capRatio * fs * lay.k;
+		check(Math.abs(cap - T.slam.phone.capPx) < 0.6 || (cap > T.slam.phone.capPx && fs === T.lights.amount.size), `${tag}: the amounts' digit cap is ${r1(cap)} CSS px (want ${T.slam.phone.capPx})`);
+		const tops = L.map((l) => l.amount?.rect?.y).filter((v) => v !== undefined);
+		check(tops.every((y) => y >= lay.top + T.slam.phone.topClearRoad - 1), `${tag}: every amount's top is inside the tunnel, under the top lane line (${tops.join(', ')} >= ${lay.top + T.slam.phone.topClearRoad})`, tops);
+	}
 }
 
 const md = (tag, W) => {
@@ -396,17 +525,43 @@ try {
 			mkdirSync(d, { recursive: true });
 			return d;
 		};
+		let one = null;
+		let three = null;
+		let cost = null;
+		if (part('a')) {
 		// ONE LINE, normal
-		const one = await playWin(p, S, BOOKS.one, { frames: dir('one'), clip });
-		judge(`${S.name} one line`, one, T, 1, BOOKS.one, { expectAmounts: false });
+		one = await playWin(p, S, BOOKS.one, { frames: dir('one'), clip });
+		judge(`${S.name} one line`, one, T, 1, BOOKS.one, { expectAmounts: false, phone: S.phone });
+		if (T.slam?.on) await slamJudge(p, `${S.name} one line`, one, T, 1, BOOKS.one, { phone: S.phone });
 		// THREE LINES: normal, turbo 1, turbo 2, a slam stop during the stagger
-		const three = await playWin(p, S, BOOKS.three, { frames: dir('three'), clip });
-		judge(`${S.name} three lines`, three, T, 1, BOOKS.three, { expectAmounts: true });
+		three = await playWin(p, S, BOOKS.three, { frames: dir('three'), clip });
+		judge(`${S.name} three lines`, three, T, 1, BOOKS.three, { expectAmounts: true, phone: S.phone });
+		// TREATMENT B: three lines, two through multipliers, one plain; a one line win with a 5x column (base_one_column)
+		if (T.slam?.on) {
+			await slamJudge(p, `${S.name} three lines`, three, T, 1, BOOKS.three, { phone: S.phone });
+			const mixed = await playWin(p, S, BOOKS.mixed, { frames: dir('mixed'), clip });
+			judge(`${S.name} mixed x5 x1 x3`, mixed, T, 1, BOOKS.mixed, { expectAmounts: true, phone: S.phone });
+			await slamJudge(p, `${S.name} mixed x5 x1 x3`, mixed, T, 1, BOOKS.mixed, { phone: S.phone });
+		}
 		if (OUT) writeFileSync(join(OUT, `table_three_${S.name}.md`), md(`${S.name} three lines, normal speed`, three));
 		if (OUT) writeFileSync(join(OUT, `table_one_${S.name}.md`), md(`${S.name} one line, normal speed`, one));
+		}
+		// (x: treatment B's one line win through a 5x column, and its turbo levels)
+		if (part('x') && T.slam?.on) {
+			const oneCol = await R(p, async () => (await import('/src/fixtures/showcaseBooks.ts')).SHOWCASE_ROUNDS.find((r) => r.name === 'base_one_column').events);
+			const oc = await playWin(p, S, oneCol, { frames: dir('one_column'), clip });
+			judge(`${S.name} base_one_column (one line x5)`, oc, T, 1, oneCol, { expectAmounts: true, phone: S.phone });
+			await slamJudge(p, `${S.name} base_one_column (one line x5)`, oc, T, 1, oneCol, { phone: S.phone });
+			for (const turbo of [1, 2]) {
+				const mt = await playWin(p, S, BOOKS.mixed, { turbo });
+				judge(`${S.name} mixed turbo ${turbo}`, mt, T, T.holdShare[turbo], BOOKS.mixed, { expectAmounts: true, phone: S.phone });
+				await slamJudge(p, `${S.name} mixed turbo ${turbo}`, mt, T, T.holdShare[turbo], BOOKS.mixed, { phone: S.phone });
+			}
+		}
+		if (part('b')) {
 		for (const turbo of [1, 2]) {
 			const W = await playWin(p, S, BOOKS.three, { turbo, frames: turbo === 2 ? dir('three_turbo2') : null, clip });
-			judge(`${S.name} three lines turbo ${turbo}`, W, T, T.holdShare[turbo], BOOKS.three, { expectAmounts: true });
+			judge(`${S.name} three lines turbo ${turbo}`, W, T, T.holdShare[turbo], BOOKS.three, { expectAmounts: true, phone: S.phone });
 			if (OUT && turbo === 2) writeFileSync(join(OUT, `table_three_turbo2_${S.name}.md`), md(`${S.name} three lines, turbo 2`, W));
 		}
 		// a slam stop as the second line starts: the win runs on hurried, and nothing is left when it goes
@@ -418,6 +573,8 @@ try {
 		const sEnd = slam.rows[slam.rows.length - 1];
 		check(!sEnd.visible && !slam.after.visible && slam.after.sprites === 0 && !slam.after.total?.shown, `${S.name} slam: nothing of the win left on screen after it`, slam.after);
 		if (OUT) writeFileSync(join(OUT, `table_three_slam_${S.name}.md`), md(`${S.name} three lines, slam stop at frame ${slamAt}`, slam));
+		}
+		if (part('c')) {
 
 		// TWELVE LINES: the fixtures' longest line win (base_two_columns, a real book: two Wild columns, 12 lines), normal
 		// speed, then a slam as its fourth line starts
@@ -425,7 +582,8 @@ try {
 		const twelveN = twelveBook.find((e) => e.type === 'winInfo').wins.length;
 		check(twelveN === 12, `${S.name}: base_two_columns pays ${twelveN} lines`);
 		const twelve = await playWin(p, S, twelveBook, { frames: dir('twelve'), clip });
-		judge(`${S.name} twelve lines`, twelve, T, 1, twelveBook, { expectAmounts: true });
+		judge(`${S.name} twelve lines`, twelve, T, 1, twelveBook, { expectAmounts: true, phone: S.phone });
+		if (T.slam?.on) await slamJudge(p, `${S.name} twelve lines`, twelve, T, 1, twelveBook, { phone: S.phone, big: true });
 		if (OUT) writeFileSync(join(OUT, `table_twelve_${S.name}.md`), md(`${S.name} twelve lines (base_two_columns), normal speed`, twelve));
 		const slam12At = Math.ceil((sched(T, 4, 1).starts[3] + 10) / FRAME);
 		const slam12 = await playWin(p, S, twelveBook, { slamAt: slam12At, clip });
@@ -499,7 +657,7 @@ try {
 		const off = await read();
 		await R(p, () => window.__reindeer.winLightsShown(true));
 		await R(p, () => (window.__reindeer.tune.lineWin.lights.downMode = window.__reindeer.__mode));
-		const cost = { callsOn: on.callsPerFrame, callsOff: off.callsPerFrame, roadSpritesOn: on.sprites, roadSpritesOff: off.sprites, lightsSprites: on.w.sprites, perLine: on.w.lines.map((l) => ({ symbol: l.symbol, bulbs: l.bulbs, sprites: l.sprites })) };
+		cost = { callsOn: on.callsPerFrame, callsOff: off.callsPerFrame, roadSpritesOn: on.sprites, roadSpritesOff: off.sprites, lightsSprites: on.w.sprites, perLine: on.w.lines.map((l) => ({ symbol: l.symbol, bulbs: l.bulbs, sprites: l.sprites })) };
 		console.log(`  ${S.name} cost (three lines, frozen in the chase): draw calls per frame ${cost.callsOn} with the lights, ${cost.callsOff} without; road sprites ${cost.roadSpritesOn} with, ${cost.roadSpritesOff} without (the lights: ${cost.lightsSprites})`);
 		check(on.w.lines.length === 3 && on.w.lines.every((l) => l.frac >= 1), `${S.name}: frozen with all three lines drawn for the cost`, on.w.lines.map((l) => l.frac));
 		await R(p, () => window.__reindeer.clock(1));
@@ -507,9 +665,11 @@ try {
 			if (await R(p, () => window.__reindeer.atRest() && window.__reindeer.hud.idle())) break;
 			await sleep(150);
 		}
+		}
 		check(errs.length === 0, `${S.name}: no page errors, no console errors`, errs);
-		result[S.name] = { cost, one: one.rows.length, three: three.rows.length };
+		result[S.name] = { cost, one: one?.rows.length ?? null, three: three?.rows.length ?? null };
 		await ctx.close();
+		if (!part('c')) continue;
 
 		// THE PALETTES: each board frozen in its chase, stills at 3 device px per CSS px (?rescap=3)
 		const still = await boot(browser, { ...S, dpr: 3 }, '&rescap=3');

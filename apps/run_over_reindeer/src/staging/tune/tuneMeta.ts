@@ -130,6 +130,14 @@ export const META: Record<string, Meta> = {
 	'lineWin.lights.takeDownMs': ms(2000, 'take down'),
 	'lineWin.lights.downMode': { label: 'when a line comes down', options: ['next', 'hold', 'end'] },
 	'lineWin.holdShare.*': { min: 0, max: 1, step: 0.05 },
+	// LINE WINS, TREATMENT B (2026-11-17, constants LINE_WIN slam; read when a win starts, game/road/winLights.ts slamSchedule)
+	'lineWin.slam': { label: 'Line win slam (treatment B)', when: 'win' },
+	'lineWin.slam.on': { label: 'slam on (off: the old total over the board)' },
+	'lineWin.slam.strength': { label: 'slam strength', min: 0, max: 1.5, step: 0.05 },
+	'lineWin.slam.perLineLitMs': ms(2500, 'per line lit time'),
+	'lineWin.slam.stripTotal': { label: 'strip total', options: ['count', 'appear'] },
+	'lineWin.slam.stripCountMs': ms(2000, 'strip total count'),
+	'lineWin.slam.beats.*': ms(600),
 
 	'motion.base.out.laneStaggerMs': ms(300, 'drive out: lane stagger'),
 	'motion.base.out.carStaggerMs': ms(300, 'drive out: car stagger'),

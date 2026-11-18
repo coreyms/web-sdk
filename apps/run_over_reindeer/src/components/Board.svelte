@@ -22,8 +22,10 @@
 		/** the red box grows to a column Wild and its character steps in; fromCell null = it starts whole. joinAdd: a
 		 *  Grandma Wild's multiplier joining the column's number (0 = none) */
 		| { type: 'boardColumnWild'; reel: number; tier: ColumnTier; multiplier: number; sticky: boolean; fromCell: number | null; joinAdd: number }
-		/** show the winning lines and the amount; resolves when the hold is over */
-		| { type: 'boardWinShow'; wins: LineWinSpec[]; amountText: string; multiplier: number; capped?: boolean }
+		/** show the winning lines and the amount; resolves when the hold is over. Treatment B (constants LINE_WIN slam):
+		 *  `stripTotal` the spin's win (book amount) the strip counts when the lines say it is due (null: none, a big win
+		 *  counts after the lines), `big` a big win */
+		| { type: 'boardWinShow'; wins: LineWinSpec[]; amountText: string; multiplier: number; capped?: boolean; stripTotal?: number | null; big?: boolean }
 		| { type: 'boardWinClear' }
 		/** pulse cells with no line (the scatters of a trigger); resolves after ms */
 		| { type: 'boardPulse'; cells: number[]; ms: number }
@@ -82,7 +84,7 @@
 	import type { SoundEffectName } from '../game/sound';
 	import { COLUMN_CLIPS } from '../game/columnClipSpec';
 	import { LANDING_POSE, landingColumns } from '../game/landingBoard';
-	import { Scoreboard, scoreboardDev, type CoverPiece } from '../game/scoreboard/scoreboard';
+	import { Scoreboard, scoreboardDev, type CoverPiece, type ScatterRead } from '../game/scoreboard/scoreboard';
 	import { scoreboardGeometry } from '../game/scoreboard/layout';
 	import { setScoreboardArt } from '../game/scoreboard/scoreboardDraw';
 	import { raceTally, raceTrace, newRace, reseedRace } from '../game/scoreboard/race';
@@ -162,8 +164,9 @@
 	/** THE SIGN ON THE PRESS SCREEN (2026-11-17, Corey approved: on an upright phone the sign's foot rests on the billboard's
 	 *  snow cap): the rule's box (layoutSpec logoBox), the lift the press screen asks for (road px, negative = up) and the
 	 *  lift drawn now; once the press screen has gone the lift eases back to 0 over LOGO_SIGN.pressLiftBackMs */
-	/** DEV: the Grandma gags asked by strikes (the LED probe's gag rule) */
+	/** DEV: the Grandma gags asked by strikes (the LED probe's gag rule), and which line each played ('full', 'short') */
 	let devGags = 0;
+	let devGagModes: string[] = [];
 	let logoHome: { x: number; y: number; width: number; height: number } | null = null;
 	let logoLiftWant = 0;
 	let logoLift = 0;
@@ -520,7 +523,9 @@
 			if (scoreboard) {
 				const free = stateGame.gameType === 'freegame';
 				if (!free) fsDone = 0;
-				scoreboard.update(ticker.deltaMS, { free, left: Math.max(0, stateGame.totalFs - fsDone) });
+				// true idle (the race may run): the base game, no autoplay, no round playing; the scatter count as the road sees it
+				const idle = !free && !stateGame.busy && stateBet.autoSpinsCounter <= 0;
+				scoreboard.update(ticker.deltaMS, { free, left: Math.max(0, stateGame.totalFs - fsDone), idle, scatter: road.scatterCount() });
 				// the HUD's WIN lights a step brighter and a board tap leaves the spin alone while a big win counts or holds
 				const busy = scoreboard.busy();
 				if (stateGame.winShowing !== busy) stateGame.winShowing = busy;
@@ -587,7 +592,12 @@
 			// plays (game/bookEventHandlerMap.ts strike: the base game always; a bonus round's first, or a paying spin's)
 			if (gag) {
 				devGags += 1;
-				scoreboard?.gag();
+				// THE SHORT LINE (constants LED_BOARD.gagShortIn): one screen in autoplay, a bonus round and turbo; the full
+				// three screen line only in manual base play
+				const S = LED_BOARD.gagShortIn;
+				const short = (S.auto && stateBet.autoSpinsCounter > 0) || (S.free && stateGame.gameType === 'freegame') || (S.turbo && stateGame.turboLevel > 0);
+				devGagModes.push(short ? 'short' : 'full');
+				scoreboard?.gag(short);
 			}
 		},
 		boardGrandmaWild: async ({ cell, multiplier }) => {
@@ -596,10 +606,21 @@
 		boardColumnWild: async ({ reel, tier, multiplier, sticky, fromCell, joinAdd }) => {
 			await road.features.columnWild(reel, tier, multiplier, sticky, fromCell, joinAdd);
 		},
-		boardWinShow: async ({ wins, amountText, multiplier, capped }) => {
+		boardWinShow: async ({ wins, amountText, multiplier, capped, stripTotal, big }) => {
 			// every time of the win (the lights' stagger and draw, the hold after the total) is this share at the turbo level
 			const pace = LINE_WIN.holdShare[stateGame.turboLevel] ?? 1;
-			await road.showWin(wins, amountText, LINE_WIN.holdMs * pace, multiplier, { pace, capped });
+			// TREATMENT B (constants LINE_WIN slam): the spin's total on the strip, plain (no multiplier), counting up, on the win
+			// clock's frame it is due (never waited for: a small win)
+			const amount = stripTotal ?? 0;
+			const onTotal =
+				scoreboard && amount > 0
+					? () => {
+							const value = bookEventAmountToNormalisedAmount(amount);
+							const countMs = LINE_WIN.slam.stripTotal === 'count' ? Math.max(1, LINE_WIN.slam.stripCountMs * pace) : 1;
+							void scoreboard.win({ x: bookEventAmountToBetAmountMultiplier(amount), amount: value, bet: bookEventAmountToNormalisedAmount(100), fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate, auto: stateBet.autoSpinsCounter > 0, small: true, countMs });
+						}
+					: null;
+			await road.showWin(wins, amountText, LINE_WIN.holdMs * pace, multiplier, { pace, capped, onTotal, big: !!big, phone: sceneView?.uprightPhone ?? false });
 		},
 		boardWinClear: () => road.clearWin(),
 		boardPulse: async ({ cells, ms }) => {
@@ -774,8 +795,18 @@
 				const value = Math.round(x * bet * 100) / 100;
 				return scoreboard.win({ x, amount: value, bet, fmt: ledAmount(value), rate: opts.rate ?? 1, auto: !!opts.auto, small: opts.small });
 			},
-			scoreboardGag: () => scoreboard?.gag(),
+			scoreboardGag: (short = false) => scoreboard?.gag(short),
 			scoreboardSkip: () => scoreboard?.skip() ?? false,
+			/** a scatter count by hand in place of the road's ({ id, count, need, live, hit, reached }; undefined: the road's) */
+			scoreboardScatter: (read: ScatterRead | null | undefined) => scoreboard && (scoreboard.devScatter = read),
+			/** the road's scatter count now (game/road/roadBoard.ts scatterCount) */
+			scatterCount: () => road.scatterCount(),
+			/** which Grandma line each gag the strikes asked for played ('full', 'short'; constants LED_BOARD.gagShortIn) */
+			gagModes: (clear = false) => {
+				const out = [...devGagModes];
+				if (clear) devGagModes = [];
+				return out;
+			},
 			scoreboardManual: (on: boolean) => scoreboard && (scoreboard.manual = !!on),
 			scoreboardStep: (ms: number, n = 1) => {
 				for (let i = 0; i < n; i++) scoreboard?.step(ms);

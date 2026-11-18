@@ -30,6 +30,8 @@ import { type ScoreboardGeo, type Rect } from './layout';
 import { CARTOONS, backScene, clearTitle, dissolveFace, entryWaitOf, raceCardOf, titlesOf, gagWordsAt, setBoardClass, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, scanReveal, showCartoon, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
 import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
+import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
+import { scatterWordsOf, showGagShort, showScatterCount, type ScatterFace } from './stripDraw';
 
 const col = (hex: string) => Number.parseInt(hex.slice(1), 16);
 const GRILLE = { cells: 16, cellPx: 16 };
@@ -54,10 +56,17 @@ type GpuFace = {
 /** a scene piece the snow cover is cut from: its texture and its place in road px; `tile` repeats it on its own period */
 export type CoverPiece = { tex: PIXI.Texture; x: number; y: number; w: number; h: number; tile?: boolean };
 
-/** what the scoreboard needs from the game each frame */
-export type ScoreboardEnv = { free: boolean; left: number };
+/** THE SCATTER COUNT as the road reads it each frame (game/road/roadBoard.ts scatterCount): the spin it belongs to (`id`),
+ *  the presents seen, the number needed, whether the spin is in anticipation now, whether a trigger is made and the highest
+ *  trigger count reached (0: none) */
+export type ScatterRead = { id: number; count: number; need: number; live: boolean; hit: boolean; reached: number };
 
-export type WinRequest = { x: number; amount: number; bet: number; fmt: (v: number) => string; rate: number; auto: boolean; small?: boolean };
+/** what the scoreboard needs from the game each frame: a bonus round and its spins left; `idle`: true idle (the base game,
+ *  no autoplay, nothing playing: the race may run); the scatter count */
+export type ScoreboardEnv = { free: boolean; left: number; idle?: boolean; scatter?: ScatterRead | null };
+
+/** `countMs`: a small win's count (the line win's strip total, LINE_WIN.slam stripCountMs at the turbo level's pace) */
+export type WinRequest = { x: number; amount: number; bet: number; fmt: (v: number) => string; rate: number; auto: boolean; small?: boolean; countMs?: number };
 /** a bonus round card on the back board: the entries (`spins` awarded) and the Total Win (`amount`, the currency's units) */
 export type CardRequest = { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null };
 
@@ -102,8 +111,15 @@ export class Scoreboard {
 	 *  moves with them here */
 	shakeY = 0;
 	private waits = new Map<number, { resolve: () => void; timer: ReturnType<typeof setTimeout> }>();
-	/** the Grandma gag's start (clock ms), null when none */
+	/** the Grandma gag's start (clock ms), null when none, and whether it is the short line (one screen) */
 	private gagAt: number | null = null;
+	private gagShort = false;
+	/** THE SCATTER COUNT (constants LED_BOARD.scatterCount): the spin's count while it is in anticipation, and its fireworks
+	 *  after a trigger (until endAt) */
+	private scat: (ScatterFace & { id: number; live: boolean; hit: boolean; endAt: number }) | null = null;
+	/** THE ARBITER'S PICK (constants LED_BOARD.stripOrder) on the last drawn step, and what was true then */
+	private stripNow: StripItem = 'cartoon';
+	private truthNow: StripTruth | null = null;
 	/** the idle cartoons: which one, since when, and the race's own run */
 	private cartoon = 0;
 	private cartoonAt = 0;
@@ -114,6 +130,8 @@ export class Scoreboard {
 	private free = false;
 	/** DEV: driven by hand (frame by frame captures): the ticker's updates are ignored, step() drives it */
 	manual = false;
+	/** DEV / probe: a scatter count by hand in place of the road's (undefined: the road's) */
+	devScatter: ScatterRead | null | undefined = undefined;
 	private env: ScoreboardEnv = { free: false, left: 0 };
 	/** the cover's dim tint is set for this alpha */
 	private coverTintFor = -1;
@@ -426,11 +444,12 @@ export class Scoreboard {
 		});
 	}
 	private start(s: Show) {
-		// THE GAG'S RULE (part B): a small win message waits while the Grandma gag plays, and shows once it has ended
-		if (s.kind === 'small' && this.gagOn()) {
-			if (this.pendingSmall) this.mark('small', 'dropped: a newer small win');
-			this.pendingSmall = s;
-			this.mark('small', 'waits for the gag');
+		// THE STRIP'S PRIORITY ORDER (2026-11-17, constants LED_BOARD.stripOrder): the spin's win amount is above the Grandma
+		// line, so a small win shows at once over the gag (the gag keeps its own clock under it: nothing queues); it never
+		// takes the place of a card or a big win that is still up (they are higher: it is dropped)
+		const up = this.show;
+		if (s.kind === 'small' && up && up.kind !== 'small' && up.t < up.exitAt) {
+			this.mark('small', `dropped: ${up.kind} is up (higher)`);
 			return;
 		}
 		if (this.pendingSmall) {
@@ -479,6 +498,10 @@ export class Scoreboard {
 	/** A NEW SPIN'S PRESS: the Grandma gag and a small win are cut short (a big win is never up at a press: it holds the round) */
 	spinPress() {
 		this.cutGag('a new spin');
+		if (this.scat && !this.scat.live) {
+			this.mark('scatter', 'cut: a new spin');
+			this.scat = null;
+		}
 		if (this.pendingSmall) {
 			this.pendingSmall = null;
 			this.mark('small', 'dropped: a new spin');
@@ -537,9 +560,10 @@ export class Scoreboard {
 
 	// ---- THE GRANDMA GAG ----------------------------------------------------------------------------------------------------------
 	private gagOn() {
-		return this.gagAt !== null && this.clock - this.gagAt < LED_BOARD.gag.ms;
+		return this.gagAt !== null && this.clock - this.gagAt < this.gagMs();
 	}
-	gag() {
+	/** `short`: the one screen line (autoplay, a bonus round, turbo: constants LED_BOARD.gagShortIn), else the full line */
+	gag(short = false) {
 		if (!LED_BOARD.on || !LED_BOARD.gag.on) return;
 		// (2026-11-17) none while the back board is up (an entry, a Total Win, a tier win)
 		const up = this.show;
@@ -548,11 +572,16 @@ export class Scoreboard {
 			return;
 		}
 		this.gagAt = this.clock;
-		this.mark('gag', 'start');
+		this.gagShort = short;
+		this.mark('gag', short ? 'start short' : 'start');
+	}
+	/** the gag's length: the full line's, or the short line's */
+	private gagMs() {
+		return this.gagShort ? LED_BOARD.gag.short.ms : LED_BOARD.gag.ms;
 	}
 	private cutGag(why: string) {
 		if (this.gagAt === null) return;
-		if (this.clock - this.gagAt < LED_BOARD.gag.ms) this.mark('gag', `cut: ${why}`);
+		if (this.clock - this.gagAt < this.gagMs()) this.mark('gag', `cut: ${why}`);
 		this.gagAt = null;
 	}
 	/** the small win that waited for the gag starts now, from its own beginning */
@@ -567,7 +596,7 @@ export class Scoreboard {
 	private gagT(): number | null {
 		if (this.gagAt === null) return null;
 		const t = this.clock - this.gagAt;
-		if (t >= LED_BOARD.gag.ms) {
+		if (t >= this.gagMs()) {
 			this.gagAt = null;
 			this.mark('gag', 'end');
 			this.startPending();
@@ -620,6 +649,8 @@ export class Scoreboard {
 		if (env.free !== this.free) {
 			this.free = env.free;
 			this.left = env.left;
+			// (2026-11-17) the spins left show as a bonus round starts (the strip's order: their first window)
+			if (env.free) this.leftAt = this.clock;
 		}
 		if (env.free && env.left !== this.left) {
 			this.left = env.left;
@@ -627,6 +658,7 @@ export class Scoreboard {
 		}
 		// the gag's end (a small win waiting for it starts on this step, not on the next drawn one)
 		if (this.pendingSmall && !this.gagOn()) this.gagT();
+		this.updateScatter(this.devScatter !== undefined ? this.devScatter : (env.scatter ?? null));
 		const s = this.show;
 		if (s) {
 			// each tier's moment once, on the step the count reaches it (a skip's final tier lands at the skip's moment)
@@ -653,6 +685,48 @@ export class Scoreboard {
 		if (this.backRoot.visible) this.drawBack();
 		this.cost.drawMs = Math.round((performance.now() - t0) * 100) / 100;
 		this.cost.steps += 1;
+	}
+
+	/** THE SCATTER COUNT (constants LED_BOARD.scatterCount): it starts when the road says the spin is in anticipation, ticks
+	 *  up with each present seen, and when the anticipation is over plays its fireworks (a trigger) or clears quietly */
+	private updateScatter(r: ScatterRead | null) {
+		const K = LED_BOARD.scatterCount;
+		let c = this.scat;
+		if (r && r.live && K.on) {
+			if (!c || c.id !== r.id) {
+				c = this.scat = { id: r.id, count: r.count, need: r.need, at: this.clock, tickAt: this.clock, fwAt: null, live: true, hit: false, endAt: Infinity };
+				this.mark('scatter', `count ${r.count} of ${r.need}`);
+			} else if (c.live) {
+				if (r.count > c.count) {
+					c.tickAt = this.clock;
+					this.mark('scatter', `tick ${r.count} of ${r.need}`);
+				}
+				c.count = r.count;
+				c.need = r.need;
+			}
+		} else if (c && c.live) {
+			// the anticipation is over (the last car seen, the deciding present seen, a slam stop): the presents seen in the end
+			const same = !!r && r.id === c.id;
+			if (same && r!.count > c.count) c.tickAt = this.clock;
+			if (same) c.count = r!.count;
+			c.live = false;
+			c.hit = same ? r!.hit : false;
+			if (c.hit) {
+				// the count shows the trigger made: the highest trigger the presents reached
+				c.need = r!.reached || c.count;
+				c.fwAt = this.clock;
+				c.endAt = this.clock + K.fireworksMs;
+				this.mark('scatter', `hit ${c.count} of ${c.need}: fireworks`);
+			} else {
+				c.endAt = this.clock;
+				this.mark('scatter', `miss ${c.count}: cleared`);
+			}
+		}
+		if (this.scat && !this.scat.live && this.clock >= this.scat.endAt) this.scat = null;
+	}
+	private scatterOn() {
+		const c = this.scat;
+		return !!c && (c.live || this.clock < c.endAt);
 	}
 
 	/** the board's owner: the show up now if it uses the back board, else the one still lowering */
@@ -691,6 +765,31 @@ export class Scoreboard {
 		this.catcher.eventMode = busy ? 'static' : 'none';
 	}
 
+	/** WHAT IS TRUE NOW for the strip (constants LED_BOARD.stripOrder; game/scoreboard/stripArbiter.ts). Each writer only says
+	 *  whether it has something to show; the arbiter picks. `gt`: the gag's time (null: none). */
+	private stripTruth(gt: number | null): StripTruth {
+		const s = this.show;
+		const up = !!s && s.t < s.exitAt;
+		// a bonus round's spins left: for spinsLeftMs after the count changes (and as the round starts), then the last counterMs
+		// of every cycleMs after that
+		const C = LED_BOARD.counterBreak;
+		const sinceLeft = this.clock - this.leftAt;
+		const after = sinceLeft - LED_BOARD.spinsLeftMs;
+		const spinsLeft = this.free && (after < 0 || (C.on && after % C.cycleMs >= C.cycleMs - C.counterMs));
+		const idle = this.env.idle ?? !this.free;
+		const raceUp = CARTOONS[this.cartoon % CARTOONS.length].key === 'race';
+		return {
+			entry: up && isCard(s),
+			bigWin: up && s!.kind === 'win',
+			scatter: this.scatterOn(),
+			winAmount: up && s!.kind === 'small',
+			spinsLeft,
+			gag: gt !== null,
+			cartoon: !raceUp || !idle,
+			race: raceUp && idle,
+		};
+	}
+
 	private drawStrip() {
 		const G = this.strip!;
 		const F = G.F;
@@ -698,32 +797,33 @@ export class Scoreboard {
 		const s = this.show;
 		let key: string;
 		const gt = this.gagT();
-		const exited = s && s.t >= s.exitAt;
-		// IN A BONUS ROUND THE SPINS LEFT STAY ON THE STRIP (2026-11-17: the counter plates are off, ROUND.counterPlate): a
-		// strip message (a small win, the gag) gives way to the counter for counterMs of every cycleMs it plays
-		const C = LED_BOARD.counterBreak;
-		const msgT = gt !== null ? gt : s && !exited && !isCard(s) ? s.t : null;
-		const counterBreak = this.free && C.on && msgT !== null && msgT % C.cycleMs >= C.cycleMs - C.counterMs;
-		if (counterBreak) {
-			showCounter(F, this.clock, Math.max(0, this.left), this.leftAt);
-			key = 'counter';
-		} else if (gt !== null) {
-			showGag(F, gt);
-			key = `gag${this.gagAt}`;
-		} else if (s && !exited) {
-			// a strip win, or the strip's own line while the back board is up (the tier and the counting amount; blank while
-			// the board rises, as the mock's ribbon)
-			if (isCard(s)) showRibbon(F, s);
-			else if (s.arrive && s.t < s.contentAt) F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
-			else if (s.kind === 'small') showSmall(F, s);
+		// THE ARBITER (2026-11-17): the highest true item in LED_BOARD.stripOrder
+		const truth = this.stripTruth(gt);
+		const item = pickStrip(truth);
+		if (item !== this.stripNow) this.mark('strip', `${item} (was ${this.stripNow})`);
+		this.stripNow = item;
+		this.truthNow = truth;
+		if (item === 'entry' || item === 'bigWin' || item === 'winAmount') {
+			// a card's line on the strip (the press line and the sentences), a big win (the tier and the counting amount; blank
+			// while the back board rises, as the mock's ribbon), the spin's win amount
+			if (isCard(s)) showRibbon(F, s!);
+			else if (s!.arrive && s!.t < s!.contentAt) F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
+			else if (s!.kind === 'small') showSmall(F, s!);
 			else {
-				showWin(F, s);
-				if (!s.arrive) stripFlourish(F, s);
+				showWin(F, s!);
+				if (!s!.arrive) stripFlourish(F, s!);
 			}
-			key = `show${s.id}`;
-		} else if (this.free) {
+			key = `show${s!.id}`;
+		} else if (item === 'scatter') {
+			showScatterCount(F, this.scat!, this.clock);
+			key = `scatter${this.scat!.id}`;
+		} else if (item === 'spinsLeft') {
 			showCounter(F, this.clock, Math.max(0, this.left), this.leftAt);
 			key = 'counter';
+		} else if (item === 'gag') {
+			if (this.gagShort) showGagShort(F, gt!);
+			else showGag(F, gt!);
+			key = `gag${this.gagAt}`;
 		} else {
 			const want = LED_BOARD.cartoon;
 			const pinned = want === 'auto' ? -1 : CARTOONS.findIndex((c) => c.key === want);
@@ -731,19 +831,31 @@ export class Scoreboard {
 				this.cartoon = pinned;
 				this.cartoonAt = this.clock;
 			}
-			const idx = this.cartoon % CARTOONS.length;
+			let idx = this.cartoon % CARTOONS.length;
 			if (this.clock - this.cartoonAt > CARTOONS[idx].ms()) {
 				this.cartoon = pinned >= 0 ? pinned : (idx + 1) % CARTOONS.length;
 				this.cartoonAt = this.clock;
 			}
-			showCartoon(F, this.cartoon, this.clock - this.cartoonAt, this.cartoonState, this.cartoonAt);
+			// THE RACE ONLY AT TRUE IDLE: away from it the cartoons go on to the next one (a race under way is cut)
+			idx = this.cartoon % CARTOONS.length;
+			let draw = this.cartoon;
+			if (item === 'cartoon' && CARTOONS[idx].key === 'race') {
+				if (pinned >= 0) draw = 0; // (the tune panel pinned the race: the first cartoon stands in for it away from idle)
+				else {
+					this.mark('race', 'skipped: not at true idle');
+					this.cartoon = draw = (idx + 1) % CARTOONS.length;
+					this.cartoonAt = this.clock;
+					this.cartoonState.race = null;
+				}
+			}
+			showCartoon(F, draw, this.clock - this.cartoonAt, this.cartoonState, this.cartoonAt);
 			key = `cartoon${this.cartoon}@${pinned >= 0 ? this.cartoonAt : ''}`;
 		}
 		// THE STRIP'S OWN SWITCH: a scan line to a message, a dissolve back to the cartoons
 		if (G.key !== key) {
 			if (G.key) {
 				G.switchAt = this.clock;
-				G.switchKind = /^(show|gag)/.test(key) ? 'scan' : 'dissolve';
+				G.switchKind = /^(show|gag|scatter)/.test(key) ? 'scan' : 'dissolve';
 			}
 			G.key = key;
 		}
@@ -865,7 +977,10 @@ export class Scoreboard {
 			backOwner: bs?.id ?? null,
 			busy: this.busy(),
 			stripKey: this.strip?.key ?? null,
-			gag: gt === null ? null : { t: Math.round(gt), words: gagWordsAt(gt) },
+			gag: gt === null ? null : { t: Math.round(gt), words: this.gagShort ? LED_BOARD.gag.short.text : gagWordsAt(gt), short: this.gagShort, ms: this.gagMs() },
+			/** THE ARBITER (constants LED_BOARD.stripOrder): the item the strip shows on the last drawn step, and what was true */
+			stripPick: { item: this.stripNow, truth: this.truthNow ? { ...this.truthNow } : null },
+			scatter: this.scat ? { id: this.scat.id, count: this.scat.count, need: this.scat.need, live: this.scat.live, hit: this.scat.hit, fireworks: this.scat.fwAt !== null && this.clock < this.scat.endAt, words: scatterWordsOf(this.scat), sinceTick: Math.round(this.clock - this.scat.tickAt) } : null,
 			cartoon: { index: this.cartoon, key: CARTOONS[this.cartoon % CARTOONS.length].key, t: Math.round(this.clock - this.cartoonAt), race: this.cartoonState.race ? { outcome: this.cartoonState.race.outcome, id: this.cartoonState.race.id } : null },
 			free: this.free,
 			left: this.left,
