@@ -195,11 +195,20 @@ const hitsAt = (geo, zones, x, y, walking = false) => {
 	if (mouthsCss(geo).some((P) => boxMeetsPoly(B.withShadow(x, y), P))) out.push('tunnel mouth');
 	const b = B.body(x, y);
 	const topLine = walking ? b.y1 - (b.y1 - b.y0) * 0.4 : b.y0;
+	// (the top corridor passes behind the top line's text on a walk: counted as corridor time, never at a stop)
+	if (walking) {
+		const i = out.indexOf('top line');
+		if (i >= 0) out.splice(i, 1);
+	}
 	if (b.x0 < -0.5 || topLine < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) out.push('screen');
 	return out;
 };
-/** is he partly above the screen's top at (x, y) (CSS) */
-const offTopAt = (geo, x, y) => bodyOf(geo).body(x, y).y0 < -0.5;
+/** is he in the top corridor at (x, y): partly above the screen's top, or behind the top line's text (CSS) */
+const offTopAt = (geo, x, y, zones = []) => {
+	const B = bodyOf(geo);
+	if (B.body(x, y).y0 < -0.5) return true;
+	return zones.some((z) => z.name === 'top line' && inter(B.withShadow(x, y), z) > 0.5);
+};
 const inPoly = (x, y, P) => {
 	let c = false;
 	for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
@@ -325,7 +334,7 @@ async function sweepSize(p, S, name, errs, out) {
 		const [x, y, st] = run.pos[i];
 		const hz = hitsAt(geo, run.zones, x, y, walkingState(st));
 		if (hz.includes('tunnel mouth')) mouthFrames++;
-		if (offTopAt(geo, x, y)) {
+		if (offTopAt(geo, x, y, run.zones)) {
 			offTop++;
 			if (!walkingState(st)) restOffTop++;
 		}
@@ -339,7 +348,7 @@ async function sweepSize(p, S, name, errs, out) {
 	// never at rest partly off the screen; the corridor's share of the time kept small
 	check(mouthFrames === 0, `${name}: 60 s of his walk (${run.pos.length} frames): his body, head and shadow never on a tunnel mouth (${run.roam.counts.rounds} walks round one)`, out.sweep);
 	check(restOffTop === 0, `${name}: never at rest with any part off the screen`, out.sweep);
-	check(offTop / Math.max(1, run.pos.length) <= 0.05, `${name}: partly above the screen's top ${out.sweep.offTopShare} % of the time (the top corridor, ${run.roam.counts.corridor} of ${run.roam.counts.walks} walks; at most 5 %)`, out.sweep);
+	check(offTop / Math.max(1, run.pos.length) <= 0.05, `${name}: in the top corridor (partly above the screen's top, or behind the top line on a walk) ${out.sweep.offTopShare} % of the time (the top corridor, ${run.roam.counts.corridor} of ${run.roam.counts.walks} walks; at most 5 %)`, out.sweep);
 	check(run.arrived, `${name}: he walks in and stops at a spot (${run.roam.kind}, area holds ${run.roam.capacity} spots 12 % apart${run.roam.relaxed ? ', widened to all the free snow' : ''})`);
 	check(got >= want, `${name}: in 60 s he stops at ${run.stops.length} spots, ${got} of them 12 % of the width apart (wanted ${want})`, out.sweep);
 	check(backs <= Math.max(1, Math.floor(run.stops.length / 4)), `${name}: no shuffling between two spots (${backs} straight returns in ${run.stops.length} stops)`, out.sweep);
@@ -451,6 +460,7 @@ async function runSize(browser, S) {
 		// the walk there (from the spot before, or level from past the screen's edge; round a tunnel mouth by its way's
 		// corners), every 4 road px; a walk's frames may use the top corridor
 		const legs = q.route && q.route.length > 1 ? q.route : [{ x: q.fromX, y: q.fromY }, { x: q.x, y: q.y }];
+		// (a walk in round a tunnel mouth: its first corner is past the screen's edge too)
 		let broke = false;
 		for (let L = 0; L + 1 < legs.length && !broke; L++) {
 			const a = legs[L];
@@ -465,11 +475,14 @@ async function runSize(browser, S) {
 					broke = true;
 					break;
 				}
-				worstHead = Math.min(worstHead, headClear(geo, zones, x, y));
+				// (the 8 px under the top line holds everywhere but the top corridor, Corey 2026-11-18: there a walk passes
+				// behind the text; counted as corridor time, never a stop: the spots' own clearance is checked above)
+				if (!offTopAt(geo, x, y, zones)) worstHead = Math.min(worstHead, headClear(geo, zones, x, y));
 			}
 		}
 		if (q.walkIn) {
-			if (Math.abs(q.y - q.fromY) > 1e-6) bad.push('a walk in that is not level');
+			// level from past the edge, or (round a tunnel mouth, 2026-11-18) by its way's corners from there
+			if (!q.route && Math.abs(q.y - q.fromY) > 1e-6) bad.push('a walk in that is not level');
 			continue;
 		}
 		const dx = q.x - q.fromX;
@@ -628,6 +641,7 @@ async function runSize(browser, S) {
 		let onAt = null;
 		let arrived = null;
 		const n0 = F.roam.counts.arrived;
+		const rounds0 = F.roam.counts.rounds;
 		for (let i = 0; i < 60 * 40; i++) {
 			R.update(1000 / 60, 1, 1);
 			t += 1000 / 60;
@@ -635,7 +649,7 @@ async function runSize(browser, S) {
 			if (ro.state === 'enter' && entered === null) entered = { t, x: ro.x, y: ro.y };
 			if (ro.state === 'enter' && onAt === null && ro.standing()) onAt = t;
 			if (ro.counts.arrived > n0) {
-				arrived = { t, x: ro.x, y: ro.y, state: ro.state, enterY: entered ? entered.y : null };
+				arrived = { t, x: ro.x, y: ro.y, state: ro.state, enterY: entered ? entered.y : null, routed: ro.counts.rounds > rounds0 };
 				break;
 			}
 			if (i % 30 === 0) log.push([Math.round(t), ro.state, Math.round(ro.x), Math.round(ro.y)]);
@@ -645,7 +659,7 @@ async function runSize(browser, S) {
 	out.walkIn = walkIn;
 	const enteredOff = walkIn.entered && (walkIn.entered.x < walkIn.rect.left || walkIn.entered.x > walkIn.rect.right);
 	check(!!walkIn.entered && enteredOff, `${name}: the new one starts walking in from past the screen's edge (road x ${walkIn.entered ? r1(walkIn.entered.x) : '-'})`, walkIn);
-	check(!!walkIn.arrived && walkIn.arrived.state === 'idle' && (await inAreaAll([[walkIn.arrived.x, walkIn.arrived.y]]))[0] && Math.abs(walkIn.arrived.y - walkIn.arrived.enterY) < 0.01, `${name}: he walks in level and stops at a spot of the area, sniffing (on the screen after ${walkIn.onAt ? r1(walkIn.onAt / 1000) : '-'} s, arrived after ${walkIn.arrived ? r1(walkIn.arrived.t / 1000) : '-'} s at the 1x board clock)`, walkIn);
+	check(!!walkIn.arrived && walkIn.arrived.state === 'idle' && (await inAreaAll([[walkIn.arrived.x, walkIn.arrived.y]]))[0] && (walkIn.arrived.routed || Math.abs(walkIn.arrived.y - walkIn.arrived.enterY) < 0.01), `${name}: he walks in (level, or round a tunnel mouth: ${walkIn.arrived?.routed ? 'round one' : 'level'}) and stops at a spot of the area, sniffing (on the screen after ${walkIn.onAt ? r1(walkIn.onAt / 1000) : '-'} s, arrived after ${walkIn.arrived ? r1(walkIn.arrived.t / 1000) : '-'} s at the 1x board clock)`, walkIn);
 
 	// ---- 7: a strike before he is on the screen, and one while he walks in on it ---------------------------------------
 	const early = await H(async () => {
