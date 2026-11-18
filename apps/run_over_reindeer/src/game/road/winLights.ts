@@ -91,8 +91,9 @@ type Slot = {
 type SlamLabel = { root: PIXI.Container; plain: PIXI.Text; plainSh: PIXI.Text; win: PIXI.Text; winSh: PIXI.Text; badge: NumberLabel; badgeSh: NumberLabel[] };
 
 /** the slam's options for one win: the label scale (1, or the phone's), the phone rule, the road's inner edges and the top
- *  lane line (road px) */
-export type SlamOpts = { scale: number; phone: boolean; left: number; right: number; topLine: number };
+ *  lane line (road px); `floor`: the lowest road y an amount may reach (the LED strip's snow cap or the HUD, whichever is
+ *  higher: 2026-11-18) */
+export type SlamOpts = { scale: number; phone: boolean; left: number; right: number; topLine: number; floor?: number };
 
 const darken = (c: number, k: number) => (Math.round(((c >> 16) & 255) * k) << 16) | (Math.round(((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k);
 const easeOut3 = (u: number) => 1 - (1 - u) * (1 - u) * (1 - u);
@@ -301,7 +302,11 @@ export class WinLights {
 				const slots = line.slots.map((c) => {
 					const x = Math.min(o.right - 40 - w / 2, Math.max(o.left + 40 + w / 2, c.x));
 					// THE PHONE: an amount on the top lane line comes down so its top stays under that line (the tunnel top)
-					const y = o.phone ? Math.max(c.y, o.topLine + X.phone.topClearRoad + h / 2) : c.y;
+					let y = o.phone ? Math.max(c.y, o.topLine + X.phone.topClearRoad + h / 2) : c.y;
+					// (2026-11-18, Corey at about 2000 x 945: "the Win Amount is partially hidden behind the small LED screen below
+					// the board") an amount on the lane line under the bottom row comes up so its box, at the slam's largest swell,
+					// stays above the strip's snow cap and the HUD
+					if (o.floor !== undefined && Number.isFinite(o.floor)) y = Math.min(y, o.floor - h * 0.6);
 					return { x, y };
 				});
 				s.rect = this.place(slots, w, h, alive);
@@ -634,6 +639,8 @@ export class WinLights {
 							multi: s.multi,
 							f: Math.round(s.f * 1000) / 1000,
 							fontSize: s.lab.win.style.fontSize,
+							/** the label as drawn now (the amount, the multiplier and their shadows), canvas CSS px */
+							box: s.lab.root.visible ? (() => { const b = s.lab!.root.getBounds(); return { x: Math.round(b.x * 10) / 10, y: Math.round(b.y * 10) / 10, w: Math.round(b.width * 10) / 10, h: Math.round(b.height * 10) / 10 }; })() : null,
 						}
 					: s.amount && s.rect
 						? { text: s.amount.text, shown: s.amountShown, alpha: Math.round(s.amount.alpha * 100) / 100, rect: { x: Math.round(s.rect.x), y: Math.round(s.rect.y), w: Math.round(s.rect.w), h: Math.round(s.rect.h) } }

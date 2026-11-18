@@ -401,6 +401,9 @@
 		// layout shows them), road px
 		if (scoreboard) {
 			boardGeo = scoreboardGeometry(kind, canvasSize.width, canvasSize.height, main, place, isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+			// the line amounts' floor (2026-11-18): above the strip's snow cap and the HUD's top, 4 road px clear, in road px
+			const capTop = boardGeo.strip.housing.y - boardGeo.strip.cap * 1.3;
+			road.labelFloor = (Math.min(capTop, boardGeo.hudTop) - boardGeo.road.oy) / boardGeo.road.k - 4;
 			cutCover();
 		}
 		// the billboard: centred on the board, sized per layout (canvas CSS px)
