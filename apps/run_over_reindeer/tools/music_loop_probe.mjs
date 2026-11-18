@@ -23,6 +23,7 @@
 // does not; this probe runs on the Mac. Uses the dev server that is already running. One headless browser at a time:
 // take the shared lock around it (mkdir /tmp/hud_mock_shot.lock ... rmdir).
 import { createRequire } from 'node:module';
+import { pressRoundCards } from './round_card_press.mjs';
 import { writeFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
@@ -248,6 +249,8 @@ const TAP = (mode) => {
 async function boot(browser, engine) {
 	const iphone = engine === 'webkit';
 	const ctx = await browser.newContext(iphone ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: IPHONE_UA } : { viewport: { width: 1440, height: 900 } });
+	// (2026-11-17: the bonus entry waits for the press: round_card_press.mjs presses it on the old card's timing)
+	await pressRoundCards(ctx);
 	// every WebKit page is silenced by the init script (WebKit has no --mute-audio); Chromium runs with --mute-audio
 	if (engine !== 'chromium') await ctx.addInitScript(SILENCE);
 	await ctx.addInitScript(TAP, iphone ? 'master' : 'element');

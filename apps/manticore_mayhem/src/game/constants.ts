@@ -1577,6 +1577,11 @@ export const CHAIN_BOW = {
 	// spin press, after haulDelayMs, the texture scrolls DOWN by haulLinks link pitches over haulMs with
 	// haulEasing (accumulating, modulo the tile). The bow displacement above is independent of it.
 	haulOnSpin: true,
+	// THE REFILL HAUL (Corey 2026-11-17: "nudge the chains on the refill... like the gears turn and the chain goes down one
+	// link"): each cascade's refill hauls the chain refillLinks whole links over refillMs (style ms) with the press's backOut,
+	// the gears turning with it as on every haul. Whole links only, so the gears rest on frame 0. 0 links = off.
+	refillLinks: 1,
+	refillMs: 420,
 	// Corey's pick on the haul slider page, 2026-11-01 (feedback/scene-quick-wins-2026-11-01/haul-sliders.html; the ?haulLinks=
 	// ?haulMs= ?haulOver= ?spinLean= knobs of game/staging.ts drive the dev server), after "Some easy wins we could get is on
 	// Spin, where the gears and the chains move, increase the movement, of the chains and the gears": FOUR links a press over
@@ -3861,12 +3866,10 @@ export const SCATTER_LAND_SOUND_MAP = {
 /** the last rung of the scatter landing ladder */
 export const SCATTER_LAND_SOUNDS = 8;
 
-/** the feature-entry fanfare, keyed by the tier that was opened */
-export const BONUS_TRIGGER_SOUND_MAP = {
-	bonus: 'sfx_bonus_trigger_free',
-	super: 'sfx_bonus_trigger_super',
-	epic: 'sfx_bonus_trigger_feast',
-} as const;
+/** the trigger's success sound, ONE for every tier (Corey 2026-11-17, "option 1"): the marimba family's success, 1.35 s
+ *  (tools/build_audiosprite.py MM_SCATTER_SUCCESS). It replaced the three house bonus-confirm fanfares, one per tier
+ *  (sfx_bonus_trigger_free / _super / _feast, which are no longer in Manticore's sprite). */
+export const BONUS_TRIGGER_SOUND = 'sfx_scatter_success' as const;
 
 export const BONUS_MODE_LABEL = {
 	bonus: 'FREE SPINS',

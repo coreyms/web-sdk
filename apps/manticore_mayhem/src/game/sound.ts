@@ -12,8 +12,8 @@ export type MusicName = 'bgm_base' | 'bgm_bonus' | 'bgm_super' | 'bgm_epic' | 'b
 // recording yet plays its borrowed Angry Mantis clip, or silence. Manticore's own since 2026-10-11: the five
 // sfx_win_* tier landings, the sfx_money_counter loop and the sfx_tile_double tick; the two fire loops (game/
 // fireSound.ts) and the chain sounds (game/chainSound.ts; sfx_chain_light_logo is the light rattle again, quieter:
-// the same sprite region with its own volume). The scatter landings, the
-// bonus-trigger fanfares and the ui clicks are the house set shared across games.
+// the same sprite region with its own volume). The ui clicks are the house set
+// shared across games; the scatter landings and the trigger's success are the marimba family (2026-11-17).
 export type SoundEffectName =
 	| 'sfx_scatter_land_1'
 	| 'sfx_scatter_land_2'
@@ -29,9 +29,9 @@ export type SoundEffectName =
 	| 'sfx_ui_bonus'
 	| 'sfx_ui_minor'
 	| 'sfx_ui_sub'
-	| 'sfx_bonus_trigger_free'
-	| 'sfx_bonus_trigger_super'
-	| 'sfx_bonus_trigger_feast'
+	// the trigger's success, one for every tier (2026-11-17, constants BONUS_TRIGGER_SOUND); it replaced the three
+	// house bonus-confirm fanfares sfx_bonus_trigger_free / _super / _feast, which left the sprite
+	| 'sfx_scatter_success'
 	| 'sfx_reel_spin'
 	| 'sfx_reel_stop'
 	| 'sfx_cluster_remove'

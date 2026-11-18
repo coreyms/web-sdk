@@ -937,7 +937,10 @@ export type TeasePlan = {
 	scatters: CellIndex[];
 	/** each of those scatters' landing contact, style ms (same order) */
 	scatterLand: number[];
-	/** the scatters that breathe while the tease runs (the first triggerAfter) */
+	/** the scatters that breathe while the tease runs */
+	/** EVERY scatter of the drop since 2026-11-17 (Corey: the scatters that land during the anticipation "just sit there...
+	 *  Ideally they all stay in that pulsing jumping state like the first three until free spins are confirmed"): each joins
+	 *  the breath once its own landing beat is over. It was the first triggerAfter only. */
 	breathe: CellIndex[];
 	/** a scatter beyond the third is on the board: the trigger pulse plays, else the miss rest */
 	hit: boolean;
@@ -1051,7 +1054,7 @@ export const planTease = (board: SymbolName[][]): TeasePlan | null => {
 		const start = c ? c.launch : reel * DROP.columnStaggerMs;
 		return start + (GRID - 1 - row) * DROP.rowStaggerMs + dropDuration(row - fromY) * (c ? c.fall / dropDuration(GRID - 1 - bottomFrom) : 1);
 	});
-	return { tThird, columns, scatters: cells, scatterLand, breathe: cells.slice(0, T.triggerAfter), hit: scatters.length > T.triggerAfter };
+	return { tThird, columns, scatters: cells, scatterLand, breathe: cells.slice(), hit: scatters.length > T.triggerAfter };
 };
 
 /** one frame of the derived tease, in the drop's own style-time clock (the playground's tease track:

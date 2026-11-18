@@ -12,9 +12,9 @@ export default {
 	"audio/music/bgm_super.m4a": "01cdd4d1",
 	"audio/music/bgm_super.ogg": "17003f05",
 	"audio/music.json": "3ae336dd",
-	"audio/sounds.json": "2ec38bd6",
-	"audio/sounds.m4a": "4fb8309c",
-	"audio/sounds.ogg": "b0929abb",
+	"audio/sounds.json": "06ec7ed6",
+	"audio/sounds.m4a": "173b07bf",
+	"audio/sounds.ogg": "28d08eab",
 	"backgrounds/scene/backdrop-day-phone.webp": "2c6ac6b0",
 	"backgrounds/scene/backdrop-day.webp": "baecb1b9",
 	"backgrounds/scene/backdrop-night-phone.webp": "fa963568",
@@ -621,9 +621,9 @@ export const fileBytes = {
 	"audio/music/bgm_super.m4a": 745018,
 	"audio/music/bgm_super.ogg": 962613,
 	"audio/music.json": 1253,
-	"audio/sounds.json": 5459,
-	"audio/sounds.m4a": 951139,
-	"audio/sounds.ogg": 700905,
+	"audio/sounds.json": 5239,
+	"audio/sounds.m4a": 911727,
+	"audio/sounds.ogg": 656789,
 	"backgrounds/scene/backdrop-day-phone.webp": 390346,
 	"backgrounds/scene/backdrop-day.webp": 792162,
 	"backgrounds/scene/backdrop-night-phone.webp": 376860,
@@ -1234,4 +1234,4 @@ export const landingSizes = {
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":2920669,"preload":1412427,"audio":1220666} as const;
+export const bootSizes = {"landing":2920669,"preload":1412207,"audio":1176550} as const;

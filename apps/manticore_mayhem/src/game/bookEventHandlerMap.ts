@@ -63,7 +63,7 @@ import {
 	ANTICIPATION_TEASE,
 	TRIGGER_BEAT,
 	scatterWait,
-	BONUS_TRIGGER_SOUND_MAP,
+	BONUS_TRIGGER_SOUND,
 	BONUS_MODE_LABEL,
 	SCATTER_LAND_SOUND_MAP,
 	SCATTER_LAND_SOUNDS,
@@ -133,14 +133,15 @@ const scatterLand = (cell: number, id: number) => {
 	void flashCells([cell], STING.scatterColor, TIMINGS.scatterFlashMs, id);
 };
 
-/** the house bonus-confirm SFX, played ONCE per round: at the scatter trigger pulse (a tease hit, the end
- *  of a scatter sting run) when the book goes on to a bonusStart, else at bonusStart itself */
+/** the trigger's success sound (constants BONUS_TRIGGER_SOUND, the marimba family's, one for every tier since
+ *  2026-11-17; the house bonus-confirm fanfare by tier before), played ONCE per round: at the scatter trigger pulse
+ *  (a tease hit, the end of a scatter sting run) when the book goes on to a bonusStart, else at bonusStart itself */
 let triggerSfxPlayed = false;
 const playTriggerSfx = (from: BookEvent, bookEvents: BookEvent[]) => {
 	const start = bookEvents.slice(bookEvents.indexOf(from) + 1).find((e) => e.type === 'bonusStart') as BookEventOfType<'bonusStart'> | undefined;
 	if (!start || triggerSfxPlayed) return;
 	triggerSfxPlayed = true;
-	eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND_MAP[start.bonus] });
+	eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND });
 };
 
 /** this scatter sting's place in its run (the book's scatter stings after the last reveal): k of n */
@@ -598,6 +599,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// CLUSTER.refillDelayMs: the plates' count-over plays before the refill lands on them
 		await waitStyle(CLUSTER.refillDelayMs);
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cascade', forcePlay: true });
+		// THE REFILL HAUL (CHAIN_BOW.refillLinks, Corey 2026-11-17): the gears turn and the chain goes down one link as the new
+		// symbols drop. Not while skipping.
+		if (CHAIN_BOW.refillLinks > 0 && !stateGame.skipping) {
+			const haulRate = Math.max(0.2, stateGameDerived.timeScale());
+			chainRun({ links: CHAIN_BOW.refillLinks, ms: CHAIN_BOW.refillMs / haulRate, ease: 'backOut' });
+		}
 		// the creature: a swipe after this spin's last cascade winds up through the refill's settle and the spin total
 		cueCreature(bookEvent, bookEvents, () => (lastClearOfSpin(bookEvent, bookEvents) && spinTotalWinAhead(bookEvent, bookEvents) !== null ? SPIN_TO_HUD_MS : SPIN_FINAL_MS));
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
@@ -755,9 +762,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 	// ---- feature entry ---------------------------------------------------------------------------
 	bonusStart: async (bookEvent: BookEventOfType<'bonusStart'>) => {
-		// the feature-entry confirmation sound carries over from Angry Mantis unchanged; a scatter trigger
-		// pulse this round has already played it (playTriggerSfx), so it is never heard twice
-		if (!triggerSfxPlayed) eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND_MAP[bookEvent.bonus] });
+		// the trigger's success sound (BONUS_TRIGGER_SOUND); a scatter trigger pulse this round has already played it
+		// (playTriggerSfx), so it is never heard twice
+		if (!triggerSfxPlayed) eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND });
 		triggerSfxPlayed = false;
 		// THE LOGO'S GROOVE TRACE (game/logo/trace.ts): the fill completes on the feature entry, brighter for Super and Epic
 		logoTrace.event(bookEvent.bonus);

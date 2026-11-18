@@ -70,6 +70,8 @@ const check = (ok, msg, detail) => {
 	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 700)) : ''}`);
 };
 
+/** how long a column may wait for its entrance pictures in this probe (real ms; the game's own wait is 4 s) */
+const COLUMN_LOAD_WAIT_MS = 90000;
 async function boot(browser, S, dpr) {
 	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: dpr, isMobile: S.phone, hasTouch: S.phone });
 	const p = await ctx.newPage();
@@ -88,11 +90,17 @@ async function boot(browser, S, dpr) {
 		if (i % 2 === 1) await p.mouse.click(S.vp.width / 2, S.vp.height / 2).catch(() => {});
 		await sleep(600);
 	}
-	await R(p, (b) => {
+	await R(p, ([b, waitMs]) => {
 		const h = window.__reindeer;
 		h.clock(1);
 		h.setBoard(b);
-	}, BOARD);
+		// (2026-11-17, the Linux host: a column waits in its 'wait' for its entrance pictures at most COLUMN.loadWaitMs, 4 real
+		// seconds, then grows without its cloud; a slow host's reload of the pictures took longer, so the column grew
+		// empty and the "grow end" moment, which needs the cloud, never came. In this probe the column waits for them as
+		// long as they take (the game's own wait, made patient: a probe setting, not the game's), and startColumn waits
+		// in real time until the column leaves its wait.)
+		h.tune.column.loadWaitMs = waitMs;
+	}, [BOARD, COLUMN_LOAD_WAIT_MS]);
 	await sleep(800);
 	return { ctx, p, errs };
 }
@@ -206,6 +214,28 @@ async function startColumn(p, reel, tier, multiplier = 10) {
 		window.__colDone = false;
 		F.columnWild(reel, tier, multiplier, false, reel * 4 + 1).then(() => (window.__colDone = true));
 	}, { reel, tier, multiplier });
+	return waitLoaded(p, reel);
+}
+/** the board clock is held: wait in REAL time while the column on `reel` waits for its pictures (the game's own state,
+ *  'wait'), up to COLUMN_LOAD_WAIT_MS and a little; false (and the caller skips what depends on it) if it never left */
+async function waitLoaded(p, reel) {
+	const t0 = Date.now();
+	while (Date.now() - t0 < COLUMN_LOAD_WAIT_MS + 5000) {
+		const ph = await R(p, (reel) => window.__reindeer.roadBoard().features.columns.find((x) => x.reel === reel && x.phase !== 'leave')?.phase ?? null, reel);
+		if (ph !== 'wait') return ph !== null;
+		await sleep(150);
+	}
+	return false;
+}
+/** every column still waiting for its pictures, in real time (the pairs' five columns) */
+async function waitAllLoaded(p) {
+	const t0 = Date.now();
+	while (Date.now() - t0 < COLUMN_LOAD_WAIT_MS + 5000) {
+		const waiting = await R(p, () => window.__reindeer.roadBoard().features.columns.some((x) => x.phase === 'wait'));
+		if (!waiting) return true;
+		await sleep(150);
+	}
+	return false;
 }
 const stepTo = async (p, reel, until, max = 600) => {
 	for (let i = 0; i < max; i++) {
@@ -345,11 +375,14 @@ try {
 				['entrance cloud', (st) => st.phase === 'enter' && st.enterCloud && st.frame >= 3],
 				['standing', (st) => st.phase === 'idle'],
 			];
-			if (PART('edges')) await startColumn(p, reel, 'santa');
-			for (const [name, until] of PART('edges') ? moments : []) {
+			const edgesLoaded = PART('edges') ? await startColumn(p, reel, 'santa') : false;
+			if (PART('edges') && !edgesLoaded) check(false, `${tag}: the santa column never left its wait for its entrance pictures in ${COLUMN_LOAD_WAIT_MS / 1000} s: the edge and rectangle checks are skipped`);
+			for (const [name, until] of PART('edges') && edgesLoaded ? moments : []) {
 				const st = await stepTo(p, reel, until);
-				check(!!st && until(st), `${tag}: the santa column reached "${name}" (${st?.phase} frame ${st?.frame})`);
-				if (!st) continue;
+				const reached = !!st && until(st);
+				check(reached, `${tag}: the santa column reached "${name}" (${st?.phase} frame ${st?.frame})`);
+				// (a moment not reached is not measured: nothing of its checks runs on a frame that is not that moment)
+				if (!reached) continue;
 				// standing: the character hidden in both (only the clouds are judged here; the right overlap is below)
 				if (name === 'standing') await R(p, (reel) => (window.__reindeer.roadBoard().features.columns.find((x) => x.reel === reel).body.renderable = false), reel);
 				const a = await shot(p);
@@ -448,7 +481,12 @@ try {
 			// THE RIGHT BORDER, per character, idle and win (desktop and portrait at 2x / 3x only: the rule is the same)
 			if (dpr === (S.phone ? 3 : 2) && S.name !== 'short') {
 				for (const tier of PART('right') ? TIERS : []) {
-					await startColumn(p, reel, tier);
+					if (!(await startColumn(p, reel, tier))) {
+						check(false, `${tag}: the ${tier} column never left its wait for its pictures in ${COLUMN_LOAD_WAIT_MS / 1000} s: its right border checks are skipped`);
+						await R(p, () => window.__reindeer.clock(1));
+						await clearColumns(p);
+						continue;
+					}
 					const idle = await stepTo(p, reel, (st) => st.phase === 'idle', 900);
 					for (const phase of ['idle', 'win']) {
 						let st = idle;
@@ -579,6 +617,7 @@ async function pairs(p, S, dpr, tag) {
 			h.clock(0);
 			tiers.forEach((t, r) => void F.columnWild(r, t, MULTS[r], sticky, null));
 		}, { tiers, sticky, MULTS });
+		await waitAllLoaded(p);
 		for (let i = 0; i < 1200 && !(await allPhase(p, 'idle')); i++) await R(p, (ms) => window.__reindeer.step(ms, 1), FRAME);
 		const label = `${tag}: layout ${tiers.join(' ')}${sticky ? ' (sticky)' : ''}`;
 		check(await allPhase(p, 'idle'), `${label}: all five stand`);

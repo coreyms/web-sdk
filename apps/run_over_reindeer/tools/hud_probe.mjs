@@ -32,6 +32,7 @@
 // Uses the dev server that is already running (it never starts one). One headless browser, closed at the end. Take the
 // shared browser lock around it (mkdir /tmp/hud_mock_shot.lock ... rmdir).
 import { createRequire } from 'node:module';
+import { pressRoundCards } from './round_card_press.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -90,6 +91,8 @@ const H = () => window.__reindeer;
 
 async function boot(browser, S, extra = '') {
 	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.phone ? 3 : 2, isMobile: S.touch && S.family !== 'desktop', hasTouch: S.touch });
+	// (2026-11-17: the bonus entry waits for the press: round_card_press.mjs presses it on the old card's timing)
+	await pressRoundCards(ctx);
 	const p = await ctx.newPage();
 	const errs = [];
 	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
