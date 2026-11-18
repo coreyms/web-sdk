@@ -3,7 +3,8 @@
 //
 //   node tools/import_fixtures.mjs
 //
-// Source: math-sdk/games/run_over_reindeer/fixtures_2026-11-15b/ (contract 2026-11-15a, variant F + C with the P1 paytable,
+// Source: math-sdk/games/run_over_reindeer/fixtures_2026-11-18/ (math 2026-11-18: each line pays its better reading, multipliers included; before it fixtures_2026-11-15b)
+// Was: math-sdk/games/run_over_reindeer/fixtures_2026-11-15b/ (contract 2026-11-15a, variant F + C with the P1 paytable,
 // the clear path rule and the bought Super's 20x minimum; UNTUNED weights, never for upload; the math build report,
 // results/build_2026-11-15/BUILD_REPORT.md, names it). Before it: fixtures_2026-11-10a (contract 2026-11-10a). The old fixtures/ folder is the
 // retired 2026-11-09b contract (strikes from a tunnel, crossings) and is no longer read:
@@ -15,7 +16,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const APP = dirname(dirname(fileURLToPath(import.meta.url)));
-const FOLDER = 'fixtures_2026-11-15b';
+const FOLDER = 'fixtures_2026-11-18';
 const MATH = join(APP, '..', '..', '..', 'math-sdk', 'games', 'run_over_reindeer', FOLDER);
 
 const showcase = JSON.parse(readFileSync(join(MATH, 'showcase_books.json'), 'utf8'));

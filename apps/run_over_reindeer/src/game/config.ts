@@ -9,7 +9,7 @@
 // built and pass every Stake check; they are not uploaded. The three Ante mode keys are ante_2, ante_4 and ante_10 (the
 // math's own).
 export default {
-	mathVersion: 'variantF-C-P1-2026.11.15',
+	mathVersion: 'variantF-C-P1-2026.11.18',
 	providerName: 'polymath_games',
 	gameName: 'Run Over Reindeer',
 	gameID: 'run_over_reindeer',

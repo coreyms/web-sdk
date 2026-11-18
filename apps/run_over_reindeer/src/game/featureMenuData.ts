@@ -3,7 +3,7 @@
 //
 // THE ODDS ROWS, read off the math build of 2026-11-15 (results/build_2026-11-15/BUILD_REPORT.md, "Final numbers per
 // mode": the shaped lookup tables of the production books, P1 paytable), rounded to whole numbers: base game Free Spins
-// 1 in 212.7 and Super 1 in 2,127; Ante 2x 1 in 76.4 / 1,000; Ante 4x 1 in 42.6 / 250; Ante 10x 1 in 51.4 / 40; the max
+// 1 in 212.7 and Super 1 in 2,128; Ante 2x 1 in 76.4 / 1,000; Ante 4x 1 in 42.6 / 250; Ante 10x 1 in 51.4 / 40; the max
 // win in the base game 1 in 2.97 million; the bought Super's 20x minimum. ODDS_ARE_PROVISIONAL stays true until Corey
 // has looked at the build and the books are published (the menu carries a small line saying the figures come from the
 // simulation while it is true). Rows a figure does not exist for yet (how often a bought round pays more than it cost)
@@ -110,7 +110,7 @@ export const BUY_ODDS: Record<'BONUS' | 'SUPER', OddsRow[]> = {
 	],
 	SUPER: [
 		{ label: 'Free spins', value: '10' },
-		{ label: 'In the base game', value: '~1 in 2,127' },
+		{ label: 'In the base game', value: '~1 in 2,128' },
 		{ label: 'Guaranteed minimum', value: '20x' },
 		{ label: 'Max win', value: '7,777x' },
 	],
@@ -121,17 +121,17 @@ export const ANTE_ODDS: Record<string, OddsRow[]> = {
 	ANTE_2: [
 		{ label: 'Free Spins', value: '~1 in 76' },
 		{ label: 'Super Free Spins', value: '~1 in 1,000' },
-		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,127' },
+		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,128' },
 	],
 	ANTE_4: [
 		{ label: 'Free Spins', value: '~1 in 43' },
 		{ label: 'Super Free Spins', value: '~1 in 250' },
-		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,127' },
+		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,128' },
 	],
 	ANTE_10: [
 		{ label: 'Free Spins', value: '~1 in 51' },
 		{ label: 'Super Free Spins', value: '~1 in 40' },
-		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,127' },
+		{ label: 'Base game, no Ante', value: '~1 in 213 / 2,128' },
 	],
 };
 
