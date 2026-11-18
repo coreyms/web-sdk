@@ -127,6 +127,30 @@ export const INTRO_SLATE = {
 	/** a lifted tile (INTRO_TILE_LIFT): its transform and how fast it goes up and down, ms */
 	tileLift: { transform: 'translateY(-12%) scale(1.1)', ms: 180 },
 } as const;
+/** THE MAX WIN LINE CANDIDATES (2026-11-18, Corey "yes" to the max win back on the intro; not chosen yet). One line of image
+ *  lettering OUTSIDE the cards (tools/build_intro_slate.py, game/introMaxlineSpec.ts; the words: introCardText
+ *  INTRO_MAX_WIN), shown only with the DEV / staging switch ?maxline=1|2|3 (game/staging.ts MAXLINE_CANDIDATE); without it
+ *  nothing here is used and the landing is the approved one.
+ *   1  under the cards, over the gate: "WIN UP TO 10,000x" in the H1 gold, the rest smaller in ivory (art m1)
+ *   2  the same place, the whole phrase in the ivory headline face, smaller (art m2)
+ *   3  between the logo and the cards, art m1: it reads as the logo's own promise, and the strip over the gate stays the
+ *      loading bar's and PRESS ANYWHERE's alone
+ *  The line takes its height from the cards' band (they shrink a little and keep their slate exactly as approved); in the
+ *  side layout it stands in the logo's column (under the logo for 3, midway to the gate for 1 and 2). `cap`: the line's
+ *  reference cap height per LayoutKind, master px (m1 the gold cap, m2 the ivory cap); `gap`: master px between the line
+ *  and the cards; a line wider than its room is drawn smaller to fit. `maxCapCss`: the cap is never drawn taller than this
+ *  many CSS px (the tool bakes at 3 px per CSS px of it; keep it in this one-line form, the tool reads it). */
+export const INTRO_MAXLINE = {
+	maxCapCss: { m1: 27, m2: 18 },
+	gap: 10,
+	candidates: {
+		1: { art: 'm1', where: 'below', cap: { landscape: 18, portrait: 14, phone: 26 } },
+		2: { art: 'm2', where: 'below', cap: { landscape: 12, portrait: 10, phone: 18 } },
+		3: { art: 'm1', where: 'above', cap: { landscape: 18, portrait: 14, phone: 26 } },
+	},
+} as const satisfies { maxCapCss: Record<'m1' | 'm2', number>; gap: number; candidates: Record<1 | 2 | 3, { art: 'm1' | 'm2'; where: 'below' | 'above'; cap: Record<LayoutKind, number> }> };
+export type IntroMaxlineCandidate = 1 | 2 | 3;
+
 /** a point's height in card-width units from the card's top (the card is the frame picture, 100 units wide) */
 export const introSlatePointY = (which: 'top' | 'bottom') => (INTRO_SLATE.points[which] / INTRO_SLATE.frame.w) * 100;
 
@@ -201,7 +225,11 @@ export type IntroPlacement = {
 	gateCx: number;
 	/** the dots' centre and direction, master px; null in the row */
 	dots: { x: number; y: number; vertical: boolean } | null;
+	/** the max win line candidate's box (center and size, master px), only when one is asked for (INTRO_MAXLINE) */
+	maxline: { cx: number; cy: number; w: number; h: number } | null;
 };
+/** a max win line to make room for: where it stands and its natural size, master px */
+export type IntroLineAsk = { where: 'below' | 'above'; w: number; h: number };
 
 /** WHERE EVERYTHING ON THE LANDING SCREEN STANDS, for a LayoutKind and the real viewport (CSS px).
  *
@@ -214,7 +242,7 @@ export type IntroPlacement = {
  *   3. else, sideways screens (kind phone, or a low desktop window): the band under the logo is too low for a
  *      readable card, so the logo and the gate move into a column on the left and one card stands on the right
  *      as tall as the screen, dots to its right (844x390, 667x375). */
-export const introPlacement = (kind: LayoutKind, viewportWidth: number, viewportHeight: number): IntroPlacement => {
+export const introPlacement = (kind: LayoutKind, viewportWidth: number, viewportHeight: number, line: IntroLineAsk | null = null): IntroPlacement => {
 	const master = MASTER[kind];
 	const C = INTRO_CARD;
 	const scale = Math.min(viewportWidth / master.width, viewportHeight / master.height) || 1;
@@ -228,18 +256,26 @@ export const introPlacement = (kind: LayoutKind, viewportWidth: number, viewport
 	const maxW = C.maxCssWidth / scale;
 
 	const logo = INTRO_LOGO[kind];
-	const bandTop = logo.cy + (logo.w * LOGO_ASPECT) / 2 + C.clearance;
-	const bandBottom = introGateTop(kind) - C.clearance;
-	const bandH = Math.max(bandBottom - bandTop, 0);
+	const fullTop = logo.cy + (logo.w * LOGO_ASPECT) / 2 + C.clearance;
+	const fullBottom = introGateTop(kind) - C.clearance;
 	const bandW = Math.max(visW - 2 * C.sideMargin, 0);
+	// THE MAX WIN LINE (a candidate, INTRO_MAXLINE): its height and a gap come off the cards' band, at the bottom (over the
+	// gate) or at the top (under the logo); drawn smaller where it is wider than the band
+	const lk = line ? Math.min(1, bandW / line.w) : 1;
+	const lineH = line ? line.h * lk : 0;
+	const reserve = line ? lineH + INTRO_MAXLINE.gap : 0;
+	const bandTop = fullTop + (line?.where === 'above' ? reserve : 0);
+	const bandBottom = fullBottom - (line?.where === 'below' ? reserve : 0);
+	const bandH = Math.max(bandBottom - bandTop, 0);
 	const bandCy = (bandTop + bandBottom) / 2;
+	const bandLine = line ? { cx, cy: line.where === 'above' ? fullTop + lineH / 2 : fullBottom - lineH / 2, w: line.w * lk, h: lineH } : null;
 
 	const w3 = Math.min((bandW - 2 * C.rowGap) / 3, bandH * C.aspect, maxW);
 	if (w3 * scale >= C.minThreeUpCssWidth) {
 		return {
 			mode: 'row', scale, left, top, cardW: w3, cardH: w3 / C.aspect,
 			slots: [-1, 0, 1].map((k) => ({ x: cx + k * (w3 + C.rowGap), y: bandCy })),
-			logo: capLogo(logo, scale), gateCx: cx, dots: null,
+			logo: capLogo(logo, scale), gateCx: cx, dots: null, maxline: bandLine,
 		};
 	}
 
@@ -250,7 +286,7 @@ export const introPlacement = (kind: LayoutKind, viewportWidth: number, viewport
 		return {
 			mode: 'stack', scale, left, top, cardW: w1, cardH: h1,
 			slots: [0, 1, 2].map(() => ({ x: cx, y })),
-			logo: capLogo(logo, scale), gateCx: cx, dots: { x: cx, y: y + h1 / 2 + C.dotsStrip / 2, vertical: false },
+			logo: capLogo(logo, scale), gateCx: cx, dots: { x: cx, y: y + h1 / 2 + C.dotsStrip / 2, vertical: false }, maxline: bandLine,
 		};
 	}
 
@@ -260,11 +296,21 @@ export const introPlacement = (kind: LayoutKind, viewportWidth: number, viewport
 	const x0 = cx - (S.column + S.gap + w1 + S.dots) / 2;
 	const cardCx = x0 + S.column + S.gap + w1 / 2;
 	const columnCx = x0 + S.column / 2;
+	// the line in the logo's column: under the logo (above), or midway between the logo and the gate (below)
+	let sideLine: IntroPlacement['maxline'] = null;
+	if (line) {
+		const k = Math.min(1, (S.column - 2 * C.sideMargin) / line.w);
+		const h = line.h * k;
+		const logoBottom = S.logoCy + (S.logoWidth * LOGO_ASPECT) / 2;
+		const y = line.where === 'above' ? logoBottom + C.clearance + h / 2 : (logoBottom + introGateTop(kind)) / 2;
+		sideLine = { cx: columnCx, cy: y, w: line.w * k, h };
+	}
 	return {
 		mode: 'side', scale, left, top, cardW: w1, cardH: w1 / C.aspect,
 		slots: [0, 1, 2].map(() => ({ x: cardCx, y: cy })),
 		logo: capLogo({ w: S.logoWidth, cx: columnCx, cy: S.logoCy }, scale),
 		gateCx: columnCx,
 		dots: { x: cardCx + w1 / 2 + S.dots / 2, y: cy, vertical: true },
+		maxline: sideLine,
 	};
 };

@@ -30,6 +30,8 @@ that and reduced once (premultiplied), so a glyph's sub-pixel place survives.
 Writes (nothing else):
   static/assets/ui/intro/intro-slate.webp     one atlas, every piece
   src/game/introSlateSpec.ts                  each piece's atlas box and its place in card-width units (AUTO-GENERATED)
+  static/assets/ui/intro/intro-maxline-<art>[-social].webp   the max win line candidates (DEV / staging ?maxline)
+  src/game/introMaxlineSpec.ts                the candidates' sizes and cap boxes (AUTO-GENERATED)
 
 Run (from the parent repo root, or with the worktree's path):
   math-sdk/env/bin/python web-sdk/apps/manticore_mayhem/tools/build_intro_slate.py
@@ -102,12 +104,18 @@ def load_sets() -> dict:
         k = "stg_g_%04x" % ord(ch)
         if k in st_j:
             ivory[ch] = glyph(cut(st, st_j[k]["frame"]))
-            if ch.isalpha():
-                ivgold[ch] = glyph(cut(st, st_j[k]["frame"]), tint=GOLD)
-    for ch, nm in (("+", "002b"), (".", "002e"), ("x", "00d7")):
+            # (the max win line, 2026-11-18: the gold set has the digits too; the slate's gold headers use letters only)
+            ivgold[ch] = glyph(cut(st, st_j[k]["frame"]), tint=GOLD)
+    for ch, nm in (("+", "002b"), (".", "002e"), ("x", "00d7"), (",", "002c")):
         k = "stg_g_" + nm
         if k in st_j:
             ivory[ch] = glyph(cut(st, st_j[k]["frame"]))
+            if ch in "x,.":
+                ivgold[ch] = glyph(cut(st, st_j[k]["frame"]), tint=GOLD)
+    # the max win line's "x" is the face's own lowercase x (stg_g_0078) on the baseline, not the slate's multiplier sign:
+    # keyed by a private-use character so the slate's "x" (the sign) is untouched
+    ivory[LOWER_X] = glyph(cut(st, st_j["stg_g_0078"]["frame"]))
+    ivgold[LOWER_X] = glyph(cut(st, st_j["stg_g_0078"]["frame"]), tint=GOLD)
     bn_j = json.loads((ASSETS / "ui/banner/banner-glyphs-D.json").read_text())["frames"]
     bn = Image.open(ASSETS / "ui/banner/banner-glyphs-D.webp").convert("RGBA")
     big = {ch: glyph(cut(bn, bn_j["stg_g_%04x" % ord(ch)]["frame"])) for ch in "0123456789"}
@@ -119,6 +127,7 @@ def load_sets() -> dict:
 
 
 SETS: dict = {}
+LOWER_X = "\ue078"
 
 
 # ---- the mock's setter: measure() and lettering(), as draw lists ------------------------------------------------------
@@ -173,6 +182,9 @@ def lettering(text: str, s: str, cap: float, big: bool = False) -> tuple[list, f
         k = cap / cap_ink
         if ch in "+x":
             top = cap * (0.5 if ch == "+" else 0.62) - (g["iy"] + g["ih"] / 2) * k
+        elif ch == ",":
+            # the comma hangs below the baseline: its ink top where the period's ink top is
+            top = cap - S["g"]["."]["ih"] * k - g["iy"] * k if "." in S["g"] else cap - (g["iy"] + g["ih"] * 0.4) * k
         else:
             top = cap - (g["iy"] + g["ih"]) * k
         draws.append((g, pen - g["ix"] * k, top, g["w"] * k, g["h"] * k, 0))
@@ -439,5 +451,101 @@ def main() -> None:
         print(" ", n)
 
 
+# ---- THE MAX WIN LINE CANDIDATES (2026-11-18; Corey "yes" to bringing the max win back onto the intro) ------------------
+# One line of image lettering OUTSIDE the cards, in the slate's own two faces. The words are the game's own: the
+# INTRO_MAX_WIN_WORDS table in src/game/introCardText.ts (lead and tail, standard and social) and config.ts maxWin
+# (the number, en-US grouping, then "x"), read from the source here, never typed in. A wording whose words are the same
+# in both modes is baked once. Candidates (game/introCards.ts INTRO_MAXLINE, DEV / staging ?maxline=1|2|3):
+#   m1  "WIN UP TO 10,000x" in the H1 gold, the rest of the phrase smaller in ivory, on one baseline   (?maxline=1 and 3)
+#   m2  the whole phrase in the ivory headline face, smaller                                            (?maxline=2)
+# Density: 3 px per CSS px at the largest the game draws it (INTRO_MAXLINE.maxCapCss, read from introCards.ts).
+OUT_MAXLINE = ASSETS / "ui" / "intro"
+OUT_MAXLINE_TS = APP / "src" / "game" / "introMaxlineSpec.ts"
+BANNED = ("bet", "buy", "cash", "money", "paid", "credit", "gamble", "wager", "stake")
+TAIL_CAP = 0.62  # m1: the ivory tail's cap per the gold cap
+
+
+def maxline_words() -> dict[str, tuple[str, str, str]]:
+    import re
+    txt = (APP / "src/game/introCardText.ts").read_text()
+    block = txt[txt.index("export const INTRO_MAX_WIN_WORDS = {") :]
+    block = block[: block.index("} as const;")]
+    words = {}
+    for mode in ("standard", "social"):
+        m = re.search(mode + r": \{ lead: '([^']*)', tail: '([^']*)' \}", block)
+        assert m, f"INTRO_MAX_WIN_WORDS.{mode} not found"
+        words[mode] = (m.group(1), m.group(2))
+    cfg = (APP / "src/game/config.ts").read_text()
+    max_win = int(re.search(r"\bmaxWin: (\d+),", cfg).group(1))
+    num = f"{max_win:,}x"
+    for lead, tail in words.values():
+        assert not any(re.search(r"\b" + b, (lead + tail).lower()) for b in BANNED), (lead, tail)
+    return {mode: (lead, num, tail) for mode, (lead, tail) in words.items()}
+
+
+def max_cap_css() -> dict[str, float]:
+    import re
+    ts = (APP / "src/game/introCards.ts").read_text()
+    m = re.search(r"maxCapCss: \{ m1: ([\d.]+), m2: ([\d.]+) \}", ts)
+    assert m, "INTRO_MAXLINE.maxCapCss not found"
+    return {"m1": float(m.group(1)), "m2": float(m.group(2))}
+
+
+def build_maxline() -> list[str]:
+    caps = max_cap_css()
+    words = maxline_words()
+    out, report = {}, []
+    for art in ("m1", "m2"):
+        cap = 3 * caps[art] / PX_PER_UNIT  # units: the reference cap at 3 px per CSS px of its largest draw
+        out[art] = {}
+        baked: dict[tuple, str] = {}
+        for mode, (lead, num, tail) in words.items():
+            key = (lead, num, tail)
+            if key in baked:
+                out[art][mode] = out[art][baked[key]]
+                continue
+            baked[key] = mode
+            lx = lambda t: t.replace("x", LOWER_X)  # noqa: E731  (the words are capitals: only the number's x is lowercase)
+            if art == "m1":
+                d1, w1 = lettering(lx((lead + num).strip()), "ivgold", cap)
+                t_cap = cap * TAIL_CAP
+                d2, w2 = lettering(tail.strip(), "ivory", t_cap)
+                gap = SPACE["ivgold"] * cap
+                # one baseline: the tail's cap box sits on the gold line's baseline
+                draws = d1 + shift(d2, w1 + gap, cap - t_cap)
+            else:
+                draws, _ = lettering(lx((lead + num + tail).strip()), "ivory", cap)
+            arr, box = trim(*compose(draws))
+            name = f"intro-maxline-{art}" + ("" if mode == "standard" else f"-{mode}") + ".webp"
+            path = OUT_MAXLINE / name
+            Image.fromarray((arr * 255 + 0.5).astype(np.uint8), "RGBA").save(path, "WEBP", quality=QUALITY, method=6, alpha_quality=ALPHA_QUALITY)
+            # the reference cap box in the image's px (y from its top), so the game can size it by the cap
+            cap_top_px = (0 - box[1]) * PX_PER_UNIT
+            out[art][mode] = {"src": f"/assets/ui/intro/{name}", "w": arr.shape[1], "h": arr.shape[0], "capTop": round(cap_top_px, 2), "cap": round(cap * PX_PER_UNIT, 2), "text": (lead + num + tail).strip(), "bytes": path.stat().st_size}
+            report.append(f"  {name} {arr.shape[1]} x {arr.shape[0]}  {path.stat().st_size / 1024:.1f} KB  \"{(lead + num + tail).strip()}\"")
+    lines = [
+        "// AUTO-GENERATED by apps/manticore_mayhem/tools/build_intro_slate.py (do not edit: rerun the tool).",
+        "// THE MAX WIN LINE CANDIDATES (DEV / staging ?maxline=1|2|3, game/introCards.ts INTRO_MAXLINE): per art and wording the",
+        "// baked line, its size in px, and its reference cap box (capTop from the image's top, cap: the gold cap for m1, the",
+        "// ivory cap for m2), so the game draws it by its cap height. `text` is what the image says (introCardText INTRO_MAX_WIN).",
+        "export type IntroMaxlineArt = { src: string; w: number; h: number; capTop: number; cap: number; text: string; bytes: number };",
+        "export const INTRO_MAXLINE_ART: Record<'m1' | 'm2', Record<'standard' | 'social', IntroMaxlineArt>> = {",
+    ]
+    for art, modes in out.items():
+        lines.append(f"\t{art}: {{")
+        for mode, a in modes.items():
+            lines.append(f"\t\t{mode}: {json.dumps(a)},")
+        lines.append("\t},")
+    lines.append("};")
+    OUT_MAXLINE_TS.write_text("\n".join(lines) + "\n")
+    return report
+
+
 if __name__ == "__main__":
-    main()
+    import sys as _sys
+    if "--maxline-only" in _sys.argv:
+        SETS.update(load_sets())
+    else:
+        main()
+    print("max win line candidates:")
+    print("\n".join(build_maxline()))
