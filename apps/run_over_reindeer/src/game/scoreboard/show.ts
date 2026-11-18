@@ -96,7 +96,7 @@ let SHOW_ID = 0;
 
 /** a new show. `x` the win in play multiples (the tier), `amount` and `bet` in the currency's units, `rate` the turbo
  *  level's clock rate (the count only), `auto` an autoplay run (the short hold) */
-export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: number) => string; rate: number; auto: boolean; small?: boolean }): Show => {
+export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: number) => string; rate: number; auto: boolean; small?: boolean; countMs?: number }): Show => {
 	const L = LED_BOARD;
 	const tier = tierOf(o.x);
 	const small = o.small || tier < 0;
@@ -133,7 +133,8 @@ export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: nu
 		line: null,
 	};
 	if (small) {
-		s.countEnd = s.countStart + L.small.countMs;
+		// (2026-11-17: a line win's strip total counts over its own time, LINE_WIN.slam stripCountMs at the turbo level's pace)
+		s.countEnd = s.countStart + (o.countMs ?? L.small.countMs);
 		s.exitAt = s.countEnd + L.small.holdMs;
 		s.end = s.exitAt;
 		return s;

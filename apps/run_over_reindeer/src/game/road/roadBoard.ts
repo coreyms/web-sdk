@@ -18,6 +18,7 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
+import config from '../config';
 import { LANDING_DIM, LANE_FLOW, LINE_WIN, REINDEER_SOUND, ROAD, SEATED, STOPLIGHT, WAGON_TREE, motionFor, type RoadMotion } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
@@ -26,7 +27,7 @@ import { PRESENT_LOOK, PresentActor, RED_FROM, presentOpenMs, presentStillTextur
 import { castShadow, makeShadow, shadowStrength } from './shadows';
 import { PoliceLightBar } from './policeLights';
 import { VanWinFx } from './vanWin';
-import { WinLights, lightsSchedule, type LightLine } from './winLights';
+import { WinLights, lightsSchedule, type LightLine, type SlamOpts } from './winLights';
 import { WagonTree, type TreeFrame } from './wagonTree';
 import { SeatedDriver, type SeatFrame } from './seated';
 import { BrakeLightPair, type BrakeState } from './brakeLights';
@@ -180,7 +181,11 @@ const mouthAt = (side: 'left' | 'right', y: number): number => {
 type Waiter = { at: number; clock: 'board' | 'win'; resolve: () => void };
 
 /** a winning line: its cells, its payline; the symbol it pays and its own amount (the Christmas lights, LINE_WIN lights) */
-export type LineWinSpec = { cells: number[]; line: number; symbol?: string; amountText?: string };
+export type LineWinSpec = { cells: number[]; line: number; symbol?: string; amountText?: string; plainText?: string; multiplier?: number };
+/** a line win's options: the turbo level's share of every time, a capped spin, TREATMENT B's (constants LINE_WIN slam):
+ *  `onTotal` is called once on the win clock's frame the strip's total is due (the spin's win amount), `big` a big win (the
+ *  strip counts it after the lines: the win ends when the last line is down), `phone` the upright phone's rule */
+export type ShowWinOpts = { pace?: number; capped?: boolean; onTotal?: (() => void) | null; big?: boolean; phone?: boolean };
 
 export class RoadBoard {
 	readonly root = new PIXI.Container();
@@ -279,7 +284,7 @@ export class RoadBoard {
 	/** a trigger's pop on its pulse's first frame (the open's pictures were not in time) */
 	private pulsePopWanted = false;
 	/** the win showing: its start (win clock), its whole length, when the total pops in (ms into the win) */
-	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean; totalAt: number } | null = null;
+	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean; totalAt: number; onTotal: (() => void) | null; totalOnBoard: boolean } | null = null;
 	private destroyed = false;
 	/** how many symbols the board on the road parks (20, less four for every column Wild standing) */
 	private parked = COLS * ROWS;
@@ -840,7 +845,7 @@ export class RoadBoard {
 	 *  message) every line at once with the total. `pace` is the turbo level's share of every time (LINE_WIN.holdShare);
 	 *  `capped` (a max win spin): no line's own amount (the lines pay more than is awarded), only the total. Resolves
 	 *  when the hold after the total is over. */
-	showWin(wins: LineWinSpec[], amountText: string, holdMs: number, multiplier = 1, opts: { pace?: number; capped?: boolean } = {}): Promise<void> {
+	showWin(wins: LineWinSpec[], amountText: string, holdMs: number, multiplier = 1, opts: ShowWinOpts = {}): Promise<void> {
 		const pace = opts.pace ?? 1;
 		const cells = new Set<number>();
 		for (const w of wins) for (const c of w.cells) cells.add(c);
@@ -856,9 +861,11 @@ export class RoadBoard {
 		this.lineCells = [];
 		this.linesVoiced = 0;
 		let totalAt = 0;
+		/** TREATMENT B (constants LINE_WIN slam): the lines' own amounts slam their multipliers in, no total over the board */
+		let slamLength: number | null = null;
 		if (this.lightsOn) {
 			if (!this.winFx) {
-				this.winFx = new WinLights(this.tex('winLights'), PHONE_TIER ? 'phone' : 'full');
+				this.winFx = new WinLights(this.tex('winLights'), PHONE_TIER ? 'phone' : 'full', this.tex);
 				this.winLayer.addChildAt(this.winFx.root, 0);
 			}
 			const lines: LightLine[] = drawn.map((w) => {
@@ -869,12 +876,26 @@ export class RoadBoard {
 				const order = sorted.map((_, i) => i).sort((a, b) => Math.abs(a - (sorted.length - 1) / 2) - Math.abs(b - (sorted.length - 1) / 2) || a - b);
 				const x = (c: number) => Math.min(MOUTH_R - 90, Math.max(MOUTH_L + 90, columnX(Math.floor(c / ROWS))));
 				const slots = [...order.map((i) => ({ x: x(sorted[i]), y: LINES[sorted[i] % ROWS] - 4 })), ...order.map((i) => ({ x: x(sorted[i]), y: LINES[(sorted[i] % ROWS) + 1] - 4 }))];
-				return { points, symbol: w.symbol ?? 'L5', amountText: w.amountText ?? '', slots };
+				return { points, symbol: w.symbol ?? 'L5', amountText: w.amountText ?? '', slots, plainText: w.plainText, multiplier: w.multiplier ?? 1 };
 			});
-			this.winFx.set(lines, pace, drawn.length > 1 && !opts.capped);
-			this.lineStarts = lightsSchedule(lines.length, pace).starts;
-			// the total follows when the last light is down (a one line win: as its line is strung, its amount the total)
-			totalAt = this.winFx.linesDoneMs();
+			// TREATMENT B: every line its own amount (a one line win's too; never a capped spin's: its lines pay more than is
+			// awarded), the label sized for the phone's rule there (its digit cap phone.capPx CSS px)
+			const SL = LINE_WIN.slam;
+			let slam: SlamOpts | null = null;
+			if (SL.on && !opts.capped) {
+				const k = Math.abs(this.root.scale.x) || 1;
+				const phone = !!opts.phone && SL.phone.on;
+				const scale = phone ? Math.max(1, SL.phone.capPx / (SL.capRatio * LINE_WIN.lights.amount.size * k)) : 1;
+				slam = { scale, phone, left: MOUTH_L, right: MOUTH_R, topLine: LINES[0] };
+			}
+			this.winFx.set(lines, pace, slam ? true : drawn.length > 1 && !opts.capped, slam);
+			const plan = this.winFx.slamPlan();
+			this.lineStarts = plan ? plan.starts : lightsSchedule(lines.length, pace).starts;
+			// the total follows when the last light is down (a one line win: as its line is strung, its amount the total);
+			// treatment B: the strip's total as the last line starts to come down, the win over after the hold (a big win: when
+			// the last line is down, the strip's count follows)
+			totalAt = plan ? plan.totalAt : this.winFx.linesDoneMs();
+			if (plan) slamLength = opts.big ? (lines.length === 1 ? plan.totalAt + SL.phone.readMs * pace : plan.linesEnd) : plan.endAt;
 			this.lineCells = drawn.map((w) => new Set(w.cells));
 		} else {
 			this.winFx?.hide();
@@ -920,7 +941,9 @@ export class RoadBoard {
 		const mid = sorted[Math.floor(sorted.length / 2)] ?? 0;
 		this.winAmount.style.fontSize = LINE_WIN.amountSize;
 		this.winAmount.text = amountText;
-		this.winAmount.visible = totalAt <= 0;
+		// (treatment B: no total over the board for line wins; the strip carries it)
+		const totalOnBoard = slamLength === null;
+		this.winAmount.visible = totalOnBoard && totalAt <= 0;
 		this.winAmount.scale.set(LINE_WIN.popFrom);
 		// kept inside the picture: a long amount on an outer column is pulled toward the middle
 		const half = this.winAmount.width / 2 + 20;
@@ -931,12 +954,14 @@ export class RoadBoard {
 			this.winMult = new NumberLabel(this.tex, LINE_WIN.multHeight, LINE_WIN.multTint);
 			this.winLayer.addChild(this.winMult.root);
 		}
-		this.winMult.root.visible = multiplier > 1 && totalAt <= 0;
-		if (multiplier > 1) {
+		// (treatment B: never a multiplier over a total, the capped spin's included: it read as "35x $399.50")
+		const multOver = multiplier > 1 && !LINE_WIN.slam.on;
+		this.winMult.root.visible = multOver && totalAt <= 0;
+		if (multOver) {
 			this.winMult.set(`x${multiplier}`, LINE_WIN.multHeight, LINE_WIN.multTint);
 			this.winMult.root.position.set(this.winAmount.x, this.winAmount.y - LINE_WIN.multUp);
 		}
-		this.winMultWanted = multiplier > 1;
+		this.winMultWanted = multOver;
 		// the columns a winning line runs through play their win clip
 		const reels = new Set<number>();
 		for (const w of wins) for (const c of w.cells) reels.add(Math.floor(c / ROWS));
@@ -944,10 +969,21 @@ export class RoadBoard {
 		this.winLayer.alpha = 1;
 		this.winLayer.visible = true;
 		// a line win dims the symbols that are not part of it; a plain message over the board (no cells) dims nothing
-		const length = totalAt + holdMs;
-		this.win = { t0: this.winClock, holdMs: length, fadeAt: this.winClock + length, active: true, dim: wins.length > 0, totalAt };
+		const length = slamLength ?? totalAt + holdMs;
+		this.win = { t0: this.winClock, holdMs: length, fadeAt: this.winClock + length, active: true, dim: wins.length > 0, totalAt, onTotal: opts.onTotal ?? null, totalOnBoard };
+		if (totalAt <= 0) this.fireTotal();
 		if (this.lightsOn) this.winFx!.update(0);
 		return this.wait(this.winClock + length, 'win');
+	}
+
+	/** the strip's total is due (treatment B): the caller's moment, once */
+	private fireTotal() {
+		const w = this.win;
+		if (!w || !w.onTotal) return;
+		const f = w.onTotal;
+		w.onTotal = null;
+		this.features.sounds.mark('stripTotal', `${Math.round(this.winClock - w.t0)} ms into the win`);
+		f();
 	}
 
 	/** THE LINE SHOWS (constants REINDEER_SOUND lines): each light line after the first sounds on the frame it starts to
@@ -989,6 +1025,12 @@ export class RoadBoard {
 			totalAt: win ? Math.round(win.totalAt * 10) / 10 : null,
 			total: this.winAmount ? { text: this.winAmount.text, shown: this.winAmount.visible && this.winLayer.visible, scale: Math.round(this.winAmount.scale.x * 1000) / 1000 } : null,
 			mult: this.winMult ? this.winMult.root.visible && this.winLayer.visible : false,
+			/** TREATMENT B (constants LINE_WIN slam): its plan (ms into the win) and whether the strip's total was asked for */
+			slam: (() => {
+				const P = this.winFx?.slamPlan();
+				const r = (v: number) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null);
+				return P && win ? { totalAt: r(P.totalAt), endAt: r(P.endAt), linesEnd: r(P.linesEnd), length: r(win.holdMs), f: P.f.map(r), lits: P.lits.map(r), phone: P.phone, stripTotalDue: !win.onTotal } : null;
+			})(),
 			lines: this.winFx?.snapshot() ?? [],
 			sprites: this.winFx?.spriteCount() ?? 0,
 			lightsOn: this.lightsOn,
@@ -1446,6 +1488,44 @@ export class RoadBoard {
 	}
 
 	/** DEV / probes: the last drive in's plan as the road plays it (board clock ms from its start), and the spins' lengths */
+	/** THE SCATTER COUNT for the LED strip (constants LED_BOARD.scatterCount), read each frame: only what the player has SEEN
+	 *  (a present counts LANE_FLOW seenMs after its car leaves the tunnel, the tease's own moment), never the board to come.
+	 *  The spin is in anticipation while config.anticipationAt presents are seen, cars are still to come, the deciding count
+	 *  (the highest of config.scatterTriggers) is not reached and the next trigger is still possible: the presents seen plus
+	 *  the columns still to show a car and showing no present yet (a present lands at most once per column). A slam stop
+	 *  ends it (every present is on the board). null: no drive in of the lane by lane traffic yet. */
+	scatterCount(): { id: number; count: number; need: number; live: boolean; hit: boolean; reached: number } | null {
+		const f = this.flow;
+		if (!f) return null;
+		const P = f.plan;
+		const kind = f.free ? 'freegame' : 'basegame';
+		const T = config.scatterTriggers[kind];
+		const antic = config.anticipationAt[kind];
+		const t = this.clock - f.start;
+		const seenAt = (c: { rel: number }) => c.rel + LANE_FLOW.seenMs;
+		const colOf = (c: { lane: number; k: number }) => (ROAD.laneDirection[c.lane] > 0 ? COLS - 1 - c.k : c.k);
+		let count = 0;
+		let left = 0;
+		const withPresent = new Set<number>();
+		const toCome = new Set<number>();
+		for (const c of P.cars) {
+			const seen = f.cut || seenAt(c) <= t;
+			if (seen && c.scatter) {
+				count += 1;
+				withPresent.add(colOf(c));
+			} else if (!seen) {
+				left += 1;
+				toCome.add(colOf(c));
+			}
+		}
+		for (const col of withPresent) toCome.delete(col);
+		const top = T[T.length - 1];
+		const need = T.find((n) => n > count) ?? top;
+		const reached = [...T].reverse().find((n) => n <= count) ?? 0;
+		const live = !f.cut && count >= antic && left > 0 && count < top && count + toCome.size >= need;
+		return { id: f.start, count, need, live, hit: reached > 0, reached };
+	}
+
 	flowSnapshot() {
 		const f = this.flow;
 		const r1 = (v: number | null) => (v === null ? null : Math.round(v * 10) / 10);
@@ -1527,11 +1607,12 @@ export class RoadBoard {
 			if (this.lightsOn && this.winFx) {
 				this.winFx.update(t);
 			}
-			// the total pops in at totalAt (at once when there are no light lines)
+			// the total pops in at totalAt (at once when there are no light lines); treatment B: the strip's total is due
 			const since = t - win.totalAt;
+			if (since >= 0) this.fireTotal();
 			const amount = this.winAmount;
 			if (amount) {
-				amount.visible = since >= 0;
+				amount.visible = since >= 0 && win.totalOnBoard;
 				const u = Math.min(1, Math.max(0, since) / LINE_WIN.popMs);
 				const e = 1 - (1 - u) * (1 - u);
 				amount.scale.set(LINE_WIN.popFrom + (1 - LINE_WIN.popFrom) * e);

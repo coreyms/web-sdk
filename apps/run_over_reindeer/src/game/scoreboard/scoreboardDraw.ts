@@ -1633,3 +1633,7 @@ export function backScene(F: Face, s: Show) {
 	winBand(F, s);
 	countBorder(F, s);
 }
+
+// (2026-11-17) the helpers the strip's newer programs draw with (game/scoreboard/stripDraw.ts: the scatter count, the short
+// Grandma line)
+export { chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, sparkles, burst, marchText };

@@ -69,6 +69,8 @@ const FONT: Record<string, string[]> = {
 	// the LED scoreboard's own (game/scoreboard/, bigwin_led_r3): the question mark and a lower case set in the same 7 row
 	// cell (x height 5 rows; the y's tail stays inside the cell, as on a 5 x 7 LED sign), for the Grandma line's mixed case
 	'?': ['.###.', '#...#', '....#', '...#.', '..#..', '.....', '..#..'],
+	// (2026-11-17: the short Grandma line, GRANDMA GOT RUN OVER!)
+	'!': ['#', '#', '#', '#', '#', '.', '#'],
 	a: ['.....', '.....', '.###.', '....#', '.####', '#...#', '.####'],
 	b: ['#....', '#....', '####.', '#...#', '#...#', '#...#', '####.'],
 	c: ['.....', '.....', '.###.', '#....', '#....', '#...#', '.###.'],
