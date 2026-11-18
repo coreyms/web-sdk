@@ -1591,12 +1591,14 @@ export function showRibbon(F: Face, s: Show) {
 	const W = F.dotsW;
 	const H = F.dotsH;
 	g.clearRect(0, 0, W, H);
+	entryWaitRec.delete(g.canvas);
 	if (s.t < s.contentAt) return;
 	if (s.pressLineAt !== null && s.t >= s.pressLineAt && s.t < s.exitAt) {
 		chaseBorder(g, W, H, s.t, ['#ffe7b0', '#202020'], 1, 3);
-		if ((s.kind === 'fs' || s.kind === 'sfs') && LED_BOARD.entryLine.on) return entryWait(g, W, H, s, INTRO_LINE[s.kind === 'sfs' ? 'super' : 'bonus'], s.kind === 'sfs' ? '#ffd23a' : '#ffffff');
+		// (2026-11-18, LED_BOARD.explain: the sentence is on the big board; the strip carries the press line alone)
+		if ((s.kind === 'fs' || s.kind === 'sfs') && LED_BOARD.entryLine.on && !LED_BOARD.explain.on) return entryWait(g, W, H, s, INTRO_LINE[s.kind === 'sfs' ? 'super' : 'bonus'], s.kind === 'sfs' ? '#ffd23a' : '#ffffff');
 		// a wrap-up's own line (a top-up, the cap: the HTML card's words) the same way, once the Total Win waits
-		if (s.kind === 'total' && s.line) return entryWait(g, W, H, s, s.line, '#ffd23a');
+		if (s.kind === 'total' && s.line && !LED_BOARD.explain.on) return entryWait(g, W, H, s, s.line, '#ffd23a');
 		const str = 'PRESS ANYWHERE TO CONTINUE';
 		const sz = textW(str, 2) <= W - 6 && H >= 15 ? 2 : 1;
 		g.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(s.t / 380));

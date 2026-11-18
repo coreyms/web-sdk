@@ -24,7 +24,7 @@
 // gag's rule (only a Big or higher message cuts it; a small win waits for it to end).
 import * as PIXI from 'pixi.js';
 
-import { LED_BOARD } from '../constants';
+import { INTRO_LINE, LED_BOARD } from '../constants';
 import { C, mk, shimmer, type Cv } from '../landing/ledScreens';
 import { type ScoreboardGeo, type Rect } from './layout';
 import { CARTOONS, backScene, clearTitle, dissolveFace, entryWaitOf, raceCardOf, titlesOf, gagWordsAt, setBoardClass, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, scanReveal, showCartoon, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
@@ -33,6 +33,7 @@ import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
 import { pressScreenAt, scatterWordsOf, showGagShort, showPressLine, showPressScreens, showScatterCount, type ScatterFace } from './stripDraw';
 import type { LedText } from '../landing/ledScreens';
+import { clearExplain, explainOf, showExplain } from './explainDraw';
 
 const col = (hex: string) => Number.parseInt(hex.slice(1), 16);
 const GRILLE = { cells: 16, cellPx: 16 };
@@ -975,8 +976,18 @@ export class Scoreboard {
 		clearTitle(F.out.ctx.canvas);
 		if (!s) return this.publish(G, 1);
 		// the press screen's explainer screens (2026-11-17), else the show's staged scene
+		clearExplain(F.out.ctx.canvas);
+		const X = LED_BOARD.explain;
+		const sup = s.kind === 'sfs';
+		const explains = X.on && s.pressLineAt !== null && s.t >= s.pressLineAt && s.t < s.exitAt && (s.kind === 'fs' || sup || (s.kind === 'total' && !!s.line));
 		if (s.kind === 'press' && this.pressText) showPressScreens(F, Math.max(0, s.t - s.contentAt) / 1000, this.pressText);
-		else this.backProgram(F, s);
+		else if (explains) {
+			// THE EXPLANATION ON THE BIG BOARD (2026-11-18, LED_BOARD.explain): from the READY beat (a wrap-up: its landing)
+			const head = s.kind === 'total' ? { kind: 'total' as const, title: s.title ?? 'TOTAL WIN', amount: s.finalStr, color: '#ffffff' } : { kind: 'entry' as const, count: String(s.spins), title: sup ? 'SUPER FREE SPINS' : 'FREE SPINS', color: sup ? '#ffd23a' : '#ffffff' };
+			const sentence = s.kind === 'total' ? s.line! : INTRO_LINE[sup ? 'super' : 'bonus'];
+			const border = sup ? ['#ff3a2e', '#ffd23a'] : s.kind === 'total' ? ['#36ff74', '#ff3a2e'] : ['#36ff74', '#ffffff', '#ff3a2e', '#ffffff'];
+			showExplain(F, s.t - s.pressLineAt!, (f) => this.backProgram(f, s), head, sentence, sup || s.kind === 'total' ? '#ffd23a' : '#ffffff', border);
+		} else this.backProgram(F, s);
 		// the face powers on as it seats (dark until just before, then a scan line), and powers down before it lowers
 		const seated = LED_BOARD.rise.backAtMs + LED_BOARD.rise.riseMs;
 		if (s.t < seated - 120) F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
@@ -1025,7 +1036,7 @@ export class Scoreboard {
 			h = Math.imul(h ^ d[i], 16777619);
 		}
 		// the title as drawn this step (the back board), the entry's wait as drawn (the strip)
-		return { lit, dots: F.dotsW * F.dotsH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas) };
+		return { lit, dots: F.dotsW * F.dotsH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, explain: explainOf(F.out.ctx.canvas), title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas) };
 	}
 	snapshot() {
 		const g = this.geo;

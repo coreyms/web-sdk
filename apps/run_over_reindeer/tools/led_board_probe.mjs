@@ -54,7 +54,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -1318,6 +1318,54 @@ async function bonusStrip(p, S) {
 	}
 }
 
+/** THE EXPLANATION ON THE BIG BOARD (2026-11-18, constants LED_BOARD.explain): for the Free Spins entry, the Super entry and a
+ *  wrap-up with a line (a top-up), in layouts A and B, driven by hand past the READY beat: the sentence's text box lies inside
+ *  the back board's face and touches nothing (A: not the head), every word is there, and the strip shows the press line alone
+ *  (no sentence on it) */
+async function explainBoards(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	const line = 'Includes $12.30 added to bring this round up to its 10x minimum.';
+	const want = await R(p, () => window.__reindeer.tune);
+	void want;
+	for (const layout of ['A', 'B']) {
+		for (const [kind, opts, sentenceOf] of [
+			['fs', {}, (c) => c.bonus],
+			['sfs', {}, (c) => c.super],
+			['total', { line }, () => line],
+		]) {
+			const r = await R(p, ([layout, kind, opts]) => {
+				const h = window.__reindeer;
+				h.tune.ledBoard.explain.layout = layout;
+				h.scoreboardManual(true);
+				h.scoreboardCard(kind, opts);
+				const rows = [];
+				for (let t = 0; t < 12000; t += 100) {
+					const s = h.scoreboardStep(100);
+					const back = h.scoreboardFace('back');
+					const strip = h.scoreboardFace('strip');
+					if (back.explain && back.explain.page === 'explain') rows.push({ t: s.show?.t, ex: back.explain, stripWait: strip.entryWait, item: s.stripPick?.item });
+					if (rows.length > 3) break;
+				}
+				h.scoreboardCardEnd();
+				h.scoreboardLower();
+				h.scoreboardStep(100, 30);
+				h.scoreboardManual(false);
+				h.tune.ledBoard.explain.layout = 'A';
+				return rows;
+			}, [layout, kind, opts]);
+			const sentence = sentenceOf(INTRO);
+			const e = r[r.length - 1]?.ex;
+			const b = e?.box;
+			const inside = !!b && b.x >= 0 && b.y >= 0 && b.x + b.w <= e.W && b.y + b.h <= e.H;
+			const hd = e?.head;
+			const apart = !hd || !b || b.y >= hd.y + hd.h || hd.y >= b.y + b.h;
+			const words = e ? e.lines.join(' ') : '';
+			check(r.length > 0 && inside && apart && words === sentence.replace(/\s+/g, ' '), `${tag} ${kind} layout ${layout}: the explanation is on the big board, inside its face (${b ? `${b.x},${b.y} ${b.w}x${b.h} of ${e.W}x${e.H}` : 'none'}) and clear of the head, every word there, ${e?.lines.length ?? 0} line(s) at size ${e?.z ?? '-'}`, { e, sentence });
+			check(r.length > 0 && r.every((x) => !x.stripWait && x.item === 'entry'), `${tag} ${kind} layout ${layout}: the strip shows the press line alone (no sentence on it)`, r.map((x) => x.stripWait));
+		}
+	}
+}
+
 /** THE PRESS SCREEN ON THE BOARD (2026-11-17, constants LED_SIGN.onBoard): a fresh page, the splash left to play out, then
  *  the board's own expanded state with the dim and the strip's line, the screens advancing, and the press lowering it */
 async function pressBoard(browser, S) {
@@ -1382,6 +1430,7 @@ async function pressBoard(browser, S) {
 				if (SEC('scatter') && ['desktop', 'portrait'].includes(S.name)) await scatterRounds(p, S);
 				if (SEC('gagModes') && S.flows) await gagModes(p, S);
 				if (SEC('bonusStrip') && ['desktop', 'portrait'].includes(S.name)) await bonusStrip(p, S);
+				if (SEC('explain')) await explainBoards(p, S);
 				if (S.flows) await flows(p, S, errs);
 				else check(errs.length === 0, `${S.name}: no page errors`, errs);
 			} catch (e) {

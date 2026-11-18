@@ -1431,6 +1431,15 @@ export const LED_BOARD = {
 	 *  on its top row with PRESS ANYWHERE TO CONTINUE under it, so the press line is never off the strip. A strip too short
 	 *  for two rows alternates: one pass of the sentence, then the press line for pressMs. */
 	entryLine: { on: true, charsPerSec: 9, pressMs: 1600 },
+	/** THE EXPLANATION ON THE BIG BOARD (Corey 2026-11-18: "This explanation should really be on the bigger LED board, not
+	 *  cramped on the smaller one"; game/scoreboard/explainDraw.ts). From an entry's READY beat (a Free Spins or Super entry)
+	 *  and from a wrap-up's landing when it carries a line (a top-up, the cap), the sentence is on the BACK BOARD, whole and
+	 *  still, wrapped into at most maxLines centered lines of the board's 5 x 7 face at the largest size that fits; the strip
+	 *  carries PRESS ANYWHERE TO CONTINUE alone (entryLine above is then unused). layout 'A': one page, the count and the
+	 *  title (or the wrap-up's title and amount) in the upper headShare of the board, the sentence under it, a wipe into it
+	 *  over wipeMs. 'B': two pages, the scene's own big page and a page with the sentence alone, pageMs each, a wipe between.
+	 *  In autoplay the cards continue as before (ROUND.autoplayMs, before the READY beat): today's rule. */
+	explain: { on: true, layout: 'A' as 'A' | 'B', headShare: 0.42, maxLines: 3, wipeMs: 350, pageMs: [3200, 4200] },
 	/** THE BACK BOARD'S TITLES (BIG to MAX WIN, FREE SPINS, TOTAL WIN; 2026-11-17): matters of taste only (every title and
 	 *  amount is centered on its drawn dots by the code): per layout class (desktop and tablet, a phone held sideways, an
 	 *  upright phone) the title's size (x the dot scale the layout picks; never wider than the face less its margins);
