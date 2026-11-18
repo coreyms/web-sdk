@@ -1013,6 +1013,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
+		// a resumed base round skipped from the resume card (game/resumeChoice.ts) has no bonusEnd to end its skip: it ends
+		// here, before the round's own end (a feature's skip has already ended at its bonusEnd or wincap)
+		if (stateGame.skipping) stateGameDerived.finishSkip();
 		// finalWin is the LAST event of every book, a Mystery that awarded nothing included, so this
 		// is where a bought round ends. Stake review 2026-09-20: a bought feature must not re-arm
 		// itself — the game returns to the base game and the player selects and confirms the price

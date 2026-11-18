@@ -2714,6 +2714,17 @@ const requestSkip = (): boolean => {
 	return true;
 };
 
+/** THE RESUME CARD'S SKIP TO RESULT (game/resumeChoice.ts): a resumed round, base spin or feature, plays its remaining
+ *  events with every wait collapsed, through the same `skipping` flag as SKIP TO RESULT (the feature's bonusEnd or
+ *  wincap ends it as ever; a base round's finalWin ends it). Allowed where the SKIP is (skipAllowed) */
+const skipResumedRound = (): boolean => {
+	if (!skipAllowed() || stateGame.skipping) return false;
+	stateGame.skipping = true;
+	skipAccentAsked = false;
+	clearWellCues();
+	return true;
+};
+
 /** the skip is over: the outro (or the max-win presentation) plays at normal speed from here */
 const finishSkip = () => {
 	stateGame.skipping = false;
@@ -2766,6 +2777,7 @@ export const stateGameDerived = {
 	resetSession,
 	setTurboLevel,
 	requestSkip,
+	skipResumedRound,
 	finishSkip,
 	revealBoard,
 	startBoardExit,

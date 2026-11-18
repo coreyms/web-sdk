@@ -2,6 +2,7 @@
 	import { stateBet, stateUrlDerived } from 'state-shared';
 	import { getContext } from '../game/context';
 	import { awaitPlaqueAssets } from '../game/assetGate';
+	import { resumeChoice } from '../game/resumeChoice';
 	import { onMount } from 'svelte';
 
 	const context = getContext();
@@ -37,6 +38,9 @@
 			((window as any).__manticore ??= {}).resume = () => ({ open, hold: context.stateGame.resumeHold, mountedAt: Math.round(t0), waitMs });
 		}
 		await awaitPlaqueAssets();
+		// THE RESUME CARD (ui/ResumeCard.svelte): Skip to Result plays the open round's remaining events with the waits
+		// collapsed (the SKIP TO RESULT path); Play Round, or no card, replays it as before
+		if (open && resumeChoice.choice === 'skip') context.stateGameDerived.skipResumedRound();
 		context.eventEmitter.broadcast({ type: 'resumeBet' });
 		context.stateGame.resumeHold = false;
 		waitMs = Math.round(performance.now() - t0);

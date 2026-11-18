@@ -8,7 +8,7 @@
 	import { EnableHotkey } from 'components-shared';
 	import { MainContainer } from 'components-layout';
 	import { App } from 'pixi-svelte';
-	import { stateMeta, stateUrlDerived, stateConfig } from 'state-shared';
+	import { stateBet, stateMeta, stateUrlDerived, stateConfig } from 'state-shared';
 
 	import { getContext } from '../game/context';
 	import { landing } from '../game/boardIdle';
@@ -48,6 +48,7 @@
 	import Logo from './Logo.svelte';
 	import Chrome from '../ui/Chrome.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
+	import ResumeCard from '../ui/ResumeCard.svelte';
 	import TextWarmup from './TextWarmup.svelte';
 
 	const context = getContext();
@@ -60,6 +61,10 @@
 	// landing flow: the HTML LandingScreen collects the press, then the Pixi LoadingScreen plays
 	// the fade transition and calls onloaded. A replay has no landing screen to press.
 	let landingPressed = $state(stateUrlDerived.replay());
+	// THE RESUME CARD (ui/ResumeCard.svelte, game/resumeChoice.ts; a stock rule, Corey 2026-11-18): a load with an
+	// unfinished round shows the card in place of the landing screen (never in a replay). Read once: authenticate has
+	// answered before this component mounts
+	const resuming = !stateUrlDerived.replay() && !!stateBet.betToResume?.active;
 
 	// stake.us safety net: the URL param is the documented switch (game/social.ts), but if the
 	// operator's authenticate declares a social casino without it, reload once with it set so the
@@ -294,7 +299,14 @@
 	<SymbolPopup />
 	<!-- the recap: a tap on the idle plaque (1.0.04, HTML; only its box takes a press) -->
 	<SpinRecap />
-	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
+	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay() && resuming}
+		<ResumeCard
+			onchoose={() => {
+				landing.pressedAt = performance.now();
+				landingPressed = true;
+			}}
+		/>
+	{:else if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
 		<LandingScreen
 			onpress={() => {
 				landing.pressedAt = performance.now();
