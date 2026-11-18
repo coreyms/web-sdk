@@ -71,7 +71,10 @@
 		const s = (me?.scale ?? 0.72) * v.k;
 		const zones: RoamZone[] = roamDev.zones?.() ?? [];
 		const at = me && me.visible ? css(me.x, me.y) : null;
-		return { v, A, pts, beyond, side: ROAM_REACH.side * s, height: ROAM_REACH.up * s, zones, at, to: me ? css(me.to.x, me.to.y) : null, relaxed: !!me?.relaxed, capacity: me?.capacity ?? 0 };
+		// the tunnel mouths' keep-out polygons (road px, game/roamPaths.ts ROAM_TUNNELS)
+		const mouths = ((me?.tunnels ?? []) as { x: number; y: number }[][]).map((P) => P.map((q) => css(q.x, q.y)));
+		const route = ((me?.route ?? []) as { x: number; y: number }[]).map((q) => css(q.x, q.y));
+		return { v, A, pts, beyond, mouths, route, side: ROAM_REACH.side * s, height: ROAM_REACH.up * s, zones, at, to: me ? css(me.to.x, me.to.y) : null, relaxed: !!me?.relaxed, capacity: me?.capacity ?? 0 };
 	});
 	const json = $derived.by(() => {
 		void roamEdit.tick;
@@ -219,6 +222,10 @@
 				<rect x={geo.beyond[2].x} y={geo.beyond[2].y} width={geo.beyond[3].x - geo.beyond[2].x} height={geo.beyond[3].y - geo.beyond[2].y} class="area beyond" />
 			{/if}
 			<polygon points={geo.pts.map((p) => `${p.x},${p.y}`).join(' ')} class="area" data-roam-area />
+			{#each geo.mouths as M, i (i)}
+				<polygon points={M.map((p) => `${p.x},${p.y}`).join(' ')} class="zone" data-roam-mouth={i} />
+			{/each}
+			{#if geo.route.length > 1}<polyline points={geo.route.map((p) => `${p.x},${p.y}`).join(' ')} class="path" />{/if}
 			{#if geo.at}
 				<rect x={geo.at.x - geo.side} y={geo.at.y - geo.height} width={geo.side * 2} height={geo.height} class="body" />
 				<circle cx={geo.at.x} cy={geo.at.y} r="4" class="me" />
