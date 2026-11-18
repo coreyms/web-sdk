@@ -61,28 +61,31 @@ export type ExplainHead = { kind: 'entry'; count: string; title: string; color: 
 function drawHead(g: Ctx, W: number, y0: number, bandH: number, head: ExplainHead) {
 	const m = 4;
 	if (head.kind === 'entry') {
-		// one row: the count (the heavy face) and the title (the 5 x 7 face), the presents either side
-		let ts = [4, 3, 2, 1].find((z) => 7 * z <= bandH * 0.62) ?? 1;
-		let cap = Math.max(5, Math.floor(bandH * 0.86));
-		const pres = Math.round(bandH * 0.92);
-		const presW = Math.round((pres * 180) / 201);
-		const rowW = () => rowInfo(head.count, cap).w + 6 + textW(head.title, ts);
-		while ((rowW() + 2 * (presW + 6) > W - 2 * m) && (cap > 5 || ts > 1)) {
-			if (ts > 1 && 7 * ts > cap * 0.6) ts -= 1;
+		// one row: the count (the heavy face) and the title (the 5 x 7 face), the presents either side when they fit; the
+		// count and the title shrink together, the presents go first
+		let cap = Math.max(5, Math.floor(bandH * 0.8));
+		const tsOf = (c: number) => [4, 3, 2, 1].find((z) => 7 * z <= c * 0.62) ?? 1;
+		const rowW = (c: number) => rowInfo(head.count, c).w + 6 + textW(head.title, tsOf(c));
+		const presOf = (c: number) => Math.round(c * 1.05);
+		const presW = (c: number) => Math.round((presOf(c) * 180) / 201);
+		let showPres = true;
+		while (cap > 5 && rowW(cap) + (showPres ? 2 * (presW(cap) + 6) : 0) > W - 2 * m) {
+			if (showPres && rowW(cap) <= W - 2 * m) showPres = false;
 			else cap -= 1;
 		}
-		const showPres = rowW() + 2 * (presW + 6) <= W - 2 * m;
-		const total = rowW();
+		const ts = tsOf(cap);
+		const pres = presOf(cap);
+		const total = rowW(cap);
 		const x0 = Math.round((W - total) / 2);
 		const yc = y0 + bandH / 2;
 		drawRow(g, head.count, x0, Math.round(yc - cap / 2), cap, head.color === '#ffd23a' ? 'gold' : '#ffffff', 0);
 		drawText(g, head.title, x0 + rowInfo(head.count, cap).w + 6, Math.round(yc - (7 * ts) / 2), ts, head.color);
 		if (showPres) {
-			sprite(g, 'present', x0 - presW - 6, Math.round(yc + pres / 2), pres);
+			sprite(g, 'present', x0 - presW(cap) - 6, Math.round(yc + pres / 2), pres);
 			sprite(g, 'present', x0 + total + 6, Math.round(yc + pres / 2), pres);
 		}
-		const l = showPres ? x0 - presW - 6 : x0;
-		return { x: l, y: Math.round(yc - Math.max(cap, pres) / 2), w: (showPres ? total + 2 * (presW + 6) : total), h: Math.max(cap, showPres ? pres : 0) };
+		const l = showPres ? x0 - presW(cap) - 6 : x0;
+		return { x: l, y: Math.round(yc - Math.max(cap, showPres ? pres : 0) / 2), w: showPres ? total + 2 * (presW(cap) + 6) : total, h: Math.max(cap, showPres ? pres : 0) };
 	}
 	// a wrap-up: the title over the amount
 	const ts = [3, 2, 1].find((z) => 7 * z <= bandH * 0.3 && textW(head.title, z) <= W - 2 * m) ?? 1;
