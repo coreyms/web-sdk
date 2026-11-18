@@ -9,6 +9,15 @@
 	// "changed values" box is the read back: one line per value that differs from its default.
 	//
 	// STYLES: mountTune.ts injects them (a Svelte <style> block would be extracted into the shared stylesheet).
+	//
+	// FINDING THINGS (Corey 2026-11-18: "There are so many options and not a good way to find them"): a SEARCH box pinned
+	// at the top filters the groups, their sub-headings, the controls' labels and their dotted keys ("explain", "layout",
+	// "roam", "ledBoard.explain.layout" all find the explanation's layout), every word typed must match, the matches are
+	// marked and counted, Escape clears it, "/" anywhere on the page focuses it. Groups start COLLAPSED with a one line
+	// summary (the name, its number of controls, a dot when one is changed); which are open is remembered in this browser;
+	// Expand all / Collapse all. "Changed only" lists just the values moved off their defaults (each with its reset). A
+	// deep link opens the panel with a search: `?tune=1&find=<text>` (find=explain.layout, for instance). The sub-headings
+	// stay pinned while a group scrolls. No key or default changes here.
 	import { onMount } from 'svelte';
 
 	import { TUNE } from '../../game/constants';
@@ -77,6 +86,40 @@
 
 	// ---- the values, mirrored for the page (TUNE is a plain object; the mirror is what the page redraws from) ------
 	let vals = $state<Record<string, unknown>>(Object.fromEntries(allLeaves.map((l) => [l.id, getAt(TUNE, l.path)])));
+
+	// ---- THE SEARCH, THE CHANGED FILTER (2026-11-18) -----------------------------------------------------------------
+	const findParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('find') : null;
+	let query = $state(findParam ?? '');
+	let changedOnly = $state(false);
+	let searchEl = $state<HTMLInputElement | null>(null);
+	const tokens = $derived(query.trim().toLowerCase().split(/\s+/).filter(Boolean));
+	const labelOf = (l: Leaf) => l.meta.label ?? l.path[l.path.length - 1];
+	/** every word must be found in the control's text: its group's label and key, its sub-heading, its label, its dotted key */
+	const hay = (g: Group, b: Block, l: Leaf) => `${g.label} ${g.key} ${b.title ?? ''} ${labelOf(l)} ${l.id}`.toLowerCase();
+	const leafShown = (g: Group, b: Block, l: Leaf) => (!changedOnly || vals[l.id] !== l.def) && (!tokens.length || tokens.every((t) => hay(g, b, l).includes(t)));
+	const filtering = $derived(tokens.length > 0 || changedOnly);
+	const shownIn = (g: Group) => g.blocks.reduce((n, b) => n + b.leaves.filter((l) => leafShown(g, b, l)).length, 0);
+	const matchCount = $derived(groups.reduce((n, g) => n + shownIn(g), 0));
+	/** the text in parts, the parts matching a search word marked */
+	const marks = (text: string): { t: string; m: boolean }[] => {
+		if (!tokens.length) return [{ t: text, m: false }];
+		const low = text.toLowerCase();
+		const hit = new Array(text.length).fill(false);
+		for (const t of tokens) for (let i = low.indexOf(t); i >= 0; i = low.indexOf(t, i + 1)) for (let j = i; j < i + t.length; j++) hit[j] = true;
+		const out: { t: string; m: boolean }[] = [];
+		for (let i = 0; i < text.length; i++) {
+			const last = out[out.length - 1];
+			if (last && last.m === hit[i]) last.t += text[i];
+			else out.push({ t: text[i], m: hit[i] });
+		}
+		return out;
+	};
+	const searchKey = (e: KeyboardEvent) => {
+		if (e.key === 'Escape') {
+			query = '';
+			e.preventDefault();
+		}
+	};
 	const write = (leaf: Leaf, v: unknown) => {
 		setAt(TUNE, leaf.path, v);
 		vals[leaf.id] = v;
@@ -163,11 +206,31 @@
 
 	// ---- open, collapsed, docked, dragged ----------------------------------------------------------------------------
 	const groupKey = startGroup && keys.find((k) => k.toLowerCase() === startGroup.toLowerCase());
-	let open = $state(!!groupKey);
+	let open = $state(!!groupKey || !!findParam);
 	let side = $state<'left' | 'right'>('right');
 	let top = $state(typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.3) : 100);
 	let dragX = $state<number | null>(null);
-	let opened = $state<Record<string, boolean>>(groupKey ? { [groupKey]: true } : {});
+	// which groups are open, remembered in this browser (they start collapsed); a `?tune=<group>` opens that one as well
+	const OPEN_KEY = 'ror-tune-open';
+	const readOpen = (): Record<string, boolean> => {
+		try {
+			const v = JSON.parse(localStorage.getItem(OPEN_KEY) ?? '{}');
+			return v && typeof v === 'object' ? v : {};
+		} catch {
+			return {};
+		}
+	};
+	let opened = $state<Record<string, boolean>>({ ...(typeof window !== 'undefined' ? readOpen() : {}), ...(groupKey ? { [groupKey]: true } : {}) });
+	$effect(() => {
+		const v = JSON.stringify(opened);
+		try {
+			localStorage.setItem(OPEN_KEY, v);
+		} catch {
+			/* (private mode: not remembered) */
+		}
+	});
+	const setAll = (on: boolean) => (opened = Object.fromEntries(groups.map((g) => [g.key, on])));
+	const isOpen = (g: Group) => (filtering ? shownIn(g) > 0 : !!opened[g.key]);
 
 	let drag: { id: number; x0: number; y0: number; top0: number; moved: boolean; tab: boolean } | null = null;
 	const down = (e: PointerEvent, tab: boolean) => {
@@ -205,7 +268,21 @@
 
 	onMount(() => {
 		const id = setInterval(() => open && pull(), 1000);
-		return () => clearInterval(id);
+		// "/" focuses the search (not while typing in a field)
+		const slash = (e: KeyboardEvent) => {
+			if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+			const t = e.target as HTMLElement | null;
+			if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+			e.preventDefault();
+			e.stopPropagation();
+			open = true;
+			requestAnimationFrame(() => searchEl?.focus());
+		};
+		window.addEventListener('keydown', slash, true);
+		return () => {
+			clearInterval(id);
+			window.removeEventListener('keydown', slash, true);
+		};
 	});
 
 	// the game's own hotkeys (Space to spin) and board taps must not see what is typed or pressed in the panel
@@ -227,7 +304,18 @@
 				<button onclick={() => (side = 'right')} aria-label="Dock right">Right</button>
 				<button onclick={() => (open = false)} aria-label="Collapse">Hide</button>
 			</div>
+			<div class="find">
+				<input bind:this={searchEl} type="search" placeholder="Search (/): a name, a word or a key" bind:value={query} onkeydown={searchKey} aria-label="Search the tuning values" spellcheck="false" data-tune-search />
+				<div class="actions">
+					<button class="small" class:on={changedOnly} onclick={() => (changedOnly = !changedOnly)} aria-pressed={changedOnly} data-tune-changed-only>Changed only ({changed.length})</button>
+					<button class="small" onclick={() => setAll(true)} disabled={filtering}>Expand all</button>
+					<button class="small" onclick={() => setAll(false)} disabled={filtering}>Collapse all</button>
+					<span class="msg" data-tune-count>{filtering ? `${matchCount} match${matchCount === 1 ? '' : 'es'}` : `${allLeaves.length} values`}</span>
+				</div>
+			</div>
 			<div class="scroll">
+				<!-- (while a search is typed the matches come first: the changed values box and the groups' buttons step aside) -->
+				{#if !tokens.length}
 				<div class="changes">
 					<div><b>Changed values</b> <span class="msg">({changed.length}, remembered across a reload; {remembered} came back with this page)</span></div>
 					{#if changed.length}
@@ -241,29 +329,38 @@
 						<span class="msg">{copyMsg || replayMsg}</span>
 					</div>
 				</div>
+				{/if}
 				{#each groups as g (g.key)}
-					<details open={!!opened[g.key]} ontoggle={(e) => (opened[g.key] = (e.currentTarget as HTMLDetailsElement).open)}>
+					{#if !filtering || shownIn(g) > 0}
+					<details open={isOpen(g)} ontoggle={(e) => {
+						if (!filtering) opened[g.key] = (e.currentTarget as HTMLDetailsElement).open;
+					}} data-tune-group={g.key}>
 						<summary>
-							<span class="g">{g.label}{changedIn(g) ? ` (${changedIn(g)} changed)` : ''}</span>
+							<span class="g">{#each marks(g.label) as p, i (i)}{#if p.m}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}{#if changedIn(g)}<span class="dot" title="{changedIn(g)} changed"></span>{/if}</span>
+							<span class="cnt">{filtering ? `${shownIn(g)} of ${g.leaves.length}` : g.leaves.length}</span>
 							<span class="when" class:reload={g.when === 'reload'}>{WHEN_LABEL[g.when]}</span>
 						</summary>
-						{#if opened[g.key]}
+						{#if isOpen(g)}
 							<div class="rows">
+								{#if !filtering}
 								<div class="actions"><button class="small" onclick={() => resetLeaves(g.leaves)} disabled={!changedIn(g)}>Reset group</button></div>
-								{#if GROUP_ACTIONS[g.key]}
+								{/if}
+								{#if GROUP_ACTIONS[g.key] && !filtering}
 									<div class="actions">
 										{#each GROUP_ACTIONS[g.key] as a (a.label)}<button class="small" onclick={() => act(g.key, a)}>{a.label}</button>{/each}
 										<span class="msg">{actionMsg[g.key] ?? ''}</span>
 									</div>
 								{/if}
 								<!-- the reindeer area's own editor (the area is not a TUNE value: game/roamPaths.ts) -->
-								{#if g.key === 'roam'}<RoamEditor part="controls" />{/if}
+								{#if g.key === 'roam' && !filtering}<RoamEditor part="controls" />{/if}
 								{#each g.blocks as b (b.id)}
-									{#if b.title}<div class="sub">{b.title}</div>{/if}
-									{#each b.leaves as l (l.id)}
+									{#if !filtering || b.leaves.some((l) => leafShown(g, b, l))}
+									{#if b.title}<div class="sub">{#each marks(b.title) as p, i (i)}{#if p.m}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}</div>{/if}
+									{#each b.leaves.filter((l) => !filtering || leafShown(g, b, l)) as l (l.id)}
 										<div class="row" class:changed={vals[l.id] !== l.def} data-path={l.id}>
 											<span class="k">
-												{l.meta.label ?? l.path[l.path.length - 1]}{#if l.meta.unit}<span class="u">{` ${l.meta.unit}`}</span>{/if}
+												{#each marks(labelOf(l)) as p, i (i)}{#if p.m}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}{#if l.meta.unit}<span class="u">{` ${l.meta.unit}`}</span>{/if}
+												{#if tokens.length}<span class="key">{#each marks(l.id) as p, i (i)}{#if p.m}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}</span>{/if}
 												{#if l.when !== g.when}<span class="when" class:reload={l.when === 'reload'}>{` ${WHEN_LABEL[l.when]}`}</span>{/if}
 												{#if vals[l.id] !== l.def}<button class="small" onclick={() => write(l, l.def)} aria-label="reset {l.id}">reset</button>{/if}
 											</span>
@@ -289,11 +386,14 @@
 											{/if}
 										</div>
 									{/each}
+									{/if}
 								{/each}
 							</div>
 						{/if}
 					</details>
+					{/if}
 				{/each}
+				{#if filtering && !matchCount}<div class="msg none">Nothing matches{changedOnly ? ' among the changed values' : ''}.</div>{/if}
 			</div>
 		</div>
 	{/if}
