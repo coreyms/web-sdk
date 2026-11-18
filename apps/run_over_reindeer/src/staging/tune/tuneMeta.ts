@@ -212,7 +212,11 @@ export const META: Record<string, Meta> = {
 	'ledBoard.gag': { label: 'Grandma gag', when: 'live' },
 	// (2026-11-18) the explanation on the big board: one page (A) or two pages (B)
 	'ledBoard.explain': { label: 'Entry explanation on the big board', when: 'live' },
-	'ledBoard.explain.layout': { label: 'layout (A: one page, B: two pages)', options: ['A', 'B'] },
+	'ledBoard.explain.layout': { label: 'layout (C1, C2: one page with the board look; A: one page, small heading; B: two pages)', options: ['C1', 'C2', 'A', 'B'] },
+	'ledBoard.explain.maxLinesC': { label: 'C: the sentence at most this many lines', min: 2, max: 6, step: 1 },
+	'ledBoard.explain.minCap': { label: 'C: the sentence at least this tall', min: 5, max: 20, step: 1, unit: 'dots' },
+	'ledBoard.explain.readShare': { label: "C: the sentence at least this share of the number's height", min: 0.15, max: 0.7, step: 0.01 },
+	'ledBoard.explain.margin': { label: 'C: the margin (share of the board)', min: 0.02, max: 0.1, step: 0.005 },
 	'ledBoard.explain.headShare': { label: 'A: the head share of the board', min: 0.25, max: 0.6, step: 0.01 },
 	'ledBoard.explain.pageMs.*': ms(8000),
 	'ledBoard.explain.wipeMs': ms(1000, 'wipe'),

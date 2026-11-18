@@ -1455,7 +1455,13 @@ export const LED_BOARD = {
 	 *  title (or the wrap-up's title and amount) in the upper headShare of the board, the sentence under it, a wipe into it
 	 *  over wipeMs. 'B': two pages, the scene's own big page and a page with the sentence alone, pageMs each, a wipe between.
 	 *  In autoplay the cards continue as before (ROUND.autoplayMs, before the READY beat): today's rule. */
-	explain: { on: true, layout: 'A' as 'A' | 'B', headShare: 0.36, maxLines: 6, wipeMs: 350, pageMs: [3200, 4200] },
+	// (round 2, Corey 2026-11-18: "I don't like either Layout A or B. There is so much room in B without actually having to
+	//  switch screens to an alternate view") layout 'C1' (the default) and 'C2': ONE page with B's own look, the presents, the
+	//  number and the words as a compact lockup and the sentence in the heavy face filling the rest (explainDraw.ts
+	//  drawLayoutC); C1 the lockup on top, C2 the number and a present in the left third on a wide board (an upright board
+	//  shows C1). maxLinesC the sentence's most lines, minCap its least size in dots, readShare its least size as a share of
+	//  the number's, margin the one margin (a share of the board's shorter side). A and B stay selectable.
+	explain: { on: true, layout: 'C1' as 'A' | 'B' | 'C1' | 'C2', headShare: 0.36, maxLines: 6, wipeMs: 350, pageMs: [3200, 4200], maxLinesC: 5, minCap: 9, readShare: 0.3, margin: 0.045 },
 	/** THE BACK BOARD'S TITLES (BIG to MAX WIN, FREE SPINS, TOTAL WIN; 2026-11-17): matters of taste only (every title and
 	 *  amount is centered on its drawn dots by the code): per layout class (desktop and tablet, a phone held sideways, an
 	 *  upright phone) the title's size (x the dot scale the layout picks; never wider than the face less its margins);

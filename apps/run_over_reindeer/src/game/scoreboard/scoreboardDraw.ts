@@ -1646,3 +1646,5 @@ export function backScene(F: Face, s: Show) {
 // (2026-11-17) the helpers the strip's newer programs draw with (game/scoreboard/stripDraw.ts: the scatter count, the short
 // Grandma line)
 export { chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, sparkles, burst, marchText };
+// (2026-11-18, the entry explanation's layout C: game/scoreboard/explainDraw.ts)
+export { boardTitle, drawFit, lineInk, BULBS };
