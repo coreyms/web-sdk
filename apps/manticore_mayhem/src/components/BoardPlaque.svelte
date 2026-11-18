@@ -94,6 +94,7 @@
 	import { PLAQUE_TIPS as TIPS, edgeAt, marqueeAt, marqueeSpan, pointerIsMouse, slantEdges, tipAt, tipFont, tipLines } from '../game/plaqueTips';
 	import { PLAQUE_CELEBRATE, PLAQUE_PROMPT, PRESS_PROMPT } from '../game/constants';
 	import { plaqueCelebrate, type CelebrateBeat } from '../game/plaqueCelebrate';
+	import { featureScreens } from '../game/featurePacing';
 	import { pressPromptFace, pressPromptRelease, pressPromptTake, type PressPromptRaster } from '../game/pressPrompt';
 	import { plaquePrompt, plaquePromptReady } from '../game/plaquePrompt.svelte';
 
@@ -2417,6 +2418,8 @@
 		if (move.phase !== 'none') s = Math.max(s, 1 + (PLAQUE_STREAK.liftScale - 1) * (move.keep ? Math.sin(Math.PI * lift) : cubicOut(lift)));
 		if (figures.scale.x !== s) figures.scale.set(s);
 		rowsTick(now, hidden || forced !== null ? 0 : fa * ra * celebK);
+		// (game/featurePacing.ts: the wrap up waits while the last free spin's text is still drawn)
+		featureScreens.plaqueText = figures.visible || slots.some((sl) => sl.box.visible && sl.box.alpha > 0.01);
 		flagsTick(now, hidden || forced !== null);
 		if (flagsLayer.alpha !== celebK) flagsLayer.alpha = celebK;
 		if (badgeLayer.alpha !== celebK) badgeLayer.alpha = celebK;

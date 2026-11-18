@@ -74,6 +74,10 @@ import {
 	PLAQUE_STREAK,
 } from './constants';
 import { logoTrace } from './logo/trace';
+import { FEATURE_PACING, featureScreens, whileUp } from './featurePacing';
+/** DEV: each wrap up's safety nets, how long each waited (ms; 0 = the hold had covered it) */
+export const pacingLog: { at: number; tilesMs?: number; textMs?: number; bannerMs?: number }[] = [];
+if (import.meta.env.DEV && typeof window !== 'undefined') ((window as any).__manticore ??= {}).pacingLog = () => pacingLog.slice();
 
 // ================================================================================================
 // Every state change the player sees comes from THIS file, and every one of them comes from a book
@@ -786,7 +790,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the board (a resumed round never replays its bonusStart).
 		// (m8: the HUD stays on screen under the intro, disabled: stateGame.hudHeld)
 		stateGame.hudHeld = true;
-		const hidden = eventEmitter.broadcastAsync({ type: 'uiHide' });
+		// THE FEATURE PACING (game/featurePacing.ts): the hold the HUD's fade out gave, beside the trigger beat
+		const hidden = Promise.all([eventEmitter.broadcastAsync({ type: 'uiHide' }), waitForTimeout(FEATURE_PACING.beforeIntroMs)]);
 		const cells = TRIGGER_BEAT.on && !stateGame.skipping && stateGame.gameType === 'basegame' ? triggerCells(bookEvent) : [];
 		// the plaque's War Standard badge (1.0.04, STORYBOARD.md S4): it flares with the beat and is gone by the intro
 		if (cells.length) eventEmitter.broadcast({ type: 'plaqueTease', what: 'beat' });
@@ -825,6 +830,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			intro: { mode: bookEvent.bonus, totalFs: bookEvent.totalFs, tileCap: bookEvent.tileCap },
 		});
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
+		// the intro's press to the first free spin (FEATURE_PACING.afterIntroMs: the HUD's fade back in, before 8ac2a13)
+		await waitForTimeout(FEATURE_PACING.afterIntroMs);
 		stateGame.hudHeld = false;
 	},
 
@@ -933,13 +940,18 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// THE RECAP (1.0.04): the feature's own total (the book's freeSpinEnd amount: its free spins, the rows the recap
 		// lists; the wrap-up's round total also holds a natural trigger's base win); the plaque offers the recap after it
 		recapFeatureEnd(bookEvent.amount);
-		// the last free spin's tile count-overs land first (stateGame platesLanded): a played and a skipped round reach the
-		// wrap up with the same, final, tiles
-		await platesLanded();
 		// (m8: the HUD stays on screen under the TOTAL WIN, disabled: stateGame.hudHeld; the max win screen's deep hide
 		// still takes it)
 		stateGame.hudHeld = true;
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
+		// the last free spin to the wrap up (FEATURE_PACING.beforeWrapMs: the HUD's fade out, before 8ac2a13), then the two
+		// safety nets, free when the hold has covered them: the last spin's tile count-overs have landed (stateGame
+		// platesLanded: a played and a skipped round reach the wrap up with the same, final, tiles) and the board plaque's
+		// last free spin text has left with its streak (never cleared under the TOTAL WIN)
+		await waitForTimeout(FEATURE_PACING.beforeWrapMs);
+		const tilesMs = await platesLanded();
+		const textMs = await whileUp(() => featureScreens.plaqueText, FEATURE_PACING.plaqueTextMaxMs);
+		if (import.meta.env.DEV) pacingLog.push({ at: performance.now(), tilesMs: Math.round(tilesMs), textMs: Math.round(textMs) });
 		// THE FEATURE'S LOOK THROUGH ITS TOTAL WIN (Corey 2026-11-10, "A"): the scene, the frame, the flames and the creature
 		// keep the feature's look through the wrap up (stateGame.lookHold, components/Background.svelte) and go back to the
 		// base look together once it has gone; the creature's base look loads meanwhile so nothing loads at the hand-over
@@ -976,6 +988,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		musicPlay(modeMusic());
 		// turbo is remembered per world: the base level comes back when the feature ends
 		stateGameDerived.setTurboLevel(stateGame.baseTurboLevel);
+		// the wrap up's press to the base game (FEATURE_PACING.afterWrapMs: the HUD's fade back in, before 8ac2a13), and the
+		// round is not over, no control live (the HUD stays held: inert), until the TOTAL WIN banner has fully gone (rolled up
+		// and retreated); only then does the HUD come back to life
+		await waitForTimeout(FEATURE_PACING.afterWrapMs);
+		const bannerMs = await whileUp(() => featureScreens.bannerUp, FEATURE_PACING.bannerGoneMaxMs);
+		if (import.meta.env.DEV) pacingLog.push({ at: performance.now(), bannerMs: Math.round(bannerMs) });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 		stateGame.hudHeld = false;
 	},

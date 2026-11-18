@@ -79,6 +79,7 @@
 	import { BANNER, BANNER_GLYPHS, BANNER_TEXTURES, bannerTierOf, type BannerClass, type BannerContent, type BannerTier } from '../game/banner/spec';
 	import { loadBannerMotion } from '../game/banner/motion';
 	import { BannerView } from '../game/banner/view';
+	import { featureScreens } from '../game/featurePacing';
 
 	const context = getContext();
 	const view = new BannerView();
@@ -411,6 +412,7 @@
 	const start = () => {
 		if (ticking) return;
 		ticking = true;
+		featureScreens.bannerUp = true;
 		context.stateApp.pixiApplication?.ticker.add(tick, undefined, PIXI.UPDATE_PRIORITY.NORMAL);
 	};
 	const release = () => {
@@ -428,6 +430,7 @@
 	const stop = () => {
 		if (!ticking) return;
 		ticking = false;
+		featureScreens.bannerUp = false;
 		context.stateApp.pixiApplication?.ticker.remove(tick);
 		context.eventEmitter.broadcast({ type: 'plaqueCheerEnd' });
 		release();

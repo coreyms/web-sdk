@@ -2648,10 +2648,11 @@ export { flushPlates };
  *  2026-11-17 the HUD's 0.35 s fade at the wrap up gave them that time; since the HUD stays up under the banners the
  *  TOTAL WIN came while the last free spin's tiles were still doubling, so a played round and a skipped one reached the
  *  wrap up with different tiles on the board (the same ones a moment later). Now both reach it with the book's final tiles */
-export const platesLanded = async (maxMs = 1500): Promise<void> => {
+export const platesLanded = async (maxMs = 1500): Promise<number> => {
 	const t0 = performance.now();
 	while (plateJobs.length && performance.now() - t0 < maxMs) await new Promise((r) => setTimeout(r, 30));
 	if (plateJobs.length) flushPlates();
+	return performance.now() - t0;
 };
 
 export const setBoardFromSymbols = (board: SymbolName[][]) => {
