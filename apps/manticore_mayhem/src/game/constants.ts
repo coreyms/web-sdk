@@ -2126,6 +2126,30 @@ export const TRIGGER_BEAT = {
 	blackFade: false,
 } as const;
 
+// ---- THE ENTRANCE ROAR (Corey 2026-11-17, on the review advisor's "a first-minute beat: the Manticore's entrance roar":
+// "I think this is a good idea. Roar, and start the fires at the roar.") ----------------------------------------------
+// Once per page load, after the landing screen's PRESS ANYWHERE, before the first spin: the braziers (the landscape
+// scene's flames and embers, and the fire light pass of both scenes) are UNLIT from the first picture; the manticore roars
+// (his roar clip, real time, and sfx_roar as the board's roar beat plays it) and the fires light on the roar's accent
+// frame, coming up over the scene's own crossfade (SCENE.crossfadeMs, the trigger beat's relight). game/scene.ts
+// setUnlit, game/creature.ts entrance, components/Background.svelte. NOT played (the fires lit from the start, as before):
+// a replay, a resumed round, a page opened into a feature. Played but the fires lit at once: his roar sheet not in yet,
+// he is not in his idle loop, a spin already under way, anything that cuts it before the accent. Nothing waits for it.
+//   afterMs      real ms after the landing screen has gone (its 220 ms fade to black) that he roars: his own fade in
+//                (CREATURE.landingFadeMs 400) is over and the black has lifted (350 ms)
+//   accentFrame  the roar clip frame the fires light on: its mouth fully open, the frame MAX_WIN.unleashedAt lands its
+//                titles on (f18 of 53 at 30 fps)
+//   capMs        real ms after the roar was asked that the fires light whatever he is doing (a safety net)
+//   lateMs       the roar is asked no later than this past afterMs (the scene's ticker can start late): later, the fires
+//                just light
+export const ENTRANCE_ROAR = {
+	on: true,
+	afterMs: 400,
+	accentFrame: 18,
+	capMs: 2500,
+	lateMs: 1500,
+} as const;
+
 // ---- THE CREATURE'S NIGHT LIFT (harsh review 2026-10-15 design item 11; Corey 2026-10-16: "1. Yes" to the cheap lift
 // as an interim) ---------------------------------------------------------------------------------------------------
 // In SUPER (night) and EPIC (fire) his own sheets are composited dark (creatureSpec: night + 0.70 x fire, and night +

@@ -45,12 +45,13 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind } from '../game/layoutSpec';
-	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAQUE_CHEER, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CheerMove, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
+	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, ENTRANCE_ROAR, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAQUE_CHEER, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CheerMove, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
 	import { creature, creatureDocked, creatureFront, creaturePlaceFor, desktopFloorRow, type CreaturePlace } from '../game/creature';
 	import { boardRegistration } from '../game/boardArt';
 	import { portraitOptions } from '../game/portraitOptions.svelte';
 	import { creatureBuyArmed, creatureLoader, creatureLoadLog, creatureLoadState, creaturePrefetchLog, creatureWinsAsk, creatureWinsOfBookPreview, creatureWinsRelease } from '../game/creatureLoad';
-	import { stateBet } from 'state-shared';
+	import { stateBet, stateUrlDerived } from 'state-shared';
+	import { landing } from '../game/boardIdle';
 	import { CREATURE_SPEC } from '../game/creatureSpec';
 	import type { CreatureClip, CreatureWinClip } from '../game/creatureAssets';
 	import { bootCreatureShade, setCreatureShade } from '../game/creatureShade';
@@ -99,6 +100,50 @@
 		views[layout].root.zIndex = zIndexes.background.scene;
 		parent.addToParent(views[layout].root);
 	}
+	// THE ENTRANCE ROAR (constants ENTRANCE_ROAR; Corey 2026-11-17 "Roar, and start the fires at the roar"): planned once,
+	// here, from what the page opened on: never in a replay, never when a round is resumed (its own presentation comes
+	// first) and never into a feature. Planned, both scenes start with their braziers unlit; after the landing screen's
+	// press (game/boardIdle.ts landing.pressedAt) and its fade he roars, and the fires light on the roar's accent (or at
+	// once when he cannot roar, or when the roar is cut first). Nothing waits for it: Spin is free as before.
+	const entrance = {
+		// (DEV `?entrance=0`: not planned, the page as before it; tools/manticore/entrance_probe.js compares the two)
+		planned: ENTRANCE_ROAR.on && !(import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('entrance') === '0') && !stateUrlDerived.replay() && !stateBet.betToResume?.active && context.stateGame.gameType !== 'freegame',
+		/** unlit: before the landing screen has gone; armed: it went at goneAt; roaring: asked at askedAt; lit */
+		step: 'unlit' as 'unlit' | 'armed' | 'roaring' | 'lit',
+		goneAt: 0,
+		askedAt: 0,
+		litAt: 0,
+		played: false,
+		/** why the fires lit: accent, cut (the roar was cut or refused before its accent), cap, notPlayed, notPlanned */
+		why: '',
+	};
+	const lightFires = (now: number, why: string) => {
+		if (entrance.step === 'lit') return;
+		entrance.step = 'lit';
+		entrance.litAt = now;
+		entrance.why = why;
+		for (const layout of LAYOUTS) views[layout].setUnlit(false, now);
+	};
+	if (entrance.planned) for (const layout of LAYOUTS) views[layout].setUnlit(true, -1);
+	else {
+		entrance.step = 'lit';
+		entrance.why = 'notPlanned';
+	}
+	/** the entrance's step on this frame (the tick, before his own) */
+	const entranceTick = (now: number) => {
+		if (entrance.step === 'armed' && now >= entrance.goneAt + ENTRANCE_ROAR.afterMs) {
+			// he roars only from his idle loop with nothing under way: a spin already pressed, or his roar sheet not in yet,
+			// and the fires simply light
+			// (and never late: a scene whose ticker only starts later lights its fires without a roar)
+			if (now - entrance.goneAt <= ENTRANCE_ROAR.afterMs + ENTRANCE_ROAR.lateMs && context.stateXstateDerived.isIdle() && !context.stateGame.skipping && context.stateGame.gameType !== 'freegame' && creature.entrance()) {
+				entrance.step = 'roaring';
+				entrance.askedAt = now;
+				entrance.played = true;
+				// his roar's sound as the board's roar beat plays it (featureBeat voice: soundOnce, forcePlay)
+				context.eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_roar', forcePlay: true });
+			} else lightFires(now, 'notPlayed');
+		} else if (entrance.step === 'roaring' && (creature.entranceLit || now - entrance.askedAt > ENTRANCE_ROAR.capMs)) lightFires(now, creature.entranceLit ? (creature.entranceWasCut ? 'cut' : 'accent') : 'cap');
+	};
 	// each scene's twin root IN FRONT of the board (components/CreatureFront.svelte puts them on the stage)
 	creatureFront.roots = LAYOUTS.map((layout) => views[layout].front);
 	creatureFront.sync();
@@ -137,6 +182,8 @@
 		view.tick(ticker.lastTime, ticker.deltaMS);
 		// the creature stands in this scene (his own clock: the board's beats are stamped with performance.now())
 		creature.tick(performance.now());
+		// THE ENTRANCE ROAR after his tick: the fires light on the very tick his accent frame is drawn
+		entranceTick(performance.now());
 		// the board frame's relight reads the scene on screen (game/scene.ts sceneLight)
 		view.writeLight();
 		if (!covered && view.shown) settle();
@@ -369,6 +416,15 @@
 	// (constants CREATURE.landingFadeMs). His sheets load meanwhile exactly as before, and nothing waits for this.
 	$effect(() => {
 		creature.veil(context.stateLayout.showLoadingScreen);
+	});
+	// THE ENTRANCE ROAR: the landing screen has gone after its press (not the first false before it is up)
+	$effect(() => {
+		const up = context.stateLayout.showLoadingScreen;
+		untrack(() => {
+			if (up || entrance.step !== 'unlit' || !Number.isFinite(landing.pressedAt)) return;
+			entrance.step = 'armed';
+			entrance.goneAt = performance.now();
+		});
 	});
 	// the board's beats and the handlers' look-ahead: he follows, nothing waits for him
 	context.eventEmitter.subscribeOnMount({
@@ -841,6 +897,8 @@
 					poke: () => creature.poke(performance.now()),
 					/** the A / B of CREATURE.glowPhase (the crouch's phase before a lit strike) */
 					glowPhase: (on: boolean) => (creature.glowPhase = on),
+					/** THE ENTRANCE ROAR (constants ENTRANCE_ROAR): its plan and steps, and each scene's braziers unlit or not */
+					entrance: () => ({ ...entrance, pressedAt: landing.pressedAt, unlit: { landscape: views.landscape.isUnlit, portrait: views.portrait.isUnlit }, lit: creature.entranceLit, constants: { ...ENTRANCE_ROAR } }),
 				},
 				/** THE BACK-FEET SHADE (Corey 2026-10-17 13:21; constants CREATURE_SHADE): 'off', 'A' (the shadow pass over
 				 *  him) or 'B' (the baked contact occlusion; fetches its atlas first). Resolves to the mode and whether B is in */
