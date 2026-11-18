@@ -87,6 +87,7 @@
 	import { setScoreboardArt } from '../game/scoreboard/scoreboardDraw';
 	import { raceTally, raceTrace, newRace, reseedRace } from '../game/scoreboard/race';
 	import { SCENE_ART } from '../game/sceneArtSpec';
+	import { isPaying, symbolPopupBoard, symbolPopupHook } from '../game/symbolPopup';
 	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
 
 	const context = getContext();
@@ -456,7 +457,45 @@
 	// the board's tap area: a tap during a live spin hurries it, as the Spin press does (ui/controls.svelte.ts boardTap)
 	road.root.eventMode = 'static';
 	road.root.hitArea = new PIXI.Rectangle(ROAD_ART.board.x, ROAD_ART.laneLines[0], ROAD_ART.board.width, ROAD_ART.laneLines[4] - ROAD_ART.laneLines[0]);
-	road.root.on('pointertap', () => context.eventEmitter.broadcast({ type: 'boardTap' }));
+	road.root.on('pointertap', (event: PIXI.FederatedPointerEvent) => {
+		context.eventEmitter.broadcast({ type: 'boardTap' });
+		// the symbol pay popup (components/SymbolPopup.svelte): it opens on an idle board only and decides that itself
+		symbolPopupHook.tap(event.global.x, event.global.y);
+	});
+	// THE SYMBOL PAY POPUP'S QUESTIONS (game/symbolPopup.ts symbolPopupBoard): which cell is under a point, what it shows
+	// (a standing column covers its reel, a crash cloud its cell, else the parked symbol), the boxes (Pixi global units)
+	{
+		const LINES = ROAD_ART.laneLines;
+		const BX = ROAD_ART.board.x;
+		const PITCH = ROAD_ART.board.pitch;
+		const local = new PIXI.Point();
+		const globalBox = (x0: number, y0: number, x1: number, y1: number) => {
+			const a = road.root.toGlobal({ x: x0, y: y0 });
+			const b = road.root.toGlobal({ x: x1, y: y1 });
+			return { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
+		};
+		symbolPopupBoard.cellAt = (x, y) => {
+			if (!road.root.parent) return null;
+			road.root.toLocal({ x, y }, undefined, local);
+			const reel = Math.floor((local.x - BX) / PITCH);
+			if (reel < 0 || reel >= ROAD_ART.board.columns || local.y < LINES[0] || local.y >= LINES[ROAD_ART.board.rows]) return null;
+			let row = 0;
+			while (row < ROAD_ART.board.rows - 1 && local.y >= LINES[row + 1]) row += 1;
+			return { reel, row };
+		};
+		symbolPopupBoard.what = (reel, row) => {
+			const snap = road.snapshot();
+			const column = snap.features.columns.find((c) => c.reel === reel);
+			if (column) return `CW_${column.tier}`;
+			if (snap.features.clouds.includes(reel * ROAD_ART.board.rows + row)) return 'GW';
+			const code = snap.board[reel]?.[row];
+			return code && (isPaying(code) || code === 'W' || code === 'S') ? code : null;
+		};
+		symbolPopupBoard.cellBox = (reel, row) => globalBox(BX + reel * PITCH, LINES[row], BX + (reel + 1) * PITCH, LINES[row + 1]);
+		symbolPopupBoard.reelBox = (reel) => globalBox(BX + reel * PITCH, LINES[0], BX + (reel + 1) * PITCH, LINES[ROAD_ART.board.rows]);
+		symbolPopupBoard.boardBox = () => globalBox(BX, LINES[0], BX + ROAD_ART.board.width, LINES[ROAD_ART.board.rows]);
+		symbolPopupBoard.quiet = () => road.atRest && !(scoreboard?.backBusy() ?? false);
+	}
 
 	onMount(() => {
 		const app = context.stateApp.pixiApplication;
@@ -909,6 +948,11 @@
 				return road.features.columnWild(reel, tier, multiplier, false, fromCell);
 			},
 			columnTrace: (reel: number) => road.features.columnTrace(reel),
+			/** a Grandma crash Wild's cloud on a cell by hand (no book, no strike; the symbol pay popup probe) */
+			grandmaWild: (cell: number, multiplier: number) => {
+				road.features.endLanding();
+				return road.features.grandmaWild(cell, multiplier);
+			},
 			/** THE TARGET CROSSHAIR on a posed board (no book; the road's own sounds play, except the cloud loop, which needs a live round): `cells` the valid targets to pose (Grandma's car or
 			 *  Santa's sleigh, `kinds` per cell, default H1 for the first and alternating), `target` the struck one (the first
 			 *  by default), `follow` then plays the Wild the book would (a Grandma Wild, or a Santa column from the cell).
