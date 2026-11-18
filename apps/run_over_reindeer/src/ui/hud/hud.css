@@ -979,6 +979,10 @@
 	text-align: center;
 	animation: hud-cnt-out 0.13s ease-in forwards;
 }
+/* the outgoing face's digits (2026-11-18): generated content, so text extraction and screen readers see one number */
+.hudp .spin .cnt.old::before {
+	content: attr(data-d);
+}
 .hudp .spin .cnt.slide {
 	animation: hud-cnt-in 0.13s ease-in 0.14s backwards;
 }

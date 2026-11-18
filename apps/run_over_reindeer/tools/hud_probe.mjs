@@ -444,7 +444,7 @@ async function runSize(browser, S) {
 	let auto = null;
 	for (let i = 0; i < 40 && !auto; i++) {
 		await sleep(100);
-		if (await p.evaluate(() => document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay')) auto = await snap(p);
+		if (await p.evaluate(() => document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true)) auto = await snap(p);
 	}
 	check(!!auto, `${name}: an autoplay run started from the loaded Spin`);
 	if (auto) compare(name, 'autoplay running', idle, auto);
@@ -467,6 +467,27 @@ async function runSize(browser, S) {
 		}
 		check(!!fs, `${name}: free spins reached`);
 		if (fs) compare(name, 'free spins', idle, fs);
+		// THE COUNTER'S ONE READING (2026-11-18): after a flip (spin 2 on) the button's text holds ONE number and OF the
+		// total (the outgoing face is drawn from data-d by CSS, aria-hidden, no text), and its label says the same count
+		if (fs) {
+			let rd = null;
+			const t1 = Date.now();
+			while (Date.now() - t1 < 60000) {
+				rd = await p.evaluate(() => {
+					const b = document.querySelector('.hudp button.spin.m-feature');
+					if (!b) return null;
+					const old = b.querySelector('.cnt.old');
+					return { text: b.innerText.replace(/\s+/g, ' ').trim(), label: b.getAttribute('aria-label'), old: old ? { hidden: old.getAttribute('aria-hidden'), text: old.textContent, d: old.dataset.d } : null };
+				});
+				if (rd?.old) break;
+				const gates = await p.evaluate(() => window.__reindeer.hud.gates()).catch(() => 0);
+				if (gates > 0) await p.mouse.click(S.vp.width / 2, S.vp.height * 0.4).catch(() => {});
+				await sleep(250);
+			}
+			const m = rd ? /^(\d+) OF (\d+)$/.exec(rd.text) : null;
+			const lm = rd ? /Free spins: (\d+) of (\d+)$/.exec(rd.label ?? '') : null;
+			check(!!rd?.old && rd.old.hidden === 'true' && rd.old.text === '' && !!m && !!lm && m[1] === lm[1] && m[2] === lm[2], `${name}: the free spins counter reads once ("${rd?.text}", label "${rd?.label}"; the outgoing face aria-hidden, its digit "${rd?.old?.d}" not text)`, rd);
+		}
 		if (SHOTS && fs && (S.name === 'portrait' || S.name === 'desk1610' || S.name === 'landscape')) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_freespins.png`) });
 		await settle(p, S, 240000);
 	}

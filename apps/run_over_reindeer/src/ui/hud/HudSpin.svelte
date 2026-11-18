@@ -45,7 +45,13 @@
 	const priceText = $derived(mode === 'armed' ? (controls.playCostText() ?? '') : '');
 	const priceFont = $derived(priceText ? fitFont({ text: priceText, nominal: d * 0.13, box: d * 0.7, minScale: 0.55, weight: 900, face: UI_TEXT_FACE }) : null);
 	const rot = $derived(mode === 'spinning' || mode === 'auto' || mode === 'busy');
-	const label = $derived(replay ? 'Replay' : showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin');
+	// ONE reading for assistive technology (2026-11-18): in free spins the counter's own words ("9 of 10"), in autoplay
+	// the spins left; the flip's outgoing face is aria-hidden and drawn from an attribute (never text), so neither a
+	// screen reader nor text extraction reads two numbers
+	const action = $derived(replay ? 'Replay' : showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin');
+	const label = $derived(
+		mode === 'feature' && fs ? `${action}. Free spins: ${fs.current} of ${fs.total}` : mode === 'auto' && count !== Infinity && count > 0 ? `${action}: ${count} left` : action,
+	);
 
 	// ---- the comet keeps turning a moment past the round, while it fades out ----
 	let turn = $state(false);
@@ -182,7 +188,8 @@
 {#snippet counter()}
 	<span class="cw">
 		{#key cnt.k}
-			{#if cnt.old}<span class="cnt old" class:long={cnt.old.length > 3} aria-hidden="true">{cnt.old}</span>{/if}
+			<!-- the outgoing face: its digits drawn from data-d by CSS (hud.css .cnt.old::before), not text -->
+			{#if cnt.old}<span class="cnt old" class:long={cnt.old.length > 3} aria-hidden="true" data-d={cnt.old}></span>{/if}
 			<span class="cnt" class:slide={!!cnt.old} class:long={cnt.cur.length > 3}>{cnt.cur}</span>
 		{/key}
 	</span>

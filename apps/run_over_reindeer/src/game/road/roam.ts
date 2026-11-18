@@ -83,6 +83,9 @@ export const roamDev = {
 	/** CSS px per road px, the picture's top left corner in CSS px, the screen in road px, the layout */
 	view: null as null | (() => { kind: LayoutKind; k: number; ox: number; oy: number; rect: RoadRect } | null),
 	zones: null as null | (() => RoamZone[]),
+	/** (2026-11-18) a cheap key of the keep-outs that come and go without a layout change (the LED back board raised or
+	 *  not): read every frame; when it changes the zones are read again and a spot they now cover is left */
+	zonesKey: null as null | (() => string),
 	roam: null as Roam | null,
 };
 
@@ -228,14 +231,29 @@ export class Roam {
 		this.refreshZones();
 		this.zonesMoved();
 		this.measureFloor();
-		// a spot that no longer holds (a resize, a rotation, an edited area): he never pops to a new one; he goes, and a
-		// new one walks in from past the screen's edge
-		if ((this.state === 'idle' || this.state === 'start' || this.state === 'walk' || this.state === 'stop' || this.state === 'enter') && !(this.state === 'enter' ? this.valid(this.to.x, this.to.y) : this.valid(this.x, this.y))) {
+		this.leaveIfCovered();
+	}
+
+	/** a spot that no longer holds (a resize, a rotation, an edited area, a keep-out that came up over him, as the LED back
+	 *  board rising): he never pops to a new one; he goes, and a new one walks in from past the screen's edge */
+	private leaveIfCovered() {
+		if ((this.state === 'idle' || this.state === 'start' || this.state === 'walk' || this.state === 'stop' || this.state === 'enter') && !(this.state === 'enter' ? this.valid(this.to.x, this.to.y) : this.valid(this.x, this.y) && (this.state !== 'start' && this.state !== 'walk' ? true : this.clear(this.to.x, this.to.y)))) {
 			this.state = 'none';
 			this.hide();
 			this.placed = true;
 			this.walkInAt = Number.isFinite(this.clock) ? this.clock : 0;
 		}
+	}
+
+	/** (2026-11-18) the keep-outs that come and go (roamDev.zonesKey): read again on a change, and a spot now covered left */
+	private zonesKeyNow = '';
+	private watchZones() {
+		const key = roamDev.zonesKey?.() ?? '';
+		if (key === this.zonesKeyNow) return;
+		this.zonesKeyNow = key;
+		this.refreshZones();
+		if (this.zonesMoved()) this.measureFloor();
+		this.leaveIfCovered();
 	}
 
 	/** the keep-out zones in road px, from the board's CSS px ones (a few DOM reads: at a pick or a layout change only) */
@@ -257,9 +275,21 @@ export class Roam {
 		const r = this.rect;
 		if (!offScreenOk && (x0 < r.left || x1 > r.right || y0 < r.top || y > r.bottom)) return false;
 		const feet = y - ROAM_REACH.up * s * FEET_SHARE;
+		// (2026-11-18) his cast shadow too: it leans from his feet by castReach per road px of his height, so against the
+		// keep-outs his box is widened toward the lean (the road is checked at his feet only, as before)
+		const lean = castReach();
+		const h = ROAM_REACH.up * s;
+		const sx0 = x0 - Math.max(0, -lean.x) * h;
+		const sx1 = x1 + Math.max(0, lean.x) * h;
+		const sy0 = Math.min(y0, y + Math.min(0, lean.y) * h);
 		for (const z of this.zones) {
-			const top = z.name === 'road' ? feet : y0;
-			if (x0 < z.x1 && x1 > z.x0 && top < z.y1 && y > z.y0) return false;
+			if (z.name === 'road') {
+				if (x0 < z.x1 && x1 > z.x0 && feet < z.y1 && y > z.y0) return false;
+			} else if (z.name === 'stoplight') {
+				// a stoplight stands at the tunnel mouth beside him: his body never covers it, his shadow may fall on its
+				// foot as it falls on the stone (a sideways phone: keeping the shadow off it too halves the snow by the tunnel)
+				if (x0 < z.x1 && x1 > z.x0 && y0 < z.y1 && y > z.y0) return false;
+			} else if (sx0 < z.x1 && sx1 > z.x0 && sy0 < z.y1 && y > z.y0) return false;
 		}
 		return true;
 	}
@@ -688,6 +718,7 @@ export class Roam {
 		}
 		// the tab is hidden: nothing moves (the ticker stops too; this is the belt to its braces)
 		if (typeof document !== 'undefined' && document.hidden) return;
+		this.watchZones();
 		if (!roamFramesReady() || this.n < 3) return;
 		if (this.state === 'none') {
 			// HIS FIRST APPEARANCE (round 4, Corey: "it should ... walk in from off the screen"): never a pop; he walks in
@@ -823,6 +854,8 @@ export class Roam {
 			corners: this.poly.slice(0, this.n).map((p) => ({ x: r(p.x), y: r(p.y) })),
 			enterX: r(this.enterX()),
 			reach: ROAM_REACH,
+			/** where his cast shadow's top lands per road px of his height (shadows.ts castReach): the probes' shadow box */
+			lean: castReach(),
 			box: { walk: BOX.walk, sniff: BOX.sniff, start: BOX.start, stop: BOX.stop },
 			lastPass: this.lastPass,
 			relaxed: this.relaxed,

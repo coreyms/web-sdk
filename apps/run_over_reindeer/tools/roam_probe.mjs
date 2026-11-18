@@ -134,17 +134,25 @@ const bodyOf = (geo) => {
 	const side = geo.roam.reach.side * s;
 	const up = geo.roam.reach.up * s;
 	const body = (x, y) => ({ x0: ox + (x - side) * k, x1: ox + (x + side) * k, y0: oy + (y - up) * k, y1: oy + y * k });
+	// (2026-11-18) his body AND his cast shadow: the shadow leans from his feet by the page's own castReach per road px of
+	// his height (geo.roam.lean), so its box is his body's widened toward that side
+	const lean = geo.roam.lean ?? { x: 0, y: 0 };
+	const withShadow = (x, y) => {
+		const b = body(x, y);
+		return { x0: b.x0 - Math.max(0, -lean.x) * up * k, x1: b.x1 + Math.max(0, lean.x) * up * k, y0: Math.min(b.y0, oy + (y + Math.min(0, lean.y) * up) * k), y1: b.y1 };
+	};
 	const feet = (x, y) => {
 		const b = body(x, y);
 		return { x0: b.x0, x1: b.x1, y0: b.y1 - (b.y1 - b.y0) * 0.06, y1: b.y1 };
 	};
-	return { body, feet, css: { w: r1(2 * side * k), h: r1(up * k) } };
+	return { body, feet, withShadow, css: { w: r1(2 * side * k), h: r1(up * k) } };
 };
 /** what his body at (x, y) covers: zone names (the road by his feet), and 'screen' when it leaves the screen */
 const hitsAt = (geo, zones, x, y) => {
 	const B = bodyOf(geo);
 	const out = [];
-	for (const z of zones) if ((z.name === 'road' ? inter(B.feet(x, y), z) : inter(B.body(x, y), z)) > 0.5) out.push(z.name);
+	// (the road at his feet; a stoplight by his body, his shadow may fall on it; every other keep-out by body and shadow)
+	for (const z of zones) if ((z.name === 'road' ? inter(B.feet(x, y), z) : z.name === 'stoplight' ? inter(B.body(x, y), z) : inter(B.withShadow(x, y), z)) > 0.5) out.push(z.name);
 	const b = B.body(x, y);
 	if (b.x0 < -0.5 || b.y0 < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) out.push('screen');
 	return out;
@@ -275,7 +283,42 @@ async function sweepSize(p, S, name, errs, out) {
 	check(run.arrived, `${name}: he walks in and stops at a spot (${run.roam.kind}, area holds ${run.roam.capacity} spots 12 % apart${run.roam.relaxed ? ', widened to all the free snow' : ''})`);
 	check(got >= want, `${name}: in 60 s he stops at ${run.stops.length} spots, ${got} of them 12 % of the width apart (wanted ${want})`, out.sweep);
 	check(backs <= Math.max(1, Math.floor(run.stops.length / 4)), `${name}: no shuffling between two spots (${backs} straight returns in ${run.stops.length} stops)`, out.sweep);
-	check(hits.length === 0, `${name}: every frame of the 60 s his body is clear of every keep-out zone (HUD, top line, logo, LED strip, road) and on the screen`, hits);
+	check(hits.length === 0, `${name}: every frame of the 60 s his body and shadow are clear of every keep-out zone (HUD, top line, logo, LED strip, road) and on the screen`, hits);
+	// THE LED BOARD RAISED (2026-11-18: a capture at 1440 x 900 in free spins showed him over the strip's last digits): the
+	// back board risen and seated (a Free Spins entry card, the scoreboard stepped by hand), then 20 s more of his wander:
+	// the raised board is a keep-out (zone 'LED board') as the resting strip is ('LED strip'); if it rises over where he
+	// stands he goes and a new one walks in; never a frame of his body or shadow over either
+	const up = await H(async () => {
+		const h = window.__reindeer;
+		const R = h.roadBoard();
+		const F = R.features;
+		h.scoreboardManual(true);
+		h.scoreboardCard('fs');
+		for (let i = 0; i < 200; i++) h.scoreboardStep(10);
+		const seated = h.scoreboard().back;
+		h.clock(0);
+		const pos = [];
+		for (let i = 0; i < 60 * 20; i++) {
+			R.update(1000 / 60, 1, 1);
+			if (i % 2 === 0 && F.roam.state !== 'none') pos.push([Math.round(F.roam.x * 10) / 10, Math.round(F.roam.y * 10) / 10, F.roam.state]);
+		}
+		const zones = h.roamZones();
+		h.scoreboardCardEnd();
+		h.scoreboardLower();
+		for (let i = 0; i < 300; i++) h.scoreboardStep(10);
+		h.scoreboardManual(false);
+		h.clock(1);
+		return { pos, zones, seated: { visible: seated.visible, offset: seated.offset } };
+	});
+	const zb = up.zones.filter((z) => z.name === 'LED board' || z.name === 'LED strip').map((z) => z.name);
+	check(up.seated.visible && zb.includes('LED board') && zb.includes('LED strip'), `${name}: with the LED board raised both it and the strip are keep-outs (${zb.join(', ')})`, up);
+	const upHits = [];
+	for (let i = 0; i < up.pos.length && upHits.length < 5; i++) {
+		// (a walk in starts past the screen's edge: off the screen is fine then, the zones are not)
+		const hz = hitsAt(geo, up.zones, up.pos[i][0], up.pos[i][1]).filter((z) => !(z === 'screen' && up.pos[i][2] === 'enter'));
+		if (hz.length) upHits.push(`${hz.join(', ')} at (${up.pos[i].join(', ')})`);
+	}
+	check(upHits.length === 0, `${name}: 20 s with the LED board raised, every frame his body and shadow clear of the board, the strip and every other keep-out (${up.pos.length} frames on the screen)`, upHits);
 	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
 	console.log(`  INFO ${name}: ${JSON.stringify(out.sweep)}`);
 }
