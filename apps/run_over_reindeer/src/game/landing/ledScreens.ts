@@ -6,6 +6,8 @@
 // Grandma car strike) and the ticker. The sign (game/landing/ledSign.ts) shows these canvases through the dot grille.
 // Plain 2D canvas drawing (composite modes on small canvases), no filter.
 
+import { SENTENCE_SIGNS } from '../scoreboard/ledSigns';
+
 export type Cv = HTMLCanvasElement & { ctx: CanvasRenderingContext2D };
 type Ctx = CanvasRenderingContext2D;
 type Grid = { w: number; h: number; d: Uint8Array };
@@ -100,7 +102,7 @@ const FONT: Record<string, string[]> = {
 };
 
 function grid1(str: string): Grid {
-	const gl = [...str].map((ch) => FONT[ch] || FONT[' ']);
+	const gl = [...str].map((ch) => FONT[ch] || SENTENCE_SIGNS[ch] || FONT[' ']);
 	let w = 0;
 	gl.forEach((g, i) => (w += g[0].length + (i ? 1 : 0)));
 	const d = new Uint8Array(w * 7);

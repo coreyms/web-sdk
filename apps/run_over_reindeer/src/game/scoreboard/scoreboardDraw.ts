@@ -12,6 +12,7 @@
 //                strip's line while a card is up, from the mock's r3b scene code
 import { SCOREBOARD_ART } from '../scoreboardArtSpec';
 import { LED_FONT, drawText, letterGap, mk, textInk, textW, type Cv } from '../landing/ledScreens';
+import { ledSignCanvas } from './ledSigns';
 import { INTRO_LINE, LED_BOARD } from '../constants';
 import { amountNow, tierNow, type Show } from './show';
 import { newRace, raceProgress, type Race } from './race';
@@ -147,6 +148,12 @@ function vglyph(ch: string, cap: number) {
 	const key = ch + '|' + cap;
 	let g = vgCache.get(key);
 	if (g) return g;
+	// a currency sign: its LED glyph (ledSigns.ts), never the font's or a fallback font's
+	const sign = ledSignCanvas(ch, cap);
+	if (sign) {
+		vgCache.set(key, sign);
+		return sign;
+	}
 	const px = cap / 0.72;
 	const font = `900 ${px}px ${LED_FONT}`;
 	const pr = mk(4, 4).ctx;
