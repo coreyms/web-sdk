@@ -285,6 +285,10 @@ export class Roam {
 		for (const z of this.zones) {
 			if (z.name === 'road') {
 				if (x0 < z.x1 && x1 > z.x0 && feet < z.y1 && y > z.y0) return false;
+			} else if (z.name === 'stoplight') {
+				// a stoplight stands at the tunnel mouth beside him: his body never covers it, his shadow may fall on its
+				// foot as it falls on the stone (a sideways phone: keeping the shadow off it too halves the snow by the tunnel)
+				if (x0 < z.x1 && x1 > z.x0 && y0 < z.y1 && y > z.y0) return false;
 			} else if (sx0 < z.x1 && sx1 > z.x0 && sy0 < z.y1 && y > z.y0) return false;
 		}
 		return true;

@@ -151,7 +151,8 @@ const bodyOf = (geo) => {
 const hitsAt = (geo, zones, x, y) => {
 	const B = bodyOf(geo);
 	const out = [];
-	for (const z of zones) if ((z.name === 'road' ? inter(B.feet(x, y), z) : inter(B.withShadow(x, y), z)) > 0.5) out.push(z.name);
+	// (the road at his feet; a stoplight by his body, his shadow may fall on it; every other keep-out by body and shadow)
+	for (const z of zones) if ((z.name === 'road' ? inter(B.feet(x, y), z) : z.name === 'stoplight' ? inter(B.body(x, y), z) : inter(B.withShadow(x, y), z)) > 0.5) out.push(z.name);
 	const b = B.body(x, y);
 	if (b.x0 < -0.5 || b.y0 < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) out.push('screen');
 	return out;
