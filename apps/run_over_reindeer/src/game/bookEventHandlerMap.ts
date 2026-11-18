@@ -226,12 +226,18 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>, { bookEvents }: BookEventContext) => {
 		// the book writes wincap AFTER freeSpinEnd: the card needs to know now
-		const capped = stateGame.capped || bookEvents.slice(bookEvents.indexOf(bookEvent) + 1).some((e) => e.type === 'wincap');
+		const after = bookEvents.slice(bookEvents.indexOf(bookEvent) + 1);
+		const capped = stateGame.capped || after.some((e) => e.type === 'wincap');
+		// THE WRAP-UP'S TOTAL IS THE ROUND'S (2026-11-17, the owner: the board read 45.20 while the HUD's WIN read 45.70):
+		// the book's own round total, finalWin (the trigger spin's win with the free spins', the figure the HUD's WIN ends
+		// on), not freeSpinEnd's (the free spins alone). Read from the book, never added up here; a book without a finalWin
+		// after this event keeps freeSpinEnd's.
+		const fin = after.find((e) => e.type === 'finalWin');
 		await pace(350);
 		await showCard({
 			kind: 'outro',
 			bonus: stateGame.bonusMode ?? 'bonus',
-			amount: bookEvent.amount,
+			amount: fin && fin.type === 'finalWin' ? fin.amount : bookEvent.amount,
 			topUp: stateGame.topUp ? { floor: stateGame.topUp.floor, amount: stateGame.topUp.amount } : null,
 			capped,
 		});

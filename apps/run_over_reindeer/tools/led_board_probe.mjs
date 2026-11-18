@@ -692,7 +692,9 @@ async function cards(p, S, full) {
 					introAt = ms;
 					seen.intro = c;
 				}
-				if (ms - introAt >= 5500) {
+				// (5.5 s untouched, and pressed once the press line is up: on a slow page the scene's own clock runs behind
+				// real time, and a press before the press line lands the scene instead of continuing)
+				if (ms - introAt >= 5500 && c.phase === 'waits') {
 					seen.waited = { ...c, after: ms - introAt };
 					pressed = true;
 					await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3);
@@ -714,12 +716,15 @@ async function cards(p, S, full) {
 	check(!!seen.waited && (seen.waited.card === 'fs' || seen.waited.card === 'sfs') && seen.waited.phase === 'waits' && seen.waited.after >= 5000, `${tag}: with no autoplay the entry waits for the press: ${seen.waited ? Math.round(seen.waited.after) : 'none'} ms untouched and still up (${seen.waited?.phase})`, seen.waited);
 	check(!!seen.after && seen.after.card !== 'fs' && seen.after.card !== 'sfs', `${tag}: one press then continues (the card after it: ${seen.after?.card ?? 'none'})`, seen.after);
 	check(!!seen.outro && seen.outro.board === 'outro' && !seen.outroHtml && a.ok, `${tag}: its Total Win plays on the back board, not the HTML card, and the round comes back to rest (${a.ms} ms)`, { outro: seen.outro, html: seen.outroHtml, last: a.seen.slice(-3) });
+	// (2026-11-17, the owner: the wrap-up's total is the round's, the HUD's WIN at the round's end: natural_free_spins's
+	// trigger spin wins 50 of its 4570, so the board must read the 4570, not freeSpinEnd's 4520)
 	const ev = bookOf('natural_free_spins');
 	const fsEnd = ev.find((e) => e.type === 'freeSpinEnd')?.amount;
 	const fin = ev.find((e) => e.type === 'finalWin')?.amount;
-	const want = await R(p, (a) => window.__reindeer.bookAmount(a), fsEnd);
+	const trig = ev.slice(0, ev.findIndex((e) => e.type === 'freeSpinTrigger')).filter((e) => e.type === 'winInfo').reduce((a, e) => a + e.totalWin, 0);
+	const hud = await R(p, () => window.__reindeer.bookAmount(window.__reindeer.hud.win()));
 	const got = seen.landed ? Number(String(seen.landed.amount).replace(/,/g, '')) : NaN;
-	check(Math.abs(got - want) < 0.005, `${tag}: the Total Win lands on ${seen.landed?.amount}, the book's wrap-up amount (freeSpinEnd ${fsEnd} = ${want}) the old card showed; the HUD's WIN is the round's (finalWin ${fin}, with the trigger spin's own win)`, { landed: seen.landed, last: seen.totalSeen, fsEnd, want });
+	check(trig > 0 && Math.abs(got - hud) < 0.005 && Math.abs(hud - (await R(p, (a) => window.__reindeer.bookAmount(a), fin))) < 0.005, `${tag}: the Total Win lands on ${seen.landed?.amount}, the HUD's WIN at the round's end (${hud}: finalWin ${fin}, the trigger spin's ${trig} with the free spins' ${fsEnd})`, { landed: seen.landed, last: seen.totalSeen, fsEnd, fin, hud });
 	if (!full) return;
 	// THE GRANDMA GAG'S RULE (2026-11-17, Corey: "let's only do the Grandma Got Run Over by a Reindeer in regular games, and
 	// free spins only on the first strike or when it results in a win"): every Grandma strike's ruling (the book handler's

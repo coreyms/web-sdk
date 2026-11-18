@@ -42,6 +42,7 @@
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane); a turn is 15 minutes, so one size per turn with ONLY= if needed.
 import { createRequire } from 'node:module';
+import { pressRoundCards } from './round_card_press.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
@@ -97,6 +98,8 @@ const STORE = 'run_over_reindeer.scene';
 
 async function boot(browser, S, { reuse = null, choice = SET === 'grass' ? 'dark' : null, scheme = 'light', press = true } = {}) {
 	const ctx = reuse?.ctx ?? (await browser.newContext({ viewport: S.vp, deviceScaleFactor: 1, isMobile: S.phone, hasTouch: S.phone, colorScheme: scheme }));
+	// (2026-11-17: the bonus entry waits for the press: round_card_press.mjs presses it on the old card's timing)
+	if (!reuse?.ctx) await pressRoundCards(ctx);
 	// the Scene setting as stored on the device before the first load (only where nothing is stored yet: a reload keeps
 	// what the page itself stored)
 	if (!reuse && choice)
