@@ -11,9 +11,9 @@ export default {
 	"audio/music/bgm_super.m4a": "775f2c78",
 	"audio/music/bgm_super.ogg": "7b4ab89c",
 	"audio/music.json": "e308925b",
-	"audio/sounds.json": "f82edd28",
-	"audio/sounds.m4a": "88dd8db5",
-	"audio/sounds.ogg": "b34fa424",
+	"audio/sounds.json": "7df418e6",
+	"audio/sounds.m4a": "dd64be56",
+	"audio/sounds.ogg": "aa4fc434",
 	"columns/cloud-backdrop-d150.webp": "4236c3b8",
 	"columns/cloud-backdrop-d215.webp": "533c2fe2",
 	"columns/cloud-backdrop-phone.webp": "33b01f89",
@@ -349,9 +349,9 @@ export const fileBytes = {
 	"audio/music/bgm_super.m4a": 104538,
 	"audio/music/bgm_super.ogg": 129898,
 	"audio/music.json": 1270,
-	"audio/sounds.json": 9516,
-	"audio/sounds.m4a": 1668810,
-	"audio/sounds.ogg": 1211049,
+	"audio/sounds.json": 9589,
+	"audio/sounds.m4a": 1662382,
+	"audio/sounds.ogg": 1167473,
 	"columns/cloud-backdrop-d150.webp": 40154,
 	"columns/cloud-backdrop-d215.webp": 60226,
 	"columns/cloud-backdrop-phone.webp": 17096,
@@ -681,4 +681,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-heavy.woff2": 35400
 } as const;
 
-export const bootSizes = {"landing":64084,"preload":6200041,"audio":1464467} as const;
+export const bootSizes = {"landing":64084,"preload":6200114,"audio":1420891} as const;

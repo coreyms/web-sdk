@@ -117,8 +117,8 @@
 		}
 		if (!ready || pressed) return;
 		pressed = true;
-		// the continue press has a voice of its own (the minor click); dropped silently if the sprite stalled
-		if (audioReady) sound.players.once.play({ name: 'sfx_ui_minor' });
+		// the continue press has a voice of its own (the intro jingle, 2026-11-17; the minor click before); dropped silently if the sprite stalled
+		if (audioReady) sound.players.once.play({ name: 'sfx_intro_jingle_short' });
 		props.onpress();
 	};
 </script>

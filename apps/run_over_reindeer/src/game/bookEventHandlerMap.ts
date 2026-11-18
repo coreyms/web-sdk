@@ -206,13 +206,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 	// ---- the bonus rounds ----
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
-		eventEmitter.broadcast({ type: 'soundOnce', name: bookEvent.bonusType === 'super' ? 'sfx_bonus_trigger_super' : 'sfx_bonus_trigger_free' });
+		// the marimba family's success (2026-11-17), one sound for Free Spins and Super Free Spins, where the tier fanfares played
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });
 		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs });
 		enterBonus(bookEvent);
 		await showCard({ kind: 'intro', bonus: stateGame.bonusMode ?? 'bonus', spins: bookEvent.totalFs });
 	},
 	freeSpinRetrigger: async (bookEvent: BookEventOfType<'freeSpinRetrigger'>) => {
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_bonus_trigger_free' });
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });
 		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs * 0.6 });
 		stateGame.totalFs = bookEvent.totalFs;
 		await eventEmitter.broadcastAsync({ type: 'boardMessage', text: `+${bookEvent.added} FREE SPINS`, ms: ROUND.retriggerMs });
