@@ -28,10 +28,11 @@ import { LED_BOARD } from '../constants';
 import { C, mk, shimmer, type Cv } from '../landing/ledScreens';
 import { type ScoreboardGeo, type Rect } from './layout';
 import { CARTOONS, backScene, clearTitle, dissolveFace, entryWaitOf, raceCardOf, titlesOf, gagWordsAt, setBoardClass, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, scanReveal, showCartoon, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
-import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
+import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newPressShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
-import { scatterWordsOf, showGagShort, showScatterCount, type ScatterFace } from './stripDraw';
+import { pressScreenAt, scatterWordsOf, showGagShort, showPressLine, showPressScreens, showScatterCount, type ScatterFace } from './stripDraw';
+import type { LedText } from '../landing/ledScreens';
 
 const col = (hex: string) => Number.parseInt(hex.slice(1), 16);
 const GRILLE = { cells: 16, cellPx: 16 };
@@ -119,6 +120,13 @@ export class Scoreboard {
 	private scat: (ScatterFace & { id: number; live: boolean; hit: boolean; endAt: number }) | null = null;
 	/** THE ARBITER'S PICK (constants LED_BOARD.stripOrder) on the last drawn step, and what was true then */
 	private stripNow: StripItem = 'cartoon';
+	/** THE PRESS SCREEN on the expanded board (2026-11-17): its words, whether the press gate is open (the strip's line shows),
+	 *  and the press's hand over (resolved as the board has powered down and starts to lower) */
+	private pressText: LedText | null = null;
+	private pressReady = false;
+	private pressWait: { id: number; resolve: () => void; timer: ReturnType<typeof setTimeout> } | null = null;
+	/** called once the press screen's board is down (the press screen's pictures may be unloaded) */
+	onPressGone: (() => void) | null = null;
 	private truthNow: StripTruth | null = null;
 	/** the idle cartoons: which one, since when, and the race's own run */
 	private cartoon = 0;
@@ -535,6 +543,49 @@ export class Scoreboard {
 		endShow(s);
 		this.mark('card', `${s.kind} ends at ${Math.round(s.t)}`);
 	}
+	// ---- THE PRESS SCREEN ON THE EXPANDED BOARD (2026-11-17, Corey approved) ------------------------------------------------
+	/** the press screen: the back board rises and stays up with the dim, the explainer screens cycle on it, the strip says
+	 *  PRESS ANYWHERE TO CONTINUE once the gate is open (pressGate). false: no scoreboard (the caller keeps the old sign) */
+	press(text: LedText): boolean {
+		if (!LED_BOARD.on) return false;
+		this.pressText = text;
+		this.start(newPressShow(scoreboardDev.fmt));
+		return true;
+	}
+	/** the press gate is open or not (components/Board.svelte, every frame: boot.pressReady) */
+	pressGate(ready: boolean) {
+		if (ready !== this.pressReady) {
+			this.pressReady = ready;
+			if (this.pressUp()) this.mark('press', ready ? 'the line shows' : 'the line waits');
+		}
+	}
+	/** the press screen is up */
+	pressUp(): boolean {
+		const s = this.show;
+		return !!s && s.kind === 'press' && s.t < s.exitAt;
+	}
+	/** THE PRESS: the board powers down and lowers with the game's own motion, the dim lifts. Resolves as it starts to lower
+	 *  (the game's chrome may come up); onPressGone follows when it is down. */
+	endPress(): Promise<void> {
+		const s = this.show;
+		if (!s || s.kind !== 'press' || s.t >= s.exitAt) return Promise.resolve();
+		endShow(s);
+		this.mark('press', `ends at ${Math.round(s.t)}`);
+		return new Promise<void>((resolve) => {
+			// a safety net: a stalled ticker never holds the game's entry for more than the power down and lowering twice + 1 s
+			const R = LED_BOARD.rise;
+			const timer = setTimeout(() => this.releasePress(), (R.powerDownMs + R.lowerMs) * 2 + 1000);
+			this.pressWait = { id: s.id, resolve, timer };
+		});
+	}
+	private releasePress() {
+		const w = this.pressWait;
+		if (!w) return;
+		this.pressWait = null;
+		clearTimeout(w.timer);
+		w.resolve();
+	}
+
 	/** DEV / probe: the back board and the strip not drawn (the scene swap probe looks at the scene, the dim and the snow
 	 *  cover alone while it steps a fade) */
 	devSceneOnly(on: boolean) {
@@ -674,7 +725,18 @@ export class Scoreboard {
 				this.show = null;
 			}
 		}
+		// the press screen's hand over (the board has powered down) and its end (the board is down)
+		const pw = this.pressWait;
+		if (pw) {
+			const ps = this.show?.id === pw.id ? this.show : this.lowering?.id === pw.id ? this.lowering : null;
+			if (!ps || ps.t >= ps.exitAt + LED_BOARD.rise.powerDownMs) this.releasePress();
+		}
 		if (this.lowering && this.lowering.t >= this.lowering.end) this.lowering = null;
+		if (this.pressText && !this.pressWait && !this.pressUp() && this.show?.kind !== 'press' && this.lowering?.kind !== 'press') {
+			this.pressText = null;
+			this.mark('press', 'gone');
+			this.onPressGone?.();
+		}
 		this.place();
 		// the dots' content: re-drawn and re-sent at LED_BOARD.fps (an LED controller's refresh), not every frame
 		const step = Math.floor((this.clock * LED_BOARD.fps) / 1000);
@@ -779,7 +841,7 @@ export class Scoreboard {
 		const idle = this.env.idle ?? !this.free;
 		const raceUp = CARTOONS[this.cartoon % CARTOONS.length].key === 'race';
 		return {
-			entry: up && isCard(s),
+			entry: up && (isCard(s) || s!.kind === 'press'),
 			bigWin: up && s!.kind === 'win',
 			scatter: this.scatterOn(),
 			winAmount: up && s!.kind === 'small',
@@ -806,7 +868,8 @@ export class Scoreboard {
 		if (item === 'entry' || item === 'bigWin' || item === 'winAmount') {
 			// a card's line on the strip (the press line and the sentences), a big win (the tier and the counting amount; blank
 			// while the back board rises, as the mock's ribbon), the spin's win amount
-			if (isCard(s)) showRibbon(F, s!);
+			if (s!.kind === 'press') showPressLine(F, s!.t, this.pressReady, this.pressText?.ticker ?? '');
+			else if (isCard(s)) showRibbon(F, s!);
 			else if (s!.arrive && s!.t < s!.contentAt) F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
 			else if (s!.kind === 'small') showSmall(F, s!);
 			else {
@@ -889,7 +952,9 @@ export class Scoreboard {
 		F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
 		clearTitle(F.out.ctx.canvas);
 		if (!s) return this.publish(G, 1);
-		this.backProgram(F, s);
+		// the press screen's explainer screens (2026-11-17), else the show's staged scene
+		if (s.kind === 'press' && this.pressText) showPressScreens(F, Math.max(0, s.t - s.contentAt) / 1000, this.pressText);
+		else this.backProgram(F, s);
 		// the face powers on as it seats (dark until just before, then a scan line), and powers down before it lowers
 		const seated = LED_BOARD.rise.backAtMs + LED_BOARD.rise.riseMs;
 		if (s.t < seated - 120) F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
@@ -979,6 +1044,7 @@ export class Scoreboard {
 			stripKey: this.strip?.key ?? null,
 			gag: gt === null ? null : { t: Math.round(gt), words: this.gagShort ? LED_BOARD.gag.short.text : gagWordsAt(gt), short: this.gagShort, ms: this.gagMs() },
 			/** THE ARBITER (constants LED_BOARD.stripOrder): the item the strip shows on the last drawn step, and what was true */
+			press: this.pressText ? { up: this.pressUp(), ready: this.pressReady, screen: s && s.kind === 'press' ? pressScreenAt(Math.max(0, s.t - s.contentAt) / 1000) : null, waiting: !!this.pressWait } : null,
 			stripPick: { item: this.stripNow, truth: this.truthNow ? { ...this.truthNow } : null },
 			scatter: this.scat ? { id: this.scat.id, count: this.scat.count, need: this.scat.need, live: this.scat.live, hit: this.scat.hit, fireworks: this.scat.fwAt !== null && this.clock < this.scat.endAt, words: scatterWordsOf(this.scat), sinceTick: Math.round(this.clock - this.scat.tickAt) } : null,
 			cartoon: { index: this.cartoon, key: CARTOONS[this.cartoon % CARTOONS.length].key, t: Math.round(this.clock - this.cartoonAt), race: this.cartoonState.race ? { outcome: this.cartoonState.race.outcome, id: this.cartoonState.race.id } : null },

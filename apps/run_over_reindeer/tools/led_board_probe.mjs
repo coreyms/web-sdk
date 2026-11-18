@@ -54,7 +54,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -1270,11 +1270,55 @@ async function gagModes(p, S) {
 	check(stopped && m2.length >= 1 && m2[0] === 'short', `${tag}: in autoplay the Grandma gag is the short line (${m2.join(', ')})`, m2);
 }
 
+/** THE PRESS SCREEN ON THE BOARD (2026-11-17, constants LED_SIGN.onBoard): a fresh page, the splash left to play out, then
+ *  the board's own expanded state with the dim and the strip's line, the screens advancing, and the press lowering it */
+async function pressBoard(browser, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: 1, isMobile: S.phone, hasTouch: S.phone });
+	const p = await ctx.newPage();
+	const errs = [];
+	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+	try {
+		await p.goto(`${APP}/?lang=en&sessionID=ledpress${S.name}${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
+		let s = null;
+		for (let i = 0; i < 300; i++) {
+			s = await R(p, () => window.__reindeer?.scoreboard?.() ?? null).catch(() => null);
+			if (s?.press?.ready && s.show?.phase === 'hold') break;
+			await sleep(400);
+		}
+		const want = await R(p, () => window.__reindeer.tune.ledBoard.dim.alpha);
+		check(!!s?.press && s.show?.kind === 'press' && s.back.visible && Math.abs(s.back.offset) < 0.5 && Math.abs(s.dim.alpha - want) < 0.01 && s.stripPick?.item === 'entry', `${tag}: PRESS: the back board expanded (offset ${s?.back?.offset}), the scene dimmed (${s?.dim?.alpha}), the strip's top item the press line (${s?.stripPick?.item})`, s && { show: s.show, back: s.back, dim: s.dim, press: s.press });
+		const seen = await R(p, () => {
+			window.__reindeer.scoreboardManual(true);
+			const out = [];
+			for (let i = 0; i < 130; i++) {
+				const x = window.__reindeer.scoreboardStep(100);
+				if (out[out.length - 1] !== x.press?.screen) out.push(x.press?.screen);
+			}
+			window.__reindeer.scoreboardManual(false);
+			return out;
+		});
+		check(new Set(seen).size === 3, `${tag}: PRESS: the explainer screens advance on the board (${seen.join(' > ')})`);
+		await p.mouse.click(S.vp.width / 2, S.vp.height * 0.45);
+		let g = null;
+		for (let i = 0; i < 40; i++) {
+			await sleep(100);
+			g = await R(p, () => { const s = window.__reindeer.scoreboard(); return { vis: s.back.visible, dim: s.dim.alpha, press: s.press, landing: !!document.querySelector('.landing') }; });
+			if (!g.vis && g.dim === 0 && !g.press && !g.landing) break;
+		}
+		check(!!g && !g.vis && g.dim === 0 && !g.press && !g.landing, `${tag}: PRESS: the press lowers the board and lifts the dim`, g);
+		check(errs.length === 0, `${tag}: PRESS: no page errors`, errs);
+	} finally {
+		await ctx.close();
+	}
+}
+
 (async () => {
 	const browser = await chromium.launch({ args: ['--mute-audio'] });
 	const memory = {};
 	try {
 		for (const S of SIZES) {
+			if (SEC('press')) await pressBoard(browser, S).catch((e) => check(false, `${S.name}: PRESS ran to its end`, String(e).slice(0, 300)));
 			const { ctx, p, errs } = await boot(browser, S);
 			try {
 				await sizeChecks(p, S, memory);

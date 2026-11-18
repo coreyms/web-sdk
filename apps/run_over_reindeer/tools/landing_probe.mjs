@@ -1,4 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// (2026-11-17: with constants LED_SIGN.onBoard the press screen is the game's own expanded LED board; boardPress() below
+// checks it at every size and the billboard's checks are skipped. They still run with LED_SIGN.onBoard false.)
 // THE LANDING PROBE. Pass 7 (Corey 2026-11-16): the press screen after the studio splash is the LED BILLBOARD
 // (led_billboard_r2_2026-11-16; constants LED_SIGN, game/landing/ledSign.ts), and the posed board (the landing mock V2, game/
 // landingBoard.ts) is the FIRST BOARD after the press. At each size:
@@ -144,11 +146,86 @@ async function open(browser, S, ctx = null) {
 
 async function waitPress(p) {
 	for (let i = 0; i < 300; i++) {
-		const ok = await p.evaluate(() => !!document.querySelector('.landing') && !!window.__reindeer?.road && !!window.__reindeer?.led?.()?.ready).catch(() => false);
+		// (2026-11-17: the press screen on the game's own LED board: its strip line's gate, else the billboard's ticker)
+		const ok = await p.evaluate(() => !!document.querySelector('.landing') && !!window.__reindeer?.road && (!!window.__reindeer?.led?.()?.ready || !!window.__reindeer?.scoreboard?.()?.press?.ready)).catch(() => false);
 		if (ok) return true;
 		await sleep(400);
 	}
 	return false;
+}
+
+/** THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (2026-11-17, Corey approved; constants LED_SIGN.onBoard): no separate
+ *  sign; the posed board behind; the scoreboard's back board EXPANDED (seated, the press show up), the explainer screens
+ *  advancing on it, PRESS ANYWHERE TO CONTINUE on the strip as its top item, the scene dimmed as a big win dims it, the logo
+ *  at its game place; the press lowers the board and lifts the dim, the game's chrome comes up, the logo has not moved, and
+ *  a spin after it comes back to rest */
+async function boardPress(p, S, tag, errs) {
+	const TOP = tops();
+	const a = await p.evaluate(() => window.__reindeer.road());
+	const cols = a.features.columns;
+	check(cols.length === 3 && [['reindeer', 1], ['santa', 2], ['grandma', 3]].every(([t, r]) => cols.some((c) => c.reel === r && c.tier === t && c.multiplier === TOP[t])), `${tag}: behind the board, reels 2, 3, 4 hold the three columns at their top multipliers`, cols);
+	check([0, 4].every((r) => JSON.stringify(a.board[r]) === JSON.stringify(POSE_SIDES[r])), `${tag}: reels 1 and 5 hold the eight ordinary symbols once each`, a.board);
+	const html = await p.evaluate(() => !!document.querySelector('.landing .pressText'));
+	check(!html, `${tag}: the HTML press line steps aside for the strip's line`);
+	const s0 = await p.evaluate(() => ({ s: window.__reindeer.scoreboard(), led: window.__reindeer.led(), dimWant: window.__reindeer.tune.ledBoard.dim.alpha, logo: window.__reindeer.scene()?.logo?.css ?? null, face: window.__reindeer.scoreboardFace('strip') }));
+	const s = s0.s;
+	check(!s0.led, `${tag}: no separate billboard (one board)`);
+	check(s.show?.kind === 'press' && s.back.visible && Math.abs(s.back.offset) < 0.5 && s.press.up, `${tag}: the game's LED back board is up and seated (expanded: offset ${s.back.offset}, the press show ${s.show?.phase})`, { show: s.show, back: s.back });
+	check(Math.abs(s.dim.alpha - s0.dimWant) < 0.01, `${tag}: the scene behind is dimmed as a big win dims it (${s.dim.alpha}, a big win's ${s0.dimWant})`);
+	check(s.stripPick?.item === 'entry' && s.press.ready && s0.face.lit > 20, `${tag}: PRESS ANYWHERE TO CONTINUE runs on the strip as its top item (${s.stripPick?.item}, ${s0.face.lit} dots lit)`);
+	// the screens advance (driven by hand 100 ms at a time: 3 screens of LED_SIGN holdS + transS)
+	const seen = await p.evaluate(() => {
+		window.__reindeer.scoreboardManual(true);
+		const out = [];
+		for (let i = 0; i < 130; i++) {
+			const x = window.__reindeer.scoreboardStep(100);
+			if (out[out.length - 1] !== x.press?.screen) out.push(x.press?.screen);
+		}
+		window.__reindeer.scoreboardManual(false);
+		return out;
+	});
+	check(seen.length >= 3 && new Set(seen).size === 3, `${tag}: the explainer screens cycle on the expanded board (${seen.join(' > ')})`);
+	// the press
+	await p.mouse.click(S.vp.width / 2, S.vp.height * 0.45);
+	let gone = null;
+	for (let i = 0; i < 40; i++) {
+		await sleep(100);
+		gone = await p.evaluate(() => { const s = window.__reindeer.scoreboard(); return { vis: s.back.visible, dim: s.dim.alpha, press: s.press, show: s.show?.kind ?? null, landing: !!document.querySelector('.landing'), logo: window.__reindeer.scene()?.logo?.css ?? null }; });
+		if (!gone.vis && gone.dim === 0 && !gone.press && !gone.landing) break;
+	}
+	check(!!gone && !gone.vis && gone.dim === 0 && !gone.press && !gone.landing, `${tag}: the press lowers the board out of sight, lifts the dim and the game is there`, gone);
+	const L0 = s0.logo;
+	const L1 = gone?.logo;
+	check(!!L0 && !!L1 && Math.abs(L0.x - L1.x) < 0.6 && Math.abs(L0.y - L1.y) < 0.6 && Math.abs(L0.width - L1.width) < 0.6, `${tag}: the logo sign stays at its game place through the press (${L0 ? `${Math.round(L0.x)},${Math.round(L0.y)}` : '-'} then ${L1 ? `${Math.round(L1.x)},${Math.round(L1.y)}` : '-'})`, { L0, L1 });
+	await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
+	await p.click('.hudp button.spin').catch(() => {});
+	let rest = false;
+	for (let i = 0; i < 100 && !rest; i++) {
+		await sleep(300);
+		rest = await p.evaluate(() => window.__reindeer.hud.idle() && window.__reindeer.atRest() && window.__reindeer.fixtures.log().plays.length > 0).catch(() => false);
+	}
+	check(rest, `${tag}: a spin after the press comes back to rest`);
+	if (S.resume) {
+		// a round left open (natural_free_spins event 9): the press screen on the board, then the resumed spin as today
+		await p.evaluate(() => window.__reindeer.fixtures.resume('natural_free_spins', 9));
+		await sleep(1500);
+		check(await waitPress(p), `${tag} resume: PRESS ANYWHERE reached after the reload`);
+		await sleep(800);
+		const up = await p.evaluate(() => ({ kind: window.__reindeer.scoreboard()?.show?.kind ?? null, cols: window.__reindeer.road().features.columns.length }));
+		check(up.kind === 'press' && up.cols === 3, `${tag} resume: the press screen is on the board over the posed board (${up.kind}, ${up.cols} columns)`, up);
+		await p.mouse.click(S.vp.width / 2, S.vp.height / 2);
+		let r = null;
+		for (let i = 0; i < 200; i++) {
+			const st = await p.evaluate(() => ({ landing: !!document.querySelector('.landing'), gt: window.__reindeer.gameType(), cols: window.__reindeer.road().features.columns.map((x) => `${x.reel}:${x.tier}:${x.multiplier}`), press: window.__reindeer.scoreboard()?.press ?? null }));
+			if (!st.landing && st.gt === 'freegame' && st.cols.length) {
+				r = st;
+				break;
+			}
+			await sleep(100);
+		}
+		check(!!r && r.cols.length === 1 && r.cols[0] === '3:reindeer:4', `${tag} resume: the resumed free spin stands its own held column only (${r?.cols.join(' ')})`, r);
+	}
+	check(errs.length === 0, `${tag}: no page errors`, errs);
 }
 
 /** the face's box in device px of a screenshot, recorded next to it (the evidence's 4x crops are cut from it) */
@@ -170,6 +247,12 @@ async function crop4x(file, box, dpr, out) {
 				await p.goto(`${APP}/?lang=en&sessionID=land${S.name}${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
 				check(await waitPress(p), `${tag}: PRESS ANYWHERE reached (the billboard's ticker is up)`);
 				await sleep(1000);
+				// THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (constants LED_SIGN.onBoard, 2026-11-17): its own checks, then the
+				// next size (the billboard's checks below are for LED_SIGN.onBoard false)
+				if (await p.evaluate(() => !!window.__reindeer.tune.ledSign.onBoard && !!window.__reindeer.scoreboard()?.press)) {
+					await boardPress(p, S, tag, errs);
+					continue;
+				}
 				const a = await p.evaluate(() => window.__reindeer.road());
 				const cols = a.features.columns;
 				const want = [

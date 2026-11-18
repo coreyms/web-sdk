@@ -385,6 +385,12 @@ export type LedLayout = { unit: 'master' | 'css'; faceW: number; faceH: number; 
 export const LED_SIGN = {
 	/** false = the old press screen (the HTML line over the posed board) */
 	on: true,
+	/** THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (Corey 2026-11-17, approved): true plays the three screens below on the
+	 *  scoreboard's expanded back board (the same board, rise, dim and drawing as a big win or a bonus entry: game/scoreboard/),
+	 *  PRESS ANYWHERE TO CONTINUE on the strip under it (the strip's top item while the screen is up), the logo sign where it
+	 *  sits in the game, and the press lowers the board with its own motion and lifts the dim. false: the separate roadside
+	 *  billboard below (game/landing/ledSign.ts, kept). */
+	onBoard: true,
 	density: 1.25,
 	tickerDots: 11,
 	/** the dots' content is redrawn and sent to the GPU this many times a second (an LED controller's refresh) */

@@ -216,7 +216,25 @@
 		};
 	};
 	let led: LedSign | null = null;
-	if (landing && LED_SIGN.on) {
+	/** THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (constants LED_SIGN.onBoard, 2026-11-17): the scoreboard's expanded back
+	 *  board plays the screens, the strip says PRESS ANYWHERE; no separate sign. Set once it is up, cleared once it is down. */
+	let pressOnBoard = false;
+	if (landing && LED_SIGN.on && LED_SIGN.onBoard && scoreboard) {
+		const art = loaded.ledArt;
+		const image = art?.source?.resource as CanvasImageSource | undefined;
+		setLedArt(image ? { image, frames: LED_ART.frames } : null);
+		pressOnBoard = scoreboard.press(ledText());
+		boot.ledSign = pressOnBoard;
+		scoreboard.onPressGone = () => {
+			pressOnBoard = false;
+			boot.ledSign = false;
+			setLedArt(null);
+			// the pictures' file goes (it was never sent to the GPU: only drawn on the board's canvases)
+			const src = (context.stateApp.assets as Record<string, { src: string }> | undefined)?.ledArt?.src;
+			if (src) void PIXI.Assets.unload(src).catch(() => {});
+		};
+	}
+	if (landing && LED_SIGN.on && !pressOnBoard) {
 		const art = loaded.ledArt;
 		const image = art?.source?.resource as CanvasImageSource | undefined;
 		setLedArt(image ? { image, frames: LED_ART.frames } : null);
@@ -525,6 +543,7 @@
 				if (!free) fsDone = 0;
 				// true idle (the race may run): the base game, no autoplay, no round playing; the scatter count as the road sees it
 				const idle = !free && !stateGame.busy && stateBet.autoSpinsCounter <= 0;
+				if (pressOnBoard) scoreboard.pressGate(boot.pressReady);
 				scoreboard.update(ticker.deltaMS, { free, left: Math.max(0, stateGame.totalFs - fsDone), idle, scatter: road.scatterCount() });
 				// the HUD's WIN lights a step brighter and a board tap leaves the spin alone while a big win counts or holds
 				const busy = scoreboard.busy();
@@ -552,6 +571,8 @@
 
 	context.eventEmitter.subscribeOnMount({
 		boardLandingPress: async () => {
+			// (the press screen on the board: the board powers down and lowers with its own motion, the dim lifts)
+			if (pressOnBoard && scoreboard) await scoreboard.endPress();
 			await led?.exit();
 		},
 		boardLandingEnd: () => {
