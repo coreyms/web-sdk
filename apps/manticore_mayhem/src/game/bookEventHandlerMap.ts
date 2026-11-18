@@ -76,7 +76,7 @@ import {
 import { logoTrace } from './logo/trace';
 import { FEATURE_PACING, featureScreens, whileUp } from './featurePacing';
 /** DEV: each wrap up's safety nets, how long each waited (ms; 0 = the hold had covered it) */
-export const pacingLog: { at: number; tilesMs?: number; textMs?: number; bannerMs?: number }[] = [];
+export const pacingLog: { at: number; tilesMs?: number; textMs?: number; bannerMs?: number; autoPauseMs?: number; autoPauseStart?: number; stillOn?: boolean; autoPauseBegin?: boolean }[] = [];
 if (import.meta.env.DEV && typeof window !== 'undefined') ((window as any).__manticore ??= {}).pacingLog = () => pacingLog.slice();
 
 // ================================================================================================
@@ -996,6 +996,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (import.meta.env.DEV) pacingLog.push({ at: performance.now(), bannerMs: Math.round(bannerMs) });
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
 		stateGame.hudHeld = false;
+		// AUTOPLAY'S PAUSE AFTER A FEATURE (FEATURE_PACING.autoplayAfterFeatureMs): the HUD is live again, the run still on:
+		// a second to stop it before its next spin (a stop meanwhile zeroes the counter and the run ends there)
+		if (stateXstateDerived.isAutoBetting() && stateBet.autoSpinsCounter > 0) {
+			const p0 = performance.now();
+			if (import.meta.env.DEV) pacingLog.push({ at: p0, autoPauseBegin: true });
+			await waitForTimeout(FEATURE_PACING.autoplayAfterFeatureMs);
+			if (import.meta.env.DEV) pacingLog.push({ at: performance.now(), autoPauseMs: Math.round(performance.now() - p0), autoPauseStart: p0, stillOn: stateBet.autoSpinsCounter > 0 });
+		}
 	},
 
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {

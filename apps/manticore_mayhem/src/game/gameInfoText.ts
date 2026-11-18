@@ -171,7 +171,7 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				},
 				autoplay: {
 					name: 'Autoplay',
-					text: 'Opens the Autoplay ticket: the number of spins, plus an **ADVANCED** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **LOAD** parks the run on the Spin button. Spin starts it, and Spin again stops it at any time. During a run the Spin button is green with the spins left and this button is red with an X.',
+					text: 'Opens the Autoplay ticket: the number of spins, plus an **ADVANCED** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **LOAD** parks the run on the Spin button. Spin starts it, and Spin again stops it at any time. After a feature ends, Autoplay waits about a second before its next spin, so there is time to stop it. During a run the Spin button is green with the spins left and this button is red with an X.',
 				},
 				feature: {
 					name: soc('Bonus Buy', 'Feature Menu'),

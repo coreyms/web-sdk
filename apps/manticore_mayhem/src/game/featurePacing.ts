@@ -19,6 +19,13 @@ export const FEATURE_PACING = {
 	plaqueTextMaxMs: 1200,
 	/** the TOTAL WIN banner still rolling up or retreating when the round would end (no control goes live under it) */
 	bannerGoneMaxMs: 4000,
+	/** AUTOPLAY'S PAUSE AFTER A FEATURE (2026-11-18, a standing rule for all of Corey's games: "There should also be a
+	 *  momentary pause after bonus games complete and the player clicks to clear the wrap up screen, if auto-play was
+	 *  enabled, giving players a chance to stop auto-spins before they resume after the round, about a 1 second, regardless
+	 *  of speed."): with Autoplay still running when the TOTAL WIN has gone, the next automatic spin waits this long, REAL
+	 *  ms at every turbo level, with the HUD live (Spin, or the red Autoplay key, stops the run). On top of afterWrapMs;
+	 *  never when Autoplay is off; Autoplay's own stops (Stop on Free Games, the limits) win as before */
+	autoplayAfterFeatureMs: 1000,
 };
 
 /** what is on screen, written by the components every frame, read by the feature's transitions */
