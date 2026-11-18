@@ -4,7 +4,7 @@
 	// The handlers put a card in stateGame.roundCard and wait (game/bookEventHandlerMap.ts showCard); a press anywhere,
 	// Space or Enter, or the card's own time running out, dismisses it. Every amount on it is the book's.
 	import { onMount, untrack } from 'svelte';
-	import { stateBet } from 'state-shared';
+	import { stateBet, stateUrlDerived } from 'state-shared';
 	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
@@ -64,12 +64,34 @@
 		// every live run, so with Autoplay Bonuses off the entry still went by itself after introAutoMs. Only Autoplay
 		// Bonuses (auto) lets the entry continue by itself now; any other run's entry waits for the press, as manual play's
 		// does. The wrap-up keeps its rule (it continues by itself, outroAutoMs, or autoplayMs with the option on).
-		const waits = ROUND.introWaitsForPress && (card.kind === 'intro' ? !auto : lined && !(stateBet.autoSpinsCounter > 0));
+		// THE WRAP-UP WAITS FOR THE PRESS TOO (2026-11-18, Corey: "Yes", as Manticore Mayhem's FreeSpinOutro does): with no
+		// Autoplay Bonuses running it continued by itself after outroAutoMs (6 s). Now it waits for the press, autoplay or
+		// not; with Autoplay Bonuses on it continues ROUND.wrapAutoHoldMs after its amount has landed (the LED board's count,
+		// or at once for the HTML card), and when that hold ends the option is asked again, so an autoplay stopped during it
+		// brings the press back (Manticore's rule). A replay keeps its old rule (outroAutoMs, a lined wrap-up waits).
+		// ROUND.introWaitsForPress false (some probes) keeps the old timing for every card.
+		const replay = stateUrlDerived.replay();
+		const autoNow = () => context.stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0;
+		const outroHolds = ROUND.introWaitsForPress && card.kind === 'outro' && !replay && auto;
+		const waits = ROUND.introWaitsForPress && (card.kind === 'intro' ? !auto : replay ? lined : !auto);
 		const ms = auto ? ROUND.autoplayMs : card.kind === 'intro' ? ROUND.introAutoMs : ROUND.outroAutoMs;
-		const timer = waits ? undefined : setTimeout(dismissRoundCard, ms);
+		let timer: ReturnType<typeof setTimeout> | undefined = waits || outroHolds ? undefined : setTimeout(dismissRoundCard, ms);
+		let poll: ReturnType<typeof setInterval> | undefined;
+		if (outroHolds) {
+			poll = setInterval(() => {
+				if (board && !(scoreboardDev.board?.cardLanded() ?? true)) return;
+				clearInterval(poll);
+				poll = undefined;
+				timer = setTimeout(() => {
+					if (autoNow()) dismissRoundCard();
+				}, ROUND.wrapAutoHoldMs);
+			}, 50);
+		}
 		const key = (e: KeyboardEvent) => {
 			if (e.code === 'Space' || e.code === 'Enter') {
 				e.preventDefault();
+				// one press, one action (2026-11-18): a held key's auto-repeat presses nothing more
+				if (e.repeat) return;
 				press();
 			}
 		};
@@ -77,6 +99,7 @@
 		return () => {
 			clearTimeout(arm);
 			clearTimeout(timer);
+			if (poll) clearInterval(poll);
 			window.removeEventListener('keydown', key);
 			context.stateGame.pressGates = Math.max(0, context.stateGame.pressGates - 1);
 			// it goes on this frame (no exit animation)

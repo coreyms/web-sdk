@@ -1,4 +1,5 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.wrapAutoHoldMs
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,fixtures/showcaseBooks.ts,game/bookEventHandlerMap.ts,game/constants.ts,game/road/roadBoard.ts,game/road/roadSounds.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/race.ts,game/scoreboard/scoreboardDraw.ts,game/sound.ts,ui/RoundCard.svelte,ui/hud/hudLayout.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
@@ -305,12 +306,17 @@ return { t: s.show?.t ?? -1, phase: s.show?.phase, off: s.back.offset - s.shake,
 }
 
 /** a spin of a showcase round; resolves when the game is back at rest with nothing up (or the limit passes) */
-async function playRound(p, name, { during, limit = 90000 } = {}) {
+// (2026-11-18, Corey "Yes": the wrap-up waits for the player's press as Manticore's does, autoplay or not, unless Autoplay
+// Bonuses runs: ui/RoundCard.svelte. A round played here is pressed on at its Total Win, as a player would, 1.5 s after
+// the board shows its press line; pressTotal false leaves the press to the caller)
+async function playRound(p, name, { during, limit = 90000, pressTotal = true } = {}) {
 	await R(p, (n) => window.__reindeer.fixtures.next(n), name);
 	const t0 = Date.now();
 	await p.click('.hudp button.spin');
 	const seen = [];
 	let lastKey = '';
+	let totalWaits = null;
+	let totalPressed = false;
 	while (Date.now() - t0 < limit) {
 		const s = await R(p, () => {
 			const s = window.__reindeer.scoreboard();
@@ -322,6 +328,13 @@ async function playRound(p, name, { during, limit = 90000 } = {}) {
 			lastKey = key;
 		}
 		if (during) await during(s, Date.now() - t0);
+		if (pressTotal && s.kind === 'total' && s.phase === 'waits' && !totalPressed) {
+			totalWaits ??= Date.now();
+			if (Date.now() - totalWaits > 1500) {
+				totalPressed = true;
+				await R(p, () => document.querySelector('button.catch')?.click());
+			}
+		}
 		if (s.idle && s.rest && s.phase === 'none' && Date.now() - t0 > 1200) return { ok: true, ms: Date.now() - t0, seen };
 		await sleep(60);
 	}
@@ -926,6 +939,7 @@ async function cards(p, S, full) {
 	const top = { board: false, html: false, line: null, lineAt: 0, pressed: false, waited: false };
 	await R(p, () => window.__reindeer.gagModes(true));
 	const b = await playRound(p, 'floor_top_up', {
+		pressTotal: false,
 		limit: 240000,
 		during: async (s, ms) => {
 			await drainStrikes();

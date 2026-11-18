@@ -62,10 +62,10 @@ export const guideRowShown = (id: GuideId, j: RulesFlags): boolean => {
 
 /** the pause after a bonus round's wrap-up in autoplay, in words ("1 second"): game/bonusStockRules.ts */
 const PAUSE_WORDS = ((s) => `${s} second${s === 1 ? '' : 's'}`)(Math.round(AUTOPLAY_RESUME_PAUSE_MS / 100) / 10);
-/** THE SPACE BAR as this game has it (ui/Chrome.svelte: OnHotkey Space is the Spin press, components-shared
- *  EnableSpaceHold holds it): a press plays a round, or is STOP during one; held down it plays round after round until it
- *  is let go (checked in the browser 2026-11-18, reported to the owner, not changed) */
-const SPACE_BAR = soc('Space bar plays a round, or is **STOP** while one plays. Held down, it plays one round after another until you let go.', 'Space bar plays a round, or is **STOP** while one plays. Held down, it plays one round after another until you let go.');
+/** THE SPACE BAR as this game has it (ui/SpinHotkey.svelte, 2026-11-18, Manticore Mayhem's rule): one press, one round;
+ *  a press during a round is the Spin press (STOP); holding the key plays nothing more. Until 2026-11-18 a held key
+ *  played round after round (the kit's EnableSpaceHold, no longer mounted). */
+const SPACE_BAR = 'Space bar plays one round, or is **STOP** while one plays. Holding it down plays nothing more: each round needs its own press.';
 /** the Ante levels, from the mode list (ante_2 -> 2x): "2x, 4x and 10x" */
 const ANTE_LEVELS = ((xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : (xs[0] ?? '')))(config.anteModes.map((k: string) => `${k.split('_')[1]}x`));
 

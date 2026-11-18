@@ -77,6 +77,10 @@ const check = (ok, msg, detail) => {
 	}
 	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 600)) : ''}`);
 };
+/** THE AREA'S FLOOR this probe asks for (2026-11-18, Corey "Yes" to the probe host's two remaining fails): three well
+ *  separated resting spots, spanning 24 % of the width, are accepted held sideways (the phone layout kind) and at 21:9 and
+ *  wider; every other size keeps 4 spots and 30 %. */
+const floorOf = (kind, vp) => (kind === 'phone' || (vp && vp.width / vp.height >= 2.2) ? { spots: 3, span: 0.24 } : { spots: 4, span: 0.3 });
 const r1 = (v) => Math.round(v * 10) / 10;
 const inter = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
 
@@ -324,7 +328,9 @@ async function sweepSize(p, S, name, errs, out) {
 	// close it below, and he never pops in. That strip (about 264 x 500 road px at 844 x 390 and 932 x 430) holds 2 spots
 	// 12 % of the width apart (one high, one low), so 2 is the honest bar there, whatever the floor's `capacity` (which
 	// counts the rim) says.
-	const want = run.roam.kind === 'phone' ? 2 : run.roam.capacity >= 4 ? 4 : Math.min(2, run.roam.capacity);
+	// ULTRAWIDE (2026-11-18, Corey "Yes", the probe host's "sweep:2560x1080 ... 3 of them 12 % of the width apart (wanted
+	// 4)"): three well separated resting spots are accepted at 21:9 and wider (floorOf below); every other size keeps 4
+	const want = run.roam.kind === 'phone' ? 2 : run.roam.capacity >= 4 ? floorOf(run.roam.kind, run.vp).spots : Math.min(2, run.roam.capacity);
 	const hits = [];
 	const walkingState = (st) => st === 'start' || st === 'walk' || st === 'stop';
 	let offTop = 0;
@@ -346,6 +352,8 @@ async function sweepSize(p, S, name, errs, out) {
 	out.sweep = { kind: run.roam.kind, capacity: run.roam.capacity, relaxed: run.roam.relaxed, widen: run.roam.widen, stops: run.stops.length, spread: got, backs, offTopShare: Math.round((offTop / Math.max(1, run.pos.length)) * 1000) / 10, rounds: run.roam.counts.rounds, corridor: run.roam.counts.corridor, walks: run.roam.counts.walks, at: run.stops.map((q) => [Math.round(q[0]), Math.round(q[1])]) };
 	// THE TUNNEL MOUTHS AND THE TOP CORRIDOR (Corey 2026-11-18): never a frame of his body, head or shadow on a mouth;
 	// never at rest partly off the screen; the corridor's share of the time kept small
+	// (Corey "Yes", 2026-11-18: his head may pass behind the top line's text on a walk through the top corridor; that is
+	// accepted as it is, counted in the corridor's share below, never at rest)
 	check(mouthFrames === 0, `${name}: 60 s of his walk (${run.pos.length} frames): his body, head and shadow never on a tunnel mouth (${run.roam.counts.rounds} walks round one)`, out.sweep);
 	check(restOffTop === 0, `${name}: never at rest with any part off the screen`, out.sweep);
 	check(offTop / Math.max(1, run.pos.length) <= 0.05, `${name}: in the top corridor (partly above the screen's top, or behind the top line on a walk) ${out.sweep.offTopShare} % of the time (the top corridor, ${run.roam.counts.corridor} of ${run.roam.counts.walks} walks; at most 5 %)`, out.sweep);
@@ -439,7 +447,12 @@ async function runSize(browser, S) {
 	const pickIn = await inAreaAll(picks.map((q) => [q.x, q.y]));
 	const fl = geo.roam.floor;
 	out.floor = { widen: geo.roam.widen, own: fl, capacity: geo.roam.capacity, span: geo.roam.span };
-	check(geo.roam.widen === 0 ? fl.spots >= 4 && fl.span >= 0.3 : fl.spots < 4 || fl.span < 0.3, `${name}: the area ${geo.roam.widen ? `is widened (${geo.roam.widen === 1 ? 'the top snow rim' : 'all the free snow'}) because the drawn one holds ${fl.spots} spots 12 % apart spanning ${Math.round(fl.span * 100)} % of the width` : `is the drawn one: it holds ${fl.spots} spots 12 % apart spanning ${Math.round(fl.span * 100)} % of the width`} (the floor: 4 and 30 %)`, out.floor);
+	// the floor this probe holds the drawn area to (floorOf: 3 spots and 24 % of the width held sideways and at 21:9 and
+	// wider, Corey "Yes" 2026-11-18; 4 and 30 % everywhere else). The game's own FLOOR_SPOTS / FLOOR_SPAN (4, 30 %) only
+	// decide whether it TRIES to widen the area, and a widening is kept only where it gives him more room: at 844 x 390
+	// neither widening does (the drawn area stays, 3 spots over 24 %), so the game is left as it is.
+	const FL = floorOf(geo.roam.kind, geo.vp);
+	check(geo.roam.widen === 0 ? fl.spots >= FL.spots && fl.span >= FL.span - 0.005 : fl.spots < 4 || fl.span < 0.3, `${name}: the area ${geo.roam.widen ? `is widened (${geo.roam.widen === 1 ? 'the top snow rim' : 'all the free snow'}) because the drawn one holds ${fl.spots} spots 12 % apart spanning ${Math.round(fl.span * 100)} % of the width` : `is the drawn one: it holds ${fl.spots} spots 12 % apart spanning ${Math.round(fl.span * 100)} % of the width`} (the floor here: ${FL.spots} and ${Math.round(FL.span * 100)} %)`, out.floor);
 	const bad = [];
 	let level = 0;
 	let relaxed = 0;

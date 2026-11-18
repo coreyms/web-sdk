@@ -547,6 +547,13 @@ export class Scoreboard {
 		if (ok) this.mark('land', `${s.kind} at ${Math.round(s.t)}`);
 		return ok;
 	}
+	/** the card's scene has landed: up, and a Total Win's count done (true when no card plays here: the HTML card shows its
+	 *  amount at once). ui/RoundCard.svelte holds an autoplayed wrap-up from this moment (ROUND.wrapAutoHoldMs). */
+	cardLanded(): boolean {
+		const s = this.show;
+		if (!s || !isCard(s)) return true;
+		return s.t >= s.contentAt && s.t >= s.countEnd;
+	}
 	/** the card was dismissed: the board powers down and lowers */
 	endCard() {
 		const s = this.show;

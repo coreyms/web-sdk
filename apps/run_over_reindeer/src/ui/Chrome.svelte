@@ -2,7 +2,8 @@
 	// HTML skin over the Pixi canvas. A FitFrame scales the design master (layoutSpec.ts) exactly like
 	// the Pixi MainContainer does, so HTML and canvas coordinates line up. Fades on uiHide / uiShow.
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
-	import { EnableSpaceHold, OnHotkey } from 'components-shared';
+	// (EnableSpaceHold and OnHotkey are no longer mounted here: ui/SpinHotkey.svelte takes the Space bar, 2026-11-18)
+	// import { EnableSpaceHold, OnHotkey } from 'components-shared';
 	import { stateModal, stateBet } from 'state-shared';
 	import { waitForTimeout } from 'utils-shared/wait';
 
@@ -19,6 +20,7 @@
 	import DenomModal from './DenomModal.svelte';
 	import ReplayModal from './ReplayModal.svelte';
 	import GameInfoModal from './GameInfoModal.svelte';
+	import SpinHotkey from './SpinHotkey.svelte';
 	import NoticeModal from './NoticeModal.svelte';
 	import FeatureMenu from './FeatureMenu.svelte';
 
@@ -101,13 +103,16 @@
 
 <ChromeStyles />
 <HudStyles />
-{#if !controls.isReplay() && !controls.jurisdiction().disabledSpacebar && stateModal.modal == null}<EnableSpaceHold />{/if}
+<!-- ONE PRESS, ONE ROUND (2026-11-18, Corey "Yes"; Manticore Mayhem's fix of harsh review 2026-11-17 M4): the shared
+     EnableSpaceHold (hold Space to keep playing) is no longer mounted, so stateBet.isSpaceHold stays false and the bet
+     machine's checkSpaceHold never chains a round; SpinHotkey (in place of the shared OnHotkey) ignores the key's
+     auto-repeat, so a held Space plays one round. It was:
+     {#if !controls.isReplay() && !controls.jurisdiction().disabledSpacebar && stateModal.modal == null}<EnableSpaceHold />{/if} -->
 <!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–300×
      purchase behind the dialog, and with a parked autoplay loadout it starts the whole run.
      pressGates: while a press-to-continue presentation is up, Space belongs to it alone — otherwise
      the same press also hit controls.spin → stopButtonClick, force-enabling turbo. -->
-<OnHotkey
-	hotkey="Space"
+<SpinHotkey
 	disabled={controls.spinDisabled() || controls.isReplay() || controls.jurisdiction().disabledSpacebar || context.stateLayout.showLoadingScreen || stateModal.modal != null || context.stateGame.pressGates > 0}
 	onpress={controls.spin}
 />

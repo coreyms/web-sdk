@@ -2,11 +2,12 @@
 // WATCHES: apps/run_over_reindeer/src/{game/bonusStockRules.ts,game/actor.ts,ui/controls.svelte.ts,ui/hud/HudKey.svelte}, packages/utils-xstate/src/**;
 // WATCHES: ; __reindeer.stockRules, __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, AUTOPLAY_RESUME_PAUSE_MS, bonusEntered, bonusLeft, autoSpinPause
 // WATCHES: ; baseTurboLevel, turboLevel, autoStopOnFreeGames, autoPlayBonuses, data-l, data-round-card, .hudp, .fold-row, .go, button.catch
-// WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.introWaitsForPress, ROUND.lineOutroWaitsForPress, ROUND.autoplayMs, ROUND.introAutoMs, ROUND.outroAutoMs
+// WATCHES: apps/run_over_reindeer/src/{ui/SpinHotkey.svelte,ui/Chrome.svelte}; isSpaceHold
+// WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.introWaitsForPress, ROUND.lineOutroWaitsForPress, ROUND.autoplayMs, ROUND.introAutoMs, ROUND.outroAutoMs, ROUND.wrapAutoHoldMs, __reindeer.scoreboard
 // THE STOCK RULES PROBE (game/bonusStockRules.ts, 2026-11-18): turbo and autoplay around a bonus round, the owner's
 // standing rule for all his games. Every pause and level is read from the game (__reindeer.stockRules: the module's own
 // AUTOPLAY_RESUME_PAUSE_MS and its log), never copied here. Sections (ONLY=entry,buy,resume,pause,stopbonus,stoppause,
-// stopspin,stopfree,autocards):
+// stopspin,stopfree,autocards,space):
 //   entry      a natural Free Spins round from base turbo 0, 1 and 2 (set with the Turbo key): the level is 0 from the
 //              entry on and the key shows it; the player raises it to 2 inside the round; after the wrap-up the base
 //              level comes back (key and state), and the next entry is 0 again
@@ -20,9 +21,10 @@
 //   stoppause  the Auto key pressed during the pause: no automatic spin follows
 //   stopspin   the Spin pressed during the pause: no automatic spin follows, and the slam stop's hurry is given back
 //   stopfree   autoplay with Stop on Free Games: the run ends at the trigger, the round plays out, no pause, no spin
-//   autocards  autoplay into Free Spins and Super with Autoplay Bonuses OFF (base 0, 2): the entry card waits for the
-//              press; ON (base 1, 0): it continues by itself after ROUND.autoplayMs; the wrap-up's own time recorded and
-//              checked (outroAutoMs off, autoplayMs on); a stop in the pause after it, no automatic spin
+//   autocards  autoplay into Free Spins and Super with Autoplay Bonuses OFF (base 0, 2): the entry card and the wrap-up
+//              wait for the press; ON (base 1, 0): the entry continues after ROUND.autoplayMs and the wrap-up
+//              ROUND.wrapAutoHoldMs after its amount lands; a stop in the pause after it, no automatic spin
+//   space      one press, one round (ui/SpinHotkey.svelte): a tap 1 round; held 6 s with auto-repeat 1; without 1
 // In every section: nothing strands (every paying round played has its end-round, the game comes back idle and at
 // rest with no card up) and no page error.
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3015 [ONLY=a,b] node tools/stock_rules_probe.mjs
@@ -427,6 +429,59 @@ async function sectionStopFree(browser) {
 	await ctx.close();
 }
 
+/** ONE PRESS, ONE ROUND (2026-11-18, Corey "Yes"; ui/SpinHotkey.svelte, Manticore Mayhem's rule and its probe's idea): a
+ *  tap of Space plays one round; Space held 6 s, with the keyboard's auto-repeat or without, plays one round too; the kit's
+ *  space hold never turns on (stateBet.isSpaceHold); a second press after the release plays the next one. */
+async function sectionSpace(browser) {
+	const { ctx, p, errs } = await boot(browser, 'space');
+	const plays = () => p.evaluate(() => window.__reindeer.fixtures.log().plays.length);
+	const idle = async () => {
+		for (let i = 0; i < 300; i++) {
+			if (await p.evaluate(() => window.__reindeer.hud.idle() && window.__reindeer.atRest())) return true;
+			await sleep(200);
+		}
+		return false;
+	};
+	await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1', true));
+	let a = await plays();
+	await p.keyboard.press('Space');
+	await sleep(400);
+	await idle();
+	check((await plays()) - a === 1, `space: a tap plays one round (${(await plays()) - a})`);
+	// held 6 s with the auto-repeat a real keyboard sends (a keydown every ~33 ms after the first)
+	a = await plays();
+	await p.keyboard.down('Space');
+	let spaceHold = false;
+	const t0 = Date.now();
+	while (Date.now() - t0 < 6000) {
+		await p.keyboard.down('Space');
+		spaceHold ||= await p.evaluate(() => document.querySelector('.hudp button[aria-label^="Turbo"]')?.disabled === true);
+		await sleep(33);
+	}
+	await p.keyboard.up('Space');
+	await sleep(400);
+	await idle();
+	const heldRep = (await plays()) - a;
+	check(heldRep === 1 && !spaceHold, `space: held 6 s with the key's auto-repeat, one round (${heldRep}); the kit's space hold never on`, { heldRep, spaceHold });
+	// held 6 s, one keydown and no repeat
+	a = await plays();
+	await p.keyboard.down('Space');
+	await sleep(6000);
+	await p.keyboard.up('Space');
+	await idle();
+	const held = (await plays()) - a;
+	check(held === 1, `space: held 6 s without repeat, one round (${held})`);
+	// released and pressed again: the next round
+	a = await plays();
+	await p.keyboard.press('Space');
+	await sleep(400);
+	await idle();
+	check((await plays()) - a === 1, `space: a new press after the release plays the next round`);
+	await p.evaluate(() => window.__reindeer.fixtures.clear());
+	await noStrand(p, 'space', errs);
+	await ctx.close();
+}
+
 /** THE BONUS ROUND'S CARDS IN AUTOPLAY (Corey on staging 2026-11-18: "I had auto spins on, without the option selected
  *  for AutoPlay Bonuses, and it entered bonus games without me clicking to continue on the intro screen"): with a run live
  *  and Autoplay Bonuses OFF the entry card waits for the press; with it ON the card continues by itself after the game's
@@ -476,8 +531,12 @@ async function sectionAutoCards(browser) {
 		}
 		let raised = false;
 		let outroAt = null;
+		let landedAt = null;
 		let outroGoneAfter = null;
 		const t1 = Date.now();
+		// (the wrap-up's own wait, unpressed: with the option off it waits for the press (Manticore's rule, 2026-11-18),
+		// so the loop gives up ROUND.outroAutoMs + 1.5 s after it came up, the old self-continue's time and more)
+		const outroLimit = C.on ? 15000 : ROUND.outroAutoMs + 1500;
 		while (Date.now() - t1 < 200000) {
 			const c = await card();
 			if (!raised && c === null && (await SR(p)).gameType === 'freegame') {
@@ -488,19 +547,33 @@ async function sectionAutoCards(browser) {
 				raised = true;
 			}
 			if (c === 'outro' && outroAt === null) outroAt = Date.now();
+			// its amount landed: the LED board's Total Win count is done (or the HTML card is up)
+			if (c === 'outro' && landedAt === null) {
+				const ph = await p.evaluate(() => window.__reindeer.scoreboard?.()?.show?.phase ?? 'show');
+				if (ph !== 'count' && ph !== 'rising' && ph !== 'switching') landedAt = Date.now();
+			}
 			if (outroAt !== null && c !== 'outro') {
 				outroGoneAfter = Date.now() - outroAt;
 				break;
 			}
-			// a wrap-up never pressed: how long it stays by itself (a line wrap-up, a top-up or the cap, may wait)
-			if (outroAt !== null && Date.now() - outroAt > ROUND.outroAutoMs + 4000) break;
+			if (outroAt !== null && Date.now() - outroAt > outroLimit) break;
 			await sleep(50);
 		}
-		const lined = await p.evaluate(() => !!(window.__reindeer.stockRules && document.querySelector('[data-round-card="outro"]')));
-		const want = C.on ? ROUND.autoplayMs : ROUND.outroAutoMs;
-		console.log(`  INFO ${tag}: the wrap-up went by itself after ${outroGoneAfter} ms (unpressed)`);
-		check(outroGoneAfter !== null && Math.abs(outroGoneAfter - want) <= 400, `${tag}: the wrap-up continues by itself after ${outroGoneAfter} ms (the game's ${C.on ? 'ROUND.autoplayMs' : 'ROUND.outroAutoMs'} ${want}), as before`, { outroGoneAfter, lined });
-		if (lined) await pressCard(p);
+		const stillUp = (await card()) === 'outro';
+		if (C.on) {
+			const held = outroGoneAfter !== null && landedAt !== null ? outroGoneAfter - (landedAt - outroAt) : null;
+			console.log(`  INFO ${tag}: the wrap-up went by itself ${outroGoneAfter} ms after it came up, ${held} ms after its amount landed`);
+			check(held !== null && Math.abs(held - ROUND.wrapAutoHoldMs) <= 350, `${tag}: the wrap-up continues by itself ${held} ms after its amount lands (the game's ROUND.wrapAutoHoldMs ${ROUND.wrapAutoHoldMs}; Manticore's rule)`, { outroGoneAfter, landedAt: landedAt && landedAt - outroAt });
+		} else {
+			check(outroAt !== null && stillUp && outroGoneAfter === null, `${tag}: the wrap-up still waits for the press ${outroLimit} ms after it came up (no self-continue with the option off; Manticore's rule)`, { outroAt, outroGoneAfter });
+		}
+		if (stillUp) {
+			// the player's press clears it (a board card may need two: the first lands its count)
+			for (let i = 0; i < 20 && (await card()) === 'outro'; i++) {
+				await pressCard(p);
+				await sleep(300);
+			}
+		}
 		// the pause follows the cleared wrap-up; the Auto key's press (armed above) stops the run there
 		await sleep(3000);
 		const pressed = await p.evaluate(() => window.__pausePress);
@@ -525,6 +598,7 @@ try {
 	if (want('stopspin')) await sectionStopPause(browser, 'spin');
 	if (want('stopfree')) await sectionStopFree(browser);
 	if (want('autocards')) await sectionAutoCards(browser);
+	if (want('space')) await sectionSpace(browser);
 } catch (e) {
 	fail++;
 	console.log('FAIL probe error', e?.stack ?? e);

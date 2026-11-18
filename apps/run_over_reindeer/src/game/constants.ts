@@ -528,6 +528,9 @@ export const ROUND = {
 	/** a wrap-up that carries a line (a top-up, the cap) waits for the press too with no autoplay (its line scrolls on the
 	 *  LED strip), as long as introWaitsForPress is on */
 	lineOutroWaitsForPress: true,
+	/** a wrap-up with Autoplay Bonuses running continues this long after its amount has landed (real ms; Manticore
+	 *  Mayhem's STINGER_PLAQUE.wrapAutoHoldMs); without the option it waits for the press (2026-11-18) */
+	wrapAutoHoldMs: 1000,
 	/** a card takes no press for its first moment (a spin press must not skip it) */
 	armMs: 450,
 	/** the +3 line of a retrigger shows this long */
