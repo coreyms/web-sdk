@@ -677,6 +677,9 @@ export class SceneView {
 	setUnlit(on: boolean, now: number): void {
 		if (on === this.unlit) return;
 		this.unlit = on;
+		// (a scene the game has not given a mode yet, or one hidden in the other layout, takes the flag with its next mode():
+		// re-applying its values here would hand it a target, show and dim, that the game never gave it)
+		if (this.to[SHOW] <= 0 && this.cur[SHOW] <= 0) return;
 		this.mode(this.family, this.to[DIM], now);
 	}
 	get isUnlit(): boolean {
