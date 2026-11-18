@@ -548,14 +548,9 @@ function judge2(tag, C, R) {
 	// THE STOPLIGHTS
 	const lights = named('stoplight');
 	const lightFrames = [...new Set(lights.map((e) => e.frame))];
-	lightFrames.forEach((f) => {
-		const e = lights.find((x) => x.frame === f);
-		const pl = take('sfx_stoplight_change', f);
-		check(!!pl, `${tag}: a stoplight change (${e.detail}): its sound on that frame (${f})`);
-		if (show(e)) row('sfx_stoplight_change', pl, e, `stoplight ${e.detail}`);
-	});
+	// SILENT since 2026-11-17 (Corey: the stoplight needs no sound effect): the lights still change, nothing plays
 	const lightPlays = plays.filter((e) => e.name === 'sfx_stoplight_change');
-	check(lightPlays.length === lightFrames.length, `${tag}: one stoplight sound per frame a light changed (${lightPlays.length} for ${lightFrames.length})`);
+	check(lightPlays.length === 0, `${tag}: the stoplights change (${lightFrames.length} frames) and play no sound (${lightPlays.length} plays)`);
 
 	// THE CROSSHAIR: hops (rate per hop), drops, lock, red box
 	const strikes = named('strike');

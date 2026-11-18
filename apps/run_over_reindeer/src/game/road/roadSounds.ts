@@ -54,7 +54,6 @@ export class RoadSounds {
 	private hops = 0;
 	private dropFrame = -1;
 	private lockFrame = -1;
-	private lightFrame = -1;
 	/** the last reel stop sound: when (performance.now) and which */
 	private reelStopT = -Infinity;
 	private reelStopName = '';
@@ -178,12 +177,11 @@ export class RoadSounds {
 		this.playNamed(REINDEER_SOUND.columnWin[tier], `reel ${reel}`);
 	}
 
-	/** a stoplight changed color on this frame (once a frame, however many changed) */
+	/** a stoplight changed color on this frame. SILENT since 2026-11-17 (Corey, after many spins: "It's the stoplight
+	 *  sound playing 4 times, honestly I don't even think this needs a sound effect"): the moment is still marked for the
+	 *  probes, nothing is played. The key stays in REINDEER_SOUND and the clip in the sprite, unused. */
 	stoplight(detail: string) {
 		this.mark('stoplight', detail);
-		if (this.lightFrame === this.frameNo) return;
-		this.lightFrame = this.frameNo;
-		this.playNamed(N.stoplight, detail);
 	}
 
 	/** THE TRAFFIC (the spin): on from the press; a second start while it is on does nothing */
