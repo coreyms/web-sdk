@@ -1,126 +1,101 @@
-// THE INTRO CARDS' TEXT (ui/LandingScreen.svelte), approved 2026-10-12 ("intro_cards_r3",
-// card_text_final.json: titles, slate copy with its highlighted words, and the scene lines with the
-// clip time range each one is up for). Copied into this module by hand: nothing fetches the json at
-// run time. The landing screen has no i18n catalog yet (src/i18n/messagesMap/en.ts is empty and the
-// screen's other strings are literals), so every string of the cards lives here, in one place, ready
-// to be moved into one.
+// THE INTRO CARDS' TEXT (ui/LandingScreen.svelte). Since intro cards round 3 (header H1, approved Corey 2026-11-18:
+// "This looks great, but the vertical alignment should be fixed and this will be good to put in the game") a card's slate
+// is IMAGE LETTERING (game/introSlateSpec.ts, baked by tools/build_intro_slate.py from glyphs and pictures the game
+// ships) and ONE plain line under it. The paragraph and the gold scene line that followed the clip's time (approved
+// 2026-10-12, card_text_final.json) are gone: Corey 2026-11-17 on round 2, "Many of the games use image text and images,
+// not a lot use plain formatted text ... Some plain text is okay."
 //
-// Names (Corey 2026-10-12): the wild is "Wild", the scatter is "War Standard Scatter(s)", the tiles
-// are "Multiplier Tiles".
+// Every string of the cards lives here: the header words (the lettering's own words, for the dots' labels and the DEV
+// hook), the plain line in both wordings (soc(): stake.com and stake.us; the same words today, none of them gambling
+// vocabulary), and the numbers the lettering states, checked against config.ts (the mirror of the shipped math) below.
 //
-// NUMBERS UP FRONT (Corey 2026-10-21, "Yes, great idea"; docs/reviews/manticore-advisor-2026-10-21.md upgrade 1: every
-// 3-star game in the calibration set states a number on its landing). The numbers are read from config.ts, the mirror
-// of the shipped math (game_config.py), never typed in here: the max win line under the cards (WINCAP) and the
-// Multiplier Tiles' top value on CLUSTERS (TILE_CAP_HIGH, the Super and Epic ladder; Free Spins and the base game
-// stop at 64, hence "up to"). Social wording through soc(): "your bet" on stake.com, "your play amount" on stake.us.
+// Names (Corey 2026-10-12): the wild is "Wild", the scatter is "War Standard Scatter(s)", the tiles are "Multiplier Tiles".
+// The third card's header is MANTICORE (round 3: "THE MANTICORE" would force all three headers smaller).
 
 import config from './config';
 import { soc } from './social';
-
-/** the multiplier tiles' top value in the shipped math (config.tileCap, the highest ladder: Super and Epic) */
-export const INTRO_TILE_TOP = Math.max(...Object.values(config.tileCap));
-const TILE_TOP_TEXT = `${INTRO_TILE_TOP}x`;
-
-/** THE MAX WIN LINE: the gold caption of the CLUSTERS clip's last scene (Corey 2026-10-23: "On the Clusters Card, we
- *  add one more video clip in that loop that has all tiles lit at 128x, and all wilds drop in, they clear and we show
- *  10,000x over them. Then on the Gold text at the bottom of that card we say 'WIN UP TO 10,000x YOUR PLAY AMOUNT'").
- *  It stood over the gate from 2026-10-21 until then. "YOUR PLAY AMOUNT" in every mode (Corey 2026-10-22: "YOUR PLAY
- *  AMOUNT. Easier to maintain that way.") */
-export const INTRO_MAX_WIN = {
-	lead: 'WIN UP TO ',
-	num: `${config.maxWin.toLocaleString('en-US')}x`,
-	tail: ' YOUR PLAY AMOUNT',
-} as const;
+import { INTRO_SLATE_PIECES } from './introSlateSpec';
 
 export type IntroCardKey = 'clusters' | 'scatters' | 'features';
-
-export type IntroSceneLine = {
-	/** seconds inside the looping clip: the line is up for from <= t < to */
-	from: number;
-	to: number;
-	text: string;
-};
 
 export type IntroCardText = {
 	key: IntroCardKey;
 	/** the clip's length, seconds (ffprobe of the shipped file) */
 	clipSeconds: number;
+	/** the header's words: the lettering in the atlas says exactly these (INTRO_SLATE_PIECES header_<key>.text) */
 	title: string;
-	/** the slate copy; every string of `highlights` inside it is drawn in the highlight colour */
-	body: string;
-	highlights: readonly string[];
-	sceneLines: readonly IntroSceneLine[];
+	/** the plain line under the lettering, in the card's body face */
+	line: string;
 };
+
+const T = config.scatterTriggers as Record<number, string>;
+const scatterAt = (mode: string) => Number(Object.keys(T).find((n) => T[Number(n)] === mode));
+
+/** THE NUMBERS THE LETTERING STATES (baked into static/assets/ui/intro/intro-slate.webp). A change to the math that
+ *  moves one of them needs the lettering rebaked: introSlateNumbersMatch() says whether they still agree */
+export const INTRO_SLATE_NUMBERS = {
+	/** "5+ TOUCHING SYMBOLS WIN" */
+	minCluster: 5,
+	/** "4+ WAR STANDARDS" */
+	scatterBonus: 4,
+	/** "8 FREE SPINS" */
+	bonusSpins: 8,
+	/** the tiles x2 .. x128, doubling */
+	tiles: [2, 4, 8, 16, 32, 64, 128],
+} as const;
+export const introSlateNumbersMatch = () =>
+	config.minCluster === INTRO_SLATE_NUMBERS.minCluster &&
+	scatterAt('bonus') === INTRO_SLATE_NUMBERS.scatterBonus &&
+	config.freeSpins.bonus === INTRO_SLATE_NUMBERS.bonusSpins &&
+	INTRO_SLATE_NUMBERS.tiles[0] === config.tileSeed &&
+	INTRO_SLATE_NUMBERS.tiles[INTRO_SLATE_NUMBERS.tiles.length - 1] === Math.max(...Object.values(config.tileCap));
+
+const SUPER_AT = scatterAt('super');
+const EPIC_AT = scatterAt('epic');
 
 export const INTRO_CARD_TEXT: readonly IntroCardText[] = [
 	{
 		key: 'clusters',
 		clipSeconds: 15.633,
-		title: 'CLUSTERS',
-		body: `5 or more matching symbols that touch form a cluster. Every win lights Multiplier Tiles under it, and lit tiles double up to ${TILE_TOP_TEXT}.`,
-		highlights: ['Multiplier Tiles', TILE_TOP_TEXT],
-		sceneLines: [
-			// the max win scene (images/intro_cards_r9b, Corey 2026-10-23 "Looks good, go"): 128x tiles, Wilds, MAX WIN 10,000x.
-			// It opens the clip (Corey 2026-10-23: "It makes sense to at least do the re-order of Win up to 10,000x to the first
-			// item in the reel/video"): the r9b clip turned at its frame 379, so the doubling tiles' dissolve into it closes the loop
-			{ from: 0, to: 3.0, text: `${INTRO_MAX_WIN.lead}${INTRO_MAX_WIN.num}${INTRO_MAX_WIN.tail}` },
-			{ from: 3.0, to: 4.9, text: '5 Persian Daggers in a row: a cluster' },
-			{ from: 4.9, to: 7.1, text: 'Any shape counts: left, right, up or down. Not diagonals' },
-			{ from: 7.1, to: 9.3, text: 'The Wild stands in for any symbol except the War Standard Scatter' },
-			{ from: 9.3, to: 12.567, text: 'Every winning cluster lights the cells under it: 2x Multiplier Tiles' },
-			{ from: 12.567, to: 15.633, text: 'A cluster on Multiplier Tiles wins its value times their sum. Then the tiles double' },
-		],
+		title: INTRO_SLATE_PIECES.header_clusters.text ?? 'CLUSTERS',
+		line: soc('Every win lights tiles. Lit tiles keep doubling.', 'Every win lights tiles. Lit tiles keep doubling.'),
 	},
 	{
 		key: 'scatters',
 		clipSeconds: 13.467,
-		title: 'SCATTERS',
-		body: '4 or more War Standard Scatters trigger Free Spins. Only one can sit in a column, and more of them open the bigger rounds.',
-		highlights: ['War Standard Scatters'],
-		sceneLines: [
-			{ from: 0, to: 4.1, text: '4 War Standard Scatters: 8 Free Spins' },
-			{ from: 4.1, to: 8.6, text: '5 War Standard Scatters: 10 Super Free Spins' },
-			{ from: 8.6, to: 13.467, text: '6 or more: 12 Epic Free Spins' },
-		],
+		title: INTRO_SLATE_PIECES.header_scatters.text ?? 'SCATTERS',
+		line: soc(`${SUPER_AT} start Super Free Spins. ${EPIC_AT} or more start Epic.`, `${SUPER_AT} start Super Free Spins. ${EPIC_AT} or more start Epic.`),
 	},
 	{
 		key: 'features',
 		clipSeconds: 10.633,
-		title: 'THE MANTICORE',
-		body: 'The Manticore can step into a spin. A sting turns cells wild. A swipe lights or doubles up to 24 tiles, and in Free Spins they stay all round.',
-		highlights: ['sting', 'swipe'],
-		sceneLines: [
-			{ from: 0, to: 4.5, text: 'STING: the tail turns cells wild, one cell or a whole cross' },
-			// math 2026.11.02, wilds survive the swipe (Corey 2026-11-02: "they should persist the claw swipe ... What I was looking for is for it to keep the wilds")
-			{ from: 4.5, to: 6.833, text: 'SWIPE: his claws tear through three rows. Wilds stay, the tiles light or double' },
-			{ from: 6.833, to: 10.633, text: 'ROAR: in Super and Epic Free Spins, every low symbol is blown off and replaced' },
-		],
+		title: INTRO_SLATE_PIECES.header_features.text ?? 'MANTICORE',
+		line: soc('He can step into any spin. Roar: Super and Epic only.', 'He can step into any spin. Roar: Super and Epic only.'),
 	},
 ];
 
+/** THE MAX WIN LINE (back on the intro as candidates, 2026-11-18: Corey "yes"; it was the CLUSTERS clip's first scene line
+ *  from 2026-10-23 until round 3 took the scene lines out, and stood over the gate from 2026-10-21 before that). The words
+ *  are Corey's (2026-10-23: "WIN UP TO 10,000x YOUR PLAY AMOUNT"), "YOUR PLAY AMOUNT" in every mode (2026-10-22: "YOUR
+ *  PLAY AMOUNT. Easier to maintain that way."); the number is the shipped math's (config.maxWin). The candidates draw it
+ *  as image lettering baked from THIS table by tools/build_intro_slate.py (game/introMaxlineSpec.ts), DEV / staging only
+ *  (?maxline=1|2|3, game/introCards.ts INTRO_MAXLINE); keep the two in the one-line form the tool reads. */
+export const INTRO_MAX_WIN_WORDS = {
+	standard: { lead: 'WIN UP TO ', tail: ' YOUR PLAY AMOUNT' },
+	social: { lead: 'WIN UP TO ', tail: ' YOUR PLAY AMOUNT' },
+} as const;
+export const INTRO_MAX_WIN = {
+	...soc(INTRO_MAX_WIN_WORDS.standard, INTRO_MAX_WIN_WORDS.social),
+	num: `${config.maxWin.toLocaleString('en-US')}x`,
+} as const;
+export const introMaxWinText = () => `${INTRO_MAX_WIN.lead}${INTRO_MAX_WIN.num}${INTRO_MAX_WIN.tail}`.trim();
+
+/** THE TILES LIFT WITH THE CLIP (the mock's chipTick, kept from round 1): from `from` seconds into the CLUSTERS clip (its
+ *  scene "A cluster on Multiplier Tiles wins its value times their sum. Then the tiles double", 12.567 to its end) the
+ *  tiles x2, x4 .. x128 lift one after another, `stepS` each; before it none is lifted */
+export const INTRO_TILE_LIFT = { card: 'clusters' as IntroCardKey, from: 12.567, stepS: 0.4 } as const;
+/** which tile (its order, 0 = x2) is lifted at clip time t, or -1 */
+export const introTileLiftAt = (t: number): number => (t >= INTRO_TILE_LIFT.from ? Math.floor((t - INTRO_TILE_LIFT.from) / INTRO_TILE_LIFT.stepS) : -1);
+
 /** the carousel's labels (one card at a time: the dots) */
 export const INTRO_DOT_LABEL = (title: string) => `Show ${title}`;
-
-/** the slate copy cut into plain and highlighted runs, in order */
-export const introBodyRuns = (card: IntroCardText): { text: string; hl: boolean }[] => {
-	let runs: { text: string; hl: boolean }[] = [{ text: card.body, hl: false }];
-	for (const word of card.highlights) {
-		runs = runs.flatMap((run) => {
-			if (run.hl || !run.text.includes(word)) return [run];
-			const at = run.text.indexOf(word);
-			return [
-				{ text: run.text.slice(0, at), hl: false },
-				{ text: word, hl: true },
-				{ text: run.text.slice(at + word.length), hl: false },
-			].filter((r) => r.text.length > 0);
-		});
-	}
-	return runs;
-};
-
-/** which scene line is up at clip time t (seconds; wraps at the clip's length) */
-export const introSceneIndexAt = (card: IntroCardText, t: number): number => {
-	const s = ((t % card.clipSeconds) + card.clipSeconds) % card.clipSeconds;
-	for (let i = card.sceneLines.length - 1; i >= 0; i -= 1) if (s >= card.sceneLines[i].from) return i;
-	return 0;
-};

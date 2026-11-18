@@ -126,6 +126,8 @@ walk(ASSETS);
 // (src/game/boot.svelte.ts CARD_* names the same files; a clip's bytes leave the scale where no clip is asked for.)
 const CARDS = [
 	'ui/intro/card-frame.webp',
+	// the slate's lettering (intro cards round 3, 2026-11-18: tools/build_intro_slate.py)
+	'ui/intro/intro-slate.webp',
 	'ui/intro/card-clusters-poster.jpg',
 	'ui/intro/card-scatters-poster.jpg',
 	'ui/intro/card-features-poster.jpg',

@@ -31,9 +31,15 @@
 	import { bootSizes } from '../game/assetStamp';
 	import { loadGate } from '../game/loadGate.svelte';
 	import { sound } from '../game/sound';
-	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_CARD_STYLE, INTRO_GATE, LANDING_BAR, introGatePctSize, introPlacement } from '../game/introCards';
-	import { INTRO_BODY_FIT, LOAD_GATE } from '../game/constants';
-	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, introBodyRuns, introSceneIndexAt } from '../game/introCardText';
+	import { INTRO_CARD, INTRO_CARD_ASSETS, INTRO_GATE, INTRO_SLATE, LANDING_BAR, introGatePctSize, introPlacement, introSlatePointY } from '../game/introCards';
+	import { LOAD_GATE } from '../game/constants';
+	import { INTRO_CARD_TEXT, INTRO_DOT_LABEL, INTRO_SLATE_NUMBERS, INTRO_TILE_LIFT, introSlateNumbersMatch, introTileLiftAt } from '../game/introCardText';
+	import { INTRO_SLATE_ATLAS, INTRO_SLATE_PIECES, INTRO_SLATE_ZONES, type IntroSlatePiece } from '../game/introSlateSpec';
+	import { INTRO_MAXLINE } from '../game/introCards';
+	import { INTRO_MAXLINE_ART } from '../game/introMaxlineSpec';
+	import { introMaxWinText } from '../game/introCardText';
+	import { MAXLINE_CANDIDATE } from '../game/staging';
+	import { IS_SOCIAL } from '../game/social';
 
 	type Props = { onpress: () => void };
 	const props: Props = $props();
@@ -82,7 +88,27 @@
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const master = $derived(MASTER[kind]);
 	// where the logo, the cards, the dots and the gate stand for this viewport (game/introCards.ts)
-	const place = $derived(introPlacement(kind, innerWidth.current ?? 1, innerHeight.current ?? 1));
+	// THE MAX WIN LINE CANDIDATE (DEV / staging ?maxline=1|2|3, game/introCards.ts INTRO_MAXLINE; none without the switch):
+	// its art for this wording, sized by its cap for this kind (never over maxCapCss on screen), and the room it asks for
+	const lineCand = MAXLINE_CANDIDATE ? INTRO_MAXLINE.candidates[MAXLINE_CANDIDATE] : null;
+	const lineArt = lineCand ? INTRO_MAXLINE_ART[lineCand.art][IS_SOCIAL ? 'social' : 'standard'] : null;
+	if (import.meta.env.DEV && lineArt && lineArt.text !== introMaxWinText()) console.error('[landing] the max win line art says other words than introCardText INTRO_MAX_WIN: rebake tools/build_intro_slate.py', lineArt.text);
+	const lineAsk = $derived.by(() => {
+		if (!lineCand || !lineArt) return null;
+		const vw = innerWidth.current ?? 1;
+		const vh = innerHeight.current ?? 1;
+		const scale = Math.min(vw / master.width, vh / master.height) || 1;
+		const cap = Math.min(lineCand.cap[kind], INTRO_MAXLINE.maxCapCss[lineCand.art] / scale);
+		return { where: lineCand.where, w: (lineArt.w * cap) / lineArt.cap, h: (lineArt.h * cap) / lineArt.cap };
+	});
+	// where the logo, the cards, the dots and the gate stand for this viewport (game/introCards.ts)
+	const place = $derived(introPlacement(kind, innerWidth.current ?? 1, innerHeight.current ?? 1, lineAsk));
+	let lineReady = $state(false);
+	if (lineArt && typeof window !== 'undefined') {
+		const img = new Image();
+		img.src = stamp(lineArt.src);
+		img.decode().then(() => (lineReady = true), () => {});
+	}
 
 	// The audiosprite is roughly a third of the payload and downloads in parallel with the images
 	// (game/sound.ts), so the bar blends both — otherwise it parks at 100% for however long the
@@ -166,7 +192,7 @@
 	const frameSrc = stamp(INTRO_CARD_ASSETS.frame);
 	const posterSrc = INTRO_CARD_TEXT.map((c) => stamp(INTRO_CARD_ASSETS.poster(c.key)));
 	const clipSrc = INTRO_CARD_TEXT.map((c) => stamp(INTRO_CARD_ASSETS.clip(c.key)));
-	const bodyRuns = INTRO_CARD_TEXT.map(introBodyRuns);
+	const slateSrc = stamp(INTRO_CARD_ASSETS.slate);
 	// posters only, and no clip is ever asked for, where the player asked for less motion
 	const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -179,14 +205,25 @@
 	$effect(() => {
 		if (cardsIn || (C.armAfter === 'loaded' ? ready : C.armAfter === 'audio' ? context.stateApp.preLoaded && audioReady : context.stateApp.preLoaded)) armed = true;
 	});
-	/** the frame picture is decoded (game/boot.svelte.ts decoded it on the splash): the cards fade in. A frame that never
-	 *  arrives leaves no cards, and nothing waits. */
+	/** the frame picture AND the slate's lettering are decoded (game/boot.svelte.ts decoded both on the splash): the cards
+	 *  fade in, never a frame with a bare slate. A frame that never arrives leaves no cards, and nothing waits; a lettering
+	 *  atlas that fails leaves the cards with their plain lines (slateFailed, for the DEV hook). */
 	let frameReady = $state(false);
+	let slateFailed = $state(false);
 	$effect(() => {
 		if (!armed) return;
-		const img = new Image();
-		img.src = frameSrc;
-		img.decode().then(() => (frameReady = true), () => {});
+		const decode = (src: string) => {
+			const img = new Image();
+			img.src = src;
+			return img.decode();
+		};
+		const slate = decode(slateSrc).catch(() => {
+			slateFailed = true;
+		});
+		decode(frameSrc).then(
+			() => slate.then(() => (frameReady = true)),
+			() => {},
+		);
 	});
 	/** the clips may run: on the splash's fade when the cards came in on the splash, else at PRESS ANYWHERE
 	 *  (holdClipsUntilLoaded) */
@@ -197,8 +234,8 @@
 	let active = $state(0);
 	let activeSince = 0;
 	const isVisible = (i: number) => frameReady && (!oneUp || i === active);
-	/** the scene line each card shows (follows its clip's time) */
-	let sceneIdx = $state(INTRO_CARD_TEXT.map(() => 0));
+	/** the tile lifted on each card (INTRO_TILE_LIFT: the CLUSTERS tiles follow its clip's time), -1 none */
+	let liftIdx = $state(INTRO_CARD_TEXT.map(() => -1));
 	/** the clip is really running, so it is drawn over the poster (a clip that never starts stays hidden under it) */
 	let live = $state(INTRO_CARD_TEXT.map(() => false));
 	let videos: (HTMLVideoElement | undefined)[] = $state([]);
@@ -259,7 +296,7 @@
 		if (next !== active) {
 			const v = videos[next];
 			if (v && v.getAttribute('src')) v.currentTime = 0;
-			sceneIdx[next] = 0;
+			liftIdx[next] = -1;
 			lastT[next] = 0;
 			active = next;
 		}
@@ -274,7 +311,7 @@
 		if (frameReady && oneUp && rotating) untrack(() => (activeSince = performance.now()));
 	});
 
-	// one loop for the three cards: the scene line follows the clip's time, and with one card at a time the
+	// one loop for the three cards: the CLUSTERS tiles follow the clip's time, and with one card at a time the
 	// card moves on when its clip has played once (or, with no clip running, after stillDwellMs)
 	const frame = (now: number) => {
 		for (let i = 0; i < N; i += 1) {
@@ -283,8 +320,8 @@
 			const card = INTRO_CARD_TEXT[i];
 			const t = v.currentTime;
 			if (!live[i] && t > 0.03) live[i] = true;
-			const idx = introSceneIndexAt(card, t);
-			if (idx !== sceneIdx[i]) sceneIdx[i] = idx;
+			const idx = card.key === INTRO_TILE_LIFT.card ? introTileLiftAt(t) : -1;
+			if (idx !== liftIdx[i]) liftIdx[i] = idx;
 			if (oneUp && i === active) {
 				const length = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : card.clipSeconds;
 				if (t >= length - C.endSlackSeconds || t < lastT[i] - 1) {
@@ -330,73 +367,110 @@
 		else press();
 	};
 
-	// ---- THE BODY SHRINK TO FIT (constants INTRO_BODY_FIT) ----------------------------------------------
-	// A body taller than its zone (.zb clips it top and bottom) steps its font size down until it fits, never under the
-	// floor. Measured in layout px (offsetHeight ignores the .fit and card transforms); hidden cards are only at opacity
-	// 0, so every card is measured. Runs once the body faces are in, on every placement change (resize, turn) and when
-	// the cards mount; never per frame. A body that fits keeps --b-k unset (the slate's own size).
-	const bodyEls: (HTMLElement | undefined)[] = $state([]);
-	const bodyFit: { k: number; bodyH: number; zoneH: number; fontPx: number }[] = [];
-	const fitBodies = () => {
+	// ---- THE SLATE: the block centered between the frame's two engraved points (game/introCards.ts INTRO_SLATE) ----------
+	// The centering is layout (.slate is a flex column from the one point to the other). This only guards the size: a block
+	// taller than the span less INTRO_SLATE.margin at each end is scaled about its center (--k) until it fits. Measured in
+	// layout px (offsetHeight ignores the .fit and card transforms); hidden cards are only at opacity 0, so every card is
+	// measured. Runs once the line's face is in, on every placement change (resize, turn) and when the cards mount; never
+	// per frame. A block that fits keeps --k unset.
+	const SL = INTRO_SLATE;
+	const Z = INTRO_SLATE_ZONES;
+	const pointTop = introSlatePointY('top');
+	const pointBottom = introSlatePointY('bottom');
+	/** the plain line's top in the block: where the mock's line zone set a two-line line (centered in the zone) */
+	const lineTop = Z.lineTop + (Z.lineH - 2 * SL.line.size * SL.line.lineHeight) / 2;
+	/** the block's fixed upper part (the header's cap top to the plain line's top), card-width units */
+	const upperH = lineTop - Z.capTop;
+	const piecesOf = (key: string) => Object.values(INTRO_SLATE_PIECES).filter((p) => p.card === key);
+	const cardPieces = INTRO_CARD_TEXT.map((c) => piecesOf(c.key));
+	/** a piece of the atlas as a CSS sprite: its box in the block (units from the card's left and the cap top) */
+	const spriteStyle = (p: IntroSlatePiece) => {
+		const [ax, ay, aw, ah] = p.atlas;
+		const A = INTRO_SLATE_ATLAS;
+		return [
+			`left:calc(var(--u) * ${p.x})`,
+			`top:calc(var(--u) * ${+(p.y - Z.capTop).toFixed(3)})`,
+			`width:calc(var(--u) * ${p.w})`,
+			`height:calc(var(--u) * ${p.h})`,
+			`background-size:${+((A.w / aw) * 100).toFixed(4)}% ${+((A.h / ah) * 100).toFixed(4)}%`,
+			`background-position:${aw < A.w ? +((ax / (A.w - aw)) * 100).toFixed(4) : 0}% ${ah < A.h ? +((ay / (A.h - ah)) * 100).toFixed(4) : 0}%`,
+		].join(';');
+	};
+	const blockEls: (HTMLElement | undefined)[] = $state([]);
+	const slateFit: { k: number; blockH: number; spanH: number; roomH: number }[] = [];
+	const fitSlates = () => {
 		for (let i = 0; i < N; i += 1) {
-			const b = bodyEls[i];
-			const zone = b?.parentElement;
-			if (!b || !zone) continue;
-			b.style.removeProperty('--b-k');
-			const zoneH = zone.clientHeight;
-			const base = parseFloat(getComputedStyle(b).fontSize);
-			let k = 1;
-			if (zoneH > 0 && base > 0) {
-				const minK = INTRO_BODY_FIT.floor;
-				while (b.offsetHeight > zoneH + INTRO_BODY_FIT.slackPx && k > minK) {
-					k = Math.max(minK, k - INTRO_BODY_FIT.stepPx / base);
-					b.style.setProperty('--b-k', String(k));
-				}
-			}
-			bodyFit[i] = { k, bodyH: b.offsetHeight, zoneH, fontPx: base * k };
+			const b = blockEls[i];
+			if (!b) continue;
+			b.style.removeProperty('--k');
+			const u = place.cardW / 100;
+			const blockH = b.offsetHeight;
+			const spanH = (pointBottom - pointTop) * u;
+			const roomH = spanH - 2 * SL.margin * u;
+			const k = blockH > roomH && blockH > 0 ? roomH / blockH : 1;
+			if (k < 1) b.style.setProperty('--k', String(k));
+			slateFit[i] = { k, blockH, spanH, roomH };
 		}
 	};
-	let bodyFacesIn = $state(false);
+	let lineFaceIn = $state(false);
 	onMount(() => {
 		let gone = false;
-		// the body's two weights (400, the highlight 600), then whatever else the page still loads
-		Promise.all([document.fonts.load(`${INTRO_CARD_STYLE.body.weight} 40px Sora`), document.fonts.load(`${INTRO_CARD_STYLE.highlight.weight} 40px Sora`)])
+		// the line's weight, then whatever else the page still loads
+		document.fonts
+			.load(`${SL.line.weight} 40px Sora`)
 			.catch(() => {})
 			.then(() => document.fonts.ready)
 			.then(() => {
-				if (!gone) bodyFacesIn = true;
+				if (!gone) lineFaceIn = true;
 			});
 		return () => (gone = true);
 	});
 	$effect(() => {
-		// what the fit depends on: the faces, the placement (the card's width), the cards being mounted
+		// what the fit depends on: the face, the placement (the card's width), the cards being mounted
 		void place;
-		if (!bodyFacesIn || !armed || bodyEls.filter(Boolean).length < N) return;
-		untrack(fitBodies);
+		if (!lineFaceIn || !armed || blockEls.filter(Boolean).length < N) return;
+		untrack(fitSlates);
 	});
+	if (import.meta.env.DEV && !introSlateNumbersMatch()) console.error('[landing] the intro lettering states numbers the math no longer has: rebake tools/build_intro_slate.py', INTRO_SLATE_NUMBERS);
 
-	// the slate's numbers as CSS variables (card-width units, multiplied by --u = 1% of the card's width)
-	const S = INTRO_CARD_STYLE;
+	// the card's numbers as CSS variables (card-width units, multiplied by --u = 1% of the card's width)
 	const cardVars = [
 		`--win-l:${C.window.left}%`, `--win-t:${C.window.top}%`, `--win-w:${C.window.width}%`, `--win-h:${C.window.height}%`,
-		`--side:${S.side}`,
-		`--t-top:${S.title.top}`, `--t-h:${S.title.height}`, `--t-size:${S.title.size}`, `--t-weight:${S.title.weight}`, `--t-ls:${S.title.letterSpacingEm}em`, `--t-color:${S.title.color}`, `--t-font:${S.title.font}`,
-		`--t-dark-y:${S.titleEdge.darkY}`, `--t-dark:${S.titleEdge.dark}`, `--t-light-y:${S.titleEdge.lightY}`, `--t-light:${S.titleEdge.light}`,
-		`--b-top:${S.body.top}`, `--b-h:${S.body.height}`, `--b-size:${S.body.size}`, `--b-weight:${S.body.weight}`, `--b-lh:${S.body.lineHeight}`, `--b-color:${S.body.color}`, `--b-font:${S.body.font}`,
-		`--hl-color:${S.highlight.color}`, `--hl-weight:${S.highlight.weight}`,
-		`--r-top:${S.rule.top}`, `--r-side:${S.rule.side}`, `--r-h:${S.rule.height}`, `--r-color:${S.rule.color}`,
-		`--c-top:${S.scene.top}`, `--c-h:${S.scene.height}`, `--c-size:${S.scene.size}`, `--c-weight:${S.scene.weight}`, `--c-lh:${S.scene.lineHeight}`, `--c-color:${S.scene.color}`, `--c-font:${S.scene.font}`,
-		`--fade-in:${C.fadeInMs}ms`, `--swap:${C.swapMs}ms`, `--slide:${C.swapSlide}px`, `--scene-fade:${C.sceneFadeMs}ms`,
+		`--pt-top:${pointTop}`, `--pt-h:${pointBottom - pointTop}`, `--upper-h:${upperH}`,
+		`--l-side:${SL.line.side}`, `--l-size:${SL.line.size}`, `--l-weight:${SL.line.weight}`, `--l-lh:${SL.line.lineHeight}`, `--l-color:${SL.line.color}`, `--l-font:${SL.line.font}`,
+		`--r-side:${SL.rule.side}`, `--r-h:${SL.rule.height}`, `--r-color:${SL.rule.color}`,
+		`--lift:${SL.tileLift.transform}`, `--lift-ms:${SL.tileLift.ms}ms`, `--slate:url("${slateSrc}")`,
+		`--fade-in:${C.fadeInMs}ms`, `--swap:${C.swapMs}ms`, `--slide:${C.swapSlide}px`,
 	].join(';');
 
 	// ---- DEV hook: __manticore.landing() (tools/manticore/landing_probe.js) ----
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		Object.assign(((window as any).__manticore ??= {}), {
-			/** the body shrink to fit: runs it again now (a probe that widened the text with a style first) and says per
-			 *  card the factor, the body's and the zone's height and the font size, layout px */
-			landingFit: () => {
-				fitBodies();
-				return bodyFit.map((f, i) => ({ key: INTRO_CARD_TEXT[i].key, ...f }));
+			/** THE SLATE per card: runs the fit again now (a probe that changed the text with a style first), then the two
+			 *  frame points and the block's top and bottom in CLIENT px (getBoundingClientRect: every transform counted),
+			 *  the fit factor, the block's and the span's height in layout px, and what the slate shows */
+			landingSlate: () => {
+				fitSlates();
+				return INTRO_CARD_TEXT.map((card, i) => {
+					const el = document.querySelector(`.icard[data-card="${card.key}"]`);
+					const fr = el?.querySelector('.frame')?.getBoundingClientRect();
+					const bl = blockEls[i]?.getBoundingClientRect();
+					const at = (y: number) => (fr ? fr.top + (y / SL.frame.h) * fr.height : NaN);
+					return {
+						key: card.key,
+						points: { top: at(SL.points.top), bottom: at(SL.points.bottom) },
+						framePoints: { ...SL.points, frameH: SL.frame.h },
+						block: bl ? { top: bl.top, bottom: bl.bottom, left: bl.left, right: bl.right } : null,
+						marginPx: SL.margin * (fr ? fr.width / 100 : 0),
+						...(slateFit[i] ?? { k: 1, blockH: 0, spanH: 0, roomH: 0 }),
+						title: card.title,
+						line: card.line,
+						pieces: cardPieces[i].length,
+						lift: liftIdx[i],
+						slateFailed,
+						numbersMatch: introSlateNumbersMatch(),
+					};
+				});
 			},
 			landing: () => ({
 				mounted,
@@ -414,6 +488,12 @@
 				clipsGo,
 				armAfter: C.armAfter,
 				holdClipsUntilLoaded: C.holdClipsUntilLoaded,
+				/** the CLUSTERS tiles' lift with the clip (introCardText INTRO_TILE_LIFT) */
+				tileLift: INTRO_TILE_LIFT,
+				/** the max win line candidate (?maxline), its box (CLIENT px) and its words; null without the switch */
+				maxline: lineCand
+					? { candidate: MAXLINE_CANDIDATE, art: lineCand.art, where: lineCand.where, text: lineArt?.text, ready: lineReady, box: (() => { const b = document.querySelector('.landing .maxline-art')?.getBoundingClientRect(); return b ? { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom } : null; })() }
+					: null,
 				frameReady,
 				reducedMotion,
 				kind,
@@ -428,8 +508,9 @@
 						key: card.key,
 						visible: isVisible(i),
 						live: live[i],
-						sceneIndex: sceneIdx[i],
-						sceneLine: card.sceneLines[sceneIdx[i]].text,
+						title: card.title,
+						line: card.line,
+						lift: liftIdx[i],
 						video: v
 							? { paused: v.paused, currentTime: v.currentTime, readyState: v.readyState, duration: v.duration, src: v.getAttribute('src'), currentSrc: v.currentSrc, loop: v.loop, muted: v.muted, connected: v.isConnected }
 							: null,
@@ -461,7 +542,7 @@
 	<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>
 
 	<div class="fit" style:width="{master.width}px" style:height="{master.height}px" style:transform="translate({place.left}px, {place.top}px) scale({place.scale})">
-		<!-- the explainer cards, in master px: clip in the glass window, the frame picture over it, live text on the slate -->
+		<!-- the explainer cards, in master px: clip in the glass window, the frame picture over it, the slate's lettering and line -->
 		{#if armed}
 			<div class="cards" class:one-up={oneUp} style={cardVars}>
 				{#each INTRO_CARD_TEXT as card, i (card.key)}
@@ -487,13 +568,19 @@
 							{/if}
 						</div>
 						<img class="frame" src={frameSrc} alt="" draggable="false" />
-						<div class="z zt"><span class="t">{card.title}</span></div>
-						<div class="z zb">
-							<span class="b" bind:this={bodyEls[i]}>{#each bodyRuns[i] as run}{#if run.hl}<b>{run.text}</b>{:else}{run.text}{/if}{/each}</span>
-						</div>
-						<div class="rule"></div>
-						<div class="z zc">
-							{#key sceneIdx[i]}<span class="cap">{card.sceneLines[sceneIdx[i]].text}</span>{/key}
+						<!-- the slate: the block (header, rules, lettering and pictures, the plain line) centered between the frame's two points -->
+						<div class="slate">
+							<div class="block" bind:this={blockEls[i]}>
+								<div class="upper" role="img" aria-label={card.title}>
+									{#each cardPieces[i] as pc (pc.atlas.join())}
+										<i class="sp" class:tile={pc.role === 'tile'} class:lift={pc.role === 'tile' && pc.order === liftIdx[i]} data-piece={pc.role} style={spriteStyle(pc)}></i>
+									{/each}
+									{#each Z.rules as r (r.top)}
+										<div class="rule" style:top="calc(var(--u) * {+(r.top - Z.capTop).toFixed(3)})" style:opacity={r.opacity}></div>
+									{/each}
+								</div>
+								<div class="line">{card.line}</div>
+							</div>
 						</div>
 					</div>
 				{/each}
@@ -505,6 +592,10 @@
 					</div>
 				{/if}
 			</div>
+		{/if}
+		{#if place.maxline && lineArt}
+			<!-- the max win line candidate (?maxline): image lettering outside the cards; it shows with them -->
+			<img class="maxline-art" class:on={lineReady && frameReady} src={stamp(lineArt.src)} alt={lineArt.text} draggable="false" style:left="{place.maxline.cx - place.maxline.w / 2}px" style:top="{place.maxline.cy - place.maxline.h / 2}px" style:width="{place.maxline.w}px" style:height="{place.maxline.h}px" />
 		{/if}
 		<span class="logo-host logo" style:width="{logo.w}px" style:left="{logo.cx - logo.w / 2}px" style:top="{logo.cy}px">
 			<img src={logoSrc} alt="Manticore Unleashed" width={logo.w} draggable="false" />
@@ -637,81 +728,60 @@
 		display: block;
 		pointer-events: none;
 	}
-	/* the slate's fixed zones (card-width units x --u) */
-	.z {
+	/* THE SLATE (card-width units x --u; game/introCards.ts INTRO_SLATE): a flex column from the frame's top point to its
+	 * bottom point, the block centered in it by layout. --k: the fit (fitSlates), unset wherever the block fits. */
+	.slate {
 		position: absolute;
-		left: calc(var(--u) * var(--side));
-		right: calc(var(--u) * var(--side));
+		left: 0;
+		right: 0;
+		top: calc(var(--u) * var(--pt-top));
+		height: calc(var(--u) * var(--pt-h));
 		display: flex;
-		align-items: center;
+		flex-direction: column;
 		justify-content: center;
-		text-align: center;
-		overflow: hidden;
+		pointer-events: none;
 	}
-	.zt {
-		top: calc(var(--u) * var(--t-top));
-		height: calc(var(--u) * var(--t-h));
-		white-space: nowrap;
-		/* one card-width unit of room each side beyond the body's: "THE MANTICORE" measured 214 px in a 213 px zone with
-		 * Linux (FreeType) Cinzel metrics, 2026-10-22; the title is centred, so nothing moves where it already fit */
-		left: calc(var(--u) * (var(--side) - 1));
-		right: calc(var(--u) * (var(--side) - 1));
+	.block {
+		position: relative;
+		flex: none;
+		transform: scale(var(--k, 1));
+		transform-origin: 50% 50%;
 	}
-	.zb {
-		top: calc(var(--u) * var(--b-top));
-		height: calc(var(--u) * var(--b-h));
+	/* the header's cap top to the plain line's top: the pieces and the rules in the mock's own places */
+	.upper {
+		position: relative;
+		height: calc(var(--u) * var(--upper-h));
 	}
-	.zc {
-		top: calc(var(--u) * var(--c-top));
-		height: calc(var(--u) * var(--c-h));
+	.sp {
+		position: absolute;
+		display: block;
+		background-image: var(--slate);
+		background-repeat: no-repeat;
+	}
+	.sp.tile {
+		transform-origin: 50% 100%;
+		transition: transform var(--lift-ms) ease-out;
+	}
+	.sp.tile.lift {
+		transform: var(--lift);
 	}
 	.rule {
 		position: absolute;
 		left: calc(var(--u) * var(--r-side));
 		right: calc(var(--u) * var(--r-side));
-		top: calc(var(--u) * var(--r-top));
 		height: max(1px, calc(var(--u) * var(--r-h)));
 		background: linear-gradient(90deg, transparent, var(--r-color) 18%, var(--r-color) 82%, transparent);
 	}
-	.t {
-		font-family: var(--t-font);
-		font-weight: var(--t-weight);
-		font-size: calc(var(--u) * var(--t-size));
-		line-height: 1;
-		letter-spacing: var(--t-ls);
-		color: var(--t-color);
-		text-transform: uppercase;
-		text-shadow:
-			0 calc(var(--u) * var(--t-dark-y)) 0 var(--t-dark),
-			0 calc(var(--u) * var(--t-light-y)) 0 var(--t-light);
-	}
-	.b {
-		font-family: var(--b-font);
-		font-weight: var(--b-weight);
-		/* --b-k: the shrink to fit (fitBodies, constants INTRO_BODY_FIT), 1 wherever the body fits its zone */
-		font-size: calc(var(--u) * var(--b-size) * var(--b-k, 1));
-		line-height: var(--b-lh);
-		color: var(--b-color);
-	}
-	.b b {
-		color: var(--hl-color);
-		font-weight: var(--hl-weight);
-	}
-	.cap {
-		font-family: var(--c-font);
-		font-weight: var(--c-weight);
-		font-size: calc(var(--u) * var(--c-size));
-		line-height: var(--c-lh);
-		color: var(--c-color);
-		animation: landing-scene-in var(--scene-fade) ease both;
-	}
-	@keyframes landing-scene-in {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
+	/* the plain line (the mock's .one): its last line box is the block's bottom */
+	.line {
+		margin: 0 calc(var(--u) * var(--l-side));
+		text-align: center;
+		font-family: var(--l-font);
+		font-weight: var(--l-weight);
+		font-size: calc(var(--u) * var(--l-size));
+		line-height: var(--l-lh);
+		color: var(--l-color);
+		text-wrap: balance;
 	}
 	/* one card at a time: the dots (each button is a touch target, the drawn dot is the <i> inside) */
 	.dots {
@@ -747,6 +817,16 @@
 	}
 	.dots button.on i {
 		background: #e9c46a;
+	}
+	.maxline-art {
+		position: absolute;
+		display: block;
+		opacity: 0;
+		transition: opacity var(--fade-in, 350ms) ease;
+		pointer-events: none;
+	}
+	.maxline-art.on {
+		opacity: 1;
 	}
 	.logo-host {
 		position: relative;
@@ -943,8 +1023,8 @@
 			transition: opacity var(--swap) ease;
 			transform: none;
 		}
-		.cap {
-			animation: none;
+		.sp.tile {
+			transition: none;
 		}
 	}
 </style>
