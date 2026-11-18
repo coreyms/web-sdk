@@ -46,6 +46,9 @@ export const SYMBOL_POPUP = {
 	/** the gap between the popup and the tapped cell, and the margin it keeps from the board / screen edge */
 	gapCss: 8,
 	edgeCss: 6,
+	/** a standing column with no room clear of it at those margins (components/SymbolPopup.svelte): tried again with
+	 *  these before the popup settles for keeping clear of the tapped cell only (2026-11-17, the 390 x 620 phone) */
+	tight: { gapCss: 4, edgeCss: 2 },
 	/** the rim on the tapped cell (or the standing column): its stroke and glow (CSS px), how far it sits inside the box */
 	rim: { stroke: 3, glow: 10, inset: 3, radius: 10 },
 } as const;

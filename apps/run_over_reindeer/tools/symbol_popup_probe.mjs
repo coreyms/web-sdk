@@ -24,9 +24,10 @@
 //   social   1440 x 900 ?social=true: AMOUNTS in the session's coin as the HUD writes them (SC, then GC: the play
 //            currency set by the dev hook ledCurrency; Corey 2026-11-17 "Amounts like Manticore"), never Nx multiples,
 //            the WINS heading, the social Wild line, no restricted word
-//   sizes    1440 x 900, 1920 x 1080, 844 x 390 (touch), 390 x 844 (touch), 390 x 620 (touch): every one of the 20
-//            cells opens its own symbol, inside the screen, never over the tapped cell (or the standing column); the
-//            cell sizes (tap targets) reported; SHOTS: one popup per kind
+//   sizes    1440 x 900, 1920 x 1080, 844 x 390 (touch), 390 x 844 (touch), 390 x 620 (touch), 360 x 640 (touch):
+//            every one of the 20 cells opens its own symbol, inside the screen, never over the tapped cell (or the
+//            standing column); each first board column tapped in all four rows; the cell sizes (tap targets) reported;
+//            SHOTS: one popup per kind
 //   firsttap a tap every 100 ms from PRESS ANYWHERE: none opens the popup within FIRST_TAP.ignoreMs, one after it does
 //   clip     390 x 844 touch, recorded: open, switch, close, open again and a Spin press with it up (webm, made a GIF by
 //            ffmpeg into OUT)
@@ -674,6 +675,8 @@ const SIZES = [
 	{ name: 'side844', vp: { width: 844, height: 390 }, touch: true },
 	{ name: 'up844', vp: { width: 390, height: 844 }, touch: true, kinds: true },
 	{ name: 'up620', vp: { width: 390, height: 620 }, touch: true, kinds: true },
+	// (2026-11-17) the narrowest upright phone the game is drawn for: the column popups' fallback
+	{ name: 'up640', vp: { width: 360, height: 640 }, touch: true, kinds: true },
 ];
 async function sizes() {
 	for (const S of SIZES) {
@@ -684,14 +687,24 @@ async function sizes() {
 		try {
 			// the first board's columns
 			await sweep(c, `${S.name} the first board (three columns)`);
+			// every column, tapped in each of its four rows (2026-11-17: the small phones' fallback, browser checked): inside
+			// the screen, never over the tapped cell; clear of the whole column wherever the usual or the tight margins
+			// (SYMBOL_POPUP.tight, read from the page) leave room, which the INFO line reports
+			const spec = await H(p, () => window.__reindeer.symbolPopup.spec());
 			for (const [reel, code] of Object.entries(LANDING_COLUMNS)) {
-				await tapCell(c, Number(reel), 1);
-				const s = await st(p);
-				const g = geometry(s, S.vp);
-				ok(s.open && s.code === code && g.inScreen && !g.overCell, `${S.name} ${code}: inside the screen, clear of the column (side ${s.place?.side}, ${Math.round(s.place?.width)} x ${Math.round(s.place?.height)})`, { g, place: s.place, cell: s.cell });
-				if (S.kinds) await shot(p, `${S.name}_${code}.png`);
-				await p.keyboard.press('Escape');
-				await sleep(150);
+				for (let row = 0; row < 4; row++) {
+					await tapCell(c, Number(reel), row);
+					const s = await st(p);
+					const g = geometry(s, S.vp);
+					const t = s.tapped;
+					const P = s.place;
+					const gapCol = P ? Math.max(s.cell.x - (P.x + P.width), P.x - (s.cell.x + s.cell.width), s.cell.y - (P.y + P.height), P.y - (s.cell.y + s.cell.height)) : null;
+					ok(s.open && s.code === code && s.row === row && g.inScreen && !g.overCell, `${S.name} ${code} row ${row}: inside the screen, clear of the ${g.overColumn ? 'tapped cell' : 'column'} (side ${P?.side}, ${Math.round(P?.width)} x ${Math.round(P?.height)} at ${Math.round(P?.x)}, ${Math.round(P?.y)})`, { g, place: P, cell: s.cell, tapped: t });
+					if (!g.overColumn && gapCol !== null && gapCol < spec.gapCss - 0.5) info(`${S.name} ${code} row ${row}: clear of the column with the tight margins (gap ${gapCol.toFixed(1)} px, usual ${spec.gapCss}, tight ${spec.tight.gapCss})`);
+					if (S.kinds && row === 1) await shot(p, `${S.name}_${code}.png`);
+					await p.keyboard.press('Escape');
+					await sleep(150);
+				}
 			}
 			await placeBoard(c);
 			await sweep(c, `${S.name} the posed board`);
