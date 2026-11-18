@@ -4,7 +4,7 @@ import { bookEventAmountToNormalisedAmount } from 'utils-shared/amount';
 
 import { context, type Context } from './machineContext';
 import { surfaceBetError } from './surfaceBetError';
-import type { IntermediateMachineBet } from './types';
+import type { IntermediateMachineBet, PrimaryMachines } from './types';
 
 let oldbalanceAmount = 0;
 
@@ -63,7 +63,10 @@ const updateAutoSpinsCounter = fromPromise(async () => {
 	stateBet.autoSpinsCounter = newValue > 0 ? newValue : 0;
 });
 
-export const createIntermediateMachineAutoBet = ({ bet }: { bet: IntermediateMachineBet }) => {
+// the game's pause between two autoplay rounds (createPrimaryMachines onAutoSpinPause); none: a no-op
+const noPause = fromPromise(async () => undefined);
+
+export const createIntermediateMachineAutoBet = ({ bet, autoSpinPause }: { bet: IntermediateMachineBet; autoSpinPause?: PrimaryMachines['autoSpinPause'] }) => {
 	const machine =
 		/** @xstate-layout N4IgpgJg5mDOIC5QCMwBcB0BLCAbMAxAEICiAKoqAA4D2sWaWNAdpSAB6ICMATAGwYADMMFcA7Dy4BWQQBZZgsQBoQAT24BmMRlkBOfQA4+fXWNl8pu2QF9rK1JgBm6AMYALLMygEILMNmYANxoAa38AWwBXNABDRhYidDZaenjWJA5EKQ0BWS0pHlMNGTE+FXUELlEMGRENXV4pKtFbe3QMZzR3T28wACc+mj6MKlw4xyHwjCjYtMS0ZLoGJnTQTgRs3PzCsWLFMrVEHjFBHX1TWXEzDQ0DGzsQBxGx1R8-AOCw55iK6iW0tjrKxcDAGRo8MEnRQ8crcHinc76QpSMxg3R8WwPZg0CBwNhPHD4RapFaAxCyGGHSoaEGI0oFPT1XStR7tTrdLzE5YsMkIeEGDC6O71LQGYSyMXKKlVXKIvhGc5cUwsp6jH5cgEZdYSXQYDQQrjmBrCKQHCq6U4iYQ0jQiMUaFXtMDMCAa0la7iKbSSAxiX2m4ToykVXgaQXnE5+iwNIyOhYZFLc1aZSoGWGpoRWrNWsSY6xAA */
 		setup({
@@ -75,6 +78,7 @@ export const createIntermediateMachineAutoBet = ({ bet }: { bet: IntermediateMac
 				checkInsufficientFunds,
 				checkLossLimit,
 				checkIfSingleWinLimit,
+				autoSpinPause: autoSpinPause ?? noPause,
 				checkAutoSpinsCounter,
 				bet,
 				updateAutoSpinsCounter,
@@ -112,8 +116,18 @@ export const createIntermediateMachineAutoBet = ({ bet }: { bet: IntermediateMac
 					invoke: {
 						id: 'checkIfSingleWinLimit',
 						src: 'checkIfSingleWinLimit',
-						onDone: 'checkAutoSpinsCounter',
+						onDone: 'autoSpinPause',
 						onError: 'end',
+					},
+				},
+				// the game's own pause before the next autoplay round (a stop pressed during it sets the counter to 0, and
+				// the check right after ends the run). A failed pause never strands the run: it goes on to that check.
+				autoSpinPause: {
+					invoke: {
+						id: 'autoSpinPause',
+						src: 'autoSpinPause',
+						onDone: 'checkAutoSpinsCounter',
+						onError: 'checkAutoSpinsCounter',
 					},
 				},
 				checkAutoSpinsCounter: {

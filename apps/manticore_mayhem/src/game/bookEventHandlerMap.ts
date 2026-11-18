@@ -76,7 +76,7 @@ import {
 import { logoTrace } from './logo/trace';
 import { FEATURE_PACING, featureScreens, whileUp } from './featurePacing';
 /** DEV: each wrap up's safety nets, how long each waited (ms; 0 = the hold had covered it) */
-export const pacingLog: { at: number; tilesMs?: number; textMs?: number; bannerMs?: number; autoPauseMs?: number; autoPauseStart?: number; stillOn?: boolean; autoPauseBegin?: boolean }[] = [];
+export const pacingLog: { at: number; tilesMs?: number; textMs?: number; bannerMs?: number; autoPauseMs?: number; autoPauseStart?: number; stillOn?: boolean; autoPauseBegin?: boolean; stopFreeEnded?: boolean }[] = [];
 if (import.meta.env.DEV && typeof window !== 'undefined') ((window as any).__manticore ??= {}).pacingLog = () => pacingLog.slice();
 
 // ================================================================================================
@@ -767,6 +767,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 	// ---- feature entry ---------------------------------------------------------------------------
 	bonusStart: async (bookEvent: BookEventOfType<'bonusStart'>) => {
+		// AUTOPLAY'S STOP ON FREE GAMES (2026-11-18, Corey "Yes": the option was set by the Autoplay sheet and read nowhere):
+		// a run with it on ends at the trigger; this round still plays out in full (the Reindeer builder's rule, web-sdk
+		// 2414870 game/bonusStockRules.ts). The sheet offers it only outside an armed feature (ui/AutoplayModal.svelte)
+		const stopFreeEnded = stateGame.autoStopOnFreeGames && stateBet.autoSpinsCounter > 0;
+		if (stopFreeEnded) stateBet.autoSpinsCounter = 0;
+		if (import.meta.env.DEV) pacingLog.push({ at: performance.now(), stopFreeEnded });
 		// the trigger's success sound (BONUS_TRIGGER_SOUND); a scatter trigger pulse this round has already played it
 		// (playTriggerSfx), so it is never heard twice
 		if (!triggerSfxPlayed) eventEmitter.broadcast({ type: 'soundOnce', name: BONUS_TRIGGER_SOUND });
