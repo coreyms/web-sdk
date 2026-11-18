@@ -131,6 +131,9 @@ export class Scoreboard {
 	private pressWait: { id: number; resolve: () => void; timer: ReturnType<typeof setTimeout> } | null = null;
 	/** called once the press screen's board is down (the press screen's pictures may be unloaded) */
 	onPressGone: (() => void) | null = null;
+	/** (2026-11-18) a card or a win raised over the press screen by hand (the tune panel's buttons): the press screen comes
+	 *  back once it has gone, rather than ending */
+	private pressSuspended = false;
 	private truthNow: StripTruth | null = null;
 	/** the idle cartoons: which one, since when, and the race's own run */
 	private cartoon = 0;
@@ -464,6 +467,10 @@ export class Scoreboard {
 			this.mark('small', `dropped: ${up.kind} is up (higher)`);
 			return;
 		}
+		if (up && up.kind === 'press' && s.kind !== 'press' && up.t < up.exitAt && !this.pressWait) {
+			this.pressSuspended = true;
+			this.mark('press', `suspended under ${s.kind}`);
+		}
 		if (this.pendingSmall) {
 			this.mark('small', `dropped: ${s.kind} ${s.final}`);
 			this.pendingSmall = null;
@@ -563,6 +570,14 @@ export class Scoreboard {
 			if (this.pressUp()) this.mark('press', ready ? 'the line shows' : 'the line waits');
 		}
 	}
+	/** the strip shows a press line on its last drawn step: the press screen's (once its gate is open) or a card's (from its
+	 *  press line's time) */
+	pressLineShown(): boolean {
+		const s = this.show;
+		if (this.stripNow !== 'entry' || !s || s.t >= s.exitAt) return false;
+		if (s.kind === 'press') return this.pressReady;
+		return s.pressLineAt !== null && s.t >= s.pressLineAt;
+	}
 	/** the press screen is up */
 	pressUp(): boolean {
 		const s = this.show;
@@ -571,6 +586,13 @@ export class Scoreboard {
 	/** THE PRESS: the board powers down and lowers with the game's own motion, the dim lifts. Resolves as it starts to lower
 	 *  (the game's chrome may come up); onPressGone follows when it is down. */
 	endPress(): Promise<void> {
+		// (a card raised by hand over the press screen: the press ends it and the press screen does not come back)
+		if (this.pressSuspended) {
+			this.pressSuspended = false;
+			const c = this.show;
+			if (c && c.kind !== 'press') endShow(c);
+			this.mark('press', 'ended under a card raised by hand');
+		}
 		const s = this.show;
 		if (!s || s.kind !== 'press' || s.t >= s.exitAt) return Promise.resolve();
 		endShow(s);
@@ -745,7 +767,13 @@ export class Scoreboard {
 			if (!ps || ps.t >= ps.exitAt + LED_BOARD.rise.powerDownMs) this.releasePress();
 		}
 		if (this.lowering && this.lowering.t >= this.lowering.end) this.lowering = null;
-		if (this.pressText && !this.pressWait && !this.pressUp() && this.show?.kind !== 'press' && this.lowering?.kind !== 'press') {
+		// the press screen back after a card raised over it by hand has gone
+		if (this.pressSuspended && this.pressText && !this.show && !this.lowering) {
+			this.pressSuspended = false;
+			this.start(newPressShow(scoreboardDev.fmt));
+			this.mark('press', 'back after the card');
+		}
+		if (this.pressText && !this.pressSuspended && !this.pressWait && !this.pressUp() && this.show?.kind !== 'press' && this.lowering?.kind !== 'press') {
 			this.pressText = null;
 			this.mark('press', 'gone');
 			this.onPressGone?.();
