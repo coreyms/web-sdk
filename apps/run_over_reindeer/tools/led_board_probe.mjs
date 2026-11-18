@@ -1538,7 +1538,7 @@ async function pressBoard(browser, S) {
 			});
 			// the press screen comes back once the card has gone (its rise and the line), still one prompt
 			let back = null;
-			for (let i = 0; i < 40 && !back?.ready; i++) {
+			for (let i = 0; i < 40 && !back?.up; i++) {
 				await sleep(150);
 				back = await R(p, () => window.__reindeer.scoreboard().press);
 			}
