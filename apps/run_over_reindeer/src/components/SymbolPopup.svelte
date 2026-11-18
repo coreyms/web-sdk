@@ -24,7 +24,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fade } from 'svelte/transition';
-	import { stateBet, stateUrlDerived } from 'state-shared';
+	import { stateBet } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
@@ -109,9 +109,10 @@
 		timer = setTimeout(() => close('timeout'), P.timeoutMs);
 	};
 
-	// ---- what it says: amounts at the CURRENT play amount, as Game Info writes them (ui/GameInfoModal.svelte payText) --
-	const social = $derived(stateUrlDerived.social());
-	const payText = (mult: number) => (social ? `${mult}x` : numberToCurrencyString(mult * stateBet.betAmount));
+	// ---- what it says: AMOUNTS at the CURRENT play amount, the HUD's own formatter (Corey 2026-11-17: "Amounts like
+	// Manticore."): in a social session that is the session's coin (GC / SC) exactly as the HUD writes it, as Manticore's
+	// popup does. Game Info's paytable keeps its own rule (multiples in social); standard sessions are unchanged.
+	const payText = (mult: number) => numberToCurrencyString(mult * stateBet.betAmount);
 	const content = $derived(view ? popupContent(view.code, payText) : null);
 
 	// ---- where: beside the cell, inside the board when it fits (game/symbolPopup.ts placePopup) ---------------------

@@ -5,8 +5,8 @@
 // the shape of the content); the content is this game's: line pays for 3, 4 and 5 in a row, and the Wilds' and the
 // Present's own sentences from Game Info (game/gameInfoText.ts).
 //
-// PRESENTATION ONLY. The amounts are the paytable's multipliers times the current play amount, exactly as Game Info's
-// paytable computes them (ui/GameInfoModal.svelte payText: the HUD's currency formatter, or "Nx" in a social session).
+// PRESENTATION ONLY. The amounts are the paytable's multipliers times the current play amount in the HUD's currency
+// formatter, in a social session too (its GC / SC amounts, as Manticore's popup shows them; Corey 2026-11-17).
 // Nothing here reads, computes or changes an outcome.
 import config from './config';
 import { soc } from './social';
@@ -103,8 +103,8 @@ export const grandmaWildLines = (): string[] => [strikeSentence("Grandma's Car")
 export const columnLines = (tier: ColumnTier): string[] => [strikeSentence("Santa's Sleigh"), columnClause(tier)].filter((s): s is string => !!s);
 
 /**
- * What the popup says for one cell. `amount(x)`: x times the current play amount, as Game Info writes it (the caller
- * passes ui/GameInfoModal.svelte's payText rule).
+ * What the popup says for one cell. `amount(x)`: x times the current play amount in the HUD's formatter (the caller
+ * passes it; components/SymbolPopup.svelte payText).
  */
 export const popupContent = (code: PopupCode, amount: (x: number) => string): PopupContent => {
 	if (code.startsWith('CW_')) {
