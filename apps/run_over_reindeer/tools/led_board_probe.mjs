@@ -382,27 +382,39 @@ async function scenes(p, S) {
 		// never more than about 3 s away; sampled every 100 ms for 8 s of the wait
 		{
 			const want = INTRO[kind === 'sfs' ? 'super' : 'bonus'];
+			// (2026-11-18: with LED_BOARD.explain on, the sentence is on the BIG board and the strip says the press line alone;
+			// read from the game which of the two is in use)
+			const explainOn = await R(p, () => !!window.__reindeer.tune.ledBoard.explain?.on);
 			const waitRows = await R(p, () => {
 				const out = [];
 				for (let i = 0; i < 80; i++) {
 					window.__reindeer.scoreboardStep(100);
 					const f = window.__reindeer.scoreboardFace('strip');
-					out.push(f?.entryWait ?? null);
+					const b = window.__reindeer.scoreboardFace('back');
+					out.push({ wait: f?.entryWait ?? null, ex: b?.explain ?? null, item: window.__reindeer.scoreboard().stripPick?.item });
 				}
 				return out;
 			});
-			const drawn = waitRows.filter(Boolean);
+			if (explainOn) {
+				const pages = waitRows.filter((r) => r.ex && r.ex.page === 'explain');
+				const words = pages.length ? pages[pages.length - 1].ex.lines.join(' ') : '';
+				const layout = pages[0]?.ex.layout;
+				// (layout B shows the sentence on every other page; one page layouts from the first wipe on)
+				check(pages.length >= (layout === 'B' ? 20 : 70) && words === want && waitRows.every((r) => !r.wait && r.item === 'entry'), `${tag}: while the ${kind} entry waits its sentence is on the big board (layout ${layout}, ${pages.length} of 80 samples: "${words}") and the strip shows the press line alone (no sentence on it)`, { want, words, pages: pages.length, strip: [...new Set(waitRows.map((r) => r.item))] });
+			}
+			const drawn = waitRows.map((r) => r.wait).filter(Boolean);
 			const sentences = [...new Set(drawn.map((w) => w.sentence))];
 			let gap = 0;
 			let worst = 0;
-			for (const w of waitRows) {
+			for (const r of waitRows) {
+				const w = r.wait;
 				gap = w && w.press ? 0 : gap + 100;
 				worst = Math.max(worst, gap);
 			}
 			const xs = drawn.filter((w) => w.sentenceX !== null).map((w) => w.sentenceX);
 			const card = readFileSync(join(SRC, 'ui', 'RoundCard.svelte'), 'utf8');
 			check(/import \{ INTRO_LINE[,} ]/.test(card) && card.includes('{INTRO_LINE[card.bonus]}') && want.length > 20, `${tag}: the HTML intro card and the strip take the sentence from the one place (constants INTRO_LINE)`);
-			check(drawn.length === waitRows.length && sentences.length === 1 && sentences[0] === want && worst <= 3000 && new Set(xs).size > 10, `${tag}: while the ${kind} entry waits the strip scrolls "${sentences[0]}" (${drawn[0]?.mode}, size ${drawn[0]?.size}, ${new Set(xs).size} places in 8 s) and the press line is never more than ${worst} ms away (within 3000)`, { want, sentences, worst, mode: drawn[0]?.mode });
+			if (!explainOn) check(drawn.length === waitRows.length && sentences.length === 1 && sentences[0] === want && worst <= 3000 && new Set(xs).size > 10, `${tag}: while the ${kind} entry waits the strip scrolls "${sentences[0]}" (${drawn[0]?.mode}, size ${drawn[0]?.size}, ${new Set(xs).size} places in 8 s) and the press line is never more than ${worst} ms away (within 3000)`, { want, sentences, worst, mode: drawn[0]?.mode });
 		}
 		if (kind === 'sfs') {
 			const sh = rows.filter((r) => r.t >= C && r.t < C + 480).map((r) => Math.abs(r.shake));
@@ -606,8 +618,24 @@ const ledExpect = (code, v) => {
 	const n = v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 	return sym === null ? n : `${sym}${sp}${n}`;
 };
+/** a section starts from a quiet board whatever an earlier one left up (a card waiting, a win, the back board, a scatter
+ *  count by hand): one failure never cascades into the next section */
+const quietBoard = (p) =>
+	R(p, () => {
+		const h = window.__reindeer;
+		h.scoreboardScatter?.(undefined);
+		h.scoreboardCardEnd();
+		h.scoreboardSkip();
+		h.scoreboardSkip();
+		h.scoreboardLower();
+		const m = h.scoreboard().manual;
+		for (let i = 0; i < 40; i++) h.scoreboardStep(100);
+		return m;
+	});
+
 async function currencyChecks(p, S) {
 	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await quietBoard(p);
 	await R(p, () => window.__reindeer.scoreboardManual(true));
 	const bet = await R(p, async () => (await import('/src/game/scoreboard/scoreboard.ts')).scoreboardDev.bet());
 	for (const code of Object.keys(CUR)) {
@@ -687,12 +715,15 @@ async function currencyChecks(p, S) {
 			const over = ce.peak !== null && num(ce.peak) > num(wantE) + 1e-9 ? [ce.peak] : [];
 			check(ce.after.length === 1 && ce.after[0] === wantE && ce.final === wantE && over.length === 0, `${tag}: ${code} a free spin's strip win counts to "${wantE}" and ends on it (the last count frames ${ce.during.join(', ')}; after the count ${ce.after.join(', ')})`, ce);
 		}
-		// THE BIG BOARD: a Mega win (30x) stepped to the end of its count; its amount's record (the lit box drawn)
-		const big = Math.round(30 * bet * 100) / 100;
+		// THE BIG BOARD: a win at the back board's own bar (read from the game: LED_BOARD.tiers[backFromTier], Mega, 60x; a
+		// 30x win is a Super, on the strip only, and left the board's last record in place) stepped to the end of its count;
+		// its amount's record (the lit box drawn)
+		const bar = await R(p, () => { const L = window.__reindeer.tune.ledBoard; return L.tiers[L.backFromTier].bar; });
+		const big = Math.round(bar * bet * 100) / 100;
 		const wantB = ledExpect(code, big);
-		const bk = await R(p, () => {
+		const bk = await R(p, (bar) => {
 			const R0 = window.__reindeer;
-			void R0.scoreboardWin(30);
+			void R0.scoreboardWin(bar);
 			let q = R0.scoreboardStep(10);
 			for (let i = 0; i < 1500 && q.show && q.show.t <= q.show.countEnd + 50; i++) q = R0.scoreboardStep(10);
 			const f = R0.scoreboardFace('back');
@@ -702,7 +733,7 @@ async function currencyChecks(p, S) {
 			R0.scoreboardLower();
 			for (let i = 0; i < 300; i++) R0.scoreboardStep(10);
 			return { am, W: f?.W, H: f?.H };
-		});
+		}, bar);
 		const a = bk.am;
 		check(!!a && a.str === wantB && a.x0 >= 1 && a.x1 <= bk.W - 1 && a.y0 >= 0 && a.y1 <= bk.H, `${tag}: ${code} on the big board reads "${a?.str}" (want "${wantB}"), its lit dots inside the ${bk.W} x ${bk.H} face`, bk);
 	}
@@ -866,7 +897,8 @@ async function cards(p, S, full) {
 	const fin = ev.find((e) => e.type === 'finalWin')?.amount;
 	const trig = ev.slice(0, ev.findIndex((e) => e.type === 'freeSpinTrigger')).filter((e) => e.type === 'winInfo').reduce((a, e) => a + e.totalWin, 0);
 	const hud = await R(p, () => window.__reindeer.bookAmount(window.__reindeer.hud.win()));
-	const got = seen.landed ? Number(String(seen.landed.amount).replace(/,/g, '')) : NaN;
+	// (the LED amount carries the currency's sign since the LED currency work: only its digits are compared)
+	const got = seen.landed ? Number(String(seen.landed.amount).replace(/[^0-9.]/g, '')) : NaN;
 	check(trig > 0 && Math.abs(got - hud) < 0.005 && Math.abs(hud - (await R(p, (a) => window.__reindeer.bookAmount(a), fin))) < 0.005, `${tag}: the Total Win lands on ${seen.landed?.amount}, the HUD's WIN at the round's end (${hud}: finalWin ${fin}, the trigger spin's ${trig} with the free spins' ${fsEnd})`, { landed: seen.landed, last: seen.totalSeen, fsEnd, fin, hud });
 	if (!full) return;
 	// THE GRANDMA GAG'S RULE (2026-11-17, Corey: "let's only do the Grandma Got Run Over by a Reindeer in regular games, and
@@ -908,7 +940,16 @@ async function cards(p, S, full) {
 			if (c.card === 'total') {
 				top.board = true;
 				if (await R(p, () => !!document.querySelector('.am-ui.wrap [data-round-card="outro"]') || !!document.querySelector('[data-top-up]'))) top.html = true;
-				const w = await R(p, () => window.__reindeer.scoreboardFace('strip')?.entryWait?.sentence ?? null);
+				// (2026-11-18, LED_BOARD.explain: the wrap-up's line is on the BIG board, the strip says the press line alone; with
+				// explain off it scrolls on the strip as before)
+				const w = await R(p, () => {
+					const h = window.__reindeer;
+					if (h.tune.ledBoard.explain?.on) {
+						const ex = h.scoreboardFace('back')?.explain;
+						return ex && ex.page === 'explain' && !h.scoreboardFace('strip')?.entryWait ? ex.lines.join(' ') : null;
+					}
+					return h.scoreboardFace('strip')?.entryWait?.sentence ?? null;
+				});
 				if (w && !top.line) {
 					top.line = w;
 					top.lineAt = ms;
@@ -922,7 +963,7 @@ async function cards(p, S, full) {
 			}
 		},
 	});
-	check(top.board && !top.html && !!top.line && /^Includes \$[0-9.,]+ added to bring this round up to its [0-9.]+x minimum\.$/.test(top.line) && top.waited && b.ok, `${tag}: floor_top_up: the wrap-up plays on the back board with its top-up line on the strip ("${top.line}"), no HTML card, it waits for the press, and the round ends`, top);
+	check(top.board && !top.html && !!top.line && /^Includes \$[0-9.,]+ added to bring this round up to its [0-9.]+x minimum\.$/.test(top.line) && top.waited && b.ok, `${tag}: floor_top_up: the wrap-up plays on the back board with its top-up line on the big board (the strip with explain off) ("${top.line}"), no HTML card, it waits for the press, and the round ends`, top);
 	await drainStrikes();
 	const fsCalls = await R(p, () => window.__reindeer.gagsAsked(true));
 	const rulings = strikes.map((x) => / gag (true|false)$/.exec(x)?.[1]);
@@ -1026,7 +1067,8 @@ async function flows(p, S, errs) {
 		await sleep(400);
 		await R(p, () => void window.__reindeer.scoreboardWin(21.85));
 		await sleep(150);
-		const c1 = await R(p, () => ({ gag: window.__reindeer.scoreboard().gag, log: window.__reindeer.scoreboard().log.slice(-3) }));
+		// (the log since the win was asked: the strip's own lines, 2026-11-17, came between the cut and the last 3 entries)
+		const c1 = await R(p, () => ({ gag: window.__reindeer.scoreboard().gag, log: window.__reindeer.scoreboard().log.slice(-8) }));
 		check(c1.gag === null && c1.log.some((l) => l.what === 'gag' && /cut: a win on the strip/.test(l.detail)), `${tag}: a Big win message on the strip cuts the gag short`, c1);
 		await R(p, () => window.__reindeer.scoreboardSkip());
 		await sleep(300);
@@ -1180,6 +1222,7 @@ async function stripOrder(p, S) {
 	const m = /stripOrder: \[([^\]]*)\]/.exec(consts);
 	const order = m ? [...m[1].matchAll(/'([a-zA-Z]+)'/g)].map((x) => x[1]).join() : '';
 	check(order === ORDER, `${tag}: the strip's order is data in constants LED_BOARD.stripOrder (${order})`);
+	await quietBoard(p);
 	await R(p, () => {
 		window.__reindeer.scoreboardManual(true);
 		window.__reindeer.scoreboardScatter(undefined);
@@ -1320,6 +1363,7 @@ async function stripOrder(p, S) {
  *  trigger: fireworks, then the entry takes over). Every 25 ms: the strip's pick and the count */
 async function scatterRounds(p, S) {
 	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await quietBoard(p);
 	await R(p, () => window.__reindeer.turbo(0));
 	const watch = async (name, book, { untilEntry = false, limit = 30000 } = {}) => {
 		if (book) await R(p, (b) => window.__reindeer.fixtures.queue(b, 0), book);
@@ -1328,7 +1372,10 @@ async function scatterRounds(p, S) {
 		const t0 = Date.now();
 		await p.click('.hudp button.spin');
 		while (Date.now() - t0 < limit) {
+			// (the strip picks on its own drawn steps, 30 a second: a draw of this moment first, so the pick read is the
+			// one for the state read with it)
 			const r = await R(p, () => {
+				window.__reindeer.scoreboardStep(0);
 				const s = window.__reindeer.scoreboard();
 				return { item: s.stripPick?.item, sc: s.scatter, card: s.card, rest: window.__reindeer.atRest(), idle: window.__reindeer.hud.idle(), log: s.log.slice(-3) };
 			});
@@ -1426,6 +1473,7 @@ async function gagModes(p, S) {
  *  the spins left whenever nothing else is due */
 async function bonusStrip(p, S) {
 	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await quietBoard(p);
 	const K = await R(p, () => ({ hold: window.__reindeer.tune.ledBoard.bonusHoldMs, gags: window.__reindeer.tune.ledBoard.gagPerBonus, order: window.__reindeer.tune.ledBoard.stripOrder }));
 	const rank = (x) => K.order.indexOf(x);
 	for (const name of ['natural_free_spins', 'natural_super']) {
@@ -1470,6 +1518,7 @@ async function bonusStrip(p, S) {
  *  (no sentence on it) */
 async function explainBoards(p, S) {
 	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await quietBoard(p);
 	const line = 'Includes $12.30 added to bring this round up to its 10x minimum.';
 	const want = await R(p, () => window.__reindeer.tune);
 	void want;
@@ -1527,7 +1576,8 @@ async function pressBoard(browser, S) {
 		let s = null;
 		for (let i = 0; i < 300; i++) {
 			s = await R(p, () => window.__reindeer?.scoreboard?.() ?? null).catch(() => null);
-			if (s?.press?.ready && s.show?.phase === 'hold') break;
+			// (seated: the rise and its bounce are over, the game's own seatedAt)
+			if (s?.press?.ready && s.show?.phase === 'hold' && s.show.t >= s.show.seatedAt) break;
 			await sleep(400);
 		}
 		const want = await R(p, () => window.__reindeer.tune.ledBoard.dim.alpha);

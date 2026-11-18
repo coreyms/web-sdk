@@ -391,6 +391,38 @@ function rowInk(str: string, cap: number) {
 	});
 	return r > l ? { l, r } : { l: 0, r: ri.w };
 }
+/** a row's lit rows (ink), relative to the y drawRow is given: a currency sign's stems reach above and below the cap */
+const inkVCache = new Map<string, { t: number; b: number }>();
+function rowInkV(str: string, cap: number) {
+	const key = str + '|' + cap;
+	let v = inkVCache.get(key);
+	if (v) return v;
+	const ri = rowInfo(str, cap);
+	const c = mk(ri.w + 8, Math.ceil(cap * 1.4) + 8);
+	drawRow(c.ctx, str, 2, 2, cap, '#ffffff', 0);
+	const d = c.ctx.getImageData(0, 0, c.width, c.height).data;
+	let t = Infinity;
+	let b = -Infinity;
+	for (let y = 0; y < c.height; y++)
+		for (let x = 0; x < c.width; x++)
+			if (d[(y * c.width + x) * 4 + 3] > 0) {
+				t = Math.min(t, y - 2);
+				b = Math.max(b, y - 2);
+				break;
+			}
+	v = Number.isFinite(t) ? { t, b } : { t: 0, b: cap - 1 };
+	if (inkVCache.size > 400) inkVCache.clear();
+	inkVCache.set(key, v);
+	return v;
+}
+/** (2026-11-18) the y that keeps a row's lit rows inside a face H dots tall (the dollar sign's stems were cut at the
+ *  1440 x 900 strip's bottom row): moved up only as far as it must, never above the face's top */
+function rowYInside(str: string, y: number, cap: number, H: number) {
+	const k = rowInkV(str, cap);
+	const over = y + k.b - (H - 1);
+	if (over <= 0) return y;
+	return Math.max(y - over, -k.t);
+}
 /** the x to start a row at so its lit dots are centered on cx; with its record for the probes */
 function centeredRow(g: Ctx, str: string, cx: number, y: number, cap: number, beforeX: number | null) {
 	const k = rowInk(str, cap);
@@ -705,8 +737,12 @@ function drawWinScene(g: Ctx, W: number, H: number, s: Show, tier: number, str: 
 	if (back && lay.stacked) {
 		const k = rowInk(str, lay.cap);
 		nx = clamp(centeredRow(g, str, W / 2 + slide, lay.numY, lay.cap, nx), lay.m + 1 - k.l, W - lay.m - 1 - k.r);
+	} else if (back) {
+		// (2026-11-18) the row layout's amount is recorded too (the probes read every board's amount by its record)
+		const k = rowInk(str, lay.cap);
+		noteRec(g.canvas, { kind: 'amount', str, x0: nx + k.l, x1: nx + k.r, y0: lay.numY, y1: lay.numY + lay.cap, lift: 0, ts: lay.cap, before: nx });
 	}
-	drawRow(g, str, nx, lay.numY, lay.cap, look.num, pulse);
+	drawRow(g, str, nx, back ? lay.numY : rowYInside(s.finalStr, lay.numY, lay.cap, H), lay.cap, look.num, pulse);
 }
 /** a win's face at its time: the tier's look, the title, the counting amount; at a tier change the new tier sweeps in
  *  from the left behind a bright edge. `back`: the back board's (the number above the scene's bottom band). */
@@ -790,7 +826,7 @@ export function showSmall(F: Face, s: Show) {
 	const lay = winLayout(W, H, s.finalStr, ['WIN']);
 	const str = s.fmt(amountNow(s));
 	drawLayTitle(g, lay, 'WIN', '#7cc4ff', W);
-	drawRow(g, str, numX(lay, W, str, 0), lay.numY, lay.cap, '#ffffff', s.t >= s.countEnd ? 1 - clamp((s.t - s.countEnd) / 300, 0, 1) : 0);
+	drawRow(g, str, numX(lay, W, str, 0), rowYInside(s.finalStr, lay.numY, lay.cap, H), lay.cap, '#ffffff', s.t >= s.countEnd ? 1 - clamp((s.t - s.countEnd) / 300, 0, 1) : 0);
 	if (s.t > s.countEnd) {
 		const p = clamp((s.t - s.countEnd) / 1300, 0, 1);
 		const h = Math.round(H * 0.7);
