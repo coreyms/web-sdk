@@ -203,7 +203,11 @@ async function runSize(browser, S) {
 	await openMenu(p);
 	check(await isOpen(p), `${tag}: the feature button opens the menu`);
 	let pl = await plate(p);
-	check(pl.key === 'BONUS', `${tag}: opens on FREE SPINS with nothing on`, pl.key);
+	check(pl.key === 'ANTE_2', `${tag}: opens on the ANTE tile at 2x with nothing on`, pl.key);
+	await p.click('[data-card="BONUS"]');
+	await sleep(700);
+	pl = await plate(p);
+	check(pl.key === 'BONUS', `${tag}: the FREE SPINS tile shows its plate`, pl.key);
 	check(pl.price === (await expectPrice(p, 'BONUS')), `${tag}: FREE SPINS price is the amount times the RGS cost`, { shown: pl.price, want: await expectPrice(p, 'BONUS') });
 	await layout(p, S, 'free spins');
 	await words(p, S, 'free spins');

@@ -105,7 +105,7 @@
 	const anteOn = $derived(ANTE_KEYS.includes(activeKey) ? activeKey : null);
 
 	/** the tile chosen */
-	let sel = $state<Pick>('BONUS');
+	let sel = $state<Pick>('ANTE');
 	/** the Ante's level stop: it opens on the level that is on, else on the lowest one (2x; Corey 2026-11-17: "default to 2x not 4x") */
 	let stop = $state(0);
 	let confirmOpen = $state(false);
@@ -116,7 +116,7 @@
 		untrack(() => {
 			const i = anteOn ? ANTE_KEYS.indexOf(anteOn) : -1;
 			stop = i >= 0 ? i : 0;
-			sel = armed === 'BONUS' || armed === 'SUPER' ? armed : anteOn ? 'ANTE' : 'BONUS';
+			sel = armed === 'BONUS' || armed === 'SUPER' ? armed : 'ANTE'; // nothing loaded: the Ante tile (Corey 2026-11-17: "Make the Ante the Default selection ... instead of Free Spins")
 			confirmOpen = false;
 			note = null;
 		});
