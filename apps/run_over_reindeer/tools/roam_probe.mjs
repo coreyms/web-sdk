@@ -43,6 +43,15 @@ const SIZES = [
 	// 1920 x 1080 desktop (16:9, the least snow above the rim): the zones and his head's clearance under the top line only
 	{ name: 'desktop1080', vp: { width: 1920, height: 1080 }, dpr: 1, q: '', touch: false, areaOnly: true },
 ];
+// ROUND 4: THE SIZE SWEEP (Corey's 2000 x 945 window shuffled in a corner): at each, his first drawn frame (body and
+// shadow) is wholly off the screen; after the walk in, 60 s of his wander at the stepped board clock: he stops at 4 spots
+// or more 12 % of the width apart (or as many as the area holds there: its `capacity`), his body never covers a keep-out
+// zone and never leaves the screen. `ONLY=sweep` runs all of them, `ONLY=sweep:2000x945` one.
+const SWEEP = ['2000x945', '1920x1080', '1440x900', '1280x720', '1366x768', '2560x1080', '1024x768', '844x390', '932x430', '390x844', '430x932', '390x620'].map((wh) => {
+	const [width, height] = wh.split('x').map(Number);
+	const phone = Math.min(width, height) <= 480;
+	return { name: `sweep:${wh}`, vp: { width, height }, dpr: 1, q: phone ? '&tier=phone' : '', touch: phone, sweep: true };
+});
 const PRESETS = ['snowDay', 'snowNight', 'snowSuper', 'grassDay', 'grassNight', 'grassSuper'];
 
 let pass = 0;
@@ -63,6 +72,23 @@ const inter = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0))
 async function boot(browser, S, extra = '') {
 	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr, isMobile: S.touch, hasTouch: S.touch });
 	const p = await ctx.newPage();
+	// his FIRST DRAWN FRAME, caught by the page itself on every animation frame from the start
+	await p.addInitScript(() => {
+		const tick = () => {
+			try {
+				const h = window.__reindeer;
+				const r = h && h.roam ? h.roam() : null;
+				if (r && r.drawn && !window.__roamFirst) {
+					window.__roamFirst = { drawn: r.drawn, state: r.state, x: r.x, y: r.y, vw: innerWidth, vh: innerHeight };
+					return;
+				}
+			} catch (e) {
+				window.__roamFirstErr = String(e);
+			}
+			requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+	});
 	const errs = [];
 	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
 	p.on('console', (m) => {
@@ -182,6 +208,67 @@ const STEP_STRIKE = async (p, { cell, first, last, hz = 60, turbo = 0, roamOff =
 		{ cell, first, last, hz, turbo, roamOff, plain },
 	);
 
+/** at least `want` of the stops `sep` apart (greedy, in order) */
+const spread = (stops, sep) => {
+	const kept = [];
+	for (const s of stops) if (kept.every((k) => Math.hypot(k[0] - s[0], k[1] - s[1]) >= sep)) kept.push(s);
+	return kept.length;
+};
+
+async function sweepSize(p, S, name, errs, out) {
+	const H = (fn, arg) => p.evaluate(fn, arg);
+	// his first appearance: he walks in, the first drawn frame wholly off the screen (body and shadow)
+	let first = null;
+	for (let i = 0; i < 80 && !first; i++) {
+		first = await H(() => window.__roamFirst ?? null);
+		if (!first) await sleep(250);
+	}
+	out.first = first;
+	const outside = (b) => !b || b[2] <= 0.5 || b[0] >= first.vw - 0.5 || b[3] <= 0.5 || b[1] >= first.vh - 0.5;
+	check(!!first && first.state === 'enter' && outside(first.drawn.sprite) && outside(first.drawn.shadow), `${name}: his first drawn frame is a walk in with him and his shadow wholly off the screen (${first ? `${first.state}, ${JSON.stringify(first.drawn)}` : 'never drawn'})`, first);
+	// his arrival, then 60 s of his wander at the stepped board clock
+	const run = await H(async () => {
+		const h = window.__reindeer;
+		const R = h.roadBoard();
+		const F = R.features;
+		h.clock(0);
+		for (let i = 0; i < 60 * 30 && F.roam.state !== 'idle'; i++) R.update(1000 / 60, 1, 1);
+		const arrived = F.roam.state === 'idle';
+		const pos = [];
+		const stops = [];
+		for (let i = 0; i < 60 * 60; i++) {
+			R.update(1000 / 60, 1, 1);
+			const ro = F.roam;
+			if (i % 2 === 0) pos.push([Math.round(ro.x * 10) / 10, Math.round(ro.y * 10) / 10]);
+			if (ro.state === 'idle' && (!stops.length || Math.hypot(stops[stops.length - 1][0] - ro.x, stops[stops.length - 1][1] - ro.y) > 0.5)) stops.push([ro.x, ro.y]);
+		}
+		h.clock(1);
+		const snap = h.roam();
+		return { arrived, pos, stops, view: h.roamView(), zones: h.roamZones(), roam: snap, vp: { width: innerWidth, height: innerHeight } };
+	});
+	const geo = { view: run.view, roam: run.roam, vp: run.vp };
+	const W = run.view.rect.right - run.view.rect.left;
+	const got = spread(run.stops, 0.12 * W);
+	// 4 spots 12 % of the width apart; an area that holds fewer (a phone held sideways: the snow by the tunnel only), at
+	// least 2 or what it holds
+	const want = run.roam.capacity >= 4 ? 4 : Math.min(2, run.roam.capacity);
+	const hits = [];
+	for (let i = 0; i < run.pos.length && hits.length < 5; i++) {
+		const hz = hitsAt(geo, run.zones, run.pos[i][0], run.pos[i][1]);
+		if (hz.length) hits.push(`${hz.join(', ')} at (${run.pos[i].join(', ')}), ${r1((i * 2) / 60)} s`);
+	}
+	// no shuffling: never straight back to the spot before while he has others
+	let backs = 0;
+	for (let i = 2; i < run.stops.length; i++) if (Math.hypot(run.stops[i][0] - run.stops[i - 2][0], run.stops[i][1] - run.stops[i - 2][1]) < 0.04 * W) backs++;
+	out.sweep = { kind: run.roam.kind, capacity: run.roam.capacity, relaxed: run.roam.relaxed, stops: run.stops.length, spread: got, backs };
+	check(run.arrived, `${name}: he walks in and stops at a spot (${run.roam.kind}, area holds ${run.roam.capacity} spots 12 % apart${run.roam.relaxed ? ', widened to all the free snow' : ''})`);
+	check(got >= want, `${name}: in 60 s he stops at ${run.stops.length} spots, ${got} of them 12 % of the width apart (wanted ${want})`, out.sweep);
+	check(backs <= Math.max(1, Math.floor(run.stops.length / 4)), `${name}: no shuffling between two spots (${backs} straight returns in ${run.stops.length} stops)`, out.sweep);
+	check(hits.length === 0, `${name}: every frame of the 60 s his body is clear of every keep-out zone (HUD, top line, logo, LED strip, road) and on the screen`, hits);
+	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
+	console.log(`  INFO ${name}: ${JSON.stringify(out.sweep)}`);
+}
+
 async function runSize(browser, S) {
 	const out = { name: S.name };
 	report.sizes[S.name] = out;
@@ -193,8 +280,19 @@ async function runSize(browser, S) {
 		return;
 	}
 	const H = (fn, arg) => p.evaluate(fn, arg);
+	if (S.sweep) {
+		await sweepSize(p, S, name, errs, out);
+		await ctx.close();
+		return;
+	}
 
 	// ---- 1: at rest -------------------------------------------------------------------------------------------------
+	// (he walks in first since round 4: wait for him to arrive)
+	for (let i = 0; i < 60; i++) {
+		const st = await H(() => window.__reindeer.roam().state);
+		if (st !== 'enter' && st !== 'none') break;
+		await sleep(500);
+	}
 	const rest = await H(() => window.__reindeer.roam());
 	out.rest = { state: rest.state, x: rest.x, y: rest.y, kind: rest.kind, corners: rest.corners };
 	check(rest.on && rest.visible && rest.onScreen && ['idle', 'start', 'walk', 'stop'].includes(rest.state), `${name}: at rest one reindeer stands on the screen (${rest.state} at road (${r1(rest.x)}, ${r1(rest.y)}))`, rest);
@@ -651,8 +749,9 @@ async function runSize(browser, S) {
 const main = async () => {
 	const browser = await chromium.launch({ headless: true, args: ['--mute-audio', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 	try {
-		for (const S of SIZES) {
-			if (ONLY.length && !ONLY.includes(S.name)) continue;
+		for (const S of [...SIZES, ...SWEEP]) {
+			const pick = !ONLY.length ? !S.sweep : ONLY.includes(S.name) || (S.sweep && ONLY.includes('sweep'));
+			if (!pick) continue;
 			await runSize(browser, S);
 		}
 	} finally {

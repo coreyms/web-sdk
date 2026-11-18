@@ -266,6 +266,7 @@ export const META: Record<string, Meta> = {
 	'roam.hopMinPct': { label: 'walk length: at least (share of the screen width)', min: 0, max: 50, step: 0.5, unit: '%' },
 	'roam.hopMaxPct': { label: 'walk length: at most (share of the screen width)', min: 1, max: 100, step: 0.5, unit: '%' },
 	'roam.maxSlopeDeg': { label: 'steepest walk (degrees from level)', min: 0, max: 60, step: 1, unit: 'deg' },
+	'roam.exploreSlopeDeg': { label: 'steepest walk to new ground (when level walks only revisit)', min: 0, max: 60, step: 1, unit: 'deg' },
 	'roam.walkInDelayMs': { ...ms(5000, 'walk in after the last strike by') },
 	'roam.minRunShare': { label: 'a late run: sped up to at most 1 / this', min: 0.3, max: 1, step: 0.05 },
 	'roam.seed': { label: 'wander seed (0: a new one each page)', min: 0, max: 99999999, step: 1, when: 'reload' },

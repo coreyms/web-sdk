@@ -51,6 +51,7 @@ const STYLES = `
 .ror-tune .roam-overlay .zt { fill: #fff; font: 10px -apple-system, system-ui, sans-serif; paint-order: stroke; stroke: rgba(0, 0, 0, 0.7); stroke-width: 2px; }
 .ror-tune .roam-overlay .path { fill: none; stroke: #e8c14a; stroke-width: 3; }
 .ror-tune .roam-overlay .area { fill: rgba(232, 193, 74, 0.2); stroke: #e8c14a; stroke-width: 2; }
+.ror-tune .roam-overlay .area.beyond { fill: rgba(232, 193, 74, 0.1); stroke: rgba(232, 193, 74, 0.5); stroke-dasharray: 6 4; }
 .ror-tune .roam-overlay .to { fill: #fff; stroke: #10141a; stroke-width: 1.5; }
 .ror-tune .roam-overlay .enter { stroke: #e8c14a; stroke-width: 2; stroke-dasharray: 6 5; }
 .ror-tune .roam-overlay .body { fill: rgba(232, 193, 74, 0.1); stroke: rgba(232, 193, 74, 0.7); stroke-width: 1; stroke-dasharray: 3 3; }
