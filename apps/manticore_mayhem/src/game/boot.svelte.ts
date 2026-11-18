@@ -83,7 +83,8 @@ const FONTS = [
 
 // ---- THE EXPLAINER CARDS' FILES (the same list as scripts/stamp-assets.mjs CARDS) ----
 const rel = (url: string) => url.replace(/^\/assets\//, '');
-const CARD_IMAGES = [rel(INTRO_CARD_ASSETS.frame), ...INTRO_CARD_TEXT.map((c) => rel(INTRO_CARD_ASSETS.poster(c.key)))];
+// the slate's lettering atlas (intro cards round 3, 2026-11-18) with the frame: the cards fade in only once both are decoded
+const CARD_IMAGES = [rel(INTRO_CARD_ASSETS.frame), rel(INTRO_CARD_ASSETS.slate), ...INTRO_CARD_TEXT.map((c) => rel(INTRO_CARD_ASSETS.poster(c.key)))];
 const CARD_FONT = { path: 'fonts/ui/Cinzel-Bold.woff2', spec: "700 40px 'Cinzel'" } as const;
 const CARD_CLIPS = INTRO_CARD_TEXT.map((c) => rel(INTRO_CARD_ASSETS.clip(c.key)));
 /** posters only, and no clip asked for, where the player asked for less motion; and a replay link shows no landing screen */

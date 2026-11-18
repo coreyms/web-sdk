@@ -2656,14 +2656,8 @@ export const FOREGROUND_KICK = {
 // below it inside that box.
 // Both the canvas and the chrome are placed by ONE rule per layout (game/logo/layout.ts): the box of the logo's ART in
 // master px.
-/** THE INTRO CARDS' BODY SHRINK TO FIT (ui/LandingScreen.svelte, 2026-10-15). On Linux Chromium (the decimus probe host)
- *  Sora sets wider than on a Mac or an iPhone, and the scatters card's body wrapped to 5 lines in a zone that holds about
- *  4.5 (8 to 9 CSS px over at 1440 x 900, 1280 x 720, 390 x 844, 360 x 640; the clusters card at 768 x 1024): the zone
- *  clips the top of line 1 and the descenders of line 5. Once the fonts are in, and on every resize, a body taller than
- *  its zone steps its font size down by `stepPx` (layout px, before the card's scale) until it fits, never under
- *  `floor` x the slate's size (INTRO_CARD_STYLE.body.size). A body that already fits is not touched. `slackPx`: how far
- *  over the zone's height a body may be and still count as fitting (sub-pixel rounding). */
-export const INTRO_BODY_FIT = { stepPx: 0.25, floor: 0.85, slackPx: 0.5 } as const;
+// (THE INTRO CARDS' BODY SHRINK TO FIT, INTRO_BODY_FIT, 2026-10-15, left with the paragraph in intro cards round 3, 2026-11-18:
+// the slate's block is scaled to fit between the frame's points instead, game/introCards.ts INTRO_SLATE.margin)
 
 export const LOGO = {
 	/** the tablet's own size, px (static/assets/ui/logo-tablet.webp, tools/build_logo_tablet.py; the phone tier's copy is

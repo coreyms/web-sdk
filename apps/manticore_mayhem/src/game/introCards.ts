@@ -1,11 +1,12 @@
 // The opening primer (ui/LandingScreen.svelte): three ANIMATED explainer cards over the backdrop
-// while the audio lands: CLUSTERS, SCATTERS, THE MANTICORE (approved 2026-10-12, review page
+// while the audio lands: CLUSTERS, SCATTERS, MANTICORE (approved 2026-10-12, review page
 // "intro_cards_r3"; they replace milestone 1's placeholder posters card-1..3.webp, whose files left
-// static/ on 2026-10-14 and are archived on the Desktop).
+// static/ on 2026-10-14 and are archived on the Desktop). Their slate since intro cards round 3 (2026-11-18): image
+// lettering and one plain line, the block centered between the frame's two engraved points (INTRO_SLATE below).
 //
 // A card is: a muted looping clip in the frame's glass window, the frame picture on top of it, and
-// live text on the slate in fixed zones (title, copy, a divider, and under it a gold scene line that
-// follows the clip's time). The strings are in game/introCardText.ts; every number is here.
+// the slate under it: the header, the lettering and pictures (game/introSlateSpec.ts) and the plain line. The strings are
+// in game/introCardText.ts; every number is here.
 //
 // Where the screen has room for three cards they stand in a row; where it has not, ONE card shows at
 // a time and the cards rotate (Corey: "these framed explainers will need to rotate on smaller
@@ -15,9 +16,11 @@ import { MASTER, type LayoutKind } from './layoutSpec';
 import type { IntroCardKey } from './introCardText';
 
 /** static/assets/ui/intro: the frame (768 x 1152, re-encoded from the approved 1024 x 1536 card_frame.webp),
- *  and per card a 640 x 260 H.264 clip (30 fps, no audio track) and its poster */
+ *  the slate's lettering atlas (tools/build_intro_slate.py, game/introSlateSpec.ts), and per card a 640 x 260 H.264 clip
+ *  (30 fps, no audio track) and its poster */
 export const INTRO_CARD_ASSETS = {
 	frame: '/assets/ui/intro/card-frame.webp',
+	slate: '/assets/ui/intro/intro-slate.webp',
 	clip: (key: IntroCardKey) => `/assets/ui/intro/card-${key}.mp4`,
 	poster: (key: IntroCardKey) => `/assets/ui/intro/card-${key}-poster.jpg`,
 };
@@ -97,18 +100,35 @@ export const INTRO_CARD = {
 	holdClipsUntilLoaded: true,
 } as const;
 
-/** the slate's text, style D "Engraved brass" (card_text_final.json). Sizes and positions are in CARD-WIDTH
- *  UNITS: 1 = 1% of the card's width; positions are from the card's top edge; the card is 150 tall. */
-export const INTRO_CARD_STYLE = {
-	side: 14,
-	title: { top: 65.5, height: 11, size: 7.3, weight: 700, letterSpacingEm: 0.05, color: '#c2a063', font: "'Cinzel', 'Times New Roman', serif" },
-	/** the title's cut edge and lower highlight: y offsets in card-width units */
-	titleEdge: { darkY: -0.22, dark: 'rgba(0,0,0,.9)', lightY: 0.2, light: 'rgba(255,236,190,.28)' },
-	body: { top: 77.5, height: 26, size: 4.15, weight: 400, lineHeight: 1.38, color: '#ddd3bb', font: "'Sora', system-ui, sans-serif" },
-	highlight: { color: '#e0b860', weight: 600 },
-	rule: { top: 105.5, side: 16, height: 0.28, color: 'rgba(233,196,106,.8)' },
-	scene: { top: 107.5, height: 17, size: 3.7, weight: 600, lineHeight: 1.3, color: '#e0b860', font: "'Sora', system-ui, sans-serif" },
+/** THE SLATE (intro cards round 3, header H1, Corey 2026-11-18). Sizes and positions in CARD-WIDTH UNITS (1 = 1 % of the
+ *  card's width, --u in ui/LandingScreen.svelte); the card is 150 tall.
+ *
+ *  THE BLOCK IS CENTERED BETWEEN THE FRAME'S TWO ENGRAVED POINTS (Corey 2026-11-18: "There are two points on the line work
+ *  in the black area that should be considered the top and bottom of the display areas, and the entire content just needs
+ *  to be moved up so it's centered between the two points"). `points` are measured on static/assets/ui/intro/card-frame.webp
+ *  (768 x 1152) on its center column x 383: `top` the tip of the engraved V notch at the top of the dark slate (the
+ *  center line of the outer V's gold line where it turns, rows 456 to 459 lit, brightest 458), `bottom` the tip of the
+ *  small engraved chevron at its foot (the outer chevron's line where it turns, rows 1000 to 1002, brightest 1001). They
+ *  are frame px, so the centering follows the frame picture wherever and however large it is drawn.
+ *
+ *  The block is everything from the header's cap top to the bottom of the plain line's last line box: the mock's own
+ *  spacing inside it (game/introSlateSpec.ts INTRO_SLATE_ZONES and the pieces' places), moved as one. It is centered by
+ *  layout (a flex column between the two points), so it holds at every size. A block taller than the span less `margin`
+ *  at each end is scaled down about its center to fit (ui/LandingScreen.svelte fitSlates), never let to overlap a point. */
+export const INTRO_SLATE = {
+	frame: { w: 768, h: 1152 },
+	points: { top: 457.5, bottom: 1001 },
+	/** card-width units kept clear between the block and each point, at the least (only a block that would come closer is scaled) */
+	margin: 1.5,
+	/** the plain line: the mock's .one */
+	line: { size: 4.0, weight: 500, lineHeight: 1.28, color: '#ddd3bb', font: "'Sora', system-ui, sans-serif", side: 14 },
+	/** the two rules (the mock's .rule): inset from the card's sides, thickness (at least 1 px), color */
+	rule: { side: 16, height: 0.28, color: 'rgba(233,196,106,.8)' },
+	/** a lifted tile (INTRO_TILE_LIFT): its transform and how fast it goes up and down, ms */
+	tileLift: { transform: 'translateY(-12%) scale(1.1)', ms: 180 },
 } as const;
+/** a point's height in card-width units from the card's top (the card is the frame picture, 100 units wide) */
+export const introSlatePointY = (which: 'top' | 'bottom') => (INTRO_SLATE.points[which] / INTRO_SLATE.frame.w) * 100;
 
 /** the gate along the bottom (loading bar, then PRESS ANYWHERE): per-kind sizes, master px. `barH` is the bar's drawn
  *  height: since the bar is the splash's segmented bar (2026-10-21, LANDING_BAR) it is the splash's, 1.8 x its 10 px
@@ -116,7 +136,7 @@ export const INTRO_CARD_STYLE = {
  *  landing layout stays as it is (Corey 2026-10-21) */
 /** The max win line that stood over the gate (2026-10-21) is gone: its row took height from the cards and turned
  *  mid-size desktop windows into the one-card side layout. The max win is stated in the CLUSTERS clip's last scene
- *  instead (Corey 2026-10-23, introCardText INTRO_MAX_WIN) */
+ *  instead (Corey 2026-10-23), and left the intro with the scene lines in round 3 (2026-11-18) */
 export const INTRO_GATE: Record<LayoutKind, { tag: number; barW: number; barH: number; press: number; pad: number }> = {
 	landscape: { tag: 14, barW: 420, barH: 18, press: 18, pad: 16 },
 	portrait: { tag: 13, barW: 280, barH: 18, press: 17, pad: 16 },
