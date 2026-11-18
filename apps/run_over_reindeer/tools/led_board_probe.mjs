@@ -792,6 +792,16 @@ async function cards(p, S, full) {
 					introAt = ms;
 					seen.intro = c;
 				}
+				// (round 2, 2026-11-18) ONE PROMPT: while the board's card is up the strip says PRESS ANYWHERE; no DOM text
+				// says it again (the press target is the transparent, labelled button)
+				if (ms - introAt > 2500 && !seen.domPrompt) {
+					seen.domPrompt = await R(p, () => [...document.querySelectorAll('body *')].filter((el) => {
+						const r = el.getBoundingClientRect();
+						const cs = getComputedStyle(el);
+						return el.childElementCount === 0 && /continue|anywhere/i.test(el.textContent || '') && r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity > 0;
+					}).map((el) => `${el.tagName}.${el.className}: ${el.textContent.trim().slice(0, 40)}`));
+					check(seen.domPrompt.length === 0, `${tag}: one prompt only: the strip's line, no DOM text prompt with the board's entry up (${seen.domPrompt.join('; ') || 'none'})`, seen.domPrompt);
+				}
 				// (5.5 s untouched, and pressed once the press line is up: on a slow page the scene's own clock runs behind
 				// real time, and a press before the press line lands the scene instead of continuing)
 				if (ms - introAt >= 5500 && c.phase === 'waits') {
@@ -1430,7 +1440,8 @@ async function explainBoards(p, S) {
 	const line = 'Includes $12.30 added to bring this round up to its 10x minimum.';
 	const want = await R(p, () => window.__reindeer.tune);
 	void want;
-	for (const layout of ['A', 'B']) {
+	// (round 2, 2026-11-18: layout C, one page with B's look and the heavy face, compositions C1 and C2, the default C1)
+	for (const layout of ['C1', 'C2', 'A', 'B']) {
 		for (const [kind, opts, sentenceOf] of [
 			['fs', {}, (c) => c.bonus],
 			['sfs', {}, (c) => c.super],
@@ -1453,7 +1464,7 @@ async function explainBoards(p, S) {
 				h.scoreboardLower();
 				h.scoreboardStep(100, 30);
 				h.scoreboardManual(false);
-				h.tune.ledBoard.explain.layout = 'A';
+				h.tune.ledBoard.explain.layout = 'C1';
 				return rows;
 			}, [layout, kind, opts]);
 			const sentence = sentenceOf(INTRO);
@@ -1461,7 +1472,8 @@ async function explainBoards(p, S) {
 			const b = e?.box;
 			const inside = !!b && b.x >= 0 && b.y >= 0 && b.x + b.w <= e.W && b.y + b.h <= e.H;
 			const hd = e?.head;
-			const apart = !hd || !b || b.y >= hd.y + hd.h || hd.y >= b.y + b.h;
+			// (apart above or below it, or beside it: layout C2 sets the number to the left of the sentence)
+			const apart = !hd || !b || b.y >= hd.y + hd.h || hd.y >= b.y + b.h || b.x >= hd.x + hd.w || hd.x >= b.x + b.w;
 			const words = e ? e.lines.join(' ') : '';
 			check(r.length > 0 && inside && apart && words === sentence.replace(/\s+/g, ' '), `${tag} ${kind} layout ${layout}: the explanation is on the big board, inside its face (${b ? `${b.x},${b.y} ${b.w}x${b.h} of ${e.W}x${e.H}` : 'none'}) and clear of the head, every word there, ${e?.lines.length ?? 0} line(s) at size ${e?.z ?? '-'}`, { e, sentence });
 			check(r.length > 0 && r.every((x) => !x.stripWait && x.item === 'entry'), `${tag} ${kind} layout ${layout}: the strip shows the press line alone (no sentence on it)`, r.map((x) => x.stripWait));

@@ -10,7 +10,7 @@
 // Plain 2D canvas drawing on the board's face, as everything on it.
 import { LED_BOARD } from '../constants';
 import { drawText, mk, textW, type Cv } from '../landing/ledScreens';
-import { chaseBorder, drawRow, fitCap, rowInfo, sprite, type Face } from './scoreboardDraw';
+import { BULBS, boardTitle, chaseBorder, drawFit, drawRow, fitCap, lineInk, rowInfo, sparkles, sprite, type Face } from './scoreboardDraw';
 
 type Ctx = CanvasRenderingContext2D;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -50,7 +50,7 @@ export function fitSentence(str: string, W: number, H: number, maxLines: number)
 }
 
 /** what the board's explanation shows now (the probe): the page, the text box in dots, the lines, the scale */
-export type ExplainInfo = { layout: 'A' | 'B'; page: 'scene' | 'explain' | 'wipe'; box: { x: number; y: number; w: number; h: number } | null; head: { x: number; y: number; w: number; h: number } | null; lines: string[]; z: number; W: number; H: number };
+export type ExplainInfo = { layout: 'A' | 'B' | 'C1' | 'C2'; page: 'scene' | 'explain' | 'wipe'; box: { x: number; y: number; w: number; h: number } | null; head: { x: number; y: number; w: number; h: number } | null; lines: string[]; z: number; W: number; H: number };
 const explainRec = new WeakMap<object, ExplainInfo>();
 export const explainOf = (canvas: object): ExplainInfo | null => explainRec.get(canvas) ?? null;
 export const clearExplain = (canvas: object) => explainRec.delete(canvas);
@@ -116,6 +116,240 @@ function drawSentence(g: Ctx, W: number, y0: number, bandH: number, sentence: st
 	return { fit, box: { x: bx, y, w: bw, h: fit.h } };
 }
 
+// ---- LAYOUT C (Corey 2026-11-18, round 2: "There is so much room in B without actually having to switch screens") ----------
+// ONE page with B's own look: the snow and lights frame and the scene's background, the two presents, the "10" (white; gold
+// on Super) and FREE SPINS in its blue (Super: SUPER in gold over FREE SPINS in red) as a compact lockup, and the sentence in
+// the HEAVY face (the board's amount face, game/scoreboard/scoreboardDraw.ts drawRow) filling the rest to the frame. One
+// margin all round and between the lockup and the sentence; the block is centred, no dead band. Two compositions:
+//   C1  the lockup on top (one row on a wide board: present, 10, FREE SPINS, present; stacked on an upright board: present
+//       10 present, then the words), the sentence under it
+//   C2  (wide boards) the number with a present over it in the left third, the words and the sentence in the right two
+//       thirds; an upright board falls back to C1
+// The sizes are searched together: the lockup as large as it can be while the sentence keeps a reading size (at least
+// readShare of the number's height and LED_BOARD.explain.minCap dots), the sentence in at most maxLines lines.
+type Box = { x: number; y: number; w: number; h: number };
+const heavyW = (str: string, cap: number) => rowInfo(str, cap).w;
+/** the sentence in the heavy face: the largest cap whose lines (at most `maxLines`) fit `w` and whose block fits `h` */
+function fitHeavy(str: string, w: number, h: number, maxLines: number, capMax: number) {
+	const words = str.split(/\s+/).filter(Boolean);
+	for (let cap = Math.max(5, Math.floor(capMax)); cap >= 5; cap--) {
+		const lines: string[] = [];
+		let cur = '';
+		let ok = true;
+		for (const wd of words) {
+			const next = cur ? cur + ' ' + wd : wd;
+			if (!cur || heavyW(next, cap) <= w) cur = next;
+			else {
+				lines.push(cur);
+				cur = wd;
+			}
+			if (heavyW(cur, cap) > w) ok = false;
+		}
+		if (cur) lines.push(cur);
+		const lh = Math.round(cap * 1.32);
+		const bh = lines.length * lh - (lh - cap);
+		if (ok && lines.length <= maxLines && bh <= h) return { cap, lines, lh, bh };
+	}
+	return null;
+}
+function drawHeavyLines(g: Ctx, lines: string[], cap: number, lh: number, cx: number, y: number, color: string) {
+	let bx = Infinity;
+	let bw = 0;
+	lines.forEach((l, i) => {
+		const w = heavyW(l, cap);
+		const x = Math.round(cx - w / 2);
+		bx = Math.min(bx, x);
+		bw = Math.max(bw, w);
+		drawRow(g, l, x, y + i * lh, cap, color, 0);
+	});
+	return { x: bx, w: bw };
+}
+/** B's background at its READY beat: Free Spins the blue wash, the lights' chase and the confetti; Super the night sky, the
+ *  sparkles, the double chase and the moon */
+function entryBackdrop(g: Ctx, W: number, H: number, t: number, sup: boolean, total: boolean) {
+	if (sup) {
+		g.fillStyle = 'rgba(8,16,60,0.85)';
+		g.fillRect(0, 0, W, H);
+		// (fewer sparkles than the scene's, so the sentence stays clean)
+		sparkles(g, W, H, t, Math.round((W * H) / 600), ['#ffffff', '#cfe8ff'], 41);
+		chaseBorder(g, W, H, t, ['#ff3a2e', '#ffd23a'], 1, 3);
+		if (H >= 40) {
+			g.save();
+			g.translate(3, 3);
+			chaseBorder(g, W - 6, H - 6, t + 180, ['#ffd23a', '#ff3a2e'], 1, 3);
+			g.restore();
+		}
+		return;
+	}
+	g.fillStyle = 'rgba(30,90,220,0.14)';
+	g.fillRect(0, 0, W, H);
+	chaseBorder(g, W, H, t, total ? ['#36ff74', '#ff3a2e'] : ['#36ff74', '#ffffff', '#ff3a2e', '#ffffff'], H >= 60 ? 2 : 1, 3);
+	const n = Math.round((W * H) / 140);
+	for (let k = 0; k < n; k++) {
+		const x = (hashC(k * 5.3) * W + Math.sin(t / 500 + k) * 2 + W) % W;
+		const y = (hashC(k * 2.7) * H + t * (0.01 + hashC(k) * 0.012)) % H;
+		g.fillStyle = BULBS[k % 4];
+		g.globalAlpha = 0.45;
+		g.fillRect(Math.round(x), Math.round(y), 1, 1);
+	}
+	g.globalAlpha = 1;
+}
+const hashC = (n: number) => {
+	const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+	return x - Math.floor(x);
+};
+/** the title words of the lockup (Free Spins: FREE SPINS in blue; Super: SUPER gold over FREE SPINS red; a wrap-up: its title) */
+const titleWords = (head: ExplainHead, sup: boolean): [string, string][] =>
+	head.kind === 'total' ? [[head.title, '#ffffff']] : sup ? [['SUPER', '#ffd23a'], ['FREE SPINS', '#ff6a4a']] : [['FREE SPINS', '#7cc4ff']];
+const titleBlock = (words: [string, string][], ts: number) => ({ w: Math.max(...words.map(([w]) => lineInk(w, ts).w)), h: words.length * 7 * ts + (words.length - 1) * Math.max(2, ts) });
+
+/** draws layout C on `g` (W x H dots); returns the lockup's and the sentence's boxes and the fit */
+export function drawLayoutC(g: Ctx, W: number, H: number, t: number, head: ExplainHead, sentence: string, color: string, variant: 'C1' | 'C2') {
+	const X = LED_BOARD.explain;
+	const sup = head.kind === 'entry' && head.title.startsWith('SUPER');
+	const total = head.kind === 'total';
+	entryBackdrop(g, W, H, t, sup, total);
+	const frame = H >= 60 ? 3 : 2;
+	const m = Math.max(3, Math.round(Math.min(W, H) * X.margin));
+	const ix = frame + m;
+	const iy = frame + m;
+	const iw = W - 2 * ix;
+	const ih = H - 2 * iy;
+	const num = head.kind === 'total' ? head.amount : head.count;
+	const numStyle = head.kind === 'total' || sup ? 'gold' : '#ffffff';
+	const wide = W / H >= 1.45;
+	// beside the number on a wide board the words stack a word a line (FREE over SPINS; SUPER, FREE, SPINS), so they can be
+	// as tall as the number; elsewhere a line each
+	const words0 = titleWords(head, sup);
+	const split: [string, string][] = words0.flatMap(([w, c]) => w.split(' ').map((x) => [x, c] as [string, string]));
+	const arrangements: [string, string][][] = wide && !total && variant !== 'C2' && split.length > words0.length ? [words0, split] : [words0];
+	const c2 = variant === 'C2' && wide && !total;
+	const minCap = X.minCap;
+	// (the search runs once per board size and text: the plan is kept, each frame only draws it)
+	const key = `${W}x${H}|${variant}|${num}|${words0.map((w) => w[0]).join('/')}|${sentence}|${X.maxLinesC}|${X.minCap}|${X.readShare}|${X.margin}`;
+	let best: Plan | null = planCache.get(key) ?? null;
+	const consider = (score: number, draw: Plan['draw']) => {
+		if (!best || score > best.score) best = { score, draw };
+	};
+	// (a board too small for the rules as set relaxes them a step at a time: the words may go to size 1, then the sentence
+	// may take two more lines and a smaller share of the number; it is never clipped)
+	for (let relax = 0; relax < 3 && !best; relax++) for (const words of arrangements) for (let cap = Math.floor(ih * 0.62); cap >= 8; cap -= 1) {
+		const pres = total ? 0 : Math.round(cap * 1.0);
+		const presW = Math.round((pres * 180) / 201);
+		const nw = heavyW(num, cap);
+		const gap = Math.max(3, Math.round(cap * 0.18));
+		// the words as large as the number's height allows (two lines on Super: SUPER over FREE SPINS) and as the room beside
+		// or under the number allows
+		const room = c2 ? iw - Math.max(nw, presW) - m * 2 : wide && !total ? iw - (presW * 2 + nw + gap * 3) : iw;
+		const beside = wide && !total && !c2;
+		const tsMax = Math.max(1, beside ? Math.floor(cap / (7 * words.length + (words.length - 1) * 1.3)) : Math.floor((cap * (c2 ? 0.45 : 0.5)) / 7));
+		let ts = Math.min(6, tsMax);
+		while (ts > 1 && titleBlock(words, ts).w > room) ts -= 1;
+		// (never a caption: the words at least size 2 on a board of 100 dots or more)
+		if (ts < 2 && H >= 100 && relax === 0) continue;
+		const tb = titleBlock(words, ts);
+		let lockW: number;
+		let lockH: number;
+		let textW0: number;
+		let textH: number;
+		if (c2) {
+			// left column: a present over the number; right: the words over the sentence
+			const colW = Math.max(nw, presW);
+			lockW = colW;
+			lockH = pres + gap + cap;
+			if (lockH > ih || colW > iw * 0.4) continue;
+			textW0 = iw - colW - m * 2;
+			textH = ih - tb.h - m;
+			if (lockW + m * 2 + tb.w > iw) continue;
+		} else if (wide || total) {
+			// one row: present, number, words, present (a wrap-up: the title over the amount)
+			lockW = total ? Math.max(nw, tb.w) : presW + gap + nw + gap + tb.w + gap + presW;
+			lockH = total ? tb.h + gap + cap : Math.max(cap, pres, tb.h);
+			if (lockW > iw) continue;
+			textW0 = iw;
+			textH = ih - lockH - m;
+		} else {
+			// stacked: present, number, present; then the words
+			lockW = Math.max(presW + gap + nw + gap + presW, tb.w);
+			lockH = Math.max(cap, pres) + gap + tb.h;
+			if (lockW > iw) continue;
+			textW0 = iw;
+			textH = ih - lockH - m;
+		}
+		if (textH < minCap) continue;
+		const fit = fitHeavy(sentence, textW0, textH, X.maxLinesC + (relax === 2 ? 2 : 0), Math.min(cap * 0.62, textH));
+		if (!fit || fit.cap < Math.max(minCap, Math.round(cap * X.readShare * (relax === 2 ? 0.6 : 1)))) continue;
+		// the bigger the sentence and the number together, the better; the sentence counts double (it must be read)
+		const score = fit.cap * 2 + cap + ts * 5;
+		consider(score, (g: Ctx) => {
+			if (c2) {
+				const blockH = Math.max(lockH, tb.h + m + fit.bh);
+				const y0 = iy + Math.round((ih - blockH) / 2);
+				const colW = Math.max(nw, presW);
+				const lx = ix;
+				const ly = y0 + Math.round((blockH - lockH) / 2);
+				if (pres) drawFit(g, 'present', { x: lx + (colW - presW) / 2, y: ly, w: presW, h: pres });
+				drawRow(g, num, Math.round(lx + (colW - nw) / 2), ly + pres + gap, cap, numStyle, 0);
+				const rx = ix + colW + m * 2;
+				const rw = iw - colW - m * 2;
+				const rcx = rx + rw / 2;
+				const ty = y0 + Math.round((blockH - (tb.h + m + fit.bh)) / 2);
+				words.forEach(([w, c], i) => boardTitle(g, w, rcx, ty + i * (7 * ts + Math.max(2, ts)), ts, c, { word: true }));
+				const tx = drawHeavyLines(g, fit.lines, fit.cap, fit.lh, rcx, ty + tb.h + m, color);
+				return { head: { x: lx, y: ly, w: colW, h: lockH }, text: { x: tx.x, y: ty + tb.h + m, w: tx.w, h: fit.bh }, fit };
+			}
+			const blockH = lockH + m + fit.bh;
+			const y0 = iy + Math.round((ih - blockH) / 2);
+			const cx = W / 2;
+			const lx = Math.round(cx - lockW / 2);
+			if (total) {
+				words.forEach(([w, c], i) => boardTitle(g, w, cx, y0 + i * (7 * ts + Math.max(2, ts)), ts, c, { word: true }));
+				drawRow(g, num, Math.round(cx - nw / 2), y0 + tb.h + gap, cap, numStyle, 0);
+			} else if (wide) {
+				const rowH = lockH;
+				const yc = y0 + rowH / 2;
+				let x = lx;
+				drawFit(g, 'present', { x, y: Math.round(yc - pres / 2), w: presW, h: pres });
+				x += presW + gap;
+				drawRow(g, num, x, Math.round(yc - cap / 2), cap, numStyle, 0);
+				x += nw + gap;
+				const tcx = x + tb.w / 2;
+				const ty = Math.round(yc - tb.h / 2);
+				words.forEach(([w, c], i) => boardTitle(g, w, tcx, ty + i * (7 * ts + Math.max(2, ts)), ts, c, { word: true }));
+				x += tb.w + gap;
+				drawFit(g, 'present', { x, y: Math.round(yc - pres / 2), w: presW, h: pres });
+			} else {
+				const r1 = Math.max(cap, pres);
+				const rowW = presW + gap + nw + gap + presW;
+				let x = Math.round(cx - rowW / 2);
+				drawFit(g, 'present', { x, y: y0 + (r1 - pres) / 2, w: presW, h: pres });
+				x += presW + gap;
+				drawRow(g, num, x, y0 + Math.round((r1 - cap) / 2), cap, numStyle, 0);
+				x += nw + gap;
+				drawFit(g, 'present', { x, y: y0 + (r1 - pres) / 2, w: presW, h: pres });
+				words.forEach(([w, c], i) => boardTitle(g, w, cx, y0 + r1 + gap + i * (7 * ts + Math.max(2, ts)), ts, c, { word: true }));
+			}
+			const ty = y0 + lockH + m;
+			const tx = drawHeavyLines(g, fit.lines, fit.cap, fit.lh, cx, ty, color);
+			return { head: { x: lx, y: y0, w: lockW, h: lockH }, text: { x: tx.x, y: ty, w: tx.w, h: fit.bh }, fit };
+		});
+	}
+	if (best) {
+		if (planCache.size > 40) planCache.clear();
+		planCache.set(key, best);
+	}
+	if (!best) {
+		// (never clipped: a board too small for both keeps the sentence alone, at the size that fits)
+		const fit = fitHeavy(sentence, iw, ih, 8, ih) ?? { cap: 5, lines: [sentence], lh: 7, bh: 5 };
+		const y = iy + Math.round((ih - fit.bh) / 2);
+		const tx = drawHeavyLines(g, fit.lines, fit.cap, fit.lh, W / 2, y, color);
+		return { head: null as Box | null, text: { x: tx.x, y, w: tx.w, h: fit.bh }, fit };
+	}
+	return (best as Plan).draw(g);
+}
+type Plan = { score: number; draw: (g: Ctx) => { head: Box; text: Box; fit: { cap: number; lines: string[] } } };
+const planCache = new Map<string, Plan>();
+
 /** the two pages' own canvases, per face size (the scene draws on the face's own scratch canvases) */
 const pages = new Map<string, { scene: Cv; page: Cv }>();
 const pagesFor = (W: number, H: number) => {
@@ -140,12 +374,20 @@ export function showExplain(F: Face, t: number, scene: (F: Face) => void, head: 
 	// the explanation's page
 	const g = P.page.ctx;
 	g.clearRect(0, 0, W, H);
-	g.fillStyle = 'rgba(30,90,220,0.12)';
-	g.fillRect(0, 0, W, H);
-	chaseBorder(g, W, H, t, border, H >= 60 ? 2 : 1, 3);
+	const C = X.layout === 'C1' || X.layout === 'C2';
+	if (!C) {
+		g.fillStyle = 'rgba(30,90,220,0.12)';
+		g.fillRect(0, 0, W, H);
+		chaseBorder(g, W, H, t, border, H >= 60 ? 2 : 1, 3);
+	}
 	let hb: ExplainInfo['head'] = null;
-	let sb: ReturnType<typeof drawSentence>;
-	if (X.layout === 'A') {
+	let sb: { fit: { z: number; lines: string[] }; box: { x: number; y: number; w: number; h: number } };
+	if (C) {
+		// LAYOUT C (round 2): one page, B's look with the sentence in the heavy face; `z` reports the sentence's cap in dots
+		const r = drawLayoutC(g, W, H, t, head, sentence, color, X.layout as 'C1' | 'C2');
+		hb = r.head;
+		sb = { fit: { z: r.fit.cap, lines: r.fit.lines }, box: r.text };
+	} else if (X.layout === 'A') {
 		const headH = Math.round(H * X.headShare);
 		hb = drawHead(g, W, 3, headH - 3, head);
 		sb = drawSentence(g, W, headH + 2, H - headH - 5, sentence, color, X.maxLines);
@@ -161,7 +403,7 @@ export function showExplain(F: Face, t: number, scene: (F: Face) => void, head: 
 		P.scene.ctx.drawImage(F.out, 0, 0);
 		return P.scene;
 	};
-	if (X.layout === 'A') {
+	if (X.layout !== 'B') {
 		onPage = true;
 		to = P.page;
 		if (t < X.wipeMs) {

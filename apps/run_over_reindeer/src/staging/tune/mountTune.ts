@@ -43,6 +43,15 @@ const STYLES = `
 .ror-tune .changes textarea { width: 100%; min-height: 54px; background: #10141a; color: #e8ecf2; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 4px; font: 11px/1.4 ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; resize: vertical; }
 .ror-tune .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; align-items: center; }
 .ror-tune .msg { opacity: 0.8; }
+.ror-tune .find { padding: 6px 6px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.14); background: rgba(8, 10, 14, 0.96); }
+.ror-tune .find input[type=search] { width: 100%; min-height: 32px; padding: 3px 8px; background: #10141a; color: #e8ecf2; border: 1px solid rgba(232, 193, 74, 0.6); border-radius: 5px; font: 13px -apple-system, system-ui, sans-serif; -webkit-user-select: text; user-select: text; }
+.ror-tune .small.on { background: #e8c14a; color: #10141a; }
+.ror-tune mark { background: #e8c14a; color: #10141a; border-radius: 2px; padding: 0 1px; }
+.ror-tune summary .dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: #e8c14a; vertical-align: middle; }
+.ror-tune summary .cnt { font-size: 10px; opacity: 0.75; padding: 0 4px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); }
+.ror-tune .sub { position: sticky; top: -6px; z-index: 1; background: rgba(14, 17, 23, 0.98); padding: 3px 0; }
+.ror-tune .k .key { display: block; font: 10px ui-monospace, Menlo, monospace; opacity: 0.7; }
+.ror-tune .none { padding: 8px; }
 .ror-tune .roam-ed { margin: 6px 0; padding: 6px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 6px; }
 .ror-tune .roam-ed textarea { width: 100%; background: #10141a; color: #e8ecf2; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 4px; font: 10px/1.35 ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; resize: vertical; }
 .ror-tune .roam-overlay { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
