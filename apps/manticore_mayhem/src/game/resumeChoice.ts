@@ -12,3 +12,18 @@ export const resumeChoice = {
 	choice: null as null | 'play' | 'skip',
 	chosenAt: -1,
 };
+
+// NOTHING LEFT TO PRESENT (2026-11-18, the rule for both games): an active BASE round that pays nothing and triggers no
+// feature is finished. The real RGS closes a 0x round at its play (no end-round is ever sent for it), but a mock or staging
+// RGS can still report it active until the next play; a reload then must not offer UNFINISHED ROUND for a losing spin. Such
+// a round is marked inactive here, before anything reads it: the normal landing screen, the last board snapped as after
+// any finished round, Spin free, no end-round. A feature round (more than one reveal) is still resumed, even at 0x.
+// Returns true when it marked one (the DEV hook reports it)
+export const settleDeadSpin = (stateBet: { betToResume: any }, isFeature: (bet: any) => boolean): boolean => {
+	const bet = stateBet.betToResume;
+	if (!bet || !bet.active) return false;
+	if (Number(bet.payoutMultiplier) > 0) return false;
+	if (!Array.isArray(bet.state) || isFeature(bet)) return false;
+	stateBet.betToResume = { ...bet, active: false };
+	return true;
+};

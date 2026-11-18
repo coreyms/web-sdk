@@ -9,6 +9,8 @@
 	import { MainContainer } from 'components-layout';
 	import { App } from 'pixi-svelte';
 	import { stateBet, stateMeta, stateUrlDerived, stateConfig } from 'state-shared';
+	import { checkIsMultipleRevealEvents } from 'utils-book';
+	import { settleDeadSpin } from '../game/resumeChoice';
 
 	import { getContext } from '../game/context';
 	import { landing } from '../game/boardIdle';
@@ -64,6 +66,9 @@
 	// THE RESUME CARD (ui/ResumeCard.svelte, game/resumeChoice.ts; a stock rule, Corey 2026-11-18): a load with an
 	// unfinished round shows the card in place of the landing screen (never in a replay). Read once: authenticate has
 	// answered before this component mounts
+	// (a losing base spin an RGS still reports active is finished: no card for it, game/resumeChoice.ts settleDeadSpin)
+	const deadSpin = !stateUrlDerived.replay() && settleDeadSpin(stateBet, (bet) => checkIsMultipleRevealEvents({ bookEvents: bet.state }));
+	if (import.meta.env.DEV) ((window as any).__manticore ??= {}).deadSpin = () => deadSpin;
 	const resuming = !stateUrlDerived.replay() && !!stateBet.betToResume?.active;
 
 	// stake.us safety net: the URL param is the documented switch (game/social.ts), but if the

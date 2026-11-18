@@ -27,6 +27,11 @@ const refreshBalance = async () => {
 };
 
 const primaryMachines = createPrimaryMachines<Bet>({
+	// A WINNING BASE ROUND STAYS OPEN UNTIL ITS WIN HAS BEEN SHOWN (2026-11-18, Corey: "Yes base spins should carry it as
+	// well"; the shared kit's option, the same as Reindeer's): its end-round goes out after the presentation, as a feature's
+	// does, not straight after the play reply, so a reload during a win finds the round active and the resume card offers
+	// it (ui/ResumeCard.svelte). Its balance is applied then: the HUD BALANCE never shows a win before it is presented
+	settleWinsAfterPresentation: true,
 	onResumeGameActive: (betToResume) => convertTorResumableBet(betToResume),
 	onResumeGameInactive: (betToResume) => {
 		const lastRevealEvent = _.findLast(
