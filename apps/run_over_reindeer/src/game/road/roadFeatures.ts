@@ -684,6 +684,8 @@ export class RoadFeatures {
 		this.layer.addChild(this.backLayer, this.stackLayer, this.railLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
 		this.runnerLayer.addChild(this.roam.shadow, this.roam.sprite);
 		roamDev.roam = this.roam;
+		// the roaming reindeer's safety net waits while a strike runs
+		this.roam.busy = () => this.runner !== null;
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
 		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
 		// for a picture a column is waiting on

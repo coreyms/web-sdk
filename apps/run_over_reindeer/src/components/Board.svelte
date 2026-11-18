@@ -1006,6 +1006,7 @@
 			roamReseed: (seed: number) => road.features.roam.reseed(seed),
 			roamPlace: () => road.features.roam.placeNow(),
 			roamStandAt: (x: number, y: number) => road.features.roam.standAt(x, y),
+			roamInArea: (x: number, y: number) => road.features.roam.inAreaNow(x, y),
 			roamWalkIn: (delayMs = 0) => road.features.roam.walkInSoon(delayMs),
 			roundSign: (on: boolean) => {
 				stateGame.gameType = on ? 'freegame' : 'basegame';
