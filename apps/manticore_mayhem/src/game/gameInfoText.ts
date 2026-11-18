@@ -2,6 +2,7 @@ import config from './config';
 import { modeCost, modeShortLabel } from './betModeMeta';
 import { soc } from './social';
 import { FEATURE_MENU_NAME } from './constants';
+import { FEATURE_ONE_IN, aboutTimes, oneInText, timesBase } from './armouryOdds';
 
 // Verbatim Stake Engine template (docs: approval-guidelines/general-disclaimer).
 export const DISCLAIMER =
@@ -39,8 +40,12 @@ const MYSTERY_STINGS = { super: 2, epic: 3 }; // game_config.MYSTERY_STING_COUNT
 // review M5): base 1 in 361.1 / 2,544.9 / 13,891.9; Ante 1 in 63.3 / 388.2 / 2,383.0 (5.7x / 6.6x / 5.8x); Super Ante
 // Super 1 in 39.5 (64.4x; the review's criteria table 65.8x) and Epic 1 in 260.6 (53.3x). The Super rate was "about 60".
 const ANTE_RATE = 'about six times';
-const SUPER_ANTE_SUPER_RATE = 'about 65 times';
-const SUPER_ANTE_EPIC_RATE = 'about 55 times';
+// Since 2026-11-17 (Corey "B Comparison") the two Super Ante rates are computed from game/armouryOdds.ts, the figures
+// THE ARMOURY's rows show, rounded to the nearest 5 (64.4x -> 65, 53.3x -> 55), so the page and the menu agree
+const SUPER_ANTE_SUPER_RATE = `about ${aboutTimes(timesBase('SUPER_ANTE', 'super') ?? 0)} times`;
+const SUPER_ANTE_EPIC_RATE = `about ${aboutTimes(timesBase('SUPER_ANTE', 'epic') ?? 0)} times`;
+/** the example in "About the odds": the Ante's Free Spins figure, as the menu shows it */
+const ODDS_EXAMPLE = oneInText(FEATURE_ONE_IN.ANTE.bonus ?? 0);
 // THE FEATURE FLOORS (math 2026.10.16): the free spins of a Free Spins round total at least config.freeSpinsMinWin and of
 // a Super round at least config.superMinWin, whatever started it (scatters, a buy, a Mystery: lowest live totals 10.0x
 // and 25.0x on the books); the Epic as before. Each names its base and shows the live amount, like the Epic floor
@@ -262,6 +267,14 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 					: soc(
 							`Bought features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per round differ between a bought feature and a natural one, and every mode returns ${RTP} of what is bet in it.`,
 							`Instantly triggered features follow the same rules as naturally triggered ones, but each mode is its own game: the odds of each outcome and the average win per round differ between an instantly triggered feature and a natural one, and every mode returns ${RTP} of what is played in it.`,
+						),
+				// ABOUT THE ODDS (Corey 2026-11-17, "B Comparison"; the mock's NOTES.md 6): what the menu's "~1 in N" figures mean.
+				// Not under disabledBuyFeature (no menu, no figures)
+				noBuy
+					? ''
+					: soc(
+							`**About the odds.** ${MENU} shows how often each feature starts, written as "~1 in ${ODDS_EXAMPLE}". This is a long-run average measured on the published math of each mode: over a very large number of spins, the feature starts about once every ${ODDS_EXAMPLE} spins. It is not a countdown and not a promise. Every spin is independent: a feature can start twice in a row, or not start for many times its average, and earlier spins never make it more or less likely on the next spin. On a bought feature, the figure is how often the same feature starts by itself in the Base Game.`,
+							`**About the odds.** ${MENU} shows how often each feature starts, written as "~1 in ${ODDS_EXAMPLE}". This is a long-run average measured on the published math of each mode: over a very large number of spins, the feature starts about once every ${ODDS_EXAMPLE} spins. It is not a countdown and not a promise. Every spin is independent: a feature can start twice in a row, or not start for many times its average, and earlier spins never make it more or less likely on the next spin. On an instantly triggered feature, the figure is how often the same feature starts by itself in the Base Game.`,
 						),
 				// what "your bet" on the cards means (Corey 2026-10-15): the amount the HUD's + and − set (StepButton draws the
 				// true minus sign, U+2212, as here)

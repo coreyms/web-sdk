@@ -74,6 +74,25 @@ export const ARMOURY_TEXT = {
 	/** the Mystery's odds rows (armouryData.ts ARMOURY_MODES odds): {n} is the share in percent */
 	odds: { nothing: 'No feature', super: 'Super Free Spins', epic: 'Epic Free Spins' },
 	oddsShare: '{n}%',
+	/** THE ODDS ROWS (Corey 2026-11-17, "B Comparison"; mock ~/Desktop/Manticore Mayhem/feedback/armoury_odds_mock_2026-11-17,
+	 *  figures game/armouryOdds.ts). On ANTE and SUPER ANTE three rows replace the plate's sentence (`pitch` stays for the
+	 *  confirm card's line and the probes): each feature, the Base Game's figure, a drawn step mark, this mode's figure under
+	 *  the mode's own name. A bought plate keeps its sentence and adds one row: how often that feature starts by itself in
+	 *  the Base Game. The Mystery has its share bars. No word a social session forbids, so one string serves both */
+	rates: {
+		feat: { bonus: 'Free Spins', super: 'Super Free Spins', epic: 'Epic Free Spins' },
+		baseHead: 'BASE GAME',
+		inBase: 'in the Base Game',
+		/** Super Ante's Free Spins row: 4 scatters award Super instead */
+		asSuper: 'as Super',
+		/** "~1 in" in the reading face; the number after it in Cinzel */
+		prefix: '~1 in',
+		foot: '~ average over many spins. Every spin is independent.',
+		/** screen readers: each row as one sentence (the drawn cells are aria-hidden) */
+		ariaRow: '{feat}: about 1 in {base} in the Base Game, about 1 in {here} here',
+		ariaRowAsSuper: '{feat}: about 1 in {base} in the Base Game; here 4 scatters award Super Free Spins instead',
+		ariaBuy: '{feat} start by themselves about 1 in {base} spins in the Base Game',
+	},
 	/** the desktop confirm card's "what you get" line (left out on the phone's card, owner 2026-10-13) */
 	gets: {
 		ANTE: 'About six times the Free Spins, Super Free Spins and Epic Free Spins triggers',

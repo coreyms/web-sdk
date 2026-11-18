@@ -61,6 +61,7 @@
 	import StepButton from '../StepButton.svelte';
 	import { ARMOURY_ART_ORDER, ARMOURY_ASSETS, ARMOURY_MODES, armouryMode, type ArmouryMode, type ArmouryModeId } from '../../game/armouryData';
 	import { ARMOURY_TEXT as TX, afterTag, anteConfirm, armouryName, boldRuns, fill } from '../../game/armouryText';
+	import { FEATURE_ONE_IN, oneInText, type OddsFeature } from '../../game/armouryOdds';
 	import { armouryDecoded, whenArmouryCore, heroGridReady, heroGridsInfo, loadArmouryCore, onHeroGrids, pauseHeroGrids, selectHeroGrid, startHeroGrids } from '../../game/armouryLoad';
 
 	type Props = { controls: Controls; frame: MenuFrame };
@@ -870,7 +871,30 @@
 
 	// ---- the plate: one fill and two rules; its height follows the content by transform only ------------------------
 	let detailH = $state(0);
-	const detailTop = $derived(mode.odds ? 92 : 96);
+	// THE ODDS ROWS (Corey 2026-11-17, "B Comparison"; game/armouryOdds.ts the figures, armouryText.ts rates the words):
+	// ANTE and SUPER ANTE compare each feature's Base Game figure with their own (the rows take the sentence's place);
+	// a bought plate adds how often its feature starts by itself in the Base Game; the Mystery keeps its share bars
+	type RateRow = { f: OddsFeature; base: string; here: string | null; aria: string };
+	const BUY_FEATURE: Partial<Record<ArmouryModeId, OddsFeature>> = { BONUS: 'bonus', SUPER: 'super', EPIC: 'epic' };
+	const rates = $derived.by((): { spin: boolean; rows: RateRow[] } | null => {
+		const R = TX.rates;
+		const base = (f: OddsFeature) => oneInText(FEATURE_ONE_IN.BASE[f] ?? 0);
+		if (mode.id === 'ANTE' || mode.id === 'SUPER_ANTE') {
+			const order: OddsFeature[] = mode.id === 'SUPER_ANTE' ? ['super', 'epic', 'bonus'] : ['bonus', 'super', 'epic'];
+			return {
+				spin: true,
+				rows: order.map((f) => {
+					const v = FEATURE_ONE_IN[mode.id as 'ANTE' | 'SUPER_ANTE'][f];
+					const here = v ? oneInText(v) : null;
+					return { f, base: base(f), here, aria: fill(here ? R.ariaRow : R.ariaRowAsSuper, { feat: R.feat[f], base: base(f), here: here ?? '' }) };
+				}),
+			};
+		}
+		const f = BUY_FEATURE[mode.id];
+		return f ? { spin: false, rows: [{ f, base: base(f), here: null, aria: fill(R.ariaBuy, { feat: R.feat[f], base: base(f) }) }] } : null;
+	});
+	const hasOdds = $derived(!!mode.odds || !!rates);
+	const detailTop = $derived(hasOdds ? 92 : 96);
 
 	const tileLabel = (m: ArmouryMode) =>
 		fill(TX.aria.tile, { name: armouryName(m.id), kind: TX.aria.kind[m.group], x: modeCost(m.id) }) + (activeId === m.id ? TX.aria.on : '');
@@ -935,6 +959,13 @@
 		return da.contentBottom - da.contentTop - trayH - panelH - PANEL_MARGIN_TOP - HERO_GAP;
 	});
 	const noHero = $derived(touch && heroRoom < (frame.layout === 'sideways' ? LAY.sideways.heroDropUnder : LAY.portrait.minHero));
+	// THE ODDS ROWS ON A SHORT UPRIGHT SCREEN (2026-11-17): where the content band (the clock strip to the HUD row) is under
+	// ODDS_TIGHT_UNDER design px, a plate with odds rows takes the tight set (.odds-tight: closer leading, a smaller foot
+	// line, the plate's padding and the price row's gap trimmed) so it never clips or scrolls. Decided by the band alone,
+	// never by the plate's own height, so the class cannot flip the measure it is decided by
+	const ODDS_TIGHT_UNDER = 480;
+	const contentH = $derived(touch && frame.layout !== 'sideways' ? da.contentBottom - da.contentTop : Infinity);
+	const oddsTight = $derived(!!rates && contentH < ODDS_TIGHT_UNDER);
 	/** the rays behind the touch hero: min(height x 1.22, 300) (page.js sizeHero) */
 	const heroRays = $derived(Math.round(Math.min(heroBoxH * LAY.portrait.rays.perH, LAY.portrait.rays.max)));
 
@@ -1204,6 +1235,8 @@
 				anchors: da,
 				measured: anchors,
 				heroRoom: Number.isFinite(heroRoom) ? Math.round(heroRoom * 10) / 10 : null,
+				contentH: Number.isFinite(contentH) ? Math.round(contentH * 10) / 10 : null,
+				oddsTight,
 				noHero,
 				caretX,
 				heroCentre,
@@ -1301,7 +1334,8 @@
 			aria-hidden={warm && phase === 'closed' ? 'true' : undefined}
 			class:closing={phase === 'closing'}
 			class:confirm
-			class:has-odds={!!mode.odds}
+			class:has-odds={hasOdds}
+			class:odds-tight={oddsTight}
 			class:reduced
 			class:swap-out={swapOut}
 			class:plate-ease={plateEase}
@@ -1413,7 +1447,32 @@
 									<div class="name">{armouryName(mode.id)}</div>
 								</div>
 								<div class="d-body" bind:this={dBodyEl}>
-									<div class="desc">{@render rich(TX.pitch[mode.id], '')}</div>
+									{#if !rates?.spin}<div class="desc">{@render rich(TX.pitch[mode.id], '')}</div>{/if}
+									{#if rates}
+										<div class="q qb" class:buy1={!rates.spin} data-odds={mode.id}>
+											{#if rates.spin}
+												<span aria-hidden="true"></span><span class="h" aria-hidden="true">{TX.rates.baseHead}</span><span aria-hidden="true"></span><span class="h acc" aria-hidden="true">{armouryName(mode.id)}</span>
+											{/if}
+											{#each rates.rows as r (r.f)}
+												<span class="sr">{r.aria}</span>
+												{#if rates.spin}
+													<span class="l" aria-hidden="true">{TX.rates.feat[r.f]}</span>
+													<span class="o" aria-hidden="true" data-base={r.f}>{TX.rates.prefix} {r.base}</span>
+													<i class="s" aria-hidden="true"></i>
+													{#if r.here}
+														<span class="v" aria-hidden="true" data-here={r.f}><span class="p">{TX.rates.prefix}</span> {r.here}</span>
+													{:else}
+														<span class="v t" aria-hidden="true" data-here={r.f}>{TX.rates.asSuper}</span>
+													{/if}
+												{:else}
+													<span class="l" aria-hidden="true">{TX.rates.feat[r.f]} {TX.rates.inBase}</span>
+													<span aria-hidden="true"></span><span aria-hidden="true"></span>
+													<span class="v" aria-hidden="true" data-base={r.f}><span class="p">{TX.rates.prefix}</span> {r.base}</span>
+												{/if}
+											{/each}
+										</div>
+										<div class="qfoot">{TX.rates.foot}</div>
+									{/if}
 									{#if mode.odds}
 										<div class="odds">
 											{#each mode.odds as o (o.text)}
@@ -2043,6 +2102,151 @@
 	.pips i.on {
 		background: var(--acc);
 		border-color: var(--brass-hi);
+	}
+	/* THE ODDS ROWS (Corey 2026-11-17, "B Comparison": the mock's .qb, lifted). One grid: the feature, the Base Game's
+	   figure, a drawn step mark (a CSS chevron, not a character), this mode's figure; "~1 in" in the reading face and the
+	   number in Cinzel (Cinzel has no lower case). The foot line one step brighter than the mock (--cream-2 for --muted) */
+	.q {
+		margin-top: 12px;
+		position: relative;
+	}
+	.qb {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) max-content 14px max-content;
+		column-gap: 12px;
+		row-gap: 3px;
+		align-items: center;
+	}
+	.qb .h {
+		font-weight: 600;
+		font-size: 13px;
+		line-height: 18px;
+		letter-spacing: 0.2em;
+		color: var(--cream-2);
+		white-space: nowrap;
+		text-align: right;
+	}
+	.qb .h.acc {
+		color: var(--acc);
+	}
+	.qb .l {
+		font-size: 17px;
+		line-height: 26px;
+		color: var(--cream);
+		white-space: nowrap;
+	}
+	.qb .o {
+		font-size: 17px;
+		line-height: 26px;
+		color: var(--cream-2);
+		text-align: right;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+	}
+	.qb .v {
+		font: 700 20px/26px var(--display);
+		color: var(--gold);
+		text-align: right;
+		white-space: nowrap;
+	}
+	.qb .v.t {
+		font: 400 17px/26px var(--ui);
+		color: var(--cream-2);
+	}
+	.qb .s {
+		width: 8px;
+		height: 8px;
+		justify-self: center;
+		border-top: 2px solid var(--acc);
+		border-right: 2px solid var(--acc);
+		transform: rotate(45deg);
+	}
+	.q .p {
+		font: 400 16px/1 var(--ui);
+		color: var(--cream-2);
+		letter-spacing: 0;
+	}
+	.qfoot {
+		margin-top: 6px;
+		font-size: 15px;
+		line-height: 18px;
+		color: var(--cream-2);
+		white-space: nowrap;
+	}
+	.qb .sr {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	.arm.touch .q {
+		margin-top: 6px;
+	}
+	.arm.touch .qb {
+		grid-template-columns: minmax(0, 1fr) max-content 9px max-content;
+		column-gap: 7px;
+		row-gap: 0;
+	}
+	.arm.touch .qb .h {
+		font-size: 10px;
+		line-height: 14px;
+		letter-spacing: 0.16em;
+	}
+	.arm.touch .qb .l,
+	.arm.touch .qb .o,
+	.arm.touch .qb .v.t {
+		font-size: 13px;
+		line-height: 20px;
+	}
+	.arm.touch .qb .v {
+		font-size: 15px;
+		line-height: 20px;
+	}
+	.arm.touch .qb .s {
+		width: 6px;
+		height: 6px;
+		border-width: 1.5px;
+		margin-left: -3px;
+	}
+	.arm.touch .q .p {
+		font-size: 12px;
+	}
+	.arm.touch .qfoot {
+		margin-top: 3px;
+		font-size: 11px;
+		line-height: 14px;
+	}
+	/* the short upright screens (oddsTight above) */
+	.arm.touch.odds-tight.has-odds .detail-mv {
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+	.arm.touch.odds-tight .q {
+		margin-top: 3px;
+	}
+	.arm.touch.odds-tight .qb .h {
+		font-size: 9px;
+		line-height: 12px;
+	}
+	.arm.touch.odds-tight .qb .l,
+	.arm.touch.odds-tight .qb .o,
+	.arm.touch.odds-tight .qb .v.t {
+		font-size: 12px;
+		line-height: 17px;
+	}
+	.arm.touch.odds-tight .qb .v {
+		font-size: 14px;
+		line-height: 17px;
+	}
+	.arm.touch.odds-tight .qfoot {
+		margin-top: 1px;
+		font-size: 10px;
+		line-height: 12px;
+	}
+	.arm.touch.odds-tight.has-odds .buy {
+		margin-top: 6px;
 	}
 	.odds {
 		margin-top: 12px;
