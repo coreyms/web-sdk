@@ -34,8 +34,21 @@ export const resumeRound = $state({
 	choice: null as null | ResumeChoice,
 });
 
-/** a round is open and the card asks about it (never in replay mode) */
-export const resumeCardWanted = (): boolean => !!stateBet.betToResume?.active && !stateUrlDerived.replay();
+/** NOTHING LEFT TO PRESENT (2026-11-18, the probe host on staging): an RGS may report a round that won nothing as still
+ *  active until the next play (tools/mock_rgs.py does; the fixture RGS now does too), where another closes it at its play.
+ *  A base game round (no freeSpinTrigger in its book: base and Ante spins) that pays 0 has nothing to show and needs no
+ *  end-round: it is treated as finished, whichever the RGS does. A feature round is always resumed, even at 0x (its spins
+ *  are still to play). */
+export const roundHasNothingLeft = (bet: { active?: boolean; payoutMultiplier?: number; state?: { type: string }[] } | null | undefined): boolean => {
+	if (!bet?.active) return false;
+	const events = Array.isArray(bet.state) ? bet.state : [];
+	if (events.some((e) => e.type === 'freeSpinTrigger')) return false;
+	const pays = typeof bet.payoutMultiplier === 'number' ? bet.payoutMultiplier : Number((events as { type: string; amount?: number }[]).filter((e) => e.type === 'finalWin').pop()?.amount ?? 0);
+	return !(pays > 0);
+};
+
+/** a round is open, has something left to present, and the card asks about it (never in replay mode) */
+export const resumeCardWanted = (): boolean => !!stateBet.betToResume?.active && !roundHasNothingLeft(stateBet.betToResume) && !stateUrlDerived.replay();
 
 /** the events kept after the final board, in the book's order (the round's own end) */
 const END_EVENTS = ['floorTopUp', 'freeSpinEnd', 'wincap', 'finalWin'];

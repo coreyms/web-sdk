@@ -514,6 +514,12 @@ export class Scoreboard {
 		const s = this.show;
 		return !!s && s.kind === 'win' && s.t < s.exitAt;
 	}
+	/** a win's count still running on the board (a big win's or the strip's small message), board ms left; 0 when none */
+	countLeft(): number {
+		const s = this.show;
+		if (!s || (s.kind !== 'win' && s.kind !== 'small')) return 0;
+		return Math.max(0, s.countEnd - s.t);
+	}
 	/** A NEW SPIN'S PRESS: the Grandma gag and a small win are cut short (a big win is never up at a press: it holds the round) */
 	spinPress() {
 		this.cutGag('a new spin');

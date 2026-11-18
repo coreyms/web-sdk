@@ -7,6 +7,14 @@ import { hudWinRoundStart } from './hudWin.svelte';
 import { preloadForEvents } from './road/columnClips';
 import { presentsForBook } from './road/present';
 import { STAGING_TOOLS, perfMark } from './staging';
+import { stateBet } from 'state-shared';
+import { scoreboardDev } from './scoreboard/scoreboard';
+
+/** resolves once the LED board has no win count running (at most maxMs real time) */
+export const ledCountDone = async (maxMs = 2500) => {
+	const t0 = performance.now();
+	while ((scoreboardDev.board?.countLeft() ?? 0) > 0 && performance.now() - t0 < maxMs) await new Promise((r) => setTimeout(r, 30));
+};
 
 // STAGING READOUT ONLY (game/staging.ts perfMark): each book event leaves its type as a label, so a long frame
 // can be traced to the step of the round it fell in. A production build uses the map as it is.
@@ -32,6 +40,11 @@ export const playBet = async (bet: Bet) => {
 	// a book with a trigger: the presents' full open starts loading now (game/road/present.ts); one without lets it go
 	presentsForBook(bet.state);
 	await playBookEvents(bet.state);
+	// THE LED COUNT LANDS BEFORE THE ROUND SETTLES (2026-11-18, the probe host: the end-round went with the strip's small
+	// count at $9.72 of $10.00): the round's presentation is over once the board's count is too. Not in autoplay, where the
+	// next spin's press cuts the small message anyway and waiting would slow every winning round (by up to its count's
+	// rest, about 0.26 s at turbo 2)
+	if (!(stateBet.autoSpinsCounter > 0)) await ledCountDone();
 	eventEmitter.broadcast({ type: 'stopButtonEnable' });
 };
 

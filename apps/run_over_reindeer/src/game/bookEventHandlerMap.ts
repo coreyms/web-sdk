@@ -13,7 +13,7 @@ import { LED_BOARD, LINE_WIN, REINDEER_SOUND, ROUND } from './constants';
 import config from './config';
 import type { SoundEffectName } from './sound';
 import { setHudWin } from './hudWin.svelte';
-import { playBookEvent } from './utils';
+import { ledCountDone, playBookEvent } from './utils';
 import { boardRate, stateGame, type RoundCard } from './stateGame.svelte';
 import { sceneHooks, stateScene } from './stateScene.svelte';
 import { presetForMode } from './scenePresets';
@@ -31,6 +31,8 @@ const devMark = (what: string, detail?: string) => {
 
 /** Skip to Result (the resume card): the longest wait for the standing columns' pictures before the final board goes up */
 const SKIP_CLIP_WAIT_MS = 2500;
+/** ...and how long a skipped base round shows its win before its end (the HUD's WIN counts in 0.55 s, ui/controls) */
+const SKIP_SHOW_MS = 600;
 
 /** a pause on the road's own pace: shorter at turbo, shorter still under a slam stop */
 const pace = (ms: number) => waitForTimeout(Math.max(1, ms / boardRate()));
@@ -301,7 +303,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 		eventEmitter.broadcast({ type: 'boardHeld', held: bookEvent.columns });
 		setHudWin(bookEvent.winSoFar);
-		if (bookEvent.gameType === 'basegame' && bookEvent.winSoFar > 0) eventEmitter.broadcast({ type: 'boardScoreboardWin', amount: bookEvent.winSoFar, small: true });
+		if (bookEvent.gameType === 'basegame' && bookEvent.winSoFar > 0) {
+			eventEmitter.broadcast({ type: 'boardScoreboardWin', amount: bookEvent.winSoFar, small: true });
+			// THE RESULT BEFORE THE SETTLE (2026-11-18, the probe host: the balance jumped, then WIN counted up): a base round's
+			// end-round follows its finalWin at once, so the HUD's WIN count (0.55 s) and the strip's count land first
+			await waitForTimeout(SKIP_SHOW_MS);
+			await ledCountDone();
+		}
 		devMark('skipToResult', `${bookEvent.gameType} ${bookEvent.columns.length} columns`);
 	},
 

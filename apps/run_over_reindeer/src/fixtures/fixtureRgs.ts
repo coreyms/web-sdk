@@ -158,11 +158,11 @@ const handle = (path: string, body: Json): { status: number; data: Json } => {
 		const payout = Math.round(fixture.payoutMultiplier * amount);
 		state.round = { betID: state.plays.length + 1, amount, payout, payoutMultiplier: fixture.payoutMultiplier, active: true, state: fixture.events, mode, event: null };
 		state.plays.push({ name: fixture.name, mode, amount: amount / MULT, payout: payout / MULT });
-		// a round that pays nothing is closed by the play itself (no end-round follows), as on the real RGS
-		if (payout === 0) (state.round as Json).active = false;
+		// A ROUND THAT PAYS NOTHING (2026-11-18): reported active until the next play, as tools/mock_rgs.py (the staging RGS)
+		// does: no end-round follows, the next play replaces it. (Another RGS may close it at its play; the game treats such a
+		// round as finished either way: game/resumeRound.svelte.ts roundHasNothingLeft.)
 		try {
-			if (payout > 0) sessionStorage.setItem(OPEN_KEY, JSON.stringify({ round: state.round, balance: state.balance }));
-			else sessionStorage.removeItem(OPEN_KEY);
+			sessionStorage.setItem(OPEN_KEY, JSON.stringify({ round: state.round, balance: state.balance }));
 		} catch {
 			/* no storage: a reload loses the round, as before */
 		}
