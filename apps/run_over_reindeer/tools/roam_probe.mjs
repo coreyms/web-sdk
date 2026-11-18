@@ -364,6 +364,13 @@ async function runSize(browser, S) {
 	check(['road', 'hud', 'LED strip', 'logo', 'top line'].every((n) => names.has(n)) && !names.has('counter plate'), `${name}: the keep-out zones measured (${[...names].join(', ')}; no counter plate)`);
 	const picks = await H(() => window.__reindeer.roamPicks(300, 60, 9090));
 	const poly = geo.roam.corners;
+	// THE AREA THE GAME USES (2026-11-18): the drawn polygon, or as the floor widened it at this window (the top snow
+	// rim, or all the free snow): read from the game, and the widening itself checked against the drawn area's numbers
+	const inAreaAll = async (list) => H((l) => l.map(([x, y]) => window.__reindeer.roamInArea(x, y)), list);
+	const pickIn = await inAreaAll(picks.map((q) => [q.x, q.y]));
+	const fl = geo.roam.floor;
+	out.floor = { widen: geo.roam.widen, own: fl, capacity: geo.roam.capacity, span: geo.roam.span };
+	check(geo.roam.widen === 0 ? fl.spots >= 4 && fl.span >= 0.3 : fl.spots < 4 || fl.span < 0.3, `${name}: the area ${geo.roam.widen ? `is widened (${geo.roam.widen === 1 ? 'the top snow rim' : 'all the free snow'}) because the drawn one holds ${fl.spots} spots 12 % apart spanning ${Math.round(fl.span * 100)} % of the width` : `is the drawn one: it holds ${fl.spots} spots 12 % apart spanning ${Math.round(fl.span * 100)} % of the width`} (the floor: 4 and 30 %)`, out.floor);
 	const bad = [];
 	let level = 0;
 	let relaxed = 0;
@@ -377,7 +384,7 @@ async function runSize(browser, S) {
 			none++;
 			continue;
 		}
-		if (!inPoly(q.x, q.y, poly)) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) outside the area`);
+		if (!pickIn[picks.indexOf(q)]) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) outside the area the game uses`);
 		const h0 = hitsAt(geo, zones, q.x, q.y);
 		if (h0.length) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) covers ${h0.join(', ')}`);
 		worstHead = Math.min(worstHead, headClear(geo, zones, q.x, q.y));
@@ -443,8 +450,9 @@ async function runSize(browser, S) {
 	out.wander = { states: w1.states, stops: w1.stops.length };
 	check(w1.states.includes('idle') && w1.states.includes('walk') && w1.states.includes('start') && w1.states.includes('stop'), `${name}: in 45 s he sniffs and walks (start, walk, stop) from spot to spot (${w1.states.join(', ')})`, w1.states);
 	check(w1.stops.length >= 3, `${name}: he stops at ${w1.stops.length} different spots in 45 s`, w1.stops.length);
-	const offArea = w1.stops.filter(([x, y]) => !inPoly(x, y, poly));
-	check(offArea.length === 0, `${name}: every stop's feet are inside the area`, offArea.slice(0, 3));
+	const stopIn = await inAreaAll(w1.stops);
+	const offArea = w1.stops.filter((_, i) => !stopIn[i]);
+	check(offArea.length === 0, `${name}: every stop's feet are inside the area the game uses${geo.roam.widen ? ' (widened)' : ''}`, offArea.slice(0, 3));
 	const frameHits = [];
 	for (let i = 0; i < w1.pos.length && frameHits.length < 5; i++) {
 		const hz = hitsAt(geo, zones, w1.pos[i][0], w1.pos[i][1]);
@@ -565,7 +573,7 @@ async function runSize(browser, S) {
 	out.walkIn = walkIn;
 	const enteredOff = walkIn.entered && (walkIn.entered.x < walkIn.rect.left || walkIn.entered.x > walkIn.rect.right);
 	check(!!walkIn.entered && enteredOff, `${name}: the new one starts walking in from past the screen's edge (road x ${walkIn.entered ? r1(walkIn.entered.x) : '-'})`, walkIn);
-	check(!!walkIn.arrived && walkIn.arrived.state === 'idle' && inPoly(walkIn.arrived.x, walkIn.arrived.y, poly) && Math.abs(walkIn.arrived.y - walkIn.arrived.enterY) < 0.01, `${name}: he walks in level and stops at a spot of the area, sniffing (on the screen after ${walkIn.onAt ? r1(walkIn.onAt / 1000) : '-'} s, arrived after ${walkIn.arrived ? r1(walkIn.arrived.t / 1000) : '-'} s at the 1x board clock)`, walkIn);
+	check(!!walkIn.arrived && walkIn.arrived.state === 'idle' && (await inAreaAll([[walkIn.arrived.x, walkIn.arrived.y]]))[0] && Math.abs(walkIn.arrived.y - walkIn.arrived.enterY) < 0.01, `${name}: he walks in level and stops at a spot of the area, sniffing (on the screen after ${walkIn.onAt ? r1(walkIn.onAt / 1000) : '-'} s, arrived after ${walkIn.arrived ? r1(walkIn.arrived.t / 1000) : '-'} s at the 1x board clock)`, walkIn);
 
 	// ---- 7: a strike before he is on the screen, and one while he walks in on it ---------------------------------------
 	const early = await H(async () => {
@@ -603,18 +611,116 @@ async function runSize(browser, S) {
 	const b = await STEP_STRIKE(p, { cell: 10, plain: true, roamOff: true });
 	const strip = (rows) => rows.map((r) => [r.phase, r.view, r.stride, r.index, r.x, r.y, r.mirrored].join(','));
 	check(JSON.stringify(strip(a.rows)) === JSON.stringify(strip(b.rows)) && a.impactAt === b.impactAt && a.firstRunner.roam === false, `${name}: STRIKE.roam false: a spin's first strike is frame for frame the strike from off the screen (${a.rows.length} frames, impact ${r1(a.impactAt)} ms)`);
+	// (round 4: switched back on, he WALKS IN; the check steps the board clock until he stands on the screen)
 	const stays = await H(() => {
 		const h = window.__reindeer;
 		const R = h.roadBoard();
 		for (let i = 0; i < 60 * 5; i++) R.update(1000 / 60, 1, 1);
 		const r = h.roam();
 		h.tune.strike.roam = true;
-		R.update(1000 / 60, 1, 1);
-		const back = h.roam();
-		return { off: [r.state, r.visible], back: [back.state, back.visible] };
+		let t = 0;
+		let back = h.roam();
+		for (let i = 0; i < 60 * 30; i++) {
+			R.update(1000 / 60, 1, 1);
+			t += 1000 / 60;
+			const ro = R.features.roam;
+			if (ro.state === 'idle' && ro.standing()) break;
+		}
+		back = h.roam();
+		return { off: [r.state, r.visible], back: [back.state, back.visible, back.onScreen], ms: Math.round(t) };
 	});
 	check(stays.off[0] === 'none' && !stays.off[1], `${name}: STRIKE.roam false: no walk in after the last strike`, stays);
-	check(stays.back[0] !== 'none' && stays.back[1], `${name}: STRIKE.roam back on: he stands on the screen again`, stays);
+	check(stays.back[0] === 'idle' && stays.back[1] && stays.back[2], `${name}: STRIKE.roam back on: a new one walks in and stands on the screen (after ${r1(stays.ms / 1000)} s of the board clock)`, stays);
+
+	// ---- HE ALWAYS COMES BACK (2026-11-18: the game is named after him): every way he leaves, and the time until a new
+	// one stands on the screen (board clock; the LED board's own rise and fall in real time) --------------------------
+	const comeBack = async (label, leave) => {
+		const r = await H(async (leave) => {
+			const h = window.__reindeer;
+			const R = h.roadBoard();
+			const F = R.features;
+			h.clock(0);
+			h.tune.strike.roam = true;
+			const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+			const step = (ms) => {
+				for (let t = 0; t < ms; t += 1000 / 60) R.update(1000 / 60, 1, 1);
+			};
+			const left0 = F.roam.counts.left;
+			let gone = false;
+			if (leave === 'strike, not marked last') {
+				let done = false;
+				h.roamStrike(8, { first: true, last: false }).then(() => (done = true));
+				for (let i = 0; i < 400 && !done; i++) {
+					step(50);
+					await Promise.resolve();
+				}
+				step(400);
+				gone = F.roam.state === 'none';
+			} else if (leave === 'the LED board rises over him') {
+				// stand him where the raised board will be, then raise it
+				h.clock(1);
+				h.scoreboardRaise();
+				await sleep(2500);
+				h.clock(0);
+				step(100);
+				gone = F.roam.state === 'none' || F.roam.counts.left > left0;
+				h.clock(1);
+				h.scoreboardLower();
+				await sleep(2500);
+				h.clock(0);
+			} else if (leave === 'a scene swap (a bonus round)') {
+				h.clock(1);
+				h.sceneWant('snowNight');
+				await sleep(2500);
+				h.sceneWant('snowDay');
+				await sleep(2500);
+				h.clock(0);
+				gone = F.roam.state === 'none';
+			}
+			let t = 0;
+			for (let i = 0; i < 60 * 30; i++) {
+				const ro = F.roam;
+				if (ro.state === 'idle' && ro.standing()) break;
+				R.update(1000 / 60, 1, 1);
+				t += 1000 / 60;
+			}
+			const ro = h.roam();
+			h.clock(1);
+			return { gone, back: ro.state === 'idle' && ro.onScreen && ro.visible, ms: Math.round(t), state: ro.state, safetyNet: ro.counts.safetyNet, left: ro.counts.left - left0 };
+		}, leave);
+		out.comeBack = { ...(out.comeBack ?? {}), [label]: r };
+		check(r.back, `${name}: he comes back after ${label}${r.gone ? '' : ' (he was not removed)'}: a reindeer stands on the screen ${r1(r.ms / 1000)} s (board clock) later`, r);
+		return r;
+	};
+	await H(() => window.__reindeer.roamPlace());
+	await comeBack('a strike that is not marked the spin\'s last (the safety net)', 'strike, not marked last');
+	await comeBack('the LED board rising over him', 'the LED board rises over him');
+	await comeBack('a scene swap (a bonus round)', 'a scene swap (a bonus round)');
+	// a resize to another shape and back (a rotation on a phone)
+	{
+		const vp0 = p.viewportSize();
+		await p.setViewportSize({ width: Math.round(vp0.height * 1.2), height: Math.round(vp0.width * 0.9) });
+		await sleep(900);
+		await p.setViewportSize(vp0);
+		await sleep(900);
+		const r = await H(() => {
+			const h = window.__reindeer;
+			const R = h.roadBoard();
+			h.clock(0);
+			let t = 0;
+			for (let i = 0; i < 60 * 30; i++) {
+				const ro = R.features.roam;
+				if (ro.state === 'idle' && ro.standing()) break;
+				R.update(1000 / 60, 1, 1);
+				t += 1000 / 60;
+			}
+			const ro = h.roam();
+			h.clock(1);
+			return { back: ro.state === 'idle' && ro.onScreen && ro.visible, ms: Math.round(t), state: ro.state };
+		});
+		out.comeBack = { ...(out.comeBack ?? {}), resize: r };
+		check(r.back, `${name}: he is on the screen after a resize to another shape and back (${r1(r.ms / 1000)} s of the board clock)`, r);
+	}
 
 	// ---- a hidden tab: nothing moves ---------------------------------------------------------------------------------
 	const hidden = await H(() => {
