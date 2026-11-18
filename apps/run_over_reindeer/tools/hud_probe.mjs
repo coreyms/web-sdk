@@ -625,7 +625,7 @@ async function flip(browser) {
 }
 
 (async () => {
-	const browser = await chromium.launch();
+	const browser = await chromium.launch({ args: ['--mute-audio'] }); // muted: every probe browser on the owner's Mac
 	try {
 		for (const S of SIZES) {
 			if (ONLY.length && !ONLY.includes(S.name)) continue;
