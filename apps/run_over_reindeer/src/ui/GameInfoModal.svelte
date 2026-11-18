@@ -49,7 +49,8 @@
 
 	const SPECIALS = [
 		{ glyph: 'W', name: config.symbols.W.name, color: '#ff5a6e', note: T.paytable.wild },
-		{ glyph: 'S', name: config.symbols.S.name, color: '#19d3da', note: T.paytable.scatter },
+		// the red present beside the teal one: the 4th and 5th present of a spin, the ones that start Super (tools/build_present.py)
+		{ glyph: 'S', also: 'S-red', alsoName: `${config.symbols.S.name}, red`, name: config.symbols.S.name, color: '#19d3da', note: T.paytable.scatter },
 	];
 
 	const capPerPrice = (cost: number) => (config.maxWin / cost).toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -154,6 +155,9 @@
 					{#each SPECIALS as s (s.glyph)}
 						<div class="row top">
 							<img class="tile" src={pictureOf(s.glyph)} alt={s.name} style:width="{tileSize}px" style:height="{tileSize}px" />
+							{#if 'also' in s && s.also}
+								<img class="tile also" src={pictureOf(s.also)} alt={s.alsoName} style:width="{tileSize}px" style:height="{tileSize}px" />
+							{/if}
 							<div class="row-main">
 								<div class="row-name" style:color={s.color}>{s.name}</div>
 								<div class="note">{@render rich(s.note)}</div>
@@ -434,6 +438,10 @@
 		flex-shrink: 0;
 		display: block;
 		object-fit: contain; /* the symbols are not square: each is shown whole in its box */
+	}
+	/* the red present right beside the teal one (one pair, not two rows) */
+	.tile.also {
+		margin-left: -10px;
 	}
 	.row-main {
 		flex: 1;

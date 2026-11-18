@@ -2088,45 +2088,57 @@ export const PRESENT_ART = {
 			"sheets": [
 				{
 					"file": "present/present-full-peek-0.webp",
+					"redFile": "present/present-full-peek-0-red.webp",
 					"group": "peek",
 					"width": 418,
 					"height": 2015,
-					"bytes": 152828
+					"bytes": 152828,
+					"redBytes": 156924
 				},
 				{
 					"file": "present/present-full-peek-1.webp",
+					"redFile": "present/present-full-peek-1-red.webp",
 					"group": "peek",
 					"width": 416,
 					"height": 1744,
-					"bytes": 122818
+					"bytes": 122818,
+					"redBytes": 124956
 				},
 				{
 					"file": "present/present-full-open-0.webp",
+					"redFile": "present/present-full-open-0-red.webp",
 					"group": "open",
 					"width": 414,
 					"height": 1962,
-					"bytes": 128524
+					"bytes": 128524,
+					"redBytes": 127510
 				},
 				{
 					"file": "present/present-full-open-1.webp",
+					"redFile": "present/present-full-open-1-red.webp",
 					"group": "open",
 					"width": 407,
 					"height": 1916,
-					"bytes": 133580
+					"bytes": 133580,
+					"redBytes": 134696
 				},
 				{
 					"file": "present/present-full-open-2.webp",
+					"redFile": "present/present-full-open-2-red.webp",
 					"group": "open",
 					"width": 403,
 					"height": 1737,
-					"bytes": 110366
+					"bytes": 110366,
+					"redBytes": 110070
 				},
 				{
 					"file": "present/present-full-open-3.webp",
+					"redFile": "present/present-full-open-3-red.webp",
 					"group": "open",
 					"width": 402,
 					"height": 1074,
-					"bytes": 72826
+					"bytes": 72826,
+					"redBytes": 73836
 				}
 			],
 			"pieces": {
@@ -2376,11 +2388,13 @@ export const PRESENT_ART = {
 			},
 			"still": {
 				"file": "present/present-full-still.webp",
+				"redFile": "present/present-full-still-red.webp",
 				"w": 396,
 				"h": 443,
 				"ox": 90,
 				"oy": 238,
-				"bytes": 32386
+				"bytes": 32386,
+				"redBytes": 33164
 			}
 		},
 		"phone": {
@@ -2393,24 +2407,30 @@ export const PRESENT_ART = {
 			"sheets": [
 				{
 					"file": "present/present-phone-peek-0.webp",
+					"redFile": "present/present-phone-peek-0-red.webp",
 					"group": "peek",
 					"width": 353,
 					"height": 802,
-					"bytes": 107746
+					"bytes": 107746,
+					"redBytes": 106928
 				},
 				{
 					"file": "present/present-phone-open-0.webp",
+					"redFile": "present/present-phone-open-0-red.webp",
 					"group": "open",
 					"width": 176,
 					"height": 2001,
-					"bytes": 123232
+					"bytes": 123232,
+					"redBytes": 121490
 				},
 				{
 					"file": "present/present-phone-open-1.webp",
+					"redFile": "present/present-phone-open-1-red.webp",
 					"group": "open",
 					"width": 171,
 					"height": 824,
-					"bytes": 52500
+					"bytes": 52500,
+					"redBytes": 51578
 				}
 			],
 			"pieces": {
@@ -2660,11 +2680,13 @@ export const PRESENT_ART = {
 			},
 			"still": {
 				"file": "present/present-phone-still.webp",
+				"redFile": "present/present-phone-still-red.webp",
 				"w": 168,
 				"h": 187,
 				"ox": 36,
 				"oy": 98,
-				"bytes": 13028
+				"bytes": 13028,
+				"redBytes": 12814
 			}
 		}
 	},
@@ -2695,7 +2717,8 @@ export const PRESENT_ART = {
 	"light": {
 		"fullLift": 0.22,
 		"rimPad": 2.75,
-		"rimColour": "#02373a"
+		"rimColour": "#02373a",
+		"rimColourRed": "#3b0611"
 	},
 	"report": {
 		"exact": {

@@ -16,6 +16,12 @@
 // stoplights' glow already uses, and the four-point stars. It sits between the back and the front pieces, so it comes
 // out of the box behind the lid, as on the demo page.
 //
+// THE RED PRESENT (the Super scatter, Corey 2026-11-17, design E): the 4th and 5th present to land in a base spin are
+// red from the moment they appear (game/road/roadBoard.ts ranks them). Every sheet has a red twin (presentSpec redFile,
+// same layout and alpha, tools/build_present.py); an actor draws its variant's pieces. The red sheets load only for a
+// book whose base board holds 4 or more presents and are let go with the open's after its last trigger. A red present
+// whose pictures are not in stays still (the peek) and its trigger pulses, as a teal one does.
+//
 // Loading (the column pictures' rules, game/road/columnClips.ts): the peek's sheet loads in the background once the
 // board is up and stays for the session; the open's sheets load when a book with a trigger arrives and are let go when
 // its last trigger has played, with every batch rebuilt and two frames rendered before the unload (the Pixi 8
@@ -30,6 +36,10 @@ import { STAGING_TOOLS, perfMark } from '../staging';
 import { queuePresentUpload, rebatchBeforeUnload } from './columnClips';
 
 type Group = 'peek' | 'open';
+export type PresentVariant = 'teal' | 'red';
+/** a set of sheets: a group of one variant */
+type Key = Group | 'peek-red' | 'open-red';
+const keyOf = (group: Group, variant: PresentVariant): Key => (variant === 'red' ? (`${group}-red` as Key) : group);
 type PieceSpec = { sheet: number; x: number; y: number; w: number; h: number; ox?: number; oy?: number };
 type FrameSpec = { back: readonly string[]; front: readonly string[]; inside: boolean; ring: readonly (readonly number[])[]; opening: { cx: number; cy: number; hw: number; hh: number } };
 type Slot = { src: string; show: string; lift: number; pitch: number; roll: number };
@@ -58,6 +68,9 @@ export const presentStillTexture = (sheet: PIXI.Texture | undefined): PIXI.Textu
 	const s = T.still;
 	return new PIXI.Texture({ source: sheet.source, frame: new PIXI.Rectangle(0, 0, s.w, s.h), orig: new PIXI.Rectangle(0, 0, T.canvas.w, T.canvas.h), trim: new PIXI.Rectangle(s.ox, s.oy, s.w, s.h) });
 };
+/** a board's presents ranked 4th and later decide Super: a base board with this many presents shows the red ones */
+export const RED_FROM = 4;
+const countPresents = (board: readonly (readonly string[])[]) => board.reduce((n, reel) => n + reel.filter((s) => s === 'S').length, 0);
 
 /** the clips' lengths, board clock ms */
 export const PEEK_MS = CLIPS.peek.length * FRAME_MS;
@@ -71,19 +84,18 @@ export const presentOpenMs = () => OPEN_MS + PRESENT.holdMs + CLOSE_MS;
 
 // ---- LOADING -----------------------------------------------------------------------------------------------------------
 type GroupState = { textures: Map<string, PIXI.Texture> | null; loading: Promise<boolean> | null; releasing: Promise<void> | null; sources: PIXI.TextureSource[]; urls: string[]; waiting: number };
-const groups: Record<Group, GroupState> = {
-	peek: { textures: null, loading: null, releasing: null, sources: [], urls: [], waiting: 0 },
-	open: { textures: null, loading: null, releasing: null, sources: [], urls: [], waiting: 0 },
-};
+const fresh = (): GroupState => ({ textures: null, loading: null, releasing: null, sources: [], urls: [], waiting: 0 });
+const groups: Record<Key, GroupState> = { peek: fresh(), open: fresh(), 'peek-red': fresh(), 'open-red': fresh() };
 let mipmapper: ((source: PIXI.TextureSource) => void) | null = null;
 /** set by components/Board.svelte on the desktop tier: the sheets are drawn well under their size (house rule) */
 export const setPresentMipmapper = (fn: typeof mipmapper) => {
 	mipmapper = fn;
 };
 
-/** start loading a group's sheets (or join the load running); true when every sheet is on the GPU */
-export const loadPresent = (group: Group): Promise<boolean> => {
-	const st = groups[group];
+/** start loading a group's sheets of a variant (or join the load running); true when every sheet is on the GPU */
+export const loadPresent = (group: Group, variant: PresentVariant = 'teal'): Promise<boolean> => {
+	const key = keyOf(group, variant);
+	const st = groups[key];
 	if (st.textures) return Promise.resolve(true);
 	st.loading ??= (async () => {
 		// a let-go of the same sheets still running finishes first (a load now would be handed the dying textures)
@@ -92,12 +104,12 @@ export const loadPresent = (group: Group): Promise<boolean> => {
 			const pages = new Map<number, PIXI.TextureSource>();
 			for (const [index, sheet] of T.sheets.entries()) {
 				if (sheet.group !== group) continue;
-				const url = stamp(`/assets/${sheet.file}`);
+				const url = stamp(`/assets/${variant === 'red' ? sheet.redFile : sheet.file}`);
 				const base = (await PIXI.Assets.load(url)) as PIXI.Texture;
 				st.urls.push(url);
 				st.sources.push(base.source);
 				mipmapper?.(base.source);
-				await queuePresentUpload(`present:${group}:${index}`, group === 'open' ? 1 : 5, base, () => st.waiting > 0);
+				await queuePresentUpload(`present:${key}:${index}`, variant === 'red' ? (group === 'peek' ? 0 : 1) : group === 'open' ? 1 : 5, base, () => st.waiting > 0);
 				pages.set(index, base.source);
 			}
 			const map = new Map<string, PIXI.Texture>();
@@ -113,11 +125,11 @@ export const loadPresent = (group: Group): Promise<boolean> => {
 				);
 			}
 			st.textures = map;
-			if (STAGING_TOOLS) perfMark(`load:present:${group}`);
+			if (STAGING_TOOLS) perfMark(`load:present:${key}`);
 			return true;
 		} catch (error) {
 			// without them the present stays still (the peek) or pulses as before (a trigger): never a reason to stop a round
-			console.warn('[reindeer] present sheets failed to load', group, error);
+			console.warn('[reindeer] present sheets failed to load', key, error);
 			st.loading = null;
 			return false;
 		}
@@ -125,25 +137,25 @@ export const loadPresent = (group: Group): Promise<boolean> => {
 	return st.loading;
 };
 
-/** wait for a group at most `ms` (real time); true when it is in */
-const awaitPresent = async (group: Group, ms: number): Promise<boolean> => {
-	const st = groups[group];
+/** wait for a group of a variant at most `ms` (real time); true when it is in */
+const awaitPresent = async (group: Group, variant: PresentVariant, ms: number): Promise<boolean> => {
+	const st = groups[keyOf(group, variant)];
 	if (st.textures) return true;
 	st.waiting++;
 	try {
-		return await Promise.race([loadPresent(group), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))]);
+		return await Promise.race([loadPresent(group, variant), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))]);
 	} finally {
 		st.waiting--;
 	}
 };
 
 /** the actors drawing a group's pieces now (a group is never let go under one) */
-const users: Record<Group, Set<PresentActor>> = { peek: new Set(), open: new Set() };
+const users: Record<Key, Set<PresentActor>> = { peek: new Set(), open: new Set(), 'peek-red': new Set(), 'open-red': new Set() };
 
 /** let a group's sheets go (GPU and decoded copies), once nothing draws them */
 /** a let-go asked for while an actor still drew the group: it runs when the last one lets go */
-const pendingRelease = new Set<Group>();
-const releasePresent = async (group: Group): Promise<void> => {
+const pendingRelease = new Set<Key>();
+const releasePresent = async (group: Key): Promise<void> => {
 	const st = groups[group];
 	if (st.loading) await st.loading;
 	if (!st.textures) return;
@@ -176,34 +188,53 @@ const releasePresent = async (group: Group): Promise<void> => {
 	if (STAGING_TOOLS) perfMark(`unload:present:${group}`);
 };
 
-const piece = (name: string): PIXI.Texture | null => groups.peek.textures?.get(name) ?? groups.open.textures?.get(name) ?? null;
+const piece = (name: string, variant: PresentVariant): PIXI.Texture | null => groups[keyOf('peek', variant)].textures?.get(name) ?? groups[keyOf('open', variant)].textures?.get(name) ?? null;
 /** every piece of a frame is in */
-const frameReady = (tag: string): boolean => {
+const frameReady = (tag: string, variant: PresentVariant): boolean => {
 	const f = FRAMES[tag];
-	return !!f && [...f.back, ...f.front].every((n) => piece(n));
+	return !!f && [...f.back, ...f.front].every((n) => piece(n, variant));
 };
 const groupOf = (name: string): Group => (T.sheets[PIECES[name]?.sheet ?? 0]?.group === 'open' ? 'open' : 'peek');
+const isOpen = (key: Key) => key === 'open' || key === 'open-red';
 
 /** THE BOOK'S TRIGGERS (scanned when the book arrives, game/utils.ts): the open's sheets start loading now when the book
  *  has one; a book with none lets them go */
 let triggersLeft = 0;
-export const presentsForBook = (events: readonly { type: string }[]) => {
+/** this book shows red presents (a base board with RED_FROM or more): its trigger waits for the red open too */
+let redBook = false;
+type BookEventLike = { type: string; gameType?: string; board?: readonly (readonly string[])[] };
+export const presentsForBook = (events: readonly BookEventLike[]) => {
 	triggersLeft = events.filter((e) => e.type === 'freeSpinTrigger' || e.type === 'freeSpinRetrigger').length;
+	redBook = events.some((e) => e.type === 'reveal' && e.gameType === 'basegame' && !!e.board && countPresents(e.board) >= RED_FROM);
+	if (redBook) {
+		// the red peek first: the red present lands well before the trigger's open
+		pendingRelease.delete('peek-red');
+		void loadPresent('peek', 'red');
+	} else void releasePresent('peek-red');
 	if (triggersLeft > 0) {
 		pendingRelease.delete('open');
 		void loadPresent('open');
-	}
-	else void releasePresent('open');
+		if (redBook) {
+			pendingRelease.delete('open-red');
+			void loadPresent('open', 'red');
+		}
+	} else void releasePresent('open');
+	if (!(triggersLeft > 0 && redBook)) void releasePresent('open-red');
 };
-/** a trigger's show is over (game/road/roadBoard.ts, once per trigger): after the book's last one, the open's sheets go */
+/** a trigger's show is over (game/road/roadBoard.ts, once per trigger): after the book's last one, the open's sheets go
+ *  (and the red ones: the red presents are only on the trigger's own board) */
 export const presentTriggerPlayed = () => {
 	triggersLeft = Math.max(0, triggersLeft - 1);
-	if (triggersLeft === 0) void releasePresent('open');
+	if (triggersLeft === 0) {
+		void releasePresent('open');
+		void releasePresent('open-red');
+		void releasePresent('peek-red');
+	}
 };
 
 /** what is loaded and what it weighs on the GPU, MB (dev hook, the probe and NOTES.md) */
 export const presentMemory = () => {
-	const one = (group: Group) => {
+	const one = (group: Key) => {
 		const st = groups[group];
 		const mb = st.sources.reduce((n, s) => n + (s.pixelWidth * s.pixelHeight * 4) / 1048576, 0);
 		const mips = st.sources.some((s) => s.autoGenerateMipmaps);
@@ -211,7 +242,11 @@ export const presentMemory = () => {
 	};
 	const peek = one('peek');
 	const open = one('open');
-	return { tier: TIER, density: T.density, peek, open, totalMb: Math.round((peek.mb + open.mb) * 100) / 100, totalWithMips: Math.round((peek.mbWithMips + open.mbWithMips) * 100) / 100, users: { peek: users.peek.size, open: users.open.size }, triggersLeft };
+	const peekRed = one('peek-red');
+	const openRed = one('open-red');
+	const all = [peek, open, peekRed, openRed];
+	const sum = (f: (g: (typeof all)[number]) => number) => Math.round(all.reduce((n, g) => n + f(g), 0) * 100) / 100;
+	return { tier: TIER, density: T.density, peek, open, peekRed, openRed, totalMb: sum((g) => g.mb), totalWithMips: sum((g) => g.mbWithMips), users: { peek: users.peek.size, open: users.open.size, peekRed: users['peek-red'].size, openRed: users['open-red'].size }, triggersLeft, redBook };
 };
 
 // ---- THE LIGHT'S SHAPES --------------------------------------------------------------------------------------------------
@@ -233,28 +268,28 @@ const STARS = Array.from({ length: PRESENT.light.stars }, (_, i) => ({
 /** the opening's fill for a frame: flat steps of the demo's gradient (orange rim, gold, a pale heart) on the delivered
  *  ring; with no inside piece, edged by a band of the inside's colour (the inside's few pixels just past the ring) */
 const fills = new Map<string, PIXI.GraphicsContext>();
-const fillFor = (tag: string): PIXI.GraphicsContext => {
-	let ctx = fills.get(tag);
+const fillFor = (tag: string, variant: PresentVariant): PIXI.GraphicsContext => {
+	let ctx = fills.get(`${variant}:${tag}`);
 	if (ctx) return ctx;
 	const f = FRAMES[tag];
 	const o = f.opening;
 	const pts = (sx: number, sy: number, cy: number) => f.ring.flatMap(([x, y]) => [o.cx + (x - o.cx) * sx, cy + (y - o.cy) * sy]);
 	ctx = new PIXI.GraphicsContext();
 	if (!f.back.length) {
-		ctx.poly(pts(1, 1, o.cy), true).stroke({ width: 2 * PRESENT_ART.light.rimPad, color: PRESENT_ART.light.rimColour, join: 'round' });
+		ctx.poly(pts(1, 1, o.cy), true).stroke({ width: 2 * PRESENT_ART.light.rimPad, color: variant === 'red' ? PRESENT_ART.light.rimColourRed : PRESENT_ART.light.rimColour, join: 'round' });
 	}
 	ctx.poly(pts(1, 1, o.cy), true).fill({ color: 0xec8c14 });
 	ctx.poly(pts(0.66, 0.8, o.cy + o.hh * 0.1), true).fill({ color: 0xf8b43c });
 	ctx.poly(pts(0.4, 0.62, o.cy + o.hh * 0.2), true).fill({ color: 0xffd65a });
 	ctx.poly(pts(0.16, 0.42, o.cy + o.hh * 0.3), true).fill({ color: 0xfff3c0 });
-	fills.set(tag, ctx);
+	fills.set(`${variant}:${tag}`, ctx);
 	return ctx;
 };
 
 // ---- THE ACTOR: one present's pieces and light, following its symbol's sprite ------------------------------------------
 type Anim = { kind: 'peek' | 'open'; t0: number; then: boolean; done: (() => void) | null };
 
-export type PresentTraceRow = { t: number; cell: number; kind: 'peek' | 'open'; part: 'peek' | 'open' | 'hold' | 'close'; slot: number; src: string; show: string; lift: number; pitch: number; glow: number };
+export type PresentTraceRow = { t: number; cell: number; variant: PresentVariant; kind: 'peek' | 'open'; part: 'peek' | 'open' | 'hold' | 'close'; slot: number; src: string; show: string; lift: number; pitch: number; glow: number };
 /** DEV: per frame of every present animation (the probe's tables), oldest first, bounded */
 const trace: PresentTraceRow[] = [];
 export const presentTrace = (clear = false) => {
@@ -275,9 +310,11 @@ export class PresentActor {
 	private readonly front: PIXI.Sprite[] = [new PIXI.Sprite(), new PIXI.Sprite()];
 	private anim: Anim | null = null;
 	private shownTag = '';
-	private holds = new Set<Group>();
+	private holds = new Set<Key>();
 	/** the cell it was started in (the trace) */
 	cell = -1;
+	/** teal, or red (the 4th and 5th present of a base spin): set by its car before it animates (roadBoard.presentOf) */
+	variant: PresentVariant = 'teal';
 	/** the full open's frame drawn on the last update (its hold and close count as past the open's last), -1 when no
 	 *  full open is showing (the pop sound reads it) */
 	openSlot = -1;
@@ -321,10 +358,10 @@ export class PresentActor {
 
 	/** THE PEEK from board clock time t0 (the stop point); false when its pictures are not in (it then stays still) */
 	peek(t0: number): boolean {
-		if (!PRESENT.peek.on || !groups.peek.textures) return false;
+		if (!PRESENT.peek.on || !groups[keyOf('peek', this.variant)].textures) return false;
 		if (this.anim) return false;
 		this.anim = { kind: 'peek', t0, then: false, done: null };
-		this.hold('peek');
+		this.hold(keyOf('peek', this.variant));
 		return true;
 	}
 
@@ -333,8 +370,8 @@ export class PresentActor {
 	open(now: number): Promise<void> {
 		return new Promise<void>((resolve) => {
 			const a = this.anim;
-			this.hold('peek');
-			this.hold('open');
+			this.hold(keyOf('peek', this.variant));
+			this.hold(keyOf('open', this.variant));
 			if (a && a.kind === 'peek') {
 				const slot = Math.floor((now - a.t0) / FRAME_MS);
 				if (slot <= 3) this.anim = { kind: 'open', t0: a.t0, then: false, done: resolve };
@@ -349,7 +386,7 @@ export class PresentActor {
 		});
 	}
 
-	private hold(group: Group) {
+	private hold(group: Key) {
 		this.holds.add(group);
 		users[group].add(this);
 	}
@@ -364,7 +401,7 @@ export class PresentActor {
 		for (const s of [this.back, ...this.front]) s.texture = PIXI.Texture.EMPTY;
 		for (const g of this.holds) {
 			users[g].delete(this);
-			if (!users[g].size && pendingRelease.has(g) && !(g === 'open' && triggersLeft > 0)) void releasePresent(g);
+			if (!users[g].size && pendingRelease.has(g) && !(isOpen(g) && triggersLeft > 0)) void releasePresent(g);
 		}
 		this.holds.clear();
 		a?.done?.();
@@ -416,7 +453,7 @@ export class PresentActor {
 			glow = Math.min(1, slot.lift / FULL_LIFT);
 		}
 		this.openSlot = a.kind !== 'open' ? -1 : part === 'open' ? index : CLIPS.open.length;
-		if (!frameReady(slot.show)) {
+		if (!frameReady(slot.show, this.variant)) {
 			// its pictures went missing (never expected): the still picture, nothing held up
 			this.reset();
 			return false;
@@ -434,7 +471,7 @@ export class PresentActor {
 		if (STAGING_TOOLS && now !== this.tracedAt) {
 			// one row per board clock step (the ticker also calls with the clock frozen)
 			this.tracedAt = now;
-			trace.push({ t: Math.round(now * 10) / 10, cell: this.cell, kind: a.kind, part, slot: index, src: slot.src, show: slot.show, lift: slot.lift, pitch: slot.pitch, glow: Math.round(glow * 1000) / 1000 });
+			trace.push({ t: Math.round(now * 10) / 10, cell: this.cell, variant: this.variant, kind: a.kind, part, slot: index, src: slot.src, show: slot.show, lift: slot.lift, pitch: slot.pitch, glow: Math.round(glow * 1000) / 1000 });
 			if (trace.length > 4000) trace.splice(0, trace.length - 4000);
 		}
 		return true;
@@ -443,16 +480,17 @@ export class PresentActor {
 	private showFrame(tag: string) {
 		const f = FRAMES[tag];
 		this.shownTag = tag;
-		this.back.texture = f.back[0] ? (piece(f.back[0]) ?? PIXI.Texture.EMPTY) : PIXI.Texture.EMPTY;
+		const v = this.variant;
+		this.back.texture = f.back[0] ? (piece(f.back[0], v) ?? PIXI.Texture.EMPTY) : PIXI.Texture.EMPTY;
 		this.back.visible = !!f.back[0];
 		this.front.forEach((s, i) => {
 			const name = f.front[i];
-			s.texture = name ? (piece(name) ?? PIXI.Texture.EMPTY) : PIXI.Texture.EMPTY;
+			s.texture = name ? (piece(name, v) ?? PIXI.Texture.EMPTY) : PIXI.Texture.EMPTY;
 			s.visible = !!name;
 		});
-		for (const n of [...f.back, ...f.front]) this.hold(groupOf(n));
+		for (const n of [...f.back, ...f.front]) this.hold(keyOf(groupOf(n), v));
 		this.fill.visible = f.inside;
-		if (f.inside) this.fill.context = fillFor(tag);
+		if (f.inside) this.fill.context = fillFor(tag, v);
 	}
 
 	private drawLight(f: FrameSpec, glow: number, ms: number, peek: boolean) {
@@ -464,9 +502,9 @@ export class PresentActor {
 		this.starLayer.visible = on && (!peek || PRESENT.peek.stars > 0);
 		if (!on) return;
 		const o = f.opening;
-		const rayTex = piece('ray');
-		const glowTex = piece('glow');
-		const starTex = piece('star');
+		const rayTex = piece('ray', this.variant);
+		const glowTex = piece('glow', this.variant);
+		const starTex = piece('star', this.variant);
 		// the bloom over the mouth of the box
 		if (glowTex) {
 			this.bloom.texture = glowTex;
@@ -515,4 +553,8 @@ export class PresentActor {
 }
 
 /** a trigger's presents: wait for the open's sheets (at most PRESENT.loadWaitMs); false when they did not come */
-export const presentsReadyForOpen = (): Promise<boolean> => awaitPresent('open', PRESENT.loadWaitMs);
+export const presentsReadyForOpen = async (): Promise<boolean> => {
+	// a red book's trigger needs both opens: all its presents play the full open, teal and red alike (Corey's option 1)
+	const want = [awaitPresent('open', 'teal', PRESENT.loadWaitMs), ...(redBook ? [awaitPresent('open', 'red', PRESENT.loadWaitMs), awaitPresent('peek', 'red', PRESENT.loadWaitMs)] : [])];
+	return (await Promise.all(want)).every(Boolean);
+};

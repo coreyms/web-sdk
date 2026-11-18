@@ -61,7 +61,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 69294
+			"bytes": 69226
 		},
 		"endRight": {
 			"file": "scene/snow-day-end-right.webp",
@@ -76,7 +76,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 71594
+			"bytes": 71532
 		},
 		"forest": {
 			"file": "scene/snow-day-forest.webp",
@@ -144,7 +144,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 66842
+			"bytes": 66186
 		},
 		"endRight": {
 			"file": "scene/snow-night-end-right.webp",
@@ -159,7 +159,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 71068
+			"bytes": 70558
 		},
 		"forest": {
 			"file": "scene/snow-night-forest.webp",
@@ -257,7 +257,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 63178
+			"bytes": 63370
 		},
 		"endRight": {
 			"file": "scene/snow-super-end-right.webp",
@@ -272,7 +272,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 67900
+			"bytes": 67732
 		},
 		"forest": {
 			"file": "scene/snow-super-forest.webp",
@@ -341,7 +341,7 @@ export const SCENE_ART = {
 				1536,
 				99
 			],
-			"bytes": 14052
+			"bytes": 14180
 		},
 		"bandBottom": {
 			"file": "scene/grass-day-band-bottom.webp",
@@ -370,7 +370,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 103608
+			"bytes": 98080
 		},
 		"endRight": {
 			"file": "scene/grass-day-end-right.webp",
@@ -385,7 +385,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 133928
+			"bytes": 129718
 		},
 		"forest": {
 			"file": "scene/grass-day-forest.webp",
@@ -408,7 +408,7 @@ export const SCENE_ART = {
 				1536,
 				1024
 			],
-			"bytes": 173228
+			"bytes": 169140
 		},
 		"tunnelLeft": {
 			"file": "scene/grass-day-tunnel-left.webp",
@@ -416,7 +416,7 @@ export const SCENE_ART = {
 				81,
 				835
 			],
-			"bytes": 56702
+			"bytes": 51334
 		},
 		"tunnelRight": {
 			"file": "scene/grass-day-tunnel-right.webp",
@@ -424,7 +424,7 @@ export const SCENE_ART = {
 				84,
 				835
 			],
-			"bytes": 57110
+			"bytes": 51382
 		}
 	},
 	"grassNight": {
@@ -454,7 +454,7 @@ export const SCENE_ART = {
 				1536,
 				99
 			],
-			"bytes": 7640
+			"bytes": 7782
 		},
 		"bandBottom": {
 			"file": "scene/grass-night-band-bottom.webp",
@@ -483,7 +483,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 76066
+			"bytes": 70680
 		},
 		"endRight": {
 			"file": "scene/grass-night-end-right.webp",
@@ -498,7 +498,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 94184
+			"bytes": 89206
 		},
 		"forest": {
 			"file": "scene/grass-night-forest.webp",
@@ -521,7 +521,7 @@ export const SCENE_ART = {
 				1536,
 				1024
 			],
-			"bytes": 147190
+			"bytes": 142196
 		},
 		"tunnelLeft": {
 			"file": "scene/grass-night-tunnel-left.webp",
@@ -529,7 +529,7 @@ export const SCENE_ART = {
 				81,
 				835
 			],
-			"bytes": 61060
+			"bytes": 56818
 		},
 		"tunnelRight": {
 			"file": "scene/grass-night-tunnel-right.webp",
@@ -537,7 +537,7 @@ export const SCENE_ART = {
 				84,
 				835
 			],
-			"bytes": 60686
+			"bytes": 56444
 		}
 	},
 	"grassSuper": {
@@ -567,7 +567,7 @@ export const SCENE_ART = {
 				1536,
 				99
 			],
-			"bytes": 7850
+			"bytes": 7906
 		},
 		"bandBottom": {
 			"file": "scene/grass-super-band-bottom.webp",
@@ -596,7 +596,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 70262
+			"bytes": 63822
 		},
 		"endRight": {
 			"file": "scene/grass-super-end-right.webp",
@@ -611,7 +611,7 @@ export const SCENE_ART = {
 				1087.66
 			],
 			"density": 1.4085,
-			"bytes": 76648
+			"bytes": 70416
 		},
 		"forest": {
 			"file": "scene/grass-super-forest.webp",
@@ -634,7 +634,7 @@ export const SCENE_ART = {
 				1536,
 				1024
 			],
-			"bytes": 131770
+			"bytes": 125384
 		},
 		"tunnelLeft": {
 			"file": "scene/grass-super-tunnel-left.webp",
@@ -642,7 +642,7 @@ export const SCENE_ART = {
 				81,
 				835
 			],
-			"bytes": 60356
+			"bytes": 59316
 		},
 		"tunnelRight": {
 			"file": "scene/grass-super-tunnel-right.webp",
@@ -650,7 +650,7 @@ export const SCENE_ART = {
 				84,
 				835
 			],
-			"bytes": 61828
+			"bytes": 59330
 		}
 	},
 	"grassSnow": "A",

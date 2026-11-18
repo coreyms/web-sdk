@@ -45,7 +45,7 @@ export const gameInfoText = () => ({
 		),
 		specials: 'Special symbols',
 		wild: soc("**Santa's Sleigh is Wild**: it stands in for every paying symbol. A line of only Wilds pays as Grandma's Car.", "**Santa's Sleigh is Wild**: it stands in for every regular symbol. A line of only Wilds wins as Grandma's Car."),
-		scatter: `**The Present is the Scatter.** 3 Presents award ${SPINS} Free Spins and 4 or more award ${SPINS} Super Free Spins. It ${soc('pays', 'wins')} nothing by itself, lands at most once per column and never in a column Wild.`,
+		scatter: `**The Present is the Scatter.** 3 Presents award ${SPINS} Free Spins and 4 or more award ${SPINS} Super Free Spins: the 4th and 5th Present to land in a spin show in red. It ${soc('pays', 'wins')} nothing by itself, lands at most once per column and never in a column Wild.`,
 		kinds: { 3: '3', 4: '4', 5: '5' } as Record<number, string>,
 	},
 	lines: {

@@ -24,7 +24,18 @@ tier's density and cut into pieces that put it back together exactly:
     piece on top holding the lid and bow and every pixel that differs from the shared body by more than SAME_TOL.
   - FRAMES DROPPED: the frames left out of KEEP are shown as the measured nearest neighbour (SUBSTITUTE); the light's
     numbers still follow the delivered timeline frame by frame.
+
+THE RED PRESENT (the Super scatter, Corey 2026-11-17, design E: red box, gold ribbon, gold stars). The 4th and 5th
+present to land in a base spin are drawn red (game/road/roadBoard.ts). Every sheet and still above also gets a twin
+`...-red.webp`: the same sheet, same layout, same alpha, its frame pieces recoloured by the owner's red present tool
+(~/Desktop/Run Over Reindeer/scatter_present_red_r1_2026-11-17/tools/recolor.py, read only) BEFORE the one webp encode
+(so the red is one lossy generation, like the teal). The light's ray, star and glow sprites are copied as they are.
+Alpha is never written by the recolour and is checked equal to the teal's after the encode. presentSpec.ts lists each
+twin as `redFile` beside `file`, and `light.rimColourRed` (the inside's band, the teal rim colour put through the same
+recolour). It also writes static/assets/symbols/single/S-red.webp, the rules page picture, by the same recolour of the
+teal S.webp that tools/build_assets.py writes (quality 90, as there).
 """
+import importlib.util
 import json
 import math
 import os
@@ -59,6 +70,41 @@ DENSITY = {"full": 2.88, "phone": 1.2}
 SHEET_MAX = {"full": 2048, "phone": 2048}
 GUTTER = {"full": 4, "phone": 1}  # transparent px between pieces (the desktop sheets get a mip chain; the phone's none)
 WEBP = dict(quality=92, alpha_quality=100, method=6)
+
+# ---- the red present (the Super scatter) --------------------------------------------------------------------------------
+RED_DESIGN = "E"
+RECOLOR = os.path.expanduser("~/Desktop/Run Over Reindeer/scatter_present_red_r1_2026-11-17/tools/recolor.py")
+SINGLE_S = os.path.join(APP, "static", "assets", "symbols", "single", "S.webp")
+LIGHT_SPRITES = ("ray", "star", "glow")
+
+
+def load_recolor():
+    spec = importlib.util.spec_from_file_location("present_recolor", RECOLOR)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def save_red(rgba, region, path, opts):
+    """the red twin of a teal picture (uint8 RGBA, before its encode): recoloured where `region`, alpha checked"""
+    red, _ = RC.recolor(RED_DESIGN, rgba, region)
+    Image.fromarray(red, "RGBA").save(path, **opts)
+    back = np.asarray(Image.open(path).convert("RGBA"))
+    teal_alpha = rgba[..., 3]
+    assert np.array_equal(back[..., 3], teal_alpha), (path, "the red twin's alpha differs from the teal's after the encode")
+    return os.path.getsize(path)
+
+
+def rim_red(colour):
+    """the teal inside's band colour (0..1 RGB) at the same place on the design's red box ramp"""
+    box = RC.CANDIDATES[RED_DESIGN]["box"]
+    S, D = RC.densify(RC.arr(RC.BOX_SRC), RC.arr(box))
+    c = np.asarray(colour, np.float32) * 255
+    i = int(np.argmin(((S - c) ** 2).sum(-1)))
+    return "#%02x%02x%02x" % tuple(int(round(v)) for v in np.clip(D[i], 0, 255))
+
+
+RC = None
 
 # ---- which frames ship --------------------------------------------------------------------------------------------------
 # Measured neighbour differences (mean of the per-pixel largest channel difference, premultiplied, x 1000; the pop's
@@ -462,16 +508,22 @@ def build(evidence=None):
             pages = pack(items, SHEET_MAX[tier], GUTTER[tier])
             for p_i, page in enumerate(pages):
                 sheet = np.zeros((page["h"], page["w"], 4))
+                region = np.zeros((page["h"], page["w"]), bool)
                 for n, (x, y) in page["place"].items():
                     pm = pieces[n][0]
                     sheet[y:y + pm.shape[0], x:x + pm.shape[1]] = pm
+                    if n not in LIGHT_SPRITES:
+                        region[y:y + pm.shape[0], x:x + pm.shape[1]] = True
                     box = pieces[n][1]
                     tier_spec["pieces"][n] = {"sheet": len(tier_spec["sheets"]), "x": x, "y": y, "w": pm.shape[1], "h": pm.shape[0], **({"ox": box[0], "oy": box[1]} if box else {})}
                 fname = f"present-{tier}-{group}-{p_i}.webp"
                 path = os.path.join(OUT, fname)
-                to_image(sheet).save(path, **WEBP)
-                tier_spec["sheets"].append({"file": f"present/{fname}", "group": group, "width": page["w"], "height": page["h"], "bytes": os.path.getsize(path)})
-                print(f"  {tier} {fname}: {page['w']} x {page['h']}, {len(page['place'])} pieces, {os.path.getsize(path) // 1024} KB")
+                img = to_image(sheet)
+                img.save(path, **WEBP)
+                rname = fname.replace(".webp", "-red.webp")
+                rbytes = save_red(np.asarray(img).copy(), region, os.path.join(OUT, rname), WEBP)
+                tier_spec["sheets"].append({"file": f"present/{fname}", "redFile": f"present/{rname}", "group": group, "width": page["w"], "height": page["h"], "bytes": os.path.getsize(path), "redBytes": rbytes})
+                print(f"  {tier} {fname}: {page['w']} x {page['h']}, {len(page['place'])} pieces, {os.path.getsize(path) // 1024} KB (red {rbytes // 1024} KB)")
         for group in ("peek", "open"):
             mb = sum(s["width"] * s["height"] * 4 for s in tier_spec["sheets"] if s["group"] == group) / 1048576
             tier_spec["gpu"][group] = round(mb, 2)
@@ -481,8 +533,11 @@ def build(evidence=None):
         still = resize_pm(load_pm(frame_path(("open", 0))), size)
         box = trim(still)
         fname = f"present-{tier}-still.webp"
-        to_image(still[box[1]:box[3], box[0]:box[2]]).save(os.path.join(OUT, fname), **WEBP)
-        tier_spec["still"] = {"file": f"present/{fname}", "w": box[2] - box[0], "h": box[3] - box[1], "ox": box[0], "oy": box[1], "bytes": os.path.getsize(os.path.join(OUT, fname))}
+        img = to_image(still[box[1]:box[3], box[0]:box[2]])
+        img.save(os.path.join(OUT, fname), **WEBP)
+        rname = fname.replace(".webp", "-red.webp")
+        rbytes = save_red(np.asarray(img).copy(), None, os.path.join(OUT, rname), WEBP)
+        tier_spec["still"] = {"file": f"present/{fname}", "redFile": f"present/{rname}", "w": box[2] - box[0], "h": box[3] - box[1], "ox": box[0], "oy": box[1], "bytes": os.path.getsize(os.path.join(OUT, fname)), "redBytes": rbytes}
         tier_spec["gpu"]["still"] = round((box[2] - box[0]) * (box[3] - box[1]) * 4 / 1048576, 2)
         print(f"  {tier} {fname}: {box[2] - box[0]} x {box[3] - box[1]}, {os.path.getsize(os.path.join(OUT, fname)) // 1024} KB")
         print(f"  {tier}: GPU peek {tier_spec['gpu']['peek']} MB, open {tier_spec['gpu']['open']} MB, both {tier_spec['gpu']['both']} MB (x 4/3 with a mip chain)")
@@ -490,7 +545,7 @@ def build(evidence=None):
     if evidence:
         write_evidence(evidence, spec)
     # this tool's own sheets from an earlier run that this run did not write (a page count that went down)
-    written = {os.path.basename(sh["file"]) for t in spec["tiers"].values() for sh in t["sheets"]} | {os.path.basename(t["still"]["file"]) for t in spec["tiers"].values()}
+    written = {os.path.basename(sh[k]) for t in spec["tiers"].values() for sh in t["sheets"] + [t["still"]] for k in ("file", "redFile")}
     for name in os.listdir(OUT):
         if name.startswith("present-") and name.endswith(".webp") and name not in written:
             os.remove(os.path.join(OUT, name))
@@ -501,7 +556,12 @@ def build(evidence=None):
         # the band of inside colour round the solid fill: how far the inside reaches past the ring, road px
         "rimPad": round(rim["maxOut"] / SRC_DENSITY + 0.25, 2),
         "rimColour": "#%02x%02x%02x" % tuple(int(round(c * 255)) for c in colour),
+        "rimColourRed": rim_red(colour),
     }
+    # the rules page picture of the red present (ui/GameInfoModal.svelte), from the teal one tools/build_assets.py wrote
+    s_teal = np.asarray(Image.open(SINGLE_S).convert("RGBA")).copy()
+    s_bytes = save_red(s_teal, None, SINGLE_S.replace("S.webp", "S-red.webp"), dict(quality=90, alpha_quality=100, method=6))
+    print(f"  symbols/single/S-red.webp: {s_teal.shape[1]} x {s_teal.shape[0]}, {s_bytes // 1024} KB")
     spec["report"] = report
     path = os.path.join(APP, "src", "game", "presentSpec.ts")
     with open(path, "w") as fh:
@@ -536,4 +596,5 @@ if __name__ == "__main__":
     ev = None
     if "--evidence" in sys.argv:
         ev = os.path.expanduser(sys.argv[sys.argv.index("--evidence") + 1])
+    RC = load_recolor()
     build(ev)

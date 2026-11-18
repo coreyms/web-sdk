@@ -477,6 +477,7 @@
 		if (!PHONE_TIER) enableMipmaps(tex('H1_R')?.source, app?.renderer as PIXI.Renderer | undefined);
 		// the present's still sheet (game/assets.ts presentStill) is drawn as small as the atlas: the same chain
 		if (!PHONE_TIER) enableMipmaps(tex('presentStill')?.source, app?.renderer as PIXI.Renderer | undefined);
+		if (!PHONE_TIER) enableMipmaps(tex('presentStillRed')?.source, app?.renderer as PIXI.Renderer | undefined);
 		// the wagon's tree and the seated drivers' sheets (game/road/wagonTree.ts, seated.ts) are drawn as small: the same
 		if (!PHONE_TIER) enableMipmaps(tex('H2_R_tree')?.source, app?.renderer as PIXI.Renderer | undefined);
 		if (!PHONE_TIER) enableMipmaps(tex('seat_grandma')?.source, app?.renderer as PIXI.Renderer | undefined);
@@ -857,7 +858,7 @@
 			},
 			presentMemory: () => presentMemory(),
 			presentTrace: (clear = false) => presentTrace(clear),
-			presentLoad: (group: 'peek' | 'open') => loadPresent(group),
+			presentLoad: (group: 'peek' | 'open', variant: 'teal' | 'red' = 'teal') => loadPresent(group, variant),
 			presentPeek: (cell: number) => road.peekPresentAt(cell),
 			presentOpen: async (cells: number[]) => {
 				if (!(await road.presentsReady())) return false;

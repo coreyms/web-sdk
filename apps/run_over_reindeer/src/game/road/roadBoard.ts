@@ -22,7 +22,7 @@ import { LANDING_DIM, LANE_FLOW, LINE_WIN, REINDEER_SOUND, ROAD, SEATED, STOPLIG
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
 import { NumberLabel, RoadFeatures } from './roadFeatures';
-import { PRESENT_LOOK, PresentActor, presentOpenMs, presentStillTexture, presentsReadyForOpen, presentTriggerPlayed } from './present';
+import { PRESENT_LOOK, PresentActor, RED_FROM, presentOpenMs, presentStillTexture, presentsReadyForOpen, presentTriggerPlayed } from './present';
 import { castShadow, makeShadow, shadowStrength } from './shadows';
 import { PoliceLightBar } from './policeLights';
 import { VanWinFx } from './vanWin';
@@ -101,6 +101,9 @@ type Car = {
 	/** THE SCATTER PRESENT's animation (game/road/present.ts): made the first time this sprite's present animates, kept
 	 *  with the sprite (it is drawn just after it in its lane) */
 	present: PresentActor | null;
+	/** THE RED PRESENT: this present is the 4th or 5th of a base spin to land (the Super scatter), drawn red from the
+	 *  moment it is made (rankPresents) */
+	red: boolean;
 	/** ITS CAST SHADOW (game/road/shadows.ts): its twin, made with the car, in the ground layer */
 	shadow: PIXI.Sprite;
 	/** A POLICE CAR'S LIGHT BAR (game/road/policeLights.ts): made the first time this sprite wins as a police car */
@@ -286,6 +289,8 @@ export class RoadBoard {
 
 	/** the present's still picture (game/road/present.ts), null when its sheet did not load (the S then draws empty) */
 	private readonly presentStill: PIXI.Texture | null;
+	/** the red present's still (the 4th and 5th present of a base spin); null when it did not load (it then stays teal) */
+	private readonly presentStillRed: PIXI.Texture | null;
 
 	/** THE LANDING DIM (constants LANDING_DIM): the road band outside reels 2 to 4, under the features (so the characters'
 	 *  spill stays bright), and over the tunnel portals for the part of the band they cover. Null when off. */
@@ -296,6 +301,7 @@ export class RoadBoard {
 
 	constructor(private readonly tex: TextureLookup) {
 		this.presentStill = presentStillTexture(tex('presentStill'));
+		this.presentStillRed = presentStillTexture(tex('presentStillRed'));
 		// THE SCENE (scene pass 9, game/scene/sceneLayers.ts): the field under the picture, the picture (since the scene
 		// swap, 2026-11-17, the preset's own: the night scenes re-colour it), the bands and the forest over it
 		this.root.addChild(this.scene.field, this.scene.picture);
@@ -356,7 +362,7 @@ export class RoadBoard {
 			// (its own label: the probes count the vehicles' twins by 'shadow')
 			riderShadow.label = 'riderShadow';
 			this.ground.addChild(riderShadow);
-			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, rel: -Infinity, v: 0, b: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, shadow, lights: null, van: null, tree: null, seated: null, riderShadow, brake: null };
+			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, rel: -Infinity, v: 0, b: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, red: false, shadow, lights: null, van: null, tree: null, seated: null, riderShadow, brake: null };
 			this.cars.push(car);
 		}
 		this.stopPresent(car);
@@ -390,6 +396,7 @@ export class RoadBoard {
 		car.stopped = false;
 		car.m = null;
 		car.rel = -Infinity;
+		car.red = false;
 		car.brake?.off();
 		if (car.sprite.parent !== this.lanes[lane]) this.lanes[lane].addChild(car.sprite);
 		// a new vehicle in this slot: its riders hang still
@@ -417,9 +424,25 @@ export class RoadBoard {
 		car.sprite.renderable = true;
 	}
 
+	/** THE RED PRESENT (Corey 2026-11-17): of a board's presents, in the order they will be seen leaving the tunnel (the
+	 *  order the tease and the landing sounds count), the 4th and the 5th are red. `ranked`: the presents with their
+	 *  release time and their place in the drive's order (lane order, then lead first) for the ties. Fixed here, when the
+	 *  drive is planned, so a red present is red from its first frame, and a slam stop (which only moves the times
+	 *  later) never changes which present is red. */
+	private rankPresents(ranked: { car: Car; rel: number; order: number }[]) {
+		if (ranked.length < RED_FROM || !this.presentStillRed) return;
+		ranked.sort((a, b) => a.rel - b.rel || a.order - b.order);
+		for (const { car } of ranked.slice(RED_FROM - 1)) {
+			car.red = true;
+			car.sprite.texture = this.presentStillRed;
+		}
+	}
+
 	/** the present's actor, in its lane just after its sprite (so it draws exactly where the sprite would) */
 	private presentOf(car: Car): PresentActor {
 		const actor = (car.present ??= new PresentActor());
+		// its colour: set only while it is still (an animation already running keeps the pictures it started with)
+		if (!actor.busy) actor.variant = car.red ? 'red' : 'teal';
 		const lane = this.lanes[car.lane];
 		if (actor.root.parent !== lane || lane.getChildIndex(actor.root) !== lane.getChildIndex(car.sprite) + 1) {
 			actor.root.removeFromParent();
@@ -525,6 +548,10 @@ export class RoadBoard {
 		this.flow = null;
 		this.clearWin();
 		let parked = 0;
+		// no drive, so no landing order: the order a normal speed base spin would have seen them in (a resumed trigger
+		// shows the red present where the spin showed it)
+		const rel = this.restingOrder(board);
+		const ranked: { car: Car; rel: number; order: number }[] = [];
 		for (let col = 0; col < COLS; col++) {
 			for (let row = 0; row < ROWS; row++) {
 				if (!this.parks(board, col, row)) continue;
@@ -534,10 +561,32 @@ export class RoadBoard {
 				car.restX = columnX(col);
 				car.sprite.x = car.restX;
 				parked += 1;
+				if (car.symbol === 'S') ranked.push({ car, rel: rel.get(`${row}:${col}`) ?? Infinity, order: ranked.length });
 			}
 		}
+		this.rankPresents(ranked);
 		this.parked = parked;
 		this.paint();
+	}
+
+	/** a board's release times at normal speed in a base spin (lane:col -> plan ms), for a board put up with no drive */
+	private restingOrder(board: Board): Map<string, number> {
+		const m = motionFor(0);
+		const out = new Map<string, number>();
+		const placesOf = (lane: number) => {
+			const dir = ROAD.laneDirection[lane];
+			return Array.from({ length: COLS }, (_, i) => (dir > 0 ? COLS - 1 - i : i));
+		};
+		const input: FlowCar[] = [];
+		for (const lane of m.laneOrder) placesOf(lane).forEach((col, k) => this.parks(board, col, lane) && input.push({ lane, k, scatter: board[col][lane] === 'S' }));
+		if (LANE_FLOW.on) {
+			const plan = planFlow(input, flowParams(0, { free: false, tease: true, budgetMs: LANE_FLOW.capMs - m.in.delayMs - m.in.settleMs - LANE_FLOW.capPadMs }));
+			for (const c of plan.cars) out.set(`${c.lane}:${placesOf(c.lane)[c.k]}`, c.rel);
+		} else {
+			// the old convoys: lane after lane, lead first
+			input.forEach((c, i) => out.set(`${c.lane}:${placesOf(c.lane)[c.k]}`, i));
+		}
+		return out;
 	}
 
 	/** THE PRESS: every lane's symbols pull away toward their far tunnel, front car first. Returns at once. */
@@ -614,6 +663,8 @@ export class RoadBoard {
 			for (const c of plan.cars) planned.set(`${c.lane}:${c.k}`, c);
 		}
 		const laneRel: number[][] = [[], [], [], []];
+		// the presents of this drive with their release (THE RED PRESENT, rankPresents)
+		const ranked: { car: Car; rel: number; order: number }[] = [];
 		m.laneOrder.forEach((lane, laneK) => {
 			const dir = ROAD.laneDirection[lane];
 			let t0 = start + laneK * m.in.laneStaggerMs;
@@ -666,6 +717,7 @@ export class RoadBoard {
 				car.sprite.x = from;
 				car.sprite.visible = false;
 				count += 1;
+				if (car.symbol === 'S') ranked.push({ car, rel: car.rel, order: laneK * COLS + i });
 			});
 			if (!plan) {
 				laneStop = leadStop + (COLS - 1) * m.in.carStaggerMs;
@@ -686,6 +738,8 @@ export class RoadBoard {
 			allHome = Math.max(allHome, this.laneHomeAt[lane]);
 		});
 		this.parked = parked;
+		// the red presents: base spins only (a feature round's spin never holds four, three decide there)
+		if (!opts.free) this.rankPresents(ranked);
 		if (plan) {
 			// ONE STOP SOUND PER LANE (constants REINDEER_SOUND reelStops, pass 7), top lane first: never before the lane
 			// above it below turbo 2
@@ -1873,7 +1927,7 @@ export class RoadBoard {
 			// the presents on the road: where, whether animating, and what is drawn (the still S or the present's pieces)
 			presents: this.cars
 				.filter((c) => c.symbol === 'S' && c.phase !== 'free')
-				.map((c) => ({ cell: c.col * ROWS + c.lane, phase: c.phase, busy: !!c.present?.busy, opening: !!c.present?.opening, stillDrawn: c.sprite.renderable && c.sprite.visible, texture: c.sprite.texture?.label ?? null, frame: c.sprite.texture ? { w: c.sprite.texture.frame.width, h: c.sprite.texture.frame.height } : null })),
+				.map((c) => ({ cell: c.col * ROWS + c.lane, phase: c.phase, busy: !!c.present?.busy, opening: !!c.present?.opening, red: c.red, stillRed: !!this.presentStillRed && c.sprite.texture === this.presentStillRed, variant: c.present?.variant ?? null, x: Math.round(c.sprite.x), stillDrawn: c.sprite.renderable && c.sprite.visible, texture: c.sprite.texture?.label ?? null, frame: c.sprite.texture ? { w: c.sprite.texture.frame.width, h: c.sprite.texture.frame.height } : null })),
 			signals: this.lights.map((l) => l.showing),
 			// per lane: every one of its symbols has reached its stop point (read off the symbols)
 			lanesStopped: this.laneStoppedCount.map((n, lane) => n === this.laneParked[lane]),

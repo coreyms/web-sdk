@@ -123,6 +123,16 @@ const assets = {
 		),
 		preload: true,
 	},
+	// THE RED PRESENT's still (the 4th and 5th present of a base spin, the Super scatter; tools/build_present.py): in the
+	// preload beside the teal one (0.67 MB desktop, 0.12 MB phone), so a red present is red from its first frame
+	presentStillRed: {
+		type: 'sprite',
+		src: tiered(
+			stamp(new URL('../../assets/present/present-full-still-red.webp', import.meta.url).href),
+			stamp(new URL('../../assets/present/present-phone-still-red.webp', import.meta.url).href),
+		),
+		preload: true,
+	},
 	// (THE CAST SHADOWS, game/road/shadows.ts, have no texture of their own since round 2: each is a twin of its owner's
 	// picture. Round 1's ellipse, road/shadow.webp and shadow-phone.webp from tools/build_shadows.py, is no longer loaded.)
 	// THE WAGON'S CHRISTMAS TREE (tools/build_wagon_tree.py, game/road/wagonTree.ts): the tree, the front rail and the ropes
