@@ -72,7 +72,7 @@
 // House rules: no filters, shaders or masks; a frame is a swap between resident textures; a tick allocates nothing.
 import * as PIXI from 'pixi.js';
 
-import { CREATURE, CREATURE_LIFT, CREATURE_SHADE, PLAQUE_CHEER, STING_FX, type CheerMove, type CreatureShadeMode, type CreatureSpot } from './constants';
+import { CREATURE, CREATURE_LIFT, CREATURE_SHADE, ENTRANCE_ROAR, PLAQUE_CHEER, STING_FX, type CheerMove, type CreatureShadeMode, type CreatureSpot } from './constants';
 import { CREATURE_SPEC } from './creatureSpec';
 import { CREATURE_CLIPS, type CreatureClip, type CreatureLook, type CreatureWinClip } from './creatureAssets';
 
@@ -192,6 +192,8 @@ type Run = {
 	voice: { name: string; rate?: number; atMs: number } | null;
 	/** a RANDOM IDLE ACTION (an idle roll's snarl, growl or idle_look, or a poke's): a win tier's cheer cuts it (cheer) */
 	filler: boolean;
+	/** THE ENTRANCE ROAR (entrance): this roar is the first-minute one */
+	entrance: boolean;
 };
 
 export class Creature {
@@ -258,10 +260,15 @@ export class Creature {
 	private state: 'hidden' | 'still' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
 	private idleT0 = 0;
 	private idleFrame = 1;
-	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false, voice: null, filler: false };
+	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false, voice: null, filler: false, entrance: false };
 	private rush = { from: 1, to: 1, t0: 0 };
 	/** what starts when the rush ends, or at `at` (real ms: the clip's first frame). strikeAt: swipe only; move: a cheer's */
-	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean; move?: CheerMove; holdFade?: boolean } | null = null;
+	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean; move?: CheerMove; holdFade?: boolean; entrance?: boolean } | null = null;
+	/** THE ENTRANCE ROAR (entrance): 0 not asked, 1 asked and its accent frame not reached yet, 2 its accent reached, or it
+	 *  was cut, refused or ended before it (the braziers light then: components/Background.svelte) */
+	private entranceStep: 0 | 1 | 2 = 0;
+	/** ...and it went before its accent (cut, refused): the fires light at once */
+	private entranceCut = false;
 	/** THE CHEER WAITING FOR ITS CLIP (drop 8, win clips on demand): asked while its sheets were not in; it starts when they
 	 *  are (he is idle, nothing cued) unless its plaque has gone (cheerEnd) first */
 	private pendingCheer: CheerMove | null = null;
@@ -987,6 +994,7 @@ export class Creature {
 		r.ahead = false;
 		r.voice = null;
 		r.filler = false;
+		r.entrance = false;
 		this.state = 'clip';
 		this.glowA = 0;
 		this.note('start', { clip, offset: Math.round(offset) });
@@ -1032,6 +1040,8 @@ export class Creature {
 		} else if (c.kind === 'roar') {
 			this.start('roar', now, c.ahead ? late * ts : 0);
 			this.run.cued = !!c.ahead;
+			// THE ENTRANCE ROAR: in real time at every turbo (its sound is), and cut like idle filler by a cheer or any cue
+			if (c.entrance) this.run.real = this.run.filler = this.run.entrance = true;
 		} else if (c.kind === 'growl') this.start('growl', now, 0);
 		else if (c.kind === 'win') {
 			// THE CHEER (drop 8): his win clip from its frame 1 (= idle f1), in real time, with the tier's voice on it
@@ -1293,6 +1303,7 @@ export class Creature {
 					: 0;
 		this.draw(clip, frame);
 		this.unstick(now, clip, frame);
+		this.watchEntrance();
 		this.syncLift();
 		this.syncShade(now);
 		this.tickPoke(now, on);
@@ -1618,6 +1629,38 @@ export class Creature {
 	/** he is in a random idle action (an idle roll's or a poke's): a win tier's cheer may cut it */
 	private filler(): boolean {
 		return this.state === 'clip' && this.run.filler;
+	}
+	/** THE ENTRANCE ROAR (Corey 2026-11-17: "Roar, and start the fires at the roar"; constants ENTRANCE_ROAR): once, after
+	 *  the landing screen's press, his roar clip from his idle loop (the rush to f1 as any roar), in REAL time, cut like
+	 *  filler (a cheer, or any cue a spin makes, wins). Only from his idle loop with nothing cued or read ahead, no look
+	 *  crossing over, and its sheet in: false = not played (the caller lights the fires at once, never waits). The caller
+	 *  plays sfx_roar on true, as the board's roar beat does. entranceLit tells when the braziers light */
+	entrance(): boolean {
+		if (this.entranceStep !== 0 || !this.canPlay('roar') || this.state !== 'idle' || this.cue || this.swipeNext || this.next || this.pendingCheer) return false;
+		this.cue = { kind: 'roar', at: performance.now(), strikeAt: 0, entrance: true };
+		this.entranceStep = 1;
+		this.note('entrance', { frame: this.idleFrame });
+		return true;
+	}
+	/** the entrance roar has reached its accent frame (ENTRANCE_ROAR.accentFrame), or it is gone before it (cut, refused) */
+	get entranceLit(): boolean {
+		return this.entranceStep === 2;
+	}
+	/** the entrance roar went before its accent frame (cut by a cue or a cheer, refused, skipped) */
+	get entranceWasCut(): boolean {
+		return this.entranceCut;
+	}
+	/** one tick's look at the entrance roar (tick, after the state machine) */
+	private watchEntrance(): void {
+		if (this.entranceStep !== 1) return;
+		const running = this.state === 'clip' && this.run.entrance;
+		const coming = !!this.cue?.entrance && (this.state === 'idle' || this.state === 'rush');
+		if (running && this.run.frame >= ENTRANCE_ROAR.accentFrame) this.entranceStep = 2;
+		else if (!running && !coming) {
+			this.entranceStep = 2;
+			this.entranceCut = true;
+		}
+		if (this.entranceStep === 2) this.note('entranceLit', { clip: this.run.clip, frame: this.run.frame, state: this.state, cut: !running });
 	}
 	/** NO NEW IDLE ACTION WHILE A WIN PLAQUE IS UP (2026-11-17; components/StingerPlaque.svelte and WarBanner.svelte call
 	 *  it on every frame of a screen that can cheer): the idle roll stays quiet for `ms` from now (a breath instead) */

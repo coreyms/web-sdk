@@ -250,6 +250,8 @@ export class SceneView {
 	private readonly next = new Float64Array(VALUES);
 	private fadeAt = -1;
 	private family: SceneFamily = 'base';
+	/** THE ENTRANCE ROAR (setUnlit): the braziers are not lit yet */
+	private unlit = false;
 	private wantNight = false;
 	private wantSunset = false;
 
@@ -612,6 +614,12 @@ export class SceneView {
 			out[EMBER_TINT + i] = FLAMES.embers.tint[family][i];
 		}
 		out[EMBERS] = FLAMES.embers.strength[family];
+		// THE ENTRANCE ROAR: the braziers unlit until the roar's accent (setUnlit)
+		if (this.unlit) {
+			out[FIRE] = 0;
+			out[EMBERS] = 0;
+			for (let i = 0; i < 3; i += 1) out[FLAME_W + i] = 0;
+		}
 		out[SUNSET] = m.sunset;
 		out[SUNSET_FORE_V] = m.sunset;
 	}
@@ -658,6 +666,18 @@ export class SceneView {
 		this.from.set(this.cur);
 		this.fadeAt = now;
 		this.fades += 1;
+	}
+
+	/** THE ENTRANCE ROAR (constants ENTRANCE_ROAR): the braziers unlit (true: the fire light pass at 0, the flames and their
+	 *  embers at 0) until the roar's accent; false lights them over the scene's own crossfade (now < 0: at once). Every other
+	 *  value of the mode is left as it is */
+	setUnlit(on: boolean, now: number): void {
+		if (on === this.unlit) return;
+		this.unlit = on;
+		this.mode(this.family, this.to[DIM], now);
+	}
+	get isUnlit(): boolean {
+		return this.unlit;
 	}
 
 	/** not drawn in this layout (portrait): the next mode() starts from nothing again */
@@ -1034,6 +1054,7 @@ export class SceneView {
 			fading: this.fadeAt >= 0,
 			show: c[SHOW],
 			/** the fire pass: the mode's level, the band, the level drawn now (after the flicker), its tint as drawn */
+			unlit: this.unlit,
 			fire: { mode: c[FIRE], band: [c[FIRE] * c[LO], Math.min(1, c[FIRE] * c[HI])], level: this.level, flicker: this.flick, tint: this.fire.tint, modeTint: [c[FIRE_TINT], c[FIRE_TINT + 1], c[FIRE_TINT + 2]], blend: this.fire.blendMode },
 			dim: c[DIM],
 			tints: { backdrop: this.backdrop[set].tint, fore: this.fore[set].tint, chains: this.sets[set].tint, foreTint: [c[FORE_TINT], c[FORE_TINT + 1], c[FORE_TINT + 2]] },
