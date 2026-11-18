@@ -25,10 +25,11 @@ import * as PIXI from 'pixi.js';
 import { ROAM, SHADOW, STRIKE } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import { REINDEER_ROAM } from '../reindeerRoamSpec';
-import { ROAM_AREAS, ROAM_EDIT, roamX, roamY, type RoadRect, type RoamArea } from '../roamPaths';
+import { ROAM_AREAS, ROAM_EDIT, ROAM_REF_RECT, type RoadRect, type RoamArea } from '../roamPaths';
+import { ROAD_ART } from '../roadArtSpec';
 import { seeded } from './crosshair';
 import { roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
-import { castShadow, makeShadow, shadowStrength } from './shadows';
+import { castReach, castShadow, makeShadow, shadowStrength } from './shadows';
 
 const K = REINDEER_ROAM.roadPxPerFramePx;
 const C = REINDEER_ROAM.clips;
@@ -51,6 +52,25 @@ const ENTER_PAD = 12;
 const SNIFF_RATE = { min: 0.67, max: 1.5 };
 /** tries per pass when he picks a spot (the mock's 220), and the passes (all rules; no slope rule; no length rule) */
 const TRIES = 220;
+/** THE ROAD PICTURE'S WIDTH, and how far past its left and right edges the snow beyond the art starts (past the tunnels'
+ *  stonework), road px */
+const IMG_W = ROAD_ART.image.width;
+const BEYOND_GAP = 44;
+/** THE FLOOR (round 4): the area must hold at least FLOOR_SPOTS spots that far apart (a share of the screen's width), or
+ *  it is widened to all the free snow on the screen; and on a pick the valid candidates looked at for the one farthest
+ *  from where he has just been */
+const FLOOR_SPOTS = 4;
+const FLOOR_SEP = 0.12;
+/** ...and the ground he can walk must span at least this share of the screen's width (a tall narrow strip by the tunnel
+ *  holds spots far apart only up and down, which his side on walk reaches slowly: that is the corner Corey saw) */
+const FLOOR_SPAN = 0.3;
+/** the art's top snow rim, road px (above the asphalt, which starts at 120): the widened area's favored ground */
+const RIM_TOP = -150;
+const RIM_Y = 120;
+const FLOOR_CELLS = 12000;
+const EXPLORE = 10;
+/** the stops he remembers (the newest last): his next spot is the farthest from them he finds */
+const RECENT = 6;
 
 export type RoamState = 'none' | 'enter' | 'start' | 'walk' | 'stop' | 'idle' | 'alert';
 type Pt = { x: number; y: number };
@@ -120,6 +140,16 @@ export class Roam {
 	private poly: Pt[] = [];
 	private n = 0;
 	private bounds = { x0: 0, y0: 0, x1: 0, y1: 0 };
+	/** the snow beyond the art's sides counts (the area's `beyond`); the floor's widening to all free snow (`relaxed`)
+	 *  and the spots that far apart the area holds now (`capacity`) */
+	private beyond = false;
+	/** the floor's widening: 0 none, 1 the art's whole top snow rim joins the area, 2 all the free snow on the screen */
+	widen: 0 | 1 | 2 = 0;
+	relaxed = false;
+	capacity = 0;
+	span = 0;
+	/** where he stopped last (the spot before the one he stands on), and the stops before: he does not walk straight back */
+	private recent: Pt[] = [];
 	private zones: Box[] = [];
 	private kind: LayoutKind = 'landscape';
 	private rect: RoadRect = { left: 0, top: 0, right: 0, bottom: 0 };
@@ -184,20 +214,27 @@ export class Roam {
 		const B = this.bounds;
 		B.x0 = B.y0 = Infinity;
 		B.x1 = B.y1 = -Infinity;
+		this.beyond = !!A.beyond;
 		for (let i = 0; i < this.n; i++) {
 			const c = A.corners[i];
 			const p = this.poly[i];
-			p.x = roamX(c.ax, c.x, rect);
-			p.y = roamY(c.ay, c.y, rect);
+			p.x = c.x;
+			p.y = c.y;
 			B.x0 = Math.min(B.x0, p.x);
 			B.y0 = Math.min(B.y0, p.y);
 			B.x1 = Math.max(B.x1, p.x);
 			B.y1 = Math.max(B.y1, p.y);
 		}
 		this.refreshZones();
-		// a spot that no longer holds (a resize, an edited area): a fresh one, at once
-		if ((this.state === 'idle' || this.state === 'start' || this.state === 'walk' || this.state === 'stop') && !this.valid(this.x, this.y)) {
-			if (this.pick(null)) this.idleAt(this.to.x, this.to.y, this.clock);
+		this.zonesMoved();
+		this.measureFloor();
+		// a spot that no longer holds (a resize, a rotation, an edited area): he never pops to a new one; he goes, and a
+		// new one walks in from past the screen's edge
+		if ((this.state === 'idle' || this.state === 'start' || this.state === 'walk' || this.state === 'stop' || this.state === 'enter') && !(this.state === 'enter' ? this.valid(this.to.x, this.to.y) : this.valid(this.x, this.y))) {
+			this.state = 'none';
+			this.hide();
+			this.placed = true;
+			this.walkInAt = Number.isFinite(this.clock) ? this.clock : 0;
 		}
 	}
 
@@ -227,9 +264,158 @@ export class Roam {
 		return true;
 	}
 
+	/** his feet in the area: the polygon, or the snow beyond the art's sides (`beyond`), or anywhere when the floor has
+	 *  widened it (`relaxed`; the road under his feet stays a keep-out) */
+	private inArea(x: number, y: number): boolean {
+		if (this.widen === 2) return true;
+		if (this.n >= 3 && inPoly(x, y, this.poly, this.n)) return true;
+		if (this.widen === 1 && y <= RIM_Y) return true;
+		// the snow beyond the art that this window shows past what the window the area was drawn at showed (there the
+		// area is exactly as drawn)
+		const R = ROAM_REF_RECT[this.kind];
+		return this.beyond && (x >= Math.max(IMG_W + BEYOND_GAP, R.right) || x <= Math.min(-BEYOND_GAP, R.left));
+	}
+
 	/** a spot he may stand on: his feet in the area, his body clear */
 	valid(x: number, y: number): boolean {
-		return this.n >= 3 && inPoly(x, y, this.poly, this.n) && this.clear(x, y);
+		return this.n >= 3 && this.inArea(x, y) && this.clear(x, y);
+	}
+
+	/** a random point to try: in the polygon's bounds, or (half the time, with `beyond`) the snow past the sides, or
+	 *  anywhere on the screen once relaxed */
+	private sample(rnd: () => number): Pt {
+		const r = this.rect;
+		const B = this.bounds;
+		const P = this.tryPt;
+		if (this.widen === 2) {
+			P.x = r.left + rnd() * (r.right - r.left);
+			P.y = r.top + rnd() * (r.bottom - r.top);
+			return P;
+		}
+		if (this.widen === 1 && rnd() < 0.5) {
+			// the art's top snow rim (road y up to 120, where the trench's snow ends): level ground the width of the screen
+			P.x = r.left + rnd() * (r.right - r.left);
+			P.y = Math.max(r.top, RIM_TOP) + rnd() * (RIM_Y - Math.max(r.top, RIM_TOP));
+			return P;
+		}
+		const R = ROAM_REF_RECT[this.kind];
+		const fromL = Math.min(-BEYOND_GAP, R.left);
+		const fromR = Math.max(IMG_W + BEYOND_GAP, R.right);
+		const sideL = Math.max(0, fromL - r.left);
+		const sideR = Math.max(0, r.right - fromR);
+		if (this.beyond && sideL + sideR > 1 && rnd() < 0.5) {
+			const u = rnd() * (sideL + sideR);
+			P.x = u < sideR ? fromR + u : fromL - (u - sideR);
+			P.y = r.top + rnd() * (r.bottom - r.top);
+			return P;
+		}
+		P.x = B.x0 + rnd() * (B.x1 - B.x0);
+		P.y = B.y0 + rnd() * (B.y1 - B.y0);
+		return P;
+	}
+	private tryPt: Pt = { x: 0, y: 0 };
+
+	/** THE FLOOR: how many spots FLOOR_SEP of the screen's width apart the area holds now (a fixed seeded sample, greedy);
+	 *  under FLOOR_SPOTS the area is widened to all the free snow (logged on the dev server). Run when the screen, the
+	 *  layout or the area changes, and before a pick (the HUD may have moved). */
+	private measureFloor() {
+		// the spots he can actually walk between: valid points (a fixed seeded sample), joined where one walk under the
+		// rules (length, slope, a clear way) goes from one to the other; in the largest group, the spots FLOOR_SEP apart
+		const count = () => {
+			const W = this.screenW();
+			const sep = FLOOR_SEP * W;
+			// a grid over the screen (a thin band of snow is never missed): its valid points, joined to their right hand
+			// neighbors level and one row up or down (a walk of 3 % of the width rising or falling one row is under the
+			// explore slope), where the way between is clear too
+			const r = this.rect;
+			const gx = Math.max(8, W * 0.03);
+			// (rows fine enough for a thin neck of snow: 1/200 of the screen's height, 6 road px at least)
+			const gy = Math.max(6, Math.min(gx * Math.tan((Math.max(ROAM.maxSlopeDeg, ROAM.exploreSlopeDeg) * Math.PI) / 180), (r.bottom - r.top) / 200));
+			const cols = Math.max(1, Math.floor((r.right - r.left) / gx));
+			const rows = Math.max(1, Math.floor((r.bottom - r.top) / gy));
+			if (cols * rows > FLOOR_CELLS) return { spots: 0, span: 0 };
+			const id = new Int32Array(cols * rows).fill(-1);
+			const pts: Pt[] = [];
+			for (let j = 0; j < rows; j++)
+				for (let i = 0; i < cols; i++) {
+					const x = r.left + (i + 0.5) * gx;
+					const y = r.top + (j + 0.5) * gy;
+					if (this.valid(x, y)) {
+						id[j * cols + i] = pts.length;
+						pts.push({ x, y });
+					}
+				}
+			const root = pts.map((_, k) => k);
+			const find = (k: number): number => (root[k] === k ? k : (root[k] = find(root[k])));
+			for (let j = 0; j < rows; j++)
+				for (let i = 0; i + 1 < cols; i++) {
+					const a = id[j * cols + i];
+					if (a < 0) continue;
+					for (const dj of [-1, 0, 1]) {
+						if (j + dj < 0 || j + dj >= rows) continue;
+						const b = id[(j + dj) * cols + i + 1];
+						if (b < 0 || find(a) === find(b)) continue;
+						if (!this.clear((pts[a].x + pts[b].x) / 2, (pts[a].y + pts[b].y) / 2)) continue;
+						root[find(a)] = find(b);
+					}
+				}
+			// the best group: the most spots FLOOR_SEP apart, then the widest
+			const groups = new Map<number, { kept: Pt[]; x0: number; x1: number }>();
+			for (let k = 0; k < pts.length; k++) {
+				const g = groups.get(find(k)) ?? { kept: [], x0: Infinity, x1: -Infinity };
+				groups.set(find(k), g);
+				g.x0 = Math.min(g.x0, pts[k].x);
+				g.x1 = Math.max(g.x1, pts[k].x);
+				if (g.kept.every((q) => Math.hypot(q.x - pts[k].x, q.y - pts[k].y) >= sep)) g.kept.push(pts[k]);
+			}
+			let big = -1;
+			let most = -1;
+			let wid = -1;
+			for (const [k, g] of groups)
+				if (g.kept.length > most || (g.kept.length === most && g.x1 - g.x0 > wid)) {
+					most = g.kept.length;
+					wid = g.x1 - g.x0;
+					big = k;
+				}
+			const kept: Pt[] = [];
+			let x0 = Infinity;
+			let x1 = -Infinity;
+			for (let k = 0; k < pts.length; k++) {
+				if (find(k) !== big) continue;
+				x0 = Math.min(x0, pts[k].x);
+				x1 = Math.max(x1, pts[k].x);
+				if (kept.every((q) => Math.hypot(q.x - pts[k].x, q.y - pts[k].y) >= sep)) kept.push(pts[k]);
+			}
+			return { spots: kept.length, span: Number.isFinite(x0) ? (x1 - x0) / W : 0 };
+		};
+		const was = this.widen;
+		const short = (c: { spots: number; span: number }) => c.spots < FLOOR_SPOTS || c.span < FLOOR_SPAN;
+		this.widen = 0;
+		let best = count();
+		// too little room: the art's top snow rim joins the area; still too little: all the free snow (each kept only where
+		// it gives him more room)
+		for (const w of [1, 2] as const) {
+			if (!short(best)) break;
+			const keep: 0 | 1 | 2 = this.widen;
+			this.widen = w;
+			const c = count();
+			if (c.spots > best.spots || c.span > best.span + 0.05) best = c;
+			else this.widen = keep;
+		}
+		this.capacity = best.spots;
+		this.span = best.span;
+		this.relaxed = this.widen > 0;
+		if (this.widen !== was && this.widen > 0 && import.meta.env.DEV) console.info(`[reindeer] roam: the ${this.kind} area holds too few spots ${Math.round(FLOOR_SEP * 100)}% of the width apart that he can walk between at this window: widened to ${this.widen === 1 ? 'the top snow rim' : 'all the free snow'} (${this.capacity} spots, ${Math.round(this.span * 100)}% of the width)`);
+	}
+
+	/** the zones' fingerprint: the floor is measured again when they move (the HUD settles after the first frames) */
+	private zoneSum = NaN;
+	private zonesMoved(): boolean {
+		let sum = this.zones.length;
+		for (const z of this.zones) sum += z.x0 * 1.3 + z.y0 * 1.7 + z.x1 * 1.9 + z.y1 * 2.3;
+		const moved = Math.abs(sum - this.zoneSum) > 0.5 || !Number.isFinite(this.zoneSum);
+		this.zoneSum = sum;
+		return moved;
 	}
 
 	/** his body clear all along a walk (every 6 road px) */
@@ -242,7 +428,11 @@ export class Roam {
 
 	/** where a walk in starts for a spot at height y: just past his side's screen edge */
 	private enterX(): number {
-		const reach = ROAM_REACH.side * this.scale() + ENTER_PAD;
+		// his body's reach past his feet, and his cast shadow's lean toward the screen (it leans left: a walk in from the
+		// right starts that much farther out), so nothing of him or his shadow shows on the first frame
+		const s = this.scale();
+		const lean = Math.max(0, -castReach().x) * ROAM_REACH.up * s;
+		const reach = ROAM_REACH.side * s + (this.area().side === 'right' ? lean : 0) + ENTER_PAD;
 		return this.area().side === 'left' ? this.rect.left - reach : this.rect.right + reach;
 	}
 
@@ -252,30 +442,71 @@ export class Roam {
 	 *  (`walkIn`: one whose level walk in from the screen's edge is clear). The spot goes into `this.to`. */
 	pick(from: Pt | null, walkIn = false): boolean {
 		this.refreshZones();
+		if (this.zonesMoved()) this.measureFloor();
 		this.counts.picks++;
-		const B = this.bounds;
 		const W = this.screenW();
 		const lo = (ROAM.hopMinPct / 100) * W;
 		const hi = (Math.max(ROAM.hopMaxPct, ROAM.hopMinPct) / 100) * W;
 		const tan = Math.tan((Math.max(0, ROAM.maxSlopeDeg) * Math.PI) / 180);
 		const ex = this.enterX();
-		for (let pass = 0; pass < 3; pass++) {
-			for (let i = 0; i < TRIES; i++) {
-				const x = B.x0 + this.rnd() * (B.x1 - B.x0);
-				const y = B.y0 + this.rnd() * (B.y1 - B.y0);
+		// NO SHUFFLING: the spot he stopped at before this one is not walked straight back to while another will do, and
+		// of the valid spots found the one farthest from his last stops is taken (he roams the area, not two spots)
+		const back = from && this.recent.length >= 2 ? this.recent[this.recent.length - 2] : null;
+		const sep = FLOOR_SEP * W;
+		const tanX = Math.tan((Math.max(ROAM.maxSlopeDeg, ROAM.exploreSlopeDeg) * Math.PI) / 180);
+		// pass 0: every rule; pass 1: up to exploreSlopeDeg, taken only when pass 0's best stays near his last stops (it
+		// would keep him in one corner); pass 2: no slope rule; pass 3: no length rule
+		let keepX = 0;
+		let keepY = 0;
+		let keepScore = -1;
+		for (let pass = 0; pass < 4; pass++) {
+			let best = -1;
+			let bx = 0;
+			let by = 0;
+			let found = 0;
+			for (let i = 0; i < TRIES && found < EXPLORE; i++) {
+				const q = this.sample(this.rnd);
+				const x = q.x;
+				const y = q.y;
 				if (!this.valid(x, y)) continue;
 				if (from) {
 					const dx = x - from.x;
 					const dy = y - from.y;
 					const d = Math.hypot(dx, dy);
-					if (pass < 2 && (d < lo || d > hi)) continue;
-					if (pass < 1 && Math.abs(dy) > Math.abs(dx) * tan + 1) continue;
+					if (pass < 3 && (d < lo || d > hi)) continue;
+					if (pass === 0 && Math.abs(dy) > Math.abs(dx) * tan + 1) continue;
+					if (pass === 1 && Math.abs(dy) > Math.abs(dx) * tanX + 1) continue;
+					if (pass < 3 && back && Math.hypot(x - back.x, y - back.y) < lo) continue;
 					if (!this.clearWay(from.x, from.y, x, y)) continue;
 				} else if (walkIn && !this.clearWay(ex, y, x, y, true)) continue;
-				this.to.x = x;
-				this.to.y = y;
+				found++;
+				let score = Infinity;
+				for (const r of this.recent) score = Math.min(score, Math.hypot(x - r.x, y - r.y));
+				if (from) score = Math.min(score, Math.hypot(x - from.x, y - from.y) * 2);
+				if (score > best) {
+					best = score;
+					bx = x;
+					by = y;
+				}
+			}
+			if (found && pass === 0 && from && best < sep) {
+				// a level walk that only revisits: keep it, and look a little steeper for new ground first
+				keepX = bx;
+				keepY = by;
+				keepScore = best;
+				continue;
+			}
+			if (found && (pass !== 1 || best > keepScore)) {
+				this.to.x = bx;
+				this.to.y = by;
 				this.lastPass = pass;
 				if (pass > 0) this.counts.relaxed++;
+				return true;
+			}
+			if (keepScore >= 0) {
+				this.to.x = keepX;
+				this.to.y = keepY;
+				this.lastPass = 0;
 				return true;
 			}
 			if (!from) break;
@@ -290,6 +521,11 @@ export class Roam {
 		this.state = 'idle';
 		this.x = x;
 		this.y = y;
+		// (his last stops, the newest last: a few only)
+		if (!this.recent.length || Math.hypot(this.recent[this.recent.length - 1].x - x, this.recent[this.recent.length - 1].y - y) > 0.5) {
+			if (this.recent.length >= RECENT) this.recent.shift();
+			this.recent.push({ x, y });
+		}
 		this.u = 0;
 		this.len = 0;
 		this.clip = 'sniff';
@@ -332,11 +568,17 @@ export class Roam {
 		this.reseed(seed);
 		const out: { x: number; y: number; pass: number; walkIn: boolean; fromX: number; fromY: number }[] = [];
 		let at: Pt = { x: this.x, y: this.y };
+		const keep = this.recent.slice();
 		for (let i = 0; i < count; i++) {
 			const ok = this.pick(at);
 			out.push({ x: ok ? this.to.x : at.x, y: ok ? this.to.y : at.y, pass: this.lastPass, walkIn: false, fromX: at.x, fromY: at.y });
-			if (ok) at = { x: this.to.x, y: this.to.y };
+			if (ok) {
+				if (this.recent.length >= RECENT) this.recent.shift();
+				this.recent.push(at);
+				at = { x: this.to.x, y: this.to.y };
+			}
 		}
+		this.recent = keep;
 		for (let i = 0; i < walkIns; i++) {
 			const ok = this.pick(null, true);
 			out.push({ x: this.to.x, y: this.to.y, pass: ok ? this.lastPass : -1, walkIn: true, fromX: this.enterX(), fromY: this.to.y });
@@ -389,6 +631,7 @@ export class Roam {
 	private beginWalkIn(clock: number) {
 		this.walkInAt = null;
 		if (this.n < 3) return;
+		this.recent.length = 0;
 		if (!this.pick(null, true)) {
 			// no spot he can walk in to now: again in half a second
 			this.walkInAt = clock + 500;
@@ -447,7 +690,11 @@ export class Roam {
 		if (typeof document !== 'undefined' && document.hidden) return;
 		if (!roamFramesReady() || this.n < 3) return;
 		if (this.state === 'none') {
-			if (!this.placed && clock >= this.placeRetryAt) this.placeNow(clock);
+			// HIS FIRST APPEARANCE (round 4, Corey: "it should ... walk in from off the screen"): never a pop; he walks in
+			if (!this.placed && clock >= this.placeRetryAt) {
+				this.placed = true;
+				this.walkInAt = clock;
+			}
 			else if (this.walkInAt !== null && clock >= this.walkInAt) this.beginWalkIn(clock);
 			if (this.state === 'none') return;
 		}
@@ -545,6 +792,12 @@ export class Roam {
 		castShadow(this.shadow, tex, box.anchorX, box.anchorY, this.x, this.y, s.scale.x, s.scale.y, SHADOW.runner ? shadowStrength() : 0);
 	}
 
+	private boundsOf(o: PIXI.Container) {
+		const b = o.getBounds();
+		const r = (v: number) => Math.round(v * 10) / 10;
+		return [r(b.minX), r(b.minY), r(b.maxX), r(b.maxY)];
+	}
+
 	/** the dev hook and the probes: what he is doing and where, the area as resolved for this screen */
 	snapshot() {
 		const r = (v: number) => Math.round(v * 100) / 100;
@@ -572,6 +825,14 @@ export class Roam {
 			reach: ROAM_REACH,
 			box: { walk: BOX.walk, sniff: BOX.sniff, start: BOX.start, stop: BOX.stop },
 			lastPass: this.lastPass,
+			relaxed: this.relaxed,
+			widen: this.widen,
+			capacity: this.capacity,
+			span: Math.round(this.span * 100) / 100,
+			beyond: this.beyond,
+			shadowVisible: this.shadow.visible,
+			/** what he and his shadow cover on the screen now, CSS px (null when not drawn) */
+			drawn: this.sprite.visible ? { sprite: this.boundsOf(this.sprite), shadow: this.shadow.visible ? this.boundsOf(this.shadow) : null } : null,
 			counts: { ...this.counts },
 		};
 	}

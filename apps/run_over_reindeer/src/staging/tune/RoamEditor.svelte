@@ -12,14 +12,14 @@
 
 	import { roamEdit } from './roamEdit.svelte';
 	import { ROAM_REACH, roamDev, type RoamZone } from '../../game/road/roam';
-	import { ROAM_AREAS, ROAM_AREAS_DEFAULT, ROAM_EDIT, roamAreasFrom, roamFracX, roamFracY, roamX, roamY, type RoamAnchorX, type RoamArea, type RoamPoint } from '../../game/roamPaths';
+	import { ROAM_AREAS, ROAM_AREAS_DEFAULT, ROAM_EDIT, roamAreasFrom, type RoamArea, type RoamCorner } from '../../game/roamPaths';
 	import type { LayoutKind } from '../../game/layoutSpec';
 
 	type Props = { part: 'controls' | 'overlay' };
 	const { part }: Props = $props();
 
 	const CLASS_LABEL: Record<LayoutKind, string> = { landscape: 'desktop and tablet', phone: 'phone held sideways', portrait: 'upright' };
-	const W = 1536;
+	const round = (v: number) => Math.round(v * 10) / 10;
 	const STORE_KEY = 'ror-roam-area-v1';
 
 	let msg = $state('');
@@ -64,12 +64,14 @@
 		if (!v) return null;
 		const A: RoamArea = ROAM_AREAS[v.kind];
 		const css = (x: number, y: number) => ({ x: v.ox + x * v.k, y: v.oy + y * v.k });
-		const pts = A.corners.map((p) => css(roamX(p.ax, p.x, v.rect), roamY(p.ay, p.y, v.rect)));
+		const pts = A.corners.map((p) => css(p.x, p.y));
+		// the snow beyond the art's sides, where the area allows it (road px 44 past the picture's edges)
+		const beyond = A.beyond ? [css(Math.min(-44, v.rect.left), v.rect.top), css(-44, v.rect.bottom), css(1536 + 44, v.rect.top), css(Math.max(1580, v.rect.right), v.rect.bottom)] : null;
 		const me = roamDev.roam?.snapshot();
 		const s = (me?.scale ?? 0.72) * v.k;
 		const zones: RoamZone[] = roamDev.zones?.() ?? [];
 		const at = me && me.visible ? css(me.x, me.y) : null;
-		return { v, A, pts, side: ROAM_REACH.side * s, height: ROAM_REACH.up * s, zones, at, to: me ? css(me.to.x, me.to.y) : null };
+		return { v, A, pts, beyond, side: ROAM_REACH.side * s, height: ROAM_REACH.up * s, zones, at, to: me ? css(me.to.x, me.to.y) : null, relaxed: !!me?.relaxed, capacity: me?.capacity ?? 0 };
 	});
 	const json = $derived.by(() => {
 		void roamEdit.tick;
@@ -97,16 +99,9 @@
 		if (!v) return;
 		const p = ROAM_AREAS[v.kind].corners[drag.i];
 		if (!p) return;
-		const rx = (e.clientX - v.ox) / v.k;
-		const ry = (e.clientY - v.oy) / v.k;
-		// a corner keeps its anchors; across the picture's edge its x takes the picture or that side's room
-		let ax: RoamAnchorX = p.ax;
-		if (ax === 'picture' && rx < 0 && v.rect.left < -1) ax = 'left';
-		else if (ax === 'picture' && rx > W && v.rect.right > W + 1) ax = 'right';
-		else if (ax !== 'picture' && rx >= 0 && rx <= W) ax = 'picture';
-		p.ax = ax;
-		p.x = roamFracX(ax, rx, v.rect);
-		p.y = roamFracY(p.ay, ry, v.rect);
+		// road px: the scene's own coordinates (the corner stays on the same snow at every window shape)
+		p.x = round((e.clientX - v.ox) / v.k);
+		p.y = round((e.clientY - v.oy) / v.k);
 		ROAM_EDIT.version++;
 		roamEdit.tick++;
 	};
@@ -126,10 +121,7 @@
 		const i = Math.max(0, Math.min(roamEdit.picked, C.length - 1));
 		const a = C[i];
 		const b = C[(i + 1) % C.length];
-		const nx = (roamX(a.ax, a.x, v.rect) + roamX(b.ax, b.x, v.rect)) / 2;
-		const ny = (roamY(a.ay, a.y, v.rect) + roamY(b.ay, b.y, v.rect)) / 2;
-		const ax: RoamAnchorX = nx >= 0 && nx <= W ? 'picture' : a.ax;
-		const p: RoamPoint = { ax, x: roamFracX(ax, nx, v.rect), ay: a.ay, y: roamFracY(a.ay, ny, v.rect) };
+		const p: RoamCorner = { x: round((a.x + b.x) / 2), y: round((a.y + b.y) / 2) };
 		C.splice(i + 1, 0, p);
 		roamEdit.picked = i + 1;
 		msg = `corner ${i + 2} added`;
@@ -195,7 +187,7 @@
 			<span>Show the area over the game</span>
 		</div>
 		{#if geo}
-			<div class="msg">Editing the area for: <b>{CLASS_LABEL[geo.v.kind]}</b> (each layout has its own; rotate or resize to edit another). He walks in from the <b>{geo.A.side}</b>. Yellow: where his feet may stand. Red: where his body never goes.</div>
+			<div class="msg">Editing the area for: <b>{CLASS_LABEL[geo.v.kind]}</b> (each layout has its own; rotate or resize to edit another). It is fixed to the scene, so it holds at every window shape. He walks in from the <b>{geo.A.side}</b>. Yellow: where his feet may stand{geo.A.beyond ? ' (with the snow past the tunnels, lighter)' : ''}. Red: where his body never goes. This window: {geo.capacity} spots 12% of the width apart{geo.relaxed ? ', too few: widened to all the free snow' : ''}.</div>
 		{/if}
 		<div class="actions">
 			<button class="small" onclick={add}>Add a corner after {roamEdit.picked + 1}</button>
@@ -222,6 +214,10 @@
 				<rect x={z.x0} y={z.y0} width={z.x1 - z.x0} height={z.y1 - z.y0} class="zone" />
 				<text x={z.x0 + 3} y={z.y0 + 11} class="zt">{z.name}</text>
 			{/each}
+			{#if geo.beyond}
+				<rect x={geo.beyond[0].x} y={geo.beyond[0].y} width={geo.beyond[1].x - geo.beyond[0].x} height={geo.beyond[1].y - geo.beyond[0].y} class="area beyond" />
+				<rect x={geo.beyond[2].x} y={geo.beyond[2].y} width={geo.beyond[3].x - geo.beyond[2].x} height={geo.beyond[3].y - geo.beyond[2].y} class="area beyond" />
+			{/if}
 			<polygon points={geo.pts.map((p) => `${p.x},${p.y}`).join(' ')} class="area" data-roam-area />
 			{#if geo.at}
 				<rect x={geo.at.x - geo.side} y={geo.at.y - geo.height} width={geo.side * 2} height={geo.height} class="body" />

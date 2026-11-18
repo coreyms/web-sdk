@@ -250,6 +250,9 @@ export const ROAM = {
 	 *  it climbs or drops more than this (other heights are reached over several walks). With no spot found that way the
 	 *  rule is relaxed, then the walk's length: he never freezes */
 	maxSlopeDeg: 14,
+	/** ROUND 4: when every level walk only takes him back near his last stops (a narrow strip of snow, a short window),
+	 *  one up to this steep may take him to new ground instead (he must not shuffle in a corner) */
+	exploreSlopeDeg: 24,
 	/** the new one starts walking in this long after the spin's last strike's impact */
 	walkInDelayMs: 900,
 	/** a strike from where he stands that would land later than the strike from off the screen: his side run is sped up
