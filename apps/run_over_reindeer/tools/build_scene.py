@@ -26,6 +26,12 @@ more: its own road picture (the day picture re-coloured: q92 like road/road.webp
 day strips' exact alpha, like road/tunnel-*.webp) and its upright phone forest (q80 like the day forest). Nothing in them is
 repainted here: crops and format only.
 
+THE r3 KITS (2026-11-17, the owner's approval): every kit above is read from its round 3 repair instead
+(snow_scene_kit_r3_2026-11-17, scene_kit_snow_bonus_S2_r3, scene_kit_snow_super_S1_r3, and the three grass kits' _r3
+folders, snowA = the r3b merged wall drifts): the stray boxes in the tunnel ends' faint rows removed and the grass kits'
+wall snow redrawn with no straight cut beside the tunnels (~/Desktop/Run Over Reindeer/scene_kits_r3_2026-11-17/NOTES.md).
+Same sizes, alpha and road px places as r1 / r2 (checked by this tool's asserts).
+
 THE GRASS KITS (dark mode, 2026-11-17): the player's "Dark" scene set, base game, Free Spins and Super, built the same way as
 the night kits, read only:
   ~/Desktop/Run Over Reindeer/scene_kit_grass_base_G1_r2_2026-11-16/snow<A|B>/pieces/    (preset grassDay, files scene/grass-day-*)
@@ -52,19 +58,19 @@ APP = os.path.dirname(HERE)
 OUT = os.path.join(APP, "static", "assets", "scene")
 SPEC = os.path.join(APP, "src", "game", "sceneArtSpec.ts")
 DESK = os.path.expanduser("~/Desktop/Run Over Reindeer")
-KIT = os.path.join(DESK, "snow_scene_kit_r1_2026-11-16", "pieces")
+KIT = os.path.join(DESK, "snow_scene_kit_r3_2026-11-17", "pieces")
 FOREST = os.path.join(DESK, "treeline_r2_2026-11-16", "forest_A.png")
 LOGO = os.path.join(DESK, "billboard_logo_r2_2026-11-15")
 # the night kits: preset name -> (kit folder, file prefix)
 NIGHT_KITS = {
-    "snowNight": (os.path.join(DESK, "scene_kit_snow_bonus_S2_r2_2026-11-16", "pieces"), "snow-night"),
-    "snowSuper": (os.path.join(DESK, "scene_kit_snow_super_S1_r2_2026-11-16", "pieces"), "snow-super"),
+    "snowNight": (os.path.join(DESK, "scene_kit_snow_bonus_S2_r3_2026-11-17", "pieces"), "snow-night"),
+    "snowSuper": (os.path.join(DESK, "scene_kit_snow_super_S1_r3_2026-11-17", "pieces"), "snow-super"),
 }
 # the grass kits (dark mode): preset name -> (kit folder, file prefix); the snow candidate folder is chosen in main()
 GRASS_KITS = {
-    "grassDay": ("scene_kit_grass_base_G1_r2_2026-11-16", "grass-day"),
-    "grassNight": ("scene_kit_grass_bonus_B2_r2_2026-11-16", "grass-night"),
-    "grassSuper": ("scene_kit_grass_super_G2_r2_2026-11-16", "grass-super"),
+    "grassDay": ("scene_kit_grass_base_G1_r3_2026-11-17", "grass-day"),
+    "grassNight": ("scene_kit_grass_bonus_B2_r3_2026-11-17", "grass-night"),
+    "grassSuper": ("scene_kit_grass_super_G2_r3_2026-11-17", "grass-super"),
 }
 ROAD_DIR = os.path.join(APP, "static", "assets", "road")
 

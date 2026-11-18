@@ -11,8 +11,14 @@
 //     off on or off the step grid by the fetch's real time), with the same gap from rest to the round's end
 //   - a trigger (the natural_free_spins book): the trigger's presents, and only they, play the full open (open, hold,
 //     close) with the light on; the open's sheets are in for it and let go after it (presentMemory), the peek's stay
+//   - THE RED PRESENT (Corey 2026-11-17, design E): in a spin with 4 or more presents (natural_super, 4; a posed book with
+//     5), the 4th and the 5th present to appear (first frame out of the tunnel, the landing order the tease counts) are
+//     red from their first frame (the red still, or the red pieces while they animate) and the first three never are;
+//     on the Super trigger all four play the full open (open, hold, close), the red one with the red pieces; a spin with
+//     fewer than 4 (the peek book, natural_free_spins) never shows red; the red sheets are let go after the trigger
 //   - no page errors (the Pixi 8 "reading 'addressModeU'" one included) and no console errors
 // It records the presents' GPU weight per tier (at rest and at the trigger's peak) and the frame counts of each clip.
+// With OUT=<dir> and SUPER_FRAMES=1 also a 30 fps frame sequence of the natural_super spin at 1440x900 (frames_super_1440x900).
 // With OUT=<dir> it writes present_probe.json and the per-frame tables (peek_<size>.md, trigger_<size>.md); with FRAMES=1
 // also a 30 fps frame sequence of the peek and the trigger at 1440x900 and 390x844 (the caller makes the mp4 files with
 // ffmpeg) and, with STILLS=1, the present in its cell next to its neighbours (closed, peek peak, open hold) at 4x
@@ -33,6 +39,7 @@ const APP = process.env.APP || 'http://localhost:3014';
 const OUT = process.env.OUT || '';
 const FRAMES = process.env.FRAMES === '1';
 const STILLS = process.env.STILLS === '1';
+const SUPER_FRAMES = process.env.SUPER_FRAMES === '1';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 const ASSETS = join(dirname(fileURLToPath(import.meta.url)), '..', 'static', 'assets');
 if (OUT) mkdirSync(OUT, { recursive: true });
@@ -52,6 +59,50 @@ const PEEK_BOOK = [
 ];
 const PEEK_CELLS = [5, 14];
 const TRIGGER_CELLS = [3, 15, 16]; // natural_free_spins: freeSpinTrigger cells
+const SUPER_CELLS = [1, 11, 12, 19]; // natural_super: freeSpinTrigger cells (4 presents)
+// five presents, one per reel (a posed book: the base game can land 5, about 1 spin in 100,000), nothing that pays
+const FIVE_BOOK = [
+	{ index: 0, type: 'reveal', gameType: 'basegame', board: [['L4', 'S', 'L2', 'H2'], ['L3', 'L1', 'S', 'L5'], ['S', 'L5', 'L5', 'L4'], ['H4', 'L4', 'L1', 'S'], ['H3', 'S', 'L4', 'H1']] },
+	{ index: 1, type: 'finalWin', amount: 0 },
+];
+
+/** THE RED PRESENT'S CHECK of a stepped run: per present cell its first frame on screen (out of the tunnel), the order of
+ *  those, and whether it was red on every frame it showed (still: the red still sheet; animating: the red pieces) */
+function redOrder(run) {
+	const first = new Map();
+	const frames = new Map();
+	// only this spin's presents: a cell counts from the frame its present is seen driving in (the board before it, at rest
+	// or driving out at the start of the run, is not this spin's)
+	const arrived = new Set();
+	run.log.forEach((s, i) => {
+		for (const x of s.presents) {
+			if (x.phase === 'in') arrived.add(x.cell);
+			if (!arrived.has(x.cell) || x.phase === 'out' || x.phase === 'through') continue;
+			const shown = x.stillDrawn || x.busy;
+			if (!shown) continue;
+			if (!first.has(x.cell)) first.set(x.cell, i);
+			const red = x.busy ? x.variant === 'red' : x.stillRed;
+			const f = frames.get(x.cell) ?? { red: 0, teal: 0, flag: x.red };
+			f[red ? 'red' : 'teal'] += 1;
+			frames.set(x.cell, f);
+		}
+	});
+	const order = [...first.entries()].sort((a, b) => a[1] - b[1]).map(([cell, step]) => ({ cell, step }));
+	// a tie on the frame where the 3rd and the 4th first show would make "the 4th" a guess
+	const ties = order.length > 3 && order[3].step === order[2].step;
+	const traceVariant = {};
+	for (const r of run.trace) (traceVariant[r.cell] ??= new Set()).add(r.variant);
+	return { order, frames: Object.fromEntries(frames), ties, traceVariant: Object.fromEntries(Object.entries(traceVariant).map(([c, v]) => [c, [...v].join(',')])) };
+}
+/** no red on this spin's presents (from the frame each is seen driving in; the board before it may leave red) */
+const noRed = (run) => {
+	const arrived = new Set();
+	return run.log.every((s) => s.presents.every((x) => {
+		if (x.phase === 'in') arrived.add(x.cell);
+		if (!arrived.has(x.cell) || x.phase === 'out' || x.phase === 'through') return true;
+		return !x.red && !x.stillRed && (!x.busy || x.variant !== 'red');
+	})) && run.trace.filter((r) => r.t >= (run.tIn ?? 0)).every((r) => r.variant === 'teal');
+};
 const BANNED_ERR = /addressModeU|Cannot read properties of null/;
 
 let pass = 0;
@@ -168,6 +219,53 @@ async function stills(p, S, tag) {
 	return clip;
 }
 
+/** THE RED PRESENT on a Super trigger: a fresh page (the base game at rest), natural_super stepped from the press to the
+ *  presents closed again; the Super round that follows is not played */
+async function runSuper(browser, S, report) {
+	const { ctx, p, errs } = await boot(browser, S);
+	const name = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	const out = report.find((r) => r.size === name) ?? { size: name };
+	// ---- THE RED PRESENT: a Super trigger (natural_super, 4 presents) ----
+	await R(p, () => window.__reindeer.fixtures.next('natural_super'));
+	const shotsSuper = SUPER_FRAMES && OUT && S.name === 'desktop' ? join(OUT, `frames_super_${S.vp.width}x${S.vp.height}`) : null;
+	if (shotsSuper) mkdirSync(shotsSuper, { recursive: true });
+	let superPeak = null;
+	let superOpen = false;
+	const sup = await playStepped(p, {
+		maxSteps: 500,
+		frames: async (i, s) => {
+			const m = await R(p, () => window.__reindeer.presentMemory());
+			if (!superPeak || m.totalMb > superPeak.totalMb) superPeak = m;
+			if (s.presents.some((x) => x.opening)) superOpen = true;
+			if (shotsSuper) await p.screenshot({ path: join(shotsSuper, `f${String(i).padStart(4, '0')}.png`) });
+		},
+		stopWhen: async (s) => superOpen && !s.presents.some((x) => x.busy),
+	});
+	const rs = redOrder(sup);
+	const redCells = rs.order.slice(3).map((o) => o.cell);
+	const tealCells = rs.order.slice(0, 3).map((o) => o.cell);
+	check(rs.order.length === 4 && !rs.ties, `${name}: natural_super: 4 presents, appearing in order ${rs.order.map((o) => `${o.cell}@${o.step}`).join(', ')} (no tie at the 3rd / 4th)`, rs.order);
+	check(redCells.every((c) => rs.frames[c].teal === 0 && rs.frames[c].red > 0 && rs.frames[c].flag), `${name}: natural_super: the 4th present (cell ${redCells.join(',')}) is red on every frame from its first appearance`, rs.frames);
+	check(tealCells.every((c) => rs.frames[c].red === 0 && !rs.frames[c].flag), `${name}: natural_super: the first three (cells ${tealCells.join(',')}) are teal on every frame`, rs.frames);
+	const sOpen = sup.trace.filter((r) => r.kind === 'open');
+	const sParts = (c) => [...new Set(sOpen.filter((r) => r.cell === c).map((r) => r.part))].join(',');
+	check(SUPER_CELLS.every((c) => sParts(c) === 'open,hold,close'), `${name}: natural_super: all four presents play the full open (open, hold, close)`, Object.fromEntries(SUPER_CELLS.map((c) => [c, sParts(c)])));
+	check(SUPER_CELLS.every((c) => rs.traceVariant[c] === (redCells.includes(c) ? 'red' : 'teal')), `${name}: natural_super: the red present animates with the red pieces only, the teal ones with the teal pieces only`, rs.traceVariant);
+	check(superPeak && superPeak.openRed.sheets.length > 0 && superPeak.peekRed.sheets.length > 0 && superPeak.open.sheets.length > 0, `${name}: natural_super: the red peek and open sheets and the teal open were in for the trigger`, superPeak);
+	let superAfter = null;
+	await R(p, () => window.__reindeer.clock(1));
+	for (let i = 0; i < 20; i++) {
+		superAfter = await R(p, () => window.__reindeer.presentMemory());
+		if (!superAfter.open.sheets.length && !superAfter.openRed.sheets.length && !superAfter.peekRed.sheets.length) break;
+		await sleep(150);
+	}
+	check(superAfter && !superAfter.openRed.sheets.length && !superAfter.peekRed.sheets.length && !superAfter.open.sheets.length && superAfter.peek.loaded, `${name}: natural_super: after the trigger the red sheets and the teal open are let go, the teal peek stays`, superAfter);
+	out.super = { order: rs.order, red: redCells, frames: rs.frames, traceVariant: rs.traceVariant, peakMemory: superPeak, afterMemory: superAfter };
+	if (OUT) writeFileSync(join(OUT, `super_${S.vp.width}x${S.vp.height}.md`), table(sOpen, sOpen[0]?.t ?? 0, `Super trigger (natural_super), ${name}`));
+	check(errs.length === 0, `${name}: natural_super: no page or console errors`, errs.slice(0, 5));
+	await ctx.close();
+}
+
 async function runSize(browser, S, report) {
 	const { ctx, p, errs } = await boot(browser, S);
 	const name = `${S.name} ${S.vp.width}x${S.vp.height}`;
@@ -208,6 +306,7 @@ async function runSize(browser, S, report) {
 	const perCell = Object.fromEntries(PEEK_CELLS.map((c) => [c, peeks.filter((r) => r.cell === c)]));
 	check(PEEK_CELLS.every((c) => perCell[c].length === 11 && perCell[c][0].src === 'o01' && perCell[c][10].src === 'c09'), `${name}: each landed present plays the peek once, o01 to c09 (11 frames)`, Object.fromEntries(PEEK_CELLS.map((c) => [c, perCell[c].map((r) => r.src).join(',')])));
 	check(opens.length === 0, `${name}: no full open without a trigger`, opens.length);
+	check(noRed(on), `${name}: a spin with 2 presents never shows red (still or pieces)`);
 	const peakLift = Math.max(...peeks.map((r) => r.lift));
 	check(peakLift > 0.1 && peakLift < 0.15, `${name}: the peek's lid lift tops out at a little (${peakLift.toFixed(3)} units; the full pop is 0.61)`);
 	await R(p, () => (window.__reindeer.tune.present.peek.on = false));
@@ -224,6 +323,22 @@ async function runSize(browser, S, report) {
 	out.peek = { slots: 11, framesPerPresent: perCell[PEEK_CELLS[0]].length, shown: [...new Set(peeks.map((r) => r.show))], spinWithPeek: dOn, spinWithoutPeek: dOff };
 	if (OUT) writeFileSync(join(OUT, `peek_${S.vp.width}x${S.vp.height}.md`), table(peeks, peeks[0]?.t ?? 0, `Peek on landing, ${name}`));
 	if (shotsPeek) writeFileSync(join(OUT, `clip_peek_${S.vp.width}x${S.vp.height}.md`), videoTable(peekShots, on.trace, `Clip: a book with two presents landing (peek), ${name}`));
+	await R(p, () => window.__reindeer.clock(1));
+
+	// ---- THE RED PRESENT: five presents (a posed book) ----
+	await R(p, (ev) => window.__reindeer.fixtures.queue(ev, 0), FIVE_BOOK);
+	const five = await playStepped(p);
+	const r5 = redOrder(five);
+	const red5 = r5.order.slice(3).map((o) => o.cell);
+	const teal5 = r5.order.slice(0, 3).map((o) => o.cell);
+	check(r5.order.length === 5 && !r5.ties, `${name}: five presents, appearing in order ${r5.order.map((o) => `${o.cell}@${o.step}`).join(', ')} (no tie at the 3rd / 4th / 5th)`, r5.order);
+	check(red5.length === 2 && red5.every((c) => r5.frames[c].teal === 0 && r5.frames[c].red > 0 && r5.frames[c].flag), `${name}: five presents: the 4th and 5th (cells ${red5.join(',')}) are red on every frame from their first appearance`, r5.frames);
+	check(teal5.every((c) => r5.frames[c].red === 0 && !r5.frames[c].flag), `${name}: five presents: the first three (cells ${teal5.join(',')}) are teal on every frame`, r5.frames);
+	const p5 = five.trace.filter((r) => r.kind === 'peek');
+	const peeked = (c) => p5.filter((r) => r.cell === c).length;
+	check(r5.order.every((o) => peeked(o.cell) === 11) && red5.every((c) => r5.traceVariant[c] === 'red') && teal5.every((c) => r5.traceVariant[c] === 'teal'), `${name}: five presents: every one plays its peek on landing, the red ones with the red pieces`, { peeked: Object.fromEntries(r5.order.map((o) => [o.cell, peeked(o.cell)])), variant: r5.traceVariant });
+	out.five = { order: r5.order, red: red5, frames: r5.frames, traceVariant: r5.traceVariant };
+
 	await R(p, () => window.__reindeer.clock(1));
 
 	// ---- the trigger ----
@@ -264,6 +379,7 @@ async function runSize(browser, S, report) {
 	check(Math.max(...full.map((r) => r.glow)) === 1 && Math.max(...full.map((r) => r.lift)) > 0.6, `${name}: with the light full and the whole pop (lift ${Math.max(...full.map((r) => r.lift)).toFixed(3)})`);
 	check(peak && peak.open.sheets.length > 0, `${name}: the open's sheets were in for the trigger`, peak);
 	check(after && after.open.sheets.length === 0 && !after.open.loaded && after.peek.loaded, `${name}: after the trigger the open's sheets are let go, the peek's stay`, after);
+	check(noRed(trig) && after && !after.peekRed.sheets.length && !after.openRed.sheets.length, `${name}: a spin with 3 presents (natural_free_spins) never shows red, and no red sheet is held after it`, { peekRed: after?.peekRed, openRed: after?.openRed });
 	out.trigger = { cells, rowsPerPresent: full.length, srcSlots: [...new Set(full.map((r) => r.src))].length, shownFrames: [...new Set(full.map((r) => r.show))].length, peakMemory: peak, afterMemory: after };
 	if (OUT) writeFileSync(join(OUT, `trigger_${S.vp.width}x${S.vp.height}.md`), table(tOpen, tOpen[0]?.t ?? 0, `Trigger (natural_free_spins), ${name}`));
 	if (shotsTrig) writeFileSync(join(OUT, `clip_trigger_${S.vp.width}x${S.vp.height}.md`), videoTable(trigShots, trig.trace, `Clip: the trigger book (natural_free_spins): the presents land, then the full open, ${name}`));
@@ -284,13 +400,14 @@ async function runSize(browser, S, report) {
 	await ctx.close();
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--mute-audio'] });
 const report = [];
 try {
 	for (const S of SIZES) {
 		if (ONLY.length && !ONLY.includes(S.name)) continue;
 		try {
 			await runSize(browser, S, report);
+			await runSuper(browser, S, report);
 		} catch (e) {
 			check(false, `${S.name}: ran to the end`, String(e?.stack ?? e).slice(0, 400));
 		}
