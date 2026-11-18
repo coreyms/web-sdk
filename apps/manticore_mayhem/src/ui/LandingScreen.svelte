@@ -38,8 +38,8 @@
 	import { INTRO_MAXLINE } from '../game/introCards';
 	import { INTRO_MAXLINE_ART } from '../game/introMaxlineSpec';
 	import { introMaxWinText } from '../game/introCardText';
-	import { MAXLINE_CANDIDATE } from '../game/staging';
 	import { IS_SOCIAL } from '../game/social';
+	import config from '../game/config';
 
 	type Props = { onpress: () => void };
 	const props: Props = $props();
@@ -88,27 +88,20 @@
 	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
 	const master = $derived(MASTER[kind]);
 	// where the logo, the cards, the dots and the gate stand for this viewport (game/introCards.ts)
-	// THE MAX WIN LINE CANDIDATE (DEV / staging ?maxline=1|2|3, game/introCards.ts INTRO_MAXLINE; none without the switch):
-	// its art for this wording, sized by its cap for this kind (never over maxCapCss on screen), and the room it asks for
-	const lineCand = MAXLINE_CANDIDATE ? INTRO_MAXLINE.candidates[MAXLINE_CANDIDATE] : null;
-	const lineArt = lineCand ? INTRO_MAXLINE_ART[lineCand.art][IS_SOCIAL ? 'social' : 'standard'] : null;
-	if (import.meta.env.DEV && lineArt && lineArt.text !== introMaxWinText()) console.error('[landing] the max win line art says other words than introCardText INTRO_MAX_WIN: rebake tools/build_intro_slate.py', lineArt.text);
+	// THE MAX WIN LINE (game/introCards.ts INTRO_MAXLINE): the gold "WIN UP TO 10,000x" between the logo and the cards, its
+	// art for this wording, sized by its cap for this kind (never over maxCapCss on screen), and the room it asks for
+	const lineArt = INTRO_MAXLINE_ART[IS_SOCIAL ? 'social' : 'standard'];
+	if (import.meta.env.DEV && lineArt.text !== introMaxWinText()) console.error('[landing] the max win line art says other words than introCardText INTRO_MAX_WIN: rebake tools/build_intro_slate.py', lineArt.text);
+	const lineSrc = stamp(lineArt.src);
 	const lineAsk = $derived.by(() => {
-		if (!lineCand || !lineArt) return null;
 		const vw = innerWidth.current ?? 1;
 		const vh = innerHeight.current ?? 1;
 		const scale = Math.min(vw / master.width, vh / master.height) || 1;
-		const cap = Math.min(lineCand.cap[kind], INTRO_MAXLINE.maxCapCss[lineCand.art] / scale);
-		return { where: lineCand.where, w: (lineArt.w * cap) / lineArt.cap, h: (lineArt.h * cap) / lineArt.cap };
+		const cap = Math.min(INTRO_MAXLINE.cap[kind], INTRO_MAXLINE.maxCapCss / scale);
+		return { w: (lineArt.w * cap) / lineArt.cap, h: (lineArt.h * cap) / lineArt.cap };
 	});
 	// where the logo, the cards, the dots and the gate stand for this viewport (game/introCards.ts)
 	const place = $derived(introPlacement(kind, innerWidth.current ?? 1, innerHeight.current ?? 1, lineAsk));
-	let lineReady = $state(false);
-	if (lineArt && typeof window !== 'undefined') {
-		const img = new Image();
-		img.src = stamp(lineArt.src);
-		img.decode().then(() => (lineReady = true), () => {});
-	}
 
 	// The audiosprite is roughly a third of the payload and downloads in parallel with the images
 	// (game/sound.ts), so the bar blends both — otherwise it parks at 100% for however long the
@@ -217,9 +210,13 @@
 			img.src = src;
 			return img.decode();
 		};
-		const slate = decode(slateSrc).catch(() => {
-			slateFailed = true;
-		});
+		const slate = Promise.all([
+			decode(slateSrc).catch(() => {
+				slateFailed = true;
+			}),
+			// the max win line comes in with the cards (game/boot.svelte.ts CARD_IMAGES) and shows with them
+			decode(lineSrc).catch(() => {}),
+		]);
 		decode(frameSrc).then(
 			() => slate.then(() => (frameReady = true)),
 			() => {},
@@ -490,10 +487,9 @@
 				holdClipsUntilLoaded: C.holdClipsUntilLoaded,
 				/** the CLUSTERS tiles' lift with the clip (introCardText INTRO_TILE_LIFT) */
 				tileLift: INTRO_TILE_LIFT,
-				/** the max win line candidate (?maxline), its box (CLIENT px) and its words; null without the switch */
-				maxline: lineCand
-					? { candidate: MAXLINE_CANDIDATE, art: lineCand.art, where: lineCand.where, text: lineArt?.text, ready: lineReady, box: (() => { const b = document.querySelector('.landing .maxline-art')?.getBoundingClientRect(); return b ? { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom } : null; })() }
-					: null,
+				/** the max win line: the words its art says, the words the game would set (introMaxWinText), the max win, its
+				 *  box (CLIENT px) */
+				maxline: { text: lineArt.text, want: introMaxWinText(), maxWin: config.maxWin, box: (() => { const b = document.querySelector('.landing .maxline-art')?.getBoundingClientRect(); return b ? { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom } : null; })() },
 				frameReady,
 				reducedMotion,
 				kind,
@@ -593,9 +589,9 @@
 				{/if}
 			</div>
 		{/if}
-		{#if place.maxline && lineArt}
-			<!-- the max win line candidate (?maxline): image lettering outside the cards; it shows with them -->
-			<img class="maxline-art" class:on={lineReady && frameReady} src={stamp(lineArt.src)} alt={lineArt.text} draggable="false" style:left="{place.maxline.cx - place.maxline.w / 2}px" style:top="{place.maxline.cy - place.maxline.h / 2}px" style:width="{place.maxline.w}px" style:height="{place.maxline.h}px" />
+		{#if armed && place.maxline}
+			<!-- the max win line: image lettering between the logo and the cards; it shows with them -->
+			<img class="maxline-art" class:on={frameReady} src={lineSrc} alt={lineArt.text} draggable="false" style:left="{place.maxline.cx - place.maxline.w / 2}px" style:top="{place.maxline.cy - place.maxline.h / 2}px" style:width="{place.maxline.w}px" style:height="{place.maxline.h}px" />
 		{/if}
 		<span class="logo-host logo" style:width="{logo.w}px" style:left="{logo.cx - logo.w / 2}px" style:top="{logo.cy}px">
 			<img src={logoSrc} alt="Manticore Unleashed" width={logo.w} draggable="false" />
