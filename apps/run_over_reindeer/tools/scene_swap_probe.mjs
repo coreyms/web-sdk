@@ -1,6 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/scene/sceneSwap.ts,game/sceneChoice.ts,game/scenePresets.ts,ui/hud/SceneSwitch.svelte};
-// WATCHES: ; __reindeer.atRest, __reindeer.clock, __reindeer.fixtures, __reindeer.gameType, __reindeer.gpuTextures, __reindeer.hud
+// WATCHES: ; data-resume-card, data-resume, __reindeer.atRest, __reindeer.clock, __reindeer.fixtures, __reindeer.gameType, __reindeer.gpuTextures, __reindeer.hud
 // WATCHES: ; __reindeer.led, __reindeer.logoHold, __reindeer.roadBoard, __reindeer.scene, __reindeer.sceneChoice, __reindeer.sceneOnly
 // WATCHES: ; __reindeer.sceneSetting, __reindeer.sceneSprites, __reindeer.sceneSwap, __reindeer.sceneSwapHold, __reindeer.sceneSwapStep
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardManual, __reindeer.seatTime, __reindeer.turbo, ROUND, SCENE, data-top-line
@@ -609,7 +609,8 @@ async function resumed(browser, S, fixture, event, night) {
 	for (let i = 0; i < 200; i++) {
 		const up = await p.evaluate(() => !!(window.__reindeer?.sceneSwap && window.__reindeer.hud && !document.querySelector('.landing') && !window.__reindeer.led?.())).catch(() => false);
 		if (up) break;
-		if (i % 2 === 1) await p.mouse.click(S.vp.width / 2, S.vp.height / 2).catch(() => {});
+		// (the resume card, 2026-11-18, ui/ResumeCard.svelte: Play Round in place of the press screen's press)
+		if (i % 2 === 1) await p.evaluate(() => document.querySelector('[data-resume-card] [data-resume="play"]')?.click()).catch(() => {});
 		await sleep(600);
 	}
 	const r = b;

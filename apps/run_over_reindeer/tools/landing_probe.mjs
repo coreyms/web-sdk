@@ -4,7 +4,7 @@
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/assets.ts,game/config.ts,game/constants.ts,game/landing/ledScreens.ts,game/landing/ledSign.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts,game/gpuWarm.ts};
 // WATCHES: apps/run_over_reindeer/{static/assets/audio/music.json,static/assets/audio/sounds.json,static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
-// WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.led
+// WATCHES: ; data-resume-card, data-resume, __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.led
 // WATCHES: ; __reindeer.gpuWarm, GPU_WARM
 // WATCHES: ; __reindeer.ledFreeze, __reindeer.road, __reindeer.scene, __reindeer.tune, LED_SIGN, SCENE_ART, SCREENS, data-title-sign, .landing
 // WATCHES: ; .pressText, .title, .am-ui, .hidden, .hudp, .spin
@@ -160,6 +160,15 @@ async function waitPress(p) {
 	return false;
 }
 
+/** THE RESUME CARD (2026-11-18, ui/ResumeCard.svelte): a reload into an open round shows it in place of the press screen */
+async function waitResumeCard(p) {
+	for (let i = 0; i < 300; i++) {
+		if (await p.evaluate(() => !!document.querySelector('[data-resume-card] [data-resume="play"]')).catch(() => false)) return true;
+		await sleep(400);
+	}
+	return false;
+}
+
 /** THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (2026-11-17, Corey approved; constants LED_SIGN.onBoard): no separate
  *  sign; the posed board behind; the scoreboard's back board EXPANDED (seated, the press show up), the explainer screens
  *  advancing on it, PRESS ANYWHERE TO CONTINUE on the strip as its top item, the scene dimmed as a big win dims it, the logo
@@ -230,14 +239,15 @@ async function boardPress(p, S, tag, errs) {
 	}
 	check(rest, `${tag}: a spin after the press comes back to rest`);
 	if (S.resume) {
-		// a round left open (natural_free_spins event 9): the press screen on the board, then the resumed spin as today
+		// a round left open (natural_free_spins event 9): since 2026-11-18 (the resume card, ui/ResumeCard.svelte) no press
+		// screen: the card over the posed board, then Play Round and the resumed spin as before
 		await p.evaluate(() => window.__reindeer.fixtures.resume('natural_free_spins', 9));
 		await sleep(1500);
-		check(await waitPress(p), `${tag} resume: PRESS ANYWHERE reached after the reload`);
+		check(await waitResumeCard(p), `${tag} resume: the resume card is up after the reload`);
 		await sleep(800);
 		const up = await p.evaluate(() => ({ kind: window.__reindeer.scoreboard()?.show?.kind ?? null, cols: window.__reindeer.road().features.columns.length }));
-		check(up.kind === 'press' && up.cols === 3, `${tag} resume: the press screen is on the board over the posed board (${up.kind}, ${up.cols} columns)`, up);
-		await p.mouse.click(S.vp.width / 2, S.vp.height / 2);
+		check(up.kind !== 'press' && up.cols === 3, `${tag} resume: no press screen on the board, the posed board behind the card (${up.kind}, ${up.cols} columns)`, up);
+		await p.click('[data-resume-card] [data-resume="play"]');
 		let r = null;
 		for (let i = 0; i < 200; i++) {
 			const st = await p.evaluate(() => ({ landing: !!document.querySelector('.landing'), gt: window.__reindeer.gameType(), cols: window.__reindeer.road().features.columns.map((x) => `${x.reel}:${x.tier}:${x.multiplier}`), press: window.__reindeer.scoreboard()?.press ?? null }));
@@ -449,11 +459,11 @@ async function crop4x(file, box, dpr, out) {
 					// a round left open: the free spin with a held reindeer column on reel 4 (natural_free_spins event 9)
 					await p.evaluate(() => window.__reindeer.fixtures.resume('natural_free_spins', 9));
 					await sleep(1500);
-					check(await waitPress(p), `${tag} resume: PRESS ANYWHERE reached after the reload`);
+					check(await waitResumeCard(p), `${tag} resume: the resume card is up after the reload (no press screen)`);
 					await sleep(800);
 					const r0 = await p.evaluate(() => window.__reindeer.road().features.columns.map((x) => `${x.reel}:${x.tier}:${x.multiplier}`));
-					check(r0.length === 3, `${tag} resume: the press screen shows the posed board first (${r0.join(' ')})`);
-					await p.mouse.click(S.vp.width / 2, S.vp.height / 2);
+					check(r0.length === 3, `${tag} resume: the card shows over the posed board (${r0.join(' ')})`);
+					await p.click('[data-resume-card] [data-resume="play"]');
 					let r = null;
 					for (let i = 0; i < 200; i++) {
 						const st = await p.evaluate(() => ({ landing: !!document.querySelector('.landing'), gt: window.__reindeer.gameType(), cols: window.__reindeer.road().features.columns.map((x) => `${x.reel}:${x.tier}:${x.multiplier}`) }));

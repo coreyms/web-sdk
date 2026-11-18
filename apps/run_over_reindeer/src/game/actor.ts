@@ -12,6 +12,7 @@ import { stateGame } from './stateGame.svelte';
 import { eventEmitter } from './eventEmitter';
 import { hudWinPress } from './hudWin.svelte';
 import { autoSpinPause, roundStarting } from './bonusStockRules';
+import { resumeRound, toSkippedBet } from './resumeRound.svelte';
 import type { Board } from './types';
 
 const refreshBalance = async () => {
@@ -29,7 +30,9 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	onResumeGameActive: (betToResume) => {
 		// a round left open is being played on: the board is busy until its finalWin, as for a round just started
 		stateGame.busy = true;
-		return convertTorResumableBet(betToResume);
+		// THE RESUME CARD (game/resumeRound.svelte.ts): Skip to Result plays the round's end at once; Play Round (and no card
+		// asked, a replay) plays it on from the event the RGS has reached, as before
+		return resumeRound.choice === 'skip' ? toSkippedBet(betToResume) : convertTorResumableBet(betToResume);
 	},
 	onResumeGameInactive: (betToResume) => {
 		// snap the board to where the last round left it, with no motion

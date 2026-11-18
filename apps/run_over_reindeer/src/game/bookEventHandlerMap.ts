@@ -29,6 +29,9 @@ const devMark = (what: string, detail?: string) => {
 	if (import.meta.env.DEV) (globalThis as unknown as { __reindeer?: { markMoment?: (what: string, detail?: string) => void } }).__reindeer?.markMoment?.(what, detail);
 };
 
+/** Skip to Result (the resume card): the longest wait for the standing columns' pictures before the final board goes up */
+const SKIP_CLIP_WAIT_MS = 2500;
+
 /** a pause on the road's own pace: shorter at turbo, shorter still under a slam stop */
 const pace = (ms: number) => waitForTimeout(Math.max(1, ms / boardRate()));
 
@@ -277,6 +280,29 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		setHudWin(bookEvent.amount);
 		stateGame.capped = false;
 		stateGame.busy = false;
+	},
+
+	// frontend-only (the resume card's SKIP TO RESULT, game/resumeRound.svelte.ts): the round's final board at once, with
+	// no strike, no line show, no sound of the steps skipped. The board snaps to the last spin's board with every column
+	// standing at the round's end drawn still (boardHeld: the same draw a resume uses), the spin counter at its end, WIN at
+	// the round's total so far; a base game round's win is said on the strip's small message. The book's own end events
+	// follow (the Total Win card of a bonus round, finalWin), and the resume machine sends the end-round once.
+	skipToResult: async (bookEvent: BookEventOfType<'skipToResult'>) => {
+		stateGame.gameType = bookEvent.gameType;
+		if (bookEvent.totalFs !== undefined) stateGame.totalFs = bookEvent.totalFs;
+		if (bookEvent.fs !== undefined) stateGame.spinsPlayed = bookEvent.fs;
+		// the standing columns' characters first (their idle pictures, at most SKIP_CLIP_WAIT_MS): a column drawn before its
+		// pictures are in shows its smoke alone until they land
+		await Promise.race([Promise.all(bookEvent.columns.map((c) => loadClip(c.tier, 'idle'))), waitForTimeout(SKIP_CLIP_WAIT_MS)]);
+		if (bookEvent.board.length) {
+			const board = bookEvent.board.map((reel) => [...reel]) as Board;
+			stateGame.board = board;
+			eventEmitter.broadcast({ type: 'boardSnap', board });
+		}
+		eventEmitter.broadcast({ type: 'boardHeld', held: bookEvent.columns });
+		setHudWin(bookEvent.winSoFar);
+		if (bookEvent.gameType === 'basegame' && bookEvent.winSoFar > 0) eventEmitter.broadcast({ type: 'boardScoreboardWin', amount: bookEvent.winSoFar, small: true });
+		devMark('skipToResult', `${bookEvent.gameType} ${bookEvent.columns.length} columns`);
 	},
 
 	// frontend-only (resume): rebuild the session state an interrupted round had reached, with nothing shown. The

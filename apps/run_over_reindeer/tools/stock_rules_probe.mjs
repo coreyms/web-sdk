@@ -1,5 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{game/bonusStockRules.ts,game/actor.ts,ui/controls.svelte.ts,ui/hud/HudKey.svelte}, packages/utils-xstate/src/**;
+// WATCHES: ; data-resume-card, data-resume
 // WATCHES: ; __reindeer.stockRules, __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, AUTOPLAY_RESUME_PAUSE_MS, bonusEntered, bonusLeft, autoSpinPause
 // WATCHES: ; baseTurboLevel, turboLevel, autoStopOnFreeGames, autoPlayBonuses, data-l, data-round-card, .hudp, .fold-row, .go, button.catch
 // WATCHES: apps/run_over_reindeer/src/{ui/SpinHotkey.svelte,ui/Chrome.svelte}; isSpaceHold
@@ -220,7 +221,8 @@ async function sectionResume(browser) {
 			continue;
 		}
 		if (st.landing) {
-			if (i % 3 === 0) await p.mouse.click(VP.width / 2, VP.height / 2).catch(() => {});
+			// (the resume card, 2026-11-18: a reload into an open round asks Play Round or Skip to Result; Play Round here)
+			if (i % 3 === 0) await p.evaluate(() => document.querySelector('[data-resume-card] [data-resume="play"]')?.click()).catch(() => {});
 		} else if (st.sr.gameType === 'freegame' && st.hud && inRound === null) inRound = { turbo: st.sr.turbo, base: st.sr.base, key: await turboKey(p) };
 		if (st.sr.exits.length) {
 			x = st.sr.exits[0];

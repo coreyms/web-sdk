@@ -65,6 +65,7 @@
 	import config from '../game/config';
 	import { boot } from '../game/boot.svelte';
 	import { LedSign, capTopProfile, ledGeometry } from '../game/landing/ledSign';
+	import { resumeCardWanted } from '../game/resumeRound.svelte';
 	import { setLedArt, type LedText } from '../game/landing/ledScreens';
 	import { LED_ART } from '../game/ledArtSpec';
 	import { seatClipMemory, setSeatUploader } from '../game/road/seatedClips';
@@ -223,7 +224,8 @@
 	/** THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (constants LED_SIGN.onBoard, 2026-11-17): the scoreboard's expanded back
 	 *  board plays the screens, the strip says PRESS ANYWHERE; no separate sign. Set once it is up, cleared once it is down. */
 	let pressOnBoard = false;
-	if (landing && LED_SIGN.on && LED_SIGN.onBoard && scoreboard) {
+	// (THE RESUME CARD, 2026-11-18: a reload into an open round has no press screen; the card asks instead, ui/ResumeCard.svelte)
+	if (landing && LED_SIGN.on && LED_SIGN.onBoard && scoreboard && !resumeCardWanted()) {
 		const art = loaded.ledArt;
 		const image = art?.source?.resource as CanvasImageSource | undefined;
 		setLedArt(image ? { image, frames: LED_ART.frames } : null);
@@ -238,7 +240,7 @@
 			if (src) void PIXI.Assets.unload(src).catch(() => {});
 		};
 	}
-	if (landing && LED_SIGN.on && !pressOnBoard) {
+	if (landing && LED_SIGN.on && !pressOnBoard && !resumeCardWanted()) {
 		const art = loaded.ledArt;
 		const image = art?.source?.resource as CanvasImageSource | undefined;
 		setLedArt(image ? { image, frames: LED_ART.frames } : null);

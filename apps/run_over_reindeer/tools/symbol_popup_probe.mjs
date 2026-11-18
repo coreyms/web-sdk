@@ -1,6 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{components/SymbolPopup.svelte,game/symbolPopup.ts,game/symbolPopupSpec.ts,game/boardIdle.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/gameInfoText.ts,game/config.ts,components/Board.svelte};
+// WATCHES: ; data-resume-card, data-resume
 // WATCHES: ; __reindeer.symbolPopup, __reindeer.setBoard, __reindeer.grandmaWild, __reindeer.ledCurrency, __reindeer.hurryLevel
 // WATCHES: ; __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, __reindeer.road, __reindeer.gameType, FIRST_TAP.ignoreMs
 // WATCHES: ; SYMBOL_POPUP, data-symbol-popup, data-hud, data-hud-step, .sp-pop, .landing, .hudp
@@ -612,6 +613,8 @@ async function rounds() {
 				return { up: true, idle: h.symbolPopup.idle() && h.symbolPopup.quiet(), open: h.symbolPopup.state().open, gates: h.hud.gates(), landing: !!document.querySelector('.landing'), resume: h.resume?.() ?? null, gt: h.gameType() };
 			}).catch(() => ({ up: false }));
 			if (!s.up || s.landing) {
+				// (the resume card, 2026-11-18: Play Round; a click on its dim does nothing)
+				await H(p, () => document.querySelector('[data-resume-card] [data-resume="play"]')?.click()).catch(() => {});
 				await p.mouse.click(vp.width / 2, vp.height / 2).catch(() => {});
 				await sleep(500);
 				continue;

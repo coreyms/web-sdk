@@ -12,6 +12,8 @@
 	import SceneSwitch from './hud/SceneSwitch.svelte';
 	import { LOAD_GATE } from '../game/constants';
 	import { sound } from '../game/sound';
+	import { resumeCardWanted, resumeRound, type ResumeChoice } from '../game/resumeRound.svelte';
+	import ResumeCard from './ResumeCard.svelte';
 
 	type Props = { onpress: () => void };
 	const props: Props = $props();
@@ -109,6 +111,15 @@
 		return { x, y, u };
 	});
 
+	// THE RESUME CARD (2026-11-18, game/resumeRound.svelte.ts): with a round left open the screen asks Play Round or Skip to
+	// Result in place of PRESS ANYWHERE, once the game is loaded; the choice is this screen's press (its voice, the fade)
+	const resume = resumeCardWanted();
+	const choose = (choice: ResumeChoice) => {
+		if (!ready || pressed) return;
+		resumeRound.choice = choice;
+		press();
+	};
+
 	const press = () => {
 		// same tap target serves both states: while assets are missing it retries instead of entering
 		if (assetsFailed) {
@@ -123,9 +134,10 @@
 	};
 </script>
 
+{#if resume && ready && !assetsFailed && !pressed}<ResumeCard onchoose={choose} />{/if}
 <div class="landing" class:pressed>
 	<!-- full-screen continue target -->
-	<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>
+	{#if !resume || assetsFailed}<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>{/if}
 
 	<div class="hudp scene-pick" style:transform="translate({pickPlace.x}px, {pickPlace.y}px) scale({pickPlace.u})" style:width="{pick.w}px" style:height="{pick.h}px">
 		<div class="mp is-open {pick.cls}" style:left="0px" style:top="0px" style:width="{pick.w}px" style:height="{pick.h}px">
@@ -155,6 +167,8 @@
 					<div class="gk" class:on={lit > 0 && lit < SEG} style:transform="translateX({litPct}%)"><b></b></div>
 				</div>
 				<div class="pct" style:font-size="{SZ.pct}px">{loadingLabel} {progress}%</div>
+			{:else if resume}
+				<!-- (the resume card asks, below) -->
 			{:else if !boot.ledSign && !boot.stripPress}
 				<!-- (with the LED billboard up, its ticker says it: game/landing/ledSign.ts) -->
 				<div class="pressText" style:font-size="{SZ.press}px">PRESS ANYWHERE TO CONTINUE</div>

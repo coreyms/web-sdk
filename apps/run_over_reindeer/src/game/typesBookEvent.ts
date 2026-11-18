@@ -109,6 +109,9 @@ type BookEventFinalWin = { index: number; type: 'finalWin'; amount: number };
 
 // frontend-only (resume): replays the state-bearing events of an interrupted round
 type BookEventCreateBonusSnapshot = { index: number; type: 'createBonusSnapshot'; bookEvents: BookEvent[] };
+/** frontend-only (the resume card's Skip to Result, game/resumeRound.svelte.ts): the round's final board at once, from
+ *  the book's own last spin: its board, every column standing at its end, the spin counts and the round's total so far */
+type BookEventSkipToResult = { index: number; type: 'skipToResult'; board: SymbolName[][]; columns: HeldColumn[]; gameType: GameType; fs?: number; totalFs?: number; winSoFar: number };
 
 export type BookEvent =
 	| BookEventReveal
@@ -123,7 +126,8 @@ export type BookEvent =
 	| BookEventWincap
 	| BookEventSetTotalWin
 	| BookEventFinalWin
-	| BookEventCreateBonusSnapshot;
+	| BookEventCreateBonusSnapshot
+	| BookEventSkipToResult;
 
 export type Bet = BetType<BookEvent>;
 export type BookEventOfType<T> = Extract<BookEvent, { type: T }>;
