@@ -11,19 +11,21 @@
 	// once the Pixi preload is in, it waits for the same gate before a choice can be pressed (the preload, the faces, the
 	// audio, the load gate up to its cap, the splash gone), and its press is the first user gesture: the sound starts with
 	// it, never before. The HUD is hidden and takes nothing under it (Chrome's layer is hidden while the loading screen is
-	// up). The look is THE ARMOURY confirm card's: the intro card's frame, its gold Cinzel name and the gold key; where the
-	// window is too low for the frame (sideways phones, the small popouts) the tray's own slab, as the menu does sideways.
-	// One press, one action (Enter or Space on the focused choice; a key's auto-repeat does nothing).
+	// up). The look (Corey 2026-11-18 on the first sheet: "I don't like the intro card being used for the round in
+	// progress, we should use the plain version, but I'd like skip to result to be on the left"): THE ARMOURY's plain
+	// tray slab at every layout, a small MANTICORE UNLEASHED line, the gold Cinzel UNFINISHED ROUND, the sentence, then
+	// SKIP TO RESULT (left, the iron key) and PLAY ROUND (right, the gold key, the default focus). On upright phones the slab
+	// spans the width and the keys stack, SKIP TO RESULT first (side by side they would be under a comfortable tap size).
+	// One press, one action (Enter or Space on the focused choice; a key's auto-repeat does nothing); the arrows follow the
+	// visual order (left / up: SKIP TO RESULT; right / down: PLAY ROUND), Tab moves to the other key.
 	import { onMount, untrack } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 
 	import { getContext } from '../game/context';
 	import { boot, dropCardHolder, releaseSplash } from '../game/boot.svelte';
-	import { stamp, LOGO_STILL_PATH } from '../game/assets';
 	import { loadGate } from '../game/loadGate.svelte';
 	import { sound } from '../game/sound';
 	import { LOAD_GATE } from '../game/constants';
-	import { INTRO_CARD_ASSETS } from '../game/introCards';
 	import { skipAllowed } from '../game/stateGame.svelte';
 	import { resumeChoice } from '../game/resumeChoice';
 
@@ -33,17 +35,17 @@
 	const context = getContext();
 
 	const TX = {
-		title: 'ROUND IN PROGRESS',
-		text: 'Your last round did not finish. Play it out from where it stopped, or go straight to its result.',
-		textOne: 'Your last round did not finish. It plays out from where it stopped.',
+		// the same title and sentence as Run Over Reindeer's card (Corey 2026-11-18: "Yes" to one title in both games, and
+		// Reindeer's sentence "It's good."), in this game's lettering
+		title: 'UNFINISHED ROUND',
+		text: 'Your last round did not finish. Play it on from where it stopped, or skip straight to its result. Either way it ends exactly as it was decided.',
+		textOne: 'Your last round did not finish. It plays on from where it stopped and ends exactly as it was decided.',
 		play: 'PLAY ROUND',
 		skip: 'SKIP TO RESULT',
 		loading: 'LOADING',
 		failed: 'Some game files did not load.',
 		retry: 'TRY AGAIN',
 	};
-	const FRAME = stamp(INTRO_CARD_ASSETS.frame);
-	const LOGO = stamp(`/assets/${LOGO_STILL_PATH}`);
 	const canSkip = skipAllowed();
 
 	// ---- the handoff and the gate (ui/LandingScreen.svelte's rules) ----------------------------------------------------
@@ -109,48 +111,36 @@
 		if (canSkip && (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown' || k === 'Tab')) {
 			e.preventDefault();
 			e.stopPropagation();
-			focusKey = focusKey === 'play' ? 'skip' : 'play';
+			// the visual order: SKIP TO RESULT first (left, or above when stacked), PLAY ROUND second
+			focusKey = k === 'ArrowLeft' || k === 'ArrowUp' ? 'skip' : k === 'ArrowRight' || k === 'ArrowDown' ? 'play' : focusKey === 'play' ? 'skip' : 'play';
 			(focusKey === 'skip' ? skipEl : playEl)?.focus({ preventScroll: true });
 		}
 	};
 
-	// ---- the layout: the frame card where the window is tall enough, else the slab --------------------------------------
+	// ---- the layout: one slab. Wide windows: a 520 x 230 design scaled to at most 680 wide (1.31x; 832 on big desktops)
+	// and to the window (92 % of its width, 90 % of its height: a 400 x 225 popout takes 0.72x). Upright phones (narrower
+	// than 600 and taller than wide): the window's width less 16 px a side at 1x, the keys stacked
 	const vw = $derived(innerWidth.current ?? 1280);
 	const vh = $derived(innerHeight.current ?? 720);
-	const slab = $derived(vh < 430);
-	// the card: the frame's 2:3, at most 560 tall and 92 % of the window either way; k scales its text from the 366 x 549
-	// touch card of THE ARMOURY
-	const cardH = $derived(Math.min(560, vh * 0.88, (vw * 0.92 * 3) / 2));
-	const cardW = $derived((cardH * 2) / 3);
-	const k = $derived(cardW / 366);
-	// the slab: wide and low, scaled from a 520 x 230 design so it fits a 400 x 225 window too
-	const slabK = $derived(Math.min(1, (vw * 0.94) / 520, (vh * 0.9) / 230));
+	const upright = $derived(vw < 600 && vh > vw);
+	// (big desktops: up to 48 % of the window's width, at most 832 px: 1.6x on a 1920 x 1080, so it is not lost in the room)
+	const maxW = $derived(vw >= 1200 ? Math.min(832, Math.max(680, vw * 0.48)) : 680);
+	const slabK = $derived(upright ? 1 : Math.min(maxW / 520, (vw * 0.92) / 520, (vh * 0.9) / 230));
+	const slabW = $derived(upright ? vw - 32 : 520 * slabK);
 </script>
 
 <svelte:window onkeydowncapture={onKey} />
 
 <div class="resume" class:chosen={!!chosen} role="dialog" aria-modal="true" aria-labelledby="resume-title" data-resume-card>
 	<div class="dim"></div>
-	{#if !slab}
-		<div class="card" style:width="{cardW}px" style:height="{cardH}px" style:--k={k} style:background-image="url({FRAME})">
-			<div class="win" aria-hidden="true"><img src={LOGO} alt="" draggable="false" /></div>
-			<div class="body">
-				<!-- (the game's name is the logo in the frame's window; the slab, with no window, carries it as a kicker) -->
-				<h2 class="name" id="resume-title">{TX.title}</h2>
-				<p class="text">{canSkip ? TX.text : TX.textOne}</p>
-				{@render keys()}
-			</div>
+	<div class="slab" class:upright style:--k={slabK} style:width="{slabW}px">
+		<div class="slab-in">
+			<div class="kicker">MANTICORE UNLEASHED</div>
+			<h2 class="name" id="resume-title">{TX.title}</h2>
+			<p class="text">{canSkip ? TX.text : TX.textOne}</p>
+			{@render keys()}
 		</div>
-	{:else}
-		<div class="slab" style:--k={slabK}>
-			<div class="slab-in">
-				<div class="kicker">MANTICORE UNLEASHED</div>
-				<h2 class="name" id="resume-title">{TX.title}</h2>
-				<p class="text">{canSkip ? TX.text : TX.textOne}</p>
-				{@render keys()}
-			</div>
-		</div>
-	{/if}
+	</div>
 </div>
 
 {#snippet keys()}
@@ -160,15 +150,16 @@
 			<button type="button" class="btn" onclick={() => context.stateApp.retryFailedAssets?.()}><span class="face">{TX.retry}</span></button>
 		</div>
 	{:else}
+		<!-- SKIP TO RESULT first (left, or on top when stacked), PLAY ROUND second (Corey 2026-11-18); PLAY ROUND is the default focus -->
 		<div class="keys" class:one={!canSkip}>
+			{#if canSkip}
+				<button type="button" class="btn alt" data-choice="skip" bind:this={skipEl} disabled={!ready || !!chosen} onclick={() => choose('skip')} onfocus={() => (focusKey = 'skip')}>
+					<span class="face">{ready ? TX.skip : TX.loading}</span>
+				</button>
+			{/if}
 			<button type="button" class="btn" data-choice="play" bind:this={playEl} disabled={!ready || !!chosen} aria-disabled={!ready} onclick={() => choose('play')} onfocus={() => (focusKey = 'play')}>
 				<span class="face">{ready ? TX.play : TX.loading}</span>
 			</button>
-			{#if canSkip}
-				<button type="button" class="btn alt" data-choice="skip" bind:this={skipEl} disabled={!ready || !!chosen} onclick={() => choose('skip')} onfocus={() => (focusKey = 'skip')}>
-					<span class="face">{TX.skip}</span>
-				</button>
-			{/if}
 		</div>
 	{/if}
 {/snippet}
@@ -220,40 +211,6 @@
 		position: absolute;
 		inset: 0;
 		background: rgba(6, 4, 10, 0.62);
-	}
-	/* the frame card: THE ARMOURY confirm card's box (366 x 549, the intro card's frame), every size scaled by --k */
-	.card {
-		position: relative;
-		background-size: 100% 100%;
-		background-repeat: no-repeat;
-	}
-	.win {
-		position: absolute;
-		left: 10.9%;
-		top: 8.7%;
-		width: 78.1%;
-		height: 23%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
-	}
-	.win img {
-		max-width: 86%;
-		max-height: 84%;
-		object-fit: contain;
-	}
-	.body {
-		position: absolute;
-		left: 14.2%;
-		right: 14.2%;
-		top: 35.5%;
-		bottom: 14.5%;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		text-align: center;
-		gap: calc(var(--k) * 6px);
 	}
 	.kicker {
 		font-weight: 700;
@@ -364,7 +321,6 @@
 	/* the slab: the tray's own (sideways), 520 x 230 at --k 1 */
 	.slab {
 		position: relative;
-		width: calc(var(--k) * 520px);
 		box-sizing: border-box;
 		background: linear-gradient(180deg, var(--tray-hi), var(--tray-lo));
 		border-top: 2px solid var(--brass-lo);
@@ -404,6 +360,18 @@
 	}
 	.slab .btn > .face {
 		font-size: calc(var(--k) * 16px);
+	}
+	/* upright phones: the keys stacked, full width, SKIP TO RESULT on top, a comfortable tap size */
+	.slab.upright .keys {
+		flex-direction: column;
+		gap: 12px;
+	}
+	.slab.upright .btn {
+		flex: none;
+		height: 50px;
+	}
+	.slab.upright .text {
+		max-width: none;
 	}
 	.keys.one .btn {
 		flex: 0 1 auto;
