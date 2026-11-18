@@ -792,6 +792,16 @@ async function cards(p, S, full) {
 					introAt = ms;
 					seen.intro = c;
 				}
+				// (round 2, 2026-11-18) ONE PROMPT: while the board's card is up the strip says PRESS ANYWHERE; no DOM text
+				// says it again (the press target is the transparent, labelled button)
+				if (ms - introAt > 2500 && !seen.domPrompt) {
+					seen.domPrompt = await R(p, () => [...document.querySelectorAll('body *')].filter((el) => {
+						const r = el.getBoundingClientRect();
+						const cs = getComputedStyle(el);
+						return el.childElementCount === 0 && /continue|anywhere/i.test(el.textContent || '') && r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity > 0;
+					}).map((el) => `${el.tagName}.${el.className}: ${el.textContent.trim().slice(0, 40)}`));
+					check(seen.domPrompt.length === 0, `${tag}: one prompt only: the strip's line, no DOM text prompt with the board's entry up (${seen.domPrompt.join('; ') || 'none'})`, seen.domPrompt);
+				}
 				// (5.5 s untouched, and pressed once the press line is up: on a slow page the scene's own clock runs behind
 				// real time, and a press before the press line lands the scene instead of continuing)
 				if (ms - introAt >= 5500 && c.phase === 'waits') {
