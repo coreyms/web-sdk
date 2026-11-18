@@ -1,4 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/components/Board.svelte;
+// WATCHES: ; __reindeer.atRest, __reindeer.clock, __reindeer.crosshairStrike, __reindeer.crosshairTrace, __reindeer.runMemory, __reindeer.step
+// WATCHES: ; __reindeer.turbo, CROSSHAIR, STRIKE.loadWaitMs, .landing
 // THE CROSSHAIR PROBE (the target crosshair prototype, Corey 2026-11-15; constants CROSSHAIR): per-frame numbers for the
 // crosshair of a strike on a posed board, from the running game with its board clock frozen and stepped one 60 Hz
 // frame at a time (__reindeer.clock(0), step). Three cases: one candidate; four candidates across four reels; two

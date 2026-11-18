@@ -1,4 +1,11 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/scene/sceneSwap.ts,game/sceneChoice.ts,game/scenePresets.ts,ui/hud/SceneSwitch.svelte};
+// WATCHES: ; __reindeer.atRest, __reindeer.clock, __reindeer.fixtures, __reindeer.gameType, __reindeer.gpuTextures, __reindeer.hud
+// WATCHES: ; __reindeer.led, __reindeer.logoHold, __reindeer.roadBoard, __reindeer.scene, __reindeer.sceneChoice, __reindeer.sceneOnly
+// WATCHES: ; __reindeer.sceneSetting, __reindeer.sceneSprites, __reindeer.sceneSwap, __reindeer.sceneSwapHold, __reindeer.sceneSwapStep
+// WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardManual, __reindeer.seatTime, __reindeer.turbo, ROUND, SCENE, data-top-line
+// WATCHES: ; data-scene-switch, data-scene-choice, data-hud, .landing, .am-ui, .layer, .hud-off, .hudp, .stat, .value, .label, .kl, .fb, .lb
+// WATCHES: ; .spin, .vt, .mp
 // THE SCENE SWAP PROBE (2026-11-17; game/scene/sceneSwap.ts, game/scenePresets.ts snowDay / snowNight / snowSuper). At
 // 1440 x 900, 844 x 390 and 390 x 844 (the phone sizes on the phone asset tier), with the dev fixtures:
 //   - THE FIRST LOAD: the day snow shows, and no piece of either night scene is asked of the network (or held) before the

@@ -1,4 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/wagonTree.ts};
+// WATCHES: ; __reindeer.brakes, __reindeer.clock, __reindeer.riderMemory, __reindeer.road, __reindeer.roadSprites, __reindeer.setBoard
+// WATCHES: ; __reindeer.step, __reindeer.strayRiders, __reindeer.trees, __reindeer.tune, COLUMN, LANE_FLOW, WAGON_TREE
 // THE WAGON TREE PROBE (Corey 2026-11-16: the Christmas tree tied to every station wagon, H2; constants WAGON_TREE,
 // game/road/wagonTree.ts, tools/build_wagon_tree.py). Posed books handed to the fixtures through the dev hook
 // (presentation only, no math), the board clock frozen and stepped one 60 Hz frame at a time. At 1440x900 and 390x844:

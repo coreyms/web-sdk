@@ -1,4 +1,17 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,components/Sound.svelte,fixtures/fixtureRgs.ts,game/road/present.ts,game/road/roadBoard.ts,game/road/roadSounds.ts};
+// WATCHES: apps/run_over_reindeer/src/game/sound.ts, apps/run_over_reindeer/static/assets/audio/sounds.json;
+// WATCHES: ; __reindeer.ambience, __reindeer.atRest, __reindeer.fixtures, __reindeer.forceSnort, __reindeer.frame, __reindeer.hud
+// WATCHES: ; __reindeer.presentTrace, __reindeer.roadSoundState, __reindeer.roadSounds, __reindeer.runMemory, __reindeer.soundTap
+// WATCHES: ; __reindeer.tune, __reindeer.turbo, COLUMN, CROSSHAIR, LANE_FLOW, PRESENT.loadWaitMs, REINDEER_SOUND.cutTurn
+// WATCHES: ; REINDEER_SOUND.reelStopTurbo2, REINDEER_SOUND, ROAD, ROUND, bgm_base, sfx_card_in, sfx_card_out, sfx_cluster_remove
+// WATCHES: ; sfx_column_grandma_in, sfx_column_grow, sfx_column_reindeer_in, sfx_column_santa_in, sfx_column_win_grandma
+// WATCHES: ; sfx_column_win_reindeer, sfx_column_win_santa, sfx_crash, sfx_crash_cloud, sfx_grandma_wild, sfx_intro_jingle_short
+// WATCHES: ; sfx_lane_stop_*, sfx_line_show, sfx_multiplier_land_high, sfx_multiplier_land_mid, sfx_multiplier_land_small, sfx_present_pop
+// WATCHES: ; sfx_redbox, sfx_reel_spin, sfx_reel_stop, sfx_reindeer_alert, sfx_reindeer_dart, sfx_reindeer_idle_snort, sfx_reindeer_run
+// WATCHES: ; sfx_reindeer_turn, sfx_scatter_land_*, sfx_scatter_land_1, sfx_scatter_success, sfx_scatter_tease, sfx_sticky_set, sfx_sting_hit
+// WATCHES: ; sfx_stoplight_change, sfx_swipe, sfx_target_drop, sfx_target_hop, sfx_target_lock, sfx_topup, sfx_traffic_roll, sfx_ui_minor
+// WATCHES: ; sfx_win_h1_grandma, sfx_win_h2_wagon, sfx_win_h3_van, sfx_win_h4_police, sfx_win_low_*, .landing, .hudp, .spin
 // THE SOUND PROBE (the reindeer's own sounds, wired 2026-11-15; constants REINDEER_SOUND, game/road/roadSounds.ts):
 // plays real fixture rounds in the running game with the board clock running in real time, and records two logs side
 // by side: the road's own (every animation moment and every sound it asked for, with the board's frame number:

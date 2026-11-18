@@ -1,4 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/seated.ts,game/road/seatedClips.ts};
+// WATCHES: ; __reindeer.clock, __reindeer.riderMemory, __reindeer.road, __reindeer.roadSprites, __reindeer.seatClipMemory, __reindeer.seated
+// WATCHES: ; __reindeer.setBoard, __reindeer.step, __reindeer.strayRiders, __reindeer.tune, SEATED.bob, SEATED.clips, SEATED
 // THE SEATED DRIVERS PROBE (Corey 2026-11-16: Grandma at the wheel of every Grandma car, H1, and Santa in every sleigh,
 // W; constants SEATED, game/road/seated.ts, tools/build_seated.py, tools/seated_split.json). Posed books handed to the
 // fixtures through the dev hook (presentation only, no math), the board clock frozen and stepped one 60 Hz frame at a

@@ -1,4 +1,8 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/policeLights.ts,game/road/roadSounds.ts};
+// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.police
+// WATCHES: ; __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites, __reindeer.step, __reindeer.tune, __reindeer.turbo, POLICE_LIGHTS
+// WATCHES: ; .landing, .hudp, .spin
 // THE POLICE LIGHTS PROBE (Corey 2026-11-15: the police car's light bar lights up in a win with it; constants
 // POLICE_LIGHTS, game/road/policeLights.ts). A posed book (handed to the fixtures through the dev hook; presentation only,
 // no math): five police cars, three of them in the one winning line (reel 1 top lane and reel 2 second lane, driving
