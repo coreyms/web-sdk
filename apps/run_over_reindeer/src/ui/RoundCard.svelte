@@ -59,7 +59,12 @@
 		// (a wrap-up that carries a line, a top-up or the cap, waits too since 2026-11-17, ROUND.lineOutroWaitsForPress: its
 		// line scrolls on the LED strip from the moment the amount lands and needs about 10 s to pass once)
 		const lined = card.kind === 'outro' && (!!card.topUp || card.capped) && ROUND.lineOutroWaitsForPress;
-		const waits = (card.kind === 'intro' || lined) && !(stateBet.autoSpinsCounter > 0) && ROUND.introWaitsForPress;
+		// THE ENTRY IN AUTOPLAY (2026-11-18, Corey on staging: "I had auto spins on, without the option selected for AutoPlay
+		// Bonuses, and it entered bonus games without me clicking to continue on the intro screen"): the rule above exempted
+		// every live run, so with Autoplay Bonuses off the entry still went by itself after introAutoMs. Only Autoplay
+		// Bonuses (auto) lets the entry continue by itself now; any other run's entry waits for the press, as manual play's
+		// does. The wrap-up keeps its rule (it continues by itself, outroAutoMs, or autoplayMs with the option on).
+		const waits = ROUND.introWaitsForPress && (card.kind === 'intro' ? !auto : lined && !(stateBet.autoSpinsCounter > 0));
 		const ms = auto ? ROUND.autoplayMs : card.kind === 'intro' ? ROUND.introAutoMs : ROUND.outroAutoMs;
 		const timer = waits ? undefined : setTimeout(dismissRoundCard, ms);
 		const key = (e: KeyboardEvent) => {

@@ -11,6 +11,7 @@ import { playBet, convertTorResumableBet } from './utils';
 import { stateGame } from './stateGame.svelte';
 import { eventEmitter } from './eventEmitter';
 import { hudWinPress } from './hudWin.svelte';
+import { autoSpinPause, roundStarting } from './bonusStockRules';
 import type { Board } from './types';
 
 const refreshBalance = async () => {
@@ -39,6 +40,7 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		}
 	},
 	onNewGameStart: async () => {
+		roundStarting();
 		// THE PRESS: the play request goes out and the old board drives away at once, before the book is in (pictures
 		// only: the board is still the last book's until the reveal replaces it, and a failed play puts it back)
 		stateGame.busy = true;
@@ -57,6 +59,8 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		if (stateUrlDerived.replay()) eventEmitter.broadcast({ type: 'replayFinished' });
 	},
 	checkIsBonusGame: (bet) => checkIsMultipleRevealEvents({ bookEvents: bet.state }),
+	// THE STOCK RULES' PAUSE (game/bonusStockRules.ts rule 4): between two autoplay rounds, after a bonus round's wrap-up
+	onAutoSpinPause: autoSpinPause,
 });
 
 const intermediateMachines = createIntermediateMachines(primaryMachines);

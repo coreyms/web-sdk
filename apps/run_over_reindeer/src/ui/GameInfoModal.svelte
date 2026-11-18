@@ -3,16 +3,17 @@
 	// game's sections): the paytable with the real symbol pictures, the lines, how to play, the modes, the max win
 	// and RTP, the legal block. The copy is game/gameInfoText.ts (a first draft from the spec).
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
-	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
+	import { stateBet, stateConfig, stateModal, stateUrlDerived } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import Icon from './Icon.svelte';
+	import HudIcon, { type HudIconName } from './hud/HudIcon.svelte';
 	import config from '../game/config';
 	import { soc } from '../game/social';
 	import { stamp } from '../game/assets';
-	import { gameInfoText, runs, MODE_NAMES, pct } from '../game/gameInfoText';
+	import { gameInfoText, guideRowShown, runs, MODE_NAMES, pct, type GuideId } from '../game/gameInfoText';
 	import { modeCost } from '../game/betModeMeta';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
@@ -29,6 +30,7 @@
 
 	const SECTIONS = [
 		{ id: 'paytable', label: soc('Paytable', 'Symbols') },
+		{ id: 'guide', label: 'UI Guide' },
 		{ id: 'lines', label: 'Lines' },
 		{ id: 'howto', label: 'How to Play' },
 		{ id: 'modes', label: 'Game Modes' },
@@ -36,7 +38,28 @@
 		{ id: 'legal', label: 'Legal' },
 	];
 
-	const T = gameInfoText();
+	// the page's words under the operator's switches (read when the page opens: the jurisdiction block has landed by then)
+	const T = $derived(gameInfoText(stateConfig.jurisdiction ?? {}));
+
+	// THE UI GUIDE (2026-11-18; Manticore Mayhem's section, this game's controls): one control per row, the HUD's own
+	// glyph (ui/hud/HudIcon.svelte, the same line icons the bar draws; Icon.svelte for the few the bar has no key for), its
+	// name and what a press does (game/gameInfoText.ts guide). A control the operator turns off has no row.
+	type GuideIcon = { id: GuideId; hud?: HudIconName; ui?: 'play' | 'instant' | 'coins' | 'chevronRight' | 'info' };
+	const GUIDE_ICONS: GuideIcon[] = [
+		{ id: 'feature', hud: 'arm' },
+		{ id: 'spin', ui: 'play' },
+		{ id: 'boardTap', ui: 'instant' },
+		{ id: 'autoplay', hud: 'auto' },
+		{ id: 'turbo', hud: 'turbo' },
+		{ id: 'menu', hud: 'menu' },
+		{ id: 'sound', hud: 'sound' },
+		{ id: 'amount', hud: 'plus' },
+		{ id: 'readouts', hud: 'info' },
+		{ id: 'symbols', ui: 'coins' },
+		{ id: 'keyboard', ui: 'chevronRight' },
+		{ id: 'replay', ui: 'play' },
+	];
+	const GUIDE = $derived(GUIDE_ICONS.filter((g) => guideRowShown(g.id, stateConfig.jurisdiction ?? {})).map((g) => ({ ...g, ...T.guide.rows[g.id] })));
 
 	// the symbols' own colors for their names (the spec's color hierarchy)
 	const SYMBOL_COLOR: Record<string, string> = { H1: '#c58bff', H2: '#9fd17a', H3: '#7fc4ff', H4: '#eef0f6', L1: '#b6ff1a', L2: '#ff9a3c', L3: '#ff5fc0', L4: '#ffd400', L5: '#eef0f6' };
@@ -47,11 +70,11 @@
 	const social = $derived(stateUrlDerived.social());
 	const payText = (mult: number) => (social ? `${mult}x` : numberToCurrencyString(mult * stateBet.betAmount));
 
-	const SPECIALS = [
+	const SPECIALS = $derived([
 		{ glyph: 'W', name: config.symbols.W.name, color: '#ff5a6e', note: T.paytable.wild },
 		// the red present beside the teal one: the 4th and 5th present of a spin, the ones that start Super (tools/build_present.py)
 		{ glyph: 'S', also: 'S-red', alsoName: `${config.symbols.S.name}, red`, name: config.symbols.S.name, color: '#19d3da', note: T.paytable.scatter },
-	];
+	]);
 
 	const capPerPrice = (cost: number) => (config.maxWin / cost).toLocaleString('en-US', { maximumFractionDigits: 1 });
 	const MAX_WIN = config.maxWin.toLocaleString('en-US');
@@ -107,6 +130,7 @@
 	const bodySize = $derived(dense ? 12.5 : 13.5);
 	const tabSize = $derived(lowHead ? 10 : dense ? 10.5 : 11);
 	const tileSize = $derived(short ? 40 : dense ? 48 : 64);
+	const iconBox = $derived(short ? 34 : dense ? 40 : 48);
 	const statSize = $derived(dense ? 15 : 17);
 	const payFont = $derived(dense ? 13 : 16);
 	// the 20 line pictures: how many to a row
@@ -167,6 +191,24 @@
 				</div>
 			</section>
 
+			<section bind:this={sectionEls.guide} data-guide>
+				<h2>User Interface Guide</h2>
+				<p>{T.guide.intro}</p>
+				<div class="guide">
+					{#each GUIDE as g (g.id)}
+						<div class="guide-row" data-guide-row={g.id}>
+							<div class="guide-icon" style:width="{iconBox}px" style:height="{iconBox}px" style:--gi-icon="{Math.round(iconBox * 0.5)}px">
+								{#if g.hud}<HudIcon name={g.hud} />{:else if g.ui}<Icon name={g.ui} s={iconBox * 0.46} />{/if}
+							</div>
+							<div class="guide-text">
+								<div class="guide-name" style:font-size="{dense ? 13 : 15}px">{g.name}</div>
+								<div class="v">{@render rich(g.text)}</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</section>
+
 			<section bind:this={sectionEls.lines}>
 				<h2>Lines</h2>
 				<p>{T.lines.intro}</p>
@@ -189,7 +231,7 @@
 
 			<section bind:this={sectionEls.howto}>
 				<h2>How to Play</h2>
-				{#each T.howTo as p}<p>{@render rich(p)}</p>{/each}
+				{#each T.howTo.filter(Boolean) as p}<p>{@render rich(p)}</p>{/each}
 			</section>
 
 			<section bind:this={sectionEls.modes}>
@@ -598,6 +640,47 @@
 	.v {
 		color: var(--ink);
 		margin-top: 2px;
+	}
+	/* the UI guide (Manticore Mayhem's rows): the control's glyph in a well, its name, what a press does */
+	.guide {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.guide-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 8px 10px;
+		border-radius: 10px;
+		border: 1px solid var(--rule);
+	}
+	.guide-icon {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 9px;
+		background: var(--well);
+		color: var(--gold);
+	}
+	.guide-icon :global(svg.ic) {
+		width: var(--gi-icon);
+		height: var(--gi-icon);
+	}
+	.guide-text {
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+	.guide-name {
+		font-family: var(--ui-font);
+		font-weight: 800;
+		letter-spacing: 1.5px;
+		color: var(--ink);
+		text-transform: uppercase;
+		margin-top: 3px;
 	}
 	.kv {
 		display: flex;

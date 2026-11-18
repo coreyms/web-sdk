@@ -3,7 +3,7 @@
 // WATCHES: apps/run_over_reindeer/src/game/sound.ts, apps/run_over_reindeer/static/assets/audio/sounds.json;
 // WATCHES: ; __reindeer.ambience, __reindeer.atRest, __reindeer.fixtures, __reindeer.forceSnort, __reindeer.frame, __reindeer.hud
 // WATCHES: ; __reindeer.presentTrace, __reindeer.roadSoundState, __reindeer.roadSounds, __reindeer.runMemory, __reindeer.soundTap
-// WATCHES: ; __reindeer.tune, __reindeer.turbo, COLUMN, CROSSHAIR, LANE_FLOW, PRESENT.loadWaitMs, REINDEER_SOUND.cutTurn
+// WATCHES: ; __reindeer.tune, __reindeer.turbo, __reindeer.stockRules, COLUMN, CROSSHAIR, LANE_FLOW, PRESENT.loadWaitMs, REINDEER_SOUND.cutTurn
 // WATCHES: ; REINDEER_SOUND.reelStopTurbo2, REINDEER_SOUND, ROAD, ROUND, bgm_base, sfx_card_in, sfx_card_out, sfx_cluster_remove
 // WATCHES: ; sfx_column_grandma_in, sfx_column_grow, sfx_column_reindeer_in, sfx_column_santa_in, sfx_column_win_grandma
 // WATCHES: ; sfx_column_win_reindeer, sfx_column_win_santa, sfx_crash, sfx_crash_cloud, sfx_grandma_wild, sfx_intro_jingle_short
@@ -210,7 +210,10 @@ async function boot(browser, S) {
 	return { ctx, p, errs };
 }
 
-async function settle(p, S, maxMs = 90000, opens = null) {
+// turbo: a case's level kept inside a bonus round. Since the stock rules (game/bonusStockRules.ts, 2026-11-18) every bonus
+// round starts at regular speed; the case's level is put back in the round, as a player's Turbo press there would
+// (that choice lasts the round only), so a turbo case still hears its free spins at its own level
+async function settle(p, S, maxMs = 90000, opens = null, turbo = 0) {
 	const t0 = Date.now();
 	let traced = Date.now();
 	for (;;) {
@@ -220,7 +223,8 @@ async function settle(p, S, maxMs = 90000, opens = null) {
 			traced = Date.now();
 			opens.push(...((await p.evaluate(() => window.__reindeer.presentTrace(true).filter((r) => r.kind === 'open')).catch(() => [])) ?? []));
 		}
-		const st = await p.evaluate(() => ({ g: window.__reindeer.hud.gates(), idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest() })).catch(() => null);
+		const st = await p.evaluate(() => ({ g: window.__reindeer.hud.gates(), idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), live: window.__reindeer.stockRules?.() ?? null })).catch(() => null);
+		if (turbo && st?.live && st.live.gameType === 'freegame' && st.live.turbo !== turbo) await p.evaluate((t) => window.__reindeer.turbo(t), turbo).catch(() => {});
 		if (st && st.g > 0) {
 			await p.mouse.click(S.vp.width / 2, S.vp.height * 0.4).catch(() => {});
 			await sleep(400);
@@ -260,7 +264,7 @@ async function runCase(p, S, C) {
 			} else await sleep(15);
 		}
 	}
-	const settled = await settle(p, S, C.maxMs, opens);
+	const settled = await settle(p, S, C.maxMs, opens, C.turbo);
 	opens.push(...((await p.evaluate(() => window.__reindeer.presentTrace(true).filter((r) => r.kind === 'open'))) ?? []));
 	await sleep(700); // the cloud loop's round end fade (300 ms) and its stop
 	const roundEnd = await p.evaluate(() => ({ t: performance.now(), frame: window.__reindeer.frame(), playing: window.__reindeer.soundTap().playing, state: window.__reindeer.roadSoundState(), ambience: window.__reindeer.ambience?.() ?? null }));

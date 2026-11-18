@@ -9,9 +9,10 @@ const createIntermediateMachines = ({
 	newGame,
 	playGame,
 	endGame,
+	autoSpinPause,
 }: PrimaryMachines) => {
 	const bet = createIntermediateMachineBet({ newGame, playGame, endGame });
-	const autoBet = createIntermediateMachineAutoBet({ bet });
+	const autoBet = createIntermediateMachineAutoBet({ bet, autoSpinPause });
 	const resumeBet = createIntermediateMachineResumeBet({ resumeGame, playGame, endGame });
 
 	return {

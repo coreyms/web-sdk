@@ -545,6 +545,9 @@ async function bonusRoundWithSteps(p, S, fixture, night, { contrastToo = true, s
 	let armed = false;
 	while (Date.now() - t0 < 300000) {
 		const s = await swapNow(p);
+		// every bonus round starts at regular speed since the stock rules (game/bonusStockRules.ts, 2026-11-18): the
+		// probe's turbo 2 is put back in the round, as a player's Turbo press there would
+		if (s.gameType === 'freegame') await R(p, () => window.__reindeer.turbo(2)).catch(() => {});
 		seen.maxLazy = Math.max(seen.maxLazy, s.lazyGpuMB);
 		seen.maxScene = Math.max(seen.maxScene, s.sceneGpuMB);
 		seen.maxGpu = Math.max(seen.maxGpu, s.gpuMB);

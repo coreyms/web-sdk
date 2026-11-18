@@ -99,6 +99,10 @@ type Options<TBet extends BaseBet> = {
 	onNewGameError: () => any;
 	onPlayGame: (bet: TBet) => Promise<void>;
 	checkIsBonusGame: (bet: TBet) => boolean;
+	/** OPTIONAL: awaited by the autoplay machine between two autoplay rounds, after the round's end-round and the
+	 *  autoplay's own stop checks, just before it asks whether spins are left (so a stop pressed during it ends the run
+	 *  there). A game without it runs exactly as before. A throw is ignored: the run goes on to its counter check. */
+	onAutoSpinPause?: () => Promise<void> | void;
 };
 
 function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
@@ -109,6 +113,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 		onNewGameError,
 		onPlayGame,
 		checkIsBonusGame,
+		onAutoSpinPause,
 	} = options;
 
 	let balanceAmountFromApiHolder: null | number = null;
@@ -229,11 +234,17 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 		},
 	);
 
+	// autoSpinPause: between two autoplay rounds (onAutoSpinPause above); a no-op when the game has none
+	const autoSpinPause = fromPromise(async () => {
+		if (onAutoSpinPause) await onAutoSpinPause();
+	});
+
 	return {
 		newGame,
 		playGame,
 		endGame,
 		resumeGame,
+		autoSpinPause,
 	};
 }
 
