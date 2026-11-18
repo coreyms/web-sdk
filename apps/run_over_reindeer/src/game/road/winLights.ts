@@ -299,16 +299,30 @@ export class WinLights {
 				const full = plan.full[k];
 				const until = plan.off[k] + (o.phone ? 0.3 : 1) * s.down;
 				const alive = timed.filter((q) => q.from < plan.off[k] + s.down && full < q.to).map((q) => q.r);
-				const slots = line.slots.map((c) => {
-					const x = Math.min(o.right - 40 - w / 2, Math.max(o.left + 40 + w / 2, c.x));
+				// THE LABEL'S DRAWN EXTENT (2026-11-18, round 3: the first floor counted the box at 1.2 of its height, but the
+				// plain amount swells to 1 + amount.swell as it pops and its soft shadow is a wider stroke dropped below it, so on
+				// the twelve line win the drawn label still reached under the strip): half its drawn height and width at the
+				// largest the slam ever draws it, the shadow included
+				const sh = X.shadow.extra * o.scale;
+				const grow = 1 + Math.max(L.amount.swell, 0.3 * X.strength);
+				const halfH = ((h + sh) / 2) * grow + X.shadow.dy * o.scale;
+				const halfW = ((w + sh) / 2) * grow;
+				const xMin = Math.max(o.left + 40 + w / 2, o.left + halfW + 2);
+				const xMax = Math.min(o.right - 40 - w / 2, o.right - halfW - 2);
+				const floor = o.floor !== undefined && Number.isFinite(o.floor) ? o.floor : Infinity;
+				const fit = (c: { x: number; y: number }) => {
+					const x = Math.min(xMax, Math.max(xMin, c.x));
 					// THE PHONE: an amount on the top lane line comes down so its top stays under that line (the tunnel top)
 					let y = o.phone ? Math.max(c.y, o.topLine + X.phone.topClearRoad + h / 2) : c.y;
-					// (2026-11-18, Corey at about 2000 x 945: "the Win Amount is partially hidden behind the small LED screen below
-					// the board") an amount on the lane line under the bottom row comes up so its box, at the slam's largest swell,
-					// stays above the strip's snow cap and the HUD
-					if (o.floor !== undefined && Number.isFinite(o.floor)) y = Math.min(y, o.floor - h * 0.6);
+					// (2026-11-18, Corey at about 2000 x 945: "the Win Amount is partially hidden behind the small LED screen
+					// below the board") the label as drawn stays above the strip's snow cap and the HUD
+					y = Math.min(y, floor - halfH);
 					return { x, y };
-				});
+				};
+				const slots = line.slots.map(fit);
+				// (when the floor or the sides fold places together, the next free places beside and above them)
+				for (const c of line.slots.map(fit)) slots.push({ x: c.x - w * 0.6, y: c.y }, { x: c.x + w * 0.6, y: c.y }, { x: c.x, y: c.y - h * 1.1 });
+				for (let i = line.slots.length; i < slots.length; i++) slots[i] = fit(slots[i]);
 				s.rect = this.place(slots, w, h, alive);
 				timed.push({ r: s.rect, from: full, to: until });
 				s.cx = s.rect.x + w / 2;
