@@ -549,9 +549,9 @@
 		// preload; the desktop sheets are drawn well under their 3x size on most screens, so they get a mip chain too
 		if (!PHONE_TIER) setRunMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
 		// THE ROAMING REINDEER'S FRAMES (game/road/roamFrames.ts): after the run views, the same way (STRIKE.roam), and only
-		// once the press screen has gone and the GPU warm-up that follows it is done (components/Game.svelte warmGpu hands
-		// every texture on the stage to the GPU, the press screen's among them, which are destroyed as it leaves: a long
-		// upload ahead of them in that queue would let one be destroyed before its turn)
+		// once the press screen has gone (the old billboard's textures were destroyed as it left, and the warm-up of that
+		// time could still hold them in Pixi's queue behind a long upload; since 2026-11-17 game/gpuWarm.ts has its own
+		// queue that skips a destroyed or let go source, and runs while the press screen waits)
 		if (!PHONE_TIER) setRoamMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
 		const roamLoad = () => {
 			if (led) setTimeout(roamLoad, 500);

@@ -2,9 +2,10 @@
 // (2026-11-17: with constants LED_SIGN.onBoard the press screen is the game's own expanded LED board; boardPress() below
 // checks it at every size and the billboard's checks are skipped. They still run with LED_SIGN.onBoard false.)
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/assets.ts,game/config.ts,game/constants.ts,game/landing/ledScreens.ts,game/landing/ledSign.ts};
-// WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts,game/gpuWarm.ts};
 // WATCHES: apps/run_over_reindeer/{static/assets/audio/music.json,static/assets/audio/sounds.json,static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
 // WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.led
+// WATCHES: ; __reindeer.gpuWarm, GPU_WARM
 // WATCHES: ; __reindeer.ledFreeze, __reindeer.road, __reindeer.scene, __reindeer.tune, LED_SIGN, SCENE_ART, SCREENS, data-title-sign, .landing
 // WATCHES: ; .pressText, .title, .am-ui, .hidden, .hudp, .spin
 // THE LANDING PROBE. Pass 7 (Corey 2026-11-16): the press screen after the studio splash is the LED BILLBOARD
@@ -190,6 +191,16 @@ async function boardPress(p, S, tag, errs) {
 		return out;
 	});
 	check(seen.length >= 3 && new Set(seen).size === 3, `${tag}: the explainer screens cycle on the expanded board (${seen.join(' > ')})`);
+	// THE GPU WARM-UP (game/gpuWarm.ts, 2026-11-17): while the press screen waits, every texture on the stage is sent to the
+	// GPU, a source a frame; it has finished before the press (the probe waits for it, as a player who reads the screens does)
+	let warm0 = [];
+	for (let i = 0; i < 100; i++) {
+		const w = await p.evaluate(() => ({ log: window.__reindeer.gpuWarm?.log() ?? [], pending: window.__reindeer.gpuWarm?.pending() ?? 0 }));
+		warm0 = w.log;
+		if (warm0.length && !w.pending) break;
+		await sleep(100);
+	}
+	check(warm0.some((e) => e.pass === 'press screen'), `${tag}: the GPU warm-up ran on the press screen, before the press (${warm0.length} sources: ${warm0.filter((e) => e.result === 'uploaded').length} sent up, the rest already there)`, warm0.slice(0, 5));
 	// the press
 	await p.mouse.click(S.vp.width / 2, S.vp.height * 0.45);
 	let gone = null;
@@ -201,6 +212,14 @@ async function boardPress(p, S, tag, errs) {
 	check(!!gone && !gone.vis && gone.dim === 0 && !gone.press && !gone.landing, `${tag}: the press lowers the board out of sight, lifts the dim and the game is there`, gone);
 	const L0 = s0.logo;
 	const L1 = gone?.logo;
+	// ...so the press's own pass (what the stage holds once the game is there) sends nothing up: the first frames after the
+	// press draw only textures already on the GPU, and no source destroyed or let go is ever sent up again
+	let warm1 = [];
+	for (let i = 0; i < 30 && !warm1.length; i++) {
+		warm1 = await p.evaluate(() => (window.__reindeer.gpuWarm?.log() ?? []).filter((e) => e.pass === 'press'));
+		if (!warm1.length) await sleep(100);
+	}
+	check(warm1.length > 0 && warm1.every((e) => e.result !== 'uploaded'), `${tag}: the press's warm-up pass finds everything already on the GPU (${warm1.length} sources, ${warm1.filter((e) => e.result === 'uploaded').length} sent up after the press)`, warm1.filter((e) => e.result === 'uploaded').slice(0, 5));
 	check(!!L0 && !!L1 && Math.abs(L0.x - L1.x) < 0.6 && Math.abs(L0.y - L1.y) < 0.6 && Math.abs(L0.width - L1.width) < 0.6, `${tag}: the logo sign stays at its game place through the press (${L0 ? `${Math.round(L0.x)},${Math.round(L0.y)}` : '-'} then ${L1 ? `${Math.round(L1.x)},${Math.round(L1.y)}` : '-'})`, { L0, L1 });
 	await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
 	await p.click('.hudp button.spin').catch(() => {});
