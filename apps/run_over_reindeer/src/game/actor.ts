@@ -64,6 +64,11 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	checkIsBonusGame: (bet) => checkIsMultipleRevealEvents({ bookEvents: bet.state }),
 	// THE STOCK RULES' PAUSE (game/bonusStockRules.ts rule 4): between two autoplay rounds, after a bonus round's wrap-up
 	onAutoSpinPause: autoSpinPause,
+	// A BASE WIN SETTLES AFTER IT IS SHOWN (2026-11-18, Corey: "Yes base spins should carry it as well"): a base spin with a
+	// win keeps its round open at the RGS until its lines, its count and the HUD's WIN are done, then sends the end-round
+	// once (as a feature round does), so a reload during the win finds it open and the resume card asks
+	// (DEV only: ?settleEarly=1 keeps the old timing, the end-round at the play reply, to measure the cadence against)
+	settleWinsAfterPresentation: !(import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('settleEarly')),
 });
 
 const intermediateMachines = createIntermediateMachines(primaryMachines);

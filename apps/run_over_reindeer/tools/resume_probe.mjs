@@ -1,7 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{ui/ResumeCard.svelte,game/resumeRound.svelte.ts,ui/LandingScreen.svelte,game/actor.ts,components/ResumeBet.svelte}, apps/run_over_reindeer/src/game/bookEventHandlerMap.ts;
 // WATCHES: ; __reindeer.resumeRound, __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, __reindeer.gameType, __reindeer.roadSounds, __reindeer.stockRules
-// WATCHES: ; data-resume-card, data-resume, data-resume-mode, skipToResult, toSkippedBet, RESUME_TEXT, createBonusSnapshot, .landing, .pressText, .press-target
+// WATCHES: ; settleWinsAfterPresentation, settleEarly, OPEN_KEY, data-resume-card, data-resume, data-resume-mode, skipToResult, toSkippedBet, RESUME_TEXT, createBonusSnapshot, .landing, .pressText, .press-target
 // THE RESUME PROBE (2026-11-18, the resume card, a stock rule for every game: game/resumeRound.svelte.ts,
 // ui/ResumeCard.svelte). A reload into a round the RGS holds open (the fixture RGS's fixtures.resume: the session comes
 // back with that book open at that event, as a real RGS's would) with the showcase books of the math (real books):
@@ -20,7 +20,13 @@
 //     390 x 620, 360 x 640, sideways 844 x 390, Stake's popouts 800 x 450 and 400 x 225): inside the window with a margin,
 //     both buttons inside the card and at least 44 x 44 CSS px on touch sizes (30 in the 225 px popout), no text past
 //     its box. With SHOTS=<dir> it saves each (<w>x<h>_card.png, at device pixel ratio 3).
-// Sections: ONLY=layouts,words,play,skip,reload (default all).
+//   · moments (2026-11-18, a base win stays open until shown): a winning base spin played for real and the page reloaded
+//     before its lines (the card; Play Round), mid its count-up (the card; Skip to Result), just after its end-round went
+//     (no card, nothing open), and a 0x spin (no end-round, nothing open): one end-round across both pages, the wallet
+//     credited once
+//   · cadence: autoplay of a winning base spin at turbo 0 and 2, the end-round after the win against the old timing
+//     (?settleEarly=1, DEV only): the time a round takes, and the difference
+// Sections: ONLY=layouts,words,play,skip,reload,moments,cadence (default all).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=a,b] [SHOTS=dir] node tools/resume_probe.mjs
 // Uses the dev server that is already running. One headless browser, muted. Wrap it in the shared browser lock:
 //   tools/browser_lock.sh run game -- node tools/resume_probe.mjs
@@ -279,6 +285,157 @@ async function sectionLayouts(browser) {
 	}
 }
 
+/** A BASE WIN STAYS OPEN UNTIL IT IS SHOWN (2026-11-18, Corey "Yes base spins should carry it as well"; game/actor.ts
+ *  settleWinsAfterPresentation): a winning base spin is played for real, the page reloaded at a moment of it, and what
+ *  the RGS and the game do is counted across both pages: the end-round requests, the wallet, the card. */
+async function bootFresh(ctx, extra = '') {
+	const p = await ctx.newPage();
+	const errs = [];
+	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+	await p.goto(`${APP}/?lang=en&sessionID=moment${Date.now()}${extra}`, { waitUntil: 'domcontentloaded' });
+	for (let i = 0; i < 160; i++) {
+		const ok = await p.evaluate(() => !!(window.__reindeer?.atRest?.() && window.__reindeer.hud && document.querySelector('.hudp') && !document.querySelector('.landing'))).catch(() => false);
+		if (ok) break;
+		if (i % 2 === 1) await p.mouse.click(720, 450).catch(() => {});
+		await sleep(600);
+	}
+	await sleep(800);
+	return { p, errs };
+}
+const wallet = (p) => p.evaluate(() => window.__reindeer.fixtures.log());
+const calls = (p) => p.evaluate(() => window.__rgsCalls.map((c) => c.path));
+
+async function moment(browser, { name, when, label, choice }) {
+	const tag = `moment ${label}`;
+	const ctx = await context(browser);
+	const { p, errs } = await bootFresh(ctx);
+	const before = await wallet(p);
+	const book = await bookOf(p, name);
+	const fin = book.filter((e) => e.type === 'finalWin').pop().amount;
+	await p.evaluate((n) => window.__reindeer.fixtures.next(n), name);
+	await p.click('.hudp button.spin');
+	// the moment: `when` on the page's own state
+	const t0 = Date.now();
+	let hit = null;
+	while (Date.now() - t0 < 60000 && !hit) {
+		hit = await p.evaluate(when).catch(() => null);
+		if (!hit) await sleep(40);
+	}
+	const c1 = await calls(p);
+	const w1 = await wallet(p);
+	await p.reload({ waitUntil: 'domcontentloaded' });
+	const up = choice ? await cardUp(p, 60000) : false;
+	const e1 = c1.filter((c) => c === 'wallet/end-round').length;
+	if (choice) {
+		check(!!hit && e1 === 0 && up, `${tag}: reloaded ${hit}: no end-round sent before it, the round still open, the resume card up`, { hit, c1 });
+		if (up) await p.click(`[data-resume-card] [data-resume="${choice}"]`);
+		const ok = await settle(p);
+		const c2 = await calls(p);
+		const w2 = await wallet(p);
+		const win = await p.evaluate(() => window.__reindeer.hud.win());
+		const e2 = c2.filter((c) => c === 'wallet/end-round').length;
+		const want = Math.round((before.balance - w1.plays[0].amount + fin / 100 * w1.plays[0].amount) * 100) / 100;
+		check(ok && e1 + e2 === 1 && w2.settled === 1, `${tag}: ${choice === 'play' ? 'Play Round' : 'Skip to Result'}: the round ends with exactly one end-round across both pages (${e1} + ${e2})`, { c1, c2, settled: w2.settled });
+		check(Math.abs(w2.balance - want) < 0.005 && win === fin, `${tag}: the wallet ${w2.balance} (${before.balance} less the play, plus the book's win once: ${want}), WIN ${win} the book's ${fin}`, { w2, want, win, fin });
+	} else {
+		// after the presentation, the end-round already out: nothing to resume, the win already credited, no card
+		check(!!hit && e1 === 1 && !up, `${tag}: reloaded ${hit}: the end-round was out before it, no card after it`, { hit, c1 });
+		await sleep(3000);
+		const after = await p.evaluate(() => ({ card: !!document.querySelector('[data-resume-card]'), log: window.__reindeer?.fixtures?.log?.() ?? null }));
+		const want = Math.round((before.balance - w1.plays[0].amount + fin / 100 * w1.plays[0].amount) * 100) / 100;
+		check(!after.card && after.log && !after.log.open, `${tag}: after the reload: no card, no open round (authenticate's round is none)`, after);
+		void want;
+	}
+	check(errs.length === 0, `${tag}: no page errors on the first page`, errs.slice(0, 3));
+	await ctx.close();
+}
+
+async function sectionMoments(browser) {
+	// before the lines: the reveal is on the road, no line shown yet
+	await moment(browser, { name: 'plain_line_win', label: 'before the lines', choice: 'play', when: () => (window.__reindeer.fixtures.log().plays.length > 0 && window.__reindeer.gameType && window.__reindeer.hud.win() === 0 ? 'with the traffic driving in' : null) });
+	// mid count: a base Mega win counting on the LED board
+	await moment(browser, { name: 'base_two_columns', label: 'mid count-up', choice: 'skip', when: () => (window.__reindeer.scoreboard()?.show?.kind === 'win' && window.__reindeer.scoreboard().show.phase === 'count' ? 'mid count-up' : null) });
+	// the presentation over, the end-round sent (the HUD's WIN final, idle)
+	await moment(browser, { name: 'plain_line_win', label: 'after the presentation', choice: null, when: () => (window.__rgsCalls.some((c) => c.path === 'wallet/end-round') ? 'just after the end-round went' : null) });
+	// an end-round that fails once (a 500 from the RGS): the retry the feature path has (END_ROUND_RETRY_DELAYS_MS), one
+	// settle, the wallet right
+	{
+		const ctx = await context(browser);
+		const { p, errs } = await bootFresh(ctx);
+		const before = await wallet(p);
+		await p.evaluate(() => {
+			let fails = 1;
+			const inner = window.fetch;
+			window.fetch = (input, init) => {
+				const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+				if (/wallet\/end-round/.test(url) && fails > 0) {
+					fails -= 1;
+					window.__rgsCalls.push({ path: 'wallet/end-round (failed)', at: performance.now() });
+					return Promise.resolve(new Response(JSON.stringify({ error: 'ERR_GEN', message: 'probe' }), { status: 500, headers: { 'Content-Type': 'application/json' } }));
+				}
+				return inner(input, init);
+			};
+		});
+		await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
+		await p.click('.hudp button.spin');
+		const ok = await settle(p);
+		const c = await calls(p);
+		const w = await wallet(p);
+		const book = await bookOf(p, 'plain_line_win');
+		const fin = book.filter((e) => e.type === 'finalWin').pop().amount;
+		const want = Math.round((before.balance - w.plays[0].amount + (fin / 100) * w.plays[0].amount) * 100) / 100;
+		check(ok && c.filter((x) => x === 'wallet/end-round (failed)').length === 1 && c.filter((x) => x === 'wallet/end-round').length === 1 && w.settled === 1 && Math.abs(w.balance - want) < 0.005, `moment end-round error: a failed end-round is retried once, the round settles once, the wallet ${w.balance} (${want})`, { c, w });
+		const modal = await p.evaluate(() => !!document.querySelector('.am-ui.layer.modals [data-notice], .am-ui.layer.modals .notice'));
+		console.log(`  INFO moment end-round error: an error card up after the retry: ${modal}; page errors ${errs.length}`);
+		await ctx.close();
+	}
+	// a round with no win: closed by its play, nothing kept
+	const ctx = await context(browser);
+	const { p } = await bootFresh(ctx);
+	await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1'));
+	await p.click('.hudp button.spin');
+	await sleep(400);
+	const c = await calls(p);
+	await p.reload({ waitUntil: 'domcontentloaded' });
+	const up = await cardUp(p, 25000);
+	check(!up && !c.includes('wallet/end-round'), `moment no win: a 0x round sends no end-round and leaves nothing open (no card after a reload mid spin)`, c);
+	await ctx.close();
+}
+
+/** THE CADENCE: autoplay of a winning base book, the end-round after the presentation against the old timing
+ *  (?settleEarly=1, DEV only), at turbo 0 and 2: the time from one play request to the next */
+async function sectionCadence(browser) {
+	const out = {};
+	for (const early of [true, false]) {
+		for (const L of [0, 2]) {
+			const ctx = await context(browser);
+			const { p } = await bootFresh(ctx, early ? '&settleEarly=1' : '');
+			await p.evaluate((l) => window.__reindeer.turbo(l), L);
+			await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win', true));
+			await p.click('.hudp button[aria-label="Autoplay"]');
+			await sleep(600);
+			await p.click('.am-ui.layer.modals .go');
+			await sleep(600);
+			await p.click('.hudp button.spin');
+			const t0 = Date.now();
+			while (Date.now() - t0 < 90000 && (await p.evaluate(() => window.__rgsCalls.filter((c) => c.path === 'wallet/play').length)) < 7) await sleep(200);
+			const plays = await p.evaluate(() => window.__rgsCalls.filter((c) => c.path === 'wallet/play').map((c) => c.at));
+			const ends = await p.evaluate(() => window.__rgsCalls.filter((c) => c.path === 'wallet/end-round').length);
+			await p.click('.hudp button[aria-label="Autoplay"]').catch(() => {});
+			await settle(p, 60000);
+			const gaps = plays.slice(1).map((t, i) => t - plays[i]).slice(1); // the first gap carries the run's start
+			out[`${early ? 'early' : 'after'}${L}`] = { mean: gaps.reduce((a, b) => a + b, 0) / Math.max(1, gaps.length), n: gaps.length, ends, plays: plays.length };
+			await ctx.close();
+		}
+	}
+	for (const L of [0, 2]) {
+		const a = out[`after${L}`];
+		const e = out[`early${L}`];
+		console.log(`  INFO cadence turbo ${L}: ${a.mean.toFixed(0)} ms a round with the end-round after the win (${a.n} gaps), ${e.mean.toFixed(0)} ms with it at the play reply: +${(a.mean - e.mean).toFixed(0)} ms (${(((a.mean - e.mean) / e.mean) * 100).toFixed(1)} %)`);
+		check(a.ends >= a.plays - 1 && a.mean - e.mean < 400, `cadence turbo ${L}: autoplay of a winning base spin: +${(a.mean - e.mean).toFixed(0)} ms a round (${a.mean.toFixed(0)} against ${e.mean.toFixed(0)}), one end-round a round`, out);
+	}
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 try {
 	if (want('layouts')) await sectionLayouts(browser);
@@ -286,6 +443,8 @@ try {
 	if (want('play')) for (const R of ROUNDS) await choiceCase(browser, R, 'play');
 	if (want('skip')) for (const R of ROUNDS) await choiceCase(browser, R, 'skip');
 	if (want('reload')) await sectionReload(browser);
+	if (want('moments')) await sectionMoments(browser);
+	if (want('cadence')) await sectionCadence(browser);
 } catch (e) {
 	fail++;
 	console.log('FAIL probe error', e?.stack ?? e);

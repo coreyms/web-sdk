@@ -103,6 +103,11 @@ type Options<TBet extends BaseBet> = {
 	 *  autoplay's own stop checks, just before it asks whether spins are left (so a stop pressed during it ends the run
 	 *  there). A game without it runs exactly as before. A throw is ignored: the run goes on to its counter check. */
 	onAutoSpinPause?: () => Promise<void> | void;
+	/** OPTIONAL: a winning single round (a base game spin with a win) keeps its round open at the RGS until its
+	 *  presentation is over, and sends the end-round then, as a feature round does (bonusWin's methods): a reload during the
+	 *  win finds the round active and resumes it. Off (the default): the end-round goes right after the play reply and
+	 *  its balance is held until the round ends, as before. */
+	settleWinsAfterPresentation?: boolean;
 };
 
 function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
@@ -114,6 +119,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 		onPlayGame,
 		checkIsBonusGame,
 		onAutoSpinPause,
+		settleWinsAfterPresentation = false,
 	} = options;
 
 	let balanceAmountFromApiHolder: null | number = null;
@@ -157,6 +163,11 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 		},
 	} as const;
 
+	// the settle methods of a round's type: with settleWinsAfterPresentation a winning single round settles as a feature
+	// round does (nothing at the play reply, the end-round and its balance once the round has been presented)
+	const methodsOf = (betType: keyof typeof BET_TYPE_METHODS_MAP) =>
+		settleWinsAfterPresentation && betType === 'singleRoundWin' ? BET_TYPE_METHODS_MAP.bonusWin : BET_TYPE_METHODS_MAP[betType];
+
 	const getBetType: (args: { bet: TBet }) => keyof typeof BET_TYPE_METHODS_MAP = ({ bet }) => {
 		const isBonusGame = checkIsBonusGame(bet);
 
@@ -186,7 +197,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 
 			const bet = data.round as TBet;
 			const betType = getBetType({ bet });
-			await BET_TYPE_METHODS_MAP[betType].newGame();
+			await methodsOf(betType).newGame();
 
 			return { bet };
 		}
@@ -205,7 +216,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 			//End Round resumed active bet
 			const bet = betToResume as TBet;
 			const betType = getBetType({ bet });
-			await BET_TYPE_METHODS_MAP[betType].newGame();
+			await methodsOf(betType).newGame();
 
 			return { bet: onResumeGameActive(betToResume), rawBet: betToResume };
 		}
@@ -229,7 +240,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 			const targetBet = input.rawBet || input.bet;
 			if (targetBet) {
 				const betType = getBetType({ bet: targetBet });
-				await BET_TYPE_METHODS_MAP[betType].endGame();
+				await methodsOf(betType).endGame();
 			}
 		},
 	);

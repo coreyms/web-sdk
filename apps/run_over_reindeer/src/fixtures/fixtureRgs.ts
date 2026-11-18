@@ -38,6 +38,11 @@ export const FIXTURE_ORDER: Record<'base' | 'bonus' | 'super', string[]> = {
 };
 
 const RESUME_KEY = 'reindeer.fixture.resume';
+/** THE OPEN ROUND ACROSS A RELOAD (2026-11-18): a real RGS holds a paying round active until its end-round, whatever the
+ *  page does; this RGS lives in the page, so the open round and the wallet as it stood are kept in the tab's session
+ *  storage from the play until the end-round, and a reload before that gets them back from authenticate (a round that
+ *  pays nothing is closed by its play, as on the real RGS, and is never kept) */
+const OPEN_KEY = 'reindeer.fixture.open';
 const MULT = 1_000_000; // API amounts are millionths of a unit
 const HOST = 'fixture';
 const START_BALANCE = 1_000 * MULT;
@@ -57,6 +62,8 @@ const state = {
 	custom: null as FixtureRound | null,
 	round: null as Json | null,
 	plays: [] as { name: string; mode: string; amount: number; payout: number }[],
+	/** end-rounds that settled an open round on this page */
+	settled: 0,
 };
 
 const byName = (name: string): FixtureRound | undefined => FIXTURE_ROUNDS.find((r) => r.name === name);
@@ -96,6 +103,15 @@ const handle = (path: string, body: Json): { status: number; data: Json } => {
 			if (want && fixture) {
 				open = { betID: 1, amount: MULT, payout: Math.round(fixture.payoutMultiplier * MULT), payoutMultiplier: fixture.payoutMultiplier, active: true, state: fixture.events, mode: fixture.mode.toUpperCase(), event: String(want.event) };
 				state.round = open;
+			} else {
+				// a reload with a round still open here (OPEN_KEY): it comes back, with the wallet as the play left it
+				const kept = sessionStorage.getItem(OPEN_KEY);
+				const o = kept ? (JSON.parse(kept) as { round: Json; balance: number }) : null;
+				if (o && o.round && o.round.active) {
+					open = { ...o.round, event: String(o.round.event ?? 0) };
+					state.round = open;
+					state.balance = o.balance;
+				}
 			}
 		} catch {
 			/* no storage: no resume */
@@ -144,12 +160,25 @@ const handle = (path: string, body: Json): { status: number; data: Json } => {
 		state.plays.push({ name: fixture.name, mode, amount: amount / MULT, payout: payout / MULT });
 		// a round that pays nothing is closed by the play itself (no end-round follows), as on the real RGS
 		if (payout === 0) (state.round as Json).active = false;
+		try {
+			if (payout > 0) sessionStorage.setItem(OPEN_KEY, JSON.stringify({ round: state.round, balance: state.balance }));
+			else sessionStorage.removeItem(OPEN_KEY);
+		} catch {
+			/* no storage: a reload loses the round, as before */
+		}
 		return { status: 200, data: { balance: balance(), round: state.round } };
 	}
 	if (path === '/wallet/end-round') {
 		if (state.round && state.round.active) {
 			state.balance += Number(state.round.payout) || 0;
 			state.round.active = false;
+			// (a DEV count of the end-rounds that settled a round: the resume probe's "exactly once")
+			state.settled += 1;
+		}
+		try {
+			sessionStorage.removeItem(OPEN_KEY);
+		} catch {
+			/* no storage */
 		}
 		return { status: 200, data: { balance: balance() } };
 	}
@@ -234,7 +263,7 @@ export const installFixtureRgs = () => {
 				return latencyMs;
 			},
 			/** what has been played, and the demo wallet */
-			log: () => ({ balance: state.balance / MULT, plays: [...state.plays] }),
+			log: () => ({ balance: state.balance / MULT, plays: [...state.plays], settled: state.settled, open: !!state.round?.active }),
 		},
 	});
 };
