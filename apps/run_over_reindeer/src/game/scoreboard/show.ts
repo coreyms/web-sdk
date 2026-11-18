@@ -18,7 +18,8 @@ import { LED_BOARD } from '../constants';
 export type Seg = { to: number; ms: number };
 /** win: a Big win and up; small: under the Big bar; fs, sfs: the Free Spins and the Super entries; total: the bonus round's
  *  Total Win (part B: the three bonus round cards on the back board, they wait for a press) */
-export type ShowKind = 'win' | 'small' | 'fs' | 'sfs' | 'total';
+/** (2026-11-17) press: the press screen after the studio splash on the expanded back board (newPressShow below) */
+export type ShowKind = 'win' | 'small' | 'fs' | 'sfs' | 'total' | 'press';
 export type Show = {
 	id: number;
 	kind: ShowKind;
@@ -356,4 +357,15 @@ export const dimAlpha = (s: Show | null): number => {
 	let v = D.alpha * clamp(s.t / D.inMs, 0, 1);
 	if (s.t > s.exitAt) v *= 1 - clamp((s.t - s.exitAt) / D.outMs, 0, 1);
 	return v;
+};
+
+/** THE PRESS SCREEN (2026-11-17, Corey approved: the press screen uses the game's own expanded LED board): the back board
+ *  rises as a card's does and stays up with the dim; the explainer screens cycle on it (game/scoreboard/stripDraw.ts
+ *  showPressScreens) and the strip says PRESS ANYWHERE TO CONTINUE once the press gate is open. The press ends it (endShow):
+ *  the board powers down and lowers with the game's own motion and the dim lifts. Never a timer of its own. */
+export const newPressShow = (fmt: (v: number) => string): Show => {
+	const s = newCardShow({ kind: 'fs', spins: 0, amount: 0, fmt, rate: 1 });
+	s.kind = 'press';
+	s.pressLineAt = null;
+	return s;
 };

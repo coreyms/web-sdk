@@ -1,8 +1,8 @@
 // THE STRIP'S NEWER PROGRAMS (2026-11-17, approved): the scatter anticipation count and the short Grandma line, drawn on the
 // strip's face at ONE PIXEL PER DOT like everything else on it (game/scoreboard/scoreboardDraw.ts). Plain 2D canvas drawing,
 // no filter. Strip only: the back board never shows these.
-import { LED_BOARD } from '../constants';
-import { drawText, textW } from '../landing/ledScreens';
+import { LED_BOARD, LED_SIGN } from '../constants';
+import { SCREENS, dissolve, drawText, textW, type LedText } from '../landing/ledScreens';
 import { burst, chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, type Face } from './scoreboardDraw';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -126,4 +126,50 @@ export function showGagShort(F: Face, t: number) {
 		}
 		x += w + s;
 	});
+}
+
+// ---- THE PRESS SCREEN ON THE EXPANDED BOARD (2026-11-17, Corey approved) ----------------------------------------------------
+/** the explainer screen shown at `T` s (the press screen's own cycle, constants LED_SIGN holdS and transS) */
+export const pressScreenAt = (T: number) => Math.floor(T / (LED_SIGN.holdS + LED_SIGN.transS)) % SCREENS.length;
+
+/** THE EXPLAINER SCREENS on the back board's face (the press screen's own drawing code, game/landing/ledScreens.ts SCREENS):
+ *  the max win, Santa's sleigh struck, Grandma's car struck, each held holdS and dissolving into the next over transS, as
+ *  the old billboard cycled them. `T` s since the board seated. */
+export function showPressScreens(F: Face, T: number, text: LedText) {
+	const W = F.dotsW;
+	const H = F.dotsH;
+	const period = LED_SIGN.holdS + LED_SIGN.transS;
+	const n = Math.floor(T / period);
+	const tau = T - n * period;
+	const N = SCREENS.length;
+	const i = n % N;
+	const o = F.out.ctx;
+	F.b.ctx.clearRect(0, 0, W, H);
+	SCREENS[i](F.b.ctx, W, H, tau, text);
+	if (tau < LED_SIGN.transS && n > 0) {
+		F.a.ctx.clearRect(0, 0, W, H);
+		SCREENS[(i + N - 1) % N](F.a.ctx, W, H, period + tau, text);
+		o.clearRect(0, 0, W, H);
+		dissolve(o, F.a, F.b, F.noise, tau / LED_SIGN.transS, W, H);
+	} else {
+		o.clearRect(0, 0, W, H);
+		o.drawImage(F.b, 0, 0);
+	}
+}
+
+/** THE PRESS LINE on the strip (the entry item while the press screen is up): PRESS ANYWHERE TO CONTINUE, pulsing, once the
+ *  press gate is open (blank before); scrolled when it does not fit. `t` ms. */
+export function showPressLine(F: Face, t: number, ready: boolean, line: string) {
+	const g = F.out.ctx;
+	const W = F.dotsW;
+	const H = F.dotsH;
+	g.clearRect(0, 0, W, H);
+	if (!ready) return;
+	const s = textW(line, 2) <= W - 6 && H >= 17 ? 2 : 1;
+	const w = textW(line, s);
+	const y = Math.round((H - 7 * s) / 2);
+	g.globalAlpha = 0.55 + 0.45 * (0.5 + 0.5 * Math.cos((t / 1000) * Math.PI * 2 * 0.75));
+	if (w <= W - 4) drawText(g, line, Math.round((W - w) / 2), y, s, '#ffe7b0');
+	else drawText(g, line, Math.round(W - (((t / 1000) * 26 * s) % (w + W))), y, s, '#ffe7b0');
+	g.globalAlpha = 1;
 }

@@ -41,12 +41,23 @@ const VIDEO = process.env.VIDEO === '1';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 // (2026-11-17) the cases in three parts, each inside one browser lock turn: a (one, three, treatment B's own wins), b (the
 // turbo levels and the slam stop), c (twelve lines, the cost, the palette stills)
-const PART = (process.env.PART || 'a,x,b,c').split(',');
+const PART = (process.env.PART || 'a,x,b,c,clear').split(',');
 const part = (x) => PART.includes(x);
 if (OUT) mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FRAME = 1000 / 60;
 
+// (2026-11-18, PART=clear) the sizes the amounts' clearance is checked at: Corey's 2000x945 window and the common desktop and
+// wide sizes, with the existing two
+const CLEAR_SIZES = [
+	{ name: 'w2000', vp: { width: 2000, height: 945 }, dpr: 1, phone: false },
+	{ name: 'w1280', vp: { width: 1280, height: 720 }, dpr: 1, phone: false },
+	{ name: 'w1366', vp: { width: 1366, height: 768 }, dpr: 1, phone: false },
+	{ name: 'w2560', vp: { width: 2560, height: 1080 }, dpr: 1, phone: false },
+	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 1, phone: false },
+	{ name: 'wide', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false },
+	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 2, phone: true },
+].filter((s) => !ONLY.length || ONLY.includes(s.name));
 const SIZES = [
 	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 2, phone: false },
 	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true },
@@ -73,6 +84,16 @@ const BOOKS = {
 			{ symbol: 'H1', kind: 4, line: 1, win: 500, multiplier: 1, cells: row(0, 4) },
 			{ symbol: 'H4', kind: 3, line: 2, win: 50, multiplier: 1, cells: row(1, 3) },
 			{ symbol: 'L1', kind: 5, line: 4, win: 250, multiplier: 1, cells: row(3, 5) },
+		],
+	),
+	// (2026-11-18) the bottom lane only: lines 4, 10 and 12 all through the bottom lane (L1 five of a kind each, 3x and 1x),
+	// competing for the same places: some go to the lane line under the bottom row, next to the LED strip
+	bottom: book(
+		[['H2', 'L3', 'L4', 'L1'], ['H3', 'L5', 'L1', 'L1'], ['L2', 'L4', 'L1', 'L1'], ['H4', 'L5', 'L1', 'L1'], ['L3', 'H2', 'L5', 'L1']],
+		[
+			{ symbol: 'L1', kind: 5, line: 4, win: 750, multiplier: 3, cells: row(3, 5) },
+			{ symbol: 'L1', kind: 5, line: 10, win: 250, multiplier: 1, cells: [3, 7, 10, 15, 19] },
+			{ symbol: 'L1', kind: 5, line: 12, win: 750, multiplier: 3, cells: [3, 6, 11, 14, 19] },
 		],
 	),
 	// TREATMENT B (2026-11-17): three lines, the first and the third through a 5x Wild (posed: presentation only), the second
@@ -510,11 +531,53 @@ const md = (tag, W) => {
 	return out.join('\n') + '\n';
 };
 
+/** THE AMOUNTS' CLEARANCE (PART=clear, 2026-11-18, Corey: "the Win Amount is partially hidden behind the small LED screen
+ *  below the board" at about 2000x945): through every frame of a 12 line win and a bottom lane win, every line's amount and
+ *  multiplier, as drawn (their bounds on the canvas, CSS px), stays clear of the LED strip (from its snow cap's top), the HUD
+ *  (from its top), the logo sign (its visible art's box) and the road's frame (inside the tunnel mouths) */
+async function clearance(browser) {
+	for (const S of CLEAR_SIZES) {
+		const { ctx, p, errs } = await boot(browser, S);
+		const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+		const geo = await R(p, async () => {
+			const A = (await import('/src/game/roadArtSpec.ts')).ROAD_ART;
+			const sb = window.__reindeer.scoreboard();
+			const pic = window.__reindeer.scene().picture;
+			const logo = window.__reindeer.scene()?.logo?.css ?? null;
+			return { strip: sb?.strip ?? null, hudTop: sb?.hudTop ?? null, logo, mouthL: pic.x + A.covers.left.mouth * pic.k, mouthR: pic.x + A.covers.right.mouth * pic.k };
+		});
+		const twelveBook = await R(p, async () => (await import('/src/fixtures/showcaseBooks.ts')).SHOWCASE_ROUNDS.find((r) => r.name === 'base_two_columns').events);
+		for (const [name, bk] of [['twelve lines (base_two_columns)', twelveBook], ['bottom lane', BOOKS.bottom]]) {
+			const W = await playWin(p, S, bk);
+			const hits = [];
+			let boxes = 0;
+			for (const r of W.rows)
+				for (const l of r.lines ?? []) {
+					const b = l.amount?.box;
+					if (!b || !l.amount.shown) continue;
+					boxes += 1;
+					const over = (o) => !!o && b.x < o.x + o.w && o.x < b.x + b.w && b.y < o.y + o.h && o.y < b.y + b.h;
+					const strip = geo.strip ? { x: geo.strip.x, y: geo.strip.capTop, w: geo.strip.w, h: geo.strip.housingBottom - geo.strip.capTop } : null;
+					const why = [];
+					if (over(strip)) why.push('strip');
+					if (geo.hudTop !== null && b.y + b.h > geo.hudTop) why.push('HUD');
+					if (geo.logo && over({ x: geo.logo.x, y: geo.logo.y, w: geo.logo.width, h: geo.logo.height })) why.push('logo');
+					if (b.x < geo.mouthL || b.x + b.w > geo.mouthR) why.push('frame');
+					if (why.length) hits.push({ ms: r.ms, line: l.line, state: l.amount.state, why: why.join('+'), box: b });
+				}
+			check(boxes > 20 && hits.length === 0, `${tag} ${name}: every line's amount and multiplier stays clear of the LED strip, the HUD, the logo sign and the frame through the whole slam (${boxes} drawn boxes, ${hits.length} touching)`, { hits: hits.slice(0, 4), strip: geo.strip, hudTop: geo.hudTop });
+		}
+		check(errs.length === 0, `${tag}: no page errors`, errs);
+		await ctx.close();
+	}
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 const result = {};
+if (part('clear')) await clearance(browser);
 const crops = {};
 try {
-	for (const S of SIZES) {
+	for (const S of ['a', 'x', 'b', 'c'].some(part) ? SIZES : []) {
 		const { ctx, p, errs } = await boot(browser, S);
 		const T = await R(p, () => JSON.parse(JSON.stringify(window.__reindeer.tune.lineWin)));
 		console.log(`-- ${S.name} ${S.vp.width}x${S.vp.height}`);

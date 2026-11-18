@@ -845,6 +845,10 @@ export class RoadBoard {
 	 *  message) every line at once with the total. `pace` is the turbo level's share of every time (LINE_WIN.holdShare);
 	 *  `capped` (a max win spin): no line's own amount (the lines pay more than is awarded), only the total. Resolves
 	 *  when the hold after the total is over. */
+	/** THE AMOUNTS' FLOOR (road px; components/Board.svelte sets it from the LED strip's place): a line amount never reaches
+	 *  below it (the strip's snow cap, or the HUD's top where it is higher). Infinity: none. */
+	labelFloor = Infinity;
+
 	showWin(wins: LineWinSpec[], amountText: string, holdMs: number, multiplier = 1, opts: ShowWinOpts = {}): Promise<void> {
 		const pace = opts.pace ?? 1;
 		const cells = new Set<number>();
@@ -886,7 +890,7 @@ export class RoadBoard {
 				const k = Math.abs(this.root.scale.x) || 1;
 				const phone = !!opts.phone && SL.phone.on;
 				const scale = phone ? Math.max(1, SL.phone.capPx / (SL.capRatio * LINE_WIN.lights.amount.size * k)) : 1;
-				slam = { scale, phone, left: MOUTH_L, right: MOUTH_R, topLine: LINES[0] };
+				slam = { scale, phone, left: MOUTH_L, right: MOUTH_R, topLine: LINES[0], floor: this.labelFloor };
 			}
 			this.winFx.set(lines, pace, slam ? true : drawn.length > 1 && !opts.capped, slam);
 			const plan = this.winFx.slamPlan();

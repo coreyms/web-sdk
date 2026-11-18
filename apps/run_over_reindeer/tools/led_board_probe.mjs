@@ -54,7 +54,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -1130,7 +1130,9 @@ async function stripOrder(p, S) {
 		s = await step(100);
 		if (seq[seq.length - 1] !== it(s)) seq.push(it(s));
 	}
-	check(f0 === 'spinsLeft' && f1.item === 'spinsLeft' && f1.gag && seq.includes('gag') && seq.includes('cartoon') && seq.includes('spinsLeft'), `${tag}: ORDER 5 over 6 and 7: in a bonus round the spins left show as it starts and in their windows, over the gag (${f1.item} with the gag true under it); the gag and the cartoons show between (${seq.join(' > ')})`, { f0, f1, seq });
+	// (2026-11-18, Corey: no idle animations in a bonus round: the spins left are the resting state, the Grandma line shows
+	// over them, never a cartoon)
+	check(f0 === 'spinsLeft' && f1.item === 'gag' && f1.gag && seq.includes('spinsLeft') && !seq.includes('cartoon') && !seq.includes('race'), `${tag}: a bonus round rests on the spins left, the Grandma line shows over them, no cartoon or race (${f0}, then ${f1.item}; ${seq.join(' > ')})`, { f0, f1, seq });
 	await R(p, () => void window.__reindeer.scoreboardWin(3.4));
 	s = await step(100, 2);
 	check(it(s) === 'winAmount', `${tag}: ORDER 4 over 5: a win amount in a bonus round shows over the spins left (${it(s)})`);
@@ -1151,7 +1153,8 @@ async function stripOrder(p, S) {
 	await R(p, () => window.__reindeer.roundSign(false));
 	await sleep(120);
 	s = await step(100, 3);
-	check(r0 === 'race' && r1x !== 'race' && s.cartoon.key !== 'race' && L.some((l) => l.what === 'race' && /skipped/.test(l.detail ?? '')), `${tag}: ORDER 8: the race plays at true idle (${r0}); away from it (a bonus round) it is cut and the cartoons go on (${r1x}, then ${s.cartoon.key})`, { r0, r1x, cartoon: s.cartoon, log: L.slice(-5) });
+	// (a bonus round shows no idle content since 2026-11-18: the race is simply not shown there)
+	check(r0 === 'race' && r1x !== 'race' && r1x !== 'cartoon', `${tag}: ORDER 8: the race plays at true idle (${r0}); away from it (a bonus round) it is cut (${r1x})`, { r0, r1x, cartoon: s.cartoon, log: L.slice(-5) });
 	await step(100, 30);
 	// THE SHORT GRANDMA LINE by hand: one screen, its words, about 1.5 s
 	await R(p, () => window.__reindeer.scoreboardGag(true));
@@ -1275,11 +1278,148 @@ async function gagModes(p, S) {
 	check(stopped && m2.length >= 1 && m2[0] === 'short', `${tag}: in autoplay the Grandma gag is the short line (${m2.join(', ')})`, m2);
 }
 
+/** THE BONUS ROUND'S STRIP (2026-11-18, Corey: "take the idle animations on the small LED screen out of Bonus Games, it's
+ *  causing them to flash back and forth"): over a whole natural_free_spins round and a natural_super round, from the entry
+ *  board's end to the wrap-up board's end the strip shows no cartoon or race; the Grandma line at most LED_BOARD.gagPerBonus
+ *  times; no two changes of the strip closer than LED_BOARD.bonusHoldMs unless the new item ranks higher (an interrupt);
+ *  the spins left whenever nothing else is due */
+async function bonusStrip(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	const K = await R(p, () => ({ hold: window.__reindeer.tune.ledBoard.bonusHoldMs, gags: window.__reindeer.tune.ledBoard.gagPerBonus, order: window.__reindeer.tune.ledBoard.stripOrder }));
+	const rank = (x) => K.order.indexOf(x);
+	for (const name of ['natural_free_spins', 'natural_super']) {
+		const seen = new Map();
+		const samples = [];
+		let pressed = 0;
+		const r = await playRound(p, name, {
+			limit: 300000,
+			during: async () => {
+				const o = await R(p, () => { const s = window.__reindeer.scoreboard(); return { log: s.log, free: s.free, item: s.stripPick?.item, truth: s.stripPick?.truth, card: s.card, clock: s.clock }; });
+				for (const l of o.log) seen.set(`${l.at}|${l.what}|${l.detail}`, l);
+				samples.push(o);
+				// press through the cards (entry and wrap-up) after a short look
+				if (o.card && pressed < 6) {
+					pressed += 1;
+					await sleep(1200);
+					await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3).catch(() => {});
+				}
+			},
+		});
+		const log = [...seen.values()].sort((a, b) => a.at - b.at);
+		// the bonus round's span: from the first spin played under it (free true) to the wrap-up's end
+		const freeSamples = samples.filter((x) => x.free && !x.card);
+		const t0 = freeSamples[0]?.clock ?? Infinity;
+		const t1 = freeSamples[freeSamples.length - 1]?.clock ?? -Infinity;
+		const inRound = log.filter((l) => l.at >= t0 && l.at <= t1);
+		const strip = inRound.filter((l) => l.what === 'strip').map((l) => ({ at: l.at, item: /^(\w+)/.exec(l.detail)[1], was: /was (\w+)/.exec(l.detail)?.[1] }));
+		const idle = strip.filter((x) => x.item === 'cartoon' || x.item === 'race');
+		check(r.ok && freeSamples.length > 10 && idle.length === 0 && !freeSamples.some((x) => x.item === 'cartoon' || x.item === 'race'), `${tag} ${name}: in the bonus round the strip never shows a cartoon or the race (${strip.length} changes: ${[...new Set(strip.map((x) => x.item))].join(', ')})`, { idle: idle.slice(0, 4), ok: r.ok });
+		const gags = inRound.filter((l) => l.what === 'gag' && /^start/.test(l.detail ?? ''));
+		check(gags.length <= K.gags, `${tag} ${name}: the Grandma line at most ${K.gags} times in the round (${gags.length}: ${gags.map((g) => g.detail).join(', ')})`);
+		const fast = strip.filter((x, i) => i > 0 && x.at - strip[i - 1].at < K.hold && !(rank(x.item) < rank(x.was)));
+		check(fast.length === 0, `${tag} ${name}: no two changes of the strip closer than ${K.hold} ms unless the new item ranks higher (${fast.length} too close)`, fast.slice(0, 4));
+		const rest = freeSamples.filter((x) => x.truth && Object.entries(x.truth).every(([k, v]) => !v || ['spinsLeft', 'cartoon', 'race'].includes(k)));
+		check(rest.length > 0 && rest.every((x) => x.item === 'spinsLeft'), `${tag} ${name}: the spins left show whenever nothing else is due (${rest.length} samples, ${rest.filter((x) => x.item !== 'spinsLeft').length} not)`);
+	}
+}
+
+/** THE EXPLANATION ON THE BIG BOARD (2026-11-18, constants LED_BOARD.explain): for the Free Spins entry, the Super entry and a
+ *  wrap-up with a line (a top-up), in layouts A and B, driven by hand past the READY beat: the sentence's text box lies inside
+ *  the back board's face and touches nothing (A: not the head), every word is there, and the strip shows the press line alone
+ *  (no sentence on it) */
+async function explainBoards(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	const line = 'Includes $12.30 added to bring this round up to its 10x minimum.';
+	const want = await R(p, () => window.__reindeer.tune);
+	void want;
+	for (const layout of ['A', 'B']) {
+		for (const [kind, opts, sentenceOf] of [
+			['fs', {}, (c) => c.bonus],
+			['sfs', {}, (c) => c.super],
+			['total', { line }, () => line],
+		]) {
+			const r = await R(p, ([layout, kind, opts]) => {
+				const h = window.__reindeer;
+				h.tune.ledBoard.explain.layout = layout;
+				h.scoreboardManual(true);
+				h.scoreboardCard(kind, opts);
+				const rows = [];
+				for (let t = 0; t < 12000; t += 100) {
+					const s = h.scoreboardStep(100);
+					const back = h.scoreboardFace('back');
+					const strip = h.scoreboardFace('strip');
+					if (back.explain && back.explain.page === 'explain') rows.push({ t: s.show?.t, ex: back.explain, stripWait: strip.entryWait, item: s.stripPick?.item });
+					if (rows.length > 3) break;
+				}
+				h.scoreboardCardEnd();
+				h.scoreboardLower();
+				h.scoreboardStep(100, 30);
+				h.scoreboardManual(false);
+				h.tune.ledBoard.explain.layout = 'A';
+				return rows;
+			}, [layout, kind, opts]);
+			const sentence = sentenceOf(INTRO);
+			const e = r[r.length - 1]?.ex;
+			const b = e?.box;
+			const inside = !!b && b.x >= 0 && b.y >= 0 && b.x + b.w <= e.W && b.y + b.h <= e.H;
+			const hd = e?.head;
+			const apart = !hd || !b || b.y >= hd.y + hd.h || hd.y >= b.y + b.h;
+			const words = e ? e.lines.join(' ') : '';
+			check(r.length > 0 && inside && apart && words === sentence.replace(/\s+/g, ' '), `${tag} ${kind} layout ${layout}: the explanation is on the big board, inside its face (${b ? `${b.x},${b.y} ${b.w}x${b.h} of ${e.W}x${e.H}` : 'none'}) and clear of the head, every word there, ${e?.lines.length ?? 0} line(s) at size ${e?.z ?? '-'}`, { e, sentence });
+			check(r.length > 0 && r.every((x) => !x.stripWait && x.item === 'entry'), `${tag} ${kind} layout ${layout}: the strip shows the press line alone (no sentence on it)`, r.map((x) => x.stripWait));
+		}
+	}
+}
+
+/** THE PRESS SCREEN ON THE BOARD (2026-11-17, constants LED_SIGN.onBoard): a fresh page, the splash left to play out, then
+ *  the board's own expanded state with the dim and the strip's line, the screens advancing, and the press lowering it */
+async function pressBoard(browser, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: 1, isMobile: S.phone, hasTouch: S.phone });
+	const p = await ctx.newPage();
+	const errs = [];
+	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+	try {
+		await p.goto(`${APP}/?lang=en&sessionID=ledpress${S.name}${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
+		let s = null;
+		for (let i = 0; i < 300; i++) {
+			s = await R(p, () => window.__reindeer?.scoreboard?.() ?? null).catch(() => null);
+			if (s?.press?.ready && s.show?.phase === 'hold') break;
+			await sleep(400);
+		}
+		const want = await R(p, () => window.__reindeer.tune.ledBoard.dim.alpha);
+		check(!!s?.press && s.show?.kind === 'press' && s.back.visible && Math.abs(s.back.offset) < 0.5 && Math.abs(s.dim.alpha - want) < 0.01 && s.stripPick?.item === 'entry', `${tag}: PRESS: the back board expanded (offset ${s?.back?.offset}), the scene dimmed (${s?.dim?.alpha}), the strip's top item the press line (${s?.stripPick?.item})`, s && { show: s.show, back: s.back, dim: s.dim, press: s.press });
+		const seen = await R(p, () => {
+			window.__reindeer.scoreboardManual(true);
+			const out = [];
+			for (let i = 0; i < 130; i++) {
+				const x = window.__reindeer.scoreboardStep(100);
+				if (out[out.length - 1] !== x.press?.screen) out.push(x.press?.screen);
+			}
+			window.__reindeer.scoreboardManual(false);
+			return out;
+		});
+		check(new Set(seen).size === 3, `${tag}: PRESS: the explainer screens advance on the board (${seen.join(' > ')})`);
+		await p.mouse.click(S.vp.width / 2, S.vp.height * 0.45);
+		let g = null;
+		for (let i = 0; i < 40; i++) {
+			await sleep(100);
+			g = await R(p, () => { const s = window.__reindeer.scoreboard(); return { vis: s.back.visible, dim: s.dim.alpha, press: s.press, landing: !!document.querySelector('.landing') }; });
+			if (!g.vis && g.dim === 0 && !g.press && !g.landing) break;
+		}
+		check(!!g && !g.vis && g.dim === 0 && !g.press && !g.landing, `${tag}: PRESS: the press lowers the board and lifts the dim`, g);
+		check(errs.length === 0, `${tag}: PRESS: no page errors`, errs);
+	} finally {
+		await ctx.close();
+	}
+}
+
 (async () => {
 	const browser = await chromium.launch({ args: ['--mute-audio'] });
 	const memory = {};
 	try {
 		for (const S of SIZES) {
+			if (SEC('press')) await pressBoard(browser, S).catch((e) => check(false, `${S.name}: PRESS ran to its end`, String(e).slice(0, 300)));
 			const { ctx, p, errs } = await boot(browser, S);
 			try {
 				await sizeChecks(p, S, memory);
@@ -1294,6 +1434,8 @@ async function gagModes(p, S) {
 				if (SEC('strip') && ['desktop', 'portrait'].includes(S.name)) await stripOrder(p, S);
 				if (SEC('scatter') && ['desktop', 'portrait'].includes(S.name)) await scatterRounds(p, S);
 				if (SEC('gagModes') && S.flows) await gagModes(p, S);
+				if (SEC('bonusStrip') && ['desktop', 'portrait'].includes(S.name)) await bonusStrip(p, S);
+				if (SEC('explain')) await explainBoards(p, S);
 				if (S.flows) await flows(p, S, errs);
 				else check(errs.length === 0, `${S.name}: no page errors`, errs);
 			} catch (e) {

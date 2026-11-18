@@ -210,6 +210,12 @@ export const META: Record<string, Meta> = {
 	'ledBoard.pace.holdAutoMs': ms(4000, 'hold in autoplay'),
 	'ledBoard.small': { label: 'Small win', when: 'win' },
 	'ledBoard.gag': { label: 'Grandma gag', when: 'live' },
+	// (2026-11-18) the explanation on the big board: one page (A) or two pages (B)
+	'ledBoard.explain': { label: 'Entry explanation on the big board', when: 'live' },
+	'ledBoard.explain.layout': { label: 'layout (A: one page, B: two pages)', options: ['A', 'B'] },
+	'ledBoard.explain.headShare': { label: 'A: the head share of the board', min: 0.25, max: 0.6, step: 0.01 },
+	'ledBoard.explain.pageMs.*': ms(8000),
+	'ledBoard.explain.wipeMs': ms(1000, 'wipe'),
 	'ledBoard.gag.ms': ms(10000, 'length'),
 	'ledBoard.race': { label: 'Race', when: 'live' },
 	'ledBoard.race.odds.*': { min: 0, max: 1, step: 0.01 },

@@ -395,6 +395,12 @@ export type LedLayout = { unit: 'master' | 'css'; faceW: number; faceH: number; 
 export const LED_SIGN = {
 	/** false = the old press screen (the HTML line over the posed board) */
 	on: true,
+	/** THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (Corey 2026-11-17, approved): true plays the three screens below on the
+	 *  scoreboard's expanded back board (the same board, rise, dim and drawing as a big win or a bonus entry: game/scoreboard/),
+	 *  PRESS ANYWHERE TO CONTINUE on the strip under it (the strip's top item while the screen is up), the logo sign where it
+	 *  sits in the game, and the press lowers the board with its own motion and lifts the dim. false: the separate roadside
+	 *  billboard below (game/landing/ledSign.ts, kept). */
+	onBoard: true,
 	density: 1.25,
 	tickerDots: 11,
 	/** the dots' content is redrawn and sent to the GPU this many times a second (an LED controller's refresh) */
@@ -1406,6 +1412,15 @@ export const LED_BOARD = {
 	 *    race       the race, only at true idle (the base game, no autoplay, nothing playing): elsewhere the cartoons skip it */
 	stripOrder: ['entry', 'bigWin', 'scatter', 'winAmount', 'spinsLeft', 'gag', 'cartoon', 'race'] as ('entry' | 'bigWin' | 'scatter' | 'winAmount' | 'spinsLeft' | 'gag' | 'cartoon' | 'race')[],
 	spinsLeftMs: 2000,
+	/** A BONUS ROUND'S STRIP (Corey 2026-11-18: "take the idle animations on the small LED screen out of Bonus Games, it's
+	 *  causing them to flash back and forth"): in Free Spins and Super Free Spins the strip never shows the cartoons or the
+	 *  race; the spins left are its resting state, up whenever nothing higher is due (spinsLeftMs and counterBreak are then
+	 *  unused). The Grandma line plays at most gagPerBonus times a round (the short line); after that a strike shows none.
+	 *  No flashing: in a bonus round the strip goes down to a lower item only bonusHoldMs after its last change (a higher
+	 *  item still cuts in at once). */
+	bonusIdle: false,
+	gagPerBonus: 2,
+	bonusHoldMs: 1000,
 	/** THE SCATTER ANTICIPATION COUNT (Corey 2026-11-17, approved: "Strip only, maybe show the scatter symbol animations, maybe
 	 *  some fireworks on the LED board when it hits successfully"). While a spin is in anticipation (config.anticipationAt
 	 *  presents seen, cars still to come, a trigger still possible: game/road/roadBoard.ts scatterCount) the strip shows the
@@ -1429,6 +1444,15 @@ export const LED_BOARD = {
 	 *  on its top row with PRESS ANYWHERE TO CONTINUE under it, so the press line is never off the strip. A strip too short
 	 *  for two rows alternates: one pass of the sentence, then the press line for pressMs. */
 	entryLine: { on: true, charsPerSec: 9, pressMs: 1600 },
+	/** THE EXPLANATION ON THE BIG BOARD (Corey 2026-11-18: "This explanation should really be on the bigger LED board, not
+	 *  cramped on the smaller one"; game/scoreboard/explainDraw.ts). From an entry's READY beat (a Free Spins or Super entry)
+	 *  and from a wrap-up's landing when it carries a line (a top-up, the cap), the sentence is on the BACK BOARD, whole and
+	 *  still, wrapped into centered lines of the board's 5 x 7 face at the largest size that fits (at most maxLines); the strip
+	 *  carries PRESS ANYWHERE TO CONTINUE alone (entryLine above is then unused). layout 'A': one page, the count and the
+	 *  title (or the wrap-up's title and amount) in the upper headShare of the board, the sentence under it, a wipe into it
+	 *  over wipeMs. 'B': two pages, the scene's own big page and a page with the sentence alone, pageMs each, a wipe between.
+	 *  In autoplay the cards continue as before (ROUND.autoplayMs, before the READY beat): today's rule. */
+	explain: { on: true, layout: 'A' as 'A' | 'B', headShare: 0.36, maxLines: 6, wipeMs: 350, pageMs: [3200, 4200] },
 	/** THE BACK BOARD'S TITLES (BIG to MAX WIN, FREE SPINS, TOTAL WIN; 2026-11-17): matters of taste only (every title and
 	 *  amount is centered on its drawn dots by the code): per layout class (desktop and tablet, a phone held sideways, an
 	 *  upright phone) the title's size (x the dot scale the layout picks; never wider than the face less its margins);
