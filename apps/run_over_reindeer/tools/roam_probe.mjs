@@ -4,7 +4,7 @@
 // WATCHES: ; __reindeer.roamStandAt, __reindeer.roamStrike, __reindeer.roamView, __reindeer.roamWalkIn, __reindeer.roamZones, __reindeer.roadBoard
 // WATCHES: ; __reindeer.clock, __reindeer.atRest, __reindeer.hud, __reindeer.strike, __reindeer.turbo, __reindeer.runMemory, __reindeer.scene
 // WATCHES: ; __reindeer.sceneSwap, __reindeer.sceneWant, __reindeer.step, STRIKE.roam, ROAM, ROAM_AREAS, data-roam-area, data-roam-json
-// WATCHES: ; data-roam-overlay, data-roam-wp
+// WATCHES: ; data-roam-overlay, data-roam-wp, data-roam-mouth, ROAM_TUNNELS, ROAM_TUNNEL_MOUTH, counts.corridor, counts.rounds
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -25,6 +25,11 @@
 //   8  every fixture book (base and bonus): each spin (reveal to reveal) with strikes has exactly one first and one last
 //   the editor: the staging panel's Reindeer area group shows the area, a corner drags (mouse; touch on the phones), one
 //      is added and removed, and the read back is the live areas as JSON
+//   the TUNNEL MOUTHS (2026-11-18, Corey): across every seeded walk (the 60 s of each sweep size, the 45 s wander, the
+//      picks' walks, routed round a mouth by their corners) his body, head and shadow never touch a mouth's polygon
+//      (game/roamPaths.ts ROAM_TUNNELS, all four corners); the TOP CORRIDOR: on a walk he may be partly above the screen's
+//      top (feet and 40 % of him on it), never at rest, at most 5 % of the time (the share and the walks that used it
+//      are printed per size)
 //   STRIKE.roam false: no roaming reindeer, and a spin's first strike is frame for frame the strike from off the screen
 //   a hidden tab: nothing moves; no page errors anywhere
 //
@@ -147,16 +152,54 @@ const bodyOf = (geo) => {
 	};
 	return { body, feet, withShadow, css: { w: r1(2 * side * k), h: r1(up * k) } };
 };
-/** what his body at (x, y) covers: zone names (the road by his feet), and 'screen' when it leaves the screen */
-const hitsAt = (geo, zones, x, y) => {
+/** (2026-11-18, the tunnel mouths, game/roamPaths.ts ROAM_TUNNELS) does a box (CSS px) overlap a polygon (CSS px) by
+ *  more than a hair (the box shrunk 0.25 px a side): a polygon corner in the box, a box corner in the polygon, or two
+ *  edges crossing */
+const boxMeetsPoly = (b, P) => {
+	const x0 = b.x0 + 0.25;
+	const x1 = b.x1 - 0.25;
+	const y0 = b.y0 + 0.25;
+	const y1 = b.y1 - 0.25;
+	if (x1 <= x0 || y1 <= y0) return false;
+	if (P.some((p) => p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1)) return true;
+	const corners = [
+		{ x: x0, y: y0 },
+		{ x: x1, y: y0 },
+		{ x: x1, y: y1 },
+		{ x: x0, y: y1 },
+	];
+	if (corners.some((c) => inPolyCss(c.x, c.y, P))) return true;
+	const cross = (a, b2, c, d) => {
+		const o = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+		return o(a, b2, c) * o(a, b2, d) < 0 && o(c, d, a) * o(c, d, b2) < 0;
+	};
+	for (let i = 0, j = P.length - 1; i < P.length; j = i++) for (let k = 0; k < 4; k++) if (cross(P[j], P[i], corners[k], corners[(k + 1) % 4])) return true;
+	return false;
+};
+const inPolyCss = (x, y, P) => {
+	let c = false;
+	for (let i = 0, j = P.length - 1; i < P.length; j = i++) if (P[i].y > y !== P[j].y > y && x < ((P[j].x - P[i].x) * (y - P[i].y)) / (P[j].y - P[i].y) + P[i].x) c = !c;
+	return c;
+};
+/** the tunnel mouths in CSS px for this view */
+const mouthsCss = (geo) => (geo.roam.tunnels ?? []).map((P) => P.map((p) => ({ x: geo.view.ox + p.x * geo.view.k, y: geo.view.oy + p.y * geo.view.k })));
+/** what his body at (x, y) covers: zone names (the road by his feet), 'tunnel mouth' (body, head and shadow), and
+ *  'screen' when it leaves the screen. `walking` (a frame of a walk, or a corner of a way round a mouth): the TOP
+ *  CORRIDOR is allowed, him partly above the top edge with his feet and 40 % of his height still on the screen (Corey
+ *  2026-11-18); a stop never */
+const hitsAt = (geo, zones, x, y, walking = false) => {
 	const B = bodyOf(geo);
 	const out = [];
 	// (the road at his feet; a stoplight by his body, his shadow may fall on it; every other keep-out by body and shadow)
 	for (const z of zones) if ((z.name === 'road' ? inter(B.feet(x, y), z) : z.name === 'stoplight' ? inter(B.body(x, y), z) : inter(B.withShadow(x, y), z)) > 0.5) out.push(z.name);
+	if (mouthsCss(geo).some((P) => boxMeetsPoly(B.withShadow(x, y), P))) out.push('tunnel mouth');
 	const b = B.body(x, y);
-	if (b.x0 < -0.5 || b.y0 < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) out.push('screen');
+	const topLine = walking ? b.y1 - (b.y1 - b.y0) * 0.4 : b.y0;
+	if (b.x0 < -0.5 || topLine < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) out.push('screen');
 	return out;
 };
+/** is he partly above the screen's top at (x, y) (CSS) */
+const offTopAt = (geo, x, y) => bodyOf(geo).body(x, y).y0 < -0.5;
 const inPoly = (x, y, P) => {
 	let c = false;
 	for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
@@ -255,7 +298,7 @@ async function sweepSize(p, S, name, errs, out) {
 		for (let i = 0; i < 60 * 60; i++) {
 			R.update(1000 / 60, 1, 1);
 			const ro = F.roam;
-			if (i % 2 === 0) pos.push([Math.round(ro.x * 10) / 10, Math.round(ro.y * 10) / 10]);
+			if (i % 2 === 0) pos.push([Math.round(ro.x * 10) / 10, Math.round(ro.y * 10) / 10, ro.state]);
 			if (ro.state === 'idle' && (!stops.length || Math.hypot(stops[stops.length - 1][0] - ro.x, stops[stops.length - 1][1] - ro.y) > 0.5)) stops.push([ro.x, ro.y]);
 		}
 		h.clock(1);
@@ -274,14 +317,29 @@ async function sweepSize(p, S, name, errs, out) {
 	// counts the rim) says.
 	const want = run.roam.kind === 'phone' ? 2 : run.roam.capacity >= 4 ? 4 : Math.min(2, run.roam.capacity);
 	const hits = [];
-	for (let i = 0; i < run.pos.length && hits.length < 5; i++) {
-		const hz = hitsAt(geo, run.zones, run.pos[i][0], run.pos[i][1]);
-		if (hz.length) hits.push(`${hz.join(', ')} at (${run.pos[i].join(', ')}), ${r1((i * 2) / 60)} s`);
+	const walkingState = (st) => st === 'start' || st === 'walk' || st === 'stop';
+	let offTop = 0;
+	let restOffTop = 0;
+	let mouthFrames = 0;
+	for (let i = 0; i < run.pos.length; i++) {
+		const [x, y, st] = run.pos[i];
+		const hz = hitsAt(geo, run.zones, x, y, walkingState(st));
+		if (hz.includes('tunnel mouth')) mouthFrames++;
+		if (offTopAt(geo, x, y)) {
+			offTop++;
+			if (!walkingState(st)) restOffTop++;
+		}
+		if (hz.length && hits.length < 5) hits.push(`${hz.join(', ')} at (${run.pos[i].join(', ')}), ${r1((i * 2) / 60)} s`);
 	}
 	// no shuffling: never straight back to the spot before while he has others
 	let backs = 0;
 	for (let i = 2; i < run.stops.length; i++) if (Math.hypot(run.stops[i][0] - run.stops[i - 2][0], run.stops[i][1] - run.stops[i - 2][1]) < 0.04 * W) backs++;
-	out.sweep = { kind: run.roam.kind, capacity: run.roam.capacity, relaxed: run.roam.relaxed, widen: run.roam.widen, stops: run.stops.length, spread: got, backs, at: run.stops.map((q) => [Math.round(q[0]), Math.round(q[1])]) };
+	out.sweep = { kind: run.roam.kind, capacity: run.roam.capacity, relaxed: run.roam.relaxed, widen: run.roam.widen, stops: run.stops.length, spread: got, backs, offTopShare: Math.round((offTop / Math.max(1, run.pos.length)) * 1000) / 10, rounds: run.roam.counts.rounds, corridor: run.roam.counts.corridor, walks: run.roam.counts.walks, at: run.stops.map((q) => [Math.round(q[0]), Math.round(q[1])]) };
+	// THE TUNNEL MOUTHS AND THE TOP CORRIDOR (Corey 2026-11-18): never a frame of his body, head or shadow on a mouth;
+	// never at rest partly off the screen; the corridor's share of the time kept small
+	check(mouthFrames === 0, `${name}: 60 s of his walk (${run.pos.length} frames): his body, head and shadow never on a tunnel mouth (${run.roam.counts.rounds} walks round one)`, out.sweep);
+	check(restOffTop === 0, `${name}: never at rest with any part off the screen`, out.sweep);
+	check(offTop / Math.max(1, run.pos.length) <= 0.05, `${name}: partly above the screen's top ${out.sweep.offTopShare} % of the time (the top corridor, ${run.roam.counts.corridor} of ${run.roam.counts.walks} walks; at most 5 %)`, out.sweep);
 	check(run.arrived, `${name}: he walks in and stops at a spot (${run.roam.kind}, area holds ${run.roam.capacity} spots 12 % apart${run.roam.relaxed ? ', widened to all the free snow' : ''})`);
 	check(got >= want, `${name}: in 60 s he stops at ${run.stops.length} spots, ${got} of them 12 % of the width apart (wanted ${want})`, out.sweep);
 	check(backs <= Math.max(1, Math.floor(run.stops.length / 4)), `${name}: no shuffling between two spots (${backs} straight returns in ${run.stops.length} stops)`, out.sweep);
@@ -317,7 +375,7 @@ async function sweepSize(p, S, name, errs, out) {
 	const upHits = [];
 	for (let i = 0; i < up.pos.length && upHits.length < 5; i++) {
 		// (a walk in starts past the screen's edge: off the screen is fine then, the zones are not)
-		const hz = hitsAt(geo, up.zones, up.pos[i][0], up.pos[i][1]).filter((z) => !(z === 'screen' && up.pos[i][2] === 'enter'));
+		const hz = hitsAt(geo, up.zones, up.pos[i][0], up.pos[i][1], walkingState(up.pos[i][2])).filter((z) => !(z === 'screen' && up.pos[i][2] === 'enter'));
 		if (hz.length) upHits.push(`${hz.join(', ')} at (${up.pos[i].join(', ')})`);
 	}
 	check(upHits.length === 0, `${name}: 20 s with the LED board raised, every frame his body and shadow clear of the board, the strip and every other keep-out (${up.pos.length} frames on the screen)`, upHits);
@@ -390,17 +448,25 @@ async function runSize(browser, S) {
 		const h0 = hitsAt(geo, zones, q.x, q.y);
 		if (h0.length) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) covers ${h0.join(', ')}`);
 		worstHead = Math.min(worstHead, headClear(geo, zones, q.x, q.y));
-		// the walk there (from the spot before, or level from past the screen's edge), every 4 road px
-		const n = Math.max(1, Math.ceil(Math.hypot(q.x - q.fromX, q.y - q.fromY) / 4));
-		for (let i = 1; i < n; i++) {
-			const x = q.fromX + ((q.x - q.fromX) * i) / n;
-			const y = q.fromY + ((q.y - q.fromY) * i) / n;
-			const hw = hitsAt(geo, zones, x, y).filter((z) => !(q.walkIn && z === 'screen'));
-			if (hw.length) {
-				bad.push(`the walk to (${r1(q.x)}, ${r1(q.y)}) covers ${hw.join(', ')} at (${r1(x)}, ${r1(y)})`);
-				break;
+		// the walk there (from the spot before, or level from past the screen's edge; round a tunnel mouth by its way's
+		// corners), every 4 road px; a walk's frames may use the top corridor
+		const legs = q.route && q.route.length > 1 ? q.route : [{ x: q.fromX, y: q.fromY }, { x: q.x, y: q.y }];
+		let broke = false;
+		for (let L = 0; L + 1 < legs.length && !broke; L++) {
+			const a = legs[L];
+			const b = legs[L + 1];
+			const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 4));
+			for (let i = L === 0 ? 1 : 0; i < n; i++) {
+				const x = a.x + ((b.x - a.x) * i) / n;
+				const y = a.y + ((b.y - a.y) * i) / n;
+				const hw = hitsAt(geo, zones, x, y, true).filter((z) => !(q.walkIn && z === 'screen'));
+				if (hw.length) {
+					bad.push(`the walk to (${r1(q.x)}, ${r1(q.y)}) covers ${hw.join(', ')} at (${r1(x)}, ${r1(y)})`);
+					broke = true;
+					break;
+				}
+				worstHead = Math.min(worstHead, headClear(geo, zones, x, y));
 			}
-			worstHead = Math.min(worstHead, headClear(geo, zones, x, y));
 		}
 		if (q.walkIn) {
 			if (Math.abs(q.y - q.fromY) > 1e-6) bad.push('a walk in that is not level');
@@ -441,7 +507,7 @@ async function runSize(browser, S) {
 				R.update(1000 / 60, 1, 1);
 				const ro = F.roam;
 				states.add(ro.state);
-				pos.push([Math.round(ro.x * 100) / 100, Math.round(ro.y * 100) / 100]);
+				pos.push([Math.round(ro.x * 100) / 100, Math.round(ro.y * 100) / 100, ro.state]);
 				if (ro.state === 'idle' && (!stops.length || Math.hypot(stops[stops.length - 1][0] - ro.x, stops[stops.length - 1][1] - ro.y) > 0.5)) stops.push([ro.x, ro.y]);
 				if (i % 6 === 0) trace.push([ro.state, Math.round(ro.x * 100) / 100, Math.round(ro.y * 100) / 100, ro.clip, Math.round(ro.frame * 100) / 100]);
 			}
@@ -456,10 +522,14 @@ async function runSize(browser, S) {
 	const offArea = w1.stops.filter((_, i) => !stopIn[i]);
 	check(offArea.length === 0, `${name}: every stop's feet are inside the area the game uses${geo.roam.widen ? ' (widened)' : ''}`, offArea.slice(0, 3));
 	const frameHits = [];
-	for (let i = 0; i < w1.pos.length && frameHits.length < 5; i++) {
-		const hz = hitsAt(geo, zones, w1.pos[i][0], w1.pos[i][1]);
-		if (hz.length) frameHits.push(`frame ${i}: ${hz.join(', ')} at (${w1.pos[i].join(', ')})`);
+	let wMouth = 0;
+	for (let i = 0; i < w1.pos.length; i++) {
+		const st = w1.pos[i][2];
+		const hz = hitsAt(geo, zones, w1.pos[i][0], w1.pos[i][1], st === 'start' || st === 'walk' || st === 'stop');
+		if (hz.includes('tunnel mouth')) wMouth++;
+		if (hz.length && frameHits.length < 5) frameHits.push(`frame ${i}: ${hz.join(', ')} at (${w1.pos[i].join(', ')})`);
 	}
+	check(wMouth === 0, `${name}: 45 s of his seeded walk (${w1.pos.length} frames): his body, head and shadow never on a tunnel mouth`, wMouth);
 	check(frameHits.length === 0, `${name}: every frame of the 45 s (${w1.pos.length}) his body is clear of every keep-out zone and on the screen`, frameHits);
 	const same = w1.trace.length === w2.trace.length && w1.trace.every((t, i) => t[0] === w2.trace[i][0] && t[3] === w2.trace[i][3] && Math.abs(t[1] - w2.trace[i][1]) < 0.1 && Math.abs(t[2] - w2.trace[i][2]) < 0.1 && Math.abs(t[4] - w2.trace[i][4]) < 0.1);
 	check(same, `${name}: the same seed walks the same way (seeded, no Math.random): ${w1.trace.length} samples match`);

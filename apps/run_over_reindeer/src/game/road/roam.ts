@@ -25,7 +25,7 @@ import * as PIXI from 'pixi.js';
 import { ROAM, SHADOW, STRIKE } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import { REINDEER_ROAM } from '../reindeerRoamSpec';
-import { ROAM_AREAS, ROAM_EDIT, ROAM_REF_RECT, type RoadRect, type RoamArea } from '../roamPaths';
+import { ROAM_AREAS, ROAM_EDIT, ROAM_REF_RECT, ROAM_TUNNELS, type RoadRect, type RoamArea } from '../roamPaths';
 import { ROAD_ART } from '../roadArtSpec';
 import { seeded } from './crosshair';
 import { roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
@@ -117,6 +117,80 @@ const inPoly = (x: number, y: number, P: Pt[], n: number) => {
 	return c;
 };
 
+// ---- THE TUNNEL MOUTHS (2026-11-18, Corey; game/roamPaths.ts ROAM_TUNNELS) ----------------------------------------------
+// Each mouth's polygon is made convex (its hull: a little more ground kept out, never less), then grown by his body box
+// with the shadow's lean (his feet's "configuration" obstacle): his feet outside it means his body, head and shadow are
+// all clear of the mouth. A walk is clear of it when its straight line does not cut the grown polygon (exact). A walk that
+// would cut it goes round it by the grown polygon's corners (a few corners, so the shortest way is found exactly).
+
+/** the convex hull of points, counter-clockwise in the y-down screen sense not assumed: orientation is read from the area */
+const hull = (pts: Pt[]): Pt[] => {
+	const p = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
+	if (p.length < 3) return p;
+	const cross = (o: Pt, a: Pt, b: Pt) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+	const lower: Pt[] = [];
+	for (const q of p) {
+		while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop();
+		lower.push(q);
+	}
+	const upper: Pt[] = [];
+	for (let i = p.length - 1; i >= 0; i--) {
+		const q = p[i];
+		while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], q) <= 0) upper.pop();
+		upper.push(q);
+	}
+	return lower.slice(0, -1).concat(upper.slice(0, -1));
+};
+/** the signed area's sign of a polygon (1 or -1): which side of each edge is inside */
+const orient = (P: Pt[]) => {
+	let a = 0;
+	for (let i = 0, j = P.length - 1; i < P.length; j = i++) a += (P[j].x - P[i].x) * (P[j].y + P[i].y);
+	return a > 0 ? 1 : -1;
+};
+/** is (x, y) strictly inside the convex polygon P (orientation o) */
+const inConvex = (x: number, y: number, P: Pt[], o: number) => {
+	for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+		const a = P[j];
+		const b = P[i];
+		if (o * ((b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x)) >= -1e-9) return false;
+	}
+	return true;
+};
+/** does the segment a to b cut the inside of the convex polygon P (orientation o): the part of the segment inside every
+ *  edge's half plane, solved (Cyrus-Beck) */
+const cutsConvex = (ax: number, ay: number, bx: number, by: number, P: Pt[], o: number) => {
+	let lo = 0;
+	let hi = 1;
+	const dx = bx - ax;
+	const dy = by - ay;
+	for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+		const a = P[j];
+		const b = P[i];
+		// inside: o * cross(b - a, p - a) < 0; along the segment: c0 + c1 t
+		const c0 = o * ((b.x - a.x) * (ay - a.y) - (b.y - a.y) * (ax - a.x));
+		const c1 = o * ((b.x - a.x) * dy - (b.y - a.y) * dx);
+		if (Math.abs(c1) < 1e-12) {
+			if (c0 >= -1e-9) return false;
+			continue;
+		}
+		const t = -c0 / c1;
+		if (c1 > 0) hi = Math.min(hi, t);
+		else lo = Math.max(lo, t);
+		if (hi - lo <= 1e-9) return false;
+	}
+	return hi - lo > 1e-9;
+};
+const TUNNEL_HULLS: Pt[][] = ROAM_TUNNELS.map((P) => hull(P.map((p) => ({ x: p.x, y: p.y }))));
+/** a corner of the way round a mouth stands this far off the grown polygon, road px */
+const ROUND_PAD = 3;
+/** a walk through the TOP CORRIDOR (Corey 2026-11-18: "better for it to go off the screen partially at the top, than it
+ *  would be for it to walk over the hill ... kept to a minimum ... it shouldn't stop in the off screen area"): a corner
+ *  of the way round a mouth may have him partly above the screen's top (his feet and this share of his height still
+ *  on it), never a spot he stops at; such a way costs this many times its length, and a spot reached only that way
+ *  scores lower */
+const CORRIDOR_SHOWN = 0.4;
+const CORRIDOR_COST = 3;
+
 export class Roam {
 	readonly sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	readonly shadow = makeShadow();
@@ -138,6 +212,21 @@ export class Roam {
 	private to: Pt = { x: 0, y: 0 };
 	private u = 0;
 	private len = 0;
+	/** the walk's way: from, the corners round a tunnel mouth (if any), to; and each leg's length */
+	private route: Pt[] = [];
+	private legs: number[] = [];
+	/** the tunnel mouths grown by his body box (feet space) and their orientation, for this scale */
+	private mouths: Pt[][] = [];
+	private mouthO: number[] = [];
+	private mouthScale = NaN;
+	/** the way round the mouths from his spot (a pick's tree): the corners, their cost from him, the corner before, and
+	 *  whether the way to them passes the top corridor */
+	private nodes: Pt[] = [];
+	private nodeCost: number[] = [];
+	private nodePrev: number[] = [];
+	private nodeTop: boolean[] = [];
+	/** the last pick's way uses the top corridor */
+	private pickTop = false;
 	private moveScale = 1;
 	/** the stop now: sniff loops left and their pace */
 	private loopsLeft = 1;
@@ -172,7 +261,7 @@ export class Roam {
 	/** the last pick's pass (0 all rules, 1 no slope rule, 2 no length rule, -1 none found) */
 	lastPass = 0;
 	/** the probes' counters */
-	readonly counts = { walks: 0, walkIns: 0, arrived: 0, strikes: 0, placed: 0, cancelled: 0, picks: 0, relaxed: 0, none: 0, safetyNet: 0, left: 0 };
+	readonly counts = { walks: 0, walkIns: 0, arrived: 0, strikes: 0, placed: 0, cancelled: 0, picks: 0, relaxed: 0, none: 0, safetyNet: 0, left: 0, rounds: 0, corridor: 0 };
 	/** is a strike running on the board (game/road/roadFeatures.ts sets it): the safety net waits for it */
 	busy: () => boolean = () => false;
 
@@ -251,7 +340,11 @@ export class Roam {
 	/** a spot that no longer holds (a resize, a rotation, an edited area, a keep-out that came up over him, as the LED back
 	 *  board rising): he never pops to a new one; he goes, and a new one walks in from past the screen's edge */
 	private leaveIfCovered() {
-		if ((this.state === 'idle' || this.state === 'start' || this.state === 'walk' || this.state === 'stop' || this.state === 'enter') && !(this.state === 'enter' ? this.valid(this.to.x, this.to.y) : this.valid(this.x, this.y) && (this.state !== 'start' && this.state !== 'walk' ? true : this.clear(this.to.x, this.to.y)))) {
+		// (on a walk round a tunnel mouth he may be outside the area or in the top corridor for a moment: then his spot is
+		// judged as a corner of that way, and his target as a stop)
+		const walking = this.state === 'start' || this.state === 'walk' || this.state === 'stop';
+		const here = walking ? this.clear(this.x, this.y, false, true) : this.valid(this.x, this.y);
+		if ((this.state === 'idle' || walking || this.state === 'enter') && !(this.state === 'enter' ? this.valid(this.to.x, this.to.y) : here && (!walking ? true : this.valid(this.to.x, this.to.y)))) {
 			this.counts.left++;
 			this.state = 'none';
 			this.hide();
@@ -282,13 +375,18 @@ export class Roam {
 
 	/** his body at (x, y) clear of every zone (his feet's strip of the road) and inside the screen (`offScreenOk`: a walk
 	 *  in, which starts past the screen's edge) */
-	private clear(x: number, y: number, offScreenOk = false): boolean {
+	private clear(x: number, y: number, offScreenOk = false, topOk = false): boolean {
 		const s = this.scale();
 		const x0 = x - ROAM_REACH.side * s;
 		const x1 = x + ROAM_REACH.side * s;
 		const y0 = y - ROAM_REACH.up * s;
 		const r = this.rect;
-		if (!offScreenOk && (x0 < r.left || x1 > r.right || y0 < r.top || y > r.bottom)) return false;
+		// (`topOk`: a corner of a way round a mouth, the top corridor: partly above the top edge, CORRIDOR_SHOWN of him on)
+		const topLine = topOk ? y - ROAM_REACH.up * s * CORRIDOR_SHOWN : y0;
+		if (!offScreenOk && (x0 < r.left || x1 > r.right || topLine < r.top || y > r.bottom)) return false;
+		// the tunnel mouths: his feet outside each grown polygon
+		this.growMouths();
+		for (let i = 0; i < this.mouths.length; i++) if (inConvex(x, y, this.mouths[i], this.mouthO[i])) return false;
 		const feet = y - ROAM_REACH.up * s * FEET_SHARE;
 		// (2026-11-18) his cast shadow too: it leans from his feet by castReach per road px of his height, so against the
 		// keep-outs his box is widened toward the lean (the road is checked at his feet only, as before)
@@ -478,8 +576,9 @@ export class Roam {
 	 *  stoplight's body only, the road's feet strip) move in a straight line from a to b, and for each zone the part of
 	 *  the walk where both their x and y spans overlap is solved; any overlap is a hit. The screen's edge: both ends (the
 	 *  boxes are convex, the screen too). */
-	private clearWay(ax: number, ay: number, bx: number, by: number, offScreenOk = false): boolean {
-		if (!this.clear(bx, by, offScreenOk)) return false;
+	private clearWay(ax: number, ay: number, bx: number, by: number, offScreenOk = false, topOk = false): boolean {
+		if (!this.clear(bx, by, offScreenOk, topOk)) return false;
+		if (this.cutsMouth(ax, ay, bx, by)) return false;
 		const s = this.scale();
 		const side = ROAM_REACH.side * s;
 		const h = ROAM_REACH.up * s;
@@ -516,6 +615,123 @@ export class Roam {
 		return true;
 	}
 
+	/** the mouths grown by his body box (with the shadow's lean) at his scale: feet space obstacles */
+	private growMouths() {
+		const s = this.scale();
+		if (s === this.mouthScale && this.mouths.length) return;
+		this.mouthScale = s;
+		const side = ROAM_REACH.side * s;
+		const h = ROAM_REACH.up * s;
+		const lean = castReach();
+		const left = side + Math.max(0, -lean.x) * h;
+		const right = side + Math.max(0, lean.x) * h;
+		const up = Math.max(h, -Math.min(0, lean.y) * h);
+		// feet f blocked when the box [f.x - left, f.x + right] x [f.y - up, f.y] meets the mouth: f in mouth - box
+		const offs = [
+			{ x: left, y: 0 },
+			{ x: -right, y: 0 },
+			{ x: left, y: up },
+			{ x: -right, y: up },
+		];
+		this.mouths = TUNNEL_HULLS.map((H) => hull(H.flatMap((p) => offs.map((o) => ({ x: p.x + o.x, y: p.y + o.y })))));
+		this.mouthO = this.mouths.map(orient);
+	}
+
+	/** does the walk a to b cut a grown mouth */
+	private cutsMouth(ax: number, ay: number, bx: number, by: number): boolean {
+		this.growMouths();
+		for (let i = 0; i < this.mouths.length; i++) if (cutsConvex(ax, ay, bx, by, this.mouths[i], this.mouthO[i])) return true;
+		return false;
+	}
+
+	/** THE WAY ROUND THE MOUTHS from `from`: the grown polygons' corners (a few road px out), the cheapest way to each
+	 *  over clear walks (Dijkstra over a dozen or two corners); a corner where he would be partly above the screen's top
+	 *  is the top corridor (its walks cost CORRIDOR_COST times their length) */
+	private roundTree(from: Pt) {
+		this.growMouths();
+		const nodes = this.nodes;
+		nodes.length = 0;
+		const top: boolean[] = [];
+		for (let i = 0; i < this.mouths.length; i++) {
+			const M = this.mouths[i];
+			let cx = 0;
+			let cy = 0;
+			for (const p of M) {
+				cx += p.x / M.length;
+				cy += p.y / M.length;
+			}
+			for (const p of M) {
+				const d = Math.hypot(p.x - cx, p.y - cy) || 1;
+				const v = { x: p.x + ((p.x - cx) / d) * ROUND_PAD, y: p.y + ((p.y - cy) / d) * ROUND_PAD };
+				if (this.clear(v.x, v.y)) {
+					nodes.push(v);
+					top.push(false);
+				} else if (this.clear(v.x, v.y, false, true)) {
+					nodes.push(v);
+					top.push(true);
+				}
+			}
+		}
+		const n = nodes.length;
+		const cost = this.nodeCost;
+		const prev = this.nodePrev;
+		const viaTop = this.nodeTop;
+		cost.length = prev.length = viaTop.length = n;
+		const done: boolean[] = [];
+		for (let i = 0; i < n; i++) {
+			const v = nodes[i];
+			const ok = this.clearWay(from.x, from.y, v.x, v.y, false, top[i]);
+			cost[i] = ok ? Math.hypot(v.x - from.x, v.y - from.y) * (top[i] ? CORRIDOR_COST : 1) : Infinity;
+			prev[i] = -1;
+			viaTop[i] = top[i];
+			done.push(false);
+		}
+		for (;;) {
+			let k = -1;
+			for (let i = 0; i < n; i++) if (!done[i] && cost[i] < Infinity && (k < 0 || cost[i] < cost[k])) k = i;
+			if (k < 0) break;
+			done[k] = true;
+			for (let i = 0; i < n; i++) {
+				if (done[i]) continue;
+				const c = cost[k] + Math.hypot(nodes[i].x - nodes[k].x, nodes[i].y - nodes[k].y) * (top[i] || top[k] ? CORRIDOR_COST : 1);
+				if (c >= cost[i] || !this.clearWay(nodes[k].x, nodes[k].y, nodes[i].x, nodes[i].y, false, top[i])) continue;
+				cost[i] = c;
+				prev[i] = k;
+				viaTop[i] = top[i] || viaTop[k];
+			}
+		}
+	}
+
+	/** the cheapest way from `from` to (x, y): straight (-1), by a corner of the tree (its index), or none (-2); with
+	 *  its cost and whether it passes the top corridor (this.pickTop) */
+	private wayTo(from: Pt, x: number, y: number): { via: number; cost: number } {
+		this.pickTop = false;
+		if (this.clearWay(from.x, from.y, x, y)) return { via: -1, cost: Math.hypot(x - from.x, y - from.y) };
+		// blocked: by a mouth only is worth a way round (a zone in the way stays a no)
+		if (!this.cutsMouth(from.x, from.y, x, y)) return { via: -2, cost: Infinity };
+		let best = -2;
+		let bc = Infinity;
+		for (let i = 0; i < this.nodes.length; i++) {
+			if (this.nodeCost[i] === Infinity) continue;
+			const c = this.nodeCost[i] + Math.hypot(x - this.nodes[i].x, y - this.nodes[i].y) * (this.nodeTop[i] ? CORRIDOR_COST : 1);
+			if (c >= bc || !this.clearWay(this.nodes[i].x, this.nodes[i].y, x, y)) continue;
+			best = i;
+			bc = c;
+		}
+		if (best >= 0) this.pickTop = this.nodeTop[best];
+		return { via: best, cost: bc };
+	}
+
+	/** the walk's way into this.route: from, the corners of the tree back from `via`, to */
+	private setRoute(from: Pt, via: number) {
+		this.route.length = 0;
+		this.route.push({ x: from.x, y: from.y });
+		const chain: number[] = [];
+		for (let i = via; i >= 0; i = this.nodePrev[i]) chain.push(i);
+		for (let k = chain.length - 1; k >= 0; k--) this.route.push({ x: this.nodes[chain[k]].x, y: this.nodes[chain[k]].y });
+		this.route.push({ x: this.to.x, y: this.to.y });
+	}
+
 	/** where a walk in starts for a spot at height y: just past his side's screen edge */
 	private enterX(): number {
 		// his body's reach past his feet, and his cast shadow's lean toward the screen (it leans left: a walk in from the
@@ -542,6 +758,11 @@ export class Roam {
 		// NO SHUFFLING: the spot he stopped at before this one is not walked straight back to while another will do, and
 		// of the valid spots found the one farthest from his last stops is taken (he roams the area, not two spots)
 		const back = from && this.recent.length >= 2 ? this.recent[this.recent.length - 2] : null;
+		if (from) this.roundTree(from);
+		let bVia = -1;
+		let bTop = false;
+		let keepVia = -1;
+		let keepTop = false;
 		const sep = FLOOR_SEP * W;
 		const tanX = Math.tan((Math.max(ROAM.maxSlopeDeg, ROAM.exploreSlopeDeg) * Math.PI) / 180);
 		// pass 0: every rule; pass 1: up to exploreSlopeDeg, taken only when pass 0's best stays near his last stops (it
@@ -588,8 +809,11 @@ export class Roam {
 					if (pass === 0 && Math.abs(dy) > Math.abs(dx) * tan + 1) continue;
 					if (pass === 1 && Math.abs(dy) > Math.abs(dx) * tanX + 1) continue;
 					if (pass < 3 && back && Math.hypot(x - back.x, y - back.y) < lo) continue;
-					if (!this.clearWay(from.x, from.y, x, y)) continue;
 				} else if (walkIn && !this.clearWay(ex, y, x, y, true)) continue;
+				// the way there: straight, or round a tunnel mouth (a way through the top corridor scores lower)
+				const way = from ? this.wayTo(from, x, y) : { via: -1, cost: 0 };
+				if (way.via === -2 || (from && way.cost > 2.5 * hi)) continue;
+				const viaTop = from ? this.pickTop : false;
 				found++;
 				// THE SCORE: new ground first. m = how far the spot is from every stop he remembers (and from where he
 				// stands). A spot FLOOR_SEP or more from all of them is new ground, and of those the nearest to that line
@@ -604,10 +828,13 @@ export class Roam {
 				// left the other half for later): the found spot nearest his side's edge, on the top ground (the rim, road y
 				// 120 and up) where there is some
 				if (walkIn && !from) score = (this.area().side === 'right' ? x : -x) + (y <= RIM_Y ? 1e6 : 0);
+				if (viaTop) score -= 2 * sep;
 				if (score > best) {
 					best = score;
 					bx = x;
 					by = y;
+					bVia = way.via;
+					bTop = viaTop;
 				}
 			}
 			if (found && pass === 0 && from && best < sep * 1.25) {
@@ -615,6 +842,8 @@ export class Roam {
 				keepX = bx;
 				keepY = by;
 				keepScore = best;
+				keepVia = bVia;
+				keepTop = bTop;
 				continue;
 			}
 			if (found && (pass !== 1 || best > keepScore)) {
@@ -624,6 +853,7 @@ export class Roam {
 				this.to.y = by;
 				this.lastPass = pass;
 				if (pass > 0) this.counts.relaxed++;
+				this.takeWay(from, bVia, bTop);
 				return true;
 			}
 			if (keepScore >= 0) {
@@ -631,6 +861,7 @@ export class Roam {
 				this.to.x = keepX;
 				this.to.y = keepY;
 				this.lastPass = 0;
+				this.takeWay(from, keepVia, keepTop);
 				return true;
 			}
 			if (!from) break;
@@ -640,9 +871,22 @@ export class Roam {
 		return false;
 	}
 
+	/** the chosen walk's way (straight, or round a mouth) into this.route; the counters */
+	private takeWay(from: Pt | null, via: number, top: boolean) {
+		this.route.length = 0;
+		if (!from) return;
+		if (via >= 0) {
+			this.setRoute(from, via);
+			this.counts.rounds++;
+			if (top) this.counts.corridor++;
+		}
+		this.pickTop = top;
+	}
+
 	/** a stop: sniffing at (x, y) for a random while (the sniff loop played whole, fitted to the stop's length) */
 	private idleAt(x: number, y: number, clock: number) {
 		this.state = 'idle';
+		this.route.length = 0;
 		this.x = x;
 		this.y = y;
 		// (his last stops, the newest last: a few only)
@@ -694,12 +938,12 @@ export class Roam {
 	 *  `walkIns` walk in picks, with a seed; nothing moves. The probe checks every one against the area and the zones. */
 	devPicks(count: number, walkIns: number, seed: number) {
 		this.reseed(seed);
-		const out: { x: number; y: number; pass: number; walkIn: boolean; fromX: number; fromY: number }[] = [];
+		const out: { x: number; y: number; pass: number; walkIn: boolean; fromX: number; fromY: number; route: Pt[] | null; top: boolean }[] = [];
 		let at: Pt = { x: this.x, y: this.y };
 		const keep = this.recent.slice();
 		for (let i = 0; i < count; i++) {
 			const ok = this.pick(at);
-			out.push({ x: ok ? this.to.x : at.x, y: ok ? this.to.y : at.y, pass: this.lastPass, walkIn: false, fromX: at.x, fromY: at.y });
+			out.push({ x: ok ? this.to.x : at.x, y: ok ? this.to.y : at.y, pass: this.lastPass, walkIn: false, fromX: at.x, fromY: at.y, route: ok && this.route.length >= 2 ? this.route.map((q) => ({ x: q.x, y: q.y })) : null, top: ok && this.pickTop });
 			if (ok) {
 				if (this.recent.length >= RECENT) this.recent.shift();
 				this.recent.push(at);
@@ -707,9 +951,10 @@ export class Roam {
 			}
 		}
 		this.recent = keep;
+		this.route.length = 0;
 		for (let i = 0; i < walkIns; i++) {
 			const ok = this.pick(null, true);
-			out.push({ x: this.to.x, y: this.to.y, pass: ok ? this.lastPass : -1, walkIn: true, fromX: this.enterX(), fromY: this.to.y });
+			out.push({ x: this.to.x, y: this.to.y, pass: ok ? this.lastPass : -1, walkIn: true, fromX: this.enterX(), fromY: this.to.y, route: null, top: false });
 		}
 		return out;
 	}
@@ -774,6 +1019,11 @@ export class Roam {
 		this.y = this.from.y;
 		this.u = 0;
 		this.len = Math.abs(this.to.x - this.from.x);
+		// (a walk in is one level leg)
+		this.route.length = 0;
+		this.route.push({ x: this.from.x, y: this.from.y }, { x: this.to.x, y: this.to.y });
+		this.legs.length = 0;
+		this.legs.push(this.len);
 		this.facing = this.to.x >= this.from.x ? 1 : -1;
 		this.clip = 'walk';
 		this.frame = 1;
@@ -785,8 +1035,20 @@ export class Roam {
 		this.from.x = this.x;
 		this.from.y = this.y;
 		this.u = 0;
-		this.len = Math.hypot(this.to.x - this.x, this.to.y - this.y);
-		if (Math.abs(this.to.x - this.x) > 0.5) this.facing = this.to.x > this.x ? 1 : -1;
+		// the way: straight, or the corners round a mouth (pick's takeWay); each leg's length
+		if (this.route.length < 2) {
+			this.route.length = 0;
+			this.route.push({ x: this.x, y: this.y }, { x: this.to.x, y: this.to.y });
+		}
+		this.legs.length = 0;
+		this.len = 0;
+		for (let i = 0; i + 1 < this.route.length; i++) {
+			const d = Math.hypot(this.route[i + 1].x - this.route[i].x, this.route[i + 1].y - this.route[i].y);
+			this.legs.push(d);
+			this.len += d;
+		}
+		const first = this.route[1];
+		if (Math.abs(first.x - this.x) > 0.5) this.facing = first.x > this.x ? 1 : -1;
 		this.state = 'start';
 		this.clip = 'start';
 		this.frame = 1;
@@ -797,9 +1059,22 @@ export class Roam {
 
 	private advance(d: number) {
 		this.u = Math.min(this.len, this.u + d);
-		const t = this.len > 1e-6 ? this.u / this.len : 1;
-		this.x = this.from.x + (this.to.x - this.from.x) * t;
-		this.y = this.from.y + (this.to.y - this.from.y) * t;
+		if (this.route.length < 2 || this.legs.length !== this.route.length - 1) {
+			const t = this.len > 1e-6 ? this.u / this.len : 1;
+			this.x = this.from.x + (this.to.x - this.from.x) * t;
+			this.y = this.from.y + (this.to.y - this.from.y) * t;
+			return;
+		}
+		// along the legs; he faces each leg's way (a turn at a corner is a flip: the rig has no turn)
+		let u = this.u;
+		let i = 0;
+		while (i < this.legs.length - 1 && u > this.legs[i]) u -= this.legs[i++];
+		const a = this.route[i];
+		const b = this.route[i + 1];
+		const t = this.legs[i] > 1e-6 ? Math.min(1, u / this.legs[i]) : 1;
+		this.x = a.x + (b.x - a.x) * t;
+		this.y = a.y + (b.y - a.y) * t;
+		if (Math.abs(b.x - a.x) > 0.5) this.facing = b.x > a.x ? 1 : -1;
 	}
 
 	update(clock: number) {
@@ -893,6 +1168,7 @@ export class Roam {
 				this.frame += d;
 				if (this.frame >= C.stop.rigFrames) {
 					this.counts.arrived++;
+					this.route.length = 0;
 					this.idleAt(this.to.x, this.to.y, clock);
 				}
 				break;
@@ -969,6 +1245,9 @@ export class Roam {
 			goneAt: this.goneAt === null ? null : r(this.clock - this.goneAt),
 			/** where his cast shadow's top lands per road px of his height (shadows.ts castReach): the probes' shadow box */
 			lean: castReach(),
+			/** the tunnel mouths' keep-out polygons (road px, as traced) and his way now (the corners round one, if any) */
+			tunnels: ROAM_TUNNELS,
+			route: this.route.map((p) => ({ x: r(p.x), y: r(p.y) })),
 			box: { walk: BOX.walk, sniff: BOX.sniff, start: BOX.start, stop: BOX.stop },
 			lastPass: this.lastPass,
 			relaxed: this.relaxed,

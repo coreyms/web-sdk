@@ -112,6 +112,28 @@ export const ROAM_REF_RECT: Record<LayoutKind, RoadRect> = {
 	portrait: { left: 0, top: -1415.5463, right: 1536, bottom: 1908.5463 },
 };
 
+/** THE TUNNEL MOUTHS (Corey 2026-11-18: "I caught the Reindeer walking over the tunnel entrance ... we should just make
+ *  this a shape where it can't go"): a keep-out polygon over each place the road goes under the hill, in road px (the
+ *  scene art's own coordinates, so it follows the art at every layout and window). Traced from his marked screenshot of
+ *  the top right mouth: from the hedge left of the mouth, up to the peak of the stone arch, down the grassy slope to the
+ *  level just above the first lane line, and back under the mouth. The art is the same at all four corners (the road's
+ *  picture and the tunnel ends are symmetric: left = 1536 - x, bottom = 1024 - y), so the other three are its mirrors.
+ *  His body, head and cast shadow never touch one (game/road/roam.ts); walks route around them. */
+export const ROAM_TUNNEL_MOUTH: RoamCorner[] = [
+	{ x: 1267, y: 89.8 },
+	{ x: 1364.4, y: 70.3 },
+	{ x: 1435.1, y: 11.9 },
+	{ x: 1552, y: 51.6 },
+	{ x: 1671, y: 151.1 },
+	{ x: 1342.8, y: 151.1 },
+];
+export const ROAM_TUNNELS: RoamCorner[][] = [
+	ROAM_TUNNEL_MOUTH,
+	ROAM_TUNNEL_MOUTH.map((p) => ({ x: W - p.x, y: p.y })),
+	ROAM_TUNNEL_MOUTH.map((p) => ({ x: p.x, y: H - p.y })),
+	ROAM_TUNNEL_MOUTH.map((p) => ({ x: W - p.x, y: H - p.y })),
+];
+
 /** the defaults as shipped (the editor's Reset and the probe's reference) */
 export const ROAM_AREAS_DEFAULT: Record<LayoutKind, RoamArea> = JSON.parse(JSON.stringify(ROAM_AREAS));
 
