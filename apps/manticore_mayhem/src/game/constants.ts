@@ -3804,6 +3804,9 @@ export const CREATURE = {
 	 *  (game/creatureLoad.ts creatureHandOverReady); 0 when he already is */
 	handOverWaitMs: 2500,
 	wins: { onDemand: true, bands: 16, quiet: { showMs: 1500, impactMs: 300, tierMs: 250 }, epicLoopMaxMs: 15000 },
+	/** THE STUCK WATCHDOG (safety net, 2026-11-17; game/creature.ts unstick): real ms the frame on show may stay off the
+	 *  frame his state asks for (a frame that could not be drawn) before he is sent back to his idle loop */
+	stuckMs: 250,
 	breath: true,
 	voice: { rateMin: 0.95, rateMax: 1.05 },
 	/** the floor shadow's strength (the Rig's rendered shadow pass is pure black, alpha up to 254): Corey 2026-10-17 13:20

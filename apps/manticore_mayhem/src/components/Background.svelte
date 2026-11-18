@@ -825,6 +825,8 @@
 					/** a win plaque's cheer and its end, by hand (the plaque's own events) */
 					cheer: (move: CheerMove) => creature.cheer(move),
 					cheerEnd: () => creature.cheerEnd(),
+					/** THE STUCK WATCHDOG's test (game/creature.ts unstick): the running clip's frames taken away (true) or back */
+					jam: (on: boolean) => creature.jam(on),
 					/** PLAQUE_CHEER (the voices' accent frames and the takes' onsets) */
 					cheerConstants: () => JSON.parse(JSON.stringify(PLAQUE_CHEER)),
 					growl: () => creature.growl(),
