@@ -499,7 +499,7 @@ async function slamJudge(p, tag, W, T, share, bookEvents, { phone = false, big =
 			check(states.join() === 'win' && multRows.length === 0, `${tag}: line ${k + 1} (x1): its amount alone, no multiplier and no slam (states ${states.join(' > ')})`);
 		}
 		check(!!last && last.state === 'win' && Math.abs(money(last.text) - book[1 + k]) < 0.005 && last.win === last.text, `${tag}: line ${k + 1}: the final amount is the book's line win (${last?.text} = ${book[1 + k]})`, last);
-		check(first?.plain !== undefined && /^\$?[0-9.,]+$/.test(first.plain) && /^\$?[0-9.,]+$/.test(first.win), `${tag}: line ${k + 1}: its amounts carry no multiplier text ("${first?.plain}", "${first?.win}")`);
+		check(first?.plain !== undefined && noMult(first.plain) && noMult(first.win), `${tag}: line ${k + 1}: its amounts carry no multiplier text ("${first?.plain}", "${first?.win}")`);
 	}
 	// the strip's total
 	const sb = W.rows.filter((r) => r.sb);
@@ -511,7 +511,7 @@ async function slamJudge(p, tag, W, T, share, bookEvents, { phone = false, big =
 		const picked = s0 ? smallRows.find((r) => r.ms <= s0.ms + 100 * share && r.sb.item === 'winAmount') : null;
 		// (rows after the road's win has gone carry no win time: they are not "before" the total)
 		check(!!s0 && s0.ms >= plan.totalAt - 0.05 && sb.filter((r) => r.ms !== null && r.ms < plan.totalAt - 0.05).every((r) => r.sb.kind !== 'small'), `${tag}: the strip's total comes as the last line starts down (from ${s0?.ms} ms, due ${r1(plan.totalAt)})`);
-		check(!!s0 && Math.abs(money(s0.sb.finalStr) - bookTotal) < 0.005 && /^[0-9.,]+$/.test(s0.sb.finalStr) && !!picked, `${tag}: the strip's total is the book's (${s0?.sb.finalStr} = ${bookTotal}), plain, with no multiplier on it (the strip shows ${picked?.sb.item ?? s0?.sb.item})`, s0?.sb);
+		check(!!s0 && Math.abs(money(s0.sb.finalStr) - bookTotal) < 0.005 && noMult(s0.sb.finalStr) && !!picked, `${tag}: the strip's total is the book's (${s0?.sb.finalStr} = ${bookTotal}), plain, with no multiplier on it (the strip shows ${picked?.sb.item ?? s0?.sb.item})`, s0?.sb);
 	}
 	// the upright phone: the amounts at phone.capPx, the top row inside the tunnel
 	if (phone) {
@@ -527,6 +527,10 @@ async function slamJudge(p, tag, W, T, share, bookEvents, { phone = false, big =
 		check(tops.every((y) => y >= lay.top + T.slam.phone.topClearRoad - 1), `${tag}: every amount's top is inside the tunnel, under the top lane line (${tops.join(', ')} >= ${lay.top + T.slam.phone.topClearRoad})`, tops);
 	}
 }
+
+/** an amount with no multiplier on it: digits with its currency's sign before or after (the LED currency work, 2026-11-18:
+ *  "$0.50", "R$3.40", "SC 0.50", "30 ₹"), never an "x" with a number */
+const noMult = (str) => typeof str === 'string' && /[0-9]/.test(str) && !/x\s*\d|\d\s*x/i.test(str) && /^[^0-9]*[0-9][0-9.,]*[^0-9]*$/.test(str);
 
 const md = (tag, W) => {
 	const n = Math.max(...W.rows.map((r) => r.lines?.length ?? 0));
