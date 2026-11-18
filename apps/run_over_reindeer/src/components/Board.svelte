@@ -91,6 +91,7 @@
 	import { SCENE_ART } from '../game/sceneArtSpec';
 	import { isPaying, symbolPopupBoard, symbolPopupHook } from '../game/symbolPopup';
 	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
+	import { ledAmountText, ledSentenceAmount } from '../game/scoreboard/ledCurrency';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -178,11 +179,11 @@
 		if (logo && logoHome) logo.place({ ...logoHome, y: logoHome.y + logoLift });
 	};
 	let shookY = 0;
-	/** the LED amount: the play currency's number as the HUD writes it, its digits pinned to the final amount, with no
-	 *  currency mark (the LED font has digits, the comma and the point only) */
-	const ledAmount = (final: number) => (v: number) => numberToCurrencyString(v, { fractionDigitsOf: final }).replace(/[^0-9.,]/g, '');
+	/** the LED amount: the play currency's amount as the HUD writes it, its digits pinned to the final amount, the symbol
+	 *  drawn in LED glyphs, or the number alone for a currency the boards have no glyphs for (game/scoreboard/ledCurrency.ts) */
+	const ledAmount = (final: number) => (v: number) => ledAmountText(numberToCurrencyString(v, { fractionDigitsOf: final }), stateBet.currency);
 	scoreboardDev.bet = () => bookEventAmountToNormalisedAmount(100);
-	scoreboardDev.fmt = (v: number) => numberToCurrencyString(v).replace(/[^0-9.,]/g, '');
+	scoreboardDev.fmt = (v: number) => ledAmountText(numberToCurrencyString(v), stateBet.currency);
 	/** the scoreboard over the logo (see above) */
 	const scoreboardOverLogo = () => {
 		const p = logo?.root.parent;
@@ -705,7 +706,7 @@
 			// as the card wrote it (bookEventAmountToCurrencyString)
 			const lines: string[] = [];
 			if (capped) lines.push(`${config.maxWin.toLocaleString('en-US')}x the play amount, the most a round can award.`);
-			if (topUp) lines.push(`Includes ${bookEventAmountToCurrencyString(topUp.amount)} added to bring this round up to its ${topUp.floor / 100}x minimum.`);
+			if (topUp) lines.push(`Includes ${ledSentenceAmount(bookEventAmountToCurrencyString(topUp.amount), stateBet.currency)} added to bring this round up to its ${topUp.floor / 100}x minimum.`);
 			scoreboard.card({ kind, spins, amount: value, fmt, rate: motionFor(stateGame.turboLevel).rate, title: capped ? 'MAX WIN' : null, line: lines.length ? lines.join('  ') : null });
 		},
 		boardScoreboardCardEnd: () => scoreboard?.endCard(),
@@ -880,6 +881,8 @@
 			},
 			scoreboardCardPress: () => scoreboard?.cardPress() ?? false,
 			scoreboardFace: (which: 'strip' | 'back') => scoreboard?.faceStats(which) ?? null,
+			/** the play currency by hand (the LED currency probe: the boards' symbols and the fallback; game/scoreboard/ledCurrency.ts) */
+			ledCurrency: (code: string) => (stateBet.currency = code as typeof stateBet.currency),
 			scoreboardCardEnd: () => scoreboard?.endCard(),
 			scoreboardLower: () => scoreboard?.lower(),
 			scoreboardRace: (force: 'reindeer' | 'police' | 'tie' | null = null) => scoreboard?.race(force),

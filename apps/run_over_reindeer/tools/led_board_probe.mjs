@@ -40,6 +40,10 @@
 //     the class's size knob at 2 and 0.3
 //   - REAL ROUNDS: natural_free_spins (the entry on the board, a press lands it, a press continues; the Total Win on the board),
 //     floor_top_up (its wrap-up keeps the HTML card: the top-up line); autoplay's tier sounds once per tier per round
+//   - THE CURRENCY (section currency, desktop, sideways, upright, 2026-11-17 led_currency): with the play currency set by hand
+//     (USD, EUR, JPY, BRL, INR, a made-up XQZ, social XSC) a small win's amount on the strip is, dot for dot, the game's own
+//     drawRow of the expected text (symbol, number, decimals as the HUD writes them; XQZ the number alone) inside the face, and
+//     a Mega win's amount on the big board is that text with its lit dots inside the face; no page errors
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane).
@@ -54,7 +58,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -579,6 +583,90 @@ async function scenes(p, S) {
 // and its bounce inside the top, at every size; again with the class's size knob at 2 and 0.3, and the gap and bounce knobs
 // at their ends. The amounts are judged at rest (a win's hold, a card waiting for its press).
 const TITLE_MARGIN = 4;
+// ---- THE CURRENCY (2026-11-17, led_currency_2026-11-17) ----
+// the expected LED text, worked out here (not by the game's rule): Stake's symbol on its side, en-US marks, the currency's
+// decimals extended only by digits the amount really carries (as the HUD's formatter does); a made-up code: the number alone
+const CUR = { USD: ['$', 2, ''], EUR: ['€', 2, ''], JPY: ['¥', 0, ''], BRL: ['R$', 2, ''], INR: ['₹', 2, ''], XQZ: [null, 2, ''], XSC: ['SC', 2, ' '] };
+const ledExpect = (code, v) => {
+	const [sym, dec, sp] = CUR[code];
+	let d = dec;
+	while (d < dec + 2 && Math.abs(Math.round(v * 10 ** d) - v * 10 ** d) > 1e-6) d++;
+	const n = v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+	return sym === null ? n : `${sym}${sp}${n}`;
+};
+async function currencyChecks(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await R(p, () => window.__reindeer.scoreboardManual(true));
+	const bet = await R(p, async () => (await import('/src/game/scoreboard/scoreboard.ts')).scoreboardDev.bet());
+	for (const code of Object.keys(CUR)) {
+		// THE STRIP: a small win (3.4x), stepped to the end of its count (before the reindeer's hop), its white dots read
+		const small = Math.round(3.4 * bet * 100) / 100;
+		const want = ledExpect(code, small);
+		const st = await R(
+			p,
+			async ([code, want]) => {
+				const R0 = window.__reindeer;
+				R0.ledCurrency(code);
+				void R0.scoreboardWin(3.4, { small: true });
+				let q = R0.scoreboardStep(10);
+				for (let i = 0; i < 600 && q.show && q.show.t + 10 <= q.show.countEnd; i++) q = R0.scoreboardStep(10);
+				if (q.show && q.show.t < q.show.countEnd) q = R0.scoreboardStep(q.show.countEnd - q.show.t);
+				const D = await import('/src/game/scoreboard/scoreboardDraw.ts');
+				const board = (await import('/src/game/scoreboard/scoreboard.ts')).scoreboardDev.board;
+				const F = board.strip.F;
+				const W = F.dotsW;
+				const H = F.dotsH;
+				const d = F.out.ctx.getImageData(0, 0, W, H).data;
+				// the amount is the only white on the small win's face (WIN is blue, the hop comes after the count)
+				const white = (x, y) => d[(y * W + x) * 4 + 3] > 0 && d[(y * W + x) * 4] > 240 && d[(y * W + x) * 4 + 1] > 240 && d[(y * W + x) * 4 + 2] > 240;
+				let l = W, r = -1, t = H, b = -1;
+				for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (white(x, y)) { l = Math.min(l, x); r = Math.max(r, x); t = Math.min(t, y); b = Math.max(b, y); }
+				// the same text by the game's drawRow at each cap: one must give exactly these dots
+				let match = null;
+				for (let cap = 5; cap <= H && r >= 0; cap++) {
+					const c = document.createElement('canvas');
+					c.width = W + 40;
+					c.height = H + 20;
+					const g = c.getContext('2d');
+					D.drawRow(g, want, 4, 4, cap, '#ffffff');
+					const e = g.getImageData(0, 0, c.width, c.height).data;
+					let L = c.width, Rr = -1, T = c.height, Bb = -1;
+					for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (e[(y * c.width + x) * 4 + 3] > 0) { L = Math.min(L, x); Rr = Math.max(Rr, x); T = Math.min(T, y); Bb = Math.max(Bb, y); }
+					if (Rr - L !== r - l || Bb - T !== b - t) continue;
+					let same = true;
+					for (let y = 0; y <= b - t && same; y++) for (let x = 0; x <= r - l; x++) if ((e[((T + y) * c.width + L + x) * 4 + 3] > 0) !== white(l + x, t + y)) { same = false; break; }
+					if (same) { match = cap; break; }
+				}
+				const shown = q.show?.amount ?? null;
+				for (let i = 0; i < 400 && R0.scoreboard().show; i++) R0.scoreboardStep(10);
+				return { shown, box: [l, t, r, b], W, H, match };
+			},
+			[code, want],
+		);
+		check(st.shown === want && st.match !== null && st.box[0] >= 1 && st.box[2] <= st.W - 2 && st.box[1] >= 0 && st.box[3] <= st.H - 1, `${tag}: ${code} on the strip reads "${st.shown}" (want "${want}"), drawn dot for dot as drawRow draws it (cap ${st.match}) inside the ${st.W} x ${st.H} face`, st);
+		// THE BIG BOARD: a Mega win (30x) stepped to the end of its count; its amount's record (the lit box drawn)
+		const big = Math.round(30 * bet * 100) / 100;
+		const wantB = ledExpect(code, big);
+		const bk = await R(p, () => {
+			const R0 = window.__reindeer;
+			void R0.scoreboardWin(30);
+			let q = R0.scoreboardStep(10);
+			for (let i = 0; i < 1500 && q.show && q.show.t <= q.show.countEnd + 50; i++) q = R0.scoreboardStep(10);
+			const f = R0.scoreboardFace('back');
+			const am = (f?.titles ?? []).filter((x) => x.kind === 'amount').at(-1) ?? null;
+			R0.scoreboardSkip();
+			for (let i = 0; i < 1500 && R0.scoreboard().show; i++) R0.scoreboardStep(10);
+			R0.scoreboardLower();
+			for (let i = 0; i < 300; i++) R0.scoreboardStep(10);
+			return { am, W: f?.W, H: f?.H };
+		});
+		const a = bk.am;
+		check(!!a && a.str === wantB && a.x0 >= 1 && a.x1 <= bk.W - 1 && a.y0 >= 0 && a.y1 <= bk.H, `${tag}: ${code} on the big board reads "${a?.str}" (want "${wantB}"), its lit dots inside the ${bk.W} x ${bk.H} face`, bk);
+	}
+	await R(p, () => window.__reindeer.ledCurrency('USD'));
+	await R(p, () => window.__reindeer.scoreboardManual(false));
+}
+
 async function titles(p, S) {
 	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
 	await R(p, () => window.__reindeer.scoreboardManual(true));
@@ -1436,6 +1524,7 @@ async function pressBoard(browser, S) {
 				if (SEC('gagModes') && S.flows) await gagModes(p, S);
 				if (SEC('bonusStrip') && ['desktop', 'portrait'].includes(S.name)) await bonusStrip(p, S);
 				if (SEC('explain')) await explainBoards(p, S);
+				if (SEC('currency') && ['desktop', 'side', 'portrait'].includes(S.name)) await currencyChecks(p, S);
 				if (S.flows) await flows(p, S, errs);
 				else check(errs.length === 0, `${S.name}: no page errors`, errs);
 			} catch (e) {
