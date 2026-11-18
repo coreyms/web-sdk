@@ -211,6 +211,12 @@ export const stateGame = $state({
 	 *  is set components/Background.svelte keeps the feature's scene, frame look, flames, fire loop, wash, dim and
 	 *  creature look (bonusMode's), then everything goes back to the base look in one hand-over. finalWin clears it */
 	lookHold: false,
+	/** THE HUD UNDER A FEATURE BANNER (harsh review 2026-11-17 m8, Corey: "Why don't we show the disabled hud here?"): set
+	 *  by bonusStart and bonusEnd around their uiHide .. uiShow (the feature intro and the TOTAL WIN wrap up, every tier,
+	 *  a Mystery's award too). While it is set a plain uiHide keeps the HUD on screen, inert (ui/Chrome.svelte hud-held:
+	 *  no pointer, no focus, the press still reaches the banner), BALANCE and WIN readable; a deep uiHide (the max win
+	 *  screen) still takes everything. finalWin clears it */
+	hudHeld: false,
 	/** the Mystery outcome of the round being played, null outside a Mystery book. Presentation
 	 *  never branches on it (the spin plays itself out); it is a DEV / probe read only. */
 	mysteryOutcome: null as MysteryOutcome | null,

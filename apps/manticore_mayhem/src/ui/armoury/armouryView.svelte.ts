@@ -27,5 +27,10 @@ export const armouryView = $state({
 /**
  * THE HUD'S RULE UNDER A MODAL, in ONE place (Chrome.svelte's layer and Logo.svelte's canvas logo read it, so the two
  * cannot drift): every modal hides the HUD, except the Armoury, which keeps the game and the HUD visible under its tint.
+ * The modal names (stateModal.modal.name) and the HUD under each: buyBonus (THE ARMOURY) up, its lit row raised; autoSpin
+ * (the Autoplay sheet), betAmountMenu (the bet picker), gameRules and payTable (Game Info), autoSpinMessage and error (the
+ * notices) hidden; the replay card is not a stateModal modal and is unchanged. The feature banners (the intro and the TOTAL WIN wrap up) are not modals: they hide the HUD by uiHide, and
+ * since harsh review 2026-11-17 m8 it stays on screen under them, disabled (game/stateGame hudHeld, ui/Chrome.svelte
+ * hud-held); the max win screen's deep uiHide still takes it.
  */
 export const hudHiddenByModal = (modal: { name: string } | null | undefined): boolean => modal != null && modal.name !== 'buyBonus';

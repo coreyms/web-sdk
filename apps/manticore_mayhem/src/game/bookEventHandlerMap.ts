@@ -783,6 +783,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the scene in front of the player; then the intro plaque. At the base game's turbo (it shortens the beat), the
 		// HUD leaving under it. Not on a skip (no beat of any kind plays then) and not without the book's scatters on
 		// the board (a resumed round never replays its bonusStart).
+		// (m8: the HUD stays on screen under the intro, disabled: stateGame.hudHeld)
+		stateGame.hudHeld = true;
 		const hidden = eventEmitter.broadcastAsync({ type: 'uiHide' });
 		const cells = TRIGGER_BEAT.on && !stateGame.skipping && stateGame.gameType === 'basegame' ? triggerCells(bookEvent) : [];
 		// the plaque's War Standard badge (1.0.04, STORYBOARD.md S4): it flares with the beat and is gone by the intro
@@ -822,6 +824,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			intro: { mode: bookEvent.bonus, totalFs: bookEvent.totalFs, tileCap: bookEvent.tileCap },
 		});
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
+		stateGame.hudHeld = false;
 	},
 
 	bonusEnd: async (bookEvent: BookEventOfType<'bonusEnd'>) => {
@@ -929,6 +932,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// THE RECAP (1.0.04): the feature's own total (the book's freeSpinEnd amount: its free spins, the rows the recap
 		// lists; the wrap-up's round total also holds a natural trigger's base win); the plaque offers the recap after it
 		recapFeatureEnd(bookEvent.amount);
+		// (m8: the HUD stays on screen under the TOTAL WIN, disabled: stateGame.hudHeld; the max win screen's deep hide
+		// still takes it)
+		stateGame.hudHeld = true;
 		await eventEmitter.broadcastAsync({ type: 'uiHide' });
 		// THE FEATURE'S LOOK THROUGH ITS TOTAL WIN (Corey 2026-11-10, "A"): the scene, the frame, the flames and the creature
 		// keep the feature's look through the wrap up (stateGame.lookHold, components/Background.svelte) and go back to the
@@ -967,6 +973,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// turbo is remembered per world: the base level comes back when the feature ends
 		stateGameDerived.setTurboLevel(stateGame.baseTurboLevel);
 		await eventEmitter.broadcastAsync({ type: 'uiShow' });
+		stateGame.hudHeld = false;
 	},
 
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
@@ -996,6 +1003,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.spinWin = 0;
 		stateGame.relightAhead = false;
 		stateGame.lookHold = false;
+		stateGame.hudHeld = false;
 		// the round's end: a base spin's held win recap stays (PLAQUE_HOLD), the rest as before
 		eventEmitter.broadcast({ type: 'spinWinHide', roundEnd: true });
 		eventEmitter.broadcast({ type: 'modePlaqueHide' });
