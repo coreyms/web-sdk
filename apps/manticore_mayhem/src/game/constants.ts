@@ -1577,6 +1577,11 @@ export const CHAIN_BOW = {
 	// spin press, after haulDelayMs, the texture scrolls DOWN by haulLinks link pitches over haulMs with
 	// haulEasing (accumulating, modulo the tile). The bow displacement above is independent of it.
 	haulOnSpin: true,
+	// THE REFILL HAUL (Corey 2026-11-17: "nudge the chains on the refill... like the gears turn and the chain goes down one
+	// link"): each cascade's refill hauls the chain refillLinks whole links over refillMs (style ms) with the press's backOut,
+	// the gears turning with it as on every haul. Whole links only, so the gears rest on frame 0. 0 links = off.
+	refillLinks: 1,
+	refillMs: 420,
 	// Corey's pick on the haul slider page, 2026-11-01 (feedback/scene-quick-wins-2026-11-01/haul-sliders.html; the ?haulLinks=
 	// ?haulMs= ?haulOver= ?spinLean= knobs of game/staging.ts drive the dev server), after "Some easy wins we could get is on
 	// Spin, where the gears and the chains move, increase the movement, of the chains and the gears": FOUR links a press over

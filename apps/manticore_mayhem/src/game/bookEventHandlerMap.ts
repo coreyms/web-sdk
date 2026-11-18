@@ -599,6 +599,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// CLUSTER.refillDelayMs: the plates' count-over plays before the refill lands on them
 		await waitStyle(CLUSTER.refillDelayMs);
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_cascade', forcePlay: true });
+		// THE REFILL HAUL (CHAIN_BOW.refillLinks, Corey 2026-11-17): the gears turn and the chain goes down one link as the new
+		// symbols drop. Not while skipping.
+		if (CHAIN_BOW.refillLinks > 0 && !stateGame.skipping) {
+			const haulRate = Math.max(0.2, stateGameDerived.timeScale());
+			chainRun({ links: CHAIN_BOW.refillLinks, ms: CHAIN_BOW.refillMs / haulRate, ease: 'backOut' });
+		}
 		// the creature: a swipe after this spin's last cascade winds up through the refill's settle and the spin total
 		cueCreature(bookEvent, bookEvents, () => (lastClearOfSpin(bookEvent, bookEvents) && spinTotalWinAhead(bookEvent, bookEvents) !== null ? SPIN_TO_HUD_MS : SPIN_FINAL_MS));
 		await dropFill(bookEvent.fill, id, nextCascadeWinners(bookEvent, bookEvents));
