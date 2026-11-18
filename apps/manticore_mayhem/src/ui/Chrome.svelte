@@ -83,9 +83,14 @@
 	// outside the `if (show)` guard below — the max flow hides the HUD at the win plate and only
 	// deepens it later, so a deep uiHide must land even when the chrome is already faded.
 	let deep = $state(false);
+	// THE HUD UNDER A FEATURE BANNER (harsh review 2026-11-17 m8; game/stateGame hudHeld): a plain uiHide while the game
+	// holds the HUD leaves it on screen as it is, inert (no pointer, no focus: the press reaches the banner as when it was
+	// faded). A deep uiHide (the max win screen) still takes it all
+	let held = $state(false);
 	const FADE = 350;
 	context.eventEmitter.subscribeOnMount({
 		uiShow: async () => {
+			held = false;
 			deep = false;
 			if (!show) {
 				show = true;
@@ -93,6 +98,11 @@
 			}
 		},
 		uiHide: async (emitterEvent) => {
+			if (context.stateGame.hudHeld && !emitterEvent.deep && show) {
+				held = true;
+				return;
+			}
+			held = false;
 			const wasDeep = deep;
 			deep = emitterEvent.deep ?? false;
 			if (show) {
@@ -132,6 +142,8 @@
 	class:hidden={context.stateLayout.showLoadingScreen || hudHiddenByModal(stateModal.modal)}
 	class:hud-off={!show}
 	class:hud-deep={!show && deep}
+	class:hud-held={held}
+	inert={held}
 	class:armoury-open={armouryView.shown}
 	class:armoury-lit={armouryLit}
 	class:armoury-copies={armouryCopies}
@@ -179,7 +191,8 @@
 		opacity: 0;
 	}
 	.layer.hidden :global(*),
-	.layer.hud-off :global(*) {
+	.layer.hud-off :global(*),
+	.layer.hud-held :global(*) {
 		pointer-events: none !important;
 	}
 	/* uiHide: every top-level chrome element fades except the ones marked keep (the logo, the WIN

@@ -600,6 +600,8 @@
 							if (o.currency) stateBet.currency = o.currency;
 							if (o.bet) stateBet.wageredBetAmount = o.bet;
 							try {
+								// the HUD as in a round: on screen, disabled, under the banner (m8, game/stateGame hudHeld)
+								context.stateGame.hudHeld = true;
 								await emitter.broadcastAsync({ type: 'uiHide' });
 								await lookOn(o.mode);
 								// a turbo level for this screen only (the feature's own turbo: the wrap up meets it; the intro never does
@@ -626,6 +628,7 @@
 								lookOff();
 								await emitter.broadcastAsync({ type: 'uiShow' });
 							} finally {
+								context.stateGame.hudHeld = false;
 								if (o.currency) stateBet.currency = was;
 								if (o.bet) stateBet.wageredBetAmount = wasBet;
 								if (o.turbo !== undefined) context.stateGameDerived.setTurboLevel(wasTurbo as 0 | 1 | 2);
