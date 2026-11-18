@@ -76,16 +76,15 @@ const check = (ok, msg, detail) => {
 };
 
 const srcOf = (rel) => readFileSync(join(ASSETS, '..', '..', 'src', rel), 'utf8');
-/** the top multipliers as the game's config states them (game/config.ts), read here independently of the game */
+/** the top multipliers of the BASE GAME as the game's config states them (game/config.ts multipliers.column.base), read
+ *  here independently of the game. The first board is a base game board at rest, so it poses each column at the base
+ *  game's top (2026-11-17: no longer a bonus round's rare start, which no base spin lands) */
 const tops = () => {
 	const src = srcOf('game/config.ts');
 	const block = src.slice(src.indexOf('multipliers: {'), src.indexOf('bonusColumnCap'));
+	const base = /\bbase: \{ reindeer[^}]*\}/.exec(block.slice(block.indexOf('column: {')))[0];
 	const top = {};
-	for (const tier of ['reindeer', 'santa', 'grandma']) {
-		const nums = [...block.matchAll(new RegExp(`${tier}: \\[(\\d+), (\\d+)\\]`, 'g'))].flatMap((m) => [Number(m[1]), Number(m[2])]);
-		const rare = new RegExp(`bonusRare: \\{[^}]*${tier}: (\\d+)`).exec(block);
-		top[tier] = Math.max(...nums, rare ? Number(rare[1]) : 0);
-	}
+	for (const tier of ['reindeer', 'santa', 'grandma']) top[tier] = Number(new RegExp(`${tier}: \\[(\\d+), (\\d+)\\]`).exec(base)[2]);
 	return top;
 };
 const maxWin = () => Number(/maxWin: (\d+)/.exec(srcOf('game/config.ts'))[1]);
