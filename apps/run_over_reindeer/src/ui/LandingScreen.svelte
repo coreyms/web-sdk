@@ -139,7 +139,9 @@
 		<!-- (the title is the billboard logo in the canvas, over the press screen's dim, game/scene/logoSign.ts: it stands in the
 		     same place when the game opens. The green name plate that stood here is switched off, scene pass 9.) -->
 
-		<div class="gate" class:empty={ready && boot.ledSign && !assetsFailed} style:bottom="{SZ.bottom}px">
+		<!-- (ONE PROMPT, 2026-11-18: the line steps aside while the LED strip says it: the press screen on the board, or a card
+		     the tune panel raised over it; the full-screen press target above keeps working for the keyboard and screen readers) -->
+		<div class="gate" class:empty={ready && (boot.ledSign || boot.stripPress) && !assetsFailed} style:bottom="{SZ.bottom}px">
 			{#if assetsFailed}
 				<!-- same display style as PRESS ANYWHERE; the full-screen target retries instead of entering -->
 				<div class="pressText" style:font-size="{SZ.press}px">CONNECTION PROBLEM. TAP TO RETRY</div>
@@ -153,7 +155,7 @@
 					<div class="gk" class:on={lit > 0 && lit < SEG} style:transform="translateX({litPct}%)"><b></b></div>
 				</div>
 				<div class="pct" style:font-size="{SZ.pct}px">{loadingLabel} {progress}%</div>
-			{:else if !boot.ledSign}
+			{:else if !boot.ledSign && !boot.stripPress}
 				<!-- (with the LED billboard up, its ticker says it: game/landing/ledSign.ts) -->
 				<div class="pressText" style:font-size="{SZ.press}px">PRESS ANYWHERE TO CONTINUE</div>
 			{/if}

@@ -1510,6 +1510,42 @@ async function pressBoard(browser, S) {
 			return out;
 		});
 		check(new Set(seen).size === 3, `${tag}: PRESS: the explainer screens advance on the board (${seen.join(' > ')})`);
+		// ONE PROMPT ON THE DEMO PATH (2026-11-18, Corey's capture at 2000x945: the tune panel's Free Spins entry raised over
+		// the press screen showed the strip's line AND the press screen's HTML line): the press screen's line stays aside while
+		// the strip says it, and comes back as the only prompt once the card is gone
+		const promptText = () => R(p, () => [...document.querySelectorAll('body *')].filter((el) => {
+			const r = el.getBoundingClientRect();
+			const cs = getComputedStyle(el);
+			return el.childElementCount === 0 && /continue|anywhere/i.test(el.textContent || '') && r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none';
+		}).map((el) => `${el.tagName}.${el.className}`));
+		for (const layout of ['C1', 'B', 'A']) {
+			const st = await R(p, (layout) => {
+				const h = window.__reindeer;
+				h.tune.ledBoard.explain.layout = layout;
+				h.scoreboardManual(true);
+				h.scoreboardCard('fs');
+				for (let i = 0; i < 60; i++) h.scoreboardStep(100);
+				h.scoreboardManual(false);
+				return { item: h.scoreboard().stripPick?.item };
+			}, layout);
+			await sleep(400);
+			const during = await promptText();
+			await R(p, () => {
+				const h = window.__reindeer;
+				h.scoreboardCardEnd();
+				h.scoreboardLower();
+				h.tune.ledBoard.explain.layout = 'C1';
+			});
+			// the press screen comes back once the card has gone (its rise and the line), still one prompt
+			let back = null;
+			for (let i = 0; i < 40 && !back?.up; i++) {
+				await sleep(150);
+				back = await R(p, () => window.__reindeer.scoreboard().press);
+			}
+			await sleep(300);
+			const after = await promptText();
+			check(st.item === 'entry' && during.length === 0 && !!back?.up && after.length === 0, `${tag}: PRESS: a Free Spins entry raised by hand over the press screen (layout ${layout}) shows one prompt, the strip's (DOM prompts with it: ${during.length}); once it is gone the press screen is back on the board, still one prompt (${after.length})`, { st, during, back, after });
+		}
 		await p.mouse.click(S.vp.width / 2, S.vp.height * 0.45);
 		let g = null;
 		for (let i = 0; i < 40; i++) {

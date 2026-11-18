@@ -583,6 +583,10 @@
 				// true idle (the race may run): the base game, no autoplay, no round playing; the scatter count as the road sees it
 				const idle = !free && !stateGame.busy && stateBet.autoSpinsCounter <= 0;
 				if (pressOnBoard) scoreboard.pressGate(boot.pressReady);
+				// ONE PROMPT (2026-11-18): while the strip says PRESS ANYWHERE the press screen's HTML line steps aside (Corey saw
+				// both when the tune panel's Free Spins entry took the board over the press screen)
+				const sp = scoreboard.pressLineShown();
+				if (boot.stripPress !== sp) boot.stripPress = sp;
 				scoreboard.update(ticker.deltaMS, { free, left: Math.max(0, stateGame.totalFs - fsDone), idle, scatter: road.scatterCount() });
 				// the HUD's WIN lights a step brighter and a board tap leaves the spin alone while a big win counts or holds
 				const busy = scoreboard.busy();

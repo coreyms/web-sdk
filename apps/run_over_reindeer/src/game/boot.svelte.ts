@@ -58,6 +58,9 @@ export const boot = $state({
 	ledSign: false,
 	/** the press gate is open (ui/LandingScreen.svelte's own rule): the billboard's ticker says PRESS ANYWHERE TO CONTINUE */
 	pressReady: false,
+	/** (2026-11-18, ONE PROMPT) the LED strip shows a press line now (the press screen's, or a card's on the back board, the
+	 *  tune panel's demo cards included): the press screen's HTML line steps aside for it (components/Board.svelte sets it) */
+	stripPress: false,
 });
 
 if (typeof window !== 'undefined') {
