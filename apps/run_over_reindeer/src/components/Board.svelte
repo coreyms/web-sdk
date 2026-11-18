@@ -862,11 +862,12 @@
 			 *  waits on it unless awaited); the gag; the race (its own random source: tally n seeded runs, trace one); skip;
 			 *  driven by hand (manual, then step ms at a time); raise / lower the back board (a demo win that holds) */
 			scoreboard: () => scoreboard?.snapshot() ?? null,
-			scoreboardWin: (x: number, opts: { auto?: boolean; rate?: number; small?: boolean } = {}) => {
+			scoreboardWin: (x: number, opts: { auto?: boolean; rate?: number; small?: boolean; countMs?: number } = {}) => {
 				if (!scoreboard) return null;
 				const bet = bookEventAmountToNormalisedAmount(100);
 				const value = Math.round(x * bet * 100) / 100;
-				return scoreboard.win({ x, amount: value, bet, fmt: ledAmount(value), rate: opts.rate ?? 1, auto: !!opts.auto, small: opts.small });
+				// countMs (2026-11-18): a small win counted as a line win's strip total is (LINE_WIN.slam.stripCountMs)
+				return scoreboard.win({ x, amount: value, bet, fmt: ledAmount(value), rate: opts.rate ?? 1, auto: !!opts.auto, small: opts.small, countMs: opts.countMs });
 			},
 			scoreboardGag: (short = false) => scoreboard?.gag(short),
 			scoreboardSkip: () => scoreboard?.skip() ?? false,

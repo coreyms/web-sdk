@@ -54,6 +54,8 @@
 //     (USD, EUR, JPY, BRL, INR, a made-up XQZ, social XSC) a small win's amount on the strip is, dot for dot, the game's own
 //     drawRow of the expected text (symbol, number, decimals as the HUD writes them; XQZ the number alone) inside the face, and
 //     a Mega win's amount on the big board is that text with its lit dots inside the face; no page errors
+//     (2026-11-18: and for USD, EUR, JPY and BRL a free spin's strip win with cents, 39.2x, counted at LINE_WIN.slam
+//     stripCountMs, ends on exactly the amount it counts to and never reads more on the way)
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane).
@@ -654,6 +656,37 @@ async function currencyChecks(p, S) {
 			[code, want],
 		);
 		check(st.shown === want && st.match !== null && st.box[0] >= 1 && st.box[2] <= st.W - 2 && st.box[1] >= 0 && st.box[3] <= st.H - 1, `${tag}: ${code} on the strip reads "${st.shown}" (want "${want}"), drawn dot for dot as drawRow draws it (cap ${st.match}) inside the ${st.W} x ${st.H} face`, st);
+		// THE COUNT ENDS ON ITS AMOUNT (2026-11-18, the BRL capture "WIN R$39.00" beside the HUD's R$39.20: book 6239 spin 7,
+		// 39.00x after 0.20x, the strip shows the spin's win and the HUD the round's total): a free spin's strip win with
+		// cents (39.2x), counted at the line win's own count length, stepped frame by frame: from the count's end on, every
+		// frame reads exactly the amount it counted to (ledExpect, worked out here), and no frame before it reads more
+		if (['USD', 'EUR', 'JPY', 'BRL'].includes(code)) {
+			const v = Math.round(39.2 * bet * 100) / 100;
+			const wantE = ledExpect(code, v);
+			const ce = await R(p, (cm) => {
+				const R0 = window.__reindeer;
+				void R0.scoreboardWin(39.2, { small: true, countMs: cm });
+				let q = R0.scoreboardStep(10);
+				const during = [];
+				const after = new Set();
+				let final = null;
+				let peak = null;
+				const n = (t) => Number(String(t).replace(/[^0-9.]/g, '')) || 0;
+				for (let i = 0; i < 1000 && q.show; i++) {
+					if (q.show.t < q.show.countEnd) {
+						during.push(q.show.amount);
+						if (peak === null || n(q.show.amount) > n(peak)) peak = q.show.amount;
+					}
+					else after.add(q.show.amount);
+					final = q.show.finalStr;
+					q = R0.scoreboardStep(10);
+				}
+				return { during: during.slice(-3), n: during.length, peak, after: [...after], final };
+			}, await R(p, () => window.__reindeer.tune.lineWin.slam.stripCountMs));
+			const num = (t) => Number(String(t).replace(/[^0-9.]/g, '')) || 0;
+			const over = ce.peak !== null && num(ce.peak) > num(wantE) + 1e-9 ? [ce.peak] : [];
+			check(ce.after.length === 1 && ce.after[0] === wantE && ce.final === wantE && over.length === 0, `${tag}: ${code} a free spin's strip win counts to "${wantE}" and ends on it (the last count frames ${ce.during.join(', ')}; after the count ${ce.after.join(', ')})`, ce);
+		}
 		// THE BIG BOARD: a Mega win (30x) stepped to the end of its count; its amount's record (the lit box drawn)
 		const big = Math.round(30 * bet * 100) / 100;
 		const wantB = ledExpect(code, big);
