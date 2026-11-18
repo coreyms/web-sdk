@@ -83,7 +83,7 @@
 			if (typeof saved.sfx === 'number') stateSound.volumeValueSoundEffect = saved.sfx;
 			if (typeof saved.master === 'number') stateSound.volumeValueMaster = saved.master;
 			// the saved level is the BASE level; a resumed bonus keeps its normal speed (the live level
-			// follows only outside a bonus — bonusStart zeroes it either way, whichever runs first)
+			// follows only outside a bonus; game/bonusStockRules.ts bonusEntered zeroes it either way, whichever runs first)
 			if ([0, 1, 2].includes(saved.turbo)) {
 				context.stateGame.baseTurboLevel = saved.turbo;
 				if (context.stateGame.gameType !== 'freegame') context.stateGameDerived.setTurboLevel(saved.turbo);

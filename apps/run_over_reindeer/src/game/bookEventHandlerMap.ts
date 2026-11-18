@@ -20,6 +20,7 @@ import { presetForMode } from './scenePresets';
 import { loadClip } from './road/columnClips';
 import type { Board } from './types';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
+import { bonusEntered, bonusLeft } from './bonusStockRules';
 
 const ROWS = 4;
 
@@ -80,6 +81,9 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	stateGame.capped = false;
 	stateGame.featureTeased = false;
 	stateGame.bonusGrandmaStrikes = 0;
+	// THE STOCK RULES (game/bonusStockRules.ts): every bonus round starts at regular speed (a live trigger, a bought round
+	// and a resumed one all come through here), and autoplay's Stop on Free Games ends the run with this round
+	bonusEntered();
 	eventEmitter.broadcast({ type: 'soundMusic', name: stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus' });
 	devMark('music', stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus');
 };
@@ -259,6 +263,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.topUp = null;
 		stateGame.featureTeased = false;
 		stateGame.bonusGrandmaStrikes = 0;
+		// THE STOCK RULES (game/bonusStockRules.ts): the wrap-up is cleared, the base game's own speed comes back, and a
+		// running autoplay owes its pause before the next spin
+		bonusLeft();
 		eventEmitter.broadcast({ type: 'soundMusic', name: 'bgm_base' });
 		devMark('music', 'bgm_base');
 	},

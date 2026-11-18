@@ -6,7 +6,8 @@
 // own press catcher (ui/RoundCard.svelte `button.catch`, the player's press) once the board's card waits for the press
 // AND has been up as long as the card used to wait by itself (the entry 4 s, the wrap-up 6 s: ROUND.introAutoMs,
 // outroAutoMs), so the round runs on the timing these probes were written for. A card that continues by itself (a plain
-// wrap-up, autoplay) is never pressed early. Each card is pressed once; the presses are listed in window.__cardPresses.
+// wrap-up, a card of an autoplay run with Autoplay Bonuses on) is never pressed early. Since 2026-11-18 an autoplay run's
+// entry waits for the press too unless Autoplay Bonuses is on (ui/RoundCard.svelte); this presses it like any other. Each card is pressed once; the presses are listed in window.__cardPresses.
 export async function pressRoundCards(ctx) {
 	await ctx.addInitScript(() => {
 		const seen = new Map();

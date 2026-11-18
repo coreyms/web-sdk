@@ -6,6 +6,7 @@
 // Social mode: no gambling vocabulary on stake.us (soc(standard, social)). `**text**` marks bold runs.
 import config from './config';
 import { soc } from './social';
+import { AUTOPLAY_RESUME_PAUSE_MS } from './bonusStockRules';
 
 // Verbatim Stake Engine template (docs: approval-guidelines/general-disclaimer), as Manticore Mayhem ships it.
 export const DISCLAIMER =
@@ -33,11 +34,24 @@ export const MODE_NAMES: Record<string, string> = {
 	super: 'Super Free Spins',
 };
 
+/** THE OPERATOR'S SWITCHES the rules page follows (authenticate's jurisdiction block, the flags ui/controls.svelte.ts and
+ *  ui/Chrome*.svelte read): a control the operator turns off is not described */
+export type RulesFlags = {
+	disabledAutoplay?: boolean;
+	disabledTurbo?: boolean;
+	disabledSuperTurbo?: boolean;
+	disabledSlamstop?: boolean;
+	disabledSpacebar?: boolean;
+	disabledBuyFeature?: boolean;
+};
+/** the pause after a bonus round's wrap-up in autoplay, in words ("1 second"): game/bonusStockRules.ts */
+const PAUSE_WORDS = ((s) => `${s} second${s === 1 ? '' : 's'}`)(Math.round(AUTOPLAY_RESUME_PAUSE_MS / 100) / 10);
+
 const G = config.multipliers.grandmaWild;
 const C = config.multipliers.column;
 const R = config.multipliers.bonusRare;
 
-export const gameInfoText = () => ({
+export const gameInfoText = (j: RulesFlags = {}) => ({
 	paytable: {
 		intro: soc(
 			`Wins pay on **${config.paylines.length} fixed lines**, from the leftmost column to the right, for 3, 4 or 5 matching symbols in a row. Amounts are shown for the current play amount.`,
@@ -61,6 +75,16 @@ export const gameInfoText = () => ({
 		`**Multipliers add up.** When more than one multiplier Wild is part of the same winning line, their multipliers are added together and the line ${soc('pays', 'wins')} that many times over. A plain sleigh adds nothing.`,
 		`**Bonus rounds.** In Free Spins and Super Free Spins every column Wild stays for the rest of the round and keeps the multiplier it landed with. In Free Spins the Reindeer is ${C.freeSpins.reindeer[0]}x to ${C.freeSpins.reindeer[1]}x, Santa ${C.freeSpins.santa[0]}x to ${C.freeSpins.santa[1]}x and Grandma ${C.freeSpins.grandma[0]}x to ${C.freeSpins.grandma[1]}x; in Super Free Spins the Reindeer is ${C.super.reindeer[0]}x to ${C.super.reindeer[1]}x, Santa ${C.super.santa[0]}x to ${C.super.santa[1]}x and Grandma ${C.super.grandma[0]}x to ${C.super.grandma[1]}x. Now and then Santa steps out at **${R.santa}x** and Grandma at **${R.grandma}x**. 3 Presents during a round add ${config.retriggerSpins} more spins.`,
 		`The most a round can ${soc('pay', 'win')} is **${CAP}x**. When a round reaches it, the round ends there.`,
+		// THE STOCK RULES (game/bonusStockRules.ts, 2026-11-18): speed and Autoplay around a bonus round, said plainly
+		[
+			'**Speed and Autoplay in bonus rounds.**',
+			j.disabledTurbo ? '' : 'Every bonus round starts at regular speed, whatever Turbo was set to. Turbo can be changed during the round, and that choice lasts for that round only: when it ends, the speed set in the base game comes back.',
+			j.disabledAutoplay ? '' : `A running Autoplay can be stopped at any time during a bonus round with **AUTO** (or Spin): the round plays to its end and no further spin starts. When a bonus round ends with Autoplay still running, the next spin starts ${PAUSE_WORDS} after the total win screen is cleared, at every speed, so there is time to stop it.`,
+		]
+			.filter(Boolean)
+			// (both off: nothing to say, the paragraph goes; ui/GameInfoModal.svelte skips an empty one)
+			.join(' ')
+			.replace(/^\*\*Speed and Autoplay in bonus rounds\.\*\*$/, ''),
 	],
 	modes: {
 		intro: [soc('Each mode has its own published return to player. A bought round plays by the same rules as one that triggers by itself.', 'Each mode has its own published return to player. A round you start from the menu plays by the same rules as one that triggers by itself.'),

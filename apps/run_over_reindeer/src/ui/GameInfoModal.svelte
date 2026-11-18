@@ -3,7 +3,7 @@
 	// game's sections): the paytable with the real symbol pictures, the lines, how to play, the modes, the max win
 	// and RTP, the legal block. The copy is game/gameInfoText.ts (a first draft from the spec).
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
-	import { stateBet, stateModal, stateUrlDerived } from 'state-shared';
+	import { stateBet, stateConfig, stateModal, stateUrlDerived } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import type { Controls } from './controls.svelte';
@@ -36,7 +36,8 @@
 		{ id: 'legal', label: 'Legal' },
 	];
 
-	const T = gameInfoText();
+	// the page's words under the operator's switches (read when the page opens: the jurisdiction block has landed by then)
+	const T = $derived(gameInfoText(stateConfig.jurisdiction ?? {}));
 
 	// the symbols' own colors for their names (the spec's color hierarchy)
 	const SYMBOL_COLOR: Record<string, string> = { H1: '#c58bff', H2: '#9fd17a', H3: '#7fc4ff', H4: '#eef0f6', L1: '#b6ff1a', L2: '#ff9a3c', L3: '#ff5fc0', L4: '#ffd400', L5: '#eef0f6' };
@@ -47,11 +48,11 @@
 	const social = $derived(stateUrlDerived.social());
 	const payText = (mult: number) => (social ? `${mult}x` : numberToCurrencyString(mult * stateBet.betAmount));
 
-	const SPECIALS = [
+	const SPECIALS = $derived([
 		{ glyph: 'W', name: config.symbols.W.name, color: '#ff5a6e', note: T.paytable.wild },
 		// the red present beside the teal one: the 4th and 5th present of a spin, the ones that start Super (tools/build_present.py)
 		{ glyph: 'S', also: 'S-red', alsoName: `${config.symbols.S.name}, red`, name: config.symbols.S.name, color: '#19d3da', note: T.paytable.scatter },
-	];
+	]);
 
 	const capPerPrice = (cost: number) => (config.maxWin / cost).toLocaleString('en-US', { maximumFractionDigits: 1 });
 	const MAX_WIN = config.maxWin.toLocaleString('en-US');
@@ -189,7 +190,7 @@
 
 			<section bind:this={sectionEls.howto}>
 				<h2>How to Play</h2>
-				{#each T.howTo as p}<p>{@render rich(p)}</p>{/each}
+				{#each T.howTo.filter(Boolean) as p}<p>{@render rich(p)}</p>{/each}
 			</section>
 
 			<section bind:this={sectionEls.modes}>
