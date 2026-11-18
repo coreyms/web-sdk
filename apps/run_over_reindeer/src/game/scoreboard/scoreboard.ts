@@ -120,6 +120,9 @@ export class Scoreboard {
 	private scat: (ScatterFace & { id: number; live: boolean; hit: boolean; endAt: number }) | null = null;
 	/** THE ARBITER'S PICK (constants LED_BOARD.stripOrder) on the last drawn step, and what was true then */
 	private stripNow: StripItem = 'cartoon';
+	private stripAt = 0;
+	/** the Grandma lines played in this bonus round (LED_BOARD.gagPerBonus) */
+	private bonusGags = 0;
 	/** THE PRESS SCREEN on the expanded board (2026-11-17): its words, whether the press gate is open (the strip's line shows),
 	 *  and the press's hand over (resolved as the board has powered down and starts to lower) */
 	private pressText: LedText | null = null;
@@ -622,6 +625,14 @@ export class Scoreboard {
 			this.mark('gag', `refused: the back board is up (${up.kind})`);
 			return;
 		}
+		// (2026-11-18) a bonus round plays the line at most gagPerBonus times
+		if (this.free) {
+			if (this.bonusGags >= LED_BOARD.gagPerBonus) {
+				this.mark('gag', `refused: ${this.bonusGags} already this bonus round`);
+				return;
+			}
+			this.bonusGags += 1;
+		}
 		this.gagAt = this.clock;
 		this.gagShort = short;
 		this.mark('gag', short ? 'start short' : 'start');
@@ -700,6 +711,7 @@ export class Scoreboard {
 		if (env.free !== this.free) {
 			this.free = env.free;
 			this.left = env.left;
+			this.bonusGags = 0;
 			// (2026-11-17) the spins left show as a bonus round starts (the strip's order: their first window)
 			if (env.free) this.leftAt = this.clock;
 		}
@@ -837,7 +849,10 @@ export class Scoreboard {
 		const C = LED_BOARD.counterBreak;
 		const sinceLeft = this.clock - this.leftAt;
 		const after = sinceLeft - LED_BOARD.spinsLeftMs;
-		const spinsLeft = this.free && (after < 0 || (C.on && after % C.cycleMs >= C.cycleMs - C.counterMs));
+		// (2026-11-18) no idle content in a bonus round: the spins left are the strip's resting state there
+		const bonusRest = this.free && !LED_BOARD.bonusIdle;
+		// (the resting state is under everything that may play: the Grandma line, the one item ranked under it, still shows)
+		const spinsLeft = this.free && (bonusRest ? gt === null : after < 0 || (C.on && after % C.cycleMs >= C.cycleMs - C.counterMs));
 		const idle = this.env.idle ?? !this.free;
 		const raceUp = CARTOONS[this.cartoon % CARTOONS.length].key === 'race';
 		return {
@@ -847,8 +862,8 @@ export class Scoreboard {
 			winAmount: up && s!.kind === 'small',
 			spinsLeft,
 			gag: gt !== null,
-			cartoon: !raceUp || !idle,
-			race: raceUp && idle,
+			cartoon: !bonusRest && (!raceUp || !idle),
+			race: !bonusRest && raceUp && idle,
 		};
 	}
 
@@ -861,8 +876,15 @@ export class Scoreboard {
 		const gt = this.gagT();
 		// THE ARBITER (2026-11-17): the highest true item in LED_BOARD.stripOrder
 		const truth = this.stripTruth(gt);
-		const item = pickStrip(truth);
-		if (item !== this.stripNow) this.mark('strip', `${item} (was ${this.stripNow})`);
+		let item = pickStrip(truth);
+		// NO FLASHING IN A BONUS ROUND (LED_BOARD.bonusHoldMs): down to a lower item only bonusHoldMs after the last change,
+		// while the item up now is still true (a higher one cuts in at once)
+		const order = LED_BOARD.stripOrder;
+		if (this.free && item !== this.stripNow && order.indexOf(item) > order.indexOf(this.stripNow) && truth[this.stripNow] && this.clock - this.stripAt < LED_BOARD.bonusHoldMs) item = this.stripNow;
+		if (item !== this.stripNow) {
+			this.mark('strip', `${item} (was ${this.stripNow})`);
+			this.stripAt = this.clock;
+		}
 		this.stripNow = item;
 		this.truthNow = truth;
 		if (item === 'entry' || item === 'bigWin' || item === 'winAmount') {

@@ -1399,6 +1399,15 @@ export const LED_BOARD = {
 	 *    race       the race, only at true idle (the base game, no autoplay, nothing playing): elsewhere the cartoons skip it */
 	stripOrder: ['entry', 'bigWin', 'scatter', 'winAmount', 'spinsLeft', 'gag', 'cartoon', 'race'] as ('entry' | 'bigWin' | 'scatter' | 'winAmount' | 'spinsLeft' | 'gag' | 'cartoon' | 'race')[],
 	spinsLeftMs: 2000,
+	/** A BONUS ROUND'S STRIP (Corey 2026-11-18: "take the idle animations on the small LED screen out of Bonus Games, it's
+	 *  causing them to flash back and forth"): in Free Spins and Super Free Spins the strip never shows the cartoons or the
+	 *  race; the spins left are its resting state, up whenever nothing higher is due (spinsLeftMs and counterBreak are then
+	 *  unused). The Grandma line plays at most gagPerBonus times a round (the short line); after that a strike shows none.
+	 *  No flashing: in a bonus round the strip goes down to a lower item only bonusHoldMs after its last change (a higher
+	 *  item still cuts in at once). */
+	bonusIdle: false,
+	gagPerBonus: 2,
+	bonusHoldMs: 1000,
 	/** THE SCATTER ANTICIPATION COUNT (Corey 2026-11-17, approved: "Strip only, maybe show the scatter symbol animations, maybe
 	 *  some fireworks on the LED board when it hits successfully"). While a spin is in anticipation (config.anticipationAt
 	 *  presents seen, cars still to come, a trigger still possible: game/road/roadBoard.ts scatterCount) the strip shows the
