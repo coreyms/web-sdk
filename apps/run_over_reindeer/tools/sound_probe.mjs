@@ -46,10 +46,14 @@
 // present pop against the present's own trace (on the open's first DRAWN frame, whichever of its slots that frame shows),
 // or, when the open's pictures were not in time, on the trigger pulse's first frame. PRESENT_WAIT_MS=0 sets the trigger's
 // wait for the open's pictures (constants PRESENT.loadWaitMs) for the run, to make that fallback happen on purpose.
-// PASS 8 (2026-11-16, judgeScatter): the house scatter landings (sfx_scatter_land_1..5, the Angry Mantis / Manticore family)
+// PASS 8 (2026-11-16, judgeScatter): the house scatter landings (since 2026-11-17 the marimba family, sfx_scatter_land_1..8)
 // on posed boards: one per scatter on the frame it is seen, rising with the count, at normal speed and both turbo levels;
 // a slam stop's cut sounds the ones not yet played once together (the whole count's rung), none after it. Cases scat0,
 // scat1, scat2, scatslam.
+// PASS 9 (2026-11-17, the marimba family and the intro jingle): the Nth scatter seen plays sfx_scatter_land_N (N = 1..8, no
+// cap at 5); every freeSpinTrigger and freeSpinRetrigger plays sfx_scatter_success exactly once and no tier fanfare
+// (sfx_bonus_trigger_*) plays at all; the intro screen's press plays sfx_intro_jingle_short once and not the minor click
+// (sfx_ui_minor), checked per size in boot (the effects tap goes in before the press).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 OUT=<dir> [ONLY=idle,slam] \
 //     [SIZES=desk,phone] node tools/sound_probe.mjs
 // The browser runs with --mute-audio: the game plays its sounds, nothing reaches the speakers.
@@ -94,7 +98,7 @@ const OURS = [...OURS1, ...OURS2, ...OURS3];
 // the borrowed Manticore sounds whose moments have this game's own now: none of them may play
 const REPLACED = ['sfx_reel_stop', 'sfx_reel_spin', 'sfx_cluster_remove', 'sfx_swipe', 'sfx_sting_hit'];
 // the house standards, the same in every game
-const STANDARD = /^sfx_(ui_|scatter_land_|bonus_confirm|money_counter)/;
+const STANDARD = /^sfx_(ui_|scatter_land_|scatter_success|bonus_confirm|money_counter|intro_jingle_short)/;
 // the sprite's lengths, ms (sounds.json)
 const LEN = { sfx_reindeer_alert: 600, sfx_reindeer_run: 1200, sfx_reindeer_turn: 250, sfx_crash: 933, sfx_crash_cloud: 4000, sfx_grandma_wild: 593, sfx_column_reindeer_in: 1234, sfx_reindeer_idle_snort: 600, sfx_traffic_roll: 2000, sfx_stoplight_change: 256, sfx_target_hop: 77, sfx_target_drop: 97, sfx_target_lock: 342, sfx_reindeer_dart: 476, sfx_redbox: 244, sfx_line_show: 197, sfx_present_pop: 800 };
 // every one-shot's own length in the sprite (static/assets/audio/sounds.json): no play of it sounds longer
@@ -108,7 +112,11 @@ const SCAT_BOOK = (scat) => {
 	for (const [row, reel] of scat) board[reel][row] = 'S';
 	return [{ index: 0, type: 'reveal', gameType: 'basegame', board }, { index: 1, type: 'finalWin', amount: 0 }];
 };
-const LAND = (n) => `sfx_scatter_land_${Math.min(5, n)}`;
+const LAND = (n) => `sfx_scatter_land_${Math.min(8, n)}`;
+// PASS 9: the trigger's one sound, and the tier fanfares it replaced (none may play)
+const SUCCESS = 'sfx_scatter_success';
+const OLD_FANFARE = /^sfx_bonus_trigger_/;
+const JINGLE = 'sfx_intro_jingle_short';
 
 const CASES = [
 	{ id: 'idle', book: 'base_one_column', turbo: 0, snort: 'always', idle: true },
@@ -161,11 +169,28 @@ async function boot(browser, S) {
 		if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 200));
 	});
 	await p.goto(`${APP}/?lang=en&sessionID=snd${S.name}${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
+	// PASS 9: the effects tap goes in as soon as the sprite has loaded, before the intro screen is pressed (it is pressed
+	// only once the tap is in, or after 40 tries without it), so the press's own sound is in the tap's log
+	let pressedAt = null;
 	for (let i = 0; i < 200; i++) {
 		const ok = await p.evaluate(() => !!(window.__reindeer && window.__reindeer.atRest && window.__reindeer.atRest() && window.__reindeer.hud && !document.querySelector('.landing') && window.__reindeer.soundTap && window.__reindeer.soundTap())).catch(() => false);
 		if (ok) break;
-		if (i % 2 === 1) await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3).catch(() => {});
+		const tapIn = await p.evaluate(() => !!(window.__reindeer && window.__reindeer.soundTap && window.__reindeer.soundTap())).catch(() => false);
+		if (i % 2 === 1 && (tapIn || i > 40)) {
+			if (pressedAt === null && tapIn) pressedAt = await p.evaluate(() => performance.now()).catch(() => null);
+			await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3).catch(() => {});
+		}
 		await sleep(600);
+	}
+	{
+		const log = ((await p.evaluate(() => window.__reindeer.soundTap().log).catch(() => [])) ?? []).filter((e) => e.what === 'play');
+		const jingles = log.filter((e) => e.name === JINGLE);
+		// (the minor click the press used to play came on the press's own call: none within 300 ms of the jingle, or of the
+		// first click sent when there is no jingle)
+		const anchor = jingles[0]?.t ?? pressedAt;
+		const clicks = log.filter((e) => e.name === 'sfx_ui_minor' && anchor !== null && Math.abs(e.t - anchor) <= 300);
+		check(pressedAt !== null && jingles.length === 1 && jingles[0].t >= pressedAt - 50, `${S.name}: the intro press plays ${JINGLE} once (${jingles.length}${jingles[0] && pressedAt !== null ? `, ${r1(jingles[0].t - pressedAt)} ms after the click was sent` : ''})`, { pressedAt, plays: log.slice(0, 8).map((e) => [e.name, e.t]) });
+		check(clicks.length === 0, `${S.name}: the intro press does not play sfx_ui_minor (${clicks.length})`);
 	}
 	for (let i = 0; i < 60 && !(await p.evaluate(() => window.__reindeer.runMemory().loaded)); i++) await sleep(500);
 	await sleep(800);
@@ -646,7 +671,7 @@ function judge2(tag, C, R) {
 	check(lids.length === triggers, `${tag}: one present pop per trigger (${lids.length} for ${triggers})`);
 	lids.forEach((e) => {
 		const pl = take('sfx_present_pop', e.frame);
-		const fan = plays.filter((x) => /^sfx_bonus_trigger_/.test(x.name) && x.t <= e.t).pop();
+		const fan = plays.filter((x) => x.name === SUCCESS && x.t <= e.t).pop();
 		// round 3: on the open's FIRST frame (the pop is 170 ms into the file). Pass 5: the first frame DRAWN of the open, read
 		// off the present's own trace (one row per board step it draws): a frame at turbo can cover several of its 33 ms
 		// slots, so the first one drawn may be past slot 0 (here a 40 ms frame at turbo 2 is three), but no open frame of
@@ -665,6 +690,12 @@ function judge2(tag, C, R) {
 		row('sfx_present_pop', pl, e, `the open's first frame (${e.detail})`);
 	});
 	check(plays.filter((e) => e.name === 'sfx_present_pop').length === lids.length, `${tag}: no present pop without a lid (${lids.length})`);
+	// PASS 9: THE TRIGGER'S SUCCESS (the marimba family): once per trigger and retrigger, never a tier fanfare
+	const successes = plays.filter((e) => e.name === SUCCESS);
+	check(successes.length === triggers, `${tag}: ${SUCCESS} once per trigger or retrigger (${successes.length} for ${triggers})`, successes.map((e) => at(e)));
+	const fanfares = plays.filter((e) => OLD_FANFARE.test(e.name));
+	check(fanfares.length === 0, `${tag}: no tier fanfare plays (sfx_bonus_trigger_*)`, fanfares.map((e) => `${e.name} @${at(e)}`));
+	successes.forEach((e, i) => row(SUCCESS, e, e, `trigger ${i + 1} of ${triggers}`));
 
 	// NOTHING BORROWED IN A MOMENT THAT HAS ITS OWN SOUND NOW
 	const replaced = plays.filter((e) => REPLACED.includes(e.name));
@@ -807,7 +838,7 @@ function judge3(tag, C, R) {
 }
 
 /** PASS 8: THE HOUSE SCATTER LANDINGS (constants REINDEER_SOUND scatterLand): sfx_scatter_land_<n> (n = the spin's count,
- *  capped at the family's 5th) on the frame each scatter is SEEN (roadBoard's scatterSeen moment, seenMs after its car
+ *  since 2026-11-17 the marimba family's 1..8) on the frame each scatter is SEEN (roadBoard's scatterSeen moment, seenMs after its car
  *  leaves the tunnel), at every turbo level; on a slam stop's cut the ones not yet played sound ONCE together: the
  *  rung of the spin's whole count, on the cut's frame, and none after it. Checked in the Howl's own log (the tap). */
 function judgeScatter(tag, C, R) {

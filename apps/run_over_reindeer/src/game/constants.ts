@@ -993,8 +993,11 @@ export const REINDEER_SOUND = {
 	 *  scatter on the frame it is SEEN (LANE_FLOW seenMs after its car leaves the tunnel, the tease's own moment): the
 	 *  spin's 1st scatter names[0], the 2nd names[1] and so on, rising (the base game shows at most 5, a free spin 3). A
 	 *  slam stop's cut sounds the ones not yet played ONCE together: the rung of the spin's whole count, on the cut's
-	 *  frame. Dropped under SKIP TO RESULT (components/Sound.svelte drops every one-shot then). */
-	scatterLand: { names: ['sfx_scatter_land_1', 'sfx_scatter_land_2', 'sfx_scatter_land_3', 'sfx_scatter_land_4', 'sfx_scatter_land_5'] },
+	 *  frame. Dropped under SKIP TO RESULT (components/Sound.svelte drops every one-shot then).
+	 *  Since 2026-11-17 the MARIMBA FAMILY (Corey's cross-game standard, the same files as Manticore's): eight notes on a
+	 *  rising scale, the spin's Nth present plays names[N - 1] for N = 1..8; the moments and the slam stop rule above are
+	 *  unchanged. Its success, sfx_scatter_success, is the trigger's sound (game/bookEventHandlerMap.ts). */
+	scatterLand: { names: ['sfx_scatter_land_1', 'sfx_scatter_land_2', 'sfx_scatter_land_3', 'sfx_scatter_land_4', 'sfx_scatter_land_5', 'sfx_scatter_land_6', 'sfx_scatter_land_7', 'sfx_scatter_land_8'] },
 	/** TURBO 2's reel stop (pass 5): a reel's stop within gapMs (real ms) of the last reel stop sound is silent (the five
 	 *  land within about 20 ms, so one sound per spin), and one still sounding from the spin before (Super's spins come
 	 *  about 450 ms apart, the sound is 454 ms) is stopped as the next starts, so it never plays twice at once */
