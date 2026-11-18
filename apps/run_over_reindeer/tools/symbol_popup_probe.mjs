@@ -1,4 +1,9 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{components/SymbolPopup.svelte,game/symbolPopup.ts,game/symbolPopupSpec.ts,game/boardIdle.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/gameInfoText.ts,game/config.ts,components/Board.svelte};
+// WATCHES: ; __reindeer.symbolPopup, __reindeer.setBoard, __reindeer.grandmaWild, __reindeer.ledCurrency, __reindeer.hurryLevel
+// WATCHES: ; __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, __reindeer.road, __reindeer.gameType, FIRST_TAP.ignoreMs
+// WATCHES: ; SYMBOL_POPUP, data-symbol-popup, data-hud, data-hud-step, .sp-pop, .landing, .hudp
 // THE SYMBOL PAY POPUP PROBE (components/SymbolPopup.svelte, Corey 2026-11-17: "click on tiles to show their
 // value/payouts during idle, the same way it's set up for manticore mayhem"). Modeled on Manticore's
 // tools/manticore/symbol_popup_probe.js: its checks are the behavior contract Corey approved there, mapped onto this
@@ -16,11 +21,13 @@
 //   rounds   1440 x 900: taps on the board all through a base round, a natural Free Spins round (its entry and wrap-up
 //            cards included) and an autoplay run: the popup never up unless the board is idle and quiet; after each, a
 //            tap at rest opens it and starts no round; a round resumed after a reload: never up until it is over
-//   social   1440 x 900 ?social=true: the amounts as Game Info writes them there (Nx), the WINS heading, the social
-//            Wild line, no restricted word
-//   sizes    1440 x 900, 1920 x 1080, 844 x 390 (touch), 390 x 844 (touch), 390 x 620 (touch): every one of the 20
-//            cells opens its own symbol, inside the screen, never over the tapped cell (or the standing column); the
-//            cell sizes (tap targets) reported; SHOTS: one popup per kind
+//   social   1440 x 900 ?social=true: AMOUNTS in the session's coin as the HUD writes them (SC, then GC: the play
+//            currency set by the dev hook ledCurrency; Corey 2026-11-17 "Amounts like Manticore"), never Nx multiples,
+//            the WINS heading, the social Wild line, no restricted word
+//   sizes    1440 x 900, 1920 x 1080, 844 x 390 (touch), 390 x 844 (touch), 390 x 620 (touch), 360 x 640 (touch):
+//            every one of the 20 cells opens its own symbol, inside the screen, never over the tapped cell (or the
+//            standing column); each first board column tapped in all four rows; the cell sizes (tap targets) reported;
+//            SHOTS: one popup per kind
 //   firsttap a tap every 100 ms from PRESS ANYWHERE: none opens the popup within FIRST_TAP.ignoreMs, one after it does
 //   clip     390 x 844 touch, recorded: open, switch, close, open again and a Spin press with it up (webm, made a GIF by
 //            ffmpeg into OUT)
@@ -53,7 +60,8 @@ const KINDS = ['3', '4', '5'];
 const LINES = {
 	standard: {
 		W: ["**Santa's Sleigh is Wild**: it stands in for every paying symbol. A line of only Wilds pays as Grandma's Car."],
-		S: ['**The Present is the Scatter.**', '3 Presents award 10 Free Spins and 4 or more award 10 Super Free Spins.'],
+		// (2026-11-17: Game Info's sentence now also says which Presents show in red)
+		S: ['**The Present is the Scatter.**', '3 Presents award 10 Free Spins and 4 or more award 10 Super Free Spins: the 4th and 5th Present to land in a spin show in red.'],
 		GW: ["If the reindeer hits **Grandma's Car**, that one cell becomes a Wild with a multiplier (2x to 10x in the base game, up to 100x in a bonus round) for that spin only."],
 		CW_reindeer: ["If the reindeer hits **Santa's Sleigh**, the whole column becomes a Wild with a multiplier of its own.", 'The Reindeer is the lowest (3x to 8x in the base game).'],
 		CW_santa: ["If the reindeer hits **Santa's Sleigh**, the whole column becomes a Wild with a multiplier of its own.", 'Santa is in the middle (10x to 20x).'],
@@ -182,7 +190,7 @@ const popupText = (p) => H(p, () => document.querySelector('[data-symbol-popup]'
 const num = (s) => Number(String(s).replace(/[^0-9.]/g, ''));
 
 /** what the popup says for `code`, checked against the paytable, Game Info's rule and its sentences */
-async function checkContent(p, code, label, wording = 'standard') {
+async function checkContent(p, code, label, wording = 'standard', coinMark = null) {
 	const s = await st(p);
 	ok(s.kind === KIND_WORD[code], `${label}: the kind line says ${s.kind}`, { kind: s.kind });
 	if (NAMES[code]) ok(s.name === NAMES[code], `${label}: named ${s.name}`, { name: s.name });
@@ -194,10 +202,12 @@ async function checkContent(p, code, label, wording = 'standard') {
 	const bet = await H(p, () => window.__reindeer.symbolPopup.bet());
 	const keys = s.rows.map((r) => r.k);
 	const got = s.rows.map((r) => r.v);
-	const want = await H(p, ([m, social]) => m.map((x) => (social ? `${x}x` : window.__reindeer.symbolPopup.fmt(x * window.__reindeer.symbolPopup.bet()))), [PAYTABLE[code], wording === 'social']);
+	// amounts in the HUD's own formatter in every session, social included (its GC / SC; never "Nx" multiples)
+	const want = await H(p, (m) => m.map((x) => window.__reindeer.symbolPopup.fmt(x * window.__reindeer.symbolPopup.bet())), PAYTABLE[code]);
 	const rule = await H(p, (m) => m.map((x) => window.__reindeer.symbolPopup.payText(x)), PAYTABLE[code]);
-	const numeric = wording === 'social' ? got.every((v, i) => v === `${PAYTABLE[code][i]}x`) : got.every((v, i) => Math.abs(num(v) - PAYTABLE[code][i] * bet) < 0.0051);
-	ok(JSON.stringify(keys) === JSON.stringify(KINDS) && JSON.stringify(got) === JSON.stringify(want) && JSON.stringify(got) === JSON.stringify(rule) && numeric, `${label}: ${code} at ${bet} == paytable x play amount as Game Info writes it (${got.join(' / ')})`, { keys, got, want, rule, bet });
+	const numeric = got.every((v, i) => Math.abs(num(v) - PAYTABLE[code][i] * bet) < 0.0051) && !got.some((v) => /x$/.test(v));
+	const coin = !coinMark || got.every((v) => v.startsWith(coinMark));
+	ok(JSON.stringify(keys) === JSON.stringify(KINDS) && JSON.stringify(got) === JSON.stringify(want) && JSON.stringify(got) === JSON.stringify(rule) && numeric && coin, `${label}: ${code} at ${bet} == paytable x play amount in the HUD's formatter (${got.join(' / ')})`, { keys, got, want, rule, bet, coinMark });
 	ok(JSON.stringify(s.head) === JSON.stringify(HEAD[wording]) && s.rows[2]?.top === true, `${label}: heading ${JSON.stringify(s.head)}, the 5 in a row in the accent`, { head: s.head, rows: s.rows });
 	return s;
 }
@@ -634,13 +644,24 @@ async function social() {
 	const { p } = c;
 	try {
 		await placeBoard(c);
-		for (const [key, [code, reel, row]] of Object.entries(SPOTS)) {
-			await tapCell(c, reel, row);
-			const s = await st(p);
-			ok(s.open && s.code === code, `${key}: opens in social`, s);
-			await checkContent(p, code, `social ${key}`, 'social');
-			await words(p, `social ${key}`, true);
-			if (key === 'high') await shot(p, 'social_desk1440_high.png');
+		// a stake.us session plays in Stake Cash or Gold Coins: the play currency set by the dev hook (the fixtures
+		// answer USD), the popup's amounts read in that coin with the HUD's mark ("SC 1.50", "GC 2")
+		for (const [cur, mark] of [['XSC', 'SC '], ['XGC', 'GC ']]) {
+			await H(p, (code) => window.__reindeer.ledCurrency(code), cur);
+			await sleep(150);
+			for (const [key, [code, reel, row]] of Object.entries(SPOTS)) {
+				if (cur === 'XGC' && !['high', 'low'].includes(key)) continue;
+				if ((await st(p)).open) {
+					await p.keyboard.press('Escape');
+					await sleep(200);
+				}
+				await tapCell(c, reel, row);
+				const s = await st(p);
+				ok(s.open && s.code === code, `${cur} ${key}: opens in social`, s);
+				await checkContent(p, code, `social ${cur} ${key}`, 'social', mark);
+				await words(p, `social ${cur} ${key}`, true);
+				if (key === 'high') await shot(p, `social_desk1440_high_${cur}.png`);
+			}
 		}
 		ok(c.errs.length === 0, 'no page or console errors', c.errs.slice(0, 5));
 	} finally {
@@ -654,6 +675,8 @@ const SIZES = [
 	{ name: 'side844', vp: { width: 844, height: 390 }, touch: true },
 	{ name: 'up844', vp: { width: 390, height: 844 }, touch: true, kinds: true },
 	{ name: 'up620', vp: { width: 390, height: 620 }, touch: true, kinds: true },
+	// (2026-11-17) the narrowest upright phone the game is drawn for: the column popups' fallback
+	{ name: 'up640', vp: { width: 360, height: 640 }, touch: true, kinds: true },
 ];
 async function sizes() {
 	for (const S of SIZES) {
@@ -664,14 +687,24 @@ async function sizes() {
 		try {
 			// the first board's columns
 			await sweep(c, `${S.name} the first board (three columns)`);
+			// every column, tapped in each of its four rows (2026-11-17: the small phones' fallback, browser checked): inside
+			// the screen, never over the tapped cell; clear of the whole column wherever the usual or the tight margins
+			// (SYMBOL_POPUP.tight, read from the page) leave room, which the INFO line reports
+			const spec = await H(p, () => window.__reindeer.symbolPopup.spec());
 			for (const [reel, code] of Object.entries(LANDING_COLUMNS)) {
-				await tapCell(c, Number(reel), 1);
-				const s = await st(p);
-				const g = geometry(s, S.vp);
-				ok(s.open && s.code === code && g.inScreen && !g.overCell, `${S.name} ${code}: inside the screen, clear of the column (side ${s.place?.side}, ${Math.round(s.place?.width)} x ${Math.round(s.place?.height)})`, { g, place: s.place, cell: s.cell });
-				if (S.kinds) await shot(p, `${S.name}_${code}.png`);
-				await p.keyboard.press('Escape');
-				await sleep(150);
+				for (let row = 0; row < 4; row++) {
+					await tapCell(c, Number(reel), row);
+					const s = await st(p);
+					const g = geometry(s, S.vp);
+					const t = s.tapped;
+					const P = s.place;
+					const gapCol = P ? Math.max(s.cell.x - (P.x + P.width), P.x - (s.cell.x + s.cell.width), s.cell.y - (P.y + P.height), P.y - (s.cell.y + s.cell.height)) : null;
+					ok(s.open && s.code === code && s.row === row && g.inScreen && !g.overCell, `${S.name} ${code} row ${row}: inside the screen, clear of the ${g.overColumn ? 'tapped cell' : 'column'} (side ${P?.side}, ${Math.round(P?.width)} x ${Math.round(P?.height)} at ${Math.round(P?.x)}, ${Math.round(P?.y)})`, { g, place: P, cell: s.cell, tapped: t });
+					if (!g.overColumn && gapCol !== null && gapCol < spec.gapCss - 0.5) info(`${S.name} ${code} row ${row}: clear of the column with the tight margins (gap ${gapCol.toFixed(1)} px, usual ${spec.gapCss}, tight ${spec.tight.gapCss})`);
+					if (S.kinds && row === 1) await shot(p, `${S.name}_${code}.png`);
+					await p.keyboard.press('Escape');
+					await sleep(150);
+				}
 			}
 			await placeBoard(c);
 			await sweep(c, `${S.name} the posed board`);

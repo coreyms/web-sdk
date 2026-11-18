@@ -14,14 +14,13 @@ export const LANDING_POSE: Board = [
 	['L2', 'H3', 'L4', 'L5'],
 ];
 
-/** the highest multiplier a column of this tier can land with anywhere in the game (base game, free spins, Super and
- *  the bonus rounds' rare big starts), read from the math config so a math change cannot leave the landing wrong */
-export const topMultiplier = (tier: ColumnTier): number => {
-	const m = config.multipliers;
-	const ranges = Object.values(m.column).map((game) => (game as Record<ColumnTier, readonly number[]>)[tier] ?? []);
-	const rare = (m.bonusRare as Partial<Record<ColumnTier, number>>)[tier] ?? 0;
-	return Math.max(rare, ...ranges.flat());
-};
+/** the highest multiplier a column of this tier can land with in the BASE GAME, read from the math config so a math
+ *  change cannot leave the landing wrong. The first board is the base game's board at rest before the first spin (a
+ *  tap there opens the popup with the base game's range), so it shows only what a base spin can produce: Reindeer 8x,
+ *  Santa 20x, Grandma 75x today. (Until 2026-11-17 it took the top of every round, which posed Santa at 30x: a bonus
+ *  round's rare start that no base spin ever lands, next to a popup that says 10x to 20x. Corey: "We should go with the
+ *  truth there.") */
+export const topMultiplier = (tier: ColumnTier): number => config.multipliers.column.base[tier][1];
 
 /** the three columns as posed, reels from 0 */
 export const landingColumns = (): { reel: number; tier: ColumnTier; multiplier: number }[] =>

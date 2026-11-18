@@ -1,4 +1,10 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/{game/roamPaths.ts,game/road/roam.ts,game/road/roamFrames.ts,game/reindeerRoamSpec.ts,staging/tune/RoamEditor.svelte};
+// WATCHES: ; __reindeer.roam, __reindeer.roamAreas, __reindeer.roamMemory, __reindeer.roamPicks, __reindeer.roamPlace, __reindeer.roamReseed
+// WATCHES: ; __reindeer.roamStandAt, __reindeer.roamStrike, __reindeer.roamView, __reindeer.roamWalkIn, __reindeer.roamZones, __reindeer.roadBoard
+// WATCHES: ; __reindeer.clock, __reindeer.atRest, __reindeer.hud, __reindeer.strike, __reindeer.turbo, __reindeer.runMemory, __reindeer.scene
+// WATCHES: ; __reindeer.sceneSwap, __reindeer.sceneWant, __reindeer.step, STRIKE.roam, ROAM, ROAM_AREAS, data-roam-area, data-roam-json
+// WATCHES: ; data-roam-overlay, data-roam-wp
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -249,9 +255,14 @@ async function sweepSize(p, S, name, errs, out) {
 	const geo = { view: run.view, roam: run.roam, vp: run.vp };
 	const W = run.view.rect.right - run.view.rect.left;
 	const got = spread(run.stops, 0.12 * W);
-	// 4 spots 12 % of the width apart; an area that holds fewer (a phone held sideways: the snow by the tunnel only), at
-	// least 2 or what it holds
-	const want = run.roam.capacity >= 4 ? 4 : Math.min(2, run.roam.capacity);
+	// 4 spots 12 % of the width apart; an area that holds fewer, at least 2 or what it holds.
+	// HELD SIDEWAYS (2026-11-17, the redrawn phone area, game/roamPaths.ts): the area now takes all the free snow, the top
+	// snow rim included, but from his side (he walks in level from past the right edge) only the snow right of the right
+	// tunnel can be reached: the Auto / Turbo capsule closes the rim's right end above it, the tunnel's end and the road
+	// close it below, and he never pops in. That strip (about 264 x 500 road px at 844 x 390 and 932 x 430) holds 2 spots
+	// 12 % of the width apart (one high, one low), so 2 is the honest bar there, whatever the floor's `capacity` (which
+	// counts the rim) says.
+	const want = run.roam.kind === 'phone' ? 2 : run.roam.capacity >= 4 ? 4 : Math.min(2, run.roam.capacity);
 	const hits = [];
 	for (let i = 0; i < run.pos.length && hits.length < 5; i++) {
 		const hz = hitsAt(geo, run.zones, run.pos[i][0], run.pos[i][1]);

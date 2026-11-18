@@ -13,8 +13,9 @@
 // them as fractions of the screen's room beyond the art: a wider or shorter window stretched them off the snow (the right
 // side ran off the screen, the top band rose above it) and left a sliver in the corner. `beyond`: the snow past the art's
 // sides (past the tunnels) is allowed ground too, as far as the window shows it (a wide window gets more of it).
-// Corey's desktop corners (drawn at 1440 x 900) and upright ones (390 x 844), and my sideways ones (844 x 390), were
-// converted at the size they were drawn at: there they are unchanged (to the rounding, 0.1 road px).
+// Corey's desktop corners (drawn at 1440 x 900) and upright ones (390 x 844), and the builder's sideways ones (844 x 390),
+// were converted at the size they were drawn at: there they are unchanged (to the rounding, 0.1 road px). The sideways
+// area was redrawn in road px on 2026-11-17 (all the free snow; see below).
 // The staging tune panel's "Reindeer area" group edits these live (src/staging/tune/RoamEditor.svelte).
 import { ROAD_ART } from './roadArtSpec';
 import type { LayoutKind } from './layoutSpec';
@@ -67,15 +68,24 @@ export const ROAM_AREAS: Record<LayoutKind, RoamArea> = {
 			{ x: 179.2, y: 51.4 },
 		],
 	},
-	// mine (844 x 390): the open snow right of the right tunnel, between the Auto / Turbo capsule and the Spin
+	// HELD SIDEWAYS (redrawn 2026-11-17, measured at 844 x 390 and 932 x 430): ALL the free snow, the art's whole top
+	// snow rim (feet up to road y 130, from right of the logo to the Auto / Turbo capsule) and the snow right of the
+	// right tunnel down to just above the Spin. His body keeps clear of the HUD, the logo, the top line and the LED
+	// strip by the keep-out zones, not by this outline. From his side only the strip right of the tunnel can be walked
+	// to (the capsule closes the rim above it, the tunnel's end and the road below it, and he never pops in), so there
+	// he roams a strip about 264 x 500 road px (tools/roam_probe.mjs expects 2 stops 12 % of the width apart there).
+	// The snow left of the left tunnel under the logo is cut off by the road and left out. Every corner is on the screen
+	// at both sizes (the editor's corners are dragged with a finger).
 	phone: {
 		side: 'right',
 		beyond: true,
 		corners: [
-			{ x: 1606.3, y: 168.2 },
-			{ x: 1994.1, y: 168.2 },
-			{ x: 1994.1, y: 769.5 },
-			{ x: 1606.3, y: 769.5 },
+			{ x: 40, y: -50 },
+			{ x: 1990, y: -50 },
+			{ x: 1990, y: 840 },
+			{ x: 1580, y: 840 },
+			{ x: 1580, y: 130 },
+			{ x: 40, y: 130 },
 		],
 	},
 	// Corey's (drawn at 390 x 844): the snow above the road under the forest, right of the logo

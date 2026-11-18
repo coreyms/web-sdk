@@ -1,4 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/ui/FeatureMenu.svelte;
+// WATCHES: ; __reindeer.fastLane, __reindeer.hud, __reindeer.atRest, data-feature-menu, data-fl-confirm, data-fl-price
+// WATCHES: ; data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
 // THE FAST LANE PROBE: the feature menu (ui/FeatureMenu.svelte, the redesign of 2026-11-17). At each size (desktop
 // 1440 x 900 and 1920 x 1080, a phone held sideways 844 x 390, an upright phone 390 x 844 and the small 390 x 620):
 //   · the HUD's feature button opens it; the X and Escape close it

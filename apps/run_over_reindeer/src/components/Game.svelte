@@ -30,6 +30,8 @@
 	import LandingScreen from '../ui/LandingScreen.svelte';
 	import SymbolPopup from './SymbolPopup.svelte';
 	import { landing } from '../game/boardIdle';
+	import { GPU_WARM, gpuWarmLog, gpuWarmPending, stageSources, warmSources } from '../game/gpuWarm';
+	import { seatedAt } from '../game/scoreboard/show';
 
 	const context = getContext();
 
@@ -95,6 +97,9 @@
 			if (!clamped) {
 				clamped = true;
 				applyResolution(app, true);
+				// textures stay resident about 30 min from the start (game/gpuWarm.ts): a texture sent up while the player
+				// waits on the press screen is never unloaded by the GC's one minute idle limit and sent up again after it
+				app.renderer.textureGC.maxIdle = GPU_WARM.gcMaxIdle;
 			}
 			if (!app.renderer.renderableGC.enabled) {
 				if (framesWaited++ < 600) requestAnimationFrame(clamp);
@@ -133,23 +138,29 @@
 		app.resize();
 	};
 
-	// GPU warm-up at loading-screen dismissal: upload every mounted TEXTURE ahead (never the stage itself:
-	// prepare.upload(stage) also queues Graphics contexts, and a context replaced meanwhile is iterated after it
-	// was destroyed) and keep textures resident about 30 min.
-	const warmGpu = async () => {
+	// THE GPU WARM-UP (game/gpuWarm.ts): every texture on the stage goes to the GPU WHILE THE PRESS SCREEN WAITS (the
+	// press gate open: the preload is in and the board, the first board's columns, the scene, the logo and the LED board
+	// playing the press screen are all on the stage), a source a frame after the render, skipping what is already there.
+	// At the press a second pass takes only what was added since (the HUD's beds); normally it finds everything resident,
+	// so the first frames after the press upload nothing. A source destroyed or let go meanwhile is never sent up.
+	let warmedAtPress = false;
+	const warmGpu = async (pass: string) => {
 		const app = context.stateApp.pixiApplication;
-		if (!app) return;
-		app.renderer.textureGC.maxIdle = 60 * 60 * 30;
+		if (!app?.renderer) return;
 		await tick();
-		const textures = new Set<PIXI.Texture>();
-		const walk = (node: PIXI.Container) => {
-			const t = (node as PIXI.Sprite).texture;
-			if (t instanceof PIXI.Texture && !t.destroyed && t.source) textures.add(t);
-			for (const child of node.children) walk(child);
-		};
-		walk(app.stage);
-		await app.renderer.prepare.upload([...textures]);
+		await warmSources(app, stageSources(app.stage), pass);
 	};
+	$effect(() => {
+		// the press screen is up and its gate open; a replay (no press screen) warms at its loading screen's end instead.
+		// It waits out the LED board's rise (game/scoreboard/show.ts seatedAt, plus GPU_WARM.afterSeatMs) so no upload
+		// lands in the frames of that motion; a press before then leaves it all to the press's pass.
+		if (warmedAtPress || !context.stateApp.preLoaded || !boot.pressReady || !context.stateLayout.showLoadingScreen || !context.stateApp.pixiApplication) return;
+		warmedAtPress = true;
+		setTimeout(() => {
+			if (context.stateLayout.showLoadingScreen) void warmGpu('press screen');
+		}, seatedAt() + GPU_WARM.afterSeatMs);
+	});
+	if (import.meta.env.DEV && typeof window !== 'undefined') ((window as any).__reindeer ??= {}).gpuWarm = { log: gpuWarmLog, pending: gpuWarmPending, spec: () => ({ ...GPU_WARM }) };
 </script>
 
 <!-- LANDING FIRST: <App> is what starts pixi-svelte's AssetsLoader. Holding it unmounted until
@@ -177,7 +188,7 @@
 					// under the fade's black: the landing's posed board goes before anything of the game shows
 					context.eventEmitter.broadcast({ type: 'boardLandingEnd' });
 					context.stateLayout.showLoadingScreen = false;
-					warmGpu();
+					void warmGpu('press');
 				}}
 			/>
 		{:else}

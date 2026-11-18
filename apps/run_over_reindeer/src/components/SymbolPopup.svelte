@@ -24,7 +24,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fade } from 'svelte/transition';
-	import { stateBet, stateUrlDerived } from 'state-shared';
+	import { stateBet } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	import { getContext } from '../game/context';
@@ -109,9 +109,10 @@
 		timer = setTimeout(() => close('timeout'), P.timeoutMs);
 	};
 
-	// ---- what it says: amounts at the CURRENT play amount, as Game Info writes them (ui/GameInfoModal.svelte payText) --
-	const social = $derived(stateUrlDerived.social());
-	const payText = (mult: number) => (social ? `${mult}x` : numberToCurrencyString(mult * stateBet.betAmount));
+	// ---- what it says: AMOUNTS at the CURRENT play amount, the HUD's own formatter (Corey 2026-11-17: "Amounts like
+	// Manticore."): in a social session that is the session's coin (GC / SC) exactly as the HUD writes it, as Manticore's
+	// popup does. Game Info's paytable keeps its own rule (multiples in social); standard sessions are unchanged.
+	const payText = (mult: number) => numberToCurrencyString(mult * stateBet.betAmount);
 	const content = $derived(view ? popupContent(view.code, payText) : null);
 
 	// ---- where: beside the cell, inside the board when it fits (game/symbolPopup.ts placePopup) ---------------------
@@ -141,10 +142,15 @@
 		const h = popH || dims.pad * 2 + dims.tile + dims.row * P.rowLine * ((content?.rows.length ?? 3) + 1);
 		const screen = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
 		const placed = placePopup(view.cell, w, h, view.board, screen, P.gapCss, P.edgeCss);
-		// a standing column with no room beside, above or below it (the middle reel on a small upright phone): keep clear
-		// of the tapped cell instead, so the popup may lie over another part of that column but never the tapped one
-		if (view.column && overlaps(placed, w, h, view.cell)) return placePopup(view.tapped, w, h, view.board, screen, P.gapCss, P.edgeCss);
-		return placed;
+		if (!view.column || !overlaps(placed, w, h, view.cell)) return placed;
+		// a standing column with no room beside, above or below it at the usual margins (the middle reel on a small upright
+		// phone, 390 x 620: above the column it lacks 1 px): first the same places with the tight margins
+		// (SYMBOL_POPUP.tight), so the whole column, its character and its multiplier, stays in view
+		const tight = placePopup(view.cell, w, h, view.board, screen, P.tight.gapCss, P.tight.edgeCss);
+		if (!overlaps(tight, w, h, view.cell)) return tight;
+		// still none: keep clear of the tapped cell instead, so the popup may lie over another part of that column but
+		// never the tapped one
+		return placePopup(view.tapped, w, h, view.board, screen, P.gapCss, P.edgeCss);
 	});
 
 	// ---- what closes it ----------------------------------------------------------------------------------------------
