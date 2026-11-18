@@ -1,7 +1,7 @@
 // GAME INFO'S COPY (ui/GameInfoModal.svelte). Written from the settled rules (docs/run-over-reindeer-spec.md "Math
 // direction settled" and "What-if 4, variant E accepted"), read again on 2026-11-16 against the math build of 2026-11-15
 // (contract 2026-11-15a, the P1 paytable: results/build_2026-11-15/BUILD_REPORT.md). Every rate, floor and multiplier
-// range here comes from game/config.ts; the paytable page takes the pays from there too. The text quotes no odds.
+// range here comes from game/config.ts; the paytable page takes the pays from there too. The text quotes no odds of its own; modes.intro explains what the feature menu's "~1 in N" figures mean.
 //
 // Social mode: no gambling vocabulary on stake.us (soc(standard, social)). `**text**` marks bold runs.
 import config from './config';
@@ -63,7 +63,10 @@ export const gameInfoText = () => ({
 		`The most a round can ${soc('pay', 'win')} is **${CAP}x**. When a round reaches it, the round ends there.`,
 	],
 	modes: {
-		intro: [soc('Each mode has its own published return to player. A bought round plays by the same rules as one that triggers by itself.', 'Each mode has its own published return to player. A round you start from the menu plays by the same rules as one that triggers by itself.')],
+		intro: [soc('Each mode has its own published return to player. A bought round plays by the same rules as one that triggers by itself.', 'Each mode has its own published return to player. A round you start from the menu plays by the same rules as one that triggers by itself.'),
+			// what the feature menu's "~1 in N" figures mean (Corey 2026-11-17)
+			'**About the odds.** Figures such as "~1 in 76" in the feature menu are long-run averages. "~1 in 76" means that over a very large number of spins, the feature starts about once every 76 spins on average. It is not a countdown and not a promise. Every spin is independent: the feature can start twice in a row, or not start for many hundreds of spins. Earlier spins never make it more or less likely on the next spin.',
+		],
 		labels: { enter: 'HOW TO ENTER', spins: 'WHAT YOU GET', mech: 'HOW IT PLAYS' },
 		stats: { price: soc('PRICE', 'EACH ROUND'), priceUnit: soc('x bet', 'x play'), rtp: 'RTP', maxWin: 'MAX WIN', thisMode: soc('this price', 'this mode') },
 		cards: {

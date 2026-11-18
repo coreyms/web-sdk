@@ -396,7 +396,7 @@
 				<div class="row two">{@render tile('BONUS', 1)}{@render tile('SUPER', 2)}</div>
 			</div>
 
-			<div class="note" data-piece data-menu-foot><span>{MAX_WIN_NOTE.label}: <b>{MAX_WIN_NOTE.value}</b>.</span>{#if ODDS_ARE_PROVISIONAL}<span data-provisional-odds>{' ' + T.provisionalNote}</span>{/if}</div>
+			<div class="note" data-piece data-menu-foot><span>{MAX_WIN_NOTE.label}: <b>{MAX_WIN_NOTE.value}</b>.</span><span data-average-note>{' ' + T.averageNote}</span>{#if ODDS_ARE_PROVISIONAL}<span data-provisional-odds>{' ' + T.provisionalNote}</span>{/if}</div>
 		</div>
 	</div>
 </ModalShell>

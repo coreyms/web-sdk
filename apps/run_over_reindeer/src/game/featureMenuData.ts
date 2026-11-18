@@ -21,6 +21,8 @@ export const FEATURE_MENU_TEXT = {
 	/** this game's name for the feature menu (Angry Mantis: The Chow Line, Manticore: The Armoury) */
 	name: 'THE FAST LANE',
 	provisionalNote: 'Figures from the simulation. They are confirmed when the final math is published.',
+	/** the menu foot's line on what "~1 in N" means (Corey 2026-11-17; the rules carry the long form) */
+	averageNote: '~ long-run average. Every spin is independent.',
 	close: 'Close',
 	cards: {
 		BONUS: {
