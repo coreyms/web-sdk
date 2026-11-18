@@ -68,7 +68,11 @@ const FLOOR_SPAN = 0.3;
 const RIM_TOP = -150;
 const RIM_Y = 120;
 const FLOOR_CELLS = 12000;
-const EXPLORE = 10;
+/** (2026-11-18: 10 left him re-walking the same stretch of the top rim at 16:9 and 21:9 windows; of 24 found spots the
+ *  one farthest from his last stops is reliably new ground) */
+const EXPLORE = 24;
+/** the share of his level walks drawn along his heading */
+const HEADING_ODDS = 0.8;
 /** the safety net: gone this long (board clock ms, no strike running, no walk in due), a new one walks in */
 const ROAM_RETURN_MS = 6000;
 /** the stops he remembers (the newest last): his next spot is the farthest from them he finds */
@@ -159,6 +163,8 @@ export class Roam {
 	span = 0;
 	/** where he stopped last (the spot before the one he stands on), and the stops before: he does not walk straight back */
 	private recent: Pt[] = [];
+	/** which way he is sweeping the area (1 = right): a walk in sets it toward the far side, an end of the area turns it */
+	private heading: 1 | -1 = -1;
 	private zones: Box[] = [];
 	private kind: LayoutKind = 'landscape';
 	private rect: RoadRect = { left: 0, top: 0, right: 0, bottom: 0 };
@@ -310,7 +316,9 @@ export class Roam {
 		if (this.n >= 3 && inPoly(x, y, this.poly, this.n)) return true;
 		if (this.widen === 1 && y <= RIM_Y) return true;
 		// the snow beyond the art that this window shows past what the window the area was drawn at showed (there the
-		// area is exactly as drawn)
+		// area is exactly as drawn); not once the floor has joined the top rim (2026-11-18: at 2560 x 1080 the tall strips
+		// beyond the tunnels drew him down them, away from the rim's level ground the floor gave him)
+		if (this.widen === 1) return false;
 		const R = ROAM_REF_RECT[this.kind];
 		return this.beyond && (x >= Math.max(IMG_W + BEYOND_GAP, R.right) || x <= Math.min(-BEYOND_GAP, R.left));
 	}
@@ -347,7 +355,7 @@ export class Roam {
 		const fromR = Math.max(IMG_W + BEYOND_GAP, R.right);
 		const sideL = Math.max(0, fromL - r.left);
 		const sideR = Math.max(0, r.right - fromR);
-		if (this.beyond && sideL + sideR > 1 && rnd() < 0.5) {
+		if (this.beyond && this.widen === 0 && sideL + sideR > 1 && rnd() < 0.5) {
 			const u = rnd() * (sideL + sideR);
 			P.x = u < sideR ? fromR + u : fromL - (u - sideR);
 			P.y = r.top + rnd() * (r.bottom - r.top);
@@ -547,9 +555,30 @@ export class Roam {
 			let by = 0;
 			let found = 0;
 			for (let i = 0; i < TRIES && found < EXPLORE; i++) {
-				const q = this.sample(this.rnd);
-				const x = q.x;
-				const y = q.y;
+				// (2026-11-18) the level walks (passes 0 and 1) are drawn AROUND him: a length within the walk's range, a
+				// direction within the slope, left or right; a random point of the area's bounds lands inside that narrow
+				// wedge a few times in 220 tries only, and "the farthest of the found spots" then had few to choose from
+				let x: number;
+				let y: number;
+				if (from && pass < 2) {
+					const deg = pass === 0 ? ROAM.maxSlopeDeg : Math.max(ROAM.maxSlopeDeg, ROAM.exploreSlopeDeg);
+					const a = ((this.rnd() * 2 - 1) * Math.max(0, deg) * Math.PI) / 180;
+					const d = lo + this.rnd() * (hi - lo);
+					// mostly on along his heading (he sweeps the area end to end, then turns: no dithering in the part he
+					// has just walked)
+					const sx = this.rnd() < HEADING_ODDS ? this.heading : -this.heading;
+					x = from.x + sx * d * Math.cos(a);
+					y = from.y + d * Math.sin(a);
+				} else {
+					const q = this.sample(this.rnd);
+					x = q.x;
+					y = q.y;
+					// (a walk in: most tries in the third of the screen by his side, where its target is wanted)
+					if (walkIn && !from && this.rnd() < 0.75) {
+						const third = (this.rect.right - this.rect.left) / 3;
+						x = this.area().side === 'right' ? this.rect.right - this.rnd() * third : this.rect.left + this.rnd() * third;
+					}
+				}
 				if (!this.valid(x, y)) continue;
 				if (from) {
 					const dx = x - from.x;
@@ -562,16 +591,26 @@ export class Roam {
 					if (!this.clearWay(from.x, from.y, x, y)) continue;
 				} else if (walkIn && !this.clearWay(ex, y, x, y, true)) continue;
 				found++;
-				let score = Infinity;
-				for (const r of this.recent) score = Math.min(score, Math.hypot(x - r.x, y - r.y));
-				if (from) score = Math.min(score, Math.hypot(x - from.x, y - from.y) * 2);
+				// THE SCORE: new ground first. m = how far the spot is from every stop he remembers (and from where he
+				// stands). A spot FLOOR_SEP or more from all of them is new ground, and of those the nearest to that line
+				// wins (2026-11-18: a sweep of 17 % walks left a band 41 % wide with 3 stops; walks just past 12 % give 4);
+				// otherwise the farthest. On along his heading breaks the ties.
+				let m = Infinity;
+				for (const r of this.recent) m = Math.min(m, Math.hypot(x - r.x, y - r.y));
+				if (from) m = Math.min(m, Math.hypot(x - from.x, y - from.y));
+				let score = m >= sep ? 4 * sep - Math.min(m - sep, sep) : m;
+				if (from && (x - from.x) * this.heading > 0) score += sep * 0.25;
+				// THE WALK IN goes to the end of the area by his side (2026-11-18: one that stopped mid area and swept away
+				// left the other half for later): the found spot nearest his side's edge, on the top ground (the rim, road y
+				// 120 and up) where there is some
+				if (walkIn && !from) score = (this.area().side === 'right' ? x : -x) + (y <= RIM_Y ? 1e6 : 0);
 				if (score > best) {
 					best = score;
 					bx = x;
 					by = y;
 				}
 			}
-			if (found && pass === 0 && from && best < sep) {
+			if (found && pass === 0 && from && best < sep * 1.25) {
 				// a level walk that only revisits: keep it, and look a little steeper for new ground first
 				keepX = bx;
 				keepY = by;
@@ -579,6 +618,8 @@ export class Roam {
 				continue;
 			}
 			if (found && (pass !== 1 || best > keepScore)) {
+				// (the walk taken sets his heading: turned at an end of the area)
+				if (from && Math.abs(bx - from.x) > 1) this.heading = bx > from.x ? 1 : -1;
 				this.to.x = bx;
 				this.to.y = by;
 				this.lastPass = pass;
@@ -586,6 +627,7 @@ export class Roam {
 				return true;
 			}
 			if (keepScore >= 0) {
+				if (from && Math.abs(keepX - from.x) > 1) this.heading = keepX > from.x ? 1 : -1;
 				this.to.x = keepX;
 				this.to.y = keepY;
 				this.lastPass = 0;
@@ -642,6 +684,7 @@ export class Roam {
 		this.walkInAt = null;
 		// (his memory of his last stops goes too: the same seed from the same spot walks the same way)
 		this.recent.length = 0;
+		this.heading = this.area().side === 'right' ? -1 : 1;
 		this.goneAt = null;
 		this.idleAt(x, y, this.clock);
 		this.draw();
@@ -717,6 +760,7 @@ export class Roam {
 		this.walkInAt = null;
 		if (this.n < 3) return;
 		this.recent.length = 0;
+		this.heading = this.area().side === 'right' ? -1 : 1;
 		if (!this.pick(null, true)) {
 			// no spot he can walk in to now: again in half a second
 			this.walkInAt = clock + 500;

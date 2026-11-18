@@ -248,6 +248,8 @@ async function sweepSize(p, S, name, errs, out) {
 		h.clock(0);
 		for (let i = 0; i < 60 * 30 && F.roam.state !== 'idle'; i++) R.update(1000 / 60, 1, 1);
 		const arrived = F.roam.state === 'idle';
+		// (a fixed seed from here: the game's own is fresh each page, and the probe must repeat)
+		h.roamReseed(4711);
 		const pos = [];
 		const stops = [];
 		for (let i = 0; i < 60 * 60; i++) {
@@ -279,7 +281,7 @@ async function sweepSize(p, S, name, errs, out) {
 	// no shuffling: never straight back to the spot before while he has others
 	let backs = 0;
 	for (let i = 2; i < run.stops.length; i++) if (Math.hypot(run.stops[i][0] - run.stops[i - 2][0], run.stops[i][1] - run.stops[i - 2][1]) < 0.04 * W) backs++;
-	out.sweep = { kind: run.roam.kind, capacity: run.roam.capacity, relaxed: run.roam.relaxed, stops: run.stops.length, spread: got, backs };
+	out.sweep = { kind: run.roam.kind, capacity: run.roam.capacity, relaxed: run.roam.relaxed, widen: run.roam.widen, stops: run.stops.length, spread: got, backs, at: run.stops.map((q) => [Math.round(q[0]), Math.round(q[1])]) };
 	check(run.arrived, `${name}: he walks in and stops at a spot (${run.roam.kind}, area holds ${run.roam.capacity} spots 12 % apart${run.roam.relaxed ? ', widened to all the free snow' : ''})`);
 	check(got >= want, `${name}: in 60 s he stops at ${run.stops.length} spots, ${got} of them 12 % of the width apart (wanted ${want})`, out.sweep);
 	check(backs <= Math.max(1, Math.floor(run.stops.length / 4)), `${name}: no shuffling between two spots (${backs} straight returns in ${run.stops.length} stops)`, out.sweep);
