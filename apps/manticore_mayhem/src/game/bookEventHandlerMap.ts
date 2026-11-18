@@ -39,6 +39,7 @@ import {
 	releaseTriggerWins,
 	triggerBeat,
 	plateReveal,
+	platesLanded,
 	dropHook,
 	winSetLog,
 	rippleLog,
@@ -932,6 +933,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// THE RECAP (1.0.04): the feature's own total (the book's freeSpinEnd amount: its free spins, the rows the recap
 		// lists; the wrap-up's round total also holds a natural trigger's base win); the plaque offers the recap after it
 		recapFeatureEnd(bookEvent.amount);
+		// the last free spin's tile count-overs land first (stateGame platesLanded): a played and a skipped round reach the
+		// wrap up with the same, final, tiles
+		await platesLanded();
 		// (m8: the HUD stays on screen under the TOTAL WIN, disabled: stateGame.hudHeld; the max win screen's deep hide
 		// still takes it)
 		stateGame.hudHeld = true;

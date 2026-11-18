@@ -225,10 +225,16 @@
 		});
 		freeGlyphsOf(r);
 	};
+	// A CLOTH STILL ON SCREEN WHEN THE NEXT ONE IS ASKED FOR (2026-11-18, banner_probe real round: the intro's cloth and its
+	// glyph sheet were never let go): the TOTAL WIN's cloth can be asked for while the intro is still rolling up (SKIP TO
+	// RESULT straight after the intro, and since the HUD stays up under the banners the free spins start about 0.7 s
+	// sooner). The screen on show keeps its cloth until it has gone; it waits here and stop() lets it go then
+	let leaving: Res[] = [];
 	const load = (tier: BannerTier, content: BannerContent, cls: BannerClass = wantCls): Promise<PIXI.Texture | null> => {
 		const key = `${cls}-${tier}-${content}`;
 		if (res && res.key === key) return res.promise;
 		if (res && !res.inUse) unload(res);
+		else if (res) leaving.push(res);
 		const url = BANNER_TEXTURES[cls][tier][content];
 		const t0 = performance.now();
 		texLog.push({ what: 'load', key, at: t0 });
@@ -430,6 +436,13 @@
 		if (res && res.inUse) {
 			res.inUse = false;
 			unload(res);
+		}
+		// every earlier screen's cloth that waited for its screen to go (load above)
+		const was = leaving;
+		leaving = [];
+		for (const r of was) {
+			r.inUse = false;
+			unload(r);
 		}
 	};
 
