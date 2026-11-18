@@ -2527,6 +2527,10 @@ export const PLAQUE_CHEER = {
 	/** real ms from a cheer's start before his idle roll may play a snarl or growl again (the poke's own quiet,
 	 *  CREATURE.poke.rollQuietMs, is 5400): one voice per celebration, not a snarl on top of it */
 	rollQuietMs: 6000,
+	/** NO NEW IDLE ACTION WHILE A WIN PLAQUE IS UP (2026-11-17, game/creature.ts quietRolls): every frame of a screen that
+	 *  can cheer (the win plaque, the TOTAL WIN wrap up, the war banner's total) keeps his idle roll quiet this many real
+	 *  ms past it, so a snarl, growl or idle_look does not start just before a tier lands (he breathes instead) */
+	plaqueRollQuietMs: 400,
 } as const;
 export type CheerMove = (typeof PLAQUE_CHEER.moves)[number] | typeof PLAQUE_CHEER.epic;
 

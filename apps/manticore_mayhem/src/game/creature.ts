@@ -190,6 +190,8 @@ type Run = {
 	ahead: boolean;
 	/** a cheer's voice, played when the clip reaches `atMs` clip ms (its take's onset on the accent frame, PLAQUE_CHEER) */
 	voice: { name: string; rate?: number; atMs: number } | null;
+	/** a RANDOM IDLE ACTION (an idle roll's snarl, growl or idle_look, or a poke's): a win tier's cheer cuts it (cheer) */
+	filler: boolean;
 };
 
 export class Creature {
@@ -256,7 +258,7 @@ export class Creature {
 	private state: 'hidden' | 'still' | 'idle' | 'rush' | 'clip' | 'crouch' = 'hidden';
 	private idleT0 = 0;
 	private idleFrame = 1;
-	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false, voice: null };
+	private run: Run = { clip: 'idle', t: 0, frame: 1, hold: 0, held: 0, startAt: 0, strikeAt: 0, beatAt: 0, toCrouch: false, lit: false, cued: false, real: false, ahead: false, voice: null, filler: false };
 	private rush = { from: 1, to: 1, t0: 0 };
 	/** what starts when the rush ends, or at `at` (real ms: the clip's first frame). strikeAt: swipe only; move: a cheer's */
 	private cue: { kind: CueKind; at: number; strikeAt: number; ahead?: boolean; move?: CheerMove; holdFade?: boolean } | null = null;
@@ -914,11 +916,16 @@ export class Creature {
 			if (this.next) this.onWantWins?.(this.next, clipsOfMove(move));
 			return false;
 		}
-		if (this.state !== 'idle' || this.cue || this.swipeNext) {
+		// THE TIER WINS OVER IDLE FILLER (Corey 2026-11-17: "Yes on the Mega cheer being skipped when idle growl is
+		// playing"): a random idle action he is in (filler) is cut by the cheer's cue on the next tick, as a board action
+		// cuts it (tick: a cue due in a clip fires), its voice left to run as with any cut. Everything else still refuses:
+		// a cue or a swipe read ahead (a board action is coming), the rush to one, the crouch, any other clip
+		if ((this.state !== 'idle' && !this.filler()) || this.cue || this.swipeNext) {
 			this.pendingCheer = null;
 			this.miss(`cheer:${move}:busy`);
 			return false;
 		}
+		if (this.state === 'clip') this.note('cheer', { move, cuts: this.run.clip, frame: this.run.frame });
 		this.pendingCheer = null;
 		this.epicEnd = false;
 		this.cue = { kind: 'win', at: now, strikeAt: 0, move };
@@ -979,6 +986,7 @@ export class Creature {
 		r.real = false;
 		r.ahead = false;
 		r.voice = null;
+		r.filler = false;
 		this.state = 'clip';
 		this.glowA = 0;
 		this.note('start', { clip, offset: Math.round(offset) });
@@ -1105,11 +1113,11 @@ export class Creature {
 			this.swipeNext = null;
 		}
 
+		// a cheer waiting for its clip (drop 8, on demand): it is in now (from his idle loop, or over an idle filler it cuts)
+		if (this.pendingCheer && !this.cue && !this.swipeNext && (this.state === 'idle' || this.filler()) && this.cheerReady(this.pendingCheer)) this.cheer(this.pendingCheer, now);
 		let clip: CreatureClip = 'idle';
 		let frame = 1;
 		if (this.state === 'idle') {
-			// a cheer waiting for its clip (drop 8, on demand): it is in now
-			if (this.pendingCheer && !this.cue && !this.swipeNext && this.cheerReady(this.pendingCheer)) this.cheer(this.pendingCheer, now);
 			const f = Math.floor(((now - this.idleT0) * FPS) / 1000);
 			frame = (f % N.idle) + 1;
 			if (frame < this.idleFrame || this.idleFrame === 0) {
@@ -1573,6 +1581,7 @@ export class Creature {
 		this.rollQuietUntil = end + CREATURE.poke.rollQuietMs;
 		this.note('poke', { clip });
 		this.start(clip, now, 0);
+		this.run.filler = true;
 		this.tickPoke(now, true);
 		return true;
 	}
@@ -1603,6 +1612,26 @@ export class Creature {
 		if (forced) this.forceRoll = null;
 		this.counters[pick === 'snarl' ? 'snarls' : pick === 'growl' ? 'growls' : 'looks'] += 1;
 		this.start(pick, now, 0);
+		this.run.filler = true;
+		return true;
+	}
+	/** he is in a random idle action (an idle roll's or a poke's): a win tier's cheer may cut it */
+	private filler(): boolean {
+		return this.state === 'clip' && this.run.filler;
+	}
+	/** NO NEW IDLE ACTION WHILE A WIN PLAQUE IS UP (2026-11-17; components/StingerPlaque.svelte and WarBanner.svelte call
+	 *  it on every frame of a screen that can cheer): the idle roll stays quiet for `ms` from now (a breath instead) */
+	quietRolls(ms: number): void {
+		const until = performance.now() + ms;
+		if (until > this.rollQuietUntil) this.rollQuietUntil = until;
+	}
+	/** DEV only (`__manticore.creature.filler`): start an idle alternate NOW as the idle roll would (a filler), whatever the
+	 *  roll's odds and quiet, for the probe's cheer over filler test. False: not in his idle loop, or it cannot be drawn */
+	playFiller(pick: 'snarl' | 'growl' | 'idle_look'): boolean {
+		if (!import.meta.env.DEV || this.state !== 'idle' || this.cue || this.swipeNext || !this.canPlay(pick)) return false;
+		this.note('roll', { forced: 'filler', pick });
+		this.start(pick, performance.now(), 0);
+		this.run.filler = true;
 		return true;
 	}
 	private breathe(): void {

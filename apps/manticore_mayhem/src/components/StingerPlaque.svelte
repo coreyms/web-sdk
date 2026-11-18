@@ -90,6 +90,7 @@
 
 	import { CREATURE, MAX_WIN, PLAQUE_CELEBRATE, PLAQUE_CHEER, PLAQUE_ESCALATION, STINGER_PLAQUE, PLAYGROUND_PX, RENDER_RESOLUTION_CAP, PLAQUE_GLOW, type PlaqueGlowKey } from '../game/constants';
 	import { creatureUploadQuiet } from '../game/creatureLoad';
+	import { creature } from '../game/creature';
 	import { beamTexture } from '../game/beamTexture';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { boardKick, chainGust } from '../game/featureFx';
@@ -363,6 +364,8 @@
 	const tick = (ticker: PIXI.Ticker) => {
 		frameMs = ticker.deltaMS;
 		view.advance(ticker.deltaMS);
+		// no random idle action of his starts while a screen that can cheer is up (constants PLAQUE_CHEER.plaqueRollQuietMs)
+		if (view.screen === 'win' || view.screen === 'wrap') creature.quietRolls(PLAQUE_CHEER.plaqueRollQuietMs);
 		if (view.landed) {
 			kick(STINGER_PLAQUE.kickPx);
 			// the air of the slam reaches the chains a beat later (CHAIN_GUST.plaque), never while skipping
