@@ -629,6 +629,17 @@ export class Scoreboard {
 	backBusy(): boolean {
 		return !!this.backShow();
 	}
+	/** (2026-11-18) THE BACK BOARD'S SEATED BOX while it is up at all (rising, seated or lowering; the press screen's
+	 *  expanded board included), CSS px, or null when it is down: the roaming reindeer's keep-out (components/Board.svelte) */
+	/** the back board is up at all (no allocation: read every frame by the roaming reindeer's zone watch) */
+	backUp(): boolean {
+		return !!this.geo && this.backRoot.visible;
+	}
+	backZone(): { x: number; y: number; w: number; h: number } | null {
+		if (!this.geo || !this.backRoot.visible) return null;
+		const b = this.backBox();
+		return { x: b.x, y: b.y, w: b.w, h: this.geo.strip.housing.y - b.y };
+	}
 	/** the card up now (its kind), for the HTML card and the probe */
 	cardUp(): string | null {
 		const s = this.show;

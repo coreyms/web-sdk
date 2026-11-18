@@ -470,9 +470,18 @@
 		if (logo?.box) add('logo', v.ox + logo.box.x * v.k, v.oy + logo.box.y * v.k, v.ox + (logo.box.x + logo.box.width) * v.k, v.oy + (logo.box.y + logo.box.height) * v.k);
 		const strip = scoreboard?.snapshot().strip;
 		if (strip) add('LED strip', strip.x, strip.capTop, strip.x + strip.w, strip.housingBottom);
+		// (2026-11-18) THE LED BACK BOARD while it is up (a big win, a card, the press screen's expanded board): its whole
+		// seated box down to the strip, whatever its motion, so nothing of him (body or shadow, game/road/roam.ts clear) is
+		// ever over it as it rises; read again the frame it comes up or goes down (roamDev.zonesKey)
+		// (2026-11-18) the two stoplights at the tunnel mouths: his cast shadow leans over the right one from the snow
+		// beside the right tunnel on a sideways phone
+		for (const b of road.stoplightBoxes()) add('stoplight', b.x0, b.y0, b.x1, b.y1);
+		const back = scoreboard?.backZone();
+		if (back) add('LED board', back.x, back.y, back.x + back.w, back.y + back.h);
 		return out;
 	};
 	roamDev.zones = roamZones;
+	roamDev.zonesKey = () => (scoreboard?.backUp() ? 'board up' : 'board down');
 
 	// the board's tap area: a tap during a live spin hurries it, as the Spin press does (ui/controls.svelte.ts boardTap)
 	road.root.eventMode = 'static';

@@ -1284,6 +1284,16 @@ export class RoadBoard {
 		if (changed.length) this.features.sounds.stoplight(changed.join(', '));
 	}
 
+	/** (2026-11-18) the two stoplights' boxes on the screen (global units: the canvas's CSS px), while they are shown: the
+	 *  roaming reindeer's keep-outs (components/Board.svelte roamZones; read at a pick or a layout change, never per frame) */
+	stoplightBoxes(): { x0: number; y0: number; x1: number; y1: number }[] {
+		if (!STOPLIGHT.show || !this.lightLayer.visible) return [];
+		return this.lights.map((l) => {
+			const b = l.root.getBounds();
+			return { x0: b.x, y0: b.y, x1: b.x + b.width, y1: b.y + b.height };
+		});
+	}
+
 	/** DEV: hold both lights on a color, or dark (null); call with no argument to hand them back to the board */
 	forceSignal(color?: SignalColor | null) {
 		this.signalForced = color;
