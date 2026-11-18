@@ -1106,7 +1106,7 @@ async function flows(p, S, errs) {
 		while (Date.now() - t0 < 150000) {
 			const s = await R(p, () => {
 				const s = window.__reindeer.scoreboard();
-				return { id: s.show?.id ?? null, kind: s.show?.kind, hold: s.show ? s.show.exitAt - s.show.countEnd : null, count: s.show ? s.show.countEnd - s.show.countStart : null, plays: window.__reindeer.fixtures.log().plays.length, auto: document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay', fired: s.show?.fired ?? [] };
+				return { id: s.show?.id ?? null, kind: s.show?.kind, hold: s.show ? s.show.exitAt - s.show.countEnd : null, count: s.show ? s.show.countEnd - s.show.countStart : null, plays: window.__reindeer.fixtures.log().plays.length, auto: document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true, fired: s.show?.fired ?? [] };
 			});
 			if (s.id && s.kind === 'win' && !shows.has(s.id)) shows.set(s.id, s);
 			if (s.id && shows.has(s.id) && s.fired.length >= shows.get(s.id).fired.length) shows.get(s.id).fired = s.fired;
@@ -1116,7 +1116,7 @@ async function flows(p, S, errs) {
 				await p.click('.hudp button.spin').catch(() => {});
 			}
 			if (stopped) {
-				const done = await R(p, () => window.__reindeer.hud.idle() && window.__reindeer.atRest() && !window.__reindeer.scoreboard().show && document.querySelector('.hudp button.spin')?.getAttribute('aria-label') !== 'Stop autoplay');
+				const done = await R(p, () => window.__reindeer.hud.idle() && window.__reindeer.atRest() && !window.__reindeer.scoreboard().show && document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') !== true);
 				if (done) break;
 			}
 			await sleep(80);
@@ -1372,7 +1372,7 @@ async function gagModes(p, S) {
 	const t0 = Date.now();
 	let stopped = false;
 	while (Date.now() - t0 < 120000) {
-		const st = await R(p, () => ({ plays: window.__reindeer.fixtures.log().plays.length, idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), auto: document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay' }));
+		const st = await R(p, () => ({ plays: window.__reindeer.fixtures.log().plays.length, idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), auto: document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true }));
 		if (!stopped && st.plays - plays0 >= 2) {
 			stopped = true;
 			await R(p, () => window.__reindeer.fixtures.clear());

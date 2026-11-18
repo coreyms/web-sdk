@@ -470,7 +470,7 @@ try {
 			await sleep(400);
 			let started = false;
 			for (let i = 0; i < 20 && !started; i++) {
-				started = await R(p, () => document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay');
+				started = await R(p, () => document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true);
 				if (!started) {
 					// the run starts from the loaded Spin (the HUD probe's way)
 					if (i === 0) await p.click('.hudp button.spin').catch(() => {});
@@ -499,11 +499,11 @@ try {
 					await sleep(20);
 				}
 			// stop the run (the board clock goes again after the press in 'early'), then wait for the round to end at rest
-			if (await R(p, () => document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay')) await p.click('.hudp button.spin').catch(() => {});
+			if (await R(p, () => document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true)) await p.click('.hudp button.spin').catch(() => {});
 			await sleep(300);
 			await R(p, () => window.__reindeer.clock(1));
 			for (let i = 0; i < 300; i++) {
-				const st = await R(p, () => ({ idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), auto: document.querySelector('.hudp button.spin')?.getAttribute('aria-label') === 'Stop autoplay' }));
+				const st = await R(p, () => ({ idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), auto: document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true }));
 				if (st.idle && st.rest && !st.auto) break;
 				await sleep(150);
 			}
