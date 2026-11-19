@@ -6,6 +6,13 @@ draws them in game/road/winLights.ts, constants LINE_WIN lights). One small shee
           from the middle of its top edge.
   - GLOW  one soft round glow, white, its alpha falling to nothing at the edge (the game adds it, tinted, under a lit
           bulb: no filter, no blur at run time; the softness is in the picture)
+  - NAIL  THE WIRE'S END (Corey 2026-11-18, T2 of the tips mock win_line_tips_2026-11-18: "the ends of them are just
+          squared off"): one wrap of the wire round a nail, in its own colors (not tinted). A ring of the wire, the same
+          widths and colors as the game's wire (LINE_WIN.lights.wire: outline 14, core 6, #0b0c0f / #1f5c36), radius
+          RING to its centerline, with a steel nail head over its middle (the art's dark outline, toon shading lit from
+          the upper left, a white highlight). The game ends each wire where it meets this ring tangentially on its lower
+          side, so the ring's edges continue the wire's and its square end is under the ring. Round, so it never turns.
+          The phone tier's head is a little larger with a larger highlight, so it still reads at about 6 CSS px.
 The wire itself is plain tinted quads of Pixi's own white texture (no picture of its own).
 
 Sizes are road px (game/roadArtSpec.ts: the 1536 x 1024 background's pixels), at the house density: 3 physical px per
@@ -34,6 +41,14 @@ GLOW = 108  # diameter
 PAD = 2  # sheet px between frames
 INK = (11, 12, 15)  # the art's outline color (the mock's #0b0c0f)
 SOCKET = (22, 38, 27)  # a near black green: the socket and its collar
+# THE NAIL: road px. The ring is the wire's own (constants LINE_WIN.lights.wire: keep these equal to it)
+WIRE_OUTLINE, WIRE_CORE, WIRE_CORE_RGB = 14, 6, (31, 92, 54)
+RING = 9.0  # the ring's centerline radius
+NAIL_HALF = RING + WIRE_OUTLINE / 2 + 1.5  # the frame's half size (the ring's outer edge and a margin)
+# the head: fill radius, its dark outline, the highlight's size (a share of the radius), per tier
+NAIL_HEAD = {"full": (6.8, 3.0, 0.2), "phone": (7.6, 3.0, 0.27)}
+STEEL = [(96, 106, 120), (170, 180, 192), (226, 232, 238), (255, 255, 255)]  # dark, base, light, highlight
+LIGHT = np.array((-0.55, -0.68, 0.48)) / np.linalg.norm((-0.55, -0.68, 0.48))
 
 
 def bulb(px_per_road):
@@ -98,25 +113,70 @@ def glow(px_per_road):
     return Image.fromarray(np.dstack([rgb, (a * 255).astype(np.uint8)]), "RGBA")
 
 
+def nail(px_per_road, tier):
+    """the nail and its wrap, RGBA, supersampled 4x and box reduced (premultiplied): a ring of the wire, a nail head on it"""
+    S = 4
+    k = px_per_road * POP
+    n = int(round(2 * NAIL_HALF * k))
+    N = n * S
+    yy, xx = np.mgrid[0:N, 0:N].astype(float)
+    x = (xx + 0.5) / (S * k) - NAIL_HALF
+    y = (yy + 0.5) / (S * k) - NAIL_HALF
+    d = np.hypot(x, y)
+    rgb = np.zeros((N, N, 3))
+    a = np.zeros((N, N))
+    # the wrap: the wire's outline band, its core band
+    band = np.abs(d - RING) <= WIRE_OUTLINE / 2
+    rgb[band] = INK
+    a[band] = 1
+    core = np.abs(d - RING) <= WIRE_CORE / 2
+    rgb[core] = WIRE_CORE_RGB
+    # the head: its dark outline, then the steel: a lighter crescent on the upper left, a darker one on the lower right,
+    # the flat middle, a white highlight
+    r, ink, hl = NAIL_HEAD[tier]
+    head_ink = d <= r + ink
+    rgb[head_ink] = INK
+    a[head_ink] = 1
+    head = d <= r
+    side = (x * LIGHT[0] + y * LIGHT[1]) / r
+    inner = np.hypot(x - 0.1 * r, y - 0.1 * r) <= 0.7 * r
+    col = np.zeros((N, N, 3)) + STEEL[1]
+    col[~inner & (side > 0)] = STEEL[2]
+    col[~inner & (side <= 0)] = STEEL[0]
+    col[np.hypot(x + 0.38 * r, y + 0.38 * r) <= hl * r] = STEEL[3]
+    rgb[head] = col[head]
+    pm = (rgb * a[..., None]).reshape(n, S, n, S, 3).mean(axis=(1, 3))
+    al = a.reshape(n, S, n, S).mean(axis=(1, 3))
+    out = np.where(al[..., None] > 0, pm / np.maximum(al[..., None], 1e-9), 0)
+    return Image.fromarray(np.dstack([np.clip(out, 0, 255).round().astype(np.uint8), (al * 255).round().astype(np.uint8)]), "RGBA")
+
+
 def main():
     spec = {"bulb": {"width": BULB[0] * POP, "height": BULB[1] * POP, "anchor": [0.5, 0.0], "pop": POP},
-            "glow": {"width": GLOW * POP, "height": GLOW * POP}, "tiers": {}}
+            "glow": {"width": GLOW * POP, "height": GLOW * POP},
+            # the nail: its drawn size at the pop, centred; the ring's centerline radius and outer radius and the wire widths it
+            # was drawn for (road px at scale 1)
+            "nail": {"width": 2 * NAIL_HALF * POP, "height": 2 * NAIL_HALF * POP, "anchor": [0.5, 0.5], "pop": POP,
+                     "ring": RING, "ringOuter": RING + WIRE_OUTLINE / 2, "wire": [WIRE_OUTLINE, WIRE_CORE],
+                     "head": {t: v[0] + v[1] for t, v in NAIL_HEAD.items()}}, "tiers": {}}
     for tier, k in DENSITY.items():
-        g, b = glow(k), bulb(k)
-        W = g.width + PAD + b.width
-        H = max(g.height, b.height)
+        g, b, nl = glow(k), bulb(k), nail(k, tier)
+        W = g.width + PAD + b.width + PAD + nl.width
+        H = max(g.height, b.height, nl.height)
         sheet = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         sheet.paste(g, (0, 0))
         sheet.paste(b, (g.width + PAD, 0))
+        sheet.paste(nl, (g.width + PAD + b.width + PAD, 0))
         name = "win-lights.webp" if tier == "full" else "win-lights-phone.webp"
         sheet.save(os.path.join(OUT, name), "WEBP", lossless=True)
         spec["tiers"][tier] = {"file": f"road/{name}", "width": W, "height": H, "density": k,
                                "frames": {"glow": {"x": 0, "y": 0, "width": g.width, "height": g.height},
-                                          "bulb": {"x": g.width + PAD, "y": 0, "width": b.width, "height": b.height}}}
-        print(f"{tier}: {name} {W} x {H} (bulb {b.width} x {b.height}, glow {g.width} x {g.height}), {os.path.getsize(os.path.join(OUT, name))} bytes")
+                                          "bulb": {"x": g.width + PAD, "y": 0, "width": b.width, "height": b.height},
+                                          "nail": {"x": g.width + PAD + b.width + PAD, "y": 0, "width": nl.width, "height": nl.height}}}
+        print(f"{tier}: {name} {W} x {H} (bulb {b.width} x {b.height}, glow {g.width} x {g.height}, nail {nl.width} x {nl.height}), {os.path.getsize(os.path.join(OUT, name))} bytes")
     with open(SPEC, "w") as f:
         f.write("// AUTO-GENERATED by tools/build_win_lights.py. Do not edit: change the tool and run it again.\n")
-        f.write("// The Christmas lights win lines' sheet (one bulb, one glow) per asset tier: frames in sheet px; `width` and `height`\n")
+        f.write("// The Christmas lights win lines' sheet (one glow, one bulb, the wire's end: a nail and its wrap) per asset tier: frames in sheet px; `width` and `height`\n")
         f.write("// at the top are the road px each is drawn at, at its largest (a lighting bulb's pop, `pop`).\n")
         f.write("export const WIN_LIGHTS_ART = " + json.dumps(spec, indent="\t") + " as const;\n")
     print("wrote", os.path.relpath(SPEC, APP))

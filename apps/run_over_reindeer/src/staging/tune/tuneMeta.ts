@@ -130,6 +130,12 @@ export const META: Record<string, Meta> = {
 	'lineWin.lights.takeDownMs': ms(2000, 'take down'),
 	'lineWin.lights.downMode': { label: 'when a line comes down', options: ['next', 'hold', 'end'] },
 	'lineWin.holdShare.*': { min: 0, max: 1, step: 0.05 },
+	// the wire's ends, the nails (2026-11-18, constants LINE_WIN lights tips; read when a win starts)
+	'lineWin.lights.tips.on': { label: 'nails at the wire ends (off: square ends)' },
+	'lineWin.lights.tips.end': { label: 'where the nails go', options: ['edge', 'center'] },
+	'lineWin.lights.tips.edgeGap': { label: 'nail past the symbol edge', min: 0, max: 60, step: 1, unit: 'road px' },
+	'lineWin.lights.tips.popMs': ms(600, 'nail pop in'),
+	'lineWin.lights.tips.outMs': ms(600, 'nail pop out'),
 	// LINE WINS, TREATMENT B (2026-11-17, constants LINE_WIN slam; read when a win starts, game/road/winLights.ts slamSchedule)
 	'lineWin.slam': { label: 'Line win slam (treatment B)', when: 'win' },
 	'lineWin.slam.on': { label: 'slam on (off: the old total over the board)' },

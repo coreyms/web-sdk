@@ -880,7 +880,10 @@ export class RoadBoard {
 				const order = sorted.map((_, i) => i).sort((a, b) => Math.abs(a - (sorted.length - 1) / 2) - Math.abs(b - (sorted.length - 1) / 2) || a - b);
 				const x = (c: number) => Math.min(MOUTH_R - 90, Math.max(MOUTH_L + 90, columnX(Math.floor(c / ROWS))));
 				const slots = [...order.map((i) => ({ x: x(sorted[i]), y: LINES[sorted[i] % ROWS] - 4 })), ...order.map((i) => ({ x: x(sorted[i]), y: LINES[(sorted[i] % ROWS) + 1] - 4 }))];
-				return { points, symbol: w.symbol ?? 'L5', amountText: w.amountText ?? '', slots, plainText: w.plainText, multiplier: w.multiplier ?? 1 };
+				// THE NAILS (constants LINE_WIN lights tips): each point's cell and the half width its symbol is drawn at (a
+				// Wild's box when it is wider), so an end nail can stand just past the art
+				const half = sorted.map((c) => Math.max(this.cars.find((car) => car.phase === 'rest' && car.col * ROWS + car.lane === c)?.halfW ?? 0, this.features.wildBoxHalf(c)));
+				return { points, symbol: w.symbol ?? 'L5', amountText: w.amountText ?? '', slots, plainText: w.plainText, multiplier: w.multiplier ?? 1, cells: sorted, half };
 			});
 			// TREATMENT B: every line its own amount (a one line win's too; never a capped spin's: its lines pay more than is
 			// awarded), the label sized for the phone's rule there (its digit cap phone.capPx CSS px)
@@ -1036,6 +1039,8 @@ export class RoadBoard {
 				return P && win ? { totalAt: r(P.totalAt), endAt: r(P.endAt), linesEnd: r(P.linesEnd), length: r(win.holdMs), f: P.f.map(r), lits: P.lits.map(r), phone: P.phone, stripTotalDue: !win.onTotal } : null;
 			})(),
 			lines: this.winFx?.snapshot() ?? [],
+			/** THE NAILS at the wires' ends (constants LINE_WIN lights tips) */
+			nails: this.winFx?.nailSnapshot() ?? null,
 			sprites: this.winFx?.spriteCount() ?? 0,
 			lightsOn: this.lightsOn,
 			linesVoiced: this.linesVoiced,

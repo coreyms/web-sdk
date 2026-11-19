@@ -787,8 +787,18 @@ export const LINE_WIN = {
 		sound: { rateStep: 0.03, rateMax: 1.3, lengthMs: 197, oneVoice: true },
 		/** each span between two winning symbols droops this many road px at its middle */
 		sag: 38,
-		/** the wire, road px: its outline's full width, its core's, and how finely a span is cut into straight quads */
+		/** the wire, road px: its outline's full width, its core's, and how finely a span is cut into straight quads (the
+		 *  nail's baked wrap, tools/build_win_lights.py, is drawn for 14 and 6 and these colors) */
 		wire: { outline: 14, core: 6, outlineColor: 0x0b0c0f, coreColor: 0x1f5c36, segmentsPerSpan: 14 },
+		/** THE WIRE'S ENDS (Corey 2026-11-18, the tips mock win_line_tips_2026-11-18, his pick "T2 Nail"; a tester: "the ends
+		 *  of them are just squared off, which looks weird especially over wild"): each end of a line's wire wraps once
+		 *  round a nail (the sheet's nail frame: the wrap and the head in one picture, not tinted). The wire ends where it
+		 *  meets the wrap tangentially on its lower side. `end`: 'edge' puts the nail just past the first and the last
+		 *  winning symbol's outer edge (its drawn half width, or a Wild box's, plus edgeGap road px), 'center' on the
+		 *  symbol's centre (where the wire ended before). One nail per symbol end, shared by every line that starts (or
+		 *  ends) there: it pops in with the first of them (popMs, from popFrom, the bulbs' back-out) and leaves with the
+		 *  last (outMs): a start nail as its line starts coming down, an end nail as its line's last wire goes. */
+		tips: { on: true, end: 'edge' as 'center' | 'edge', edgeGap: 15, popMs: 110, popFrom: 0.3, outMs: 110 },
 		/** a bulb every `spacing` road px along the wire from `first`; it pops up from popFrom over popMs as the wire
 		 *  reaches it; a bulb not lit in the chase is its color times `dim`. `scale`: its drawn size, a share of the
 		 *  sheet's largest draw (winLightsSpec.ts pop) */
