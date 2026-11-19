@@ -1120,7 +1120,7 @@
 				scoreboard.card({ kind, spins: opts.spins ?? 10, amount: value, fmt: ledAmount(value), rate: opts.rate ?? 1, line: opts.line ?? null, title: opts.title ?? null });
 			},
 			scoreboardCardPress: () => scoreboard?.cardPress() ?? false,
-			scoreboardFace: (which: 'strip' | 'back') => scoreboard?.faceStats(which) ?? null,
+			scoreboardFace: (which: 'strip' | 'back', png = false) => scoreboard?.faceStats(which, png) ?? null,
 			/** the play currency by hand (the LED currency probe: the boards' symbols and the fallback; game/scoreboard/ledCurrency.ts) */
 			ledCurrency: (code: string) => (stateBet.currency = code as typeof stateBet.currency),
 			scoreboardCardEnd: () => scoreboard?.endCard(),
