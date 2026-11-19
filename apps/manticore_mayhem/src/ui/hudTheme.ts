@@ -37,15 +37,43 @@ export const HUD_THEME: Record<string, string> = {
 	'glass-top-rgb': '20, 27, 42',
 	'glass-mid-rgb': '8, 11, 18',
 	'glass-bottom-rgb': '4, 6, 11',
-	'glass-top-a': '0.64',
-	'glass-mid-a': '0.58',
-	'glass-bottom-a': '0.66',
+	/** (bet bar fix 2026-11-19, Corey: "Slightly darken the glass overall so the SPIN/WIN/BALANCE stand out better"):
+	 *  0.64 / 0.58 / 0.66 before */
+	'glass-top-a': '0.74',
+	'glass-mid-a': '0.7',
+	'glass-bottom-a': '0.76',
 	/** the menu panels' fill alphas (the same three colours, near opaque) */
 	'panel-top-a': '0.92',
 	'panel-mid-a': '0.9',
 	'panel-bottom-a': '0.93',
 	/** a key's own glass (the round keys, the steppers, chips) */
 	'key-rgb': '10, 13, 22',
+	/** (bet bar fix 2026-11-19, the same tokens as Run Over Reindeer's hudTheme.ts) that glass's strength */
+	'key-a': '0.38',
+	/** a key's rim: one even 1 px line all round (the old rim was white on top and gold below, and stopped dead at each
+	 *  corner), and its strength at rest; a hover lifts it by 0.26 */
+	'key-rim-rgb': '255, 255, 255',
+	'key-rim-a': '0.2',
+	/** a key's bottom light (its gold, as the old bottom edge was) */
+	'edge-key-rgb': '232, 182, 74',
+	/** the feature button's bottom light (its gold, as the old bottom edge was) */
+	'feature-edge-bottom-rgb': '232, 182, 74',
+	/** (bet bar fix, Corey: "the menu button itself should have a much darker glass so it stands out") the Menu key's near
+	 *  opaque black glass, top and bottom of its gradient, its strength, and its rim (gold) */
+	'menu-key-1-rgb': '22, 22, 26',
+	'menu-key-2-rgb': '3, 3, 5',
+	'menu-key-a': '0.96',
+	'menu-key-rim-rgb': '232, 182, 74',
+	/** (bet bar fix, Corey: "make the Auto and Turbo Buttons change colors when active") a lit key's own fill.
+	 *  ON (a run loaded on the Spin, Turbo, the open Menu): a deep bronze glass with a gold rim and gold ink.
+	 *  HOT (a run playing, Turbo at its instant level): the Spin rim's bright gold with near black ink */
+	'key-on-1-rgb': '104, 74, 22',
+	'key-on-2-rgb': '52, 35, 8',
+	'key-on-a': '0.95',
+	'key-on-ink-rgb': '255, 230, 168',
+	'key-hot-1-rgb': '250, 214, 130',
+	'key-hot-2-rgb': '206, 154, 52',
+	'key-hot-ink-rgb': '30, 20, 4',
 	/** the edge gradient: top edge colour and its peak alpha, bottom edge colour and its peak alpha */
 	'edge-top-rgb': '255, 255, 255',
 	'edge-top-a': '0.62',
@@ -88,12 +116,24 @@ export const HUD_THEME: Record<string, string> = {
 	'radius-chip': '14px',
 };
 
-/** THE PER-GAME WORDS AND GLYPH: the feature button's name and its icon (24 x 24, 2 px line, squared caps, drawn in
- *  currentColor). Run Over Reindeer changes these two lines. */
+/** THE FEATURE BUTTON'S GLYPH CANDIDATES (bet bar fix 2026-11-19; Stake forbids stock icons and clipart, and crossed
+ *  swords are a stock mark): drawn here in SVG from the game's own world, 24 x 24, painted in their own colors (not
+ *  currentColor). No generated art.
+ *    stinger  the manticore's tail: three gold segments curling up to the bulb and its barb, a near black ink outline */
+export const FEATURE_GLYPHS = {
+	stinger:
+		'<g stroke="#1a1206" stroke-width="1.3" stroke-linejoin="round"><circle cx="6.6" cy="19.4" r="2.4" fill="#c8932f"/><circle cx="5.7" cy="14.5" r="2.3" fill="#d6a23c"/><circle cx="7.5" cy="10.1" r="2.2" fill="#e2b04a"/><circle cx="11.3" cy="7.3" r="2.1" fill="#ecbd58"/><path d="M18.4 9.1c2 1.6 2.5 4.2 1.4 6.6-.3-2-1.3-3.6-2.9-4.8Z" fill="#f6d58a"/><ellipse cx="16" cy="7.3" rx="3.5" ry="2.8" transform="rotate(-12 16 7.3)" fill="#f2c867"/></g><ellipse cx="15" cy="6.3" rx="1.3" ry=".7" transform="rotate(-12 15 6.3)" fill="#fff3d2" opacity=".75"/>',
+} as const;
+export type FeatureGlyph = 'none' | keyof typeof FEATURE_GLYPHS;
+
+/** THE PER-GAME WORDS AND GLYPH: the feature button's name and its glyph. Run Over Reindeer changes these lines. */
 export const HUD_CONFIG = {
 	/** the button's word (the menu itself is constants FEATURE_MENU_NAME, THE ARMOURY) */
 	featureName: 'ARMOURY',
-	/** crossed blades */
+	/** THE PICK (bet bar fix 2026-11-19): 'none' is the word alone, centered (on the sideways phone's small circle the
+	 *  word takes the glyph's place); 'stinger' draws FEATURE_GLYPHS.stinger beside the word. One line to change. */
+	featureGlyph: 'none' as FeatureGlyph,
+	/** RETIRED 2026-11-19 (crossed blades, a stock mark; no longer drawn) */
 	featureIcon: 'M5 5l9.6 9.6M19 5l-9.6 9.6M12.4 17.6l5.2-5.2M6.4 12.4l5.2 5.2M16.6 16.6l2.6 2.6M7.4 16.6l-2.6 2.6',
 };
 

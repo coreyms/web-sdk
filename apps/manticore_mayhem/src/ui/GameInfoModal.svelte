@@ -358,7 +358,7 @@
 					{#each [2, 4, 8, 16, 32, 64, 128] as value, i (value)}
 						<div class="ladder-step">
 							<img class="tile" src={stamp(`/assets/tiles/x${value}.webp`)} alt="{value} times" />
-							{#if i < 6}<div class="ladder-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg></div>{/if}
+							{#if i < 6}<div class="ladder-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><!-- the HUD set's chevron (ui/hud/HudIcon.svelte chev; bet bar fix 2026-11-19) --><path d="M9.8 6.5 15.2 12l-5.4 5.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter" /></svg></div>{/if}
 						</div>
 						{#if i === 3 && ladderSplit}<div class="ladder-break" aria-hidden="true"></div>{/if}
 					{/each}

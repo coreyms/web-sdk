@@ -11,7 +11,7 @@
 	import { modeShortLabel } from '../../game/betModeMeta';
 	import { ARMOURY_TEXT, fill } from '../../game/armouryText';
 	import { HUD_CONFIG } from '../hudTheme';
-	import HudIcon from './HudIcon.svelte';
+	import HudIcon, { featureArt } from './HudIcon.svelte';
 
 	type Props = { controls: Controls; x: number; y: number; w: number; h: number; shape: 'pill' | 'circ' | 'ln' | 'wide'; cls?: string };
 	const { controls, x, y, w, h, shape, cls = '' }: Props = $props();
@@ -21,6 +21,8 @@
 	const two = $derived(onLabel !== null && onLabel.includes(' '));
 	const words = $derived((onLabel ?? '').split(' '));
 	const sante = $derived(stateBet.activeBetModeKey.toUpperCase() === 'SUPER_ANTE');
+	// the glyph (bet bar fix 2026-11-19): HUD_CONFIG.featureGlyph's candidate, or none (the word alone, .noic)
+	const glyph = featureArt() !== null;
 </script>
 
 <button
@@ -28,6 +30,7 @@
 	class="slot-btn hg fbtn fb hit {shape === 'pill' ? '' : 'circ'} {shape === 'ln' ? 'ln gl-fs' : ''} {shape === 'wide' ? 'wide' : ''} {cls}"
 	class:ante={on}
 	class:sante
+	class:noic={!glyph}
 	style:left="{x}px"
 	style:top="{y}px"
 	style:width="{w}px"
@@ -37,7 +40,7 @@
 	onclick={controls.bonusPress}
 	aria-label={on ? fill(ARMOURY_TEXT.aria.hudButtonOn, { name: onLabel ?? '' }) : soc('Buy bonus', 'Get bonus')}
 >
-	<HudIcon name="arm" />
+	{#if glyph}<HudIcon name="arm" />{/if}
 	{#if on && two}
 		<span class="lb two"><b>{words[0]}</b> <b>{words.slice(1).join(' ')}</b></span>
 	{:else}

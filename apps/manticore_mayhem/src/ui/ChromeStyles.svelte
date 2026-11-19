@@ -72,7 +72,7 @@
 			position: relative;
 			background: linear-gradient(180deg, rgba(var(--hud-glass-top-rgb), 0.975), rgba(var(--hud-glass-mid-rgb), 0.97) 50%, rgba(var(--hud-glass-bottom-rgb), 0.98));
 			border: 1px solid;
-			border-color: rgba(var(--hud-edge-top-rgb), 0.44) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-edge-bottom-rgb), 0.72);
+			border-color: rgba(var(--hud-edge-top-rgb), 0.2);
 			border-radius: 20px;
 			color: var(--ui-ink);
 			box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 24px 48px rgba(var(--hud-shadow-rgb), 0.6), 0 4px 12px rgba(var(--hud-shadow-rgb), 0.4);

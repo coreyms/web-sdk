@@ -3,17 +3,23 @@
 </script>
 
 <script lang="ts">
-	// THE HELP MENU (Drop 6, "Bookends"): a glass panel with a small tail pointing at the Menu key: GAME INFO, then MUSIC
+	// THE HELP MENU (Drop 6, "Bookends"): a glass panel over the Menu key: GAME INFO, then MUSIC
 	// and EFFECTS, each a mute key and a slider. Bound to the SDK's sound state exactly as the old popover was (the same
 	// mute memory, the same Game Info press), with the operator's readouts (RTP, NET, TIME) under the sliders where the
 	// jurisdiction asks for them. Always mounted, shown by stateUi.menuOpen (opacity and a short rise: no layout work).
 	// A tap anywhere else closes it; the Menu key itself toggles it.
+	// THE BET BAR FIX (2026-11-19, Corey: "Make this not look like a chat bubble as well"): no tail. The panel is a plain
+	// rounded slab with the bar's corners, standing just over the bar beside the Menu key (hudLayout: the desktop dock's
+	// panel sits PANEL_GAP over the dock's top edge, its right edge on the key's; the upright phone's just over the
+	// Spin's rise in the bar; the sideways phone's hangs into the capsule under the key, as before). Its box is its body
+	// now: the place each chrome gives (x, y, and T for the old tail's room on the sideways phone) puts the body where it
+	// was. Its rim: one soft even line, a little brighter along the top, fading round the corners (no hard ended lines).
 	import { stateSound, stateUi, stateBet, stateConfig } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 	import config from '../../game/config';
 	import { sound } from '../../game/sound';
 	import type { Controls } from '../controls.svelte';
-	import { panelPath } from './hudLayout';
+	import { panelRect } from './hudLayout';
 	import HudIcon from './HudIcon.svelte';
 
 	type Props = { controls: Controls; x: number; y: number; W: number; H: number; tip: number; up?: boolean; T?: number; cls?: string };
@@ -57,12 +63,14 @@
 		return hh > 0 ? `${hh}:${two(Math.floor((s % 3600) / 60))}:${two(s % 60)}` : `${two(Math.floor(s / 60))}:${two(s % 60)}`;
 	});
 
-	// the operator strip grows the panel AWAY from its tail, so the tail stays on the Menu key
+	// the operator strip grows the panel up, away from the bar
 	const extra = $derived(showSession ? (cls === 'pls' ? 16 : 24) : 0);
 	const BH = $derived(H + extra);
-	const top = $derived(up ? y : y - extra);
-	const y0 = $derived(up ? T : 0);
-	const path = $derived(panelPath(W, BH, tip, up, T));
+	// (tip: where the old tail pointed; kept for the chromes' calls, unused)
+	void tip;
+	const top = $derived(up ? y + T : y - extra);
+	const y0 = 0;
+	const path = $derived(panelRect(W, BH));
 
 	let el: HTMLDivElement | undefined = $state();
 	$effect(() => {
@@ -76,20 +84,20 @@
 	});
 </script>
 
-<div bind:this={el} class="mp {cls}" class:up class:is-open={stateUi.menuOpen} style:left="{x}px" style:top="{top}px" style:width="{W}px" style:height="{BH + T}px" role="dialog" aria-label="Menu" aria-hidden={!stateUi.menuOpen}>
+<div bind:this={el} class="mp {cls}" class:up class:is-open={stateUi.menuOpen} style:left="{x}px" style:top="{top}px" style:width="{W}px" style:height="{BH}px" role="dialog" aria-label="Menu" aria-hidden={!stateUi.menuOpen}>
 	<div class="mpsh" style:top="{y0}px" style:height="{BH}px"></div>
-	<svg class="mpg" width={W} height={BH + T} viewBox="0 0 {W} {BH + T}" aria-hidden="true">
+	<svg class="mpg" width={W} height={BH} viewBox="0 0 {W} {BH}" aria-hidden="true">
 		<defs>
 			<linearGradient id="{id}f" gradientUnits="userSpaceOnUse" x1="0" y1={y0} x2="0" y2={y0 + BH}>
 				<stop offset="0" style="stop-color:rgb(var(--hud-glass-top-rgb));stop-opacity:var(--hud-panel-top-a)" />
 				<stop offset=".5" style="stop-color:rgb(var(--hud-glass-mid-rgb));stop-opacity:var(--hud-panel-mid-a)" />
 				<stop offset="1" style="stop-color:rgb(var(--hud-glass-bottom-rgb));stop-opacity:var(--hud-panel-bottom-a)" />
 			</linearGradient>
-			<linearGradient id="{id}e" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={BH + T}>
-				<stop offset="0" style="stop-color:rgb(var(--hud-edge-top-rgb));stop-opacity:.55" />
-				<stop offset=".4" style="stop-color:rgb(var(--hud-edge-top-rgb));stop-opacity:.08" />
-				<stop offset=".7" style="stop-color:rgb(var(--hud-edge-bottom-rgb));stop-opacity:.12" />
-				<stop offset="1" style="stop-color:rgb(var(--hud-edge-bottom-rgb));stop-opacity:.8" />
+			<linearGradient id="{id}e" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={BH}>
+				<stop offset="0" style="stop-color:rgb(var(--hud-edge-top-rgb));stop-opacity:.4" />
+				<stop offset=".25" style="stop-color:rgb(var(--hud-edge-top-rgb));stop-opacity:.18" />
+				<stop offset=".75" style="stop-color:rgb(var(--hud-edge-bottom-rgb));stop-opacity:.16" />
+				<stop offset="1" style="stop-color:rgb(var(--hud-edge-bottom-rgb));stop-opacity:.3" />
 			</linearGradient>
 			<linearGradient id="{id}s" x1="0" y1="0" x2="1" y2="0">
 				<stop offset="0" style="stop-color:rgb(var(--hud-ink-rgb));stop-opacity:0" />

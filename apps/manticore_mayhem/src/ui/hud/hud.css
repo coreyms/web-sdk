@@ -307,34 +307,50 @@
 	margin-right: -0.1em;
 }
 
-/* ---- glass buttons: painted fill, per-side 1 px border (white top, gold bottom), soft top highlight ---- */
+/* ---- glass buttons (bet bar fix, 2026-11-19; Corey: "narrow lines at the top and bottom of some of the buttons, that
+     don't fade or narrow out"). The old rim was a per-side border (white top, faint sides, gold bottom): on a circle or a
+     pill the color changes at each corner's 45 degree join, so a bright arc stopped dead there. Now:
+       the rim       one even 1 px border in one color (--rim)
+       the lights    a 1 px inset crescent along the top (--hl) and one along the bottom (--lo): on a round shape an
+                     inset shadow offset by 1 px is widest at the middle and narrows to nothing round the curve
+       the hover     a faint ink veil (--ov, an inset shadow, so it eases) and a brighter rim, 120 ms
+       the press     the key sinks (scale .94), the veil goes dark, the top light turns to shade
+     Every state sets these variables only, so the hover and the press work the same on a lit key. ---- */
 .hudp .gl {
+	--rim: rgba(var(--hud-key-rim-rgb), var(--hud-key-rim-a));
+	--rim-hov: rgba(var(--hud-key-rim-rgb), calc(var(--hud-key-rim-a) + 0.26));
+	--hl: rgba(var(--hud-edge-top-rgb), 0.3);
+	--lo: rgba(var(--hud-edge-key-rgb), 0.28);
+	--ov: rgba(var(--hud-ink-rgb), 0);
+	--glow: rgba(var(--hud-accent-rgb), 0);
+	--drop: 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
 	font: inherit;
 	padding: 0;
 	margin: 0;
-	border: 1px solid;
-	border-color: rgba(var(--hud-ink-rgb), 0.38) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-accent-rgb), 0.44);
-	background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.17), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.38);
+	border: 1px solid var(--rim);
+	background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.14), rgba(var(--hud-ink-rgb), 0.03) 72%), rgba(var(--hud-key-rgb), var(--hud-key-a));
 	color: rgba(var(--hud-ink-rgb), 0.94);
-	box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
-	transition: background-color 0.16s, border-color 0.16s, transform 0.12s, box-shadow 0.16s, opacity 0.2s, color 0.16s;
+	box-shadow: inset 0 1px 0 var(--hl), inset 0 -1px 0 var(--lo), inset 0 0 0 200px var(--ov), 0 0 12px var(--glow), var(--drop);
+	transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease, opacity 0.2s, color 0.12s ease;
 	cursor: pointer;
 	-webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) and (pointer: fine) {
 	.hudp .gl:hover:not(:disabled) {
-		background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.3), rgba(var(--hud-ink-rgb), 0.09) 78%), rgba(var(--hud-key-rgb), 0.32);
-		border-color: rgba(var(--hud-ink-rgb), 0.64) rgba(var(--hud-ink-rgb), 0.24) rgba(var(--hud-accent-hi-rgb), 0.78);
+		--rim: var(--rim-hov);
+		--hl: rgba(var(--hud-edge-top-rgb), 0.55);
+		--ov: rgba(var(--hud-ink-rgb), 0.09);
 		color: rgb(var(--hud-ink-rgb));
-		box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.18), 0 0 14px rgba(var(--hud-accent-rgb), 0.18), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
 	}
 }
 .hudp .gl:active:not(:disabled) {
 	transform: scale(0.94);
-	background: rgba(var(--hud-key-rgb), 0.5);
-	border-color: rgba(var(--hud-accent-hi-rgb), 0.6) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-ink-rgb), 0.16);
-	box-shadow: inset 0 2px 6px rgba(var(--hud-shadow-rgb), 0.7);
+	--hl: rgba(var(--hud-shadow-rgb), 0.55);
+	--lo: rgba(var(--hud-edge-key-rgb), 0.12);
+	--ov: rgba(var(--hud-shadow-rgb), 0.3);
+	transition-duration: 0.06s;
 }
+
 .hudp .gl:focus-visible,
 .hudp .fbtn:focus-visible,
 .hudp .spin:focus-visible {
@@ -351,8 +367,8 @@
 }
 /* free-standing glass (no dock behind it): a deeper fill and a floor shadow */
 .hudp .gl.fs {
+	--drop: 0 6px 12px rgba(var(--hud-shadow-rgb), 0.5), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.5);
 	background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.18), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.62);
-	box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.12), 0 6px 12px rgba(var(--hud-shadow-rgb), 0.5), 0 1px 2px rgba(var(--hud-shadow-rgb), 0.5);
 }
 .hudp .gl.fs:disabled {
 	opacity: 0.42;
@@ -426,37 +442,68 @@
 .hudp .turbo[data-l='0'] .lv i:nth-child(1) {
 	background: rgba(var(--hud-ink-rgb), 0.85);
 }
-.hudp .turbo[data-l='1'] .lv i:nth-child(-n + 2) {
-	background: rgb(var(--hud-accent-rgb));
+/* THE MENU KEY (bet bar fix, Corey: "the menu button itself should have a much darker glass so it stands out"): a near
+   opaque night glass of its own, a faint top sheen, a brighter rim; its word in the label color at full strength */
+.hudp .gl.menuk {
+	--rim: rgba(var(--hud-menu-key-rim-rgb), 0.42);
+	--rim-hov: rgba(var(--hud-menu-key-rim-rgb), 0.7);
+	--hl: rgba(var(--hud-edge-top-rgb), 0.26);
+	--lo: rgba(var(--hud-menu-key-rim-rgb), 0.2);
+	background: radial-gradient(ellipse 90% 70% at 50% 0%, rgba(var(--hud-ink-rgb), 0.1), rgba(var(--hud-ink-rgb), 0) 70%), linear-gradient(180deg, rgba(var(--hud-menu-key-1-rgb), var(--hud-menu-key-a)), rgba(var(--hud-menu-key-2-rgb), var(--hud-menu-key-a)));
 }
-.hudp .turbo[data-l='1'] .ic,
-.hudp .turbo[data-l='1'] .kl,
-.hudp .turbo[data-l='2'] .ic,
-.hudp .turbo[data-l='2'] .kl {
-	color: rgb(var(--hud-accent-hi-rgb));
+.hudp .menuk .kl {
+	color: rgba(var(--hud-label-rgb), 0.96);
 }
-.hudp .turbo[data-l='2'] .lv i {
-	background: rgb(var(--hud-accent-hi-rgb));
-	box-shadow: 0 0 5px rgba(var(--hud-accent-rgb), 0.8);
-}
-.hudp .turbo[data-l='2'] .bolt {
-	fill: rgb(var(--hud-accent-hi-rgb));
-	fill-opacity: 0.35;
-}
-.hudp .turbo[data-l='2'] {
-	border-color: rgba(var(--hud-accent-cream-rgb), 0.7) rgba(var(--hud-accent-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.7);
-}
+/* LIT KEYS (bet bar fix, Corey: "make the Auto and Turbo Buttons change colors when active"): the key itself changes,
+   its fill, its rim, its glow and its ink, not only the word.
+     ON   Auto with a run loaded, Turbo on, the open Menu, the picked scene: the theme's deep "on" glass, accent rim
+     HOT  Auto with a run playing, Turbo at instant: the theme's bright "hot" fill, a pale rim and a wider glow
+   The level bars and the bolt follow the key's ink (currentColor), so they read on either fill. */
 .hudp .auto.is-on,
-.hudp .menuk.is-active {
-	border-color: rgba(var(--hud-accent-ink-rgb), 0.78) rgba(var(--hud-accent-rgb), 0.36) rgba(var(--hud-accent-rgb), 0.75);
-	background: radial-gradient(ellipse 90% 90% at 50% 100%, rgba(var(--hud-accent-rgb), 0.36), rgba(var(--hud-accent-rgb), 0.06) 75%), rgba(var(--hud-key-rgb), 0.5);
-	box-shadow: inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.2), 0 0 12px rgba(var(--hud-accent-rgb), 0.28), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+.hudp .turbo[data-l='1'],
+.hudp .gl.menuk.is-active,
+.hudp .scn .sco.is-on {
+	--rim: rgba(var(--hud-accent-rgb), 0.9);
+	--rim-hov: rgb(var(--hud-accent-hi-rgb));
+	--hl: rgba(var(--hud-accent-cream-rgb), 0.34);
+	--lo: rgba(var(--hud-accent-rgb), 0.45);
+	--glow: rgba(var(--hud-accent-rgb), 0.3);
+	background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-accent-cream-rgb), 0.14), rgba(var(--hud-accent-cream-rgb), 0) 70%), linear-gradient(180deg, rgba(var(--hud-key-on-1-rgb), var(--hud-key-on-a)), rgba(var(--hud-key-on-2-rgb), var(--hud-key-on-a)));
+	color: rgb(var(--hud-key-on-ink-rgb));
+}
+.hudp .auto.is-run,
+.hudp .turbo[data-l='2'] {
+	--rim: rgb(var(--hud-accent-cream-rgb));
+	--rim-hov: rgb(var(--hud-accent-cream-rgb));
+	--hl: rgba(var(--hud-accent-cream-rgb), 0.7);
+	--lo: rgba(var(--hud-key-hot-2-rgb), 0.9);
+	--glow: rgba(var(--hud-accent-rgb), 0.6);
+	background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-accent-cream-rgb), 0.38), rgba(var(--hud-accent-cream-rgb), 0) 70%), linear-gradient(180deg, rgb(var(--hud-key-hot-1-rgb)), rgb(var(--hud-key-hot-2-rgb)));
+	color: rgb(var(--hud-key-hot-ink-rgb));
 }
 .hudp .auto.is-on .ic,
 .hudp .auto.is-on .kl,
+.hudp .turbo[data-l='1'] .ic,
+.hudp .turbo[data-l='1'] .kl,
+.hudp .turbo[data-l='2'] .ic,
+.hudp .turbo[data-l='2'] .kl,
 .hudp .menuk.is-active .ic,
 .hudp .menuk.is-active .kl {
-	color: rgb(var(--hud-accent-hi-rgb));
+	color: inherit;
+}
+.hudp .turbo[data-l='1'] .lv i,
+.hudp .turbo[data-l='2'] .lv i {
+	background: currentColor;
+	opacity: 0.3;
+	box-shadow: none;
+}
+.hudp .turbo[data-l='1'] .lv i:nth-child(-n + 2),
+.hudp .turbo[data-l='2'] .lv i {
+	opacity: 1;
+}
+.hudp .turbo[data-l='2'] .bolt {
+	fill: currentColor;
+	fill-opacity: 0.35;
 }
 /* a run live: the arrow turns (a transform on the svg box: compositor only) */
 .hudp .auto.is-run .ic {
@@ -543,14 +590,20 @@
 	padding: 0 12px;
 	margin: 0;
 	border-radius: 999px;
-	border: 1px solid;
-	border-color: rgba(var(--hud-feature-rim-rgb), 0.62) rgba(var(--hud-feature-rgb), 0.42) rgba(var(--hud-accent-rgb), 0.55);
+	/* the rim and the lights as the glass keys have them (one even 1 px rim, two inset crescents, a veil for the hover) */
+	--rim: rgba(var(--hud-feature-rim-rgb), 0.46);
+	--hl: rgba(var(--hud-feature-rim-rgb), 0.36);
+	--lo: rgba(var(--hud-feature-edge-bottom-rgb), 0.22);
+	--ov: rgba(var(--hud-ink-rgb), 0);
+	--ig: rgba(var(--hud-feature-rgb), 0.5);
+	--glow: rgba(var(--hud-feature-rgb), 0);
+	border: 1px solid var(--rim);
 	color: rgb(var(--hud-ink-rgb));
 	font: inherit;
 	cursor: pointer;
 	background: radial-gradient(ellipse 60% 130% at 18% 50%, rgba(var(--hud-feature-hi-rgb), 0.6), rgba(var(--hud-feature-rgb), 0) 72%), linear-gradient(180deg, rgba(var(--hud-feature-deep-1-rgb), 0.76), rgba(var(--hud-feature-deep-2-rgb), 0.82));
-	box-shadow: inset 0 0 16px rgba(var(--hud-feature-rgb), 0.5), inset 0 2px 5px rgba(var(--hud-shadow-rgb), 0.5), inset 0 1px 0 rgba(var(--hud-feature-rim-rgb), 0.3), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
-	transition: border-color 0.16s, transform 0.12s, box-shadow 0.2s, opacity 0.2s;
+	box-shadow: inset 0 1px 0 var(--hl), inset 0 -1px 0 var(--lo), inset 0 0 0 200px var(--ov), inset 0 0 16px var(--ig), inset 0 2px 5px rgba(var(--hud-shadow-rgb), 0.5), 0 0 16px var(--glow), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+	transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease, opacity 0.2s;
 	-webkit-tap-highlight-color: transparent;
 }
 .hudp .fbtn .ic {
@@ -579,26 +632,39 @@
 	font-weight: inherit;
 }
 @media (hover: hover) and (pointer: fine) {
+	.hudp .fbtn:hover:not(:disabled) {
+		--hl: rgba(var(--hud-feature-rim-rgb), 0.6);
+		--ov: rgba(var(--hud-ink-rgb), 0.08);
+	}
 	.hudp .fbtn:hover:not(:disabled):not(.ante) {
-		border-color: rgba(var(--hud-feature-rim-rgb), 0.9) rgba(var(--hud-feature-hi-rgb), 0.6) rgba(var(--hud-accent-hi-rgb), 0.8);
-		box-shadow: inset 0 0 20px rgba(var(--hud-feature-hi-rgb), 0.6), inset 0 1px 0 rgba(var(--hud-feature-rim-rgb), 0.4), 0 0 18px rgba(var(--hud-feature-rgb), 0.35), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+		--rim: rgba(var(--hud-feature-rim-rgb), 0.78);
+		--ig: rgba(var(--hud-feature-hi-rgb), 0.6);
+		--glow: rgba(var(--hud-feature-rgb), 0.35);
 	}
 }
 .hudp .fbtn:active:not(:disabled) {
 	transform: scale(0.95);
+	--hl: rgba(var(--hud-shadow-rgb), 0.5);
+	--ov: rgba(var(--hud-shadow-rgb), 0.26);
+	transition-duration: 0.06s;
 }
 .hudp .fbtn:disabled {
 	opacity: 0.4;
 	cursor: default;
-	border-color: rgba(var(--hud-ink-rgb), 0.22) rgba(var(--hud-ink-rgb), 0.1) rgba(var(--hud-ink-rgb), 0.16);
+	--rim: rgba(var(--hud-ink-rgb), 0.16);
+	--hl: rgba(var(--hud-ink-rgb), 0.12);
+	--lo: rgba(var(--hud-ink-rgb), 0);
+	--ig: rgba(var(--hud-feature-rgb), 0);
 	background: linear-gradient(180deg, rgba(var(--hud-key-rgb), 0.66), rgba(var(--hud-key-rgb), 0.76));
-	box-shadow: inset 0 2px 5px rgba(var(--hud-shadow-rgb), 0.5);
 }
 /* a mode ON (Ante, an armed buy): a gold rim and a soft gold glow in place of the ember; Super Ante a step hotter */
 .hudp .fbtn.ante {
-	border-color: var(--hud-feature-on-rim) rgba(var(--hud-accent-rgb), 0.75) rgb(var(--hud-accent-rgb));
+	--rim: var(--hud-feature-on-rim);
+	--hl: rgba(var(--hud-accent-cream-rgb), 0.42);
+	--lo: rgba(var(--hud-accent-rgb), 0.5);
+	--ig: rgba(var(--hud-accent-rgb), 0.32);
+	--glow: rgba(var(--hud-accent-rgb), 0.38);
 	background: radial-gradient(ellipse 70% 140% at 18% 50%, rgba(var(--hud-accent-hi-rgb), 0.46), rgba(var(--hud-accent-rgb), 0) 74%), linear-gradient(180deg, rgba(var(--hud-feature-on-deep-1-rgb), 0.82), rgba(var(--hud-feature-on-deep-2-rgb), 0.88));
-	box-shadow: inset 0 0 14px rgba(var(--hud-accent-rgb), 0.32), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.42), 0 0 14px rgba(var(--hud-accent-rgb), 0.38), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
 }
 .hudp .fbtn.ante .ic {
 	color: rgb(var(--hud-accent-ink-rgb));
@@ -607,9 +673,11 @@
 	color: rgb(var(--hud-accent-cream-rgb));
 }
 .hudp .fbtn.sante {
-	border-color: rgb(var(--hud-accent-cream-rgb)) rgb(var(--hud-accent-hi-rgb)) rgb(var(--hud-accent-rgb));
+	--rim: rgb(var(--hud-accent-cream-rgb));
+	--hl: rgba(var(--hud-accent-cream-rgb), 0.55);
+	--ig: rgba(var(--hud-accent-hi-rgb), 0.45);
 	background: radial-gradient(ellipse 100% 150% at 30% 50%, rgba(var(--hud-accent-hi-rgb), 0.6), rgba(var(--hud-accent-rgb), 0.08) 80%), linear-gradient(180deg, rgba(var(--hud-feature-on-deep-1-rgb), 0.9), rgba(var(--hud-feature-on-deep-2-rgb), 0.9));
-	box-shadow: inset 0 0 18px rgba(var(--hud-accent-hi-rgb), 0.45), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.55), 0 0 0 2px rgba(var(--hud-feature-on-deep-2-rgb), 0.92), 0 0 0 3px rgb(var(--hud-accent-hi-rgb)), 0 0 24px rgba(var(--hud-accent-hi-rgb), 0.55), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+	box-shadow: inset 0 1px 0 var(--hl), inset 0 -1px 0 var(--lo), inset 0 0 0 200px var(--ov), inset 0 0 18px var(--ig), 0 0 0 2px rgba(var(--hud-feature-on-deep-2-rgb), 0.92), 0 0 0 3px rgb(var(--hud-accent-hi-rgb)), 0 0 24px rgba(var(--hud-accent-hi-rgb), 0.55), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
 }
 .hudp .fbtn.sante .ic {
 	color: rgb(var(--hud-accent-cream-rgb));
@@ -745,6 +813,34 @@
 	letter-spacing: 0.06em;
 	gap: 1.5px;
 }
+/* NO GLYPH (ui/hudTheme.ts HUD_CONFIG.featureGlyph 'none', bet bar fix 2026-11-19): the word alone, centered. The phone
+   shapes put the word where the glyph was: the upright pill's word on its middle line, the sideways circle's word (two
+   lines, FAST over LANE) across its middle, as its "on" word already is */
+.hudp .fbtn.circ.noic .lb,
+.hudp .fbtn.circ.noic .lb.two {
+	/* (important: the word's place on each phone shape and each mode is set by rules up to seven classes deep; with no
+	   glyph every one of them is the middle) */
+	top: 50% !important;
+	margin-top: 0 !important;
+	transform: translateY(-50%);
+}
+.hudp .fbtn.circ.ln.noic .lb {
+	display: block;
+	left: 3px;
+	right: 3px;
+	font-size: 7px;
+	line-height: 1.15;
+	letter-spacing: 0.06em;
+	text-indent: 0.06em;
+	white-space: normal;
+}
+.hudp .fbtn.circ.ln.noic .lb.two {
+	display: flex;
+}
+/* a painted glyph (FEATURE_GLYPHS): its own colors, not the button's ink */
+.hudp .fbtn .ic.art {
+	color: inherit;
+}
 .hudp.v-tablet .fbtn {
 	padding: 0 9px;
 	gap: 6px;
@@ -775,14 +871,15 @@
 	padding: 0;
 	margin: 0;
 	border-radius: 50%;
-	border: 1px solid;
-	border-color: var(--hud-spin-rim-top) var(--hud-spin-rim-side) var(--hud-spin-rim-bottom);
+	/* one even rim (bet bar fix 2026-11-19: the top, side and bottom colors met at hard 45 degree joins); its top light
+	   is the inset crescent below */
+	border: 1px solid var(--hud-spin-rim-side);
 	color: rgb(var(--hud-ink-rgb));
 	font: inherit;
 	cursor: pointer;
 	background: radial-gradient(circle at 50% 14%, rgba(var(--hud-accent-cream-rgb), 0.42), rgba(var(--hud-accent-cream-rgb), 0) 50%), radial-gradient(circle at 50% 120%, rgba(var(--hud-accent-rgb), 0.28), rgba(var(--hud-accent-rgb), 0) 55%), radial-gradient(circle at 50% 58%, rgba(var(--hud-spin-core-rgb), 0.92), rgba(var(--hud-spin-deep-rgb), 0.94) 82%);
 	box-shadow: 0 10px 22px rgba(var(--hud-shadow-rgb), 0.55), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.5), inset 0 0 18px rgba(var(--hud-accent-rgb), 0.18), inset 0 -6px 14px rgba(var(--hud-shadow-rgb), 0.35);
-	transition: transform 0.14s, box-shadow 0.2s, border-color 0.2s, opacity 0.2s;
+	transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, opacity 0.2s;
 	-webkit-tap-highlight-color: transparent;
 }
 .hudp.v-portrait .spin {
@@ -1001,11 +1098,11 @@
 }
 .hudp .spin.m-armed,
 .hudp .spin.m-loaded {
-	border-color: var(--hud-feature-on-rim) rgb(var(--hud-accent-rgb)) rgb(var(--hud-accent-hi-rgb));
+	border-color: rgb(var(--hud-accent-hi-rgb));
 }
 @media (hover: hover) and (pointer: fine) {
 	.hudp .spin:hover:not(:disabled) {
-		border-color: rgb(var(--hud-accent-cream-rgb)) var(--hud-spin-rim-side) rgb(var(--hud-accent-hi-rgb));
+		border-color: rgb(var(--hud-accent-hi-rgb));
 		box-shadow: 0 10px 22px rgba(var(--hud-shadow-rgb), 0.55), 0 0 0 5px rgba(var(--hud-accent-rgb), 0.14), 0 0 28px rgba(var(--hud-accent-rgb), 0.42), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.6), inset 0 0 22px rgba(var(--hud-accent-rgb), 0.28);
 	}
 	.hudp .spin:hover:not(:disabled) .gy {
@@ -1019,7 +1116,7 @@
 .hudp .spin:disabled:not([data-st='halt']) {
 	cursor: default;
 	opacity: 1;
-	border-color: rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-ink-rgb), 0.22);
+	border-color: rgba(var(--hud-ink-rgb), 0.2);
 	background: radial-gradient(circle at 50% 60%, rgba(var(--hud-spin-core-rgb), 0.7), rgba(var(--hud-spin-deep-rgb), 0.9) 80%);
 	box-shadow: 0 8px 18px rgba(var(--hud-shadow-rgb), 0.45);
 }
@@ -1032,7 +1129,7 @@
 }
 .hudp .spin.m-feature:disabled,
 .hudp .spin.m-auto:disabled {
-	border-color: var(--hud-spin-rim-top) var(--hud-spin-rim-side) var(--hud-spin-rim-bottom);
+	border-color: var(--hud-spin-rim-side);
 }
 .hudp .spinring {
 	position: absolute;
@@ -1137,7 +1234,7 @@
 }
 .hudp .mk.is-muted {
 	color: rgb(var(--hud-feature-rim-rgb));
-	border-color: rgba(var(--hud-feature-rim-rgb), 0.45) rgba(var(--hud-feature-rgb), 0.3) rgba(var(--hud-feature-rgb), 0.5);
+	--rim: rgba(var(--hud-feature-rgb), 0.5);
 }
 .hudp .vs {
 	flex: 1;
@@ -1207,8 +1304,7 @@
 	height: 18px;
 	margin-top: -7.5px;
 	border-radius: 50%;
-	border: 1px solid;
-	border-color: rgba(var(--hud-ink-rgb), 0.8) rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.8);
+	border: 1px solid rgba(var(--hud-ink-rgb), 0.5);
 	background: radial-gradient(circle at 50% 22%, rgba(var(--hud-ink-rgb), 0.6), rgba(var(--hud-ink-rgb), 0.08) 68%), rgba(var(--hud-glass-top-rgb), 0.92);
 	box-shadow: 0 2px 5px rgba(var(--hud-shadow-rgb), 0.65), 0 0 8px rgba(var(--hud-accent-rgb), 0.28), inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.4);
 }
@@ -1216,13 +1312,12 @@
 	width: 18px;
 	height: 18px;
 	border-radius: 50%;
-	border: 1px solid;
-	border-color: rgba(var(--hud-ink-rgb), 0.8) rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.8);
+	border: 1px solid rgba(var(--hud-ink-rgb), 0.5);
 	background: radial-gradient(circle at 50% 22%, rgba(var(--hud-ink-rgb), 0.6), rgba(var(--hud-ink-rgb), 0.08) 68%), rgba(var(--hud-glass-top-rgb), 0.92);
 	box-shadow: 0 2px 5px rgba(var(--hud-shadow-rgb), 0.65), 0 0 8px rgba(var(--hud-accent-rgb), 0.28);
 }
 .hudp .vs input:focus-visible::-webkit-slider-thumb {
-	border-color: rgb(var(--hud-ink-rgb)) rgba(var(--hud-ink-rgb), 0.5) rgb(var(--hud-accent-hi-rgb));
+	border-color: rgb(var(--hud-accent-hi-rgb));
 	box-shadow: 0 2px 5px rgba(var(--hud-shadow-rgb), 0.6), 0 0 0 4px rgba(var(--hud-accent-rgb), 0.18), 0 0 12px rgba(var(--hud-accent-rgb), 0.5);
 }
 /* operator readouts (RTP, NET, TIME): a hairline-topped strip */
@@ -1232,7 +1327,7 @@
 	flex-wrap: wrap;
 	gap: 2px 10px;
 	padding: 6px 4px 0;
-	border-top: 1px solid rgba(var(--hud-ink-rgb), 0.08);
+	background: linear-gradient(90deg, rgba(var(--hud-ink-rgb), 0), rgba(var(--hud-ink-rgb), 0.14) 30%, rgba(var(--hud-ink-rgb), 0.14) 70%, rgba(var(--hud-ink-rgb), 0)) top / 100% 1px no-repeat;
 	font-size: 9px;
 	letter-spacing: 0.14em;
 	line-height: 1.2;
