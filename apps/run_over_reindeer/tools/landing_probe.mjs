@@ -172,6 +172,29 @@ async function waitResumeCard(p) {
 	return false;
 }
 
+// THE FIRST BOARD'S COLUMNS PLAY THEIR IDLE (Corey 2026-11-19): each posed column's still hands over to its tier's
+// idle loop once the clip is in (game/road/roadFeatures.ts loadLandingIdle), and its frame then changes over 1.5 s
+// (its own function since 2026-11-19: both press screens, the LED board's and the billboard's, end on this board)
+async function columnsIdle(p, tag) {
+	let live = null;
+	for (let i = 0; i < 60; i++) {
+		live = await p.evaluate(() => window.__reindeer.road().features.columns.map((x) => ({ reel: x.reel, landing: x.landing, frame: x.frame })));
+		if (live.length === 3 && live.every((x) => x.landing === 'live')) break;
+		await sleep(150);
+	}
+	const seen = new Map();
+	for (let i = 0; i < 10; i++) {
+		const cols = await p.evaluate(() => window.__reindeer.road().features.columns.map((x) => ({ reel: x.reel, landing: x.landing, frame: x.frame })));
+		for (const x of cols) {
+			if (!seen.has(x.reel)) seen.set(x.reel, new Set());
+			if (x.landing === 'live') seen.get(x.reel).add(x.frame);
+		}
+		await sleep(150);
+	}
+	const frames = [1, 2, 3].map((r) => `${r}:${seen.get(r)?.size ?? 0}`);
+	check(live.length === 3 && live.every((x) => x.landing === 'live') && [1, 2, 3].every((r) => (seen.get(r)?.size ?? 0) >= 3), `${tag}: the first board's three columns play their idle loop (distinct frames over 1.5 s per reel ${frames.join(' ')})`, live);
+}
+
 /** THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (2026-11-17, Corey approved; constants LED_SIGN.onBoard): no separate
  *  sign; the posed board behind; the scoreboard's back board EXPANDED (seated, the press show up), the explainer screens
  *  advancing on it, PRESS ANYWHERE TO CONTINUE on the strip as its top item, the scene dimmed as a big win dims it, the logo
@@ -234,6 +257,8 @@ async function boardPress(p, S, tag, errs) {
 	check(warm1.length > 0 && warm1.every((e) => e.result !== 'uploaded'), `${tag}: the press's warm-up pass finds everything already on the GPU (${warm1.length} sources, ${warm1.filter((e) => e.result === 'uploaded').length} sent up after the press)`, warm1.filter((e) => e.result === 'uploaded').slice(0, 5));
 	check(!!L0 && !!L1 && Math.abs(L0.x - L1.x) < 0.6 && Math.abs(L0.y - L1.y) < 0.6 && Math.abs(L0.width - L1.width) < 0.6, `${tag}: the logo sign stays at its game place through the press (${L0 ? `${Math.round(L0.x)},${Math.round(L0.y)}` : '-'} then ${L1 ? `${Math.round(L1.x)},${Math.round(L1.y)}` : '-'})`, { L0, L1 });
 	await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
+	// the first board's three columns play their idle (before the first spin lets the clips go)
+	await columnsIdle(p, tag);
 	await p.click('.hudp button.spin').catch(() => {});
 	let rest = false;
 	for (let i = 0; i < 100 && !rest; i++) {
@@ -423,27 +448,7 @@ async function crop4x(file, box, dpr, out) {
 				const c = await p.evaluate(() => window.__reindeer.road());
 				check(c.features.columns.length === 3 && c.atRest && [0, 4].every((r) => JSON.stringify(c.board[r]) === JSON.stringify(POSE_SIDES[r])), `${tag}: the first board after the press is the posed board (${c.features.columns.length} columns), at rest`, c.features.columns);
 				if (OUT) await p.screenshot({ path: join(OUT, `after_press_${S.name}_${S.vp.width}x${S.vp.height}.png`) });
-				// THE FIRST BOARD'S COLUMNS PLAY THEIR IDLE (Corey 2026-11-19): each posed column's still hands over to its tier's
-				// idle loop once the clip is in (game/road/roadFeatures.ts loadLandingIdle), and its frame then changes over 1.5 s
-				{
-					let live = null;
-					for (let i = 0; i < 60; i++) {
-						live = await p.evaluate(() => window.__reindeer.road().features.columns.map((x) => ({ reel: x.reel, landing: x.landing, frame: x.frame })));
-						if (live.length === 3 && live.every((x) => x.landing === 'live')) break;
-						await sleep(150);
-					}
-					const seen = new Map();
-					for (let i = 0; i < 10; i++) {
-						const cols = await p.evaluate(() => window.__reindeer.road().features.columns.map((x) => ({ reel: x.reel, landing: x.landing, frame: x.frame })));
-						for (const x of cols) {
-							if (!seen.has(x.reel)) seen.set(x.reel, new Set());
-							if (x.landing === 'live') seen.get(x.reel).add(x.frame);
-						}
-						await sleep(150);
-					}
-					const frames = [1, 2, 3].map((r) => `${r}:${seen.get(r)?.size ?? 0}`);
-					check(live.length === 3 && live.every((x) => x.landing === 'live') && [1, 2, 3].every((r) => (seen.get(r)?.size ?? 0) >= 3), `${tag}: the first board's three columns play their idle loop (distinct frames over 1.5 s per reel ${frames.join(' ')})`, live);
-				}
+				await columnsIdle(p, tag);
 				// the sign is back at its in-game place once the press screen has gone (an upright phone's rests on the cap
 				// only on the press screen): its box's foot on the rule's (tune.logoSign.place.<class>.foot, road px)
 				if (S.upright) {
