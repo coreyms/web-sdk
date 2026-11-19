@@ -28,6 +28,10 @@ export const DISCLAIMER =
 //
 // Numbers come from config.ts (which mirrors game_config.py) and prices from the RGS (modeCost). The few
 // game_config.py constants that config.ts does not carry are pinned here, each with its source name.
+/** AUTOPLAY NEVER PLAYS A LOADED FEATURE (ui/controls.svelte.ts loadAutoplay and buyMode, 2026-11-19): one sentence in the
+ *  Autoplay row (where the Armoury is drawn) and one in the Armoury's row (where Autoplay is drawn) */
+const AUTO_PLAYS_BASE = 'Autoplay plays base game spins (Ante spins while an Ante is on) and never a loaded Free Spins, Super Free Spins, Epic Free Spins or Mystery round: loading a run unloads one.';
+const FEATURE_NOT_IN_AUTO = 'Autoplay never plays a loaded feature: loading an Autoplay run unloads it, and a feature cannot be loaded while a run waits on the Spin button.';
 const STING_MAX_PER_SPIN = 5; // game_config.STING_MAX_PER_SPIN
 const SWIPE_MAX_PER_SPIN = 'twice'; // game_config.SWIPE_MAX_PER_SPIN = 2
 const MYSTERY_SCATTERS = 3; // game_config.MYSTERY_SCATTER_REELS (0, 1, 2): one per column
@@ -139,7 +143,7 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				spin: {
 					name: 'Spin',
 					text: [
-						'Plays one round at the SPIN amount.',
+						soc('Plays one round at the SPIN amount.', 'Plays one round at the PLAY amount.'),
 						!j.disabledSlamstop && !j.disabledTurbo ? 'While the reels drop it turns into **STOP**, which lands the result at once.' : '',
 						((x) => (x ? `With ${x} loaded, it shows what the next press starts.` : ''))(
 							[!j.disabledAutoplay ? 'Autoplay' : '', !j.disabledBuyFeature ? 'a feature' : ''].filter(Boolean).join(' or '),
@@ -171,13 +175,13 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				},
 				autoplay: {
 					name: 'Autoplay',
-					text: 'Opens the Autoplay ticket: the number of spins, plus an **ADVANCED** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **LOAD** parks the run on the Spin button. Spin starts it, and Spin again stops it at any time. After a feature ends, Autoplay waits about a second before its next spin, so there is time to stop it. During a run the Spin button is green with the spins left and this button is red with an X.',
+					text: 'Opens the Autoplay ticket: the number of spins, plus a **Stop options** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **LOAD** parks the run on the Spin button. Spin starts it, and Spin again stops it at any time.' + (j.disabledBuyFeature ? '' : ' ' + AUTO_PLAYS_BASE) + ' After a feature ends, Autoplay waits about a second before its next spin, so there is time to stop it. During a run the Spin button is green with the spins left and this button is red with an X.',
 				},
 				feature: {
 					name: soc('Bonus Buy', 'Feature Menu'),
 					text: soc(
-						`Opens ${MENU}: switch Ante Bet or Super Ante Bet on, or buy Free Spins, Super Free Spins, Epic Free Spins or a Mystery directly. A loaded feature is shown by its short name on the Spin button and on this button. Tap this button again to cancel it.`,
-						`Opens ${MENU}: switch Ante Mode or Super Ante Mode on, or trigger Free Spins, Super Free Spins, Epic Free Spins or a Mystery instantly. A loaded feature is shown by its short name on the Spin button and on this button. Tap this button again to cancel it.`,
+						`Opens ${MENU}: switch Ante Bet or Super Ante Bet on, or buy Free Spins, Super Free Spins, Epic Free Spins or a Mystery directly. A loaded feature is shown by its short name on the Spin button and on this button. Open it again and press **UNLOAD** (or **SWITCH OFF** for an Ante) to cancel it.${j.disabledAutoplay ? '' : ' ' + FEATURE_NOT_IN_AUTO}`,
+						`Opens ${MENU}: switch Ante Mode or Super Ante Mode on, or trigger Free Spins, Super Free Spins, Epic Free Spins or a Mystery instantly. A loaded feature is shown by its short name on the Spin button and on this button. Open it again and press **UNLOAD** (or **SWITCH OFF** for an Ante) to cancel it.${j.disabledAutoplay ? '' : ' ' + FEATURE_NOT_IN_AUTO}`,
 					),
 				},
 				menu: { name: 'Menu', text: 'Game Info (this screen), plus music and sound-effect volume sliders, each with a mute button. All sound can be turned off.' },
@@ -185,7 +189,7 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 					name: 'Readouts',
 					text: soc(
 						'**BALANCE** is your current balance. **WIN** is the round\'s total so far: each spin\'s wins count up on the plaque under the board first, then move to WIN. **SPIN** is the full cost of one press in the active mode (base bet × the mode multiplier). − and + step through the bet menu. Tap the readout for the full bet picker. The plaque on the reel frame names the active mode and its price.',
-						'**BALANCE** is your current balance. **WIN** is the round\'s total so far: each spin\'s wins count up on the plaque under the board first, then move to WIN. **SPIN** is the full play amount of one press in the active mode (base amount × the mode multiplier). − and + step through the play amount menu. Tap the readout for the full picker. The plaque on the reel frame names the active mode and its play amount.',
+						'**BALANCE** is your current balance. **WIN** is the round\'s total so far: each spin\'s wins count up on the plaque under the board first, then move to WIN. **PLAY** is the full play amount of one press in the active mode (base amount × the mode multiplier). − and + step through the play amount menu. Tap the readout for the full picker. The plaque on the reel frame names the active mode and its play amount.',
 					),
 				},
 				// THE BOARD PLAQUE (harsh review 2026-10-20 gameplay 4: the guide had no row for it; Corey 2026-10-21 approved h):

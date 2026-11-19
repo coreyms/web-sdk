@@ -68,6 +68,13 @@ export const createControls = () => {
 	const autoCount = () => stateBet.autoSpinsCounter;
 	const autoCountText = () => (stateBet.autoSpinsCounter === Infinity ? INFINITY_MARK : `${stateBet.autoSpinsCounter}`);
 	const canAfford = () => betCostFull() > 0 && betCostFull() <= stateBet.balanceAmount;
+	// AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, the rule startLoadout below has kept since the Stake review of
+	// 2026-09-20, now on the screen too): a loaded buy and a loaded run never coexist. LOAD in the Autoplay ticket unloads
+	// a loaded buy at once (loadAutoplay), the Armoury cannot load one while a run waits on Spin (buyMode,
+	// ui/armoury/Armoury.svelte), and every amount the ticket shows is the price of what the run will play: the base
+	// amount with a buy loaded (it is unloaded on LOAD), the full Ante price with an Ante on (an Ante persists).
+	const autoSpinCost = () => (armedBuy() ? stateBet.betAmount : betCostFull());
+	const canAffordAuto = () => autoSpinCost() > 0 && autoSpinCost() <= stateBet.balanceAmount;
 	// Full price of one press for the spin-button face — the FULL currency string, never
 	// abbreviated (Stake review 2026-09-20). The button measures it and shrinks or drops the line
 	// if it will not fit (SquareSpin.svelte + game/textFit.ts).
@@ -137,7 +144,7 @@ export const createControls = () => {
 
 	// ── autoplay (loadout flow: configure → LOAD to the spin button → Spin starts the run) ──
 	const autoLoadout = () => context.stateGame.autoLoadout;
-	const autoDisabled = () => held() || stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAfford();
+	const autoDisabled = () => held() || stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAffordAuto();
 	const autoPress = () => {
 		if (jurisdiction().disabledAutoplay || held()) return;
 		sound('soundPressMinor');
@@ -149,20 +156,31 @@ export const createControls = () => {
 	};
 	/** park a configured run on the spin button; nothing plays until Spin is pressed */
 	const loadAutoplay = (loadout: AutoLoadout) => {
+		// a loaded buy is unloaded here, when the run is loaded, not at the Spin press: from now the HUD, the Spin key and
+		// the Armoury all show the base game the run will play (the Armoury's plate says it was unloaded)
+		const dropped = armedBuy();
+		if (dropped) {
+			stateBet.activeBetModeKey = 'BASE';
+			armouryView.unloadedByAutoplay = dropped;
+		}
 		context.stateGame.autoLoadout = loadout;
 		stateModal.modal = null;
 		sound('soundPressMinor'); // the autoplay card's ACTIVATE (LOAD) — minor click, like the bonus ACTIVATEs
 	};
 	const clearAutoplay = () => {
 		context.stateGame.autoLoadout = null;
+		armouryView.unloadedByAutoplay = null;
 	};
 	const startLoadout = () => {
 		const loadout = context.stateGame.autoLoadout;
 		if (!loadout || held()) return;
 		// An autoplay run never plays a bought feature: the run would re-buy at the feature price on
 		// every press with no per-round confirmation (Stake review 2026-09-20). Drop the armed buy
-		// before the run starts, exactly as the SDK's own AutoSpinsStartButton does. Ante persists.
+		// before the run starts, exactly as the SDK's own AutoSpinsStartButton does. Ante persists. (Since 2026-11-19
+		// loadAutoplay already unloads it when the run is loaded and buyMode refuses one on top of a run, so this is the
+		// last guard, not the place the player learns of it.)
 		if (armedBuy()) stateBet.activeBetModeKey = 'BASE';
+		armouryView.unloadedByAutoplay = null;
 		const perSpin = betCostFull();
 		stateBet.autoSpinsCounter = loadout.count;
 		// loss stop = cumulative net loss since the run began (SDK tracks balance delta); win stop =
@@ -230,7 +248,8 @@ export const createControls = () => {
 		stateModal.modal = null;
 	};
 	const buyMode = (mode: string) => {
-		if (held()) return;
+		// never on top of a loaded autoplay run (the Armoury's ACTIVATE is unavailable then and says so)
+		if (held() || context.stateGame.autoLoadout) return;
 		// arm only: the feature loads onto the spin button for ONE round. Nothing is charged and
 		// nothing plays until the player presses Spin, and the round's finalWin returns the game to
 		// the base game, so the next feature round is a fresh selection + confirmation.
@@ -307,6 +326,7 @@ export const createControls = () => {
 	return {
 		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, playCostText, autoRunning, autoCount, autoCountText, canAfford,
 		playCost: betCostFull,
+		autoSpinCost,
 		spinDisabled, showStop, spin, slamStop, boardTap,
 		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,
 		turboPress, turboLevel,

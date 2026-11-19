@@ -22,6 +22,9 @@ export const armouryView = $state({
 	snapping: false,
 	/** prefers-reduced-motion, read once when the menu mounts: the lit HUD's steps are 0 ms too */
 	reduced: false,
+	/** the buy LOAD in the Autoplay ticket just unloaded (ui/controls.svelte.ts loadAutoplay, 2026-11-19): the menu opens
+	 *  on it once with its "is unloaded" line, as after its own UNLOAD; the run's start or its unload clears it */
+	unloadedByAutoplay: null as string | null,
 });
 
 /**

@@ -389,7 +389,13 @@
 		swapOut = false;
 		plateEase = false;
 		snapping = false;
+		// a buy LOAD in the Autoplay ticket just unloaded opens its plate once with the "is unloaded" line, as this menu's
+		// own UNLOAD leaves it (ui/controls.svelte.ts loadAutoplay, 2026-11-19)
+		const dropped = activeId ? null : armouryMode(armouryView.unloadedByAutoplay ?? '')?.id ?? null;
+		armouryView.unloadedByAutoplay = null;
 		if (activeId) sel = activeId; // with a mode on, the menu opens on it
+		else if (dropped) sel = dropped;
+		note = dropped;
 		view = sel;
 		phase = 'open';
 		openSeq += 1;
@@ -620,7 +626,7 @@
 			return true;
 		}
 		const p = price(id);
-		if (!(p > 0) || p > stateBet.balanceAmount) return false;
+		if (!(p > 0) || p > stateBet.balanceAmount || autoParked) return false;
 		controls.sound('soundPressMinor');
 		measureFaces();
 		confirm = true;
@@ -773,6 +779,8 @@
 	const price = (id: string) => stateBet.betAmount * modeCost(id);
 	const isOn = $derived(activeId === sel);
 	const short = $derived(!isOn && price(sel) > stateBet.balanceAmount);
+	/** a buy cannot be loaded while an autoplay run waits on Spin: autoplay never plays one (controls.buyMode) */
+	const autoParked = $derived(!isOn && armouryMode(sel)?.group === 'buy' && controls.autoLoadout() !== null);
 	const priceText = $derived(money(price(sel)));
 
 	/** a template's sentence: {name} filled, {amt} left for the amount span */
@@ -1207,6 +1215,8 @@
 				confirm,
 				active: activeId,
 				short,
+				/** a buy refused while an autoplay run waits on Spin (2026-11-19) */
+				autoParked,
 				price: priceText,
 				priceFit,
 				confirmRows: confirmRows.map((r) => ({ label: r.label, value: r.value, size: r.size, fits: r.fits })),
@@ -1505,13 +1515,13 @@
 										class="btn lift cta"
 										class:off={isOn}
 										bind:this={ctaEl}
-										disabled={short}
-										aria-describedby={short ? 'arm-why' : undefined}
+										disabled={short || autoParked}
+										aria-describedby={short || autoParked ? 'arm-why' : undefined}
 										onclick={activate}
 									>
 										<span class="face" bind:this={ctaFace}>{isOn ? (mode.group === 'spin' ? TX.button.switchOff : TX.button.unload) : TX.button.activate}</span>
 									</button>
-									{#if short}<div class="why" id="arm-why">{TX.balanceShort}</div>{/if}
+									{#if short}<div class="why" id="arm-why">{TX.balanceShort}</div>{:else if autoParked}<div class="why" id="arm-why" data-arm-auto>{TX.autoFirst}</div>{/if}
 								</div>
 							</div>
 						</div>
