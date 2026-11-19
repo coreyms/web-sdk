@@ -593,8 +593,8 @@ export const SUPER_WHEEL = {
 	/** the wheel shrinks into the result's column and fades (leaveMs, to leaveScale of its size) */
 	leaveMs: 400,
 	leaveScale: 0.08,
-	/** the game's roaming reindeer is off the screen while the wheel is up (one reindeer: he runs it); a new one walks in
-	 *  this long after the wheel has left (board ms) */
+	/** the game's roaming reindeer is off the screen while the wheel is up (one reindeer: he runs it; game/road/roam.ts
+	 *  away, he runs off as it comes out); a new one walks in this long after the opening column has grown (board ms) */
 	roamBackMs: 1500,
 	/** A PRESS DURING THE SPIN (the slam stop's own press, ui/controls.svelte.ts): the wheel goes straight to the book's
 	 *  wedge in slamMs, the ring to the book's column in slamMs; the rest runs at the slam's hurry */
@@ -1374,6 +1374,12 @@ export const LOGO_SIGN = {
 	 *  place and the other layouts are the rule's above. */
 	pressCapOverlap: 1,
 	pressLiftBackMs: 350,
+	/** THE SIGN'S FOOT ON OPEN GROUND (2026-11-19, Corey: "on portrait mode the logo bottom is never in the trees"): on an
+	 *  upright phone (the forest behind the snow) the sign moves down from its place until its lowest visible pixel (the
+	 *  foot of the post, its snow mound) is treeGapCss CSS px under the forest's tree line (game/scene/sceneLayers.ts
+	 *  forestLineY); never so far that its box comes within boardGapCss CSS px of the board's top lane line */
+	treeGapCss: 3,
+	boardGapCss: 6,
 	lamps: {
 		/** both lamps dark from the sign's first frame for this long */
 		darkMs: 700,

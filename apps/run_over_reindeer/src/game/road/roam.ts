@@ -30,6 +30,7 @@ import { ROAD_ART } from '../roadArtSpec';
 import { FOREST_LINE } from '../forestLineSpec';
 import { seeded } from './crosshair';
 import { roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
+import { runBox, runFrame, runViewsReady } from './reindeerRun';
 import { castReach, castShadow, makeShadow, shadowStrength } from './shadows';
 
 const K = REINDEER_ROAM.roadPxPerFramePx;
@@ -78,8 +79,23 @@ const HEADING_ODDS = 0.8;
 const ROAM_RETURN_MS = 6000;
 /** the stops he remembers (the newest last): his next spot is the farthest from them he finds */
 const RECENT = 6;
+/** THE SUPER WHEEL (2026-11-19, Corey: "the walker shouldn't stay for the wheel spin"): as the wheel comes out he stands
+ *  startled facing his way out for EXIT_STAND_MS, then runs off the screen's edge in the strike's own side run (the R
+ *  view at STRIKE.runSpeed, the stand to run change every strike of his makes). He runs to the side asked (the wheel's
+ *  driver's, the left) when that run takes no more than EXIT_PREFER_MS from the stand, else to the nearest edge. He is
+ *  gone EXIT_BUDGET_MS after the stand began at the latest: on the widest screens (21:9, from its middle) his run is
+ *  sped up to make it (the wheel's shortest emergence, a round resumed at its opening with no present, is 1250 ms; the
+ *  wheel's reindeer can run in no sooner). Without the run views (never loaded) he walks off, his legs as fast as it
+ *  takes to be gone in EXIT_WALK_MS. Board clock ms. */
+const EXIT_STAND_MS = 220;
+const EXIT_PREFER_MS = 1100;
+const EXIT_BUDGET_MS = 1150;
+const EXIT_WALK_MS = 900;
+/** a level run off that would cross a tunnel mouth or the forest's trees is tried this many road px lower, step by step */
+const EXIT_DROP_STEP = 12;
+const EXIT_DROPS = 12;
 
-export type RoamState = 'none' | 'enter' | 'start' | 'walk' | 'stop' | 'idle' | 'alert';
+export type RoamState = 'none' | 'enter' | 'start' | 'walk' | 'stop' | 'idle' | 'alert' | 'exit';
 type Pt = { x: number; y: number };
 type Box = { name: string; x0: number; y0: number; x1: number; y1: number };
 
@@ -277,7 +293,20 @@ export class Roam {
 	/** the last pick's pass (0 all rules, 1 no slope rule, 2 no length rule, -1 none found) */
 	lastPass = 0;
 	/** the probes' counters */
-	readonly counts = { walks: 0, walkIns: 0, arrived: 0, strikes: 0, placed: 0, cancelled: 0, picks: 0, relaxed: 0, none: 0, safetyNet: 0, left: 0, rounds: 0, corridor: 0 };
+	readonly counts = { walks: 0, walkIns: 0, arrived: 0, strikes: 0, placed: 0, cancelled: 0, picks: 0, relaxed: 0, none: 0, safetyNet: 0, left: 0, rounds: 0, corridor: 0, away: 0, exits: 0, exited: 0, back: 0 };
+	/** AWAY (the Super wheel is up, components/Board.svelte): no walk in, no first appearance, no safety net until `back` */
+	held = false;
+	/** his run off the screen: from, to (road px), how far along, its length, its speed (road px a second), the stand's
+	 *  end (board clock), the side run's pose, the run views or the walk; and the last one's plan for the probes */
+	private exitFrom: Pt = { x: 0, y: 0 };
+	private exitTo: Pt = { x: 0, y: 0 };
+	private exitU = 0;
+	private exitLen = 0;
+	private exitSpeed = 0;
+	private exitStandUntil = 0;
+	private exitPose = 0;
+	private exitRun = true;
+	lastExit: { side: 1 | -1; nearest: 1 | -1; fromX: number; fromY: number; toX: number; toY: number; ms: number; run: boolean; preferred: boolean; startedAt: number; doneAt: number | null; screen: [number, number]; worstMs: number } | null = null;
 	/** is a strike running on the board (game/road/roadFeatures.ts sets it): the safety net waits for it */
 	busy: () => boolean = () => false;
 	/** the forest as drawn now (components/Board.svelte sets it: the scene's own placement and the preset's kit) */
@@ -1067,7 +1096,8 @@ export class Roam {
 
 	/** is he on the screen and free to strike (standing, walking or walking in with his feet inside the screen) */
 	standing(): Pt | null {
-		if (this.state === 'none' || this.state === 'alert' || !roamFramesReady()) return null;
+		// (on his way off the screen for the Super wheel he is no one's to use)
+		if (this.state === 'none' || this.state === 'alert' || this.state === 'exit' || !roamFramesReady()) return null;
 		if (this.x < this.rect.left || this.x > this.rect.right || this.y < this.rect.top || this.y > this.rect.bottom) return null;
 		return { x: this.x, y: this.y };
 	}
@@ -1105,6 +1135,116 @@ export class Roam {
 	private hide() {
 		this.sprite.visible = false;
 		this.shadow.visible = false;
+	}
+
+	/** THE SUPER WHEEL COMES OUT (components/Board.svelte, the wheel's emergence): he goes and stays gone. On the screen he
+	 *  stands startled and runs off (beginExit); gone or not drawn, he only stays away. `prefer`: the side he would rather
+	 *  leave by (-1 the left, the wheel's driver's; 0 none) */
+	away(prefer: 1 | -1 | 0 = 0) {
+		this.held = true;
+		this.walkInAt = null;
+		this.goneAt = null;
+		this.counts.away++;
+		// (a strike of his still running ends as it does: he is gone the frame his run sets off)
+		if (this.state === 'none' || this.state === 'alert' || this.state === 'exit') return;
+		if (!this.sprite.visible || !roamFramesReady()) {
+			this.state = 'none';
+			this.hide();
+			return;
+		}
+		this.beginExit(prefer);
+	}
+
+	/** THE WHEEL HAS GONE (and the opening column stands): he walks in anew `delayMs` from now, the way he always does */
+	back(delayMs = 0) {
+		if (!this.held) return;
+		this.held = false;
+		this.counts.back++;
+		if (this.state !== 'none' && this.state !== 'exit') return;
+		this.placed = true;
+		this.walkInAt = (Number.isFinite(this.clock) ? this.clock : 0) + delayMs;
+	}
+
+	/** past which x he is wholly off the screen on side `d` (his run's box or his walk's, and his shadow's lean) */
+	private exitX(d: 1 | -1): number {
+		const s = this.scale();
+		const b = runBox('R');
+		const run = Math.max(b.anchorX, 1 - b.anchorX) * b.width * s;
+		const lean = Math.abs(castReach().x) * Math.max(b.anchorY * b.height, ROAM_REACH.up) * s;
+		const reach = Math.max(run, ROAM_REACH.side * s) + lean + ENTER_PAD;
+		return d < 0 ? this.rect.left - reach : this.rect.right + reach;
+	}
+
+	/** his way off the screen: the side, and a run that crosses no tunnel mouth and no trees (level, or a little lower) */
+	private beginExit(prefer: 1 | -1 | 0) {
+		const run = runViewsReady();
+		const nearest: 1 | -1 = this.x - this.rect.left <= this.rect.right - this.x ? -1 : 1;
+		const speedOf = (len: number) => (run ? Math.max(STRIKE.runSpeed, len / ((EXIT_BUDGET_MS - EXIT_STAND_MS) / 1000)) : Math.max(len / (EXIT_WALK_MS / 1000), (ROAM.walkSpeedPct / 100) * this.screenW() * ROAM.walkInMul));
+		const msOf = (d: 1 | -1) => {
+			const len = Math.abs(this.exitX(d) - this.x);
+			return EXIT_STAND_MS + (len / speedOf(len)) * 1000;
+		};
+		const preferred = prefer !== 0 && prefer !== nearest && msOf(prefer) <= EXIT_PREFER_MS;
+		const first: 1 | -1 = prefer !== 0 && (prefer === nearest || preferred) ? prefer : nearest;
+		const order: (1 | -1)[] = [first, -first as 1 | -1];
+		let side = first;
+		let toY = this.y;
+		let found = false;
+		for (let k = 0; k <= EXIT_DROPS && !found; k++) {
+			const y2 = this.y + k * EXIT_DROP_STEP;
+			if (k > 0 && y2 > this.rect.bottom) break;
+			for (const d of order) {
+				const ex = this.exitX(d);
+				if (this.cutsMouth(this.x, this.y, ex, y2) || this.walkOnTrees(this.x, this.y, ex, y2)) continue;
+				side = d;
+				toY = y2;
+				found = true;
+				break;
+			}
+		}
+		this.state = 'exit';
+		this.counts.exits++;
+		this.route.length = 0;
+		this.exitFrom.x = this.x;
+		this.exitFrom.y = this.y;
+		this.exitTo.x = this.exitX(side);
+		this.exitTo.y = toY;
+		this.exitU = 0;
+		this.exitLen = Math.hypot(this.exitTo.x - this.x, this.exitTo.y - this.y);
+		this.exitSpeed = speedOf(this.exitLen);
+		this.exitRun = run;
+		this.exitPose = 0;
+		const now = Number.isFinite(this.clock) ? this.clock : 0;
+		this.exitStandUntil = now + EXIT_STAND_MS;
+		this.facing = side;
+		this.clip = 'sniff';
+		this.frame = 1;
+		const ms = EXIT_STAND_MS + (this.exitLen / Math.max(1e-9, this.exitSpeed)) * 1000;
+		// (the probes' worst case at this screen: from its middle to either edge, or the driver's side at its limit)
+		const half = this.screenW() / 2 + Math.abs(this.exitX(1) - this.rect.right);
+		const worstMs = Math.round(Math.max(prefer !== 0 ? EXIT_PREFER_MS : 0, EXIT_STAND_MS + (half / speedOf(half)) * 1000));
+		this.lastExit = { side, nearest, fromX: this.x, fromY: this.y, toX: this.exitTo.x, toY, ms: Math.round(ms), run, preferred: side === prefer && prefer !== nearest, startedAt: now, doneAt: null, screen: [this.rect.left, this.rect.right], worstMs };
+		this.draw();
+	}
+
+	/** his side run off the screen (the strike runner's R view and size, mirrored about his feet for a run to the left) */
+	private drawRun() {
+		const stride = ((Math.floor(this.exitPose + 1e-9) % 16) + 16) % 16 + 1;
+		const got = runFrame('R', stride);
+		if (!got) {
+			this.hide();
+			return;
+		}
+		const s = this.sprite;
+		const box = runBox('R');
+		const k = this.scale();
+		if (s.texture !== got.texture) s.texture = got.texture;
+		if (s.anchor.x !== box.anchorX || s.anchor.y !== box.anchorY) s.anchor.set(box.anchorX, box.anchorY);
+		s.position.set(this.x, this.y);
+		s.scale.set((this.facing * box.width * k) / got.texture.orig.width, (box.height * k) / got.texture.orig.height);
+		s.alpha = 1;
+		s.visible = true;
+		castShadow(this.shadow, got.texture, box.anchorX, box.anchorY, this.x, this.y, s.scale.x, s.scale.y, SHADOW.runner ? shadowStrength() : 0);
 	}
 
 	private beginWalkIn(clock: number) {
@@ -1208,7 +1348,7 @@ export class Roam {
 		if (!roamFramesReady() || this.n < 3) return;
 		// THE SAFETY NET (the game is named after him): whenever he is gone with no walk in due and no strike of his own
 		// under way (`busy`: the board's strike runner), a new one walks in after ROAM_RETURN_MS
-		if (this.state === 'none' && this.placed && this.walkInAt === null) {
+		if (this.state === 'none' && this.placed && this.walkInAt === null && !this.held) {
 			if (this.busy()) this.goneAt = null;
 			else if (this.goneAt === null) this.goneAt = clock;
 			else if (clock - this.goneAt >= ROAM_RETURN_MS) {
@@ -1218,6 +1358,8 @@ export class Roam {
 			}
 		} else this.goneAt = null;
 		if (this.state === 'none') {
+			// (away for the Super wheel: nothing walks in until `back`)
+			if (this.held) return;
 			// HIS FIRST APPEARANCE (round 4, Corey: "it should ... walk in from off the screen"): never a pop; he walks in
 			if (!this.placed && clock >= this.placeRetryAt) {
 				this.placed = true;
@@ -1271,6 +1413,33 @@ export class Roam {
 				this.advance(C.walk.groundSpeed * sc * d);
 				this.frame = ((this.frame - 1 + d) % C.walk.rigFrames) + 1;
 				this.maybeStop();
+				break;
+			}
+			case 'exit': {
+				// the stand, then the run off (the line from his spot to past the edge, at the run's own speed)
+				if (clock < this.exitStandUntil) break;
+				const was = this.exitU;
+				this.exitU = Math.min(this.exitLen, this.exitU + (this.exitSpeed * dt) / 1000);
+				const t = this.exitLen > 1e-6 ? this.exitU / this.exitLen : 1;
+				this.x = this.exitFrom.x + (this.exitTo.x - this.exitFrom.x) * t;
+				this.y = this.exitFrom.y + (this.exitTo.y - this.exitFrom.y) * t;
+				if (this.exitU >= this.exitLen) {
+					this.state = 'none';
+					this.hide();
+					this.route.length = 0;
+					this.counts.exited++;
+					if (this.lastExit) this.lastExit.doneAt = clock;
+					return;
+				}
+				if (this.exitRun && runFrame('R', 1)) {
+					this.exitPose = this.exitU / (STRIKE.runSpeed / STRIKE.strideFps);
+					this.drawRun();
+					return;
+				}
+				// (the walk: its stride matched to the speed, however fast)
+				const natural = C.walk.groundSpeed * sc;
+				this.clip = 'walk';
+				this.frame = ((this.frame - 1 + (natural > 1e-9 ? (this.exitU - was) / natural : 0)) % C.walk.rigFrames) + 1;
 				break;
 			}
 			case 'stop': {
@@ -1355,6 +1524,9 @@ export class Roam {
 			/** the drawn area's own floor numbers at this window (why it was widened, or not) */
 			floor: { ...this.floorOwn },
 			goneAt: this.goneAt === null ? null : r(this.clock - this.goneAt),
+			/** away for the Super wheel, and his last run off the screen (its plan: side, way, ms from the stand; when done) */
+			held: this.held,
+			exit: this.lastExit ? { ...this.lastExit, startedAt: r(this.lastExit.startedAt), doneAt: this.lastExit.doneAt === null ? null : r(this.lastExit.doneAt) } : null,
 			/** where his cast shadow's top lands per road px of his height (shadows.ts castReach): the probes' shadow box */
 			lean: castReach(),
 			/** the tunnel mouths' keep-out polygons (road px, as traced) and his way now (the corners round one, if any) */

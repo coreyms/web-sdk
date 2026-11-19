@@ -80,6 +80,8 @@
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { ROAD_ART } from '../game/roadArtSpec';
+	import { FOREST_LINE } from '../game/forestLineSpec';
+	import { forestLineY } from '../game/scene/sceneLayers';
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
@@ -181,6 +183,17 @@
 	let devGags = 0;
 	let devGagModes: string[] = [];
 	let logoHome: { x: number; y: number; width: number; height: number } | null = null;
+	/** how far the sign moved down off the trees on an upright phone (road px), and how far it still fell short (road px:
+	 *  the board's top in the way) */
+	let logoTreeDrop = 0;
+	let logoTreeShort = 0;
+	/** the sign's lowest visible pixel, a share of its box's height (its picture's alpha, logoSign footShares) */
+	const logoFootShare = () => {
+		const F = logo?.footShares();
+		let deep = -Infinity;
+		if (F) for (let i = 0; i < F.length; i++) if (!Number.isNaN(F[i])) deep = Math.max(deep, F[i]);
+		return Number.isFinite(deep) ? deep : 1;
+	};
 	let logoLiftWant = 0;
 	let logoLift = 0;
 	let logoLiftFrom: number | null = null;
@@ -305,6 +318,8 @@
 		logoWasOver = false;
 		if (p.getChildIndex(logo.root) < p.getChildIndex(scoreboard.root)) p.setChildIndex(logo.root, p.getChildIndex(scoreboard.root));
 	};
+	/** the wheel has left into its column: the roaming reindeer walks back in once that column has grown */
+	let roamBackDue = false;
 	wheel.env = {
 		openPresent: () => road.wheelPresent(),
 		driveAway: () => {
@@ -319,17 +334,23 @@
 		},
 		runSound: (on) => (on ? road.features.sounds.runStart() : road.features.sounds.runStop('the wheel')),
 		// ONE REINDEER ON THE SCREEN: the roaming one (game/road/roam.ts) goes as the wheel comes out (he is the one who runs
-		// it), and a new one walks in once the wheel has left
+		// it): on the screen he stands startled and runs off, toward the left (where the wheel's driver runs in from) when
+		// that is quick enough, else off the nearest edge. He stays away through the whole wheel (no walk in, no safety net)
+		// and a new one walks in the usual way SUPER_WHEEL.roamBackMs after the opening column has grown (boardColumnWild)
 		roamer: (on) => {
-			if (!STRIKE.roam) return;
-			if (on) road.features.roam.walkInSoon(SUPER_WHEEL.roamBackMs);
-			else road.features.roam.leave();
+			if (on) roamBackDue = true;
+			else if (STRIKE.roam) road.features.roam.away(-1);
 		},
 		// AUTOPLAY BONUSES (a run still live), or a replay (its Spin key is the REPLAY banner)
 		// (ROUND.introWaitsForPress false, some probes: nothing waits for a press, the wheel neither)
 		auto: () => (stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0) || (SUPER_WHEEL.replayAuto && stateUrlDerived.replay()) || !ROUND.introWaitsForPress,
 		phase: (phase) => {
 			stateGame.wheelPhase = phase;
+			// (a wheel that ended without leaving into its column, as the dev poses' end: he is not kept away)
+			if (phase === null)
+				queueMicrotask(() => {
+					if (!roamBackDue && road.features.roam.held) road.features.roam.back(0);
+				});
 			// DEV: the phase into the road's log, on the board's own clock (the probe's timings)
 			if (import.meta.env.DEV) road.features.sounds.mark('wheel', phase ?? 'gone');
 			// THE REST: the Spin key is the wheel's from here, at regular pace (a slam stop spent on the way in ends here)
@@ -480,6 +501,20 @@
 			logo.root.scale.set(k);
 			logo.root.position.set(ox, oy);
 			logoBaseY = oy;
+			// THE SIGN'S FOOT ON OPEN GROUND (constants LOGO_SIGN treeGapCss, boardGapCss): an upright phone only
+			logoTreeDrop = 0;
+			logoTreeShort = 0;
+			if (uprightPhone) {
+				const foot = box.y + logoFootShare() * box.height;
+				const line = forestLineY(rect, box.x, box.x + box.width);
+				if (Number.isFinite(line)) {
+					const want = line + LOGO_SIGN.treeGapCss / k - foot;
+					const room = ROAD_ART.laneLines[0] - LOGO_SIGN.boardGapCss / k - (box.y + box.height);
+					logoTreeDrop = Math.max(0, Math.min(want, room));
+					logoTreeShort = Math.max(0, want - logoTreeDrop);
+					box.y += logoTreeDrop;
+				}
+			}
 			logoHome = box;
 			placeLogo();
 		}
@@ -780,6 +815,11 @@
 		},
 		boardColumnWild: async ({ reel, tier, multiplier, sticky, fromCell, joinAdd }) => {
 			await road.features.columnWild(reel, tier, multiplier, sticky, fromCell, joinAdd);
+			// THE SUPER WHEEL has left into this column and it has grown: the roaming reindeer may walk back in
+			if (roamBackDue) {
+				roamBackDue = false;
+				road.features.roam.back(SUPER_WHEEL.roamBackMs);
+			}
 		},
 		boardWinShow: async ({ wins, amountText, multiplier, capped, stripTotal, big }) => {
 			// every time of the win (the lights' stagger and draw, the hold after the total) is this share at the turbo level
@@ -876,7 +916,30 @@
 					preset: stateScene.preset.name,
 					layers: road.scene.last,
 					picture: { x: ox, y: oy, width: 1536 * k, height: 1024 * k, k },
-					logo: b ? { road: b, css: { x: ox + b.x * k, y: oy + b.y * k, width: b.width * k, height: b.height * k }, lamps: logo!.levels() } : null,
+					logo: b
+						? {
+								road: b,
+								css: { x: ox + b.x * k, y: oy + b.y * k, width: b.width * k, height: b.height * k },
+								lamps: logo!.levels(),
+								/** its lowest visible pixel (CSS px), the drawn forest's tree line under it (CSS px, null: no forest), and
+								 *  how far it moved down off the trees and fell short (road px) */
+								foot: oy + (b.y + logoFootShare() * b.height) * k,
+								treeLine: (() => {
+									const f = road.scene.last.forest;
+									const line = f ? (FOREST_LINE[stateScene.preset.kit]?.line as readonly number[] | undefined) : undefined;
+									if (!f || !line) return null;
+									let y = -Infinity;
+									for (let i = 0; i < line.length; i++) {
+										const a = f.x + (f.width * i) / line.length;
+										const c = f.x + (f.width * (i + 1)) / line.length;
+										if (c > b.x && a < b.x + b.width) y = Math.max(y, f.y + f.height * line[i]);
+									}
+									return Number.isFinite(y) ? oy + y * k : null;
+								})(),
+								drop: logoTreeDrop,
+								short: logoTreeShort,
+							}
+						: null,
 				};
 			},
 			/** THE SCENE SWAP (game/scene/sceneSwap.ts): the preset shown, wanted and on the DOM side, the fade, the skins, every
@@ -1149,6 +1212,9 @@
 			roamStandAt: (x: number, y: number) => road.features.roam.standAt(x, y),
 			roamInArea: (x: number, y: number) => road.features.roam.inAreaNow(x, y),
 			roamWalkIn: (delayMs = 0) => road.features.roam.walkInSoon(delayMs),
+			/** the Super wheel's hold (game/road/roam.ts away / back): he runs off and stays away; he walks back in */
+			roamAway: (prefer: 1 | -1 | 0 = -1) => road.features.roam.away(prefer),
+			roamBack: (delayMs = 0) => road.features.roam.back(delayMs),
 			roundSign: (on: boolean) => {
 				stateGame.gameType = on ? 'freegame' : 'basegame';
 				stateGame.totalFs = on ? 10 : 0;
