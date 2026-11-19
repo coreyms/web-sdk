@@ -31,7 +31,8 @@
 //   contact    the reindeer on the rim in each of his 16 strides, from pixels: the gap between his lowest pixel and the
 //              rim's edge
 //   words      the wheel's words: plain capitals, American English, none of the restricted words
-// Sections: ONLY=plan,rounds,auto,hold,skip,resume,concentric,contact,words (default all). ROUNDS=n. SHOTS=<dir> adds the
+// Sections: ONLY=plan,rounds,auto,hold,skip,resume,concentric,contact,words (default all). ROUNDS=n. LAYOUT, LAYOUTS and
+// PICK are explained where they are read. SHOTS=<dir> adds the
 // section `shots` (one round per layout at device pixel ratio 3 with its stills) and the contact section's closeups; the
 // build's sheet is made from them (tools/wheel_sheet.py).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3015 [ONLY=a,b] [SHOTS=dir] node tools/wheel_probe.mjs
@@ -69,6 +70,13 @@ const LAYOUTS = [
 	{ name: 'popout', vp: { width: 400, height: 225 }, touch: false },
 ];
 
+// THE LAYOUT OF THE PLAYED SECTIONS (rounds, auto, hold, skip, resume): LAYOUT=desktop|upright|sideways|popout (default
+// desktop). A headless browser draws on the CPU: on a loaded machine a smaller layout keeps the page nearer real time.
+// The checks are the same at every layout.
+const PLAYED = LAYOUTS.find((l) => l.name === (process.env.LAYOUT || 'desktop')) ?? LAYOUTS[0];
+// (LAYOUTS=desktop,upright: the layouts of the pixel sections and the stills, to split them over holds of the browser lock)
+const MEASURED = LAYOUTS.filter((l) => !process.env.LAYOUTS || process.env.LAYOUTS.split(',').includes(l.name));
+
 let pass = 0;
 let fail = 0;
 const notes = [];
@@ -84,7 +92,7 @@ const note = (line) => {
 const openingOf = (events) => events.find((e) => e.type === 'columnWild' && e.start === true);
 const W = (p) => p.evaluate(() => window.__reindeer.wheel());
 
-async function boot(browser, L = LAYOUTS[0], { dpr = 1, extra = '' } = {}) {
+async function boot(browser, L = PLAYED, { dpr = 1, extra = '' } = {}) {
 	const ctx = await browser.newContext({ viewport: L.vp, deviceScaleFactor: dpr, isMobile: L.touch, hasTouch: L.touch });
 	await ctx.addInitScript(() => {
 		window.__rgsCalls = [];
@@ -227,7 +235,7 @@ async function planSection(browser) {
 
 // ---------------------------------------------------------------- rounds
 /** one forced Super round from the Spin press to its first free spin; `how`: the press that starts the wheel */
-async function oneRound(browser, book, how, tag, { shots = null, L: layout = LAYOUTS[0], dpr = 1 } = {}) {
+async function oneRound(browser, book, how, tag, { shots = null, L: layout = PLAYED, dpr = 1 } = {}) {
 	const { ctx, p, errs, odd, L, sheets } = await boot(browser, layout, { dpr });
 	const o = openingOf(book.events);
 	const out = { ok: false };
@@ -236,9 +244,11 @@ async function oneRound(browser, book, how, tag, { shots = null, L: layout = LAY
 		else await queue(p, book);
 		await p.evaluate(() => window.__reindeer.roadSounds(true));
 		await p.click('.hudp button.spin');
-		const emerged = await toPhase(p, 'emerge', 60000);
+		const emerged = await toPhase(p, 'emerge', 180000);
 		const w0 = emerged ? await W(p) : null;
 		// the emergence: out of the red present (the trigger board has one: 4 or more presents)
+		// (the stills: the strip's blinking line held lit)
+		if (shots) await p.evaluate(() => window.__reindeer.wheelSteady(true));
 		if (shots && emerged) {
 			for (const [i, at] of [560, 1130, 1480, 1800].entries()) {
 				await until(p, (ms) => window.__reindeer.wheel().clock >= ms, 8000, at, 8);
@@ -249,7 +259,7 @@ async function oneRound(browser, book, how, tag, { shots = null, L: layout = LAY
 				await p.evaluate(() => window.__reindeer.clock(1));
 			}
 		}
-		const rested = await toPhase(p, 'rest', 30000);
+		const rested = await toPhase(p, 'rest', 120000);
 		await sleep(500);
 		const rest = await p.evaluate(() => {
 			const w = window.__reindeer.wheel();
@@ -295,14 +305,20 @@ async function oneRound(browser, book, how, tag, { shots = null, L: layout = LAY
 			await p.screenshot({ path: join(shots, `${L.name}_3_drive.png`) });
 			writeFileSync(join(shots, `${L.name}_3_drive.json`), JSON.stringify(await W(p)));
 			await p.evaluate(() => window.__reindeer.clock(1));
-			await until(p, () => window.__reindeer.wheel().phase === 'land', 30000, undefined, 20);
-			await sleep(560);
+			// (each still with the board's own time held, and taken while the strip's blinking line is lit)
+			const lit = () => until(p, () => Math.floor(window.__reindeer.scoreboard().clock / 260) % 3 === 0, 3000, undefined, 15);
+			await until(p, () => window.__reindeer.wheel().phase === 'land' && window.__reindeer.wheel().clock - window.__wheelLog.find((l) => l.phase === 'land').clock >= 450, 240000, undefined, 10);
+			await p.evaluate(() => window.__reindeer.clock(0));
+			await lit();
 			await p.screenshot({ path: join(shots, `${L.name}_4_land.png`) });
 			writeFileSync(join(shots, `${L.name}_4_land.json`), JSON.stringify(await W(p)));
-			await until(p, () => window.__reindeer.wheel().phase === 'land2', 30000, undefined, 20);
-			await sleep(330);
+			await p.evaluate(() => window.__reindeer.clock(1));
+			await until(p, () => window.__reindeer.wheel().phase === 'land2' && window.__reindeer.wheel().clock - window.__wheelLog.find((l) => l.phase === 'land2').clock >= 220, 240000, undefined, 8);
+			await p.evaluate(() => window.__reindeer.clock(0));
+			await lit();
 			await p.screenshot({ path: join(shots, `${L.name}_5_ring.png`) });
 			writeFileSync(join(shots, `${L.name}_5_ring.json`), JSON.stringify(await W(p)));
+			await p.evaluate(() => window.__reindeer.clock(1));
 		}
 		// no input from here: both picks must play from the one press
 		const left = await until(p, () => window.__reindeer.wheel().phase === null && window.__reindeer.wheel().played >= 1, 240000);
@@ -648,7 +664,7 @@ function diffMask(a, b, thr = 24) {
 	return { pts, x0, y0, x1: x1 + 1, y1: y1 + 1 };
 }
 /** the least squares circle through the outline of a mask (per row its two outer pixels, per column its two outer) */
-function fitCircle(mask, upTo = 0.72) {
+function fitCircle(mask, upTo = 0.72, from = 0) {
 	const rows = new Map();
 	const cols = new Map();
 	for (let i = 0; i < mask.pts.length; i += 2) {
@@ -683,7 +699,9 @@ function fitCircle(mask, upTo = 0.72) {
 	const cut = [...far].sort((a, b) => a - b)[Math.floor(far.length * 0.5)];
 	// (and only its upper part, `upTo` of its height: the HTML HUD, drawn over the page, can hide a wheel's foot)
 	const yCut = mask.y0 + (mask.y1 - mask.y0) * upTo;
-	const Q = P.filter((q, i) => far[i] >= cut && q[1] <= yCut);
+	// (`from`: and not its very top, where the column ring's pointer stands out of the ring)
+	const yFrom = mask.y0 + (mask.y1 - mask.y0) * from;
+	const Q = P.filter((q, i) => far[i] >= cut && q[1] <= yCut && q[1] >= yFrom);
 	// solve [2x 2y 1][cx cy c] = x^2 + y^2
 	let sxx = 0, sxy = 0, sx = 0, syy = 0, sy = 0, n = 0, bx = 0, by = 0, b1 = 0;
 	for (const [x, y] of Q) {
@@ -704,7 +722,8 @@ function fitCircle(mask, upTo = 0.72) {
 }
 /** a wheel standing still at a layout (device pixel ratio 3): the page, the box captured, and capture() of chosen pieces */
 async function standing(browser, L, book) {
-	const DPR = 3;
+	// (DPR=2: the desktop game draws at 2 px per CSS px at most, RENDER_RESOLUTION_CAP, so 3 only costs time there)
+	const DPR = Number(process.env.DPR || 3);
 	const { ctx, p, errs } = await boot(browser, L, { dpr: DPR });
 	const shown = await p.evaluate((ev) => window.__reindeer.wheelShow(ev), book.events);
 	await sleep(400);
@@ -725,7 +744,7 @@ async function standing(browser, L, book) {
 
 async function concentricSection(browser) {
 	const rows = [];
-	for (const L of LAYOUTS) {
+	for (const L of MEASURED) {
 		const S = await standing(browser, L, BOOKS[7]);
 		const { p, g, clip, DPR, set, shot } = S;
 		check(S.shown && S.w.phase === 'dev', `concentric ${L.name}: a wheel stands at ${g.d.toFixed(1)} CSS px (centre ${g.cx.toFixed(1)}, ${g.cy.toFixed(1)})`);
@@ -757,15 +776,15 @@ async function concentricSection(browser) {
 		check(rim.worst <= 0.75 && Math.abs(rim.r * 2 - g.d) <= 1, `concentric ${L.name}: the rim's outline is a circle: radius ${rim.r.toFixed(2)} CSS px (the wheel asked for ${(g.d / 2).toFixed(2)}), no outline pixel more than ${rim.worst.toFixed(2)} CSS px off it`, rim);
 		check(Math.hypot(rim.cx - g.cx, rim.cy - g.cy) <= 0.5, `concentric ${L.name}: the rim's centre is the turn's centre (${Math.hypot(rim.cx - g.cx, rim.cy - g.cy).toFixed(2)} CSS px apart)`, { rim, g });
 		// the other pieces' centres against the rim's
-		const centre = async (o) => {
+		const centre = async (o, from = 0) => {
 			await set(o);
-			const f = fitCircle(diffMask(await shot(), none));
+			const f = fitCircle(diffMask(await shot(), none), 0.72, from);
 			return { cx: toCss(f.cx, clip.x), cy: toCss(f.cy, clip.y), r: f.r / DPR, worst: f.worst / DPR };
 		};
 		const parts = {};
 		parts.wedges = await centre({ only: ['wedges'], theta: -22.5 });
 		parts.back = await centre({ only: ['back'] });
-		parts.ring = await centre({ only: ['ring'], ring: true, ringPhi: -31 });
+		parts.ring = await centre({ only: ['ring'], ring: true, ringPhi: -31 }, 0.2);
 		// the highlight: its outer arc at the eight wedges, each fitted, and all eight together
 		const hiPts = { pts: [], x0: 0, y0: 0, x1: 0, y1: 0 };
 		for (let k = 0; k < 8; k++) {
@@ -773,8 +792,12 @@ async function concentricSection(browser) {
 			const m = diffMask(await shot(), none);
 			for (const v of m.pts) hiPts.pts.push(v);
 		}
-		hiPts.y0 = Math.min(...hiPts.pts.filter((_, i) => i % 2 === 1));
-		hiPts.y1 = Math.max(...hiPts.pts.filter((_, i) => i % 2 === 1)) + 1;
+		hiPts.y0 = Infinity;
+		hiPts.y1 = -Infinity;
+		for (let i = 1; i < hiPts.pts.length; i += 2) {
+			hiPts.y0 = Math.min(hiPts.y0, hiPts.pts[i]);
+			hiPts.y1 = Math.max(hiPts.y1, hiPts.pts[i] + 1);
+		}
 		const hf = fitCircle(hiPts);
 		parts.highlight = { cx: toCss(hf.cx, clip.x), cy: toCss(hf.cy, clip.y), r: hf.r / DPR, worst: hf.worst / DPR };
 		await set({ hi: null });
@@ -813,7 +836,7 @@ async function concentricSection(browser) {
 		parts.hub = hub;
 		const off = (c) => Math.hypot(c.cx - rim.cx, c.cy - rim.cy);
 		for (const [name, c] of Object.entries(parts)) {
-			const lim = name === 'hub' ? 1 : name === 'highlight' ? 0.75 : 0.5;
+			const lim = name === 'hub' || name === 'back' ? 1 : name === 'highlight' || name === 'ring' ? 0.75 : 0.5; // (the back is a stretched soft disc, hidden under the rim)
 			check(off(c) <= lim, `concentric ${L.name}: the ${name}'s centre is ${off(c).toFixed(2)} CSS px from the rim's (radius ${c.r.toFixed(2)})`, { c, rim });
 		}
 		rows.push(`| ${L.name} ${L.vp.width}x${L.vp.height} | ${g.d.toFixed(1)} | ${move.toFixed(2)} | ${rim.worst.toFixed(2)} | ${Math.hypot(rim.cx - g.cx, rim.cy - g.cy).toFixed(2)} | ${off(parts.wedges).toFixed(2)} | ${off(parts.highlight).toFixed(2)} | ${off(parts.ring).toFixed(2)} | ${off(parts.hub).toFixed(2)} |`);
@@ -825,14 +848,15 @@ async function concentricSection(browser) {
 		check(S.errs.length === 0, `concentric ${L.name}: no page error`, S.errs);
 		await S.ctx.close();
 	}
-	note('CONCENTRICITY (CSS px, from the page\'s pixels at device pixel ratio 3):');
+	note(`CONCENTRICITY (CSS px, from the page's pixels at device pixel ratio ${process.env.DPR || 3}):`);
 	note('| layout | wheel | rim box moves in a full turn | rim outline off a circle | rim centre to the turn\'s | wedges | highlight | ring | hub |');
 	note('|---|---|---|---|---|---|---|---|---|');
 	for (const r of rows) note(r);
 }
 
 async function contactSection(browser) {
-	for (const L of LAYOUTS.filter((l) => l.name !== 'popout' || want('contact'))) {
+	// (CLAYOUTS: the contact section's own layouts, when they differ from the concentric section's)
+	for (const L of process.env.CLAYOUTS ? LAYOUTS.filter((l) => process.env.CLAYOUTS.split(',').includes(l.name)) : MEASURED) {
 		const S = await standing(browser, L, BOOKS[7]);
 		const { p, g, clip, DPR, set, shot } = S;
 		await p.evaluate(() => {
@@ -894,7 +918,7 @@ async function wordsSection(browser) {
 		check(T.led.every((s) => /^[A-Z ]+$/.test(s)), `${tag}: the LED strip's words are plain capitals`, T.led);
 		const every = [...T.led, T.rules, T.intro, 'Spin the wheel'];
 		check(every.every((s) => !BANNED.test(s) && /^[\x20-\x7e]*$/.test(s)), `${tag}: none of the restricted words, printable ASCII only`, every.filter((s) => BANNED.test(s) || !/^[\x20-\x7e]*$/.test(s)));
-		check(T.rules.length > 120 && /always stops on that opening/.test(T.rules) && /not equally likely/.test(T.rules), `${tag}: the rules say what the wheel is (it shows what the round holds; the other wedges are examples, not equally likely)`, T.rules);
+		check(T.rules.length > 120 && /decided when the round is triggered/.test(T.rules) && /changes nothing/.test(T.rules) && /not equally likely/.test(T.rules) && /Autoplay Bonuses/.test(T.rules), `${tag}: the rules say what the wheel is (the opening is decided when the round is triggered and the wheel shows it; the other wedges are examples, not equally likely; Autoplay Bonuses starts it)`, T.rules);
 		await ctx.close();
 	}
 }
@@ -904,7 +928,7 @@ async function wordsSection(browser) {
  *  the rest, the reindeer on the rim, the first stop, the ring's stop, the landing), with the wheel's numbers beside them */
 async function shotsSection(browser) {
 	const book = BOOKS[7]; // Santa 30x
-	for (const L of LAYOUTS) await oneRound(browser, book, 'key', `shots ${L.name}`, { shots: SHOTS, L, dpr: 3 });
+	for (const L of MEASURED) await oneRound(browser, book, 'key', `shots ${L.name}`, { shots: SHOTS, L, dpr: 3 });
 }
 
 const browser = await chromium.launch({ headless: true, args: ['--mute-audio'] });

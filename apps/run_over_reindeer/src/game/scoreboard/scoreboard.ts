@@ -122,6 +122,8 @@ export class Scoreboard {
 	/** THE SUPER WHEEL'S LINE (game/road/superWheel.ts; constants SUPER_WHEEL.text): what the wheel says on the strip while it
 	 *  is up (null: nothing); it ranks just under a card's own line */
 	private wheelMsg: WheelLine | null = null;
+	/** DEV: the wheel's blinking line held lit (the probe's stills) */
+	devWheelSteady = false;
 	/** THE ARBITER'S PICK (constants LED_BOARD.stripOrder) on the last drawn step, and what was true then */
 	private stripNow: StripItem = 'cartoon';
 	private stripAt = 0;
@@ -967,7 +969,7 @@ export class Scoreboard {
 			}
 			key = `show${s!.id}`;
 		} else if (item === 'wheel') {
-			showWheelLine(F, this.wheelMsg!, this.clock);
+			showWheelLine(F, this.devWheelSteady ? { ...this.wheelMsg!, blink: false } : this.wheelMsg!, this.clock);
 			key = 'wheel';
 		} else if (item === 'scatter') {
 			showScatterCount(F, this.scat!, this.clock);

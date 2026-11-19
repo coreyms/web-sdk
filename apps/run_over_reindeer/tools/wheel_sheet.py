@@ -40,12 +40,16 @@ def tile(path, label):
     return out
 
 
-def crop_css(im, x, y, w, h, off=(0, 0)):
-    """a box given in CSS px of the page, cut from a capture at DPR px (off: the capture's own corner in CSS px)"""
-    box = [round((x - off[0]) * DPR), round((y - off[1]) * DPR), round((x + w - off[0]) * DPR), round((y + h - off[1]) * DPR)]
+def crop_css(im, x, y, w, h, off=(0, 0), dpr=DPR):
+    """a box given in CSS px of the page, cut from a capture at `dpr` px per CSS px (off: the capture's own corner in CSS
+    px); a capture taken at less than 3 is brought to 3 so every closeup is at one size"""
+    box = [round((x - off[0]) * dpr), round((y - off[1]) * dpr), round((x + w - off[0]) * dpr), round((y + h - off[1]) * dpr)]
     box[0], box[1] = max(0, box[0]), max(0, box[1])
     box[2], box[3] = min(im.width, box[2]), min(im.height, box[3])
-    return im.crop(box)
+    out = im.crop(box)
+    if dpr != DPR:
+        out = out.resize((round(out.width * DPR / dpr), round(out.height * DPR / dpr)), Image.LANCZOS)
+    return out
 
 
 def labelled(im, label):
@@ -94,7 +98,7 @@ def main():
                 f = os.path.join(shots, f"{key}_contact_{stride:02d}.png")
                 if os.path.exists(f):
                     im = Image.open(f).convert("RGB")
-                    closes.append(labelled(crop_css(im, fx - side * 0.62, fy - side * 0.66, side, side * 0.9, (c["clip"]["x"], c["clip"]["y"])), f"3x: stride {stride} standing on the rim"))
+                    closes.append(labelled(crop_css(im, fx - side * 0.62, fy - side * 0.66, side, side * 0.9, (c["clip"]["x"], c["clip"]["y"]), c.get("DPR", DPR)), f"3x: stride {stride} standing on the rim" + ("" if c.get("DPR", DPR) == DPR else f" (captured at {c['DPR']}x, the desktop game's own density)")))
         land = os.path.join(shots, f"{key}_4_land.png")
         if os.path.exists(land):
             im = Image.open(land).convert("RGB")

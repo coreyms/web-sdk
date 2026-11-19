@@ -284,11 +284,26 @@
 	const wheel = new SuperWheel();
 	parent.addToParent(wheel.root);
 	/** the wheel just under the scoreboard in the draw order (the scoreboard is moved over the logo after the press screen) */
+	/** THE LOGO UNDER THE WHEEL WHILE IT IS UP (2026-11-19): on an upright phone the billboard logo stands where the
+	 *  reindeer runs on the wheel's left shoulder, and it is drawn over the scoreboard; while the wheel is up it is drawn
+	 *  just under it, and goes back over the scoreboard when the wheel has left (wheelLayerBack) */
+	let logoWasOver = false;
 	const wheelUnderBoard = () => {
 		const p = wheel.root.parent;
 		if (!p) return;
 		p.removeChild(wheel.root);
-		p.addChildAt(wheel.root, scoreboard && scoreboard.root.parent === p ? p.getChildIndex(scoreboard.root) : p.children.length);
+		const board = scoreboard && scoreboard.root.parent === p ? scoreboard.root : null;
+		if (board && logo && logo.root.parent === p && p.getChildIndex(logo.root) > p.getChildIndex(board)) {
+			logoWasOver = true;
+			p.setChildIndex(logo.root, p.getChildIndex(board));
+		}
+		p.addChildAt(wheel.root, board ? p.getChildIndex(board) : p.children.length);
+	};
+	const wheelLayerBack = () => {
+		const p = logo?.root.parent;
+		if (!logoWasOver || !logo || !p || !scoreboard || scoreboard.root.parent !== p) return;
+		logoWasOver = false;
+		if (p.getChildIndex(logo.root) < p.getChildIndex(scoreboard.root)) p.setChildIndex(logo.root, p.getChildIndex(scoreboard.root));
 	};
 	wheel.env = {
 		openPresent: () => road.wheelPresent(),
@@ -815,6 +830,7 @@
 			context.eventEmitter.broadcast({ type: 'stopButtonEnable' });
 			wheelUnderBoard();
 			await wheel.play(plan);
+			wheelLayerBack();
 			// (played or not, the red present's sheets may go now, game/road/present.ts)
 			presentWheelDone();
 		},
@@ -944,7 +960,12 @@
 			wheelAlone: (on: boolean) => {
 				if (scoreboard) scoreboard.root.renderable = !on;
 			},
-			wheelEnd: () => wheel.devEnd(),
+			wheelEnd: () => {
+				wheel.devEnd();
+				wheelLayerBack();
+			},
+			/** the strip's blinking wheel line held lit (the probe's stills) */
+			wheelSteady: (on: boolean) => scoreboard && (scoreboard.devWheelSteady = !!on),
 			wheelMemory: () => wheelMemory(),
 			/** put any board up at rest: __reindeer.setBoard([[...4 symbols] x 5 reels]) */
 			setBoard: (board: BoardSymbols) => {
