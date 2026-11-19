@@ -277,7 +277,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// on), not freeSpinEnd's (the free spins alone). Read from the book, never added up here; a book without a finalWin
 		// after this event keeps freeSpinEnd's.
 		const fin = after.find((e) => e.type === 'finalWin');
-		await pace(350);
+		// the last board alone for a beat before the Total Win: 350 ms on the road's pace; after a SKIP TO RESULT 350 ms of real
+		// time (Manticore's FEATURE_PACING.beforeWrapMs: the skip's slam hurry made the paced beat about 120 ms)
+		await (stateGame.skipTaken ? waitForTimeout(350) : pace(350));
 		await showCard({
 			kind: 'outro',
 			bonus: stateGame.bonusMode ?? 'bonus',
@@ -304,6 +306,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// finalWin is the LAST event of every book. A bought feature plays ONE round: back to the base game, so the
 		// next feature round is a fresh choice and a fresh confirmation (Stake review rule, as in the other games).
 		if (stateBetDerived.activeBetMode()?.type === 'buy') stateBet.activeBetModeKey = 'BASE';
+		// SKIP TO RESULT ends with its round, whatever path set it (a stuck flag would hurry the next round)
+		stateGame.skipping = false;
+		stateGame.skipTaken = false;
 		setHudWin(bookEvent.amount);
 		stateGame.capped = false;
 		stateGame.busy = false;

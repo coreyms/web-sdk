@@ -48,7 +48,7 @@
 	// STAKE'S JURISDICTION SWITCHES (stateGame.svelte.ts skipAllowed): with disabledSlamstop or disabledTurbo there is no
 	// SKIP, and nothing of it is rendered at all (not a hidden button)
 	const allowed = $derived(skipAllowed());
-	const up = $derived(allowed && featureSpinsLive() && !sg.skipping && !sg.plaque && sg.pressGates === 0 && !sg.winShowing && !sg.roundCard);
+	const up = $derived(allowed && featureSpinsLive() && !sg.skipping && !sg.skipTaken && !sg.plaque && sg.pressGates === 0 && !sg.winShowing && !sg.roundCard);
 
 	// ---- where (HUD round 5, "Drop 6", 2026-11-12): the HUD's own rule (ui/hud/hudLayout.ts hudSkipRect): a small glass
 	// capsule. Desktop, wide, tablet: right of the plaque, just over the dock; portrait phone: top right under the clock
@@ -133,7 +133,7 @@
 
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		// house rule: extend __reindeer, never a new global (tools/skip_probe.mjs reads the constants)
-		((window as any).__reindeer ??= {}).skipHud = () => ({ promptMs: SKIP_HUD.promptMs, minHitCss: SKIP_HUD.minHitCss, open, up, allowed, skipping: sg.skipping });
+		((window as any).__reindeer ??= {}).skipHud = () => ({ promptMs: SKIP_HUD.promptMs, minHitCss: SKIP_HUD.minHitCss, open, up, allowed, skipping: sg.skipping, taken: sg.skipTaken });
 	}
 </script>
 

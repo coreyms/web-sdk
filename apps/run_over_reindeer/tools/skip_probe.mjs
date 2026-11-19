@@ -1,7 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{components/SkipButton.svelte,game/utils.ts,game/stateGame.svelte.ts,game/resumeRound.svelte.ts,ui/hud/hudLayout.ts};
 // WATCHES: ; __reindeer.skipHud, __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, __reindeer.gameType, __reindeer.stockRules, __reindeer.roadSounds, __reindeer.soundTap
-// WATCHES: ; __reindeer.wheel, data-wheel-gate, SKIP_HUD, skipAllowed, featureSpinsLive, requestSkip, fsStarted, skipping, skipToResult, SKIP_END_EVENTS, data-skip, data-round-card
+// WATCHES: ; skipTaken, __reindeer.wheel, data-wheel-gate, SKIP_HUD, skipAllowed, featureSpinsLive, requestSkip, fsStarted, skipping, skipToResult, SKIP_END_EVENTS, data-skip, data-round-card
 // THE SKIP PROBE (2026-11-19, SKIP TO RESULT in a bonus round, Manticore Mayhem's control carried over:
 // components/SkipButton.svelte; what Yes does: game/utils.ts playEvents, the resume card's Skip to Result cut). Sections
 // (ONLY=a,b; default all), at 1440 x 900 unless said:
@@ -13,6 +13,8 @@
 //   auto      autoplay (Autoplay Bonuses off) into natural_free_spins, skipped: the wrap-up waits for the press; after
 //             it the stock rules' pause, then the run goes on; and with Stop on Free Games: the run ended at the
 //             trigger, the skip ends the round, no automatic spin
+//   double    the button and Yes pressed again every 10 ms for 700 ms after the first Yes: nothing taken, the flag off at
+//             the wrap-up and through the next base spin, whose end-round comes at its normal time
 //   switch    the operator's disabledSlamstop (and disabledTurbo): no button at all in a bonus round
 //   layouts   the button up in a free spin at 1440 x 900, 390 x 844, 844 x 390 and 400 x 225: inside the window, its
 //             touch target at least 44 px tall (Manticore's rule); with SHOTS=<dir> a capture of each
@@ -103,7 +105,13 @@ async function skipNow(p) {
 	await p.click('[data-skip="button"]');
 	await sleep(250);
 	const prompt = await p.evaluate(() => document.querySelector('[data-skip="prompt"] .q')?.textContent ?? null);
-	await p.evaluate(() => (window.__skipYesAt = performance.now()));
+	// (the moment of the Yes is its own click event's, not the probe's request: a busy page runs the click later)
+	await p.evaluate(() => {
+		window.__skipYesAt = Infinity;
+		document.addEventListener('click', (e) => {
+			if (e.target?.closest?.('[data-skip="yes"]') && window.__skipYesAt === Infinity) window.__skipYesAt = performance.now();
+		}, true);
+	});
 	await p.click('[data-skip="yes"]');
 	return prompt;
 }
@@ -274,6 +282,73 @@ async function sectionLayouts(browser) {
 	}
 }
 
+/** A SECOND SKIP (2026-11-19, the probe host: the button came back for about 120 ms after Yes and a second Yes was taken,
+ *  leaving `skipping` set through the wrap-up and the next base spin, whose end-round then came at 1.17 s instead of about
+ *  3.5 s): from the first Yes on, the page itself presses the button and Yes every 10 ms for 700 ms (the window seen was
+ *  +130 to +280 ms; a busy page fires fewer of them). Nothing is taken,
+ *  the flag is off at the wrap-up and through the next base spin, and that spin's end-round comes at its normal time
+ *  (against the same book played before the bonus round). */
+async function sectionDouble(browser) {
+	const { ctx, p, errs } = await boot(browser);
+	const gap = async () => {
+		const c = await p.evaluate(() => window.__rgsCalls.slice());
+		const play = c.filter((x) => x.path === 'wallet/play').pop();
+		const end = c.filter((x) => x.path === 'wallet/end-round').pop();
+		return play && end && end.at > play.at ? end.at - play.at : null;
+	};
+	// the reference: a winning base spin before the bonus round
+	await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
+	await p.click('.hudp button.spin');
+	await until(p, (x) => x.gt === 'basegame' && x.idle && x.rest && !x.card && x.gates === 0, { ms: 60000 });
+	await sleep(600);
+	const ref = await gap();
+	await p.evaluate(() => window.__reindeer.fixtures.next('natural_free_spins'));
+	await p.click('.hudp button.spin');
+	await until(p, (x) => x.hud.up && x.gt === 'freegame');
+	await p.click('[data-skip="button"]');
+	await sleep(250);
+	await p.evaluate(() => {
+		window.__second = { tries: 0, prompts: 0, upSeen: 0 };
+		document.querySelector('[data-skip="yes"]').click();
+		const t0 = performance.now();
+		const t = setInterval(() => {
+			if (performance.now() - t0 > 700) return clearInterval(t);
+			const b = document.querySelector('[data-skip="button"]');
+			if (window.__reindeer.skipHud().up) window.__second.upSeen += 1;
+			b?.click();
+			window.__second.tries += 1;
+			const y = document.querySelector('[data-skip="yes"]');
+			if (y) {
+				window.__second.prompts += 1;
+				y.click();
+			}
+		}, 10);
+	});
+	const atCard = await until(p, (x) => x.card === 'outro', { ms: 30000 });
+	const second = await p.evaluate(() => window.__second);
+	check(second.upSeen === 0 && second.prompts === 0, `double: after Yes the button never comes back up (${second.tries} presses in 700 ms, up ${second.upSeen} times, a prompt ${second.prompts} times)`, second);
+	check(!!atCard && !atCard.hud.skipping, `double: the flag is off at the wrap-up`, atCard?.hud);
+	await until(p, (x) => x.gt === 'basegame' && x.idle && x.rest && !x.card && x.gates === 0, { pressOutro: true, ms: 60000 });
+	// the next base spin, the same book as the reference
+	await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
+	await p.click('.hudp button.spin');
+	let stuck = false;
+	const t1 = Date.now();
+	while (Date.now() - t1 < 60000) {
+		const s = await st(p);
+		stuck ||= s.hud.skipping;
+		if (s.gt === 'basegame' && s.idle && s.rest && !s.card && s.gates === 0 && Date.now() - t1 > 1500) break;
+		await sleep(60);
+	}
+	await sleep(600);
+	const next = await gap();
+	check(!stuck && ref !== null && next !== null && Math.abs(next - ref) < Math.max(400, ref * 0.25), `double: the next base spin is not hurried (flag off throughout; its end-round ${Math.round(next ?? -1)} ms after its play, the same book before the bonus ${Math.round(ref ?? -1)} ms)`, { stuck, ref, next });
+	const c = await calls(p);
+	check(c.filter((x) => x === 'wallet/end-round').length === 3, `double: one end-round a round (3 rounds)`, c);
+	check(errs.length === 0, `double: no page errors`, errs.slice(0, 3));
+	await ctx.close();
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 try {
 	if (want('layouts')) await sectionLayouts(browser);
@@ -281,6 +356,7 @@ try {
 	if (want('skip')) await sectionSkip(browser);
 	if (want('auto')) await sectionAuto(browser);
 	if (want('switch')) await sectionSwitch(browser);
+	if (want('double')) await sectionDouble(browser);
 } catch (e) {
 	fail++;
 	console.log('FAIL probe error', e?.stack ?? e);

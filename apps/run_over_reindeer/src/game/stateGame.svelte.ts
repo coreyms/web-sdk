@@ -73,6 +73,11 @@ export const stateGame = $state({
 	 *  playBet once the round's final board is up, before the wrap-up; while it is set the per-spin sounds are dropped,
 	 *  components/Sound.svelte, and the road's own, components/Board.svelte) */
 	skipping: false,
+	/** this round's SKIP TO RESULT has been taken (2026-11-19, the probe host: the button came back for about 120 ms
+	 *  between the cut and the wrap-up, and a second Yes left `skipping` set through the next base spin): set with
+	 *  `skipping` by requestSkip, it keeps the button down and refuses another skip until the round is over (cleared at
+	 *  the round's finalWin and at the start of the next round's book, game/utils.ts playBet) */
+	skipTaken: false,
 	/** this bonus round's first free spin has begun (its reveal): SKIP TO RESULT is offered from then on (Manticore's fs >= 1;
 	 *  so never during the entry card or the Super wheel, which play before it) */
 	fsStarted: false,
@@ -106,8 +111,9 @@ export const featureSpinsLive = (): boolean => stateGame.gameType === 'freegame'
 /** SKIP TO RESULT asked (components/SkipButton.svelte's Yes): the spin in play finishes, the rest of the round's spins are
  *  not shown, the round's final board and its wrap-up follow (game/utils.ts playBet). True when it took. */
 const requestSkip = (): boolean => {
-	if (!skipAllowed() || !featureSpinsLive() || stateGame.skipping) return false;
+	if (!skipAllowed() || !featureSpinsLive() || stateGame.skipping || stateGame.skipTaken) return false;
 	stateGame.skipping = true;
+	stateGame.skipTaken = true;
 	return true;
 };
 

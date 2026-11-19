@@ -72,6 +72,9 @@ const playEvents = async (bet: Bet) => {
 
 /** play one round's book, event by event, in book order */
 export const playBet = async (bet: Bet) => {
+	// SKIP TO RESULT never outlives its round: whatever set it, a new round's book starts with it off
+	stateGame.skipping = false;
+	stateGame.skipTaken = false;
 	// a fresh WIN (game/hudWin.svelte.ts)
 	hudWinRoundStart();
 	// the column characters this book calls for start loading now, well before its first strike reaches its target
