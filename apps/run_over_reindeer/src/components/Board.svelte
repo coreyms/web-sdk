@@ -737,6 +737,10 @@
 			// THE SUPER WHEEL on the board's own pace (turbo, a slam stop's hurry); its Autoplay Bonuses wait counts real time
 			wheel.update(ticker.deltaMS * devClock.rate, boardRate());
 			led?.update(ticker.deltaMS, boot.pressReady);
+			// THE FIRST BOARD'S COLUMNS COME ALIVE (game/road/roadFeatures.ts loadLandingIdle): their idle clips load once the
+			// press gate is open (the boot is done), so the splash never waits on them; the still stands until each is in (a
+			// round to resume puts its own board up at the press: nothing loaded for the posed one)
+			if (boot.pressReady && !stateBet.betToResume?.active) road.features.loadLandingIdle();
 			logo?.update(ticker.deltaMS);
 			// the sign easing back from its press screen place (a straight move, real ms)
 			if (logoLift !== logoLiftWant) {
@@ -800,6 +804,8 @@
 				road.features.endLanding();
 				road.setBoard(stateGame.board);
 			}
+			// the posed columns that stay play their idle (the press gate's own call has normally asked already: once only)
+			road.features.loadLandingIdle();
 		},
 		boardSnap: ({ board }) => {
 			road.features.clearAll();

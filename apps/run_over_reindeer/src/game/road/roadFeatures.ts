@@ -260,8 +260,10 @@ type Column = {
 	boxT0: number;
 	/** the crosshair closes onto this column's box (its draw-on is the crosshair's morph): the box shows once it is done */
 	xhBox: boolean;
-	/** a landing board column (showLanding): one still frame and the cloud still from the landing sheet, never a clip */
-	still: { clip: Clip; backdrop: PIXI.Texture } | null;
+	/** a landing board column (showLanding): one still frame and the cloud still from the landing sheet. Once the tier's
+	 *  idle clip is in (loadLandingIdle) it plays that loop from the still's own frame (`from`), so the hand-over has no
+	 *  pop; `live` = it has; until then, and if the clip goes again, the still */
+	still: { clip: Clip; backdrop: PIXI.Texture; from: number; live: boolean } | null;
 	impactMs: number;
 	growMs: number;
 	/** the struck row the box grows from, or -1 (a column that starts whole: Super's opening column) */
@@ -660,6 +662,8 @@ export class RoadFeatures {
 	onBeat: ((kind: 'impact' | 'column') => void) | null = null;
 	/** the first board's posed columns (showLanding) have all left: their sheet may leave the GPU (components/Board.svelte) */
 	onLandingGone: (() => void) | null = null;
+	/** the first board's columns have asked for their idle clips (loadLandingIdle) */
+	private landingIdleAsked = false;
 	/** THE ROAD'S OWN SOUNDS (constants REINDEER_SOUND): cued from the frames below; components/Board.svelte hands it
 	 *  the game's sound events */
 	readonly sounds = new RoadSounds();
@@ -691,7 +695,7 @@ export class RoadFeatures {
 		// for a picture a column is waiting on
 		setUploadGate({
 			quiet: () => this.impactFrames(),
-			needNow: (tier, name) => this.columns.some((c) => c.tier === tier && (name === 'reveal' ? c.phase === 'wait' : name === 'idle' ? c.phase === 'idle' && !getClip(tier, 'idle') : false)),
+			needNow: (tier, name) => this.columns.some((c) => c.tier === tier && (name === 'reveal' ? c.phase === 'wait' : name === 'idle' ? c.phase === 'idle' && !c.still && !getClip(tier, 'idle') : false)),
 		});
 	}
 
@@ -1120,8 +1124,10 @@ export class RoadFeatures {
 	}
 
 	// ---- the landing board (game/landingBoard.ts) ----------------------------------------------------------------------
-	/** THE LANDING BOARD'S COLUMNS: standing and still, from the landing sheet (one picked idle frame per character and
-	 *  the cloud still; tools/build_columns.py --landing), their numbers up. Nothing of them loads a clip. */
+	/** THE LANDING BOARD'S COLUMNS: standing, from the landing sheet (one picked idle frame per character and the cloud
+	 *  still; tools/build_columns.py --landing), their numbers up. They load nothing here: the still stands until
+	 *  loadLandingIdle (once the press gate is open) has brought the tier's idle in, then that loop plays on (Corey
+	 *  2026-11-19: "make the full column wilds on the intial screens have their idle animations instead of still images") */
 	showLanding(sheet: PIXI.Texture, frames: Record<string, { x: number; y: number; width: number; height: number }>, columns: { reel: number; tier: ColumnTier; multiplier: number }[]) {
 		const cut = (f: { x: number; y: number; width: number; height: number }) => new PIXI.Texture({ source: sheet.source, frame: new PIXI.Rectangle(f.x, f.y, f.width, f.height) });
 		const backdrop = cut(frames.backdrop);
@@ -1131,12 +1137,49 @@ export class RoadFeatures {
 			this.removeColumn(reel, true);
 			const column = this.makeColumn(reel, tier, multiplier, false, 0, false);
 			const spec = COLUMN_CLIPS.clips[tier].idle;
-			column.still = { clip: { textures: [cut(f)], fps: 1, loop: true, x: spec.x, y: spec.y, width: spec.width, height: spec.height, cloudFrames: 0 }, backdrop };
+			const from = (COLUMN_CLIPS.landing.frames as Record<string, number>)[tier] ?? 0;
+			column.still = { clip: { textures: [cut(f)], fps: 1, loop: true, x: spec.x, y: spec.y, width: spec.width, height: spec.height, cloudFrames: 0 }, backdrop, from, live: false };
 			column.phase = 'idle';
 			column.t0 = this.clock;
 			column.labelShown = true;
 			column.label.root.visible = true;
 		}
+	}
+
+	/** THE FIRST BOARD'S COLUMNS COME ALIVE: their tiers' idle clips load in the background (the upload queue's own turn,
+	 *  never holding the splash or the press screen back); each column swaps its still for the loop the frame its clip is
+	 *  in. Once (components/Board.svelte calls it when the press gate opens, and again as the landing ends). */
+	loadLandingIdle() {
+		if (this.landingIdleAsked) return;
+		const tiers = new Set(this.columns.filter((c) => c.still && c.phase !== 'leave').map((c) => c.tier));
+		if (!tiers.size) return;
+		this.landingIdleAsked = true;
+		for (const tier of tiers) void loadClip(tier, 'idle');
+	}
+
+	/** what a landing column draws: the tier's idle loop once it is in (started on the still's own frame, so there is no
+	 *  pop), else its still */
+	private landingIdle(column: Column, still: NonNullable<Column['still']>): Clip {
+		const clip = getClip(column.tier, 'idle');
+		if (!clip || !clip.textures.length || clip.textures.some((t) => t.destroyed)) {
+			still.live = false;
+			return still.clip;
+		}
+		if (!still.live) {
+			still.live = true;
+			// the loop's frame is floor(t x fps + reel x 5) mod n (updateColumn): t0 set so it is the still's frame now
+			const n = clip.textures.length;
+			const at = (((still.from - column.reel * 5) % n) + n) % n;
+			column.t0 = this.clock - ((at + 0.5) * 1000) / Math.max(1, clip.fps);
+		}
+		return clip;
+	}
+
+	/** a landing column has gone: its tier's idle (loaded for it, loadLandingIdle) goes too unless another column of the
+	 *  tier stands or the book being played calls for it */
+	private releaseLandingIdle(tier: ColumnTier) {
+		if (!this.landingIdleAsked) return;
+		if (!this.columns.some((c) => c.tier === tier) && !isWanted(tier)) releaseClip(tier, 'idle');
 	}
 
 	/** the landing is over: its columns go at once (no fade, nothing left behind), before the first board is put up */
@@ -1153,6 +1196,7 @@ export class RoadFeatures {
 			column.backdrop.texture = PIXI.Texture.EMPTY;
 			this.destroyColumn(column);
 			this.columns = this.columns.filter((c) => c !== column);
+			this.releaseLandingIdle(column.tier);
 		}
 		// the frames only (the sheet itself is the preload's)
 		for (const t of textures) t.destroy(false);
@@ -1521,7 +1565,7 @@ export class RoadFeatures {
 		const left = BOARD_X + column.reel * PITCH;
 		const full = inset({ x: left, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
 		const reveal = getClip(column.tier, 'reveal');
-		const idle = column.still?.clip ?? getClip(column.tier, 'idle');
+		const idle = column.still ? this.landingIdle(column, column.still) : getClip(column.tier, 'idle');
 
 		if (column.phase === 'leave') {
 			const u = t / COLUMN.leaveMs;
@@ -1536,6 +1580,7 @@ export class RoadFeatures {
 				// the last one has gone its sheet may leave the GPU
 				if (column.still) {
 					for (const t of column.still.clip.textures) t.destroy(false);
+					this.releaseLandingIdle(column.tier);
 					if (!this.columns.some((c) => c.still)) {
 						// (the cloud still's frame is shared by the three: it goes with the last)
 						column.still.backdrop.destroy(false);
@@ -1817,7 +1862,7 @@ export class RoadFeatures {
 
 	snapshot() {
 		return {
-			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => ({ reel: c.reel, tier: c.tier, multiplier: c.multiplier, sticky: c.sticky, phase: c.phase, drawn: c.body.visible, backdrop: c.backdrop.visible, over: this.standing(c) })),
+			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => ({ reel: c.reel, tier: c.tier, multiplier: c.multiplier, sticky: c.sticky, phase: c.phase, drawn: c.body.visible, backdrop: c.backdrop.visible, over: this.standing(c), frame: c.frame, landing: c.still ? (c.still.live ? 'live' : 'still') : null })),
 			// the characters as they are drawn, back to front (reel numbers from 0)
 			bodyOrder: [...this.stacks].reverse().flatMap((s) => s.body.children.map((b) => this.reelOfBody(b))),
 			clouds: this.clouds.filter((c) => c.leaving === null).map((c) => c.cell),

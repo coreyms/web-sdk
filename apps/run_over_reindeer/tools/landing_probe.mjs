@@ -2,7 +2,7 @@
 // (2026-11-17: with constants LED_SIGN.onBoard the press screen is the game's own expanded LED board; boardPress() below
 // checks it at every size and the billboard's checks are skipped. They still run with LED_SIGN.onBoard false.)
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/assets.ts,game/config.ts,game/constants.ts,game/landing/ledScreens.ts,game/landing/ledSign.ts};
-// WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts,game/gpuWarm.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts,game/gpuWarm.ts,game/road/roadFeatures.ts};
 // WATCHES: apps/run_over_reindeer/{static/assets/audio/music.json,static/assets/audio/sounds.json,static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
 // WATCHES: ; data-resume-card, data-resume, __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.led
 // WATCHES: ; __reindeer.gpuWarm, GPU_WARM
@@ -14,7 +14,8 @@
 // landingBoard.ts) is the FIRST BOARD after the press. At each size:
 //   - PRESS ANYWHERE is reached (the press gate's rules: the billboard's ticker shows it, the HTML line steps aside)
 //   - behind the billboard the road shows the posed board: reels 1 and 5 the eight ordinary symbols once each, reels 2, 3
-//     and 4 the Reindeer, Santa and Grandma columns standing at the top multipliers the math config gives, nothing moving
+//     and 4 the Reindeer, Santa and Grandma columns standing at the top multipliers the math config gives (their stills
+//     hand over to their idle loops once the clips are in: Corey 2026-11-19; checked on the first board after the press)
 //   - the billboard: its dots (desktop 362 x 143 and a 362 x 11 ticker, 2.49 CSS px; the other sizes from the page's
 //     rules), its face centred on the board, its snow cap under the title sign (the billboard logo since scene pass 9: its visible art, not its box; on
 //     an upright phone since 2026-11-17 the sign rests on the cap, its lowest visible pixels 0 to 2 px into the cap's drawn top, and is back at its own
@@ -22,7 +23,8 @@
 //     held sideways clear of both HUD columns; the three screens cycle (each captured, with 4x crops of its words); its
 //     first screen's figure is the max win from game/config.ts
 //   - the press powers it down: the game's chrome is up by the hand over, the sign is gone and unloaded after
-//   - the first board after the press is the posed board, at rest; the first spin's press takes its columns away
+//   - the first board after the press is the posed board, at rest, its three columns playing their idle loops (each
+//     column's frame changes over 1.5 s); the first spin's press takes its columns away
 //   - a resumed round (the fixture RGS's resume: a free spin with a held column) comes back with its own column only
 //   - the billboard's cost per content step on a phone profile with the CPU throttled 4x (CDP), its GPU bytes, the bytes
 //     it adds to the press gate
@@ -421,6 +423,27 @@ async function crop4x(file, box, dpr, out) {
 				const c = await p.evaluate(() => window.__reindeer.road());
 				check(c.features.columns.length === 3 && c.atRest && [0, 4].every((r) => JSON.stringify(c.board[r]) === JSON.stringify(POSE_SIDES[r])), `${tag}: the first board after the press is the posed board (${c.features.columns.length} columns), at rest`, c.features.columns);
 				if (OUT) await p.screenshot({ path: join(OUT, `after_press_${S.name}_${S.vp.width}x${S.vp.height}.png`) });
+				// THE FIRST BOARD'S COLUMNS PLAY THEIR IDLE (Corey 2026-11-19): each posed column's still hands over to its tier's
+				// idle loop once the clip is in (game/road/roadFeatures.ts loadLandingIdle), and its frame then changes over 1.5 s
+				{
+					let live = null;
+					for (let i = 0; i < 60; i++) {
+						live = await p.evaluate(() => window.__reindeer.road().features.columns.map((x) => ({ reel: x.reel, landing: x.landing, frame: x.frame })));
+						if (live.length === 3 && live.every((x) => x.landing === 'live')) break;
+						await sleep(150);
+					}
+					const seen = new Map();
+					for (let i = 0; i < 10; i++) {
+						const cols = await p.evaluate(() => window.__reindeer.road().features.columns.map((x) => ({ reel: x.reel, landing: x.landing, frame: x.frame })));
+						for (const x of cols) {
+							if (!seen.has(x.reel)) seen.set(x.reel, new Set());
+							if (x.landing === 'live') seen.get(x.reel).add(x.frame);
+						}
+						await sleep(150);
+					}
+					const frames = [1, 2, 3].map((r) => `${r}:${seen.get(r)?.size ?? 0}`);
+					check(live.length === 3 && live.every((x) => x.landing === 'live') && [1, 2, 3].every((r) => (seen.get(r)?.size ?? 0) >= 3), `${tag}: the first board's three columns play their idle loop (distinct frames over 1.5 s per reel ${frames.join(' ')})`, live);
+				}
 				// the sign is back at its in-game place once the press screen has gone (an upright phone's rests on the cap
 				// only on the press screen): its box's foot on the rule's (tune.logoSign.place.<class>.foot, road px)
 				if (S.upright) {
