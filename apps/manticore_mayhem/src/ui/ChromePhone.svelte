@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LOGO_STILL_PATH, stamp } from '../game/assets';
+	import LogoPicture from './LogoPicture.svelte';
 	// Phone-landscape master (1480x740): board centred and near full height, logo top left (unchanged).
 	// THE HUD (round 5, "Drop 6", Corey 2026-11-12, the landscape of "Win Crown"): a compact glass capsule low in the left
 	// column with BALANCE, WIN and the amount between its minus and plus; ARMOURY and MENU (34 px circles, icon only)
@@ -46,7 +46,7 @@
 
 <!-- the logo (the tablet). THE CANVAS DRAWS IT (components/Logo.svelte, game/logo/still.ts: under the creature, with
      the shadow); this <img> is the fallback until the canvas has it, and hidden from then on (logoState.canvas) -->
-<div class="logo" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><img src={stamp(`/assets/${LOGO_STILL_PATH}`)} alt="Manticore Unleashed" draggable="false" /></div>
+<div class="logo" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><LogoPicture /></div>
 
 <div class="hudp hud-group v-landscape" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.cap.x0 + 14}px" style:top="{G.cap.y1 - 14}px" style:width="{G.cap.x1 - G.cap.x0 - 28}px" style:height="28px"></div>
@@ -111,10 +111,5 @@
 	}
 	.logo.canvas {
 		visibility: hidden;
-	}
-	.logo img {
-		display: block;
-		width: 100%;
-		height: auto;
 	}
 </style>

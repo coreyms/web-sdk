@@ -2662,7 +2662,17 @@ export const FOREGROUND_KICK = {
 export const LOGO = {
 	/** the tablet's own size, px (static/assets/ui/logo-tablet.webp, tools/build_logo_tablet.py; the phone tier's copy is
 	 *  1280 x 419 of the same picture): the box's aspect, and the units of the groove trace (game/logo/grooves.json) */
-	art: { width: 1893, height: 620 },
+	art: { width: 1938, height: 701 },
+	/** THE FRAME AND ITS LETTERING (2026-11-18, Corey's C1: images/key_frame_gpt_2026-11-18/final_C1, tools/build_logo_frame.py):
+	 *  `art` above is the FRAME (static/assets/ui/logo-frame.webp, 1938 x 701; the phone tier 1311 x 474), the one image in
+	 *  the logo's place on the landing screen and in the game; the LETTERING is its own layer over the frame's panel,
+	 *  logo-lettering.webp, cropped to this box of the frame's px (x0, y0, x1, y1) and drawn there. The logo is frame +
+	 *  lettering; the KEY state is frame + key (constants LOGO_KEY). It replaced the Citadel Tablet (logo-tablet.webp,
+	 *  1893 x 620, archived out of the build), so every rule below that names the tablet now places the frame. */
+	lettering: { box: [394, 167, 1533, 513] as const },
+	/** the old tablet's height per px of width (620 / 1893): the landing screen's cards keep the band they were approved with
+	 *  under it (game/introCards.ts), and the frame, 10 % taller for its width, keeps the tablet's bottom edge there */
+	landingBandAspect: 620 / 1893,
 	/** THE BOX RULE's aspect (game/logo/layout.ts): the old stacked logo's art box, 2380 x 940, wing tip to wing tip. Every
 	 *  layout's box below is still that box (its width, its place, its height where a rule is anchored to its top or
 	 *  limited by a band); the tablet fills it by width, centred in its height. */
@@ -2743,7 +2753,7 @@ export const LOGO = {
 	 *  'edge')` (components/Logo.svelte). Portrait phone only.
 	 *  THE DEFAULT IS 'edge' since Corey 2026-10-17 13:02: "Yes, Logo on left edge looks proper for placement."
 	 *  'current' stays as a DEV option; back to the old place: default 'current'. */
-	portraitPhoneEdge: { leftEdgeArt: 8, edgeCss: 2, default: 'edge' as 'current' | 'edge' },
+	portraitPhoneEdge: { leftEdgeArt: 7, edgeCss: 2, default: 'edge' as 'current' | 'edge' },
 	/** the landing screen's logo (ui/LandingScreen.svelte): the art's width and centre per master, above the cards (the
 	 *  cards' band starts under the tablet's own bottom edge, game/introCards.ts) */
 	landing: { landscape: { width: 380, cx: 640, cy: 92 }, phone: { width: 380, cx: 740, cy: 92 }, portrait: { width: 348, cx: 206, cy: 110 } },
@@ -2778,7 +2788,10 @@ export const LOGO = {
 	// A staging build or the dev server takes `?trace=0`, `?traceIdle=`, `?traceEvent=`, `?traceWin=` (speed, trail,
 	// brightness, pause, as the mock's read-back), `?traceLevels=`, `?traceTiers=` and `?traceGain=` (game/staging.ts).
 	trace: {
-		on: true,
+		/** OFF since 2026-11-18: its groove map (game/logo/grooves.json) is the Citadel Tablet's, in that tablet's px; the C1
+		 *  frame that replaced it has other grooves, so the trace would light lines that are not there. A map of the C1
+		 *  frame's grooves brings it back (the trace code and its three styles are unchanged) */
+		on: false,
 		/** the glow's cross-section, the mock's three strokes: [width in art px, its floor in CSS px, alpha per unit of
 		 *  brightness, core colour]. On the game's sizes (140 to 760 CSS px wide) the CSS floors decide every width. */
 		layers: [
@@ -4184,4 +4197,86 @@ export const PLAQUE_PROMPT = {
 	/** the mesh the texture is drawn on: columns x rows of quads through the homography (the tips' own grid density) */
 	gridX: 24,
 	gridY: 2,
+} as const;
+
+/** THE LOGO PANEL AND THE MULTIPLIER KEY (2026-11-18; components/Logo.svelte, game/logo/key.ts). Corey's words, in order:
+ *  the key idea ("Put in Place an helper block that shows ... multiplier squares ... light up active multiplier counts. This
+ *  could be a 'key' for the game"), "Yes, remove the symbol row from that key", "I like v3, but it needs some backing, and I
+ *  wouldn't keep the text", the backing as ONE image ("an image that has that design wrapped all the way around the logo in
+ *  a perfect rectangle"), "Still use the same image for this and the logo. Maybe we could show the logo and put this over
+ *  it when spins are happening", then C1 with the panel tightened, colour "matched", and "Yes" to a larger frame.
+ *  So the logo's place holds ONE frame (constants LOGO.art, logo-frame.webp); inside its panel the LOGO lettering at rest,
+ *  the KEY while spins happen (mock V3: the big square with the highest multiplier live on the board, the two-row climb
+ *  beside it, no text), crossfaded inside the panel only: the frame never moves or fades for it. */
+export const LOGO_KEY = {
+	/** the frame's inner panel, fractions of the frame (x, y, w, h: C1_final_layout.json panel) */
+	panel: [0.19401, 0.21255, 0.6063, 0.54636] as const,
+	/** THE KEY'S SQUARES, fractions of the frame (x, y, w, h: C1_final_layout.json key.rects_frac_xywh): the big square at the
+	 *  panel's full inner height, the climb in two rows of four (cold, x2, x4, x8 over x16, x32, x64, x128), 24.6 px of the
+	 *  1938 frame inside the panel on every side */
+	big: [0.20669, 0.24759, 0.17228, 0.47628] as const,
+	climb: [
+		[0.43566, 0.24759],
+		[0.52551, 0.24759],
+		[0.61536, 0.24759],
+		[0.70521, 0.24759],
+		[0.43566, 0.49599],
+		[0.52551, 0.49599],
+		[0.61536, 0.49599],
+		[0.70521, 0.49599],
+	] as const,
+	climbSize: [0.08243, 0.22789] as const,
+	/** which layouts carry the KEY: 'key' = the two-state panel; 'logo' = the logo only, never the key. Corey's floor: the
+	 *  climb's squares at about 18 CSS px or the logo only. The sideways phone's frame is held to its column by the board
+	 *  (12 to 13 CSS px squares) and Stake's Popout S to 74 CSS px wide (6 px): both the logo only */
+	layouts: { landscape: 'key', portrait: 'key', phone: 'logo', popout: 'logo' } as Record<'landscape' | 'portrait' | 'phone' | 'popout', 'key' | 'logo'>,
+	/** Popout S: a canvas no wider and no taller than this, CSS px (the AutoplayModal's popS rule) */
+	popout: { maxWidth: 480, maxHeight: 300 },
+	/** THE TWO STATES (the coordinator's rule, each a tunable): KEY from the spin press until the round is over and the board
+	 *  at rest, then LOGO after restHoldMs unless the next round starts first (and never while an autoplay run is on), so a
+	 *  round flips at most once; KEY throughout a feature (its intro to its wrap-up: its lit tiles persist); LOGO on the
+	 *  landing screen. restWithLit 'key': the KEY also holds while lit tiles stay on the board at rest (a base spin's tiles
+	 *  stay until the next spin's reveal clears them, so it does) */
+	state: { fadeMs: 280, restHoldMs: 1000, featureKey: true, restWithLit: 'key' as 'logo' | 'key' },
+	/** brightness (tint grey) of an unlit square, and of x128 where it cannot occur (a tileCap under 128: the Base Game and
+	 *  Free Spins), and the lit / unlit change's time */
+	unlit: 0x5c / 255,
+	locked: 0x33 / 255,
+	dimMs: 260,
+	/** a value stepping up (one more cell on it): the square pops to popScale over popMs with the white flash from flashFrom */
+	popScale: 1.2,
+	popMs: 420,
+	flashFrom: 0.75,
+	/** THE BIG SQUARE'S CHANGE: a squeeze to squeezeTo over squeezeMs on the old value, the new value at its floor, then the
+	 *  punch to punchTo (at punchPeakAt of punchMs) and back with the flash */
+	squeezeTo: 0.8,
+	squeezeMs: 90,
+	punchTo: 1.18,
+	punchPeakAt: 0.4,
+	punchMs: 460,
+	/** the ring on the highest live value of the climb: its width as a share of the square, its breathing (alpha 1 to
+	 *  ringMin and back over ringMs) and its slide to a new square */
+	ringShare: 0.1,
+	ringMinCss: 1.5,
+	ringMin: 0.5,
+	ringMs: 1600,
+	ringMoveMs: 240,
+	/** THE ART: the board's own tiles, captured from the game (tools/manticore/rules_tiles_capture.js KEY=1, 2560 x 1440 at
+	 *  3 device px, 393 px a cell; tools/build_key_atlas.py): 384 px a square (3 device px per CSS px up to 128 CSS px; the
+	 *  biggest drawn is the big square at 1920 x 1080, about 80 CSS px), the phone tier 192 */
+	atlas: { full: 'key/key-tiles.json', phone: 'key/key-tiles-phone.json' },
+	/** THE FRAME'S SIZE IN THE GAME (Corey's "Yes" to a larger frame where there is room; game/logo/layout.ts), measured clear
+	 *  of the board, the creature in every pose, the HUD and the clock strip (tools/manticore/logo_probe.js). null = the
+	 *  tablet's rule as it was.
+	 *    landscape      desktop, 16:9 and taller: from `gap` master px off the screen's left edge to `gap` short of the
+	 *                   board frame art's left edge (layoutSpec frameArtRect), its top `top` master px (16:9; rides up with
+	 *                   the clock strip on taller screens, as before). The board's art is the limit
+	 *    portraitPhone  the owner's box at `width` (the left edge rule unchanged), its bottom edge at `bottom` (the tablet's
+	 *                   own bottom at width 240): it grows up and right, toward the clock row and over his head
+	 *    portrait       a tablet: the band rule's maxWidth */
+	grow: {
+		landscape: { gap: 4, top: 50 } as { gap: number; top: number } | null,
+		portraitPhone: { width: 256, bottom: 124 } as { width: number; bottom: number } | null,
+		portrait: { maxWidth: 348 } as { maxWidth: number } | null,
+	},
 } as const;

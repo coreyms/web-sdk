@@ -90,6 +90,10 @@ export default {
 	"fonts/ui/Outfit-Variable.woff2": "623d408f",
 	"fonts/ui/OutfitText-Variable.woff2": "e1523f3a",
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
+	"key/key-tiles-phone.json": "7c3f4e52",
+	"key/key-tiles-phone.webp": "44011977",
+	"key/key-tiles.json": "0d358ac4",
+	"key/key-tiles.webp": "30198957",
 	"sprites/creature/day/creature-day-charge_in-phone.json": "7c3ddc53",
 	"sprites/creature/day/creature-day-charge_in-phone.webp": "de1076f0",
 	"sprites/creature/day/creature-day-charge_in.json": "e0eb7397",
@@ -575,6 +579,10 @@ export default {
 	"ui/labels/label-glyphs-48.webp": "0572ba44",
 	"ui/labels/label-glyphs-60.json": "019fe938",
 	"ui/labels/label-glyphs-60.webp": "268b4023",
+	"ui/logo-frame-phone.webp": "6e964d9b",
+	"ui/logo-frame.webp": "1a8338f6",
+	"ui/logo-lettering-phone.webp": "657afb30",
+	"ui/logo-lettering.webp": "bd98cc72",
 	"ui/logo-tablet-phone.webp": "9dc8c8d2",
 	"ui/logo-tablet.webp": "ac921301",
 	"ui/maxwin/maxwin-half.json": "355bd943",
@@ -707,6 +715,10 @@ export const fileBytes = {
 	"fonts/ui/Outfit-Variable.woff2": 13704,
 	"fonts/ui/OutfitText-Variable.woff2": 45164,
 	"fonts/ui/Sora-Variable.woff2": 14980,
+	"key/key-tiles-phone.json": 57848,
+	"key/key-tiles-phone.webp": 55586,
+	"key/key-tiles.json": 132098,
+	"key/key-tiles.webp": 129840,
 	"sprites/creature/day/creature-day-charge_in-phone.json": 160646,
 	"sprites/creature/day/creature-day-charge_in-phone.webp": 158728,
 	"sprites/creature/day/creature-day-charge_in.json": 273767,
@@ -1192,6 +1204,10 @@ export const fileBytes = {
 	"ui/labels/label-glyphs-48.webp": 137124,
 	"ui/labels/label-glyphs-60.json": 187325,
 	"ui/labels/label-glyphs-60.webp": 179736,
+	"ui/logo-frame-phone.webp": 189956,
+	"ui/logo-frame.webp": 353582,
+	"ui/logo-lettering-phone.webp": 103006,
+	"ui/logo-lettering.webp": 174136,
 	"ui/logo-tablet-phone.webp": 222486,
 	"ui/logo-tablet.webp": 400354,
 	"ui/maxwin/maxwin-half.json": 470687,
@@ -1234,8 +1250,10 @@ export const fileBytes = {
 
 // Byte sizes of the landing-screen critical path (game/boot.svelte.ts weights the splash bar by them).
 export const landingSizes = {
-	"ui/logo-tablet.webp": 400354,
-	"ui/logo-tablet-phone.webp": 222486,
+	"ui/logo-frame.webp": 353582,
+	"ui/logo-frame-phone.webp": 189956,
+	"ui/logo-lettering.webp": 174136,
+	"ui/logo-lettering-phone.webp": 103006,
 	"fonts/ui/Outfit-Variable.woff2": 13704,
 	"fonts/ui/Sora-Variable.woff2": 14980,
 	"ui/intro/card-frame.webp": 152008,
@@ -1252,4 +1270,4 @@ export const landingSizes = {
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":3132337,"preload":1412207,"audio":1176550} as const;
+export const bootSizes = {"landing":3330177,"preload":1412207,"audio":1176550} as const;

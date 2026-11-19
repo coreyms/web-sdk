@@ -21,7 +21,7 @@
 // the two faces are in (so the Pixi preload still starts as early as before), beside the Pixi preload. Their bytes are
 // in the splash bar (scripts/stamp-assets.mjs CARDS); the splash waits for them up to INTRO_CARD.splashCapMs
 // (ui/LandingScreen.svelte), and boot.cards says how it went.
-import { GATE_BYTES, LOGO_STILL_PATH, stamp } from './assets';
+import { GATE_BYTES, LOGO_LETTERING_PATH, LOGO_STILL_PATH, stamp } from './assets';
 import { landingSizes, bootSizes } from './assetStamp';
 import { INTRO_CARD_ASSETS } from './introCards';
 import { INTRO_CARD_TEXT } from './introCardText';
@@ -46,9 +46,9 @@ declare global {
 
 /** paths relative to static/assets — the byte sizes come from scripts/stamp-assets.mjs */
 // (the explainer cards are not in this phase: they are CARD_* below, loaded after it, during the splash)
-const IMAGES = [LOGO_STILL_PATH] as const;
+const IMAGES = [LOGO_STILL_PATH, LOGO_LETTERING_PATH] as const;
 /** the other tier's logo: in bootSizes.landing (scripts/stamp-assets.mjs LANDING has both), never fetched here */
-const LOGO_OTHER_TIER = LOGO_STILL_PATH === 'ui/logo-tablet.webp' ? 'ui/logo-tablet-phone.webp' : 'ui/logo-tablet.webp';
+const LOGO_OTHER_TIER = LOGO_STILL_PATH === 'ui/logo-frame.webp' ? ['ui/logo-frame-phone.webp', 'ui/logo-lettering-phone.webp'] : ['ui/logo-frame.webp', 'ui/logo-lettering.webp'];
 /** the splash bar's share of ONE loading scale across both screens: bundle + landing assets +
  *  the Pixi preload, over everything the landing screen waits on (the audio and, since first-minute plan D, THE GATE:
  *  game/assets.ts GATE_BYTES). The Pixi scene (the room the
@@ -61,7 +61,7 @@ export const splashShare = (): number => {
 	const js = b?.jsBytes ?? 0;
 	// bootSizes.landing carries the cards' files (scripts/stamp-assets.mjs CARDS); the clips leave it where none is asked for,
 	// and the other tier's logo always does
-	const landing = bootSizes.landing - sizeOf(LOGO_OTHER_TIER) - (clipsWanted() ? 0 : CARD_CLIPS.reduce((n, path) => n + sizeOf(path), 0));
+	const landing = bootSizes.landing - LOGO_OTHER_TIER.reduce((n, path) => n + sizeOf(path), 0) - (clipsWanted() ? 0 : CARD_CLIPS.reduce((n, path) => n + sizeOf(path), 0));
 	const everything = js + landing + bootSizes.preload + bootSizes.audio + GATE_BYTES;
 	return everything > 0 ? (js + landing + bootSizes.preload) / everything : 0;
 };

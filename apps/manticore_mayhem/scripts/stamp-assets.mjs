@@ -141,8 +141,10 @@ const CARDS = [
 ];
 const LANDING = [
 	// the logo, one file per tier (game/assets.ts LOGO_STILL_PATH): game/boot.svelte.ts leaves the other tier's out of the total
-	'ui/logo-tablet.webp',
-	'ui/logo-tablet-phone.webp',
+	'ui/logo-frame.webp',
+	'ui/logo-frame-phone.webp',
+	'ui/logo-lettering.webp',
+	'ui/logo-lettering-phone.webp',
 	'fonts/ui/Outfit-Variable.woff2',
 	'fonts/ui/Sora-Variable.woff2',
 	...CARDS,

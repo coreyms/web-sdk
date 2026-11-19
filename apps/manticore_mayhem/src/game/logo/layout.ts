@@ -4,7 +4,7 @@
 // constants LOGO.
 // THE TABLET (2026-11-17): each rule still makes the old stacked logo's box (LOGO.boxAspect, 2380 x 940), and the
 // tablet fills that box by width, centred in its height (`fit`). Where a rule is set by its centre the two agree.
-import { CREATURE, LOGO } from '../constants';
+import { CREATURE, LOGO, LOGO_KEY } from '../constants';
 import { CREATURE_SPEC } from '../creatureSpec';
 import { SCENE_SPEC_PORTRAIT } from '../sceneSpec';
 import { frameArtRect, frameFor, landscapeExtraY, MASTER, portraitViewportNow, registrationOf, SKIP, type LayoutKind } from '../layoutSpec';
@@ -30,6 +30,13 @@ const fit = (x: number, y: number, width: number): LogoRect => {
 export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phone = false): LogoRect => {
 	if (kind === 'landscape') {
 		const extra = landscapeExtraY();
+		// THE C1 FRAME, LARGER (constants LOGO_KEY.grow.landscape): the whole column between the screen's edge and the board
+		// frame art's left edge
+		const G = LOGO_KEY.grow.landscape;
+		if (G) {
+			const width = Math.max(frameArtRect('landscape').x - 2 * G.gap, 1);
+			return { x: G.gap, y: G.top - extra, width, height: width / ASPECT };
+		}
 		if (extra > 0) {
 			// a desktop screen narrower than 16:9: the bigger board's post sets the width, and the box rides up with the
 			// clock strip (constants LOGO.landscapeTall)
@@ -47,9 +54,12 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 		return fit(left, top, width);
 	}
 	if (phone) {
-		const { cx, cy } = LOGO.portraitPhone;
-		const width = portraitOptions.logoWidth ?? LOGO.portraitPhone.width;
+		const { cx } = LOGO.portraitPhone;
+		const GP = LOGO_KEY.grow.portraitPhone;
+		const width = portraitOptions.logoWidth ?? GP?.width ?? LOGO.portraitPhone.width;
 		const height = width / ASPECT;
+		// the frame's bottom edge held (constants LOGO_KEY.grow.portraitPhone): a wider frame grows up, not down onto him
+		const cy = GP ? GP.bottom - height / 2 : LOGO.portraitPhone.cy;
 		const view = portraitViewportNow();
 		if (portraitOptions.logo === 'edge' && view) {
 			// THE LEFT EDGE OPTION (constants LOGO.portraitPhoneEdge): the art's leftmost drawn column edgeCss CSS px (plus the safe area)
@@ -67,7 +77,7 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 	// centred on the screen, so its right edge is half its width from the centre line: clear of the SKIP button
 	const T = SKIP.slots.portraitTablet;
 	const clear = 2 * (Math.max(viewportMasterWidth ?? MASTER.portrait.width, MASTER.portrait.width) / 2 - T.right - T.play - P.skipGap);
-	let width = Math.max(Math.min(P.maxWidth, band * BOX_ASPECT, clear), 1);
+	let width = Math.max(Math.min(LOGO_KEY.grow.portrait?.maxWidth ?? P.maxWidth, band * BOX_ASPECT, clear), 1);
 	let x = (MASTER.portrait.width - width) / 2;
 	// clear of the creature (constants LOGO.portraitTabletClear): his leftmost drawn point on this screen, through his
 	// spot and the portrait scene's cover fit, in this rule's x (master units from the 412 master's left edge)

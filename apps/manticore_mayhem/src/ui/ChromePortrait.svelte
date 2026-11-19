@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LOGO_STILL_PATH, stamp } from '../game/assets';
+	import LogoPicture from './LogoPicture.svelte';
 	import { getContext } from '../game/context';
 	// Portrait master (412x760): the logo (the tablet) on top.
 	// THE HUD (round 6, "Row of Seven", Corey 2026-11-13): one glass bar low on the floor with the Spin set in its middle
@@ -56,7 +56,7 @@
 <div class="top keep" style:top="{logo.y}px" style:transform="translateX({logoDx}px)">
 	<!-- THE CANVAS DRAWS THE LOGO (components/Logo.svelte, game/logo/still.ts: under the creature); this is the fallback
 	     until the canvas has it, hidden from then on (logoState.canvas) -->
-	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><img src={stamp(`/assets/${LOGO_STILL_PATH}`)} alt="Manticore Unleashed" draggable="false" /></span>
+	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><LogoPicture /></span>
 </div>
 
 <div class="hudp hud-group v-portrait" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>

@@ -27,7 +27,8 @@
 	import { getContext } from '../game/context';
 	import { boot, cardClip, cardClipInfo, cardsLate, dropCardHolder, releaseSplash, splashShare } from '../game/boot.svelte';
 	import { MASTER, layoutKind } from '../game/layoutSpec';
-	import { GATE_BYTES, LOGO_STILL_PATH, stamp } from '../game/assets';
+	import { GATE_BYTES, stamp } from '../game/assets';
+	import LogoPicture from './LogoPicture.svelte';
 	import { bootSizes } from '../game/assetStamp';
 	import { loadGate } from '../game/loadGate.svelte';
 	import { sound } from '../game/sound';
@@ -176,7 +177,6 @@
 
 	// per-kind sizing of the gate (master units)
 	const SZ = $derived(INTRO_GATE[kind]);
-	const logoSrc = stamp(`/assets/${LOGO_STILL_PATH}`);
 	const logo = $derived(place.logo);
 
 	// ---- the cards -------------------------------------------------------------------------------
@@ -594,7 +594,7 @@
 			<img class="maxline-art" class:on={frameReady} src={lineSrc} alt={lineArt.text} draggable="false" style:left="{place.maxline.cx - place.maxline.w / 2}px" style:top="{place.maxline.cy - place.maxline.h / 2}px" style:width="{place.maxline.w}px" style:height="{place.maxline.h}px" />
 		{/if}
 		<span class="logo-host logo" style:width="{logo.w}px" style:left="{logo.cx - logo.w / 2}px" style:top="{logo.cy}px">
-			<img src={logoSrc} alt="Manticore Unleashed" width={logo.w} draggable="false" />
+			<LogoPicture width={logo.w} />
 		</span>
 
 		<div class="gate" style:padding="{SZ.pad}px" style:transform="translateX({place.gateCx - master.width / 2}px)">
@@ -828,11 +828,6 @@
 		position: relative;
 		display: block;
 		filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.7));
-	}
-	.logo-host img {
-		display: block;
-		width: 100%;
-		height: auto;
 	}
 	/* the logo is centre-anchored on its slot: `top` is the centre y, the transform lifts it half its height */
 	.logo {

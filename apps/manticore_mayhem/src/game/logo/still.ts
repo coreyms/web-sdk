@@ -12,6 +12,8 @@
 // A tick allocates nothing and runs only while a fade does.
 import * as PIXI from 'pixi.js';
 
+import { LOGO } from '../constants';
+
 export type StillShadow = { dy: number; blur: number; alpha: number };
 export type StillTiming = { fadeMs: number; shadowBakeWidth: number; artPx: { width: number; height: number } };
 
@@ -21,11 +23,15 @@ export class LogoStill {
 	readonly content = new PIXI.Container();
 	/** THE GROOVE TRACE's place (empty for now): children here draw in the art's own px, over the picture */
 	readonly trace = new PIXI.Container();
+	/** THE PANEL (constants LOGO_KEY, components/Logo.svelte): `lettering` between the picture and the trace (the LOGO
+	 *  state's name), `over` above the trace (the cover over the panel and the KEY), both in the art's own px */
+	readonly lettering = new PIXI.Container();
+	readonly over = new PIXI.Container();
 	ready = false;
 
 	private readonly timing: StillTiming;
 	private readonly shadow = new PIXI.Sprite(PIXI.Texture.EMPTY);
-	private readonly art = new PIXI.Sprite(PIXI.Texture.EMPTY);
+	readonly art = new PIXI.Sprite(PIXI.Texture.EMPTY);
 	private image: CanvasImageSource | null = null;
 	private aspect = 1;
 	private bakedBlur = -1;
@@ -44,17 +50,30 @@ export class LogoStill {
 		this.art.label = 'logo-still-art';
 		this.content.label = 'logo-art';
 		this.trace.label = 'logo-trace';
-		this.content.addChild(this.art, this.trace);
+		this.lettering.label = 'logo-lettering';
+		this.over.label = 'logo-panel';
+		this.content.addChild(this.art, this.lettering, this.trace, this.over);
 		this.root.addChild(this.shadow, this.content);
 	}
 
-	/** `still`: the tablet (game/assets.ts logoStill: logo-tablet.webp, or its phone tier copy) */
-	build(still: PIXI.Texture): void {
+	/** `still`: the FRAME (game/assets.ts logoStill: logo-frame.webp, or its phone tier copy); `lettering`: its lettering
+	 *  layer (logoLettering), cropped to constants LOGO.lettering.box of the frame's px and drawn there, in `lettering` */
+	build(still: PIXI.Texture, lettering?: PIXI.Texture): void {
 		this.art.texture = still;
 		this.aspect = still.width / still.height;
 		// the art in art px whatever the file's own size
 		this.art.width = this.timing.artPx.width;
 		this.art.height = this.timing.artPx.width / this.aspect;
+		if (lettering) {
+			const [x0, y0, x1, y1] = LOGO.lettering.box;
+			const k = this.timing.artPx.width / LOGO.art.width;
+			const sp = new PIXI.Sprite(lettering);
+			sp.label = 'logo-lettering-art';
+			sp.position.set(x0 * k, y0 * k);
+			sp.setSize((x1 - x0) * k, (y1 - y0) * k);
+			this.lettering.removeChildren().forEach((c) => c.destroy());
+			this.lettering.addChild(sp);
+		}
 		this.image = (still.source.resource as CanvasImageSource) ?? null;
 		this.ready = true;
 	}

@@ -84,7 +84,7 @@ const MENU = FEATURE_MENU_NAME;
 const NOT_OFFERED = 'Not offered on this site.';
 
 /** one guide row's text, keyed by the row id GameInfoModal draws its icon for */
-export type GuideId = 'spin' | 'boardTap' | 'turbo' | 'autoplay' | 'feature' | 'menu' | 'readouts' | 'plaque' | 'symbols' | 'keyboard' | 'skip' | 'screens';
+export type GuideId = 'spin' | 'boardTap' | 'turbo' | 'autoplay' | 'feature' | 'menu' | 'readouts' | 'plaque' | 'key' | 'symbols' | 'keyboard' | 'skip' | 'screens';
 /** THE OPERATOR'S SWITCHES the rules page follows (2026-10-15, approval review minor; front-end-communication.md:22):
  *  authenticate's jurisdiction block (stateConfig.jurisdiction), the same flags the controls read (ui/controls.svelte.ts,
  *  ui/Chrome*.svelte, stateGame skipAllowed). A control the operator turns off is neither drawn nor described: its UI
@@ -194,6 +194,12 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				plaque: {
 					name: 'Win Plaque',
 					text: `The plaque under the board counts up each cluster's win and the spin's total, then sends the total to **WIN**. From the third ${SCATTER} on the board it shows them as flags. Between spins, tap or click it to see every cluster of your last spin, or every free spin after a feature.`,
+				},
+				// THE MULTIPLIER KEY (2026-11-18, constants LOGO_KEY, components/Logo.svelte): the logo's panel while spins play.
+				// One sentence for both wordings (no word the social wording avoids)
+				key: {
+					name: 'Multiplier Key',
+					text: "While spins play, the panel in the logo's place shows the Multiplier Tiles live on the board: the big square is the highest one, and the ladder beside it lights every value on the board. x128 stays dark in the Base Game and Free Spins, where it cannot be reached.",
 				},
 				// THE SYMBOL PAY POPUP (components/SymbolPopup.svelte, Corey 2026-10-16 15:32; guide row 2026-10-17 20:27): on an
 				// idle board only (game/boardIdle.ts: between rounds, never in free spins, a replay or under a window), at the

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LOGO_STILL_PATH, stamp } from '../game/assets';
+	import LogoPicture from './LogoPicture.svelte';
 	// Desktop / landscape master (1280x720), and the same layout on wide screens and landscape tablets.
 	// THE HUD (round 5, "Drop 6", Corey 2026-11-12): Side Stepper's one obsidian glass dock on the floor band, in this
 	// order: ARMOURY, MENU | BALANCE | WIN | minus, the amount, plus | AUTO, TURBO, Spin (the dock's right end IS the
@@ -50,7 +50,7 @@
      tier, the still of game/logo/still.ts otherwise, both under the creature). This <img> is only the fallback until
      the canvas has it (logoState.canvas hides it). -->
 <div class="logo keep" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px">
-	<img src={stamp(`/assets/${LOGO_STILL_PATH}`)} alt="Manticore Unleashed" draggable="false" />
+	<LogoPicture />
 </div>
 
 <!-- the dock: glass, keys, WIN and Spin (under THE ARMOURY's tint) -->
@@ -106,10 +106,5 @@
 	}
 	.logo.canvas {
 		visibility: hidden;
-	}
-	.logo img {
-		display: block;
-		width: 100%;
-		height: auto;
 	}
 </style>

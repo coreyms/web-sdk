@@ -140,6 +140,8 @@
 		{ id: 'readouts', icon: 'info' },
 		// the board plaque (gameInfoText.ts plaque): its wins, the coins glyph
 		{ id: 'plaque', icon: 'coins' },
+		// the multiplier key (constants LOGO_KEY): the info glyph, a readout of the board
+		{ id: 'key', icon: 'info' },
 		// the symbol pay popup (components/SymbolPopup.svelte): the coins glyph, a symbol's pays
 		{ id: 'symbols', icon: 'coins' },
 		{ id: 'keyboard', icon: 'chevronRight' },

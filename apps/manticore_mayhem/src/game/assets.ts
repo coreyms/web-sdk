@@ -575,7 +575,10 @@ const assets = {
 	// one still, drawn in the canvas under the creature in every layout. Every tier, at boot: the landing screen has
 	// already fetched it (the same stamped URL, LOGO_STILL_URL), so this is a cache hit and one decode. The phone tier
 	// takes the 1280 px copy (3 device px per CSS px at its largest draw, the portrait landing screen).
-	logoStill: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/logo-tablet.webp', import.meta.url).href), stamp(new URL('../../assets/ui/logo-tablet-phone.webp', import.meta.url).href)), preload: true },
+	// 2026-11-18: THE C1 FRAME and its LETTERING (constants LOGO.art / LOGO.lettering, tools/build_logo_frame.py) replace the
+	// tablet: the frame is logoStill, the lettering its own layer; both in the landing phase as the tablet was
+	logoStill: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/logo-frame.webp', import.meta.url).href), stamp(new URL('../../assets/ui/logo-frame-phone.webp', import.meta.url).href)), preload: true },
+	logoLettering: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/logo-lettering.webp', import.meta.url).href), stamp(new URL('../../assets/ui/logo-lettering-phone.webp', import.meta.url).href)), preload: true },
 	// THE CREATURE'S STILL (first-minute plan D, constants CREATURE.restHeldAfter; tools/build_creature_still.py): his idle
 	// loop's first frame and its shadow, one small atlas per tier (45 KB, 25 KB on the phone tier), in the FIRST download
 	// so he stands in the courtyard from the game's first frame (game/creature.ts setStill, components/Background.svelte).
@@ -611,7 +614,9 @@ export const STINGER_DATA_URLS = {
 
 /** THE LOGO's file for this tier, as a static path (the chromes' <img>, the landing screen and game/boot.svelte.ts's
  *  landing phase all ask for this one, so the canvas's logoStill above is the same request) */
-export const LOGO_STILL_PATH = PHONE_TIER ? 'ui/logo-tablet-phone.webp' : 'ui/logo-tablet.webp';
+export const LOGO_STILL_PATH = PHONE_TIER ? 'ui/logo-frame-phone.webp' : 'ui/logo-frame.webp';
+/** THE LOGO's lettering for this tier (drawn over the frame's panel: ui/LogoPicture.svelte, game/logo/still.ts) */
+export const LOGO_LETTERING_PATH = PHONE_TIER ? 'ui/logo-lettering-phone.webp' : 'ui/logo-lettering.webp';
 // the bright titles (looks 2 and 3, game/stinger/bigTitle.ts) replace every one of the plaque's own baked titles: their
 // atlas is not loaded then (full tier 268 KB / 3.78 MB on the GPU with mips, phone 159 KB / 1.73 MB)
 if (titleVariant() >= 2) delete (assets as unknown as Record<string, unknown>).stingerTitles;
