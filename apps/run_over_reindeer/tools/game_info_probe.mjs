@@ -43,7 +43,7 @@ const SIZES = [
 	{ name: 'ipad', vp: { width: 820, height: 1180 }, touch: true },
 ];
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const ROWS = ['feature', 'spin', 'boardTap', 'autoplay', 'turbo', 'menu', 'sound', 'amount', 'readouts', 'symbols', 'keyboard', 'replay'];
+const ROWS = ['feature', 'spin', 'boardTap', 'skip', 'autoplay', 'turbo', 'menu', 'sound', 'amount', 'readouts', 'symbols', 'keyboard', 'replay'];
 const BANNED = /\b(bets?|buy|buys|bought|cash|money|paid|credits?|gamble|gambling|wager|wagers|stake)\b/i;
 
 let pass = 0;

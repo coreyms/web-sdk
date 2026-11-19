@@ -384,7 +384,17 @@ export const hudSkipRect = (v: HudView) => {
 		const strip = (f.fit.top + 28 * f.fit.scale) / f.u; // the clock strip's lower edge (layoutSpec SKIP.clockBottom)
 		s = portraitGeo(f, Math.max(strip, f.safe.t / f.u)).skip;
 	} else if (f.variant === 'landscape') s = landscapeGeo(f).skip;
-	else s = desktopGeo(f, 0).skip;
+	else {
+		// RUN OVER REINDEER (2026-11-19): Manticore's place for the desktop and the tablet (desktopGeo's skip: right of its
+		// plaque, just over the dock) falls on this game's LED strip, which stands on the board's foot there. So the
+		// portrait phone's rule instead: the top right corner, under the clock row (it rides to the screen's top edge on a
+		// window taller than 16:9, ui/Chrome.svelte), its size the dock's own (BAR skip)
+		const L = BAR[f.variant as 'desktop' | 'tablet'].skip;
+		const clock = Math.max(28 * f.fit.scale + 6, f.safe.t + 6) / f.u;
+		const right = Math.max(10, f.safe.r + 8) / f.u;
+		s = { x: v.vw / f.u - right - L.w, y: clock, w: L.w, h: L.h };
+		void desktopGeo;
+	}
 	return { x: s.x * f.u, y: s.y * f.u, width: s.w * f.u, height: s.h * f.u, u: f.u, variant: f.variant };
 };
 

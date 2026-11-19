@@ -91,6 +91,7 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	stateGame.capped = false;
 	stateGame.featureTeased = false;
 	stateGame.bonusGrandmaStrikes = 0;
+	stateGame.fsStarted = false;
 	// THE STOCK RULES (game/bonusStockRules.ts): every bonus round starts at regular speed (a live trigger, a bought round
 	// and a resumed one all come through here), and autoplay's Stop on Free Games ends the run with this round
 	bonusEntered();
@@ -115,6 +116,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// not touched (stopButtonEnable resets only the slam's own non-persistent flag).
 		if (bookEvent.gameType === 'freegame') eventEmitter.broadcast({ type: 'stopButtonEnable' });
 		stateGame.gameType = bookEvent.gameType;
+		// SKIP TO RESULT is offered from the first free spin on (components/SkipButton.svelte)
+		if (bookEvent.gameType === 'freegame') stateGame.fsStarted = true;
 		if (bookEvent.fs !== undefined) stateGame.spinsPlayed = Math.max(0, bookEvent.fs - 1);
 		if (bookEvent.totalFs !== undefined) stateGame.totalFs = bookEvent.totalFs;
 		const board = bookEvent.board.map((reel) => [...reel]) as Board;
@@ -289,6 +292,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.topUp = null;
 		stateGame.featureTeased = false;
 		stateGame.bonusGrandmaStrikes = 0;
+		stateGame.fsStarted = false;
 		// THE STOCK RULES (game/bonusStockRules.ts): the wrap-up is cleared, the base game's own speed comes back, and a
 		// running autoplay owes its pause before the next spin
 		bonusLeft();

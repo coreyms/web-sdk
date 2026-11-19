@@ -89,6 +89,12 @@ export const FAST_LANE_TEXT = {
 	loaded: '**LOADED.** The next press of Spin uses **{amount}** and plays one round.',
 	anteOff: '**{name}** is off. Every spin uses **{amount}** again.',
 	unloaded: '**{name}** is unloaded. Nothing was used.',
+	/** THE SAME LINES, SHORT (2026-11-19): on an upright screen too short for the plate's whole content
+	 *  (ui/FeatureMenu.svelte `squeeze`), the status line's first step down; the full lines say the rest */
+	anteOnShort: '**ON.** Every spin uses **{amount}**.',
+	loadedShort: '**LOADED.** The next Spin uses **{amount}**.',
+	anteOffShort: '**{name}** is off.',
+	unloadedShort: '**{name}** is unloaded.',
 	low: 'Balance too low at this play amount',
 	/** the confirm card */
 	confirmTitle: 'Confirm {name}',

@@ -3,7 +3,7 @@
 // the book event handlers share.
 //
 // Outcomes only ever come from book events (game/bookEventHandlerMap.ts). Nothing here computes a result.
-import { stateBetDerived } from 'state-shared';
+import { stateBetDerived, stateConfig } from 'state-shared';
 
 import { ROAD_MOTION, motionFor } from './constants';
 import type { Board, GameType } from './types';
@@ -69,8 +69,13 @@ export const stateGame = $state({
 	winShowing: false,
 	/** a mode plaque is up (none in the first pass) */
 	plaque: null as null | { title: string; sub: string },
-	/** SKIP TO RESULT is running (no skip in the first pass) */
+	/** SKIP TO RESULT is running (2026-11-19, components/SkipButton.svelte: set by requestSkip, cleared by game/utils.ts
+	 *  playBet once the round's final board is up, before the wrap-up; while it is set the per-spin sounds are dropped,
+	 *  components/Sound.svelte, and the road's own, components/Board.svelte) */
 	skipping: false,
+	/** this bonus round's first free spin has begun (its reveal): SKIP TO RESULT is offered from then on (Manticore's fs >= 1;
+	 *  so never during the entry card or the Super wheel, which play before it) */
+	fsStarted: false,
 	/** this feature round has had its one scatter tease (constants LANE_FLOW tease.oncePerFeature) */
 	featureTeased: false,
 	/** THE SUPER WHEEL (game/road/superWheel.ts) is up, and what it is doing; 'rest': it waits for the Spin press */
@@ -93,7 +98,21 @@ const setTurboLevel = (level: 0 | 1 | 2) => {
 	stateBetDerived.updateIsTurbo(level > 0, { persistent: true });
 };
 
+/** STAKE'S JURISDICTION SWITCHES (Manticore Mayhem's rule): with disabledSlamstop or disabledTurbo there is no SKIP TO
+ *  RESULT at all (nothing of it is drawn, and the game info's guide does not name it) */
+export const skipAllowed = (): boolean => !stateConfig.jurisdiction?.disabledSlamstop && !stateConfig.jurisdiction?.disabledTurbo;
+/** a bonus round's spins are playing (from its first free spin's reveal to its wrap-up) */
+export const featureSpinsLive = (): boolean => stateGame.gameType === 'freegame' && stateGame.fsStarted;
+/** SKIP TO RESULT asked (components/SkipButton.svelte's Yes): the spin in play finishes, the rest of the round's spins are
+ *  not shown, the round's final board and its wrap-up follow (game/utils.ts playBet). True when it took. */
+const requestSkip = (): boolean => {
+	if (!skipAllowed() || !featureSpinsLive() || stateGame.skipping) return false;
+	stateGame.skipping = true;
+	return true;
+};
+
 export const stateGameDerived = {
 	setTurboLevel,
 	boardRate,
+	requestSkip,
 };

@@ -1,7 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/ui/FeatureMenu.svelte;
 // WATCHES: ; __reindeer.fastLane, __reindeer.hud, __reindeer.atRest, data-feature-menu, data-fl-confirm, data-fl-price
-// WATCHES: ; data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
+// WATCHES: ; data-squeeze, flSqueezeOff, anteOnShort, loadedShort, data-fl-low, data-fl-step, data-menu-foot, .note, .act, .price, .go, data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
 // THE FAST LANE PROBE: the feature menu (ui/FeatureMenu.svelte, the redesign of 2026-11-17). At each size (desktop
 // 1440 x 900 and 1920 x 1080, a phone held sideways 844 x 390, an upright phone 390 x 844 and the small 390 x 620):
 //   · the HUD's feature button opens it; the X and Escape close it
@@ -28,6 +28,7 @@
 // Wrap it in the shared browser lock: tools/browser_lock.sh run game -- node tools/fast_lane_probe.mjs
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
+import { join, resolve as resolvePath } from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -375,6 +376,109 @@ async function social(browser) {
 	await ctx.close();
 }
 
+// ---- SHORT UPRIGHT SCREENS (2026-11-19, Corey on staging, about 390 x 580 in the lobby's frame, social, Ante 10x ON: "Found
+// an edge case were buttons go off the card"). Heights 560 to 700 at 360 and 390 wide, standard and social, in the states
+// that make the plate tallest: Ante ON at each level, another level (CHANGE), each feature tile, a feature LOADED (UNLOAD),
+// the low balance line with long amounts. In each: the plate holds its buttons and their caption, the plate and the
+// caption do not touch the foot, the amount stepper under the menu is on the screen, and the general layout checks.
+// SHOTS: a capture of each Ante 10x ON (short_<w>x<h>_<session>.png); ?flSqueezeOff=1 (BEFORE=1) shows the menu as it was.
+const STATE_SHARED = `/@fs${resolvePath(process.cwd(), '../../packages/state-shared/index.ts')}`;
+const SHORT = [
+	[360, 560], [360, 600], [360, 640], [360, 700],
+	[390, 560], [390, 580], [390, 620], [390, 664], [390, 700],
+];
+const contain = (p) =>
+	p.evaluate(() => {
+		const box = (e) => {
+			const b = e.getBoundingClientRect();
+			return { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom };
+		};
+		const menu = document.querySelector('[data-feature-menu]');
+		const pl = menu.querySelector('.plate');
+		const P = box(pl);
+		const parts = [...pl.querySelectorAll('.act .price .amt, .act .price .lab, .act .go, .low, .lvl button, .miles, .status, h2')].filter((e) => e.getBoundingClientRect().height > 0);
+		const out = parts.filter((e) => {
+			const b = box(e);
+			return b.x0 < P.x0 - 1 || b.y0 < P.y0 - 1 || b.x1 > P.x1 + 1 || b.y1 > P.y1 + 1;
+		}).map((e) => `${e.className || e.tagName} ${JSON.stringify(box(e))}`);
+		const note = box(menu.querySelector('.note'));
+		const ov = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+		const cap = menu.querySelector('.act .price .lab');
+		const steps = [...menu.querySelectorAll('[data-fl-step]')].map(box);
+		return {
+			out,
+			plateNote: ov(P, note),
+			capNote: cap ? ov(box(cap), note) : 0,
+			stepsOn: steps.every((b) => b.y1 <= innerHeight + 0.5 && b.y0 >= 0),
+			minStep: Math.min(...steps.map((b) => b.y1 - b.y0)),
+			squeeze: Number(menu.querySelector('.stage')?.dataset.squeeze ?? -1),
+		};
+	});
+
+async function shortHeights(browser) {
+	for (const social of [false, true]) {
+		for (const [w, h] of SHORT) {
+			const S = { name: `short${w}x${h}${social ? 's' : ''}`, vp: { width: w, height: h }, touch: true, phone: true };
+			const tag = `${w}x${h}${social ? ' social' : ''}`;
+			const { ctx, p, errs } = await boot(browser, S, `${social ? '&social=true' : ''}${process.env.BEFORE ? '&flSqueezeOff=1' : ''}`);
+			const one = async (state) => {
+				await sleep(500);
+				const c = await contain(p);
+				check(c.out.length === 0, `${tag} ${state}: every button and its caption inside the plate (squeeze ${c.squeeze})`, c.out.slice(0, 3));
+				check(c.plateNote < 1 && c.capNote < 1, `${tag} ${state}: the plate and the caption do not overlap the foot`, c);
+				check(c.stepsOn, `${tag} ${state}: the amount stepper on the screen (${Math.round(c.minStep)} px)`, c);
+				await layout(p, S, state);
+				return c;
+			};
+			// Ante ON, each level
+			for (const k of ['ANTE_2', 'ANTE_4', 'ANTE_10']) {
+				await p.evaluate((m) => window.__reindeer.hud.setMode(m), k);
+				await openMenu(p);
+				await p.click('[data-card="ANTE"]').catch(() => {});
+				await sleep(400);
+				await p.click(`[data-lvl="${k}"]`).catch(() => {});
+				await one(`ante ${k} on`);
+				if (k === 'ANTE_10' && SHOTS) await p.screenshot({ path: join(SHOTS, `short_${w}x${h}_${social ? 'social' : 'standard'}${process.env.BEFORE ? '_before' : ''}.png`) });
+				// another level: CHANGE
+				await p.click(`[data-lvl="${k === 'ANTE_2' ? 'ANTE_4' : 'ANTE_2'}"]`).catch(() => {});
+				await one(`ante ${k} on, another level`);
+				await p.keyboard.press('Escape');
+				await waitClosed(p);
+			}
+			await p.evaluate(() => window.__reindeer.hud.setMode('BASE'));
+			// the features, then SUPER loaded
+			await openMenu(p);
+			for (const t of ['BONUS', 'SUPER']) {
+				await p.click(`[data-card="${t}"]`).catch(() => {});
+				await one(`${t} tile`);
+			}
+			await p.keyboard.press('Escape');
+			await waitClosed(p);
+			await p.evaluate(() => window.__reindeer.hud.setMode('SUPER'));
+			await openMenu(p);
+			await p.click('[data-card="SUPER"]').catch(() => {});
+			await one('SUPER loaded');
+			await p.keyboard.press('Escape');
+			await waitClosed(p);
+			await p.evaluate(() => window.__reindeer.hud.setMode('BASE'));
+			// the low balance line, long amounts (the amount the top of the ladder, every Ante level past the balance)
+			await p.evaluate(async (path) => {
+				const m = await import(path);
+				m.stateBet.betAmount = 100;
+			}, STATE_SHARED);
+			await openMenu(p);
+			await p.click('[data-card="ANTE"]').catch(() => {});
+			await sleep(300);
+			await p.click('[data-lvl="ANTE_10"]').catch(() => {});
+			const low = await p.evaluate(() => !!document.querySelector('[data-fl-low]'));
+			await one(`low balance (${low ? 'its line up' : 'no low line'})`);
+			await p.keyboard.press('Escape');
+			check(errs.filter((e) => !/favicon/.test(e)).length === 0, `${tag}: no page errors`, errs.slice(0, 3));
+			await ctx.close();
+		}
+	}
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 try {
 	for (const S of SIZES) {
@@ -383,6 +487,13 @@ try {
 			await runSize(browser, S);
 		} catch (e) {
 			check(false, `${S.name}: ran to the end`, String(e).slice(0, 300));
+		}
+	}
+	if (!ONLY.length || ONLY.includes('short')) {
+		try {
+			await shortHeights(browser);
+		} catch (e) {
+			check(false, 'short: ran to the end', String(e).slice(0, 300));
 		}
 	}
 	if (!ONLY.length || ONLY.includes('social')) {

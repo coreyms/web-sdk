@@ -27,6 +27,7 @@
 	import HudBeds from './HudBeds.svelte';
 	import Chrome from '../ui/Chrome.svelte';
 	import RoundCard from '../ui/RoundCard.svelte';
+	import SkipButton from './SkipButton.svelte';
 	import WheelGate from '../ui/WheelGate.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
 	import SymbolPopup from './SymbolPopup.svelte';
@@ -203,6 +204,8 @@
 <!-- HTML chrome: control bar, feature menu, bet picker, game info. Always the top layer (house rule). -->
 {#if !redirecting}
 	<Chrome />
+	<!-- SKIP TO RESULT in a bonus round (components/SkipButton.svelte, Manticore's, 2026-11-19): its own layer over the HUD -->
+	<SkipButton />
 	<!-- the symbol pay popup on an idle board (components/SymbolPopup.svelte): over the HUD, under the cards and modals -->
 	<SymbolPopup />
 	<!-- the bonus round's intro and wrap-up cards (keyed, so each card mounts fresh with its own press gate) -->

@@ -70,13 +70,33 @@
 			const s = Math.min(vw / DESK.w, vh / DESK.h, DESK_MAX_SCALE);
 			return { s, w: DESK.w, h: DESK.h, x: (vw - DESK.w * s) / 2, y: (vh - DESK.h * s) / 2 };
 		}
-		const s = lay === 'side' ? Math.min(vh / SIDE.h, vw / SIDE.w, SIDE_MAX_SCALE) : Math.min(vw / UP_W, vh / UP_MIN_H, UP_MAX_SCALE);
+		const s = (lay === 'side' ? Math.min(vh / SIDE.h, vw / SIDE.w, SIDE_MAX_SCALE) : Math.min(vw / UP_W, vh / UP_MIN_H, UP_MAX_SCALE)) * (lay === 'up' ? fitK : 1);
 		return { s, w: vw / s, h: vh / s, x: 0, y: 0 };
 	});
 	/** a short upright screen (390 x 620 and the like): the plate's line gives way to the odds rows */
 	const short = $derived(lay === 'up' && box.h < 700);
-	// "three or four short odds rows": four where there is room, three on a short upright screen (the menu never scrolls)
-	const oddsShown = $derived(lay === 'up' && box.h < 740 ? 3 : 4);
+
+	// THE SQUEEZE (2026-11-19, Corey on staging, an upright iPhone in the lobby's frame, about 390 x 580, Ante 10x ON:
+	// "Found an edge case were buttons go off the card"). The upright layout is one column that never scrolls: the hero is
+	// the piece that gives (its row is the grid's only flexible one), and the plate was allowed to shrink below its content
+	// (min-height 0), so where the hero had nothing left to give the plate's buttons and their caption hung out of it onto
+	// the foot. Now the plate, the tray, the foot and the HUD keep their content's height (ui CSS below), and when the column
+	// is still taller than the screen the plate's content gives way in steps, measured, one at a time, until it fits:
+	//   1 the status line in its short form (featureMenuData FAST_LANE_TEXT anteOnShort, loadedShort, ...)
+	//   2 the tray's tiles a step lower (56 -> 50 design px: still 44 CSS px and more at the scales this layout uses)
+	//   3 one odds row fewer (three -> two)
+	//   4 the foot's second sentence (the "~" note; the max win line stays)
+	// and only then the whole box scales down to fit (fitK). Measured on every change of what the plate holds or of the
+	// room: the stage's content height against its own.
+	let stageEl = $state<HTMLDivElement>();
+	let squeeze = $state(0);
+	let fitK = $state(1);
+	const SQUEEZE_MAX = 4;
+	/** DEV only: ?flSqueezeOff=1 shows the menu as it was (the before picture: no squeeze, the plate allowed to shrink) */
+	const squeezeOff = import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('flSqueezeOff');
+	// "three or four short odds rows": four where there is room, three on a short upright screen (the menu never scrolls);
+	// two at the squeeze's third step
+	const oddsShown = $derived(lay === 'up' && box.h < 740 ? (squeeze >= 3 ? 2 : 3) : 4);
 
 	const reduced = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -186,9 +206,45 @@
 			.filter((r) => r.t !== '');
 	/** the line under the name: the mode's own, or what is on / what was just switched off */
 	const status = $derived.by<Run[] | null>(() => {
-		if (on) return runs(isAnte ? X.anteOn : X.loaded, { amount: money(cost) });
-		if (note === key) return runs(isAnte ? X.anteOff : X.unloaded, { name: nameOf(key), amount: money(stateBet.betAmount) });
+		const sq = squeeze >= 1;
+		if (on) return runs(isAnte ? (sq ? X.anteOnShort : X.anteOn) : sq ? X.loadedShort : X.loaded, { amount: money(cost) });
+		if (note === key) return runs(isAnte ? (sq ? X.anteOffShort : X.anteOff) : sq ? X.unloadedShort : X.unloaded, { name: nameOf(key), amount: money(stateBet.betAmount) });
 		return null;
+	});
+
+	// the squeeze's measure (see THE SQUEEZE above): from step 0 on every change, one step per frame while it overflows
+	$effect(() => {
+		void [open, lay, vw, vh, key, on, otherAnteOn, lowBal, note, stateBet.betAmount, stateBet.balanceAmount, stop, sel];
+		if (!open || lay !== 'up' || squeezeOff) {
+			untrack(() => {
+				squeeze = 0;
+				fitK = 1;
+			});
+			return;
+		}
+		let gone = false;
+		untrack(() => {
+			squeeze = 0;
+			fitK = 1;
+		});
+		void (async () => {
+			for (let k = 0; k <= SQUEEZE_MAX + 1; k++) {
+				await tick();
+				await new Promise((r) => requestAnimationFrame(() => r(0)));
+				if (gone || !stageEl) return;
+				const over = stageEl.scrollHeight - stageEl.clientHeight;
+				if (over <= 1) return;
+				if (squeeze < SQUEEZE_MAX) squeeze += 1;
+				else {
+					// every step taken and still taller: the box scales to fit (its buttons then under 44 CSS px)
+					fitK = Math.max(0.6, stageEl.clientHeight / stageEl.scrollHeight);
+					return;
+				}
+			}
+		})();
+		return () => {
+			gone = true;
+		};
 	});
 	const say = $derived(runs(X.say[key] ?? ''));
 
@@ -317,7 +373,7 @@
 	<div class="fl" class:reduced style:--accent={look.accent} data-feature-menu data-layout={lay}>
 		<div class="tint" style:background-color={look.tint}></div>
 		<!-- the box: one transform; the pieces take the pointer, the gaps between them close the menu as before -->
-		<div class="stage {lay}" class:short inert={confirmOpen} style:width="{box.w}px" style:height="{box.h}px" style:transform="translate({box.x}px, {box.y}px) scale({box.s})" onclick={stageClick} role="presentation">
+		<div class="stage {lay}" class:short class:sq2={squeeze >= 2} class:sq4={squeeze >= 4} class:fitcol={!squeezeOff} bind:this={stageEl} data-squeeze={squeeze} inert={confirmOpen} style:width="{box.w}px" style:height="{box.h}px" style:transform="translate({box.x}px, {box.y}px) scale({box.s})" onclick={stageClick} role="presentation">
 			<div class="road" aria-hidden="true"></div>
 
 			<div class="title" data-piece><i></i><span>{T.name}</span><i></i></div>
@@ -1384,6 +1440,23 @@
 	}
 	.up.short .status {
 		padding: 4px 8px;
+	}
+	/* THE SQUEEZE (see the script): the plate, the tray, the foot and the HUD keep their content's height, so a column too
+	   tall for the screen shows as the stage's own overflow (measured) and never as a plate whose buttons hang out of it */
+	.up.fitcol .plate,
+	.up.fitcol .tray,
+	.up.fitcol .note,
+	.up.fitcol .hud {
+		min-height: auto;
+	}
+	.up.sq2 .tile {
+		height: 50px;
+	}
+	.up.sq2 .thumb {
+		height: 42px;
+	}
+	.up.sq4 .note [data-average-note] {
+		display: none;
 	}
 
 	/* ════════ side: a phone held sideways, 390 design px tall, three columns ════════ */
