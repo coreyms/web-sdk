@@ -73,6 +73,10 @@ export const stateGame = $state({
 	skipping: false,
 	/** this feature round has had its one scatter tease (constants LANE_FLOW tease.oncePerFeature) */
 	featureTeased: false,
+	/** THE SUPER WHEEL (game/road/superWheel.ts) is up, and what it is doing; 'rest': it waits for the Spin press */
+	wheelPhase: null as null | string,
+	/** where the wheel stands, canvas CSS px (components/Board.svelte sets it on every layout pass; ui/WheelGate.svelte) */
+	wheelBox: null as null | { cx: number; cy: number; d: number },
 	/** the Grandma strikes so far in this bonus round (the Grandma gag plays on the first, later only on a paying spin) */
 	bonusGrandmaStrikes: 0,
 });

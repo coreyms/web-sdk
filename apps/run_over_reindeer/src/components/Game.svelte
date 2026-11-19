@@ -27,6 +27,7 @@
 	import HudBeds from './HudBeds.svelte';
 	import Chrome from '../ui/Chrome.svelte';
 	import RoundCard from '../ui/RoundCard.svelte';
+	import WheelGate from '../ui/WheelGate.svelte';
 	import LandingScreen from '../ui/LandingScreen.svelte';
 	import SymbolPopup from './SymbolPopup.svelte';
 	import { landing } from '../game/boardIdle';
@@ -206,6 +207,8 @@
 	<SymbolPopup />
 	<!-- the bonus round's intro and wrap-up cards (keyed, so each card mounts fresh with its own press gate) -->
 	{#if context.stateGame.roundCard}{#key context.stateGame.roundCard}<RoundCard card={context.stateGame.roundCard} />{/key}{/if}
+	<!-- THE SUPER WHEEL waits for its press (ui/WheelGate.svelte) -->
+	{#if context.stateGame.wheelPhase === 'rest'}<WheelGate />{/if}
 	{#if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
 		<LandingScreen
 			onpress={() => {

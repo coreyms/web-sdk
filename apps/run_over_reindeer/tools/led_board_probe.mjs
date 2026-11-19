@@ -1227,7 +1227,8 @@ check(list.length >= 2 && list.every((x) => x.fired.join() === '0,1,2') && asked
 
 // ---- 2026-11-17: THE STRIP'S PRIORITY ORDER, THE SCATTER COUNT, THE SHORT GRANDMA LINE (constants LED_BOARD stripOrder,
 // scatterCount, gag.short, gagShortIn; game/scoreboard/stripArbiter.ts) ----
-const ORDER = 'entry,bigWin,scatter,winAmount,spinsLeft,gag,cartoon,race';
+// (2026-11-18: 'wheel', the Super wheel's line, just under a card's own, game/road/superWheel.ts)
+const ORDER = 'entry,wheel,bigWin,scatter,winAmount,spinsLeft,gag,cartoon,race';
 async function stripOrder(p, S) {
 	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
 	const step = (ms, n = 1) => R(p, ([ms, n]) => window.__reindeer.scoreboardStep(ms, n), [ms, n]);
@@ -1437,6 +1438,8 @@ async function scatterRounds(p, S) {
 			const st = await R(p, () => ({ card: window.__reindeer.scoreboard().card, idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), html: !!document.querySelector('.round-card, .roundcard, [data-round-card]') }));
 			if (st.idle && st.rest && !st.card) break;
 			if (st.card) await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3).catch(() => {});
+			// (the Super wheel waits for its press too, 2026-11-18: ui/WheelGate.svelte)
+			else await R(p, () => document.querySelector('button[data-wheel-gate]')?.click());
 			await sleep(400);
 		}
 	}
@@ -1507,6 +1510,8 @@ async function bonusStrip(p, S) {
 					await sleep(1200);
 					await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3).catch(() => {});
 				}
+				// (the Super wheel waits for its press too, 2026-11-18: ui/WheelGate.svelte)
+				else if (!o.card) await R(p, () => document.querySelector('button[data-wheel-gate]')?.click());
 			},
 		});
 		const log = [...seen.values()].sort((a, b) => a.at - b.at);

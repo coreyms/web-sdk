@@ -31,7 +31,7 @@ import { CARTOONS, backScene, clearTitle, dissolveFace, entryWaitOf, raceCardOf,
 import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newPressShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
-import { pressScreenAt, scatterWordsOf, showGagShort, showPressLine, showPressScreens, showScatterCount, type ScatterFace } from './stripDraw';
+import { pressScreenAt, scatterWordsOf, showGagShort, showPressLine, showPressScreens, showScatterCount, showWheelLine, type ScatterFace, type WheelLine } from './stripDraw';
 import type { LedText } from '../landing/ledScreens';
 import { clearExplain, explainOf, showExplain } from './explainDraw';
 
@@ -119,6 +119,11 @@ export class Scoreboard {
 	/** THE SCATTER COUNT (constants LED_BOARD.scatterCount): the spin's count while it is in anticipation, and its fireworks
 	 *  after a trigger (until endAt) */
 	private scat: (ScatterFace & { id: number; live: boolean; hit: boolean; endAt: number }) | null = null;
+	/** THE SUPER WHEEL'S LINE (game/road/superWheel.ts; constants SUPER_WHEEL.text): what the wheel says on the strip while it
+	 *  is up (null: nothing); it ranks just under a card's own line */
+	private wheelMsg: WheelLine | null = null;
+	/** DEV: the wheel's blinking line held lit (the probe's stills) */
+	devWheelSteady = false;
 	/** THE ARBITER'S PICK (constants LED_BOARD.stripOrder) on the last drawn step, and what was true then */
 	private stripNow: StripItem = 'cartoon';
 	private stripAt = 0;
@@ -892,6 +897,16 @@ export class Scoreboard {
 		this.catcher.eventMode = busy ? 'static' : 'none';
 	}
 
+	/** THE SUPER WHEEL'S LINE on the strip (null takes it down) */
+	wheelLine(text: string | null, tone: 'gold' | 'white' = 'gold', blink = false) {
+		this.wheelMsg = text === null ? null : { text, tone, blink };
+		this.mark('wheel', text ?? 'off');
+	}
+	/** the wheel's line as it stands (the probe) */
+	wheelLineNow(): WheelLine | null {
+		return this.wheelMsg ? { ...this.wheelMsg } : null;
+	}
+
 	/** WHAT IS TRUE NOW for the strip (constants LED_BOARD.stripOrder; game/scoreboard/stripArbiter.ts). Each writer only says
 	 *  whether it has something to show; the arbiter picks. `gt`: the gag's time (null: none). */
 	private stripTruth(gt: number | null): StripTruth {
@@ -910,6 +925,7 @@ export class Scoreboard {
 		const raceUp = CARTOONS[this.cartoon % CARTOONS.length].key === 'race';
 		return {
 			entry: up && (isCard(s) || s!.kind === 'press'),
+			wheel: this.wheelMsg !== null,
 			bigWin: up && s!.kind === 'win',
 			scatter: this.scatterOn(),
 			winAmount: up && s!.kind === 'small',
@@ -952,6 +968,9 @@ export class Scoreboard {
 				if (!s!.arrive) stripFlourish(F, s!);
 			}
 			key = `show${s!.id}`;
+		} else if (item === 'wheel') {
+			showWheelLine(F, this.devWheelSteady ? { ...this.wheelMsg!, blink: false } : this.wheelMsg!, this.clock);
+			key = 'wheel';
 		} else if (item === 'scatter') {
 			showScatterCount(F, this.scat!, this.clock);
 			key = `scatter${this.scat!.id}`;

@@ -78,10 +78,19 @@ export const createControls = () => {
 	// ── spin / stop ──────────────────────────────────────────────────────
 	// Idle + unaffordable stays PRESSABLE: the press opens the balance notice (submission checklist:
 	// tell the player, send no play request). A disabled button could never reach that card.
-	const spinDisabled = () => held() || (isIdle() ? betCostFull() <= 0 : (stopDisabled && !autoRunning()) || jurisdiction().disabledSlamstop);
-	const showStop = () => !isIdle() && !autoRunning() && !jurisdiction().disabledSlamstop;
+	// THE SUPER WHEEL AT REST (game/road/superWheel.ts; Corey 2026-11-18: "When a player clicks spin, Reindeer runs in to
+	// spin it"): the Spin key is live and is the wheel's, whatever else is true (a slam stop already spent, an operator's
+	// slam stop off, a run of autoplay: the press starts the wheel and does nothing else; the Auto key still stops a run)
+	const wheelWaits = () => context.stateGame.wheelPhase === 'rest';
+	const spinDisabled = () => held() || (wheelWaits() ? false : isIdle() ? betCostFull() <= 0 : (stopDisabled && !autoRunning()) || jurisdiction().disabledSlamstop);
+	const showStop = () => !isIdle() && !wheelWaits() && !autoRunning() && !jurisdiction().disabledSlamstop;
 	const spin = () => {
 		if (held()) return;
+		if (wheelWaits()) {
+			sound('soundPressBet');
+			context.eventEmitter.broadcast({ type: 'wheelPress' });
+			return;
+		}
 		if (isIdle() && !canAfford()) {
 			sound('soundPressMinor');
 			stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientBalance' };
@@ -124,6 +133,13 @@ export const createControls = () => {
 	 *  does NOT end the run (the Spin press does; a board tap changes speed only). */
 	const boardTap = (): boolean => {
 		const sg = context.stateGame;
+		// the wheel at rest: a press on it or on the board starts it, as the Spin key does (a replay's too)
+		// (asked before the press gate's own refusal below: the wheel's wait is a press gate, ui/WheelGate.svelte)
+		if (wheelWaits() && !held() && stateModal.modal == null) {
+			sound('soundPressBet');
+			context.eventEmitter.broadcast({ type: 'wheelPress' });
+			return true;
+		}
 		if (held() || isReplay() || isIdle()) return false;
 		if (stateModal.modal != null || context.stateLayout.showLoadingScreen || sg.pressGates > 0 || sg.winShowing || sg.plaque !== null || sg.skipping) return false;
 		// "obviously not with that switch": a tap is a speed up and nothing else, so with the operator's turbo off it
@@ -305,7 +321,7 @@ export const createControls = () => {
 	return {
 		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, playCostText, autoRunning, autoCount, autoCountText, canAfford,
 		playCost: betCostFull,
-		spinDisabled, showStop, spin, slamStop, boardTap,
+		spinDisabled, showStop, spin, slamStop, boardTap, wheelWaits,
 		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,
 		turboPress, turboLevel,
 		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,

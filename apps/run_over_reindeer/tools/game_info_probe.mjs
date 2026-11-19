@@ -13,6 +13,8 @@
 //   · the scroller reaches the guide's last row and the page's end (scrolled to the bottom)
 //   · the Autoplay row states the pause after a bonus round as the game's own AUTOPLAY_RESUME_PAUSE_MS (read from the
 //     game), and the Turbo row states the bonus round's regular speed and the base speed coming back
+//   · the rules' paragraph on the Super wheel (2026-11-19): what each spin shows, that the opening is decided when the
+//     round is triggered, the Autoplay Bonuses start
 //   · the words: printable ASCII only, no em dash, in the standard session; in a social session (?social=true) also no
 //     restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake) anywhere on the page
 // With SHOTS=<dir> it saves the guide at each size (<w>x<h>_guide.png).
@@ -153,6 +155,15 @@ async function runSize(browser, S, social = false) {
 	check(/Every bonus round starts at regular speed/.test(turbo) && /base game comes back/.test(turbo), `${tag}: the Turbo row states the bonus round's regular speed and the base speed coming back`, turbo);
 	// the words of the whole page
 	const words = await p.evaluate(() => document.querySelector('[data-gameinfo]').innerText);
+	// THE SUPER WHEEL'S PARAGRAPH (2026-11-19, Corey: "We probably also need to add the wheel info to the Rules for Super
+	// Free Spins"; game/gameInfoText.ts howTo): what the wheel does, said plainly, and that it only shows an opening that
+	// was decided when the round was triggered
+	const wheel = /The Super wheel\.[^\n]*/.exec(words)?.[0] ?? '';
+	check(
+		/opens with a wheel/.test(wheel) && /the Reindeer or Santa/.test(wheel) && /multiplier/.test(wheel) && /inner ring/.test(wheel) && /column/.test(wheel) && /decided when the round is triggered/.test(wheel) && /changes nothing/.test(wheel) && /not equally likely/.test(wheel) && /Autoplay Bonuses/.test(wheel) && /starts by itself/.test(wheel),
+		`${tag}: the rules describe the Super wheel (the first spin: who and the multiplier; the inner ring: the column; decided when the round is triggered; Autoplay Bonuses starts it)`,
+		wheel,
+	);
 	const badChar = [...new Set(words.match(/[^\x20-\x7e\n\t]/g) ?? [])].filter((c) => c !== '©'); // the disclaimer's (c) is Stake's verbatim template
 	check(badChar.length === 0 && !/—/.test(words), `${tag}: printable ASCII only on the page (no em dash; the legal template's copyright sign aside)`, badChar);
 	if (social) {

@@ -202,10 +202,14 @@ const isOpen = (key: Key) => key === 'open' || key === 'open-red';
 let triggersLeft = 0;
 /** this book shows red presents (a base board with RED_FROM or more): its trigger waits for the red open too */
 let redBook = false;
-type BookEventLike = { type: string; gameType?: string; board?: readonly (readonly string[])[] };
+/** THE SUPER WHEEL (game/road/superWheel.ts) rises out of the red present after the trigger's own show: a book with a
+ *  Super opening keeps the red sheets past its last trigger, until the wheel has come out (presentWheelDone) */
+let wheelHold = false;
+type BookEventLike = { type: string; gameType?: string; board?: readonly (readonly string[])[]; start?: boolean };
 export const presentsForBook = (events: readonly BookEventLike[]) => {
 	triggersLeft = events.filter((e) => e.type === 'freeSpinTrigger' || e.type === 'freeSpinRetrigger').length;
 	redBook = events.some((e) => e.type === 'reveal' && e.gameType === 'basegame' && !!e.board && countPresents(e.board) >= RED_FROM);
+	wheelHold = redBook && events.some((e) => e.type === 'columnWild' && e.start === true);
 	if (redBook) {
 		// the red peek first: the red present lands well before the trigger's open
 		pendingRelease.delete('peek-red');
@@ -227,6 +231,16 @@ export const presentTriggerPlayed = () => {
 	triggersLeft = Math.max(0, triggersLeft - 1);
 	if (triggersLeft === 0) {
 		void releasePresent('open');
+		if (wheelHold) return;
+		void releasePresent('open-red');
+		void releasePresent('peek-red');
+	}
+};
+/** the Super wheel has come out of the red present (or the round went on without it): the red sheets may go */
+export const presentWheelDone = () => {
+	if (!wheelHold) return;
+	wheelHold = false;
+	if (triggersLeft === 0) {
 		void releasePresent('open-red');
 		void releasePresent('peek-red');
 	}

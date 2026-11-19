@@ -9,7 +9,8 @@ import { waitForTimeout } from 'utils-shared/wait';
 import type { BookEventHandlerMap } from 'utils-book';
 
 import { eventEmitter } from './eventEmitter';
-import { LED_BOARD, LINE_WIN, REINDEER_SOUND, ROUND } from './constants';
+import { LED_BOARD, LINE_WIN, REINDEER_SOUND, ROUND, SUPER_WHEEL } from './constants';
+import { wheelPlanFor } from './superWheelPlan';
 import config from './config';
 import type { SoundEffectName } from './sound';
 import { setHudWin } from './hudWin.svelte';
@@ -66,6 +67,10 @@ export const dismissRoundCard = () => {
 	done?.();
 };
 
+/** SUPER'S OPENING COLUMN HAS JUST LANDED (Corey 2026-11-18: "once it lands on the board the first spin should start"):
+ *  the first free spin's reveal takes it and skips the pause between two free spins */
+let openingLanded = false;
+
 /** the spin of the event at `from` pays: its own winInfo (between `from` and the next reveal) awards more than zero */
 const spinPays = (bookEvents: BookEvent[], from: number): boolean => {
 	for (let i = from + 1; i < bookEvents.length; i++) {
@@ -114,7 +119,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (bookEvent.totalFs !== undefined) stateGame.totalFs = bookEvent.totalFs;
 		const board = bookEvent.board.map((reel) => [...reel]) as Board;
 		stateGame.board = board;
-		if (bookEvent.gameType === 'freegame') await pace(ROUND.betweenSpinsMs);
+		// (no pause before the first free spin of a Super round: its opening column has just landed, openingLanded)
+		if (bookEvent.gameType === 'freegame' && !openingLanded) await pace(ROUND.betweenSpinsMs);
+		openingLanded = false;
 		// the sticky columns this spin starts with, exactly as the book lists them; every cloud cell and every column
 		// that is not held leaves here (a replay or a resume builds its columns from this list alone)
 		eventEmitter.broadcast({ type: 'boardHeld', held: bookEvent.held ?? [] });
@@ -161,6 +168,15 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// the cell the box grows from is the strike's target (the event before); Super's opening column has none
 		const before = bookEvents[bookEvents.indexOf(bookEvent) - 1];
 		const fromCell = !bookEvent.start && before?.type === 'strike' && Math.floor(before.cell / ROWS) === bookEvent.reel ? before.cell : null;
+		// THE SUPER WHEEL (constants SUPER_WHEEL, game/road/superWheel.ts): the round's opening column is first shown by the
+		// wheel, which stops on this event's own character, multiplier and reel (the plan holds them; every other wedge is
+		// made from the round's own events, game/superWheelPlan.ts). The trigger board drives out under it, so the column
+		// then grows on an empty road. Presentation only; SKIP TO RESULT never comes here (its book has no opening event).
+		if (bookEvent.start === true && SUPER_WHEEL.on && !stateGame.skipping) {
+			const plan = wheelPlanFor(bookEvents, bookEvent);
+			devMark('wheel', plan ? `${plan.real.tier} ${plan.real.m}x reel ${plan.real.reel} seed ${plan.seed.toString(16)}` : 'no plan');
+			if (plan) await eventEmitter.broadcastAsync({ type: 'boardSuperWheel', plan });
+		}
 		await eventEmitter.broadcastAsync({
 			type: 'boardColumnWild',
 			reel: bookEvent.reel,
@@ -172,6 +188,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			// then the sum (`multiplier` already holds it). Never happens under variant F.
 			joinAdd: bookEvent.grandma?.wasWild ? bookEvent.grandma.add : 0,
 		});
+		if (bookEvent.start === true) {
+			openingLanded = true;
+			devMark('openingLanded', `reel ${bookEvent.reel}`);
+		}
 	},
 
 	winInfo: async (bookEvent: BookEventOfType<'winInfo'>) => {
@@ -225,6 +245,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 	// ---- the bonus rounds ----
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
+		openingLanded = false;
 		// the marimba family's success (2026-11-17), one sound for Free Spins and Super Free Spins, where the tier fanfares played
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });
 		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs });
