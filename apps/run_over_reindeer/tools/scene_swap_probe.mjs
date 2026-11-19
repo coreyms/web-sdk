@@ -6,6 +6,7 @@
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardManual, __reindeer.seatTime, __reindeer.turbo, ROUND, SCENE, data-top-line
 // WATCHES: ; data-scene-switch, data-scene-choice, data-hud, .landing, .am-ui, .layer, .hud-off, .hudp, .stat, .value, .label, .kl, .fb, .lb
 // WATCHES: ; .spin, .vt, .mp
+// WATCHES: apps/run_over_reindeer/src/{game/scenePrefetch.ts,ui/LandingScreen.svelte}; __reindeer.scenePrefetch, noScenePrefetch
 // THE SCENE SWAP PROBE (2026-11-17; game/scene/sceneSwap.ts, game/scenePresets.ts snowDay / snowNight / snowSuper). At
 // 1440 x 900, 844 x 390 and 390 x 844 (the phone sizes on the phone asset tier), with the dev fixtures:
 //   - THE FIRST LOAD: the day snow shows, and no piece of either night scene is asked of the network (or held) before the
@@ -49,6 +50,13 @@
 //     isn't doing anything until you click press to continue"): before any continue press, Dark, Snow, Auto (a light
 //     device: the snow set) and Snow, Dark, Snow pressed in a row each change the drawn scene there (the key checked at
 //     once; the swap starts as soon as the set's pictures are in, within 5 s on a loaded headless host, its time printed), and the game then opens in the last one with no second change
+//     THE OTHER SET IN THE CACHE (2026-11-19, Corey: "Load both of them during the PolyMath Intro Screen?";
+//     game/scenePrefetch.ts): the other set's base scene is fetched in the background once the preload and the audio
+//     are in (never part of the press gate's blocking set); every request of the other set before a press on the switch
+//     is one of those files, and nothing of it reaches the GPU; with them in, a press on Dark loads every piece from the
+//     browser's cache (Resource Timing: no body crossed the network the second time) within WARM_LOAD_MS of the swap's
+//     ask; the press to the fade's first frame is printed (the rest is the pieces' upload to the GPU, which the prefetch
+//     leaves for the press: a headless software GPU takes 400 to 600 ms there)
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [SET=grass] [ONLY=desktop,side,portrait] [SECTIONS=rounds,again,resume,setting] node tools/scene_swap_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane); a turn is 15 minutes, so one size per turn with ONLY= if needed.
@@ -105,6 +113,16 @@ const NIGHT = SET === 'grass' ? /scene\/grass-(night|super)-/ : /scene\/snow-(ni
 const SNOW_FILES = /scene\/snow-|road\/road\.webp|road\/tunnel-(left|right)\.webp/;
 const GRASS_FILES = /scene\/grass-/;
 const OTHER = SET === 'grass' ? SNOW_FILES : GRASS_FILES;
+/** a press on the switch with the other set already in the browser's cache: the swap's pieces are in (fetched from the
+ *  cache and decoded, on a headless CPU) within this of its ask (ms) */
+const WARM_LOAD_MS = 400;
+/** the other set's requests before a press are the background prefetch's (game/scenePrefetch.ts) and only those */
+const prefetchOnly = async (p, asked) => {
+	const pf = await R(p, () => window.__reindeer.scenePrefetch());
+	const mine = new Set(pf.files.map((f) => new URL(f.url, 'http://x/').pathname.split('/assets/').pop() + new URL(f.url, 'http://x/').search));
+	const stray = asked.filter((f) => !mine.has(f.url));
+	return { pf, stray, ok: stray.length === 0 && (asked.length === 0 || (pf.startedAt !== null && /preload/.test(pf.why))) };
+};
 const STORE = 'run_over_reindeer.scene';
 
 async function boot(browser, S, { reuse = null, choice = SET === 'grass' ? 'dark' : null, scheme = 'light', press = true } = {}) {
@@ -139,6 +157,9 @@ async function boot(browser, S, { reuse = null, choice = SET === 'grass' ? 'dark
 			if (SNOW_FILES.test(q.url()) || GRASS_FILES.test(q.url())) files.push({ at: Date.now(), url: q.url().split('/assets/').pop() });
 		});
 		// the frame clock (the longest frame around a swap's upload)
+		// (the page's Resource Timing buffer holds 250 entries by default, fewer than the game asks for: the cache check
+		// reads the scene pieces' second fetch)
+		await p.addInitScript(() => performance.setResourceTimingBufferSize?.(10000));
 		await p.addInitScript(() => {
 			const F = (window.__frames = { t: new Float64Array(6000), n: 0 });
 			let last = 0;
@@ -726,12 +747,30 @@ async function settingChecks(browser, S, report) {
 	let s = await swapNow(p);
 	let sw = await switchState(p, '.landing');
 	check(s.choice === 'snow' && s.set === 'snow' && s.shown === 'snowDay' && sw?.checked === 'snow', `${tag}: a fresh profile comes up in Snow (choice ${s.choice}, set ${s.set}, ${s.shown}; the press screen's switch shows ${sw?.checked})`, { s, sw });
-	check(b.files.filter((f) => GRASS_FILES.test(f.url)).length === 0, `${tag}: nothing of the grass set asked for on a fresh profile`, b.files.filter((f) => GRASS_FILES.test(f.url)));
+	// (the grass set's base scene is fetched into the cache in the background: those requests only, after the preload)
+	await waitFor(p, () => { const x = window.__reindeer.scenePrefetch(); return x.files.length > 0 && x.files.every((f) => f.ok !== null); }, 30000);
+	const pre = await prefetchOnly(p, b.files.filter((f) => GRASS_FILES.test(f.url)));
+	check(pre.ok, `${tag}: on a fresh profile the grass set is asked for only by the background prefetch, after the preload and the audio (${pre.pf.files.length} files, ${Math.round(pre.pf.files.reduce((n, f) => n + (f.bytes || 0), 0) / 1024)} KB, started ${Math.round(pre.pf.startedAt)} ms: ${pre.pf.why})`, { stray: pre.stray, pf: pre.pf });
+	check(s.loadedPresets.every((n) => n === 'snowDay') && s.scenesOnGpu.length <= 1, `${tag}: and none of it is decoded or on the GPU (held: ${s.loadedPresets})`, s);
 	rep.freshGpu = { scene: s.sceneGpuMB, all: s.gpuMB };
 	// THE PRESS SCREEN'S SWITCH
 	reach(sw, `${tag} press screen`);
 	let r = await pressAndWatch(p, '.landing [data-scene-choice="dark"]', 'grassDay');
 	setWatch(`${tag} press screen Dark`, r, 'grassDay');
+	{
+		const L = r.final.log ?? [];
+		const ask = [...L].reverse().find((l) => l.what === 'load' && /^grassDay/.test(l.detail ?? ''));
+		const got = [...L].reverse().find((l) => l.what === 'loaded' && /^grassDay/.test(l.detail ?? ''));
+		const up = [...L].reverse().find((l) => l.what === 'upload' && /^grassDay/.test(l.detail ?? ''));
+		const cache = await R(p, () => window.__reindeer.scenePrefetch().files.map((f) => {
+			const E = performance.getEntriesByName(new URL(f.url, location.href).href);
+			const last = E[E.length - 1];
+			return { url: f.url.split('/').pop(), n: E.length, transfer: last?.transferSize ?? null, body: last?.encodedBodySize ?? null };
+		}));
+		const fromCache = cache.every((c) => c.n >= 2 && c.transfer !== null && c.body !== null && c.transfer < c.body);
+		check(!!ask && !!got && got.at - ask.at <= WARM_LOAD_MS && fromCache, `${tag} press screen Dark, the grass set already in the cache: its pieces came from the cache (no body over the network) and were in ${ask && got ? Math.round(got.at - ask.at) : '?'} ms after the swap asked (at most ${WARM_LOAD_MS})`, { cache, ask, got });
+		info(`${tag} press screen Dark (warm cache): the press to the fade's first frame ${r.startAt} ms (load ${ask && got ? Math.round(got.at - ask.at) : '?'} ms, ${up?.detail ?? 'upload ?'}), grassDay whole at ${r.inAt} ms`);
+	}
 	rep.pressDark = r.gpu;
 	// EVERY CHOICE, IN ANY ORDER, ON THE PRESS SCREEN (no continue press): the drawn scene follows each one there
 	const pressKey = async (c, target, what) => {
@@ -793,7 +832,9 @@ async function settingChecks(browser, S, report) {
 	sw = await switchState(p, '.landing');
 	const snowAsked = b.files.filter((f) => SNOW_FILES.test(f.url));
 	check(s.choice === 'dark' && s.set === 'grass' && s.shown === 'grassDay' && s.dom === 'grassDay' && sw?.checked === 'dark', `${tag}: Dark is remembered across a reload (choice ${s.choice}, ${s.shown}; the switch shows ${sw?.checked})`, s);
-	check(snowAsked.length === 0 && s.loadedPresets.every((n) => n === 'grassDay'), `${tag}: the reload asks nothing of the snow set (${snowAsked.length} requests; held: ${s.loadedPresets})`, snowAsked);
+	await waitFor(p, () => { const x = window.__reindeer.scenePrefetch(); return x.files.length > 0 && x.files.every((f) => f.ok !== null); }, 30000);
+	const preSnow = await prefetchOnly(p, snowAsked);
+	check(preSnow.ok && s.loadedPresets.every((n) => n === 'grassDay'), `${tag}: the reload asks for the snow set only by the background prefetch (${snowAsked.length} requests, ${preSnow.stray.length} of them not the prefetch's; held: ${s.loadedPresets})`, { stray: preSnow.stray, why: preSnow.pf.why });
 	rep.reloadGpu = { scene: s.sceneGpuMB, all: s.gpuMB };
 	info(`${tag}: Dark boot before the first press: scene ${s.sceneGpuMB} MB on the GPU, all textures ${s.gpuMB} MB`);
 	check(b.errs.length === 0, `${tag}: no page errors`, b.errs);
@@ -886,7 +927,8 @@ try {
 			rep.after = { sceneGpuMB: after.sceneGpuMB, gpuMB: after.gpuMB };
 			check(after.sceneGpuMB <= s0.sceneGpuMB + 0.01 && after.lazyGpuMB === 0, `${S.name}: after the bonus rounds the scene holds what it held before the first press (${after.sceneGpuMB} MB, was ${s0.sceneGpuMB})`, after);
 			info(`${S.name}: GPU all textures: before ${s0.gpuMB} MB, after ${after.gpuMB} MB`);
-			check(b.other.length === 0, `${S.name}: nothing of the other set asked for in the whole run (${b.other.length} requests)`, b.other);
+			const preOther = await prefetchOnly(p, b.other);
+			check(preOther.ok, `${S.name}: of the other set only the background prefetch's files asked for in the whole run (${b.other.length} requests, ${preOther.stray.length} not the prefetch's)`, preOther.stray);
 			check(errs.length === 0, `${S.name}: no page errors`, errs);
 			await b.ctx.close();
 		}

@@ -12,6 +12,7 @@
 	import SceneSwitch from './hud/SceneSwitch.svelte';
 	import { LOAD_GATE } from '../game/constants';
 	import { sound } from '../game/sound';
+	import { prefetchOtherSceneSet } from '../game/scenePrefetch';
 	import { resumeCardWanted, resumeRound, type ResumeChoice } from '../game/resumeRound.svelte';
 	import ResumeCard from './ResumeCard.svelte';
 
@@ -87,6 +88,11 @@
 		return () => clearTimeout(id);
 	});
 	const ready = $derived(context.stateApp.preLoaded && fontsReady && (audioReady || stalled) && boot.splashOut);
+	// THE OTHER SCENE SET into the browser's cache (game/scenePrefetch.ts) once everything the bar and the press gate wait
+	// for is in: a press on Snow or Dark here then cross-fades at once
+	$effect(() => {
+		if (context.stateApp.preLoaded && (audioReady || stalled)) prefetchOtherSceneSet(audioReady ? 'preload and audio in' : 'preload in, audio stalled');
+	});
 	// THE LED BILLBOARD's ticker (components/Board.svelte, game/landing/ledSign.ts) shows PRESS ANYWHERE from the same moment
 	$effect(() => {
 		boot.pressReady = ready;

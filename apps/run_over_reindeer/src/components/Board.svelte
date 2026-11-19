@@ -82,6 +82,7 @@
 	import { ROAD_ART } from '../game/roadArtSpec';
 	import { FOREST_LINE } from '../game/forestLineSpec';
 	import { forestLineY } from '../game/scene/sceneLayers';
+	import { scenePrefetchState } from '../game/scenePrefetch';
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
@@ -976,6 +977,8 @@
 			 *  the setting as it stands (the choice, the device dark or not, the set in use) */
 			sceneChoice: (choice: SceneChoice) => setSceneChoice(choice),
 			sceneSetting: () => ({ choice: stateScene.choice, dark: stateScene.dark, set: stateScene.set, wait: sceneSetWait }),
+			/** the other scene set fetched into the browser's cache on the press screen (game/scenePrefetch.ts) */
+			scenePrefetch: () => scenePrefetchState(),
 			/** hold a swap's fade where it is once it starts (on), and move it by hand (the probe steps it frame by frame) */
 			sceneSwapHold: (on: boolean) => (swap.hold = !!on),
 			sceneSwapStep: (ms: number) => {

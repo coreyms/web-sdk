@@ -6,6 +6,7 @@
 // WATCHES: apps/run_over_reindeer/{static/assets/audio/music.json,static/assets/audio/sounds.json,static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
 // WATCHES: ; data-resume-card, data-resume, __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.led
 // WATCHES: ; __reindeer.gpuWarm, GPU_WARM
+// WATCHES: apps/run_over_reindeer/src/game/scenePrefetch.ts; prefetchOtherSceneSet
 // WATCHES: ; __reindeer.ledFreeze, __reindeer.road, __reindeer.scene, __reindeer.tune, LED_SIGN, SCENE_ART, SCREENS, data-title-sign, .landing
 // WATCHES: ; .pressText, .title, .am-ui, .hidden, .hudp, .spin
 // THE LANDING PROBE. Pass 7 (Corey 2026-11-16): the press screen after the studio splash is the LED BILLBOARD
@@ -494,7 +495,15 @@ async function crop4x(file, box, dpr, out) {
 		desktop: ['symbols/symbols.json', atlasImage('symbols/symbols.json'), 'road/road.webp', 'road/tunnel-left.webp', 'road/tunnel-right.webp', 'columns/landing-stills.webp', 'audio/sounds.json', 'audio/music.json'],
 		phone: ['symbols/symbols-phone.json', atlasImage('symbols/symbols-phone.json'), 'road/road.webp', 'road/tunnel-left.webp', 'road/tunnel-right.webp', 'columns/landing-stills-phone.webp', 'audio/sounds.json', 'audio/music.json'],
 	};
-	const bytes = { ledArt: size('landing/led-art.webp'), costs };
+	// (2026-11-19, game/scenePrefetch.ts) NOT IN THE BLOCKING SET: once the preload and the audio are in, the Scene
+	// setting's other set (its base scene) is fetched into the browser's cache in the background at low priority, so a
+	// press on Snow or Dark on the press screen cross-fades at once. Those requests come after the press gate's own and
+	// are counted here apart (a Snow boot's grass pieces; the phone tier with the forest and, held upright, no ends)
+	const background = {
+		desktop: ['road', 'tunnel-left', 'tunnel-right', 'field', 'band-top', 'band-bottom', 'end-left', 'end-right'].map((k) => `scene/grass-day-${k}.webp`),
+		phoneUpright: ['road', 'tunnel-left', 'tunnel-right', 'field', 'band-top', 'band-bottom', 'forest'].map((k) => `scene/grass-day-${k}.webp`),
+	};
+	const bytes = { ledArt: size('landing/led-art.webp'), costs, backgroundSceneSet: Object.fromEntries(Object.entries(background).map(([k, files]) => [k, { files: files.length, bytes: files.reduce((n, f) => n + size(f), 0) }])) };
 	for (const [tier, files] of Object.entries(sets)) bytes[tier] = { preloadImagesAndManifests: files.reduce((n, f) => n + size(f), 0), ledArtShare: Math.round((size('landing/led-art.webp') / files.reduce((n, f) => n + size(f), 0)) * 1000) / 10 };
 	console.log('bytes:', JSON.stringify(bytes));
 	if (OUT) writeFileSync(join(OUT, 'bytes.json'), JSON.stringify(bytes, null, 1));
