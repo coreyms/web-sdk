@@ -5,6 +5,7 @@
 // WATCHES: ; __reindeer.clock, __reindeer.atRest, __reindeer.hud, __reindeer.strike, __reindeer.turbo, __reindeer.runMemory, __reindeer.scene
 // WATCHES: ; __reindeer.sceneSwap, __reindeer.sceneWant, __reindeer.step, STRIKE.roam, ROAM, ROAM_AREAS, data-roam-area, data-roam-json
 // WATCHES: ; data-roam-overlay, data-roam-wp, data-roam-mouth, ROAM_TUNNELS, ROAM_TUNNEL_MOUTH, counts.corridor, counts.rounds
+// WATCHES: apps/run_over_reindeer/src/game/forestLineSpec.ts; FOREST_LINE, TREE_PAD, roam.forest
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -58,7 +59,7 @@ const SIZES = [
 // shadow) is wholly off the screen; after the walk in, 60 s of his wander at the stepped board clock: he stops at 4 spots
 // or more 12 % of the width apart (or as many as the area holds there: its `capacity`), his body never covers a keep-out
 // zone and never leaves the screen. `ONLY=sweep` runs all of them, `ONLY=sweep:2000x945` one.
-const SWEEP = ['2000x945', '1920x1080', '1440x900', '1280x720', '1366x768', '2560x1080', '1024x768', '844x390', '932x430', '390x844', '430x932', '390x620'].map((wh) => {
+const SWEEP = ['2000x945', '1920x1080', '1440x900', '1280x720', '1366x768', '2560x1080', '1024x768', '844x390', '932x430', '390x844', '430x932', '390x620', '390x664', '360x640'].map((wh) => {
 	const [width, height] = wh.split('x').map(Number);
 	const phone = Math.min(width, height) <= 480;
 	return { name: `sweep:${wh}`, vp: { width, height }, dpr: 1, q: phone ? '&tier=phone' : '', touch: phone, sweep: true };
@@ -207,6 +208,16 @@ const hitsAt = (geo, zones, x, y, walking = false) => {
 	if (b.x0 < -0.5 || topLine < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) out.push('screen');
 	return out;
 };
+/** (2026-11-19, the forest behind the upright phone's snow) are his feet at (x, y) road px on the trees: above the game's
+ *  tree line (roam().trees: column edges x, per column the highest his feet may stand y) */
+const onTrees = (trees, x, y) => {
+	if (!trees) return false;
+	const X = trees.x;
+	if (x < X[0] || x >= X[X.length - 1]) return false;
+	let i = 0;
+	while (i < trees.y.length - 1 && x >= X[i + 1]) i++;
+	return y < trees.y[i] - 1e-6;
+};
 /** is he in the top corridor at (x, y): partly above the screen's top, or behind the top line's text (CSS) */
 const offTopAt = (geo, x, y, zones = []) => {
 	const B = bodyOf(geo);
@@ -354,6 +365,12 @@ async function sweepSize(p, S, name, errs, out) {
 	// never at rest partly off the screen; the corridor's share of the time kept small
 	// (Corey "Yes", 2026-11-18: his head may pass behind the top line's text on a walk through the top corridor; that is
 	// accepted as it is, counted in the corridor's share below, never at rest)
+	// THE FOREST (Corey 2026-11-19: "the reindeer is walking on the trees"): never a foot on the trees, and the spot floor
+	// (3 spots 12 % apart, his yes) where a forest is drawn
+	const treeFrames = run.pos.filter(([x, y]) => onTrees(run.roam.trees, x, y)).length;
+	out.sweep.forest = run.roam.trees ? { kit: run.roam.trees.forest?.kit, line: Math.round(Math.min(...run.roam.trees.y)) } : null;
+	check(treeFrames === 0, `${name}: 60 s of his walk: his feet never on the trees (${run.roam.trees ? `the ${run.roam.trees.forest?.kit} forest's tree line at road y ${out.sweep.forest.line}` : 'no forest drawn here'})`, { treeFrames });
+	if (run.roam.trees) check(run.roam.capacity >= 3, `${name}: below the trees the area holds ${run.roam.capacity} spots 12 % of the width apart (the floor: 3)`, out.sweep);
 	check(mouthFrames === 0, `${name}: 60 s of his walk (${run.pos.length} frames): his body, head and shadow never on a tunnel mouth (${run.roam.counts.rounds} walks round one)`, out.sweep);
 	check(restOffTop === 0, `${name}: never at rest with any part off the screen`, out.sweep);
 	check(offTop / Math.max(1, run.pos.length) <= 0.05, `${name}: in the top corridor (partly above the screen's top, or behind the top line on a walk) ${out.sweep.offTopShare} % of the time (the top corridor, ${run.roam.counts.corridor} of ${run.roam.counts.walks} walks; at most 5 %)`, out.sweep);
@@ -466,6 +483,7 @@ async function runSize(browser, S) {
 			none++;
 			continue;
 		}
+		if (onTrees(geo.roam.trees, q.x, q.y)) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) on the trees`);
 		if (!pickIn[picks.indexOf(q)]) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) outside the area the game uses`);
 		const h0 = hitsAt(geo, zones, q.x, q.y);
 		if (h0.length) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) covers ${h0.join(', ')}`);
@@ -483,6 +501,7 @@ async function runSize(browser, S) {
 				const x = a.x + ((b.x - a.x) * i) / n;
 				const y = a.y + ((b.y - a.y) * i) / n;
 				const hw = hitsAt(geo, zones, x, y, true).filter((z) => !(q.walkIn && z === 'screen'));
+				if (onTrees(geo.roam.trees, x, y)) hw.push('the trees');
 				if (hw.length) {
 					bad.push(`the walk to (${r1(q.x)}, ${r1(q.y)}) covers ${hw.join(', ')} at (${r1(x)}, ${r1(y)})`);
 					broke = true;
@@ -556,6 +575,8 @@ async function runSize(browser, S) {
 		if (hz.length && frameHits.length < 5) frameHits.push(`frame ${i}: ${hz.join(', ')} at (${w1.pos[i].join(', ')})`);
 	}
 	check(wMouth === 0, `${name}: 45 s of his seeded walk (${w1.pos.length} frames): his body, head and shadow never on a tunnel mouth`, wMouth);
+	const wTrees = w1.pos.filter(([x, y]) => onTrees(geo.roam.trees, x, y)).length;
+	check(wTrees === 0, `${name}: 45 s of his seeded walk: his feet never on the trees (${geo.roam.trees ? `the ${geo.roam.trees.forest?.kit} forest` : 'no forest drawn here'})`, wTrees);
 	check(frameHits.length === 0, `${name}: every frame of the 45 s (${w1.pos.length}) his body is clear of every keep-out zone and on the screen`, frameHits);
 	const same = w1.trace.length === w2.trace.length && w1.trace.every((t, i) => t[0] === w2.trace[i][0] && t[3] === w2.trace[i][3] && Math.abs(t[1] - w2.trace[i][1]) < 0.1 && Math.abs(t[2] - w2.trace[i][2]) < 0.1 && Math.abs(t[4] - w2.trace[i][4]) < 0.1);
 	check(same, `${name}: the same seed walks the same way (seeded, no Math.random): ${w1.trace.length} samples match`);

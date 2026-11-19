@@ -571,6 +571,12 @@
 		return out;
 	};
 	roamDev.zones = roamZones;
+	// THE FOREST behind the upright phone's snow (2026-11-19, Corey: "the reindeer is walking on the trees"): where the scene
+	// draws it now and the preset's kit, for its tree line (game/forestLineSpec.ts); null where no forest shows
+	road.features.roam.forest = () => {
+		const f = road.scene.last.forest;
+		return f ? { ...f, kit: stateScene.preset.kit } : null;
+	};
 	roamDev.zonesKey = () => (scoreboard?.backUp() ? 'board up' : 'board down');
 
 	// the board's tap area: a tap during a live spin hurries it, as the Spin press does (ui/controls.svelte.ts boardTap)

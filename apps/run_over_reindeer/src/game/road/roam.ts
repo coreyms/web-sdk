@@ -27,6 +27,7 @@ import type { LayoutKind } from '../layoutSpec';
 import { REINDEER_ROAM } from '../reindeerRoamSpec';
 import { ROAM_AREAS, ROAM_EDIT, ROAM_REF_RECT, ROAM_TUNNELS, type RoadRect, type RoamArea } from '../roamPaths';
 import { ROAD_ART } from '../roadArtSpec';
+import { FOREST_LINE } from '../forestLineSpec';
 import { seeded } from './crosshair';
 import { roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
 import { castReach, castShadow, makeShadow, shadowStrength } from './shadows';
@@ -198,6 +199,11 @@ const ROUND_PAD = 3;
  *  scores lower */
 const CORRIDOR_SHOWN = 0.4;
 const CORRIDOR_COST = 3;
+/** THE FOREST (2026-11-19, Corey: "on portrait view the reindeer is walking on the trees"): his feet stay this many road
+ *  px below the tree line of the forest drawn behind the upright phone's snow (game/forestLineSpec.ts, per kit) */
+const TREE_PAD = 6;
+/** the forest as drawn now (road px) and its kit's tree line, or null where no forest is drawn */
+export type RoamForest = { x: number; y: number; width: number; height: number; kit: keyof typeof FOREST_LINE } | null;
 /** a walk in routes at most this many candidates round a mouth (each its own tree) */
 const WALK_IN_ROUTED = 6;
 
@@ -274,6 +280,12 @@ export class Roam {
 	readonly counts = { walks: 0, walkIns: 0, arrived: 0, strikes: 0, placed: 0, cancelled: 0, picks: 0, relaxed: 0, none: 0, safetyNet: 0, left: 0, rounds: 0, corridor: 0 };
 	/** is a strike running on the board (game/road/roadFeatures.ts sets it): the safety net waits for it */
 	busy: () => boolean = () => false;
+	/** the forest as drawn now (components/Board.svelte sets it: the scene's own placement and the preset's kit) */
+	forest: () => RoamForest = () => null;
+	/** the tree line in road px: column edges x and the lowest tree row y + TREE_PAD per column (read with the zones) */
+	private treeX: number[] = [];
+	private treeY: number[] = [];
+	private treeKey = '';
 
 	constructor() {
 		this.sprite.visible = false;
@@ -375,7 +387,50 @@ export class Roam {
 	}
 
 	/** the keep-out zones in road px, from the board's CSS px ones (a few DOM reads: at a pick or a layout change only) */
+	/** the forest's tree line for this frame's forest (a few numbers: re-read with the zones) */
+	private refreshTrees() {
+		const f = this.forest();
+		const key = f ? `${f.kit}|${f.x}|${f.y}|${f.width}|${f.height}` : '';
+		if (key === this.treeKey) return;
+		this.treeKey = key;
+		this.treeX.length = 0;
+		this.treeY.length = 0;
+		if (!f) return;
+		const line = FOREST_LINE[f.kit]?.line as readonly number[] | undefined;
+		if (!line) return;
+		for (let i = 0; i <= line.length; i++) this.treeX.push(f.x + (f.width * i) / line.length);
+		for (let i = 0; i < line.length; i++) this.treeY.push(f.y + f.height * line[i] + TREE_PAD);
+	}
+
+	/** are his feet at (x, y) on the trees: above the tree line of the column they stand in */
+	private onTrees(x: number, y: number): boolean {
+		const X = this.treeX;
+		if (!X.length || x < X[0] || x >= X[X.length - 1]) return false;
+		let i = 0;
+		while (i < this.treeY.length - 1 && x >= X[i + 1]) i++;
+		return y < this.treeY[i];
+	}
+
+	/** does a straight walk put his feet on the trees anywhere: at its ends and at every column edge it crosses (the line
+	 *  is flat in each column, the walk straight, so those are the only places to look) */
+	private walkOnTrees(ax: number, ay: number, bx: number, by: number): boolean {
+		if (!this.treeX.length) return false;
+		if (this.onTrees(ax, ay) || this.onTrees(bx, by)) return true;
+		const lo = Math.min(ax, bx);
+		const hi = Math.max(ax, bx);
+		for (let i = 0; i < this.treeX.length; i++) {
+			const x = this.treeX[i];
+			if (x <= lo || x >= hi) continue;
+			const t = (x - ax) / (bx - ax);
+			const y = ay + (by - ay) * t;
+			// both columns that meet at this edge
+			if ((i > 0 && y < this.treeY[i - 1]) || (i < this.treeY.length && y < this.treeY[i])) return true;
+		}
+		return false;
+	}
+
 	private refreshZones() {
+		this.refreshTrees();
 		const v = roamDev.view?.();
 		const list = roamDev.zones?.() ?? [];
 		this.zones.length = 0;
@@ -397,6 +452,8 @@ export class Roam {
 		// the tunnel mouths: his feet outside each grown polygon
 		this.growMouths();
 		for (let i = 0; i < this.mouths.length; i++) if (inConvex(x, y, this.mouths[i], this.mouthO[i])) return false;
+		// the forest: his feet below its tree line
+		if (this.onTrees(x, y)) return false;
 		const feet = y - ROAM_REACH.up * s * FEET_SHARE;
 		// (2026-11-18) his cast shadow too: it leans from his feet by castReach per road px of his height, so against the
 		// keep-outs his box is widened toward the lean (the road is checked at his feet only, as before)
@@ -578,6 +635,8 @@ export class Roam {
 	private zonesMoved(): boolean {
 		let sum = this.zones.length;
 		for (const z of this.zones) sum += z.x0 * 1.3 + z.y0 * 1.7 + z.x1 * 1.9 + z.y1 * 2.3;
+		// (the forest's tree line too: a scene swap or a resize moves it)
+		for (let i = 0; i < this.treeY.length; i++) sum += this.treeY[i] * (2.9 + i * 0.01);
 		const moved = Math.abs(sum - this.zoneSum) > 0.5 || !Number.isFinite(this.zoneSum);
 		this.zoneSum = sum;
 		return moved;
@@ -592,6 +651,7 @@ export class Roam {
 	private clearWay(ax: number, ay: number, bx: number, by: number, offScreenOk = false, endTop = false, sweepTop = endTop): boolean {
 		if (!this.clear(bx, by, offScreenOk, endTop)) return false;
 		if (this.cutsMouth(ax, ay, bx, by)) return false;
+		if (this.walkOnTrees(ax, ay, bx, by)) return false;
 		const s = this.scale();
 		const side = ROAM_REACH.side * s;
 		const h = ROAM_REACH.up * s;
@@ -1299,6 +1359,9 @@ export class Roam {
 			lean: castReach(),
 			/** the tunnel mouths' keep-out polygons (road px, as traced) and his way now (the corners round one, if any) */
 			tunnels: ROAM_TUNNELS,
+			/** the forest's tree line (road px): its column edges (x) and, per column, the highest his feet may stand (y: the
+			 *  lowest tree row plus TREE_PAD) */
+			trees: this.treeX.length ? { x: [...this.treeX], y: [...this.treeY], forest: this.forest() } : null,
 			route: this.route.map((p) => ({ x: r(p.x), y: r(p.y) })),
 			box: { walk: BOX.walk, sniff: BOX.sniff, start: BOX.start, stop: BOX.stop },
 			lastPass: this.lastPass,
