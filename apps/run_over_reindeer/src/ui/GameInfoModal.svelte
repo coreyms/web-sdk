@@ -49,6 +49,7 @@
 		{ id: 'feature', hud: 'arm' },
 		{ id: 'spin', ui: 'play' },
 		{ id: 'boardTap', ui: 'instant' },
+		{ id: 'skip', hud: 'skip' },
 		{ id: 'autoplay', hud: 'auto' },
 		{ id: 'turbo', hud: 'turbo' },
 		{ id: 'menu', hud: 'menu' },

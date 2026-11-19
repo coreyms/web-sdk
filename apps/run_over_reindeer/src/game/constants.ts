@@ -538,6 +538,29 @@ export const ROUND = {
 	/** the pause between two free spins */
 	betweenSpinsMs: 160,
 };
+/** SKIP TO RESULT'S BUTTON AND PROMPT (components/SkipButton.svelte, 2026-11-19): Manticore Mayhem's SKIP_HUD, its
+ *  numbers as they are there (its place is the HUD's own, ui/hud/hudLayout.ts hudSkipRect) */
+export const SKIP_HUD = {
+	inMs: 220,
+	outMs: 120,
+	/** the prompt closes by itself after this long with no answer */
+	promptMs: 4000,
+	/** the glyph's height as a share of the button's height */
+	glyphShare: 0.62,
+	/** the touch target is grown (invisibly) to at least this, CSS px */
+	minHitCss: 44,
+	/** the prompt, as shares of the Spin's size on screen, each with a floor in CSS px; Yes and No are at least 52 x 40 */
+	prompt: {
+		gapCss: 6,
+		button: { w: 0.6, h: 0.42, minW: 52, minH: 40 },
+		font: { share: 0.15, min: 12 },
+		pad: { share: 0.1, min: 8 },
+		gap: { share: 0.08, min: 6 },
+		/** the question's line box, in ems */
+		line: 1.3,
+	},
+} as const;
+
 /** THE INTRO CARD'S SENTENCE, per bonus round (ui/RoundCard.svelte's HTML card, and the LED strip under the back board while
  *  the entry waits for the press: game/scoreboard/scoreboardDraw.ts showRibbon). One place, so the two never differ. */
 export const INTRO_LINE = {

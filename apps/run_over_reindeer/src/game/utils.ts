@@ -12,6 +12,8 @@ import { SUPER_WHEEL } from './constants';
 import { STAGING_TOOLS, perfMark } from './staging';
 import { stateBet } from 'state-shared';
 import { scoreboardDev } from './scoreboard/scoreboard';
+import { stateGame } from './stateGame.svelte';
+import { SKIP_END_EVENTS, toSkippedBet } from './resumeRound.svelte';
 
 /** resolves once the LED board has no win count running (at most maxMs real time) */
 export const ledCountDone = async (maxMs = 2500) => {
@@ -42,6 +44,32 @@ export const prepareWheel = (events: Bet['state']) => {
 	void loadWheelArt();
 };
 
+/** the book's events in order (playBookEvents' own way: each handler awaited, the whole book as its context), with SKIP TO
+ *  RESULT (2026-11-19, Corey: "This game needs a skip to result option in bonus rounds like manticore has"): once it is
+ *  asked (stateGame.skipping, components/SkipButton.svelte), the event in play finishes (the Yes also slams the spin in
+ *  play), the round's other events up to its end are not played, and the round's end is played as the resume card's
+ *  Skip to Result plays it: the SAME cut (game/resumeRound.svelte.ts toSkippedBet: the final board, every column standing
+ *  at the end, the round's total), then the book's own end events not played yet (the top-up, the Total Win card that
+ *  waits for its press, the cap, finalWin). The per-spin sounds are dropped while skipping; `skipping` clears before the
+ *  wrap-up, so it sounds. Nothing here decides an outcome: every amount is the book's. */
+const playEvents = async (bet: Bet) => {
+	const events = bet.state;
+	for (let i = 0; i < events.length; i++) {
+		if (stateGame.skipping) {
+			const cut = toSkippedBet(bet).state;
+			const skip = cut.find((e) => e.type === 'skipToResult');
+			const tail = events.slice(i).filter((e) => SKIP_END_EVENTS.includes(e.type));
+			if (skip) await playBookEvent(skip, { bookEvents: events });
+			stateGame.skipping = false;
+			for (const e of tail) await playBookEvent(e, { bookEvents: events });
+			return;
+		}
+		await playBookEvent(events[i], { bookEvents: events });
+	}
+	// (asked after the last event began: nothing was left to cut)
+	stateGame.skipping = false;
+};
+
 /** play one round's book, event by event, in book order */
 export const playBet = async (bet: Bet) => {
 	// a fresh WIN (game/hudWin.svelte.ts)
@@ -53,7 +81,7 @@ export const playBet = async (bet: Bet) => {
 	// a book with a Super opening: its wheel (a resumed round's state starts with the snapshot: its wheel was planned from
 	// the whole round already)
 	if (bet.state[0]?.type !== 'createBonusSnapshot') prepareWheel(bet.state);
-	await playBookEvents(bet.state);
+	await playEvents(bet);
 	// THE LED COUNT LANDS BEFORE THE ROUND SETTLES (2026-11-18, the probe host: the end-round went with the strip's small
 	// count at $9.72 of $10.00): the round's presentation is over once the board's count is too. Not in autoplay, where the
 	// next spin's press cuts the small message anyway and waiting would slow every winning round (by up to its count's

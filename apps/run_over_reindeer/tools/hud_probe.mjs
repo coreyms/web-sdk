@@ -1,6 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,ui/hud/hudLayout.ts};
-// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.hud, __reindeer.scene
+// WATCHES: ; __reindeer.skipHud, data-skip, __reindeer.atRest, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.hud, __reindeer.scene
 // WATCHES: ; data-title-sign, data-hud, data-hud-step, data-st, .hudp, .landing, .fb, .lb, .am-ui, .lbw, .value, .mp, .is-open, .mpsh, .layer
 // WATCHES: ; .modals, .panel, .sweep, .go, .spin, .f2, .f1, .gy, .comet, .halo
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
@@ -467,6 +467,20 @@ async function runSize(browser, S) {
 		}
 		check(!!fs, `${name}: free spins reached`);
 		if (fs) compare(name, 'free spins', idle, fs);
+		// SKIP TO RESULT (2026-11-19, components/SkipButton.svelte, Manticore's place: ui/hud/hudLayout.ts hudSkipRect): up in
+		// the free spins, inside the window, on no HUD control (their hit areas), not on the board or the title sign
+		if (fs) {
+			const sk = await p.evaluate(() => {
+				const e = document.querySelector('[data-skip="button"]');
+				if (!e) return null;
+				const b = e.getBoundingClientRect();
+				return { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom, up: window.__reindeer.skipHud?.().up ?? false, vw: innerWidth, vh: innerHeight };
+			});
+			const on = sk ? Object.entries(fs.c).filter(([, v]) => inter(sk, v.hit ?? v) > 0.5).map(([k]) => k) : [];
+			const scf = await scene(p);
+			const over = sk ? Object.entries({ board: scf.board, 'title sign': scf.title }).filter(([, r]) => r && inter(sk, r) > 0.5).map(([k]) => k) : [];
+			check(!!sk && sk.up && sk.x0 >= 0 && sk.y0 >= 0 && sk.x1 <= sk.vw && sk.y1 <= sk.vh && on.length === 0 && over.length === 0, `${name}: SKIP up in the free spins, inside the window, on no control (${on.join(', ') || 'none'}), not on ${over.join(', ') || 'the board or the title sign'}`, { sk, on, over });
+		}
 		// THE COUNTER'S ONE READING (2026-11-18): after a flip (spin 2 on) the button's text holds ONE number and OF the
 		// total (the outgoing face is drawn from data-d by CSS, aria-hidden, no text), and its label says the same count
 		if (fs) {

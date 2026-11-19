@@ -37,7 +37,7 @@ export const MODE_NAMES: Record<string, string> = {
 
 /** one UI guide row's text, keyed by the row id ui/GameInfoModal.svelte draws its icon for (Manticore Mayhem's guide,
  *  this game's controls) */
-export type GuideId = 'feature' | 'spin' | 'boardTap' | 'autoplay' | 'turbo' | 'menu' | 'sound' | 'amount' | 'readouts' | 'symbols' | 'keyboard' | 'replay';
+export type GuideId = 'feature' | 'spin' | 'boardTap' | 'skip' | 'autoplay' | 'turbo' | 'menu' | 'sound' | 'amount' | 'readouts' | 'symbols' | 'keyboard' | 'replay';
 /** THE OPERATOR'S SWITCHES the rules page follows (authenticate's jurisdiction block, the flags ui/controls.svelte.ts and
  *  ui/Chrome*.svelte read): a control the operator turns off is neither drawn nor described */
 export type RulesFlags = {
@@ -53,7 +53,7 @@ export type RulesFlags = {
  *  the slam stop or turbo is off (ui/controls.svelte.ts boardTap refuses it). The Keyboard row stays under
  *  disabledSpacebar (Escape still closes a window); its text drops the Space bar. */
 export const guideRowShown = (id: GuideId, j: RulesFlags): boolean => {
-	if (id === 'boardTap') return !j.disabledSlamstop && !j.disabledTurbo;
+	if (id === 'boardTap' || id === 'skip') return !j.disabledSlamstop && !j.disabledTurbo;
 	if (id === 'turbo') return !j.disabledTurbo;
 	if (id === 'autoplay') return !j.disabledAutoplay;
 	if (id === 'feature') return !j.disabledBuyFeature;
@@ -117,6 +117,12 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 				]
 					.filter(Boolean)
 					.join(' '),
+			},
+			// SKIP TO RESULT (2026-11-19, components/SkipButton.svelte; Manticore's row, this game's rounds). Left out where the
+			// operator turns off the slam stop or turbo (guideRowShown)
+			skip: {
+				name: 'Skip to Result',
+				text: 'Shown during Free Spins and Super Free Spins once the first free spin has started (after the Super wheel). Pressing it asks "Skip to result?". Yes plays the spin in play quickly and leaves out the rest of the round\'s spins: the road shows the round\'s final board and the total win screen follows as it always does (it waits for a press, unless Autoplay Bonuses is on). No closes the question and the spins play on. It never changes the result.',
 			},
 			autoplay: {
 				name: 'Autoplay',

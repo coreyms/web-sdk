@@ -51,7 +51,8 @@ export const roundHasNothingLeft = (bet: { active?: boolean; payoutMultiplier?: 
 export const resumeCardWanted = (): boolean => !!stateBet.betToResume?.active && !roundHasNothingLeft(stateBet.betToResume) && !stateUrlDerived.replay();
 
 /** the events kept after the final board, in the book's order (the round's own end) */
-const END_EVENTS = ['floorTopUp', 'freeSpinEnd', 'wincap', 'finalWin'];
+export const SKIP_END_EVENTS = ['floorTopUp', 'freeSpinEnd', 'wincap', 'finalWin'];
+const END_EVENTS = SKIP_END_EVENTS;
 
 /** SKIP TO RESULT: the open round's book cut to its end (see the top of the file). */
 export const toSkippedBet = (bet: Bet): Bet => {
