@@ -28,6 +28,7 @@ import { SCENE_ART } from '../sceneArtSpec';
 import { ROAD_ART } from '../roadArtSpec';
 import type { LayoutKind } from '../layoutSpec';
 import type { ScenePreset } from '../scenePresets';
+import { FOREST_LINE } from '../forestLineSpec';
 
 const IMG = { width: 1536, height: 1024 };
 const TILE = { width: SCENE_ART.snowDay.field.road[2], height: SCENE_ART.snowDay.field.road[3] };
@@ -51,6 +52,33 @@ export const forestBottom = (rect: RoadRect, width: number): number => {
 	const height = width * FOREST_ASPECT;
 	bottom = Math.min(bottom, rect.top - F.topSpare + height, F.maxBelow);
 	return bottom;
+};
+
+/** WHERE THE FOREST IS DRAWN on an upright phone (road px): the screen's width or the picture's, whichever is wider,
+ *  its bottom by forestBottom. The one rule for the scene below, the roaming reindeer's tree line (the drawn forest) and
+ *  the billboard logo's foot (forestLineY). */
+export const forestBox = (rect: RoadRect) => {
+	const width = Math.max(IMG.width, rect.right - rect.left);
+	const height = width * FOREST_ASPECT;
+	const bottom = forestBottom(rect, width);
+	return { x: IMG.width / 2 - width / 2, y: bottom - height, width, height };
+};
+
+/** THE TREE LINE over x0 to x1 (road px) of the forest drawn for `rect`: the lowest tree pixel there, of every kit's
+ *  forest (game/forestLineSpec.ts), so what stands on it keeps one place through a scene swap. -Infinity: none there */
+export const forestLineY = (rect: RoadRect, x0: number, x1: number): number => {
+	const f = forestBox(rect);
+	let y = -Infinity;
+	for (const kit of Object.values(FOREST_LINE)) {
+		const line = kit.line as readonly number[];
+		for (let i = 0; i < line.length; i++) {
+			const a = f.x + (f.width * i) / line.length;
+			const b = f.x + (f.width * (i + 1)) / line.length;
+			if (b <= x0 || a >= x1) continue;
+			y = Math.max(y, f.y + f.height * line[i]);
+		}
+	}
+	return y;
 };
 
 /** the asset keys a preset draws on this view (the forest only on an upright phone, the ends only where its layouts
@@ -294,15 +322,11 @@ export class SceneLayers {
 				s.forest.addChild(s.forestSprite);
 			}
 			s.forestSprite.texture = forestTex;
-			const width = Math.max(IMG.width, r.right - r.left);
-			const height = width * FOREST_ASPECT;
-			const bottom = forestBottom(r, width);
-			const x = IMG.width / 2 - width / 2;
-			s.forestSprite.position.set(x, bottom - height);
-			s.forestSprite.width = width;
-			s.forestSprite.height = height;
+			forest = forestBox(r);
+			s.forestSprite.position.set(forest.x, forest.y);
+			s.forestSprite.width = forest.width;
+			s.forestSprite.height = forest.height;
 			s.forest.visible = true;
-			forest = { x, y: bottom - height, width, height };
 		} else s.forest.visible = false;
 
 		if (top) {

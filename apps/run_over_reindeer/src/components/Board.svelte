@@ -80,6 +80,8 @@
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { ROAD_ART } from '../game/roadArtSpec';
+	import { FOREST_LINE } from '../game/forestLineSpec';
+	import { forestLineY } from '../game/scene/sceneLayers';
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
@@ -181,6 +183,17 @@
 	let devGags = 0;
 	let devGagModes: string[] = [];
 	let logoHome: { x: number; y: number; width: number; height: number } | null = null;
+	/** how far the sign moved down off the trees on an upright phone (road px), and how far it still fell short (road px:
+	 *  the board's top in the way) */
+	let logoTreeDrop = 0;
+	let logoTreeShort = 0;
+	/** the sign's lowest visible pixel, a share of its box's height (its picture's alpha, logoSign footShares) */
+	const logoFootShare = () => {
+		const F = logo?.footShares();
+		let deep = -Infinity;
+		if (F) for (let i = 0; i < F.length; i++) if (!Number.isNaN(F[i])) deep = Math.max(deep, F[i]);
+		return Number.isFinite(deep) ? deep : 1;
+	};
 	let logoLiftWant = 0;
 	let logoLift = 0;
 	let logoLiftFrom: number | null = null;
@@ -488,6 +501,20 @@
 			logo.root.scale.set(k);
 			logo.root.position.set(ox, oy);
 			logoBaseY = oy;
+			// THE SIGN'S FOOT ON OPEN GROUND (constants LOGO_SIGN treeGapCss, boardGapCss): an upright phone only
+			logoTreeDrop = 0;
+			logoTreeShort = 0;
+			if (uprightPhone) {
+				const foot = box.y + logoFootShare() * box.height;
+				const line = forestLineY(rect, box.x, box.x + box.width);
+				if (Number.isFinite(line)) {
+					const want = line + LOGO_SIGN.treeGapCss / k - foot;
+					const room = ROAD_ART.laneLines[0] - LOGO_SIGN.boardGapCss / k - (box.y + box.height);
+					logoTreeDrop = Math.max(0, Math.min(want, room));
+					logoTreeShort = Math.max(0, want - logoTreeDrop);
+					box.y += logoTreeDrop;
+				}
+			}
 			logoHome = box;
 			placeLogo();
 		}
@@ -889,7 +916,30 @@
 					preset: stateScene.preset.name,
 					layers: road.scene.last,
 					picture: { x: ox, y: oy, width: 1536 * k, height: 1024 * k, k },
-					logo: b ? { road: b, css: { x: ox + b.x * k, y: oy + b.y * k, width: b.width * k, height: b.height * k }, lamps: logo!.levels() } : null,
+					logo: b
+						? {
+								road: b,
+								css: { x: ox + b.x * k, y: oy + b.y * k, width: b.width * k, height: b.height * k },
+								lamps: logo!.levels(),
+								/** its lowest visible pixel (CSS px), the drawn forest's tree line under it (CSS px, null: no forest), and
+								 *  how far it moved down off the trees and fell short (road px) */
+								foot: oy + (b.y + logoFootShare() * b.height) * k,
+								treeLine: (() => {
+									const f = road.scene.last.forest;
+									const line = f ? (FOREST_LINE[stateScene.preset.kit]?.line as readonly number[] | undefined) : undefined;
+									if (!f || !line) return null;
+									let y = -Infinity;
+									for (let i = 0; i < line.length; i++) {
+										const a = f.x + (f.width * i) / line.length;
+										const c = f.x + (f.width * (i + 1)) / line.length;
+										if (c > b.x && a < b.x + b.width) y = Math.max(y, f.y + f.height * line[i]);
+									}
+									return Number.isFinite(y) ? oy + y * k : null;
+								})(),
+								drop: logoTreeDrop,
+								short: logoTreeShort,
+							}
+						: null,
 				};
 			},
 			/** THE SCENE SWAP (game/scene/sceneSwap.ts): the preset shown, wanted and on the DOM side, the fade, the skins, every

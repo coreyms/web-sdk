@@ -2,12 +2,18 @@
 // WATCHES: apps/run_over_reindeer/src/{game/layoutSpec.ts,ui/hud/hudLayout.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.scene, HUD_BED, PORTRAIT, ROAD, ROAD_LAYOUT.portrait, data-hud
 // WATCHES: ; data-title-sign, .hudp, .landing
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/scene/sceneLayers.ts,game/forestLineSpec.ts}; LOGO_SIGN.treeGapCss
+// WATCHES: ; LOGO_SIGN.boardGapCss, forestLineY, forestBox, __reindeer.sceneWant, logo.foot, logo.treeLine
 // THE PORTRAIT ROAD PROBE (Job 4, Corey 2026-11-15: "Move it down about half of that distance"): at each portrait size
 // it measures, in CSS px, the road picture's top and bottom (from __reindeer.boardLayout()), the title sign's bottom,
 // and the HUD's real top (the higher of the dark bed's top edge and the HUD's highest readout or key), then the snow
 // above the road and the gap under it. Checks (unless BEFORE=1, which only measures): the gap under the road is midway
 // between the centred place and HUD_CLEAR above the HUD (or the road stays where it was when there is no room), the
 // board never meets the HUD or the title sign, and the reindeer's run band stays clear of the title.
+// THE SIGN'S FOOT ON OPEN GROUND (2026-11-19, Corey: "on portrait mode the logo bottom is never in the trees"): on every
+// upright phone size, in every scene preset (each draws the forest there), the sign's lowest visible pixel is at or under
+// the drawn forest's tree line, and the sign did not fall short of it (the board's top in the way); its box stays over the
+// board. Tablets draw no forest: nothing is asked there.
 // With OUT=<dir> it saves captures at 390x844 and 390x620 (device pixel ratio 3) and gaps_<tag>.json.
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [OUT=<dir>] [TAG=after] [BEFORE=1] \
 //     node tools/portrait_road_probe.mjs
@@ -29,6 +35,9 @@ const SIZES = [
 	{ vp: { width: 390, height: 844 }, phone: true, shot: true },
 	{ vp: { width: 390, height: 620 }, phone: true, shot: true },
 	{ vp: { width: 360, height: 640 }, phone: true },
+	{ vp: { width: 390, height: 664 }, phone: true },
+	// (an iPhone in Safari with its bars: Corey's staging shot, 2026-11-19)
+	{ vp: { width: 390, height: 580 }, phone: true },
 	{ vp: { width: 440, height: 956 }, phone: true },
 	{ vp: { width: 768, height: 1024 }, phone: false },
 	{ vp: { width: 820, height: 1180 }, phone: false },
@@ -48,7 +57,8 @@ const check = (ok, msg, detail) => {
 const r1 = (v) => Math.round(v * 10) / 10;
 
 (async () => {
-	const browser = await chromium.launch();
+	// (muted: a browser on Corey's Mac never plays sound)
+	const browser = await chromium.launch({ args: ['--mute-audio'] });
 	const rows = [];
 	try {
 		for (const S of SIZES) {
@@ -88,6 +98,17 @@ const r1 = (v) => Math.round(v * 10) / 10;
 				check(m.boardBottom <= m.hudEls - 0.5, `${name}: the board's bottom (${r1(m.boardBottom)}) stays above the HUD's highest readout or key (${r1(m.hudEls)})`);
 				check(m.titleBottom === null || m.boardTop - 167 * 0 > m.titleBottom, `${name}: the board stays under the title sign`);
 				check(row.gapBelow >= row.hudClearCss - 1 || row.gapBelow < 0, `${name}: the road picture's bottom keeps at least ${row.hudClearCss} px over the HUD's top, or it was already over it and stayed put (gap ${row.gapBelow})`);
+			}
+			if (!BEFORE && S.phone && m.kind === 'portrait') {
+				for (const preset of ['snowDay', 'snowNight', 'snowSuper', 'grassDay', 'grassNight', 'grassSuper']) {
+					await p.evaluate((n) => window.__reindeer.sceneWant(n), preset);
+					let lg = null;
+					for (let i = 0; i < 80 && !lg; i++) {
+						lg = await p.evaluate((n) => { const s = window.__reindeer.scene(); return s.preset === n && s.layers.fade === null && s.layers.forest && s.logo ? s.logo : null; }, preset).catch(() => null);
+						if (!lg) await sleep(250);
+					}
+					check(!!lg && lg.treeLine !== null && lg.foot >= lg.treeLine - 0.01 && lg.short < 0.01 && lg.css.y + lg.css.height < m.boardTop, `${name} ${preset}: the sign's foot (${lg ? r1(lg.foot) : '?'}) is on open ground, at or under the tree line (${lg ? r1(lg.treeLine) : '?'}); moved down ${lg ? r1(lg.drop) : '?'} road px; over the board`, lg && { foot: lg.foot, treeLine: lg.treeLine, drop: lg.drop, short: lg.short, bottom: lg.css.y + lg.css.height, boardTop: m.boardTop });
+				}
 			}
 			check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 3));
 			if (OUT && S.shot) await p.screenshot({ path: join(OUT, `job4_${TAG}_${name}.png`) });
