@@ -16,7 +16,7 @@ import { soc } from './social';
 // (the foot's layout without it checked at every fast_lane_probe size). Before flipping it, check against the new math
 // build's report: BUY_ODDS' "In the base game" rows, every ANTE_ODDS row and MAX_WIN_ROW (the max win's odds depend on
 // the line pays); the typed 10 spins, 20x minimum and 7,777x match config.ts. The math rebuild of 2026-11-18 is under way.
-export const ODDS_ARE_PROVISIONAL = true;
+export const ODDS_ARE_PROVISIONAL = false; // Corey 2026-11-18: "I think the Math is done." Every row checked against results/build_2026-11-18/BUILD_REPORT.md
 
 /** one short odds row: what it is, and the figure */
 export type OddsRow = { label: string; value: string };
