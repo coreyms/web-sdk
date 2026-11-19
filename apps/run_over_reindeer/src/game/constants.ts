@@ -629,7 +629,11 @@ export const SUPER_WHEEL = {
 	text: { emerge: 'SUPER WHEEL', press: 'PRESS SPIN', auto: 'GET READY', go: 'GO REINDEER', column: 'COLUMN', names: { reindeer: 'REINDEER', santa: 'SANTA', grandma: 'GRANDMA' } },
 	/** ITS SOUNDS: existing sounds only (none was made for the wheel; the moments still wanting their own are listed in
 	 *  the build's notes). null plays nothing. */
-	sound: { lid: null as string | null, traffic: true, press: null as string | null, leapOn: 'sfx_reindeer_dart', tick: 'sfx_target_hop', land: 'sfx_target_lock', landHigh: 'sfx_multiplier_land_high', landHighFrom: 15, ringIn: 'sfx_present_pop', ringTick: 'sfx_target_hop', land2: 'sfx_target_lock', leave: 'sfx_card_out' },
+	/** tickMinMs (2026-11-19): a tick is one stud passing the peg (8 a turn) or one place of the ring passing its pointer;
+	 *  at Super Turbo, in a slam, or on a slow device several pass within a frame or two, and a tick a frame is a buzz. No
+	 *  tick starts sooner than this many REAL ms after the one before (twice the hop's audible 30 ms); one due sooner is
+	 *  not played. At regular speed the fastest ticks are about 107 ms apart, so every one plays. */
+	sound: { lid: null as string | null, traffic: true, press: null as string | null, leapOn: 'sfx_reindeer_dart', tick: 'sfx_target_hop', tickMinMs: 60, land: 'sfx_target_lock', landHigh: 'sfx_multiplier_land_high', landHighFrom: 15, ringIn: 'sfx_present_pop', ringTick: 'sfx_target_hop', land2: 'sfx_target_lock', leave: 'sfx_card_out' },
 };
 
 // ---- THE HUD'S DARK BEDS (components/HudBeds.svelte) -------------------------------------------------------------------

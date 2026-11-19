@@ -31,8 +31,12 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		// a round left open is being played on: the board is busy until its finalWin, as for a round just started
 		stateGame.busy = true;
 		// THE SUPER WHEEL's plan is made from the round's whole events, before the cut below drops the ones already played:
-		// a round resumed before its opening column shows the same wheel it showed (or would have shown) live
-		prepareWheel(betToResume.state);
+		// a round resumed before its opening column shows the same wheel it showed (or would have shown) live.
+		// ONLY WHEN THE WHEEL WILL PLAY (2026-11-19): Skip to Result shows no wheel, and a round resumed past its opening
+		// column has none left to show; preparing it there loaded the wheel's sheet (13.7 MB on the GPU on desktop, 5.4 MB
+		// on a phone) for nothing, and nothing let it go.
+		const opening = betToResume.state.findIndex((e) => e?.type === 'columnWild' && e.start === true);
+		if (resumeRound.choice !== 'skip' && opening >= 0 && Number(betToResume.event ?? 0) <= opening) prepareWheel(betToResume.state);
 		// THE RESUME CARD (game/resumeRound.svelte.ts): Skip to Result plays the round's end at once; Play Round (and no card
 		// asked, a replay) plays it on from the event the RGS has reached, as before
 		return resumeRound.choice === 'skip' ? toSkippedBet(betToResume) : convertTorResumableBet(betToResume);

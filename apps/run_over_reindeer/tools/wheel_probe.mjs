@@ -598,6 +598,8 @@ async function resumeSection(browser) {
 		const end = await p.evaluate(() => ({ w: window.__reindeer.wheel(), calls: window.__rgsCalls.map((c) => c.path), settled: window.__reindeer.fixtures.log().settled, gt: window.__reindeer.gameType() }));
 		check(ok && end.calls.filter((c) => c === 'wallet/end-round').length === 1 && end.gt === 'basegame', `resume (${choice}): the round ends, idle and at rest, with one end-round`, { ok, calls: end.calls, gt: end.gt });
 		if (choice === 'skip') check(end.w.played === 0 && end.w.phase === null && !end.w.marks.start, 'resume (skip): Skip to Result shows no wheel', { played: end.w.played, marks: end.w.marks });
+		// (2026-11-19: Skip to Result loaded the wheel's sheet for a wheel it never shows, and nothing let it go)
+		check(end.w.art.loaded === false, `resume (${choice}): after the round the wheel's sheet is not on the GPU`, end.w.art);
 		check(errs.length === 0, `resume (${choice}): no page error`, errs);
 		void L;
 		await ctx.close();
@@ -634,6 +636,7 @@ async function resumeSection(browser) {
 			check(!!col && col[0].reel === fx.plan.real.reel && w.played === 0 && w.phase === null, `resume: a round resumed after its opening (event ${event}): no wheel, the column stands from the held list`, { col, played: w.played, phase: w.phase });
 		}
 		check(await settle(p), `resume (event ${event}): the round plays to its end`);
+		check((await W(p)).art.loaded === false, `resume (event ${event}): after the round the wheel's sheet is not on the GPU`);
 		check(errs.length === 0, `resume (event ${event}): no page error`, errs);
 		await ctx.close();
 	}
