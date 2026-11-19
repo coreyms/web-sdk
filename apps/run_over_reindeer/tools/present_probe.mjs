@@ -3,7 +3,8 @@
 // WATCHES: apps/run_over_reindeer/{static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.presentLoad
 // WATCHES: ; __reindeer.presentMemory, __reindeer.presentOpen, __reindeer.presentPeek, __reindeer.presentTrace, __reindeer.road
-// WATCHES: ; __reindeer.setBoard, __reindeer.step, __reindeer.tune, PRESENT, .landing
+// WATCHES: ; __reindeer.setBoard, __reindeer.step, __reindeer.tune, PRESENT, .landing, __reindeer.wheel, __reindeer.wheelMemory, presentWheelDone, wheelHold
+// WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/bookEventHandlerMap.ts}; __reindeer.turbo, __reindeer.gameType
 // THE PRESENT PROBE (the scatter present, Corey 2026-11-15; game/road/present.ts, tools/build_present.py). From the
 // running game with its board clock frozen and stepped one 30 fps frame at a time (__reindeer.clock(0), step), at each
 // size:
@@ -20,7 +21,11 @@
 //     5), the 4th and the 5th present to appear (first frame out of the tunnel, the landing order the tease counts) are
 //     red from their first frame (the red still, or the red pieces while they animate) and the first three never are;
 //     on the Super trigger all four play the full open (open, hold, close), the red one with the red pieces; a spin with
-//     fewer than 4 (the peek book, natural_free_spins) never shows red; the red sheets are let go after the trigger
+//     fewer than 4 (the peek book, natural_free_spins) never shows red
+//   - WHEN THE RED SHEETS ARE LET GO (2026-11-19, the Super wheel rises out of the red present): right after a natural
+//     Super's trigger the teal open is gone and the red peek and open are still held (for the wheel); once the wheel has
+//     come out and rests they are let go (none is held through the wheel's spins); after the round's end only the teal
+//     peek is loaded and the wheel's own sheet is let go too
 //   - no page errors (the Pixi 8 "reading 'addressModeU'" one included) and no console errors
 // It records the presents' GPU weight per tier (at rest and at the trigger's peak) and the frame counts of each clip.
 // With OUT=<dir> and SUPER_FRAMES=1 also a 30 fps frame sequence of the natural_super spin at 1440x900 (frames_super_1440x900).
@@ -228,7 +233,8 @@ async function stills(p, S, tag) {
 }
 
 /** THE RED PRESENT on a Super trigger: a fresh page (the base game at rest), natural_super stepped from the press to the
- *  presents closed again; the Super round that follows is not played */
+ *  presents closed again; then the Super round is played on at the game's own clock to check when the red sheets are let
+ *  go (kept past the trigger for the Super wheel, gone as the wheel comes to rest, nothing but the teal peek at the end) */
 async function runSuper(browser, S, report) {
 	const { ctx, p, errs } = await boot(browser, S);
 	const name = `${S.name} ${S.vp.width}x${S.vp.height}`;
@@ -260,15 +266,44 @@ async function runSuper(browser, S, report) {
 	check(SUPER_CELLS.every((c) => sParts(c) === 'open,hold,close'), `${name}: natural_super: all four presents play the full open (open, hold, close)`, Object.fromEntries(SUPER_CELLS.map((c) => [c, sParts(c)])));
 	check(SUPER_CELLS.every((c) => rs.traceVariant[c] === (redCells.includes(c) ? 'red' : 'teal')), `${name}: natural_super: the red present animates with the red pieces only, the teal ones with the teal pieces only`, rs.traceVariant);
 	check(superPeak && superPeak.openRed.sheets.length > 0 && superPeak.peekRed.sheets.length > 0 && superPeak.open.sheets.length > 0, `${name}: natural_super: the red peek and open sheets and the teal open were in for the trigger`, superPeak);
-	let superAfter = null;
+	// THE RED SHEETS AND THE SUPER WHEEL (2026-11-19; game/road/superWheel.ts, game/road/present.ts wheelHold): the wheel
+	// rises out of the red present after the entry card, so a book with a Super opening keeps the red peek and open
+	// sheets PAST the trigger; they are let go as the wheel comes to rest (its present's car has driven away by then), so
+	// nothing of them is held through the wheel's spins or the round. The teal open goes right after the trigger as it
+	// always did. The round is played on from here (the helper presses the entry card, the wheel and the wrap-up).
+	const sheetsNow = () => R(p, () => ({ ...window.__reindeer.presentMemory(), wheel: window.__reindeer.wheelMemory(), phase: window.__reindeer.wheel().phase, played: window.__reindeer.wheel().played }));
+	const untilSheets = async (ok, ms) => {
+		let m = null;
+		for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+			m = await sheetsNow();
+			if (ok(m)) break;
+			await sleep(150);
+		}
+		return m;
+	};
+	const idleUsers = (m) => Object.values(m.users).every((n) => n === 0);
 	await R(p, () => window.__reindeer.clock(1));
-	for (let i = 0; i < 20; i++) {
-		superAfter = await R(p, () => window.__reindeer.presentMemory());
-		if (!superAfter.open.sheets.length && !superAfter.openRed.sheets.length && !superAfter.peekRed.sheets.length) break;
-		await sleep(150);
+	// 1. right after the trigger (the entry card is up; the wheel has not come out)
+	const superAfter = await untilSheets((m) => !m.open.sheets.length, 3000);
+	check(superAfter && !superAfter.open.sheets.length && superAfter.peek.loaded && superAfter.openRed.loaded && superAfter.peekRed.loaded && superAfter.phase === null && superAfter.played === 0, `${name}: natural_super: after the trigger the teal open is let go and the teal peek stays; the red peek and open are KEPT for the Super wheel, which rises out of the red present (${superAfter?.peekRed.mbWithMips} + ${superAfter?.openRed.mbWithMips} MB)`, superAfter);
+	// 2. the wheel has come out and rests: the red sheets go there (the first moment they are no longer needed)
+	await untilSheets((m) => m.phase === 'rest' || m.played > 0, 120000);
+	const superRest = await untilSheets((m) => !m.openRed.sheets.length && !m.peekRed.sheets.length, 4000);
+	check(superRest && !superRest.openRed.sheets.length && !superRest.peekRed.sheets.length && !superRest.open.sheets.length && superRest.peek.loaded && idleUsers(superRest) && superRest.played === 0, `${name}: natural_super: once the wheel has come out and rests, the red sheets are let go: none is held through the wheel's spins (the wheel still up: ${superRest?.phase})`, superRest);
+	// 3. the round played to its end: only the teal peek is loaded, and the wheel's own sheet is let go
+	let superEnd = null;
+	for (const t0 = Date.now(); Date.now() - t0 < 300000; ) {
+		const st = await R(p, () => ({ idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), gt: window.__reindeer.gameType(), gates: window.__reindeer.hud.gates() }));
+		if (st.gt === 'freegame') await R(p, () => window.__reindeer.turbo(2));
+		if (st.idle && st.rest && st.gt === 'basegame' && st.gates === 0) {
+			await sleep(800);
+			superEnd = await sheetsNow();
+			if (await R(p, () => window.__reindeer.hud.idle() && window.__reindeer.atRest())) break;
+		}
+		await sleep(300);
 	}
-	check(superAfter && !superAfter.openRed.sheets.length && !superAfter.peekRed.sheets.length && !superAfter.open.sheets.length && superAfter.peek.loaded, `${name}: natural_super: after the trigger the red sheets and the teal open are let go, the teal peek stays`, superAfter);
-	out.super = { order: rs.order, red: redCells, frames: rs.frames, traceVariant: rs.traceVariant, peakMemory: superPeak, afterMemory: superAfter };
+	check(superEnd && superEnd.played === 1 && superEnd.phase === null && !superEnd.openRed.sheets.length && !superEnd.peekRed.sheets.length && !superEnd.open.sheets.length && superEnd.peek.loaded && !superEnd.wheel.loaded && idleUsers(superEnd), `${name}: natural_super: after the round's end only the teal peek is loaded (${superEnd?.totalWithMips} MB); the red sheets, the teal open and the wheel's own sheet are let go`, superEnd);
+	out.super = { order: rs.order, red: redCells, frames: rs.frames, traceVariant: rs.traceVariant, peakMemory: superPeak, afterMemory: superAfter, restMemory: superRest, endMemory: superEnd };
 	if (OUT) writeFileSync(join(OUT, `super_${S.vp.width}x${S.vp.height}.md`), table(sOpen, sOpen[0]?.t ?? 0, `Super trigger (natural_super), ${name}`));
 	check(errs.length === 0, `${name}: natural_super: no page or console errors`, errs.slice(0, 5));
 	await ctx.close();

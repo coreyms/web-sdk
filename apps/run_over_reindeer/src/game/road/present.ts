@@ -236,7 +236,9 @@ export const presentTriggerPlayed = () => {
 		void releasePresent('peek-red');
 	}
 };
-/** the Super wheel has come out of the red present (or the round went on without it): the red sheets may go */
+/** the Super wheel has come out of the red present (components/Board.svelte: as it comes to rest, its present's car gone),
+ *  or the round went on without it (game/bookEventHandlerMap.ts, at the opening column): the red sheets may go. A present
+ *  still drawing them (never the case at these moments) keeps them until it stops (releasePresent). */
 export const presentWheelDone = () => {
 	if (!wheelHold) return;
 	wheelHold = false;

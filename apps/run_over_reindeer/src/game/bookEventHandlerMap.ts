@@ -19,6 +19,7 @@ import { boardRate, stateGame, type RoundCard } from './stateGame.svelte';
 import { sceneHooks, stateScene } from './stateScene.svelte';
 import { presetForMode } from './scenePresets';
 import { loadClip } from './road/columnClips';
+import { presentWheelDone } from './road/present';
 import type { Board } from './types';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import { bonusEntered, bonusLeft } from './bonusStockRules';
@@ -180,6 +181,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			devMark('wheel', plan ? `${plan.real.tier} ${plan.real.m}x reel ${plan.real.reel} seed ${plan.seed.toString(16)}` : 'no plan');
 			if (plan) await eventEmitter.broadcastAsync({ type: 'boardSuperWheel', plan });
 		}
+		// THE RED PRESENT'S SHEETS were kept past the trigger for the wheel (game/road/present.ts): whatever happened above
+		// (the wheel played, could not play, is switched off, or the round has no plan), they are not needed past here
+		if (bookEvent.start === true) presentWheelDone();
 		await eventEmitter.broadcastAsync({
 			type: 'boardColumnWild',
 			reel: bookEvent.reel,

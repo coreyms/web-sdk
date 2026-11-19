@@ -354,7 +354,13 @@
 			// DEV: the phase into the road's log, on the board's own clock (the probe's timings)
 			if (import.meta.env.DEV) road.features.sounds.mark('wheel', phase ?? 'gone');
 			// THE REST: the Spin key is the wheel's from here, at regular pace (a slam stop spent on the way in ends here)
-			if (phase === 'rest') context.eventEmitter.broadcast({ type: 'stopButtonEnable' });
+			if (phase === 'rest') {
+				context.eventEmitter.broadcast({ type: 'stopButtonEnable' });
+				// THE RED PRESENT'S SHEETS GO HERE (2026-11-19, the probe host's present_probe): the wheel has come out of it and
+				// its car has driven away, so nothing draws them through the wheel's spins (22 MB on desktop, 3 MB on a phone,
+				// held only from the trigger to this moment; game/road/present.ts presentWheelDone)
+				presentWheelDone();
+			}
 		},
 	};
 	// a press on the wheel is the board's tap (ui/controls.svelte.ts boardTap: the wheel's press at rest, the slam stop after)
@@ -877,7 +883,7 @@
 			wheelUnderBoard();
 			await wheel.play(plan);
 			wheelLayerBack();
-			// (played or not, the red present's sheets may go now, game/road/present.ts)
+			// (a wheel that could not play never came to rest: the red present's sheets go here, game/road/present.ts)
 			presentWheelDone();
 		},
 		wheelPress: () => {
