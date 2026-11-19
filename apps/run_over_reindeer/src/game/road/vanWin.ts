@@ -2,8 +2,8 @@
 // While a line win through the van (H3) shows:
 //   1. THE LURCH AND THE BACKFIRE (the first lurchMs, the length of sfx_win_h3_van's body: its 300 ms engine burst):
 //      the van jolts forward and squats, its nose lifting about the rear wheel's contact and settling back with one
-//      bounce (a damped spring), and the exhaust (the rear bumper's lower corner: no tail pipe is drawn) coughs one or
-//      two dark smoke puffs that drift up and back, grow and fade.
+//      bounce (a damped spring), and the exhaust (the rear bumper's lower corner: no tail pipe is drawn) coughs a few
+//      smoke puffs (VAN_WIN.puffs: three since 2026-11-19) that drift up and back, grow and fade.
 //   2. THE ROCKING AND THE FLASHLIGHT (from then to the end of the win): the body sways on its springs (a lean by skew
 //      and a small bounce by its height, both about its wheel line, so the wheels stay on the road) as if someone moves
 //      about inside, and a warm flashlight beam sweeps behind the two dark windows and flickers. The beam is a row of
@@ -74,7 +74,8 @@ export class VanWinFx {
 			layer.addChild(s);
 			this.puffs.push(s);
 		}
-		for (let i = 0; i < slots; i++) {
+		// (each slot's glow `layers` times: glows[i] draws slot i % slots)
+		for (let i = 0; i < slots * Math.max(1, VAN_WIN.light.layers); i++) {
 			const s = new PIXI.Sprite(glow);
 			s.anchor.set(0.5);
 			s.blendMode = 'add';
@@ -142,9 +143,11 @@ export class VanWinFx {
 		let ga = 0;
 		let shown = 0;
 		let fit = true;
-		for (let i = 0; i < this.glows.length; i++) {
-			const g = this.glows[i];
-			const s = slots[i];
+		const layers = Math.max(1, Math.min(Math.round(this.glows.length / Math.max(1, slots.length)), VAN_WIN.light.layers));
+		for (let gi = 0; gi < this.glows.length; gi++) {
+			const g = this.glows[gi];
+			const i = gi % Math.max(1, slots.length);
+			const s = gi < slots.length * layers ? slots[i] : undefined;
 			if (!s || m.phase !== 'rock' || m.beamLevel <= 0) {
 				g.visible = false;
 				continue;

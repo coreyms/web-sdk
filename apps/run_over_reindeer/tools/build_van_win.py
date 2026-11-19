@@ -32,12 +32,14 @@ APP = os.path.dirname(HERE)
 SYM = os.path.join(APP, "static", "assets", "symbols")
 MIN_AREA = 0.004  # share of the frame's pixels
 SLOTS = 4
-PUFF_ROAD = 48  # the puff's largest draw, road px (VAN_WIN.puff.size x its end scale)
+PUFF_ROAD = 96  # the puff's largest draw, road px (VAN_WIN.puff.size x its end scale; 48 until 2026-11-19, when the puff
+# grew from 40 to 70 road px so it reads on a phone: Corey had never noticed the backfire)
+PUFF_LINE = 0.09  # its dark outline, a share of its size (0.06 until 2026-11-19: a darker edge against the asphalt)
 DENSITY = {"full": 3.2, "phone": 1.2}  # px per road px: the symbol atlas's own (tools/build_assets.py)
 
 
 def draw_puff(px):
-    """a cartoon smoke puff, px x px: four lobes, gray lit from the top left, a dark outline about 0.06 of its size"""
+    """a cartoon smoke puff, px x px: four lobes, gray lit from the top left, a dark outline PUFF_LINE of its size"""
     S = 4  # supersampled
     n = px * S
     yy, xx = np.mgrid[0:n, 0:n] / n
@@ -46,7 +48,7 @@ def draw_puff(px):
     for cx, cy, r in lobes:
         inside |= (xx - cx) ** 2 + (yy - cy) ** 2 <= r * r
     m = Image.fromarray((inside * 255).astype(np.uint8))
-    line = max(3, int(round(n * 0.06)) | 1)
+    line = max(3, int(round(n * PUFF_LINE)) | 1)
     outer = np.asarray(m.filter(ImageFilter.MaxFilter(line))) > 127
     shade = np.clip(0.55 + 0.35 * (1 - (xx * 0.6 + yy * 0.8)), 0, 1)
     rgb = np.zeros((n, n, 3))

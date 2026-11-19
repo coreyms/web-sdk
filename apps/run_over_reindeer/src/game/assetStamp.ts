@@ -278,8 +278,8 @@ export default {
 	"road/shadow.webp": "e5e8af63",
 	"road/tunnel-left.webp": "e95c5270",
 	"road/tunnel-right.webp": "c5b294b7",
-	"road/van-puff-phone.webp": "d430fa66",
-	"road/van-puff.webp": "0afe84dc",
+	"road/van-puff-phone.webp": "0dab7be2",
+	"road/van-puff.webp": "ee28ee6e",
 	"road/win-lights-phone.webp": "903493e8",
 	"road/win-lights.webp": "161fcb04",
 	"scene/grass-day-band-bottom.webp": "93b83891",
@@ -642,8 +642,8 @@ export const fileBytes = {
 	"road/shadow.webp": 9834,
 	"road/tunnel-left.webp": 62364,
 	"road/tunnel-right.webp": 61930,
-	"road/van-puff-phone.webp": 1938,
-	"road/van-puff.webp": 5074,
+	"road/van-puff-phone.webp": 3838,
+	"road/van-puff.webp": 9288,
 	"road/win-lights-phone.webp": 6522,
 	"road/win-lights.webp": 19192,
 	"scene/grass-day-band-bottom.webp": 9524,
@@ -733,4 +733,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-heavy.woff2": 35400
 } as const;
 
-export const bootSizes = {"landing":64084,"preload":6231930,"audio":901338} as const;
+export const bootSizes = {"landing":64084,"preload":6236144,"audio":901338} as const;

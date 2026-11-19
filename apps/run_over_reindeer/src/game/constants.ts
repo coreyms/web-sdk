@@ -1225,6 +1225,13 @@ export const POLICE_LIGHTS = {
 // sfx_win_h3_van's body: a steady 300 ms burst from its first frame, then a 300 ms tail 30 dB down), then THE ROCKING
 // AND THE FLASHLIGHT for the rest of the win. Times on the win clock (real ms; a slam stop hurries it), from the frame
 // the lines show (the sound's own frame). Sizes in road px at the van's built size.
+// 2026-11-19 (Corey: "some things never got done, the flashlights on the Oh Kay Van, the backfire, on the win"): it
+// always fired, but at its first numbers it was too small and too faint to notice at play size (a van is about 100 CSS
+// px wide on a 1440 x 900 desktop and 33 on an upright phone, its windows a fifth of that, and the win line's wire and
+// bulbs cross them). Same design, made readable: the puff 40 to 70 road px with a darker edge (tools/build_van_win.py)
+// and three of them, the rocking and the lurch stronger, the beam wider and steadier, each glow drawn twice (layers).
+// Before: lurch 2.4 deg / 5 px, puffs [20, 140] of 40 px to 1.2 over 620 ms, rock 2.2 deg / 0.018, light width 0.34,
+// sweep 900 ms, flicker 0.35, ramp 140 ms, one layer.
 export const VAN_WIN = {
 	/** false = the van does nothing in a win */
 	on: true,
@@ -1232,20 +1239,21 @@ export const VAN_WIN = {
 	lurchMs: 300,
 	/** THE LURCH: a damped spring. The nose lifts about the rear wheel by up to squatDeg (the rear squats), the body
 	 *  jolts forward by up to joltPx; one bounce back (periodMs) and it settles (decayMs) */
-	lurch: { squatDeg: 2.4, joltPx: 5, periodMs: 280, decayMs: 120 },
+	lurch: { squatDeg: 3.2, joltPx: 8, periodMs: 280, decayMs: 120 },
 	/** THE BACKFIRE: one puff from the exhaust at each of these ms */
-	puffs: [20, 140],
+	puffs: [20, 120, 230],
 	/** each puff: its width (road px) grows from `from` to `to` times `size` over lifeMs while it drifts `back` road px
 	 *  backward (it starts `out` behind the bumper) and `rise` up; it comes in over inMs and fades out */
-	puff: { size: 40, from: 0.45, to: 1.2, lifeMs: 620, back: 46, out: 6, rise: 40, inMs: 50, alpha: 1 },
+	puff: { size: 70, from: 0.5, to: 1.35, lifeMs: 820, back: 64, out: 8, rise: 52, inMs: 40, alpha: 1 },
 	/** THE ROCKING: a lean (skew) up to leanDeg and a bounce of the body's height, about the wheel line, period
 	 *  periodMs, coming in over rampMs */
-	rock: { leanDeg: 2.2, bounce: 0.018, periodMs: 520, rampMs: 140 },
+	rock: { leanDeg: 3.2, bounce: 0.028, periodMs: 520, rampMs: 80 },
 	/** THE FLASHLIGHT: warm, added; a beam `width` (a share of the slots) wide sweeps across the windows' slots and back
 	 *  every sweepMs and flickers (down by up to `flicker`, a new draw every flickerMs). fill: each glow's width against
 	 *  twice the glass's depth at its slot: the soft blob's outer quarter is all but clear, so 1.25 keeps its visible
-	 *  light on the glass (the van probe checks it against the measured depth) */
-	light: { tint: 0xfff0c8, alpha: 1, width: 0.34, sweepMs: 900, flicker: 0.35, flickerMs: 60, fill: 1.25 },
+	 *  light on the glass (the van probe checks it against the measured depth). layers: each glow drawn this many times
+	 *  over itself (added: brighter, never wider) */
+	light: { tint: 0xfff0c8, alpha: 1, width: 0.6, sweepMs: 1100, flicker: 0.18, flickerMs: 60, fill: 1.25, layers: 2 },
 };
 
 // ---- THE CHRISTMAS TREE ON THE STATION WAGON (Corey 2026-11-16: "Yes this one looks good."; game/road/wagonTree.ts,
