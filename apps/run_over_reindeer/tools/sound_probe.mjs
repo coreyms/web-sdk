@@ -4,13 +4,13 @@
 // WATCHES: ; __reindeer.ambience, __reindeer.atRest, __reindeer.fixtures, __reindeer.forceSnort, __reindeer.frame, __reindeer.hud
 // WATCHES: ; __reindeer.presentTrace, __reindeer.roadSoundState, __reindeer.roadSounds, __reindeer.runMemory, __reindeer.soundTap
 // WATCHES: ; __reindeer.tune, __reindeer.turbo, __reindeer.stockRules, COLUMN, CROSSHAIR, LANE_FLOW, PRESENT.loadWaitMs, REINDEER_SOUND.cutTurn
-// WATCHES: ; REINDEER_SOUND.reelStopTurbo2, REINDEER_SOUND, ROAD, ROUND, bgm_base, sfx_card_in, sfx_card_out, sfx_cluster_remove
+// WATCHES: ; REINDEER_SOUND.reelStopTurbo2, REINDEER_SOUND, ROAD, ROUND, bgm_base, sfx_card_in, sfx_card_out
 // WATCHES: ; sfx_column_grandma_in, sfx_column_grow, sfx_column_reindeer_in, sfx_column_santa_in, sfx_column_win_grandma
 // WATCHES: ; sfx_column_win_reindeer, sfx_column_win_santa, sfx_crash, sfx_crash_cloud, sfx_grandma_wild, sfx_intro_jingle_short
 // WATCHES: ; sfx_lane_stop_*, sfx_line_show, sfx_multiplier_land_high, sfx_multiplier_land_mid, sfx_multiplier_land_small, sfx_present_pop
-// WATCHES: ; sfx_redbox, sfx_reel_spin, sfx_reel_stop, sfx_reindeer_alert, sfx_reindeer_dart, sfx_reindeer_idle_snort, sfx_reindeer_run
-// WATCHES: ; sfx_reindeer_turn, sfx_scatter_land_*, sfx_scatter_land_1, sfx_scatter_success, sfx_scatter_tease, sfx_sticky_set, sfx_sting_hit
-// WATCHES: ; sfx_stoplight_change, sfx_swipe, sfx_target_drop, sfx_target_hop, sfx_target_lock, sfx_topup, sfx_traffic_roll, sfx_ui_minor
+// WATCHES: ; sfx_redbox, sfx_reindeer_alert, sfx_reindeer_dart, sfx_reindeer_idle_snort, sfx_reindeer_run
+// WATCHES: ; sfx_reindeer_turn, sfx_scatter_land_*, sfx_scatter_land_1, sfx_scatter_success, sfx_scatter_tease, sfx_sticky_set
+// WATCHES: ; sfx_stoplight_change, sfx_target_drop, sfx_target_hop, sfx_target_lock, sfx_topup, sfx_traffic_roll, sfx_ui_minor
 // WATCHES: ; sfx_win_h1_grandma, sfx_win_h2_wagon, sfx_win_h3_van, sfx_win_h4_police, sfx_win_low_*, .landing, .hudp, .spin
 // THE SOUND PROBE (the reindeer's own sounds, wired 2026-11-15; constants REINDEER_SOUND, game/road/roadSounds.ts):
 // plays real fixture rounds in the running game with the board clock running in real time, and records two logs side
@@ -108,14 +108,19 @@ const COLUMN_WIN = { reindeer: 'sfx_column_win_reindeer', santa: 'sfx_column_win
 const CARDS = ['sfx_card_in', 'sfx_card_out', 'sfx_topup'];
 const OURS3 = ['sfx_column_grow', ENTRANCE.santa, ENTRANCE.grandma, ...Object.values(COLUMN_WIN), 'sfx_sticky_set', ...CARDS, 'amb_road'];
 const OURS = [...OURS1, ...OURS2, ...OURS3];
-// the borrowed Manticore sounds whose moments have this game's own now: none of them may play
+// the borrowed Manticore sounds whose moments have this game's own now: none of them may play (since 2026-11-19 none of
+// them is in the sprite either: LEFT_OUT below)
 const REPLACED = ['sfx_reel_stop', 'sfx_reel_spin', 'sfx_cluster_remove', 'sfx_swipe', 'sfx_sting_hit'];
+// MANTICORE'S CLIPS LEFT OUT OF THIS SPRITE (2026-11-19, tools/build_audiosprite.py ROR_LEAVES_OUT): the game never
+// played them, and the sprite must not carry them again
+const LEFT_OUT = [...REPLACED, 'sfx_tile_double', 'sfx_cascade', 'sfx_money_counter', 'sfx_roar', 'sfx_roar_win', 'sfx_sting_big_charge', 'sfx_sting_big_hit', 'sfx_sting_super_charge', 'sfx_sting_super_hit', 'sfx_scatter_sting', 'sfx_mystery_tease', 'sfx_mystery_decision', 'sfx_chain_heavy', 'sfx_chain_light', 'sfx_chain_light_logo', 'sfx_fire_super', 'sfx_fire_epic', 'sfx_manticore_breath_1', 'sfx_manticore_breath_2', 'sfx_manticore_snarl_1', 'sfx_manticore_snarl_2', 'sfx_manticore_growl_1', 'sfx_manticore_growl_2', 'sfx_plaque_land', 'sfx_clear_l1', 'sfx_clear_l2', 'sfx_clear_l3', 'sfx_clear_l4', 'sfx_clear_m1', 'sfx_clear_m2', 'sfx_clear_m3', 'sfx_clear_h1', 'sfx_manticore_roar_win_1'];
 // the house standards, the same in every game
 const STANDARD = /^sfx_(ui_|scatter_land_|scatter_success|bonus_confirm|money_counter|intro_jingle_short)/;
 // the sprite's lengths, ms (sounds.json)
 const LEN = { sfx_reindeer_alert: 600, sfx_reindeer_run: 1200, sfx_reindeer_turn: 250, sfx_crash: 933, sfx_crash_cloud: 4000, sfx_grandma_wild: 593, sfx_column_reindeer_in: 1234, sfx_reindeer_idle_snort: 600, sfx_traffic_roll: 2000, sfx_stoplight_change: 256, sfx_target_hop: 77, sfx_target_drop: 97, sfx_target_lock: 342, sfx_reindeer_dart: 476, sfx_redbox: 244, sfx_line_show: 197, sfx_present_pop: 800 };
 // every one-shot's own length in the sprite (static/assets/audio/sounds.json): no play of it sounds longer
-const SPRITE_LEN = Object.fromEntries(Object.entries(JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'static', 'assets', 'audio', 'sounds.json'), 'utf8')).sprite).filter(([, v]) => !v[2]).map(([k, v]) => [k, v[1]]));
+const SPRITE = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'static', 'assets', 'audio', 'sounds.json'), 'utf8')).sprite;
+const SPRITE_LEN = Object.fromEntries(Object.entries(SPRITE).filter(([, v]) => !v[2]).map(([k, v]) => [k, v[1]]));
 
 // PASS 8: posed scatter boards (the lane stagger probe's own): [lane (row), reel]; a base game book with no win
 const SCAT = { sup: [[0, 1], [1, 3], [2, 2], [3, 0]], five: [[0, 1], [1, 3], [2, 2], [3, 0], [3, 4]] };
@@ -170,6 +175,12 @@ const check = (ok, msg, detail) => {
 	else fail += 1;
 	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 400)) : ''}`);
 };
+// THE SPRITE ITSELF (2026-11-19): 66 clips, none of Manticore's left-out ones (sounds.json, before any browser)
+{
+	const back = LEFT_OUT.filter((k) => k in SPRITE);
+	check(back.length === 0, `the sprite carries none of the ${LEFT_OUT.length} left-out Manticore clips`, back);
+	check(Object.keys(SPRITE).length === 66, `the sprite has 66 clips (${Object.keys(SPRITE).length})`);
+}
 
 async function boot(browser, S) {
 	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr, isMobile: S.phone, hasTouch: S.phone });
@@ -270,6 +281,9 @@ async function runCase(p, S, C) {
 	const roundEnd = await p.evaluate(() => ({ t: performance.now(), frame: window.__reindeer.frame(), playing: window.__reindeer.soundTap().playing, state: window.__reindeer.roadSoundState(), ambience: window.__reindeer.ambience?.() ?? null }));
 	if (C.idle) await sleep(IDLE_MS);
 	const out = await p.evaluate(() => ({ road: window.__reindeer.roadSounds(), tap: window.__reindeer.soundTap(), t0: window.__caseT0, now: performance.now(), frame: window.__reindeer.frame() }));
+	// every sound the road asked for is a clip of the sprite (Howler plays an unknown name as silence, with no error)
+	const unknown = [...new Set(out.road.filter((e) => e.kind === 'sound' && /^(sfx|amb)_/.test(e.what) && !(e.what in SPRITE)).map((e) => e.what))];
+	check(unknown.length === 0, `${S.name} ${C.id}: every sound the road asked for is in the sprite`, unknown);
 	// the book itself (the dev server serves the fixture module): what the line win sounds are checked against
 	out.book = C.posed ?? (await p.evaluate(async (name) => (await import('/src/fixtures/fixtureRgs.ts')).FIXTURE_ROUNDS.find((r) => r.name === name)?.events ?? null, C.book).catch(() => null));
 	await p.evaluate(() => {
