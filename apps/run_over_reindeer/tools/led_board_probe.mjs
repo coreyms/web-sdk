@@ -1128,7 +1128,8 @@ async function flows(p, S, errs) {
 		const code = race.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 		check(!/Math\.random/.test(code) && /raceRandom/.test(code), `${tag}: the race draws from its own seeded source (no Math.random in its code)`);
 		const handlers = readFileSync(join(SRC, 'game', 'bookEventHandlerMap.ts'), 'utf8');
-		check(!/race/i.test(handlers), `${tag}: nothing of a round touches the race (the book handlers never mention it)`);
+		// Promise.race is JavaScript's own (the handlers use it to cap a clip wait); only the scoreboard's race counts
+		check(!/race/i.test(handlers.replace(/Promise\.race/g, '')), `${tag}: nothing of a round touches the race (the book handlers never mention it)`);
 		// on the strip: the race cartoon, forced, plays and its card says the result
 		await R(p, () => window.__reindeer.scoreboardRace('tie'));
 		await sleep(400);
