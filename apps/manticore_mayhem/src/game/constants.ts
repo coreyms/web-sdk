@@ -4232,12 +4232,14 @@ export const LOGO_KEY = {
 	layouts: { landscape: 'key', portrait: 'key', phone: 'logo', popout: 'logo' } as Record<'landscape' | 'portrait' | 'phone' | 'popout', 'key' | 'logo'>,
 	/** Popout S: a canvas no wider and no taller than this, CSS px (the AutoplayModal's popS rule) */
 	popout: { maxWidth: 480, maxHeight: 300 },
-	/** THE TWO STATES (the coordinator's rule, each a tunable): KEY from the spin press until the round is over and the board
-	 *  at rest, then LOGO after restHoldMs unless the next round starts first (and never while an autoplay run is on), so a
-	 *  round flips at most once; KEY throughout a feature (its intro to its wrap-up: its lit tiles persist); LOGO on the
-	 *  landing screen. restWithLit 'key': the KEY also holds while lit tiles stay on the board at rest (a base spin's tiles
-	 *  stay until the next spin's reveal clears them, so it does) */
-	state: { fadeMs: 280, restHoldMs: 1000, featureKey: true, restWithLit: 'key' as 'logo' | 'key' },
+	/** THE TWO STATES (2026-11-18, r2; Corey: "I would leave this as the Logo until there's actually a win on the board during
+	 *  a spin, it flashes to a blank slate on every spin which is a little annoying"). LOGO by default, a spin press alone
+	 *  changes nothing. KEY the moment the first tile on the board lights (a win), over fadeMs; it stays while any tile is
+	 *  lit (the rest of the round, a feature once a tile has lit or when it inherits lit tiles, at rest while a base spin's
+	 *  tiles are still on the board); LOGO restHoldMs after the board has no lit tile, so the next spin's reveal clearing the
+	 *  tiles does not flash the LOGO when its win lights them again within that time. While it waits the key keeps showing
+	 *  the last lit values (it is never a blank slate). LOGO on the landing screen */
+	state: { fadeMs: 280, restHoldMs: 1000 },
 	/** brightness (tint grey) of an unlit square, and of x128 where it cannot occur (a tileCap under 128: the Base Game and
 	 *  Free Spins), and the lit / unlit change's time */
 	unlit: 0x5c / 255,

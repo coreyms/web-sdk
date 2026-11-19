@@ -186,6 +186,11 @@
 	const slot = new Int8Array(129).fill(-1);
 	KEY_VALUES.forEach((v, i) => (slot[v] = i));
 	let anyLit = $state(false);
+	/** DEV / probe: every change of "a tile on the board is lit", when (performance.now()) */
+	const litLog: { lit: boolean; at: number }[] = [];
+	/** the board cleared while the KEY was up: applied to the key once the panel is back on the LOGO */
+	let clearPending = false;
+	let pendingCap = 64;
 	/** DEV (logo_probe.js, the sheet's frame strips): values held in place of the board's, null = the board's */
 	let devLive: number[] | null = $state(null);
 	/** DEV: the panel's and the key's time runs this many times slower (the frame strips of the crossfade and the change) */
@@ -208,10 +213,22 @@
 			for (const v of devLive) if (v > 0 && v <= 128 && slot[v] >= 0) (counts[slot[v]] += 1), (lit = true);
 		}
 		untrack(() => {
-			key.setLive(counts, cap);
-			// the LOGO is up: the key is not seen, so its change lands at once (no punch left over for the KEY's return)
-			if (panelA === 0) key.finish();
+			if (import.meta.env.DEV && lit !== anyLit) {
+				litLog.push({ lit, at: performance.now() });
+				if (litLog.length > 400) litLog.splice(0, 200);
+			}
 			anyLit = lit;
+			if (lit || panelA === 0) {
+				key.setLive(counts, cap);
+				// the LOGO is up: the key is not seen, so its change lands at once (no punch left over for the KEY's return)
+				if (panelA === 0) key.finish();
+				clearPending = false;
+			} else {
+				// THE BOARD HAS NO LIT TILE while the KEY is up: the key keeps its last lit values through the hold and the fade
+				// back to the LOGO (never a blank slate); the clear lands once the LOGO is up (panelTick), or a new win replaces it
+				clearPending = true;
+				pendingCap = cap;
+			}
 			wakePanel();
 		});
 	});
@@ -227,12 +244,8 @@
 	const S = LOGO_KEY.state;
 	const inFeature = $derived(sg.bonusMode !== null || sg.gameType !== 'basegame');
 	const roundOn = $derived(!context.stateXstateDerived.isIdle() || sg.busy || sg.readouts.length > 0 || (stateBet.autoSpinsCounter ?? 0) !== 0);
-	/** the KEY is wanted right now (before the hold back to LOGO) */
-	const wantKey = $derived(
-		devPanel !== null
-			? devPanel === 'key'
-			: !context.stateLayout.showLoadingScreen && keyLayout && (roundOn || (S.featureKey && inFeature) || (S.restWithLit === 'key' && anyLit)),
-	);
+	/** the KEY is wanted right now (before the hold back to LOGO): only while a tile on the board is lit (LOGO_KEY.state) */
+	const wantKey = $derived(devPanel !== null ? devPanel === 'key' : !context.stateLayout.showLoadingScreen && keyLayout && anyLit);
 	let panelKey = $state(false);
 	let holdTimer: ReturnType<typeof setTimeout> | null = null;
 	/** DEV / probe: every flip, when it happened (performance.now()) */
@@ -275,6 +288,11 @@
 			const step = dt / Math.max(1, S.fadeMs);
 			panelA = to > panelA ? Math.min(to, panelA + step) : Math.max(to, panelA - step);
 			applyPanel();
+		}
+		if (panelA === 0 && clearPending) {
+			key.setLive(counts, pendingCap);
+			key.finish();
+			clearPending = false;
 		}
 		const moving = panelA > 0 ? key.tick(dt) : false;
 		// the KEY breathes its ring while it is up; nothing else keeps this running
@@ -476,6 +494,8 @@
 						log: panelLog.slice(-40),
 						/** every flip since the mount (log holds the last 40) */
 						flips: panelLog.length,
+						/** the whole flip log and the lit log since `since` (performance.now()), for the probe's event check */
+						events: (since = 0) => ({ panel: panelLog.filter((x) => x.at >= since), lit: litLog.filter((x) => x.at >= since), now: performance.now() }),
 						...key.state(),
 					}),
 					/** values held in place of the board's (e.g. [2, 2, 4]); null = the board's again */
