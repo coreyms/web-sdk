@@ -541,6 +541,9 @@ async function sectionAutoCards(browser) {
 		const outroLimit = C.on ? 15000 : ROUND.outroAutoMs + 1500;
 		while (Date.now() - t1 < 200000) {
 			const c = await card();
+			// (a Super round's wheel waits for its press when Autoplay Bonuses is off, 2026-11-18: ui/WheelGate.svelte; with
+			// the option on it starts itself and is never there to press)
+			await p.evaluate(() => document.querySelector('button[data-wheel-gate]')?.click()).catch(() => {});
 			if (!raised && c === null && (await SR(p)).gameType === 'freegame') {
 				while ((await turboKey(p)) !== 2) {
 					await p.click('.hudp button[aria-label^="Turbo"]');

@@ -173,3 +173,17 @@ export function showPressLine(F: Face, t: number, ready: boolean, line: string) 
 	else drawText(g, line, Math.round(W - (((t / 1000) * 26 * s) % (w + W))), y, s, '#ffe7b0');
 	g.globalAlpha = 1;
 }
+
+/** THE SUPER WHEEL'S LINE (constants SUPER_WHEEL.text; game/road/superWheel.ts says it): one line of capitals fitted to the
+ *  strip, gold or white; `blink`: dark one beat in three (a result, the press line) */
+export type WheelLine = { text: string; tone: 'gold' | 'white'; blink: boolean };
+export function showWheelLine(F: Face, line: WheelLine, clock: number) {
+	const g = F.out.ctx;
+	const W = F.dotsW;
+	const H = F.dotsH;
+	g.clearRect(0, 0, W, H);
+	if (line.blink && Math.floor(clock / 260) % 3 === 2) return;
+	const m = H >= 20 ? 2 : 1;
+	const cap = fitCap(line.text, W - 2 * m - 4, Math.max(5, Math.min(H - 2 * m - 1, Math.round(H * 0.72))));
+	drawRow(g, line.text, Math.round((W - rowInfo(line.text, cap).w) / 2), Math.round((H - cap) / 2), cap, line.tone === 'gold' ? 'gold' : '#ffffff', 0);
+}

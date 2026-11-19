@@ -7,7 +7,7 @@ import { checkIsMultipleRevealEvents } from 'utils-book';
 import { createPrimaryMachines, createIntermediateMachines, createGameActor } from 'utils-xstate';
 
 import type { Bet } from './typesBookEvent';
-import { playBet, convertTorResumableBet } from './utils';
+import { playBet, convertTorResumableBet, prepareWheel } from './utils';
 import { stateGame } from './stateGame.svelte';
 import { eventEmitter } from './eventEmitter';
 import { hudWinPress } from './hudWin.svelte';
@@ -30,6 +30,9 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	onResumeGameActive: (betToResume) => {
 		// a round left open is being played on: the board is busy until its finalWin, as for a round just started
 		stateGame.busy = true;
+		// THE SUPER WHEEL's plan is made from the round's whole events, before the cut below drops the ones already played:
+		// a round resumed before its opening column shows the same wheel it showed (or would have shown) live
+		prepareWheel(betToResume.state);
 		// THE RESUME CARD (game/resumeRound.svelte.ts): Skip to Result plays the round's end at once; Play Round (and no card
 		// asked, a replay) plays it on from the event the RGS has reached, as before
 		return resumeRound.choice === 'skip' ? toSkippedBet(betToResume) : convertTorResumableBet(betToResume);

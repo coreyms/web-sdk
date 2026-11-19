@@ -542,8 +542,72 @@ export const ROUND = {
  *  the entry waits for the press: game/scoreboard/scoreboardDraw.ts showRibbon). One place, so the two never differ. */
 export const INTRO_LINE = {
 	bonus: 'Every column Wild stays for the whole round and keeps its multiplier.',
-	super: 'The round starts with a column Wild in place. Column Wilds stay and keep their multipliers.',
+	super: 'The wheel shows the column Wild this round starts with. Column Wilds stay and keep their multipliers.',
 } as const;
+
+// ---- THE SUPER WHEEL (game/road/superWheel.ts, game/superWheelPlan.ts) ------------------------------------------------
+// Corey 2026-11-18 (the approved mock super_wheel_2026-11-18 round 5, his pick "Mc Under the number and P2"): when a Super
+// Free Spins round begins, a wheel shows on screen what the book already holds: which character opens the round, its
+// multiplier (spin one: the reindeer runs on the rim) and its column (spin two: an inner ring round the hub). One press
+// starts both. PRESENTATION ONLY: the stop is the book's own opening column, every other wedge comes from the book's own
+// events (game/superWheelPlan.ts), nothing is worked out. Times are ms on the board's clock (regular speed at the entry
+// by the stock rule, game/bonusStockRules.ts; a Turbo press or a slam stop speeds them as it speeds the road) unless
+// they say real.
+/** Autoplay Bonuses on: the wheel starts itself after this long at rest, REAL ms at every speed (Corey: "The wheel should
+ *  start it self with autoplay bonuses, but give a player 1-2 seconds to react") */
+export const AUTO_BONUS_WAIT_MS = 1500;
+export const SUPER_WHEEL = {
+	on: true,
+	autoWaitMs: AUTO_BONUS_WAIT_MS,
+	/** a replay has no Spin key (it is the REPLAY banner): the wheel starts itself there too, after autoWaitMs */
+	replayAuto: true,
+	/** the wheel's pictures: waited for at most this long at the opening (real ms), then the round goes on without the wheel */
+	loadWaitMs: 4000,
+	/** ITS PLACE AND SIZE (mock rounds 3 and 4): the top where round 3 put it (sideways and desktop: 0.98 of the board's
+	 *  height, its centre `lift` of its diameter above the board's middle; upright: 0.94 of the board's width, its foot
+	 *  `lift` of its diameter under the board's bottom edge: the mock's own numbers), the bottom tucked
+	 *  behind the LED strip (bottomInset CSS px above its housing's foot), never wider than the screen less screenPad a
+	 *  side; the peg keeps its round 3 size about its tip. The string lights are left out under bulbsFromPx of diameter
+	 *  (the popout's small wheel, the mock's fallback). */
+	size: { boardHeightShare: 0.98, boardWidthShare: 0.94, lift: 0.03, bottomInset: 3, screenPad: 6, bulbsFromPx: 200 },
+	/** THE EMERGENCE: the red present's lid pops (lidMs in, the wheel shows), it rises out of the box small and turning
+	 *  (riseMs, riseCells of a cell up), then arcs and grows to its place with a small overshoot (growMs, arc of its
+	 *  diameter); the traffic drives out trafficAt of the rise in */
+	emerge: { lidMs: 850, riseMs: 350, growMs: 900, riseCells: 0.55, arc: 0.18, trafficAt: 0.6, startScale: 0.06, riseScale: 0.12, turnDeg: 240 },
+	/** THE READ BEAT: at rest it drifts driftDps degrees a second so each wedge comes upright under the peg; the lights
+	 *  chase (one in three dim, lightsStepMs a step); the hub's SPIN tag breathes */
+	rest: { driftDps: 4, lightsStepMs: 220, tagPulse: 0.05, tagPulseMs: 1130 },
+	/** THE REINDEER: his run in on the road, his leap onto the left shoulder (leapArc of the radius high), his run on the
+	 *  rim while the wheel speeds up (driveMs), his leap off backward and his trot out to the left. Where he stands on the
+	 *  rim and how his hooves meet it come from tools/build_super_wheel.py (game/superWheelSpec.ts run). */
+	run: { runInMs: 550, leapMs: 300, driveMs: 900, leapOffMs: 650, leapArc: 0.35, leapOffArc: 0.25, leapPose: 0.35, leapOffPose: 0.3, trotPose: 0.9, groundY: 0.62, groundClear: 8 },
+	/** SPIN ONE: after the drive only a slow-down (an ease out of `power`), decelMs by how far the book's wedge is, one
+	 *  more whole turn (extraTurns, round 3) with the last crawlDeg degrees as slow as round 2's; at least minDeg + crawlDeg */
+	spin: { decelMs: [2800, 4000] as [number, number], power: 1.9, minDeg: 270, crawlDeg: 135, extraTurns: 1 },
+	/** THE STOP: the winner's wedge lifts (liftScale about liftAt wheel units up its middle) and its full shape lights
+	 *  under the string lights, landMs; the LED strip names who and the multiplier */
+	land: { ms: 800, liftScale: 0.35, liftAt: 240 },
+	/** SPIN TWO (P2): the ring of the five columns rises round the hub (inMs), the hub winds back windDeg (windMs) and
+	 *  lets go; the ring speeds up (driveMs) and slows (decelMs) onto the book's column, at least minDeg; then land2Ms */
+	ring: { inMs: 300, windMs: 200, windDeg: 10, driveMs: 300, decelMs: [1600, 2000] as [number, number], power: 1.9, minDeg: 540, land2Ms: 500 },
+	/** the wheel shrinks into the result's column and fades (leaveMs, to leaveScale of its size) */
+	leaveMs: 400,
+	leaveScale: 0.08,
+	/** the game's roaming reindeer is off the screen while the wheel is up (one reindeer: he runs it); a new one walks in
+	 *  this long after the wheel has left (board ms) */
+	roamBackMs: 1500,
+	/** A PRESS DURING THE SPIN (the slam stop's own press, ui/controls.svelte.ts): the wheel goes straight to the book's
+	 *  wedge in slamMs, the ring to the book's column in slamMs; the rest runs at the slam's hurry */
+	slamMs: 300,
+	/** the top peg: a damped spring the rim's studs push (contact from contactDeg right of the top to releaseDeg left of
+	 *  it, pushDeg at most); it never pushes the wheel */
+	peg: { stiffness: 520, damping: 15, contactDeg: 9, releaseDeg: 3, pushDeg: 24 },
+	/** THE LED STRIP'S WORDS (game/scoreboard/scoreboard.ts wheelLine): plain capitals, no symbol characters */
+	text: { emerge: 'SUPER WHEEL', press: 'PRESS SPIN', auto: 'GET READY', go: 'GO REINDEER', column: 'COLUMN', names: { reindeer: 'REINDEER', santa: 'SANTA', grandma: 'GRANDMA' } },
+	/** ITS SOUNDS: existing sounds only (none was made for the wheel; the moments still wanting their own are listed in
+	 *  the build's notes). null plays nothing. */
+	sound: { lid: null as string | null, traffic: true, press: null as string | null, leapOn: 'sfx_reindeer_dart', tick: 'sfx_target_hop', land: 'sfx_target_lock', landHigh: 'sfx_multiplier_land_high', landHighFrom: 15, ringIn: 'sfx_present_pop', ringTick: 'sfx_target_hop', land2: 'sfx_target_lock', leave: 'sfx_card_out' },
+};
 
 // ---- THE HUD'S DARK BEDS (components/HudBeds.svelte) -------------------------------------------------------------------
 // The house HUD is white and gold ink made for a dark scene; on snow it cannot be read. Until the scene art gives
@@ -1426,7 +1490,7 @@ export const LED_BOARD = {
 	 *    gag        the Grandma line
 	 *    cartoon    the idle cartoons (they also run in autoplay and in a bonus round)
 	 *    race       the race, only at true idle (the base game, no autoplay, nothing playing): elsewhere the cartoons skip it */
-	stripOrder: ['entry', 'bigWin', 'scatter', 'winAmount', 'spinsLeft', 'gag', 'cartoon', 'race'] as ('entry' | 'bigWin' | 'scatter' | 'winAmount' | 'spinsLeft' | 'gag' | 'cartoon' | 'race')[],
+	stripOrder: ['entry', 'wheel', 'bigWin', 'scatter', 'winAmount', 'spinsLeft', 'gag', 'cartoon', 'race'] as ('entry' | 'wheel' | 'bigWin' | 'scatter' | 'winAmount' | 'spinsLeft' | 'gag' | 'cartoon' | 'race')[],
 	spinsLeftMs: 2000,
 	/** A BONUS ROUND'S STRIP (Corey 2026-11-18: "take the idle animations on the small LED screen out of Bonus Games, it's
 	 *  causing them to flash back and forth"): in Free Spins and Super Free Spins the strip never shows the cartoons or the
@@ -1501,7 +1565,7 @@ export const LED_BOARD = {
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { ledBoard: LED_BOARD, laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, roam: ROAM, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN };
+export const TUNE = { ledBoard: LED_BOARD, laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, roam: ROAM, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN, superWheel: SUPER_WHEEL };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

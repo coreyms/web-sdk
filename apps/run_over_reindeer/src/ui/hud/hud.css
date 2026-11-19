@@ -1500,3 +1500,23 @@
 		display: none;
 	}
 }
+
+/* THE SUPER WHEEL waits for the Spin key (ui/hud/HudSpin.svelte wheel-wait, 2026-11-18): its dotted gold ring pulses
+   (opacity only) */
+.spin.wheel-wait .ring .arc.dash {
+	animation: wheel-wait-pulse 1.13s ease-in-out infinite;
+}
+@keyframes wheel-wait-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.25;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.spin.wheel-wait .ring .arc.dash {
+		animation: none;
+	}
+}

@@ -33,9 +33,12 @@
 	const armed = $derived(controls.armedBuy() !== null);
 	const idle = $derived(controls.isIdle());
 	const disabled = $derived(replay ? !replayAgain : controls.spinDisabled());
+	// THE SUPER WHEEL waits for this key (game/road/superWheel.ts, 2026-11-18): the plain Play face whatever the round's
+	// state, a dotted gold ring pulsing round it (hud.css .wheel-wait); pressing it starts the wheel
+	const wheelWait = $derived(controls.wheelWaits() && !replay);
 
 	const mode = $derived(
-		fs && showFreeSpins ? 'feature' : replay ? 'replay' : showStop ? 'spinning' : autoActive ? 'auto' : !idle ? 'busy' : loaded ? 'loaded' : armed ? 'armed' : 'idle',
+		wheelWait ? 'idle' : fs && showFreeSpins ? 'feature' : replay ? 'replay' : showStop ? 'spinning' : autoActive ? 'auto' : !idle ? 'busy' : loaded ? 'loaded' : armed ? 'armed' : 'idle',
 	);
 	/** the faces that share one glyph (so Play and Stop can turn into each other) */
 	const flip = $derived(mode === 'idle' || mode === 'spinning' || mode === 'busy');
@@ -48,7 +51,7 @@
 	// ONE reading for assistive technology (2026-11-18): in free spins the counter's own words ("9 of 10"), in autoplay
 	// the spins left; the flip's outgoing face is aria-hidden and drawn from an attribute (never text), so neither a
 	// screen reader nor text extraction reads two numbers
-	const action = $derived(replay ? 'Replay' : showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin');
+	const action = $derived(replay ? 'Replay' : wheelWait ? 'Spin' : showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin');
 	const label = $derived(
 		mode === 'feature' && fs ? `${action}. Free spins: ${fs.current} of ${fs.total}` : mode === 'auto' && count !== Infinity && count > 0 ? `${action}: ${count} left` : action,
 	);
@@ -134,6 +137,8 @@
 	type="button"
 	class="slot-btn spin hg hit m-{mode}"
 	class:tap
+	class:wheel-wait={wheelWait}
+	data-wheel-wait={wheelWait ? '1' : undefined}
 	data-st={flip ? st : mode}
 	style:left="{x}px"
 	style:top="{y}px"
@@ -149,7 +154,7 @@
 		<circle class="trk" cx="50" cy="50" r="46" />
 		{#if mode === 'feature' && fs}
 			<circle class="arc" cx="50" cy="50" r="46" stroke-dasharray="{arc.base * CIRC} {CIRC}" />
-		{:else if mode === 'loaded' || mode === 'armed'}
+		{:else if mode === 'loaded' || mode === 'armed' || wheelWait}
 			<circle class="arc dash" cx="50" cy="50" r="46" />
 		{/if}
 	</svg>

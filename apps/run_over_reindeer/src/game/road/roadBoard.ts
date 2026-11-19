@@ -44,6 +44,8 @@ const MOUTH_L = ROAD_ART.covers.left.mouth;
 const MOUTH_R = ROAD_ART.covers.right.mouth;
 /** how far past a mouth a symbol is parked or retired, on top of half its own width (it is under the portal there) */
 const HIDE_PAD = 40;
+/** THE SUPER WHEEL's empty road (driveAway): the traffic's sound fades and the signal goes red this long after the pull away */
+const AWAY_QUIET_MS = 900;
 
 const CARS: SymbolName[] = ['H1', 'H2', 'H3', 'H4'];
 /** THE VALID STRIKE TARGETS (the book's grandmaCar and santaSleigh): the target crosshair hops between these, and the
@@ -105,6 +107,9 @@ type Car = {
 	/** THE RED PRESENT: this present is the 4th or 5th of a base spin to land (the Super scatter), drawn red from the
 	 *  moment it is made (rankPresents) */
 	red: boolean;
+	/** its place among the board's presents in the order they are seen (0: not ranked); the lowest red one is the Super
+	 *  wheel's (game/road/superWheel.ts) */
+	redRank: number;
 	/** ITS CAST SHADOW (game/road/shadows.ts): its twin, made with the car, in the ground layer */
 	shadow: PIXI.Sprite;
 	/** A POLICE CAR'S LIGHT BAR (game/road/policeLights.ts): made the first time this sprite wins as a police car */
@@ -268,6 +273,10 @@ export class RoadBoard {
 	private outAt: number | null = null;
 	/** waiting for a book: through traffic may run (ROAD_MOTION through.whileWaiting) */
 	private waiting: { m: RoadMotion; next: number[] } | null = null;
+	/** THE SUPER WHEEL emptied the road (driveAway) and no board is due yet; when its traffic's sound fades and its signal
+	 *  goes red (board clock; null once done) */
+	private away = false;
+	private awayQuietAt: number | null = null;
 	/** per lane: when its incoming convoy is home (board clock) */
 	private laneHomeAt: number[] = [0, 0, 0, 0];
 	private laneStopSoundAt: (number | null)[] = [null, null, null, null];
@@ -402,6 +411,7 @@ export class RoadBoard {
 		car.m = null;
 		car.rel = -Infinity;
 		car.red = false;
+		car.redRank = 0;
 		car.brake?.off();
 		if (car.sprite.parent !== this.lanes[lane]) this.lanes[lane].addChild(car.sprite);
 		// a new vehicle in this slot: its riders hang still
@@ -437,8 +447,9 @@ export class RoadBoard {
 	private rankPresents(ranked: { car: Car; rel: number; order: number }[]) {
 		if (ranked.length < RED_FROM || !this.presentStillRed) return;
 		ranked.sort((a, b) => a.rel - b.rel || a.order - b.order);
-		for (const { car } of ranked.slice(RED_FROM - 1)) {
+		for (const [i, { car }] of ranked.slice(RED_FROM - 1).entries()) {
 			car.red = true;
+			car.redRank = RED_FROM + i;
 			car.sprite.texture = this.presentStillRed;
 		}
 	}
@@ -548,6 +559,8 @@ export class RoadBoard {
 		this.waiting = null;
 		this.spinActive = false; // stopped: the signal is red
 		this.reelStopAt = this.reelStopAt.map(() => null);
+		this.away = false;
+		this.awayQuietAt = null;
 		this.features.sounds.trafficStop('board put up as it is');
 		this.features.sounds.teaseStop('board put up as it is', REINDEER_SOUND.stopFadeMs);
 		this.flow = null;
@@ -595,10 +608,8 @@ export class RoadBoard {
 	}
 
 	/** THE PRESS: every lane's symbols pull away toward their far tunnel, front car first. Returns at once. */
-	driveOut(level: 0 | 1 | 2) {
-		const m = motionFor(level);
-		this.clearWin();
-		this.outAt = this.clock;
+	/** a spin begins on the road's clock: the signal green, no lane's brake time yet, the traffic's sound on */
+	private armSpin(why: string) {
 		// THE SIGNAL: green from the press. No lane has a brake time until the book's board drives in.
 		this.spinActive = true;
 		this.spinStartAt = this.clock;
@@ -610,11 +621,42 @@ export class RoadBoard {
 		this.reelStopAt = this.reelStopAt.map(() => null);
 		this.trafficFading = false;
 		this.stopsBegun = false;
-		this.features.sounds.teaseStop('the board pulls away', REINDEER_SOUND.stopFadeMs);
+		this.features.sounds.teaseStop(why, REINDEER_SOUND.stopFadeMs);
 		this.flow = null;
 		this.pressReal = performance.now();
 		this.pressClock = this.clock;
-		this.features.sounds.trafficStart('the board pulls away');
+		this.features.sounds.trafficStart(why);
+	}
+
+	/** THE SUPER WHEEL (game/road/superWheel.ts): the trigger board drives out as at a press, and NO board is due: no
+	 *  through traffic follows, the traffic's sound fades once the road is empty and the signal goes red, until the first
+	 *  free spin drives in (driveIn starts it at once: the road is already empty) */
+	driveAway(level: 0 | 1 | 2) {
+		this.driveOut(level);
+		this.waiting = null;
+		this.away = true;
+		this.awayQuietAt = this.clock + AWAY_QUIET_MS;
+	}
+
+	/** THE SUPER WHEEL'S PRESENT: the red present parked on the board (the first red one seen, the 4th) opens again, its
+	 *  pop with it, and the wheel rises out of it. Returns its mouth (road px) and a cell's height; null when the board
+	 *  holds no red present (a round resumed at its opening). */
+	wheelPresent(): { x: number; y: number; cell: number } | null {
+		const car = this.cars.filter((c) => c.phase === 'rest' && c.symbol === 'S' && c.red).sort((a, b) => a.redRank - b.redRank)[0];
+		if (!car) return null;
+		void this.presentOf(car).open(this.clock);
+		this.popWanted = true;
+		const cell = LINES[car.lane + 1] - LINES[car.lane];
+		return { x: car.sprite.x, y: (LINES[car.lane] + LINES[car.lane + 1]) / 2 - cell * 0.07, cell };
+	}
+
+	driveOut(level: 0 | 1 | 2) {
+		const m = motionFor(level);
+		this.clearWin();
+		this.away = false;
+		this.awayQuietAt = null;
+		this.outAt = this.clock;
+		this.armSpin('the board pulls away');
 		m.laneOrder.forEach((lane, k) => {
 			const dir = ROAD.laneDirection[lane];
 			const resting = this.cars.filter((c) => c.phase === 'rest' && c.lane === lane).sort((a, b) => (b.restX - a.restX) * dir);
@@ -636,6 +678,15 @@ export class RoadBoard {
 		const m = motionFor(level);
 		// a board that never drove out (a round's later spins, a resume) pulls away first
 		if (this.cars.some((c) => c.phase === 'rest')) this.driveOut(level);
+		else if (this.away) {
+			// THE FIRST FREE SPIN AFTER THE SUPER WHEEL (Corey 2026-11-18: "once it lands on the board the first spin should
+			// start"): the road is already empty, so this drive in starts on this frame, with no pull away to wait for
+			this.armSpin('the first free spin after the wheel');
+			this.outAt = this.clock - m.in.delayMs;
+			this.pressClock = this.clock - m.in.delayMs;
+		}
+		this.away = false;
+		this.awayQuietAt = null;
 		this.waiting = null;
 		const start = Math.max(this.clock, (this.outAt ?? this.clock) + m.in.delayMs);
 		this.convoyAt = start;
@@ -1320,6 +1371,11 @@ export class RoadBoard {
 		this.hurrying = hurry > 1;
 		const now = this.clock;
 
+		if (this.away && this.awayQuietAt !== null && now >= this.awayQuietAt) {
+			this.awayQuietAt = null;
+			this.spinActive = false; // the road is empty and stays so: the signal is red until the first free spin
+			this.features.sounds.trafficStop('the wheel: the road is empty', 400);
+		}
 		// through traffic while a book is awaited
 		const w = this.waiting;
 		if (w && w.m.through.whileWaiting) {

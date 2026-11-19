@@ -12,9 +12,24 @@ export async function pressRoundCards(ctx) {
 	await ctx.addInitScript(() => {
 		const seen = new Map();
 		window.__cardPresses = [];
+		// THE SUPER WHEEL (2026-11-18, game/road/superWheel.ts): it waits for a press like the entry card does (its own press
+		// target, ui/WheelGate.svelte `button[data-wheel-gate]`); once it has waited 0.6 s it is pressed, once per wait
+		// (window.__wheelPresses). With Autoplay Bonuses running it starts itself and is never there to press.
+		window.__wheelPresses = [];
+		let gateSince = null;
+		setInterval(() => {
+			const gate = document.querySelector('button[data-wheel-gate]');
+			if (!gate) gateSince = null;
+			else if (gateSince === null) gateSince = performance.now();
+			else if (gateSince > 0 && performance.now() - gateSince >= 600) {
+				window.__wheelPresses.push({ waitedMs: Math.round(performance.now() - gateSince) });
+				gateSince = -1;
+				gate.click();
+			}
+		}, 100);
 		setInterval(() => {
 			const h = window.__reindeer;
-			const btn = document.querySelector('button.catch');
+			const btn = document.querySelector('button.catch:not([data-wheel-gate])');
 			if (!h?.scoreboard || !btn) return;
 			const s = h.scoreboard()?.show;
 			if (!s || !['fs', 'sfs', 'total'].includes(s.kind)) return;

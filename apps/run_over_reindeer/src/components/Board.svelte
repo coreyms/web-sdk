@@ -3,6 +3,7 @@
 	import type { LineWinSpec } from '../game/road/roadBoard';
 	import type { StrikeSpec } from '../game/road/roadFeatures';
 	import type { ColumnTier, HeldColumn } from '../game/typesBookEvent';
+	import type { WheelPlan } from '../game/superWheelPlan';
 
 	// what the book event handlers ask of the board (game/bookEventHandlerMap.ts, game/actor.ts)
 	export type EmitterEventBoard =
@@ -43,7 +44,12 @@
 		/** PART B: a bonus round card on the back board (the Free Spins or Super entry with the spins it awards, the Total Win
 		 *  with the book's amount); it waits until boardScoreboardCardEnd (the HTML card keeps the round and the press) */
 		| { type: 'boardScoreboardCard'; kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; topUp?: { floor: number; amount: number } | null; capped?: boolean }
-		| { type: 'boardScoreboardCardEnd' };
+		| { type: 'boardScoreboardCardEnd' }
+		/** THE SUPER WHEEL (game/road/superWheel.ts): the round's opening shown by the wheel, which stops on the plan's own
+		 *  values (the book's); resolves when the wheel has left (or at once when it cannot play) */
+		| { type: 'boardSuperWheel'; plan: WheelPlan }
+		/** the Spin press (or a press on the wheel or the board) while the wheel waits (ui/controls.svelte.ts) */
+		| { type: 'wheelPress' };
 </script>
 
 <script lang="ts">
@@ -56,7 +62,9 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass, TITLE } from '../game/layoutSpec';
-	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, LOGO_SIGN, ROAD_MOTION, STRIKE, TUNE, motionFor } from '../game/constants';
+	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, LOGO_SIGN, ROAD_MOTION, ROUND, STRIKE, SUPER_WHEEL, TUNE, motionFor } from '../game/constants';
+	import { SuperWheel, setWheelMipmapper, wheelMemory, type WheelGeo } from '../game/road/superWheel';
+	import { buildWheelPlan } from '../game/superWheelPlan';
 	import { sceneHooks, setSceneChoice, stateScene } from '../game/stateScene.svelte';
 	import { homePreset, presetForMode, type ScenePreset, type ScenePresetName } from '../game/scenePresets';
 	import { setFor, type SceneChoice } from '../game/sceneChoice';
@@ -80,7 +88,7 @@
 	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
 	import { roamDev, type RoamZone } from '../game/road/roam';
 	import { ROAM_AREAS, ROAM_AREAS_DEFAULT, ROAM_EDIT } from '../game/roamPaths';
-	import { loadPresent, presentMemory, presentTrace, setPresentMipmapper } from '../game/road/present';
+	import { loadPresent, presentMemory, presentTrace, presentWheelDone, setPresentMipmapper } from '../game/road/present';
 	import { perfMarks } from '../game/staging';
 	import type { SoundEffectName } from '../game/sound';
 	import { COLUMN_CLIPS } from '../game/columnClipSpec';
@@ -270,6 +278,64 @@
 	if (logo) parent.addToParent(logo.root);
 	if (!led) scoreboardOverLogo();
 
+	// THE SUPER WHEEL (game/road/superWheel.ts, constants SUPER_WHEEL): over the road and the logo, UNDER the LED scoreboard
+	// (its bottom is tucked behind the strip, mock round 4), placed in the canvas's own CSS px. It asks the road for the
+	// red present's open and the drive away, the strip for its line, the road's sounds for its few sounds.
+	const wheel = new SuperWheel();
+	parent.addToParent(wheel.root);
+	/** the wheel just under the scoreboard in the draw order (the scoreboard is moved over the logo after the press screen) */
+	const wheelUnderBoard = () => {
+		const p = wheel.root.parent;
+		if (!p) return;
+		p.removeChild(wheel.root);
+		p.addChildAt(wheel.root, scoreboard && scoreboard.root.parent === p ? p.getChildIndex(scoreboard.root) : p.children.length);
+	};
+	wheel.env = {
+		openPresent: () => road.wheelPresent(),
+		driveAway: () => {
+			// (a base game column Wild of the trigger spin leaves with its board)
+			road.features.clearAll();
+			road.driveAway(stateGame.turboLevel);
+			scoreboard?.spinPress();
+		},
+		led: (text, tone, blink) => scoreboard?.wheelLine(text, tone, blink),
+		sound: (name, detail, rate) => {
+			if (name && !stateGame.skipping) road.features.sounds.playNamed(name, `wheel: ${detail}`, rate);
+		},
+		runSound: (on) => (on ? road.features.sounds.runStart() : road.features.sounds.runStop('the wheel')),
+		// ONE REINDEER ON THE SCREEN: the roaming one (game/road/roam.ts) goes as the wheel comes out (he is the one who runs
+		// it), and a new one walks in once the wheel has left
+		roamer: (on) => {
+			if (!STRIKE.roam) return;
+			if (on) road.features.roam.walkInSoon(SUPER_WHEEL.roamBackMs);
+			else road.features.roam.leave();
+		},
+		// AUTOPLAY BONUSES (a run still live), or a replay (its Spin key is the REPLAY banner)
+		// (ROUND.introWaitsForPress false, some probes: nothing waits for a press, the wheel neither)
+		auto: () => (stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0) || (SUPER_WHEEL.replayAuto && stateUrlDerived.replay()) || !ROUND.introWaitsForPress,
+		phase: (phase) => {
+			stateGame.wheelPhase = phase;
+			// DEV: the phase into the road's log, on the board's own clock (the probe's timings)
+			if (import.meta.env.DEV) road.features.sounds.mark('wheel', phase ?? 'gone');
+			// THE REST: the Spin key is the wheel's from here, at regular pace (a slam stop spent on the way in ends here)
+			if (phase === 'rest') context.eventEmitter.broadcast({ type: 'stopButtonEnable' });
+		},
+	};
+	// a press on the wheel is the board's tap (ui/controls.svelte.ts boardTap: the wheel's press at rest, the slam stop after)
+	wheel.onTap = () => context.eventEmitter.broadcast({ type: 'boardTap' });
+	/** THE WHEEL'S PLACE (constants SUPER_WHEEL.size; mock rounds 3 and 4), canvas CSS px */
+	const wheelGeoOf = (g: ReturnType<typeof scoreboardGeometry>, layout: typeof kind, canvasW: number, board: { x: number; y: number; w: number; h: number }): WheelGeo => {
+		const Z = SUPER_WHEEL.size;
+		// round 3's wheel: the board's height about its middle (sideways and desktop), or the board's width standing on the
+		// board's bottom edge (upright), the board being the layout's own box (layoutSpec boardRect, as the mock read it);
+		// its top is kept
+		const d3 = layout === 'portrait' ? Z.boardWidthShare * board.w : Z.boardHeightShare * board.h;
+		const top3 = layout === 'portrait' ? board.y + board.h + Z.lift * d3 - d3 : board.y + board.h / 2 - Z.lift * d3 - d3 / 2;
+		// round 4: it grows down until its bottom is tucked behind the LED strip, never wider than the screen
+		const d = Math.max(40, Math.min(Math.max(d3, g.strip.housing.y + g.strip.housing.h - Z.bottomInset - top3), canvasW - 2 * Z.screenPad));
+		return { cx: board.x + board.w / 2, cy: top3 + d / 2, d, pegScale: Math.min(1, d3 / d), capTop: g.strip.housing.y - g.strip.cap * 1.3, road: g.road };
+	};
+
 	// THE SCENE PRESET AND ITS SWAP (game/stateScene.svelte.ts, game/scene/sceneSwap.ts): its pieces by asset key (the base
 	// scene of the set the Scene setting asks for in the manifest; every other scene and the upright forest off the phone
 	// tier load lazily, game/assets.ts SCENE_LAZY_URLS). The scene follows the
@@ -405,6 +471,13 @@
 		// THE LED SCOREBOARD: its rule per layout class (game/scoreboard/layout.ts), and the scene pieces its foreground snow is
 		// cut from (the preset's boardCover: the field tile, the road picture, the bottom band, and the painted ends where the
 		// layout shows them), road px
+		// THE SUPER WHEEL's place follows the LED strip's (its bottom tucks behind it)
+		{
+			const br = boardRect(kind);
+			const wg = wheelGeoOf(scoreboardGeometry(kind, canvasSize.width, canvasSize.height, main, place, isPhoneSizeType(context.stateLayoutDerived.canvasSizeType())), kind, canvasSize.width, { x: masterLeft + br.x * main.scale, y: masterTop + br.y * main.scale, w: br.width * main.scale, h: br.height * main.scale });
+			wheel.layout(wg);
+			stateGame.wheelBox = { cx: wg.cx, cy: wg.cy, d: wg.d };
+		}
 		if (scoreboard) {
 			boardGeo = scoreboardGeometry(kind, canvasSize.width, canvasSize.height, main, place, isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
 			// the line amounts' floor (2026-11-18): above the strip's snow cap and the HUD's top, 4 road px clear, in road px
@@ -525,7 +598,7 @@
 		symbolPopupBoard.cellBox = (reel, row) => globalBox(BX + reel * PITCH, LINES[row], BX + (reel + 1) * PITCH, LINES[row + 1]);
 		symbolPopupBoard.reelBox = (reel) => globalBox(BX + reel * PITCH, LINES[0], BX + (reel + 1) * PITCH, LINES[ROAD_ART.board.rows]);
 		symbolPopupBoard.boardBox = () => globalBox(BX, LINES[0], BX + ROAD_ART.board.width, LINES[ROAD_ART.board.rows]);
-		symbolPopupBoard.quiet = () => road.atRest && !(scoreboard?.backBusy() ?? false);
+		symbolPopupBoard.quiet = () => road.atRest && !(scoreboard?.backBusy() ?? false) && !wheel.active;
 	}
 
 	onMount(() => {
@@ -572,9 +645,13 @@
 		// THE PRESENT'S PEEK (game/road/present.ts): its sheet loads in the background from now on, after everything else in
 		// the upload queue; a present that lands before it is in stays still. Desktop sheets get a mip chain.
 		if (!PHONE_TIER) setPresentMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
+		// THE SUPER WHEEL's sheet (game/road/superWheel.ts) is drawn under its size on most desktop windows: the same chain
+		if (!PHONE_TIER) setWheelMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
 		void loadPresent('peek');
 		const tick = (ticker: PIXI.Ticker) => {
 			road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
+			// THE SUPER WHEEL on the board's own pace (turbo, a slam stop's hurry); its Autoplay Bonuses wait counts real time
+			wheel.update(ticker.deltaMS * devClock.rate, boardRate());
 			led?.update(ticker.deltaMS, boot.pressReady);
 			logo?.update(ticker.deltaMS);
 			// the sign easing back from its press screen place (a straight move, real ms)
@@ -619,6 +696,8 @@
 			led = null;
 			logo?.destroy();
 			scoreboard?.destroy();
+			wheel.destroy();
+			stateGame.wheelPhase = null;
 			road.destroy();
 		};
 	});
@@ -728,6 +807,19 @@
 		// a Spin press while a big win counts or holds (the slam stop's event): lands the count, or ends the hold
 		stopButtonClick: () => {
 			if (scoreboard?.busy()) scoreboard.skip();
+			// THE SUPER WHEEL: the slam stop's press takes a spinning wheel (or its ring) straight to the book's stop
+			wheel.skip();
+		},
+		boardSuperWheel: async ({ plan }) => {
+			// a slam stop spent on the trigger spin ends here: the wheel comes out at the round's own pace
+			context.eventEmitter.broadcast({ type: 'stopButtonEnable' });
+			wheelUnderBoard();
+			await wheel.play(plan);
+			// (played or not, the red present's sheets may go now, game/road/present.ts)
+			presentWheelDone();
+		},
+		wheelPress: () => {
+			wheel.press();
 		},
 		boardMessage: async ({ text, ms }) => {
 			await road.message(text, ms);
@@ -831,9 +923,29 @@
 			/** with the clock frozen (clock(0)), advance the road by hand: `n` steps of `ms` each, at the speed the game is
 			 *  set to (turbo, a slam stop). Exact timings whatever the machine is doing (the probes measure with it). */
 			step: (ms = 4, n = 1) => {
-				for (let i = 0; i < n; i++) road.update(ms, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
+				for (let i = 0; i < n; i++) {
+					road.update(ms, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
+					wheel.update(ms, boardRate());
+				}
 				return road.snapshot();
 			},
+			/** THE SUPER WHEEL (game/road/superWheel.ts): what it is doing and where it is drawn; its line on the LED strip; a
+			 *  wheel standing with nothing running, from a round's events (the probe's stills and measurements: wheelSet poses
+			 *  it, wheelEnd takes it down); its sheet's weight */
+			wheel: () => ({ ...wheel.snapshot(), line: scoreboard?.wheelLineNow() ?? null, hudPhase: stateGame.wheelPhase }),
+			wheelShow: async (events: Parameters<typeof buildWheelPlan>[0]) => {
+				const plan = buildWheelPlan(events);
+				if (!plan) return false;
+				wheelUnderBoard();
+				return wheel.devShow(plan);
+			},
+			wheelSet: (o: Parameters<SuperWheel['devSet']>[0]) => wheel.devSet(o),
+			/** the LED scoreboard (drawn over the wheel's foot) not drawn, for the probe's measurements of the whole wheel */
+			wheelAlone: (on: boolean) => {
+				if (scoreboard) scoreboard.root.renderable = !on;
+			},
+			wheelEnd: () => wheel.devEnd(),
+			wheelMemory: () => wheelMemory(),
 			/** put any board up at rest: __reindeer.setBoard([[...4 symbols] x 5 reels]) */
 			setBoard: (board: BoardSymbols) => {
 				// (the first board's posed columns go first: a board put up by hand stands alone)

@@ -6,6 +6,9 @@ import { bookEventHandlerMap } from './bookEventHandlerMap';
 import { hudWinRoundStart } from './hudWin.svelte';
 import { preloadForEvents } from './road/columnClips';
 import { presentsForBook } from './road/present';
+import { openingOf, planWheel } from './superWheelPlan';
+import { loadWheelArt } from './road/superWheel';
+import { SUPER_WHEEL } from './constants';
 import { STAGING_TOOLS, perfMark } from './staging';
 import { stateBet } from 'state-shared';
 import { scoreboardDev } from './scoreboard/scoreboard';
@@ -31,6 +34,14 @@ const markedHandlerMap = (): typeof bookEventHandlerMap => {
 
 export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEventHandlerMap: STAGING_TOOLS ? markedHandlerMap() : bookEventHandlerMap });
 
+/** THE SUPER WHEEL'S PLAN AND PICTURES for a round's WHOLE events (index 0 on; a resumed round's are read before the
+ *  resume cut, game/actor.ts): the plan is the book's own (game/superWheelPlan.ts), the sheet starts loading now */
+export const prepareWheel = (events: Bet['state']) => {
+	if (!SUPER_WHEEL.on || !openingOf(events)) return;
+	planWheel(events);
+	void loadWheelArt();
+};
+
 /** play one round's book, event by event, in book order */
 export const playBet = async (bet: Bet) => {
 	// a fresh WIN (game/hudWin.svelte.ts)
@@ -39,6 +50,9 @@ export const playBet = async (bet: Bet) => {
 	preloadForEvents(bet.state);
 	// a book with a trigger: the presents' full open starts loading now (game/road/present.ts); one without lets it go
 	presentsForBook(bet.state);
+	// a book with a Super opening: its wheel (a resumed round's state starts with the snapshot: its wheel was planned from
+	// the whole round already)
+	if (bet.state[0]?.type !== 'createBonusSnapshot') prepareWheel(bet.state);
 	await playBookEvents(bet.state);
 	// THE LED COUNT LANDS BEFORE THE ROUND SETTLES (2026-11-18, the probe host: the end-round went with the strip's small
 	// count at $9.72 of $10.00): the round's presentation is over once the board's count is too. Not in autoplay, where the
