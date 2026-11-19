@@ -20,7 +20,8 @@
 //   · the three amount fields hold the long values at their fixed type size: BALANCE "$9,999,999.99", WIN
 //     "$1,250,000.00", the amount "$1,000.00"; the feature button's word stays inside the button (FAST LANE, ANTE)
 //   · desktop sizes: the WIN readout's centre within 2 px of the viewport's vertical centre line
-//   · the help menu opens fully on screen and off the Spin, and closes on a second Menu press; the Autoplay menu opens
+//   · the help menu opens fully on screen and off the Spin, a plain panel with no tail (its box is its body, since the bet
+//     bar fix 2026-11-19), and closes on a second Menu press; the Autoplay menu opens
 //     fully on screen and closes on its close key
 //   · portrait (round 6): one row inside the bar, left to right feature, Menu, Auto, Spin, Turbo, minus, plus; every key
 //     inside the bar's height; WIN over BALANCE at the left and the amount at the right, BALANCE and the amount ending
@@ -374,6 +375,8 @@ async function runSize(browser, S) {
 		return { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom, body: { x0: body.left, y0: body.top, x1: body.right, y1: body.bottom } };
 	});
 	check(!!mp && mp.x0 >= -0.5 && mp.y0 >= -0.5 && mp.x1 <= S.vp.width + 0.5 && mp.y1 <= S.vp.height + 0.5 && inter(mp.body, sp) === 0, `${name}: the help menu opens fully on screen, its body off the Spin`, mp);
+	// THE BET BAR FIX (2026-11-19, Corey: "Make this not look like a chat bubble"): no tail, so the panel's box IS its body
+	check(!!mp && ['x0', 'y0', 'x1', 'y1'].every((k) => Math.abs(mp[k] - mp.body[k]) <= 0.5), `${name}: the help menu is a plain panel (no tail: its box is its body)`, mp);
 	if (mp) console.log(`  INFO ${name}: help menu body over the board ${r1(inter(mp.body, sc.board))} px2`);
 	if (SHOTS) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_menu.png`) });
 	await p.click(CONTROLS.menu);

@@ -73,9 +73,9 @@ export const HUD_THEME: Record<string, string> = {
 	'glass-top-rgb': '206, 232, 255',
 	'glass-mid-rgb': '163, 201, 238',
 	'glass-bottom-rgb': '120, 170, 220',
-	'glass-top-a': '0.17',
-	'glass-mid-a': '0.13',
-	'glass-bottom-a': '0.11',
+	'glass-top-a': '0.13',
+	'glass-mid-a': '0.1',
+	'glass-bottom-a': '0.08',
 	/** NEW (Manticore: its glass-top / mid / bottom-rgb): the menu panels' fill, a deeper ice blue, nearly solid */
 	'panel-top-rgb': '38, 60, 88',
 	'panel-mid-rgb': '30, 48, 72',
@@ -86,6 +86,28 @@ export const HUD_THEME: Record<string, string> = {
 	'panel-bottom-a': '0.97',
 	/** a key's own glass (the round keys, the steppers, chips) */
 	'key-rgb': '70, 98, 128',
+	/** NEW (bet bar fix 2026-11-19; Manticore its own): that glass's strength */
+	'key-a': '0.38',
+	/** NEW (bet bar fix): a key's rim, one even 1 px line all round (the old rim was white on top, gold or ice below, and
+	 *  stopped dead at each corner), and its strength at rest; a hover lifts it by 0.26 */
+	'key-rim-rgb': '206, 232, 255',
+	'key-rim-a': '0.24',
+	/** NEW (bet bar fix, Corey: "the menu button itself should have a much darker glass so it stands out"): the Menu key's
+	 *  near opaque night blue glass, top and bottom of its gradient, its strength, and its rim */
+	'menu-key-1-rgb': '20, 34, 54',
+	'menu-key-2-rgb': '7, 13, 22',
+	'menu-key-a': '0.95',
+	'menu-key-rim-rgb': '166, 216, 255',
+	/** NEW (bet bar fix, Corey: "make the Auto and Turbo Buttons change colors when active"): a lit key's own fill.
+	 *  ON (a run loaded on the Spin, Turbo, the open Menu, the picked scene): a deep red glass with a red rim.
+	 *  HOT (a run playing, Turbo at its instant level): the bright red of the Spin's ring, a cream rim and a glow */
+	'key-on-1-rgb': '150, 26, 38',
+	'key-on-2-rgb': '92, 13, 21',
+	'key-on-a': '0.94',
+	'key-on-ink-rgb': '255, 226, 226',
+	'key-hot-1-rgb': '240, 66, 76',
+	'key-hot-2-rgb': '176, 24, 36',
+	'key-hot-ink-rgb': '255, 255, 255',
 	/** the edge gradient: a bright frosted top edge and a soft icy blue bottom edge, and their peak alphas */
 	'edge-top-rgb': '240, 250, 255',
 	'edge-top-a': '0.95',
@@ -145,9 +167,12 @@ export const HUD_THEME: Record<string, string> = {
  *  The scene swap (2026-11-17): the deeper glass's small words at 0.9 (was the theme's 0.74), so AUTO and TURBO on their
  *  keys read 3:1 or more over every scene (they measured 2.97:1 on the day snow at 0.74), and a lit WIN's dark
  *  under-glow at 0.95 (was 0.7), so its number reads 4.5:1 over its own gold glow (4.44:1 at 0.7 on the Free Spins night). */
+/*  The bet bar fix (2026-11-19, Corey: "Slightly darken the glass overall so the SPIN/WIN/BALANCE stand out better"): the
+ *  deeper glass a step stronger, so less of the snow shows through (0.8 / 0.78 / 0.76 before), the ice glass
+ *  a step fainter so more of the dark bed shows (0.17 / 0.13 / 0.11 before). */
 export const HUD_GLASS = {
-	ice: { 'glass-top-rgb': '206, 232, 255', 'glass-mid-rgb': '163, 201, 238', 'glass-bottom-rgb': '120, 170, 220', 'glass-top-a': '0.17', 'glass-mid-a': '0.13', 'glass-bottom-a': '0.11', 'label-a': '0.74', 'win-shadow-a': '0.7' },
-	deep: { 'glass-top-rgb': '38, 60, 88', 'glass-mid-rgb': '30, 48, 72', 'glass-bottom-rgb': '20, 33, 52', 'glass-top-a': '0.8', 'glass-mid-a': '0.78', 'glass-bottom-a': '0.76', 'label-a': '0.9', 'win-shadow-a': '0.95' },
+	ice: { 'glass-top-rgb': '206, 232, 255', 'glass-mid-rgb': '163, 201, 238', 'glass-bottom-rgb': '120, 170, 220', 'glass-top-a': '0.13', 'glass-mid-a': '0.1', 'glass-bottom-a': '0.08', 'label-a': '0.74', 'win-shadow-a': '0.7' },
+	deep: { 'glass-top-rgb': '38, 60, 88', 'glass-mid-rgb': '30, 48, 72', 'glass-bottom-rgb': '20, 33, 52', 'glass-top-a': '0.88', 'glass-mid-a': '0.87', 'glass-bottom-a': '0.86', 'label-a': '0.9', 'win-shadow-a': '0.95' },
 } as const satisfies Record<string, Record<string, string>>;
 
 /** THE UPRIGHT PHONE'S READOUT INK, per scene (game/scenePresets.ts readoutInk): 'light' over a dark scene (the values
@@ -193,12 +218,27 @@ export const HUD_READOUT_INK = {
 	},
 } as const satisfies Record<string, Record<string, string>>;
 
-/** THE PER-GAME WORDS AND GLYPH: the feature button's name and its icon (24 x 24, 2 px line, squared caps, drawn in
- *  currentColor). */
+/** THE FEATURE BUTTON'S GLYPH CANDIDATES (bet bar fix 2026-11-19; Stake forbids stock icons and clipart, and the old
+ *  road in perspective read as one): drawn here in SVG from the game's own world, in its art style (the thick near black
+ *  ink outline of the signs and the cars), 24 x 24, painted in their own colors (not currentColor). No generated art.
+ *    sign     the reels' diamond road sign (the yellow Q sign's shape and ink) with its snow cap, a lane arrow on its face
+ *    antlers  Rudolph's head from the front: antlers, ears, eyes and the red nose */
+export const FEATURE_GLYPHS = {
+	sign: '<path d="M12 2.4 21.6 12 12 21.6 2.4 12Z" fill="#ffd427" stroke="#16171c" stroke-width="2.2" stroke-linejoin="round"/><path d="M12 8.6 15.4 12.3H13.2V16.9H10.8V12.3H8.6Z" fill="#16171c"/><path d="M8.1 6.3 12 2.4l3.9 3.9c-.8.8-1.8.7-2.4 0-.7.8-1.9.8-2.6 0-.7.8-1.9.8-2.8 0Z" fill="#fff" stroke="#16171c" stroke-width="1.1" stroke-linejoin="round"/>',
+	antlers:
+		'<g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 9.4C8.6 7.8 7.5 6.1 7.3 3.4M7.6 5.8 4.9 4.8M8.7 7.8 10 5.3M14 9.4C15.4 7.8 16.5 6.1 16.7 3.4M16.4 5.8 19.1 4.8M15.3 7.8 14 5.3" stroke="#16171c" stroke-width="3.6"/><path d="M10 9.4C8.6 7.8 7.5 6.1 7.3 3.4M7.6 5.8 4.9 4.8M8.7 7.8 10 5.3M14 9.4C15.4 7.8 16.5 6.1 16.7 3.4M16.4 5.8 19.1 4.8M15.3 7.8 14 5.3" stroke="#ecc983" stroke-width="1.5"/></g><path d="M9 10.9 5.5 9.9c.4 1.7 1.7 2.5 3.6 2.3ZM15 10.9l3.5-1c-.4 1.7-1.7 2.5-3.6 2.3Z" fill="#a8622e" stroke="#16171c" stroke-width="1.2" stroke-linejoin="round"/><path d="M12 8.7c2.1 0 3.5 1.2 3.5 3 0 2.7-1.4 6.6-3.5 6.6s-3.5-3.9-3.5-6.6c0-1.8 1.4-3 3.5-3Z" fill="#a8622e" stroke="#16171c" stroke-width="1.6"/><circle cx="10.6" cy="12.1" r=".75" fill="#16171c"/><circle cx="13.4" cy="12.1" r=".75" fill="#16171c"/><circle cx="12" cy="17.7" r="2" fill="#ee2f3b" stroke="#16171c" stroke-width="1.2"/><circle cx="11.4" cy="17.1" r=".55" fill="#fff"/>',
+} as const;
+export type FeatureGlyph = 'none' | keyof typeof FEATURE_GLYPHS;
+
+/** THE PER-GAME WORDS AND GLYPH: the feature button's name and its glyph. */
 export const HUD_CONFIG = {
 	/** the button's word (the menu itself is game/featureMenuData.ts FEATURE_MENU_TEXT.name, THE FAST LANE) */
 	featureName: 'FAST LANE',
-	/** a road in perspective: its two edges and the lane dashes (the Frost mock's glyph) */
+	/** THE PICK (bet bar fix 2026-11-19): 'none' is the word alone, centered (on the sideways phone's small circle the
+	 *  word takes the glyph's place); 'sign' or 'antlers' draws that candidate (FEATURE_GLYPHS) beside the word, and on
+	 *  the rules page's guide. One line to change. */
+	featureGlyph: 'none' as FeatureGlyph,
+	/** RETIRED 2026-11-19 (read as a stock road icon; no longer drawn): a road in perspective, the Frost mock's glyph */
 	featureIcon: 'M9 3 4.5 21M15 3l4.5 18M12 4.5v2M12 10v3M12 16.5V20',
 	/** the mode key that draws the hotter "on" state (the double rim): the top Ante level (Manticore: SUPER_ANTE) */
 	topAnteKey: 'ANTE_10',

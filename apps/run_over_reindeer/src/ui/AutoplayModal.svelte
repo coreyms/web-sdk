@@ -332,7 +332,7 @@
 		border-radius: 999px;
 		padding: 0 11px;
 		border: 1px solid;
-		border-color: rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-ink-rgb), 0.1) rgba(var(--hud-edge-key-rgb), 0.4);
+		border-color: rgba(var(--hud-key-rim-rgb), var(--hud-key-rim-a));
 		background: rgba(var(--hud-ink-rgb), 0.05);
 		color: rgba(var(--hud-label-warm-rgb), 0.9);
 		flex: 0 0 auto;
@@ -363,7 +363,7 @@
 	.lim,
 	.fold-row {
 		border: 1px solid;
-		border-color: rgba(var(--hud-ink-rgb), 0.38) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-edge-key-rgb), 0.44);
+		border-color: rgba(var(--hud-key-rim-rgb), var(--hud-key-rim-a));
 		background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.17), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.38);
 		color: rgba(var(--hud-ink-rgb), 0.94);
 		box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
@@ -374,7 +374,7 @@
 		.chip:hover:not(.on),
 		.lim:hover:not(.on),
 		.fold-row:hover {
-			border-color: rgba(var(--hud-ink-rgb), 0.64) rgba(var(--hud-ink-rgb), 0.24) rgba(var(--hud-accent-hi-rgb), 0.78);
+			border-color: rgba(var(--hud-key-rim-rgb), 0.55);
 			box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.18), 0 0 14px rgba(var(--hud-accent-rgb), 0.18), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
 		}
 	}
@@ -467,7 +467,7 @@
 	/* the chosen one: a gold rim and warmer glass (no solid fill: the HUD's chosen state) */
 	.chip.on,
 	.lim.on {
-		border-color: var(--hud-feature-on-rim) rgba(var(--hud-accent-rgb), 0.62) rgb(var(--hud-accent-rgb));
+		border-color: rgba(var(--hud-accent-rgb), 0.9);
 		background: radial-gradient(ellipse 90% 100% at 50% 0%, rgba(var(--hud-accent-cream-rgb), 0.32), rgba(var(--hud-ink-rgb), 0.06) 76%), rgba(var(--hud-feature-on-deep-1-rgb), 0.6);
 		box-shadow: inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.32), 0 0 14px rgba(var(--hud-accent-rgb), 0.32), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
 		color: rgb(var(--hud-ink-rgb));
@@ -546,7 +546,7 @@
 		text-align: left;
 	}
 	.fold.open .fold-row {
-		border-color: rgba(var(--hud-accent-ink-rgb), 0.6) rgba(var(--hud-accent-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.6);
+		border-color: rgba(var(--hud-accent-rgb), 0.75);
 	}
 	.fold-row > * {
 		min-width: 0;
@@ -630,7 +630,7 @@
 		height: 26px;
 		border-radius: 999px;
 		border: 1px solid;
-		border-color: rgba(var(--hud-ink-rgb), 0.28) rgba(var(--hud-ink-rgb), 0.1) rgba(var(--hud-edge-key-rgb), 0.34);
+		border-color: rgba(var(--hud-key-rim-rgb), var(--hud-key-rim-a));
 		background: rgba(var(--hud-panel-bottom-rgb), 0.62);
 		box-shadow: inset 0 2px 4px rgba(var(--hud-shadow-rgb), 0.6);
 		transition: background-color 0.2s, border-color 0.2s;
@@ -645,13 +645,13 @@
 		border-radius: 50%;
 		box-sizing: border-box;
 		border: 1px solid;
-		border-color: rgba(var(--hud-ink-rgb), 0.8) rgba(var(--hud-ink-rgb), 0.3) rgba(var(--hud-accent-rgb), 0.8);
+		border-color: rgba(var(--hud-ink-rgb), 0.5);
 		background: radial-gradient(circle at 50% 22%, rgba(var(--hud-ink-rgb), 0.6), rgba(var(--hud-ink-rgb), 0.08) 68%), rgba(var(--hud-glass-top-rgb), 0.92);
 		box-shadow: 0 2px 4px rgba(var(--hud-shadow-rgb), 0.6), inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.4);
 		transition: transform 0.2s;
 	}
 	.toggle.on .knob {
-		border-color: rgba(var(--hud-accent-ink-rgb), 0.75) rgba(var(--hud-accent-rgb), 0.5) rgba(var(--hud-accent-rgb), 0.8);
+		border-color: rgba(var(--hud-accent-rgb), 0.75);
 		background: linear-gradient(90deg, rgba(var(--hud-accent-deep-rgb), 0.75), rgba(var(--hud-accent-rgb), 0.6));
 		box-shadow: inset 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4), 0 0 10px rgba(var(--hud-accent-rgb), 0.3);
 	}
@@ -669,7 +669,7 @@
 		padding: 0 18px;
 		border-radius: 999px;
 		border: 1px solid;
-		border-color: var(--hud-spin-rim-top) var(--hud-spin-rim-side) var(--hud-spin-rim-bottom);
+		border-color: var(--hud-spin-rim-side);
 		color: rgb(var(--hud-ink-rgb));
 		font-size: 13.5px;
 		font-weight: 900;
@@ -699,7 +699,7 @@
 		border-radius: 999px;
 		padding: 0 16px;
 		border: 1px solid;
-		border-color: rgba(var(--hud-feature-rim-rgb), 0.62) rgba(var(--hud-feature-rgb), 0.42) rgba(var(--hud-feature-edge-bottom-rgb), 0.55);
+		border-color: rgba(var(--hud-feature-rim-rgb), 0.46);
 		background: linear-gradient(180deg, rgba(var(--hud-feature-deep-1-rgb), 0.8), rgba(var(--hud-feature-deep-2-rgb), 0.86));
 		box-shadow: inset 0 0 12px rgba(var(--hud-feature-rgb), 0.45);
 		font-size: 10.5px;

@@ -260,7 +260,7 @@
 	.yes {
 		border-radius: 999px;
 		border: 1px solid;
-		border-color: var(--hud-spin-rim-top) var(--hud-spin-rim-side) var(--hud-spin-rim-bottom);
+		border-color: var(--hud-spin-rim-side);
 		background: radial-gradient(ellipse 70% 120% at 50% 0%, rgba(var(--hud-accent-cream-rgb), 0.3), rgba(var(--hud-accent-cream-rgb), 0) 62%), linear-gradient(180deg, rgba(var(--hud-spin-core-rgb), 0.94), rgba(var(--hud-spin-deep-rgb), 0.95));
 		color: rgb(var(--hud-accent-hi-rgb));
 		box-shadow: inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.5), 0 0 14px rgba(var(--hud-accent-rgb), 0.2);
@@ -268,7 +268,7 @@
 	.no {
 		border-radius: 999px;
 		border: 1px solid;
-		border-color: rgba(var(--hud-ink-rgb), 0.38) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-accent-rgb), 0.44);
+		border-color: rgba(var(--hud-key-rim-rgb), var(--hud-key-rim-a));
 		background: rgba(var(--hud-key-rgb), 0.5);
 		color: rgb(var(--hud-ink-rgb));
 	}
