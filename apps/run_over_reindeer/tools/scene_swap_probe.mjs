@@ -45,6 +45,10 @@
 //     the snow set); Auto follows an emulated dark and light color scheme, changed while the game is at rest; desktop also:
 //     a change asked during a Free Spins round waits through the round (never during its entry or Total Win) and is taken
 //     up after it. CAP: stills of the switch in the menu and on the press screen
+//     THE PRESS SCREEN'S SWITCH IS INSTANT (2026-11-19, Corey: "Clicking the SNOW/DARK for the scenes on the intro page
+//     isn't doing anything until you click press to continue"): before any continue press, Dark, Snow, Auto (a light
+//     device: the snow set) and Snow, Dark, Snow pressed in a row each change the drawn scene there (the key checked at
+//     once; the swap starts as soon as the set's pictures are in, within 5 s on a loaded headless host, its time printed), and the game then opens in the last one with no second change
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [SET=grass] [ONLY=desktop,side,portrait] [SECTIONS=rounds,again,resume,setting] node tools/scene_swap_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane); a turn is 15 minutes, so one size per turn with ONLY= if needed.
@@ -685,20 +689,24 @@ const reach = (sw, tag) => {
 /** a press on a key, then the scene watched until it shows `target` whole (and the old set is let go) */
 async function pressAndWatch(p, sel, target) {
 	const t0 = Date.now();
+	const was = (await swapNow(p)).shown;
 	await p.click(sel);
 	let maxScenes = 0;
 	let s = null;
 	let inAt = null;
+	let startAt = was === target ? 0 : null;
 	while (Date.now() - t0 < 12000) {
 		s = await swapNow(p);
 		maxScenes = Math.max(maxScenes, s.scenesOnGpu.length);
-		if (!inAt && s.shown === target && s.dom === target && !s.fade) inAt = Date.now() - t0;
+		if (startAt === null && (s.fade || s.shown !== was)) startAt = Date.now() - t0;
+		// (whole: the target drawn and settled in its own set, nothing more asked: presses in a row end on the last one)
+		if (!inAt && s.shown === target && s.dom === target && !s.fade && s.want === target && s.set === (target.startsWith('grass') ? 'grass' : 'snow')) inAt = Date.now() - t0;
 		if (inAt && Date.now() - t0 > inAt + 800) break;
 		await sleep(100);
 	}
 	const set = target.startsWith('grass') ? 'grass' : 'snow';
 	const left = s.loadedPresets.filter((n) => !n.startsWith(set));
-	return { inAt, maxScenes, final: s, left, gpu: { scene: s.sceneGpuMB, all: s.gpuMB } };
+	return { inAt, startAt, maxScenes, final: s, left, gpu: { scene: s.sceneGpuMB, all: s.gpuMB } };
 }
 const storeNow = (p) => R(p, (k) => { try { return localStorage.getItem(k); } catch { return 'no storage'; } }, STORE);
 const setWatch = (tag, r, target) => {
@@ -725,11 +733,42 @@ async function settingChecks(browser, S, report) {
 	let r = await pressAndWatch(p, '.landing [data-scene-choice="dark"]', 'grassDay');
 	setWatch(`${tag} press screen Dark`, r, 'grassDay');
 	rep.pressDark = r.gpu;
+	// EVERY CHOICE, IN ANY ORDER, ON THE PRESS SCREEN (no continue press): the drawn scene follows each one there
+	const pressKey = async (c, target, what) => {
+		const q = await pressAndWatch(p, `.landing [data-scene-choice="${c}"]`, target);
+		const k = await switchState(p, '.landing');
+		const still = await R(p, () => !!document.querySelector('.landing'));
+		check(q.inAt !== null && q.startAt !== null && q.startAt <= 5000 && k?.checked === c && still, `${tag} press screen ${what}: the scene behind it is ${target} before any continue press (the swap began ${q.startAt} ms after the press, whole at ${q.inAt}; ${c} checked)`, { q: q.final, checked: k?.checked, still });
+		setWatch(`${tag} press screen ${what}`, q, target);
+		info(`${tag} press screen ${what}: swap began ${q.startAt} ms after the press, ${target} whole at ${q.inAt} ms`);
+		return q;
+	};
+	await pressKey('snow', 'snowDay', 'Snow');
+	await pressKey('auto', 'snowDay', 'Auto (a light device)');
+	await pressKey('dark', 'grassDay', 'Dark again');
+	// three presses in a row, no wait: the last one wins
+	await p.click('.landing [data-scene-choice="snow"]');
+	await p.click('.landing [data-scene-choice="dark"]');
+	await pressKey('snow', 'snowDay', 'Snow, Dark, Snow pressed in a row');
+	await pressKey('dark', 'grassDay', 'Dark once more');
 	sw = await switchState(p, '.landing');
 	check(sw?.checked === 'dark' && (await storeNow(p)) === 'dark' && (await R(p, () => !!document.querySelector('.landing'))), `${tag} press screen: Dark checked and stored, the press screen still up (the press on the switch is not the continue press)`, sw);
 	if (CAP) writeFileSync(`${CAP}/${S.name}_switch_intro.png`, await p.screenshot());
-	// IN THE GAME: the menu's switch
+	// IN THE GAME: it opens in the scene chosen on the press screen, with no second change
+	await R(p, () => (window.__swapSeen = []));
+	await R(p, () => {
+		const tick = () => {
+			const x = window.__reindeer.sceneSwap();
+			window.__swapSeen.push({ shown: x.shown, fade: !!x.fade, landing: !!document.querySelector('.landing') });
+			if (window.__swapSeen.length < 2000) requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+	});
 	await enter(p, S);
+	const seen = await R(p, () => window.__swapSeen);
+	const opened = await swapNow(p);
+	check(opened.shown === 'grassDay' && !opened.fade && seen.every((f) => f.shown === 'grassDay' && !f.fade), `${tag}: the game opens in grassDay, the scene chosen on the press screen, with no second change (${seen.length} frames from the continue press)`, { opened: opened.shown, changed: seen.find((f) => f.shown !== 'grassDay' || f.fade) });
+	// IN THE GAME: the menu's switch
 	await p.click('[data-hud="menu-key"]');
 	await sleep(700);
 	const MENU = '[role="dialog"][aria-label="Menu"].is-open';

@@ -438,7 +438,10 @@
 		if (stateGame.busy || !context.stateXstateDerived.isIdle()) sceneSetWait = 'a round is running';
 		else if (stateGame.bonusMode || stateGame.gameType === 'freegame') sceneSetWait = 'a bonus round';
 		else if (stateGame.roundCard) sceneSetWait = 'a card is up';
-		else if (scoreboard?.backBusy()) sceneSetWait = 'the LED back board is up';
+		// (THE PRESS SCREEN's own expanded board is not one of those: a press on the press screen's switch changes the scene
+		// behind it at once, 2026-11-19, Corey: "Clicking the SNOW/DARK for the scenes on the intro page isn't doing
+		// anything until you click press to continue")
+		else if (scoreboard?.backBusy() && !scoreboard.pressUp()) sceneSetWait = 'the LED back board is up';
 		else if (stateScene.want !== homePreset(stateScene.set) || !swap.settled()) sceneSetWait = 'the scene is changing';
 		if (sceneSetWait) return;
 		stateScene.set = target;
