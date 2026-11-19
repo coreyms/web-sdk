@@ -7,7 +7,7 @@
 // WATCHES: ; data-roam-overlay, data-roam-wp, data-roam-mouth, ROAM_TUNNELS, ROAM_TUNNEL_MOUTH, counts.corridor, counts.rounds
 // WATCHES: apps/run_over_reindeer/src/game/forestLineSpec.ts; FOREST_LINE, TREE_PAD, roam.forest
 // WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/bookEventHandlerMap.ts}; SUPER_WHEEL.roamBackMs, roamer, roam.away
-// WATCHES: ; roam.back, held, EXIT_STAND_MS, EXIT_PREFER_MS, __reindeer.wheel, __reindeer.fixtures, tools/wheel_probe_books.json
+// WATCHES: ; data-skip, roam zone skip, roam.back, held, EXIT_STAND_MS, EXIT_PREFER_MS, __reindeer.wheel, __reindeer.fixtures, tools/wheel_probe_books.json
 // WATCHES: ; __reindeer.roamAway, __reindeer.roamBack, __reindeer.roadSounds
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
@@ -220,6 +220,9 @@ const hitsAt = (geo, zones, x, y, walking = false) => {
 	if (walking) {
 		const i = out.indexOf('top line');
 		if (i >= 0) out.splice(i, 1);
+		// (SKIP TO RESULT's button, 2026-11-19, a zone only while it is up: a walk may pass under it, never a stop)
+		const k = out.indexOf('skip');
+		if (k >= 0) out.splice(k, 1);
 	}
 	if (b.x0 < -0.5 || topLine < -0.5 || b.x1 > geo.vp.width + 0.5 || b.y1 > geo.vp.height + 0.5) out.push('screen');
 	return out;
@@ -1103,7 +1106,11 @@ async function wheelSize(browser, S) {
 		const before = await E(() => window.__reindeer.roam().counts);
 		// (a real press: the upright phone's card takes the pointer, not a scripted click)
 		await p.locator('button.catch:not([data-wheel-gate])').first().click({ force: true, timeout: 5000 }).catch(() => E(() => document.querySelector('button.catch:not([data-wheel-gate])')?.click()));
-		if (!(await until(() => window.__reindeer.wheel().phase !== null, 4000))) {
+		// (the entry on the LED board takes two presses when the first lands its scene before the press line, and a press in
+		// the card's first 450 ms is not taken: so pressed again, as a player would, until the wheel comes out; 2026-11-19, he
+		// now stands sooner on an upright phone (the skip button's keep-out is gone while it is down), so the first press
+		// came inside the card's arming)
+		for (let i = 0; i < 4 && !(await until(() => window.__reindeer.wheel().phase !== null, 2500)); i++) {
 			const r = await E(() => document.querySelector('button.catch:not([data-wheel-gate])')?.getBoundingClientRect()?.toJSON() ?? null);
 			if (r) await (S.touch ? p.touchscreen.tap(r.x + r.width / 2, r.y + r.height / 2) : p.mouse.click(r.x + r.width / 2, r.y + r.height / 2));
 		}

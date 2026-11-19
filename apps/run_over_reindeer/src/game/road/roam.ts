@@ -712,6 +712,10 @@ export class Roam {
 				if (hits(ax - side, ax + side, ay - h * FEET_SHARE, ay, z)) return false;
 			} else if (sweepTop && z.name === 'top line') {
 				continue;
+			} else if (z.name === 'skip') {
+				// SKIP TO RESULT's button (components/Board.svelte roamZones, only while it is up): a walk may pass under it (it
+				// stands in the corner he walks in through on desktop and tablet); he never stops under it (the spot check)
+				continue;
 			} else if (z.name === 'stoplight') {
 				if (hits(ax - side, ax + side, ay - h, ay, z)) return false;
 			} else if (hits(ax - side - Math.max(0, -lean.x) * h, ax + side + Math.max(0, lean.x) * h, Math.min(ay - h, ay + Math.min(0, lean.y) * h), ay, z)) return false;

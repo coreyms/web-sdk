@@ -586,7 +586,18 @@
 		};
 		// the road: the asphalt between the trench's two snow rims, the picture's whole width (his feet never on it)
 		add('road', v.ox, v.oy + ROAM_ROAD.top * v.k, v.ox + ROAD_ART.image.width * v.k, v.oy + ROAM_ROAD.bottom * v.k);
-		document.querySelectorAll('.hudp button, .hudp [data-hud]').forEach((e) => el('hud', e));
+		// (SKIP TO RESULT, components/SkipButton.svelte, 2026-11-19: its button is in the DOM, transparent and disabled, all the
+		// time it is allowed, and as a 'hud' zone it closed the top right corner he walks in through on desktop and tablet,
+		// in every round: 1fc7cea, the probe host. Now it is its own zone, 'skip', its button's box, only while it is up; he
+		// never stops under it, and a walk may pass it (game/road/roam.ts), as a walk passes behind the top line's text. Its
+		// prompt's Yes and No are 'hud' zones while the prompt is open, as before.)
+		document.querySelectorAll('.hudp button, .hudp [data-hud]').forEach((e) => {
+			if (e.matches('[data-skip="button"]')) {
+				if (e.classList.contains('up')) el('skip', e);
+				return;
+			}
+			el('hud', e);
+		});
 		// the top line: and 8 CSS px under it (Corey 2026-11-17: his head clears it by 8 px or more)
 		const line0 = out.length;
 		document.querySelectorAll('[data-top-line]').forEach((e) => el('top line', e));
@@ -612,7 +623,7 @@
 		const f = road.scene.last.forest;
 		return f ? { ...f, kit: stateScene.preset.kit } : null;
 	};
-	roamDev.zonesKey = () => (scoreboard?.backUp() ? 'board up' : 'board down');
+	roamDev.zonesKey = () => `${scoreboard?.backUp() ? 'board up' : 'board down'}|${typeof document !== 'undefined' && document.querySelector('[data-skip="button"].up') ? 'skip up' : 'skip down'}`;
 
 	// the board's tap area: a tap during a live spin hurries it, as the Spin press does (ui/controls.svelte.ts boardTap)
 	road.root.eventMode = 'static';
