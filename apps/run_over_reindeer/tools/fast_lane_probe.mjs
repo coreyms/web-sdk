@@ -322,6 +322,9 @@ async function runSize(browser, S) {
 	check(await waitClosed(p), `${tag}: the X closes the menu`);
 	await sleep(300);
 	await openMenu(p);
+	// nothing is on now and the tile looked at last was Super Free Spins: the menu opens back on it (Corey 2026-11-19)
+	pl = await plate(p);
+	check(pl.key === 'SUPER' && pl.act === 'activate', `${tag}: reopened with nothing on: the tile used last (SUPER), not the default`, pl.key);
 	await p.keyboard.press('Escape');
 	check(await waitClosed(p), `${tag}: Escape closes the menu`);
 
