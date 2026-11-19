@@ -1020,6 +1020,9 @@ export class Scoreboard {
 		if (G.switchKind === 'scan' && since < LED_BOARD.strip.switchMs) {
 			const o = F.out.ctx;
 			const x = Math.round((since / LED_BOARD.strip.switchMs) * F.dotsW);
+			// (M4, 2026-11-19: the new message is cleared from the old one's side of the line first; it used to be drawn under
+			// the old picture there, so the two read as one, "$9.10EFT", for the whole scan)
+			o.clearRect(x + 1, 0, F.dotsW - x - 1, F.dotsH);
 			o.drawImage(F.prev, x + 1, 0, F.dotsW - x - 1, F.dotsH, x + 1, 0, F.dotsW - x - 1, F.dotsH);
 			o.clearRect(x, 0, 1, F.dotsH);
 			o.fillStyle = '#fff';
@@ -1094,8 +1097,9 @@ export class Scoreboard {
 		const grille = Math.round(this.grilleTex.source.pixelWidth * this.grilleTex.source.pixelHeight * 4 * (4 / 3));
 		return face(this.strip) + face(this.back) + grille + 32 * 32 * 4;
 	}
-	/** DEV / probe: a face's picture as drawn on the last step: its lit dots and a hash of its pixels */
-	faceStats(which: 'strip' | 'back') {
+	/** DEV / probe: a face's picture as drawn on the last step: its lit dots and a hash of its pixels (png: the dots too, a
+	 *  data URL of the face at one pixel per dot, for the probe's frame strips) */
+	faceStats(which: 'strip' | 'back', png = false) {
 		const G = which === 'strip' ? this.strip : this.back;
 		if (!G) return null;
 		const F = G.F;
@@ -1107,7 +1111,7 @@ export class Scoreboard {
 			h = Math.imul(h ^ d[i], 16777619);
 		}
 		// the title as drawn this step (the back board), the entry's wait as drawn (the strip)
-		return { lit, dots: F.dotsW * F.dotsH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, explain: explainOf(F.out.ctx.canvas), title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas) };
+		return { lit, dots: F.dotsW * F.dotsH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, png: png ? F.out.toDataURL('image/png') : null, explain: explainOf(F.out.ctx.canvas), title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas) };
 	}
 	snapshot() {
 		const g = this.geo;
@@ -1146,6 +1150,8 @@ export class Scoreboard {
 			backOwner: bs?.id ?? null,
 			busy: this.busy(),
 			stripKey: this.strip?.key ?? null,
+			/** the strip's own switch (a scan to a message, a dissolve back): its kind and ms since it started (the probe) */
+			stripSwitch: this.strip ? { kind: this.strip.switchKind, since: Math.round(this.clock - this.strip.switchAt) } : null,
 			gag: gt === null ? null : { t: Math.round(gt), words: this.gagShort ? LED_BOARD.gag.short.text : gagWordsAt(gt), short: this.gagShort, ms: this.gagMs() },
 			/** THE ARBITER (constants LED_BOARD.stripOrder): the item the strip shows on the last drawn step, and what was true */
 			press: this.pressText ? { up: this.pressUp(), ready: this.pressReady, screen: s && s.kind === 'press' ? pressScreenAt(Math.max(0, s.t - s.contentAt) / 1000) : null, waiting: !!this.pressWait } : null,

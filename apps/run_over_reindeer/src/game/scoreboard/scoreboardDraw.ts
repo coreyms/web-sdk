@@ -1447,6 +1447,8 @@ export function showEntryScene(F: Face, s: Show) {
 	}
 }
 
+/** the Total Win amount's brightness on the landing blink's dim beats (it stays readable) */
+const TOTAL_BLINK_DIM = 0.4;
 /** THE TOTAL WIN (SCOREBOARD ON, COUNT, FINAL, WAITS), as the mock's showTotalScene */
 export function showTotalScene(F: Face, s: Show) {
 	const g = F.out.ctx;
@@ -1475,10 +1477,14 @@ export function showTotalScene(F: Face, s: Show) {
 	const w = rowInfo(str, cap).w;
 	const since = s.t - landAt;
 	const landed = since >= 0;
-	const blinkOff = landed && since < 900 && Math.floor(since / 150) % 2 === 1;
+	// THE LANDING BLINK: the amount dims every other 150 ms for 900 ms (M4, 2026-11-19: it dims, never goes out, so the title
+	// is never up without its amount; it used to be off on those beats, after the press line had come on)
+	const blinkDim = landed && since < 900 && Math.floor(since / 150) % 2 === 1;
 	// (centered on its lit dots since 2026-11-17)
 	const ax = centeredRow(g, str, W / 2, y0 + 7 * tts + 6 + G, cap, (W - w) / 2);
-	if (!blinkOff) drawRow(g, str, ax, y0 + 7 * tts + 6 + G, cap, 'gold', landed ? clamp(1 - since / 400, 0, 1) : 0);
+	if (blinkDim) g.globalAlpha = TOTAL_BLINK_DIM;
+	drawRow(g, str, ax, y0 + 7 * tts + 6 + G, cap, 'gold', landed ? clamp(1 - since / 400, 0, 1) : 0);
+	g.globalAlpha = 1;
 	if (landed) cornerFireworks(g, W, H, since, ['#ffd23a', '#ffffff', '#36ff74', '#ff3a2e'], Hm);
 	// the bottom band: Grandma's car bouncing, the police car with its lights going, the reindeer clapping
 	const ch = Math.round(band * 0.85);

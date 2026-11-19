@@ -57,6 +57,8 @@
 //     a Mega win's amount on the big board is that text with its lit dots inside the face; no page errors
 //     (2026-11-18: and for USD, EUR, JPY and BRL a free spin's strip win with cents, 39.2x, counted at LINE_WIN.slam
 //     stripCountMs, ends on exactly the amount it counts to and never reads more on the way)
+// M4 (section m4, desktop and upright, 2026-11-19, driven by hand): the strip's scan to a message leaves the old picture alone
+//   right of its line (never the two drawn at once); the Total Win's amount is lit whenever its title is, the landing blink too
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane).
@@ -71,7 +73,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -1532,6 +1534,99 @@ async function bonusStrip(p, S) {
 	}
 }
 
+/** M4 (2026-11-19, the blind review's garbled strip and the Total Win without its amount), driven by hand:
+ *  - THE CLEAN SCAN: when the strip scans to a message (a small win over the cartoons), right of the scan line the face is the
+ *    old picture alone, dot for dot (alpha; the shimmer only tints lit dots), on every step of the scan: the new message is
+ *    never drawn under the old one there ("$9.10EFT" was the two at once for the whole 150 ms)
+ *  - THE TOTAL WIN'S AMOUNT: from the board's power on (its scan done) to its power down, whenever the title is lit the amount
+ *    is lit too, the landing blink's dim beats included (they used to put it out while the press line was up) */
+async function m4Checks(p, S) {
+	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+	await quietBoard(p);
+	const r = await R(p, async () => {
+		const h = window.__reindeer;
+		const alphaOf = async (which) => {
+			const f = h.scoreboardFace(which, true);
+			const img = new Image();
+			img.src = f.png;
+			await img.decode();
+			const c = document.createElement('canvas');
+			c.width = f.W;
+			c.height = f.H;
+			const g = c.getContext('2d');
+			g.drawImage(img, 0, 0);
+			const d = g.getImageData(0, 0, f.W, f.H).data;
+			const a = new Uint8Array(f.W * f.H);
+			for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+			return { a, W: f.W, H: f.H, titles: f.titles };
+		};
+		h.scoreboardManual(true);
+		h.scoreboardScatter(undefined);
+		h.scoreboardStep(100, 30);
+		// 1. the scan, from a clean picture (not inside a switch of its own, a cartoon's dissolve into the next)
+		let s = h.scoreboardStep(0);
+		for (let i = 0; i < 60 && !(s.stripSwitch && s.stripSwitch.since > 500); i++) s = h.scoreboardStep(50);
+		const item0 = s.stripPick?.item;
+		const A0 = await alphaOf('strip');
+		let lit0 = 0;
+		for (const v of A0.a) if (v > 40) lit0 += 1;
+		void h.scoreboardWin(0.5, { small: true });
+		const steps = [];
+		for (let i = 0; i < 8; i++) {
+			s = h.scoreboardStep(i === 0 ? 0 : 20);
+			const sw = s.stripSwitch;
+			if (!sw || sw.kind !== 'scan' || sw.since >= h.tune.ledBoard.strip.switchMs) break;
+			const A = await alphaOf('strip');
+			const x = Math.round((sw.since / h.tune.ledBoard.strip.switchMs) * A.W);
+			let bad = 0;
+			let oldLit = 0;
+			for (let y = 0; y < A.H; y++)
+				for (let xx = x + 1; xx < A.W; xx++) {
+					const j = y * A.W + xx;
+					if (A.a[j] !== A0.a[j]) bad += 1;
+					if (A0.a[j] > 40) oldLit += 1;
+				}
+			steps.push({ since: sw.since, x, bad, oldLit, item: s.stripPick?.item });
+		}
+		h.scoreboardSkip();
+		h.scoreboardStep(100, 40);
+		// 2. the Total Win
+		h.scoreboardCard('total', { x: 248.5 });
+		const L = h.tune.ledBoard.rise;
+		const from = L.backAtMs + L.riseMs - 120 + L.scanMs;
+		const rows = [];
+		for (let t = 0; t < 7000; t += 25) {
+			s = h.scoreboardStep(25);
+			if (!s.show || s.show.kind !== 'total') break;
+			if (s.show.t < from || s.show.t >= s.show.exitAt) continue;
+			const B = await alphaOf('back');
+			const title = B.titles.filter((x) => x.kind === 'title').at(-1);
+			const amt = B.titles.filter((x) => x.kind === 'amount').at(-1);
+			const litIn = (b) => {
+				if (!b) return 0;
+				let n = 0;
+				for (let y = Math.max(0, b.y0); y < Math.min(B.H, b.y1); y++) for (let x = Math.max(0, b.x0); x < Math.min(B.W, b.x1); x++) if (B.a[y * B.W + x] > 40) n += 1;
+				return n;
+			};
+			rows.push({ t: s.show.t, land: s.show.t - s.show.countEnd, press: s.show.pressLineAt !== null && s.show.t >= s.show.pressLineAt, title: litIn(title), amount: litIn(amt), str: amt?.str });
+			if (s.show.phase === 'waits' && s.show.t - s.show.countEnd > 1500) break;
+		}
+		h.scoreboardCardEnd();
+		h.scoreboardLower();
+		h.scoreboardStep(100, 30);
+		h.scoreboardManual(false);
+		return { item0, lit0, steps, rows };
+	});
+	const sc = r.steps;
+	check(r.item0 === 'cartoon' && r.lit0 > 50 && sc.length >= 3 && sc.every((x) => x.bad === 0) && sc.some((x) => x.oldLit > 50), `${tag}: M4 THE CLEAN SCAN: a small win scanning over the ${r.item0} (${r.lit0} lit dots): right of the line the face is the old picture alone on all ${sc.length} steps (dots differing: ${sc.map((x) => x.bad).join(', ')})`, sc);
+	const tr = r.rows;
+	const final = tr.filter((x) => x.land >= 1000).map((x) => x.amount);
+	const full = final.length ? Math.max(...final) : 0;
+	const dark = tr.filter((x) => x.title > 0 && x.amount < full * 0.5);
+	const blink = tr.filter((x) => x.land >= 0 && x.land < 900);
+	check(tr.length > 40 && full > 50 && blink.length > 10 && dark.length === 0, `${tag}: M4 THE TOTAL WIN'S AMOUNT: from power on to power down the amount (${tr.at(-1)?.str}) is lit whenever the title is (${tr.length} steps, ${blink.length} in the landing blink, ${tr.filter((x) => x.press).length} with the press line; title without its amount: ${dark.length})`, dark.slice(0, 6));
+}
+
 /** THE EXPLANATION ON THE BIG BOARD (2026-11-18, constants LED_BOARD.explain): for the Free Spins entry, the Super entry and a
  *  wrap-up with a line (a top-up), in layouts A and B, driven by hand past the READY beat: the sentence's text box lies inside
  *  the back board's face and touches nothing (A: not the head), every word is there, and the strip shows the press line alone
@@ -1685,6 +1780,7 @@ async function pressBoard(browser, S) {
 				if (SEC('gagModes') && S.flows) await gagModes(p, S);
 				if (SEC('bonusStrip') && ['desktop', 'portrait'].includes(S.name)) await bonusStrip(p, S);
 				if (SEC('explain')) await explainBoards(p, S);
+				if (SEC('m4') && ['desktop', 'portrait'].includes(S.name)) await m4Checks(p, S);
 				if (SEC('currency') && ['desktop', 'side', 'portrait'].includes(S.name)) await currencyChecks(p, S);
 				if (S.flows) await flows(p, S, errs);
 				else check(errs.length === 0, `${S.name}: no page errors`, errs);
