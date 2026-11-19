@@ -376,7 +376,7 @@ export class RoadBoard {
 			// (its own label: the probes count the vehicles' twins by 'shadow')
 			riderShadow.label = 'riderShadow';
 			this.ground.addChild(riderShadow);
-			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, rel: -Infinity, v: 0, b: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, red: false, shadow, lights: null, van: null, tree: null, seated: null, riderShadow, brake: null };
+			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, rel: -Infinity, v: 0, b: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, red: false, redRank: 0, shadow, lights: null, van: null, tree: null, seated: null, riderShadow, brake: null };
 			this.cars.push(car);
 		}
 		this.stopPresent(car);
