@@ -246,6 +246,27 @@
 			gone = true;
 		};
 	});
+	// ...and while the menu is up, any later change of the column's height (the open's own settling, a font landing, a line
+	// rewrapping) takes the next step when the column overflows again; it never steps back (the effect above starts each
+	// new state from step 0)
+	$effect(() => {
+		const el = stageEl;
+		if (!el || !open || lay !== 'up' || squeezeOff || typeof ResizeObserver === 'undefined') return;
+		let raf = 0;
+		const ro = new ResizeObserver(() => {
+			cancelAnimationFrame(raf);
+			raf = requestAnimationFrame(() => {
+				if (el.scrollHeight - el.clientHeight <= 1) return;
+				if (squeeze < SQUEEZE_MAX) squeeze += 1;
+				else fitK = Math.max(0.6, (el.clientHeight / el.scrollHeight) * fitK);
+			});
+		});
+		for (const c of el.children) ro.observe(c);
+		return () => {
+			cancelAnimationFrame(raf);
+			ro.disconnect();
+		};
+	});
 	const say = $derived(runs(X.say[key] ?? ''));
 
 	// ---- presses -----------------------------------------------------------------------------------------------------
@@ -373,7 +394,7 @@
 	<div class="fl" class:reduced style:--accent={look.accent} data-feature-menu data-layout={lay}>
 		<div class="tint" style:background-color={look.tint}></div>
 		<!-- the box: one transform; the pieces take the pointer, the gaps between them close the menu as before -->
-		<div class="stage {lay}" class:short class:sq2={squeeze >= 2} class:sq4={squeeze >= 4} class:fitcol={!squeezeOff} bind:this={stageEl} data-squeeze={squeeze} inert={confirmOpen} style:width="{box.w}px" style:height="{box.h}px" style:transform="translate({box.x}px, {box.y}px) scale({box.s})" onclick={stageClick} role="presentation">
+		<div class="stage {lay}" class:short class:sq2={squeeze >= 2} class:sq4={squeeze >= 4} class:fitcol={!squeezeOff} bind:this={stageEl} data-squeeze={squeeze} inert={confirmOpen} style:width="{box.w}px" style:height="{box.h}px" style:transform="translate({box.x}px, {box.y}px) scale({box.s})" style:--fl-s={box.s} onclick={stageClick} role="presentation">
 			<div class="road" aria-hidden="true"></div>
 
 			<div class="title" data-piece><i></i><span>{T.name}</span><i></i></div>
@@ -848,6 +869,27 @@
 		justify-content: center;
 		gap: 4px;
 		white-space: nowrap;
+	}
+	/* THE TOUCH TARGETS (2026-11-19): where the box scales below 1 (an upright screen under 390 wide or 600 tall, the
+	   existing fit) the amount's minus and plus, Close and the level stops are drawn under 44 CSS px (40.6 at 360 wide);
+	   each keeps its drawn size and gets an inert hit area of at least 44 x 44 CSS px round its centre (44 / the box's
+	   scale in design px), which never reaches a neighbour's */
+	.step,
+	.lvl button,
+	.up .close,
+	.side .close {
+		position: relative;
+	}
+	.step::after,
+	.lvl button::after,
+	.close::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: max(100%, calc(44px / var(--fl-s, 1)));
+		height: max(100%, calc(44px / var(--fl-s, 1)));
+		transform: translate(-50%, -50%);
 	}
 	.lvl button[aria-checked='true'] {
 		background: var(--sign-white) !important;

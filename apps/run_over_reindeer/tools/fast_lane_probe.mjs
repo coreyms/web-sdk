@@ -1,7 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/ui/FeatureMenu.svelte;
 // WATCHES: ; __reindeer.fastLane, __reindeer.hud, __reindeer.atRest, data-feature-menu, data-fl-confirm, data-fl-price
-// WATCHES: ; data-squeeze, flSqueezeOff, anteOnShort, loadedShort, data-fl-low, data-fl-step, data-menu-foot, .note, .act, .price, .go, data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
+// WATCHES: ; --fl-s, ::after, data-fl-step, data-squeeze, flSqueezeOff, anteOnShort, loadedShort, data-fl-low, data-fl-step, data-menu-foot, .note, .act, .price, .go, data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
 // THE FAST LANE PROBE: the feature menu (ui/FeatureMenu.svelte, the redesign of 2026-11-17). At each size (desktop
 // 1440 x 900 and 1920 x 1080, a phone held sideways 844 x 390, an upright phone 390 x 844 and the small 390 x 620):
 //   · the HUD's feature button opens it; the X and Escape close it
@@ -151,12 +151,32 @@ async function layout(p, S, tag) {
 			if (!vis(e)) continue;
 			if (e.scrollWidth > e.clientWidth + 1) out.overflow.push({ el: e.className || e.tagName, text: e.textContent.trim().slice(0, 40), sw: e.scrollWidth, cw: e.clientWidth });
 		}
-		// every button big enough to press
+		// every button big enough to press: its HIT AREA (2026-11-19): the drawn box, grown by its inert ::after target
+		// (ui/FeatureMenu.svelte THE TOUCH TARGETS) where it has one, centred on it; and no two buttons' hit areas overlap
+		const hits = [];
 		for (const e of [...(menu?.querySelectorAll('button') ?? []), ...(card?.querySelectorAll('button') ?? [])]) {
 			if (!vis(e) || e.closest('[inert]')) continue;
 			const b = box(e);
-			if (b.w < 44 - 0.5 || b.h < 44 - 0.5) out.small.push({ el: e.dataset.card ?? e.dataset.lvl ?? e.dataset.act ?? e.getAttribute('aria-label') ?? e.className, w: Math.round(b.w * 10) / 10, h: Math.round(b.h * 10) / 10 });
+			const k = e.offsetWidth ? b.w / e.offsetWidth : 1;
+			const a = getComputedStyle(e, '::after');
+			const aw = a.content && a.content !== 'none' && a.position === 'absolute' ? parseFloat(a.width) * k : 0;
+			const ah = a.content && a.content !== 'none' && a.position === 'absolute' ? parseFloat(a.height) * k : 0;
+			const w = Math.max(b.w, aw || 0);
+			const h = Math.max(b.h, ah || 0);
+			const cx = (b.x0 + b.x1) / 2;
+			const cy = (b.y0 + b.y1) / 2;
+			const name = e.dataset.card ?? e.dataset.lvl ?? e.dataset.act ?? e.dataset.flStep ?? e.getAttribute('aria-label') ?? e.className;
+			hits.push({ name, x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 });
+			if (w < 44 - 0.5 || h < 44 - 0.5) out.small.push({ el: name, w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10, drawn: [Math.round(b.w * 10) / 10, Math.round(b.h * 10) / 10] });
 		}
+		out.hitOverlap = [];
+		for (let i = 0; i < hits.length; i++)
+			for (let j = i + 1; j < hits.length; j++) {
+				const a = hits[i];
+				const c = hits[j];
+				const ov = Math.max(0, Math.min(a.x1, c.x1) - Math.max(a.x0, c.x0)) * Math.max(0, Math.min(a.y1, c.y1) - Math.max(a.y0, c.y0));
+				if (ov > 1) out.hitOverlap.push(`${a.name} / ${c.name} ${Math.round(ov)} px2`);
+			}
 		return out;
 	});
 	const W = S.vp.width;
@@ -171,7 +191,8 @@ async function layout(p, S, tag) {
 		}
 	check(r.inside.length === 0, `${S.name} ${tag}: nothing leaves its piece`, r.inside.slice(0, 4));
 	check(r.overflow.length === 0, `${S.name} ${tag}: no text overflows`, r.overflow.slice(0, 4));
-	check(r.small.length === 0, `${S.name} ${tag}: every button at least 44 x 44`, r.small.slice(0, 6));
+	check(r.small.length === 0, `${S.name} ${tag}: every button's hit area at least 44 x 44`, r.small.slice(0, 6));
+	check(r.hitOverlap.length === 0, `${S.name} ${tag}: no two buttons' hit areas overlap`, r.hitOverlap.slice(0, 6));
 	if (r.card) check(r.card.x0 >= 0 && r.card.y0 >= 0 && r.card.x1 <= W && r.card.y1 <= H, `${S.name} ${tag}: the confirm card inside the viewport`, r.card);
 	return r;
 }
@@ -417,7 +438,9 @@ const contain = (p) =>
 
 async function shortHeights(browser) {
 	for (const social of [false, true]) {
-		for (const [w, h] of SHORT) {
+		// (SHORTSIZES=360x560,390x580 runs those alone)
+		const only = (process.env.SHORTSIZES || '').split(',').filter(Boolean);
+		for (const [w, h] of SHORT.filter(([a, b]) => !only.length || only.includes(`${a}x${b}`))) {
 			const S = { name: `short${w}x${h}${social ? 's' : ''}`, vp: { width: w, height: h }, touch: true, phone: true };
 			const tag = `${w}x${h}${social ? ' social' : ''}`;
 			const { ctx, p, errs } = await boot(browser, S, `${social ? '&social=true' : ''}${process.env.BEFORE ? '&flSqueezeOff=1' : ''}`);
