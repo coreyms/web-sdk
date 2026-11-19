@@ -43,6 +43,7 @@
 	import { ANTE_KEYS, modeCost } from '../game/betModeMeta';
 	import { stamp } from '../game/assets';
 	import { PHONE_TIER } from '../game/deviceTier';
+	import { fastLaneMemory } from '../game/fastLaneMemory';
 	import { ANTE_ODDS, BUY_ODDS, FAST_LANE_TEXT as X, FEATURE_MENU_TEXT as T, MAX_WIN_NOTE, ODDS_ARE_PROVISIONAL, type OddsRow } from '../game/featureMenuData';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
@@ -115,11 +116,21 @@
 		if (!open) return;
 		untrack(() => {
 			const i = anteOn ? ANTE_KEYS.indexOf(anteOn) : -1;
-			stop = i >= 0 ? i : 0;
-			sel = armed === 'BONUS' || armed === 'SUPER' ? armed : 'ANTE'; // nothing loaded: the Ante tile (Corey 2026-11-17: "Make the Ante the Default selection ... instead of Free Spins")
+			// what is on wins; else the tile and level looked at last in this page's life (game/fastLaneMemory.ts, Corey
+			// 2026-11-19); else the Ante tile at its lowest level (Corey 2026-11-17: "Make the Ante the Default selection ...
+			// instead of Free Spins")
+			const lastStop = fastLaneMemory.stop;
+			stop = i >= 0 ? i : lastStop !== null && lastStop >= 0 && lastStop < ANTE_KEYS.length ? lastStop : 0;
+			sel = armed === 'BONUS' || armed === 'SUPER' ? armed : anteOn ? 'ANTE' : (fastLaneMemory.pick ?? 'ANTE');
 			confirmOpen = false;
 			note = null;
 		});
+	});
+	// the tile and the level on show while the menu is open are the ones it opens on next time
+	$effect(() => {
+		if (!open) return;
+		fastLaneMemory.pick = sel;
+		fastLaneMemory.stop = stop;
 	});
 	// the menu closes the card with it
 	$effect(() => {
