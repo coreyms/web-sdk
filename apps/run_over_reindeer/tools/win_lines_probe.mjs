@@ -3,6 +3,8 @@
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.frame, __reindeer.hud
 // WATCHES: ; __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites, __reindeer.soundTap, __reindeer.step, __reindeer.tune
 // WATCHES: ; __reindeer.turbo, __reindeer.winLights, __reindeer.winLightsShown, LINE_WIN, sfx_line_show, .landing, .hudp, .spin
+// WATCHES: apps/run_over_reindeer/src/game/{winLightsSpec.ts,road/roadBoard.ts,road/roadFeatures.ts,roadArtSpec.ts}; __reindeer.shadows
+// WATCHES: ; LINE_WIN.lights.tips, WIN_LIGHTS_ART.nail, RED_BOX.inset, RED_BOX.edge, wildBoxHalf, nailSnapshot
 // THE WIN LINES PROBE (the Christmas lights, Corey 2026-11-15; constants LINE_WIN lights, game/road/winLights.ts). Posed
 // books handed to the fixtures through the dev hook (presentation only, no math): a one line win, a three line win (three
 // different paying symbols), and three palette boards that between them pay on every symbol (H1 to H4, a line of Wilds
@@ -25,6 +27,11 @@
 //   - sfx_line_show once per line, on the frame that line starts (the road's sound log against the Howl's own plays)
 //   - after the win, and after a slam stop during it: nothing of the lights, the amounts or the total on screen
 //   - the sprites and the WebGL draw calls per frame of a three line win, with the lights and without (the same frame)
+//   - THE NAILS (PART=tips, constants LINE_WIN lights tips, Corey 2026-11-18 "T2 Nail"): off, square ends at the
+//     centres; 'center', on the symbols' centres; 'edge', each ring just past its symbol's art or a Wild's frame (a line
+//     ending on a 5x Grandma Wild, one starting on a 10x), the wire meeting each wrap on its ring's lower half, on the
+//     road; one nail per symbol end in the twelve line win, a shared nail popping in once and staying; the start nail up
+//     as its wire starts; no nail under an amount showing; none left after the win
 //   - no page errors
 // With OUT=<dir>: per-frame tables (table_<case>_<size>.md), frames for 60 fps clips (frames_<case>_<size>/, VIDEO=1),
 // stills of each palette at 3 device px per CSS px (palette_<board>_<size>.png, crops.json; the caller upscales to 4x).
@@ -45,7 +52,7 @@ const VIDEO = process.env.VIDEO === '1';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 // (2026-11-17) the cases in three parts, each inside one browser lock turn: a (one, three, treatment B's own wins), b (the
 // turbo levels and the slam stop), c (twelve lines, the cost, the palette stills)
-const PART = (process.env.PART || 'a,x,b,c,clear').split(',');
+const PART = (process.env.PART || 'a,x,b,c,tips,clear').split(',');
 const part = (x) => PART.includes(x);
 if (OUT) mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -584,12 +591,131 @@ async function clearance(browser) {
 	}
 }
 
+
+// ---- THE WIRE'S ENDS: THE NAILS (PART=tips; Corey 2026-11-18 "T2 Nail", constants LINE_WIN lights tips) ----------------
+// The board's own numbers, from the road's art spec (game/roadArtSpec.ts board and laneLines), read from the page
+const TIP_BOOKS = (() => {
+	const b = (board, wins, pre = []) => {
+		const total = wins.reduce((n, w) => n + w.win, 0);
+		return [
+			{ index: 0, type: 'reveal', gameType: 'basegame', board },
+			...pre.map((e, i) => ({ index: i + 1, ...e })),
+			{ index: pre.length + 1, type: 'winInfo', totalWin: total, wins },
+			{ index: pre.length + 2, type: 'setTotalWin', amount: total },
+			{ index: pre.length + 3, type: 'finalWin', amount: total },
+		];
+	};
+	const PL = [[0, 0, 0, 0, 0], [1, 1, 1, 1, 1], [2, 2, 2, 2, 2], [3, 3, 3, 3, 3], [0, 1, 2, 1, 0], [3, 2, 1, 2, 3], [1, 2, 3, 2, 1], [2, 1, 0, 1, 2], [0, 0, 1, 0, 0], [3, 3, 2, 3, 3], [0, 1, 0, 1, 0], [3, 2, 3, 2, 3]];
+	const twelveBoard = [['H1', 'W', 'H1', 'H1'], ['H1', 'H1', 'W', 'H1'], ['W', 'H1', 'H1', 'H1'], ['H1', 'L3', 'L4', 'H1'], ['L2', 'L5', 'L1', 'L4']];
+	const twelveWins = PL.map((pl, li) => {
+		const cells = [];
+		for (let r = 0; r < 5; r++) {
+			const s = twelveBoard[r][pl[r]];
+			if (s === 'H1' || s === 'W') cells.push(r * 4 + pl[r]);
+			else break;
+		}
+		return { symbol: 'H1', kind: cells.length, line: li + 1, win: 50 * cells.length, multiplier: 1, cells };
+	});
+	return {
+		// a line ending on a 5x Grandma Wild (the real strike): police x2, then her box
+		wildEnd: b([['L2', 'H4', 'L3', 'L5'], ['L3', 'H4', 'L5', 'L2'], ['L5', 'H1', 'L2', 'L3'], ['L4', 'L1', 'L3', 'L2'], ['L1', 'L3', 'L4', 'L5']], [{ symbol: 'H4', kind: 3, line: 2, win: 250, multiplier: 5, cells: [1, 5, 9] }], [
+			{ type: 'strike', target: 'grandmaCar', cell: 9, reel: 2 },
+			{ type: 'grandmaWild', cell: 9, multiplier: 5 },
+		]),
+		// a line starting on a 10x Grandma Wild (the fixture base_grandma_strike's book)
+		wildStart: b([['L2', 'L4', 'L5', 'H1'], ['W', 'H2', 'H3', 'L5'], ['L5', 'L1', 'L3', 'H3'], ['L5', 'W', 'L1', 'H1'], ['L1', 'L4', 'L4', 'H3']], [{ symbol: 'H3', kind: 3, line: 12, win: 800, multiplier: 10, cells: [3, 6, 11] }], [
+			{ type: 'strike', target: 'grandmaCar', cell: 3, reel: 0 },
+			{ type: 'grandmaWild', cell: 3, multiplier: 10 },
+		]),
+		// all twelve lines from the first reel's four symbols (Grandma's car and the sleigh): every first reel symbol starts
+		// three or four lines
+		twelve: b(twelveBoard, twelveWins),
+	};
+})();
+
+/** one win of the nails' checks: played and stepped as every other (playWin), then read against the board's own boxes */
+async function tipsJudge(p, S, T, name, bookEvents, { wild = [], end = 'edge' } = {}) {
+	const tag = `${S.name} nails ${name} (${end})`;
+	await R(p, (end) => { window.__reindeer.tune.lineWin.lights.tips.end = end; }, end);
+	const W = await playWin(p, S, bookEvents);
+	const info = bookEvents.find((e) => e.type === 'winInfo');
+	const n = info.wins.length;
+	const live = W.rows.filter((r) => r.active && r.nails);
+	const geo = await R(p, () => {
+		const sh = window.__reindeer.shadows();
+		return { cars: sh.cars.filter((c) => c.phase === 'rest' && c.cell !== null).map((c) => ({ cell: c.cell, x: c.ownerX, w: c.ownerWidth })) };
+	});
+	const A = live.find((r) => r.lines.length === n && r.lines.every((l) => l.ends?.length === 2));
+	check(!!A, `${tag}: every line has its two nailed ends`);
+	if (!A) return;
+	const N = A.nails;
+	const ringOuter = N.ringOuter;
+	// THE BOARD'S BOXES: a symbol's drawn art (its sprite's width at rest), a Wild cell's box to its outer dark line (the
+	// cell, RED_BOX.inset 4 in, its dark line 3 out: 250 / 2 - 4 + 3 road px either side of the column's centre)
+	const colX = (cell) => 142 + (Math.floor(cell / 4) + 0.5) * 250;
+	const halfOf = (cell) => Math.max((geo.cars.find((c) => c.cell === cell)?.w ?? 0) / 2, wild.includes(cell) ? 124 : 0);
+	A.lines.forEach((l, k) => {
+		const cells = [...info.wins[k].cells].sort((a, b) => a - b);
+		const [a, b] = l.ends;
+		const c0 = cells[0];
+		const c1 = cells[cells.length - 1];
+		if (end === 'edge') {
+			// the start nail's ring clears its symbol's left edge (a Wild's frame), the end nail's its right edge (1 road px)
+			const left = colX(c0) - halfOf(c0);
+			const right = colX(c1) + halfOf(c1);
+			check(a.x + ringOuter <= left + 1 && a.x + ringOuter >= left - 2, `${tag}: line ${k + 1} start nail just left of cell ${c0}'s ${wild.includes(c0) ? 'Wild frame' : 'art'} (ring right ${r1(a.x + ringOuter)}, art left ${r1(left)})`);
+			check(b.x - ringOuter >= right - 1 && b.x - ringOuter <= right + 2, `${tag}: line ${k + 1} end nail just right of cell ${c1}'s ${wild.includes(c1) ? 'Wild frame' : 'art'} (ring left ${r1(b.x - ringOuter)}, art right ${r1(right)})`);
+		} else {
+			check(Math.abs(a.x - colX(c0)) < 0.2 && Math.abs(b.x - colX(c1)) < 0.2, `${tag}: line ${k + 1} nails on the symbols' centres (${a.x}, ${b.x})`);
+		}
+		// the wire meets each wrap on its circle, on its lower half
+		for (const [e, w] of [[a, l.wire[0]], [b, l.wire[1]]]) {
+			const d = Math.hypot(w.x - e.x, w.y - e.y);
+			check(Math.abs(d - N.ring) < 0.5 && w.y >= e.y - 0.5, `${tag}: line ${k + 1} wire meets its wrap on the ring (${r1(d)} from the nail's centre, want ${N.ring}), below its middle`);
+		}
+		// on the board: inside the tunnel mouths and above the board's bottom lane line (the LED strip is under it)
+		for (const e of [a, b]) check(e.x - ringOuter >= 51 && e.x + ringOuter <= 1483 && e.y + ringOuter <= 851, `${tag}: line ${k + 1} nail at ${e.x}, ${e.y} stays on the road (mouths 51 / 1483, bottom line 851)`);
+	});
+	// ONE NAIL PER SYMBOL END: as many nails as distinct (first cell) and (last cell) ends, each listing every line on it
+	const keys = new Set(info.wins.flatMap((w) => { const c = [...w.cells].sort((x, y) => x - y); return [`${c[0]}:a`, `${c[c.length - 1]}:b`]; }));
+	check(N.nails.length === keys.size && N.nails.every((x) => keys.has(x.key)), `${tag}: one nail per symbol end (${N.nails.length} nails, ${keys.size} ends)`);
+	check(N.layerBelowAmounts, `${tag}: the nails' layer is under the amounts`);
+	// a shared nail comes once and goes once: from its first full size it stays full until its last line's out
+	for (const x of N.nails.filter((q) => q.lines.length > 1)) {
+		const sc = live.map((r) => r.nails.nails.find((q) => q.key === x.key)?.scale ?? 0);
+		const first = sc.findIndex((v) => v >= 0.999);
+		const lastFull = sc.length - 1 - [...sc].reverse().findIndex((v) => v >= 0.999);
+		const dips = sc.slice(first, lastFull + 1).filter((v) => v < 0.999).length;
+		check(first >= 0 && dips === 0 && x.ups.length === 1, `${tag}: the nail at ${x.key} shared by lines ${x.lines.map((q) => q + 1).join(', ')} pops in once and stays (${dips} frames under full between)`);
+	}
+	// no nail over a line's amount up at the same frame (road px boxes)
+	let over = 0;
+	for (const r of live) {
+		const boxes = r.lines.filter((l) => l.amount?.shown && l.amount.rect).map((l) => l.amount.rect);
+		for (const x of r.nails.nails.filter((q) => q.visible)) for (const b of boxes) if (x.x + ringOuter > b.x && x.x - ringOuter < b.x + b.w && x.y + ringOuter > b.y && x.y - ringOuter < b.y + b.h) over += 1;
+	}
+	// (the upright phone's amounts are sized for their digit cap, LINE_WIN slam phone capPx, and lie over the lights by
+	// design: there the nails only have to be under them, the layer check above)
+	if (S.phone) console.log(`  ${tag}: ${over} frames with a nail under an amount (the phone's large amounts; the nails' layer is under them)`);
+	else check(over === 0, `${tag}: no nail under a line's amount while it shows (${over} frame overlaps)`);
+	// draw in: a start nail is up before its wire draws; an end nail only once its wire is nearly there
+	A.lines.forEach((l, k) => {
+		const firstWire = live.find((r) => (r.lines[k]?.frac ?? 0) > 0);
+		const nailA = firstWire?.nails.nails.find((q) => q.key === l.ends[0].key);
+		check(!!nailA && nailA.visible, `${tag}: line ${k + 1}'s start nail is up as its wire starts`);
+	});
+	const after = W.after;
+	check(!after.visible && after.sprites === 0 && !(after.nails?.nails ?? []).some((q) => q.visible), `${tag}: after the win no nail is left on screen`);
+	await R(p, () => { window.__reindeer.tune.lineWin.lights.tips.end = 'edge'; });
+	return { A, W };
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 const result = {};
 if (part('clear')) await clearance(browser);
 const crops = {};
 try {
-	for (const S of ['a', 'x', 'b', 'c'].some(part) ? SIZES : []) {
+	for (const S of ['a', 'x', 'b', 'c', 'tips'].some(part) ? SIZES : []) {
 		const { ctx, p, errs } = await boot(browser, S);
 		const T = await R(p, () => JSON.parse(JSON.stringify(window.__reindeer.tune.lineWin)));
 		console.log(`-- ${S.name} ${S.vp.width}x${S.vp.height}`);
@@ -742,6 +868,19 @@ try {
 			if (await R(p, () => window.__reindeer.atRest() && window.__reindeer.hud.idle())) break;
 			await sleep(150);
 		}
+		}
+		if (part('tips')) {
+			// THE NAILS: off, the old square ends at the symbols' centres; on: the centre, the edge (a Wild at either end) and
+			// the twelve line win's shared nails
+			await R(p, () => { window.__reindeer.tune.lineWin.lights.tips.on = false; });
+			const off = await playWin(p, S, BOOKS.one);
+			const o = off.rows.filter((r) => r.active).pop();
+			check(!!o && o.lines[0].ends.length === 0 && (o.nails?.nails ?? []).length === 0 && Math.abs(o.lines[0].wire[0].x - (142 + 125)) < 0.2, `${S.name} nails off: square ends at the centres, no nail`, o?.nails);
+			await R(p, () => { window.__reindeer.tune.lineWin.lights.tips.on = true; });
+			await tipsJudge(p, S, T, 'one', BOOKS.one, { end: 'center' });
+			await tipsJudge(p, S, T, 'ends on a 5x Wild', TIP_BOOKS.wildEnd, { wild: [9] });
+			await tipsJudge(p, S, T, 'starts on a 10x Wild', TIP_BOOKS.wildStart, { wild: [3] });
+			await tipsJudge(p, S, T, 'twelve lines', TIP_BOOKS.twelve);
 		}
 		check(errs.length === 0, `${S.name}: no page errors, no console errors`, errs);
 		result[S.name] = { cost, one: one?.rows.length ?? null, three: three?.rows.length ?? null };

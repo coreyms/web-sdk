@@ -973,6 +973,14 @@ export class RoadFeatures {
 		return { rows: this.xhTrace, plan: this.xhInfo, live: this.xh ? this.xh.state : 'off' };
 	}
 
+	/** A WILD BOX'S HALF WIDTH at a cell (road px, to its outer dark line), or 0: a Grandma Wild's box on that cell, or a
+	 *  column Wild standing in its reel (the win lights' nails clear it: constants LINE_WIN lights tips) */
+	wildBoxHalf(cell: number): number {
+		const reel = Math.floor(cell / ROWS);
+		const on = this.clouds.some((c) => c.cell === cell && c.leaving === null) || this.columns.some((c) => c.reel === reel && c.phase !== 'leave');
+		return on ? PITCH / 2 - RED_BOX.inset + RED_BOX.edge : 0;
+	}
+
 	// ---- the Grandma Wild ------------------------------------------------------------------------------------------------
 	/** the struck car's cell becomes the crash cloud with WILD and its multiplier, for this spin */
 	grandmaWild(cell: number, multiplier: number): Promise<void> {

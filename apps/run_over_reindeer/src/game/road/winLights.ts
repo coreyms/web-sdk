@@ -10,7 +10,16 @@
 // Plain sprites only, all made once per line slot and reused (nothing is allocated per frame): the wire is two layers
 // of tinted quads of Pixi's own white texture (every outline under every core, so the joins are clean), the bulbs and
 // their glows are one small sheet's two pictures (tools/build_win_lights.py), tinted; the glows are added. No filter,
-// mask, shader or blur. Three layers for every line together: the wires, the glows, the bulbs (and the amounts, Text).
+// mask, shader or blur. Four layers for every line together: the wires, the nails, the glows, the bulbs (and the
+// amounts, Text).
+//
+// THE WIRE'S ENDS (constants LINE_WIN lights tips; Corey 2026-11-18, "T2 Nail"): each end wraps once round a nail, the
+// sheet's third picture (the wrap and the head together, never tinted, never turned: it is round). The wire's end point
+// is the nail's centre (on the symbol's centre, or just past its outer edge); the wire itself ends where it meets the
+// wrap tangentially on the wrap's lower side, so the wrap's edges carry on the wire's and its square end is under the
+// wrap. One nail per symbol end, shared by every line that starts (or ends) there: up from the first of them to the
+// last (a pool of sprites made at the first win that needs them). The quads and bulbs are as before: two more sprites
+// a line at most.
 import * as PIXI from 'pixi.js';
 
 import { LINE_WIN } from '../constants';
@@ -37,6 +46,10 @@ export type LightLine = {
 	multiplier?: number;
 	/** where its amount may go, best first: road px of a box's centre */
 	slots: { x: number; y: number }[];
+	/** per point: its cell and the half width its symbol is drawn at (road px; a Wild box's when it is wider), for the
+	 *  nails (LINE_WIN lights tips) */
+	cells?: number[];
+	half?: number[];
 };
 
 type Slot = {
@@ -85,7 +98,13 @@ type Slot = {
 	wProd: number;
 	wBadge: number;
 	state: 'none' | 'plain' | 'side' | 'squash' | 'win';
+	/** THE NAILS: this line's two end points (the nails' centres, road px), its ends' keys (cell and side), when each nail
+	 *  comes and goes (ms into the line) */
+	ends: { x: number; y: number; key: string; in: number; out: number }[];
 };
+
+/** one nail of the pool: the sprite, the end it sits on and when it is up (ms into the win, merged over its lines) */
+type Nail = { sprite: PIXI.Sprite; key: string; x: number; y: number; ups: { in: number; out: number }[]; lines: number[]; scale: number };
 
 /** one line's slam label: the plain amount and the line's win (each with its shadow), the multiplier and its two shadows */
 type SlamLabel = { root: PIXI.Container; plain: PIXI.Text; plainSh: PIXI.Text; win: PIXI.Text; winSh: PIXI.Text; badge: NumberLabel; badgeSh: NumberLabel[] };
@@ -222,6 +241,10 @@ export class WinLights {
 	private readonly wireLayer = new PIXI.Container();
 	private readonly glowLayer = new PIXI.Container();
 	private readonly bulbLayer = new PIXI.Container();
+	private readonly nailLayer = new PIXI.Container();
+	private readonly nails: Nail[] = [];
+	private nailCount = 0;
+	private readonly nailTex: PIXI.Texture | null;
 	private readonly amountLayer = new PIXI.Container();
 	private readonly slots: Slot[] = [];
 	private readonly bulbTex: PIXI.Texture | null;
@@ -238,11 +261,12 @@ export class WinLights {
 		this.numTex = numTex;
 		this.root.label = 'winLights';
 		this.glowLayer.blendMode = 'add';
-		this.root.addChild(this.wireLayer, this.glowLayer, this.bulbLayer, this.amountLayer);
+		this.root.addChild(this.wireLayer, this.nailLayer, this.glowLayer, this.bulbLayer, this.amountLayer);
 		const t = WIN_LIGHTS_ART.tiers[tier];
 		const cut = (f: { x: number; y: number; width: number; height: number }) => (sheet ? new PIXI.Texture({ source: sheet.source, frame: new PIXI.Rectangle(f.x, f.y, f.width, f.height) }) : null);
 		this.bulbTex = cut(t.frames.bulb);
 		this.glowTex = cut(t.frames.glow);
+		this.nailTex = cut(t.frames.nail);
 	}
 
 	/** the lines of a win, in the book's order; `pace` the turbo level's share of every time; `amounts` false shows no
@@ -270,8 +294,9 @@ export class WinLights {
 			s.pace = pace;
 			s.symbol = line.symbol;
 			s.palette = L.palettes[line.symbol] ?? L.palettes.L5;
-			this.sample(s, line.points);
+			this.sample(s, this.endPoints(s, line, k));
 			this.hangBulbs(s);
+			this.nailTimes(s);
 			s.amountShown = false;
 			s.rect = null;
 			if (this.slamOpts && line.amountText) {
@@ -341,8 +366,144 @@ export class WinLights {
 			}
 			if (s.amount) s.amount.visible = false;
 		}
+		this.placeNails();
 		this.root.visible = this.active > 0;
 	}
+
+	/** THE WIRE'S END POINTS (constants LINE_WIN lights tips): the line's points with its first and last moved to the nails'
+	 *  centres (on the symbol's centre, or just past its outer edge), then to where the wire meets each wrap: the point
+	 *  on the wrap's circle whose tangent is the wire's own there (its sagged span's), on the wrap's lower side */
+	private endPoints(s: Slot, line: LightLine, k: number): { x: number; y: number }[] {
+		const T = L.tips;
+		const P = line.points.map((p) => ({ x: p.x, y: p.y }));
+		s.ends = [];
+		if (!T.on || P.length < 2 || !this.nailTex) return P;
+		const m = P.length - 1;
+		const cells = line.cells ?? [];
+		if (T.end === 'edge' && line.half) {
+			P[0].x -= (line.half[0] ?? 0) + T.edgeGap;
+			P[m].x += (line.half[m] ?? 0) + T.edgeGap;
+		}
+		const A = { x: P[0].x, y: P[0].y };
+		const B = { x: P[m].x, y: P[m].y };
+		s.ends = [
+			{ x: A.x, y: A.y, key: `${cells[0] ?? 'k' + k}:a`, in: 0, out: Infinity },
+			{ x: B.x, y: B.y, key: `${cells[m] ?? 'k' + k}:b`, in: 0, out: Infinity },
+		];
+		const r = WIN_LIGHTS_ART.nail.ring;
+		// the sagged span's tangent at its start (u 0) or its end (u 1)
+		const dir = (a: { x: number; y: number }, b: { x: number; y: number }, u: number) => {
+			const dx = b.x - a.x;
+			const dy = b.y - a.y + Math.PI * L.sag * Math.cos(u * Math.PI);
+			const l = Math.hypot(dx, dy) || 1;
+			return { x: dx / l, y: dy / l };
+		};
+		for (let it = 0; it < 3; it++) {
+			const d0 = dir(P[0], P[1], 0);
+			P[0] = { x: A.x - d0.y * r, y: A.y + d0.x * r };
+			const d1 = dir(P[m - 1], P[m], 1);
+			P[m] = { x: B.x - d1.y * r, y: B.y + d1.x * r };
+		}
+		return P;
+	}
+
+	/** when each nail of a line comes and goes, ms into the line: the start nail as the line starts (before its wire) until
+	 *  it starts coming down (the tail leaves it first); the end nail as the wire's head is about to reach it until the
+	 *  line's last wire goes */
+	private nailTimes(s: Slot) {
+		if (!s.ends.length) return;
+		// head = easeOut3(u) * total reaches `at` when u = 1 - cbrt(1 - at / total)
+		const reach = (at: number) => (1 - Math.cbrt(1 - clamp01(at / Math.max(1, s.total)))) * s.draw;
+		s.ends[0].in = 0;
+		s.ends[0].out = s.off;
+		s.ends[1].in = reach(s.total - WIN_LIGHTS_ART.nail.ringOuter);
+		s.ends[1].out = Number.isFinite(s.off) ? s.off + s.down - L.tips.outMs * s.pace : Infinity;
+	}
+
+	/** one nail per symbol end, shared by every line that starts (or ends) there: up from the first of them to the last */
+	private placeNails() {
+		this.nailCount = 0;
+		const byKey = new Map<string, Nail>();
+		for (let k = 0; k < this.active; k++) {
+			const s = this.slots[k];
+			for (const e of s.ends) {
+				let n = byKey.get(e.key);
+				if (!n) {
+					n = this.nail(this.nailCount++);
+					n.key = e.key;
+					n.x = e.x;
+					n.y = e.y;
+					n.ups = [];
+					n.lines = [];
+					n.sprite.position.set(e.x, e.y);
+					n.sprite.visible = false;
+					byKey.set(e.key, n);
+				}
+				n.ups.push({ in: s.start + e.in, out: s.start + e.out });
+				n.lines.push(k);
+			}
+		}
+		// it comes with the first of its lines and goes with the last (it stays between them, never pops twice)
+		for (const n of byKey.values()) n.ups = [{ in: Math.min(...n.ups.map((u) => u.in)), out: Math.max(...n.ups.map((u) => u.out)) }];
+		for (let i = this.nailCount; i < this.nails.length; i++) this.nails[i].sprite.visible = false;
+	}
+
+	private nail(i: number): Nail {
+		while (this.nails.length <= i) {
+			const sp = new PIXI.Sprite(this.nailTex ?? PIXI.Texture.EMPTY);
+			sp.anchor.set(WIN_LIGHTS_ART.nail.anchor[0], WIN_LIGHTS_ART.nail.anchor[1]);
+			sp.visible = false;
+			this.nailLayer.addChild(sp);
+			this.nails.push({ sprite: sp, key: '', x: 0, y: 0, ups: [], lines: [], scale: 0 });
+		}
+		return this.nails[i];
+	}
+
+	/** the nail's sprite scale at its rest size (the sheet holds it at its pop's size) */
+	private get nailScale() {
+		const t = this.nailTex;
+		return t ? WIN_LIGHTS_ART.nail.width / WIN_LIGHTS_ART.nail.pop / t.frame.width : 1;
+	}
+
+	/** the nails at win clock `t`: each pops in (the bulbs' back-out, from popFrom) and shrinks away (an ease in) */
+	private updateNails(t: number, pace: number) {
+		const T = L.tips;
+		const pop = Math.max(1, T.popMs * pace);
+		const out = Math.max(1, T.outMs * pace);
+		const back = (p: number) => T.popFrom + (1 - T.popFrom) * (1 + 2.2 * Math.pow(p - 1, 3) + 1.2 * Math.pow(p - 1, 2));
+		for (let i = 0; i < this.nailCount; i++) {
+			const n = this.nails[i];
+			let k = 0;
+			for (const u of n.ups) {
+				if (t < u.in) continue;
+				const at = back(clamp01((Math.min(t, u.out) - u.in) / pop));
+				let v = at;
+				if (t >= u.out) {
+					const q = clamp01((t - u.out) / out);
+					v = q >= 1 ? 0 : (1 - q * q) * at;
+				}
+				k = Math.max(k, v);
+			}
+			n.scale = k;
+			n.sprite.visible = k > 0.001;
+			if (n.sprite.visible) n.sprite.scale.set(this.nailScale * k);
+		}
+	}
+
+	/** DEV / probes: the nails as set for this win (road px): their end, place, scale now, the lines sharing them, when up */
+	nailSnapshot() {
+		const r = (v: number) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null);
+		return {
+			on: L.tips.on,
+			end: L.tips.end,
+			ring: WIN_LIGHTS_ART.nail.ring,
+			ringOuter: WIN_LIGHTS_ART.nail.ringOuter,
+			drawn: Math.round((WIN_LIGHTS_ART.nail.width / WIN_LIGHTS_ART.nail.pop) * 100) / 100,
+			layerBelowAmounts: this.root.getChildIndex(this.nailLayer) < this.root.getChildIndex(this.amountLayer),
+			nails: this.nails.slice(0, this.nailCount).map((n) => ({ key: n.key, x: r(n.x), y: r(n.y), scale: Math.round(n.scale * 1000) / 1000, visible: n.sprite.visible, lines: [...n.lines], ups: n.ups.map((u) => ({ in: r(u.in), out: r(u.out) })) })),
+		};
+	}
+
 
 	/** the last light is down (ms into the win; a one line win: its line strung): the total comes then */
 	linesDoneMs(): number {
@@ -362,6 +523,7 @@ export class WinLights {
 
 	/** the win's clock: `t` ms into the win */
 	update(t: number) {
+		if (this.nailCount) this.updateNails(t, this.slots[0]?.pace ?? 1);
 		const B = L.bulb;
 		const G = L.glow;
 		const C = L.chase;
@@ -467,6 +629,8 @@ export class WinLights {
 			s.lit = 0;
 			s.frac = 0;
 		}
+		for (const n of this.nails) n.sprite.visible = false;
+		this.nailCount = 0;
 		this.active = 0;
 		this.slam = null;
 		this.slamOpts = null;
@@ -659,6 +823,10 @@ export class WinLights {
 					: s.amount && s.rect
 						? { text: s.amount.text, shown: s.amountShown, alpha: Math.round(s.amount.alpha * 100) / 100, rect: { x: Math.round(s.rect.x), y: Math.round(s.rect.y), w: Math.round(s.rect.w), h: Math.round(s.rect.h) } }
 						: null,
+			/** its wire's end points (the nails' centres, road px) and when each nail comes and goes, ms into the line */
+			ends: s.ends.map((e) => ({ x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 10) / 10, key: e.key, in: Math.round(e.in * 10) / 10, out: Number.isFinite(e.out) ? Math.round(e.out * 10) / 10 : null })),
+			/** the wire's own two ends as sampled (road px): where it meets the wraps */
+			wire: s.n > 1 ? [{ x: Math.round(s.px[0] * 10) / 10, y: Math.round(s.py[0] * 10) / 10 }, { x: Math.round(s.px[s.n - 1] * 10) / 10, y: Math.round(s.py[s.n - 1] * 10) / 10 }] : [],
 			sprites: (s.outline.filter((o) => o.visible).length + s.core.filter((c) => c.visible).length + s.bulbs.filter((b) => b.visible).length + s.glows.filter((g) => g.visible).length),
 		}));
 	}
@@ -718,8 +886,9 @@ export class WinLights {
 			// layer, its cores at the top
 			for (let j = outline.length - 1; j >= 0; j--) this.wireLayer.addChildAt(outline[j], 0);
 			this.wireLayer.addChild(...core);
-			// bulbs: enough for the longest line (5 reels, every span a diagonal, and its droop)
-			const most = Math.ceil((MAX_SPANS * 340) / L.bulb.spacing) + 2;
+			// bulbs: enough for the longest line (5 reels, every span a diagonal, and its droop; the nails at the outer
+			// edges lengthen its first and last span by up to a symbol's half width each)
+			const most = Math.ceil((MAX_SPANS * 340 + 2 * 180) / L.bulb.spacing) + 2;
 			const bulbs: PIXI.Sprite[] = [];
 			const glows: PIXI.Sprite[] = [];
 			for (let b = 0; b < most; b++) {
@@ -733,7 +902,7 @@ export class WinLights {
 				used: false, start: 0, draw: 1, pace: 1, off: Infinity, down: 1, px: new Float32Array(n), py: new Float32Array(n), len: new Float32Array(n), n: 0, total: 0,
 				outline, core, bulbs, glows, bx: new Float32Array(most), by: new Float32Array(most), bAt: new Float32Array(most), bArc: new Float32Array(most),
 				bLit: new Array(most).fill(0xffffff), bDim: new Array(most).fill(0x666666), nb: 0, amount: null, amountShown: false, rect: null, symbol: '', palette: [], lit: 0, frac: 0,
-				lab: null, f: 1, multi: false, cx: 0, cy: 0, wPlain: 0, wProd: 0, wBadge: 0, state: 'none',
+				lab: null, f: 1, multi: false, cx: 0, cy: 0, wPlain: 0, wProd: 0, wBadge: 0, state: 'none', ends: [],
 			});
 		}
 		return this.slots[k];
