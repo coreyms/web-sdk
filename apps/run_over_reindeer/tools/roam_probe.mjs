@@ -6,6 +6,9 @@
 // WATCHES: ; __reindeer.sceneSwap, __reindeer.sceneWant, __reindeer.step, STRIKE.roam, ROAM, ROAM_AREAS, data-roam-area, data-roam-json
 // WATCHES: ; data-roam-overlay, data-roam-wp, data-roam-mouth, ROAM_TUNNELS, ROAM_TUNNEL_MOUTH, counts.corridor, counts.rounds
 // WATCHES: apps/run_over_reindeer/src/game/forestLineSpec.ts; FOREST_LINE, TREE_PAD, roam.forest
+// WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/bookEventHandlerMap.ts}; SUPER_WHEEL.roamBackMs, roamer, roam.away
+// WATCHES: ; roam.back, held, EXIT_STAND_MS, EXIT_PREFER_MS, __reindeer.wheel, __reindeer.fixtures, tools/wheel_probe_books.json
+// WATCHES: ; __reindeer.roamAway, __reindeer.roamBack, __reindeer.roadSounds
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -32,13 +35,26 @@
 //      top (feet and 40 % of him on it), never at rest, at most 5 % of the time (the share and the walks that used it
 //      are printed per size)
 //   STRIKE.roam false: no roaming reindeer, and a spin's first strike is frame for frame the strike from off the screen
+//   THE SUPER WHEEL (2026-11-19, Corey: "the walker shouldn't stay for the wheel spin"; section `wheel`, desktop 1440x900
+//      and upright 390x844): a real Super book (tools/wheel_probe_books.json) with him standing on the screen when the
+//      entry card is pressed. As the wheel comes out he is kept away; he runs off (every frame of him drawn, the last one
+//      partly past the screen's edge: no pop), gone before the wheel's reindeer runs in; not drawn on any frame from the
+//      end of his run through every wheel phase (runin to leave) and the opening column's growing; back by a walk in from
+//      past the edge after the column stands. His run's side, length and time are printed (WHEEL EXIT), on the board's
+//      clock against the wheel's own (the shortest emergence: SUPER_WHEEL.emerge without the present's lid, a round
+//      resumed at its opening, 1250 ms); then at 2560 x 1080 (the widest screen) he is sent off from where he stands
+//      (roamAway): his run takes the time it planned (a slow headless frame late at most), and the worst case there (from the screen's middle, worked out
+//      from its width) is within that 1250 too; away he stays away 7 s; roamBack: he walks in. SHOTS=<dir> saves a strip of stills from the emergence to
+//      the first free spin (the board's clock held for each).
 //   a hidden tab: nothing moves; no page errors anywhere
 //
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3015 [ONLY=desktop|sideways|upright]
 //     [OUT=<file.json>] node tools/roam_probe.mjs
 // Uses the dev server that is already running. One headless browser (muted). Wrap each run in tools/browser_lock.sh.
 import { createRequire } from 'node:module';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -1026,6 +1042,187 @@ async function runSize(browser, S) {
 	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
 }
 
+// ---------------------------------------------------------------- the Super wheel
+const WHEEL_SIZES = ['desktop', 'upright'];
+const WHEEL_PHASES = ['runin', 'leap', 'drive', 'slow', 'slam', 'land', 'ringIn', 'ring', 'land2', 'leave'];
+const SHOTS = process.env.SHOTS || '';
+
+async function wheelSize(browser, S) {
+	const name = `${S.name} wheel`;
+	const book = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'wheel_probe_books.json'), 'utf8')).books[Number(process.env.WHEEL_BOOK || 0)];
+	const { ctx, p, errs } = await boot(browser, S);
+	const E = (fn, arg) => p.evaluate(fn, arg);
+	const until = async (fn, ms, arg) => {
+		const t0 = Date.now();
+		while (Date.now() - t0 < ms) {
+			const v = await p.evaluate(fn, arg).catch(() => null);
+			if (v) return v;
+			await sleep(60);
+		}
+		return null;
+	};
+	const shot = async (tag) => {
+		if (!SHOTS) return;
+		await E(() => window.__reindeer.clock(0));
+		await sleep(60);
+		await p.screenshot({ path: join(SHOTS, `${S.name}_${tag}.png`) });
+		await E(() => window.__reindeer.clock(1));
+	};
+	if (SHOTS) mkdirSync(SHOTS, { recursive: true });
+	try {
+		await E(() => window.__reindeer.roadSounds(true));
+		await E(([ev, pay]) => window.__reindeer.fixtures.queue(ev, pay), [book.events, book.payoutMultiplier / 100]);
+		await p.click('.hudp button.spin');
+		// to the Super entry card (any other card pressed on the way), then him standing on the screen
+		let card = false;
+		for (let t0 = Date.now(); Date.now() - t0 < 120000 && !card; ) {
+			const st = await E(() => ({ ph: window.__reindeer.wheel().phase, card: !!document.querySelector('button.catch:not([data-wheel-gate])'), super: /super/i.test(document.querySelector('button.catch:not([data-wheel-gate])')?.closest('[class]')?.textContent ?? '') }));
+			if (st.ph) break;
+			if (st.card) card = true;
+			else await sleep(150);
+		}
+		check(card, `${name}: the Super entry card is up`);
+		let stand = await until(() => ['idle'].includes(window.__reindeer.roam().state) && window.__reindeer.roam().visible, 1500);
+		if (!stand) {
+			await E(() => window.__reindeer.roamWalkIn(0));
+			stand = await until(() => window.__reindeer.roam().state === 'idle' && window.__reindeer.roam().visible, 30000);
+		}
+		check(!!stand, `${name}: he stands on the screen while the entry card waits`);
+		// every animation frame from the press: the wheel's phase and him
+		await E(() => {
+			window.__rw = [];
+			const tick = () => {
+				const r = window.__reindeer.roam();
+				const w = window.__reindeer.wheel();
+				window.__rw.push({ t: performance.now(), ph: w.phase, played: w.played, st: r.state, vis: r.visible, held: r.held, x: r.x, y: r.y, drawn: r.drawn, walkIns: r.counts.walkIns, exits: r.counts.exits, exit: r.exit, fs: window.__reindeer.freeSpinNow() });
+				if (window.__rwOn) requestAnimationFrame(tick);
+			};
+			window.__rwOn = true;
+			requestAnimationFrame(tick);
+		});
+		const before = await E(() => window.__reindeer.roam().counts);
+		// (a real press: the upright phone's card takes the pointer, not a scripted click)
+		await p.locator('button.catch:not([data-wheel-gate])').first().click({ force: true, timeout: 5000 }).catch(() => E(() => document.querySelector('button.catch:not([data-wheel-gate])')?.click()));
+		if (!(await until(() => window.__reindeer.wheel().phase !== null, 4000))) {
+			const r = await E(() => document.querySelector('button.catch:not([data-wheel-gate])')?.getBoundingClientRect()?.toJSON() ?? null);
+			if (r) await (S.touch ? p.touchscreen.tap(r.x + r.width / 2, r.y + r.height / 2) : p.mouse.click(r.x + r.width / 2, r.y + r.height / 2));
+		}
+		if (SHOTS) {
+			for (const [i, ms] of [0, 120, 300, 450, 600, 800, 1100].entries()) {
+				await until((at) => window.__rw.length && window.__rw.find((f) => f.ph === 'emerge') && performance.now() - window.__rw.find((f) => f.ph === 'emerge').t >= at, 8000, ms);
+				await shot(`01_emerge_${String(i).padStart(2, '0')}_${ms}ms`);
+			}
+		}
+		const rested = await until(() => window.__reindeer.wheel().phase === 'rest', 60000);
+		check(!!rested, `${name}: the wheel comes to rest`);
+		await sleep(400);
+		await shot('02_rest');
+		await p.click('.hudp button.spin').catch(() => {});
+		await until(() => window.__reindeer.wheel().phase === 'drive', 20000);
+		await shot('03_drive');
+		await until(() => window.__reindeer.wheel().phase === 'ring', 60000);
+		await shot('04_ring');
+		await until(() => window.__reindeer.wheel().phase === 'leave', 60000);
+		await shot('05_leave');
+		const gone = await until(() => window.__reindeer.wheel().phase === null && window.__reindeer.wheel().played >= 1, 60000);
+		check(!!gone, `${name}: the wheel plays out and leaves`);
+		await sleep(250);
+		await shot('06_column');
+		const landed = await until(() => window.__reindeer.roadSounds().some((e) => e.what === 'openingLanded'), 30000);
+		await shot('07_column_stands');
+		const back = await until(() => window.__reindeer.roam().state !== 'none' && window.__reindeer.roam().visible, 20000);
+		await sleep(500);
+		await shot('08_walks_back');
+		await until(() => window.__reindeer.freeSpinNow() >= 1, 20000);
+		await sleep(700);
+		await shot('09_first_free_spin');
+		await sleep(600);
+		const out = await E(() => {
+			window.__rwOn = false;
+			return { log: window.__rw, sounds: window.__reindeer.roadSounds().filter((e) => e.what === 'openingLanded' || e.what === 'wheel').map((e) => ({ t: e.t, clock: e.clock, what: e.what, detail: e.detail })), vw: innerWidth, after: window.__reindeer.roam() };
+		});
+		const L = out.log;
+		const iEm = L.findIndex((f) => f.ph === 'emerge');
+		const iRun = L.findIndex((f) => f.ph === 'runin');
+		const landT = out.sounds.find((e) => e.what === 'openingLanded')?.t ?? Infinity;
+		check(iEm >= 0 && iRun > iEm, `${name}: the frames hold the emergence and the run in`, { iEm, iRun, n: L.length });
+		check(L.slice(iEm).every((f) => f.held || f.t > landT), `${name}: from the emergence on he is kept away (held) until the opening column stands`);
+		// his run off: every frame drawn, the last one partly past the screen's edge
+		const ran = L.slice(iEm).filter((f) => f.st === 'exit');
+		const lastDrawn = [...L.slice(iEm, iRun < 0 ? undefined : iRun)].reverse().find((f) => f.vis);
+		const ex = out.after.exit;
+		const edgeOut = lastDrawn?.drawn ? lastDrawn.drawn.sprite[0] < 0 || lastDrawn.drawn.sprite[2] > out.vw : false;
+		check(ran.length > 0 && !!ex && ex.doneAt !== null, `${name}: standing when the wheel came out, he runs off`, { ran: ran.length, ex });
+		check(edgeOut, `${name}: his last drawn frame is partly past the screen's edge (he ran off, no pop)`, lastDrawn);
+		const doneIdx = L.findIndex((f, i) => i > iEm && f.st === 'none' && L[i - 1].st === 'exit');
+		const runinT = iRun >= 0 ? L[iRun].t : Infinity;
+		// (on the board's clock: the stills hold it, the page's time runs on)
+		const clockOf = (ph) => out.sounds.find((e) => e.what === 'wheel' && e.detail === ph)?.clock ?? null;
+		const emC = clockOf('emerge');
+		const runC = clockOf('runin');
+		const goneMs = ex && ex.doneAt !== null && emC !== null ? Math.round(ex.doneAt - emC) : null;
+		const runinMs = runC !== null && emC !== null ? Math.round(runC - emC) : null;
+		check(doneIdx > 0 && L[doneIdx].t <= runinT && goneMs !== null && runinMs !== null && goneMs <= runinMs && goneMs <= 1250, `${name}: gone before the wheel's reindeer runs in (${goneMs} board ms after the emergence; the run in at ${runinMs}; the shortest emergence 1250)`, { goneMs, runinMs });
+		const away = L.slice(doneIdx > 0 ? doneIdx : iEm).filter((f) => f.t < landT);
+		const seen = away.filter((f) => f.vis);
+		check(away.length > 0 && seen.length === 0, `${name}: not drawn on any frame from his run's end through the wheel and the column's growing (${away.length} frames)`, seen.slice(0, 3));
+		for (const ph of WHEEL_PHASES) {
+			const fr = L.filter((f) => f.ph === ph);
+			if (ph === 'slam' && !fr.length) continue;
+			check(fr.length > 0 && fr.every((f) => !f.vis && f.st === 'none'), `${name}: not on the screen in the wheel's ${ph} (${fr.length} frames)`, fr.find((f) => f.vis));
+		}
+		const firstBack = L.find((f) => f.t > landT && f.vis);
+		check(!!landed && !!back && !!firstBack && firstBack.st === 'enter' && out.after.counts.walkIns > before.walkIns, `${name}: back after the column stands, by a walk in (${firstBack ? Math.round(firstBack.t - landT) : '?'} ms after it)`, { landed: !!landed, back, firstBack });
+		const fd = firstBack?.drawn?.sprite;
+		check(!!fd && (fd[2] <= 1 || fd[0] >= out.vw - 1 || fd[0] < 0 || fd[2] > out.vw), `${name}: his walk in starts past the screen's edge`, fd);
+		console.log(`  WHEEL EXIT ${S.name}: side ${ex?.side === -1 ? 'left' : 'right'} (nearest ${ex?.nearest === -1 ? 'left' : 'right'}, driver's side ${ex?.preferred ? 'taken' : 'not needed or too far'}), from x ${r1(ex?.fromX)} to ${r1(ex?.toX)}, planned ${ex?.ms} ms, gone ${goneMs} board ms after the emergence, run in at ${runinMs}; worst at this screen ${ex?.worstMs} ms; ${ex?.run ? 'the side run' : 'a walk'}`);
+		report.sizes[name] = { exit: ex, goneMs, runinMs, backMs: firstBack ? Math.round(firstBack.t - landT) : null };
+	} catch (e) {
+		check(false, `${name}: ran without throwing`, String(e));
+	}
+	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
+	await ctx.close();
+}
+
+/** the widest screen: stood in the middle, sent off as the wheel would; gone within the shortest emergence */
+async function wheelWide(browser) {
+	const S = { name: 'wide', vp: { width: 2560, height: 1080 }, dpr: 1, q: '', touch: false };
+	const name = 'wheel 2560x1080';
+	const { ctx, p, errs } = await boot(browser, S);
+	try {
+		const st = await p.evaluate(() => window.__reindeer.roam());
+		check(!!st.visible || st.state !== 'none', `${name}: he is on the screen`);
+		await p.evaluate(() => window.__reindeer.roamAway(-1));
+		const done = await (async () => {
+			for (let i = 0; i < 100; i++) {
+				const r = await p.evaluate(() => window.__reindeer.roam());
+				if (r.exit && r.exit.doneAt !== null) return r;
+				await sleep(100);
+			}
+			return null;
+		})();
+		const ex = done?.exit;
+		check(!!ex && ex.worstMs <= 1250 && ex.doneAt - ex.startedAt <= ex.ms + 120, `${name}: off the screen in ${ex ? Math.round(ex.doneAt - ex.startedAt) : '?'} board ms (planned ${ex?.ms}); from the middle of the widest screen ${ex?.worstMs} ms, within the shortest emergence (1250)`, ex);
+		await sleep(ROAM_BACK_WAIT);
+		const held = await p.evaluate(() => window.__reindeer.roam());
+		check(held.held && held.state === 'none' && !held.visible, `${name}: away, he stays away (no walk in, no safety net) after ${ROAM_BACK_WAIT} ms`, { st: held.state, held: held.held });
+		await p.evaluate(() => window.__reindeer.roamBack(0));
+		let back = null;
+		for (let i = 0; i < 60 && !back; i++) {
+			back = await p.evaluate(() => (window.__reindeer.roam().visible ? window.__reindeer.roam() : null));
+			if (!back) await sleep(150);
+		}
+		check(!!back && back.state === 'enter', `${name}: back, he walks in`, back?.state);
+		console.log(`  WHEEL EXIT wide: side ${ex?.side === -1 ? 'left' : 'right'}, screen ${ex?.screen?.map(r1).join(' to ')} road px, planned ${ex?.ms} ms, worst ${ex?.worstMs} ms`);
+		report.sizes[name] = { exit: ex };
+	} catch (e) {
+		check(false, `${name}: ran without throwing`, String(e));
+	}
+	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
+	await ctx.close();
+}
+const ROAM_BACK_WAIT = 7000;
+
 const main = async () => {
 	const browser = await chromium.launch({ headless: true, args: ['--mute-audio', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 	try {
@@ -1034,6 +1231,11 @@ const main = async () => {
 			if (!pick) continue;
 			await runSize(browser, S);
 		}
+		for (const S of SIZES.filter((s) => WHEEL_SIZES.includes(s.name))) {
+			if (ONLY.length && !ONLY.includes('wheel') && !ONLY.includes(`wheel:${S.name}`)) continue;
+			await wheelSize(browser, S);
+		}
+		if (!ONLY.length || ONLY.includes('wheel') || ONLY.includes('wheel:wide')) await wheelWide(browser);
 	} finally {
 		await browser.close();
 	}

@@ -305,6 +305,8 @@
 		logoWasOver = false;
 		if (p.getChildIndex(logo.root) < p.getChildIndex(scoreboard.root)) p.setChildIndex(logo.root, p.getChildIndex(scoreboard.root));
 	};
+	/** the wheel has left into its column: the roaming reindeer walks back in once that column has grown */
+	let roamBackDue = false;
 	wheel.env = {
 		openPresent: () => road.wheelPresent(),
 		driveAway: () => {
@@ -319,17 +321,23 @@
 		},
 		runSound: (on) => (on ? road.features.sounds.runStart() : road.features.sounds.runStop('the wheel')),
 		// ONE REINDEER ON THE SCREEN: the roaming one (game/road/roam.ts) goes as the wheel comes out (he is the one who runs
-		// it), and a new one walks in once the wheel has left
+		// it): on the screen he stands startled and runs off, toward the left (where the wheel's driver runs in from) when
+		// that is quick enough, else off the nearest edge. He stays away through the whole wheel (no walk in, no safety net)
+		// and a new one walks in the usual way SUPER_WHEEL.roamBackMs after the opening column has grown (boardColumnWild)
 		roamer: (on) => {
-			if (!STRIKE.roam) return;
-			if (on) road.features.roam.walkInSoon(SUPER_WHEEL.roamBackMs);
-			else road.features.roam.leave();
+			if (on) roamBackDue = true;
+			else if (STRIKE.roam) road.features.roam.away(-1);
 		},
 		// AUTOPLAY BONUSES (a run still live), or a replay (its Spin key is the REPLAY banner)
 		// (ROUND.introWaitsForPress false, some probes: nothing waits for a press, the wheel neither)
 		auto: () => (stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0) || (SUPER_WHEEL.replayAuto && stateUrlDerived.replay()) || !ROUND.introWaitsForPress,
 		phase: (phase) => {
 			stateGame.wheelPhase = phase;
+			// (a wheel that ended without leaving into its column, as the dev poses' end: he is not kept away)
+			if (phase === null)
+				queueMicrotask(() => {
+					if (!roamBackDue && road.features.roam.held) road.features.roam.back(0);
+				});
 			// DEV: the phase into the road's log, on the board's own clock (the probe's timings)
 			if (import.meta.env.DEV) road.features.sounds.mark('wheel', phase ?? 'gone');
 			// THE REST: the Spin key is the wheel's from here, at regular pace (a slam stop spent on the way in ends here)
@@ -780,6 +788,11 @@
 		},
 		boardColumnWild: async ({ reel, tier, multiplier, sticky, fromCell, joinAdd }) => {
 			await road.features.columnWild(reel, tier, multiplier, sticky, fromCell, joinAdd);
+			// THE SUPER WHEEL has left into this column and it has grown: the roaming reindeer may walk back in
+			if (roamBackDue) {
+				roamBackDue = false;
+				road.features.roam.back(SUPER_WHEEL.roamBackMs);
+			}
 		},
 		boardWinShow: async ({ wins, amountText, multiplier, capped, stripTotal, big }) => {
 			// every time of the win (the lights' stagger and draw, the hold after the total) is this share at the turbo level
@@ -1149,6 +1162,9 @@
 			roamStandAt: (x: number, y: number) => road.features.roam.standAt(x, y),
 			roamInArea: (x: number, y: number) => road.features.roam.inAreaNow(x, y),
 			roamWalkIn: (delayMs = 0) => road.features.roam.walkInSoon(delayMs),
+			/** the Super wheel's hold (game/road/roam.ts away / back): he runs off and stays away; he walks back in */
+			roamAway: (prefer: 1 | -1 | 0 = -1) => road.features.roam.away(prefer),
+			roamBack: (delayMs = 0) => road.features.roam.back(delayMs),
 			roundSign: (on: boolean) => {
 				stateGame.gameType = on ? 'freegame' : 'basegame';
 				stateGame.totalFs = on ? 10 : 0;

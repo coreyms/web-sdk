@@ -593,8 +593,8 @@ export const SUPER_WHEEL = {
 	/** the wheel shrinks into the result's column and fades (leaveMs, to leaveScale of its size) */
 	leaveMs: 400,
 	leaveScale: 0.08,
-	/** the game's roaming reindeer is off the screen while the wheel is up (one reindeer: he runs it); a new one walks in
-	 *  this long after the wheel has left (board ms) */
+	/** the game's roaming reindeer is off the screen while the wheel is up (one reindeer: he runs it; game/road/roam.ts
+	 *  away, he runs off as it comes out); a new one walks in this long after the opening column has grown (board ms) */
 	roamBackMs: 1500,
 	/** A PRESS DURING THE SPIN (the slam stop's own press, ui/controls.svelte.ts): the wheel goes straight to the book's
 	 *  wedge in slamMs, the ring to the book's column in slamMs; the rest runs at the slam's hurry */
