@@ -1,5 +1,5 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/scene/sceneSwap.ts,game/sceneChoice.ts,game/scenePresets.ts,ui/hud/SceneSwitch.svelte};
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/scene/sceneSwap.ts,game/scene/sceneSnapshot.ts,game/scene/sceneLayers.ts,game/scoreboard/scoreboard.ts,game/sceneChoice.ts,game/scenePresets.ts,ui/hud/SceneSwitch.svelte};
 // WATCHES: ; data-resume-card, data-resume, __reindeer.atRest, __reindeer.clock, __reindeer.fixtures, __reindeer.gameType, __reindeer.gpuTextures, __reindeer.hud
 // WATCHES: ; __reindeer.led, __reindeer.logoHold, __reindeer.roadBoard, __reindeer.scene, __reindeer.sceneChoice, __reindeer.sceneOnly
 // WATCHES: ; __reindeer.sceneSetting, __reindeer.sceneSprites, __reindeer.sceneSwap, __reindeer.sceneSwapHold, __reindeer.sceneSwapStep
@@ -21,8 +21,8 @@
 //     or an LED dot is not the fade's): every scene sprite
 //     shown has a texture, and no step changes a pixel by much more than its share of the whole change (a piece appearing,
 //     vanishing or missing for a frame changes its pixels by all of it in one step: STEP below). How far each frame is from
-//     the plain mix of the first and the last is printed too (the layers fade one by one, so where soft edged pieces lie
-//     on each other the middle frames are not exactly that mix: continuous, not a pop)
+//     the plain mix of the first and the last is printed too (since 2026-11-19 the fade is one picture of the outgoing
+//     screen over the incoming scene, so the middle frames are that mix: the transition section asserts it)
 //   - GPU MEMORY (the renderer's own list of textures on the GPU): never more than two scenes' pieces at once, the lazy
 //     (night) pieces within LIMIT.lazyMB, the scene pieces within the day's + LIMIT.lazyMB; after the swap back the night
 //     pieces are gone (unloaded) within 2 s; the totals before, during and after are printed
@@ -57,7 +57,18 @@
 //     browser's cache (Resource Timing: no body crossed the network the second time) within WARM_LOAD_MS of the swap's
 //     ask; the press to the fade's first frame is printed (the rest is the pieces' upload to the GPU, which the prefetch
 //     leaves for the press: a headless software GPU takes 400 to 600 ms there)
-//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [SET=grass] [ONLY=desktop,side,portrait] [SECTIONS=rounds,again,resume,setting] node tools/scene_swap_probe.mjs
+//   SECTIONS=transition (2026-11-19, Corey: "There are these weird lines and shading that happen while switching back and
+//     fourth from Light and Dark Mode"; game/scene/sceneSnapshot.ts) at each size, both ways (Snow to Dark, Dark to Snow): the
+//     fade held at its start and stepped TRANSITION.stepMs at a time, everything else frozen, the HTML hidden, the scene, the
+//     dim and the LED board's snow cover alone. On every frame each pixel's point of the fade is measured (its change from
+//     the first frame projected on the whole change, where that is at least TRANSITION.minChange levels), and each
+//     TRANSITION.cell px square's mean against the frame's median: no square may sit more than TRANSITION.tol away (a piece,
+//     a strip, a tile or the snow cover at another point of the fade than the rest is a straight edged square that does);
+//     the fade lasts SCENE.swap.fadeMs (150 to 250 ms) and its picture of the outgoing screen is the only extra GPU memory
+//     (printed, and gone two frames after the end); the last frame equals a cold load of that scene (a fresh page booted
+//     in it); then five presses in a row (Dark, Snow, Dark, Snow, Dark, TRANSITION.rapidMs apart, the real switch in the
+//     menu) end in grassDay whole with no picture left over and the frame equal to the cold load (no residue)
+//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [SET=grass] [ONLY=desktop,side,portrait,wide] [SECTIONS=rounds,again,resume,setting,transition] node tools/scene_swap_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end. Run it
 // through tools/browser_lock.sh (the game lane); a turn is 15 minutes, so one size per turn with ONLY= if needed.
 import { createRequire } from 'node:module';
@@ -70,7 +81,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'rounds,again,resume').split(',');
+const SECTIONS = (process.env.SECTIONS || 'rounds,again,resume,transition').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 const CAP = process.env.CAP || '';
 if (CAP) mkdirSync(CAP, { recursive: true });
@@ -83,9 +94,15 @@ const LIMIT = { lazyMB: 25, scenes: 2, unloadMs: 2000 };
  *  most `share` of the pixels may */
 const STEP = { k: 4, levels: 12, share: 0.0005 };
 const CONTRAST = { number: 4.5, label: 3 };
+/** THE TRANSITION (section transition): a stepped fade's frames; `tol`: the most a CELL px square's mean point of the fade
+ *  may differ from the frame's median (0..1); `minChange`: levels of change a pixel needs to count; `cold`: the last frame
+ *  against a cold load (mean levels, and the share of pixels more than `coldLevels` off); `fadeMs`: the fade's length */
+const TRANSITION = { stepMs: 20, cell: 16, tol: 0.06, minChange: 24, cold: { mean: 1.5, coldLevels: 24, share: 0.002 }, fadeMs: [150, 250], rapidMs: 120 };
 
 const SIZES = [
 	{ name: 'desktop', vp: { width: 1440, height: 900 }, phone: false, extra: true },
+	// (Corey's own window: the transition section only)
+	{ name: 'wide', vp: { width: 2000, height: 943 }, phone: false, transitionOnly: true },
 	{ name: 'side', vp: { width: 844, height: 390 }, phone: true },
 	{ name: 'portrait', vp: { width: 390, height: 844 }, phone: true },
 ].filter((s) => !ONLY.length || ONLY.includes(s.name));
@@ -283,7 +300,8 @@ const hideDom = (p, on) =>
 		if (on && !el) {
 			el = document.createElement('style');
 			el.id = 'swap-probe-hide';
-			el.textContent = '.am-ui, [data-top-line] { visibility: hidden !important; }';
+			// (the menu's popover too: the transition section steps a fade with it open, as the switch in it was pressed)
+			el.textContent = '.am-ui, [data-top-line], [role="dialog"][aria-label="Menu"] { visibility: hidden !important; }';
 			document.head.appendChild(el);
 		}
 		if (!on && el) el.remove();
@@ -886,12 +904,212 @@ async function settingChecks(browser, S, report) {
 	await a.ctx.close();
 }
 
+// ---- THE TRANSITION (2026-11-19) -------------------------------------------------------------------------------------
+/** the canvas as the scene alone shows it (everything frozen, the HTML hidden, nothing but the scene, the dim and the snow
+ *  cover drawn) */
+const sceneShot = async (p) => {
+	await freeze(p, true);
+	await hideDom(p, true);
+	await R(p, () => window.__reindeer.sceneOnly(true));
+	await R(p, () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+	await sleep(250);
+	const png = PNG.sync.read(await p.screenshot());
+	await R(p, () => window.__reindeer.sceneOnly(false));
+	await hideDom(p, false);
+	await freeze(p, false);
+	return png;
+};
+/** each frame's squares against the frame's own point of the fade: the worst square (its offset, where) of all frames */
+const unitFade = (frames) => {
+	const A = frames[0].png;
+	const B = frames[frames.length - 1].png;
+	const W = A.width;
+	const H = A.height;
+	const C = TRANSITION.cell;
+	const wc = Math.floor(W / C);
+	const hc = Math.floor(H / C);
+	const E = new Float32Array(W * H * 3);
+	const EE = new Float32Array(W * H);
+	for (let i = 0; i < W * H; i++) {
+		let m = 0;
+		let e2 = 0;
+		for (let c = 0; c < 3; c++) {
+			const e = B.data[i * 4 + c] - A.data[i * 4 + c];
+			E[i * 3 + c] = e;
+			e2 += e * e;
+			m = Math.max(m, Math.abs(e));
+		}
+		EE[i] = m >= TRANSITION.minChange ? e2 : 0;
+	}
+	let worst = { off: 0, frame: 0, at: null, median: null };
+	const perFrame = [];
+	for (let k = 1; k < frames.length - 1; k++) {
+		const F = frames[k].png.data;
+		const sum = new Float64Array(wc * hc);
+		const cnt = new Uint32Array(wc * hc);
+		const all = [];
+		for (let y = 0; y < hc * C; y++)
+			for (let x = 0; x < wc * C; x++) {
+				const i = y * W + x;
+				if (!EE[i]) continue;
+				let d = 0;
+				for (let c = 0; c < 3; c++) d += (F[i * 4 + c] - A.data[i * 4 + c]) * E[i * 3 + c];
+				const f = d / EE[i];
+				const j = ((y / C) | 0) * wc + ((x / C) | 0);
+				sum[j] += f;
+				cnt[j] += 1;
+				if ((x & 3) === 0 && (y & 3) === 0) all.push(f);
+			}
+		if (!all.length) continue;
+		all.sort((a, b) => a - b);
+		const med = all[all.length >> 1];
+		let off = 0;
+		let at = null;
+		for (let j = 0; j < wc * hc; j++) {
+			if (cnt[j] < 32) continue;
+			const o = Math.abs(sum[j] / cnt[j] - med);
+			if (o > off) {
+				off = o;
+				at = [(j % wc) * C, ((j / wc) | 0) * C];
+			}
+		}
+		perFrame.push(r2(med));
+		if (off > worst.off) worst = { off: Math.round(off * 1000) / 1000, frame: k, at, median: r2(med) };
+	}
+	return { worst, perFrame };
+};
+const pngDiff = (a, b, levels) => {
+	let s = 0;
+	let big = 0;
+	const n = a.data.length / 4;
+	for (let i = 0; i < a.data.length; i += 4) {
+		let m = 0;
+		for (let c = 0; c < 3; c++) {
+			const d = Math.abs(a.data[i + c] - b.data[i + c]);
+			s += d;
+			m = Math.max(m, d);
+		}
+		if (m > levels) big += 1;
+	}
+	return { mean: r2(s / n / 3), share: Math.round((big / n) * 100000) / 100000 };
+};
+/** a swap to `choice` from the menu's switch, held at its start and stepped: its frames and the swap at its start */
+async function steppedSwap(p, choice, target) {
+	const MENU = '[role="dialog"][aria-label="Menu"].is-open';
+	await R(p, () => window.__reindeer.sceneSwapHold(true));
+	await p.click(`${MENU} [data-scene-choice="${choice}"]`);
+	const t0 = Date.now();
+	let f = null;
+	while (!f && Date.now() - t0 < 10000) {
+		await sleep(50);
+		f = (await swapNow(p)).fade;
+	}
+	if (!f || f.to !== target) {
+		await R(p, () => window.__reindeer.sceneSwapHold(false));
+		return null;
+	}
+	await freeze(p, true);
+	await hideDom(p, true);
+	await R(p, () => window.__reindeer.sceneOnly(true));
+	await sleep(300);
+	const atStart = await R(p, () => window.__reindeer.sceneSwap());
+	const frames = [{ t: 0, png: PNG.sync.read(await p.screenshot()) }];
+	let missing = 0;
+	for (let i = 0; i < 40 && f; i++) {
+		f = await R(p, (ms) => window.__reindeer.sceneSwapStep(ms), TRANSITION.stepMs);
+		await R(p, () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+		missing += (await R(p, () => window.__reindeer.sceneSprites())).missing;
+		frames.push({ t: f ? f.t : null, png: PNG.sync.read(await p.screenshot()) });
+	}
+	await R(p, () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+	const after = await R(p, () => window.__reindeer.sceneSwap());
+	await R(p, () => window.__reindeer.sceneOnly(false));
+	await hideDom(p, false);
+	await freeze(p, false);
+	await R(p, () => window.__reindeer.sceneSwapHold(false));
+	return { frames, atStart, after, missing };
+}
+/** a cold load of the set `choice` names: the game booted in it, its scene alone */
+async function coldShot(browser, S, choice) {
+	const c = await boot(browser, S, { choice });
+	await sleep(800);
+	const png = await sceneShot(c.p);
+	const s = await swapNow(c.p);
+	if (CAP) writeFileSync(`${CAP}/${S.name}_transition_cold_${choice}.png`, PNG.sync.write(png));
+	await c.ctx.close();
+	return { png, shown: s.shown };
+}
+async function transitionChecks(browser, S, report) {
+	const tag = `${S.name} transition`;
+	const rep = ((report[S.name] ??= {}).transition = {});
+	const cold = { snow: await coldShot(browser, S, 'snow'), dark: await coldShot(browser, S, 'dark') };
+	check(cold.snow.shown === 'snowDay' && cold.dark.shown === 'grassDay', `${tag}: the cold loads come up in snowDay and grassDay (${cold.snow.shown}, ${cold.dark.shown})`);
+	const b = await boot(browser, S, { choice: 'snow' });
+	const { p, errs } = b;
+	// the other set in the browser's cache first, as after the press screen
+	await waitFor(p, () => { const x = window.__reindeer.scenePrefetch(); return x.files.length > 0 && x.files.every((f) => f.ok !== null); }, 30000);
+	await p.click('[data-hud="menu-key"]');
+	await sleep(700);
+	for (const [choice, target, from, coldOf] of [
+		['dark', 'grassDay', 'snowDay', 'dark'],
+		['snow', 'snowDay', 'grassDay', 'snow'],
+	]) {
+		const what = `${tag} ${from} to ${target}`;
+		const r = await steppedSwap(p, choice, target);
+		check(!!r, `${what}: the switch's ${choice} starts a fade to ${target}`);
+		if (!r) continue;
+		const fd = r.atStart.fade;
+		check(!!fd && fd.ms >= TRANSITION.fadeMs[0] && fd.ms <= TRANSITION.fadeMs[1] && !fd.tail, `${what}: one fade of ${fd?.ms} ms (${TRANSITION.fadeMs.join(' to ')}), no tail`, fd);
+		check(r.missing === 0, `${what}: every scene sprite shown has its texture on all ${r.frames.length} frames`, r.missing);
+		const u = unitFade(r.frames);
+		check(u.worst.off <= TRANSITION.tol, `${what}: every part of the scene at the same point of the fade on every one of ${r.frames.length} frames (${TRANSITION.cell} px squares at most ${u.worst.off} off the frame's own point, frame ${u.worst.frame} at ${JSON.stringify(u.worst.at)}, its median ${u.worst.median}; limit ${TRANSITION.tol})`, u.worst);
+		info(`${what}: the frames' points of the fade ${u.perFrame.join(' ')}`);
+		const end = r.frames[r.frames.length - 1].png;
+		const d = pngDiff(end, cold[coldOf].png, TRANSITION.cold.coldLevels);
+		check(d.mean <= TRANSITION.cold.mean && d.share <= TRANSITION.cold.share, `${what}: the last frame is a cold load of ${target} (mean ${d.mean} levels off, ${d.share} of the pixels more than ${TRANSITION.cold.coldLevels})`, d);
+		const snapMB = fd?.snapMB ?? 0;
+		check(r.after.snapLive === 0 && !r.after.fade, `${what}: the picture of the outgoing screen (${snapMB} MB on the GPU during the fade) is gone two frames after it (${r.after.snapLive} left)`, { snapLive: r.after.snapLive });
+		rep[`${from}_${target}`] = { fadeMs: fd?.ms, snapMB, worst: u.worst, cold: d, points: u.perFrame };
+		if (CAP) for (const k of [0, 2, 4, Math.floor(r.frames.length / 2), r.frames.length - 1]) if (r.frames[k]) writeFileSync(`${CAP}/${S.name}_transition_${from}_${target}_f${k}.png`, PNG.sync.write(r.frames[k].png));
+		await sleep(600);
+	}
+	// FIVE PRESSES IN A ROW on the menu's switch: they end in the last one, whole, with nothing left over
+	const MENU = '[role="dialog"][aria-label="Menu"].is-open';
+	for (const c of ['dark', 'snow', 'dark', 'snow', 'dark']) {
+		await p.click(`${MENU} [data-scene-choice="${c}"]`);
+		await sleep(TRANSITION.rapidMs);
+	}
+	const t0 = Date.now();
+	let s = null;
+	while (Date.now() - t0 < 15000) {
+		s = await swapNow(p);
+		if (s.shown === 'grassDay' && s.want === 'grassDay' && s.set === 'grass' && !s.fade && !s.starting) break;
+		await sleep(150);
+	}
+	await sleep(600);
+	const st = await R(p, () => window.__reindeer.sceneSwap());
+	check(st.shown === 'grassDay' && !st.fade && st.skins.join() === 'grassDay' && st.snapLive === 0, `${tag} five presses in a row: grassDay whole, one skin, no picture left (${st.shown}, skins ${st.skins}, ${st.snapLive} pictures)`, st);
+	const fin = await sceneShot(p);
+	if (CAP) writeFileSync(`${CAP}/${S.name}_transition_rapid_end.png`, PNG.sync.write(fin));
+	const d = pngDiff(fin, cold.dark.png, TRANSITION.cold.coldLevels);
+	check(d.mean <= TRANSITION.cold.mean && d.share <= TRANSITION.cold.share, `${tag} five presses in a row: the scene after them is a cold load of grassDay (mean ${d.mean} levels off, ${d.share} of the pixels more than ${TRANSITION.cold.coldLevels})`, d);
+	info(`${tag}: the largest picture a fade held ${st.snapPeakMB} MB; scene ${st.sceneGpuMB} MB on the GPU after`);
+	rep.rapid = { cold: d, snapPeakMB: st.snapPeakMB };
+	await p.click('[data-hud="menu-key"]').catch(() => {});
+	check(errs.length === 0, `${tag}: no page errors`, errs);
+	await b.ctx.close();
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 const report = {};
 try {
 	for (const S of SIZES) {
 		console.log(`--- ${S.name} ${S.vp.width}x${S.vp.height}`);
 		const rep = (report[S.name] = {});
+		if (S.transitionOnly) {
+			if (SEC('transition')) await transitionChecks(browser, S, report);
+			continue;
+		}
 		if (SEC('rounds') || SEC('again')) {
 			const b = await boot(browser, S);
 			const { p, errs, net } = b;
@@ -933,6 +1151,7 @@ try {
 			await b.ctx.close();
 		}
 		if (SEC('setting')) await settingChecks(browser, S, report);
+		if (SEC('transition')) await transitionChecks(browser, S, report);
 		if (S.extra && SEC('resume')) {
 			await resumed(browser, S, 'natural_free_spins', 9, SC.bonus);
 			await resumed(browser, S, 'natural_super', 8, SC.super);

@@ -164,7 +164,6 @@ export const META: Record<string, Meta> = {
 
 	'scene.swap': { when: 'live' },
 	'scene.swap.fadeMs': { ...ms(2000, 'cross-fade'), when: 'live' },
-	'scene.swap.tailShare': { label: 'then the outgoing scene fades out over (share of the cross-fade)', min: 0, max: 1, step: 0.05, when: 'live' },
 	'scene.swap.unload': { label: 'let the night pieces go after the swap back', when: 'live' },
 	'logoSign.place': { when: 'resize' },
 	'logoSign.pressCapOverlap': { label: 'press screen, upright phone: the sign into the LED cap', min: -10, max: 10, step: 0.5, unit: 'CSS px', when: 'resize' },

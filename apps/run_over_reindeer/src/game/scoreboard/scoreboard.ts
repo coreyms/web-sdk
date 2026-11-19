@@ -82,14 +82,11 @@ export class Scoreboard {
 	private readonly backHousing = new PIXI.Graphics();
 	private readonly coverA = new PIXI.Container();
 	private readonly coverB = new PIXI.Container();
-	/** THE SCENE SWAP (2026-11-17, game/scene/sceneSwap.ts): while the scene cross-fades, the cover holds both scenes' cuts,
-	 *  interleaved piece by piece (the showing scene's field, the incoming one's field, the showing picture, the incoming
-	 *  picture, ...), as the scene's own layers are: each incoming cut at the fade's alpha over its showing twin, so the
-	 *  cover fades exactly as the scene round it does (one container's alpha over stacked cuts would fade it too fast) */
-	private coverOld: PIXI.Sprite[] = [];
-	private coverNew: PIXI.Sprite[] = [];
-	private coverFade = 0;
-	private coverOut = 1;
+	/** THE SCENE SWAP (2026-11-19, game/scene/sceneSwap.ts, sceneSnapshot.ts): the cover holds the scene on screen only; at a
+	 *  swap it is cut from the incoming scene at once, and the picture of the outgoing screen is laid over it here (the
+	 *  cover's rectangle of it) and fades out with the picture over the road, so the cover is at the same point of the fade
+	 *  as the scene round it. It moves with the cover's shake. */
+	private readonly coverSnap = new PIXI.Container();
 	private readonly stripRoot = new PIXI.Container();
 	private readonly stripHousing = new PIXI.Graphics();
 	/** the press catcher while a win counts or holds (a tap anywhere on the canvas skips; the HTML HUD stays on top) */
@@ -174,7 +171,7 @@ export class Scoreboard {
 		this.dim.alpha = 0;
 		this.dim.visible = false;
 		this.backRoot.eventMode = 'none';
-		for (const c of [this.coverA, this.coverB]) c.eventMode = 'none';
+		for (const c of [this.coverA, this.coverB, this.coverSnap]) c.eventMode = 'none';
 		this.stripRoot.eventMode = 'none';
 		this.catcher.alpha = 0;
 		this.catcher.visible = false;
@@ -182,7 +179,7 @@ export class Scoreboard {
 		this.catcher.on('pointertap', () => this.onPress?.());
 		this.backRoot.addChild(this.backHousing);
 		this.stripRoot.addChild(this.stripHousing);
-		this.root.addChild(this.dim, this.backRoot, this.coverA, this.coverB, this.stripRoot, this.catcher);
+		this.root.addChild(this.dim, this.backRoot, this.coverA, this.coverB, this.coverSnap, this.stripRoot, this.catcher);
 		this.backRoot.visible = false;
 		// the grille's tile: CELLS x CELLS round soft holes in the housing's dark, one hole per dot (made once, mipmapped)
 		const n = GRILLE.cells;
@@ -214,8 +211,8 @@ export class Scoreboard {
 
 	// ---- THE PLACE ------------------------------------------------------------------------------------------------------------
 	/** the place for the screen as it is now; a change of the dots across rebuilds the faces. `pieces`: the scene's pieces the
-	 *  snow cover is cut from (road px); `incoming`: the incoming scene's pieces while the scene cross-fades (setCoverFade). */
-	layout(g: ScoreboardGeo, pieces: CoverPiece[], incoming: CoverPiece[] | null = null) {
+	 *  snow cover is cut from (road px) */
+	layout(g: ScoreboardGeo, pieces: CoverPiece[]) {
 		this.geo = g;
 		// the back board's title knobs are per layout class (constants LED_BOARD.titles)
 		setBoardClass(g.cls);
@@ -240,24 +237,21 @@ export class Scoreboard {
 		this.catcher.position.set(0, 0);
 		this.catcher.width = g.W;
 		this.catcher.height = g.H;
-		this.buildCover(g, pieces, incoming);
-		this.setCoverFade(incoming ? this.coverFade : 0, incoming ? this.coverOut : 1);
+		this.buildCover(g, pieces);
 		this.place();
 	}
 
-	/** the incoming scene's cover at this alpha, the showing one's at `out` (the scene's cross-fade and its tail,
-	 *  game/scene/sceneSwap.ts) */
-	setCoverFade(alpha: number, out = 1) {
-		this.coverFade = alpha;
-		this.coverOut = out;
-		for (const c of this.coverOld) {
-			c.alpha = out;
-			c.visible = out > 0;
+	/** THE SCENE SWAP'S PICTURE (game/scene/sceneSnapshot.ts): the cover's containers (drawn into the picture as they are),
+	 *  the layer the picture's cover rectangle is shown in, and that rectangle (global px; null: no cover drawn) */
+	snapshotParts(): { keep: PIXI.Container[]; layer: PIXI.Container; rect: PIXI.Rectangle | null } {
+		let rect: PIXI.Rectangle | null = null;
+		for (const c of [this.coverA, this.coverB]) {
+			if (!c.visible || !c.renderable || !c.children.length) continue;
+			const b = c.getBounds().rectangle;
+			if (b.width <= 0 || b.height <= 0) continue;
+			rect = rect ? rect.enlarge(b) : b.clone();
 		}
-		for (const c of this.coverNew) {
-			c.alpha = alpha;
-			c.visible = alpha > 0;
-		}
+		return { keep: [this.coverA, this.coverB], layer: this.coverSnap, rect };
 	}
 
 	/** the back board's sprite box (its housing with the cap and the padding above it), CSS px, seated */
@@ -275,14 +269,12 @@ export class Scoreboard {
 	}
 
 	/** THE SNOW COVER: the scene's own pieces cropped to the cover's rectangles (sub-frames of the loaded textures) */
-	private buildCover(g: ScoreboardGeo, pieces: CoverPiece[], incoming: CoverPiece[] | null) {
+	private buildCover(g: ScoreboardGeo, pieces: CoverPiece[]) {
 		const coverA = this.coverA;
 		const coverB = this.coverB;
 		const frames = this.coverFrames;
 		for (const c of [coverA, coverB]) c.removeChildren().forEach((s) => s.destroy());
 		for (const t of frames.splice(0)) t.destroy(false);
-		this.coverOld = [];
-		this.coverNew = [];
 		const { ox, oy, k } = g.road;
 		for (const c of [coverA, coverB]) {
 			c.position.set(ox, oy);
@@ -303,13 +295,7 @@ export class Scoreboard {
 			if (yb - ya < 0.5) continue;
 			// the rectangle in road px
 			const r = { l: (x0 - ox) / k, t: (ya - oy) / k, r: (x1 - ox) / k, b: (yb - oy) / k };
-			// the showing scene's piece, then the incoming scene's twin of it, piece by piece
-			const order: [CoverPiece, PIXI.Sprite[]][] = [];
-			for (let i = 0; i < Math.max(pieces.length, incoming?.length ?? 0); i++) {
-				if (pieces[i]) order.push([pieces[i], this.coverOld]);
-				if (incoming?.[i]) order.push([incoming[i], this.coverNew]);
-			}
-			for (const [P, list] of order) {
+			for (const P of pieces) {
 				const src = P.tex.source;
 				const sx = src.width / P.w;
 				const sy = src.height / P.h;
@@ -332,7 +318,6 @@ export class Scoreboard {
 					s.width = ir - il;
 					s.height = ib - it;
 					cont.addChild(s);
-					list.push(s);
 				}
 			}
 		}
@@ -882,6 +867,7 @@ export class Scoreboard {
 		this.stripRoot.y = cur && !cur.arrive ? this.shakeY : 0;
 		this.coverA.y = g.road.oy + this.shakeY;
 		this.coverB.y = g.road.oy + this.shakeY;
+		this.coverSnap.y = this.shakeY;
 		this.backRoot.visible = !!bs && y < D - 0.25;
 		const da = dimAlpha(bs);
 		this.dim.alpha = da;
@@ -1162,7 +1148,7 @@ export class Scoreboard {
 			left: this.left,
 			cost: { ...this.cost },
 			gpuBytes: this.gpuBytes(),
-			cover: { a: this.coverA.children.length, b: this.coverB.children.length, incoming: this.coverNew.length, fade: r(this.coverFade) },
+			cover: { a: this.coverA.children.length, b: this.coverB.children.length, snap: this.coverSnap.children.length },
 			log: this.log.slice(-40),
 		};
 	}

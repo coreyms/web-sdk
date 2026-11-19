@@ -10,14 +10,19 @@
 //            the dimmed scene (the env's gate), so the change happens under the board and the dim. The swap back starts
 //            as soon as the mode is the base game again (after the Total Win is dismissed, while the board lowers).
 //   UPLOAD   the incoming pieces go to the GPU (the renderer's prepare queue) just before the fade's first frame, never on
-//            it, so the GPU holds two scenes only from there to the fade's end
-//   FADE     a plain alpha cross-fade of sprites (game/scene/sceneLayers.ts skins; the LED scoreboard's snow cover the same,
-//            its setCoverFade) over SCENE.swap.fadeMs, smoothed: the incoming scene fades in over the outgoing one, then the
-//            outgoing one fades out under it over SCENE.swap.tailShare of that (only its soft edges still show by then); the
-//            DOM side (the top line, the HUD tokens) swaps at the fade's start with a CSS transition of fadeMs
-//   RELEASE  at the fade's end the outgoing skin is hidden and let go two frames later, then every scene texture no scene on
-//            screen (or wanted next) uses and that is not the base scene of the set in use is unloaded (SCENE.swap.unload):
-//            the GPU holds the set's base scene alone again after a bonus
+//            it
+//   FADE     (2026-11-19, Corey: "There are these weird lines and shading that happen while switching back and fourth from
+//            Light and Dark Mode") ONE picture of the outgoing screen fades out over the incoming scene as a unit
+//            (game/scene/sceneSnapshot.ts): on the fade's first frame the road and the board's snow cover as shown are drawn
+//            into one render texture, the incoming scene goes in at once, whole, and the picture fades out over it over
+//            SCENE.swap.fadeMs, smoothed. Every pixel is the plain mix of the two screens at the same point of the fade (the
+//            old layer-by-layer fade put each soft edged piece at its own point of it: the lighter or darker rectangles at
+//            the pieces' straight edges, and the outgoing hills left whole until a late tail). The DOM side (the top line,
+//            the HUD tokens) swaps at the fade's start with a CSS transition of fadeMs
+//   RELEASE  the outgoing skin is hidden at the fade's first frame and let go two frames later (the picture holds what it
+//            showed), then every scene texture no scene on screen (or wanted next) uses and that is not the base scene of
+//            the set in use is unloaded (SCENE.swap.unload): the GPU holds the set's base scene alone again after a bonus;
+//            the picture is destroyed two frames after the fade's end
 //   SETS     (dark mode, 2026-11-17) two sets of three scenes, snow and grass (game/scenePresets.ts SCENE_SETS); the player's
 //            Scene setting picks one (game/sceneChoice.ts). Only the set in use is loaded: the first load holds its base scene
 //            (game/assets.ts), and a change of set (components/Board.svelte, only with the base scene settled on screen) is a
@@ -31,6 +36,7 @@ import { SCENE_LAZY_URLS } from '../assets';
 import { SCENE_PRESETS, homePreset, presetKeys, setOfPreset, type ScenePresetName } from '../scenePresets';
 import { setScenePreset, stateScene } from '../stateScene.svelte';
 import { keysFor, type SceneLayers, type SceneView } from './sceneLayers';
+import { SceneSnapshot } from './sceneSnapshot';
 
 /** smooth 0..1 */
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -47,10 +53,11 @@ export type SwapEnv = {
 	upload: ((t: PIXI.Texture) => Promise<unknown> | void) | null;
 	/** true when a swap to `to` may start now (the LED back board's entry scene is seated, or none is rising) */
 	gate: (to: ScenePresetName) => boolean;
-	/** the scene pieces on screen changed (a fade starts or ends): the LED scoreboard re-cuts its snow cover */
+	/** the scene pieces on screen changed (a swap went in): the LED scoreboard re-cuts its snow cover */
 	onPieces: () => void;
-	/** the incoming scene's alpha (0 when none) and the outgoing one's (1 until the tail): the scoreboard's cover follows */
-	onFade: (alpha: number, out: number) => void;
+	/** THE PICTURE of the screen as it is now (the road and the snow cover), laid over it at alpha 1; null where there is no
+	 *  renderer (the swap is then a cut) */
+	snapshot: () => SceneSnapshot | null;
 };
 
 export class SceneSwap {
@@ -59,7 +66,11 @@ export class SceneSwap {
 	private readonly loading = new Map<string, Promise<PIXI.Texture | null>>();
 	/** the preset fully on screen (the outgoing one during a fade): the base scene of the set the game boots with */
 	shown: ScenePresetName = homePreset(stateScene.set);
-	private fade: { to: ScenePresetName; t: number; ms: number; tail: number } | null = null;
+	private fade: { from: ScenePresetName; to: ScenePresetName; t: number; ms: number; snap: SceneSnapshot | null; view: string } | null = null;
+	/** the screen as the last layout saw it (a fade whose picture no longer lines up with it ends at once) */
+	private viewKey = '';
+	/** the largest picture a fade held (MB), for the probe */
+	private snapPeakMB = 0;
 	/** a swap whose pieces are going to the GPU */
 	private starting: ScenePresetName | null = null;
 	private nextTry = 0;
@@ -112,8 +123,14 @@ export class SceneSwap {
 		});
 	}
 
-	/** a lazy piece the layout needs now (a rotation during a bonus, the day forest on a narrowed desktop browser) */
-	layoutChanged() {
+	/** a lazy piece the layout needs now (a rotation during a bonus, the day forest on a narrowed desktop browser); `key`
+	 *  names the screen as laid out (its size and the road's place on it): a fade's picture taken on another one is let go
+	 *  at once (it would no longer line up) */
+	layoutChanged(key = '') {
+		if (key) {
+			this.viewKey = key;
+			if (this.fade && this.fade.view !== key) this.finish();
+		}
 		const view = this.env.view();
 		const need = new Set<string>();
 		for (const P of this.env.layers.presets()) for (const k of keysFor(P, view)) need.add(k);
@@ -139,12 +156,8 @@ export class SceneSwap {
 	private advance(ms: number) {
 		const f = this.fade!;
 		f.t += ms;
-		const a = f.ms > 0 ? smooth(f.t / f.ms) : 1;
-		const out = f.t <= f.ms ? 1 : f.tail > 0 ? 1 - smooth((f.t - f.ms) / f.tail) : 0;
-		this.env.layers.setFade(a);
-		this.env.layers.setOutgoing(out);
-		this.env.onFade(a, out);
-		if (f.t >= f.ms + f.tail) this.finish();
+		f.snap?.alpha(1 - (f.ms > 0 ? smooth(f.t / f.ms) : 1));
+		if (f.t >= f.ms) this.finish();
 	}
 
 	/** one frame (real ms) */
@@ -178,27 +191,30 @@ export class SceneSwap {
 		// the mode changed again while the pieces went up: the next update decides afresh
 		if (stateScene.want !== name || this.fade) return;
 		this.mark('upload', `${name} in ${Math.round(now() - t0)} ms`);
-		this.env.layers.beginFade(SCENE_PRESETS[name], this.tex);
+		const from = this.shown;
 		const fadeMs = Math.max(0, SCENE.swap.fadeMs);
-		this.fade = { to: name, t: 0, ms: fadeMs, tail: fadeMs * Math.max(0, SCENE.swap.tailShare) };
-		this.env.onFade(0, 1);
+		// THE PICTURE of the screen as it is (the outgoing scene), then the incoming scene in at once under it, whole
+		const snap = fadeMs > 0 ? this.env.snapshot() : null;
+		this.env.layers.setPreset(SCENE_PRESETS[name], this.tex);
+		this.shown = name;
 		this.env.onPieces();
+		if (snap) this.snapPeakMB = Math.max(this.snapPeakMB, Math.round(snap.mb() * 100) / 100);
+		this.fade = { from, to: name, t: 0, ms: fadeMs, snap, view: this.viewKey };
 		// the DOM side (the top line, the HUD tokens: CSS transitions of the same length) swaps with the fade's start
-		setScenePreset(name, this.fade.ms);
-		this.mark('fade', `${this.shown} to ${name} over ${this.fade.ms} ms`);
+		setScenePreset(name, snap ? fadeMs : 0);
+		this.mark('fade', `${from} to ${name} over ${snap ? fadeMs : 0} ms${snap ? `, picture ${Math.round(snap.mb() * 10) / 10} MB` : ''}`);
+		// the outgoing scene's textures go now (the picture holds what they showed; its skin is destroyed two frames on)
+		// a change of set always lets the old set go (only the set in use is loaded), whatever SCENE.swap.unload says
+		if (SCENE.swap.unload || setOfPreset(from) !== setOfPreset(name)) this.release();
+		if (!snap) this.finish();
 	}
 
 	private finish() {
-		const f = this.fade!;
+		const f = this.fade;
+		if (!f) return;
 		this.fade = null;
-		const from = this.shown;
-		this.shown = f.to;
-		this.env.layers.endFade();
-		this.env.onFade(0, 1);
-		this.env.onPieces();
-		this.mark('end', `${from} to ${f.to}`);
-		// a change of set always lets the old set go (only the set in use is loaded), whatever SCENE.swap.unload says
-		if (SCENE.swap.unload || setOfPreset(from) !== setOfPreset(f.to)) this.release();
+		f.snap?.end();
+		this.mark('end', `${f.from} to ${f.to}`);
 	}
 
 	/** every scene texture no scene on screen (or wanted next) uses goes, two frames after it was last drawn, except the base
@@ -242,7 +258,9 @@ export class SceneSwap {
 			set: stateScene.set,
 			choice: stateScene.choice,
 			dark: stateScene.dark,
-			fade: this.fade ? { to: this.fade.to, t: Math.round(this.fade.t), ms: this.fade.ms, tail: Math.round(this.fade.tail), alpha: Math.round((this.fade.ms > 0 ? smooth(this.fade.t / this.fade.ms) : 1) * 1000) / 1000 } : null,
+			fade: this.fade ? { from: this.fade.from, to: this.fade.to, t: Math.round(this.fade.t), ms: this.fade.ms, tail: 0, alpha: Math.round((this.fade.ms > 0 ? smooth(this.fade.t / this.fade.ms) : 1) * 1000) / 1000, snapMB: this.fade.snap ? Math.round(this.fade.snap.mb() * 100) / 100 : 0 } : null,
+			snapPeakMB: this.snapPeakMB,
+			snapLive: SceneSnapshot.live,
 			hold: this.hold,
 			starting: this.starting,
 			loading: [...this.loading.keys()],

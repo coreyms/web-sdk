@@ -70,6 +70,7 @@
 	import { setFor, type SceneChoice } from '../game/sceneChoice';
 	import { LogoSign } from '../game/scene/logoSign';
 	import { SceneSwap } from '../game/scene/sceneSwap';
+	import { SceneSnapshot, type SnapshotShow } from '../game/scene/sceneSnapshot';
 	import config from '../game/config';
 	import { boot } from '../game/boot.svelte';
 	import { LedSign, capTopProfile, ledGeometry } from '../game/landing/ledSign';
@@ -388,7 +389,8 @@
 	// scene of the set the Scene setting asks for in the manifest; every other scene and the upright forest off the phone
 	// tier load lazily, game/assets.ts SCENE_LAZY_URLS). The scene follows the
 	// round's mode; the swap in waits for the LED back board's entry scene to be seated over the dimmed scene, the swap back
-	// starts once the mode is the base game again (after the Total Win is dismissed). A plain alpha cross-fade.
+	// starts once the mode is the base game again (after the Total Win is dismissed). The fade is one picture of the
+	// outgoing screen fading out over the incoming scene (game/scene/sceneSnapshot.ts).
 	/** the screen as the last layout saw it, and the LED scoreboard's place (its snow cover is re-cut when the pieces change) */
 	let sceneView: { kind: typeof kind; uprightPhone: boolean } | null = null;
 	// the background prefetch of the other scene set asks for exactly this view's pieces (game/scenePrefetch.ts)
@@ -401,7 +403,19 @@
 		upload: (t) => context.stateApp.pixiApplication?.renderer.prepare.upload(t),
 		gate: (to) => to === homePreset(stateScene.set) || !scoreboard || !scoreboard.entryRising(),
 		onPieces: () => cutCover(),
-		onFade: (a, out) => scoreboard?.setCoverFade(a, out),
+		// THE PICTURE of the screen as it is (game/scene/sceneSnapshot.ts): the road and the board's snow cover drawn into one
+		// texture, shown over the road (its last child) and over the cover (the cover's rectangle of it)
+		snapshot: () => {
+			const app = context.stateApp.pixiApplication;
+			const keep: PIXI.Container[] = [road.root];
+			const shows: SnapshotShow[] = [{ parent: road.root, rect: null }];
+			const cover = scoreboard?.snapshotParts();
+			if (cover?.rect) {
+				keep.push(...cover.keep);
+				shows.push({ parent: cover.layer, rect: cover.rect });
+			}
+			return SceneSnapshot.take(app?.renderer as PIXI.Renderer | undefined, app?.stage, keep, shows);
+		},
 	});
 	const sceneTex = swap.tex;
 	sceneHooks.prefetch = (name) => void swap.prefetch(name);
@@ -431,7 +445,7 @@
 	 *  setting as it is now) is taken up only with the board at rest: no round running (a change during a round waits for
 	 *  its end), no bonus round (nor a resumed one waiting), no card, the LED back board down (never during a bonus entry or
 	 *  a Total Win scene) and the set's base scene settled on screen. Then `want` turns to the new set's base scene (the
-	 *  effect above) and the swap cross-fades to it as it does to a bonus scene; the old set is let go after the fade. */
+	 *  effect above) and the swap fades to it as it does to a bonus scene; the old set is let go as the fade starts. *
 	/** why the set in use is not the one the setting asks for (null when it is, or when it was just taken up) */
 	let sceneSetWait: string | null = null;
 	const takeSceneSet = () => {
@@ -473,11 +487,12 @@
 			}
 		return pieces;
 	};
-	/** the cover cut for the scenes on screen now: the showing one, and the incoming one while the scene cross-fades */
+	/** the cover cut for the scene on screen now (a swap re-cuts it from the incoming scene at once: the picture of the
+	 *  outgoing screen fades out over it) */
 	const cutCover = () => {
 		if (!scoreboard || !boardGeo || !sceneView) return;
-		const [shown, incoming] = road.scene.presets();
-		scoreboard.layout(boardGeo, shown ? coverPieces(shown, sceneView.kind) : [], incoming ? coverPieces(incoming, sceneView.kind) : null);
+		const [shown] = road.scene.presets();
+		scoreboard.layout(boardGeo, shown ? coverPieces(shown, sceneView.kind) : []);
 	};
 
 	// the road in the layout: road px -> master units (layoutSpec ROAD_LAYOUT) -> canvas px (the main layout's fit).
@@ -510,7 +525,7 @@
 		roamView = { kind, k, ox, oy, rect };
 		// a piece this layout draws that is not in yet (the forest on a desktop browser narrowed to an upright phone, a
 		// night scene's ends after a rotation): loaded now, drawn when in
-		swap.layoutChanged();
+		swap.layoutChanged(`${canvasSize.width}x${canvasSize.height}|${kind}|${ox.toFixed(2)},${oy.toFixed(2)},${k.toFixed(5)}`);
 		// the billboard logo, by its class's rule (layoutSpec logoBox), in the road's px
 		if (logo) {
 			const extraTop = kind === 'landscape' ? landscapeExtraY(canvasSize.height / main.scale) : 0;
@@ -997,7 +1012,8 @@
 			 *  stay); off puts everything back as it was. The scene swap probe steps a fade so, with nothing else in the frame. */
 			sceneOnly: (on: boolean) => {
 				const keep = new Set<PIXI.Container>([road.scene.field, road.scene.picture, road.scene.bands, road.scene.forest, road.scene.cover, road.scene.tunnels, road.scene.ends]);
-				for (const c of road.root.children) if (!keep.has(c)) c.renderable = !on;
+				// (a scene swap's picture is the scene's too: game/scene/sceneSnapshot.ts)
+				for (const c of road.root.children) if (!keep.has(c) && c.label !== 'scene:snapshot') c.renderable = !on;
 				if (logo) logo.root.renderable = !on;
 				scoreboard?.devSceneOnly(on);
 			},

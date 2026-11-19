@@ -16,11 +16,10 @@
 //   ends      the two painted tunnel ends (desktop, tablet, phone held sideways)
 //   ...       the running reindeer (over the ends), then the billboard (game/scene/logoSign.ts, its own container)
 //
-// THE CROSS-FADE (scene swap, 2026-11-17; game/scene/sceneSwap.ts): each preset on screen is a SKIN, one container of
-// its own in every layer above. One skin normally; during a swap the incoming skin sits over the outgoing one in every
-// layer and its alpha runs 0 to 1 (a plain alpha cross-fade: the outgoing stays whole under it); then the outgoing skin's
-// own alpha runs 1 to 0 over a short tail (where a soft edged piece of each lies on the other, the outgoing edge would
-// otherwise vanish in one frame), and it is hidden and let go two frames later. No filter, no mask, no render texture.
+// THE SWAP (scene swap, 2026-11-17; game/scene/sceneSwap.ts): each preset on screen is a SKIN, one container of its own in
+// every layer above. A swap puts the incoming skin in at once, whole, and retires the outgoing one (hidden, let go two
+// frames later); the fade between them is one picture of the outgoing screen laid over the scene and faded out as a unit
+// (2026-11-19, game/scene/sceneSnapshot.ts), never these layers faded one by one. No filter, no mask.
 import * as PIXI from 'pixi.js';
 
 import { SCENE } from '../constants';
@@ -91,7 +90,7 @@ export const keysFor = (P: ScenePreset, view: { kind: LayoutKind; uprightPhone: 
 	return keys;
 };
 
-/** one preset on screen: its own container in every layer, its sprites, its alpha */
+/** one preset on screen: its own container in every layer, its sprites */
 type Skin = {
 	preset: ScenePreset;
 	field: PIXI.Container;
@@ -108,7 +107,6 @@ type Skin = {
 	forestSprite: PIXI.Sprite | null;
 	/** the keys its fixed pieces (picture, bands, ends) were built with, so a piece that came in late is added */
 	built: Set<string>;
-	alpha: number;
 };
 const PARTS = ['field', 'picture', 'bands', 'forest', 'cover', 'tunnels', 'ends'] as const;
 
@@ -123,69 +121,33 @@ export class SceneLayers {
 
 	private tex: SceneTextures = () => null;
 	private view: SceneView | null = null;
-	/** the skins on screen: [the one showing] or, during a swap, [outgoing, incoming] */
+	/** the skin on screen (one: a swap replaces it whole) */
 	private skins: Skin[] = [];
 	/** what the last layout drew (the skin showing), for the probes and the dev hook */
-	last: { fieldSprites: number; coverSprites: number; forest: { x: number; y: number; width: number; height: number } | null; ends: boolean; skins: string[]; fade: number | null } = {
+	last: { fieldSprites: number; coverSprites: number; forest: { x: number; y: number; width: number; height: number } | null; ends: boolean; skins: string[] } = {
 		fieldSprites: 0,
 		coverSprites: 0,
 		forest: null,
 		ends: false,
 		skins: [],
-		fade: null,
 	};
 
 	constructor() {
 		for (const name of PARTS) this[name].eventMode = 'none';
 	}
 
-	/** the presets on screen now (the outgoing first during a swap) */
+	/** the presets on screen now (one) */
 	presets(): ScenePreset[] {
 		return this.skins.map((s) => s.preset);
 	}
-	fading(): boolean {
-		return this.skins.length > 1;
-	}
 
-	/** THE SWAP POINT on the Pixi side, at once (the boot's preset; a swap with no time): draw this preset's pieces */
+	/** THE SWAP POINT on the Pixi side, at once (the boot's preset; every swap: the fade is the picture over it): draw this
+	 *  preset's pieces */
 	setPreset(preset: ScenePreset, tex: SceneTextures) {
 		this.tex = tex;
 		for (const s of this.skins.splice(0)) this.retire(s);
-		this.skins.push(this.makeSkin(preset, 1));
+		this.skins.push(this.makeSkin(preset));
 		if (this.view) this.layout(this.view);
-	}
-
-	/** THE CROSS-FADE's start: the incoming preset over the one showing, at alpha 0 (setFade runs it, endFade ends it) */
-	beginFade(preset: ScenePreset, tex: SceneTextures) {
-		this.tex = tex;
-		// a swap asked during a swap: the one fading in is taken as shown (sceneSwap never asks this, the panel might)
-		while (this.skins.length > 1) this.retire(this.skins.shift()!);
-		this.skins.push(this.makeSkin(preset, 0));
-		if (this.view) this.layout(this.view);
-		this.last.fade = 0;
-	}
-	/** the incoming skin's alpha (0..1) */
-	setFade(alpha: number) {
-		const s = this.skins[1];
-		if (!s) return;
-		s.alpha = alpha;
-		for (const name of PARTS) s[name].alpha = alpha;
-		this.last.fade = alpha;
-	}
-	/** the outgoing skin's alpha (1..0: the tail after the incoming one is whole) */
-	setOutgoing(alpha: number) {
-		const s = this.skins.length > 1 ? this.skins[0] : null;
-		if (!s) return;
-		s.alpha = alpha;
-		for (const name of PARTS) s[name].alpha = alpha;
-	}
-	/** the incoming skin is the scene now: the outgoing one is hidden and let go two frames later */
-	endFade() {
-		if (this.skins.length < 2) return;
-		this.setFade(1);
-		this.retire(this.skins.shift()!);
-		this.last.fade = null;
-		this.last.skins = this.skins.map((s) => s.preset.name);
 	}
 
 	/** a lazy piece has come in (the forest on a desktop browser narrowed to a phone, an end after a rotation): draw it */
@@ -200,7 +162,7 @@ export class SceneLayers {
 		this.last.skins = this.skins.map((s) => s.preset.name);
 	}
 
-	private makeSkin(preset: ScenePreset, alpha: number): Skin {
+	private makeSkin(preset: ScenePreset): Skin {
 		const s: Skin = {
 			preset,
 			field: new PIXI.Container(),
@@ -215,11 +177,9 @@ export class SceneLayers {
 			rowFrames: new Map(),
 			forestSprite: null,
 			built: new Set(),
-			alpha,
 		};
 		for (const name of PARTS) {
 			s[name].eventMode = 'none';
-			s[name].alpha = alpha;
 			s[name].label = `scene:${preset.name}:${name}`;
 			this[name].addChild(s[name]);
 		}
