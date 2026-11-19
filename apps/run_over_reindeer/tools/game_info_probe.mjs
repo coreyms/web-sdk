@@ -1,6 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{ui/GameInfoModal.svelte,game/gameInfoText.ts,game/bonusStockRules.ts};
 // WATCHES: ; __reindeer.hud, __reindeer.atRest, __reindeer.stockRules, AUTOPLAY_RESUME_PAUSE_MS, data-gameinfo, data-guide, data-guide-row, data-tab
+// WATCHES: ; AUTO_PLAYS_BASE, FEATURE_NOT_IN_AUTO, loadAutoplay
 // WATCHES: ; .content, .tabs, .guide-row, .guide-icon, .guide-name, GuideId, guideRowShown
 // THE GAME INFO PROBE (2026-11-18): the rules page's UI GUIDE section (ui/GameInfoModal.svelte, game/gameInfoText.ts
 // guide), at every size the game is shown at, Stake's two popouts included (S 400 x 225, L 800 x 450):
@@ -13,6 +14,9 @@
 //   · the scroller reaches the guide's last row and the page's end (scrolled to the bottom)
 //   · the Autoplay row states the pause after a bonus round as the game's own AUTOPLAY_RESUME_PAUSE_MS (read from the
 //     game), and the Turbo row states the bonus round's regular speed and the base speed coming back
+//   · autoplay never plays a loaded feature (2026-11-19, ui/controls.svelte.ts loadAutoplay): the Autoplay row says it
+//     plays base game spins (Ante spins with the Ante on) and that loading a run unloads a loaded round; the feature
+//     menu's row says a round cannot be loaded while a run waits on Spin
 //   · the rules' paragraph on the Super wheel (2026-11-19): what each spin shows, that the opening is decided when the
 //     round is triggered, the Autoplay Bonuses start
 //   · the words: printable ASCII only, no em dash, in the standard session; in a social session (?social=true) also no
@@ -152,6 +156,9 @@ async function runSize(browser, S, social = false) {
 	const turbo = g.rows.find((r) => r.id === 'turbo')?.text ?? '';
 	const secs = pauseMs === null ? null : `${Math.round(pauseMs / 100) / 10} second`;
 	check(!!secs && auto.includes(secs) && /stop the run/.test(auto) && /free spins too/.test(auto), `${tag}: the Autoplay row states the stop in free spins and the ${secs} pause (the game's ${pauseMs} ms)`, auto);
+	const feat = g.rows.find((r) => r.id === 'feature')?.text ?? '';
+	check(/plays base game spins/.test(auto) && /Ante spins while Ante is on/.test(auto) && /loading a run unloads one/.test(auto), `${tag}: the Autoplay row says it plays base game spins (or Ante spins) and that loading a run unloads a loaded round`, auto);
+	check(/Autoplay never plays a loaded round/.test(feat) && /cannot be loaded while a run waits on the Spin button/.test(feat), `${tag}: the feature menu's row says autoplay never plays a loaded round and none loads on a waiting run`, feat);
 	check(/Every bonus round starts at regular speed/.test(turbo) && /base game comes back/.test(turbo), `${tag}: the Turbo row states the bonus round's regular speed and the base speed coming back`, turbo);
 	// the words of the whole page
 	const words = await p.evaluate(() => document.querySelector('[data-gameinfo]').innerText);

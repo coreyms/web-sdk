@@ -70,6 +70,8 @@
 			win: () => stateBet.winBookEventAmount,
 			mode: () => stateBet.activeBetModeKey,
 			setMode: (key: string) => (stateBet.activeBetModeKey = key),
+			// the run's stops as amounts (ui/controls.svelte.ts startLoadout): fast_lane_probe's autofeature reads them
+			autoLimits: () => ({ loss: stateBet.autoSpinsLossLimitAmount, win: stateBet.autoSpinsSingleWinLimitAmount, count: stateBet.autoSpinsCounter }),
 			emit: (event: any) => context.eventEmitter.broadcast(event),
 		};
 	}

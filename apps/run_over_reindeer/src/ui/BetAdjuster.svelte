@@ -3,17 +3,21 @@
 	import { betStepTarget } from './betStep';
 	import type { Controls } from './controls.svelte';
 	import HudIcon from './hud/HudIcon.svelte';
+	import { numberToCurrencyString } from 'utils-shared/amount';
 
 	// pressSound: the autoplay card voices its own buttons with the sub click; elsewhere the arrows
 	// keep the general click (setBet's own)
 	// glass: the HUD's round glass minus and plus keys (HUD round 6: the Autoplay menu's stepper matches the HUD's own);
 	// the denomination card keeps its square paper keys
-	type Props = { controls: Controls; compact?: boolean; pressSound?: 'soundPressGeneral' | 'soundPressSub'; glass?: boolean };
-	const { controls, compact = false, pressSound = 'soundPressGeneral', glass = false }: Props = $props();
+	// autoRun: the Autoplay menu's stepper shows what one spin of the run will use (ui/controls.svelte.ts autoSpinCost,
+	// 2026-11-19): with a feature loaded, the base amount under SPIN / PLAY, since LOAD unloads the feature
+	type Props = { controls: Controls; compact?: boolean; pressSound?: 'soundPressGeneral' | 'soundPressSub'; glass?: boolean; autoRun?: boolean };
+	const { controls, compact = false, pressSound = 'soundPressGeneral', glass = false, autoRun = false }: Props = $props();
 	const btn = $derived(compact ? 38 : 46);
 	// Same label rule as the HUD readout (controls.betLabel): a bought feature names the mode, everything
 	// else reads SPIN / PLAY. Ante is announced by this component's own tag above the number.
-	const label = $derived(controls.betLabel());
+	const label = $derived(autoRun && controls.armedBuy() !== null ? soc('SPIN', 'PLAY') : controls.betLabel());
+	const value = $derived(autoRun ? numberToCurrencyString(controls.autoSpinCost()) : controls.betText());
 
 	// stepping rules (affordability clamp) live in betStep.ts, shared with the HUD's inline −/+
 	const stepTarget = betStepTarget;
@@ -34,7 +38,7 @@
 	<button class="slot-btn mid" onclick={() => controls.openDenom()} style:min-width="{compact ? 120 : 150}px">
 		{#if controls.anteActive()}<span class="ante" style:font-size="{compact ? 9 : 10}px">{soc('ANTE BET', 'ANTE MODE')}</span>{/if}
 		<span class="lbl" style:font-size="{compact ? 10 : 11}px">{label}</span>
-		<span class="slot-num val" style:font-size="{compact ? 18 : 22}px">{controls.betText()}</span>
+		<span class="slot-num val" style:font-size="{compact ? 18 : 22}px">{value}</span>
 	</button>
 	{#if glass}
 		<button class="slot-btn sk" disabled={stepTarget(1) === undefined} onclick={() => step(1)} style:width="{btn}px" style:height="{btn}px" aria-label={soc('Increase bet', 'Increase play amount')}><HudIcon name="plus" /></button>

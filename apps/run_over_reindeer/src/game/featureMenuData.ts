@@ -96,6 +96,8 @@ export const FAST_LANE_TEXT = {
 	anteOffShort: '**{name}** is off.',
 	unloadedShort: '**{name}** is unloaded.',
 	low: 'Balance too low at this play amount',
+	/** a feature tile while an autoplay run waits on Spin (ui/controls.svelte.ts buyMode, 2026-11-19): ACTIVATE is unavailable */
+	autoFirst: 'Unavailable while Autoplay is loaded: unload it in the Autoplay menu first',
 	/** the confirm card */
 	confirmTitle: 'Confirm {name}',
 	everySpin: 'EVERY SPIN',

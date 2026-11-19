@@ -1,5 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/ui/FeatureMenu.svelte;
+// WATCHES: apps/run_over_reindeer/src/{ui/FeatureMenu.svelte,ui/AutoplayModal.svelte,game/fastLaneMemory.ts};
+// WATCHES: ; loadAutoplay, buyMode, autoSpinCost, unloadedByAutoplay, autoFirst, data-fl-auto, data-auto-drop, autoLimits, __reindeer.fixtures
 // WATCHES: ; __reindeer.fastLane, __reindeer.hud, __reindeer.atRest, data-feature-menu, data-fl-confirm, data-fl-price
 // WATCHES: ; --fl-s, ::after, data-fl-step, data-squeeze, flSqueezeOff, anteOnShort, loadedShort, data-fl-low, data-fl-step, data-menu-foot, .note, .act, .price, .go, data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
 // THE FAST LANE PROBE: the feature menu (ui/FeatureMenu.svelte, the redesign of 2026-11-17). At each size (desktop
@@ -21,13 +22,22 @@
 //     session (?social=true, desktop 1440 only)
 //   · desktop 1440 only: the level stops move with the arrow keys; the feature button cannot open the menu during a
 //     round
+//   · AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, ui/controls.svelte.ts loadAutoplay / buyMode / autoSpinCost),
+//     desktop 1440, standard and social (ONLY=autofeature): Super Free Spins loaded, then the Autoplay menu shows the
+//     base game (its pill, its count rows, its LOAD total), names the feature LOAD unloads, keeps Stop on Free Games
+//     available; LOAD unloads it at once (the mode BASE, the HUD's amount the base amount), the Fast Lane opens on its
+//     tile saying it is unloaded, and no feature tile can be activated while the run waits (the Ante can); the run's
+//     first play request carries BASE and the amount the screen showed, and the loss stop counts in base amounts.
+//     Then a run loaded first: the feature tiles refuse, and the Autoplay menu's UNLOAD frees them. Then the Ante 4x
+//     on: the menu and the HUD show its full price and the play request carries ANTE_4 at that price. With SHOTS the
+//     menu, the HUD and the requests are saved (autofeature_<tag>_*.png, autofeature_<tag>.json).
 // With SHOTS=<dir> it saves each state at each size (<size>_<n>_<state>.png).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3016 [ONLY=a,b] [SHOTS=dir] \
 //     node tools/fast_lane_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, muted, closed at the end.
 // Wrap it in the shared browser lock: tools/browser_lock.sh run game -- node tools/fast_lane_probe.mjs
 import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -397,6 +407,181 @@ async function social(browser) {
 	await ctx.close();
 }
 
+// ---- AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19) ------------------------------------------------------------
+/** the last amount in a text ("SUPER | SC 300.00" -> 300) */
+const amountIn = (t) => {
+	const m = String(t ?? '').match(/\d[\d,]*\.\d{2}/g);
+	return m ? Number(m[m.length - 1].replace(/,/g, '')) : Number.NaN;
+};
+const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.005;
+/** the Autoplay menu as drawn */
+const autoMenu = (p) =>
+	p.evaluate(() => {
+		const m = document.querySelector('.am-ui.layer.modals');
+		const t = (e) => (e ? e.innerText.replace(/\s+/g, ' ').trim() : null);
+		const tog = [...(m?.querySelectorAll('button.toggle') ?? [])].find((b) => /Stop on Free Games/.test(b.innerText));
+		return {
+			pill: t(m?.querySelector('.pill')),
+			rows: [...(m?.querySelectorAll('.chips.four button') ?? [])].map(t),
+			total: t(m?.querySelector('.total .v')),
+			go: t(m?.querySelector('button.go')),
+			drop: t(m?.querySelector('[data-auto-drop]')),
+			stopFree: tog ? { disabled: tog.disabled, sub: t(tog.querySelector('.t-sub')) } : null,
+			unload: !!m?.querySelector('button.unload'),
+			step: t(m?.querySelector('.adj .mid')),
+		};
+	});
+/** the HUD's amount readout and Spin face */
+const hudNow = (p) =>
+	p.evaluate(() => ({
+		amount: document.querySelector('.hudp [data-hud="amount"]')?.innerText.replace(/\s+/g, ' ').trim() ?? null,
+		spin: document.querySelector('.hudp button.spin')?.innerText.replace(/\s+/g, ' ').trim() ?? null,
+		mode: window.__reindeer.hud.mode().toUpperCase(),
+	}));
+async function openAuto(p) {
+	await p.click('.hudp button[aria-label="Autoplay"]');
+	for (let i = 0; i < 20 && !(await p.evaluate(() => !!document.querySelector('.am-ui.layer.modals button.go'))); i++) await sleep(100);
+	await sleep(700);
+}
+async function lossStop(p, label) {
+	const folded = await p.evaluate(() => document.querySelector('.am-ui.layer.modals .fold-row')?.getAttribute('aria-expanded') !== 'true');
+	if (folded) await p.click('.am-ui.layer.modals .fold-row');
+	await sleep(300);
+	await p.locator('.am-ui.layer.modals .fold-body .sec').first().locator('button.lim', { hasText: label }).click();
+	await sleep(200);
+}
+async function loadRun(p) {
+	await p.click('.am-ui.layer.modals button.go');
+	await sleep(600);
+}
+/** press Spin, wait for the run's first play request, stop the run and wait for rest; the request and the stops */
+async function runOnce(p) {
+	const before = await p.evaluate(() => window.__reindeer.fixtures.log().plays.length);
+	await p.click('.hudp button.spin');
+	for (let i = 0; i < 60 && (await p.evaluate(() => window.__reindeer.fixtures.log().plays.length)) <= before; i++) await sleep(150);
+	const limits = await p.evaluate(() => window.__reindeer.hud.autoLimits());
+	const play = await p.evaluate((n) => window.__reindeer.fixtures.log().plays[n] ?? null, before);
+	await p.click('.hudp button[aria-label="Autoplay"]').catch(() => {});
+	for (let i = 0; i < 120; i++) {
+		if (await p.evaluate(() => window.__reindeer.hud.idle() && window.__reindeer.hud.autoLimits().count === 0 && window.__reindeer.atRest())) break;
+		await sleep(250);
+	}
+	await sleep(600);
+	return { play, limits };
+}
+async function autoFeature(browser, isSocial) {
+	const S = SIZES[0];
+	const tag = isSocial ? 'autofeature_social' : 'autofeature';
+	const { ctx, p, errs } = await boot(browser, { ...S, name: tag }, isSocial ? '&social=true' : '');
+	const record = { tag, cases: [] };
+	const snap = async (n) => SHOTS && (await p.screenshot({ path: join(SHOTS, `${tag}_${n}.png`) }));
+	await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win', true));
+	const base = amountIn(await p.evaluate(() => window.__reindeer.fastLane.expect('BASE')));
+	const costOf = (m) => p.evaluate((k) => window.__reindeer.fastLane.rgsCost(k), m);
+
+	// 1. Super Free Spins loaded (the Fast Lane's own CONFIRM), then the Autoplay menu
+	await openMenu(p);
+	await p.click('[data-card="SUPER"]');
+	await sleep(500);
+	await p.click('[data-act="activate"]');
+	await sleep(500);
+	await p.click('[data-act="confirm"]');
+	check(await waitClosed(p), `${tag}: CONFIRM on Super Free Spins closes the menu`);
+	const armedHud = await hudNow(p);
+	check(armedHud.mode === 'SUPER', `${tag}: Super Free Spins is loaded`, armedHud);
+	await openAuto(p);
+	await p.locator('.am-ui.layer.modals .chips.four button').first().click(); // 10 spins (the menu keeps the last count)
+	await sleep(300);
+	const menu = await autoMenu(p);
+	await snap('1_menu_super_loaded');
+	check(/BASE/.test(menu.pill ?? '') && near(amountIn(menu.pill), base), `${tag}: with a feature loaded the Autoplay pill shows the base game at the base amount (${base})`, menu.pill);
+	check(menu.rows.length >= 4 && near(amountIn(menu.rows[0]), 10 * base) && near(amountIn(menu.rows[1]), 25 * base), `${tag}: the count rows price base spins (10 and 25 x the base amount)`, menu.rows.slice(0, 2));
+	check(near(amountIn(menu.total), 10 * base) && near(amountIn(menu.go), 10 * base), `${tag}: the total and the LOAD button price 10 base spins`, { total: menu.total, go: menu.go });
+	check(near(amountIn(menu.step), base) && !/SUPER/.test(menu.step ?? ''), `${tag}: the menu's amount stepper shows the base amount, not the feature`, menu.step);
+	check(/LOAD unloads SUPER FREE SPINS/.test(menu.drop ?? '') && /plays base game spins/.test(menu.drop ?? ''), `${tag}: the menu says LOAD unloads Super Free Spins and the run plays base spins`, menu.drop);
+	await lossStop(p, '10x');
+	const menuOpen = await autoMenu(p);
+	check(menuOpen.stopFree && !menuOpen.stopFree.disabled && !/Unavailable/.test(menuOpen.stopFree.sub ?? ''), `${tag}: Stop on Free Games is available with a feature loaded`, menuOpen.stopFree);
+	await snap('2_menu_stop_options');
+	await loadRun(p);
+	const loadedHud = await hudNow(p);
+	await snap('3_hud_run_loaded');
+	check(loadedHud.mode === 'BASE', `${tag}: LOAD unloads the feature at once (the mode is BASE before Spin)`, loadedHud);
+	check(near(amountIn(loadedHud.amount), base) && !/SUPER/.test(loadedHud.amount ?? '') && !/SUPER/.test(loadedHud.spin ?? ''), `${tag}: the HUD shows the base amount beside the loaded run, no feature`, loadedHud);
+	// the Fast Lane with the run waiting: Super's tile says it was unloaded, no feature tile activates, the Ante does
+	await openMenu(p);
+	const pl = await plate(p);
+	await snap('4_fast_lane_run_loaded');
+	check(pl.key === 'SUPER' && /is unloaded/.test(pl.status ?? ''), `${tag}: the Fast Lane opens on Super Free Spins saying it is unloaded`, pl);
+	const parked = await p.evaluate(() => document.querySelector('[data-fl-auto]')?.textContent.trim() ?? null);
+	check(pl.act === 'activate' && pl.actDisabled === true && /unload it in the Autoplay menu first/.test(parked ?? ''), `${tag}: ACTIVATE is unavailable on a feature while a run is loaded, and says so`, { pl, parked });
+	await layout(p, S, `${tag} run loaded`);
+	await words(p, S, `${tag} run loaded`);
+	await p.click('[data-card="BONUS"]');
+	await sleep(500);
+	const plB = await plate(p);
+	check(plB.actDisabled === true, `${tag}: Free Spins cannot be activated while a run is loaded`, plB);
+	await p.click('[data-card="ANTE"]');
+	await sleep(500);
+	const plA = await plate(p);
+	check(plA.actDisabled === false, `${tag}: the Ante can still be switched on while a run is loaded`, plA);
+	await p.keyboard.press('Escape');
+	await waitClosed(p);
+	const r1 = await runOnce(p);
+	record.cases.push({ case: 'SUPER loaded then autoplay 10', menu, hudLoaded: loadedHud, play: r1.play, limits: r1.limits });
+	check(r1.play?.mode === 'BASE' && near(r1.play.amount * (await costOf('BASE')), amountIn(loadedHud.amount)), `${tag}: the run's first play request is BASE at the amount the HUD showed`, { play: r1.play, shown: loadedHud.amount });
+	check(near(r1.limits.loss, 10 * base), `${tag}: the 10x loss stop counts in base amounts (${10 * base})`, r1.limits);
+
+	// 2. a run loaded first, then the Fast Lane: the feature tiles refuse until the run is unloaded
+	await openAuto(p);
+	await loadRun(p);
+	await openMenu(p);
+	await p.click('[data-card="SUPER"]');
+	await sleep(500);
+	const plS = await plate(p);
+	check(plS.actDisabled === true && (await p.evaluate(() => !!document.querySelector('[data-fl-auto]'))), `${tag}: with a run loaded first, Super Free Spins cannot be activated`, plS);
+	await p.keyboard.press('Escape');
+	await waitClosed(p);
+	await openAuto(p);
+	const m2 = await autoMenu(p);
+	check(m2.unload && m2.drop === null, `${tag}: a run loaded in the base game: no unload line, UNLOAD CURRENT AUTO SPINS shown`, m2);
+	await p.click('.am-ui.layer.modals button.unload');
+	await sleep(600);
+	await openMenu(p);
+	await p.click('[data-card="SUPER"]');
+	await sleep(500);
+	const plS2 = await plate(p);
+	check(plS2.actDisabled === false, `${tag}: after the run is unloaded Super Free Spins can be activated again`, plS2);
+	record.cases.push({ case: 'autoplay loaded then feature', refused: plS.actDisabled, afterUnload: plS2.actDisabled });
+
+	// 3. Ante 4x on, then autoplay: its full price everywhere, ANTE_4 in the request
+	await p.click('[data-card="ANTE"]');
+	await sleep(500);
+	await p.click('[data-lvl="ANTE_4"]');
+	await sleep(300);
+	await p.click('[data-act="activate"]');
+	await sleep(500);
+	await p.click('[data-act="confirm"]');
+	await waitClosed(p);
+	const ante = base * (await costOf('ANTE_4'));
+	await openAuto(p);
+	const m3 = await autoMenu(p);
+	await snap('5_menu_ante4');
+	check(/ANTE/.test(m3.pill ?? '') && near(amountIn(m3.pill), ante) && near(amountIn(m3.rows[0]), 10 * ante) && near(amountIn(m3.step), ante) && m3.drop === null, `${tag}: with Ante 4x on the menu prices Ante spins (${ante}) and says nothing is unloaded`, m3);
+	await loadRun(p);
+	const anteHud = await hudNow(p);
+	const r3 = await runOnce(p);
+	record.cases.push({ case: 'Ante 4x then autoplay', menu: m3, hudLoaded: anteHud, play: r3.play, limits: r3.limits });
+	check(r3.play?.mode === 'ANTE_4' && near(r3.play.amount * (await costOf('ANTE_4')), ante) && anteHud.mode === 'ANTE_4', `${tag}: the Ante run's play request is ANTE_4 at the price the menu showed`, { play: r3.play, hud: anteHud });
+	await p.evaluate(() => {
+		window.__reindeer.fixtures.clear();
+		window.__reindeer.hud.setMode('BASE');
+	});
+	if (SHOTS) writeFileSync(join(SHOTS, `${tag}.json`), JSON.stringify(record, null, 1));
+	check(errs.length === 0, `${tag}: no page errors`, errs.slice(0, 3));
+	await ctx.close();
+}
+
 // ---- SHORT UPRIGHT SCREENS (2026-11-19, Corey on staging, about 390 x 580 in the lobby's frame, social, Ante 10x ON: "Found
 // an edge case were buttons go off the card"). Heights 560 to 700 at 360 and 390 wide, standard and social, in the states
 // that make the plate tallest: Ante ON at each level, another level (CHANGE), each feature tile, a feature LOADED (UNLOAD),
@@ -517,6 +702,15 @@ try {
 			await shortHeights(browser);
 		} catch (e) {
 			check(false, 'short: ran to the end', String(e).slice(0, 300));
+		}
+	}
+	if (!ONLY.length || ONLY.includes('autofeature')) {
+		for (const soc of [false, true]) {
+			try {
+				await autoFeature(browser, soc);
+			} catch (e) {
+				check(false, `autofeature${soc ? ' social' : ''}: ran to the end`, String(e).slice(0, 300));
+			}
 		}
 	}
 	if (!ONLY.length || ONLY.includes('social')) {

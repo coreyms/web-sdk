@@ -65,6 +65,10 @@ const PAUSE_WORDS = ((s) => `${s} second${s === 1 ? '' : 's'}`)(Math.round(AUTOP
 /** THE SPACE BAR as this game has it (ui/SpinHotkey.svelte, 2026-11-18, Manticore Mayhem's rule): one press, one round;
  *  a press during a round is the Spin press (STOP); holding the key plays nothing more. Until 2026-11-18 a held key
  *  played round after round (the kit's EnableSpaceHold, no longer mounted). */
+/** AUTOPLAY NEVER PLAYS A LOADED FEATURE (ui/controls.svelte.ts loadAutoplay and buyMode, 2026-11-19): one sentence in the
+ *  Autoplay row (where the feature menu is drawn) and one in the feature menu's row (where Autoplay is drawn) */
+const AUTO_PLAYS_BASE = 'Autoplay plays base game spins (Ante spins while Ante is on) and never a loaded Free Spins or Super Free Spins round: loading a run unloads one.';
+const FEATURE_NOT_IN_AUTO = 'Autoplay never plays a loaded round: loading an Autoplay run unloads it, and a round cannot be loaded while a run waits on the Spin button.';
 const SPACE_BAR = 'Space bar plays one round, or is **STOP** while one plays. Holding it down plays nothing more: each round needs its own press.';
 /** the Ante levels, from the mode list (ante_2 -> 2x): "2x, 4x and 10x" */
 const ANTE_LEVELS = ((xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : (xs[0] ?? '')))(config.anteModes.map((k: string) => `${k.split('_')[1]}x`));
@@ -93,8 +97,8 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 			feature: {
 				name: FEATURE_MENU_TEXT.name,
 				text: soc(
-					`Opens ${FEATURE_MENU_TEXT.name}, the feature menu. **Ante** raises the bet per spin for more bonus rounds, at ${ANTE_LEVELS} on its slider, and stays on until you switch it off. **Free Spins** and **Super Free Spins** can be bought for one round each. Every choice opens a confirm step that shows its cost, and nothing changes until you press **CONFIRM**. A bought round is loaded onto the Spin button and plays when you press Spin. Open the menu again to unload it or to switch Ante off.`,
-					`Opens ${FEATURE_MENU_TEXT.name}, the feature menu. **Ante** raises the play amount per spin for more bonus rounds, at ${ANTE_LEVELS} on its slider, and stays on until you switch it off. **Free Spins** and **Super Free Spins** can be started for one round each. Every choice opens a confirm step that shows its play amount, and nothing changes until you press **CONFIRM**. A loaded round sits on the Spin button and plays when you press Spin. Open the menu again to unload it or to switch Ante off.`,
+					`Opens ${FEATURE_MENU_TEXT.name}, the feature menu. **Ante** raises the bet per spin for more bonus rounds, at ${ANTE_LEVELS} on its slider, and stays on until you switch it off. **Free Spins** and **Super Free Spins** can be bought for one round each. Every choice opens a confirm step that shows its cost, and nothing changes until you press **CONFIRM**. A bought round is loaded onto the Spin button and plays when you press Spin. Open the menu again to unload it or to switch Ante off.${j.disabledAutoplay ? '' : ' ' + FEATURE_NOT_IN_AUTO}`,
+					`Opens ${FEATURE_MENU_TEXT.name}, the feature menu. **Ante** raises the play amount per spin for more bonus rounds, at ${ANTE_LEVELS} on its slider, and stays on until you switch it off. **Free Spins** and **Super Free Spins** can be started for one round each. Every choice opens a confirm step that shows its play amount, and nothing changes until you press **CONFIRM**. A loaded round sits on the Spin button and plays when you press Spin. Open the menu again to unload it or to switch Ante off.${j.disabledAutoplay ? '' : ' ' + FEATURE_NOT_IN_AUTO}`,
 				),
 			},
 			spin: {
@@ -126,7 +130,7 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 			},
 			autoplay: {
 				name: 'Autoplay',
-				text: `Opens the Autoplay menu: the number of spins (10 to 1,000, or until stopped) and **Stop options**: a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (the run ends when a bonus round starts, and the round still plays out) and **Autoplay Bonuses** (the bonus round's screens continue on their own). **LOAD** puts the run on the Spin button, and Spin starts it. While it runs, **AUTO** is lit and its arrow turns. To stop the run at any time, press **AUTO** (or Spin, which also speeds up the spin in play): the round in play finishes and no further spin starts. This works during free spins too, and the bonus round still plays to its end. When a bonus round ends with Autoplay still running, the game waits ${PAUSE_WORDS} after its total win screen is cleared before the next spin starts, at every speed, so you can stop the run.`,
+				text: `Opens the Autoplay menu: the number of spins (10 to 1,000, or until stopped) and **Stop options**: a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (the run ends when a bonus round starts, and the round still plays out) and **Autoplay Bonuses** (the bonus round's screens continue on their own). **LOAD** puts the run on the Spin button, and Spin starts it.${j.disabledBuyFeature ? '' : ' ' + AUTO_PLAYS_BASE} While it runs, **AUTO** is lit and its arrow turns. To stop the run at any time, press **AUTO** (or Spin, which also speeds up the spin in play): the round in play finishes and no further spin starts. This works during free spins too, and the bonus round still plays to its end. When a bonus round ends with Autoplay still running, the game waits ${PAUSE_WORDS} after its total win screen is cleared before the next spin starts, at every speed, so you can stop the run.`,
 			},
 			turbo: {
 				name: 'Turbo',

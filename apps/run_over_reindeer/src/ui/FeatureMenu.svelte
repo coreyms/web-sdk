@@ -141,9 +141,13 @@
 			// instead of Free Spins")
 			const lastStop = fastLaneMemory.stop;
 			stop = i >= 0 ? i : lastStop !== null && lastStop >= 0 && lastStop < ANTE_KEYS.length ? lastStop : 0;
-			sel = armed === 'BONUS' || armed === 'SUPER' ? armed : anteOn ? 'ANTE' : (fastLaneMemory.pick ?? 'ANTE');
+			// a feature LOAD in the Autoplay menu just unloaded opens its tile once with the "is unloaded" line, as this
+			// menu's own UNLOAD leaves it (ui/controls.svelte.ts loadAutoplay, 2026-11-19)
+			const dropped = armed || anteOn ? null : fastLaneMemory.unloadedByAutoplay;
+			fastLaneMemory.unloadedByAutoplay = null;
+			sel = armed === 'BONUS' || armed === 'SUPER' ? armed : anteOn ? 'ANTE' : (dropped ?? fastLaneMemory.pick ?? 'ANTE');
 			confirmOpen = false;
-			note = null;
+			note = dropped;
 		});
 	});
 	// the tile and the level on show while the menu is open are the ones it opens on next time
@@ -165,6 +169,8 @@
 	const otherAnteOn = $derived(isAnte && anteOn !== null && anteOn !== anteKey);
 	const cost = $derived(stateBet.betAmount * modeCost(key));
 	const lowBal = $derived(!on && cost > stateBet.balanceAmount);
+	/** a feature cannot be loaded while an autoplay run waits on Spin: autoplay never plays one (controls.buyMode) */
+	const autoParked = $derived(!isAnte && !on && controls.autoLoadout() !== null);
 	const busy = $derived(controls.bonusDisabled());
 
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -296,7 +302,7 @@
 		levelBtns[i]?.focus();
 	};
 	const activate = () => {
-		if (lowBal || busy) return;
+		if (lowBal || busy || autoParked) return;
 		controls.sound('soundPressMinor');
 		confirmOpen = true;
 		tick().then(() => okBtn?.focus());
@@ -471,10 +477,10 @@
 					{#if on}
 						<button class="go off" bind:this={actBtn} data-act="off" onclick={switchOff}>{isAnte ? T.cards.ANTE.switchOff : T.unload}</button>
 					{:else}
-						<button class="go" bind:this={actBtn} data-act="activate" disabled={lowBal || busy} onclick={activate}>{otherAnteOn ? T.cards.ANTE.change : T.cards.ANTE.button}</button>
+						<button class="go" bind:this={actBtn} data-act="activate" disabled={lowBal || busy || autoParked} onclick={activate}>{otherAnteOn ? T.cards.ANTE.change : T.cards.ANTE.button}</button>
 					{/if}
 				</div>
-				{#if lowBal}<div class="low" data-fl-low>{X.low}</div>{/if}
+				{#if lowBal}<div class="low" data-fl-low>{X.low}</div>{:else if autoParked}<div class="low" data-fl-auto>{X.autoFirst}</div>{/if}
 			</div>
 
 			<div class="tray" data-piece>

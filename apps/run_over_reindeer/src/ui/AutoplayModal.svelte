@@ -2,7 +2,10 @@
 	import { soc } from '../game/social';
 	// Autoplay Loadout (design approved 2026-08-26): configure a run, preview its TRUE total, then LOAD
 	// it onto the spin button — pressing Spin is what starts it. Loss/win stops are multiples of one
-	// spin's play amount; "stop on free games" only exists outside armed feature modes.
+	// spin's play amount. AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, ui/controls.svelte.ts autoSpinCost): with
+	// Free Spins or Super Free Spins loaded the sheet prices the base game the run will play, says LOAD unloads the
+	// feature, and Stop on Free Games is available as always (until 2026-11-19 the sheet priced the loaded feature and
+	// switched that toggle off, though the run has always played base spins).
 	// Black glass (Corey's "Black Glass Panels" pick, 2026-09-09): the sheet opens on the spin count,
 	// the true total and one gold LOAD; the loss stop, single-win stop and the two toggles live behind
 	// a STOP OPTIONS fold whose closed row summarises what is set, and the sheet opens unfolded
@@ -55,9 +58,10 @@
 	let stopFree = $state(false);
 	let autoBonuses = $state(false);
 
-	const armed = $derived(controls.armedBuy() !== null);
-	// effective stop-on-free-games (armed buy modes force it off); autoplay bonuses only exists while this is off
-	const stopFreeOn = $derived(!armed && stopFree);
+	/** the loaded feature LOAD will unload ("SUPER FREE SPINS"), or null */
+	const unloads = $derived(controls.armedBuy() !== null ? (modeChipData()?.label ?? controls.armedBuy()) : null);
+	// autoplay bonuses only exists while stop-on-free-games is off
+	const stopFreeOn = $derived(stopFree);
 	let advanced = $state(false);
 	const anySet = $derived(lossMult !== null || winMult !== null || stopFree || autoBonuses);
 	$effect(() => {
@@ -73,8 +77,8 @@
 		return parts.join(', ');
 	});
 
-	const perSpin = $derived(controls.playCost());
-	const pill = $derived(modeChipData() ?? { label: 'BASE GAME', cost: numberToCurrencyString(perSpin), unit: soc('/ SPIN', '/ PLAY') });
+	const perSpin = $derived(controls.autoSpinCost());
+	const pill = $derived((unloads === null ? modeChipData() : null) ?? { label: 'BASE GAME', cost: numberToCurrencyString(perSpin), unit: soc('/ SPIN', '/ PLAY') });
 	const countText = (c: number) => (c === Infinity ? 'until stopped' : `${c}`);
 	// Every amount on this sheet is the FULL currency string — Stake's review (2026-09-20) bars
 	// K/M abbreviation on any bet-level readout. The long ones are fitted, not abbreviated:
@@ -134,6 +138,9 @@
 				<div class="pill" bind:this={pillEl}><span class="mode">{shortMode(pill.label)}</span><i class="dot"></i><span class="slot-num cost">{pill.cost}</span><span class="per">{pill.unit}</span></div>
 				<button class="slot-btn hg x" bind:this={xEl} onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
 			</div>
+			{#if unloads !== null}
+				<div class="drop" data-auto-drop>LOAD unloads <b>{unloads}</b>. Autoplay plays base game spins, never a loaded feature.</div>
+			{/if}
 
 			<div class="cols"><div class="c1">
 			<div class="sec">
@@ -187,10 +194,10 @@
 							</div>
 						</div>
 
-						<button class="slot-btn hg toggle" class:on={stopFreeOn} disabled={armed} onclick={() => { controls.sound('soundPressSub'); stopFree = !stopFree; if (stopFree) autoBonuses = false; }} role="switch" aria-checked={stopFreeOn}>
+						<button class="slot-btn hg toggle" class:on={stopFreeOn} onclick={() => { controls.sound('soundPressSub'); stopFree = !stopFree; if (stopFree) autoBonuses = false; }} role="switch" aria-checked={stopFreeOn}>
 							<span class="t-text">
 								<span class="t-main">Stop on Free Games</span>
-								<span class="t-sub" class:warn={armed}>{armed ? 'Unavailable: every spin already plays the loaded feature' : 'Autoplay ends when a feature triggers (it still plays out)'}</span>
+								<span class="t-sub">Autoplay ends when a feature triggers (it still plays out)</span>
 							</span>
 							<span class="knob"></span>
 						</button>
@@ -216,7 +223,7 @@
 			</div></div>
 		</div>
 		<div class="stepper" onclick={(e) => e.stopPropagation()} role="presentation">
-			<BetAdjuster {controls} {compact} pressSound="soundPressSub" glass />
+			<BetAdjuster {controls} {compact} pressSound="soundPressSub" glass autoRun />
 		</div>
 	</div>
 </ModalShell>
@@ -704,6 +711,23 @@
 	/* the footer line steps aside while the fold is open: the 720-tall landscape master has no room for both */
 	.fold.open ~ .cap {
 		display: none;
+	}
+	/* the loaded feature LOAD unloads: shown at every size (the cap below steps aside on phones, this line never does) */
+	.drop {
+		margin: -4px 2px 0;
+		text-align: center;
+		font-size: 11px;
+		font-weight: 800;
+		line-height: 1.35;
+		letter-spacing: 0.02em;
+		color: rgba(var(--hud-label-rgb), 0.85);
+	}
+	.drop b {
+		color: rgb(var(--hud-feature-rim-rgb));
+		font-weight: 900;
+	}
+	.tiny .drop {
+		font-size: 9.5px;
 	}
 	.cap {
 		margin: -2px 4px 0;
