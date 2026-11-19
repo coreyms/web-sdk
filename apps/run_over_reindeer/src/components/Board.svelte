@@ -82,7 +82,7 @@
 	import { ROAD_ART } from '../game/roadArtSpec';
 	import { FOREST_LINE } from '../game/forestLineSpec';
 	import { forestLineY } from '../game/scene/sceneLayers';
-	import { scenePrefetchState } from '../game/scenePrefetch';
+	import { scenePrefetchState, setScenePrefetchView } from '../game/scenePrefetch';
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
@@ -391,6 +391,8 @@
 	// starts once the mode is the base game again (after the Total Win is dismissed). A plain alpha cross-fade.
 	/** the screen as the last layout saw it, and the LED scoreboard's place (its snow cover is re-cut when the pieces change) */
 	let sceneView: { kind: typeof kind; uprightPhone: boolean } | null = null;
+	// the background prefetch of the other scene set asks for exactly this view's pieces (game/scenePrefetch.ts)
+	setScenePrefetchView(() => sceneView);
 	let boardGeo: ReturnType<typeof scoreboardGeometry> | null = null;
 	const swap = new SceneSwap({
 		loaded,

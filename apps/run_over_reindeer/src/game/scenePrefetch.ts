@@ -7,13 +7,23 @@
 // NEVER IN THE WAY OF THE PRESS (ui/LandingScreen.svelte starts it): only once everything the loading bar and the press
 // gate wait for is in (the Pixi preload, and the audio or its stall time), each request at low priority where the browser
 // has fetch priorities; the bar, the splash's minimum time and the press gate count exactly what they did. A press while
-// a fetch is still in flight finds the swap's own load-then-fade path, as before. The phone asset tier asks for the phone
-// tier's pieces only: the forest on the phone tier alone (an upright phone draws it), the painted tunnel ends not while the
-// phone stands upright (only the sideways layouts draw them; a rotation loads them then, as it always did).
+// a fetch is still in flight finds the swap's own load-then-fade path, as before. EXACTLY THE SWAP'S FILES for the layout
+// the page is in when it starts (game/scene/sceneLayers.ts keysFor, the view components/Board.svelte lays the scene out
+// with): the forest only on an upright phone, the painted tunnel ends only where the layout draws them (desktop and the
+// sideways phone). A rotation afterwards is the swap's own load's to cover, as it always was. (2026-11-19, the probe
+// host: the first cut added the forest on every phone tier page, so the sideways phone fetched it for nothing.)
 import { SCENE_LAZY_URLS } from './assets';
 import { PHONE_TIER } from './deviceTier';
 import { BOOT_SCENE_SET } from './sceneChoice';
 import { SCENE_PRESETS, homePreset } from './scenePresets';
+import { keysFor } from './scene/sceneLayers';
+import type { LayoutKind } from './layoutSpec';
+
+/** the view the board lays the scene out with (components/Board.svelte sets it), null before its first layout */
+let viewNow: () => { kind: LayoutKind; uprightPhone: boolean } | null = () => null;
+export const setScenePrefetchView = (fn: typeof viewNow) => {
+	viewNow = fn;
+};
 
 type Fetched = { url: string; ms: number | null; bytes: number | null; ok: boolean | null };
 const state: { startedAt: number | null; why: string; set: string; files: Fetched[] } = { startedAt: null, why: '', set: '', files: [] };
@@ -21,12 +31,11 @@ const state: { startedAt: number | null; why: string; set: string; files: Fetche
 /** the other set's base scene pieces for this device (asset keys) */
 const keysNow = (): string[] => {
 	const P = SCENE_PRESETS[homePreset(BOOT_SCENE_SET === 'snow' ? 'grass' : 'snow')];
+	// (before the board's first layout: the window's shape, as the layout would read it: upright on the phone tier is the
+	// upright phone, anything else draws the ends; a tablet held upright draws neither)
 	const upright = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
-	const keys = [P.picture.road, P.picture.tunnelLeft, P.picture.tunnelRight, P.field];
-	if (P.bands) keys.push(P.bands.top, P.bands.bottom);
-	if (P.ends && !(PHONE_TIER && upright)) keys.push(P.ends.left, P.ends.right);
-	if (P.forest && PHONE_TIER) keys.push(P.forest);
-	return keys.filter((k) => !!SCENE_LAZY_URLS[k]);
+	const view = viewNow() ?? { kind: (upright ? 'portrait' : PHONE_TIER ? 'phone' : 'landscape') as LayoutKind, uprightPhone: upright && PHONE_TIER };
+	return keysFor(P, view).filter((k) => !!SCENE_LAZY_URLS[k]);
 };
 
 /** start the fetches (once; `why`: what let it start, for the probes) */
