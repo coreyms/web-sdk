@@ -351,6 +351,9 @@ async function wrapOf(p, iphone, track) {
 		const browser = await pw[engine === 'chromium' ? 'chromium' : 'webkit'].launch(engine === 'chromium' ? { args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] } : {});
 		try {
 			const { ctx, p, errs, iphone } = await boot(browser, engine);
+			// THE MANIFEST (2026-11-19): this game's three tracks and no other (Manticore's bgm_epic and bgm_maxwin left)
+			const listed = Object.keys(await p.evaluate(async () => (await (await fetch('./assets/audio/music.json', { cache: 'no-store' })).json()).tracks)).sort();
+			check(JSON.stringify(listed) === JSON.stringify([...TRACKS].sort()), `${engine}: music.json lists exactly ${TRACKS.join(', ')}`, listed);
 			for (const track of TRACKS) {
 				const r = await wrapOf(p, iphone, track);
 				r.engine = engine;

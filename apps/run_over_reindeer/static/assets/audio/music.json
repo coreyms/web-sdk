@@ -39,32 +39,6 @@
 			"loop": true,
 			"duration": 15.998776,
 			"volume": 0.902
-		},
-		"bgm_epic": {
-			"src": [
-				"./assets/audio/music/bgm_epic.ogg?v=6615a4e6",
-				"./assets/audio/music/bgm_epic.m4a?v=d89d32c1"
-			],
-			"bytes": [
-				943695,
-				745026
-			],
-			"loop": true,
-			"duration": 120,
-			"volume": 0.496
-		},
-		"bgm_maxwin": {
-			"src": [
-				"./assets/audio/music/bgm_maxwin.ogg?v=52ffca2e",
-				"./assets/audio/music/bgm_maxwin.m4a?v=f79dd7bb"
-			],
-			"bytes": [
-				239439,
-				188552
-			],
-			"loop": true,
-			"duration": 30,
-			"volume": 0.541
 		}
 	}
 }

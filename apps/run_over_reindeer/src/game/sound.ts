@@ -3,15 +3,15 @@ import { createSound, supportsAudioFormat, type MusicManifest } from 'utils-soun
 import assets from './assets';
 import { fileBytes } from './assetStamp';
 
-// BORROWED SOUND (first pass): static/assets/audio is Manticore Mayhem's effects sprite and music as stand-ins until Run
-// Over Reindeer has its own. Since 2026-11-15 the sprite is built for this game (tools/build_audiosprite.py --game
-// run_over_reindeer): every Manticore clip exactly where it was, then this game's own after them (the last group of
-// names below, played by game/road/roadSounds.ts and game/bookEventHandlerMap.ts). The other names are Manticore's (its
-// creature, its tiles); this game plays only a handful of them (components/Sound.svelte, game/bookEventHandlerMap.ts,
-// components/Board.svelte: the UI clicks, the bonus triggers, sfx_sting_big_hit; sfx_reel_stop and sfx_cluster_remove
-// gave way to this game's own in round 2, 2026-11-15). MusicName lives in music.json (one
-// streamed file per track); every SoundEffectName lives in the sounds.json audiosprite.
-export type MusicName = 'bgm_base' | 'bgm_bonus' | 'bgm_super' | 'bgm_epic' | 'bgm_maxwin';
+// THE EFFECTS SPRITE AND THE MUSIC (tools/build_audiosprite.py --game run_over_reindeer). The game was forked from
+// Manticore Mayhem and started on its sprite and music; since 2026-11-19 (Corey: "Yes" to removing Manticore's sounds
+// and the two music tracks) neither carries anything this game never plays. What the sprite still takes from the house
+// and Manticore tables: the UI clicks (components/Sound.svelte), the marimba scatter family and its success
+// (constants REINDEER_SOUND.scatterLand, game/bookEventHandlerMap.ts) and the five tier keys, whose clips are this game's
+// own (constants LED_BOARD.tierSounds); every other name below is this game's own (game/road/roadSounds.ts and the
+// constants tables). MusicName lives in music.json (one streamed file per track); every SoundEffectName lives in the
+// sounds.json audiosprite.
+export type MusicName = 'bgm_base' | 'bgm_bonus' | 'bgm_super';
 
 export type SoundEffectName =
 	| 'sfx_scatter_land_1'
@@ -31,54 +31,12 @@ export type SoundEffectName =
 	| 'sfx_ui_sub'
 	// the intro screen's press to continue (ui/LandingScreen.svelte, 2026-11-17), in place of its minor click
 	| 'sfx_intro_jingle_short'
-	| 'sfx_reel_spin'
-	| 'sfx_reel_stop'
-	| 'sfx_cluster_remove'
-	// THE CLUSTER ACCENTS (1.0.04, Corey 2026-10-20): one per paying symbol, played in place of sfx_cluster_remove as that
-	// symbol's cluster starts (game/bookEventHandlerMap.ts clusterSound)
-	| 'sfx_clear_l1'
-	| 'sfx_clear_l2'
-	| 'sfx_clear_l3'
-	| 'sfx_clear_l4'
-	| 'sfx_clear_m1'
-	| 'sfx_clear_m2'
-	| 'sfx_clear_m3'
-	| 'sfx_clear_h1'
-	| 'sfx_tile_double'
-	| 'sfx_cascade'
-	| 'sfx_money_counter'
-	| 'sfx_swipe'
-	| 'sfx_roar'
-	| 'sfx_roar_win'
-	| 'sfx_sting_hit'
-	| 'sfx_sting_big_charge'
-	| 'sfx_sting_big_hit'
-	| 'sfx_sting_super_charge'
-	| 'sfx_sting_super_hit'
-	| 'sfx_scatter_sting'
+	// the tier family (Manticore's five key names, this game's own clips; constants LED_BOARD.tierSounds)
 	| 'sfx_win_big'
 	| 'sfx_win_super'
 	| 'sfx_win_mega'
 	| 'sfx_win_epic'
 	| 'sfx_win_max'
-	| 'sfx_mystery_tease'
-	| 'sfx_mystery_decision'
-	| 'sfx_chain_heavy'
-	| 'sfx_chain_light'
-	| 'sfx_chain_light_logo'
-	| 'sfx_fire_super'
-	| 'sfx_fire_epic'
-	// the creature's own (game/creature.ts, 2026-10-13): one breath per idle loop, the snarl and the growl, two takes each
-	| 'sfx_manticore_breath_1'
-	| 'sfx_manticore_breath_2'
-	| 'sfx_manticore_snarl_1'
-	| 'sfx_manticore_snarl_2'
-	| 'sfx_manticore_growl_1'
-	| 'sfx_manticore_growl_2'
-	// THE MEGA ROAR (constants PLAQUE_CHEER, Corey's pick 2026-10-23): his roar move when a win plaque stops on MEGA
-	| 'sfx_manticore_roar_win_1'
-	// the win plaque's landing thump (components/StingerPlaque.svelte, 2026-10-15): every impact, under a tier's stab
-	| 'sfx_plaque_land'
 	// RUN OVER REINDEER'S OWN (Corey's picks 2026-11-15; constants REINDEER_SOUND, game/road/roadSounds.ts)
 	| 'sfx_reindeer_idle_snort'
 	| 'sfx_reindeer_alert'
@@ -118,7 +76,7 @@ export type SoundEffectName =
 	// round 3 (Corey's finals 2026-11-15): the column's growth, entrances and win clips, the bonus round's cards and top-up,
 	// the road's ambience (constants REINDEER_SOUND). sfx_scatter_tease plays the scatter tease since pass 7 (constants
 	// LANE_FLOW); sfx_wild_double is left out of the sprite (pass 7, Corey: no doubling moment; its source stays on disk);
-	// the tier family (sfx_win_big ... _max, above) replaced Manticore's clips in place and has no tier moment yet.
+	// the tier family (sfx_win_big ... _max, above) replaced Manticore's clips in place (constants LED_BOARD.tierSounds).
 	| 'sfx_column_grow'
 	| 'sfx_column_santa_in'
 	| 'sfx_column_grandma_in'

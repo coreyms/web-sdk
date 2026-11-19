@@ -2,9 +2,8 @@
 	import { sound, type MusicName, type SoundEffectName, type SoundName } from '../game/sound';
 
 	export type EmitterEventSound =
-		// `loop`: overrides the manifest's loop flag for this start. bgm_maxwin is authored as a
-		// loop in music.json but the max-win screen plays it ONCE and gates its press on the end
-		// (utils-sound createMusic: a looping media element never fires 'ended').
+		// `loop`: overrides the manifest's loop flag for this start (kept from Manticore, whose max-win screen played its
+		// max-win track once; this game has no max-win track and every start it makes loops)
 		| { type: 'soundMusic'; name: MusicName; loop?: boolean }
 		// UI voices (Corey 2026-09-02): minor click = turbo / autoplay / denomination / menu / the
 		// ACTIVATE-LOAD buttons / the landing continue; sub = every other button inside the autoplay
@@ -152,7 +151,7 @@
 		});
 	}
 
-	// The base loop starts with the game. BORROWED: every track and effect is Manticore Mayhem's, as a stand-in.
+	// The base loop starts with the game (this game's own three tracks since 2026-11-15; Manticore's last two left 2026-11-19).
 	onMount(() => {
 		// the restored mixer level goes to the music player BEFORE the first play: the effect that normally hands it
 		// over runs after this mount, so a session restored as muted started its track audible for a moment
