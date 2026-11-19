@@ -4236,10 +4236,12 @@ export const LOGO_KEY = {
 	 *  a spin, it flashes to a blank slate on every spin which is a little annoying"). LOGO by default, a spin press alone
 	 *  changes nothing. KEY the moment the first tile on the board lights (a win), over fadeMs; it stays while any tile is
 	 *  lit (the rest of the round, a feature once a tile has lit or when it inherits lit tiles, at rest while a base spin's
-	 *  tiles are still on the board); LOGO restHoldMs after the board has no lit tile, so the next spin's reveal clearing the
-	 *  tiles does not flash the LOGO when its win lights them again within that time. While it waits the key keeps showing
-	 *  the last lit values (it is never a blank slate). LOGO on the landing screen */
-	state: { fadeMs: 280, restHoldMs: 1000 },
+	 *  tiles are still on the board). r3 (2026-11-19, the coordinator: the 0.14 s LOGO between two winning spins is the same
+	 *  flicker): THE SPIN, NOT A TIMER, decides KEY to LOGO. Once up, the KEY stays while a spin is in play (stateGame.busy
+	 *  or its readouts), so the next spin's reveal clearing the tiles never shows the LOGO; the key keeps its last lit values
+	 *  until a tile lights again (it updates) or the spin has finished. With the board at rest and no tile lit, the LOGO
+	 *  after settleMs (a short settle, not what prevents a flash). LOGO on the landing screen */
+	state: { fadeMs: 280, settleMs: 300 },
 	/** brightness (tint grey) of an unlit square, and of x128 where it cannot occur (a tileCap under 128: the Base Game and
 	 *  Free Spins), and the lit / unlit change's time */
 	unlit: 0x5c / 255,

@@ -25,9 +25,9 @@
 	// the transition covers it). No logo box reaches the board's art in any layout.
 	// WHAT IT READS: the layout and the HUD's own show / hide events. The ticker runs only while it fades.
 	// 2026-11-18, THE PANEL AND THE MULTIPLIER KEY (constants LOGO_KEY, game/logo/key.ts): the frame (the still) holds a
-	// panel with two states, LOGO (the lettering) and KEY (the board's live multipliers), crossfaded. KEY from the spin
-	// press until the round is over and the board at rest (then LOGO after LOGO_KEY.state.restHoldMs, unless the next round
-	// starts or an autoplay run is on), throughout a feature, never on the landing screen or in Popout S. The key's art
+	// panel with two states, LOGO (the lettering) and KEY (the board's live multipliers), crossfaded. KEY the moment a tile
+	// on the board lights, and from then while a tile is lit or a spin is in play; LOGO once the board is at rest with no
+	// tile lit (constants LOGO_KEY.state); never on the landing screen, the sideways phone or Popout S. The key's art
 	// loads after the mount (its own small atlas); until it is in, the panel stays on LOGO: never a hole.
 	import * as PIXI from 'pixi.js';
 	import { onMount, untrack } from 'svelte';
@@ -245,8 +245,22 @@
 	const inFeature = $derived(sg.bonusMode !== null || sg.gameType !== 'basegame');
 	const roundOn = $derived(!context.stateXstateDerived.isIdle() || sg.busy || sg.readouts.length > 0 || (stateBet.autoSpinsCounter ?? 0) !== 0);
 	/** the KEY is wanted right now (before the hold back to LOGO): only while a tile on the board is lit (LOGO_KEY.state) */
-	const wantKey = $derived(devPanel !== null ? devPanel === 'key' : !context.stateLayout.showLoadingScreen && keyLayout && anyLit);
+	/** the panel's state: true = the KEY (its crossfade follows, panelA) */
 	let panelKey = $state(false);
+	/** a spin is in play: its choreography or its readouts (stateGame.busy is set by its reveal, before the reveal clears the tiles) */
+	const spinInPlay = $derived(sg.busy || sg.readouts.length > 0);
+	/** DEV / probe: every change of "a spin is in play", when (performance.now()) */
+	const spinLog: { spin: boolean; at: number }[] = [];
+	if (import.meta.env.DEV) {
+		$effect(() => {
+			const on = spinInPlay;
+			untrack(() => {
+				spinLog.push({ spin: on, at: performance.now() });
+				if (spinLog.length > 800) spinLog.splice(0, 400);
+			});
+		});
+	}
+	const wantKey = $derived(devPanel !== null ? devPanel === 'key' : !context.stateLayout.showLoadingScreen && keyLayout && (anyLit || (panelKey && spinInPlay)));
 	let holdTimer: ReturnType<typeof setTimeout> | null = null;
 	/** DEV / probe: every flip, when it happened (performance.now()) */
 	const panelLog: { to: 'logo' | 'key'; at: number }[] = [];
@@ -268,7 +282,7 @@
 					if (import.meta.env.DEV) panelLog.push({ to: 'logo', at: performance.now() });
 				};
 				if (dev || !keyLayout || context.stateLayout.showLoadingScreen) flip();
-				else holdTimer = setTimeout(flip, S.restHoldMs);
+				else holdTimer = setTimeout(flip, S.settleMs);
 			}
 		});
 	});
@@ -495,7 +509,8 @@
 						/** every flip since the mount (log holds the last 40) */
 						flips: panelLog.length,
 						/** the whole flip log and the lit log since `since` (performance.now()), for the probe's event check */
-						events: (since = 0) => ({ panel: panelLog.filter((x) => x.at >= since), lit: litLog.filter((x) => x.at >= since), now: performance.now() }),
+						events: (since = 0) => ({ panel: panelLog.filter((x) => x.at >= since), lit: litLog.filter((x) => x.at >= since), spin: spinLog.filter((x) => x.at >= since), now: performance.now() }),
+						spinInPlay,
 						...key.state(),
 					}),
 					/** values held in place of the board's (e.g. [2, 2, 4]); null = the board's again */
