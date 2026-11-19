@@ -1498,7 +1498,7 @@ export const LED_BOARD = {
 	cartoon: 'auto' as 'auto' | 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race',
 	/** THE GRANDMA GAG (Corey's line, exactly): when the reindeer strikes a Grandma, for gagMs on the strip, cut short by a
 	 *  new spin or a win message on the strip. Its beats: the first part pulses, the bump, then the rest marches in. */
-	gag: { on: true, ms: 5000, first: 'Oooh..', second: 'Grandma Got Run Over', third: 'by a Reindeer?', firstMs: 900, bumpMs: 900, secondMs: 1600, short: { text: 'GRANDMA GOT RUN OVER!', ms: 1500 } },
+	gag: { on: true, ms: 5000, first: 'Oooh..', second: 'Grandma Got', third: 'Run Over!?', firstMs: 900, bumpMs: 900, secondMs: 1600, short: { text: 'GRANDMA GOT RUN OVER!', ms: 1500 } },
 	/** THE SHORT GRANDMA LINE (Corey 2026-11-17, approved): the full three screen line above plays only in manual base play; in
 	 *  autoplay, in a bonus round and at turbo 1 or 2 the gag is ONE screen, gag.short.text, for gag.short.ms. WHEN it fires is
 	 *  the book's rule as before (game/bookEventHandlerMap.ts strike); this only picks which line. */

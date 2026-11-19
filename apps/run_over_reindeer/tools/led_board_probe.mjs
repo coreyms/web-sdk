@@ -1052,7 +1052,7 @@ async function flows(p, S, errs) {
 	const gagM = /gag: \{[^}]*first: '([^']*)', second: '([^']*)', third: '([^']*)'/.exec(block);
 	const gagLine = gagM ? `${gagM[1]} ${gagM[2]} ${gagM[3]}` : '';
 	if (SEC('gag')) {
-		check(gagLine === 'Oooh.. Grandma Got Run Over by a Reindeer?', `${tag}: the gag's words are exactly Corey's line ("${gagLine}")`);
+		check(gagLine === 'Oooh.. Grandma Got Run Over!?', `${tag}: the gag's words are exactly Corey's line ("${gagLine}")`);
 		const titles = [...block.matchAll(/title: '([^']*)'/g)].map((m) => m[1]);
 		const draw = readFileSync(join(SRC, 'game', 'scoreboard', 'scoreboardDraw.ts'), 'utf8');
 		const draw2 = readFileSync(join(SRC, 'game', 'scoreboard', 'stripDraw.ts'), 'utf8');
