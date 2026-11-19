@@ -626,8 +626,19 @@ export class SuperWheel {
 		// a stud crossed the peg: one tick
 		if (!quiet && Math.floor(-prev / WHEEL_STEP) !== Math.floor(-theta / WHEEL_STEP)) {
 			this.ticks += 1;
-			this.env?.sound(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`);
+			this.tick(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`);
 		}
+	}
+
+	/** A TICK'S SOUND, never closer to the one before than SUPER_WHEEL.sound.tickMinMs of real time (the page's clock): a
+	 *  fast wheel, a slam or a slow frame can pass several studs at once, and a tick every frame is a buzz, not a ratchet.
+	 *  A tick due sooner is simply not played. */
+	private lastTickAt = -Infinity;
+	private tick(name: string | null, detail: string) {
+		const now = performance.now();
+		if (now - this.lastTickAt < SUPER_WHEEL.sound.tickMinMs) return;
+		this.lastTickAt = now;
+		this.env?.sound(name, detail);
 	}
 
 	/** the peg: a damped spring pushed by the stud under it (it never pushes the wheel) */
@@ -755,7 +766,7 @@ export class SuperWheel {
 		const prev = this.ringPhi;
 		this.ringPhi = phi;
 		this.ring.rotation = phi * DEG;
-		if (Math.floor((-prev + 36) / 72) !== Math.floor((-phi + 36) / 72)) this.env?.sound(SUPER_WHEEL.sound.ringTick, 'the ring ticks');
+		if (Math.floor((-prev + 36) / 72) !== Math.floor((-phi + 36) / 72)) this.tick(SUPER_WHEEL.sound.ringTick, 'the ring ticks');
 	}
 
 	private beatLand2() {

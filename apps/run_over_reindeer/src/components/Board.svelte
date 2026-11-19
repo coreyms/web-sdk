@@ -332,7 +332,12 @@
 		sound: (name, detail, rate) => {
 			if (name && !stateGame.skipping) road.features.sounds.playNamed(name, `wheel: ${detail}`, rate);
 		},
-		runSound: (on) => (on ? road.features.sounds.runStart() : road.features.sounds.runStop('the wheel')),
+		runSound: (on) => {
+			// DEV: his set off and his leaving into the road's log (the sound probe pairs the wheel's run loop with them)
+			if (import.meta.env.DEV) road.features.sounds.mark('wheelRun', on ? 'start' : 'stop');
+			if (on) road.features.sounds.runStart();
+			else road.features.sounds.runStop('the wheel');
+		},
 		// ONE REINDEER ON THE SCREEN: the roaming one (game/road/roam.ts) goes as the wheel comes out (he is the one who runs
 		// it): on the screen he stands startled and runs off, toward the left (where the wheel's driver runs in from) when
 		// that is quick enough, else off the nearest edge. He stays away through the whole wheel (no walk in, no safety net)

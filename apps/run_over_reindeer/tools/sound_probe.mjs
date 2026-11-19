@@ -277,11 +277,92 @@ async function runCase(p, S, C) {
 		window.__reindeer.forceSnort(null);
 	});
 	const cutTurn = await p.evaluate(() => !!window.__reindeer.tune.sound.cutTurn);
+	// THE SUPER WHEEL's own sound table (constants SUPER_WHEEL.sound), read from the game
+	out.wheelTune = await p.evaluate(() => window.__reindeer.tune.superWheel?.sound ?? null);
 	const thinGap = await p.evaluate(() => window.__reindeer.tune.sound.reelStopTurbo2?.gapMs ?? null);
 	return { ...out, settled, roundEnd, slammed, cutTurn, opens, thinGap };
 }
 
 const r1 = (v) => (v === null || v === undefined ? '' : Math.round(v * 10) / 10);
+
+/** THE SUPER WHEEL'S OWN SOUNDS (2026-11-19; game/road/superWheel.ts, constants SUPER_WHEEL.sound). The wheel borrows the
+ *  strike's run loop and dart, the crosshair's hop (its peg and ring ticks) and lock (its two stops), the present's pop
+ *  (the red present opening again, and the ring rising) and the card's out (the wheel leaving). Until the wheel has
+ *  sounds of its own they would be counted as strikes', crosshairs', triggers' and cards' sounds. Here they are taken out
+ *  of the round's log by what the wheel itself asked for (the road's log has each as a sound with the detail
+ *  `wheel: ...`, its run loop as the moments `wheelRun`, and the red present's lid between the wheel's `emerge` and
+ *  `rest`), so every other check counts the round's own sounds as it did before the wheel; judgeWheel checks the wheel's. */
+function splitWheel(R) {
+	const road = R.road;
+	const phases = road.filter((e) => e.kind === 'moment' && e.what === 'wheel');
+	if (!phases.length) return { R, wheel: null };
+	const log = R.tap.log;
+	const plays = log.filter((e) => e.what === 'play');
+	const ids = new Set();
+	const pair = (name, at) => {
+		const pl = plays.find((x) => !ids.has(x.id) && x.name === name && x.frame === at.frame) ?? plays.find((x) => !ids.has(x.id) && x.name === name && Math.abs(x.t - at.t) <= 40);
+		if (pl) ids.add(pl.id);
+		return pl ?? null;
+	};
+	const ph = (n) => phases.find((e) => e.detail === n) ?? null;
+	const asked = road.filter((e) => e.kind === 'sound' && /^wheel: /.test(e.detail ?? '')).map((a) => ({ ask: a, name: a.what, play: pair(a.what, a) }));
+	const runMarks = road.filter((e) => e.kind === 'moment' && e.what === 'wheelRun');
+	const runs = runMarks.filter((e) => e.detail === 'start').map((m) => ({ mark: m, play: pair('sfx_reindeer_run', m), stop: runMarks.find((x) => x.detail === 'stop' && x.t >= m.t) ?? null }));
+	const emerge = ph('emerge');
+	const rest = ph('rest') ?? ph('gone');
+	const lids = road.filter((e) => e.kind === 'moment' && e.what === 'lid' && emerge && e.t >= emerge.t && (!rest || e.t <= rest.t)).map((l) => ({ lid: l, play: pair('sfx_present_pop', l) }));
+	const lidSet = new Set(lids.map((l) => l.lid));
+	return { R: { ...R, road: road.filter((e) => !lidSet.has(e)), tap: { ...R.tap, log: log.filter((e) => !ids.has(e.id)) } }, wheel: { phases, ph, asked, runs, lids } };
+}
+
+/** WHAT THE WHEEL SHOULD SOUND LIKE (one wheel per Super round):
+ *    the red present's pop      once, on its lid's frame, as the wheel comes out (none when the board has no red present)
+ *    the run loop               once: from the frame the reindeer sets off (the Spin press) until he has left the wheel
+ *    the dart                   once, on the frame he lands on the rim
+ *    a tick (the hop)           one per stud that passes the peg in spin one (8 a turn, 2 to 3 turns) and one per place of
+ *                               the ring that passes its pointer in spin two, NEVER closer than SUPER_WHEEL.sound.tickMinMs
+ *                               of real time (a tick due sooner is not played), so never one a frame
+ *    the lock                   twice: spin one's stop and the ring's stop, on their frames
+ *    the high stamp             once with the lock of spin one when the opening is Santa at landHighFrom (15x) or more
+ *    the pop again              once, as the ring rises
+ *    the card's out             once, as the wheel leaves */
+function judgeWheel(tag, C, W, R) {
+	const K = R.wheelTune ?? {};
+	const t0 = R.t0;
+	const tap = R.tap.log;
+	const by = (name) => W.asked.filter((a) => a.name === name);
+	const at = (name, phase) => by(name).filter((a) => W.ph(phase) && a.ask.frame === W.ph(phase).frame);
+	const opening = (R.book ?? []).find((e) => e.type === 'columnWild' && e.start);
+	const list = W.phases.map((e) => e.detail).join(' > ');
+	check(!!W.ph('emerge') && !!W.ph('rest') && !!W.ph('land') && !!W.ph('land2') && !!W.ph('gone'), `${tag}: wheel: it played from its emergence to its leaving (${list})`);
+	const lost = W.asked.filter((a) => !a.play);
+	check(lost.length === 0, `${tag}: wheel: each of the ${W.asked.length} sounds the wheel asked for played on its frame`, lost.slice(0, 4).map((a) => `${a.name} ${a.ask.detail}`));
+	// the red present's pop
+	check(W.lids.length <= 1 && W.lids.every((l) => !!l.play), `${tag}: wheel: the red present's pop once as the wheel comes out, on its lid's frame (${W.lids.length})`, W.lids);
+	// the run loop
+	const run = W.runs[0];
+	const fade = run?.play ? tap.find((e) => (e.what === 'fade' || e.what === 'stop') && e.id === run.play.id) : null;
+	check(W.runs.length === 1 && !!run.play && !!W.ph('runin') && Math.abs(run.play.frame - W.ph('runin').frame) <= 1, `${tag}: wheel: one run loop for the wheel's reindeer, on the frame he sets off (${run?.play?.frame} vs ${W.ph('runin')?.frame})`);
+	check(!!run?.stop && !!fade && fade.frame - run.stop.frame <= 2 && fade.t <= (W.ph('gone')?.t ?? Infinity), `${tag}: wheel: his run loop stops as he leaves the wheel, before the wheel is gone (${run?.play && fade ? r1(fade.t - run.play.t) : '-'} ms long)`, { stop: run?.stop, fade });
+	// the dart
+	check(by(K.leapOn).length === (W.ph('drive') ? 1 : 0) && at(K.leapOn, 'drive').length === by(K.leapOn).length, `${tag}: wheel: the dart once, on the frame he lands on the rim (${by(K.leapOn).length})`);
+	// the ticks
+	const ticks = by(K.tick).filter((a) => a.play);
+	const gaps = ticks.slice(1).map((a, i) => a.play.t - ticks[i].play.t);
+	const least = gaps.length ? Math.min(...gaps) : Infinity;
+	const floor = Math.max(HOP_AUDIBLE, K.tickMinMs ?? 0);
+	check(ticks.length >= 4 && ticks.length <= 60 && least >= floor - 3, `${tag}: wheel: ${ticks.length} ticks (the studs passing the peg, then the ring's places), never closer than ${floor} ms of real time (closest ${r1(least)} ms; SUPER_WHEEL.sound.tickMinMs ${K.tickMinMs})`, gaps.filter((g) => g < floor - 3).slice(0, 6));
+	// the two stops
+	check(by(K.land).length === 2 && at(K.land, 'land').length === 1 && at(K.land, 'land2').length === 1, `${tag}: wheel: the lock twice, on spin one's stop and on the ring's stop (${by(K.land).length})`);
+	const high = opening && opening.tier === 'santa' && opening.multiplier >= K.landHighFrom ? 1 : 0;
+	check(by(K.landHigh).length === high && at(K.landHigh, 'land').length === high, `${tag}: wheel: the high stamp ${high ? 'once with spin one\'s stop' : 'not at all'} (the opening is ${opening?.tier} ${opening?.multiplier}x; from Santa ${K.landHighFrom}x)`);
+	// the ring's pop, the leaving
+	check(by(K.ringIn).length === 1 && at(K.ringIn, 'ringIn').length === 1, `${tag}: wheel: the pop once as the ring rises (${by(K.ringIn).length})`);
+	check(by(K.leave).length === 1 && at(K.leave, 'leave').length === 1, `${tag}: wheel: the card's out once as the wheel leaves (${by(K.leave).length})`);
+	const names = {};
+	for (const a of W.asked) names[a.name] = (names[a.name] ?? 0) + 1;
+	console.log(`  INFO ${tag}: the wheel's sounds: red present pop ${W.lids.length}, run loop ${W.runs.length}, ${Object.entries(names).map(([n, c]) => `${n} ${c}`).join(', ')}; press to gone ${W.ph('runin') && W.ph('gone') ? r1(W.ph('gone').t - W.ph('runin').t) : '-'} ms real; first tick ${ticks[0] ? r1(ticks[0].play.t - t0) : '-'} ms`);
+}
 
 function judge(tag, C, R) {
 	const t0 = R.t0;
@@ -899,7 +980,12 @@ const table = (rows) => '| sound | start ms | stop ms | animation event | offset
 			const { ctx, p, errs } = await boot(browser, S);
 			for (const C of CASES) {
 				const tag = `${C.id} ${S.name}`;
-				const R = await runCase(p, S, C);
+				const R0 = await runCase(p, S, C);
+				// THE SUPER WHEEL's own sounds are judged by themselves and taken out of the round's log for every other check
+				const split = splitWheel(R0);
+				const R = split.R;
+				if (split.wheel) judgeWheel(tag, C, split.wheel, R0);
+				else if ((R0.book ?? []).some((e) => e.type === 'columnWild' && e.start)) console.log(`  INFO ${tag}: a Super opening with no wheel in the road's log (the wheel did not play)`);
 				const { rows, others } = C.scatter ? judgeScatter(tag, C, R) : judge(tag, C, R);
 				all[tag] = { rows, others, roundEnd: R.roundEnd, slammed: R.slammed };
 				console.log(`\n${tag}\n${table(rows)}\n`);
