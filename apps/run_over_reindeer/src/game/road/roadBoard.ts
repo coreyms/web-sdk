@@ -657,6 +657,8 @@ export class RoadBoard {
 	private armSpin(why: string) {
 		// THE SIGNAL: green from the press. No lane has a brake time until the book's board drives in.
 		this.spinActive = true;
+		// THE SPIN KEY'S RING starts on this count's change (game/boardPace.ts serial)
+		this.spinSerial += 1;
 		this.spinStartAt = this.clock;
 		this.convoyAt = Infinity;
 		this.laneBrakeAt = [Infinity, Infinity, Infinity, Infinity];
@@ -2255,6 +2257,9 @@ export class RoadBoard {
 		if (!w || !this.waiters.includes(w)) return null;
 		return Math.max(0, w.at - 20 - this.clock);
 	}
+
+	/** THE SPIN KEY'S RING: one more at every spin's start (armSpin) */
+	spinSerial = 0;
 
 	/** THE SPIN KEY'S RING: a spin is live, from the pull away until the board driving in is home */
 	get spinLive(): boolean {

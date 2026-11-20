@@ -9,4 +9,8 @@ export const boardPace = {
 	/** real ms until the board driving in is at rest (its last lane's settle done); null until the book's board has been
 	 *  planned, and once it is home */
 	restIn: (): number | null => null,
+	/** THE ROUND'S OWN START (2026-11-20, the probe host: rounds that start back to back, with no gap, never let `live`
+	 *  fall, so a ring started on its rising edge missed them): a count that goes up once at every spin's start (the
+	 *  press's pull away, and each later spin of a round). The ring starts when it changes */
+	serial: (): number => 0,
 };

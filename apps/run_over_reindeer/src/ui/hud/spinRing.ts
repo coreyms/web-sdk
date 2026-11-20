@@ -162,6 +162,8 @@ export class RingDriver {
 	private up0 = 0;
 	private upEnd = 0;
 	private brakeEnd = 0;
+	/** the brake under way (its start, length and Hermite: start slope m0, end p1), for a spin that starts during it */
+	private bk: { t0: number; T: number; m0: number; p1: number } | null = null;
 	constructor(
 		private layer: () => { rw: Tracked; rr: Tracked } | null,
 		private onPhase: (p: RingPhase) => void,
@@ -173,18 +175,39 @@ export class RingDriver {
 		this.onPhase(p);
 	}
 
-	/** the press (or a later spin's pull away): wind back, spin up, loop */
+	/** the press (or a later spin's pull away): wind back, spin up, loop. A spin that begins while the last one is still
+	 *  braking (back to back, no gap: an autoplay or a feature's next spin) does not wind back: it speeds up again from
+	 *  the speed it has to the loop's over the spin-up's time, so there is no step and no reverse */
 	start(t: 0 | 1 | 2) {
 		const L = this.layer();
 		if (!L) return;
 		const M = ringMotion(t);
 		const now = performance.now();
+		const vNow = this.brakeSpeedNow(now);
 		const a = ang(L.rw) + ang(L.rr);
 		cancelOwn(L.rw);
 		cancelOwn(L.rr);
 		const Peff = (RING_P * 1000) / RING_RATE[t];
 		const v = 360 / Peff;
 		this.v = v;
+		if (vNow > 0.05 * v) {
+			// from vNow to v over the spin-up's time: a Hermite through the angle (both end speeds given), sampled
+			const up = M.up;
+			const W = ((vNow + v) / 2) * up;
+			const kf: Keyframe[] = [];
+			for (let i = 0; i <= 16; i++) {
+				const u = i / 16;
+				const h = (u * u * u - 2 * u * u + u) * vNow * up + (-2 * u * u * u + 3 * u * u) * W + (u * u * u - u * u) * v * up;
+				kf.push({ offset: u, transform: `rotate(${(a + h).toFixed(3)}deg)` });
+			}
+			anim(L.rw, kf, { duration: up, fill: 'forwards' });
+			anim(L.rr, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: Peff, iterations: Infinity, delay: up });
+			this.up0 = now;
+			this.upEnd = now + up;
+			this.bk = null;
+			this.set('spin');
+			return;
+		}
 		const back = 13 * M.os + 3;
 		// the second leg's easing ends with slope 2, so it hands over at exactly the loop's speed: W = v * up / 2 - back
 		const W = (v * M.up) / 2 - back;
@@ -200,7 +223,17 @@ export class RingDriver {
 		anim(L.rr, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: Peff, iterations: Infinity, delay: M.antic + M.up });
 		this.up0 = now + M.antic;
 		this.upEnd = now + M.antic + M.up;
+		this.bk = null;
 		this.set('spin');
+	}
+
+	/** the ring's speed now (deg / ms) while it brakes; 0 once the brake is in its settle, or not braking */
+	private brakeSpeedNow(now: number): number {
+		const b = this.bk;
+		if (this.phase !== 'brake' || !b) return 0;
+		const u = (now - b.t0) / b.T;
+		if (u < 0 || u >= 1) return 0;
+		return Math.max(0, ((3 * u * u - 4 * u + 1) * b.m0 + (-6 * u * u + 6 * u) * b.p1) / b.T);
 	}
 
 	/** brake from where it is to rest over T ms (Hermite: from its speed now to still), then the settle: an overshoot that
@@ -237,6 +270,7 @@ export class RingDriver {
 		}
 		fr[fr.length - 1].offset = 1;
 		anim(L.rr, fr, { duration: tot, fill: 'forwards' });
+		this.bk = { t0: now, T, m0, p1 };
 		this.brakeEnd = now + tot;
 		this.set('brake');
 	}

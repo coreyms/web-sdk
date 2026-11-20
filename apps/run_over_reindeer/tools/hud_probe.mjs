@@ -36,6 +36,9 @@
 //     ring turns in a round (data-run 1); the autoplay and free spins faces carry the thinned ring and no square; with
 //     reduced motion nothing on the Spin turns or loops at rest or in a round (the square only fades); the Spin's hit
 //     area at least 44 x 44 at every size
+//   · EVERY ROUND TURNS THE RING (section `rounds`, 2026-11-20): an autoplay run of at least 6 rounds back to back (Super
+//     Turbo, the no-win fixture on every round) and a free spins round: at each spin's start (the board's own count,
+//     game/boardPace.ts serial) data-run 1 within 100 ms and the ring 10 degrees on within 400 ms
 //   · the words: no character outside printable ASCII in the HUD's and the Autoplay menu's visible text; in social mode
 //     (?social=true) also no restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake), aria included
 // With SHOTS=<dir> it saves the idle and the spinning HUD at each size (phones at device pixel ratio 3, the rest at 2).
@@ -696,6 +699,102 @@ async function socialWords(browser) {
 	await ctx.close();
 }
 
+/** EVERY ROUND TURNS THE RING (2026-11-20, the probe host: rounds that started back to back with no gap missed it). A
+ *  frame by frame record of the board's own spin count (game/boardPace.ts serial, read through the module the page
+ *  already runs), the Spin's data-run and the ring's angle; each spin start must show data-run 1 within 100 ms and the
+ *  ring 10 degrees on within 400 ms. */
+const spinRecStart = (p) =>
+	p.evaluate(async () => {
+		const bp = (await import('/src/game/boardPace.ts')).boardPace;
+		const rec = (window.__spinRec = { on: true, rows: [] });
+		const m = (el) => {
+			const v = el && getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/);
+			if (!v) return 0;
+			const q = v[1].split(',').map(parseFloat);
+			return (Math.atan2(q[1], q[0]) * 180) / Math.PI;
+		};
+		let un = null;
+		let last = null;
+		const f = (t) => {
+			if (!rec.on) return;
+			const b = document.querySelector('.hudp button.spin');
+			const a = b ? (((m(b.querySelector('.rw')) + m(b.querySelector('.rr'))) % 360) + 360) % 360 : 0;
+			if (un === null) un = a;
+			else {
+				let d = a - last;
+				if (d > 180) d -= 360;
+				if (d < -180) d += 360;
+				un += d;
+			}
+			last = a;
+			rec.rows.push({ t, s: bp.serial(), run: b?.dataset.run, a: un });
+			requestAnimationFrame(f);
+		};
+		requestAnimationFrame(f);
+	});
+const spinRecStop = (p) => p.evaluate(() => { const r = window.__spinRec; r.on = false; return r.rows; });
+function spinJudge(rows, tag, want) {
+	const starts = [];
+	for (let i = 1; i < rows.length; i++) if (rows[i].s !== rows[i - 1].s) starts.push(i);
+	const missed = [];
+	for (const i of starts) {
+		const t0 = rows[i].t;
+		// (within 100 ms, or on the first frame after the start when this machine's frames come further apart)
+		const lim = Math.max(100, (rows[i + 1]?.t ?? t0) - t0 + 1);
+		const runAt = rows.slice(i).find((r) => r.run === '1' && r.t - t0 <= lim);
+		const on = rows.slice(i).find((r) => r.t - t0 >= 400) ?? rows[rows.length - 1];
+		if (!runAt || on.a - rows[i].a < 10) missed.push(`${Math.round(t0)} ms: ${runAt ? `only ${Math.round(on.a - rows[i].a)} degrees` : 'no data-run 1 within 100 ms'}`);
+	}
+	const gaps = rows.slice(1).map((r, k) => r.t - rows[k].t).sort((x, y) => x - y);
+	check(starts.length >= want && missed.length === 0, `rounds ${tag}: every spin start turns the ring (${starts.length} starts, ${missed.length} missed; frames every ${Math.round(gaps[Math.floor(gaps.length / 2)] ?? 0)} ms median)`, missed.slice(0, 4));
+}
+
+async function everyRoundTurns(browser) {
+	const S = { name: 'rounds', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop' };
+	const { ctx, p, errs } = await boot(browser, S);
+	await settle(p, S);
+	await sleep(500);
+	// AUTOPLAY, BACK TO BACK: Super Turbo, every round the no-win fixture (sticky), so each round starts as the one before ends
+	for (let k = 0; k < 3; k++) {
+		if ((await p.evaluate(() => +document.querySelector('.hudp button.spin').dataset.tb)) === 2) break;
+		await p.click(CONTROLS.turbo);
+		await sleep(300);
+	}
+	await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1', true));
+	await p.click(CONTROLS.auto);
+	await sleep(700);
+	await p.click('.am-ui.layer.modals .go');
+	await sleep(700);
+	await spinRecStart(p);
+	await p.click(CONTROLS.spin);
+	for (let i = 0; i < 300; i++) {
+		const n = await p.evaluate(() => { const r = window.__spinRec.rows; return r.length ? r[r.length - 1].s - r[0].s : 0; });
+		if (n >= 7) break;
+		await sleep(100);
+	}
+	await p.click(CONTROLS.spin).catch(() => {});
+	await settle(p, S, 120000);
+	await sleep(600);
+	spinJudge(await spinRecStop(p), 'autoplay back to back (Super Turbo, no win)', 6);
+	await p.evaluate(() => window.__reindeer.fixtures.clear?.());
+	for (let k = 0; k < 3; k++) {
+		if ((await p.evaluate(() => +document.querySelector('.hudp button.spin').dataset.tb)) === 0) break;
+		await p.click(CONTROLS.turbo);
+		await sleep(300);
+	}
+	// A FEATURE ROUND: every free spin turns it
+	if (process.env.SKIPFS !== '1') {
+		await p.evaluate(() => window.__reindeer.fixtures.next('natural_free_spins'));
+		await spinRecStart(p);
+		await spinOnce(p);
+		await settle(p, S, 240000);
+		await sleep(600);
+		spinJudge(await spinRecStop(p), 'a free spins round', 5);
+	}
+	check(errs.filter((x) => !/favicon/.test(x)).length === 0, 'rounds: no console errors', errs.slice(0, 5));
+	await ctx.close();
+}
+
 /** THE LANE RING WITH REDUCED MOTION (2026-11-20): nothing on the Spin turns or loops at rest or in a round; the stop
  *  square only fades in (the ring's driver checks the same query) */
 async function reducedMotion(browser) {
@@ -844,6 +943,13 @@ async function flip(browser) {
 				await socialWords(browser);
 			} catch (e) {
 				check(false, 'social: ran to the end', String(e).slice(0, 300));
+			}
+		}
+		if (!ONLY.length || ONLY.includes('rounds')) {
+			try {
+				await everyRoundTurns(browser);
+			} catch (e) {
+				check(false, 'rounds: ran to the end', String(e).slice(0, 300));
 			}
 		}
 		if (!ONLY.length || ONLY.includes('reduced')) {
