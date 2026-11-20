@@ -3,7 +3,8 @@
 //
 //   node tools/import_fixtures.mjs
 //
-// Source: math-sdk/games/run_over_reindeer/fixtures_2026-11-20/ (math 2026.11.20, contract 2026-11-20a: no top-ups, a round under its minimum is
+// Source: math-sdk/games/run_over_reindeer/fixtures_2026-11-20b/ (build 2026-11-20b: no fifth scatter, a Super trigger is
+// exactly 4; the showcase books are byte-identical to fixtures_2026-11-20). Before it fixtures_2026-11-20 (math 2026.11.20, contract 2026-11-20a: no top-ups, a round under its minimum is
 // redrawn; the showcase's floor_top_up rounds are replaced by natural_small_free_spins, natural_small_super and super_small).
 // Before it: fixtures_2026-11-18 (math 2026-11-18: each line pays its better reading, multipliers included; before it fixtures_2026-11-15b)
 // Was: math-sdk/games/run_over_reindeer/fixtures_2026-11-15b/ (contract 2026-11-15a, variant F + C with the P1 paytable,
@@ -18,7 +19,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const APP = dirname(dirname(fileURLToPath(import.meta.url)));
-const FOLDER = 'fixtures_2026-11-20';
+const FOLDER = 'fixtures_2026-11-20b';
 const MATH = join(APP, '..', '..', '..', 'math-sdk', 'games', 'run_over_reindeer', FOLDER);
 
 const showcase = JSON.parse(readFileSync(join(MATH, 'showcase_books.json'), 'utf8'));
