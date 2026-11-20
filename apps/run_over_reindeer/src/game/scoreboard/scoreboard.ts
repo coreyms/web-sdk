@@ -29,7 +29,7 @@
 import * as PIXI from 'pixi.js';
 
 import { INTRO_LINE, LED_BOARD } from '../constants';
-import { C, mk, shimmer, type Cv } from '../landing/ledScreens';
+import { C, mk, setScreenScaleMax, shimmer, type Cv } from '../landing/ledScreens';
 import { renderResolutionFor } from '../deviceTier';
 import { clearP, copyFace, copyP, densityFor, fillP, ledN } from './ledGrid';
 import { type ScoreboardGeo, type Rect } from './layout';
@@ -310,6 +310,8 @@ export class Scoreboard {
 		this.geo = g;
 		// the back board's title knobs are per layout class (constants LED_BOARD.titles)
 		setBoardClass(g.cls);
+		// (board size d on desktop and tablet: the press screen's figure may grow with the face, LED_BOARD.sizeD)
+		setScreenScaleMax((g.cls === 'desktop' || g.cls === 'tablet') && LED_BOARD.size === 'd' ? LED_BOARD.sizeD.pressScaleMax : 6);
 		this.ensureFaces();
 		this.placeFace(this.strip!, g.strip.face);
 		this.placeFace(this.back!, g.back.face);
@@ -1318,6 +1320,8 @@ export class Scoreboard {
 			back: g
 				? {
 						housing: { x: r(g.back.housing.x), y: r(g.back.housing.y), w: r(g.back.housing.w), h: r(g.back.housing.h) },
+						/** the face, seated (CSS px): board size d puts it on the reel board's box (the probe) */
+						face: { x: r(g.back.face.x), y: r(g.back.face.y), w: r(g.back.face.w), h: r(g.back.face.h) },
 						dotsW: g.back.face.dotsW,
 						dotsH: g.back.face.dotsH,
 						offset: r(this.backRoot.y),

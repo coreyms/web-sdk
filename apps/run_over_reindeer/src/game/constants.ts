@@ -1916,6 +1916,16 @@ export const LED_BOARD = {
 	 *    snap      each LED a whole number of device px (k = the device px per dot over a whole count, at least 2; the face
 	 *              placed at that multiple, centred): today false
 	 *    unlit     the unlit quad under the dots: true the faint grid C.unlit (today), false near black */
+	/** THE BOARD'S SIZE ON DESKTOP AND TABLET (Corey 2026-11-20, led_board_size_r1_2026-11-20 option d; game/scoreboard/
+	 *  layout.ts): 'd' the back board takes the reel board's width and height at today's dot pitch (its face over the reel
+	 *  board exactly, its bottom rail under the strip's snow cap as before) and the strip widens to the same width (its height
+	 *  and place as before), so the seam and the snow caps line up as today, wider; 'today' the strip's rule (strip.desktop
+	 *  width) and backShare. Phones (upright and sideways) already span the board and keep their own rules. */
+	size: 'd' as 'd' | 'today',
+	/** board size d's taste pass (desktop and tablet only): the win titles' largest dot scale (today's list stops at 5, which
+	 *  left BIG to MAX WIN at 0.17 of the bigger face against today's 0.23; 7 gives 0.24); the press screen's figure's
+	 *  (WIN UP TO 7,777X: today's stops at 6) */
+	sizeD: { winTitleMax: 7, pressScaleMax: 8 },
 	grid: { shape: 'round' as 'round' | 'square' | 'soft', fill: 0.73, rowScale: 1, gapDark: 1, litOver: 0, snap: false, unlit: true },
 	/** THE FACES' MOVING EFFECTS (Corey 2026-11-20, led_board_size_r1_2026-11-20 round 2, his settings; game/scoreboard/
 	 *  scoreboard.ts drawBack and drawStrip, scoreboardDraw.ts borderGlint). Each keeps today's choice selectable:

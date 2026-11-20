@@ -171,7 +171,12 @@ function sc3(g: Grid): Grid {
 
 /** THE FIGURE'S FACE: the game's display font (Overpass Heavy, loaded before the landing) */
 export const LED_FONT = '"Overpass", "Arial Black", "Helvetica Neue", Arial, sans-serif';
-const SCALES = [6, 5, 4, 3, 2, 1];
+let SCALES = [6, 5, 4, 3, 2, 1];
+/** the press screen's big figure's largest dot scale: 6, raised on board size d's desktop and tablet face (the scoreboard's
+ *  layout sets it; constants LED_BOARD.sizeD.pressScaleMax) so WIN UP TO 7,777X keeps today's share of the bigger face */
+export const setScreenScaleMax = (n: number) => {
+	if (SCALES[0] !== n) SCALES = Array.from({ length: n }, (_, i) => n - i);
+};
 const maskCache = new Map<string, Cv>();
 // big figures (3 and up): a heavy sans drawn at the dot size and snapped, as an LED controller rasterizes a font
 function vecMask(str: string, s: number): Cv {
