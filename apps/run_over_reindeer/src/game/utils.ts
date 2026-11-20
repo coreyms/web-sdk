@@ -6,6 +6,7 @@ import { bookEventHandlerMap } from './bookEventHandlerMap';
 import { hudWinRoundStart } from './hudWin.svelte';
 import { preloadForEvents } from './road/columnClips';
 import { presentsForBook } from './road/present';
+import { brawlForBook, brawlRoundEnd } from './road/brawlCloud';
 import { openingOf, planWheel } from './superWheelPlan';
 import { loadWheelArt, releaseWheelArt } from './road/superWheel';
 import { SUPER_WHEEL } from './constants';
@@ -81,6 +82,8 @@ export const playBet = async (bet: Bet) => {
 	preloadForEvents(bet.state);
 	// a book with a trigger: the presents' full open starts loading now (game/road/present.ts); one without lets it go
 	presentsForBook(bet.state);
+	// BRAWL: a book with a Grandma Wild warms its brawl cloud's frames now (game/road/brawlCloud.ts)
+	brawlForBook(bet.state);
 	// a book with a Super opening: its wheel (a resumed round's state starts with the snapshot: its wheel was planned from
 	// the whole round already)
 	if (bet.state[0]?.type !== 'createBonusSnapshot') prepareWheel(bet.state);
@@ -88,6 +91,8 @@ export const playBet = async (bet: Bet) => {
 	// THE WHEEL'S SHEET NEVER OUTLIVES ITS ROUND (2026-11-19): a wheel that played let it go as it left; one that never
 	// played (its pictures late, the wheel switched off) is let go here (nothing happens when it is not loaded)
 	void releaseWheelArt();
+	// BRAWL: the round is over; the brawl cloud's frames go once no Grandma Wild stands
+	brawlRoundEnd();
 	// THE LED COUNT LANDS BEFORE THE ROUND SETTLES (2026-11-18, the probe host: the end-round went with the strip's small
 	// count at $9.72 of $10.00): the round's presentation is over once the board's count is too. Not in autoplay, where the
 	// next spin's press cuts the small message anyway and waiting would slow every winning round (by up to its count's

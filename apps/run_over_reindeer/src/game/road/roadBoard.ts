@@ -1075,6 +1075,8 @@ export class RoadBoard {
 		// THE WILDS' MULTIPLIERS on the winning lines play their win from their line's start, and where two add on a line
 		// copies fly to its multiplier as it shows (game/road/wildMult.ts; win ms to board ms at the board's rate)
 		const toBoard = Math.max(0.01, this.features.rate || 1);
+		// BRAWL: the win beat's share of the win clock at this turbo level
+		this.features.brawl.winPace = pace;
 		this.features.winNumbers(
 			drawn.map((w) => w.cells),
 			drawn.map((_, k) => (this.lineStarts[k] ?? 0) * toBoard),
@@ -1267,6 +1269,25 @@ export class RoadBoard {
 	}
 
 	/** take the win picture down (the lines and the amount fade, the symbols come back to full brightness) */
+	/** BRAWL (game/road/brawlCloud.ts): a Grandma car struck by the reindeer takes the bump for its landing's first frames
+	 *  (option C: the car and its front layer moved forward and squashed about the bottom centre, Grandma leaning on her
+	 *  hip), and is put back at rest once */
+	private applyBrawlBumps() {
+		const bumps = this.features.brawl.bumps;
+		if (!bumps.length) return;
+		for (const b of bumps) {
+			const col = Math.floor(b.cell / ROWS);
+			const lane = b.cell % ROWS;
+			const car = this.cars.find((c) => c.phase === 'rest' && c.col === col && c.lane === lane);
+			if (!car) continue;
+			const s = car.sprite;
+			s.x = car.restX + car.dir * b.dx;
+			s.scale.set(car.baseScale * b.sx * (Math.sign(s.scale.x) || 1), car.baseScale * b.sy);
+			if (car.seated) car.seated.kick = b.lean;
+		}
+		bumps.length = 0;
+	}
+
 	clearWin() {
 		for (const car of this.cars) car.winning = false;
 		if (this.win) this.win.active = false;
@@ -1546,7 +1567,10 @@ export class RoadBoard {
 
 		this.updateWin();
 		this.features.rate = rate;
+		// BRAWL: the Grandma Wilds' win beat runs on the win clock (game/road/brawlCloud.ts)
+		this.features.brawl.winClock = this.winClock;
 		this.features.update(now);
+		this.applyBrawlBumps();
 		this.updateTease(now);
 		this.updateLights(dt);
 		this.updateReelStops(now, rate);

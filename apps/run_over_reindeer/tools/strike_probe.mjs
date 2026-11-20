@@ -17,6 +17,10 @@
 //     impact is the straight path's (planStrike's keepMs; only an entry from the near side into an outer reel may run
 //     longer, reported, not a fault: the game's own entry is 'far')
 //   - the slide ratio on every grounded pose shown (body advance per pose against the rig's hoof sweep for that pose)
+//   - BRAWL (2026-11-19, the Grandma Wild's brawl cloud, GRANDMA_BRAWL.strike): a Grandma car's strike (h.strike(cell,
+//     true)) ends at the car's rear, (-160.5, -31.8) road px from its bottom centre, mirrored for a car facing left (rows
+//     3 and 4), its last cut running the way the car faces from a run down `across` (125) road px behind it (kept on the
+//     road); checked on the desktop for cars facing both ways, from both sides and at the board's two outer reels
 // It also runs one strike at 120 Hz and at 30 Hz (no skipped pose, and how long it takes), checks the stage 2 rule
 // (planRun from a fixed start pose: a unit-style scan of every distance), and reads the run views' GPU memory. With
 // STRIP=<dir> it saves a 3x crop of every pose of one strike from each side on the desktop.
@@ -71,14 +75,14 @@ const waitReady = async (page) => {
 };
 
 /** one strike, stepped render frame by render frame at `hz`; returns the per-frame rows */
-const runStrike = async (page, { cell, side, hz = 60 }) =>
+const runStrike = async (page, { cell, side, hz = 60, grandma = false }) =>
 	page.evaluate(
-		async ({ cell, side, hz }) => {
+		async ({ cell, side, hz, grandma }) => {
 			const h = window.__reindeer;
 			h.tune.strike.entry = side;
 			h.clock(0);
 			let done = false;
-			const p = h.strike(cell).then(() => (done = true));
+			const p = h.strike(cell, grandma).then(() => (done = true));
 			for (let i = 0; i < 20 && !h.road().features.runner; i++) await new Promise((r) => setTimeout(r, 10));
 			const step = 1000 / hz;
 			// to half a frame before the end of the lead in, then one render frame at a time (mid-pose samples)
@@ -97,12 +101,12 @@ const runStrike = async (page, { cell, side, hz = 60 }) =>
 					if (impactFrame === null) {
 						impactFrame = frames;
 						// the impact frame's own pose (a protected pose may be drawn on it)
-						rows.push({ f: frames, impact: true, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, scale: r.scale, mirrored: r.mirrored, toX: r.toX, gapX: r.gapX, cutDir: r.cutDir, impactMs: r.impactMs, keepMs: r.keepMs, kept: r.kept, poses: r.poses, impactFeetY: r.impactFeetY });
+						rows.push({ f: frames, impact: true, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, scale: r.scale, mirrored: r.mirrored, toX: r.toX, gapX: r.gapX, cutDir: r.cutDir, impactMs: r.impactMs, keepMs: r.keepMs, kept: r.kept, poses: r.poses, impactFeetY: r.impactFeetY, grandma: r.grandma, endX: r.endX, endY: r.endY });
 					}
 					if (r.alpha <= 0) break;
 					continue;
 				}
-				rows.push({ f: frames, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, scale: r.scale, mirrored: r.mirrored, toX: r.toX, gapX: r.gapX, cutDir: r.cutDir, impactMs: r.impactMs, keepMs: r.keepMs, kept: r.kept, poses: r.poses, impactFeetY: r.impactFeetY });
+				rows.push({ f: frames, pose: r.pose, index: r.index, late: r.late, view: r.view, stride: r.stride, x: r.x, y: r.y, scale: r.scale, mirrored: r.mirrored, toX: r.toX, gapX: r.gapX, cutDir: r.cutDir, impactMs: r.impactMs, keepMs: r.keepMs, kept: r.kept, poses: r.poses, impactFeetY: r.impactFeetY, grandma: r.grandma, endX: r.endX, endY: r.endY });
 			}
 			for (let i = 0; i < 10 && !done; i++) {
 				h.step(50, 1);
@@ -116,8 +120,19 @@ const runStrike = async (page, { cell, side, hz = 60 }) =>
 			const setOff = Math.max(h.tune.strike.leadInMs, h.tune.crosshair.on ? h.tune.crosshair.leadMs : 0);
 			return { rows, impactFrame, impactMs: impactFrame === null ? null : lead + impactFrame * step, setOff, layout: h.boardLayout() };
 		},
-		{ cell, side, hz },
+		{ cell, side, hz, grandma },
 	);
+
+/** BRAWL: where a Grandma car's strike ends and runs down (GRANDMA_BRAWL.strike, the clip's feet from the car) */
+const LINES = [167.0, 331.5, 510.0, 687.0, 851.0];
+const grandmaEnd = (cell) => {
+	const reel = Math.floor(cell / 4);
+	const row = cell % 4;
+	const facing = row < 2 ? 1 : -1;
+	const x = BOARD_X + reel * PITCH + PITCH / 2 + facing * -160.51242049681986;
+	const y = LINES[row + 1] - 10 - 31.82347836230621;
+	return { x, y, facing, gapX: Math.max(60, Math.min(1476, x - facing * 125)) };
+};
 
 const analyse = (rows, { side, cell, strict = true }) => {
 	const issues = [];
@@ -157,7 +172,12 @@ const analyse = (rows, { side, cell, strict = true }) => {
 	const lateOf = (idx) => Math.max(0, ...rows.filter((r) => r.index === idx).slice(0, 1).map((r) => r.late ?? 0));
 	const prot = { S: lateOf(rows[0].poses.side), M: lateOf(rows[0].poses.side + 1 + rows[0].poses.diagonal), C: lateOf(rows[0].poses.along), cut: lateOf(rows[0].poses.along + rows[0].poses.down) };
 	const end = rows[rows.length - 1];
-	if (Math.abs(end.x - end.toX) > 0.01) issues.push(`ends ${end.x - end.toX} off the reel centre`);
+	const G = rows[0].grandma ? grandmaEnd(cell) : null;
+	if (G) {
+		if (Math.abs(end.x - G.x) > 0.01) issues.push(`ends ${end.x - G.x} off the car's rear`);
+		if (end.y < G.y - 0.01) issues.push(`ends ${end.y - G.y} above the car's rear`);
+		if (end.y > G.y + 0.01) issues.push(`(the cut cannot reach the car's rear: ends ${(end.y - G.y).toFixed(1)} road px lower)`);
+	} else if (Math.abs(end.x - end.toX) > 0.01) issues.push(`ends ${end.x - end.toX} off the reel centre`);
 	const lone = poses.filter((p) => p.view === 'C' && p.stride >= 3 && p.stride <= 6).length;
 	if (lone) issues.push(`${lone} C poses on 3-6`);
 	const P = rows[0].poses;
@@ -168,10 +188,10 @@ const analyse = (rows, { side, cell, strict = true }) => {
 	const P0 = rows[0].poses;
 	const cutAt = P0.along + P0.down;
 	const reel = Math.floor(cell / 4);
-	const gap = gapFor(reel, side);
+	const gap = G ? G.gapX : gapFor(reel, side);
 	if (Math.abs(rows[0].gapX - gap) > 0.01) issues.push(`gap ${rows[0].gapX}, the rule says ${gap}`);
 	if (rows.filter((r) => r.view === 'C').some((r) => Math.abs(r.x - gap) > 0.01)) issues.push('C off the gap');
-	const cutDir = rows[0].toX >= gap ? 1 : -1;
+	const cutDir = G ? G.facing : rows[0].toX >= gap ? 1 : -1;
 	if (rows[0].cutDir !== cutDir) issues.push(`cut runs ${rows[0].cutDir}, should run ${cutDir}`);
 	if (!rows.every((r) => r.mirrored === (r.index >= cutAt ? cutDir === -1 : side === 'right'))) issues.push('mirror flag wrong');
 	if (rows.filter((r) => r.index >= cutAt).some((r) => r.view !== 'Q')) issues.push('the cut is not all Q');
@@ -267,6 +287,21 @@ const main = async () => {
 								for (const [k, v] of Object.entries(b.late)) if (v > 2 * frame) b.issues.push(`${k} drawn ${v.toFixed(1)} ms late`);
 								a.rates[hz] = { impactMs: +q.impactMs.toFixed(2), diffMs: +dd.toFixed(2), frameMs: +frame.toFixed(2), late: b.late, skipped: b.skipped, order: b.order, noRoomForC: b.noRoomForC, issues: b.issues };
 							}
+						}
+				// BRAWL: Grandma cars (their strike ends at the car's rear), on the desktop: facing right (row 2) and left (row 3)
+				// in the middle reels, and the outer reels' rear sides (reel 1 facing right, reel 5 facing left), from both sides
+				if (L.name.startsWith('desktop'))
+					for (const side of ['left', 'right'])
+						for (const cell of [5, 10, 1, 18]) {
+							const r = await runStrike(page, { cell, side, grandma: true });
+							const a = analyse(r.rows, { side, cell });
+							a.grandma = true;
+							a.impactMs = r.impactMs;
+							const due = r.setOff + a.plannedMs;
+							if (!(r.impactMs >= due - 1e-6 && r.impactMs < due + 1000 / 60 + 1e-6)) a.issues.push(`impact at ${r.impactMs.toFixed(1)} ms, due ${due.toFixed(1)}`);
+							a.ownSide = false;
+							a.rows = r.rows.map(({ f, pose, index, view, stride, x, y, scale, mirrored, late, impact }) => ({ f, pose, index, view, stride, x, y, scale, mirrored, late, impact }));
+							out.strikes.push(a);
 						}
 				// the far side strike into the top row at the default entry ('far'): reel 5 comes from the left
 				// one strike at 120 Hz and at 30 Hz: never a skipped pose; at 30 Hz the strike plays slower
@@ -489,7 +524,7 @@ const main = async () => {
 		console.log(`${L.name} (${L.kind}): ready ${L.ready}; run views ${JSON.stringify(L.memory)}`);
 		for (const s of L.strikes) {
 			const worst = Math.max(...s.slide.filter((x) => x.ratio !== null && x.view !== 'C').map((x) => x.ratio), 0);
-			console.log(`  ${s.side.padEnd(5)} reel ${s.reel} row ${s.row}: ${s.order} poses ${s.strideSeq} | side ${s.sideStep?.toFixed(2)}/pose, down ${s.downStep?.toFixed(2)}/pose | gap ${s.gapX} (${s.ownSide ? 'his side' : 'inner'}), down ${s.downFrames} frames, cut ${s.cutFrames} frames | worst grounded slide R/S/Q/M ${worst} | run ${s.plannedMs} ms, straight path ${s.keepMs} ms${s.kept ? ' (kept)' : ' (NOT kept)'} | impact ${Math.round(s.impactMs)} ms | ${s.issues.length ? 'ISSUES ' + s.issues.join('; ') : 'ok'}`);
+			console.log(`  ${s.grandma ? "grandma " : ""}${s.side.padEnd(5)} reel ${s.reel} row ${s.row}: ${s.order} poses ${s.strideSeq} | side ${s.sideStep?.toFixed(2)}/pose, down ${s.downStep?.toFixed(2)}/pose | gap ${s.gapX} (${s.ownSide ? 'his side' : 'inner'}), down ${s.downFrames} frames, cut ${s.cutFrames} frames | worst grounded slide R/S/Q/M ${worst} | run ${s.plannedMs} ms, straight path ${s.keepMs} ms${s.kept ? ' (kept)' : ' (NOT kept)'} | impact ${Math.round(s.impactMs)} ms | ${s.issues.length ? 'ISSUES ' + s.issues.join('; ') : 'ok'}`);
 		}
 		console.log('  refresh:', JSON.stringify(L.refresh));
 		console.log('  stage2:', JSON.stringify(L.stage2));

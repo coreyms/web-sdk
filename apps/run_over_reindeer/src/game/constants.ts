@@ -282,6 +282,70 @@ export const CLOUD_CELL = {
 	core: { x: 0.105, y: 0.112 },
 };
 
+// ---- THE GRANDMA WILD'S BRAWL CLOUD (Corey 2026-11-19; game/road/brawlCloud.ts, tools/build_brawl.py) -----------------
+// The approved animated cloud in her cell, from the three clips of Desktop/Run Over Reindeer/animation/grandma_brawl:
+//   LOOP     while the Wild stands ("Brawl draft 1 looks good"): every 2nd frame at 12 fps, cropped to the cell
+//   LANDING  option C of landing_preview.html, his settings exactly: the game's own car and seated Grandma take the bump
+//            for spriteMs (his words: "some movement of the car forward, slightly like a bump and grandma reacting to
+//            it, being pushed forward as the cloud quickly covers her, so it's like 1-2 frames"), the contact star pops,
+//            then the clip enters at frame entry already covering her, drawn k0 larger about the car's bottom centre so
+//            its car is the game's car (its own shove on frame 2 cancelled), openSpeed x the clip's 24 fps to the cover
+//            frame, afterSpeed x from there, easing to the cell's size by the cut frame, then a cut to the loop's frame
+//            loopEntry (0: the page's best match, 80) with an xfadeMs fade of the landing over it. WILD and the number
+//            pop when the car is covered (his "wild": "cover"). The strike's end moves to the car's rear (strike below).
+//   WIN      once per win through this Wild ("Win beat yes"): the 2.0 s trim, every 2nd frame, on the win clock (x 1 /
+//            LINE_WIN.holdShare), entered at the wind up frame most like the loop's frame and faded in over fadeInMs;
+//            WILD fades to wordAlpha while the reindeer's head is up (his text "b"); no wobble, no stars. Back to the
+//            loop's frame 1 (the still both share) at its end. Never restarted mid-beat; Wilds on one line start
+//            staggerMs apart in the line's order.
+// Crop "a" (the cell, inside the frame) for all three. Sprites, transforms, alpha and tint only: each clip frame is cut
+// to the box by its texture's frame (no mask), one set of frames shared by every Grandma Wild on the board. Road px and
+// board ms unless said. `on: false` brings back the still crash cloud of before (and the strike's end at the cell's
+// centre). The tune panel lists this block (staging only; the TUNE entry is made in game/road/brawlCloud.ts).
+export const GRANDMA_BRAWL = {
+	on: true,
+	/** THE WORD WILD, its own sprite over the clip (a stand-in: the new design is mocked separately). `frame` the atlas
+	 *  picture (a new design is a new frame name and these numbers), its height and its centre down the cell (0 top,
+	 *  1 bottom), as CLOUD_CELL's today */
+	word: { frame: 'word_wild', height: 44, y: 0.3 },
+	/** the phase of each Wild put up without a landing (a resume, a dev hook), as shares of the loop, by its place
+	 *  among the Wilds standing; every other one mirrored. A landed Wild's phase is its landing's cut, its mirror its
+	 *  car's facing (the clip shows a hit from behind: a car facing left is the clip mirrored) */
+	phases: [0, 0.25, 0.5, 0.75],
+	/** THE LANDING (landing_preview.html option C, Corey's settings) */
+	landing: {
+		bumpPx: 24,
+		bumpMs: 120,
+		/** squash, percent */
+		squash: 4,
+		openSpeed: 10,
+		afterSpeed: 1.5,
+		coverFrame: 16,
+		cutFrame: 26,
+		/** the loop frame (source, 1 to 96) the cut lands on; 0 = the page's table (80 for frame 26) */
+		loopEntry: 0,
+		xfadeMs: 80,
+		/** the game's car, its front layer and Grandma take the bump this long before the clip enters */
+		spriteMs: 33,
+		/** the clip frame C enters at */
+		entry: 10,
+		/** cancel the clip's own 24 road px jump on its frame 2 */
+		cancelShove: true,
+		/** Grandma's lean on the bump (degrees, forward) and its spring */
+		leanDeg: 8,
+		leanHz: 12,
+		/** the contact star: on screen this long (it pops in over 50 ms, settles by 90, fades from 120) */
+		starMs: 260,
+	},
+	/** THE STRIKE'S END for a Grandma car: the reindeer's feet at the car's rear, as the clip's frame 1 has them
+	 *  (road px from the car's bottom centre, mirrored for a car facing left; tools/build_brawl.py reads them from the
+	 *  approved page), so two reindeer never show at the hand-over. His last cut runs `across` road px to it (the
+	 *  page's), from a run down at that x, kept on the road between `minX` and `maxX`. */
+	strike: { across: 125, minX: 60, maxX: 1476 },
+	/** THE WIN BEAT */
+	win: { fadeInMs: 100, wordAlpha: 0.3, wordEaseMs: 150, staggerMs: 90 },
+};
+
 // ---- THE RED BOX (drawn by the game: plain colored quads, no picture) ---------------------------------------------------
 // The same box, in the same red, frames the Grandma Wild's cell, a column Wild, and the Grandma car standing in a struck
 // Santa reel (Corey 2026-11-10: "we could draw a red box around the grandma when it happens though, that gets covered by

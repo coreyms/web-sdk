@@ -43,6 +43,9 @@ import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
 import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, REINDEER_SOUND, ROAM, SHADOW, STRIKE, WILD_FRAME, WILD_MULT, type GarlandLook } from '../constants';
+// BRAWL (game/road/brawlCloud.ts, constants GRANDMA_BRAWL): the Grandma Wild's animated cloud; its hooks here are marked BRAWL
+import { ROAD as ROAD_C, GRANDMA_BRAWL } from '../constants';
+import { Brawl, type BrawlCell, type StrikeEnd } from './brawlCloud';
 import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
 import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
@@ -227,7 +230,7 @@ const inset = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x +
 const columnInside = (reel: number) => inset({ x: BOARD_X + reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
 
 /** voiced: its crash has played (its first frame); wildVoiced: the Grandma Wild's sound (its pop settled) */
-type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: GarlandFrame; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean; num: WildMult; multiplier: number };
+type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: GarlandFrame; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean; num: WildMult; multiplier: number; brawl: BrawlCell | null };
 
 /** the target crosshair of the strike under way (constants CROSSHAIR, game/road/crosshair.ts) */
 type Crosshair = {
@@ -391,6 +394,11 @@ type Runner = {
 	waitMs: number;
 	/** the last strike of its spin (the book): the next roaming reindeer walks in after its impact */
 	last: boolean;
+	/** BRAWL: the target cell, a Grandma car (its end at the car's rear: endX, endY) */
+	cell: number;
+	grandma: boolean;
+	endX: number;
+	endY: number;
 };
 
 /** a turned view's step on the screen: which way it runs (dx across, dy down, per unit of ground step) and how long
@@ -484,7 +492,7 @@ export type StrikePlan = {
  *  lands where it did. The time left after the snow run is shared by the run down and the cut at one screen speed;
  *  no pose is shorter than 1000 / STRIKE.cut.maxPoseFps ms (a 60 Hz screen shows every one); only a path that cannot
  *  fit (an entry from the near side into an outer reel's inner gap) runs longer, and says so (kept false). */
-export const planStrike = (fromX: number, toX: number, gapX: number, snow: { feetY: number; diagonal: number }, target: { y: number; h: number }, startPose: number | null = STRIKE.startPose): StrikePlan => {
+export const planStrike = (fromX: number, toX: number, gapX: number, snow: { feetY: number; diagonal: number }, target: { y: number; h: number }, startPose: number | null = STRIKE.startPose, end: StrikeEnd | null = null): StrikePlan => {
 	const S = viewStep('S');
 	const Q = viewStep('Q');
 	const M = viewStep('M');
@@ -518,11 +526,13 @@ export const planStrike = (fromX: number, toX: number, gapX: number, snow: { fee
 	const top = path[nAlong].y;
 
 	// THE LAST CUT: from the gap to the reel's centre along Q's own screen direction; THE RUN DOWN the gap before it
-	const cutDir: 1 | -1 = toX >= gapX ? 1 : -1;
-	const across = Math.abs(toX - gapX);
+	// (BRAWL: a Grandma car's strike ends at the car's rear, `end`, the cut running the way the car faces)
+	const endX = end ? end.x : toX;
+	const cutDir: 1 | -1 = end ? end.dir : toX >= gapX ? 1 : -1;
+	const across = Math.abs(endX - gapX);
 	const cutDrop = (across * Q.dy) / Q.dx;
 	const cutLen = (across * Q.length) / Q.dx;
-	const impactFeetY = Math.max(centre + (QB.height * QB.anchorY * STRIKE.roadScale) / 2, top + cutDrop);
+	const impactFeetY = end ? Math.max(end.y, top + cutDrop) : Math.max(centre + (QB.height * QB.anchorY * STRIKE.roadScale) / 2, top + cutDrop);
 	const cutTop = impactFeetY - cutDrop;
 	const dC = Math.max(0, cutTop - top);
 	const nCut = Math.max(STRIKE.cut.minPoses, Math.round(cutLen / downStep));
@@ -542,7 +552,7 @@ export const planStrike = (fromX: number, toX: number, gapX: number, snow: { fee
 	rest = tC + tCut;
 	for (let i = 1; i <= nC; i++) path.push({ x: gapX, y: top + (dC * i) / nC });
 	for (let i = 1; i <= nCut; i++) path.push({ x: gapX + (cutDir * across * i) / nCut, y: cutTop + (cutDrop * i) / nCut });
-	path[path.length - 1] = { x: toX, y: impactFeetY };
+	path[path.length - 1] = { x: endX, y: impactFeetY };
 	const times: number[] = [];
 	for (let i = 0; i <= nAlong; i++) times.push((i * 1000) / STRIKE.strideFps);
 	for (let i = 1; i <= nC; i++) times.push(alongMs + (tC * i) / nC);
@@ -557,7 +567,7 @@ export const planStrike = (fromX: number, toX: number, gapX: number, snow: { fee
  *  over the side run. Everything from the turn on is planStrike's. THE IMPACT IS NEVER LATER THAN THE STRIKE FROM OFF
  *  THE SCREEN (`todayMs` from its set off): he waits (waitMs) and sets off so that it lands exactly then; a run that
  *  would take longer has its side run sped up (to 1 / ROAM.minRunShare at most), and then its start cut (waitMs < 0). */
-export const planRoamStrike = (spot: { x: number; y: number }, reel: number, toX: number, target: { y: number; h: number }, snow: { feetY: number; diagonal: number }, sideDir: 1 | -1, todayMs: number) => {
+export const planRoamStrike = (spot: { x: number; y: number }, reel: number, toX: number, target: { y: number; h: number }, snow: { feetY: number; diagonal: number }, sideDir: 1 | -1, todayMs: number, end: StrikeEnd | null = null) => {
 	const S = viewStep('S');
 	const Q = viewStep('Q');
 	const M = viewStep('M');
@@ -566,12 +576,14 @@ export const planRoamStrike = (spot: { x: number; y: number }, reel: number, toX
 	// one side run pose and the turn: the least room the plan needs before the gap
 	const minRun = step0 * (1 + S.dx + nQ * Q.dx + M.dx);
 	let dir = sideDir;
-	let gapX = strikeGapX(reel, dir);
+	// (BRAWL: a Grandma strike runs down at its own x, whichever side he comes from)
+	const gapFor = (d: 1 | -1) => (end ? end.gapX : strikeGapX(reel, d));
+	let gapX = gapFor(dir);
 	let fromX = spot.x;
 	let pre = false;
 	if ((gapX - fromX) * dir < minRun) {
 		const d2 = -sideDir as 1 | -1;
-		const g2 = strikeGapX(reel, d2);
+		const g2 = gapFor(d2);
 		if ((g2 - fromX) * d2 >= minRun) {
 			dir = d2;
 			gapX = g2;
@@ -580,7 +592,7 @@ export const planRoamStrike = (spot: { x: number; y: number }, reel: number, toX
 			fromX = gapX - dir * minRun * 1.5;
 		}
 	}
-	const P = planStrike(fromX, toX, gapX, snow, target);
+	const P = planStrike(fromX, toX, gapX, snow, target, STRIKE.startPose, end);
 	let path = P.path.map((p) => ({ ...p }));
 	let times = [...P.times];
 	let nPre = 0;
@@ -620,7 +632,7 @@ type Waiter = { at: number; resolve: () => void };
 /** what the board needs for a strike: the target cell, and the Grandma car to box in the same reel (or null) */
 /** `first` / `last`: the first / the last strike of its spin (game/bookEventHandlerMap.ts); the roaming reindeer makes the
  *  first, and a new one walks in after the last. A strike by hand (dev hook) has neither: it runs from off the screen. */
-export type StrikeSpec = { cell: number; markCell: number | null; first?: boolean; last?: boolean };
+export type StrikeSpec = { cell: number; markCell: number | null; first?: boolean; last?: boolean; /** BRAWL: the target is a Grandma car */ grandma?: boolean };
 
 export class RoadFeatures {
 	/** boxes, clouds, characters and their numbers: over the traffic */
@@ -652,6 +664,8 @@ export class RoadFeatures {
 	screenRect: RoadRect | null = null;
 	private clouds: CloudCell[] = [];
 	private columns: Column[] = [];
+	/** BRAWL: the Grandma Wilds' animated clouds (game/road/brawlCloud.ts) */
+	readonly brawl: Brawl;
 	private runner: Runner | null = null;
 	/** the frames on Grandma cars in struck Santa reels, until their column covers them */
 	private marks: { cell: number; box: GarlandFrame }[] = [];
@@ -701,6 +715,7 @@ export class RoadFeatures {
 	screenEdges: { left: number; right: number } | null = null;
 
 	constructor(private readonly tex: Tex) {
+		this.brawl = new Brawl(tex, (cell, hidden) => this.hideCell(cell, hidden));
 		for (let reel = 0; reel < COLS; reel++) {
 			const s = { root: new PIXI.Container(), right: new PIXI.Container(), body: new PIXI.Container(), left: new PIXI.Container() };
 			s.root.addChild(s.right, s.body, s.left);
@@ -728,6 +743,8 @@ export class RoadFeatures {
 		const r = this.runner;
 		if (r && (r.pose >= r.nAlong || r.impactAt !== null)) return true;
 		if (this.clouds.some((c) => c.leaving === null && this.clock - c.t0 < CLOUD_CELL.popMs + 60)) return true;
+		// BRAWL: a Grandma Wild's landing
+		if (this.brawl.landing()) return true;
 		return this.columns.some((c) => c.phase === 'wait' || c.phase === 'impact' || c.phase === 'grow');
 	}
 
@@ -754,8 +771,12 @@ export class RoadFeatures {
 		const edge = STRIKE.enterFromScreen ? this.screenEdges : null;
 		const fromX = fromLeft ? Math.min(-half - STRIKE.enterPad, (edge?.left ?? 0) - half - STRIKE.enterPad) : Math.max(IMAGE_W + half + STRIKE.enterPad, (edge?.right ?? IMAGE_W) + half + STRIKE.enterPad);
 		// THE PATH (planStrike): along the snow (the turn ending over the gap), down the gap, the cut into the target
-		const gapX = strikeGapX(reel, dir);
-		const P = planStrike(fromX, toX, gapX, snow, target);
+		// BRAWL: a Grandma car's strike ends at the car's rear (the clip's first frame has him there)
+		const row = spec.cell % ROWS;
+		const end = spec.grandma ? this.brawl.strikeEnd(toX, LINES[row + 1] - ROAD_C.sitAboveLine, (ROAD_C.laneDirection[row] ?? 1) as 1 | -1) : null;
+		if (end) this.brawl.strikeStarts();
+		const gapX = end ? end.gapX : strikeGapX(reel, dir);
+		const P = planStrike(fromX, toX, gapX, snow, target, STRIKE.startPose, end);
 		const { nQ } = P.plan;
 		let { nR, nAlong, s0 } = P.plan;
 		const todayMs = P.times[P.times.length - 1];
@@ -763,7 +784,7 @@ export class RoadFeatures {
 		// in from past the edge gives way to the strike from off the screen (a new one walks in after the spin)
 		const spot = STRIKE.roam && spec.first ? this.roam.standing() : null;
 		if (STRIKE.roam && spec.first && !spot) this.roam.leave();
-		const R = spot ? planRoamStrike(spot, reel, toX, target, snow, this.roam.area().side === 'left' ? 1 : -1, todayMs) : null;
+		const R = spot ? planRoamStrike(spot, reel, toX, target, snow, this.roam.area().side === 'left' ? 1 : -1, todayMs, end) : null;
 		const runDir = R ? R.dir : dir;
 		const path = R ? R.path : P.path;
 		const times = R ? R.times : P.times;
@@ -794,7 +815,7 @@ export class RoadFeatures {
 		this.endCrosshair();
 		if (crosshair) this.startCrosshair(spec.cell, t0, runDir, path, nR, R ? times : null);
 		return new Promise<void>((resolve) => {
-			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir: runDir, toX, gapX: R ? R.gapX : gapX, cutDir: plan.cutDir, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC: plan.nC, nCut: plan.nCut, s0, factor: plan.plan.factor, path, times, impactFeetY: plan.impactFeetY, impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, cut: false, darted: false, shadow, keepMs: plan.keepMs, kept: plan.kept, roam: !!R, preN: R ? R.nPre : 0, preDir: R ? R.preDir : dir, todayMs, waitMs: R ? R.waitMs : 0, last: !!spec.last };
+			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir: runDir, toX, gapX: R ? R.gapX : gapX, cutDir: plan.cutDir, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC: plan.nC, nCut: plan.nCut, s0, factor: plan.plan.factor, path, times, impactFeetY: plan.impactFeetY, impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, cut: false, darted: false, shadow, keepMs: plan.keepMs, kept: plan.kept, roam: !!R, preN: R ? R.nPre : 0, preDir: R ? R.preDir : dir, todayMs, waitMs: R ? R.waitMs : 0, last: !!spec.last, cell: spec.cell, grandma: !!end, endX: path[path.length - 1].x, endY: path[path.length - 1].y };
 		});
 	}
 
@@ -1052,11 +1073,20 @@ export class RoadFeatures {
 		root.addChild(cloud, box.root, word, num.root);
 		root.scale.set(CLOUD_CELL.popFrom);
 		this.cellLayer.addChild(root);
-		this.clouds.push({ cell, root, cloud, box, t0: this.clock, leaving: null, voiced: false, wildVoiced: false, num, multiplier });
+		// BRAWL: the animated cloud over the still one (game/road/brawlCloud.ts); a landed one shows its car's bump first,
+		// then the clip (no pop of the whole cell), WILD and the number popping as the car is covered
+		const row = cell % ROWS;
+		const brawl = GRANDMA_BRAWL.on ? this.brawl.make(cell, root, cloud, word, { x: b.x - r.x - r.w / 2, y: b.y - r.y - r.h / 2, w: b.w, h: b.h }, r.h, this.clock, LINES[row + 1] - ROAD_C.sitAboveLine - (r.y + r.h / 2)) : null;
+		if (brawl && brawl.mode === 'land') {
+			root.scale.set(1);
+			num.show(multiplier, 'appear', brawl.t0 + brawl.coverMs);
+		}
+		this.clouds.push({ cell, root, cloud, box, t0: this.clock, leaving: null, voiced: false, wildVoiced: false, num, multiplier, brawl });
 		// the crosshair on this cell closes onto her box while her cloud pops (the box shows when it is done)
 		if (this.xh && this.xh.plan.target === cell && this.xh.morphAt !== null) this.xh.morphMs = CLOUD_CELL.popMs;
 		box.opacity = this.crosshairHandover(cell);
-		this.hideCell(cell, true);
+		// (BRAWL: a landing hides the car itself once its bump is over)
+		if (!brawl) this.hideCell(cell, true);
 		// (its crash, cloud loop and Wild sound are cued from its frames: updateClouds)
 		return this.wait(this.clock + CLOUD_CELL.holdMs);
 	}
@@ -1296,6 +1326,13 @@ export class RoadFeatures {
 		const told = new Set<WildMult>();
 		lines.forEach((cells, k) => {
 			const on: { num: WildMult; frame: GarlandFrame; value: number; x: number; y: number }[] = [];
+			// BRAWL: each Grandma Wild on the line plays its win beat once, from the first of its lines, staggered in the
+			// line's own order
+			let nth = 0;
+			for (const cell of cells) {
+				const c = this.clouds.find((x) => x.cell === cell && x.leaving === null);
+				if (c?.brawl) this.brawl.win(c.brawl, this.clock + (startsMs[k] ?? 0) + nth++ * GRANDMA_BRAWL.win.staggerMs);
+			}
 			for (const c of this.clouds) {
 				if (c.leaving !== null || !cells.includes(c.cell)) continue;
 				const r = cellRect(c.cell);
@@ -1459,6 +1496,8 @@ export class RoadFeatures {
 			if (missed !== undefined) r.late = e - this.poseTime(r, missed);
 			r.impactAt = this.clock;
 			this.crosshairCrash();
+			// BRAWL: a Grandma car's landing starts from this frame; the spin's last strike lets the landing's frames go after
+			this.brawl.struck(r.cell, this.clock, r.grandma, r.last);
 			// the spin's last strike: a new roaming reindeer walks in a moment after it (never waited on)
 			if (r.last && STRIKE.roam && this.roam.state === 'none') this.roam.walkInAt = this.clock + ROAM.walkInDelayMs;
 		} else {
@@ -1577,6 +1616,8 @@ export class RoadFeatures {
 				c.root.alpha = Math.max(0, 1 - u);
 				if (u >= 1) {
 					this.hideCell(c.cell, false);
+					// BRAWL: its sprites' textures go before the root
+					if (c.brawl) this.brawl.drop(c.brawl);
 					c.num.destroy();
 					c.box.destroy();
 					c.root.destroy({ children: true });
@@ -1600,6 +1641,9 @@ export class RoadFeatures {
 			// her frame comes in as the crosshair hands over to it, and moves (its baubles, its twinkles, a win)
 			c.box.opacity = this.crosshairHandover(c.cell);
 			c.box.update(this.clock);
+			// BRAWL: the landing, the loop, the win beat (a landed Wild has no pop of the whole cell)
+			if (c.brawl) this.brawl.update(c.brawl, this.clock, CLOUD_CELL.popMs);
+			if (c.brawl && c.brawl.landed) continue;
 			// out past its size, then back onto it
 			const over = CLOUD_CELL.popOver;
 			const k = u < 0.7 ? CLOUD_CELL.popFrom + (over - CLOUD_CELL.popFrom) * (u / 0.7) : over + (1 - over) * ((u - 0.7) / 0.3);
@@ -2116,6 +2160,10 @@ export class RoadFeatures {
 			toX: r.toX,
 			gapX: r.gapX,
 			cutDir: r.cutDir,
+			/** BRAWL: a Grandma car's strike, and where it ends (the car's rear; the reel's centre otherwise) */
+			grandma: r.grandma,
+			endX: Math.round(r.endX * 100) / 100,
+			endY: Math.round(r.endY * 100) / 100,
 			/** ms from the set off to the impact as planned, the straight path's (kept), and whether it is kept */
 			impactMs: Math.round(r.times[r.times.length - 1] * 100) / 100,
 			/** road clock ms since the set off (negative in the lead in) */
