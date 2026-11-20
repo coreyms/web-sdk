@@ -1164,7 +1164,13 @@ export class RoadFeatures {
 		// a joining Grandma Wild's sum shows after the column's own number (never under variant F)
 		// (and its count up and slam: constants WILD_MULT change)
 		const join = joinAdd > 0 ? Math.max(0, labelAt + COLUMN.joinMs - end) + WILD_MULT.change.countMs + WILD_MULT.change.slamMs : 0;
-		await this.wait(column.t0 + column.impactMs + end + join);
+		// THE ROUND STILL WAITS AS LONG AS BEFORE (2026-11-20): the column stands growMs sooner, but the round goes on to the
+		// next strike or the win only when an entrance that started at the box's full height would have ended (grow, then
+		// the whole entrance, then a join). Two columns in one spin keep the spacing they had: with the shorter wait a slam
+		// stop's hurry brought the second reindeer's entrance sound (1234 ms long) in 160 ms before the first one's had
+		// ended (tools/sound_probe.mjs threeslam on the upright phone: one sound twice at once)
+		const before = column.growMs + entrance + (joinAdd > 0 ? Math.max(0, entrance * COLUMN.numberAt + COLUMN.joinMs - entrance) + WILD_MULT.change.countMs + WILD_MULT.change.slamMs : 0);
+		await this.wait(column.t0 + column.impactMs + Math.max(end + join, before));
 	}
 
 	/** make the board's sticky columns exactly this list, with no entrance (the start of each free spin; a resume or a
