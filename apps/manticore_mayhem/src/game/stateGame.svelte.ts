@@ -285,7 +285,9 @@ const ts = () => Math.max(0.2, timeScale());
 // flight (its whole length and how far it has run, style ms). Presentation only: nothing waits on these.
 let pressPending = false;
 let revealPace: { total: number; at: number } | null = null;
+let spinSerial = 0;
 boardPace.live = () => pressPending || revealPace !== null;
+boardPace.serial = () => spinSerial;
 boardPace.restIn = () => (revealPace ? Math.max(0, revealPace.total - revealPace.at) / ts() : null);
 
 /** a pause in STYLE time: authored at normal speed, divided by the turbo scale like every
@@ -625,8 +627,12 @@ const EXIT_DISTANCE = GRID + BOARD_EXIT.extraCells;
 /** the previous board starts to fall off. A no-op while one is already falling, under SKIP TO RESULT, or
  *  with nothing on the board. */
 export const startBoardExit = (from: 'press' | 'reveal' = 'press') => {
-	// THE SPIN KEY'S RING: a press's spin is live from here until its reveal has landed (whether or not the exit runs)
-	if (from === 'press') pressPending = true;
+	// THE SPIN KEY'S RING: a press's spin is live from here until its reveal has landed (whether or not the exit runs),
+	// and it is a new spin
+	if (from === 'press') {
+		pressPending = true;
+		spinSerial += 1;
+	}
 	if (!boardExit.enabled || BOARD_EXIT.fallMs <= 0 || stateGame.skipping || typeof requestAnimationFrame !== 'function') return;
 	if (exitRun && !exitRun.done && !exitRun.handed) return;
 	const jobs: ExitJob[] = [];
@@ -798,6 +804,8 @@ export const revealBoard = async (
 	}: { animate?: boolean; anticipation?: number[]; tease?: boolean; aura?: Set<CellIndex>; onScatterLand?: (cell: CellIndex) => void } = {},
 ) => {
 	const id = newRun();
+	// THE SPIN KEY'S RING: a reveal no press led into (a free spin) is a new spin of its own
+	if (animate && !stateGame.skipping && !pressPending) spinSerial += 1;
 	stateGame.readouts = [];
 	clearAnticipation();
 	clearStingFx();
