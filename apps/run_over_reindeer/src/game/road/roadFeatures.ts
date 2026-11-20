@@ -8,9 +8,9 @@
 //
 // No filter, mask or shader. THE FRAMES (since 2026-11-19) are the tinsel garland, baked tiles, corners and baubles in
 // one look per character (game/road/garland.ts, constants WILD_FRAME); before that, and until the garland's atlas is in,
-// the red box's plain colored quads. The cloud is "revealed" as the box grows by moving a texture's frame (a crop of
-// the picture), and it stays inside the box because the entrance frames were cut to the column's width offline
-// (tools/build_columns.py). The character is cropped the same
+// the red box's plain colored quads. The entrance plays from the moment the box starts to grow, each frame "revealed"
+// to the box as it grows by moving a texture's frame (a crop of the picture), and it stays inside the box because the
+// entrance frames were cut to the column's width offline (tools/build_columns.py). The character is cropped the same
 // way to its box's outer edge, and its frame is drawn over it (since 2026-11-15; it used to spill over the box and the
 // neighboring cells).
 //
@@ -261,7 +261,9 @@ type Column = {
 	backdrop: PIXI.Sprite;
 	/** its frame (the tinsel garland, WILD_FRAME) */
 	box: GarlandFrame;
-	/** the cloud while the box grows: the entrance's first frame, cropped to the box by its texture frame */
+	/** the entrance while the box grows (since 2026-11-19 it plays from the grow's start, Corey: "Is it possible to have
+	 *  the video alreday playing within the border boundaries while it grows?"): its frame of the moment, cropped to the
+	 *  box by its texture frame (or the still cloud, cropped the same way, while the entrance's pictures are not in) */
 	cloud: PIXI.Sprite;
 	cloudTex: PIXI.Texture | null;
 	cellCloud: PIXI.Sprite;
@@ -308,6 +310,8 @@ type Column = {
 	footT0: number;
 	/** the character's own cropped texture (placeBody: its clip frame cut to the box), made on first use */
 	bodyTex: PIXI.Texture | null;
+	/** the still cloud cut to the growing box (placeStill), made on first use */
+	stillTex: PIXI.Texture | null;
 };
 
 /** the running reindeer (constants STRIKE, game/road/reindeerRun.ts): the side run in the snow, one pose of S, the
@@ -1083,7 +1087,7 @@ export class RoadFeatures {
 		this.stacks[reel].left.addChild(box.leftRoot!);
 		this.numberLayer.addChild(label.root);
 		if (pictures) void loadBackdrop();
-		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, stampAt: null, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, winVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null };
+		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, stampAt: null, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, winVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null, stillTex: null };
 		// its number stands on the inside of the frame's bottom rail (constants WILD_MULT place col floor)
 		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - WILD_MULT.place.col.floor);
 		this.columns.push(column);
@@ -1122,10 +1126,15 @@ export class RoadFeatures {
 		column.phase = 'impact';
 		column.t0 = column.boxT0;
 		const entrance = reveal ? (reveal.textures.length / reveal.fps) * 1000 : 200;
+		// THE ENTRANCE STARTS WITH THE GROW (2026-11-19): the column stands when the longer of the two is over (the
+		// entrance), about growMs sooner than when it began once the box was whole; its number pops in at numberAt of the
+		// entrance, never before the box is whole
+		const end = COLUMN.entranceWithGrow ? Math.max(column.growMs, entrance) : column.growMs + entrance;
+		const labelAt = COLUMN.entranceWithGrow ? Math.max(column.growMs, entrance * COLUMN.numberAt) : column.growMs + entrance * COLUMN.numberAt;
 		// a joining Grandma Wild's sum shows after the column's own number (never under variant F)
 		// (and its count up and slam: constants WILD_MULT change)
-		const join = joinAdd > 0 ? Math.max(0, entrance * COLUMN.numberAt + COLUMN.joinMs - entrance) + WILD_MULT.change.countMs + WILD_MULT.change.slamMs : 0;
-		await this.wait(column.t0 + column.impactMs + column.growMs + entrance + join);
+		const join = joinAdd > 0 ? Math.max(0, labelAt + COLUMN.joinMs - end) + WILD_MULT.change.countMs + WILD_MULT.change.slamMs : 0;
+		await this.wait(column.t0 + column.impactMs + end + join);
 	}
 
 	/** make the board's sticky columns exactly this list, with no entrance (the start of each free spin; a resume or a
@@ -1638,6 +1647,8 @@ export class RoadFeatures {
 		column.footTex = null;
 		column.bodyTex?.destroy(false);
 		column.bodyTex = null;
+		column.stillTex?.destroy(false);
+		column.stillTex = null;
 	}
 
 	/** THE CHARACTER IN ITS BOX (Corey 2026-11-15: "the animation bleeds outside the column boxes ... I'd like their feet
@@ -1650,14 +1661,21 @@ export class RoadFeatures {
 	 *  no cloud ever passes the frame. Every cut is inside the frame's dark line (RED_BOX.edge in from its outer edge),
 	 *  so no filtered edge texel can show outside it at any render resolution. */
 	private placeBody(column: Column, clip: Clip, frame: number, rightFree = true) {
+		column.frame = frame;
+		this.placeClip(column, clip, frame, column.body, 'bodyTex', rightFree, null);
+	}
+
+	/** a clip's frame on `sprite` (the character, or the growing box's cloud), at the column's size, cropped by its own
+	 *  dynamic texture's frame (`slot`) to the column's inside (columnInside) at the left, top and bottom, at the right
+	 *  unless `rightFree`, and to `rows` (road px, the growing box's top and height) when given. Any frame count, any fps,
+	 *  any sheet: the texture follows the frame's own sheet. */
+	private placeClip(column: Column, clip: Clip, frame: number, sprite: PIXI.Sprite, slot: 'bodyTex' | 'cloudTex', rightFree: boolean, rows: { y: number; h: number } | null) {
 		const k = COLUMN.tierScale[column.tier] ?? 1;
 		const left = BOARD_X + column.reel * PITCH;
 		// scaled about the middle of the column's foot
 		const footX = left + PITCH / 2;
 		const footY = COLUMN_TOP + COLUMN_H;
-		const body = column.body;
 		const src = clip.textures[frame];
-		column.frame = frame;
 		const bx = footX + (clip.x - PITCH / 2) * k;
 		const by = footY + (clip.y - COLUMN_H) * k;
 		const bw = clip.width * k;
@@ -1665,28 +1683,106 @@ export class RoadFeatures {
 		const o = columnInside(column.reel);
 		const x0 = Math.max(bx, o.x);
 		const x1 = rightFree ? bx + bw : Math.min(bx + bw, o.x + o.w);
-		const y0 = Math.max(by, o.y);
-		const y1 = Math.min(by + bh, o.y + o.h);
+		const y0 = Math.max(by, o.y, rows ? rows.y : -Infinity);
+		const y1 = Math.min(by + bh, o.y + o.h, rows ? rows.y + rows.h : Infinity);
 		if (!src || src.destroyed || x1 - x0 < 1 || y1 - y0 < 1) {
-			body.visible = false;
+			sprite.visible = false;
 			return;
 		}
 		const f = src.frame;
 		const perX = f.width / bw;
 		const perY = f.height / bh;
 		// dynamic: the sprite follows a texture whose frame changes when the texture says so
-		const tex = (column.bodyTex ??= new PIXI.Texture({ source: src.source, frame: f.clone(), dynamic: true }));
+		const tex = (column[slot] ??= new PIXI.Texture({ source: src.source, frame: f.clone(), dynamic: true }));
 		if (tex.source !== src.source) tex.source = src.source;
 		tex.frame.x = f.x + (x0 - bx) * perX;
 		tex.frame.y = f.y + (y0 - by) * perY;
 		tex.frame.width = Math.max(1, (x1 - x0) * perX);
 		tex.frame.height = Math.max(1, (y1 - y0) * perY);
 		tex.update();
-		if (body.texture !== tex) body.texture = tex;
-		body.position.set(x0, y0);
-		body.width = x1 - x0;
-		body.height = y1 - y0;
-		body.visible = true;
+		if (sprite.texture !== tex) sprite.texture = tex;
+		sprite.position.set(x0, y0);
+		sprite.width = x1 - x0;
+		sprite.height = y1 - y0;
+		sprite.visible = true;
+	}
+
+	/** THE ENTRANCE WHILE THE BOX GROWS (2026-11-19): `e` ms into the entrance (= since the grow began), the box's top `y`
+	 *  and height `h` (road px). Its frame for that time, cropped to the box: in its cloud frames on the box's cloud sprite
+	 *  (under the frame, cut on every side: no cloud ever passes the frame), past them (a grow longer than the clip's cloud)
+	 *  as the character itself, among the characters as it would stand in the entrance. Under it the still cloud, cropped
+	 *  to the box the same way (what the entrance thins to; and all the box shows while the entrance's pictures are not
+	 *  in: once they are, the entrance picks up at the frame for the time gone). */
+	private growEntrance(column: Column, reveal: Clip | null, e: number, y: number, h: number) {
+		const rows = { y, h };
+		this.placeStill(column, rows);
+		if (!reveal || !reveal.textures.length || reveal.textures.some((x) => x.destroyed)) {
+			column.cloud.visible = false;
+			column.body.visible = false;
+			column.enterCloud = false;
+			return;
+		}
+		const n = reveal.textures.length;
+		const frame = Math.max(0, Math.min(n - 1, Math.floor((e / 1000) * reveal.fps)));
+		column.frame = frame;
+		if (frame < reveal.cloudFrames) {
+			column.body.visible = false;
+			this.bodyOver(column, false);
+			this.placeClip(column, reveal, frame, column.cloud, 'cloudTex', false, rows);
+			column.enterCloud = true;
+		} else {
+			column.cloud.visible = false;
+			this.bodyOver(column, true);
+			this.placeClip(column, reveal, frame, column.body, 'bodyTex', true, rows);
+			column.enterCloud = false;
+		}
+		this.voiceStep(column, frame);
+	}
+
+	/** the still cloud behind the column, wall to wall inside the frame; while the box grows, cropped to its rows (its own
+	 *  dynamic texture: the shared still is never changed) */
+	private placeStill(column: Column, rows: { y: number; h: number } | null) {
+		const still = column.still?.backdrop ?? getBackdrop();
+		const backdrop = column.backdrop;
+		if (!still || still.destroyed) {
+			backdrop.visible = false;
+			return;
+		}
+		const full = columnInside(column.reel);
+		const y0 = rows ? Math.max(full.y, rows.y) : full.y;
+		const y1 = rows ? Math.min(full.y + full.h, rows.y + rows.h) : full.y + full.h;
+		if (y1 - y0 < 1) {
+			backdrop.visible = false;
+			return;
+		}
+		let tex = still;
+		if (rows) {
+			const f = still.frame;
+			const per = f.height / full.h;
+			const t = (column.stillTex ??= new PIXI.Texture({ source: still.source, frame: f.clone(), dynamic: true }));
+			if (t.source !== still.source) t.source = still.source;
+			t.frame.x = f.x;
+			t.frame.width = f.width;
+			t.frame.y = f.y + (y0 - full.y) * per;
+			t.frame.height = Math.max(1, (y1 - y0) * per);
+			t.update();
+			tex = t;
+		}
+		if (backdrop.texture !== tex) backdrop.texture = tex;
+		backdrop.position.set(full.x, y0);
+		backdrop.width = full.w;
+		backdrop.height = y1 - y0;
+		backdrop.tint = COLUMN.backdropTint;
+		backdrop.visible = true;
+	}
+
+	/** the character stands in full color out of the cloud (its entrance frame REINDEER_SOUND columnIn.frame, in the grow
+	 *  or after it): the reindeer's first hoof, Santa's heavy steps, Grandma's cane */
+	private voiceStep(column: Column, frame: number) {
+		if (column.stepVoiced || frame < REINDEER_SOUND.columnIn.frame[column.tier]) return;
+		column.stepVoiced = true;
+		this.sounds.mark('footfall', `reel ${column.reel} ${column.tier} frame ${frame}`);
+		this.sounds.cue(column.tier === 'santa' ? 'santaIn' : column.tier === 'grandma' ? 'grandmaIn' : 'columnIn', `reel ${column.reel}`);
 	}
 
 	private updateColumn(column: Column) {
@@ -1773,35 +1869,14 @@ export class RoadFeatures {
 				column.cellCloud.height = from.h * k;
 				this.hideCell(column.reel * ROWS + column.fromRow, true);
 			}
-			// (the entrance's pictures can be gone: then the box grows empty and nothing stale is drawn)
-			if (!reveal) column.cloud.visible = false;
-			if (column.phase === 'grow' && reveal) {
-				const first = reveal.textures[0];
-				if (!column.cloudTex) {
-					// dynamic: a sprite only follows a texture whose frame changes when the texture says it will change
-					// (without it the cloud stayed one cell tall while the box grew)
-					column.cloudTex = new PIXI.Texture({ source: first.source, frame: first.frame.clone(), dynamic: true });
-					column.cloud.texture = column.cloudTex;
-				}
-				// the part of the picture that falls inside the box, by moving the texture's frame (a crop, not a mask)
-				// (and cut at the sides to the inside of the frame's dark line: the entrance's pictures are wider than the
-				// column, and their edges showed as a pale line outside the frame, Corey 2026-11-16)
-				const perRoad = first.frame.height / reveal.height;
-				const perX = first.frame.width / reveal.width;
-				const top = Math.max(0, y - (COLUMN_TOP + reveal.y));
-				const shown = Math.min(reveal.height - top, h);
-				const cut = columnInside(column.reel);
-				const cx0 = Math.max(left + reveal.x, cut.x);
-				const cx1 = Math.min(left + reveal.x + reveal.width, cut.x + cut.w);
-				column.cloudTex.frame.x = first.frame.x + (cx0 - (left + reveal.x)) * perX;
-				column.cloudTex.frame.width = Math.max(1, (cx1 - cx0) * perX);
-				column.cloudTex.frame.y = first.frame.y + top * perRoad;
-				column.cloudTex.frame.height = Math.max(1, shown * perRoad);
-				column.cloudTex.update();
-				column.cloud.position.set(cx0, COLUMN_TOP + reveal.y + top);
-				column.cloud.width = Math.max(1, cx1 - cx0);
-				column.cloud.height = Math.max(1, shown);
-				column.cloud.visible = true;
+			// THE ENTRANCE PLAYS FROM THE GROW'S START (Corey 2026-11-19: "When a full screen wild is in the reveal process,
+			// we stay on a still video for the frames until the border has grown all the way. Is it possible to have the
+			// video alreday playing within the border boundaries while it grows?"): its frame for the time since the grow
+			// began, cropped to the box as it is now, and the still cloud under it cropped the same way; at the box's full
+			// height the entrance simply carries on (its clock is the grow's: column.t0 below)
+			if (column.phase === 'grow') {
+				// (COLUMN.entranceWithGrow false: the entrance's first frame stands still until the box is whole, as before)
+				this.growEntrance(column, reveal, COLUMN.entranceWithGrow ? t - column.impactMs : 0, y, h);
 				// the symbols under the box as it passes them
 				for (let row = 0; row < ROWS; row++) if (LINES[row + 1] > y && LINES[row] < y + h) this.hideCell(column.reel * ROWS + row, true);
 			}
@@ -1811,12 +1886,14 @@ export class RoadFeatures {
 				this.dropMarks(column.reel);
 				for (const c of this.clouds) if (Math.floor(c.cell / ROWS) === column.reel && c.leaving === null) c.leaving = this.clock;
 				column.phase = 'enter';
-				column.t0 = this.clock;
+				// the entrance's clock is the grow's: it began with the grow and carries on (no frame skipped or repeated);
+				// with COLUMN.entranceWithGrow false it starts now
+				column.t0 = COLUMN.entranceWithGrow ? column.t0 + column.impactMs : this.clock;
 				column.cloud.visible = false;
 				// the box is whole: its baubles drop in (WILD_FRAME.land)
 				column.box.land(this.clock);
-				// the entrance's first frame is all cloud: the crash cloud carries on through this hand-over (its loop with it)
-				column.enterCloud = !!reveal && reveal.cloudFrames > 0;
+				// the entrance is still in its cloud frames: the crash cloud carries on through this hand-over (its loop with it)
+				column.enterCloud = !!reveal && reveal.cloudFrames > 0 && Math.floor(((this.clock - column.t0) / 1000) * reveal.fps) < reveal.cloudFrames;
 				for (let row = 0; row < ROWS; row++) this.hideCell(column.reel * ROWS + row, true);
 				// THE HAND-OVER IN ONE FRAME (2026-11-17, Corey: "the video disappears in one of them, which looks like a big
 				// glitch"): the moving cloud has just been hidden, so the entrance (its still cloud and its first frame) is
@@ -1836,31 +1913,16 @@ export class RoadFeatures {
 		// THE STILL CLOUD, wall to wall inside the frame, from the first frame of the entrance to the column's last. The
 		// entrance's own first frames are a full cloud over it, so it is first seen as that moving cloud thins: the
 		// hand-over is the clip's own fade, with no cut.
-		const still = column.still?.backdrop ?? getBackdrop();
-		if (still) {
-			const backdrop = column.backdrop;
-			if (backdrop.texture !== still) backdrop.texture = still;
-			backdrop.position.set(full.x, full.y);
-			backdrop.width = full.w;
-			backdrop.height = full.h;
-			backdrop.tint = COLUMN.backdropTint;
-			backdrop.visible = true;
-		}
+		this.placeStill(column, null);
 
 		if (column.phase === 'enter') {
 			const frames = reveal ? reveal.textures.length : 0;
 			const length = reveal ? (frames / reveal.fps) * 1000 : 200;
 			if (reveal) {
-				const frame = Math.min(frames - 1, Math.floor((t / 1000) * reveal.fps));
+				const frame = Math.max(0, Math.min(frames - 1, Math.floor((t / 1000) * reveal.fps)));
 				this.placeBody(column, reveal, frame, frame >= reveal.cloudFrames);
 				column.enterCloud = frame < reveal.cloudFrames;
-				if (!column.stepVoiced && frame >= REINDEER_SOUND.columnIn.frame[column.tier]) {
-					// the character stands in full color out of the cloud: the reindeer's first hoof, Santa's heavy steps,
-					// Grandma's cane (constants REINDEER_SOUND column in)
-					column.stepVoiced = true;
-					this.sounds.mark('footfall', `reel ${column.reel} ${column.tier} frame ${frame}`);
-					this.sounds.cue(column.tier === 'santa' ? 'santaIn' : column.tier === 'grandma' ? 'grandmaIn' : 'columnIn', `reel ${column.reel}`);
-				}
+				this.voiceStep(column, frame);
 				// while the cloud is still in the frame the box stands OVER it (the cloud is inside the box); once the
 				// character stands alone it moves up among the characters (still under the frame)
 				this.bodyOver(column, frame >= reveal.cloudFrames);
