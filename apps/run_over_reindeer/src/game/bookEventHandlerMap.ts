@@ -52,7 +52,7 @@ const showCard = async (card: RoundCard) => {
 	if (board)
 		eventEmitter.broadcast(
 			card.kind === 'intro'
-				? { type: 'boardScoreboardCard', kind: card.bonus === 'super' ? 'sfs' : 'fs', spins: card.spins, amount: 0 }
+				? { type: 'boardScoreboardCard', kind: card.bonus === 'super' ? 'sfs' : 'fs', spins: card.spins, amount: 0, presents: card.presents }
 				: { type: 'boardScoreboardCard', kind: 'total', spins: 0, amount: card.amount, topUp: card.topUp ?? null, capped: !!card.capped },
 		);
 	stateGame.roundCard = board ? { ...card, board: true } : card;
@@ -258,7 +258,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });
 		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs });
 		enterBonus(bookEvent);
-		await showCard({ kind: 'intro', bonus: stateGame.bonusMode ?? 'bonus', spins: bookEvent.totalFs });
+		// (2026-11-20, Corey: "Real trigger count": the presents the LED entry pops are the scatters this round triggered with,
+		// the book's own cells; the math gives Free Spins 3, Super 4 or 5)
+		await showCard({ kind: 'intro', bonus: stateGame.bonusMode ?? 'bonus', spins: bookEvent.totalFs, presents: bookEvent.cells.length });
 	},
 	freeSpinRetrigger: async (bookEvent: BookEventOfType<'freeSpinRetrigger'>) => {
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });

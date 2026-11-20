@@ -1926,7 +1926,7 @@ export const LED_BOARD = {
 	ideas: {
 		fsEntry: 'presents' as 'presents' | 'today',
 		sfsEntry: 'tease' as 'tease' | 'today',
-		fsPresents: 3,
+		fsPresents: 3, // (since 2026-11-20 the entry pops the round's own trigger count; this only for a card raised by hand)
 		total: 'ladder' as 'ladder' | 'today',
 		cartoons: ['trot', 'tree', 'parade', 'chew', 'plow', 'takeoff', 'sleigh', 'signroll', 'peek', 'stack', 'race'] as ('trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race' | 'tree' | 'chew' | 'takeoff' | 'signroll' | 'stack')[],
 		pressLights: true,

@@ -83,8 +83,9 @@ export type ScoreboardEnv = { free: boolean; left: number; idle?: boolean; scatt
 export type WinRequest = { x: number; amount: number; bet: number; fmt: (v: number) => string; rate: number; auto: boolean; small?: boolean; countMs?: number };
 /** a bonus round card on the back board: the entries (`spins` awarded) and the Total Win (`amount`, the currency's units) */
 /** (2026-11-19, LED_BOARD.ideas) `x`: the round's win in play multiples, `capped`: the round hit the cap (the Total Win's
- *  ladder and size class), `auto`: Autoplay Bonuses will continue it by itself (the cap page's hold is then off) */
-export type CardRequest = { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null; x?: number; capped?: boolean; auto?: boolean };
+ *  ladder and size class), `auto`: Autoplay Bonuses will continue it by itself (the cap page's hold is then off),
+ *  `presents`: an entry's trigger scatter count (the book's freeSpinTrigger cells; 0 not known) */
+export type CardRequest = { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null; x?: number; capped?: boolean; auto?: boolean; presents?: number };
 
 /** THE TUNE PANEL'S AND THE DEV HOOK'S WAY IN (staging builds too: the panel cannot reach the DEV-only window hook) */
 export const scoreboardDev: { board: Scoreboard | null; bet: () => number; fmt: (v: number) => string } = { board: null, bet: () => 1, fmt: (v) => v.toFixed(2) };
@@ -1225,7 +1226,7 @@ export class Scoreboard {
 				: null,
 			dim: { alpha: r(this.dim.alpha), rect: g?.dim ?? null },
 			hudTop: g ? r(g.hudTop) : null,
-			show: s ? { id: s.id, kind: s.kind, final: s.final, finalTier: s.finalTier, arrive: s.arrive, t: Math.round(s.t), phase: phaseOf(s), tier: tierNow(s), amount: s.fmt(amountNow(s)), finalStr: s.finalStr, countStart: Math.round(s.countStart), countEnd: Math.round(s.countEnd), exitAt: Math.round(s.exitAt), end: Math.round(s.end), skipped: s.skipped, seatedAt: seatedAt(), events: s.events.map((e) => ({ ...e, at: Math.round(e.at) })), fired: [...s.fired], sceneT: Math.round(s.t - s.sceneAt), pressLineAt: s.pressLineAt === null ? null : Math.round(s.pressLineAt), spins: s.spins, x: s.x, capped: s.capped, maxRace: maxRaceOf(s)?.outcome ?? null, maxRaceAt: maxRaceAtOf(s) } : null,
+			show: s ? { id: s.id, kind: s.kind, final: s.final, finalTier: s.finalTier, arrive: s.arrive, t: Math.round(s.t), phase: phaseOf(s), tier: tierNow(s), amount: s.fmt(amountNow(s)), finalStr: s.finalStr, countStart: Math.round(s.countStart), countEnd: Math.round(s.countEnd), exitAt: Math.round(s.exitAt), end: Math.round(s.end), skipped: s.skipped, seatedAt: seatedAt(), events: s.events.map((e) => ({ ...e, at: Math.round(e.at) })), fired: [...s.fired], sceneT: Math.round(s.t - s.sceneAt), pressLineAt: s.pressLineAt === null ? null : Math.round(s.pressLineAt), spins: s.spins, presents: s.presents, x: s.x, capped: s.capped, maxRace: maxRaceOf(s)?.outcome ?? null, maxRaceAt: maxRaceAtOf(s) } : null,
 			pendingSmall: !!this.pendingSmall,
 			shake: r(this.shakeY),
 			card: this.cardUp(),

@@ -2,7 +2,7 @@
 // WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.wrapAutoHoldMs
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,fixtures/showcaseBooks.ts,game/bookEventHandlerMap.ts,game/constants.ts,game/road/roadBoard.ts,game/road/roadSounds.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/race.ts,game/scoreboard/scoreboardDraw.ts,game/scoreboard/ledGrid.ts,game/sound.ts,ui/RoundCard.svelte,ui/hud/hudLayout.ts};
-// WATCHES: apps/run_over_reindeer/src/{game/scoreboard/ambient.ts,game/scoreboard/entryScenes.ts,game/scoreboard/totalLadder.ts,game/scoreboard/ideasKit.ts,game/scoreboard/explainDraw.ts,game/scoreboard/show.ts,game/scoreboardArtSpec.ts,game/config.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/scoreboard/ambient.ts,game/scoreboard/entryScenes.ts,game/scoreboard/totalLadder.ts,game/scoreboard/ideasKit.ts,game/scoreboard/explainDraw.ts,game/scoreboard/show.ts,game/scoreboardArtSpec.ts,game/config.ts,game/scoreboard/stripDraw.ts,game/road/present.ts,game/stateGame.svelte.ts};
 // WATCHES: ; LED_BOARD.ideas
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
 // WATCHES: ; LED_BOARD.density, __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
@@ -2136,13 +2136,46 @@ async function ledAnimChecks(browser) {
 //   - THE PRESS SCREEN'S LIGHT STRING (desktop@2, the press screen at boot): bulbs drawn over the screens, the tug at a change,
 //     the screens still advance
 //   - the cost: the ladder's and the entries' draw step (median, p90) and the GPU bytes the same as today's scenes
+//   - THE REAL TRIGGER COUNT (Corey 2026-11-20: "Real trigger count"): the Free Spins entry pops as many presents as the
+//     card says the round triggered with, for 3, 4 and 5 (the math gives Free Spins 3, Super 4 or 5: every count laid
+//     inside the face, none overlapping, each teal on the face's LEDs); on desktop@2 a real natural_free_spins round's entry
+//     pops the book's own trigger count (its freeSpinTrigger cells)
+//   - THE SUPER PRESENT ON THE STRIP ("the 4th should be red"): a Super hit's scatter count on the strip shows teal, teal,
+//     teal, red, read from the face's own LEDs (by hand at every size; on desktop@2 also in a real natural_super round)
 const IDEAS_CASES = [
-	{ name: 'ledIdeas desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, press: true },
+	{ name: 'ledIdeas desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, press: true, real: true },
 	{ name: 'ledIdeas desktop@1', vp: { width: 1440, height: 900 }, dpr: 1, phone: false },
 	{ name: 'ledIdeas upright@3', vp: { width: 390, height: 844 }, dpr: 3, phone: true },
 	{ name: 'ledIdeas upright@2', vp: { width: 390, height: 844 }, dpr: 2, phone: true },
 	{ name: 'ledIdeas sideways@3', vp: { width: 844, height: 390 }, dpr: 3, phone: true },
 ].filter((s) => !ONLY.length || ONLY.includes(s.name.split(' ')[1].split('@')[0]) || ONLY.includes('ledIdeas'));
+/** in the page: each box's (dots [x, y, w, h]) red and teal LEDs on a face, read from its own pixels */
+const inksIn = () => {
+	window.__inksIn = async (which, boxes) => {
+		const f = window.__reindeer.scoreboardFace(which, true);
+		const img = new Image();
+		img.src = f.png;
+		await img.decode();
+		const c = document.createElement('canvas');
+		c.width = f.ledW;
+		c.height = f.ledH;
+		const g = c.getContext('2d');
+		g.drawImage(img, 0, 0);
+		const d = g.getImageData(0, 0, f.ledW, f.ledH).data;
+		return boxes.map(([bx, by, bw, bh]) => {
+			let red = 0;
+			let teal = 0;
+			for (let y = Math.max(0, Math.floor(by * f.k)); y < Math.min(f.ledH, Math.ceil((by + bh) * f.k)); y++)
+				for (let x = Math.max(0, Math.floor(bx * f.k)); x < Math.min(f.ledW, Math.ceil((bx + bw) * f.k)); x++) {
+					const i = (y * f.ledW + x) * 4;
+					if (d[i + 3] < 120) continue;
+					if (d[i] > 150 && d[i + 1] < 110 && d[i + 2] < 110) red++;
+					if (d[i + 1] > 140 && d[i + 2] > 140 && d[i] < 110) teal++;
+				}
+			return { red, teal };
+		});
+	};
+};
 async function ideasChecks(browser) {
 	// THE TEASE READS NOTHING OF THE ROUND (read from its source)
 	{
@@ -2431,6 +2464,106 @@ async function ideasChecks(browser) {
 			});
 			console.log(`  ${tag} cost (drawMs median / p90 / max): ladder ${cost.ladder.med} / ${cost.ladder.p90} / ${cost.ladder.max} (today's Total Win ${cost.todayTotal.med} / ${cost.todayTotal.p90}), tease ${cost.tease.med} / ${cost.tease.p90} (today's ${cost.todaySfs.med} / ${cost.todaySfs.p90}), presents ${cost.presents.med} / ${cost.presents.p90}; GPU ${cost.ladder.gpu} B (today's ${cost.todayTotal.gpu})`);
 			check(cost.ladder.gpu === cost.todayTotal.gpu && cost.ladder.gpu < 1.2 * 1048576 && cost.ladder.med <= Math.max(2, cost.todayTotal.med * 2) && cost.tease.med <= Math.max(2, cost.todaySfs.med * 2), `${tag}: COST: the picks draw on the same faces (GPU ${(cost.ladder.gpu / 1048576).toFixed(3)} MB, today's ${(cost.todayTotal.gpu / 1048576).toFixed(3)}), the ladder's step ${cost.ladder.med} ms median (today's ${cost.todayTotal.med}), the tease's ${cost.tease.med} (today's ${cost.todaySfs.med})`, cost);
+			// THE REAL TRIGGER COUNT: the entry's presents for each count, laid inside the face, teal on its LEDs
+			{
+				await R(p, inksIn);
+				const counts = await R(p, async () => {
+					const h = window.__reindeer;
+					h.scoreboardManual(true);
+					const out = [];
+					for (const n of [3, 4, 5]) {
+						h.scoreboardCard('fs', { spins: 10, presents: n });
+						let s = h.scoreboardStep(0);
+						// (landed and jiggling, before the pop: sceneT 1150)
+						for (let i = 0; i < 400 && !(s.show && s.show.sceneT >= 1150); i++) s = h.scoreboardStep(10);
+						const f = h.scoreboardFace('back');
+						const rec = f?.ideas?.entry ?? null;
+						out.push({ n, shown: s.show?.presents, rec: rec && { count: rec.count, boxes: rec.boxes, drawn: rec.presents?.length }, W: f.W, H: f.H, inks: rec ? await window.__inksIn('back', rec.boxes) : [] });
+						h.scoreboardCardEnd();
+						h.scoreboardLower();
+						h.scoreboardStep(100, 30);
+					}
+					h.scoreboardManual(false);
+					return out;
+				});
+				for (const c of counts) {
+					const b = c.rec?.boxes ?? [];
+					const inside = b.every(([x, y, w, hh]) => x >= 1 && y >= 0 && x + w <= c.W - 1 && y + hh <= c.H);
+					const apart = b.every((q, i) => i === 0 || q[0] >= b[i - 1][0] + b[i - 1][2]);
+					const teal = c.inks.every((x) => x.teal > 20 && x.red < x.teal);
+					check(c.shown === c.n && c.rec?.count === c.n && b.length === c.n && c.rec.drawn === c.n && inside && apart && teal, `${tag}: TRIGGER COUNT ${c.n}: the Free Spins entry pops ${c.rec?.count} presents (the card's ${c.shown}), all inside the ${c.W} x ${c.H} face, none overlapping, each teal on its LEDs (${c.inks.map((x) => x.teal).join(', ')} teal LEDs)`, c);
+				}
+			}
+			// THE SUPER PRESENT ON THE STRIP: a Super hit (3 seen, then the 4th) reads teal, teal, teal, red
+			{
+				const st = await R(p, async () => {
+					const h = window.__reindeer;
+					h.scoreboardManual(true);
+					h.scoreboardStep(100, 10);
+					h.scoreboardScatter({ id: 4401, count: 3, need: 4, live: true, hit: false, reached: 3 });
+					h.scoreboardStep(100, 4);
+					const live = h.scoreboardFace('strip')?.ideas?.scatter ?? null;
+					h.scoreboardScatter({ id: 4401, count: 4, need: 4, live: false, hit: true, reached: 4 });
+					h.scoreboardStep(50, 9);
+					const f = h.scoreboardFace('strip');
+					const rec = f?.ideas?.scatter ?? null;
+					const inks = rec ? await window.__inksIn('strip', rec.boxes) : [];
+					h.scoreboardScatter(undefined);
+					h.scoreboardStep(100, 30);
+					h.scoreboardManual(false);
+					return { live: live && live.names, rec, inks };
+				});
+				const want = ['present', 'present', 'present', 'present_red'];
+				const px = st.inks;
+				const okPx = px.length === 4 && px.slice(0, 3).every((x) => x.teal > x.red && x.teal > 4) && px[3].red > px[3].teal && px[3].red > 4;
+				check(JSON.stringify(st.rec?.names) === JSON.stringify(want) && JSON.stringify(st.live) === JSON.stringify(want) && okPx, `${tag}: SUPER ON THE STRIP: the count's four presents are ${st.rec?.names?.join(', ')} (in anticipation too), and on the face's LEDs teal, teal, teal, red (${px.map((x) => `${x.teal} teal ${x.red} red`).join('; ')})`, st);
+			}
+			// THE REAL ROUNDS (desktop@2): the book's trigger count on the entry, the red 4th on the strip in a real Super trigger
+			if (S.real) {
+				const page = p;
+				for (const [book, kind] of [
+					['natural_free_spins', 'fs'],
+					['natural_super', 'sfs'],
+				]) {
+					const cells = (bookOf(book).find((e) => e.type === 'freeSpinTrigger')?.cells ?? []).length;
+					// (Free Spins on this page; Super in a session of its own, as the Free Spins round waits at its entry)
+					const B = kind === 'fs' ? null : await boot(browser, S);
+					const p = B ? B.p : page;
+					await R(p, inksIn);
+					await R(p, (n) => window.__reindeer.fixtures.next(n), book);
+					await p.click('.hudp button.spin');
+					let got = null;
+					let strip = null;
+					let last = null;
+					const t0 = Date.now();
+					// (a first session's anticipation and trigger can take a while on a busy host: up to 2 minutes)
+					while (Date.now() - t0 < 120000 && !got) {
+						const r = await R(p, async () => {
+							const h = window.__reindeer;
+							const sb = h.scoreboard();
+							const sc = h.scoreboardFace('strip')?.ideas?.scatter ?? null;
+							const sh = sb.show;
+							const b = h.scoreboardFace('back')?.ideas?.entry ?? null;
+							let inks = null;
+							if (sc && sb.scatter?.hit && sb.scatter.fireworks && sb.scatter.sinceTick > 400) inks = await window.__inksIn('strip', sc.boxes);
+							return { sc: sc && sc.names, hit: !!sb.scatter?.hit, inks, kind: sh?.kind ?? null, presents: sh?.presents ?? null, count: b?.count ?? null };
+						});
+						if (r.hit && r.inks && !strip) strip = r;
+						if (r.kind === kind && (kind === 'sfs' || r.count !== null)) got = r;
+						if (!got) last = r;
+						await sleep(80);
+					}
+					if (kind === 'fs') check(cells === 3 && got?.presents === cells && got?.count === cells, `${tag}: REAL ROUND ${book}: the entry pops ${got?.count} presents, the book's trigger count (${cells} freeSpinTrigger cells; the card says ${got?.presents})`, { cells, got, last, ms: Date.now() - t0 });
+					else {
+						const px = strip?.inks ?? [];
+						check(cells === 4 && got?.presents === cells && JSON.stringify(strip?.sc) === JSON.stringify(['present', 'present', 'present', 'present_red']) && px.length === 4 && px[3].red > px[3].teal && px.slice(0, 3).every((x) => x.teal > x.red), `${tag}: REAL ROUND ${book}: the trigger's strip count shows ${strip?.sc?.join(', ')} (teal, teal, teal, red on the face's LEDs: ${px.map((x) => `${x.teal}/${x.red}`).join(' ')}) and the Super card carries the book's ${cells}`, { cells, got, strip, last, ms: Date.now() - t0 });
+					}
+					if (B) {
+						errs.push(...B.errs);
+						await B.ctx.close();
+					}
+				}
+			}
 			check(errs.length === 0, `${tag}: no page errors`, errs);
 		} catch (e) {
 			check(false, `${tag}: the ledIdeas checks ran to their end`, String(e?.stack ?? e).slice(0, 600));
