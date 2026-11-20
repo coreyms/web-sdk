@@ -355,10 +355,10 @@ export default {
 	"symbols/single/W_R.webp": "2ce8ecb1",
 	"symbols/single/reindeer_run.webp": "61d4e10f",
 	"symbols/single/reindeer_run_L.webp": "8b1bcb94",
-	"symbols/symbols-phone.json": "0c4d5c50",
-	"symbols/symbols-phone.webp": "4af52050",
-	"symbols/symbols.json": "82972c35",
-	"symbols/symbols.webp": "e42fbb6d",
+	"symbols/symbols-phone.json": "1d176362",
+	"symbols/symbols-phone.webp": "61451522",
+	"symbols/symbols.json": "fd8583b0",
+	"symbols/symbols.webp": "057d5619",
 	"wheel/super-wheel-phone.webp": "43218eea",
 	"wheel/super-wheel.webp": "d552a91b"
 } as const;
@@ -719,10 +719,10 @@ export const fileBytes = {
 	"symbols/single/W_R.webp": 40536,
 	"symbols/single/reindeer_run.webp": 48996,
 	"symbols/single/reindeer_run_L.webp": 48790,
-	"symbols/symbols-phone.json": 926605,
-	"symbols/symbols-phone.webp": 917078,
-	"symbols/symbols.json": 4573822,
-	"symbols/symbols.webp": 4564226,
+	"symbols/symbols-phone.json": 1118462,
+	"symbols/symbols-phone.webp": 1100906,
+	"symbols/symbols.json": 5482889,
+	"symbols/symbols.webp": 5465208,
 	"wheel/super-wheel-phone.webp": 388822,
 	"wheel/super-wheel.webp": 757618
 } as const;
@@ -733,4 +733,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-heavy.woff2": 35400
 } as const;
 
-export const bootSizes = {"landing":64084,"preload":6236144,"audio":901338} as const;
+export const bootSizes = {"landing":64084,"preload":7145211,"audio":901338} as const;

@@ -515,6 +515,32 @@ export class WinLights {
 		return this.plan;
 	}
 
+	/** the lines' plan in use (ms into the win at its pace) */
+	linePlan(): LightsPlan {
+		return this.plan;
+	}
+
+	/** THE SIGN WINS (constants SIGN_WIN stagger): ms into the win when line `k`'s wire head reaches road x `x` (a winning
+	 *  symbol's centre; the head runs left to right, easing out over the line's draw); Infinity for no such line */
+	reachAt(k: number, x: number): number {
+		if (k >= this.active) return Infinity;
+		const s = this.slots[k];
+		if (!s || s.n < 2 || s.total <= 0) return this.plan.starts[k] ?? Infinity;
+		let at = s.total;
+		if (x <= s.px[0]) at = 0;
+		else {
+			for (let j = 0; j < s.n - 1; j++) {
+				if (s.px[j + 1] >= x) {
+					const f = (x - s.px[j]) / Math.max(1e-6, s.px[j + 1] - s.px[j]);
+					at = s.len[j] + (s.len[j + 1] - s.len[j]) * f;
+					break;
+				}
+			}
+		}
+		// head = easeOut3(u) * total reaches `at` when u = 1 - cbrt(1 - at / total)
+		return s.start + (1 - Math.cbrt(1 - clamp01(at / s.total))) * s.draw;
+	}
+
 	/** is line `k` up (stringing, lit or coming down) at win clock `t` */
 	lineUp(k: number, t: number): boolean {
 		const p = this.plan;
