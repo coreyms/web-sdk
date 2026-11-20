@@ -318,6 +318,8 @@ export const createControls = () => {
 	// play, a natural feature and Ante keep SPIN / PLAY (Corey 2026-09-20): their price is per spin.
 	const betLabel = () => armedLabel() ?? soc('SPIN', 'PLAY');
 	const hasWin = () => stateBet.winBookEventAmount > 0;
+	/** the round's win so far, book units (the Spin key's win flourish fires as it rises: ui/hud/HudSpin.svelte) */
+	const winAmount = () => stateBet.winBookEventAmount;
 	const freeSpin = () =>
 		context.stateGame.gameType === 'freegame' && context.stateGame.totalFs > 0
 			? { current: Math.min(context.stateGame.spinsPlayed + 1, context.stateGame.totalFs), total: context.stateGame.totalFs } // spinsPlayed = completed spins; show the one in play
@@ -333,7 +335,7 @@ export const createControls = () => {
 		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,
 		betOptions, betDisabled, openDenom, setBet,
 		menuPress, openGameInfo,
-		balanceText, winText, betText, betLabel, hasWin, freeSpin,
+		balanceText, winText, betText, betLabel, hasWin, winAmount, freeSpin,
 		sound,
 	};
 };
