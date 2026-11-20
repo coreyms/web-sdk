@@ -14,6 +14,13 @@ THE RIDERS (Corey 2026-11-19): Grandma's car and Santa's sleigh carry their ride
 the mock's vehicle width). Their frames carry `vehicle`: the vehicle's box in the picture (px), which the LED code places
 and sizes by, so the vehicle lands where the empty one did and the rider rises above it.
 
+THE ROUND 1 LED IDEAS (Corey 2026-11-19, led_anim_ideas_r1_2026-11-19; game/scoreboard/entryScenes.ts, ambient.ts): a fourth
+row of the game's own approved art, read from static/assets (no new drawing): the red present (the Super scatter, S-red, at
+the present's own 180 x 201), the wagon's tree (riders/wagon-tree H2_R_tree), the four road signs A K Q J (symbols/single
+L1 to L4) and the J sign's plate and post (the symbol atlas's L4_plate and L4_post), each trimmed to its alpha and
+stepped down (premultiplied Lanczos) to IDEAS_H px tall (the J's post at the J's own scale: the mock's 142 of 240), the
+tree to 64 px (the largest any of them is drawn is about half that in LEDs). The LED code keeps the mock's proportions (it reads only each picture's aspect and its own shares).
+
 Run with the math env's Python (Pillow, numpy, scipy):
     math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_scoreboard_art.py
 """
@@ -30,15 +37,63 @@ SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/bigwin_led_r3_2026-11-16/w
 OUT = os.path.join(APP, "static", "assets", "scoreboard")
 SPEC = os.path.join(APP, "src", "game", "scoreboardArtSpec.ts")
 # row 1: the run strip; row 2 the cars and the sleigh; row 3 the column characters and the present
-ROWS = [["run_strip"], ["car", "H2", "H3", "H4", "sleigh"], ["reindeer_col", "santa_col", "grandma_col", "present"]]
+ROWS = [["run_strip"], ["car", "H2", "H3", "H4", "sleigh"], ["reindeer_col", "santa_col", "grandma_col", "present"], ["present_red", "sign_a", "sign_k", "sign_q", "sign_j", "sign_j_plate", "sign_j_post"], ["tree"]]
+GAME = os.path.join(APP, "static", "assets")
+IDEAS_H = 112
+# the round 1 ideas' pictures: (source, frame or None, height)
+IDEAS = {
+    "present_red": ("symbols/single/S-red.webp", None, None),
+    "sign_a": ("symbols/single/L1.webp", None, IDEAS_H),
+    "sign_k": ("symbols/single/L2.webp", None, IDEAS_H),
+    "sign_q": ("symbols/single/L3.webp", None, IDEAS_H),
+    "sign_j": ("symbols/single/L4.webp", None, IDEAS_H),
+    "sign_j_plate": ("symbols/symbols.webp", "L4_plate", IDEAS_H),
+    "sign_j_post": ("symbols/symbols.webp", "L4_post", round(142 * IDEAS_H / 240)),
+    "tree": ("riders/wagon-tree.webp", "H2_R_tree", 64),
+}
 GAP = 2
 # the vehicles drawn with their rider: the atlas frame each one is (the mock's pictures face left)
 SEATED = {"car": "H1_L", "sleigh": "W_L"}
 
 
+def resize_premul(im, w, h):
+    """a premultiplied Lanczos step down (no dark fringe from the transparent pixels' colour)"""
+    import numpy as np
+
+    a = np.asarray(im.convert("RGBA")).astype(np.float64) / 255.0
+    rgb = a[..., :3] * a[..., 3:4]
+    chans = [Image.fromarray((rgb[..., i] * 255).round().astype("uint8")).resize((w, h), Image.LANCZOS) for i in range(3)]
+    al = Image.fromarray((a[..., 3] * 255).round().astype("uint8")).resize((w, h), Image.LANCZOS)
+    A = np.asarray(al).astype(np.float64) / 255.0
+    out = np.zeros((h, w, 4))
+    for i in range(3):
+        c = np.asarray(chans[i]).astype(np.float64) / 255.0
+        out[..., i] = np.where(A > 0, np.clip(c / np.maximum(A, 1e-6), 0, 1), 0)
+    out[..., 3] = A
+    return Image.fromarray((out * 255).round().astype("uint8"), "RGBA")
+
+
+def idea(name):
+    """one of the round 1 ideas' pictures from the game's own static art"""
+    src, frame, h = IDEAS[name]
+    im = Image.open(os.path.join(GAME, src)).convert("RGBA")
+    if frame:
+        js = json.load(open(os.path.join(GAME, os.path.splitext(src)[0] + ".json")))["frames"][frame]["frame"]
+        im = im.crop((js["x"], js["y"], js["x"] + js["w"], js["y"] + js["h"]))
+    bb = im.getbbox()
+    if bb:
+        im = im.crop(bb)
+    if name == "present_red":
+        # the red present at the teal present's own size (scoreboard present: 180 x 201, the same picture's aspect)
+        return resize_premul(im, 180, 201)
+    if im.height != h:
+        im = resize_premul(im, max(1, round(im.width * h / im.height)), h)
+    return im
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
-    ims = {n: Image.open(os.path.join(SRC, n + ".png")).convert("RGBA") for row in ROWS for n in row}
+    ims = {n: (idea(n) if n in IDEAS else Image.open(os.path.join(SRC, n + ".png")).convert("RGBA")) for row in ROWS for n in row}
     boxes = {}
     for n, fr in SEATED.items():
         ims[n], boxes[n] = compose(fr, ims[n].width)
