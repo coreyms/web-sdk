@@ -31,6 +31,8 @@
 	const place = (st: NonNullable<typeof M>['rest']) => (shape === 'ln' && M?.round ? { ...st, ...M.round } : st);
 	const restMark = $derived(M ? engraving(w - 2, h - 2, place(M.rest)) : '');
 	const onMark = $derived(M ? engraving(w - 2, h - 2, place(M.on)) : '');
+	// disabled ("Cold Inlay", 2026-11-20): the mark inlaid in steel (hud.css shows it only while the key is disabled)
+	const offMark = $derived(M?.off ? engraving(w - 2, h - 2, place(M.off)) : '');
 </script>
 
 <button
@@ -50,7 +52,7 @@
 	aria-label={on ? fill(ARMOURY_TEXT.aria.hudButtonOn, { name: onLabel ?? '' }) : soc('Buy bonus', 'Get bonus')}
 >
 	{#if M}
-		<span class="ec"><span class="em em-rest">{@html restMark}</span><span class="em em-on">{@html onMark}</span></span>
+		<span class="ec"><span class="em em-rest">{@html restMark}</span><span class="em em-on">{@html onMark}</span>{#if offMark}<span class="em em-off">{@html offMark}</span>{/if}</span>
 		<i class="scr"></i>
 	{/if}
 	<i class="lt"></i>

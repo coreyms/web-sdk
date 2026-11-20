@@ -33,6 +33,18 @@ export const HUD_THEME: Record<string, string> = {
 	'accent-cream-rgb': '255, 243, 210',
 	/** the dark end of the accent (slider fill start, the Spin's lower rim) */
 	'accent-deep-rgb': '184, 138, 56',
+	/** (the win's sunburst, 2026-11-20, the mock win_readout_r1's Manticore gold; the same tokens as Run Over Reindeer's)
+	 *  the rays' light, their pale core, the lit number's ink, the hottest face; and the upright readout's (the same: one
+	 *  scene here) with its WIN word */
+	'burst-rgb': '232, 182, 74',
+	'burst-hi-rgb': '246, 213, 138',
+	'burst-ink-rgb': '255, 243, 210',
+	'burst-face-rgb': '255, 250, 232',
+	'pt-burst-rgb': '232, 182, 74',
+	'pt-burst-hi-rgb': '246, 213, 138',
+	'pt-burst-ink-rgb': '255, 243, 210',
+	'pt-burst-shadow': '0 0 7px rgba(232, 182, 74, 0.62), 0 1px 2px rgba(0, 0, 0, 0.7)',
+	'pt-win-label-rgb': '246, 213, 138',
 
 	// ---- painted glass ----
 	/** dock fill, top / middle / bottom of its vertical gradient, and their alphas */
@@ -113,6 +125,12 @@ export const HUD_THEME: Record<string, string> = {
 	'mark-accent-rgb': '227, 36, 0',
 	/** (Manticore's lit key is the brighter gold, so its scrim is a step darker than Reindeer's 0.72) */
 	'mark-scrim-a': '0.84',
+	/** (the disabled key, "Cold Inlay", 2026-11-20) the steel the mark is inlaid in while the key cannot be pressed, light to
+	 *  dark (the mock feature_key_disabled_r1's Manticore steel) */
+	'mark-steel-1-rgb': '184, 188, 196',
+	'mark-steel-2-rgb': '142, 148, 160',
+	'mark-steel-3-rgb': '96, 102, 114',
+	'mark-steel-4-rgb': '48, 52, 62',
 
 	// ---- states ----
 	/** a disabled key's opacity */
@@ -153,13 +171,16 @@ export const HUD_CONFIG = {
 	featureMark: {
 		rest: { look: 'etch', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
 		on: { look: 'inlay', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
+		/** DISABLED (2026-11-20, Corey's pick "Cold Inlay" from the mock feature_key_disabled_r1, its default mark strength
+		 *  62): the same mark in the same place, inlaid in steel (hud.css mark-steel-*) on the dimmed key */
+		off: { look: 'inlay', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 62, light: 0 },
 		/** the sideways phone's 34 px circle: the same three struts meeting at the hub, the hub whole and clear of the
 		 *  round rim (at the pill's 230 % and +14 % the hub's dome met the circle's curve in two slivers) */
 		round: { size: 200, x: 0, y: -10 },
 	} as FeatureMark | null,
 };
 /** the engraved mark's settings: rest, on, and the sideways circle's place and size (null: the same as the pill's) */
-export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
+export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; off: EngraveSettings | null; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
 
 export const hudThemeCss = () => `:root{${Object.entries(HUD_THEME)
 	.map(([k, v]) => `--hud-${k}:${v};`)
