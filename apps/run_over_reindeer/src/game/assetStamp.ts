@@ -2,11 +2,11 @@
 export default {
 	"audio/music/bgm_base.m4a": "b453d91f",
 	"audio/music/bgm_base.ogg": "e3498c0e",
-	"audio/music/bgm_bonus.m4a": "a67bf23b",
-	"audio/music/bgm_bonus.ogg": "c15af12d",
-	"audio/music/bgm_super.m4a": "775f2c78",
-	"audio/music/bgm_super.ogg": "7b4ab89c",
-	"audio/music.json": "18b3932d",
+	"audio/music/bgm_bonus.m4a": "ca49ab06",
+	"audio/music/bgm_bonus.ogg": "7524a4a7",
+	"audio/music/bgm_super.m4a": "562ef093",
+	"audio/music/bgm_super.ogg": "6b97f0a3",
+	"audio/music.json": "198c9795",
 	"audio/sounds.json": "1abc5d30",
 	"audio/sounds.m4a": "c7586218",
 	"audio/sounds.ogg": "b2cbb225",
@@ -516,11 +516,11 @@ export default {
 export const fileBytes = {
 	"audio/music/bgm_base.m4a": 200542,
 	"audio/music/bgm_base.ogg": 253418,
-	"audio/music/bgm_bonus.m4a": 152881,
-	"audio/music/bgm_bonus.ogg": 193030,
-	"audio/music/bgm_super.m4a": 104538,
-	"audio/music/bgm_super.ogg": 129898,
-	"audio/music.json": 783,
+	"audio/music/bgm_bonus.m4a": 151969,
+	"audio/music/bgm_bonus.ogg": 183305,
+	"audio/music/bgm_super.m4a": 152928,
+	"audio/music/bgm_super.ogg": 190990,
+	"audio/music.json": 778,
 	"audio/sounds.json": 6100,
 	"audio/sounds.m4a": 1023006,
 	"audio/sounds.ogg": 647920,
@@ -1034,4 +1034,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-bold.woff2": 34436
 } as const;
 
-export const bootSizes = {"landing":98520,"preload":7229713,"audio":901338} as const;
+export const bootSizes = {"landing":98520,"preload":7229708,"audio":901338} as const;
