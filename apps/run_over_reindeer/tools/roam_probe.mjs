@@ -1473,7 +1473,8 @@ async function chargeSize(browser, S, spotsFrom) {
 			check(before.length > 0 && wrong.length === 0, `${tag}: from the strike's first frame to the set off (${before.length} frames) every frame shows the ${want.clip} frame its plan has due (the hit never skipped)`, wrong.slice(0, 3).map((r) => ({ c: r.c, roam: r.roam, due: dues[before.indexOf(r)] })));
 			check(from.length > 0 && from.every((r) => !r.roam.visible && r.roam.state === 'none' && !r.roam.windup), `${tag}: no wind-up frame at or after the set off (${r1(A.t0)} ms); the run cuts in there`, from.filter((r) => r.roam.visible).slice(0, 2));
 			const cut = from[0];
-			check(!!cut && !!cut.run && cut.run.vis && cut.run.view === 'R', `${tag}: on the set off's frame the runner shows (view ${cut?.run?.view}, stride ${cut?.run?.stride}); he set off on ${want.clip} frame ${before.length ? before[before.length - 1].roam.frame : '-'}`);
+			// (in a slam stop's hurry the board clock can step past his short side run to the turn: S, as before the wind-up)
+			check(!!cut && !!cut.run && cut.run.vis && (cut.run.view === 'R' || (cut.rate > 2 && cut.run.view === 'S')), `${tag}: on the set off's frame the runner shows (view ${cut?.run?.view}, stride ${cut?.run?.stride}); he set off on ${want.clip} frame ${before.length ? before[before.length - 1].roam.frame : '-'}`);
 			const stepB = (r) => A.step * r.rate;
 			if (!quick) {
 				const hitAt = want.at[8];
@@ -1527,7 +1528,8 @@ async function chargeSize(browser, S, spotsFrom) {
 			const outInk = before.filter((r) => {
 				const q = r.roam.ink;
 				const top = r.roam.y - (A.reach.up + (A.reach.glowUp || 0)) * sc;
-				return !q || q[1] < top - 0.5 || q[0] < r.roam.x - A.reach.side * sc - 0.5 || q[2] > r.roam.x + A.reach.side * sc + 0.5 || q[3] > r.roam.y + 0.5;
+				// (the hooves' ink reaches 4 frame px under the anchor, as every clip's does: a road px allowed there)
+				return !q || q[1] < top - 0.5 || q[0] < r.roam.x - A.reach.side * sc - 0.5 || q[2] > r.roam.x + A.reach.side * sc + 0.5 || q[3] > r.roam.y + 1;
 			});
 			const over = Math.max(0, ...before.filter((r) => r.roam.ink).map((r) => (r.roam.y - A.reach.up * sc - r.roam.ink[1]) * A.view.k));
 			check(outInk.length === 0, `${tag}: on every wind-up frame his ink lies inside the reach his keep-outs are tested with (the bulbs' glow over its top by ${r1(over)} CSS px at most, ${r1((A.reach.glowUp || 0) * sc * A.view.k)} allowed)`, outInk.slice(0, 2).map((r) => ({ c: r.c, ink: r.roam.ink, x: r.roam.x, y: r.roam.y, reach: A.reach, sc })));
