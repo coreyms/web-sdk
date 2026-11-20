@@ -13,7 +13,7 @@
 	import { stateBet } from 'state-shared';
 	import type { Controls } from '../controls.svelte';
 	import { soc } from '../../game/social';
-	import { modeShortLabel } from '../../game/betModeMeta';
+	import { modeCost, modeShortLabel } from '../../game/betModeMeta';
 	import { FEATURE_MENU_TEXT } from '../../game/featureMenuData';
 	import { HUD_CONFIG } from '../hudTheme';
 	import HudIcon, { featureArt } from './HudIcon.svelte';
@@ -22,9 +22,13 @@
 	type Props = { controls: Controls; x: number; y: number; w: number; h: number; shape: 'pill' | 'circ' | 'ln' | 'wide'; cls?: string };
 	const { controls, x, y, w, h, shape, cls = '' }: Props = $props();
 
-	const onLabel = $derived(controls.anteActive() ? modeShortLabel(stateBet.activeBetModeKey) : controls.armedLabel());
+	// an Ante level says its level (Corey 2026-11-20: "can we have the button say 2X ANTE, 4X ANTE, 10X ANTE?"): the
+	// number is the mode's own cost (game/betModeMeta.ts modeCost, as THE FAST LANE's slider reads it), never a table here
+	const anteWord = (key: string) => `${modeCost(key)}X ${modeShortLabel(key)}`;
+	const onLabel = $derived(controls.anteActive() ? anteWord(stateBet.activeBetModeKey) : controls.armedLabel());
 	const on = $derived(onLabel !== null);
-	const two = $derived(onLabel !== null && onLabel.includes(' '));
+	// two lines ("10X" over "ANTE") on the phones' small keys; one line on the wide pill
+	const two = $derived(onLabel !== null && onLabel.includes(' ') && shape !== 'pill');
 	const words = $derived((onLabel ?? '').split(' '));
 	const sante = $derived(stateBet.activeBetModeKey.toUpperCase() === HUD_CONFIG.topAnteKey);
 	// the glyph (bet bar fix 2026-11-19): HUD_CONFIG.featureGlyph's candidate, or none (the word alone, .noic)
