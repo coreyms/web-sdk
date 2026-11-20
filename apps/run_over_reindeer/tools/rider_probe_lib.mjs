@@ -85,6 +85,16 @@ export const drawCalls = (p) =>
  *  `onFrame(i, sample)` may act between frames (a slam press); `stepMs` (a slow motion capture: FRAME / 4). Returns the
  *  samples. */
 export async function stepRound(p, { book, turbo = 0, read, frames = null, clip = null, maxFrames = 1600, onFrame = null, setup = null, stepMs = FRAME }) {
+	// THE PRESS MUST BE TAKEN (2026-11-20, seated_probe's Grandma strike round "0 frames"): since 2da57cb (2026-11-18) a
+	// manual base round with a win stays open after its board is at rest until the LED count has landed (game/utils.ts
+	// ledCountDone), and a Spin press in that window is the round's STOP, not a new round. The round after a winning one
+	// then never started, and its frames sampled the board before. Wait (real time, the clock running) until the game
+	// takes a press (__reindeer.pressReady: the round machine idle, no round live).
+	for (let i = 0; i < 80; i++) {
+		const ready = await R(p, () => (window.__reindeer.pressReady ? window.__reindeer.pressReady() : true));
+		if (ready) break;
+		await sleep(100);
+	}
 	await R(p, ({ book, turbo }) => {
 		const h = window.__reindeer;
 		h.turbo(turbo);

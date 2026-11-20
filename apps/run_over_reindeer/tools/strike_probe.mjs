@@ -532,7 +532,10 @@ const main = async () => {
 	}
 	for (const L of report.layouts)
 		for (const hz of [30, 20, 120]) {
-			const xs = L.strikes.map((st) => st.rates[hz]);
+			// (the Grandma strikes, BRAWL, are stepped at 60 Hz only: the rates' machinery is the same path, checked on the
+			// centre strikes; they have no `rates` record)
+			const xs = L.strikes.filter((st) => st.rates).map((st) => st.rates[hz]);
+			if (!xs.length) continue;
 			const bad = xs.filter((x) => x.issues.length);
 			const lateMax = (k) => Math.max(...xs.map((x) => x.late[k])).toFixed(1);
 			console.log(`${L.name} ${hz} Hz: ${xs.length} strikes, ${bad.length} with issues${bad.length ? ' ' + JSON.stringify(bad[0].issues) : ''}; duration diff ${Math.min(...xs.map((x) => x.diffMs)).toFixed(1)} .. ${Math.max(...xs.map((x) => x.diffMs)).toFixed(1)} ms; late S ${lateMax('S')} M ${lateMax('M')} C ${lateMax('C')} cut ${lateMax('cut')} ms; skipped up to ${Math.max(...xs.map((x) => x.skipped))}; no frame for the run down (M, then the impact's frame) ${xs.filter((x) => x.noRoomForC).length}`);
@@ -541,6 +544,20 @@ const main = async () => {
 	const realAll = (report.real || []).flatMap((R) => R.runs.map((x) => x.issues));
 	const bad = [...all, ...realAll].filter((x) => x.length).length;
 	console.log(`\nSTRIKES: ${all.length + realAll.length - bad} without issues, ${bad} with issues (stepped at 60, 30, 20 and 120 Hz, and the real ticker)`);
+	// THE RESULT, legible (2026-11-20, the probe host: the probe printed timing rows only and exited 0 whatever it found):
+	// one PASS / FAIL line per strike and rate with issues, a summary line, and exit 1 on any issue or a layout not ready
+	for (const L of report.layouts) {
+		if (!L.ready) console.log(`FAIL ${L.name}: the game was not ready`);
+		for (const s of L.strikes) {
+			const tag = `${L.name} ${s.grandma ? 'grandma ' : ''}${s.side} reel ${s.reel} row ${s.row}`;
+			console.log(`${s.issues.length ? 'FAIL' : 'PASS'} ${tag} at 60 Hz${s.issues.length ? ': ' + s.issues.join('; ') : ''}`);
+			for (const [hz, x] of Object.entries(s.rates || {})) if (x.issues.length) console.log(`FAIL ${tag} at ${hz} Hz: ${x.issues.join('; ')}`);
+		}
+	}
+	for (const R of report.real || []) for (const x of R.runs) if (x.issues.length) console.log(`FAIL real ${R.hz} Hz ${x.side} reel ${x.reel}: ${x.issues.join('; ')}`);
+	const notReady = report.layouts.filter((L) => !L.ready).length;
+	console.log(`strike_probe: ${all.length + realAll.length - bad} pass, ${bad + notReady} fail`);
+	if (bad + notReady) process.exitCode = 1;
 	for (const R of report.real || []) console.log(`REAL ${R.hz} Hz ready ${R.ready}: ` + R.runs.map((x) => `${x.side[0]}${x.reel} ${x.impactMs}/${x.wantMs} (gap ${x.meanGap}/${x.worstGap}) late ${x.late.S.toFixed(0)}/${x.late.M.toFixed(0)}/${x.late.C.toFixed(0)}${x.issues.length ? ' ISSUES ' + x.issues.join(';') : ''}`).join(' | '));
 	if (report.strip) console.log('strip:', report.strip.strikes.map((s) => `${s.side} ${s.shots.length} poses`).join(', '));
 };

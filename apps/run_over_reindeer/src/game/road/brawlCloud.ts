@@ -491,6 +491,13 @@ export class Brawl {
 		word.y = (B.word.y - 0.5) * cellH;
 		c.wordBase = { x: word.scale.x, y: word.scale.y };
 		c.wLast = this.winClock;
+		// a landing's WILD waits for the cover (his "wild": "cover") FROM ITS FIRST FRAME: the Wild is made in the
+		// handler's microtasks after the impact frame's update, so without this its first draw (and any read before its
+		// first update) had WILD at full alpha (the probe host's "WILD hidden before the car is covered", 2026-11-20)
+		if (landing) {
+			word.alpha = 0;
+			c.shown.wordAlpha = 0;
+		}
 		this.cells.push(c);
 		void loadBrawl('win');
 		if (!landing) {
@@ -696,6 +703,9 @@ export class Brawl {
 				mirror: c.mirror,
 				facing: c.facing,
 				...c.shown,
+				// the word as it stands on the stage (not a cached value)
+				wordAlpha: Math.round(c.word.alpha * 1000) / 1000,
+				wordVisible: c.word.visible && c.word.alpha > 0,
 				underSource: c.under.visible ? c.under.texture.source.uid : -1,
 				overSource: c.over.visible ? c.over.texture.source.uid : -1,
 				underVisible: c.under.visible,

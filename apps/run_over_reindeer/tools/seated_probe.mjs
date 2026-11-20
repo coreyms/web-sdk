@@ -1,6 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/seated.ts,game/road/seatedClips.ts};
-// WATCHES: ; __reindeer.clock, __reindeer.riderMemory, __reindeer.road, __reindeer.roadSprites, __reindeer.seatClipMemory, __reindeer.seated
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/seated.ts,game/road/seatedClips.ts,game/road/brawlCloud.ts}, apps/run_over_reindeer/tools/rider_probe_lib.mjs;
+// WATCHES: ; __reindeer.pressReady, __reindeer.clock, __reindeer.riderMemory, __reindeer.road, __reindeer.roadSprites, __reindeer.seatClipMemory, __reindeer.seated
 // WATCHES: ; __reindeer.setBoard, __reindeer.step, __reindeer.strayRiders, __reindeer.tune, SEATED.bob, SEATED.clips, SEATED
 // THE SEATED DRIVERS PROBE (Corey 2026-11-16: Grandma at the wheel of every Grandma car, H1, and Santa in every sleigh,
 // W; constants SEATED, game/road/seated.ts, tools/build_seated.py, tools/seated_split.json). Posed books handed to the
@@ -124,7 +124,10 @@ try {
 		T.check(during.length > 20 && bobIn > tune.bob.px * 0.8 && bobIn <= tune.bob.px + 1e-6, `${S.name}: the winning drivers bob up to ${bobIn.toFixed(2)} road px with the win pulse (${during.length} frames of win)`);
 		T.check(bobOut === 0, `${S.name}: the drivers not in the win never bob, and nobody is lifted once the win is over`, { bobOut });
 
-		// 4. THE STRIKES: a Grandma car becomes the crash cloud Wild; a sleigh's reel becomes the Santa column
+		// 4. THE STRIKES: a Grandma car becomes the crash cloud Wild (since 2026-11-19 the brawl cloud: the car and its
+		// driver take the landing's bump for its first 33 board ms, then both hide together under the clip, so the struck
+		// driver is never drawn without its car; game/road/brawlCloud.ts); a sleigh's reel becomes the Santa column. The
+		// round before this one wins, so stepRound waits for the game to take the press (pressReady)
 		const g = await stepRound(p, { book: book(GRANDMA, [{ type: 'strike', target: 'grandmaCar', cell: 4, reel: 1 }, { type: 'grandmaWild', cell: 4, multiplier: 10 }]), read: READ });
 		const gHidden = g.filter((r) => r.sample.seated.some((d) => d.cell === 4 && !d.carVisible));
 		T.check(gHidden.length > 10 && gHidden.every((r) => r.sample.seated.filter((d) => d.cell === 4).every((d) => !d.shown)), `${S.name}: the struck Grandma car's driver goes with it under the crash cloud (${gHidden.length} frames), the other Grandma beside it stays`, g.at(-1).sample.seated.filter((d) => d.cell === 4 || d.cell === 6));
