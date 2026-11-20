@@ -10,6 +10,8 @@
 // its glass colors, so each NEW token's Manticore value is given beside it (copy them there and Manticore looks the
 // same as now, and the two hud.css files are the same again).
 // Injected once as a :root block (like ui/fontFaces.ts), so the HUD layer and the modals all see it.
+import type { EngraveSettings } from './hud/engrave';
+
 export const HUD_THEME: Record<string, string> = {
 	// ---- type ----
 	/** the HUD face: Outfit's one static Black (900) face, ui/fontFaces.ts */
@@ -147,6 +149,15 @@ export const HUD_THEME: Record<string, string> = {
 	'feature-on-deep-1-rgb': '196, 32, 44',
 	'feature-on-deep-2-rgb': '118, 19, 26',
 	'feature-on-rim': '#ff8a8a',
+	/** NEW (the engraved mark, 2026-11-19): the inlay's gold, light to dark (the mock's warm gold on the holly green), and
+	 *  the hub's accent (BonusButton's --pm-core) */
+	'mark-g1-rgb': '252, 228, 146',
+	'mark-g2-rgb': '238, 196, 88',
+	'mark-g3-rgb': '200, 144, 40',
+	'mark-g4-rgb': '128, 84, 18',
+	'mark-accent-rgb': '25, 211, 218',
+	/** NEW (the engraved mark): the dark under the mode's word on the gold inlay (.scr), at its middle */
+	'mark-scrim-a': '0.72',
 
 	// ---- states ----
 	/** a disabled key's opacity */
@@ -242,7 +253,22 @@ export const HUD_CONFIG = {
 	featureIcon: 'M9 3 4.5 21M15 3l4.5 18M12 4.5v2M12 10v3M12 16.5V20',
 	/** the mode key that draws the hotter "on" state (the double rim): the top Ante level (Manticore: SUPER_ANTE) */
 	topAnteKey: 'ANTE_10',
+	/** THE ENGRAVED MARK (2026-11-19, the approved mock logo_button_r1; Corey: "No text. Only logo", then "when the Ante or
+	 *  something is enabled we should go with the inlay style for the logo in the same spot. With the text over it for
+	 *  the mode enabled, similar to today"). The feature key shows only the PolyMath mark sunk into its glass (ui/hud/
+	 *  engrave.ts): `rest` with no mode on (Corey's settings, verbatim from the mock's "Copy my settings"), `on` with a
+	 *  mode on (the same mark in the same place, inlaid in gold, the mode's word over it). `round` overrides the place
+	 *  and size on the sideways phone's small circle. null: the word (and featureGlyph) as before. */
+	featureMark: {
+		rest: { look: 'etch', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
+		on: { look: 'inlay', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
+		/** the sideways phone's 34 px circle: the same three struts meeting at the hub, the hub whole and clear of the
+		 *  round rim (at the pill's 230 % and +14 % the hub's dome met the circle's curve in two slivers) */
+		round: { size: 200, x: 0, y: -10 },
+	} as FeatureMark | null,
 };
+/** the engraved mark's settings: rest, on, and the sideways circle's place and size (null: the same as the pill's) */
+export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
 
 /** the theme as one :root block, with a scene's tokens laid over it (applyHudScene) */
 let sceneTokens: Record<string, string> = {};

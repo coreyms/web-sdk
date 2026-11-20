@@ -10,6 +10,8 @@
 	import ModalShell from './ModalShell.svelte';
 	import Icon from './Icon.svelte';
 	import HudIcon, { type HudIconName } from './hud/HudIcon.svelte';
+	import { POLYMATH_MARK } from './hud/polymathMark';
+	import { HUD_CONFIG } from './hudTheme';
 	import config from '../game/config';
 	import { soc } from '../game/social';
 	import { stamp } from '../game/assets';
@@ -44,9 +46,11 @@
 	// THE UI GUIDE (2026-11-18; Manticore Mayhem's section, this game's controls): one control per row, the HUD's own
 	// glyph (ui/hud/HudIcon.svelte, the same line icons the bar draws; Icon.svelte for the few the bar has no key for), its
 	// name and what a press does (game/gameInfoText.ts guide). A control the operator turns off has no row.
-	type GuideIcon = { id: GuideId; hud?: HudIconName; ui?: 'play' | 'instant' | 'coins' | 'chevronRight' | 'info' };
+	// The feature key's row (2026-11-19): the key shows the PolyMath mark now (HUD_CONFIG.featureMark), so its row draws
+	// the mark's silhouette (ui/hud/polymathMark.ts) in the guide's gold; with no mark the HUD glyph as before.
+	type GuideIcon = { id: GuideId; hud?: HudIconName; ui?: 'play' | 'instant' | 'coins' | 'chevronRight' | 'info'; mark?: boolean };
 	const GUIDE_ICONS: GuideIcon[] = [
-		{ id: 'feature', hud: 'arm' },
+		HUD_CONFIG.featureMark ? { id: 'feature', mark: true } : { id: 'feature', hud: 'arm' },
 		{ id: 'spin', ui: 'play' },
 		{ id: 'boardTap', ui: 'instant' },
 		{ id: 'skip', hud: 'skip' },
@@ -199,7 +203,7 @@
 					{#each GUIDE as g (g.id)}
 						<div class="guide-row" data-guide-row={g.id}>
 							<div class="guide-icon" style:width="{iconBox}px" style:height="{iconBox}px" style:--gi-icon="{Math.round(iconBox * 0.5)}px">
-								{#if g.hud}<HudIcon name={g.hud} />{:else if g.ui}<Icon name={g.ui} s={iconBox * 0.46} />{/if}
+								{#if g.mark}<svg class="ic" viewBox="{POLYMATH_MARK.bbox[0]} {POLYMATH_MARK.bbox[1]} {POLYMATH_MARK.bbox[2] - POLYMATH_MARK.bbox[0]} {POLYMATH_MARK.bbox[3] - POLYMATH_MARK.bbox[1]}" aria-hidden="true"><path d={POLYMATH_MARK.d} fill="currentColor" /></svg>{:else if g.hud}<HudIcon name={g.hud} />{:else if g.ui}<Icon name={g.ui} s={iconBox * 0.46} />{/if}
 							</div>
 							<div class="guide-text">
 								<div class="guide-name" style:font-size="{dense ? 13 : 15}px">{g.name}</div>
