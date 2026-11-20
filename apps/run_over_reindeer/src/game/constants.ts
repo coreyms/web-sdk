@@ -1256,6 +1256,166 @@ export const VAN_WIN = {
 	light: { tint: 0xfff0c8, alpha: 1, width: 0.6, sweepMs: 1100, flicker: 0.18, flickerMs: 60, fill: 1.25, layers: 2 },
 };
 
+// ---- THE SIGN WINS (Corey 2026-11-19, the mock sign_wins_r1_2026-11-19 and his settings from its "Copy my settings":
+// {"cand":3,"layout":"field","gColor":"face","pivot":"ground","beat":"back","pulse":"on","land":"hinged","idle":"both",
+// "stagger":true,"g":{"bloom":4.5,"intensity":1.5,"size":1.25,"width":22,"ms":420,"sweeps":2,"rest":0.1,"sparkle":1,
+// "bolts":1.1},"a":{"rock":3.5,"freq":2.4,"damp":420,"deco":1,"snow":1,"flakes":4,"shudder":1,"letter":0},
+// "l_flakes":2}; then "the 10 needs sepearate settings because it's already white, so the honeycome doesn't show up well
+// here"; game/road/signRig.ts, tools/sign_layers.py) -----------------------------------------------------------------------
+// The five road signs (L1..L5: A K Q J 10) draw as a rig of layers cut from their flattened art: the post, the plate (the
+// body, the letter and the bolts as one picture), the snow cap and the decorations (the 10's holly, the J's candy cane,
+// the Q's four bulbs, the K's bell, the A's mistletoe). The flattened frames stay in the atlas (through traffic, the cast
+// shadows, the rules page pictures).
+//   THE WIN (candidate 3, both): the whole sign bends at the road on a damped spring, each decoration swings its own way,
+//   the snow cap lags and sheds flakes, the plate shudders, and a band of light sweeps a honeycomb of round reflectors
+//   (each a lens tinted from the face in normal blend with a glow added; never on the letter, the rim or the bolts) and
+//   catches the bolts, timed to cross the face on the swing back. Each sign goes off as its line's wire reaches it.
+//   Today's pulse (LINE_WIN.pulseScale) stays on top.
+//   THE LANDING (hinged): the plate tips on its post as the sign brakes and rocks back; the decorations and the snow keep
+//   going after it stops, and two flakes fall.
+//   THE IDLE: one sign at a time, every 7 to 12 s while the board is idle (game/boardIdle.ts): a slow glint and a small
+//   twitch of its decoration.
+// Sprites, transforms, alpha, tint and additive blend only: no filter, mask, shader or blur (the glow, lens, ring, sparkle
+// and flakes are baked pictures, tools/sign_layers.py). Every ms is at normal speed: a win's are times LINE_WIN.holdShare
+// (the turbo level) on the win clock (a slam stop's hurry runs it 3x); the landing's run on the board clock (turbo and the
+// hurry); the idle's are real ms. Angles in degrees, lengths in road px at the sign's built size. The mock's names are
+// kept in the comments (g.*, a.*, l_flakes) so his copied settings read straight across.
+export const SIGN_WIN = {
+	/** false: the signs draw as their flattened frames, today's pulse only */
+	on: true,
+	/** the win's candidate (cand): 0 today's pulse only, 1 the glint, 2 the motion, 3 both (his pick) */
+	cand: 3 as 0 | 1 | 2 | 3,
+	/** (stagger) each sign goes off as its line's wire reaches it; false: every sign of a line as the line starts */
+	stagger: true,
+	/** a sign in two lines goes off again as the later line's wire reaches it, if its last show is over */
+	replay: true,
+	/** (pulse) today's swell while a line through the sign is up: 'on' LINE_WIN.pulseScale as today (his pick), 'soft'
+	 *  pulseSoft, 'off' none */
+	pulse: 'on' as 'off' | 'soft' | 'on',
+	pulseSoft: 1.05,
+	/** (land) 'hinged': the plate tips on its post and the decorations lag (his pick); 'today': the whole sign tips */
+	land: 'hinged' as 'today' | 'hinged',
+	/** (idle) 'both' (his pick), 'glint', 'twitch' or 'off' */
+	idle: 'both' as 'glint' | 'twitch' | 'both' | 'off',
+	/** a show is over this long after it starts (the motion has died away) */
+	showMs: 2000,
+	/** THE GLINT (g.*): the reflectors' layout ('field' the honeycomb, his pick; 'ring' the border ring; 'sparse' six big
+	 *  ones), their color from the face ('face', his pick; 'white'; 'ice'). intensity: the light's strength (the lens
+	 *  reaches full at 0.91, the glow at 1.11); size: the dot radius times the layout's own; bloom: the glow's width in
+	 *  dot radii; width: the band's half width along the sweep (road px); ms: one sweep's length; sweeps: 1 or 2 (the
+	 *  second secondGapMs after the first, at secondAmp); rest: the reflectors seen at rest (baked into the four colored
+	 *  plates at 0.1 by tools/sign_layers.py REST_BAKE: this value only moves the 10's); sparkle: the two star flashes;
+	 *  bolts: the bolt heads' glint. The band sweeps along sweepDir (down and to the right). Colors (face): the lens is the
+	 *  face mixed litMix toward white, the glow glowMix toward white, the rest restDarken toward black. */
+	glint: {
+		layout: 'field' as 'ring' | 'field' | 'sparse',
+		color: 'face' as 'face' | 'white' | 'ice',
+		bloom: 4.5,
+		intensity: 1.5,
+		size: 1.25,
+		width: 22,
+		ms: 420,
+		sweeps: 2,
+		rest: 0.1,
+		sparkle: 1,
+		bolts: 1.1,
+		sweepDir: [0.8, 0.6] as [number, number],
+		secondGapMs: 160,
+		secondAmp: 0.6,
+		litMix: 0.62,
+		glowMix: 0.45,
+		restDarken: 0.14,
+		/** the bolt heads: a warm glow this wide (road px, grows by 0.4 of it with the light) and a star this wide */
+		boltGlow: 16,
+		boltTint: 0xfffaeb,
+		boltSparkle: 14,
+		/** the two star flashes on the reflectors farthest down right and up left: this wide (grows with the light), from
+		 *  this much light */
+		sparkleSize: 22,
+		sparkleFrom: 0.3,
+	},
+	/** THE MOTION (a.*): rock (degrees, the damped spring's first swing; each sign times jitter, 0.88 to 1.12), freq (its
+	 *  Hz), damp (its decay ms); pivot 'ground' the whole sign bends at the road (his pick), 'post' the plate rocks on its
+	 *  post; beat: the glint crosses the face on the 'lean', the swing 'back' (his pick) or the 'settle'; deco: the
+	 *  decorations' swing (times the table below); snow: the cap's lag (snowLag of the plate's swing snowLagMs behind it)
+	 *  and squash (snowSquash, over snowSquashMs); flakes: how many it sheds (on the first swing's peak); shudder: the
+	 *  plate's side shake (shudderPx, the K's bell shakes it shudderBell, at shudderHz over shudderMs); letter: the letter's
+	 *  pop (fixed at 0: the letter is baked into the plate) */
+	alive: {
+		rock: 3.5,
+		freq: 2.4,
+		damp: 420,
+		deco: 1,
+		snow: 1,
+		flakes: 4,
+		shudder: 1,
+		letter: 0,
+		pivot: 'ground' as 'ground' | 'post',
+		beat: 'back' as 'lean' | 'back' | 'settle',
+		jitter: [0.88, 0.24] as [number, number],
+		snowLag: 0.45,
+		snowLagMs: 70,
+		snowSquash: 0.035,
+		snowSquashMs: 260,
+		shudderPx: 0.45,
+		shudderBell: 1.3,
+		shudderHz: 24,
+		shudderMs: 120,
+	},
+	/** EACH DECORATION'S SWING (times alive.deco): degrees, decay ms, Hz, phase (radians), and how much of the plate's
+	 *  swing it turns back against (it hangs). The cane taps (one side only); the bulbs also chase: each flares in turn
+	 *  (chaseMs apart, flareMs long, again againMs later at again), drawn added over itself (flareAlpha) with a glow of
+	 *  its color mixed glowMix toward white (glowSize road px, glowAlpha) */
+	deco: {
+		holly: { deg: 4, ms: 450, hz: 3.1, phase: 0.5, counter: 0.5 },
+		cane: { deg: 6.5, ms: 330, hz: 2.8, phase: 0, counter: 0 },
+		bell: { deg: 17, ms: 620, hz: 1.9, phase: 0, counter: 0.9 },
+		mistletoe: { deg: 6, ms: 650, hz: 1.6, phase: 0, counter: 0.7 },
+		bulb: { deg: 6, ms: 520, hz: 3.3, phaseStep: 0.9, counter: 0.6, chaseMs: 115, flareMs: 230, againMs: 560, again: 0.8, flareAlpha: 0.8, glowSize: 26, glowAlpha: 0.85, glowMix: 0.25 },
+	},
+	/** THE LANDING (land 'hinged'): the plate tips by hinge times the drive's own dive (constants ROAD_MOTION in), the snow
+	 *  cap back against it (snow times alive.snow); the decorations keep going from the stop at `amount` of a win's swing
+	 *  (no rock; the bulbs' flare at bulbs), for ms; flakes (l_flakes) fall as it stops */
+	landing: { hinge: 2.2, snow: 0.4, amount: 0.55, bulbs: 0.35, flakes: 2, ms: 3500 },
+	/** THE IDLE: one sign every everyMs plus up to everyRandMs (real ms) while the board is idle; its glint one sweep of
+	 *  glintMs at glintAmp; its twitch at `amount` of a win's swing with the rock at rockShare of min(rock, rockMax), the
+	 *  bulbs' flare at bulbs; over after ms */
+	idleShow: { everyMs: 7000, everyRandMs: 5000, glintMs: 900, glintAmp: 0.5, amount: 0.4, rockShare: 0.25, rockMax: 3.5, bulbs: 0.6, ms: 3000 },
+	/** THE FLAKES: each falls from a random point of the snow cap's lower edge, out to the side at vx (plus or minus
+	 *  vxRand / 2) and up at vy (to vy + vyRand), under gravity (road px per s per s), radius r to r + rRand, life lifeMs to
+	 *  lifeMs + lifeRandMs, fading from fadeFrom of its life; at most `max` in the air per sign */
+	flakes: { gravity: 520, vx: 18, vxRand: 40, vy: -10, vyRand: -25, r: 1.6, rRand: 1.3, lifeMs: 650, lifeRandMs: 300, fadeFrom: 0.6, max: 12 },
+	/** THE 10 (white SPEED LIMIT sign): the honeycomb does not read on white (additive light shows nothing on it, and the
+	 *  four signs' honeycomb fits only 10 reflectors between its letters). Its own look, one of tenStyles (shown side by
+	 *  side on the mock page's "10 options" switch): 'a' Ringed, 'b' Border, 'c' Dense, or 'off' (the ice look of his
+	 *  tuned settings). The same band, sweep, bolts and sparkles as the other four; only its reflectors differ. THE PICK
+	 *  IS THIS ONE LINE. */
+	ten: 'c' as 'off' | 'a' | 'b' | 'c',
+	/** each 10 look: its dot set (tools/sign_layers.py TEN_DOTS: 'dense' 31 smaller reflectors, 'denseBig' 28 slightly
+	 *  larger, 'field' the four signs' 10), its reflectors at rest (the lens or the ring picture, tint, alpha), the lit
+	 *  lens's tint, a halo (the glow in NORMAL blend: it shows on white; tint, alpha, width in dot radii), a shadow leading
+	 *  the light (the lens darkened; tint, alpha, lead: how far ahead of the band in band widths), a glow added (tint;
+	 *  shows on the black only), and the border band (option b: the glow added on the black border ring's points, tint,
+	 *  alpha, size road px) */
+	tenStyles: {
+		off: { layout: 'field', rest: { tex: 'lens', tint: 0xc4cedc, alpha: -1 }, lit: 0x80c4ff, halo: null, shadow: null, glow: 0x96d2ff, band: null },
+		a: { layout: 'dense', rest: { tex: 'ring', tint: 0x7088a8, alpha: 0.75 }, lit: 0xb2deff, halo: { tint: 0x78beff, alpha: 0.5, bloom: 4 }, shadow: null, glow: null, band: null },
+		b: { layout: 'dense', rest: { tex: 'lens', tint: 0xced3dc, alpha: 0.55 }, lit: 0xa8d4ff, halo: null, shadow: null, glow: null, band: { tint: 0x96d7ff, alpha: 1, size: 12 } },
+		c: { layout: 'denseBig', rest: { tex: 'lens', tint: 0xc4cedc, alpha: 0.1 }, lit: 0x96c8ff, halo: { tint: 0x96cdff, alpha: 0.6, bloom: 6 }, shadow: { tint: 0x5c6c86, alpha: 0.55, lead: 1.1 }, glow: null, band: null },
+	} as Record<'off' | 'a' | 'b' | 'c', TenStyle>,
+};
+
+/** one look of the 10's reflectors (SIGN_WIN.tenStyles); rest alpha -1: glint.rest */
+export type TenStyle = {
+	layout: 'field' | 'dense' | 'denseBig';
+	rest: { tex: 'lens' | 'ring'; tint: number; alpha: number } | null;
+	lit: number;
+	halo: { tint: number; alpha: number; bloom: number } | null;
+	shadow: { tint: number; alpha: number; lead: number } | null;
+	glow: number | null;
+	band: { tint: number; alpha: number; size: number } | null;
+};
+
 // ---- THE CHRISTMAS TREE ON THE STATION WAGON (Corey 2026-11-16: "Yes this one looks good."; game/road/wagonTree.ts,
 // tools/build_wagon_tree.py, the round 4 art and its NOTES.md) ---------------------------------------------------------
 // Every wagon (H2) carries the tree tied to its roof rack, both directions, parked and in through traffic. Over the wagon:
@@ -1606,7 +1766,7 @@ export const LED_BOARD = {
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */
-export const TUNE = { ledBoard: LED_BOARD, laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, roam: ROAM, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN, superWheel: SUPER_WHEEL };
+export const TUNE = { ledBoard: LED_BOARD, laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, roam: ROAM, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, signWin: SIGN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN, superWheel: SUPER_WHEEL };
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

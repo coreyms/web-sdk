@@ -102,6 +102,7 @@
 	import { raceTally, raceTrace, newRace, reseedRace } from '../game/scoreboard/race';
 	import { SCENE_ART } from '../game/sceneArtSpec';
 	import { isPaying, symbolPopupBoard, symbolPopupHook } from '../game/symbolPopup';
+	import { boardIdle } from '../game/boardIdle';
 	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
 	import { ledAmountText, ledSentenceAmount } from '../game/scoreboard/ledCurrency';
 
@@ -733,6 +734,8 @@
 		if (!PHONE_TIER) setWheelMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
 		void loadPresent('peek');
 		const tick = (ticker: PIXI.Ticker) => {
+			// THE SIGN IDLE (constants SIGN_WIN idleShow) only on an idle board (the symbol popup's rule)
+			road.signIdleOk = boardIdle();
 			road.update(ticker.deltaMS * devClock.rate, boardRate(), stateGame.hurryLevel > 0 ? ROAD_MOTION.hurryRate : 1);
 			// THE SUPER WHEEL on the board's own pace (turbo, a slam stop's hurry); its Autoplay Bonuses wait counts real time
 			wheel.update(ticker.deltaMS * devClock.rate, boardRate());
@@ -931,6 +934,10 @@
 			tuneJson: () => JSON.stringify(TUNE, null, '\t'),
 			/** what the road is drawing: board[reel][row], drift off the marks, sprites by phase */
 			road: () => road.snapshot(),
+			/** THE SIGN RIGS as drawn (constants SIGN_WIN, game/road/signRig.ts), and a sign's win or idle by hand:
+			 *  __reindeer.signShow(cell, 'win' | 'idle', pace) */
+			signs: () => road.signSnapshot(),
+			signShow: (cell: number, kind: 'win' | 'idle' = 'win', pace = 1) => road.devSignShow(cell, kind, pace),
 			/** the road board itself (pass 6 probes: the column frame, the seated crops, the shadow sheet); DEV only */
 			roadBoard: () => road,
 			atRest: () => road.atRest && !stateGame.busy,

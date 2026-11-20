@@ -19,7 +19,7 @@ import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
 import config from '../config';
-import { LANDING_DIM, LANE_FLOW, LINE_WIN, REINDEER_SOUND, ROAD, SEATED, STOPLIGHT, WAGON_TREE, motionFor, type RoadMotion } from '../constants';
+import { LANDING_DIM, LANE_FLOW, LINE_WIN, REINDEER_SOUND, ROAD, SEATED, SIGN_WIN, STOPLIGHT, WAGON_TREE, motionFor, type RoadMotion } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { Board, SymbolName } from '../types';
 import { NumberLabel, RoadFeatures } from './roadFeatures';
@@ -35,6 +35,7 @@ import { SceneLayers } from '../scene/sceneLayers';
 import { releaseAllSeatClips, seatClip, type SeatChar, type SeatClip } from './seatedClips';
 import { flowLevel, flowParams, planFlow, type FlowCar, type FlowPlan } from './laneFlow';
 import { PHONE_TIER } from '../deviceTier';
+import { SignRig, isSign } from './signRig';
 
 const COLS = ROAD_ART.board.columns;
 const ROWS = ROAD_ART.board.rows;
@@ -125,6 +126,12 @@ type Car = {
 	riderShadow: PIXI.Sprite;
 	/** THE BRAKE LIGHTS (game/road/brakeLights.ts): made the first time this slot shows a car (H1 to H4) */
 	brake: BrakeLightPair | null;
+	/** THE SIGN RIG (game/road/signRig.ts, constants SIGN_WIN): made the first time this slot shows a sign (L1 to L5); its
+	 *  root in the lane just after the sprite (which then draws nothing), its light in signFxLayer */
+	sign: SignRig | null;
+	/** the win showing: when each line through this sign reaches it (ms into the win, ascending), and how many have gone */
+	signReach: number[];
+	signNext: number;
 };
 
 /** THE DRIVE IN'S PLAN (constants LANE_FLOW, game/road/laneFlow.ts) as the road plays it: the plan (ms from `start`, the
@@ -207,6 +214,17 @@ export class RoadBoard {
 	private readonly brakeLayer = new PIXI.Container();
 	/** the far lamps' halos (constants BRAKE_LIGHTS.halo): over the ground's cast shadows, under every lane */
 	private readonly brakeBackLayer = new PIXI.Container();
+	/** THE SIGNS' LIGHT (game/road/signRig.ts): every sign rig's added glows, over every lane (one draw call for all of
+	 *  them), under the win effects, the features and the line win */
+	private readonly signFxLayer = new PIXI.Container();
+	/** THE SIGN IDLE (constants SIGN_WIN idleShow): Board.svelte says when the board is idle (game/boardIdle.ts); the next
+	 *  idle's real ms (0: not armed) */
+	signIdleOk = false;
+	private signIdleAt = 0;
+	/** real ms, never hurried (the sign idle's clock) */
+	private realClock = 0;
+	/** the win clock's ms this frame (the signs' flakes fall on it) */
+	private signDt = 0;
 	/** THE SEATED DRIVERS' ANIMATIONS in this frame (game/road/seatedClips.ts): per character, the idle and the win if in */
 	/** DEV: the seated idle's clock by hand (ms), null = performance.now() */
 	seatTime: number | null = null;
@@ -293,7 +311,7 @@ export class RoadBoard {
 	/** a trigger's pop on its pulse's first frame (the open's pictures were not in time) */
 	private pulsePopWanted = false;
 	/** the win showing: its start (win clock), its whole length, when the total pops in (ms into the win) */
-	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean; totalAt: number; onTotal: (() => void) | null; totalOnBoard: boolean } | null = null;
+	private win: { t0: number; holdMs: number; fadeAt: number; active: boolean; dim: boolean; totalAt: number; onTotal: (() => void) | null; totalOnBoard: boolean; pace: number } | null = null;
 	private destroyed = false;
 	/** how many symbols the board on the road parks (20, less four for every column Wild standing) */
 	private parked = COLS * ROWS;
@@ -329,6 +347,9 @@ export class RoadBoard {
 		}
 		// the brake lights over every lane (one batch for all of them), under the win effects
 		this.root.addChild(this.brakeLayer);
+		// the signs' added light over every lane, next to the brake lights' (the same blend: they may share a batch)
+		this.signFxLayer.label = 'signFx';
+		this.root.addChild(this.signFxLayer);
 		this.root.addChild(this.policeLayer);
 		// the cloud cells, the red boxes and the column characters stand over the traffic and under the line win
 		this.features = new RoadFeatures(tex);
@@ -376,7 +397,7 @@ export class RoadBoard {
 			// (its own label: the probes count the vehicles' twins by 'shadow')
 			riderShadow.label = 'riderShadow';
 			this.ground.addChild(riderShadow);
-			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, rel: -Infinity, v: 0, b: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, red: false, redRank: 0, shadow, lights: null, van: null, tree: null, seated: null, riderShadow, brake: null };
+			car = { sprite, phase: 'free', lane: 0, col: -1, symbol: null, dir: 1, halfW: 0, baseScale: 1, restX: 0, x0: 0, t0: 0, stopAt: 0, rel: -Infinity, v: 0, b: 0, overshoot: 0, dive: 0, m: null, winning: false, bright: 1, tintNow: 0xffffff,	stopped: false, present: null, red: false, redRank: 0, shadow, lights: null, van: null, tree: null, seated: null, riderShadow, brake: null, sign: null, signReach: [], signNext: 0 };
 			this.cars.push(car);
 		}
 		this.stopPresent(car);
@@ -417,11 +438,28 @@ export class RoadBoard {
 		// a new vehicle in this slot: its riders hang still
 		car.tree?.reset();
 		car.seated?.reset();
+		// THE SIGN RIG: a sign draws as its layers (its sprite stays for its size, its shadow and the probes, drawing nothing)
+		car.signReach.length = 0;
+		car.signNext = 0;
+		if (SIGN_WIN.on && isSign(symbol)) {
+			const rig = (car.sign ??= new SignRig(this.tex, TIER));
+			if (rig.fx.parent !== this.signFxLayer) this.signFxLayer.addChild(rig.fx);
+			car.sprite.renderable = !rig.setSymbol(symbol);
+		} else if (car.sign) {
+			car.sign.stop();
+			car.sign.root.visible = false;
+			car.sign.fx.visible = false;
+		}
 		return car;
 	}
 
 	private free(car: Car) {
 		this.stopPresent(car);
+		if (car.sign) {
+			car.sign.stop();
+			car.sign.root.visible = false;
+			car.sign.fx.visible = false;
+		}
 		car.phase = 'free';
 		car.symbol = null;
 		car.sprite.visible = false;
@@ -534,8 +572,12 @@ export class RoadBoard {
 		for (const car of this.cars) {
 			if (car.phase !== 'rest' || car.col !== col || car.lane !== lane) continue;
 			car.sprite.visible = !hidden;
-			// its riders go (or come back) with it on this very frame, and their shadow
+			// its riders go (or come back) with it on this very frame, and their shadow; a sign's rig and its light too
 			this.syncRiders(car);
+			if (car.sign && hidden) {
+				car.sign.root.visible = false;
+				car.sign.fx.visible = false;
+			}
 			if (hidden) car.riderShadow.visible = false;
 		}
 	}
@@ -555,6 +597,8 @@ export class RoadBoard {
 	/** put a board up as it is, at rest (boot, a resumed round, a failed play) */
 	setBoard(board: Board) {
 		for (const car of this.cars) if (car.phase !== 'free') this.free(car);
+		// THE SIGN IDLE waits its 7 to 12 s again from a new board
+		this.signIdleAt = 0;
 		this.outAt = null;
 		this.waiting = null;
 		this.spinActive = false; // stopped: the signal is red
@@ -578,6 +622,7 @@ export class RoadBoard {
 				car.col = col;
 				car.restX = columnX(col);
 				car.sprite.x = car.restX;
+				car.sign?.seed(col);
 				parked += 1;
 				if (car.symbol === 'S') ranked.push({ car, rel: rel.get(`${row}:${col}`) ?? Infinity, order: ranked.length });
 			}
@@ -661,6 +706,8 @@ export class RoadBoard {
 			const dir = ROAD.laneDirection[lane];
 			const resting = this.cars.filter((c) => c.phase === 'rest' && c.lane === lane).sort((a, b) => (b.restX - a.restX) * dir);
 			resting.forEach((car, j) => {
+				// a sign's shows end as it pulls away (nothing carries into the next board)
+				car.sign?.stop();
 				car.phase = 'out';
 				car.m = m;
 				car.x0 = car.sprite.x;
@@ -747,6 +794,7 @@ export class RoadBoard {
 				car.m = m;
 				car.col = col;
 				car.restX = columnX(col);
+				car.sign?.seed(col);
 				car.overshoot = m.in.overshootPx * stiff;
 				car.dive = (m.in.diveDeg * stiff * Math.PI) / 180;
 				const from = this.hiddenX(car, true);
@@ -1028,10 +1076,32 @@ export class RoadBoard {
 		this.winLayer.visible = true;
 		// a line win dims the symbols that are not part of it; a plain message over the board (no cells) dims nothing
 		const length = slamLength ?? totalAt + holdMs;
-		this.win = { t0: this.winClock, holdMs: length, fadeAt: this.winClock + length, active: true, dim: wins.length > 0, totalAt, onTotal: opts.onTotal ?? null, totalOnBoard };
+		this.win = { t0: this.winClock, holdMs: length, fadeAt: this.winClock + length, active: true, dim: wins.length > 0, totalAt, onTotal: opts.onTotal ?? null, totalOnBoard, pace };
+		this.planSignWins(wins);
 		if (totalAt <= 0) this.fireTotal();
 		if (this.lightsOn) this.winFx!.update(0);
 		return this.wait(this.winClock + length, 'win');
+	}
+
+	/** THE SIGN WINS (constants SIGN_WIN stagger): each winning sign goes off as each line through it reaches it (the light
+	 *  wire's head, game/road/winLights.ts reachAt), or as the line starts; with no light lines, at once */
+	private planSignWins(wins: LineWinSpec[]) {
+		const drawn = wins.filter((w) => w.cells.length >= 2);
+		const plan = this.lightsOn && this.winFx ? this.winFx.linePlan() : null;
+		for (const car of this.cars) {
+			car.signReach.length = 0;
+			car.signNext = 0;
+			if (car.phase !== 'rest' || !car.winning || !car.sign) continue;
+			const cell = car.col * ROWS + car.lane;
+			if (plan && this.winFx) {
+				drawn.forEach((w, k) => {
+					if (!w.cells.includes(cell)) return;
+					car.signReach.push(SIGN_WIN.stagger ? this.winFx!.reachAt(k, columnX(car.col)) : (plan.starts[k] ?? 0));
+				});
+			}
+			if (!car.signReach.length) car.signReach.push(0);
+			car.signReach.sort((a, b) => a - b);
+		}
 	}
 
 	/** the strip's total is due (treatment B): the caller's moment, once */
@@ -1362,6 +1432,8 @@ export class RoadBoard {
 		const dt = Math.min(dtMs, 100); // a tab that slept does not teleport the traffic
 		this.clock += dt * rate;
 		this.winClock += dt * hurry;
+		this.realClock += dt;
+		this.signDt = dt * hurry;
 		// A SLAM STOP during a live drive in cuts straight to the stopped board (constants LANE_FLOW)
 		if (hurry > 1 && !this.hurrying) {
 			this.hurrying = true;
@@ -1434,6 +1506,8 @@ export class RoadBoard {
 						if (++this.laneStoppedCount[car.lane] === this.laneParked[car.lane]) this.laneStoppedReal[car.lane] = performance.now();
 						// a present has landed: its peek starts from its stop point
 						if (car.symbol === 'S') this.peekPresent(car, car.stopAt);
+						// a sign has landed: its decorations and snow keep going (SIGN_WIN.land hinged)
+						car.sign?.land(car.stopAt, car.dir);
 					}
 					const u = -left / m.in.settleMs;
 					if (u >= 1) {
@@ -1705,7 +1779,16 @@ export class RoadBoard {
 					const cell = car.col * ROWS + car.lane;
 					pulse = this.lineCells.some((c, i) => c.has(cell) && this.winFx!.lineUp(i, t)) || (LINE_WIN.lights.pulseWithTotal && t >= win.totalAt);
 				}
-				car.sprite.scale.set(car.baseScale * (pulse ? k : 1));
+				// a sign's swell is SIGN_WIN.pulse ('on' today's)
+				const kk = car.sign && car.sign.ok && SIGN_WIN.on ? (SIGN_WIN.pulse === 'on' ? k : SIGN_WIN.pulse === 'soft' ? 1 + (SIGN_WIN.pulseSoft - 1) * swell * swell : 1) : k;
+				car.sprite.scale.set(car.baseScale * (pulse ? kk : 1));
+				// THE SIGN WIN: off as each line's wire reaches it (once; again for a later line when SIGN_WIN.replay)
+				if (car.winning && car.sign && car.signNext < car.signReach.length) {
+					while (car.signNext < car.signReach.length && car.signReach[car.signNext] <= t) {
+						if (car.signNext === 0 || SIGN_WIN.replay) car.sign.win(win.t0 + car.signReach[car.signNext], win.pace, this.winClock);
+						car.signNext += 1;
+					}
+				}
 				const want = car.winning || !win.dim ? 1 : LINE_WIN.dim;
 				car.bright += (want - car.bright) * 0.25;
 			}
@@ -1749,7 +1832,45 @@ export class RoadBoard {
 			}
 		}
 		for (const car of this.cars) this.syncRiders(car);
+		this.updateSigns();
 		this.placeShadows();
+	}
+
+	/** THE SIGN RIGS: each follows its sprite and plays its shows (game/road/signRig.ts); THE SIGN IDLE picks one */
+	private updateSigns() {
+		const dt = this.signDt;
+		this.signDt = 0;
+		for (const car of this.cars) {
+			const rig = car.sign;
+			if (!rig) continue;
+			if (car.phase === 'free' || !isSign(car.symbol)) {
+				if (rig.root.visible) rig.root.visible = false;
+				if (rig.fx.visible) rig.fx.visible = false;
+				continue;
+			}
+			// the root in the sign's lane, just after its sprite
+			const lane = this.lanes[car.lane];
+			if (rig.root.parent !== lane || lane.getChildIndex(rig.root) !== lane.getChildIndex(car.sprite) + 1) {
+				rig.root.removeFromParent();
+				lane.addChildAt(rig.root, lane.getChildIndex(car.sprite) + 1);
+			}
+			rig.update({ sprite: car.sprite, k: this.builtK(car), phase: car.phase, dir: car.dir, shown: car.sprite.visible }, this.winClock, this.realClock, this.clock, dt);
+		}
+		// THE IDLE: one sign every 7 to 12 s while the board is idle and at rest with no win up (decoration only: the
+		// one other place a random number is used, as the through traffic)
+		const I = SIGN_WIN.idleShow;
+		if (!SIGN_WIN.on || SIGN_WIN.idle === 'off' || !this.signIdleOk || this.win || !this.atRest) {
+			this.signIdleAt = 0;
+			return;
+		}
+		if (this.signIdleAt === 0) {
+			this.signIdleAt = this.realClock + I.everyMs + Math.random() * I.everyRandMs;
+			return;
+		}
+		if (this.realClock < this.signIdleAt) return;
+		this.signIdleAt = this.realClock + I.everyMs + Math.random() * I.everyRandMs;
+		const free = this.cars.filter((c) => c.phase === 'rest' && c.sign?.ok && c.sprite.visible && !c.sign.busy);
+		if (free.length) free[Math.floor(Math.random() * free.length)].sign!.idle(this.realClock);
 	}
 
 	/** THE CAST SHADOWS (constants SHADOW, game/road/shadows.ts): each symbol's twin on the ground, pinned at its ground
@@ -1980,6 +2101,37 @@ export class RoadBoard {
 					shadow: c.riderShadow.visible,
 				};
 			});
+	}
+
+	/** DEV / probes: every sign on the road as drawn (constants SIGN_WIN, game/road/signRig.ts): its cell, phase, its sprite
+	 *  (drawing nothing while the rig draws), the rig's root just after it in its lane, the rig's pose and light, and the
+	 *  added layer's sprites shown now */
+	signSnapshot() {
+		const signs = this.cars
+			.filter((c) => c.phase !== 'free' && isSign(c.symbol))
+			.map((c) => {
+				const lane = this.lanes[c.lane];
+				const r = c.sign;
+				return {
+					slot: this.cars.indexOf(c), cell: c.phase === 'rest' ? c.col * ROWS + c.lane : null, symbol: c.symbol, phase: c.phase, dir: c.dir, winning: c.winning,
+					x: Math.round(c.sprite.x * 100) / 100, y: Math.round(c.sprite.y * 100) / 100, k: Math.round(this.builtK(c) * 10000) / 10000, spriteRotation: c.sprite.rotation,
+					spriteVisible: c.sprite.visible, spriteDraws: c.sprite.visible && c.sprite.renderable, tint: c.sprite.tint,
+					layered: !!r && r.root.parent === lane && lane.getChildIndex(r.root) === lane.getChildIndex(c.sprite) + 1,
+					reach: [...c.signReach], next: c.signNext,
+					rig: r ? r.snapshot() : null,
+				};
+			});
+		const fxShown = this.signFxLayer.children.filter((c) => c.visible).length;
+		return { on: SIGN_WIN.on, ten: SIGN_WIN.ten, signs, fxLayerIndex: this.root.getChildIndex(this.signFxLayer), lanesBelowFx: this.lanes.every((l) => this.root.getChildIndex(l) < this.root.getChildIndex(this.signFxLayer)), fxShown, idleOk: this.signIdleOk, idleAt: this.signIdleAt, realClock: this.realClock, winClock: this.winClock };
+	}
+
+	/** DEV / probes and captures: the sign parked in `cell` plays its win now (at `pace`), or its idle */
+	devSignShow(cell: number, kind: 'win' | 'idle', pace = 1): boolean {
+		const car = this.cars.find((c) => c.phase === 'rest' && c.col * ROWS + c.lane === cell && c.sign?.ok);
+		if (!car || !car.sign) return false;
+		if (kind === 'idle') car.sign.idle(this.realClock);
+		else car.sign.win(this.winClock, pace, this.winClock + 1e9);
+		return true;
 	}
 
 	/** DEV / probes: riders drawn now whose car is not (free, hidden, another symbol), and rider shadows left on: always 0 */

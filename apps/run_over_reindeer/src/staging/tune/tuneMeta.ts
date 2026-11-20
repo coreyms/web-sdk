@@ -36,13 +36,16 @@ export type Meta = {
 };
 
 /** the groups first in the panel (the ones being tuned now), then the rest of TUNE in its own order */
-export const GROUP_ORDER = ['roam', 'scene', 'ledBoard', 'logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
+export const GROUP_ORDER = ['signWin', 'roam', 'scene', 'ledBoard', 'logoSign', 'shadow', 'seated', 'lineWin', 'motion'];
 
 export const GROUP_META: Record<string, { label: string; when: When }> = {
 	// the roaming reindeer (2026-11-17, game/road/roam.ts): his speed, stops and walks are read as he goes; the area editor
 	// (RoamEditor.svelte) is drawn in this group
 	roam: { label: 'Reindeer area', when: 'live' },
 	shadow: { label: 'Shadows', when: 'live' },
+	// the sign wins (2026-11-19, game/road/signRig.ts): the motion, the glint and the timings are read every frame; the
+	// layout, the glint color, the dot size and the 10's look (ten, tenStyles) when a sign is put on the road (the next spin)
+	signWin: { label: 'Sign wins (the road signs: win, landing, idle; the 10 option is "ten")', when: 'spin' },
 	seated: { label: 'Seated drivers', when: 'live' },
 	lineWin: { label: 'Win lines', when: 'win' },
 	motion: { label: 'Road motion (lane stagger)', when: 'spin' },
@@ -105,6 +108,33 @@ const ms = (max: number, label?: string): Meta => ({ min: 0, max, step: 10, unit
 
 /** by path below TUNE; a `*` stands for any one key */
 export const META: Record<string, Meta> = {
+	// the sign wins: the mock's own controls and ranges (sign_wins_r1_2026-11-19 index.html)
+	'signWin.cand': { label: 'candidate (0 pulse, 1 glint, 2 motion, 3 both)', options: [0, 1, 2, 3] },
+	'signWin.pulse': { label: "today's pulse", options: ['off', 'soft', 'on'] },
+	'signWin.land': { label: 'landing', options: ['today', 'hinged'] },
+	'signWin.idle': { label: 'idle', options: ['glint', 'twitch', 'both', 'off'] },
+	'signWin.ten': { label: 'the 10 (white sign) look', options: ['off', 'a', 'b', 'c'] },
+	'signWin.glint.layout': { label: 'reflector layout', options: ['ring', 'field', 'sparse'] },
+	'signWin.glint.color': { label: 'glint color', options: ['face', 'white', 'ice'] },
+	'signWin.glint.intensity': { min: 0, max: 2, step: 0.05 },
+	'signWin.glint.size': { label: 'dot size', min: 0.5, max: 1.8, step: 0.05 },
+	'signWin.glint.width': { label: 'light band', min: 6, max: 40, step: 1, unit: 'road px' },
+	'signWin.glint.bloom': { min: 2, max: 8, step: 0.1 },
+	'signWin.glint.ms': ms(900, 'sweep'),
+	'signWin.glint.sweeps': { min: 1, max: 2, step: 1 },
+	'signWin.glint.rest': { label: 'seen at rest (the 10 only; the others are baked)', min: 0, max: 0.6, step: 0.02 },
+	'signWin.glint.sparkle': { label: 'sparkles', min: 0, max: 1.5, step: 0.05 },
+	'signWin.glint.bolts': { label: 'bolt glint', min: 0, max: 1.5, step: 0.05 },
+	'signWin.alive.rock': { label: 'rock', min: 0, max: 8, step: 0.1, unit: 'deg' },
+	'signWin.alive.freq': { label: 'spring', min: 1.2, max: 4, step: 0.1, unit: 'Hz' },
+	'signWin.alive.damp': ms(900, 'settle'),
+	'signWin.alive.deco': { label: 'decorations', min: 0, max: 1.6, step: 0.05 },
+	'signWin.alive.snow': { label: 'snow cap lag', min: 0, max: 2, step: 0.05 },
+	'signWin.alive.flakes': { label: 'flakes shed', min: 0, max: 10, step: 1 },
+	'signWin.alive.shudder': { min: 0, max: 2, step: 0.05 },
+	'signWin.alive.pivot': { label: 'pivot', options: ['ground', 'post'] },
+	'signWin.alive.beat': { label: 'the glint lands on', options: ['lean', 'back', 'settle'] },
+	'signWin.landing.flakes': { label: 'landing flakes', min: 0, max: 6, step: 1 },
 	'shadow.angle': { label: 'angle', min: 0, max: 90, step: 1, unit: 'deg' },
 	'shadow.length': { label: 'length', min: 0, max: 2.5, step: 0.01, unit: 'x height' },
 	'shadow.alpha': { label: 'alpha', min: 0, max: 1, step: 0.01 },
