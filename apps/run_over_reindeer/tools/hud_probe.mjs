@@ -49,6 +49,7 @@ import { createRequire } from 'node:module';
 import { pressRoundCards } from './round_card_press.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import zlib from 'node:zlib';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -198,6 +199,63 @@ const compare = (name, label, base, now) => {
 	for (const [k, v] of Object.entries(base.r)) if (now.r[k] && !same(v, now.r[k])) moved.push(`${k} readout moved`);
 	const missing = Object.keys(base.c).filter((k) => !now.c[k]);
 	check(moved.length === 0 && missing.length === 0, `${name}: no control or readout changes its box between idle and ${label}`, { moved, missing });
+};
+
+/** THE FEATURE KEY'S FACE, measured on a screenshot of the key (the disabled key's checks, 2026-11-20): the WCAG relative
+ *  luminance of the pixels in the key's middle (70 % across, 60 % down, clear of the rim), as the mean and two
+ *  percentiles. A small PNG reader (8 bit RGB or RGBA, not interlaced: what Playwright writes), so no package is needed. */
+const readPng = (buf) => {
+	let o = 8;
+	let w = 0, h = 0, ct = 0;
+	const idat = [];
+	while (o < buf.length) {
+		const len = buf.readUInt32BE(o);
+		const type = buf.toString('ascii', o + 4, o + 8);
+		const data = buf.subarray(o + 8, o + 8 + len);
+		if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); ct = data[9]; }
+		else if (type === 'IDAT') idat.push(data);
+		else if (type === 'IEND') break;
+		o += 12 + len;
+	}
+	const bpp = ct === 6 ? 4 : 3;
+	const raw = zlib.inflateSync(Buffer.concat(idat));
+	const stride = w * bpp;
+	const px = Buffer.alloc(h * stride);
+	for (let y = 0; y < h; y++) {
+		const f = raw[y * (stride + 1)];
+		const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+		for (let x = 0; x < stride; x++) {
+			const a = x >= bpp ? px[y * stride + x - bpp] : 0;
+			const b = y > 0 ? px[(y - 1) * stride + x] : 0;
+			const c = x >= bpp && y > 0 ? px[(y - 1) * stride + x - bpp] : 0;
+			let v = line[x];
+			if (f === 1) v += a;
+			else if (f === 2) v += b;
+			else if (f === 3) v += (a + b) >> 1;
+			else if (f === 4) { const p0 = a + b - c; const pa = Math.abs(p0 - a), pb = Math.abs(p0 - b), pc = Math.abs(p0 - c); v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
+			px[y * stride + x] = v & 255;
+		}
+	}
+	return { w, h, bpp, px };
+};
+const lin = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const keyFace = async (p) => {
+	// (a page screenshot clipped to the key's box: an element screenshot came back with the frame before the change)
+	const box = await p.evaluate(() => { const b = document.querySelector('.hudp .fb')?.getBoundingClientRect(); return b ? { x: b.left, y: b.top, width: b.width, height: b.height } : null; });
+	if (!box) return null;
+	const { w, h, bpp, px } = readPng(await p.screenshot({ clip: box }));
+	const L = [];
+	for (let y = Math.round(h * 0.2); y < Math.round(h * 0.8); y++)
+		for (let x = Math.round(w * 0.15); x < Math.round(w * 0.85); x++) {
+			const i = (y * w + x) * bpp;
+			L.push(0.2126 * lin(px[i]) + 0.7152 * lin(px[i + 1]) + 0.0722 * lin(px[i + 2]));
+		}
+	L.sort((a, b) => a - b);
+	const q = (t) => L[Math.min(L.length - 1, Math.floor(L.length * t))];
+	const mean = L.reduce((s, v) => s + v, 0) / L.length;
+	// the mark against the glass: its bright inlay (the top 5 %) over the glass (the darkest 15 %: on the sideways phone's
+	// small key the steel covers most of the middle)
+	return { mean, mark: q(0.95), glass: q(0.15), contrast: (q(0.95) + 0.05) / (q(0.15) + 0.05) };
 };
 
 const featureWordInside = (p) =>
@@ -396,6 +454,7 @@ async function runSize(browser, S) {
 		return b ? { text: b.textContent.trim(), aria: b.getAttribute('aria-label'), mark: !!rest && getComputedStyle(rest.parentElement).opacity === '1', on: !!b.querySelector('.em-on svg') } : null;
 	});
 	check(!!fr && fr.text === '' && fr.mark && fr.on && !!fr.aria, `${name}: the feature button at rest: the etched mark and no word (aria-label "${fr?.aria}")`, fr);
+	const restFace = await keyFace(p);
 	const ringRest = await ringNow(p);
 	check(!!ringRest && ringRest.face === 'lane-ring' && ringRest.ring && !ringRest.counted && ringRest.square === 0 && ringRest.run === '0', `${name}: the Spin at rest: the lane ring, no stop square`, ringRest);
 	check(!!sp && sp.hit.x1 - sp.hit.x0 >= 43.9 && sp.hit.y1 - sp.hit.y0 >= 43.9, `${name}: the Spin's hit area at least 44 x 44 (${sp ? `${r1(sp.hit.x1 - sp.hit.x0)} x ${r1(sp.hit.y1 - sp.hit.y0)}` : '-'})`);
@@ -472,6 +531,22 @@ async function runSize(browser, S) {
 			spun = await snap(p);
 			const rr = await ringNow(p);
 			check(!!rr && rr.st === 'run' && rr.square > 0.9 && rr.run === '1', `${name}: in a round the stop square shows over the turning ring`, rr);
+			// THE DISABLED KEY ("Cold Inlay", 2026-11-20): in a round the feature key is disabled (the attribute), its mark
+			// is the steel inlay (the rest etch hidden), the mark reads against the glass (3:1 or more) and the glass is
+			// darker than at rest (its color drained), so it is not taken for a live key
+			// (the cross-fade runs on the page's frames: up to 3 s for it to settle under a busy headless game)
+			let dk = null;
+			for (let i = 0; i < 30; i++) {
+				dk = await p.evaluate(() => {
+					const b = document.querySelector('.hudp .fb');
+					const op = (s) => { const e = b?.querySelector(s); return e ? Number(getComputedStyle(e).opacity) : null; };
+					return b ? { disabled: b.disabled, off: op('.em-off'), rest: op('.em-rest') } : null;
+				});
+				if (!dk || (dk.off === 1 && dk.rest === 0)) break;
+				await sleep(100);
+			}
+			const df = await keyFace(p);
+			check(!!dk && dk.disabled && dk.off === 1 && dk.rest === 0 && !!df && df.contrast >= 3 && !!restFace && df.glass < restFace.glass, `${name}: in a round the feature key is disabled, its mark a steel inlay ${df ? df.contrast.toFixed(2) : '?'}:1 against its glass, its glass darker than at rest (${df ? df.glass.toFixed(3) : '?'} < ${restFace ? restFace.glass.toFixed(3) : '?'})`, { dk, df, restFace });
 			if (SHOTS) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_spinning.png`) });
 		}
 		await settle(p, S);

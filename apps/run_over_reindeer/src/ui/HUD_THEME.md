@@ -29,6 +29,7 @@ win, icy blue words, white numbers, deep ice blue menus.
 | `key-on-1/2-rgb`, `key-on-a`, `key-on-ink-rgb` | NEW (bet bar fix): a lit key's fill and ink (Auto loaded, Turbo on, Menu open, the picked scene) |
 | `key-hot-1/2-rgb`, `key-hot-ink-rgb` | NEW (bet bar fix): the hotter lit key (a run playing, Turbo at instant) |
 | `mark-g1..g4-rgb`, `mark-accent-rgb`, `mark-scrim-a` | NEW (the engraved mark, 2026-11-19): the inlay's gold, the hub's accent, the dark under the mode's word |
+| `mark-steel-1..4-rgb` | NEW (the disabled key, 2026-11-20): the steel the mark is inlaid in while the key cannot be pressed |
 | `edge-top-rgb`/`-a`, `edge-bottom-rgb`/`-a`, `spec-a` | the 1 px gradient edge (top, bottom) and the specular line |
 | `edge-key-rgb` | NEW: a key's bottom edge (round keys, steppers, chips) |
 | `spin-core-rgb`, `spin-deep-rgb`, `spin-rim-top/side/bottom` | the Spin hero |

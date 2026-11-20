@@ -158,6 +158,12 @@ export const HUD_THEME: Record<string, string> = {
 	'mark-accent-rgb': '25, 211, 218',
 	/** NEW (the engraved mark): the dark under the mode's word on the gold inlay (.scr), at its middle */
 	'mark-scrim-a': '0.72',
+	/** NEW (the disabled key, "Cold Inlay", 2026-11-20): the steel the mark is inlaid in while the key cannot be pressed,
+	 *  light to dark (the mock feature_key_disabled_r1's Reindeer steel) */
+	'mark-steel-1-rgb': '186, 198, 212',
+	'mark-steel-2-rgb': '146, 162, 182',
+	'mark-steel-3-rgb': '102, 118, 140',
+	'mark-steel-4-rgb': '58, 70, 88',
 
 	// ---- states ----
 	/** a disabled key's opacity */
@@ -262,13 +268,16 @@ export const HUD_CONFIG = {
 	featureMark: {
 		rest: { look: 'etch', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
 		on: { look: 'inlay', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
+		/** DISABLED (2026-11-20, Corey's pick "Cold Inlay" from the mock feature_key_disabled_r1, its default mark strength
+		 *  62): the same mark in the same place, inlaid in steel (mark-steel-*) on the dimmed key */
+		off: { look: 'inlay', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 62, light: 0 },
 		/** the sideways phone's 34 px circle: the same three struts meeting at the hub, the hub whole and clear of the
 		 *  round rim (at the pill's 230 % and +14 % the hub's dome met the circle's curve in two slivers) */
 		round: { size: 200, x: 0, y: -10 },
 	} as FeatureMark | null,
 };
 /** the engraved mark's settings: rest, on, and the sideways circle's place and size (null: the same as the pill's) */
-export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
+export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; off: EngraveSettings | null; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
 
 /** the theme as one :root block, with a scene's tokens laid over it (applyHudScene) */
 let sceneTokens: Record<string, string> = {};
