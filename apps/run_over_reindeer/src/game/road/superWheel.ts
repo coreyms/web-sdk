@@ -722,11 +722,13 @@ export class SuperWheel {
 		const moved = this.theta - this.pegTheta;
 		const met = import.meta.env.DEV && this.pegTrace ? ([] as number[]) : null;
 		if (met && on !== null) met.push(on);
-		if (on === null && moved !== 0) {
+		if (moved !== 0) {
 			const lo = Math.min(-this.pegTheta, -this.theta) / WHEEL_STEP;
 			const hi = Math.max(-this.pegTheta, -this.theta) / WHEEL_STEP;
+			// (every stud that crossed the top since the last frame, besides one already on the tip: a fast frame can take two
+			// past it, or one past it while the next is already on it)
 			for (let k = Math.ceil(lo); k <= Math.floor(hi); k++) {
-				if (k === this.onStud) continue;
+				if (k === this.onStud || k === on) continue;
 				// the stud centred under the tip: the tip's way out of its circle (symmetric about the upright)
 				const dy = by + U.stud;
 				const R = Math.abs(dy);
@@ -738,8 +740,13 @@ export class SuperWheel {
 					F.phi = (dir * half) / DEG;
 					F.v = 0;
 				}
-				on = k;
+				if (on === null) on = k;
 				met?.push(k);
+				// (a second stud met in the same frame still ticks: its own contact)
+				if (k !== on && this.pegLoud) {
+					this.ticks += 1;
+					this.tick(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`);
+				}
 			}
 		}
 		this.pegTheta = this.theta;
@@ -1077,6 +1084,31 @@ export class SuperWheel {
 			}
 		}
 		return this.snapshot();
+	}
+	/** DEV: the standing wheel spins its real spin one (this plan's curve from where it stands, as beatDrive makes it), stepped
+	 *  by hand: devSpin() starts it, devSpinStep(ms) moves it ms of board time (the peg stepped with it); after the stop
+	 *  the peg goes on settling. The build's frame by frame pictures of the peg (no round needed) */
+	private devCurve: WheelCurve | null = null;
+	private devT = 0;
+	devSpin() {
+		if (this.phase !== 'dev' || !this.plan) return false;
+		const S = SUPER_WHEEL.spin;
+		this.devCurve = spinCurve(this.theta, this.plan, { driveMs: SUPER_WHEEL.run.driveMs, decelMs: S.decelMs, power: S.power, minDeg: S.minDeg, crawlDeg: S.crawlDeg, extraTurns: S.extraTurns });
+		this.devT = 0;
+		this.ticks = 0;
+		this.peg = { phi: 0, v: 0 };
+		this.pegTheta = this.theta;
+		this.onStud = null;
+		return curveLength(this.devCurve);
+	}
+	devSpinStep(ms: number) {
+		const c = this.devCurve;
+		if (this.phase !== 'dev' || !c) return null;
+		this.devT += ms;
+		const tS = Math.min(this.devT / 1000, curveLength(c));
+		this.setTheta(c.from - curveAt(c, tS));
+		this.stepPeg(ms / 1000);
+		return { t: this.devT, theta: this.theta, phi: this.peg.phi, onStud: this.onStud, ticks: this.ticks, done: this.devT / 1000 >= curveLength(c) };
 	}
 	devEnd() {
 		if (this.phase !== 'dev') return;

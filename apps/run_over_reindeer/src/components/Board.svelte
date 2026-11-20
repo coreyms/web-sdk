@@ -1125,6 +1125,10 @@
 			/** the wheel's own frame by hand, `ms` real ms at the board's pace (with the dev clock frozen: __reindeer.clock(0)),
 			 *  for the build's frame by frame recordings of the peg */
 			wheelStep: (ms: number) => wheel.update(ms, boardRate()),
+			/** the standing wheel (wheelShow) spins its real spin one stepped by hand: wheelDevSpin() starts it (its length, s),
+			 *  wheelDevSpinStep(ms) moves it ms of board time with the peg */
+			wheelDevSpin: () => wheel.devSpin(),
+			wheelDevSpinStep: (ms: number) => wheel.devSpinStep(ms),
 			/** the LED scoreboard (drawn over the wheel's foot) not drawn, for the probe's measurements of the whole wheel */
 			wheelAlone: (on: boolean) => {
 				if (scoreboard) scoreboard.root.renderable = !on;

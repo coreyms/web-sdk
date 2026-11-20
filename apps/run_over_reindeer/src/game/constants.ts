@@ -1991,8 +1991,9 @@ export const WILD_MULT = {
 		 *  number about inside its wedge there (still: no idle, no effects; game/road/superWheel.ts). `shade` (0: off, the
 		 *  approved look) puts a soft dark blob of that strength behind the letters: the build's legibility option for the
 		 *  numbers over the busts; `outline` (0: off) a dark outline step, each letter's own picture tinted black at that
-		 *  scale behind it (the build's notes) */
-		wheel: { caps: [64, 64, 64, 64], maxW: 160, floor: 0, gap: 0, shade: 0, outline: 0 },
+		 *  scale behind it: ON at 1.1 (2026-11-20: the striped letters over the busts, the upside down Santa wedges worst,
+		 *  read off the art only with it; the shade alone barely helped; the build's notes) */
+		wheel: { caps: [64, 64, 64, 64], maxW: 160, floor: 0, gap: 0, shade: 0, outline: 1.1 },
 	},
 	/** the glow behind the number (the atlas's soft blob, additive) in a win: its tint per color set, its size against
 	 *  the number's width and letter height, its strength at the win's peak */
