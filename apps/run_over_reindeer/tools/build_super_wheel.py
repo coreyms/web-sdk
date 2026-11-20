@@ -12,8 +12,8 @@ pre-baked sprite (no mask, filter or shader at run time):
                                  off centre: Corey, "The Wheel itself doesn't seem perfectly circle, or it's off centered").
                                  Eight copies turned by 45 degrees make the rim; the stripes repeat every 15 degrees.
   stud, bulb_<c>_<on|off>        the gold studs on the trim and the string lights (four colours, lit and dim)
-  num_<m>x                       the eight multipliers in the game's column number style (Overpass Black, gold, dark
-                                 outline), one sprite each
+  (the wedges' numbers)           since 2026-11-20 the Wild multipliers' own sprites (game/road/wildMult.ts, Corey: "put
+                                 the new wild multipliers in the place of the yellow"); the old num_<m>x went
   ring, ring_hi, ring_ptr, col_<n>   P2's inner ring of the five columns, its winner's highlight, its pointer, its digits
   hub, tag, medal_<tier>         the hub (the mock's approved layer, tools/super_wheel_src/hub.webp, recentred here on its
                                  own gold disc), the SPIN tag, the winner's face on a gold medal (the same shipped bust)
@@ -54,10 +54,27 @@ DENSITY = {"full": 2.0, "phone": 1.25}  # sheet px per wheel unit
 SS = 3  # supersampling of every drawn shape
 
 # ---- the wheel's geometry, wheel units (the mock's faces5.js and wheel_r5_open_me.html) --------------------------------
+# THE CANDY CANE RIM'S WIDTH (Corey 2026-11-20: "can we reduce the width of the candy cane border, keeping the same wheel
+# size? make the wedges and characters larger"): the candy band's width as a share of round 5's (55.3 units). The outer
+# edge stays at RIM; the gold trim, its studs and the string lights move out by what the band gives up, and the wedges
+# (their busts and numbers) grow into it about the hub. RIM_SHARE in the environment overrides it (the build's captures of
+# the other widths).
+RIM_SHARE = float(os.environ.get("RIM_SHARE", "0.5"))
+CANDY_W0 = 453.5 - 398.2  # round 5's candy band
+GROW = CANDY_W0 * (1.0 - RIM_SHARE)  # how far everything inside the candy band moves out
 RIM = 460.0  # the rim's outer edge: the reindeer runs on it
-R_WEDGE = 392.0  # the wedges run out under the gold trim
 R_HUB = 94.0
-STUD_R = 385.4
+R_WEDGE = 392.0 + GROW  # the wedges run out under the gold trim
+WEDGE_K = (R_WEDGE - R_HUB) / (392.0 - R_HUB)  # the wedges' growth about the hub
+STUD_R = 385.4 + GROW
+STUD_OUT = 17.5  # the stud's outer (ink) radius
+# THE PEG MEETS THE STUDS (Corey 2026-11-20: "pay attention to the circles the pin is supposed to come in contact with,
+# the pin moves way too early"): round 5's flapper tip hung at radius 404, outside the studs' outer edge (402.9), so no
+# stud ever reached it. Its tip now reaches TIP_BITE units into each stud's circle (the bolt moves with it; the flapper's
+# length is its art's)
+TIP_BITE = 7.0
+PEG_TIP = 165.0  # the flapper's tip below its bolt as round 3 placed it (the art measures 164.85: pegFit)
+TIP_R = STUD_R + STUD_OUT - TIP_BITE
 RING = (100.0, 168.0)  # P2's inner ring
 HUB_K = 0.8
 SLICES = 8
@@ -66,12 +83,17 @@ INK = (0x14, 0x16, 0x1F)
 COLORS = {"santa": (0xD0, 0x26, 0x2C), "reindeer": (0x1F, 0x8F, 0x45)}
 GOLD = (0xFF, 0xD2, 0x1F)
 # the rim's bands, inner to outer radius
-TRIM = {"wire": (378.5, 383.0), "gold": (383.0, 395.0), "goldLight": (385.2, 388.2), "goldDark": (392.4, 395.0), "inkIn": (395.0, 398.2), "candy": (398.2, 453.5), "inkOut": (453.5, RIM)}
+TRIM = {"wire": (378.5 + GROW, 383.0 + GROW), "gold": (383.0 + GROW, 395.0 + GROW), "goldLight": (385.2 + GROW, 388.2 + GROW), "goldDark": (392.4 + GROW, 395.0 + GROW), "inkIn": (395.0 + GROW, 398.2 + GROW), "candy": (398.2 + GROW, 453.5), "inkOut": (453.5, RIM)}
 STRIPES = 48  # red and white together: a multiple of 8, so every 45 degree piece is the same
 TWIST = 6.75  # degrees a stripe leans across the candy band
 # the bust on a wedge (MC): the character's nose at radius rf, the bust (0.6 of the picture's height) `units` tall; fx, fy
 # the nose in the trimmed picture (faces5.js ART, FACE_UP and MC's + 18 / - 14)
-BUST = {"reindeer": {"w": 564, "h": 1471, "fx": 0.62, "fy": 0.31, "rf": 270 + 18, "units": 236 - 14}, "santa": {"w": 712, "h": 1471, "fx": 0.55, "fy": 0.245, "rf": 274 + 18, "units": 244 - 14}}
+BUST0 = {"reindeer": {"w": 564, "h": 1471, "fx": 0.62, "fy": 0.31, "rf": 270 + 18, "units": 236 - 14}, "santa": {"w": 712, "h": 1471, "fx": 0.55, "fy": 0.245, "rf": 274 + 18, "units": 244 - 14}}
+# (grown with the wedge about the hub: the nose's radius and the bust's height; the shipped art itself, never redrawn)
+BUST = {t: {**b, "rf": R_HUB + (b["rf"] - R_HUB) * WEDGE_K, "units": b["units"] * WEDGE_K} for t, b in BUST0.items()}
+# THE WEDGE'S NUMBER (2026-11-20: Corey's Wild multipliers, game/road/wildMult.ts, in place of the yellow): its centre's
+# radius, round 5's number's middle (baseline 166, the digits 66 above it and 10 below) grown with the wedge
+MULT_R = R_HUB + (166.0 + (66.0 - 10.0) / 2 - R_HUB) * WEDGE_K
 MULTS = [4, 5, 6, 8, 10, 12, 15, 30]
 MULT_SIZE = 80.0  # font size, wheel units (MC); its baseline sits at radius 166
 MULT_BASE = 166.0
@@ -463,9 +485,7 @@ def build_tier(tier, busts):
         for on in (True, False):
             im, o = make_bulb(d, colour, on)
             items.append((f"bulb_{c}_{'on' if on else 'off'}", im, o))
-    for m in MULTS:
-        im, o = make_text(d, f"{m}x", MULT_SIZE, GOLD, MULT_SIZE * 0.1)
-        items.append((f"num_{m}x", im, o))
+    # (the wedges' numbers are the Wild multipliers' own atlas now: no num_ sprites here)
     for n in range(1, 6):
         im, o = make_text(d, str(n), COL_SIZE, GOLD, 5.0)
         items.append((f"col_{n}", im, o))
@@ -548,7 +568,7 @@ def main():
     for p in run["poses"]:
         print(f"  pose {p['stride']:2d}: lowered {p['lower']:6.2f} units, its hoof at {p['hoof']} frame px, {p['gap']:+.2f} units from the rim's edge")
     spec = {
-        "units": {"rim": RIM, "wedge": R_WEDGE, "hub": R_HUB, "stud": STUD_R, "ring": list(RING), "hubK": HUB_K, "slices": SLICES, "multBase": MULT_BASE, "baseRadius": 128, "peg": {"boltY": PEG_SRC["boltY"], "tip": PEG_SRC["tip"]}, "trim": {k: list(v) for k, v in TRIM.items()}},
+        "units": {"rim": RIM, "rimShare": RIM_SHARE, "wedge": round(R_WEDGE, 3), "wedgeK": round(WEDGE_K, 4), "hub": R_HUB, "stud": round(STUD_R, 3), "studOut": STUD_OUT, "ring": list(RING), "hubK": HUB_K, "slices": SLICES, "multR": round(MULT_R, 2), "baseRadius": 128, "peg": {"boltY": round(-TIP_R - PEG_TIP, 3), "tip": PEG_TIP, "tipR": round(TIP_R, 3), "bite": TIP_BITE}, "trim": {k: [round(v[0], 3), round(v[1], 3)] for k, v in TRIM.items()}},
         "mults": MULTS,
         "hubFit": notes["full"]["hub"],
         "pegFit": {"bracket": notes["full"]["peg_bracket"], "flap": notes["full"]["peg_flap"]},

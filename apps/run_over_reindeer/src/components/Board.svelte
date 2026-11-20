@@ -1119,6 +1119,12 @@
 				return wheel.devShow(plan);
 			},
 			wheelSet: (o: Parameters<SuperWheel['devSet']>[0]) => wheel.devSet(o),
+			/** the wheel's top peg frame by frame (its turn, the stud its tip is on, the tip's gap to the nearest stud's circle,
+			 *  each tick): wheelPegTrace(true) starts a record, wheelPegTrace(false) hands it back */
+			wheelPegTrace: (on: boolean) => wheel.devPegTrace(on),
+			/** the wheel's own frame by hand, `ms` real ms at the board's pace (with the dev clock frozen: __reindeer.clock(0)),
+			 *  for the build's frame by frame recordings of the peg */
+			wheelStep: (ms: number) => wheel.update(ms, boardRate()),
 			/** the LED scoreboard (drawn over the wheel's foot) not drawn, for the probe's measurements of the whole wheel */
 			wheelAlone: (on: boolean) => {
 				if (scoreboard) scoreboard.root.renderable = !on;

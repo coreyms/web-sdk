@@ -750,9 +750,11 @@ export const SUPER_WHEEL = {
 	/** A PRESS DURING THE SPIN (the slam stop's own press, ui/controls.svelte.ts): the wheel goes straight to the book's
 	 *  wedge in slamMs, the ring to the book's column in slamMs; the rest runs at the slam's hurry */
 	slamMs: 300,
-	/** the top peg: a damped spring the rim's studs push (contact from contactDeg right of the top to releaseDeg left of
-	 *  it, pushDeg at most); it never pushes the wheel */
-	peg: { stiffness: 520, damping: 15, contactDeg: 9, releaseDeg: 3, pushDeg: 24 },
+	/** THE TOP PEG (2026-11-20, Corey: "the pin moves way too early"): its flapper is a damped spring (stiffness, damping;
+	 *  degrees) turned only by the studs it touches: its tip, a circle of tipRadius wheel units, is kept out of each stud's
+	 *  circle (game/road/superWheel.ts stepPeg; the tip reaches into the studs' ring by tools/build_super_wheel.py
+	 *  TIP_BITE). It never pushes the wheel. */
+	peg: { stiffness: 520, damping: 15, tipRadius: 3 },
 	/** THE LED STRIP'S WORDS (game/scoreboard/scoreboard.ts wheelLine): plain capitals, no symbol characters */
 	text: { emerge: 'SUPER WHEEL', press: 'PRESS SPIN', auto: 'GET READY', go: 'GO REINDEER', column: 'COLUMN', names: { reindeer: 'REINDEER', santa: 'SANTA', grandma: 'GRANDMA' } },
 	/** ITS SOUNDS: existing sounds only (none was made for the wheel; the moments still wanting their own are listed in
@@ -1983,6 +1985,12 @@ export const WILD_MULT = {
 		cell: { caps: [56, 58, 60, 62], maxW: 196, floor: 21, gap: 6 },
 		col: { caps: [70, 76, 82, 88], maxW: 184, floor: 27, gap: 6 },
 		sum: { caps: [60, 64, 68, 72], maxW: 220, floor: 0, gap: 0 },
+		/** THE SUPER WHEEL'S WEDGES (2026-11-20, Corey: "put the new wild multipliers in the place of the yellow"): wheel
+		 *  units (its rim's outer radius 460), about the wedge's number place (superWheelSpec multR); maxW keeps a two digit
+		 *  number about inside its wedge there (still: no idle, no effects; game/road/superWheel.ts). `shade` (0: off, the
+		 *  approved look) puts a soft dark blob of that strength behind the letters: the build's legibility option for the
+		 *  numbers over the busts (NOTES, not shipped on) */
+		wheel: { caps: [64, 64, 64, 64], maxW: 160, floor: 0, gap: 0, shade: 0 },
 	},
 	/** the glow behind the number (the atlas's soft blob, additive) in a win: its tint per color set, its size against
 	 *  the number's width and letter height, its strength at the win's peak */

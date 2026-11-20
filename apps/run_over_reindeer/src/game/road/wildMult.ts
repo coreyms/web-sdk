@@ -37,7 +37,7 @@ import { stamp } from '../assets';
 import { STAGING_TOOLS, perfMark } from '../staging';
 import { queuePresentUpload } from './columnClips';
 
-export type MultPlace = 'cell' | 'col' | 'sum';
+export type MultPlace = 'cell' | 'col' | 'sum' | 'wheel';
 type Mode = 'hidden' | 'appear' | 'change' | 'win' | 'rest';
 
 // ---- the atlas ----------------------------------------------------------------------------------------------------------
@@ -164,6 +164,8 @@ export class WildMult {
 	readonly root = new PIXI.Container();
 	private readonly body = new PIXI.Container();
 	private readonly glow: PIXI.Sprite;
+	/** a soft dark blob behind the letters (normal blend, the glow's picture tinted black): a place's `shade` (0: none) */
+	private readonly shade: PIXI.Sprite;
 	private readonly glyphs: PIXI.Sprite[] = [];
 	private readonly sheens: PIXI.Sprite[] = [];
 	private readonly stars: PIXI.Sprite[] = [];
@@ -217,6 +219,7 @@ export class WildMult {
 			this.body.addChild(sp);
 			return sp;
 		};
+		this.shade = sprite(false, null);
 		this.glow = sprite(true, null);
 		for (let i = 0; i < MAX_GLYPHS; i++) {
 			sprite(false, this.glyphs);
@@ -405,6 +408,16 @@ export class WildMult {
 		const k = this.s / ART.sets[this.color][SIZE];
 		const ks = this.s / ART.sets.sheen[SIZE];
 
+		// a place's dark shade behind the letters (off unless the place asks for it)
+		const shadeA = (P as { shade?: number }).shade ?? 0;
+		const shadeTex = shadeA > 0 ? tex('fx_glow') : null;
+		if (shadeTex) {
+			this.shade.texture = shadeTex;
+			this.shade.visible = true;
+			this.shade.tint = 0x000000;
+			this.shade.alpha = Math.min(1, shadeA);
+			this.shade.scale.set((this.width * 1.35) / shadeTex.orig.width, (ART.h * this.s * 1.5) / shadeTex.orig.height);
+		} else this.shade.visible = false;
 		// the glow behind: a win swells it; the gold's own glow pulses at rest from 100x
 		const G = W.glow;
 		const pulse = gold ? F.glow * (1 + F.glowPulse * Math.sin((clock / F.pulseMs) * Math.PI * 2 + this.seed)) : 0;

@@ -21,7 +21,7 @@
 // rim's outer edge: never a gap, never sunk in.
 import * as PIXI from 'pixi.js';
 
-import { SUPER_WHEEL } from '../constants';
+import { SUPER_WHEEL, WILD_MULT } from '../constants';
 import { SUPER_WHEEL_ART as ART } from '../superWheelSpec';
 import { ROAD_ART } from '../roadArtSpec';
 import { stamp } from '../assets';
@@ -29,6 +29,7 @@ import { PHONE_TIER } from '../deviceTier';
 import { STAGING_TOOLS, perfMark } from '../staging';
 import { queuePresentUpload, rebatchBeforeUnload } from './columnClips';
 import { awaitRunViews, runFrame } from './reindeerRun';
+import { WildMult } from './wildMult';
 import { WHEEL_SLICES, WHEEL_STEP, curveAt, curveLength, ringAtPointer, ringCurve, slotAtPeg, spinCurve, type WheelCurve, type WheelPlan } from '../superWheelPlan';
 
 const TIER = PHONE_TIER ? 'phone' : 'full';
@@ -102,6 +103,8 @@ export const wheelMemory = () => ({ tier: TIER, loaded: textures !== null, sheet
 // ---- geometry and easing -------------------------------------------------------------------------------------------------
 /** a point at `deg` clockwise from the top, `r` out, y down */
 const pol = (deg: number, r: number): [number, number] => [Math.sin(deg * DEG) * r, -Math.cos(deg * DEG) * r];
+/** an angle (radians) brought into (-pi, pi] */
+const wrapPi = (a: number) => a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
 const ease = {
 	out: (t: number) => 1 - Math.pow(1 - t, 3),
 	inOut: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
@@ -185,6 +188,16 @@ export class SuperWheel {
 	private spinning = false;
 	private ringGo: { c: WheelCurve; t0: number } | null = null;
 	private peg = { phi: 0, v: 0 };
+	/** the stud the flapper's tip is on (its index along the rim, counted through every turn), null: none; whether the
+	 *  disc's last turn was the spin's (a new contact then ticks) or a quiet one (the rest's drift, a pose) */
+	private onStud: number | null = null;
+	private pegLoud = false;
+	/** the disc's turn when the peg last stepped (a stud that passed the tip wholly between two frames still meets it) */
+	private pegTheta = -WHEEL_STEP / 2;
+	/** DEV and the probe: the flapper frame by frame (wheelPegTrace) */
+	private pegTrace: { real: number; theta: number; phi: number; stud: number | null; gap: number; tick: boolean }[] | null = null;
+	/** the wedges' numbers: the Wild multipliers (game/road/wildMult.ts) in each wedge's character's color */
+	private nums: WildMult[] = [];
 	private mouth: { x: number; y: number; cell: number } | null = null;
 	/** the reindeer: his pose (strides, a real number), whether he is shown and on the rim */
 	private runPose = 0;
@@ -254,8 +267,15 @@ export class SuperWheel {
 			const c = new PIXI.Container();
 			c.rotation = (WHEEL_STEP / 2 + i * WHEEL_STEP) * DEG;
 			this.spr(`wedge_${slice.tier}`, c);
-			const num = this.spr(`num_${slice.m}x`, c);
-			num.position.set(0, -U.multBase);
+			// ITS NUMBER (Corey 2026-11-20: "put the new wild multipliers in the place of the yellow"): the Wild multiplier's
+			// letters in the character's own color (WILD_MULT.colors), still, about round 5's number's middle grown with the
+			// wedge (tools/build_super_wheel.py MULT_R)
+			const num = new WildMult('wheel', WILD_MULT.colors[slice.tier] ?? 'gold', i * 0.37);
+			num.root.position.set(0, -U.multR);
+			num.show(slice.m, 'still', 0);
+			num.update(0);
+			c.addChild(num.root);
+			this.nums.push(num);
 			wedgeLayer.addChild(c);
 			return c;
 		});
@@ -319,12 +339,16 @@ export class SuperWheel {
 		this.theta = -WHEEL_STEP / 2;
 		this.ringPhi = 0;
 		this.peg = { phi: 0, v: 0 };
+		this.onStud = null;
+		this.pegTheta = this.theta;
 		disc.rotation = this.theta * DEG;
 		this.layout(this.geo);
 	}
 
 	private unbuild() {
 		if (!this.wrap) return;
+		for (const n of this.nums) n.destroy();
+		this.nums = [];
 		this.wrap.destroy({ children: true });
 		this.wrap = null;
 		this.runner.removeFromParent();
@@ -623,49 +647,116 @@ export class SuperWheel {
 		const prev = this.theta;
 		this.theta = theta;
 		if (this.disc) this.disc.rotation = theta * DEG;
-		// a stud crossed the peg: one tick
-		if (!quiet && Math.floor(-prev / WHEEL_STEP) !== Math.floor(-theta / WHEEL_STEP)) {
-			this.ticks += 1;
-			this.tick(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`);
-		}
+		// (a stud's tick is its contact with the flapper's tip: stepPeg)
+		if (theta !== prev) this.pegLoud = !quiet;
 	}
 
 	/** A TICK'S SOUND, never closer to the one before than SUPER_WHEEL.sound.tickMinMs of real time (the page's clock): a
 	 *  fast wheel, a slam or a slow frame can pass several studs at once, and a tick every frame is a buzz, not a ratchet.
 	 *  A tick due sooner is simply not played. */
 	private lastTickAt = -Infinity;
-	private tick(name: string | null, detail: string) {
+	private tick(name: string | null, detail: string): boolean {
 		const now = performance.now();
-		if (now - this.lastTickAt < SUPER_WHEEL.sound.tickMinMs) return;
+		if (now - this.lastTickAt < SUPER_WHEEL.sound.tickMinMs) return false;
 		this.lastTickAt = now;
 		this.env?.sound(name, detail);
+		return true;
 	}
 
-	/** the peg: a damped spring pushed by the stud under it (it never pushes the wheel) */
+	/** THE PEG (Corey 2026-11-20: "the pin moves way too early"): a damped spring whose flapper turns about its bolt, and
+	 *  the rim's studs as real circles. The flapper's tip (a circle of SUPER_WHEEL.peg.tipRadius) may not enter a stud's
+	 *  circle (the stud's outer radius, superWheelSpec units studOut): when the spring would put it inside, it is pushed out
+	 *  to the circle's edge on the side it came from, so it starts to turn the moment a stud's leading edge reaches it,
+	 *  turns while the stud pushes past, and springs back when it clears. Nothing moves it before the contact. Its tick is
+	 *  that contact (a spin's, not the rest's drift). It never pushes the wheel.
+	 *  Until 2026-11-20 the push was a ramp by angle alone, from contactDeg (9 degrees, about 60 units of rim) before a
+	 *  stud's middle reached the top, while the tip hung at radius 404, outside the studs' outer edge (402.9): it swung
+	 *  ahead of every stud and never touched one, and its tick came at the stud's middle, later than the swing. */
 	private stepPeg(dt: number) {
 		const P = SUPER_WHEEL.peg;
 		const F = this.peg;
-		let beta = ((this.theta % WHEEL_STEP) + WHEEL_STEP) % WHEEL_STEP;
-		if (beta > WHEEL_STEP / 2) beta -= WHEEL_STEP;
-		let push = 0;
-		let pushing = false;
-		if (beta <= P.contactDeg && beta >= -P.releaseDeg) {
-			push = (P.pushDeg * (P.contactDeg - beta)) / (P.contactDeg + P.releaseDeg);
-			pushing = true;
-		}
+		const prev = F.phi;
 		const steps = Math.max(1, Math.ceil(dt / 0.008));
-		const h = dt / steps;
-		for (let i = 0; i < steps; i++) {
-			F.v += (-P.stiffness * F.phi - P.damping * F.v) * h;
-			F.phi += F.v * h;
+		const h = dt / Math.max(1, steps);
+		if (dt > 0)
+			for (let i = 0; i < steps; i++) {
+				F.v += (-P.stiffness * F.phi - P.damping * F.v) * h;
+				F.phi += F.v * h;
+			}
+		// the flapper about its bolt (wheel units, y down): its tip L below the bolt, the bolt above the tip's radius
+		const s = this.geo?.pegScale ?? 1;
+		const L = ART.pegFit.flap.tipBelowBoltUnits * s;
+		const by = -(U.peg.tipR + U.peg.tip * s);
+		const rc = U.studOut + P.tipRadius;
+		const k0 = Math.round(-this.theta / WHEEL_STEP);
+		let on: number | null = null;
+		let gap = Infinity;
+		for (let k = k0 - 1; k <= k0 + 1; k++) {
+			const a = (k * WHEEL_STEP + this.theta) * DEG;
+			const sx = Math.sin(a) * U.stud;
+			const sy = -Math.cos(a) * U.stud;
+			// |tip - stud|^2 = R^2 + L^2 + 2 L (dy cos phi - dx sin phi) = R^2 + L^2 + 2 L R cos(phi + delta)
+			const dx = -sx;
+			const dy = by - sy;
+			const R = Math.hypot(dx, dy);
+			const c = (rc * rc - R * R - L * L) / (2 * L);
+			if (c > -R) {
+				const centre = wrapPi(Math.PI - Math.atan2(dx, dy));
+				const half = Math.PI - Math.acos(Math.min(1, c / R));
+				const d = wrapPi(F.phi * DEG - centre);
+				if (Math.abs(d) < half) {
+					// inside its circle: out to the edge on the side the tip was on
+					const side = wrapPi(prev * DEG - centre) >= 0 ? 1 : -1;
+					F.phi = (centre + side * half) / DEG;
+					F.v = 0;
+					on = k;
+				}
+			}
+			const tx = -L * Math.sin(F.phi * DEG);
+			const ty = by + L * Math.cos(F.phi * DEG);
+			gap = Math.min(gap, Math.hypot(tx - sx, ty - sy) - rc);
 		}
-		if (pushing && F.phi < push) {
-			F.v = Math.max(F.v, 0);
-			F.phi = push;
+		// A STUD THAT PASSED THE TIP BETWEEN TWO FRAMES (a fast turn or a slow frame: at full speed a stud crosses the tip's
+		// reach in under a frame): it met the tip all the same, so the flapper is where that stud left it at its deepest
+		// (centred under the tip: turned to the edge of its circle the way it was going) and it ticks
+		const moved = this.theta - this.pegTheta;
+		if (on === null && moved !== 0) {
+			const lo = Math.min(-this.pegTheta, -this.theta) / WHEEL_STEP;
+			const hi = Math.max(-this.pegTheta, -this.theta) / WHEEL_STEP;
+			for (let k = Math.ceil(lo); k <= Math.floor(hi); k++) {
+				if (k === this.onStud) continue;
+				// the stud centred under the tip: the tip's way out of its circle (symmetric about the upright)
+				const dy = by + U.stud;
+				const R = Math.abs(dy);
+				const c = (rc * rc - R * R - L * L) / (2 * L);
+				if (c <= -R) continue;
+				const half = Math.PI - Math.acos(Math.min(1, c / R));
+				const dir = moved < 0 ? 1 : -1;
+				if (dir * F.phi < half / DEG) {
+					F.phi = (dir * half) / DEG;
+					F.v = 0;
+				}
+				on = k;
+			}
 		}
+		this.pegTheta = this.theta;
+		let ticked = false;
+		if (on !== null && on !== this.onStud && this.pegLoud) {
+			this.ticks += 1;
+			ticked = this.tick(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`);
+		}
+		this.onStud = on;
+		if (import.meta.env.DEV && this.pegTrace && this.pegTrace.length < 20000) this.pegTrace.push({ real: performance.now(), theta: this.theta, phi: F.phi, stud: on, gap, tick: ticked });
 		// (its art's tip hangs a little off its bolt's upright line: turned back onto it)
 		const rest = (Math.atan2(ART.pegFit.flap.tipOffsetUnits, ART.pegFit.flap.tipBelowBoltUnits) * 180) / Math.PI;
 		this.flap.rotation = (F.phi + rest) * DEG;
+	}
+
+	/** DEV and the probe: record the flapper frame by frame from now (true), or read and stop (false) */
+	devPegTrace(on: boolean) {
+		const out = this.pegTrace;
+		this.pegTrace = on ? [] : null;
+		return out;
 	}
 
 	/** A PRESS DURING THE SPIN (the slam stop's press; components/Board.svelte passes stopButtonClick here): straight to the
@@ -807,6 +898,8 @@ export class SuperWheel {
 	// ---- the frame ----------------------------------------------------------------------------------------------------------
 	/** `dtMs` real ms (the dev clock applied), `rate` the board's pace (turbo, a slam stop's hurry) */
 	update(dtMs: number, rate: number) {
+		// the wedges' numbers draw (still) as soon as the multiplier atlas is in, the dev pose included
+		if (this.wrap) for (const n of this.nums) n.update(this.clock);
 		if (!this.active || !this.wrap || this.phase === 'dev') return;
 		if (!this.geo) return;
 		const dt = Math.min(100, dtMs) * rate;
@@ -901,6 +994,12 @@ export class SuperWheel {
 			runner: { shown: this.runner.visible, onRim: this.onRim, pose: this.runPose, stride: (((Math.floor(this.runPose) % 16) + 16) % 16) + 1, x: this.runner.x, y: this.runner.y, rotation: this.runner.rotation / DEG, scale: this.runner.scale.y, width: this.geo ? this.runnerWidth() : 0 },
 			bulbs: this.lights?.visible ?? false,
 			peg: this.peg.phi,
+			onStud: this.onStud,
+			/** the wedges' numbers, wedge by wedge: the Wild multiplier's color, value and place, how many letters drawn */
+			nums: this.nums.map((n) => {
+				const st = n.state();
+				return { color: st.color, value: st.value, place: st.place, glyphs: n.glyphBounds().length };
+			}),
 			auto: this.autoAt !== null,
 			ticks: this.ticks,
 			led: this.ledKey,
@@ -936,7 +1035,12 @@ export class SuperWheel {
 	 *  the rim in a stride (1 to 16) */
 	devSet(o: { theta?: number; ringPhi?: number; ring?: boolean; hi?: number | null; ringHi?: number | null; only?: string[] | null; stride?: number | null; tag?: boolean; medal?: boolean }) {
 		if (this.phase !== 'dev' || !this.wrap) return null;
-		if (o.theta !== undefined) this.setTheta(o.theta, true);
+		if (o.theta !== undefined) {
+			this.setTheta(o.theta, true);
+			// the flapper meets the studs where they now are
+			this.peg = { phi: 0, v: 0 };
+			this.stepPeg(0);
+		}
 		if (o.ringPhi !== undefined) {
 			this.ringPhi = o.ringPhi;
 			this.ring.rotation = o.ringPhi * DEG;
