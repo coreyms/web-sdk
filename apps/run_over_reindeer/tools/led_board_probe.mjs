@@ -2397,9 +2397,11 @@ async function ledAnimChecks(browser) {
 //     the screens still advance
 //   - the cost: the ladder's and the entries' draw step (median, p90) and the GPU bytes the same as today's scenes
 //   - THE REAL TRIGGER COUNT (Corey 2026-11-20: "Real trigger count"): the Free Spins entry pops as many presents as the
-//     card says the round triggered with, for 3, 4 and 5 (the math gives Free Spins 3, Super 4 or 5: every count laid
-//     inside the face, none overlapping, each teal on the face's LEDs); on desktop@2 a real natural_free_spins round's entry
-//     pops the book's own trigger count (its freeSpinTrigger cells)
+//     card says the round triggered with, for 3 and 4 (the math gives Free Spins exactly 3, Super exactly 4: every count
+//     laid inside the face, none overlapping, each teal on the face's LEDs); 5 is IMPOSSIBLE since math 2026.11.20b (Corey
+//     2026-11-20: "Fix the math, to remove the 5th scatter, it shouldn't be there"): no fixture book has a trigger or a
+//     board with more than 4 presents; on desktop@2 a real natural_free_spins round's entry pops the book's own trigger
+//     count (its freeSpinTrigger cells)
 //   - THE SUPER PRESENT ON THE STRIP ("the 4th should be red"): a Super hit's scatter count on the strip shows teal, teal,
 //     teal, red, read from the face's own LEDs (by hand at every size; on desktop@2 also in a real natural_super round)
 const IDEAS_CASES = [
@@ -2731,7 +2733,7 @@ async function ideasChecks(browser) {
 					const h = window.__reindeer;
 					h.scoreboardManual(true);
 					const out = [];
-					for (const n of [3, 4, 5]) {
+					for (const n of [3, 4]) {
 						h.scoreboardCard('fs', { spins: 10, presents: n });
 						let s = h.scoreboardStep(0);
 						// (landed and jiggling, before the pop: sceneT 1150)
@@ -2746,6 +2748,18 @@ async function ideasChecks(browser) {
 					h.scoreboardManual(false);
 					return out;
 				});
+				// 5 IS IMPOSSIBLE (math 2026.11.20b): no book the game holds has a trigger, a retrigger or a board with 5 presents
+				const fives = await R(p, async () => {
+					const { SHOWCASE_ROUNDS } = await import('/src/fixtures/showcaseBooks.ts');
+					const bad = [];
+					for (const r of SHOWCASE_ROUNDS)
+						for (const e of r.events ?? []) {
+							if ((e.type === 'freeSpinTrigger' && e.cells.length !== (e.bonusType === 'super' ? 4 : 3)) || (e.type === 'freeSpinRetrigger' && e.cells.length !== 3)) bad.push(`${r.name} ${e.type} ${e.cells.length}`);
+							if (e.type === 'reveal' && e.board.flat().filter((x) => x === 'S').length > 4) bad.push(`${r.name} reveal ${e.index}`);
+						}
+					return { bad, rounds: SHOWCASE_ROUNDS.length };
+				});
+				check(fives.rounds > 20 && fives.bad.length === 0, `${tag}: TRIGGER COUNT 5 IS IMPOSSIBLE: across the ${fives.rounds} fixture rounds every Free Spins trigger is exactly 3 presents, every Super trigger exactly 4, every retrigger 3, and no board shows 5`, fives.bad.slice(0, 6));
 				for (const c of counts) {
 					const b = c.rec?.boxes ?? [];
 					const inside = b.every(([x, y, w, hh]) => x >= 1 && y >= 0 && x + w <= c.W - 1 && y + hh <= c.H);

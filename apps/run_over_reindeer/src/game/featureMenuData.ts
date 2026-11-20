@@ -19,7 +19,9 @@ import { soc } from './social';
 export const ODDS_ARE_PROVISIONAL = false; // Corey 2026-11-18: "I think the Math is done." Every row checked against results/build_2026-11-18/BUILD_REPORT.md
 // MATH 2026.11.20 (Corey 2026-11-20, option B: every published trigger rate kept; REDRAW_2026-11-20.md): every trigger row is
 // unchanged to the digit shown (base 1 in 212.76 / 2,127.6; antes 76.44 / 1,000, 42.60 / 250, 51.44 / 40). The max win in
-// the base game is now 1 in 4.42 million (4,424,690; was 2,967,562). The bought Super's "Guaranteed minimum 20x" row is
+// the base game is now 1 in 4.42 million (4,424,690; was 2,967,562). BUILD 2026-11-20b (no fifth scatter, Corey 2026-11-20:
+// "Fix the math, to remove the 5th scatter, it shouldn't be there"): every trigger row still to the digit (Super's rate is
+// now all 4-present triggers); the max win 1 in 4.54 million (4,542,935). The bought Super's "Guaranteed minimum 20x" row is
 // gone: the game states no minimum anywhere.
 
 /** one short odds row: what it is, and the figure */
@@ -116,7 +118,7 @@ export const FAST_LANE_TEXT = {
 };
 
 // ---- the odds rows (PROVISIONAL: see the top of the file) -----------------------------------------------------------
-const MAX_WIN_ROW: OddsRow = { label: 'Max win 7,777x, base game', value: '~1 in 4.42 million' };
+const MAX_WIN_ROW: OddsRow = { label: 'Max win 7,777x, base game', value: '~1 in 4.54 million' };
 
 export const BUY_ODDS: Record<'BONUS' | 'SUPER', OddsRow[]> = {
 	BONUS: [
