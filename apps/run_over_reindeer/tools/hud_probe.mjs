@@ -733,9 +733,9 @@ const spinRecStart = (p) =>
 		requestAnimationFrame(f);
 	});
 const spinRecStop = (p) => p.evaluate(() => { const r = window.__spinRec; r.on = false; return r.rows; });
-function spinJudge(rows, tag, want) {
+function spinJudge(rows, tag, want, until = Infinity) {
 	const starts = [];
-	for (let i = 1; i < rows.length; i++) if (rows[i].s !== rows[i - 1].s) starts.push(i);
+	for (let i = 1; i < rows.length; i++) if (rows[i].s !== rows[i - 1].s && rows[i].t < until) starts.push(i);
 	const missed = [];
 	for (const i of starts) {
 		const t0 = rows[i].t;
@@ -772,10 +772,13 @@ async function everyRoundTurns(browser) {
 		if (n >= 7) break;
 		await sleep(100);
 	}
+	// (the press that ends the run is a Stop on the round then playing: it brakes the ring at once, as a stop should, so
+	// a start within 450 ms before that press, or after it, is not judged)
+	const stopAt = await p.evaluate(() => performance.now());
 	await p.click(CONTROLS.spin).catch(() => {});
 	await settle(p, S, 120000);
 	await sleep(600);
-	spinJudge(await spinRecStop(p), 'autoplay back to back (Super Turbo, no win)', 6);
+	spinJudge(await spinRecStop(p), 'autoplay back to back (Super Turbo, no win)', 6, stopAt - 450);
 	await p.evaluate(() => window.__reindeer.fixtures.clear?.());
 	for (let k = 0; k < 3; k++) {
 		if ((await p.evaluate(() => +document.querySelector('.hudp button.spin').dataset.tb)) === 0) break;
