@@ -931,6 +931,23 @@
 .hudp .fbtn.circ.ln.noic .lb.two {
 	display: flex;
 }
+/* THE ANTE LEVEL'S WORD on the phones' small keys (2026-11-20, Corey: "2X ANTE, 4X ANTE, 10X ANTE"): two lines, "10X" over
+   "ANTE", at the size the single word ANTE had (the upright pill: 20.77 % of its height; the sideways circle: 7.5 px, both
+   lines and every level the same, the top level's double rim included) */
+.hudp .fbtn.circ.wide.noic.ante .lb.two {
+	gap: 1px;
+	font-size: calc(var(--k) * 0.2077);
+	letter-spacing: 0.12em;
+	text-indent: 0.12em;
+}
+.hudp .fbtn.circ.ln.noic.ante .lb.two {
+	gap: 1px;
+	margin-top: 0;
+	font-size: 7.5px;
+	line-height: 1.05;
+	letter-spacing: 0.04em;
+	text-indent: 0.04em;
+}
 /* a painted glyph (FEATURE_GLYPHS): its own colors, not the button's ink */
 .hudp .fbtn .ic.art {
 	color: inherit;

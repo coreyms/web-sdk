@@ -18,8 +18,8 @@
 //   · no control or readout changes its box between idle, spinning, autoplay running, a win shown, free spins, and
 //     each Ante level on (0.5 px)
 //   · the three amount fields hold the long values at their fixed type size: BALANCE "$9,999,999.99", WIN
-//     "$1,250,000.00", the amount "$1,000.00"; the feature button: no word at rest (the engraved mark), ANTE inside it
-//     with an Ante level on
+//     "$1,250,000.00", the amount "$1,000.00"; the feature button: no word at rest (the engraved mark), 2X ANTE, 4X ANTE
+//     or 10X ANTE whole inside it with an Ante level on
 //   · desktop sizes: the WIN readout's centre within 2 px of the viewport's vertical centre line
 //   · the help menu opens fully on screen and off the Spin, a plain panel with no tail (its box is its body, since the bet
 //     bar fix 2026-11-19), and closes on a second Menu press; the Autoplay menu opens
@@ -422,7 +422,10 @@ async function runSize(browser, S) {
 		compare(name, `${mode} on`, idle, s);
 		const f = await featureWordInside(p);
 		const cls = await p.evaluate(() => document.querySelector('.hudp .fb')?.className ?? '');
-		check(f?.text === 'ANTE' && f.inside && /\bante\b/.test(cls) && (mode === 'ANTE_10') === /\bsante\b/.test(cls), `${name}: ${mode}: the feature button says ${f?.text}, in its "on" state${mode === 'ANTE_10' ? ' with the double rim' : ''}`, { f, cls });
+		// the level's word (Corey 2026-11-20: "2X ANTE, 4X ANTE, 10X ANTE"): its number is the mode's RGS cost
+		const cost = await p.evaluate((k) => window.__reindeer.fastLane?.rgsCost?.(k) ?? null, mode);
+		const want = `${cost ?? mode.split('_')[1]}X ANTE`;
+		check(f?.text === want && f.inside && /\bante\b/.test(cls) && (mode === 'ANTE_10') === /\bsante\b/.test(cls), `${name}: ${mode}: the feature button says ${f?.text} (${want}), whole inside the key, in its "on" state${mode === 'ANTE_10' ? ' with the double rim' : ''}`, { f, cls });
 		if (SHOTS && mode === 'ANTE_10' && (S.name === 'portrait' || S.name === 'desk1610' || S.name === 'landscape')) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_ante10.png`) });
 	}
 	await p.evaluate(() => window.__reindeer.hud.setMode('BASE'));
