@@ -220,7 +220,7 @@ export const META: Record<string, Meta> = {
 	'ledBoard.ideas': { label: 'LED ideas (round 1 picks)', when: 'live' },
 	'ledBoard.ideas.fsEntry': { label: 'Free Spins entry', options: ['presents', 'today'] },
 	'ledBoard.ideas.sfsEntry': { label: 'Super entry', options: ['tease', 'today'] },
-	'ledBoard.ideas.fsPresents': { label: 'Free Spins entry: presents', min: 3, max: 5, step: 1 },
+	'ledBoard.ideas.fsPresents': { label: 'Free Spins entry: presents for a card by hand (a real round pops its own trigger count)', min: 3, max: 5, step: 1 },
 	'ledBoard.ideas.total': { label: 'Total Win', options: ['ladder', 'today'] },
 	'ledBoard.ideas.totalBySize': { label: 'Total Win count by size (off: 3 s for all)' },
 	'ledBoard.ideas.totalBySize.ms.*': ms(8000),

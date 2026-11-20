@@ -5,6 +5,8 @@ import { LED_BOARD, LED_SIGN } from '../constants';
 import { SCREENS, dissolve, drawText, textW, type LedText } from '../landing/ledScreens';
 import { burst, chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, type Face } from './scoreboardDraw';
 import { copyFace } from './ledGrid';
+import { RED_FROM } from '../road/present';
+import { noteIdea } from './ideasKit';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const ease = (t: number) => {
@@ -64,7 +66,14 @@ export function showScatterCount(F: Face, s: ScatterFace, clock: number) {
 	const iw = Math.round(lay.icon * PRESENT_K);
 	const since = clock - s.tickAt;
 	const pop = clamp(since / K.popMs, 0, 1);
+	// THE SUPER PRESENT IS RED (Corey 2026-11-20: "on Super Free Spins the small LED board shows 4 presents, but they are all
+	// blue, the 4th should be red"): as on the road (game/road/present.ts RED_FROM, roadBoard rankPresents), the present
+	// that makes a trigger Super, the 4th and on, is the red one; the first three stay teal. Only a base spin's count has
+	// a 4th place (a bonus round's needs 3), dim or lit as the rest
+	const names: string[] = [];
 	for (let i = 0; i < need; i++) {
+		const pic = i + 1 >= RED_FROM ? 'present_red' : 'present';
+		names.push(pic);
 		const x = lay.x0 + i * (iw + lay.gap);
 		const lit = i < s.count;
 		const newest = lit && i === s.count - 1 && since < K.popMs;
@@ -73,15 +82,17 @@ export function showScatterCount(F: Face, s: ScatterFace, clock: number) {
 			const k = 1 + 0.5 * (1 - ease(pop));
 			const h = Math.round(lay.icon * k);
 			const w = Math.round(h * PRESENT_K);
-			sprite(g, 'present', Math.round(x + iw / 2 - w / 2), lay.iconY + Math.round((h - lay.icon) / 2), h);
+			sprite(g, pic, Math.round(x + iw / 2 - w / 2), lay.iconY + Math.round((h - lay.icon) / 2), h);
 		} else {
 			g.globalAlpha = lit ? 1 : K.dimAlpha;
-			sprite(g, 'present', x, lay.iconY, lay.icon);
+			sprite(g, pic, x, lay.iconY, lay.icon);
 			g.globalAlpha = 1;
 		}
 		// the newest one's ring of dots
 		if (lit && i === s.count - 1 && since >= 0 && since < K.tickMs) burst(g, x + iw / 2, lay.iconY - lay.icon / 2, since / K.tickMs, Math.round(lay.icon * 0.9));
 	}
+	// (the probe: each present's picture and its box in dots, left to right)
+	noteIdea(g.canvas, 'scatter', { names, boxes: names.map((_, i) => [lay.x0 + i * (iw + lay.gap), lay.iconY - lay.icon, iw, lay.icon]), count: s.count, need });
 	const str = `${Math.min(s.count, 99)} OF ${need}`;
 	const pulse = since >= 0 && since < K.tickMs ? 1 - since / K.tickMs : 0;
 	drawRow(g, str, lay.textX + (rowInfo(lay.str, lay.cap).w - rowInfo(str, lay.cap).w), lay.textY, lay.cap, s.fwAt !== null ? 'gold' : '#ffffff', pulse);

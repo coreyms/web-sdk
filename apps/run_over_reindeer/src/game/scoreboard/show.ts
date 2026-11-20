@@ -65,6 +65,8 @@ export type Show = {
 	 *  Total Win's ladder and its size class read them (a win's tier reads `final`) */
 	x: number;
 	capped: boolean;
+	/** (2026-11-20) an entry's trigger scatter count, the book's freeSpinTrigger cells (0: not known) */
+	presents: number;
 };
 /** the three bonus round cards on the back board */
 export const isCard = (s: Show | null): boolean => !!s && (s.kind === 'fs' || s.kind === 'sfs' || s.kind === 'total');
@@ -139,6 +141,7 @@ export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: nu
 		line: null,
 		x: o.x,
 		capped: false,
+		presents: 0,
 	};
 	if (small) {
 		// (2026-11-17: a line win's strip total counts over its own time, LINE_WIN.slam stripCountMs at the turbo level's pace)
@@ -188,7 +191,7 @@ export const ladderBars = (): number[] => LED_BOARD.tiers.map((x, i, a) => (i ==
  *  and waits: the card's own press ends it (endShow), never a timer of its own. (2026-11-19, LED_BOARD.ideas) `x` the
  *  round's win in play multiples, `capped` the cap: with the ladder the count runs on the house pacer (each rung crossed
  *  gets its moment; the count's length is the same), the length by size and the cap page's hold are switches left off. */
-export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null; x?: number; capped?: boolean; auto?: boolean }): Show => {
+export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null; x?: number; capped?: boolean; auto?: boolean; presents?: number }): Show => {
 	const L = LED_BOARD;
 	const S = L.scenes;
 	const I = L.ideas;
@@ -223,6 +226,7 @@ export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; am
 		line: o.line ?? null,
 		x: o.x ?? 0,
 		capped: !!o.capped,
+		presents: Math.max(0, Math.round(o.presents ?? 0)),
 	};
 	if (o.kind === 'total') {
 		// (the count's length: today's flat totalCountMs, or by the round's size when that switch is on; a turbo level divides it)

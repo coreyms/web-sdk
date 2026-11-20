@@ -4,7 +4,7 @@
 // press (landCard: the scene jumps to its READY beat), the press line's time (scenes fsPressMs 2300, sfsPressMs 2900), the
 // explanation page that wipes in then (explainDraw.ts) and Autoplay Bonuses (the card continues 1.4 s after it comes up) are
 // exactly as before. The words are today's: the spin count, FREE SPINS, SUPER. Nothing new is said on the board.
-//   PRESENTS POP (Free Spins): fsPresents presents fly up from the reels' side of the board, land, jiggle and pop (the lid
+//   PRESENTS POP (Free Spins): the round's trigger scatters (the book's count; fsPresents for a card by hand) fly up from the reels' side of the board, land, jiggle and pop (the lid
 //     flies off, the box falls away, a burst of dots); the count rises out of the middle one and slams to its size, FREE
 //     SPINS under it, then today's READY beat (confetti, the reindeer trotting)
 //   RED PRESENT TEASE (Super): the red present (the Super scatter) drops in; its lid lifts and a window rises out of it with
@@ -74,7 +74,9 @@ export function presentsEntry(F: Face, s: Show) {
 	g.clearRect(0, 0, W, H);
 	const lay = entryNumberLayout(W, H, num, 'FREE SPINS', null);
 	fsBack(g, W, H, s.t);
-	const n = clamp(Math.round(LED_BOARD.ideas.fsPresents), 3, 5);
+	// (2026-11-20, Corey: "Real trigger count": the scatters the round triggered with, the book's own count; the tune
+	// panel's fsPresents only where none is known, a card raised by hand. Not clamped: the layout fits any count)
+	const n = s.presents > 0 ? s.presents : Math.max(1, Math.round(LED_BOARD.ideas.fsPresents));
 	const name: ArtName = 'present';
 	const ph = Math.round(Math.min(H * 0.3, (W / (n + 1)) * 0.85));
 	const yRest = Math.round(H * 0.5 + ph / 2);
@@ -87,6 +89,8 @@ export function presentsEntry(F: Face, s: Show) {
 	const lidH = sh * 0.42;
 	const w = picW(name, ph);
 	const drawn: string[] = [];
+	// (the presents' places at rest, dots [x, y, w, h]: the probe checks every count fits the face, none overlapping)
+	const boxes = Array.from({ length: n }, (_, i) => [Math.round((W * (i + 1)) / (n + 1) - w / 2), yRest - ph, w, ph]);
 	for (let i = 0; i < n; i++) {
 		const xs = (W * (i + 1)) / (n + 1);
 		const ti = i * stagger;
@@ -145,7 +149,7 @@ export function presentsEntry(F: Face, s: Show) {
 	if (t >= numAt + 160) boardTitle(g, 'FREE SPINS', W / 2, lay.titleY, lay.tts, '#7cc4ff', { word: true });
 	if (t >= READY.fs - 500) confetti(g, W, H, s.t, 0.7);
 	readyTrot(g, W, H, s, t, false);
-	noteIdea(g.canvas, 'entry', { kind: 'fs-presents', presents: drawn });
+	noteIdea(g.canvas, 'entry', { kind: 'fs-presents', presents: drawn, count: n, boxes });
 }
 
 // ==== THE RED PRESENT TEASE (sfs-tease) ==========================================================================================
