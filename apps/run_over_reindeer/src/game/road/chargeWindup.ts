@@ -18,7 +18,9 @@
 //                set off cuts spawns none; specks in the air finish); and at the crosshair's lock four breath puffs from
 //                the nose of whatever frame shows then (a charge frame standing, the side run's stride running), the
 //                running ones carrying his speed and easing off. Their motion is the export's fx.json, copied into
-//                game/reindeerRoamSpec.ts by tools/build_roam.py.
+//                game/reindeerRoamSpec.ts by tools/build_roam.py. Since 2026-11-20 (Corey: "Make them read") both are
+//                drawn drawScale (2) times the export's size, from versions tools/build_roam.py derives from the rig's
+//                sprites with a cool blue-grey falloff and a shaded underside (readable_fx).
 // planWindup is pure (the probes check it); ChargeFx holds a fixed pool of sprites made once, no allocation per frame.
 import * as PIXI from 'pixi.js';
 
@@ -75,7 +77,7 @@ export const windupFrame = (plan: WindupPlan, clock: number): number => {
 };
 
 type Kind = 'puff' | 'snow';
-type Particle = { sprite: PIXI.Sprite; kind: Kind; on: boolean; t: number; life: number; x: number; y: number; vx: number; vy: number; g: number; r0: number; r1: number; a0: number; kf: number; cx: number; cy: number; tau: number };
+type Particle = { sprite: PIXI.Sprite; kind: Kind; on: boolean; t: number; life: number; x: number; y: number; vx: number; vy: number; g: number; r0: number; r1: number; a0: number; kf: number; cx: number; cy: number; tau: number; ds: number };
 
 const SNOW_MAX = FX.snow.drag.frames.length * FX.snow.drag.per_frame + FX.snow.kick.count;
 const PUFF_MAX = FX.puff.count;
@@ -100,7 +102,7 @@ export class ChargeFx {
 			sprite.anchor.set(0.5);
 			sprite.visible = false;
 			this.root.addChild(sprite);
-			this.pool.push({ sprite, kind: i < SNOW_MAX ? 'snow' : 'puff', on: false, t: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, r0: 0, r1: 0, a0: 1, kf: 1, cx: 0, cy: 0, tau: 1 });
+			this.pool.push({ sprite, kind: i < SNOW_MAX ? 'snow' : 'puff', on: false, t: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, r0: 0, r1: 0, a0: 1, kf: 1, cx: 0, cy: 0, tau: 1, ds: 1 });
 		}
 	}
 
@@ -141,6 +143,7 @@ export class ChargeFx {
 				p.cx = 0;
 				p.cy = 0;
 				p.tau = 1;
+				p.ds = S.drawScale;
 				p.sprite.texture = tex.texture;
 			}
 			this.log.snow.push({ t, frame, n: made });
@@ -179,6 +182,7 @@ export class ChargeFx {
 			p.cx = vx;
 			p.cy = vy;
 			p.tau = P.carry_tau_ms;
+			p.ds = P.drawScale;
 			p.sprite.texture = tex.texture;
 			i++;
 		}
@@ -211,7 +215,8 @@ export class ChargeFx {
 			// (the mock's motion: x + vx age; y + vy age + g age^2; a running puff carried v tau (1 - e^-age/tau))
 			const carry = p.cx || p.cy ? p.tau * (1 - Math.exp(-age / p.tau)) : 0;
 			s.position.set(p.x + p.vx * age * p.kf + p.cx * carry, p.y + (p.vy * age + p.g * age * age) * p.kf + p.cy * carry);
-			const d = 2 * lerp(p.r0, p.r1, u) * p.kf;
+			// (drawn drawScale times the export's size: Corey 2026-11-20 "Make them read"; tools/build_roam.py FX_DRAW)
+			const d = 2 * lerp(p.r0, p.r1, u) * p.kf * p.ds;
 			s.width = d;
 			s.height = d;
 			s.alpha = p.a0 * (1 - u);
@@ -249,7 +254,9 @@ export class ChargeFx {
 			else puff++;
 		}
 		const shown = this.pool.filter((p) => p.sprite.visible).length;
-		return { snow, puff, pending, shown, visible: this.root.visible, pool: this.pool.length };
+		const widest = (k: Kind) => Math.round(Math.max(0, ...this.pool.filter((p) => p.kind === k && p.sprite.visible).map((p) => p.sprite.width)) * 100) / 100;
+		const texW = (k: Kind) => this.pool.find((p) => p.kind === k)?.sprite.texture.width ?? 0;
+		return { snow, puff, pending, shown, visible: this.root.visible, pool: this.pool.length, puffW: widest('puff'), snowW: widest('snow'), puffTexW: texW('puff'), snowTexW: texW('snow') };
 	}
 
 	destroy() {

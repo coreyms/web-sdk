@@ -78,6 +78,53 @@ def resize_box(im, bw, bh):
 # him almost no spot to stand on (265 of 300 seeded picks found none). The glow may lie up to (glowUp - up) past it.
 SOLID = 128
 
+# THE EFFECTS MADE TO READ (Corey 2026-11-20, "Make them read": the rig's white puff and specks were all but invisible
+# on the pale snow and sky). Derived here from the rig's own fx/puff.png and fx/snow.png (never redrawn; the files are
+# kept as delivered): drawn FX_DRAW times the export's size, and given a faint cool blue-grey edge and a shaded underside,
+# the scene's snow shading language (a cool shade lit from the top left, as the van's backfire puff is lit), thin, so
+# they stay weather details and not cartoon clouds. The motion, counts and spawn points are the export's (fx.json).
+FX_DRAW = {"puff": 2.0, "snow": 2.0}
+FX_EDGE = (112, 132, 164)  # the edge, a cool blue-grey
+FX_SHADE = (190, 205, 228)  # the underside's shade
+FX_EDGE_ALPHA = {"puff": 0.85, "snow": 0.6}
+
+
+def _smooth(x, a, b):
+    t = np.clip((x - a) / (b - a), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def readable_fx(name, im):
+    """the export's sprite with a faint blue-grey edge and a shaded underside (same size, straight alpha)"""
+    arr = np.asarray(im.convert("RGBA")).astype(np.float32) / 255.0
+    a = arr[..., 3]
+    h, w = a.shape
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    ys, xs = np.where(a > 0.02)
+    cx, cy = (xs.min() + xs.max()) / 2, (ys.min() + ys.max()) / 2
+    r = max(xs.max() - xs.min(), ys.max() - ys.min()) / 2 + 1e-6
+    # lit from the top left: 0 on the lit side, 1 on the underside
+    under = _smooth(((xx - cx) * 0.45 + (yy - cy) * 0.9) / r, -0.2, 0.9)
+    if name == "puff":
+        # the soft breath: a firmer body (its faint outer half lifted), its falloff turning cool toward the rim (no
+        # ring: a breath has no line)
+        alpha = np.clip(a * 2.0, 0, 1) ** 0.8
+        edge = (1 - _smooth(a, 0.03, 0.75)) * (alpha > 0.01)
+    else:
+        # the speck: the export's disc already has a cool grey rim; it only gets the shaded underside, the rim a touch
+        # firmer
+        alpha = a
+        d = np.hypot(xx - cx, yy - cy) / r
+        edge = _smooth(d, 0.55, 0.95) * a
+    # (from the export's own colors: the speck's rim is already a cool grey)
+    rgb = arr[..., :3].copy()
+    shade = np.array(FX_SHADE, np.float32) / 255
+    rgb = rgb * (1 - 0.8 * under[..., None]) + shade * (0.8 * under[..., None])
+    e = np.array(FX_EDGE, np.float32) / 255
+    k = (edge * FX_EDGE_ALPHA[name])[..., None]
+    rgb = rgb * (1 - k) + e * k
+    return Image.fromarray((np.dstack([rgb, alpha]) * 255).round().astype(np.uint8), "RGBA")
+
 
 def ink_reach(src, clip, frames, m):
     ax, ay = m["anchor_px"]
@@ -166,6 +213,9 @@ def main():
         spec["fx"]["snow"][f"{axis}_frame_px_per_ms"] = [-hi, -lo]
     tau = re.search(r"tau ([0-9.]+) ms", fx["puff"]["carry"])
     spec["fx"]["puff"]["carry_tau_ms"] = float(tau.group(1))
+    # (drawn FX_DRAW times the export's size: its radius numbers stay the export's, the game multiplies)
+    spec["fx"]["puff"]["drawScale"] = FX_DRAW["puff"]
+    spec["fx"]["snow"]["drawScale"] = FX_DRAW["snow"]
     spec["fx"]["puff"]["offset_frame_px"] = [float(v) for v in re.search(r"\+ \(([0-9.]+)\*i, ([0-9.]+)\*i\)", fx["puff"]["start"]).groups()]
     FX = {"puff": (os.path.join(CHARGE_SOURCE, fx["puff"]["sprite"]), fx["puff"]["sprite_diameter_frame_px_at_full"]), "snow": (os.path.join(CHARGE_SOURCE, fx["snow"]["sprite"]), fx["snow"]["sprite_diameter_frame_px_at_full"])}
     for tier in ("full", "phone"):
@@ -192,8 +242,8 @@ def main():
             if group == "charge":
                 # the effect sprites, whole (a round puff, a round speck), at their largest draw at this density
                 for name, (file, diameter) in FX.items():
-                    im = Image.open(file).convert("RGBA")
-                    side = max(2, round(diameter * d))
+                    im = readable_fx(name, Image.open(file).convert("RGBA"))
+                    side = max(2, round(diameter * FX_DRAW[name] * d))
                     pictures[("fx", name)] = (resize_box(im, side, side), 0, 0)
             n0 = len(files)
             sheets = pack(pictures)
@@ -204,7 +254,7 @@ def main():
                     page.paste(im, (px, py))
                     name, f = key
                     if name == "fx":
-                        fx_out[f] = {"sheet": n0 + n, "x": px, "y": py, "w": im.width, "h": im.height, "diameterFramePx": FX[f][1]}
+                        fx_out[f] = {"sheet": n0 + n, "x": px, "y": py, "w": im.width, "h": im.height, "diameterFramePx": FX[f][1] * FX_DRAW[f]}
                         continue
                     frames_out.setdefault(name, {})[str(f)] = {"sheet": n0 + n, "x": px, "y": py, "w": im.width, "h": im.height, "ox": ox, "oy": oy}
                 prefix = SHEET_PREFIX if group == "roam" else CHARGE_PREFIX

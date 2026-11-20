@@ -1518,6 +1518,21 @@ async function chargeSize(browser, S, spotsFrom) {
 				const firstSnow = snow.length ? snow[0].t : Infinity;
 				check(A.rows.every((r) => !r.fx || r.fx.snow === 0 || r.c >= firstSnow - 1e-3), `${tag}: no speck before its frame`);
 			}
+			// THE EFFECTS' SIZE (2026-11-20, "Make them read": drawn the export's size times drawScale, packed at 3 physical px
+			// per CSS px of that): the widest puff and speck drawn, against 2 x the export's largest radius x drawScale
+			if (!C.clearOnSnow) {
+				const K2 = 0.18465;
+				const kf = K2 * A.at0.scale;
+				const pw = Math.max(0, ...A.rows.map((r) => (r.fx ? r.fx.puffW : 0)));
+				const sw = Math.max(0, ...A.rows.map((r) => (r.fx ? r.fx.snowW : 0)));
+				const ptw = Math.max(0, ...A.rows.map((r) => (r.fx ? r.fx.puffTexW : 0)));
+				const stw = Math.max(0, ...A.rows.map((r) => (r.fx ? r.fx.snowTexW : 0)));
+				const pMax = 2 * 75 * kf * 2;
+				const sMax = 2 * 9.5 * kf * 2;
+				const cssK = A.view.k * (S.dpr || 1);
+				check(pw <= pMax + 0.5 && pw >= pMax * 0.75 && ptw >= Math.floor(pMax * A.view.k * 3) - 1, `${tag}: the puff drawn up to ${r1(pw)} road px (2 x the export's, ${r1(pMax)} at most), its picture ${ptw} px for ${r1(pMax * A.view.k)} CSS px (3 a CSS px)`, { pw, pMax, ptw, cssK });
+				if (!quick) check(sw <= sMax + 0.5 && sw >= 2 * 3.8 * kf * 2 - 0.5 && stw >= Math.floor(sMax * A.view.k * 3) - 1, `${tag}: the specks drawn up to ${r1(sw)} road px (2 x the export's, ${r1(sMax)} at most), their picture ${stw} px for ${r1(sMax * A.view.k)} CSS px`, { sw, sMax, stw });
+			}
 			// nothing left
 			const last = A.rows[A.rows.length - 1];
 			check(!A.endWindup && last.fx && last.fx.shown === 0 && !last.fx.visible && last.fx.pending === 0, `${tag}: nothing of the wind-up is left at the end (${r1(last.c)} ms: ${JSON.stringify(last.fx)})`);
