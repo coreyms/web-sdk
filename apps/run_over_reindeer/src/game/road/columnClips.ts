@@ -29,6 +29,9 @@ export type Clip = {
 	height: number;
 	/** entrance only: how many of its first frames still have the cloud in the box */
 	cloudFrames: number;
+	/** its length, ms: frames / fps, or longer when its last frame holds (the entrance at 24 fps keeps the 1.33 s it had
+	 *  at 12: tools/build_columns.py PICK ms) */
+	ms: number;
 };
 
 // ---- WHICH SHEETS: THE DENSITY ---------------------------------------------------------------------------------------
@@ -147,12 +150,15 @@ const pump = async () => {
 			queue.shift();
 			// the staging readout's label: a long frame right after this is this sheet's upload
 			if (STAGING_TOOLS) perfMark(`upload:${job.label}`);
+			const upFrom = performance.now();
 			try {
 				await uploader?.(job.texture);
 			} catch {
 				/* it uploads on its first draw instead */
 			}
 			lastUploadEnd = performance.now();
+			// (staging: how long the upload call took, for the readout and the probes)
+			if (STAGING_TOOLS) perfMark(`uploaded:${job.label}:${Math.round((lastUploadEnd - upFrom) * 10) / 10}ms`);
 			job.resolve();
 			// never two in one frame
 			await nextFrame();
@@ -192,7 +198,9 @@ const loadOne = async (tier: ColumnTier, name: ClipName, entry: Entry): Promise<
 	}
 	// the staging readout's label (game/staging.ts): a long frame here is this clip's upload
 	if (STAGING_TOOLS) perfMark(`load:${tier}:${name}`);
-	return { textures, fps: spec.fps, loop: spec.loop, x: spec.x, y: spec.y, width: spec.width, height: spec.height, cloudFrames: 'cloudFrames' in spec ? spec.cloudFrames : 0 };
+	// (a spec without `ms`, from before 2026-11-19: frames / fps)
+	const ms = Math.max(Number((spec as { ms?: number }).ms ?? 0), (textures.length / spec.fps) * 1000);
+	return { textures, fps: spec.fps, loop: spec.loop, x: spec.x, y: spec.y, width: spec.width, height: spec.height, cloudFrames: 'cloudFrames' in spec ? spec.cloudFrames : 0, ms };
 };
 
 /** start loading a clip (or join the load already running); resolves with it, or null if it failed */

@@ -1125,7 +1125,7 @@ export class RoadFeatures {
 		// the time on the struck cell counts from the first stroke of the box, not from the pictures' arrival
 		column.phase = 'impact';
 		column.t0 = column.boxT0;
-		const entrance = reveal ? (reveal.textures.length / reveal.fps) * 1000 : 200;
+		const entrance = reveal ? reveal.ms : 200;
 		// THE ENTRANCE STARTS WITH THE GROW (2026-11-19): the column stands when the longer of the two is over (the
 		// entrance), about growMs sooner than when it began once the box was whole; its number pops in at numberAt of the
 		// entrance, never before the box is whole
@@ -1190,7 +1190,7 @@ export class RoadFeatures {
 			const column = this.makeColumn(reel, tier, multiplier, false, 0, false);
 			const spec = COLUMN_CLIPS.clips[tier].idle;
 			const from = (COLUMN_CLIPS.landing.frames as Record<string, number>)[tier] ?? 0;
-			column.still = { clip: { textures: [cut(f)], fps: 1, loop: true, x: spec.x, y: spec.y, width: spec.width, height: spec.height, cloudFrames: 0 }, backdrop, from, live: false };
+			column.still = { clip: { textures: [cut(f)], fps: 1, loop: true, x: spec.x, y: spec.y, width: spec.width, height: spec.height, cloudFrames: 0, ms: 1000 }, backdrop, from, live: false };
 			column.phase = 'idle';
 			column.t0 = this.clock;
 			column.labelShown = true;
@@ -1220,10 +1220,11 @@ export class RoadFeatures {
 		}
 		if (!still.live) {
 			still.live = true;
-			// the loop's frame is floor(t x fps + reel x 5) mod n (updateColumn): t0 set so it is the still's frame now
-			const n = clip.textures.length;
-			const at = (((still.from - column.reel * 5) % n) + n) % n;
-			column.t0 = this.clock - ((at + 0.5) * 1000) / Math.max(1, clip.fps);
+			// the loop's frame is floor((t + reel x idlePhaseMs) x fps) mod n (updateColumn, idleFrame): t0 set so it is the
+			// still's own frame now, whatever the loop's frame count and fps (tools/build_columns.py IDLE_STEP)
+			const loopMs = clip.ms;
+			const phase = ((((still.from + 0.5) * 1000) / Math.max(1, clip.fps) - column.reel * COLUMN.idlePhaseMs) % loopMs + loopMs) % loopMs;
+			column.t0 = this.clock - phase;
 		}
 		return clip;
 	}
@@ -1917,7 +1918,8 @@ export class RoadFeatures {
 
 		if (column.phase === 'enter') {
 			const frames = reveal ? reveal.textures.length : 0;
-			const length = reveal ? (frames / reveal.fps) * 1000 : 200;
+			// (its last frame holds to its length: Clip.ms)
+			const length = reveal ? reveal.ms : 200;
 			if (reveal) {
 				const frame = Math.max(0, Math.min(frames - 1, Math.floor((t / 1000) * reveal.fps)));
 				this.placeBody(column, reveal, frame, frame >= reveal.cloudFrames);
@@ -1949,7 +1951,7 @@ export class RoadFeatures {
 			}
 		} else if (column.phase === 'win') {
 			const win = getClip(column.tier, 'win');
-			const length = win ? (win.textures.length / win.fps) * 1000 : 0;
+			const length = win ? win.ms : 0;
 			if (!win || t >= length) {
 				column.phase = 'idle';
 				column.t0 = this.clock;
@@ -1964,13 +1966,15 @@ export class RoadFeatures {
 			}
 		}
 		if (column.phase === 'idle' && idle) {
-			// each column a little out of step with its neighbors, so two of a kind do not move as one
-			const frame = Math.floor((t / 1000) * idle.fps + column.reel * 5) % idle.textures.length;
+			// each column a little out of step with its neighbors, so two of a kind do not move as one (COLUMN.idlePhaseMs a
+			// reel: the same time whatever the loop's frame count)
+			const ticks = ((t + column.reel * COLUMN.idlePhaseMs) / 1000) * idle.fps;
+			const frame = Math.floor(ticks) % idle.textures.length;
 			this.bodyOver(column, true);
 			this.placeBody(column, idle, frame);
 			if (column.tier === 'reindeer' && !column.still) {
 				// the idle loop restarts (not its first frame after an entrance or a win): the snort's roll
-				const loop = Math.floor(((t / 1000) * idle.fps + column.reel * 5) / idle.textures.length);
+				const loop = Math.floor(ticks / idle.textures.length);
 				if (column.idleT0 !== column.t0) {
 					column.idleT0 = column.t0;
 					column.idleLoop = loop;
@@ -2065,7 +2069,13 @@ export class RoadFeatures {
 	 *  cell's and each marked car's garland (road px), its look, what of it is drawn */
 	frames() {
 		return {
-			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => ({ reel: c.reel, tier: c.tier, phase: c.phase, frame: c.frame, ...c.box.parts() })),
+			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => {
+				const clip = (name: 'reveal' | 'idle' | 'win') => {
+					const k = getClip(c.tier, name);
+					return k ? { frames: k.textures.length, fps: k.fps, ms: k.ms, cloudFrames: k.cloudFrames } : null;
+				};
+				return { reel: c.reel, tier: c.tier, phase: c.phase, frame: c.frame, clips: { reveal: clip('reveal'), idle: clip('idle'), win: clip('win') }, ...c.box.parts() };
+			}),
 			cells: this.clouds.filter((c) => c.leaving === null).map((c) => ({ cell: c.cell, scale: c.root.scale.x, ...c.box.parts() })),
 			marks: this.marks.map((m) => ({ cell: m.cell, ...m.box.parts() })),
 		};

@@ -396,11 +396,14 @@ try {
 						boardMs += FRAME * (await R(p, () => window.__reindeer.roadBoard().features.rate));
 					}
 					const grow = rows.filter((r) => r.phase === 'grow');
-					const fps = 12;
+					// the entrance's own frame count and fps (tools/build_columns.py PICK: 31 at 24 fps since 2026-11-19)
+					const clipInfo = await R(p, () => window.__reindeer.wildFrames().columns.find((x) => x.reel === 2)?.clips?.reveal ?? null);
+					const fps = clipInfo?.fps ?? 24;
+					const last = (clipInfo?.frames ?? 31) - 1;
 					const frames = grow.map((r) => r.frame);
 					const distinct = new Set(frames).size;
 					// the frame for the time since the grow began: floor(t x fps) (a step's own rounding: within one frame)
-					const off = rows.filter((r) => (r.phase === 'grow' || r.phase === 'enter') && r.frame >= 0).filter((r) => Math.abs(r.frame - Math.min(15, Math.floor((r.t / 1000) * fps))) > 1);
+					const off = rows.filter((r) => (r.phase === 'grow' || r.phase === 'enter') && r.frame >= 0).filter((r) => Math.abs(r.frame - Math.min(last, Math.floor((r.t / 1000) * fps))) > 1);
 					const back = rows.filter((r, i) => i > 0 && (r.phase === 'grow' || r.phase === 'enter') && rows[i - 1].frame > r.frame);
 					const hand = rows.findIndex((r) => r.phase === 'enter');
 					const handOk = hand > 0 && rows[hand].frame >= rows[hand - 1].frame && rows[hand].frame - rows[hand - 1].frame <= 1;

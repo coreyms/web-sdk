@@ -494,6 +494,10 @@ export const COLUMN = {
 	 *  69 road px past the box's sides (Santa's elbows and hat, Grandma's cane, the reindeer's lights and win kick) and 1
 	 *  px past the top and bottom, so no frame width could hide it alone: the crop does, and the frame covers the cut. */
 	frameWidth: 13,
+	/** THE IDLE'S PHASE per reel: each standing column's idle loop runs this much ahead of the one to its left, so two of a
+	 *  kind never move as one (625 ms: the 5 frames at 8 fps it was until 2026-11-19; a time, so it holds at any frame
+	 *  count: tools/build_columns.py IDLE_STEP) */
+	idlePhaseMs: 625,
 	/** each character's size on top of the built size (1 = four lanes tall as drawn), about the column's foot */
 	tierScale: { reindeer: 1, santa: 1, grandma: 1 } as Record<'reindeer' | 'santa' | 'grandma', number>,
 	/** the multiplier on the column: its centre this far up from the column's foot, this tall, this color */
@@ -1112,7 +1116,8 @@ export const REINDEER_SOUND = {
 	//   grow       sfx_column_grow, the red box starts growing up the reel (the frame its 'grow' begins; Super's opening
 	//              column too, whose box grows from the middle). In the sprite from its right channel only (the
 	//              builder's ROR_SOURCE_CHANNEL: its two channels partly cancel in a downmix).
-	//   column in  each character's entrance on frame `columnIn.frame[tier]` of its 16: the first frame it stands in full
+	//   column in  each character's entrance on frame `columnIn.frame[tier]` of its 31 (source frame 57; 5 of 16 at 12 fps
+	//              until 2026-11-19, the same moment): the first frame it stands in full
 	//              color out of the cloud's silhouette. The reindeer's first hoof (round 1), Santa's heavy steps (his
 	//              hmph, 800 ms into the file, then lands on his hands-on-hips pose, frames 13 to 15), Grandma's cane
 	//              taps (her cackle, 610 ms in, while she walks out, frames 12 to 15).
@@ -1188,7 +1193,7 @@ export const REINDEER_SOUND = {
 	stopFadeMs: 8,
 	/** the cloud loop at the end of a round, real ms */
 	roundEndFadeMs: 300,
-	columnIn: { frame: { reindeer: 5, santa: 5, grandma: 5 } as Record<'reindeer' | 'santa' | 'grandma', number> },
+	columnIn: { frame: { reindeer: 10, santa: 10, grandma: 10 } as Record<'reindeer' | 'santa' | 'grandma', number> },
 	/** the present's pop starts on this frame of the open (0 = its first; round 2 started it on PRESENT_LID_FRAME, 3): on
 	 *  the first frame the open DRAWS, whichever of its slots that is on a slow frame. Pass 5: when the open's pictures
 	 *  are not in time and the trigger pulses instead, the pop comes on the pulse's first frame */
