@@ -123,6 +123,7 @@
 	const road = new RoadBoard(tex);
 	// THE SPIN KEY'S RING (ui/hud/spinRing.ts) brakes as the board comes to rest: the road says when (real ms)
 	boardPace.live = () => road.spinLive;
+	boardPace.serial = () => road.spinSerial;
 	boardPace.restIn = () => {
 		const ms = road.restInMs();
 		return ms === null ? null : ms / boardRate();
@@ -830,6 +831,7 @@
 			stateGame.wheelPhase = null;
 			boardPace.live = () => false;
 			boardPace.restIn = () => null;
+			boardPace.serial = () => 0;
 			road.destroy();
 		};
 	});
