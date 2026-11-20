@@ -670,6 +670,51 @@
 .hudp .fbtn.mark.ante .lb {
 	text-shadow: 0 0 1px rgba(var(--hud-shadow-rgb), 1), 0 0 1px rgba(var(--hud-shadow-rgb), 1), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.8);
 }
+/* THE DISABLED KEY, "COLD INLAY" (2026-11-20, Corey's pick from the mock feature_key_disabled_r1, its default dim 70,
+   mark strength 62, rim strength 100): while the key cannot be pressed (a round in flight, free spins, the Super Wheel,
+   autoplay) its color drains to the neutral key glass and the mark becomes a steel inlay (.em-off, HUD_CONFIG.featureMark
+   .off), the cold twin of the gold inlay it wears with a mode on. With a mode on as well, the same dim glass under a calm
+   dark veil, the mode's rim at half strength and its word a step back. The key stays disabled (the attribute, no hover,
+   no press); rest and mode on are unchanged. */
+.hudp .fbtn .em-off {
+	opacity: 0;
+}
+.hudp .fbtn.mark:disabled,
+.hudp .fbtn.circ.mark:disabled {
+	opacity: 1;
+	--rim: rgba(var(--hud-key-rim-rgb), 0.36);
+	--hl: rgba(var(--hud-ink-rgb), 0.2);
+	--lo: rgba(var(--hud-ink-rgb), 0);
+	--ig: rgba(var(--hud-feature-rgb), 0);
+	--glow: rgba(var(--hud-feature-rgb), 0);
+	--e-deep: var(--hud-key-rgb);
+	--e-hi: var(--hud-key-rim-rgb);
+	--e-lt: var(--hud-ink-rgb);
+	--e-g1: var(--hud-mark-steel-1-rgb);
+	--e-g2: var(--hud-mark-steel-2-rgb);
+	--e-g3: var(--hud-mark-steel-3-rgb);
+	--e-g4: var(--hud-mark-steel-4-rgb);
+	background: radial-gradient(ellipse 85% 95% at 50% 0%, rgba(var(--hud-ink-rgb), 0.1), rgba(var(--hud-ink-rgb), 0) 70%), linear-gradient(180deg, rgba(var(--hud-key-rgb), 0.83), rgba(var(--hud-shadow-rgb), 0.63));
+}
+/* the sideways phone's key stands free on the scene (no dock under it): its dimmed glass a step more solid, so the steel
+   mark reads 3:1 or more on the snow too */
+.hudp .fbtn.circ.ln.mark:disabled {
+	background: radial-gradient(ellipse 85% 95% at 50% 0%, rgba(var(--hud-ink-rgb), 0.1), rgba(var(--hud-ink-rgb), 0) 70%), linear-gradient(180deg, rgba(var(--hud-key-rgb), 0.92), rgba(var(--hud-shadow-rgb), 0.86));
+}
+.hudp .fbtn.mark:disabled:not(.ante) .em-rest {
+	opacity: 0;
+}
+.hudp .fbtn.mark:disabled:not(.ante) .em-off {
+	opacity: 1;
+}
+.hudp .fbtn.mark.ante:disabled {
+	--ov: rgba(var(--hud-shadow-rgb), 0.294);
+	--rim: rgba(var(--hud-accent-rgb), 0.55);
+	--glow: rgba(var(--hud-accent-rgb), 0);
+}
+.hudp .fbtn.mark.ante:disabled .lb {
+	opacity: 0.82;
+}
 .hudp .fbtn .ic {
 	width: 19px;
 	height: 19px;
