@@ -44,9 +44,13 @@ column's own 250 x 684 road px and made fully opaque. BACKDROP below names the f
 
 THE MEMORY BUDGET (docs/SECOND_PASS_DECISIONS.md has the measured numbers this prints):
   frames kept   idle every 3rd frame (32 frames, played at 8 fps: the clip's own 4 s loop, held timing)
-                win every 4th frame (24 frames, played at 12 fps: 2 s, twice the clip's speed)
-                entrance from frame 37 (the cloud is full, the debris has gone) every 4th frame to the last
-                (16 frames, played at 12 fps: 1.3 s, the spec's 1.2 to 1.5 s)
+                win every 2nd frame (48 frames, played at 24 fps: 2 s, twice the clip's speed)
+                entrance from frame 37 (the cloud is full, the debris has gone) every 2nd frame to the last
+                (31 frames, played at 24 fps, the last held to 1.33 s: the spec's 1.2 to 1.5 s)
+                (2026-11-19, the column smoothness mock, Desktop/Run Over Reindeer/column_smooth_r1_2026-11-19; Corey:
+                "it looks fine in Win and Entrance with the suggested method, but not on idle". Until then the win and
+                the entrance kept every 4th frame at 12 fps: 24 and 16 frames, the same lengths. The idle is unchanged
+                and never blended.)
   pixel size    desktop 1.0 px per road px, phone 0.7. The house rule of 3 physical px per CSS px would be 3.2 px
                 per road px on a 1920 x 1080 screen: ten times the memory, about 1.6 GB with three tiers up. Corey on
                 these clips: "It's a basic cartoon, so upscaling is fine".
@@ -65,6 +69,11 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 OUT = os.path.join(APP, "static", "assets", "columns")
+# --out <dir>: write the sheets to <dir>/columns and the spec to <dir>/columnClipSpec.ts instead (a build to look at
+# before it replaces the game's; nothing in the app is touched)
+OUT_ROOT = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
+if OUT_ROOT:
+    OUT = os.path.join(OUT_ROOT, "columns")
 SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/animation")
 
 FRAME_W, FRAME_H = 1920, 3408
@@ -98,19 +107,34 @@ BACKDROP = {"tier": "grandma", "frame": 37, "fill": (244, 247, 252)}
 # board, one idle frame each, picked by hand from the 32 the idle clip keeps (0-based in the clip): where the pose reads
 # best. The multiplier covers the same share of the feet on every idle frame (the feet do not move in the idle: 0.225
 # of the reindeer's feet, 0.32 of Santa's, 0.31 to 0.32 of Grandma's), so it did not decide the pick.
-#   reindeer 6   the antler lights lit, the smirk to the front
-#   santa    4   facing front, arms akimbo (8 to 15 look aside)
-#   grandma  0   facing front with her smile (the least covered frame, with 11)
+#   reindeer 6   the antler lights lit, the smirk to the front           (source frame 19)
+#   santa    4   facing front, arms akimbo (8 to 15 look aside)         (source frame 13)
+#   grandma  0   facing front with her smile (the least covered frame)  (source frame 1)
+# Kept as SOURCE frames since 2026-11-19 (the idle's step is a switch, IDLE_STEP): the spec's `landing.frames` is the
+# picked frame's index in the idle clip as built (19 is index 9 at every 2nd frame, 6 at every 3rd), so the game hands
+# the still over to the loop on the same picture whatever the step.
 # Packed on one small sheet per tier with the cloud still, so the landing loads ONE file, at the density the game draws
 # the clips at (desktop 1.0 px per road px, phones 0.7): the same picture on the landing as in play, and 60 percent of the bytes
 # of 1.5 (160 KB against 266 KB on the desktop, measured 2026-11-15).
-LANDING = {"frames": {"reindeer": 6, "santa": 4, "grandma": 0}, "tiers": {"full": 1.0, "phone": 0.7}}
+LANDING = {"source": {"reindeer": 19, "santa": 13, "grandma": 1}, "tiers": {"full": 1.0, "phone": 0.7}}
 # which source frames are kept (1-based) and how fast they play
+# `ms` the clip's length (the last frame holds to it): the entrance keeps the 1.33 s it had at 16 frames and 12 fps
+# THE IDLE'S STEP, the one switch (Corey 2026-11-19: "idle is worth another shot with your recommendation"): every
+# IDLE_STEP-th source frame of the 96 frame, 4 s loop, played at 24 / IDLE_STEP fps, hard cuts, never blended. 2: 48
+# frames at 12 fps (since 2026-11-19); 3: 32 frames at 8 fps (until then: the rebuild with 3 brings it back exactly)
+IDLE_STEP = 2
 PICK = {
-    "idle": {"frames": list(range(1, 97, 3)), "fps": 8, "loop": True},
-    "win": {"frames": list(range(1, 97, 4)), "fps": 12, "loop": False},
-    "reveal": {"frames": list(range(37, 98, 4)), "fps": 12, "loop": False},
+    "idle": {"frames": list(range(1, 97, IDLE_STEP)), "fps": 24 // IDLE_STEP, "loop": True, "ms": 4000.0},
+    "win": {"frames": list(range(1, 97, 2)), "fps": 24, "loop": False, "ms": 2000.0},
+    "reveal": {"frames": list(range(37, 98, 2)), "fps": 24, "loop": False, "ms": round(16 / 12 * 1000, 2)},
 }
+# THE CLOUD TEST (keep_cloud_in_box): an entrance frame is 'cloud' (blanked outside the column) while this share of the
+# strips beside the column is covered. 0.35 until 2026-11-19; with every 2nd frame kept, the reindeer's source frames 94
+# and 95 (27% and 20% covered by a faint trailing smoke) would ship with it spilling over the neighbors. Measured over
+# every entrance frame 37 to 97: the trailing cloud never covers less than 0.197 (reindeer 95), a standing character
+# alone never more than 0.087 (Santa's elbows; the reindeer 0.004, Grandma 0.021), so 0.15 parts them with room both
+# ways and the cloud frames stay the first ones (cloudFrames, contiguous: the build stops if not)
+CLOUD_SHARE = 0.15
 
 
 def fetch(path):
@@ -149,7 +173,7 @@ def keep_cloud_in_box(im):
     left = a[:, : int(BOX_X0)]
     right = a[:, int(BOX_X1) :]
     outside = (float((left > 16).mean()) + float((right > 16).mean())) / 2
-    if outside < 0.35:
+    if outside < CLOUD_SHARE:
         return im, False
     arr = np.asarray(im).copy()
     arr[:, : int(round(BOX_X0)), 3] = 0
@@ -192,7 +216,7 @@ SPEC_PATH = os.path.join(APP, "src", "game", "columnClipSpec.ts")
 
 
 def write_spec(spec):
-    with open(SPEC_PATH, "w") as fh:
+    with open(os.path.join(OUT_ROOT, "columnClipSpec.ts") if OUT_ROOT else SPEC_PATH, "w") as fh:
         fh.write("// AUTO-GENERATED by tools/build_columns.py from the nine approved clips. Do not edit: change the tool and run it again.\n")
         fh.write("// Lengths are road px from the column's top left corner (the column is 250 x 684 road px); sheet sizes are sheet px.\n")
         fh.write(f"export const COLUMN_CLIPS = {json.dumps(spec, indent=chr(9))} as const;\n")
@@ -224,13 +248,16 @@ def build_landing(spec):
     clip's frames sit. Returns the spec's `landing` part."""
     flat, _ = backdrop_flat()
     gap = 2
-    part = {"frames": dict(LANDING["frames"]), "tiers": {}}
+    kept = PICK["idle"]["frames"]
+    for tier, n in LANDING["source"].items():
+        if n not in kept:
+            sys.exit(f"build_columns: the {tier} landing still (source frame {n}) is not among the idle's kept frames (IDLE_STEP {IDLE_STEP})")
+    part = {"frames": {tier: kept.index(n) for tier, n in LANDING["source"].items()}, "tiers": {}}
     sources = {}
-    for tier, k in LANDING["frames"].items():
+    for tier, n in LANDING["source"].items():
         clip = spec["clips"][tier]["idle"]
         folder = SOURCES[tier]["idle"]
         files = sorted(glob.glob(os.path.join(SRC, folder, "*.png")))
-        n = PICK["idle"]["frames"][k]
         im = fetch(files[n - 1])
         # the clip's box back from its placement (source px, on the 8 px grid it was made on)
         x0 = (clip["x"] + (FRAME_W * ROAD_PER_SRC - COLUMN_W) / 2) / ROAD_PER_SRC
@@ -293,7 +320,9 @@ def backdrop_only():
 
 
 def read_spec():
-    text = open(SPEC_PATH).read()
+    # (a --out build adds to the spec it has written there before, else to the app's)
+    path = os.path.join(OUT_ROOT, "columnClipSpec.ts") if OUT_ROOT and os.path.exists(os.path.join(OUT_ROOT, "columnClipSpec.ts")) else SPEC_PATH
+    text = open(path).read()
     return json.loads(text[text.index("{") : text.rindex("}") + 1])
 
 
@@ -315,7 +344,16 @@ def main():
             if size == "full":
                 sys.exit("build_columns: the desktop default has no file suffix to sort its sheets by; run the build whole")
     sizes = list(TIER_SCALE) if only is None else only
-    if only is None:
+    # --clips reveal,win: rebuild only these clips, every density, into the spec that is there; the other clips, the
+    # cloud still and the landing stills (their files and spec entries) are left exactly as they are, and no file is
+    # removed (a clip's sheets are written over by name)
+    clips_only = sys.argv[sys.argv.index("--clips") + 1].split(",") if "--clips" in sys.argv else None
+    if clips_only is not None:
+        if only is not None:
+            sys.exit("build_columns: --clips and --tiers do not go together")
+        spec = read_spec()
+        spec["tierScale"] = dict(TIER_SCALE)
+    elif only is None:
         for old in glob.glob(os.path.join(OUT, "*.webp")):
             os.remove(old)  # this app's own built sheets, rebuilt whole
         spec = {"column": {"width": COLUMN_W, "height": COLUMN_H}, "tierScale": TIER_SCALE, "clips": {}}
@@ -329,6 +367,8 @@ def main():
     for tier, clips in SOURCES.items():
         spec["clips"].setdefault(tier, {})
         for clip, folder in clips.items():
+            if clips_only is not None and clip not in clips_only:
+                continue
             files = sorted(glob.glob(os.path.join(SRC, folder, "*.png")))
             if len(files) != 97:
                 sys.exit(f"build_columns: {folder} has {len(files)} frames, expected 97")
@@ -345,6 +385,9 @@ def main():
                     sys.exit(f"build_columns: {files[n - 1]} is {im.size}, expected {FRAME_W} x {FRAME_H}")
                 if clip == "reveal":
                     im, was_cloud = keep_cloud_in_box(im)
+                    # the cloud frames are the first ones (the game crops them on every side, cloudFrames)
+                    if was_cloud and cloud_frames < len(images):
+                        sys.exit(f"build_columns: {tier} entrance source frame {n} reads as cloud after a frame that did not (CLOUD_SHARE)")
                     cloud_frames += was_cloud
                 images.append(im)
             if missing:
@@ -354,6 +397,8 @@ def main():
                 "fps": pick["fps"],
                 "loop": pick["loop"],
                 "frames": len(images),
+                # the clip's length, ms (its last frame holds to it)
+                "ms": pick["ms"],
                 # where the frame's box sits, road px from the column's top left corner
                 "x": round(box[0] * ROAD_PER_SRC - (FRAME_W * ROAD_PER_SRC - COLUMN_W) / 2, 2),
                 "y": round(box[1] * ROAD_PER_SRC, 2),
@@ -384,11 +429,25 @@ def main():
             print("  " + m)
         sys.exit(1)
 
-    spec["backdrop"] = build_backdrop(sizes, None if only is None else spec["backdrop"])
+    if clips_only is None:
+        spec["backdrop"] = build_backdrop(sizes, None if only is None else spec["backdrop"])
     # a whole build cleared the folder: the landing stills are made again (a --tiers build leaves them as they are)
-    if only is None:
+    # (a --clips build with the idle in it makes them again: they are cut with the idle's box)
+    if (only is None and clips_only is None) or (clips_only is not None and "idle" in clips_only):
         spec["landing"] = build_landing(spec)
     write_spec(spec)
+    if clips_only is not None:
+        # the budget below counts every clip: the ones not rebuilt as the spec has them
+        for tier, clips in spec["clips"].items():
+            for clip, entry in clips.items():
+                if clip in clips_only:
+                    continue
+                for size in sizes:
+                    part = entry["tiers"][size]
+                    npx = sum(sh["width"] * sh["height"] for sh in part["sheets"])
+                    where = lambda f: os.path.join(OUT_ROOT, f) if OUT_ROOT and os.path.exists(os.path.join(OUT_ROOT, f)) else os.path.join(APP, "static", "assets", f)
+                    nbytes = sum(os.path.getsize(where(sh["file"])) for sh in part["sheets"])
+                    report.append((tier, clip, size, entry["frames"], part["frameWidth"], part["frameHeight"], len(part["sheets"]), npx * 4 / 1048576, nbytes / 1048576))
 
     print("\nclip                     tier   frames  frame px    sheets  GPU MB  file MB")
     for tier, clip, size, n, fw, fhh, sheets, gpu, mb in report:

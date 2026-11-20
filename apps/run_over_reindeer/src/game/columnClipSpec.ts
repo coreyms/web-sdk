@@ -14,9 +14,10 @@ export const COLUMN_CLIPS = {
 	"clips": {
 		"reindeer": {
 			"reveal": {
-				"fps": 12,
+				"fps": 24,
 				"loop": false,
-				"frames": 16,
+				"frames": 31,
+				"ms": 1333.33,
 				"x": -6.66,
 				"y": 0.0,
 				"width": 261.72,
@@ -32,9 +33,15 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/reindeer-reveal-1.webp",
-								"width": 526,
+								"width": 1846,
+								"height": 1370,
+								"frames": 14
+							},
+							{
+								"file": "columns/reindeer-reveal-2.webp",
+								"width": 790,
 								"height": 684,
-								"frames": 2
+								"frames": 3
 							}
 						],
 						"columns": 7,
@@ -47,8 +54,8 @@ export const COLUMN_CLIPS = {
 							{
 								"file": "columns/reindeer-reveal-phone-0.webp",
 								"width": 2033,
-								"height": 960,
-								"frames": 16
+								"height": 1441,
+								"frames": 31
 							}
 						],
 						"columns": 11,
@@ -78,6 +85,24 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/reindeer-reveal-d150-3.webp",
+								"width": 1973,
+								"height": 1026,
+								"frames": 5
+							},
+							{
+								"file": "columns/reindeer-reveal-d150-4.webp",
+								"width": 1973,
+								"height": 1026,
+								"frames": 5
+							},
+							{
+								"file": "columns/reindeer-reveal-d150-5.webp",
+								"width": 1973,
+								"height": 1026,
+								"frames": 5
+							},
+							{
+								"file": "columns/reindeer-reveal-d150-6.webp",
 								"width": 393,
 								"height": 1026,
 								"frames": 1
@@ -122,6 +147,36 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/reindeer-reveal-d215-5.webp",
+								"width": 1693,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-reveal-d215-6.webp",
+								"width": 1693,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-reveal-d215-7.webp",
+								"width": 1693,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-reveal-d215-8.webp",
+								"width": 1693,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-reveal-d215-9.webp",
+								"width": 1693,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-reveal-d215-10.webp",
 								"width": 563,
 								"height": 1471,
 								"frames": 1
@@ -133,12 +188,13 @@ export const COLUMN_CLIPS = {
 						"frameHeight": 1471
 					}
 				},
-				"cloudFrames": 15
+				"cloudFrames": 30
 			},
 			"idle": {
-				"fps": 8,
+				"fps": 12,
 				"loop": true,
-				"frames": 32,
+				"frames": 48,
+				"ms": 4000.0,
 				"x": -27.54,
 				"y": 0.0,
 				"width": 300.25,
@@ -162,7 +218,13 @@ export const COLUMN_CLIPS = {
 								"file": "columns/reindeer-idle-2.webp",
 								"width": 1810,
 								"height": 1370,
-								"frames": 8
+								"frames": 12
+							},
+							{
+								"file": "columns/reindeer-idle-3.webp",
+								"width": 1810,
+								"height": 1370,
+								"frames": 12
 							}
 						],
 						"columns": 6,
@@ -176,7 +238,13 @@ export const COLUMN_CLIPS = {
 								"file": "columns/reindeer-idle-phone-0.webp",
 								"width": 1906,
 								"height": 1922,
-								"frames": 32
+								"frames": 36
+							},
+							{
+								"file": "columns/reindeer-idle-phone-1.webp",
+								"width": 1906,
+								"height": 960,
+								"frames": 12
 							}
 						],
 						"columns": 9,
@@ -230,6 +298,30 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/reindeer-idle-d150-7.webp",
+								"width": 1806,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/reindeer-idle-d150-8.webp",
+								"width": 1806,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/reindeer-idle-d150-9.webp",
+								"width": 1806,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/reindeer-idle-d150-10.webp",
+								"width": 1806,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/reindeer-idle-d150-11.webp",
 								"width": 1806,
 								"height": 1026,
 								"frames": 4
@@ -304,9 +396,39 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/reindeer-idle-d215-10.webp",
-								"width": 1294,
+								"width": 1942,
 								"height": 1471,
-								"frames": 2
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-idle-d215-11.webp",
+								"width": 1942,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-idle-d215-12.webp",
+								"width": 1942,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-idle-d215-13.webp",
+								"width": 1942,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-idle-d215-14.webp",
+								"width": 1942,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-idle-d215-15.webp",
+								"width": 1942,
+								"height": 1471,
+								"frames": 3
 							}
 						],
 						"columns": 3,
@@ -317,188 +439,327 @@ export const COLUMN_CLIPS = {
 				}
 			},
 			"win": {
-				"fps": 12,
+				"fps": 24,
 				"loop": false,
-				"frames": 24,
-				"x": -62.86,
+				"frames": 48,
+				"ms": 2000.0,
+				"x": -64.46,
 				"y": 0.0,
-				"width": 380.54,
+				"width": 382.14,
 				"height": 684.0,
 				"tiers": {
 					"full": {
 						"sheets": [
 							{
 								"file": "columns/reindeer-win-0.webp",
-								"width": 1913,
+								"width": 1918,
 								"height": 1370,
 								"frames": 10
 							},
 							{
 								"file": "columns/reindeer-win-1.webp",
-								"width": 1913,
+								"width": 1918,
 								"height": 1370,
 								"frames": 10
 							},
 							{
 								"file": "columns/reindeer-win-2.webp",
-								"width": 1530,
-								"height": 684,
-								"frames": 4
+								"width": 1918,
+								"height": 1370,
+								"frames": 10
+							},
+							{
+								"file": "columns/reindeer-win-3.webp",
+								"width": 1918,
+								"height": 1370,
+								"frames": 10
+							},
+							{
+								"file": "columns/reindeer-win-4.webp",
+								"width": 1918,
+								"height": 1370,
+								"frames": 8
 							}
 						],
 						"columns": 5,
 						"gap": 2,
-						"frameWidth": 381,
+						"frameWidth": 382,
 						"frameHeight": 684
 					},
 					"phone": {
 						"sheets": [
 							{
 								"file": "columns/reindeer-win-phone-0.webp",
-								"width": 1874,
+								"width": 1881,
 								"height": 1922,
-								"frames": 24
+								"frames": 28
+							},
+							{
+								"file": "columns/reindeer-win-phone-1.webp",
+								"width": 1881,
+								"height": 1441,
+								"frames": 20
 							}
 						],
 						"columns": 7,
 						"gap": 2,
-						"frameWidth": 266,
+						"frameWidth": 267,
 						"frameHeight": 479
 					},
 					"d150": {
 						"sheets": [
 							{
 								"file": "columns/reindeer-win-d150-0.webp",
-								"width": 1717,
+								"width": 1723,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/reindeer-win-d150-1.webp",
-								"width": 1717,
+								"width": 1723,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/reindeer-win-d150-2.webp",
-								"width": 1717,
+								"width": 1723,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/reindeer-win-d150-3.webp",
-								"width": 1717,
+								"width": 1723,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/reindeer-win-d150-4.webp",
-								"width": 1717,
+								"width": 1723,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/reindeer-win-d150-5.webp",
-								"width": 1717,
+								"width": 1723,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/reindeer-win-d150-6.webp",
-								"width": 1717,
+								"width": 1723,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/reindeer-win-d150-7.webp",
-								"width": 1717,
+								"width": 1723,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-win-d150-8.webp",
+								"width": 1723,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-win-d150-9.webp",
+								"width": 1723,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-win-d150-10.webp",
+								"width": 1723,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-win-d150-11.webp",
+								"width": 1723,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-win-d150-12.webp",
+								"width": 1723,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-win-d150-13.webp",
+								"width": 1723,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-win-d150-14.webp",
+								"width": 1723,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/reindeer-win-d150-15.webp",
+								"width": 1723,
 								"height": 1026,
 								"frames": 3
 							}
 						],
 						"columns": 3,
 						"gap": 2,
-						"frameWidth": 571,
+						"frameWidth": 573,
 						"frameHeight": 1026
 					},
 					"d215": {
 						"sheets": [
 							{
 								"file": "columns/reindeer-win-d215-0.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-1.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-2.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-3.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-4.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-5.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-6.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-7.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-8.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-9.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-10.webp",
-								"width": 1638,
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/reindeer-win-d215-11.webp",
-								"width": 1638,
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-12.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-13.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-14.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-15.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-16.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-17.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-18.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-19.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-20.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-21.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-22.webp",
+								"width": 1646,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/reindeer-win-d215-23.webp",
+								"width": 1646,
 								"height": 1471,
 								"frames": 2
 							}
 						],
 						"columns": 2,
 						"gap": 2,
-						"frameWidth": 818,
+						"frameWidth": 822,
 						"frameHeight": 1471
 					}
 				}
@@ -506,9 +767,10 @@ export const COLUMN_CLIPS = {
 		},
 		"santa": {
 			"reveal": {
-				"fps": 12,
+				"fps": 24,
 				"loop": false,
-				"frames": 16,
+				"frames": 31,
+				"ms": 1333.33,
 				"x": -46.8,
 				"y": 0.0,
 				"width": 364.48,
@@ -526,7 +788,19 @@ export const COLUMN_CLIPS = {
 								"file": "columns/santa-reveal-1.webp",
 								"width": 1828,
 								"height": 1370,
-								"frames": 6
+								"frames": 10
+							},
+							{
+								"file": "columns/santa-reveal-2.webp",
+								"width": 1828,
+								"height": 1370,
+								"frames": 10
+							},
+							{
+								"file": "columns/santa-reveal-3.webp",
+								"width": 364,
+								"height": 684,
+								"frames": 1
 							}
 						],
 						"columns": 5,
@@ -539,8 +813,14 @@ export const COLUMN_CLIPS = {
 							{
 								"file": "columns/santa-reveal-phone-0.webp",
 								"width": 1797,
-								"height": 1441,
-								"frames": 16
+								"height": 1922,
+								"frames": 28
+							},
+							{
+								"file": "columns/santa-reveal-phone-1.webp",
+								"width": 769,
+								"height": 479,
+								"frames": 3
 							}
 						],
 						"columns": 7,
@@ -582,6 +862,36 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/santa-reveal-d150-5.webp",
+								"width": 1645,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-reveal-d150-6.webp",
+								"width": 1645,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-reveal-d150-7.webp",
+								"width": 1645,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-reveal-d150-8.webp",
+								"width": 1645,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-reveal-d150-9.webp",
+								"width": 1645,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-reveal-d150-10.webp",
 								"width": 547,
 								"height": 1026,
 								"frames": 1
@@ -641,6 +951,54 @@ export const COLUMN_CLIPS = {
 								"width": 1570,
 								"height": 1471,
 								"frames": 2
+							},
+							{
+								"file": "columns/santa-reveal-d215-8.webp",
+								"width": 1570,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-reveal-d215-9.webp",
+								"width": 1570,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-reveal-d215-10.webp",
+								"width": 1570,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-reveal-d215-11.webp",
+								"width": 1570,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-reveal-d215-12.webp",
+								"width": 1570,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-reveal-d215-13.webp",
+								"width": 1570,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-reveal-d215-14.webp",
+								"width": 1570,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-reveal-d215-15.webp",
+								"width": 784,
+								"height": 1471,
+								"frames": 1
 							}
 						],
 						"columns": 2,
@@ -649,12 +1007,13 @@ export const COLUMN_CLIPS = {
 						"frameHeight": 1471
 					}
 				},
-				"cloudFrames": 13
+				"cloudFrames": 26
 			},
 			"idle": {
-				"fps": 8,
+				"fps": 12,
 				"loop": true,
-				"frames": 32,
+				"frames": 48,
+				"ms": 4000.0,
 				"x": -53.23,
 				"y": 0.0,
 				"width": 337.18,
@@ -678,7 +1037,13 @@ export const COLUMN_CLIPS = {
 								"file": "columns/santa-idle-2.webp",
 								"width": 2032,
 								"height": 1370,
-								"frames": 8
+								"frames": 12
+							},
+							{
+								"file": "columns/santa-idle-3.webp",
+								"width": 2032,
+								"height": 1370,
+								"frames": 12
 							}
 						],
 						"columns": 6,
@@ -693,6 +1058,12 @@ export const COLUMN_CLIPS = {
 								"width": 1902,
 								"height": 1922,
 								"frames": 32
+							},
+							{
+								"file": "columns/santa-idle-phone-1.webp",
+								"width": 1902,
+								"height": 960,
+								"frames": 16
 							}
 						],
 						"columns": 8,
@@ -746,6 +1117,30 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/santa-idle-d150-7.webp",
+								"width": 2030,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/santa-idle-d150-8.webp",
+								"width": 2030,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/santa-idle-d150-9.webp",
+								"width": 2030,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/santa-idle-d150-10.webp",
+								"width": 2030,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/santa-idle-d150-11.webp",
 								"width": 2030,
 								"height": 1026,
 								"frames": 4
@@ -853,6 +1248,54 @@ export const COLUMN_CLIPS = {
 								"width": 1452,
 								"height": 1471,
 								"frames": 2
+							},
+							{
+								"file": "columns/santa-idle-d215-16.webp",
+								"width": 1452,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-idle-d215-17.webp",
+								"width": 1452,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-idle-d215-18.webp",
+								"width": 1452,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-idle-d215-19.webp",
+								"width": 1452,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-idle-d215-20.webp",
+								"width": 1452,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-idle-d215-21.webp",
+								"width": 1452,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-idle-d215-22.webp",
+								"width": 1452,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-idle-d215-23.webp",
+								"width": 1452,
+								"height": 1471,
+								"frames": 2
 							}
 						],
 						"columns": 2,
@@ -863,188 +1306,327 @@ export const COLUMN_CLIPS = {
 				}
 			},
 			"win": {
-				"fps": 12,
+				"fps": 24,
 				"loop": false,
-				"frames": 24,
+				"frames": 48,
+				"ms": 2000.0,
 				"x": -66.07,
 				"y": 0.0,
-				"width": 351.63,
+				"width": 374.11,
 				"height": 684.0,
 				"tiers": {
 					"full": {
 						"sheets": [
 							{
 								"file": "columns/santa-win-0.webp",
-								"width": 1768,
+								"width": 1878,
 								"height": 1370,
 								"frames": 10
 							},
 							{
 								"file": "columns/santa-win-1.webp",
-								"width": 1768,
+								"width": 1878,
 								"height": 1370,
 								"frames": 10
 							},
 							{
 								"file": "columns/santa-win-2.webp",
-								"width": 1414,
-								"height": 684,
-								"frames": 4
+								"width": 1878,
+								"height": 1370,
+								"frames": 10
+							},
+							{
+								"file": "columns/santa-win-3.webp",
+								"width": 1878,
+								"height": 1370,
+								"frames": 10
+							},
+							{
+								"file": "columns/santa-win-4.webp",
+								"width": 1878,
+								"height": 1370,
+								"frames": 8
 							}
 						],
 						"columns": 5,
 						"gap": 2,
-						"frameWidth": 352,
+						"frameWidth": 374,
 						"frameHeight": 684
 					},
 					"phone": {
 						"sheets": [
 							{
 								"file": "columns/santa-win-phone-0.webp",
-								"width": 1982,
+								"width": 1846,
+								"height": 1922,
+								"frames": 28
+							},
+							{
+								"file": "columns/santa-win-phone-1.webp",
+								"width": 1846,
 								"height": 1441,
-								"frames": 24
+								"frames": 20
 							}
 						],
-						"columns": 8,
+						"columns": 7,
 						"gap": 2,
-						"frameWidth": 246,
+						"frameWidth": 262,
 						"frameHeight": 479
 					},
 					"d150": {
 						"sheets": [
 							{
 								"file": "columns/santa-win-d150-0.webp",
-								"width": 1585,
+								"width": 1687,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/santa-win-d150-1.webp",
-								"width": 1585,
+								"width": 1687,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/santa-win-d150-2.webp",
-								"width": 1585,
+								"width": 1687,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/santa-win-d150-3.webp",
-								"width": 1585,
+								"width": 1687,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/santa-win-d150-4.webp",
-								"width": 1585,
+								"width": 1687,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/santa-win-d150-5.webp",
-								"width": 1585,
+								"width": 1687,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/santa-win-d150-6.webp",
-								"width": 1585,
+								"width": 1687,
 								"height": 1026,
 								"frames": 3
 							},
 							{
 								"file": "columns/santa-win-d150-7.webp",
-								"width": 1585,
+								"width": 1687,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-win-d150-8.webp",
+								"width": 1687,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-win-d150-9.webp",
+								"width": 1687,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-win-d150-10.webp",
+								"width": 1687,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-win-d150-11.webp",
+								"width": 1687,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-win-d150-12.webp",
+								"width": 1687,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-win-d150-13.webp",
+								"width": 1687,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-win-d150-14.webp",
+								"width": 1687,
+								"height": 1026,
+								"frames": 3
+							},
+							{
+								"file": "columns/santa-win-d150-15.webp",
+								"width": 1687,
 								"height": 1026,
 								"frames": 3
 							}
 						],
 						"columns": 3,
 						"gap": 2,
-						"frameWidth": 527,
+						"frameWidth": 561,
 						"frameHeight": 1026
 					},
 					"d215": {
 						"sheets": [
 							{
 								"file": "columns/santa-win-d215-0.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-1.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-2.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-3.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-4.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-5.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-6.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-7.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-8.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-9.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-10.webp",
-								"width": 1514,
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							},
 							{
 								"file": "columns/santa-win-d215-11.webp",
-								"width": 1514,
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-12.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-13.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-14.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-15.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-16.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-17.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-18.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-19.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-20.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-21.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-22.webp",
+								"width": 1610,
+								"height": 1471,
+								"frames": 2
+							},
+							{
+								"file": "columns/santa-win-d215-23.webp",
+								"width": 1610,
 								"height": 1471,
 								"frames": 2
 							}
 						],
 						"columns": 2,
 						"gap": 2,
-						"frameWidth": 756,
+						"frameWidth": 804,
 						"frameHeight": 1471
 					}
 				}
@@ -1052,9 +1634,10 @@ export const COLUMN_CLIPS = {
 		},
 		"grandma": {
 			"reveal": {
-				"fps": 12,
+				"fps": 24,
 				"loop": false,
-				"frames": 16,
+				"frames": 31,
+				"ms": 1333.33,
 				"x": -33.96,
 				"y": 0.0,
 				"width": 306.68,
@@ -1070,9 +1653,15 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/grandma-reveal-1.webp",
-								"width": 1234,
-								"height": 684,
-								"frames": 4
+								"width": 1852,
+								"height": 1370,
+								"frames": 12
+							},
+							{
+								"file": "columns/grandma-reveal-2.webp",
+								"width": 1852,
+								"height": 1370,
+								"frames": 7
 							}
 						],
 						"columns": 6,
@@ -1085,8 +1674,8 @@ export const COLUMN_CLIPS = {
 							{
 								"file": "columns/grandma-reveal-phone-0.webp",
 								"width": 1951,
-								"height": 960,
-								"frames": 16
+								"height": 1922,
+								"frames": 31
 							}
 						],
 						"columns": 9,
@@ -1119,6 +1708,30 @@ export const COLUMN_CLIPS = {
 								"width": 1846,
 								"height": 1026,
 								"frames": 4
+							},
+							{
+								"file": "columns/grandma-reveal-d150-4.webp",
+								"width": 1846,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/grandma-reveal-d150-5.webp",
+								"width": 1846,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/grandma-reveal-d150-6.webp",
+								"width": 1846,
+								"height": 1026,
+								"frames": 4
+							},
+							{
+								"file": "columns/grandma-reveal-d150-7.webp",
+								"width": 1384,
+								"height": 1026,
+								"frames": 3
 							}
 						],
 						"columns": 4,
@@ -1160,6 +1773,36 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/grandma-reveal-d215-5.webp",
+								"width": 1981,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-reveal-d215-6.webp",
+								"width": 1981,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-reveal-d215-7.webp",
+								"width": 1981,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-reveal-d215-8.webp",
+								"width": 1981,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-reveal-d215-9.webp",
+								"width": 1981,
+								"height": 1471,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-reveal-d215-10.webp",
 								"width": 659,
 								"height": 1471,
 								"frames": 1
@@ -1171,12 +1814,13 @@ export const COLUMN_CLIPS = {
 						"frameHeight": 1471
 					}
 				},
-				"cloudFrames": 15
+				"cloudFrames": 30
 			},
 			"idle": {
-				"fps": 8,
+				"fps": 12,
 				"loop": true,
-				"frames": 32,
+				"frames": 48,
+				"ms": 4000.0,
 				"x": -35.56,
 				"y": 184.65,
 				"width": 308.28,
@@ -1193,8 +1837,8 @@ export const COLUMN_CLIPS = {
 							{
 								"file": "columns/grandma-idle-1.webp",
 								"width": 1858,
-								"height": 1000,
-								"frames": 8
+								"height": 2002,
+								"frames": 24
 							}
 						],
 						"columns": 6,
@@ -1207,8 +1851,14 @@ export const COLUMN_CLIPS = {
 							{
 								"file": "columns/grandma-idle-phone-0.webp",
 								"width": 1960,
-								"height": 1406,
-								"frames": 32
+								"height": 1758,
+								"frames": 45
+							},
+							{
+								"file": "columns/grandma-idle-phone-1.webp",
+								"width": 652,
+								"height": 350,
+								"frames": 3
 							}
 						],
 						"columns": 9,
@@ -1238,6 +1888,18 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/grandma-idle-d150-3.webp",
+								"width": 1854,
+								"height": 1500,
+								"frames": 8
+							},
+							{
+								"file": "columns/grandma-idle-d150-4.webp",
+								"width": 1854,
+								"height": 1500,
+								"frames": 8
+							},
+							{
+								"file": "columns/grandma-idle-d150-5.webp",
 								"width": 1854,
 								"height": 1500,
 								"frames": 8
@@ -1312,9 +1974,39 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/grandma-idle-d215-10.webp",
-								"width": 1328,
+								"width": 1993,
 								"height": 1074,
-								"frames": 2
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-idle-d215-11.webp",
+								"width": 1993,
+								"height": 1074,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-idle-d215-12.webp",
+								"width": 1993,
+								"height": 1074,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-idle-d215-13.webp",
+								"width": 1993,
+								"height": 1074,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-idle-d215-14.webp",
+								"width": 1993,
+								"height": 1074,
+								"frames": 3
+							},
+							{
+								"file": "columns/grandma-idle-d215-15.webp",
+								"width": 1993,
+								"height": 1074,
+								"frames": 3
 							}
 						],
 						"columns": 3,
@@ -1325,9 +2017,10 @@ export const COLUMN_CLIPS = {
 				}
 			},
 			"win": {
-				"fps": 12,
+				"fps": 24,
 				"loop": false,
-				"frames": 24,
+				"frames": 48,
+				"ms": 2000.0,
 				"x": -67.68,
 				"y": 110.79,
 				"width": 380.54,
@@ -1344,8 +2037,20 @@ export const COLUMN_CLIPS = {
 							{
 								"file": "columns/grandma-win-1.webp",
 								"width": 1913,
-								"height": 1148,
-								"frames": 9
+								"height": 1723,
+								"frames": 15
+							},
+							{
+								"file": "columns/grandma-win-2.webp",
+								"width": 1913,
+								"height": 1723,
+								"frames": 15
+							},
+							{
+								"file": "columns/grandma-win-3.webp",
+								"width": 1147,
+								"height": 573,
+								"frames": 3
 							}
 						],
 						"columns": 5,
@@ -1358,8 +2063,14 @@ export const COLUMN_CLIPS = {
 							{
 								"file": "columns/grandma-win-phone-0.webp",
 								"width": 1874,
-								"height": 1610,
-								"frames": 24
+								"height": 2013,
+								"frames": 35
+							},
+							{
+								"file": "columns/grandma-win-phone-1.webp",
+								"width": 1874,
+								"height": 804,
+								"frames": 13
 							}
 						],
 						"columns": 7,
@@ -1389,6 +2100,30 @@ export const COLUMN_CLIPS = {
 							},
 							{
 								"file": "columns/grandma-win-d150-3.webp",
+								"width": 1717,
+								"height": 1722,
+								"frames": 6
+							},
+							{
+								"file": "columns/grandma-win-d150-4.webp",
+								"width": 1717,
+								"height": 1722,
+								"frames": 6
+							},
+							{
+								"file": "columns/grandma-win-d150-5.webp",
+								"width": 1717,
+								"height": 1722,
+								"frames": 6
+							},
+							{
+								"file": "columns/grandma-win-d150-6.webp",
+								"width": 1717,
+								"height": 1722,
+								"frames": 6
+							},
+							{
+								"file": "columns/grandma-win-d150-7.webp",
 								"width": 1717,
 								"height": 1722,
 								"frames": 6
@@ -1472,6 +2207,78 @@ export const COLUMN_CLIPS = {
 								"width": 1638,
 								"height": 1232,
 								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-12.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-13.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-14.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-15.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-16.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-17.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-18.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-19.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-20.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-21.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-22.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
+							},
+							{
+								"file": "columns/grandma-win-d215-23.webp",
+								"width": 1638,
+								"height": 1232,
+								"frames": 2
 							}
 						],
 						"columns": 2,
@@ -1512,8 +2319,8 @@ export const COLUMN_CLIPS = {
 	},
 	"landing": {
 		"frames": {
-			"reindeer": 6,
-			"santa": 4,
+			"reindeer": 9,
+			"santa": 6,
 			"grandma": 0
 		},
 		"tiers": {

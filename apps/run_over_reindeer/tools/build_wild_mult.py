@@ -71,8 +71,8 @@ VALUES = list(range(2, 101)) + [150, 200, 250, 300, 400, 500]
 # THE PLACES (keep in step with constants WILD_MULT.place): letter height per value band (road px; bands from 10x, 50x,
 # 100x) and the widest the number may be (road px); the column is the larger of the two places
 PLACE = {
-    "cell": {"caps": [56, 58, 60, 62], "maxW": 200},
-    "col": {"caps": [70, 76, 82, 88], "maxW": 192},
+    "cell": {"caps": [56, 58, 60, 62], "maxW": 196},
+    "col": {"caps": [70, 76, 82, 88], "maxW": 184},
 }
 BAND_FROM = [10, 50, 100]
 BREATHE = 1.02  # the idle's largest swell (constants WILD_MULT.idle.breathe)
