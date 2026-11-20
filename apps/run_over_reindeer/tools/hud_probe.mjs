@@ -700,12 +700,12 @@ async function socialWords(browser) {
 }
 
 /** EVERY ROUND TURNS THE RING (2026-11-20, the probe host: rounds that started back to back with no gap missed it). A
- *  frame by frame record of the board's own spin count (game/boardPace.ts serial, read through the module the page
- *  already runs), the Spin's data-run and the ring's angle; each spin start must show data-run 1 within 100 ms and the
+ *  frame by frame record of the board's own spin count (game/boardPace.ts serial, through the dev hook's spinSerial),
+ *  the Spin's data-run and the ring's angle; each spin start must show data-run 1 within 100 ms and the
  *  ring 10 degrees on within 400 ms. */
 const spinRecStart = (p) =>
-	p.evaluate(async () => {
-		const bp = (await import('/src/game/boardPace.ts')).boardPace;
+	p.evaluate(() => {
+		const serial = () => window.__reindeer.spinSerial?.() ?? 0;
 		const rec = (window.__spinRec = { on: true, rows: [] });
 		const m = (el) => {
 			const v = el && getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/);
@@ -727,7 +727,7 @@ const spinRecStart = (p) =>
 				un += d;
 			}
 			last = a;
-			rec.rows.push({ t, s: bp.serial(), run: b?.dataset.run, a: un });
+			rec.rows.push({ t, s: serial(), run: b?.dataset.run, a: un });
 			requestAnimationFrame(f);
 		};
 		requestAnimationFrame(f);
