@@ -87,6 +87,7 @@
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
+	import { loadWildMult, setWildMultMipmapper, wildMultMemory } from '../game/road/wildMult';
 	import { clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
@@ -748,6 +749,11 @@
 		// THE SUPER WHEEL's sheet (game/road/superWheel.ts) is drawn under its size on most desktop windows: the same chain
 		if (!PHONE_TIER) setWheelMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
 		void loadPresent('peek');
+		// THE WILDS' MULTIPLIERS (game/road/wildMult.ts): their atlas loads in the background from now on, never in the
+		// preload, and goes to the GPU in the upload queue's turn (at once when the first board's columns wait on it);
+		// its sheet is drawn well under its 3x size on both tiers (a long number shrinks to the frame): a mip chain on both
+		setWildMultMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
+		void loadWildMult();
 		const tick = (ticker: PIXI.Ticker) => {
 			// THE SIGN IDLE (constants SIGN_WIN idleShow) only on an idle board (the symbol popup's rule)
 			road.signIdleOk = boardIdle();
@@ -955,6 +961,10 @@
 			signShow: (cell: number, kind: 'win' | 'idle' = 'win', pace = 1) => road.devSignShow(cell, kind, pace),
 			/** the road board itself (pass 6 probes: the column frame, the seated crops, the shadow sheet); DEV only */
 			roadBoard: () => road,
+			/** THE WILDS' MULTIPLIERS (game/road/wildMult.ts): every one as drawn (value, move, letters' canvas boxes), and
+			 *  the atlas's weight */
+			wildMult: () => road.features.multipliers(),
+			wildMultMemory: () => wildMultMemory(),
 			atRest: () => road.atRest && !stateGame.busy,
 			board: () => stateGame.board.map((reel) => [...reel]),
 			gameType: () => stateGame.gameType,

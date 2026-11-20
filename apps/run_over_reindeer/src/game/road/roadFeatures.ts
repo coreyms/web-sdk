@@ -33,11 +33,13 @@
 //            rectangle with its sides in other layers (until 2026-11-17 a full width inner line lay across the right
 //            band's red as a notch at its top and bottom)
 //   cells    the Grandma Wild cells (cloud, frame, WILD and number)
-//   numbers  every column's multiplier, over everything
+//   numbers  every column's multiplier, over everything (and, in a win, the copies that fly to a line's multiplier)
+// THE MULTIPLIERS on a Grandma Wild and a column are game/road/wildMult.ts (Corey 2026-11-19, "E Candy Cane"); the
+// atlas digits below (NumberLabel) stay the line win's multiplier's (game/road/winLights.ts, roadBoard winMult).
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, REINDEER_SOUND, ROAM, SHADOW, STRIKE } from '../constants';
+import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, REINDEER_SOUND, ROAM, SHADOW, STRIKE, WILD_MULT } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
 import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
@@ -49,6 +51,7 @@ import { RoadSounds } from './roadSounds';
 import { castShadow, dropShadow, makeShadow, shadowStrength } from './shadows';
 import { Roam, roamDev } from './roam';
 import type { RoadRect } from '../roamPaths';
+import { WildMult } from './wildMult';
 
 const ROWS = ROAD_ART.board.rows;
 const COLS = ROAD_ART.board.columns;
@@ -214,7 +217,7 @@ const inset = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x +
 const columnInside = (reel: number) => inset({ x: BOARD_X + reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
 
 /** voiced: its crash has played (its first frame); wildVoiced: the Grandma Wild's sound (its pop settled) */
-type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: RedBox; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean };
+type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: RedBox; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean; num: WildMult; multiplier: number };
 
 /** the target crosshair of the strike under way (constants CROSSHAIR, game/road/crosshair.ts) */
 type Crosshair = {
@@ -252,7 +255,10 @@ type Column = {
 	cloudTex: PIXI.Texture | null;
 	cellCloud: PIXI.Sprite;
 	body: PIXI.Sprite;
-	label: NumberLabel;
+	/** its multiplier (game/road/wildMult.ts), in the numbers layer */
+	label: WildMult;
+	/** the board ms a Grandma Wild's join slams the sum down (its stamp), or null */
+	stampAt: number | null;
 	/** impact (box on the struck cell), grow, enter (the entrance clip), idle, win (the win clip once), leave */
 	phase: 'wait' | 'impact' | 'grow' | 'enter' | 'idle' | 'win' | 'leave';
 	t0: number;
@@ -1005,13 +1011,15 @@ export class RoadFeatures {
 		word.height = CLOUD_CELL.wordHeight;
 		word.width = (art.width / art.height) * CLOUD_CELL.wordHeight;
 		word.y = (CLOUD_CELL.wordY - 0.5) * r.h;
-		const label = new NumberLabel(this.tex, CLOUD_CELL.numberHeight, CLOUD_CELL.numberTint);
-		label.set(`${multiplier}x`);
-		label.root.y = (CLOUD_CELL.numberY - 0.5) * r.h;
-		root.addChild(cloud, box.root, word, label.root);
+		// her multiplier drops in as her pop settles (constants WILD_MULT appear cellDelayMs), inside the cloud's pop
+		const num = new WildMult('cell', WILD_MULT.cellColor, cell * 0.37);
+		// standing on the inside of her box's bottom band
+		num.root.y = r.h / 2 - WILD_MULT.place.cell.floor;
+		num.show(multiplier, 'appear', this.clock + WILD_MULT.appear.cellDelayMs);
+		root.addChild(cloud, box.root, word, num.root);
 		root.scale.set(CLOUD_CELL.popFrom);
 		this.cellLayer.addChild(root);
-		this.clouds.push({ cell, root, cloud, box, t0: this.clock, leaving: null, voiced: false, wildVoiced: false });
+		this.clouds.push({ cell, root, cloud, box, t0: this.clock, leaving: null, voiced: false, wildVoiced: false, num, multiplier });
 		// the crosshair on this cell closes onto her box while her cloud pops (the box shows when it is done)
 		if (this.xh && this.xh.plan.target === cell && this.xh.morphAt !== null) this.xh.morphMs = CLOUD_CELL.popMs;
 		box.root.visible = !this.crosshairOn(cell);
@@ -1028,9 +1036,7 @@ export class RoadFeatures {
 		const cellCloud = new PIXI.Sprite(this.tex('cloud_cell') ?? PIXI.Texture.EMPTY);
 		const body = new PIXI.Sprite();
 		const box = new RedBox(true);
-		const label = new NumberLabel(this.tex, COLUMN.numberHeight, COLUMN.numberTint);
-		label.set(`${multiplier - joinAdd}x`);
-		label.root.visible = false;
+		const label = new WildMult('col', WILD_MULT.colors[tier], reel * 0.37);
 		backdrop.visible = false;
 		cloud.visible = false;
 		cellCloud.visible = false;
@@ -1047,8 +1053,9 @@ export class RoadFeatures {
 		this.stacks[reel].left.addChild(box.leftRoot!);
 		this.numberLayer.addChild(label.root);
 		if (pictures) void loadBackdrop();
-		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, winVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null };
-		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - COLUMN.numberUp);
+		const column: Column = { reel, tier, multiplier, sticky, back, backdrop, box, cloud, cloudTex: null, cellCloud, body, label, phase: 'wait', t0: this.clock, boxT0: this.clock, impactMs: COLUMN.wholeImpactMs, growMs: COLUMN.wholeGrowMs, fromRow: -1, labelShown: false, joinAdd, stampAt: null, frame: -1, dropReveal: false, xhBox: false, still: null, crashVoiced: false, stepVoiced: false, winVoiced: false, enterCloud: false,	idleLoop: -1, idleT0: NaN, foot, footTex: null, footT0: NaN, bodyTex: null };
+		// its number stands on the inside of the frame's bottom rail (constants WILD_MULT place col floor)
+		label.root.position.set(BOARD_X + (reel + 0.5) * PITCH, COLUMN_TOP + COLUMN_H - WILD_MULT.place.col.floor);
 		this.columns.push(column);
 		return column;
 	}
@@ -1086,7 +1093,8 @@ export class RoadFeatures {
 		column.t0 = column.boxT0;
 		const entrance = reveal ? (reveal.textures.length / reveal.fps) * 1000 : 200;
 		// a joining Grandma Wild's sum shows after the column's own number (never under variant F)
-		const join = joinAdd > 0 ? Math.max(0, entrance * COLUMN.numberAt + COLUMN.joinMs - entrance) : 0;
+		// (and its count up and slam: constants WILD_MULT change)
+		const join = joinAdd > 0 ? Math.max(0, entrance * COLUMN.numberAt + COLUMN.joinMs - entrance) + WILD_MULT.change.countMs + WILD_MULT.change.slamMs : 0;
 		await this.wait(column.t0 + column.impactMs + column.growMs + entrance + join);
 	}
 
@@ -1098,6 +1106,7 @@ export class RoadFeatures {
 		// a new spin: the crosshair's seed counts its strikes from here
 		this.strikesThisSpin = 0;
 		this.sounds.runStop('new spin');
+		this.endFlies();
 		this.endCrosshair();
 		for (const cloud of this.clouds) if (cloud.leaving === null) cloud.leaving = this.clock;
 		this.dropMarks(null);
@@ -1106,6 +1115,8 @@ export class RoadFeatures {
 			if (!want || want.tier !== column.tier) this.removeColumn(column.reel, false);
 			else {
 				column.sticky = true;
+				// its number stands at rest into the new spin (a win's move is not carried over)
+				column.label.settle();
 				// a book that disagrees is a fault in the book; it is said in DEV and the number on screen stays
 				if (import.meta.env.DEV && want.multiplier !== column.multiplier) console.warn(`[reindeer] held column ${column.reel}: the book says ${want.multiplier}x, it landed with ${column.multiplier}x`);
 			}
@@ -1116,7 +1127,7 @@ export class RoadFeatures {
 			column.phase = 'idle';
 			column.t0 = this.clock;
 			column.labelShown = true;
-			column.label.root.visible = true;
+			column.label.show(h.multiplier, 'rest', this.clock);
 			void loadClip(h.tier, 'idle');
 			void loadClip(h.tier, 'win');
 			for (let row = 0; row < ROWS; row++) this.hideCell(h.reel * ROWS + row, true);
@@ -1142,7 +1153,7 @@ export class RoadFeatures {
 			column.phase = 'idle';
 			column.t0 = this.clock;
 			column.labelShown = true;
-			column.label.root.visible = true;
+			column.label.show(multiplier, 'rest', this.clock);
 		}
 	}
 
@@ -1230,6 +1241,82 @@ export class RoadFeatures {
 		}
 	}
 
+	// ---- the multipliers in a line win (constants WILD_MULT win) -----------------------------------------------------------
+	/** the copies flying to a line's multiplier (two Wilds adding on it): made at the win, gone as they land */
+	private flies: { num: WildMult; fromX: number; fromY: number; toX: number; toY: number; t0: number }[] = [];
+
+	/** A LINE WIN through multiplier Wilds: every Grandma Wild cell and column on a winning line plays its win (from the
+	 *  first of its lines to start: `startsMs`, board ms from now). On a line with two or more of them a copy of each
+	 *  flies to the line's own multiplier as it shows (`badges[k]`, road px and board ms from now; null: none shown). */
+	winNumbers(lines: readonly (readonly number[])[], startsMs: readonly number[], badges: readonly ({ x: number; y: number; inMs: number } | null)[]) {
+		this.endFlies();
+		const told = new Set<WildMult>();
+		lines.forEach((cells, k) => {
+			const on: { num: WildMult; value: number; x: number; y: number }[] = [];
+			for (const c of this.clouds) {
+				if (c.leaving !== null || !cells.includes(c.cell)) continue;
+				const r = cellRect(c.cell);
+				on.push({ num: c.num, value: c.multiplier, x: r.x + r.w / 2, y: r.y + r.h - WILD_MULT.place.cell.floor + c.num.centreY });
+			}
+			for (const col of this.columns) {
+				if (col.phase === 'leave' || !col.labelShown || !cells.some((cell) => Math.floor(cell / ROWS) === col.reel)) continue;
+				on.push({ num: col.label, value: col.label.target, x: col.label.root.x, y: col.label.root.y + col.label.centreY });
+			}
+			for (const o of on) {
+				if (told.has(o.num)) continue;
+				told.add(o.num);
+				o.num.win(this.clock + (startsMs[k] ?? 0));
+			}
+			const badge = badges[k];
+			if (!badge || on.length < 2) return;
+			for (const o of on) {
+				const num = new WildMult('sum', o.num.color, 0);
+				num.show(o.value, 'still', this.clock);
+				num.root.visible = false;
+				this.numberLayer.addChild(num.root);
+				this.flies.push({ num, fromX: o.x, fromY: o.y, toX: badge.x, toY: badge.y, t0: this.clock + badge.inMs - WILD_MULT.win.fly.ms });
+			}
+		});
+	}
+
+	private updateFlies() {
+		if (!this.flies.length) return;
+		const F = WILD_MULT.win.fly;
+		let done = 0;
+		for (const f of this.flies) {
+			const u = (this.clock - f.t0) / Math.max(1, F.ms);
+			if (u >= 1) {
+				f.num.root.visible = false;
+				done++;
+				continue;
+			}
+			f.num.update(this.clock);
+			const on = u >= 0;
+			f.num.root.visible = on;
+			if (!on) continue;
+			const e = u * u;
+			f.num.root.position.set(f.fromX + (f.toX - f.fromX) * e, f.fromY + (f.toY - f.fromY) * e);
+			f.num.root.scale.set(1 + (F.toScale - 1) * u);
+			f.num.root.alpha = F.alpha * (1 - F.fade * u);
+		}
+		if (done === this.flies.length) this.endFlies();
+	}
+
+	/** the copies go (they have landed, the win is cleared, a new spin) */
+	endFlies() {
+		for (const f of this.flies) f.num.destroy();
+		this.flies = [];
+	}
+
+	/** the multipliers as drawn (probes): every Grandma Wild cell's and column's, and the copies in flight */
+	multipliers() {
+		return {
+			cells: this.clouds.filter((c) => c.leaving === null).map((c) => ({ cell: c.cell, multiplier: c.multiplier, ...c.num.state(), glyphs: c.num.glyphBounds() })),
+			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => ({ reel: c.reel, tier: c.tier, multiplier: c.multiplier, shown: c.labelShown, ...c.label.state(), glyphs: c.label.glyphBounds() })),
+			flies: this.flies.length,
+		};
+	}
+
 	/** is a column standing on this reel (the board skips its cells when traffic drives in)? */
 	hasColumn(reel: number): boolean {
 		return this.columns.some((c) => c.reel === reel && c.phase !== 'leave');
@@ -1248,6 +1335,7 @@ export class RoadFeatures {
 		this.updateCrosshair();
 		this.updateClouds();
 		for (const column of [...this.columns]) this.updateColumn(column);
+		this.updateFlies();
 		// THE CRASH CLOUDS on screen this frame (the cloud loop), and whether a strike or a column's arrival is going on
 		// (no idle snort then): a Grandma Wild's cloud cell, standing or leaving; a struck reel's column from its cell
 		// cloud's pop to the end of its entrance's cloud frames
@@ -1436,11 +1524,14 @@ export class RoadFeatures {
 
 	private updateClouds() {
 		for (const c of [...this.clouds]) {
+			// her multiplier (game/road/wildMult.ts), inside the cloud's pop and its fade
+			c.num.update(this.clock);
 			if (c.leaving !== null) {
 				const u = (this.clock - c.leaving) / COLUMN.leaveMs;
 				c.root.alpha = Math.max(0, 1 - u);
 				if (u >= 1) {
 					this.hideCell(c.cell, false);
+					c.num.destroy();
 					c.root.destroy({ children: true });
 					this.clouds = this.clouds.filter((x) => x !== c);
 				}
@@ -1504,7 +1595,7 @@ export class RoadFeatures {
 		column.box.root.destroy({ children: true });
 		column.box.rightRoot?.destroy({ children: true });
 		column.box.leftRoot?.destroy({ children: true });
-		column.label.root.destroy({ children: true });
+		column.label.destroy();
 		column.footTex?.destroy(false);
 		column.footTex = null;
 		column.bodyTex?.destroy(false);
@@ -1733,8 +1824,7 @@ export class RoadFeatures {
 			}
 			if (!column.labelShown && t >= length * COLUMN.numberAt) {
 				column.labelShown = true;
-				column.label.root.visible = true;
-				column.label.root.scale.set(1.5);
+				column.label.show(column.multiplier - column.joinAdd, 'appear', this.clock);
 				this.stamp(column, column.multiplier - column.joinAdd);
 			}
 			this.joinNumber(column, t - length * COLUMN.numberAt);
@@ -1797,9 +1887,13 @@ export class RoadFeatures {
 
 		// a join still due when the entrance ended (a short entrance) shows now
 		if (column.joinAdd > 0 && column.phase !== 'enter') this.joinNumber(column, Infinity);
-		// the number settles from its pop; it never changes once it stands
-		const label = column.label.root;
-		label.scale.set(label.scale.x + (1 - label.scale.x) * 0.2);
+		// a join's sum slams down: its stamp
+		if (column.stampAt !== null && this.clock >= column.stampAt) {
+			column.stampAt = null;
+			this.stamp(column, column.multiplier);
+		}
+		// the number (constants WILD_MULT); it never changes once it stands but for a Grandma Wild's join
+		column.label.update(this.clock);
 		this.placeFoot(column);
 	}
 
@@ -1821,13 +1915,13 @@ export class RoadFeatures {
 		column.footTex = dropShadow(column.foot, column.footTex, column.body, box, k * ramp);
 	}
 
-	/** a Grandma Wild's multiplier joining the column's number, joinMs after it popped in: the sum, with a second pop */
+	/** a Grandma Wild's multiplier joining the column's number, joinMs after it popped in: the sum, counted up to */
 	private joinNumber(column: Column, sincePop: number) {
 		if (column.joinAdd <= 0 || !column.labelShown || sincePop < COLUMN.joinMs) return;
 		column.joinAdd = 0;
-		column.label.set(`${column.multiplier}x`);
-		column.label.root.scale.set(1.5);
-		this.stamp(column, column.multiplier);
+		// it counts up to the sum and slams down (constants WILD_MULT change); the stamp plays as it slams
+		column.label.change(column.multiplier, this.clock);
+		column.stampAt = column.label.slamAt();
 	}
 
 	/** a column's number stamps on (its pop): the multiplier stamp of its band (REINDEER_SOUND stamp) */

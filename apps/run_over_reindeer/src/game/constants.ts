@@ -1768,6 +1768,114 @@ export const LED_BOARD = {
 /** everything tunable, as one object (window.__reindeer.tune) */
 export const TUNE = { ledBoard: LED_BOARD, laneFlow: LANE_FLOW, brakeLights: BRAKE_LIGHTS, ledSign: LED_SIGN, road: ROAD, motion: ROAD_MOTION, lineWin: LINE_WIN, strike: STRIKE, roam: ROAM, cloudCell: CLOUD_CELL, redBox: RED_BOX, crosshair: CROSSHAIR, column: COLUMN, round: ROUND, stoplight: STOPLIGHT, hudBed: HUD_BED, present: PRESENT, sound: REINDEER_SOUND, shadow: SHADOW, policeLights: POLICE_LIGHTS, vanWin: VAN_WIN, signWin: SIGN_WIN, wagonTree: WAGON_TREE, seated: SEATED, scene: SCENE, logoSign: LOGO_SIGN, superWheel: SUPER_WHEEL };
 
+// ---- THE WILDS' MULTIPLIERS (Corey 2026-11-19: "E Candy Cane"; game/road/wildMult.ts, tools/build_wild_mult.py) -------
+// The number on a Grandma Wild's cell and on a full column Wild, in the approved mock's candidate E "Candy Cane
+// Lettering" letters (Desktop/Run Over Reindeer/wild_multipliers_r1_2026-11-19, tools/page.html const E): chunky Sigmar
+// letters with an ink outline, no backing plate. ONE COLOR PER CHARACTER at every value (Corey 2026-11-19: "We should jsut
+// go static colors for Reindeer Santa, Grandma for the multipliers and the garland. Grandma is the exception, she has gold
+// number that deserve effects as they get much larger"; the colors confirmed with the garland mock the same day): the
+// Reindeer red candy stripes, Santa green candy stripes, Grandma gold tinsel (her column and her single cell Wild), and
+// only Grandma's gold has effects that grow with the value (gold, below). Every letter is its own sprite from the
+// multiplier atlas; the motion is transforms, alpha, tint and additive blending only, on the board clock (turbo and a slam
+// stop run it faster). Road px and board ms. The tune panel lists this block (staging only; TUNE below).
+export const WILD_MULT = {
+	/** each character's color set (the atlas carries red, green and gold): one line to change one */
+	colors: { reindeer: 'red', santa: 'green', grandma: 'gold' } as Record<'reindeer' | 'santa' | 'grandma', 'red' | 'green' | 'gold'>,
+	/** the single cell Grandma Wild's */
+	cellColor: 'gold' as 'red' | 'green' | 'gold',
+	/** the value bands the letters grow by (from 10x, 50x, 100x): sizes only, never colors */
+	bandFrom: [10, 50, 100],
+	/** THE PLACES, inside the Wild's frame (2026-11-19: the number covered the frame's bottom rail from 25x; it now fits
+	 *  the frame's inside and never overlaps the rail). `caps` the letter height per value band (road px), `maxW` the
+	 *  widest the number's letters may be (a long number shrinks to it: their outline, baked shadow and the idle's 2%
+	 *  swell then stay inside the frame's inside width: about 210 road px in a column, 218 in a cell), `floor` the inside
+	 *  of the frame's bottom rail (road px above the column's foot or the cell's bottom edge: RED_BOX.inset + its band +
+	 *  RED_BOX.edge), `gap` the letters' outline above it (their baked shadow, down and right, then barely reaches the rail). The atlas is baked for these (tools/build_wild_mult.py PLACE
+	 *  keeps the same numbers; DEV says so once when a number draws over its bake). `sum`: the copies that fly to a line's
+	 *  multiplier when two Wilds add on it (drawn about their centre). */
+	place: {
+		cell: { caps: [56, 58, 60, 62], maxW: 200, floor: 16, gap: 6 },
+		col: { caps: [70, 76, 82, 88], maxW: 192, floor: 20, gap: 6 },
+		sum: { caps: [60, 64, 68, 72], maxW: 220, floor: 0, gap: 0 },
+	},
+	/** the glow behind the number (the atlas's soft blob, additive) in a win: its tint per color set, its size against
+	 *  the number's width and letter height, its strength at the win's peak */
+	glow: { tint: { red: 0xff6060, green: 0x70ff9a, gold: 0xffc040 } as Record<'red' | 'green' | 'gold', number>, width: 1.25, height: 1.6, alpha: 0.35 },
+	/** GRANDMA'S GOLD: effects that grow with the value. The steps' numbers are blended between their `from` values (on
+	 *  a log scale), the last held above 500x:
+	 *    sheen      a light sweeps across the letters every sheenMs (sweepShare of it), sheenAlpha at its brightest
+	 *    sparkles   that many star glints take turns on the letters at rest (sparkleMs each, sparkleScale of the star)
+	 *    shimmer    the letters' faces flicker brighter by up to this (additive)
+	 *    glow       a soft gold glow behind at this strength, pulsing by glowPulse every pulseMs */
+	gold: {
+		steps: [
+			{ from: 2, sheenMs: 3600, sheenAlpha: 0.22, sparkles: 0, sparkleScale: 0.4, shimmer: 0, glow: 0, glowPulse: 0, pulseMs: 1600 },
+			{ from: 25, sheenMs: 3000, sheenAlpha: 0.3, sparkles: 2, sparkleScale: 0.5, shimmer: 0, glow: 0, glowPulse: 0, pulseMs: 1600 },
+			{ from: 100, sheenMs: 2200, sheenAlpha: 0.4, sparkles: 3, sparkleScale: 0.55, shimmer: 0.12, glow: 0.3, glowPulse: 0.35, pulseMs: 1400 },
+			{ from: 500, sheenMs: 1600, sheenAlpha: 0.55, sparkles: 5, sparkleScale: 0.65, shimmer: 0.2, glow: 0.45, glowPulse: 0.4, pulseMs: 1100 },
+		],
+		/** the sheen's sweep: this share of its period, the lit band this share of the number's width; its tint */
+		sweepShare: 0.45,
+		band: 0.45,
+		sheenTint: 0xfff2c8,
+		/** the shimmer's flicker period per letter (ms) */
+		shimmerMs: 180,
+		sparkleMs: 650,
+	},
+	/** APPEAR: each letter drops in from `fromScale`, `staggerMs` after the one before, over `ms`; it lands at `land`
+	 *  (share of ms), fading in over the first 1/`fadeRate` of it, then squashes `squash` and settles (decay, freq); a snow
+	 *  puff leaves each side of each letter `puff.delayMs` after its start, over `puff.ms` */
+	appear: {
+		staggerMs: 60,
+		ms: 240,
+		land: 0.55,
+		fromScale: 1.8,
+		fadeRate: 4,
+		squash: 0.2,
+		decay: 4,
+		freq: 9,
+		/** a cell's number starts this long after her cloud's pop starts (CLOUD_CELL.popMs: she has turned Wild) */
+		cellDelayMs: 170,
+		/** the whole move, after which the number is at rest */
+		totalMs: 1000,
+		puff: { delayMs: 132, ms: 380, y: 0.45, spread: 0.35, spreadOut: 0.3, scale: [0.35, 0.45], per: 80, alpha: 0.9, rise: 10 },
+	},
+	/** CHANGE (a Grandma Wild joining a column: its sum): the number counts up from the old value over `countMs` (ease
+	 *  out), trembling `shake` (|sin(t / shakeMs)|), then slams down from 1 + `slam` over `slamMs`, with a burst of `burst.n`
+	 *  stars (white; gold for the gold number) and two snow puffs, over `burst.ms`. The stamp sound plays as it slams. */
+	change: {
+		countMs: 480,
+		shake: 0.07,
+		shakeMs: 32,
+		slam: 0.45,
+		slamMs: 160,
+		totalMs: 1100,
+		burst: { n: 7, ms: 420, from: 0.3, to: 0.75, scale: 0.7, tint: 0xffffff, goldTint: 0xffe28a, seed: 3 },
+		puff: { spread: 0.4, per: 70 },
+	},
+	/** WIN (a winning line runs through the Wild): two beats `beats` ms apart; each beat every letter hops `hop` road px,
+	 *  `staggerMs` after the one before, over `hopMs`; the glow swells over `haloMs`; a burst of `burst.n` stars */
+	win: {
+		beats: [0, 700],
+		hop: 16,
+		staggerMs: 70,
+		hopMs: 300,
+		haloMs: 600,
+		totalMs: 2500,
+		burst: { n: 6, ms: 600, from: 0.25, to: 0.7, scale: 0.55, tint: 0xffe9a0, seed: 9 },
+		/** TWO ADDING ON A LINE (two or more multiplier Wilds on one winning line): a copy of each number flies to the
+		 *  line's multiplier as it shows (ms of flight, eased in), shrinking to `toScale` and fading (`alpha` to alpha x
+		 *  (1 - fade)). The line's multiplier keeps its own digits (game/road/winLights.ts). */
+		fly: { ms: 330, toScale: 0.55, alpha: 0.85, fade: 0.6 },
+	},
+	/** IDLE (at rest: between spins, Free Spins' held columns, the first board's columns): it breathes `breathe` (one
+	 *  sin(t / periodMs) swing); the gold's sparkles land within spreadX / spreadY of the letters */
+	idle: { breathe: 0.02, periodMs: 520, spreadX: 0.5, spreadY: 0.8 },
+	/** the star sprites' turn as they shine (radians over a twinkle) */
+	star: { rot: 1.4 },
+};
+(TUNE as Record<string, unknown>).wildMult = WILD_MULT;
+
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */
 export const SLAM_HURRY = true;

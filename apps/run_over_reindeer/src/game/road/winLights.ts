@@ -667,6 +667,16 @@ export class WinLights {
 	slamPlan(): SlamPlan | null {
 		return this.slam;
 	}
+
+	/** WHERE AND WHEN LINE k's MULTIPLIER SHOWS (treatment B: it pops in beside the plain amount, drawSlam 'side'): road
+	 *  px, ms into the win; null when the line shows none (no multiplier, no slam). The Wilds' copies fly to it when two
+	 *  multipliers add on the line (game/road/wildMult.ts, constants WILD_MULT win fly). */
+	badgeAt(k: number): { x: number; y: number; at: number } | null {
+		const s = this.slots[k];
+		if (!this.slam || !this.slamOpts || k >= this.active || !s || !s.multi || !s.lab) return null;
+		const gw = s.wPlain + X.gap * this.slamOpts.scale + s.wBadge;
+		return { x: s.cx + gw / 2 - s.wBadge / 2, y: s.cy, at: s.start + s.draw + X.beats.plain * s.f };
+	}
 	/** ONE LINE'S SLAM at `local` ms into its line (the mock's drawLabel, treatment B): alone first, its multiplier pops in
 	 *  beside it, the two sit together, squash into each other (a back-in ease) and the line's win punches out, flashing
 	 *  halfway to yellow; a line with no multiplier shows its amount alone, swelling once. `fade` its line's take-down. */
