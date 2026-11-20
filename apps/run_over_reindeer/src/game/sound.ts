@@ -200,8 +200,10 @@ const loadMusicManifest = async () => {
 	// as a clean join by ear, and streamed they were not clean anywhere but the iPhone base (measured in round 1: on the
 	// iPhone path the Free Spins wrap repeated about 1.1 s, WebKit bug 230553; desktop Chromium left 14 to 69 ms of
 	// silence at every wrap of all three). Only the track playing holds a decoded copy, and it goes when another starts:
-	// iPhone (mono .m4a, 48 kHz) base 6.1 MB, Free Spins 4.6 MB, Super 3.1 MB; desktop and Android (stereo .ogg) about
-	// 12.3, 9.2 and 6.1 MB at 48 kHz (11.3, 8.5, 5.6 at 44.1). A browser that cannot decode the file keeps streaming.
+	// iPhone (mono .m4a, 48 kHz) base 6.1 MB, Free Spins 4.6 MB, Super 4.6 MB; desktop and Android (stereo .ogg) about
+	// 12.3, 9.2 and 9.2 MB at 48 kHz (11.3, 8.4, 8.5 at 44.1). Free Spins and Super since 2026-11-20 (Corey's surf take and
+	// big band take, 23.894 s and 23.999 s; the old Super was 16.0 s, 3.1 / 6.1 / 5.6 MB). A browser that cannot decode the
+	// file keeps streaming.
 	sound.loadMusic(holdSideTracks(manifest), { bufferedLoops: ['bgm_base', 'bgm_bonus', 'bgm_super'] });
 };
 

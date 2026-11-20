@@ -16,29 +16,29 @@
 		},
 		"bgm_bonus": {
 			"src": [
-				"./assets/audio/music/bgm_bonus.ogg?v=c15af12d",
-				"./assets/audio/music/bgm_bonus.m4a?v=a67bf23b"
+				"./assets/audio/music/bgm_bonus.ogg?v=7524a4a7",
+				"./assets/audio/music/bgm_bonus.m4a?v=ca49ab06"
 			],
 			"bytes": [
-				193030,
-				152881
+				183305,
+				151969
 			],
 			"loop": true,
-			"duration": 23.997392,
-			"volume": 0.841
+			"duration": 23.894014,
+			"volume": 1
 		},
 		"bgm_super": {
 			"src": [
-				"./assets/audio/music/bgm_super.ogg?v=7b4ab89c",
-				"./assets/audio/music/bgm_super.m4a?v=775f2c78"
+				"./assets/audio/music/bgm_super.ogg?v=6b97f0a3",
+				"./assets/audio/music/bgm_super.m4a?v=562ef093"
 			],
 			"bytes": [
-				129898,
-				104538
+				190990,
+				152928
 			],
 			"loop": true,
-			"duration": 15.998776,
-			"volume": 0.902
+			"duration": 23.999274,
+			"volume": 0.92
 		}
 	}
 }
