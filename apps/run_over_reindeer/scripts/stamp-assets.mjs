@@ -81,7 +81,7 @@ walk(ASSETS);
 
 // What the landing screen itself draws: the two chrome faces and the game's own face. Their bytes are the first
 // part of the loading bar (game/boot.svelte.ts).
-const LANDING = ['fonts/ui/Outfit-Variable.woff2', 'fonts/ui/Sora-Variable.woff2', 'fonts/overpass/Overpass-heavy.woff2'];
+const LANDING = ['fonts/ui/Outfit-Variable.woff2', 'fonts/ui/Sora-Variable.woff2', 'fonts/overpass/Overpass-heavy.woff2', 'fonts/overpass/Overpass-bold.woff2'];
 const landingSizes = Object.fromEntries(LANDING.map((rel) => [rel, statSync(join(ASSETS, rel)).size]));
 
 // The Pixi preload's bytes: every `preload: true` entry of game/assets.ts (an atlas counts its image).

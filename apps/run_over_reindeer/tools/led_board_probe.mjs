@@ -1,9 +1,9 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.wrapAutoHoldMs
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,fixtures/showcaseBooks.ts,game/bookEventHandlerMap.ts,game/constants.ts,game/road/roadBoard.ts,game/road/roadSounds.ts};
-// WATCHES: apps/run_over_reindeer/src/{game/scoreboard/race.ts,game/scoreboard/scoreboardDraw.ts,game/sound.ts,ui/RoundCard.svelte,ui/hud/hudLayout.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/scoreboard/race.ts,game/scoreboard/scoreboardDraw.ts,game/scoreboard/ledGrid.ts,game/sound.ts,ui/RoundCard.svelte,ui/hud/hudLayout.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
-// WATCHES: ; __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
+// WATCHES: ; LED_BOARD.density, __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardCard, __reindeer.scoreboardCardEnd, __reindeer.scoreboardCardPress
 // WATCHES: ; __reindeer.scoreboardFace, __reindeer.scoreboardGag, __reindeer.scoreboardLower, __reindeer.scoreboardManual
 // WATCHES: ; __reindeer.scoreboardRace, __reindeer.scoreboardRaise, __reindeer.scoreboardSkip, __reindeer.scoreboardStep
@@ -57,6 +57,12 @@
 //     a Mega win's amount on the big board is that text with its lit dots inside the face; no page errors
 //     (2026-11-18: and for USD, EUR, JPY and BRL a free spin's strip win with cents, 39.2x, counted at LINE_WIN.slam
 //     stripCountMs, ends on exactly the amount it counts to and never reads more on the way)
+// THE FINER GRID (section density, 2026-11-19, constants LED_BOARD.density, game/scoreboard/ledGrid.ts), at the device's own
+// pixel ratio: the rule (1.5 LEDs per dot where an LED stays at least 2 device px: 1440 x 900 at 2x, 1920 x 1080 at 1x, the
+// phones at 3x and a sideways phone at 2x; today's grid on a 1440 x 900 desktop at 1x and an upright phone at 2x), both faces
+// at one density with one face each, their LEDs, the GPU budget, a one dot chase border the same number of LEDs all round,
+// the draw cost per layout; a rotation (sideways to upright at 2x and back) and the tune panel switch the density cleanly
+// (never two densities on screen, no face left over); M4 and the currency's drawRow check again on the finer grid
 // M4 (section m4, desktop and upright, 2026-11-19, driven by hand): the strip's scan to a message leaves the old picture alone
 //   right of its line (never the two drawn at once); the Total Win's amount is lit whenever its title is, the landing blink too
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
@@ -73,7 +79,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -108,7 +114,8 @@ const R = (p, fn, arg) => p.evaluate(fn, arg);
 const r1 = (v) => Math.round(v * 10) / 10;
 
 async function boot(browser, S) {
-	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: 1, isMobile: S.phone, hasTouch: S.phone });
+	// (the sizes run at a device pixel ratio of 1; the density section at the device's own: S.dpr)
+	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr ?? 1, isMobile: S.phone, hasTouch: S.phone });
 	const p = await ctx.newPage();
 	const errs = [];
 	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
@@ -667,10 +674,12 @@ async function currencyChecks(p, S) {
 				for (let i = 0; i < 600 && q.show && q.show.t + 10 <= q.show.countEnd; i++) q = R0.scoreboardStep(10);
 				if (q.show && q.show.t < q.show.countEnd) q = R0.scoreboardStep(q.show.countEnd - q.show.t);
 				const D = await import('/src/game/scoreboard/scoreboardDraw.ts');
+				const LG = await import('/src/game/scoreboard/ledGrid.ts');
 				const board = (await import('/src/game/scoreboard/scoreboard.ts')).scoreboardDev.board;
 				const F = board.strip.F;
-				const W = F.dotsW;
-				const H = F.dotsH;
+				// (2026-11-19, the finer grid: read LED by LED; the face is F.k LEDs per dot, the box below is in LEDs)
+				const W = F.ledW;
+				const H = F.ledH;
 				const d = F.out.ctx.getImageData(0, 0, W, H).data;
 				// the amount is the only white on the small win's face (WIN is blue, the hop comes after the count)
 				const white = (x, y) => d[(y * W + x) * 4 + 3] > 0 && d[(y * W + x) * 4] > 240 && d[(y * W + x) * 4 + 1] > 240 && d[(y * W + x) * 4 + 2] > 240;
@@ -679,10 +688,9 @@ async function currencyChecks(p, S) {
 				// the same text by the game's drawRow at each cap: one must give exactly these dots
 				let match = null;
 				for (let cap = 5; cap <= H && r >= 0; cap++) {
-					const c = document.createElement('canvas');
-					c.width = W + 40;
-					c.height = H + 20;
-					const g = c.getContext('2d');
+					// (a scratch face of the strip's own density: drawRow there draws as it does on the strip)
+					const c = LG.mkFace(F.dotsW + 40, F.dotsH + 20, F.k);
+					const g = c.ctx;
 					D.drawRow(g, want, 4, 4, cap, '#ffffff');
 					const e = g.getImageData(0, 0, c.width, c.height).data;
 					let L = c.width, Rr = -1, T = c.height, Bb = -1;
@@ -694,11 +702,11 @@ async function currencyChecks(p, S) {
 				}
 				const shown = q.show?.amount ?? null;
 				for (let i = 0; i < 400 && R0.scoreboard().show; i++) R0.scoreboardStep(10);
-				return { shown, box: [l, t, r, b], W, H, match };
+				return { shown, box: [l, t, r, b], W, H, match, k: F.k };
 			},
 			[code, want],
 		);
-		check(st.shown === want && st.match !== null && st.box[0] >= 1 && st.box[2] <= st.W - 2 && st.box[1] >= 0 && st.box[3] <= st.H - 1, `${tag}: ${code} on the strip reads "${st.shown}" (want "${want}"), drawn dot for dot as drawRow draws it (cap ${st.match}) inside the ${st.W} x ${st.H} face`, st);
+		check(st.shown === want && st.match !== null && st.box[0] >= 1 && st.box[2] <= st.W - 2 && st.box[1] >= 0 && st.box[3] <= st.H - 1, `${tag}: ${code} on the strip reads "${st.shown}" (want "${want}"), drawn LED for LED as drawRow draws it (cap ${st.match}) inside the ${st.W} x ${st.H} LED face (${st.k} LEDs per dot)`, st);
 		// THE COUNT ENDS ON ITS AMOUNT (2026-11-18, the BRL capture "WIN R$39.00" beside the HUD's R$39.20: book 6239 spin 7,
 		// 39.00x after 0.20x, the strip shows the spin's win and the HUD the round's total): a free spin's strip win with
 		// cents (39.2x), counted at the line win's own count length, stepped frame by frame: from the count's end on, every
@@ -1550,15 +1558,17 @@ async function m4Checks(p, S) {
 			const img = new Image();
 			img.src = f.png;
 			await img.decode();
+			// (2026-11-19, the finer grid: the face's png is one pixel per LED, f.k LEDs per dot; W, H here are its LEDs and the
+			// records (in dots) are read at x k)
 			const c = document.createElement('canvas');
-			c.width = f.W;
-			c.height = f.H;
+			c.width = f.ledW;
+			c.height = f.ledH;
 			const g = c.getContext('2d');
 			g.drawImage(img, 0, 0);
-			const d = g.getImageData(0, 0, f.W, f.H).data;
-			const a = new Uint8Array(f.W * f.H);
+			const d = g.getImageData(0, 0, f.ledW, f.ledH).data;
+			const a = new Uint8Array(f.ledW * f.ledH);
 			for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
-			return { a, W: f.W, H: f.H, titles: f.titles };
+			return { a, W: f.ledW, H: f.ledH, k: f.k, titles: f.titles };
 		};
 		h.scoreboardManual(true);
 		h.scoreboardScatter(undefined);
@@ -1577,11 +1587,13 @@ async function m4Checks(p, S) {
 			const sw = s.stripSwitch;
 			if (!sw || sw.kind !== 'scan' || sw.since >= h.tune.ledBoard.strip.switchMs) break;
 			const A = await alphaOf('strip');
+			// the line (one dot: max(1, round(k)) LEDs) at its LED column; right of it the old picture
 			const x = Math.round((sw.since / h.tune.ledBoard.strip.switchMs) * A.W);
+			const u = Math.max(1, Math.round(A.k));
 			let bad = 0;
 			let oldLit = 0;
 			for (let y = 0; y < A.H; y++)
-				for (let xx = x + 1; xx < A.W; xx++) {
+				for (let xx = x + u; xx < A.W; xx++) {
 					const j = y * A.W + xx;
 					if (A.a[j] !== A0.a[j]) bad += 1;
 					if (A0.a[j] > 40) oldLit += 1;
@@ -1605,7 +1617,8 @@ async function m4Checks(p, S) {
 			const litIn = (b) => {
 				if (!b) return 0;
 				let n = 0;
-				for (let y = Math.max(0, b.y0); y < Math.min(B.H, b.y1); y++) for (let x = Math.max(0, b.x0); x < Math.min(B.W, b.x1); x++) if (B.a[y * B.W + x] > 40) n += 1;
+				const q = B.k;
+				for (let y = Math.max(0, Math.floor(b.y0 * q)); y < Math.min(B.H, Math.ceil(b.y1 * q)); y++) for (let x = Math.max(0, Math.floor(b.x0 * q)); x < Math.min(B.W, Math.ceil(b.x1 * q)); x++) if (B.a[y * B.W + x] > 40) n += 1;
 				return n;
 			};
 			rows.push({ t: s.show.t, land: s.show.t - s.show.countEnd, press: s.show.pressLineAt !== null && s.show.t >= s.show.pressLineAt, title: litIn(title), amount: litIn(amt), str: amt?.str });
@@ -1758,6 +1771,135 @@ async function pressBoard(browser, S) {
 	}
 }
 
+
+/** THE FINER GRID (2026-11-19): the density rule per layout at the device's own pixel ratio, a clean switch on a rotation and
+ *  on the tune panel, a one dot border the same LEDs all round, the cost; M4 and the currency check again at 1.5 */
+const DENSITY_CASES = [
+	{ name: 'density desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, want: 1.5, deep: true },
+	{ name: 'density desktop@1', vp: { width: 1440, height: 900 }, dpr: 1, phone: false, want: 1 },
+	{ name: 'density wide@1', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, want: 1.5 },
+	{ name: 'density upright@3', vp: { width: 390, height: 844 }, dpr: 3, phone: true, want: 1.5, deep: true },
+	{ name: 'density upright@2', vp: { width: 390, height: 844 }, dpr: 2, phone: true, want: 1 },
+	{ name: 'density sideways@3', vp: { width: 844, height: 390 }, dpr: 3, phone: true, want: 1.5 },
+	{ name: 'density sideways@2', vp: { width: 844, height: 390 }, dpr: 2, phone: true, want: 1.5, rotate: true },
+].filter((s) => !ONLY.length || ONLY.includes(s.name.split(' ')[1].split('@')[0]) || ONLY.includes('density'));
+/** the scoreboard's density now and its faces (both faces' k, their LEDs, one face root each) */
+const densityNow = (p) =>
+	R(p, () => {
+		const h = window.__reindeer;
+		const s = h.scoreboard();
+		const st = h.scoreboardFace('strip');
+		const bk = h.scoreboardFace('back');
+		const D = h.tune.ledBoard.density;
+		return { cls: s.cls, pitch: s.pitch, density: s.density, gpuBytes: s.gpuBytes, strip: st && { W: st.W, H: st.H, k: st.k, ledW: st.ledW, ledH: st.ledH }, back: bk && { W: bk.W, H: bk.H, k: bk.k, ledW: bk.ledW, ledH: bk.ledH }, rule: { k: D.k, min: D.minDevicePx, on: D.on }, res: window.__reindeer.renderRes?.cap ?? null };
+	});
+const densityOk = (d) => !!d?.density && d.strip.k === d.back.k && d.density.k === d.strip.k && d.density.faceRoots.strip === 1 && d.density.faceRoots.back === 1 && d.strip.ledW === Math.round(d.strip.W * d.strip.k) && d.back.ledH === Math.round(d.back.H * d.back.k);
+async function densityChecks(browser) {
+	const table = [];
+	for (const S of DENSITY_CASES) {
+		const tag = S.name + ` ${S.vp.width}x${S.vp.height}`;
+		const { ctx, p, errs } = await boot(browser, S);
+		try {
+			const d = await densityNow(p);
+			// the rule, worked out here: an LED of the finer grid at least minDevicePx device px (the renderer's resolution)
+			const ratio = d.density.ratio;
+			const want = d.rule.on && (d.pitch * ratio) / d.rule.k >= d.rule.min ? d.rule.k : 1;
+			check(Math.abs(ratio - S.dpr) < 0.01, `${tag}: the rule reads the renderer's resolution (${ratio}, the device's ${S.dpr})`, d.density);
+			check(d.density.k === S.want && d.density.k === want, `${tag}: ${d.density.k} LEDs per dot (want ${S.want}; the rule: pitch ${d.pitch} x ${ratio} / ${d.rule.k} = ${r1((d.pitch * ratio) / d.rule.k)} device px against ${d.rule.min})`, d.density);
+			check(densityOk(d), `${tag}: both faces at ${d.density.k} (strip ${d.strip.k}, back ${d.back.k}), one face each (${d.density.faceRoots.strip}, ${d.density.faceRoots.back}): the strip ${d.strip.W} x ${d.strip.H} dots in ${d.strip.ledW} x ${d.strip.ledH} LEDs, the back board ${d.back.W} x ${d.back.H} in ${d.back.ledW} x ${d.back.ledH}`, d);
+			check(d.gpuBytes <= 1.2 * 1048576, `${tag}: the scoreboard holds ${(d.gpuBytes / 1048576).toFixed(3)} MB of GPU textures (budget 1.2 MB)`);
+			if (d.density.k > 1) check(d.density.devicePx >= d.rule.min, `${tag}: an LED is ${d.density.devicePx} device px (at least ${d.rule.min})`);
+			// a ONE DOT chase border the same LEDs all round (the short Grandma line's gold chase), and the cost per layout
+			const r = await R(p, async () => {
+				const h = window.__reindeer;
+				h.scoreboardManual(true);
+				h.scoreboardStep(100, 30);
+				h.scoreboardGag(true);
+				h.scoreboardStep(33, 20);
+				const f = h.scoreboardFace('strip', true);
+				const img = new Image();
+				img.src = f.png;
+				await img.decode();
+				const c = document.createElement('canvas');
+				c.width = f.ledW;
+				c.height = f.ledH;
+				const g = c.getContext('2d');
+				g.drawImage(img, 0, 0);
+				const a = g.getImageData(0, 0, f.ledW, f.ledH).data;
+				const W = f.ledW;
+				const H = f.ledH;
+				const lit = (x, y) => a[(y * W + x) * 4 + 3] > 0;
+				const fullRow = (y) => { for (let x = 0; x < W; x++) if (!lit(x, y)) return false; return true; };
+				const fullCol = (x) => { for (let y = 0; y < H; y++) if (!lit(x, y)) return false; return true; };
+				let top = 0; while (top < H && fullRow(top)) top++;
+				let bottom = 0; while (bottom < H && fullRow(H - 1 - bottom)) bottom++;
+				let left = 0; while (left < W && fullCol(left)) left++;
+				let right = 0; while (right < W && fullCol(W - 1 - right)) right++;
+				h.scoreboardStep(100, 30);
+				// the cost: the game's own draw ms per step on the Super entry's explanation page and the Total Win
+				const med = (n) => { const v = []; for (let i = 0; i < n; i++) v.push(h.scoreboardStep(33).cost.drawMs); v.sort((x, y) => x - y); return { med: v[n >> 1], p90: v[Math.floor(n * 0.9)] }; };
+				h.scoreboardCard('sfs', { spins: 10 });
+				for (let i = 0; i < 400; i++) { const s = h.scoreboardStep(33); if (h.scoreboardFace('back')?.explain?.page === 'explain' && s.show.t > s.show.pressLineAt + 600) break; }
+				const sfs = med(60);
+				const sfsLit = h.scoreboardFace('back');
+				h.scoreboardCardEnd(); h.scoreboardLower(); h.scoreboardStep(100, 30);
+				h.scoreboardCard('total', { x: 248.5 });
+				for (let i = 0; i < 600; i++) { const s = h.scoreboardStep(33); if (s.show && s.show.t > s.show.countEnd + 1400) break; }
+				const total = med(60);
+				const snap = h.scoreboard();
+				h.scoreboardCardEnd(); h.scoreboardLower(); h.scoreboardStep(100, 30);
+				h.scoreboardManual(false);
+				return { u: Math.max(1, Math.round(f.k)), top, bottom, left, right, sfs, total, upload: snap.cost.uploadBytes, sfsLit: { lit: sfsLit.lit, dots: sfsLit.dots } };
+			});
+			check([r.top, r.bottom, r.left, r.right].every((v) => v === r.u), `${tag}: the one dot chase border is ${r.u} LED${r.u > 1 ? 's' : ''} all round (top ${r.top}, bottom ${r.bottom}, left ${r.left}, right ${r.right})`, r);
+			check(r.sfsLit.lit > r.sfsLit.dots * 0.03, `${tag}: the Super entry's page is lit (${r.sfsLit.lit} of ${r.sfsLit.dots} LEDs)`);
+			table.push({ case: S.name, k: d.density.k, devicePx: d.density.devicePx, strip: `${d.strip.W}x${d.strip.H} dots = ${d.strip.ledW}x${d.strip.ledH} LEDs`, back: `${d.back.W}x${d.back.H} dots = ${d.back.ledW}x${d.back.ledH} LEDs`, gpuMB: Math.round((d.gpuBytes / 1048576) * 1000) / 1000, uploadKB: Math.round(r.upload / 1024), sfsDrawMs: r.sfs, totalDrawMs: r.total });
+			// THE TUNE PANEL: the density off and on again, both faces switch together on the next frame
+			const tu = await R(p, async () => {
+				const h = window.__reindeer;
+				const read = () => { const s = h.scoreboard().density; return { k: s.k, strip: s.strip, back: s.back, roots: s.faceRoots }; };
+				h.tune.ledBoard.density.on = false;
+				await new Promise((r) => setTimeout(r, 300));
+				const off = read();
+				h.tune.ledBoard.density.on = true;
+				await new Promise((r) => setTimeout(r, 300));
+				return { off, on: read() };
+			});
+			check(tu.off.k === 1 && tu.off.strip === 1 && tu.off.back === 1 && tu.on.k === d.density.k && tu.on.strip === tu.on.k && tu.on.back === tu.on.k && tu.off.roots.strip === 1 && tu.on.roots.back === 1, `${tag}: the tune panel's switch: off gives today's grid on both faces, on gives ${d.density.k} again (one face each)`, tu);
+			if (S.deep) {
+				if (SEC('m4')) await m4Checks(p, { ...S, name: S.name });
+				if (SEC('currency') && S.dpr === 2) await currencyChecks(p, { ...S, name: S.name });
+			}
+			// A ROTATION (sideways to upright at 2x and back): the density follows the layout, both faces at one density on every
+			// frame of the change, one face each after it, the GPU bytes those faces'
+			if (S.rotate) {
+				const watch = async (vp) => {
+					const seen = [];
+					await p.setViewportSize(vp);
+					for (let i = 0; i < 40; i++) {
+						const x = await R(p, () => { const s = window.__reindeer.scoreboard(); return { cls: s.cls, k: s.density.k, strip: s.density.strip, back: s.density.back, roots: s.density.faceRoots, gpu: s.gpuBytes, leds: [s.density.stripLeds, s.density.backLeds] }; });
+						seen.push(x);
+						await sleep(50);
+					}
+					return seen;
+				};
+				const up = await watch({ width: 390, height: 844 });
+				const last = up.at(-1);
+				check(up.every((x) => x.strip === x.back && x.k === x.strip) && last.cls === 'portrait' && last.k === 1 && last.roots.strip === 1 && last.roots.back === 1, `${tag}: turned upright (390 x 844 at 2x): today's grid (k ${last.k}), both faces at one density on all ${up.length} frames of the change, one face each`, up.filter((x) => x.strip !== x.back).slice(0, 3).concat([last]));
+				const back = await watch(S.vp);
+				const end = back.at(-1);
+				check(back.every((x) => x.strip === x.back && x.k === x.strip) && end.cls === 'phone' && end.k === 1.5 && end.roots.strip === 1 && end.roots.back === 1 && end.gpu === d.gpuBytes, `${tag}: turned back sideways: 1.5 again on both faces, one face each, the GPU bytes as at the start (${(end.gpu / 1048576).toFixed(3)} MB)`, end);
+			}
+			check(errs.length === 0, `${tag}: no page errors`, errs);
+		} catch (e) {
+			check(false, `${tag}: the density checks ran to their end`, String(e?.stack ?? e).slice(0, 600));
+		} finally {
+			await ctx.close();
+		}
+	}
+	console.log('DENSITY', JSON.stringify(table, null, 1));
+}
+
 (async () => {
 	const browser = await chromium.launch({ args: ['--mute-audio'] });
 	const memory = {};
@@ -1790,6 +1932,7 @@ async function pressBoard(browser, S) {
 				await ctx.close();
 			}
 		}
+		if (SEC('density')) await densityChecks(browser);
 	} finally {
 		await browser.close();
 	}

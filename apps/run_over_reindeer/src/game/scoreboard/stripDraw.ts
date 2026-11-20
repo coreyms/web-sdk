@@ -1,9 +1,10 @@
 // THE STRIP'S NEWER PROGRAMS (2026-11-17, approved): the scatter anticipation count and the short Grandma line, drawn on the
-// strip's face at ONE PIXEL PER DOT like everything else on it (game/scoreboard/scoreboardDraw.ts). Plain 2D canvas drawing,
-// no filter. Strip only: the back board never shows these.
+// strip's face like everything else on it (game/scoreboard/scoreboardDraw.ts; k LEDs per dot on the finer grid, ledGrid.ts).
+// Plain 2D canvas drawing, no filter. Strip only: the back board never shows these.
 import { LED_BOARD, LED_SIGN } from '../constants';
 import { SCREENS, dissolve, drawText, textW, type LedText } from '../landing/ledScreens';
 import { burst, chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, type Face } from './scoreboardDraw';
+import { copyFace } from './ledGrid';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const ease = (t: number) => {
@@ -153,7 +154,7 @@ export function showPressScreens(F: Face, T: number, text: LedText) {
 		dissolve(o, F.a, F.b, F.noise, tau / LED_SIGN.transS, W, H);
 	} else {
 		o.clearRect(0, 0, W, H);
-		o.drawImage(F.b, 0, 0);
+		copyFace(o, F.b);
 	}
 }
 

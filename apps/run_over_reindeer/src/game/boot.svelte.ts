@@ -45,6 +45,9 @@ const FONTS = [
 	{ path: 'fonts/ui/Sora-Variable.woff2', spec: '700 40px Sora' },
 	// the game's own face (the canvas amounts and every title): Overpass Heavy
 	{ path: 'fonts/overpass/Overpass-heavy.woff2', spec: "900 40px 'Overpass'" },
+	// the LED boards' finer grid (2026-11-19, constants LED_BOARD.density): the small lines and the body sentence are drawn in
+	// Overpass Bold from the press screen on, and a mask is made once, so the face is in before the board draws
+	{ path: 'fonts/overpass/Overpass-bold.woff2', spec: "700 40px 'Overpass'" },
 ] as const;
 
 export const boot = $state({

@@ -156,6 +156,9 @@
 	if (scoreboard) {
 		const sheet = loaded.scoreboardArt?.source?.resource as CanvasImageSource | undefined;
 		setScoreboardArt(sheet ?? null);
+		// THE FINER GRID'S RULE (constants LED_BOARD.density) reads the renderer's own resolution (components/Game.svelte sets
+		// it from the device under the cap): an LED's device pixels are what the renderer draws it with
+		scoreboard.deviceRatio = () => context.stateApp.pixiApplication?.renderer?.resolution ?? window.devicePixelRatio ?? 1;
 		parent.addToParent(scoreboard.root);
 		scoreboard.onPress = () => {
 			if (scoreboard.busy()) scoreboard.skip();

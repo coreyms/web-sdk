@@ -7,9 +7,12 @@
 //      them on an entry), the sentence in two or three centered lines under them
 //   B  two pages from the READY beat: the scene's own big page, then a wipe to a page with the sentence alone, alternating
 //      (pageMs each) until the press
-// Plain 2D canvas drawing on the board's face, as everything on it.
+// Plain 2D canvas drawing on the board's face, as everything on it. On the finer grid (2026-11-19, ledGrid.ts) the pages
+// are faces of the board's density, the sentence's glyphs are drawn in LED_BOARD.density.bodyWeight on today's cells, and
+// the wipe's edge and the confetti are set in LEDs.
 import { LED_BOARD } from '../constants';
-import { drawText, mk, textW, type Cv } from '../landing/ledScreens';
+import { drawText, textW, type Cv } from '../landing/ledScreens';
+import { clearP, copyFace, copyP, dotAt, fillP, kOf, ledN, mkFace } from './ledGrid';
 import { BULBS, boardTitle, chaseBorder, drawFit, drawRow, fitCap, lineInk, rowInfo, sparkles, sprite, type Face } from './scoreboardDraw';
 
 type Ctx = CanvasRenderingContext2D;
@@ -160,7 +163,8 @@ function drawHeavyLines(g: Ctx, lines: string[], cap: number, lh: number, cx: nu
 		const x = Math.round(cx - w / 2);
 		bx = Math.min(bx, x);
 		bw = Math.max(bw, w);
-		drawRow(g, l, x, y + i * lh, cap, color, 0);
+		// (the body text: its own weight on the finer grid, on today's cells; today's grid keeps the heavy face)
+		drawRow(g, l, x, y + i * lh, cap, color, 0, kOf(g) === 1 ? 900 : LED_BOARD.density.bodyWeight);
 	});
 	return { x: bx, w: bw };
 }
@@ -173,12 +177,8 @@ function entryBackdrop(g: Ctx, W: number, H: number, t: number, sup: boolean, to
 		// (fewer sparkles than the scene's, so the sentence stays clean)
 		sparkles(g, W, H, t, Math.round((W * H) / 600), ['#ffffff', '#cfe8ff'], 41);
 		chaseBorder(g, W, H, t, ['#ff3a2e', '#ffd23a'], 1, 3);
-		if (H >= 40) {
-			g.save();
-			g.translate(3, 3);
-			chaseBorder(g, W - 6, H - 6, t + 180, ['#ffd23a', '#ff3a2e'], 1, 3);
-			g.restore();
-		}
+		// (the inner border three dots in: an inset, never a moved context)
+		if (H >= 40) chaseBorder(g, W - 6, H - 6, t + 180, ['#ffd23a', '#ff3a2e'], 1, 3, 3);
 		return;
 	}
 	g.fillStyle = 'rgba(30,90,220,0.14)';
@@ -188,9 +188,8 @@ function entryBackdrop(g: Ctx, W: number, H: number, t: number, sup: boolean, to
 	for (let k = 0; k < n; k++) {
 		const x = (hashC(k * 5.3) * W + Math.sin(t / 500 + k) * 2 + W) % W;
 		const y = (hashC(k * 2.7) * H + t * (0.01 + hashC(k) * 0.012)) % H;
-		g.fillStyle = BULBS[k % 4];
 		g.globalAlpha = 0.45;
-		g.fillRect(Math.round(x), Math.round(y), 1, 1);
+		dotAt(g, x, y, BULBS[k % 4]);
 	}
 	g.globalAlpha = 1;
 }
@@ -352,12 +351,13 @@ const planCache = new Map<string, Plan>();
 
 /** the two pages' own canvases, per face size (the scene draws on the face's own scratch canvases) */
 const pages = new Map<string, { scene: Cv; page: Cv }>();
-const pagesFor = (W: number, H: number) => {
-	const key = W + 'x' + H;
+const pagesFor = (W: number, H: number, k: number) => {
+	const key = W + 'x' + H + '|' + k;
 	let p = pages.get(key);
 	if (!p) {
-		if (pages.size > 6) pages.clear();
-		p = { scene: mk(W, H), page: mk(W, H) };
+		// (one back board at a time: a new size or density lets the old pages go, none is kept)
+		pages.clear();
+		p = { scene: mkFace(W, H, k), page: mkFace(W, H, k) };
 		pages.set(key, p);
 	}
 	return p;
@@ -370,7 +370,7 @@ export function showExplain(F: Face, t: number, scene: (F: Face) => void, head: 
 	const W = F.dotsW;
 	const H = F.dotsH;
 	const o = F.out.ctx;
-	const P = pagesFor(W, H);
+	const P = pagesFor(W, H, F.k);
 	// the explanation's page
 	const g = P.page.ctx;
 	g.clearRect(0, 0, W, H);
@@ -400,7 +400,7 @@ export function showExplain(F: Face, t: number, scene: (F: Face) => void, head: 
 	const sceneNow = () => {
 		scene(F);
 		P.scene.ctx.clearRect(0, 0, W, H);
-		P.scene.ctx.drawImage(F.out, 0, 0);
+		copyFace(P.scene.ctx, F.out);
 		return P.scene;
 	};
 	if (X.layout !== 'B') {
@@ -431,17 +431,19 @@ export function showExplain(F: Face, t: number, scene: (F: Face) => void, head: 
 	}
 	o.clearRect(0, 0, W, H);
 	if (from && u < 1) {
-		const sx = Math.round(ease(u) * (W + 6)) - 3;
-		o.drawImage(from, 0, 0);
+		// (in LEDs: the edge runs LED by LED, two dots wide)
+		const k = F.k;
+		const sx = Math.round(ease(u) * (F.ledW + ledN(k, 6))) - ledN(k, 3);
+		copyFace(o, from);
 		if (sx > 0) {
-			o.clearRect(0, 0, sx, H);
-			o.drawImage(to, 0, 0, sx, H, 0, 0, sx, H);
+			clearP(o, 0, 0, sx, F.ledH);
+			copyP(o, to, 0, 0, sx, F.ledH);
 		}
 		o.fillStyle = '#ffffff';
 		o.globalAlpha = 0.9;
-		o.fillRect(sx, 0, 2, H);
+		fillP(o, sx, 0, ledN(k, 2), F.ledH);
 		o.globalAlpha = 1;
-	} else o.drawImage(to, 0, 0);
+	} else copyFace(o, to);
 	const shown = onPage && !(from && u < 1);
 	explainRec.set(o.canvas, { layout: X.layout, page: from && u < 1 ? 'wipe' : onPage ? 'explain' : 'scene', box: shown ? sb.box : null, head: shown ? hb : null, lines: sb.fit.lines, z: sb.fit.z, W, H });
 }

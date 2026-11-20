@@ -1603,6 +1603,15 @@ export const LED_BOARD = {
 	/** the chase borders drawn as runs of one color (the same dots, fewer calls); off draws them dot by dot (the probe
 	 *  compares the two pictures) */
 	fastChase: true,
+	/** THE LED GRID'S DENSITY (Corey 2026-11-19, led_density_r1_2026-11-19: "1.5"; game/scoreboard/ledGrid.ts): `k` LEDs per
+	 *  dot each way on both faces (the strip, the back board: every card, the press screen, the gag), the words and pictures
+	 *  redrawn for that grid, the layouts kept to today's dots. Only where one LED is at least `minDevicePx` device pixels
+	 *  (the dot pitch x the renderer's resolution / k): an upright phone at 2x and a 1440 x 900 desktop at 1x keep today's
+	 *  grid (k 1). `smallWeight`: the Overpass weight the 5 x 7 sizes (the strip's small lines, the press screen's words) are
+	 *  redrawn in; `bodyWeight`: the entry sentence's (the big board's body text); 700 is Bold (both his pick). `softDot`: a
+	 *  faint skirt baked round each hole of the grille on the finer grid (his pick: the light of today's dot size at the
+	 *  finer pitch). Live: a change rebuilds both faces on the next frame. */
+	density: { on: true, k: 1.5, minDevicePx: 2, smallWeight: 700, bodyWeight: 700, softDot: true },
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */
