@@ -10,8 +10,12 @@
 //               over one; a walk is never steeper than ROAM.maxSlopeDeg (his walk is drawn side on), other heights are
 //               reached over several walks; with no such spot the slope rule, then the length rule, is relaxed.
 //   THE STRIKE  the first strike of a spin is his (game/road/roadFeatures.ts strike): he stands alert facing the board
-//               (the stand pose) until his run sets off, then the runner takes over from his feet (the run views). He
-//               does not come back. Every later strike of the spin comes from off the screen, as before.
+//               until his run sets off, then the runner takes over from his feet (the run views). He does not come
+//               back. Every later strike of the spin comes from off the screen, as before. Since 2026-11-20 he winds up
+//               for it (game/road/chargeWindup.ts, constants ROAM.charge): from the strike's first frame he lowers his
+//               antlers and drags a front hoof (or only lowers his head, at Turbo 2 and in a slam stop's hurry), cut by
+//               his run at the set off wherever it is. Caught mid walk he goes straight to the stand and winds up from
+//               there, as before (no brace from the walk is built).
 //   THE WALK IN after the spin's last strike, a new one walks in level from past his side's screen edge to a random spot
 //               of the area. Nothing waits on him: a spin that starts before he is on the screen takes its first strike
 //               from off the screen, as before.
@@ -29,14 +33,17 @@ import { ROAM_AREAS, ROAM_EDIT, ROAM_REF_RECT, ROAM_TUNNELS, type RoadRect, type
 import { ROAD_ART } from '../roadArtSpec';
 import { FOREST_LINE } from '../forestLineSpec';
 import { seeded } from './crosshair';
-import { roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
+import { chargeFramesReady, roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
+import { CHARGE_HIT, windupFrame, type WindupPlan } from './chargeWindup';
 import { runBox, runFrame, runViewsReady } from './reindeerRun';
 import { castReach, castShadow, makeShadow, shadowStrength } from './shadows';
 
 const K = REINDEER_ROAM.roadPxPerFramePx;
 const C = REINDEER_ROAM.clips;
-const CLIPS: RoamClip[] = ['walk', 'start', 'stop', 'sniff'];
-const BOX: Record<RoamClip, RoamBox> = { walk: roamBox('walk'), start: roamBox('start'), stop: roamBox('stop'), sniff: roamBox('sniff') };
+/** (2026-11-20) the charge wind-up's clips reach further back and up than the sniff loop (the rig's boxes: +25 frame px
+ *  back, +86 up): counted in, so the keep-outs hold while he winds up where he stands */
+const CLIPS: RoamClip[] = ['walk', 'start', 'stop', 'sniff', 'charge', 'chargeDown'];
+const BOX: Record<RoamClip, RoamBox> = { walk: roamBox('walk'), start: roamBox('start'), stop: roamBox('stop'), sniff: roamBox('sniff'), charge: roamBox('charge'), chargeDown: roamBox('chargeDown') };
 /** his body's reach from his feet at the built size, road px, whichever clip and whichever way he faces */
 export const ROAM_REACH = {
 	side: Math.max(...CLIPS.map((c) => Math.max(BOX[c].anchorX, 1 - BOX[c].anchorX) * BOX[c].width)),
@@ -264,6 +271,11 @@ export class Roam {
 	private loopsLeft = 1;
 	private sniffRate = 1;
 	private alertUntil = 0;
+	/** THE CHARGE WIND-UP of his strike now (game/road/chargeWindup.ts), or null (the stand, as before) */
+	windup: WindupPlan | null = null;
+	/** the slow drag's hit (frame 9) has been drawn: never skipped (a slam stop's hurry steps the board clock 50 ms a
+	 *  frame, longer than a rig frame), drawn on the first frame its time has come, the next frame catching up */
+	private hitShown = false;
 	private clock = NaN;
 	private placed = false;
 	/** a first stand that found no spot (the HUD still settling): tried again from this board clock */
@@ -1106,11 +1118,14 @@ export class Roam {
 		return { x: this.x, y: this.y };
 	}
 
-	/** THE STRIKE IS HIS: he stands alert facing `dir` (the stand pose) until `until` (board clock), then he is gone */
-	alert(dir: 1 | -1, until: number) {
+	/** THE STRIKE IS HIS: he stands alert facing `dir` until `until` (board clock), then he is gone. `windup` (the charge
+	 *  clips are in, ROAM.charge on): its frames from the strike's start; null: the stand pose, as before */
+	alert(dir: 1 | -1, until: number, windup: WindupPlan | null = null) {
 		this.state = 'alert';
 		this.facing = dir;
-		this.clip = 'sniff';
+		this.windup = windup && chargeFramesReady() ? windup : null;
+		this.hitShown = false;
+		this.clip = this.windup ? this.windup.clip : 'sniff';
 		this.frame = 1;
 		this.alertUntil = until;
 		this.walkInAt = null;
@@ -1139,6 +1154,7 @@ export class Roam {
 	private hide() {
 		this.sprite.visible = false;
 		this.shadow.visible = false;
+		this.windup = null;
 	}
 
 	/** THE SUPER WHEEL COMES OUT (components/Board.svelte, the wheel's emergence): he goes and stays gone. On the screen he
@@ -1374,12 +1390,24 @@ export class Roam {
 		}
 		const sc = K * this.scale();
 		const df = (dt / 1000) * REINDEER_ROAM.fps;
+		// (a wind-up belongs to his strike only: any other state lets it go)
+		if (this.state !== 'alert') this.windup = null;
 		switch (this.state) {
 			case 'alert':
 				if (clock >= this.alertUntil) {
 					this.state = 'none';
 					this.hide();
 					return;
+				}
+				// the wind-up's frame due now (its plan is on the board clock; no frame of it at or after the set off)
+				if (this.windup) {
+					this.clip = this.windup.clip;
+					let f = windupFrame(this.windup, clock);
+					if (this.windup.clip === 'charge' && !this.hitShown && f >= CHARGE_HIT) {
+						f = CHARGE_HIT;
+						this.hitShown = true;
+					}
+					this.frame = f;
 				}
 				break;
 			case 'idle': {
@@ -1539,7 +1567,9 @@ export class Roam {
 			 *  lowest tree row plus TREE_PAD) */
 			trees: this.treeX.length ? { x: [...this.treeX], y: [...this.treeY], forest: this.forest() } : null,
 			route: this.route.map((p) => ({ x: r(p.x), y: r(p.y) })),
-			box: { walk: BOX.walk, sniff: BOX.sniff, start: BOX.start, stop: BOX.stop },
+			box: { walk: BOX.walk, sniff: BOX.sniff, start: BOX.start, stop: BOX.stop, charge: BOX.charge, chargeDown: BOX.chargeDown },
+			/** his strike's wind-up (null: the stand, or none) */
+			windup: this.windup ? { clip: this.windup.clip, k: Math.round(this.windup.k * 10000) / 10000, start: r(this.windup.start), setOff: r(this.windup.setOff), hop: this.windup.hop === null ? null : r(this.windup.hop), hitAt: this.windup.hitAt === null ? null : r(this.windup.hitAt), at: this.windup.at.map(r) } : null,
 			lastPass: this.lastPass,
 			relaxed: this.relaxed,
 			widen: this.widen,

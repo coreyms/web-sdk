@@ -56,6 +56,8 @@ import { CrosshairArt, easeOut, hashText, planCrosshair, sample, type CrosshairP
 import { RoadSounds } from './roadSounds';
 import { castShadow, dropShadow, makeShadow, shadowStrength } from './shadows';
 import { Roam, roamDev } from './roam';
+import { ChargeFx, planWindup, windupFrame, type WindupPlan } from './chargeWindup';
+import { REINDEER_ROAM } from '../reindeerRoamSpec';
 import type { RoadRect } from '../roamPaths';
 import { WildMult } from './wildMult';
 import { GarlandFrame } from './garland';
@@ -378,6 +380,8 @@ type Runner = {
 	cut: boolean;
 	/** the dart's whoosh has been cued (REINDEER_SOUND dart) */
 	darted: boolean;
+	/** THE SNORT AT THE LOCK (his own strike, REINDEER_SOUND.snort.lockPeakMs): asked once (played or kept quiet) */
+	snorted: boolean;
 	/** HIS CAST SHADOW (constants SHADOW): his twin, on the road's ground under the traffic */
 	shadow: PIXI.Sprite;
 	/** the plan's numbers for the probes: the old straight path's time to the impact (kept), and whether it was kept */
@@ -660,6 +664,13 @@ export class RoadFeatures {
 	/** THE ROAMING REINDEER (STRIKE.roam, game/road/roam.ts): on the snow outside the tunnel between spins, drawn under the
 	 *  running one in the same layer */
 	readonly roam = new Roam();
+	/** HIS CHARGE WIND-UP'S EFFECTS (game/road/chargeWindup.ts): the kicked snow and the breath puff at the lock, over him
+	 *  and the runner (kept the top child of the runner layer) */
+	readonly charge = new ChargeFx();
+	/** Turbo 2, or a slam stop's hurry running (components/Board.svelte): his wind-up is the head going down only */
+	windupQuick: () => boolean = () => false;
+	/** his strike's wind-up plan (kept past his set off: the lock's puff may come after it) */
+	private windupPlan: WindupPlan | null = null;
 	/** the screen in road px (components/Board.svelte): the roaming reindeer's path is fractions of it and the picture */
 	screenRect: RoadRect | null = null;
 	private clouds: CloudCell[] = [];
@@ -724,7 +735,7 @@ export class RoadFeatures {
 		// reel 5 at the back, reel 1 on top
 		for (let reel = COLS - 1; reel >= 0; reel--) this.stackLayer.addChild(this.stacks[reel].root);
 		this.layer.addChild(this.backLayer, this.stackLayer, this.railLayer, this.frameFxLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
-		this.runnerLayer.addChild(this.roam.shadow, this.roam.sprite);
+		this.runnerLayer.addChild(this.roam.shadow, this.roam.sprite, this.charge.root);
 		roamDev.roam = this.roam;
 		// the roaming reindeer's safety net waits while a strike runs
 		this.roam.busy = () => this.runner !== null;
@@ -811,11 +822,24 @@ export class RoadFeatures {
 		const lead = this.clock + (crosshair ? Math.max(STRIKE.leadInMs, CROSSHAIR.leadMs) : STRIKE.leadInMs);
 		// his set off: the off-screen strike's, or later so that his impact lands exactly when its would (planRoamStrike)
 		const t0 = R ? lead + R.waitMs : lead;
-		if (R) this.roam.alert(R.nPre ? R.preDir : R.dir, t0);
 		this.endCrosshair();
 		if (crosshair) this.startCrosshair(spec.cell, t0, runDir, path, nR, R ? times : null);
+		// HIS CHARGE WIND-UP (constants ROAM.charge, game/road/chargeWindup.ts): planned now from the crosshair's own hops
+		// (its glides' landings), which it follows and never moves; the effects keep over the new runner
+		this.runnerLayer.addChild(this.charge.root);
+		if (R) {
+			const hops = this.xh ? this.xh.plan.legs.filter((l) => l.kind === 'glide').map((l) => l.t1) : [];
+			const windup = ROAM.charge.on ? planWindup(this.clock, t0, hops, this.windupQuick()) : null;
+			this.roam.alert(R.nPre ? R.preDir : R.dir, t0, windup);
+			this.windupPlan = this.roam.windup;
+			if (this.roam.windup) this.charge.begin(this.roam.windup, this.roamPose(), hashText(`charge|${this.boardText()}|${spec.cell}`));
+			else this.charge.clear();
+		} else {
+			this.windupPlan = null;
+			this.charge.forget();
+		}
 		return new Promise<void>((resolve) => {
-			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir: runDir, toX, gapX: R ? R.gapX : gapX, cutDir: plan.cutDir, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC: plan.nC, nCut: plan.nCut, s0, factor: plan.plan.factor, path, times, impactFeetY: plan.impactFeetY, impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, cut: false, darted: false, shadow, keepMs: plan.keepMs, kept: plan.kept, roam: !!R, preN: R ? R.nPre : 0, preDir: R ? R.preDir : dir, todayMs, waitMs: R ? R.waitMs : 0, last: !!spec.last, cell: spec.cell, grandma: !!end, endX: path[path.length - 1].x, endY: path[path.length - 1].y };
+			this.runner = { sprite, t0, pose: 0, shown: -1, late: null, dir: runDir, toX, gapX: R ? R.gapX : gapX, cutDir: plan.cutDir, feetY: snow.feetY, snowScale: snow.scale, nR, nQ, nAlong, nC: plan.nC, nCut: plan.nCut, s0, factor: plan.plan.factor, path, times, impactFeetY: plan.impactFeetY, impactAt: null, resolve, placeholder: !ready, view: 'R', stride: s0, scale: snow.scale, markCell: spec.markCell, marked: false, alerted: false, setOff: false, turned: false, cut: false, darted: false, snorted: false, shadow, keepMs: plan.keepMs, kept: plan.kept, roam: !!R, preN: R ? R.nPre : 0, preDir: R ? R.preDir : dir, todayMs, waitMs: R ? R.waitMs : 0, last: !!spec.last, cell: spec.cell, grandma: !!end, endX: path[path.length - 1].x, endY: path[path.length - 1].y };
 		});
 	}
 
@@ -835,6 +859,42 @@ export class RoadFeatures {
 			m.box.destroy();
 			this.marks = this.marks.filter((x) => x !== m);
 		}
+	}
+
+	/** the roaming reindeer as drawn now, for his wind-up's effects: feet, road px per rig frame px, facing */
+	private roamPose() {
+		return { x: this.roam.x, y: this.roam.y, kf: REINDEER_ROAM.roadPxPerFramePx * this.roam.scale(), facing: this.roam.facing };
+	}
+
+	/** THE BREATH PUFF AT THE LOCK (his own strike; on the crosshair's lock frame): from the nose of what shows at the
+	 *  lock's own moment (lockAt, at most a frame before this one): the wind-up's frame while he stands, the side run's
+	 *  stride once he has set off (with his ground speed, which the puffs carry and lose). The lock is always lockLeadMs
+	 *  before his turn, so a running lock is in the side run (R). */
+	private chargePuff() {
+		const r = this.runner;
+		const W = this.windupPlan;
+		if (!r || !r.roam || !ROAM.charge.on || !W || !this.xh) return;
+		const at = Math.min(this.clock, this.xh.plan.lockAt);
+		const seed = hashText(`puff|${this.boardText()}|${r.cell}`);
+		if (at < r.t0) {
+			const f = windupFrame(W, at);
+			const nose = REINDEER_ROAM.clips[W.clip].nose[f - 1];
+			this.charge.puff(at, this.roamPose(), nose, 0, 0, seed, { running: false, stride: null, frame: f, clip: W.clip });
+			return;
+		}
+		if (r.placeholder) return;
+		const pose = this.poseAt(r, at - r.t0);
+		const index = Math.floor(pose + 1e-9);
+		if (index >= r.nR) return;
+		const stride = ((r.s0 - 1 + index) % 16) + 1;
+		const i = Math.max(0, Math.min(index, r.path.length - 2));
+		const a = r.path[i];
+		const b = r.path[i + 1];
+		const u = Math.max(0, Math.min(1, pose - i));
+		const dt = Math.max(1e-6, r.times[i + 1] - r.times[i]);
+		const facing: 1 | -1 = index < r.preN ? r.preDir : r.dir;
+		const nose = REINDEER_ROAM.fx.runNose[stride - 1];
+		this.charge.puff(at, { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, kf: REINDEER_ROAM.roadPxPerFramePx * r.snowScale, facing }, nose, (b.x - a.x) / dt, (b.y - a.y) / dt, seed, { running: true, stride, frame: null, clip: null });
 	}
 
 	// ---- the target crosshair (constants CROSSHAIR, game/road/crosshair.ts) ----------------------------------------------
@@ -952,6 +1012,7 @@ export class RoadFeatures {
 			if (leg !== x.leg) {
 				if (s.leg.kind === 'dwell' && leg > 0) this.onCrosshair?.(s.leg.final ? 'lock' : 'hop', s.leg.cell);
 				else if (s.leg.kind === 'dwell' && s.leg.final) this.onCrosshair?.('lock', s.leg.cell);
+				if (s.leg.kind === 'dwell' && s.leg.final) this.chargePuff();
 				x.leg = leg;
 			}
 			const locked = s.state === 'locked';
@@ -1181,6 +1242,9 @@ export class RoadFeatures {
 		// a new spin: the crosshair's seed counts its strikes from here
 		this.strikesThisSpin = 0;
 		this.sounds.runStop('new spin');
+		// (his wind-up's effects: a few hundred ms at most, gone now with the board's other strike pieces)
+		this.charge.clear();
+		this.windupPlan = null;
 		this.endFlies();
 		this.endCrosshair();
 		for (const cloud of this.clouds) if (cloud.leaving === null) cloud.leaving = this.clock;
@@ -1421,6 +1485,7 @@ export class RoadFeatures {
 		this.roam.setView(this.layoutKind, this.screenRect);
 		this.roam.update(clock);
 		this.updateCrosshair();
+		this.charge.update(clock, this.roam.windup !== null);
 		this.updateClouds();
 		for (const m of this.marks) m.box.update(clock);
 		for (const column of [...this.columns]) this.updateColumn(column);
@@ -1478,6 +1543,16 @@ export class RoadFeatures {
 			r.alerted = true;
 			this.sounds.mark('strike', `target ${this.xh?.plan.target ?? '-'}`);
 			this.sounds.cue('alert');
+		}
+		if (r.roam && !r.snorted && ROAM.charge.on && this.xh && this.xh.morphAt === null) {
+			// THE SNORT AT THE LOCK (REINDEER_SOUND.snort.lockPeakMs, his own strike only): its loudest point lands on the
+			// lock, so it starts on the first frame within lockPeakMs real ms of it (the strike's first frame when the
+			// lock is there)
+			const left = (this.xh.plan.lockAt - this.clock) / Math.max(0.001, this.rate);
+			if (left <= REINDEER_SOUND.snort.lockPeakMs) {
+				r.snorted = true;
+				this.sounds.lockSnort(`${Math.round(left)} ms before the lock, ${this.roam.state === 'alert' ? `standing, ${this.roam.clip} frame ${Math.round(this.roam.frame)}` : 'running'}`);
+			}
 		}
 		if (this.clock < r.t0) return;
 		// THE STRIKE RUNS ON TIME (Corey 2026-11-12: slow screens skip poses so the strike always takes the same time):
@@ -2140,6 +2215,8 @@ export class RoadFeatures {
 			runner: this.runner ? this.runnerSnapshot(this.runner) : null,
 			/** the roaming reindeer (game/road/roam.ts) */
 			roam: this.roam.snapshot(),
+			/** his charge wind-up's effects (game/road/chargeWindup.ts): up now, and what this strike spawned */
+			charge: { up: this.charge.state(this.clock), snow: this.charge.log.snow.map((q) => ({ ...q, t: Math.round(q.t * 100) / 100 })), puff: this.charge.log.puff },
 			/** the red boxes on Grandma cars in struck Santa reels */
 			marks: this.marks.map((m) => m.cell),
 		};
@@ -2248,6 +2325,7 @@ export class RoadFeatures {
 		this.cellTex.clear();
 		this.sounds.stopAll();
 		this.runner?.resolve();
+		this.charge.clear();
 		for (const w of this.waiters) w.resolve();
 		this.waiters = [];
 	}

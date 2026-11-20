@@ -260,6 +260,15 @@ export const ROAM = {
 	minRunShare: 0.6,
 	/** his random choices' seed: 0 = a new one every page (the game); a number repeats them (the probes) */
 	seed: 0,
+	/** THE CHARGE WIND-UP (Corey 2026-11-20, R3 "he lowers his antlers, scrapes a front hoof ... and snorts on the lock";
+	 *  his picks "Slow Drag 1" and "B Snort at lock"; the rig's R3_GAME_SPEC.md; game/road/chargeWindup.ts). On his own
+	 *  strike, from its first frame to his set off: Regular and Turbo 1 the slow drag (charge, 21 frames), Turbo 2 or a
+	 *  slam stop's hurry already running at the strike's start head down only (chargeDown, 4 frames, held). The slow
+	 *  drag's frames 1 to its hit are time scaled so the hit lands on the strike's FIRST crosshair hop landing between
+	 *  hitWindow[0] and hitWindow[1] times the hit's own time (8 frames, 266.7 ms; no such hop or one target: its own
+	 *  pace); the rest at the rig's 30 fps. NOTHING here moves the strike: no wait, no later lock, no slower hop. Off: he
+	 *  stands as before (the stand, frame 1), no effect sprite, no snort at the lock. */
+	charge: { on: true, hitWindow: [0.85, 1.45] as [number, number] },
 };
 
 // ---- THE GRANDMA WILD: the crash cloud in one cell, for one spin (Corey 2026-11-04 and 2026-11-09) ---------------------
@@ -1282,6 +1291,13 @@ export const REINDEER_SOUND = {
 		/** real ms between two snorts at least, and after a strike or a column's arrival */
 		minGapMs: 10000,
 		quietMs: 1200,
+		/** THE SNORT AT THE LOCK (Corey 2026-11-20, "B Snort at lock"; constants ROAM.charge): the roaming reindeer's own
+		 *  strike plays the same clip, retimed so its loudest point (lockPeakMs real ms into the file) lands on the
+		 *  crosshair's lock: cued on the first frame within lockPeakMs of the lock (the dart's pattern), or on the strike's
+		 *  first frame when the lock is there (one target). Once per strike; minGapMs from any other snort, as the idle
+		 *  ones (a strike within it is silent; its breath puff still shows); the idle snort's quiet rules are unchanged.
+		 *  sfx_target_lock still plays at the lock. */
+		lockPeakMs: 140,
 	},
 };
 

@@ -3,7 +3,8 @@
 // round 2 also the spin (the traffic loop, the five reel stops, the stoplights), the target crosshair (hop, drop, lock,
 // the red box), his dart, a column's multiplier stamp and the presents' pop (game/road/roadBoard.ts cues the spin's);
 // since round 3 the column's growth, Santa's and Grandma's entrances, each character's win clip, a sticky column
-// settling in, and the line show once per line as it lights (game/road/roadBoard.ts).
+// settling in, and the line show once per line as it lights (game/road/roadBoard.ts). Since 2026-11-20 the snort also
+// plays at the crosshair's lock on the roaming reindeer's own strike (lockSnort; constants ROAM.charge).
 // game/road/roadFeatures.ts says WHEN, from the frame the animation reaches the moment (the road clock, so turbo and a
 // slam stop move a sound with its picture); this file says WHAT plays and keeps the two loops honest: each is started
 // once, stopped on the frame its picture ends, and never left running.
@@ -257,6 +258,23 @@ export class RoadSounds {
 		this.snortAt = now;
 		this.snortOn = now + 600;
 		this.cue('snort', `reel ${reel}`);
+	}
+
+	/** THE SNORT AT THE LOCK (REINDEER_SOUND.snort.lockPeakMs; the roaming reindeer's own strike, once): the idle snort's
+	 *  clip, played on this frame, which roadFeatures picks so its loudest point lands on the crosshair's lock. It keeps
+	 *  the snorts' minGapMs from any other snort (an idle one, or his last strike's): within it, nothing plays. It is
+	 *  never the idle roll (its quiet rules are unchanged), and the next idle snort waits minGapMs after it. */
+	lockSnort(detail: string) {
+		const now = performance.now();
+		const S = REINDEER_SOUND.snort;
+		if (now - this.snortAt < S.minGapMs) {
+			this.mark('lockSnortQuiet', `${detail}; ${Math.round(now - this.snortAt)} ms after the last snort (minGapMs ${S.minGapMs})`);
+			return;
+		}
+		this.snortAt = now;
+		this.snortOn = now + 600;
+		this.mark('lockSnort', detail);
+		this.playNamed(N.snort, `lock: ${detail}`);
 	}
 
 	/** everything off now (the board goes) */
