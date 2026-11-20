@@ -1902,6 +1902,26 @@ export const LED_BOARD = {
 	 *  faint skirt baked round each hole of the grille on the finer grid (his pick: the light of today's dot size at the
 	 *  finer pitch). Live: a change rebuilds both faces on the next frame. */
 	density: { on: true, k: 1.5, minDevicePx: 2, smallWeight: 700, bodyWeight: 700, softDot: true },
+	/** THE FACES' MOVING EFFECTS (Corey 2026-11-20, led_board_size_r1_2026-11-20 round 2, his settings; game/scoreboard/
+	 *  scoreboard.ts drawBack and drawStrip, scoreboardDraw.ts borderGlint). Each keeps today's choice selectable:
+	 *    band         the moving light band (landing/ledScreens.ts shimmer) on both faces: false (today: true)
+	 *    powerOn      the back board's power on as it seats: 'dissolve', its LEDs come on in a random order (the power down's
+	 *                 own noise run the other way) over dissolveOnMs; 'scan' is today's white line over rise.scanMs
+	 *    stripSwitch  the strip's change to a message (a win, the gag, the scatter count): 'dissolve' (the dissolve it already
+	 *                 uses back to its cartoons, over strip.dissolveMs); 'scan' is today's white line over strip.switchMs
+	 *    glint        a short bright run of LEDs going round each face's outer dots on its lit LEDs: `len` dots long, `rows`
+	 *                 dots deep, once round every `periodS` s at full `alpha` at its head, fading to its tail (the mock's) */
+	effects: { band: false, powerOn: 'dissolve' as 'dissolve' | 'scan', dissolveOnMs: 280, stripSwitch: 'dissolve' as 'dissolve' | 'scan', glint: { on: true, len: 60, rows: 3, periodS: 3, alpha: 0.75 } },
+	/** THE FULL BOARD FLASHES SOFTENED (Corey 2026-11-20: "It wasn't the boarder flash that bothered me as much as the full
+	 *  screen strobing"; "Soft fade is fine"). The three one-shot flashes over the whole board, each 'soft' or 'today':
+	 *    slamFlash    the white flash as a number slams in (the entries, the Super tease)
+	 *    pulse        a number's white pulse at a slam, a tier change, a count's end, a tick; Max's board wash with it
+	 *    ladderFlash  the Total Win ladder's full board wash of a rung's color as it lights
+	 *  SOFT (the mock's): softStrength of the flash's strength, spread over softLength times as long, rising and falling (a
+	 *  sine) instead of starting at full. The other flashes (the chase, the count border, the landing blink, the police
+	 *  lights, the text blinks, the ladder's border and top rung) stay as they are. Each flash still starts at its moment
+	 *  (the sounds tied to them are untouched). */
+	strobe: { slamFlash: 'soft' as 'soft' | 'today', pulse: 'soft' as 'soft' | 'today', ladderFlash: 'soft' as 'soft' | 'today', softStrength: 0.3, softLength: 2.5 },
 	/** THE LED ANIMATIONS COREY PICKED (2026-11-19, led_anim_ideas_r1_2026-11-19: fs-presents, sfs-tease, tw-ladder,
 	 *  amb-tree, amb-chew, amb-takeoff, amb-signroll, amb-stack, press-lights; the mock's drawing code, ported:
 	 *  game/scoreboard/entryScenes.ts, totalLadder.ts, ambient.ts). Each switch brings back today's picture.

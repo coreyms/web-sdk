@@ -68,6 +68,30 @@ export const hash = (n: number) => {
 /** one dot of a decoration (ledGrid dotAt: ledN(k, 1) LEDs square on the finer grid) */
 const dot = dotAt;
 
+// ---- THE ONE-SHOT FLASHES (2026-11-20, constants LED_BOARD.strobe): the slam flash, the number pulse and the ladder's wash ----
+export type FlashKind = 'slamFlash' | 'pulse' | 'ladderFlash';
+/** a one-shot flash's strength `t` ms after it starts, as a share of its full strength: today it starts at full and falls to
+ *  nothing over `len` ms; SOFT it rises and falls (a sine) at softStrength over softLength x len (the mock's soft fade). It
+ *  always starts at its moment. */
+export function oneShot(kind: FlashKind, t: number, len: number): number {
+	if (!(t >= 0)) return 0;
+	const S = LED_BOARD.strobe;
+	if (S[kind] === 'soft') {
+		const L = len * S.softLength;
+		return t < L ? S.softStrength * Math.sin((Math.PI * t) / L) : 0;
+	}
+	return t < len ? 1 - t / len : 0;
+}
+/** THE FLASHES AS DRAWN (the probe): per face canvas, the strongest of each kind on this step (a share of full strength) */
+const flashRec = new WeakMap<object, Record<FlashKind, number>>();
+export const noteFlash = (canvas: object, kind: FlashKind, a: number) => {
+	if (!(a > 0)) return;
+	let r = flashRec.get(canvas);
+	if (!r) flashRec.set(canvas, (r = { slamFlash: 0, pulse: 0, ladderFlash: 0 }));
+	if (a > r[kind]) r[kind] = a;
+};
+export const flashesOf = (canvas: object) => flashRec.get(canvas) ?? null;
+
 // ---- THE PICTURES (one sheet; set by the board once it is loaded) ---------------------------------------------------------
 let SHEET: CanvasImageSource | null = null;
 const artCache = new Map<string, Cv>();
@@ -513,6 +537,7 @@ export const titlesOf = (canvas: object): TitleRec[] => titleRec.get(canvas) ?? 
 /** a face's records go at the start of its step (the title, the entry's wait: entryWaitOf) */
 export const clearTitle = (canvas: object) => {
 	titleRec.delete(canvas);
+	flashRec.delete(canvas);
 	entryWaitRec.delete(canvas);
 	raceCardRec.delete(canvas);
 	plowRec.delete(canvas);
@@ -982,7 +1007,9 @@ export function showWin(F: Face, s: Show, back = false) {
 	const slide = slideAt(s, lay);
 	const ev = s.events.find((e) => e.tier === tier);
 	const since = ev ? s.t - ev.at : 1e9;
-	const pulse = tier > 0 ? 1 - clamp(since / LED_BOARD.pulseMs, 0, 1) : 0;
+	// (the tier's pulse, Max's board wash with it: LED_BOARD.strobe.pulse)
+	const pulse = tier > 0 ? oneShot('pulse', since, LED_BOARD.pulseMs) : 0;
+	noteFlash(o.canvas, 'pulse', pulse);
 	if (tier > 0 && since < LED_BOARD.sweepMs) {
 		const a = F.a.ctx;
 		const b = F.b.ctx;
@@ -1057,7 +1084,9 @@ export function showSmall(F: Face, s: Show) {
 	const lay = winLayout(W, H, s.finalStr, ['WIN']);
 	const str = s.fmt(amountNow(s));
 	drawLayTitle(g, lay, 'WIN', '#7cc4ff', W);
-	drawRow(g, str, numX(lay, W, str, 0), rowYInside(s.finalStr, lay.numY, lay.cap, H, kOf(g)), lay.cap, '#ffffff', s.t >= s.countEnd ? 1 - clamp((s.t - s.countEnd) / 300, 0, 1) : 0);
+	const pulse = s.t >= s.countEnd ? oneShot('pulse', s.t - s.countEnd, 300) : 0;
+	noteFlash(g.canvas, 'pulse', pulse);
+	drawRow(g, str, numX(lay, W, str, 0), rowYInside(s.finalStr, lay.numY, lay.cap, H, kOf(g)), lay.cap, '#ffffff', pulse);
 	if (s.t > s.countEnd) {
 		const p = clamp((s.t - s.countEnd) / 1300, 0, 1);
 		const h = Math.round(H * 0.7);
@@ -1077,7 +1106,6 @@ export function showCounter(F: Face, clock: number, left: number, changedAt: num
 	g.fillRect(0, 0, W, H);
 	chaseBorder(g, W, H, clock, ['#36ff74', '#ffffff', '#ff3a2e', '#ffffff'], 1, 3);
 	const since = clock - changedAt;
-	const roll = clamp(since / 220, 0, 1);
 	const str = left + ' LEFT';
 	const m = 2;
 	let best: { ts: number; tw: number; cap: number } | null = null;
@@ -1091,7 +1119,9 @@ export function showCounter(F: Face, clock: number, left: number, changedAt: num
 	const total = tw + 8 + rowInfo(str, cap).w;
 	const x0 = Math.round((W - total) / 2);
 	drawTitle(g, 'FREE SPINS', x0 + tw / 2, Math.round((H - 7 * ts) / 2), ts, '#7cc4ff');
-	drawRow(g, str, x0 + tw + 8, Math.round((H - cap) / 2), cap, '#ffffff', roll < 1 && since >= 0 ? 1 - roll : 0);
+	const pulse = since >= 0 ? oneShot('pulse', since, 220) : 0;
+	noteFlash(g.canvas, 'pulse', pulse);
+	drawRow(g, str, x0 + tw + 8, Math.round((H - cap) / 2), cap, '#ffffff', pulse);
 	const dt = since;
 	if (dt >= 0 && dt < LED_BOARD.dashMs) {
 		const h = Math.round(H * 0.8);
@@ -1455,6 +1485,45 @@ export const gagWordsAt = (t: number): string => {
 	return G.third;
 };
 
+/** THE BORDER GLINT (2026-11-20, constants LED_BOARD.effects.glint; the mock's): a short bright run of LEDs going round the
+ *  face's outer dots, on its lit LEDs only (source-atop: the chase and the frame catch it, the dark plate does not), fading
+ *  from its head to its tail, once round every periodS s. `T` the board's clock in s. In whole LEDs; nothing allocated. */
+export function borderGlint(F: Face, T: number) {
+	const G = LED_BOARD.effects.glint;
+	if (!G.on || !(G.alpha > 0) || !(G.periodS > 0)) return;
+	const o = F.out.ctx;
+	const W = F.ledW;
+	const H = F.ledH;
+	const pts = ringPts(W, H, 0, 1, 1);
+	const n = pts.length;
+	const L = Math.min(n, ledN(F.k, G.len));
+	const rows = ledN(F.k, G.rows);
+	const head = Math.floor(((T / G.periodS) % 1) * n) % n;
+	o.globalCompositeOperation = 'source-atop';
+	o.fillStyle = '#ffffff';
+	for (let i = 0; i < L; i++) {
+		const p = pts[(head - i + n) % n];
+		const x = p[0];
+		const y = p[1];
+		o.globalAlpha = Math.min(1, G.alpha * (1 - i / L));
+		const top = y === 0;
+		const bot = y === H - 1;
+		if (top || bot) fillP(o, x, top ? 0 : H - rows, 1, rows);
+		else fillP(o, x === 0 ? 0 : W - rows, y, rows, 1);
+	}
+	o.globalAlpha = 1;
+	o.globalCompositeOperation = 'source-over';
+}
+/** THE POWER ON AS IT SEATS (constants LED_BOARD.effects.powerOn): `ms` since the face started to come on. 'dissolve': its
+ *  LEDs come on in a random order (the power down's own noise run the other way) over dissolveOnMs; 'scan': today's line */
+export function powerOnFace(F: Face, ms: number) {
+	const E = LED_BOARD.effects;
+	if (E.powerOn === 'scan') return scanReveal(F, ms / LED_BOARD.rise.scanMs);
+	const u = ms / Math.max(1, E.dissolveOnMs);
+	if (u < 1) powerOffFace(F, 1 - u);
+}
+/** how long the power on takes (ms) */
+export const powerOnMs = () => (LED_BOARD.effects.powerOn === 'scan' ? LED_BOARD.rise.scanMs : LED_BOARD.effects.dissolveOnMs);
 /** the dots' power on at the back board's seat: they light row by row behind a bright scan line */
 export function scanReveal(F: Face, u: number) {
 	if (u >= 1) return;
@@ -1535,11 +1604,16 @@ function slamRow(g: Ctx, str: string, cx: number, y: number, cap: number, t: num
 	const w = rowInfo(str, c).w;
 	// (centered on its lit dots since 2026-11-17)
 	const x = centeredRow(g, str, cx, y - (c - cap) / 2, c, cx - w / 2);
-	drawRow(g, str, x, y - (c - cap) / 2, c, style, t < 300 ? 1 - t / 300 : 0);
+	const pulse = oneShot('pulse', t, 300);
+	noteFlash(g.canvas, 'pulse', pulse);
+	drawRow(g, str, x, y - (c - cap) / 2, c, style, pulse);
 }
+/** the slam's white flash over the whole face, 70 percent at full (LED_BOARD.strobe.slamFlash) */
 function flash(g: Ctx, W: number, H: number, t: number, len: number) {
-	if (t < 0 || t >= len) return;
-	g.globalAlpha = 0.7 * (1 - t / len);
+	const a = oneShot('slamFlash', t, len);
+	if (a <= 0) return;
+	noteFlash(g.canvas, 'slamFlash', a);
+	g.globalAlpha = 0.7 * a;
 	g.fillStyle = '#ffffff';
 	g.fillRect(0, 0, W, H);
 	g.globalAlpha = 1;
@@ -1766,7 +1840,9 @@ export function showTotalScene(F: Face, s: Show) {
 	// (centered on its lit dots since 2026-11-17)
 	const ax = centeredRow(g, str, W / 2, y0 + 7 * tts + 6 + G, cap, (W - w) / 2);
 	if (blinkDim) g.globalAlpha = TOTAL_BLINK_DIM;
-	drawRow(g, str, ax, y0 + 7 * tts + 6 + G, cap, 'gold', landed ? clamp(1 - since / 400, 0, 1) : 0);
+	const pulse = landed ? oneShot('pulse', since, 400) : 0;
+	noteFlash(g.canvas, 'pulse', pulse);
+	drawRow(g, str, ax, y0 + 7 * tts + 6 + G, cap, 'gold', pulse);
 	g.globalAlpha = 1;
 	if (landed) cornerFireworks(g, W, H, since, ['#ffd23a', '#ffffff', '#36ff74', '#ff3a2e'], Hm);
 	// the bottom band: Grandma's car bouncing, the police car with its lights going, the reindeer clapping

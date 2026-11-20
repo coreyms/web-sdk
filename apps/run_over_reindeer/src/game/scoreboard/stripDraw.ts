@@ -3,7 +3,7 @@
 // Plain 2D canvas drawing, no filter. Strip only: the back board never shows these.
 import { LED_BOARD, LED_SIGN } from '../constants';
 import { SCREENS, dissolve, drawText, textW, type LedText } from '../landing/ledScreens';
-import { burst, chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, type Face } from './scoreboardDraw';
+import { burst, chaseBorder, drawRow, fireworks, fitCap, noteFlash, oneShot, rowInfo, sprite, type Face } from './scoreboardDraw';
 import { copyFace } from './ledGrid';
 import { RED_FROM } from '../road/present';
 import { noteIdea } from './ideasKit';
@@ -94,7 +94,8 @@ export function showScatterCount(F: Face, s: ScatterFace, clock: number) {
 	// (the probe: each present's picture and its box in dots, left to right)
 	noteIdea(g.canvas, 'scatter', { names, boxes: names.map((_, i) => [lay.x0 + i * (iw + lay.gap), lay.iconY - lay.icon, iw, lay.icon]), count: s.count, need });
 	const str = `${Math.min(s.count, 99)} OF ${need}`;
-	const pulse = since >= 0 && since < K.tickMs ? 1 - since / K.tickMs : 0;
+	const pulse = since >= 0 ? oneShot('pulse', since, K.tickMs) : 0;
+	noteFlash(g.canvas, 'pulse', pulse);
 	drawRow(g, str, lay.textX + (rowInfo(lay.str, lay.cap).w - rowInfo(str, lay.cap).w), lay.textY, lay.cap, s.fwAt !== null ? 'gold' : '#ffffff', pulse);
 	if (s.fwAt !== null) {
 		const t = clock - s.fwAt;

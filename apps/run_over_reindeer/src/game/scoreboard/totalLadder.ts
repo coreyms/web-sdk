@@ -12,7 +12,7 @@
 import { drawText, textW } from '../landing/ledScreens';
 import { LED_BOARD } from '../constants';
 import { amountAtCount, ladderBars, winSizeOf, type Show } from './show';
-import { boardTitle, burst, centeredRow, cornerFireworks, drawRow, fitCap, fitScale, gallop, perimeter, perimeterDots, rowInfo, sceneT, showTotalScene, titleGapKnob, titleScale, TOTAL_BLINK_DIM, type Face } from './scoreboardDraw';
+import { boardTitle, burst, centeredRow, cornerFireworks, drawRow, fitCap, fitScale, gallop, noteFlash, oneShot, perimeter, perimeterDots, rowInfo, sceneT, showTotalScene, titleGapKnob, titleScale, TOTAL_BLINK_DIM, type Face } from './scoreboardDraw';
 import { dotAt, ledN } from './ledGrid';
 import { box, clamp, ease, lerp, noteIdea, type Ctx } from './ideasKit';
 
@@ -41,7 +41,9 @@ function amountRow(g: Ctx, W: number, s: Show, L: Lay, v: number) {
 	const blinkDim = landed && since < 900 && Math.floor(since / 150) % 2 === 1;
 	const ax = centeredRow(g, str, W / 2, L.numY, L.cap, (W - w) / 2);
 	if (blinkDim) g.globalAlpha = TOTAL_BLINK_DIM;
-	drawRow(g, str, ax, L.numY, L.cap, 'gold', landed ? clamp(1 - since / 400, 0, 1) : 0);
+	const pulse = landed ? oneShot('pulse', since, 400) : 0;
+	noteFlash(g.canvas, 'pulse', pulse);
+	drawRow(g, str, ax, L.numY, L.cap, 'gold', pulse);
 	g.globalAlpha = 1;
 }
 /** the count's value at show ms `at` (the show's own pacer) */
@@ -127,9 +129,11 @@ export function ladderTotal(F: Face, s: Show) {
 		const lab = rungLabel(b);
 		drawText(g, lab, Math.round(rx[i] - textW(lab, 1) / 2), ly + lampH + 2, 1, lit ? RUNG_COLS[i % RUNG_COLS.length] : '#5a6170');
 		if (lit && s.t - at < 450) burst(g, rx[i], ly + 1, (s.t - at) / 450, Math.round(L.band * 0.5));
-		// the board flashes as a rung lights
-		if (lit && s.t - at < 120) {
-			g.globalAlpha = 0.22 * (1 - (s.t - at) / 120);
+		// the board flashes as a rung lights (LED_BOARD.strobe.ladderFlash: soft, a fade of the wash at softStrength)
+		const wash = lit ? oneShot('ladderFlash', s.t - at, 120) : 0;
+		if (wash > 0) {
+			noteFlash(g.canvas, 'ladderFlash', wash);
+			g.globalAlpha = 0.22 * wash;
 			g.fillStyle = RUNG_COLS[i % RUNG_COLS.length];
 			g.fillRect(0, 0, W, H);
 			g.globalAlpha = 1;

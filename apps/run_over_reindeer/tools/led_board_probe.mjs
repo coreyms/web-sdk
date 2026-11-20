@@ -81,6 +81,13 @@
 // THE ROUND 1 LED IDEAS (section ledIdeas, 2026-11-19, wip/ledideas; LED_BOARD.ideas): see ideasChecks below (the Super
 // entry's presents all red, the tease reading nothing of the round, the stack's contact, the ladder's marks, the count by size
 // and the cap's hold, the rotation, the press screen's light string, the cost)
+// THE LOOK (section look, 2026-11-20, constants LED_BOARD.effects and LED_BOARD.strobe; led_board_size_r1 round 2), desktop
+// at 2x and the upright phone at 3x, driven by hand: no moving light band (on by the knob it changes the face); the back board
+// powers on as a dissolve (its LEDs come on at random, no scan line); the border glint lights only the face's outer dots;
+// the three full board flashes (the slam flash, the number and tier pulse with Max's wash, the ladder's rung wash) at the
+// soft fade's strength and length, never more than 3 starts in any second among them, in the Super entry, the Free Spins
+// entry, a Total Win up its ladder and a Max win (and at full strength with the knob back at today, so the record is real);
+// the strip's dissolve to a message is checked in M4
 // M4 (section m4, desktop and upright, 2026-11-19, driven by hand): the strip's scan to a message leaves the old picture alone
 //   right of its line (never the two drawn at once); the Total Win's amount is lit whenever its title is, the landing blink too
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
@@ -97,7 +104,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density,ledAnim,ledIdeas').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density,ledAnim,ledIdeas,look').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -1602,7 +1609,12 @@ async function m4Checks(p, S) {
 		h.scoreboardManual(true);
 		h.scoreboardScatter(undefined);
 		h.scoreboardStep(100, 30);
-		// 1. the scan, from a clean picture (not inside a switch of its own, a cartoon's dissolve into the next)
+		// 1. the scan, from a clean picture (not inside a switch of its own, a cartoon's dissolve into the next); since
+		// 2026-11-20 the strip dissolves to a message (LED_BOARD.effects.stripSwitch): today's scan line is set by hand here,
+		// the border glint held off (it is drawn over the old picture too)
+		const E0 = { stripSwitch: h.tune.ledBoard.effects.stripSwitch, glint: h.tune.ledBoard.effects.glint.on };
+		h.tune.ledBoard.effects.stripSwitch = 'scan';
+		h.tune.ledBoard.effects.glint.on = false;
 		let s = h.scoreboardStep(0);
 		for (let i = 0; i < 60 && !(s.stripSwitch && s.stripSwitch.since > 500); i++) s = h.scoreboardStep(50);
 		const item0 = s.stripPick?.item;
@@ -1631,10 +1643,42 @@ async function m4Checks(p, S) {
 		}
 		h.scoreboardSkip();
 		h.scoreboardStep(100, 40);
+		// 1b. THE DISSOLVE (the default since 2026-11-20): a message dissolves in over the old picture, LED by LED; half way
+		// through some LEDs are still the old picture's and some already the new one's
+		h.tune.ledBoard.effects.stripSwitch = E0.stripSwitch;
+		s = h.scoreboardStep(0);
+		for (let i = 0; i < 60 && !(s.stripSwitch && s.stripSwitch.since > 500); i++) s = h.scoreboardStep(50);
+		const D0 = await alphaOf('strip');
+		void h.scoreboardWin(0.5, { small: true });
+		const kinds = [];
+		let Dmid = null;
+		const dMs = h.tune.ledBoard.strip.dissolveMs;
+		for (let i = 0; i < 40; i++) {
+			s = h.scoreboardStep(i === 0 ? 0 : 20);
+			if (s.stripSwitch) kinds.push(s.stripSwitch.kind);
+			if (!Dmid && s.stripSwitch && s.stripSwitch.since >= dMs * 0.45) Dmid = await alphaOf('strip');
+			if (s.stripSwitch && s.stripSwitch.since >= dMs) break;
+		}
+		const D1 = await alphaOf('strip');
+		let oldOnly = 0;
+		let newOnly = 0;
+		if (Dmid) for (let j = 0; j < D1.a.length; j++) {
+			const o = D0.a[j] > 40;
+			const n = D1.a[j] > 40;
+			const m = Dmid.a[j] > 40;
+			if (o && !n && m) oldOnly += 1;
+			if (n && !o && m) newOnly += 1;
+		}
+		const dissolve = { kinds: [...new Set(kinds)], dMs, mid: !!Dmid, oldOnly, newOnly, item: s.stripPick?.item };
+		h.scoreboardSkip();
+		h.scoreboardStep(100, 40);
+		h.tune.ledBoard.effects.glint.on = E0.glint;
 		// 2. the Total Win
 		h.scoreboardCard('total', { x: 248.5 });
 		const L = h.tune.ledBoard.rise;
-		const from = L.backAtMs + L.riseMs - 120 + L.scanMs;
+		// (its power on: the dissolve's dissolveOnMs since 2026-11-20, today's scanMs by the knob)
+		const E = h.tune.ledBoard.effects;
+		const from = L.backAtMs + L.riseMs - 120 + (E.powerOn === 'scan' ? L.scanMs : E.dissolveOnMs);
 		const rows = [];
 		for (let t = 0; t < 7000; t += 25) {
 			s = h.scoreboardStep(25);
@@ -1657,10 +1701,12 @@ async function m4Checks(p, S) {
 		h.scoreboardLower();
 		h.scoreboardStep(100, 30);
 		h.scoreboardManual(false);
-		return { item0, lit0, steps, rows };
+		return { item0, lit0, steps, rows, dissolve };
 	});
 	const sc = r.steps;
 	check(r.item0 === 'cartoon' && r.lit0 > 50 && sc.length >= 3 && sc.every((x) => x.bad === 0) && sc.some((x) => x.oldLit > 50), `${tag}: M4 THE CLEAN SCAN: a small win scanning over the ${r.item0} (${r.lit0} lit dots): right of the line the face is the old picture alone on all ${sc.length} steps (dots differing: ${sc.map((x) => x.bad).join(', ')})`, sc);
+	const dv = r.dissolve;
+	check(dv.kinds.length === 1 && dv.kinds[0] === 'dissolve' && dv.mid && dv.oldOnly > 20 && dv.newOnly > 20, `${tag}: THE STRIP DISSOLVES TO A MESSAGE (LED_BOARD.effects.stripSwitch, 2026-11-20): kind ${dv.kinds.join(', ')}, half way through ${dv.oldOnly} LEDs still the old picture's and ${dv.newOnly} already the message's (no scan line)`, dv);
 	const tr = r.rows;
 	const final = tr.filter((x) => x.land >= 1000).map((x) => x.amount);
 	const full = final.length ? Math.max(...final) : 0;
@@ -1801,6 +1847,178 @@ async function pressBoard(browser, S) {
 }
 
 
+/** THE LOOK (2026-11-20): the moving effects and the soft flashes, at the device's own pixel ratio */
+const LOOK_CASES = [
+	{ name: 'look desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false },
+	{ name: 'look upright@3', vp: { width: 390, height: 844 }, dpr: 3, phone: true },
+].filter((s) => !ONLY.length || ONLY.includes(s.name.split(' ')[1].split('@')[0]) || ONLY.includes('look'));
+async function lookChecks(browser) {
+	for (const S of LOOK_CASES) {
+		const tag = S.name + ` ${S.vp.width}x${S.vp.height}`;
+		const { ctx, p, errs } = await boot(browser, S);
+		try {
+			await quietBoard(p);
+			const r = await R(p, async () => {
+				const h = window.__reindeer;
+				const E = h.tune.ledBoard.effects;
+				const ST = h.tune.ledBoard.strobe;
+				const defaults = { band: E.band, powerOn: E.powerOn, stripSwitch: E.stripSwitch, glint: E.glint.on, slam: ST.slamFlash, pulse: ST.pulse, ladder: ST.ladderFlash };
+				const rgbaOf = async (which) => {
+					const f = h.scoreboardFace(which, true);
+					const img = new Image();
+					img.src = f.png;
+					await img.decode();
+					const c = document.createElement('canvas');
+					c.width = f.ledW;
+					c.height = f.ledH;
+					const g = c.getContext('2d');
+					g.drawImage(img, 0, 0);
+					return { d: g.getImageData(0, 0, f.ledW, f.ledH).data, W: f.ledW, H: f.ledH, k: f.k, hash: f.hash, lit: f.lit };
+				};
+				h.scoreboardManual(true);
+				h.scoreboardStep(100, 30);
+				// THE POWER ON: a Free Spins entry stepped 10 ms at a time through its seat
+				h.scoreboardCard('fs', { spins: 10 });
+				const L = h.tune.ledBoard.rise;
+				const onAt = L.backAtMs + L.riseMs - 120;
+				const onMs = E.powerOn === 'scan' ? L.scanMs : E.dissolveOnMs;
+				const pon = [];
+				let sn = h.scoreboardStep(0);
+				for (let i = 0; i < 300 && sn.show && sn.show.t < onAt + onMs + 60; i++) {
+					sn = h.scoreboardStep(10);
+					if (sn.show.t < onAt - 20) continue;
+					const F = await rgbaOf('back');
+					let whiteRows = 0;
+					for (let y = 0; y < F.H; y++) {
+						let n = 0;
+						for (let x = 0; x < F.W; x++) {
+							const j = (y * F.W + x) * 4;
+							if (F.d[j + 3] > 200 && F.d[j] > 230 && F.d[j + 1] > 230 && F.d[j + 2] > 230) n += 1;
+						}
+						if (n >= F.W * 0.95) whiteRows += 1;
+					}
+					pon.push({ u: Math.round(((sn.show.t - onAt) / onMs) * 100) / 100, lit: F.lit, whiteRows });
+				}
+				h.scoreboardCardEnd();
+				h.scoreboardLower();
+				h.scoreboardStep(100, 30);
+				// THE BAND AND THE GLINT on a Total Win holding still (the same moment drawn each way)
+				h.scoreboardCard('total', { x: 248.5 });
+				for (let i = 0; i < 600; i++) {
+					const q = h.scoreboardStep(33);
+					if (q.show && q.show.t > q.show.countEnd + 1400) break;
+				}
+				const base = await rgbaOf('back');
+				E.band = true;
+				h.scoreboardStep(0);
+				const banded = await rgbaOf('back');
+				E.band = defaults.band;
+				h.scoreboardStep(0);
+				const again = await rgbaOf('back');
+				E.glint.on = false;
+				h.scoreboardStep(0);
+				const noGlint = await rgbaOf('back');
+				E.glint.on = defaults.glint;
+				h.scoreboardStep(0);
+				const rows = Math.max(1, Math.round(E.glint.rows * base.k));
+				let glintPx = 0;
+				let glintInside = 0;
+				for (let y = 0; y < base.H; y++)
+					for (let x = 0; x < base.W; x++) {
+						const j = (y * base.W + x) * 4;
+						if (base.d[j] !== noGlint.d[j] || base.d[j + 1] !== noGlint.d[j + 1] || base.d[j + 2] !== noGlint.d[j + 2]) {
+							glintPx += 1;
+							if (x >= rows && y >= rows && x < base.W - rows && y < base.H - rows) glintInside += 1;
+						}
+					}
+				h.scoreboardCardEnd();
+				h.scoreboardLower();
+				h.scoreboardStep(100, 30);
+				// THE FLASHES: each scene stepped 16 ms at a time from its start, the back board's strongest flash of each kind
+				const series = async (start, ms) => {
+					start();
+					const out = [];
+					for (let t = 0; t < ms; t += 16) {
+						const q = h.scoreboardStep(16);
+						const f = h.scoreboardFace('back')?.flashes ?? null;
+						out.push({ t, s: f ? f.slamFlash : 0, p: f ? f.pulse : 0, l: f ? f.ladderFlash : 0 });
+						if (!q.show) break;
+					}
+					h.scoreboardCardEnd();
+					h.scoreboardSkip();
+					h.scoreboardLower();
+					h.scoreboardStep(100, 40);
+					return out;
+				};
+				const scenes = {
+					super: await series(() => h.scoreboardCard('sfs', { spins: 10 }), 6000),
+					fs: await series(() => h.scoreboardCard('fs', { spins: 10 }), 5000),
+					total: await series(() => h.scoreboardCard('total', { x: 2500 }), 9000),
+					max: await series(() => void h.scoreboardWin(7777), 9000),
+				};
+				// the same Super entry with the three flashes at today's (the record reads a full flash then)
+				ST.slamFlash = 'today';
+				ST.pulse = 'today';
+				ST.ladderFlash = 'today';
+				const today = await series(() => h.scoreboardCard('sfs', { spins: 10 }), 6000);
+				ST.slamFlash = defaults.slam;
+				ST.pulse = defaults.pulse;
+				ST.ladderFlash = defaults.ladder;
+				h.scoreboardManual(false);
+				return { defaults, soft: { strength: ST.softStrength, length: ST.softLength }, pon, band: { changed: base.hash !== banded.hash, back: base.hash === again.hash }, glint: { px: glintPx, inside: glintInside, rows }, scenes, today };
+			});
+			const D = r.defaults;
+			check(D.band === false && D.powerOn === 'dissolve' && D.stripSwitch === 'dissolve' && D.glint === true && D.slam === 'soft' && D.pulse === 'soft' && D.ladder === 'soft', `${tag}: the look as picked: no light band, power on and strip switch as dissolves, the border glint on, the three full board flashes soft`, D);
+			check(r.band.changed && r.band.back, `${tag}: NO MOVING LIGHT BAND: the Total Win's face is drawn without it (switched on by the knob it changes the face; off again the face is as before)`, r.band);
+			// (the LEDs come on at random: the lit count climbs from nothing to the scene's own through the window, never by
+			// a row at a time; the scene itself still moves meanwhile, so the count is not exactly the share of the window)
+			const win = r.pon.filter((x) => x.u > 0 && x.u < 1);
+			const end = r.pon.filter((x) => x.u >= 1).at(-1);
+			const climbs = win.every((x, i) => i === 0 || x.lit >= win[i - 1].lit * 0.97);
+			check(r.pon.length > 10 && r.pon.every((x) => x.whiteRows === 0) && !!end && win.length > 5 && win[0].lit < end.lit * 0.1 && climbs && win.some((x) => x.lit > end.lit * 0.1 && x.lit < end.lit * 0.9), `${tag}: THE POWER ON DISSOLVES: no white scan row on any of ${r.pon.length} steps; through the ${win.length} steps of the window the lit LEDs climb ${win.map((x) => x.lit).join(', ')} to ${end?.lit}`, r.pon.filter((_, i) => i % 4 === 0));
+			check(r.glint.px > 20 && r.glint.inside === 0, `${tag}: THE BORDER GLINT lights ${r.glint.px} LEDs, all within the outer ${r.glint.rows} LEDs of the face`, r.glint);
+			const soft = r.soft;
+			const allSteps = Object.values(r.scenes).flat();
+			const most = { s: Math.max(...allSteps.map((x) => x.s)), p: Math.max(...allSteps.map((x) => x.p)), l: Math.max(...allSteps.map((x) => x.l)) };
+			check(most.s > 0 && most.p > 0 && most.l > 0 && most.s <= soft.strength + 0.01 && most.p <= soft.strength + 0.01 && most.l <= soft.strength + 0.01, `${tag}: THE THREE FULL BOARD FLASHES AT SOFT STRENGTH: slam ${most.s.toFixed(2)}, pulse ${most.p.toFixed(2)}, ladder wash ${most.l.toFixed(2)} of full (soft ${soft.strength})`, most);
+			const todayMost = Math.max(...r.today.map((x) => x.s));
+			check(todayMost > 0.8, `${tag}: with the knob at today the Super entry's slam flash is at full again (${todayMost.toFixed(2)}): the record is the real flash`);
+			// each slam flash's length: softLength x today's 120 or 160 ms
+			const runs = [];
+			for (const [name, ser] of Object.entries(r.scenes)) {
+				let at = null;
+				ser.forEach((x, i) => {
+					if (x.s > 0 && at === null) at = x.t;
+					if ((x.s <= 0 || i === ser.length - 1) && at !== null) {
+						runs.push({ name, at, ms: x.t - at });
+						at = null;
+					}
+				});
+			}
+			check(runs.length > 0 && runs.every((x) => x.ms >= 120 * soft.length * 0.85 && x.ms <= 160 * soft.length + 40), `${tag}: each slam flash is spread over ${soft.length} times its length (${runs.map((x) => `${x.name} ${x.ms} ms`).join(', ')})`, runs);
+			// starts per second: a flash of any of the three kinds starting from nothing counts once; starts within 80 ms of each
+			// other are one flash
+			const worst = {};
+			for (const [name, ser] of Object.entries(r.scenes)) {
+				const starts = [];
+				ser.forEach((x, i) => {
+					const on = x.s > 0.02 || x.p > 0.02 || x.l > 0.02;
+					const was = i > 0 && (ser[i - 1].s > 0.02 || ser[i - 1].p > 0.02 || ser[i - 1].l > 0.02);
+					if (on && !was && !(starts.length && x.t - starts.at(-1) < 80)) starts.push(x.t);
+				});
+				let m = 0;
+				for (const a of starts) m = Math.max(m, starts.filter((b) => b >= a && b < a + 1000).length);
+				worst[name] = { starts: starts.length, perSecond: m };
+			}
+			check(Object.values(worst).every((x) => x.perSecond <= 3), `${tag}: never more than 3 full board flashes start in any second (${Object.entries(worst).map(([k, v]) => `${k} ${v.perSecond} at most, ${v.starts} in all`).join('; ')})`, worst);
+			check(errs.length === 0, `${tag}: no page errors`, errs);
+		} catch (e) {
+			check(false, `${tag}: the look checks ran to their end`, String(e?.stack ?? e).slice(0, 600));
+		} finally {
+			await ctx.close();
+		}
+	}
+}
 /** THE FINER GRID (2026-11-19): the density rule per layout at the device's own pixel ratio, a clean switch on a rotation and
  *  on the tune panel, a one dot border the same LEDs all round, the cost; M4 and the currency check again at 1.5 */
 const DENSITY_CASES = [
@@ -2606,6 +2824,7 @@ async function ideasChecks(browser) {
 			}
 		}
 		if (SEC('density')) await densityChecks(browser);
+		if (SEC('look')) await lookChecks(browser);
 		if (SEC('ledAnim')) await ledAnimChecks(browser);
 		if (SEC('ledIdeas')) await ideasChecks(browser);
 	} finally {

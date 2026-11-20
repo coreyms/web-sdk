@@ -33,7 +33,7 @@ import { C, mk, shimmer, type Cv } from '../landing/ledScreens';
 import { renderResolutionFor } from '../deviceTier';
 import { clearP, copyFace, copyP, densityFor, fillP, ledN } from './ledGrid';
 import { type ScoreboardGeo, type Rect } from './layout';
-import { backScene, clearTitle, countBorder, dissolveFace, entryWaitOf, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, scanReveal, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
+import { backScene, clearTitle, borderGlint, countBorder, dissolveFace, entryWaitOf, flashesOf, powerOnFace, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
 import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newPressShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
@@ -1084,11 +1084,12 @@ export class Scoreboard {
 			showCartoonNow(F, draw, this.clock - this.cartoonAt, this.cartoonState, this.cartoonAt);
 			key = `cartoon${this.cartoon}@${pinned >= 0 ? this.cartoonAt : ''}`;
 		}
-		// THE STRIP'S OWN SWITCH: a scan line to a message, a dissolve back to the cartoons
+		// THE STRIP'S OWN SWITCH: to a message by LED_BOARD.effects.stripSwitch (a dissolve since 2026-11-20; 'scan' is today's
+		// line), a dissolve back to the cartoons
 		if (G.key !== key) {
 			if (G.key) {
 				G.switchAt = this.clock;
-				G.switchKind = /^(show|gag|scatter)/.test(key) ? 'scan' : 'dissolve';
+				G.switchKind = /^(show|gag|scatter)/.test(key) && LED_BOARD.effects.stripSwitch === 'scan' ? 'scan' : 'dissolve';
 			}
 			G.key = key;
 		}
@@ -1117,7 +1118,9 @@ export class Scoreboard {
 			F.prev.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
 			copyFace(F.prev.ctx, F.out);
 		}
-		shimmer(F.out.ctx, F.dotsW, F.dotsH, this.clock / 1000);
+		// the face's moving effects (LED_BOARD.effects): the border glint; the light band only if switched back on
+		borderGlint(F, this.clock / 1000);
+		if (LED_BOARD.effects.band) shimmer(F.out.ctx, F.dotsW, F.dotsH, this.clock / 1000);
 		this.publish(G, 1);
 	}
 
@@ -1142,12 +1145,14 @@ export class Scoreboard {
 			const border = sup ? ['#ff3a2e', '#ffd23a'] : s.kind === 'total' ? ['#36ff74', '#ff3a2e'] : ['#36ff74', '#ffffff', '#ff3a2e', '#ffffff'];
 			showExplain(F, s.t - s.pressLineAt!, (f) => this.backProgram(f, s), head, sentence, sup || s.kind === 'total' ? '#ffd23a' : '#ffffff', border);
 		} else this.backProgram(F, s);
-		// the face powers on as it seats (dark until just before, then a scan line), and powers down before it lowers
+		// the face powers on as it seats (dark until just before, then LED_BOARD.effects.powerOn: its LEDs coming on at random
+		// since 2026-11-20, today's scan line by the knob), and powers down before it lowers
 		const seated = LED_BOARD.rise.backAtMs + LED_BOARD.rise.riseMs;
 		if (s.t < seated - 120) F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
-		else scanReveal(F, (s.t - (seated - 120)) / LED_BOARD.rise.scanMs);
+		else powerOnFace(F, s.t - (seated - 120));
 		if (s.t > s.exitAt) powerOffFace(F, Math.min(1, (s.t - s.exitAt) / LED_BOARD.rise.powerDownMs));
-		shimmer(F.out.ctx, F.dotsW, F.dotsH, this.clock / 1000);
+		borderGlint(F, this.clock / 1000);
+		if (LED_BOARD.effects.band) shimmer(F.out.ctx, F.dotsW, F.dotsH, this.clock / 1000);
 		this.publish(G, brightOf(s));
 	}
 
@@ -1192,7 +1197,7 @@ export class Scoreboard {
 			h = Math.imul(h ^ d[i], 16777619);
 		}
 		// the title as drawn this step (the back board), the entry's wait as drawn (the strip)
-		return { lit, dots: F.ledW * F.ledH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, k: F.k, ledW: F.ledW, ledH: F.ledH, png: png ? F.out.toDataURL('image/png') : null, explain: explainOf(F.out.ctx.canvas), title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas), plow: plowOf(F.out.ctx.canvas), riders: ridersOf(F.out.ctx.canvas), ideas: ideasOf(F.out.ctx.canvas) };
+		return { lit, dots: F.ledW * F.ledH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, k: F.k, ledW: F.ledW, ledH: F.ledH, png: png ? F.out.toDataURL('image/png') : null, explain: explainOf(F.out.ctx.canvas), title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas), plow: plowOf(F.out.ctx.canvas), riders: ridersOf(F.out.ctx.canvas), ideas: ideasOf(F.out.ctx.canvas), flashes: flashesOf(F.out.ctx.canvas) };
 	}
 	snapshot() {
 		const g = this.geo;
