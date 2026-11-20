@@ -7,4 +7,8 @@ export const boardPace = {
 	live: (): boolean => false,
 	/** real ms until the revealed board's drop has landed and settled; null before the reveal starts to fall */
 	restIn: (): number | null => null,
+	/** THE ROUND'S OWN START (2026-11-20, the probe host: autoplay rounds that start back to back, with no gap, never let
+	 *  `live` fall, so a ring started on its rising edge missed them): a count that goes up once at every spin's start (a
+	 *  press's board exit, or a reveal no press led into: a free spin). The ring starts when it changes */
+	serial: (): number => 0,
 };

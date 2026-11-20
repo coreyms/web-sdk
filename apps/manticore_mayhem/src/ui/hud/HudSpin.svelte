@@ -99,13 +99,18 @@
 
 	// the round as the ring sees it: whether the board's spin was seen live, the stop pressed, the win flourish still due
 	let sawLive = false;
-	let wasLive = false;
 	let halted = false;
+	/** THE ROUND'S OWN START (game/boardPace.ts serial; 2026-11-20, the probe host: autoplay rounds that start back to
+	 *  back with no gap never let `live` fall, so a ring started on its rising edge missed them): the ring starts when
+	 *  this count changes, so a round that begins on the very frame the last one ends still starts it */
+	let lastSerial = boardPace.serial();
+	let startedAt = 0;
 	let winDue = false;
 	const startRing = () => {
 		halted = false;
 		sawLive = false;
 		winDue = true;
+		startedAt = performance.now();
 		if (reduced) return;
 		driver.start(turbo());
 		flash('goIn', 520);
@@ -117,7 +122,7 @@
 	const tick = () => {
 		if (reduced) {
 			if (driver.phase !== 'rest') driver.stop();
-			wasLive = boardPace.live();
+			lastSerial = boardPace.serial();
 			return;
 		}
 		const live = boardPace.live();
@@ -125,7 +130,12 @@
 		const t = turbo();
 		const M = ringMotion(t);
 		if (driver.phase === 'brake' && driver.settled()) driver.rest();
-		if (live && !wasLive && driver.phase !== 'spin') startRing();
+		const serial = boardPace.serial();
+		if (serial !== lastSerial) {
+			lastSerial = serial;
+			// (the press has already wound it up a moment ago: the same spin)
+			if (!(driver.phase === 'spin' && performance.now() - startedAt < 600)) startRing();
+		}
 		if (driver.phase === 'spin') {
 			if (live) sawLive = true;
 			const lead = M.brake + M.settle;
@@ -135,7 +145,6 @@
 				driver.brake(M.brake * k, M.settle * k, t);
 			} else if (!live && (sawLive || restingMode(mode))) driver.brake(M.brake, M.settle, t);
 		}
-		wasLive = live;
 	};
 	let raf = 0;
 	const needLoop = () => !restingMode(mode) || driver.phase !== 'rest';
@@ -173,7 +182,8 @@
 			lastFace = k;
 			if (!was || was === k) return;
 			if (driver.phase !== 'rest') driver.rest();
-			wasLive = false;
+			// a spin still live winds up again on the new face's ring
+			if (boardPace.live()) lastSerial = -1;
 			flash('pop', 420);
 			kick();
 		});
