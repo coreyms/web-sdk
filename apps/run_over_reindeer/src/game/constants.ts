@@ -1902,6 +1902,21 @@ export const LED_BOARD = {
 	 *  faint skirt baked round each hole of the grille on the finer grid (his pick: the light of today's dot size at the
 	 *  finer pitch). Live: a change rebuilds both faces on the next frame. */
 	density: { on: true, k: 1.5, minDevicePx: 2, smallWeight: 700, bodyWeight: 700, softDot: true },
+	/** THE DOT GRID (Corey 2026-11-20, led_board_size_r1_2026-11-20 round 2, the grid group of his settings; game/scoreboard/
+	 *  scoreboard.ts makeGrille, placeFace). The grille tile over both faces and how it is laid. His pick is TODAY'S GRID, value
+	 *  for value: round dots, fill 0.73, row scale 1, gap darkness 1, no lit over, no snap, unlit dots shown (each line below
+	 *  gives today's value); the other values are kept selectable to compare on staging. All no runtime cost (the tile is made
+	 *  once, the same size), except `litOver` above 0 (one more sprite per face, the same texture: no upload, no memory).
+	 *    shape     'round' (today: a round hole, clear to half its radius, half at 0.78, gone at 1, with the soft dot's skirt
+	 *              on the finer grid), 'square' (a square cell, a one px soft edge), 'soft' (a wide soft falloff)
+	 *    fill      the dot's share of the pitch across at half strength (today 0.73)
+	 *    rowScale  the dot's height against its width: above 1 the row gaps shrink (today 1: square cells)
+	 *    gapDark   the plate's strength in the gaps: 1 near black (today); lower lets each dot's own color show in its gaps
+	 *    litOver   the lit dots drawn once more over their own gaps at this alpha, so the grid stays on dark areas (today 0)
+	 *    snap      each LED a whole number of device px (k = the device px per dot over a whole count, at least 2; the face
+	 *              placed at that multiple, centred): today false
+	 *    unlit     the unlit quad under the dots: true the faint grid C.unlit (today), false near black */
+	grid: { shape: 'round' as 'round' | 'square' | 'soft', fill: 0.73, rowScale: 1, gapDark: 1, litOver: 0, snap: false, unlit: true },
 	/** THE FACES' MOVING EFFECTS (Corey 2026-11-20, led_board_size_r1_2026-11-20 round 2, his settings; game/scoreboard/
 	 *  scoreboard.ts drawBack and drawStrip, scoreboardDraw.ts borderGlint). Each keeps today's choice selectable:
 	 *    band         the moving light band (landing/ledScreens.ts shimmer) on both faces: false (today: true)

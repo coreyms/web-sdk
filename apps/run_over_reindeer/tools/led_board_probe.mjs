@@ -2056,6 +2056,26 @@ async function densityChecks(browser) {
 			check(densityOk(d), `${tag}: both faces at ${d.density.k} (strip ${d.strip.k}, back ${d.back.k}), one face each (${d.density.faceRoots.strip}, ${d.density.faceRoots.back}): the strip ${d.strip.W} x ${d.strip.H} dots in ${d.strip.ledW} x ${d.strip.ledH} LEDs, the back board ${d.back.W} x ${d.back.H} in ${d.back.ledW} x ${d.back.ledH}`, d);
 			check(d.gpuBytes <= 1.2 * 1048576, `${tag}: the scoreboard holds ${(d.gpuBytes / 1048576).toFixed(3)} MB of GPU textures (budget 1.2 MB)`);
 			if (d.density.k > 1) check(d.density.devicePx >= d.rule.min, `${tag}: an LED is ${d.density.devicePx} device px (at least ${d.rule.min})`);
+			// THE DOT GRID (2026-11-20, LED_BOARD.grid; his pick is today's: round, fill 0.73, row 1, gaps 1, no lit over, no snap,
+			// unlit dots shown): the tile's dot measured through its middle is round (as wide as tall), at the fill on today's grid
+			// (no skirt) and at least the fill with the finer grid's soft skirt; the gaps at full, no lit over sprite, the unlit
+			// quad the faint grid; and the fill knob is live (0.86 widens the measured dot, back again after)
+			const gr = await R(p, async () => {
+				const h = window.__reindeer;
+				const G0 = h.scoreboard().grid;
+				const fill = h.tune.ledBoard.grid.fill;
+				h.tune.ledBoard.grid.fill = 0.86;
+				await new Promise((r) => setTimeout(r, 300));
+				const wide = h.scoreboard().grid;
+				h.tune.ledBoard.grid.fill = fill;
+				await new Promise((r) => setTimeout(r, 300));
+				return { G0, wide, back: h.scoreboard().grid, k: h.scoreboard().density.k, roots: h.scoreboard().density.faceRoots };
+			});
+			const G0 = gr.G0;
+			const m = G0.measured;
+			check(G0.shape === 'round' && G0.fill === 0.73 && G0.rowScale === 1 && G0.gapDark === 1 && G0.litOver === 0 && G0.snap === false && G0.unlit === true && !G0.litOverShown && G0.grilleAlpha === 1 && G0.unlitTint === 0x22262d && G0.soft === d.density.k > 1, `${tag}: THE DOT GRID as picked (today's): round, fill 0.73, row 1, gaps 1, no lit over, no snap, unlit dots shown${G0.soft ? ', the soft skirt on the finer grid' : ''}`, G0);
+			check(!!m && Math.abs(m.across - m.down) < 0.001 && (G0.soft ? m.across >= G0.fill - 0.01 : Math.abs(m.across - G0.fill) <= 0.07), `${tag}: the tile's dot measured round, ${m?.across} of the pitch across and ${m?.down} down (fill ${G0.fill}${G0.soft ? ', with the skirt' : ''})`, m);
+			check(!!gr.wide.measured && gr.wide.measured.across > m.across && gr.back.measured.across === m.across && gr.roots.strip === 1 && gr.roots.back === 1, `${tag}: the fill knob is live (0.86: ${gr.wide.measured?.across} across) and back to ${gr.back.measured?.across}, one face each`, gr);
 			// a ONE DOT chase border the same LEDs all round (the short Grandma line's gold chase), and the cost per layout
 			const r = await R(p, async () => {
 				const h = window.__reindeer;

@@ -60,6 +60,8 @@ type GpuFace = {
 	content: PIXI.Sprite;
 	glow: PIXI.Sprite;
 	grille: PIXI.Container;
+	/** the lit dots once more over their own gaps (LED_BOARD.grid.litOver; hidden at 0, today) */
+	litOver: PIXI.Sprite;
 	sheen: PIXI.Sprite;
 	/** the content key of the last step (a change starts the strip's switch) */
 	key: string;
@@ -123,6 +125,15 @@ export class Scoreboard {
 	private grilleTex: PIXI.Texture;
 	/** whether the grille tile carries the soft dot (LED_BOARD.density.softDot, on the finer grid only) */
 	private grilleSoft = false;
+	/** the grid knobs the tile was made for (LED_BOARD.grid shape, fill, rowScale) */
+	private grilleShape = '';
+	private grilleFill = -1;
+	private grilleRow = -1;
+	/** the device px per CSS px the faces were placed for (LED_BOARD.grid.snap) */
+	private placedRatio = 0;
+	/** the tile's canvas and its dots as measured (the probe: a dot's share of the pitch across and down at half strength) */
+	private grilleCanvas: Cv | null = null;
+	private gridMeasured: { across: number; down: number } | null = null;
 	/** THE FINER GRID (LED_BOARD.density): the faces' LEDs per dot now, and the renderer's device px per CSS px (Board sets it
 	 *  to the renderer's resolution; until then the device's, as game/deviceTier.ts would pick it) */
 	private faceK = 1;
@@ -218,6 +229,7 @@ export class Scoreboard {
 		this.root.addChild(this.dim, this.backRoot, this.coverA, this.coverB, this.coverSnap, this.stripRoot, this.catcher);
 		this.backRoot.visible = false;
 		this.grilleTex = this.makeGrille(false);
+		this.grilleNow();
 		const sh = mk(32, 32);
 		const gr = sh.ctx.createLinearGradient(0, 0, 32 * 0.6, 32);
 		gr.addColorStop(0, 'rgba(255,255,255,0.045)');
@@ -234,29 +246,60 @@ export class Scoreboard {
 	private makeGrille(soft: boolean): PIXI.Texture {
 		const n = GRILLE.cells;
 		const s = GRILLE.cellPx;
+		const Gd = LED_BOARD.grid;
 		const tile = mk(n * s, n * s);
 		tile.ctx.fillStyle = C.base;
 		tile.ctx.fillRect(0, 0, n * s, n * s);
 		const stamp = mk(s, s);
-		const rg = stamp.ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s * 0.47);
-		rg.addColorStop(0, 'rgba(0,0,0,1)');
-		rg.addColorStop(0.5, 'rgba(0,0,0,1)');
-		rg.addColorStop(0.78, 'rgba(0,0,0,0.5)');
-		rg.addColorStop(1, 'rgba(0,0,0,0)');
-		stamp.ctx.fillStyle = rg;
-		stamp.ctx.fillRect(0, 0, s, s);
-		if (soft) {
-			const r2 = stamp.ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s * 0.72);
-			r2.addColorStop(0, 'rgba(0,0,0,0.5)');
-			r2.addColorStop(0.6, 'rgba(0,0,0,0.3)');
-			r2.addColorStop(1, 'rgba(0,0,0,0)');
-			stamp.ctx.fillStyle = r2;
-			stamp.ctx.fillRect(0, 0, s, s);
+		const sc = stamp.ctx;
+		// (LED_BOARD.grid: today's tile exactly at round, 0.73, row 1; the mock's grid group otherwise)
+		const fill = Gd.fill;
+		const row = Gd.rowScale;
+		if (Gd.shape === 'square') {
+			const w = Math.max(1, fill * s);
+			const h = Math.max(1, Math.min(s, fill * row * s));
+			sc.fillStyle = 'rgba(0,0,0,0.5)';
+			sc.fillRect((s - w) / 2 - 1, (s - h) / 2 - 1, w + 2, h + 2);
+			sc.fillStyle = 'rgba(0,0,0,1)';
+			sc.fillRect((s - w) / 2, (s - h) / 2, w, h);
+		} else {
+			sc.save();
+			sc.translate(s / 2, s / 2);
+			sc.scale(1, row);
+			const R = Gd.shape === 'soft' ? s * 0.62 * (fill / 0.73) : s * 0.47 * (fill / 0.73);
+			const rg = sc.createRadialGradient(0, 0, 0, 0, 0, R);
+			if (Gd.shape === 'soft') {
+				rg.addColorStop(0, 'rgba(0,0,0,1)');
+				rg.addColorStop(0.3, 'rgba(0,0,0,0.92)');
+				rg.addColorStop(0.7, 'rgba(0,0,0,0.45)');
+				rg.addColorStop(1, 'rgba(0,0,0,0)');
+			} else {
+				rg.addColorStop(0, 'rgba(0,0,0,1)');
+				rg.addColorStop(0.5, 'rgba(0,0,0,1)');
+				rg.addColorStop(0.78, 'rgba(0,0,0,0.5)');
+				rg.addColorStop(1, 'rgba(0,0,0,0)');
+			}
+			sc.fillStyle = rg;
+			sc.fillRect(-s, -s, 2 * s, 2 * s);
+			if (soft && Gd.shape === 'round') {
+				const r2 = sc.createRadialGradient(0, 0, 0, 0, 0, s * 0.72 * (fill / 0.73));
+				r2.addColorStop(0, 'rgba(0,0,0,0.5)');
+				r2.addColorStop(0.6, 'rgba(0,0,0,0.3)');
+				r2.addColorStop(1, 'rgba(0,0,0,0)');
+				sc.fillStyle = r2;
+				sc.fillRect(-s, -s, 2 * s, 2 * s);
+			}
+			sc.restore();
 		}
 		tile.ctx.globalCompositeOperation = 'destination-out';
 		for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) tile.ctx.drawImage(stamp, i * s, j * s);
 		tile.ctx.globalCompositeOperation = 'source-over';
 		this.grilleSoft = soft;
+		this.grilleShape = Gd.shape;
+		this.grilleFill = Gd.fill;
+		this.grilleRow = Gd.rowScale;
+		this.grilleCanvas = tile;
+		this.gridMeasured = null;
 		return new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: tile as unknown as PIXI.ICanvas, autoGenerateMipmaps: true, scaleMode: 'linear' }) });
 	}
 
@@ -289,18 +332,31 @@ export class Scoreboard {
 	private ensureFaces(): boolean {
 		const g = this.geo;
 		if (!g) return false;
-		const k = densityFor(g.pitch, this.deviceRatio());
+		const ratio = this.deviceRatio();
+		const k0 = densityFor(g.pitch, ratio);
+		// (LED_BOARD.grid.snap, today off: on the finer grid each LED a whole number of device px, at least 2)
+		const k = LED_BOARD.grid.snap && k0 > 1 ? (g.pitch * ratio) / Math.max(2, Math.round((g.pitch * ratio) / k0)) : k0;
 		const soft = k > 1 && LED_BOARD.density.softDot;
+		const Gd = LED_BOARD.grid;
+		const tileSame = soft === this.grilleSoft && Gd.shape === this.grilleShape && Gd.fill === this.grilleFill && Gd.rowScale === this.grilleRow;
+		this.grilleNow();
 		const sw = g.strip.face.dotsW;
 		const sh = g.strip.face.dotsH;
 		const bw = g.back.face.dotsW;
 		const bh = g.back.face.dotsH;
 		const S = this.strip;
 		const B = this.back;
-		if (S && B && S.F.k === k && S.F.dotsW === sw && S.F.dotsH === sh && B.F.dotsW === bw && B.F.dotsH === bh && soft === this.grilleSoft) return false;
+		if (S && B && S.F.k === k && S.F.dotsW === sw && S.F.dotsH === sh && B.F.dotsW === bw && B.F.dotsH === bh && tileSame) {
+			// (a snapped face sits at a whole multiple of the device px: placed again when the resolution changes)
+			if (Gd.snap && ratio !== this.placedRatio) {
+				this.placeFace(S, g.strip.face);
+				this.placeFace(B, g.back.face);
+			}
+			return false;
+		}
 		this.destroyFace(this.strip);
 		this.destroyFace(this.back);
-		if (soft !== this.grilleSoft) {
+		if (!tileSame) {
 			this.grilleTex.destroy(true);
 			this.grilleTex = this.makeGrille(soft);
 		}
@@ -410,10 +466,13 @@ export class Scoreboard {
 		unlit.tint = col(C.unlit);
 		const content = new PIXI.Sprite(tex);
 		const grille = new PIXI.Container();
+		// (the lit dots over the grille: the same texture, one more sprite; shown only with LED_BOARD.grid.litOver above 0)
+		const litOver = new PIXI.Sprite(tex);
+		litOver.visible = false;
 		const glow = new PIXI.Sprite(haloTex);
 		glow.blendMode = 'add';
 		const sheen = new PIXI.Sprite(this.sheenTex);
-		root.addChild(unlit, content, grille, glow, sheen);
+		root.addChild(unlit, content, grille, litOver, glow, sheen);
 		// one grille sprite per CELLS x CELLS LEDs
 		const n = GRILLE.cells;
 		const s = GRILLE.cellPx;
@@ -426,10 +485,47 @@ export class Scoreboard {
 				sp.label = `${i},${j},${cw},${ch}`;
 				grille.addChild(sp);
 			}
-		return { F, halo, tex, haloTex, root, unlit, content, glow, grille, sheen, key: '', switchAt: -1e9, switchKind: null };
+		return { F, halo, tex, haloTex, root, unlit, content, glow, grille, litOver, sheen, key: '', switchAt: -1e9, switchKind: null };
 	}
-	private placeFace(G: GpuFace, r: Rect) {
-		for (const s of [G.unlit, G.content, G.glow, G.sheen]) {
+	/** the grid as built (the probe): the knobs, the tile's dot measured through its middle (where the plate is under half
+	 *  strength, as a share of the pitch, across and down), whether the soft dot is in, the lit over sprite */
+	gridInfo() {
+		if (!this.gridMeasured && this.grilleCanvas) {
+			const s = GRILLE.cellPx;
+			const d = this.grilleCanvas.ctx.getImageData(0, 0, s, s).data;
+			let across = 0;
+			let down = 0;
+			const m = s >> 1;
+			for (let i = 0; i < s; i++) {
+				if (d[(m * s + i) * 4 + 3] < 128) across += 1;
+				if (d[(i * s + m) * 4 + 3] < 128) down += 1;
+			}
+			this.gridMeasured = { across: across / s, down: down / s };
+		}
+		return { ...LED_BOARD.grid, soft: this.grilleSoft, measured: this.gridMeasured, litOverShown: !!this.back?.litOver.visible, grilleAlpha: this.back?.grille.alpha ?? null, unlitTint: this.back ? this.back.unlit.tint : null };
+	}
+	/** THE GRID'S LIVE KNOBS (LED_BOARD.grid): the unlit quad's color, the gaps' darkness (the grille's alpha); numbers only */
+	private grilleNow() {
+		const Gd = LED_BOARD.grid;
+		const tint = Gd.unlit ? col(C.unlit) : 0x08090c;
+		for (const G of [this.strip, this.back]) {
+			if (!G) continue;
+			if (G.unlit.tint !== tint) G.unlit.tint = tint;
+			G.grille.alpha = Gd.gapDark;
+		}
+	}
+	private placeFace(G: GpuFace, r0: Rect) {
+		// (LED_BOARD.grid.snap: the face at a whole number of device px per LED, centred on its place: it moves under a pixel)
+		let r = r0;
+		const ratio = this.deviceRatio();
+		this.placedRatio = ratio;
+		if (LED_BOARD.grid.snap && G.F.k > 1) {
+			const ps = Math.max(1, Math.round((r0.w * ratio) / G.F.ledW));
+			const w = (G.F.ledW * ps) / ratio;
+			const h = (G.F.ledH * ps) / ratio;
+			r = { x: Math.round((r0.x + (r0.w - w) / 2) * ratio) / ratio, y: Math.round((r0.y + (r0.h - h) / 2) * ratio) / ratio, w, h };
+		}
+		for (const s of [G.unlit, G.content, G.litOver, G.glow, G.sheen]) {
 			s.position.set(r.x, r.y);
 			s.width = r.w;
 			s.height = r.h;
@@ -1166,6 +1262,9 @@ export class Scoreboard {
 		G.haloTex.source.update();
 		G.content.alpha = bright;
 		G.glow.alpha = LED_BOARD.halo * bright;
+		const lo = LED_BOARD.grid.litOver;
+		G.litOver.visible = lo > 0;
+		G.litOver.alpha = lo * bright;
 		this.cost.uploadBytes = (G.F.ledW * G.F.ledH + G.halo.width * G.halo.height) * 4;
 	}
 
@@ -1213,6 +1312,7 @@ export class Scoreboard {
 			pitch: g ? r(g.pitch) : null,
 			/** THE FINER GRID (LED_BOARD.density): the LEDs per dot of both faces, the LED's pitch (CSS px) and size in device px,
 			 *  the renderer's resolution the rule read, and the rule's least device px */
+			grid: this.gridInfo(),
 			density: g ? { k: this.faceK, strip: this.strip?.F.k ?? null, back: this.back?.F.k ?? null, ledPitch: r(g.pitch / this.faceK), devicePx: r((g.pitch * this.deviceRatio()) / this.faceK), ratio: r(this.deviceRatio()), minDevicePx: LED_BOARD.density.minDevicePx, stripLeds: this.strip ? `${this.strip.F.ledW}x${this.strip.F.ledH}` : null, backLeds: this.back ? `${this.back.F.ledW}x${this.back.F.ledH}` : null, faceRoots: { strip: this.stripRoot.children.length - 1, back: this.backRoot.children.length - 1 } } : null,
 			strip: g ? { x: r(g.strip.box.x), y: r(g.strip.box.y), w: r(g.strip.box.w), h: r(g.strip.box.h), housingBottom: r(g.strip.housing.y + g.strip.housing.h), dotsW: g.strip.face.dotsW, dotsH: g.strip.face.dotsH, capTop: r(g.strip.housing.y - g.strip.cap * 1.3) } : null,
 			back: g
