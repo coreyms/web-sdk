@@ -53,6 +53,12 @@ export const HUD_THEME: Record<string, string> = {
 	'win-cream-rgb': '255, 246, 222',
 	/** NEW (Manticore 0.7, written in its hud.css): the dark under-glow of that number. A scene's glass sets it (HUD_GLASS) */
 	'win-shadow-a': '0.7',
+	/** NEW (the win's sunburst, 2026-11-20, the mock win_readout_r1's gold): the rays' light, their pale core, the lit
+	 *  number's ink, the hottest face (ui/hud/HudReadout.svelte, hud.css .wburst) */
+	'burst-rgb': '255, 204, 96',
+	'burst-hi-rgb': '255, 232, 166',
+	'burst-ink-rgb': '255, 246, 222',
+	'burst-face-rgb': '255, 252, 236',
 
 	// ---- the upright phone's plain-text readouts (WIN, BALANCE, the amount: hud.css .stat.pt), NEW (Manticore: its ink,
 	// its label-warm and its shadow, as the rules had them). These defaults are the 'light' set of HUD_READOUT_INK below:
@@ -69,6 +75,12 @@ export const HUD_THEME: Record<string, string> = {
 	'pt-ante-ink-rgb': '255, 214, 214',
 	'pt-ante-label-rgb': '255, 106, 106',
 	'pt-ante-shadow': '0 0 8px rgba(232, 51, 61, 0.6), 0 1px 2px rgba(2, 8, 18, 0.95), 0 0 2px rgba(2, 8, 18, 0.9)',
+	/** NEW (the win's sunburst, 2026-11-20): the upright readout's rays, their core, the lit number's ink and glow (the
+	 *  snow ink set warms the gold to amber and keeps its own dark ink, as the mock draws it on snow) */
+	'pt-burst-rgb': '255, 204, 96',
+	'pt-burst-hi-rgb': '255, 232, 166',
+	'pt-burst-ink-rgb': '255, 246, 222',
+	'pt-burst-shadow': '0 0 7px rgba(255, 204, 96, 0.62), 0 1px 2px rgba(2, 8, 18, var(--hud-win-shadow-a, 0.7))',
 
 	// ---- painted glass: pale cold blue-white at low strength, so the dark bed shows through like ice over it ----
 	/** dock fill, top / middle / bottom of its vertical gradient, and their alphas */
@@ -158,6 +170,12 @@ export const HUD_THEME: Record<string, string> = {
 	'mark-accent-rgb': '25, 211, 218',
 	/** NEW (the engraved mark): the dark under the mode's word on the gold inlay (.scr), at its middle */
 	'mark-scrim-a': '0.72',
+	/** NEW (the disabled key, "Cold Inlay", 2026-11-20): the steel the mark is inlaid in while the key cannot be pressed,
+	 *  light to dark (the mock feature_key_disabled_r1's Reindeer steel) */
+	'mark-steel-1-rgb': '186, 198, 212',
+	'mark-steel-2-rgb': '146, 162, 182',
+	'mark-steel-3-rgb': '102, 118, 140',
+	'mark-steel-4-rgb': '58, 70, 88',
 
 	// ---- states ----
 	/** a disabled key's opacity */
@@ -201,6 +219,10 @@ export const HUD_READOUT_INK = {
 		'pt-ante-ink-rgb': HUD_THEME['pt-ante-ink-rgb'],
 		'pt-ante-label-rgb': HUD_THEME['pt-ante-label-rgb'],
 		'pt-ante-shadow': HUD_THEME['pt-ante-shadow'],
+		'pt-burst-rgb': HUD_THEME['pt-burst-rgb'],
+		'pt-burst-hi-rgb': HUD_THEME['pt-burst-hi-rgb'],
+		'pt-burst-ink-rgb': HUD_THEME['pt-burst-ink-rgb'],
+		'pt-burst-shadow': HUD_THEME['pt-burst-shadow'],
 	},
 	/** the night scenes (the scene swap, 2026-11-17): the light set, with a lit WIN's number held a step darker round its
 	 *  strokes (its gold glow a little softer, a 1 px dark rim added), so it reads 4.5:1 on the blue snow (4.49:1 with the
@@ -215,6 +237,10 @@ export const HUD_READOUT_INK = {
 		'pt-ante-ink-rgb': HUD_THEME['pt-ante-ink-rgb'],
 		'pt-ante-label-rgb': HUD_THEME['pt-ante-label-rgb'],
 		'pt-ante-shadow': HUD_THEME['pt-ante-shadow'],
+		'pt-burst-rgb': HUD_THEME['pt-burst-rgb'],
+		'pt-burst-hi-rgb': HUD_THEME['pt-burst-hi-rgb'],
+		'pt-burst-ink-rgb': HUD_THEME['pt-burst-ink-rgb'],
+		'pt-burst-shadow': HUD_THEME['pt-burst-shadow'],
 	},
 	dark: {
 		'pt-ink-rgb': '24, 26, 33',
@@ -226,6 +252,10 @@ export const HUD_READOUT_INK = {
 		'pt-ante-ink-rgb': '156, 20, 32',
 		'pt-ante-label-rgb': '156, 20, 32',
 		'pt-ante-shadow': '0 1px 0 rgba(255, 255, 255, 0.6)',
+		'pt-burst-rgb': '241, 163, 49',
+		'pt-burst-hi-rgb': '248, 196, 103',
+		'pt-burst-ink-rgb': '24, 26, 33',
+		'pt-burst-shadow': '0 0 6px rgba(241, 163, 49, 0.9), 0 0 13px rgba(241, 163, 49, 0.5), 0 1px 0 rgba(255, 255, 255, 0.6)',
 	},
 } as const satisfies Record<string, Record<string, string>>;
 
@@ -262,13 +292,16 @@ export const HUD_CONFIG = {
 	featureMark: {
 		rest: { look: 'etch', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
 		on: { look: 'inlay', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
+		/** DISABLED (2026-11-20, Corey's pick "Cold Inlay" from the mock feature_key_disabled_r1, its default mark strength
+		 *  62): the same mark in the same place, inlaid in steel (mark-steel-*) on the dimmed key */
+		off: { look: 'inlay', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 62, light: 0 },
 		/** the sideways phone's 34 px circle: the same three struts meeting at the hub, the hub whole and clear of the
 		 *  round rim (at the pill's 230 % and +14 % the hub's dome met the circle's curve in two slivers) */
 		round: { size: 200, x: 0, y: -10 },
 	} as FeatureMark | null,
 };
 /** the engraved mark's settings: rest, on, and the sideways circle's place and size (null: the same as the pill's) */
-export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
+export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; off: EngraveSettings | null; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
 
 /** the theme as one :root block, with a scene's tokens laid over it (applyHudScene) */
 let sceneTokens: Record<string, string> = {};
