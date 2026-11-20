@@ -12,6 +12,7 @@
 	import { ARMOURY_TEXT, fill } from '../../game/armouryText';
 	import { HUD_CONFIG } from '../hudTheme';
 	import HudIcon, { featureArt } from './HudIcon.svelte';
+	import { engraving } from './engrave';
 
 	type Props = { controls: Controls; x: number; y: number; w: number; h: number; shape: 'pill' | 'circ' | 'ln' | 'wide'; cls?: string };
 	const { controls, x, y, w, h, shape, cls = '' }: Props = $props();
@@ -23,6 +24,13 @@
 	const sante = $derived(stateBet.activeBetModeKey.toUpperCase() === 'SUPER_ANTE');
 	// the glyph (bet bar fix 2026-11-19): HUD_CONFIG.featureGlyph's candidate, or none (the word alone, .noic)
 	const glyph = featureArt() !== null;
+	// THE ENGRAVED MARK (2026-11-19, HUD_CONFIG.featureMark): no word at rest, only the PolyMath mark etched into the
+	// glass; with a mode on the same mark inlaid in gold, the mode's word over it (as before); the two cross-fade (150 ms).
+	// The key's padding box is w x h inside its 1 px border. Its aria-label is unchanged.
+	const M = HUD_CONFIG.featureMark;
+	const place = (st: NonNullable<typeof M>['rest']) => (shape === 'ln' && M?.round ? { ...st, ...M.round } : st);
+	const restMark = $derived(M ? engraving(w - 2, h - 2, place(M.rest)) : '');
+	const onMark = $derived(M ? engraving(w - 2, h - 2, place(M.on)) : '');
 </script>
 
 <button
@@ -30,7 +38,8 @@
 	class="slot-btn hg fbtn fb hit {shape === 'pill' ? '' : 'circ'} {shape === 'ln' ? 'ln gl-fs' : ''} {shape === 'wide' ? 'wide' : ''} {cls}"
 	class:ante={on}
 	class:sante
-	class:noic={!glyph}
+	class:noic={!glyph || !!M}
+	class:mark={!!M}
 	style:left="{x}px"
 	style:top="{y}px"
 	style:width="{w}px"
@@ -40,10 +49,15 @@
 	onclick={controls.bonusPress}
 	aria-label={on ? fill(ARMOURY_TEXT.aria.hudButtonOn, { name: onLabel ?? '' }) : soc('Buy bonus', 'Get bonus')}
 >
-	{#if glyph}<HudIcon name="arm" />{/if}
+	{#if M}
+		<span class="ec"><span class="em em-rest">{@html restMark}</span><span class="em em-on">{@html onMark}</span></span>
+		<i class="scr"></i>
+	{/if}
+	<i class="lt"></i>
+	{#if glyph && !M}<HudIcon name="arm" />{/if}
 	{#if on && two}
 		<span class="lb two"><b>{words[0]}</b> <b>{words.slice(1).join(' ')}</b></span>
-	{:else}
+	{:else if on || !M}
 		<span class="lb" class:long={(onLabel ?? '').length > 5}>{onLabel ?? HUD_CONFIG.featureName}</span>
 	{/if}
 </button>

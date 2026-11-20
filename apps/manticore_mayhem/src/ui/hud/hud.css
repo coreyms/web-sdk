@@ -602,9 +602,73 @@
 	font: inherit;
 	cursor: pointer;
 	background: radial-gradient(ellipse 60% 130% at 18% 50%, rgba(var(--hud-feature-hi-rgb), 0.6), rgba(var(--hud-feature-rgb), 0) 72%), linear-gradient(180deg, rgba(var(--hud-feature-deep-1-rgb), 0.76), rgba(var(--hud-feature-deep-2-rgb), 0.82));
-	box-shadow: inset 0 1px 0 var(--hl), inset 0 -1px 0 var(--lo), inset 0 0 0 200px var(--ov), inset 0 0 16px var(--ig), inset 0 2px 5px rgba(var(--hud-shadow-rgb), 0.5), 0 0 16px var(--glow), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+	/* (the engraved mark, 2026-11-19: the inset lights moved to .lt, an overlay above the mark; the outer ones stay) */
+	box-shadow: 0 0 16px var(--glow), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
 	transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease, opacity 0.2s;
+	/* the engraving's colors (ui/hud/engrave.ts): the key's deep glass, its highlight tint, its top light; the inlay's
+	   gold and the hub's accent (ui/hudTheme.ts mark-*) */
+	--e-deep: var(--hud-feature-deep-2-rgb);
+	--e-hi: var(--hud-feature-hi-rgb);
+	--e-lt: var(--hud-feature-rim-rgb);
+	--e-g1: var(--hud-mark-g1-rgb);
+	--e-g2: var(--hud-mark-g2-rgb);
+	--e-g3: var(--hud-mark-g3-rgb);
+	--e-g4: var(--hud-mark-g4-rgb);
+	--e-accent: var(--hud-mark-accent-rgb);
 	-webkit-tap-highlight-color: transparent;
+}
+/* THE ENGRAVED MARK (ui/hud/engrave.ts, HUD_CONFIG.featureMark; the approved mock logo_button_r1): .ec clips it to the
+   key's shape (its own box, so the ::after touch target stays unclipped); the rest (etch) and on (inlay) engravings
+   cross-fade, 150 ms; .lt carries the key's inset lights above the mark (content always paints over a box's own inset
+   shadows); .scr darkens the gold behind the mode's word; the word on top */
+.hudp .fbtn .ec,
+.hudp .fbtn .em,
+.hudp .fbtn .lt,
+.hudp .fbtn .scr {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+}
+.hudp .fbtn .ec {
+	overflow: hidden;
+}
+.hudp .fbtn .em {
+	transition: opacity 0.15s ease;
+}
+.hudp .fbtn .em svg {
+	position: absolute;
+	left: 0;
+	top: 0;
+	display: block;
+	overflow: visible;
+}
+.hudp .fbtn .em-on,
+.hudp .fbtn.ante .em-rest {
+	opacity: 0;
+}
+.hudp .fbtn.ante .em-on {
+	opacity: 1;
+}
+.hudp .fbtn .lt {
+	box-shadow: inset 0 1px 0 var(--hl), inset 0 -1px 0 var(--lo), inset 0 0 0 200px var(--ov), inset 0 0 16px var(--ig), inset 0 2px 5px rgba(var(--hud-shadow-rgb), 0.5);
+	transition: box-shadow 0.12s ease;
+}
+.hudp .fbtn .scr {
+	opacity: 0;
+	background: radial-gradient(ellipse 64% 62% at 50% 50%, rgba(var(--hud-shadow-rgb), var(--hud-mark-scrim-a)), rgba(var(--hud-shadow-rgb), 0) 100%);
+	transition: opacity 0.15s ease;
+}
+.hudp .fbtn.mark.ante .scr {
+	opacity: 1;
+}
+.hudp .fbtn.mark .lb {
+	position: relative;
+	z-index: 2;
+}
+/* the mode's word over the gold: a dark keyline round every letter (text shadows: no filter) */
+.hudp .fbtn.mark.ante .lb {
+	text-shadow: 0 0 1px rgba(var(--hud-shadow-rgb), 1), 0 0 1px rgba(var(--hud-shadow-rgb), 1), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.8);
 }
 .hudp .fbtn .ic {
 	width: 19px;
@@ -656,6 +720,9 @@
 	--lo: rgba(var(--hud-ink-rgb), 0);
 	--ig: rgba(var(--hud-feature-rgb), 0);
 	background: linear-gradient(180deg, rgba(var(--hud-key-rgb), 0.66), rgba(var(--hud-key-rgb), 0.76));
+	--e-deep: var(--hud-key-rgb);
+	--e-hi: var(--hud-key-rim-rgb);
+	--e-lt: var(--hud-ink-rgb);
 }
 /* a mode ON (Ante, an armed buy): a gold rim and a soft gold glow in place of the ember; Super Ante a step hotter */
 .hudp .fbtn.ante {
@@ -664,6 +731,9 @@
 	--lo: rgba(var(--hud-accent-rgb), 0.5);
 	--ig: rgba(var(--hud-accent-rgb), 0.32);
 	--glow: rgba(var(--hud-accent-rgb), 0.38);
+	--e-deep: var(--hud-feature-on-deep-2-rgb);
+	--e-hi: var(--hud-accent-hi-rgb);
+	--e-lt: var(--hud-accent-cream-rgb);
 	background: radial-gradient(ellipse 70% 140% at 18% 50%, rgba(var(--hud-accent-hi-rgb), 0.46), rgba(var(--hud-accent-rgb), 0) 74%), linear-gradient(180deg, rgba(var(--hud-feature-on-deep-1-rgb), 0.82), rgba(var(--hud-feature-on-deep-2-rgb), 0.88));
 }
 .hudp .fbtn.ante .ic {
@@ -677,7 +747,10 @@
 	--hl: rgba(var(--hud-accent-cream-rgb), 0.55);
 	--ig: rgba(var(--hud-accent-hi-rgb), 0.45);
 	background: radial-gradient(ellipse 100% 150% at 30% 50%, rgba(var(--hud-accent-hi-rgb), 0.6), rgba(var(--hud-accent-rgb), 0.08) 80%), linear-gradient(180deg, rgba(var(--hud-feature-on-deep-1-rgb), 0.9), rgba(var(--hud-feature-on-deep-2-rgb), 0.9));
-	box-shadow: inset 0 1px 0 var(--hl), inset 0 -1px 0 var(--lo), inset 0 0 0 200px var(--ov), inset 0 0 18px var(--ig), 0 0 0 2px rgba(var(--hud-feature-on-deep-2-rgb), 0.92), 0 0 0 3px rgb(var(--hud-accent-hi-rgb)), 0 0 24px rgba(var(--hud-accent-hi-rgb), 0.55), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+	box-shadow: 0 0 0 2px rgba(var(--hud-feature-on-deep-2-rgb), 0.92), 0 0 0 3px rgb(var(--hud-accent-hi-rgb)), 0 0 24px rgba(var(--hud-accent-hi-rgb), 0.55), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
+}
+.hudp .fbtn.sante .lt {
+	box-shadow: inset 0 1px 0 var(--hl), inset 0 -1px 0 var(--lo), inset 0 0 0 200px var(--ov), inset 0 0 18px var(--ig);
 }
 .hudp .fbtn.sante .ic {
 	color: rgb(var(--hud-accent-cream-rgb));

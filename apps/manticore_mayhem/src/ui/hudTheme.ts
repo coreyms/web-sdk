@@ -5,6 +5,8 @@
 // ui/HUD_THEME.md). Colours that are used at many strengths are given as "r, g, b" triplets (the -rgb tokens) so a
 // rule can say rgba(var(--hud-accent-rgb), 0.55); single-use colours are plain values.
 // Injected once as a :root block (like ui/fontFaces.ts), so the HUD layer, the SKIP layer and the modals all see it.
+import type { EngraveSettings } from './hud/engrave';
+
 export const HUD_THEME: Record<string, string> = {
 	// ---- type ----
 	/** the HUD face: Outfit's one static Black (900) face, ui/fontFaces.ts */
@@ -102,6 +104,15 @@ export const HUD_THEME: Record<string, string> = {
 	'feature-on-deep-1-rgb': '60, 42, 16',
 	'feature-on-deep-2-rgb': '24, 15, 6',
 	'feature-on-rim': '#ffe6ae',
+	/** (the engraved mark, 2026-11-19, the same tokens as Run Over Reindeer's) the inlay's gold, light to dark (the mock's
+	 *  gold on the ember), the hub's accent (BonusButton's --pm-core) and the dark under the mode's word on the gold */
+	'mark-g1-rgb': '250, 226, 160',
+	'mark-g2-rgb': '240, 200, 116',
+	'mark-g3-rgb': '208, 154, 56',
+	'mark-g4-rgb': '118, 82, 24',
+	'mark-accent-rgb': '227, 36, 0',
+	/** (Manticore's lit key is the brighter gold, so its scrim is a step darker than Reindeer's 0.72) */
+	'mark-scrim-a': '0.84',
 
 	// ---- states ----
 	/** a disabled key's opacity */
@@ -135,7 +146,20 @@ export const HUD_CONFIG = {
 	featureGlyph: 'none' as FeatureGlyph,
 	/** RETIRED 2026-11-19 (crossed blades, a stock mark; no longer drawn) */
 	featureIcon: 'M5 5l9.6 9.6M19 5l-9.6 9.6M12.4 17.6l5.2-5.2M6.4 12.4l5.2 5.2M16.6 16.6l2.6 2.6M7.4 16.6l-2.6 2.6',
+	/** THE ENGRAVED MARK (2026-11-19, the approved mock logo_button_r1, Corey's settings; the same as Run Over Reindeer's
+	 *  hudTheme.ts): no word at rest, only the PolyMath mark etched into the glass (`rest`); with a mode on the same mark
+	 *  inlaid in gold, the mode's word over it (`on`). `round` overrides the place and size on the sideways phone's small
+	 *  circle. null: the word (and featureGlyph) as before. */
+	featureMark: {
+		rest: { look: 'etch', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
+		on: { look: 'inlay', hub: false, size: 230, x: 0, y: 14, rot: 0, depth: 40, strength: 95, light: 0 },
+		/** the sideways phone's 34 px circle: the same three struts meeting at the hub, the hub whole and clear of the
+		 *  round rim (at the pill's 230 % and +14 % the hub's dome met the circle's curve in two slivers) */
+		round: { size: 200, x: 0, y: -10 },
+	} as FeatureMark | null,
 };
+/** the engraved mark's settings: rest, on, and the sideways circle's place and size (null: the same as the pill's) */
+export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
 
 export const hudThemeCss = () => `:root{${Object.entries(HUD_THEME)
 	.map(([k, v]) => `--hud-${k}:${v};`)
