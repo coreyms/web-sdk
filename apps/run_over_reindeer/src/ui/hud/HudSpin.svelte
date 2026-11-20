@@ -2,7 +2,7 @@
 	// THE SPIN (Drop 6): the hero circle, one size in every state; every count lives inside it. What it does is
 	// controls.svelte.ts's, unchanged (spin / stop / slam stop / start a loaded run / stop a run / the balance notice);
 	// this is only its face:
-	//   idle            the play triangle
+	//   idle            the play triangle (our own geometry since the bet bar fix, 2026-11-19)
 	//   spinning        a white square (STOP) and the comet running the ring; after a slam stop the square dims and
 	//                   shrinks until the round ends (data-st "halt"); under disabledSlamstop the play face stays, dimmed
 	//   autoplay run    a small square (its stop), the spins left (an infinity drawn in SVG for an open run), AUTO
@@ -174,16 +174,16 @@
 		{:else if mode === 'replay'}
 			<span class="word">REPLAY</span>
 		{:else if mode === 'auto' || mode === 'loaded'}
-			{#if mode === 'auto'}<span class="sqs"></span>{:else}<svg class="pl sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 5.9v12.2c0 .9 1 1.5 1.8 1l9.4-6.1c.7-.4.7-1.5 0-1.9l-9.4-6.1c-.8-.6-1.8 0-1.8.9z" fill="currentColor" /></svg>{/if}
+			{#if mode === 'auto'}<span class="sqs"></span>{:else}<svg class="pl sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.2v11.6L19 12z" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>{/if}
 			{#if count === Infinity}<span class="cnt"><svg class="inf" viewBox="0 0 34 16" aria-hidden="true"><path d="M17 8C14.2 4.4 11.9 2.6 9 2.6a5.4 5.4 0 0 0 0 10.8c2.9 0 5.2-1.8 8-5.4s5.1-5.4 8-5.4a5.4 5.4 0 0 1 0 10.8c-2.9 0-5.2-1.8-8-5.4z" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" /></svg></span>{:else}{@render counter()}{/if}
 			<span class="sub">AUTO</span>
 		{:else if mode === 'armed'}
-			<svg class="pl sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 5.9v12.2c0 .9 1 1.5 1.8 1l9.4-6.1c.7-.4.7-1.5 0-1.9l-9.4-6.1c-.8-.6-1.8 0-1.8.9z" fill="currentColor" /></svg>
+			<svg class="pl sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.2v11.6L19 12z" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
 			<span class="word">{controls.armedLabel()}</span>
 			{#if priceFont !== null}<span class="price" style:font-size="{priceFont}px">{priceText}</span>{/if}
 		{:else if flip}
 			<span class="gy">
-				<span class="f1"><svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 5.9v12.2c0 .9 1 1.5 1.8 1l9.4-6.1c.7-.4.7-1.5 0-1.9l-9.4-6.1c-.8-.6-1.8 0-1.8.9z" fill="currentColor" /></svg></span>
+				<span class="f1"><svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.2v11.6L19 12z" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg></span>
 				<span class="f2"><i class="sq"></i></span>
 			</span>
 		{/if}

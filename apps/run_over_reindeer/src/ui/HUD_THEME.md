@@ -24,6 +24,10 @@ win, icy blue words, white numbers, deep ice blue menus.
 | `glass-top-rgb`, `glass-mid-rgb`, `glass-bottom-rgb` + `glass-*-a` | the dock's fill gradient and its alphas |
 | `panel-top-rgb`, `panel-mid-rgb`, `panel-bottom-rgb` + `panel-*-a` | NEW colors: the menu panels' fill (the help menu, `.am-glass`, the Autoplay switches) |
 | `key-rgb` | a key's own glass (round keys, steppers, chips) |
+| `key-a`, `key-rim-rgb`, `key-rim-a` | NEW (bet bar fix): that glass's strength; a key's one even 1 px rim and its strength |
+| `menu-key-1/2-rgb`, `menu-key-a`, `menu-key-rim-rgb` | NEW (bet bar fix): the Menu key's own near opaque dark glass and rim |
+| `key-on-1/2-rgb`, `key-on-a`, `key-on-ink-rgb` | NEW (bet bar fix): a lit key's fill and ink (Auto loaded, Turbo on, Menu open, the picked scene) |
+| `key-hot-1/2-rgb`, `key-hot-ink-rgb` | NEW (bet bar fix): the hotter lit key (a run playing, Turbo at instant) |
 | `edge-top-rgb`/`-a`, `edge-bottom-rgb`/`-a`, `spec-a` | the 1 px gradient edge (top, bottom) and the specular line |
 | `edge-key-rgb` | NEW: a key's bottom edge (round keys, steppers, chips) |
 | `spin-core-rgb`, `spin-deep-rgb`, `spin-rim-top/side/bottom` | the Spin hero |
@@ -42,10 +46,25 @@ copy says `win`, `edge-key`, `feature-edge-bottom` or `spin-arc`. Each NEW token
 in `hudTheme.ts`. Adding those lines to Manticore's `hudTheme.ts` and taking this copy's `hud.css`, `HudMenuPanel.svelte`
 and the `.am-glass` rule changes nothing in Manticore's look and makes the two HUDs the same files again.
 
+## The bet bar fix (2026-11-19)
+
+Stake rejected the bar ("Poor bet UI bar"); Corey's fixes to the existing bar, the same in both games:
+
+1. No stock glyph on the feature button: `HUD_CONFIG.featureGlyph` is `'none'` (the word alone); `FEATURE_GLYPHS` holds the
+   candidates drawn from the game's own art (one line to switch).
+2. No hard ended lines: every key has one even 1 px rim in one color, a top light and a bottom light that are 1 px inset
+   crescents (they narrow to nothing round the curve), and the dock's edges and specular line fade out at their ends.
+3. The Menu key has its own near opaque dark glass.
+4. A lit Auto or Turbo key changes its fill, rim, glow and ink (ON and HOT).
+5. Every key's hover is a veil and a brighter rim, 120 ms; the press sinks and darkens. States set CSS variables
+   (`--rim`, `--hl`, `--lo`, `--ov`, `--glow`) so hover and press work on a lit key too.
+6. The glass a step darker (HUD_GLASS).
+7. The help menu has no tail: a plain panel over the bar (hudLayout `panelRect`, `PANEL_GAP`).
+
 ## Per-game words, glyph and mode
 
-`HUD_CONFIG` in the same file: `featureName` (FAST LANE), `featureIcon` (its 24 x 24 line path: a road with lane
-dashes) and `topAnteKey` (ANTE_10: the mode that draws the hotter "on" state, the double rim; Manticore: SUPER_ANTE).
+`HUD_CONFIG` in the same file: `featureName` (FAST LANE), `featureGlyph` (none, or a `FEATURE_GLYPHS` candidate; the old
+road line path `featureIcon` is retired) and `topAnteKey` (ANTE_10: the mode that draws the hotter "on" state, the double rim; Manticore: SUPER_ANTE).
 Every other HUD word is the game's own (controls.svelte.ts, `soc()` for social wording).
 
 ## What this game changed from Manticore's files

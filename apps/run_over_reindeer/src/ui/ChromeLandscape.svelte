@@ -59,7 +59,7 @@
 	{#if !replay && !controls.jurisdiction().disabledAutoplay}<HudKey kind="auto" {controls} x={G.auto.x} y={G.auto.y} d={G.auto.d} />{/if}
 	{#if !controls.jurisdiction().disabledTurbo}<HudKey kind="turbo" {controls} x={G.turbo.x} y={G.turbo.y} d={G.turbo.d} />{/if}
 	<HudSpin {controls} x={G.spin.x} y={G.spin.y} d={G.spin.d} />
-	<HudMenuPanel {controls} x={G.panel.x} y={G.panel.bottom - 9 - G.panel.h} W={G.panel.w} H={G.panel.h} tip={G.panel.tip} cls={G.panel.nar ? 'nar' : ''} />
+	<HudMenuPanel {controls} x={G.panel.x} y={G.panel.bottom - G.panel.h} W={G.panel.w} H={G.panel.h} tip={G.panel.tip} cls={G.panel.nar ? 'nar' : ''} />
 </div>
 
 <!-- the lit plane: BALANCE and the amount with its minus and plus (Manticore keeps these lit above its feature menu's

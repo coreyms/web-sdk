@@ -217,7 +217,7 @@
 		inset: 0;
 		border-radius: var(--hud-radius-panel);
 		border: 1px solid;
-		border-color: rgba(var(--hud-edge-top-rgb), 0.55) rgba(var(--hud-edge-top-rgb), 0.12) rgba(var(--hud-edge-bottom-rgb), 0.8);
+		border-color: rgba(var(--hud-edge-top-rgb), 0.2);
 		background: linear-gradient(rgba(var(--hud-panel-top-rgb), var(--hud-panel-top-a)), rgba(var(--hud-panel-mid-rgb), var(--hud-panel-mid-a)) 50%, rgba(var(--hud-panel-bottom-rgb), var(--hud-panel-bottom-a)));
 		box-shadow: inset 0 1px 0 rgba(var(--hud-edge-top-rgb), 0.25);
 	}

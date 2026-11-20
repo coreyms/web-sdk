@@ -281,7 +281,9 @@ export const desktopGeo = (f: HudFrame, artLeftMock: number) => {
 	const kt = cy - k / 2;
 	const mcx = menuL + k / 2;
 	const P = L.panel;
-	const pr = Math.min(artLeftMock - 8, mcx + 24);
+	// THE HELP MENU (bet bar fix 2026-11-19, Corey: "not look like a chat bubble"): no tail; its right edge on the Menu
+	// key's right edge, its foot PANEL_GAP over the dock's top edge (it was 12 over it, a tail reaching down to the key)
+	const pr = Math.min(artLeftMock - 8, mcx + k / 2);
 	const pl = Math.max(8, pr - P.w);
 	const panelH = P.h;
 	return {
@@ -304,7 +306,7 @@ export const desktopGeo = (f: HudFrame, artLeftMock: number) => {
 		],
 		spin: { x: cx - n.r, y: n.cy - n.r, d: n.r * 2 },
 		skip: { x: c + L.skip.dx, y: f.H - L.skip.y, w: L.skip.w, h: L.skip.h },
-		panel: { x: pl, w: pr - pl, h: panelH, bottom: kt - 6, tip: mcx - pl, nar: P.nar },
+		panel: { x: pl, w: pr - pl, h: panelH, bottom: y0 - PANEL_GAP, tip: mcx - pl, nar: P.nar },
 	};
 };
 
@@ -399,7 +401,9 @@ export const hudSkipRect = (v: HudView) => {
 };
 
 // ---- glass outlines (u1: every path is painted, no filters) ----
-export type Outline = { top: string; bot: string; fill: string; spec: string; topStraight: [number, number, number] };
+/** specSegs (bet bar fix 2026-11-19): the specular line's straight pieces [x0, x1, y], each drawn fading out at both of its
+ *  ends (ui/hud/HudGlass.svelte); spec is the same line as one path */
+export type Outline = { top: string; bot: string; fill: string; spec: string; specSegs: [number, number, number][]; topStraight: [number, number, number] };
 
 /** Shelf's terminal dock: a capsule whose right end IS the Spin circle, the edge flowing into it through two fillets */
 export const outlineTerm = (s: { x0: number; y0: number; y1: number }, n: Circle): Outline => {
@@ -420,7 +424,7 @@ export const outlineTerm = (s: { x0: number; y0: number; y1: number }, n: Circle
 	const tx2 = (n.R * d2) / D;
 	const ty2 = n.cy + (n.R * dy2) / D;
 	const bot = `M${r2(n.cx + n.R)} ${n.cy} A${n.R} ${n.R} 0 0 1 ${r2(n.cx - tx2)} ${r2(ty2)} A${n.f} ${n.f} 0 0 0 ${r2(n.cx - d2)} ${y1} L${x0 + rr} ${y1} A${rr} ${rr} 0 0 1 ${x0} ${ym}`;
-	return { top, bot, fill: `${top} ${bot.replace(/^M/, 'L')} Z`, spec: `M${x0 + rr} ${y0 + 1.6} L${r2(n.cx - d - 3)} ${y0 + 1.6}`, topStraight: [x0 + rr, n.cx - d - 3, y0] };
+	return { top, bot, fill: `${top} ${bot.replace(/^M/, 'L')} Z`, spec: `M${x0 + rr} ${y0 + 1.6} L${r2(n.cx - d - 3)} ${y0 + 1.6}`, specSegs: [[x0 + rr, r2(n.cx - d - 3), y0 + 1.6]], topStraight: [x0 + rr, n.cx - d - 3, y0] };
 };
 
 /** a capsule or rounded slab (flat top and bottom) */
@@ -432,7 +436,7 @@ export const outlineArch = (s: { x0: number; y0: number; x1: number; y1: number;
 	let top = `M${x0} ${ym}${ym > y0 + rr ? ` L${x0} ${y0 + rr}` : ''} A${rr} ${rr} 0 0 1 ${x0 + rr} ${y0}`;
 	top += ` L${x1 - rr} ${y0} A${rr} ${rr} 0 0 1 ${x1} ${y0 + rr}${ym > y0 + rr ? ` L${x1} ${ym}` : ''}`;
 	const bot = `M${x1} ${ym}${y1 - rr > ym ? ` L${x1} ${y1 - rr}` : ''} A${rr} ${rr} 0 0 1 ${x1 - rr} ${y1} L${x0 + rr} ${y1} A${rr} ${rr} 0 0 1 ${x0} ${y1 - rr}${y1 - rr > ym ? ` L${x0} ${ym}` : ''}`;
-	return { top, bot, fill: `${top} ${bot.replace(/^M/, 'L')} Z`, spec: `M${r2(x0 + rr)} ${y0 + 1.6} L${r2(x1 - rr)} ${y0 + 1.6}`, topStraight: [x0 + rr, x1 - rr, y0] };
+	return { top, bot, fill: `${top} ${bot.replace(/^M/, 'L')} Z`, spec: `M${r2(x0 + rr)} ${y0 + 1.6} L${r2(x1 - rr)} ${y0 + 1.6}`, specSegs: [[r2(x0 + rr), r2(x1 - rr), y0 + 1.6]], topStraight: [x0 + rr, x1 - rr, y0] };
 };
 
 /** the portrait bar: a capsule with the Spin set in its middle; the top edge rises over it and the bottom dips under */
@@ -460,11 +464,26 @@ export const outlineBead = (s: { x0: number; x1: number; y0: number; y1: number 
 		`M${x1} ${ym} A${rr} ${rr} 0 0 1 ${r2(x1 - rr)} ${y1} L${r2(n.cx + e)} ${y1} A${n.f} ${n.f} 0 0 0 ${r2(n.cx + bx)} ${r2(by)}` +
 		` A${Rb} ${Rb} 0 0 1 ${r2(n.cx - bx)} ${r2(by)} A${n.f} ${n.f} 0 0 0 ${r2(n.cx - e)} ${y1} L${x0 + rr} ${y1} A${rr} ${rr} 0 0 1 ${x0} ${ym}`;
 	const spec = `M${x0 + rr} ${y0 + 1.6} L${r2(n.cx - d - 3)} ${y0 + 1.6} M${r2(n.cx + d + 3)} ${y0 + 1.6} L${r2(x1 - rr)} ${y0 + 1.6}`;
-	return { top, bot, fill: `${top} ${bot.replace(/^M/, 'L')} Z`, spec, topStraight: [x0 + rr, n.cx - d - 3, y0] };
+	const specSegs: [number, number, number][] = [
+		[x0 + rr, r2(n.cx - d - 3), y0 + 1.6],
+		[r2(n.cx + d + 3), r2(x1 - rr), y0 + 1.6],
+	];
+	return { top, bot, fill: `${top} ${bot.replace(/^M/, 'L')} Z`, spec, specSegs, topStraight: [x0 + rr, n.cx - d - 3, y0] };
 };
 
-/** the menu panel's outline: W x H body, a tail of length T whose tip is at x `tip`, rising from the top (up) or
- *  hanging from the bottom */
+/** the help menu's gap to the bar's edge, mock px (bet bar fix 2026-11-19) */
+export const PANEL_GAP = 8;
+
+/** THE HELP MENU'S OUTLINE (bet bar fix 2026-11-19, Corey: "Make this not look like a chat bubble"): a plain W x H panel,
+ *  its corners the bar's (rr, 18), no tail. Drawn on the half pixel so its 1 px rim lands on whole device pixels. */
+export const panelRect = (W: number, H: number) => {
+	const rr = 18;
+	const q = rr - 0.5;
+	return `M${rr} .5 H${W - rr} A${q} ${q} 0 0 1 ${W - 0.5} ${rr} V${H - rr} A${q} ${q} 0 0 1 ${W - rr} ${H - 0.5} H${rr} A${q} ${q} 0 0 1 .5 ${H - rr} V${rr} A${q} ${q} 0 0 1 ${rr} .5 Z`;
+};
+
+/** RETIRED 2026-11-19 (the help menu has no tail now: panelRect): the menu panel's outline with a tail of length T whose
+ *  tip is at x `tip`, rising from the top (up) or hanging from the bottom */
 export const panelPath = (W: number, H: number, tip: number, up: boolean, T: number) => {
 	const rr = 18;
 	const q = rr - 0.5;

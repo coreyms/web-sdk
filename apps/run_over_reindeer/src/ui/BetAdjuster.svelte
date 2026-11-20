@@ -79,7 +79,7 @@
 		padding: 0;
 		border-radius: 50%;
 		border: 1px solid;
-		border-color: rgba(var(--hud-ink-rgb), 0.38) rgba(var(--hud-ink-rgb), 0.12) rgba(var(--hud-edge-key-rgb), 0.44);
+		border-color: rgba(var(--hud-key-rim-rgb), var(--hud-key-rim-a));
 		background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.17), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.38);
 		color: rgba(var(--hud-ink-rgb), 0.94);
 		box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
@@ -94,7 +94,7 @@
 	}
 	@media (hover: hover) and (pointer: fine) {
 		.sk:hover:not(:disabled) {
-			border-color: rgba(var(--hud-ink-rgb), 0.64) rgba(var(--hud-ink-rgb), 0.24) rgba(var(--hud-accent-hi-rgb), 0.78);
+			border-color: rgba(var(--hud-key-rim-rgb), 0.55);
 			color: rgb(var(--hud-ink-rgb));
 			box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.18), 0 0 14px rgba(var(--hud-accent-rgb), 0.18), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
 		}
